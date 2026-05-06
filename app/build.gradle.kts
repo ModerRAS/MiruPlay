@@ -7,13 +7,17 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
+// 支持通过 -PVERSION_NAME 和 -PVERSION_CODE 传入版本信息
+def versionName = project.hasProperty("VERSION_NAME") ? project.VERSION_NAME : "0.1.0"
+def versionCode = project.hasProperty("VERSION_CODE") ? project.VERSION_CODE.toInteger() : 1
+
 android {
     namespace = "com.miruplay.tv"
     compileSdk = 35
     defaultConfig {
         applicationId = "com.miruplay.tv"
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = versionCode
+        versionName = versionName
         minSdk = 24
     }
     buildFeatures {
