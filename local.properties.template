@@ -1,0 +1,5 @@
+# SDK location
+# Configure this with your local Android SDK path
+# Example: sdk.dir=/Users/username/Library/Android/sdk
+# Example (Windows): sdk.dir=C\:\\Users\\username\\AppData\\Local\\Android\\Sdk
+sdk.dir=

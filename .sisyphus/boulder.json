@@ -1,0 +1,23 @@
+{
+  "active_plan": "D:\\WorkSpace\\Android\\MiruPlay\\.sisyphus\\plans\\miruplay.md",
+  "started_at": "2026-05-06T06:39:16.494Z",
+  "session_ids": [
+    "ses_204c056d2ffe47R0xDP6EdcRub"
+  ],
+  "session_origins": {
+    "ses_204c056d2ffe47R0xDP6EdcRub": "direct"
+  },
+  "plan_name": "miruplay",
+  "agent": "atlas",
+  "task_sessions": {
+    "final-wave:f1": {
+      "task_key": "final-wave:f1",
+      "task_label": "F1",
+      "task_title": "**计划合规审计** — `oracle`",
+      "session_id": "ses_203700fe2ffevHAcZLN2Yv1GP4",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-05-06T09:15:15.594Z"
+    }
+  }
+}

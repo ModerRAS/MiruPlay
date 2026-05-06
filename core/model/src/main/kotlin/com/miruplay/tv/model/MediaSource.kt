@@ -1,0 +1,24 @@
+package com.miruplay.tv.model
+
+import kotlinx.serialization.Serializable
+
+@Serializable
+enum class MediaSourceType { LOCAL, WEBDAV, SMB }
+
+@Serializable
+data class MediaSourceInfo(
+    val id: Long = 0,
+    val name: String,
+    val type: MediaSourceType,
+    val connectionInfo: Map<String, String> = emptyMap(),
+    val isConnected: Boolean = false,
+    val lastScanned: Long = 0L,  // epoch ms
+)
+
+@Serializable
+data class MediaCapabilities(
+    val seekable: Boolean = true,
+    val supportsRange: Boolean = false,
+    val supportsList: Boolean = true,
+    val supportsWrite: Boolean = false,
+)
