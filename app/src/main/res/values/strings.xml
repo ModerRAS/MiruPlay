@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MiruPlay</string>
+    <string name="no_sources_configured">尚未配置媒体源，请添加源开始使用</string>
+    <string name="add_source">添加源</string>
+    <string name="settings">设置</string>
+    <string name="test_connection">测试连接</string>
+    <string name="save">保存</string>
+    <string name="cancel">取消</string>
+    <string name="delete">删除</string>
+    <string name="connection_success">连接成功</string>
+    <string name="connection_failed">连接失败</string>
+    <string name="loading">加载中…</string>
+    <string name="error">错误</string>
+    <string name="retry">重试</string>
+    <string name="continue_watching">继续观看</string>
+    <string name="recently_added">最近添加</string>
+    <string name="all_anime">所有番剧</string>
+    <string name="play">播放</string>
+    <string name="play_from_beginning">从开头重新播放</string>
+    <string name="rescrape_metadata">重新获取元数据</string>
+    <string name="season">季</string>
+    <string name="episode">第 %d 集</string>
+    <string name="no_description">暂无简介</string>
+    <string name="unwatched">未观看</string>
+    <string name="watched">已看完</string>
+    <string name="network_disconnected">网络已断开</string>
+    <string name="network_reconnected">已重新连接</string>
+    <string name="nfo_read_only">NFO 不可写，进度仅保存在本地</string>
+</resources>
