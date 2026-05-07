@@ -3,13 +3,11 @@ package com.miruplay.tv.data.repository
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.RetryScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.withContext
-import kotlin.math.pow
 
 /**
  * Global error handling utilities for network operations and recovery.
@@ -32,7 +30,7 @@ object GlobalErrorHandler {
             var lastError: AppError? = null
             for (attempt in 0..maxRetries) {
                 if (attempt > 0) {
-                    val delayMs = (baseDelay * 2.0.pow(attempt - 1)).toLong()
+                    val delayMs = baseDelay * (1L shl (attempt - 1))
                     delay(delayMs)
                 }
                 val result = block()
@@ -67,7 +65,7 @@ object GlobalErrorHandler {
             throw e
         }.retryWhen { cause, attempt ->
             if (attempt < 3 && cause is java.io.IOException) {
-                delay(1000L * 2.0.pow(attempt).toLong())
+                delay(1000L * (1L shl attempt.toInt()))
                 true
             } else false
         }

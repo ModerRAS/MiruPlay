@@ -2,6 +2,8 @@ plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.serialization")
+    id("com.google.dagger.hilt.android")
+    id("com.google.devtools.ksp")
 }
 
 android {
@@ -22,5 +24,7 @@ dependencies {
     api(project(":core:common"))
     api(project(":data"))
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.dagger.hilt.android)
+    ksp(libs.dagger.hilt.compiler)
     testImplementation(libs.junit)
 }

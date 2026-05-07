@@ -91,9 +91,10 @@ fun AnimeDetailScreen(
                                 style = TvTypography.title,
                                 color = Color.White
                             )
-                            if (animeData.titleCn != null && animeData.titleCn != animeData.title) {
+                            val titleCn = animeData.titleCn
+                            if (titleCn != null && titleCn != animeData.title) {
                                 Text(
-                                    text = animeData.titleCn,
+                                    text = titleCn,
                                     style = TvTypography.subtitle,
                                     color = TextSecondary
                                 )

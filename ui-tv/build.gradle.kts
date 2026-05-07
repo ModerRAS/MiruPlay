@@ -27,6 +27,7 @@ dependencies {
     api(project(":core:model"))
     api(project(":core:common"))
     api(project(":player-core"))
+    implementation(project(":data"))
     
     implementation(libs.androidx.tv.material)
     implementation(libs.androidx.tv.foundation)
@@ -37,6 +38,7 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     
     implementation(libs.dagger.hilt.android)
+    implementation(libs.dagger.hilt.navigation.compose)
     ksp(libs.dagger.hilt.compiler)
     
     testImplementation(libs.junit)

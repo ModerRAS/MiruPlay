@@ -28,13 +28,6 @@ class MetadataRepositoryImpl @Inject constructor(
     override suspend fun cacheMetadata(anime: Anime): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             animeDao.insert(anime.toEntity())
-            // Batch save episodes
-            val seasonEpisodes = anime.seasons.flatMap { season ->
-                season.episodes.map { ep -> ep.toEntity(anime.id, season.seasonNumber) }
-            }
-            if (seasonEpisodes.isNotEmpty()) {
-                episodeDao.insertAll(seasonEpisodes)
-            }
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(AppError.SyncError.WriteFailed("cache", e.message ?: "Unknown"))

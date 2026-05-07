@@ -6,10 +6,23 @@ package com.miruplay.tv.scanner
 interface NamedPattern {
     val name: String
     val description: String
-    val priority: Int = 0
+    val priority: Int
     
     fun matches(fileName: String): Boolean
     fun extract(fileName: String): EpisodeMatch?
+}
+
+/**
+ * Extract anime name from filename by removing episode numbers and extensions
+ */
+fun extractAnimeName(fileName: String): String? {
+    val cleaned = fileName
+        .replace(Regex("""S?\d{1,2}E?\d{1,3}""", RegexOption.IGNORE_CASE), "")
+        .replace(Regex("""[-_.]\d{2,3}[-_.]"""), " ")
+        .replace(Regex("""\.(?:mkv|mp4|avi|srt|ass)""", RegexOption.IGNORE_CASE), "")
+        .trim()
+        .replace(Regex("""\s+"""), " ")
+    return cleaned.takeIf { it.isNotBlank() && it.length > 1 }
 }
 
 /**
@@ -54,6 +67,7 @@ class MultiPartPattern : NamedPattern {
     override fun extract(fileName: String): EpisodeMatch? {
         val result = multiPartRegex.find(fileName) ?: return null
         return EpisodeMatch(
+            animeName = extractAnimeName(fileName),
             seasonNumber = 1,
             episodeNumber = result.groupValues[1].toInt(),
             isMultiPart = true,
@@ -117,15 +131,5 @@ class DefaultEpisodeDetector : EpisodeDetector {
         return 1
     }
     
-    override fun extractAnimeName(fileName: String): String? {
-        // Remove episode numbers and extensions
-        val cleaned = fileName
-            .replace(Regex("""S?\d{1,2}E?\d{1,3}""", RegexOption.IGNORE_CASE), "")
-            .replace(Regex("""[-_.]\d{2,3}[-_.]"""), " ")
-            .replace(Regex("""\.(?:mkv|mp4|avi|srt|ass)""", RegexOption.IGNORE_CASE), "")
-            .trim()
-            .replace(Regex("""\s+"""), " ")
-        
-        return cleaned.takeIf { it.isNotBlank() && it.length > 1 }
-    }
+    override fun extractAnimeName(fileName: String): String? = extractAnimeName(fileName)
 }

@@ -2,11 +2,8 @@ package com.miruplay.tv.player
 
 import android.app.PendingIntent
 import android.content.Intent
-import com.miruplay.tv.MainActivity
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
-import androidx.media3.common.MediaItem
-import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
@@ -63,7 +60,8 @@ class MiruPlayMediaService : MediaSessionService() {
     }
 
     private fun createSessionActivityPendingIntent(): PendingIntent {
-        val intent = packageManager.getLaunchIntentForPackage("com.miruplay.tv") ?: Intent(this, MainActivity::class.java)
+        val intent = packageManager.getLaunchIntentForPackage(packageName)
+            ?: Intent().also { it.setPackage(packageName) }
         return PendingIntent.getActivity(
             this,
             0,

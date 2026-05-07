@@ -28,7 +28,6 @@ object AppModule {
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
             .addInterceptor(logging)
-            .retryOnConnectionFailure(true)
             .build()
     }
 

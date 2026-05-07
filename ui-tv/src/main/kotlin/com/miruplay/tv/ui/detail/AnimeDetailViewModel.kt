@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.data.repository.MetadataRepository
 import com.miruplay.tv.data.repository.ProgressRepository
-import com.miruplay.tv.data.repository.ProgressRepository
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.ProgressRecord

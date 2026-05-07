@@ -1,7 +1,6 @@
 package com.miruplay.tv.data.repository
 
 import com.miruplay.tv.core.common.Result
-import com.miruplay.tv.scanner.MediaIndexEntry
 
 /**
  * Repository for scanned media index

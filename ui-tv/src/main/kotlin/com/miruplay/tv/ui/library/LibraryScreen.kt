@@ -2,6 +2,11 @@ package com.miruplay.tv.ui.library
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
@@ -13,11 +18,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.tv.foundation.lazy.grid.TvGridCells
-import androidx.tv.foundation.lazy.grid.TvLazyVerticalGrid
-import androidx.tv.foundation.lazy.grid.items
-import androidx.tv.foundation.lazy.row.TvLazyRow
-import androidx.tv.foundation.lazy.row.items
 import androidx.tv.material3.*
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.ui.components.*
@@ -88,7 +88,7 @@ fun LibraryScreen(
                             color = TextPrimary,
                             modifier = Modifier.padding(bottom = 12.dp)
                         )
-                        TvLazyRow(
+                        LazyRow(
                             modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp)
                         ) {
                             items(continueWatching) { item ->
@@ -115,7 +115,7 @@ fun LibraryScreen(
                             color = TextPrimary,
                             modifier = Modifier.padding(bottom = 12.dp)
                         )
-                        TvLazyRow(
+                        LazyRow(
                             modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp)
                         ) {
                             items(recentlyAdded) { anime ->
@@ -139,8 +139,8 @@ fun LibraryScreen(
                             color = TextPrimary,
                             modifier = Modifier.padding(bottom = 12.dp)
                         )
-                        TvLazyVerticalGrid(
-                            columns = TvGridCells.Adaptive(minSize = 320.dp),
+                        LazyVerticalGrid(
+                            columns = GridCells.Adaptive(minSize = 320.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             items(allAnime) { anime ->

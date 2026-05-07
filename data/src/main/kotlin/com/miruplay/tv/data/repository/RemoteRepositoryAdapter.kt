@@ -28,10 +28,9 @@ class RemoteRepositoryAdapter @Inject constructor(
      * Test connection for a source
      */
     suspend fun testSourceConnection(sourceInfo: MediaSourceInfo): Result<Boolean> = withContext(Dispatchers.IO) {
-        createSource(sourceInfo).onSuccess { source ->
-            return@withContext source.testConnection()
-        }.onError { error ->
-            return@withContext Result.failure(error)
+        when (val result = createSource(sourceInfo)) {
+            is Result.Success -> result.data.testConnection()
+            is Result.Error -> Result.failure(result.error)
         }
     }
 
@@ -39,10 +38,9 @@ class RemoteRepositoryAdapter @Inject constructor(
      * List files at path for a source
      */
     suspend fun listSourceFiles(sourceInfo: MediaSourceInfo, path: String): Result<List<com.miruplay.tv.mediasource.FileEntry>> = withContext(Dispatchers.IO) {
-        createSource(sourceInfo).onSuccess { source ->
-            return@withContext source.listFiles(path)
-        }.onError { error ->
-            return@withContext Result.failure(error)
+        when (val result = createSource(sourceInfo)) {
+            is Result.Success -> result.data.listFiles(path)
+            is Result.Error -> Result.failure(result.error)
         }
     }
 }
