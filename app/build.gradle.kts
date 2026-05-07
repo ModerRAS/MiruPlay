@@ -8,8 +8,8 @@ plugins {
 }
 
 // 支持通过 -PVERSION_NAME 和 -PVERSION_CODE 传入版本信息
-def versionName = project.hasProperty("VERSION_NAME") ? project.VERSION_NAME : "0.1.0"
-def versionCode = project.hasProperty("VERSION_CODE") ? project.VERSION_CODE.toInteger() : 1
+val versionName = if (project.hasProperty("VERSION_NAME")) project.property("VERSION_NAME") as String else "0.1.0"
+val versionCode = if (project.hasProperty("VERSION_CODE")) (project.property("VERSION_CODE") as String).toInt() else 1
 
 android {
     namespace = "com.miruplay.tv"
