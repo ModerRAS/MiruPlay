@@ -10,7 +10,7 @@ android {
     namespace = "com.miruplay.tv.data"
     compileSdk = 35
     defaultConfig {
-        minSdk = 24
+        minSdk = 28
     }
     packaging {
         resources {
@@ -34,4 +34,5 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.androidx.test.core)
     testImplementation(libs.androidx.test.runner)
+    testImplementation(libs.robolectric)
 }

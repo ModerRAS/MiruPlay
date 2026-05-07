@@ -7,6 +7,8 @@ import androidx.room.Query
 import com.miruplay.tv.data.entity.AnimeEntity
 import kotlinx.coroutines.flow.Flow
 
+private const val ANIME_COLUMNS = "id, title, title_cn, summary, genres, studio, director, episode_count, air_date, rating, bangumi_id, anilist_id, tmdb_id, poster_url, fanart_url, last_updated"
+
 @Dao
 interface AnimeDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -18,18 +20,18 @@ interface AnimeDao {
     @Query("UPDATE anime SET title = :title, summary = :summary, rating = :rating WHERE id = :id")
     suspend fun update(id: String, title: String? = null, summary: String? = null, rating: Float? = null)
 
-    @Query("SELECT * FROM anime WHERE id = :id")
+    @Query("SELECT $ANIME_COLUMNS FROM anime WHERE id = :id")
     suspend fun getById(id: String): AnimeEntity?
 
-    @Query("SELECT * FROM anime ORDER BY title COLLATE NOCASE ASC")
+    @Query("SELECT $ANIME_COLUMNS FROM anime ORDER BY title COLLATE NOCASE ASC")
     suspend fun getAll(): List<AnimeEntity>
 
-    @Query("SELECT * FROM anime WHERE title LIKE '%' || :query || '%' OR title_cn LIKE '%' || :query || '%'")
+    @Query("SELECT $ANIME_COLUMNS FROM anime WHERE title LIKE '%' || :query || '%' OR title_cn LIKE '%' || :query || '%'")
     suspend fun searchByTitle(query: String): List<AnimeEntity>
 
     @Query("DELETE FROM anime WHERE id = :id")
     suspend fun deleteById(id: String)
 
-    @Query("SELECT * FROM anime ORDER BY title COLLATE NOCASE ASC")
+    @Query("SELECT $ANIME_COLUMNS FROM anime ORDER BY title COLLATE NOCASE ASC")
     fun observeAll(): Flow<List<AnimeEntity>>
 }

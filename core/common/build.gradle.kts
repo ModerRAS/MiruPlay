@@ -8,7 +8,7 @@ android {
     namespace = "com.miruplay.tv.core.common"
     compileSdk = 35
     defaultConfig {
-        minSdk = 24
+        minSdk = 28
     }
 }
 

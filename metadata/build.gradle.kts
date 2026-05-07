@@ -10,7 +10,7 @@ android {
     namespace = "com.miruplay.tv.metadata"
     compileSdk = 34
     defaultConfig {
-        minSdk = 24
+        minSdk = 28
     }
     packaging {
         resources {

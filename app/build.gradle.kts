@@ -18,7 +18,7 @@ android {
         applicationId = "com.miruplay.tv"
         versionCode = versionCode
         versionName = versionName
-        minSdk = 24
+        minSdk = 28
     }
     buildFeatures {
         compose = true

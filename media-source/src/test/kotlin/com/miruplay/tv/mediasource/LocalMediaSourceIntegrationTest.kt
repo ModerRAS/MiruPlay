@@ -24,7 +24,7 @@ class LocalMediaSourceIntegrationTest {
         File(tempDir, "subs.srt").writeText("1\n00:00:01,000 --> 00:00:02,000\nHello")
         File(tempDir, ".DS_Store").writeText("hidden")
         File(tempDir, "Subfolder").mkdir()
-        File(tempDir, "Subfolder", "ep01.mkv").writeText("episode")
+        File(File(tempDir, "Subfolder"), "ep01.mkv").writeText("episode")
         
         val info = MediaSourceInfo(
             name = "test",
@@ -84,7 +84,8 @@ class LocalMediaSourceIntegrationTest {
     @Test
     fun `files sorted with directories first`() = runBlocking {
         val result = mediaSource.listFiles(tempDir.absolutePath)
-        val files = result.getOrNull() ?: return@Test
+        assertTrue("Should succeed", result.isSuccess())
+        val files = result.getOrNull() ?: return@runBlocking
         val firstDir = files.first { it.isDirectory }
         val firstFile = files.first { !it.isDirectory }
         assertTrue("Directories should come before files", 

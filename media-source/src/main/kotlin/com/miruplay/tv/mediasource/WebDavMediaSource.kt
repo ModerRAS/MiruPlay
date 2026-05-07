@@ -158,7 +158,10 @@ class WebDavMediaSource @Inject constructor() : MediaSource {
     }
 
     private fun credentials(): String {
-        val encoded = java.util.Base64.getEncoder().encodeToString("$username:$password".toByteArray())
+        val encoded = android.util.Base64.encodeToString(
+            "$username:$password".toByteArray(),
+            android.util.Base64.NO_WRAP
+        )
         return "Basic $encoded"
     }
 

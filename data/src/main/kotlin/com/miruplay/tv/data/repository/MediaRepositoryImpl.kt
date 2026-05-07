@@ -94,7 +94,7 @@ private fun MediaSourceInfo.toEntity(): MediaSourceEntity = MediaSourceEntity(
     url = connectionInfo["url"],
     username = connectionInfo["username"],
     password = connectionInfo["password"]?.let { 
-        java.util.Base64.getEncoder().encodeToString(it.toByteArray())
+        android.util.Base64.encodeToString(it.toByteArray(), android.util.Base64.NO_WRAP)
     },
     isConnected = isConnected,
     lastScanned = lastScanned

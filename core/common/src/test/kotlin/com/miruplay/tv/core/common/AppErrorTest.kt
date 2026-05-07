@@ -1,4 +1,4 @@
-package com.miruplay.tv.common
+package com.miruplay.tv.core.common
 
 import org.junit.Assert.*
 import org.junit.Test
