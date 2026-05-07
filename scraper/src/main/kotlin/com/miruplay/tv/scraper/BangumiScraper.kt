@@ -2,7 +2,9 @@ package com.miruplay.tv.scraper
 
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
-import com.miruplay.tv.model.*
+import com.miruplay.tv.model.Anime
+import com.miruplay.tv.model.ScraperResult
+import com.miruplay.tv.model.ScraperSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.*

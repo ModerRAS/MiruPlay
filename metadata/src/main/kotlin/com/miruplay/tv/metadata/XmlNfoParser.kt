@@ -2,7 +2,10 @@ package com.miruplay.tv.metadata
 
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
-import com.miruplay.tv.model.*
+import com.miruplay.tv.model.Actor
+import com.miruplay.tv.model.NfoMetadata
+import com.miruplay.tv.model.TvShowNfoMetadata
+import com.miruplay.tv.model.UniqueId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.w3c.dom.Document
@@ -30,11 +33,11 @@ class XmlNfoParser : NfoParser {
             }
 
             val metadata = NfoMetadata(
-                title = getText(root, "title"),
+                title = getText(root, "title") ?: "",
                 showTitle = getText(root, "showtitle"),
                 season = getText(root, "season")?.toIntOrNull() ?: 1,
                 episode = getText(root, "episode")?.toIntOrNull() ?: 1,
-                plot = getText(root, "plot"),
+                plot = getText(root, "plot") ?: "",
                 premiered = getText(root, "premiered"),
                 rating = getText(root, "rating")?.toFloatOrNull() ?: 0f,
                 playcount = getText(root, "playcount")?.toIntOrNull() ?: 0,
@@ -64,10 +67,10 @@ class XmlNfoParser : NfoParser {
             }
 
             val metadata = TvShowNfoMetadata(
-                title = getText(root, "title"),
-                originalTitle = getText(root, "originaltitle") ?: getText(root, "title"),
+                title = getText(root, "title") ?: "",
+                originalTitle = getText(root, "originaltitle") ?: (getText(root, "title") ?: ""),
                 sortTitle = getText(root, "sorttitle"),
-                plot = getText(root, "plot"),
+                plot = getText(root, "plot") ?: "",
                 genre = parseGenres(root),
                 premiered = getText(root, "premiered"),
                 studio = getText(root, "studio"),

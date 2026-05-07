@@ -41,8 +41,8 @@ class XmlNfoWriter(
                         appendLine("  <rating>${metadata.rating}</rating>")
                     }
                     appendLine("  <playcount>${metadata.playcount}</playcount>")
-                    if (metadata.lastplayed != null) {
-                        appendLine("  <lastplayed>${escapeXml(metadata.lastplayed)}</lastplayed>")
+                    metadata.lastplayed?.let { lastplayed ->
+                        appendLine("  <lastplayed>${escapeXml(lastplayed)}</lastplayed>")
                     }
                     if (metadata.resumePosition > 0) {
                         val minutes = metadata.resumePosition / 60.0 / 1000.0
@@ -120,17 +120,16 @@ class XmlNfoWriter(
 
                 // Parse existing NFO
                 val parser = XmlNfoParser()
-                parser.parseEpisodeNfo(nfoPath).onSuccess { metadata ->
-                    val updated = metadata.copy(
-                        resumePosition = position,
-                        lastplayed = formatTimestamp(lastWatched)
-                    )
-                    writeEpisodeNfo(nfoPath, updated)
-                }.onError { error ->
-                    return@withContext Result.failure(error)
+                val parseResult = parser.parseEpisodeNfo(nfoPath)
+                if (parseResult !is Result.Success) {
+                    return@withContext Result.failure((parseResult as Result.Error).error)
                 }
-
-                Result.success(Unit)
+                val metadata = parseResult.data
+                val updated = metadata.copy(
+                    resumePosition = position,
+                    lastplayed = formatTimestamp(lastWatched)
+                )
+                writeEpisodeNfo(nfoPath, updated)
             } catch (e: Exception) {
                 Result.failure(AppError.SyncError.WriteFailed(nfoPath, e.message ?: "Unknown error"))
             }

@@ -15,8 +15,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.tv.foundation.lazy.row.TvLazyRow
-import androidx.tv.foundation.lazy.row.items
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Slider
 import androidx.tv.material3.*
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.PlaybackState
@@ -24,7 +26,7 @@ import com.miruplay.tv.ui.components.*
 import com.miruplay.tv.ui.theme.*
 import kotlinx.coroutines.delay
 
-@OptIn(ExperimentalTvMaterial3Api::class)
+@OptIn(ExperimentalTvMaterial3Api::class, ExperimentalMaterial3Api::class)
 @Composable
 fun PlayerScreen(
     playbackSource: PlaybackSource,
@@ -197,7 +199,7 @@ fun PlayerScreen(
                         if (availableSubtitles.isNotEmpty()) {
                             Column {
                                 Text(text = "字幕", color = TextSecondary, fontSize = 12.sp)
-                                TvLazyRow {
+                                LazyRow {
                                     items(availableSubtitles.size) { index ->
                                         val track = availableSubtitles[index]
                                         TvButton(
@@ -214,7 +216,7 @@ fun PlayerScreen(
                         if (availableAudioTracks.isNotEmpty()) {
                             Column {
                                 Text(text = "音轨", color = TextSecondary, fontSize = 12.sp)
-                                TvLazyRow {
+                                LazyRow {
                                     items(availableAudioTracks.size) { index ->
                                         val track = availableAudioTracks[index]
                                         TvButton(
@@ -230,7 +232,7 @@ fun PlayerScreen(
                         // Speed selector
                         Column {
                             Text(text = "速度", color = TextSecondary, fontSize = 12.sp)
-                            TvLazyRow {
+                            LazyRow {
                                 val speeds = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
                                 items(speeds.size) { index ->
                                     val speed = speeds[index]

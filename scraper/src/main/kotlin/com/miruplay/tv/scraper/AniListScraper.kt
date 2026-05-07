@@ -2,7 +2,10 @@ package com.miruplay.tv.scraper
 
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
-import com.miruplay.tv.model.*
+import com.miruplay.tv.model.Anime
+import com.miruplay.tv.model.Episode
+import com.miruplay.tv.model.ScraperResult
+import com.miruplay.tv.model.ScraperSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.*
@@ -30,10 +33,10 @@ class AniListScraper @Inject constructor() : MetadataScraper {
     companion object {
         private const val API_URL = "https://graphql.anilist.co"
 
-        private const val SEARCH_QUERY = """
-        query (\$search: String, \$page: Int, \$perPage: Int) {
-            Page(page: \$page, perPage: \$perPage) {
-                media(search: \$search, type: ANIME) {
+        private val SEARCH_QUERY = """
+        query (${"$"}search: String, ${"$"}page: Int, ${"$"}perPage: Int) {
+            Page(page: ${"$"}page, perPage: ${"$"}perPage) {
+                media(search: ${"$"}search, type: ANIME) {
                     id
                     title { romaji native english }
                     description
@@ -49,9 +52,9 @@ class AniListScraper @Inject constructor() : MetadataScraper {
             }
         }"""
 
-        private const val DETAIL_QUERY = """
-        query (\$id: Int) {
-            Media(id: \$id, type: ANIME) {
+        private val DETAIL_QUERY = """
+        query (${"$"}id: Int) {
+            Media(id: ${"$"}id, type: ANIME) {
                 id
                 title { romaji native english }
                 description

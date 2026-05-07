@@ -26,31 +26,32 @@ class ScanCoordinator @Inject constructor(
      * Full scan of a media source
      */
     suspend fun scanSource(sourceId: Long): Result<ScanResult> = withContext(Dispatchers.IO) {
-        mediaRepository.getSourceById(sourceId).onSuccess { sourceInfo ->
-            val mediaSource = mediaSourceFactory.create(sourceInfo)
-            mediaSource.onSuccess { source ->
-                val rootPath = sourceInfo.connectionInfo["path"] ?: "/"
-                return@withContext scanner.scan(source, rootPath)
-            }
-            mediaSource.onError { error ->
-                return@withContext Result.failure(error)
-            }
-        }.onError { error ->
-            return@withContext Result.failure(error)
+        val sourceResult = mediaRepository.getSourceById(sourceId)
+        if (sourceResult !is Result.Success) {
+            return@withContext Result.failure((sourceResult as Result.Error).error)
         }
-        Result.failure(AppError.MediaSourceError.NotFound("source:$sourceId"))
+        val sourceInfo = sourceResult.data
+        val mediaSourceResult = mediaSourceFactory.create(sourceInfo)
+        if (mediaSourceResult !is Result.Success) {
+            return@withContext Result.failure((mediaSourceResult as Result.Error).error)
+        }
+        val rootPath = sourceInfo.connectionInfo["path"] ?: "/"
+        scanner.scan(mediaSourceResult.data, rootPath)
     }
 
     /**
      * Quick scan all configured sources
      */
     suspend fun scanAllSources(): Result<List<ScanResult>> = withContext(Dispatchers.IO) {
+        val sourcesResult = mediaRepository.getSources()
+        if (sourcesResult !is Result.Success) {
+            return@withContext Result.success(emptyList())
+        }
         val results = mutableListOf<ScanResult>()
-        mediaRepository.getSources().onSuccess { sources ->
-            sources.forEach { sourceInfo ->
-                scanSource(sourceInfo.id).onSuccess { result ->
-                    results.add(result)
-                }
+        for (sourceInfo in sourcesResult.data) {
+            val scanResult = scanSource(sourceInfo.id)
+            if (scanResult is Result.Success) {
+                results.add(scanResult.data)
             }
         }
         Result.success(results)
