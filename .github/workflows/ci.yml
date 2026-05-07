@@ -32,8 +32,6 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-        with:
-          compile-sdk: ${{ env.ANDROID_COMPILE_SDK }}
 
       - name: Cache Gradle packages
         uses: actions/cache@v4
@@ -83,8 +81,6 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-        with:
-          compile-sdk: ${{ env.ANDROID_COMPILE_SDK }}
 
       - name: Cache Gradle packages
         uses: actions/cache@v4
@@ -131,8 +127,6 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-        with:
-          compile-sdk: ${{ env.ANDROID_COMPILE_SDK }}
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
@@ -167,8 +161,6 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-        with:
-          compile-sdk: ${{ env.ANDROID_COMPILE_SDK }}
 
       - name: Cache Gradle packages
         uses: actions/cache@v4
