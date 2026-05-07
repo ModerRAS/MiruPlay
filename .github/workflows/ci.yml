@@ -5,6 +5,10 @@ on:
     branches: [ main, master, develop ]
   pull_request:
     branches: [ main, master, develop ]
+  # 每天凌晨2点检查变更并发布nightly版本
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
 
 env:
   JAVA_VERSION: '21'
@@ -153,10 +157,6 @@ jobs:
 
   nightly:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-    # 每天凌晨2点运行
-    schedule:
-      - cron: '0 2 * * *'
 
     steps:
       - name: Checkout code
