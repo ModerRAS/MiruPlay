@@ -6,8 +6,9 @@ import com.miruplay.tv.model.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * XML-based NFO writer implementation
@@ -46,7 +47,7 @@ class XmlNfoWriter(
                     }
                     if (metadata.resumePosition > 0) {
                         val minutes = metadata.resumePosition / 60.0 / 1000.0
-                        appendLine("  <resume>${String.format("%.6f", minutes)}</resume>")
+                        appendLine("  <resume>${String.format(Locale.ROOT, "%.6f", minutes)}</resume>")
                     }
                     metadata.uniqueIds.forEach { id ->
                         appendLine("  <id type=\"${id.type}\" default=\"${id.isDefault}\">${escapeXml(id.value)}</id>")
@@ -145,9 +146,7 @@ class XmlNfoWriter(
     }
 
     private fun formatTimestamp(timestamp: Long): String {
-        val dateTime = java.time.Instant.ofEpochMilli(timestamp)
-            .atZone(java.time.ZoneId.systemDefault())
-            .toLocalDateTime()
-        return dateTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+        val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
+        return sdf.format(Date(timestamp))
     }
 }

@@ -10,7 +10,7 @@ android {
     namespace = "com.miruplay.tv.player.core"
     compileSdk = 35
     defaultConfig {
-        minSdk = 24
+        minSdk = 28
     }
     packaging {
         resources {

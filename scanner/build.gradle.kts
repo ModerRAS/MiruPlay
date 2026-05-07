@@ -9,7 +9,7 @@ android {
     namespace = "com.miruplay.tv.scanner"
     compileSdk = 34
     defaultConfig {
-        minSdk = 24
+        minSdk = 28
     }
 }
 

@@ -11,7 +11,7 @@ android {
     namespace = "com.miruplay.tv.ui.tv"
     compileSdk = 35
     defaultConfig {
-        minSdk = 24
+        minSdk = 28
     }
     buildFeatures {
         compose = true

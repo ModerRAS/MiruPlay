@@ -2,7 +2,6 @@ package com.miruplay.tv.core.common
 
 import java.net.URLDecoder
 import java.net.URLEncoder
-import java.nio.charset.StandardCharsets
 
 /**
  * 路径相关工具函数
@@ -36,14 +35,16 @@ object PathUtils {
     /**
      * URL 编码
      */
+    @Suppress("DEPRECATION")
     fun encodePath(path: String): String =
-        URLEncoder.encode(path, StandardCharsets.UTF_8)
+        URLEncoder.encode(path, "UTF-8")
 
     /**
      * URL 解码
      */
+    @Suppress("DEPRECATION")
     fun decodePath(path: String): String =
-        URLDecoder.decode(path, StandardCharsets.UTF_8)
+        URLDecoder.decode(path, "UTF-8")
 
     /**
      * 拼接路径
