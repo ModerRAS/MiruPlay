@@ -12,6 +12,7 @@ import com.miruplay.tv.metadata.NfoParser
 import com.miruplay.tv.metadata.XmlNfoParser
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
+import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.ScanResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
@@ -19,6 +20,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import android.util.Log
 import java.io.File
+import java.net.URLEncoder
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -47,13 +49,25 @@ class ScanCoordinator @Inject constructor(
             return@withContext Result.failure((msResult as Result.Error).error)
         }
         val ms = msResult.data
-        val rootPath = sourceInfo.connectionInfo["path"] ?: "/"
+        val isLocalSource = sourceInfo.type == MediaSourceType.LOCAL
+        val rootPath = when (sourceInfo.type) {
+            MediaSourceType.LOCAL ->
+                sourceInfo.connectionInfo["path"] ?: sourceInfo.connectionInfo["url"] ?: "/"
+            MediaSourceType.WEBDAV,
+            MediaSourceType.SMB ->
+                sourceInfo.connectionInfo["url"] ?: sourceInfo.connectionInfo["path"] ?: "/"
+        }
+        val scanStartPath = if (isLocalSource) rootPath else ""
 
         // Get the real root path once (resolves symlinks)
-        val realRootPath = try {
-            File(rootPath).canonicalPath
-        } catch (e: Exception) {
-            rootPath
+        val realRootPath = if (isLocalSource) {
+            try {
+                File(rootPath).canonicalPath
+            } catch (e: Exception) {
+                rootPath
+            }
+        } else {
+            null
         }
 
         // Report starting
@@ -67,13 +81,14 @@ class ScanCoordinator @Inject constructor(
 
         traverseAndProcess(
             ms = ms,
-            path = rootPath,
+            path = scanStartPath,
             sourceId = sourceId,
             detector = detector,
             indexEntities = indexEntities,
             totalFiles = { totalFiles += 1 },
             newEpisodes = { newEpisodes += 1 },
-            rootPath = realRootPath
+            rootPath = realRootPath,
+            isLocalSource = isLocalSource
         )
 
         // Save index
@@ -87,13 +102,14 @@ class ScanCoordinator @Inject constructor(
 
             for ((animeName, entries) in episodesByAnime) {
                 val episodes = entries.sortedBy { it.episodeNumber }.mapIndexed { idx, entry ->
+                    val playablePath = toPlayablePath(entry.path, rootPath, sourceInfo.type)
                     Episode(
-                        id = entry.path,
+                        id = "${sourceId}:${entry.path}",
                         animeId = animeName,
                         seasonNumber = entry.seasonNumber ?: 1,
                         episodeNumber = entry.episodeNumber ?: (idx + 1),
                         title = "",
-                        filePath = entry.path,
+                        filePath = playablePath,
                         fileName = entry.path.substringAfterLast('/')
                     )
                 }
@@ -120,7 +136,7 @@ class ScanCoordinator @Inject constructor(
         Log.d("ScanCoordinator", "Scan done: ${sourceInfo.name} -> $totalFiles files, $newEpisodes new episodes")
 
         Result.success(ScanResult(
-            animeName = rootPath.substringAfterLast('/').ifEmpty { rootPath },
+            animeName = if (isLocalSource) rootPath.substringAfterLast('/').ifEmpty { rootPath } else sourceInfo.name,
             episodesFound = totalFiles,
             newEpisodes = newEpisodes,
             updatedEpisodes = 0
@@ -153,17 +169,18 @@ class ScanCoordinator @Inject constructor(
         totalFiles: (Int) -> Unit,
         newEpisodes: (Int) -> Unit,
         depth: Int = 0,
-        rootPath: String
+        rootPath: String?,
+        isLocalSource: Boolean
     ) {
         // Guard: skip hidden directories
         val pathName = path.substringAfterLast('/')
         if (pathName.startsWith(".")) return
 
         // Guard: skip Android system media directories
-        if (pathName in skipDirs) return
+        if (isLocalSource && pathName in skipDirs) return
 
         // Guard: skip /mnt directory entirely
-        if (path.startsWith("/mnt/")) return
+        if (isLocalSource && path.startsWith("/mnt/")) return
 
         // Check for cancellation
         if (!currentCoroutineContext().isActive) return
@@ -178,7 +195,7 @@ class ScanCoordinator @Inject constructor(
                 if (!currentCoroutineContext().isActive) return
 
                 // Belt-and-suspenders: if file.path escapes root boundary, skip it
-                if (rootPath.isNotEmpty() && !file.path.startsWith(rootPath)) {
+                if (rootPath != null && !isWithinRoot(file.path, rootPath)) {
                     Log.w("ScanCoordinator", "Path escaped root boundary: ${file.path} (root=$rootPath), skipping")
                     continue
                 }
@@ -186,10 +203,10 @@ class ScanCoordinator @Inject constructor(
                 if (file.isDirectory) {
                     // Skip trickplay, hidden, and system directories
                     if (file.name.endsWith(".trickplay") || file.name.startsWith(".")) continue
-                    if (file.name in skipDirs) continue
+                    if (isLocalSource && file.name in skipDirs) continue
                     
                     // Recurse into subdirectory
-                    traverseAndProcess(ms, file.path, sourceId, detector, indexEntities, totalFiles, newEpisodes, depth + 1, rootPath)
+                    traverseAndProcess(ms, file.path, sourceId, detector, indexEntities, totalFiles, newEpisodes, depth + 1, rootPath, isLocalSource)
                 } else {
                     val fileName = file.name
                     val ext = fileName.substringAfterLast('.', "").lowercase()
@@ -222,6 +239,29 @@ class ScanCoordinator @Inject constructor(
         } catch (e: Exception) {
             Log.w("ScanCoordinator", "Error traversing path: $path", e)
         }
+    }
+
+    private fun isWithinRoot(path: String, rootPath: String): Boolean {
+        val root = rootPath.trimEnd('/')
+        return path == root || path.startsWith("$root/")
+    }
+
+    private fun toPlayablePath(path: String, sourceRoot: String, sourceType: MediaSourceType): String =
+        when (sourceType) {
+            MediaSourceType.LOCAL -> path
+            MediaSourceType.WEBDAV -> joinRemoteUrl(sourceRoot, path)
+            MediaSourceType.SMB -> path
+        }
+
+    private fun joinRemoteUrl(baseUrl: String, path: String): String {
+        val base = baseUrl.trimEnd('/')
+        val encodedPath = path
+            .trimStart('/')
+            .split('/')
+            .joinToString("/") { segment ->
+                URLEncoder.encode(segment, Charsets.UTF_8.name()).replace("+", "%20")
+            }
+        return "$base/$encodedPath"
     }
 
     /**

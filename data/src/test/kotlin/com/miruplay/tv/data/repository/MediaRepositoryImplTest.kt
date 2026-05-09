@@ -70,6 +70,38 @@ class MediaRepositoryImplTest {
         assertTrue("Should have at least 1 source", sources!!.isNotEmpty())
         assertEquals("Test NAS", sources[0].name)
     }
+
+    @Test
+    fun `remote source should restore url without path alias`() = runBlocking {
+        val source = MediaSourceInfo(
+            name = "WebDAV",
+            type = MediaSourceType.WEBDAV,
+            connectionInfo = mapOf("url" to "http://example.test/dav")
+        )
+
+        val id = repository.addSource(source).getOrNull()!!
+        val restored = repository.getSourceById(id).getOrNull()
+
+        assertNotNull("Restored source should exist", restored)
+        assertEquals("URL should be preserved", "http://example.test/dav", restored!!.connectionInfo["url"])
+        assertNull("Remote source should not synthesize path", restored.connectionInfo["path"])
+    }
+
+    @Test
+    fun `local source should restore path alias`() = runBlocking {
+        val source = MediaSourceInfo(
+            name = "Local",
+            type = MediaSourceType.LOCAL,
+            connectionInfo = mapOf("path" to "/storage/emulated/0/Download")
+        )
+
+        val id = repository.addSource(source).getOrNull()!!
+        val restored = repository.getSourceById(id).getOrNull()
+
+        assertNotNull("Restored source should exist", restored)
+        assertEquals("Path should be preserved", "/storage/emulated/0/Download", restored!!.connectionInfo["path"])
+        assertEquals("Local source should still expose url alias", "/storage/emulated/0/Download", restored.connectionInfo["url"])
+    }
     
     @Test
     fun `removeSource should cascade delete index entries`() = runBlocking {

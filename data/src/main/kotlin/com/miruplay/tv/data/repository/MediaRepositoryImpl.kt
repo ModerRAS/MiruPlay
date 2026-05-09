@@ -109,8 +109,12 @@ private fun MediaSourceEntity.toDomain(): MediaSourceInfo = MediaSourceInfo(
     name = name,
     type = try { MediaSourceType.valueOf(type) } catch (e: Exception) { MediaSourceType.LOCAL },
     connectionInfo = buildMap {
-        url?.let { put("url", it) }
-        url?.let { put("path", it) }
+        url?.let {
+            put("url", it)
+            if (type == MediaSourceType.LOCAL.name) {
+                put("path", it)
+            }
+        }
         username?.let { put("username", it) }
         password?.let {
             put("password", String(android.util.Base64.decode(it, android.util.Base64.NO_WRAP)))
