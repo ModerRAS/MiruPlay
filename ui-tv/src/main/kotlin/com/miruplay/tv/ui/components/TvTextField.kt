@@ -3,6 +3,7 @@ package com.miruplay.tv.ui.components
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -52,6 +53,7 @@ fun TvTextField(
                     shape = RoundedCornerShape(8.dp)
                 )
                 .padding(horizontal = 12.dp)
+                .focusable()
                 .onFocusChanged { isFocused = it.isFocused },
             contentAlignment = Alignment.CenterStart
         ) {

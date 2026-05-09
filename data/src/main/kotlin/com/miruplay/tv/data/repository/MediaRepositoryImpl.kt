@@ -20,10 +20,11 @@ class MediaRepositoryImpl @Inject constructor(
 
     override suspend fun addSource(source: MediaSourceInfo): Result<Long> = withContext(Dispatchers.IO) {
         try {
+            val sourceLocation = source.connectionInfo["url"] ?: source.connectionInfo["path"]
             // Check for duplicate url+type
             val existing = mediaSourceDao.getAll()
             val duplicate = existing.any {
-                it.url == source.connectionInfo["url"] && it.type == source.type.name
+                it.url == sourceLocation && it.type == source.type.name
             }
             if (duplicate) {
                 return@withContext Result.failure(
@@ -91,7 +92,7 @@ class MediaRepositoryImpl @Inject constructor(
 private fun MediaSourceInfo.toEntity(): MediaSourceEntity = MediaSourceEntity(
     name = name,
     type = type.name,
-    url = connectionInfo["url"],
+    url = connectionInfo["url"] ?: connectionInfo["path"],
     username = connectionInfo["username"],
     password = connectionInfo["password"]?.let { 
         android.util.Base64.encodeToString(it.toByteArray(), android.util.Base64.NO_WRAP)
@@ -106,7 +107,11 @@ private fun MediaSourceEntity.toDomain(): MediaSourceInfo = MediaSourceInfo(
     type = try { MediaSourceType.valueOf(type) } catch (e: Exception) { MediaSourceType.LOCAL },
     connectionInfo = buildMap {
         url?.let { put("url", it) }
+        url?.let { put("path", it) }
         username?.let { put("username", it) }
+        password?.let {
+            put("password", String(android.util.Base64.decode(it, android.util.Base64.NO_WRAP)))
+        }
     },
     isConnected = isConnected,
     lastScanned = lastScanned

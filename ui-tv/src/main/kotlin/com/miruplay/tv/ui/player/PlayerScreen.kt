@@ -13,12 +13,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Slider
+import androidx.media3.ui.PlayerView
 import androidx.tv.material3.*
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.PlaybackState
@@ -56,16 +58,27 @@ fun PlayerScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-        // Video surface (placeholder - actual Media3 PlayerSurface)
-        Box(
-            modifier = Modifier.fillMaxSize().background(Color.Black),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "▶",
-                color = Color.White,
-                fontSize = 64.sp
+        // Video surface using Media3 PlayerView
+        val player = viewModel.getPlayer()
+        if (player != null) {
+            AndroidView(
+                factory = { ctx ->
+                    PlayerView(ctx).apply {
+                        this.player = player
+                        useController = false // Custom controls
+                        resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    }
+                },
+                modifier = Modifier.fillMaxSize()
             )
+        } else {
+            // Fallback if no player available
+            Box(
+                modifier = Modifier.fillMaxSize().background(Color.Black),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = "▶", color = Color.White, fontSize = 64.sp)
+            }
         }
 
         // Error overlay

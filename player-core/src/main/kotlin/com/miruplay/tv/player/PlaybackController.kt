@@ -1,6 +1,6 @@
 package com.miruplay.tv.player
 
-import com.miruplay.tv.core.common.Result
+import androidx.media3.common.Player
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.PlaybackState
 import com.miruplay.tv.model.SubtitleTrack
@@ -80,6 +80,11 @@ interface PlaybackController {
      * Check if currently playing
      */
     fun isPlaying(): Boolean
+
+    /**
+     * Get the underlying Media3 Player for UI integration (PlayerView)
+     */
+    fun getPlayer(): Player?
 }
 
 /**

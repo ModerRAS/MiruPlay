@@ -1,8 +1,11 @@
 package com.miruplay.tv.player
 
+import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -16,12 +19,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @UnstableApi
 @Singleton
 class ExoPlaybackController @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val exoPlayer: ExoPlayer,
     private val config: PlaybackConfig = PlaybackConfig()
 ) : PlaybackController {
@@ -124,6 +129,8 @@ class ExoPlaybackController @Inject constructor(
             _state.value = PlaybackState.Loading(source)
 
             try {
+                ensureMediaSessionService()
+
                 // Build MediaItem with subtitle configurations
                 val subtitleConfigs = source.subtitleTracks.map { track ->
                     MediaItem.SubtitleConfiguration.Builder(Uri.parse(track.path))
@@ -136,6 +143,12 @@ class ExoPlaybackController @Inject constructor(
 
                 val mediaItem = MediaItem.Builder()
                     .setUri(source.uri)
+                    .setMediaMetadata(
+                        MediaMetadata.Builder()
+                            .setTitle(source.uri.substringAfterLast("/").substringBeforeLast("."))
+                            .setArtist(source.mediaSourceId)
+                            .build()
+                    )
                     .setSubtitleConfigurations(subtitleConfigs)
                     .build()
 
@@ -149,6 +162,12 @@ class ExoPlaybackController @Inject constructor(
             } catch (e: Exception) {
                 _state.value = PlaybackState.Error(source, e.message ?: "Failed to play")
             }
+        }
+    }
+
+    private fun ensureMediaSessionService() {
+        runCatching {
+            context.startService(Intent(context, MiruPlayMediaService::class.java))
         }
     }
 
@@ -217,6 +236,8 @@ class ExoPlaybackController @Inject constructor(
     }
 
     override fun isPlaying(): Boolean = exoPlayer.isPlaying
+
+    override fun getPlayer(): androidx.media3.common.Player? = exoPlayer
 
     fun release() {
         exoPlayer.removeListener(listener)

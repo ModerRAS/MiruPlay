@@ -28,6 +28,8 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
     
+    implementation(libs.androidx.security.crypto)
+    
     implementation(libs.dagger.hilt.android)
     ksp(libs.dagger.hilt.compiler)
     

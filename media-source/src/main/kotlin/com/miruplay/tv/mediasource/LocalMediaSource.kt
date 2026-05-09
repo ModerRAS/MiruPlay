@@ -26,11 +26,22 @@ class LocalMediaSource(override val info: MediaSourceInfo) : MediaSource {
     private val rootPath: String
         get() = info.connectionInfo["path"] ?: ""
 
-    // Hidden file patterns to filter
-    private val hiddenPatterns = listOf(".DS_Store", "Thumbs.db", "@eaDir", ".Trash")
+    // Hidden file patterns to filter + protected system dirs
+    private val hiddenPatterns = listOf(
+        ".DS_Store", "Thumbs.db", "@eaDir", ".Trash",
+        "proc", "sys", "dev", "lost+found"
+    )
+
+    // System directories that should never be traversed
+    private val systemDirs = setOf("/proc", "/sys", "/dev", "/selinux", "/sys/kernel/debug")
 
     override suspend fun listFiles(path: String): Result<List<FileEntry>> = withContext(Dispatchers.IO) {
         try {
+            // Guard against system directories
+            if (systemDirs.any { path == it || path.startsWith("$it/") }) {
+                return@withContext Result.success(emptyList())
+            }
+
             val dir = File(path.ifEmpty { rootPath })
             if (!dir.exists()) {
                 return@withContext Result.failure(AppError.MediaSourceError.NotFound(path))
@@ -44,21 +55,25 @@ class LocalMediaSource(override val info: MediaSourceInfo) : MediaSource {
 
             val entries = dir.listFiles()
                 ?.filter { file -> hiddenPatterns.none { file.name == it } }
-                ?.map { file -> FileEntry(
-                    name = file.name,
-                    path = file.absolutePath,
-                    isDirectory = file.isDirectory,
-                    size = if (file.isFile) file.length() else 0L,
-                    lastModified = file.lastModified(),
-                    mimeType = file.extension.lowercase().let { ext ->
-                        when (ext) {
-                            "mkv", "mp4", "avi", "mov" -> "video/$ext"
-                            "jpg", "jpeg", "png", "webp" -> "image/$ext"
-                            "srt", "ass", "ssa" -> "text/$ext"
-                            else -> null
+                ?.map { file ->
+                    // Use absolutePath — does NOT follow symlinks, so paths stay within root
+                    // (unlike canonicalPath which resolves symlinks and can escape root)
+                    FileEntry(
+                        name = file.name,
+                        path = file.absolutePath,
+                        isDirectory = file.isDirectory,
+                        size = if (file.isFile) file.length() else 0L,
+                        lastModified = file.lastModified(),
+                        mimeType = file.extension.lowercase().let { ext ->
+                            when (ext) {
+                                "mkv", "mp4", "avi", "mov" -> "video/$ext"
+                                "jpg", "jpeg", "png", "webp" -> "image/$ext"
+                                "srt", "ass", "ssa" -> "text/$ext"
+                                else -> null
+                            }
                         }
-                    }
-                ) }
+                    )
+                }
                 ?: emptyList()
 
             Result.success(entries.sortedWith(compareBy({ !it.isDirectory }, { it.name.lowercase() })))
@@ -96,9 +111,6 @@ class LocalMediaSource(override val info: MediaSourceInfo) : MediaSource {
                 size = file.length(),
                 lastModified = file.lastModified()
             )
-
-            // For video files, could use MediaMetadataRetriever but would need Android context
-            // For now, basic metadata only
             Result.success(FileMetadata(entry = entry))
         } catch (e: Exception) {
             Result.failure(AppError.MediaSourceError.NotFound(path))

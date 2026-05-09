@@ -1,5 +1,7 @@
 package com.miruplay.tv.scraper.di
 
+import com.miruplay.tv.scraper.AniListScraper
+import com.miruplay.tv.scraper.BangumiScraper
 import com.miruplay.tv.scraper.MetadataScraper
 import dagger.Module
 import dagger.Provides
@@ -15,8 +17,10 @@ object ScraperModule {
     @Provides
     @Singleton
     @IntoSet
-    fun provideAniListScraper(): MetadataScraper {
-        // Placeholder - will be implemented in T35
-        throw NotImplementedError("AniList scraper not yet implemented")
-    }
+    fun provideBangumiScraper(scraper: BangumiScraper): MetadataScraper = scraper
+
+    @Provides
+    @Singleton
+    @IntoSet
+    fun provideAniListScraper(scraper: AniListScraper): MetadataScraper = scraper
 }

@@ -22,6 +22,7 @@ android {
 dependencies {
     api(project(":core:model"))
     api(project(":media-source"))
+    implementation(project(":data"))
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging.interceptor)
     implementation(libs.kotlinx.coroutines.core)

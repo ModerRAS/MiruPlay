@@ -131,5 +131,6 @@ class DefaultEpisodeDetector : EpisodeDetector {
         return 1
     }
     
-    override fun extractAnimeName(fileName: String): String? = extractAnimeName(fileName)
+    override fun extractAnimeName(fileName: String): String? = 
+        com.miruplay.tv.scanner.extractAnimeName(fileName)
 }

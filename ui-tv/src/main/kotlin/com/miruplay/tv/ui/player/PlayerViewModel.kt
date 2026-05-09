@@ -9,6 +9,7 @@ import com.miruplay.tv.model.PlaybackState
 import com.miruplay.tv.player.AudioTrack
 import com.miruplay.tv.player.PlaybackController
 import com.miruplay.tv.model.SubtitleTrack
+import androidx.media3.common.Player
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -44,6 +45,9 @@ class PlayerViewModel @Inject constructor(
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
+
+    /** Expose Media3 Player for PlayerView rendering */
+    fun getPlayer(): Player? = playbackController.getPlayer()
 
     private var progressSaveJob: Job? = null
     private var positionPollJob: Job? = null
