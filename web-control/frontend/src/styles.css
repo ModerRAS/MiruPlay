@@ -1,0 +1,483 @@
+:root {
+  color-scheme: dark;
+  --bg: #0f1117;
+  --surface: #171a22;
+  --surface-soft: #20242f;
+  --line: rgba(255, 255, 255, 0.12);
+  --text: #f4f7fb;
+  --muted: #9ca6b6;
+  --accent: #f05261;
+  --el-color-primary: #f05261;
+  --el-color-primary-light-3: #f47582;
+  --el-color-primary-light-5: #f79aa3;
+  --el-color-primary-light-7: #3b2129;
+  --el-color-primary-light-8: #2f1c24;
+  --el-color-primary-light-9: #24191f;
+  --el-bg-color: var(--bg);
+  --el-bg-color-overlay: var(--surface);
+  --el-fill-color-blank: var(--surface);
+  --el-fill-color-light: var(--surface-soft);
+  --el-border-color: var(--line);
+  --el-border-color-light: var(--line);
+  --el-text-color-primary: var(--text);
+  --el-text-color-regular: #d5dbea;
+  --el-text-color-secondary: var(--muted);
+  --el-menu-bg-color: transparent;
+  --el-menu-text-color: #e8edf7;
+  --el-menu-hover-bg-color: rgba(255, 255, 255, 0.06);
+  --el-menu-active-color: #ff7f8b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: clamp(14px, 0.85vw + 9px, 18px);
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+#app {
+  min-height: 100vh;
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(14rem, 18rem) minmax(0, 1fr);
+  background: var(--bg);
+}
+
+.side-nav {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  padding: 1.4rem;
+  border-right: 1px solid var(--line);
+  background: #13161d;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 1.25rem;
+}
+
+.brand {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  min-width: 0;
+}
+
+.brand-mark {
+  width: 2.7rem;
+  aspect-ratio: 1;
+  border-radius: 0.5rem;
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  color: white;
+  font-weight: 800;
+}
+
+.brand-copy {
+  min-width: 0;
+}
+
+.brand-copy strong,
+.brand-copy span,
+.access-card span,
+.access-card strong {
+  display: block;
+}
+
+.brand-copy span,
+.access-card span,
+.muted,
+.section-title span {
+  color: var(--muted);
+}
+
+.nav-menu {
+  border-right: 0;
+  background: transparent;
+}
+
+.nav-menu .el-menu-item {
+  border-radius: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.nav-menu .el-menu-item.is-active {
+  background: rgba(240, 82, 97, 0.16);
+  color: #ff7582;
+}
+
+.access-card {
+  overflow-wrap: anywhere;
+}
+
+.access-card strong {
+  display: inline-block;
+  max-width: 100%;
+  font-size: 0.92rem;
+  line-height: 1.28;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.main-pane {
+  min-width: 0;
+  padding: clamp(1rem, 2vw, 2rem);
+}
+
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.6rem;
+}
+
+.page-header h1 {
+  margin: 0;
+  font-size: clamp(1.8rem, 2.4vw, 2.6rem);
+  line-height: 1.1;
+}
+
+.page-header p {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: min(24rem, 100%);
+}
+
+.view-stack,
+.content-section {
+  display: grid;
+  gap: 1rem;
+}
+
+.view-stack {
+  gap: 1.8rem;
+}
+
+.section-title,
+.card-header,
+.time-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.section-title h2,
+.now-playing h2,
+.dialog-title h2 {
+  margin: 0;
+}
+
+.continue-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  gap: 0.9rem;
+}
+
+.continue-card {
+  cursor: pointer;
+}
+
+.continue-card :deep(.el-card__body) {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.poster-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 11rem), 1fr));
+  gap: 1rem;
+}
+
+.poster-card {
+  min-width: 0;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.poster-card :deep(.el-card__body) {
+  padding: 0;
+}
+
+.poster-art {
+  width: 100%;
+  aspect-ratio: 2 / 2.7;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(140deg, #262b38, #151821 55%, #3b242d);
+  color: rgba(255, 255, 255, 0.34);
+  font-size: clamp(2rem, 6vw, 4rem);
+  font-weight: 800;
+}
+
+.poster-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.poster-copy {
+  min-height: 6.4rem;
+  padding: 0.8rem;
+  display: grid;
+  align-content: start;
+  gap: 0.25rem;
+}
+
+.poster-copy strong,
+.poster-copy span,
+.poster-copy small,
+.one-line {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.poster-copy small {
+  color: var(--muted);
+}
+
+.source-layout,
+.remote-layout {
+  display: grid;
+  grid-template-columns: minmax(18rem, 0.9fr) minmax(20rem, 1.1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.el-card.panel-card,
+.el-card.continue-card,
+.el-card.poster-card,
+.el-card.source-item,
+.el-card.episode-card,
+.el-card.access-card {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.source-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.source-item :deep(.el-card__body) {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.source-main {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.source-main strong,
+.source-main span {
+  display: block;
+}
+
+.source-actions,
+.form-actions,
+.remote-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.source-form {
+  max-width: 100%;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.now-playing {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.now-playing h2 {
+  font-size: clamp(1.2rem, 1.8vw, 1.8rem);
+}
+
+.speed-segmented {
+  margin-top: 1rem;
+  max-width: 100%;
+}
+
+.anime-dialog :deep(.el-dialog__body) {
+  padding-top: 0;
+}
+
+.dialog-title p,
+.summary {
+  margin: 0.35rem 0 0;
+}
+
+.summary {
+  line-height: 1.7;
+  color: var(--muted);
+}
+
+.episode-list {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.episode-card :deep(.el-card__body) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.8rem;
+  align-items: center;
+}
+
+.episode-card strong,
+.episode-card span {
+  display: block;
+}
+
+.break-text {
+  overflow-wrap: anywhere;
+}
+
+.el-card {
+  background: var(--surface);
+  color: var(--text);
+  --el-card-bg-color: var(--surface);
+}
+
+.el-card__header {
+  border-bottom-color: var(--line);
+}
+
+.el-input__wrapper,
+.el-select__wrapper {
+  background: #10131a;
+  box-shadow: 0 0 0 1px var(--line) inset;
+}
+
+.el-input__inner,
+.el-select__placeholder,
+.el-form-item__label,
+.el-slider__runway {
+  color: var(--text);
+}
+
+.el-dialog {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.el-dialog__headerbtn .el-dialog__close {
+  color: var(--text);
+}
+
+.el-button.is-circle {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 920px) {
+  .app-shell {
+    display: block;
+  }
+
+  .side-nav {
+    position: sticky;
+    z-index: 20;
+    height: auto;
+    padding: 0.65rem;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    grid-template-rows: auto;
+  }
+
+  .brand,
+  .access-card {
+    display: none;
+  }
+
+  .nav-menu {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.4rem;
+  }
+
+  .nav-menu .el-menu-item {
+    justify-content: center;
+    margin: 0;
+    padding: 0 0.5rem;
+  }
+
+  .main-pane {
+    padding: 1rem;
+  }
+
+  .page-header,
+  .header-actions,
+  .source-layout,
+  .remote-layout,
+  .form-grid,
+  .episode-card :deep(.el-card__body) {
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+
+  .header-actions {
+    min-width: 0;
+  }
+
+  .poster-grid {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 9.5rem), 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  html {
+    font-size: 15px;
+  }
+
+  .poster-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+
+  .poster-copy {
+    min-height: 6.9rem;
+    padding: 0.65rem;
+  }
+
+  .source-actions .el-button,
+  .remote-buttons .el-button,
+  .form-actions .el-button {
+    flex: 1 1 8rem;
+  }
+}
