@@ -67,6 +67,9 @@ class MediaRepositoryImpl @Inject constructor(
                 name = source.name,
                 url = source.connectionInfo["url"],
                 username = source.connectionInfo["username"],
+                password = source.connectionInfo["password"]?.let {
+                    android.util.Base64.encodeToString(it.toByteArray(), android.util.Base64.NO_WRAP)
+                },
                 isConnected = source.isConnected
             )
             Result.success(Unit)

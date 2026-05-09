@@ -51,6 +51,7 @@ dependencies {
     implementation(project(":data"))
     implementation(project(":player-core"))
     implementation(project(":scraper"))
+    implementation(project(":web-control"))
     
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.navigation.compose)
