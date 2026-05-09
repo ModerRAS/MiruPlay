@@ -37,6 +37,7 @@ google-services.json
 # Agent workspace state
 .sisyphus/
 .tmp/
+.playwright-mcp/
 
 # Frontend dependencies
 node_modules/
