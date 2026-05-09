@@ -5,29 +5,37 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.data.repository.MediaRepository
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.PlaybackSource
-import com.miruplay.tv.scanner.ScanCoordinator
 import com.miruplay.tv.ui.detail.AnimeDetailScreen
 import com.miruplay.tv.ui.library.LibraryScreen
 import com.miruplay.tv.ui.player.PlayerScreen
 import com.miruplay.tv.ui.settings.AddSourceScreen
 import com.miruplay.tv.ui.theme.MiruPlayTheme
+import com.miruplay.tv.webcontrol.WebControlNavigator
+import com.miruplay.tv.webcontrol.WebPlaybackSource
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.decodeFromJsonElement
+import java.net.URLEncoder
 import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
     @Inject lateinit var mediaRepository: MediaRepository
+    @Inject lateinit var webControlNavigator: WebControlNavigator
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,15 +56,38 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             MiruPlayTheme {
-                MiruPlayNavigation()
+                MiruPlayNavigation(
+                    mediaRepository = mediaRepository,
+                    webControlNavigator = webControlNavigator
+                )
             }
         }
     }
 }
 
 @Composable
-fun MiruPlayNavigation() {
+fun MiruPlayNavigation(
+    mediaRepository: MediaRepository,
+    webControlNavigator: WebControlNavigator
+) {
     val navController = rememberNavController()
+    val scope = rememberCoroutineScope()
+
+    androidx.compose.runtime.LaunchedEffect(webControlNavigator, navController) {
+        webControlNavigator.commands.collect { command ->
+            val payload = command.payload
+            if (command.type == WebControlNavigator.TYPE_OPEN_PLAYER && payload != null) {
+                val source = Json.decodeFromJsonElement<WebPlaybackSource>(payload)
+                val encodedPath = Uri.encode(source.uri)
+                val encodedSource = Uri.encode(source.mediaSourceId)
+                navController.navigate(
+                    "player/$encodedPath?mediaSourceId=$encodedSource&startPosition=${source.startPositionMs}"
+                ) {
+                    launchSingleTop = true
+                }
+            }
+        }
+    }
     
     NavHost(
         navController = navController,
@@ -86,21 +117,41 @@ fun MiruPlayNavigation() {
                 animeId = animeId,
                 onNavigateBack = { navController.popBackStack() },
                 onPlayEpisode = { episode ->
-                    val encodedPath = Uri.encode(episode.filePath)
-                    navController.navigate("player/$encodedPath")
+                    scope.launch {
+                        val playableUri = resolvePlayableUri(
+                            path = episode.filePath,
+                            episodeId = episode.id,
+                            mediaRepository = mediaRepository
+                        )
+                        val encodedPath = Uri.encode(playableUri)
+                        navController.navigate("player/$encodedPath")
+                    }
                 }
             )
         }
 
         composable(
-            route = "player/{uri}",
-            arguments = listOf(navArgument("uri") { type = NavType.StringType })
+            route = "player/{uri}?mediaSourceId={mediaSourceId}&startPosition={startPosition}",
+            arguments = listOf(
+                navArgument("uri") { type = NavType.StringType },
+                navArgument("mediaSourceId") {
+                    type = NavType.StringType
+                    defaultValue = "media"
+                },
+                navArgument("startPosition") {
+                    type = NavType.LongType
+                    defaultValue = 0L
+                }
+            )
         ) { backStackEntry ->
             val uri = backStackEntry.arguments?.getString("uri") ?: return@composable
             val decodedUri = Uri.decode(uri)
+            val mediaSourceId = backStackEntry.arguments?.getString("mediaSourceId") ?: "media"
+            val startPosition = backStackEntry.arguments?.getLong("startPosition") ?: 0L
             val source = PlaybackSource(
                 uri = decodedUri,
-                mediaSourceId = "media",
+                mediaSourceId = mediaSourceId,
+                startPosition = startPosition,
                 subtitleTracks = emptyList()
             )
             PlayerScreen(
@@ -109,4 +160,58 @@ fun MiruPlayNavigation() {
             )
         }
     }
+}
+
+private suspend fun resolvePlayableUri(
+    path: String,
+    episodeId: String,
+    mediaRepository: MediaRepository
+): String {
+    if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("content://")) {
+        return path
+    }
+
+    val sources = when (val result = mediaRepository.getSources()) {
+        is Result.Success -> result.data
+        is Result.Error -> emptyList()
+    }
+
+    val sourceId = episodeId.substringBefore(':').toLongOrNull()
+    val source = if (sourceId != null) {
+        sources.firstOrNull { it.id == sourceId }
+    } else {
+        sources.firstOrNull { source ->
+            source.matchesPath(path)
+        }
+    }
+
+    return if (source?.type == MediaSourceType.WEBDAV) {
+        joinRemoteUrl(source.connectionInfo["url"].orEmpty(), path)
+    } else {
+        path
+    }
+}
+
+private fun MediaSourceInfo.matchesPath(path: String): Boolean {
+    return when (type) {
+        MediaSourceType.LOCAL -> {
+            val root = connectionInfo["path"] ?: connectionInfo["url"] ?: return false
+            path == root || path.startsWith("${root.trimEnd('/')}/")
+        }
+        MediaSourceType.WEBDAV -> path.startsWith("/")
+        MediaSourceType.SMB -> path.startsWith("smb://")
+    }
+}
+
+private fun joinRemoteUrl(baseUrl: String, path: String): String {
+    val base = baseUrl.trimEnd('/')
+    if (base.isBlank()) return path
+    if (path.startsWith(base)) return path
+    val encodedPath = path
+        .trimStart('/')
+        .split('/')
+        .joinToString("/") { segment ->
+            URLEncoder.encode(segment, Charsets.UTF_8.name()).replace("+", "%20")
+    }
+    return "$base/$encodedPath"
 }

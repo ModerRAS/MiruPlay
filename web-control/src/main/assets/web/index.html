@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MiruPlay Web Control</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div id="app">
+    <aside class="rail">
+      <div class="brand">
+        <span class="brand-mark">M</span>
+        <div>
+          <strong>MiruPlay</strong>
+          <small id="serverLabel">Web Control</small>
+        </div>
+      </div>
+      <nav class="tabs" aria-label="主导航">
+        <button class="tab is-active" data-view="library">片库</button>
+        <button class="tab" data-view="sources">媒体源</button>
+        <button class="tab" data-view="remote">遥控器</button>
+      </nav>
+      <div class="server-card">
+        <span>访问地址</span>
+        <strong id="accessUrl">读取中...</strong>
+      </div>
+    </aside>
+
+    <main class="content">
+      <header class="topbar">
+        <div>
+          <h1 id="viewTitle">片库</h1>
+          <p id="viewSubtitle">浏览番剧、选择剧集并投到电视端播放。</p>
+        </div>
+        <div class="top-actions">
+          <label class="search">
+            <span>搜索</span>
+            <input id="searchInput" type="search" placeholder="番剧名">
+          </label>
+          <button class="icon-button" id="refreshBtn" title="刷新">↻</button>
+        </div>
+      </header>
+
+      <section class="view is-active" id="libraryView">
+        <section id="continueSection" class="band">
+          <div class="section-title">
+            <h2>继续观看</h2>
+          </div>
+          <div id="continueList" class="continue-list"></div>
+        </section>
+
+        <section class="band">
+          <div class="section-title">
+            <h2>所有番剧</h2>
+            <span id="libraryCount">0 部</span>
+          </div>
+          <div id="animeGrid" class="poster-grid"></div>
+        </section>
+      </section>
+
+      <section class="view" id="sourcesView">
+        <div class="split">
+          <section class="panel">
+            <div class="section-title">
+              <h2>媒体源</h2>
+              <button id="scanAllBtn">扫描全部</button>
+            </div>
+            <div id="sourceList" class="source-list"></div>
+          </section>
+
+          <section class="panel">
+            <div class="section-title">
+              <h2 id="sourceFormTitle">添加源</h2>
+              <button class="ghost" id="newSourceBtn">新建</button>
+            </div>
+            <form id="sourceForm" class="source-form">
+              <input type="hidden" id="sourceId">
+              <label>
+                <span>类型</span>
+                <select id="sourceType">
+                  <option value="LOCAL">本地</option>
+                  <option value="WEBDAV">WebDAV</option>
+                  <option value="SMB">SMB</option>
+                </select>
+              </label>
+              <label>
+                <span>显示名称</span>
+                <input id="sourceName" required placeholder="例如：NAS 动画库">
+              </label>
+              <label>
+                <span id="sourceLocationLabel">文件夹路径</span>
+                <input id="sourceLocation" required placeholder="/storage/emulated/0/Download">
+              </label>
+              <div class="form-row">
+                <label>
+                  <span>用户名</span>
+                  <input id="sourceUsername" autocomplete="username">
+                </label>
+                <label>
+                  <span>密码</span>
+                  <input id="sourcePassword" type="password" autocomplete="current-password" placeholder="留空则保留原密码">
+                </label>
+              </div>
+              <div class="button-row">
+                <button type="button" class="ghost" id="testSourceBtn">测试连接</button>
+                <button type="submit">保存源</button>
+              </div>
+              <p id="sourceMessage" class="message"></p>
+            </form>
+          </section>
+        </div>
+      </section>
+
+      <section class="view" id="remoteView">
+        <div class="remote-layout">
+          <section class="panel now-playing">
+            <div class="section-title">
+              <h2>正在播放</h2>
+              <span id="playbackState">Idle</span>
+            </div>
+            <strong id="playbackTitle">未播放</strong>
+            <small id="playbackUri"></small>
+            <input id="seekBar" class="seek" type="range" min="0" max="1000" value="0">
+            <div class="time-row">
+              <span id="positionLabel">00:00</span>
+              <span id="durationLabel">00:00</span>
+            </div>
+          </section>
+
+          <section class="panel remote-pad">
+            <div class="remote-buttons">
+              <button data-command="skip_backward">-10s</button>
+              <button class="primary-control" data-command="toggle">播放/暂停</button>
+              <button data-command="skip_forward">+30s</button>
+              <button data-command="stop">停止</button>
+            </div>
+            <div class="speed-row">
+              <button data-speed="0.75">0.75x</button>
+              <button data-speed="1">1x</button>
+              <button data-speed="1.25">1.25x</button>
+              <button data-speed="1.5">1.5x</button>
+              <button data-speed="2">2x</button>
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <dialog id="animeDialog">
+      <div class="dialog-head">
+        <div>
+          <h2 id="dialogTitle">番剧</h2>
+          <p id="dialogOriginalTitle" class="dialog-original"></p>
+          <p id="dialogSummary"></p>
+        </div>
+        <button class="icon-button" id="closeDialogBtn" title="关闭">×</button>
+      </div>
+      <div id="episodeList" class="episode-list"></div>
+    </dialog>
+
+    <div id="toast" class="toast" role="status"></div>
+  </div>
+  <script src="/app.js"></script>
+</body>
+</html>
