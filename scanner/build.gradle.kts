@@ -11,6 +11,9 @@ android {
     defaultConfig {
         minSdk = 28
     }
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 dependencies {

@@ -11,6 +11,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import org.w3c.dom.Document
 import org.w3c.dom.Element
 import java.io.InputStream
+import java.net.URI
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.xml.parsers.DocumentBuilderFactory
@@ -66,8 +67,12 @@ class WebDavMediaSource @Inject constructor() : MediaSource {
 
             val response = client.newCall(request).execute()
             if (!response.isSuccessful) {
+                val responseBody = response.body?.string()?.takeIf { it.isNotBlank() }
                 return@withContext Result.failure(
-                    AppError.NetworkError.HttpError(response.code, response.message)
+                    AppError.NetworkError.HttpError(
+                        response.code,
+                        responseBody?.let { "${response.message}: $it" } ?: response.message
+                    )
                 )
             }
 
@@ -75,7 +80,7 @@ class WebDavMediaSource @Inject constructor() : MediaSource {
                 AppError.NetworkError.ServerUnreachable(url)
             )
 
-            val entries = parsePropfindResponse(body)
+            val entries = parsePropfindResponse(body, path)
             Result.success(entries)
         } catch (e: Exception) {
             Result.failure(AppError.NetworkError.ServerUnreachable(path))
@@ -93,8 +98,12 @@ class WebDavMediaSource @Inject constructor() : MediaSource {
 
             val response = client.newCall(request).execute()
             if (!response.isSuccessful) {
+                val responseBody = response.body?.string()?.takeIf { it.isNotBlank() }
                 return@withContext Result.failure(
-                    AppError.NetworkError.HttpError(response.code, response.message)
+                    AppError.NetworkError.HttpError(
+                        response.code,
+                        responseBody?.let { "${response.message}: $it" } ?: response.message
+                    )
                 )
             }
 
@@ -128,7 +137,7 @@ class WebDavMediaSource @Inject constructor() : MediaSource {
                 AppError.NetworkError.ServerUnreachable(url)
             )
 
-            val entries = parsePropfindResponse(body)
+            val entries = parsePropfindResponse(body, path, includeRequestedPath = true)
             val entry = entries.firstOrNull { !it.isDirectory }
                 ?: return@withContext Result.failure(AppError.MediaSourceError.NotFound(path))
 
@@ -139,11 +148,18 @@ class WebDavMediaSource @Inject constructor() : MediaSource {
     }
 
     override suspend fun testConnection(): Result<Boolean> = withContext(Dispatchers.IO) {
-        try {
-            val result = listFiles("")
-            Result.success(result.isSuccess())
-        } catch (e: Exception) {
-            Result.failure(AppError.NetworkError.NoConnectivity)
+        when (val result = listFiles("")) {
+            is Result.Success -> Result.success(true)
+            is Result.Error -> when (val error = result.error) {
+                is AppError.NetworkError.HttpError -> {
+                    if (error.code == 207 || error.code == 200) {
+                        Result.success(true)
+                    } else {
+                        Result.failure(error)
+                    }
+                }
+                else -> Result.failure(error)
+            }
         }
     }
 
@@ -176,23 +192,28 @@ class WebDavMediaSource @Inject constructor() : MediaSource {
     </d:prop>
 </d:propfind>"""
 
-    private fun parsePropfindResponse(xml: String): List<FileEntry> {
+    internal fun parsePropfindResponse(
+        xml: String,
+        requestedPath: String,
+        includeRequestedPath: Boolean = false
+    ): List<FileEntry> {
         val factory = DocumentBuilderFactory.newInstance()
         factory.isNamespaceAware = true
         val doc = factory.newDocumentBuilder().parse(xml.byteInputStream())
         val responses = doc.getElementsByTagNameNS(NS_DAV, "response")
 
+        val normalizedRequestedPath = normalizeRemotePath(requestedPath)
         val entries = mutableListOf<FileEntry>()
         for (i in 0 until responses.length) {
             val response = responses.item(i) as Element
             val href = getChildText(response, "href") ?: continue
 
-            // Skip the root path itself
-            val path = href.removePrefix(baseUrl.trimEnd('/')).removePrefix("/")
+            val path = hrefToRemotePath(href)
             if (path.isEmpty()) continue
+            if (!includeRequestedPath && path == normalizedRequestedPath) continue
 
             val isDir = isCollection(response)
-            val name = path.substringAfterLast('/').ifEmpty { path }
+            val name = path.substringAfterLast('/')
 
             if (name in HIDDEN_FILES) continue
 
@@ -208,6 +229,34 @@ class WebDavMediaSource @Inject constructor() : MediaSource {
 
         // Remove root entry, return children only
         return entries.filter { it.path.isNotBlank() && it.path != "/" }
+    }
+
+    private fun hrefToRemotePath(href: String): String {
+        val decoded = decodeHref(href)
+        val withoutBaseUrl = decoded.removePrefix(baseUrl.trimEnd('/'))
+        val basePath = try {
+            URI(baseUrl).path.orEmpty().trimEnd('/')
+        } catch (_: Exception) {
+            ""
+        }
+        val withoutBasePath = when {
+            basePath.isBlank() -> withoutBaseUrl
+            withoutBaseUrl == basePath -> ""
+            withoutBaseUrl.startsWith("$basePath/") -> withoutBaseUrl.removePrefix(basePath)
+            else -> withoutBaseUrl
+        }
+        return normalizeRemotePath(withoutBasePath)
+    }
+
+    private fun normalizeRemotePath(path: String): String =
+        path.substringBefore('?')
+            .replace('\\', '/')
+            .trim('/')
+
+    private fun decodeHref(href: String): String = try {
+        java.net.URLDecoder.decode(href, Charsets.UTF_8.name())
+    } catch (_: Exception) {
+        href
     }
 
     private fun isCollection(response: Element): Boolean {
