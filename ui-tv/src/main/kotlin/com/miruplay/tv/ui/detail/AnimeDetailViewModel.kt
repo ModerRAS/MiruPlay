@@ -34,19 +34,21 @@ class AnimeDetailViewModel @Inject constructor(
     private val _episodesWithProgress = MutableStateFlow<List<Pair<Episode, ProgressRecord?>>>(emptyList())
     val episodesWithProgress: StateFlow<List<Pair<Episode, ProgressRecord?>>> = _episodesWithProgress.asStateFlow()
 
+    private var allEpisodesWithProgress: List<Pair<Episode, ProgressRecord?>> = emptyList()
+
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
     fun loadAnime(animeId: String) {
         viewModelScope.launch {
             _isLoading.value = true
-            
+
             metadataRepository.getCachedMetadata(animeId).onSuccess { cached ->
                 if (cached != null) {
                     _anime.value = cached
                 }
             }
-            
+
             metadataRepository.getCachedEpisodes(animeId).onSuccess { epList ->
                 // Group episodes into seasons
                 val seasonMap = epList.groupBy { it.seasonNumber }
@@ -58,24 +60,25 @@ class AnimeDetailViewModel @Inject constructor(
                         episodeCount = eps.size
                     )
                 }
-                
+
                 // Load progress for each episode
                 val withProgress = epList.map { episode ->
                     val progress = progressRepository.getProgress(episode.id).getOrNull()
                     Pair(episode, progress)
                 }
-                _episodesWithProgress.value = withProgress
+                allEpisodesWithProgress = withProgress
+                // Apply current season filter
+                _episodesWithProgress.value = withProgress.filter { it.first.seasonNumber == _selectedSeason.value }
             }
-            
+
             _isLoading.value = false
         }
     }
 
     fun selectSeason(seasonNumber: Int) {
         _selectedSeason.value = seasonNumber
-        // Filter episodes for selected season
-        val allEpisodes = _episodesWithProgress.value
-        _episodesWithProgress.value = allEpisodes.filter { it.first.seasonNumber == seasonNumber }
+        // Filter from full list by season
+        _episodesWithProgress.value = allEpisodesWithProgress.filter { it.first.seasonNumber == seasonNumber }
     }
 
     fun rescrapeMetadata() {

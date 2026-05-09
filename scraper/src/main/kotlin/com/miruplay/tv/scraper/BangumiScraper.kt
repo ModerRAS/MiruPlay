@@ -2,6 +2,7 @@ package com.miruplay.tv.scraper
 
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.data.secure.SecurePreferencesManager
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.ScraperSource
@@ -15,7 +16,9 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class BangumiScraper @Inject constructor() : MetadataScraper {
+class BangumiScraper @Inject constructor(
+    private val securePrefs: SecurePreferencesManager
+) : MetadataScraper {
 
     override val sourceName: String = "Bangumi"
 
@@ -28,14 +31,25 @@ class BangumiScraper @Inject constructor() : MetadataScraper {
 
     companion object {
         private const val API_BASE = "https://api.bgm.tv"
+        private const val USER_AGENT = "MiruPlay/1.0 (Android)"
+    }
+
+    private fun buildRequest(url: String): Request {
+        val builder = Request.Builder()
+            .url(url)
+            .addHeader("User-Agent", USER_AGENT)
+
+        val token = securePrefs.bangumiAccessToken
+        if (!token.isNullOrBlank()) {
+            builder.addHeader("Authorization", "Bearer $token")
+        }
+
+        return builder.build()
     }
 
     override suspend fun searchAnime(query: String): Result<List<ScraperResult>> = withContext(Dispatchers.IO) {
         try {
-            val request = Request.Builder()
-                .url("$API_BASE/search/subject/$query?type=2&responseGroup=small")
-                .addHeader("User-Agent", "MiruPlay/0.1.0")
-                .build()
+            val request = buildRequest("$API_BASE/search/subject/$query?type=2&responseGroup=small")
 
             val response = client.newCall(request).execute()
             val body = response.body?.string() ?: return@withContext Result.failure(
@@ -70,10 +84,7 @@ class BangumiScraper @Inject constructor() : MetadataScraper {
     override suspend fun getAnimeDetails(animeId: String): Result<Anime> = withContext(Dispatchers.IO) {
         try {
             val idInt = animeId.toInt()
-            val request = Request.Builder()
-                .url("$API_BASE/v0/subjects/$animeId")
-                .addHeader("User-Agent", "MiruPlay/0.1.0")
-                .build()
+            val request = buildRequest("$API_BASE/v0/subjects/$animeId")
 
             val response = client.newCall(request).execute()
             val body = response.body?.string() ?: return@withContext Result.failure(

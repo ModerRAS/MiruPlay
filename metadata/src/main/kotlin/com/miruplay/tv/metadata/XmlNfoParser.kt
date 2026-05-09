@@ -10,6 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.w3c.dom.Document
 import org.w3c.dom.Element
+import java.io.ByteArrayInputStream
 import java.io.File
 import javax.xml.parsers.DocumentBuilderFactory
 
@@ -93,6 +94,63 @@ class XmlNfoParser : NfoParser {
             nfoContent.contains("<musicvideo") -> NfoType.MUSICVIDEO
             else -> NfoType.UNKNOWN
         }
+    }
+
+    suspend fun parseEpisodeNfoFromContent(xmlContent: String): Result<NfoMetadata> = withContext(Dispatchers.IO) {
+        try {
+            val doc = parseXmlFromString(xmlContent)
+            val root = doc.documentElement
+            if (root.tagName != "episodedetails") {
+                return@withContext Result.failure(AppError.ParseError.NfoMalformed(1, "Expected episodedetails root"))
+            }
+            val metadata = NfoMetadata(
+                title = getText(root, "title") ?: "",
+                showTitle = getText(root, "showtitle"),
+                season = getText(root, "season")?.toIntOrNull() ?: 1,
+                episode = getText(root, "episode")?.toIntOrNull() ?: 1,
+                plot = getText(root, "plot") ?: "",
+                premiered = getText(root, "premiered"),
+                rating = getText(root, "rating")?.toFloatOrNull() ?: 0f,
+                playcount = getText(root, "playcount")?.toIntOrNull() ?: 0,
+                lastplayed = getText(root, "lastplayed"),
+                resumePosition = parseResumePosition(getText(root, "resume")),
+                uniqueIds = parseUniqueIds(root)
+            )
+            Result.success(metadata)
+        } catch (e: Exception) {
+            Result.failure(AppError.ParseError.XmlParseError(e.message ?: "Unknown error"))
+        }
+    }
+
+    suspend fun parseTvShowNfoFromContent(xmlContent: String): Result<TvShowNfoMetadata> = withContext(Dispatchers.IO) {
+        try {
+            val doc = parseXmlFromString(xmlContent)
+            val root = doc.documentElement
+            if (root.tagName != "tvshow") {
+                return@withContext Result.failure(AppError.ParseError.NfoMalformed(1, "Expected tvshow root"))
+            }
+            val metadata = TvShowNfoMetadata(
+                title = getText(root, "title") ?: "",
+                originalTitle = getText(root, "originaltitle") ?: (getText(root, "title") ?: ""),
+                sortTitle = getText(root, "sorttitle"),
+                plot = getText(root, "plot") ?: "",
+                genre = parseGenres(root),
+                premiered = getText(root, "premiered"),
+                studio = getText(root, "studio"),
+                rating = getText(root, "rating")?.toFloatOrNull() ?: 0f,
+                uniqueIds = parseUniqueIds(root),
+                actors = parseActors(root)
+            )
+            Result.success(metadata)
+        } catch (e: Exception) {
+            Result.failure(AppError.ParseError.XmlParseError(e.message ?: "Unknown error"))
+        }
+    }
+
+    private fun parseXmlFromString(xml: String): Document {
+        val factory = DocumentBuilderFactory.newInstance()
+        factory.isNamespaceAware = true
+        return factory.newDocumentBuilder().parse(ByteArrayInputStream(xml.toByteArray()))
     }
 
     private fun parseXml(file: File): Document {

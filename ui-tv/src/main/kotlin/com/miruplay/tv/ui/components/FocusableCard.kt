@@ -3,6 +3,8 @@ package com.miruplay.tv.ui.components
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
@@ -39,21 +41,22 @@ fun FocusableCard(
         label = "borderWidth"
     )
     val borderColor = if (isFocused) FocusBorder else Color.Transparent
-    
+
     Box(
         modifier = modifier
             .width(320.dp)
             .height(180.dp)
             .scale(scale)
             .clip(RoundedCornerShape(8.dp))
+            .background(CardBg)
             .border(
                 width = borderWidth.dp,
                 color = borderColor,
                 shape = RoundedCornerShape(8.dp)
             )
-            .background(CardBg)
+            .focusable()
             .onFocusChanged { isFocused = it.isFocused }
-            .then(modifier),
+            .clickable { onClick() },
         contentAlignment = Alignment.BottomStart
     ) {
         // Content area

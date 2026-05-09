@@ -18,5 +18,7 @@ data class IndexRepositoryEntity(
     val animeName: String? = null,
     val seasonNumber: Int? = null,
     val episodeNumber: Int? = null,
-    val isDirectory: Boolean = false
+    val isDirectory: Boolean = false,
+    val fileSize: Long = 0L,
+    val lastModified: Long = 0L
 )

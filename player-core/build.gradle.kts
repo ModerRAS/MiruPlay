@@ -22,8 +22,9 @@ android {
 dependencies {
     api(project(":core:model"))
     api(project(":media-source"))
-    implementation(libs.androidx.media3.exoplayer)
-    implementation(libs.androidx.media3.session)
+    api(libs.androidx.media3.exoplayer)
+    api(libs.androidx.media3.ui)
+    api(libs.androidx.media3.session)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.dagger.hilt.android)
     ksp(libs.dagger.hilt.compiler)

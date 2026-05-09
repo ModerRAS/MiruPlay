@@ -26,7 +26,11 @@ object PlayerModule {
 
     @Provides
     @Singleton
-    fun providePlaybackController(player: ExoPlayer, config: PlaybackConfig): PlaybackController {
-        return ExoPlaybackController(player, config)
+    fun providePlaybackController(
+        @ApplicationContext context: Context,
+        player: ExoPlayer,
+        config: PlaybackConfig
+    ): PlaybackController {
+        return ExoPlaybackController(context, player, config)
     }
 }

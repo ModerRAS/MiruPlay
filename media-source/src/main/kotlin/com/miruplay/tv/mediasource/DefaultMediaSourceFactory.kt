@@ -4,8 +4,11 @@ import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class DefaultMediaSourceFactory : MediaSourceFactory {
+@Singleton
+class DefaultMediaSourceFactory @Inject constructor() : MediaSourceFactory {
     override fun create(info: MediaSourceInfo): Result<MediaSource> {
         return try {
             val source = when (info.type) {

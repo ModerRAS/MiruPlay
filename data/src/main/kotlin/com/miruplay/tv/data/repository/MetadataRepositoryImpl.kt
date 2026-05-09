@@ -37,12 +37,11 @@ class MetadataRepositoryImpl @Inject constructor(
     override suspend fun getCachedMetadata(animeId: String): Result<Anime?> = withContext(Dispatchers.IO) {
         try {
             val entity = animeDao.getById(animeId) ?: return@withContext Result.success(null)
-
-            val now = System.currentTimeMillis()
-            if (now - entity.lastUpdated > CACHE_DURATION_MS) {
+            // Check if cache is expired
+            if (System.currentTimeMillis() - entity.lastUpdated > CACHE_DURATION_MS) {
                 return@withContext Result.success(null)
             }
-
+            // Return cached data with current episode count
             val episodes = episodeDao.getByAnimeId(animeId)
             Result.success(entity.toDomain(episodes))
         } catch (e: Exception) {
@@ -56,6 +55,24 @@ class MetadataRepositoryImpl @Inject constructor(
             Result.success(episodeEntities.map { it.toDomain() })
         } catch (e: Exception) {
             Result.success(emptyList())
+        }
+    }
+
+    override suspend fun cacheEpisodes(animeId: String, episodes: List<Episode>): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            episodeDao.deleteByAnimeId(animeId)
+            val entities = episodes.map { it.toEntity(animeId, it.seasonNumber) }
+            episodeDao.insertAll(entities)
+            // Also update episode count in cached anime metadata
+            animeDao.getById(animeId)?.let { animeEntity ->
+                animeDao.insert(animeEntity.copy(
+                    episodeCount = episodes.size,
+                    lastUpdated = System.currentTimeMillis()
+                ))
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(AppError.SyncError.WriteFailed("cache_episodes_$animeId", e.message ?: "Unknown"))
         }
     }
 

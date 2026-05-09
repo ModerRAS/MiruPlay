@@ -2316,7 +2316,7 @@ Wave FINAL (所有实现完成后 — 4 个并行审查，然后等待用户确�
 > 4 个审查 Agent 并行运行。全部必须 APPROVE。汇总结果后呈现给用户，获得用户明确确认。
 > **在获得用户确认前，不要标记 F1-F4 为已完成。**
 
-- [x] F1. **计划合规审计** — `oracle`
+- [ ] F1. **计划合规审计** — `oracle`
 
   通读整个计划。对每个 "Must Have"：验证实现存在（读文件、curl 端点、运行命令）。对每个 "Must NOT Have"：搜索代码库寻找禁止模式 — 如发现，返回 `file:line`。检查证据文件存在于 `.sisyphus/evidence/`。对照交付物。
   - [ ] 11 个模块编译通过：`./gradlew assembleDebug`
@@ -2327,7 +2327,7 @@ Wave FINAL (所有实现完成后 — 4 个并行审查，然后等待用户确�
   - [ ] 包名正确：`com.miruplay.tv`
   - **输出**：`Must Have [N/N] | Must NOT Have [N/N] | Tasks [43/43] | VERDICT: APPROVE/REJECT`
 
-- [x] F2. **代码质量审查** — `unspecified-high`
+- [ ] F2. **代码质量审查** — `unspecified-high`
 
   运行 `./gradlew :app:lintDebug` + `./gradlew :app:assembleDebug`（含 R8）。审查所有变更文件：
   - [ ] 构建：`./gradlew assembleDebug` → PASS
@@ -2339,7 +2339,7 @@ Wave FINAL (所有实现完成后 — 4 个并行审查，然后等待用户确�
   - [ ] Room DAO：无 `SELECT *`（显式列出所需列）
   - **输出**：`Build [PASS/FAIL] | Lint [PASS/FAIL] | R8 [PASS/FAIL] | Files [N clean/N issues] | VERDICT`
 
-- [x] F3. **真实 QA 验证** — `unspecified-high`（+ `playwright` skill for UI）
+- [ ] F3. **真实 QA 验证** — `unspecified-high`（+ `playwright` skill for UI）
 
   从干净状态启动。执行每个任务的 QA 场景 — 遵循精确步骤，捕获证据。测试跨任务集成（功能协同工作，而非孤立）。测试边缘情况：空状态、无效输入、快速操作。保存到 `.sisyphus/evidence/final-qa/`。
   - [ ] 场景 1：App 首次启动 → 显示空白状态引导
@@ -2353,7 +2353,7 @@ Wave FINAL (所有实现完成后 — 4 个并行审查，然后等待用户确�
   - [ ] 场景 9：TalkBack 辅助功能（若支持）
   - **输出**：`Scenarios [N/N pass] | Integration [N/N] | Edge Cases [N tested] | VERDICT`
 
-- [x] F4. **范围一致性检查** — `deep`
+- [ ] F4. **范围一致性检查** — `deep`
 
   对每个任务：读取 "做什么"，读取实际 diff（`git diff`）。验证 1:1 — 规格中所有内容都已构建（无遗漏），未构建规格外内容（无蔓延）。检查 "不能做" 合规性。检测跨任务污染：Task N 触碰 Task M 的文件。标记未预见的变更。
   - [ ] 每个 TODO 的 "做什么" 与实际 diff 匹配
