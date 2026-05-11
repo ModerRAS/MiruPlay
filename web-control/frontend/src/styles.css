@@ -142,10 +142,16 @@ body {
 
 .page-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
   margin-bottom: 1.6rem;
+}
+
+.page-header > div:first-child {
+  flex: 1 1 20rem;
+  min-width: 0;
 }
 
 .page-header h1 {
@@ -157,13 +163,17 @@ body {
 .page-header p {
   margin: 0.35rem 0 0;
   color: var(--muted);
+  overflow-wrap: anywhere;
 }
 
 .header-actions {
   display: flex;
+  flex: 1 1 14rem;
   align-items: center;
+  justify-content: flex-end;
   gap: 0.75rem;
-  min-width: min(24rem, 100%);
+  min-width: min(14rem, 100%);
+  max-width: min(26rem, 100%);
 }
 
 .view-stack,
@@ -263,7 +273,7 @@ body {
 .source-layout,
 .remote-layout {
   display: grid;
-  grid-template-columns: minmax(18rem, 0.9fr) minmax(20rem, 1.1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
   gap: 1rem;
   align-items: start;
 }
@@ -277,6 +287,7 @@ body {
   border-color: var(--line);
   background: var(--surface);
   color: var(--text);
+  min-width: 0;
 }
 
 .source-list {
@@ -296,6 +307,14 @@ body {
   align-items: start;
 }
 
+.source-main .el-tag {
+  justify-self: start;
+}
+
+.source-main > div {
+  min-width: 0;
+}
+
 .source-main strong,
 .source-main span {
   display: block;
@@ -309,13 +328,26 @@ body {
   gap: 0.6rem;
 }
 
+.source-actions .el-button,
+.form-actions .el-button,
+.remote-buttons .el-button {
+  margin-left: 0;
+  min-width: 0;
+}
+
 .source-form {
   max-width: 100%;
 }
 
+.source-form .el-form-item,
+.source-form .el-input,
+.source-form .el-select {
+  min-width: 0;
+}
+
 .form-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
   gap: 0.8rem;
 }
 
@@ -367,6 +399,7 @@ body {
 
 .break-text {
   overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .el-card {
@@ -468,6 +501,11 @@ body {
   .poster-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.75rem;
+  }
+
+  .source-main {
+    grid-template-columns: 1fr;
+    gap: 0.55rem;
   }
 
   .poster-copy {
