@@ -4,9 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -14,6 +13,8 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -56,12 +57,32 @@ fun LibraryScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "MiruPlay",
-                    style = TvTypography.title,
-                    color = AnimeRed
-                )
-                TvButton(text = "设置", onClick = onNavigateToSettings)
+                Column {
+                    Text(
+                        text = "探索",
+                        style = TvTypography.title,
+                        color = TextPrimary
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "本地媒体库 · Bangumi 元数据",
+                        style = TvTypography.body,
+                        color = TextSecondary
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    TvButton(
+                        text = "扫描",
+                        icon = Icons.Filled.Refresh,
+                        onClick = { viewModel.scanNow() },
+                        modifier = Modifier.width(132.dp)
+                    )
+                    TvButton(
+                        text = "设置",
+                        onClick = onNavigateToSettings,
+                        modifier = Modifier.width(132.dp)
+                    )
+                }
             }
             
             when (val state = uiState) {
@@ -79,9 +100,9 @@ fun LibraryScreen(
                 
                 is LibraryUiState.HasSources -> {
                     EmptyState(
-                        message = "已配置媒体源\n点击刷新开始扫描",
-                        buttonText = "设置",
-                        onClick = onNavigateToSettings
+                        message = "已配置媒体源\n点击扫描建立媒体库",
+                        buttonText = "扫描媒体库",
+                        onClick = { viewModel.scanNow() }
                     )
                 }
                 
@@ -95,8 +116,8 @@ fun LibraryScreen(
                 is LibraryUiState.ScanError -> {
                     EmptyState(
                         message = state.message,
-                        buttonText = "重试",
-                        onClick = { viewModel.refresh() }
+                        buttonText = "手动扫描",
+                        onClick = { viewModel.scanNow() }
                     )
                 }
                 
@@ -192,85 +213,120 @@ private fun LibraryContent(
     allAnime: List<Anime>,
     onNavigateToDetail: (String) -> Unit
 ) {
+    val library = remember(allAnime) { allAnime.distinctBy { it.id }.sortedBy { it.displayTitle() } }
+    val featured = remember(library) {
+        library.sortedWith(
+            compareByDescending<Anime> { it.rating }
+                .thenByDescending { it.episodeCount }
+                .thenBy { it.displayTitle() }
+        ).take(8)
+    }
+
     Column(
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
     ) {
-        // Continue Watching
-        if (continueWatching.isNotEmpty()) {
-            Text(
-                text = "继续观看",
-                style = TvTypography.subtitle,
-                color = TextPrimary,
-                modifier = Modifier.padding(bottom = 12.dp)
-            )
+        if (featured.isNotEmpty()) {
+            SectionHeader(title = "最高热度", trailing = "已收录 ${library.size} 部")
             LazyRow(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp)
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                contentPadding = PaddingValues(end = 24.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 30.dp)
             ) {
-                items(continueWatching.filter { it.anime != null }) { item ->
-                    val animeId = item.anime?.id ?: return@items
-                    FocusableCard(
-                        title = item.anime.title,
-                        subtitle = "第 ${item.episode?.episodeNumber ?: "?"} 集",
+                items(featured, key = { it.id }) { anime ->
+                    FeatureAnimeCard(
+                        anime = anime,
+                        onClick = { onNavigateToDetail(anime.id) }
+                    )
+                }
+            }
+        }
+
+        if (continueWatching.isNotEmpty()) {
+            SectionHeader(title = "继续观看")
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                contentPadding = PaddingValues(end = 24.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 30.dp)
+            ) {
+                items(continueWatching.filter { it.anime != null }, key = { it.episode?.id ?: it.anime?.id.orEmpty() }) { item ->
+                    val anime = item.anime ?: return@items
+                    val animeId = anime.id
+                    val episodeNumber = item.episode?.episodeNumber
+                    val duration = item.episode?.duration?.takeIf { it > 0 } ?: 1L
+                    AnimePosterCard(
+                        anime = anime,
+                        subtitle = if (episodeNumber != null) "继续观看 ${episodeNumber.toString().padStart(2, '0')}" else "继续观看",
                         progress = item.progress?.let { rec ->
-                            val duration = item.episode?.duration ?: 1L
                             (rec.positionMs.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
                         } ?: 0f,
-                        modifier = Modifier.padding(end = 12.dp),
                         onClick = { onNavigateToDetail(animeId) }
-                    ) {
-                        Box(modifier = Modifier.fillMaxSize().background(DarkSurface))
-                    }
+                    )
                 }
             }
         }
 
-        // Recently Added
         if (recentlyAdded.isNotEmpty()) {
-            Text(
-                text = "最近添加",
-                style = TvTypography.subtitle,
-                color = TextPrimary,
-                modifier = Modifier.padding(bottom = 12.dp)
-            )
+            SectionHeader(title = "最近添加")
             LazyRow(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp)
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                contentPadding = PaddingValues(end = 24.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 30.dp)
             ) {
-                items(recentlyAdded.filter { it.id.isNotBlank() }) { anime ->
-                    FocusableCard(
-                        title = anime.title.ifBlank { anime.titleCn ?: "未知" },
-                        subtitle = anime.titleCn ?: "",
-                        modifier = Modifier.padding(end = 12.dp),
+                items(recentlyAdded.filter { it.id.isNotBlank() }, key = { it.id }) { anime ->
+                    AnimePosterCard(
+                        anime = anime,
                         onClick = { onNavigateToDetail(anime.id) }
-                    ) {
-                        Box(modifier = Modifier.fillMaxSize().background(DarkSurface))
-                    }
+                    )
                 }
             }
         }
 
-        // All Anime Grid — weight(1f) ensures it fills remaining space without infinite constraints
-        if (allAnime.isNotEmpty()) {
-            Text(
-                text = "所有番剧",
-                style = TvTypography.subtitle,
-                color = TextPrimary,
-                modifier = Modifier.padding(bottom = 12.dp)
-            )
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 320.dp),
-                modifier = Modifier.weight(1f).fillMaxWidth()
+        if (library.isNotEmpty()) {
+            SectionHeader(title = "海报墙")
+            Column(
+                verticalArrangement = Arrangement.spacedBy(18.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 28.dp)
             ) {
-                items(allAnime.filter { it.id.isNotBlank() }) { anime ->
-                    FocusableCard(
-                        title = anime.title.ifBlank { anime.titleCn ?: "未知" },
-                        subtitle = "${anime.episodeCount} 集",
-                        modifier = Modifier.padding(8.dp),
-                        onClick = { onNavigateToDetail(anime.id) }
-                    ) {
-                        Box(modifier = Modifier.fillMaxSize().background(DarkSurface))
+                library.filter { it.id.isNotBlank() }.chunked(6).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        row.forEach { anime ->
+                            AnimePosterCard(
+                                anime = anime,
+                                width = 170.dp,
+                                height = 254.dp,
+                                onClick = { onNavigateToDetail(anime.id) }
+                            )
+                        }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun SectionHeader(
+    title: String,
+    trailing: String? = null
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = title,
+            style = TvTypography.subtitle,
+            color = TextPrimary
+        )
+        if (!trailing.isNullOrBlank()) {
+            Text(
+                text = trailing,
+                style = TvTypography.body,
+                color = TextSecondary
+            )
         }
     }
 }
