@@ -26,4 +26,10 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindIndexRepository(impl: IndexRepositoryImpl): IndexRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindCloudDriveAutomationRepository(
+        impl: CloudDriveAutomationRepositoryImpl
+    ): CloudDriveAutomationRepository
 }

@@ -8,13 +8,17 @@ import com.miruplay.tv.data.repository.MediaRepository
 import com.miruplay.tv.data.repository.MetadataRepository
 import com.miruplay.tv.mediasource.MediaSource
 import com.miruplay.tv.mediasource.MediaSourceFactory
-import com.miruplay.tv.metadata.NfoParser
+import com.miruplay.tv.metadata.NfoWriteOptions
+import com.miruplay.tv.metadata.XmlNfoWriter
 import com.miruplay.tv.metadata.XmlNfoParser
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.NfoMetadata
 import com.miruplay.tv.model.ScanResult
+import com.miruplay.tv.model.TvShowNfoMetadata
+import com.miruplay.tv.model.UniqueId
 import com.miruplay.tv.scraper.EpisodeMetadata
 import com.miruplay.tv.scraper.MetadataScraper
 import kotlinx.coroutines.Dispatchers
@@ -38,6 +42,8 @@ class ScanCoordinator @Inject constructor(
     private val metadataRepository: MetadataRepository,
     private val metadataScrapers: Set<@JvmSuppressWildcards MetadataScraper> = emptySet()
 ) {
+    private val generatedNfoWriter = XmlNfoWriter(NfoWriteOptions(createBackup = false))
+
     /**
      * Full scan of a media source, updates index + metadata in one pass.
      * Cancellable via coroutineContext.
@@ -89,6 +95,7 @@ class ScanCoordinator @Inject constructor(
 
         // Single recursive traversal: build index + parse NFOs
         val detector = DefaultEpisodeDetector()
+        val classifier = VideoDirectoryClassifier(detector)
         val indexEntities = mutableListOf<IndexRepositoryEntity>()
         var totalFiles = 0
         var newEpisodes = 0
@@ -97,7 +104,7 @@ class ScanCoordinator @Inject constructor(
             ms = ms,
             path = scanStartPath,
             sourceId = sourceId,
-            detector = detector,
+            classifier = classifier,
             indexEntities = indexEntities,
             totalFiles = { totalFiles += 1 },
             newEpisodes = { newEpisodes += 1 },
@@ -115,7 +122,14 @@ class ScanCoordinator @Inject constructor(
                 .groupBy { it.animeName ?: "Unknown" }
 
             for ((animeName, entries) in episodesByAnime) {
-                val episodes = entries.sortedBy { it.episodeNumber }.mapIndexed { idx, entry ->
+                val sortedEntries = entries.sortedWith(
+                    compareBy<IndexRepositoryEntity>(
+                        { it.seasonNumber ?: 1 },
+                        { it.episodeNumber ?: Int.MAX_VALUE },
+                        { it.path }
+                    )
+                )
+                val episodes = sortedEntries.mapIndexed { idx, entry ->
                     val playablePath = toPlayablePath(entry.path, rootPath, sourceInfo.type)
                         Episode(
                             id = "${sourceId}:${entry.path}",
@@ -131,21 +145,38 @@ class ScanCoordinator @Inject constructor(
                 metadataRepository.cacheEpisodes(animeName, online.episodes)
 
                 // Update or create anime metadata with episode count
+                var animeForNfo: Anime? = null
                 if (online.anime != null) {
                     metadataRepository.cacheMetadata(online.anime)
+                    animeForNfo = online.anime
                 } else {
                     metadataRepository.getCachedMetadata(animeName).onSuccess { cachedAnime ->
                         if (cachedAnime != null) {
-                            metadataRepository.cacheMetadata(cachedAnime.copy(episodeCount = episodes.size))
+                            val updated = cachedAnime.copy(episodeCount = episodes.size)
+                            metadataRepository.cacheMetadata(updated)
+                            animeForNfo = updated
                         } else {
                             // Create minimal anime metadata if none exists (no NFO was found)
-                            metadataRepository.cacheMetadata(Anime(
+                            val minimal = Anime(
                                 id = animeName,
                                 title = animeName,
                                 titleCn = animeName,
                                 episodeCount = episodes.size
-                            ))
+                            )
+                            metadataRepository.cacheMetadata(minimal)
+                            animeForNfo = minimal
                         }
+                    }
+                }
+
+                if (isLocalSource && !isDocumentTree) {
+                    animeForNfo?.let { anime ->
+                        writeGeneratedNfoIfMissing(
+                            classifier = classifier,
+                            anime = anime,
+                            episodes = online.episodes,
+                            entries = sortedEntries
+                        )
                     }
                 }
             }
@@ -250,7 +281,7 @@ class ScanCoordinator @Inject constructor(
         ms: MediaSource,
         path: String,
         sourceId: Long,
-        detector: DefaultEpisodeDetector,
+        classifier: VideoDirectoryClassifier,
         indexEntities: MutableList<IndexRepositoryEntity>,
         totalFiles: (Int) -> Unit,
         newEpisodes: (Int) -> Unit,
@@ -274,9 +305,6 @@ class ScanCoordinator @Inject constructor(
         try {
             val files = ms.listFiles(path).getOrNull() ?: return
 
-        // Get parent directory name once — used as anime name for files within this dir
-            val parentDirName = nameOfPath(path).ifEmpty { "Unknown" }
-
             for (file in files) {
                 if (!currentCoroutineContext().isActive) return
 
@@ -292,34 +320,33 @@ class ScanCoordinator @Inject constructor(
                     if (isLocalSource && file.name in skipDirs) continue
                     
                     // Recurse into subdirectory
-                    traverseAndProcess(ms, file.path, sourceId, detector, indexEntities, totalFiles, newEpisodes, depth + 1, rootPath, isLocalSource)
+                    traverseAndProcess(ms, file.path, sourceId, classifier, indexEntities, totalFiles, newEpisodes, depth + 1, rootPath, isLocalSource)
                 } else {
                     val fileName = file.name
                     val ext = fileName.substringAfterLast('.', "").lowercase()
 
                     if (ext in videoExtensions) {
                         totalFiles(1)
-                        val match = detector.detectEpisode(fileName)
-                        // Use parent directory name as anime name (reliable for Kodi-style folder structures)
+                        val match = classifier.classifyVideo(file.path, fileName)
                         indexEntities.add(IndexRepositoryEntity(
                             sourceId = sourceId,
                             path = file.path,
-                            animeName = parentDirName,
-                            seasonNumber = match?.seasonNumber ?: 1,
-                            episodeNumber = match?.episodeNumber,
+                            animeName = match.animeName,
+                            seasonNumber = match.seasonNumber,
+                            episodeNumber = match.episodeNumber,
                             isDirectory = false,
                             fileSize = file.size,
                             lastModified = file.lastModified
                         ))
-                        if (match != null) newEpisodes(1)
+                        if (match.episodeNumber != null) newEpisodes(1)
 
                         // Report progress every 5 video files
                         if (file.path.hashCode() % 5 == 0) {
-                            progressCallback?.onProgress(parentDirName, 1, if (match != null) 1 else 0)
+                            progressCallback?.onProgress(match.animeName, 1, if (match.episodeNumber != null) 1 else 0)
                         }
                     } else {
                         if (ext == "nfo") {
-                            parseAndCacheRemoteNfo(ms, file.path, parentDirName)
+                            parseAndCacheRemoteNfo(ms, file.path, classifier.classifyNfo(file.path).animeName)
                         }
                     }
                 }
@@ -403,6 +430,82 @@ class ScanCoordinator @Inject constructor(
         } catch (e: Exception) {
             Log.w("ScanCoordinator", "Error parsing NFO: $nfoPath", e)
         }
+    }
+
+    private suspend fun writeGeneratedNfoIfMissing(
+        classifier: VideoDirectoryClassifier,
+        anime: Anime,
+        episodes: List<Episode>,
+        entries: List<IndexRepositoryEntity>
+    ) {
+        if (episodes.isEmpty() || entries.isEmpty()) return
+
+        entries.mapNotNull { classifier.showRootForVideo(it.path) }
+            .distinct()
+            .forEach { showRoot ->
+                val showRootFile = File(showRoot)
+                if (!showRootFile.exists() || !showRootFile.isDirectory) return@forEach
+
+                val tvshowPath = File(showRootFile, "tvshow.nfo")
+                if (!tvshowPath.exists()) {
+                    generatedNfoWriter.writeTvShowNfo(tvshowPath.absolutePath, anime.toTvShowNfoMetadata())
+                        .onError { error ->
+                            Log.w("ScanCoordinator", "Failed to generate tvshow.nfo for ${anime.id}: $error")
+                        }
+                }
+            }
+
+        entries.zip(episodes).forEach { (entry, episode) ->
+            val videoFile = File(entry.path)
+            val parent = videoFile.parentFile ?: return@forEach
+            if (!parent.exists() || !parent.isDirectory) return@forEach
+
+            val nfoPath = File(parent, "${videoFile.nameWithoutExtension}.nfo")
+            if (nfoPath.exists()) return@forEach
+
+            generatedNfoWriter.writeEpisodeNfo(
+                nfoPath.absolutePath,
+                episode.toNfoMetadata(anime)
+            ).onError { error ->
+                Log.w("ScanCoordinator", "Failed to generate episode NFO for ${episode.id}: $error")
+            }
+        }
+    }
+
+    private fun Anime.toTvShowNfoMetadata(): TvShowNfoMetadata =
+        TvShowNfoMetadata(
+            title = titleCn ?: title,
+            originalTitle = title,
+            plot = summary,
+            genre = genres,
+            premiered = airDate,
+            studio = studio,
+            rating = rating,
+            uniqueIds = uniqueIds()
+        )
+
+    private fun Episode.toNfoMetadata(anime: Anime): NfoMetadata =
+        NfoMetadata(
+            title = title.ifBlank { "Episode $episodeNumber" },
+            showTitle = anime.titleCn ?: anime.title,
+            season = seasonNumber,
+            episode = episodeNumber,
+            plot = "",
+            premiered = anime.airDate,
+            rating = 0f,
+            playcount = playCount,
+            resumePosition = watchedPosition,
+            uniqueIds = buildList {
+                bangumiEpisodeId?.let { add(UniqueId("bangumi", it.toString(), true)) }
+                anime.bangumiId?.let { add(UniqueId("bangumi-subject", it.toString())) }
+                anime.anilistId?.let { add(UniqueId("anilist", it.toString())) }
+            }
+        )
+
+    private fun Anime.uniqueIds(): List<UniqueId> = buildList {
+        bangumiId?.let { add(UniqueId("bangumi", it.toString(), true)) }
+        anilistId?.let { add(UniqueId("anilist", it.toString(), bangumiId == null)) }
+        tmdbId?.let { add(UniqueId("tmdb", it.toString())) }
     }
 
     companion object {

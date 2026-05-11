@@ -39,7 +39,7 @@ object AppModule {
             MiruPlayDatabase::class.java,
             "miruplay.db"
         )
-            .addMigrations(MiruPlayDatabase.MIGRATION_1_2)
+            .addMigrations(MiruPlayDatabase.MIGRATION_1_2, MiruPlayDatabase.MIGRATION_2_3)
             .build()
     }
 }

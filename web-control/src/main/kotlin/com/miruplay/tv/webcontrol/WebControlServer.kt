@@ -2,6 +2,7 @@ package com.miruplay.tv.webcontrol
 
 import android.content.Context
 import com.miruplay.tv.core.common.WebControlConfig
+import com.miruplay.tv.model.RssSubscriptionInfo
 import dagger.hilt.android.qualifiers.ApplicationContext
 import fi.iki.elonen.NanoHTTPD
 import kotlinx.coroutines.runBlocking
@@ -97,6 +98,38 @@ class WebControlServer @Inject constructor(
             }
             session.method == Method.POST && route == "/api/sources/scan-all" -> {
                 jsonResponse(ListSerializer(SourceScanResponse.serializer()), webControlService.scanAllSources())
+            }
+            session.method == Method.GET && route == "/api/cloud-drive" -> {
+                jsonResponse(CloudDriveAutomationDto.serializer(), webControlService.getCloudDriveAutomation())
+            }
+            session.method == Method.PUT && route == "/api/cloud-drive/config" -> {
+                val request = parseBody(session, CloudDriveConfigRequest.serializer())
+                jsonResponse(CloudDriveAutomationDto.serializer(), webControlService.saveCloudDriveConfig(request))
+            }
+            session.method == Method.POST && route == "/api/cloud-drive/login" -> {
+                val request = parseBody(session, CloudDriveLoginRequest.serializer())
+                jsonResponse(CloudDriveAutomationDto.serializer(), webControlService.loginCloudDrive(request))
+            }
+            session.method == Method.POST && route == "/api/cloud-drive/token" -> {
+                val request = parseBody(session, CloudDriveTokenRequest.serializer())
+                jsonResponse(CloudDriveTokenResponse.serializer(), webControlService.saveCloudDriveToken(request))
+            }
+            session.method == Method.POST && route == "/api/cloud-drive/run" -> {
+                jsonResponse(CloudDriveRunResponse.serializer(), webControlService.runCloudDriveAutomationNow())
+            }
+            session.method == Method.POST && route == "/api/cloud-drive/rss" -> {
+                val request = parseBody(session, RssSubscriptionRequest.serializer())
+                jsonResponse(RssSubscriptionInfo.serializer(), webControlService.saveRssSubscription(request))
+            }
+            session.method == Method.PUT && segments.size == 4 && segments[0] == "api" && segments[1] == "cloud-drive" && segments[2] == "rss" -> {
+                val rssId = segments[3].toLongOrNull() ?: throw IllegalArgumentException("RSS 订阅 ID 不正确")
+                val request = parseBody(session, RssSubscriptionRequest.serializer())
+                jsonResponse(RssSubscriptionInfo.serializer(), webControlService.updateRssSubscription(rssId, request))
+            }
+            session.method == Method.DELETE && segments.size == 4 && segments[0] == "api" && segments[1] == "cloud-drive" && segments[2] == "rss" -> {
+                val rssId = segments[3].toLongOrNull() ?: throw IllegalArgumentException("RSS 订阅 ID 不正确")
+                webControlService.deleteRssSubscription(rssId)
+                jsonResponse(Unit.serializer(), Unit)
             }
             session.method == Method.GET && route == "/api/library" -> {
                 val query = session.parameters["query"]?.firstOrNull().orEmpty()

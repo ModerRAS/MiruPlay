@@ -163,6 +163,7 @@ fun AddSourceScreen(
     var cloudEndpoint by remember { mutableStateOf("") }
     var cloudUsername by remember { mutableStateOf("") }
     var cloudPassword by remember { mutableStateOf("") }
+    var cloudApiToken by remember { mutableStateOf("") }
     var cloudInboxPath by remember { mutableStateOf("") }
     var cloudLibraryPath by remember { mutableStateOf("") }
     var cloudIntervalMinutes by remember { mutableStateOf("30") }
@@ -352,6 +353,8 @@ fun AddSourceScreen(
                     onCloudUsernameChange = { cloudUsername = it },
                     cloudPassword = cloudPassword,
                     onCloudPasswordChange = { cloudPassword = it },
+                    cloudApiToken = cloudApiToken,
+                    onCloudApiTokenChange = { cloudApiToken = it },
                     cloudInboxPath = cloudInboxPath,
                     onCloudInboxPathChange = { cloudInboxPath = it },
                     cloudLibraryPath = cloudLibraryPath,
@@ -388,6 +391,10 @@ fun AddSourceScreen(
                     onLoginCloudDrive = {
                         viewModel.loginCloudDrive(cloudEndpoint, cloudUsername, cloudPassword)
                         cloudPassword = ""
+                    },
+                    onSaveCloudDriveApiToken = {
+                        viewModel.saveCloudDriveApiToken(cloudEndpoint, cloudApiToken)
+                        cloudApiToken = ""
                     },
                     onRunCloudDriveNow = viewModel::runCloudDriveNow,
                     onAddRssSubscription = {
@@ -592,6 +599,8 @@ private fun SettingsContent(
     onCloudUsernameChange: (String) -> Unit,
     cloudPassword: String,
     onCloudPasswordChange: (String) -> Unit,
+    cloudApiToken: String,
+    onCloudApiTokenChange: (String) -> Unit,
     cloudInboxPath: String,
     onCloudInboxPathChange: (String) -> Unit,
     cloudLibraryPath: String,
@@ -616,6 +625,7 @@ private fun SettingsContent(
     onToggleRssEnabled: () -> Unit,
     onSaveCloudConfig: () -> Unit,
     onLoginCloudDrive: () -> Unit,
+    onSaveCloudDriveApiToken: () -> Unit,
     onRunCloudDriveNow: () -> Unit,
     onAddRssSubscription: () -> Unit,
     onToggleRssSubscription: (RssSubscriptionInfo, Boolean) -> Unit,
@@ -690,6 +700,8 @@ private fun SettingsContent(
                 onUsernameChange = onCloudUsernameChange,
                 password = cloudPassword,
                 onPasswordChange = onCloudPasswordChange,
+                apiToken = cloudApiToken,
+                onApiTokenChange = onCloudApiTokenChange,
                 inboxPath = cloudInboxPath,
                 onInboxPathChange = onCloudInboxPathChange,
                 libraryPath = cloudLibraryPath,
@@ -705,6 +717,7 @@ private fun SettingsContent(
                 actionMessage = cloudDriveActionMessage,
                 onSave = onSaveCloudConfig,
                 onLogin = onLoginCloudDrive,
+                onSaveApiToken = onSaveCloudDriveApiToken,
                 onRunNow = onRunCloudDriveNow
             )
             RssSubscriptionsPanel(
@@ -1182,6 +1195,8 @@ private fun CloudDriveAutomationPanel(
     onUsernameChange: (String) -> Unit,
     password: String,
     onPasswordChange: (String) -> Unit,
+    apiToken: String,
+    onApiTokenChange: (String) -> Unit,
     inboxPath: String,
     onInboxPathChange: (String) -> Unit,
     libraryPath: String,
@@ -1197,6 +1212,7 @@ private fun CloudDriveAutomationPanel(
     actionMessage: String?,
     onSave: () -> Unit,
     onLogin: () -> Unit,
+    onSaveApiToken: () -> Unit,
     onRunNow: () -> Unit
 ) {
     val webDavSources = sources.filter { it.type == MediaSourceType.WEBDAV }
@@ -1266,6 +1282,15 @@ private fun CloudDriveAutomationPanel(
         }
 
         Spacer(Modifier.height(12.dp))
+        TvTextField(
+            value = apiToken,
+            onValueChange = onApiTokenChange,
+            label = "API Token / Key",
+            isPassword = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             TvTextField(
                 value = inboxPath,
@@ -1309,6 +1334,12 @@ private fun CloudDriveAutomationPanel(
                 icon = Icons.Filled.Key,
                 enabled = !busy && endpoint.isNotBlank() && username.isNotBlank() && password.isNotBlank(),
                 onClick = onLogin
+            )
+            TvButton(
+                text = "保存 Key",
+                icon = Icons.Filled.Key,
+                enabled = apiToken.isNotBlank(),
+                onClick = onSaveApiToken
             )
             TvButton(
                 text = if (busy) "执行中" else "立即执行",

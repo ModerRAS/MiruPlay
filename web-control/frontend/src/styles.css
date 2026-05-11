@@ -271,6 +271,7 @@ body {
 }
 
 .source-layout,
+.automation-layout,
 .remote-layout {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
@@ -282,6 +283,7 @@ body {
 .el-card.continue-card,
 .el-card.poster-card,
 .el-card.source-item,
+.el-card.rss-item,
 .el-card.episode-card,
 .el-card.access-card {
   border-color: var(--line);
@@ -293,6 +295,38 @@ body {
 .source-list {
   display: grid;
   gap: 0.75rem;
+}
+
+.automation-form,
+.rss-form,
+.rss-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.switch-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.rss-item :deep(.el-card__body) {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.rss-main {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.rss-main strong,
+.rss-main span {
+  display: block;
 }
 
 .source-item :deep(.el-card__body) {
@@ -550,7 +584,7 @@ body {
 
   .nav-menu {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 0.4rem;
   }
 
@@ -567,6 +601,7 @@ body {
   .page-header,
   .header-actions,
   .source-layout,
+  .automation-layout,
   .remote-layout,
   .local-picker-field,
   .folder-toolbar,
@@ -598,6 +633,10 @@ body {
   .source-main {
     grid-template-columns: 1fr;
     gap: 0.55rem;
+  }
+
+  .rss-main {
+    grid-template-columns: 1fr;
   }
 
   .poster-copy {

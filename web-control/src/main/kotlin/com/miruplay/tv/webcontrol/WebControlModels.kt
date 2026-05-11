@@ -2,7 +2,9 @@ package com.miruplay.tv.webcontrol
 
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
+import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.MediaSourceInfo
+import com.miruplay.tv.model.RssSubscriptionInfo
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 
@@ -70,6 +72,64 @@ data class SourceScanResponse(
     val episodesFound: Int,
     val newEpisodes: Int,
     val updatedEpisodes: Int
+)
+
+@Serializable
+data class CloudDriveAutomationDto(
+    val config: CloudDriveAutomationConfig,
+    val subscriptions: List<RssSubscriptionInfo>,
+    val tokenConfigured: Boolean
+)
+
+@Serializable
+data class CloudDriveConfigRequest(
+    val endpointUrl: String,
+    val username: String = "",
+    val webDavSourceId: Long? = null,
+    val inboxPath: String,
+    val libraryPath: String,
+    val intervalMinutes: Int = 30,
+    val enabled: Boolean = false
+)
+
+@Serializable
+data class CloudDriveLoginRequest(
+    val endpointUrl: String,
+    val username: String,
+    val password: String
+)
+
+@Serializable
+data class CloudDriveTokenRequest(
+    val endpointUrl: String,
+    val token: String
+)
+
+@Serializable
+data class CloudDriveTokenResponse(
+    val rootDir: String,
+    val friendlyName: String,
+    val allowList: Boolean,
+    val allowCreateFolder: Boolean,
+    val allowMove: Boolean,
+    val allowAddOfflineDownload: Boolean
+)
+
+@Serializable
+data class RssSubscriptionRequest(
+    val id: Long = 0L,
+    val name: String,
+    val url: String,
+    val filterRegex: String? = null,
+    val enabled: Boolean = true
+)
+
+@Serializable
+data class CloudDriveRunResponse(
+    val submitted: Int,
+    val skipped: Int,
+    val failed: Int,
+    val organized: Int
 )
 
 @Serializable

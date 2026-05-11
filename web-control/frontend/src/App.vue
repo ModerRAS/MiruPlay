@@ -23,6 +23,10 @@
             <el-icon><FolderOpened /></el-icon>
             <span>媒体源</span>
           </el-menu-item>
+          <el-menu-item index="automation">
+            <el-icon><Cloudy /></el-icon>
+            <span>自动化</span>
+          </el-menu-item>
           <el-menu-item index="remote">
             <el-icon><SwitchButton /></el-icon>
             <span>遥控器</span>
@@ -225,6 +229,175 @@
             </el-card>
           </section>
 
+          <section v-show="activeView === 'automation'" class="automation-layout">
+            <el-card shadow="never" class="panel-card">
+              <template #header>
+                <div class="card-header">
+                  <strong>CloudDrive2</strong>
+                  <el-tag :type="automation.tokenConfigured ? 'success' : 'info'">
+                    {{ automation.tokenConfigured ? '已授权' : '未授权' }}
+                  </el-tag>
+                </div>
+              </template>
+
+              <el-skeleton v-if="loading.automation" animated :rows="6" />
+              <el-form v-else label-position="top" class="automation-form" @submit.prevent>
+                <div class="switch-row">
+                  <el-switch
+                    v-model="cloudForm.enabled"
+                    active-text="定时执行"
+                    inactive-text="仅手动"
+                  />
+                  <span class="muted">
+                    上次执行：{{ formatDateTime(cloudForm.lastRunAt) || '尚未执行' }}
+                  </span>
+                </div>
+
+                <el-form-item label="CloudDrive2 地址">
+                  <el-input v-model="cloudForm.endpointUrl" placeholder="http://host:19798" />
+                </el-form-item>
+
+                <div class="form-grid">
+                  <el-form-item label="用户名">
+                    <el-input v-model="cloudForm.username" autocomplete="username" />
+                  </el-form-item>
+                  <el-form-item label="密码">
+                    <el-input
+                      v-model="cloudForm.password"
+                      type="password"
+                      show-password
+                      autocomplete="current-password"
+                    />
+                  </el-form-item>
+                </div>
+
+                <el-form-item label="API Token / Key">
+                  <el-input
+                    v-model="cloudForm.apiToken"
+                    type="password"
+                    show-password
+                    placeholder="已有 Key 时可直接保存"
+                  />
+                </el-form-item>
+
+                <div class="form-grid">
+                  <el-form-item label="下载目录 A">
+                    <el-input v-model="cloudForm.inboxPath" placeholder="/115/Downloads" />
+                  </el-form-item>
+                  <el-form-item label="整理目录 B">
+                    <el-input v-model="cloudForm.libraryPath" placeholder="/115/Anime" />
+                  </el-form-item>
+                </div>
+
+                <div class="form-grid">
+                  <el-form-item label="入库后扫描的 WebDAV 媒体源">
+                    <el-select v-model="cloudForm.webDavSourceId" clearable placeholder="可暂不扫描">
+                      <el-option
+                        v-for="source in webDavSources"
+                        :key="source.id"
+                        :label="source.name"
+                        :value="source.id"
+                      />
+                    </el-select>
+                  </el-form-item>
+                  <el-form-item label="定时间隔（分钟）">
+                    <el-input-number
+                      v-model="cloudForm.intervalMinutes"
+                      :min="5"
+                      :step="5"
+                      controls-position="right"
+                    />
+                  </el-form-item>
+                </div>
+
+                <el-alert
+                  type="info"
+                  :closable="false"
+                  show-icon
+                  title="执行时只会提交到下载目录 A，并且只整理下载目录 A 内部的视频文件。"
+                />
+
+                <div class="form-actions">
+                  <el-button :icon="Setting" :loading="loading.automationSave" @click="saveCloudDriveConfig">
+                    保存设置
+                  </el-button>
+                  <el-button :icon="Key" :loading="loading.cloudLogin" @click="loginCloudDrive">
+                    用户名登录
+                  </el-button>
+                  <el-button :icon="Link" :loading="loading.cloudToken" @click="saveCloudDriveToken">
+                    保存 Key
+                  </el-button>
+                  <el-button type="primary" :icon="Refresh" :loading="loading.cloudRun" @click="runCloudDriveNow">
+                    立即执行
+                  </el-button>
+                </div>
+              </el-form>
+            </el-card>
+
+            <el-card shadow="never" class="panel-card">
+              <template #header>
+                <div class="card-header">
+                  <strong>RSS 订阅</strong>
+                  <el-tag>{{ automation.subscriptions.length }} 个</el-tag>
+                </div>
+              </template>
+
+              <el-form label-position="top" class="rss-form" @submit.prevent>
+                <el-form-item label="订阅名称">
+                  <el-input v-model="rssForm.name" placeholder="例如：ANi 新番" />
+                </el-form-item>
+                <el-form-item label="RSS 地址">
+                  <el-input v-model="rssForm.url" placeholder="https://example.com/rss.xml" />
+                </el-form-item>
+                <el-form-item label="标题过滤正则（可选）">
+                  <el-input v-model="rssForm.filterRegex" placeholder="1080|简中|内嵌" />
+                </el-form-item>
+                <div class="form-actions">
+                  <el-switch v-model="rssForm.enabled" active-text="新增后启用" />
+                  <el-button type="primary" :loading="loading.rssSave" @click="saveRssSubscription">
+                    添加订阅
+                  </el-button>
+                </div>
+              </el-form>
+
+              <el-divider />
+
+              <el-empty v-if="!automation.subscriptions.length" description="还没有 RSS 订阅" />
+              <div v-else class="rss-list">
+                <el-card
+                  v-for="subscription in automation.subscriptions"
+                  :key="subscription.id"
+                  class="rss-item"
+                  shadow="never"
+                >
+                  <div class="rss-main">
+                    <el-tag :type="subscription.enabled ? 'success' : 'info'">
+                      {{ subscription.enabled ? '启用' : '停用' }}
+                    </el-tag>
+                    <div>
+                      <strong>{{ subscription.name }}</strong>
+                      <span class="muted break-text">{{ subscription.url }}</span>
+                      <span v-if="subscription.filterRegex" class="muted">
+                        过滤：{{ subscription.filterRegex }}
+                      </span>
+                      <span class="muted">
+                        上次检查：{{ formatDateTime(subscription.lastCheckedAt) || '尚未检查' }}
+                      </span>
+                    </div>
+                  </div>
+                  <div class="source-actions">
+                    <el-button size="small" @click="toggleRssSubscription(subscription)">
+                      {{ subscription.enabled ? '停用' : '启用' }}
+                    </el-button>
+                    <el-button size="small" type="danger" plain @click="deleteRssSubscription(subscription.id)">
+                      删除
+                    </el-button>
+                  </div>
+                </el-card>
+              </div>
+            </el-card>
+          </section>
+
           <section v-show="activeView === 'remote'" class="remote-layout">
             <el-card shadow="never" class="panel-card">
               <template #header>
@@ -375,12 +548,16 @@ import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   CircleClose,
+  Cloudy,
   DArrowLeft,
   DArrowRight,
   Film,
   FolderOpened,
+  Key,
+  Link,
   Refresh,
   Search,
+  Setting,
   SwitchButton,
   VideoPlay
 } from '@element-plus/icons-vue'
@@ -391,6 +568,11 @@ const query = ref('')
 const serverInfo = ref(null)
 const library = reactive({ continueWatching: [], recentlyAdded: [], allAnime: [] })
 const sources = ref([])
+const automation = reactive({
+  config: null,
+  subscriptions: [],
+  tokenConfigured: false
+})
 const playback = reactive({
   state: 'Idle',
   uri: '',
@@ -406,7 +588,13 @@ const loading = reactive({
   save: false,
   test: false,
   scan: false,
-  localBrowse: false
+  localBrowse: false,
+  automation: false,
+  automationSave: false,
+  cloudLogin: false,
+  cloudToken: false,
+  cloudRun: false,
+  rssSave: false
 })
 const sourceForm = reactive({
   id: 0,
@@ -416,6 +604,24 @@ const sourceForm = reactive({
   displayName: 'Download',
   username: '',
   password: ''
+})
+const cloudForm = reactive({
+  endpointUrl: '',
+  username: '',
+  password: '',
+  apiToken: '',
+  webDavSourceId: null,
+  inboxPath: '',
+  libraryPath: '',
+  intervalMinutes: 30,
+  enabled: false,
+  lastRunAt: 0
+})
+const rssForm = reactive({
+  name: '',
+  url: '',
+  filterRegex: '',
+  enabled: true
 })
 const localPicker = reactive({ open: false })
 const localBrowser = reactive({
@@ -442,6 +648,7 @@ let statusTimer = 0
 const viewMeta = computed(() => ({
   library: ['片库', '浏览番剧、选择剧集并投到电视端播放。'],
   sources: ['媒体源', '用电脑或手机键盘添加、编辑和扫描媒体源。'],
+  automation: ['自动化', '管理 RSS 订阅、CloudDrive2 离线下载和整理入库。'],
   remote: ['遥控器', '播放控制、快进快退和进度拖动。']
 }[activeView.value]).reduce((meta, value, index) => {
   if (index === 0) meta.title = value
@@ -452,6 +659,8 @@ const viewMeta = computed(() => ({
 const continueWatching = computed(() =>
   library.continueWatching.filter((item) => item.anime && item.episode)
 )
+
+const webDavSources = computed(() => sources.value.filter((source) => source.type === 'WEBDAV'))
 
 const accessUrl = computed(() => {
   if (!serverInfo.value) return '读取中...'
@@ -482,11 +691,15 @@ watch(
 
 watch(activeView, (view) => {
   if (view === 'sources') loadSources()
+  if (view === 'automation') {
+    loadSources()
+    loadCloudDriveAutomation()
+  }
   if (view === 'remote') loadPlaybackStatus()
 })
 
 onMounted(async () => {
-  await Promise.all([loadInfo(), loadLibrary(), loadSources(), loadPlaybackStatus()])
+  await Promise.all([loadInfo(), loadLibrary(), loadSources(), loadCloudDriveAutomation(), loadPlaybackStatus()])
   statusTimer = window.setInterval(loadPlaybackStatus, 2000)
 })
 
@@ -526,6 +739,34 @@ async function loadSources() {
   }
 }
 
+async function loadCloudDriveAutomation() {
+  loading.automation = true
+  try {
+    applyCloudDriveAutomation(await api('/api/cloud-drive'))
+  } finally {
+    loading.automation = false
+  }
+}
+
+function applyCloudDriveAutomation(data) {
+  automation.config = data.config || null
+  automation.subscriptions = data.subscriptions || []
+  automation.tokenConfigured = Boolean(data.tokenConfigured)
+  const config = data.config || {}
+  Object.assign(cloudForm, {
+    endpointUrl: config.endpointUrl || '',
+    username: config.username || '',
+    password: '',
+    apiToken: '',
+    webDavSourceId: config.webDavSourceId || null,
+    inboxPath: config.inboxPath || '',
+    libraryPath: config.libraryPath || '',
+    intervalMinutes: config.intervalMinutes || 30,
+    enabled: Boolean(config.enabled),
+    lastRunAt: config.lastRunAt || 0
+  })
+}
+
 async function loadPlaybackStatus() {
   const data = await api('/api/playback/status')
   Object.assign(playback, data)
@@ -534,6 +775,7 @@ async function loadPlaybackStatus() {
 async function refreshCurrent() {
   if (activeView.value === 'library') await loadLibrary()
   if (activeView.value === 'sources') await loadSources()
+  if (activeView.value === 'automation') await Promise.all([loadSources(), loadCloudDriveAutomation()])
   if (activeView.value === 'remote') await loadPlaybackStatus()
 }
 
@@ -718,6 +960,169 @@ async function scanAll() {
   }
 }
 
+function cloudDriveConfigPayload() {
+  return {
+    endpointUrl: cloudForm.endpointUrl.trim(),
+    username: cloudForm.username.trim(),
+    webDavSourceId: cloudForm.webDavSourceId || null,
+    inboxPath: cloudForm.inboxPath.trim(),
+    libraryPath: cloudForm.libraryPath.trim(),
+    intervalMinutes: Number(cloudForm.intervalMinutes || 30),
+    enabled: Boolean(cloudForm.enabled)
+  }
+}
+
+function validateCloudDriveConfig(payload) {
+  if (!payload.endpointUrl || !payload.inboxPath || !payload.libraryPath) {
+    ElMessage.warning('请填写 CloudDrive2 地址、下载目录 A 和整理目录 B')
+    return false
+  }
+  if (payload.inboxPath === '/' || payload.libraryPath === '/') {
+    ElMessage.warning('下载目录和整理目录不能是根目录')
+    return false
+  }
+  const inbox = normalizeCloudPath(payload.inboxPath)
+  const library = normalizeCloudPath(payload.libraryPath)
+  if (library === inbox || library.startsWith(`${inbox}/`)) {
+    ElMessage.warning('整理目录 B 不能放在下载目录 A 内部')
+    return false
+  }
+  return true
+}
+
+async function saveCloudDriveConfig() {
+  const payload = cloudDriveConfigPayload()
+  if (!validateCloudDriveConfig(payload)) return
+
+  loading.automationSave = true
+  try {
+    const data = await api('/api/cloud-drive/config', {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    })
+    applyCloudDriveAutomation(data)
+    ElMessage.success('CloudDrive 设置已保存')
+  } finally {
+    loading.automationSave = false
+  }
+}
+
+async function loginCloudDrive() {
+  if (!cloudForm.endpointUrl.trim() || !cloudForm.username.trim() || !cloudForm.password) {
+    ElMessage.warning('请填写 CloudDrive2 地址、用户名和密码')
+    return
+  }
+
+  loading.cloudLogin = true
+  try {
+    const data = await api('/api/cloud-drive/login', {
+      method: 'POST',
+      body: JSON.stringify({
+        endpointUrl: cloudForm.endpointUrl.trim(),
+        username: cloudForm.username.trim(),
+        password: cloudForm.password
+      })
+    })
+    applyCloudDriveAutomation(data)
+    ElMessage.success('CloudDrive2 登录成功')
+  } finally {
+    cloudForm.password = ''
+    loading.cloudLogin = false
+  }
+}
+
+async function saveCloudDriveToken() {
+  if (!cloudForm.endpointUrl.trim() || !cloudForm.apiToken.trim()) {
+    ElMessage.warning('请填写 CloudDrive2 地址和 API Token / Key')
+    return
+  }
+
+  loading.cloudToken = true
+  try {
+    const tokenInfo = await api('/api/cloud-drive/token', {
+      method: 'POST',
+      body: JSON.stringify({
+        endpointUrl: cloudForm.endpointUrl.trim(),
+        token: cloudForm.apiToken.trim()
+      })
+    })
+    automation.tokenConfigured = true
+    cloudForm.apiToken = ''
+    ElMessage.success(`Key 已验证，根目录 ${tokenInfo.rootDir || '/'}`)
+  } finally {
+    loading.cloudToken = false
+  }
+}
+
+async function runCloudDriveNow() {
+  const payload = cloudDriveConfigPayload()
+  if (!validateCloudDriveConfig(payload)) return
+  await ElMessageBox.confirm(
+    '立即执行会提交未处理 RSS 项到下载目录 A，并只整理下载目录 A 内部的视频文件。',
+    '立即执行 CloudDrive/RSS',
+    {
+      confirmButtonText: '执行',
+      cancelButtonText: '取消',
+      type: 'warning'
+    }
+  )
+
+  loading.cloudRun = true
+  try {
+    const result = await api('/api/cloud-drive/run', { method: 'POST' })
+    ElMessage.success(`完成：提交 ${result.submitted}，跳过 ${result.skipped}，整理 ${result.organized}，失败 ${result.failed}`)
+    await Promise.all([loadCloudDriveAutomation(), loadLibrary()])
+  } finally {
+    loading.cloudRun = false
+  }
+}
+
+async function saveRssSubscription() {
+  if (!rssForm.url.trim()) {
+    ElMessage.warning('请填写 RSS 地址')
+    return
+  }
+
+  loading.rssSave = true
+  try {
+    await api('/api/cloud-drive/rss', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: rssForm.name.trim() || rssForm.url.trim(),
+        url: rssForm.url.trim(),
+        filterRegex: rssForm.filterRegex.trim() || null,
+        enabled: Boolean(rssForm.enabled)
+      })
+    })
+    Object.assign(rssForm, { name: '', url: '', filterRegex: '', enabled: true })
+    ElMessage.success('RSS 订阅已保存')
+    await loadCloudDriveAutomation()
+  } finally {
+    loading.rssSave = false
+  }
+}
+
+async function toggleRssSubscription(subscription) {
+  const next = { ...subscription, enabled: !subscription.enabled }
+  await api(`/api/cloud-drive/rss/${subscription.id}`, {
+    method: 'PUT',
+    body: JSON.stringify(next)
+  })
+  ElMessage.success(next.enabled ? 'RSS 已启用' : 'RSS 已停用')
+  await loadCloudDriveAutomation()
+}
+
+async function deleteRssSubscription(subscriptionId) {
+  await ElMessageBox.confirm('确定删除这个 RSS 订阅？', '删除 RSS', {
+    confirmButtonText: '删除',
+    cancelButtonText: '取消',
+    type: 'warning'
+  })
+  await api(`/api/cloud-drive/rss/${subscriptionId}`, { method: 'DELETE' })
+  ElMessage.success('RSS 订阅已删除')
+  await loadCloudDriveAutomation()
+}
+
 async function deleteSource(sourceId) {
   await ElMessageBox.confirm('确定删除这个媒体源？', '删除媒体源', {
     confirmButtonText: '删除',
@@ -736,6 +1141,22 @@ function sourceLocation(source) {
 function folderName(path) {
   if (!path) return ''
   return decodeURIComponent(path.split('/').filter(Boolean).pop() || path)
+}
+
+function normalizeCloudPath(path) {
+  const value = String(path || '').trim().replace(/\\/g, '/').replace(/\/+$/g, '')
+  if (!value) return ''
+  return value.startsWith('/') ? value : `/${value}`
+}
+
+function formatDateTime(timestamp) {
+  if (!timestamp) return ''
+  return new Date(timestamp).toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
 }
 
 function episodeLabel(episode) {

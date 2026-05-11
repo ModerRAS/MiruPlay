@@ -30,11 +30,32 @@ class SecurePreferencesManager @Inject constructor(
             securePrefs.edit().putString(KEY_BANGUMI_TOKEN, value).apply()
         }
 
+    var cloudDriveToken: String?
+        get() = securePrefs.getString(KEY_CLOUD_DRIVE_TOKEN, null)
+        set(value) {
+            securePrefs.edit().putString(KEY_CLOUD_DRIVE_TOKEN, value).apply()
+        }
+
+    var cloudDrivePassword: String?
+        get() = securePrefs.getString(KEY_CLOUD_DRIVE_PASSWORD, null)
+        set(value) {
+            securePrefs.edit().putString(KEY_CLOUD_DRIVE_PASSWORD, value).apply()
+        }
+
     fun clearBangumiToken() {
         securePrefs.edit().remove(KEY_BANGUMI_TOKEN).apply()
     }
 
+    fun clearCloudDriveCredentials() {
+        securePrefs.edit()
+            .remove(KEY_CLOUD_DRIVE_TOKEN)
+            .remove(KEY_CLOUD_DRIVE_PASSWORD)
+            .apply()
+    }
+
     companion object {
         private const val KEY_BANGUMI_TOKEN = "bangumi_access_token"
+        private const val KEY_CLOUD_DRIVE_TOKEN = "cloud_drive_token"
+        private const val KEY_CLOUD_DRIVE_PASSWORD = "cloud_drive_password"
     }
 }
