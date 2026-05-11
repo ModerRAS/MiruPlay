@@ -7,7 +7,7 @@
 ## Features
 
 - **Multi-Source Media** — Supports local files, WebDAV, SMB, and other media sources
-- **Metadata Scraping** — Auto-fetch anime info, posters, and episode lists from Bangumi / AniList
+- **Metadata Scraping** — Auto-fetch anime info, posters, and episode lists from Bangumi
 - **RSS Cloud Sync** — Automatically sync new episodes via RSS subscription
 - **Remote Control** — Built-in HTTP server + gRPC API for browser / third-party client control
 - **TV Remote Optimized** — Compose + Leanback UI fully adapted for D-pad navigation
@@ -58,7 +58,7 @@ MiruPlay/
 ├── player-core/     # Media3 player integration
 ├── media-source/    # Media source abstraction (Local / WebDAV / SMB)
 ├── scanner/         # Local file scanner
-├── scraper/         # Anime metadata scraping (Bangumi / AniList)
+├── scraper/         # Anime metadata scraping (Bangumi)
 ├── sync-engine/     # RSS sync engine
 ├── cloud-drive/     # Cloud drive integration
 ├── metadata/        # NFO metadata read/write
