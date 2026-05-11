@@ -155,13 +155,15 @@ class WebControlService @Inject constructor(
             uri = episode.filePath,
             mediaSourceId = episode.animeId,
             startPosition = startPosition,
-            subtitleTracks = emptyList()
+            subtitleTracks = emptyList(),
+            episodeId = episode.id
         )
         navigator.openPlayer(
             WebPlaybackSource(
                 uri = source.uri,
                 mediaSourceId = source.mediaSourceId,
-                startPositionMs = source.startPosition
+                startPositionMs = source.startPosition,
+                episodeId = source.episodeId
             )
         )
         return playbackStatus()

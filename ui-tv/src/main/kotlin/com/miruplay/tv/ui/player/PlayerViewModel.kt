@@ -9,6 +9,7 @@ import com.miruplay.tv.model.PlaybackState
 import com.miruplay.tv.player.AudioTrack
 import com.miruplay.tv.player.PlaybackController
 import com.miruplay.tv.model.SubtitleTrack
+import com.miruplay.tv.sync.BangumiSyncEngine
 import androidx.media3.common.Player
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -20,7 +21,8 @@ import javax.inject.Inject
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
     private val playbackController: PlaybackController,
-    private val progressRepository: ProgressRepository
+    private val progressRepository: ProgressRepository,
+    private val bangumiSyncEngine: BangumiSyncEngine
 ) : ViewModel() {
 
     val playbackState: StateFlow<PlaybackState> = playbackController.state
@@ -51,6 +53,7 @@ class PlayerViewModel @Inject constructor(
 
     private var progressSaveJob: Job? = null
     private var positionPollJob: Job? = null
+    private var finishObserverJob: Job? = null
 
     fun play(source: PlaybackSource) {
         viewModelScope.launch {
@@ -59,6 +62,7 @@ class PlayerViewModel @Inject constructor(
                 _duration.value = playbackController.getDuration()
                 startPositionPolling()
                 startProgressSaving(source)
+                startFinishObserver(source)
             }
         }
     }
@@ -130,10 +134,29 @@ class PlayerViewModel @Inject constructor(
                 delay(15_000) // Every 15 seconds
                 val pos = playbackController.getCurrentPosition()
                 progressRepository.saveProgress(
-                    episodeId = extractEpisodeId(source.uri),
+                    episodeId = source.episodeId ?: extractEpisodeId(source.uri),
                     positionMs = pos,
                     lastWatched = System.currentTimeMillis()
                 )
+            }
+        }
+    }
+
+    private fun startFinishObserver(source: PlaybackSource) {
+        finishObserverJob?.cancel()
+        finishObserverJob = viewModelScope.launch {
+            playbackState.collect { state ->
+                if (state is PlaybackState.Ended) {
+                    val episodeId = source.episodeId ?: extractEpisodeId(source.uri)
+                    val duration = playbackController.getDuration().coerceAtLeast(0L)
+                    progressRepository.saveProgress(
+                        episodeId = episodeId,
+                        positionMs = duration,
+                        lastWatched = System.currentTimeMillis()
+                    )
+                    bangumiSyncEngine.markEpisodeWatched(episodeId)
+                    finishObserverJob?.cancel()
+                }
             }
         }
     }
@@ -146,6 +169,7 @@ class PlayerViewModel @Inject constructor(
         super.onCleared()
         positionPollJob?.cancel()
         progressSaveJob?.cancel()
+        finishObserverJob?.cancel()
         viewModelScope.launch {
             playbackController.stop()
         }

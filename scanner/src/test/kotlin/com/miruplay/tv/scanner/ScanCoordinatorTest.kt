@@ -106,6 +106,7 @@ class ScanCoordinatorTest {
 
         override suspend fun cacheMetadata(anime: Anime): Result<Unit> = Result.success(Unit)
         override suspend fun getCachedMetadata(animeId: String): Result<Anime?> = Result.success(null)
+        override suspend fun getCachedEpisode(episodeId: String): Result<Episode?> = Result.success(episodes.firstOrNull { it.id == episodeId })
         override suspend fun getCachedEpisodes(animeId: String): Result<List<Episode>> = Result.success(episodes)
         override suspend fun cacheEpisodes(animeId: String, episodes: List<Episode>): Result<Unit> {
             this.episodes.clear()

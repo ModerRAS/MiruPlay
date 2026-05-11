@@ -47,5 +47,8 @@ data class EpisodeMetadata(
     val airDate: String? = null,
     val summary: String? = null,
     val thumbnailUrl: String? = null,
-    val isSpecial: Boolean = false
+    val isSpecial: Boolean = false,
+    val bangumiEpisodeId: Int? = null,
+    val durationMs: Long = 0L,
+    val collectionType: Int? = null
 )

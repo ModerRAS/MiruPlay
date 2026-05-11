@@ -24,6 +24,7 @@ dependencies {
     api(project(":metadata"))
     api(project(":media-source"))
     api(project(":data"))
+    implementation(project(":scraper"))
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.dagger.hilt.android)
     ksp(libs.dagger.hilt.compiler)

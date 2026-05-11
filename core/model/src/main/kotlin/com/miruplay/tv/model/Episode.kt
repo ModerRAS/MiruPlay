@@ -16,4 +16,6 @@ data class Episode(
     val lastWatchedTimestamp: Long = 0L,  // epoch ms
     val playCount: Int = 0,
     val thumbnailPath: String? = null,
+    val bangumiEpisodeId: Int? = null,
+    val bangumiCollectionType: Int? = null,
 )

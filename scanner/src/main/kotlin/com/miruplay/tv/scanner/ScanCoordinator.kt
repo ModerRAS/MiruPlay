@@ -14,6 +14,8 @@ import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.ScanResult
+import com.miruplay.tv.scraper.EpisodeMetadata
+import com.miruplay.tv.scraper.MetadataScraper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
@@ -32,7 +34,8 @@ class ScanCoordinator @Inject constructor(
     private val mediaRepository: MediaRepository,
     private val mediaSourceFactory: MediaSourceFactory,
     private val indexRepository: IndexRepository,
-    private val metadataRepository: MetadataRepository
+    private val metadataRepository: MetadataRepository,
+    private val metadataScrapers: Set<@JvmSuppressWildcards MetadataScraper> = emptySet()
 ) {
     /**
      * Full scan of a media source, updates index + metadata in one pass.
@@ -113,20 +116,25 @@ class ScanCoordinator @Inject constructor(
                         fileName = entry.path.substringAfterLast('/')
                     )
                 }
-                metadataRepository.cacheEpisodes(animeName, episodes)
+                val online = enrichWithOnlineMetadata(animeName, episodes)
+                metadataRepository.cacheEpisodes(animeName, online.episodes)
 
                 // Update or create anime metadata with episode count
-                metadataRepository.getCachedMetadata(animeName).onSuccess { cachedAnime ->
-                    if (cachedAnime != null) {
-                        metadataRepository.cacheMetadata(cachedAnime.copy(episodeCount = episodes.size))
-                    } else {
-                        // Create minimal anime metadata if none exists (no NFO was found)
-                        metadataRepository.cacheMetadata(Anime(
-                            id = animeName,
-                            title = animeName,
-                            titleCn = animeName,
-                            episodeCount = episodes.size
-                        ))
+                if (online.anime != null) {
+                    metadataRepository.cacheMetadata(online.anime)
+                } else {
+                    metadataRepository.getCachedMetadata(animeName).onSuccess { cachedAnime ->
+                        if (cachedAnime != null) {
+                            metadataRepository.cacheMetadata(cachedAnime.copy(episodeCount = episodes.size))
+                        } else {
+                            // Create minimal anime metadata if none exists (no NFO was found)
+                            metadataRepository.cacheMetadata(Anime(
+                                id = animeName,
+                                title = animeName,
+                                titleCn = animeName,
+                                episodeCount = episodes.size
+                            ))
+                        }
                     }
                 }
             }
@@ -141,6 +149,73 @@ class ScanCoordinator @Inject constructor(
             newEpisodes = newEpisodes,
             updatedEpisodes = 0
         ))
+    }
+
+    private data class OnlineMetadata(
+        val anime: Anime?,
+        val episodes: List<Episode>
+    )
+
+    private suspend fun enrichWithOnlineMetadata(animeName: String, episodes: List<Episode>): OnlineMetadata {
+        val bangumi = metadataScrapers.firstOrNull { it.sourceName.equals("Bangumi", ignoreCase = true) }
+            ?: return OnlineMetadata(null, episodes)
+
+        return try {
+            val candidates = titleCandidates(animeName)
+            var match = bangumi.searchByAlias(animeName, candidates).getOrNull()
+            if (match == null) {
+                for (candidate in candidates) {
+                    match = bangumi.searchAnime(candidate).getOrNull()
+                        ?.firstOrNull { it.confidence >= 0.62f }
+                    if (match != null) break
+                }
+            }
+            match ?: return OnlineMetadata(null, episodes)
+
+            val details = bangumi.getAnimeDetails(match.animeId).getOrNull()
+            val episodeMetadata = bangumi.getEpisodes(match.animeId).getOrNull()
+                .orEmpty()
+                .associateBy { it.episodeNumber }
+
+            val enrichedEpisodes = episodes.map { episode ->
+                val remote = episodeMetadata[episode.episodeNumber]
+                if (remote == null) {
+                    episode
+                } else {
+                    episode.copy(
+                        title = remote.title ?: episode.title,
+                        duration = episode.duration.takeIf { it > 0 } ?: remote.durationMs,
+                        bangumiEpisodeId = remote.bangumiEpisodeId,
+                        bangumiCollectionType = remote.collectionType
+                    )
+                }
+            }
+
+            val anime = details?.copy(
+                id = animeName,
+                title = details.title.ifBlank { animeName },
+                titleCn = details.titleCn ?: match.titleCn,
+                episodeCount = maxOf(details.episodeCount, enrichedEpisodes.size),
+                bangumiId = details.bangumiId ?: match.animeId.toIntOrNull()
+            )
+
+            OnlineMetadata(anime, enrichedEpisodes)
+        } catch (e: Exception) {
+            Log.w("ScanCoordinator", "Bangumi metadata enrichment failed for $animeName", e)
+            OnlineMetadata(null, episodes)
+        }
+    }
+
+    private fun titleCandidates(animeName: String): List<String> {
+        val withoutBracketGroups = animeName
+            .replace(Regex("\\[[^\\]]*]"), " ")
+            .replace(Regex("【[^】]*】"), " ")
+        val withoutSeasonSuffix = withoutBracketGroups
+            .replace(Regex("(?i)\\b(s\\d{1,2}|season\\s*\\d{1,2}|第\\s*\\d+\\s*[季期])\\b"), " ")
+        return listOf(animeName, withoutBracketGroups, withoutSeasonSuffix)
+            .map { it.replace(Regex("[._]+"), " ").replace(Regex("\\s+"), " ").trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
     }
 
     /** Progress callback for scan operations */
@@ -231,8 +306,10 @@ class ScanCoordinator @Inject constructor(
                         if (file.path.hashCode() % 5 == 0) {
                             progressCallback?.onProgress(parentDirName, 1, if (match != null) 1 else 0)
                         }
-                    } else if (ext == "nfo") {
-                        parseAndCacheRemoteNfo(ms, file.path, parentDirName)
+                    } else {
+                        if (ext == "nfo") {
+                            parseAndCacheRemoteNfo(ms, file.path, parentDirName)
+                        }
                     }
                 }
             }
