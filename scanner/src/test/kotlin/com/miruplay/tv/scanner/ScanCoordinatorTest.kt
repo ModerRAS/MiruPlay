@@ -20,7 +20,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.ByteArrayInputStream
+import java.io.File
 import java.io.InputStream
+import java.nio.file.Files
 
 class ScanCoordinatorTest {
 
@@ -66,6 +68,57 @@ class ScanCoordinatorTest {
         )
     }
 
+    @Test
+    fun `scanSource recognizes flat show season folder and generates local nfo files`() = runBlocking {
+        val root = Files.createTempDirectory("miruplay-scan").toFile().canonicalFile
+        try {
+            val showDir = File(root, "异世界悠闲农家 第2季").apply { mkdirs() }
+            val video = File(showDir, "01 [1080P].mp4").apply { writeText("fake") }
+            val sourceInfo = MediaSourceInfo(
+                id = 9L,
+                name = "Local",
+                type = MediaSourceType.LOCAL,
+                connectionInfo = mapOf("path" to root.absolutePath)
+            )
+            val mediaSource = FakeMediaSource(
+                listings = mapOf(
+                    root.absolutePath to listOf(
+                        FileEntry(name = showDir.name, path = showDir.absolutePath, isDirectory = true)
+                    ),
+                    showDir.absolutePath to listOf(
+                        FileEntry(
+                            name = video.name,
+                            path = video.absolutePath,
+                            isDirectory = false,
+                            size = video.length()
+                        )
+                    )
+                )
+            )
+            val indexRepository = RecordingIndexRepository()
+            val metadataRepository = RecordingMetadataRepository()
+            val coordinator = ScanCoordinator(
+                mediaRepository = SingleSourceRepository(sourceInfo),
+                mediaSourceFactory = SingleMediaSourceFactory(mediaSource),
+                indexRepository = indexRepository,
+                metadataRepository = metadataRepository
+            )
+
+            val result = coordinator.scanSource(sourceInfo.id)
+
+            assertTrue("Scan should succeed", result.isSuccess())
+            assertEquals("异世界悠闲农家", indexRepository.entries.single().animeName)
+            assertEquals(2, indexRepository.entries.single().seasonNumber)
+            assertEquals(1, indexRepository.entries.single().episodeNumber)
+            assertEquals("异世界悠闲农家", metadataRepository.episodes.single().animeId)
+            assertEquals(2, metadataRepository.episodes.single().seasonNumber)
+            assertTrue(File(showDir, "tvshow.nfo").exists())
+            assertTrue(File(showDir, "01 [1080P].nfo").exists())
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
     private class SingleSourceRepository(
         private val source: MediaSourceInfo
     ) : MediaRepository {
@@ -102,9 +155,13 @@ class ScanCoordinatorTest {
     }
 
     private class RecordingMetadataRepository : MetadataRepository {
+        val anime = mutableListOf<Anime>()
         val episodes = mutableListOf<Episode>()
 
-        override suspend fun cacheMetadata(anime: Anime): Result<Unit> = Result.success(Unit)
+        override suspend fun cacheMetadata(anime: Anime): Result<Unit> {
+            this.anime.add(anime)
+            return Result.success(Unit)
+        }
         override suspend fun getCachedMetadata(animeId: String): Result<Anime?> = Result.success(null)
         override suspend fun getCachedEpisode(episodeId: String): Result<Episode?> = Result.success(episodes.firstOrNull { it.id == episodeId })
         override suspend fun getCachedEpisodes(animeId: String): Result<List<Episode>> = Result.success(episodes)

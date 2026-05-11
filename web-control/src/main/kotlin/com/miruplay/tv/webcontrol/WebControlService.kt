@@ -2,20 +2,27 @@ package com.miruplay.tv.webcontrol
 
 import android.os.Build
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.data.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.data.repository.IndexRepository
 import com.miruplay.tv.data.repository.MediaRepository
 import com.miruplay.tv.data.repository.MetadataRepository
 import com.miruplay.tv.data.repository.ProgressRepository
+import com.miruplay.tv.data.secure.SecurePreferencesManager
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.model.Anime
+import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
+import com.miruplay.tv.model.resumePosition
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.PlaybackState
+import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.player.PlaybackController
 import com.miruplay.tv.scanner.ScanCoordinator
+import com.miruplay.tv.sync.rss.CloudDriveRssAutomationEngine
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.net.URLEncoder
@@ -30,6 +37,9 @@ class WebControlService @Inject constructor(
     private val metadataRepository: MetadataRepository,
     private val indexRepository: IndexRepository,
     private val progressRepository: ProgressRepository,
+    private val cloudDriveRepository: CloudDriveAutomationRepository,
+    private val securePreferences: SecurePreferencesManager,
+    private val cloudDriveEngine: CloudDriveRssAutomationEngine,
     private val scanCoordinator: ScanCoordinator,
     private val mediaSourceFactory: MediaSourceFactory,
     private val playbackController: PlaybackController,
@@ -143,6 +153,92 @@ class WebControlService @Inject constructor(
         }
     }
 
+    suspend fun getCloudDriveAutomation(): CloudDriveAutomationDto {
+        val config = requireSuccess(cloudDriveRepository.getConfig(), "读取 CloudDrive 设置失败")
+        return CloudDriveAutomationDto(
+            config = config,
+            subscriptions = cloudDriveRepository.observeSubscriptions().first(),
+            tokenConfigured = !securePreferences.cloudDriveToken.isNullOrBlank()
+        )
+    }
+
+    suspend fun saveCloudDriveConfig(request: CloudDriveConfigRequest): CloudDriveAutomationDto {
+        val current = requireSuccess(cloudDriveRepository.getConfig(), "读取 CloudDrive 设置失败")
+        val config = CloudDriveAutomationConfig(
+            endpointUrl = request.endpointUrl.trim(),
+            username = request.username.trim(),
+            webDavSourceId = request.webDavSourceId?.takeIf { it > 0L },
+            inboxPath = request.inboxPath.trim(),
+            libraryPath = request.libraryPath.trim(),
+            intervalMinutes = request.intervalMinutes.coerceAtLeast(5),
+            enabled = request.enabled,
+            lastRunAt = current.lastRunAt
+        )
+        requireSuccess(cloudDriveRepository.saveConfig(config), "保存 CloudDrive 设置失败")
+        return getCloudDriveAutomation()
+    }
+
+    suspend fun loginCloudDrive(request: CloudDriveLoginRequest): CloudDriveAutomationDto {
+        if (request.endpointUrl.isBlank() || request.username.isBlank() || request.password.isBlank()) {
+            throw IllegalArgumentException("请填写 CloudDrive2 地址、用户名和密码")
+        }
+        requireSuccess(
+            cloudDriveEngine.login(request.endpointUrl.trim(), request.username.trim(), request.password),
+            "CloudDrive2 登录失败"
+        )
+        return getCloudDriveAutomation()
+    }
+
+    suspend fun saveCloudDriveToken(request: CloudDriveTokenRequest): CloudDriveTokenResponse {
+        if (request.endpointUrl.isBlank() || request.token.isBlank()) {
+            throw IllegalArgumentException("请填写 CloudDrive2 地址和 API Token")
+        }
+        val tokenInfo = requireSuccess(
+            cloudDriveEngine.saveApiToken(request.endpointUrl.trim(), request.token.trim()),
+            "CloudDrive2 API Token 验证失败"
+        )
+        return CloudDriveTokenResponse(
+            rootDir = tokenInfo.rootDir,
+            friendlyName = tokenInfo.friendlyName,
+            allowList = tokenInfo.allowList,
+            allowCreateFolder = tokenInfo.allowCreateFolder,
+            allowMove = tokenInfo.allowMove,
+            allowAddOfflineDownload = tokenInfo.allowAddOfflineDownload
+        )
+    }
+
+    suspend fun runCloudDriveAutomationNow(): CloudDriveRunResponse {
+        val summary = requireSuccess(cloudDriveEngine.runOnce(), "CloudDrive/RSS 执行失败")
+        return CloudDriveRunResponse(
+            submitted = summary.submitted,
+            skipped = summary.skipped,
+            failed = summary.failed,
+            organized = summary.organized
+        )
+    }
+
+    suspend fun saveRssSubscription(request: RssSubscriptionRequest): RssSubscriptionInfo {
+        if (request.url.isBlank()) {
+            throw IllegalArgumentException("请填写 RSS 地址")
+        }
+        val subscription = RssSubscriptionInfo(
+            id = request.id,
+            name = request.name.trim().ifBlank { request.url.trim() },
+            url = request.url.trim(),
+            filterRegex = request.filterRegex?.trim()?.takeIf { it.isNotBlank() },
+            enabled = request.enabled
+        )
+        val id = requireSuccess(cloudDriveRepository.saveSubscription(subscription), "保存 RSS 订阅失败")
+        return subscription.copy(id = if (subscription.id > 0L) subscription.id else id)
+    }
+
+    suspend fun updateRssSubscription(id: Long, request: RssSubscriptionRequest): RssSubscriptionInfo =
+        saveRssSubscription(request.copy(id = id))
+
+    suspend fun deleteRssSubscription(id: Long) {
+        requireSuccess(cloudDriveRepository.deleteSubscription(id), "删除 RSS 订阅失败")
+    }
+
     suspend fun getLibrary(): LibraryDto {
         val sources = (mediaRepository.getSources() as? Result.Success)?.data ?: emptyList()
         val anime = loadAllAnime(sources)
@@ -185,9 +281,9 @@ class WebControlService @Inject constructor(
     suspend fun playEpisode(request: PlayEpisodeRequest): PlaybackStatusDto {
         val episode = findEpisodeById(request.episodeId)
             ?: throw IllegalArgumentException("剧集不存在")
+        val progress = progressRepository.getProgress(episode.id).getOrNull()
         val startPosition = request.startPositionMs
-            ?: progressRepository.getProgress(episode.id).getOrNull()?.positionMs
-            ?: 0L
+            ?: episode.resumePosition(progress)
         val source = PlaybackSource(
             uri = episode.filePath,
             mediaSourceId = episode.animeId,

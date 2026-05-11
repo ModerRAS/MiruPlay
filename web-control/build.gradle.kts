@@ -24,10 +24,12 @@ android {
 dependencies {
     api(project(":core:model"))
     implementation(project(":core:common"))
+    implementation(project(":cloud-drive"))
     implementation(project(":data"))
     implementation(project(":player-core"))
     implementation(project(":scanner"))
     implementation(project(":media-source"))
+    implementation(project(":sync-engine"))
 
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.core)

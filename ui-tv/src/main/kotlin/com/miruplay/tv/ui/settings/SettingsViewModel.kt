@@ -222,6 +222,31 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun saveCloudDriveApiToken(endpointUrl: String, token: String) {
+        if (endpointUrl.isBlank()) {
+            _cloudDriveActionMessage.value = "请先填写 CloudDrive2 地址。"
+            return
+        }
+        val normalizedToken = token.trim()
+        if (normalizedToken.isBlank()) {
+            _cloudDriveActionMessage.value = "请填写 CloudDrive2 API Token 或 Key。"
+            return
+        }
+        viewModelScope.launch {
+            _cloudDriveBusy.value = true
+            cloudDriveEngine.saveApiToken(endpointUrl.trim(), normalizedToken)
+                .onSuccess { info ->
+                    _cloudDriveTokenConfigured.value = true
+                    _cloudDriveActionMessage.value =
+                        "CloudDrive2 API Token 已验证并保存，根目录 ${info.rootDir.ifBlank { "/" }}。"
+                }
+                .onError { error ->
+                    _cloudDriveActionMessage.value = error.toUserMessage()
+                }
+            _cloudDriveBusy.value = false
+        }
+    }
+
     fun addRssSubscription(name: String, url: String, filterRegex: String, enabled: Boolean) {
         val normalizedUrl = url.trim()
         if (normalizedUrl.isBlank()) {
