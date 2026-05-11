@@ -222,22 +222,45 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
 
+      - name: Generate release notes
+        id: release_notes
+        if: steps.check_changes.outputs.has_changes == 'true'
+        run: |
+          BUILD_DATE="$(date +'%Y-%m-%d')"
+          TAG_NAME="nightly-${{ steps.version.outputs.version_name }}"
+
+          # Get commits since last nightly tag (or last 24h if no prior tag)
+          PREV_TAG=$(git tag --list 'nightly-*' --sort=-version:refname | head -1)
+          if [ -n "$PREV_TAG" ]; then
+            CHANGES=$(git log "$PREV_TAG"..HEAD --oneline --no-decorate)
+          else
+            SINCE_DATE=$(date -d '24 hours ago' '+%Y-%m-%dT%H:%M:%S')
+            CHANGES=$(git log --since="$SINCE_DATE" --oneline --no-decorate)
+          fi
+
+          # Build release notes file
+          cat > release-notes.md << EOF
+          ## Nightly Build
+
+          **Build Date:** ${BUILD_DATE}
+
+          ### Changes
+          ${CHANGES:-No new commits since last nightly.}
+
+          ### Downloads
+          Download the APK from the artifacts below.
+          EOF
+
+          echo "Release notes written to release-notes.md"
+          cat release-notes.md
+
       - name: Create GitHub Release
         if: steps.check_changes.outputs.has_changes == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: nightly-${{ steps.version.outputs.version_name }}
           name: Nightly ${{ steps.version.outputs.version_name }}
-          body: |
-            ## Nightly Build
-
-            **Build Date:** $(date +'%Y-%m-%d')
-
-            ### Changes
-            See commit history for details.
-
-            ### Downloads
-            Download the APK from the artifacts below.
+          body_path: release-notes.md
           files: app/build/outputs/apk/release/*.apk
           prerelease: true
           draft: false

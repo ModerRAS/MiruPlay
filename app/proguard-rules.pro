@@ -37,6 +37,9 @@
 -keep class androidx.media3.** { *; }
 -dontwarn androidx.media3.**
 
+# SLF4J - jcifs-ng pulls slf4j-api without a binding implementation
+-dontwarn org.slf4j.impl.**
+
 # Keep annotation classes
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile
