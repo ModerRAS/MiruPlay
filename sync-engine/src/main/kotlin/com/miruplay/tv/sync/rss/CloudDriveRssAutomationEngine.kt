@@ -62,6 +62,9 @@ class CloudDriveRssAutomationEngine @Inject constructor(
         if (CloudDrivePathPolicy.isSameOrChild(libraryPath, inboxPath)) {
             return@withContext Result.failure(AppError.SyncError.WriteFailed("CloudDrive", "整理目录 B 不能放在下载目录 A 内部"))
         }
+        // Configure RSS feed fetcher proxy before fetching
+        feedFetcher.configureProxy(config.rssProxyEnabled, config.rssProxyHost, config.rssProxyPort)
+
         val token = securePreferences.cloudDriveToken
             ?: return@withContext Result.failure(AppError.MediaSourceError.AuthenticationFailed("CloudDrive2"))
         val endpoint = CloudDriveEndpoint(config.endpointUrl, token)

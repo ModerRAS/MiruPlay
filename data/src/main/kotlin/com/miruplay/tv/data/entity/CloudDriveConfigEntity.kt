@@ -14,5 +14,8 @@ data class CloudDriveConfigEntity(
     @ColumnInfo(name = "library_path") val libraryPath: String = "",
     @ColumnInfo(name = "interval_minutes") val intervalMinutes: Int = 30,
     @ColumnInfo(name = "enabled") val enabled: Boolean = false,
-    @ColumnInfo(name = "last_run_at") val lastRunAt: Long = 0L
+    @ColumnInfo(name = "last_run_at") val lastRunAt: Long = 0L,
+    @ColumnInfo(name = "rss_proxy_enabled") val rssProxyEnabled: Boolean = false,
+    @ColumnInfo(name = "rss_proxy_host") val rssProxyHost: String = "",
+    @ColumnInfo(name = "rss_proxy_port") val rssProxyPort: Int = 1080
 )

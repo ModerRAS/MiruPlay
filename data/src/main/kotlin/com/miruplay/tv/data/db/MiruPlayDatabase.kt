@@ -9,7 +9,7 @@ import com.miruplay.tv.data.entity.*
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    version = 3,
+    version = 4,
     entities = [
         AnimeEntity::class,
         EpisodeEntity::class,
@@ -32,6 +32,14 @@ abstract class MiruPlayDatabase : RoomDatabase() {
     abstract fun cloudDriveAutomationDao(): CloudDriveAutomationDao
 
     companion object {
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE cloud_drive_config ADD COLUMN rss_proxy_enabled INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE cloud_drive_config ADD COLUMN rss_proxy_host TEXT NOT NULL DEFAULT ''")
+                database.execSQL("ALTER TABLE cloud_drive_config ADD COLUMN rss_proxy_port INTEGER NOT NULL DEFAULT 1080")
+            }
+        }
+
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE anime ADD COLUMN bangumi_collection_type INTEGER")

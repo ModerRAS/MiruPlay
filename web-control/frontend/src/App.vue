@@ -328,6 +328,29 @@
                   </el-form-item>
                 </div>
 
+                <el-divider />
+
+                <div class="switch-row">
+                  <el-switch
+                    v-model="cloudForm.rssProxyEnabled"
+                    active-text="RSS 代理已启用"
+                    inactive-text="RSS 代理关闭"
+                  />
+                </div>
+                <div v-if="cloudForm.rssProxyEnabled" class="form-grid">
+                  <el-form-item label="代理地址">
+                    <el-input v-model="cloudForm.rssProxyHost" placeholder="127.0.0.1" />
+                  </el-form-item>
+                  <el-form-item label="代理端口">
+                    <el-input-number
+                      v-model="cloudForm.rssProxyPort"
+                      :min="1"
+                      :max="65535"
+                      controls-position="right"
+                    />
+                  </el-form-item>
+                </div>
+
                 <el-alert
                   type="info"
                   :closable="false"
@@ -680,7 +703,10 @@ const cloudForm = reactive({
   libraryPath: '',
   intervalMinutes: 30,
   enabled: false,
-  lastRunAt: 0
+  lastRunAt: 0,
+  rssProxyEnabled: false,
+  rssProxyHost: '',
+  rssProxyPort: 1080
 })
 const rssForm = reactive({
   name: '',
@@ -839,7 +865,10 @@ function applyCloudDriveAutomation(data) {
     libraryPath: config.libraryPath || '',
     intervalMinutes: config.intervalMinutes || 30,
     enabled: Boolean(config.enabled),
-    lastRunAt: config.lastRunAt || 0
+    lastRunAt: config.lastRunAt || 0,
+    rssProxyEnabled: Boolean(config.rssProxyEnabled),
+    rssProxyHost: config.rssProxyHost || '',
+    rssProxyPort: config.rssProxyPort || 1080
   })
 }
 
@@ -1027,6 +1056,8 @@ async function saveSource() {
     ElMessage.success(`${saved.name} 已保存`)
     resetSourceForm()
     await Promise.all([loadSources(), loadLibrary()])
+  } catch (e) {
+    ElMessage.error(e?.message || '保存失败')
   } finally {
     loading.save = false
   }
@@ -1050,6 +1081,8 @@ async function testSource() {
     } else {
       ElMessage.warning(result.message)
     }
+  } catch (e) {
+    ElMessage.error(e?.message || '测试连接失败')
   } finally {
     loading.test = false
   }
@@ -1061,6 +1094,8 @@ async function scanSource(sourceId) {
     const result = await api(`/api/sources/${sourceId}/scan`, { method: 'POST' })
     ElMessage.success(`扫描完成：${result.episodesFound} 个文件`)
     await loadLibrary()
+  } catch (e) {
+    ElMessage.error(e?.message || '扫描失败')
   } finally {
     loading.scan = false
   }
@@ -1073,6 +1108,8 @@ async function scanAll() {
     const count = results.reduce((sum, item) => sum + item.episodesFound, 0)
     ElMessage.success(`扫描完成：${count} 个文件`)
     await loadLibrary()
+  } catch (e) {
+    ElMessage.error(e?.message || '扫描全部失败')
   } finally {
     loading.scan = false
   }
@@ -1086,7 +1123,10 @@ function cloudDriveConfigPayload() {
     inboxPath: cloudForm.inboxPath.trim(),
     libraryPath: cloudForm.libraryPath.trim(),
     intervalMinutes: Number(cloudForm.intervalMinutes || 30),
-    enabled: Boolean(cloudForm.enabled)
+    enabled: Boolean(cloudForm.enabled),
+    rssProxyEnabled: Boolean(cloudForm.rssProxyEnabled),
+    rssProxyHost: cloudForm.rssProxyHost.trim(),
+    rssProxyPort: Number(cloudForm.rssProxyPort || 1080)
   }
 }
 
@@ -1242,14 +1282,20 @@ async function deleteRssSubscription(subscriptionId) {
 }
 
 async function deleteSource(sourceId) {
-  await ElMessageBox.confirm('确定删除这个媒体源？', '删除媒体源', {
-    confirmButtonText: '删除',
-    cancelButtonText: '取消',
-    type: 'warning'
-  })
-  await api(`/api/sources/${sourceId}`, { method: 'DELETE' })
-  ElMessage.success('媒体源已删除')
-  await Promise.all([loadSources(), loadLibrary()])
+  try {
+    await ElMessageBox.confirm('确定删除这个媒体源？', '删除媒体源', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    await api(`/api/sources/${sourceId}`, { method: 'DELETE' })
+    ElMessage.success('媒体源已删除')
+    await Promise.all([loadSources(), loadLibrary()])
+  } catch (e) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error(e?.message || '删除失败')
+    }
+  }
 }
 
 function sourceLocation(source) {

@@ -11,7 +11,10 @@ data class CloudDriveAutomationConfig(
     val libraryPath: String = "",
     val intervalMinutes: Int = 30,
     val enabled: Boolean = false,
-    val lastRunAt: Long = 0L
+    val lastRunAt: Long = 0L,
+    val rssProxyEnabled: Boolean = false,
+    val rssProxyHost: String = "",
+    val rssProxyPort: Int = 1080
 )
 
 @Serializable

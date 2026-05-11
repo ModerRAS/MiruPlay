@@ -174,6 +174,9 @@ fun AddSourceScreen(
     var cloudIntervalMinutes by remember { mutableStateOf("30") }
     var cloudEnabled by remember { mutableStateOf(false) }
     var cloudWebDavSourceId by remember { mutableStateOf<Long?>(null) }
+    var rssProxyEnabled by remember { mutableStateOf(false) }
+    var rssProxyHost by remember { mutableStateOf("") }
+    var rssProxyPort by remember { mutableStateOf("1080") }
     var rssName by remember { mutableStateOf("") }
     var rssUrl by remember { mutableStateOf("") }
     var rssFilterRegex by remember { mutableStateOf("") }
@@ -206,6 +209,9 @@ fun AddSourceScreen(
         cloudIntervalMinutes = cloudDriveConfig.intervalMinutes.toString()
         cloudEnabled = cloudDriveConfig.enabled
         cloudWebDavSourceId = cloudDriveConfig.webDavSourceId
+        rssProxyEnabled = cloudDriveConfig.rssProxyEnabled
+        rssProxyHost = cloudDriveConfig.rssProxyHost
+        rssProxyPort = cloudDriveConfig.rssProxyPort.toString()
     }
 
     fun resetSourceForm(type: MediaSourceType = selectedType) {
@@ -388,6 +394,12 @@ fun AddSourceScreen(
                             cloudLibraryPath
                         )
                     },
+                    rssProxyEnabled = rssProxyEnabled,
+                    onRssProxyEnabledChange = { rssProxyEnabled = it },
+                    rssProxyHost = rssProxyHost,
+                    onRssProxyHostChange = { rssProxyHost = it },
+                    rssProxyPort = rssProxyPort,
+                    onRssProxyPortChange = { rssProxyPort = it.filter(Char::isDigit).take(5) },
                     rssSubscriptions = rssSubscriptions,
                     rssName = rssName,
                     onRssNameChange = { rssName = it },
@@ -405,7 +417,10 @@ fun AddSourceScreen(
                             inboxPath = cloudInboxPath,
                             libraryPath = cloudLibraryPath,
                             intervalMinutes = cloudIntervalMinutes.toIntOrNull() ?: 30,
-                            enabled = cloudEnabled
+                            enabled = cloudEnabled,
+                            rssProxyEnabled = rssProxyEnabled,
+                            rssProxyHost = rssProxyHost,
+                            rssProxyPort = rssProxyPort.toIntOrNull() ?: 1080
                         )
                     },
                     onLoginCloudDrive = {
@@ -652,6 +667,12 @@ private fun SettingsContent(
     canPickCloudDriveDirectory: Boolean,
     onPickCloudInboxPath: () -> Unit,
     onPickCloudLibraryPath: () -> Unit,
+    rssProxyEnabled: Boolean,
+    onRssProxyEnabledChange: (Boolean) -> Unit,
+    rssProxyHost: String,
+    onRssProxyHostChange: (String) -> Unit,
+    rssProxyPort: String,
+    onRssProxyPortChange: (String) -> Unit,
     rssSubscriptions: List<RssSubscriptionInfo>,
     rssName: String,
     onRssNameChange: (String) -> Unit,
@@ -756,6 +777,12 @@ private fun SettingsContent(
                 canPickCloudDriveDirectory = canPickCloudDriveDirectory,
                 onPickCloudInboxPath = onPickCloudInboxPath,
                 onPickCloudLibraryPath = onPickCloudLibraryPath,
+                rssProxyEnabled = rssProxyEnabled,
+                onRssProxyEnabledChange = onRssProxyEnabledChange,
+                rssProxyHost = rssProxyHost,
+                onRssProxyHostChange = onRssProxyHostChange,
+                rssProxyPort = rssProxyPort,
+                onRssProxyPortChange = onRssProxyPortChange,
                 onSave = onSaveCloudConfig,
                 onLogin = onLoginCloudDrive,
                 onSaveApiToken = onSaveCloudDriveApiToken,
@@ -1364,6 +1391,12 @@ private fun CloudDriveAutomationPanel(
     canPickCloudDriveDirectory: Boolean,
     onPickCloudInboxPath: () -> Unit,
     onPickCloudLibraryPath: () -> Unit,
+    rssProxyEnabled: Boolean,
+    onRssProxyEnabledChange: (Boolean) -> Unit,
+    rssProxyHost: String,
+    onRssProxyHostChange: (String) -> Unit,
+    rssProxyPort: String,
+    onRssProxyPortChange: (String) -> Unit,
     onSave: () -> Unit,
     onLogin: () -> Unit,
     onSaveApiToken: () -> Unit,
@@ -1471,6 +1504,35 @@ private fun CloudDriveAutomationPanel(
             label = "定时间隔（分钟）",
             modifier = Modifier.width(220.dp)
         )
+
+        Spacer(Modifier.height(14.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            ScanOptionChip(
+                text = if (rssProxyEnabled) "RSS 代理已开" else "RSS 代理关闭",
+                icon = Icons.Filled.Dns,
+                selected = rssProxyEnabled,
+                enabled = true,
+                onClick = { onRssProxyEnabledChange(!rssProxyEnabled) },
+                modifier = Modifier.width(160.dp)
+            )
+        }
+        if (rssProxyEnabled) {
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TvTextField(
+                    value = rssProxyHost,
+                    onValueChange = onRssProxyHostChange,
+                    label = "代理地址",
+                    modifier = Modifier.weight(1f)
+                )
+                TvTextField(
+                    value = rssProxyPort,
+                    onValueChange = onRssProxyPortChange,
+                    label = "代理端口",
+                    modifier = Modifier.width(160.dp)
+                )
+            }
+        }
 
         Spacer(Modifier.height(16.dp))
         CloudDriveWebDavSourceSelector(

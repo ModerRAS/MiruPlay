@@ -191,7 +191,10 @@ class SettingsViewModel @Inject constructor(
         inboxPath: String,
         libraryPath: String,
         intervalMinutes: Int,
-        enabled: Boolean
+        enabled: Boolean,
+        rssProxyEnabled: Boolean = false,
+        rssProxyHost: String = "",
+        rssProxyPort: Int = 1080
     ) {
         viewModelScope.launch {
             val current = _cloudDriveConfig.value
@@ -202,7 +205,10 @@ class SettingsViewModel @Inject constructor(
                 inboxPath = inboxPath.trim(),
                 libraryPath = libraryPath.trim(),
                 intervalMinutes = intervalMinutes.coerceAtLeast(MIN_CLOUD_DRIVE_INTERVAL_MINUTES),
-                enabled = enabled
+                enabled = enabled,
+                rssProxyEnabled = rssProxyEnabled,
+                rssProxyHost = rssProxyHost.trim(),
+                rssProxyPort = rssProxyPort.coerceAtLeast(1).coerceAtMost(65535)
             )
             cloudDriveRepository.saveConfig(config)
                 .onSuccess { _cloudDriveActionMessage.value = "CloudDrive 设置已保存。" }

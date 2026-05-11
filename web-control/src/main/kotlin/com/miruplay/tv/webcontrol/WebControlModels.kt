@@ -104,7 +104,10 @@ data class CloudDriveConfigRequest(
     val inboxPath: String,
     val libraryPath: String,
     val intervalMinutes: Int = 30,
-    val enabled: Boolean = false
+    val enabled: Boolean = false,
+    val rssProxyEnabled: Boolean = false,
+    val rssProxyHost: String = "",
+    val rssProxyPort: Int = 1080
 )
 
 @Serializable

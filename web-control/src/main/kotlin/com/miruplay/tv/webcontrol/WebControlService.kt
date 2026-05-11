@@ -175,7 +175,10 @@ class WebControlService @Inject constructor(
             libraryPath = request.libraryPath.trim(),
             intervalMinutes = request.intervalMinutes.coerceAtLeast(5),
             enabled = request.enabled,
-            lastRunAt = current.lastRunAt
+            lastRunAt = current.lastRunAt,
+            rssProxyEnabled = request.rssProxyEnabled,
+            rssProxyHost = request.rssProxyHost.trim(),
+            rssProxyPort = request.rssProxyPort.coerceAtLeast(1).coerceAtMost(65535)
         )
         requireSuccess(cloudDriveRepository.saveConfig(config), "保存 CloudDrive 设置失败")
         return getCloudDriveAutomation()

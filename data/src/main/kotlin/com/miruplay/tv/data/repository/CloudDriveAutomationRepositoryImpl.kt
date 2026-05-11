@@ -92,7 +92,10 @@ private fun CloudDriveConfigEntity.toDomain(): CloudDriveAutomationConfig =
         libraryPath = libraryPath,
         intervalMinutes = intervalMinutes,
         enabled = enabled,
-        lastRunAt = lastRunAt
+        lastRunAt = lastRunAt,
+        rssProxyEnabled = rssProxyEnabled,
+        rssProxyHost = rssProxyHost,
+        rssProxyPort = rssProxyPort
     )
 
 private fun CloudDriveAutomationConfig.toEntity(): CloudDriveConfigEntity =
@@ -104,7 +107,10 @@ private fun CloudDriveAutomationConfig.toEntity(): CloudDriveConfigEntity =
         libraryPath = libraryPath,
         intervalMinutes = intervalMinutes,
         enabled = enabled,
-        lastRunAt = lastRunAt
+        lastRunAt = lastRunAt,
+        rssProxyEnabled = rssProxyEnabled,
+        rssProxyHost = rssProxyHost,
+        rssProxyPort = rssProxyPort
     )
 
 private fun RssSubscriptionEntity.toDomain(): RssSubscriptionInfo =
