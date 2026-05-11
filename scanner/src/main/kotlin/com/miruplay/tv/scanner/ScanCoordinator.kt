@@ -12,6 +12,7 @@ import com.miruplay.tv.metadata.NfoParser
 import com.miruplay.tv.metadata.XmlNfoParser
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
+import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.ScanResult
 import com.miruplay.tv.scraper.EpisodeMetadata
@@ -53,9 +54,17 @@ class ScanCoordinator @Inject constructor(
         }
         val ms = msResult.data
         val isLocalSource = sourceInfo.type == MediaSourceType.LOCAL
+        val isDocumentTree = isLocalSource && (
+            sourceInfo.connectionInfo["uri"]?.startsWith("content://") == true ||
+                sourceInfo.connectionInfo["path"]?.startsWith("content://") == true ||
+                sourceInfo.connectionInfo["url"]?.startsWith("content://") == true
+            )
         val rootPath = when (sourceInfo.type) {
             MediaSourceType.LOCAL ->
-                sourceInfo.connectionInfo["path"] ?: sourceInfo.connectionInfo["url"] ?: "/"
+                sourceInfo.connectionInfo["uri"]
+                    ?: sourceInfo.connectionInfo["path"]
+                    ?: sourceInfo.connectionInfo["url"]
+                    ?: "/"
             MediaSourceType.WEBDAV,
             MediaSourceType.SMB ->
                 sourceInfo.connectionInfo["url"] ?: sourceInfo.connectionInfo["path"] ?: "/"
@@ -63,12 +72,14 @@ class ScanCoordinator @Inject constructor(
         val scanStartPath = if (isLocalSource) rootPath else ""
 
         // Get the real root path once (resolves symlinks)
-        val realRootPath = if (isLocalSource) {
+        val realRootPath = if (isLocalSource && !isDocumentTree) {
             try {
                 File(rootPath).canonicalPath
             } catch (e: Exception) {
                 rootPath
             }
+        } else if (isDocumentTree) {
+            null
         } else {
             null
         }
@@ -106,16 +117,16 @@ class ScanCoordinator @Inject constructor(
             for ((animeName, entries) in episodesByAnime) {
                 val episodes = entries.sortedBy { it.episodeNumber }.mapIndexed { idx, entry ->
                     val playablePath = toPlayablePath(entry.path, rootPath, sourceInfo.type)
-                    Episode(
-                        id = "${sourceId}:${entry.path}",
-                        animeId = animeName,
-                        seasonNumber = entry.seasonNumber ?: 1,
-                        episodeNumber = entry.episodeNumber ?: (idx + 1),
-                        title = "",
-                        filePath = playablePath,
-                        fileName = entry.path.substringAfterLast('/')
-                    )
-                }
+                        Episode(
+                            id = "${sourceId}:${entry.path}",
+                            animeId = animeName,
+                            seasonNumber = entry.seasonNumber ?: 1,
+                            episodeNumber = entry.episodeNumber ?: (idx + 1),
+                            title = "",
+                            filePath = playablePath,
+                            fileName = fileNameOf(entry.path)
+                        )
+                    }
                 val online = enrichWithOnlineMetadata(animeName, episodes)
                 metadataRepository.cacheEpisodes(animeName, online.episodes)
 
@@ -144,7 +155,7 @@ class ScanCoordinator @Inject constructor(
         Log.d("ScanCoordinator", "Scan done: ${sourceInfo.name} -> $totalFiles files, $newEpisodes new episodes")
 
         Result.success(ScanResult(
-            animeName = if (isLocalSource) rootPath.substringAfterLast('/').ifEmpty { rootPath } else sourceInfo.name,
+            animeName = if (isLocalSource) sourceInfo.displayNameOrPath(rootPath) else sourceInfo.name,
             episodesFound = totalFiles,
             newEpisodes = newEpisodes,
             updatedEpisodes = 0
@@ -263,17 +274,17 @@ class ScanCoordinator @Inject constructor(
         try {
             val files = ms.listFiles(path).getOrNull() ?: return
 
-            // Get parent directory name once — used as anime name for files within this dir
-            val parentDirName = path.substringAfterLast('/').ifEmpty { "Unknown" }
+        // Get parent directory name once — used as anime name for files within this dir
+            val parentDirName = nameOfPath(path).ifEmpty { "Unknown" }
 
             for (file in files) {
                 if (!currentCoroutineContext().isActive) return
 
                 // Belt-and-suspenders: if file.path escapes root boundary, skip it
-                if (rootPath != null && !isWithinRoot(file.path, rootPath)) {
-                    Log.w("ScanCoordinator", "Path escaped root boundary: ${file.path} (root=$rootPath), skipping")
-                    continue
-                }
+                    if (rootPath != null && !isWithinRoot(file.path, rootPath)) {
+                        Log.w("ScanCoordinator", "Path escaped root boundary: ${file.path} (root=$rootPath), skipping")
+                        continue
+                    }
 
                 if (file.isDirectory) {
                     // Skip trickplay, hidden, and system directories
@@ -320,7 +331,7 @@ class ScanCoordinator @Inject constructor(
 
     private fun isWithinRoot(path: String, rootPath: String): Boolean {
         val root = rootPath.trimEnd('/')
-        return path == root || path.startsWith("$root/")
+        return path == root || path.startsWith("$root/") || path.startsWith(root)
     }
 
     private fun toPlayablePath(path: String, sourceRoot: String, sourceType: MediaSourceType): String =
@@ -340,6 +351,20 @@ class ScanCoordinator @Inject constructor(
             }
         return "$base/$encodedPath"
     }
+
+    private fun nameOfPath(path: String): String =
+        when {
+            path.startsWith("content://") -> {
+                val tail = path.substringAfterLast(':', path).substringAfterLast('/')
+                java.net.URLDecoder.decode(tail, Charsets.UTF_8.name())
+            }
+            else -> path.substringAfterLast('/')
+        }
+
+    private fun fileNameOf(path: String): String = nameOfPath(path).ifEmpty { path.substringAfterLast('/') }
+
+    private fun MediaSourceInfo.displayNameOrPath(path: String): String =
+        connectionInfo["displayName"] ?: nameOfPath(path).ifEmpty { path }
 
     /**
      * Download and parse a single NFO file, cache metadata using showDirName as the cache key.

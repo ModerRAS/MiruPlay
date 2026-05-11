@@ -14,8 +14,8 @@ interface MediaSourceDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(source: MediaSourceEntity): Long
 
-    @Query("UPDATE media_source SET name = :name, url = :url, username = :username, password = :password, is_connected = :isConnected WHERE id = :id")
-    suspend fun update(id: Long, name: String? = null, url: String? = null, username: String? = null, password: String? = null, isConnected: Boolean? = null)
+    @Query("UPDATE media_source SET name = :name, url = :url, username = :username, password = :password, extra_config = :extraConfig, is_connected = :isConnected WHERE id = :id")
+    suspend fun update(id: Long, name: String? = null, url: String? = null, username: String? = null, password: String? = null, extraConfig: String? = null, isConnected: Boolean? = null)
 
     @Query("DELETE FROM media_source WHERE id = :id")
     suspend fun delete(id: Long)

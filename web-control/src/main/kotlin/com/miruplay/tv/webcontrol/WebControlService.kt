@@ -17,6 +17,7 @@ import com.miruplay.tv.player.PlaybackController
 import com.miruplay.tv.scanner.ScanCoordinator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.net.URLEncoder
 import java.net.Inet4Address
 import java.net.NetworkInterface
@@ -51,6 +52,42 @@ class WebControlService @Inject constructor(
             ?.data
             ?.map { it.safeForApi() }
             ?: emptyList()
+    }
+
+    suspend fun browseLocalDirectories(path: String): LocalDirectoryDto = withContext(Dispatchers.IO) {
+        val trimmedPath = path.trim()
+        if (trimmedPath.isBlank()) {
+            val roots = localRootCandidates()
+            return@withContext LocalDirectoryDto(
+                path = "",
+                displayPath = "设备存储",
+                parentPath = null,
+                entries = roots.map { directoryEntry(it) }
+            )
+        }
+
+        val directory = File(trimmedPath)
+        if (!directory.exists() || !directory.isDirectory) {
+            throw IllegalArgumentException("目录不存在: $trimmedPath")
+        }
+        if (!directory.canRead()) {
+            throw IllegalArgumentException("无权限读取目录: $trimmedPath")
+        }
+
+        LocalDirectoryDto(
+            path = directory.absolutePath,
+            displayPath = directory.absolutePath,
+            parentPath = parentPathOf(directory),
+            entries = directory.listFiles()
+                .orEmpty()
+                .asSequence()
+                .filter { it.isDirectory }
+                .filter { !it.name.startsWith(".") }
+                .filter { it.name !in hiddenDirectoryNames }
+                .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
+                .map { directoryEntry(it) }
+                .toList()
+        )
     }
 
     suspend fun addSource(request: SourceRequest): MediaSourceInfo {
@@ -348,6 +385,7 @@ class WebControlService @Inject constructor(
                 put("url", trimmedLocation)
                 if (sourceType == MediaSourceType.LOCAL) {
                     put("path", trimmedLocation)
+                    requestDisplayName()?.let { put("displayName", it) }
                 }
                 username?.trim()?.takeIf { it.isNotBlank() }?.let { put("username", it) }
                 val newPassword = password?.takeIf { it.isNotBlank() }
@@ -369,6 +407,7 @@ class WebControlService @Inject constructor(
                 put("url", trimmedLocation)
                 if (sourceType == MediaSourceType.LOCAL) {
                     put("path", trimmedLocation)
+                    requestDisplayName()?.let { put("displayName", it) }
                 }
                 username?.trim()?.takeIf { it.isNotBlank() }?.let { put("username", it) }
                 password?.takeIf { it.isNotBlank() }?.let { put("password", it) }
@@ -387,6 +426,44 @@ class WebControlService @Inject constructor(
         MediaSourceType.SMB -> "SMB 共享"
     }
 
+    private fun SourceRequest.requestDisplayName(): String? =
+        displayName?.trim()?.takeIf { it.isNotBlank() }
+
+    private fun SourceTestRequest.requestDisplayName(): String? =
+        displayName?.trim()?.takeIf { it.isNotBlank() }
+
+    private fun localRootCandidates(): List<File> {
+        val roots = linkedSetOf<File>()
+        listOf(
+            "/storage/emulated/0",
+            "/sdcard",
+            "/storage",
+            "/mnt/media_rw"
+        ).mapTo(roots) { File(it) }
+
+        File("/storage").listFiles()
+            .orEmpty()
+            .filter { it.isDirectory && !it.name.startsWith(".") }
+            .forEach { roots += it }
+
+        return roots
+            .filter { it.exists() && it.isDirectory && it.canRead() }
+            .distinctBy { runCatching { it.canonicalPath }.getOrDefault(it.absolutePath) }
+            .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.absolutePath })
+    }
+
+    private fun directoryEntry(file: File): LocalDirectoryEntryDto =
+        LocalDirectoryEntryDto(
+            name = file.name.ifBlank { file.absolutePath },
+            path = file.absolutePath,
+            canRead = file.canRead()
+        )
+
+    private fun parentPathOf(directory: File): String? {
+        val parent = directory.parentFile ?: return ""
+        return parent.absolutePath.takeUnless { it == directory.absolutePath }
+    }
+
     private fun findLocalIps(): List<String> {
         return NetworkInterface.getNetworkInterfaces().toList()
             .filter { it.isUp && !it.isLoopback }
@@ -403,5 +480,13 @@ class WebControlService @Inject constructor(
             is Result.Success -> result.data
             is Result.Error -> throw IllegalStateException("$message: ${result.error}")
         }
+    }
+
+    companion object {
+        private val hiddenDirectoryNames = setOf(
+            "proc", "sys", "dev", "selinux", "acct", "apex", "bin", "cache", "config",
+            "d", "data_mirror", "debug_ramdisk", "etc", "linkerconfig", "postinstall",
+            "system", "system_ext", "vendor", "vendor_dlkm"
+        )
     }
 }

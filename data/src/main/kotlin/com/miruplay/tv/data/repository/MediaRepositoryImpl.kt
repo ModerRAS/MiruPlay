@@ -9,6 +9,9 @@ import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -70,6 +73,7 @@ class MediaRepositoryImpl @Inject constructor(
                 password = source.connectionInfo["password"]?.let {
                     android.util.Base64.encodeToString(it.toByteArray(), android.util.Base64.NO_WRAP)
                 },
+                extraConfig = source.extraConnectionInfoJson(),
                 isConnected = source.isConnected
             )
             Result.success(Unit)
@@ -91,6 +95,9 @@ class MediaRepositoryImpl @Inject constructor(
     }
 }
 
+private val mediaSourceJson = Json { ignoreUnknownKeys = true }
+private val persistedConnectionKeys = setOf("url", "path", "username", "password")
+
 // Extension functions for mapping
 private fun MediaSourceInfo.toEntity(): MediaSourceEntity = MediaSourceEntity(
     name = name,
@@ -100,6 +107,7 @@ private fun MediaSourceInfo.toEntity(): MediaSourceEntity = MediaSourceEntity(
     password = connectionInfo["password"]?.let { 
         android.util.Base64.encodeToString(it.toByteArray(), android.util.Base64.NO_WRAP)
     },
+    extraConfig = extraConnectionInfoJson(),
     isConnected = isConnected,
     lastScanned = lastScanned
 )
@@ -119,7 +127,16 @@ private fun MediaSourceEntity.toDomain(): MediaSourceInfo = MediaSourceInfo(
         password?.let {
             put("password", String(android.util.Base64.decode(it, android.util.Base64.NO_WRAP)))
         }
+        extraConfig
+            ?.let { runCatching { mediaSourceJson.decodeFromString<Map<String, String>>(it) }.getOrNull() }
+            ?.forEach { (key, value) -> put(key, value) }
     },
     isConnected = isConnected,
     lastScanned = lastScanned
 )
+
+private fun MediaSourceInfo.extraConnectionInfoJson(): String? =
+    connectionInfo
+        .filterKeys { it !in persistedConnectionKeys }
+        .takeIf { it.isNotEmpty() }
+        ?.let { mediaSourceJson.encodeToString(it) }
