@@ -216,7 +216,18 @@ class WebControlServer @Inject constructor(
             throw IllegalArgumentException("请求体读取失败: ${e.message}")
         }
 
-        val body = files["postData"].orEmpty()
+        // NanoHTTPD stores POST JSON body in files["postData"] but PUT body
+        // in files["content"] as a temp file path. Handle both.
+        val body: String = when {
+            files["postData"]?.isNotBlank() == true -> files.getValue("postData")
+            files.containsKey("content") -> {
+                val path = files.getValue("content")
+                val tempFile = java.io.File(path)
+                if (tempFile.exists()) tempFile.readText(Charsets.UTF_8) else ""
+            }
+            else -> ""
+        }
+
         if (body.isBlank()) {
             throw IllegalArgumentException("请求体不能为空")
         }
