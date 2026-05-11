@@ -80,8 +80,9 @@ fun MiruPlayNavigation(
                 val source = Json.decodeFromJsonElement<WebPlaybackSource>(payload)
                 val encodedPath = Uri.encode(source.uri)
                 val encodedSource = Uri.encode(source.mediaSourceId)
+                val encodedEpisode = Uri.encode(source.episodeId ?: "")
                 navController.navigate(
-                    "player/$encodedPath?mediaSourceId=$encodedSource&startPosition=${source.startPositionMs}"
+                    "player/$encodedPath?mediaSourceId=$encodedSource&startPosition=${source.startPositionMs}&episodeId=$encodedEpisode"
                 ) {
                     launchSingleTop = true
                 }
@@ -124,14 +125,18 @@ fun MiruPlayNavigation(
                             mediaRepository = mediaRepository
                         )
                         val encodedPath = Uri.encode(playableUri)
-                        navController.navigate("player/$encodedPath")
+                        val encodedSource = Uri.encode(episode.animeId)
+                        val encodedEpisode = Uri.encode(episode.id)
+                        navController.navigate(
+                            "player/$encodedPath?mediaSourceId=$encodedSource&episodeId=$encodedEpisode"
+                        )
                     }
                 }
             )
         }
 
         composable(
-            route = "player/{uri}?mediaSourceId={mediaSourceId}&startPosition={startPosition}",
+            route = "player/{uri}?mediaSourceId={mediaSourceId}&startPosition={startPosition}&episodeId={episodeId}",
             arguments = listOf(
                 navArgument("uri") { type = NavType.StringType },
                 navArgument("mediaSourceId") {
@@ -141,6 +146,10 @@ fun MiruPlayNavigation(
                 navArgument("startPosition") {
                     type = NavType.LongType
                     defaultValue = 0L
+                },
+                navArgument("episodeId") {
+                    type = NavType.StringType
+                    defaultValue = ""
                 }
             )
         ) { backStackEntry ->
@@ -148,11 +157,15 @@ fun MiruPlayNavigation(
             val decodedUri = Uri.decode(uri)
             val mediaSourceId = backStackEntry.arguments?.getString("mediaSourceId") ?: "media"
             val startPosition = backStackEntry.arguments?.getLong("startPosition") ?: 0L
+            val episodeId = backStackEntry.arguments?.getString("episodeId")
+                ?.let(Uri::decode)
+                ?.takeIf { it.isNotBlank() }
             val source = PlaybackSource(
                 uri = decodedUri,
                 mediaSourceId = mediaSourceId,
                 startPosition = startPosition,
-                subtitleTracks = emptyList()
+                subtitleTracks = emptyList(),
+                episodeId = episodeId
             )
             PlayerScreen(
                 playbackSource = source,

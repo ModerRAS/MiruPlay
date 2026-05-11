@@ -58,6 +58,14 @@ class MetadataRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun getCachedEpisode(episodeId: String): Result<Episode?> = withContext(Dispatchers.IO) {
+        try {
+            Result.success(episodeDao.getById(episodeId)?.toDomain())
+        } catch (e: Exception) {
+            Result.success(null)
+        }
+    }
+
     override suspend fun cacheEpisodes(animeId: String, episodes: List<Episode>): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             episodeDao.deleteByAnimeId(animeId)
@@ -106,7 +114,9 @@ private fun Anime.toEntity(): AnimeEntity = AnimeEntity(
     anilistId = anilistId?.toString(),
     tmdbId = tmdbId?.toString(),
     posterUrl = posterUrl,
-    fanartUrl = fanartUrl
+    fanartUrl = fanartUrl,
+    bangumiCollectionType = bangumiCollectionType,
+    bangumiEpStatus = bangumiEpStatus
 )
 
 private fun AnimeEntity.toDomain(episodeEntities: List<EpisodeEntity>): Anime {
@@ -131,7 +141,9 @@ private fun AnimeEntity.toDomain(episodeEntities: List<EpisodeEntity>): Anime {
         anilistId = anilistId?.toIntOrNull(),
         tmdbId = tmdbId?.toIntOrNull(),
         posterUrl = posterUrl,
-        fanartUrl = fanartUrl
+        fanartUrl = fanartUrl,
+        bangumiCollectionType = bangumiCollectionType,
+        bangumiEpStatus = bangumiEpStatus
     )
 }
 
@@ -144,7 +156,9 @@ private fun Episode.toEntity(animeId: String, seasonNumber: Int): EpisodeEntity 
     filePath = filePath,
     fileName = fileName,
     duration = duration,
-    thumbnailPath = thumbnailPath
+    thumbnailPath = thumbnailPath,
+    bangumiEpisodeId = bangumiEpisodeId,
+    bangumiCollectionType = bangumiCollectionType
 )
 
 private fun EpisodeEntity.toDomain(): Episode = Episode(
@@ -156,5 +170,7 @@ private fun EpisodeEntity.toDomain(): Episode = Episode(
     filePath = filePath,
     fileName = fileName ?: "",
     duration = duration,
-    thumbnailPath = thumbnailPath
+    thumbnailPath = thumbnailPath,
+    bangumiEpisodeId = bangumiEpisodeId,
+    bangumiCollectionType = bangumiCollectionType
 )

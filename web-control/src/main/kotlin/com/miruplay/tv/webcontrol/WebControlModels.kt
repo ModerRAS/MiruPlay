@@ -122,7 +122,8 @@ data class NavigationCommand(
 data class WebPlaybackSource(
     val uri: String,
     val mediaSourceId: String,
-    val startPositionMs: Long = 0L
+    val startPositionMs: Long = 0L,
+    val episodeId: String? = null
 )
 
 fun MediaSourceInfo.safeForApi(): MediaSourceInfo = copy(

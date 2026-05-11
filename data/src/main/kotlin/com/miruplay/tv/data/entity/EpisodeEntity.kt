@@ -19,5 +19,7 @@ data class EpisodeEntity(
     @ColumnInfo(name = "file_name") val fileName: String? = null,
     val duration: Long = 0L,
     @ColumnInfo(name = "thumbnail_path") val thumbnailPath: String? = null,
+    @ColumnInfo(name = "bangumi_episode_id") val bangumiEpisodeId: Int? = null,
+    @ColumnInfo(name = "bangumi_collection_type") val bangumiCollectionType: Int? = null,
     @ColumnInfo(name = "last_updated") val lastUpdated: Long = System.currentTimeMillis()
 )

@@ -6,7 +6,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.miruplay.tv.data.entity.EpisodeEntity
 
-private const val EPISODE_COLUMNS = "id, anime_id, season_number, episode_number, title, file_path, file_name, duration, thumbnail_path, last_updated"
+private const val EPISODE_COLUMNS = "id, anime_id, season_number, episode_number, title, file_path, file_name, duration, thumbnail_path, bangumi_episode_id, bangumi_collection_type, last_updated"
 
 @Dao
 interface EpisodeDao {
@@ -18,6 +18,9 @@ interface EpisodeDao {
 
     @Query("SELECT $EPISODE_COLUMNS FROM episode WHERE file_path = :path LIMIT 1")
     suspend fun getByPath(path: String): EpisodeEntity?
+
+    @Query("SELECT $EPISODE_COLUMNS FROM episode WHERE id = :id LIMIT 1")
+    suspend fun getById(id: String): EpisodeEntity?
 
     @Query("UPDATE episode SET file_path = :newPath WHERE file_path = :oldPath")
     suspend fun updateFilePath(oldPath: String, newPath: String)
