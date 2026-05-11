@@ -1,5 +1,6 @@
 package com.miruplay.tv.ui.detail
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -34,9 +35,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -85,6 +93,7 @@ fun AnimeDetailScreen(
     LaunchedEffect(animeId) {
         viewModel.loadAnime(animeId)
     }
+    BackHandler(onBack = onNavigateBack)
 
     OverscanContainer {
         if (isLoading) {
@@ -98,7 +107,6 @@ fun AnimeDetailScreen(
                     episodes = episodes,
                     actionMessage = actionMessage,
                     isSyncing = isSyncing,
-                    onNavigateBack = onNavigateBack,
                     onPlayEpisode = onPlayEpisode,
                     onSelectSeason = viewModel::selectSeason,
                     onRescrape = viewModel::rescrapeMetadata,
@@ -117,46 +125,28 @@ private fun DetailContent(
     episodes: List<Pair<Episode, ProgressRecord?>>,
     actionMessage: String?,
     isSyncing: Boolean,
-    onNavigateBack: () -> Unit,
     onPlayEpisode: (Episode) -> Unit,
     onSelectSeason: (Int) -> Unit,
     onRescrape: () -> Unit,
     onSyncBangumi: () -> Unit
 ) {
+    val playButtonFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(anime.id, episodes.isNotEmpty()) {
+        if (episodes.isNotEmpty()) {
+            playButtonFocusRequester.requestFocus()
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            TvButton(text = "返回", onClick = onNavigateBack, modifier = Modifier.width(150.dp))
-            Text(
-                text = anime.displayTitle(),
-                style = TvTypography.subtitle,
-                color = TextSecondary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f).padding(horizontal = 18.dp)
-            )
-            TvButton(
-                text = if (isSyncing) "同步中" else "同步",
-                icon = Icons.Filled.Sync,
-                enabled = !isSyncing,
-                onClick = onSyncBangumi,
-                modifier = Modifier.width(150.dp)
-            )
-        }
-
-        Spacer(Modifier.height(18.dp))
-
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(360.dp)
+                .height(400.dp)
                 .clip(RoundedCornerShape(8.dp))
                 .background(DarkSurface)
         ) {
@@ -189,8 +179,8 @@ private fun DetailContent(
                     url = anime.posterUrl,
                     contentDescription = anime.displayTitle(),
                     modifier = Modifier
-                        .width(190.dp)
-                        .height(280.dp)
+                        .width(205.dp)
+                        .height(302.dp)
                         .clip(RoundedCornerShape(8.dp))
                         .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(8.dp)),
                     contentScale = ContentScale.Crop
@@ -222,7 +212,10 @@ private fun DetailContent(
                         TvButton(
                             text = continueButtonText(episodes),
                             onClick = { episodes.firstOrNull()?.first?.let(onPlayEpisode) },
-                            modifier = Modifier.width(230.dp)
+                            enabled = episodes.isNotEmpty(),
+                            modifier = Modifier
+                                .width(230.dp)
+                                .focusRequester(playButtonFocusRequester)
                         )
                         TvButton(
                             text = "重新刮削",
@@ -230,6 +223,13 @@ private fun DetailContent(
                             enabled = !isSyncing,
                             onClick = onRescrape,
                             modifier = Modifier.width(170.dp)
+                        )
+                        TvButton(
+                            text = if (isSyncing) "同步中" else "同步 Bangumi",
+                            icon = Icons.Filled.Sync,
+                            enabled = !isSyncing,
+                            onClick = onSyncBangumi,
+                            modifier = Modifier.width(210.dp)
                         )
                     }
                     if (!actionMessage.isNullOrBlank()) {
@@ -370,8 +370,16 @@ private fun EpisodeListItem(
                 color = if (isFocused) FocusBorder else Color.White.copy(alpha = 0.08f),
                 shape = RoundedCornerShape(8.dp)
             )
-            .focusable()
             .onFocusChanged { isFocused = it.isFocused }
+            .onPreviewKeyEvent { event ->
+                if (event.type == KeyEventType.KeyDown && event.key.isActivateKey()) {
+                    onPlay()
+                    true
+                } else {
+                    false
+                }
+            }
+            .focusable()
             .clickable(onClick = onPlay)
             .padding(horizontal = 18.dp, vertical = 14.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -451,6 +459,11 @@ private fun continueButtonText(episodes: List<Pair<Episode, ProgressRecord?>>): 
         ?: episodes.firstOrNull()
     return next?.first?.episodeNumber?.let { "继续观看 $it" } ?: "播放"
 }
+
+private fun Key.isActivateKey(): Boolean = this == Key.DirectionCenter ||
+    this == Key.Enter ||
+    this == Key.NumPadEnter ||
+    this == Key.Spacebar
 
 private fun subjectCollectionLabel(type: Int): String = when (type) {
     1 -> "想看"
