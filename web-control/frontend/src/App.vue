@@ -282,10 +282,28 @@
 
                 <div class="form-grid">
                   <el-form-item label="下载目录 A">
-                    <el-input v-model="cloudForm.inboxPath" placeholder="/115/Downloads" />
+                    <el-input v-model="cloudForm.inboxPath" placeholder="/115/Downloads">
+                      <template #append>
+                        <el-button
+                          :icon="FolderOpened"
+                          :disabled="!canBrowseCloudDrive"
+                          title="选择下载目录"
+                          @click="openCloudPicker('inbox')"
+                        />
+                      </template>
+                    </el-input>
                   </el-form-item>
                   <el-form-item label="整理目录 B">
-                    <el-input v-model="cloudForm.libraryPath" placeholder="/115/Anime" />
+                    <el-input v-model="cloudForm.libraryPath" placeholder="/115/Anime">
+                      <template #append>
+                        <el-button
+                          :icon="FolderOpened"
+                          :disabled="!canBrowseCloudDrive"
+                          title="选择整理目录"
+                          @click="openCloudPicker('library')"
+                        />
+                      </template>
+                    </el-input>
                   </el-form-item>
                 </div>
 
@@ -538,6 +556,52 @@
           </el-button>
         </template>
       </el-dialog>
+
+      <el-dialog
+        v-model="cloudPicker.open"
+        :title="cloudPicker.target === 'inbox' ? '选择下载目录 A' : '选择整理目录 B'"
+        width="min(760px, 94vw)"
+        destroy-on-close
+      >
+        <div class="folder-browser">
+          <div class="folder-toolbar">
+            <el-button
+              :disabled="!cloudPicker.parentPath"
+              @click="loadCloudDirectories(cloudPicker.parentPath || '')"
+            >
+              上一级
+            </el-button>
+            <strong>{{ cloudPicker.displayPath || 'CloudDrive 根目录' }}</strong>
+          </div>
+
+          <el-skeleton v-if="loading.cloudBrowse" animated :rows="5" />
+          <el-empty v-else-if="!cloudPicker.entries.length" description="没有可进入的子文件夹" />
+          <div v-else class="folder-list">
+            <button
+              v-for="entry in cloudPicker.entries"
+              :key="entry.path"
+              class="folder-row"
+              type="button"
+              :disabled="!entry.canRead"
+              @click="loadCloudDirectories(entry.path)"
+            >
+              <el-icon><FolderOpened /></el-icon>
+              <span>{{ entry.name }}</span>
+            </button>
+          </div>
+        </div>
+
+        <template #footer>
+          <el-button @click="cloudPicker.open = false">取消</el-button>
+          <el-button
+            type="primary"
+            :disabled="!cloudPicker.path || cloudPicker.path === '/'"
+            @click="selectCurrentCloudDirectory"
+          >
+            选择当前文件夹
+          </el-button>
+        </template>
+      </el-dialog>
     </div>
   </el-config-provider>
 </template>
@@ -589,6 +653,7 @@ const loading = reactive({
   test: false,
   scan: false,
   localBrowse: false,
+  cloudBrowse: false,
   automation: false,
   automationSave: false,
   cloudLogin: false,
@@ -630,6 +695,14 @@ const localBrowser = reactive({
   parentPath: null,
   entries: []
 })
+const cloudPicker = reactive({
+  open: false,
+  target: 'inbox',
+  path: '',
+  displayPath: 'CloudDrive 根目录',
+  parentPath: null,
+  entries: []
+})
 const selectedAnime = reactive({ anime: null, episodes: [] })
 const detailOpen = ref(false)
 const speed = ref(1)
@@ -661,6 +734,9 @@ const continueWatching = computed(() =>
 )
 
 const webDavSources = computed(() => sources.value.filter((source) => source.type === 'WEBDAV'))
+const canBrowseCloudDrive = computed(() =>
+  Boolean(cloudForm.endpointUrl.trim()) && automation.tokenConfigured
+)
 
 const accessUrl = computed(() => {
   if (!serverInfo.value) return '读取中...'
@@ -890,6 +966,48 @@ function selectCurrentLocalDirectory() {
   sourceForm.displayName = folderName(localBrowser.path)
   if (!sourceForm.name) sourceForm.name = sourceForm.displayName || '本地媒体库'
   localPicker.open = false
+}
+
+async function openCloudPicker(target) {
+  if (!canBrowseCloudDrive.value) {
+    ElMessage.warning('请先填写 CloudDrive2 地址，并登录或保存 API Key')
+    return
+  }
+  cloudPicker.target = target
+  cloudPicker.open = true
+  const initialPath = target === 'inbox' ? cloudForm.inboxPath : cloudForm.libraryPath
+  await loadCloudDirectories(initialPath)
+}
+
+async function loadCloudDirectories(path = '') {
+  loading.cloudBrowse = true
+  try {
+    const params = new URLSearchParams()
+    if (cloudForm.endpointUrl.trim()) params.set('endpointUrl', cloudForm.endpointUrl.trim())
+    if (path) params.set('path', path)
+    const query = params.toString()
+    const data = await api(`/api/cloud-drive/directories${query ? `?${query}` : ''}`)
+    cloudPicker.path = data.path || ''
+    cloudPicker.displayPath = data.displayPath || 'CloudDrive 根目录'
+    cloudPicker.parentPath = data.parentPath ?? null
+    cloudPicker.entries = data.entries || []
+  } catch (error) {
+    cloudPicker.entries = []
+    ElMessage.error(error?.message || '读取 CloudDrive 目录失败')
+  } finally {
+    loading.cloudBrowse = false
+  }
+}
+
+function selectCurrentCloudDirectory() {
+  if (!cloudPicker.path || cloudPicker.path === '/') return
+  const selectedPath = normalizeCloudPath(cloudPicker.path)
+  if (cloudPicker.target === 'inbox') {
+    cloudForm.inboxPath = selectedPath
+  } else {
+    cloudForm.libraryPath = selectedPath
+  }
+  cloudPicker.open = false
 }
 
 async function saveSource() {

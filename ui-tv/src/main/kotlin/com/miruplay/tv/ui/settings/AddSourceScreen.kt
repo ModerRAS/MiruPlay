@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -31,9 +32,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Folder
@@ -64,6 +67,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.ExperimentalTvMaterial3Api
@@ -148,6 +152,7 @@ fun AddSourceScreen(
     val cloudDriveTokenConfigured by viewModel.cloudDriveTokenConfigured.collectAsStateWithLifecycle()
     val cloudDriveBusy by viewModel.cloudDriveBusy.collectAsStateWithLifecycle()
     val cloudDriveActionMessage by viewModel.cloudDriveActionMessage.collectAsStateWithLifecycle()
+    val cloudDriveDirectoryBrowser by viewModel.cloudDriveDirectoryBrowser.collectAsStateWithLifecycle()
 
     var selectedSection by remember { mutableStateOf(SettingsSection.WEB_UI) }
     var editingSourceId by remember { mutableStateOf<Long?>(null) }
@@ -368,6 +373,21 @@ fun AddSourceScreen(
                     cloudDriveTokenConfigured = cloudDriveTokenConfigured,
                     cloudDriveBusy = cloudDriveBusy,
                     cloudDriveActionMessage = cloudDriveActionMessage,
+                    canPickCloudDriveDirectory = cloudEndpoint.isNotBlank() && cloudDriveTokenConfigured,
+                    onPickCloudInboxPath = {
+                        viewModel.openCloudDriveDirectoryPicker(
+                            CloudDriveDirectoryTarget.INBOX,
+                            cloudEndpoint,
+                            cloudInboxPath
+                        )
+                    },
+                    onPickCloudLibraryPath = {
+                        viewModel.openCloudDriveDirectoryPicker(
+                            CloudDriveDirectoryTarget.LIBRARY,
+                            cloudEndpoint,
+                            cloudLibraryPath
+                        )
+                    },
                     rssSubscriptions = rssSubscriptions,
                     rssName = rssName,
                     onRssNameChange = { rssName = it },
@@ -411,6 +431,21 @@ fun AddSourceScreen(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
+                )
+            }
+
+            if (cloudDriveDirectoryBrowser.open) {
+                CloudDriveDirectoryPickerDialog(
+                    state = cloudDriveDirectoryBrowser,
+                    onDismiss = viewModel::closeCloudDriveDirectoryPicker,
+                    onNavigate = viewModel::browseCloudDriveDirectory,
+                    onSelectCurrent = {
+                        when (cloudDriveDirectoryBrowser.target) {
+                            CloudDriveDirectoryTarget.INBOX -> cloudInboxPath = it
+                            CloudDriveDirectoryTarget.LIBRARY -> cloudLibraryPath = it
+                        }
+                        viewModel.closeCloudDriveDirectoryPicker()
+                    }
                 )
             }
         }
@@ -614,6 +649,9 @@ private fun SettingsContent(
     cloudDriveTokenConfigured: Boolean,
     cloudDriveBusy: Boolean,
     cloudDriveActionMessage: String?,
+    canPickCloudDriveDirectory: Boolean,
+    onPickCloudInboxPath: () -> Unit,
+    onPickCloudLibraryPath: () -> Unit,
     rssSubscriptions: List<RssSubscriptionInfo>,
     rssName: String,
     onRssNameChange: (String) -> Unit,
@@ -715,6 +753,9 @@ private fun SettingsContent(
                 tokenConfigured = cloudDriveTokenConfigured,
                 busy = cloudDriveBusy,
                 actionMessage = cloudDriveActionMessage,
+                canPickCloudDriveDirectory = canPickCloudDriveDirectory,
+                onPickCloudInboxPath = onPickCloudInboxPath,
+                onPickCloudLibraryPath = onPickCloudLibraryPath,
                 onSave = onSaveCloudConfig,
                 onLogin = onLoginCloudDrive,
                 onSaveApiToken = onSaveCloudDriveApiToken,
@@ -1187,6 +1228,116 @@ private fun WebUiQrCode(
 }
 
 @Composable
+private fun CloudDriveDirectoryPickerDialog(
+    state: CloudDriveDirectoryBrowserState,
+    onDismiss: () -> Unit,
+    onNavigate: (String) -> Unit,
+    onSelectCurrent: (String) -> Unit
+) {
+    val canSelectCurrent = state.path.isNotBlank() && state.path != "/"
+
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .width(760.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(DarkSurface)
+                .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(12.dp))
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Filled.FolderOpen,
+                    contentDescription = null,
+                    tint = TextPrimary,
+                    modifier = Modifier.size(26.dp)
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    text = if (state.target == CloudDriveDirectoryTarget.INBOX) "选择下载目录 A" else "选择整理目录 B",
+                    style = TvTypography.subtitle,
+                    color = TextPrimary
+                )
+                Spacer(Modifier.weight(1f))
+                TvButton(
+                    text = "关闭",
+                    icon = Icons.Filled.Close,
+                    enabled = true,
+                    onClick = onDismiss
+                )
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                ScanOptionChip(
+                    text = "上一级",
+                    icon = Icons.Filled.ArrowBack,
+                    selected = false,
+                    enabled = state.parentPath != null,
+                    onClick = { state.parentPath?.let(onNavigate) },
+                    modifier = Modifier.width(140.dp)
+                )
+                Text(
+                    text = state.displayPath.ifBlank { "CloudDrive 根目录" },
+                    style = TvTypography.body,
+                    color = TextSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            if (state.isLoading) {
+                Text(text = "正在读取目录...", color = TextSecondary, style = TvTypography.body)
+            } else if (state.entries.isEmpty()) {
+                Text(text = "没有可进入的子文件夹。", color = TextSecondary, style = TvTypography.body)
+            } else {
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.heightIn(max = 320.dp)
+                ) {
+                    items(state.entries) { entry ->
+                        ScanOptionChip(
+                            text = entry.name,
+                            icon = Icons.Filled.Folder,
+                            selected = false,
+                            enabled = true,
+                            onClick = { onNavigate(entry.path) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            }
+
+            if (!state.message.isNullOrBlank()) {
+                Text(
+                    text = state.message,
+                    style = TvTypography.body,
+                    color = WarningYellow,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TvButton(
+                    text = "取消",
+                    icon = Icons.Filled.Close,
+                    enabled = true,
+                    onClick = onDismiss
+                )
+                TvButton(
+                    text = "选择当前目录",
+                    icon = Icons.Filled.CheckCircle,
+                    enabled = canSelectCurrent,
+                    onClick = { onSelectCurrent(state.path) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun CloudDriveAutomationPanel(
     sources: List<MediaSourceInfo>,
     endpoint: String,
@@ -1210,6 +1361,9 @@ private fun CloudDriveAutomationPanel(
     tokenConfigured: Boolean,
     busy: Boolean,
     actionMessage: String?,
+    canPickCloudDriveDirectory: Boolean,
+    onPickCloudInboxPath: () -> Unit,
+    onPickCloudLibraryPath: () -> Unit,
     onSave: () -> Unit,
     onLogin: () -> Unit,
     onSaveApiToken: () -> Unit,
@@ -1292,16 +1446,20 @@ private fun CloudDriveAutomationPanel(
 
         Spacer(Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            TvTextField(
+            CloudDrivePathSelectorField(
                 value = inboxPath,
                 onValueChange = onInboxPathChange,
                 label = "下载目录 A",
+                canPick = canPickCloudDriveDirectory,
+                onPick = onPickCloudInboxPath,
                 modifier = Modifier.weight(1f)
             )
-            TvTextField(
+            CloudDrivePathSelectorField(
                 value = libraryPath,
                 onValueChange = onLibraryPathChange,
                 label = "整理目录 B",
+                canPick = canPickCloudDriveDirectory,
+                onPick = onPickCloudLibraryPath,
                 modifier = Modifier.weight(1f)
             )
         }
@@ -1361,6 +1519,34 @@ private fun CloudDriveAutomationPanel(
                 color = if ("失败" in actionMessage || "请" in actionMessage) WarningYellow else ProgressGreen
             )
         }
+    }
+}
+
+@Composable
+private fun CloudDrivePathSelectorField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    canPick: Boolean,
+    onPick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier) {
+        TvTextField(
+            value = value,
+            onValueChange = onValueChange,
+            label = label,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(8.dp))
+        ScanOptionChip(
+            text = "选择目录",
+            icon = Icons.Filled.FolderOpen,
+            selected = false,
+            enabled = canPick,
+            onClick = onPick,
+            modifier = Modifier.width(150.dp)
+        )
     }
 }
 

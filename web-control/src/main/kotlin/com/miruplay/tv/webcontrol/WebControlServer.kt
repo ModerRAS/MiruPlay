@@ -74,6 +74,11 @@ class WebControlServer @Inject constructor(
                 val path = session.parameters["path"]?.firstOrNull().orEmpty()
                 jsonResponse(LocalDirectoryDto.serializer(), webControlService.browseLocalDirectories(path))
             }
+            session.method == Method.GET && route == "/api/cloud-drive/directories" -> {
+                val endpointUrl = session.parameters["endpointUrl"]?.firstOrNull().orEmpty()
+                val path = session.parameters["path"]?.firstOrNull().orEmpty()
+                jsonResponse(CloudDriveDirectoryDto.serializer(), webControlService.browseCloudDriveDirectories(endpointUrl, path))
+            }
             session.method == Method.POST && route == "/api/sources" -> {
                 val request = parseBody(session, SourceRequest.serializer())
                 jsonResponse(com.miruplay.tv.model.MediaSourceInfo.serializer(), webControlService.addSource(request))

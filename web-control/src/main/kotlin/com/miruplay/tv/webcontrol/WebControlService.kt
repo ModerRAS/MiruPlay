@@ -1,5 +1,7 @@
 package com.miruplay.tv.webcontrol
 
+import com.miruplay.tv.clouddrive.CloudDriveClient
+import com.miruplay.tv.clouddrive.CloudDriveEndpoint
 import android.os.Build
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.data.repository.CloudDriveAutomationRepository
@@ -39,6 +41,7 @@ class WebControlService @Inject constructor(
     private val progressRepository: ProgressRepository,
     private val cloudDriveRepository: CloudDriveAutomationRepository,
     private val securePreferences: SecurePreferencesManager,
+    private val cloudDriveClient: CloudDriveClient,
     private val cloudDriveEngine: CloudDriveRssAutomationEngine,
     private val scanCoordinator: ScanCoordinator,
     private val mediaSourceFactory: MediaSourceFactory,
@@ -401,6 +404,53 @@ class WebControlService @Inject constructor(
         }
     }
 
+    suspend fun browseCloudDriveDirectories(endpointUrl: String, path: String): CloudDriveDirectoryDto = withContext(Dispatchers.IO) {
+        val resolvedEndpoint = endpointUrl.trim().takeIf { it.isNotBlank() }
+            ?: requireSuccess(cloudDriveRepository.getConfig(), "读取 CloudDrive 设置失败").endpointUrl
+        if (resolvedEndpoint.isBlank()) {
+            throw IllegalArgumentException("请先填写 CloudDrive2 地址")
+        }
+
+        val token = securePreferences.cloudDriveToken?.takeIf { it.isNotBlank() }
+            ?: throw IllegalArgumentException("请先登录 CloudDrive2 或保存 API Token")
+        val endpoint = CloudDriveEndpoint(resolvedEndpoint, token)
+        val tokenInfo = cloudDriveClient.getApiTokenInfo(resolvedEndpoint, token).getOrNull()
+        val rootPath = normalizeCloudDrivePath(tokenInfo?.rootDir ?: "")
+        val requestedPath = normalizeCloudDrivePath(path.ifBlank { rootPath })
+        val currentPath = when {
+            rootPath == "/" -> requestedPath.ifBlank { "/" }
+            requestedPath == "/" -> rootPath
+            requestedPath == rootPath || requestedPath.startsWith("$rootPath/") -> requestedPath
+            else -> rootPath
+        }
+
+        val listing = requireSuccess(
+            cloudDriveClient.listFolder(endpoint, currentPath, forceRefresh = false),
+            "读取 CloudDrive 目录失败"
+        )
+        val entries = listing
+            .asSequence()
+            .filter { it.isDirectory }
+            .filter { !it.name.startsWith(".") }
+            .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
+            .map {
+                CloudDriveDirectoryEntryDto(
+                    name = it.name.ifBlank { it.path.substringAfterLast('/') },
+                    path = normalizeCloudDrivePath(it.path),
+                    canRead = true
+                )
+            }
+            ?.toList()
+            ?: emptyList()
+
+        CloudDriveDirectoryDto(
+            path = currentPath,
+            displayPath = if (currentPath == "/") "CloudDrive 根目录" else currentPath,
+            parentPath = cloudDriveParentPath(currentPath, rootPath),
+            entries = entries
+        )
+    }
+
     private suspend fun findEpisodeById(episodeId: String): Episode? {
         findEpisodeFromIndex(episodeId)?.let { return it }
 
@@ -554,6 +604,29 @@ class WebControlService @Inject constructor(
             path = file.absolutePath,
             canRead = file.canRead()
         )
+
+    private fun normalizeCloudDrivePath(path: String): String {
+        val trimmed = path.trim().replace('\\', '/').trimEnd('/')
+        return when {
+            trimmed.isBlank() -> "/"
+            trimmed.startsWith('/') -> trimmed
+            else -> "/$trimmed"
+        }
+    }
+
+    private fun cloudDriveParentPath(path: String, rootPath: String): String? {
+        val normalizedPath = normalizeCloudDrivePath(path)
+        val normalizedRoot = normalizeCloudDrivePath(rootPath)
+        if (normalizedPath == normalizedRoot) return null
+        if (normalizedPath == "/") return null
+        val parent = normalizedPath.substringBeforeLast('/', "")
+        if (parent.isBlank() || parent == normalizedPath) return null
+        return when {
+            normalizedRoot == "/" -> parent.ifBlank { "/" }
+            parent == normalizedRoot || parent.startsWith("$normalizedRoot/") -> parent
+            else -> normalizedRoot
+        }
+    }
 
     private fun parentPathOf(directory: File): String? {
         val parent = directory.parentFile ?: return ""
