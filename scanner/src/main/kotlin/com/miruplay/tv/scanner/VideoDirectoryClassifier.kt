@@ -234,8 +234,13 @@ private val seasonSuffixPatterns = listOf(
     Regex("""(?i)^(?<title>.+?)\s+season\s*(?<num>\d{1,2})$"""),
     Regex("""(?i)^(?<title>.+?)\s+s(?<num>\d{1,2})$"""),
     Regex("""(?i)^(?<title>.+?)\s+(?<num>\d{1,2})(?:st|nd|rd|th)\s+season$"""),
-    Regex("""^(?<title>.+?)\s*第(?<num>\d{1,2}|[一二三四五六七八九十]+)季(?:\s*[~～].+)?$"""),
-    Regex("""^(?<title>.+?)\s*(?<num>\d{1,2}|[一二三四五六七八九十]+)期$"""),
+    // NEW: Parenthesized Chinese season, e.g., "一拳超人(第三季)", "某某番（第二季）"
+    Regex("""^(?<title>.+?)\s*[（(]\s*第(?<num>\d{1,2}|[一二三四五六七八九十]+)\s*[季期]\s*[)）]"""),
+    // MODIFIED: Chinese season suffix — no longer requires end anchor, allows trailing text
+    // e.g., "歡迎來到實力至上主義的教室 第四季 2年級篇 第一學期"
+    // IMPORTANT: .*$ is REQUIRED at the end because splitSeriesAndSeason uses matchEntire()
+    // which must consume ALL characters in the string
+    Regex("""^(?<title>.+?)\s*第(?<num>\d{1,2}|[一二三四五六七八九十]+)[季期].*$"""),
     Regex("""^(?<title>.+?)\s+(?<num>II|III|IV|V|VI|VII|VIII|IX|X|貳|贰|弐|二期|三期|四期)$"""),
     Regex("""^(?<title>.+?)\s+(?<num>[2-9]\d*)$""")
 )
