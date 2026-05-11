@@ -23,7 +23,7 @@ interface ProgressDao {
     @Query("DELETE FROM progress WHERE episode_id = :episodeId")
     suspend fun deleteByEpisodeId(episodeId: String)
 
-    @Query("SELECT $PROGRESS_COLUMNS FROM progress ORDER BY last_watched DESC LIMIT :limit")
+    @Query("SELECT $PROGRESS_COLUMNS FROM progress WHERE position_ms > 0 ORDER BY last_watched DESC LIMIT :limit")
     suspend fun getContinueWatching(limit: Int = 20): List<ProgressEntity>
 
     @Query("SELECT $PROGRESS_COLUMNS FROM progress ORDER BY last_watched DESC")

@@ -57,10 +57,12 @@ class PlayerViewModel @Inject constructor(
     private var progressSaveJob: Job? = null
     private var positionPollJob: Job? = null
     private var finishObserverJob: Job? = null
+    private var activeSource: PlaybackSource? = null
 
     fun play(source: PlaybackSource) {
         viewModelScope.launch {
             _errorMessage.value = null
+            activeSource = source
             playbackController.play(source).also {
                 _duration.value = playbackController.getDuration()
                 refreshTracks()
@@ -74,6 +76,7 @@ class PlayerViewModel @Inject constructor(
     fun pause() {
         viewModelScope.launch {
             playbackController.pause()
+            saveCurrentProgress()
         }
     }
 
@@ -87,6 +90,7 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             if (playbackController.isPlaying()) {
                 playbackController.pause()
+                saveCurrentProgress()
             } else {
                 playbackController.resume()
             }
@@ -171,12 +175,7 @@ class PlayerViewModel @Inject constructor(
         progressSaveJob = viewModelScope.launch {
             while (true) {
                 delay(15_000) // Every 15 seconds
-                val pos = playbackController.getCurrentPosition()
-                progressRepository.saveProgress(
-                    episodeId = source.episodeId ?: extractEpisodeId(source.uri),
-                    positionMs = pos,
-                    lastWatched = System.currentTimeMillis()
-                )
+                saveProgressSnapshot(source)
             }
         }
     }
@@ -186,18 +185,45 @@ class PlayerViewModel @Inject constructor(
         finishObserverJob = viewModelScope.launch {
             playbackState.collect { state ->
                 if (state is PlaybackState.Ended) {
-                    val episodeId = source.episodeId ?: extractEpisodeId(source.uri)
-                    val duration = playbackController.getDuration().coerceAtLeast(0L)
-                    progressRepository.saveProgress(
-                        episodeId = episodeId,
-                        positionMs = duration,
-                        lastWatched = System.currentTimeMillis()
+                    saveProgressSnapshot(
+                        source = source,
+                        positionMs = playbackController.getDuration().coerceAtLeast(0L),
+                        incrementPlayCount = true
                     )
-                    bangumiSyncEngine.markEpisodeWatched(episodeId)
+                    bangumiSyncEngine.markEpisodeWatched(source.episodeId ?: extractEpisodeId(source.uri))
                     finishObserverJob?.cancel()
                 }
             }
         }
+    }
+
+    fun saveCurrentProgress() {
+        viewModelScope.launch {
+            saveProgressSnapshot(activeSource)
+        }
+    }
+
+    fun saveCurrentProgressAndNavigate(onSaved: () -> Unit) {
+        viewModelScope.launch {
+            saveProgressSnapshot(activeSource)
+            onSaved()
+        }
+    }
+
+    private suspend fun saveProgressSnapshot(
+        source: PlaybackSource? = activeSource,
+        positionMs: Long? = null,
+        incrementPlayCount: Boolean = false
+    ) {
+        val currentSource = source ?: return
+        val episodeId = currentSource.episodeId ?: extractEpisodeId(currentSource.uri)
+        val position = (positionMs ?: playbackController.getCurrentPosition()).coerceAtLeast(0L)
+        progressRepository.saveProgress(
+            episodeId = episodeId,
+            positionMs = position,
+            lastWatched = System.currentTimeMillis(),
+            incrementPlayCount = incrementPlayCount
+        )
     }
 
     private fun extractEpisodeId(uri: String): String {

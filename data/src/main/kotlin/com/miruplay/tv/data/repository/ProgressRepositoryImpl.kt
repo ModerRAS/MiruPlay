@@ -15,14 +15,19 @@ class ProgressRepositoryImpl @Inject constructor(
     private val progressDao: ProgressDao
 ) : ProgressRepository {
 
-    override suspend fun saveProgress(episodeId: String, positionMs: Long, lastWatched: Long): Result<Unit> = withContext(Dispatchers.IO) {
+    override suspend fun saveProgress(
+        episodeId: String,
+        positionMs: Long,
+        lastWatched: Long,
+        incrementPlayCount: Boolean
+    ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val existing = progressDao.getByEpisodeId(episodeId)
-            val playCount = (existing?.playCount ?: 0) + 1
+            val playCount = (existing?.playCount ?: 0) + if (incrementPlayCount) 1 else 0
             progressDao.upsert(
                 ProgressEntity(
                     episodeId = episodeId,
-                    positionMs = positionMs,
+                    positionMs = positionMs.coerceAtLeast(0L),
                     lastWatched = lastWatched,
                     playCount = playCount
                 )
