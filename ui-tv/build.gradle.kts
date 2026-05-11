@@ -29,6 +29,7 @@ dependencies {
     api(project(":player-core"))
     api(project(":media-source"))
     api(project(":scanner"))
+    implementation(project(":cloud-drive"))
     implementation(project(":data"))
     implementation(project(":scraper"))
     implementation(project(":sync-engine"))

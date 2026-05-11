@@ -2,6 +2,8 @@ package com.miruplay.tv.ui.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.miruplay.tv.clouddrive.CloudDriveClient
+import com.miruplay.tv.clouddrive.CloudDriveEndpoint
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.core.common.WebControlConfig
 import com.miruplay.tv.data.preferences.ScanPreferencesManager
@@ -32,6 +34,7 @@ class SettingsViewModel @Inject constructor(
     private val securePrefs: SecurePreferencesManager,
     private val scanPreferences: ScanPreferencesManager,
     private val cloudDriveRepository: CloudDriveAutomationRepository,
+    private val cloudDriveClient: CloudDriveClient,
     private val cloudDriveEngine: CloudDriveRssAutomationEngine
 ) : ViewModel() {
 
@@ -75,6 +78,10 @@ class SettingsViewModel @Inject constructor(
 
     private val _cloudDriveActionMessage = MutableStateFlow<String?>(null)
     val cloudDriveActionMessage: StateFlow<String?> = _cloudDriveActionMessage.asStateFlow()
+
+    private val _cloudDriveDirectoryBrowser = MutableStateFlow(CloudDriveDirectoryBrowserState())
+    val cloudDriveDirectoryBrowser: StateFlow<CloudDriveDirectoryBrowserState> =
+        _cloudDriveDirectoryBrowser.asStateFlow()
 
     init {
         loadSources()
@@ -296,6 +303,53 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun openCloudDriveDirectoryPicker(
+        target: CloudDriveDirectoryTarget,
+        endpointUrl: String,
+        initialPath: String
+    ) {
+        val normalizedEndpoint = endpointUrl.trim()
+        if (normalizedEndpoint.isBlank()) {
+            _cloudDriveActionMessage.value = "请先填写 CloudDrive2 地址。"
+            return
+        }
+        val token = securePrefs.cloudDriveToken?.takeIf { it.isNotBlank() }
+        if (token.isNullOrBlank()) {
+            _cloudDriveActionMessage.value = "请先登录 CloudDrive2 或保存 API Token。"
+            return
+        }
+
+        _cloudDriveDirectoryBrowser.value = CloudDriveDirectoryBrowserState(
+            open = true,
+            target = target,
+            endpointUrl = normalizedEndpoint,
+            isLoading = true
+        )
+        browseCloudDriveDirectory(initialPath.ifBlank { "/" })
+    }
+
+    fun browseCloudDriveDirectory(path: String) {
+        val state = _cloudDriveDirectoryBrowser.value
+        if (!state.open) return
+        val token = securePrefs.cloudDriveToken?.takeIf { it.isNotBlank() }
+        if (token.isNullOrBlank()) {
+            _cloudDriveActionMessage.value = "请先登录 CloudDrive2 或保存 API Token。"
+            return
+        }
+
+        _cloudDriveDirectoryBrowser.value = state.copy(isLoading = true, message = null)
+        viewModelScope.launch {
+            loadCloudDriveDirectory(state.endpointUrl, token, path)
+        }
+    }
+
+    fun closeCloudDriveDirectoryPicker() {
+        _cloudDriveDirectoryBrowser.value = _cloudDriveDirectoryBrowser.value.copy(
+            open = false,
+            isLoading = false
+        )
+    }
+
     fun setAutoScanEnabled(enabled: Boolean) {
         scanPreferences.autoScanEnabled = enabled
         _autoScanEnabled.value = enabled
@@ -329,6 +383,57 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    private suspend fun loadCloudDriveDirectory(
+        endpointUrl: String,
+        token: String,
+        path: String
+    ) {
+        val endpoint = CloudDriveEndpoint(endpointUrl, token)
+        val tokenInfo = cloudDriveClient.getApiTokenInfo(endpointUrl, token).getOrNull()
+        val rootPath = normalizeCloudDrivePath(tokenInfo?.rootDir ?: "")
+        val requestedPath = normalizeCloudDrivePath(path.ifBlank { rootPath })
+        val currentPath = when {
+            rootPath == "/" -> requestedPath.ifBlank { "/" }
+            requestedPath == "/" -> rootPath
+            requestedPath == rootPath || requestedPath.startsWith("$rootPath/") -> requestedPath
+            else -> rootPath
+        }
+
+        when (val result = cloudDriveClient.listFolder(endpoint, currentPath, forceRefresh = false)) {
+            is Result.Success -> {
+                val state = _cloudDriveDirectoryBrowser.value
+                if (!state.open || state.endpointUrl != endpointUrl) return
+                _cloudDriveDirectoryBrowser.value = state.copy(
+                    isLoading = false,
+                    path = currentPath,
+                    displayPath = if (currentPath == "/") "CloudDrive 根目录" else currentPath,
+                    parentPath = cloudDriveParentPath(currentPath, rootPath),
+                    entries = result.data
+                        .asSequence()
+                        .filter { it.isDirectory }
+                        .filter { !it.name.startsWith(".") }
+                        .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
+                        .map {
+                            CloudDriveDirectoryEntry(
+                                name = it.name.ifBlank { it.path.substringAfterLast('/') },
+                                path = normalizeCloudDrivePath(it.path)
+                            )
+                        }
+                        .toList(),
+                    message = null
+                )
+            }
+            is Result.Error -> {
+                val state = _cloudDriveDirectoryBrowser.value
+                if (!state.open || state.endpointUrl != endpointUrl) return
+                _cloudDriveDirectoryBrowser.value = state.copy(
+                    isLoading = false,
+                    message = result.error.toUserMessage()
+                )
+            }
+        }
+    }
+
     private fun findLocalIps(): List<String> {
         return runCatching {
             NetworkInterface.getNetworkInterfaces().toList()
@@ -342,10 +447,54 @@ class SettingsViewModel @Inject constructor(
         }.getOrDefault(emptyList())
     }
 
+    private fun normalizeCloudDrivePath(path: String): String {
+        val trimmed = path.trim().replace('\\', '/').trimEnd('/')
+        return when {
+            trimmed.isBlank() -> "/"
+            trimmed.startsWith('/') -> trimmed
+            else -> "/$trimmed"
+        }
+    }
+
+    private fun cloudDriveParentPath(path: String, rootPath: String): String? {
+        val normalizedPath = normalizeCloudDrivePath(path)
+        val normalizedRoot = normalizeCloudDrivePath(rootPath)
+        if (normalizedPath == normalizedRoot || normalizedPath == "/") return null
+        val parent = normalizedPath.substringBeforeLast('/', "")
+        if (parent.isBlank() || parent == normalizedPath) return null
+        return when {
+            normalizedRoot == "/" -> parent.ifBlank { "/" }
+            parent == normalizedRoot || parent.startsWith("$normalizedRoot/") -> parent
+            else -> normalizedRoot
+        }
+    }
+
     companion object {
         private const val MILLIS_PER_HOUR = 60 * 60 * 1000L
         private const val MIN_CLOUD_DRIVE_INTERVAL_MINUTES = 5
     }
+}
+
+data class CloudDriveDirectoryBrowserState(
+    val open: Boolean = false,
+    val target: CloudDriveDirectoryTarget = CloudDriveDirectoryTarget.INBOX,
+    val endpointUrl: String = "",
+    val isLoading: Boolean = false,
+    val path: String = "",
+    val displayPath: String = "CloudDrive 根目录",
+    val parentPath: String? = null,
+    val entries: List<CloudDriveDirectoryEntry> = emptyList(),
+    val message: String? = null
+)
+
+data class CloudDriveDirectoryEntry(
+    val name: String,
+    val path: String
+)
+
+enum class CloudDriveDirectoryTarget {
+    INBOX,
+    LIBRARY
 }
 
 sealed class ConnectionTestResult {

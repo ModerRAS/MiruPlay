@@ -60,6 +60,21 @@ data class LocalDirectoryEntryDto(
 )
 
 @Serializable
+data class CloudDriveDirectoryDto(
+    val path: String,
+    val displayPath: String,
+    val parentPath: String? = null,
+    val entries: List<CloudDriveDirectoryEntryDto>
+)
+
+@Serializable
+data class CloudDriveDirectoryEntryDto(
+    val name: String,
+    val path: String,
+    val canRead: Boolean
+)
+
+@Serializable
 data class SourceTestResponse(
     val connected: Boolean,
     val message: String
