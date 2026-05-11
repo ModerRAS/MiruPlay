@@ -30,6 +30,8 @@ dependencies {
     api(project(":media-source"))
     api(project(":scanner"))
     implementation(project(":data"))
+    implementation(project(":scraper"))
+    implementation(project(":sync-engine"))
     
     implementation(libs.androidx.tv.material)
     implementation(libs.androidx.tv.foundation)

@@ -2,22 +2,25 @@ package com.miruplay.tv.ui.library
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import android.util.Log
+import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.data.repository.IndexRepository
-import com.miruplay.tv.data.repository.IndexRepositoryEntity
 import com.miruplay.tv.data.repository.MediaRepository
 import com.miruplay.tv.data.repository.MetadataRepository
 import com.miruplay.tv.data.repository.ProgressRepository
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
+import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.scanner.ScanCoordinator
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
-import android.util.Log
 import javax.inject.Inject
 
 data class ProgressWithEpisode(
@@ -58,13 +61,14 @@ class LibraryViewModel @Inject constructor(
     private val metadataRepository: MetadataRepository,
     private val indexRepository: IndexRepository,
     private val progressRepository: ProgressRepository,
-    private val scanCoordinator: ScanCoordinator
+    private val scanCoordinator: ScanCoordinator,
+    private val scanPreferences: ScanPreferencesManager
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<LibraryUiState>(LibraryUiState.Loading)
     val state: StateFlow<LibraryUiState> = _state.asStateFlow()
 
-    private var scanJob: kotlinx.coroutines.Job? = null
+    private var scanJob: Job? = null
 
     init {
         scanCoordinator.setProgressCallback(ScanCoordinator.ScanProgressCallback { path, files, newEps ->
@@ -83,104 +87,175 @@ class LibraryViewModel @Inject constructor(
     fun refresh() {
         scanJob?.cancel()
         scanJob = viewModelScope.launch {
-            _state.value = LibraryUiState.Loading
-
-            val sources = mediaRepository.getSources().getOrNull() ?: emptyList()
-            Log.d("LibraryViewModel", "refresh: sources=${sources.size}")
-            if (sources.isEmpty()) {
-                _state.value = LibraryUiState.NoSources
-                return@launch
-            }
-
-            // Start scanning with progress reporting
-            _state.value = LibraryUiState.Scanning()
-            val scanResults = withTimeoutOrNull(120_000L) {  // 2 minute timeout
-                scanCoordinator.scanAllSources()
-            }
-            Log.d("LibraryViewModel", "refresh: scanResults=${scanResults?.getOrNull()?.size ?: -1}")
-
-            if (scanResults == null) {
-                Log.w("LibraryViewModel", "Scan timed out after 120s")
-                // Still try to load whatever we have
-            }
-
-            // Load continue watching from Room — resolve anime/episode from index
-            val progressRecords = progressRepository.getContinueWatching().getOrNull() ?: emptyList()
-            val continueWatching = progressRecords.mapNotNull { record ->
-                // episodeId format is "sourceId:path" — extract sourceId and anime name from path
-                val pathParts = record.episodeId.split(":", limit = 2)
-                val episodePath = pathParts.getOrNull(1) ?: record.episodeId
-                val sourceId = pathParts.getOrNull(0)?.toLongOrNull()
-                
-                // Extract anime name from path: /storage/emulated/0/Download/{AnimeName}/{episode}.mp4
-                val animeName = episodePath.split("/").filter { it.isNotBlank() }
-                    .dropWhile { it != "Download" }
-                    .drop(1)
-                    .firstOrNull()
-                
-                if (animeName == null || sourceId == null) return@mapNotNull null
-                
-                val anime = metadataRepository.getCachedMetadata(animeName).getOrNull()
-                    ?: return@mapNotNull null
-                
-                // Find the matching episode in the index (search by anime name, find the exact path)
-                val indexEntries = indexRepository.queryIndex(sourceId, animeName)
-                    .getOrNull()
-                    ?: emptyList()
-                val matchedEntry = indexEntries.find { it.path == episodePath }
-                
-                val episode = matchedEntry?.let {
-                    Episode(
-                        id = record.episodeId,
-                        animeId = animeName,
-                        seasonNumber = it.seasonNumber ?: 1,
-                        episodeNumber = it.episodeNumber ?: 1,
-                        title = "",
-                        filePath = episodePath,
-                        fileName = episodePath.substringAfterLast("/"),
-                        duration = 0L,
-                        watchedPosition = record.positionMs,
-                        lastWatchedTimestamp = record.lastWatched,
-                        playCount = record.playCount,
-                        thumbnailPath = null
-                    )
-                }
-                
-                ProgressWithEpisode(progress = record, episode = episode, anime = anime)
-            }
-
-            // Load cached anime metadata from all sources
-            val allAnimeList = mutableListOf<Anime>()
-            for (source in sources) {
-                val animeNames = indexRepository.getAnimeInIndex(source.id).getOrNull() ?: continue
-                for (name in animeNames) {
-                    val cached = metadataRepository.getCachedMetadata(name).getOrNull()
-                    if (cached != null) {
-                        allAnimeList.add(cached)
-                    }
-                }
-            }
-
-            if (allAnimeList.isEmpty() && continueWatching.isEmpty()) {
-                _state.value = LibraryUiState.ScanError("未找到番剧内容，请检查媒体源路径")
-            } else {
-                _state.value = LibraryUiState.HasContent(
-                    continueWatching = continueWatching,
-                    recentlyAdded = allAnimeList.takeLast(10),
-                    allAnime = allAnimeList.distinctBy { it.id }
-                )
+            val snapshot = loadLibraryContent(showLoading = true)
+            if (snapshot.hasSources && scanPreferences.shouldAutoScan()) {
+                scanAndLoadContent()
             }
         }
     }
 
+    fun scanNow() {
+        scanJob?.cancel()
+        scanJob = viewModelScope.launch {
+            scanAndLoadContent()
+        }
+    }
+
+    private suspend fun scanAndLoadContent() {
+        val sources = mediaRepository.getSources().getOrNull() ?: emptyList()
+        Log.d("LibraryViewModel", "scanAndLoadContent: sources=${sources.size}")
+        if (sources.isEmpty()) {
+            _state.value = LibraryUiState.NoSources
+            return
+        }
+
+        _state.value = LibraryUiState.Scanning()
+        var scanError: String? = null
+        val scanResults = withTimeoutOrNull(120_000L) {
+            scanCoordinator.scanAllSources()
+        }
+        Log.d("LibraryViewModel", "scanAndLoadContent: scanResults=${scanResults?.getOrNull()?.size ?: -1}")
+        when {
+            scanResults == null -> {
+                Log.w("LibraryViewModel", "Scan timed out after 120s")
+                scanError = "扫描超时，已保留本地缓存内容"
+            }
+            scanResults is Result.Success -> {
+                scanPreferences.lastScanAt = System.currentTimeMillis()
+            }
+            scanResults is Result.Error -> {
+                scanError = "扫描失败：${scanResults.error::class.simpleName}"
+            }
+        }
+
+        val snapshot = loadLibraryContent(showLoading = false)
+        if (snapshot.hasSources && !snapshot.hasContent && scanError != null) {
+            _state.value = LibraryUiState.ScanError(scanError)
+        } else if (snapshot.hasSources && !snapshot.hasContent) {
+            _state.value = LibraryUiState.ScanError("未找到番剧内容，请检查媒体源路径")
+        }
+    }
+
+    private suspend fun loadLibraryContent(showLoading: Boolean): LibraryLoadSnapshot {
+        if (showLoading) {
+            _state.value = LibraryUiState.Loading
+        }
+
+        val sources = mediaRepository.getSources().getOrNull() ?: emptyList()
+        Log.d("LibraryViewModel", "loadLibraryContent: sources=${sources.size}")
+        if (sources.isEmpty()) {
+            _state.value = LibraryUiState.NoSources
+            return LibraryLoadSnapshot(hasSources = false, hasContent = false)
+        }
+
+        val continueWatching = loadContinueWatching()
+        val allAnimeList = loadCachedAnime(sources)
+        val distinctAnime = allAnimeList.distinctBy { it.id }
+
+        if (distinctAnime.isEmpty() && continueWatching.isEmpty()) {
+            _state.value = LibraryUiState.HasSources
+            return LibraryLoadSnapshot(hasSources = true, hasContent = false)
+        }
+
+        _state.value = LibraryUiState.HasContent(
+            continueWatching = continueWatching,
+            recentlyAdded = distinctAnime.takeLast(10),
+            allAnime = distinctAnime
+        )
+        return LibraryLoadSnapshot(hasSources = true, hasContent = true)
+    }
+
+    private suspend fun loadContinueWatching(): List<ProgressWithEpisode> {
+        val progressRecords = progressRepository.getContinueWatching().getOrNull() ?: emptyList()
+        return progressRecords.mapNotNull { record ->
+            val cachedEpisode = metadataRepository.getCachedEpisode(record.episodeId).getOrNull()
+            if (cachedEpisode != null) {
+                val anime = metadataRepository.getCachedMetadata(cachedEpisode.animeId).getOrNull()
+                    ?: return@mapNotNull null
+                return@mapNotNull ProgressWithEpisode(
+                    progress = record,
+                    episode = cachedEpisode.copy(
+                        watchedPosition = record.positionMs,
+                        lastWatchedTimestamp = record.lastWatched,
+                        playCount = record.playCount
+                    ),
+                    anime = anime
+                )
+            }
+
+            val pathParts = record.episodeId.split(":", limit = 2)
+            val episodePath = pathParts.getOrNull(1) ?: record.episodeId
+            val sourceId = pathParts.getOrNull(0)?.toLongOrNull()
+            val animeName = episodePath.extractAnimeNameFromPath()
+            if (animeName == null || sourceId == null) return@mapNotNull null
+
+            val anime = metadataRepository.getCachedMetadata(animeName).getOrNull()
+                ?: return@mapNotNull null
+
+            val matchedEntry = indexRepository.queryIndex(sourceId, animeName)
+                .getOrNull()
+                .orEmpty()
+                .find { it.path == episodePath }
+                ?: return@mapNotNull null
+
+            val episode = Episode(
+                id = record.episodeId,
+                animeId = animeName,
+                seasonNumber = matchedEntry.seasonNumber ?: 1,
+                episodeNumber = matchedEntry.episodeNumber ?: 1,
+                title = "",
+                filePath = episodePath,
+                fileName = episodePath.substringAfterLast("/"),
+                duration = 0L,
+                watchedPosition = record.positionMs,
+                lastWatchedTimestamp = record.lastWatched,
+                playCount = record.playCount,
+                thumbnailPath = null
+            )
+
+            ProgressWithEpisode(progress = record, episode = episode, anime = anime)
+        }
+    }
+
+    private suspend fun loadCachedAnime(sources: List<MediaSourceInfo>): List<Anime> {
+        val allAnimeList = mutableListOf<Anime>()
+        for (source in sources) {
+            val animeNames = indexRepository.getAnimeInIndex(source.id).getOrNull() ?: continue
+            for (name in animeNames) {
+                val cached = metadataRepository.getCachedMetadata(name).getOrNull()
+                if (cached != null) {
+                    allAnimeList.add(cached)
+                }
+            }
+        }
+        return allAnimeList
+    }
+
     fun cancelScan() {
         scanJob?.cancel()
-        _state.value = LibraryUiState.HasSources
+        scanJob = viewModelScope.launch {
+            loadLibraryContent(showLoading = false)
+        }
     }
 
     override fun onCleared() {
         scanCoordinator.setProgressCallback(null)
         scanJob?.cancel()
         super.onCleared()
+    }
+}
+
+private data class LibraryLoadSnapshot(
+    val hasSources: Boolean,
+    val hasContent: Boolean
+)
+
+private fun String.extractAnimeNameFromPath(): String? {
+    val parts = split("/", "\\").filter { it.isNotBlank() }
+    val downloadIndex = parts.indexOfLast { it.equals("Download", ignoreCase = true) }
+    return if (downloadIndex >= 0 && downloadIndex < parts.lastIndex) {
+        parts[downloadIndex + 1]
+    } else {
+        parts.firstOrNull()
     }
 }

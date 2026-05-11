@@ -56,6 +56,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
+import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.ui.components.OverscanContainer
@@ -72,6 +73,9 @@ import com.miruplay.tv.ui.theme.TextSecondary
 import com.miruplay.tv.ui.theme.TvTypography
 import com.miruplay.tv.ui.theme.WarningYellow
 import kotlinx.coroutines.delay
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 private const val DEFAULT_LOCAL_PATH = "/storage/emulated/0/Download"
 
@@ -84,6 +88,9 @@ fun AddSourceScreen(
     val sources by viewModel.sources.collectAsStateWithLifecycle()
     val testResult by viewModel.testResult.collectAsStateWithLifecycle()
     val savedToken by viewModel.bangumiToken.collectAsStateWithLifecycle()
+    val autoScanEnabled by viewModel.autoScanEnabled.collectAsStateWithLifecycle()
+    val autoScanIntervalHours by viewModel.autoScanIntervalHours.collectAsStateWithLifecycle()
+    val lastScanAt by viewModel.lastScanAt.collectAsStateWithLifecycle()
 
     var selectedType by remember { mutableStateOf(MediaSourceType.LOCAL) }
     var name by remember { mutableStateOf("") }
@@ -189,6 +196,14 @@ fun AddSourceScreen(
                             password = ""
                             viewModel.clearTestResult()
                         }
+                    )
+
+                    ScanPanel(
+                        autoScanEnabled = autoScanEnabled,
+                        autoScanIntervalHours = autoScanIntervalHours,
+                        lastScanAt = lastScanAt,
+                        onToggleAutoScan = { viewModel.setAutoScanEnabled(!autoScanEnabled) },
+                        onIntervalSelected = viewModel::setAutoScanIntervalHours
                     )
 
                     MetadataPanel(
@@ -401,7 +416,7 @@ private fun SourceFormPanel(
         Text(text = "添加媒体源", style = TvTypography.subtitle, color = TextPrimary)
         Spacer(Modifier.height(6.dp))
         Text(
-            text = "选择媒体库所在位置，保存后首页会自动扫描。",
+            text = "选择媒体库所在位置，保存后可在首页手动扫描。",
             style = TvTypography.body,
             color = TextSecondary
         )
@@ -554,6 +569,123 @@ private fun ConnectionStatus(result: ConnectionTestResult?) {
 }
 
 @Composable
+private fun ScanPanel(
+    autoScanEnabled: Boolean,
+    autoScanIntervalHours: Int,
+    lastScanAt: Long,
+    onToggleAutoScan: () -> Unit,
+    onIntervalSelected: (Int) -> Unit
+) {
+    SettingsPanel {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Filled.Refresh,
+                contentDescription = null,
+                tint = TextPrimary,
+                modifier = Modifier.size(26.dp)
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(text = "媒体库扫描", style = TvTypography.subtitle, color = TextPrimary)
+        }
+
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = "首页的扫描按钮会立即执行；定时扫描只会在到达间隔后回到首页时触发。",
+            style = TvTypography.body,
+            color = TextSecondary
+        )
+
+        Spacer(Modifier.height(16.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ScanOptionChip(
+                text = if (autoScanEnabled) "定时已开" else "定时关闭",
+                icon = Icons.Filled.Refresh,
+                selected = autoScanEnabled,
+                enabled = true,
+                onClick = onToggleAutoScan,
+                modifier = Modifier.width(150.dp)
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ScanPreferencesManager.INTERVAL_OPTIONS_HOURS.forEach { hours ->
+                ScanOptionChip(
+                    text = "${hours}小时",
+                    selected = autoScanEnabled && hours == autoScanIntervalHours,
+                    enabled = autoScanEnabled,
+                    onClick = { onIntervalSelected(hours) },
+                    modifier = Modifier.width(112.dp)
+                )
+            }
+        }
+
+        StatusMessage(
+            icon = Icons.Filled.CheckCircle,
+            text = "当前间隔 ${autoScanIntervalHours} 小时 · ${formatLastScanAt(lastScanAt)}",
+            color = if (autoScanEnabled) ProgressGreen else TextSecondary
+        )
+    }
+}
+
+@Composable
+private fun ScanOptionChip(
+    text: String,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val borderColor = when {
+        isFocused -> FocusBorder
+        selected -> AnimeRed
+        else -> Color.White.copy(alpha = 0.18f)
+    }
+    val background = when {
+        !enabled -> DarkSurface
+        selected -> AnimeRed.copy(alpha = 0.28f)
+        isFocused -> AccentBlue
+        else -> DarkSurface
+    }
+    val contentColor = if (enabled) TextPrimary else TextSecondary.copy(alpha = 0.55f)
+
+    Row(
+        modifier = modifier
+            .height(56.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(background)
+            .border(if (selected || isFocused) 2.dp else 1.dp, borderColor, RoundedCornerShape(8.dp))
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                enabled = enabled,
+                onClick = onClick
+            )
+            .padding(horizontal = 12.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (icon != null) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = contentColor,
+                modifier = Modifier.size(22.dp)
+            )
+            Spacer(Modifier.width(8.dp))
+        }
+        Text(
+            text = text,
+            style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
+            color = contentColor,
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
 private fun MetadataPanel(
     savedToken: String,
     tokenInput: String,
@@ -683,6 +815,11 @@ private fun sourceConnectionInfo(
     }
     if (username.isNotBlank()) put("username", username.trim())
     if (password.isNotBlank()) put("password", password)
+}
+
+private fun formatLastScanAt(lastScanAt: Long): String {
+    if (lastScanAt <= 0L) return "还没有扫描记录"
+    return "上次扫描 " + SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(lastScanAt))
 }
 
 private fun MediaSourceType.label(): String = when (this) {

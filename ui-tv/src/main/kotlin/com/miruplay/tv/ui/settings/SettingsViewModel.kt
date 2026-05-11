@@ -3,6 +3,7 @@ package com.miruplay.tv.ui.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.data.repository.MediaRepository
 import com.miruplay.tv.data.secure.SecurePreferencesManager
 import com.miruplay.tv.mediasource.MediaSourceFactory
@@ -19,7 +20,8 @@ import javax.inject.Inject
 class SettingsViewModel @Inject constructor(
     private val mediaRepository: MediaRepository,
     private val mediaSourceFactory: MediaSourceFactory,
-    private val securePrefs: SecurePreferencesManager
+    private val securePrefs: SecurePreferencesManager,
+    private val scanPreferences: ScanPreferencesManager
 ) : ViewModel() {
 
     private val _sources = MutableStateFlow<List<MediaSourceInfo>>(emptyList())
@@ -33,6 +35,17 @@ class SettingsViewModel @Inject constructor(
 
     private val _bangumiToken = MutableStateFlow(securePrefs.bangumiAccessToken ?: "")
     val bangumiToken: StateFlow<String> = _bangumiToken.asStateFlow()
+
+    private val _autoScanEnabled = MutableStateFlow(scanPreferences.autoScanEnabled)
+    val autoScanEnabled: StateFlow<Boolean> = _autoScanEnabled.asStateFlow()
+
+    private val _autoScanIntervalHours = MutableStateFlow(
+        (scanPreferences.autoScanIntervalMs / MILLIS_PER_HOUR).toInt()
+    )
+    val autoScanIntervalHours: StateFlow<Int> = _autoScanIntervalHours.asStateFlow()
+
+    private val _lastScanAt = MutableStateFlow(scanPreferences.lastScanAt)
+    val lastScanAt: StateFlow<Long> = _lastScanAt.asStateFlow()
 
     init {
         loadSources()
@@ -107,8 +120,22 @@ class SettingsViewModel @Inject constructor(
         _bangumiToken.value = ""
     }
 
+    fun setAutoScanEnabled(enabled: Boolean) {
+        scanPreferences.autoScanEnabled = enabled
+        _autoScanEnabled.value = enabled
+    }
+
+    fun setAutoScanIntervalHours(hours: Int) {
+        scanPreferences.autoScanIntervalMs = hours * MILLIS_PER_HOUR
+        _autoScanIntervalHours.value = hours
+    }
+
     fun clearTestResult() {
         _testResult.value = null
+    }
+
+    companion object {
+        private const val MILLIS_PER_HOUR = 60 * 60 * 1000L
     }
 }
 

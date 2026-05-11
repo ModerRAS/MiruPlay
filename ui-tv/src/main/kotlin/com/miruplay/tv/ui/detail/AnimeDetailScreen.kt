@@ -1,16 +1,44 @@
 package com.miruplay.tv.ui.detail
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -18,9 +46,25 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
+import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
-import com.miruplay.tv.ui.components.*
-import com.miruplay.tv.ui.theme.*
+import com.miruplay.tv.model.ProgressRecord
+import com.miruplay.tv.ui.components.LoadingIndicator
+import com.miruplay.tv.ui.components.OverscanContainer
+import com.miruplay.tv.ui.components.RemoteImage
+import com.miruplay.tv.ui.components.TvButton
+import com.miruplay.tv.ui.components.displayTitle
+import com.miruplay.tv.ui.theme.AccentBlue
+import com.miruplay.tv.ui.theme.AnimeRed
+import com.miruplay.tv.ui.theme.CardBg
+import com.miruplay.tv.ui.theme.DarkBg
+import com.miruplay.tv.ui.theme.DarkSurface
+import com.miruplay.tv.ui.theme.FocusBorder
+import com.miruplay.tv.ui.theme.ProgressGreen
+import com.miruplay.tv.ui.theme.TextPrimary
+import com.miruplay.tv.ui.theme.TextSecondary
+import com.miruplay.tv.ui.theme.TvTypography
+import com.miruplay.tv.ui.theme.WarningYellow
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -35,6 +79,8 @@ fun AnimeDetailScreen(
     val selectedSeason by viewModel.selectedSeason.collectAsStateWithLifecycle()
     val episodes by viewModel.episodesWithProgress.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val actionMessage by viewModel.actionMessage.collectAsStateWithLifecycle()
+    val isSyncing by viewModel.isSyncing.collectAsStateWithLifecycle()
 
     LaunchedEffect(animeId) {
         viewModel.loadAnime(animeId)
@@ -44,177 +90,261 @@ fun AnimeDetailScreen(
         if (isLoading) {
             LoadingIndicator()
         } else {
-            Column(
+            anime?.let { animeData ->
+                DetailContent(
+                    anime = animeData,
+                    seasons = seasons.map { it.seasonNumber },
+                    selectedSeason = selectedSeason,
+                    episodes = episodes,
+                    actionMessage = actionMessage,
+                    isSyncing = isSyncing,
+                    onNavigateBack = onNavigateBack,
+                    onPlayEpisode = onPlayEpisode,
+                    onSelectSeason = viewModel::selectSeason,
+                    onRescrape = viewModel::rescrapeMetadata,
+                    onSyncBangumi = viewModel::syncBangumi
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailContent(
+    anime: Anime,
+    seasons: List<Int>,
+    selectedSeason: Int,
+    episodes: List<Pair<Episode, ProgressRecord?>>,
+    actionMessage: String?,
+    isSyncing: Boolean,
+    onNavigateBack: () -> Unit,
+    onPlayEpisode: (Episode) -> Unit,
+    onSelectSeason: (Int) -> Unit,
+    onRescrape: () -> Unit,
+    onSyncBangumi: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TvButton(text = "返回", onClick = onNavigateBack, modifier = Modifier.width(150.dp))
+            Text(
+                text = anime.displayTitle(),
+                style = TvTypography.subtitle,
+                color = TextSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f).padding(horizontal = 18.dp)
+            )
+            TvButton(
+                text = if (isSyncing) "同步中" else "同步",
+                icon = Icons.Filled.Sync,
+                enabled = !isSyncing,
+                onClick = onSyncBangumi,
+                modifier = Modifier.width(150.dp)
+            )
+        }
+
+        Spacer(Modifier.height(18.dp))
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(360.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(DarkSurface)
+        ) {
+            RemoteImage(
+                url = anime.fanartUrl ?: anime.posterUrl,
+                contentDescription = anime.displayTitle(),
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
+                    .background(
+                        Brush.horizontalGradient(
+                            colors = listOf(
+                                DarkBg.copy(alpha = 0.96f),
+                                DarkBg.copy(alpha = 0.72f),
+                                DarkBg.copy(alpha = 0.35f)
+                            )
+                        )
+                    )
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(24.dp),
+                verticalAlignment = Alignment.Bottom
             ) {
-                // Back button
-                TvButton(text = "← 返回", onClick = onNavigateBack)
-                Spacer(Modifier.height(16.dp))
-
-                anime?.let { animeData ->
-                    // Fanart Banner
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(240.dp)
-                            .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(DarkSurface, DarkBg)
-                                )
-                            )
-                    ) {
-                        // Black gradient overlay
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(
-                                    Brush.verticalGradient(
-                                        colors = listOf(
-                                            Color.Black.copy(alpha = 0.7f),
-                                            Color.Transparent,
-                                            Color.Black.copy(alpha = 0.8f)
-                                        )
-                                    )
-                                )
-                        )
-                        
-                        // Title overlay at bottom
-                        Column(
-                            modifier = Modifier
-                                .align(Alignment.BottomStart)
-                                .padding(24.dp)
-                        ) {
-                            Text(
-                                text = animeData.title,
-                                style = TvTypography.title,
-                                color = Color.White
-                            )
-                            val titleCn = animeData.titleCn
-                            if (titleCn != null && titleCn != animeData.title) {
-                                Text(
-                                    text = titleCn,
-                                    style = TvTypography.subtitle,
-                                    color = TextSecondary
-                                )
-                            }
-                            Spacer(Modifier.height(8.dp))
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(16.dp)
-                            ) {
-                                if (animeData.rating > 0) {
-                                    Text(
-                                        text = "评分: ${animeData.rating}",
-                                        color = WarningYellow,
-                                        fontSize = 14.sp
-                                    )
-                                }
-                                Text(
-                                    text = "${animeData.episodeCount} 集",
-                                    color = TextSecondary,
-                                    fontSize = 14.sp
-                                )
-                                animeData.airDate?.let {
-                                    Text(text = it, color = TextSecondary, fontSize = 14.sp)
-                                }
-                            }
-                        }
-                    }
-                    
-                    Spacer(Modifier.height(16.dp))
-                    
-                    // Summary
-                    if (animeData.summary?.isNotBlank() == true) {
+                RemoteImage(
+                    url = anime.posterUrl,
+                    contentDescription = anime.displayTitle(),
+                    modifier = Modifier
+                        .width(190.dp)
+                        .height(280.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(8.dp)),
+                    contentScale = ContentScale.Crop
+                )
+                Spacer(Modifier.width(26.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = anime.displayTitle(),
+                        style = TvTypography.title,
+                        color = TextPrimary,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    val originalTitle = anime.title.takeIf { it.isNotBlank() && it != anime.displayTitle() }
+                    if (originalTitle != null) {
+                        Spacer(Modifier.height(4.dp))
                         Text(
-                            text = animeData.summary,
-                            color = TextSecondary,
+                            text = originalTitle,
                             style = TvTypography.body,
-                            maxLines = 5,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(vertical = 8.dp)
+                            color = TextSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
-                    
-                    // Genre tags
-                    if (animeData.genres.isNotEmpty()) {
-                        Spacer(Modifier.height(8.dp))
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            animeData.genres.forEach { genre ->
-                                Box(
-                                    modifier = Modifier
-                                        .clip(CircleShape)
-                                        .background(AccentBlue)
-                                        .padding(horizontal = 12.dp, vertical = 4.dp)
-                                ) {
-                                    Text(
-                                        text = genre,
-                                        color = TextPrimary,
-                                        fontSize = 12.sp
-                                    )
-                                }
-                            }
-                        }
-                        Spacer(Modifier.height(16.dp))
-                    }
-                    
-                    // Season selector
-                    if (seasons.size > 1) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.padding(vertical = 8.dp)
-                        ) {
-                            seasons.forEach { season ->
-                                val isSelected = season.seasonNumber == selectedSeason
-                                TvButton(
-                                    text = "第 ${season.seasonNumber} 季",
-                                    onClick = { viewModel.selectSeason(season.seasonNumber) },
-                                    modifier = Modifier.width(120.dp)
-                                )
-                            }
-                        }
-                        Spacer(Modifier.height(8.dp))
-                    }
-                    
-                    // Episode list
-                    episodes.forEach { (episode, progress) ->
-                        EpisodeListItem(
-                            episode = episode,
-                            progress = progress?.let { 
-                                it.positionMs.toFloat() / (episode.duration.toFloat().coerceAtLeast(1f))
-                            } ?: 0f,
-                            isWatched = progress?.let { it.playCount > 0 } ?: false,
-                            onPlay = { onPlayEpisode(episode) }
-                        )
-                    }
-                    
-                    // Action buttons
                     Spacer(Modifier.height(16.dp))
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        TvButton(text = "播放", onClick = {
-                            episodes.firstOrNull()?.first?.let { onPlayEpisode(it) }
-                        }, modifier = Modifier.width(240.dp))
-                        
-                        episodes.firstOrNull()?.first?.let { firstEp ->
-                            if (firstEp.id.isNotEmpty()) {
-                                TvButton(
-                                    text = "从开头重新播放",
-                                    onClick = { onPlayEpisode(firstEp) }
-                                )
-                            }
-                        }
-                        
-                        TvButton(text = "重新获取元数据", onClick = {
-                            viewModel.rescrapeMetadata()
-                        })
+                    DetailStats(anime)
+                    Spacer(Modifier.height(18.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        TvButton(
+                            text = continueButtonText(episodes),
+                            onClick = { episodes.firstOrNull()?.first?.let(onPlayEpisode) },
+                            modifier = Modifier.width(230.dp)
+                        )
+                        TvButton(
+                            text = "重新刮削",
+                            icon = Icons.Filled.Refresh,
+                            enabled = !isSyncing,
+                            onClick = onRescrape,
+                            modifier = Modifier.width(170.dp)
+                        )
+                    }
+                    if (!actionMessage.isNullOrBlank()) {
+                        Spacer(Modifier.height(14.dp))
+                        Text(
+                            text = actionMessage,
+                            color = if (actionMessage.contains("完成") || actionMessage.contains("已更新")) ProgressGreen else WarningYellow,
+                            style = TvTypography.body,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
             }
         }
+
+        Spacer(Modifier.height(22.dp))
+
+        if (anime.summary.isNotBlank()) {
+            Text(
+                text = anime.summary,
+                color = TextSecondary,
+                style = TvTypography.body,
+                maxLines = 5,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(18.dp))
+        }
+
+        if (anime.genres.isNotEmpty()) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                anime.genres.take(8).forEach { genre ->
+                    TagChip(genre)
+                }
+            }
+            Spacer(Modifier.height(24.dp))
+        }
+
+        if (seasons.size > 1) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                seasons.forEach { season ->
+                    TvButton(
+                        text = "第 $season 季",
+                        onClick = { onSelectSeason(season) },
+                        modifier = Modifier.width(132.dp)
+                    )
+                }
+            }
+            Spacer(Modifier.height(18.dp))
+        }
+
+        Text(text = "选集", style = TvTypography.subtitle, color = TextPrimary)
+        Spacer(Modifier.height(12.dp))
+        episodes.forEach { (episode, progress) ->
+            EpisodeListItem(
+                episode = episode,
+                progress = progress?.let {
+                    (it.positionMs.toFloat() / episode.duration.toFloat().coerceAtLeast(1f)).coerceIn(0f, 1f)
+                } ?: 0f,
+                isWatched = progress?.let { it.playCount > 0 } == true ||
+                    episode.bangumiCollectionType == 2,
+                onPlay = { onPlayEpisode(episode) }
+            )
+        }
+        Spacer(Modifier.height(28.dp))
+    }
+}
+
+@Composable
+private fun DetailStats(anime: Anime) {
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (anime.rating > 0) {
+            StatPill("评分 ${"%.1f".format(anime.rating)}", WarningYellow)
+        }
+        if (anime.episodeCount > 0) {
+            StatPill("全 ${anime.episodeCount} 话", TextSecondary)
+        }
+        anime.airDate?.takeIf { it.isNotBlank() }?.let {
+            StatPill(it, TextSecondary)
+        }
+        anime.bangumiCollectionType?.let {
+            StatPill("Bangumi ${subjectCollectionLabel(it)}", AnimeRed)
+        }
+    }
+}
+
+@Composable
+private fun StatPill(text: String, color: Color) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(color.copy(alpha = 0.13f))
+            .border(1.dp, color.copy(alpha = 0.38f), RoundedCornerShape(8.dp))
+            .padding(horizontal = 12.dp, vertical = 7.dp)
+    ) {
+        Text(text = text, color = color, fontSize = 14.sp, maxLines = 1)
+    }
+}
+
+@Composable
+private fun TagChip(genre: String) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(AccentBlue.copy(alpha = 0.72f))
+            .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+            .padding(horizontal = 12.dp, vertical = 7.dp)
+    ) {
+        Text(
+            text = genre,
+            color = TextPrimary,
+            fontSize = 13.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
@@ -225,62 +355,108 @@ private fun EpisodeListItem(
     isWatched: Boolean,
     onPlay: () -> Unit
 ) {
+    var isFocused by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(if (isFocused) 1.015f else 1f, label = "episodeScale")
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 6.dp, horizontal = 4.dp),
+            .padding(vertical = 6.dp)
+            .scale(scale)
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (isFocused) AccentBlue.copy(alpha = 0.68f) else CardBg)
+            .border(
+                width = if (isFocused) 2.dp else 1.dp,
+                color = if (isFocused) FocusBorder else Color.White.copy(alpha = 0.08f),
+                shape = RoundedCornerShape(8.dp)
+            )
+            .focusable()
+            .onFocusChanged { isFocused = it.isFocused }
+            .clickable(onClick = onPlay)
+            .padding(horizontal = 18.dp, vertical = 14.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Status indicator
         Box(
             modifier = Modifier
-                .size(12.dp)
+                .size(34.dp)
                 .clip(CircleShape)
-                .background(
-                    when {
-                        isWatched -> ProgressGreen
-                        progress > 0f -> ProgressGreen.copy(alpha = progress)
-                        else -> TextSecondary.copy(alpha = 0.3f)
-                    }
+                .background(if (isWatched) ProgressGreen else AnimeRed.copy(alpha = 0.22f)),
+            contentAlignment = Alignment.Center
+        ) {
+            if (isWatched) {
+                androidx.compose.material3.Icon(
+                    imageVector = Icons.Filled.CheckCircle,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(22.dp)
                 )
-        )
-        
-        Spacer(Modifier.width(12.dp))
-        
-        // Episode info
-        Column(modifier = Modifier.weight(1f)) {
-            Row {
+            } else {
                 Text(
-                    text = "第 ${episode.episodeNumber} 集",
+                    text = episode.episodeNumber.toString().padStart(2, '0'),
                     color = TextPrimary,
-                    fontSize = 16.sp
-                )
-                if (episode.title?.isNotBlank() == true) {
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = episode.title,
-                        color = TextSecondary,
-                        fontSize = 16.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-            if (episode.duration > 0) {
-                Text(
-                    text = "${episode.duration / 60000} 分钟",
-                    color = TextSecondary.copy(alpha = 0.6f),
-                    fontSize = 12.sp
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
                 )
             }
         }
-        
-        // Play button
-        TvButton(
-            text = if (progress > 0f) "继续" else "播放",
-            onClick = onPlay,
-            modifier = Modifier.width(120.dp)
-        )
+
+        Spacer(Modifier.width(16.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "第 ${episode.episodeNumber} 集${episode.title.takeIf { it.isNotBlank() }?.let { " · $it" } ?: ""}",
+                color = TextPrimary,
+                fontSize = 17.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(5.dp))
+            Text(
+                text = episode.fileName.ifBlank { episode.filePath.substringAfterLast('/') },
+                color = TextSecondary,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        Spacer(Modifier.width(18.dp))
+        Column(horizontalAlignment = Alignment.End) {
+            Text(
+                text = if (isWatched) "已看" else if (progress > 0f) "看到 ${(progress * 100).toInt()}%" else "未看",
+                color = if (isWatched) ProgressGreen else TextSecondary,
+                fontSize = 13.sp
+            )
+            Spacer(Modifier.height(6.dp))
+            Box(
+                modifier = Modifier
+                    .width(150.dp)
+                    .height(4.dp)
+                    .background(Color.White.copy(alpha = 0.16f))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(progress.coerceIn(0f, 1f))
+                        .height(4.dp)
+                        .background(if (isWatched) ProgressGreen else AnimeRed)
+                )
+            }
+        }
     }
+}
+
+private fun continueButtonText(episodes: List<Pair<Episode, ProgressRecord?>>): String {
+    val next = episodes.firstOrNull { (_, progress) -> progress != null && progress.positionMs > 0L }
+        ?: episodes.firstOrNull()
+    return next?.first?.episodeNumber?.let { "继续观看 $it" } ?: "播放"
+}
+
+private fun subjectCollectionLabel(type: Int): String = when (type) {
+    1 -> "想看"
+    2 -> "看过"
+    3 -> "在看"
+    4 -> "搁置"
+    5 -> "抛弃"
+    else -> "已关联"
 }
