@@ -28,6 +28,7 @@ data class SourceRequest(
     val name: String,
     val type: String,
     val location: String,
+    val displayName: String? = null,
     val username: String? = null,
     val password: String? = null
 )
@@ -36,8 +37,24 @@ data class SourceRequest(
 data class SourceTestRequest(
     val type: String,
     val location: String,
+    val displayName: String? = null,
     val username: String? = null,
     val password: String? = null
+)
+
+@Serializable
+data class LocalDirectoryDto(
+    val path: String,
+    val displayPath: String,
+    val parentPath: String? = null,
+    val entries: List<LocalDirectoryEntryDto>
+)
+
+@Serializable
+data class LocalDirectoryEntryDto(
+    val name: String,
+    val path: String,
+    val canRead: Boolean
 )
 
 @Serializable

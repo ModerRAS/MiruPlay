@@ -1,5 +1,10 @@
 package com.miruplay.tv.ui.settings
 
+import android.content.Intent
+import android.net.Uri
+import android.provider.DocumentsContract
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -30,6 +35,7 @@ import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
@@ -49,6 +55,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -78,7 +85,6 @@ import java.util.Date
 import java.util.Locale
 
 private const val DEFAULT_LOCAL_PATH = "/storage/emulated/0/Download"
-
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun AddSourceScreen(
@@ -95,6 +101,7 @@ fun AddSourceScreen(
     var selectedType by remember { mutableStateOf(MediaSourceType.LOCAL) }
     var name by remember { mutableStateOf("") }
     var location by remember { mutableStateOf(DEFAULT_LOCAL_PATH) }
+    var locationDisplayName by remember { mutableStateOf("Download") }
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var tokenInput by remember { mutableStateOf("") }
@@ -159,6 +166,7 @@ fun AddSourceScreen(
                                 selectedType = type
                                 name = sourceNameOrDefault("", type)
                                 location = defaultLocationFor(type)
+                                locationDisplayName = if (type == MediaSourceType.LOCAL) "Download" else ""
                                 username = ""
                                 password = ""
                                 viewModel.clearTestResult()
@@ -168,6 +176,15 @@ fun AddSourceScreen(
                         onNameChange = { name = it },
                         location = location,
                         onLocationChange = { location = it },
+                        locationDisplayName = locationDisplayName,
+                        onLocalFolderSelected = { uri, displayName ->
+                            location = uri.toString()
+                            locationDisplayName = displayName
+                            if (name.isBlank() || name == "本地下载") {
+                                name = displayName.ifBlank { "本地媒体库" }
+                            }
+                            viewModel.clearTestResult()
+                        },
                         username = username,
                         onUsernameChange = { username = it },
                         password = password,
@@ -185,6 +202,7 @@ fun AddSourceScreen(
                                     connectionInfo = sourceConnectionInfo(
                                         type = selectedType,
                                         location = location,
+                                        displayName = locationDisplayName,
                                         username = username,
                                         password = password
                                     )
@@ -192,6 +210,7 @@ fun AddSourceScreen(
                             )
                             name = ""
                             location = if (selectedType == MediaSourceType.LOCAL) DEFAULT_LOCAL_PATH else ""
+                            locationDisplayName = if (selectedType == MediaSourceType.LOCAL) "Download" else ""
                             username = ""
                             password = ""
                             viewModel.clearTestResult()
@@ -403,6 +422,8 @@ private fun SourceFormPanel(
     onNameChange: (String) -> Unit,
     location: String,
     onLocationChange: (String) -> Unit,
+    locationDisplayName: String,
+    onLocalFolderSelected: (Uri, String) -> Unit,
     username: String,
     onUsernameChange: (String) -> Unit,
     password: String,
@@ -412,6 +433,25 @@ private fun SourceFormPanel(
     onTestConnection: () -> Unit,
     onSave: () -> Unit
 ) {
+    val context = LocalContext.current
+    val folderPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri != null) {
+            val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or
+                Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    flags and (Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                )
+            }
+            onLocalFolderSelected(uri, displayNameForTreeUri(uri))
+        }
+    }
+
     SettingsPanel {
         Text(text = "添加媒体源", style = TvTypography.subtitle, color = TextPrimary)
         Spacer(Modifier.height(6.dp))
@@ -447,12 +487,22 @@ private fun SourceFormPanel(
 
         Spacer(Modifier.height(12.dp))
 
-        TvTextField(
-            value = location,
-            onValueChange = onLocationChange,
-            label = selectedType.locationLabel(),
-            modifier = Modifier.fillMaxWidth()
-        )
+        if (selectedType == MediaSourceType.LOCAL) {
+            LocalFolderPickerRow(
+                displayName = locationDisplayName.ifBlank { displayNameForTreeUri(Uri.parse(location)) },
+                location = location,
+                onPickFolder = {
+                    folderPicker.launch(localPickerStartUri())
+                }
+            )
+        } else {
+            TvTextField(
+                value = location,
+                onValueChange = onLocationChange,
+                label = selectedType.locationLabel(),
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
 
         if (selectedType != MediaSourceType.LOCAL) {
             Spacer(Modifier.height(12.dp))
@@ -490,6 +540,68 @@ private fun SourceFormPanel(
         }
 
         ConnectionStatus(result = testResult)
+    }
+}
+
+@Composable
+private fun LocalFolderPickerRow(
+    displayName: String,
+    location: String,
+    onPickFolder: () -> Unit
+) {
+    Column {
+        Text(
+            text = "媒体文件夹",
+            style = TvTypography.caption,
+            color = TextSecondary
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(58.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(DarkSurface)
+                    .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Folder,
+                    contentDescription = null,
+                    tint = TextSecondary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = displayName.ifBlank { "尚未选择文件夹" },
+                        style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
+                        color = TextPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = if (location.startsWith("content://")) "已授权访问" else location,
+                        style = TvTypography.caption,
+                        color = TextSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            TvButton(
+                text = "选择文件夹",
+                icon = Icons.Filled.FolderOpen,
+                onClick = onPickFolder,
+                modifier = Modifier.width(170.dp)
+            )
+        }
     }
 }
 
@@ -806,12 +918,17 @@ private fun defaultLocationFor(type: MediaSourceType): String = when (type) {
 private fun sourceConnectionInfo(
     type: MediaSourceType,
     location: String,
+    displayName: String,
     username: String,
     password: String
 ): Map<String, String> = buildMap {
     put("url", location.trim())
     if (type == MediaSourceType.LOCAL) {
         put("path", location.trim())
+        if (location.startsWith("content://")) {
+            put("uri", location.trim())
+        }
+        if (displayName.isNotBlank()) put("displayName", displayName.trim())
     }
     if (username.isNotBlank()) put("username", username.trim())
     if (password.isNotBlank()) put("password", password)
@@ -835,7 +952,7 @@ private fun MediaSourceType.hint(): String = when (this) {
 }
 
 private fun MediaSourceType.locationLabel(): String = when (this) {
-    MediaSourceType.LOCAL -> "文件夹路径"
+    MediaSourceType.LOCAL -> "媒体文件夹"
     MediaSourceType.WEBDAV -> "WebDAV 地址"
     MediaSourceType.SMB -> "SMB 地址"
 }
@@ -845,3 +962,15 @@ private fun MediaSourceType.sourceIcon(): ImageVector = when (this) {
     MediaSourceType.WEBDAV -> Icons.Filled.Cloud
     MediaSourceType.SMB -> Icons.Filled.Dns
 }
+
+private fun displayNameForTreeUri(uri: Uri): String {
+    val documentId = runCatching { DocumentsContract.getTreeDocumentId(uri) }.getOrNull()
+    val name = documentId
+        ?.substringAfter(':', "")
+        ?.substringAfterLast('/')
+        ?.takeIf { it.isNotBlank() }
+    return name ?: uri.lastPathSegment?.substringAfterLast(':')?.substringAfterLast('/') ?: "本地媒体库"
+}
+
+private fun localPickerStartUri(): Uri =
+    DocumentsContract.buildTreeDocumentUri("com.android.externalstorage.documents", "primary:")

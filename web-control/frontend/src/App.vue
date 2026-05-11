@@ -184,9 +184,24 @@
                   <el-input v-model="sourceForm.name" placeholder="例如：NAS 动画库" />
                 </el-form-item>
                 <el-form-item :label="locationLabel">
-                  <el-input v-model="sourceForm.location" :placeholder="locationPlaceholder" />
+                  <template v-if="sourceForm.type === 'LOCAL'">
+                    <div class="local-picker-field">
+                      <div class="local-picker-value">
+                        <strong>{{ sourceForm.displayName || folderName(sourceForm.location) }}</strong>
+                        <span class="muted break-text">{{ sourceForm.location || '尚未选择文件夹' }}</span>
+                      </div>
+                      <el-button :icon="FolderOpened" @click="openLocalPicker">
+                        选择文件夹
+                      </el-button>
+                    </div>
+                  </template>
+                  <el-input
+                    v-else
+                    v-model="sourceForm.location"
+                    :placeholder="locationPlaceholder"
+                  />
                 </el-form-item>
-                <div class="form-grid">
+                <div v-if="sourceForm.type !== 'LOCAL'" class="form-grid">
                   <el-form-item label="用户名">
                     <el-input v-model="sourceForm.username" autocomplete="username" />
                   </el-form-item>
@@ -304,6 +319,52 @@
           </el-card>
         </div>
       </el-dialog>
+
+      <el-dialog
+        v-model="localPicker.open"
+        title="选择电视端文件夹"
+        width="min(760px, 94vw)"
+        destroy-on-close
+      >
+        <div class="folder-browser">
+          <div class="folder-toolbar">
+            <el-button
+              :disabled="!localBrowser.parentPath"
+              @click="loadLocalDirectories(localBrowser.parentPath || '')"
+            >
+              上一级
+            </el-button>
+            <strong>{{ localBrowser.displayPath || '设备存储' }}</strong>
+          </div>
+
+          <el-skeleton v-if="loading.localBrowse" animated :rows="5" />
+          <el-empty v-else-if="!localBrowser.entries.length" description="没有可进入的子文件夹" />
+          <div v-else class="folder-list">
+            <button
+              v-for="entry in localBrowser.entries"
+              :key="entry.path"
+              class="folder-row"
+              type="button"
+              :disabled="!entry.canRead"
+              @click="loadLocalDirectories(entry.path)"
+            >
+              <el-icon><FolderOpened /></el-icon>
+              <span>{{ entry.name }}</span>
+            </button>
+          </div>
+        </div>
+
+        <template #footer>
+          <el-button @click="localPicker.open = false">取消</el-button>
+          <el-button
+            type="primary"
+            :disabled="!localBrowser.path"
+            @click="selectCurrentLocalDirectory"
+          >
+            选择当前文件夹
+          </el-button>
+        </template>
+      </el-dialog>
     </div>
   </el-config-provider>
 </template>
@@ -344,15 +405,24 @@ const loading = reactive({
   sources: false,
   save: false,
   test: false,
-  scan: false
+  scan: false,
+  localBrowse: false
 })
 const sourceForm = reactive({
   id: 0,
   type: 'LOCAL',
   name: '',
   location: '/storage/emulated/0/Download',
+  displayName: 'Download',
   username: '',
   password: ''
+})
+const localPicker = reactive({ open: false })
+const localBrowser = reactive({
+  path: '',
+  displayPath: '设备存储',
+  parentPath: null,
+  entries: []
 })
 const selectedAnime = reactive({ anime: null, episodes: [] })
 const detailOpen = ref(false)
@@ -390,7 +460,7 @@ const accessUrl = computed(() => {
 })
 
 const locationLabel = computed(() => ({
-  LOCAL: '文件夹路径',
+  LOCAL: '媒体文件夹',
   WEBDAV: 'WebDAV 地址',
   SMB: 'SMB 地址'
 }[sourceForm.type] || '位置'))
@@ -510,6 +580,7 @@ function resetSourceForm() {
     type: 'LOCAL',
     name: '',
     location: '/storage/emulated/0/Download',
+    displayName: 'Download',
     username: '',
     password: ''
   })
@@ -521,13 +592,21 @@ function editSource(source) {
     type: source.type,
     name: source.name,
     location: sourceLocation(source),
+    displayName: source.connectionInfo?.displayName || folderName(sourceLocation(source)),
     username: source.connectionInfo?.username || '',
     password: ''
   })
 }
 
 function onSourceTypeChange(type) {
-  if (type === 'LOCAL' && !sourceForm.location) sourceForm.location = '/storage/emulated/0/Download'
+  if (type === 'LOCAL') {
+    if (!sourceForm.location || sourceForm.location.startsWith('smb://') || sourceForm.location.startsWith('http')) {
+      sourceForm.location = '/storage/emulated/0/Download'
+      sourceForm.displayName = 'Download'
+    }
+    sourceForm.username = ''
+    sourceForm.password = ''
+  }
   if (type === 'SMB' && !sourceForm.location) sourceForm.location = 'smb://'
 }
 
@@ -537,9 +616,38 @@ function sourcePayload() {
     type: sourceForm.type,
     name: sourceForm.name.trim(),
     location: sourceForm.location.trim(),
+    displayName: sourceForm.displayName.trim() || folderName(sourceForm.location),
     username: sourceForm.username.trim() || null,
     password: sourceForm.password || null
   }
+}
+
+async function openLocalPicker() {
+  localPicker.open = true
+  const initialPath = sourceForm.location?.startsWith('/') ? sourceForm.location : ''
+  await loadLocalDirectories(initialPath)
+}
+
+async function loadLocalDirectories(path = '') {
+  loading.localBrowse = true
+  try {
+    const suffix = path ? `?path=${encodeURIComponent(path)}` : ''
+    const data = await api(`/api/local-directories${suffix}`)
+    localBrowser.path = data.path || ''
+    localBrowser.displayPath = data.displayPath || '设备存储'
+    localBrowser.parentPath = data.parentPath ?? null
+    localBrowser.entries = data.entries || []
+  } finally {
+    loading.localBrowse = false
+  }
+}
+
+function selectCurrentLocalDirectory() {
+  if (!localBrowser.path) return
+  sourceForm.location = localBrowser.path
+  sourceForm.displayName = folderName(localBrowser.path)
+  if (!sourceForm.name) sourceForm.name = sourceForm.displayName || '本地媒体库'
+  localPicker.open = false
 }
 
 async function saveSource() {
@@ -622,7 +730,12 @@ async function deleteSource(sourceId) {
 }
 
 function sourceLocation(source) {
-  return source.connectionInfo?.url || source.connectionInfo?.path || ''
+  return source.connectionInfo?.uri || source.connectionInfo?.url || source.connectionInfo?.path || ''
+}
+
+function folderName(path) {
+  if (!path) return ''
+  return decodeURIComponent(path.split('/').filter(Boolean).pop() || path)
 }
 
 function episodeLabel(episode) {

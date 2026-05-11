@@ -68,6 +68,10 @@ class WebControlServer @Inject constructor(
             session.method == Method.GET && route == "/api/sources" -> {
                 jsonResponse(ListSerializer(com.miruplay.tv.model.MediaSourceInfo.serializer()), webControlService.listSources())
             }
+            session.method == Method.GET && route == "/api/local-directories" -> {
+                val path = session.parameters["path"]?.firstOrNull().orEmpty()
+                jsonResponse(LocalDirectoryDto.serializer(), webControlService.browseLocalDirectories(path))
+            }
             session.method == Method.POST && route == "/api/sources" -> {
                 val request = parseBody(session, SourceRequest.serializer())
                 jsonResponse(com.miruplay.tv.model.MediaSourceInfo.serializer(), webControlService.addSource(request))
