@@ -11,7 +11,6 @@ import okhttp3.MediaType.Companion.toMediaType
 import org.w3c.dom.Document
 import org.w3c.dom.Element
 import java.io.InputStream
-import java.net.URI
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.xml.parsers.DocumentBuilderFactory
@@ -170,7 +169,14 @@ class WebDavMediaSource @Inject constructor() : MediaSource {
     private fun normalizeUrl(path: String): String {
         val base = baseUrl.trimEnd('/')
         val cleanPath = path.trimStart('/')
-        return if (cleanPath.isEmpty()) "$base/" else "$base/$cleanPath"
+        if (cleanPath.isEmpty()) return "$base/"
+        // Encode each path segment to handle non-ASCII characters (e.g. Chinese)
+        val hasTrailingSlash = cleanPath.endsWith('/')
+        val encodedPath = cleanPath.trimEnd('/').split('/')
+            .joinToString("/") { segment ->
+                java.net.URLEncoder.encode(segment, Charsets.UTF_8.name()).replace("+", "%20")
+            }
+        return "$base/$encodedPath${if (hasTrailingSlash) "/" else ""}"
     }
 
     private fun credentials(): String {
@@ -234,11 +240,9 @@ class WebDavMediaSource @Inject constructor() : MediaSource {
     private fun hrefToRemotePath(href: String): String {
         val decoded = decodeHref(href)
         val withoutBaseUrl = decoded.removePrefix(baseUrl.trimEnd('/'))
-        val basePath = try {
-            URI(baseUrl).path.orEmpty().trimEnd('/')
-        } catch (_: Exception) {
-            ""
-        }
+        // Extract the base path from the URL, handling non-ASCII characters (e.g. Chinese)
+        // java.net.URI throws on non-ASCII, so we fall back to manual path extraction
+        val basePath = extractBasePath()
         val withoutBasePath = when {
             basePath.isBlank() -> withoutBaseUrl
             withoutBaseUrl == basePath -> ""
@@ -246,6 +250,27 @@ class WebDavMediaSource @Inject constructor() : MediaSource {
             else -> withoutBaseUrl
         }
         return normalizeRemotePath(withoutBasePath)
+    }
+
+    private fun extractBasePath(): String {
+        // Try java.net.URI first (works for ASCII-only URLs)
+        try {
+            val path = java.net.URI(baseUrl).path?.trimEnd('/')
+            if (path != null) return path
+        } catch (_: Exception) {
+            // Non-ASCII in URL, fall through to manual extraction
+        }
+        // Manual extraction for URLs with non-ASCII characters (e.g. Chinese path)
+        return try {
+            val schemeEnd = baseUrl.indexOf("://")
+            if (schemeEnd < 0) return ""
+            val afterScheme = baseUrl.substring(schemeEnd + 3)
+            val pathStart = afterScheme.indexOf('/')
+            if (pathStart < 0) return ""
+            afterScheme.substring(pathStart).substringBefore('?').substringBefore('#').trimEnd('/')
+        } catch (_: Exception) {
+            ""
+        }
     }
 
     private fun normalizeRemotePath(path: String): String =
