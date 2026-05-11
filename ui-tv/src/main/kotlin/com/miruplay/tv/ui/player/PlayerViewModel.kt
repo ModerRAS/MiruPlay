@@ -33,17 +33,20 @@ class PlayerViewModel @Inject constructor(
     private val _duration = MutableStateFlow(0L)
     val duration: StateFlow<Long> = _duration.asStateFlow()
 
-    val availableSubtitles: StateFlow<List<SubtitleTrack>> 
-        get() = MutableStateFlow(playbackController.getAvailableSubtitles()).asStateFlow()
+    private val _availableSubtitles = MutableStateFlow<List<SubtitleTrack>>(emptyList())
+    val availableSubtitles: StateFlow<List<SubtitleTrack>> = _availableSubtitles.asStateFlow()
 
-    val availableAudioTracks: StateFlow<List<AudioTrack>>
-        get() = MutableStateFlow(playbackController.getAvailableAudioTracks()).asStateFlow()
+    private val _availableAudioTracks = MutableStateFlow<List<AudioTrack>>(emptyList())
+    val availableAudioTracks: StateFlow<List<AudioTrack>> = _availableAudioTracks.asStateFlow()
 
     private val _playbackSpeed = MutableStateFlow(1.0f)
     val playbackSpeed: StateFlow<Float> = _playbackSpeed.asStateFlow()
 
     private val _controlsVisible = MutableStateFlow(true)
     val controlsVisible: StateFlow<Boolean> = _controlsVisible.asStateFlow()
+
+    private val _controlsInteractionToken = MutableStateFlow(0)
+    val controlsInteractionToken: StateFlow<Int> = _controlsInteractionToken.asStateFlow()
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
@@ -60,6 +63,7 @@ class PlayerViewModel @Inject constructor(
             _errorMessage.value = null
             playbackController.play(source).also {
                 _duration.value = playbackController.getDuration()
+                refreshTracks()
                 startPositionPolling()
                 startProgressSaving(source)
                 startFinishObserver(source)
@@ -70,6 +74,22 @@ class PlayerViewModel @Inject constructor(
     fun pause() {
         viewModelScope.launch {
             playbackController.pause()
+        }
+    }
+
+    fun resume() {
+        viewModelScope.launch {
+            playbackController.resume()
+        }
+    }
+
+    fun togglePlayback() {
+        viewModelScope.launch {
+            if (playbackController.isPlaying()) {
+                playbackController.pause()
+            } else {
+                playbackController.resume()
+            }
         }
     }
 
@@ -94,7 +114,20 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun toggleControls() {
-        _controlsVisible.value = !_controlsVisible.value
+        if (_controlsVisible.value) {
+            hideControls()
+        } else {
+            showControls()
+        }
+    }
+
+    fun showControls() {
+        _controlsVisible.value = true
+        _controlsInteractionToken.value += 1
+    }
+
+    fun hideControls() {
+        _controlsVisible.value = false
     }
 
     fun selectSubtitle(index: Int) {
@@ -122,9 +155,15 @@ class PlayerViewModel @Inject constructor(
             while (true) {
                 _currentPosition.value = playbackController.getCurrentPosition()
                 _duration.value = playbackController.getDuration()
+                refreshTracks()
                 delay(500)
             }
         }
+    }
+
+    private fun refreshTracks() {
+        _availableSubtitles.value = playbackController.getAvailableSubtitles()
+        _availableAudioTracks.value = playbackController.getAvailableAudioTracks()
     }
 
     private fun startProgressSaving(source: PlaybackSource) {
