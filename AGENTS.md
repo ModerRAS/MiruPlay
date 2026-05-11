@@ -5,7 +5,7 @@
 **Branch:** master
 
 ## OVERVIEW
-MiruPlay — Android TV anime media manager. Multi-module Kotlin/Compose app with web scraping (Bangumi/AniList), cloud sync (RSS), and multiple media sources (local, WebDAV, SMB).
+MiruPlay — Android TV anime media manager. Multi-module Kotlin/Compose app with web scraping (Bangumi), cloud sync (RSS), and multiple media sources (local, WebDAV, SMB).
 
 ## STRUCTURE
 ```
@@ -19,7 +19,7 @@ MiruPlay/
 ├── player-core/            # Media3/ExoPlayer integration, MediaSessionService
 ├── media-source/           # Media source abstraction (local, WebDAV, SMB)
 ├── scanner/                # Local media file scanner
-├── scraper/                # Anime metadata scrapers (Bangumi, AniList)
+├── scraper/                # Anime metadata scrapers (Bangumi)
 ├── sync-engine/            # RSS feed sync, cloud drive automation
 ├── cloud-drive/            # Cloud drive integration
 ├── metadata/               # NFO metadata parsing/writing
@@ -38,7 +38,7 @@ MiruPlay/
 | Repository interfaces | `data/.../repository/` | Media, Metadata, Progress, Index, CloudDriveAutomation |
 | Media playback | `player-core/.../player/MiruPlayMediaService.kt` | Media3 ExoPlayer |
 | Media sources | `media-source/.../mediasource/` | Adapters: local files, WebDAV, SMB |
-| Scrapers | `scraper/.../scraper/BangumiScraper.kt` | Bangumi + AniList metadata |
+| Scrapers | `scraper/.../scraper/BangumiScraper.kt` | Bangumi metadata |
 | RSS sync | `sync-engine/.../sync/rss/` | Cloud drive RSS automation |
 | Web API | `web-control/.../webcontrol/WebControlServer.kt` | HTTP + gRPC for external control |
 | TV UI screens | `ui-tv/.../ui/` | Library, detail, player, settings |
@@ -61,7 +61,6 @@ MiruPlay/
 | `MediaRepositoryImpl` | Class | `data/.../repository/MediaRepositoryImpl.kt` | Main repo impl |
 | `MiruPlayMediaService` | Service | `player-core/.../MiruPlayMediaService.kt` | Media3 session service |
 | `BangumiScraper` | Class | `scraper/.../BangumiScraper.kt` | Bangumi metadata scraping |
-| `AniListScraper` | Class | `scraper/.../AniListScraper.kt` | AniList metadata scraping |
 | `WebControlServer` | Class | `web-control/.../WebControlServer.kt` | HTTP control server |
 | `CloudDriveRssScheduler` | Class | `sync-engine/.../CloudDriveRssScheduler.kt` | RSS sync scheduler |
 | `AppModule` | Hilt Module | `app/.../di/AppModule.kt` | Singleton OkHttp + Room |

@@ -7,7 +7,7 @@
 ## 特徴
 
 - **マルチソースメディア** — ローカルファイル、WebDAV、SMB など複数のメディアソースに対応
-- **メタデータ取得** — Bangumi / AniList からアニメ情報・ポスター・エピソード一覧を自動取得
+- **メタデータ取得** — Bangumi からアニメ情報・ポスター・エピソード一覧を自動取得
 - **RSS クラウド同期** — RSS 購読による新エピソードの自動同期
 - **リモートコントロール** — 内蔵 HTTP サーバー + gRPC API、ブラウザやサードパーティクライアントから操作可能
 - **TV リモコン最適化** — Compose + Leanback UI、十字キー操作に完全対応
@@ -58,7 +58,7 @@ MiruPlay/
 ├── player-core/     # Media3 プレーヤー統合
 ├── media-source/    # メディアソース抽象化（ローカル / WebDAV / SMB）
 ├── scanner/         # ローカルファイルスキャナー
-├── scraper/         # アニメメタデータ取得（Bangumi / AniList）
+├── scraper/         # アニメメタデータ取得（Bangumi）
 ├── sync-engine/     # RSS 同期エンジン
 ├── cloud-drive/     # クラウドドライブ連携
 ├── metadata/        # NFO メタデータ読み書き
