@@ -6,6 +6,8 @@ import com.miruplay.tv.data.repository.MetadataRepository
 import com.miruplay.tv.data.repository.ProgressRepository
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
+import com.miruplay.tv.model.ProgressRecord
+import com.miruplay.tv.model.isCompleted
 import com.miruplay.tv.scraper.BangumiEpisodeCollectionType
 import com.miruplay.tv.scraper.BangumiScraper
 import com.miruplay.tv.scraper.BangumiSubjectCollectionType
@@ -158,9 +160,12 @@ class BangumiSyncEngine @Inject constructor(
     }
 
     private fun isLocallyWatched(episode: Episode, positionMs: Long?, playCount: Int): Boolean {
-        if (playCount > 0 && (positionMs ?: 0L) > 0L && episode.duration <= 0L) return true
-        if (playCount > 0 && (positionMs ?: 0L) >= 60_000L) return true
-        if (episode.duration > 0L && (positionMs ?: 0L) >= (episode.duration * 0.9f).toLong()) return true
-        return false
+        val progress = ProgressRecord(
+            episodeId = episode.id,
+            positionMs = positionMs ?: 0L,
+            lastWatched = 0L,
+            playCount = playCount
+        )
+        return episode.isCompleted(progress)
     }
 }

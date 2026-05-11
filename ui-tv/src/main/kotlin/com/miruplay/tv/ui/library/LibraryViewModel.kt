@@ -13,6 +13,7 @@ import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.ProgressRecord
+import com.miruplay.tv.model.isCompleted
 import com.miruplay.tv.scanner.ScanCoordinator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -170,6 +171,7 @@ class LibraryViewModel @Inject constructor(
         return progressRecords.mapNotNull { record ->
             val cachedEpisode = metadataRepository.getCachedEpisode(record.episodeId).getOrNull()
             if (cachedEpisode != null) {
+                if (cachedEpisode.isCompleted(record)) return@mapNotNull null
                 val anime = metadataRepository.getCachedMetadata(cachedEpisode.animeId).getOrNull()
                     ?: return@mapNotNull null
                 return@mapNotNull ProgressWithEpisode(
@@ -212,6 +214,8 @@ class LibraryViewModel @Inject constructor(
                 playCount = record.playCount,
                 thumbnailPath = null
             )
+
+            if (episode.isCompleted(record)) return@mapNotNull null
 
             ProgressWithEpisode(progress = record, episode = episode, anime = anime)
         }

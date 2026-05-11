@@ -57,6 +57,10 @@ import androidx.tv.material3.Text
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.ProgressRecord
+import com.miruplay.tv.model.continueEpisodeProgress
+import com.miruplay.tv.model.isCompleted
+import com.miruplay.tv.model.progressFraction
+import com.miruplay.tv.model.progressLabel
 import com.miruplay.tv.ui.components.LoadingIndicator
 import com.miruplay.tv.ui.components.OverscanContainer
 import com.miruplay.tv.ui.components.RemoteImage
@@ -209,10 +213,11 @@ private fun DetailContent(
                     DetailStats(anime)
                     Spacer(Modifier.height(18.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        val continueTarget = continueEpisode(episodes)
                         TvButton(
                             text = continueButtonText(episodes),
-                            onClick = { episodes.firstOrNull()?.first?.let(onPlayEpisode) },
-                            enabled = episodes.isNotEmpty(),
+                            onClick = { continueTarget?.let(onPlayEpisode) },
+                            enabled = continueTarget != null,
                             modifier = Modifier
                                 .width(230.dp)
                                 .focusRequester(playButtonFocusRequester)
@@ -225,7 +230,7 @@ private fun DetailContent(
                             modifier = Modifier.width(170.dp)
                         )
                         TvButton(
-                            text = if (isSyncing) "同步中" else "同步 Bangumi",
+                            text = if (isSyncing) "同步中" else "同步进度",
                             icon = Icons.Filled.Sync,
                             enabled = !isSyncing,
                             onClick = onSyncBangumi,
@@ -286,11 +291,9 @@ private fun DetailContent(
         episodes.forEach { (episode, progress) ->
             EpisodeListItem(
                 episode = episode,
-                progress = progress?.let {
-                    (it.positionMs.toFloat() / episode.duration.toFloat().coerceAtLeast(1f)).coerceIn(0f, 1f)
-                } ?: 0f,
-                isWatched = progress?.let { it.playCount > 0 } == true ||
-                    episode.bangumiCollectionType == 2,
+                progress = episode.progressFraction(progress),
+                progressText = episode.progressLabel(progress),
+                isWatched = episode.isCompleted(progress),
                 onPlay = { onPlayEpisode(episode) }
             )
         }
@@ -352,6 +355,7 @@ private fun TagChip(genre: String) {
 private fun EpisodeListItem(
     episode: Episode,
     progress: Float,
+    progressText: String,
     isWatched: Boolean,
     onPlay: () -> Unit
 ) {
@@ -430,11 +434,16 @@ private fun EpisodeListItem(
         }
 
         Spacer(Modifier.width(18.dp))
-        Column(horizontalAlignment = Alignment.End) {
+        Column(
+            horizontalAlignment = Alignment.End,
+            modifier = Modifier.width(180.dp)
+        ) {
             Text(
-                text = if (isWatched) "已看" else if (progress > 0f) "看到 ${(progress * 100).toInt()}%" else "未看",
+                text = progressText,
                 color = if (isWatched) ProgressGreen else TextSecondary,
-                fontSize = 13.sp
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             Spacer(Modifier.height(6.dp))
             Box(
@@ -455,15 +464,26 @@ private fun EpisodeListItem(
 }
 
 private fun continueButtonText(episodes: List<Pair<Episode, ProgressRecord?>>): String {
-    val next = episodes.firstOrNull { (_, progress) -> progress != null && progress.positionMs > 0L }
-        ?: episodes.firstOrNull()
-    return next?.first?.episodeNumber?.let { "继续观看 $it" } ?: "播放"
+    val next = episodes.firstOrNull { (episode, progress) -> episode.continueEpisodeProgress(progress) }
+        ?: return "播放"
+    return "继续观看 ${next.first.episodeNumber}"
 }
 
 private fun Key.isActivateKey(): Boolean = this == Key.DirectionCenter ||
     this == Key.Enter ||
     this == Key.NumPadEnter ||
     this == Key.Spacebar
+
+private fun continueEpisode(episodes: List<Pair<Episode, ProgressRecord?>>): Episode? {
+    val partial = episodes
+        .filter { (episode, progress) -> episode.continueEpisodeProgress(progress) }
+        .maxByOrNull { (_, progress) -> progress?.lastWatched ?: 0L }
+        ?.first
+    if (partial != null) return partial
+
+    return episodes.firstOrNull { (episode, progress) -> !episode.isCompleted(progress) }?.first
+        ?: episodes.firstOrNull()?.first
+}
 
 private fun subjectCollectionLabel(type: Int): String = when (type) {
     1 -> "想看"

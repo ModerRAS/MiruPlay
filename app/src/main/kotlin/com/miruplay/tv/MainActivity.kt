@@ -14,9 +14,12 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.data.repository.MediaRepository
+import com.miruplay.tv.data.repository.ProgressRepository
+import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.PlaybackSource
+import com.miruplay.tv.model.resumePosition
 import com.miruplay.tv.ui.detail.AnimeDetailScreen
 import com.miruplay.tv.ui.library.LibraryScreen
 import com.miruplay.tv.ui.player.PlayerScreen
@@ -35,6 +38,7 @@ import javax.inject.Inject
 class MainActivity : ComponentActivity() {
 
     @Inject lateinit var mediaRepository: MediaRepository
+    @Inject lateinit var progressRepository: ProgressRepository
     @Inject lateinit var webControlNavigator: WebControlNavigator
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -58,6 +62,7 @@ class MainActivity : ComponentActivity() {
             MiruPlayTheme {
                 MiruPlayNavigation(
                     mediaRepository = mediaRepository,
+                    progressRepository = progressRepository,
                     webControlNavigator = webControlNavigator
                 )
             }
@@ -68,6 +73,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MiruPlayNavigation(
     mediaRepository: MediaRepository,
+    progressRepository: ProgressRepository,
     webControlNavigator: WebControlNavigator
 ) {
     val navController = rememberNavController()
@@ -127,8 +133,9 @@ fun MiruPlayNavigation(
                         val encodedPath = Uri.encode(playableUri)
                         val encodedSource = Uri.encode(episode.animeId)
                         val encodedEpisode = Uri.encode(episode.id)
+                        val startPosition = resumePositionFor(episode, progressRepository)
                         navController.navigate(
-                            "player/$encodedPath?mediaSourceId=$encodedSource&episodeId=$encodedEpisode"
+                            "player/$encodedPath?mediaSourceId=$encodedSource&startPosition=$startPosition&episodeId=$encodedEpisode"
                         )
                     }
                 }
@@ -173,6 +180,14 @@ fun MiruPlayNavigation(
             )
         }
     }
+}
+
+private suspend fun resumePositionFor(
+    episode: Episode,
+    progressRepository: ProgressRepository
+): Long {
+    val progress = progressRepository.getProgress(episode.id).getOrNull()
+    return episode.resumePosition(progress)
 }
 
 private suspend fun resolvePlayableUri(
