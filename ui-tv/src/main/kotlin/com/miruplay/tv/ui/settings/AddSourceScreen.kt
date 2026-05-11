@@ -5,6 +5,7 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -30,6 +31,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Delete
@@ -51,8 +53,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -66,6 +71,7 @@ import androidx.tv.material3.Text
 import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.ui.components.OverscanContainer
 import com.miruplay.tv.ui.components.TvButton
 import com.miruplay.tv.ui.components.TvTextField
@@ -79,12 +85,51 @@ import com.miruplay.tv.ui.theme.TextPrimary
 import com.miruplay.tv.ui.theme.TextSecondary
 import com.miruplay.tv.ui.theme.TvTypography
 import com.miruplay.tv.ui.theme.WarningYellow
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.EncodeHintType
+import com.google.zxing.common.BitMatrix
+import com.google.zxing.qrcode.QRCodeWriter
+import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 private const val DEFAULT_LOCAL_PATH = "/storage/emulated/0/Download"
+private const val QR_CODE_MATRIX_SIZE = 96
+
+private enum class SettingsSection(
+    val title: String,
+    val description: String,
+    val icon: ImageVector
+) {
+    WEB_UI(
+        title = "WebUI",
+        description = "访问地址与二维码",
+        icon = Icons.Filled.WifiTethering
+    ),
+    SOURCES(
+        title = "媒体源",
+        description = "本地、WebDAV、SMB",
+        icon = Icons.Filled.Storage
+    ),
+    AUTOMATION(
+        title = "CloudDrive",
+        description = "RSS 离线下载与入库",
+        icon = Icons.Filled.Cloud
+    ),
+    SCAN(
+        title = "扫描",
+        description = "媒体库更新策略",
+        icon = Icons.Filled.Refresh
+    ),
+    METADATA(
+        title = "元数据",
+        description = "Bangumi Token",
+        icon = Icons.Filled.Key
+    )
+}
+
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun AddSourceScreen(
@@ -97,34 +142,41 @@ fun AddSourceScreen(
     val autoScanEnabled by viewModel.autoScanEnabled.collectAsStateWithLifecycle()
     val autoScanIntervalHours by viewModel.autoScanIntervalHours.collectAsStateWithLifecycle()
     val lastScanAt by viewModel.lastScanAt.collectAsStateWithLifecycle()
+    val webUiUrls by viewModel.webUiUrls.collectAsStateWithLifecycle()
+    val cloudDriveConfig by viewModel.cloudDriveConfig.collectAsStateWithLifecycle()
+    val rssSubscriptions by viewModel.rssSubscriptions.collectAsStateWithLifecycle()
+    val cloudDriveTokenConfigured by viewModel.cloudDriveTokenConfigured.collectAsStateWithLifecycle()
+    val cloudDriveBusy by viewModel.cloudDriveBusy.collectAsStateWithLifecycle()
+    val cloudDriveActionMessage by viewModel.cloudDriveActionMessage.collectAsStateWithLifecycle()
 
+    var selectedSection by remember { mutableStateOf(SettingsSection.WEB_UI) }
+    var editingSourceId by remember { mutableStateOf<Long?>(null) }
     var selectedType by remember { mutableStateOf(MediaSourceType.LOCAL) }
-    var name by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf(sourceNameOrDefault("", MediaSourceType.LOCAL)) }
     var location by remember { mutableStateOf(DEFAULT_LOCAL_PATH) }
     var locationDisplayName by remember { mutableStateOf("Download") }
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var tokenInput by remember { mutableStateOf("") }
     var tokenSaved by remember { mutableStateOf(false) }
+    var selectedWebUiUrl by remember { mutableStateOf("") }
+    var cloudEndpoint by remember { mutableStateOf("") }
+    var cloudUsername by remember { mutableStateOf("") }
+    var cloudPassword by remember { mutableStateOf("") }
+    var cloudInboxPath by remember { mutableStateOf("") }
+    var cloudLibraryPath by remember { mutableStateOf("") }
+    var cloudIntervalMinutes by remember { mutableStateOf("30") }
+    var cloudEnabled by remember { mutableStateOf(false) }
+    var cloudWebDavSourceId by remember { mutableStateOf<Long?>(null) }
+    var rssName by remember { mutableStateOf("") }
+    var rssUrl by remember { mutableStateOf("") }
+    var rssFilterRegex by remember { mutableStateOf("") }
+    var rssEnabled by remember { mutableStateOf(true) }
 
-    val firstFieldRequester = remember { FocusRequester() }
+    val menuFocusRequester = remember { FocusRequester() }
 
     LaunchedEffect(Unit) {
-        firstFieldRequester.requestFocus()
-    }
-
-    LaunchedEffect(selectedType) {
-        viewModel.clearTestResult()
-        if (name.isBlank()) {
-            name = when (selectedType) {
-                MediaSourceType.LOCAL -> "本地下载"
-                MediaSourceType.WEBDAV -> "WebDAV 媒体库"
-                MediaSourceType.SMB -> "SMB 共享"
-            }
-        }
-        if (selectedType == MediaSourceType.LOCAL && location.isBlank()) {
-            location = DEFAULT_LOCAL_PATH
-        }
+        menuFocusRequester.requestFocus()
     }
 
     LaunchedEffect(tokenSaved) {
@@ -132,6 +184,67 @@ fun AddSourceScreen(
             delay(1800)
             tokenSaved = false
         }
+    }
+
+    LaunchedEffect(webUiUrls) {
+        if (selectedWebUiUrl !in webUiUrls) {
+            selectedWebUiUrl = webUiUrls.firstOrNull().orEmpty()
+        }
+    }
+
+    LaunchedEffect(cloudDriveConfig) {
+        cloudEndpoint = cloudDriveConfig.endpointUrl
+        cloudUsername = cloudDriveConfig.username
+        cloudInboxPath = cloudDriveConfig.inboxPath
+        cloudLibraryPath = cloudDriveConfig.libraryPath
+        cloudIntervalMinutes = cloudDriveConfig.intervalMinutes.toString()
+        cloudEnabled = cloudDriveConfig.enabled
+        cloudWebDavSourceId = cloudDriveConfig.webDavSourceId
+    }
+
+    fun resetSourceForm(type: MediaSourceType = selectedType) {
+        editingSourceId = null
+        selectedType = type
+        name = sourceNameOrDefault("", type)
+        location = defaultLocationFor(type)
+        locationDisplayName = if (type == MediaSourceType.LOCAL) "Download" else ""
+        username = ""
+        password = ""
+        viewModel.clearTestResult()
+    }
+
+    fun loadSourceForEdit(source: MediaSourceInfo) {
+        editingSourceId = source.id
+        selectedSection = SettingsSection.SOURCES
+        selectedType = source.type
+        name = source.name.ifBlank { sourceNameOrDefault("", source.type) }
+        location = source.locationValue()
+        locationDisplayName = source.connectionInfo["displayName"]
+            ?: if (source.type == MediaSourceType.LOCAL) displayNameForTreeUri(Uri.parse(location)) else ""
+        username = source.connectionInfo["username"].orEmpty()
+        password = ""
+        viewModel.clearTestResult()
+    }
+
+    fun saveSourceForm() {
+        val source = MediaSourceInfo(
+            id = editingSourceId ?: 0L,
+            name = sourceNameOrDefault(name, selectedType),
+            type = selectedType,
+            connectionInfo = sourceConnectionInfo(
+                type = selectedType,
+                location = location,
+                displayName = locationDisplayName,
+                username = username,
+                password = password
+            )
+        )
+        if (editingSourceId == null) {
+            viewModel.addSource(source)
+        } else {
+            viewModel.updateSource(source)
+        }
+        resetSourceForm()
     }
 
     OverscanContainer {
@@ -144,107 +257,154 @@ fun AddSourceScreen(
                 modifier = Modifier.fillMaxSize(),
                 horizontalArrangement = Arrangement.spacedBy(24.dp)
             ) {
-                SourceListPanel(
-                    sources = sources,
-                    onDelete = viewModel::removeSource,
+                SettingsMenuPanel(
+                    selectedSection = selectedSection,
+                    sourcesCount = sources.size,
+                    webUiAddressCount = webUiUrls.size,
+                    autoScanEnabled = autoScanEnabled,
+                    cloudDriveEnabled = cloudEnabled,
+                    rssCount = rssSubscriptions.size,
+                    hasToken = savedToken.isNotBlank() || tokenSaved,
+                    firstItemRequester = menuFocusRequester,
+                    onSectionSelected = { selectedSection = it },
                     modifier = Modifier
-                        .weight(0.42f)
+                        .width(300.dp)
                         .fillMaxHeight()
                 )
 
-                Column(
-                    modifier = Modifier
-                        .weight(0.58f)
-                        .fillMaxHeight()
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(18.dp)
-                ) {
-                    SourceFormPanel(
-                        selectedType = selectedType,
-                        onTypeSelected = { type ->
-                            if (type != selectedType) {
-                                selectedType = type
-                                name = sourceNameOrDefault("", type)
-                                location = defaultLocationFor(type)
-                                locationDisplayName = if (type == MediaSourceType.LOCAL) "Download" else ""
-                                username = ""
-                                password = ""
-                                viewModel.clearTestResult()
-                            }
-                        },
-                        name = name,
-                        onNameChange = { name = it },
-                        location = location,
-                        onLocationChange = { location = it },
-                        locationDisplayName = locationDisplayName,
-                        onLocalFolderSelected = { uri, displayName ->
-                            location = uri.toString()
-                            locationDisplayName = displayName
-                            if (name.isBlank() || name == "本地下载") {
-                                name = displayName.ifBlank { "本地媒体库" }
-                            }
-                            viewModel.clearTestResult()
-                        },
-                        username = username,
-                        onUsernameChange = { username = it },
-                        password = password,
-                        onPasswordChange = { password = it },
-                        testResult = testResult,
-                        firstFieldRequester = firstFieldRequester,
-                        onTestConnection = {
-                            viewModel.testConnection(selectedType, location, username, password)
-                        },
-                        onSave = {
-                            viewModel.addSource(
-                                MediaSourceInfo(
-                                    name = sourceNameOrDefault(name, selectedType),
-                                    type = selectedType,
-                                    connectionInfo = sourceConnectionInfo(
-                                        type = selectedType,
-                                        location = location,
-                                        displayName = locationDisplayName,
-                                        username = username,
-                                        password = password
-                                    )
-                                )
-                            )
-                            name = ""
-                            location = if (selectedType == MediaSourceType.LOCAL) DEFAULT_LOCAL_PATH else ""
-                            locationDisplayName = if (selectedType == MediaSourceType.LOCAL) "Download" else ""
+                SettingsContent(
+                    selectedSection = selectedSection,
+                    sources = sources,
+                    selectedSourceId = editingSourceId,
+                    onSelectSource = ::loadSourceForEdit,
+                    onDeleteSource = { sourceId ->
+                        viewModel.removeSource(sourceId)
+                        if (editingSourceId == sourceId) {
+                            resetSourceForm()
+                        }
+                    },
+                    selectedType = selectedType,
+                    onTypeSelected = { type ->
+                        if (type != selectedType) {
+                            editingSourceId = null
+                            selectedType = type
+                            name = sourceNameOrDefault("", type)
+                            location = defaultLocationFor(type)
+                            locationDisplayName = if (type == MediaSourceType.LOCAL) "Download" else ""
                             username = ""
                             password = ""
                             viewModel.clearTestResult()
                         }
-                    )
-
-                    ScanPanel(
-                        autoScanEnabled = autoScanEnabled,
-                        autoScanIntervalHours = autoScanIntervalHours,
-                        lastScanAt = lastScanAt,
-                        onToggleAutoScan = { viewModel.setAutoScanEnabled(!autoScanEnabled) },
-                        onIntervalSelected = viewModel::setAutoScanIntervalHours
-                    )
-
-                    MetadataPanel(
-                        savedToken = savedToken,
-                        tokenInput = tokenInput,
-                        tokenSaved = tokenSaved,
-                        onTokenChange = { tokenInput = it },
-                        onSaveToken = {
-                            val token = tokenInput.trim()
-                            if (token.isNotBlank()) {
-                                viewModel.saveBangumiToken(token)
-                                tokenInput = ""
-                                tokenSaved = true
-                            }
-                        },
-                        onClearToken = {
-                            viewModel.clearBangumiToken()
-                            tokenInput = ""
-                            tokenSaved = false
+                    },
+                    name = name,
+                    onNameChange = { name = it },
+                    location = location,
+                    onLocationChange = { location = it },
+                    locationDisplayName = locationDisplayName,
+                    onLocalFolderSelected = { uri, displayName ->
+                        location = uri.toString()
+                        locationDisplayName = displayName
+                        if (name.isBlank() || name == "本地下载") {
+                            name = displayName.ifBlank { "本地媒体库" }
                         }
-                    )
-                }
+                        viewModel.clearTestResult()
+                    },
+                    username = username,
+                    onUsernameChange = { username = it },
+                    password = password,
+                    onPasswordChange = { password = it },
+                    testResult = testResult,
+                    isEditingSource = editingSourceId != null,
+                    onNewSource = { resetSourceForm() },
+                    onTestConnection = {
+                        viewModel.testConnection(selectedType, location, username, password)
+                    },
+                    onSaveSource = ::saveSourceForm,
+                    autoScanEnabled = autoScanEnabled,
+                    autoScanIntervalHours = autoScanIntervalHours,
+                    lastScanAt = lastScanAt,
+                    onToggleAutoScan = { viewModel.setAutoScanEnabled(!autoScanEnabled) },
+                    onIntervalSelected = viewModel::setAutoScanIntervalHours,
+                    savedToken = savedToken,
+                    tokenInput = tokenInput,
+                    tokenSaved = tokenSaved,
+                    onTokenChange = { tokenInput = it },
+                    onSaveToken = {
+                        val token = tokenInput.trim()
+                        if (token.isNotBlank()) {
+                            viewModel.saveBangumiToken(token)
+                            tokenInput = ""
+                            tokenSaved = true
+                        }
+                    },
+                    onClearToken = {
+                        viewModel.clearBangumiToken()
+                        tokenInput = ""
+                        tokenSaved = false
+                    },
+                    webUiUrls = webUiUrls,
+                    selectedWebUiUrl = selectedWebUiUrl,
+                    onWebUiUrlSelected = { selectedWebUiUrl = it },
+                    onRefreshWebUiUrls = viewModel::refreshWebUiUrls,
+                    cloudEndpoint = cloudEndpoint,
+                    onCloudEndpointChange = { cloudEndpoint = it },
+                    cloudUsername = cloudUsername,
+                    onCloudUsernameChange = { cloudUsername = it },
+                    cloudPassword = cloudPassword,
+                    onCloudPasswordChange = { cloudPassword = it },
+                    cloudInboxPath = cloudInboxPath,
+                    onCloudInboxPathChange = { cloudInboxPath = it },
+                    cloudLibraryPath = cloudLibraryPath,
+                    onCloudLibraryPathChange = { cloudLibraryPath = it },
+                    cloudIntervalMinutes = cloudIntervalMinutes,
+                    onCloudIntervalMinutesChange = { cloudIntervalMinutes = it.filter(Char::isDigit).take(4) },
+                    cloudEnabled = cloudEnabled,
+                    onToggleCloudEnabled = { cloudEnabled = !cloudEnabled },
+                    cloudWebDavSourceId = cloudWebDavSourceId,
+                    onCloudWebDavSourceSelected = { cloudWebDavSourceId = it },
+                    cloudDriveTokenConfigured = cloudDriveTokenConfigured,
+                    cloudDriveBusy = cloudDriveBusy,
+                    cloudDriveActionMessage = cloudDriveActionMessage,
+                    rssSubscriptions = rssSubscriptions,
+                    rssName = rssName,
+                    onRssNameChange = { rssName = it },
+                    rssUrl = rssUrl,
+                    onRssUrlChange = { rssUrl = it },
+                    rssFilterRegex = rssFilterRegex,
+                    onRssFilterRegexChange = { rssFilterRegex = it },
+                    rssEnabled = rssEnabled,
+                    onToggleRssEnabled = { rssEnabled = !rssEnabled },
+                    onSaveCloudConfig = {
+                        viewModel.saveCloudDriveConfig(
+                            endpointUrl = cloudEndpoint,
+                            username = cloudUsername,
+                            webDavSourceId = cloudWebDavSourceId,
+                            inboxPath = cloudInboxPath,
+                            libraryPath = cloudLibraryPath,
+                            intervalMinutes = cloudIntervalMinutes.toIntOrNull() ?: 30,
+                            enabled = cloudEnabled
+                        )
+                    },
+                    onLoginCloudDrive = {
+                        viewModel.loginCloudDrive(cloudEndpoint, cloudUsername, cloudPassword)
+                        cloudPassword = ""
+                    },
+                    onRunCloudDriveNow = viewModel::runCloudDriveNow,
+                    onAddRssSubscription = {
+                        viewModel.addRssSubscription(rssName, rssUrl, rssFilterRegex, rssEnabled)
+                        if (rssUrl.isNotBlank()) {
+                            rssName = ""
+                            rssUrl = ""
+                            rssFilterRegex = ""
+                            rssEnabled = true
+                        }
+                    },
+                    onToggleRssSubscription = viewModel::setRssSubscriptionEnabled,
+                    onDeleteRssSubscription = viewModel::deleteRssSubscription,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                )
             }
         }
     }
@@ -265,7 +425,7 @@ private fun SettingsHeader(onNavigateBack: () -> Unit) {
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "管理媒体源和元数据服务",
+                text = "管理媒体源、WebUI 和元数据服务",
                 style = TvTypography.body,
                 color = TextSecondary
             )
@@ -275,8 +435,369 @@ private fun SettingsHeader(onNavigateBack: () -> Unit) {
 }
 
 @Composable
+private fun SettingsMenuPanel(
+    selectedSection: SettingsSection,
+    sourcesCount: Int,
+    webUiAddressCount: Int,
+    autoScanEnabled: Boolean,
+    cloudDriveEnabled: Boolean,
+    rssCount: Int,
+    hasToken: Boolean,
+    firstItemRequester: FocusRequester,
+    onSectionSelected: (SettingsSection) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    SettingsPanel(modifier = modifier) {
+        Text(
+            text = "设置菜单",
+            style = TvTypography.subtitle,
+            color = TextPrimary
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = "按上下切换分类，向右进入当前设置。",
+            style = TvTypography.caption,
+            color = TextSecondary
+        )
+        Spacer(Modifier.height(18.dp))
+
+        SettingsSection.entries.forEachIndexed { index, section ->
+            val summary = when (section) {
+                SettingsSection.WEB_UI -> if (webUiAddressCount > 0) "${webUiAddressCount} 个地址" else "等待网络"
+                SettingsSection.SOURCES -> "${sourcesCount} 个源"
+                SettingsSection.AUTOMATION -> if (cloudDriveEnabled) "${rssCount} 个订阅" else "未启用"
+                SettingsSection.SCAN -> if (autoScanEnabled) "定时已开" else "定时关闭"
+                SettingsSection.METADATA -> if (hasToken) "Token 已设置" else "未设置"
+            }
+            SettingsMenuItem(
+                section = section,
+                summary = summary,
+                selected = section == selectedSection,
+                onClick = { onSectionSelected(section) },
+                modifier = if (index == 0) Modifier.focusRequester(firstItemRequester) else Modifier
+            )
+            if (index != SettingsSection.entries.lastIndex) {
+                Spacer(Modifier.height(10.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsMenuItem(
+    section: SettingsSection,
+    summary: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val borderColor = when {
+        isFocused -> FocusBorder
+        selected -> AnimeRed
+        else -> Color.White.copy(alpha = 0.12f)
+    }
+    val background = when {
+        isFocused -> AccentBlue
+        selected -> AnimeRed.copy(alpha = 0.18f)
+        else -> DarkSurface
+    }
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(76.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(background)
+            .border(if (selected || isFocused) 2.dp else 1.dp, borderColor, RoundedCornerShape(8.dp))
+            .onFocusChanged { state ->
+                if (state.isFocused) onClick()
+            }
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            )
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = section.icon,
+            contentDescription = null,
+            tint = if (selected) AnimeRed else TextSecondary,
+            modifier = Modifier.size(28.dp)
+        )
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = section.title,
+                style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
+                color = TextPrimary,
+                maxLines = 1
+            )
+            Text(
+                text = summary,
+                style = TvTypography.caption,
+                color = if (selected) TextPrimary.copy(alpha = 0.78f) else TextSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingsContent(
+    selectedSection: SettingsSection,
+    sources: List<MediaSourceInfo>,
+    selectedSourceId: Long?,
+    onSelectSource: (MediaSourceInfo) -> Unit,
+    onDeleteSource: (Long) -> Unit,
+    selectedType: MediaSourceType,
+    onTypeSelected: (MediaSourceType) -> Unit,
+    name: String,
+    onNameChange: (String) -> Unit,
+    location: String,
+    onLocationChange: (String) -> Unit,
+    locationDisplayName: String,
+    onLocalFolderSelected: (Uri, String) -> Unit,
+    username: String,
+    onUsernameChange: (String) -> Unit,
+    password: String,
+    onPasswordChange: (String) -> Unit,
+    testResult: ConnectionTestResult?,
+    isEditingSource: Boolean,
+    onNewSource: () -> Unit,
+    onTestConnection: () -> Unit,
+    onSaveSource: () -> Unit,
+    autoScanEnabled: Boolean,
+    autoScanIntervalHours: Int,
+    lastScanAt: Long,
+    onToggleAutoScan: () -> Unit,
+    onIntervalSelected: (Int) -> Unit,
+    savedToken: String,
+    tokenInput: String,
+    tokenSaved: Boolean,
+    onTokenChange: (String) -> Unit,
+    onSaveToken: () -> Unit,
+    onClearToken: () -> Unit,
+    webUiUrls: List<String>,
+    selectedWebUiUrl: String,
+    onWebUiUrlSelected: (String) -> Unit,
+    onRefreshWebUiUrls: () -> Unit,
+    cloudEndpoint: String,
+    onCloudEndpointChange: (String) -> Unit,
+    cloudUsername: String,
+    onCloudUsernameChange: (String) -> Unit,
+    cloudPassword: String,
+    onCloudPasswordChange: (String) -> Unit,
+    cloudInboxPath: String,
+    onCloudInboxPathChange: (String) -> Unit,
+    cloudLibraryPath: String,
+    onCloudLibraryPathChange: (String) -> Unit,
+    cloudIntervalMinutes: String,
+    onCloudIntervalMinutesChange: (String) -> Unit,
+    cloudEnabled: Boolean,
+    onToggleCloudEnabled: () -> Unit,
+    cloudWebDavSourceId: Long?,
+    onCloudWebDavSourceSelected: (Long?) -> Unit,
+    cloudDriveTokenConfigured: Boolean,
+    cloudDriveBusy: Boolean,
+    cloudDriveActionMessage: String?,
+    rssSubscriptions: List<RssSubscriptionInfo>,
+    rssName: String,
+    onRssNameChange: (String) -> Unit,
+    rssUrl: String,
+    onRssUrlChange: (String) -> Unit,
+    rssFilterRegex: String,
+    onRssFilterRegexChange: (String) -> Unit,
+    rssEnabled: Boolean,
+    onToggleRssEnabled: () -> Unit,
+    onSaveCloudConfig: () -> Unit,
+    onLoginCloudDrive: () -> Unit,
+    onRunCloudDriveNow: () -> Unit,
+    onAddRssSubscription: () -> Unit,
+    onToggleRssSubscription: (RssSubscriptionInfo, Boolean) -> Unit,
+    onDeleteRssSubscription: (Long) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    when (selectedSection) {
+        SettingsSection.WEB_UI -> SettingsSingleSectionPage(
+            section = selectedSection,
+            modifier = modifier
+        ) {
+            WebUiPanel(
+                urls = webUiUrls,
+                selectedUrl = selectedWebUiUrl,
+                onUrlSelected = onWebUiUrlSelected,
+                onRefresh = onRefreshWebUiUrls
+            )
+        }
+
+        SettingsSection.SOURCES -> Row(
+            modifier = modifier,
+            horizontalArrangement = Arrangement.spacedBy(18.dp)
+        ) {
+            SourceListPanel(
+                sources = sources,
+                selectedSourceId = selectedSourceId,
+                onSelect = onSelectSource,
+                onDelete = onDeleteSource,
+                modifier = Modifier
+                    .weight(0.46f)
+                    .fillMaxHeight()
+            )
+            Column(
+                modifier = Modifier
+                    .weight(0.54f)
+                    .fillMaxHeight()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(18.dp)
+            ) {
+                SettingsSectionHeader(section = selectedSection)
+                SourceFormPanel(
+                    selectedType = selectedType,
+                    onTypeSelected = onTypeSelected,
+                    name = name,
+                    onNameChange = onNameChange,
+                    location = location,
+                    onLocationChange = onLocationChange,
+                    locationDisplayName = locationDisplayName,
+                    onLocalFolderSelected = onLocalFolderSelected,
+                    username = username,
+                    onUsernameChange = onUsernameChange,
+                    password = password,
+                    onPasswordChange = onPasswordChange,
+                    testResult = testResult,
+                    isEditing = isEditingSource,
+                    onNewSource = onNewSource,
+                    onTestConnection = onTestConnection,
+                    onSave = onSaveSource
+                )
+            }
+        }
+
+        SettingsSection.AUTOMATION -> SettingsSingleSectionPage(
+            section = selectedSection,
+            modifier = modifier
+        ) {
+            CloudDriveAutomationPanel(
+                sources = sources,
+                endpoint = cloudEndpoint,
+                onEndpointChange = onCloudEndpointChange,
+                username = cloudUsername,
+                onUsernameChange = onCloudUsernameChange,
+                password = cloudPassword,
+                onPasswordChange = onCloudPasswordChange,
+                inboxPath = cloudInboxPath,
+                onInboxPathChange = onCloudInboxPathChange,
+                libraryPath = cloudLibraryPath,
+                onLibraryPathChange = onCloudLibraryPathChange,
+                intervalMinutes = cloudIntervalMinutes,
+                onIntervalMinutesChange = onCloudIntervalMinutesChange,
+                enabled = cloudEnabled,
+                onToggleEnabled = onToggleCloudEnabled,
+                selectedWebDavSourceId = cloudWebDavSourceId,
+                onWebDavSourceSelected = onCloudWebDavSourceSelected,
+                tokenConfigured = cloudDriveTokenConfigured,
+                busy = cloudDriveBusy,
+                actionMessage = cloudDriveActionMessage,
+                onSave = onSaveCloudConfig,
+                onLogin = onLoginCloudDrive,
+                onRunNow = onRunCloudDriveNow
+            )
+            RssSubscriptionsPanel(
+                subscriptions = rssSubscriptions,
+                name = rssName,
+                onNameChange = onRssNameChange,
+                url = rssUrl,
+                onUrlChange = onRssUrlChange,
+                filterRegex = rssFilterRegex,
+                onFilterRegexChange = onRssFilterRegexChange,
+                enabled = rssEnabled,
+                onToggleEnabled = onToggleRssEnabled,
+                onAdd = onAddRssSubscription,
+                onToggleSubscription = onToggleRssSubscription,
+                onDelete = onDeleteRssSubscription
+            )
+        }
+
+        SettingsSection.SCAN -> SettingsSingleSectionPage(
+            section = selectedSection,
+            modifier = modifier
+        ) {
+            ScanPanel(
+                autoScanEnabled = autoScanEnabled,
+                autoScanIntervalHours = autoScanIntervalHours,
+                lastScanAt = lastScanAt,
+                onToggleAutoScan = onToggleAutoScan,
+                onIntervalSelected = onIntervalSelected
+            )
+        }
+
+        SettingsSection.METADATA -> SettingsSingleSectionPage(
+            section = selectedSection,
+            modifier = modifier
+        ) {
+            MetadataPanel(
+                savedToken = savedToken,
+                tokenInput = tokenInput,
+                tokenSaved = tokenSaved,
+                onTokenChange = onTokenChange,
+                onSaveToken = onSaveToken,
+                onClearToken = onClearToken
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingsSingleSectionPage(
+    section: SettingsSection,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column(
+        modifier = modifier.verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(18.dp)
+    ) {
+        SettingsSectionHeader(section = section)
+        content()
+    }
+}
+
+@Composable
+private fun SettingsSectionHeader(section: SettingsSection) {
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = section.icon,
+                contentDescription = null,
+                tint = TextPrimary,
+                modifier = Modifier.size(30.dp)
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(
+                text = section.title,
+                style = TvTypography.title,
+                color = TextPrimary
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = section.description,
+            style = TvTypography.body,
+            color = TextSecondary
+        )
+    }
+}
+
+@Composable
 private fun SourceListPanel(
     sources: List<MediaSourceInfo>,
+    selectedSourceId: Long?,
+    onSelect: (MediaSourceInfo) -> Unit,
     onDelete: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -314,7 +835,12 @@ private fun SourceListPanel(
                 modifier = Modifier.fillMaxSize()
             ) {
                 items(sources, key = { it.id }) { source ->
-                    SourceListItem(source = source, onDelete = { onDelete(source.id) })
+                    SourceListItem(
+                        source = source,
+                        selected = source.id == selectedSourceId,
+                        onSelect = { onSelect(source) },
+                        onDelete = { onDelete(source.id) }
+                    )
                 }
             }
         }
@@ -350,26 +876,38 @@ private fun EmptySourceHint() {
 @Composable
 private fun SourceListItem(
     source: MediaSourceInfo,
+    selected: Boolean,
+    onSelect: () -> Unit,
     onDelete: () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
     val location = source.connectionInfo["url"] ?: source.connectionInfo["path"] ?: ""
+    val background = when {
+        isFocused -> AccentBlue
+        selected -> AnimeRed.copy(alpha = 0.18f)
+        else -> DarkSurface
+    }
+    val borderColor = when {
+        isFocused -> FocusBorder
+        selected -> AnimeRed
+        else -> Color.White.copy(alpha = 0.12f)
+    }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .background(if (isFocused) AccentBlue else DarkSurface)
+            .background(background)
             .border(
-                width = if (isFocused) 2.dp else 1.dp,
-                color = if (isFocused) FocusBorder else Color.White.copy(alpha = 0.12f),
+                width = if (isFocused || selected) 2.dp else 1.dp,
+                color = borderColor,
                 shape = RoundedCornerShape(8.dp)
             )
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
-                onClick = {}
+                onClick = onSelect
             )
             .padding(14.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -405,12 +943,600 @@ private fun SourceListItem(
                 )
             }
         }
-        TvButton(
-            text = "删除",
-            icon = Icons.Filled.Delete,
-            onClick = onDelete,
-            modifier = Modifier.width(128.dp)
+        SourceDeleteButton(onClick = onDelete)
+    }
+}
+
+@Composable
+private fun SourceDeleteButton(onClick: () -> Unit) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+
+    Box(
+        modifier = Modifier
+            .size(58.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (isFocused) AnimeRed else AnimeRed.copy(alpha = 0.72f))
+            .border(
+                width = if (isFocused) 2.dp else 1.dp,
+                color = if (isFocused) FocusBorder else Color.White.copy(alpha = 0.18f),
+                shape = RoundedCornerShape(8.dp)
+            )
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Delete,
+            contentDescription = "删除",
+            tint = Color.White,
+            modifier = Modifier.size(28.dp)
         )
+    }
+}
+
+@Composable
+private fun WebUiPanel(
+    urls: List<String>,
+    selectedUrl: String,
+    onUrlSelected: (String) -> Unit,
+    onRefresh: () -> Unit
+) {
+    val activeUrl = selectedUrl.ifBlank { urls.firstOrNull().orEmpty() }
+
+    SettingsPanel {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Filled.WifiTethering,
+                contentDescription = null,
+                tint = TextPrimary,
+                modifier = Modifier.size(26.dp)
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(text = "WebUI 访问", style = TvTypography.subtitle, color = TextPrimary)
+        }
+
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = "手机或电脑与电视在同一局域网时，可以打开下面的地址管理媒体源和遥控播放。",
+            style = TvTypography.body,
+            color = TextSecondary
+        )
+
+        if (urls.isEmpty()) {
+            StatusMessage(
+                icon = Icons.Filled.Refresh,
+                text = "暂未检测到局域网地址，请确认电视已连接网络后刷新。",
+                color = WarningYellow
+            )
+            Spacer(Modifier.height(12.dp))
+            TvButton(
+                text = "刷新地址",
+                icon = Icons.Filled.Refresh,
+                onClick = onRefresh,
+                modifier = Modifier.width(150.dp)
+            )
+        } else {
+            Spacer(Modifier.height(16.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(18.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "可用地址",
+                        style = TvTypography.caption,
+                        color = TextSecondary
+                    )
+                    urls.forEachIndexed { index, url ->
+                        WebUiMenuItem(
+                            url = url,
+                            label = if (index == 0) "主地址" else "备用地址",
+                            selected = url == activeUrl,
+                            onClick = { onUrlSelected(url) }
+                        )
+                    }
+                    TvButton(
+                        text = "刷新地址",
+                        icon = Icons.Filled.Refresh,
+                        onClick = onRefresh,
+                        modifier = Modifier.width(150.dp)
+                    )
+                }
+
+                Column(
+                    modifier = Modifier.width(168.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    WebUiQrCode(
+                        content = activeUrl,
+                        modifier = Modifier.size(156.dp)
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "扫码打开",
+                        style = TvTypography.caption,
+                        color = TextSecondary,
+                        maxLines = 1
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WebUiMenuItem(
+    url: String,
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val borderColor = when {
+        isFocused -> FocusBorder
+        selected -> AnimeRed
+        else -> Color.White.copy(alpha = 0.12f)
+    }
+    val background = when {
+        selected -> AnimeRed.copy(alpha = 0.18f)
+        isFocused -> AccentBlue
+        else -> DarkSurface
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(62.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(background)
+            .border(if (selected || isFocused) 2.dp else 1.dp, borderColor, RoundedCornerShape(8.dp))
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            )
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Filled.WifiTethering,
+            contentDescription = null,
+            tint = if (selected) AnimeRed else TextSecondary,
+            modifier = Modifier.size(24.dp)
+        )
+        Spacer(Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = label,
+                style = TvTypography.caption,
+                color = if (selected) AnimeRed else TextSecondary,
+                maxLines = 1
+            )
+            Text(
+                text = url,
+                style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
+                color = TextPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun WebUiQrCode(
+    content: String,
+    modifier: Modifier = Modifier
+) {
+    val matrix = remember(content) { createQrCodeMatrix(content) }
+
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color.White)
+            .padding(10.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        if (matrix != null) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val cellSize = minOf(size.width / matrix.width, size.height / matrix.height)
+                val qrWidth = cellSize * matrix.width
+                val qrHeight = cellSize * matrix.height
+                val offsetX = (size.width - qrWidth) / 2f
+                val offsetY = (size.height - qrHeight) / 2f
+
+                for (y in 0 until matrix.height) {
+                    for (x in 0 until matrix.width) {
+                        if (matrix.get(x, y)) {
+                            drawRect(
+                                color = Color.Black,
+                                topLeft = Offset(
+                                    x = offsetX + x * cellSize,
+                                    y = offsetY + y * cellSize
+                                ),
+                                size = Size(cellSize, cellSize)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CloudDriveAutomationPanel(
+    sources: List<MediaSourceInfo>,
+    endpoint: String,
+    onEndpointChange: (String) -> Unit,
+    username: String,
+    onUsernameChange: (String) -> Unit,
+    password: String,
+    onPasswordChange: (String) -> Unit,
+    inboxPath: String,
+    onInboxPathChange: (String) -> Unit,
+    libraryPath: String,
+    onLibraryPathChange: (String) -> Unit,
+    intervalMinutes: String,
+    onIntervalMinutesChange: (String) -> Unit,
+    enabled: Boolean,
+    onToggleEnabled: () -> Unit,
+    selectedWebDavSourceId: Long?,
+    onWebDavSourceSelected: (Long?) -> Unit,
+    tokenConfigured: Boolean,
+    busy: Boolean,
+    actionMessage: String?,
+    onSave: () -> Unit,
+    onLogin: () -> Unit,
+    onRunNow: () -> Unit
+) {
+    val webDavSources = sources.filter { it.type == MediaSourceType.WEBDAV }
+
+    SettingsPanel {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Filled.Cloud,
+                contentDescription = null,
+                tint = TextPrimary,
+                modifier = Modifier.size(26.dp)
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(text = "CloudDrive2", style = TvTypography.subtitle, color = TextPrimary)
+        }
+
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = "RSS 会提交到 CloudDrive2 离线下载目录，整理后触发所选 WebDAV 媒体源扫描。",
+            style = TvTypography.body,
+            color = TextSecondary
+        )
+
+        Spacer(Modifier.height(16.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ScanOptionChip(
+                text = if (enabled) "定时已开" else "定时关闭",
+                icon = Icons.Filled.Refresh,
+                selected = enabled,
+                enabled = true,
+                onClick = onToggleEnabled,
+                modifier = Modifier.width(150.dp)
+            )
+            ScanOptionChip(
+                text = if (tokenConfigured) "已登录" else "未登录",
+                icon = Icons.Filled.CheckCircle,
+                selected = tokenConfigured,
+                enabled = false,
+                onClick = {},
+                modifier = Modifier.width(130.dp)
+            )
+        }
+
+        Spacer(Modifier.height(14.dp))
+        TvTextField(
+            value = endpoint,
+            onValueChange = onEndpointChange,
+            label = "CloudDrive2 地址",
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            TvTextField(
+                value = username,
+                onValueChange = onUsernameChange,
+                label = "账号",
+                modifier = Modifier.weight(1f)
+            )
+            TvTextField(
+                value = password,
+                onValueChange = onPasswordChange,
+                label = "密码",
+                isPassword = true,
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            TvTextField(
+                value = inboxPath,
+                onValueChange = onInboxPathChange,
+                label = "下载目录 A",
+                modifier = Modifier.weight(1f)
+            )
+            TvTextField(
+                value = libraryPath,
+                onValueChange = onLibraryPathChange,
+                label = "整理目录 B",
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        Spacer(Modifier.height(12.dp))
+        TvTextField(
+            value = intervalMinutes,
+            onValueChange = onIntervalMinutesChange,
+            label = "定时间隔（分钟）",
+            modifier = Modifier.width(220.dp)
+        )
+
+        Spacer(Modifier.height(16.dp))
+        CloudDriveWebDavSourceSelector(
+            sources = webDavSources,
+            selectedSourceId = selectedWebDavSourceId,
+            onSelected = onWebDavSourceSelected
+        )
+
+        Spacer(Modifier.height(18.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            TvButton(
+                text = "保存",
+                icon = Icons.Filled.Save,
+                enabled = endpoint.isNotBlank(),
+                onClick = onSave
+            )
+            TvButton(
+                text = if (busy) "处理中" else "登录",
+                icon = Icons.Filled.Key,
+                enabled = !busy && endpoint.isNotBlank() && username.isNotBlank() && password.isNotBlank(),
+                onClick = onLogin
+            )
+            TvButton(
+                text = if (busy) "执行中" else "立即执行",
+                icon = Icons.Filled.Refresh,
+                enabled = !busy && tokenConfigured,
+                onClick = onRunNow
+            )
+        }
+
+        StatusMessage(
+            icon = if (tokenConfigured) Icons.Filled.CheckCircle else Icons.Filled.Cloud,
+            text = if (tokenConfigured) "CloudDrive2 令牌已保存在加密存储中。" else "登录后才能提交离线下载任务。",
+            color = if (tokenConfigured) ProgressGreen else TextSecondary
+        )
+        if (!actionMessage.isNullOrBlank()) {
+            StatusMessage(
+                icon = Icons.Filled.Refresh,
+                text = actionMessage,
+                color = if ("失败" in actionMessage || "请" in actionMessage) WarningYellow else ProgressGreen
+            )
+        }
+    }
+}
+
+@Composable
+private fun CloudDriveWebDavSourceSelector(
+    sources: List<MediaSourceInfo>,
+    selectedSourceId: Long?,
+    onSelected: (Long?) -> Unit
+) {
+    Column {
+        Text(
+            text = "入库后扫描的 WebDAV 媒体源",
+            style = TvTypography.caption,
+            color = TextSecondary
+        )
+        Spacer(Modifier.height(8.dp))
+        if (sources.isEmpty()) {
+            StatusMessage(
+                icon = Icons.Filled.Storage,
+                text = "还没有 WebDAV 媒体源，请先在媒体源里添加 CloudDrive WebDAV 地址。",
+                color = WarningYellow
+            )
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                CloudDriveWebDavSourceChip(
+                    text = "暂不扫描",
+                    selected = selectedSourceId == null,
+                    onClick = { onSelected(null) },
+                    modifier = Modifier.width(130.dp)
+                )
+                sources.take(3).forEach { source ->
+                    CloudDriveWebDavSourceChip(
+                        text = source.name.ifBlank { source.connectionInfo["url"].orEmpty() },
+                        selected = source.id == selectedSourceId,
+                        onClick = { onSelected(source.id) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CloudDriveWebDavSourceChip(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    ScanOptionChip(
+        text = text,
+        selected = selected,
+        enabled = true,
+        onClick = onClick,
+        modifier = modifier
+    )
+}
+
+@Composable
+private fun RssSubscriptionsPanel(
+    subscriptions: List<RssSubscriptionInfo>,
+    name: String,
+    onNameChange: (String) -> Unit,
+    url: String,
+    onUrlChange: (String) -> Unit,
+    filterRegex: String,
+    onFilterRegexChange: (String) -> Unit,
+    enabled: Boolean,
+    onToggleEnabled: () -> Unit,
+    onAdd: () -> Unit,
+    onToggleSubscription: (RssSubscriptionInfo, Boolean) -> Unit,
+    onDelete: (Long) -> Unit
+) {
+    SettingsPanel {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Filled.Add,
+                contentDescription = null,
+                tint = TextPrimary,
+                modifier = Modifier.size(26.dp)
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(text = "RSS 订阅", style = TvTypography.subtitle, color = TextPrimary)
+        }
+
+        Spacer(Modifier.height(14.dp))
+        TvTextField(
+            value = name,
+            onValueChange = onNameChange,
+            label = "订阅名称",
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(12.dp))
+        TvTextField(
+            value = url,
+            onValueChange = onUrlChange,
+            label = "RSS 地址",
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(12.dp))
+        TvTextField(
+            value = filterRegex,
+            onValueChange = onFilterRegexChange,
+            label = "标题过滤正则（可选）",
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(Modifier.height(16.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ScanOptionChip(
+                text = if (enabled) "新增后启用" else "新增后停用",
+                selected = enabled,
+                enabled = true,
+                onClick = onToggleEnabled,
+                modifier = Modifier.width(150.dp)
+            )
+            TvButton(
+                text = "添加订阅",
+                icon = Icons.Filled.Add,
+                enabled = url.isNotBlank(),
+                onClick = onAdd
+            )
+        }
+
+        Spacer(Modifier.height(18.dp))
+        if (subscriptions.isEmpty()) {
+            Text(
+                text = "还没有 RSS 订阅。",
+                style = TvTypography.body,
+                color = TextSecondary
+            )
+        } else {
+            subscriptions.forEach { subscription ->
+                RssSubscriptionRow(
+                    subscription = subscription,
+                    onToggle = { onToggleSubscription(subscription, !subscription.enabled) },
+                    onDelete = { onDelete(subscription.id) }
+                )
+                Spacer(Modifier.height(10.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun RssSubscriptionRow(
+    subscription: RssSubscriptionInfo,
+    onToggle: () -> Unit,
+    onDelete: () -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val background = when {
+        isFocused -> AccentBlue
+        subscription.enabled -> DarkSurface
+        else -> DarkSurface.copy(alpha = 0.68f)
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(background)
+            .border(
+                width = if (isFocused) 2.dp else 1.dp,
+                color = if (isFocused) FocusBorder else Color.White.copy(alpha = 0.12f),
+                shape = RoundedCornerShape(8.dp)
+            )
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Cloud,
+            contentDescription = null,
+            tint = if (subscription.enabled) ProgressGreen else TextSecondary,
+            modifier = Modifier.size(26.dp)
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = subscription.name.ifBlank { subscription.url },
+                style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
+                color = TextPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = subscription.url,
+                style = TvTypography.caption,
+                color = TextSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = if (subscription.lastCheckedAt > 0) "上次检查 ${formatTimestamp(subscription.lastCheckedAt)}" else "尚未检查",
+                style = TvTypography.caption,
+                color = TextSecondary
+            )
+        }
+        TvButton(
+            text = if (subscription.enabled) "停用" else "启用",
+            icon = Icons.Filled.Refresh,
+            onClick = onToggle,
+            modifier = Modifier.width(112.dp)
+        )
+        SourceDeleteButton(onClick = onDelete)
     }
 }
 
@@ -429,7 +1555,8 @@ private fun SourceFormPanel(
     password: String,
     onPasswordChange: (String) -> Unit,
     testResult: ConnectionTestResult?,
-    firstFieldRequester: FocusRequester,
+    isEditing: Boolean,
+    onNewSource: () -> Unit,
     onTestConnection: () -> Unit,
     onSave: () -> Unit
 ) {
@@ -453,13 +1580,38 @@ private fun SourceFormPanel(
     }
 
     SettingsPanel {
-        Text(text = "添加媒体源", style = TvTypography.subtitle, color = TextPrimary)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (isEditing) "编辑媒体源" else "添加媒体源",
+                    style = TvTypography.subtitle,
+                    color = TextPrimary
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = if (isEditing) {
+                        "修改媒体库位置或凭据，保存后会覆盖当前配置。"
+                    } else {
+                        "选择媒体库所在位置，保存后可在首页手动扫描。"
+                    },
+                    style = TvTypography.body,
+                    color = TextSecondary
+                )
+            }
+            if (isEditing) {
+                TvButton(
+                    text = "新建",
+                    icon = Icons.Filled.Add,
+                    onClick = onNewSource,
+                    modifier = Modifier.width(128.dp)
+                )
+            }
+        }
         Spacer(Modifier.height(6.dp))
-        Text(
-            text = "选择媒体库所在位置，保存后可在首页手动扫描。",
-            style = TvTypography.body,
-            color = TextSecondary
-        )
 
         Spacer(Modifier.height(18.dp))
 
@@ -480,9 +1632,7 @@ private fun SourceFormPanel(
             value = name,
             onValueChange = onNameChange,
             label = "显示名称",
-            modifier = Modifier
-                .fillMaxWidth()
-                .focusRequester(firstFieldRequester)
+            modifier = Modifier.fillMaxWidth()
         )
 
         Spacer(Modifier.height(12.dp))
@@ -516,7 +1666,7 @@ private fun SourceFormPanel(
             TvTextField(
                 value = password,
                 onValueChange = onPasswordChange,
-                label = "密码（可选）",
+                label = if (isEditing) "密码（留空则保留）" else "密码（可选）",
                 isPassword = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -532,7 +1682,7 @@ private fun SourceFormPanel(
                 onClick = onTestConnection
             )
             TvButton(
-                text = "保存源",
+                text = if (isEditing) "更新源" else "保存源",
                 icon = Icons.Filled.Save,
                 enabled = location.isNotBlank(),
                 onClick = onSave
@@ -620,7 +1770,7 @@ private fun SourceTypeChip(
         else -> Color.White.copy(alpha = 0.12f)
     }
 
-    Row(
+    Column(
         modifier = modifier
             .height(72.dp)
             .clip(RoundedCornerShape(8.dp))
@@ -631,30 +1781,31 @@ private fun SourceTypeChip(
                 indication = null,
                 onClick = onClick
             )
-            .padding(horizontal = 14.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(horizontal = 10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
         Icon(
             imageVector = type.sourceIcon(),
             contentDescription = null,
             tint = if (selected) AnimeRed else TextSecondary,
-            modifier = Modifier.size(28.dp)
+            modifier = Modifier.size(24.dp)
         )
-        Spacer(Modifier.width(10.dp))
-        Column {
-            Text(
-                text = type.label(),
-                style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
-                color = TextPrimary,
-                maxLines = 1
-            )
-            Text(
-                text = type.hint(),
-                style = TvTypography.caption,
-                color = TextSecondary,
-                maxLines = 1
-            )
-        }
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = type.label(),
+            style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
+            color = TextPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            text = type.hint(),
+            style = TvTypography.caption,
+            color = TextSecondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
@@ -934,10 +2085,33 @@ private fun sourceConnectionInfo(
     if (password.isNotBlank()) put("password", password)
 }
 
+private fun createQrCodeMatrix(content: String): BitMatrix? {
+    if (content.isBlank()) return null
+    return runCatching {
+        QRCodeWriter().encode(
+            content,
+            BarcodeFormat.QR_CODE,
+            QR_CODE_MATRIX_SIZE,
+            QR_CODE_MATRIX_SIZE,
+            mapOf<EncodeHintType, Any>(
+                EncodeHintType.CHARACTER_SET to "UTF-8",
+                EncodeHintType.ERROR_CORRECTION to ErrorCorrectionLevel.M,
+                EncodeHintType.MARGIN to 1
+            )
+        )
+    }.getOrNull()
+}
+
+private fun MediaSourceInfo.locationValue(): String =
+    connectionInfo["uri"] ?: connectionInfo["url"] ?: connectionInfo["path"] ?: ""
+
 private fun formatLastScanAt(lastScanAt: Long): String {
     if (lastScanAt <= 0L) return "还没有扫描记录"
     return "上次扫描 " + SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(lastScanAt))
 }
+
+private fun formatTimestamp(timestamp: Long): String =
+    SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(timestamp))
 
 private fun MediaSourceType.label(): String = when (this) {
     MediaSourceType.LOCAL -> "本地"
