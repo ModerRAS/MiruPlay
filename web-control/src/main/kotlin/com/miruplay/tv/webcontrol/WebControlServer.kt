@@ -1,6 +1,7 @@
 package com.miruplay.tv.webcontrol
 
 import android.content.Context
+import com.miruplay.tv.core.common.WebControlConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
 import fi.iki.elonen.NanoHTTPD
 import kotlinx.coroutines.runBlocking
@@ -214,6 +215,6 @@ class WebControlServer @Inject constructor(
         URLDecoder.decode(segment, Charsets.UTF_8.name())
 
     companion object {
-        const val DEFAULT_PORT = 9978
+        const val DEFAULT_PORT = WebControlConfig.DEFAULT_PORT
     }
 }

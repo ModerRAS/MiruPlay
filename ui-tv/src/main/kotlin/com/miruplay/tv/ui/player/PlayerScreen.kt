@@ -104,6 +104,11 @@ fun PlayerScreen(
     val playerFocusRequester = remember { FocusRequester() }
     val title = remember(playbackSource) { playbackSource.displayTitle() }
     var openMenu by remember { mutableStateOf<PlayerMenu?>(null) }
+    val navigateBack = remember(onNavigateBack) {
+        {
+            viewModel.saveCurrentProgressAndNavigate(onNavigateBack)
+        }
+    }
 
     LaunchedEffect(playbackSource) {
         viewModel.play(playbackSource)
@@ -137,12 +142,17 @@ fun PlayerScreen(
                 handlePlayerKey(
                     event = event,
                     controlsVisible = controlsVisible,
+                    hasOpenMenu = openMenu != null,
                     viewModel = viewModel,
+                    onCloseMenu = {
+                        openMenu = null
+                        viewModel.showControls()
+                    },
                     onHideControls = {
                         openMenu = null
                         viewModel.hideControls()
                     },
-                    onNavigateBack = onNavigateBack
+                    onNavigateBack = navigateBack
                 )
             }
             .pointerInput(Unit) {
@@ -209,7 +219,7 @@ fun PlayerScreen(
                 subtitles = availableSubtitles,
                 audioTracks = availableAudioTracks,
                 playbackSpeed = playbackSpeed,
-                onBack = onNavigateBack,
+                onBack = navigateBack,
                 onTogglePlayback = {
                     viewModel.togglePlayback()
                     viewModel.showControls()
@@ -857,7 +867,9 @@ private enum class PlayerMenu {
 private fun handlePlayerKey(
     event: KeyEvent,
     controlsVisible: Boolean,
+    hasOpenMenu: Boolean,
     viewModel: PlayerViewModel,
+    onCloseMenu: () -> Unit,
     onHideControls: () -> Unit,
     onNavigateBack: () -> Unit
 ): Boolean {
@@ -878,7 +890,11 @@ private fun handlePlayerKey(
                 true
             }
             Key.Back -> {
-                onHideControls()
+                if (hasOpenMenu) {
+                    onCloseMenu()
+                } else {
+                    onHideControls()
+                }
                 true
             }
             else -> false
