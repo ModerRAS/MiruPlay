@@ -24,6 +24,7 @@ navigation-compose = "2.7.7"
 grpc = "1.81.0"
 protobuf = "3.25.9"
 protobuf-plugin = "0.9.6"
+onnxruntime = "1.25.1"
 
 [libraries]
 # === Compose ===
@@ -99,6 +100,7 @@ jcifs-ng = { group = "eu.agno3.jcifs", name = "jcifs-ng", version.ref = "jcifs-n
 
 # === QR Code ===
 zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
+onnxruntime-android = { group = "com.microsoft.onnxruntime", name = "onnxruntime-android", version.ref = "onnxruntime" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

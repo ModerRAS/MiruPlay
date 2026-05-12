@@ -1,5 +1,8 @@
 package com.miruplay.tv.scanner
 
+import com.miruplay.tv.model.FilenameMetadataParser
+import com.miruplay.tv.model.FilenameParseResult
+
 /**
  * Classifies video paths into a stable show id/title, season number, and episode number.
  *
@@ -8,7 +11,8 @@ package com.miruplay.tv.scanner
  * stay under one library entry.
  */
 class VideoDirectoryClassifier(
-    private val episodeDetector: EpisodeDetector
+    private val episodeDetector: EpisodeDetector,
+    private val filenameMetadataParser: FilenameMetadataParser? = null
 ) {
     fun classifyVideo(path: String, fileName: String): VideoClassification {
         val release = ReleaseFilenameParser.parse(fileName)
@@ -20,39 +24,57 @@ class VideoDirectoryClassifier(
         }
         val seasonFolder = findSeasonFolder(parentSegments)
         val detectorMatch = episodeDetector.detectEpisode(fileName)
+        var parsedFilename: FilenameParseResult? = null
+
+        fun parsed(): FilenameParseResult? {
+            val parser = filenameMetadataParser ?: return null
+            if (parsedFilename == null) {
+                parsedFilename = runCatching {
+                    parser.parse(stripVideoExtension(fileName))
+                }.getOrNull()
+            }
+            return parsedFilename
+        }
 
         if (release != null) {
-            val season = release.seasonNumber ?: seasonFolder?.seasonNumber ?: 1
+            val parsed = if (
+                release.seriesName.isBlank() ||
+                release.seasonNumber == null ||
+                release.episodeNumber == null
+            ) {
+                parsed()
+            } else {
+                null
+            }
+            val season = release.seasonNumber ?: parsed?.season ?: seasonFolder?.seasonNumber ?: 1
             return VideoClassification(
-                animeName = release.seriesName,
+                animeName = firstUsableName(release.seriesName, parsed?.title, detectorMatch?.animeName),
                 seasonNumber = season,
-                episodeNumber = release.episodeNumber ?: detectorMatch?.episodeNumber
+                episodeNumber = release.episodeNumber ?: parsed?.episode ?: detectorMatch?.episodeNumber
             )
         }
 
         if (seasonFolder != null) {
-            val animeName = parentSegments.getOrNull(seasonFolder.index - 1)
+            val folderName = parentSegments.getOrNull(seasonFolder.index - 1)
                 ?.let { splitSeriesAndSeason(it).seriesName }
-                ?.takeIf { it.isNotBlank() }
-                ?: detectorMatch?.animeName
-                ?: "Unknown"
+                .usableName()
+            val parsed = if (folderName == null || detectorMatch?.episodeNumber == null) parsed() else null
             return VideoClassification(
-                animeName = animeName,
+                animeName = firstUsableName(folderName, parsed?.title, detectorMatch?.animeName),
                 seasonNumber = seasonFolder.seasonNumber,
-                episodeNumber = detectorMatch?.episodeNumber
+                episodeNumber = detectorMatch?.episodeNumber ?: parsed?.episode
             )
         }
 
         val parentName = parentSegments.lastOrNull().orEmpty()
         val split = splitSeriesAndSeason(parentName)
-        val fallbackName = split.seriesName
-            .ifBlank { detectorMatch?.animeName.orEmpty() }
-            .ifBlank { "Unknown" }
+        val parsed = parsed()
+        val fallbackName = firstUsableName(parsed?.title, split.seriesName, detectorMatch?.animeName)
 
         return VideoClassification(
             animeName = fallbackName,
-            seasonNumber = split.seasonNumber ?: detectorMatch?.seasonNumber ?: 1,
-            episodeNumber = detectorMatch?.episodeNumber
+            seasonNumber = split.seasonNumber ?: parsed?.season ?: detectorMatch?.seasonNumber ?: 1,
+            episodeNumber = parsed?.episode ?: detectorMatch?.episodeNumber
         )
     }
 
@@ -118,9 +140,23 @@ class VideoDirectoryClassifier(
             .map { it.trim() }
             .filter { it.isNotBlank() }
 
+    private fun firstUsableName(vararg candidates: String?): String =
+        candidates.firstNotNullOfOrNull { it.usableName() } ?: "Unknown"
+
+    private fun String?.usableName(): String? =
+        this
+            ?.replace(Regex("""[._]+"""), " ")
+            ?.replace(Regex("""\s+"""), " ")
+            ?.trim()
+            ?.takeIf { it.isNotBlank() && !it.equals("Unknown", ignoreCase = true) }
+
+    private fun stripVideoExtension(fileName: String): String =
+        fileName.replace(videoExtensionRegex, "")
+
     private data class SeasonFolder(val index: Int, val seasonNumber: Int)
 
     companion object {
+        private val videoExtensionRegex = Regex("""(?i)\.(mkv|mp4|avi|mov|wmv|flv|webm|m4v|mpg|mpeg|ts|m2ts)$""")
         private val seasonFolderPatterns = listOf(
             Regex("""(?i)season\s*(\d{1,2})"""),
             Regex("""(?i)s(\d{1,2})"""),

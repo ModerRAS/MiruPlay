@@ -12,6 +12,8 @@ import com.miruplay.tv.mediasource.MediaSource
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
+import com.miruplay.tv.model.FilenameMetadataParser
+import com.miruplay.tv.model.FilenameParseResult
 import com.miruplay.tv.model.MediaCapabilities
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
@@ -51,7 +53,8 @@ class ScanCoordinatorTest {
             mediaRepository = SingleSourceRepository(sourceInfo),
             mediaSourceFactory = SingleMediaSourceFactory(mediaSource),
             indexRepository = indexRepository,
-            metadataRepository = metadataRepository
+            metadataRepository = metadataRepository,
+            filenameMetadataParser = EmptyFilenameMetadataParser
         )
 
         val result = coordinator.scanSource(sourceInfo.id)
@@ -101,7 +104,8 @@ class ScanCoordinatorTest {
                 mediaRepository = SingleSourceRepository(sourceInfo),
                 mediaSourceFactory = SingleMediaSourceFactory(mediaSource),
                 indexRepository = indexRepository,
-                metadataRepository = metadataRepository
+                metadataRepository = metadataRepository,
+                filenameMetadataParser = EmptyFilenameMetadataParser
             )
 
             val result = coordinator.scanSource(sourceInfo.id)
@@ -117,6 +121,56 @@ class ScanCoordinatorTest {
         } finally {
             root.deleteRecursively()
         }
+    }
+
+    @Test
+    fun `scanSource uses filename parser result for indexed anime and episode`() = runBlocking {
+        val sourceInfo = MediaSourceInfo(
+            id = 11L,
+            name = "WebDAV",
+            type = MediaSourceType.WEBDAV,
+            connectionInfo = mapOf("url" to "http://example.test/dav")
+        )
+        val mediaSource = FakeMediaSource(
+            listings = mapOf(
+                "" to listOf(
+                    FileEntry(name = "raw", path = "/raw", isDirectory = true)
+                ),
+                "/raw" to listOf(
+                    FileEntry(
+                        name = "weird-upload-name.mkv",
+                        path = "/raw/weird-upload-name.mkv",
+                        isDirectory = false,
+                        size = 1234
+                    )
+                )
+            )
+        )
+        val indexRepository = RecordingIndexRepository()
+        val metadataRepository = RecordingMetadataRepository()
+        val coordinator = ScanCoordinator(
+            mediaRepository = SingleSourceRepository(sourceInfo),
+            mediaSourceFactory = SingleMediaSourceFactory(mediaSource),
+            indexRepository = indexRepository,
+            metadataRepository = metadataRepository,
+            filenameMetadataParser = StaticFilenameParser(
+                FilenameParseResult(
+                    title = "葬送的芙莉莲",
+                    season = 2,
+                    episode = 3
+                )
+            )
+        )
+
+        val result = coordinator.scanSource(sourceInfo.id)
+
+        assertTrue("Scan should succeed", result.isSuccess())
+        assertEquals("葬送的芙莉莲", indexRepository.entries.single().animeName)
+        assertEquals(2, indexRepository.entries.single().seasonNumber)
+        assertEquals(3, indexRepository.entries.single().episodeNumber)
+        assertEquals("葬送的芙莉莲", metadataRepository.episodes.single().animeId)
+        assertEquals(2, metadataRepository.episodes.single().seasonNumber)
+        assertEquals(3, metadataRepository.episodes.single().episodeNumber)
     }
 
     private class SingleSourceRepository(
@@ -194,5 +248,15 @@ class ScanCoordinatorTest {
 
         override suspend fun testConnection(): Result<Boolean> = Result.success(true)
         override suspend fun close() = Unit
+    }
+
+    private object EmptyFilenameMetadataParser : FilenameMetadataParser {
+        override fun parse(filename: String, maxLength: Int): FilenameParseResult = FilenameParseResult()
+    }
+
+    private class StaticFilenameParser(
+        private val result: FilenameParseResult
+    ) : FilenameMetadataParser {
+        override fun parse(filename: String, maxLength: Int): FilenameParseResult = result
     }
 }

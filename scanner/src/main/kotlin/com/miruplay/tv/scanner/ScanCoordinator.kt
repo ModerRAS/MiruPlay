@@ -13,6 +13,7 @@ import com.miruplay.tv.metadata.XmlNfoWriter
 import com.miruplay.tv.metadata.XmlNfoParser
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
+import com.miruplay.tv.model.FilenameMetadataParser
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.NfoMetadata
@@ -40,6 +41,7 @@ class ScanCoordinator @Inject constructor(
     private val mediaSourceFactory: MediaSourceFactory,
     private val indexRepository: IndexRepository,
     private val metadataRepository: MetadataRepository,
+    private val filenameMetadataParser: FilenameMetadataParser,
     private val metadataScrapers: Set<@JvmSuppressWildcards MetadataScraper> = emptySet()
 ) {
     private val generatedNfoWriter = XmlNfoWriter(NfoWriteOptions(createBackup = false))
@@ -95,7 +97,7 @@ class ScanCoordinator @Inject constructor(
 
         // Single recursive traversal: build index + parse NFOs
         val detector = DefaultEpisodeDetector()
-        val classifier = VideoDirectoryClassifier(detector)
+        val classifier = VideoDirectoryClassifier(detector, filenameMetadataParser)
         val indexEntities = mutableListOf<IndexRepositoryEntity>()
         var totalFiles = 0
         var newEpisodes = 0

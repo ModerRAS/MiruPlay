@@ -1,5 +1,7 @@
 package com.miruplay.tv.scanner
 
+import com.miruplay.tv.model.FilenameMetadataParser
+import com.miruplay.tv.model.FilenameParseResult
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -68,5 +70,34 @@ class VideoDirectoryClassifierTest {
     fun `should not false-match 第二 that is not a season marker`() {
         val result = splitSeriesAndSeason("我和班上第二可愛的女生成為朋友")
         assertNull(result.seasonNumber)
+    }
+
+    @Test
+    fun `uses filename parser when release heuristics cannot identify show`() {
+        val classifier = VideoDirectoryClassifier(
+            episodeDetector = DefaultEpisodeDetector(),
+            filenameMetadataParser = StaticFilenameParser(
+                FilenameParseResult(
+                    title = "葬送的芙莉莲",
+                    season = 2,
+                    episode = 3
+                )
+            )
+        )
+
+        val result = classifier.classifyVideo(
+            path = "/downloads/raw/weird-upload-name.mkv",
+            fileName = "weird-upload-name.mkv"
+        )
+
+        assertEquals("葬送的芙莉莲", result.animeName)
+        assertEquals(2, result.seasonNumber)
+        assertEquals(3, result.episodeNumber)
+    }
+
+    private class StaticFilenameParser(
+        private val result: FilenameParseResult
+    ) : FilenameMetadataParser {
+        override fun parse(filename: String, maxLength: Int): FilenameParseResult = result
     }
 }

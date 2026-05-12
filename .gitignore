@@ -43,3 +43,7 @@ tmp/
 # Frontend dependencies
 node_modules/
 web-control/frontend/dist/
+
+# Python tooling
+__pycache__/
+*.pyc

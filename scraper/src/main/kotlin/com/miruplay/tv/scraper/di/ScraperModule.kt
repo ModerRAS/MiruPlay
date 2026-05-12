@@ -3,6 +3,8 @@ package com.miruplay.tv.scraper.di
 import com.miruplay.tv.scraper.AniListScraper
 import com.miruplay.tv.scraper.BangumiScraper
 import com.miruplay.tv.scraper.MetadataScraper
+import com.miruplay.tv.scraper.filename.AnimeFilenameParser
+import com.miruplay.tv.model.FilenameMetadataParser
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -23,4 +25,8 @@ object ScraperModule {
     @Singleton
     @IntoSet
     fun provideAniListScraper(scraper: AniListScraper): MetadataScraper = scraper
+
+    @Provides
+    @Singleton
+    fun provideFilenameMetadataParser(parser: AnimeFilenameParser): FilenameMetadataParser = parser
 }

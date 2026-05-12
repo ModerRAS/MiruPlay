@@ -1,0 +1,12 @@
+{
+  "model_dir": "checkpoints\\final",
+  "output": "exports\\anime_filename_parser.onnx",
+  "max_length": 64,
+  "sample": "[ANi] 葬送的芙莉莲 S2 - 03 [1080P][WEB-DL]",
+  "logits_shape": [
+    1,
+    64,
+    15
+  ],
+  "max_abs_diff": 2.5033950805664062e-05
+}

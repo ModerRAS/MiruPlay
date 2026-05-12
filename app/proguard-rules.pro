@@ -40,6 +40,10 @@
 # SLF4J - jcifs-ng pulls slf4j-api without a binding implementation
 -dontwarn org.slf4j.impl.**
 
+# ONNX Runtime Android
+-keep class ai.onnxruntime.** { *; }
+-dontwarn ai.onnxruntime.**
+
 # Keep annotation classes
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile

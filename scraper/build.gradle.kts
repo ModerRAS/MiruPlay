@@ -27,6 +27,7 @@ dependencies {
     implementation(libs.okhttp.logging.interceptor)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.onnxruntime.android)
     implementation(libs.dagger.hilt.android)
     ksp(libs.dagger.hilt.compiler)
     testImplementation(libs.junit)
