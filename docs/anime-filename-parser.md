@@ -1,12 +1,13 @@
-# BERT 文件名解析与扫描接入
+# BERT 文件名解析与扫描/整理接入
 
-这份文档解释 MiruPlay 里的 BERT 文件名解析器怎么训练、怎么导出到 Android、以及它在现有扫描刮削流程里的位置。
+这份文档解释 MiruPlay 里的 BERT 文件名解析器怎么训练、怎么导出到 Android、以及它在现有扫描、刮削和 CloudDrive 自动整理流程里的位置。
 
 ## 一句话结论
 
 - 扫描器会看完整路径，但 BERT 模型本身只解析视频文件名，不解析文件夹名。
 - 文件夹名仍由规则逻辑处理，用来识别番剧目录、Season 目录和 NFO 归属。
 - 文件名先走已有规则，再按需调用 BERT/ONNX 补全 title、season、episode。
+- CloudDrive RSS 自动整理也接入同一套分类器，移动文件前会先把下载文件识别成番剧名、季、集。
 - 解析结果进入索引表后，再继续走现有 Bangumi 元数据刮削和缓存流程。
 
 ## 目录和产物
@@ -21,6 +22,7 @@
 | Android 运行时 | `scraper/src/main/kotlin/com/miruplay/tv/scraper/filename/AnimeFilenameParser.kt` | ONNX Runtime 推理、分词、BIO 后处理 |
 | 公共接口 | `core/model/src/main/kotlin/com/miruplay/tv/model/FilenameMetadataParser.kt` | scanner 只依赖这个接口 |
 | 扫描接入 | `scanner/src/main/kotlin/com/miruplay/tv/scanner/ScanCoordinator.kt` | 创建分类器并传入 parser |
+| 自动整理接入 | `sync-engine/src/main/kotlin/com/miruplay/tv/sync/rss/CloudDriveLibraryOrganizer.kt` | RSS 下载后移动文件前使用同一 parser |
 | 分类规则 | `scanner/src/main/kotlin/com/miruplay/tv/scanner/VideoDirectoryClassifier.kt` | 合并文件夹规则、文件名规则和 BERT 结果 |
 
 Android 运行需要这三个 assets：
@@ -42,6 +44,21 @@ MediaSource
        -> BERT 文件名解析补全
   -> IndexRepository
   -> MetadataRepository
+  -> BangumiScraper
+```
+
+## CloudDrive 整理数据流
+
+```text
+CloudDrive RSS offline download
+  -> CloudDriveLibraryOrganizer
+       -> VideoDirectoryClassifier
+            -> 文件夹/路径规则
+            -> 文件名规则
+            -> BERT 文件名解析补全
+       -> moveFiles 到 <整理目录>/<番剧名>/Season <季数>/
+  -> ScanCoordinator
+  -> IndexRepository
   -> BangumiScraper
 ```
 
