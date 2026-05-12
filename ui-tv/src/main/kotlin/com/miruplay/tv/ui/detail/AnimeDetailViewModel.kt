@@ -3,12 +3,17 @@ package com.miruplay.tv.ui.detail
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.data.preferences.ScanPreferencesManager
+import com.miruplay.tv.data.repository.IndexRepository
+import com.miruplay.tv.data.repository.MediaRepository
 import com.miruplay.tv.data.repository.MetadataRepository
 import com.miruplay.tv.data.repository.ProgressRepository
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.Season
+import com.miruplay.tv.model.mergeAnimeGroupForDisplay
+import com.miruplay.tv.model.sameAnimeGroupFor
 import com.miruplay.tv.scraper.MetadataScraper
 import com.miruplay.tv.sync.BangumiSyncEngine
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -20,9 +25,12 @@ import javax.inject.Inject
 
 @HiltViewModel
 class AnimeDetailViewModel @Inject constructor(
+    private val mediaRepository: MediaRepository,
     private val metadataRepository: MetadataRepository,
+    private val indexRepository: IndexRepository,
     private val progressRepository: ProgressRepository,
     private val bangumiSyncEngine: BangumiSyncEngine,
+    private val scanPreferences: ScanPreferencesManager,
     private val metadataScrapers: Set<@JvmSuppressWildcards MetadataScraper>
 ) : ViewModel() {
 
@@ -53,34 +61,42 @@ class AnimeDetailViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
 
-            metadataRepository.getCachedMetadata(animeId).onSuccess { cached ->
-                if (cached != null) {
-                    _anime.value = cached
-                }
+            val cached = metadataRepository.getCachedMetadata(animeId).getOrNull()
+            val relatedAnime = if (scanPreferences.mergeSameAnimeEnabled && cached != null) {
+                loadRelatedAnime(cached)
+            } else {
+                listOfNotNull(cached)
+            }.ifEmpty {
+                listOfNotNull(cached)
             }
 
-            metadataRepository.getCachedEpisodes(animeId).onSuccess { epList ->
-                // Group episodes into seasons
-                val seasonMap = epList.groupBy { it.seasonNumber }
-                _seasons.value = seasonMap.map { (seasonNum, eps) ->
-                    Season(
-                        seasonNumber = seasonNum,
-                        title = "Season $seasonNum",
-                        episodes = eps,
-                        episodeCount = eps.size
+            val episodeAnimeIds = relatedAnime.map { it.id }.ifEmpty { listOf(animeId) }
+            val epList = episodeAnimeIds
+                .flatMap { id -> metadataRepository.getCachedEpisodes(id).getOrNull().orEmpty() }
+                .distinctBy { it.id }
+                .sortedWith(
+                    compareBy<Episode>(
+                        { it.seasonNumber },
+                        { it.episodeNumber },
+                        { it.filePath }
                     )
-                }
+                )
 
-                // Load progress for each episode
-                val withProgress = epList.map { episode ->
-                    val progress = progressRepository.getProgress(episode.id).getOrNull()
-                    Pair(episode, progress)
+            if (cached != null) {
+                val displayAnime = if (relatedAnime.size > 1) {
+                    relatedAnime.mergeAnimeGroupForDisplay().copy(id = animeId)
+                } else {
+                    cached
                 }
-                allEpisodesWithProgress = withProgress
-                // Apply current season filter
-                _episodesWithProgress.value = withProgress.filter { it.first.seasonNumber == _selectedSeason.value }
+                _anime.value = displayAnime.copy(
+                    episodeCount = maxOf(
+                        displayAnime.episodeCount,
+                        epList.distinctBy { it.seasonNumber to it.episodeNumber }.size
+                    )
+                )
             }
 
+            updateEpisodes(epList)
             _isLoading.value = false
         }
     }
@@ -89,6 +105,47 @@ class AnimeDetailViewModel @Inject constructor(
         _selectedSeason.value = seasonNumber
         // Filter from full list by season
         _episodesWithProgress.value = allEpisodesWithProgress.filter { it.first.seasonNumber == seasonNumber }
+    }
+
+    private suspend fun loadRelatedAnime(anchor: Anime): List<Anime> {
+        val sources = mediaRepository.getSources().getOrNull().orEmpty()
+        val candidates = mutableListOf(anchor)
+        for (source in sources) {
+            val names = indexRepository.getAnimeInIndex(source.id).getOrNull().orEmpty()
+            for (name in names) {
+                val cached = metadataRepository.getCachedMetadata(name).getOrNull() ?: continue
+                candidates += cached
+            }
+        }
+        return candidates
+            .distinctBy { it.id }
+            .sameAnimeGroupFor(anchor)
+    }
+
+    private suspend fun updateEpisodes(epList: List<Episode>) {
+        val seasonMap = epList.groupBy { it.seasonNumber }
+        _seasons.value = seasonMap.map { (seasonNum, eps) ->
+            Season(
+                seasonNumber = seasonNum,
+                title = "Season $seasonNum",
+                episodes = eps,
+                episodeCount = eps.size
+            )
+        }
+
+        val selectedSeason = if (seasonMap.containsKey(_selectedSeason.value)) {
+            _selectedSeason.value
+        } else {
+            seasonMap.keys.minOrNull() ?: 1
+        }
+        _selectedSeason.value = selectedSeason
+
+        val withProgress = epList.map { episode ->
+            val progress = progressRepository.getProgress(episode.id).getOrNull()
+            Pair(episode, progress)
+        }
+        allEpisodesWithProgress = withProgress
+        _episodesWithProgress.value = withProgress.filter { it.first.seasonNumber == selectedSeason }
     }
 
     fun rescrapeMetadata() {

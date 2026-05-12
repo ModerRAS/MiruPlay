@@ -84,4 +84,54 @@ class ModelSerializationTest {
         val episode = json.decodeFromString(Episode.serializer(), episodeJson)
         assertEquals(123456789L, episode.watchedPosition)
     }
+
+    @Test
+    fun `same anime display merge preserves first id and best metadata`() {
+        val localName = Anime(
+            id = "show-a",
+            title = "Local A",
+            titleCn = "葬送的芙莉莲",
+            episodeCount = 4,
+            bangumiId = 400602
+        )
+        val scrapedName = Anime(
+            id = "show-b",
+            title = "Sousou no Frieren",
+            titleCn = "葬送的芙莉莲",
+            summary = "A journey after the end.",
+            episodeCount = 28,
+            bangumiId = 400602,
+            posterUrl = "https://example.test/poster.jpg"
+        )
+
+        val merged = listOf(localName, scrapedName).mergeSameAnimeForDisplay()
+
+        assertEquals(1, merged.size)
+        assertEquals("show-a", merged.single().id)
+        assertEquals("https://example.test/poster.jpg", merged.single().posterUrl)
+        assertEquals(28, merged.single().episodeCount)
+    }
+
+    @Test
+    fun `different Bangumi ids are not merged by title fallback`() {
+        val firstSeason = Anime(
+            id = "s1",
+            title = "Example",
+            titleCn = "示例",
+            bangumiId = 1
+        )
+        val secondSeason = Anime(
+            id = "s2",
+            title = "Example",
+            titleCn = "示例",
+            bangumiId = 2
+        )
+        val localOnly = Anime(
+            id = "local",
+            title = "Example",
+            titleCn = "示例"
+        )
+
+        assertEquals(2, listOf(firstSeason, localOnly, secondSeason).mergeSameAnimeForDisplay().size)
+    }
 }

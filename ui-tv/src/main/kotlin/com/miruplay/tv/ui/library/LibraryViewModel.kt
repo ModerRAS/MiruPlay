@@ -14,6 +14,7 @@ import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.isCompleted
+import com.miruplay.tv.model.mergeSameAnimeForDisplay
 import com.miruplay.tv.scanner.ScanCoordinator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -151,17 +152,21 @@ class LibraryViewModel @Inject constructor(
 
         val continueWatching = loadContinueWatching()
         val allAnimeList = loadCachedAnime(sources)
-        val distinctAnime = allAnimeList.distinctBy { it.id }
+        val displayAnime = if (scanPreferences.mergeSameAnimeEnabled) {
+            allAnimeList.mergeSameAnimeForDisplay()
+        } else {
+            allAnimeList.distinctBy { it.id }
+        }
 
-        if (distinctAnime.isEmpty() && continueWatching.isEmpty()) {
+        if (displayAnime.isEmpty() && continueWatching.isEmpty()) {
             _state.value = LibraryUiState.HasSources
             return LibraryLoadSnapshot(hasSources = true, hasContent = false)
         }
 
         _state.value = LibraryUiState.HasContent(
             continueWatching = continueWatching,
-            recentlyAdded = distinctAnime.takeLast(10),
-            allAnime = distinctAnime
+            recentlyAdded = displayAnime.takeLast(10),
+            allAnime = displayAnime
         )
         return LibraryLoadSnapshot(hasSources = true, hasContent = true)
     }

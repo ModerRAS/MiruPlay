@@ -61,6 +61,9 @@ class SettingsViewModel @Inject constructor(
     private val _lastScanAt = MutableStateFlow(scanPreferences.lastScanAt)
     val lastScanAt: StateFlow<Long> = _lastScanAt.asStateFlow()
 
+    private val _mergeSameAnimeEnabled = MutableStateFlow(scanPreferences.mergeSameAnimeEnabled)
+    val mergeSameAnimeEnabled: StateFlow<Boolean> = _mergeSameAnimeEnabled.asStateFlow()
+
     private val _webUiUrls = MutableStateFlow<List<String>>(emptyList())
     val webUiUrls: StateFlow<List<String>> = _webUiUrls.asStateFlow()
 
@@ -364,6 +367,11 @@ class SettingsViewModel @Inject constructor(
     fun setAutoScanIntervalHours(hours: Int) {
         scanPreferences.autoScanIntervalMs = hours * MILLIS_PER_HOUR
         _autoScanIntervalHours.value = hours
+    }
+
+    fun setMergeSameAnimeEnabled(enabled: Boolean) {
+        scanPreferences.mergeSameAnimeEnabled = enabled
+        _mergeSameAnimeEnabled.value = enabled
     }
 
     fun refreshWebUiUrls() {

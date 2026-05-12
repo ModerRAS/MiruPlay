@@ -146,6 +146,7 @@ fun AddSourceScreen(
     val autoScanEnabled by viewModel.autoScanEnabled.collectAsStateWithLifecycle()
     val autoScanIntervalHours by viewModel.autoScanIntervalHours.collectAsStateWithLifecycle()
     val lastScanAt by viewModel.lastScanAt.collectAsStateWithLifecycle()
+    val mergeSameAnimeEnabled by viewModel.mergeSameAnimeEnabled.collectAsStateWithLifecycle()
     val webUiUrls by viewModel.webUiUrls.collectAsStateWithLifecycle()
     val cloudDriveConfig by viewModel.cloudDriveConfig.collectAsStateWithLifecycle()
     val rssSubscriptions by viewModel.rssSubscriptions.collectAsStateWithLifecycle()
@@ -274,6 +275,7 @@ fun AddSourceScreen(
                     sourcesCount = sources.size,
                     webUiAddressCount = webUiUrls.size,
                     autoScanEnabled = autoScanEnabled,
+                    mergeSameAnimeEnabled = mergeSameAnimeEnabled,
                     cloudDriveEnabled = cloudEnabled,
                     rssCount = rssSubscriptions.size,
                     hasToken = savedToken.isNotBlank() || tokenSaved,
@@ -337,6 +339,10 @@ fun AddSourceScreen(
                     lastScanAt = lastScanAt,
                     onToggleAutoScan = { viewModel.setAutoScanEnabled(!autoScanEnabled) },
                     onIntervalSelected = viewModel::setAutoScanIntervalHours,
+                    mergeSameAnimeEnabled = mergeSameAnimeEnabled,
+                    onToggleMergeSameAnime = {
+                        viewModel.setMergeSameAnimeEnabled(!mergeSameAnimeEnabled)
+                    },
                     savedToken = savedToken,
                     tokenInput = tokenInput,
                     tokenSaved = tokenSaved,
@@ -497,6 +503,7 @@ private fun SettingsMenuPanel(
     sourcesCount: Int,
     webUiAddressCount: Int,
     autoScanEnabled: Boolean,
+    mergeSameAnimeEnabled: Boolean,
     cloudDriveEnabled: Boolean,
     rssCount: Int,
     hasToken: Boolean,
@@ -523,7 +530,12 @@ private fun SettingsMenuPanel(
                 SettingsSection.WEB_UI -> if (webUiAddressCount > 0) "${webUiAddressCount} 个地址" else "等待网络"
                 SettingsSection.SOURCES -> "${sourcesCount} 个源"
                 SettingsSection.AUTOMATION -> if (cloudDriveEnabled) "${rssCount} 个订阅" else "未启用"
-                SettingsSection.SCAN -> if (autoScanEnabled) "定时已开" else "定时关闭"
+                SettingsSection.SCAN -> when {
+                    autoScanEnabled && mergeSameAnimeEnabled -> "定时 · 合并"
+                    autoScanEnabled -> "定时已开"
+                    mergeSameAnimeEnabled -> "同番合并"
+                    else -> "定时关闭"
+                }
                 SettingsSection.METADATA -> if (hasToken) "Token 已设置" else "未设置"
             }
             SettingsMenuItem(
@@ -633,6 +645,8 @@ private fun SettingsContent(
     lastScanAt: Long,
     onToggleAutoScan: () -> Unit,
     onIntervalSelected: (Int) -> Unit,
+    mergeSameAnimeEnabled: Boolean,
+    onToggleMergeSameAnime: () -> Unit,
     savedToken: String,
     tokenInput: String,
     tokenSaved: Boolean,
@@ -813,7 +827,9 @@ private fun SettingsContent(
                 autoScanIntervalHours = autoScanIntervalHours,
                 lastScanAt = lastScanAt,
                 onToggleAutoScan = onToggleAutoScan,
-                onIntervalSelected = onIntervalSelected
+                onIntervalSelected = onIntervalSelected,
+                mergeSameAnimeEnabled = mergeSameAnimeEnabled,
+                onToggleMergeSameAnime = onToggleMergeSameAnime
             )
         }
 
@@ -2116,7 +2132,9 @@ private fun ScanPanel(
     autoScanIntervalHours: Int,
     lastScanAt: Long,
     onToggleAutoScan: () -> Unit,
-    onIntervalSelected: (Int) -> Unit
+    onIntervalSelected: (Int) -> Unit,
+    mergeSameAnimeEnabled: Boolean,
+    onToggleMergeSameAnime: () -> Unit
 ) {
     SettingsPanel {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -2165,6 +2183,33 @@ private fun ScanPanel(
             icon = Icons.Filled.CheckCircle,
             text = "当前间隔 ${autoScanIntervalHours} 小时 · ${formatLastScanAt(lastScanAt)}",
             color = if (autoScanEnabled) ProgressGreen else TextSecondary
+        )
+
+        Spacer(Modifier.height(18.dp))
+        Text(
+            text = "媒体库显示",
+            style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
+            color = TextPrimary
+        )
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ScanOptionChip(
+                text = if (mergeSameAnimeEnabled) "同番合并" else "目录分开",
+                icon = Icons.Filled.Dns,
+                selected = mergeSameAnimeEnabled,
+                enabled = true,
+                onClick = onToggleMergeSameAnime,
+                modifier = Modifier.width(150.dp)
+            )
+        }
+        StatusMessage(
+            icon = Icons.Filled.CheckCircle,
+            text = if (mergeSameAnimeEnabled) {
+                "首页和详情会按 Bangumi ID 或标题合并同一番。"
+            } else {
+                "首页按扫描出的目录条目分别显示。"
+            },
+            color = if (mergeSameAnimeEnabled) ProgressGreen else TextSecondary
         )
     }
 }
