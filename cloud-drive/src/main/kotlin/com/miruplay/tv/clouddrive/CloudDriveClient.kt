@@ -4,13 +4,14 @@ import clouddrive.CloudDriveFileSrvGrpc
 import clouddrive.Clouddrive
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
-import io.grpc.ClientInterceptors
+import com.google.protobuf.ByteString
 import io.grpc.ManagedChannel
 import io.grpc.Metadata
 import io.grpc.okhttp.OkHttpChannelBuilder
 import io.grpc.stub.MetadataUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.net.URI
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -37,6 +38,8 @@ data class CloudDriveTokenInfo(
     val friendlyName: String,
     val allowList: Boolean,
     val allowCreateFolder: Boolean,
+    val allowCreateFile: Boolean,
+    val allowWrite: Boolean,
     val allowMove: Boolean,
     val allowAddOfflineDownload: Boolean
 )
@@ -45,6 +48,7 @@ interface CloudDriveClient {
     suspend fun login(endpointUrl: String, username: String, password: String): Result<CloudDriveLoginResult>
     suspend fun getApiTokenInfo(endpointUrl: String, token: String): Result<CloudDriveTokenInfo>
     suspend fun addOfflineFiles(endpoint: CloudDriveEndpoint, urls: List<String>, targetFolder: String): Result<Unit>
+    suspend fun uploadFile(endpoint: CloudDriveEndpoint, localFile: File, parentPath: String, remoteFileName: String): Result<String>
     suspend fun listFolder(endpoint: CloudDriveEndpoint, path: String, forceRefresh: Boolean = false): Result<List<CloudDriveFileInfo>>
     suspend fun createFolder(endpoint: CloudDriveEndpoint, parentPath: String, folderName: String): Result<Unit>
     suspend fun moveFiles(endpoint: CloudDriveEndpoint, paths: List<String>, destinationPath: String): Result<Unit>
@@ -81,6 +85,8 @@ class GrpcCloudDriveClient @Inject constructor() : CloudDriveClient {
                     friendlyName = response.friendlyName,
                     allowList = response.permissions.allowList,
                     allowCreateFolder = response.permissions.allowCreateFolder,
+                    allowCreateFile = response.permissions.allowCreateFile,
+                    allowWrite = response.permissions.allowWrite,
                     allowMove = response.permissions.allowMove,
                     allowAddOfflineDownload = response.permissions.allowAddOfflineDownload
                 )
@@ -100,6 +106,43 @@ class GrpcCloudDriveClient @Inject constructor() : CloudDriveClient {
                 .build()
         )
         response.asUnitResult("提交离线下载失败")
+    }
+
+    override suspend fun uploadFile(
+        endpoint: CloudDriveEndpoint,
+        localFile: File,
+        parentPath: String,
+        remoteFileName: String
+    ): Result<String> = withAuthenticatedStub(endpoint) { stub ->
+        if (!localFile.isFile) {
+            return@withAuthenticatedStub Result.failure(AppError.MediaSourceError.NotFound(localFile.absolutePath))
+        }
+        val normalizedParent = normalizeCloudPath(parentPath)
+        val response = stub.createFile(
+            Clouddrive.CreateFileRequest.newBuilder()
+                .setParentPath(normalizedParent)
+                .setFileName(remoteFileName)
+                .build()
+        )
+        val fileHandle = response.fileHandle
+        try {
+            val bytes = localFile.readBytes()
+            stub.writeToFile(
+                Clouddrive.WriteFileRequest.newBuilder()
+                    .setFileHandle(fileHandle)
+                    .setStartPos(0L)
+                    .setLength(bytes.size.toLong())
+                    .setBuffer(ByteString.copyFrom(bytes))
+                    .setCloseFile(true)
+                    .build()
+            )
+        } catch (e: Exception) {
+            runCatching {
+                stub.closeFile(Clouddrive.CloseFileRequest.newBuilder().setFileHandle(fileHandle).build())
+            }
+            throw e
+        }
+        Result.success(joinCloudPath(normalizedParent, remoteFileName))
     }
 
     override suspend fun listFolder(
@@ -163,18 +206,27 @@ class GrpcCloudDriveClient @Inject constructor() : CloudDriveClient {
     ): Result<T> {
         val token = endpoint.token?.takeIf { it.isNotBlank() }
             ?: return Result.failure(AppError.MediaSourceError.AuthenticationFailed("CloudDrive2"))
-        return withGrpc(endpoint.url) { channel ->
-            val metadata = Metadata().apply {
-                put(AUTHORIZATION_HEADER, "Bearer $token")
-            }
-            val intercepted = ClientInterceptors.intercept(
-                channel,
-                MetadataUtils.newAttachHeadersInterceptor(metadata)
-            )
-            val stub = CloudDriveFileSrvGrpc.newBlockingStub(intercepted)
-            block(stub)
+        val bearerResult = withAuthorization(endpoint.url, "Bearer $token", block)
+        return if (bearerResult.isUnauthenticated()) {
+            withAuthorization(endpoint.url, token, block)
+        } else {
+            bearerResult
         }
     }
+
+    private suspend fun <T> withAuthorization(
+        endpointUrl: String,
+        authorization: String,
+        block: (CloudDriveFileSrvGrpc.CloudDriveFileSrvBlockingStub) -> Result<T>
+    ): Result<T> =
+        withGrpc(endpointUrl) { channel ->
+            val metadata = Metadata().apply {
+                put(AUTHORIZATION_HEADER, authorization)
+            }
+            val stub = CloudDriveFileSrvGrpc.newBlockingStub(channel)
+                .withInterceptors(MetadataUtils.newAttachHeadersInterceptor(metadata))
+            block(stub)
+        }
 
     private suspend fun <T> withGrpc(
         endpointUrl: String,
@@ -216,6 +268,18 @@ class GrpcCloudDriveClient @Inject constructor() : CloudDriveClient {
             .build()
     }
 
+    private fun normalizeCloudPath(path: String): String {
+        val normalized = path.trim().replace('\\', '/').trimEnd('/')
+        return when {
+            normalized.isBlank() -> "/"
+            normalized.startsWith('/') -> normalized
+            else -> "/$normalized"
+        }
+    }
+
+    private fun joinCloudPath(parentPath: String, fileName: String): String =
+        "${normalizeCloudPath(parentPath).trimEnd('/')}/$fileName"
+
     private fun Clouddrive.FileOperationResult.asUnitResult(fallback: String): Result<Unit> =
         if (success) {
             Result.success(Unit)
@@ -223,8 +287,19 @@ class GrpcCloudDriveClient @Inject constructor() : CloudDriveClient {
             Result.failure(AppError.SyncError.WriteFailed("CloudDrive2", errorMessage.ifBlank { fallback }))
         }
 
+    private fun Result<*>.isUnauthenticated(): Boolean {
+        val error = (this as? Result.Error)?.error ?: return false
+        val detail = when (error) {
+            is AppError.NetworkError.ServerUnreachable -> error.url
+            is AppError.MediaSourceError.AuthenticationFailed -> error.source
+            else -> error.toString()
+        }
+        return detail.contains("UNAUTHENTICATED", ignoreCase = true) ||
+            detail.contains("Invalid auth token", ignoreCase = true)
+    }
+
     companion object {
         private val AUTHORIZATION_HEADER: Metadata.Key<String> =
-            Metadata.Key.of("authorization", Metadata.ASCII_STRING_MARSHALLER)
+            Metadata.Key.of("Authorization", Metadata.ASCII_STRING_MARSHALLER)
     }
 }

@@ -208,6 +208,8 @@ class WebControlService @Inject constructor(
             friendlyName = tokenInfo.friendlyName,
             allowList = tokenInfo.allowList,
             allowCreateFolder = tokenInfo.allowCreateFolder,
+            allowCreateFile = tokenInfo.allowCreateFile,
+            allowWrite = tokenInfo.allowWrite,
             allowMove = tokenInfo.allowMove,
             allowAddOfflineDownload = tokenInfo.allowAddOfflineDownload
         )

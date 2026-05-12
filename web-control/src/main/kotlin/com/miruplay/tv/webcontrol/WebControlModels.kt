@@ -129,6 +129,8 @@ data class CloudDriveTokenResponse(
     val friendlyName: String,
     val allowList: Boolean,
     val allowCreateFolder: Boolean,
+    val allowCreateFile: Boolean,
+    val allowWrite: Boolean,
     val allowMove: Boolean,
     val allowAddOfflineDownload: Boolean
 )
