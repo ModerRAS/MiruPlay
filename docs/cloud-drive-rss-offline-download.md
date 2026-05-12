@@ -1,14 +1,14 @@
 # CloudDrive2 RSS 离线下载与整理
 
-这份文档说明 MiruPlay 的 CloudDrive2 RSS 自动化流程：怎么拉 RSS、怎么把 torrent 交给 CloudDrive2/115 离线下载、下载后怎么整理到动漫库，以及扫描时文件名解析模型在哪里生效。
+这份文档说明 MiruPlay 的 CloudDrive2 RSS 自动化流程：怎么拉 RSS、怎么把 torrent 交给 CloudDrive2/115 离线下载、下载后怎么整理到动漫库，以及自动整理和扫描时文件名解析模型在哪里生效。
 
 ## 一句话结论
 
 - RSS 通过配置的 HTTP 代理拉取。
 - 普通直链或 magnet 会直接提交给 CloudDrive2 `AddOfflineFiles`。
 - `.torrent` 链接会先下载到本地缓存，再上传原始 torrent 到 CloudDrive2 隐藏暂存目录，同时从 torrent 内容解析出 magnet，并用 magnet 提交离线下载。
-- 下载完成后的文件先落到下载目录，再由整理器移动到动漫库目录。
-- 整理后会扫描配置的 WebDAV 媒体源；BERT/ONNX 文件名解析器只解析视频文件名，文件夹名用于番剧目录和 Season 兜底。
+- 下载完成后的文件先落到下载目录，再由整理器识别番剧名、季、集，并移动到动漫库目录。
+- 整理器和后续扫描都会接入 BERT/ONNX 文件名解析器；BERT 只解析视频文件名，文件夹名用于番剧目录和 Season 兜底。
 
 ## 当前测试配置
 
@@ -45,6 +45,8 @@ RSS subscription
        -> CloudDrive2 AddOfflineFiles
   -> CloudDriveLibraryOrganizer
        -> 扫描下载目录
+       -> VideoDirectoryClassifier
+       -> BERT/ONNX 文件名解析补全
        -> 移动视频到整理目录
   -> ScanCoordinator
        -> 扫描 WebDAV 媒体源
@@ -81,7 +83,13 @@ CloudDrive2/115 对直接提交上传后的 torrent 文件路径会返回类似 
 整理目录: /115open/影音/动漫
 ```
 
-整理器会递归下载目录，跳过隐藏目录和 `.trickplay` 目录，只处理视频扩展名文件。分类结果会决定目标路径：
+整理器会递归下载目录，跳过隐藏目录和 `.trickplay` 目录，只处理视频扩展名文件。每个视频都会调用同一套分类器：
+
+```kotlin
+classifier.classifyVideo(file.path, file.name)
+```
+
+分类器会结合目录规则、文件名规则和 BERT/ONNX 结果，得到番剧名、季数和集数。分类结果会决定目标路径：
 
 ```text
 /115open/影音/动漫/<番剧名>/Season <季数>/<文件名>
@@ -93,15 +101,15 @@ CloudDrive2/115 对直接提交上传后的 torrent 文件路径会返回类似 
 /115open/影音/动漫/百鬼夜行抄/Season 1/[ANi] 百鬼夜行抄 - 05 [1080P][Baha][WEB-DL][AAC AVC][CHT].mp4
 ```
 
-## 扫描识别
+## 整理与扫描识别
 
-整理后会触发 `ScanCoordinator.scanSource(webDavSourceId)`。扫描器处理视频时会调用：
+整理器和扫描器都会调用：
 
 ```kotlin
 classifier.classifyVideo(file.path, file.name)
 ```
 
-这里完整路径和文件名都会进入分类器，但职责不同：
+完整路径和文件名都会进入分类器，但职责不同：
 
 - 文件夹名：识别番剧目录、`Season 1` / `S02` / `第2季` 这类 Season 目录，以及文件名信息太少时的标题兜底。
 - 文件名：识别发布组、标题、季、集、清晰度、来源等；BERT/ONNX 的输入是去掉扩展名后的 `file.name`。

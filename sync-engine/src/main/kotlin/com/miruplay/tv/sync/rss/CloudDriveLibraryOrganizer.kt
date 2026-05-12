@@ -6,6 +6,7 @@ import com.miruplay.tv.clouddrive.CloudDriveEndpoint
 import com.miruplay.tv.clouddrive.CloudDriveFileInfo
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.model.FilenameMetadataParser
 import com.miruplay.tv.scanner.DefaultEpisodeDetector
 import com.miruplay.tv.scanner.VideoDirectoryClassifier
 import javax.inject.Inject
@@ -13,9 +14,10 @@ import javax.inject.Singleton
 
 @Singleton
 class CloudDriveLibraryOrganizer @Inject constructor(
-    private val cloudDriveClient: CloudDriveClient
+    private val cloudDriveClient: CloudDriveClient,
+    filenameMetadataParser: FilenameMetadataParser
 ) {
-    private val classifier = VideoDirectoryClassifier(DefaultEpisodeDetector())
+    private val classifier = VideoDirectoryClassifier(DefaultEpisodeDetector(), filenameMetadataParser)
 
     suspend fun organize(endpoint: CloudDriveEndpoint, inboxPath: String, libraryPath: String): Result<Int> {
         val inbox = CloudDrivePathPolicy.normalize(inboxPath)
