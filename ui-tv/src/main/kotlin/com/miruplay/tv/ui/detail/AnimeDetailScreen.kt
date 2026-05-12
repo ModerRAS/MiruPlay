@@ -1,5 +1,6 @@
 package com.miruplay.tv.ui.detail
 
+import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -425,10 +426,10 @@ private fun EpisodeListItem(
             )
             Spacer(Modifier.height(5.dp))
             Text(
-                text = episode.fileName.ifBlank { episode.filePath.substringAfterLast('/') },
+                text = episode.displayPath(),
                 color = TextSecondary,
                 fontSize = 12.sp,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
         }
@@ -461,6 +462,15 @@ private fun EpisodeListItem(
             }
         }
     }
+}
+
+private fun Episode.displayPath(): String {
+    val sourcePath = id
+        .takeIf { it.substringBefore(':').toLongOrNull() != null }
+        ?.substringAfter(':')
+        ?.takeIf { it.isNotBlank() }
+
+    return sourcePath ?: Uri.decode(filePath).ifBlank { fileName }
 }
 
 private fun continueButtonText(episodes: List<Pair<Episode, ProgressRecord?>>): String {
