@@ -3,6 +3,9 @@
 This folder is a normal MiruPlay subdirectory, not a Git submodule. It contains
 the Python training pipeline plus an ONNX export path for Android.
 
+For the full scanner integration notes, file-vs-folder behavior, and device
+test procedure, see [`../../docs/anime-filename-parser.md`](../../docs/anime-filename-parser.md).
+
 ## Export
 
 From `tools/anime_parser`:

@@ -66,6 +66,10 @@ MiruPlay/
 └── gradle/          # 依赖版本目录
 ```
 
+## 文档
+
+- [BERT 文件名解析与扫描接入](./docs/anime-filename-parser.md) — 训练产物、Android ONNX 运行时、扫描流程、文件夹/文件名职责、ADB 验证步骤
+
 ## 许可证
 
 [GNU General Public License v3.0](./LICENSE)

@@ -2,6 +2,10 @@
 
 A Tiny BERT-based model that parses anime filenames into structured metadata (title, season, episode, group, resolution, source, etc.).
 
+For the MiruPlay Android integration, scanner data flow, and ADB verification steps, see:
+
+- [`../../docs/anime-filename-parser.md`](../../docs/anime-filename-parser.md)
+
 **Model**: Tiny BERT (3.6M parameters, `hidden_size=256`, 4 layers, 8 heads)
 **Training**: Pure CPU, no GPU required
 **Data**: Synthetically generated (100K samples) using template filling with BIO label annotations
