@@ -311,10 +311,10 @@ class ScanCoordinator @Inject constructor(
                 if (!currentCoroutineContext().isActive) return
 
                 // Belt-and-suspenders: if file.path escapes root boundary, skip it
-                    if (rootPath != null && !isWithinRoot(file.path, rootPath)) {
-                        Log.w("ScanCoordinator", "Path escaped root boundary: ${file.path} (root=$rootPath), skipping")
-                        continue
-                    }
+                if (rootPath != null && !isWithinRoot(file.path, rootPath)) {
+                    Log.w("ScanCoordinator", "Path escaped root boundary: ${file.path} (root=$rootPath), skipping")
+                    continue
+                }
 
                 if (file.isDirectory) {
                     // Skip trickplay, hidden, and system directories
@@ -359,9 +359,17 @@ class ScanCoordinator @Inject constructor(
     }
 
     private fun isWithinRoot(path: String, rootPath: String): Boolean {
-        val root = rootPath.trimEnd('/')
-        return path == root || path.startsWith("$root/") || path.startsWith(root)
+        val root = normalizeLocalPath(rootPath)
+        val normalizedPath = try {
+            File(path).canonicalPath
+        } catch (e: Exception) {
+            path
+        }.let(::normalizeLocalPath)
+        return normalizedPath == root || normalizedPath.startsWith("$root/")
     }
+
+    private fun normalizeLocalPath(path: String): String =
+        path.replace('\\', '/').trimEnd('/')
 
     private fun toPlayablePath(path: String, sourceRoot: String, sourceType: MediaSourceType): String =
         when (sourceType) {

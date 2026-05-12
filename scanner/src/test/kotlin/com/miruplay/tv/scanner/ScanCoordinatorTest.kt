@@ -124,6 +124,51 @@ class ScanCoordinatorTest {
     }
 
     @Test
+    fun `scanSource skips local paths that only share the root prefix`() = runBlocking {
+        val root = Files.createTempDirectory("miruplay-scan").toFile().canonicalFile
+        try {
+            val outsidePath = "${root.absolutePath}-outside"
+            val sourceInfo = MediaSourceInfo(
+                id = 10L,
+                name = "Local",
+                type = MediaSourceType.LOCAL,
+                connectionInfo = mapOf("path" to root.absolutePath)
+            )
+            val mediaSource = FakeMediaSource(
+                listings = mapOf(
+                    root.absolutePath to listOf(
+                        FileEntry(name = "outside", path = outsidePath, isDirectory = true)
+                    ),
+                    outsidePath to listOf(
+                        FileEntry(
+                            name = "01 [1080P].mp4",
+                            path = "$outsidePath/01 [1080P].mp4",
+                            isDirectory = false,
+                            size = 1234
+                        )
+                    )
+                )
+            )
+            val indexRepository = RecordingIndexRepository()
+            val coordinator = ScanCoordinator(
+                mediaRepository = SingleSourceRepository(sourceInfo),
+                mediaSourceFactory = SingleMediaSourceFactory(mediaSource),
+                indexRepository = indexRepository,
+                metadataRepository = RecordingMetadataRepository(),
+                filenameMetadataParser = EmptyFilenameMetadataParser
+            )
+
+            val result = coordinator.scanSource(sourceInfo.id)
+
+            assertTrue("Scan should succeed", result.isSuccess())
+            assertEquals(0, result.getOrNull()?.episodesFound)
+            assertTrue(indexRepository.entries.isEmpty())
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
     fun `scanSource uses filename parser result for indexed anime and episode`() = runBlocking {
         val sourceInfo = MediaSourceInfo(
             id = 11L,
