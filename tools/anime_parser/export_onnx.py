@@ -19,7 +19,7 @@ import onnxruntime as ort
 import torch
 from transformers import BertForTokenClassification
 
-from tokenizer import AnimeTokenizer
+from tokenizer import AnimeTokenizer, load_tokenizer
 
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -85,7 +85,7 @@ def main() -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.with_suffix(output_path.suffix + ".data").unlink(missing_ok=True)
 
-    tokenizer = AnimeTokenizer.from_pretrained(model_dir)
+    tokenizer = load_tokenizer(os.fspath(model_dir))
     model = BertForTokenClassification.from_pretrained(model_dir)
     model.eval()
 

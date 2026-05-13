@@ -64,6 +64,7 @@ class AnimeDataset(Dataset):
         item = self.data[idx]
         tokens: List[str] = item["tokens"]
         labels: List[str] = item["labels"]
+        tokens, labels = align_tokens_for_tokenizer(tokens, labels, self.tokenizer)
 
         # Convert tokens to IDs
         input_ids = self.tokenizer.convert_tokens_to_ids(tokens)
@@ -99,6 +100,41 @@ class AnimeDataset(Dataset):
             "attention_mask": torch.tensor(attention_mask, dtype=torch.long),
             "labels": torch.tensor(label_ids, dtype=torch.long),
         }
+
+
+def align_tokens_for_tokenizer(
+    tokens: List[str],
+    labels: List[str],
+    tokenizer: AnimeTokenizer,
+) -> tuple[List[str], List[str]]:
+    """
+    Align pre-labeled JSONL samples to the selected tokenizer.
+
+    The existing datasets store regex-tokenized samples. For the char A/B run,
+    each original token is split into characters while preserving BIO spans:
+    B-X stays on the first character, and the rest become I-X.
+    """
+    if getattr(tokenizer, "tokenizer_variant", "regex") != "char":
+        return tokens, labels
+
+    aligned_tokens: List[str] = []
+    aligned_labels: List[str] = []
+
+    for token, label in zip(tokens, labels):
+        pieces = tokenizer.tokenize(token)
+        if not pieces:
+            continue
+
+        aligned_tokens.extend(pieces)
+        aligned_labels.append(label)
+
+        if label.startswith(("B-", "I-")):
+            continuation = "I-" + label.split("-", 1)[1]
+        else:
+            continuation = label
+        aligned_labels.extend([continuation] * (len(pieces) - 1))
+
+    return aligned_tokens, aligned_labels
 
 
 def create_datasets(

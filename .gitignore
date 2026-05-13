@@ -47,3 +47,14 @@ web-control/frontend/dist/
 # Python tooling
 __pycache__/
 *.pyc
+
+# Anime parser generated training artifacts
+tools/anime_parser/logs/
+tools/anime_parser/checkpoints/
+tools/anime_parser/test_checkpoints*/
+tools/anime_parser/ab_checkpoints*/
+tools/anime_parser/data/**/*.jsonl
+tools/anime_parser/data/**/*.db
+tools/anime_parser/data/**/*.sqlite
+tools/anime_parser/data/vocab.char.ab*.json
+tools/anime_parser/data/dmhy/vocab.char.ab*.json
