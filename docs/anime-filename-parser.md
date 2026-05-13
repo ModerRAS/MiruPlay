@@ -14,8 +14,9 @@
 
 | 内容 | 路径 | 说明 |
 |------|------|------|
-| 训练工程 | `tools/anime_parser/` | 普通子目录，不是 Git submodule |
-| PyTorch 最终模型 | `tools/anime_parser/checkpoints/final/` | 训练脚本输出的 HuggingFace/PyTorch 模型 |
+| 训练工程 | `tools/anime_parser/` | Git submodule，指向 `https://huggingface.co/ModerRAS/AniFileBERT` |
+| 数据集 | `tools/anime_parser/datasets/AnimeName/` | nested Git submodule，指向 `https://huggingface.co/datasets/ModerRAS/AnimeName` |
+| PyTorch 最终模型 | `tools/anime_parser/` 根目录 | HuggingFace/PyTorch 模型文件：`model.safetensors`、`config.json`、`vocab.json` |
 | ONNX 导出脚本 | `tools/anime_parser/export_onnx.py` | 把 PyTorch 模型导出为 Android 可用 ONNX |
 | ONNX 导出产物 | `tools/anime_parser/exports/anime_filename_parser.onnx` | 本地留存的导出模型 |
 | Android assets | `scraper/src/main/assets/anime_parser/` | APK 打包时读取的模型、词表、配置 |
@@ -31,6 +32,20 @@ Android 运行需要这三个 assets：
 scraper/src/main/assets/anime_parser/anime_filename_parser.onnx
 scraper/src/main/assets/anime_parser/vocab.json
 scraper/src/main/assets/anime_parser/config.json
+```
+
+第一次 clone MiruPlay 或换机器时需要初始化 submodule：
+
+```bash
+git submodule update --init --recursive
+```
+
+完整链路现在是：
+
+```text
+MiruPlay
+  -> tools/anime_parser              (ModerRAS/AniFileBERT model repo)
+       -> datasets/AnimeName         (ModerRAS/AnimeName dataset repo)
 ```
 
 ## 扫描数据流
@@ -150,7 +165,9 @@ episode=3
 
 ## 训练和导出
 
-训练工程在 `tools/anime_parser/`。当前代码是一个 Tiny BERT token classification 模型，使用 BIO 标签标注 title、season、episode、group、resolution、source 等字段。
+训练工程在 `tools/anime_parser/`，但这个目录已经独立到 Hugging Face model repo：`ModerRAS/AniFileBERT`。当前代码是一个 Tiny BERT token classification 模型，使用 BIO 标签标注 title、season、episode、group、resolution、source 等字段。
+
+完整维护流程见 [`anifilebert-maintenance.md`](./anifilebert-maintenance.md)。这里保留最常用命令。
 
 常用命令：
 
@@ -161,11 +178,28 @@ python data_generator.py --num-samples 100000
 python train.py
 ```
 
+使用已经发布到 `ModerRAS/AnimeName` 的 DMHY 混合训练集：
+
+```bash
+cd tools/anime_parser
+git submodule update --init --recursive
+python train.py \
+  --data-file datasets/AnimeName/mixed_train.jsonl \
+  --vocab-file datasets/AnimeName/vocab.json \
+  --save-dir checkpoints/dmhy-finetune \
+  --init-model-dir . \
+  --epochs 1 \
+  --batch-size 128 \
+  --learning-rate 0.0003 \
+  --warmup-steps 300 \
+  --seed 42
+```
+
 导出到 Android assets：
 
 ```bash
 cd tools/anime_parser
-python export_onnx.py --model-dir checkpoints/final --android-assets-dir ../../scraper/src/main/assets/anime_parser
+python export_onnx.py --model-dir checkpoints/dmhy-finetune/final --android-assets-dir ../../scraper/src/main/assets/anime_parser
 ```
 
 导出后会更新：
@@ -323,8 +357,10 @@ Android 上 `/sdcard` 通常是 `/storage/emulated/0` 的别名。扫描边界�
 
 ## 维护约定
 
-- `tools/anime_parser/` 必须保持普通目录，不要改成 Git submodule。
-- 不要提交 `.gitmodules`。
+- `tools/anime_parser/` 必须保持 Git submodule，指向 `ModerRAS/AniFileBERT`。
+- `tools/anime_parser/datasets/AnimeName/` 是 nested submodule，指向 `ModerRAS/AnimeName`。
+- 不要把训练 JSONL、checkpoint 临时目录重新 vendor 回 MiruPlay 主仓库。
+- 更新模型仓库后，在 MiruPlay 主仓库只提交 submodule gitlink 指针和必要的 Android assets。
 - 不要让 scanner 直接依赖 PyTorch 或 Python 工程。
 - BERT 输入保持为去扩展名后的文件名，除非同步更新训练数据、导出脚本和本文档。
 - 新增解析行为时，优先补 `VideoDirectoryClassifierTest` 或 `ScanCoordinatorTest`。
