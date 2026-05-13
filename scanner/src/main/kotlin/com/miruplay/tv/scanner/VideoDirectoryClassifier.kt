@@ -37,6 +37,7 @@ class VideoDirectoryClassifier(
         }
 
         if (release != null) {
+            val showContext = findShowContext(parentSegments, seasonFolder)
             val parsed = if (
                 release.seriesName.isBlank() ||
                 release.seasonNumber == null ||
@@ -48,33 +49,38 @@ class VideoDirectoryClassifier(
             }
             val season = release.seasonNumber ?: parsed?.season ?: seasonFolder?.seasonNumber ?: 1
             return VideoClassification(
-                animeName = firstUsableName(release.seriesName, parsed?.title, detectorMatch?.animeName),
+                animeName = firstUsableName(
+                    release.seriesName,
+                    showContext?.seriesName,
+                    parsed?.title,
+                    detectorMatch?.animeName
+                ),
                 seasonNumber = season,
                 episodeNumber = release.episodeNumber ?: parsed?.episode ?: detectorMatch?.episodeNumber
             )
         }
 
         if (seasonFolder != null) {
-            val folderName = parentSegments.getOrNull(seasonFolder.index - 1)
-                ?.let { splitSeriesAndSeason(it).seriesName }
-                .usableName()
-            val parsed = if (folderName == null || detectorMatch?.episodeNumber == null) parsed() else null
+            val showContext = findShowContext(parentSegments, seasonFolder)
+            val parsed = if (showContext == null || detectorMatch?.episodeNumber == null) parsed() else null
             return VideoClassification(
-                animeName = firstUsableName(folderName, parsed?.title, detectorMatch?.animeName),
+                animeName = firstUsableName(showContext?.seriesName, parsed?.title, detectorMatch?.animeName),
                 seasonNumber = seasonFolder.seasonNumber,
                 episodeNumber = detectorMatch?.episodeNumber ?: parsed?.episode
             )
         }
 
-        val parentName = parentSegments.lastOrNull().orEmpty()
-        val split = splitSeriesAndSeason(parentName)
         val parsed = parsed()
-        val fallbackName = firstUsableName(parsed?.title, split.seriesName, detectorMatch?.animeName)
+        val showContext = findShowContext(parentSegments)
+        val fallbackName = firstUsableName(parsed?.title, showContext?.seriesName, detectorMatch?.animeName)
 
         return VideoClassification(
             animeName = fallbackName,
-            seasonNumber = split.seasonNumber ?: parsed?.season ?: detectorMatch?.seasonNumber ?: 1,
-            episodeNumber = parsed?.episode ?: detectorMatch?.episodeNumber
+            seasonNumber = parsed?.season
+                ?: showContext?.seasonNumber
+                ?: detectorMatch?.seasonNumber
+                ?: 1,
+            episodeNumber = parsed?.episode ?: detectorMatch?.episodeNumber ?: showContext?.episodeNumber
         )
     }
 
@@ -82,15 +88,16 @@ class VideoDirectoryClassifier(
         val segments = pathSegments(path)
         val parentSegments = segments.dropLast(1)
         val seasonFolder = findSeasonFolder(parentSegments)
+        val showContext = findShowContext(parentSegments, seasonFolder)
         val parentName = if (seasonFolder != null) {
             parentSegments.getOrNull(seasonFolder.index - 1)
         } else {
             parentSegments.lastOrNull()
         }.orEmpty()
 
-        val split = splitSeriesAndSeason(parentName)
+        val split = splitSeriesAndSeason(showContext?.rawName ?: parentName)
         return NfoClassification(
-            animeName = split.seriesName.ifBlank { parentName.ifBlank { "Unknown" } },
+            animeName = firstUsableName(showContext?.seriesName, split.seriesName, parentName),
             seasonNumber = seasonFolder?.seasonNumber ?: split.seasonNumber ?: 1
         )
     }
@@ -102,11 +109,13 @@ class VideoDirectoryClassifier(
 
         val parentSegments = segments.dropLast(1)
         val seasonFolder = findSeasonFolder(parentSegments)
-        val showSegments = if (seasonFolder != null) {
+        val candidateSegments = if (seasonFolder != null) {
             parentSegments.take(seasonFolder.index)
         } else {
             parentSegments
         }
+        val showContext = findShowContext(candidateSegments) ?: return null
+        val showSegments = candidateSegments.take(showContext.index + 1)
         if (showSegments.isEmpty()) return null
 
         val prefix = when {
@@ -149,11 +158,53 @@ class VideoDirectoryClassifier(
             ?.replace(Regex("""\s+"""), " ")
             ?.trim()
             ?.takeIf { it.isNotBlank() && !it.equals("Unknown", ignoreCase = true) }
+            ?.takeUnless { it.isGenericContextName() }
 
     private fun stripVideoExtension(fileName: String): String =
         fileName.replace(videoExtensionRegex, "")
 
     private data class SeasonFolder(val index: Int, val seasonNumber: Int)
+    private data class ShowContext(
+        val index: Int,
+        val rawName: String,
+        val seriesName: String,
+        val seasonNumber: Int?,
+        val episodeNumber: Int?
+    )
+
+    private fun findShowContext(
+        segments: List<String>,
+        seasonFolder: SeasonFolder? = null
+    ): ShowContext? {
+        val candidateSegments = if (seasonFolder != null) {
+            segments.take(seasonFolder.index)
+        } else {
+            segments
+        }
+        for (index in candidateSegments.indices.reversed()) {
+            val rawName = candidateSegments[index]
+            val release = ReleaseFilenameParser.parse(rawName)
+            if (release != null) {
+                val seriesName = release.seriesName.usableName()
+                if (seriesName != null) {
+                    return ShowContext(index, rawName, seriesName, release.seasonNumber, release.episodeNumber)
+                }
+            }
+            val split = splitSeriesAndSeason(rawName)
+            val seriesName = split.seriesName.usableName() ?: continue
+            return ShowContext(index, rawName, seriesName, split.seasonNumber, null)
+        }
+        return null
+    }
+
+    private fun String.isGenericContextName(): Boolean {
+        val normalized = lowercase()
+            .replace(Regex("""[._\-\[\]【】()（）]+"""), " ")
+            .replace(Regex("""\s+"""), " ")
+            .trim()
+        if (normalized in genericContextNames) return true
+        return genericContextPatterns.any { it.matches(normalized) }
+    }
 
     companion object {
         private val videoExtensionRegex = Regex("""(?i)\.(mkv|mp4|avi|mov|wmv|flv|webm|m4v|mpg|mpeg|ts|m2ts)$""")
@@ -161,6 +212,58 @@ class VideoDirectoryClassifier(
             Regex("""(?i)season\s*(\d{1,2})"""),
             Regex("""(?i)s(\d{1,2})"""),
             Regex("""第\s*([0-9一二三四五六七八九十]+)\s*[季期]""")
+        )
+        private val genericContextNames = setOf(
+            "115open",
+            "ani",
+            "anime",
+            "anime library",
+            "animation",
+            "download",
+            "downloads",
+            "downloads ani",
+            "raw",
+            "raws",
+            "library",
+            "media",
+            "media library",
+            "video",
+            "videos",
+            "video library",
+            "影视",
+            "影音",
+            "动漫",
+            "動畫",
+            "下载",
+            "下載",
+            "单集",
+            "單集",
+            "合集",
+            "全集",
+            "特典",
+            "番外",
+            "正片",
+            "episode",
+            "episodes",
+            "ep",
+            "ova",
+            "oad",
+            "sp",
+            "sps",
+            "special",
+            "specials",
+            "extra",
+            "extras",
+            "movie",
+            "movies",
+            "film",
+            "films",
+            "tvsp"
+        )
+        private val genericContextPatterns = listOf(
+            Regex("""(?i)^(?:season|series|s)\s*\d{1,2}$"""),
+            Regex("""(?i)^(?:final|last)\s+season$"""),
+            Regex("""(?i)^(?:ep|episode|part)\s*[\d一二三四五六七八九十]+(?:[a-z])?$""")
         )
     }
 }
@@ -187,9 +290,14 @@ private object ReleaseFilenameParser {
     private val leadingGroupRegex = Regex("""^(?:\[[^\]]+]|【[^】]+】|\([^)]+\))\s*""")
     private val extensionRegex = Regex("""(?i)\.(mkv|mp4|avi|mov|wmv|flv|webm|m4v|mpg|mpeg|ts|m2ts)$""")
     private val sxeRegex = Regex("""(?i)\bS(\d{1,2})E(\d{1,4})\b""")
+    private val bracketTitleSxeRegex = Regex("""^(?:\[[^\]]+]|【[^】]+】|\([^)]+\))\s*(?:\[(?<title>[^\]]+?)]|【(?<titleCjk>[^】]+?)】|\((?<titleParen>[^)]+?)\))(?<tail>.*)$""")
+    private val bracketTitleEpisodeRegex = Regex("""^(?:\[[^\]]+]|【[^】]+】|\([^)]+\))\s*(?:\[(?<title>[^\]]+?)]|【(?<titleCjk>[^】]+?)】|\((?<titleParen>[^)]+?)\))\s*(?:\[(?<ep>\d{1,4}(?:-\d{1,4})?)]|【(?<epCjk>\d{1,4}(?:-\d{1,4})?)】|\((?<epParen>\d{1,4}(?:-\d{1,4})?)\))(?<tail>.*)$""")
+    private val compactBracketEpisodeRegex = Regex("""^(?:\[[^\]]+]|【[^】]+】|\([^)]+\))\s*(?<title>.+?)\s*(?:\[(?<ep>\d{1,4}(?:-\d{1,4})?)]|【(?<epCjk>\d{1,4}(?:-\d{1,4})?)】|\((?<epParen>\d{1,4}(?:-\d{1,4})?)\))(?<tail>.*)$""")
     private val dashEpisodeRegex = Regex("""(?i)\s+-\s+(?:ep?\s*)?(\d{1,4})(?:\.\d+)?(?:\s|$|\[|【|\()""")
+    private val epEpisodeRegex = Regex("""(?i)(?:^|[\s._\-\[])(?:ep|episode)\.?\s*(\d{1,4})(?:\.\d+)?(?:\s|$|[\]【】\(\)])""")
     private val bracketEpisodeRegex = Regex("""\[(\d{1,4})]""")
     private val trailingTagRegex = Regex("""\s*(?:\[[^\]]*]|【[^】]*】|\([^)]*\)|（[^）]*）)+\s*$""")
+    private val trailingBracketTagsRegex = Regex("""^\s*(?:\[[^\]]*]|【[^】]*】|\([^)]*\)|（[^）]*）)*\s*$""")
 
     fun parse(fileName: String): ReleaseFileMatch? {
         val withoutExtension = fileName.replace(extensionRegex, "")
@@ -210,7 +318,63 @@ private object ReleaseFilenameParser {
             }
         }
 
+        bracketTitleSxeRegex.matchEntire(withoutExtension)?.let { match ->
+            val title = match.bracketTitle()
+            val tail = match.groups["tail"]?.value.orEmpty()
+            sxeRegex.find(tail)?.let { sxe ->
+                val split = splitSeriesAndSeason(title.trimReleaseTitle())
+                return ReleaseFileMatch(
+                    animeName = title.trimReleaseTitle(),
+                    seriesName = split.seriesName,
+                    seasonNumber = split.seasonNumber ?: sxe.groupValues[1].toIntOrNull(),
+                    episodeNumber = sxe.groupValues[2].toIntOrNull()
+                )
+            }
+        }
+
+        bracketTitleEpisodeRegex.matchEntire(withoutExtension)?.let { match ->
+            val title = match.bracketTitle().trimReleaseTitle()
+            val episode = match.bracketEpisodeNumber()
+            if (title.isNotBlank() && match.trailingTagsAreSafe()) {
+                val split = splitSeriesAndSeason(title)
+                return ReleaseFileMatch(
+                    animeName = title,
+                    seriesName = split.seriesName,
+                    seasonNumber = split.seasonNumber,
+                    episodeNumber = episode
+                )
+            }
+        }
+
+        compactBracketEpisodeRegex.matchEntire(withoutExtension)?.let { match ->
+            val title = match.groups["title"]?.value.orEmpty().trimReleaseTitle()
+            val episode = match.bracketEpisodeNumber()
+            if (title.isNotBlank() && match.trailingTagsAreSafe()) {
+                val split = splitSeriesAndSeason(title)
+                return ReleaseFileMatch(
+                    animeName = title,
+                    seriesName = split.seriesName,
+                    seasonNumber = split.seasonNumber,
+                    episodeNumber = episode
+                )
+            }
+        }
+
         dashEpisodeRegex.findAll(withoutGroup).lastOrNull()?.let { match ->
+            val title = withoutGroup.substring(0, match.range.first)
+                .trimReleaseTitle()
+            if (title.isNotBlank()) {
+                val split = splitSeriesAndSeason(title)
+                return ReleaseFileMatch(
+                    animeName = title,
+                    seriesName = split.seriesName,
+                    seasonNumber = split.seasonNumber,
+                    episodeNumber = match.groupValues[1].toIntOrNull()
+                )
+            }
+        }
+
+        epEpisodeRegex.findAll(withoutGroup).lastOrNull()?.let { match ->
             val title = withoutGroup.substring(0, match.range.first)
                 .trimReleaseTitle()
             if (title.isNotBlank()) {
@@ -246,6 +410,23 @@ private object ReleaseFilenameParser {
             .replace(Regex("""[._]+"""), " ")
             .replace(Regex("""\s+"""), " ")
             .trim(' ', '-', '_', '.')
+
+    private fun MatchResult.bracketTitle(): String =
+        groups["title"]?.value
+            ?: groups["titleCjk"]?.value
+            ?: groups["titleParen"]?.value
+            ?: ""
+
+    private fun MatchResult.bracketEpisodeNumber(): Int? =
+        (groups["ep"]?.value ?: groups["epCjk"]?.value ?: groups["epParen"]?.value)
+            ?.takeUnless { it.contains('-') }
+            ?.substringBefore('-')
+            ?.toIntOrNull()
+
+    private fun MatchResult.trailingTagsAreSafe(): Boolean {
+        val tail = groups["tail"]?.value.orEmpty()
+        return tail.isBlank() || tail.matches(trailingBracketTagsRegex)
+    }
 }
 
 data class SeriesSeason(
