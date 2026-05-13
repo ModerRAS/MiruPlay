@@ -1,0 +1,4 @@
+[submodule "tools/anime_parser"]
+	path = tools/anime_parser
+	url = https://huggingface.co/ModerRAS/AniFileBERT
+	branch = main

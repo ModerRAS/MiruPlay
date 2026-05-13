@@ -1,9 +1,0 @@
-{
-  "synthetic": "data/synthetic.jsonl",
-  "dmhy": "data/dmhy/dmhy_weak.jsonl",
-  "output": "data/dmhy/ab_mix_100k.jsonl",
-  "synthetic_count": 50000,
-  "dmhy_count": 50000,
-  "total_count": 100000,
-  "seed": 20260513
-}
