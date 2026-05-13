@@ -93,6 +93,7 @@ fun PlayerScreen(
     viewModel: PlayerViewModel = hiltViewModel()
 ) {
     val playbackState by viewModel.playbackState.collectAsStateWithLifecycle()
+    val activePlaybackSource by viewModel.activePlaybackSource.collectAsStateWithLifecycle()
     val currentPosition by viewModel.currentPosition.collectAsStateWithLifecycle()
     val duration by viewModel.duration.collectAsStateWithLifecycle()
     val controlsVisible by viewModel.controlsVisible.collectAsStateWithLifecycle()
@@ -102,7 +103,8 @@ fun PlayerScreen(
     val playbackSpeed by viewModel.playbackSpeed.collectAsStateWithLifecycle()
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
     val playerFocusRequester = remember { FocusRequester() }
-    val title = remember(playbackSource) { playbackSource.displayTitle() }
+    val currentPlaybackSource = activePlaybackSource ?: playbackSource
+    val title = remember(currentPlaybackSource) { currentPlaybackSource.displayTitle() }
     var openMenu by remember { mutableStateOf<PlayerMenu?>(null) }
     val navigateBack = remember(onNavigateBack) {
         {
@@ -116,6 +118,14 @@ fun PlayerScreen(
 
     LaunchedEffect(Unit) {
         playerFocusRequester.requestFocus()
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.finishEvents.collect { event ->
+            when (event) {
+                PlaybackFinishEvent.NavigateBack -> onNavigateBack()
+            }
+        }
     }
 
     LaunchedEffect(controlsVisible) {
@@ -200,7 +210,7 @@ fun PlayerScreen(
                 message = errorMessage!!,
                 onRetry = {
                     viewModel.showControls()
-                    viewModel.play(playbackSource)
+                    viewModel.play(currentPlaybackSource)
                 }
             )
         }
@@ -212,7 +222,7 @@ fun PlayerScreen(
         ) {
             PlayerChrome(
                 title = title,
-                sourceLabel = playbackSource.mediaSourceId,
+                sourceLabel = currentPlaybackSource.mediaSourceId,
                 playbackState = playbackState,
                 currentPosition = currentPosition,
                 duration = duration,
