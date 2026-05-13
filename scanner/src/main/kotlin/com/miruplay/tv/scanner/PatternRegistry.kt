@@ -105,7 +105,7 @@ class DefaultEpisodeDetector : EpisodeDetector {
         StandardEpisodePattern(),
         MultiPartPattern(),
         TitlePattern()
-    ).sortedBy { it.priority }
+    ).sortedByDescending { it.priority }
     
     override fun detectEpisode(fileName: String): EpisodeMatch? {
         return patterns.firstNotNullOfOrNull { it.extract(fileName) }

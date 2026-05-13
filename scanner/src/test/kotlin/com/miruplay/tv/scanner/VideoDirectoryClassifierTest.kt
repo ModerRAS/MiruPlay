@@ -73,6 +73,48 @@ class VideoDirectoryClassifierTest {
     }
 
     @Test
+    fun `uses nearest real show folder instead of generic episode container`() {
+        val result = classifier.classifyVideo(
+            path = "/media/我的英雄學院 FINAL SEASON/单集/Episode 01/[ANi] 我的英雄學院 FINAL SEASON - 01 [1080P].mp4",
+            fileName = "[ANi] 我的英雄學院 FINAL SEASON - 01 [1080P].mp4"
+        )
+
+        assertEquals("我的英雄學院 FINAL SEASON", result.animeName)
+        assertEquals(1, result.seasonNumber)
+        assertEquals(1, result.episodeNumber)
+    }
+
+    @Test
+    fun `classifies bracket title episode release folder`() {
+        val result = classifier.classifyVideo(
+            path = "/downloads/Ani/[Moezakura][Youkoso Jitsuryoku Shijou Shugi no Kyoushitsu e S4][01][HEVC][x265 10bit][1080p][JPSC]/video.mkv",
+            fileName = "video.mkv"
+        )
+
+        assertEquals("Youkoso Jitsuryoku Shijou Shugi no Kyoushitsu e", result.animeName)
+        assertEquals(4, result.seasonNumber)
+        assertEquals(1, result.episodeNumber)
+    }
+
+    @Test
+    fun `classifies bracket title with sxe release folder`() {
+        val result = classifier.classifyVideo(
+            path = "/downloads/Ani/[Comicat&kisssub][Sousou no Frieren S2][1080P][BIG5][MP4]/Sousou no Frieren S2E03.mp4",
+            fileName = "Sousou no Frieren S2E03.mp4"
+        )
+
+        assertEquals("Sousou no Frieren", result.animeName)
+        assertEquals(2, result.seasonNumber)
+        assertEquals(3, result.episodeNumber)
+    }
+
+    @Test
+    fun `does not treat library root as show root when writing nfo`() {
+        val root = classifier.showRootForVideo("/media/动漫/单集/Episode 01/video.mkv")
+        assertNull(root)
+    }
+
+    @Test
     fun `uses filename parser when release heuristics cannot identify show`() {
         val classifier = VideoDirectoryClassifier(
             episodeDetector = DefaultEpisodeDetector(),
