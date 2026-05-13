@@ -15,7 +15,7 @@ import re
 from typing import Dict, List, Optional, Tuple
 
 from config import Config
-from tokenizer import AnimeTokenizer
+from tokenizer import AnimeTokenizer, create_tokenizer
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -724,6 +724,10 @@ if __name__ == "__main__":
                         help="Number of samples to generate (default: 100000)")
     parser.add_argument("--output", type=str, default="data/synthetic.jsonl",
                         help="Output path (default: data/synthetic.jsonl)")
+    parser.add_argument("--tokenizer", choices=["regex", "char"], default="regex",
+                        help="Tokenizer variant used to generate the JSONL data")
+    parser.add_argument("--vocab-output", type=str, default=None,
+                        help="Vocab path (default: output directory vocab.json or vocab.char.json)")
     parser.add_argument("--seed", type=int, default=42,
                         help="Random seed (default: 42)")
     args = parser.parse_args()
@@ -733,7 +737,7 @@ if __name__ == "__main__":
     print(f"Generating {args.num_samples} synthetic samples...")
     print(f"Output: {args.output}")
 
-    tokenizer = AnimeTokenizer()
+    tokenizer = create_tokenizer(args.tokenizer)
 
     token_lists = generate_dataset(args.num_samples, tokenizer, args.output)
 
@@ -741,7 +745,13 @@ if __name__ == "__main__":
     tokenizer.build_vocab(token_lists)
 
     # Save tokenizer vocab alongside data
-    vocab_path = os.path.join(os.path.dirname(args.output), "vocab.json")
-    tokenizer.save_vocabulary(os.path.dirname(args.output))
+    vocab_path = args.vocab_output or os.path.join(
+        os.path.dirname(args.output),
+        "vocab.json" if args.tokenizer == "regex" else "vocab.char.json",
+    )
+    vocab_dir = os.path.dirname(vocab_path) or "."
+    os.makedirs(vocab_dir, exist_ok=True)
+    with open(vocab_path, "w", encoding="utf-8") as f:
+        json.dump(tokenizer.get_vocab(), f, ensure_ascii=False, indent=2)
     print(f"Tokenizer vocab saved to {vocab_path}")
     print(f"Vocab size: {tokenizer.vocab_size}")

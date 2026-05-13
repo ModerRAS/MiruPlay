@@ -1,10 +1,14 @@
 """
-Custom regex-based tokenizer for anime filenames.
+Custom tokenizers for anime filenames.
 
-Tokenization pipeline (3 layers):
+AnimeTokenizer keeps the original regex-based structure tokenization:
 1. Bracket protection: [...], (...), 【...】, 《...》 are kept as single tokens
 2. Format token recognition: S2, 1080P, x265, WEB-DL, etc. are preserved
 3. Remainder splitting: separators, Chinese/Japanese char-level, English/number tokens
+
+CharAnimeTokenizer is the A/B variant that tokenizes every code point as its
+own token. Dataset alignment expands existing token-level BIO labels to match
+this tokenizer, so the same generated and real-world JSONL files can be reused.
 """
 
 import re
@@ -22,6 +26,7 @@ class AnimeTokenizer(PreTrainedTokenizer):
 
     # Required for PreTrainedTokenizer save/load mechanism
     vocab_files_names: Dict[str, str] = {"vocab_file": "vocab.json"}
+    tokenizer_variant: str = "regex"
 
     # Layer 1: Bracket patterns (kept whole)
     BRACKET_PATTERNS: List[str] = [
@@ -31,10 +36,11 @@ class AnimeTokenizer(PreTrainedTokenizer):
         r'《[^》]*》',      # 《...》
     ]
 
-    # Composite format patterns (checked before individual, higher priority)
-    COMPOSITE_FORMAT_PATTERNS: List[str] = [
-        r'[Ss]\d+[Ee]\d+',   # S01E01
-    ]
+    # Composite format patterns (checked before individual, higher priority).
+    #
+    # Keep this empty for S01E01-style names: token classification needs separate
+    # S01 and E01 tokens so the model can label season and episode independently.
+    COMPOSITE_FORMAT_PATTERNS: List[str] = []
 
     # Layer 2: Individual format token patterns
     FORMAT_PATTERNS: List[str] = [
@@ -83,6 +89,9 @@ class AnimeTokenizer(PreTrainedTokenizer):
     SEPARATORS: Set[str] = set(' -_|～~.')
 
     def __init__(self, vocab_file: Optional[str] = None, **kwargs):
+        kwargs.pop("tokenizer_variant", None)
+        kwargs.pop("backend", None)
+
         self._vocab: Dict[str, int] = {}
         self._ids_to_tokens: Dict[int, str] = {}
 
@@ -107,10 +116,15 @@ class AnimeTokenizer(PreTrainedTokenizer):
                 special_kwargs[token_name] = token_value
 
         super().__init__(**special_kwargs, **kwargs)
+        self.init_kwargs["backend"] = "custom"
+        self.init_kwargs["tokenizer_variant"] = self.tokenizer_variant
 
         # Compile regex patterns for efficiency
         self._bracket_re = re.compile('|'.join(self.BRACKET_PATTERNS))
-        self._composite_format_re = re.compile('|'.join(self.COMPOSITE_FORMAT_PATTERNS))
+        self._composite_format_re = (
+            re.compile('|'.join(self.COMPOSITE_FORMAT_PATTERNS))
+            if self.COMPOSITE_FORMAT_PATTERNS else None
+        )
         self._format_re = re.compile('|'.join(self.FORMAT_PATTERNS))
 
     # ---- Properties ----
@@ -149,7 +163,8 @@ class AnimeTokenizer(PreTrainedTokenizer):
         processed = self._bracket_re.sub(_replace_match, text)
 
         # Layer 2a: Composite format patterns (e.g. S01E01 before S01)
-        processed = self._composite_format_re.sub(_replace_match, processed)
+        if self._composite_format_re is not None:
+            processed = self._composite_format_re.sub(_replace_match, processed)
 
         # Layer 2b: Individual format tokens
         processed = self._format_re.sub(_replace_match, processed)
@@ -242,30 +257,42 @@ class AnimeTokenizer(PreTrainedTokenizer):
 
     # ---- Vocabulary Management ----
 
-    def build_vocab(self, tokens_list: List[List[str]]) -> None:
+    def build_vocab(
+        self,
+        tokens_list: List[List[str]],
+        max_size: Optional[int] = None,
+        base_vocab: Optional[Dict[str, int]] = None,
+    ) -> None:
         """
         Build vocabulary from a list of tokenized texts.
 
         Args:
             tokens_list: List of token lists from tokenize() output.
+            max_size: Optional cap including special tokens.
+            base_vocab: Optional existing vocabulary whose token IDs are preserved.
         """
         freq: Dict[str, int] = {}
         for tokens in tokens_list:
             for token in tokens:
                 freq[token] = freq.get(token, 0) + 1
 
-        # Start with special tokens at fixed positions
-        vocab: Dict[str, int] = {
+        # Start with special tokens at fixed positions, preserving any supplied
+        # base vocabulary so a checkpoint can be fine-tuned after adding tokens.
+        vocab: Dict[str, int] = dict(base_vocab or {})
+        for token, token_id in {
             '[PAD]': 0,
             '[UNK]': 1,
             '[CLS]': 2,
             '[SEP]': 3,
-        }
+        }.items():
+            vocab[token] = token_id
 
         # Add all tokens sorted by frequency descending
-        next_id = 4
+        next_id = max(vocab.values(), default=-1) + 1
         for token in sorted(freq, key=lambda t: (-freq[t], t)):
             if token not in vocab:
+                if max_size is not None and len(vocab) >= max_size:
+                    break
                 vocab[token] = next_id
                 next_id += 1
 
@@ -302,6 +329,63 @@ class AnimeTokenizer(PreTrainedTokenizer):
 
     def __str__(self) -> str:
         return f"AnimeTokenizer(vocab_size={self.vocab_size})"
+
+
+class CharAnimeTokenizer(AnimeTokenizer):
+    """
+    Character-level tokenizer for A/B testing.
+
+    Unlike AnimeTokenizer, this variant does not preserve bracketed groups,
+    English words, numbers, or format tags. Every character in the filename is
+    one token, which gives the model maximum visibility into real fansub names.
+    """
+
+    tokenizer_variant: str = "char"
+
+    def tokenize(self, text: str, **kwargs) -> List[str]:
+        if text is None or text == "":
+            return []
+        return list(text)
+
+    def __str__(self) -> str:
+        return f"CharAnimeTokenizer(vocab_size={self.vocab_size})"
+
+
+TOKENIZER_VARIANTS = {
+    "regex": AnimeTokenizer,
+    "char": CharAnimeTokenizer,
+}
+
+
+def create_tokenizer(
+    variant: str = "regex",
+    vocab_file: Optional[str] = None,
+    **kwargs,
+) -> AnimeTokenizer:
+    """Create a tokenizer by variant name."""
+    try:
+        tokenizer_cls = TOKENIZER_VARIANTS[variant]
+    except KeyError as exc:
+        supported = ", ".join(sorted(TOKENIZER_VARIANTS))
+        raise ValueError(f"Unsupported tokenizer variant '{variant}'. Expected one of: {supported}") from exc
+    return tokenizer_cls(vocab_file=vocab_file, **kwargs)
+
+
+def load_tokenizer(model_dir: str, variant: Optional[str] = None) -> AnimeTokenizer:
+    """
+    Load a tokenizer from a checkpoint directory.
+
+    The variant is read from tokenizer_config.json when available. Older
+    checkpoints do not contain it, so they default to the original regex mode.
+    """
+    resolved_variant = variant
+    if resolved_variant is None:
+        config_path = os.path.join(model_dir, "tokenizer_config.json")
+        if os.path.isfile(config_path):
+            with open(config_path, "r", encoding="utf-8") as f:
+                resolved_variant = json.load(f).get("tokenizer_variant")
+    tokenizer_cls = TOKENIZER_VARIANTS.get(resolved_variant or "regex", AnimeTokenizer)
+    return tokenizer_cls.from_pretrained(model_dir)
 
 
 # Quick test

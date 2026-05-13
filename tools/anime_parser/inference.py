@@ -20,7 +20,7 @@ import torch
 from transformers import BertForTokenClassification
 
 from config import Config
-from tokenizer import AnimeTokenizer
+from tokenizer import AnimeTokenizer, load_tokenizer
 
 
 # Chinese number mapping
@@ -68,6 +68,11 @@ def extract_resolution(text: str) -> Optional[str]:
     # Strip brackets for matching
     clean = text.strip("[]()【】")
     return clean if clean else None
+
+
+def trim_decorations(text: str) -> str:
+    """Trim outer release brackets from an extracted entity."""
+    return text.strip().strip("[]()【】《》（）").strip()
 
 
 def postprocess(tokens: List[str], labels: List[str]) -> Dict:
@@ -121,7 +126,7 @@ def postprocess(tokens: List[str], labels: List[str]) -> Dict:
     # Fill result
     for entity_type, text in entities:
         if entity_type == "TITLE":
-            result["title"] = result["title"] or text.strip()
+            result["title"] = result["title"] or trim_decorations(text)
             # If we find multiple title fragments, concatenate them
             # (handles "That" + ... + "Time" etc.)
         elif entity_type == "SEASON":
@@ -153,7 +158,10 @@ def postprocess(tokens: List[str], labels: List[str]) -> Dict:
     # (This is needed because O tokens between words break entity continuity)
     title_fragments = [t for e, t in entities if e == "TITLE"]
     if title_fragments:
-        result["title"] = " ".join(f.strip() for f in title_fragments if f.strip())
+        result["title"] = " ".join(
+            trimmed for f in title_fragments
+            if (trimmed := trim_decorations(f))
+        )
 
     return result
 
@@ -236,6 +244,8 @@ def main():
     parser.add_argument("--output-file", type=str, help="Output file for results (JSONL)")
     parser.add_argument("--model-dir", type=str, default="./checkpoints/final",
                         help="Path to trained model directory")
+    parser.add_argument("--tokenizer", choices=["regex", "char"], default=None,
+                        help="Tokenizer variant override. Defaults to checkpoint metadata")
     parser.add_argument("--max-length", type=int, default=64,
                         help="Maximum sequence length")
     args = parser.parse_args()
@@ -245,7 +255,7 @@ def main():
 
     # Load tokenizer
     print(f"Loading tokenizer from {args.model_dir}...", file=sys.stderr)
-    tokenizer = AnimeTokenizer.from_pretrained(args.model_dir)
+    tokenizer = load_tokenizer(args.model_dir, args.tokenizer)
 
     # Load model
     print(f"Loading model from {args.model_dir}...", file=sys.stderr)

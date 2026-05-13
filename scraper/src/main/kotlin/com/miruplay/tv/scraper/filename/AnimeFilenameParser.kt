@@ -120,7 +120,7 @@ class AnimeFilenameParser @Inject constructor(
 
         val title = entities
             .filter { it.first == "TITLE" }
-            .map { it.second.trim() }
+            .map { it.second.trimDecorations() }
             .filter { it.isNotBlank() }
             .joinToString(separator = " ")
             .ifBlank { null }
@@ -194,7 +194,6 @@ class AnimeFilenameParser @Inject constructor(
 
             val placeholders = mutableListOf<String>()
             var processed = protect(text, bracketRegex, placeholders)
-            processed = protect(processed, compositeFormatRegex, placeholders)
             processed = protect(processed, formatRegex, placeholders)
 
             val result = mutableListOf<String>()
@@ -338,7 +337,6 @@ class AnimeFilenameParser @Inject constructor(
         private val separators = setOf(' ', '-', '_', '|', '～', '~', '.')
         private val placeholderRegex = Regex("$placeholderMarker(\\d+)$placeholderMarker")
         private val bracketRegex = Regex("""\[[^\]]*\]|\([^)]*\)|【[^】]*】|《[^》]*》""")
-        private val compositeFormatRegex = Regex("""[Ss]\d+[Ee]\d+""")
         private val formatRegex = Regex(
             listOf(
                 """\d{3,4}[pP]""",
