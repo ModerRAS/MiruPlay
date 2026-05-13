@@ -87,7 +87,9 @@ class ExoPlaybackController @Inject constructor(
             val source = currentSource
             if (source != null) {
                 val position = exoPlayer.currentPosition
-                _state.value = if (isPlaying) {
+                _state.value = if (exoPlayer.playbackState == Player.STATE_ENDED) {
+                    PlaybackState.Ended(source)
+                } else if (isPlaying) {
                     PlaybackState.Playing(source, position)
                 } else {
                     if (_state.value is PlaybackState.Buffering) {

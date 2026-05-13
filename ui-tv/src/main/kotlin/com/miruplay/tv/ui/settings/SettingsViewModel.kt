@@ -7,6 +7,8 @@ import com.miruplay.tv.clouddrive.CloudDriveEndpoint
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.core.common.WebControlConfig
 import com.miruplay.tv.data.preferences.ScanPreferencesManager
+import com.miruplay.tv.data.preferences.PlaybackEndAction
+import com.miruplay.tv.data.preferences.PlaybackPreferencesManager
 import com.miruplay.tv.data.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.data.repository.MediaRepository
 import com.miruplay.tv.data.secure.SecurePreferencesManager
@@ -33,6 +35,7 @@ class SettingsViewModel @Inject constructor(
     private val mediaSourceFactory: MediaSourceFactory,
     private val securePrefs: SecurePreferencesManager,
     private val scanPreferences: ScanPreferencesManager,
+    private val playbackPreferences: PlaybackPreferencesManager,
     private val cloudDriveRepository: CloudDriveAutomationRepository,
     private val cloudDriveClient: CloudDriveClient,
     private val cloudDriveEngine: CloudDriveRssAutomationEngine
@@ -63,6 +66,9 @@ class SettingsViewModel @Inject constructor(
 
     private val _mergeSameAnimeEnabled = MutableStateFlow(scanPreferences.mergeSameAnimeEnabled)
     val mergeSameAnimeEnabled: StateFlow<Boolean> = _mergeSameAnimeEnabled.asStateFlow()
+
+    private val _playbackEndAction = MutableStateFlow(playbackPreferences.endAction)
+    val playbackEndAction: StateFlow<PlaybackEndAction> = _playbackEndAction.asStateFlow()
 
     private val _webUiUrls = MutableStateFlow<List<String>>(emptyList())
     val webUiUrls: StateFlow<List<String>> = _webUiUrls.asStateFlow()
@@ -372,6 +378,11 @@ class SettingsViewModel @Inject constructor(
     fun setMergeSameAnimeEnabled(enabled: Boolean) {
         scanPreferences.mergeSameAnimeEnabled = enabled
         _mergeSameAnimeEnabled.value = enabled
+    }
+
+    fun setPlaybackEndAction(action: PlaybackEndAction) {
+        playbackPreferences.endAction = action
+        _playbackEndAction.value = action
     }
 
     fun refreshWebUiUrls() {

@@ -12,9 +12,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.data.repository.MediaRepository
 import com.miruplay.tv.data.repository.ProgressRepository
+import com.miruplay.tv.data.repository.resolvePlayableUri
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
@@ -31,7 +31,6 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromJsonElement
-import java.net.URLEncoder
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -188,58 +187,4 @@ private suspend fun resumePositionFor(
 ): Long {
     val progress = progressRepository.getProgress(episode.id).getOrNull()
     return episode.resumePosition(progress)
-}
-
-private suspend fun resolvePlayableUri(
-    path: String,
-    episodeId: String,
-    mediaRepository: MediaRepository
-): String {
-    if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("content://")) {
-        return path
-    }
-
-    val sources = when (val result = mediaRepository.getSources()) {
-        is Result.Success -> result.data
-        is Result.Error -> emptyList()
-    }
-
-    val sourceId = episodeId.substringBefore(':').toLongOrNull()
-    val source = if (sourceId != null) {
-        sources.firstOrNull { it.id == sourceId }
-    } else {
-        sources.firstOrNull { source ->
-            source.matchesPath(path)
-        }
-    }
-
-    return if (source?.type == MediaSourceType.WEBDAV) {
-        joinRemoteUrl(source.connectionInfo["url"].orEmpty(), path)
-    } else {
-        path
-    }
-}
-
-private fun MediaSourceInfo.matchesPath(path: String): Boolean {
-    return when (type) {
-        MediaSourceType.LOCAL -> {
-            val root = connectionInfo["path"] ?: connectionInfo["url"] ?: return false
-            path == root || path.startsWith("${root.trimEnd('/')}/")
-        }
-        MediaSourceType.WEBDAV -> path.startsWith("/")
-        MediaSourceType.SMB -> path.startsWith("smb://")
-    }
-}
-
-private fun joinRemoteUrl(baseUrl: String, path: String): String {
-    val base = baseUrl.trimEnd('/')
-    if (base.isBlank()) return path
-    if (path.startsWith(base)) return path
-    val encodedPath = path
-        .trimStart('/')
-        .split('/')
-        .joinToString("/") { segment ->
-            URLEncoder.encode(segment, Charsets.UTF_8.name()).replace("+", "%20")
-    }
-    return "$base/$encodedPath"
 }

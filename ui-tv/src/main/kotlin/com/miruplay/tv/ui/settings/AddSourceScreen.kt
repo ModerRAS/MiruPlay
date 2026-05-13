@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -38,6 +39,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
@@ -72,6 +74,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
+import com.miruplay.tv.data.preferences.PlaybackEndAction
 import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
@@ -117,6 +120,11 @@ private enum class SettingsSection(
         description = "本地、WebDAV、SMB",
         icon = Icons.Filled.Storage
     ),
+    PLAYBACK(
+        title = "播放",
+        description = "播完动作",
+        icon = Icons.Filled.PlayArrow
+    ),
     AUTOMATION(
         title = "CloudDrive",
         description = "RSS 离线下载与入库",
@@ -147,6 +155,7 @@ fun AddSourceScreen(
     val autoScanIntervalHours by viewModel.autoScanIntervalHours.collectAsStateWithLifecycle()
     val lastScanAt by viewModel.lastScanAt.collectAsStateWithLifecycle()
     val mergeSameAnimeEnabled by viewModel.mergeSameAnimeEnabled.collectAsStateWithLifecycle()
+    val playbackEndAction by viewModel.playbackEndAction.collectAsStateWithLifecycle()
     val webUiUrls by viewModel.webUiUrls.collectAsStateWithLifecycle()
     val cloudDriveConfig by viewModel.cloudDriveConfig.collectAsStateWithLifecycle()
     val rssSubscriptions by viewModel.rssSubscriptions.collectAsStateWithLifecycle()
@@ -276,6 +285,7 @@ fun AddSourceScreen(
                     webUiAddressCount = webUiUrls.size,
                     autoScanEnabled = autoScanEnabled,
                     mergeSameAnimeEnabled = mergeSameAnimeEnabled,
+                    playbackEndAction = playbackEndAction,
                     cloudDriveEnabled = cloudEnabled,
                     rssCount = rssSubscriptions.size,
                     hasToken = savedToken.isNotBlank() || tokenSaved,
@@ -343,6 +353,8 @@ fun AddSourceScreen(
                     onToggleMergeSameAnime = {
                         viewModel.setMergeSameAnimeEnabled(!mergeSameAnimeEnabled)
                     },
+                    playbackEndAction = playbackEndAction,
+                    onPlaybackEndActionSelected = viewModel::setPlaybackEndAction,
                     savedToken = savedToken,
                     tokenInput = tokenInput,
                     tokenSaved = tokenSaved,
@@ -504,6 +516,7 @@ private fun SettingsMenuPanel(
     webUiAddressCount: Int,
     autoScanEnabled: Boolean,
     mergeSameAnimeEnabled: Boolean,
+    playbackEndAction: PlaybackEndAction,
     cloudDriveEnabled: Boolean,
     rssCount: Int,
     hasToken: Boolean,
@@ -525,28 +538,33 @@ private fun SettingsMenuPanel(
         )
         Spacer(Modifier.height(18.dp))
 
-        SettingsSection.entries.forEachIndexed { index, section ->
-            val summary = when (section) {
-                SettingsSection.WEB_UI -> if (webUiAddressCount > 0) "${webUiAddressCount} 个地址" else "等待网络"
-                SettingsSection.SOURCES -> "${sourcesCount} 个源"
-                SettingsSection.AUTOMATION -> if (cloudDriveEnabled) "${rssCount} 个订阅" else "未启用"
-                SettingsSection.SCAN -> when {
-                    autoScanEnabled && mergeSameAnimeEnabled -> "定时 · 合并"
-                    autoScanEnabled -> "定时已开"
-                    mergeSameAnimeEnabled -> "同番合并"
-                    else -> "定时关闭"
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            itemsIndexed(SettingsSection.entries) { index, section ->
+                val summary = when (section) {
+                    SettingsSection.WEB_UI -> if (webUiAddressCount > 0) "${webUiAddressCount} 个地址" else "等待网络"
+                    SettingsSection.SOURCES -> "${sourcesCount} 个源"
+                    SettingsSection.PLAYBACK -> playbackEndAction.menuSummary()
+                    SettingsSection.AUTOMATION -> if (cloudDriveEnabled) "${rssCount} 个订阅" else "未启用"
+                    SettingsSection.SCAN -> when {
+                        autoScanEnabled && mergeSameAnimeEnabled -> "定时 · 合并"
+                        autoScanEnabled -> "定时已开"
+                        mergeSameAnimeEnabled -> "同番合并"
+                        else -> "定时关闭"
+                    }
+                    SettingsSection.METADATA -> if (hasToken) "Token 已设置" else "未设置"
                 }
-                SettingsSection.METADATA -> if (hasToken) "Token 已设置" else "未设置"
-            }
-            SettingsMenuItem(
-                section = section,
-                summary = summary,
-                selected = section == selectedSection,
-                onClick = { onSectionSelected(section) },
-                modifier = if (index == 0) Modifier.focusRequester(firstItemRequester) else Modifier
-            )
-            if (index != SettingsSection.entries.lastIndex) {
-                Spacer(Modifier.height(10.dp))
+                SettingsMenuItem(
+                    section = section,
+                    summary = summary,
+                    selected = section == selectedSection,
+                    onClick = { onSectionSelected(section) },
+                    modifier = if (index == 0) Modifier.focusRequester(firstItemRequester) else Modifier
+                )
             }
         }
     }
@@ -647,6 +665,8 @@ private fun SettingsContent(
     onIntervalSelected: (Int) -> Unit,
     mergeSameAnimeEnabled: Boolean,
     onToggleMergeSameAnime: () -> Unit,
+    playbackEndAction: PlaybackEndAction,
+    onPlaybackEndActionSelected: (PlaybackEndAction) -> Unit,
     savedToken: String,
     tokenInput: String,
     tokenSaved: Boolean,
@@ -830,6 +850,16 @@ private fun SettingsContent(
                 onIntervalSelected = onIntervalSelected,
                 mergeSameAnimeEnabled = mergeSameAnimeEnabled,
                 onToggleMergeSameAnime = onToggleMergeSameAnime
+            )
+        }
+
+        SettingsSection.PLAYBACK -> SettingsSingleSectionPage(
+            section = selectedSection,
+            modifier = modifier
+        ) {
+            PlaybackPanel(
+                endAction = playbackEndAction,
+                onEndActionSelected = onPlaybackEndActionSelected
             )
         }
 
@@ -2215,6 +2245,61 @@ private fun ScanPanel(
 }
 
 @Composable
+private fun PlaybackPanel(
+    endAction: PlaybackEndAction,
+    onEndActionSelected: (PlaybackEndAction) -> Unit
+) {
+    SettingsPanel {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Filled.PlayArrow,
+                contentDescription = null,
+                tint = TextPrimary,
+                modifier = Modifier.size(26.dp)
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(text = "播放结束", style = TvTypography.subtitle, color = TextPrimary)
+        }
+
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = "选定剧集播完后，可以直接回到详情页，也可以自动切到下一集。",
+            style = TvTypography.body,
+            color = TextSecondary
+        )
+
+        Spacer(Modifier.height(16.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ScanOptionChip(
+                text = "返回详情",
+                icon = Icons.Filled.ArrowBack,
+                selected = endAction == PlaybackEndAction.RETURN_TO_DETAIL,
+                enabled = true,
+                onClick = { onEndActionSelected(PlaybackEndAction.RETURN_TO_DETAIL) },
+                modifier = Modifier.width(160.dp)
+            )
+            ScanOptionChip(
+                text = "继续下一集",
+                icon = Icons.Filled.PlayArrow,
+                selected = endAction == PlaybackEndAction.PLAY_NEXT_EPISODE,
+                enabled = true,
+                onClick = { onEndActionSelected(PlaybackEndAction.PLAY_NEXT_EPISODE) },
+                modifier = Modifier.width(170.dp)
+            )
+        }
+
+        StatusMessage(
+            icon = Icons.Filled.CheckCircle,
+            text = when (endAction) {
+                PlaybackEndAction.RETURN_TO_DETAIL -> "播完后会停在详情页，方便手动挑下一集。"
+                PlaybackEndAction.PLAY_NEXT_EPISODE -> "播完后会自动开始下一集，没有下一集时会回到详情页。"
+            },
+            color = if (endAction == PlaybackEndAction.PLAY_NEXT_EPISODE) ProgressGreen else TextSecondary
+        )
+    }
+}
+
+@Composable
 private fun ScanOptionChip(
     text: String,
     selected: Boolean,
@@ -2270,6 +2355,11 @@ private fun ScanOptionChip(
             maxLines = 1
         )
     }
+}
+
+private fun PlaybackEndAction.menuSummary(): String = when (this) {
+    PlaybackEndAction.RETURN_TO_DETAIL -> "播完返回"
+    PlaybackEndAction.PLAY_NEXT_EPISODE -> "自动下一集"
 }
 
 @Composable
