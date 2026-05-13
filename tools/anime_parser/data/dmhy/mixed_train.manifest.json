@@ -1,9 +1,0 @@
-{
-  "synthetic": "data/synthetic.jsonl",
-  "dmhy": "data/dmhy/dmhy_weak.jsonl",
-  "output": "data/dmhy/mixed_train.jsonl",
-  "synthetic_count": 100000,
-  "dmhy_count": 263042,
-  "total_count": 363042,
-  "seed": 42
-}
