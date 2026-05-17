@@ -15,6 +15,9 @@ import com.miruplay.tv.repository.MetadataBatchPlan
 import com.miruplay.tv.repository.MetadataBatchPlanner
 import com.miruplay.tv.repository.MetadataBatchUpdate
 import com.miruplay.tv.repository.MediaIndexEntry
+import com.miruplay.tv.repository.displayLine
+import com.miruplay.tv.repository.displayName
+import com.miruplay.tv.repository.toBrowserEntry
 import java.nio.file.Paths
 import kotlin.math.roundToLong
 
@@ -45,28 +48,14 @@ internal object DesktopPlaybackSourceFactory {
 }
 
 internal object DesktopIndexSearchPresenter {
-    fun displayName(entry: MediaIndexEntry): String {
-        val title = entry.animeName?.takeIf { it.isNotBlank() }
-            ?: entry.metadataTitle?.takeIf { it.isNotBlank() }
-            ?: entry.path.substringAfterLast('/').substringAfterLast('\\').substringBeforeLast('.')
-        val episode = entry.episodeNumber?.let { " EP$it" }.orEmpty()
-        val episodeTitle = entry.episodeTitle?.takeIf { it.isNotBlank() }?.let { " - $it" }.orEmpty()
-        return "$title$episode$episodeTitle"
-    }
+    fun displayName(entry: MediaIndexEntry): String =
+        entry.displayName()
 
-    fun displayLine(entry: MediaIndexEntry): String {
-        val kind = if (entry.isDirectory) "DIR" else "VID"
-        return "[$kind] ${displayName(entry)}  ${entry.path}"
-    }
+    fun displayLine(entry: MediaIndexEntry): String =
+        entry.displayLine()
 
     fun toBrowserEntry(entry: MediaIndexEntry): FileEntry =
-        FileEntry(
-            name = displayName(entry),
-            path = entry.path,
-            isDirectory = entry.isDirectory,
-            size = entry.fileSize,
-            lastModified = entry.lastModified,
-        )
+        entry.toBrowserEntry()
 }
 
 internal object DesktopMediaDetailsPresenter {
