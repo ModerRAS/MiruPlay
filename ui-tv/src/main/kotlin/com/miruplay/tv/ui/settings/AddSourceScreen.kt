@@ -33,7 +33,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Cloud
@@ -157,6 +157,8 @@ fun AddSourceScreen(
     val mergeSameAnimeEnabled by viewModel.mergeSameAnimeEnabled.collectAsStateWithLifecycle()
     val playbackEndAction by viewModel.playbackEndAction.collectAsStateWithLifecycle()
     val webUiUrls by viewModel.webUiUrls.collectAsStateWithLifecycle()
+    val webControlEnabled by viewModel.webControlEnabled.collectAsStateWithLifecycle()
+    val webControlAccessToken by viewModel.webControlAccessToken.collectAsStateWithLifecycle()
     val cloudDriveConfig by viewModel.cloudDriveConfig.collectAsStateWithLifecycle()
     val rssSubscriptions by viewModel.rssSubscriptions.collectAsStateWithLifecycle()
     val cloudDriveTokenConfigured by viewModel.cloudDriveTokenConfigured.collectAsStateWithLifecycle()
@@ -373,8 +375,14 @@ fun AddSourceScreen(
                         tokenSaved = false
                     },
                     webUiUrls = webUiUrls,
+                    webControlEnabled = webControlEnabled,
+                    webControlAccessToken = webControlAccessToken,
                     selectedWebUiUrl = selectedWebUiUrl,
                     onWebUiUrlSelected = { selectedWebUiUrl = it },
+                    onToggleWebControl = {
+                        viewModel.setWebControlEnabled(!webControlEnabled)
+                    },
+                    onRotateWebControlToken = viewModel::rotateWebControlAccessToken,
                     onRefreshWebUiUrls = viewModel::refreshWebUiUrls,
                     cloudEndpoint = cloudEndpoint,
                     onCloudEndpointChange = { cloudEndpoint = it },
@@ -674,8 +682,12 @@ private fun SettingsContent(
     onSaveToken: () -> Unit,
     onClearToken: () -> Unit,
     webUiUrls: List<String>,
+    webControlEnabled: Boolean,
+    webControlAccessToken: String,
     selectedWebUiUrl: String,
     onWebUiUrlSelected: (String) -> Unit,
+    onToggleWebControl: () -> Unit,
+    onRotateWebControlToken: () -> Unit,
     onRefreshWebUiUrls: () -> Unit,
     cloudEndpoint: String,
     onCloudEndpointChange: (String) -> Unit,
@@ -732,8 +744,12 @@ private fun SettingsContent(
         ) {
             WebUiPanel(
                 urls = webUiUrls,
+                enabled = webControlEnabled,
+                accessToken = webControlAccessToken,
                 selectedUrl = selectedWebUiUrl,
                 onUrlSelected = onWebUiUrlSelected,
+                onToggleEnabled = onToggleWebControl,
+                onRotateToken = onRotateWebControlToken,
                 onRefresh = onRefreshWebUiUrls
             )
         }
@@ -1108,8 +1124,12 @@ private fun SourceDeleteButton(onClick: () -> Unit) {
 @Composable
 private fun WebUiPanel(
     urls: List<String>,
+    enabled: Boolean,
+    accessToken: String,
     selectedUrl: String,
     onUrlSelected: (String) -> Unit,
+    onToggleEnabled: () -> Unit,
+    onRotateToken: () -> Unit,
     onRefresh: () -> Unit
 ) {
     val activeUrl = selectedUrl.ifBlank { urls.firstOrNull().orEmpty() }
@@ -1128,23 +1148,55 @@ private fun WebUiPanel(
 
         Spacer(Modifier.height(6.dp))
         Text(
-            text = "手机或电脑与电视在同一局域网时，可以打开下面的地址管理媒体源和遥控播放。",
+            text = "默认关闭。开启后，同一局域网设备需要携带访问令牌才能管理媒体源和遥控播放。",
             style = TvTypography.body,
             color = TextSecondary
         )
 
-        if (urls.isEmpty()) {
-            StatusMessage(
-                icon = Icons.Filled.Refresh,
-                text = "暂未检测到局域网地址，请确认电视已连接网络后刷新。",
-                color = WarningYellow
+        Spacer(Modifier.height(14.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            TvButton(
+                text = if (enabled) "关闭 WebUI" else "开启 WebUI",
+                icon = Icons.Filled.WifiTethering,
+                onClick = onToggleEnabled,
+                modifier = Modifier.width(156.dp)
             )
-            Spacer(Modifier.height(12.dp))
+            TvButton(
+                text = "更换令牌",
+                icon = Icons.Filled.Key,
+                onClick = onRotateToken,
+                enabled = enabled,
+                modifier = Modifier.width(150.dp)
+            )
             TvButton(
                 text = "刷新地址",
                 icon = Icons.Filled.Refresh,
                 onClick = onRefresh,
+                enabled = enabled,
                 modifier = Modifier.width(150.dp)
+            )
+        }
+
+        Spacer(Modifier.height(12.dp))
+        Text(
+            text = "访问令牌：${accessToken.ifBlank { "未生成" }}",
+            style = TvTypography.caption,
+            color = TextSecondary,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        if (!enabled) {
+            StatusMessage(
+                icon = Icons.Filled.Close,
+                text = "WebUI 当前未启用，不会监听局域网端口。",
+                color = WarningYellow
+            )
+        } else if (urls.isEmpty()) {
+            StatusMessage(
+                icon = Icons.Filled.Refresh,
+                text = "暂未检测到局域网地址，请确认电视已连接网络后刷新。",
+                color = WarningYellow
             )
         } else {
             Spacer(Modifier.height(16.dp))
@@ -1170,12 +1222,6 @@ private fun WebUiPanel(
                             onClick = { onUrlSelected(url) }
                         )
                     }
-                    TvButton(
-                        text = "刷新地址",
-                        icon = Icons.Filled.Refresh,
-                        onClick = onRefresh,
-                        modifier = Modifier.width(150.dp)
-                    )
                 }
 
                 Column(
@@ -1344,7 +1390,7 @@ private fun CloudDriveDirectoryPickerDialog(
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 ScanOptionChip(
                     text = "上一级",
-                    icon = Icons.Filled.ArrowBack,
+                    icon = Icons.AutoMirrored.Filled.ArrowBack,
                     selected = false,
                     enabled = state.parentPath != null,
                     onClick = { state.parentPath?.let(onNavigate) },
@@ -2272,7 +2318,7 @@ private fun PlaybackPanel(
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ScanOptionChip(
                 text = "返回详情",
-                icon = Icons.Filled.ArrowBack,
+                icon = Icons.AutoMirrored.Filled.ArrowBack,
                 selected = endAction == PlaybackEndAction.RETURN_TO_DETAIL,
                 enabled = true,
                 onClick = { onEndActionSelected(PlaybackEndAction.RETURN_TO_DETAIL) },

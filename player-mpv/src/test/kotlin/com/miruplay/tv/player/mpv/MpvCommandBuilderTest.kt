@@ -1,0 +1,69 @@
+package com.miruplay.tv.player.mpv
+
+import com.miruplay.tv.model.PlaybackSource
+import com.miruplay.tv.model.SubtitleFormat
+import com.miruplay.tv.model.SubtitleTrack
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import java.nio.file.Paths
+
+class MpvCommandBuilderTest {
+    @Test
+    fun `build command includes mpv config ipc RIFE subtitle and resume position`() {
+        val command = MpvCommandBuilder(
+            MpvRuntimeConfig(
+                mpvExecutable = Paths.get("C:/MiruPlay/mpv/mpv.exe"),
+                configDirectory = Paths.get("C:/MiruPlay/mpv/portable_config"),
+                ipcServer = "miruplay-mpv",
+                startFullscreen = true,
+                rife = RifeInterpolationConfig(backend = RifeBackend.NVIDIA),
+                extraArguments = listOf("--profile=anime")
+            )
+        ).build(
+            PlaybackSource(
+                uri = "D:/Anime/Test Episode.mkv",
+                mediaSourceId = "local",
+                startPosition = 90_500L,
+                subtitleTracks = listOf(
+                    SubtitleTrack(
+                        language = "zh",
+                        title = "简中",
+                        isExternal = true,
+                        path = "D:/Anime/Test Episode.ass",
+                        format = SubtitleFormat.ASS
+                    )
+                )
+            )
+        )
+
+        assertEquals(Paths.get("C:/MiruPlay/mpv/mpv.exe").toString(), command.first())
+        assertTrue(command.contains("--config-dir=${Paths.get("C:/MiruPlay/mpv/portable_config")}"))
+        assertTrue(command.contains("--input-ipc-server=miruplay-mpv"))
+        assertTrue(command.contains("--fs"))
+        assertTrue(command.contains("--vf-append=vapoursynth=~~home/vs/MEMC_RIFE_NV.vpy:4:auto:"))
+        assertTrue(command.contains("--sub-file=D:/Anime/Test Episode.ass"))
+        assertTrue(command.contains("--start=90.5"))
+        assertTrue(command.contains("--profile=anime"))
+        assertEquals("D:/Anime/Test Episode.mkv", command.last())
+    }
+
+    @Test
+    fun `explicit RIFE script outside config dir is fixed length quoted`() {
+        val script = Paths.get("D:/filters/custom script.vpy").toAbsolutePath().normalize().toString()
+        val command = MpvCommandBuilder(
+            MpvRuntimeConfig(
+                mpvExecutable = Paths.get("C:/MiruPlay/mpv/mpv.exe"),
+                rife = RifeInterpolationConfig(scriptPath = Paths.get("D:/filters/custom script.vpy"))
+            )
+        ).build(
+            PlaybackSource(
+                uri = "D:/Anime/Test Episode.mkv",
+                mediaSourceId = "local"
+            )
+        )
+
+        val expectedLength = script.toByteArray(Charsets.UTF_8).size
+        assertTrue(command.contains("--vf-append=vapoursynth=%$expectedLength%$script:4:auto:"))
+    }
+}

@@ -6,12 +6,12 @@ import com.miruplay.tv.clouddrive.CloudDriveEndpoint
 import com.miruplay.tv.clouddrive.CloudDriveTokenInfo
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
-import com.miruplay.tv.data.repository.CloudDriveAutomationRepository
-import com.miruplay.tv.data.secure.SecurePreferencesManager
 import com.miruplay.tv.model.RssDownloadStatus
 import com.miruplay.tv.model.RssDownloadTaskInfo
 import com.miruplay.tv.model.RssProcessedItemInfo
 import com.miruplay.tv.model.RssSubscriptionInfo
+import com.miruplay.tv.repository.CloudDriveAutomationRepository
+import com.miruplay.tv.repository.CloudDriveCredentialStore
 import com.miruplay.tv.scanner.ScanCoordinator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -22,7 +22,7 @@ import javax.inject.Singleton
 @Singleton
 class CloudDriveRssAutomationEngine @Inject constructor(
     private val repository: CloudDriveAutomationRepository,
-    private val securePreferences: SecurePreferencesManager,
+    private val securePreferences: CloudDriveCredentialStore,
     private val feedFetcher: RssFeedFetcher,
     private val cloudDriveClient: CloudDriveClient,
     private val organizer: CloudDriveLibraryOrganizer,

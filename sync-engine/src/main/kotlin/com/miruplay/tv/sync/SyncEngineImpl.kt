@@ -2,10 +2,10 @@ package com.miruplay.tv.sync
 
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
-import com.miruplay.tv.data.repository.ProgressRepository
 import com.miruplay.tv.metadata.MetadataManager
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.NfoMetadata
+import com.miruplay.tv.repository.PlaybackProgressRepository
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,7 +15,7 @@ import javax.inject.Singleton
 
 @Singleton
 class SyncEngineImpl @Inject constructor(
-    private val progressRepository: ProgressRepository,
+    private val progressRepository: PlaybackProgressRepository,
     private val metadataManager: MetadataManager,
     private val config: SyncConfig = SyncConfig()
 ) : SyncEngine {

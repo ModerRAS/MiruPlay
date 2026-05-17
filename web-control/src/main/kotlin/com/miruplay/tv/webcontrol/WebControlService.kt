@@ -4,12 +4,6 @@ import com.miruplay.tv.clouddrive.CloudDriveClient
 import com.miruplay.tv.clouddrive.CloudDriveEndpoint
 import android.os.Build
 import com.miruplay.tv.core.common.Result
-import com.miruplay.tv.data.repository.CloudDriveAutomationRepository
-import com.miruplay.tv.data.repository.IndexRepository
-import com.miruplay.tv.data.repository.MediaRepository
-import com.miruplay.tv.data.repository.MetadataRepository
-import com.miruplay.tv.data.repository.ProgressRepository
-import com.miruplay.tv.data.secure.SecurePreferencesManager
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.CloudDriveAutomationConfig
@@ -21,6 +15,12 @@ import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.PlaybackState
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.player.PlaybackController
+import com.miruplay.tv.repository.AppCredentialStore
+import com.miruplay.tv.repository.CloudDriveAutomationRepository
+import com.miruplay.tv.repository.MediaIndexRepository
+import com.miruplay.tv.repository.MediaSourceRepository
+import com.miruplay.tv.repository.MetadataRepository
+import com.miruplay.tv.repository.PlaybackProgressRepository
 import com.miruplay.tv.scanner.ScanCoordinator
 import com.miruplay.tv.sync.rss.CloudDriveRssAutomationEngine
 import kotlinx.coroutines.Dispatchers
@@ -35,12 +35,12 @@ import javax.inject.Singleton
 
 @Singleton
 class WebControlService @Inject constructor(
-    private val mediaRepository: MediaRepository,
+    private val mediaRepository: MediaSourceRepository,
     private val metadataRepository: MetadataRepository,
-    private val indexRepository: IndexRepository,
-    private val progressRepository: ProgressRepository,
+    private val indexRepository: MediaIndexRepository,
+    private val progressRepository: PlaybackProgressRepository,
     private val cloudDriveRepository: CloudDriveAutomationRepository,
-    private val securePreferences: SecurePreferencesManager,
+    private val securePreferences: AppCredentialStore,
     private val cloudDriveClient: CloudDriveClient,
     private val cloudDriveEngine: CloudDriveRssAutomationEngine,
     private val scanCoordinator: ScanCoordinator,
@@ -69,8 +69,8 @@ class WebControlService @Inject constructor(
 
     suspend fun browseLocalDirectories(path: String): LocalDirectoryDto = withContext(Dispatchers.IO) {
         val trimmedPath = path.trim()
+        val roots = localRootCandidates()
         if (trimmedPath.isBlank()) {
-            val roots = localRootCandidates()
             return@withContext LocalDirectoryDto(
                 path = "",
                 displayPath = "设备存储",
@@ -86,11 +86,14 @@ class WebControlService @Inject constructor(
         if (!directory.canRead()) {
             throw IllegalArgumentException("无权限读取目录: $trimmedPath")
         }
+        if (!isWithinAnyLocalRoot(directory, roots)) {
+            throw IllegalArgumentException("目录不在允许浏览的媒体存储范围内: $trimmedPath")
+        }
 
         LocalDirectoryDto(
             path = directory.absolutePath,
             displayPath = directory.absolutePath,
-            parentPath = parentPathOf(directory),
+            parentPath = parentPathOf(directory, roots),
             entries = directory.listFiles()
                 .orEmpty()
                 .asSequence()
@@ -633,10 +636,22 @@ class WebControlService @Inject constructor(
         }
     }
 
-    private fun parentPathOf(directory: File): String? {
+    private fun parentPathOf(directory: File, roots: List<File>): String? {
         val parent = directory.parentFile ?: return ""
-        return parent.absolutePath.takeUnless { it == directory.absolutePath }
+        val parentPath = parent.absolutePath.takeUnless { it == directory.absolutePath } ?: return null
+        return parentPath.takeIf { isWithinAnyLocalRoot(parent, roots) }
     }
+
+    private fun isWithinAnyLocalRoot(file: File, roots: List<File>): Boolean {
+        val path = canonicalPath(file) ?: return false
+        return roots.any { root ->
+            val rootPath = canonicalPath(root) ?: return@any false
+            path == rootPath || path.startsWith("$rootPath${File.separator}")
+        }
+    }
+
+    private fun canonicalPath(file: File): String? =
+        runCatching { file.canonicalPath }.getOrNull()
 
     private fun findLocalIps(): List<String> {
         return NetworkInterface.getNetworkInterfaces().toList()

@@ -44,25 +44,27 @@ class ExoPlaybackController @Inject constructor(
             val source = currentSource
             when (playbackState) {
                 Player.STATE_READY -> {
+                    if (source == null) return
                     val position = exoPlayer.currentPosition
                     when (_state.value) {
                         is PlaybackState.Buffering -> {
                             if (autoResumeSeekCalled) {
                                 autoResumeSeekCalled = false
                             }
-                            _state.value = PlaybackState.Playing(source!!, position)
+                            _state.value = PlaybackState.Playing(source, position)
                         }
                         is PlaybackState.Playing -> {
                             // Position update
                         }
                         else -> {
                             if (exoPlayer.playWhenReady) {
-                                _state.value = PlaybackState.Playing(source!!, position)
+                                _state.value = PlaybackState.Playing(source, position)
                             }
                         }
                     }
                 }
                 Player.STATE_BUFFERING -> {
+                    if (source == null) return
                     val current = _state.value
                     if (current is PlaybackState.Playing || current is PlaybackState.Paused) {
                         val currentPosition = when (current) {
@@ -71,7 +73,7 @@ class ExoPlaybackController @Inject constructor(
                             is PlaybackState.Buffering -> current.position
                             else -> 0L
                         }
-                        _state.value = PlaybackState.Buffering(source!!, currentPosition)
+                        _state.value = PlaybackState.Buffering(source, currentPosition)
                     }
                 }
                 Player.STATE_ENDED -> {
@@ -257,30 +259,26 @@ class ExoPlaybackController @Inject constructor(
                 when (group.type) {
                     C.TRACK_TYPE_TEXT -> {
                         val format = group.getTrackFormat(0)
-                        if (format != null) {
-                            availableSubtitles.add(
-                                SubtitleTrack(
-                                    language = format.language ?: "und",
-                                    title = format.label ?: "",
-                                    isExternal = false,
-                                    path = "",
-                                    format = SubtitleFormat.SRT
-                                )
+                        availableSubtitles.add(
+                            SubtitleTrack(
+                                language = format.language ?: "und",
+                                title = format.label ?: "",
+                                isExternal = false,
+                                path = "",
+                                format = SubtitleFormat.SRT
                             )
-                        }
+                        )
                     }
                     C.TRACK_TYPE_AUDIO -> {
                         val format = group.getTrackFormat(0)
-                        if (format != null) {
-                            availableAudioTracks.add(
-                                AudioTrack(
-                                    index = availableAudioTracks.size,
-                                    language = format.language ?: "und",
-                                    title = format.label,
-                                    codec = format.codecs
-                                )
+                        availableAudioTracks.add(
+                            AudioTrack(
+                                index = availableAudioTracks.size,
+                                language = format.language ?: "und",
+                                title = format.label,
+                                codec = format.codecs
                             )
-                        }
+                        )
                     }
                 }
             }

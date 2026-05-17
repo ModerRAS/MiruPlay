@@ -3,6 +3,7 @@ package com.miruplay.tv.webcontrol
 import android.content.Context
 import com.miruplay.tv.core.common.WebControlConfig
 import com.miruplay.tv.model.RssSubscriptionInfo
+import com.miruplay.tv.repository.WebControlAccessManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import fi.iki.elonen.NanoHTTPD
 import kotlinx.coroutines.runBlocking
@@ -13,13 +14,15 @@ import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import java.io.FileNotFoundException
 import java.net.URLDecoder
+import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class WebControlServer @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val webControlService: WebControlService
+    private val webControlService: WebControlService,
+    private val webControlPreferences: WebControlAccessManager
 ) : NanoHTTPD(DEFAULT_PORT) {
     private val json = Json {
         ignoreUnknownKeys = true
@@ -30,7 +33,9 @@ class WebControlServer @Inject constructor(
     private var running = false
 
     fun startIfNeeded() {
+        if (!webControlPreferences.webControlEnabled) return
         if (running) return
+        webControlPreferences.accessToken
         start(SOCKET_READ_TIMEOUT, false)
         running = true
     }
@@ -42,12 +47,19 @@ class WebControlServer @Inject constructor(
     }
 
     override fun serve(session: IHTTPSession): Response {
+        if (!webControlPreferences.webControlEnabled) {
+            return serviceDisabledResponse()
+        }
+
         if (session.method == Method.OPTIONS) {
             return addCommonHeaders(newFixedLengthResponse(Response.Status.NO_CONTENT, MIME_PLAINTEXT, ""))
         }
 
         return try {
             if (session.uri.startsWith("/api/")) {
+                if (!isAuthorized(session)) {
+                    return unauthorizedResponse()
+                }
                 serveApi(session)
             } else {
                 serveStatic(session)
@@ -178,17 +190,18 @@ class WebControlServer @Inject constructor(
                 bytes.inputStream(),
                 bytes.size.toLong()
             )
+            addAuthCookieIfRequested(session, response)
             addCommonHeaders(response)
         } catch (_: FileNotFoundException) {
             val bytes = context.assets.open("web/index.html").use { it.readBytes() }
-            addCommonHeaders(
-                newFixedLengthResponse(
-                    Response.Status.OK,
-                    "text/html; charset=utf-8",
-                    bytes.inputStream(),
-                    bytes.size.toLong()
-                )
+            val response = newFixedLengthResponse(
+                Response.Status.OK,
+                "text/html; charset=utf-8",
+                bytes.inputStream(),
+                bytes.size.toLong()
             )
+            addAuthCookieIfRequested(session, response)
+            addCommonHeaders(response)
         }
     }
 
@@ -207,6 +220,12 @@ class WebControlServer @Inject constructor(
         )
         return addCommonHeaders(newFixedLengthResponse(status, "application/json; charset=utf-8", body))
     }
+
+    private fun serviceDisabledResponse(): Response =
+        errorResponse(Response.Status.FORBIDDEN, "WebUI 未启用")
+
+    private fun unauthorizedResponse(): Response =
+        errorResponse(Response.Status.UNAUTHORIZED, "WebUI 访问令牌无效")
 
     private fun <T> parseBody(session: IHTTPSession, serializer: KSerializer<T>): T {
         val files = mutableMapOf<String, String>()
@@ -240,10 +259,10 @@ class WebControlServer @Inject constructor(
     }
 
     private fun addCommonHeaders(response: Response): Response {
-        response.addHeader("Access-Control-Allow-Origin", "*")
         response.addHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-        response.addHeader("Access-Control-Allow-Headers", "Content-Type")
+        response.addHeader("Access-Control-Allow-Headers", "Content-Type, X-MiruPlay-Token, Authorization")
         response.addHeader("Cache-Control", "no-store")
+        response.addHeader("X-Content-Type-Options", "nosniff")
         return response
     }
 
@@ -263,7 +282,60 @@ class WebControlServer @Inject constructor(
     private fun decodeSegment(segment: String): String =
         URLDecoder.decode(segment, Charsets.UTF_8.name())
 
+    private fun isAuthorized(session: IHTTPSession): Boolean {
+        val expected = webControlPreferences.accessToken
+        return tokenCandidates(session).any { constantTimeEquals(it, expected) }
+    }
+
+    private fun tokenCandidates(session: IHTTPSession): List<String> = buildList {
+        headerValue(session, "x-miruplay-token")?.let(::add)
+        bearerToken(session)?.let(::add)
+        session.parameters["token"]?.firstOrNull()?.takeIf { it.isNotBlank() }?.let(::add)
+        cookieValue(session, AUTH_COOKIE_NAME)?.let(::add)
+    }
+
+    private fun bearerToken(session: IHTTPSession): String? =
+        headerValue(session, "authorization")
+            ?.takeIf { it.startsWith("Bearer ", ignoreCase = true) }
+            ?.substringAfter(' ')
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+
+    private fun headerValue(session: IHTTPSession, name: String): String? =
+        session.headers.entries
+            .firstOrNull { it.key.equals(name, ignoreCase = true) }
+            ?.value
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+
+    private fun cookieValue(session: IHTTPSession, name: String): String? {
+        val cookieHeader = headerValue(session, "cookie") ?: return null
+        return cookieHeader
+            .split(';')
+            .map { it.trim() }
+            .firstOrNull { it.substringBefore('=').trim() == name }
+            ?.substringAfter('=', "")
+            ?.takeIf { it.isNotBlank() }
+    }
+
+    private fun addAuthCookieIfRequested(session: IHTTPSession, response: Response) {
+        val requestedToken = session.parameters["token"]?.firstOrNull()?.takeIf { it.isNotBlank() } ?: return
+        if (constantTimeEquals(requestedToken, webControlPreferences.accessToken)) {
+            response.addHeader(
+                "Set-Cookie",
+                "$AUTH_COOKIE_NAME=$requestedToken; Path=/; SameSite=Strict"
+            )
+        }
+    }
+
+    private fun constantTimeEquals(candidate: String, expected: String): Boolean =
+        MessageDigest.isEqual(
+            candidate.toByteArray(Charsets.UTF_8),
+            expected.toByteArray(Charsets.UTF_8)
+        )
+
     companion object {
         const val DEFAULT_PORT = WebControlConfig.DEFAULT_PORT
+        private const val AUTH_COOKIE_NAME = "miruplay_web_token"
     }
 }

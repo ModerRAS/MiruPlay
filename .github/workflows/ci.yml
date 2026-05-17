@@ -47,9 +47,21 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build debug APK
-        run: |
-          sed -i '/org.gradle.java.home/d' gradle.properties
-          ./gradlew assembleDebug --no-daemon --stacktrace
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Run desktop and shared JVM checks
+        run: >
+          ./gradlew
+          checkDesktopComposeOnly
+          checkUiPaletteDrift
+          :player-mpv:test
+          :cloud-drive-desktop:test
+          :sync-engine-desktop:test
+          :desktop-app:test
+          :desktop-app:installDist
+          -PbundleMpvRuntime=false
+          --no-daemon
+          --stacktrace
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
@@ -100,9 +112,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build release APK
-        run: |
-          sed -i '/org.gradle.java.home/d' gradle.properties
-          ./gradlew assembleRelease --no-daemon --stacktrace
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
@@ -138,9 +148,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Run lint
-        run: |
-          sed -i '/org.gradle.java.home/d' gradle.properties
-          ./gradlew lint --no-daemon
+        run: ./gradlew lint --no-daemon
         continue-on-error: true
 
       - name: Upload lint reports
@@ -211,7 +219,6 @@ jobs:
       - name: Build nightly APK
         if: steps.check_changes.outputs.has_changes == 'true'
         run: |
-          sed -i '/org.gradle.java.home/d' gradle.properties
           ./gradlew assembleRelease \
             -PVERSION_NAME=${{ steps.version.outputs.version_name }} \
             -PVERSION_CODE=${{ steps.version.outputs.version_code }} \

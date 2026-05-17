@@ -10,6 +10,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     version = 4,
+    exportSchema = true,
     entities = [
         AnimeEntity::class,
         EpisodeEntity::class,

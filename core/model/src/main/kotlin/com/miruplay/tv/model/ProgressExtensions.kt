@@ -27,7 +27,7 @@ fun Episode.progressLabel(progress: ProgressRecord?): String {
     if (isCompleted(progress)) return "已看"
     val position = progress?.positionMs?.coerceAtLeast(0L) ?: return "未看"
     if (position <= 0L) return "未看"
-    return "看到 ${formatPlaybackDuration(position)}"
+    return "看到 ${formatPlaybackPosition(position)}"
 }
 
 fun Episode.continueEpisodeProgress(progress: ProgressRecord?): Boolean {
@@ -37,15 +37,3 @@ fun Episode.continueEpisodeProgress(progress: ProgressRecord?): Boolean {
 
 private fun completionThreshold(duration: Long): Long =
     (duration * COMPLETION_RATIO).toLong().coerceAtLeast(1L)
-
-private fun formatPlaybackDuration(positionMs: Long): String {
-    val totalSeconds = (positionMs / 1000L).coerceAtLeast(0L)
-    val hours = totalSeconds / 3600L
-    val minutes = (totalSeconds % 3600L) / 60L
-    val seconds = totalSeconds % 60L
-    return if (hours > 0L) {
-        "%d:%02d:%02d".format(hours, minutes, seconds)
-    } else {
-        "%02d:%02d".format(minutes, seconds)
-    }
-}

@@ -41,6 +41,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import com.miruplay.tv.model.Anime
+import com.miruplay.tv.model.displayTitle
+import com.miruplay.tv.model.featureSubtitle
+import com.miruplay.tv.model.posterSubtitle
 import com.miruplay.tv.ui.theme.AnimeRed
 import com.miruplay.tv.ui.theme.CardBg
 import com.miruplay.tv.ui.theme.FocusBorder
@@ -242,23 +245,4 @@ fun FeatureAnimeCard(
             }
         }
     }
-}
-
-fun Anime.displayTitle(): String = titleCn?.takeIf { it.isNotBlank() } ?: title.ifBlank { id }
-
-private fun Anime.posterSubtitle(): String {
-    val parts = buildList {
-        if (episodeCount > 0) add("${episodeCount} 集")
-        if (rating > 0f) add("Bangumi ${"%.1f".format(rating)}")
-    }
-    return parts.joinToString(" · ")
-}
-
-private fun Anime.featureSubtitle(): String {
-    val parts = buildList {
-        airDate?.takeIf { it.isNotBlank() }?.let { add(it) }
-        if (episodeCount > 0) add("全 $episodeCount 话")
-        if (rating > 0f) add("评分 ${"%.1f".format(rating)}")
-    }
-    return parts.joinToString(" · ").ifBlank { "本地媒体库" }
 }

@@ -22,6 +22,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.*
 import com.miruplay.tv.model.Anime
+import com.miruplay.tv.model.displayTitle
 import com.miruplay.tv.ui.components.*
 import com.miruplay.tv.ui.theme.*
 
