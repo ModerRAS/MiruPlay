@@ -4,8 +4,9 @@ import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.ScraperResult
-import com.miruplay.tv.model.SubtitleFormat
 import com.miruplay.tv.model.SubtitleTrack
+import com.miruplay.tv.model.buildExternalSubtitleTracks
+import com.miruplay.tv.model.externalSubtitleTrackFromPath
 import com.miruplay.tv.model.formatFileSize
 import com.miruplay.tv.model.formatPlaybackPosition
 import com.miruplay.tv.repository.MetadataBatchConflict
@@ -37,29 +38,10 @@ internal data class DesktopSourceListItem(
 
 internal object DesktopPlaybackSourceFactory {
     fun buildSubtitleTracks(value: String): List<SubtitleTrack> =
-        value
-            .split(';', '\n')
-            .map { it.trim() }
-            .filter { it.isNotBlank() }
-            .map(::subtitleTrackFromPath)
+        buildExternalSubtitleTracks(value)
 
-    fun subtitleTrackFromPath(path: String): SubtitleTrack {
-        val normalized = path.trim()
-        return SubtitleTrack(
-            title = normalized.substringAfterLast('/').substringAfterLast('\\'),
-            isExternal = true,
-            path = normalized,
-            format = subtitleFormat(normalized),
-        )
-    }
-
-    private fun subtitleFormat(path: String): SubtitleFormat =
-        when (path.substringAfterLast('.', "").lowercase()) {
-            "ass" -> SubtitleFormat.ASS
-            "ssa" -> SubtitleFormat.SSA
-            "vtt" -> SubtitleFormat.VTT
-            else -> SubtitleFormat.SRT
-        }
+    fun subtitleTrackFromPath(path: String): SubtitleTrack =
+        externalSubtitleTrackFromPath(path)
 }
 
 internal object DesktopIndexSearchPresenter {
