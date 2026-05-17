@@ -54,6 +54,8 @@ jobs:
           ./gradlew
           checkDesktopComposeOnly
           checkUiPaletteDrift
+          :core:model:test
+          :repository-api:test
           :player-mpv:test
           :cloud-drive-desktop:test
           :sync-engine-desktop:test
