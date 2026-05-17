@@ -8,7 +8,7 @@ plugins {
 
 android {
     namespace = "com.miruplay.tv.metadata"
-    compileSdk = 34
+    compileSdk = 35
     defaultConfig {
         minSdk = 28
     }

@@ -59,6 +59,7 @@ import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.continueEpisodeProgress
+import com.miruplay.tv.model.displayTitle
 import com.miruplay.tv.model.isCompleted
 import com.miruplay.tv.model.progressFraction
 import com.miruplay.tv.model.progressLabel
@@ -66,7 +67,6 @@ import com.miruplay.tv.ui.components.LoadingIndicator
 import com.miruplay.tv.ui.components.OverscanContainer
 import com.miruplay.tv.ui.components.RemoteImage
 import com.miruplay.tv.ui.components.TvButton
-import com.miruplay.tv.ui.components.displayTitle
 import com.miruplay.tv.ui.theme.AccentBlue
 import com.miruplay.tv.ui.theme.AnimeRed
 import com.miruplay.tv.ui.theme.CardBg

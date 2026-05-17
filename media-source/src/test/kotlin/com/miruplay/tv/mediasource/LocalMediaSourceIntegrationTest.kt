@@ -10,6 +10,7 @@ import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import java.io.File
+import java.nio.file.Files
 
 class LocalMediaSourceIntegrationTest {
     
@@ -18,7 +19,7 @@ class LocalMediaSourceIntegrationTest {
     
     @Before
     fun setup() {
-        tempDir = createTempDir("miruplay-test")
+        tempDir = Files.createTempDirectory("miruplay-test").toFile()
         // Create test files
         File(tempDir, "test.mkv").writeText("test video content")
         File(tempDir, "subs.srt").writeText("1\n00:00:01,000 --> 00:00:02,000\nHello")

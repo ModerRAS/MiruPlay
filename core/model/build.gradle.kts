@@ -1,15 +1,11 @@
 plugins {
-    id("com.android.library")
-    id("org.jetbrains.kotlin.android")
+    id("java-library")
+    id("org.jetbrains.kotlin.jvm")
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
-android {
-    namespace = "com.miruplay.tv.core.model"
-    compileSdk = 35
-    defaultConfig {
-        minSdk = 28
-    }
+kotlin {
+    jvmToolchain(21)
 }
 
 project.extra.set("pureKotlin", true)

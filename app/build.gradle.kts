@@ -47,7 +47,9 @@ android {
 }
 
 dependencies {
+    implementation(project(":ui-design"))
     implementation(project(":ui-tv"))
+    implementation(project(":repository-api"))
     implementation(project(":data"))
     implementation(project(":player-core"))
     implementation(project(":scraper"))

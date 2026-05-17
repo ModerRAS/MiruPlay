@@ -2,10 +2,6 @@ package com.miruplay.tv.scanner
 
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
-import com.miruplay.tv.data.repository.IndexRepository
-import com.miruplay.tv.data.repository.IndexRepositoryEntity
-import com.miruplay.tv.data.repository.MediaRepository
-import com.miruplay.tv.data.repository.MetadataRepository
 import com.miruplay.tv.mediasource.FileEntry
 import com.miruplay.tv.mediasource.FileMetadata
 import com.miruplay.tv.mediasource.MediaSource
@@ -17,6 +13,10 @@ import com.miruplay.tv.model.FilenameParseResult
 import com.miruplay.tv.model.MediaCapabilities
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.repository.MediaIndexEntry
+import com.miruplay.tv.repository.MediaIndexRepository
+import com.miruplay.tv.repository.MediaSourceRepository
+import com.miruplay.tv.repository.MetadataRepository
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -220,7 +220,7 @@ class ScanCoordinatorTest {
 
     private class SingleSourceRepository(
         private val source: MediaSourceInfo
-    ) : MediaRepository {
+    ) : MediaSourceRepository {
         override suspend fun addSource(source: MediaSourceInfo): Result<Long> = Result.success(source.id)
         override suspend fun removeSource(sourceId: Long): Result<Unit> = Result.success(Unit)
         override suspend fun getSources(): Result<List<MediaSourceInfo>> = Result.success(listOf(source))
@@ -236,21 +236,29 @@ class ScanCoordinatorTest {
         override fun supports(type: MediaSourceType): Boolean = true
     }
 
-    private class RecordingIndexRepository : IndexRepository {
-        val entries = mutableListOf<IndexRepositoryEntity>()
+    private class RecordingIndexRepository : MediaIndexRepository {
+        val entries = mutableListOf<MediaIndexEntry>()
 
-        override suspend fun rebuildIndex(sourceId: Long, entries: List<IndexRepositoryEntity>): Result<Unit> {
+        override suspend fun rebuildIndex(sourceId: Long, entries: List<MediaIndexEntry>): Result<Unit> {
             this.entries.clear()
             this.entries.addAll(entries)
             return Result.success(Unit)
         }
 
-        override suspend fun queryIndex(sourceId: Long, query: String): Result<List<IndexRepositoryEntity>> = Result.success(entries)
+        override suspend fun queryIndex(sourceId: Long, query: String): Result<List<MediaIndexEntry>> = Result.success(entries)
+        override suspend fun upsertEntry(sourceId: Long, entry: MediaIndexEntry): Result<Unit> {
+            entries.removeAll { it.sourceId == sourceId && it.path == entry.path }
+            entries.add(entry.copy(sourceId = sourceId))
+            return Result.success(Unit)
+        }
         override suspend fun getAnimeInIndex(sourceId: Long): Result<List<String>> = Result.success(entries.mapNotNull { it.animeName }.distinct())
         override suspend fun clearIndex(sourceId: Long): Result<Unit> {
             entries.clear()
             return Result.success(Unit)
         }
+        override suspend fun saveLastBatchUndo(sourceId: Long, entries: List<MediaIndexEntry>): Result<Unit> = Result.success(Unit)
+        override suspend fun getLastBatchUndo(sourceId: Long): Result<List<MediaIndexEntry>> = Result.success(emptyList())
+        override suspend fun clearLastBatchUndo(sourceId: Long): Result<Unit> = Result.success(Unit)
     }
 
     private class RecordingMetadataRepository : MetadataRepository {

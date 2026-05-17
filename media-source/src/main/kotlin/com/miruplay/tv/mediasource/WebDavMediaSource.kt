@@ -8,6 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.w3c.dom.Document
 import org.w3c.dom.Element
 import java.io.InputStream
@@ -59,7 +60,7 @@ class WebDavMediaSource @Inject constructor() : MediaSource {
             val url = normalizeUrl(path)
             val request = Request.Builder()
                 .url(url)
-                .method(PROPFIND, RequestBody.create(xmlMedia, propfindXml()))
+                .method(PROPFIND, propfindXml().toRequestBody(xmlMedia))
                 .header("Depth", DEPTH_1)
                 .apply { if (username.isNotBlank()) header("Authorization", credentials()) }
                 .build()
@@ -120,7 +121,7 @@ class WebDavMediaSource @Inject constructor() : MediaSource {
             val url = normalizeUrl(path)
             val request = Request.Builder()
                 .url(url)
-                .method(PROPFIND, RequestBody.create(xmlMedia, propfindXml()))
+                .method(PROPFIND, propfindXml().toRequestBody(xmlMedia))
                 .header("Depth", "0")
                 .apply { if (username.isNotBlank()) header("Authorization", credentials()) }
                 .build()
