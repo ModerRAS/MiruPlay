@@ -6,9 +6,13 @@ import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.SubtitleFormat
 import com.miruplay.tv.model.SubtitleTrack
-import com.miruplay.tv.model.displayTitle
 import com.miruplay.tv.model.formatFileSize
 import com.miruplay.tv.model.formatPlaybackPosition
+import com.miruplay.tv.repository.MetadataBatchConflict
+import com.miruplay.tv.repository.MetadataBatchMatch
+import com.miruplay.tv.repository.MetadataBatchPlan
+import com.miruplay.tv.repository.MetadataBatchPlanner
+import com.miruplay.tv.repository.MetadataBatchUpdate
 import com.miruplay.tv.repository.MediaIndexEntry
 import java.nio.file.Paths
 import kotlin.math.roundToLong
@@ -132,110 +136,28 @@ internal object DesktopBangumiSearchPresenter {
     }
 }
 
-internal data class DesktopBangumiBatchMatch(
-    val query: String,
-    val result: ScraperResult? = null,
-    val candidates: List<ScraperResult> = result?.let { listOf(it) }.orEmpty(),
-)
-
-internal data class DesktopBangumiBatchUpdate(
-    val query: String,
-    val original: MediaIndexEntry,
-    val updated: MediaIndexEntry,
-    val result: ScraperResult,
-)
-
-internal data class DesktopBangumiBatchConflict(
-    val query: String,
-    val entry: MediaIndexEntry,
-)
-
-internal data class DesktopBangumiBatchPlan(
-    val readyUpdates: List<DesktopBangumiBatchUpdate>,
-    val reviewMatches: List<DesktopBangumiBatchMatch>,
-    val conflicts: List<DesktopBangumiBatchConflict>,
-)
+internal typealias DesktopBangumiBatchMatch = MetadataBatchMatch
+internal typealias DesktopBangumiBatchUpdate = MetadataBatchUpdate
+internal typealias DesktopBangumiBatchConflict = MetadataBatchConflict
+internal typealias DesktopBangumiBatchPlan = MetadataBatchPlan
 
 internal object DesktopBangumiBatchPresenter {
-    private const val READY_CONFIDENCE = 0.85f
-
     fun queriesFor(entries: List<MediaIndexEntry>): List<String> =
-        entries
-            .mapNotNull(::queryFor)
-            .distinct()
+        MetadataBatchPlanner.queriesFor(entries)
 
     fun acceptedMatches(matches: List<DesktopBangumiBatchMatch>): List<DesktopBangumiBatchMatch> =
-        matches.filter { (it.result?.confidence ?: 0f) >= READY_CONFIDENCE }
+        MetadataBatchPlanner.acceptedMatches(matches)
 
     fun planFor(
         entries: List<MediaIndexEntry>,
         matches: List<DesktopBangumiBatchMatch>,
     ): DesktopBangumiBatchPlan {
-        val readyUpdates = mutableListOf<DesktopBangumiBatchUpdate>()
-        val reviewMatches = mutableListOf<DesktopBangumiBatchMatch>()
-        val conflicts = mutableListOf<DesktopBangumiBatchConflict>()
-        matches.forEach { match ->
-            val result = match.result
-            if (result == null || result.confidence < READY_CONFIDENCE) {
-                reviewMatches += match
-                return@forEach
-            }
-            val matchingEntries = entries.filter { queryFor(it) == match.query }
-            if (matchingEntries.any(::hasExternalMetadata)) {
-                conflicts += matchingEntries.map { DesktopBangumiBatchConflict(match.query, it) }
-                return@forEach
-            }
-            readyUpdates += matchingEntries.map { entry ->
-                DesktopBangumiBatchUpdate(
-                    query = match.query,
-                    original = entry,
-                    updated = entry.copy(
-                        animeName = result.displayTitle(),
-                        metadataSource = result.source.name,
-                        metadataId = result.animeId,
-                        metadataTitle = result.displayTitle(),
-                    ),
-                    result = result,
-                )
-            }
-        }
-        return DesktopBangumiBatchPlan(
-            readyUpdates = readyUpdates,
-            reviewMatches = reviewMatches,
-            conflicts = conflicts,
-        )
+        return MetadataBatchPlanner.planFor(entries, matches)
     }
 
-    fun displayPreview(matches: List<DesktopBangumiBatchMatch>): String = buildString {
-        matches.forEach { match ->
-            val result = match.result
-            val status = if ((result?.confidence ?: 0f) >= READY_CONFIDENCE) "ready" else "review"
-            append(match.query)
-            append(": ")
-            append(result?.let(::displayCandidate) ?: "No match")
-            append(" [$status]")
-            if (match.candidates.size > 1) append(" candidates=${match.candidates.size}")
-            appendLine()
-        }
-    }
+    fun displayPreview(matches: List<DesktopBangumiBatchMatch>): String =
+        MetadataBatchPlanner.displayPreview(matches)
 
     fun displayPlanSummary(plan: DesktopBangumiBatchPlan): String =
-        "${plan.readyUpdates.size} ready, ${plan.reviewMatches.size} review, ${plan.conflicts.size} conflicts"
-
-    private fun queryFor(entry: MediaIndexEntry): String? =
-        entry.animeName?.takeIf { it.isNotBlank() }
-            ?: entry.metadataTitle?.takeIf { it.isNotBlank() }
-            ?: entry.path.let { path ->
-                val fileName = path.substringAfterLast('/').substringAfterLast('\\')
-                fileName.substringBeforeLast('.', fileName)
-            }
-                .takeIf { it.isNotBlank() }
-
-    private fun displayCandidate(result: ScraperResult): String =
-        result.title + result.titleCn?.takeIf { it.isNotBlank() }?.let { " / $it" }.orEmpty()
-
-    private fun hasExternalMetadata(entry: MediaIndexEntry): Boolean =
-        !entry.metadataSource.isNullOrBlank() ||
-            !entry.metadataId.isNullOrBlank() ||
-            !entry.metadataTitle.isNullOrBlank()
+        MetadataBatchPlanner.displayPlanSummary(plan)
 }
