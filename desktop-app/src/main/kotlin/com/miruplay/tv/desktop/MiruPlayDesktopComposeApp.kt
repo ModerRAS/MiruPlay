@@ -1674,17 +1674,7 @@ private fun LibraryPanel(
             ) {
                 Text("Indexed videos", color = TextPrimary, fontSize = MiruPlayUiMetrics.SECTION_SUBTITLE_SP.sp, fontWeight = FontWeight.SemiBold)
                 if (entries.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(MiruPlayUiMetrics.EMPTY_STATE_HEIGHT_DP.dp)
-                            .clip(RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
-                            .background(CardBg.copy(alpha = 0.48f))
-                            .border(1.dp, Color.White.copy(alpha = MiruPlayUiMetrics.PANEL_BORDER_ALPHA), RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text("Scan or search to show indexed episodes.", color = TextSecondary, fontSize = MiruPlayUiMetrics.SECTION_BODY_SP.sp)
-                    }
+                    DesktopEmptyState("Scan or search to show indexed episodes.")
                 } else {
                     entries.take(8).forEach { entry ->
                         IndexedMediaRow(
@@ -1705,26 +1695,7 @@ private fun IndexedMediaRow(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isFocused by interactionSource.collectIsFocusedAsState()
-    Button(
-        onClick = onClick,
-        interactionSource = interactionSource,
-        shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = if (selected || isFocused) CardBg else CardBg.copy(alpha = 0.55f),
-            contentColor = TextPrimary,
-        ),
-        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, focusedElevation = 0.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(MiruPlayUiMetrics.LIST_ROW_HEIGHT_DP.dp)
-            .border(
-                width = if (selected || isFocused) 2.dp else 1.dp,
-                color = if (selected || isFocused) AnimeRed else Color.White.copy(alpha = MiruPlayUiMetrics.PANEL_BORDER_ALPHA),
-                shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
-            ),
-    ) {
+    DesktopSelectableRow(selected = selected, onClick = onClick) {
         Column(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.Center,
@@ -1850,17 +1821,10 @@ private fun RemoteSourcesPanel(
                     TvActionButton("Up", onClick = onUp, secondary = true, modifier = Modifier.width(MiruPlayUiMetrics.CONTROL_BUTTON_WIDTH_DP.dp))
                 }
                 if (entries.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(MiruPlayUiMetrics.REMOTE_EMPTY_STATE_HEIGHT_DP.dp)
-                            .clip(RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
-                            .background(CardBg.copy(alpha = 0.48f))
-                            .border(1.dp, Color.White.copy(alpha = MiruPlayUiMetrics.PANEL_BORDER_ALPHA), RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text("Open a remote source to list files.", color = TextSecondary, fontSize = MiruPlayUiMetrics.SECTION_BODY_SP.sp)
-                    }
+                    DesktopEmptyState(
+                        text = "Open a remote source to list files.",
+                        heightDp = MiruPlayUiMetrics.REMOTE_EMPTY_STATE_HEIGHT_DP,
+                    )
                 } else {
                     entries.take(8).forEach { entry ->
                         RemoteFileRow(
@@ -1881,26 +1845,7 @@ private fun RemoteFileRow(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isFocused by interactionSource.collectIsFocusedAsState()
-    Button(
-        onClick = onClick,
-        interactionSource = interactionSource,
-        shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = if (selected || isFocused) CardBg else CardBg.copy(alpha = 0.55f),
-            contentColor = TextPrimary,
-        ),
-        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, focusedElevation = 0.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(MiruPlayUiMetrics.LIST_ROW_HEIGHT_DP.dp)
-            .border(
-                width = if (selected || isFocused) 2.dp else 1.dp,
-                color = if (selected || isFocused) AnimeRed else Color.White.copy(alpha = MiruPlayUiMetrics.PANEL_BORDER_ALPHA),
-                shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
-            ),
-    ) {
+    DesktopSelectableRow(selected = selected, onClick = onClick) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.DETAIL_MEDIA_PADDING_DP.dp),
@@ -2039,17 +1984,7 @@ private fun BangumiPanel(
                     }
                 }
                 if (results.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(MiruPlayUiMetrics.EMPTY_STATE_HEIGHT_DP.dp)
-                            .clip(RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
-                            .background(CardBg.copy(alpha = 0.48f))
-                            .border(1.dp, Color.White.copy(alpha = MiruPlayUiMetrics.PANEL_BORDER_ALPHA), RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text("Search to show Bangumi matches.", color = TextSecondary, fontSize = MiruPlayUiMetrics.SECTION_BODY_SP.sp)
-                    }
+                    DesktopEmptyState("Search to show Bangumi matches.")
                 } else {
                     results.take(6).forEach { result ->
                         BangumiResultRow(
@@ -2111,26 +2046,7 @@ private fun BangumiResultRow(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isFocused by interactionSource.collectIsFocusedAsState()
-    Button(
-        onClick = onClick,
-        interactionSource = interactionSource,
-        shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = if (selected || isFocused) CardBg else CardBg.copy(alpha = 0.55f),
-            contentColor = TextPrimary,
-        ),
-        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, focusedElevation = 0.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(MiruPlayUiMetrics.LIST_ROW_HEIGHT_DP.dp)
-            .border(
-                width = if (selected || isFocused) 2.dp else 1.dp,
-                color = if (selected || isFocused) AnimeRed else Color.White.copy(alpha = MiruPlayUiMetrics.PANEL_BORDER_ALPHA),
-                shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
-            ),
-    ) {
+    DesktopSelectableRow(selected = selected, onClick = onClick) { active ->
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.DETAIL_MEDIA_PADDING_DP.dp),
@@ -2138,7 +2054,7 @@ private fun BangumiResultRow(
         ) {
             Text(
                 "${(result.confidence * 100).roundToLong()}%",
-                color = if (selected || isFocused) AnimeRed else TextSecondary,
+                color = if (active) AnimeRed else TextSecondary,
                 fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.width(MiruPlayUiMetrics.BATCH_SCORE_WIDTH_DP.dp),
@@ -2171,27 +2087,13 @@ private fun BangumiBatchMatchRow(
     status: String,
     onClick: () -> Unit,
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isFocused by interactionSource.collectIsFocusedAsState()
     val result = match.result
-    Button(
+    DesktopSelectableRow(
+        selected = selected,
         onClick = onClick,
-        interactionSource = interactionSource,
-        shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = if (selected || isFocused) CardBg else CardBg.copy(alpha = 0.44f),
-            contentColor = TextPrimary,
-        ),
-        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, focusedElevation = 0.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(MiruPlayUiMetrics.LIST_ROW_COMPACT_HEIGHT_DP.dp)
-            .border(
-                width = if (selected || isFocused) 2.dp else 1.dp,
-                color = if (selected || isFocused) AnimeRed else Color.White.copy(alpha = MiruPlayUiMetrics.PANEL_BORDER_ALPHA),
-                shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
-            ),
-    ) {
+        heightDp = MiruPlayUiMetrics.LIST_ROW_COMPACT_HEIGHT_DP,
+        inactiveAlpha = 0.44f,
+    ) { _ ->
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
@@ -2262,17 +2164,7 @@ private fun RecentPlaybackPanel(
                 verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp),
             ) {
                 if (records.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(MiruPlayUiMetrics.EMPTY_STATE_HEIGHT_DP.dp)
-                            .clip(RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
-                            .background(CardBg.copy(alpha = 0.48f))
-                            .border(1.dp, Color.White.copy(alpha = MiruPlayUiMetrics.PANEL_BORDER_ALPHA), RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text("Launch playback to create recent items.", color = TextSecondary, fontSize = MiruPlayUiMetrics.SECTION_BODY_SP.sp)
-                    }
+                    DesktopEmptyState("Launch playback to create recent items.")
                 } else {
                     records.take(6).forEach { record ->
                         RecentProgressRow(
@@ -2293,26 +2185,7 @@ private fun RecentProgressRow(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isFocused by interactionSource.collectIsFocusedAsState()
-    Button(
-        onClick = onClick,
-        interactionSource = interactionSource,
-        shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = if (selected || isFocused) CardBg else CardBg.copy(alpha = 0.55f),
-            contentColor = TextPrimary,
-        ),
-        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, focusedElevation = 0.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(MiruPlayUiMetrics.LIST_ROW_HEIGHT_DP.dp)
-            .border(
-                width = if (selected || isFocused) 2.dp else 1.dp,
-                color = if (selected || isFocused) AnimeRed else Color.White.copy(alpha = MiruPlayUiMetrics.PANEL_BORDER_ALPHA),
-                shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
-            ),
-    ) {
+    DesktopSelectableRow(selected = selected, onClick = onClick) { active ->
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.DETAIL_MEDIA_PADDING_DP.dp),
@@ -2320,7 +2193,7 @@ private fun RecentProgressRow(
         ) {
             Text(
                 formatPlaybackPosition(record.positionMs),
-                color = if (selected || isFocused) AnimeRed else TextSecondary,
+                color = if (active) AnimeRed else TextSecondary,
                 fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.width(64.dp),
@@ -2358,17 +2231,10 @@ private fun MediaDetailsPanel(
         Text("Media details", color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
         if (source == null && indexEntry == null && remoteEntry == null && recentRecord == null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(MiruPlayUiMetrics.DETAIL_PREVIEW_HEIGHT_DP.dp)
-                    .clip(RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
-                    .background(CardBg.copy(alpha = 0.48f))
-                    .border(1.dp, Color.White.copy(alpha = MiruPlayUiMetrics.PANEL_BORDER_ALPHA), RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text("Select media to show details.", color = TextSecondary, fontSize = MiruPlayUiMetrics.SECTION_BODY_SP.sp)
-            }
+            DesktopEmptyState(
+                text = "Select media to show details.",
+                heightDp = MiruPlayUiMetrics.DETAIL_PREVIEW_HEIGHT_DP,
+            )
             return@TvPanel
         }
 
@@ -2526,17 +2392,10 @@ private fun CloudRssPanel(
                     TvActionButton("Delete", onClick = onDeleteSubscription, secondary = true)
                 }
                 if (subscriptions.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(MiruPlayUiMetrics.RSS_EMPTY_STATE_HEIGHT_DP.dp)
-                            .clip(RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
-                            .background(CardBg.copy(alpha = 0.48f))
-                            .border(1.dp, Color.White.copy(alpha = MiruPlayUiMetrics.PANEL_BORDER_ALPHA), RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text("Save a subscription to show it here.", color = TextSecondary, fontSize = MiruPlayUiMetrics.SECTION_BODY_SP.sp)
-                    }
+                    DesktopEmptyState(
+                        text = "Save a subscription to show it here.",
+                        heightDp = MiruPlayUiMetrics.RSS_EMPTY_STATE_HEIGHT_DP,
+                    )
                 } else {
                     subscriptions.forEach { subscription ->
                         RssSubscriptionRow(
@@ -2557,26 +2416,7 @@ private fun RssSubscriptionRow(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isFocused by interactionSource.collectIsFocusedAsState()
-    Button(
-        onClick = onClick,
-        interactionSource = interactionSource,
-        shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = if (selected || isFocused) CardBg else CardBg.copy(alpha = 0.55f),
-            contentColor = TextPrimary,
-        ),
-        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, focusedElevation = 0.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(MiruPlayUiMetrics.LIST_ROW_HEIGHT_DP.dp)
-            .border(
-                width = if (selected || isFocused) 2.dp else 1.dp,
-                color = if (selected || isFocused) AnimeRed else Color.White.copy(alpha = MiruPlayUiMetrics.PANEL_BORDER_ALPHA),
-                shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
-            ),
-    ) {
+    DesktopSelectableRow(selected = selected, onClick = onClick) {
         Column(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.Center,
@@ -2856,6 +2696,62 @@ private fun TvPanel(
             .padding(MiruPlayUiMetrics.PANEL_PADDING_DP.dp),
         content = content,
     )
+}
+
+@Composable
+private fun DesktopEmptyState(
+    text: String,
+    heightDp: Int = MiruPlayUiMetrics.EMPTY_STATE_HEIGHT_DP,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(heightDp.dp)
+            .clip(RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
+            .background(CardBg.copy(alpha = 0.48f))
+            .border(
+                width = 1.dp,
+                color = Color.White.copy(alpha = MiruPlayUiMetrics.PANEL_BORDER_ALPHA),
+                shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text, color = TextSecondary, fontSize = MiruPlayUiMetrics.SECTION_BODY_SP.sp)
+    }
+}
+
+@Composable
+private fun DesktopSelectableRow(
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    heightDp: Int = MiruPlayUiMetrics.LIST_ROW_HEIGHT_DP,
+    inactiveAlpha: Float = 0.55f,
+    content: @Composable (active: Boolean) -> Unit,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val active = selected || isFocused
+    Button(
+        onClick = onClick,
+        interactionSource = interactionSource,
+        shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = if (active) CardBg else CardBg.copy(alpha = inactiveAlpha),
+            contentColor = TextPrimary,
+        ),
+        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, focusedElevation = 0.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .height(heightDp.dp)
+            .border(
+                width = if (active) 2.dp else 1.dp,
+                color = if (active) AnimeRed else Color.White.copy(alpha = MiruPlayUiMetrics.PANEL_BORDER_ALPHA),
+                shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
+            ),
+    ) {
+        content(active)
+    }
 }
 
 @Composable
