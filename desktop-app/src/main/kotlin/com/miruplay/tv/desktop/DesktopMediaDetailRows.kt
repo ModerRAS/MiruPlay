@@ -6,6 +6,7 @@ import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.formatFileSize
 import com.miruplay.tv.model.formatPlaybackPosition
 import com.miruplay.tv.repository.MediaIndexEntry
+import com.miruplay.tv.repository.displayName
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -27,7 +28,7 @@ internal object DesktopMediaDetailRows {
     ): List<DesktopMediaDetailRow> = buildList {
         addRow("Source", source?.let(::sourceLabel) ?: "None")
         indexEntry?.let { entry ->
-            addRow("Indexed title", DesktopIndexSearchPresenter.displayName(entry))
+            addRow("Indexed title", entry.displayName())
             addRow("Indexed type", if (entry.isDirectory) "Directory" else "Video")
             addRow("Anime", entry.animeName.orEmpty().ifBlank { "Unknown" })
             entry.seasonNumber?.let { addRow("Season", it.toString()) }
