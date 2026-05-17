@@ -97,7 +97,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 import java.awt.Dimension
-import java.nio.file.Path
 import java.nio.file.Paths
 import kotlin.math.roundToLong
 
@@ -2881,7 +2880,7 @@ private fun linkedSourceLabel(
 
 private fun runtimeStatus(mpvPath: String, configDir: String): String =
     runCatching {
-        val verification = MpvRuntimeVerifier.verify(runtimeRoot(mpvPath, configDir))
+        val verification = MpvRuntimeVerifier.verify(DesktopRuntimeDefaults.runtimeRoot(mpvPath, configDir))
         verification.detailMessage()
     }.getOrElse { error ->
         "Runtime check failed: ${error.message ?: error::class.simpleName}"
@@ -3090,18 +3089,6 @@ private fun List<MediaIndexEntry>.replaceEntries(updatedEntries: List<MediaIndex
 
 private fun recentDisplayName(record: ProgressRecord): String =
     record.episodeId.substringAfterLast('\\').substringAfterLast('/').ifBlank { record.episodeId }
-
-private fun runtimeRoot(mpvPath: String, configDir: String): Path {
-    val configPath = configDir.trim().takeIf { it.isNotBlank() }?.let(Paths::get)
-    if (configPath?.fileName?.toString() == "portable_config") {
-        return configPath.parent ?: configPath
-    }
-    return mpvPath.trim()
-        .takeIf { it.isNotBlank() }
-        ?.let(Paths::get)
-        ?.parent
-        ?: Paths.get("")
-}
 
 private fun String.quoteForPreview(): String =
     if (any { it.isWhitespace() }) "\"${replace("\"", "\\\"")}\"" else this
