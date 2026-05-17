@@ -1,6 +1,6 @@
 package com.miruplay.tv.sync.rss
 
-internal object CloudDrivePathPolicy {
+object CloudDrivePathPolicy {
     fun normalize(path: String): String {
         val trimmed = path.trim().replace('\\', '/').trimEnd('/')
         return when {

@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import com.miruplay.tv.clouddrive.GrpcCloudDriveClient
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.design.MiruPlayPalette
 import com.miruplay.tv.design.MiruPlayRouteSurface
@@ -160,7 +161,13 @@ internal fun MiruPlayDesktopComposeApp() {
     val repositories = remember { DesktopRepositories.fileBacked() }
     val playbackBridge = remember { DesktopPlaybackBridge() }
     val bangumiScraper = remember { DesktopBangumiScraper() }
-    val cloudRssEngine = remember { DesktopCloudDriveRssAutomationEngine(repositories.cloudDriveAutomation, repositories.credentials) }
+    val cloudRssEngine = remember {
+        DesktopCloudDriveRssAutomationEngine(
+            repository = repositories.cloudDriveAutomation,
+            credentials = repositories.credentials,
+            cloudDriveClient = GrpcCloudDriveClient(),
+        )
+    }
     val cloudRssScheduler = remember { DesktopCloudDriveRssScheduler(cloudRssEngine, scope) }
     val cloudRssSchedulerState by cloudRssScheduler.state.collectAsState()
     var selectedDesktopSection by remember { mutableStateOf(DesktopSection.LIBRARY) }
