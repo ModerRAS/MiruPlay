@@ -13,7 +13,7 @@
 
 ## 当前已落地的第一步
 
-- `:core:common` 和 `:core:model` 已改成真正的 JVM/Kotlin 模块，Windows 端可以直接依赖番剧、剧集、播放源、播放状态、进度模型。
+- `:core:common` 和 `:core:model` 已改成真正的 JVM/Kotlin 模块，Windows 端可以直接依赖番剧、剧集、播放源、播放状态、进度模型；番剧标题/字幕、播放源标题、文件大小、播放时间和外挂字幕 track 解析也已下沉到 `:core:model`，避免 TV/桌面 UI 各写一套格式化逻辑。
 - CI 的 debug build job 现在除了 Android `assembleDebug`，还会运行 `checkDesktopComposeOnly`、`checkUiPaletteDrift`、`:player-mpv:test`、`:cloud-drive-desktop:test`、`:sync-engine-desktop:test`、`:desktop-app:test` 和轻量 `:desktop-app:installDist -PbundleMpvRuntime=false`，避免 Windows/JVM port 只在本地验证。
 - 新增 `:player-mpv` JVM 模块，负责构造和启动 Windows mpv 命令：
   - `--config-dir=<portable_config>` 隔离 MiruPlay 自带配置。
@@ -54,6 +54,7 @@
   - Android `:media-source` 保持不动，避免 SAF/Hilt 依赖污染桌面端。
 - 新增 `:repository-api` 和 `:repository-desktop`：
   - `repository-api` 放跨平台媒体源、播放进度、媒体索引接口。
+  - `repository-api` 还承载可复用的媒体索引展示 helper 和 metadata batch planner；`desktop-app` 的旧 presenter 名字只做薄转发，Android TV 或后续 KMP UI 可以复用同一套 query derivation、ready/review/conflict 规划和索引展示逻辑。
   - `repository-desktop` 当前用 JSON 文件持久化媒体源、进度、索引、Cloud/RSS 自动化配置、RSS 订阅、已处理 RSS 条目、下载任务，以及 file-backed CloudDrive/Bangumi 凭证，默认路径为用户目录下 `.miruplay/desktop-store.json`。
   - `desktop-app` 启动时恢复本地媒体源，并在启动 mpv 时写入最近播放记录。
   - 索引条目已支持可选的外部元数据来源、ID 和标题，桌面端可单条 upsert，避免重建整个索引。
