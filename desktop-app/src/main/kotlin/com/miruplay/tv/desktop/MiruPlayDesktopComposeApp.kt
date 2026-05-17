@@ -61,6 +61,7 @@ import com.miruplay.tv.clouddrive.GrpcCloudDriveClient
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.design.MiruPlayPalette
 import com.miruplay.tv.design.MiruPlayRouteSurface
+import com.miruplay.tv.model.buildExternalSubtitleTracks
 import com.miruplay.tv.sync.rss.DesktopCloudDriveRssAutomationEngine
 import com.miruplay.tv.sync.rss.DesktopCloudDriveRssScheduler
 import com.miruplay.tv.sync.rss.DesktopCloudDriveRssSchedulerState
@@ -86,6 +87,8 @@ import com.miruplay.tv.player.mpv.MpvRuntimeVerifier
 import com.miruplay.tv.player.mpv.RifeBackend
 import com.miruplay.tv.player.mpv.RifeInterpolationConfig
 import com.miruplay.tv.repository.MediaIndexEntry
+import com.miruplay.tv.repository.MetadataBatchPlanner
+import com.miruplay.tv.repository.displayName
 import com.miruplay.tv.repository.desktop.DesktopRepositories
 import com.miruplay.tv.scanner.desktop.DesktopMediaLibraryScanner
 import com.miruplay.tv.scraper.desktop.DesktopBangumiScraper
@@ -106,21 +109,7 @@ private val TextSecondary = Color(MiruPlayPalette.TEXT_SECONDARY_ARGB)
 private val CardBg = Color(MiruPlayPalette.CARD_BG_ARGB)
 private const val COMPOSE_BATCH_BANGUMI_QUERY_LIMIT = 20
 private const val PLAYBACK_PROGRESS_POLL_INTERVAL_MS = 10_000L
-
-internal enum class DesktopSection(
-    val surface: MiruPlayRouteSurface.Section,
-) {
-    LIBRARY(MiruPlayRouteSurface.library),
-    DETAILS(MiruPlayRouteSurface.details),
-    PLAYER(MiruPlayRouteSurface.player),
-    SETTINGS(MiruPlayRouteSurface.settings),
-    ;
-
-    val menuLabel: String get() = surface.menuLabel
-    val title: String get() = surface.title
-    val subtitle: String get() = surface.subtitle
-    val summary: String get() = surface.summary
-}
+private typealias DesktopSection = MiruPlayRouteSurface.Section
 
 private val MiruPlayDesktopColorScheme = darkColorScheme(
     primary = AnimeRed,
@@ -170,7 +159,7 @@ internal fun MiruPlayDesktopComposeApp() {
     }
     val cloudRssScheduler = remember { DesktopCloudDriveRssScheduler(cloudRssEngine, scope) }
     val cloudRssSchedulerState by cloudRssScheduler.state.collectAsState()
-    var selectedDesktopSection by remember { mutableStateOf(DesktopSection.LIBRARY) }
+    var selectedDesktopSection by remember { mutableStateOf(MiruPlayRouteSurface.library) }
     var player by remember { mutableStateOf<MpvProcessPlayer?>(null) }
     var activePlaybackSession by remember { mutableStateOf<DesktopPlaybackSession?>(null) }
     var mpvPath by remember { mutableStateOf(DesktopRuntimeDefaults.mpvPath()) }
@@ -574,7 +563,7 @@ internal fun MiruPlayDesktopComposeApp() {
         ) {
             DesktopTvHeader(selectedSection = selectedDesktopSection)
             when (selectedDesktopSection) {
-                DesktopSection.LIBRARY -> {
+                MiruPlayRouteSurface.library -> {
                     LibraryPanel(
                 libraryRoot = libraryRoot,
                 onLibraryRootChange = { libraryRoot = it },
@@ -711,7 +700,7 @@ internal fun MiruPlayDesktopComposeApp() {
                 onEntrySelected = { entry ->
                     selectedIndexEntry = entry
                     mediaPath = entry.path
-                    launchStatus = "Selected ${DesktopIndexSearchPresenter.displayName(entry)} for playback."
+                    launchStatus = "Selected ${entry.displayName()} for playback."
                 },
             )
             RemoteSourcesPanel(
@@ -812,7 +801,7 @@ internal fun MiruPlayDesktopComposeApp() {
                 },
                     )
                 }
-                DesktopSection.DETAILS -> {
+                MiruPlayRouteSurface.details -> {
                     BangumiPanel(
                 query = bangumiQuery,
                 onQueryChange = { bangumiQuery = it },
@@ -867,7 +856,7 @@ internal fun MiruPlayDesktopComposeApp() {
                         when (val entriesResult = repositories.index.queryIndex(sourceId, "")) {
                             is Result.Success -> {
                                 val entries = entriesResult.data.filterNot { it.isDirectory }
-                                val queries = DesktopBangumiBatchPresenter.queriesFor(entries)
+                                val queries = MetadataBatchPlanner.queriesFor(entries)
                                     .take(COMPOSE_BATCH_BANGUMI_QUERY_LIMIT)
                                 if (queries.isEmpty()) {
                                     bangumiBatchMatches = emptyList()
@@ -887,11 +876,11 @@ internal fun MiruPlayDesktopComposeApp() {
                                     )
                                 }
                                 bangumiBatchMatches = matches
-                                val plan = DesktopBangumiBatchPresenter.planFor(entries, matches)
+                                val plan = MetadataBatchPlanner.planFor(entries, matches)
                                 bangumiBatchPlan = plan
                                 selectedBangumiBatchMatch = plan.reviewMatches.firstOrNull { it.result != null }
                                     ?: matches.firstOrNull()
-                                bangumiStatus = DesktopBangumiBatchPresenter.displayPlanSummary(plan)
+                                bangumiStatus = MetadataBatchPlanner.displayPlanSummary(plan)
                             }
                             is Result.Error -> bangumiStatus = entriesResult.error.toUserMessage()
                         }
@@ -911,10 +900,10 @@ internal fun MiruPlayDesktopComposeApp() {
                         when (val entriesResult = repositories.index.queryIndex(sourceId, "")) {
                             is Result.Success -> {
                                 val entries = entriesResult.data.filterNot { it.isDirectory }
-                                val plan = DesktopBangumiBatchPresenter.planFor(entries, bangumiBatchMatches)
+                                val plan = MetadataBatchPlanner.planFor(entries, bangumiBatchMatches)
                                 bangumiBatchPlan = plan
                                 if (plan.readyUpdates.isEmpty()) {
-                                    bangumiStatus = DesktopBangumiBatchPresenter.displayPlanSummary(plan)
+                                    bangumiStatus = MetadataBatchPlanner.displayPlanSummary(plan)
                                     return@launch
                                 }
                                 val updatedEntries = mutableListOf<MediaIndexEntry>()
@@ -1000,7 +989,7 @@ internal fun MiruPlayDesktopComposeApp() {
                         if (sourceId != null) {
                             when (val entriesResult = repositories.index.queryIndex(sourceId, "")) {
                                 is Result.Success -> {
-                                    bangumiBatchPlan = DesktopBangumiBatchPresenter.planFor(
+                                    bangumiBatchPlan = MetadataBatchPlanner.planFor(
                                         entries = entriesResult.data.filterNot { it.isDirectory },
                                         matches = updatedMatches,
                                     )
@@ -1031,7 +1020,7 @@ internal fun MiruPlayDesktopComposeApp() {
                             is Result.Success -> {
                                 val entries = entriesResult.data.filterNot { it.isDirectory }
                                 val reviewed = match.copy(result = result.copy(confidence = 1f))
-                                val plan = DesktopBangumiBatchPresenter.planFor(entries, listOf(reviewed))
+                                val plan = MetadataBatchPlanner.planFor(entries, listOf(reviewed))
                                 if (plan.conflicts.isNotEmpty()) {
                                     bangumiStatus = "Selected review has ${plan.conflicts.size} metadata conflict${if (plan.conflicts.size == 1) "" else "s"}; nothing was overwritten."
                                     return@launch
@@ -1171,7 +1160,7 @@ internal fun MiruPlayDesktopComposeApp() {
                 recentRecord = selectedRecentProgress,
             )
                 }
-                DesktopSection.SETTINGS -> {
+                MiruPlayRouteSurface.settings -> {
                     CloudRssPanel(
                 endpointUrl = cloudEndpointUrl,
                 onEndpointUrlChange = { cloudEndpointUrl = it },
@@ -1383,7 +1372,7 @@ internal fun MiruPlayDesktopComposeApp() {
                 },
                     )
                 }
-                DesktopSection.PLAYER -> {
+                MiruPlayRouteSurface.player -> {
                     Row(
                 horizontalArrangement = Arrangement.spacedBy(22.dp),
                 modifier = Modifier.fillMaxWidth(),
@@ -1558,7 +1547,7 @@ private fun DesktopTvNavigation(
         Text("MiruPlay", color = TextPrimary, fontSize = 32.sp, fontWeight = FontWeight.Bold)
         Text("Desktop", color = TextSecondary, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
         Spacer(Modifier.height(28.dp))
-        DesktopSection.entries.forEach { section ->
+        MiruPlayRouteSurface.desktopSectionOrder.forEach { section ->
             val selected = section == selectedSection
             Button(
                 onClick = { onSectionSelected(section) },
@@ -1740,7 +1729,7 @@ private fun IndexedMediaRow(
             verticalArrangement = Arrangement.Center,
         ) {
             Text(
-                DesktopIndexSearchPresenter.displayName(entry),
+                entry.displayName(),
                 color = TextPrimary,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -2089,7 +2078,7 @@ private fun SelectedIndexSummary(entry: MediaIndexEntry?) {
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    DesktopIndexSearchPresenter.displayName(entry),
+                    entry.displayName(),
                     color = TextPrimary,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -3055,7 +3044,7 @@ private fun buildPlaybackSource(
         uri = media,
         mediaSourceId = mediaSourceId,
         startPosition = startMs,
-        subtitleTracks = DesktopPlaybackSourceFactory.buildSubtitleTracks(subtitlePath.trim()),
+        subtitleTracks = buildExternalSubtitleTracks(subtitlePath.trim()),
         episodeId = episodeId ?: media,
     )
 }
