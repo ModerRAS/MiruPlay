@@ -61,6 +61,7 @@ import com.miruplay.tv.clouddrive.GrpcCloudDriveClient
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.design.MiruPlayPalette
 import com.miruplay.tv.design.MiruPlayRouteSurface
+import com.miruplay.tv.design.MiruPlayUiMetrics
 import com.miruplay.tv.model.buildExternalSubtitleTracks
 import com.miruplay.tv.sync.rss.DesktopCloudDriveRssAutomationEngine
 import com.miruplay.tv.sync.rss.DesktopCloudDriveRssScheduler
@@ -549,7 +550,7 @@ internal fun MiruPlayDesktopComposeApp() {
             .fillMaxSize()
             .background(DarkBg)
             .padding(32.dp),
-        horizontalArrangement = Arrangement.spacedBy(28.dp),
+        horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.MAIN_SECTION_GAP_DP.dp),
     ) {
         DesktopTvNavigation(
             selectedSection = selectedDesktopSection,
@@ -1541,17 +1542,17 @@ private fun DesktopTvNavigation(
 ) {
     TvPanel(
         modifier = Modifier
-            .width(260.dp)
+            .width(MiruPlayUiMetrics.NAV_RAIL_WIDTH_DP.dp)
             .fillMaxHeight(),
     ) {
-        Text("MiruPlay", color = TextPrimary, fontSize = 32.sp, fontWeight = FontWeight.Bold)
-        Text("Desktop", color = TextSecondary, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
-        Spacer(Modifier.height(28.dp))
+        Text("MiruPlay", color = TextPrimary, fontSize = MiruPlayUiMetrics.SECTION_TITLE_SP.sp, fontWeight = FontWeight.Bold)
+        Text("Desktop", color = TextSecondary, fontSize = MiruPlayUiMetrics.SECTION_LEAD_SP.sp, modifier = Modifier.padding(top = 4.dp))
+        Spacer(Modifier.height((MiruPlayUiMetrics.NAV_ITEM_GAP_DP * 1.5f).dp))
         MiruPlayRouteSurface.desktopSectionOrder.forEach { section ->
             val selected = section == selectedSection
             Button(
                 onClick = { onSectionSelected(section) },
-                shape = RoundedCornerShape(8.dp),
+                shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (selected) AnimeRed else Color.Transparent,
                     contentColor = if (selected) Color.White else TextPrimary,
@@ -1559,11 +1560,11 @@ private fun DesktopTvNavigation(
                 elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, focusedElevation = 0.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(70.dp)
+                    .height(MiruPlayUiMetrics.NAV_ITEM_HEIGHT_DP.dp)
                     .border(
                         width = 1.dp,
-                        color = if (selected) AnimeRed else Color.White.copy(alpha = 0.08f),
-                        shape = RoundedCornerShape(8.dp),
+                        color = if (selected) AnimeRed else Color.White.copy(alpha = MiruPlayUiMetrics.PANEL_BORDER_ALPHA),
+                        shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
                     ),
             ) {
                 Column(
@@ -1573,19 +1574,19 @@ private fun DesktopTvNavigation(
                     Text(
                         section.menuLabel,
                         color = if (selected) Color.White else TextPrimary,
-                        fontSize = 18.sp,
+                        fontSize = MiruPlayUiMetrics.ACTION_BUTTON_TEXT_SP.sp,
                         fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                     )
                     Text(
                         section.summary,
                         color = if (selected) Color.White.copy(alpha = 0.76f) else TextSecondary,
-                        fontSize = 12.sp,
+                        fontSize = MiruPlayUiMetrics.SECTION_SMALL_SP.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(MiruPlayUiMetrics.NAV_ITEM_GAP_DP.dp))
         }
     }
 }
@@ -1593,12 +1594,12 @@ private fun DesktopTvNavigation(
 @Composable
 private fun DesktopTvHeader(selectedSection: DesktopSection) {
     Column {
-        Text(selectedSection.title, color = TextPrimary, fontSize = 32.sp, fontWeight = FontWeight.Bold)
+        Text(selectedSection.title, color = TextPrimary, fontSize = MiruPlayUiMetrics.SECTION_TITLE_SP.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(6.dp))
         Text(
             selectedSection.subtitle,
             color = TextSecondary,
-            fontSize = 18.sp,
+            fontSize = MiruPlayUiMetrics.SECTION_SUBTITLE_SP.sp,
         )
     }
 }
@@ -1624,18 +1625,18 @@ private fun LibraryPanel(
 ) {
     TvPanel(Modifier.fillMaxWidth()) {
         Row(
-            horizontalArrangement = Arrangement.spacedBy(18.dp),
+            horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp),
             verticalAlignment = Alignment.Top,
         ) {
             Column(
                 modifier = Modifier.weight(0.38f),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
             ) {
-                Text("Library", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.SemiBold)
+                Text("Library", color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
                 Text(
                     "Local sources flow into the same index used by playback.",
                     color = TextSecondary,
-                    fontSize = 15.sp,
+                    fontSize = MiruPlayUiMetrics.PANEL_BODY_SP.sp,
                     lineHeight = 20.sp,
                 )
                 LabeledTextField("Local library root", libraryRoot, onValueChange = onLibraryRootChange)
@@ -1647,14 +1648,14 @@ private fun LibraryPanel(
                 LabeledTextField("Index query", indexQuery, onValueChange = onIndexQueryChange)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
                 ) {
                     TvActionButton("Open local", onClick = onOpenLocal, modifier = Modifier.weight(1f))
                     TvActionButton("Scan", onClick = onScan, secondary = true, modifier = Modifier.weight(1f))
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
                 ) {
                     TvActionButton("Search", onClick = onSearch, secondary = true, modifier = Modifier.weight(1f))
                     TvActionButton("Clear index", onClick = onClearIndex, secondary = true, modifier = Modifier.weight(1f))
@@ -1669,20 +1670,20 @@ private fun LibraryPanel(
             }
             Column(
                 modifier = Modifier.weight(0.62f),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp),
             ) {
-                Text("Indexed videos", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Text("Indexed videos", color = TextPrimary, fontSize = MiruPlayUiMetrics.SECTION_SUBTITLE_SP.sp, fontWeight = FontWeight.SemiBold)
                 if (entries.isEmpty()) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(132.dp)
-                            .clip(RoundedCornerShape(8.dp))
+                            .height(MiruPlayUiMetrics.EMPTY_STATE_HEIGHT_DP.dp)
+                            .clip(RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
                             .background(CardBg.copy(alpha = 0.48f))
-                            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(8.dp)),
+                            .border(1.dp, Color.White.copy(alpha = MiruPlayUiMetrics.PANEL_BORDER_ALPHA), RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp)),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text("Scan or search to show indexed episodes.", color = TextSecondary, fontSize = 18.sp)
+                        Text("Scan or search to show indexed episodes.", color = TextSecondary, fontSize = MiruPlayUiMetrics.SECTION_BODY_SP.sp)
                     }
                 } else {
                     entries.take(8).forEach { entry ->
@@ -1709,7 +1710,7 @@ private fun IndexedMediaRow(
     Button(
         onClick = onClick,
         interactionSource = interactionSource,
-        shape = RoundedCornerShape(8.dp),
+        shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = if (selected || isFocused) CardBg else CardBg.copy(alpha = 0.55f),
             contentColor = TextPrimary,
@@ -1717,11 +1718,11 @@ private fun IndexedMediaRow(
         elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, focusedElevation = 0.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .height(58.dp)
+            .height(MiruPlayUiMetrics.LIST_ROW_HEIGHT_DP.dp)
             .border(
                 width = if (selected || isFocused) 2.dp else 1.dp,
-                color = if (selected || isFocused) AnimeRed else Color.White.copy(alpha = 0.08f),
-                shape = RoundedCornerShape(8.dp),
+                color = if (selected || isFocused) AnimeRed else Color.White.copy(alpha = MiruPlayUiMetrics.PANEL_BORDER_ALPHA),
+                shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
             ),
     ) {
         Column(
@@ -1731,7 +1732,7 @@ private fun IndexedMediaRow(
             Text(
                 entry.displayName(),
                 color = TextPrimary,
-                fontSize = 16.sp,
+                fontSize = MiruPlayUiMetrics.ITEM_TITLE_SP.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -1739,7 +1740,7 @@ private fun IndexedMediaRow(
             Text(
                 entry.path,
                 color = TextSecondary,
-                fontSize = 12.sp,
+                fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -1775,16 +1776,16 @@ private fun RemoteSourcesPanel(
 ) {
     TvPanel(Modifier.fillMaxWidth()) {
         Row(
-            horizontalArrangement = Arrangement.spacedBy(18.dp),
+            horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp),
             verticalAlignment = Alignment.Top,
         ) {
             Column(
                 modifier = Modifier.weight(0.42f),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
             ) {
-                Text("Remote sources", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.SemiBold)
+                Text("Remote sources", color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
                 LabeledTextField("WebDAV URL", webDavUrl, onValueChange = onWebDavUrlChange)
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp)) {
                     LabeledTextField(
                         "WebDAV user",
                         webDavUsername,
@@ -1799,9 +1800,9 @@ private fun RemoteSourcesPanel(
                     )
                 }
                 TvActionButton("Open WebDAV", onClick = onOpenWebDav)
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(MiruPlayUiMetrics.TINY_GAP_DP.dp))
                 LabeledTextField("SMB URL", smbUrl, onValueChange = onSmbUrlChange)
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp)) {
                     LabeledTextField(
                         "SMB domain",
                         smbDomain,
@@ -1821,7 +1822,7 @@ private fun RemoteSourcesPanel(
                         modifier = Modifier.weight(1f),
                     )
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
                     TvActionButton("Open SMB", onClick = onOpenSmb)
                     TvActionButton("Scan source", onClick = onScan, secondary = true)
                 }
@@ -1829,7 +1830,7 @@ private fun RemoteSourcesPanel(
             }
             Column(
                 modifier = Modifier.weight(0.58f),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp),
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -1837,28 +1838,28 @@ private fun RemoteSourcesPanel(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f)) {
-                        Text("Remote browser", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Remote browser", color = TextPrimary, fontSize = MiruPlayUiMetrics.SECTION_SUBTITLE_SP.sp, fontWeight = FontWeight.SemiBold)
                         Text(
                             remotePath.ifBlank { "/" },
                             color = TextSecondary,
-                            fontSize = 13.sp,
+                            fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
-                    TvActionButton("Up", onClick = onUp, secondary = true, modifier = Modifier.width(120.dp))
+                    TvActionButton("Up", onClick = onUp, secondary = true, modifier = Modifier.width(MiruPlayUiMetrics.CONTROL_BUTTON_WIDTH_DP.dp))
                 }
                 if (entries.isEmpty()) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(160.dp)
-                            .clip(RoundedCornerShape(8.dp))
+                            .height(MiruPlayUiMetrics.REMOTE_EMPTY_STATE_HEIGHT_DP.dp)
+                            .clip(RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
                             .background(CardBg.copy(alpha = 0.48f))
-                            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(8.dp)),
+                            .border(1.dp, Color.White.copy(alpha = MiruPlayUiMetrics.PANEL_BORDER_ALPHA), RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp)),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text("Open a remote source to list files.", color = TextSecondary, fontSize = 18.sp)
+                        Text("Open a remote source to list files.", color = TextSecondary, fontSize = MiruPlayUiMetrics.SECTION_BODY_SP.sp)
                     }
                 } else {
                     entries.take(8).forEach { entry ->
@@ -1885,7 +1886,7 @@ private fun RemoteFileRow(
     Button(
         onClick = onClick,
         interactionSource = interactionSource,
-        shape = RoundedCornerShape(8.dp),
+        shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = if (selected || isFocused) CardBg else CardBg.copy(alpha = 0.55f),
             contentColor = TextPrimary,
@@ -1893,30 +1894,30 @@ private fun RemoteFileRow(
         elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, focusedElevation = 0.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .height(58.dp)
+            .height(MiruPlayUiMetrics.LIST_ROW_HEIGHT_DP.dp)
             .border(
                 width = if (selected || isFocused) 2.dp else 1.dp,
-                color = if (selected || isFocused) AnimeRed else Color.White.copy(alpha = 0.08f),
-                shape = RoundedCornerShape(8.dp),
+                color = if (selected || isFocused) AnimeRed else Color.White.copy(alpha = MiruPlayUiMetrics.PANEL_BORDER_ALPHA),
+                shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
             ),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.DETAIL_MEDIA_PADDING_DP.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 if (entry.isDirectory) "DIR" else "VID",
                 color = if (entry.isDirectory) AnimeRed else TextSecondary,
-                fontSize = 13.sp,
+                fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.width(40.dp),
+                modifier = Modifier.width(MiruPlayUiMetrics.TYPE_TAG_WIDTH_DP.dp),
             )
             Column(Modifier.weight(1f)) {
                 Text(
                     entry.name,
                     color = TextPrimary,
-                    fontSize = 16.sp,
+                    fontSize = MiruPlayUiMetrics.ITEM_TITLE_SP.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -1924,13 +1925,13 @@ private fun RemoteFileRow(
                 Text(
                     entry.path,
                     color = TextSecondary,
-                    fontSize = 12.sp,
+                    fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
             if (!entry.isDirectory && entry.size > 0L) {
-                Text(formatFileSize(entry.size), color = TextSecondary, fontSize = 12.sp)
+                Text(formatFileSize(entry.size), color = TextSecondary, fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp)
             }
         }
     }
@@ -1961,39 +1962,39 @@ private fun BangumiPanel(
 ) {
     TvPanel(Modifier.fillMaxWidth()) {
         Row(
-            horizontalArrangement = Arrangement.spacedBy(18.dp),
+            horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp),
             verticalAlignment = Alignment.Top,
         ) {
             Column(
                 modifier = Modifier.weight(0.42f),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
             ) {
-                Text("Bangumi metadata", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.SemiBold)
+                Text("Bangumi metadata", color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
                 LabeledTextField("Bangumi query", query, onValueChange = onQueryChange)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
                 ) {
                     TvActionButton("Use selected", onClick = onUseSelectedEntry, secondary = true, modifier = Modifier.weight(1f))
                     TvActionButton("Search", onClick = onSearch, modifier = Modifier.weight(1f))
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
                 ) {
                     TvActionButton("Apply match", onClick = onApply, modifier = Modifier.weight(1f))
                     TvActionButton("Clear metadata", onClick = onClear, secondary = true, modifier = Modifier.weight(1f))
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
                 ) {
                     TvActionButton("Batch preview", onClick = onBatchPreview, secondary = true, modifier = Modifier.weight(1f))
                     TvActionButton("Apply batch", onClick = onBatchApply, secondary = true, modifier = Modifier.weight(1f))
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
                 ) {
                     TvActionButton("Undo batch", onClick = onBatchUndo, secondary = true, modifier = Modifier.weight(1f))
                     TvActionButton("Accept review", onClick = onBatchAcceptReview, secondary = true, modifier = Modifier.weight(1f))
@@ -2002,16 +2003,16 @@ private fun BangumiPanel(
             }
             Column(
                 modifier = Modifier.weight(0.58f),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp),
             ) {
-                Text("Selected index", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Text("Selected index", color = TextPrimary, fontSize = MiruPlayUiMetrics.SECTION_SUBTITLE_SP.sp, fontWeight = FontWeight.SemiBold)
                 SelectedIndexSummary(selectedIndexEntry)
-                Text("Bangumi matches", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Text("Bangumi matches", color = TextPrimary, fontSize = MiruPlayUiMetrics.SECTION_SUBTITLE_SP.sp, fontWeight = FontWeight.SemiBold)
                 if (batchMatches.isNotEmpty()) {
                     Text(
                         "Batch: ${batchMatches.size} quer${if (batchMatches.size == 1) "y" else "ies"} previewed",
                         color = TextSecondary,
-                        fontSize = 13.sp,
+                        fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
                     )
                     batchMatches.take(4).forEach { match ->
                         BangumiBatchMatchRow(
@@ -2026,7 +2027,7 @@ private fun BangumiPanel(
                     Text(
                         "Batch candidates",
                         color = TextPrimary,
-                        fontSize = 18.sp,
+                        fontSize = MiruPlayUiMetrics.SECTION_SUBTITLE_SP.sp,
                         fontWeight = FontWeight.SemiBold,
                     )
                     match.candidates.take(4).forEach { candidate ->
@@ -2041,13 +2042,13 @@ private fun BangumiPanel(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(132.dp)
-                            .clip(RoundedCornerShape(8.dp))
+                            .height(MiruPlayUiMetrics.EMPTY_STATE_HEIGHT_DP.dp)
+                            .clip(RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
                             .background(CardBg.copy(alpha = 0.48f))
-                            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(8.dp)),
+                            .border(1.dp, Color.White.copy(alpha = MiruPlayUiMetrics.PANEL_BORDER_ALPHA), RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp)),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text("Search to show Bangumi matches.", color = TextSecondary, fontSize = 18.sp)
+                        Text("Search to show Bangumi matches.", color = TextSecondary, fontSize = MiruPlayUiMetrics.SECTION_BODY_SP.sp)
                     }
                 } else {
                     results.take(6).forEach { result ->
@@ -2068,19 +2069,19 @@ private fun SelectedIndexSummary(entry: MediaIndexEntry?) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
             .background(CardBg.copy(alpha = 0.55f))
-            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
-            .padding(12.dp),
+            .border(1.dp, Color.White.copy(alpha = MiruPlayUiMetrics.PANEL_BORDER_ALPHA), RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
+            .padding(MiruPlayUiMetrics.STACK_GAP_DP.dp),
     ) {
         if (entry == null) {
-            Text("No indexed video selected.", color = TextSecondary, fontSize = 15.sp)
+            Text("No indexed video selected.", color = TextSecondary, fontSize = MiruPlayUiMetrics.PANEL_BODY_SP.sp)
         } else {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.TINY_GAP_DP.dp)) {
                 Text(
                     entry.displayName(),
                     color = TextPrimary,
-                    fontSize = 16.sp,
+                    fontSize = MiruPlayUiMetrics.ITEM_TITLE_SP.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -2088,14 +2089,14 @@ private fun SelectedIndexSummary(entry: MediaIndexEntry?) {
                 Text(
                     entry.metadataTitle?.let { "Bangumi: $it" } ?: "Bangumi: not linked",
                     color = TextSecondary,
-                    fontSize = 13.sp,
+                    fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
                     entry.path,
                     color = TextSecondary,
-                    fontSize = 12.sp,
+                    fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -2115,7 +2116,7 @@ private fun BangumiResultRow(
     Button(
         onClick = onClick,
         interactionSource = interactionSource,
-        shape = RoundedCornerShape(8.dp),
+        shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = if (selected || isFocused) CardBg else CardBg.copy(alpha = 0.55f),
             contentColor = TextPrimary,
@@ -2123,30 +2124,30 @@ private fun BangumiResultRow(
         elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, focusedElevation = 0.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .height(58.dp)
+            .height(MiruPlayUiMetrics.LIST_ROW_HEIGHT_DP.dp)
             .border(
                 width = if (selected || isFocused) 2.dp else 1.dp,
-                color = if (selected || isFocused) AnimeRed else Color.White.copy(alpha = 0.08f),
-                shape = RoundedCornerShape(8.dp),
+                color = if (selected || isFocused) AnimeRed else Color.White.copy(alpha = MiruPlayUiMetrics.PANEL_BORDER_ALPHA),
+                shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
             ),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.DETAIL_MEDIA_PADDING_DP.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 "${(result.confidence * 100).roundToLong()}%",
                 color = if (selected || isFocused) AnimeRed else TextSecondary,
-                fontSize = 13.sp,
+                fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.width(52.dp),
+                modifier = Modifier.width(MiruPlayUiMetrics.BATCH_SCORE_WIDTH_DP.dp),
             )
             Column(Modifier.weight(1f)) {
                 Text(
                     bangumiDisplayTitle(result),
                     color = TextPrimary,
-                    fontSize = 16.sp,
+                    fontSize = MiruPlayUiMetrics.ITEM_TITLE_SP.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -2154,7 +2155,7 @@ private fun BangumiResultRow(
                 Text(
                     "ID ${result.animeId} / ${result.title}",
                     color = TextSecondary,
-                    fontSize = 12.sp,
+                    fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -2176,7 +2177,7 @@ private fun BangumiBatchMatchRow(
     Button(
         onClick = onClick,
         interactionSource = interactionSource,
-        shape = RoundedCornerShape(8.dp),
+        shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = if (selected || isFocused) CardBg else CardBg.copy(alpha = 0.44f),
             contentColor = TextPrimary,
@@ -2184,30 +2185,30 @@ private fun BangumiBatchMatchRow(
         elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, focusedElevation = 0.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .height(54.dp)
+            .height(MiruPlayUiMetrics.LIST_ROW_COMPACT_HEIGHT_DP.dp)
             .border(
                 width = if (selected || isFocused) 2.dp else 1.dp,
-                color = if (selected || isFocused) AnimeRed else Color.White.copy(alpha = 0.08f),
-                shape = RoundedCornerShape(8.dp),
+                color = if (selected || isFocused) AnimeRed else Color.White.copy(alpha = MiruPlayUiMetrics.PANEL_BORDER_ALPHA),
+                shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
             ),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 status,
                 color = if (status == "conflict") AnimeRed else TextSecondary,
-                fontSize = 12.sp,
+                fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.width(68.dp),
+                modifier = Modifier.width(MiruPlayUiMetrics.BATCH_STATUS_WIDTH_DP.dp),
             )
             Column(Modifier.weight(1f)) {
                 Text(
                     match.query,
                     color = TextPrimary,
-                    fontSize = 15.sp,
+                    fontSize = MiruPlayUiMetrics.PANEL_BODY_SP.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -2222,7 +2223,7 @@ private fun BangumiBatchMatchRow(
                         "${bangumiDisplayTitle(it)} / ${(it.confidence * 100).roundToLong()}%$candidateSuffix"
                     } ?: "No match",
                     color = TextSecondary,
-                    fontSize = 12.sp,
+                    fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -2242,15 +2243,15 @@ private fun RecentPlaybackPanel(
 ) {
     TvPanel(Modifier.fillMaxWidth()) {
         Row(
-            horizontalArrangement = Arrangement.spacedBy(18.dp),
+            horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp),
             verticalAlignment = Alignment.Top,
         ) {
             Column(
                 modifier = Modifier.weight(0.32f),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
             ) {
-                Text("Continue watching", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.SemiBold)
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Continue watching", color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
+                Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
                     TvActionButton("Refresh", onClick = onRefresh, secondary = true)
                     TvActionButton("Clear item", onClick = onClearSelected, secondary = true)
                 }
@@ -2258,19 +2259,19 @@ private fun RecentPlaybackPanel(
             }
             Column(
                 modifier = Modifier.weight(0.68f),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp),
             ) {
                 if (records.isEmpty()) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(132.dp)
-                            .clip(RoundedCornerShape(8.dp))
+                            .height(MiruPlayUiMetrics.EMPTY_STATE_HEIGHT_DP.dp)
+                            .clip(RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
                             .background(CardBg.copy(alpha = 0.48f))
-                            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(8.dp)),
+                            .border(1.dp, Color.White.copy(alpha = MiruPlayUiMetrics.PANEL_BORDER_ALPHA), RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp)),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text("Launch playback to create recent items.", color = TextSecondary, fontSize = 18.sp)
+                        Text("Launch playback to create recent items.", color = TextSecondary, fontSize = MiruPlayUiMetrics.SECTION_BODY_SP.sp)
                     }
                 } else {
                     records.take(6).forEach { record ->
@@ -2297,7 +2298,7 @@ private fun RecentProgressRow(
     Button(
         onClick = onClick,
         interactionSource = interactionSource,
-        shape = RoundedCornerShape(8.dp),
+        shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = if (selected || isFocused) CardBg else CardBg.copy(alpha = 0.55f),
             contentColor = TextPrimary,
@@ -2305,22 +2306,22 @@ private fun RecentProgressRow(
         elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, focusedElevation = 0.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .height(58.dp)
+            .height(MiruPlayUiMetrics.LIST_ROW_HEIGHT_DP.dp)
             .border(
                 width = if (selected || isFocused) 2.dp else 1.dp,
-                color = if (selected || isFocused) AnimeRed else Color.White.copy(alpha = 0.08f),
-                shape = RoundedCornerShape(8.dp),
+                color = if (selected || isFocused) AnimeRed else Color.White.copy(alpha = MiruPlayUiMetrics.PANEL_BORDER_ALPHA),
+                shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
             ),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.DETAIL_MEDIA_PADDING_DP.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 formatPlaybackPosition(record.positionMs),
                 color = if (selected || isFocused) AnimeRed else TextSecondary,
-                fontSize = 13.sp,
+                fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.width(64.dp),
             )
@@ -2328,7 +2329,7 @@ private fun RecentProgressRow(
                 Text(
                     recentDisplayName(record),
                     color = TextPrimary,
-                    fontSize = 16.sp,
+                    fontSize = MiruPlayUiMetrics.ITEM_TITLE_SP.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -2336,12 +2337,12 @@ private fun RecentProgressRow(
                 Text(
                     record.episodeId,
                     color = TextSecondary,
-                    fontSize = 12.sp,
+                    fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Text("x${record.playCount}", color = TextSecondary, fontSize = 12.sp)
+            Text("x${record.playCount}", color = TextSecondary, fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp)
         }
     }
 }
@@ -2354,19 +2355,19 @@ private fun MediaDetailsPanel(
     recentRecord: ProgressRecord?,
 ) {
     TvPanel(Modifier.fillMaxWidth()) {
-        Text("Media details", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(12.dp))
+        Text("Media details", color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
         if (source == null && indexEntry == null && remoteEntry == null && recentRecord == null) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(112.dp)
-                    .clip(RoundedCornerShape(8.dp))
+                    .height(MiruPlayUiMetrics.DETAIL_PREVIEW_HEIGHT_DP.dp)
+                    .clip(RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
                     .background(CardBg.copy(alpha = 0.48f))
-                    .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(8.dp)),
+                    .border(1.dp, Color.White.copy(alpha = MiruPlayUiMetrics.PANEL_BORDER_ALPHA), RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp)),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("Select media to show details.", color = TextSecondary, fontSize = 18.sp)
+                Text("Select media to show details.", color = TextSecondary, fontSize = MiruPlayUiMetrics.SECTION_BODY_SP.sp)
             }
             return@TvPanel
         }
@@ -2379,10 +2380,10 @@ private fun MediaDetailsPanel(
         )
         val splitIndex = (rows.size + 1) / 2
 
-        Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp)) {
             Column(
                 modifier = Modifier.weight(0.5f),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SMALL_GAP_DP.dp),
             ) {
                 rows.take(splitIndex).forEach { row ->
                     DetailLine(row.label, row.value)
@@ -2390,7 +2391,7 @@ private fun MediaDetailsPanel(
             }
             Column(
                 modifier = Modifier.weight(0.5f),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SMALL_GAP_DP.dp),
             ) {
                 rows.drop(splitIndex).forEach { row ->
                     DetailLine(row.label, row.value)
@@ -2453,52 +2454,52 @@ private fun CloudRssPanel(
 ) {
     TvPanel(Modifier.fillMaxWidth()) {
         Row(
-            horizontalArrangement = Arrangement.spacedBy(18.dp),
+            horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp),
             verticalAlignment = Alignment.Top,
         ) {
             Column(
                 modifier = Modifier.weight(0.46f),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
             ) {
-                Text("Cloud/RSS sync", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.SemiBold)
+                Text("Cloud/RSS sync", color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
                 LabeledTextField("CloudDrive2 endpoint", endpointUrl, onValueChange = onEndpointUrlChange)
                 LabeledTextField("CloudDrive2 username", username, onValueChange = onUsernameChange)
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp)) {
                     LabeledTextField("API token", token, onValueChange = onTokenChange, modifier = Modifier.weight(1f))
                     LabeledTextField("Password", password, onValueChange = onPasswordChange, modifier = Modifier.weight(1f))
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp)) {
                     LabeledTextField("Inbox path", inboxPath, onValueChange = onInboxPathChange, modifier = Modifier.weight(1f))
                     LabeledTextField("Library path", libraryPath, onValueChange = onLibraryPathChange, modifier = Modifier.weight(1f))
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp)) {
                     LabeledTextField("Interval minutes", intervalMinutes, onValueChange = onIntervalMinutesChange, modifier = Modifier.weight(1f))
                     LabeledTextField("Proxy host", proxyHost, onValueChange = onProxyHostChange, modifier = Modifier.weight(1f))
                     LabeledTextField("Proxy port", proxyPort, onValueChange = onProxyPortChange, modifier = Modifier.weight(1f))
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp)) {
                     ToggleRow("Enabled", enabled, onEnabledChange)
                     ToggleRow("RSS proxy", proxyEnabled, onProxyEnabledChange)
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
                     TvActionButton("Use active source", onClick = onUseActiveScanSource, secondary = true)
                     TvActionButton("Clear source", onClick = onClearScanSource, secondary = true)
                 }
-                Text("Post-sync source: $linkedSourceLabel", color = TextSecondary, fontSize = 13.sp)
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Post-sync source: $linkedSourceLabel", color = TextSecondary, fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp)
+                Column(verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SMALL_GAP_DP.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
                         TvActionButton("Save sync config", onClick = onSaveConfig)
                         TvActionButton("Run sync now", onClick = onRunSync, secondary = true)
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
                         TvActionButton("Save credentials", onClick = onSaveCredentials, secondary = true)
                         TvActionButton("Clear credentials", onClick = onClearCredentials, secondary = true)
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
                         TvActionButton("Login", onClick = onLoginCloudDrive, secondary = true)
                         TvActionButton("Verify token", onClick = onVerifyApiToken, secondary = true)
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
                         TvActionButton("Start scheduler", onClick = onStartScheduler, secondary = true)
                         TvActionButton("Stop scheduler", onClick = onStopScheduler, secondary = true)
                     }
@@ -2507,19 +2508,19 @@ private fun CloudRssPanel(
                 Text(
                     schedulerStatus,
                     color = TextSecondary,
-                    fontSize = 13.sp,
+                    fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
                     lineHeight = 18.sp,
                 )
             }
             Column(
                 modifier = Modifier.weight(0.54f),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp),
             ) {
-                Text("RSS subscriptions", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Text("RSS subscriptions", color = TextPrimary, fontSize = MiruPlayUiMetrics.SECTION_SUBTITLE_SP.sp, fontWeight = FontWeight.SemiBold)
                 LabeledTextField("Subscription name", rssName, onValueChange = onRssNameChange)
                 LabeledTextField("Subscription URL", rssUrl, onValueChange = onRssUrlChange)
                 LabeledTextField("Filter regex", rssFilter, onValueChange = onRssFilterChange)
-                Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp)) {
                     ToggleRow("Enabled", rssEnabled, onRssEnabledChange)
                     TvActionButton("Save subscription", onClick = onSaveSubscription, secondary = true)
                     TvActionButton("Delete", onClick = onDeleteSubscription, secondary = true)
@@ -2528,13 +2529,13 @@ private fun CloudRssPanel(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(124.dp)
-                            .clip(RoundedCornerShape(8.dp))
+                            .height(MiruPlayUiMetrics.RSS_EMPTY_STATE_HEIGHT_DP.dp)
+                            .clip(RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
                             .background(CardBg.copy(alpha = 0.48f))
-                            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(8.dp)),
+                            .border(1.dp, Color.White.copy(alpha = MiruPlayUiMetrics.PANEL_BORDER_ALPHA), RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp)),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text("Save a subscription to show it here.", color = TextSecondary, fontSize = 18.sp)
+                        Text("Save a subscription to show it here.", color = TextSecondary, fontSize = MiruPlayUiMetrics.SECTION_BODY_SP.sp)
                     }
                 } else {
                     subscriptions.forEach { subscription ->
@@ -2561,7 +2562,7 @@ private fun RssSubscriptionRow(
     Button(
         onClick = onClick,
         interactionSource = interactionSource,
-        shape = RoundedCornerShape(8.dp),
+        shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = if (selected || isFocused) CardBg else CardBg.copy(alpha = 0.55f),
             contentColor = TextPrimary,
@@ -2569,11 +2570,11 @@ private fun RssSubscriptionRow(
         elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, focusedElevation = 0.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .height(58.dp)
+            .height(MiruPlayUiMetrics.LIST_ROW_HEIGHT_DP.dp)
             .border(
                 width = if (selected || isFocused) 2.dp else 1.dp,
-                color = if (selected || isFocused) AnimeRed else Color.White.copy(alpha = 0.08f),
-                shape = RoundedCornerShape(8.dp),
+                color = if (selected || isFocused) AnimeRed else Color.White.copy(alpha = MiruPlayUiMetrics.PANEL_BORDER_ALPHA),
+                shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
             ),
     ) {
         Column(
@@ -2583,7 +2584,7 @@ private fun RssSubscriptionRow(
             Text(
                 subscription.name,
                 color = TextPrimary,
-                fontSize = 16.sp,
+                fontSize = MiruPlayUiMetrics.ITEM_TITLE_SP.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -2591,7 +2592,7 @@ private fun RssSubscriptionRow(
             Text(
                 subscription.url,
                 color = TextSecondary,
-                fontSize = 12.sp,
+                fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -2604,16 +2605,16 @@ private fun DetailLine(label: String, value: String) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
             .background(CardBg.copy(alpha = 0.42f))
-            .border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(8.dp))
-            .padding(10.dp),
+            .border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
+            .padding(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp),
     ) {
-        Text(label, color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        Text(label, color = TextSecondary, fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp, fontWeight = FontWeight.SemiBold)
         Text(
             value,
             color = TextPrimary,
-            fontSize = 15.sp,
+            fontSize = MiruPlayUiMetrics.PANEL_BODY_SP.sp,
             maxLines = 3,
             overflow = TextOverflow.Ellipsis,
         )
@@ -2639,23 +2640,23 @@ private fun PlaybackPanel(
     modifier: Modifier = Modifier,
 ) {
     TvPanel(modifier) {
-        Text("Featured playback", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(16.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+        Text("Featured playback", color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp)) {
             PosterPlaceholder()
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
             ) {
                 LabeledTextField("Media URI or path", mediaPath, onValueChange = onMediaPathChange)
                 LabeledTextField("Subtitle path", subtitlePath, onValueChange = onSubtitlePathChange)
                 LabeledTextField("Start seconds", startSeconds, onValueChange = onStartSecondsChange)
             }
         }
-        Spacer(Modifier.height(18.dp))
+        Spacer(Modifier.height(MiruPlayUiMetrics.SECTION_GAP_DP.dp))
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
         ) {
             ToggleRow("Fullscreen", fullscreen, onFullscreenChange)
             ToggleRow("Keep open", keepOpen, onKeepOpenChange)
@@ -2676,14 +2677,14 @@ private fun RuntimePanel(
     modifier: Modifier = Modifier,
 ) {
     TvPanel(modifier) {
-        Text("Runtime", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(16.dp))
+        Text("Runtime", color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
         LabeledTextField("mpv.exe", mpvPath, onValueChange = onMpvPathChange)
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
         LabeledTextField("portable_config", configDir, onValueChange = onConfigDirChange)
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
         StatusBox(status)
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
         TvActionButton("Check runtime", onClick = onCheckRuntime)
     }
 }
@@ -2699,34 +2700,34 @@ private fun CommandPanel(
     onStop: () -> Unit,
 ) {
     TvPanel(Modifier.fillMaxWidth()) {
-        Text("mpv command", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(12.dp))
+        Text("mpv command", color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(8.dp))
+                .clip(RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
                 .background(Color.Black.copy(alpha = 0.28f))
-                .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
-                .padding(14.dp),
+                .border(1.dp, Color.White.copy(alpha = MiruPlayUiMetrics.PANEL_BORDER_ALPHA), RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
+                .padding(MiruPlayUiMetrics.DETAIL_MEDIA_PADDING_DP.dp),
         ) {
             Text(
                 commandPreview,
                 color = TextPrimary,
                 fontFamily = FontFamily.Monospace,
-                fontSize = 13.sp,
+                fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
                 lineHeight = 18.sp,
             )
         }
-        Spacer(Modifier.height(16.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
             TvActionButton("Launch mpv", onClick = onLaunch)
             TvActionButton("Stop", onClick = onStop, secondary = true)
             TvActionButton("Pause", onClick = onTogglePause, secondary = true)
             TvActionButton("-10s", onClick = onSeekBack, secondary = true, modifier = Modifier.width(110.dp))
             TvActionButton("+30s", onClick = onSeekForward, secondary = true, modifier = Modifier.width(110.dp))
         }
-        Spacer(Modifier.height(12.dp))
-        Text(launchStatus, color = TextSecondary, fontSize = 18.sp)
+        Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
+        Text(launchStatus, color = TextSecondary, fontSize = MiruPlayUiMetrics.SECTION_BODY_SP.sp)
     }
 }
 
@@ -2743,7 +2744,7 @@ private fun LabeledTextField(
         label = { Text(label) },
         singleLine = true,
         modifier = modifier.fillMaxWidth(),
-        textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp),
+        textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = MiruPlayUiMetrics.FIELD_TEXT_SP.sp),
         colors = OutlinedTextFieldDefaults.colors(
             focusedTextColor = TextPrimary,
             unfocusedTextColor = TextPrimary,
@@ -2801,8 +2802,8 @@ private fun ToggleRow(
     onCheckedChange: (Boolean) -> Unit,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Medium)
-        Spacer(Modifier.width(8.dp))
+        Text(label, color = TextPrimary, fontSize = MiruPlayUiMetrics.ITEM_TITLE_SP.sp, fontWeight = FontWeight.Medium)
+        Spacer(Modifier.width(MiruPlayUiMetrics.SMALL_GAP_DP.dp))
         Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
@@ -2823,8 +2824,8 @@ private fun RifeBackendPicker(
         OutlinedButton(
             onClick = { expanded = true },
             modifier = Modifier
-                .width(144.dp)
-                .height(48.dp),
+                .width(MiruPlayUiMetrics.BACKEND_PICKER_WIDTH_DP.dp)
+                .height(MiruPlayUiMetrics.BACKEND_PICKER_HEIGHT_DP.dp),
         ) {
             Text(selected.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
@@ -2849,10 +2850,10 @@ private fun TvPanel(
 ) {
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
             .background(DarkSurface)
-            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
-            .padding(18.dp),
+            .border(1.dp, Color.White.copy(alpha = MiruPlayUiMetrics.PANEL_BORDER_ALPHA), RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
+            .padding(MiruPlayUiMetrics.PANEL_PADDING_DP.dp),
         content = content,
     )
 }
@@ -2879,19 +2880,19 @@ private fun TvActionButton(
     Button(
         onClick = onClick,
         interactionSource = interactionSource,
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(MiruPlayUiMetrics.ACTION_BUTTON_RADIUS_DP.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = background,
             contentColor = Color.White,
         ),
         elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, focusedElevation = 0.dp),
         modifier = modifier
-            .defaultMinSize(minWidth = 150.dp)
-            .height(56.dp)
-            .border(2.dp, border, RoundedCornerShape(12.dp))
+            .defaultMinSize(minWidth = MiruPlayUiMetrics.ACTION_BUTTON_MIN_WIDTH_DP.dp)
+            .height(MiruPlayUiMetrics.ACTION_BUTTON_HEIGHT_DP.dp)
+            .border(2.dp, border, RoundedCornerShape(MiruPlayUiMetrics.ACTION_BUTTON_RADIUS_DP.dp))
             .focusable(),
     ) {
-        Text(text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Text(text, fontSize = MiruPlayUiMetrics.ACTION_BUTTON_TEXT_SP.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -2899,37 +2900,37 @@ private fun TvActionButton(
 private fun PosterPlaceholder() {
     Box(
         modifier = Modifier
-            .width(180.dp)
-            .height(270.dp)
-            .clip(RoundedCornerShape(8.dp))
+            .width(MiruPlayUiMetrics.POSTER_WIDTH_DP.dp)
+            .height(MiruPlayUiMetrics.POSTER_HEIGHT_DP.dp)
+            .clip(RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
             .background(
                 Brush.verticalGradient(
                     listOf(AccentBlue, CardBg, Color.Black.copy(alpha = 0.86f)),
                 ),
             )
-            .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(8.dp)),
+            .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp)),
     ) {
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(12.dp)
-                .size(44.dp)
-                .clip(RoundedCornerShape(8.dp))
+                .padding(MiruPlayUiMetrics.BADGE_PADDING_DP.dp)
+                .size(MiruPlayUiMetrics.BADGE_SIZE_DP.dp)
+                .clip(RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
                 .background(AnimeRed.copy(alpha = 0.92f)),
             contentAlignment = Alignment.Center,
         ) {
-            Text("RIFE", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Text("RIFE", color = Color.White, fontSize = MiruPlayUiMetrics.BADGE_TEXT_SP.sp, fontWeight = FontWeight.Bold)
         }
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(14.dp),
+                .padding(MiruPlayUiMetrics.DETAIL_MEDIA_PADDING_DP.dp),
         ) {
-            Text("mpv", color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.Bold)
+            Text("mpv", color = Color.White, fontSize = MiruPlayUiMetrics.HERO_TITLE_SP.sp, fontWeight = FontWeight.Bold)
             Text(
                 "Windows runtime",
                 color = TextSecondary,
-                fontSize = 13.sp,
+                fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -2942,15 +2943,15 @@ private fun StatusBox(status: String) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
             .background(CardBg.copy(alpha = 0.55f))
-            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
-            .padding(12.dp),
+            .border(1.dp, Color.White.copy(alpha = MiruPlayUiMetrics.PANEL_BORDER_ALPHA), RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
+            .padding(MiruPlayUiMetrics.STATUS_BOX_PADDING_DP.dp),
     ) {
         Text(
             status,
             color = TextPrimary,
-            fontSize = 13.sp,
+            fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
             lineHeight = 18.sp,
             maxLines = 8,
             overflow = TextOverflow.Ellipsis,
