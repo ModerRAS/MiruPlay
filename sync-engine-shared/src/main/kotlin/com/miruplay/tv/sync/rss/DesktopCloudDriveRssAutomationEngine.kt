@@ -3,7 +3,6 @@ package com.miruplay.tv.sync.rss
 import com.miruplay.tv.clouddrive.CloudDriveClient
 import com.miruplay.tv.clouddrive.CloudDriveEndpoint
 import com.miruplay.tv.clouddrive.CloudDriveTokenInfo
-import com.miruplay.tv.clouddrive.GrpcCloudDriveClient
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.RssDownloadStatus
@@ -19,8 +18,8 @@ import java.security.MessageDigest
 class DesktopCloudDriveRssAutomationEngine(
     private val repository: CloudDriveAutomationRepository,
     private val credentials: CloudDriveCredentialStore,
+    private val cloudDriveClient: CloudDriveClient,
     private val feedFetcher: RssFeedReader = RssFeedFetcher(),
-    private val cloudDriveClient: CloudDriveClient = GrpcCloudDriveClient(),
     private val organizer: DesktopCloudDriveLibraryOrganizer = DesktopCloudDriveLibraryOrganizer(cloudDriveClient),
     private val torrentDownloader: TorrentFileDownloader = TorrentFileDownloader(),
 ) {

@@ -15,43 +15,6 @@ import java.io.File
 import java.net.URI
 import java.util.concurrent.TimeUnit
 
-data class CloudDriveEndpoint(
-    val url: String,
-    val token: String? = null
-)
-
-data class CloudDriveFileInfo(
-    val name: String,
-    val path: String,
-    val isDirectory: Boolean,
-    val size: Long = 0L
-)
-
-data class CloudDriveLoginResult(
-    val token: String
-)
-
-data class CloudDriveTokenInfo(
-    val rootDir: String,
-    val friendlyName: String,
-    val allowList: Boolean,
-    val allowCreateFolder: Boolean,
-    val allowCreateFile: Boolean,
-    val allowWrite: Boolean,
-    val allowMove: Boolean,
-    val allowAddOfflineDownload: Boolean
-)
-
-interface CloudDriveClient {
-    suspend fun login(endpointUrl: String, username: String, password: String): Result<CloudDriveLoginResult>
-    suspend fun getApiTokenInfo(endpointUrl: String, token: String): Result<CloudDriveTokenInfo>
-    suspend fun addOfflineFiles(endpoint: CloudDriveEndpoint, urls: List<String>, targetFolder: String): Result<Unit>
-    suspend fun uploadFile(endpoint: CloudDriveEndpoint, localFile: File, parentPath: String, remoteFileName: String): Result<String>
-    suspend fun listFolder(endpoint: CloudDriveEndpoint, path: String, forceRefresh: Boolean = false): Result<List<CloudDriveFileInfo>>
-    suspend fun createFolder(endpoint: CloudDriveEndpoint, parentPath: String, folderName: String): Result<Unit>
-    suspend fun moveFiles(endpoint: CloudDriveEndpoint, paths: List<String>, destinationPath: String): Result<Unit>
-}
-
 class GrpcCloudDriveClient : CloudDriveClient {
     override suspend fun login(endpointUrl: String, username: String, password: String): Result<CloudDriveLoginResult> =
         withGrpc(endpointUrl) { channel ->

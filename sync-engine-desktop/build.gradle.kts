@@ -8,6 +8,7 @@ kotlin {
 }
 
 dependencies {
+    api(project(":sync-engine-shared"))
     api(project(":core:model"))
     api(project(":core:common"))
     api(project(":repository-api"))
