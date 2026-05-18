@@ -1,5 +1,7 @@
 package com.miruplay.tv.scanner.desktop
 
+import com.miruplay.tv.model.MediaFileConventions
+
 data class DesktopScanConfig(
     val maxDepth: Int = 8,
     val includeDirectories: Boolean = true,
@@ -10,7 +12,7 @@ data class DesktopScanConfig(
     }
 
     companion object {
-        val defaultVideoExtensions = setOf("mkv", "mp4", "avi", "mov", "webm", "wmv", "flv", "m4v")
+        val defaultVideoExtensions = MediaFileConventions.defaultVideoExtensions
     }
 }
 

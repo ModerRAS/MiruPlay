@@ -4,6 +4,7 @@ import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.FileMetadata
+import com.miruplay.tv.model.MediaFileConventions
 import com.miruplay.tv.model.MediaCapabilities
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
@@ -117,16 +118,7 @@ class DesktopWebDavMediaSource(
                 val entry = parsePropfindResponse(body, path, includeRequestedPath = true)
                     .firstOrNull { !it.isDirectory }
                     ?: return@withContext Result.failure(AppError.MediaSourceError.NotFound(path))
-                Result.success(
-                    FileMetadata(
-                        name = entry.name,
-                        path = entry.path,
-                        isDirectory = entry.isDirectory,
-                        size = entry.size,
-                        lastModified = entry.lastModified,
-                        mimeType = entry.mimeType,
-                    )
-                )
+                Result.success(MediaFileConventions.metadataFor(entry))
             }
         }.getOrElse {
             Result.failure(AppError.MediaSourceError.NotFound(path))
@@ -173,7 +165,7 @@ class DesktopWebDavMediaSource(
             if (!includeRequestedPath && path == normalizedRequestedPath) continue
 
             val name = path.trimEnd('/').substringAfterLast('/')
-            if (name in hiddenNames) continue
+            if (MediaFileConventions.isHiddenName(name)) continue
 
             val directory = isCollection(response)
             entries += FileEntry(
@@ -185,9 +177,7 @@ class DesktopWebDavMediaSource(
                 mimeType = if (directory) null else getChildText(response, "getcontenttype"),
             )
         }
-        return entries
-            .filter { it.path != "/" }
-            .sortedWith(compareBy<FileEntry> { !it.isDirectory }.thenBy { it.name.lowercase() })
+        return MediaFileConventions.sortEntries(entries.filter { it.path != "/" })
     }
 
     private fun Request.Builder.applyAuth(): Request.Builder {
@@ -250,7 +240,6 @@ class DesktopWebDavMediaSource(
         private const val DEPTH_1 = "1"
         private const val NS_DAV = "DAV:"
         private val xmlMedia = "application/xml; charset=utf-8".toMediaType()
-        private val hiddenNames = setOf(".DS_Store", "Thumbs.db", "@eaDir")
 
         fun create(name: String, url: String, username: String = "", password: String = ""): DesktopWebDavMediaSource =
             DesktopWebDavMediaSource(

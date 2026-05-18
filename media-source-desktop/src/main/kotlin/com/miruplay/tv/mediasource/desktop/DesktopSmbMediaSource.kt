@@ -4,6 +4,7 @@ import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.FileMetadata
+import com.miruplay.tv.model.MediaFileConventions
 import com.miruplay.tv.model.MediaCapabilities
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
@@ -52,9 +53,9 @@ class DesktopSmbMediaSource(
 
             val entries = smbFile.listFiles()
                 .orEmpty()
-                .filter { file -> cleanName(file.name) !in hiddenNames }
+                .filter { file -> !MediaFileConventions.isHiddenName(cleanName(file.name)) }
                 .map(::fileEntryFor)
-                .sortedWith(compareBy<FileEntry> { !it.isDirectory }.thenBy { it.name.lowercase() })
+                .let(MediaFileConventions::sortEntries)
 
             Result.success(entries)
         }.getOrElse { error ->
@@ -97,16 +98,7 @@ class DesktopSmbMediaSource(
                 return@withContext Result.failure(AppError.MediaSourceError.NotFound(path))
             }
             val entry = fileEntryFor(smbFile)
-            Result.success(
-                FileMetadata(
-                    name = entry.name,
-                    path = entry.path,
-                    isDirectory = entry.isDirectory,
-                    size = entry.size,
-                    lastModified = entry.lastModified,
-                    mimeType = entry.mimeType,
-                )
-            )
+            Result.success(MediaFileConventions.metadataFor(entry))
         }.getOrElse { error ->
             Result.failure(error.toAppError(path))
         }
@@ -146,7 +138,7 @@ class DesktopSmbMediaSource(
             isDirectory = directory,
             size = if (directory) 0L else file.length(),
             lastModified = file.lastModified(),
-            mimeType = if (directory) null else mimeTypeFor(name),
+            mimeType = if (directory) null else MediaFileConventions.mimeTypeForName(name),
         )
     }
 
@@ -159,7 +151,6 @@ class DesktopSmbMediaSource(
 
     companion object {
         private const val SMB_SCHEME = "smb://"
-        private val hiddenNames = setOf(".DS_Store", "Thumbs.db", "@eaDir")
 
         fun create(
             name: String,
@@ -191,22 +182,6 @@ class DesktopSmbMediaSource(
             }
             return withScheme.trimEnd('/')
         }
-
-        internal fun mimeTypeFor(name: String): String? =
-            when (name.substringAfterLast('.', "").lowercase()) {
-                "mkv" -> "video/x-matroska"
-                "mp4" -> "video/mp4"
-                "avi" -> "video/x-msvideo"
-                "mov" -> "video/quicktime"
-                "webm" -> "video/webm"
-                "wmv" -> "video/x-ms-wmv"
-                "flv" -> "video/x-flv"
-                "m4v" -> "video/x-m4v"
-                "ass", "ssa" -> "text/x-ass"
-                "srt" -> "application/x-subrip"
-                "vtt" -> "text/vtt"
-                else -> null
-            }
 
         private fun createContext(connectionInfo: Map<String, String>): CIFSContext {
             val properties = Properties().apply {

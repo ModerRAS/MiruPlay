@@ -4,6 +4,7 @@ import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.FileMetadata
+import com.miruplay.tv.model.MediaFileConventions
 import com.miruplay.tv.model.MediaCapabilities
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
@@ -16,7 +17,6 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import java.nio.file.StandardOpenOption
 import kotlin.io.path.absolutePathString
-import kotlin.io.path.extension
 import kotlin.io.path.isDirectory
 import kotlin.io.path.isRegularFile
 import kotlin.io.path.name
@@ -54,11 +54,12 @@ class DesktopLocalMediaSource(
 
         runCatching {
             Files.list(directory).use { stream ->
-                val entries = stream
-                    .filter { pathEntry -> !isHidden(pathEntry) }
-                    .map(::fileEntryFor)
-                    .toList()
-                    .sortedWith(compareBy<FileEntry> { !it.isDirectory }.thenBy { it.name.lowercase() })
+                val entries = MediaFileConventions.sortEntries(
+                    stream
+                        .filter { pathEntry -> !isHidden(pathEntry) }
+                        .map(::fileEntryFor)
+                        .toList()
+                )
                 Result.success(entries)
             }
         }.getOrElse { error ->
@@ -146,45 +147,19 @@ class DesktopLocalMediaSource(
             isDirectory = directory,
             size = if (path.isRegularFile()) Files.size(path) else 0L,
             lastModified = Files.getLastModifiedTime(path).toMillis(),
-            mimeType = if (directory) null else mimeTypeFor(path),
+            mimeType = if (directory) null else MediaFileConventions.mimeTypeForName(path.name),
         )
     }
 
     private fun fileMetadataFor(path: Path): FileMetadata {
-        val entry = fileEntryFor(path)
-        return FileMetadata(
-            name = entry.name,
-            path = entry.path,
-            isDirectory = entry.isDirectory,
-            size = entry.size,
-            lastModified = entry.lastModified,
-            mimeType = entry.mimeType,
-        )
+        return MediaFileConventions.metadataFor(fileEntryFor(path))
     }
 
     private fun isHidden(path: Path): Boolean {
         val name = path.name
-        if (name in hiddenNames) return true
+        if (MediaFileConventions.isHiddenName(name)) return true
         return runCatching { Files.isHidden(path) }.getOrDefault(false)
     }
-
-    private fun mimeTypeFor(path: Path): String? =
-        when (path.extension.lowercase()) {
-            "mkv" -> "video/x-matroska"
-            "mp4" -> "video/mp4"
-            "avi" -> "video/x-msvideo"
-            "mov" -> "video/quicktime"
-            "webm" -> "video/webm"
-            "wmv" -> "video/x-ms-wmv"
-            "flv" -> "video/x-flv"
-            "ass", "ssa" -> "text/x-ass"
-            "srt" -> "application/x-subrip"
-            "vtt" -> "text/vtt"
-            "jpg", "jpeg" -> "image/jpeg"
-            "png" -> "image/png"
-            "webp" -> "image/webp"
-            else -> null
-        }
 
     companion object {
         fun create(name: String, rootPath: Path): DesktopLocalMediaSource =
@@ -196,14 +171,5 @@ class DesktopLocalMediaSource(
                     isConnected = true,
                 )
             )
-
-        private val hiddenNames = setOf(
-            ".DS_Store",
-            "Thumbs.db",
-            "@eaDir",
-            ".Trash",
-            "\$RECYCLE.BIN",
-            "System Volume Information",
-        )
     }
 }

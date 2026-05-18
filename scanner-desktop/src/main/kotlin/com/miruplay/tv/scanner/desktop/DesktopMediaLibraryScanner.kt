@@ -3,6 +3,7 @@ package com.miruplay.tv.scanner.desktop
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.mediasource.desktop.DesktopMediaSource
 import com.miruplay.tv.model.FileEntry
+import com.miruplay.tv.model.MediaFileConventions
 import com.miruplay.tv.model.VideoFilenameInference
 import com.miruplay.tv.repository.MediaIndexEntry
 import kotlinx.coroutines.Dispatchers
@@ -128,7 +129,7 @@ class DesktopMediaLibraryScanner(
     }
 
     private fun FileEntry.isVideoFile(): Boolean =
-        name.substringAfterLast('.', "").lowercase() in config.videoExtensions
+        MediaFileConventions.isVideoName(name, config.videoExtensions)
 
     private fun canonicalPathKey(path: String): String {
         val trimmed = path.trim()
