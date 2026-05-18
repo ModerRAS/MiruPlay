@@ -66,8 +66,10 @@ import com.miruplay.tv.repository.noMetadataBatchUndoStatus
 import com.miruplay.tv.repository.restoreMetadataBatchUndo
 import com.miruplay.tv.repository.restoredStatus
 import com.miruplay.tv.repository.reviewAcceptedStatus
+import com.miruplay.tv.repository.savePlaybackProgressOnStop
 import com.miruplay.tv.repository.selectedCandidateStatus
 import com.miruplay.tv.repository.summaryStatus
+import com.miruplay.tv.repository.syncObservedPlaybackProgress
 import com.miruplay.tv.repository.withExternalMetadata
 import com.miruplay.tv.scanner.desktop.DesktopMediaLibraryScanner
 import com.miruplay.tv.scraper.desktop.DesktopBangumiScraper
@@ -355,7 +357,7 @@ internal fun MiruPlayDesktopComposeApp() {
                 return@LaunchedEffect
             }
             when (
-                val synced = syncPlaybackProgressFromMpv(
+                val synced = syncObservedPlaybackProgress(
                     session = session,
                     queryPositionMs = { activePlayer.queryTimePositionMs() },
                     saveProgress = { episodeId, positionMs, lastWatched ->
@@ -1435,7 +1437,7 @@ internal fun MiruPlayDesktopComposeApp() {
                     scope.launch {
                         val activePlayer = player
                         activePlaybackSession?.let { session ->
-                            saveDesktopPlaybackProgressOnStop(
+                            savePlaybackProgressOnStop(
                                 session = session,
                                 queryPositionMs = activePlayer?.let { player ->
                                     { player.queryTimePositionMs() }
