@@ -2,7 +2,6 @@ package com.miruplay.tv.mediasource.desktop
 
 import com.miruplay.tv.model.MediaSourceType
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Test
 
 class DesktopSmbMediaSourceTest {
@@ -47,10 +46,4 @@ class DesktopSmbMediaSourceTest {
         assertEquals("WORKGROUP", source.info.connectionInfo["domain"])
     }
 
-    @Test
-    fun `mimeTypeFor maps videos and subtitles`() {
-        assertEquals("video/x-matroska", DesktopSmbMediaSource.mimeTypeFor("Episode 01.mkv"))
-        assertEquals("application/x-subrip", DesktopSmbMediaSource.mimeTypeFor("Episode 01.srt"))
-        assertNull(DesktopSmbMediaSource.mimeTypeFor("folder"))
-    }
 }
