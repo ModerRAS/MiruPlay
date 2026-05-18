@@ -3,6 +3,7 @@ package com.miruplay.tv.scanner.desktop
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.mediasource.desktop.DesktopMediaSource
 import com.miruplay.tv.model.FileEntry
+import com.miruplay.tv.model.VideoFilenameInference
 import com.miruplay.tv.repository.MediaIndexEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -107,6 +108,7 @@ class DesktopMediaLibraryScanner(
     ): MediaIndexEntry {
         val nfo = nfoReader.readEpisodeForVideo(source, path)
         val parentName = path.substringBeforeLast('\\', path).substringBeforeLast('/').substringAfterLast('\\').substringAfterLast('/')
+        val inferred = VideoFilenameInference.infer(name, parentName)
         return MediaIndexEntry(
             sourceId = sourceId,
             path = path,
@@ -114,11 +116,11 @@ class DesktopMediaLibraryScanner(
                 ?: tvShow?.title
                 ?: tvShow?.originalTitle
                 ?: nfo?.title
-                ?: DesktopFilenameMetadata.inferAnimeName(name, parentName),
+                ?: inferred.title,
             episodeTitle = nfo?.title,
             plot = nfo?.plot,
-            seasonNumber = nfo?.seasonNumber ?: DesktopFilenameMetadata.inferSeason(name),
-            episodeNumber = nfo?.episodeNumber ?: DesktopFilenameMetadata.inferEpisode(name),
+            seasonNumber = nfo?.seasonNumber ?: inferred.seasonNumber,
+            episodeNumber = nfo?.episodeNumber ?: inferred.episodeNumber,
             isDirectory = false,
             fileSize = size,
             lastModified = lastModified,

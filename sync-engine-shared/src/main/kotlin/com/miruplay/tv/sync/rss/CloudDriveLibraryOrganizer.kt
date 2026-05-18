@@ -6,6 +6,7 @@ import com.miruplay.tv.clouddrive.CloudDriveFileInfo
 import com.miruplay.tv.clouddrive.CloudDrivePaths
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.model.VideoFilenameInference
 
 data class CloudDriveVideoClassification(
     val showName: String,
@@ -97,44 +98,16 @@ class CloudDriveLibraryOrganizer(
 }
 
 object HeuristicCloudDriveVideoClassifier : CloudDriveVideoClassifier {
-    override fun classify(file: CloudDriveFileInfo): CloudDriveVideoClassification =
-        CloudDriveVideoClassification(
-            showName = inferShowName(file),
-            seasonNumber = inferSeasonNumber(file.name),
+    override fun classify(file: CloudDriveFileInfo): CloudDriveVideoClassification {
+        val metadata = VideoFilenameInference.infer(
+            fileName = file.name,
+            parentName = CloudDrivePaths.parentPath(file.path).substringAfterLast('/', ""),
         )
-
-    private fun inferShowName(file: CloudDriveFileInfo): String {
-        val parent = CloudDrivePaths.parentPath(file.path)
-            .substringAfterLast('/', "")
-            .takeUnless { it.isGenericFolderName() }
-        val stem = file.name.substringBeforeLast('.', file.name)
-            .replace(leadingReleaseGroupRegex, "")
-            .replace(tagRegex, " ")
-        val episodeMatch = seasonEpisodeRegex.find(stem) ?: episodeNumberRegex.findAll(stem).lastOrNull()
-        val fromFile = episodeMatch
-            ?.let { stem.substring(0, it.range.first) }
-            ?: stem
-        return cleanupTitle(fromFile).ifBlank { cleanupTitle(parent.orEmpty()) }.ifBlank { "Unknown" }
+        return CloudDriveVideoClassification(
+            showName = metadata.title,
+            seasonNumber = metadata.seasonNumber ?: 1,
+        )
     }
-
-    private fun inferSeasonNumber(fileName: String): Int =
-        seasonEpisodeRegex.find(fileName)?.groupValues?.getOrNull(1)?.toIntOrNull()
-            ?: 1
-
-    private fun cleanupTitle(value: String): String =
-        value.replace(Regex("""[_・]+"""), " ")
-            .replace(Regex("""\s*[-–—]\s*$"""), "")
-            .replace(Regex("""\s+"""), " ")
-            .trim()
-
-    private fun String.isGenericFolderName(): Boolean =
-        lowercase().trim() in GENERIC_FOLDER_NAMES
-
-    private val GENERIC_FOLDER_NAMES = setOf("download", "downloads", "library", "media", "video", "videos", "anime", "动漫", "下载", "下載")
-    private val leadingReleaseGroupRegex = Regex("""^\s*(?:\[[^\]]+]|【[^】]+】|\([^)]+\))\s*""")
-    private val tagRegex = Regex("""[\[\(【][^\]\)】]{1,64}[\]\)】]""")
-    private val seasonEpisodeRegex = Regex("""(?i)(?:^|[\s._-])S(\d{1,2})E(\d{1,3})(?:[\s._-]|$)""")
-    private val episodeNumberRegex = Regex("""(?i)(?:^|[\s._-])(?:EP?)?(\d{1,4})(?:v\d+)?(?:[\s._-]|$)""")
 }
 
 typealias DesktopCloudDriveLibraryOrganizer = CloudDriveLibraryOrganizer
