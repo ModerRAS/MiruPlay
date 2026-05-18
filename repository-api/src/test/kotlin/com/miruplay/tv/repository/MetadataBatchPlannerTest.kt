@@ -2,6 +2,7 @@ package com.miruplay.tv.repository
 
 import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.ScraperSource
+import com.miruplay.tv.model.confidencePercentLabel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

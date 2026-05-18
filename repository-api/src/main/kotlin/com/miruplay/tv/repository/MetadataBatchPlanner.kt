@@ -2,7 +2,6 @@ package com.miruplay.tv.repository
 
 import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.displayTitle
-import kotlin.math.roundToLong
 
 data class MetadataBatchMatch(
     val query: String,
@@ -62,9 +61,6 @@ fun ScraperResult.isSameCandidate(other: ScraperResult?): Boolean =
     other != null &&
         animeId == other.animeId &&
         source == other.source
-
-fun ScraperResult.confidencePercentLabel(): String =
-    "${(confidence * 100).roundToLong()}%"
 
 object MetadataBatchPlanner {
     private const val READY_CONFIDENCE = 0.85f

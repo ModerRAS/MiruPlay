@@ -1,9 +1,9 @@
 package com.miruplay.tv.desktop
 
 import com.miruplay.tv.model.ScraperResult
+import com.miruplay.tv.model.confidencePercentLabel
 import com.miruplay.tv.model.displayTitle
 import com.miruplay.tv.repository.MediaIndexEntry
-import com.miruplay.tv.repository.confidencePercentLabel
 import com.miruplay.tv.repository.metadataQuery
 import com.miruplay.tv.repository.isSameCandidate
 import com.miruplay.tv.repository.replaceByMediaKey
