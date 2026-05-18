@@ -13,21 +13,28 @@ import com.miruplay.tv.sync.rss.cloudDriveLoginSucceededStatus as sharedCloudDri
 import com.miruplay.tv.sync.rss.cloudDriveTokenRequiredStatus as sharedCloudDriveTokenRequiredStatus
 import com.miruplay.tv.sync.rss.cloudDriveTokenValidationStartedStatus as sharedCloudDriveTokenValidationStartedStatus
 import com.miruplay.tv.sync.rss.cloudRssConfigSavedStatus as sharedCloudRssConfigSavedStatus
+import com.miruplay.tv.sync.rss.cloudRssInitialStatus as sharedCloudRssInitialStatus
 import com.miruplay.tv.sync.rss.cloudRssRunStartedStatus as sharedCloudRssRunStartedStatus
 import com.miruplay.tv.sync.rss.cloudRssScanSourceClearedStatus as sharedCloudRssScanSourceClearedStatus
+import com.miruplay.tv.sync.rss.cloudRssScanSourceMissingStatus as sharedCloudRssScanSourceMissingStatus
 import com.miruplay.tv.sync.rss.cloudRssScanSourceRequiredStatus as sharedCloudRssScanSourceRequiredStatus
 import com.miruplay.tv.sync.rss.cloudRssSchedulerDisabledStatus as sharedCloudRssSchedulerDisabledStatus
 import com.miruplay.tv.sync.rss.cloudRssSchedulerStartStatus as sharedCloudRssSchedulerStartStatus
 import com.miruplay.tv.sync.rss.cloudRssSchedulerStoppedStatus as sharedCloudRssSchedulerStoppedStatus
+import com.miruplay.tv.sync.rss.cloudRssRescanStartedStatus
 import com.miruplay.tv.sync.rss.completeStatus
 import com.miruplay.tv.sync.rss.linkedCloudRssScanSourceStatus
 import com.miruplay.tv.sync.rss.linkedCloudDriveSourceLabel
+import com.miruplay.tv.sync.rss.loadedStatus
 import com.miruplay.tv.sync.rss.rssSubscriptionDeletedStatus as sharedRssSubscriptionDeletedStatus
 import com.miruplay.tv.sync.rss.rssSubscriptionRequiredStatus as sharedRssSubscriptionRequiredStatus
 import com.miruplay.tv.sync.rss.rssUrlRequiredStatus as sharedRssUrlRequiredStatus
+import com.miruplay.tv.sync.rss.rssSubscriptionsLoadFailedStatus as sharedRssSubscriptionsLoadFailedStatus
+import com.miruplay.tv.sync.rss.rssSubscriptionsRefreshFailedStatus as sharedRssSubscriptionsRefreshFailedStatus
 import com.miruplay.tv.sync.rss.savedStatus
 import com.miruplay.tv.sync.rss.schedulerStatus as sharedSchedulerStatus
 import com.miruplay.tv.sync.rss.selectedStatus
+import com.miruplay.tv.sync.rss.showingStatus
 import com.miruplay.tv.sync.rss.verifiedStatus
 
 internal fun schedulerStatus(state: DesktopCloudDriveRssSchedulerState): String =
@@ -38,6 +45,9 @@ internal fun linkedSourceLabel(
     sourceId: Long?,
 ): String =
     linkedCloudDriveSourceLabel(sources, sourceId)
+
+internal fun cloudRssInitialMessage(): String =
+    sharedCloudRssInitialStatus()
 
 internal fun cloudRssConfigSavedMessage(): String =
     sharedCloudRssConfigSavedStatus()
@@ -84,14 +94,32 @@ internal fun cloudRssSchedulerStoppedMessage(): String =
 internal fun cloudRssScanSourceRequiredMessage(): String =
     sharedCloudRssScanSourceRequiredStatus()
 
+internal fun cloudRssScanSourceMissingMessage(): String =
+    sharedCloudRssScanSourceMissingStatus()
+
 internal fun linkedCloudRssScanSourceMessage(source: MediaSourceInfo): String =
     source.linkedCloudRssScanSourceStatus()
+
+internal fun cloudRssRescanStartedMessage(source: MediaSourceInfo, reason: String): String =
+    source.cloudRssRescanStartedStatus(reason)
 
 internal fun cloudRssScanSourceClearedMessage(): String =
     sharedCloudRssScanSourceClearedStatus()
 
 internal fun rssUrlRequiredMessage(): String =
     sharedRssUrlRequiredStatus()
+
+internal fun rssSubscriptionsLoadedMessage(subscriptions: List<RssSubscriptionInfo>): String =
+    subscriptions.loadedStatus()
+
+internal fun rssSubscriptionsShowingMessage(subscriptions: List<RssSubscriptionInfo>): String =
+    subscriptions.showingStatus()
+
+internal fun rssSubscriptionsLoadFailedMessage(errorMessage: String?): String =
+    sharedRssSubscriptionsLoadFailedStatus(errorMessage)
+
+internal fun rssSubscriptionsRefreshFailedMessage(errorMessage: String?): String =
+    sharedRssSubscriptionsRefreshFailedStatus(errorMessage)
 
 internal fun rssSubscriptionSavedMessage(subscription: RssSubscriptionInfo): String =
     subscription.savedStatus()
