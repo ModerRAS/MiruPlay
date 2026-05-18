@@ -30,6 +30,20 @@ class DisplayFormattingTest {
     }
 
     @Test
+    fun `scraper confidence label rounds to whole percent`() {
+        val result = ScraperResult(
+            animeId = "431767",
+            title = "Frieren",
+            titleCn = "葬送的芙莉莲",
+            matchedTitle = "Frieren",
+            confidence = 0.945f,
+            source = ScraperSource.BANGUMI,
+        )
+
+        assertEquals("95%", result.confidencePercentLabel())
+    }
+
+    @Test
     fun `local timestamp formatting skips missing values and uses stable pattern`() {
         assertEquals(null, formatLocalTimestamp(0L))
         assertEquals(19, formatLocalTimestamp(1_700_000_000_000L)?.length)
