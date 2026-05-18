@@ -35,5 +35,31 @@ fun Episode.continueEpisodeProgress(progress: ProgressRecord?): Boolean {
     return position > 0L && !isCompleted(progress)
 }
 
+fun recentPlaybackInitialStatus(): String =
+    "No recent playback loaded."
+
+fun recentPlaybackLoadedStatus(records: List<ProgressRecord>): String =
+    if (records.isEmpty()) {
+        "No recent playback yet."
+    } else {
+        "Loaded ${records.size} recent item(s)."
+    }
+
+fun recentPlaybackShowingStatus(records: List<ProgressRecord>): String =
+    if (records.isEmpty()) {
+        "No recent playback yet."
+    } else {
+        "Showing ${records.size} recent item(s)."
+    }
+
+fun recentPlaybackRequiredStatus(): String =
+    "Select a recent item first."
+
+fun ProgressRecord.resumeStartSecondsText(): String =
+    (positionMs.coerceAtLeast(0L) / 1_000L).toString()
+
+fun ProgressRecord.loadedPlaybackStatus(displayName: String): String =
+    "Loaded recent playback: $displayName."
+
 private fun completionThreshold(duration: Long): Long =
     (duration * COMPLETION_RATIO).toLong().coerceAtLeast(1L)

@@ -172,7 +172,7 @@ internal fun MiruPlayDesktopComposeApp() {
     var bangumiStatus by remember { mutableStateOf("Select an indexed video, then search Bangumi.") }
     var recentProgress by remember { mutableStateOf(emptyList<ProgressRecord>()) }
     var selectedRecentProgress by remember { mutableStateOf<ProgressRecord?>(null) }
-    var recentStatus by remember { mutableStateOf("No recent playback loaded.") }
+    var recentStatus by remember { mutableStateOf(recentInitialStatus()) }
     var cloudEndpointUrl by remember { mutableStateOf("") }
     var cloudUsername by remember { mutableStateOf("") }
     var cloudToken by remember { mutableStateOf("") }
@@ -277,11 +277,7 @@ internal fun MiruPlayDesktopComposeApp() {
         when (val recents = repositories.progress.getContinueWatching(limit = 12)) {
             is Result.Success -> {
                 recentProgress = recents.data
-                recentStatus = if (recents.data.isEmpty()) {
-                    "No recent playback yet."
-                } else {
-                    "Loaded ${recents.data.size} recent item(s)."
-                }
+                recentStatus = recentLoadedStatus(recents.data)
             }
             is Result.Error -> recentStatus = recents.error.toUserMessage()
         }
@@ -336,11 +332,7 @@ internal fun MiruPlayDesktopComposeApp() {
                 selectedRecentProgress = selectedRecentProgress?.let { selected ->
                     recents.data.firstOrNull { it.episodeId == selected.episodeId }
                 }
-                recentStatus = if (recents.data.isEmpty()) {
-                    "No recent playback yet."
-                } else {
-                    "Showing ${recents.data.size} recent item(s)."
-                }
+                recentStatus = recentShowingStatus(recents.data)
             }
             is Result.Error -> recentStatus = recents.error.toUserMessage()
         }
@@ -1070,14 +1062,14 @@ internal fun MiruPlayDesktopComposeApp() {
                 onRecordSelected = { record ->
                     selectedRecentProgress = record
                     mediaPath = record.episodeId
-                    startSeconds = (record.positionMs / 1_000L).toString()
-                    launchStatus = "Loaded recent playback: ${recentDisplayName(record)}."
+                    startSeconds = recentResumeStartSeconds(record)
+                    launchStatus = recentLoadedPlaybackStatus(record)
                 },
                 onClearSelected = {
                     scope.launch {
                         val selected = selectedRecentProgress
                         if (selected == null) {
-                            recentStatus = "Select a recent item first."
+                            recentStatus = recentRequiredStatus()
                             return@launch
                         }
                         when (val result = repositories.progress.deleteProgress(selected.episodeId)) {

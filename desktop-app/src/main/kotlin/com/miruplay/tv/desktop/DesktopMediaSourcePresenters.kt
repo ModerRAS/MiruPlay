@@ -9,6 +9,12 @@ import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.ProgressRecord
+import com.miruplay.tv.model.loadedPlaybackStatus
+import com.miruplay.tv.model.recentPlaybackInitialStatus as sharedRecentPlaybackInitialStatus
+import com.miruplay.tv.model.recentPlaybackLoadedStatus as sharedRecentPlaybackLoadedStatus
+import com.miruplay.tv.model.recentPlaybackRequiredStatus as sharedRecentPlaybackRequiredStatus
+import com.miruplay.tv.model.recentPlaybackShowingStatus as sharedRecentPlaybackShowingStatus
+import com.miruplay.tv.model.resumeStartSecondsText
 import com.miruplay.tv.repository.displayLabel
 import com.miruplay.tv.repository.mediaDisplayName
 import com.miruplay.tv.repository.upsertById
@@ -66,3 +72,21 @@ internal fun List<MediaSourceInfo>.upsertSource(source: MediaSourceInfo): List<M
 
 internal fun recentDisplayName(record: ProgressRecord): String =
     record.mediaDisplayName()
+
+internal fun recentInitialStatus(): String =
+    sharedRecentPlaybackInitialStatus()
+
+internal fun recentLoadedStatus(records: List<ProgressRecord>): String =
+    sharedRecentPlaybackLoadedStatus(records)
+
+internal fun recentShowingStatus(records: List<ProgressRecord>): String =
+    sharedRecentPlaybackShowingStatus(records)
+
+internal fun recentRequiredStatus(): String =
+    sharedRecentPlaybackRequiredStatus()
+
+internal fun recentResumeStartSeconds(record: ProgressRecord): String =
+    record.resumeStartSecondsText()
+
+internal fun recentLoadedPlaybackStatus(record: ProgressRecord): String =
+    record.loadedPlaybackStatus(record.mediaDisplayName())
