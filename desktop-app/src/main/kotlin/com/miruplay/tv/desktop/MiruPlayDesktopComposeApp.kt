@@ -34,8 +34,6 @@ import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.design.MiruPlayPalette
 import com.miruplay.tv.design.MiruPlayRouteSurface
 import com.miruplay.tv.design.MiruPlayUiMetrics
-import com.miruplay.tv.sync.rss.DesktopCloudDriveRssAutomationEngine
-import com.miruplay.tv.sync.rss.DesktopCloudDriveRssScheduler
 import com.miruplay.tv.mediasource.desktop.DesktopLocalMediaSource
 import com.miruplay.tv.mediasource.desktop.DesktopMediaSource
 import com.miruplay.tv.mediasource.desktop.DesktopSmbMediaSource
@@ -48,8 +46,14 @@ import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.buildRssSubscriptionFromForm
+import com.miruplay.tv.model.loadedPlaybackStatus
 import com.miruplay.tv.model.parseCloudDriveIntervalMinutes
 import com.miruplay.tv.model.parseRssProxyPort
+import com.miruplay.tv.model.recentPlaybackInitialStatus
+import com.miruplay.tv.model.recentPlaybackLoadedStatus
+import com.miruplay.tv.model.recentPlaybackRequiredStatus
+import com.miruplay.tv.model.recentPlaybackShowingStatus
+import com.miruplay.tv.model.resumeStartSecondsText
 import com.miruplay.tv.model.withAutomationFormValues
 import com.miruplay.tv.player.mpv.MpvProcessPlayer
 import com.miruplay.tv.player.mpv.MpvRuntimeDiscovery
@@ -75,6 +79,11 @@ import com.miruplay.tv.repository.applyMetadataBatchPlan
 import com.miruplay.tv.repository.clearExternalMetadata
 import com.miruplay.tv.repository.displayName
 import com.miruplay.tv.repository.desktop.DesktopRepositories
+import com.miruplay.tv.repository.loadedStatus
+import com.miruplay.tv.repository.loadingRemoteDirectoryStatus
+import com.miruplay.tv.repository.localLibraryInitialStatus
+import com.miruplay.tv.repository.localRootRequiredStatus
+import com.miruplay.tv.repository.mediaDisplayName
 import com.miruplay.tv.repository.metadataBatchSearchingStatus
 import com.miruplay.tv.repository.noMetadataBatchEntriesStatus
 import com.miruplay.tv.repository.noMetadataBatchPreviewStatus
@@ -83,15 +92,54 @@ import com.miruplay.tv.repository.restoreMetadataBatchUndo
 import com.miruplay.tv.repository.restoredStatus
 import com.miruplay.tv.repository.reviewAcceptedStatus
 import com.miruplay.tv.repository.savePlaybackProgressOnStop
+import com.miruplay.tv.repository.scanningStatus
 import com.miruplay.tv.repository.selectedCandidateStatus
+import com.miruplay.tv.repository.selectedForPlaybackStatus
+import com.miruplay.tv.repository.selectedRemoteForPlaybackStatus
+import com.miruplay.tv.repository.showingRemoteDirectoryStatus
+import com.miruplay.tv.repository.smbUrlRequiredStatus
 import com.miruplay.tv.repository.summaryStatus
 import com.miruplay.tv.repository.syncObservedPlaybackProgress
 import com.miruplay.tv.repository.withExternalMetadata
+import com.miruplay.tv.repository.readyStatus
 import com.miruplay.tv.scanner.desktop.DesktopMediaLibraryScanner
 import com.miruplay.tv.scraper.desktop.DesktopBangumiScraper
+import com.miruplay.tv.sync.rss.DesktopCloudDriveRssAutomationEngine
+import com.miruplay.tv.sync.rss.DesktopCloudDriveRssScheduler
+import com.miruplay.tv.sync.rss.cloudDriveCredentialsClearedStatus
+import com.miruplay.tv.sync.rss.cloudDriveCredentialsSavedStatus
+import com.miruplay.tv.sync.rss.cloudDriveLoginRequiredStatus
+import com.miruplay.tv.sync.rss.cloudDriveLoginStartedStatus
+import com.miruplay.tv.sync.rss.cloudDriveLoginSucceededStatus
+import com.miruplay.tv.sync.rss.cloudDriveTokenRequiredStatus
+import com.miruplay.tv.sync.rss.cloudDriveTokenValidationStartedStatus
+import com.miruplay.tv.sync.rss.cloudRssConfigSavedStatus
+import com.miruplay.tv.sync.rss.cloudRssInitialStatus
+import com.miruplay.tv.sync.rss.cloudRssRescanStartedStatus
+import com.miruplay.tv.sync.rss.cloudRssRunStartedStatus
+import com.miruplay.tv.sync.rss.cloudRssScanSourceClearedStatus
+import com.miruplay.tv.sync.rss.cloudRssScanSourceMissingStatus
+import com.miruplay.tv.sync.rss.cloudRssScanSourceRequiredStatus
+import com.miruplay.tv.sync.rss.cloudRssSchedulerDisabledStatus
+import com.miruplay.tv.sync.rss.cloudRssSchedulerStartStatus
+import com.miruplay.tv.sync.rss.cloudRssSchedulerStoppedStatus
+import com.miruplay.tv.sync.rss.completeStatus
+import com.miruplay.tv.sync.rss.linkedCloudDriveSourceLabel
+import com.miruplay.tv.sync.rss.linkedCloudRssScanSourceStatus
+import com.miruplay.tv.sync.rss.loadedStatus as rssLoadedStatus
+import com.miruplay.tv.sync.rss.rssSubscriptionDeletedStatus
+import com.miruplay.tv.sync.rss.rssSubscriptionRequiredStatus
+import com.miruplay.tv.sync.rss.rssSubscriptionsLoadFailedStatus
+import com.miruplay.tv.sync.rss.rssSubscriptionsRefreshFailedStatus
+import com.miruplay.tv.sync.rss.rssUrlRequiredStatus
+import com.miruplay.tv.sync.rss.schedulerStatus
+import com.miruplay.tv.sync.rss.savedStatus as rssSavedStatus
+import com.miruplay.tv.sync.rss.selectedStatus as rssSelectedStatus
+import com.miruplay.tv.sync.rss.showingStatus as rssShowingStatus
+import com.miruplay.tv.sync.rss.verifiedStatus
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import java.awt.Dimension
 import java.nio.file.Paths
 import kotlin.math.roundToLong
@@ -191,7 +239,7 @@ internal fun MiruPlayDesktopComposeApp() {
     var bangumiStatus by remember { mutableStateOf(bangumiInitialStatus()) }
     var recentProgress by remember { mutableStateOf(emptyList<ProgressRecord>()) }
     var selectedRecentProgress by remember { mutableStateOf<ProgressRecord?>(null) }
-    var recentStatus by remember { mutableStateOf(recentInitialStatus()) }
+    var recentStatus by remember { mutableStateOf(recentPlaybackInitialStatus()) }
     var cloudEndpointUrl by remember { mutableStateOf("") }
     var cloudUsername by remember { mutableStateOf("") }
     var cloudToken by remember { mutableStateOf("") }
@@ -210,7 +258,7 @@ internal fun MiruPlayDesktopComposeApp() {
     var rssEnabled by remember { mutableStateOf(true) }
     var rssSubscriptions by remember { mutableStateOf(emptyList<RssSubscriptionInfo>()) }
     var selectedRssSubscription by remember { mutableStateOf<RssSubscriptionInfo?>(null) }
-    var cloudRssStatus by remember { mutableStateOf(cloudRssInitialMessage()) }
+    var cloudRssStatus by remember { mutableStateOf(cloudRssInitialStatus()) }
     var mediaPath by remember { mutableStateOf("") }
     var subtitlePath by remember { mutableStateOf("") }
     var startSeconds by remember { mutableStateOf("0") }
@@ -267,7 +315,7 @@ internal fun MiruPlayDesktopComposeApp() {
                     val localSource = DesktopLocalMediaSource(local)
                     activeLocalSource = localSource
                     activeSource = localSource
-                    libraryStatus = loadedSourceStatus(local)
+                    libraryStatus = local.loadedStatus()
                 }
                 if (webDav != null) {
                     webDavUrl = webDav.connectionInfo["url"].orEmpty()
@@ -276,7 +324,7 @@ internal fun MiruPlayDesktopComposeApp() {
                     if (local == null) {
                         activeSourceId = webDav.id
                         activeSource = desktopWebDavSourceFromInfo(webDav)
-                        remoteStatus = loadedSourceStatus(webDav)
+                        remoteStatus = webDav.loadedStatus()
                     }
                 }
                 if (smb != null) {
@@ -287,7 +335,7 @@ internal fun MiruPlayDesktopComposeApp() {
                     if (local == null && webDav == null) {
                         activeSourceId = smb.id
                         activeSource = DesktopSmbMediaSource(smb)
-                        remoteStatus = loadedSourceStatus(smb)
+                        remoteStatus = smb.loadedStatus()
                     }
                 }
             }
@@ -296,7 +344,7 @@ internal fun MiruPlayDesktopComposeApp() {
         when (val recents = repositories.progress.getContinueWatching(limit = 12)) {
             is Result.Success -> {
                 recentProgress = recents.data
-                recentStatus = recentLoadedStatus(recents.data)
+                recentStatus = recentPlaybackLoadedStatus(recents.data)
             }
             is Result.Error -> recentStatus = recents.error.toUserMessage()
         }
@@ -321,20 +369,20 @@ internal fun MiruPlayDesktopComposeApp() {
             repositories.cloudDriveAutomation.observeSubscriptions().first()
         }.onSuccess { subscriptions ->
             rssSubscriptions = subscriptions
-            cloudRssStatus = rssSubscriptionsLoadedMessage(subscriptions)
+            cloudRssStatus = subscriptions.rssLoadedStatus()
         }.onFailure { error ->
-            cloudRssStatus = rssSubscriptionsLoadFailedMessage(error.message)
+            cloudRssStatus = rssSubscriptionsLoadFailedStatus(error.message)
         }
     }
 
     suspend fun loadRemoteDirectory(source: DesktopMediaSource, path: String) {
-        remoteStatus = remoteLoadingStatus(source.info, path)
+        remoteStatus = source.info.loadingRemoteDirectoryStatus(path)
         when (val result = source.listFiles(path)) {
             is Result.Success -> {
                 remotePath = path
                 remoteEntries = result.data
                 selectedRemoteEntry = null
-                remoteStatus = remoteShowingStatus(source.info, result.data)
+                remoteStatus = source.info.showingRemoteDirectoryStatus(result.data)
             }
             is Result.Error -> remoteStatus = result.error.toUserMessage()
         }
@@ -347,7 +395,7 @@ internal fun MiruPlayDesktopComposeApp() {
                 selectedRecentProgress = selectedRecentProgress?.let { selected ->
                     recents.data.firstOrNull { it.episodeId == selected.episodeId }
                 }
-                recentStatus = recentShowingStatus(recents.data)
+                recentStatus = recentPlaybackShowingStatus(recents.data)
             }
             is Result.Error -> recentStatus = recents.error.toUserMessage()
         }
@@ -402,9 +450,9 @@ internal fun MiruPlayDesktopComposeApp() {
             selectedRssSubscription = selectedRssSubscription?.let { selected ->
                 subscriptions.firstOrNull { it.id == selected.id }
             }
-            cloudRssStatus = rssSubscriptionsShowingMessage(subscriptions)
+            cloudRssStatus = subscriptions.rssShowingStatus()
         }.onFailure { error ->
-            cloudRssStatus = rssSubscriptionsRefreshFailedMessage(error.message)
+            cloudRssStatus = rssSubscriptionsRefreshFailedStatus(error.message)
         }
     }
 
@@ -415,7 +463,7 @@ internal fun MiruPlayDesktopComposeApp() {
             updateStatus(openSourceBeforeScanningStatus())
             return
         }
-        updateStatus(scanningSourceStatus(source.info))
+        updateStatus(source.info.scanningStatus())
         when (val scan = DesktopMediaLibraryScanner().scan(sourceId, source)) {
             is Result.Success -> {
                 when (val indexed = repositories.index.rebuildIndex(sourceId, scan.data.entries)) {
@@ -450,11 +498,11 @@ internal fun MiruPlayDesktopComposeApp() {
                 }
             }
         if (sourceInfo == null) {
-            cloudRssStatus = cloudRssScanSourceMissingMessage()
+            cloudRssStatus = cloudRssScanSourceMissingStatus()
             return null
         }
 
-        cloudRssStatus = cloudRssRescanStartedMessage(sourceInfo, reason)
+        cloudRssStatus = sourceInfo.cloudRssRescanStartedStatus(reason)
         val source = desktopSourceFromInfo(sourceInfo)
         return when (val scan = DesktopMediaLibraryScanner().scan(sourceInfo.id, source)) {
             is Result.Success -> {
@@ -509,14 +557,14 @@ internal fun MiruPlayDesktopComposeApp() {
                 libraryRoot = sourceInfo.connectionInfo["path"].orEmpty()
                 remoteEntries = emptyList()
                 remotePath = ""
-                libraryStatus = loadedSourceStatus(sourceInfo, saved = true)
+                libraryStatus = sourceInfo.loadedStatus(saved = true)
             }
             MediaSourceType.WEBDAV -> {
                 webDavUrl = sourceInfo.connectionInfo["url"].orEmpty()
                 webDavUsername = sourceInfo.connectionInfo["username"].orEmpty()
                 webDavPassword = sourceInfo.connectionInfo["password"].orEmpty()
                 remotePath = ""
-                remoteStatus = loadedSourceStatus(sourceInfo, saved = true)
+                remoteStatus = sourceInfo.loadedStatus(saved = true)
                 loadRemoteDirectory(source, "")
             }
             MediaSourceType.SMB -> {
@@ -525,7 +573,7 @@ internal fun MiruPlayDesktopComposeApp() {
                 smbUsername = sourceInfo.connectionInfo["username"].orEmpty()
                 smbPassword = sourceInfo.connectionInfo["password"].orEmpty()
                 remotePath = ""
-                remoteStatus = loadedSourceStatus(sourceInfo, saved = true)
+                remoteStatus = sourceInfo.loadedStatus(saved = true)
                 loadRemoteDirectory(source, "")
             }
         }
@@ -587,7 +635,7 @@ internal fun MiruPlayDesktopComposeApp() {
                                 activeLocalSource = localSource
                                 activeSource = localSource
                                 savedSources = savedSources.upsertSource(stored)
-                                libraryStatus = readySourceStatus(stored)
+                                libraryStatus = stored.readyStatus()
                             }
                             is Result.Error -> libraryStatus = result.error.toUserMessage()
                         }
@@ -686,7 +734,7 @@ internal fun MiruPlayDesktopComposeApp() {
                 onEntrySelected = { entry ->
                     selectedIndexEntry = entry
                     mediaPath = entry.path
-                    launchStatus = selectedIndexEntryPlaybackStatus(entry)
+                    launchStatus = entry.selectedForPlaybackStatus()
                 },
             )
             RemoteSourcesPanel(
@@ -724,7 +772,7 @@ internal fun MiruPlayDesktopComposeApp() {
                                 activeSource = source
                                 savedSources = savedSources.upsertSource(stored)
                                 remotePath = ""
-                                remoteStatus = readySourceStatus(stored)
+                                remoteStatus = stored.readyStatus()
                                 loadRemoteDirectory(source, "")
                             }
                             is Result.Error -> remoteStatus = result.error.toUserMessage()
@@ -752,7 +800,7 @@ internal fun MiruPlayDesktopComposeApp() {
                                 activeSource = source
                                 savedSources = savedSources.upsertSource(stored)
                                 remotePath = ""
-                                remoteStatus = readySourceStatus(stored)
+                                remoteStatus = stored.readyStatus()
                                 loadRemoteDirectory(source, "")
                             }
                             is Result.Error -> remoteStatus = result.error.toUserMessage()
@@ -782,7 +830,7 @@ internal fun MiruPlayDesktopComposeApp() {
                         remoteStatus = openRemoteSourceBeforeBrowsingStatus()
                     } else {
                         mediaPath = entry.path
-                        launchStatus = selectedRemotePlaybackStatus(entry)
+                        launchStatus = entry.selectedRemoteForPlaybackStatus()
                     }
                 },
                     )
@@ -1075,14 +1123,14 @@ internal fun MiruPlayDesktopComposeApp() {
                 onRecordSelected = { record ->
                     selectedRecentProgress = record
                     mediaPath = record.episodeId
-                    startSeconds = recentResumeStartSeconds(record)
-                    launchStatus = recentLoadedPlaybackStatus(record)
+                    startSeconds = record.resumeStartSecondsText()
+                    launchStatus = record.loadedPlaybackStatus(record.mediaDisplayName())
                 },
                 onClearSelected = {
                     scope.launch {
                         val selected = selectedRecentProgress
                         if (selected == null) {
-                            recentStatus = recentRequiredStatus()
+                            recentStatus = recentPlaybackRequiredStatus()
                             return@launch
                         }
                         when (val result = repositories.progress.deleteProgress(selected.episodeId)) {
@@ -1137,8 +1185,8 @@ internal fun MiruPlayDesktopComposeApp() {
                 subscriptions = rssSubscriptions,
                 selectedSubscription = selectedRssSubscription,
                 status = cloudRssStatus,
-                schedulerStatus = schedulerStatus(cloudRssSchedulerState),
-                linkedSourceLabel = linkedSourceLabel(savedSources, cloudLinkedSourceId),
+                schedulerStatus = cloudRssSchedulerState.schedulerStatus(),
+                linkedSourceLabel = linkedCloudDriveSourceLabel(savedSources, cloudLinkedSourceId),
                 onSaveConfig = {
                     scope.launch {
                         val interval = parseCloudDriveIntervalMinutes(cloudIntervalMinutes)
@@ -1166,7 +1214,7 @@ internal fun MiruPlayDesktopComposeApp() {
                             is Result.Success -> {
                                 cloudIntervalMinutes = interval.toString()
                                 rssProxyPort = proxyPort.toString()
-                                cloudRssStatus = cloudRssConfigSavedMessage()
+                                cloudRssStatus = cloudRssConfigSavedStatus()
                             }
                             is Result.Error -> cloudRssStatus = result.error.toUserMessage()
                         }
@@ -1175,7 +1223,7 @@ internal fun MiruPlayDesktopComposeApp() {
                 onSaveCredentials = {
                     repositories.credentials.cloudDriveToken = cloudToken.trim().takeIf { it.isNotBlank() }
                     repositories.credentials.cloudDrivePassword = cloudPassword.takeIf { it.isNotBlank() }
-                    cloudRssStatus = cloudDriveCredentialsSavedMessage()
+                    cloudRssStatus = cloudDriveCredentialsSavedStatus()
                 },
                 onLoginCloudDrive = {
                     scope.launch {
@@ -1183,14 +1231,14 @@ internal fun MiruPlayDesktopComposeApp() {
                         val user = cloudUsername.trim()
                         val pass = cloudPassword
                         if (endpoint.isBlank() || user.isBlank() || pass.isBlank()) {
-                            cloudRssStatus = cloudDriveLoginRequiredMessage()
+                            cloudRssStatus = cloudDriveLoginRequiredStatus()
                             return@launch
                         }
-                        cloudRssStatus = cloudDriveLoginStartedMessage()
+                        cloudRssStatus = cloudDriveLoginStartedStatus()
                         when (val result = cloudRssEngine.login(endpoint, user, pass)) {
                             is Result.Success -> {
                                 cloudToken = repositories.credentials.cloudDriveToken.orEmpty()
-                                cloudRssStatus = cloudDriveLoginSucceededMessage()
+                                cloudRssStatus = cloudDriveLoginSucceededStatus()
                             }
                             is Result.Error -> cloudRssStatus = result.error.toUserMessage()
                         }
@@ -1201,14 +1249,14 @@ internal fun MiruPlayDesktopComposeApp() {
                         val endpoint = cloudEndpointUrl.trim()
                         val apiToken = cloudToken.trim()
                         if (endpoint.isBlank() || apiToken.isBlank()) {
-                            cloudRssStatus = cloudDriveTokenRequiredMessage()
+                            cloudRssStatus = cloudDriveTokenRequiredStatus()
                             return@launch
                         }
-                        cloudRssStatus = cloudDriveTokenValidationStartedMessage()
+                        cloudRssStatus = cloudDriveTokenValidationStartedStatus()
                         when (val result = cloudRssEngine.saveApiToken(endpoint, apiToken)) {
                             is Result.Success -> {
                                 cloudToken = apiToken
-                                cloudRssStatus = cloudDriveTokenVerifiedMessage(result.data)
+                                cloudRssStatus = result.data.verifiedStatus()
                             }
                             is Result.Error -> cloudRssStatus = result.error.toUserMessage()
                         }
@@ -1218,14 +1266,14 @@ internal fun MiruPlayDesktopComposeApp() {
                     repositories.credentials.clearCloudDriveCredentials()
                     cloudToken = ""
                     cloudPassword = ""
-                    cloudRssStatus = cloudDriveCredentialsClearedMessage()
+                    cloudRssStatus = cloudDriveCredentialsClearedStatus()
                 },
                 onRunSync = {
                     scope.launch {
-                        cloudRssStatus = cloudRssRunStartedMessage()
+                        cloudRssStatus = cloudRssRunStartedStatus()
                         when (val result = cloudRssEngine.runOnce()) {
                             is Result.Success -> {
-                                val message = cloudRssRunCompleteMessage(result.data)
+                                val message = result.data.completeStatus()
                                 cloudRssStatus = message
                                 rescanLinkedCloudSource(message)?.let { scanMessage ->
                                     cloudRssStatus = "$message $scanMessage"
@@ -1237,35 +1285,35 @@ internal fun MiruPlayDesktopComposeApp() {
                 },
                 onStartScheduler = {
                     if (!cloudEnabled) {
-                        cloudRssStatus = cloudRssSchedulerDisabledMessage()
+                        cloudRssStatus = cloudRssSchedulerDisabledStatus()
                     } else {
-                        cloudRssStatus = cloudRssSchedulerStartMessage(cloudRssScheduler.start())
+                        cloudRssStatus = cloudRssSchedulerStartStatus(cloudRssScheduler.start())
                     }
                 },
                 onStopScheduler = {
                     cloudRssScheduler.stop()
-                    cloudRssStatus = cloudRssSchedulerStoppedMessage()
+                    cloudRssStatus = cloudRssSchedulerStoppedStatus()
                 },
                 onUseActiveScanSource = {
                     val sourceId = activeSourceId
                     val sourceInfo = savedSources.firstOrNull { it.id == sourceId }
                         ?: activeSource?.info?.takeIf { it.id == sourceId }
                     if (sourceId == null || sourceInfo == null) {
-                        cloudRssStatus = cloudRssScanSourceRequiredMessage()
+                        cloudRssStatus = cloudRssScanSourceRequiredStatus()
                     } else {
                         cloudLinkedSourceId = sourceId
-                        cloudRssStatus = linkedCloudRssScanSourceMessage(sourceInfo)
+                        cloudRssStatus = sourceInfo.linkedCloudRssScanSourceStatus()
                     }
                 },
                 onClearScanSource = {
                     cloudLinkedSourceId = null
-                    cloudRssStatus = cloudRssScanSourceClearedMessage()
+                    cloudRssStatus = cloudRssScanSourceClearedStatus()
                 },
                 onSaveSubscription = {
                     scope.launch {
                         val url = rssUrl.trim()
                         if (url.isBlank()) {
-                            cloudRssStatus = rssUrlRequiredMessage()
+                            cloudRssStatus = rssUrlRequiredStatus()
                             return@launch
                         }
                         val selectedMatchingSubscription = selectedRssSubscription?.takeIf { it.url == url }
@@ -1277,12 +1325,12 @@ internal fun MiruPlayDesktopComposeApp() {
                             existingId = selectedMatchingSubscription?.id ?: 0L,
                             existingLastCheckedAt = selectedMatchingSubscription?.lastCheckedAt ?: 0L,
                         ) ?: run {
-                            cloudRssStatus = rssUrlRequiredMessage()
+                            cloudRssStatus = rssUrlRequiredStatus()
                             return@launch
                         }
                         when (val result = repositories.cloudDriveAutomation.saveSubscription(subscription)) {
                             is Result.Success -> {
-                                cloudRssStatus = rssSubscriptionSavedMessage(subscription)
+                                cloudRssStatus = subscription.rssSavedStatus()
                                 refreshRssSubscriptions()
                             }
                             is Result.Error -> cloudRssStatus = result.error.toUserMessage()
@@ -1295,13 +1343,13 @@ internal fun MiruPlayDesktopComposeApp() {
                     rssUrl = subscription.url
                     rssFilter = subscription.filterRegex.orEmpty()
                     rssEnabled = subscription.enabled
-                    cloudRssStatus = rssSubscriptionSelectedMessage(subscription)
+                    cloudRssStatus = subscription.rssSelectedStatus()
                 },
                 onDeleteSubscription = {
                     scope.launch {
                         val subscription = selectedRssSubscription
                         if (subscription == null) {
-                            cloudRssStatus = rssSubscriptionRequiredMessage()
+                            cloudRssStatus = rssSubscriptionRequiredStatus()
                             return@launch
                         }
                         when (val result = repositories.cloudDriveAutomation.deleteSubscription(subscription.id)) {
@@ -1311,7 +1359,7 @@ internal fun MiruPlayDesktopComposeApp() {
                                 rssUrl = ""
                                 rssFilter = ""
                                 rssEnabled = true
-                                cloudRssStatus = rssSubscriptionDeletedMessage()
+                                cloudRssStatus = rssSubscriptionDeletedStatus()
                                 refreshRssSubscriptions()
                             }
                             is Result.Error -> cloudRssStatus = result.error.toUserMessage()
