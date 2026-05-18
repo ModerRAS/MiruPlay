@@ -49,7 +49,7 @@ object RssSubmissionPlanner {
                     submissionUrl = submissionUrl,
                     itemKey = submissionUrl?.takeIf(String::isNotBlank)?.let { stableItemKey(item, it) },
                     status = status,
-                    submissionType = submissionUrl.toSubmissionType(),
+                    submissionType = RssSubmissionUrls.typeOf(submissionUrl),
                 )
             }
         )
@@ -63,14 +63,4 @@ object RssSubmissionPlanner {
         return digest.joinToString("") { "%02x".format(it) }
     }
 
-    private fun String?.toSubmissionType(): RssSubmissionUrlType {
-        val value = this?.trim().orEmpty()
-        return when {
-            value.isBlank() -> RssSubmissionUrlType.NONE
-            value.startsWith("magnet:", ignoreCase = true) -> RssSubmissionUrlType.MAGNET
-            value.substringBefore('?').substringBefore('#').endsWith(".torrent", ignoreCase = true) ->
-                RssSubmissionUrlType.TORRENT
-            else -> RssSubmissionUrlType.OTHER
-        }
-    }
 }
