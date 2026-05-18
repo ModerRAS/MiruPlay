@@ -8,7 +8,7 @@ import com.miruplay.tv.model.MediaFileConventions
 import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.MediaCapabilities
 import com.miruplay.tv.model.MediaSourceInfo
-import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.MediaSourceInfoConventions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Credentials
@@ -233,14 +233,11 @@ class DesktopWebDavMediaSource(
 
         fun create(name: String, url: String, username: String = "", password: String = ""): DesktopWebDavMediaSource =
             DesktopWebDavMediaSource(
-                MediaSourceInfo(
+                MediaSourceInfoConventions.webDav(
                     name = name,
-                    type = MediaSourceType.WEBDAV,
-                    connectionInfo = buildMap {
-                        put("url", url)
-                        if (username.isNotBlank()) put("username", username)
-                        if (password.isNotBlank()) put("password", password)
-                    },
+                    url = url,
+                    username = username,
+                    password = password,
                     isConnected = false,
                 )
             )

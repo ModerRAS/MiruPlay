@@ -8,7 +8,7 @@ import com.miruplay.tv.model.MediaFileConventions
 import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.MediaCapabilities
 import com.miruplay.tv.model.MediaSourceInfo
-import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.MediaSourceInfoConventions
 import jcifs.CIFSContext
 import jcifs.config.PropertyConfiguration
 import jcifs.context.BaseContext
@@ -34,7 +34,7 @@ class DesktopSmbMediaSource(
         supportsWrite = false,
     )
 
-    private val rootUrl: String = normalizeRoot(
+    private val rootUrl: String = MediaSourceInfoConventions.normalizeSmbRoot(
         requireNotNull(info.connectionInfo["url"]) {
             "SMB source requires connectionInfo[url]"
         }
@@ -160,28 +160,18 @@ class DesktopSmbMediaSource(
             domain: String = "",
         ): DesktopSmbMediaSource =
             DesktopSmbMediaSource(
-                MediaSourceInfo(
+                MediaSourceInfoConventions.smb(
                     name = name,
-                    type = MediaSourceType.SMB,
-                    connectionInfo = buildMap {
-                        put("url", normalizeRoot(url))
-                        if (username.isNotBlank()) put("username", username)
-                        if (password.isNotBlank()) put("password", password)
-                        if (domain.isNotBlank()) put("domain", domain)
-                    },
+                    url = url,
+                    username = username,
+                    password = password,
+                    domain = domain,
                     isConnected = false,
                 )
             )
 
-        fun normalizeRoot(rawUrl: String): String {
-            val normalized = rawUrl.trim().replace('\\', '/').trimEnd('/')
-            val withScheme = when {
-                normalized.startsWith(SMB_SCHEME, ignoreCase = true) -> normalized
-                normalized.startsWith("//") -> "smb:$normalized"
-                else -> "smb://$normalized"
-            }
-            return withScheme.trimEnd('/')
-        }
+        fun normalizeRoot(rawUrl: String): String =
+            MediaSourceInfoConventions.normalizeSmbRoot(rawUrl)
 
         private fun createContext(connectionInfo: Map<String, String>): CIFSContext {
             val properties = Properties().apply {

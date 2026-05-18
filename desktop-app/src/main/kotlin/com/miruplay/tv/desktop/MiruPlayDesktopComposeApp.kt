@@ -42,6 +42,7 @@ import com.miruplay.tv.mediasource.desktop.DesktopSmbMediaSource
 import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.MediaSourceInfo
+import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.RssSubscriptionInfo
@@ -549,10 +550,9 @@ internal fun MiruPlayDesktopComposeApp() {
                             return@launch
                         }
                         val root = Paths.get(rootText).toAbsolutePath().normalize()
-                        val sourceInfo = MediaSourceInfo(
+                        val sourceInfo = MediaSourceInfoConventions.local(
                             name = root.fileName?.toString() ?: root.toString(),
-                            type = MediaSourceType.LOCAL,
-                            connectionInfo = mapOf("path" to root.toString()),
+                            rootPath = root.toString(),
                             isConnected = true,
                         )
                         when (val result = repositories.mediaSources.addSource(sourceInfo)) {
