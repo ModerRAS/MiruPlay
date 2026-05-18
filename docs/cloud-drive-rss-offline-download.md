@@ -169,6 +169,36 @@ $id=[uri]::EscapeDataString('百鬼夜行抄')
 curl.exe -s "http://10.137.32.118:9978/api/anime/$id"
 ```
 
+## 桌面端 smoke 验证
+
+先跑无副作用 dry-run，确认 token、目录、RSS 解析和过滤结果；报告不会包含 token，也不会提交离线下载：
+
+```powershell
+.\gradlew.bat :sync-engine-desktop:smokeCloudDriveRssDryRun `
+  -PcloudDriveEndpoint=http://203.0.113.20:19798 `
+  -PcloudDriveToken=<token> `
+  -PcloudDriveRssUrl=https://api.ani.rip/ani-torrent.xml `
+  -PcloudDriveInbox=/115open/下载/Ani `
+  -PcloudDriveLibrary=/115open/影音/动漫 `
+  -PcloudDriveRssFilter=百鬼夜行抄 `
+  -PcloudDriveRssReportPath=build/cloud-rss-smoke/dry-run-report.json
+```
+
+需要证明真实 CloudDrive2 离线提交时，使用单独的 live submit 任务。这个任务会产生真实副作用，所以必须带确认串，并建议把 `cloudDriveRssSubmitLimit` 保持为 `1`：
+
+```powershell
+.\gradlew.bat :sync-engine-desktop:smokeCloudDriveRssLiveSubmit `
+  -PcloudDriveEndpoint=http://203.0.113.20:19798 `
+  -PcloudDriveToken=<token> `
+  -PcloudDriveRssUrl=https://api.ani.rip/ani-torrent.xml `
+  -PcloudDriveInbox=/115open/下载/Ani `
+  -PcloudDriveLibrary=/115open/影音/动漫 `
+  -PcloudDriveRssFilter=百鬼夜行抄 `
+  -PcloudDriveRssSubmitConfirmation=I_UNDERSTAND_THIS_SUBMITS_REAL_CLOUDDRIVE_DOWNLOADS `
+  -PcloudDriveRssSubmitLimit=1 `
+  -PcloudDriveRssReportPath=build/cloud-rss-smoke/live-submit-report.json
+```
+
 ## 注意事项
 
 - 第一次提交离线任务时，文件可能还没下载完成，所以 `organized` 可能是 `0`；下载完成后再跑一次会整理。

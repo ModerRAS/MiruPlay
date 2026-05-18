@@ -28,6 +28,9 @@ data class CloudDriveRssLiveSmokeOptions(
     val proxyHost: String = "",
     val proxyPort: Int = 1080,
     val reportPath: String? = null,
+    val submit: Boolean = false,
+    val submitConfirmation: String? = null,
+    val submitLimit: Int = 1,
 )
 
 data class CloudDriveRssLiveSmokeReport(
@@ -46,6 +49,10 @@ data class CloudDriveRssLiveSmokeReport(
     val magnetCandidateCount: Int,
     val torrentCandidateCount: Int,
     val otherCandidateCount: Int,
+    val submitMode: Boolean,
+    val submitAttemptedCount: Int,
+    val submitSucceededCount: Int,
+    val postSubmitInboxItemCount: Int?,
     val previewItems: List<CloudDriveRssLiveSmokeItem>,
 )
 
@@ -79,6 +86,8 @@ enum class CloudDriveRssLiveSmokeSubmissionType {
     NONE,
 }
 
+private const val LIVE_SUBMIT_CONFIRMATION = "I_UNDERSTAND_THIS_SUBMITS_REAL_CLOUDDRIVE_DOWNLOADS"
+
 fun parseCloudDriveRssLiveSmokeOptions(args: Array<String>): CloudDriveRssLiveSmokeOptions {
     val values = mutableMapOf<String, String>()
     var index = 0
@@ -108,6 +117,12 @@ fun parseCloudDriveRssLiveSmokeOptions(args: Array<String>): CloudDriveRssLiveSm
         proxyHost = values["proxy-host"].orEmpty(),
         proxyPort = values["proxy-port"]?.toIntOrNull()?.coerceIn(1, 65535) ?: 1080,
         reportPath = values["report-path"]?.takeIf { it.isNotBlank() },
+        submit = values["submit"]?.toBooleanStrictOrNull() ?: false,
+        submitConfirmation = values["submit-confirmation"]?.takeIf { it.isNotBlank() },
+        submitLimit = values["submit-limit"]
+            ?.toIntOrNull()
+            ?.coerceIn(1, 10)
+            ?: 1,
     )
 }
 
@@ -147,6 +162,29 @@ suspend fun runCloudDriveRssLiveSmoke(
         is Result.Error -> return result
     }
 
+    val submitResult = if (options.submit) {
+        submitLiveSmokeCandidates(
+            options = options,
+            cloudDriveClient = cloudDriveClient,
+            endpoint = endpoint,
+            inboxPath = normalizedInbox,
+            decisions = decisions,
+        )
+    } else {
+        Result.success(CloudDriveRssSubmitSmokeResult())
+    }
+    if (submitResult is Result.Error) return submitResult
+    val submitted = (submitResult as Result.Success).data
+
+    val postSubmitInboxItemCount = if (options.submit && submitted.succeededCount > 0) {
+        when (val result = cloudDriveClient.listFolder(endpoint, normalizedInbox, forceRefresh = true)) {
+            is Result.Success -> result.data.size
+            is Result.Error -> return result
+        }
+    } else {
+        null
+    }
+
     return Result.success(
         CloudDriveRssLiveSmokeReport(
             friendlyName = tokenInfo.friendlyName,
@@ -173,6 +211,10 @@ suspend fun runCloudDriveRssLiveSmoke(
                 it.status == CloudDriveRssLiveSmokeItemStatus.WOULD_SUBMIT &&
                     it.submissionType == CloudDriveRssLiveSmokeSubmissionType.OTHER
             },
+            submitMode = options.submit,
+            submitAttemptedCount = submitted.attemptedCount,
+            submitSucceededCount = submitted.succeededCount,
+            postSubmitInboxItemCount = postSubmitInboxItemCount,
             previewItems = decisions.take(options.maxPreviewItems),
         )
     )
@@ -187,7 +229,7 @@ fun main(args: Array<String>) = runBlocking {
                 writeCloudDriveRssLiveSmokeReport(reportPath, options, result.data)
             }
         }
-        is Result.Error -> error("CloudDrive RSS dry-run failed: ${result.error.toUserMessage()}")
+        is Result.Error -> error("CloudDrive RSS smoke failed: ${result.error.toUserMessage()}")
     }
 }
 
@@ -221,6 +263,51 @@ private fun buildCloudDriveRssLiveSmokeItems(
             )
         }
     )
+}
+
+private data class CloudDriveRssSubmitSmokeResult(
+    val attemptedCount: Int = 0,
+    val succeededCount: Int = 0,
+)
+
+private suspend fun submitLiveSmokeCandidates(
+    options: CloudDriveRssLiveSmokeOptions,
+    cloudDriveClient: CloudDriveClient,
+    endpoint: CloudDriveEndpoint,
+    inboxPath: String,
+    decisions: List<CloudDriveRssLiveSmokeItem>,
+): Result<CloudDriveRssSubmitSmokeResult> {
+    if (options.submitConfirmation != LIVE_SUBMIT_CONFIRMATION) {
+        return Result.failure(
+            AppError.SyncError.WriteFailed(
+                "CloudDrive RSS smoke",
+                "live submit requires --submit-confirmation $LIVE_SUBMIT_CONFIRMATION",
+            )
+        )
+    }
+
+    val candidates = decisions
+        .filter { it.status == CloudDriveRssLiveSmokeItemStatus.WOULD_SUBMIT }
+        .mapNotNull { it.submissionUrl?.takeIf(String::isNotBlank) }
+        .take(options.submitLimit)
+    if (candidates.isEmpty()) {
+        return Result.failure(
+            AppError.SyncError.WriteFailed(
+                "CloudDrive RSS smoke",
+                "no RSS candidate is eligible for live offline submission",
+            )
+        )
+    }
+
+    return when (val result = cloudDriveClient.addOfflineFiles(endpoint, candidates, inboxPath)) {
+        is Result.Success -> Result.success(
+            CloudDriveRssSubmitSmokeResult(
+                attemptedCount = candidates.size,
+                succeededCount = candidates.size,
+            )
+        )
+        is Result.Error -> result
+    }
 }
 
 private fun validateSmokePaths(inboxPath: String, libraryPath: String): Result<Unit> {
@@ -258,7 +345,7 @@ private fun String?.toSubmissionType(): CloudDriveRssLiveSmokeSubmissionType {
 }
 
 private fun printCloudDriveRssLiveSmokeReport(report: CloudDriveRssLiveSmokeReport) {
-    println("CloudDrive RSS dry-run passed.")
+    println(if (report.submitMode) "CloudDrive RSS live submit smoke passed." else "CloudDrive RSS dry-run passed.")
     println("Friendly name: ${report.friendlyName.ifBlank { "(none)" }}")
     println("Root dir: ${report.rootDir.ifBlank { "/" }}")
     println(
@@ -282,7 +369,12 @@ private fun printCloudDriveRssLiveSmokeReport(report: CloudDriveRssLiveSmokeRepo
         val url = item.submissionUrl?.let { " url=${it.take(120)}" }.orEmpty()
         println(" - [${item.status}/${item.submissionType}] ${item.title}$guid$url")
     }
-    println("No offline downloads were submitted by this dry-run.")
+    if (report.submitMode) {
+        println("Submitted ${report.submitSucceededCount}/${report.submitAttemptedCount} offline download candidate(s).")
+        report.postSubmitInboxItemCount?.let { println("Post-submit inbox listing: $it item(s)") }
+    } else {
+        println("No offline downloads were submitted by this dry-run.")
+    }
 }
 
 private fun writeCloudDriveRssLiveSmokeReport(
@@ -313,6 +405,12 @@ internal fun buildCloudDriveRssLiveSmokeReportJson(
         put("magnetCandidateCount", report.magnetCandidateCount)
         put("torrentCandidateCount", report.torrentCandidateCount)
         put("otherCandidateCount", report.otherCandidateCount)
+        putJsonObject("liveSubmit") {
+            put("enabled", report.submitMode)
+            put("attemptedCount", report.submitAttemptedCount)
+            put("succeededCount", report.submitSucceededCount)
+            report.postSubmitInboxItemCount?.let { put("postSubmitInboxItemCount", it) }
+        }
         putJsonObject("tokenInfo") {
             put("friendlyName", report.friendlyName)
             put("rootDir", report.rootDir)

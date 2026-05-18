@@ -82,3 +82,76 @@ val smokeCloudDriveRssDryRun by tasks.registering(JavaExec::class) {
         }
     }
 }
+
+val smokeCloudDriveRssLiveSubmit by tasks.registering(JavaExec::class) {
+    group = "verification"
+    description = "Submit a limited live CloudDrive2 RSS offline-download candidate after explicit confirmation."
+    classpath = sourceSets.named("main").get().runtimeClasspath
+    mainClass.set("com.miruplay.tv.sync.rss.CloudDriveRssLiveSmokeKt")
+
+    val endpoint = providers.gradleProperty("cloudDriveEndpoint")
+    val token = providers.gradleProperty("cloudDriveToken")
+    val rssUrl = providers.gradleProperty("cloudDriveRssUrl")
+    val inbox = providers.gradleProperty("cloudDriveInbox")
+    val library = providers.gradleProperty("cloudDriveLibrary")
+    val filter = providers.gradleProperty("cloudDriveRssFilter")
+    val maxPreview = providers.gradleProperty("cloudDriveRssMaxPreview").orElse("20")
+    val proxyEnabled = providers.gradleProperty("cloudDriveRssProxyEnabled").orElse("false")
+    val proxyHost = providers.gradleProperty("cloudDriveRssProxyHost").orElse("")
+    val proxyPort = providers.gradleProperty("cloudDriveRssProxyPort").orElse("1080")
+    val reportPath = providers.gradleProperty("cloudDriveRssReportPath")
+    val submitConfirmation = providers.gradleProperty("cloudDriveRssSubmitConfirmation")
+    val submitLimit = providers.gradleProperty("cloudDriveRssSubmitLimit").orElse("1")
+
+    doFirst {
+        if (
+            !endpoint.isPresent ||
+            !token.isPresent ||
+            !rssUrl.isPresent ||
+            !inbox.isPresent ||
+            !library.isPresent ||
+            !submitConfirmation.isPresent
+        ) {
+            throw GradleException(
+                "Provide -PcloudDriveEndpoint=http://host:port -PcloudDriveToken=<token> " +
+                    "-PcloudDriveRssUrl=<rss-url> -PcloudDriveInbox=/Downloads -PcloudDriveLibrary=/Library " +
+                    "-PcloudDriveRssSubmitConfirmation=I_UNDERSTAND_THIS_SUBMITS_REAL_CLOUDDRIVE_DOWNLOADS. " +
+                    "Optional: -PcloudDriveRssFilter=<regex> -PcloudDriveRssSubmitLimit=1 " +
+                    "-PcloudDriveRssReportPath=build/cloud-rss-smoke/live-submit-report.json"
+            )
+        }
+
+        args(
+            "--endpoint",
+            endpoint.get(),
+            "--token",
+            token.get(),
+            "--rss-url",
+            rssUrl.get(),
+            "--inbox",
+            inbox.get(),
+            "--library",
+            library.get(),
+            "--max-preview",
+            maxPreview.get(),
+            "--proxy-enabled",
+            proxyEnabled.get(),
+            "--proxy-host",
+            proxyHost.get(),
+            "--proxy-port",
+            proxyPort.get(),
+            "--submit",
+            "true",
+            "--submit-confirmation",
+            submitConfirmation.get(),
+            "--submit-limit",
+            submitLimit.get(),
+        )
+        if (filter.isPresent) {
+            args("--filter", filter.get())
+        }
+        if (reportPath.isPresent) {
+            args("--report-path", reportPath.get())
+        }
+    }
+}
