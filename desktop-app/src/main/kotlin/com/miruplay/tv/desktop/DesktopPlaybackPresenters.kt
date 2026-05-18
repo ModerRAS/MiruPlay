@@ -1,10 +1,12 @@
 package com.miruplay.tv.desktop
 
 import com.miruplay.tv.mediasource.desktop.DesktopMediaSource
+import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.playbackSourceFromInputs
 import com.miruplay.tv.player.mpv.MpvRuntimeConfig
+import com.miruplay.tv.player.mpv.MpvRuntimeVerification
 import com.miruplay.tv.player.mpv.MpvRuntimeVerifier
 import com.miruplay.tv.player.mpv.RifeBackend
 import com.miruplay.tv.player.mpv.MpvLaunch
@@ -19,6 +21,7 @@ import com.miruplay.tv.player.mpv.mpvRuntimeConfigFromInputs
 import com.miruplay.tv.player.mpv.mpvSeekBackStatus
 import com.miruplay.tv.player.mpv.mpvSeekForwardStatus
 import com.miruplay.tv.player.mpv.mpvStoppedStatus
+import com.miruplay.tv.player.mpv.validateLaunchRuntime
 
 internal fun runtimeStatus(mpvPath: String, configDir: String): String =
     MpvRuntimeVerifier.statusFromInputs(mpvPath, configDir)
@@ -67,6 +70,9 @@ internal fun buildRuntimeConfig(
         rifeEnabled = rifeEnabled,
         rifeBackend = rifeBackend,
     )
+
+internal fun validateRuntimeForLaunch(config: MpvRuntimeConfig): Result<MpvRuntimeVerification?> =
+    config.validateLaunchRuntime()
 
 internal fun buildPlaybackSource(
     mediaPath: String,

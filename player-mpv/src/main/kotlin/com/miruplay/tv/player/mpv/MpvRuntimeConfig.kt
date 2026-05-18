@@ -1,5 +1,8 @@
 package com.miruplay.tv.player.mpv
 
+import com.miruplay.tv.core.common.AppError
+import com.miruplay.tv.core.common.Result
+import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 
@@ -40,6 +43,50 @@ fun mpvRuntimeConfigFromInputs(
         keepOpen = keepOpen,
         rife = if (rifeEnabled) RifeInterpolationConfig(backend = rifeBackend) else null,
     )
+
+fun MpvRuntimeConfig.validateLaunchRuntime(): Result<MpvRuntimeVerification?> {
+    if (!Files.isRegularFile(mpvExecutable)) {
+        return Result.failure(
+            AppError.PlaybackError.StreamError("mpv executable not found: $mpvExecutable")
+        )
+    }
+
+    val requestedRife = rife ?: return Result.success(null)
+    requestedRife.scriptPath?.let { scriptPath ->
+        val normalizedScript = scriptPath.toAbsolutePath().normalize()
+        return if (Files.isRegularFile(normalizedScript)) {
+            Result.success(null)
+        } else {
+            Result.failure(
+                AppError.PlaybackError.StreamError("RIFE script not found: $normalizedScript")
+            )
+        }
+    }
+
+    val configDirectory = configDirectory
+        ?: return Result.failure(
+            AppError.PlaybackError.StreamError(
+                "configDirectory is required when using a bundled RIFE backend without scriptPath"
+            )
+        )
+
+    val verification = MpvRuntimeVerifier.verify(
+        MpvRuntimeLayout(
+            rootDirectory = configDirectory.parent ?: mpvExecutable.parent ?: configDirectory,
+            executable = mpvExecutable,
+            configDirectory = configDirectory,
+        )
+    )
+    if (requestedRife.backend !in verification.availableRifeBackends) {
+        return Result.failure(
+            AppError.PlaybackError.StreamError(
+                "RIFE script not found: ${verification.layout.rifeScript(requestedRife.backend)}"
+            )
+        )
+    }
+
+    return Result.success(verification)
+}
 
 data class RifeInterpolationConfig(
     val backend: RifeBackend = RifeBackend.NVIDIA,
