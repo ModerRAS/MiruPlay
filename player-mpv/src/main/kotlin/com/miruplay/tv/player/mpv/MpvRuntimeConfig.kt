@@ -5,8 +5,25 @@ import com.miruplay.tv.core.common.Result
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.util.UUID
 
 const val DEFAULT_MPV_IPC_SERVER = "miruplay-mpv"
+
+fun defaultMpvIpcServer(
+    osName: String = System.getProperty("os.name").orEmpty(),
+    tempDirectory: String = System.getProperty("java.io.tmpdir").orEmpty(),
+    uniqueId: String = UUID.randomUUID().toString(),
+): String {
+    val serverName = "$DEFAULT_MPV_IPC_SERVER-${uniqueId.toMpvIpcSuffix()}"
+    return if (osName.contains("Windows", ignoreCase = true)) {
+        "\\\\.\\pipe\\$serverName"
+    } else {
+        Paths.get(tempDirectory.ifBlank { "." }, "$serverName.sock").toString()
+    }
+}
+
+private fun String.toMpvIpcSuffix(): String =
+    filter(Char::isLetterOrDigit).takeIf { it.isNotBlank() } ?: UUID.randomUUID().toString().filter(Char::isLetterOrDigit)
 
 /**
  * Windows mpv runtime configuration.
@@ -41,7 +58,7 @@ fun mpvRuntimeConfigFromInputs(
     MpvRuntimeConfig(
         mpvExecutable = Paths.get(mpvPath.trim()),
         configDirectory = configDir.trim().takeIf { it.isNotBlank() }?.let(Paths::get),
-        ipcServer = DEFAULT_MPV_IPC_SERVER,
+        ipcServer = defaultMpvIpcServer(),
         startFullscreen = fullscreen,
         keepOpen = keepOpen,
         rife = if (rifeEnabled) RifeInterpolationConfig(backend = rifeBackend) else null,

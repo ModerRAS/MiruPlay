@@ -2,6 +2,7 @@ package com.miruplay.tv.player.mpv
 
 import com.miruplay.tv.core.common.Result
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -10,7 +11,20 @@ import java.nio.file.Paths
 
 class MpvRuntimeConfigTest {
     @Test
-    fun `mpvRuntimeConfigFromInputs trims paths and enables RIFE only when requested`() {
+    fun `defaultMpvIpcServer uses named pipe on Windows and temp socket elsewhere`() {
+        assertEquals(
+            "\\\\.\\pipe\\miruplay-mpv-abc123",
+            defaultMpvIpcServer(osName = "Windows 11", tempDirectory = "C:/Temp", uniqueId = "abc-123"),
+        )
+
+        val unixPath = defaultMpvIpcServer(osName = "Linux", tempDirectory = "/tmp", uniqueId = "abc-123")
+            .replace('\\', '/')
+
+        assertTrue(unixPath.endsWith("/tmp/miruplay-mpv-abc123.sock"))
+    }
+
+    @Test
+    fun `mpvRuntimeConfigFromInputs trims paths creates unique ipc and enables RIFE only when requested`() {
         val withoutRife = mpvRuntimeConfigFromInputs(
             mpvPath = " D:/MiruPlay/runtime/mpv/mpv.exe ",
             configDir = " ",
@@ -29,12 +43,13 @@ class MpvRuntimeConfigTest {
         )
 
         assertEquals(Paths.get("D:/MiruPlay/runtime/mpv/mpv.exe"), withoutRife.mpvExecutable)
-        assertEquals(DEFAULT_MPV_IPC_SERVER, withoutRife.ipcServer)
+        assertTrue(withoutRife.ipcServer.orEmpty().contains(DEFAULT_MPV_IPC_SERVER))
         assertNull(withoutRife.configDirectory)
         assertTrue(withoutRife.startFullscreen)
         assertNull(withoutRife.rife)
         assertEquals(Paths.get("D:/MiruPlay/runtime/mpv/portable_config"), withRife.configDirectory)
-        assertEquals(DEFAULT_MPV_IPC_SERVER, withRife.ipcServer)
+        assertTrue(withRife.ipcServer.orEmpty().contains(DEFAULT_MPV_IPC_SERVER))
+        assertNotEquals(withoutRife.ipcServer, withRife.ipcServer)
         assertEquals(RifeBackend.NVIDIA, withRife.rife?.backend)
         assertTrue(withRife.keepOpen)
     }

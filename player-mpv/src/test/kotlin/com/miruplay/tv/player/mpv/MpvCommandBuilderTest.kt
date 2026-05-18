@@ -97,7 +97,8 @@ class MpvCommandBuilderTest {
 
         val normalized = preview.replace('\\', '/')
         assertTrue(normalized.startsWith("\"C:/MiruPlay/mpv player.exe\""))
-        assertTrue(normalized.contains("--input-ipc-server=$DEFAULT_MPV_IPC_SERVER"))
+        assertTrue(normalized.contains("--input-ipc-server="))
+        assertTrue(normalized.contains(DEFAULT_MPV_IPC_SERVER))
         assertTrue(normalized.contains("--keep-open=yes"))
         assertTrue(normalized.contains("--start=90.5"))
         assertTrue(normalized.endsWith("\"D:/Anime/Episode 01.mkv\""))
