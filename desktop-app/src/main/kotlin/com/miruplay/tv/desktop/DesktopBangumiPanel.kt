@@ -24,7 +24,6 @@ import com.miruplay.tv.design.MiruPlayUiMetrics
 import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.displayName
-import kotlin.math.roundToLong
 
 @Composable
 internal fun BangumiPanel(
@@ -197,7 +196,7 @@ private fun BangumiResultRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                "${(result.confidence * 100).roundToLong()}%",
+                bangumiConfidenceLabel(result),
                 color = if (active) AnimeRed else TextSecondary,
                 fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
                 fontWeight = FontWeight.Bold,
@@ -266,7 +265,7 @@ private fun BangumiBatchMatchRow(
                         } else {
                             ""
                         }
-                        "${bangumiDisplayTitle(it)} / ${(it.confidence * 100).roundToLong()}%$candidateSuffix"
+                        "${bangumiDisplayTitle(it)} / ${bangumiConfidenceLabel(it)}$candidateSuffix"
                     } ?: "No match",
                     color = TextSecondary,
                     fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,

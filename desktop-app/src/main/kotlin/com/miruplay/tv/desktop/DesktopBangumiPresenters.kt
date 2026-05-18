@@ -3,6 +3,7 @@ package com.miruplay.tv.desktop
 import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.displayTitle
 import com.miruplay.tv.repository.MediaIndexEntry
+import com.miruplay.tv.repository.confidencePercentLabel
 import com.miruplay.tv.repository.metadataQuery
 import com.miruplay.tv.repository.isSameCandidate
 import com.miruplay.tv.repository.replaceByMediaKey
@@ -17,6 +18,9 @@ internal fun bangumiQueryFor(entry: MediaIndexEntry?): String? =
 
 internal fun bangumiDisplayTitle(result: ScraperResult): String =
     result.displayTitle()
+
+internal fun bangumiConfidenceLabel(result: ScraperResult): String =
+    result.confidencePercentLabel()
 
 internal fun DesktopBangumiBatchPlan?.batchStatusFor(match: DesktopBangumiBatchMatch): String =
     statusFor(match)
