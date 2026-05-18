@@ -26,6 +26,7 @@ import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.formatPlaybackPosition
+import com.miruplay.tv.repository.MediaDetailRows
 import com.miruplay.tv.repository.MediaIndexEntry
 
 @Composable
@@ -132,7 +133,7 @@ internal fun MediaDetailsPanel(
             return@TvPanel
         }
 
-        val rows = DesktopMediaDetailRows.build(
+        val rows = MediaDetailRows.build(
             source = source,
             indexEntry = indexEntry,
             remoteEntry = remoteEntry,

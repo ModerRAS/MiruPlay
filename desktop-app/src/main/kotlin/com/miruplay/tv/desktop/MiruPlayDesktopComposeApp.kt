@@ -43,6 +43,7 @@ import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.PlaybackProgressSession
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.ScraperResult
@@ -141,7 +142,7 @@ internal fun MiruPlayDesktopComposeApp() {
     val cloudRssSchedulerState by cloudRssScheduler.state.collectAsState()
     var selectedDesktopSection by remember { mutableStateOf(MiruPlayRouteSurface.library) }
     var player by remember { mutableStateOf<MpvProcessPlayer?>(null) }
-    var activePlaybackSession by remember { mutableStateOf<DesktopPlaybackSession?>(null) }
+    var activePlaybackSession by remember { mutableStateOf<PlaybackProgressSession?>(null) }
     var mpvPath by remember { mutableStateOf(DesktopRuntimeDefaults.mpvPath()) }
     var configDir by remember { mutableStateOf(DesktopRuntimeDefaults.configDirectory()) }
     var libraryRoot by remember { mutableStateOf("") }
@@ -1368,7 +1369,7 @@ internal fun MiruPlayDesktopComposeApp() {
                             when (val result = nextPlayer.play(source)) {
                                 is Result.Success -> {
                                     player = nextPlayer
-                                    activePlaybackSession = DesktopPlaybackSession(selectedMediaPath, source.startPosition)
+                                    activePlaybackSession = PlaybackProgressSession(selectedMediaPath, source.startPosition)
                                     repositories.progress.saveProgress(
                                         episodeId = selectedMediaPath,
                                         positionMs = source.startPosition,
