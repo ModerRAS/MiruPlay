@@ -5,6 +5,7 @@ import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.FileMetadata
 import com.miruplay.tv.model.MediaFileConventions
+import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.MediaCapabilities
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
@@ -19,7 +20,6 @@ import jcifs.smb.SmbRandomAccessFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.InputStream
-import java.net.URLEncoder
 import java.util.Properties
 
 class DesktopSmbMediaSource(
@@ -120,10 +120,10 @@ class DesktopSmbMediaSource(
         if (path.startsWith(SMB_SCHEME, ignoreCase = true)) return path
         if (path.startsWith("\\\\") || path.startsWith("//")) return normalizeRoot(path)
 
-        val cleanPath = path.replace('\\', '/').trim('/')
+        val cleanPath = MediaPathConventions.normalizeRemotePath(path)
         if (cleanPath.isBlank()) return "$rootUrl/"
 
-        return "$rootUrl/${cleanPath.split('/').joinToString("/") { encodeSegment(it) }}"
+        return "$rootUrl/${MediaPathConventions.encodeRemotePath(cleanPath)}"
     }
 
     private fun resolvePath(path: String): SmbFile =
@@ -199,9 +199,6 @@ class DesktopSmbMediaSource(
             )
             return baseContext.withCredentials(auth)
         }
-
-        private fun encodeSegment(segment: String): String =
-            URLEncoder.encode(segment, Charsets.UTF_8.name()).replace("+", "%20")
 
         private fun cleanName(name: String): String =
             name.trimEnd('/')

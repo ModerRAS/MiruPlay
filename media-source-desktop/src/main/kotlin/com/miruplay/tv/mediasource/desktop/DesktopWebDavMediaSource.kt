@@ -5,6 +5,7 @@ import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.FileMetadata
 import com.miruplay.tv.model.MediaFileConventions
+import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.MediaCapabilities
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
@@ -18,8 +19,6 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.w3c.dom.Element
 import java.io.InputStream
 import java.net.URI
-import java.net.URLDecoder
-import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.concurrent.TimeUnit
@@ -136,12 +135,9 @@ class DesktopWebDavMediaSource(
     }
 
     internal fun normalizeUrl(path: String): String {
-        val cleanPath = normalizeRemotePath(path)
+        val cleanPath = MediaPathConventions.normalizeRemotePath(path)
         if (cleanPath.isBlank()) return "$baseUrl/"
-        val encodedPath = cleanPath.split('/')
-            .joinToString("/") { segment ->
-                URLEncoder.encode(segment, Charsets.UTF_8.name()).replace("+", "%20")
-            }
+        val encodedPath = MediaPathConventions.encodeRemotePath(cleanPath)
         return "$baseUrl/$encodedPath"
     }
 
@@ -155,7 +151,7 @@ class DesktopWebDavMediaSource(
         val doc = factory.newDocumentBuilder().parse(xml.byteInputStream())
         val responses = doc.getElementsByTagNameNS(NS_DAV, "response")
 
-        val normalizedRequestedPath = normalizeRemotePath(requestedPath)
+        val normalizedRequestedPath = MediaPathConventions.normalizeRemotePath(requestedPath)
         val entries = mutableListOf<FileEntry>()
         for (i in 0 until responses.length) {
             val response = responses.item(i) as? Element ?: continue
@@ -199,20 +195,14 @@ class DesktopWebDavMediaSource(
             decoded.startsWith("$basePath/") -> decoded.removePrefix(basePath)
             else -> URI.create(decoded).path?.removePrefix(basePath).orEmpty()
         }
-        return normalizeRemotePath(withoutBase)
+        return MediaPathConventions.normalizeRemotePath(withoutBase)
     }
 
     private fun extractBasePath(): String =
         runCatching { URI(baseUrl).path?.trimEnd('/') ?: "" }.getOrDefault("")
 
-    private fun normalizeRemotePath(path: String): String =
-        path.substringBefore('?')
-            .replace('\\', '/')
-            .trim('/')
-
-    private fun decodeHref(href: String): String = runCatching {
-        URLDecoder.decode(href, Charsets.UTF_8.name())
-    }.getOrDefault(href)
+    private fun decodeHref(href: String): String =
+        MediaPathConventions.decodePath(href)
 
     private fun isCollection(response: Element): Boolean {
         val resTypes = response.getElementsByTagNameNS(NS_DAV, "resourcetype")

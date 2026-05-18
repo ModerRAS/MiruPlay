@@ -4,6 +4,7 @@ import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.mediasource.desktop.DesktopMediaSource
 import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.MediaFileConventions
+import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.VideoFilenameInference
 import com.miruplay.tv.repository.MediaIndexEntry
 import kotlinx.coroutines.Dispatchers
@@ -108,7 +109,7 @@ class DesktopMediaLibraryScanner(
         tvShow: DesktopTvShowNfoMetadata?,
     ): MediaIndexEntry {
         val nfo = nfoReader.readEpisodeForVideo(source, path)
-        val parentName = path.substringBeforeLast('\\', path).substringBeforeLast('/').substringAfterLast('\\').substringAfterLast('/')
+        val parentName = MediaPathConventions.parentName(path)
         val inferred = VideoFilenameInference.infer(name, parentName)
         return MediaIndexEntry(
             sourceId = sourceId,
@@ -134,11 +135,11 @@ class DesktopMediaLibraryScanner(
     private fun canonicalPathKey(path: String): String {
         val trimmed = path.trim()
         if (trimmed.isBlank()) return ""
-        if ("://" in trimmed) return trimmed.replace('\\', '/').trimEnd('/')
+        if ("://" in trimmed) return MediaPathConventions.normalizeRemotePath(trimmed)
         return runCatching {
             Paths.get(trimmed).toAbsolutePath().normalize().toString()
         }.getOrElse {
-            trimmed.replace('\\', '/').trimEnd('/')
+            MediaPathConventions.normalizeRemotePath(trimmed)
         }
     }
 
