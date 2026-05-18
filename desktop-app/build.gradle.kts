@@ -1,4 +1,5 @@
 import java.io.ByteArrayOutputStream
+import java.time.OffsetDateTime
 
 plugins {
     id("application")
@@ -16,7 +17,7 @@ application {
     mainClass.set("com.miruplay.tv.desktop.MiruPlayDesktopComposeAppKt")
 }
 
-val preparedMpvRuntime = layout.buildDirectory.dir("prepared-mpv-runtime")
+val generatedMpvRuntimeManifest = layout.buildDirectory.file("generated/mpv-runtime/runtime-manifest.json")
 val mpvRuntimeSource = providers.gradleProperty("mpvRuntimeSource")
 val requireMpvRuntime = providers.gradleProperty("requireMpvRuntime")
     .map { it.equals("true", ignoreCase = true) }
@@ -33,6 +34,51 @@ val bundledMpvRuntime = rootProject.layout.projectDirectory.dir("runtime/mpv")
 val effectiveMpvRuntimeRoot = mpvRuntimeSource
     .map { rootProject.file(it) }
     .orElse(providers.provider { bundledMpvRuntime.asFile })
+val backendScripts = mapOf(
+    "NVIDIA" to "MEMC_RIFE_NV.vpy",
+    "DIRECTML" to "MEMC_RIFE_DML.vpy",
+    "STANDARD" to "MEMC_RIFE_STD.vpy",
+)
+
+fun requestedRifeBackends(): List<String> =
+    requiredRifeBackends.get()
+        .split(',', ';', ' ', '\n', '\t')
+        .map { it.trim().uppercase() }
+        .filter { it.isNotEmpty() }
+
+fun validateRifeBackends(backends: List<String>) {
+    val unknownBackends = backends.filterNot { it in backendScripts.keys }
+    if (unknownBackends.isNotEmpty()) {
+        throw GradleException(
+            "Unknown requiredRifeBackends value(s): ${unknownBackends.joinToString(", ")}. " +
+                "Use NVIDIA, DIRECTML, STANDARD, or an empty value."
+        )
+    }
+}
+
+fun String.jsonString(): String =
+    buildString {
+        append('"')
+        this@jsonString.forEach { char ->
+            when (char) {
+                '\\' -> append("\\\\")
+                '"' -> append("\\\"")
+                '\n' -> append("\\n")
+                '\r' -> append("\\r")
+                '\t' -> append("\\t")
+                else -> append(char)
+            }
+        }
+        append('"')
+    }
+
+fun List<String>.jsonArray(): String = joinToString(prefix = "[", postfix = "]") { it.jsonString() }
+
+fun hasMpvRuntimeSource(): Boolean =
+    mpvRuntimeSource.isPresent || bundledMpvRuntime.asFile.exists()
+
+fun mpvRuntimeSourceHasManifest(): Boolean =
+    hasMpvRuntimeSource() && effectiveMpvRuntimeRoot.get().resolve("runtime-manifest.json").isFile
 
 val verifyMpvRuntimePayload by tasks.registering {
     group = "verification"
@@ -43,22 +89,8 @@ val verifyMpvRuntimePayload by tasks.registering {
 
     doLast {
         val root = effectiveMpvRuntimeRoot.get().toPath().toAbsolutePath().normalize().toFile()
-        val backendScripts = mapOf(
-            "NVIDIA" to "MEMC_RIFE_NV.vpy",
-            "DIRECTML" to "MEMC_RIFE_DML.vpy",
-            "STANDARD" to "MEMC_RIFE_STD.vpy",
-        )
-        val requestedBackends = requiredRifeBackends.get()
-            .split(',', ';', ' ', '\n', '\t')
-            .map { it.trim().uppercase() }
-            .filter { it.isNotEmpty() }
-        val unknownBackends = requestedBackends.filterNot { it in backendScripts.keys }
-        if (unknownBackends.isNotEmpty()) {
-            throw GradleException(
-                "Unknown requiredRifeBackends value(s): ${unknownBackends.joinToString(", ")}. " +
-                    "Use NVIDIA, DIRECTML, STANDARD, or an empty value."
-            )
-        }
+        val requestedBackends = requestedRifeBackends()
+        validateRifeBackends(requestedBackends)
 
         val missing = mutableListOf<String>()
         fun requireFile(relativePath: String) {
@@ -123,34 +155,64 @@ val smokeMpvRuntime by tasks.registering {
     }
 }
 
-val prepareMpvRuntime by tasks.registering(Sync::class) {
+val generateMpvRuntimeManifest by tasks.registering {
     group = "distribution"
-    description = "Prepare a local mpv_PlayKit-style runtime for the desktop distribution."
-    into(preparedMpvRuntime)
+    description = "Generate metadata for the bundled mpv/RIFE runtime."
+    outputs.file(generatedMpvRuntimeManifest)
+    inputs.dir(effectiveMpvRuntimeRoot).optional()
+    inputs.property("requiredRifeBackends", requiredRifeBackends)
 
-    val sourcePath = mpvRuntimeSource.map { rootProject.file(it) }
-    onlyIf { bundleMpvRuntime.get() && mpvRuntimeSource.isPresent }
+    onlyIf {
+        bundleMpvRuntime.get() &&
+            hasMpvRuntimeSource() &&
+            !mpvRuntimeSourceHasManifest()
+    }
     doFirst {
-        val source = sourcePath.get()
+        val source = effectiveMpvRuntimeRoot.get()
         if (!source.exists()) {
             throw GradleException("mpvRuntimeSource does not exist: $source")
         }
+        validateRifeBackends(requestedRifeBackends())
     }
-    from(sourcePath) {
-        includeEmptyDirs = true
+    doLast {
+        val requestedBackends = requestedRifeBackends()
+        val runtimeRoot = effectiveMpvRuntimeRoot.get().toPath().toAbsolutePath().normalize()
+        val manifestFiles = buildList {
+            add("mpv.exe")
+            add("portable_config/")
+            if (requestedBackends.isNotEmpty()) {
+                add("portable_config/vs/")
+                requestedBackends.forEach { backend ->
+                    add("portable_config/vs/${backendScripts.getValue(backend)}")
+                }
+            }
+        }
+        val manifest = """
+            {
+              "source": ${runtimeRoot.toString().jsonString()},
+              "runtimeRoot": ${runtimeRoot.toString().jsonString()},
+              "requiredRifeBackends": ${requestedBackends.jsonArray()},
+              "verifiedAt": ${OffsetDateTime.now().toString().jsonString()},
+              "files": ${manifestFiles.jsonArray()}
+            }
+        """.trimIndent()
+        val manifestFile = generatedMpvRuntimeManifest.get().asFile
+        manifestFile.parentFile.mkdirs()
+        manifestFile.writeText(manifest)
     }
 }
 
 distributions {
     main {
         contents {
-            if (bundleMpvRuntime.get() && mpvRuntimeSource.isPresent) {
-                from(preparedMpvRuntime) {
+            if (bundleMpvRuntime.get() && hasMpvRuntimeSource()) {
+                from(effectiveMpvRuntimeRoot) {
                     into("runtime/mpv")
                 }
-            } else if (bundleMpvRuntime.get()) {
-                from(rootProject.layout.projectDirectory.dir("runtime/mpv")) {
-                    into("runtime/mpv")
+                if (!mpvRuntimeSourceHasManifest()) {
+                    from(generatedMpvRuntimeManifest) {
+                        into("runtime/mpv")
+                    }
                 }
             }
         }
@@ -159,7 +221,7 @@ distributions {
 
 tasks.named("installDist") {
     dependsOn(verifyMpvRuntimePayload)
-    dependsOn(prepareMpvRuntime)
+    dependsOn(generateMpvRuntimeManifest)
 }
 
 tasks.named("distZip") {
@@ -167,12 +229,12 @@ tasks.named("distZip") {
         dependsOn(smokeMpvRuntime)
     }
     dependsOn(verifyMpvRuntimePayload)
-    dependsOn(prepareMpvRuntime)
+    dependsOn(generateMpvRuntimeManifest)
 }
 
 tasks.named("distTar") {
     dependsOn(verifyMpvRuntimePayload)
-    dependsOn(prepareMpvRuntime)
+    dependsOn(generateMpvRuntimeManifest)
 }
 
 dependencies {
