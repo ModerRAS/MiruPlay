@@ -62,7 +62,6 @@ import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.design.MiruPlayPalette
 import com.miruplay.tv.design.MiruPlayRouteSurface
 import com.miruplay.tv.design.MiruPlayUiMetrics
-import com.miruplay.tv.model.buildExternalSubtitleTracks
 import com.miruplay.tv.sync.rss.DesktopCloudDriveRssAutomationEngine
 import com.miruplay.tv.sync.rss.DesktopCloudDriveRssScheduler
 import com.miruplay.tv.sync.rss.DesktopCloudDriveRssSchedulerState
@@ -73,19 +72,14 @@ import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
-import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.displayTitle
 import com.miruplay.tv.model.formatFileSize
 import com.miruplay.tv.model.formatPlaybackPosition
-import com.miruplay.tv.player.mpv.MpvCommandBuilder
 import com.miruplay.tv.player.mpv.MpvProcessPlayer
-import com.miruplay.tv.player.mpv.MpvRuntimeConfig
-import com.miruplay.tv.player.mpv.MpvRuntimeVerifier
 import com.miruplay.tv.player.mpv.RifeBackend
-import com.miruplay.tv.player.mpv.RifeInterpolationConfig
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MetadataBatchPlanner
 import com.miruplay.tv.repository.displayName
@@ -2871,90 +2865,6 @@ private fun linkedSourceLabel(
     return source?.let { "${it.name} (${it.type.name})" } ?: "Missing source #$sourceId"
 }
 
-private fun runtimeStatus(mpvPath: String, configDir: String): String =
-    runCatching {
-        val verification = MpvRuntimeVerifier.verify(DesktopRuntimeDefaults.runtimeRoot(mpvPath, configDir))
-        verification.detailMessage()
-    }.getOrElse { error ->
-        "Runtime check failed: ${error.message ?: error::class.simpleName}"
-    }
-
-private fun buildCommandPreview(
-    mpvPath: String,
-    configDir: String,
-    mediaPath: String,
-    subtitlePath: String,
-    startSeconds: String,
-    fullscreen: Boolean,
-    keepOpen: Boolean,
-    rifeEnabled: Boolean,
-    rifeBackend: RifeBackend,
-): String =
-    runCatching {
-        val source = buildPlaybackSource(mediaPath, subtitlePath, startSeconds)
-        val config = buildRuntimeConfig(mpvPath, configDir, fullscreen, keepOpen, rifeEnabled, rifeBackend)
-        MpvCommandBuilder(config).build(source).joinToString(" ") { it.quoteForPreview() }
-    }.getOrElse { error ->
-        error.message ?: "Unable to build mpv command."
-    }
-
-private fun buildRuntimeConfig(
-    mpvPath: String,
-    configDir: String,
-    fullscreen: Boolean,
-    keepOpen: Boolean,
-    rifeEnabled: Boolean,
-    rifeBackend: RifeBackend,
-): MpvRuntimeConfig =
-    MpvRuntimeConfig(
-        mpvExecutable = Paths.get(mpvPath.trim()),
-        configDirectory = configDir.trim().takeIf { it.isNotBlank() }?.let(Paths::get),
-        startFullscreen = fullscreen,
-        keepOpen = keepOpen,
-        rife = if (rifeEnabled) RifeInterpolationConfig(backend = rifeBackend) else null,
-    )
-
-private fun buildPlaybackSource(
-    mediaPath: String,
-    subtitlePath: String,
-    startSeconds: String,
-    mediaSourceId: String = "desktop-compose",
-    episodeId: String? = null,
-): PlaybackSource {
-    val media = requireNotNull(mediaPath.trim().takeIf { it.isNotBlank() }) {
-        "Choose a media URI or file path before launching mpv."
-    }
-    val startMs = startSeconds.trim()
-        .takeIf { it.isNotBlank() }
-        ?.toDoubleOrNull()
-        ?.let { (it * 1_000.0).roundToLong().coerceAtLeast(0L) }
-        ?: 0L
-    return PlaybackSource(
-        uri = media,
-        mediaSourceId = mediaSourceId,
-        startPosition = startMs,
-        subtitleTracks = buildExternalSubtitleTracks(subtitlePath.trim()),
-        episodeId = episodeId ?: media,
-    )
-}
-
-private fun playableUriFor(
-    source: DesktopMediaSource?,
-    bridge: DesktopPlaybackBridge,
-    mediaPath: String,
-): String {
-    val path = mediaPath.trim()
-    if (path.startsWith("http://", ignoreCase = true) || path.startsWith("https://", ignoreCase = true)) {
-        return path
-    }
-    return when (source?.info?.type) {
-        MediaSourceType.WEBDAV -> if (path.startsWith("/")) bridge.playableUri(source, path) else path
-        MediaSourceType.SMB -> if (path.startsWith("smb://", ignoreCase = true)) bridge.playableUri(source, path) else path
-        MediaSourceType.LOCAL,
-        null -> path
-    }
-}
-
 private fun bangumiQueryFor(entry: MediaIndexEntry?): String? {
     entry?.animeName?.takeIf { it.isNotBlank() }?.let { return it }
     val fileName = entry?.path
@@ -3012,6 +2922,3 @@ private fun List<MediaIndexEntry>.replaceEntries(updatedEntries: List<MediaIndex
     val byKey = updatedEntries.associateBy { it.sourceId to it.path }
     return map { entry -> byKey[entry.sourceId to entry.path] ?: entry }
 }
-
-private fun String.quoteForPreview(): String =
-    if (any { it.isWhitespace() }) "\"${replace("\"", "\\\"")}\"" else this
