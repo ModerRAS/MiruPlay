@@ -12,9 +12,14 @@ data class DownloadedTorrentFile(
     val remoteFileName: String
 )
 
+interface RssTorrentDownloader {
+    fun configureProxy(enabled: Boolean, host: String, port: Int)
+    suspend fun download(url: String, title: String, keyPrefix: String): Result<DownloadedTorrentFile>
+}
+
 class TorrentFileDownloader(
     private val downloadDir: File = File(System.getProperty("java.io.tmpdir"), "miruplay-rss-torrents")
-) {
+) : RssTorrentDownloader {
     private val client = ProxyAwareOkHttpClient(
         OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
@@ -23,11 +28,11 @@ class TorrentFileDownloader(
             .build()
     )
 
-    fun configureProxy(enabled: Boolean, host: String, port: Int) {
+    override fun configureProxy(enabled: Boolean, host: String, port: Int) {
         client.configureProxy(enabled, host, port)
     }
 
-    suspend fun download(url: String, title: String, keyPrefix: String): Result<DownloadedTorrentFile> =
+    override suspend fun download(url: String, title: String, keyPrefix: String): Result<DownloadedTorrentFile> =
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             try {
                 downloadDir.mkdirs()

@@ -18,6 +18,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import java.security.MessageDigest
 
 class CloudDriveRssLiveSmokeTest {
     @Test
@@ -130,6 +131,7 @@ class CloudDriveRssLiveSmokeTest {
         assertFalse(report.submitMode)
         assertEquals(0, report.submitAttemptedCount)
         assertEquals(0, report.submitSucceededCount)
+        assertEquals(0, report.submitPreparedTorrentCount)
         assertEquals(null, report.postSubmitInboxItemCount)
         assertEquals(0, cloudDrive.offlineSubmissions)
         assertEquals(listOf("/Downloads", "/Library"), cloudDrive.listedPaths)
@@ -166,6 +168,7 @@ class CloudDriveRssLiveSmokeTest {
 
         assertTrue(result is Result.Error)
         assertEquals(0, cloudDrive.offlineSubmissions)
+        assertEquals(emptyList<String>(), cloudDrive.offlineUrls)
     }
 
     @Test
@@ -213,11 +216,61 @@ class CloudDriveRssLiveSmokeTest {
         assertTrue(report.submitMode)
         assertEquals(1, report.submitAttemptedCount)
         assertEquals(1, report.submitSucceededCount)
+        assertEquals(0, report.submitPreparedTorrentCount)
         assertEquals(1, report.postSubmitInboxItemCount)
         assertEquals(1, cloudDrive.offlineSubmissions)
         assertEquals(listOf("magnet:?xt=urn:btih:abc"), cloudDrive.offlineUrls)
         assertEquals("/Downloads", cloudDrive.offlineTargetFolder)
         assertEquals(listOf("/Downloads", "/Library", "/Downloads"), cloudDrive.listedPaths)
+    }
+
+    @Test
+    fun `live submit prepares torrent candidate through shared staging flow`() = runBlocking {
+        val cloudDrive = FakeCloudDriveClient(
+            files = mapOf(
+                "/Downloads" to emptyList(),
+                "/Library" to emptyList(),
+            )
+        )
+        val feedReader = FakeFeedReader(
+            listOf(
+                RssFeedItem(
+                    title = "Episode 01",
+                    guid = "guid-1",
+                    link = null,
+                    enclosureUrl = "https://example.test/episode-01.torrent",
+                )
+            )
+        )
+
+        val result = runCloudDriveRssLiveSmoke(
+            options = CloudDriveRssLiveSmokeOptions(
+                endpoint = "http://127.0.0.1:19798",
+                token = "api-token",
+                rssUrl = "https://example.test/rss.xml",
+                inboxPath = "/Downloads",
+                libraryPath = "/Library",
+                submit = true,
+                submitConfirmation = "I_UNDERSTAND_THIS_SUBMITS_REAL_CLOUDDRIVE_DOWNLOADS",
+                submitLimit = 1,
+            ),
+            cloudDriveClient = cloudDrive,
+            feedReader = feedReader,
+            submissionPreparer = CloudDriveRssSubmissionPreparer(
+                cloudDriveClient = cloudDrive,
+                torrentDownloader = FakeTorrentDownloader(torrentBytes()),
+            ),
+        )
+
+        assertTrue(result is Result.Success)
+        val report = (result as Result.Success).data
+        assertEquals(1, report.submitAttemptedCount)
+        assertEquals(1, report.submitSucceededCount)
+        assertEquals(1, report.submitPreparedTorrentCount)
+        assertEquals(1, cloudDrive.offlineSubmissions)
+        assertEquals(listOf(expectedMagnet(torrentBytes())), cloudDrive.offlineUrls)
+        assertEquals(listOf("/Downloads/.miruplay-torrents"), cloudDrive.createdFolders)
+        assertEquals(listOf("/Downloads/.miruplay-torrents/episode-01.torrent"), cloudDrive.uploadedPaths)
     }
 
     @Test
@@ -272,6 +325,7 @@ class CloudDriveRssLiveSmokeTest {
             submitMode = true,
             submitAttemptedCount = 1,
             submitSucceededCount = 1,
+            submitPreparedTorrentCount = 0,
             postSubmitInboxItemCount = 4,
             previewItems = listOf(
                 CloudDriveRssLiveSmokeItem(
@@ -293,6 +347,7 @@ class CloudDriveRssLiveSmokeTest {
         val liveSubmit = root.getValue("liveSubmit").jsonObject
         assertTrue(liveSubmit.getValue("enabled").jsonPrimitive.boolean)
         assertEquals(1, liveSubmit.getValue("attemptedCount").jsonPrimitive.int)
+        assertEquals(0, liveSubmit.getValue("preparedTorrentCount").jsonPrimitive.int)
         assertEquals(4, liveSubmit.getValue("postSubmitInboxItemCount").jsonPrimitive.int)
         assertEquals("desktop-token", root.getValue("tokenInfo").jsonObject.getValue("friendlyName").jsonPrimitive.content)
         assertEquals("Episode 01", root.getValue("previewItems").jsonArray.single().jsonObject.getValue("title").jsonPrimitive.content)
@@ -316,6 +371,8 @@ class CloudDriveRssLiveSmokeTest {
     ) : CloudDriveClient {
         val listedPaths = mutableListOf<String>()
         val offlineUrls = mutableListOf<String>()
+        val createdFolders = mutableListOf<String>()
+        val uploadedPaths = mutableListOf<String>()
         var offlineTargetFolder: String = ""
         var offlineSubmissions = 0
 
@@ -348,7 +405,11 @@ class CloudDriveRssLiveSmokeTest {
             localFile: File,
             parentPath: String,
             remoteFileName: String,
-        ): Result<String> = Result.success("$parentPath/$remoteFileName")
+        ): Result<String> {
+            val uploadedPath = "$parentPath/$remoteFileName"
+            uploadedPaths += uploadedPath
+            return Result.success(uploadedPath)
+        }
 
         override suspend fun listFolder(
             endpoint: CloudDriveEndpoint,
@@ -359,10 +420,37 @@ class CloudDriveRssLiveSmokeTest {
             return Result.success(files[path].orEmpty())
         }
 
-        override suspend fun createFolder(endpoint: CloudDriveEndpoint, parentPath: String, folderName: String): Result<Unit> =
-            Result.success(Unit)
+        override suspend fun createFolder(endpoint: CloudDriveEndpoint, parentPath: String, folderName: String): Result<Unit> {
+            createdFolders += "$parentPath/$folderName"
+            return Result.success(Unit)
+        }
 
         override suspend fun moveFiles(endpoint: CloudDriveEndpoint, paths: List<String>, destinationPath: String): Result<Unit> =
             Result.success(Unit)
     }
+
+    private class FakeTorrentDownloader(
+        private val bytes: ByteArray,
+    ) : RssTorrentDownloader {
+        override fun configureProxy(enabled: Boolean, host: String, port: Int) = Unit
+
+        override suspend fun download(url: String, title: String, keyPrefix: String): Result<DownloadedTorrentFile> {
+            val file = File.createTempFile("miruplay-rss-smoke-test", ".torrent")
+            file.writeBytes(bytes)
+            return Result.success(DownloadedTorrentFile(file, "episode-01.torrent"))
+        }
+    }
+}
+
+private fun torrentBytes(): ByteArray {
+    val info = "d4:name8:Test.mkv12:piece lengthi16384e6:pieces20:abcdefghijklmnopqrste"
+    return "d8:announce14:http://tracker4:info${info}e".toByteArray()
+}
+
+private fun expectedMagnet(torrentBytes: ByteArray): String {
+    val info = "d4:name8:Test.mkv12:piece lengthi16384e6:pieces20:abcdefghijklmnopqrste".toByteArray()
+    val expectedHash = MessageDigest.getInstance("SHA-1")
+        .digest(info)
+        .joinToString("") { "%02x".format(it) }
+    return "magnet:?xt=urn:btih:$expectedHash&dn=Test.mkv&tr=http%3A%2F%2Ftracker"
 }
