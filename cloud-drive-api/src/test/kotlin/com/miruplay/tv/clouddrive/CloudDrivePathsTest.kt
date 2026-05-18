@@ -26,4 +26,23 @@ class CloudDrivePathsTest {
         assertEquals("/Anime/Episode 01.mkv", CloudDrivePaths.join("Anime/", "Episode 01.mkv"))
         assertEquals("/Episode 01.mkv", CloudDrivePaths.join("/", "Episode 01.mkv"))
     }
+
+    @Test
+    fun `normalize scoped keeps blank paths empty`() {
+        assertEquals("", CloudDrivePaths.normalizeScoped(""))
+        assertEquals("", CloudDrivePaths.normalizeScoped("   "))
+    }
+
+    @Test
+    fun `scope helpers treat root as unscoped and children as nested`() {
+        assertEquals("/Anime", CloudDrivePaths.parentPath("/Anime/Episode 01.mkv"))
+        assertEquals("/", CloudDrivePaths.parentPath("/"))
+        assertEquals("/", CloudDrivePaths.parentPath(""))
+        assertEquals(false, CloudDrivePaths.isScopedDirectory("/"))
+        assertEquals(false, CloudDrivePaths.isScopedDirectory("   "))
+        assertEquals(true, CloudDrivePaths.isScopedDirectory("/Anime"))
+        assertEquals(true, CloudDrivePaths.isSameOrChild("/Anime/Season 1", "/Anime"))
+        assertEquals(true, CloudDrivePaths.isChild("/Anime/Season 1", "/Anime"))
+        assertEquals(false, CloudDrivePaths.isChild("/Anime", "/Anime"))
+    }
 }

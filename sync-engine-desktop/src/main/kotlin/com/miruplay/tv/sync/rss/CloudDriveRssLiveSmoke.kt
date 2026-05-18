@@ -3,6 +3,7 @@ package com.miruplay.tv.sync.rss
 import com.miruplay.tv.clouddrive.CloudDriveClient
 import com.miruplay.tv.clouddrive.CloudDriveEndpoint
 import com.miruplay.tv.clouddrive.CloudDriveFileInfo
+import com.miruplay.tv.clouddrive.CloudDrivePaths
 import com.miruplay.tv.clouddrive.CloudDriveTokenInfo
 import com.miruplay.tv.clouddrive.GrpcCloudDriveClient
 import com.miruplay.tv.core.common.AppError
@@ -115,8 +116,8 @@ suspend fun runCloudDriveRssLiveSmoke(
     cloudDriveClient: CloudDriveClient = GrpcCloudDriveClient(),
     feedReader: RssFeedReader = RssFeedFetcher(),
 ): Result<CloudDriveRssLiveSmokeReport> {
-    val normalizedInbox = CloudDrivePathPolicy.normalize(options.inboxPath)
-    val normalizedLibrary = CloudDrivePathPolicy.normalize(options.libraryPath)
+    val normalizedInbox = CloudDrivePaths.normalizeScoped(options.inboxPath)
+    val normalizedLibrary = CloudDrivePaths.normalizeScoped(options.libraryPath)
     val pathValidation = validateSmokePaths(normalizedInbox, normalizedLibrary)
     if (pathValidation is Result.Error) return pathValidation
 
@@ -223,13 +224,13 @@ private fun buildCloudDriveRssLiveSmokeItems(
 }
 
 private fun validateSmokePaths(inboxPath: String, libraryPath: String): Result<Unit> {
-    if (!CloudDrivePathPolicy.isScopedDirectory(inboxPath)) {
+    if (!CloudDrivePaths.isScopedDirectory(inboxPath)) {
         return Result.failure(AppError.SyncError.WriteFailed("CloudDrive", "请设置非根目录作为下载目录 A"))
     }
-    if (!CloudDrivePathPolicy.isScopedDirectory(libraryPath)) {
+    if (!CloudDrivePaths.isScopedDirectory(libraryPath)) {
         return Result.failure(AppError.SyncError.WriteFailed("CloudDrive", "请设置非根目录作为整理目录 B"))
     }
-    if (CloudDrivePathPolicy.isSameOrChild(libraryPath, inboxPath)) {
+    if (CloudDrivePaths.isSameOrChild(libraryPath, inboxPath)) {
         return Result.failure(AppError.SyncError.WriteFailed("CloudDrive", "整理目录 B 不能放在下载目录 A 内部"))
     }
     return Result.success(Unit)

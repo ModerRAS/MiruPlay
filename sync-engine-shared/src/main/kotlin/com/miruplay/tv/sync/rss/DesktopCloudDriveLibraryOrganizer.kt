@@ -3,6 +3,7 @@ package com.miruplay.tv.sync.rss
 import com.miruplay.tv.clouddrive.CloudDriveClient
 import com.miruplay.tv.clouddrive.CloudDriveEndpoint
 import com.miruplay.tv.clouddrive.CloudDriveFileInfo
+import com.miruplay.tv.clouddrive.CloudDrivePaths
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 
@@ -10,22 +11,22 @@ class DesktopCloudDriveLibraryOrganizer(
     private val cloudDriveClient: CloudDriveClient
 ) {
     suspend fun organize(endpoint: CloudDriveEndpoint, inboxPath: String, libraryPath: String): Result<Int> {
-        val inbox = CloudDrivePathPolicy.normalize(inboxPath)
-        val library = CloudDrivePathPolicy.normalize(libraryPath)
-        if (!CloudDrivePathPolicy.isScopedDirectory(inbox)) {
+        val inbox = CloudDrivePaths.normalizeScoped(inboxPath)
+        val library = CloudDrivePaths.normalizeScoped(libraryPath)
+        if (!CloudDrivePaths.isScopedDirectory(inbox)) {
             return Result.failure(AppError.SyncError.WriteFailed("CloudDrive2", "下载目录不能是空目录或根目录"))
         }
-        if (!CloudDrivePathPolicy.isScopedDirectory(library)) {
+        if (!CloudDrivePaths.isScopedDirectory(library)) {
             return Result.failure(AppError.SyncError.WriteFailed("CloudDrive2", "整理目录不能是空目录或根目录"))
         }
-        if (CloudDrivePathPolicy.isSameOrChild(library, inbox)) {
+        if (CloudDrivePaths.isSameOrChild(library, inbox)) {
             return Result.failure(AppError.SyncError.WriteFailed("CloudDrive2", "整理目录不能位于下载目录内部"))
         }
 
         val videos = collectVideos(endpoint, inbox, depth = 0).getOrNull() ?: return Result.success(0)
         var moved = 0
         for (video in videos) {
-            if (!CloudDrivePathPolicy.isChild(video.path, inbox)) continue
+            if (!CloudDrivePaths.isChild(video.path, inbox)) continue
             val showFolder = sanitizePathSegment(inferShowName(video))
             val seasonFolder = "Season ${inferSeasonNumber(video.name)}"
             val showPath = "$library/$showFolder"
@@ -50,7 +51,7 @@ class DesktopCloudDriveLibraryOrganizer(
         val entries = listing.getOrNull() ?: return listing
         val videos = mutableListOf<CloudDriveFileInfo>()
         for (entry in entries) {
-            if (!CloudDrivePathPolicy.isSameOrChild(entry.path, path)) continue
+            if (!CloudDrivePaths.isSameOrChild(entry.path, path)) continue
             if (entry.name.startsWith(".") || entry.name.endsWith(".trickplay")) continue
             if (entry.isDirectory) {
                 videos += collectVideos(endpoint, entry.path, depth + 1).getOrNull().orEmpty()
@@ -72,8 +73,7 @@ class DesktopCloudDriveLibraryOrganizer(
     }
 
     private fun inferShowName(file: CloudDriveFileInfo): String {
-        val parent = CloudDrivePathPolicy.normalize(file.path)
-            .substringBeforeLast('/', "")
+        val parent = CloudDrivePaths.parentPath(file.path)
             .substringAfterLast('/', "")
             .takeUnless { it.isGenericFolderName() }
         val stem = file.name.substringBeforeLast('.', file.name)
