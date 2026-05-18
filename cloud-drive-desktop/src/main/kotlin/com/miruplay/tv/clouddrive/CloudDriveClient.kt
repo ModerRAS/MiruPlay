@@ -77,7 +77,7 @@ class GrpcCloudDriveClient : CloudDriveClient {
         if (!localFile.isFile) {
             return@withAuthenticatedStub Result.failure(AppError.MediaSourceError.NotFound(localFile.absolutePath))
         }
-        val normalizedParent = normalizeCloudPath(parentPath)
+        val normalizedParent = CloudDrivePaths.normalize(parentPath)
         val response = stub.createFile(
             Clouddrive.CreateFileRequest.newBuilder()
                 .setParentPath(normalizedParent)
@@ -102,7 +102,7 @@ class GrpcCloudDriveClient : CloudDriveClient {
             }
             throw e
         }
-        Result.success(joinCloudPath(normalizedParent, remoteFileName))
+        Result.success(CloudDrivePaths.join(normalizedParent, remoteFileName))
     }
 
     override suspend fun listFolder(
@@ -227,18 +227,6 @@ class GrpcCloudDriveClient : CloudDriveClient {
             }
             .build()
     }
-
-    private fun normalizeCloudPath(path: String): String {
-        val normalized = path.trim().replace('\\', '/').trimEnd('/')
-        return when {
-            normalized.isBlank() -> "/"
-            normalized.startsWith('/') -> normalized
-            else -> "/$normalized"
-        }
-    }
-
-    private fun joinCloudPath(parentPath: String, fileName: String): String =
-        "${normalizeCloudPath(parentPath).trimEnd('/')}/$fileName"
 
     private fun Clouddrive.FileOperationResult.asUnitResult(fallback: String): Result<Unit> =
         if (success) {
