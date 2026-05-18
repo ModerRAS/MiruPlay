@@ -1,9 +1,9 @@
 package com.miruplay.tv.player.mpv
 
 import com.miruplay.tv.model.PlaybackSource
+import com.miruplay.tv.model.PlaybackTimingConventions
 import java.io.File
 import java.nio.file.Path
-import java.util.Locale
 
 class MpvCommandBuilder(
     private val config: MpvRuntimeConfig,
@@ -29,7 +29,7 @@ class MpvCommandBuilder(
             .forEach { subtitle -> add("--sub-file=${subtitle.path}") }
 
         if (source.startPosition > 0) {
-            add("--start=${formatStartSeconds(source.startPosition)}")
+            add("--start=${PlaybackTimingConventions.formatMpvStartSeconds(source.startPosition)}")
         }
 
         addAll(config.extraArguments)
@@ -68,15 +68,6 @@ class MpvCommandBuilder(
     private fun fixedLengthQuote(value: String): String {
         val byteLength = value.toByteArray(Charsets.UTF_8).size
         return "%$byteLength%$value"
-    }
-
-    private fun formatStartSeconds(positionMs: Long): String {
-        if (positionMs % 1_000L == 0L) {
-            return (positionMs / 1_000L).toString()
-        }
-        return String.format(Locale.US, "%.3f", positionMs / 1_000.0)
-            .trimEnd('0')
-            .trimEnd('.')
     }
 
     private fun yesNo(value: Boolean): String = if (value) "yes" else "no"

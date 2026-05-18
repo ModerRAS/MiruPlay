@@ -2,6 +2,7 @@ package com.miruplay.tv.desktop
 
 import com.miruplay.tv.mediasource.desktop.DesktopMediaSource
 import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.PlaybackTimingConventions
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.buildExternalSubtitleTracks
 import com.miruplay.tv.player.mpv.MpvCommandBuilder
@@ -10,7 +11,6 @@ import com.miruplay.tv.player.mpv.MpvRuntimeVerifier
 import com.miruplay.tv.player.mpv.RifeBackend
 import com.miruplay.tv.player.mpv.RifeInterpolationConfig
 import java.nio.file.Paths
-import kotlin.math.roundToLong
 
 internal fun runtimeStatus(mpvPath: String, configDir: String): String =
     runCatching {
@@ -65,11 +65,7 @@ internal fun buildPlaybackSource(
     val media = requireNotNull(mediaPath.trim().takeIf { it.isNotBlank() }) {
         "Choose a media URI or file path before launching mpv."
     }
-    val startMs = startSeconds.trim()
-        .takeIf { it.isNotBlank() }
-        ?.toDoubleOrNull()
-        ?.let { (it * 1_000.0).roundToLong().coerceAtLeast(0L) }
-        ?: 0L
+    val startMs = PlaybackTimingConventions.parseSecondsToPositionMs(startSeconds)
     return PlaybackSource(
         uri = media,
         mediaSourceId = mediaSourceId,

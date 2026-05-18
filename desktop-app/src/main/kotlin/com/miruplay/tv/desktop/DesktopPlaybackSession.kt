@@ -1,5 +1,7 @@
 package com.miruplay.tv.desktop
 
+import com.miruplay.tv.model.PlaybackTimingConventions
+
 internal class DesktopPlaybackSession(
     val episodeId: String,
     startPositionMs: Long,
@@ -27,7 +29,10 @@ internal class DesktopPlaybackSession(
     }
 
     fun seekBy(seconds: Double) {
-        anchorPositionMs = (currentPositionMs() + (seconds * 1_000.0).toLong()).coerceAtLeast(0L)
+        anchorPositionMs = (
+            currentPositionMs() +
+                PlaybackTimingConventions.secondsToDeltaMs(seconds)
+            ).coerceAtLeast(0L)
         anchorWallClockMs = nowMillis()
     }
 
