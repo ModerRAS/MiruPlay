@@ -2,6 +2,9 @@ package com.miruplay.tv.model
 
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 fun Anime.displayTitle(): String =
     titleCn?.takeIf { it.isNotBlank() } ?: title.ifBlank { id }
@@ -60,3 +63,11 @@ fun formatPlaybackPosition(positionMs: Long): String {
         "%02d:%02d".format(minutes, seconds)
     }
 }
+
+fun formatLocalTimestamp(epochMillis: Long): String? =
+    epochMillis
+        .takeIf { it > 0L }
+        ?.let { LOCAL_TIMESTAMP_FORMATTER.format(Instant.ofEpochMilli(it)) }
+
+private val LOCAL_TIMESTAMP_FORMATTER: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault())
