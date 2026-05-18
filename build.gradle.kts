@@ -136,28 +136,33 @@ val desktopPresenterSeparationForbiddenPatterns = mapOf(
 
 tasks.register("checkDesktopPresenterSeparation") {
     group = "verification"
-    description = "Fails when extracted desktop presenter logic drifts back into the Compose entry file."
+    description = "Fails when extracted desktop presenter logic drifts back into Compose UI files."
 
-    inputs.file("desktop-app/src/main/kotlin/com/miruplay/tv/desktop/MiruPlayDesktopComposeApp.kt")
+    val desktopUiSources = fileTree("desktop-app/src/main/kotlin/com/miruplay/tv/desktop") {
+        include("*.kt")
+        exclude("*Presenters.kt")
+    }
+    inputs.files(desktopUiSources)
 
     doLast {
-        val sourceFile = inputs.files.singleFile
         val violations = mutableListOf<String>()
-        sourceFile.useLines { lines ->
-            lines.forEachIndexed { index, line ->
-                desktopPresenterSeparationForbiddenPatterns
-                    .filterValues { pattern -> pattern.containsMatchIn(line) }
-                    .keys
-                    .forEach { token ->
-                        val relativePath = sourceFile.relativeTo(rootDir).path.replace(java.io.File.separatorChar, '/')
-                        violations += "$relativePath:${index + 1}: $token"
-                    }
+        desktopUiSources.files.sortedBy { it.path }.forEach { sourceFile ->
+            sourceFile.useLines { lines ->
+                lines.forEachIndexed { index, line ->
+                    desktopPresenterSeparationForbiddenPatterns
+                        .filterValues { pattern -> pattern.containsMatchIn(line) }
+                        .keys
+                        .forEach { token ->
+                            val relativePath = sourceFile.relativeTo(rootDir).path.replace(java.io.File.separatorChar, '/')
+                            violations += "$relativePath:${index + 1}: $token"
+                        }
+                }
             }
         }
 
         if (violations.isNotEmpty()) {
             throw GradleException(
-                "Desktop presenter logic found in MiruPlayDesktopComposeApp.kt. " +
+                "Desktop presenter logic found in Compose UI files. " +
                     "Keep source, playback, Bangumi, and Cloud/RSS presenter helpers in their extracted files:\n" +
                     violations.joinToString(separator = "\n") { " - $it" }
             )
