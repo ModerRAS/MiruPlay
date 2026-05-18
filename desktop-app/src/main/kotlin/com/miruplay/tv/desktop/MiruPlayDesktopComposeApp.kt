@@ -36,7 +36,10 @@ import com.miruplay.tv.design.MiruPlayRouteSurface
 import com.miruplay.tv.design.MiruPlayUiMetrics
 import com.miruplay.tv.mediasource.desktop.DesktopLocalMediaSource
 import com.miruplay.tv.mediasource.desktop.DesktopMediaSource
-import com.miruplay.tv.mediasource.desktop.DesktopSmbMediaSource
+import com.miruplay.tv.mediasource.desktop.desktopLocalSourceFromInfo
+import com.miruplay.tv.mediasource.desktop.desktopSmbSourceFromInfo
+import com.miruplay.tv.mediasource.desktop.desktopSourceFromInfo
+import com.miruplay.tv.mediasource.desktop.desktopWebDavSourceFromInfo
 import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
@@ -361,7 +364,7 @@ internal fun MiruPlayDesktopComposeApp() {
                     val root = local.connectionInfo["path"].orEmpty()
                     libraryRoot = root
                     activeSourceId = local.id
-                    val localSource = DesktopLocalMediaSource(local)
+                    val localSource = desktopLocalSourceFromInfo(local)
                     activeLocalSource = localSource
                     activeSource = localSource
                     libraryStatus = local.loadedStatus()
@@ -383,7 +386,7 @@ internal fun MiruPlayDesktopComposeApp() {
                     smbPassword = smb.connectionInfo["password"].orEmpty()
                     if (local == null && webDav == null) {
                         activeSourceId = smb.id
-                        activeSource = DesktopSmbMediaSource(smb)
+                        activeSource = desktopSmbSourceFromInfo(smb)
                         remoteStatus = smb.loadedStatus()
                     }
                 }
@@ -680,7 +683,7 @@ internal fun MiruPlayDesktopComposeApp() {
                             is Result.Success -> {
                                 activeSourceId = result.data
                                 val stored = sourceInfo.copy(id = result.data)
-                                val localSource = DesktopLocalMediaSource(stored)
+                                val localSource = desktopLocalSourceFromInfo(stored)
                                 activeLocalSource = localSource
                                 activeSource = localSource
                                 savedSources = savedSources.upsertById(stored)
@@ -850,7 +853,7 @@ internal fun MiruPlayDesktopComposeApp() {
                         when (val result = repositories.mediaSources.addSource(sourceInfo)) {
                             is Result.Success -> {
                                 val stored = sourceInfo.copy(id = result.data)
-                                val source = DesktopSmbMediaSource(stored)
+                                val source = desktopSmbSourceFromInfo(stored)
                                 activeSourceId = result.data
                                 activeSource = source
                                 savedSources = savedSources.upsertById(stored)
