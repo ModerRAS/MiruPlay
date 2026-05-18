@@ -9,12 +9,14 @@ import com.miruplay.tv.model.MediaCapabilities
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.player.mpv.RifeBackend
+import com.miruplay.tv.player.mpv.RifeInterpolationConfig
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.io.InputStream
+import java.nio.file.Files
 import java.nio.file.Paths
 
 class DesktopPlaybackPresentersTest {
@@ -75,6 +77,36 @@ class DesktopPlaybackPresentersTest {
         assertEquals(Paths.get("D:/MiruPlay/runtime/mpv/portable_config"), withRife.configDirectory)
         assertEquals(RifeBackend.NVIDIA, withRife.rife?.backend)
         assertTrue(withRife.keepOpen)
+    }
+
+    @Test
+    fun `validate runtime for launch surfaces missing selected rife script`() {
+        val tempDir = Files.createTempDirectory("miruplay-runtime")
+        try {
+            val configDirectory = tempDir.resolve("portable_config")
+            val scriptDirectory = configDirectory.resolve("vs")
+            Files.createDirectories(scriptDirectory)
+            val mpv = tempDir.resolve("mpv.exe")
+            Files.createFile(mpv)
+            val config = buildRuntimeConfig(
+                mpvPath = mpv.toString(),
+                configDir = configDirectory.toString(),
+                fullscreen = false,
+                keepOpen = false,
+                rifeEnabled = true,
+                rifeBackend = RifeBackend.DIRECTML,
+            ).copy(rife = RifeInterpolationConfig(backend = RifeBackend.DIRECTML))
+
+            val result = validateRuntimeForLaunch(config)
+
+            assertTrue(result is Result.Error)
+            assertEquals(
+                "播放出错：RIFE script not found: ${scriptDirectory.resolve(RifeBackend.DIRECTML.scriptName)}",
+                (result as Result.Error).error.toUserMessage(),
+            )
+        } finally {
+            tempDir.toFile().deleteRecursively()
+        }
     }
 
     @Test

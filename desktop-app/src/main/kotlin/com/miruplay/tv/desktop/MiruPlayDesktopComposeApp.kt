@@ -1347,6 +1347,13 @@ internal fun MiruPlayDesktopComposeApp() {
                                 rifeEnabled = rifeEnabled,
                                 rifeBackend = rifeBackend,
                             )
+                            when (val runtime = validateRuntimeForLaunch(config)) {
+                                is Result.Success -> Unit
+                                is Result.Error -> {
+                                    launchStatus = runtime.error.toUserMessage()
+                                    return@launch
+                                }
+                            }
                             val selectedMediaPath = mediaPath.trim()
                             val source = buildPlaybackSource(
                                 mediaPath = playableUriFor(activeSource, playbackBridge, selectedMediaPath),

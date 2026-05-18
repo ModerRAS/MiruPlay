@@ -6,7 +6,6 @@ import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.PlaybackTimingConventions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.nio.file.Files
 import java.util.concurrent.TimeUnit
 
 class MpvProcessPlayer(
@@ -19,28 +18,9 @@ class MpvProcessPlayer(
         ?.let(::MpvIpcClient)
 
     suspend fun play(source: PlaybackSource): Result<MpvLaunch> = withContext(Dispatchers.IO) {
-        if (!Files.isRegularFile(config.mpvExecutable)) {
-            return@withContext Result.failure(
-                AppError.PlaybackError.StreamError("mpv executable not found: ${config.mpvExecutable}")
-            )
-        }
-        val verification = config.configDirectory
-            ?.let { configDirectory ->
-                MpvRuntimeVerifier.verify(
-                    MpvRuntimeLayout(
-                        rootDirectory = configDirectory.parent ?: config.mpvExecutable.parent ?: configDirectory,
-                        executable = config.mpvExecutable,
-                        configDirectory = configDirectory,
-                    )
-                )
-            }
-        val requestedBackend = config.rife?.backend
-        if (requestedBackend != null && verification?.availableRifeBackends?.contains(requestedBackend) == false) {
-            return@withContext Result.failure(
-                AppError.PlaybackError.StreamError(
-                    "RIFE script not found: ${verification.layout.rifeScript(requestedBackend)}"
-                )
-            )
+        when (val validation = config.validateLaunchRuntime()) {
+            is Result.Success -> Unit
+            is Result.Error -> return@withContext validation
         }
 
         runCatching {
