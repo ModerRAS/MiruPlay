@@ -72,4 +72,17 @@ class MediaPathConventionsTest {
         )
         assertEquals("/Episode 01.mkv", MediaPathConventions.joinRemoteUrl("", "/Episode 01.mkv"))
     }
+
+    @Test
+    fun `canonical media key normalizes local and remote paths`() {
+        assertEquals("", MediaPathConventions.canonicalMediaKey("   "))
+        assertEquals(
+            "https://dav.example/Anime/Episode 01.mkv",
+            MediaPathConventions.canonicalMediaKey("https://dav.example/Anime/Episode 01.mkv?token=abc"),
+        )
+        assertEquals(
+            MediaPathConventions.canonicalMediaKey("D:/Anime/Show/../Show/Episode 01.mkv"),
+            MediaPathConventions.canonicalMediaKey("D:/Anime/Show/Episode 01.mkv"),
+        )
+    }
 }

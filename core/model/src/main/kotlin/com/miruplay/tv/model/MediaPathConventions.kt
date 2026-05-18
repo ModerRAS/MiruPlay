@@ -2,6 +2,7 @@ package com.miruplay.tv.model
 
 import java.net.URLDecoder
 import java.net.URLEncoder
+import java.nio.file.Paths
 
 object MediaPathConventions {
     fun fileName(path: String): String =
@@ -79,6 +80,17 @@ object MediaPathConventions {
         if (path.startsWith(base)) return path
         val encodedPath = encodeRemotePath(path)
         return if (encodedPath.isBlank()) "$base/" else "$base/$encodedPath"
+    }
+
+    fun canonicalMediaKey(path: String): String {
+        val trimmed = path.trim()
+        if (trimmed.isBlank()) return ""
+        if ("://" in trimmed) return normalizeRemotePath(trimmed)
+        return runCatching {
+            Paths.get(trimmed).toAbsolutePath().normalize().toString()
+        }.getOrElse {
+            normalizeRemotePath(trimmed)
+        }
     }
 
     private fun usesBackslashSeparator(path: String): Boolean =

@@ -9,7 +9,6 @@ import com.miruplay.tv.model.VideoFilenameInference
 import com.miruplay.tv.repository.MediaIndexEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.nio.file.Paths
 
 class DesktopMediaLibraryScanner(
     private val config: DesktopScanConfig = DesktopScanConfig(),
@@ -132,16 +131,8 @@ class DesktopMediaLibraryScanner(
     private fun FileEntry.isVideoFile(): Boolean =
         MediaFileConventions.isVideoName(name, config.videoExtensions)
 
-    private fun canonicalPathKey(path: String): String {
-        val trimmed = path.trim()
-        if (trimmed.isBlank()) return ""
-        if ("://" in trimmed) return MediaPathConventions.normalizeRemotePath(trimmed)
-        return runCatching {
-            Paths.get(trimmed).toAbsolutePath().normalize().toString()
-        }.getOrElse {
-            MediaPathConventions.normalizeRemotePath(trimmed)
-        }
-    }
+    private fun canonicalPathKey(path: String): String =
+        MediaPathConventions.canonicalMediaKey(path)
 
     private data class ScanCounters(
         var filesIndexed: Int = 0,
