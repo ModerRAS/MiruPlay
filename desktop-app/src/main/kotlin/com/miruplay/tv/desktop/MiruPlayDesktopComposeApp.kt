@@ -169,7 +169,7 @@ internal fun MiruPlayDesktopComposeApp() {
     var selectedBangumiBatchMatch by remember { mutableStateOf<DesktopBangumiBatchMatch?>(null) }
     var bangumiBatchPlan by remember { mutableStateOf<DesktopBangumiBatchPlan?>(null) }
     var bangumiBatchRollback by remember { mutableStateOf(emptyList<MediaIndexEntry>()) }
-    var bangumiStatus by remember { mutableStateOf("Select an indexed video, then search Bangumi.") }
+    var bangumiStatus by remember { mutableStateOf(bangumiInitialStatus()) }
     var recentProgress by remember { mutableStateOf(emptyList<ProgressRecord>()) }
     var selectedRecentProgress by remember { mutableStateOf<ProgressRecord?>(null) }
     var recentStatus by remember { mutableStateOf(recentInitialStatus()) }
@@ -611,7 +611,7 @@ internal fun MiruPlayDesktopComposeApp() {
                                 bangumiBatchPlan = null
                                 bangumiBatchRollback = emptyList()
                                 libraryStatus = clearedIndexStatus(sourceId)
-                                bangumiStatus = "Select an indexed video, then search Bangumi."
+                                bangumiStatus = bangumiInitialStatus()
                             }
                             is Result.Error -> libraryStatus = result.error.toUserMessage()
                         }
@@ -652,7 +652,7 @@ internal fun MiruPlayDesktopComposeApp() {
                                 mediaPath = ""
                                 libraryStatus = sourceRemovedStatus()
                                 remoteStatus = remoteBrowserInitialStatus()
-                                bangumiStatus = "Select an indexed video, then search Bangumi."
+                                bangumiStatus = bangumiInitialStatus()
                             }
                             is Result.Error -> libraryStatus = result.error.toUserMessage()
                         }
@@ -776,10 +776,10 @@ internal fun MiruPlayDesktopComposeApp() {
                 onUseSelectedEntry = {
                     val query = bangumiQueryFor(selectedIndexEntry)
                     if (query == null) {
-                        bangumiStatus = "Select an indexed video first."
+                        bangumiStatus = bangumiIndexedVideoRequiredStatus()
                     } else {
                         bangumiQuery = query
-                        bangumiStatus = "Query set from selected index entry."
+                        bangumiStatus = bangumiQuerySetFromIndexStatus()
                     }
                 },
                 onSearch = {
@@ -788,20 +788,16 @@ internal fun MiruPlayDesktopComposeApp() {
                             bangumiQueryFor(selectedIndexEntry).orEmpty()
                         }
                         if (query.isBlank()) {
-                            bangumiStatus = "Enter a Bangumi query or select an indexed video."
+                            bangumiStatus = bangumiQueryRequiredStatus()
                             return@launch
                         }
                         bangumiQuery = query
-                        bangumiStatus = "Searching Bangumi for \"$query\"..."
+                        bangumiStatus = bangumiSearchStartedStatus(query)
                         when (val result = bangumiScraper.searchAnime(query)) {
                             is Result.Success -> {
                                 bangumiResults = result.data
                                 selectedBangumiResult = result.data.firstOrNull()
-                                bangumiStatus = if (result.data.isEmpty()) {
-                                    "No Bangumi metadata matched \"$query\"."
-                                } else {
-                                    "Found ${result.data.size} Bangumi match(es)."
-                                }
+                                bangumiStatus = bangumiSearchResultStatus(query, result.data.size)
                             }
                             is Result.Error -> bangumiStatus = result.error.toUserMessage()
                         }
@@ -811,7 +807,7 @@ internal fun MiruPlayDesktopComposeApp() {
                     scope.launch {
                         val sourceId = activeSourceId
                         if (sourceId == null) {
-                            bangumiStatus = "Open or scan a source first."
+                            bangumiStatus = bangumiSourceRequiredStatus()
                             return@launch
                         }
                         when (val entriesResult = repositories.index.queryIndex(sourceId, "")) {
@@ -850,7 +846,7 @@ internal fun MiruPlayDesktopComposeApp() {
                     scope.launch {
                         val sourceId = activeSourceId
                         if (sourceId == null) {
-                            bangumiStatus = "Open or scan a source first."
+                            bangumiStatus = bangumiSourceRequiredStatus()
                             return@launch
                         }
                         if (bangumiBatchMatches.isEmpty()) {
@@ -885,7 +881,7 @@ internal fun MiruPlayDesktopComposeApp() {
                     scope.launch {
                         val sourceId = activeSourceId
                         if (sourceId == null) {
-                            bangumiStatus = "Open or scan a source first."
+                            bangumiStatus = bangumiSourceRequiredStatus()
                             return@launch
                         }
                         when (val restore = repositories.index.restoreMetadataBatchUndo(sourceId, bangumiBatchRollback)) {
@@ -912,7 +908,7 @@ internal fun MiruPlayDesktopComposeApp() {
                     selectedBangumiBatchMatch = match
                     bangumiQuery = match.query
                     selectedBangumiResult = match.result
-                    bangumiStatus = "Selected batch review: ${match.query}."
+                    bangumiStatus = match.selectedReviewStatus()
                 },
                 onBatchCandidateSelected = { match, candidate ->
                     scope.launch {
@@ -951,11 +947,11 @@ internal fun MiruPlayDesktopComposeApp() {
                         val match = selectedBangumiBatchMatch
                         val result = match?.result
                         if (sourceId == null) {
-                            bangumiStatus = "Open or scan a source first."
+                            bangumiStatus = bangumiSourceRequiredStatus()
                             return@launch
                         }
                         if (match == null || result == null) {
-                            bangumiStatus = "Select a batch match with a Bangumi result first."
+                            bangumiStatus = bangumiBatchResultRequiredStatus()
                             return@launch
                         }
                         when (val entriesResult = repositories.index.queryIndex(sourceId, "")) {
@@ -964,11 +960,11 @@ internal fun MiruPlayDesktopComposeApp() {
                                 val reviewed = match.copy(result = result.copy(confidence = 1f))
                                 val plan = MetadataBatchPlanner.planFor(entries, listOf(reviewed))
                                 if (plan.conflicts.isNotEmpty()) {
-                                    bangumiStatus = "Selected review has ${plan.conflicts.size} metadata conflict${if (plan.conflicts.size == 1) "" else "s"}; nothing was overwritten."
+                                    bangumiStatus = plan.bangumiReviewConflictStatus()
                                     return@launch
                                 }
                                 if (plan.readyUpdates.isEmpty()) {
-                                    bangumiStatus = "Selected review has no matching indexed entries."
+                                    bangumiStatus = bangumiReviewNoMatchStatus()
                                     return@launch
                                 }
                                 val write = repositories.index.applyMetadataBatchPlan(sourceId, plan)
@@ -988,7 +984,7 @@ internal fun MiruPlayDesktopComposeApp() {
                 },
                 onResultSelected = { result ->
                     selectedBangumiResult = result
-                    bangumiStatus = "Selected ${bangumiDisplayTitle(result)}."
+                    bangumiStatus = result.selectedBangumiStatus()
                 },
                 onApply = {
                     scope.launch {
@@ -996,15 +992,15 @@ internal fun MiruPlayDesktopComposeApp() {
                         val entry = selectedIndexEntry
                         val bangumi = selectedBangumiResult ?: bangumiResults.firstOrNull()
                         if (sourceId == null) {
-                            bangumiStatus = "Open or scan a source first."
+                            bangumiStatus = bangumiSourceRequiredStatus()
                             return@launch
                         }
                         if (entry == null || entry.isDirectory) {
-                            bangumiStatus = "Select an indexed video before applying Bangumi metadata."
+                            bangumiStatus = bangumiApplyEntryRequiredStatus()
                             return@launch
                         }
                         if (bangumi == null) {
-                            bangumiStatus = "Search Bangumi and select a match first."
+                            bangumiStatus = bangumiSearchSelectionRequiredStatus()
                             return@launch
                         }
                         val updated = entry.withExternalMetadata(bangumi, sourceId = sourceId)
@@ -1012,7 +1008,7 @@ internal fun MiruPlayDesktopComposeApp() {
                             is Result.Success -> {
                                 indexedEntries = indexedEntries.replaceEntry(updated)
                                 selectedIndexEntry = updated
-                                bangumiStatus = "Applied Bangumi metadata to ${updated.path}."
+                                bangumiStatus = updated.bangumiAppliedStatus()
                             }
                             is Result.Error -> bangumiStatus = result.error.toUserMessage()
                         }
@@ -1023,11 +1019,11 @@ internal fun MiruPlayDesktopComposeApp() {
                         val sourceId = activeSourceId
                         val entry = selectedIndexEntry
                         if (sourceId == null) {
-                            bangumiStatus = "Open or scan a source first."
+                            bangumiStatus = bangumiSourceRequiredStatus()
                             return@launch
                         }
                         if (entry == null || entry.isDirectory) {
-                            bangumiStatus = "Select an indexed video before clearing metadata."
+                            bangumiStatus = bangumiClearEntryRequiredStatus()
                             return@launch
                         }
                         val updated = entry.clearExternalMetadata(sourceId = sourceId)
@@ -1035,7 +1031,7 @@ internal fun MiruPlayDesktopComposeApp() {
                             is Result.Success -> {
                                 indexedEntries = indexedEntries.replaceEntry(updated)
                                 selectedIndexEntry = updated
-                                bangumiStatus = "Cleared external metadata for ${updated.path}."
+                                bangumiStatus = updated.bangumiClearedStatus()
                             }
                             is Result.Error -> bangumiStatus = result.error.toUserMessage()
                         }
