@@ -52,6 +52,7 @@ import com.miruplay.tv.model.parseCloudDriveIntervalMinutes
 import com.miruplay.tv.model.parseRssProxyPort
 import com.miruplay.tv.model.withAutomationFormValues
 import com.miruplay.tv.player.mpv.MpvProcessPlayer
+import com.miruplay.tv.player.mpv.MpvRuntimeDiscovery
 import com.miruplay.tv.player.mpv.RifeBackend
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MetadataBatchMatch
@@ -142,11 +143,12 @@ internal fun MiruPlayDesktopComposeApp() {
     }
     val cloudRssScheduler = remember { DesktopCloudDriveRssScheduler(cloudRssEngine, scope) }
     val cloudRssSchedulerState by cloudRssScheduler.state.collectAsState()
+    val defaultMpvLayout = remember { MpvRuntimeDiscovery.defaultLayout() }
     var selectedDesktopSection by remember { mutableStateOf(MiruPlayRouteSurface.library) }
     var player by remember { mutableStateOf<MpvProcessPlayer?>(null) }
     var activePlaybackSession by remember { mutableStateOf<PlaybackProgressSession?>(null) }
-    var mpvPath by remember { mutableStateOf(DesktopRuntimeDefaults.mpvPath()) }
-    var configDir by remember { mutableStateOf(DesktopRuntimeDefaults.configDirectory()) }
+    var mpvPath by remember { mutableStateOf(defaultMpvLayout.executable.toString()) }
+    var configDir by remember { mutableStateOf(defaultMpvLayout.configDirectory.toString()) }
     var libraryRoot by remember { mutableStateOf("") }
     var savedSources by remember { mutableStateOf(emptyList<MediaSourceInfo>()) }
     var activeSourceId by remember { mutableStateOf<Long?>(null) }
