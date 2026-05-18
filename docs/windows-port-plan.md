@@ -78,6 +78,7 @@
   - 同步成功后，桌面端还会按配置的关联源执行 post-sync 索引重扫，方便 CloudDrive2/WebDAV 的内容变化回流到媒体库索引。
   - 已增加桌面 RSS runner/scheduler 单元测试，覆盖新条目提交、filter skip、task 持久化、`lastRunAt` 更新、根目录 inbox 拒绝，以及 scheduler 触发 due sync、暴露运行状态和 `lastRunCompletedAt`。另有 loopback CloudDrive2 gRPC 集成测试，用真实 `GrpcCloudDriveClient` 验证 RSS 离线提交、Bearer metadata、processed item/download task 持久化和 organizer list 调用。
   - `:sync-engine-desktop:smokeCloudDriveRssDryRun -PcloudDriveEndpoint=... -PcloudDriveToken=... -PcloudDriveRssUrl=... -PcloudDriveInbox=/Downloads -PcloudDriveLibrary=/Library -PcloudDriveRssReportPath=build/cloud-rss-smoke/report.json` 可先在真实服务上验证 token、inbox/library listing、RSS fetch/parse、过滤规则和 would-submit 统计，并输出不含 token 的 JSON 证据报告；不会调用离线下载提交 API。
+  - `:sync-engine-desktop:smokeCloudDriveRssLiveSubmit -PcloudDriveEndpoint=... -PcloudDriveToken=... -PcloudDriveRssUrl=... -PcloudDriveInbox=/Downloads -PcloudDriveLibrary=/Library -PcloudDriveRssSubmitConfirmation=I_UNDERSTAND_THIS_SUBMITS_REAL_CLOUDDRIVE_DOWNLOADS -PcloudDriveRssSubmitLimit=1 -PcloudDriveRssReportPath=build/cloud-rss-smoke/live-submit-report.json` 会在真实 CloudDrive2 上提交有限数量的 RSS 候选离线下载并刷新 inbox listing，报告同样不会写入 token；这个任务有真实副作用，必须显式确认。
 
 ## 推荐模块演进
 
