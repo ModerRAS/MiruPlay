@@ -2,6 +2,7 @@ package com.miruplay.tv.player.mpv
 
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.PlaybackTimingConventions
+import com.miruplay.tv.model.playbackSourceFromInputs
 import java.io.File
 import java.nio.file.Path
 
@@ -75,6 +76,39 @@ class MpvCommandBuilder(
 
 fun MpvCommandBuilder.buildPreview(source: PlaybackSource): String =
     build(source).toMpvCommandPreview()
+
+fun mpvCommandPreviewFromInputs(
+    mpvPath: String,
+    configDir: String,
+    mediaPath: String,
+    subtitlePath: String,
+    startSeconds: String,
+    fullscreen: Boolean,
+    keepOpen: Boolean,
+    rifeEnabled: Boolean,
+    rifeBackend: RifeBackend,
+    mediaSourceId: String = "desktop-compose",
+    episodeId: String? = null,
+    blankMediaMessage: String = "Choose a media URI or file path before launching playback.",
+): String {
+    val source = playbackSourceFromInputs(
+        mediaPath = mediaPath,
+        subtitlePath = subtitlePath,
+        startSeconds = startSeconds,
+        mediaSourceId = mediaSourceId,
+        episodeId = episodeId,
+        blankMediaMessage = blankMediaMessage,
+    )
+    val config = mpvRuntimeConfigFromInputs(
+        mpvPath = mpvPath,
+        configDir = configDir,
+        fullscreen = fullscreen,
+        keepOpen = keepOpen,
+        rifeEnabled = rifeEnabled,
+        rifeBackend = rifeBackend,
+    )
+    return MpvCommandBuilder(config).buildPreview(source)
+}
 
 fun List<String>.toMpvCommandPreview(): String =
     joinToString(" ") { it.toMpvPreviewArgument() }

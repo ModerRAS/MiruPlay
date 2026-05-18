@@ -80,4 +80,25 @@ class MpvCommandBuilderTest {
             preview,
         )
     }
+
+    @Test
+    fun `mpvCommandPreviewFromInputs builds preview from UI style inputs`() {
+        val preview = mpvCommandPreviewFromInputs(
+            mpvPath = "C:/MiruPlay/mpv player.exe",
+            configDir = "",
+            mediaPath = " D:/Anime/Episode 01.mkv ",
+            subtitlePath = "",
+            startSeconds = "90.5",
+            fullscreen = false,
+            keepOpen = true,
+            rifeEnabled = false,
+            rifeBackend = RifeBackend.DIRECTML,
+        )
+
+        val normalized = preview.replace('\\', '/')
+        assertTrue(normalized.startsWith("\"C:/MiruPlay/mpv player.exe\""))
+        assertTrue(normalized.contains("--keep-open=yes"))
+        assertTrue(normalized.contains("--start=90.5"))
+        assertTrue(normalized.endsWith("\"D:/Anime/Episode 01.mkv\""))
+    }
 }
