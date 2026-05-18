@@ -8,6 +8,7 @@ import com.miruplay.tv.model.MediaFileConventions
 import com.miruplay.tv.model.MediaCapabilities
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
+import com.miruplay.tv.model.RangeLimitedInputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.InputStream
