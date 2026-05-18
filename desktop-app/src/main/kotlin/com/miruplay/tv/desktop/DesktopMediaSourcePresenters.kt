@@ -9,9 +9,12 @@ import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.ProgressRecord
+import com.miruplay.tv.repository.displayLabel
+import com.miruplay.tv.repository.mediaDisplayName
+import com.miruplay.tv.repository.upsertById
 
 internal fun sourceLabel(source: MediaSourceInfo): String =
-    "${source.name} · ${source.type.name}"
+    source.displayLabel()
 
 internal fun webDavSourceInfo(
     url: String,
@@ -59,9 +62,7 @@ internal fun remoteParent(path: String): String? {
 }
 
 internal fun List<MediaSourceInfo>.upsertSource(source: MediaSourceInfo): List<MediaSourceInfo> =
-    map { if (it.id == source.id) source else it }.let { updated ->
-        if (updated.none { it.id == source.id }) updated + source else updated
-    }
+    upsertById(source)
 
 internal fun recentDisplayName(record: ProgressRecord): String =
-    MediaPathConventions.fileName(record.episodeId).ifBlank { record.episodeId }
+    record.mediaDisplayName()
