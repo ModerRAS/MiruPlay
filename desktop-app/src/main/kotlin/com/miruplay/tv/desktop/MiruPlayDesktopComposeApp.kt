@@ -75,7 +75,6 @@ import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.ScraperResult
-import com.miruplay.tv.model.displayTitle
 import com.miruplay.tv.model.formatFileSize
 import com.miruplay.tv.model.formatPlaybackPosition
 import com.miruplay.tv.player.mpv.MpvProcessPlayer
@@ -2863,62 +2862,4 @@ private fun linkedSourceLabel(
     if (sourceId == null) return "None"
     val source = sources.firstOrNull { it.id == sourceId }
     return source?.let { "${it.name} (${it.type.name})" } ?: "Missing source #$sourceId"
-}
-
-private fun bangumiQueryFor(entry: MediaIndexEntry?): String? {
-    entry?.animeName?.takeIf { it.isNotBlank() }?.let { return it }
-    val fileName = entry?.path
-        ?.substringAfterLast('/')
-        ?.substringAfterLast('\\')
-        ?: return null
-    return fileName.substringBeforeLast('.', fileName).takeIf { it.isNotBlank() }
-}
-
-private fun bangumiDisplayTitle(result: ScraperResult): String =
-    result.displayTitle()
-
-private fun DesktopBangumiBatchPlan?.batchStatusFor(match: DesktopBangumiBatchMatch): String =
-    when {
-        this == null -> "preview"
-        conflicts.any { it.query == match.query } -> "conflict"
-        readyUpdates.any { it.query == match.query } -> "ready"
-        else -> "review"
-    }
-
-private fun DesktopBangumiBatchMatch.withSelectedCandidate(candidate: ScraperResult): DesktopBangumiBatchMatch =
-    copy(
-        result = candidate,
-        candidates = if (candidates.any { it.isSameBangumiCandidate(candidate) }) {
-            candidates
-        } else {
-            candidates + candidate
-        },
-    )
-
-private fun DesktopBangumiBatchMatch.selectedCandidateLabel(): String {
-    val selectedIndex = candidates.indexOfFirst { it.isSameBangumiCandidate(result) }
-    return if (selectedIndex >= 0) {
-        "candidate ${selectedIndex + 1}/${candidates.size}"
-    } else {
-        "${candidates.size} candidates"
-    }
-}
-
-private fun List<DesktopBangumiBatchMatch>.replaceBatchMatch(updated: DesktopBangumiBatchMatch): List<DesktopBangumiBatchMatch> =
-    map { match -> if (match.query == updated.query) updated else match }
-
-private fun ScraperResult.isSameBangumiCandidate(other: ScraperResult?): Boolean =
-    other != null &&
-        animeId == other.animeId &&
-        source == other.source
-
-private fun List<MediaIndexEntry>.replaceEntry(updated: MediaIndexEntry): List<MediaIndexEntry> =
-    map { entry ->
-        if (entry.sourceId == updated.sourceId && entry.path == updated.path) updated else entry
-    }
-
-private fun List<MediaIndexEntry>.replaceEntries(updatedEntries: List<MediaIndexEntry>): List<MediaIndexEntry> {
-    if (updatedEntries.isEmpty()) return this
-    val byKey = updatedEntries.associateBy { it.sourceId to it.path }
-    return map { entry -> byKey[entry.sourceId to entry.path] ?: entry }
 }
