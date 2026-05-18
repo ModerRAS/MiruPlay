@@ -2,8 +2,9 @@ package com.miruplay.tv.desktop
 
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.mediasource.desktop.DesktopMediaSource
-import com.miruplay.tv.mediasource.desktop.DesktopStreamRange
 import com.miruplay.tv.model.FileMetadata
+import com.miruplay.tv.model.HttpByteRange
+import com.miruplay.tv.model.HttpByteRangeRequest
 import com.miruplay.tv.model.MediaPathConventions
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
@@ -62,11 +63,11 @@ class DesktopPlaybackBridge : AutoCloseable, DesktopPlaybackUriBridge {
 
         val metadata = runBlocking { route.source.getMetadata(route.path) }.getOrNull()
         val range = exchange.requestHeaders.getFirst("Range")
-            ?.let(ByteRangeRequest::parse)
-            ?.resolve(metadata)
+            ?.let(HttpByteRangeRequest::parse)
+            ?.resolve(metadata?.size)
 
-        if (range == ByteRange.Invalid) {
-            exchange.responseHeaders.add("Content-Range", "bytes */${metadata?.size ?: "*"}")
+        if (range is HttpByteRange.Invalid) {
+            exchange.responseHeaders.add("Content-Range", range.contentRangeHeader)
             exchange.sendStatus(416, "Requested range not satisfiable")
             return
         }
@@ -77,10 +78,10 @@ class DesktopPlaybackBridge : AutoCloseable, DesktopPlaybackUriBridge {
             return
         }
 
-        val resolvedRange = range as? ByteRange.Resolved
+        val resolvedRange = range as? HttpByteRange.Resolved
         val streamResult = runBlocking {
             if (resolvedRange != null) {
-                route.source.openStream(route.path, DesktopStreamRange(resolvedRange.start, resolvedRange.endInclusive))
+                route.source.openStream(route.path, resolvedRange.toStreamRange())
             } else {
                 route.source.openStream(route.path)
             }
@@ -96,16 +97,16 @@ class DesktopPlaybackBridge : AutoCloseable, DesktopPlaybackUriBridge {
         }
     }
 
-    private fun HttpExchange.sendStreamHeaders(range: ByteRange?, metadata: FileMetadata?) {
+    private fun HttpExchange.sendStreamHeaders(range: HttpByteRange?, metadata: FileMetadata?) {
         responseHeaders.add("Content-Type", "application/octet-stream")
         responseHeaders.add("Cache-Control", "no-store")
         responseHeaders.add("Accept-Ranges", "bytes")
 
-        val resolvedRange = range as? ByteRange.Resolved
+        val resolvedRange = range as? HttpByteRange.Resolved
         if (resolvedRange != null) {
             responseHeaders.add(
                 "Content-Range",
-                "bytes ${resolvedRange.start}-${resolvedRange.endInclusive}/${resolvedRange.totalLength}"
+                resolvedRange.contentRangeHeader,
             )
             sendResponseHeaders(206, resolvedRange.length)
             return
@@ -126,49 +127,6 @@ class DesktopPlaybackBridge : AutoCloseable, DesktopPlaybackUriBridge {
         val source: DesktopMediaSource,
         val path: String,
     )
-
-    private data class ByteRangeRequest(
-        val start: Long?,
-        val endInclusive: Long?,
-    ) {
-        fun resolve(metadata: FileMetadata?): ByteRange {
-            val totalLength = metadata?.size?.takeIf { it > 0L } ?: return ByteRange.Unresolved
-            val resolvedStart = start ?: (totalLength - (endInclusive ?: 0L)).coerceAtLeast(0L)
-            val resolvedEnd = (if (start == null) totalLength - 1 else endInclusive ?: totalLength - 1)
-                .coerceAtMost(totalLength - 1)
-            if (resolvedStart < 0 || resolvedStart >= totalLength || resolvedStart > resolvedEnd) {
-                return ByteRange.Invalid
-            }
-            return ByteRange.Resolved(
-                start = resolvedStart,
-                endInclusive = resolvedEnd,
-                totalLength = totalLength,
-            )
-        }
-
-        companion object {
-            fun parse(header: String): ByteRangeRequest? {
-                if (!header.startsWith("bytes=")) return null
-                val spec = header.removePrefix("bytes=").substringBefore(',').trim()
-                val start = spec.substringBefore('-', "").trim().takeIf { it.isNotBlank() }?.toLongOrNull()
-                val end = spec.substringAfter('-', "").trim().takeIf { it.isNotBlank() }?.toLongOrNull()
-                if (start == null && end == null) return null
-                return ByteRangeRequest(start = start, endInclusive = end)
-            }
-        }
-    }
-
-    private sealed interface ByteRange {
-        data object Unresolved : ByteRange
-        data object Invalid : ByteRange
-        data class Resolved(
-            val start: Long,
-            val endInclusive: Long,
-            val totalLength: Long,
-        ) : ByteRange {
-            val length: Long = endInclusive - start + 1
-        }
-    }
 
     private companion object {
         const val STREAM_PREFIX = "/stream/"
