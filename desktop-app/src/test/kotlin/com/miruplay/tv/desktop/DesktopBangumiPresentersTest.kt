@@ -4,6 +4,7 @@ import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.ScraperSource
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MetadataBatchConflict
+import com.miruplay.tv.repository.MetadataBatchMatch
 import com.miruplay.tv.repository.MetadataBatchPlan
 import com.miruplay.tv.repository.MetadataBatchUpdate
 import org.junit.Assert.assertEquals
@@ -31,7 +32,7 @@ class DesktopBangumiPresentersTest {
     @Test
     fun `bangumi status wrappers use shared metadata wording`() {
         val entry = MediaIndexEntry(sourceId = 1L, path = "D:/Anime/Frieren/01.mkv")
-        val match = DesktopBangumiBatchMatch(query = "Frieren", result = result())
+        val match = MetadataBatchMatch(query = "Frieren", result = result())
         val conflictPlan = MetadataBatchPlan(
             readyUpdates = emptyList(),
             reviewMatches = emptyList(),
@@ -67,7 +68,7 @@ class DesktopBangumiPresentersTest {
     @Test
     fun `batch status reflects plan buckets`() {
         val entry = MediaIndexEntry(sourceId = 1L, path = "D:/Anime/Frieren/01.mkv")
-        val match = DesktopBangumiBatchMatch(query = "Frieren", result = result())
+        val match = MetadataBatchMatch(query = "Frieren", result = result())
         val ready = MetadataBatchUpdate(
             query = "Frieren",
             original = entry,
@@ -76,14 +77,14 @@ class DesktopBangumiPresentersTest {
         )
         val plan = MetadataBatchPlan(
             readyUpdates = listOf(ready),
-            reviewMatches = listOf(DesktopBangumiBatchMatch(query = "Review", result = result(confidence = 0.7f))),
+            reviewMatches = listOf(MetadataBatchMatch(query = "Review", result = result(confidence = 0.7f))),
             conflicts = listOf(MetadataBatchConflict("Conflict", entry)),
         )
 
         assertEquals("preview", null.batchStatusFor(match))
         assertEquals("ready", plan.batchStatusFor(match))
-        assertEquals("review", plan.batchStatusFor(DesktopBangumiBatchMatch(query = "Review", result = result(confidence = 0.7f))))
-        assertEquals("conflict", plan.batchStatusFor(DesktopBangumiBatchMatch(query = "Conflict", result = result())))
+        assertEquals("review", plan.batchStatusFor(MetadataBatchMatch(query = "Review", result = result(confidence = 0.7f))))
+        assertEquals("conflict", plan.batchStatusFor(MetadataBatchMatch(query = "Conflict", result = result())))
     }
 
     @Test
@@ -91,7 +92,7 @@ class DesktopBangumiPresentersTest {
         val original = result(animeId = "1", source = ScraperSource.BANGUMI)
         val duplicate = result(animeId = "1", source = ScraperSource.BANGUMI, title = "Duplicate")
         val other = result(animeId = "2", source = ScraperSource.BANGUMI)
-        val match = DesktopBangumiBatchMatch(query = "Frieren", result = original, candidates = listOf(original))
+        val match = MetadataBatchMatch(query = "Frieren", result = original, candidates = listOf(original))
 
         val sameCandidate = match.withSelectedCandidate(duplicate)
         val newCandidate = match.withSelectedCandidate(other)
@@ -109,17 +110,17 @@ class DesktopBangumiPresentersTest {
 
         assertEquals(
             "candidate 2/2",
-            DesktopBangumiBatchMatch(query = "Frieren", result = second, candidates = listOf(first, second)).selectedCandidateLabel()
+            MetadataBatchMatch(query = "Frieren", result = second, candidates = listOf(first, second)).selectedCandidateLabel()
         )
         assertEquals(
             "1 candidates",
-            DesktopBangumiBatchMatch(query = "Frieren", result = second, candidates = listOf(first)).selectedCandidateLabel()
+            MetadataBatchMatch(query = "Frieren", result = second, candidates = listOf(first)).selectedCandidateLabel()
         )
     }
 
     @Test
     fun `replace batch match and index entries use stable keys`() {
-        val oldMatch = DesktopBangumiBatchMatch(query = "Frieren", result = result(animeId = "1"))
+        val oldMatch = MetadataBatchMatch(query = "Frieren", result = result(animeId = "1"))
         val updatedMatch = oldMatch.copy(result = result(animeId = "2"))
         assertEquals(listOf(updatedMatch), listOf(oldMatch).replaceBatchMatch(updatedMatch))
 

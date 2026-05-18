@@ -54,7 +54,9 @@ import com.miruplay.tv.model.withAutomationFormValues
 import com.miruplay.tv.player.mpv.MpvProcessPlayer
 import com.miruplay.tv.player.mpv.RifeBackend
 import com.miruplay.tv.repository.MediaIndexEntry
+import com.miruplay.tv.repository.MetadataBatchMatch
 import com.miruplay.tv.repository.MetadataBatchPlanner
+import com.miruplay.tv.repository.MetadataBatchPlan
 import com.miruplay.tv.repository.appliedStatus
 import com.miruplay.tv.repository.applyMetadataBatchPlan
 import com.miruplay.tv.repository.clearExternalMetadata
@@ -168,9 +170,9 @@ internal fun MiruPlayDesktopComposeApp() {
     var bangumiQuery by remember { mutableStateOf("") }
     var bangumiResults by remember { mutableStateOf(emptyList<ScraperResult>()) }
     var selectedBangumiResult by remember { mutableStateOf<ScraperResult?>(null) }
-    var bangumiBatchMatches by remember { mutableStateOf(emptyList<DesktopBangumiBatchMatch>()) }
-    var selectedBangumiBatchMatch by remember { mutableStateOf<DesktopBangumiBatchMatch?>(null) }
-    var bangumiBatchPlan by remember { mutableStateOf<DesktopBangumiBatchPlan?>(null) }
+    var bangumiBatchMatches by remember { mutableStateOf(emptyList<MetadataBatchMatch>()) }
+    var selectedBangumiBatchMatch by remember { mutableStateOf<MetadataBatchMatch?>(null) }
+    var bangumiBatchPlan by remember { mutableStateOf<MetadataBatchPlan?>(null) }
     var bangumiBatchRollback by remember { mutableStateOf(emptyList<MediaIndexEntry>()) }
     var bangumiStatus by remember { mutableStateOf(bangumiInitialStatus()) }
     var recentProgress by remember { mutableStateOf(emptyList<ProgressRecord>()) }

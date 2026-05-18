@@ -4,6 +4,7 @@ import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.confidencePercentLabel
 import com.miruplay.tv.model.displayTitle
 import com.miruplay.tv.repository.MediaIndexEntry
+import com.miruplay.tv.repository.MetadataBatchMatch
 import com.miruplay.tv.repository.MetadataBatchPlan
 import com.miruplay.tv.repository.metadataQuery
 import com.miruplay.tv.repository.isSameCandidate
@@ -88,19 +89,19 @@ internal fun bangumiClearEntryRequiredStatus(): String =
 internal fun MediaIndexEntry.bangumiClearedStatus(): String =
     metadataClearedStatus()
 
-internal fun DesktopBangumiBatchPlan?.batchStatusFor(match: DesktopBangumiBatchMatch): String =
+internal fun MetadataBatchPlan?.batchStatusFor(match: MetadataBatchMatch): String =
     statusFor(match)
 
-internal fun DesktopBangumiBatchMatch.withSelectedCandidate(candidate: ScraperResult): DesktopBangumiBatchMatch =
+internal fun MetadataBatchMatch.withSelectedCandidate(candidate: ScraperResult): MetadataBatchMatch =
     sharedWithSelectedCandidate(candidate)
 
-internal fun DesktopBangumiBatchMatch.selectedCandidateLabel(): String =
+internal fun MetadataBatchMatch.selectedCandidateLabel(): String =
     sharedSelectedCandidateLabel()
 
-internal fun DesktopBangumiBatchMatch.selectedReviewStatus(): String =
+internal fun MetadataBatchMatch.selectedReviewStatus(): String =
     sharedSelectedReviewStatus()
 
-internal fun List<DesktopBangumiBatchMatch>.replaceBatchMatch(updated: DesktopBangumiBatchMatch): List<DesktopBangumiBatchMatch> =
+internal fun List<MetadataBatchMatch>.replaceBatchMatch(updated: MetadataBatchMatch): List<MetadataBatchMatch> =
     replaceMatch(updated)
 
 internal fun ScraperResult.isSameBangumiCandidate(other: ScraperResult?): Boolean =
