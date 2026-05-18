@@ -136,10 +136,7 @@ class DesktopWebDavMediaSource(
     }
 
     internal fun normalizeUrl(path: String): String {
-        val cleanPath = MediaPathConventions.normalizeRemotePath(path)
-        if (cleanPath.isBlank()) return "$baseUrl/"
-        val encodedPath = MediaPathConventions.encodeRemotePath(cleanPath)
-        return "$baseUrl/$encodedPath"
+        return MediaPathConventions.joinRemoteUrl(baseUrl, path)
     }
 
     internal fun parsePropfindResponse(

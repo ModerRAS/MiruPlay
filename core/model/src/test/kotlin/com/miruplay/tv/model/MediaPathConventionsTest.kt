@@ -49,4 +49,27 @@ class MediaPathConventionsTest {
         )
         assertEquals("a b", MediaPathConventions.decodePath("a%20b"))
     }
+
+    @Test
+    fun `joinRemoteUrl appends encoded path to base url`() {
+        assertEquals(
+            "https://dav.example/anime/%E5%AD%A4%E7%8B%AC%E6%91%87%E6%BB%9A/Season%2001/Episode%2001.mkv",
+            MediaPathConventions.joinRemoteUrl(
+                "https://dav.example/anime/",
+                "/孤独摇滚/Season 01/Episode 01.mkv",
+            ),
+        )
+        assertEquals(
+            "https://dav.example/anime/Episode%2001.mkv",
+            MediaPathConventions.joinRemoteUrl("https://dav.example/anime", "Episode 01.mkv"),
+        )
+        assertEquals(
+            "https://dav.example/anime/Episode%2001.mkv",
+            MediaPathConventions.joinRemoteUrl(
+                "https://dav.example/anime",
+                "https://dav.example/anime/Episode%2001.mkv",
+            ),
+        )
+        assertEquals("/Episode 01.mkv", MediaPathConventions.joinRemoteUrl("", "/Episode 01.mkv"))
+    }
 }
