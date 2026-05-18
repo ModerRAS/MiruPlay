@@ -8,8 +8,6 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.w3c.dom.Element
 import java.io.ByteArrayInputStream
-import java.net.InetSocketAddress
-import java.net.Proxy
 import java.util.concurrent.TimeUnit
 import javax.xml.parsers.DocumentBuilderFactory
 
@@ -19,37 +17,16 @@ interface RssFeedReader {
 }
 
 class RssFeedFetcher : RssFeedReader {
-    private var currentProxyHost: String = ""
-    private var currentProxyPort: Int = 0
-    private var currentProxyEnabled: Boolean = false
-
-    @Volatile
-    private var client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
-        .build()
-
-    /**
-     * Configure HTTP proxy for RSS feed fetching.
-     * Only rebuilds the OkHttpClient when proxy configuration changes.
-     * Synchronized to prevent data race between proxy field writes.
-     */
-    @Synchronized
-    override fun configureProxy(enabled: Boolean, host: String, port: Int) {
-        val normalizedHost = host.trim()
-        val normalizedPort = port.coerceIn(1, 65535)
-        if (currentProxyEnabled == enabled && currentProxyHost == normalizedHost && currentProxyPort == normalizedPort) {
-            return
-        }
-        currentProxyEnabled = enabled
-        currentProxyHost = normalizedHost
-        currentProxyPort = normalizedPort
-
-        // Use newBuilder() to share connection pools and dispatchers with previous client
-        client = client.newBuilder()
-            .proxy(if (enabled && normalizedHost.isNotBlank()) Proxy(Proxy.Type.HTTP, InetSocketAddress(normalizedHost, normalizedPort)) else Proxy.NO_PROXY)
+    private val client = ProxyAwareOkHttpClient(
+        OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
             .build()
+    )
+
+    override fun configureProxy(enabled: Boolean, host: String, port: Int) {
+        client.configureProxy(enabled, host, port)
     }
 
     override suspend fun fetch(url: String): Result<List<RssFeedItem>> = withContext(Dispatchers.IO) {
