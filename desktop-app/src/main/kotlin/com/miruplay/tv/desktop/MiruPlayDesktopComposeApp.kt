@@ -49,6 +49,7 @@ import com.miruplay.tv.model.buildRssSubscriptionFromForm
 import com.miruplay.tv.model.loadedPlaybackStatus
 import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.parseCloudDriveIntervalMinutes
+import com.miruplay.tv.model.playbackSourceFromInputs
 import com.miruplay.tv.model.parseRssProxyPort
 import com.miruplay.tv.model.recentPlaybackInitialStatus
 import com.miruplay.tv.model.recentPlaybackLoadedStatus
@@ -66,6 +67,7 @@ import com.miruplay.tv.player.mpv.mpvLaunchedStatus
 import com.miruplay.tv.player.mpv.mpvNoActiveProcessStatus
 import com.miruplay.tv.player.mpv.mpvPauseToggledStatus
 import com.miruplay.tv.player.mpv.mpvPositionSyncedStatus
+import com.miruplay.tv.player.mpv.mpvCommandPreviewFromInputs
 import com.miruplay.tv.player.mpv.mpvRuntimeConfigFromInputs
 import com.miruplay.tv.player.mpv.mpvSeekBackStatus
 import com.miruplay.tv.player.mpv.mpvSeekForwardStatus
@@ -191,6 +193,9 @@ internal val TextSecondary = Color(MiruPlayPalette.TEXT_SECONDARY_ARGB)
 internal val CardBg = Color(MiruPlayPalette.CARD_BG_ARGB)
 private const val COMPOSE_BATCH_BANGUMI_QUERY_LIMIT = 20
 private const val BANGUMI_METADATA_SOURCE_NAME = "Bangumi"
+private const val DESKTOP_PLAYBACK_MEDIA_SOURCE_ID = "desktop-compose"
+private const val DESKTOP_BLANK_MEDIA_MESSAGE = "Choose a media URI or file path before launching mpv."
+private const val MPV_COMMAND_PREVIEW_ERROR_MESSAGE = "Unable to build mpv command."
 private const val PLAYBACK_PROGRESS_POLL_INTERVAL_MS = 10_000L
 internal typealias DesktopSection = MiruPlayRouteSurface.Section
 
@@ -319,17 +324,22 @@ internal fun MiruPlayDesktopComposeApp() {
         rifeBackend,
     ) {
         derivedStateOf {
-            buildCommandPreview(
-                mpvPath = mpvPath,
-                configDir = configDir,
-                mediaPath = mediaPath,
-                subtitlePath = subtitlePath,
-                startSeconds = startSeconds,
-                fullscreen = fullscreen,
-                keepOpen = keepOpen,
-                rifeEnabled = rifeEnabled,
-                rifeBackend = rifeBackend,
-            )
+            runCatching {
+                mpvCommandPreviewFromInputs(
+                    mpvPath = mpvPath,
+                    configDir = configDir,
+                    mediaPath = mediaPath,
+                    subtitlePath = subtitlePath,
+                    startSeconds = startSeconds,
+                    fullscreen = fullscreen,
+                    keepOpen = keepOpen,
+                    rifeEnabled = rifeEnabled,
+                    rifeBackend = rifeBackend,
+                    blankMediaMessage = DESKTOP_BLANK_MEDIA_MESSAGE,
+                )
+            }.getOrElse { error ->
+                error.message ?: MPV_COMMAND_PREVIEW_ERROR_MESSAGE
+            }
         }
     }
 
@@ -1467,12 +1477,15 @@ internal fun MiruPlayDesktopComposeApp() {
                                 }
                             }
                             val selectedMediaPath = mediaPath.trim()
-                            val source = buildPlaybackSource(
+                            val source = playbackSourceFromInputs(
                                 mediaPath = playableUriFor(activeSource, playbackBridge, selectedMediaPath),
                                 subtitlePath = subtitlePath,
                                 startSeconds = startSeconds,
-                                mediaSourceId = activeSourceId?.toString() ?: activeSource?.info?.type?.name ?: "desktop-compose",
+                                mediaSourceId = activeSourceId?.toString()
+                                    ?: activeSource?.info?.type?.name
+                                    ?: DESKTOP_PLAYBACK_MEDIA_SOURCE_ID,
                                 episodeId = selectedMediaPath.ifBlank { null },
+                                blankMediaMessage = DESKTOP_BLANK_MEDIA_MESSAGE,
                             )
                             val nextPlayer = MpvProcessPlayer(config)
                             when (val result = nextPlayer.play(source)) {

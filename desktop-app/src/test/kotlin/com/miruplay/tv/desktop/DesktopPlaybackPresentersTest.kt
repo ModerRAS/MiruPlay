@@ -8,67 +8,12 @@ import com.miruplay.tv.model.FileMetadata
 import com.miruplay.tv.model.MediaCapabilities
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
-import com.miruplay.tv.player.mpv.DEFAULT_MPV_IPC_SERVER
-import com.miruplay.tv.player.mpv.RifeBackend
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.io.InputStream
 
 class DesktopPlaybackPresentersTest {
-    @Test
-    fun `build playback source trims media path parses seconds and subtitles`() {
-        val source = buildPlaybackSource(
-            mediaPath = " D:/Anime/Episode 01.mkv ",
-            subtitlePath = "D:/Anime/Episode 01.ass",
-            startSeconds = "12.345",
-            mediaSourceId = "library",
-            episodeId = "episode-1",
-        )
-
-        assertEquals("D:/Anime/Episode 01.mkv", source.uri)
-        assertEquals("library", source.mediaSourceId)
-        assertEquals("episode-1", source.episodeId)
-        assertEquals(12_345L, source.startPosition)
-        assertEquals(listOf("D:/Anime/Episode 01.ass"), source.subtitleTracks.map { it.path })
-    }
-
-    @Test
-    fun `build playback source clamps invalid or negative starts to zero`() {
-        assertEquals(0L, buildPlaybackSource("video.mkv", "", "abc").startPosition)
-        assertEquals(0L, buildPlaybackSource("video.mkv", "", "-3").startPosition)
-    }
-
-    @Test
-    fun `build playback source requires media path`() {
-        val error = runCatching { buildPlaybackSource("   ", "", "") }.exceptionOrNull()
-
-        assertTrue(error is IllegalArgumentException)
-        assertEquals("Choose a media URI or file path before launching mpv.", error?.message)
-    }
-
-    @Test
-    fun `command preview quotes arguments with spaces`() {
-        val preview = buildCommandPreview(
-            mpvPath = "D:/MiruPlay/runtime/mpv/mpv player.exe",
-            configDir = "",
-            mediaPath = "D:/Anime/Episode 01.mkv",
-            subtitlePath = "",
-            startSeconds = "",
-            fullscreen = false,
-            keepOpen = true,
-            rifeEnabled = false,
-            rifeBackend = RifeBackend.DIRECTML,
-        )
-
-        val normalized = preview.replace('\\', '/')
-        assertTrue(normalized.startsWith("\"D:/MiruPlay/runtime/mpv/mpv player.exe\""))
-        assertTrue(normalized.contains("--input-ipc-server="))
-        assertTrue(normalized.contains(DEFAULT_MPV_IPC_SERVER))
-        assertTrue(normalized.endsWith("\"D:/Anime/Episode 01.mkv\""))
-    }
-
     @Test
     fun `playable uri keeps direct and local paths without bridge`() {
         val bridge = FakePlaybackBridge()
