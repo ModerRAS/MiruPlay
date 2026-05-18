@@ -92,6 +92,7 @@ class MetadataBatchPlannerTest {
         assertEquals(2, newCandidate.candidates.size)
         assertTrue(original.isSameCandidate(duplicate))
         assertFalse(original.isSameCandidate(other))
+        assertEquals("95%", original.confidencePercentLabel())
         assertEquals("candidate 2/2", newCandidate.selectedCandidateLabel())
         assertEquals(
             "1 candidates",

@@ -25,6 +25,7 @@ class DesktopBangumiPresentersTest {
     fun `display title uses scraper localized title`() {
         assertEquals("葬送的芙莉莲", bangumiDisplayTitle(result(titleCn = "葬送的芙莉莲")))
         assertEquals("Frieren", bangumiDisplayTitle(result(title = "Frieren", titleCn = null)))
+        assertEquals("95%", bangumiConfidenceLabel(result(confidence = 0.945f)))
     }
 
     @Test
