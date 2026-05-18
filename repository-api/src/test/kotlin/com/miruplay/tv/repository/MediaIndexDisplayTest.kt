@@ -1,5 +1,7 @@
 package com.miruplay.tv.repository
 
+import com.miruplay.tv.model.ScraperResult
+import com.miruplay.tv.model.ScraperSource
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -79,5 +81,39 @@ class MediaIndexDisplayTest {
         assertEquals(listOf(updated, samePathDifferentSource, other), listOf(original, samePathDifferentSource, other).replaceByMediaKey(updated))
         assertEquals(listOf(updated, samePathDifferentSource, other), listOf(original, samePathDifferentSource, other).replaceByMediaKeys(listOf(updated)))
         assertEquals(listOf(original, samePathDifferentSource, other), listOf(original, samePathDifferentSource, other).replaceByMediaKeys(emptyList()))
+    }
+
+    @Test
+    fun `external metadata helpers apply and clear scraper metadata`() {
+        val original = MediaIndexEntry(
+            sourceId = 1L,
+            path = "D:/Anime/Show/01.mkv",
+            animeName = "Old Name",
+            metadataSource = "BANGUMI",
+            metadataId = "old",
+            metadataTitle = "Old Title",
+        )
+        val result = ScraperResult(
+            animeId = "431767",
+            title = "Frieren",
+            titleCn = "葬送的芙莉莲",
+            matchedTitle = "Frieren",
+            confidence = 0.95f,
+            source = ScraperSource.BANGUMI,
+        )
+
+        val updated = original.withExternalMetadata(result, sourceId = 7L)
+        val cleared = updated.clearExternalMetadata(sourceId = 7L)
+
+        assertEquals(7L, updated.sourceId)
+        assertEquals("葬送的芙莉莲", updated.animeName)
+        assertEquals("BANGUMI", updated.metadataSource)
+        assertEquals("431767", updated.metadataId)
+        assertEquals("葬送的芙莉莲", updated.metadataTitle)
+        assertEquals(7L, cleared.sourceId)
+        assertEquals("葬送的芙莉莲", cleared.animeName)
+        assertEquals(null, cleared.metadataSource)
+        assertEquals(null, cleared.metadataId)
+        assertEquals(null, cleared.metadataTitle)
     }
 }

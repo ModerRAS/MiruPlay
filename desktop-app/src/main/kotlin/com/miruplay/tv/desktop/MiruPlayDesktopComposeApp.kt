@@ -52,8 +52,10 @@ import com.miruplay.tv.player.mpv.MpvProcessPlayer
 import com.miruplay.tv.player.mpv.RifeBackend
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MetadataBatchPlanner
+import com.miruplay.tv.repository.clearExternalMetadata
 import com.miruplay.tv.repository.displayName
 import com.miruplay.tv.repository.desktop.DesktopRepositories
+import com.miruplay.tv.repository.withExternalMetadata
 import com.miruplay.tv.scanner.desktop.DesktopMediaLibraryScanner
 import com.miruplay.tv.scraper.desktop.DesktopBangumiScraper
 import kotlinx.coroutines.delay
@@ -1037,13 +1039,7 @@ internal fun MiruPlayDesktopComposeApp() {
                             bangumiStatus = "Search Bangumi and select a match first."
                             return@launch
                         }
-                        val updated = entry.copy(
-                            sourceId = sourceId,
-                            animeName = bangumiDisplayTitle(bangumi),
-                            metadataSource = bangumi.source.name,
-                            metadataId = bangumi.animeId,
-                            metadataTitle = bangumiDisplayTitle(bangumi),
-                        )
+                        val updated = entry.withExternalMetadata(bangumi, sourceId = sourceId)
                         when (val result = repositories.index.upsertEntry(sourceId, updated)) {
                             is Result.Success -> {
                                 indexedEntries = indexedEntries.replaceEntry(updated)
@@ -1066,12 +1062,7 @@ internal fun MiruPlayDesktopComposeApp() {
                             bangumiStatus = "Select an indexed video before clearing metadata."
                             return@launch
                         }
-                        val updated = entry.copy(
-                            sourceId = sourceId,
-                            metadataSource = null,
-                            metadataId = null,
-                            metadataTitle = null,
-                        )
+                        val updated = entry.clearExternalMetadata(sourceId = sourceId)
                         when (val result = repositories.index.upsertEntry(sourceId, updated)) {
                             is Result.Success -> {
                                 indexedEntries = indexedEntries.replaceEntry(updated)
