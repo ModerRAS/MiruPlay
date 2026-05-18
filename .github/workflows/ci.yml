@@ -57,6 +57,8 @@ jobs:
           checkUiPaletteDrift
           :core:model:test
           :repository-api:test
+          :cloud-drive-api:test
+          :sync-engine-shared:test
           :player-mpv:test
           :cloud-drive-desktop:test
           :sync-engine-desktop:test
