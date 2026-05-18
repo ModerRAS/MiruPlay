@@ -57,11 +57,15 @@ import com.miruplay.tv.repository.applyMetadataBatchPlan
 import com.miruplay.tv.repository.clearExternalMetadata
 import com.miruplay.tv.repository.displayName
 import com.miruplay.tv.repository.desktop.DesktopRepositories
+import com.miruplay.tv.repository.metadataBatchSearchingStatus
+import com.miruplay.tv.repository.noMetadataBatchEntriesStatus
 import com.miruplay.tv.repository.noMetadataBatchPreviewStatus
 import com.miruplay.tv.repository.noMetadataBatchUndoStatus
 import com.miruplay.tv.repository.restoreMetadataBatchUndo
 import com.miruplay.tv.repository.restoredStatus
 import com.miruplay.tv.repository.reviewAcceptedStatus
+import com.miruplay.tv.repository.selectedCandidateStatus
+import com.miruplay.tv.repository.summaryStatus
 import com.miruplay.tv.repository.withExternalMetadata
 import com.miruplay.tv.scanner.desktop.DesktopMediaLibraryScanner
 import com.miruplay.tv.scraper.desktop.DesktopBangumiScraper
@@ -826,32 +830,31 @@ internal fun MiruPlayDesktopComposeApp() {
                         }
                         when (val entriesResult = repositories.index.queryIndex(sourceId, "")) {
                             is Result.Success -> {
-                                val entries = entriesResult.data.filterNot { it.isDirectory }
-                                val queries = MetadataBatchPlanner.queriesFor(entries)
-                                    .take(COMPOSE_BATCH_BANGUMI_QUERY_LIMIT)
-                                if (queries.isEmpty()) {
+                                val entries = entriesResult.data
+                                val queryCount = MetadataBatchPlanner.previewQueryCount(
+                                    entries = entries,
+                                    queryLimit = COMPOSE_BATCH_BANGUMI_QUERY_LIMIT,
+                                )
+                                if (queryCount == 0) {
                                     bangumiBatchMatches = emptyList()
                                     selectedBangumiBatchMatch = null
                                     bangumiBatchPlan = null
-                                    bangumiStatus = "No indexed entries are available for Bangumi batch matching."
+                                    bangumiStatus = noMetadataBatchEntriesStatus("Bangumi")
                                     return@launch
                                 }
 
-                                bangumiStatus = "Searching Bangumi for ${queries.size} indexed title(s)..."
-                                val matches = queries.map { query ->
-                                    val candidates = bangumiScraper.searchAnime(query).getOrNull().orEmpty()
-                                    DesktopBangumiBatchMatch(
-                                        query = query,
-                                        result = candidates.firstOrNull(),
-                                        candidates = candidates,
-                                    )
-                                }
-                                bangumiBatchMatches = matches
-                                val plan = MetadataBatchPlanner.planFor(entries, matches)
-                                bangumiBatchPlan = plan
-                                selectedBangumiBatchMatch = plan.reviewMatches.firstOrNull { it.result != null }
-                                    ?: matches.firstOrNull()
-                                bangumiStatus = MetadataBatchPlanner.displayPlanSummary(plan)
+                                bangumiStatus = metadataBatchSearchingStatus(queryCount, "Bangumi")
+                                val preview = MetadataBatchPlanner.previewFor(
+                                    entries = entries,
+                                    queryLimit = COMPOSE_BATCH_BANGUMI_QUERY_LIMIT,
+                                    searchCandidates = { query ->
+                                        bangumiScraper.searchAnime(query).getOrNull().orEmpty()
+                                    },
+                                )
+                                bangumiBatchMatches = preview.matches
+                                bangumiBatchPlan = preview.plan
+                                selectedBangumiBatchMatch = preview.selectedMatch
+                                bangumiStatus = preview.summaryStatus()
                             }
                             is Result.Error -> bangumiStatus = entriesResult.error.toUserMessage()
                         }
@@ -927,21 +930,21 @@ internal fun MiruPlayDesktopComposeApp() {
                 },
                 onBatchCandidateSelected = { match, candidate ->
                     scope.launch {
-                        val updatedMatch = match.withSelectedCandidate(candidate)
-                        val updatedMatches = bangumiBatchMatches.replaceBatchMatch(updatedMatch)
-                        bangumiBatchMatches = updatedMatches
-                        selectedBangumiBatchMatch = updatedMatch
-                        selectedBangumiResult = candidate
-                        bangumiQuery = match.query
-
+                        var updatedMatch = match.withSelectedCandidate(candidate)
+                        var updatedMatches = bangumiBatchMatches.replaceBatchMatch(updatedMatch)
                         val sourceId = activeSourceId
                         if (sourceId != null) {
                             when (val entriesResult = repositories.index.queryIndex(sourceId, "")) {
                                 is Result.Success -> {
-                                    bangumiBatchPlan = MetadataBatchPlanner.planFor(
-                                        entries = entriesResult.data.filterNot { it.isDirectory },
-                                        matches = updatedMatches,
+                                    val selection = MetadataBatchPlanner.selectCandidate(
+                                        entries = entriesResult.data,
+                                        matches = bangumiBatchMatches,
+                                        match = match,
+                                        candidate = candidate,
                                     )
+                                    updatedMatch = selection.updatedMatch
+                                    updatedMatches = selection.updatedMatches
+                                    bangumiBatchPlan = selection.plan
                                 }
                                 is Result.Error -> {
                                     bangumiStatus = entriesResult.error.toUserMessage()
@@ -949,7 +952,11 @@ internal fun MiruPlayDesktopComposeApp() {
                                 }
                             }
                         }
-                        bangumiStatus = "Selected batch candidate for ${match.query}: ${bangumiDisplayTitle(candidate)}."
+                        bangumiBatchMatches = updatedMatches
+                        selectedBangumiBatchMatch = updatedMatch
+                        selectedBangumiResult = candidate
+                        bangumiQuery = match.query
+                        bangumiStatus = updatedMatch.selectedCandidateStatus()
                     }
                 },
                 onBatchAcceptReview = {

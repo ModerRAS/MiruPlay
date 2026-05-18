@@ -27,6 +27,18 @@ data class MetadataBatchPlan(
     val conflicts: List<MetadataBatchConflict>,
 )
 
+data class MetadataBatchPreview(
+    val matches: List<MetadataBatchMatch>,
+    val plan: MetadataBatchPlan?,
+    val selectedMatch: MetadataBatchMatch?,
+)
+
+data class MetadataBatchCandidateSelection(
+    val updatedMatch: MetadataBatchMatch,
+    val updatedMatches: List<MetadataBatchMatch>,
+    val plan: MetadataBatchPlan,
+)
+
 fun MetadataBatchPlan?.statusFor(match: MetadataBatchMatch): String =
     when {
         this == null -> "preview"
@@ -62,6 +74,25 @@ fun ScraperResult.isSameCandidate(other: ScraperResult?): Boolean =
         animeId == other.animeId &&
         source == other.source
 
+fun MetadataBatchPreview.summaryStatus(): String =
+    plan?.let(MetadataBatchPlanner::displayPlanSummary)
+        ?: noMetadataBatchEntriesStatus()
+
+fun MetadataBatchCandidateSelection.selectedStatus(): String =
+    updatedMatch.selectedCandidateStatus()
+
+fun MetadataBatchMatch.selectedCandidateStatus(): String =
+    "Selected batch candidate for $query: ${result?.displayTitle().orEmpty()}."
+
+fun metadataBatchSearchingStatus(
+    queryCount: Int,
+    sourceName: String = "metadata",
+): String =
+    "Searching $sourceName for $queryCount indexed title(s)..."
+
+fun noMetadataBatchEntriesStatus(sourceName: String = "metadata"): String =
+    "No indexed entries are available for $sourceName batch matching."
+
 object MetadataBatchPlanner {
     private const val READY_CONFIDENCE = 0.85f
 
@@ -69,6 +100,60 @@ object MetadataBatchPlanner {
         entries
             .mapNotNull(MediaIndexEntry::metadataQuery)
             .distinct()
+
+    fun previewQueryCount(
+        entries: List<MediaIndexEntry>,
+        queryLimit: Int,
+    ): Int =
+        previewQueriesFor(entries, queryLimit).size
+
+    suspend fun previewFor(
+        entries: List<MediaIndexEntry>,
+        queryLimit: Int,
+        searchCandidates: suspend (String) -> List<ScraperResult>,
+    ): MetadataBatchPreview {
+        val mediaEntries = entries.filterNot { it.isDirectory }
+        val queries = previewQueriesFor(mediaEntries, queryLimit)
+        if (queries.isEmpty()) {
+            return MetadataBatchPreview(
+                matches = emptyList(),
+                plan = null,
+                selectedMatch = null,
+            )
+        }
+
+        val matches = queries.map { query ->
+            val candidates = searchCandidates(query)
+            MetadataBatchMatch(
+                query = query,
+                result = candidates.firstOrNull(),
+                candidates = candidates,
+            )
+        }
+        val plan = planFor(mediaEntries, matches)
+        return MetadataBatchPreview(
+            matches = matches,
+            plan = plan,
+            selectedMatch = plan.reviewMatches.firstOrNull { it.result != null }
+                ?: matches.firstOrNull(),
+        )
+    }
+
+    fun selectCandidate(
+        entries: List<MediaIndexEntry>,
+        matches: List<MetadataBatchMatch>,
+        match: MetadataBatchMatch,
+        candidate: ScraperResult,
+    ): MetadataBatchCandidateSelection {
+        val mediaEntries = entries.filterNot { it.isDirectory }
+        val updatedMatch = match.withSelectedCandidate(candidate)
+        val updatedMatches = matches.replaceMatch(updatedMatch)
+        return MetadataBatchCandidateSelection(
+            updatedMatch = updatedMatch,
+            updatedMatches = updatedMatches,
+            plan = planFor(mediaEntries, updatedMatches),
+        )
+    }
 
     fun acceptedMatches(matches: List<MetadataBatchMatch>): List<MetadataBatchMatch> =
         matches.filter { (it.result?.confidence ?: 0f) >= READY_CONFIDENCE }
@@ -130,4 +215,11 @@ object MetadataBatchPlanner {
         !entry.metadataSource.isNullOrBlank() ||
             !entry.metadataId.isNullOrBlank() ||
             !entry.metadataTitle.isNullOrBlank()
+
+    private fun previewQueriesFor(
+        entries: List<MediaIndexEntry>,
+        queryLimit: Int,
+    ): List<String> =
+        queriesFor(entries.filterNot { it.isDirectory })
+            .take(queryLimit.coerceAtLeast(0))
 }
