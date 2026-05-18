@@ -66,4 +66,18 @@ class MpvCommandBuilderTest {
         val expectedLength = script.toByteArray(Charsets.UTF_8).size
         assertTrue(command.contains("--vf-append=vapoursynth=%$expectedLength%$script:4:auto:"))
     }
+
+    @Test
+    fun `build preview quotes arguments with whitespace and escaped quotes`() {
+        val preview = listOf(
+            "C:/MiruPlay/mpv player.exe",
+            "--title=MiruPlay \"Preview\"",
+            "D:/Anime/Episode 01.mkv",
+        ).toMpvCommandPreview()
+
+        assertEquals(
+            "\"C:/MiruPlay/mpv player.exe\" \"--title=MiruPlay \\\"Preview\\\"\" \"D:/Anime/Episode 01.mkv\"",
+            preview,
+        )
+    }
 }

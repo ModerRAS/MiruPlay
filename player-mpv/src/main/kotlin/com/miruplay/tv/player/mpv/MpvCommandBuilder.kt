@@ -72,3 +72,12 @@ class MpvCommandBuilder(
 
     private fun yesNo(value: Boolean): String = if (value) "yes" else "no"
 }
+
+fun MpvCommandBuilder.buildPreview(source: PlaybackSource): String =
+    build(source).toMpvCommandPreview()
+
+fun List<String>.toMpvCommandPreview(): String =
+    joinToString(" ") { it.toMpvPreviewArgument() }
+
+fun String.toMpvPreviewArgument(): String =
+    if (any { it.isWhitespace() }) "\"${replace("\"", "\\\"")}\"" else this
