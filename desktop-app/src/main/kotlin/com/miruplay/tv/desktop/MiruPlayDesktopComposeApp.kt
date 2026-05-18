@@ -191,7 +191,7 @@ internal fun MiruPlayDesktopComposeApp() {
     var rssEnabled by remember { mutableStateOf(true) }
     var rssSubscriptions by remember { mutableStateOf(emptyList<RssSubscriptionInfo>()) }
     var selectedRssSubscription by remember { mutableStateOf<RssSubscriptionInfo?>(null) }
-    var cloudRssStatus by remember { mutableStateOf("Load or save Cloud/RSS automation settings.") }
+    var cloudRssStatus by remember { mutableStateOf(cloudRssInitialMessage()) }
     var mediaPath by remember { mutableStateOf("") }
     var subtitlePath by remember { mutableStateOf("") }
     var startSeconds by remember { mutableStateOf("0") }
@@ -302,13 +302,9 @@ internal fun MiruPlayDesktopComposeApp() {
             repositories.cloudDriveAutomation.observeSubscriptions().first()
         }.onSuccess { subscriptions ->
             rssSubscriptions = subscriptions
-            cloudRssStatus = if (subscriptions.isEmpty()) {
-                "No RSS subscriptions configured."
-            } else {
-                "Loaded ${subscriptions.size} RSS subscription(s)."
-            }
+            cloudRssStatus = rssSubscriptionsLoadedMessage(subscriptions)
         }.onFailure { error ->
-            cloudRssStatus = error.message ?: "Failed to load RSS subscriptions."
+            cloudRssStatus = rssSubscriptionsLoadFailedMessage(error.message)
         }
     }
 
@@ -387,13 +383,9 @@ internal fun MiruPlayDesktopComposeApp() {
             selectedRssSubscription = selectedRssSubscription?.let { selected ->
                 subscriptions.firstOrNull { it.id == selected.id }
             }
-            cloudRssStatus = if (subscriptions.isEmpty()) {
-                "No RSS subscriptions configured."
-            } else {
-                "Showing ${subscriptions.size} RSS subscription(s)."
-            }
+            cloudRssStatus = rssSubscriptionsShowingMessage(subscriptions)
         }.onFailure { error ->
-            cloudRssStatus = error.message ?: "Failed to refresh RSS subscriptions."
+            cloudRssStatus = rssSubscriptionsRefreshFailedMessage(error.message)
         }
     }
 
@@ -436,11 +428,11 @@ internal fun MiruPlayDesktopComposeApp() {
                 }
             }
         if (sourceInfo == null) {
-            cloudRssStatus = "Linked scan source was not found. Clear or relink the Cloud/RSS scan source."
+            cloudRssStatus = cloudRssScanSourceMissingMessage()
             return null
         }
 
-        cloudRssStatus = "$reason Rescanning ${sourceInfo.name}..."
+        cloudRssStatus = cloudRssRescanStartedMessage(sourceInfo, reason)
         val source = desktopSourceFromInfo(sourceInfo)
         return when (val scan = DesktopMediaLibraryScanner().scan(sourceInfo.id, source)) {
             is Result.Success -> {

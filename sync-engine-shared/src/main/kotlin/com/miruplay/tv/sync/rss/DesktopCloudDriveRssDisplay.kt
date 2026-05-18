@@ -31,6 +31,9 @@ fun linkedCloudDriveSourceLabel(
 fun cloudRssConfigSavedStatus(): String =
     "Cloud/RSS automation settings saved."
 
+fun cloudRssInitialStatus(): String =
+    "Load or save Cloud/RSS automation settings."
+
 fun cloudDriveCredentialsSavedStatus(): String =
     "CloudDrive credentials saved."
 
@@ -80,14 +83,40 @@ fun cloudRssSchedulerStoppedStatus(): String =
 fun cloudRssScanSourceRequiredStatus(): String =
     "Open a saved media source before linking Cloud/RSS scanning."
 
+fun cloudRssScanSourceMissingStatus(): String =
+    "Linked scan source was not found. Clear or relink the Cloud/RSS scan source."
+
 fun MediaSourceInfo.linkedCloudRssScanSourceStatus(): String =
     "Linked Cloud/RSS post-sync scan source: $name. Save sync config to persist it."
+
+fun MediaSourceInfo.cloudRssRescanStartedStatus(reason: String): String =
+    "$reason Rescanning $name..."
 
 fun cloudRssScanSourceClearedStatus(): String =
     "Cloud/RSS post-sync scan source cleared. Save sync config to persist it."
 
 fun rssUrlRequiredStatus(): String =
     "Enter an RSS URL first."
+
+fun List<RssSubscriptionInfo>.loadedStatus(): String =
+    if (isEmpty()) {
+        "No RSS subscriptions configured."
+    } else {
+        "Loaded $size RSS subscription(s)."
+    }
+
+fun List<RssSubscriptionInfo>.showingStatus(): String =
+    if (isEmpty()) {
+        "No RSS subscriptions configured."
+    } else {
+        "Showing $size RSS subscription(s)."
+    }
+
+fun rssSubscriptionsLoadFailedStatus(errorMessage: String?): String =
+    errorMessage ?: "Failed to load RSS subscriptions."
+
+fun rssSubscriptionsRefreshFailedStatus(errorMessage: String?): String =
+    errorMessage ?: "Failed to refresh RSS subscriptions."
 
 fun RssSubscriptionInfo.savedStatus(): String =
     "RSS subscription saved: $name"

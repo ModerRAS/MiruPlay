@@ -2,6 +2,7 @@ package com.miruplay.tv.desktop
 
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.sync.rss.CloudDriveRssRunSummary
 import com.miruplay.tv.sync.rss.DesktopCloudDriveRssSchedulerState
 import org.junit.Assert.assertEquals
@@ -47,5 +48,34 @@ class DesktopCloudRssPresentersTest {
         assertEquals("None", linkedSourceLabel(sources, null))
         assertEquals("Missing source #8", linkedSourceLabel(sources, 8L))
         assertEquals("Cloud WebDAV (WEBDAV)", linkedSourceLabel(sources, 7L))
+    }
+
+    @Test
+    fun `subscription list messages are shared with sync display`() {
+        val subscription = RssSubscriptionInfo(name = "Anime", url = "https://example.test/rss.xml")
+
+        assertEquals("Load or save Cloud/RSS automation settings.", cloudRssInitialMessage())
+        assertEquals("No RSS subscriptions configured.", rssSubscriptionsLoadedMessage(emptyList()))
+        assertEquals("Loaded 1 RSS subscription(s).", rssSubscriptionsLoadedMessage(listOf(subscription)))
+        assertEquals("No RSS subscriptions configured.", rssSubscriptionsShowingMessage(emptyList()))
+        assertEquals("Showing 1 RSS subscription(s).", rssSubscriptionsShowingMessage(listOf(subscription)))
+        assertEquals("Failed to load RSS subscriptions.", rssSubscriptionsLoadFailedMessage(null))
+        assertEquals("load failed", rssSubscriptionsLoadFailedMessage("load failed"))
+        assertEquals("Failed to refresh RSS subscriptions.", rssSubscriptionsRefreshFailedMessage(null))
+        assertEquals("refresh failed", rssSubscriptionsRefreshFailedMessage("refresh failed"))
+    }
+
+    @Test
+    fun `linked scan messages are shared with sync display`() {
+        val source = MediaSourceInfo(id = 7L, name = "Cloud WebDAV", type = MediaSourceType.WEBDAV)
+
+        assertEquals(
+            "Linked scan source was not found. Clear or relink the Cloud/RSS scan source.",
+            cloudRssScanSourceMissingMessage(),
+        )
+        assertEquals(
+            "Scheduled sync complete. Rescanning Cloud WebDAV...",
+            cloudRssRescanStartedMessage(source, "Scheduled sync complete."),
+        )
     }
 }

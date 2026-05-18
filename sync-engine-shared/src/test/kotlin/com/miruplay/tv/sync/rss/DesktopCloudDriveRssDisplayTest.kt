@@ -79,6 +79,21 @@ class DesktopCloudDriveRssDisplayTest {
     }
 
     @Test
+    fun `subscription list statuses share desktop wording`() {
+        val subscription = RssSubscriptionInfo(name = "Anime", url = "https://example.test/rss.xml")
+
+        assertEquals("Load or save Cloud/RSS automation settings.", cloudRssInitialStatus())
+        assertEquals("No RSS subscriptions configured.", emptyList<RssSubscriptionInfo>().loadedStatus())
+        assertEquals("Loaded 1 RSS subscription(s).", listOf(subscription).loadedStatus())
+        assertEquals("No RSS subscriptions configured.", emptyList<RssSubscriptionInfo>().showingStatus())
+        assertEquals("Showing 1 RSS subscription(s).", listOf(subscription).showingStatus())
+        assertEquals("Failed to load RSS subscriptions.", rssSubscriptionsLoadFailedStatus(null))
+        assertEquals("load failed", rssSubscriptionsLoadFailedStatus("load failed"))
+        assertEquals("Failed to refresh RSS subscriptions.", rssSubscriptionsRefreshFailedStatus(null))
+        assertEquals("refresh failed", rssSubscriptionsRefreshFailedStatus("refresh failed"))
+    }
+
+    @Test
     fun `run scheduler scan source and rss statuses share desktop wording`() {
         val summary = CloudDriveRssRunSummary(submitted = 3, skipped = 2, failed = 1, organized = 4)
         val source = MediaSourceInfo(id = 7L, name = "Cloud WebDAV", type = MediaSourceType.WEBDAV)
@@ -104,8 +119,16 @@ class DesktopCloudDriveRssDisplayTest {
             cloudRssScanSourceRequiredStatus(),
         )
         assertEquals(
+            "Linked scan source was not found. Clear or relink the Cloud/RSS scan source.",
+            cloudRssScanSourceMissingStatus(),
+        )
+        assertEquals(
             "Linked Cloud/RSS post-sync scan source: Cloud WebDAV. Save sync config to persist it.",
             source.linkedCloudRssScanSourceStatus(),
+        )
+        assertEquals(
+            "Scheduled sync complete. Rescanning Cloud WebDAV...",
+            source.cloudRssRescanStartedStatus("Scheduled sync complete."),
         )
         assertEquals(
             "Cloud/RSS post-sync scan source cleared. Save sync config to persist it.",
