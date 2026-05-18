@@ -19,6 +19,12 @@ class StreamRangeTest {
     }
 
     @Test
+    fun `range formats HTTP Range header`() {
+        assertEquals("bytes=2-5", StreamRange(2, 5).toHttpRangeHeader())
+        assertEquals("bytes=7-", StreamRange(7).toHttpRangeHeader())
+    }
+
+    @Test
     fun `applyRange skips start and limits length`() {
         val stream = ByteArrayInputStream("0123456789".toByteArray()).applyRange(StreamRange(2, 5))
 
