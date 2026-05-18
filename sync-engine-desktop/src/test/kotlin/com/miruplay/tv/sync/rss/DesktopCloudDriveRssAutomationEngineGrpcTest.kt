@@ -73,7 +73,7 @@ class DesktopCloudDriveRssAutomationEngineGrpcTest {
             credentials = FakeCredentials(token = "api-token"),
             feedFetcher = feedReader,
             cloudDriveClient = client,
-            organizer = DesktopCloudDriveLibraryOrganizer(client),
+            organizer = CloudDriveLibraryOrganizer(client),
         )
 
         val result = engine.runOnce()
