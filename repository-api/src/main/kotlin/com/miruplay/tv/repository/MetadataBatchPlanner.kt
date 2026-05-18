@@ -84,6 +84,65 @@ fun MetadataBatchCandidateSelection.selectedStatus(): String =
 fun MetadataBatchMatch.selectedCandidateStatus(): String =
     "Selected batch candidate for $query: ${result?.displayTitle().orEmpty()}."
 
+fun metadataInitialStatus(sourceName: String = "metadata"): String =
+    "Select an indexed video, then search $sourceName."
+
+fun metadataIndexedVideoRequiredStatus(): String =
+    "Select an indexed video first."
+
+fun metadataQuerySetFromIndexStatus(): String =
+    "Query set from selected index entry."
+
+fun metadataQueryRequiredStatus(sourceName: String = "metadata"): String =
+    "Enter a $sourceName query or select an indexed video."
+
+fun metadataSearchStartedStatus(query: String, sourceName: String = "metadata"): String =
+    "Searching $sourceName for \"$query\"..."
+
+fun metadataSearchResultStatus(
+    query: String,
+    resultCount: Int,
+    sourceName: String = "metadata",
+): String =
+    if (resultCount == 0) {
+        "No $sourceName metadata matched \"$query\"."
+    } else {
+        "Found $resultCount $sourceName match(es)."
+    }
+
+fun metadataSourceRequiredStatus(): String =
+    "Open or scan a source first."
+
+fun MetadataBatchMatch.selectedReviewStatus(): String =
+    "Selected batch review: $query."
+
+fun metadataBatchResultRequiredStatus(sourceName: String = "metadata"): String =
+    "Select a batch match with a $sourceName result first."
+
+fun MetadataBatchPlan.reviewConflictStatus(): String =
+    "Selected review has ${conflicts.size} metadata conflict${if (conflicts.size == 1) "" else "s"}; nothing was overwritten."
+
+fun metadataReviewNoMatchStatus(): String =
+    "Selected review has no matching indexed entries."
+
+fun ScraperResult.selectedMetadataStatus(): String =
+    "Selected ${displayTitle()}."
+
+fun metadataApplyEntryRequiredStatus(sourceName: String = "metadata"): String =
+    "Select an indexed video before applying $sourceName metadata."
+
+fun metadataSearchSelectionRequiredStatus(sourceName: String = "metadata"): String =
+    "Search $sourceName and select a match first."
+
+fun MediaIndexEntry.metadataAppliedStatus(sourceName: String = "metadata"): String =
+    "Applied $sourceName metadata to $path."
+
+fun metadataClearEntryRequiredStatus(): String =
+    "Select an indexed video before clearing metadata."
+
+fun MediaIndexEntry.metadataClearedStatus(): String =
+    "Cleared external metadata for $path."
+
 fun metadataBatchSearchingStatus(
     queryCount: Int,
     sourceName: String = "metadata",

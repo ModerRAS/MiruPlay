@@ -153,6 +153,45 @@ class MetadataBatchPlannerTest {
     }
 
     @Test
+    fun `metadata status helpers share desktop wording`() {
+        val entry = MediaIndexEntry(sourceId = 1L, path = "D:/Anime/Frieren/01.mkv")
+        val match = MetadataBatchMatch(query = "Frieren", result = result())
+        val conflictPlan = MetadataBatchPlan(
+            readyUpdates = emptyList(),
+            reviewMatches = emptyList(),
+            conflicts = listOf(
+                MetadataBatchConflict("Frieren", entry),
+                MetadataBatchConflict("Frieren", entry.copy(path = "D:/Anime/Frieren/02.mkv")),
+            ),
+        )
+
+        assertEquals("Select an indexed video first.", metadataIndexedVideoRequiredStatus())
+        assertEquals("Select an indexed video, then search Bangumi.", metadataInitialStatus("Bangumi"))
+        assertEquals("Query set from selected index entry.", metadataQuerySetFromIndexStatus())
+        assertEquals("Enter a Bangumi query or select an indexed video.", metadataQueryRequiredStatus("Bangumi"))
+        assertEquals("Searching Bangumi for \"Frieren\"...", metadataSearchStartedStatus("Frieren", "Bangumi"))
+        assertEquals("No Bangumi metadata matched \"Frieren\".", metadataSearchResultStatus("Frieren", 0, "Bangumi"))
+        assertEquals("Found 2 Bangumi match(es).", metadataSearchResultStatus("Frieren", 2, "Bangumi"))
+        assertEquals("Open or scan a source first.", metadataSourceRequiredStatus())
+        assertEquals("Selected batch review: Frieren.", match.selectedReviewStatus())
+        assertEquals("Select a batch match with a Bangumi result first.", metadataBatchResultRequiredStatus("Bangumi"))
+        assertEquals(
+            "Selected review has 2 metadata conflicts; nothing was overwritten.",
+            conflictPlan.reviewConflictStatus(),
+        )
+        assertEquals("Selected review has no matching indexed entries.", metadataReviewNoMatchStatus())
+        assertEquals("Selected 葬送的芙莉莲.", result().selectedMetadataStatus())
+        assertEquals(
+            "Select an indexed video before applying Bangumi metadata.",
+            metadataApplyEntryRequiredStatus("Bangumi"),
+        )
+        assertEquals("Search Bangumi and select a match first.", metadataSearchSelectionRequiredStatus("Bangumi"))
+        assertEquals("Applied Bangumi metadata to D:/Anime/Frieren/01.mkv.", entry.metadataAppliedStatus("Bangumi"))
+        assertEquals("Select an indexed video before clearing metadata.", metadataClearEntryRequiredStatus())
+        assertEquals("Cleared external metadata for D:/Anime/Frieren/01.mkv.", entry.metadataClearedStatus())
+    }
+
+    @Test
     fun `selectCandidate replaces match and replans against media entries`() {
         val entries = listOf(
             MediaIndexEntry(sourceId = 1L, path = "D:/Anime/Frieren/01.mkv", animeName = "Frieren"),
