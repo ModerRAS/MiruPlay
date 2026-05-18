@@ -5,6 +5,7 @@ import com.miruplay.tv.mediasource.desktop.DesktopMediaSource
 import com.miruplay.tv.model.FileMetadata
 import com.miruplay.tv.model.HttpByteRange
 import com.miruplay.tv.model.HttpByteRangeRequest
+import com.miruplay.tv.model.HttpStreamResponsePlan
 import com.miruplay.tv.model.MediaPathConventions
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
@@ -67,8 +68,9 @@ class DesktopPlaybackBridge : AutoCloseable, DesktopPlaybackUriBridge {
             ?.resolve(metadata?.size)
 
         if (range is HttpByteRange.Invalid) {
-            exchange.responseHeaders.add("Content-Range", range.contentRangeHeader)
-            exchange.sendStatus(416, "Requested range not satisfiable")
+            val plan = HttpStreamResponsePlan.from(range, metadata?.size)
+            plan.contentRangeHeader?.let { exchange.responseHeaders.add("Content-Range", it) }
+            exchange.sendStatus(plan.statusCode, "Requested range not satisfiable")
             return
         }
 
@@ -97,23 +99,17 @@ class DesktopPlaybackBridge : AutoCloseable, DesktopPlaybackUriBridge {
         }
     }
 
-    private fun HttpExchange.sendStreamHeaders(range: HttpByteRange?, metadata: FileMetadata?) {
+    private fun HttpExchange.addStreamHeaders(plan: HttpStreamResponsePlan) {
         responseHeaders.add("Content-Type", "application/octet-stream")
         responseHeaders.add("Cache-Control", "no-store")
         responseHeaders.add("Accept-Ranges", "bytes")
+        plan.contentRangeHeader?.let { responseHeaders.add("Content-Range", it) }
+    }
 
-        val resolvedRange = range as? HttpByteRange.Resolved
-        if (resolvedRange != null) {
-            responseHeaders.add(
-                "Content-Range",
-                resolvedRange.contentRangeHeader,
-            )
-            sendResponseHeaders(206, resolvedRange.length)
-            return
-        }
-
-        val size = metadata?.size?.takeIf { it > 0L }
-        sendResponseHeaders(200, size ?: 0L)
+    private fun HttpExchange.sendStreamHeaders(range: HttpByteRange?, metadata: FileMetadata?) {
+        val plan = HttpStreamResponsePlan.from(range, metadata?.size)
+        addStreamHeaders(plan)
+        sendResponseHeaders(plan.statusCode, plan.contentLength)
     }
 
     private fun HttpExchange.sendStatus(status: Int, message: String) {

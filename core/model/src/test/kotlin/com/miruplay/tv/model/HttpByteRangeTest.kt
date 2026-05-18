@@ -63,4 +63,35 @@ class HttpByteRangeTest {
         assertEquals(HttpByteRange.Unresolved, HttpByteRangeRequest(2L, 5L).resolve(null))
         assertEquals(HttpByteRange.Unresolved, HttpByteRangeRequest(2L, 5L).resolve(0L))
     }
+
+    @Test
+    fun `stream response plan maps byte range states to HTTP status and lengths`() {
+        assertEquals(
+            HttpStreamResponsePlan(statusCode = 200, contentLength = 10L),
+            HttpStreamResponsePlan.from(range = null, totalLength = 10L),
+        )
+        assertEquals(
+            HttpStreamResponsePlan(statusCode = 200, contentLength = 0L),
+            HttpStreamResponsePlan.from(range = HttpByteRange.Unresolved, totalLength = null),
+        )
+        assertEquals(
+            HttpStreamResponsePlan(
+                statusCode = 206,
+                contentLength = 4L,
+                contentRangeHeader = "bytes 2-5/10",
+            ),
+            HttpStreamResponsePlan.from(
+                range = HttpByteRange.Resolved(start = 2L, endInclusive = 5L, totalLength = 10L),
+                totalLength = 10L,
+            ),
+        )
+        assertEquals(
+            HttpStreamResponsePlan(
+                statusCode = 416,
+                contentLength = 0L,
+                contentRangeHeader = "bytes */10",
+            ),
+            HttpStreamResponsePlan.from(range = HttpByteRange.Invalid(totalLength = 10L), totalLength = 10L),
+        )
+    }
 }
