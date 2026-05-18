@@ -1162,7 +1162,7 @@ internal fun MiruPlayDesktopComposeApp() {
                             is Result.Success -> {
                                 cloudIntervalMinutes = interval.toString()
                                 rssProxyPort = proxyPort.toString()
-                                cloudRssStatus = "Cloud/RSS automation settings saved."
+                                cloudRssStatus = cloudRssConfigSavedMessage()
                             }
                             is Result.Error -> cloudRssStatus = result.error.toUserMessage()
                         }
@@ -1171,7 +1171,7 @@ internal fun MiruPlayDesktopComposeApp() {
                 onSaveCredentials = {
                     repositories.credentials.cloudDriveToken = cloudToken.trim().takeIf { it.isNotBlank() }
                     repositories.credentials.cloudDrivePassword = cloudPassword.takeIf { it.isNotBlank() }
-                    cloudRssStatus = "CloudDrive credentials saved."
+                    cloudRssStatus = cloudDriveCredentialsSavedMessage()
                 },
                 onLoginCloudDrive = {
                     scope.launch {
@@ -1179,14 +1179,14 @@ internal fun MiruPlayDesktopComposeApp() {
                         val user = cloudUsername.trim()
                         val pass = cloudPassword
                         if (endpoint.isBlank() || user.isBlank() || pass.isBlank()) {
-                            cloudRssStatus = "Enter CloudDrive2 endpoint, username, and password first."
+                            cloudRssStatus = cloudDriveLoginRequiredMessage()
                             return@launch
                         }
-                        cloudRssStatus = "Logging into CloudDrive2..."
+                        cloudRssStatus = cloudDriveLoginStartedMessage()
                         when (val result = cloudRssEngine.login(endpoint, user, pass)) {
                             is Result.Success -> {
                                 cloudToken = repositories.credentials.cloudDriveToken.orEmpty()
-                                cloudRssStatus = "CloudDrive2 login succeeded; token saved."
+                                cloudRssStatus = cloudDriveLoginSucceededMessage()
                             }
                             is Result.Error -> cloudRssStatus = result.error.toUserMessage()
                         }
@@ -1197,16 +1197,14 @@ internal fun MiruPlayDesktopComposeApp() {
                         val endpoint = cloudEndpointUrl.trim()
                         val apiToken = cloudToken.trim()
                         if (endpoint.isBlank() || apiToken.isBlank()) {
-                            cloudRssStatus = "Enter CloudDrive2 endpoint and API token first."
+                            cloudRssStatus = cloudDriveTokenRequiredMessage()
                             return@launch
                         }
-                        cloudRssStatus = "Validating CloudDrive2 API token..."
+                        cloudRssStatus = cloudDriveTokenValidationStartedMessage()
                         when (val result = cloudRssEngine.saveApiToken(endpoint, apiToken)) {
                             is Result.Success -> {
                                 cloudToken = apiToken
-                                val label = result.data.friendlyName.takeIf { it.isNotBlank() }
-                                    ?: result.data.rootDir.ifBlank { "CloudDrive2" }
-                                cloudRssStatus = "CloudDrive2 API token verified and saved: $label."
+                                cloudRssStatus = cloudDriveTokenVerifiedMessage(result.data)
                             }
                             is Result.Error -> cloudRssStatus = result.error.toUserMessage()
                         }
@@ -1216,15 +1214,14 @@ internal fun MiruPlayDesktopComposeApp() {
                     repositories.credentials.clearCloudDriveCredentials()
                     cloudToken = ""
                     cloudPassword = ""
-                    cloudRssStatus = "CloudDrive credentials cleared."
+                    cloudRssStatus = cloudDriveCredentialsClearedMessage()
                 },
                 onRunSync = {
                     scope.launch {
-                        cloudRssStatus = "Running Cloud/RSS sync..."
+                        cloudRssStatus = cloudRssRunStartedMessage()
                         when (val result = cloudRssEngine.runOnce()) {
                             is Result.Success -> {
-                                val summary = result.data
-                                val message = "Sync complete: ${summary.submitted} submitted, ${summary.skipped} skipped, ${summary.failed} failed, ${summary.organized} organized."
+                                val message = cloudRssRunCompleteMessage(result.data)
                                 cloudRssStatus = message
                                 rescanLinkedCloudSource(message)?.let { scanMessage ->
                                     cloudRssStatus = "$message $scanMessage"
@@ -1236,37 +1233,35 @@ internal fun MiruPlayDesktopComposeApp() {
                 },
                 onStartScheduler = {
                     if (!cloudEnabled) {
-                        cloudRssStatus = "Enable and save Cloud/RSS sync before starting the scheduler."
-                    } else if (cloudRssScheduler.start()) {
-                        cloudRssStatus = "Cloud/RSS scheduler started."
+                        cloudRssStatus = cloudRssSchedulerDisabledMessage()
                     } else {
-                        cloudRssStatus = "Cloud/RSS scheduler is already running."
+                        cloudRssStatus = cloudRssSchedulerStartMessage(cloudRssScheduler.start())
                     }
                 },
                 onStopScheduler = {
                     cloudRssScheduler.stop()
-                    cloudRssStatus = "Cloud/RSS scheduler stopped."
+                    cloudRssStatus = cloudRssSchedulerStoppedMessage()
                 },
                 onUseActiveScanSource = {
                     val sourceId = activeSourceId
                     val sourceInfo = savedSources.firstOrNull { it.id == sourceId }
                         ?: activeSource?.info?.takeIf { it.id == sourceId }
                     if (sourceId == null || sourceInfo == null) {
-                        cloudRssStatus = "Open a saved media source before linking Cloud/RSS scanning."
+                        cloudRssStatus = cloudRssScanSourceRequiredMessage()
                     } else {
                         cloudLinkedSourceId = sourceId
-                        cloudRssStatus = "Linked Cloud/RSS post-sync scan source: ${sourceInfo.name}. Save sync config to persist it."
+                        cloudRssStatus = linkedCloudRssScanSourceMessage(sourceInfo)
                     }
                 },
                 onClearScanSource = {
                     cloudLinkedSourceId = null
-                    cloudRssStatus = "Cloud/RSS post-sync scan source cleared. Save sync config to persist it."
+                    cloudRssStatus = cloudRssScanSourceClearedMessage()
                 },
                 onSaveSubscription = {
                     scope.launch {
                         val url = rssUrl.trim()
                         if (url.isBlank()) {
-                            cloudRssStatus = "Enter an RSS URL first."
+                            cloudRssStatus = rssUrlRequiredMessage()
                             return@launch
                         }
                         val selectedMatchingSubscription = selectedRssSubscription?.takeIf { it.url == url }
@@ -1278,12 +1273,12 @@ internal fun MiruPlayDesktopComposeApp() {
                             existingId = selectedMatchingSubscription?.id ?: 0L,
                             existingLastCheckedAt = selectedMatchingSubscription?.lastCheckedAt ?: 0L,
                         ) ?: run {
-                            cloudRssStatus = "Enter an RSS URL first."
+                            cloudRssStatus = rssUrlRequiredMessage()
                             return@launch
                         }
                         when (val result = repositories.cloudDriveAutomation.saveSubscription(subscription)) {
                             is Result.Success -> {
-                                cloudRssStatus = "RSS subscription saved: ${subscription.name}"
+                                cloudRssStatus = rssSubscriptionSavedMessage(subscription)
                                 refreshRssSubscriptions()
                             }
                             is Result.Error -> cloudRssStatus = result.error.toUserMessage()
@@ -1296,13 +1291,13 @@ internal fun MiruPlayDesktopComposeApp() {
                     rssUrl = subscription.url
                     rssFilter = subscription.filterRegex.orEmpty()
                     rssEnabled = subscription.enabled
-                    cloudRssStatus = "Selected RSS subscription: ${subscription.name}"
+                    cloudRssStatus = rssSubscriptionSelectedMessage(subscription)
                 },
                 onDeleteSubscription = {
                     scope.launch {
                         val subscription = selectedRssSubscription
                         if (subscription == null) {
-                            cloudRssStatus = "Select an RSS subscription first."
+                            cloudRssStatus = rssSubscriptionRequiredMessage()
                             return@launch
                         }
                         when (val result = repositories.cloudDriveAutomation.deleteSubscription(subscription.id)) {
@@ -1312,7 +1307,7 @@ internal fun MiruPlayDesktopComposeApp() {
                                 rssUrl = ""
                                 rssFilter = ""
                                 rssEnabled = true
-                                cloudRssStatus = "RSS subscription deleted."
+                                cloudRssStatus = rssSubscriptionDeletedMessage()
                                 refreshRssSubscriptions()
                             }
                             is Result.Error -> cloudRssStatus = result.error.toUserMessage()
