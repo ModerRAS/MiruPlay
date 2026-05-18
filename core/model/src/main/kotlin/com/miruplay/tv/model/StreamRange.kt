@@ -14,6 +14,9 @@ data class StreamRange(
     val length: Long? = endInclusive?.let { it - start + 1L }
 }
 
+fun StreamRange.toHttpRangeHeader(): String =
+    "bytes=$start-${endInclusive?.toString().orEmpty()}"
+
 fun InputStream.applyRange(range: StreamRange): InputStream {
     skipFully(range.start)
     val length = range.length ?: return this

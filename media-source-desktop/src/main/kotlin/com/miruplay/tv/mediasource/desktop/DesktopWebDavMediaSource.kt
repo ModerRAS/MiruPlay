@@ -9,6 +9,7 @@ import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.MediaCapabilities
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
+import com.miruplay.tv.model.toHttpRangeHeader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Credentials
@@ -70,7 +71,7 @@ class DesktopWebDavMediaSource(
         openHttpStream(path, rangeHeader = null)
 
     override suspend fun openStream(path: String, range: DesktopStreamRange): Result<InputStream> =
-        openHttpStream(path, rangeHeader = range.toHttpHeader())
+        openHttpStream(path, rangeHeader = range.toHttpRangeHeader())
 
     private suspend fun openHttpStream(path: String, rangeHeader: String?): Result<InputStream> = withContext(Dispatchers.IO) {
         val url = normalizeUrl(path)
@@ -182,9 +183,6 @@ class DesktopWebDavMediaSource(
         }
         return this
     }
-
-    private fun DesktopStreamRange.toHttpHeader(): String =
-        "bytes=$start-${endInclusive?.toString().orEmpty()}"
 
     private fun hrefToRemotePath(href: String): String {
         val decoded = decodeHref(href)
