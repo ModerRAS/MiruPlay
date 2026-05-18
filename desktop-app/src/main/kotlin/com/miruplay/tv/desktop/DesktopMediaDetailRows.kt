@@ -56,9 +56,6 @@ internal object DesktopMediaDetailRows {
         addRow("Path", indexEntry?.path ?: remoteEntry?.path ?: recentRecord?.episodeId ?: "None")
     }
 
-    private fun sourceLabel(source: MediaSourceInfo): String =
-        "${source.name} · ${source.type.name}"
-
     private fun formatTimestamp(epochMillis: Long): String? =
         epochMillis
             .takeIf { it > 0L }
