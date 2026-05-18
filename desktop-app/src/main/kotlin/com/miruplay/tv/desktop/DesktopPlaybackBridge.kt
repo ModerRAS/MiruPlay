@@ -14,7 +14,7 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 
-class DesktopPlaybackBridge : AutoCloseable {
+class DesktopPlaybackBridge : AutoCloseable, DesktopPlaybackUriBridge {
     private val routes = ConcurrentHashMap<String, Route>()
     private val server: HttpServer = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
     private val executor = Executors.newCachedThreadPool { task ->
@@ -29,7 +29,7 @@ class DesktopPlaybackBridge : AutoCloseable {
         server.start()
     }
 
-    fun playableUri(source: DesktopMediaSource, path: String): String {
+    override fun playableUri(source: DesktopMediaSource, path: String): String {
         val token = UUID.randomUUID().toString()
         routes[token] = Route(source = source, path = path)
         val name = path.substringAfterLast('/').substringAfterLast('\\')
