@@ -69,7 +69,6 @@ import com.miruplay.tv.sync.rss.DesktopCloudDriveRssSchedulerState
 import com.miruplay.tv.mediasource.desktop.DesktopLocalMediaSource
 import com.miruplay.tv.mediasource.desktop.DesktopMediaSource
 import com.miruplay.tv.mediasource.desktop.DesktopSmbMediaSource
-import com.miruplay.tv.mediasource.desktop.DesktopWebDavMediaSource
 import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.MediaSourceInfo
@@ -2647,12 +2646,6 @@ private fun ToggleRow(
     }
 }
 
-private fun sourceLabel(source: MediaSourceInfo): String = buildString {
-    append(source.name)
-    append(" · ")
-    append(source.type.name)
-}
-
 @Composable
 private fun RifeBackendPicker(
     selected: RifeBackend,
@@ -2945,55 +2938,6 @@ private fun buildPlaybackSource(
     )
 }
 
-private fun webDavSourceInfo(
-    url: String,
-    username: String,
-    password: String,
-): MediaSourceInfo =
-    MediaSourceInfo(
-        name = url.substringAfter("://", url).trim('/').ifBlank { "WebDAV" },
-        type = MediaSourceType.WEBDAV,
-        connectionInfo = buildMap {
-            put("url", url)
-            if (username.isNotBlank()) put("username", username)
-            if (password.isNotBlank()) put("password", password)
-        },
-        isConnected = true,
-    )
-
-private fun smbSourceInfo(
-    url: String,
-    domain: String,
-    username: String,
-    password: String,
-): MediaSourceInfo =
-    MediaSourceInfo(
-        name = url.removePrefix("smb://").trim('\\', '/').ifBlank { "SMB" },
-        type = MediaSourceType.SMB,
-        connectionInfo = buildMap {
-            put("url", DesktopSmbMediaSource.normalizeRoot(url))
-            if (domain.isNotBlank()) put("domain", domain)
-            if (username.isNotBlank()) put("username", username)
-            if (password.isNotBlank()) put("password", password)
-        },
-        isConnected = true,
-    )
-
-private fun desktopSourceFromInfo(info: MediaSourceInfo): DesktopMediaSource =
-    when (info.type) {
-        MediaSourceType.LOCAL -> DesktopLocalMediaSource(info)
-        MediaSourceType.WEBDAV -> desktopWebDavSourceFromInfo(info)
-        MediaSourceType.SMB -> DesktopSmbMediaSource(info)
-    }
-
-private fun desktopWebDavSourceFromInfo(info: MediaSourceInfo): DesktopWebDavMediaSource =
-    DesktopWebDavMediaSource.create(
-        name = info.name,
-        url = requireNotNull(info.connectionInfo["url"]) { "WebDAV source requires connectionInfo[url]" },
-        username = info.connectionInfo["username"].orEmpty(),
-        password = info.connectionInfo["password"].orEmpty(),
-    )
-
 private fun playableUriFor(
     source: DesktopMediaSource?,
     bridge: DesktopPlaybackBridge,
@@ -3010,24 +2954,6 @@ private fun playableUriFor(
         null -> path
     }
 }
-
-private fun remoteParent(path: String): String? {
-    val clean = path.trimEnd('/')
-    if (clean.isBlank() || clean == "/") return null
-    if (clean.startsWith("smb://", ignoreCase = true)) {
-        val segments = clean.removePrefix("smb://").split('/').filter { it.isNotBlank() }
-        if (segments.size <= 2) return null
-        return "smb://${segments.dropLast(1).joinToString("/")}"
-    }
-
-    val parent = clean.trim('/').substringBeforeLast('/', "")
-    return if (parent.isBlank()) "" else "/$parent"
-}
-
-private fun List<MediaSourceInfo>.upsertSource(source: MediaSourceInfo): List<MediaSourceInfo> =
-    map { if (it.id == source.id) source else it }.let { updated ->
-        if (updated.none { it.id == source.id }) updated + source else updated
-    }
 
 private fun bangumiQueryFor(entry: MediaIndexEntry?): String? {
     entry?.animeName?.takeIf { it.isNotBlank() }?.let { return it }
@@ -3086,9 +3012,6 @@ private fun List<MediaIndexEntry>.replaceEntries(updatedEntries: List<MediaIndex
     val byKey = updatedEntries.associateBy { it.sourceId to it.path }
     return map { entry -> byKey[entry.sourceId to entry.path] ?: entry }
 }
-
-private fun recentDisplayName(record: ProgressRecord): String =
-    record.episodeId.substringAfterLast('\\').substringAfterLast('/').ifBlank { record.episodeId }
 
 private fun String.quoteForPreview(): String =
     if (any { it.isWhitespace() }) "\"${replace("\"", "\\\"")}\"" else this
