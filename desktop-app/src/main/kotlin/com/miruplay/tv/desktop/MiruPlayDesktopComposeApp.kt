@@ -40,14 +40,17 @@ import com.miruplay.tv.mediasource.desktop.DesktopLocalMediaSource
 import com.miruplay.tv.mediasource.desktop.DesktopMediaSource
 import com.miruplay.tv.mediasource.desktop.DesktopSmbMediaSource
 import com.miruplay.tv.model.FileEntry
-import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.ScraperResult
+import com.miruplay.tv.model.buildRssSubscriptionFromForm
 import com.miruplay.tv.model.formatPlaybackPosition
+import com.miruplay.tv.model.parseCloudDriveIntervalMinutes
+import com.miruplay.tv.model.parseRssProxyPort
+import com.miruplay.tv.model.withAutomationFormValues
 import com.miruplay.tv.player.mpv.MpvProcessPlayer
 import com.miruplay.tv.player.mpv.RifeBackend
 import com.miruplay.tv.repository.MediaIndexEntry
@@ -1134,18 +1137,25 @@ internal fun MiruPlayDesktopComposeApp() {
                 linkedSourceLabel = linkedSourceLabel(savedSources, cloudLinkedSourceId),
                 onSaveConfig = {
                     scope.launch {
-                        val interval = cloudIntervalMinutes.toIntOrNull()?.coerceAtLeast(1) ?: 30
-                        val proxyPort = rssProxyPort.toIntOrNull()?.coerceIn(1, 65_535) ?: 1080
-                        val config = CloudDriveAutomationConfig(
-                            endpointUrl = cloudEndpointUrl.trim(),
-                            username = cloudUsername.trim(),
+                        val interval = parseCloudDriveIntervalMinutes(cloudIntervalMinutes)
+                        val proxyPort = parseRssProxyPort(rssProxyPort)
+                        val currentConfig = when (val current = repositories.cloudDriveAutomation.getConfig()) {
+                            is Result.Success -> current.data
+                            is Result.Error -> {
+                                cloudRssStatus = current.error.toUserMessage()
+                                return@launch
+                            }
+                        }
+                        val config = currentConfig.withAutomationFormValues(
+                            endpointUrl = cloudEndpointUrl,
+                            username = cloudUsername,
                             webDavSourceId = cloudLinkedSourceId,
-                            inboxPath = cloudInboxPath.trim(),
-                            libraryPath = cloudLibraryPath.trim(),
+                            inboxPath = cloudInboxPath,
+                            libraryPath = cloudLibraryPath,
                             intervalMinutes = interval,
                             enabled = cloudEnabled,
                             rssProxyEnabled = rssProxyEnabled,
-                            rssProxyHost = rssProxyHost.trim(),
+                            rssProxyHost = rssProxyHost,
                             rssProxyPort = proxyPort,
                         )
                         when (val result = repositories.cloudDriveAutomation.saveConfig(config)) {
@@ -1259,14 +1269,18 @@ internal fun MiruPlayDesktopComposeApp() {
                             cloudRssStatus = "Enter an RSS URL first."
                             return@launch
                         }
-                        val subscription = RssSubscriptionInfo(
-                            id = selectedRssSubscription?.takeIf { it.url == url }?.id ?: 0L,
-                            name = rssName.trim().ifBlank { url },
-                            url = url,
-                            filterRegex = rssFilter.trim().takeIf { it.isNotBlank() },
+                        val selectedMatchingSubscription = selectedRssSubscription?.takeIf { it.url == url }
+                        val subscription = buildRssSubscriptionFromForm(
+                            name = rssName,
+                            url = rssUrl,
+                            filterRegex = rssFilter,
                             enabled = rssEnabled,
-                            lastCheckedAt = selectedRssSubscription?.takeIf { it.url == url }?.lastCheckedAt ?: 0L,
-                        )
+                            existingId = selectedMatchingSubscription?.id ?: 0L,
+                            existingLastCheckedAt = selectedMatchingSubscription?.lastCheckedAt ?: 0L,
+                        ) ?: run {
+                            cloudRssStatus = "Enter an RSS URL first."
+                            return@launch
+                        }
                         when (val result = repositories.cloudDriveAutomation.saveSubscription(subscription)) {
                             is Result.Success -> {
                                 cloudRssStatus = "RSS subscription saved: ${subscription.name}"
