@@ -12,12 +12,7 @@ import com.miruplay.tv.player.mpv.buildPreview
 import com.miruplay.tv.player.mpv.mpvRuntimeConfigFromInputs
 
 internal fun runtimeStatus(mpvPath: String, configDir: String): String =
-    runCatching {
-        val verification = MpvRuntimeVerifier.verify(DesktopRuntimeDefaults.runtimeRoot(mpvPath, configDir))
-        verification.detailMessage()
-    }.getOrElse { error ->
-        "Runtime check failed: ${error.message ?: error::class.simpleName}"
-    }
+    MpvRuntimeVerifier.statusFromInputs(mpvPath, configDir)
 
 internal fun buildCommandPreview(
     mpvPath: String,

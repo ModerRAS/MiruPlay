@@ -62,6 +62,14 @@ data class MpvRuntimeVerification(
 object MpvRuntimeVerifier {
     private val manifestJson = Json { ignoreUnknownKeys = true }
 
+    fun statusFromInputs(mpvPath: String, configDir: String): String =
+        runCatching {
+            val root = MpvRuntimeDiscovery.inferRootFromInputs(mpvPath, configDir)
+            verify(root).detailMessage()
+        }.getOrElse { error ->
+            "Runtime check failed: ${error.message ?: error::class.simpleName}"
+        }
+
     fun verify(layout: MpvRuntimeLayout): MpvRuntimeVerification {
         val manifest = readManifest(layout)
         val requiredBackends = manifest

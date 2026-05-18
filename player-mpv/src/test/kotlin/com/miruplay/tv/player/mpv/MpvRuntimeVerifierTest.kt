@@ -161,4 +161,27 @@ class MpvRuntimeVerifierTest {
             tempDir.toFile().deleteRecursively()
         }
     }
+
+    @Test
+    fun `statusFromInputs verifies inferred runtime root`() {
+        val tempDir = Files.createTempDirectory("miruplay-runtime")
+        try {
+            val layout = MpvRuntimeDiscovery.layoutFor(tempDir)
+            Files.createDirectories(layout.configDirectory.resolve("vs"))
+            Files.createFile(layout.executable)
+            Files.createFile(layout.rifeScript(RifeBackend.NVIDIA))
+            Files.createFile(layout.rifeScript(RifeBackend.DIRECTML))
+            Files.createFile(layout.rifeScript(RifeBackend.STANDARD))
+
+            val status = MpvRuntimeVerifier.statusFromInputs(
+                mpvPath = layout.executable.toString(),
+                configDir = layout.configDirectory.toString(),
+            )
+
+            assertTrue(status.contains("Bundled mpv runtime is ready"))
+            assertTrue(status.contains("NVIDIA"))
+        } finally {
+            tempDir.toFile().deleteRecursively()
+        }
+    }
 }
