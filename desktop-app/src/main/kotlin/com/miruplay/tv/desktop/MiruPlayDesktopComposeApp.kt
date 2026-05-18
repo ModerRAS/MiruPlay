@@ -150,7 +150,7 @@ internal fun MiruPlayDesktopComposeApp() {
     var indexQuery by remember { mutableStateOf("") }
     var indexedEntries by remember { mutableStateOf(emptyList<MediaIndexEntry>()) }
     var selectedIndexEntry by remember { mutableStateOf<MediaIndexEntry?>(null) }
-    var libraryStatus by remember { mutableStateOf("Add a local library source or load an existing one.") }
+    var libraryStatus by remember { mutableStateOf(localLibraryInitialStatus()) }
     var webDavUrl by remember { mutableStateOf("") }
     var webDavUsername by remember { mutableStateOf("") }
     var webDavPassword by remember { mutableStateOf("") }
@@ -161,7 +161,7 @@ internal fun MiruPlayDesktopComposeApp() {
     var remotePath by remember { mutableStateOf("") }
     var remoteEntries by remember { mutableStateOf(emptyList<FileEntry>()) }
     var selectedRemoteEntry by remember { mutableStateOf<FileEntry?>(null) }
-    var remoteStatus by remember { mutableStateOf("Open a WebDAV or SMB source to browse it.") }
+    var remoteStatus by remember { mutableStateOf(remoteBrowserInitialStatus()) }
     var bangumiQuery by remember { mutableStateOf("") }
     var bangumiResults by remember { mutableStateOf(emptyList<ScraperResult>()) }
     var selectedBangumiResult by remember { mutableStateOf<ScraperResult?>(null) }
@@ -248,7 +248,7 @@ internal fun MiruPlayDesktopComposeApp() {
                     val localSource = DesktopLocalMediaSource(local)
                     activeLocalSource = localSource
                     activeSource = localSource
-                    libraryStatus = "Loaded local source: ${local.name}"
+                    libraryStatus = loadedSourceStatus(local)
                 }
                 if (webDav != null) {
                     webDavUrl = webDav.connectionInfo["url"].orEmpty()
@@ -257,7 +257,7 @@ internal fun MiruPlayDesktopComposeApp() {
                     if (local == null) {
                         activeSourceId = webDav.id
                         activeSource = desktopWebDavSourceFromInfo(webDav)
-                        remoteStatus = "Loaded WebDAV source: ${webDav.name}"
+                        remoteStatus = loadedSourceStatus(webDav)
                     }
                 }
                 if (smb != null) {
@@ -268,7 +268,7 @@ internal fun MiruPlayDesktopComposeApp() {
                     if (local == null && webDav == null) {
                         activeSourceId = smb.id
                         activeSource = DesktopSmbMediaSource(smb)
-                        remoteStatus = "Loaded SMB source: ${smb.name}"
+                        remoteStatus = loadedSourceStatus(smb)
                     }
                 }
             }
@@ -313,13 +313,13 @@ internal fun MiruPlayDesktopComposeApp() {
     }
 
     suspend fun loadRemoteDirectory(source: DesktopMediaSource, path: String) {
-        remoteStatus = "Loading ${source.info.type.name} ${path.ifBlank { "/" }}..."
+        remoteStatus = remoteLoadingStatus(source.info, path)
         when (val result = source.listFiles(path)) {
             is Result.Success -> {
                 remotePath = path
                 remoteEntries = result.data
                 selectedRemoteEntry = null
-                remoteStatus = "Showing ${result.data.size} item(s) from ${source.info.name}."
+                remoteStatus = remoteShowingStatus(source.info, result.data)
             }
             is Result.Error -> remoteStatus = result.error.toUserMessage()
         }
@@ -401,7 +401,7 @@ internal fun MiruPlayDesktopComposeApp() {
         val sourceId = activeSourceId
         val source = activeSource ?: activeLocalSource
         if (sourceId == null || source == null) {
-            updateStatus("Open a source before scanning.")
+            updateStatus(openSourceBeforeScanningStatus())
             return
         }
         updateStatus("Scanning ${source.info.name}...")
@@ -492,14 +492,14 @@ internal fun MiruPlayDesktopComposeApp() {
                 libraryRoot = sourceInfo.connectionInfo["path"].orEmpty()
                 remoteEntries = emptyList()
                 remotePath = ""
-                libraryStatus = "Loaded saved local source: ${sourceInfo.name}"
+                libraryStatus = loadedSourceStatus(sourceInfo, saved = true)
             }
             MediaSourceType.WEBDAV -> {
                 webDavUrl = sourceInfo.connectionInfo["url"].orEmpty()
                 webDavUsername = sourceInfo.connectionInfo["username"].orEmpty()
                 webDavPassword = sourceInfo.connectionInfo["password"].orEmpty()
                 remotePath = ""
-                remoteStatus = "Loaded saved WebDAV source: ${sourceInfo.name}"
+                remoteStatus = loadedSourceStatus(sourceInfo, saved = true)
                 loadRemoteDirectory(source, "")
             }
             MediaSourceType.SMB -> {
@@ -508,7 +508,7 @@ internal fun MiruPlayDesktopComposeApp() {
                 smbUsername = sourceInfo.connectionInfo["username"].orEmpty()
                 smbPassword = sourceInfo.connectionInfo["password"].orEmpty()
                 remotePath = ""
-                remoteStatus = "Loaded saved SMB source: ${sourceInfo.name}"
+                remoteStatus = loadedSourceStatus(sourceInfo, saved = true)
                 loadRemoteDirectory(source, "")
             }
         }
@@ -553,7 +553,7 @@ internal fun MiruPlayDesktopComposeApp() {
                     scope.launch {
                         val rootText = libraryRoot.trim()
                         if (rootText.isBlank()) {
-                            libraryStatus = "Enter a local library root first."
+                            libraryStatus = localRootRequiredStatus()
                             return@launch
                         }
                         val root = Paths.get(rootText).toAbsolutePath().normalize()
@@ -570,7 +570,7 @@ internal fun MiruPlayDesktopComposeApp() {
                                 activeLocalSource = localSource
                                 activeSource = localSource
                                 savedSources = savedSources.upsertSource(stored)
-                                libraryStatus = "Local source ready: ${stored.name}"
+                                libraryStatus = readySourceStatus(stored)
                             }
                             is Result.Error -> libraryStatus = result.error.toUserMessage()
                         }
@@ -585,17 +585,17 @@ internal fun MiruPlayDesktopComposeApp() {
                     scope.launch {
                         val sourceId = activeSourceId
                         if (sourceId == null) {
-                            libraryStatus = "Open or scan a source before searching."
+                            libraryStatus = openSourceBeforeSearchingStatus()
                             return@launch
                         }
                         when (val result = repositories.index.queryIndex(sourceId, indexQuery.trim())) {
                             is Result.Success -> {
                                 indexedEntries = result.data.filterNot { it.isDirectory }.take(24)
-                                libraryStatus = if (result.data.isEmpty()) {
-                                    "No indexed media matched \"${indexQuery.trim()}\"."
-                                } else {
-                                    "Showing ${indexedEntries.size} indexed video result(s)."
-                                }
+                                libraryStatus = indexedSearchStatus(
+                                    query = indexQuery,
+                                    hasResults = result.data.isNotEmpty(),
+                                    displayedResultCount = indexedEntries.size,
+                                )
                             }
                             is Result.Error -> libraryStatus = result.error.toUserMessage()
                         }
@@ -605,7 +605,7 @@ internal fun MiruPlayDesktopComposeApp() {
                     scope.launch {
                         val sourceId = activeSourceId
                         if (sourceId == null) {
-                            libraryStatus = "Open or scan a source before clearing its index."
+                            libraryStatus = openSourceBeforeClearingIndexStatus()
                             return@launch
                         }
                         when (val result = repositories.index.clearIndex(sourceId)) {
@@ -618,7 +618,7 @@ internal fun MiruPlayDesktopComposeApp() {
                                 selectedBangumiBatchMatch = null
                                 bangumiBatchPlan = null
                                 bangumiBatchRollback = emptyList()
-                                libraryStatus = "Index cleared for source id: $sourceId."
+                                libraryStatus = clearedIndexStatus(sourceId)
                                 bangumiStatus = "Select an indexed video, then search Bangumi."
                             }
                             is Result.Error -> libraryStatus = result.error.toUserMessage()
@@ -629,7 +629,7 @@ internal fun MiruPlayDesktopComposeApp() {
                     scope.launch {
                         val sourceId = activeSourceId
                         if (sourceId == null) {
-                            libraryStatus = "Open a source before removing it."
+                            libraryStatus = sourceRemoveRequiredStatus()
                             return@launch
                         }
                         when (val result = repositories.mediaSources.removeSource(sourceId)) {
@@ -658,8 +658,8 @@ internal fun MiruPlayDesktopComposeApp() {
                                 bangumiBatchPlan = null
                                 bangumiBatchRollback = emptyList()
                                 mediaPath = ""
-                                libraryStatus = "Source removed. Associated index entries were cleared."
-                                remoteStatus = "Open a WebDAV or SMB source to browse it."
+                                libraryStatus = sourceRemovedStatus()
+                                remoteStatus = remoteBrowserInitialStatus()
                                 bangumiStatus = "Select an indexed video, then search Bangumi."
                             }
                             is Result.Error -> libraryStatus = result.error.toUserMessage()
@@ -669,7 +669,7 @@ internal fun MiruPlayDesktopComposeApp() {
                 onEntrySelected = { entry ->
                     selectedIndexEntry = entry
                     mediaPath = entry.path
-                    launchStatus = "Selected ${entry.displayName()} for playback."
+                    launchStatus = selectedIndexEntryPlaybackStatus(entry)
                 },
             )
             RemoteSourcesPanel(
@@ -695,7 +695,7 @@ internal fun MiruPlayDesktopComposeApp() {
                     scope.launch {
                         val url = webDavUrl.trim()
                         if (url.isBlank()) {
-                            remoteStatus = "Enter a WebDAV URL first."
+                            remoteStatus = webDavUrlRequiredStatus()
                             return@launch
                         }
                         val sourceInfo = webDavSourceInfo(url, webDavUsername.trim(), webDavPassword)
@@ -707,7 +707,7 @@ internal fun MiruPlayDesktopComposeApp() {
                                 activeSource = source
                                 savedSources = savedSources.upsertSource(stored)
                                 remotePath = ""
-                                remoteStatus = "WebDAV source ready: ${stored.name}"
+                                remoteStatus = readySourceStatus(stored)
                                 loadRemoteDirectory(source, "")
                             }
                             is Result.Error -> remoteStatus = result.error.toUserMessage()
@@ -718,7 +718,7 @@ internal fun MiruPlayDesktopComposeApp() {
                     scope.launch {
                         val url = smbUrl.trim()
                         if (url.isBlank()) {
-                            remoteStatus = "Enter an SMB URL first."
+                            remoteStatus = smbUrlRequiredStatus()
                             return@launch
                         }
                         val sourceInfo = smbSourceInfo(
@@ -735,7 +735,7 @@ internal fun MiruPlayDesktopComposeApp() {
                                 activeSource = source
                                 savedSources = savedSources.upsertSource(stored)
                                 remotePath = ""
-                                remoteStatus = "SMB source ready: ${stored.name}"
+                                remoteStatus = readySourceStatus(stored)
                                 loadRemoteDirectory(source, "")
                             }
                             is Result.Error -> remoteStatus = result.error.toUserMessage()
@@ -746,7 +746,7 @@ internal fun MiruPlayDesktopComposeApp() {
                     val source = activeSource
                     val parent = remoteParent(remotePath)
                     if (source == null || parent == null) {
-                        remoteStatus = "Already at the source root."
+                        remoteStatus = remoteRootStatus()
                     } else {
                         scope.launch { loadRemoteDirectory(source, parent) }
                     }
@@ -762,10 +762,10 @@ internal fun MiruPlayDesktopComposeApp() {
                     if (entry.isDirectory && source != null) {
                         scope.launch { loadRemoteDirectory(source, entry.path) }
                     } else if (entry.isDirectory) {
-                        remoteStatus = "Open a remote source before browsing."
+                        remoteStatus = openRemoteSourceBeforeBrowsingStatus()
                     } else {
                         mediaPath = entry.path
-                        launchStatus = "Selected remote media: ${entry.name}. mpv will stream through the local bridge."
+                        launchStatus = selectedRemotePlaybackStatus(entry)
                     }
                 },
                     )
