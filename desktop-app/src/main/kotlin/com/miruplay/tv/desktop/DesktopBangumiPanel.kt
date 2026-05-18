@@ -22,10 +22,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.miruplay.tv.design.MiruPlayUiMetrics
 import com.miruplay.tv.model.ScraperResult
+import com.miruplay.tv.model.confidencePercentLabel
+import com.miruplay.tv.model.displayTitle
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MetadataBatchMatch
 import com.miruplay.tv.repository.MetadataBatchPlan
 import com.miruplay.tv.repository.displayName
+import com.miruplay.tv.repository.isSameCandidate
+import com.miruplay.tv.repository.selectedCandidateLabel
+import com.miruplay.tv.repository.statusFor
 
 @Composable
 internal fun BangumiPanel(
@@ -108,7 +113,7 @@ internal fun BangumiPanel(
                         BangumiBatchMatchRow(
                             match = match,
                             selected = selectedBatchMatch?.query == match.query,
-                            status = batchPlan.batchStatusFor(match),
+                            status = batchPlan.statusFor(match),
                             onClick = { onBatchMatchSelected(match) },
                         )
                     }
@@ -123,7 +128,7 @@ internal fun BangumiPanel(
                     match.candidates.take(4).forEach { candidate ->
                         BangumiResultRow(
                             result = candidate,
-                            selected = candidate.isSameBangumiCandidate(match.result),
+                            selected = candidate.isSameCandidate(match.result),
                             onClick = { onBatchCandidateSelected(match, candidate) },
                         )
                     }
@@ -198,7 +203,7 @@ private fun BangumiResultRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                bangumiConfidenceLabel(result),
+                result.confidencePercentLabel(),
                 color = if (active) AnimeRed else TextSecondary,
                 fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
                 fontWeight = FontWeight.Bold,
@@ -206,7 +211,7 @@ private fun BangumiResultRow(
             )
             Column(Modifier.weight(1f)) {
                 Text(
-                    bangumiDisplayTitle(result),
+                    result.displayTitle(),
                     color = TextPrimary,
                     fontSize = MiruPlayUiMetrics.ITEM_TITLE_SP.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -267,7 +272,7 @@ private fun BangumiBatchMatchRow(
                         } else {
                             ""
                         }
-                        "${bangumiDisplayTitle(it)} / ${bangumiConfidenceLabel(it)}$candidateSuffix"
+                        "${it.displayTitle()} / ${it.confidencePercentLabel()}$candidateSuffix"
                     } ?: "No match",
                     color = TextSecondary,
                     fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
