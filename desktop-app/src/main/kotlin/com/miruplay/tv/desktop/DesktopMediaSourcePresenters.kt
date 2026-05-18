@@ -5,6 +5,7 @@ import com.miruplay.tv.mediasource.desktop.DesktopMediaSource
 import com.miruplay.tv.mediasource.desktop.DesktopSmbMediaSource
 import com.miruplay.tv.mediasource.desktop.DesktopWebDavMediaSource
 import com.miruplay.tv.model.MediaSourceInfo
+import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.ProgressRecord
@@ -17,14 +18,10 @@ internal fun webDavSourceInfo(
     username: String,
     password: String,
 ): MediaSourceInfo =
-    MediaSourceInfo(
-        name = url.substringAfter("://", url).trim('/').ifBlank { "WebDAV" },
-        type = MediaSourceType.WEBDAV,
-        connectionInfo = buildMap {
-            put("url", url)
-            if (username.isNotBlank()) put("username", username)
-            if (password.isNotBlank()) put("password", password)
-        },
+    MediaSourceInfoConventions.webDav(
+        url = url,
+        username = username,
+        password = password,
         isConnected = true,
     )
 
@@ -34,19 +31,13 @@ internal fun smbSourceInfo(
     username: String,
     password: String,
 ): MediaSourceInfo =
-    DesktopSmbMediaSource.normalizeRoot(url).let { normalizedUrl ->
-    MediaSourceInfo(
-        name = normalizedUrl.removePrefix("smb://").trim('/').ifBlank { "SMB" },
-        type = MediaSourceType.SMB,
-        connectionInfo = buildMap {
-            put("url", normalizedUrl)
-            if (domain.isNotBlank()) put("domain", domain)
-            if (username.isNotBlank()) put("username", username)
-            if (password.isNotBlank()) put("password", password)
-        },
+    MediaSourceInfoConventions.smb(
+        url = url,
+        domain = domain,
+        username = username,
+        password = password,
         isConnected = true,
     )
-    }
 
 internal fun desktopSourceFromInfo(info: MediaSourceInfo): DesktopMediaSource =
     when (info.type) {

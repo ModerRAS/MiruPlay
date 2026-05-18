@@ -7,7 +7,7 @@ import com.miruplay.tv.model.FileMetadata
 import com.miruplay.tv.model.MediaFileConventions
 import com.miruplay.tv.model.MediaCapabilities
 import com.miruplay.tv.model.MediaSourceInfo
-import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.MediaSourceInfoConventions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.InputStream
@@ -164,10 +164,9 @@ class DesktopLocalMediaSource(
     companion object {
         fun create(name: String, rootPath: Path): DesktopLocalMediaSource =
             DesktopLocalMediaSource(
-                MediaSourceInfo(
+                MediaSourceInfoConventions.local(
                     name = name,
-                    type = MediaSourceType.LOCAL,
-                    connectionInfo = mapOf("path" to rootPath.toString()),
+                    rootPath = rootPath.toString(),
                     isConnected = true,
                 )
             )
