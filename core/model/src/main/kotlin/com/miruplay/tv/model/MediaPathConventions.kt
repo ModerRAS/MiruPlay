@@ -73,6 +73,14 @@ object MediaPathConventions {
             .filter { it.isNotEmpty() }
             .joinToString("/") { encodePathSegment(it) }
 
+    fun joinRemoteUrl(baseUrl: String, path: String): String {
+        val base = baseUrl.trimEnd('/')
+        if (base.isBlank()) return path
+        if (path.startsWith(base)) return path
+        val encodedPath = encodeRemotePath(path)
+        return if (encodedPath.isBlank()) "$base/" else "$base/$encodedPath"
+    }
+
     private fun usesBackslashSeparator(path: String): Boolean =
         path.contains('\\') && !path.startsWith(SMB_SCHEME, ignoreCase = true)
 

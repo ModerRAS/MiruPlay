@@ -1,9 +1,9 @@
 package com.miruplay.tv.repository
 
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
-import java.net.URLEncoder
 
 suspend fun resolvePlayableUri(
     path: String,
@@ -29,7 +29,7 @@ suspend fun resolvePlayableUri(
     }
 
     return if (source?.type == MediaSourceType.WEBDAV) {
-        joinRemoteUrl(source.connectionInfo["url"].orEmpty(), path)
+        MediaPathConventions.joinRemoteUrl(source.connectionInfo["url"].orEmpty(), path)
     } else {
         path
     }
@@ -44,16 +44,3 @@ private fun MediaSourceInfo.matchesPath(path: String): Boolean =
         MediaSourceType.WEBDAV -> path.startsWith("/")
         MediaSourceType.SMB -> path.startsWith("smb://")
     }
-
-private fun joinRemoteUrl(baseUrl: String, path: String): String {
-    val base = baseUrl.trimEnd('/')
-    if (base.isBlank()) return path
-    if (path.startsWith(base)) return path
-    val encodedPath = path
-        .trimStart('/')
-        .split('/')
-        .joinToString("/") { segment ->
-            URLEncoder.encode(segment, Charsets.UTF_8.name()).replace("+", "%20")
-        }
-    return "$base/$encodedPath"
-}
