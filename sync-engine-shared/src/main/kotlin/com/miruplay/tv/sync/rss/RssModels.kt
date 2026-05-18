@@ -7,19 +7,11 @@ data class RssFeedItem(
     val enclosureUrl: String?
 ) {
     val submissionUrl: String?
-        get() = listOfNotNull(link, enclosureUrl)
-            .firstOrNull { it.startsWith("magnet:", ignoreCase = true) || it.isTorrentUrl() }
-            ?: link
-            ?: enclosureUrl
+        get() = RssSubmissionUrls.select(link, enclosureUrl)
 
     val isTorrentSubmission: Boolean
-        get() = submissionUrl?.isTorrentUrl() == true
+        get() = RssSubmissionUrls.isTorrent(submissionUrl)
 }
-
-private fun String.isTorrentUrl(): Boolean =
-    substringBefore('?')
-        .substringBefore('#')
-        .endsWith(".torrent", ignoreCase = true)
 
 data class CloudDriveRssRunSummary(
     val submitted: Int,

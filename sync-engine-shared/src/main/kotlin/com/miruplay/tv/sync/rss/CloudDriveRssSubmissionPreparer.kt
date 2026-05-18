@@ -27,7 +27,7 @@ class CloudDriveRssSubmissionPreparer(
         submissionUrl: String,
         inboxPath: String,
     ): Result<PreparedRssSubmission> {
-        if (!submissionUrl.isTorrentUrl()) {
+        if (!RssSubmissionUrls.isTorrent(submissionUrl)) {
             return Result.success(
                 PreparedRssSubmission(
                     originalUrl = submissionUrl,
@@ -90,8 +90,3 @@ class CloudDriveRssSubmissionPreparer(
         private const val TORRENT_STAGING_FOLDER = ".miruplay-torrents"
     }
 }
-
-private fun String.isTorrentUrl(): Boolean =
-    substringBefore('?')
-        .substringBefore('#')
-        .endsWith(".torrent", ignoreCase = true)
