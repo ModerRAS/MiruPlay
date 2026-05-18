@@ -2,54 +2,6 @@ package com.miruplay.tv.desktop
 
 import com.miruplay.tv.mediasource.desktop.DesktopMediaSource
 import com.miruplay.tv.model.MediaSourceInfoConventions
-import com.miruplay.tv.model.PlaybackSource
-import com.miruplay.tv.model.playbackSourceFromInputs
-import com.miruplay.tv.player.mpv.RifeBackend
-import com.miruplay.tv.player.mpv.mpvCommandPreviewFromInputs
-
-internal fun buildCommandPreview(
-    mpvPath: String,
-    configDir: String,
-    mediaPath: String,
-    subtitlePath: String,
-    startSeconds: String,
-    fullscreen: Boolean,
-    keepOpen: Boolean,
-    rifeEnabled: Boolean,
-    rifeBackend: RifeBackend,
-): String =
-    runCatching {
-        mpvCommandPreviewFromInputs(
-            mpvPath = mpvPath,
-            configDir = configDir,
-            mediaPath = mediaPath,
-            subtitlePath = subtitlePath,
-            startSeconds = startSeconds,
-            fullscreen = fullscreen,
-            keepOpen = keepOpen,
-            rifeEnabled = rifeEnabled,
-            rifeBackend = rifeBackend,
-            blankMediaMessage = "Choose a media URI or file path before launching mpv.",
-        )
-    }.getOrElse { error ->
-        error.message ?: "Unable to build mpv command."
-}
-
-internal fun buildPlaybackSource(
-    mediaPath: String,
-    subtitlePath: String,
-    startSeconds: String,
-    mediaSourceId: String = "desktop-compose",
-    episodeId: String? = null,
-): PlaybackSource =
-    playbackSourceFromInputs(
-        mediaPath = mediaPath,
-        subtitlePath = subtitlePath,
-        startSeconds = startSeconds,
-        mediaSourceId = mediaSourceId,
-        episodeId = episodeId,
-        blankMediaMessage = "Choose a media URI or file path before launching mpv.",
-    )
 
 internal fun playableUriFor(
     source: DesktopMediaSource?,
