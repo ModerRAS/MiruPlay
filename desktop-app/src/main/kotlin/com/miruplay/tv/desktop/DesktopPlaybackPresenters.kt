@@ -10,6 +10,7 @@ import com.miruplay.tv.player.mpv.MpvRuntimeConfig
 import com.miruplay.tv.player.mpv.MpvRuntimeVerifier
 import com.miruplay.tv.player.mpv.RifeBackend
 import com.miruplay.tv.player.mpv.RifeInterpolationConfig
+import com.miruplay.tv.player.mpv.buildPreview
 import java.nio.file.Paths
 
 internal fun runtimeStatus(mpvPath: String, configDir: String): String =
@@ -34,7 +35,7 @@ internal fun buildCommandPreview(
     runCatching {
         val source = buildPlaybackSource(mediaPath, subtitlePath, startSeconds)
         val config = buildRuntimeConfig(mpvPath, configDir, fullscreen, keepOpen, rifeEnabled, rifeBackend)
-        MpvCommandBuilder(config).build(source).joinToString(" ") { it.quoteForPreview() }
+        MpvCommandBuilder(config).buildPreview(source)
     }.getOrElse { error ->
         error.message ?: "Unable to build mpv command."
     }
@@ -95,6 +96,3 @@ internal fun playableUriFor(
 internal interface DesktopPlaybackUriBridge {
     fun playableUri(source: DesktopMediaSource, path: String): String
 }
-
-private fun String.quoteForPreview(): String =
-    if (any { it.isWhitespace() }) "\"${replace("\"", "\\\"")}\"" else this
