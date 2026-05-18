@@ -39,7 +39,7 @@ class CloudDriveLibraryOrganizer(
         for (video in videos) {
             if (!CloudDrivePaths.isChild(video.path, inbox)) continue
             val classification = classifier.classify(video)
-            val showFolder = sanitizePathSegment(classification.showName)
+            val showFolder = CloudDriveRssNames.folderSegment(classification.showName)
             val seasonFolder = "Season ${classification.seasonNumber.coerceAtLeast(1)}"
             val showPath = "$library/$showFolder"
             val seasonPath = "$showPath/$seasonFolder"
@@ -83,13 +83,6 @@ class CloudDriveLibraryOrganizer(
             cloudDriveClient.createFolder(endpoint, parentPath, folderName)
         }
     }
-
-    private fun sanitizePathSegment(value: String): String =
-        value.replace("/", "_")
-            .replace("\\", "_")
-            .replace(Regex("""[<>:"|?*]"""), "_")
-            .trim()
-            .ifBlank { "Unknown" }
 
     private companion object {
         private const val MAX_DEPTH = 5
