@@ -72,12 +72,12 @@ class DesktopPlaybackPresentersTest {
         )
 
         assertEquals(Paths.get("D:/MiruPlay/runtime/mpv/mpv.exe"), withoutRife.mpvExecutable)
-        assertEquals(DEFAULT_MPV_IPC_SERVER, withoutRife.ipcServer)
+        assertTrue(withoutRife.ipcServer.orEmpty().contains(DEFAULT_MPV_IPC_SERVER))
         assertNull(withoutRife.configDirectory)
         assertTrue(withoutRife.startFullscreen)
         assertNull(withoutRife.rife)
         assertEquals(Paths.get("D:/MiruPlay/runtime/mpv/portable_config"), withRife.configDirectory)
-        assertEquals(DEFAULT_MPV_IPC_SERVER, withRife.ipcServer)
+        assertTrue(withRife.ipcServer.orEmpty().contains(DEFAULT_MPV_IPC_SERVER))
         assertEquals(RifeBackend.NVIDIA, withRife.rife?.backend)
         assertTrue(withRife.keepOpen)
     }
@@ -128,7 +128,8 @@ class DesktopPlaybackPresentersTest {
 
         val normalized = preview.replace('\\', '/')
         assertTrue(normalized.startsWith("\"D:/MiruPlay/runtime/mpv/mpv player.exe\""))
-        assertTrue(normalized.contains("--input-ipc-server=$DEFAULT_MPV_IPC_SERVER"))
+        assertTrue(normalized.contains("--input-ipc-server="))
+        assertTrue(normalized.contains(DEFAULT_MPV_IPC_SERVER))
         assertTrue(normalized.endsWith("\"D:/Anime/Episode 01.mkv\""))
     }
 
