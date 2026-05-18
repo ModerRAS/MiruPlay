@@ -72,6 +72,21 @@ object MediaSourceInfoConventions {
             .trim('/')
             .ifBlank { "SMB" }
 
+    fun shouldBridgeForPlayback(sourceType: MediaSourceType?, path: String): Boolean {
+        val trimmed = path.trim()
+        if (trimmed.startsWith(HTTP_SCHEME, ignoreCase = true) ||
+            trimmed.startsWith(HTTPS_SCHEME, ignoreCase = true)
+        ) {
+            return false
+        }
+        return when (sourceType) {
+            MediaSourceType.WEBDAV -> trimmed.startsWith("/")
+            MediaSourceType.SMB -> trimmed.startsWith(SMB_SCHEME, ignoreCase = true)
+            MediaSourceType.LOCAL,
+            null -> false
+        }
+    }
+
     private fun MutableMap<String, String>.putIfNotBlank(key: String, value: String) {
         if (value.isNotBlank()) put(key, value)
     }
@@ -86,4 +101,6 @@ object MediaSourceInfoConventions {
     const val CONNECTION_DOMAIN = "domain"
 
     private const val SMB_SCHEME = "smb://"
+    private const val HTTP_SCHEME = "http://"
+    private const val HTTPS_SCHEME = "https://"
 }

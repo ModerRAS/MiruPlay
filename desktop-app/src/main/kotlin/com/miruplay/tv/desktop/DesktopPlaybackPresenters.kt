@@ -1,7 +1,7 @@
 package com.miruplay.tv.desktop
 
 import com.miruplay.tv.mediasource.desktop.DesktopMediaSource
-import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.playbackSourceFromInputs
 import com.miruplay.tv.player.mpv.MpvCommandBuilder
@@ -77,14 +77,10 @@ internal fun playableUriFor(
     mediaPath: String,
 ): String {
     val path = mediaPath.trim()
-    if (path.startsWith("http://", ignoreCase = true) || path.startsWith("https://", ignoreCase = true)) {
-        return path
-    }
-    return when (source?.info?.type) {
-        MediaSourceType.WEBDAV -> if (path.startsWith("/")) bridge.playableUri(source, path) else path
-        MediaSourceType.SMB -> if (path.startsWith("smb://", ignoreCase = true)) bridge.playableUri(source, path) else path
-        MediaSourceType.LOCAL,
-        null -> path
+    return if (source != null && MediaSourceInfoConventions.shouldBridgeForPlayback(source.info.type, path)) {
+        bridge.playableUri(source, path)
+    } else {
+        path
     }
 }
 
