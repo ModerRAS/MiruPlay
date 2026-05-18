@@ -63,4 +63,48 @@ class MediaSourceInfoConventionsTest {
         assertEquals("D:/Anime", source.connectionInfo.getValue("path"))
         assertTrue(source.isConnected)
     }
+
+    @Test
+    fun `shouldBridgeForPlayback identifies credentialed remote paths`() {
+        assertFalse(
+            MediaSourceInfoConventions.shouldBridgeForPlayback(
+                sourceType = null,
+                path = " https://example.test/video.mkv ",
+            )
+        )
+        assertFalse(
+            MediaSourceInfoConventions.shouldBridgeForPlayback(
+                sourceType = MediaSourceType.LOCAL,
+                path = "D:/Anime/video.mkv",
+            )
+        )
+        assertTrue(
+            MediaSourceInfoConventions.shouldBridgeForPlayback(
+                sourceType = MediaSourceType.WEBDAV,
+                path = "/Anime/Episode 01.mkv",
+            )
+        )
+        assertTrue(
+            MediaSourceInfoConventions.shouldBridgeForPlayback(
+                sourceType = MediaSourceType.SMB,
+                path = "smb://nas/anime/Episode 01.mkv",
+            )
+        )
+    }
+
+    @Test
+    fun `shouldBridgeForPlayback leaves relative remote paths unchanged`() {
+        assertFalse(
+            MediaSourceInfoConventions.shouldBridgeForPlayback(
+                sourceType = MediaSourceType.WEBDAV,
+                path = "Anime/Episode 01.mkv",
+            )
+        )
+        assertFalse(
+            MediaSourceInfoConventions.shouldBridgeForPlayback(
+                sourceType = MediaSourceType.SMB,
+                path = "/nas/anime/Episode 01.mkv",
+            )
+        )
+    }
 }
