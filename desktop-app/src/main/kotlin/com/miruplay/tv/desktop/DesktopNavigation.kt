@@ -1,0 +1,93 @@
+package com.miruplay.tv.desktop
+
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.miruplay.tv.design.MiruPlayRouteSurface
+import com.miruplay.tv.design.MiruPlayUiMetrics
+
+@Composable
+internal fun DesktopTvNavigation(
+    selectedSection: DesktopSection,
+    onSectionSelected: (DesktopSection) -> Unit,
+) {
+    TvPanel(
+        modifier = Modifier
+            .width(MiruPlayUiMetrics.NAV_RAIL_WIDTH_DP.dp)
+            .fillMaxHeight(),
+    ) {
+        Text("MiruPlay", color = TextPrimary, fontSize = MiruPlayUiMetrics.SECTION_TITLE_SP.sp, fontWeight = FontWeight.Bold)
+        Text("Desktop", color = TextSecondary, fontSize = MiruPlayUiMetrics.SECTION_LEAD_SP.sp, modifier = Modifier.padding(top = 4.dp))
+        Spacer(Modifier.height((MiruPlayUiMetrics.NAV_ITEM_GAP_DP * 1.5f).dp))
+        MiruPlayRouteSurface.desktopSectionOrder.forEach { section ->
+            val selected = section == selectedSection
+            Button(
+                onClick = { onSectionSelected(section) },
+                shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (selected) AnimeRed else Color.Transparent,
+                    contentColor = if (selected) Color.White else TextPrimary,
+                ),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, focusedElevation = 0.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(MiruPlayUiMetrics.NAV_ITEM_HEIGHT_DP.dp)
+                    .border(
+                        width = 1.dp,
+                        color = if (selected) AnimeRed else Color.White.copy(alpha = MiruPlayUiMetrics.PANEL_BORDER_ALPHA),
+                        shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
+                    ),
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Text(
+                        section.menuLabel,
+                        color = if (selected) Color.White else TextPrimary,
+                        fontSize = MiruPlayUiMetrics.ACTION_BUTTON_TEXT_SP.sp,
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                    )
+                    Text(
+                        section.summary,
+                        color = if (selected) Color.White.copy(alpha = 0.76f) else TextSecondary,
+                        fontSize = MiruPlayUiMetrics.SECTION_SMALL_SP.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            Spacer(Modifier.height(MiruPlayUiMetrics.NAV_ITEM_GAP_DP.dp))
+        }
+    }
+}
+
+@Composable
+internal fun DesktopTvHeader(selectedSection: DesktopSection) {
+    Column {
+        Text(selectedSection.title, color = TextPrimary, fontSize = MiruPlayUiMetrics.SECTION_TITLE_SP.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(6.dp))
+        Text(
+            selectedSection.subtitle,
+            color = TextSecondary,
+            fontSize = MiruPlayUiMetrics.SECTION_SUBTITLE_SP.sp,
+        )
+    }
+}
