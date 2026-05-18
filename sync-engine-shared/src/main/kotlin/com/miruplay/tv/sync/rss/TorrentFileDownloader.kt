@@ -83,24 +83,7 @@ class TorrentFileDownloader(
     companion object {
         private const val MAX_TORRENT_BYTES = 16L * 1024L * 1024L
 
-        internal fun buildTorrentFileName(title: String, url: String, keyPrefix: String): String {
-            val fromTitle = title.trim().takeIf { it.endsWith(".torrent", ignoreCase = true) }
-            val fromUrl = runCatching {
-                Request.Builder().url(url).build().url.pathSegments.lastOrNull()
-            }.getOrNull()
-            val baseName = (fromTitle ?: fromUrl ?: "rss-item.torrent")
-                .substringBefore('?')
-                .substringBefore('#')
-                .ifBlank { "rss-item.torrent" }
-                .let { if (it.endsWith(".torrent", ignoreCase = true)) it else "$it.torrent" }
-            val safeBaseName = baseName
-                .replace(Regex("""[\\/:*?"<>|]"""), "_")
-                .replace(Regex("""\s+"""), " ")
-                .trim()
-                .ifBlank { "rss-item.torrent" }
-                .take(180)
-            val prefix = keyPrefix.replace(Regex("""[^A-Za-z0-9_-]"""), "").take(12)
-            return if (prefix.isBlank()) safeBaseName else "$prefix-$safeBaseName"
-        }
+        internal fun buildTorrentFileName(title: String, url: String, keyPrefix: String): String =
+            CloudDriveRssNames.torrentFileName(title, url, keyPrefix)
     }
 }
