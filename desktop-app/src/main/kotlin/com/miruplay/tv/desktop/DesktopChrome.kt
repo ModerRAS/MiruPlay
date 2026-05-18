@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.sp
 import com.miruplay.tv.design.MiruPlayUiMetrics
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.player.mpv.RifeBackend
+import com.miruplay.tv.repository.displayLabel
 
 @Composable
 internal fun LabeledTextField(
@@ -86,7 +87,7 @@ internal fun SavedSourcePicker(
             onClick = { expanded = true },
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(selected?.let(::sourceLabel) ?: "Saved sources")
+            Text(selected?.displayLabel() ?: "Saved sources")
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             if (sources.isEmpty()) {
@@ -97,7 +98,7 @@ internal fun SavedSourcePicker(
             } else {
                 sources.forEach { source ->
                     DropdownMenuItem(
-                        text = { Text(sourceLabel(source)) },
+                        text = { Text(source.displayLabel()) },
                         onClick = {
                             onSelected(source)
                             expanded = false

@@ -47,6 +47,7 @@ import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.buildRssSubscriptionFromForm
 import com.miruplay.tv.model.loadedPlaybackStatus
+import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.parseCloudDriveIntervalMinutes
 import com.miruplay.tv.model.parseRssProxyPort
 import com.miruplay.tv.model.recentPlaybackInitialStatus
@@ -79,6 +80,8 @@ import com.miruplay.tv.repository.applyMetadataBatchPlan
 import com.miruplay.tv.repository.clearExternalMetadata
 import com.miruplay.tv.repository.displayName
 import com.miruplay.tv.repository.desktop.DesktopRepositories
+import com.miruplay.tv.repository.indexClearedStatus
+import com.miruplay.tv.repository.indexedSearchStatus
 import com.miruplay.tv.repository.loadedStatus
 import com.miruplay.tv.repository.loadingRemoteDirectoryStatus
 import com.miruplay.tv.repository.localLibraryInitialStatus
@@ -88,18 +91,30 @@ import com.miruplay.tv.repository.metadataBatchSearchingStatus
 import com.miruplay.tv.repository.noMetadataBatchEntriesStatus
 import com.miruplay.tv.repository.noMetadataBatchPreviewStatus
 import com.miruplay.tv.repository.noMetadataBatchUndoStatus
+import com.miruplay.tv.repository.openRemoteSourceBeforeBrowsingStatus
+import com.miruplay.tv.repository.openSourceBeforeClearingIndexStatus
+import com.miruplay.tv.repository.openSourceBeforeScanningStatus
+import com.miruplay.tv.repository.openSourceBeforeSearchingStatus
 import com.miruplay.tv.repository.restoreMetadataBatchUndo
 import com.miruplay.tv.repository.restoredStatus
 import com.miruplay.tv.repository.reviewAcceptedStatus
 import com.miruplay.tv.repository.savePlaybackProgressOnStop
+import com.miruplay.tv.repository.scanCompleteStatus
 import com.miruplay.tv.repository.scanningStatus
 import com.miruplay.tv.repository.selectedCandidateStatus
 import com.miruplay.tv.repository.selectedForPlaybackStatus
 import com.miruplay.tv.repository.selectedRemoteForPlaybackStatus
 import com.miruplay.tv.repository.showingRemoteDirectoryStatus
 import com.miruplay.tv.repository.smbUrlRequiredStatus
+import com.miruplay.tv.repository.remoteBrowserInitialStatus
+import com.miruplay.tv.repository.remoteRootStatus
+import com.miruplay.tv.repository.rescanCompleteStatus
+import com.miruplay.tv.repository.sourceRemoveRequiredStatus
+import com.miruplay.tv.repository.sourceRemovedStatus
 import com.miruplay.tv.repository.summaryStatus
 import com.miruplay.tv.repository.syncObservedPlaybackProgress
+import com.miruplay.tv.repository.upsertById
+import com.miruplay.tv.repository.webDavUrlRequiredStatus
 import com.miruplay.tv.repository.withExternalMetadata
 import com.miruplay.tv.repository.readyStatus
 import com.miruplay.tv.scanner.desktop.DesktopMediaLibraryScanner
@@ -634,7 +649,7 @@ internal fun MiruPlayDesktopComposeApp() {
                                 val localSource = DesktopLocalMediaSource(stored)
                                 activeLocalSource = localSource
                                 activeSource = localSource
-                                savedSources = savedSources.upsertSource(stored)
+                                savedSources = savedSources.upsertById(stored)
                                 libraryStatus = stored.readyStatus()
                             }
                             is Result.Error -> libraryStatus = result.error.toUserMessage()
@@ -683,7 +698,7 @@ internal fun MiruPlayDesktopComposeApp() {
                                 selectedBangumiBatchMatch = null
                                 bangumiBatchPlan = null
                                 bangumiBatchRollback = emptyList()
-                                libraryStatus = clearedIndexStatus(sourceId)
+                                libraryStatus = indexClearedStatus(sourceId)
                                 bangumiStatus = bangumiInitialStatus()
                             }
                             is Result.Error -> libraryStatus = result.error.toUserMessage()
@@ -770,7 +785,7 @@ internal fun MiruPlayDesktopComposeApp() {
                                 val source = desktopWebDavSourceFromInfo(stored)
                                 activeSourceId = result.data
                                 activeSource = source
-                                savedSources = savedSources.upsertSource(stored)
+                                savedSources = savedSources.upsertById(stored)
                                 remotePath = ""
                                 remoteStatus = stored.readyStatus()
                                 loadRemoteDirectory(source, "")
@@ -798,7 +813,7 @@ internal fun MiruPlayDesktopComposeApp() {
                                 val source = DesktopSmbMediaSource(stored)
                                 activeSourceId = result.data
                                 activeSource = source
-                                savedSources = savedSources.upsertSource(stored)
+                                savedSources = savedSources.upsertById(stored)
                                 remotePath = ""
                                 remoteStatus = stored.readyStatus()
                                 loadRemoteDirectory(source, "")
@@ -809,7 +824,7 @@ internal fun MiruPlayDesktopComposeApp() {
                 },
                 onUp = {
                     val source = activeSource
-                    val parent = remoteParent(remotePath)
+                    val parent = MediaPathConventions.remoteParent(remotePath)
                     if (source == null || parent == null) {
                         remoteStatus = remoteRootStatus()
                     } else {

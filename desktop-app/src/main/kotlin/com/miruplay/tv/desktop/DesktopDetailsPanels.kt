@@ -28,6 +28,7 @@ import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.formatPlaybackPosition
 import com.miruplay.tv.repository.MediaDetailRows
 import com.miruplay.tv.repository.MediaIndexEntry
+import com.miruplay.tv.repository.mediaDisplayName
 
 @Composable
 internal fun RecentPlaybackPanel(
@@ -95,7 +96,7 @@ private fun RecentProgressRow(
             )
             Column(Modifier.weight(1f)) {
                 Text(
-                    recentDisplayName(record),
+                    record.mediaDisplayName(),
                     color = TextPrimary,
                     fontSize = MiruPlayUiMetrics.ITEM_TITLE_SP.sp,
                     fontWeight = FontWeight.SemiBold,
