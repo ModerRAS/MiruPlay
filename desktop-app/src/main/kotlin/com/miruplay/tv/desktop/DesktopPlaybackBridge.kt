@@ -4,12 +4,12 @@ import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.mediasource.desktop.DesktopMediaSource
 import com.miruplay.tv.mediasource.desktop.DesktopStreamRange
 import com.miruplay.tv.model.FileMetadata
+import com.miruplay.tv.model.MediaPathConventions
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import kotlinx.coroutines.runBlocking
 import java.net.InetAddress
 import java.net.InetSocketAddress
-import java.net.URLEncoder
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
@@ -32,9 +32,8 @@ class DesktopPlaybackBridge : AutoCloseable, DesktopPlaybackUriBridge {
     override fun playableUri(source: DesktopMediaSource, path: String): String {
         val token = UUID.randomUUID().toString()
         routes[token] = Route(source = source, path = path)
-        val name = path.substringAfterLast('/').substringAfterLast('\\')
-        val encodedName = URLEncoder.encode(name.ifBlank { "stream" }, Charsets.UTF_8.name())
-            .replace("+", "%20")
+        val name = MediaPathConventions.fileName(path).ifBlank { "stream" }
+        val encodedName = MediaPathConventions.encodePathSegment(name)
         return "http://127.0.0.1:$port/stream/$token/$encodedName"
     }
 

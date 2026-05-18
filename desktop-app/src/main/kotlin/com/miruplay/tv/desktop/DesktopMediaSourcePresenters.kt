@@ -6,6 +6,7 @@ import com.miruplay.tv.mediasource.desktop.DesktopSmbMediaSource
 import com.miruplay.tv.mediasource.desktop.DesktopWebDavMediaSource
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.ProgressRecord
 
 internal fun sourceLabel(source: MediaSourceInfo): String =
@@ -63,16 +64,7 @@ internal fun desktopWebDavSourceFromInfo(info: MediaSourceInfo): DesktopWebDavMe
     )
 
 internal fun remoteParent(path: String): String? {
-    val clean = path.trimEnd('/')
-    if (clean.isBlank() || clean == "/") return null
-    if (clean.startsWith("smb://", ignoreCase = true)) {
-        val segments = clean.removePrefix("smb://").split('/').filter { it.isNotBlank() }
-        if (segments.size <= 2) return null
-        return "smb://${segments.dropLast(1).joinToString("/")}"
-    }
-
-    val parent = clean.trim('/').substringBeforeLast('/', "")
-    return if (parent.isBlank()) "" else "/$parent"
+    return MediaPathConventions.remoteParent(path)
 }
 
 internal fun List<MediaSourceInfo>.upsertSource(source: MediaSourceInfo): List<MediaSourceInfo> =
@@ -81,4 +73,4 @@ internal fun List<MediaSourceInfo>.upsertSource(source: MediaSourceInfo): List<M
     }
 
 internal fun recentDisplayName(record: ProgressRecord): String =
-    record.episodeId.substringAfterLast('\\').substringAfterLast('/').ifBlank { record.episodeId }
+    MediaPathConventions.fileName(record.episodeId).ifBlank { record.episodeId }

@@ -2,15 +2,13 @@ package com.miruplay.tv.desktop
 
 import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.displayTitle
+import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.repository.MediaIndexEntry
 
 internal fun bangumiQueryFor(entry: MediaIndexEntry?): String? {
     entry?.animeName?.takeIf { it.isNotBlank() }?.let { return it }
-    val fileName = entry?.path
-        ?.substringAfterLast('/')
-        ?.substringAfterLast('\\')
-        ?: return null
-    return fileName.substringBeforeLast('.', fileName).takeIf { it.isNotBlank() }
+    val path = entry?.path ?: return null
+    return MediaPathConventions.stem(path).takeIf { it.isNotBlank() }
 }
 
 internal fun bangumiDisplayTitle(result: ScraperResult): String =

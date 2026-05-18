@@ -2,6 +2,7 @@ package com.miruplay.tv.scanner.desktop
 
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.mediasource.desktop.DesktopMediaSource
+import com.miruplay.tv.model.MediaPathConventions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.w3c.dom.Element
@@ -49,21 +50,11 @@ class DesktopNfoMetadataReader {
     }
 
     internal fun siblingNfoPath(videoPath: String): String {
-        val separatorIndex = maxOf(videoPath.lastIndexOf('/'), videoPath.lastIndexOf('\\'))
-        val directory = if (separatorIndex >= 0) videoPath.substring(0, separatorIndex + 1) else ""
-        val fileName = videoPath.substring(separatorIndex + 1)
-        val stem = fileName.substringBeforeLast('.', fileName)
-        return "$directory$stem.nfo"
+        return MediaPathConventions.siblingWithExtension(videoPath, "nfo")
     }
 
     internal fun childPath(directoryPath: String, childName: String): String {
-        if (directoryPath.isBlank()) return childName
-        val separator = if (directoryPath.contains('\\') && !directoryPath.startsWith("smb://", ignoreCase = true)) {
-            "\\"
-        } else {
-            "/"
-        }
-        return "${directoryPath.trimEnd('/', '\\')}$separator$childName"
+        return MediaPathConventions.childPath(directoryPath, childName)
     }
 
     private fun parseEpisode(input: InputStream): DesktopEpisodeNfoMetadata? =
