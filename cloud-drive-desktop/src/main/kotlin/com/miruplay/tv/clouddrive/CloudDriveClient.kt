@@ -57,11 +57,12 @@ class GrpcCloudDriveClient : CloudDriveClient {
         urls: List<String>,
         targetFolder: String
     ): Result<Unit> = withAuthenticatedStub(endpoint) { stub ->
+        val offlineRequest = CloudDriveRequests.offlineFiles(urls, targetFolder)
         val response = stub.addOfflineFiles(
             Clouddrive.AddOfflineFileRequest.newBuilder()
-                .setUrls(urls.joinToString("\n"))
-                .setToFolder(targetFolder)
-                .setCheckFolderAfterSecs(30L)
+                .setUrls(offlineRequest.urls)
+                .setToFolder(offlineRequest.targetFolder)
+                .setCheckFolderAfterSecs(offlineRequest.checkFolderAfterSeconds)
                 .build()
         )
         response.asUnitResult("提交离线下载失败")
@@ -76,11 +77,11 @@ class GrpcCloudDriveClient : CloudDriveClient {
         if (!localFile.isFile) {
             return@withAuthenticatedStub Result.failure(AppError.MediaSourceError.NotFound(localFile.absolutePath))
         }
-        val normalizedParent = CloudDrivePaths.normalize(parentPath)
+        val uploadTarget = CloudDriveRequests.uploadTarget(parentPath, remoteFileName)
         val response = stub.createFile(
             Clouddrive.CreateFileRequest.newBuilder()
-                .setParentPath(normalizedParent)
-                .setFileName(remoteFileName)
+                .setParentPath(uploadTarget.parentPath)
+                .setFileName(uploadTarget.remoteFileName)
                 .build()
         )
         val fileHandle = response.fileHandle
@@ -101,7 +102,7 @@ class GrpcCloudDriveClient : CloudDriveClient {
             }
             throw e
         }
-        Result.success(CloudDrivePaths.join(normalizedParent, remoteFileName))
+        Result.success(uploadTarget.remotePath)
     }
 
     override suspend fun listFolder(
@@ -117,11 +118,11 @@ class GrpcCloudDriveClient : CloudDriveClient {
         val replies = stub.getSubFiles(request)
         while (replies.hasNext()) {
             replies.next().subFilesList.forEach { file ->
-                files += CloudDriveFileInfo(
-                    name = file.name.ifBlank { file.fullPathName.substringAfterLast('/') },
-                    path = file.fullPathName,
+                files += CloudDriveRequests.fileInfo(
+                    name = file.name,
+                    fullPathName = file.fullPathName,
                     isDirectory = file.isDirectory,
-                    size = file.size
+                    size = file.size,
                 )
             }
         }
