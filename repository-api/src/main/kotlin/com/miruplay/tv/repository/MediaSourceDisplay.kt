@@ -51,6 +51,15 @@ fun smbUrlRequiredStatus(): String =
 fun openSourceBeforeScanningStatus(): String =
     "Open a source before scanning."
 
+fun MediaSourceInfo.scanningStatus(): String =
+    "Scanning $name..."
+
+fun scanCompleteStatus(filesIndexed: Int, directoriesVisited: Int): String =
+    "Scan complete: $filesIndexed videos, $directoriesVisited directories."
+
+fun rescanCompleteStatus(filesIndexed: Int, directoriesVisited: Int): String =
+    "Rescan complete: $filesIndexed videos, $directoriesVisited directories."
+
 fun openSourceBeforeSearchingStatus(): String =
     "Open or scan a source before searching."
 

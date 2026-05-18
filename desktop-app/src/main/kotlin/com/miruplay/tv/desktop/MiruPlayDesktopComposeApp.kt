@@ -396,14 +396,17 @@ internal fun MiruPlayDesktopComposeApp() {
             updateStatus(openSourceBeforeScanningStatus())
             return
         }
-        updateStatus("Scanning ${source.info.name}...")
+        updateStatus(scanningSourceStatus(source.info))
         when (val scan = DesktopMediaLibraryScanner().scan(sourceId, source)) {
             is Result.Success -> {
                 when (val indexed = repositories.index.rebuildIndex(sourceId, scan.data.entries)) {
                     is Result.Success -> {
                         indexedEntries = scan.data.entries.filterNot { it.isDirectory }.take(24)
                         selectedIndexEntry = null
-                        val message = "Scan complete: ${scan.data.filesIndexed} videos, ${scan.data.directoriesVisited} directories."
+                        val message = scanCompleteStatus(
+                            filesIndexed = scan.data.filesIndexed,
+                            directoriesVisited = scan.data.directoriesVisited,
+                        )
                         updateStatus(message)
                         libraryStatus = message
                     }
@@ -442,7 +445,10 @@ internal fun MiruPlayDesktopComposeApp() {
                             indexedEntries = scan.data.entries.filterNot { it.isDirectory }.take(24)
                             selectedIndexEntry = null
                         }
-                        val message = "Rescan complete: ${scan.data.filesIndexed} videos, ${scan.data.directoriesVisited} directories."
+                        val message = rescanCompleteStatus(
+                            filesIndexed = scan.data.filesIndexed,
+                            directoriesVisited = scan.data.directoriesVisited,
+                        )
                         if (sourceInfo.type == MediaSourceType.LOCAL) {
                             libraryStatus = message
                         } else {

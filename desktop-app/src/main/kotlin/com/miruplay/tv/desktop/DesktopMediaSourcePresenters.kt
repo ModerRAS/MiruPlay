@@ -32,6 +32,9 @@ import com.miruplay.tv.repository.readyStatus
 import com.miruplay.tv.repository.remoteBrowserInitialStatus as sharedRemoteBrowserInitialStatus
 import com.miruplay.tv.repository.remoteRootStatus as sharedRemoteRootStatus
 import com.miruplay.tv.repository.MediaIndexEntry
+import com.miruplay.tv.repository.rescanCompleteStatus as sharedRescanCompleteStatus
+import com.miruplay.tv.repository.scanCompleteStatus as sharedScanCompleteStatus
+import com.miruplay.tv.repository.scanningStatus
 import com.miruplay.tv.repository.selectedForPlaybackStatus
 import com.miruplay.tv.repository.selectedRemoteForPlaybackStatus
 import com.miruplay.tv.repository.showingRemoteDirectoryStatus
@@ -67,6 +70,15 @@ internal fun smbUrlRequiredStatus(): String =
 
 internal fun openSourceBeforeScanningStatus(): String =
     sharedOpenSourceBeforeScanningStatus()
+
+internal fun scanningSourceStatus(source: MediaSourceInfo): String =
+    source.scanningStatus()
+
+internal fun scanCompleteStatus(filesIndexed: Int, directoriesVisited: Int): String =
+    sharedScanCompleteStatus(filesIndexed, directoriesVisited)
+
+internal fun rescanCompleteStatus(filesIndexed: Int, directoriesVisited: Int): String =
+    sharedRescanCompleteStatus(filesIndexed, directoriesVisited)
 
 internal fun openSourceBeforeSearchingStatus(): String =
     sharedOpenSourceBeforeSearchingStatus()

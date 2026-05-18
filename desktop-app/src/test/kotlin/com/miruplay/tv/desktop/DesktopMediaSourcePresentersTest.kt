@@ -77,6 +77,15 @@ class DesktopMediaSourcePresentersTest {
     }
 
     @Test
+    fun `scan statuses are shared with media source display`() {
+        val local = MediaSourceInfo(id = 1L, name = "Library", type = MediaSourceType.LOCAL)
+
+        assertEquals("Scanning Library...", scanningSourceStatus(local))
+        assertEquals("Scan complete: 12 videos, 3 directories.", scanCompleteStatus(filesIndexed = 12, directoriesVisited = 3))
+        assertEquals("Rescan complete: 12 videos, 3 directories.", rescanCompleteStatus(filesIndexed = 12, directoriesVisited = 3))
+    }
+
+    @Test
     fun `recent display name uses the last path segment`() {
         assertEquals(
             "Episode 01.mkv",
