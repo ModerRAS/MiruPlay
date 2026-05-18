@@ -95,12 +95,7 @@ object MetadataBatchPlanner {
                 MetadataBatchUpdate(
                     query = match.query,
                     original = entry,
-                    updated = entry.copy(
-                        animeName = result.displayTitle(),
-                        metadataSource = result.source.name,
-                        metadataId = result.animeId,
-                        metadataTitle = result.displayTitle(),
-                    ),
+                    updated = entry.withExternalMetadata(result),
                     result = result,
                 )
             }
