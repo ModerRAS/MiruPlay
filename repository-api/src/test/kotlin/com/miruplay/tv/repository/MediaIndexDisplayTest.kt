@@ -52,4 +52,32 @@ class MediaIndexDisplayTest {
         assertEquals(2048L, browserEntry.size)
         assertEquals(1_700_000_000_000L, browserEntry.lastModified)
     }
+
+    @Test
+    fun `metadata query uses anime metadata then path stem`() {
+        assertEquals(
+            "Show",
+            MediaIndexEntry(sourceId = 1L, path = "D:/Anime/01.mkv", animeName = "Show").metadataQuery(),
+        )
+        assertEquals(
+            "Metadata Title",
+            MediaIndexEntry(sourceId = 1L, path = "D:/Anime/01.mkv", metadataTitle = "Metadata Title").metadataQuery(),
+        )
+        assertEquals(
+            "Episode 01",
+            MediaIndexEntry(sourceId = 1L, path = "D:/Anime/Episode 01.mkv").metadataQuery(),
+        )
+    }
+
+    @Test
+    fun `replace by media key matches source and path only`() {
+        val original = MediaIndexEntry(sourceId = 1L, path = "D:/Anime/Show/01.mkv")
+        val samePathDifferentSource = MediaIndexEntry(sourceId = 2L, path = original.path)
+        val other = MediaIndexEntry(sourceId = 1L, path = "D:/Anime/Show/02.mkv")
+        val updated = original.copy(metadataId = "431767")
+
+        assertEquals(listOf(updated, samePathDifferentSource, other), listOf(original, samePathDifferentSource, other).replaceByMediaKey(updated))
+        assertEquals(listOf(updated, samePathDifferentSource, other), listOf(original, samePathDifferentSource, other).replaceByMediaKeys(listOf(updated)))
+        assertEquals(listOf(original, samePathDifferentSource, other), listOf(original, samePathDifferentSource, other).replaceByMediaKeys(emptyList()))
+    }
 }

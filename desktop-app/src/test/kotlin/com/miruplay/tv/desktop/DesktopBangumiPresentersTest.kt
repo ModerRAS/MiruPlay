@@ -16,6 +16,7 @@ class DesktopBangumiPresentersTest {
     @Test
     fun `bangumi query prefers anime name then file stem`() {
         assertEquals("Frieren", bangumiQueryFor(MediaIndexEntry(sourceId = 1L, path = "D:/Anime/01.mkv", animeName = "Frieren")))
+        assertEquals("Metadata Title", bangumiQueryFor(MediaIndexEntry(sourceId = 1L, path = "D:/Anime/01.mkv", metadataTitle = "Metadata Title")))
         assertEquals("Episode 01", bangumiQueryFor(MediaIndexEntry(sourceId = 1L, path = "D:/Anime/Episode 01.mkv")))
         assertNull(bangumiQueryFor(null))
     }
