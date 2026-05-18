@@ -5,8 +5,6 @@ import com.miruplay.tv.core.common.Result
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
-import java.net.InetSocketAddress
-import java.net.Proxy
 import java.util.concurrent.TimeUnit
 
 data class DownloadedTorrentFile(
@@ -17,31 +15,16 @@ data class DownloadedTorrentFile(
 class TorrentFileDownloader(
     private val downloadDir: File = File(System.getProperty("java.io.tmpdir"), "miruplay-rss-torrents")
 ) {
-    private var currentProxyHost: String = ""
-    private var currentProxyPort: Int = 0
-    private var currentProxyEnabled: Boolean = false
-
-    @Volatile
-    private var client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
-        .build()
-
-    @Synchronized
-    fun configureProxy(enabled: Boolean, host: String, port: Int) {
-        val normalizedHost = host.trim()
-        val normalizedPort = port.coerceIn(1, 65535)
-        if (currentProxyEnabled == enabled && currentProxyHost == normalizedHost && currentProxyPort == normalizedPort) {
-            return
-        }
-        currentProxyEnabled = enabled
-        currentProxyHost = normalizedHost
-        currentProxyPort = normalizedPort
-
-        client = client.newBuilder()
-            .proxy(if (enabled && normalizedHost.isNotBlank()) Proxy(Proxy.Type.HTTP, InetSocketAddress(normalizedHost, normalizedPort)) else Proxy.NO_PROXY)
+    private val client = ProxyAwareOkHttpClient(
+        OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
             .build()
+    )
+
+    fun configureProxy(enabled: Boolean, host: String, port: Int) {
+        client.configureProxy(enabled, host, port)
     }
 
     suspend fun download(url: String, title: String, keyPrefix: String): Result<DownloadedTorrentFile> =
