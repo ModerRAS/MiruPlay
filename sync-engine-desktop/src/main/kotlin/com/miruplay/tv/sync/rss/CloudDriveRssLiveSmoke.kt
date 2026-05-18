@@ -157,8 +157,8 @@ suspend fun runCloudDriveRssLiveSmoke(
         is Result.Error -> return result
     }
 
-    val decisions = when (val result = buildCloudDriveRssLiveSmokeItems(feedItems, options.filterRegex)) {
-        is Result.Success -> result.data
+    val decisions = when (val result = RssSubmissionPlanner.plan(feedItems, options.filterRegex)) {
+        is Result.Success -> result.data.map { it.toLiveSmokeItem() }
         is Result.Error -> return result
     }
 
@@ -233,38 +233,6 @@ fun main(args: Array<String>) = runBlocking {
     }
 }
 
-private fun buildCloudDriveRssLiveSmokeItems(
-    feedItems: List<RssFeedItem>,
-    filterRegex: String?,
-): Result<List<CloudDriveRssLiveSmokeItem>> {
-    val filter = filterRegex
-        ?.takeIf { it.isNotBlank() }
-        ?.let {
-            runCatching { Regex(it, RegexOption.IGNORE_CASE) }.getOrElse { error ->
-                return Result.failure(AppError.SyncError.WriteFailed("RSS", "过滤正则无效：${error.message}"))
-            }
-        }
-
-    return Result.success(
-        feedItems.map { item ->
-            val matchesFilter = filter?.containsMatchIn(item.title) ?: true
-            val submissionUrl = item.submissionUrl
-            val status = when {
-                !matchesFilter -> CloudDriveRssLiveSmokeItemStatus.SKIPPED_FILTER
-                submissionUrl.isNullOrBlank() -> CloudDriveRssLiveSmokeItemStatus.MISSING_SUBMISSION
-                else -> CloudDriveRssLiveSmokeItemStatus.WOULD_SUBMIT
-            }
-            CloudDriveRssLiveSmokeItem(
-                title = item.title,
-                guid = item.guid,
-                submissionUrl = submissionUrl,
-                status = status,
-                submissionType = submissionUrl.toSubmissionType(),
-            )
-        }
-    )
-}
-
 private data class CloudDriveRssSubmitSmokeResult(
     val attemptedCount: Int = 0,
     val succeededCount: Int = 0,
@@ -333,16 +301,23 @@ private fun CloudDriveTokenInfo.toSmokePermissions(): CloudDriveRssLiveSmokePerm
         allowAddOfflineDownload = allowAddOfflineDownload,
     )
 
-private fun String?.toSubmissionType(): CloudDriveRssLiveSmokeSubmissionType {
-    val value = this?.trim().orEmpty()
-    return when {
-        value.isBlank() -> CloudDriveRssLiveSmokeSubmissionType.NONE
-        value.startsWith("magnet:", ignoreCase = true) -> CloudDriveRssLiveSmokeSubmissionType.MAGNET
-        value.substringBefore('?').substringBefore('#').endsWith(".torrent", ignoreCase = true) ->
-            CloudDriveRssLiveSmokeSubmissionType.TORRENT
-        else -> CloudDriveRssLiveSmokeSubmissionType.OTHER
-    }
-}
+private fun RssSubmissionDecision.toLiveSmokeItem(): CloudDriveRssLiveSmokeItem =
+    CloudDriveRssLiveSmokeItem(
+        title = item.title,
+        guid = item.guid,
+        submissionUrl = submissionUrl,
+        status = when (status) {
+            RssSubmissionDecisionStatus.WOULD_SUBMIT -> CloudDriveRssLiveSmokeItemStatus.WOULD_SUBMIT
+            RssSubmissionDecisionStatus.SKIPPED_FILTER -> CloudDriveRssLiveSmokeItemStatus.SKIPPED_FILTER
+            RssSubmissionDecisionStatus.MISSING_SUBMISSION -> CloudDriveRssLiveSmokeItemStatus.MISSING_SUBMISSION
+        },
+        submissionType = when (submissionType) {
+            RssSubmissionUrlType.MAGNET -> CloudDriveRssLiveSmokeSubmissionType.MAGNET
+            RssSubmissionUrlType.TORRENT -> CloudDriveRssLiveSmokeSubmissionType.TORRENT
+            RssSubmissionUrlType.OTHER -> CloudDriveRssLiveSmokeSubmissionType.OTHER
+            RssSubmissionUrlType.NONE -> CloudDriveRssLiveSmokeSubmissionType.NONE
+        },
+    )
 
 private fun printCloudDriveRssLiveSmokeReport(report: CloudDriveRssLiveSmokeReport) {
     println(if (report.submitMode) "CloudDrive RSS live submit smoke passed." else "CloudDrive RSS dry-run passed.")
