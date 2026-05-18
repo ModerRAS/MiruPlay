@@ -7,8 +7,18 @@ import com.miruplay.tv.clouddrive.CloudDrivePaths
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 
-class DesktopCloudDriveLibraryOrganizer(
-    private val cloudDriveClient: CloudDriveClient
+data class CloudDriveVideoClassification(
+    val showName: String,
+    val seasonNumber: Int,
+)
+
+fun interface CloudDriveVideoClassifier {
+    fun classify(file: CloudDriveFileInfo): CloudDriveVideoClassification
+}
+
+class CloudDriveLibraryOrganizer(
+    private val cloudDriveClient: CloudDriveClient,
+    private val classifier: CloudDriveVideoClassifier = HeuristicCloudDriveVideoClassifier,
 ) {
     suspend fun organize(endpoint: CloudDriveEndpoint, inboxPath: String, libraryPath: String): Result<Int> {
         val inbox = CloudDrivePaths.normalizeScoped(inboxPath)
@@ -27,8 +37,9 @@ class DesktopCloudDriveLibraryOrganizer(
         var moved = 0
         for (video in videos) {
             if (!CloudDrivePaths.isChild(video.path, inbox)) continue
-            val showFolder = sanitizePathSegment(inferShowName(video))
-            val seasonFolder = "Season ${inferSeasonNumber(video.name)}"
+            val classification = classifier.classify(video)
+            val showFolder = sanitizePathSegment(classification.showName)
+            val seasonFolder = "Season ${classification.seasonNumber.coerceAtLeast(1)}"
             val showPath = "$library/$showFolder"
             val seasonPath = "$showPath/$seasonFolder"
 
@@ -72,6 +83,26 @@ class DesktopCloudDriveLibraryOrganizer(
         }
     }
 
+    private fun sanitizePathSegment(value: String): String =
+        value.replace("/", "_")
+            .replace("\\", "_")
+            .replace(Regex("""[<>:"|?*]"""), "_")
+            .trim()
+            .ifBlank { "Unknown" }
+
+    private companion object {
+        private const val MAX_DEPTH = 5
+        private val VIDEO_EXTENSIONS = setOf("mkv", "mp4", "avi", "mov", "wmv", "flv", "webm", "m4v", "ts", "m2ts")
+    }
+}
+
+object HeuristicCloudDriveVideoClassifier : CloudDriveVideoClassifier {
+    override fun classify(file: CloudDriveFileInfo): CloudDriveVideoClassification =
+        CloudDriveVideoClassification(
+            showName = inferShowName(file),
+            seasonNumber = inferSeasonNumber(file.name),
+        )
+
     private fun inferShowName(file: CloudDriveFileInfo): String {
         val parent = CloudDrivePaths.parentPath(file.path)
             .substringAfterLast('/', "")
@@ -90,13 +121,6 @@ class DesktopCloudDriveLibraryOrganizer(
         seasonEpisodeRegex.find(fileName)?.groupValues?.getOrNull(1)?.toIntOrNull()
             ?: 1
 
-    private fun sanitizePathSegment(value: String): String =
-        value.replace("/", "_")
-            .replace("\\", "_")
-            .replace(Regex("""[<>:"|?*]"""), "_")
-            .trim()
-            .ifBlank { "Unknown" }
-
     private fun cleanupTitle(value: String): String =
         value.replace(Regex("""[_・]+"""), " ")
             .replace(Regex("""\s*[-–—]\s*$"""), "")
@@ -106,13 +130,11 @@ class DesktopCloudDriveLibraryOrganizer(
     private fun String.isGenericFolderName(): Boolean =
         lowercase().trim() in GENERIC_FOLDER_NAMES
 
-    companion object {
-        private const val MAX_DEPTH = 5
-        private val VIDEO_EXTENSIONS = setOf("mkv", "mp4", "avi", "mov", "wmv", "flv", "webm", "m4v", "ts", "m2ts")
-        private val GENERIC_FOLDER_NAMES = setOf("download", "downloads", "library", "media", "video", "videos", "anime", "动漫", "下载", "下載")
-        private val leadingReleaseGroupRegex = Regex("""^\s*(?:\[[^\]]+]|【[^】]+】|\([^)]+\))\s*""")
-        private val tagRegex = Regex("""[\[\(【][^\]\)】]{1,64}[\]\)】]""")
-        private val seasonEpisodeRegex = Regex("""(?i)(?:^|[\s._-])S(\d{1,2})E(\d{1,3})(?:[\s._-]|$)""")
-        private val episodeNumberRegex = Regex("""(?i)(?:^|[\s._-])(?:EP?)?(\d{1,4})(?:v\d+)?(?:[\s._-]|$)""")
-    }
+    private val GENERIC_FOLDER_NAMES = setOf("download", "downloads", "library", "media", "video", "videos", "anime", "动漫", "下载", "下載")
+    private val leadingReleaseGroupRegex = Regex("""^\s*(?:\[[^\]]+]|【[^】]+】|\([^)]+\))\s*""")
+    private val tagRegex = Regex("""[\[\(【][^\]\)】]{1,64}[\]\)】]""")
+    private val seasonEpisodeRegex = Regex("""(?i)(?:^|[\s._-])S(\d{1,2})E(\d{1,3})(?:[\s._-]|$)""")
+    private val episodeNumberRegex = Regex("""(?i)(?:^|[\s._-])(?:EP?)?(\d{1,4})(?:v\d+)?(?:[\s._-]|$)""")
 }
+
+typealias DesktopCloudDriveLibraryOrganizer = CloudDriveLibraryOrganizer

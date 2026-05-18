@@ -21,7 +21,7 @@ class DesktopCloudDriveRssAutomationEngine(
     private val credentials: CloudDriveCredentialStore,
     private val cloudDriveClient: CloudDriveClient,
     private val feedFetcher: RssFeedReader = RssFeedFetcher(),
-    private val organizer: DesktopCloudDriveLibraryOrganizer = DesktopCloudDriveLibraryOrganizer(cloudDriveClient),
+    private val organizer: CloudDriveLibraryOrganizer = CloudDriveLibraryOrganizer(cloudDriveClient),
     private val torrentDownloader: TorrentFileDownloader = TorrentFileDownloader(),
 ) {
     suspend fun login(endpointUrl: String, username: String, password: String): Result<Unit> {

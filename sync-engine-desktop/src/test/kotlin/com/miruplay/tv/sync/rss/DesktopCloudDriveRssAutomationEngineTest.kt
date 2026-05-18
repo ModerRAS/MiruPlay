@@ -104,7 +104,7 @@ class DesktopCloudDriveRssAutomationEngineTest {
             credentials = credentials,
             feedFetcher = feedReader,
             cloudDriveClient = cloudDrive,
-            organizer = DesktopCloudDriveLibraryOrganizer(cloudDrive),
+            organizer = CloudDriveLibraryOrganizer(cloudDrive),
         )
 
         val result = engine.runOnce()
@@ -175,7 +175,7 @@ class DesktopCloudDriveRssAutomationEngineTest {
             credentials = FakeCredentials(token = "token"),
             feedFetcher = feedReader,
             cloudDriveClient = cloudDrive,
-            organizer = DesktopCloudDriveLibraryOrganizer(cloudDrive),
+            organizer = CloudDriveLibraryOrganizer(cloudDrive),
         )
         val scheduler = DesktopCloudDriveRssScheduler(engine, this, checkIntervalMillis = 10L)
 
