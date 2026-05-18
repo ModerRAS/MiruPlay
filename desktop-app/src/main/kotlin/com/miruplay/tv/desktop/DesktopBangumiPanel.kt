@@ -23,6 +23,8 @@ import androidx.compose.ui.unit.sp
 import com.miruplay.tv.design.MiruPlayUiMetrics
 import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.repository.MediaIndexEntry
+import com.miruplay.tv.repository.MetadataBatchMatch
+import com.miruplay.tv.repository.MetadataBatchPlan
 import com.miruplay.tv.repository.displayName
 
 @Composable
@@ -32,17 +34,17 @@ internal fun BangumiPanel(
     selectedIndexEntry: MediaIndexEntry?,
     results: List<ScraperResult>,
     selectedResult: ScraperResult?,
-    batchMatches: List<DesktopBangumiBatchMatch>,
-    selectedBatchMatch: DesktopBangumiBatchMatch?,
-    batchPlan: DesktopBangumiBatchPlan?,
+    batchMatches: List<MetadataBatchMatch>,
+    selectedBatchMatch: MetadataBatchMatch?,
+    batchPlan: MetadataBatchPlan?,
     status: String,
     onUseSelectedEntry: () -> Unit,
     onSearch: () -> Unit,
     onBatchPreview: () -> Unit,
     onBatchApply: () -> Unit,
     onBatchUndo: () -> Unit,
-    onBatchMatchSelected: (DesktopBangumiBatchMatch) -> Unit,
-    onBatchCandidateSelected: (DesktopBangumiBatchMatch, ScraperResult) -> Unit,
+    onBatchMatchSelected: (MetadataBatchMatch) -> Unit,
+    onBatchCandidateSelected: (MetadataBatchMatch, ScraperResult) -> Unit,
     onBatchAcceptReview: () -> Unit,
     onResultSelected: (ScraperResult) -> Unit,
     onApply: () -> Unit,
@@ -225,7 +227,7 @@ private fun BangumiResultRow(
 
 @Composable
 private fun BangumiBatchMatchRow(
-    match: DesktopBangumiBatchMatch,
+    match: MetadataBatchMatch,
     selected: Boolean,
     status: String,
     onClick: () -> Unit,
