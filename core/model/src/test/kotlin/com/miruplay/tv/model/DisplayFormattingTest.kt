@@ -28,4 +28,12 @@ class DisplayFormattingTest {
         assertEquals("01:35", formatPlaybackPosition(95_000))
         assertEquals("1:02:03", formatPlaybackPosition(3_723_000))
     }
+
+    @Test
+    fun `local timestamp formatting skips missing values and uses stable pattern`() {
+        assertEquals(null, formatLocalTimestamp(0L))
+        assertEquals(19, formatLocalTimestamp(1_700_000_000_000L)?.length)
+        assertEquals('-', formatLocalTimestamp(1_700_000_000_000L)?.get(4))
+        assertEquals(':', formatLocalTimestamp(1_700_000_000_000L)?.get(13))
+    }
 }
