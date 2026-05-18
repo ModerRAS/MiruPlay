@@ -2,6 +2,7 @@ package com.miruplay.tv.sync.rss
 
 import com.miruplay.tv.clouddrive.CloudDriveClient
 import com.miruplay.tv.clouddrive.CloudDriveEndpoint
+import com.miruplay.tv.clouddrive.CloudDrivePaths
 import com.miruplay.tv.clouddrive.CloudDriveTokenInfo
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
@@ -46,15 +47,15 @@ class DesktopCloudDriveRssAutomationEngine(
         if (config.endpointUrl.isBlank()) {
             return@withContext Result.failure(AppError.SyncError.WriteFailed("CloudDrive", "请先设置 CloudDrive2 地址"))
         }
-        val inboxPath = CloudDrivePathPolicy.normalize(config.inboxPath)
-        val libraryPath = CloudDrivePathPolicy.normalize(config.libraryPath)
-        if (!CloudDrivePathPolicy.isScopedDirectory(inboxPath)) {
+        val inboxPath = CloudDrivePaths.normalizeScoped(config.inboxPath)
+        val libraryPath = CloudDrivePaths.normalizeScoped(config.libraryPath)
+        if (!CloudDrivePaths.isScopedDirectory(inboxPath)) {
             return@withContext Result.failure(AppError.SyncError.WriteFailed("CloudDrive", "请设置非根目录作为下载目录 A"))
         }
-        if (!CloudDrivePathPolicy.isScopedDirectory(libraryPath)) {
+        if (!CloudDrivePaths.isScopedDirectory(libraryPath)) {
             return@withContext Result.failure(AppError.SyncError.WriteFailed("CloudDrive", "请设置非根目录作为整理目录 B"))
         }
-        if (CloudDrivePathPolicy.isSameOrChild(libraryPath, inboxPath)) {
+        if (CloudDrivePaths.isSameOrChild(libraryPath, inboxPath)) {
             return@withContext Result.failure(AppError.SyncError.WriteFailed("CloudDrive", "整理目录 B 不能放在下载目录 A 内部"))
         }
 
@@ -195,7 +196,7 @@ class DesktopCloudDriveRssAutomationEngine(
     }
 
     private suspend fun ensureTorrentStagingFolder(endpoint: CloudDriveEndpoint, inboxPath: String): Result<String> {
-        val normalizedInbox = CloudDrivePathPolicy.normalize(inboxPath)
+        val normalizedInbox = CloudDrivePaths.normalizeScoped(inboxPath)
         val stagingPath = "$normalizedInbox/$TORRENT_STAGING_FOLDER"
         val listing = cloudDriveClient.listFolder(endpoint, normalizedInbox, forceRefresh = false)
         if (listing is Result.Error) return listing
