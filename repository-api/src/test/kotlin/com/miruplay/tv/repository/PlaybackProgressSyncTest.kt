@@ -77,6 +77,98 @@ class PlaybackProgressSyncTest {
         assertEquals(0, saveCount)
     }
 
+    @Test
+    fun `savePlaybackProgressOnStop saves queried position when mpv reports one`() = runBlocking {
+        val session = PlaybackProgressSession(episodeId = "episode-1", startPositionMs = 5_000L)
+        var saved: SavedProgress? = null
+
+        val result = savePlaybackProgressOnStop(
+            session = session,
+            queryPositionMs = { Result.success(24_000L) },
+            saveProgress = { episodeId, positionMs, lastWatched ->
+                saved = SavedProgress(episodeId, positionMs, lastWatched)
+                Result.success(Unit)
+            },
+            nowMillis = { 7_000L },
+        )
+
+        assertEquals(Result.success(24_000L), result)
+        assertEquals(SavedProgress("episode-1", 24_000L, 7_000L), saved)
+    }
+
+    @Test
+    fun `savePlaybackProgressOnStop falls back to session position when player position is unavailable`() = runBlocking {
+        var now = 1_000L
+        val session = PlaybackProgressSession(
+            episodeId = "episode-1",
+            startPositionMs = 5_000L,
+            nowMillis = { now },
+        )
+        now = 2_500L
+        var saved: SavedProgress? = null
+
+        val result = savePlaybackProgressOnStop(
+            session = session,
+            queryPositionMs = { Result.success(null) },
+            saveProgress = { episodeId, positionMs, lastWatched ->
+                saved = SavedProgress(episodeId, positionMs, lastWatched)
+                Result.success(Unit)
+            },
+            nowMillis = { 9_000L },
+        )
+
+        assertEquals(Result.success(6_500L), result)
+        assertEquals(SavedProgress("episode-1", 6_500L, 9_000L), saved)
+    }
+
+    @Test
+    fun `savePlaybackProgressOnStop falls back to session position when query fails`() = runBlocking {
+        val session = PlaybackProgressSession(
+            episodeId = "episode-1",
+            startPositionMs = 5_000L,
+            nowMillis = { 1_000L },
+        )
+        var saved: SavedProgress? = null
+
+        val result = savePlaybackProgressOnStop(
+            session = session,
+            queryPositionMs = {
+                Result.failure(AppError.PlaybackError.StreamError("IPC unavailable"))
+            },
+            saveProgress = { episodeId, positionMs, lastWatched ->
+                saved = SavedProgress(episodeId, positionMs, lastWatched)
+                Result.success(Unit)
+            },
+            nowMillis = { 9_000L },
+        )
+
+        assertEquals(Result.success(5_000L), result)
+        assertEquals(SavedProgress("episode-1", 5_000L, 9_000L), saved)
+    }
+
+    @Test
+    fun `savePlaybackProgressOnStop can save without a player query`() = runBlocking {
+        val session = PlaybackProgressSession(
+            episodeId = "episode-1",
+            startPositionMs = 5_000L,
+            nowMillis = { 1_000L },
+        )
+        var saved: SavedProgress? = null
+
+        val result = savePlaybackProgressOnStop(
+            session = session,
+            queryPositionMs = null,
+            saveProgress = { episodeId, positionMs, lastWatched ->
+                saved = SavedProgress(episodeId, positionMs, lastWatched)
+                Result.success(Unit)
+            },
+            nowMillis = { 9_000L },
+        )
+
+        assertEquals(Result.success(5_000L), result)
+        assertEquals(SavedProgress("episode-1", 5_000L, 9_000L), saved)
+    }
+
     private data class SavedProgress(
         val episodeId: String,
         val positionMs: Long,

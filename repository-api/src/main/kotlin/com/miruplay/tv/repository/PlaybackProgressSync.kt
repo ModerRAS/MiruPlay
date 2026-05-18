@@ -20,3 +20,34 @@ suspend fun syncObservedPlaybackProgress(
         }
         is Result.Error -> Result.failure(position.error)
     }
+
+suspend fun savePlaybackProgressOnStop(
+    session: PlaybackProgressSession,
+    queryPositionMs: (suspend () -> Result<Long?>)?,
+    saveProgress: suspend (episodeId: String, positionMs: Long, lastWatched: Long) -> Result<Unit>,
+    nowMillis: () -> Long = System::currentTimeMillis,
+): Result<Long> {
+    val syncedPosition = queryPositionMs?.let { query ->
+        when (
+            val synced = syncObservedPlaybackProgress(
+                session = session,
+                queryPositionMs = query,
+                saveProgress = saveProgress,
+                nowMillis = nowMillis,
+            )
+        ) {
+            is Result.Success -> synced.data
+            is Result.Error -> null
+        }
+    }
+
+    if (syncedPosition != null) {
+        return Result.success(syncedPosition)
+    }
+
+    val fallbackPosition = session.currentPositionMs()
+    return when (val saved = saveProgress(session.episodeId, fallbackPosition, nowMillis())) {
+        is Result.Success -> Result.success(fallbackPosition)
+        is Result.Error -> Result.failure(saved.error)
+    }
+}

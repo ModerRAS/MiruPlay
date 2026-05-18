@@ -1442,26 +1442,15 @@ internal fun MiruPlayDesktopComposeApp() {
                     scope.launch {
                         val activePlayer = player
                         activePlaybackSession?.let { session ->
-                            val syncedPosition = activePlayer?.let { player ->
-                                when (
-                                    val synced = syncPlaybackProgressFromMpv(
-                                        session = session,
-                                        queryPositionMs = { player.queryTimePositionMs() },
-                                        saveProgress = { episodeId, positionMs, lastWatched ->
-                                            savePlaybackProgress(episodeId, positionMs, lastWatched)
-                                        },
-                                    )
-                                ) {
-                                    is Result.Success -> synced.data
-                                    is Result.Error -> null
-                                }
-                            }
-                            if (syncedPosition == null) {
-                                savePlaybackProgress(
-                                    episodeId = session.episodeId,
-                                    positionMs = session.currentPositionMs(),
-                                )
-                            }
+                            saveDesktopPlaybackProgressOnStop(
+                                session = session,
+                                queryPositionMs = activePlayer?.let { player ->
+                                    { player.queryTimePositionMs() }
+                                },
+                                saveProgress = { episodeId, positionMs, lastWatched ->
+                                    savePlaybackProgress(episodeId, positionMs, lastWatched)
+                                },
+                            )
                         }
                         activePlayer?.stop()
                         player = null
