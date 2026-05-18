@@ -52,9 +52,16 @@ import com.miruplay.tv.player.mpv.MpvProcessPlayer
 import com.miruplay.tv.player.mpv.RifeBackend
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MetadataBatchPlanner
+import com.miruplay.tv.repository.appliedStatus
+import com.miruplay.tv.repository.applyMetadataBatchPlan
 import com.miruplay.tv.repository.clearExternalMetadata
 import com.miruplay.tv.repository.displayName
 import com.miruplay.tv.repository.desktop.DesktopRepositories
+import com.miruplay.tv.repository.noMetadataBatchPreviewStatus
+import com.miruplay.tv.repository.noMetadataBatchUndoStatus
+import com.miruplay.tv.repository.restoreMetadataBatchUndo
+import com.miruplay.tv.repository.restoredStatus
+import com.miruplay.tv.repository.reviewAcceptedStatus
 import com.miruplay.tv.repository.withExternalMetadata
 import com.miruplay.tv.scanner.desktop.DesktopMediaLibraryScanner
 import com.miruplay.tv.scraper.desktop.DesktopBangumiScraper
@@ -858,7 +865,7 @@ internal fun MiruPlayDesktopComposeApp() {
                             return@launch
                         }
                         if (bangumiBatchMatches.isEmpty()) {
-                            bangumiStatus = "Run Batch preview first; no high-confidence matches are ready."
+                            bangumiStatus = noMetadataBatchPreviewStatus()
                             return@launch
                         }
                         when (val entriesResult = repositories.index.queryIndex(sourceId, "")) {
@@ -870,26 +877,16 @@ internal fun MiruPlayDesktopComposeApp() {
                                     bangumiStatus = MetadataBatchPlanner.displayPlanSummary(plan)
                                     return@launch
                                 }
-                                val updatedEntries = mutableListOf<MediaIndexEntry>()
-                                val rollback = mutableListOf<MediaIndexEntry>()
-                                plan.readyUpdates.forEach { update ->
-                                    when (repositories.index.upsertEntry(sourceId, update.updated.copy(sourceId = sourceId))) {
-                                        is Result.Success -> {
-                                            rollback += update.original.copy(sourceId = sourceId)
-                                            updatedEntries += update.updated.copy(sourceId = sourceId)
-                                        }
-                                        is Result.Error -> Unit
-                                    }
-                                }
-                                val rollbackEntries = rollback.distinctBy { it.path }
-                                bangumiBatchRollback = rollbackEntries
-                                repositories.index.saveLastBatchUndo(sourceId, rollbackEntries)
-                                indexedEntries = indexedEntries.replaceEntries(updatedEntries)
+                                val write = repositories.index.applyMetadataBatchPlan(sourceId, plan)
+                                bangumiBatchRollback = write.rollbackEntries
+                                indexedEntries = indexedEntries.replaceEntries(write.updatedEntries)
                                 selectedIndexEntry = selectedIndexEntry?.let { selected ->
-                                    updatedEntries.firstOrNull { it.path == selected.path && it.sourceId == selected.sourceId }
+                                    write.updatedEntries.firstOrNull {
+                                        it.path == selected.path && it.sourceId == selected.sourceId
+                                    }
                                         ?: selected
                                 }
-                                bangumiStatus = "Applied Bangumi batch metadata to ${updatedEntries.size} index entr${if (updatedEntries.size == 1) "y" else "ies"}; ${plan.conflicts.size} conflict${if (plan.conflicts.size == 1) "" else "s"} skipped."
+                                bangumiStatus = write.appliedStatus(plan.conflicts.size)
                             }
                             is Result.Error -> bangumiStatus = entriesResult.error.toUserMessage()
                         }
@@ -902,36 +899,24 @@ internal fun MiruPlayDesktopComposeApp() {
                             bangumiStatus = "Open or scan a source first."
                             return@launch
                         }
-                        val rollback = if (bangumiBatchRollback.isNotEmpty()) {
-                            bangumiBatchRollback
-                        } else {
-                            when (val saved = repositories.index.getLastBatchUndo(sourceId)) {
-                                is Result.Success -> saved.data
-                                is Result.Error -> {
-                                    bangumiStatus = saved.error.toUserMessage()
+                        when (val restore = repositories.index.restoreMetadataBatchUndo(sourceId, bangumiBatchRollback)) {
+                            is Result.Success -> {
+                                if (restore.data.rollbackEntries.isEmpty()) {
+                                    bangumiStatus = noMetadataBatchUndoStatus()
                                     return@launch
                                 }
+                                indexedEntries = indexedEntries.replaceEntries(restore.data.rollbackEntries)
+                                selectedIndexEntry = selectedIndexEntry?.let { selected ->
+                                    restore.data.rollbackEntries.firstOrNull {
+                                        it.path == selected.path && it.sourceId == selected.sourceId
+                                    }
+                                        ?: selected
+                                }
+                                bangumiBatchRollback = emptyList()
+                                bangumiStatus = restore.data.restoredStatus()
                             }
+                            is Result.Error -> bangumiStatus = restore.error.toUserMessage()
                         }
-                        if (rollback.isEmpty()) {
-                            bangumiStatus = "No batch Bangumi changes are available to undo."
-                            return@launch
-                        }
-                        var restoredCount = 0
-                        rollback.forEach { entry ->
-                            when (repositories.index.upsertEntry(sourceId, entry.copy(sourceId = sourceId))) {
-                                is Result.Success -> restoredCount += 1
-                                is Result.Error -> Unit
-                            }
-                        }
-                        indexedEntries = indexedEntries.replaceEntries(rollback)
-                        selectedIndexEntry = selectedIndexEntry?.let { selected ->
-                            rollback.firstOrNull { it.path == selected.path && it.sourceId == selected.sourceId }
-                                ?: selected
-                        }
-                        bangumiBatchRollback = emptyList()
-                        repositories.index.clearLastBatchUndo(sourceId)
-                        bangumiStatus = "Restored $restoredCount index entr${if (restoredCount == 1) "y" else "ies"} from the previous Bangumi batch."
                     }
                 },
                 onBatchMatchSelected = { match ->
@@ -993,26 +978,16 @@ internal fun MiruPlayDesktopComposeApp() {
                                     bangumiStatus = "Selected review has no matching indexed entries."
                                     return@launch
                                 }
-                                val rollback = mutableListOf<MediaIndexEntry>()
-                                val updatedEntries = mutableListOf<MediaIndexEntry>()
-                                plan.readyUpdates.forEach { update ->
-                                    when (repositories.index.upsertEntry(sourceId, update.updated.copy(sourceId = sourceId))) {
-                                        is Result.Success -> {
-                                            rollback += update.original.copy(sourceId = sourceId)
-                                            updatedEntries += update.updated.copy(sourceId = sourceId)
-                                        }
-                                        is Result.Error -> Unit
-                                    }
-                                }
-                                val rollbackEntries = rollback.distinctBy { it.path }
-                                bangumiBatchRollback = rollbackEntries
-                                repositories.index.saveLastBatchUndo(sourceId, rollbackEntries)
-                                indexedEntries = indexedEntries.replaceEntries(updatedEntries)
+                                val write = repositories.index.applyMetadataBatchPlan(sourceId, plan)
+                                bangumiBatchRollback = write.rollbackEntries
+                                indexedEntries = indexedEntries.replaceEntries(write.updatedEntries)
                                 selectedIndexEntry = selectedIndexEntry?.let { selected ->
-                                    updatedEntries.firstOrNull { it.path == selected.path && it.sourceId == selected.sourceId }
+                                    write.updatedEntries.firstOrNull {
+                                        it.path == selected.path && it.sourceId == selected.sourceId
+                                    }
                                         ?: selected
                                 }
-                                bangumiStatus = "Accepted reviewed Bangumi match for ${updatedEntries.size} index entr${if (updatedEntries.size == 1) "y" else "ies"}."
+                                bangumiStatus = write.reviewAcceptedStatus()
                             }
                             is Result.Error -> bangumiStatus = entriesResult.error.toUserMessage()
                         }
