@@ -3,6 +3,7 @@ package com.miruplay.tv.player.mpv
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.PlaybackSource
+import com.miruplay.tv.model.PlaybackTimingConventions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.nio.file.Files
@@ -85,7 +86,7 @@ class MpvProcessPlayer(
 
     suspend fun queryTimePositionMs(): Result<Long?> =
         ipcClientOrError()?.getTimePositionSeconds()?.map { seconds ->
-            seconds?.let { (it * 1_000.0).toLong().coerceAtLeast(0L) }
+            seconds?.let(PlaybackTimingConventions::secondsToPositionMsFloored)
         } ?: missingIpcError()
 
     private fun ipcClientOrError(): MpvIpcClient? =

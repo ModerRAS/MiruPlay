@@ -1,0 +1,34 @@
+package com.miruplay.tv.model
+
+import java.util.Locale
+import kotlin.math.roundToLong
+
+object PlaybackTimingConventions {
+    fun parseSecondsToPositionMs(value: String): Long =
+        value.trim()
+            .takeIf { it.isNotBlank() }
+            ?.toDoubleOrNull()
+            ?.let(::secondsToPositionMsRounded)
+            ?: 0L
+
+    fun secondsToPositionMsRounded(seconds: Double): Long =
+        (seconds * MILLIS_PER_SECOND).roundToLong().coerceAtLeast(0L)
+
+    fun secondsToPositionMsFloored(seconds: Double): Long =
+        (seconds * MILLIS_PER_SECOND).toLong().coerceAtLeast(0L)
+
+    fun secondsToDeltaMs(seconds: Double): Long =
+        (seconds * MILLIS_PER_SECOND).toLong()
+
+    fun formatMpvStartSeconds(positionMs: Long): String {
+        val normalizedPosition = positionMs.coerceAtLeast(0L)
+        if (normalizedPosition % 1_000L == 0L) {
+            return (normalizedPosition / 1_000L).toString()
+        }
+        return String.format(Locale.US, "%.3f", normalizedPosition / MILLIS_PER_SECOND)
+            .trimEnd('0')
+            .trimEnd('.')
+    }
+
+    private const val MILLIS_PER_SECOND = 1_000.0
+}
