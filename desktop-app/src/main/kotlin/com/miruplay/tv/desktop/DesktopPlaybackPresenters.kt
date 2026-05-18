@@ -8,9 +8,8 @@ import com.miruplay.tv.player.mpv.MpvCommandBuilder
 import com.miruplay.tv.player.mpv.MpvRuntimeConfig
 import com.miruplay.tv.player.mpv.MpvRuntimeVerifier
 import com.miruplay.tv.player.mpv.RifeBackend
-import com.miruplay.tv.player.mpv.RifeInterpolationConfig
 import com.miruplay.tv.player.mpv.buildPreview
-import java.nio.file.Paths
+import com.miruplay.tv.player.mpv.mpvRuntimeConfigFromInputs
 
 internal fun runtimeStatus(mpvPath: String, configDir: String): String =
     runCatching {
@@ -47,12 +46,13 @@ internal fun buildRuntimeConfig(
     rifeEnabled: Boolean,
     rifeBackend: RifeBackend,
 ): MpvRuntimeConfig =
-    MpvRuntimeConfig(
-        mpvExecutable = Paths.get(mpvPath.trim()),
-        configDirectory = configDir.trim().takeIf { it.isNotBlank() }?.let(Paths::get),
-        startFullscreen = fullscreen,
+    mpvRuntimeConfigFromInputs(
+        mpvPath = mpvPath,
+        configDir = configDir,
+        fullscreen = fullscreen,
         keepOpen = keepOpen,
-        rife = if (rifeEnabled) RifeInterpolationConfig(backend = rifeBackend) else null,
+        rifeEnabled = rifeEnabled,
+        rifeBackend = rifeBackend,
     )
 
 internal fun buildPlaybackSource(

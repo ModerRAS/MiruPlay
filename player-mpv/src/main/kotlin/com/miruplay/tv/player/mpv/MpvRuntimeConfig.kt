@@ -1,6 +1,7 @@
 package com.miruplay.tv.player.mpv
 
 import java.nio.file.Path
+import java.nio.file.Paths
 
 /**
  * Windows mpv runtime configuration.
@@ -23,6 +24,22 @@ data class MpvRuntimeConfig(
     val rife: RifeInterpolationConfig? = null,
     val extraArguments: List<String> = emptyList(),
 )
+
+fun mpvRuntimeConfigFromInputs(
+    mpvPath: String,
+    configDir: String,
+    fullscreen: Boolean,
+    keepOpen: Boolean,
+    rifeEnabled: Boolean,
+    rifeBackend: RifeBackend,
+): MpvRuntimeConfig =
+    MpvRuntimeConfig(
+        mpvExecutable = Paths.get(mpvPath.trim()),
+        configDirectory = configDir.trim().takeIf { it.isNotBlank() }?.let(Paths::get),
+        startFullscreen = fullscreen,
+        keepOpen = keepOpen,
+        rife = if (rifeEnabled) RifeInterpolationConfig(backend = rifeBackend) else null,
+    )
 
 data class RifeInterpolationConfig(
     val backend: RifeBackend = RifeBackend.NVIDIA,
