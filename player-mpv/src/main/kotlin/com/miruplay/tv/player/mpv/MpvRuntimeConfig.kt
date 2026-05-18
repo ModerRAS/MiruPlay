@@ -6,6 +6,8 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 
+const val DEFAULT_MPV_IPC_SERVER = "miruplay-mpv"
+
 /**
  * Windows mpv runtime configuration.
  *
@@ -39,6 +41,7 @@ fun mpvRuntimeConfigFromInputs(
     MpvRuntimeConfig(
         mpvExecutable = Paths.get(mpvPath.trim()),
         configDirectory = configDir.trim().takeIf { it.isNotBlank() }?.let(Paths::get),
+        ipcServer = DEFAULT_MPV_IPC_SERVER,
         startFullscreen = fullscreen,
         keepOpen = keepOpen,
         rife = if (rifeEnabled) RifeInterpolationConfig(backend = rifeBackend) else null,
