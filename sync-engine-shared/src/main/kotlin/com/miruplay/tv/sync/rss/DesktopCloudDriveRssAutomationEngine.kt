@@ -21,7 +21,7 @@ class DesktopCloudDriveRssAutomationEngine(
     private val cloudDriveClient: CloudDriveClient,
     private val feedFetcher: RssFeedReader = RssFeedFetcher(),
     private val organizer: CloudDriveLibraryOrganizer = CloudDriveLibraryOrganizer(cloudDriveClient),
-    private val torrentDownloader: TorrentFileDownloader = TorrentFileDownloader(),
+    private val submissionPreparer: CloudDriveRssSubmissionPreparer = CloudDriveRssSubmissionPreparer(cloudDriveClient),
 ) {
     suspend fun login(endpointUrl: String, username: String, password: String): Result<Unit> {
         val result = cloudDriveClient.login(endpointUrl, username, password)
@@ -59,7 +59,7 @@ class DesktopCloudDriveRssAutomationEngine(
         }
 
         feedFetcher.configureProxy(config.rssProxyEnabled, config.rssProxyHost, config.rssProxyPort)
-        torrentDownloader.configureProxy(config.rssProxyEnabled, config.rssProxyHost, config.rssProxyPort)
+        submissionPreparer.configureProxy(config.rssProxyEnabled, config.rssProxyHost, config.rssProxyPort)
 
         val token = credentials.cloudDriveToken
             ?: return@withContext Result.failure(AppError.MediaSourceError.AuthenticationFailed("CloudDrive2"))
@@ -104,14 +104,14 @@ class DesktopCloudDriveRssAutomationEngine(
                     return@decisionLoop
                 }
 
-                val preparedSubmissionUrl = prepareSubmissionUrl(endpoint, decision.item, itemKey, submissionUrl, inboxPath)
-                if (preparedSubmissionUrl is Result.Error) {
+                val preparedSubmission = submissionPreparer.prepare(endpoint, decision.item, itemKey, submissionUrl, inboxPath)
+                if (preparedSubmission is Result.Error) {
                     failed += 1
                     return@decisionLoop
                 }
 
                 val now = System.currentTimeMillis()
-                cloudDriveClient.addOfflineFiles(endpoint, listOf((preparedSubmissionUrl as Result.Success).data), inboxPath)
+                cloudDriveClient.addOfflineFiles(endpoint, listOf((preparedSubmission as Result.Success).data.submissionUrl), inboxPath)
                     .onSuccess {
                         repository.markItemProcessed(
                             RssProcessedItemInfo(
@@ -165,60 +165,4 @@ class DesktopCloudDriveRssAutomationEngine(
         return runOnce().map { it }
     }
 
-    private suspend fun prepareSubmissionUrl(
-        endpoint: CloudDriveEndpoint,
-        item: RssFeedItem,
-        itemKey: String,
-        submissionUrl: String,
-        inboxPath: String,
-    ): Result<String> {
-        if (!item.isTorrentSubmission) return Result.success(submissionUrl)
-
-        val downloaded = torrentDownloader.download(
-            url = submissionUrl,
-            title = item.title,
-            keyPrefix = RssSubmissionPlanner.stableHash(itemKey).take(12),
-        )
-        if (downloaded is Result.Error) return downloaded
-        val torrent = (downloaded as Result.Success).data
-        return try {
-            val magnet = TorrentMagnetParser.parse(torrent.file)
-            if (magnet is Result.Error) return magnet
-
-            val stagingPath = ensureTorrentStagingFolder(endpoint, inboxPath)
-            if (stagingPath is Result.Error) return stagingPath
-            val uploaded = cloudDriveClient.uploadFile(
-                endpoint = endpoint,
-                localFile = torrent.file,
-                parentPath = (stagingPath as Result.Success).data,
-                remoteFileName = torrent.remoteFileName,
-            )
-            if (uploaded is Result.Error && !uploaded.error.isAlreadyExists()) return uploaded
-
-            magnet
-        } finally {
-            torrent.file.delete()
-        }
-    }
-
-    private suspend fun ensureTorrentStagingFolder(endpoint: CloudDriveEndpoint, inboxPath: String): Result<String> {
-        val normalizedInbox = CloudDrivePaths.normalizeScoped(inboxPath)
-        val stagingPath = "$normalizedInbox/$TORRENT_STAGING_FOLDER"
-        val listing = cloudDriveClient.listFolder(endpoint, normalizedInbox, forceRefresh = false)
-        if (listing is Result.Error) return listing
-        val exists = (listing as Result.Success).data.any { it.isDirectory && it.name == TORRENT_STAGING_FOLDER }
-        if (!exists) {
-            val created = cloudDriveClient.createFolder(endpoint, normalizedInbox, TORRENT_STAGING_FOLDER)
-            if (created is Result.Error) return created
-        }
-        return Result.success(stagingPath)
-    }
-
-    private fun AppError.isAlreadyExists(): Boolean =
-        toString().contains("ALREADY_EXISTS", ignoreCase = true) ||
-            toString().contains("already exists", ignoreCase = true)
-
-    companion object {
-        private const val TORRENT_STAGING_FOLDER = ".miruplay-torrents"
-    }
 }

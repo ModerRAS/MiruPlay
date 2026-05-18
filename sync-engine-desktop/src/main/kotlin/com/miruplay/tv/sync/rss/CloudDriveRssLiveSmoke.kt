@@ -52,6 +52,7 @@ data class CloudDriveRssLiveSmokeReport(
     val submitMode: Boolean,
     val submitAttemptedCount: Int,
     val submitSucceededCount: Int,
+    val submitPreparedTorrentCount: Int,
     val postSubmitInboxItemCount: Int?,
     val previewItems: List<CloudDriveRssLiveSmokeItem>,
 )
@@ -130,6 +131,7 @@ suspend fun runCloudDriveRssLiveSmoke(
     options: CloudDriveRssLiveSmokeOptions,
     cloudDriveClient: CloudDriveClient = GrpcCloudDriveClient(),
     feedReader: RssFeedReader = RssFeedFetcher(),
+    submissionPreparer: CloudDriveRssSubmissionPreparer = CloudDriveRssSubmissionPreparer(cloudDriveClient),
 ): Result<CloudDriveRssLiveSmokeReport> {
     val normalizedInbox = CloudDrivePaths.normalizeScoped(options.inboxPath)
     val normalizedLibrary = CloudDrivePaths.normalizeScoped(options.libraryPath)
@@ -169,6 +171,7 @@ suspend fun runCloudDriveRssLiveSmoke(
             endpoint = endpoint,
             inboxPath = normalizedInbox,
             decisions = decisions,
+            submissionPreparer = submissionPreparer,
         )
     } else {
         Result.success(CloudDriveRssSubmitSmokeResult())
@@ -214,6 +217,7 @@ suspend fun runCloudDriveRssLiveSmoke(
             submitMode = options.submit,
             submitAttemptedCount = submitted.attemptedCount,
             submitSucceededCount = submitted.succeededCount,
+            submitPreparedTorrentCount = submitted.preparedTorrentCount,
             postSubmitInboxItemCount = postSubmitInboxItemCount,
             previewItems = decisions.take(options.maxPreviewItems),
         )
@@ -236,6 +240,7 @@ fun main(args: Array<String>) = runBlocking {
 private data class CloudDriveRssSubmitSmokeResult(
     val attemptedCount: Int = 0,
     val succeededCount: Int = 0,
+    val preparedTorrentCount: Int = 0,
 )
 
 private suspend fun submitLiveSmokeCandidates(
@@ -244,6 +249,7 @@ private suspend fun submitLiveSmokeCandidates(
     endpoint: CloudDriveEndpoint,
     inboxPath: String,
     decisions: List<CloudDriveRssLiveSmokeItem>,
+    submissionPreparer: CloudDriveRssSubmissionPreparer,
 ): Result<CloudDriveRssSubmitSmokeResult> {
     if (options.submitConfirmation != LIVE_SUBMIT_CONFIRMATION) {
         return Result.failure(
@@ -256,7 +262,6 @@ private suspend fun submitLiveSmokeCandidates(
 
     val candidates = decisions
         .filter { it.status == CloudDriveRssLiveSmokeItemStatus.WOULD_SUBMIT }
-        .mapNotNull { it.submissionUrl?.takeIf(String::isNotBlank) }
         .take(options.submitLimit)
     if (candidates.isEmpty()) {
         return Result.failure(
@@ -267,11 +272,34 @@ private suspend fun submitLiveSmokeCandidates(
         )
     }
 
-    return when (val result = cloudDriveClient.addOfflineFiles(endpoint, candidates, inboxPath)) {
+    submissionPreparer.configureProxy(options.proxyEnabled, options.proxyHost, options.proxyPort)
+    val prepared = mutableListOf<PreparedRssSubmission>()
+    for (candidate in candidates) {
+        val submissionUrl = candidate.submissionUrl?.takeIf(String::isNotBlank)
+            ?: return Result.failure(
+                AppError.SyncError.WriteFailed(
+                    "CloudDrive RSS smoke",
+                    "candidate is missing a submission URL",
+                )
+            )
+        val item = RssFeedItem(
+            title = candidate.title,
+            guid = candidate.guid,
+            link = if (candidate.submissionType == CloudDriveRssLiveSmokeSubmissionType.TORRENT) null else submissionUrl,
+            enclosureUrl = if (candidate.submissionType == CloudDriveRssLiveSmokeSubmissionType.TORRENT) submissionUrl else null,
+        )
+        val itemKey = RssSubmissionPlanner.stableItemKey(item, submissionUrl)
+        val preparedSubmission = submissionPreparer.prepare(endpoint, item, itemKey, submissionUrl, inboxPath)
+        if (preparedSubmission is Result.Error) return preparedSubmission
+        prepared += (preparedSubmission as Result.Success).data
+    }
+
+    return when (val result = cloudDriveClient.addOfflineFiles(endpoint, prepared.map { it.submissionUrl }, inboxPath)) {
         is Result.Success -> Result.success(
             CloudDriveRssSubmitSmokeResult(
-                attemptedCount = candidates.size,
-                succeededCount = candidates.size,
+                attemptedCount = prepared.size,
+                succeededCount = prepared.size,
+                preparedTorrentCount = prepared.count { it.stagedTorrentPath != null },
             )
         )
         is Result.Error -> result
@@ -346,6 +374,7 @@ private fun printCloudDriveRssLiveSmokeReport(report: CloudDriveRssLiveSmokeRepo
     }
     if (report.submitMode) {
         println("Submitted ${report.submitSucceededCount}/${report.submitAttemptedCount} offline download candidate(s).")
+        println("Prepared torrent submissions: ${report.submitPreparedTorrentCount}.")
         report.postSubmitInboxItemCount?.let { println("Post-submit inbox listing: $it item(s)") }
     } else {
         println("No offline downloads were submitted by this dry-run.")
@@ -384,6 +413,7 @@ internal fun buildCloudDriveRssLiveSmokeReportJson(
             put("enabled", report.submitMode)
             put("attemptedCount", report.submitAttemptedCount)
             put("succeededCount", report.submitSucceededCount)
+            put("preparedTorrentCount", report.submitPreparedTorrentCount)
             report.postSubmitInboxItemCount?.let { put("postSubmitInboxItemCount", it) }
         }
         putJsonObject("tokenInfo") {
