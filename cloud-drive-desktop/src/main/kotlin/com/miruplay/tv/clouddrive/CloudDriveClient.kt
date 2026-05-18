@@ -12,7 +12,6 @@ import io.grpc.stub.MetadataUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.net.URI
 import java.util.concurrent.TimeUnit
 
 class GrpcCloudDriveClient : CloudDriveClient {
@@ -164,11 +163,14 @@ class GrpcCloudDriveClient : CloudDriveClient {
         endpoint: CloudDriveEndpoint,
         block: (CloudDriveFileSrvGrpc.CloudDriveFileSrvBlockingStub) -> Result<T>
     ): Result<T> {
-        val token = endpoint.token?.takeIf { it.isNotBlank() }
-            ?: return Result.failure(AppError.MediaSourceError.AuthenticationFailed("CloudDrive2"))
-        val bearerResult = withAuthorization(endpoint.url, "Bearer $token", block)
-        return if (bearerResult.isUnauthenticated()) {
-            withAuthorization(endpoint.url, token, block)
+        val token = when (val tokenResult = CloudDriveProtocol.requireToken(endpoint)) {
+            is Result.Success -> tokenResult.data
+            is Result.Error -> return tokenResult
+        }
+        val authorizations = CloudDriveProtocol.authorizationCandidates(token)
+        val bearerResult = withAuthorization(endpoint.url, authorizations.first(), block)
+        return if (CloudDriveProtocol.shouldRetryWithRawToken(bearerResult)) {
+            withAuthorization(endpoint.url, authorizations.last(), block)
         } else {
             bearerResult
         }
@@ -208,18 +210,10 @@ class GrpcCloudDriveClient : CloudDriveClient {
     }
 
     private fun buildChannel(endpointUrl: String): ManagedChannel {
-        val uri = URI(endpointUrl)
-        val scheme = uri.scheme?.lowercase()
-        require(scheme == "http" || scheme == "https") { "CloudDrive endpoint must be http(s)" }
-        val host = uri.host ?: error("CloudDrive endpoint host is missing")
-        val port = when {
-            uri.port > 0 -> uri.port
-            scheme == "https" -> 443
-            else -> 80
-        }
-        return OkHttpChannelBuilder.forAddress(host, port)
+        val address = CloudDriveProtocol.parseEndpointAddress(endpointUrl)
+        return OkHttpChannelBuilder.forAddress(address.host, address.port)
             .apply {
-                if (scheme == "https") {
+                if (address.useTransportSecurity) {
                     useTransportSecurity()
                 } else {
                     usePlaintext()
@@ -229,22 +223,7 @@ class GrpcCloudDriveClient : CloudDriveClient {
     }
 
     private fun Clouddrive.FileOperationResult.asUnitResult(fallback: String): Result<Unit> =
-        if (success) {
-            Result.success(Unit)
-        } else {
-            Result.failure(AppError.SyncError.WriteFailed("CloudDrive2", errorMessage.ifBlank { fallback }))
-        }
-
-    private fun Result<*>.isUnauthenticated(): Boolean {
-        val error = (this as? Result.Error)?.error ?: return false
-        val detail = when (error) {
-            is AppError.NetworkError.ServerUnreachable -> error.url
-            is AppError.MediaSourceError.AuthenticationFailed -> error.source
-            else -> error.toString()
-        }
-        return detail.contains("UNAUTHENTICATED", ignoreCase = true) ||
-            detail.contains("Invalid auth token", ignoreCase = true)
-    }
+        CloudDriveProtocol.operationResult(success, errorMessage, fallback)
 
     companion object {
         private val AUTHORIZATION_HEADER: Metadata.Key<String> =
