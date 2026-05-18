@@ -3,8 +3,6 @@ package com.miruplay.tv.sync.rss
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 import java.io.File
-import java.net.URLEncoder
-import java.security.MessageDigest
 
 object TorrentMagnetParser {
     fun parse(file: File): Result<String> =
@@ -24,7 +22,7 @@ object TorrentMagnetParser {
             val infoDict = info as? BValue.Dict
                 ?: throw IllegalArgumentException("'info' is not a dictionary")
 
-            val infoHash = sha1Hex(bytes.copyOfRange(info.start, info.end))
+            val infoHash = RssTextEncoding.sha1Hex(bytes.copyOfRange(info.start, info.end))
             val name = (infoDict.value("name.utf-8") ?: infoDict.value("name"))
                 ?.asString()
                 ?.takeIf { it.isNotBlank() }
@@ -32,8 +30,8 @@ object TorrentMagnetParser {
 
             val query = buildList {
                 add("xt=urn:btih:$infoHash")
-                if (name != null) add("dn=${name.encodeQueryValue()}")
-                trackers.forEach { tracker -> add("tr=${tracker.encodeQueryValue()}") }
+                if (name != null) add("dn=${RssTextEncoding.queryValue(name)}")
+                trackers.forEach { tracker -> add("tr=${RssTextEncoding.queryValue(tracker)}") }
             }.joinToString("&")
             Result.success("magnet:?$query")
         } catch (e: Exception) {
@@ -58,14 +56,6 @@ object TorrentMagnetParser {
 
     private fun BValue.asString(): String? =
         (this as? BValue.Bytes)?.bytes?.toString(Charsets.UTF_8)
-
-    private fun sha1Hex(bytes: ByteArray): String =
-        MessageDigest.getInstance("SHA-1")
-            .digest(bytes)
-            .joinToString("") { "%02x".format(it) }
-
-    private fun String.encodeQueryValue(): String =
-        URLEncoder.encode(this, Charsets.UTF_8.name()).replace("+", "%20")
 
     private sealed class BValue(open val start: Int, open val end: Int) {
         data class Bytes(val bytes: ByteArray, override val start: Int, override val end: Int) : BValue(start, end)

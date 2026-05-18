@@ -2,7 +2,6 @@ package com.miruplay.tv.sync.rss
 
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
-import java.security.MessageDigest
 
 data class RssSubmissionDecision(
     val item: RssFeedItem,
@@ -58,9 +57,6 @@ object RssSubmissionPlanner {
     fun stableItemKey(item: RssFeedItem, submissionUrl: String): String =
         item.guid?.takeIf { it.isNotBlank() } ?: stableHash("${item.title}|$submissionUrl")
 
-    fun stableHash(value: String): String {
-        val digest = MessageDigest.getInstance("SHA-1").digest(value.toByteArray())
-        return digest.joinToString("") { "%02x".format(it) }
-    }
-
+    fun stableHash(value: String): String =
+        RssTextEncoding.sha1Hex(value)
 }

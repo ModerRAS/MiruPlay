@@ -11,7 +11,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
-import java.security.MessageDigest
 
 class CloudDriveRssSubmissionPreparerTest {
     @Test
@@ -129,8 +128,6 @@ internal fun torrentBytes(): ByteArray {
 
 internal fun expectedMagnet(torrentBytes: ByteArray): String {
     val info = "d4:name8:Test.mkv12:piece lengthi16384e6:pieces20:abcdefghijklmnopqrste".toByteArray()
-    val expectedHash = MessageDigest.getInstance("SHA-1")
-        .digest(info)
-        .joinToString("") { "%02x".format(it) }
+    val expectedHash = RssTextEncoding.sha1Hex(info)
     return "magnet:?xt=urn:btih:$expectedHash&dn=Test.mkv&tr=http%3A%2F%2Ftracker"
 }
