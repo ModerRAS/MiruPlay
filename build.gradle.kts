@@ -121,6 +121,50 @@ tasks.register("checkDesktopComposeOnly") {
     }
 }
 
+val desktopPresenterSeparationForbiddenPatterns = mapOf(
+    "MpvCommandBuilder" to Regex("""\bMpvCommandBuilder\b"""),
+    "MpvRuntimeConfig" to Regex("""\bMpvRuntimeConfig\b"""),
+    "MpvRuntimeVerifier" to Regex("""\bMpvRuntimeVerifier\b"""),
+    "RifeInterpolationConfig" to Regex("""\bRifeInterpolationConfig\b"""),
+    "buildExternalSubtitleTracks" to Regex("""\bbuildExternalSubtitleTracks\b"""),
+    "ScraperResult.displayTitle import" to Regex("""import\s+com\.miruplay\.tv\.model\.displayTitle"""),
+    "private playback presenter helper" to Regex("""private\s+fun\s+(runtimeStatus|buildCommandPreview|buildRuntimeConfig|buildPlaybackSource|playableUriFor)\b"""),
+    "private media source presenter helper" to Regex("""private\s+fun\s+(sourceLabel|webDavSourceInfo|smbSourceInfo|desktopSourceFromInfo|desktopWebDavSourceFromInfo|remoteParent|recentDisplayName)\b"""),
+    "private Bangumi presenter helper" to Regex("""private\s+fun\s+(bangumiQueryFor|bangumiDisplayTitle|batchStatusFor|withSelectedCandidate|selectedCandidateLabel|replaceBatchMatch|isSameBangumiCandidate|replaceEntry|replaceEntries)\b"""),
+    "private Cloud RSS presenter helper" to Regex("""private\s+fun\s+(schedulerStatus|linkedSourceLabel)\b"""),
+)
+
+tasks.register("checkDesktopPresenterSeparation") {
+    group = "verification"
+    description = "Fails when extracted desktop presenter logic drifts back into the Compose entry file."
+
+    inputs.file("desktop-app/src/main/kotlin/com/miruplay/tv/desktop/MiruPlayDesktopComposeApp.kt")
+
+    doLast {
+        val sourceFile = inputs.files.singleFile
+        val violations = mutableListOf<String>()
+        sourceFile.useLines { lines ->
+            lines.forEachIndexed { index, line ->
+                desktopPresenterSeparationForbiddenPatterns
+                    .filterValues { pattern -> pattern.containsMatchIn(line) }
+                    .keys
+                    .forEach { token ->
+                        val relativePath = sourceFile.relativeTo(rootDir).path.replace(java.io.File.separatorChar, '/')
+                        violations += "$relativePath:${index + 1}: $token"
+                    }
+            }
+        }
+
+        if (violations.isNotEmpty()) {
+            throw GradleException(
+                "Desktop presenter logic found in MiruPlayDesktopComposeApp.kt. " +
+                    "Keep source, playback, Bangumi, and Cloud/RSS presenter helpers in their extracted files:\n" +
+                    violations.joinToString(separator = "\n") { " - $it" }
+            )
+        }
+    }
+}
+
 subprojects {
     plugins.withId("com.android.application") {
         extensions.configure<com.android.build.gradle.BaseExtension>("android") {
