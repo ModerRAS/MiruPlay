@@ -53,6 +53,7 @@ jobs:
         run: >
           ./gradlew
           checkDesktopComposeOnly
+          checkDesktopPresenterSeparation
           checkUiPaletteDrift
           :core:model:test
           :repository-api:test
