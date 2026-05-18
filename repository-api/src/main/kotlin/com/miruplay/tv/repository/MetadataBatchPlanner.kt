@@ -67,7 +67,7 @@ object MetadataBatchPlanner {
 
     fun queriesFor(entries: List<MediaIndexEntry>): List<String> =
         entries
-            .mapNotNull(::queryFor)
+            .mapNotNull(MediaIndexEntry::metadataQuery)
             .distinct()
 
     fun acceptedMatches(matches: List<MetadataBatchMatch>): List<MetadataBatchMatch> =
@@ -86,7 +86,7 @@ object MetadataBatchPlanner {
                 reviewMatches += match
                 return@forEach
             }
-            val matchingEntries = entries.filter { queryFor(it) == match.query }
+            val matchingEntries = entries.filter { it.metadataQuery() == match.query }
             if (matchingEntries.any(::hasExternalMetadata)) {
                 conflicts += matchingEntries.map { MetadataBatchConflict(match.query, it) }
                 return@forEach
@@ -127,15 +127,6 @@ object MetadataBatchPlanner {
 
     fun displayPlanSummary(plan: MetadataBatchPlan): String =
         "${plan.readyUpdates.size} ready, ${plan.reviewMatches.size} review, ${plan.conflicts.size} conflicts"
-
-    private fun queryFor(entry: MediaIndexEntry): String? =
-        entry.animeName?.takeIf { it.isNotBlank() }
-            ?: entry.metadataTitle?.takeIf { it.isNotBlank() }
-            ?: entry.path.let { path ->
-                val fileName = path.substringAfterLast('/').substringAfterLast('\\')
-                fileName.substringBeforeLast('.', fileName)
-            }
-                .takeIf { it.isNotBlank() }
 
     private fun displayCandidate(result: ScraperResult): String =
         result.title + result.titleCn?.takeIf { it.isNotBlank() }?.let { " / $it" }.orEmpty()
