@@ -50,3 +50,29 @@ sealed interface HttpByteRange {
         fun toStreamRange(): StreamRange = StreamRange(start, endInclusive)
     }
 }
+
+data class HttpStreamResponsePlan(
+    val statusCode: Int,
+    val contentLength: Long,
+    val contentRangeHeader: String? = null,
+) {
+    companion object {
+        fun from(range: HttpByteRange?, totalLength: Long?): HttpStreamResponsePlan =
+            when (range) {
+                is HttpByteRange.Resolved -> HttpStreamResponsePlan(
+                    statusCode = 206,
+                    contentLength = range.length,
+                    contentRangeHeader = range.contentRangeHeader,
+                )
+                is HttpByteRange.Invalid -> HttpStreamResponsePlan(
+                    statusCode = 416,
+                    contentLength = 0L,
+                    contentRangeHeader = range.contentRangeHeader,
+                )
+                else -> HttpStreamResponsePlan(
+                    statusCode = 200,
+                    contentLength = totalLength?.takeIf { it > 0L } ?: 0L,
+                )
+            }
+    }
+}
