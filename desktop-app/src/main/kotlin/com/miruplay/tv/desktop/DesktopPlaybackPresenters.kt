@@ -2,9 +2,8 @@ package com.miruplay.tv.desktop
 
 import com.miruplay.tv.mediasource.desktop.DesktopMediaSource
 import com.miruplay.tv.model.MediaSourceType
-import com.miruplay.tv.model.PlaybackTimingConventions
 import com.miruplay.tv.model.PlaybackSource
-import com.miruplay.tv.model.buildExternalSubtitleTracks
+import com.miruplay.tv.model.playbackSourceFromInputs
 import com.miruplay.tv.player.mpv.MpvCommandBuilder
 import com.miruplay.tv.player.mpv.MpvRuntimeConfig
 import com.miruplay.tv.player.mpv.MpvRuntimeVerifier
@@ -62,19 +61,15 @@ internal fun buildPlaybackSource(
     startSeconds: String,
     mediaSourceId: String = "desktop-compose",
     episodeId: String? = null,
-): PlaybackSource {
-    val media = requireNotNull(mediaPath.trim().takeIf { it.isNotBlank() }) {
-        "Choose a media URI or file path before launching mpv."
-    }
-    val startMs = PlaybackTimingConventions.parseSecondsToPositionMs(startSeconds)
-    return PlaybackSource(
-        uri = media,
+): PlaybackSource =
+    playbackSourceFromInputs(
+        mediaPath = mediaPath,
+        subtitlePath = subtitlePath,
+        startSeconds = startSeconds,
         mediaSourceId = mediaSourceId,
-        startPosition = startMs,
-        subtitleTracks = buildExternalSubtitleTracks(subtitlePath.trim()),
-        episodeId = episodeId ?: media,
+        episodeId = episodeId,
+        blankMediaMessage = "Choose a media URI or file path before launching mpv.",
     )
-}
 
 internal fun playableUriFor(
     source: DesktopMediaSource?,
