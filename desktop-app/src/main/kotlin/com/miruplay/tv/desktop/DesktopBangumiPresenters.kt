@@ -4,6 +4,11 @@ import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.displayTitle
 import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.repository.MediaIndexEntry
+import com.miruplay.tv.repository.isSameCandidate
+import com.miruplay.tv.repository.replaceMatch
+import com.miruplay.tv.repository.selectedCandidateLabel as sharedSelectedCandidateLabel
+import com.miruplay.tv.repository.statusFor
+import com.miruplay.tv.repository.withSelectedCandidate as sharedWithSelectedCandidate
 
 internal fun bangumiQueryFor(entry: MediaIndexEntry?): String? {
     entry?.animeName?.takeIf { it.isNotBlank() }?.let { return it }
@@ -15,39 +20,19 @@ internal fun bangumiDisplayTitle(result: ScraperResult): String =
     result.displayTitle()
 
 internal fun DesktopBangumiBatchPlan?.batchStatusFor(match: DesktopBangumiBatchMatch): String =
-    when {
-        this == null -> "preview"
-        conflicts.any { it.query == match.query } -> "conflict"
-        readyUpdates.any { it.query == match.query } -> "ready"
-        else -> "review"
-    }
+    statusFor(match)
 
 internal fun DesktopBangumiBatchMatch.withSelectedCandidate(candidate: ScraperResult): DesktopBangumiBatchMatch =
-    copy(
-        result = candidate,
-        candidates = if (candidates.any { it.isSameBangumiCandidate(candidate) }) {
-            candidates
-        } else {
-            candidates + candidate
-        },
-    )
+    sharedWithSelectedCandidate(candidate)
 
-internal fun DesktopBangumiBatchMatch.selectedCandidateLabel(): String {
-    val selectedIndex = candidates.indexOfFirst { it.isSameBangumiCandidate(result) }
-    return if (selectedIndex >= 0) {
-        "candidate ${selectedIndex + 1}/${candidates.size}"
-    } else {
-        "${candidates.size} candidates"
-    }
-}
+internal fun DesktopBangumiBatchMatch.selectedCandidateLabel(): String =
+    sharedSelectedCandidateLabel()
 
 internal fun List<DesktopBangumiBatchMatch>.replaceBatchMatch(updated: DesktopBangumiBatchMatch): List<DesktopBangumiBatchMatch> =
-    map { match -> if (match.query == updated.query) updated else match }
+    replaceMatch(updated)
 
 internal fun ScraperResult.isSameBangumiCandidate(other: ScraperResult?): Boolean =
-    other != null &&
-        animeId == other.animeId &&
-        source == other.source
+    isSameCandidate(other)
 
 internal fun List<MediaIndexEntry>.replaceEntry(updated: MediaIndexEntry): List<MediaIndexEntry> =
     map { entry ->

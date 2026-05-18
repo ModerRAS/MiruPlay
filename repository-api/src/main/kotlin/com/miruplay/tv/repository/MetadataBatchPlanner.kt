@@ -27,6 +27,41 @@ data class MetadataBatchPlan(
     val conflicts: List<MetadataBatchConflict>,
 )
 
+fun MetadataBatchPlan?.statusFor(match: MetadataBatchMatch): String =
+    when {
+        this == null -> "preview"
+        conflicts.any { it.query == match.query } -> "conflict"
+        readyUpdates.any { it.query == match.query } -> "ready"
+        else -> "review"
+    }
+
+fun MetadataBatchMatch.withSelectedCandidate(candidate: ScraperResult): MetadataBatchMatch =
+    copy(
+        result = candidate,
+        candidates = if (candidates.any { it.isSameCandidate(candidate) }) {
+            candidates
+        } else {
+            candidates + candidate
+        },
+    )
+
+fun MetadataBatchMatch.selectedCandidateLabel(): String {
+    val selectedIndex = candidates.indexOfFirst { it.isSameCandidate(result) }
+    return if (selectedIndex >= 0) {
+        "candidate ${selectedIndex + 1}/${candidates.size}"
+    } else {
+        "${candidates.size} candidates"
+    }
+}
+
+fun List<MetadataBatchMatch>.replaceMatch(updated: MetadataBatchMatch): List<MetadataBatchMatch> =
+    map { match -> if (match.query == updated.query) updated else match }
+
+fun ScraperResult.isSameCandidate(other: ScraperResult?): Boolean =
+    other != null &&
+        animeId == other.animeId &&
+        source == other.source
+
 object MetadataBatchPlanner {
     private const val READY_CONFIDENCE = 0.85f
 
