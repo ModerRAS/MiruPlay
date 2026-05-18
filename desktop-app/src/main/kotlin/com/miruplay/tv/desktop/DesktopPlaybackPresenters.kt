@@ -7,8 +7,18 @@ import com.miruplay.tv.model.playbackSourceFromInputs
 import com.miruplay.tv.player.mpv.MpvRuntimeConfig
 import com.miruplay.tv.player.mpv.MpvRuntimeVerifier
 import com.miruplay.tv.player.mpv.RifeBackend
+import com.miruplay.tv.player.mpv.MpvLaunch
 import com.miruplay.tv.player.mpv.mpvCommandPreviewFromInputs
+import com.miruplay.tv.player.mpv.mpvIdleStatus
+import com.miruplay.tv.player.mpv.mpvLaunchFailedStatus
+import com.miruplay.tv.player.mpv.mpvLaunchedStatus
+import com.miruplay.tv.player.mpv.mpvNoActiveProcessStatus
+import com.miruplay.tv.player.mpv.mpvPauseToggledStatus
+import com.miruplay.tv.player.mpv.mpvPositionSyncedStatus
 import com.miruplay.tv.player.mpv.mpvRuntimeConfigFromInputs
+import com.miruplay.tv.player.mpv.mpvSeekBackStatus
+import com.miruplay.tv.player.mpv.mpvSeekForwardStatus
+import com.miruplay.tv.player.mpv.mpvStoppedStatus
 
 internal fun runtimeStatus(mpvPath: String, configDir: String): String =
     MpvRuntimeVerifier.statusFromInputs(mpvPath, configDir)
@@ -90,3 +100,30 @@ internal fun playableUriFor(
 internal interface DesktopPlaybackUriBridge {
     fun playableUri(source: DesktopMediaSource, path: String): String
 }
+
+internal fun playbackIdleStatus(): String =
+    mpvIdleStatus()
+
+internal fun playbackLaunchedStatus(launch: MpvLaunch): String =
+    mpvLaunchedStatus(launch)
+
+internal fun playbackLaunchFailedStatus(error: Throwable): String =
+    mpvLaunchFailedStatus(error)
+
+internal fun playbackNoActiveProcessStatus(): String =
+    mpvNoActiveProcessStatus()
+
+internal fun playbackPauseToggledStatus(): String =
+    mpvPauseToggledStatus()
+
+internal fun playbackSeekBackStatus(seconds: Int): String =
+    mpvSeekBackStatus(seconds)
+
+internal fun playbackSeekForwardStatus(seconds: Int): String =
+    mpvSeekForwardStatus(seconds)
+
+internal fun playbackStoppedStatus(): String =
+    mpvStoppedStatus()
+
+internal fun playbackPositionSyncedStatus(positionMs: Long): String =
+    mpvPositionSyncedStatus(positionMs)

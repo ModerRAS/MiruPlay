@@ -47,7 +47,6 @@ import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.buildRssSubscriptionFromForm
-import com.miruplay.tv.model.formatPlaybackPosition
 import com.miruplay.tv.model.parseCloudDriveIntervalMinutes
 import com.miruplay.tv.model.parseRssProxyPort
 import com.miruplay.tv.model.withAutomationFormValues
@@ -201,7 +200,7 @@ internal fun MiruPlayDesktopComposeApp() {
     var rifeEnabled by remember { mutableStateOf(true) }
     var rifeBackend by remember { mutableStateOf(RifeBackend.NVIDIA) }
     var status by remember { mutableStateOf(runtimeStatus(mpvPath, configDir)) }
-    var launchStatus by remember { mutableStateOf("mpv is idle.") }
+    var launchStatus by remember { mutableStateOf(playbackIdleStatus()) }
     val commandPreview by remember(
         mpvPath,
         configDir,
@@ -380,7 +379,7 @@ internal fun MiruPlayDesktopComposeApp() {
                     val positionMs = synced.data
                     if (positionMs != null) {
                         refreshRecentProgress()
-                        launchStatus = "mpv position synced at ${formatPlaybackPosition(positionMs)}."
+                        launchStatus = playbackPositionSyncedStatus(positionMs)
                     }
                 }
                 is Result.Error -> Unit
@@ -1382,12 +1381,12 @@ internal fun MiruPlayDesktopComposeApp() {
                                         incrementPlayCount = true,
                                     )
                                     refreshRecentProgress()
-                                    launchStatus = "mpv launched: pid ${result.data.pid}"
+                                    launchStatus = playbackLaunchedStatus(result.data)
                                 }
                                 is Result.Error -> launchStatus = result.error.toUserMessage()
                             }
                         }.onFailure { error ->
-                            launchStatus = error.message ?: "Unable to launch mpv."
+                            launchStatus = playbackLaunchFailedStatus(error)
                         }
                     }
                 },
@@ -1395,13 +1394,13 @@ internal fun MiruPlayDesktopComposeApp() {
                     scope.launch {
                         val activePlayer = player
                         if (activePlayer == null) {
-                            launchStatus = "No mpv process is active."
+                            launchStatus = playbackNoActiveProcessStatus()
                             return@launch
                         }
                         when (val result = activePlayer.togglePause()) {
                             is Result.Success -> {
                                 activePlaybackSession?.togglePaused()
-                                launchStatus = "mpv pause toggled."
+                                launchStatus = playbackPauseToggledStatus()
                             }
                             is Result.Error -> launchStatus = result.error.toUserMessage()
                         }
@@ -1411,13 +1410,13 @@ internal fun MiruPlayDesktopComposeApp() {
                     scope.launch {
                         val activePlayer = player
                         if (activePlayer == null) {
-                            launchStatus = "No mpv process is active."
+                            launchStatus = playbackNoActiveProcessStatus()
                             return@launch
                         }
                         when (val result = activePlayer.seekBy(-10.0)) {
                             is Result.Success -> {
                                 activePlaybackSession?.seekBy(-10.0)
-                                launchStatus = "mpv seeked back 10s."
+                                launchStatus = playbackSeekBackStatus(seconds = 10)
                             }
                             is Result.Error -> launchStatus = result.error.toUserMessage()
                         }
@@ -1427,13 +1426,13 @@ internal fun MiruPlayDesktopComposeApp() {
                     scope.launch {
                         val activePlayer = player
                         if (activePlayer == null) {
-                            launchStatus = "No mpv process is active."
+                            launchStatus = playbackNoActiveProcessStatus()
                             return@launch
                         }
                         when (val result = activePlayer.seekBy(30.0)) {
                             is Result.Success -> {
                                 activePlaybackSession?.seekBy(30.0)
-                                launchStatus = "mpv seeked forward 30s."
+                                launchStatus = playbackSeekForwardStatus(seconds = 30)
                             }
                             is Result.Error -> launchStatus = result.error.toUserMessage()
                         }
@@ -1468,7 +1467,7 @@ internal fun MiruPlayDesktopComposeApp() {
                         player = null
                         activePlaybackSession = null
                         refreshRecentProgress()
-                        launchStatus = "mpv stopped."
+                        launchStatus = playbackStoppedStatus()
                     }
                 },
                     )
