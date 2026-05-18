@@ -1,7 +1,9 @@
 package com.miruplay.tv.sync.rss
 
+import com.miruplay.tv.clouddrive.CloudDriveTokenInfo
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.RssSubscriptionInfo
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -46,4 +48,88 @@ class DesktopCloudDriveRssDisplayTest {
         assertEquals("Missing source #8", linkedCloudDriveSourceLabel(sources, 8L))
         assertEquals("Cloud WebDAV (WEBDAV)", linkedCloudDriveSourceLabel(sources, 7L))
     }
+
+    @Test
+    fun `cloud drive credential statuses share desktop wording`() {
+        assertEquals("Cloud/RSS automation settings saved.", cloudRssConfigSavedStatus())
+        assertEquals("CloudDrive credentials saved.", cloudDriveCredentialsSavedStatus())
+        assertEquals("CloudDrive credentials cleared.", cloudDriveCredentialsClearedStatus())
+        assertEquals(
+            "Enter CloudDrive2 endpoint, username, and password first.",
+            cloudDriveLoginRequiredStatus(),
+        )
+        assertEquals("Logging into CloudDrive2...", cloudDriveLoginStartedStatus())
+        assertEquals("CloudDrive2 login succeeded; token saved.", cloudDriveLoginSucceededStatus())
+        assertEquals(
+            "Enter CloudDrive2 endpoint and API token first.",
+            cloudDriveTokenRequiredStatus(),
+        )
+        assertEquals("Validating CloudDrive2 API token...", cloudDriveTokenValidationStartedStatus())
+    }
+
+    @Test
+    fun `token verification status uses friendly name then root fallback`() {
+        val named = tokenInfo(friendlyName = "MiruPlay")
+        val rooted = tokenInfo(friendlyName = "", rootDir = "/Anime")
+        val fallback = tokenInfo(friendlyName = "", rootDir = "")
+
+        assertEquals("CloudDrive2 API token verified and saved: MiruPlay.", named.verifiedStatus())
+        assertEquals("CloudDrive2 API token verified and saved: /Anime.", rooted.verifiedStatus())
+        assertEquals("CloudDrive2 API token verified and saved: CloudDrive2.", fallback.verifiedStatus())
+    }
+
+    @Test
+    fun `run scheduler scan source and rss statuses share desktop wording`() {
+        val summary = CloudDriveRssRunSummary(submitted = 3, skipped = 2, failed = 1, organized = 4)
+        val source = MediaSourceInfo(id = 7L, name = "Cloud WebDAV", type = MediaSourceType.WEBDAV)
+        val subscription = RssSubscriptionInfo(name = "Anime", url = "https://example.test/rss.xml")
+
+        assertEquals("Running Cloud/RSS sync...", cloudRssRunStartedStatus())
+        assertEquals(
+            "Sync complete: 3 submitted, 2 skipped, 1 failed, 4 organized.",
+            summary.completeStatus(),
+        )
+        assertEquals(
+            "Enable and save Cloud/RSS sync before starting the scheduler.",
+            cloudRssSchedulerDisabledStatus(),
+        )
+        assertEquals("Cloud/RSS scheduler started.", cloudRssSchedulerStartStatus(started = true))
+        assertEquals(
+            "Cloud/RSS scheduler is already running.",
+            cloudRssSchedulerStartStatus(started = false),
+        )
+        assertEquals("Cloud/RSS scheduler stopped.", cloudRssSchedulerStoppedStatus())
+        assertEquals(
+            "Open a saved media source before linking Cloud/RSS scanning.",
+            cloudRssScanSourceRequiredStatus(),
+        )
+        assertEquals(
+            "Linked Cloud/RSS post-sync scan source: Cloud WebDAV. Save sync config to persist it.",
+            source.linkedCloudRssScanSourceStatus(),
+        )
+        assertEquals(
+            "Cloud/RSS post-sync scan source cleared. Save sync config to persist it.",
+            cloudRssScanSourceClearedStatus(),
+        )
+        assertEquals("Enter an RSS URL first.", rssUrlRequiredStatus())
+        assertEquals("RSS subscription saved: Anime", subscription.savedStatus())
+        assertEquals("Selected RSS subscription: Anime", subscription.selectedStatus())
+        assertEquals("Select an RSS subscription first.", rssSubscriptionRequiredStatus())
+        assertEquals("RSS subscription deleted.", rssSubscriptionDeletedStatus())
+    }
+
+    private fun tokenInfo(
+        friendlyName: String,
+        rootDir: String = "/",
+    ): CloudDriveTokenInfo =
+        CloudDriveTokenInfo(
+            rootDir = rootDir,
+            friendlyName = friendlyName,
+            allowList = true,
+            allowCreateFolder = true,
+            allowCreateFile = true,
+            allowWrite = true,
+            allowMove = true,
+            allowAddOfflineDownload = true,
+        )
 }
