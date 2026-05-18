@@ -1,12 +1,12 @@
-package com.miruplay.tv.desktop
+package com.miruplay.tv.mediasource.desktop
 
 import com.miruplay.tv.core.common.Result
-import com.miruplay.tv.mediasource.desktop.DesktopMediaSource
 import com.miruplay.tv.model.FileMetadata
 import com.miruplay.tv.model.HttpByteRange
 import com.miruplay.tv.model.HttpByteRangeRequest
 import com.miruplay.tv.model.HttpStreamResponsePlan
 import com.miruplay.tv.model.MediaPathConventions
+import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import kotlinx.coroutines.runBlocking
@@ -127,4 +127,21 @@ class DesktopPlaybackBridge : AutoCloseable, DesktopPlaybackUriBridge {
     private companion object {
         const val STREAM_PREFIX = "/stream/"
     }
+}
+
+fun playableUriFor(
+    source: DesktopMediaSource?,
+    bridge: DesktopPlaybackUriBridge,
+    mediaPath: String,
+): String {
+    val path = mediaPath.trim()
+    return if (source != null && MediaSourceInfoConventions.shouldBridgeForPlayback(source.info.type, path)) {
+        bridge.playableUri(source, path)
+    } else {
+        path
+    }
+}
+
+interface DesktopPlaybackUriBridge {
+    fun playableUri(source: DesktopMediaSource, path: String): String
 }

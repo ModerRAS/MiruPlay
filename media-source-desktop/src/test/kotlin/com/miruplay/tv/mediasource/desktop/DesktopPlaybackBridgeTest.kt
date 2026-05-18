@@ -1,8 +1,6 @@
-package com.miruplay.tv.desktop
+package com.miruplay.tv.mediasource.desktop
 
 import com.miruplay.tv.core.common.Result
-import com.miruplay.tv.mediasource.desktop.DesktopMediaSource
-import com.miruplay.tv.mediasource.desktop.DesktopStreamRange
 import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.FileMetadata
 import com.miruplay.tv.model.MediaCapabilities
@@ -63,16 +61,59 @@ class DesktopPlaybackBridgeTest {
         }
     }
 
+    @Test
+    fun `playable uri keeps direct and local paths without bridge`() {
+        val bridge = FakePlaybackUriBridge()
+
+        assertEquals("https://example.test/video.mkv", playableUriFor(null, bridge, " https://example.test/video.mkv "))
+        assertEquals("D:/Anime/video.mkv", playableUriFor(localSource(), bridge, "D:/Anime/video.mkv"))
+        assertEquals(emptyList<String>(), bridge.requests)
+    }
+
+    @Test
+    fun `playable uri bridges credentialed remote paths`() {
+        val bridge = FakePlaybackUriBridge()
+
+        assertEquals("bridge:///Anime/Episode 01.mkv", playableUriFor(webDavSource(), bridge, "/Anime/Episode 01.mkv"))
+        assertEquals("bridge://smb://nas/anime/Episode 01.mkv", playableUriFor(smbSource(), bridge, "smb://nas/anime/Episode 01.mkv"))
+        assertEquals(listOf("/Anime/Episode 01.mkv", "smb://nas/anime/Episode 01.mkv"), bridge.requests)
+    }
+
+    @Test
+    fun `playable uri leaves non absolute remote paths unchanged`() {
+        val bridge = FakePlaybackUriBridge()
+
+        assertEquals("Anime/Episode 01.mkv", playableUriFor(webDavSource(), bridge, "Anime/Episode 01.mkv"))
+        assertEquals("/nas/anime/Episode 01.mkv", playableUriFor(smbSource(), bridge, "/nas/anime/Episode 01.mkv"))
+        assertEquals(emptyList<String>(), bridge.requests)
+    }
+
+    private class FakePlaybackUriBridge : DesktopPlaybackUriBridge {
+        val requests = mutableListOf<String>()
+
+        override fun playableUri(source: DesktopMediaSource, path: String): String {
+            requests += path
+            return "bridge://$path"
+        }
+    }
+
+    private fun localSource(): DesktopMediaSource = FakeMediaSource(type = MediaSourceType.LOCAL)
+
+    private fun webDavSource(): DesktopMediaSource = FakeMediaSource(type = MediaSourceType.WEBDAV)
+
+    private fun smbSource(): DesktopMediaSource = FakeMediaSource(type = MediaSourceType.SMB)
+
     private class FakeMediaSource(
-        private val payload: String,
+        private val payload: String = "",
+        type: MediaSourceType = MediaSourceType.SMB,
     ) : DesktopMediaSource {
         var lastOpenedPath: String = ""
         var lastRange: DesktopStreamRange? = null
 
         override val id: String = "fake"
         override val info: MediaSourceInfo = MediaSourceInfo(
-            name = "Fake SMB",
-            type = MediaSourceType.SMB,
+            name = "Fake",
+            type = type,
             connectionInfo = mapOf("url" to "smb://nas.local/anime"),
         )
         override val capabilities: MediaCapabilities = MediaCapabilities()
