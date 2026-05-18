@@ -3,6 +3,7 @@ package com.miruplay.tv.repository
 import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.ScraperSource
 import com.miruplay.tv.model.confidencePercentLabel
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -100,6 +101,82 @@ class MetadataBatchPlannerTest {
             MetadataBatchMatch(query = "Frieren", result = other, candidates = listOf(original)).selectedCandidateLabel(),
         )
         assertEquals(listOf(newCandidate), listOf(match).replaceMatch(newCandidate))
+    }
+
+    @Test
+    fun `previewFor searches limited media queries and selects the first reviewable match`() = runBlocking {
+        val entries = listOf(
+            MediaIndexEntry(sourceId = 1L, path = "D:/Anime/Frieren/01.mkv", animeName = "Frieren"),
+            MediaIndexEntry(sourceId = 1L, path = "D:/Anime/Frieren/02.mkv", animeName = "Frieren"),
+            MediaIndexEntry(sourceId = 1L, path = "D:/Anime/Other/01.mkv", animeName = "Other"),
+            MediaIndexEntry(sourceId = 1L, path = "D:/Anime/Directory", animeName = "Ignored", isDirectory = true),
+            MediaIndexEntry(sourceId = 1L, path = "D:/Anime/Skipped/01.mkv", animeName = "Skipped"),
+        )
+        val searchedQueries = mutableListOf<String>()
+
+        val preview = MetadataBatchPlanner.previewFor(
+            entries = entries,
+            queryLimit = 2,
+            searchCandidates = { query ->
+                searchedQueries += query
+                when (query) {
+                    "Frieren" -> listOf(result(confidence = 0.95f))
+                    "Other" -> listOf(result(animeId = "2", title = "Other", titleCn = null, confidence = 0.70f))
+                    else -> emptyList()
+                }
+            },
+        )
+
+        assertEquals(2, MetadataBatchPlanner.previewQueryCount(entries, queryLimit = 2))
+        assertEquals(listOf("Frieren", "Other"), searchedQueries)
+        assertEquals(2, preview.matches.size)
+        assertEquals("Other", preview.selectedMatch?.query)
+        assertEquals(2, preview.plan?.readyUpdates?.size)
+        assertEquals(1, preview.plan?.reviewMatches?.size)
+        assertEquals("2 ready, 1 review, 0 conflicts", preview.summaryStatus())
+        assertEquals("Searching Bangumi for 2 indexed title(s)...", metadataBatchSearchingStatus(2, "Bangumi"))
+    }
+
+    @Test
+    fun `previewFor returns empty preview when no metadata queries are available`() = runBlocking {
+        val preview = MetadataBatchPlanner.previewFor(
+            entries = listOf(MediaIndexEntry(sourceId = 1L, path = "", isDirectory = true)),
+            queryLimit = 20,
+            searchCandidates = { error("No queries should be searched") },
+        )
+
+        assertEquals(emptyList<MetadataBatchMatch>(), preview.matches)
+        assertEquals(null, preview.plan)
+        assertEquals(null, preview.selectedMatch)
+        assertEquals("No indexed entries are available for Bangumi batch matching.", noMetadataBatchEntriesStatus("Bangumi"))
+        assertEquals(noMetadataBatchEntriesStatus(), preview.summaryStatus())
+    }
+
+    @Test
+    fun `selectCandidate replaces match and replans against media entries`() {
+        val entries = listOf(
+            MediaIndexEntry(sourceId = 1L, path = "D:/Anime/Frieren/01.mkv", animeName = "Frieren"),
+            MediaIndexEntry(sourceId = 1L, path = "D:/Anime/Frieren", animeName = "Frieren", isDirectory = true),
+        )
+        val lowConfidence = result(confidence = 0.70f)
+        val highConfidence = result(confidence = 1f)
+        val match = MetadataBatchMatch(
+            query = "Frieren",
+            result = lowConfidence,
+            candidates = listOf(lowConfidence, highConfidence),
+        )
+
+        val selection = MetadataBatchPlanner.selectCandidate(
+            entries = entries,
+            matches = listOf(match),
+            match = match,
+            candidate = highConfidence,
+        )
+
+        assertEquals(highConfidence, selection.updatedMatch.result)
+        assertEquals(listOf(selection.updatedMatch), selection.updatedMatches)
+        assertEquals(1, selection.plan.readyUpdates.size)
+        assertEquals("Selected batch candidate for Frieren: 葬送的芙莉莲.", selection.selectedStatus())
     }
 
     private fun result(
