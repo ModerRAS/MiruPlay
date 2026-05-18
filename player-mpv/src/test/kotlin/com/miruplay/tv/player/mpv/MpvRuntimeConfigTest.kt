@@ -29,10 +29,12 @@ class MpvRuntimeConfigTest {
         )
 
         assertEquals(Paths.get("D:/MiruPlay/runtime/mpv/mpv.exe"), withoutRife.mpvExecutable)
+        assertEquals(DEFAULT_MPV_IPC_SERVER, withoutRife.ipcServer)
         assertNull(withoutRife.configDirectory)
         assertTrue(withoutRife.startFullscreen)
         assertNull(withoutRife.rife)
         assertEquals(Paths.get("D:/MiruPlay/runtime/mpv/portable_config"), withRife.configDirectory)
+        assertEquals(DEFAULT_MPV_IPC_SERVER, withRife.ipcServer)
         assertEquals(RifeBackend.NVIDIA, withRife.rife?.backend)
         assertTrue(withRife.keepOpen)
     }

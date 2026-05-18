@@ -8,6 +8,7 @@ import com.miruplay.tv.model.FileMetadata
 import com.miruplay.tv.model.MediaCapabilities
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.player.mpv.DEFAULT_MPV_IPC_SERVER
 import com.miruplay.tv.player.mpv.RifeBackend
 import com.miruplay.tv.player.mpv.RifeInterpolationConfig
 import org.junit.Assert.assertEquals
@@ -71,10 +72,12 @@ class DesktopPlaybackPresentersTest {
         )
 
         assertEquals(Paths.get("D:/MiruPlay/runtime/mpv/mpv.exe"), withoutRife.mpvExecutable)
+        assertEquals(DEFAULT_MPV_IPC_SERVER, withoutRife.ipcServer)
         assertNull(withoutRife.configDirectory)
         assertTrue(withoutRife.startFullscreen)
         assertNull(withoutRife.rife)
         assertEquals(Paths.get("D:/MiruPlay/runtime/mpv/portable_config"), withRife.configDirectory)
+        assertEquals(DEFAULT_MPV_IPC_SERVER, withRife.ipcServer)
         assertEquals(RifeBackend.NVIDIA, withRife.rife?.backend)
         assertTrue(withRife.keepOpen)
     }
@@ -125,6 +128,7 @@ class DesktopPlaybackPresentersTest {
 
         val normalized = preview.replace('\\', '/')
         assertTrue(normalized.startsWith("\"D:/MiruPlay/runtime/mpv/mpv player.exe\""))
+        assertTrue(normalized.contains("--input-ipc-server=$DEFAULT_MPV_IPC_SERVER"))
         assertTrue(normalized.endsWith("\"D:/Anime/Episode 01.mkv\""))
     }
 
