@@ -5,34 +5,7 @@ import com.miruplay.tv.mediasource.desktop.DesktopMediaSource
 import com.miruplay.tv.mediasource.desktop.DesktopSmbMediaSource
 import com.miruplay.tv.mediasource.desktop.DesktopWebDavMediaSource
 import com.miruplay.tv.model.MediaSourceInfo
-import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
-
-internal fun webDavSourceInfo(
-    url: String,
-    username: String,
-    password: String,
-): MediaSourceInfo =
-    MediaSourceInfoConventions.webDav(
-        url = url,
-        username = username,
-        password = password,
-        isConnected = true,
-    )
-
-internal fun smbSourceInfo(
-    url: String,
-    domain: String,
-    username: String,
-    password: String,
-): MediaSourceInfo =
-    MediaSourceInfoConventions.smb(
-        url = url,
-        domain = domain,
-        username = username,
-        password = password,
-        isConnected = true,
-    )
 
 internal fun desktopSourceFromInfo(info: MediaSourceInfo): DesktopMediaSource =
     when (info.type) {

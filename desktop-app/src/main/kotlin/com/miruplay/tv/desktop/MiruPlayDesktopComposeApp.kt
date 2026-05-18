@@ -802,7 +802,12 @@ internal fun MiruPlayDesktopComposeApp() {
                             remoteStatus = webDavUrlRequiredStatus()
                             return@launch
                         }
-                        val sourceInfo = webDavSourceInfo(url, webDavUsername.trim(), webDavPassword)
+                        val sourceInfo = MediaSourceInfoConventions.webDav(
+                            url = url,
+                            username = webDavUsername.trim(),
+                            password = webDavPassword,
+                            isConnected = true,
+                        )
                         when (val result = repositories.mediaSources.addSource(sourceInfo)) {
                             is Result.Success -> {
                                 val stored = sourceInfo.copy(id = result.data)
@@ -825,11 +830,12 @@ internal fun MiruPlayDesktopComposeApp() {
                             remoteStatus = smbUrlRequiredStatus()
                             return@launch
                         }
-                        val sourceInfo = smbSourceInfo(
+                        val sourceInfo = MediaSourceInfoConventions.smb(
                             url = url,
                             domain = smbDomain.trim(),
                             username = smbUsername.trim(),
                             password = smbPassword,
+                            isConnected = true,
                         )
                         when (val result = repositories.mediaSources.addSource(sourceInfo)) {
                             is Result.Success -> {
