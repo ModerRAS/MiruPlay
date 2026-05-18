@@ -40,6 +40,25 @@ object MpvRuntimeDiscovery {
             .firstOrNull()
             ?: workingDirectory.resolve("runtime").resolve("mpv").normalize()
 
+    fun defaultLayout(
+        appHome: Path? = currentApplicationHome(),
+        workingDirectory: Path = Paths.get("").toAbsolutePath().normalize(),
+    ): MpvRuntimeLayout =
+        findBundledRuntime(appHome, workingDirectory)
+            ?: layoutFor(defaultRuntimeRoot(appHome, workingDirectory))
+
+    fun inferRootFromInputs(mpvPath: String, configDir: String): Path {
+        val configPath = configDir.trim().takeIf { it.isNotBlank() }?.let(Paths::get)
+        if (configPath?.fileName?.toString() == "portable_config") {
+            return configPath.parent ?: configPath
+        }
+        return mpvPath.trim()
+            .takeIf { it.isNotBlank() }
+            ?.let(Paths::get)
+            ?.parent
+            ?: Paths.get("")
+    }
+
     fun layoutFor(rootDirectory: Path): MpvRuntimeLayout {
         val root = rootDirectory.toAbsolutePath().normalize()
         return MpvRuntimeLayout(
