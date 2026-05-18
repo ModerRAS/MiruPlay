@@ -10,15 +10,11 @@ import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.player.mpv.DEFAULT_MPV_IPC_SERVER
 import com.miruplay.tv.player.mpv.RifeBackend
-import com.miruplay.tv.player.mpv.RifeInterpolationConfig
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.io.InputStream
-import java.nio.file.Files
-import java.nio.file.Paths
 
 class DesktopPlaybackPresentersTest {
     @Test
@@ -50,66 +46,6 @@ class DesktopPlaybackPresentersTest {
 
         assertTrue(error is IllegalArgumentException)
         assertEquals("Choose a media URI or file path before launching mpv.", error?.message)
-    }
-
-    @Test
-    fun `runtime config enables rife only when requested`() {
-        val withoutRife = buildRuntimeConfig(
-            mpvPath = "D:/MiruPlay/runtime/mpv/mpv.exe",
-            configDir = "",
-            fullscreen = true,
-            keepOpen = false,
-            rifeEnabled = false,
-            rifeBackend = RifeBackend.DIRECTML,
-        )
-        val withRife = buildRuntimeConfig(
-            mpvPath = "D:/MiruPlay/runtime/mpv/mpv.exe",
-            configDir = "D:/MiruPlay/runtime/mpv/portable_config",
-            fullscreen = false,
-            keepOpen = true,
-            rifeEnabled = true,
-            rifeBackend = RifeBackend.NVIDIA,
-        )
-
-        assertEquals(Paths.get("D:/MiruPlay/runtime/mpv/mpv.exe"), withoutRife.mpvExecutable)
-        assertTrue(withoutRife.ipcServer.orEmpty().contains(DEFAULT_MPV_IPC_SERVER))
-        assertNull(withoutRife.configDirectory)
-        assertTrue(withoutRife.startFullscreen)
-        assertNull(withoutRife.rife)
-        assertEquals(Paths.get("D:/MiruPlay/runtime/mpv/portable_config"), withRife.configDirectory)
-        assertTrue(withRife.ipcServer.orEmpty().contains(DEFAULT_MPV_IPC_SERVER))
-        assertEquals(RifeBackend.NVIDIA, withRife.rife?.backend)
-        assertTrue(withRife.keepOpen)
-    }
-
-    @Test
-    fun `validate runtime for launch surfaces missing selected rife script`() {
-        val tempDir = Files.createTempDirectory("miruplay-runtime")
-        try {
-            val configDirectory = tempDir.resolve("portable_config")
-            val scriptDirectory = configDirectory.resolve("vs")
-            Files.createDirectories(scriptDirectory)
-            val mpv = tempDir.resolve("mpv.exe")
-            Files.createFile(mpv)
-            val config = buildRuntimeConfig(
-                mpvPath = mpv.toString(),
-                configDir = configDirectory.toString(),
-                fullscreen = false,
-                keepOpen = false,
-                rifeEnabled = true,
-                rifeBackend = RifeBackend.DIRECTML,
-            ).copy(rife = RifeInterpolationConfig(backend = RifeBackend.DIRECTML))
-
-            val result = validateRuntimeForLaunch(config)
-
-            assertTrue(result is Result.Error)
-            assertEquals(
-                "播放出错：RIFE script not found: ${scriptDirectory.resolve(RifeBackend.DIRECTML.scriptName)}",
-                (result as Result.Error).error.toUserMessage(),
-            )
-        } finally {
-            tempDir.toFile().deleteRecursively()
-        }
     }
 
     @Test
