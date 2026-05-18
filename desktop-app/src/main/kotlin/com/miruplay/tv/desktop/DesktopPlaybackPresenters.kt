@@ -4,11 +4,10 @@ import com.miruplay.tv.mediasource.desktop.DesktopMediaSource
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.playbackSourceFromInputs
-import com.miruplay.tv.player.mpv.MpvCommandBuilder
 import com.miruplay.tv.player.mpv.MpvRuntimeConfig
 import com.miruplay.tv.player.mpv.MpvRuntimeVerifier
 import com.miruplay.tv.player.mpv.RifeBackend
-import com.miruplay.tv.player.mpv.buildPreview
+import com.miruplay.tv.player.mpv.mpvCommandPreviewFromInputs
 import com.miruplay.tv.player.mpv.mpvRuntimeConfigFromInputs
 
 internal fun runtimeStatus(mpvPath: String, configDir: String): String =
@@ -26,9 +25,18 @@ internal fun buildCommandPreview(
     rifeBackend: RifeBackend,
 ): String =
     runCatching {
-        val source = buildPlaybackSource(mediaPath, subtitlePath, startSeconds)
-        val config = buildRuntimeConfig(mpvPath, configDir, fullscreen, keepOpen, rifeEnabled, rifeBackend)
-        MpvCommandBuilder(config).buildPreview(source)
+        mpvCommandPreviewFromInputs(
+            mpvPath = mpvPath,
+            configDir = configDir,
+            mediaPath = mediaPath,
+            subtitlePath = subtitlePath,
+            startSeconds = startSeconds,
+            fullscreen = fullscreen,
+            keepOpen = keepOpen,
+            rifeEnabled = rifeEnabled,
+            rifeBackend = rifeBackend,
+            blankMediaMessage = "Choose a media URI or file path before launching mpv.",
+        )
     }.getOrElse { error ->
         error.message ?: "Unable to build mpv command."
     }
