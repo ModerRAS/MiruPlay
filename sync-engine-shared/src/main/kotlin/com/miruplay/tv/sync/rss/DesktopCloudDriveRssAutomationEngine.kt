@@ -14,7 +14,6 @@ import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.CloudDriveCredentialStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.security.MessageDigest
 
 class DesktopCloudDriveRssAutomationEngine(
     private val repository: CloudDriveAutomationRepository,
@@ -71,37 +70,44 @@ class DesktopCloudDriveRssAutomationEngine(
         var skipped = 0
         var failed = 0
 
-        subscriptions.forEach { subscription ->
+        subscriptions.forEach subscriptionLoop@ { subscription ->
             val feedResult = feedFetcher.fetch(subscription.url)
             val items = feedResult.getOrNull()
             if (items == null) {
                 failed += 1
-                return@forEach
+                return@subscriptionLoop
             }
 
-            val filter = subscription.filterRegex?.takeIf { it.isNotBlank() }?.let {
-                runCatching { Regex(it, RegexOption.IGNORE_CASE) }.getOrNull()
-            }
-            items.forEach { item ->
-                if (filter != null && !filter.containsMatchIn(item.title)) {
-                    skipped += 1
-                    return@forEach
-                }
-                val submissionUrl = item.submissionUrl
-                if (submissionUrl.isNullOrBlank()) {
+            val decisions = when (val planned = RssSubmissionPlanner.plan(items, subscription.filterRegex)) {
+                is Result.Success -> planned.data
+                is Result.Error -> {
                     failed += 1
-                    return@forEach
+                    return@subscriptionLoop
                 }
-                val itemKey = item.guid?.takeIf { it.isNotBlank() } ?: sha1("${item.title}|$submissionUrl")
+            }
+            decisions.forEach decisionLoop@ { decision ->
+                if (decision.status == RssSubmissionDecisionStatus.SKIPPED_FILTER) {
+                    skipped += 1
+                    return@decisionLoop
+                }
+                val submissionUrl = decision.submissionUrl
+                val itemKey = decision.itemKey
+                if (decision.status == RssSubmissionDecisionStatus.MISSING_SUBMISSION ||
+                    submissionUrl.isNullOrBlank() ||
+                    itemKey.isNullOrBlank()
+                ) {
+                    failed += 1
+                    return@decisionLoop
+                }
                 if (repository.isItemProcessed(subscription.id, itemKey).getOrNull() == true) {
                     skipped += 1
-                    return@forEach
+                    return@decisionLoop
                 }
 
-                val preparedSubmissionUrl = prepareSubmissionUrl(endpoint, item, itemKey, submissionUrl, inboxPath)
+                val preparedSubmissionUrl = prepareSubmissionUrl(endpoint, decision.item, itemKey, submissionUrl, inboxPath)
                 if (preparedSubmissionUrl is Result.Error) {
                     failed += 1
-                    return@forEach
+                    return@decisionLoop
                 }
 
                 val now = System.currentTimeMillis()
@@ -111,7 +117,7 @@ class DesktopCloudDriveRssAutomationEngine(
                             RssProcessedItemInfo(
                                 subscriptionId = subscription.id,
                                 itemKey = itemKey,
-                                title = item.title,
+                                title = decision.item.title,
                                 url = submissionUrl,
                                 processedAt = now,
                             )
@@ -120,7 +126,7 @@ class DesktopCloudDriveRssAutomationEngine(
                             RssDownloadTaskInfo(
                                 subscriptionId = subscription.id,
                                 itemKey = itemKey,
-                                title = item.title,
+                                title = decision.item.title,
                                 url = submissionUrl,
                                 status = RssDownloadStatus.SUBMITTED,
                                 createdAt = now,
@@ -171,7 +177,7 @@ class DesktopCloudDriveRssAutomationEngine(
         val downloaded = torrentDownloader.download(
             url = submissionUrl,
             title = item.title,
-            keyPrefix = sha1(itemKey).take(12),
+            keyPrefix = RssSubmissionPlanner.stableHash(itemKey).take(12),
         )
         if (downloaded is Result.Error) return downloaded
         val torrent = (downloaded as Result.Success).data
@@ -211,11 +217,6 @@ class DesktopCloudDriveRssAutomationEngine(
     private fun AppError.isAlreadyExists(): Boolean =
         toString().contains("ALREADY_EXISTS", ignoreCase = true) ||
             toString().contains("already exists", ignoreCase = true)
-
-    private fun sha1(value: String): String {
-        val digest = MessageDigest.getInstance("SHA-1").digest(value.toByteArray())
-        return digest.joinToString("") { "%02x".format(it) }
-    }
 
     companion object {
         private const val TORRENT_STAGING_FOLDER = ".miruplay-torrents"
