@@ -14,7 +14,7 @@ The port is complete only when all of these are proven by current evidence:
 | Media sources | Windows can manage and browse Local, WebDAV, and SMB sources without Android-only APIs. | `:media-source-desktop:test`, GUI source add/open/browse smoke, remote stream bridge smoke. |
 | Library/index | Windows can scan, search, inspect details, clear source index, and delete sources. | `:scanner-desktop:test`, `:repository-desktop:test`, GUI library/detail smoke. |
 | Metadata | Windows can search/apply/clear Bangumi metadata and run batch review/apply/undo. | `:scraper-desktop:test`, `:repository-api:test`, `:desktop-app:test`, GUI details smoke. |
-| Playback | Windows plays through mpv, supports RIFE toggle/backend selection, IPC pause/seek/stop, and progress persistence. | `:player-mpv:test`, `:desktop-app:test`, mpv launch smoke with a local sample file. |
+| Playback | Windows plays through mpv, supports RIFE toggle/backend selection, IPC pause/seek/stop, progress persistence, and remote playback through a credential-isolating loopback bridge. | `:player-mpv:test`, `:desktop-app:test`, mpv launch smoke with a local sample file, remote playback command security test. |
 | mpv/RIFE runtime | Windows distribution can bundle or locate a verified mpv runtime with RIFE-capable scripts. | `:desktop-app:smokeMpvRuntime`, `tools/smoke-mpv-rife.ps1`, runtime manifest evidence. |
 | Cloud/RSS | Windows can configure CloudDrive2/RSS, dry-run safely, and run confirmed live submit/organize flows. | `:cloud-drive-desktop:test`, `:sync-engine-desktop:test`, dry-run report, explicit live QA report. |
 | Release | CI and local release gates cover Android build, desktop tests, runtime checks, and screenshot QA. | CI green, local verification command log, packaged artifact smoke. |
@@ -88,7 +88,7 @@ Verification:
 - [x] Build a tiny generated Y4M local video fixture for repeatable mpv launch smoke.
 - [x] Run mpv launch from the Windows GUI against the fixture and confirm the `mpv.exe` child process.
 - [x] Verify Pause, -10s, +30s, Stop, and recent-progress refresh without requiring RIFE on this host.
-- [ ] Verify remote playback bridge keeps credentials out of mpv command lines.
+- [x] Verify remote playback bridge keeps WebDAV/SMB hosts and credentials out of mpv command lines.
 - [ ] Keep RIFE optional and make missing runtime errors actionable in the UI.
 
 Verification:
