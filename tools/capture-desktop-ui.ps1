@@ -201,15 +201,12 @@ $captures += Save-WindowScreenshot -Process $windowProcess -Name "library" -Dire
 Invoke-RelativeClick -Process $windowProcess -X 885 -Y 95
 $captures += Save-WindowScreenshot -Process $windowProcess -Name "details" -Directory $resolvedOutputDir
 
-$railSections = @(
-    @{ Name = "player"; X = 170; Y = 378 },
-    @{ Name = "settings"; X = 170; Y = 462 }
-)
+Invoke-RelativeClick -Process $windowProcess -X 170 -Y 378
+$captures += Save-WindowScreenshot -Process $windowProcess -Name "player" -Directory $resolvedOutputDir
 
-foreach ($section in $railSections) {
-    Invoke-RelativeClick -Process $windowProcess -X $section.X -Y $section.Y
-    $captures += Save-WindowScreenshot -Process $windowProcess -Name $section.Name -Directory $resolvedOutputDir
-}
+Invoke-RelativeClick -Process $windowProcess -X 140 -Y 118
+Invoke-RelativeClick -Process $windowProcess -X 170 -Y 462
+$captures += Save-WindowScreenshot -Process $windowProcess -Name "settings" -Directory $resolvedOutputDir
 
 Assert-CapturesAreDistinct -Paths $captures
 
