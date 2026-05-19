@@ -408,7 +408,7 @@ try {
 
     Invoke-RelativeClick -Process $windowProcess -X 170 -Y 378
     Start-Sleep -Milliseconds 500
-    Invoke-RelativeClick -Process $windowProcess -X 700 -Y 263
+    Invoke-RelativeClick -Process $windowProcess -X 520 -Y 615
     $selectedMediaPath = Get-FocusedText
     if ($LibraryRoot.Trim()) {
         $indexedPaths = @($indexedVideos | ForEach-Object { $_.path })

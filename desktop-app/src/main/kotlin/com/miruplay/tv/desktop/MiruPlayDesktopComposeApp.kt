@@ -645,7 +645,7 @@ internal fun MiruPlayDesktopComposeApp() {
             .padding(32.dp),
         horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.MAIN_SECTION_GAP_DP.dp),
     ) {
-        if (selectedDesktopSection != MiruPlayRouteSurface.library) {
+        if (selectedDesktopSection != MiruPlayRouteSurface.library && selectedDesktopSection != MiruPlayRouteSurface.player) {
             DesktopTvNavigation(
                 selectedSection = selectedDesktopSection,
                 onSectionSelected = { selectedDesktopSection = it },
@@ -657,19 +657,21 @@ internal fun MiruPlayDesktopComposeApp() {
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(22.dp),
         ) {
-            if (selectedDesktopSection == MiruPlayRouteSurface.library) {
-                DesktopLibraryHeader(
-                    onScan = {
-                        scope.launch {
-                            scanCurrentSource { libraryStatus = it }
-                        }
-                    },
-                    onDetails = { selectedDesktopSection = MiruPlayRouteSurface.details },
-                    onPlayer = { selectedDesktopSection = MiruPlayRouteSurface.player },
-                    onSettings = { selectedDesktopSection = MiruPlayRouteSurface.settings },
-                )
-            } else {
-                DesktopTvHeader(selectedSection = selectedDesktopSection)
+            when (selectedDesktopSection) {
+                MiruPlayRouteSurface.library -> {
+                    DesktopLibraryHeader(
+                        onScan = {
+                            scope.launch {
+                                scanCurrentSource { libraryStatus = it }
+                            }
+                        },
+                        onDetails = { selectedDesktopSection = MiruPlayRouteSurface.details },
+                        onPlayer = { selectedDesktopSection = MiruPlayRouteSurface.player },
+                        onSettings = { selectedDesktopSection = MiruPlayRouteSurface.settings },
+                    )
+                }
+                MiruPlayRouteSurface.player -> Unit
+                else -> DesktopTvHeader(selectedSection = selectedDesktopSection)
             }
             when (selectedDesktopSection) {
                 MiruPlayRouteSurface.library -> {
@@ -1462,160 +1464,163 @@ internal fun MiruPlayDesktopComposeApp() {
                     )
                 }
                 MiruPlayRouteSurface.player -> {
-                    Row(
-                horizontalArrangement = Arrangement.spacedBy(22.dp),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                PlaybackPanel(
-                    mediaPath = mediaPath,
-                    onMediaPathChange = { mediaPath = it },
-                    subtitlePath = subtitlePath,
-                    onSubtitlePathChange = { subtitlePath = it },
-                    startSeconds = startSeconds,
-                    onStartSecondsChange = { startSeconds = it },
-                    fullscreen = fullscreen,
-                    onFullscreenChange = { fullscreen = it },
-                    keepOpen = keepOpen,
-                    onKeepOpenChange = { keepOpen = it },
-                    rifeEnabled = rifeEnabled,
-                    onRifeEnabledChange = { rifeEnabled = it },
-                    rifeBackend = rifeBackend,
-                    onRifeBackendChange = { rifeBackend = it },
-                    modifier = Modifier.weight(0.62f),
-                )
-                RuntimePanel(
-                    mpvPath = mpvPath,
-                    onMpvPathChange = { mpvPath = it },
-                    configDir = configDir,
-                    onConfigDirChange = { configDir = it },
-                    status = status,
-                    onCheckRuntime = { status = mpvRuntimeStatusFromInputs(mpvPath, configDir) },
-                    modifier = Modifier.weight(0.38f),
-                )
-            }
-            CommandPanel(
-                commandPreview = commandPreview,
-                launchStatus = launchStatus,
-                onLaunch = {
-                    scope.launch {
-                        runCatching {
-                            val config = mpvRuntimeConfigFromInputs(
-                                mpvPath = mpvPath,
-                                configDir = configDir,
-                                fullscreen = fullscreen,
-                                keepOpen = keepOpen,
-                                rifeEnabled = rifeEnabled,
-                                rifeBackend = rifeBackend,
-                            )
-                            when (val runtime = config.validateLaunchRuntime()) {
-                                is Result.Success -> Unit
-                                is Result.Error -> {
-                                    launchStatus = runtime.error.toUserMessage()
+                    PlaybackPanel(
+                        mediaPath = mediaPath,
+                        onMediaPathChange = { mediaPath = it },
+                        subtitlePath = subtitlePath,
+                        onSubtitlePathChange = { subtitlePath = it },
+                        startSeconds = startSeconds,
+                        onStartSecondsChange = { startSeconds = it },
+                        fullscreen = fullscreen,
+                        onFullscreenChange = { fullscreen = it },
+                        keepOpen = keepOpen,
+                        onKeepOpenChange = { keepOpen = it },
+                        rifeEnabled = rifeEnabled,
+                        onRifeEnabledChange = { rifeEnabled = it },
+                        rifeBackend = rifeBackend,
+                        onRifeBackendChange = { rifeBackend = it },
+                        isPlayerActive = player != null,
+                        launchStatus = launchStatus,
+                        onBackToDetails = { selectedDesktopSection = MiruPlayRouteSurface.details },
+                        onLaunch = {
+                            scope.launch {
+                                runCatching {
+                                    val config = mpvRuntimeConfigFromInputs(
+                                        mpvPath = mpvPath,
+                                        configDir = configDir,
+                                        fullscreen = fullscreen,
+                                        keepOpen = keepOpen,
+                                        rifeEnabled = rifeEnabled,
+                                        rifeBackend = rifeBackend,
+                                    )
+                                    when (val runtime = config.validateLaunchRuntime()) {
+                                        is Result.Success -> Unit
+                                        is Result.Error -> {
+                                            launchStatus = runtime.error.toUserMessage()
+                                            return@launch
+                                        }
+                                    }
+                                    val selectedMediaPath = mediaPath.trim()
+                                    val source = playbackSourceFromInputs(
+                                        mediaPath = playableUriFor(activeSource, playbackBridge, selectedMediaPath),
+                                        subtitlePath = subtitlePath,
+                                        startSeconds = startSeconds,
+                                        mediaSourceId = activeSourceId?.toString()
+                                            ?: activeSource?.info?.type?.name
+                                            ?: DESKTOP_PLAYBACK_MEDIA_SOURCE_ID,
+                                        episodeId = selectedMediaPath.ifBlank { null },
+                                        blankMediaMessage = DESKTOP_BLANK_MEDIA_MESSAGE,
+                                    )
+                                    val nextPlayer = MpvProcessPlayer(config)
+                                    when (val result = nextPlayer.play(source)) {
+                                        is Result.Success -> {
+                                            player = nextPlayer
+                                            activePlaybackSession = PlaybackProgressSession(selectedMediaPath, source.startPosition)
+                                            repositories.progress.saveProgress(
+                                                episodeId = selectedMediaPath,
+                                                positionMs = source.startPosition,
+                                                lastWatched = System.currentTimeMillis(),
+                                                incrementPlayCount = true,
+                                            )
+                                            refreshRecentProgress()
+                                            launchStatus = mpvLaunchedStatus(result.data)
+                                        }
+                                        is Result.Error -> launchStatus = result.error.toUserMessage()
+                                    }
+                                }.onFailure { error ->
+                                    launchStatus = mpvLaunchFailedStatus(error)
+                                }
+                            }
+                        },
+                        onTogglePause = {
+                            scope.launch {
+                                val activePlayer = player
+                                if (activePlayer == null) {
+                                    launchStatus = mpvNoActiveProcessStatus()
                                     return@launch
                                 }
-                            }
-                            val selectedMediaPath = mediaPath.trim()
-                            val source = playbackSourceFromInputs(
-                                mediaPath = playableUriFor(activeSource, playbackBridge, selectedMediaPath),
-                                subtitlePath = subtitlePath,
-                                startSeconds = startSeconds,
-                                mediaSourceId = activeSourceId?.toString()
-                                    ?: activeSource?.info?.type?.name
-                                    ?: DESKTOP_PLAYBACK_MEDIA_SOURCE_ID,
-                                episodeId = selectedMediaPath.ifBlank { null },
-                                blankMediaMessage = DESKTOP_BLANK_MEDIA_MESSAGE,
-                            )
-                            val nextPlayer = MpvProcessPlayer(config)
-                            when (val result = nextPlayer.play(source)) {
-                                is Result.Success -> {
-                                    player = nextPlayer
-                                    activePlaybackSession = PlaybackProgressSession(selectedMediaPath, source.startPosition)
-                                    repositories.progress.saveProgress(
-                                        episodeId = selectedMediaPath,
-                                        positionMs = source.startPosition,
-                                        lastWatched = System.currentTimeMillis(),
-                                        incrementPlayCount = true,
-                                    )
-                                    refreshRecentProgress()
-                                    launchStatus = mpvLaunchedStatus(result.data)
+                                when (val result = activePlayer.togglePause()) {
+                                    is Result.Success -> {
+                                        activePlaybackSession?.togglePaused()
+                                        launchStatus = mpvPauseToggledStatus()
+                                    }
+                                    is Result.Error -> launchStatus = result.error.toUserMessage()
                                 }
-                                is Result.Error -> launchStatus = result.error.toUserMessage()
                             }
-                        }.onFailure { error ->
-                            launchStatus = mpvLaunchFailedStatus(error)
-                        }
-                    }
-                },
-                onTogglePause = {
-                    scope.launch {
-                        val activePlayer = player
-                        if (activePlayer == null) {
-                            launchStatus = mpvNoActiveProcessStatus()
-                            return@launch
-                        }
-                        when (val result = activePlayer.togglePause()) {
-                            is Result.Success -> {
-                                activePlaybackSession?.togglePaused()
-                                launchStatus = mpvPauseToggledStatus()
+                        },
+                        onSeekBack = {
+                            scope.launch {
+                                val activePlayer = player
+                                if (activePlayer == null) {
+                                    launchStatus = mpvNoActiveProcessStatus()
+                                    return@launch
+                                }
+                                when (val result = activePlayer.seekBy(-10.0)) {
+                                    is Result.Success -> {
+                                        activePlaybackSession?.seekBy(-10.0)
+                                        launchStatus = mpvSeekBackStatus(seconds = 10)
+                                    }
+                                    is Result.Error -> launchStatus = result.error.toUserMessage()
+                                }
                             }
-                            is Result.Error -> launchStatus = result.error.toUserMessage()
-                        }
-                    }
-                },
-                onSeekBack = {
-                    scope.launch {
-                        val activePlayer = player
-                        if (activePlayer == null) {
-                            launchStatus = mpvNoActiveProcessStatus()
-                            return@launch
-                        }
-                        when (val result = activePlayer.seekBy(-10.0)) {
-                            is Result.Success -> {
-                                activePlaybackSession?.seekBy(-10.0)
-                                launchStatus = mpvSeekBackStatus(seconds = 10)
+                        },
+                        onSeekForward = {
+                            scope.launch {
+                                val activePlayer = player
+                                if (activePlayer == null) {
+                                    launchStatus = mpvNoActiveProcessStatus()
+                                    return@launch
+                                }
+                                when (val result = activePlayer.seekBy(30.0)) {
+                                    is Result.Success -> {
+                                        activePlaybackSession?.seekBy(30.0)
+                                        launchStatus = mpvSeekForwardStatus(seconds = 30)
+                                    }
+                                    is Result.Error -> launchStatus = result.error.toUserMessage()
+                                }
                             }
-                            is Result.Error -> launchStatus = result.error.toUserMessage()
-                        }
-                    }
-                },
-                onSeekForward = {
-                    scope.launch {
-                        val activePlayer = player
-                        if (activePlayer == null) {
-                            launchStatus = mpvNoActiveProcessStatus()
-                            return@launch
-                        }
-                        when (val result = activePlayer.seekBy(30.0)) {
-                            is Result.Success -> {
-                                activePlaybackSession?.seekBy(30.0)
-                                launchStatus = mpvSeekForwardStatus(seconds = 30)
+                        },
+                        onStop = {
+                            scope.launch {
+                                val activePlayer = player
+                                activePlaybackSession?.let { session ->
+                                    savePlaybackProgressOnStop(
+                                        session = session,
+                                        queryPositionMs = activePlayer?.let { player ->
+                                            { player.queryTimePositionMs() }
+                                        },
+                                        saveProgress = { episodeId, positionMs, lastWatched ->
+                                            savePlaybackProgress(episodeId, positionMs, lastWatched)
+                                        },
+                                    )
+                                }
+                                activePlayer?.stop()
+                                player = null
+                                activePlaybackSession = null
+                                refreshRecentProgress()
+                                launchStatus = mpvStoppedStatus()
                             }
-                            is Result.Error -> launchStatus = result.error.toUserMessage()
-                        }
-                    }
-                },
-                onStop = {
-                    scope.launch {
-                        val activePlayer = player
-                        activePlaybackSession?.let { session ->
-                            savePlaybackProgressOnStop(
-                                session = session,
-                                queryPositionMs = activePlayer?.let { player ->
-                                    { player.queryTimePositionMs() }
-                                },
-                                saveProgress = { episodeId, positionMs, lastWatched ->
-                                    savePlaybackProgress(episodeId, positionMs, lastWatched)
-                                },
-                            )
-                        }
-                        activePlayer?.stop()
-                        player = null
-                        activePlaybackSession = null
-                        refreshRecentProgress()
-                        launchStatus = mpvStoppedStatus()
-                    }
-                },
+                        },
                     )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(22.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        RuntimePanel(
+                            mpvPath = mpvPath,
+                            onMpvPathChange = { mpvPath = it },
+                            configDir = configDir,
+                            onConfigDirChange = { configDir = it },
+                            status = status,
+                            onCheckRuntime = { status = mpvRuntimeStatusFromInputs(mpvPath, configDir) },
+                            modifier = Modifier.weight(0.42f),
+                        )
+                        CommandPanel(
+                            commandPreview = commandPreview,
+                            launchStatus = launchStatus,
+                            modifier = Modifier.weight(0.58f),
+                        )
+                    }
                 }
             }
         }
