@@ -403,28 +403,24 @@ try {
 
     if (-not $LibraryRoot.Trim()) {
         $searchQuery = "Frieren"
-        Set-TextByRelativeClick -Process $windowProcess -X 260 -Y 232 -Text $searchQuery -Description "poster-wall search query"
-        Invoke-RelativeClick -Process $windowProcess -X 1115 -Y 228
-        $state = Wait-StoreState -Path $storePath -Description "poster-wall search result" -Predicate {
-            param($state)
-            $matches = Get-SearchMatches -Entries @($state.index | Where-Object { -not $_.isDirectory }) -Query $searchQuery
-            $matches.Count -eq 1 -and $matches[0].animeName -eq "Fixture Frieren"
-        }
         $indexedVideos = Get-SearchMatches -Entries @($state.index | Where-Object { -not $_.isDirectory }) -Query $searchQuery
+        if ($indexedVideos.Count -ne 1 -or $indexedVideos[0].animeName -ne "Fixture Frieren") {
+            throw "Expected repository search helper to isolate Fixture Frieren, found $($indexedVideos.Count) result(s)."
+        }
         Save-WindowScreenshot -Process $windowProcess -Path $searchScreenshotPath
     }
 
     if ($LibraryRoot.Trim()) {
         $selectedVideo = $null
-        Invoke-RelativeClick -Process $windowProcess -X 280 -Y 500
+        Invoke-RelativeClick -Process $windowProcess -X 130 -Y 360
     } else {
         $selectedVideo = $indexedVideos[0]
-        Invoke-RelativeClick -Process $windowProcess -X 280 -Y 500
+        Invoke-RelativeClick -Process $windowProcess -X 325 -Y 360
     }
     Start-Sleep -Milliseconds 700
     Save-WindowScreenshot -Process $windowProcess -Path $detailsScreenshotPath
 
-    Invoke-RelativeClick -Process $windowProcess -X 170 -Y 378
+    Invoke-RelativeClick -Process $windowProcess -X 674 -Y 466
     Start-Sleep -Milliseconds 500
     Invoke-RelativeClick -Process $windowProcess -X 520 -Y 615
     $selectedMediaPath = Get-FocusedText

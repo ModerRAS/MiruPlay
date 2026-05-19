@@ -42,6 +42,8 @@ import com.miruplay.tv.model.formatFileSize
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.displayName
 
+private const val POSTER_WALL_COLUMNS = 6
+
 @Composable
 internal fun LibraryPanel(
     libraryRoot: String,
@@ -84,17 +86,32 @@ internal fun LibraryPanel(
                 onRemoveSource = onRemoveSource,
             )
             DesktopEmptyState(
-                text = "已配置媒体源\n点击扫描建立媒体库",
+                text = if (savedSources.isEmpty()) "添加媒体源开始使用" else "已配置媒体源\n点击扫描建立媒体库",
                 heightDp = 300,
             )
         } else {
-            PosterSearchBar(
-                indexQuery = indexQuery,
-                onIndexQueryChange = onIndexQueryChange,
-                onSearch = onSearch,
-                resultCount = posterGroups.size,
+            PosterSectionHeader(title = "海报墙", trailing = "已收录 ${posterGroups.size} 部")
+            PosterWall(
+                groups = posterGroups,
+                selectedEntry = selectedEntry,
+                onEntrySelected = onEntrySelected,
             )
-            PosterSectionHeader(title = "最高热度", trailing = "已收录 ${posterGroups.size} 部")
+
+            PosterSectionHeader(title = "最近添加")
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                posterGroups
+                    .sortedByDescending { it.lastModified }
+                    .take(4)
+                    .forEach { group ->
+                        LibraryPosterCard(
+                            group = group,
+                            selected = selectedEntry?.path?.let { it in group.entryPaths } == true,
+                            onClick = { onEntrySelected(group.primaryEntry) },
+                        )
+                    }
+            }
+
+            PosterSectionHeader(title = "最高热度")
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -112,37 +129,12 @@ internal fun LibraryPanel(
                 }
             }
 
-            PosterSectionHeader(title = "最近添加")
-            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                posterGroups
-                    .sortedByDescending { it.lastModified }
-                    .take(4)
-                    .forEach { group ->
-                        LibraryPosterCard(
-                            group = group,
-                            selected = selectedEntry?.path?.let { it in group.entryPaths } == true,
-                            onClick = { onEntrySelected(group.primaryEntry) },
-                        )
-                    }
-            }
-
-            PosterSectionHeader(title = "海报墙")
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(18.dp),
-            ) {
-                posterGroups.chunked(4).forEach { row ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        row.forEach { group ->
-                            LibraryPosterCard(
-                                group = group,
-                                selected = selectedEntry?.path?.let { it in group.entryPaths } == true,
-                                onClick = { onEntrySelected(group.primaryEntry) },
-                            )
-                        }
-                    }
-                }
-            }
+            PosterSearchBar(
+                indexQuery = indexQuery,
+                onIndexQueryChange = onIndexQueryChange,
+                onSearch = onSearch,
+                resultCount = posterGroups.size,
+            )
             LibraryControlBar(
                 libraryRoot = libraryRoot,
                 onLibraryRootChange = onLibraryRootChange,
@@ -177,7 +169,7 @@ internal fun DesktopLibraryHeader(
         Column {
             Text("探索", color = TextPrimary, fontSize = 44.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(4.dp))
-        Text("本地媒体库 · Bangumi 元数据", color = TextSecondary, fontSize = 24.sp)
+            Text("本地媒体库 · Bangumi 元数据", color = TextSecondary, fontSize = 24.sp)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             TvActionButton("扫描", onClick = onScan, modifier = Modifier.width(132.dp))
@@ -297,6 +289,30 @@ private fun PosterSectionHeader(
         )
         if (!trailing.isNullOrBlank()) {
             Text(trailing, color = TextSecondary, fontSize = MiruPlayUiMetrics.PANEL_BODY_SP.sp)
+        }
+    }
+}
+
+@Composable
+private fun PosterWall(
+    groups: List<DesktopPosterGroup>,
+    selectedEntry: MediaIndexEntry?,
+    onEntrySelected: (MediaIndexEntry) -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(18.dp),
+    ) {
+        groups.toPosterWallRows().forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                row.forEach { group ->
+                    LibraryPosterCard(
+                        group = group,
+                        selected = selectedEntry?.path?.let { it in group.entryPaths } == true,
+                        onClick = { onEntrySelected(group.primaryEntry) },
+                    )
+                }
+            }
         }
     }
 }
@@ -493,6 +509,9 @@ internal fun List<MediaIndexEntry>.toDesktopPosterGroups(): List<DesktopPosterGr
         .groupBy { it.posterTitle() }
         .map { (title, groupEntries) -> DesktopPosterGroup(title = title, entries = groupEntries) }
         .sortedBy { it.title.lowercase() }
+
+internal fun List<DesktopPosterGroup>.toPosterWallRows(columns: Int = POSTER_WALL_COLUMNS): List<List<DesktopPosterGroup>> =
+    chunked(columns.coerceAtLeast(1))
 
 internal fun MediaIndexEntry.posterTitle(): String =
     metadataTitle?.takeIf { it.isNotBlank() }

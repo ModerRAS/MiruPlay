@@ -24,12 +24,12 @@ The port is complete only when all of these are proven by current evidence:
 | Area | Status | Notes |
 |---|---|---|
 | Android TV build | Covered for debug build | Latest local `:app:assembleDebug` passed. Instrumented TV QA still open. |
-| Compose Desktop entry | Usable foundation | Swing production shell removed; screenshot QA exists for first screens. Latest Library UI now uses the Android TV-style full-width header, right-side actions, empty state, and poster wall after scan; poster selection routes directly into a TV-style Details hero; Player now opens as a rail-free TV-style playback stage; Settings now opens with a TV-style section menu before the Cloud/RSS form. |
+| Compose Desktop entry | Usable foundation | Swing production shell removed; screenshot QA exists for first screens. Latest Library UI now opens scanned libraries as a TV-style 6-column poster wall under the Explore header, with search/source controls below the media surface; saved indexes are restored on startup/source switch; poster selection routes directly into a TV-style Details hero; Player now opens as a rail-free TV-style playback stage; Settings now opens with a TV-style section menu before the Cloud/RSS form. |
 | Shared UI palette | Covered structurally | `:ui-design` owns shared palette; drift check exists. |
 | Local/WebDAV/SMB desktop sources | Implemented | Local source GUI smoke now covers generated fixture and a real local library path; WebDAV/SMB GUI fixture smokes still open. |
-| Library/index/details | Implemented foundation | Local scan/index, poster-wall search/selection, TV-style details hero, and player handoff GUI smoke now passes. |
+| Library/index/details | Implemented foundation | Local scan/index, TV-style poster-wall selection, details hero, and player handoff GUI smoke now passes for both generated fixtures and `D:\Software\dufs`. |
 | Bangumi metadata | Implemented foundation | Unit coverage exists; live network behavior needs manual/smoke evidence. |
-| mpv playback | Implemented foundation | Desktop Player keeps mpv/RIFE controls behind a TV-like playback stage; `tools/smoke-desktop-mpv-launch-ui.ps1` now generates a tiny local Y4M sample, launches it through the Windows GUI, confirms an `mpv.exe` child process, and captures the launched Player screen. |
+| mpv playback | Implemented foundation | Desktop Player keeps mpv/RIFE controls behind a TV-like playback stage; `tools/smoke-desktop-mpv-launch-ui.ps1` now generates a local Y4M sample, launches it through the Windows GUI, confirms an `mpv.exe` child process, exercises Pause/-10s/+30s/Stop, verifies progress persistence, and captures launched/control/stopped Player screens. |
 | RIFE runtime | Partial | Runtime structure and scripts are tracked; local machine RIFE playback is non-blocking because this host is not expected to run interpolation well. Backend matrix remains target-host validation. |
 | Cloud/RSS | Partial | Loopback tests exist; real CloudDrive2 dry-run/live evidence still open. |
 | Release packaging | Partial | Lightweight install works; full bundled runtime artifact QA remains open. |
@@ -46,6 +46,7 @@ The port is complete only when all of these are proven by current evidence:
 - [x] Extend the local-source GUI smoke to support a documented real local library path.
 - [x] Capture Android TV Library baseline from emulator `10.137.32.118:5555` into `build/android-tv-qa/library-baseline.png`.
 - [x] Rework the Windows Library first screen toward the Android TV Library: full-width Explore header, right-side actions, TV empty state, and poster wall after scan.
+- [x] Make scanned Windows libraries open directly as a TV-style 6-column poster wall and restore saved index entries on startup/source switch.
 - [x] Rework the Windows Details first screen toward Android TV: poster click opens Details directly, with a large backdrop/poster hero, title context, plot, Play, and Back-to-poster-wall actions.
 - [x] Rework the Windows Player first screen toward Android TV: rail-free playback stage, top return action, centered transport controls, bottom timeline/status chips, and advanced mpv/RIFE settings below.
 - [x] Rework the Windows Settings first screen toward Android TV: left-side settings categories with focused rows, summary cards, and quick actions for media sources, playback, scan, metadata, and Cloud/RSS.
@@ -86,7 +87,7 @@ Verification:
 
 - [x] Build a tiny generated Y4M local video fixture for repeatable mpv launch smoke.
 - [x] Run mpv launch from the Windows GUI against the fixture and confirm the `mpv.exe` child process.
-- [ ] Verify Pause, -10s, +30s, Stop, and recent-progress refresh.
+- [x] Verify Pause, -10s, +30s, Stop, and recent-progress refresh without requiring RIFE on this host.
 - [ ] Verify remote playback bridge keeps credentials out of mpv command lines.
 - [ ] Keep RIFE optional and make missing runtime errors actionable in the UI.
 
