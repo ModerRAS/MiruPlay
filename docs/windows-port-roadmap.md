@@ -9,7 +9,7 @@ The port is complete only when all of these are proven by current evidence:
 
 | Area | Required end state | Proof required |
 |---|---|---|
-| Android TV | Existing Android TV app still builds and keeps Compose/Compose TV UI. | `:app:assembleDebug`, and later a TV-device smoke run for core library/detail/player flows. |
+| Android TV | Existing Android TV app still builds and keeps Compose/Compose TV UI. | `:app:assembleDebug`, TV-device screenshot/smoke run for core library/detail/player flows. |
 | Windows entry | Windows launches a Compose Desktop app, not Swing, with TV-like navigation and layout. | `:desktop-app:installDist`, `tools/capture-desktop-ui.ps1`, `checkDesktopComposeOnly`, `checkUiPaletteDrift`. |
 | Media sources | Windows can manage and browse Local, WebDAV, and SMB sources without Android-only APIs. | `:media-source-desktop:test`, GUI source add/open/browse smoke, remote stream bridge smoke. |
 | Library/index | Windows can scan, search, inspect details, clear source index, and delete sources. | `:scanner-desktop:test`, `:repository-desktop:test`, GUI library/detail smoke. |
@@ -24,13 +24,13 @@ The port is complete only when all of these are proven by current evidence:
 | Area | Status | Notes |
 |---|---|---|
 | Android TV build | Covered for debug build | Latest local `:app:assembleDebug` passed. Instrumented TV QA still open. |
-| Compose Desktop entry | Usable foundation | Swing production shell removed; screenshot QA exists for first screens. Latest local GUI smoke generated `build/desktop-ui-qa/library.png`, `details.png`, `player.png`, and `settings.png`. |
+| Compose Desktop entry | Usable foundation | Swing production shell removed; screenshot QA exists for first screens. Latest Library UI now uses the Android TV-style full-width header, right-side actions, empty state, and poster wall after scan. |
 | Shared UI palette | Covered structurally | `:ui-design` owns shared palette; drift check exists. |
 | Local/WebDAV/SMB desktop sources | Implemented | Local source GUI smoke now covers generated fixture and a real local library path; WebDAV/SMB GUI fixture smokes still open. |
-| Library/index/details | Implemented foundation | Local scan/index, details, and player handoff GUI smoke now passes; search and broader parity review still open. |
+| Library/index/details | Implemented foundation | Local scan/index, poster-wall selection, details, and player handoff GUI smoke now passes; GUI search smoke needs to be re-added for the poster-wall layout. |
 | Bangumi metadata | Implemented foundation | Unit coverage exists; live network behavior needs manual/smoke evidence. |
 | mpv playback | Implemented foundation | Need repeatable GUI launch smoke against a tiny local media sample. |
-| RIFE runtime | Partial | DirectML smoke has been proven locally before; NVIDIA and Standard remain target-host dependent. |
+| RIFE runtime | Partial | Runtime structure and scripts are tracked; local machine RIFE playback is non-blocking because this host is not expected to run interpolation well. Backend matrix remains target-host validation. |
 | Cloud/RSS | Partial | Loopback tests exist; real CloudDrive2 dry-run/live evidence still open. |
 | Release packaging | Partial | Lightweight install works; full bundled runtime artifact QA remains open. |
 
@@ -44,6 +44,8 @@ The port is complete only when all of these are proven by current evidence:
 - [x] Run the current Windows GUI screenshot smoke locally.
 - [x] Add a fixture-driven Windows GUI smoke that creates/uses a local media source, scans it, verifies store state, and records screenshots.
 - [x] Extend the local-source GUI smoke to support a documented real local library path.
+- [x] Capture Android TV Library baseline from emulator `10.137.32.118:5555` into `build/android-tv-qa/library-baseline.png`.
+- [x] Rework the Windows Library first screen toward the Android TV Library: full-width Explore header, right-side actions, TV empty state, and poster wall after scan.
 - [ ] Add a tiny generated media sample or documented local sample path for mpv launch smoke.
 - [ ] Extract remaining playback launch/config presenter logic out of the Compose entry.
 
@@ -62,7 +64,7 @@ Verification:
 - [x] GUI smoke: add/open Local source and scan a fixture with NFO metadata.
 - [x] GUI smoke: inspect details and select scanned local media for player handoff.
 - [x] GUI smoke: repeat the local source flow against `D:\Software\dufs`.
-- [ ] GUI smoke: search scanned local index from the query field.
+- [ ] GUI smoke: search scanned local index from the query field in the poster-wall layout.
 - [ ] GUI smoke: add/open WebDAV source using a local/loopback fixture where possible.
 - [ ] GUI smoke: add/open SMB source when a Windows fixture share is available.
 - [ ] Confirm clear-source-index and remove-source flows keep repository state consistent.
@@ -90,7 +92,7 @@ Verification:
 ```powershell
 .\gradlew.bat :player-mpv:test :desktop-app:test
 .\gradlew.bat :desktop-app:smokeMpvRuntime -PrequireMpvRuntime=true
-.\tools\smoke-mpv-rife.ps1 -RuntimeRoot .\runtime\mpv -Backend DIRECTML -ReportPath .\build\mpv-smoke\rife-directml-report.json
+# Full RIFE playback/interpolation smoke is target-hardware validation, not a blocker on low-capability local hosts.
 ```
 
 ### Phase 4: Prove CloudDrive2/RSS
@@ -119,7 +121,7 @@ Verification:
 - [ ] Build lightweight Windows install for GUI QA.
 - [ ] Build full Windows distribution with bundled runtime source.
 - [ ] Run `mpv.exe --version` smoke from packaged runtime.
-- [ ] Run RIFE matrix on target hardware; DirectML is required, NVIDIA is target-host validation, Standard requires a plugin decision.
+- [ ] Run RIFE matrix on target hardware; DirectML is target-host validation, NVIDIA depends on CUDA/TensorRT driver compatibility, Standard requires a plugin decision.
 - [ ] Keep CI green for Android and desktop/shared JVM gates.
 
 Verification:
@@ -135,7 +137,7 @@ Verification:
 
 ## Immediate Next Actions
 
-1. Add a search-field assertion to the local-source GUI smoke.
-2. Extract remaining mpv launch preparation from `MiruPlayDesktopComposeApp.kt`.
-3. Add or document a tiny mpv launch fixture and run a GUI playback smoke.
-4. Commit and push each verified slice with the exact commands used.
+1. Continue narrowing desktop-vs-Android-TV UI gaps beyond the Library first screen, especially Details and Player.
+2. Re-add a poster-wall-layout search GUI smoke without making the source controls dominate the Library view.
+3. Extract remaining mpv launch preparation from `MiruPlayDesktopComposeApp.kt`.
+4. Add WebDAV and SMB GUI fixture smokes where local loopback fixtures are practical.

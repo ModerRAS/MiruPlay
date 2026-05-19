@@ -195,16 +195,20 @@ if (-not $windowProcess) {
     $windowProcess = Wait-MiruPlayWindow
 }
 
-$sections = @(
-    @{ Name = "library"; X = 170; Y = 215 },
-    @{ Name = "details"; X = 170; Y = 296 },
+$captures = @()
+$captures += Save-WindowScreenshot -Process $windowProcess -Name "library" -Directory $resolvedOutputDir
+
+Invoke-RelativeClick -Process $windowProcess -X 885 -Y 95
+$captures += Save-WindowScreenshot -Process $windowProcess -Name "details" -Directory $resolvedOutputDir
+
+$railSections = @(
     @{ Name = "player"; X = 170; Y = 378 },
     @{ Name = "settings"; X = 170; Y = 462 }
 )
 
-$captures = foreach ($section in $sections) {
+foreach ($section in $railSections) {
     Invoke-RelativeClick -Process $windowProcess -X $section.X -Y $section.Y
-    Save-WindowScreenshot -Process $windowProcess -Name $section.Name -Directory $resolvedOutputDir
+    $captures += Save-WindowScreenshot -Process $windowProcess -Name $section.Name -Directory $resolvedOutputDir
 }
 
 Assert-CapturesAreDistinct -Paths $captures

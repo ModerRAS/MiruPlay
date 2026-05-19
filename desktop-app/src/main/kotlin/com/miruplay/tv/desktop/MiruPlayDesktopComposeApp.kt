@@ -11,6 +11,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -644,17 +645,32 @@ internal fun MiruPlayDesktopComposeApp() {
             .padding(32.dp),
         horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.MAIN_SECTION_GAP_DP.dp),
     ) {
-        DesktopTvNavigation(
-            selectedSection = selectedDesktopSection,
-            onSectionSelected = { selectedDesktopSection = it },
-        )
+        if (selectedDesktopSection != MiruPlayRouteSurface.library) {
+            DesktopTvNavigation(
+                selectedSection = selectedDesktopSection,
+                onSectionSelected = { selectedDesktopSection = it },
+            )
+        }
         Column(
             modifier = Modifier
                 .weight(1f)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(22.dp),
         ) {
-            DesktopTvHeader(selectedSection = selectedDesktopSection)
+            if (selectedDesktopSection == MiruPlayRouteSurface.library) {
+                DesktopLibraryHeader(
+                    onScan = {
+                        scope.launch {
+                            scanCurrentSource { libraryStatus = it }
+                        }
+                    },
+                    onDetails = { selectedDesktopSection = MiruPlayRouteSurface.details },
+                    onPlayer = { selectedDesktopSection = MiruPlayRouteSurface.player },
+                    onSettings = { selectedDesktopSection = MiruPlayRouteSurface.settings },
+                )
+            } else {
+                DesktopTvHeader(selectedSection = selectedDesktopSection)
+            }
             when (selectedDesktopSection) {
                 MiruPlayRouteSurface.library -> {
                     LibraryPanel(
