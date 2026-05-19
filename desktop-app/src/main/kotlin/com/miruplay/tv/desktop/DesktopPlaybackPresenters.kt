@@ -18,6 +18,8 @@ import com.miruplay.tv.player.mpv.mpvCommandPreviewFromInputs
 import com.miruplay.tv.player.mpv.mpvRuntimeConfigFromInputs
 import com.miruplay.tv.player.mpv.validateLaunchRuntime
 
+internal const val DEFAULT_DESKTOP_RIFE_ENABLED = false
+
 internal fun mpvRuntimeStatusFromInputs(
     mpvPath: String,
     configDir: String,

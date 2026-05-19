@@ -40,6 +40,7 @@ class MpvRuntimeVerifierTest {
 
             assertTrue(verification.isPlayable)
             assertFalse(verification.hasRife)
+            assertTrue(verification.message().contains("leave RIFE off"))
             assertTrue("portable_config/vs/" in verification.missing)
             assertTrue("portable_config/vs/MEMC_RIFE_NV.vpy" in verification.missing)
         } finally {

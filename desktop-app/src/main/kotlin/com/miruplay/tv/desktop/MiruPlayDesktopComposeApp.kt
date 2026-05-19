@@ -313,7 +313,7 @@ internal fun MiruPlayDesktopComposeApp() {
     var startSeconds by remember { mutableStateOf("0") }
     var fullscreen by remember { mutableStateOf(false) }
     var keepOpen by remember { mutableStateOf(false) }
-    var rifeEnabled by remember { mutableStateOf(true) }
+    var rifeEnabled by remember { mutableStateOf(DEFAULT_DESKTOP_RIFE_ENABLED) }
     var rifeBackend by remember { mutableStateOf(RifeBackend.NVIDIA) }
     var status by remember { mutableStateOf(mpvRuntimeStatusFromInputs(mpvPath, configDir)) }
     var launchStatus by remember { mutableStateOf(mpvIdleStatus()) }

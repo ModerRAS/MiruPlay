@@ -67,7 +67,7 @@ fun mpvRuntimeConfigFromInputs(
 fun MpvRuntimeConfig.validateLaunchRuntime(): Result<MpvRuntimeVerification?> {
     if (!Files.isRegularFile(mpvExecutable)) {
         return Result.failure(
-            AppError.PlaybackError.StreamError("mpv executable not found: $mpvExecutable")
+            AppError.PlaybackError.StreamError(missingMpvExecutableMessage(mpvExecutable))
         )
     }
 
@@ -78,16 +78,14 @@ fun MpvRuntimeConfig.validateLaunchRuntime(): Result<MpvRuntimeVerification?> {
             Result.success(null)
         } else {
             Result.failure(
-                AppError.PlaybackError.StreamError("RIFE script not found: $normalizedScript")
+                AppError.PlaybackError.StreamError(missingRifeScriptMessage(normalizedScript))
             )
         }
     }
 
     val configDirectory = configDirectory
         ?: return Result.failure(
-            AppError.PlaybackError.StreamError(
-                "configDirectory is required when using a bundled RIFE backend without scriptPath"
-            )
+            AppError.PlaybackError.StreamError(missingRifeConfigDirectoryMessage())
         )
 
     val verification = MpvRuntimeVerifier.verify(
@@ -100,13 +98,22 @@ fun MpvRuntimeConfig.validateLaunchRuntime(): Result<MpvRuntimeVerification?> {
     if (requestedRife.backend !in verification.availableRifeBackends) {
         return Result.failure(
             AppError.PlaybackError.StreamError(
-                "RIFE script not found: ${verification.layout.rifeScript(requestedRife.backend)}"
+                missingRifeScriptMessage(verification.layout.rifeScript(requestedRife.backend))
             )
         )
     }
 
     return Result.success(verification)
 }
+
+private fun missingMpvExecutableMessage(path: Path): String =
+    "mpv executable not found: $path. Choose the bundled runtime path, install mpv, or run Check runtime before launching."
+
+private fun missingRifeScriptMessage(path: Path): String =
+    "RIFE is enabled but script was not found: $path. Pick an installed backend, prepare the bundled runtime, or turn RIFE off."
+
+private fun missingRifeConfigDirectoryMessage(): String =
+    "RIFE is enabled but configDirectory is empty. Set portable_config, choose a runtime root, or turn RIFE off."
 
 data class RifeInterpolationConfig(
     val backend: RifeBackend = RifeBackend.NVIDIA,

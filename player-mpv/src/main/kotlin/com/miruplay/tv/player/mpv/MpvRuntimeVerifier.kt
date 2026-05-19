@@ -27,7 +27,7 @@ data class MpvRuntimeVerification(
 
     fun message(): String = when {
         isComplete -> "Bundled mpv runtime is ready. RIFE: ${formatBackends(availableRifeBackends)}."
-        isPlayable && !hasRife -> "mpv runtime is playable, but RIFE scripts are missing."
+        isPlayable && !hasRife -> "mpv runtime is playable. RIFE scripts are missing; leave RIFE off or prepare a RIFE backend."
         isPlayable -> "mpv runtime is playable. Missing optional files: ${missing.joinToString(", ")}."
         else -> "mpv runtime is incomplete. Missing: ${missing.joinToString(", ")}."
     }.withManifestMarker()
