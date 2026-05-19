@@ -361,7 +361,29 @@ internal fun MiruPlayDesktopComposeApp() {
         }
     }
 
+    suspend fun loadIndexedEntries(sourceId: Long, statusWhenEmpty: String) {
+        when (val result = repositories.index.queryIndex(sourceId, "")) {
+            is Result.Success -> {
+                indexedEntries = result.data.filterNot { it.isDirectory }
+                selectedIndexEntry = selectedIndexEntry?.let { selected ->
+                    indexedEntries.firstOrNull { it.sourceId == selected.sourceId && it.path == selected.path }
+                }
+                if (indexedEntries.isNotEmpty()) {
+                    libraryStatus = indexedSearchStatus(
+                        query = "",
+                        hasResults = true,
+                        displayedResultCount = indexedEntries.size,
+                    )
+                } else {
+                    libraryStatus = statusWhenEmpty
+                }
+            }
+            is Result.Error -> libraryStatus = result.error.toUserMessage()
+        }
+    }
+
     LaunchedEffect(repositories) {
+        var startupSource: MediaSourceInfo? = null
         when (val sources = repositories.mediaSources.getSources()) {
             is Result.Success -> {
                 savedSources = sources.data
@@ -376,6 +398,7 @@ internal fun MiruPlayDesktopComposeApp() {
                     activeLocalSource = localSource
                     activeSource = localSource
                     libraryStatus = local.loadedStatus()
+                    startupSource = local
                 }
                 if (webDav != null) {
                     webDavUrl = webDav.remoteUrl().orEmpty()
@@ -385,6 +408,7 @@ internal fun MiruPlayDesktopComposeApp() {
                         activeSourceId = webDav.id
                         activeSource = desktopWebDavSourceFromInfo(webDav)
                         remoteStatus = webDav.loadedStatus()
+                        startupSource = webDav
                     }
                 }
                 if (smb != null) {
@@ -396,10 +420,14 @@ internal fun MiruPlayDesktopComposeApp() {
                         activeSourceId = smb.id
                         activeSource = desktopSmbSourceFromInfo(smb)
                         remoteStatus = smb.loadedStatus()
+                        startupSource = smb
                     }
                 }
             }
             is Result.Error -> libraryStatus = sources.error.toUserMessage()
+        }
+        startupSource?.let { source ->
+            loadIndexedEntries(source.id, source.loadedStatus())
         }
         when (val recents = repositories.progress.getContinueWatching(limit = 12)) {
             is Result.Success -> {
@@ -528,7 +556,7 @@ internal fun MiruPlayDesktopComposeApp() {
             is Result.Success -> {
                 when (val indexed = repositories.index.rebuildIndex(sourceId, scan.data.entries)) {
                     is Result.Success -> {
-                        indexedEntries = scan.data.entries.filterNot { it.isDirectory }.take(24)
+                        indexedEntries = scan.data.entries.filterNot { it.isDirectory }
                         selectedIndexEntry = null
                         val message = scanCompleteStatus(
                             filesIndexed = scan.data.filesIndexed,
@@ -569,7 +597,7 @@ internal fun MiruPlayDesktopComposeApp() {
                 when (val indexed = repositories.index.rebuildIndex(sourceInfo.id, scan.data.entries)) {
                     is Result.Success -> {
                         if (activeSourceId == sourceInfo.id) {
-                            indexedEntries = scan.data.entries.filterNot { it.isDirectory }.take(24)
+                            indexedEntries = scan.data.entries.filterNot { it.isDirectory }
                             selectedIndexEntry = null
                         }
                         val message = rescanCompleteStatus(
@@ -637,6 +665,7 @@ internal fun MiruPlayDesktopComposeApp() {
                 loadRemoteDirectory(source, "")
             }
         }
+        loadIndexedEntries(sourceInfo.id, sourceInfo.loadedStatus(saved = true))
     }
 
     Row(
@@ -732,7 +761,7 @@ internal fun MiruPlayDesktopComposeApp() {
                         }
                         when (val result = repositories.index.queryIndex(sourceId, indexQuery.trim())) {
                             is Result.Success -> {
-                                indexedEntries = result.data.filterNot { it.isDirectory }.take(24)
+                                indexedEntries = result.data.filterNot { it.isDirectory }
                                 libraryStatus = indexedSearchStatus(
                                     query = indexQuery,
                                     hasResults = result.data.isNotEmpty(),
@@ -1609,14 +1638,13 @@ internal fun MiruPlayDesktopComposeApp() {
                             scope.launch {
                                 val activePlayer = player
                                 activePlaybackSession?.let { session ->
+                                    val saveProgress: suspend (String, Long, Long) -> Result<Unit> = { episodeId, positionMs, lastWatched ->
+                                        savePlaybackProgress(episodeId, positionMs, lastWatched)
+                                    }
                                     savePlaybackProgressOnStop(
                                         session = session,
-                                        queryPositionMs = activePlayer?.let { player ->
-                                            { player.queryTimePositionMs() }
-                                        },
-                                        saveProgress = { episodeId, positionMs, lastWatched ->
-                                            savePlaybackProgress(episodeId, positionMs, lastWatched)
-                                        },
+                                        queryPositionMs = null,
+                                        saveProgress = saveProgress,
                                     )
                                 }
                                 activePlayer?.stop()

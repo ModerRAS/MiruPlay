@@ -34,6 +34,9 @@ public static class MiruPlayMpvLaunchSmokeWin32 {
 
     [DllImport("user32.dll")]
     public static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extraInfo);
+
+    [DllImport("user32.dll")]
+    public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 }
 "@
 
@@ -242,9 +245,9 @@ function Save-WindowScreenshotWithoutRedRequirement {
 function New-Y4mSmokeClip {
     param(
         [string]$Path,
-        [int]$ClipWidth = 320,
-        [int]$ClipHeight = 180,
-        [int]$FrameCount = 72
+        [int]$ClipWidth = 160,
+        [int]$ClipHeight = 90,
+        [int]$FrameCount = 1440
     )
 
     $directory = Split-Path -Parent $Path
@@ -307,6 +310,90 @@ function Wait-MpvChildProcess {
     throw "Timed out waiting for mpv.exe child process for sample $ExpectedSamplePath."
 }
 
+function Minimize-ProcessWindow {
+    param([int]$ProcessId)
+
+    $deadline = (Get-Date).AddSeconds(5)
+    do {
+        $process = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
+        if ($process -and $process.MainWindowHandle -ne 0) {
+            [MiruPlayMpvLaunchSmokeWin32]::ShowWindow($process.MainWindowHandle, 6) | Out-Null
+            return
+        }
+        Start-Sleep -Milliseconds 250
+    } while ((Get-Date) -lt $deadline)
+}
+
+function Wait-MpvProcessGone {
+    param(
+        [int]$ProcessId,
+        [int]$TimeoutSeconds = 15
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    do {
+        if (-not (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue)) {
+            return
+        }
+        Start-Sleep -Milliseconds 300
+    } while ((Get-Date) -lt $deadline)
+
+    throw "mpv.exe process $ProcessId was still running after Stop."
+}
+
+function Invoke-StopAndWait {
+    param(
+        [System.Diagnostics.Process]$WindowProcess,
+        [int]$MpvProcessId
+    )
+
+    $stopPoints = @(
+        @{ X = 782; Y = 278 },
+        @{ X = 785; Y = 282 },
+        @{ X = 776; Y = 276 }
+    )
+    foreach ($point in $stopPoints) {
+        Invoke-RelativeClick -Process $WindowProcess -X $point.X -Y $point.Y -DelayMilliseconds 1200
+        $deadline = (Get-Date).AddSeconds(5)
+        do {
+            if (-not (Get-Process -Id $MpvProcessId -ErrorAction SilentlyContinue)) {
+                return
+            }
+            Start-Sleep -Milliseconds 300
+        } while ((Get-Date) -lt $deadline)
+    }
+
+    throw "mpv.exe process $MpvProcessId was still running after GUI Stop."
+}
+
+function Read-StoreState {
+    param([string]$Path)
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return $null
+    }
+    return Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
+}
+
+function Wait-StoreState {
+    param(
+        [string]$Path,
+        [scriptblock]$Predicate,
+        [string]$Description,
+        [int]$TimeoutSeconds = 20
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    do {
+        $state = Read-StoreState -Path $Path
+        if ($state -and (& $Predicate $state)) {
+            return $state
+        }
+        Start-Sleep -Milliseconds 300
+    } while ((Get-Date) -lt $deadline)
+
+    throw "Timed out waiting for $Description in $Path."
+}
+
 $resolvedAppScript = Resolve-FullPath $AppScript
 $resolvedOutputRoot = Resolve-FullPath $OutputRoot
 if (-not (Test-Path -LiteralPath $resolvedAppScript)) {
@@ -326,6 +413,8 @@ $sample = if ($SamplePath.Trim()) {
 }
 $preLaunchScreenshotPath = Join-Path $runDir "mpv-launch-ready.png"
 $launchedScreenshotPath = Join-Path $runDir "mpv-launched.png"
+$controlledScreenshotPath = Join-Path $runDir "mpv-controls-used.png"
+$stoppedScreenshotPath = Join-Path $runDir "mpv-stopped.png"
 New-Item -ItemType Directory -Path (Split-Path -Parent $storePath) -Force | Out-Null
 
 if ($SamplePath.Trim()) {
@@ -352,8 +441,27 @@ try {
 
     Invoke-RelativeClick -Process $windowProcess -X 596 -Y 278 -DelayMilliseconds 900
     $mpvProcess = Wait-MpvChildProcess -ParentProcessId $windowProcess.Id -ExpectedSamplePath $sample
-    Start-Sleep -Milliseconds 700
+    Wait-StoreState -Path $storePath -Description "initial playback progress record" -Predicate {
+        param($state)
+        $records = @($state.progress | Where-Object { $_.episodeId -eq $sample })
+        $records.Count -eq 1 -and $records[0].playCount -ge 1
+    } | Out-Null
+    Minimize-ProcessWindow -ProcessId $mpvProcess.ProcessId
+    Start-Sleep -Milliseconds 900
     Save-WindowScreenshotWithoutRedRequirement -Process $windowProcess -Path $launchedScreenshotPath
+
+    Invoke-RelativeClick -Process $windowProcess -X 596 -Y 278 -DelayMilliseconds 500
+    Invoke-RelativeClick -Process $windowProcess -X 498 -Y 278 -DelayMilliseconds 500
+    Invoke-RelativeClick -Process $windowProcess -X 696 -Y 278 -DelayMilliseconds 500
+    Save-WindowScreenshotWithoutRedRequirement -Process $windowProcess -Path $controlledScreenshotPath
+    Invoke-StopAndWait -WindowProcess $windowProcess -MpvProcessId $mpvProcess.ProcessId
+    $finalState = Wait-StoreState -Path $storePath -Description "stopped playback progress update" -Predicate {
+        param($state)
+        $records = @($state.progress | Where-Object { $_.episodeId -eq $sample })
+        $records.Count -eq 1 -and $records[0].playCount -ge 1 -and $records[0].positionMs -ge 20000
+    }
+    $finalProgress = @($finalState.progress | Where-Object { $_.episodeId -eq $sample })[0]
+    Save-WindowScreenshotWithoutRedRequirement -Process $windowProcess -Path $stoppedScreenshotPath
 } finally {
     if ($mpvProcess) {
         Stop-Process -Id $mpvProcess.ProcessId -Force -ErrorAction SilentlyContinue
@@ -381,5 +489,11 @@ Write-Output "Run directory: $runDir"
 Write-Output "Store: $storePath"
 Write-Output "Sample: $sample"
 Write-Output "mpv pid: $($mpvProcess.ProcessId)"
+if ($finalProgress) {
+    Write-Output "Saved position ms: $($finalProgress.positionMs)"
+    Write-Output "Play count: $($finalProgress.playCount)"
+}
 Write-Output "Pre-launch screenshot: $preLaunchScreenshotPath"
 Write-Output "Launched screenshot: $launchedScreenshotPath"
+Write-Output "Controls screenshot: $controlledScreenshotPath"
+Write-Output "Stopped screenshot: $stoppedScreenshotPath"

@@ -11,6 +11,7 @@ import java.util.concurrent.TimeUnit
 class MpvProcessPlayer(
     private val config: MpvRuntimeConfig,
     private val commandBuilder: MpvCommandBuilder = MpvCommandBuilder(config),
+    private val processLauncher: MpvProcessLauncher = ProcessBuilderMpvProcessLauncher,
 ) {
     private var process: Process? = null
     private val ipcClient: MpvIpcClient? = config.ipcServer
@@ -25,9 +26,7 @@ class MpvProcessPlayer(
 
         runCatching {
             val command = commandBuilder.build(source)
-            val started = ProcessBuilder(command)
-                .redirectErrorStream(true)
-                .start()
+            val started = processLauncher.start(command)
             process = started
             Result.success(MpvLaunch(command = command, pid = started.pid()))
         }.getOrElse { error ->
@@ -40,10 +39,28 @@ class MpvProcessPlayer(
     suspend fun stop(): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
             val activeProcess = process
-            if (activeProcess != null && activeProcess.isAlive) {
+            if (activeProcess != null) {
+                val descendants = runCatching {
+                    activeProcess.toHandle().descendants().toList().asReversed()
+                }.getOrDefault(emptyList())
                 ipcClient?.quit()
                 if (!activeProcess.waitFor(1_500L, TimeUnit.MILLISECONDS)) {
                     activeProcess.destroy()
+                    if (!activeProcess.waitFor(1_500L, TimeUnit.MILLISECONDS)) {
+                        activeProcess.destroyForcibly()
+                        activeProcess.waitFor(1_500L, TimeUnit.MILLISECONDS)
+                    }
+                }
+                descendants.forEach { descendant ->
+                    if (descendant.isAlive) {
+                        descendant.destroy()
+                    }
+                }
+                Thread.sleep(250L)
+                descendants.forEach { descendant ->
+                    if (descendant.isAlive) {
+                        descendant.destroyForcibly()
+                    }
                 }
             }
             process = null
@@ -74,6 +91,17 @@ class MpvProcessPlayer(
 
     private fun <T> missingIpcError(): Result<T> =
         Result.failure(AppError.PlaybackError.StreamError("mpv IPC server is not configured"))
+}
+
+fun interface MpvProcessLauncher {
+    fun start(command: List<String>): Process
+}
+
+private object ProcessBuilderMpvProcessLauncher : MpvProcessLauncher {
+    override fun start(command: List<String>): Process =
+        ProcessBuilder(command)
+            .redirectErrorStream(true)
+            .start()
 }
 
 data class MpvLaunch(

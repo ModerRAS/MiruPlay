@@ -23,4 +23,18 @@ class DesktopPosterGroupingTest {
         assertTrue(frieren.primaryEntry.path.endsWith("Frieren - 01.mkv"))
         assertEquals("2 episodes", frieren.subtitle)
     }
+
+    @Test
+    fun `poster wall uses six poster columns like Android TV library`() {
+        val groups = (1..13).map { index ->
+            DesktopPosterGroup(
+                title = "Show $index",
+                entries = listOf(MediaIndexEntry(sourceId = 1, path = "show-$index.mkv")),
+            )
+        }
+
+        val rows = groups.toPosterWallRows()
+
+        assertEquals(listOf(6, 6, 1), rows.map { it.size })
+    }
 }
