@@ -90,6 +90,7 @@ import com.miruplay.tv.repository.MetadataBatchPlan
 import com.miruplay.tv.repository.appliedStatus
 import com.miruplay.tv.repository.applyMetadataBatchPlan
 import com.miruplay.tv.repository.clearExternalMetadata
+import com.miruplay.tv.repository.displayLabel
 import com.miruplay.tv.repository.displayName
 import com.miruplay.tv.repository.desktop.DesktopRepositories
 import com.miruplay.tv.repository.indexClearedStatus
@@ -1459,6 +1460,30 @@ internal fun MiruPlayDesktopComposeApp() {
                             }
                             is Result.Error -> cloudRssStatus = result.error.toUserMessage()
                         }
+                    }
+                },
+                sourcesCount = savedSources.size,
+                activeSourceLabel = activeSource?.info?.displayLabel() ?: "未选择",
+                indexedItemCount = indexedEntries.size,
+                recentCount = recentProgress.size,
+                selectedMediaTitle = selectedIndexEntry?.detailTitle()
+                    ?: selectedRecentProgress?.mediaDisplayName()
+                    ?: "未选择条目",
+                playbackSummary = if (rifeEnabled) {
+                    "RIFE ${rifeBackend.name}"
+                } else {
+                    "RIFE 关闭"
+                },
+                metadataSummary = selectedIndexEntry?.let { entry ->
+                    entry.metadataTitle?.takeIf { it.isNotBlank() }?.let { "已匹配：$it" } ?: "待匹配"
+                } ?: "未选择条目",
+                libraryStatus = libraryStatus,
+                onOpenLibrary = { selectedDesktopSection = MiruPlayRouteSurface.library },
+                onOpenPlayer = { selectedDesktopSection = MiruPlayRouteSurface.player },
+                onOpenDetails = { selectedDesktopSection = MiruPlayRouteSurface.details },
+                onScanActiveSource = {
+                    scope.launch {
+                        scanCurrentSource { libraryStatus = it }
                     }
                 },
                     )
