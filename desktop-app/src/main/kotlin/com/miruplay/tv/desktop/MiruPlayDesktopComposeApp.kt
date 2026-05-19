@@ -809,6 +809,7 @@ internal fun MiruPlayDesktopComposeApp() {
                     selectedIndexEntry = entry
                     mediaPath = entry.path
                     launchStatus = entry.selectedForPlaybackStatus()
+                    selectedDesktopSection = MiruPlayRouteSurface.details
                 },
             )
             RemoteSourcesPanel(
@@ -916,17 +917,29 @@ internal fun MiruPlayDesktopComposeApp() {
                     )
                 }
                 MiruPlayRouteSurface.details -> {
+                    DesktopDetailHero(
+                        entry = selectedIndexEntry,
+                        source = activeSource?.info,
+                        onBackToLibrary = { selectedDesktopSection = MiruPlayRouteSurface.library },
+                        onPlay = {
+                            selectedIndexEntry?.let { entry ->
+                                mediaPath = entry.path
+                                launchStatus = entry.selectedForPlaybackStatus()
+                                selectedDesktopSection = MiruPlayRouteSurface.player
+                            }
+                        },
+                    )
                     BangumiPanel(
-                query = bangumiQuery,
-                onQueryChange = { bangumiQuery = it },
-                selectedIndexEntry = selectedIndexEntry,
-                results = bangumiResults,
-                selectedResult = selectedBangumiResult,
-                batchMatches = bangumiBatchMatches,
-                selectedBatchMatch = selectedBangumiBatchMatch,
-                batchPlan = bangumiBatchPlan,
-                status = bangumiStatus,
-                onUseSelectedEntry = {
+                        query = bangumiQuery,
+                        onQueryChange = { bangumiQuery = it },
+                        selectedIndexEntry = selectedIndexEntry,
+                        results = bangumiResults,
+                        selectedResult = selectedBangumiResult,
+                        batchMatches = bangumiBatchMatches,
+                        selectedBatchMatch = selectedBangumiBatchMatch,
+                        batchPlan = bangumiBatchPlan,
+                        status = bangumiStatus,
+                        onUseSelectedEntry = {
                     val query = selectedIndexEntry?.metadataQuery()
                     if (query == null) {
                         bangumiStatus = metadataIndexedVideoRequiredStatus()
