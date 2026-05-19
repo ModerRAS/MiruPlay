@@ -23,8 +23,8 @@ The port is complete only when all of these are proven by current evidence:
 
 | Area | Status | Notes |
 |---|---|---|
-| Android TV build | Covered for debug build and Library baseline | Latest local `:app:assembleDebug` passed. Emulator `10.137.32.118:5555` was launched with a local fixture via `test_local_path`, and `build/android-tv-qa/library-fixture-20260519-rife-optional.png` refreshes the Android TV Library as the expected large media wall after the desktop RIFE-default change. Deeper detail/player device QA is still open. |
-| Compose Desktop entry | Usable foundation | Swing production shell removed; screenshot QA exists for first screens. Latest Library UI now opens scanned libraries as a TV-style 6-column poster wall under the Explore header, with search/source controls below the media surface; saved indexes are restored on startup/source switch; poster selection routes directly into a TV-style Details hero; Player now opens as a rail-free TV-style playback stage; remaining mpv launch/config preparation now lives in `DesktopPlaybackPresenters.kt`; Settings now opens with a TV-style section menu before the Cloud/RSS form. |
+| Android TV build | Covered for debug build and Library/detail/player smoke | Latest local `:app:assembleDebug` passed. `tools/smoke-android-tv-ui.ps1` installs the debug APK on emulator `10.137.32.118:5555`, generates a playable fixture library, scans it through the TV UI, clicks Library → Details → Player, and records `build/android-tv-qa/run-20260519-145528/android-tv-library.png`, `android-tv-details.png`, `android-tv-player.png`, XML dumps, and a JSON report. |
+| Compose Desktop entry | Usable foundation | Swing production shell removed; screenshot QA exists for first screens. Latest Library UI now opens scanned libraries as a TV-style 6-column poster wall under the Explore header, with search/source controls below the media surface; saved indexes are restored on startup/source switch; poster selection routes directly into a TV-style Details hero. Android TV smoke confirms the TV baseline is a large featured row, Details hero, and full-screen playback overlay; desktop deliberately approximates that inside a Windows window with a rail-free playback stage and advanced mpv controls below. Remaining mpv launch/config preparation now lives in `DesktopPlaybackPresenters.kt`; Settings now opens with a TV-style section menu before the Cloud/RSS form. |
 | Shared UI palette | Covered structurally | `:ui-design` owns shared palette; drift check exists. |
 | Local/WebDAV/SMB desktop sources | Implemented | Local source GUI smoke now covers generated fixture and a real local library path; WebDAV GUI smoke now covers a loopback Basic Auth fixture from add/open/browse through scan; SMB GUI fixture smoke is still open. |
 | Library/index/details | Implemented foundation | Local scan/index, WebDAV scan/index, clear-index/remove-source, TV-style poster-wall selection, details hero, and player handoff GUI smoke now passes for generated fixtures; local smoke also passes against `D:\Software\dufs`. |
@@ -74,7 +74,7 @@ Verification:
 - [x] GUI smoke: add/open WebDAV source using a local/loopback fixture where possible.
 - [ ] GUI smoke: add/open SMB source when a Windows fixture share is available.
 - [x] Confirm clear-source-index and remove-source flows keep repository state consistent.
-- [ ] Review Android TV detail/player screens against desktop first screens and record deeper parity gaps.
+- [x] Review Android TV detail/player screens against desktop first screens and record deeper parity gaps.
 
 Verification:
 
@@ -85,6 +85,7 @@ Verification:
 .\tools\smoke-desktop-local-source-ui.ps1 -LibraryRoot 'D:\Software\dufs'
 .\tools\smoke-desktop-source-management-ui.ps1
 .\tools\smoke-desktop-webdav-source-ui.ps1
+.\tools\smoke-android-tv-ui.ps1
 ```
 
 ### Phase 3: Prove Playback And Progress
