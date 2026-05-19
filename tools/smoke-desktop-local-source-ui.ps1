@@ -90,6 +90,19 @@ function Invoke-RelativeClick {
     Start-Sleep -Milliseconds 350
 }
 
+function Send-AppKeys {
+    param(
+        [System.Diagnostics.Process]$Process,
+        [string]$Keys,
+        [int]$DelayMilliseconds = 350
+    )
+
+    [MiruPlayLocalSourceSmokeWin32]::SetForegroundWindow($Process.MainWindowHandle) | Out-Null
+    Start-Sleep -Milliseconds 120
+    [System.Windows.Forms.SendKeys]::SendWait($Keys)
+    Start-Sleep -Milliseconds $DelayMilliseconds
+}
+
 function Set-FocusedText {
     param([string]$Text)
     Set-Clipboard -Value $Text
@@ -97,6 +110,30 @@ function Set-FocusedText {
     Start-Sleep -Milliseconds 80
     [System.Windows.Forms.SendKeys]::SendWait("^v")
     Start-Sleep -Milliseconds 350
+}
+
+function Set-TextByRelativeClick {
+    param(
+        [System.Diagnostics.Process]$Process,
+        [int]$X,
+        [int]$Y,
+        [string]$Text,
+        [string]$Description,
+        [int]$Attempts = 3
+    )
+
+    for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
+        Invoke-RelativeClick -Process $Process -X $X -Y $Y
+        Set-FocusedText -Text $Text
+        Invoke-RelativeClick -Process $Process -X $X -Y $Y
+        $actual = Get-FocusedText
+        if ($actual -eq $Text) {
+            return
+        }
+        Start-Sleep -Milliseconds 300
+    }
+
+    throw "Unable to set $Description to '$Text'."
 }
 
 function Get-FocusedText {
@@ -210,6 +247,57 @@ function Save-WindowScreenshot {
     Assert-ScreenshotHasContent -Path $Path
 }
 
+function Test-EntryMatchesQuery {
+    param(
+        [object]$Entry,
+        [string]$Query
+    )
+
+    $normalizedQuery = $Query.Trim().ToLowerInvariant()
+    if (-not $normalizedQuery) {
+        return $true
+    }
+
+    $fields = @(
+        $Entry.path,
+        $Entry.animeName,
+        $Entry.episodeTitle,
+        $Entry.plot,
+        $Entry.metadataTitle,
+        $Entry.metadataId
+    )
+    foreach ($field in $fields) {
+        if ($null -ne $field -and $field.ToString().ToLowerInvariant().Contains($normalizedQuery)) {
+            return $true
+        }
+    }
+    return $false
+}
+
+function Get-SearchMatches {
+    param(
+        [object[]]$Entries,
+        [string]$Query
+    )
+
+    @($Entries |
+        Where-Object { Test-EntryMatchesQuery -Entry $_ -Query $Query } |
+        Sort-Object { $_.path.ToString().ToLowerInvariant() })
+}
+
+function Get-EntryFilenameStem {
+    param([object]$Entry)
+
+    $fileName = [System.IO.Path]::GetFileNameWithoutExtension($Entry.path.ToString())
+    if ($fileName.Trim()) {
+        return $fileName.Trim()
+    }
+    if ($Entry.animeName -and $Entry.animeName.ToString().Trim()) {
+        return $Entry.animeName.ToString().Trim()
+    }
+    throw "Unable to derive a non-empty search query for indexed entry $($Entry.path)."
+}
+
 $resolvedAppScript = Resolve-FullPath $AppScript
 $resolvedOutputRoot = Resolve-FullPath $OutputRoot
 if (-not (Test-Path -LiteralPath $resolvedAppScript)) {
@@ -223,7 +311,7 @@ $runName = "run-{0}" -f (Get-Date -Format "yyyyMMdd-HHmmss")
 $runDir = Join-Path $resolvedOutputRoot $runName
 $fixtureDir = Join-Path $runDir "media\Frieren"
 $storePath = Join-Path $runDir "store\desktop-store.json"
-$scanScreenshotPath = Join-Path $runDir "local-source-scanned.png"
+    $scanScreenshotPath = Join-Path $runDir "local-source-scanned.png"
 $detailsScreenshotPath = Join-Path $runDir "local-source-details.png"
 $playerScreenshotPath = Join-Path $runDir "local-source-player.png"
 New-Item -ItemType Directory -Path (Split-Path -Parent $storePath) -Force | Out-Null
@@ -247,6 +335,20 @@ if ($LibraryRoot.Trim()) {
   <plot>Fixture plot for desktop GUI smoke.</plot>
 </episodedetails>
 "@
+    $secondFixtureDir = Join-Path $runDir "media\Bocchi"
+    New-Item -ItemType Directory -Path $secondFixtureDir -Force | Out-Null
+    $secondEpisodePath = Join-Path $secondFixtureDir "Bocchi - S01E01.mkv"
+    $secondNfoPath = Join-Path $secondFixtureDir "Bocchi - S01E01.nfo"
+    Set-Content -LiteralPath $secondEpisodePath -Value "second fixture video bytes" -Encoding UTF8
+    Set-Content -LiteralPath $secondNfoPath -Encoding UTF8 -Value @"
+<episodedetails>
+  <showtitle>Fixture Bocchi</showtitle>
+  <title>Fixture Second Episode</title>
+  <season>1</season>
+  <episode>1</episode>
+  <plot>Second fixture plot for desktop GUI search smoke.</plot>
+</episodedetails>
+"@
     $resolvedLibraryRoot = Split-Path -Parent $fixtureDir
 }
 
@@ -258,22 +360,21 @@ try {
     $startedProcess = Start-Process -FilePath $resolvedAppScript -PassThru
     $windowProcess = Wait-MiruPlayWindow
 
-    Invoke-RelativeClick -Process $windowProcess -X 500 -Y 310
-    Set-FocusedText -Text $resolvedLibraryRoot
-    Invoke-RelativeClick -Process $windowProcess -X 424 -Y 514
+    Set-TextByRelativeClick -Process $windowProcess -X 330 -Y 270 -Text $resolvedLibraryRoot -Description "local library root"
+    Invoke-RelativeClick -Process $windowProcess -X 500 -Y 337
     Wait-StoreState -Path $storePath -Description "saved local source" -Predicate {
         param($state)
         @($state.mediaSources).Count -ge 1
     } | Out-Null
 
-    Invoke-RelativeClick -Process $windowProcess -X 594 -Y 514
+    Invoke-RelativeClick -Process $windowProcess -X 664 -Y 337
     $state = Wait-StoreState -Path $storePath -Description "scanned local index entry" -Predicate {
         param($state)
         @($state.index | Where-Object { -not $_.isDirectory }).Count -ge 1
     } -TimeoutSeconds 90
 
     $source = @($state.mediaSources)[0]
-    $indexedVideo = @($state.index | Where-Object { -not $_.isDirectory })[0]
+    $indexedVideos = @($state.index | Where-Object { -not $_.isDirectory })
     if ($source.type -ne "LOCAL") {
         throw "Expected LOCAL source, found $($source.type)."
     }
@@ -281,19 +382,29 @@ try {
         throw "Stored source path does not match library root: $($source.connectionInfo.path)"
     }
     if (-not $LibraryRoot.Trim()) {
-        if ($indexedVideo.animeName -ne "Fixture Frieren") {
-            throw "Expected NFO anime name 'Fixture Frieren', found '$($indexedVideo.animeName)'."
+        $frierenVideo = @($indexedVideos | Where-Object { $_.animeName -eq "Fixture Frieren" })
+        if ($frierenVideo.Count -ne 1) {
+            throw "Expected exactly one NFO anime named 'Fixture Frieren', found $($frierenVideo.Count)."
         }
-        if ($indexedVideo.episodeNumber -ne 2) {
-            throw "Expected episode number 2, found '$($indexedVideo.episodeNumber)'."
+        if ($frierenVideo[0].episodeNumber -ne 2) {
+            throw "Expected Frieren episode number 2, found '$($frierenVideo[0].episodeNumber)'."
+        }
+        if ($indexedVideos.Count -lt 2) {
+            throw "Expected at least two generated fixture videos for search filtering, found $($indexedVideos.Count)."
         }
     }
 
     Save-WindowScreenshot -Process $windowProcess -Path $scanScreenshotPath
 
-    Invoke-RelativeClick -Process $windowProcess -X 956 -Y 239
+    if ($LibraryRoot.Trim()) {
+        $selectedVideo = $null
+        Invoke-RelativeClick -Process $windowProcess -X 280 -Y 345
+    } else {
+        $selectedVideo = $frierenVideo[0]
+        Invoke-RelativeClick -Process $windowProcess -X 930 -Y 426
+    }
     Start-Sleep -Milliseconds 500
-    Invoke-RelativeClick -Process $windowProcess -X 170 -Y 296
+    Invoke-RelativeClick -Process $windowProcess -X 885 -Y 95
     Start-Sleep -Milliseconds 500
     Save-WindowScreenshot -Process $windowProcess -Path $detailsScreenshotPath
 
@@ -301,8 +412,13 @@ try {
     Start-Sleep -Milliseconds 500
     Invoke-RelativeClick -Process $windowProcess -X 700 -Y 263
     $selectedMediaPath = Get-FocusedText
-    if ($selectedMediaPath -ne $indexedVideo.path) {
-        throw "Player media path did not match selected indexed video. Expected '$($indexedVideo.path)', found '$selectedMediaPath'."
+    if ($LibraryRoot.Trim()) {
+        $indexedPaths = @($indexedVideos | ForEach-Object { $_.path })
+        if ($selectedMediaPath -notin $indexedPaths) {
+            throw "Player media path did not match any indexed poster. Found '$selectedMediaPath'."
+        }
+    } elseif ($selectedMediaPath -ne $selectedVideo.path) {
+        throw "Player media path did not match selected poster. Expected '$($selectedVideo.path)', found '$selectedMediaPath'."
     }
     Save-WindowScreenshot -Process $windowProcess -Path $playerScreenshotPath
 } finally {

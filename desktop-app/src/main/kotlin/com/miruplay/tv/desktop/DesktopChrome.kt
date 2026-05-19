@@ -79,10 +79,11 @@ internal fun SavedSourcePicker(
     sources: List<MediaSourceInfo>,
     activeSourceId: Long?,
     onSelected: (MediaSourceInfo) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val selected = sources.firstOrNull { it.id == activeSourceId }
-    Box {
+    Box(modifier = modifier) {
         OutlinedButton(
             onClick = { expanded = true },
             modifier = Modifier.fillMaxWidth(),
