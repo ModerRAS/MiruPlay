@@ -2,6 +2,7 @@
 param(
     [string]$AppScript = (Join-Path $PSScriptRoot "..\desktop-app\build\install\desktop-app\bin\desktop-app.bat"),
     [string]$OutputRoot = (Join-Path $PSScriptRoot "..\build\desktop-local-source-ui"),
+    [string]$LibraryRoot = "",
     [switch]$KeepOpen
 )
 
@@ -96,6 +97,21 @@ function Set-FocusedText {
     Start-Sleep -Milliseconds 80
     [System.Windows.Forms.SendKeys]::SendWait("^v")
     Start-Sleep -Milliseconds 350
+}
+
+function Get-FocusedText {
+    $before = Get-Clipboard -Raw -ErrorAction SilentlyContinue
+    try {
+        [System.Windows.Forms.SendKeys]::SendWait("^a")
+        Start-Sleep -Milliseconds 80
+        [System.Windows.Forms.SendKeys]::SendWait("^c")
+        Start-Sleep -Milliseconds 200
+        return (Get-Clipboard -Raw -ErrorAction SilentlyContinue).Trim()
+    } finally {
+        if ($null -ne $before) {
+            Set-Clipboard -Value $before
+        }
+    }
 }
 
 function Read-StoreState {
@@ -207,14 +223,22 @@ $runName = "run-{0}" -f (Get-Date -Format "yyyyMMdd-HHmmss")
 $runDir = Join-Path $resolvedOutputRoot $runName
 $fixtureDir = Join-Path $runDir "media\Frieren"
 $storePath = Join-Path $runDir "store\desktop-store.json"
-$screenshotPath = Join-Path $runDir "local-source-scanned.png"
-New-Item -ItemType Directory -Path $fixtureDir -Force | Out-Null
+$scanScreenshotPath = Join-Path $runDir "local-source-scanned.png"
+$detailsScreenshotPath = Join-Path $runDir "local-source-details.png"
+$playerScreenshotPath = Join-Path $runDir "local-source-player.png"
 New-Item -ItemType Directory -Path (Split-Path -Parent $storePath) -Force | Out-Null
 
-$episodePath = Join-Path $fixtureDir "Frieren - S01E02.mkv"
-$nfoPath = Join-Path $fixtureDir "Frieren - S01E02.nfo"
-Set-Content -LiteralPath $episodePath -Value "fixture video bytes" -Encoding UTF8
-Set-Content -LiteralPath $nfoPath -Encoding UTF8 -Value @"
+if ($LibraryRoot.Trim()) {
+    $resolvedLibraryRoot = Resolve-FullPath $LibraryRoot
+    if (-not (Test-Path -LiteralPath $resolvedLibraryRoot -PathType Container)) {
+        throw "LibraryRoot does not exist or is not a directory: $resolvedLibraryRoot"
+    }
+} else {
+    New-Item -ItemType Directory -Path $fixtureDir -Force | Out-Null
+    $episodePath = Join-Path $fixtureDir "Frieren - S01E02.mkv"
+    $nfoPath = Join-Path $fixtureDir "Frieren - S01E02.nfo"
+    Set-Content -LiteralPath $episodePath -Value "fixture video bytes" -Encoding UTF8
+    Set-Content -LiteralPath $nfoPath -Encoding UTF8 -Value @"
 <episodedetails>
   <showtitle>Fixture Frieren</showtitle>
   <title>Fixture Episode</title>
@@ -223,6 +247,8 @@ Set-Content -LiteralPath $nfoPath -Encoding UTF8 -Value @"
   <plot>Fixture plot for desktop GUI smoke.</plot>
 </episodedetails>
 "@
+    $resolvedLibraryRoot = Split-Path -Parent $fixtureDir
+}
 
 $previousClipboard = Get-Clipboard -Raw -ErrorAction SilentlyContinue
 $previousStoreEnv = $env:MIRUPLAY_DESKTOP_STORE
@@ -233,7 +259,7 @@ try {
     $windowProcess = Wait-MiruPlayWindow
 
     Invoke-RelativeClick -Process $windowProcess -X 500 -Y 310
-    Set-FocusedText -Text (Split-Path -Parent $fixtureDir)
+    Set-FocusedText -Text $resolvedLibraryRoot
     Invoke-RelativeClick -Process $windowProcess -X 424 -Y 514
     Wait-StoreState -Path $storePath -Description "saved local source" -Predicate {
         param($state)
@@ -241,27 +267,44 @@ try {
     } | Out-Null
 
     Invoke-RelativeClick -Process $windowProcess -X 594 -Y 514
-    $state = Wait-StoreState -Path $storePath -Description "scanned fixture index entry" -Predicate {
+    $state = Wait-StoreState -Path $storePath -Description "scanned local index entry" -Predicate {
         param($state)
         @($state.index | Where-Object { -not $_.isDirectory }).Count -ge 1
-    }
+    } -TimeoutSeconds 90
 
     $source = @($state.mediaSources)[0]
     $indexedVideo = @($state.index | Where-Object { -not $_.isDirectory })[0]
     if ($source.type -ne "LOCAL") {
         throw "Expected LOCAL source, found $($source.type)."
     }
-    if ($source.connectionInfo.path -ne (Split-Path -Parent $fixtureDir)) {
-        throw "Stored source path does not match fixture root: $($source.connectionInfo.path)"
+    if ($source.connectionInfo.path -ne $resolvedLibraryRoot) {
+        throw "Stored source path does not match library root: $($source.connectionInfo.path)"
     }
-    if ($indexedVideo.animeName -ne "Fixture Frieren") {
-        throw "Expected NFO anime name 'Fixture Frieren', found '$($indexedVideo.animeName)'."
-    }
-    if ($indexedVideo.episodeNumber -ne 2) {
-        throw "Expected episode number 2, found '$($indexedVideo.episodeNumber)'."
+    if (-not $LibraryRoot.Trim()) {
+        if ($indexedVideo.animeName -ne "Fixture Frieren") {
+            throw "Expected NFO anime name 'Fixture Frieren', found '$($indexedVideo.animeName)'."
+        }
+        if ($indexedVideo.episodeNumber -ne 2) {
+            throw "Expected episode number 2, found '$($indexedVideo.episodeNumber)'."
+        }
     }
 
-    Save-WindowScreenshot -Process $windowProcess -Path $screenshotPath
+    Save-WindowScreenshot -Process $windowProcess -Path $scanScreenshotPath
+
+    Invoke-RelativeClick -Process $windowProcess -X 956 -Y 239
+    Start-Sleep -Milliseconds 500
+    Invoke-RelativeClick -Process $windowProcess -X 170 -Y 296
+    Start-Sleep -Milliseconds 500
+    Save-WindowScreenshot -Process $windowProcess -Path $detailsScreenshotPath
+
+    Invoke-RelativeClick -Process $windowProcess -X 170 -Y 378
+    Start-Sleep -Milliseconds 500
+    Invoke-RelativeClick -Process $windowProcess -X 700 -Y 263
+    $selectedMediaPath = Get-FocusedText
+    if ($selectedMediaPath -ne $indexedVideo.path) {
+        throw "Player media path did not match selected indexed video. Expected '$($indexedVideo.path)', found '$selectedMediaPath'."
+    }
+    Save-WindowScreenshot -Process $windowProcess -Path $playerScreenshotPath
 } finally {
     if ($null -ne $previousClipboard) {
         Set-Clipboard -Value $previousClipboard
@@ -284,4 +327,6 @@ try {
 
 Write-Output "Run directory: $runDir"
 Write-Output "Store: $storePath"
-Write-Output "Screenshot: $screenshotPath"
+Write-Output "Scan screenshot: $scanScreenshotPath"
+Write-Output "Details screenshot: $detailsScreenshotPath"
+Write-Output "Player screenshot: $playerScreenshotPath"
