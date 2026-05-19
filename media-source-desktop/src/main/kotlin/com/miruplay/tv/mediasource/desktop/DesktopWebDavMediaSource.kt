@@ -10,6 +10,9 @@ import com.miruplay.tv.model.MediaCapabilities
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.WebDavPropfindParser
+import com.miruplay.tv.model.connectionPassword
+import com.miruplay.tv.model.connectionUsername
+import com.miruplay.tv.model.remoteUrl
 import com.miruplay.tv.model.toHttpRangeHeader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -34,11 +37,11 @@ class DesktopWebDavMediaSource(
         supportsWrite = false,
     )
 
-    private val baseUrl: String = requireNotNull(info.connectionInfo["url"]) {
+    private val baseUrl: String = requireNotNull(info.remoteUrl()) {
         "WebDAV source requires connectionInfo[url]"
     }.trimEnd('/')
-    private val username: String = info.connectionInfo["username"].orEmpty()
-    private val password: String = info.connectionInfo["password"].orEmpty()
+    private val username: String = info.connectionUsername()
+    private val password: String = info.connectionPassword()
 
     override suspend fun listFiles(path: String): Result<List<FileEntry>> = withContext(Dispatchers.IO) {
         val url = normalizeUrl(path)

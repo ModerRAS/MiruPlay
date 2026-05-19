@@ -3,6 +3,7 @@ package com.miruplay.tv.repository.desktop
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.MediaSourceInfo
+import com.miruplay.tv.model.sourceLocation
 import com.miruplay.tv.repository.MediaSourceRepository
 
 internal class FileBackedMediaSourceRepository(
@@ -10,10 +11,10 @@ internal class FileBackedMediaSourceRepository(
 ) : MediaSourceRepository {
     override suspend fun addSource(source: MediaSourceInfo): Result<Long> = runCatching {
         store.update { state ->
-            val sourceLocation = source.connectionInfo["path"] ?: source.connectionInfo["url"] ?: source.connectionInfo["uri"]
+            val sourceLocation = source.sourceLocation()
             val duplicate = state.mediaSources.firstOrNull { existing ->
                 existing.type == source.type &&
-                    (existing.connectionInfo["path"] ?: existing.connectionInfo["url"] ?: existing.connectionInfo["uri"]) == sourceLocation
+                    existing.sourceLocation() == sourceLocation
             }
             if (duplicate != null) {
                 val updated = source.copy(
