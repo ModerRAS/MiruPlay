@@ -1,0 +1,339 @@
+[CmdletBinding()]
+param(
+    [string]$DeviceId = "10.137.32.118:5555",
+    [string]$ApkPath = (Join-Path $PSScriptRoot "..\app\build\outputs\apk\debug\app-debug.apk"),
+    [string]$OutputRoot = (Join-Path $PSScriptRoot "..\build\android-tv-qa"),
+    [switch]$SkipInstall,
+    [switch]$KeepAppData
+)
+
+$ErrorActionPreference = "Stop"
+
+$PackageName = "com.miruplay.tv"
+$ActivityName = "com.miruplay.tv/.MainActivity"
+
+function Resolve-FullPath {
+    param([string]$Path)
+    if ([System.IO.Path]::IsPathRooted($Path)) {
+        return [System.IO.Path]::GetFullPath($Path)
+    }
+    return [System.IO.Path]::GetFullPath((Join-Path (Get-Location) $Path))
+}
+
+function Invoke-Adb {
+    param([string[]]$Arguments)
+    & adb -s $DeviceId @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "adb $($Arguments -join ' ') failed with exit code $LASTEXITCODE."
+    }
+}
+
+function Invoke-AdbBestEffort {
+    param([string[]]$Arguments)
+    & adb -s $DeviceId @Arguments *> $null
+}
+
+function Invoke-Ffmpeg {
+    param([string[]]$Arguments)
+    & ffmpeg @Arguments
+    return $LASTEXITCODE
+}
+
+function New-SampleVideo {
+    param([string]$Path)
+    $common = @(
+        "-hide_banner",
+        "-loglevel", "error",
+        "-y",
+        "-f", "lavfi",
+        "-i", "testsrc2=size=640x360:rate=24:duration=4",
+        "-pix_fmt", "yuv420p",
+        "-movflags", "+faststart",
+        $Path
+    )
+    $h264Args = @($common[0..9] + @("-c:v", "libx264", "-preset", "ultrafast") + $common[10..($common.Count - 1)])
+    if ((Invoke-Ffmpeg -Arguments $h264Args) -eq 0) {
+        return
+    }
+
+    $mpeg4Args = @($common[0..9] + @("-c:v", "mpeg4", "-q:v", "5") + $common[10..($common.Count - 1)])
+    if ((Invoke-Ffmpeg -Arguments $mpeg4Args) -ne 0) {
+        throw "ffmpeg could not create a sample video at $Path."
+    }
+}
+
+function New-TvFixture {
+    param(
+        [string]$Root,
+        [string]$SamplePath
+    )
+    $shows = @(
+        "Fixture Alpha",
+        "Fixture Beta",
+        "Fixture Gamma",
+        "Fixture Delta",
+        "Fixture Epsilon",
+        "Fixture Zeta",
+        "Fixture Eta"
+    )
+
+    New-Item -ItemType Directory -Path $Root -Force | Out-Null
+    for ($i = 0; $i -lt $shows.Count; $i++) {
+        $show = $shows[$i]
+        $episodeNumber = $i + 1
+        $showDir = Join-Path $Root $show
+        New-Item -ItemType Directory -Path $showDir -Force | Out-Null
+        $episodeFile = Join-Path $showDir ("{0} - S01E{1:00}.mp4" -f $show, $episodeNumber)
+        $nfoFile = [System.IO.Path]::ChangeExtension($episodeFile, ".nfo")
+        Copy-Item -LiteralPath $SamplePath -Destination $episodeFile -Force
+        Set-Content -LiteralPath $nfoFile -Encoding UTF8 -Value @"
+<episodedetails>
+  <showtitle>$show</showtitle>
+  <title>Smoke Episode $episodeNumber</title>
+  <season>1</season>
+  <episode>$episodeNumber</episode>
+  <plot>Android TV parity smoke fixture for $show.</plot>
+</episodedetails>
+"@
+    }
+}
+
+function Save-Screenshot {
+    param([string]$Path)
+    & adb -s $DeviceId exec-out screencap -p > $Path
+    if ($LASTEXITCODE -ne 0) {
+        throw "adb screencap failed with exit code $LASTEXITCODE."
+    }
+    $file = Get-Item -LiteralPath $Path
+    if ($file.Length -lt 20000) {
+        throw "Screenshot is unexpectedly small: $Path ($($file.Length) bytes)."
+    }
+}
+
+function Get-UiXml {
+    param([string]$Path)
+    Invoke-Adb -Arguments @("shell", "uiautomator", "dump", "/sdcard/window.xml") | Out-Null
+    Invoke-Adb -Arguments @("pull", "/sdcard/window.xml", $Path) | Out-Null
+    return [xml](Get-Content -LiteralPath $Path -Raw -Encoding UTF8)
+}
+
+function Get-NodeAttribute {
+    param(
+        [System.Xml.XmlNode]$Node,
+        [string]$Name
+    )
+    $attribute = $Node.Attributes[$Name]
+    if ($null -eq $attribute) {
+        return ""
+    }
+    return $attribute.Value
+}
+
+function Get-UiNodes {
+    param([xml]$Xml)
+    return @($Xml.SelectNodes("//node"))
+}
+
+function Find-UiNode {
+    param(
+        [xml]$Xml,
+        [string[]]$Needles
+    )
+    foreach ($node in Get-UiNodes -Xml $Xml) {
+        $text = Get-NodeAttribute -Node $node -Name "text"
+        $description = Get-NodeAttribute -Node $node -Name "content-desc"
+        foreach ($needle in $Needles) {
+            if ($text -eq $needle -or $description -eq $needle -or $text.Contains($needle) -or $description.Contains($needle)) {
+                return $node
+            }
+        }
+    }
+    return $null
+}
+
+function Get-UiTextSummary {
+    param([xml]$Xml)
+    $values = foreach ($node in Get-UiNodes -Xml $Xml) {
+        $text = Get-NodeAttribute -Node $node -Name "text"
+        $description = Get-NodeAttribute -Node $node -Name "content-desc"
+        if ($text.Trim()) { $text.Trim() }
+        if ($description.Trim()) { $description.Trim() }
+    }
+    return (@($values) | Select-Object -Unique | Select-Object -First 40) -join " | "
+}
+
+function Wait-UiText {
+    param(
+        [string[]]$Needles,
+        [string]$XmlPath,
+        [int]$TimeoutSeconds = 45
+    )
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    $lastXml = $null
+    do {
+        $lastXml = Get-UiXml -Path $XmlPath
+        if (Find-UiNode -Xml $lastXml -Needles $Needles) {
+            return $lastXml
+        }
+        Start-Sleep -Milliseconds 900
+    } while ((Get-Date) -lt $deadline)
+
+    throw "Timed out waiting for UI text '$($Needles -join "' or '")'. Current UI: $(Get-UiTextSummary -Xml $lastXml)"
+}
+
+function Assert-UiText {
+    param(
+        [xml]$Xml,
+        [string[]]$Needles,
+        [string]$Description
+    )
+    foreach ($needle in $Needles) {
+        if (-not (Find-UiNode -Xml $Xml -Needles @($needle))) {
+            throw "Missing $Description text '$needle'. Current UI: $(Get-UiTextSummary -Xml $Xml)"
+        }
+    }
+}
+
+function Get-NearestClickableNode {
+    param([System.Xml.XmlNode]$Node)
+    $current = $Node
+    while ($null -ne $current -and $current.Name -eq "node") {
+        if ((Get-NodeAttribute -Node $current -Name "clickable") -eq "true" -and
+            (Get-NodeAttribute -Node $current -Name "enabled") -eq "true") {
+            return $current
+        }
+        $current = $current.ParentNode
+    }
+    return $Node
+}
+
+function Get-NodeCenter {
+    param([System.Xml.XmlNode]$Node)
+    $bounds = Get-NodeAttribute -Node $Node -Name "bounds"
+    if ($bounds -notmatch '^\[(\d+),(\d+)\]\[(\d+),(\d+)\]$') {
+        throw "Node has invalid bounds: $bounds"
+    }
+    return [pscustomobject]@{
+        X = [int]((([int]$Matches[1]) + ([int]$Matches[3])) / 2)
+        Y = [int]((([int]$Matches[2]) + ([int]$Matches[4])) / 2)
+    }
+}
+
+function Invoke-UiClick {
+    param(
+        [xml]$Xml,
+        [string[]]$Needles,
+        [string]$Description
+    )
+    $node = Find-UiNode -Xml $Xml -Needles $Needles
+    if ($null -eq $node) {
+        throw "Cannot find $Description node '$($Needles -join "' or '")'. Current UI: $(Get-UiTextSummary -Xml $Xml)"
+    }
+    $clickable = Get-NearestClickableNode -Node $node
+    $center = Get-NodeCenter -Node $clickable
+    Invoke-Adb -Arguments @("shell", "input", "tap", $center.X, $center.Y) | Out-Null
+    Start-Sleep -Milliseconds 900
+}
+
+function Write-Report {
+    param(
+        [string]$Path,
+        [hashtable]$Report
+    )
+    $Report | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $Path -Encoding UTF8
+}
+
+$resolvedApkPath = Resolve-FullPath $ApkPath
+$resolvedOutputRoot = Resolve-FullPath $OutputRoot
+New-Item -ItemType Directory -Path $resolvedOutputRoot -Force | Out-Null
+
+if (-not (Get-Command adb -ErrorAction SilentlyContinue)) {
+    throw "adb is required for Android TV smoke testing."
+}
+if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
+    throw "ffmpeg is required to generate the Android TV playback fixture."
+}
+if (-not $SkipInstall -and -not (Test-Path -LiteralPath $resolvedApkPath -PathType Leaf)) {
+    throw "APK does not exist: $resolvedApkPath"
+}
+
+$runName = "run-{0}" -f (Get-Date -Format "yyyyMMdd-HHmmss")
+$runDir = Join-Path $resolvedOutputRoot $runName
+$fixtureRoot = Join-Path $runDir "fixture\MiruPlayTvSmoke-$($runName.Substring(4))"
+$samplePath = Join-Path $runDir "sample.mp4"
+$remoteFixtureRoot = "/sdcard/Movies/$(Split-Path -Leaf $fixtureRoot)"
+$libraryScreenshot = Join-Path $runDir "android-tv-library.png"
+$detailsScreenshot = Join-Path $runDir "android-tv-details.png"
+$playerScreenshot = Join-Path $runDir "android-tv-player.png"
+$libraryXmlPath = Join-Path $runDir "android-tv-library.xml"
+$detailsXmlPath = Join-Path $runDir "android-tv-details.xml"
+$playerXmlPath = Join-Path $runDir "android-tv-player.xml"
+$reportPath = Join-Path $runDir "android-tv-smoke-report.json"
+New-Item -ItemType Directory -Path $runDir -Force | Out-Null
+
+New-SampleVideo -Path $samplePath
+New-TvFixture -Root $fixtureRoot -SamplePath $samplePath
+
+Invoke-Adb -Arguments @("get-state") | Out-Null
+if (-not $SkipInstall) {
+    Invoke-Adb -Arguments @("install", "-r", $resolvedApkPath) | Out-Null
+}
+if (-not $KeepAppData) {
+    Invoke-Adb -Arguments @("shell", "pm", "clear", $PackageName) | Out-Null
+}
+
+Invoke-AdbBestEffort -Arguments @("shell", "pm", "grant", $PackageName, "android.permission.READ_EXTERNAL_STORAGE")
+Invoke-AdbBestEffort -Arguments @("shell", "pm", "grant", $PackageName, "android.permission.READ_MEDIA_VIDEO")
+Invoke-AdbBestEffort -Arguments @("shell", "cmd", "appops", "set", $PackageName, "MANAGE_EXTERNAL_STORAGE", "allow")
+Invoke-AdbBestEffort -Arguments @("shell", "mkdir", "-p", "/sdcard/Movies")
+Invoke-AdbBestEffort -Arguments @("shell", "rm", "-rf", $remoteFixtureRoot)
+Invoke-Adb -Arguments @("push", $fixtureRoot, "/sdcard/Movies/") | Out-Null
+
+Invoke-Adb -Arguments @("shell", "am", "start", "-W", "-n", $ActivityName, "--es", "test_local_path", $remoteFixtureRoot) | Out-Null
+$xml = Wait-UiText -Needles @("探索", "扫描", "扫描媒体库") -XmlPath $libraryXmlPath -TimeoutSeconds 30
+Invoke-UiClick -Xml $xml -Needles @("扫描", "扫描媒体库") -Description "scan"
+$xml = Wait-UiText -Needles @("Fixture Alpha") -XmlPath $libraryXmlPath -TimeoutSeconds 90
+Assert-UiText -Xml $xml -Needles @("探索", "最高热度", "最近添加", "Fixture Alpha") -Description "Library"
+Save-Screenshot -Path $libraryScreenshot
+
+Invoke-UiClick -Xml $xml -Needles @("Fixture Alpha") -Description "fixture poster"
+$xml = Wait-UiText -Needles @("选集", "播放") -XmlPath $detailsXmlPath -TimeoutSeconds 30
+Assert-UiText -Xml $xml -Needles @("Fixture Alpha", "播放", "选集", "第 1 集") -Description "Details"
+Save-Screenshot -Path $detailsScreenshot
+
+Invoke-UiClick -Xml $xml -Needles @("播放") -Description "play button"
+$xml = Wait-UiText -Needles @("本地播放", "倍速") -XmlPath $playerXmlPath -TimeoutSeconds 45
+Assert-UiText -Xml $xml -Needles @("本地播放", "倍速") -Description "Player"
+if (Find-UiNode -Xml $xml -Needles @("播放失败")) {
+    throw "Player reached an error overlay instead of the playback chrome."
+}
+Save-Screenshot -Path $playerScreenshot
+
+Write-Report -Path $reportPath -Report @{
+    generatedAt = (Get-Date).ToString("o")
+    deviceId = $DeviceId
+    apkPath = $resolvedApkPath
+    remoteFixtureRoot = $remoteFixtureRoot
+    screenshots = @{
+        library = $libraryScreenshot
+        details = $detailsScreenshot
+        player = $playerScreenshot
+    }
+    xml = @{
+        library = $libraryXmlPath
+        details = $detailsXmlPath
+        player = $playerXmlPath
+    }
+    assertions = @(
+        "Library contains Explore, highest-heat row, recent row, and fixture poster.",
+        "Details contains hero/title, Play, episode list, and first episode row.",
+        "Player contains local playback chrome and no playback failure overlay."
+    )
+}
+
+Write-Output "Run directory: $runDir"
+Write-Output "Remote fixture: $remoteFixtureRoot"
+Write-Output "Library screenshot: $libraryScreenshot"
+Write-Output "Details screenshot: $detailsScreenshot"
+Write-Output "Player screenshot: $playerScreenshot"
+Write-Output "Report: $reportPath"
