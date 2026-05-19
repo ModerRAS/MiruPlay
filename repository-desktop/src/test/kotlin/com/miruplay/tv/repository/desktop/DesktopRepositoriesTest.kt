@@ -17,6 +17,24 @@ import java.nio.file.Files
 
 class DesktopRepositoriesTest {
     @Test
+    fun `default store path honors system property override`() {
+        val storePath = tempStorePath()
+        val previous = System.getProperty(DesktopRepositoryPaths.STORE_PATH_PROPERTY)
+        try {
+            System.setProperty(DesktopRepositoryPaths.STORE_PATH_PROPERTY, storePath.toString())
+
+            assertEquals(storePath, DesktopRepositoryPaths.defaultStorePath())
+        } finally {
+            if (previous == null) {
+                System.clearProperty(DesktopRepositoryPaths.STORE_PATH_PROPERTY)
+            } else {
+                System.setProperty(DesktopRepositoryPaths.STORE_PATH_PROPERTY, previous)
+            }
+            Files.deleteIfExists(storePath.parent)
+        }
+    }
+
+    @Test
     fun `media sources are persisted and deduplicated by location`() = runBlocking {
         val storePath = tempStorePath()
         try {

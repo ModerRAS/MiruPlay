@@ -26,8 +26,8 @@ The port is complete only when all of these are proven by current evidence:
 | Android TV build | Covered for debug build | Latest local `:app:assembleDebug` passed. Instrumented TV QA still open. |
 | Compose Desktop entry | Usable foundation | Swing production shell removed; screenshot QA exists for first screens. Latest local GUI smoke generated `build/desktop-ui-qa/library.png`, `details.png`, `player.png`, and `settings.png`. |
 | Shared UI palette | Covered structurally | `:ui-design` owns shared palette; drift check exists. |
-| Local/WebDAV/SMB desktop sources | Implemented | Need GUI interaction smoke against real/local fixtures. |
-| Library/index/details | Implemented foundation | Need fixture-based GUI flow and broader parity review. |
+| Local/WebDAV/SMB desktop sources | Implemented | Local source GUI fixture smoke now passes; WebDAV/SMB GUI fixture smokes still open. |
+| Library/index/details | Implemented foundation | Local scan/index GUI fixture smoke now passes; broader parity review still open. |
 | Bangumi metadata | Implemented foundation | Unit coverage exists; live network behavior needs manual/smoke evidence. |
 | mpv playback | Implemented foundation | Need repeatable GUI launch smoke against a tiny local media sample. |
 | RIFE runtime | Partial | DirectML smoke has been proven locally before; NVIDIA and Standard remain target-host dependent. |
@@ -42,7 +42,7 @@ The port is complete only when all of these are proven by current evidence:
 - [x] Add screenshot QA for Library, Details, Player, and Settings.
 - [x] Share media-source connection field conventions across desktop modules.
 - [x] Run the current Windows GUI screenshot smoke locally.
-- [ ] Add a fixture-driven Windows GUI smoke that creates/uses a local media source, navigates sections, checks runtime status, and records screenshots.
+- [x] Add a fixture-driven Windows GUI smoke that creates/uses a local media source, scans it, verifies store state, and records screenshots.
 - [ ] Add a tiny generated media sample or documented local sample path for mpv launch smoke.
 - [ ] Extract remaining playback launch/config presenter logic out of the Compose entry.
 
@@ -51,12 +51,14 @@ Verification:
 ```powershell
 .\gradlew.bat :desktop-app:installDist -PbundleMpvRuntime=false
 .\tools\capture-desktop-ui.ps1
+.\tools\smoke-desktop-local-source-ui.ps1
 .\gradlew.bat checkDesktopComposeOnly checkUiPaletteDrift :desktop-app:test
 ```
 
 ### Phase 2: Prove Media Management Parity On Windows
 
-- [ ] GUI smoke: add/open Local source, scan, search, inspect details, select for playback.
+- [x] GUI smoke: add/open Local source and scan a fixture with NFO metadata.
+- [ ] GUI smoke: search, inspect details, and select the scanned local fixture for playback.
 - [ ] GUI smoke: add/open WebDAV source using a local/loopback fixture where possible.
 - [ ] GUI smoke: add/open SMB source when a Windows fixture share is available.
 - [ ] Confirm clear-source-index and remove-source flows keep repository state consistent.
