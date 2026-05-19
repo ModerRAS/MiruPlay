@@ -2,10 +2,16 @@ package com.miruplay.tv.desktop
 
 import com.miruplay.tv.player.mpv.RifeBackend
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DesktopPlaybackPanelTest {
+    @Test
+    fun `desktop RIFE is opt in by default`() {
+        assertFalse(DEFAULT_DESKTOP_RIFE_ENABLED)
+    }
+
     @Test
     fun `desktop player chrome derives a TV style title from media path`() {
         assertEquals("选择媒体", desktopPlaybackTitle(""))

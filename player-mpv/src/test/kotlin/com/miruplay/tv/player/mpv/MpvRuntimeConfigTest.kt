@@ -63,7 +63,10 @@ class MpvRuntimeConfigTest {
             val result = config.validateLaunchRuntime()
 
             assertTrue(result is Result.Error)
-            assertEquals("播放出错：mpv executable not found: ${tempDir.resolve("mpv.exe")}", (result as Result.Error).error.toUserMessage())
+            assertEquals(
+                "播放出错：mpv executable not found: ${tempDir.resolve("mpv.exe")}. Choose the bundled runtime path, install mpv, or run Check runtime before launching.",
+                (result as Result.Error).error.toUserMessage(),
+            )
         } finally {
             tempDir.toFile().deleteRecursively()
         }
@@ -84,7 +87,7 @@ class MpvRuntimeConfigTest {
 
             assertTrue(result is Result.Error)
             assertEquals(
-                "播放出错：configDirectory is required when using a bundled RIFE backend without scriptPath",
+                "播放出错：RIFE is enabled but configDirectory is empty. Set portable_config, choose a runtime root, or turn RIFE off.",
                 (result as Result.Error).error.toUserMessage(),
             )
         } finally {
@@ -114,7 +117,7 @@ class MpvRuntimeConfigTest {
 
             assertTrue(missing is Result.Error)
             assertEquals(
-                "播放出错：RIFE script not found: ${layout.rifeScript(RifeBackend.DIRECTML)}",
+                "播放出错：RIFE is enabled but script was not found: ${layout.rifeScript(RifeBackend.DIRECTML)}. Pick an installed backend, prepare the bundled runtime, or turn RIFE off.",
                 (missing as Result.Error).error.toUserMessage(),
             )
             assertTrue(available is Result.Success)

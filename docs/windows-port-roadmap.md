@@ -23,14 +23,14 @@ The port is complete only when all of these are proven by current evidence:
 
 | Area | Status | Notes |
 |---|---|---|
-| Android TV build | Covered for debug build and Library baseline | Latest local `:app:assembleDebug` passed. Emulator `10.137.32.118:5555` was launched with a local fixture via `test_local_path`, and `build/android-tv-qa/library-fixture-20260519134617.png` captures the Android TV Library as the expected large media wall. Deeper detail/player device QA is still open. |
+| Android TV build | Covered for debug build and Library baseline | Latest local `:app:assembleDebug` passed. Emulator `10.137.32.118:5555` was launched with a local fixture via `test_local_path`, and `build/android-tv-qa/library-fixture-20260519-rife-optional.png` refreshes the Android TV Library as the expected large media wall after the desktop RIFE-default change. Deeper detail/player device QA is still open. |
 | Compose Desktop entry | Usable foundation | Swing production shell removed; screenshot QA exists for first screens. Latest Library UI now opens scanned libraries as a TV-style 6-column poster wall under the Explore header, with search/source controls below the media surface; saved indexes are restored on startup/source switch; poster selection routes directly into a TV-style Details hero; Player now opens as a rail-free TV-style playback stage; remaining mpv launch/config preparation now lives in `DesktopPlaybackPresenters.kt`; Settings now opens with a TV-style section menu before the Cloud/RSS form. |
 | Shared UI palette | Covered structurally | `:ui-design` owns shared palette; drift check exists. |
 | Local/WebDAV/SMB desktop sources | Implemented | Local source GUI smoke now covers generated fixture and a real local library path; WebDAV GUI smoke now covers a loopback Basic Auth fixture from add/open/browse through scan; SMB GUI fixture smoke is still open. |
 | Library/index/details | Implemented foundation | Local scan/index, WebDAV scan/index, clear-index/remove-source, TV-style poster-wall selection, details hero, and player handoff GUI smoke now passes for generated fixtures; local smoke also passes against `D:\Software\dufs`. |
 | Bangumi metadata | Implemented foundation | Unit coverage exists; live network behavior needs manual/smoke evidence. |
 | mpv playback | Implemented foundation | Desktop Player keeps mpv/RIFE controls behind a TV-like playback stage; `tools/smoke-desktop-mpv-launch-ui.ps1` now generates a local Y4M sample, launches it through the Windows GUI, confirms an `mpv.exe` child process, exercises Pause/-10s/+30s/Stop, verifies progress persistence, and captures launched/control/stopped Player screens. |
-| RIFE runtime | Partial | Runtime structure and scripts are tracked; local machine RIFE playback is non-blocking because this host is not expected to run interpolation well. Backend matrix remains target-host validation. |
+| RIFE runtime | Partial | Runtime structure and scripts are tracked; desktop launch keeps RIFE opt-in by default and missing mpv/RIFE launch errors now point users to Check runtime, prepare a backend, or turn RIFE off. Local machine RIFE playback is non-blocking because this host is not expected to run interpolation well. Backend matrix remains target-host validation. |
 | Cloud/RSS | Partial | Loopback tests exist; real CloudDrive2 dry-run/live evidence still open. |
 | Release packaging | Partial | Lightweight install works; full bundled runtime artifact QA remains open. |
 
@@ -93,7 +93,7 @@ Verification:
 - [x] Run mpv launch from the Windows GUI against the fixture and confirm the `mpv.exe` child process.
 - [x] Verify Pause, -10s, +30s, Stop, and recent-progress refresh without requiring RIFE on this host.
 - [x] Verify remote playback bridge keeps WebDAV/SMB hosts and credentials out of mpv command lines.
-- [ ] Keep RIFE optional and make missing runtime errors actionable in the UI.
+- [x] Keep RIFE optional and make missing runtime errors actionable in the UI.
 
 Verification:
 
