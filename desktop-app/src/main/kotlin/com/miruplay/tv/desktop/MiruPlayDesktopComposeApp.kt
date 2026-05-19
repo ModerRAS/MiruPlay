@@ -42,7 +42,6 @@ import com.miruplay.tv.mediasource.desktop.desktopLocalSourceFromInfo
 import com.miruplay.tv.mediasource.desktop.desktopSmbSourceFromInfo
 import com.miruplay.tv.mediasource.desktop.desktopSourceFromInfo
 import com.miruplay.tv.mediasource.desktop.desktopWebDavSourceFromInfo
-import com.miruplay.tv.mediasource.desktop.playableUriFor
 import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
@@ -59,7 +58,6 @@ import com.miruplay.tv.model.connectionUsername
 import com.miruplay.tv.model.loadedPlaybackStatus
 import com.miruplay.tv.model.localRootPath
 import com.miruplay.tv.model.parseCloudDriveIntervalMinutes
-import com.miruplay.tv.model.playbackSourceFromInputs
 import com.miruplay.tv.model.parseRssProxyPort
 import com.miruplay.tv.model.recentPlaybackInitialStatus
 import com.miruplay.tv.model.recentPlaybackLoadedStatus
@@ -72,17 +70,12 @@ import com.miruplay.tv.player.mpv.MpvProcessPlayer
 import com.miruplay.tv.player.mpv.MpvRuntimeDiscovery
 import com.miruplay.tv.player.mpv.RifeBackend
 import com.miruplay.tv.player.mpv.mpvIdleStatus
-import com.miruplay.tv.player.mpv.mpvLaunchFailedStatus
-import com.miruplay.tv.player.mpv.mpvLaunchedStatus
 import com.miruplay.tv.player.mpv.mpvNoActiveProcessStatus
 import com.miruplay.tv.player.mpv.mpvPauseToggledStatus
 import com.miruplay.tv.player.mpv.mpvPositionSyncedStatus
-import com.miruplay.tv.player.mpv.mpvCommandPreviewFromInputs
-import com.miruplay.tv.player.mpv.mpvRuntimeConfigFromInputs
 import com.miruplay.tv.player.mpv.mpvSeekBackStatus
 import com.miruplay.tv.player.mpv.mpvSeekForwardStatus
 import com.miruplay.tv.player.mpv.mpvStoppedStatus
-import com.miruplay.tv.player.mpv.validateLaunchRuntime
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MetadataBatchMatch
 import com.miruplay.tv.repository.MetadataBatchPlanner
@@ -259,6 +252,7 @@ internal fun MiruPlayDesktopComposeApp() {
     val cloudRssScheduler = remember { DesktopCloudDriveRssScheduler(cloudRssEngine, scope) }
     val cloudRssSchedulerState by cloudRssScheduler.state.collectAsState()
     val defaultMpvLayout = remember { MpvRuntimeDiscovery.defaultLayout() }
+    val playbackLauncher = remember(playbackBridge) { DesktopPlaybackLauncher(playbackBridge) }
     var selectedDesktopSection by remember { mutableStateOf(MiruPlayRouteSurface.library) }
     var player by remember { mutableStateOf<MpvProcessPlayer?>(null) }
     var activePlaybackSession by remember { mutableStateOf<PlaybackProgressSession?>(null) }
@@ -335,22 +329,19 @@ internal fun MiruPlayDesktopComposeApp() {
         rifeBackend,
     ) {
         derivedStateOf {
-            runCatching {
-                mpvCommandPreviewFromInputs(
-                    mpvPath = mpvPath,
-                    configDir = configDir,
-                    mediaPath = mediaPath,
-                    subtitlePath = subtitlePath,
-                    startSeconds = startSeconds,
-                    fullscreen = fullscreen,
-                    keepOpen = keepOpen,
-                    rifeEnabled = rifeEnabled,
-                    rifeBackend = rifeBackend,
-                    blankMediaMessage = DESKTOP_BLANK_MEDIA_MESSAGE,
-                )
-            }.getOrElse { error ->
-                error.message ?: MPV_COMMAND_PREVIEW_ERROR_MESSAGE
-            }
+            desktopMpvCommandPreviewFromInputs(
+                mpvPath = mpvPath,
+                configDir = configDir,
+                mediaPath = mediaPath,
+                subtitlePath = subtitlePath,
+                startSeconds = startSeconds,
+                fullscreen = fullscreen,
+                keepOpen = keepOpen,
+                rifeEnabled = rifeEnabled,
+                rifeBackend = rifeBackend,
+                blankMediaMessage = DESKTOP_BLANK_MEDIA_MESSAGE,
+                errorMessage = MPV_COMMAND_PREVIEW_ERROR_MESSAGE,
+            )
         }
     }
 
@@ -1539,50 +1530,38 @@ internal fun MiruPlayDesktopComposeApp() {
                         onLaunch = {
                             scope.launch {
                                 runCatching {
-                                    val config = mpvRuntimeConfigFromInputs(
+                                    val request = DesktopPlaybackLaunchRequest(
                                         mpvPath = mpvPath,
                                         configDir = configDir,
+                                        mediaPath = mediaPath,
+                                        subtitlePath = subtitlePath,
+                                        startSeconds = startSeconds,
                                         fullscreen = fullscreen,
                                         keepOpen = keepOpen,
                                         rifeEnabled = rifeEnabled,
                                         rifeBackend = rifeBackend,
-                                    )
-                                    when (val runtime = config.validateLaunchRuntime()) {
-                                        is Result.Success -> Unit
-                                        is Result.Error -> {
-                                            launchStatus = runtime.error.toUserMessage()
-                                            return@launch
-                                        }
-                                    }
-                                    val selectedMediaPath = mediaPath.trim()
-                                    val source = playbackSourceFromInputs(
-                                        mediaPath = playableUriFor(activeSource, playbackBridge, selectedMediaPath),
-                                        subtitlePath = subtitlePath,
-                                        startSeconds = startSeconds,
-                                        mediaSourceId = activeSourceId?.toString()
-                                            ?: activeSource?.info?.type?.name
-                                            ?: DESKTOP_PLAYBACK_MEDIA_SOURCE_ID,
-                                        episodeId = selectedMediaPath.ifBlank { null },
+                                        activeSource = activeSource,
+                                        activeSourceId = activeSourceId,
                                         blankMediaMessage = DESKTOP_BLANK_MEDIA_MESSAGE,
+                                        fallbackMediaSourceId = DESKTOP_PLAYBACK_MEDIA_SOURCE_ID,
                                     )
-                                    val nextPlayer = MpvProcessPlayer(config)
-                                    when (val result = nextPlayer.play(source)) {
+                                    when (val result = playbackLauncher.launch(request)) {
                                         is Result.Success -> {
-                                            player = nextPlayer
-                                            activePlaybackSession = PlaybackProgressSession(selectedMediaPath, source.startPosition)
+                                            player = result.data.player
+                                            activePlaybackSession = result.data.session
                                             repositories.progress.saveProgress(
-                                                episodeId = selectedMediaPath,
-                                                positionMs = source.startPosition,
+                                                episodeId = result.data.session.episodeId,
+                                                positionMs = result.data.source.startPosition,
                                                 lastWatched = System.currentTimeMillis(),
                                                 incrementPlayCount = true,
                                             )
                                             refreshRecentProgress()
-                                            launchStatus = mpvLaunchedStatus(result.data)
+                                            launchStatus = result.data.status
                                         }
                                         is Result.Error -> launchStatus = result.error.toUserMessage()
                                     }
                                 }.onFailure { error ->
-                                    launchStatus = mpvLaunchFailedStatus(error)
+                                    launchStatus = playbackLauncher.launchFailureStatus(error)
                                 }
                             }
                         },

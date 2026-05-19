@@ -126,6 +126,7 @@ val desktopPresenterSeparationForbiddenPatterns = mapOf(
     "MpvRuntimeConfig" to Regex("""\bMpvRuntimeConfig\b"""),
     "MpvRuntimeVerifier" to Regex("""\bMpvRuntimeVerifier\b"""),
     "RifeInterpolationConfig" to Regex("""\bRifeInterpolationConfig\b"""),
+    "mpvCommandPreviewFromInputs" to Regex("""\bmpvCommandPreviewFromInputs\b"""),
     "buildExternalSubtitleTracks" to Regex("""\bbuildExternalSubtitleTracks\b"""),
     "ScraperResult.displayTitle import" to Regex("""import\s+com\.miruplay\.tv\.model\.displayTitle"""),
     "private playback presenter helper" to Regex("""private\s+fun\s+(runtimeStatus|buildCommandPreview|buildRuntimeConfig|buildPlaybackSource|playableUriFor)\b"""),

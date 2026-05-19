@@ -24,7 +24,7 @@ The port is complete only when all of these are proven by current evidence:
 | Area | Status | Notes |
 |---|---|---|
 | Android TV build | Covered for debug build and Library baseline | Latest local `:app:assembleDebug` passed. Emulator `10.137.32.118:5555` was launched with a local fixture via `test_local_path`, and `build/android-tv-qa/library-fixture-20260519134617.png` captures the Android TV Library as the expected large media wall. Deeper detail/player device QA is still open. |
-| Compose Desktop entry | Usable foundation | Swing production shell removed; screenshot QA exists for first screens. Latest Library UI now opens scanned libraries as a TV-style 6-column poster wall under the Explore header, with search/source controls below the media surface; saved indexes are restored on startup/source switch; poster selection routes directly into a TV-style Details hero; Player now opens as a rail-free TV-style playback stage; Settings now opens with a TV-style section menu before the Cloud/RSS form. |
+| Compose Desktop entry | Usable foundation | Swing production shell removed; screenshot QA exists for first screens. Latest Library UI now opens scanned libraries as a TV-style 6-column poster wall under the Explore header, with search/source controls below the media surface; saved indexes are restored on startup/source switch; poster selection routes directly into a TV-style Details hero; Player now opens as a rail-free TV-style playback stage; remaining mpv launch/config preparation now lives in `DesktopPlaybackPresenters.kt`; Settings now opens with a TV-style section menu before the Cloud/RSS form. |
 | Shared UI palette | Covered structurally | `:ui-design` owns shared palette; drift check exists. |
 | Local/WebDAV/SMB desktop sources | Implemented | Local source GUI smoke now covers generated fixture and a real local library path; WebDAV GUI smoke now covers a loopback Basic Auth fixture from add/open/browse through scan; SMB GUI fixture smoke is still open. |
 | Library/index/details | Implemented foundation | Local scan/index, WebDAV scan/index, clear-index/remove-source, TV-style poster-wall selection, details hero, and player handoff GUI smoke now passes for generated fixtures; local smoke also passes against `D:\Software\dufs`. |
@@ -51,7 +51,7 @@ The port is complete only when all of these are proven by current evidence:
 - [x] Rework the Windows Player first screen toward Android TV: rail-free playback stage, top return action, centered transport controls, bottom timeline/status chips, and advanced mpv/RIFE settings below.
 - [x] Rework the Windows Settings first screen toward Android TV: left-side settings categories with focused rows, summary cards, and quick actions for media sources, playback, scan, metadata, and Cloud/RSS.
 - [x] Add a tiny generated media sample and GUI mpv launch smoke.
-- [ ] Extract remaining playback launch/config presenter logic out of the Compose entry.
+- [x] Extract remaining playback launch/config presenter logic out of the Compose entry.
 
 Verification:
 
@@ -147,6 +147,6 @@ Verification:
 ## Immediate Next Actions
 
 1. Continue narrowing deeper desktop-vs-Android-TV UI gaps beyond the first screens, especially source management detail pages, SMB fixture flow, and navigation focus behavior.
-2. Extract remaining mpv launch preparation from `MiruPlayDesktopComposeApp.kt`.
-3. Add an SMB GUI fixture smoke when a local Windows fixture share is practical.
-4. Promote Settings summary slices into fuller TV-like source/playback/metadata forms where desktop-specific controls are still too dense.
+2. Add an SMB GUI fixture smoke when a local Windows fixture share is practical.
+3. Promote Settings summary slices into fuller TV-like source/playback/metadata forms where desktop-specific controls are still too dense.
+4. Continue moving large desktop UI state/use cases out of `MiruPlayDesktopComposeApp.kt` where they can be shared or tested independently.
