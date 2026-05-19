@@ -27,7 +27,7 @@ The port is complete only when all of these are proven by current evidence:
 | Compose Desktop entry | Usable foundation | Swing production shell removed; screenshot QA exists for first screens. Latest Library UI now uses the Android TV-style full-width header, right-side actions, empty state, and poster wall after scan; poster selection routes directly into a TV-style Details hero; Player now opens as a rail-free TV-style playback stage. |
 | Shared UI palette | Covered structurally | `:ui-design` owns shared palette; drift check exists. |
 | Local/WebDAV/SMB desktop sources | Implemented | Local source GUI smoke now covers generated fixture and a real local library path; WebDAV/SMB GUI fixture smokes still open. |
-| Library/index/details | Implemented foundation | Local scan/index, poster-wall selection, TV-style details hero, and player handoff GUI smoke now passes; GUI search smoke needs to be re-added for the poster-wall layout. |
+| Library/index/details | Implemented foundation | Local scan/index, poster-wall search/selection, TV-style details hero, and player handoff GUI smoke now passes. |
 | Bangumi metadata | Implemented foundation | Unit coverage exists; live network behavior needs manual/smoke evidence. |
 | mpv playback | Implemented foundation | Desktop Player keeps mpv/RIFE controls behind a TV-like playback stage; need repeatable GUI launch smoke against a tiny local media sample. |
 | RIFE runtime | Partial | Runtime structure and scripts are tracked; local machine RIFE playback is non-blocking because this host is not expected to run interpolation well. Backend matrix remains target-host validation. |
@@ -66,7 +66,7 @@ Verification:
 - [x] GUI smoke: add/open Local source and scan a fixture with NFO metadata.
 - [x] GUI smoke: inspect details by clicking a poster-wall item and select scanned local media for player handoff.
 - [x] GUI smoke: repeat the local source flow against `D:\Software\dufs`.
-- [ ] GUI smoke: search scanned local index from the query field in the poster-wall layout.
+- [x] GUI smoke: search scanned local index from the query field in the poster-wall layout.
 - [ ] GUI smoke: add/open WebDAV source using a local/loopback fixture where possible.
 - [ ] GUI smoke: add/open SMB source when a Windows fixture share is available.
 - [ ] Confirm clear-source-index and remove-source flows keep repository state consistent.
@@ -140,6 +140,6 @@ Verification:
 ## Immediate Next Actions
 
 1. Continue narrowing desktop-vs-Android-TV UI gaps beyond the Library, Details, and Player first screens, especially Settings, source management, and navigation shape.
-2. Re-add a poster-wall-layout search GUI smoke without making the source controls dominate the Library view.
-3. Extract remaining mpv launch preparation from `MiruPlayDesktopComposeApp.kt`.
-4. Add WebDAV and SMB GUI fixture smokes where local loopback fixtures are practical.
+2. Extract remaining mpv launch preparation from `MiruPlayDesktopComposeApp.kt`.
+3. Add WebDAV and SMB GUI fixture smokes where local loopback fixtures are practical.
+4. Continue Settings/source-management visual parity against Android TV.
