@@ -29,7 +29,7 @@ The port is complete only when all of these are proven by current evidence:
 | Local/WebDAV/SMB desktop sources | Implemented | Local source GUI smoke now covers generated fixture and a real local library path; WebDAV/SMB GUI fixture smokes still open. |
 | Library/index/details | Implemented foundation | Local scan/index, poster-wall search/selection, TV-style details hero, and player handoff GUI smoke now passes. |
 | Bangumi metadata | Implemented foundation | Unit coverage exists; live network behavior needs manual/smoke evidence. |
-| mpv playback | Implemented foundation | Desktop Player keeps mpv/RIFE controls behind a TV-like playback stage; need repeatable GUI launch smoke against a tiny local media sample. |
+| mpv playback | Implemented foundation | Desktop Player keeps mpv/RIFE controls behind a TV-like playback stage; `tools/smoke-desktop-mpv-launch-ui.ps1` now generates a tiny local Y4M sample, launches it through the Windows GUI, confirms an `mpv.exe` child process, and captures the launched Player screen. |
 | RIFE runtime | Partial | Runtime structure and scripts are tracked; local machine RIFE playback is non-blocking because this host is not expected to run interpolation well. Backend matrix remains target-host validation. |
 | Cloud/RSS | Partial | Loopback tests exist; real CloudDrive2 dry-run/live evidence still open. |
 | Release packaging | Partial | Lightweight install works; full bundled runtime artifact QA remains open. |
@@ -49,7 +49,7 @@ The port is complete only when all of these are proven by current evidence:
 - [x] Rework the Windows Details first screen toward Android TV: poster click opens Details directly, with a large backdrop/poster hero, title context, plot, Play, and Back-to-poster-wall actions.
 - [x] Rework the Windows Player first screen toward Android TV: rail-free playback stage, top return action, centered transport controls, bottom timeline/status chips, and advanced mpv/RIFE settings below.
 - [x] Rework the Windows Settings first screen toward Android TV: left-side settings categories with focused rows, summary cards, and quick actions for media sources, playback, scan, metadata, and Cloud/RSS.
-- [ ] Add a tiny generated media sample or documented local sample path for mpv launch smoke.
+- [x] Add a tiny generated media sample and GUI mpv launch smoke.
 - [ ] Extract remaining playback launch/config presenter logic out of the Compose entry.
 
 Verification:
@@ -84,8 +84,8 @@ Verification:
 
 ### Phase 3: Prove Playback And Progress
 
-- [ ] Build or document a tiny local video fixture for repeatable mpv launch smoke.
-- [ ] Run mpv launch from the Windows GUI against the fixture.
+- [x] Build a tiny generated Y4M local video fixture for repeatable mpv launch smoke.
+- [x] Run mpv launch from the Windows GUI against the fixture and confirm the `mpv.exe` child process.
 - [ ] Verify Pause, -10s, +30s, Stop, and recent-progress refresh.
 - [ ] Verify remote playback bridge keeps credentials out of mpv command lines.
 - [ ] Keep RIFE optional and make missing runtime errors actionable in the UI.
@@ -94,6 +94,7 @@ Verification:
 
 ```powershell
 .\gradlew.bat :player-mpv:test :desktop-app:test
+.\tools\smoke-desktop-mpv-launch-ui.ps1
 .\gradlew.bat :desktop-app:smokeMpvRuntime -PrequireMpvRuntime=true
 # Full RIFE playback/interpolation smoke is target-hardware validation, not a blocker on low-capability local hosts.
 ```
