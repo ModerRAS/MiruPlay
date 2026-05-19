@@ -23,7 +23,6 @@ import androidx.compose.ui.unit.sp
 import com.miruplay.tv.design.MiruPlayUiMetrics
 import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.confidencePercentLabel
-import com.miruplay.tv.model.displayTitle
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MetadataBatchMatch
 import com.miruplay.tv.repository.MetadataBatchPlan
@@ -211,7 +210,7 @@ private fun BangumiResultRow(
             )
             Column(Modifier.weight(1f)) {
                 Text(
-                    result.displayTitle(),
+                    result.bangumiResultTitle(),
                     color = TextPrimary,
                     fontSize = MiruPlayUiMetrics.ITEM_TITLE_SP.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -272,7 +271,7 @@ private fun BangumiBatchMatchRow(
                         } else {
                             ""
                         }
-                        "${it.displayTitle()} / ${it.confidencePercentLabel()}$candidateSuffix"
+                        it.bangumiCandidateSummary(candidateSuffix)
                     } ?: "No match",
                     color = TextSecondary,
                     fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,

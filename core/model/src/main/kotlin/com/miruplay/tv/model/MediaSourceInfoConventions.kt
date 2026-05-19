@@ -104,3 +104,25 @@ object MediaSourceInfoConventions {
     private const val HTTP_SCHEME = "http://"
     private const val HTTPS_SCHEME = "https://"
 }
+
+fun MediaSourceInfo.localRootPath(): String? =
+    connectionInfo[MediaSourceInfoConventions.CONNECTION_PATH]
+        ?: connectionInfo[LEGACY_CONNECTION_URI]
+        ?: connectionInfo[MediaSourceInfoConventions.CONNECTION_URL]
+
+fun MediaSourceInfo.remoteUrl(): String? =
+    connectionInfo[MediaSourceInfoConventions.CONNECTION_URL]
+
+fun MediaSourceInfo.connectionUsername(): String =
+    connectionInfo[MediaSourceInfoConventions.CONNECTION_USERNAME].orEmpty()
+
+fun MediaSourceInfo.connectionPassword(): String =
+    connectionInfo[MediaSourceInfoConventions.CONNECTION_PASSWORD].orEmpty()
+
+fun MediaSourceInfo.connectionDomain(): String =
+    connectionInfo[MediaSourceInfoConventions.CONNECTION_DOMAIN].orEmpty()
+
+fun MediaSourceInfo.sourceLocation(): String? =
+    localRootPath() ?: remoteUrl()
+
+private const val LEGACY_CONNECTION_URI = "uri"

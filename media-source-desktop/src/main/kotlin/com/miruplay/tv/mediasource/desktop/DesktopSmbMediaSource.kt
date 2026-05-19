@@ -10,6 +10,10 @@ import com.miruplay.tv.model.MediaCapabilities
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.RangeLimitedInputStream
+import com.miruplay.tv.model.connectionDomain
+import com.miruplay.tv.model.connectionPassword
+import com.miruplay.tv.model.connectionUsername
+import com.miruplay.tv.model.remoteUrl
 import jcifs.CIFSContext
 import jcifs.config.PropertyConfiguration
 import jcifs.context.BaseContext
@@ -36,11 +40,11 @@ class DesktopSmbMediaSource(
     )
 
     private val rootUrl: String = MediaSourceInfoConventions.normalizeSmbRoot(
-        requireNotNull(info.connectionInfo["url"]) {
+        requireNotNull(info.remoteUrl()) {
             "SMB source requires connectionInfo[url]"
         }
     )
-    private val cifsContext: CIFSContext = createContext(info.connectionInfo)
+    private val cifsContext: CIFSContext = createContext(info)
 
     override suspend fun listFiles(path: String): Result<List<FileEntry>> = withContext(Dispatchers.IO) {
         runCatching {
@@ -174,19 +178,19 @@ class DesktopSmbMediaSource(
         fun normalizeRoot(rawUrl: String): String =
             MediaSourceInfoConventions.normalizeSmbRoot(rawUrl)
 
-        private fun createContext(connectionInfo: Map<String, String>): CIFSContext {
+        private fun createContext(info: MediaSourceInfo): CIFSContext {
             val properties = Properties().apply {
                 setProperty("jcifs.smb.client.minVersion", "SMB202")
                 setProperty("jcifs.smb.client.maxVersion", "SMB311")
             }
             val baseContext = BaseContext(PropertyConfiguration(properties))
-            val username = connectionInfo["username"].orEmpty()
+            val username = info.connectionUsername()
             if (username.isBlank()) return baseContext
 
             val auth = NtlmPasswordAuthenticator(
-                connectionInfo["domain"].orEmpty().ifBlank { null },
+                info.connectionDomain().ifBlank { null },
                 username,
-                connectionInfo["password"].orEmpty(),
+                info.connectionPassword(),
             )
             return baseContext.withCredentials(auth)
         }

@@ -46,13 +46,17 @@ import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.PlaybackProgressSession
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.buildRssSubscriptionFromForm
+import com.miruplay.tv.model.connectionDomain
+import com.miruplay.tv.model.connectionPassword
+import com.miruplay.tv.model.connectionUsername
 import com.miruplay.tv.model.loadedPlaybackStatus
-import com.miruplay.tv.model.MediaPathConventions
+import com.miruplay.tv.model.localRootPath
 import com.miruplay.tv.model.parseCloudDriveIntervalMinutes
 import com.miruplay.tv.model.playbackSourceFromInputs
 import com.miruplay.tv.model.parseRssProxyPort
@@ -60,11 +64,11 @@ import com.miruplay.tv.model.recentPlaybackInitialStatus
 import com.miruplay.tv.model.recentPlaybackLoadedStatus
 import com.miruplay.tv.model.recentPlaybackRequiredStatus
 import com.miruplay.tv.model.recentPlaybackShowingStatus
+import com.miruplay.tv.model.remoteUrl
 import com.miruplay.tv.model.resumeStartSecondsText
 import com.miruplay.tv.model.withAutomationFormValues
 import com.miruplay.tv.player.mpv.MpvProcessPlayer
 import com.miruplay.tv.player.mpv.MpvRuntimeDiscovery
-import com.miruplay.tv.player.mpv.MpvRuntimeVerifier
 import com.miruplay.tv.player.mpv.RifeBackend
 import com.miruplay.tv.player.mpv.mpvIdleStatus
 import com.miruplay.tv.player.mpv.mpvLaunchFailedStatus
@@ -315,7 +319,7 @@ internal fun MiruPlayDesktopComposeApp() {
     var keepOpen by remember { mutableStateOf(false) }
     var rifeEnabled by remember { mutableStateOf(true) }
     var rifeBackend by remember { mutableStateOf(RifeBackend.NVIDIA) }
-    var status by remember { mutableStateOf(MpvRuntimeVerifier.statusFromInputs(mpvPath, configDir)) }
+    var status by remember { mutableStateOf(mpvRuntimeStatusFromInputs(mpvPath, configDir)) }
     var launchStatus by remember { mutableStateOf(mpvIdleStatus()) }
     val commandPreview by remember(
         mpvPath,
@@ -363,7 +367,7 @@ internal fun MiruPlayDesktopComposeApp() {
                 val webDav = sources.data.firstOrNull { it.type == MediaSourceType.WEBDAV }
                 val smb = sources.data.firstOrNull { it.type == MediaSourceType.SMB }
                 if (local != null) {
-                    val root = local.connectionInfo["path"].orEmpty()
+                    val root = local.localRootPath().orEmpty()
                     libraryRoot = root
                     activeSourceId = local.id
                     val localSource = desktopLocalSourceFromInfo(local)
@@ -372,9 +376,9 @@ internal fun MiruPlayDesktopComposeApp() {
                     libraryStatus = local.loadedStatus()
                 }
                 if (webDav != null) {
-                    webDavUrl = webDav.connectionInfo["url"].orEmpty()
-                    webDavUsername = webDav.connectionInfo["username"].orEmpty()
-                    webDavPassword = webDav.connectionInfo["password"].orEmpty()
+                    webDavUrl = webDav.remoteUrl().orEmpty()
+                    webDavUsername = webDav.connectionUsername()
+                    webDavPassword = webDav.connectionPassword()
                     if (local == null) {
                         activeSourceId = webDav.id
                         activeSource = desktopWebDavSourceFromInfo(webDav)
@@ -382,10 +386,10 @@ internal fun MiruPlayDesktopComposeApp() {
                     }
                 }
                 if (smb != null) {
-                    smbUrl = smb.connectionInfo["url"].orEmpty()
-                    smbDomain = smb.connectionInfo["domain"].orEmpty()
-                    smbUsername = smb.connectionInfo["username"].orEmpty()
-                    smbPassword = smb.connectionInfo["password"].orEmpty()
+                    smbUrl = smb.remoteUrl().orEmpty()
+                    smbDomain = smb.connectionDomain()
+                    smbUsername = smb.connectionUsername()
+                    smbPassword = smb.connectionPassword()
                     if (local == null && webDav == null) {
                         activeSourceId = smb.id
                         activeSource = desktopSmbSourceFromInfo(smb)
@@ -608,24 +612,24 @@ internal fun MiruPlayDesktopComposeApp() {
         selectedRemoteEntry = null
         when (sourceInfo.type) {
             MediaSourceType.LOCAL -> {
-                libraryRoot = sourceInfo.connectionInfo["path"].orEmpty()
+                libraryRoot = sourceInfo.localRootPath().orEmpty()
                 remoteEntries = emptyList()
                 remotePath = ""
                 libraryStatus = sourceInfo.loadedStatus(saved = true)
             }
             MediaSourceType.WEBDAV -> {
-                webDavUrl = sourceInfo.connectionInfo["url"].orEmpty()
-                webDavUsername = sourceInfo.connectionInfo["username"].orEmpty()
-                webDavPassword = sourceInfo.connectionInfo["password"].orEmpty()
+                webDavUrl = sourceInfo.remoteUrl().orEmpty()
+                webDavUsername = sourceInfo.connectionUsername()
+                webDavPassword = sourceInfo.connectionPassword()
                 remotePath = ""
                 remoteStatus = sourceInfo.loadedStatus(saved = true)
                 loadRemoteDirectory(source, "")
             }
             MediaSourceType.SMB -> {
-                smbUrl = sourceInfo.connectionInfo["url"].orEmpty()
-                smbDomain = sourceInfo.connectionInfo["domain"].orEmpty()
-                smbUsername = sourceInfo.connectionInfo["username"].orEmpty()
-                smbPassword = sourceInfo.connectionInfo["password"].orEmpty()
+                smbUrl = sourceInfo.remoteUrl().orEmpty()
+                smbDomain = sourceInfo.connectionDomain()
+                smbUsername = sourceInfo.connectionUsername()
+                smbPassword = sourceInfo.connectionPassword()
                 remotePath = ""
                 remoteStatus = sourceInfo.loadedStatus(saved = true)
                 loadRemoteDirectory(source, "")
@@ -1456,7 +1460,7 @@ internal fun MiruPlayDesktopComposeApp() {
                     configDir = configDir,
                     onConfigDirChange = { configDir = it },
                     status = status,
-                    onCheckRuntime = { status = MpvRuntimeVerifier.statusFromInputs(mpvPath, configDir) },
+                    onCheckRuntime = { status = mpvRuntimeStatusFromInputs(mpvPath, configDir) },
                     modifier = Modifier.weight(0.38f),
                 )
             }

@@ -65,6 +65,45 @@ class MediaSourceInfoConventionsTest {
     }
 
     @Test
+    fun `localRootPath reads current and legacy connection keys`() {
+        val current = source(connectionInfo = mapOf("path" to "D:/Anime"))
+        val legacyUri = source(connectionInfo = mapOf("uri" to "E:/Anime"))
+        val legacyUrl = source(connectionInfo = mapOf("url" to "F:/Anime"))
+
+        assertEquals("D:/Anime", current.localRootPath())
+        assertEquals("E:/Anime", legacyUri.localRootPath())
+        assertEquals("F:/Anime", legacyUrl.localRootPath())
+    }
+
+    @Test
+    fun `sourceLocation and credential helpers read shared connection contract`() {
+        val source = source(
+            type = MediaSourceType.SMB,
+            connectionInfo = mapOf(
+                "url" to "smb://nas/anime",
+                "domain" to "WORKGROUP",
+                "username" to "alice",
+                "password" to "secret",
+            ),
+        )
+
+        assertEquals("smb://nas/anime", source.sourceLocation())
+        assertEquals("smb://nas/anime", source.remoteUrl())
+        assertEquals("WORKGROUP", source.connectionDomain())
+        assertEquals("alice", source.connectionUsername())
+        assertEquals("secret", source.connectionPassword())
+    }
+
+    @Test
+    fun `credential helpers return blank when absent`() {
+        val source = source(connectionInfo = emptyMap())
+
+        assertEquals("", source.connectionDomain())
+        assertEquals("", source.connectionUsername())
+        assertEquals("", source.connectionPassword())
+    }
+
+    @Test
     fun `shouldBridgeForPlayback identifies credentialed remote paths`() {
         assertFalse(
             MediaSourceInfoConventions.shouldBridgeForPlayback(
@@ -107,4 +146,14 @@ class MediaSourceInfoConventionsTest {
             )
         )
     }
+
+    private fun source(
+        type: MediaSourceType = MediaSourceType.LOCAL,
+        connectionInfo: Map<String, String>,
+    ): MediaSourceInfo =
+        MediaSourceInfo(
+            name = "Test Source",
+            type = type,
+            connectionInfo = connectionInfo,
+        )
 }

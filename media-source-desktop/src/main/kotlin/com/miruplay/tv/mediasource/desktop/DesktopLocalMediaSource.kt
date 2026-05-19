@@ -9,6 +9,7 @@ import com.miruplay.tv.model.MediaCapabilities
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.RangeLimitedInputStream
+import com.miruplay.tv.model.localRootPath
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.InputStream
@@ -34,12 +35,7 @@ class DesktopLocalMediaSource(
         supportsWrite = true,
     )
 
-    private val rootPath: Path = Paths.get(
-        info.connectionInfo["path"]
-            ?: info.connectionInfo["uri"]
-            ?: info.connectionInfo["url"]
-            ?: ""
-    ).toAbsolutePath().normalize()
+    private val rootPath: Path = Paths.get(info.localRootPath().orEmpty()).toAbsolutePath().normalize()
 
     override suspend fun listFiles(path: String): Result<List<FileEntry>> = withContext(Dispatchers.IO) {
         val directory = resolveInsideRoot(path)
