@@ -2,6 +2,8 @@
 
 目标：把 MiruPlay 从 Android TV 应用扩展成 Windows 桌面版，复用媒体管理、刮削、进度、同步等核心能力，并在 Windows 上用 mpv 作为播放底层，默认可携带 RIFE 插帧运行时。
 
+当前剩余路线、阶段验收和 GUI QA 入口见 `docs/windows-port-roadmap.md`。后续推进以该 roadmap 为准逐项打勾，本文保留背景、设计判断和已落地能力说明。
+
 完成度审计见 `docs/windows-port-audit.md`；该审计明确列出已覆盖证据和仍缺失的目标硬件 RIFE 验证、桌面同步 live QA 等事项。
 
 ## 关键判断
