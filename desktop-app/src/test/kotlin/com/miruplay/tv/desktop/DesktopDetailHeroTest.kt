@@ -1,0 +1,33 @@
+package com.miruplay.tv.desktop
+
+import com.miruplay.tv.model.MediaSourceInfoConventions
+import com.miruplay.tv.repository.MediaIndexEntry
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class DesktopDetailHeroTest {
+    @Test
+    fun `detail hero prefers metadata title and includes episode context`() {
+        val source = MediaSourceInfoConventions.local(
+            name = "Anime Library",
+            rootPath = "D:/Anime",
+        )
+        val entry = MediaIndexEntry(
+            sourceId = 7,
+            path = "D:/Anime/Frieren/Frieren - S01E02.mkv",
+            animeName = "Fixture Frieren",
+            metadataTitle = "Frieren",
+            seasonNumber = 1,
+            episodeNumber = 2,
+            episodeTitle = "The Journey",
+        )
+
+        assertEquals("Frieren", entry.detailTitle())
+        val subtitle = entry.detailSubtitle(source)
+        assertTrue(subtitle.contains("Anime Library"))
+        assertTrue(subtitle.contains("S1"))
+        assertTrue(subtitle.contains("EP2"))
+        assertTrue(subtitle.contains("The Journey"))
+    }
+}

@@ -403,9 +403,7 @@ try {
         $selectedVideo = $frierenVideo[0]
         Invoke-RelativeClick -Process $windowProcess -X 930 -Y 426
     }
-    Start-Sleep -Milliseconds 500
-    Invoke-RelativeClick -Process $windowProcess -X 885 -Y 95
-    Start-Sleep -Milliseconds 500
+    Start-Sleep -Milliseconds 700
     Save-WindowScreenshot -Process $windowProcess -Path $detailsScreenshotPath
 
     Invoke-RelativeClick -Process $windowProcess -X 170 -Y 378
