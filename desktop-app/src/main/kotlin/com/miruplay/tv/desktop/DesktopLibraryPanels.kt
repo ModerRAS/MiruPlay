@@ -88,6 +88,12 @@ internal fun LibraryPanel(
                 heightDp = 300,
             )
         } else {
+            PosterSearchBar(
+                indexQuery = indexQuery,
+                onIndexQueryChange = onIndexQueryChange,
+                onSearch = onSearch,
+                resultCount = posterGroups.size,
+            )
             PosterSectionHeader(title = "最高热度", trailing = "已收录 ${posterGroups.size} 部")
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -178,6 +184,36 @@ internal fun DesktopLibraryHeader(
             TvActionButton("详情", onClick = onDetails, secondary = true, modifier = Modifier.width(132.dp))
             TvActionButton("播放", onClick = onPlayer, secondary = true, modifier = Modifier.width(132.dp))
             TvActionButton("设置", onClick = onSettings, modifier = Modifier.width(132.dp))
+        }
+    }
+}
+
+@Composable
+private fun PosterSearchBar(
+    indexQuery: String,
+    onIndexQueryChange: (String) -> Unit,
+    onSearch: () -> Unit,
+    resultCount: Int,
+) {
+    TvPanel(Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            LabeledTextField(
+                "搜索媒体库",
+                indexQuery,
+                onValueChange = onIndexQueryChange,
+                modifier = Modifier.weight(1f),
+            )
+            TvActionButton("搜索", onClick = onSearch, modifier = Modifier.width(132.dp))
+            Text(
+                "$resultCount 部",
+                color = TextSecondary,
+                fontSize = MiruPlayUiMetrics.PANEL_BODY_SP.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
         }
     }
 }

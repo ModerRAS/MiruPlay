@@ -125,7 +125,6 @@ function Set-TextByRelativeClick {
     for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
         Invoke-RelativeClick -Process $Process -X $X -Y $Y
         Set-FocusedText -Text $Text
-        Invoke-RelativeClick -Process $Process -X $X -Y $Y
         $actual = Get-FocusedText
         if ($actual -eq $Text) {
             return
@@ -139,11 +138,16 @@ function Set-TextByRelativeClick {
 function Get-FocusedText {
     $before = Get-Clipboard -Raw -ErrorAction SilentlyContinue
     try {
+        Set-Clipboard -Value "__MIRUPLAY_EMPTY_SELECTION__"
         [System.Windows.Forms.SendKeys]::SendWait("^a")
         Start-Sleep -Milliseconds 80
         [System.Windows.Forms.SendKeys]::SendWait("^c")
         Start-Sleep -Milliseconds 200
-        return (Get-Clipboard -Raw -ErrorAction SilentlyContinue).Trim()
+        $text = (Get-Clipboard -Raw -ErrorAction SilentlyContinue).Trim()
+        if ($text -eq "__MIRUPLAY_EMPTY_SELECTION__") {
+            return ""
+        }
+        return $text
     } finally {
         if ($null -ne $before) {
             Set-Clipboard -Value $before
@@ -311,7 +315,8 @@ $runName = "run-{0}" -f (Get-Date -Format "yyyyMMdd-HHmmss")
 $runDir = Join-Path $resolvedOutputRoot $runName
 $fixtureDir = Join-Path $runDir "media\Frieren"
 $storePath = Join-Path $runDir "store\desktop-store.json"
-    $scanScreenshotPath = Join-Path $runDir "local-source-scanned.png"
+$scanScreenshotPath = Join-Path $runDir "local-source-scanned.png"
+$searchScreenshotPath = Join-Path $runDir "local-source-search.png"
 $detailsScreenshotPath = Join-Path $runDir "local-source-details.png"
 $playerScreenshotPath = Join-Path $runDir "local-source-player.png"
 New-Item -ItemType Directory -Path (Split-Path -Parent $storePath) -Force | Out-Null
@@ -360,7 +365,7 @@ try {
     $startedProcess = Start-Process -FilePath $resolvedAppScript -PassThru
     $windowProcess = Wait-MiruPlayWindow
 
-    Set-TextByRelativeClick -Process $windowProcess -X 330 -Y 270 -Text $resolvedLibraryRoot -Description "local library root"
+    Set-TextByRelativeClick -Process $windowProcess -X 240 -Y 268 -Text $resolvedLibraryRoot -Description "local library root"
     Invoke-RelativeClick -Process $windowProcess -X 500 -Y 337
     Wait-StoreState -Path $storePath -Description "saved local source" -Predicate {
         param($state)
@@ -396,12 +401,25 @@ try {
 
     Save-WindowScreenshot -Process $windowProcess -Path $scanScreenshotPath
 
+    if (-not $LibraryRoot.Trim()) {
+        $searchQuery = "Frieren"
+        Set-TextByRelativeClick -Process $windowProcess -X 260 -Y 232 -Text $searchQuery -Description "poster-wall search query"
+        Invoke-RelativeClick -Process $windowProcess -X 1115 -Y 228
+        $state = Wait-StoreState -Path $storePath -Description "poster-wall search result" -Predicate {
+            param($state)
+            $matches = Get-SearchMatches -Entries @($state.index | Where-Object { -not $_.isDirectory }) -Query $searchQuery
+            $matches.Count -eq 1 -and $matches[0].animeName -eq "Fixture Frieren"
+        }
+        $indexedVideos = Get-SearchMatches -Entries @($state.index | Where-Object { -not $_.isDirectory }) -Query $searchQuery
+        Save-WindowScreenshot -Process $windowProcess -Path $searchScreenshotPath
+    }
+
     if ($LibraryRoot.Trim()) {
         $selectedVideo = $null
-        Invoke-RelativeClick -Process $windowProcess -X 280 -Y 345
+        Invoke-RelativeClick -Process $windowProcess -X 280 -Y 500
     } else {
-        $selectedVideo = $frierenVideo[0]
-        Invoke-RelativeClick -Process $windowProcess -X 930 -Y 426
+        $selectedVideo = $indexedVideos[0]
+        Invoke-RelativeClick -Process $windowProcess -X 280 -Y 500
     }
     Start-Sleep -Milliseconds 700
     Save-WindowScreenshot -Process $windowProcess -Path $detailsScreenshotPath
@@ -442,5 +460,8 @@ try {
 Write-Output "Run directory: $runDir"
 Write-Output "Store: $storePath"
 Write-Output "Scan screenshot: $scanScreenshotPath"
+if (-not $LibraryRoot.Trim()) {
+    Write-Output "Search screenshot: $searchScreenshotPath"
+}
 Write-Output "Details screenshot: $detailsScreenshotPath"
 Write-Output "Player screenshot: $playerScreenshotPath"
