@@ -830,7 +830,7 @@ internal fun scanSettingsTiles(
         ),
         SettingsSummaryTile(
             label = "最近扫描状态",
-            value = libraryStatus,
+            value = desktopLibraryStatusText(libraryStatus),
             detail = "扫描入口也保留在 Library 顶部。",
         ),
     )
