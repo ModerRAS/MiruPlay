@@ -106,6 +106,9 @@ internal fun LibraryPanel(
                 heightDp = 300,
             )
         } else {
+            val featuredGroups = remember(posterGroups) { posterGroups.toFeaturedPosterGroups() }
+            val recentlyAddedGroups = remember(posterGroups) { posterGroups.toRecentlyAddedPosterGroups() }
+
             PosterSectionHeader(title = "海报墙", trailing = "已收录 ${posterGroups.size} 部")
             PosterWall(
                 groups = posterGroups,
@@ -114,36 +117,22 @@ internal fun LibraryPanel(
                 onEntrySelected = onEntrySelected,
             )
 
-            PosterSectionHeader(title = "最高热度")
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                posterGroups.toFeaturedPosterGroups().forEach { group ->
-                    FeaturedPosterCard(
-                        group = group,
-                        selected = selectedEntry?.path?.let { it in group.entryPaths } == true,
-                        onClick = { onEntrySelected(group.primaryEntry) },
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-                if (posterGroups.size == 1) {
-                    Spacer(Modifier.weight(1f))
-                }
+            if (featuredGroups.isNotEmpty()) {
+                PosterSectionHeader(title = "最高热度")
+                FeaturedPosterShelf(
+                    groups = featuredGroups,
+                    selectedEntry = selectedEntry,
+                    onEntrySelected = onEntrySelected,
+                )
             }
 
-            PosterSectionHeader(title = "最近添加")
-            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                posterGroups
-                    .sortedByDescending { it.lastModified }
-                    .take(4)
-                    .forEach { group ->
-                        LibraryPosterCard(
-                            group = group,
-                            selected = selectedEntry?.path?.let { it in group.entryPaths } == true,
-                            onClick = { onEntrySelected(group.primaryEntry) },
-                        )
-                    }
+            if (recentlyAddedGroups.isNotEmpty()) {
+                PosterSectionHeader(title = "最近添加")
+                PosterCardShelf(
+                    groups = recentlyAddedGroups,
+                    selectedEntry = selectedEntry,
+                    onEntrySelected = onEntrySelected,
+                )
             }
 
             PosterSearchBar(
@@ -398,10 +387,73 @@ private fun PosterWall(
 }
 
 @Composable
+private fun FeaturedPosterShelf(
+    groups: List<DesktopPosterGroup>,
+    selectedEntry: MediaIndexEntry?,
+    onEntrySelected: (MediaIndexEntry) -> Unit,
+) {
+    val focusRequesters = remember(groups) {
+        groups.associate { it.primaryEntry.path to FocusRequester() }
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        groups.forEachIndexed { index, group ->
+            FeaturedPosterCard(
+                group = group,
+                selected = selectedEntry?.path?.let { it in group.entryPaths } == true,
+                onClick = { onEntrySelected(group.primaryEntry) },
+                onNavigationKey = { key ->
+                    groups.posterShelfNavigationTarget(index, key)?.let { target ->
+                        focusRequesters.getValue(target.primaryEntry.path).requestFocus()
+                        true
+                    } ?: false
+                },
+                modifier = Modifier
+                    .weight(1f)
+                    .focusRequester(focusRequesters.getValue(group.primaryEntry.path)),
+            )
+        }
+        if (groups.size == 1) {
+            Spacer(Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun PosterCardShelf(
+    groups: List<DesktopPosterGroup>,
+    selectedEntry: MediaIndexEntry?,
+    onEntrySelected: (MediaIndexEntry) -> Unit,
+) {
+    val focusRequesters = remember(groups) {
+        groups.associate { it.primaryEntry.path to FocusRequester() }
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        groups.forEachIndexed { index, group ->
+            LibraryPosterCard(
+                group = group,
+                selected = selectedEntry?.path?.let { it in group.entryPaths } == true,
+                onClick = { onEntrySelected(group.primaryEntry) },
+                onNavigationKey = { key ->
+                    groups.posterShelfNavigationTarget(index, key)?.let { target ->
+                        focusRequesters.getValue(target.primaryEntry.path).requestFocus()
+                        true
+                    } ?: false
+                },
+                modifier = Modifier.focusRequester(focusRequesters.getValue(group.primaryEntry.path)),
+            )
+        }
+    }
+}
+
+@Composable
 private fun FeaturedPosterCard(
     group: DesktopPosterGroup,
     selected: Boolean,
     onClick: () -> Unit,
+    onNavigationKey: (Key) -> Boolean = { false },
     modifier: Modifier = Modifier,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -417,6 +469,21 @@ private fun FeaturedPosterCard(
                 color = if (active) AnimeRed else Color.White.copy(alpha = 0.10f),
                 shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
             )
+            .onPreviewKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) {
+                    false
+                } else {
+                    when (event.key) {
+                        Key.Enter,
+                        Key.NumPadEnter,
+                        -> {
+                            onClick()
+                            true
+                        }
+                        else -> onNavigationKey(event.key)
+                    }
+                }
+            }
             .focusable(interactionSource = interactionSource)
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
     ) {
@@ -616,6 +683,25 @@ internal fun List<DesktopPosterGroup>.toFeaturedPosterGroups(limit: Int = 2): Li
             .thenByDescending { it.lastModified }
             .thenBy { it.title.lowercase() },
     ).take(limit.coerceAtLeast(0))
+
+internal fun List<DesktopPosterGroup>.toRecentlyAddedPosterGroups(limit: Int = 4): List<DesktopPosterGroup> =
+    sortedWith(
+        compareByDescending<DesktopPosterGroup> { it.lastModified }
+            .thenBy { it.title.lowercase() },
+    ).take(limit.coerceAtLeast(0))
+
+internal fun List<DesktopPosterGroup>.posterShelfNavigationTarget(
+    currentIndex: Int,
+    key: Key,
+): DesktopPosterGroup? {
+    if (currentIndex !in indices) return null
+    val targetIndex = when (key) {
+        Key.DirectionRight -> currentIndex + 1
+        Key.DirectionLeft -> currentIndex - 1
+        else -> null
+    } ?: return null
+    return getOrNull(targetIndex)
+}
 
 internal fun List<DesktopPosterGroup>.posterNavigationTarget(
     currentIndex: Int,

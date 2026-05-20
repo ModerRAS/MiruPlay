@@ -99,4 +99,42 @@ class DesktopPosterGroupingTest {
 
         assertEquals(listOf("Long Running", "Medium"), featured.map { it.title })
     }
+
+    @Test
+    fun `recently added shelf orders newest groups before older groups`() {
+        val groups = listOf(
+            DesktopPosterGroup(
+                title = "Older",
+                entries = listOf(MediaIndexEntry(sourceId = 1, path = "Older - 01.mkv", lastModified = 100)),
+            ),
+            DesktopPosterGroup(
+                title = "Newest",
+                entries = listOf(MediaIndexEntry(sourceId = 1, path = "Newest - 01.mkv", lastModified = 300)),
+            ),
+            DesktopPosterGroup(
+                title = "Middle",
+                entries = listOf(MediaIndexEntry(sourceId = 1, path = "Middle - 01.mkv", lastModified = 200)),
+            ),
+        )
+
+        val recentlyAdded = groups.toRecentlyAddedPosterGroups()
+
+        assertEquals(listOf("Newest", "Middle", "Older"), recentlyAdded.map { it.title })
+    }
+
+    @Test
+    fun `horizontal poster shelves move left and right without wrapping rows`() {
+        val groups = (1..4).map { index ->
+            DesktopPosterGroup(
+                title = "Show $index",
+                entries = listOf(MediaIndexEntry(sourceId = 1, path = "show-$index.mkv")),
+            )
+        }
+
+        assertEquals("Show 2", groups.posterShelfNavigationTarget(currentIndex = 0, key = Key.DirectionRight)?.title)
+        assertEquals("Show 3", groups.posterShelfNavigationTarget(currentIndex = 3, key = Key.DirectionLeft)?.title)
+        assertNull(groups.posterShelfNavigationTarget(currentIndex = 0, key = Key.DirectionLeft))
+        assertNull(groups.posterShelfNavigationTarget(currentIndex = 3, key = Key.DirectionRight))
+        assertNull(groups.posterShelfNavigationTarget(currentIndex = 1, key = Key.DirectionDown))
+    }
 }
