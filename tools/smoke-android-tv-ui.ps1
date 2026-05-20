@@ -344,6 +344,10 @@ $textPlaybackFailed = New-UnicodeText @(0x64AD, 0x653E, 0x5931, 0x8D25)
 $textSettings = New-UnicodeText @(0x8BBE, 0x7F6E)
 $textMediaSources = New-UnicodeText @(0x5A92, 0x4F53, 0x6E90)
 $textMetadata = New-UnicodeText @(0x5143, 0x6570, 0x636E)
+$textAddMediaSource = New-UnicodeText @(0x6DFB, 0x52A0, 0x5A92, 0x4F53, 0x6E90)
+$textSaveSource = New-UnicodeText @(0x4FDD, 0x5B58, 0x6E90)
+$textDisplayName = New-UnicodeText @(0x663E, 0x793A, 0x540D, 0x79F0)
+$textMediaFolder = New-UnicodeText @(0x5A92, 0x4F53, 0x6587, 0x4EF6, 0x5939)
 New-Item -ItemType Directory -Path $resolvedOutputRoot -Force | Out-Null
 
 if (-not (Get-Command adb -ErrorAction SilentlyContinue)) {
@@ -368,6 +372,7 @@ $detailsEpisodeFocusScreenshot = Join-Path $runDir "android-tv-details-episode-f
 $playerScreenshot = Join-Path $runDir "android-tv-player.png"
 $libraryReturnScreenshot = Join-Path $runDir "android-tv-library-return.png"
 $settingsScreenshot = Join-Path $runDir "android-tv-settings.png"
+$settingsSourcesScreenshot = Join-Path $runDir "android-tv-settings-sources.png"
 $libraryXmlPath = Join-Path $runDir "android-tv-library.xml"
 $detailsXmlPath = Join-Path $runDir "android-tv-details.xml"
 $detailsEpisodeFocusXmlPath = Join-Path $runDir "android-tv-details-episode-focus.xml"
@@ -375,6 +380,7 @@ $playerXmlPath = Join-Path $runDir "android-tv-player.xml"
 $detailsReturnXmlPath = Join-Path $runDir "android-tv-details-return.xml"
 $libraryReturnXmlPath = Join-Path $runDir "android-tv-library-return.xml"
 $settingsXmlPath = Join-Path $runDir "android-tv-settings.xml"
+$settingsSourcesXmlPath = Join-Path $runDir "android-tv-settings-sources.xml"
 $reportPath = Join-Path $runDir "android-tv-smoke-report.json"
 New-Item -ItemType Directory -Path $runDir -Force | Out-Null
 
@@ -439,7 +445,15 @@ Invoke-DpadKey -KeyCode "KEYCODE_DPAD_RIGHT" -DelayMilliseconds 800
 Invoke-DpadKey -KeyCode "KEYCODE_DPAD_CENTER" -DelayMilliseconds 1200
 $xml = Wait-UiText -Needles @($textSettings, "WebUI", $textMediaSources) -XmlPath $settingsXmlPath -TimeoutSeconds 30
 Assert-UiText -Xml $xml -Needles @($textSettings, "WebUI", $textMediaSources, $textPlay, "CloudDrive", $textScan, $textMetadata) -Description "Settings"
+Assert-FocusedUiText -Xml $xml -Needles @("WebUI") -Description "Settings menu"
 Save-Screenshot -Path $settingsScreenshot
+
+Invoke-DpadKey -KeyCode "KEYCODE_DPAD_DOWN" -DelayMilliseconds 800
+Invoke-DpadKey -KeyCode "KEYCODE_DPAD_CENTER" -DelayMilliseconds 1000
+$xml = Wait-UiText -Needles @("Test Local", $textAddMediaSource, $remoteFixtureRoot) -XmlPath $settingsSourcesXmlPath -TimeoutSeconds 30
+Assert-UiText -Xml $xml -Needles @($textMediaSources, "Test Local", $remoteFixtureRoot, "WebDAV", "SMB", $textAddMediaSource, $textDisplayName, $textMediaFolder, $textSaveSource) -Description "Settings media sources"
+Assert-FocusedUiText -Xml $xml -Needles @($textMediaSources) -Description "Settings media source menu"
+Save-Screenshot -Path $settingsSourcesScreenshot
 
 Write-Report -Path $reportPath -Report @{
     generatedAt = (Get-Date).ToString("o")
@@ -454,6 +468,7 @@ Write-Report -Path $reportPath -Report @{
         player = $playerScreenshot
         libraryReturn = $libraryReturnScreenshot
         settings = $settingsScreenshot
+        settingsSources = $settingsSourcesScreenshot
     }
     xml = @{
         library = $libraryXmlPath
@@ -463,6 +478,7 @@ Write-Report -Path $reportPath -Report @{
         detailsReturn = $detailsReturnXmlPath
         libraryReturn = $libraryReturnXmlPath
         settings = $settingsXmlPath
+        settingsSources = $settingsSourcesXmlPath
     }
     assertions = @(
         "Library contains Explore, highest-heat row, recent row, and fixture poster.",
@@ -473,7 +489,8 @@ Write-Report -Path $reportPath -Report @{
         "Player contains local playback chrome and no playback failure overlay.",
         "Android Back returns from Player to Details and from Details to the poster-focused Library wall.",
         "DPAD Up/Right/Center from the returned Library poster wall opens Settings.",
-        "Settings contains the WebUI, media sources, playback, CloudDrive, scan, and metadata sections."
+        "Settings contains the WebUI, media sources, playback, CloudDrive, scan, and metadata sections.",
+        "DPAD Down/Center in Settings opens the media sources panel with the auto-added local source and source form."
     )
 }
 
@@ -486,4 +503,5 @@ Write-Output "Details episode focus screenshot: $detailsEpisodeFocusScreenshot"
 Write-Output "Player screenshot: $playerScreenshot"
 Write-Output "Library return screenshot: $libraryReturnScreenshot"
 Write-Output "Settings screenshot: $settingsScreenshot"
+Write-Output "Settings sources screenshot: $settingsSourcesScreenshot"
 Write-Output "Report: $reportPath"
