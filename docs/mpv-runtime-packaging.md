@@ -151,6 +151,18 @@ This launches the selected `mpv.exe --version` and fails if the executable does
 not start. To make `distZip` run the same smoke check during packaging, add
 `-PrunMpvSmoke=true`.
 
+For the full local release artifact gate, build the distribution zip, launch
+the runtime used for packaging with `mpv.exe --version`, and verify the zip
+contains `runtime/mpv/mpv.exe`, `runtime-manifest.json`, and the requested RIFE
+backend scripts:
+
+```powershell
+.\gradlew.bat :desktop-app:smokePackagedMpvRuntime `
+  -PmpvRuntimeSource=runtime\mpv `
+  -PrequireMpvRuntime=true `
+  -PrequiredRifeBackends=NVIDIA,DIRECTML
+```
+
 For a real VapourSynth/RIFE filter smoke, run:
 
 ```powershell
@@ -190,12 +202,15 @@ Validation note: the current local runtime was prepared from
 `mpv-lazy-20260510.exe` plus the `mpv-lazy-20260510-vsNV.7z.001` overlay and
 passed `:desktop-app:smokeMpvRuntime -PrequireMpvRuntime=true
 -PrequiredRifeBackends=NVIDIA,DIRECTML` with
-`mpv v0.41.0-615-g7b057f66f`. `tools/smoke-mpv-rife.ps1 -Backend DIRECTML`
-also passed using `MEMC_RIFE_DML.vpy` and a generated two-frame 1440x810 Y4M
-clip. NVIDIA reached the `vsmlrt`/TensorRT path but failed on this machine
-because the CUDA driver is too old for the bundled CUDA runtime; Standard script
-presence is optional, and its runtime path currently requires an additional
-`rife` VapourSynth plugin.
+`mpv v0.41.0-615-g7b057f66f`. The local release zip gate
+`:desktop-app:smokePackagedMpvRuntime -PmpvRuntimeSource=runtime\mpv
+-PrequireMpvRuntime=true -PrequiredRifeBackends=NVIDIA,DIRECTML` also passed
+and verified the bundled `desktop-app.zip` runtime entries.
+`tools/smoke-mpv-rife.ps1 -Backend DIRECTML` also passed using
+`MEMC_RIFE_DML.vpy` and a generated two-frame 1440x810 Y4M clip. NVIDIA reached
+the `vsmlrt`/TensorRT path but failed on this machine because the CUDA driver is
+too old for the bundled CUDA runtime; Standard script presence is optional, and
+its runtime path currently requires an additional `rife` VapourSynth plugin.
 
 ## Overrides
 

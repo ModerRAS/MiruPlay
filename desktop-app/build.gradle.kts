@@ -1,5 +1,7 @@
 import java.io.ByteArrayOutputStream
 import java.time.OffsetDateTime
+import java.util.zip.ZipFile
+import org.gradle.api.tasks.bundling.Zip
 
 plugins {
     id("application")
@@ -155,6 +157,81 @@ val smokeMpvRuntime by tasks.registering {
     }
 }
 
+val distZipTask = tasks.named<Zip>("distZip")
+
+val smokePackagedMpvRuntime by tasks.registering {
+    group = "verification"
+    description = "Build the distribution zip, verify packaged mpv/RIFE entries, and smoke-check the runtime used for packaging."
+    dependsOn(distZipTask)
+    onlyIf { bundleMpvRuntime.get() && hasMpvRuntimeSource() }
+    inputs.file(distZipTask.flatMap { it.archiveFile })
+    inputs.file(effectiveMpvRuntimeRoot.map { it.resolve("mpv.exe") }).optional()
+    inputs.property("requiredRifeBackends", requiredRifeBackends)
+
+    doLast {
+        val archive = distZipTask.get().archiveFile.get().asFile
+        if (!archive.isFile) {
+            throw GradleException("Distribution zip was not created: $archive")
+        }
+        val requestedBackends = requestedRifeBackends()
+        validateRifeBackends(requestedBackends)
+
+        val runtimeRoot = effectiveMpvRuntimeRoot.get().toPath().toAbsolutePath().normalize().toFile()
+        val executable = runtimeRoot.resolve("mpv.exe")
+        if (!executable.isFile) {
+            throw GradleException("mpv executable not found for packaged runtime: $executable")
+        }
+
+        val output = ByteArrayOutputStream()
+        val result = exec {
+            commandLine(executable.absolutePath, "--version")
+            standardOutput = output
+            errorOutput = output
+            isIgnoreExitValue = true
+        }
+        val text = output.toString(Charsets.UTF_8.name()).trim()
+        if (result.exitValue != 0) {
+            throw GradleException(
+                "Packaged mpv runtime smoke check failed with exit code ${result.exitValue}.\n$text"
+            )
+        }
+
+        val missingZipEntries = mutableListOf<String>()
+        ZipFile(archive).use { zip ->
+            val entryNames = zip.entries().asSequence()
+                .filterNot { it.isDirectory }
+                .map { it.name.replace('\\', '/') }
+                .toSet()
+
+            fun requireZipRuntimeFile(relativePath: String) {
+                val expectedSuffix = "/runtime/mpv/${relativePath.replace('\\', '/')}"
+                if (entryNames.none { it.endsWith(expectedSuffix) }) {
+                    missingZipEntries += relativePath
+                }
+            }
+
+            requireZipRuntimeFile("mpv.exe")
+            requireZipRuntimeFile("runtime-manifest.json")
+            requestedBackends.forEach { backend ->
+                requireZipRuntimeFile("portable_config/vs/${backendScripts.getValue(backend)}")
+            }
+        }
+        if (missingZipEntries.isNotEmpty()) {
+            throw GradleException(
+                "Distribution zip is missing packaged mpv runtime entries in $archive:\n" +
+                    missingZipEntries.joinToString(separator = "\n") { " - $it" }
+            )
+        }
+        logger.lifecycle(
+            "packaged mpv runtime smoke check passed: ${text.lineSequence().firstOrNull().orEmpty()}"
+        )
+        logger.lifecycle(
+            "packaged mpv runtime entries verified in ${archive.toPath().toAbsolutePath().normalize()} " +
+                "with RIFE backends: ${requestedBackends.ifEmpty { listOf("none") }.joinToString(", ")}"
+        )
+    }
+}
+
 val generateMpvRuntimeManifest by tasks.registering {
     group = "distribution"
     description = "Generate metadata for the bundled mpv/RIFE runtime."
@@ -224,7 +301,7 @@ tasks.named("installDist") {
     dependsOn(generateMpvRuntimeManifest)
 }
 
-tasks.named("distZip") {
+distZipTask {
     if (runMpvSmoke.get()) {
         dependsOn(smokeMpvRuntime)
     }

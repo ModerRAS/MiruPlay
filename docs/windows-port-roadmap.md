@@ -15,7 +15,7 @@ The port is complete only when all of these are proven by current evidence:
 | Library/index | Windows can scan, search, inspect details, clear source index, and delete sources. | `:scanner-desktop:test`, `:repository-desktop:test`, GUI library/detail smoke. |
 | Metadata | Windows can search/apply/clear Bangumi metadata and run batch review/apply/undo. | `:scraper-desktop:test`, `:repository-api:test`, `:desktop-app:test`, GUI details smoke. |
 | Playback | Windows plays through mpv, supports RIFE toggle/backend selection, IPC pause/seek/stop, progress persistence, and remote playback through a credential-isolating loopback bridge. | `:player-mpv:test`, `:desktop-app:test`, mpv launch smoke with a local sample file, remote playback command security test. |
-| mpv/RIFE runtime | Windows distribution can bundle or locate a verified mpv runtime with RIFE-capable scripts. | `:desktop-app:smokeMpvRuntime`, `tools/smoke-mpv-rife.ps1`, runtime manifest evidence. |
+| mpv/RIFE runtime | Windows distribution can bundle or locate a verified mpv runtime with RIFE-capable scripts. | `:desktop-app:smokeMpvRuntime`, `:desktop-app:smokePackagedMpvRuntime`, `tools/smoke-mpv-rife.ps1`, runtime manifest evidence. |
 | Cloud/RSS | Windows can configure CloudDrive2/RSS, dry-run safely, and run confirmed live submit/organize flows. | `:cloud-drive-desktop:test`, `:sync-engine-desktop:test`, dry-run report, explicit live QA report. |
 | Release | CI and local release gates cover Android build, desktop tests, runtime checks, and screenshot QA. | CI green, local verification command log, packaged artifact smoke. |
 
@@ -23,7 +23,7 @@ The port is complete only when all of these are proven by current evidence:
 
 | Area | Status | Notes |
 |---|---|---|
-| Android TV build | Covered for debug build and Library/detail/player smoke | Latest local `:app:assembleDebug` passed. `tools/smoke-android-tv-ui.ps1` installs the debug APK on emulator `10.137.32.118:5555`, generates a playable fixture library, scans it through the TV UI, clicks Library -> Details -> Player, and records `build/android-tv-qa/run-20260520-105205/android-tv-library.png`, `android-tv-details.png`, `android-tv-player.png`, XML dumps, and a JSON report. |
+| Android TV build | Covered for debug build and Library/detail/player smoke | Latest local `:app:assembleDebug` passed. `tools/smoke-android-tv-ui.ps1` installs the debug APK on emulator `10.137.32.118:5555`, generates a playable fixture library, scans it through the TV UI, clicks Library -> Details -> Player, and records `build/android-tv-qa/run-20260520-112248/android-tv-library.png`, `android-tv-details.png`, `android-tv-player.png`, XML dumps, and a JSON report. |
 | Compose Desktop entry | Usable foundation | Swing production shell removed; screenshot QA exists for first screens. Latest Library UI now opens scanned libraries with the 6-column poster wall as the first media surface under the Explore header, with highest-heat/recent rows and search/source controls below it; saved indexes are restored on startup/source switch; poster selection routes directly into a TV-style Details hero. Source management now uses a focused TV-style saved-source card that keeps source name/type visible and compacts long local/SMB/WebDAV paths from the middle; remote WebDAV/SMB setup is split into TV-style source cards with compact endpoint previews and a separate remote-browser panel; GUI smokes verify deep local paths, loopback WebDAV, and real SMB flows from add/open through scan and playback handoff. Android TV smoke confirms the TV baseline is a media-first Library, Details hero, and full-screen playback overlay; desktop deliberately approximates that inside a Windows window with a rail-free playback stage and advanced mpv controls below. Remaining mpv launch/config preparation now lives in `DesktopPlaybackPresenters.kt`; Settings now opens with a TV-style section menu, concrete source/playback/scan/metadata cards, and a Cloud/RSS page made of overview, CloudDrive2, path, subscription, and scheduler cards. The Settings category menu, desktop route rail, Library poster wall, remote browser list, Player transport controls, and Bangumi match lists now support keyboard/DPAD-style navigation; GUI smokes prove Sources -> CloudDrive, Details -> Player, poster-wall Right -> Enter, WebDAV remote-browser Down -> Enter, and Player transport Enter/Left/Right actions by key input; unit tests cover Bangumi match/candidate/result list movement. |
 | Shared UI palette | Covered structurally | `:ui-design` owns shared palette; drift check exists. |
 | Local/WebDAV/SMB desktop sources | Implemented | Local source GUI smoke now covers generated fixture and a real local library path; WebDAV GUI smoke covers a loopback Basic Auth fixture from add/open/browse through scan with the TV-style remote source card layout; SMB GUI smoke covers a real authenticated share fixture under the approved `临时文件\测试` directory, defaults to the approved `ynsz` smoke credentials, and redacts credentials from stored evidence. |
@@ -32,7 +32,7 @@ The port is complete only when all of these are proven by current evidence:
 | mpv playback | Implemented foundation | Desktop Player keeps mpv/RIFE controls behind a TV-like playback stage; `tools/smoke-desktop-mpv-launch-ui.ps1` now generates a local Y4M sample, launches it through the Windows GUI, confirms an `mpv.exe` child process, exercises Pause/-10s/+30s/Stop by keyboard focus, verifies progress persistence, and captures launched/keyboard-control/stopped Player screens. |
 | RIFE runtime | Partial | Runtime structure and scripts are tracked; desktop launch keeps RIFE opt-in by default and missing mpv/RIFE launch errors now point users to Check runtime, prepare a backend, or turn RIFE off. Local machine RIFE playback is non-blocking because this host is not expected to run interpolation well. Backend matrix remains target-host validation. |
 | Cloud/RSS | Partial | Loopback tests exist and the desktop Settings UI now exposes Cloud/RSS as TV-style overview/config/subscription cards; real CloudDrive2 dry-run/live evidence still open. |
-| Release packaging | Partial | Lightweight install works; full bundled runtime artifact QA remains open. |
+| Release packaging | Partial | Lightweight install works; full bundled runtime `distZip` now has a packaged mpv/RIFE smoke gate. Installer/signing/target-host runtime validation remain open. |
 
 ## Work Plan
 
@@ -140,9 +140,9 @@ Verification:
 
 ### Phase 5: Release Readiness
 
-- [ ] Build lightweight Windows install for GUI QA.
-- [ ] Build full Windows distribution with bundled runtime source.
-- [ ] Run `mpv.exe --version` smoke from packaged runtime.
+- [x] Build lightweight Windows install for GUI QA.
+- [x] Build full Windows distribution with bundled runtime source.
+- [x] Run `mpv.exe --version` smoke for the runtime used in the packaged distribution and verify packaged runtime zip entries.
 - [ ] Run RIFE matrix on target hardware; DirectML is target-host validation, NVIDIA depends on CUDA/TensorRT driver compatibility, Standard requires a plugin decision.
 - [ ] Keep CI green for Android and desktop/shared JVM gates.
 
@@ -154,10 +154,14 @@ Verification:
   :core:model:test :repository-api:test :player-mpv:test `
   :cloud-drive-desktop:test :sync-engine-desktop:test :desktop-app:test `
   :desktop-app:installDist -PbundleMpvRuntime=false
-.\gradlew.bat :desktop-app:distZip -PmpvRuntimeSource=runtime\mpv -PrequireMpvRuntime=true -PrunMpvSmoke=true
+.\gradlew.bat :desktop-app:smokePackagedMpvRuntime `
+  -PmpvRuntimeSource=runtime\mpv `
+  -PrequireMpvRuntime=true `
+  -PrequiredRifeBackends=NVIDIA,DIRECTML
 ```
 
 ## Immediate Next Actions
 
-1. Continue narrowing deeper desktop-vs-Android-TV UI gaps beyond the first screens, especially less-traveled keyboard/DPAD focus paths outside the now-covered Settings category menu, desktop route rail, Library poster wall, remote browser list, Player transport controls, and Bangumi metadata lists.
-2. Continue moving large desktop UI state/use cases out of `MiruPlayDesktopComposeApp.kt` where they can be shared or tested independently.
+1. Run real CloudDrive2 dry-run/live QA and record token-free evidence for sync, organize, scheduler timing, and source rescan.
+2. Run RIFE backend matrix on target Windows hardware with the packaged runtime and record the JSON report.
+3. Continue narrowing deeper desktop-vs-Android-TV UI gaps beyond the first screens, especially less-traveled keyboard/DPAD focus paths outside the now-covered Settings category menu, desktop route rail, Library poster wall, remote browser list, Player transport controls, and Bangumi metadata lists.
