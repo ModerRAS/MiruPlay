@@ -234,6 +234,8 @@ $runDir = Join-Path $resolvedOutputRoot $runName
 $storePath = Join-Path $runDir "store\desktop-store.json"
 $sourceScreenshotPath = Join-Path $runDir "keyboard-settings-sources.png"
 $cloudScreenshotPath = Join-Path $runDir "keyboard-settings-cloud.png"
+$navDetailsScreenshotPath = Join-Path $runDir "keyboard-nav-details.png"
+$navPlayerScreenshotPath = Join-Path $runDir "keyboard-nav-player.png"
 New-Item -ItemType Directory -Path (Split-Path -Parent $storePath) -Force | Out-Null
 New-Item -ItemType Directory -Path $runDir -Force | Out-Null
 
@@ -252,6 +254,13 @@ try {
     Send-DesktopKey -Process $windowProcess -Key "{DOWN}"
     Save-WindowScreenshot -Process $windowProcess -Path $cloudScreenshotPath
     Assert-ContentRegionChanged -BeforePath $sourceScreenshotPath -AfterPath $cloudScreenshotPath
+
+    Invoke-RelativeClick -Process $windowProcess -X 170 -Y 286
+    Save-WindowScreenshot -Process $windowProcess -Path $navDetailsScreenshotPath
+
+    Send-DesktopKey -Process $windowProcess -Key "{DOWN}"
+    Save-WindowScreenshot -Process $windowProcess -Path $navPlayerScreenshotPath
+    Assert-ContentRegionChanged -BeforePath $navDetailsScreenshotPath -AfterPath $navPlayerScreenshotPath
 } finally {
     $env:MIRUPLAY_DESKTOP_STORE = $previousStoreEnv
     if (-not $KeepOpen) {
@@ -272,3 +281,5 @@ try {
 Write-Output "Run directory: $runDir"
 Write-Output "Sources screenshot: $sourceScreenshotPath"
 Write-Output "CloudDrive screenshot: $cloudScreenshotPath"
+Write-Output "Navigation details screenshot: $navDetailsScreenshotPath"
+Write-Output "Navigation player screenshot: $navPlayerScreenshotPath"
