@@ -1,7 +1,9 @@
 package com.miruplay.tv.desktop
 
+import androidx.compose.ui.input.key.Key
 import com.miruplay.tv.repository.MediaIndexEntry
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -36,6 +38,37 @@ class DesktopPosterGroupingTest {
         val rows = groups.toPosterWallRows()
 
         assertEquals(listOf(6, 6, 1), rows.map { it.size })
+    }
+
+    @Test
+    fun `poster wall down navigation lands on nearest poster in short next row`() {
+        val groups = (1..8).map { index ->
+            DesktopPosterGroup(
+                title = "Show $index",
+                entries = listOf(MediaIndexEntry(sourceId = 1, path = "show-$index.mkv")),
+            )
+        }
+
+        assertEquals("Show 7", groups.posterNavigationTarget(currentIndex = 0, key = Key.DirectionDown)?.title)
+        assertEquals("Show 8", groups.posterNavigationTarget(currentIndex = 1, key = Key.DirectionDown)?.title)
+        assertEquals("Show 8", groups.posterNavigationTarget(currentIndex = 4, key = Key.DirectionDown)?.title)
+        assertEquals("Show 8", groups.posterNavigationTarget(currentIndex = 5, key = Key.DirectionDown)?.title)
+        assertNull(groups.posterNavigationTarget(currentIndex = 6, key = Key.DirectionDown))
+    }
+
+    @Test
+    fun `poster wall horizontal navigation stays inside visual rows`() {
+        val groups = (1..8).map { index ->
+            DesktopPosterGroup(
+                title = "Show $index",
+                entries = listOf(MediaIndexEntry(sourceId = 1, path = "show-$index.mkv")),
+            )
+        }
+
+        assertNull(groups.posterNavigationTarget(currentIndex = 5, key = Key.DirectionRight))
+        assertNull(groups.posterNavigationTarget(currentIndex = 6, key = Key.DirectionLeft))
+        assertEquals("Show 8", groups.posterNavigationTarget(currentIndex = 6, key = Key.DirectionRight)?.title)
+        assertNull(groups.posterNavigationTarget(currentIndex = 7, key = Key.DirectionRight))
     }
 
     @Test
