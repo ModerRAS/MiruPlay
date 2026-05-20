@@ -930,6 +930,14 @@ internal fun MiruPlayDesktopComposeApp() {
                         scanCurrentSource { remoteStatus = it }
                     }
                 },
+                onEntryFocused = { entry ->
+                    selectedRemoteEntry = entry
+                    if (!entry.isDirectory) {
+                        selectedIndexEntry = null
+                        mediaPath = entry.path
+                        launchStatus = entry.selectedRemoteForPlaybackStatus()
+                    }
+                },
                 onEntrySelected = { entry ->
                     selectedRemoteEntry = entry
                     val source = activeSource

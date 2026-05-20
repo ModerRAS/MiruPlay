@@ -628,6 +628,8 @@ $serverReadyPath = Join-Path $runDir "fixture-server.ready"
 $serverLogPath = Join-Path $runDir "fixture-server.log"
 $openScreenshotPath = Join-Path $runDir "webdav-source-opened.png"
 $browseScreenshotPath = Join-Path $runDir "webdav-source-browsed.png"
+$keyboardBrowseScreenshotPath = Join-Path $runDir "webdav-source-keyboard-browse.png"
+$keyboardSelectScreenshotPath = Join-Path $runDir "webdav-source-keyboard-select.png"
 $scanScreenshotPath = Join-Path $runDir "webdav-source-scanned.png"
 $posterScreenshotPath = Join-Path $runDir "webdav-source-poster-wall.png"
 $detailsScreenshotPath = Join-Path $runDir "webdav-source-details.png"
@@ -681,6 +683,10 @@ try {
     Wait-FileText -Path $serverLogPath -Pattern "PROPFIND\|Fixture WebDAV\|auth=True" -Description "authorized Fixture WebDAV directory PROPFIND"
     Start-Sleep -Milliseconds 900
     Save-WindowScreenshot -Process $windowProcess -Path $browseScreenshotPath
+    Send-AppKeys -Process $windowProcess -Keys "{DOWN}" -DelayMilliseconds 700
+    Save-WindowScreenshot -Process $windowProcess -Path $keyboardBrowseScreenshotPath
+    Send-AppKeys -Process $windowProcess -Keys "{ENTER}" -DelayMilliseconds 700
+    Save-WindowScreenshot -Process $windowProcess -Path $keyboardSelectScreenshotPath
 
     Invoke-RelativeClick -Process $windowProcess -X 295 -Y 681
     $state = Wait-StoreState -Path $storePath -Description "scanned WebDAV index entry" -Predicate {
@@ -751,6 +757,8 @@ Write-Output "Store: $storePath"
 Write-Output "Fixture server log: $serverLogPath"
 Write-Output "Open screenshot: $openScreenshotPath"
 Write-Output "Browse screenshot: $browseScreenshotPath"
+Write-Output "Keyboard browse screenshot: $keyboardBrowseScreenshotPath"
+Write-Output "Keyboard select screenshot: $keyboardSelectScreenshotPath"
 Write-Output "Scan screenshot: $scanScreenshotPath"
 Write-Output "Poster wall screenshot: $posterScreenshotPath"
 Write-Output "Details screenshot: $detailsScreenshotPath"
