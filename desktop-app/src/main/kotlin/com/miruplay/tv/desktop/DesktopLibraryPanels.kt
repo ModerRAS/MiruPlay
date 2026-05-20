@@ -325,7 +325,7 @@ private fun LibraryControlBar(
             }
         }
         Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
-        StatusBox(status)
+        StatusBox(desktopLibraryStatusText(status))
     }
 }
 
@@ -858,7 +858,7 @@ internal fun RemoteSourcesPanel(
                     TvActionButton(labels.scanSource, onClick = onScan, secondary = true)
                 }
             }
-            StatusBox(status)
+            StatusBox(desktopLibraryStatusText(status))
         }
         RemoteBrowserPanel(
             remotePath = remotePath,
@@ -1134,3 +1134,106 @@ internal fun desktopLibrarySourceLabels(): DesktopLibrarySourceLabels =
         up = "上级",
         remoteEmpty = "先打开一个远程媒体源以浏览文件。",
     )
+
+private val loadedSourceStatusRegex = Regex("""^Loaded( saved)? (local|WebDAV|SMB) source: (.+)$""")
+private val readySourceStatusRegex = Regex("""^(Local|WebDAV|SMB) source ready: (.+)$""")
+private val scanCompleteStatusRegex = Regex("""^Scan complete: (\d+) videos, (\d+) directories\.$""")
+private val rescanCompleteStatusRegex = Regex("""^Rescan complete: (\d+) videos, (\d+) directories\.$""")
+private val indexClearedStatusRegex = Regex("""^Index cleared for source id: (\d+)\.$""")
+private val loadingRemoteStatusRegex = Regex("""^Loading (LOCAL|WEBDAV|SMB) (.+)\.\.\.$""")
+private val showingRemoteStatusRegex = Regex("""^Showing (\d+) item\(s\) from (.+)\.$""")
+private val remotePlaybackStatusRegex = Regex("""^Selected remote media: (.+)\. mpv will stream through the local bridge\.$""")
+private val selectedPlaybackStatusRegex = Regex("""^Selected (.+) for playback\.$""")
+private val indexedNoMatchStatusRegex = Regex("""^No indexed media matched "(.*)"\.$""")
+private val indexedResultStatusRegex = Regex("""^Showing (\d+) indexed video result\(s\)\.$""")
+
+internal fun desktopLibraryStatusText(status: String): String =
+    when {
+        status == "Add a local library source or load an existing one." ->
+            "添加本地媒体源，或载入已保存的媒体源。"
+        status == "Open a WebDAV or SMB source to browse it." ->
+            "打开 WebDAV 或 SMB 媒体源后即可浏览文件。"
+        status == "Enter a local library root first." ->
+            "请先填写本地媒体库路径。"
+        status == "Enter a WebDAV URL first." ->
+            "请先填写 WebDAV 地址。"
+        status == "Enter an SMB URL first." ->
+            "请先填写 SMB 地址。"
+        status == "Open a source before scanning." ->
+            "请先打开媒体源，再开始扫描。"
+        status == "Open or scan a source before searching." ->
+            "请先打开或扫描媒体源，再搜索。"
+        status == "Open or scan a source before clearing its index." ->
+            "请先打开或扫描媒体源，再清空索引。"
+        status == "Open a source before removing it." ->
+            "请先打开媒体源，再移除。"
+        status == "Source removed. Associated index entries were cleared." ->
+            "媒体源已移除，关联索引已清空。"
+        status == "Already at the source root." ->
+            "已经在媒体源根目录。"
+        status == "Open a remote source before browsing." ->
+            "请先打开远程媒体源，再浏览。"
+        else -> desktopLibraryDynamicStatusText(status) ?: status
+    }
+
+private fun desktopLibraryDynamicStatusText(status: String): String? {
+    loadedSourceStatusRegex.matchEntire(status)?.let { match ->
+        val saved = match.groupValues[1].isNotBlank()
+        val type = match.groupValues[2].desktopSourceTypeLabel()
+        val name = match.groupValues[3]
+        return if (saved) {
+            "已载入已保存媒体源：$name · $type"
+        } else {
+            "已载入媒体源：$name · $type"
+        }
+    }
+    readySourceStatusRegex.matchEntire(status)?.let { match ->
+        val type = match.groupValues[1].desktopSourceTypeLabel()
+        val sourceType = if (type == "本地") "${type}媒体源" else "$type 媒体源"
+        return "${sourceType}已就绪：${match.groupValues[2]}"
+    }
+    status.removePrefix("Scanning ").takeIf { it != status && it.endsWith("...") }?.let { name ->
+        return "正在扫描：${name.removeSuffix("...")}"
+    }
+    scanCompleteStatusRegex.matchEntire(status)?.let { match ->
+        return "扫描完成：${match.groupValues[1]} 个视频，${match.groupValues[2]} 个目录。"
+    }
+    rescanCompleteStatusRegex.matchEntire(status)?.let { match ->
+        return "重扫完成：${match.groupValues[1]} 个视频，${match.groupValues[2]} 个目录。"
+    }
+    indexClearedStatusRegex.matchEntire(status)?.let { match ->
+        return "已清空媒体源 #${match.groupValues[1]} 的索引。"
+    }
+    loadingRemoteStatusRegex.matchEntire(status)?.let { match ->
+        return "正在载入 ${match.groupValues[1].desktopSourceTypeLabel()}：${match.groupValues[2]}"
+    }
+    showingRemoteStatusRegex.matchEntire(status)?.let { match ->
+        return "${match.groupValues[2]} 中显示 ${match.groupValues[1]} 个条目。"
+    }
+    remotePlaybackStatusRegex.matchEntire(status)?.let { match ->
+        return "已选择远程媒体：${match.groupValues[1]}。mpv 将通过本地桥接串流。"
+    }
+    selectedPlaybackStatusRegex.matchEntire(status)?.let { match ->
+        return "已选择播放：${match.groupValues[1]}"
+    }
+    indexedNoMatchStatusRegex.matchEntire(status)?.let { match ->
+        return "没有匹配 \"${match.groupValues[1]}\" 的索引媒体。"
+    }
+    indexedResultStatusRegex.matchEntire(status)?.let { match ->
+        return "显示 ${match.groupValues[1]} 条索引视频结果。"
+    }
+    return null
+}
+
+private fun String.desktopSourceTypeLabel(): String =
+    when (this) {
+        "local",
+        "Local",
+        "LOCAL",
+        -> "本地"
+        "WebDAV",
+        "WEBDAV",
+        -> "WebDAV"
+        "SMB" -> "SMB"
+        else -> this
+    }

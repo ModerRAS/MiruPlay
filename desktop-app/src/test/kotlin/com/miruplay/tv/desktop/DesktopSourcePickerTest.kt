@@ -59,6 +59,39 @@ class DesktopSourcePickerTest {
     }
 
     @Test
+    fun `source management statuses use TV facing text`() {
+        assertEquals("添加本地媒体源，或载入已保存的媒体源。", desktopLibraryStatusText("Add a local library source or load an existing one."))
+        assertEquals("打开 WebDAV 或 SMB 媒体源后即可浏览文件。", desktopLibraryStatusText("Open a WebDAV or SMB source to browse it."))
+        assertEquals("请先填写本地媒体库路径。", desktopLibraryStatusText("Enter a local library root first."))
+        assertEquals("请先填写 WebDAV 地址。", desktopLibraryStatusText("Enter a WebDAV URL first."))
+        assertEquals("请先填写 SMB 地址。", desktopLibraryStatusText("Enter an SMB URL first."))
+        assertEquals("请先打开媒体源，再开始扫描。", desktopLibraryStatusText("Open a source before scanning."))
+        assertEquals("已载入媒体源：Library · 本地", desktopLibraryStatusText("Loaded local source: Library"))
+        assertEquals("已载入已保存媒体源：Library · 本地", desktopLibraryStatusText("Loaded saved local source: Library"))
+        assertEquals("WebDAV 媒体源已就绪：Cloud", desktopLibraryStatusText("WebDAV source ready: Cloud"))
+        assertEquals("正在扫描：Library", desktopLibraryStatusText("Scanning Library..."))
+        assertEquals("扫描完成：12 个视频，3 个目录。", desktopLibraryStatusText("Scan complete: 12 videos, 3 directories."))
+        assertEquals("重扫完成：12 个视频，3 个目录。", desktopLibraryStatusText("Rescan complete: 12 videos, 3 directories."))
+        assertEquals("请先打开或扫描媒体源，再搜索。", desktopLibraryStatusText("Open or scan a source before searching."))
+        assertEquals("请先打开或扫描媒体源，再清空索引。", desktopLibraryStatusText("Open or scan a source before clearing its index."))
+        assertEquals("已清空媒体源 #42 的索引。", desktopLibraryStatusText("Index cleared for source id: 42."))
+        assertEquals("请先打开媒体源，再移除。", desktopLibraryStatusText("Open a source before removing it."))
+        assertEquals("媒体源已移除，关联索引已清空。", desktopLibraryStatusText("Source removed. Associated index entries were cleared."))
+        assertEquals("已经在媒体源根目录。", desktopLibraryStatusText("Already at the source root."))
+        assertEquals("请先打开远程媒体源，再浏览。", desktopLibraryStatusText("Open a remote source before browsing."))
+        assertEquals("正在载入 WebDAV：/Anime", desktopLibraryStatusText("Loading WEBDAV /Anime..."))
+        assertEquals("Cloud 中显示 1 个条目。", desktopLibraryStatusText("Showing 1 item(s) from Cloud."))
+        assertEquals("已选择播放：Frieren EP1", desktopLibraryStatusText("Selected Frieren EP1 for playback."))
+        assertEquals(
+            "已选择远程媒体：Episode.mkv。mpv 将通过本地桥接串流。",
+            desktopLibraryStatusText("Selected remote media: Episode.mkv. mpv will stream through the local bridge."),
+        )
+        assertEquals("没有匹配 \"frieren\" 的索引媒体。", desktopLibraryStatusText("No indexed media matched \"frieren\"."))
+        assertEquals("显示 24 条索引视频结果。", desktopLibraryStatusText("Showing 24 indexed video result(s)."))
+        assertEquals("custom status", desktopLibraryStatusText("custom status"))
+    }
+
+    @Test
     fun `source picker subtitle compacts long paths from the middle`() {
         val source = MediaSourceInfoConventions.local(
             name = "Long Library",

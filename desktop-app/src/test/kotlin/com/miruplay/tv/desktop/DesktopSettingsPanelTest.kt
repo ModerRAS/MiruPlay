@@ -70,7 +70,7 @@ class DesktopSettingsPanelTest {
 
         assertEquals("11 条", scanTiles[0].value)
         assertEquals("SMB Share · SMB", scanTiles[1].value)
-        assertTrue(scanTiles[2].value.contains("Scan complete"))
+        assertEquals("扫描完成：11 个视频，4 个目录。", scanTiles[2].value)
         assertEquals("Fixture Beta", metadataTiles[0].value)
         assertEquals("已匹配：Fixture Beta", metadataTiles[1].value)
         assertEquals("11 条索引", metadataTiles[2].value)
