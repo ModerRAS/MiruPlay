@@ -13,7 +13,7 @@ The port is complete only when all of these are proven by current evidence:
 | Windows entry | Windows launches a Compose Desktop app, not Swing, with TV-like navigation and layout. | `:desktop-app:installDist`, `tools/capture-desktop-ui.ps1`, `checkDesktopComposeOnly`, `checkUiPaletteDrift`. |
 | Media sources | Windows can manage and browse Local, WebDAV, and SMB sources without Android-only APIs. | `:media-source-desktop:test`, GUI source add/open/browse smoke, remote stream bridge smoke. |
 | Library/index | Windows can scan, search, inspect details, clear source index, and delete sources. | `:scanner-desktop:test`, `:repository-desktop:test`, GUI library/detail smoke. |
-| Metadata | Windows can search/apply/clear Bangumi metadata and run batch review/apply/undo. | `:scraper-desktop:test`, `:repository-api:test`, `:desktop-app:test`, GUI details smoke. |
+| Metadata | Windows can search/apply/clear Bangumi metadata and run batch review/apply/undo. | `:scraper-desktop:test`, `:scraper-desktop:smokeBangumiLive`, `:repository-api:test`, `:desktop-app:test`, GUI details smoke. |
 | Playback | Windows plays through mpv, supports RIFE toggle/backend selection, IPC pause/seek/stop, progress persistence, and remote playback through a credential-isolating loopback bridge. | `:player-mpv:test`, `:desktop-app:test`, mpv launch smoke with a local sample file, remote playback command security test. |
 | mpv/RIFE runtime | Windows distribution can bundle or locate a verified mpv runtime with RIFE-capable scripts. | `:desktop-app:smokeMpvRuntime`, `:desktop-app:smokePackagedMpvRuntime`, `tools/smoke-mpv-rife.ps1`, runtime manifest evidence. |
 | Cloud/RSS | Windows can configure CloudDrive2/RSS, dry-run safely, and run confirmed live submit/organize flows. | `:cloud-drive-desktop:test`, `:sync-engine-desktop:test`, dry-run report, explicit live QA report. |
@@ -28,7 +28,7 @@ The port is complete only when all of these are proven by current evidence:
 | Shared UI palette | Covered structurally | `:ui-design` owns shared palette; drift check exists. |
 | Local/WebDAV/SMB desktop sources | Implemented | Local source GUI smoke now covers generated fixture and a real local library path; WebDAV GUI smoke covers a loopback Basic Auth fixture from add/open/browse through scan with the TV-style remote source card layout; SMB GUI smoke covers a real authenticated share fixture under the approved `临时文件\测试` directory, defaults to the approved `ynsz` smoke credentials, and redacts credentials from stored evidence. |
 | Library/index/details | Implemented foundation | Local scan/index, WebDAV scan/index, SMB scan/index, clear-index/remove-source, long-path saved-source display, remote endpoint/path preview, TV-style poster-wall selection, details hero, and player handoff GUI smoke now passes for generated fixtures; local smoke also passes against `D:\Software\dufs` with the scanned Library opening directly on the poster wall. |
-| Bangumi metadata | Implemented foundation | Unit coverage exists; live network behavior needs manual/smoke evidence. |
+| Bangumi metadata | Implemented foundation | Unit coverage exists for desktop navigation and offline scraper parsing. `:scraper-desktop:smokeBangumiLive` now verifies live Bangumi search/details/episodes and writes a token-free JSON report. |
 | mpv playback | Implemented foundation | Desktop Player keeps mpv/RIFE controls behind a TV-like playback stage; `tools/smoke-desktop-mpv-launch-ui.ps1` now generates a local Y4M sample, launches it through the Windows GUI, confirms an `mpv.exe` child process, exercises Pause/-10s/+30s/Stop by keyboard focus, verifies progress persistence, and captures launched/keyboard-control/stopped Player screens. |
 | RIFE runtime | Partial | Runtime structure and scripts are tracked; desktop launch keeps RIFE opt-in by default and missing mpv/RIFE launch errors now point users to Check runtime, prepare a backend, or turn RIFE off. Local machine RIFE playback is non-blocking because this host is not expected to run interpolation well. Backend matrix remains target-host validation. |
 | Cloud/RSS | Partial | Loopback tests exist and the desktop Settings UI now exposes Cloud/RSS as TV-style overview/config/subscription cards; real CloudDrive2 dry-run/live evidence still open. |
@@ -83,6 +83,7 @@ Verification:
 - [x] GUI smoke: inspect details by clicking a poster-wall item and select scanned local media for player handoff.
 - [x] GUI smoke: repeat the local source flow against `D:\Software\dufs`.
 - [x] GUI smoke: search scanned local index from the query field in the poster-wall layout.
+- [x] Add a live Bangumi scraper smoke for search, subject details, and episode listing.
 - [x] GUI smoke: add/open WebDAV source using a local/loopback fixture where possible.
 - [x] GUI smoke: add/open SMB source against a real Windows fixture share without touching unrelated share files.
 - [x] Confirm clear-source-index and remove-source flows keep repository state consistent.
@@ -92,6 +93,7 @@ Verification:
 
 ```powershell
 .\gradlew.bat :media-source-desktop:test :scanner-desktop:test :repository-desktop:test :desktop-app:test
+.\gradlew.bat :scraper-desktop:test :scraper-desktop:smokeBangumiLive -PbangumiSmokeReportPath=build\bangumi-smoke\live-report.json
 .\tools\capture-desktop-ui.ps1
 .\tools\smoke-desktop-keyboard-focus-ui.ps1
 .\tools\smoke-desktop-local-source-ui.ps1
