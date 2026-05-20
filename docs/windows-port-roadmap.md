@@ -32,7 +32,7 @@ The port is complete only when all of these are proven by current evidence:
 | mpv playback | Implemented foundation | Desktop Player keeps mpv/RIFE controls behind a TV-like playback stage; `tools/smoke-desktop-mpv-launch-ui.ps1` now generates a local Y4M sample, launches it through the Windows GUI, confirms an `mpv.exe` child process, exercises Pause/-10s/+30s/Stop by keyboard focus, verifies progress persistence, and captures launched/keyboard-control/stopped Player screens. |
 | RIFE runtime | Partial | Runtime structure and scripts are tracked; desktop launch keeps RIFE opt-in by default and missing mpv/RIFE launch errors now point users to Check runtime, prepare a backend, or turn RIFE off. Local machine RIFE playback is non-blocking because this host is not expected to run interpolation well. Backend matrix remains target-host validation. |
 | Cloud/RSS | Partial | Loopback tests exist and the desktop Settings UI now exposes Cloud/RSS as TV-style overview/config/subscription cards. RSS subscription rows now support keyboard `Up`/`Down` movement and the Settings keyboard smoke captures the first and second selected subscriptions in `build/desktop-keyboard-focus-ui/run-20260520-141716`. Real CloudDrive2 dry-run/live evidence still open. |
-| Release packaging | Partial | Lightweight install works; full bundled runtime `distZip` now has a packaged mpv/RIFE smoke gate. `tools/verify-windows-port.ps1` now provides a repeatable local gate with safe defaults and opt-in GUI, real-library, Android TV, SMB, mpv-runtime, and RIFE checks. Installer/signing/target-host runtime validation remain open. |
+| Release packaging | Partial | Lightweight install works; full bundled runtime `distZip` now has a packaged mpv/RIFE smoke gate. `tools/verify-windows-port.ps1` now provides a repeatable local gate with safe defaults, automatically selects JDK 21 on Windows when available, and keeps GUI, real-library, Android TV, SMB, mpv-runtime, and RIFE checks opt-in. Installer/signing/target-host runtime validation remain open. |
 
 ## Work Plan
 
@@ -166,6 +166,8 @@ Verification:
 
 ```powershell
 .\tools\verify-windows-port.ps1
+
+# Uses JDK 21 automatically when available; set JAVA21_HOME or JDK21_HOME to override discovery.
 
 # Optional live/device/runtime gates:
 .\tools\verify-windows-port.ps1 -Gui
