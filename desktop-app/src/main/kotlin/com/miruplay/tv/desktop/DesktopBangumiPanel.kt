@@ -12,10 +12,19 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -54,6 +63,63 @@ internal fun BangumiPanel(
     onApply: () -> Unit,
     onClear: () -> Unit,
 ) {
+    val visibleBatchMatches = remember(batchMatches) { batchMatches.take(BANGUMI_BATCH_MATCH_LIMIT) }
+    val visibleBatchCandidates = remember(selectedBatchMatch) {
+        selectedBatchMatch
+            ?.takeIf { it.candidates.size > 1 }
+            ?.candidates
+            ?.take(BANGUMI_CANDIDATE_LIMIT)
+            .orEmpty()
+    }
+    val visibleResults = remember(results) { results.take(BANGUMI_RESULT_LIMIT) }
+    val batchFocusRequesters = remember(visibleBatchMatches.map { it.query }) {
+        List(visibleBatchMatches.size) { FocusRequester() }
+    }
+    val candidateFocusRequesters = remember(visibleBatchCandidates.map { it.animeId to it.title }) {
+        List(visibleBatchCandidates.size) { FocusRequester() }
+    }
+    val resultFocusRequesters = remember(visibleResults.map { it.animeId to it.title }) {
+        List(visibleResults.size) { FocusRequester() }
+    }
+
+    fun selectAndFocus(position: BangumiListPosition): Boolean =
+        when (position.section) {
+            BangumiListSection.BatchMatches -> {
+                val match = visibleBatchMatches.getOrNull(position.index) ?: return false
+                onBatchMatchSelected(match)
+                batchFocusRequesters.getOrNull(position.index)?.requestFocus()
+                true
+            }
+            BangumiListSection.BatchCandidates -> {
+                val match = selectedBatchMatch ?: return false
+                val candidate = visibleBatchCandidates.getOrNull(position.index) ?: return false
+                onBatchCandidateSelected(match, candidate)
+                candidateFocusRequesters.getOrNull(position.index)?.requestFocus()
+                true
+            }
+            BangumiListSection.SearchResults -> {
+                val result = visibleResults.getOrNull(position.index) ?: return false
+                onResultSelected(result)
+                resultFocusRequesters.getOrNull(position.index)?.requestFocus()
+                true
+            }
+        }
+
+    LaunchedEffect(
+        visibleBatchMatches,
+        visibleResults,
+        selectedBatchMatch?.query,
+        selectedResult?.animeId,
+    ) {
+        if (visibleBatchMatches.isNotEmpty()) {
+            val selectedIndex = visibleBatchMatches.indexOfFirst { it.query == selectedBatchMatch?.query }.coerceAtLeast(0)
+            batchFocusRequesters.getOrNull(selectedIndex)?.requestFocus()
+        } else if (visibleResults.isNotEmpty()) {
+            val selectedIndex = visibleResults.indexOfFirst { it.animeId == selectedResult?.animeId }.coerceAtLeast(0)
+            resultFocusRequesters.getOrNull(selectedIndex)?.requestFocus()
+        }
+    }
+
     TvPanel(Modifier.fillMaxWidth()) {
         Row(
             horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp),
@@ -102,44 +168,74 @@ internal fun BangumiPanel(
                 Text("Selected index", color = TextPrimary, fontSize = MiruPlayUiMetrics.SECTION_SUBTITLE_SP.sp, fontWeight = FontWeight.SemiBold)
                 SelectedIndexSummary(selectedIndexEntry)
                 Text("Bangumi matches", color = TextPrimary, fontSize = MiruPlayUiMetrics.SECTION_SUBTITLE_SP.sp, fontWeight = FontWeight.SemiBold)
-                if (batchMatches.isNotEmpty()) {
+                if (visibleBatchMatches.isNotEmpty()) {
                     Text(
                         "Batch: ${batchMatches.size} quer${if (batchMatches.size == 1) "y" else "ies"} previewed",
                         color = TextSecondary,
                         fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
                     )
-                    batchMatches.take(4).forEach { match ->
+                    visibleBatchMatches.forEachIndexed { index, match ->
                         BangumiBatchMatchRow(
                             match = match,
                             selected = selectedBatchMatch?.query == match.query,
                             status = batchPlan.statusFor(match),
                             onClick = { onBatchMatchSelected(match) },
+                            onNavigationKey = { key ->
+                                bangumiListNavigationTarget(
+                                    current = BangumiListPosition(BangumiListSection.BatchMatches, index),
+                                    key = key,
+                                    batchMatchCount = visibleBatchMatches.size,
+                                    candidateCount = visibleBatchCandidates.size,
+                                    resultCount = visibleResults.size,
+                                )?.let(::selectAndFocus) ?: false
+                            },
+                            modifier = Modifier.focusRequester(batchFocusRequesters[index]),
                         )
                     }
                 }
-                selectedBatchMatch?.takeIf { it.candidates.size > 1 }?.let { match ->
+                selectedBatchMatch?.takeIf { visibleBatchCandidates.isNotEmpty() }?.let { match ->
                     Text(
                         "Batch candidates",
                         color = TextPrimary,
                         fontSize = MiruPlayUiMetrics.SECTION_SUBTITLE_SP.sp,
                         fontWeight = FontWeight.SemiBold,
                     )
-                    match.candidates.take(4).forEach { candidate ->
+                    visibleBatchCandidates.forEachIndexed { index, candidate ->
                         BangumiResultRow(
                             result = candidate,
                             selected = candidate.isSameCandidate(match.result),
                             onClick = { onBatchCandidateSelected(match, candidate) },
+                            onNavigationKey = { key ->
+                                bangumiListNavigationTarget(
+                                    current = BangumiListPosition(BangumiListSection.BatchCandidates, index),
+                                    key = key,
+                                    batchMatchCount = visibleBatchMatches.size,
+                                    candidateCount = visibleBatchCandidates.size,
+                                    resultCount = visibleResults.size,
+                                )?.let(::selectAndFocus) ?: false
+                            },
+                            modifier = Modifier.focusRequester(candidateFocusRequesters[index]),
                         )
                     }
                 }
-                if (results.isEmpty()) {
+                if (visibleResults.isEmpty()) {
                     DesktopEmptyState("Search to show Bangumi matches.")
                 } else {
-                    results.take(6).forEach { result ->
+                    visibleResults.forEachIndexed { index, result ->
                         BangumiResultRow(
                             result = result,
                             selected = selectedResult?.animeId == result.animeId,
                             onClick = { onResultSelected(result) },
+                            onNavigationKey = { key ->
+                                bangumiListNavigationTarget(
+                                    current = BangumiListPosition(BangumiListSection.SearchResults, index),
+                                    key = key,
+                                    batchMatchCount = visibleBatchMatches.size,
+                                    candidateCount = visibleBatchCandidates.size,
+                                    resultCount = visibleResults.size,
+                                )?.let(::selectAndFocus) ?: false
+                            },
+                            modifier = Modifier.focusRequester(resultFocusRequesters[index]),
                         )
                     }
                 }
@@ -194,8 +290,21 @@ private fun BangumiResultRow(
     result: ScraperResult,
     selected: Boolean,
     onClick: () -> Unit,
+    onNavigationKey: (Key) -> Boolean = { false },
+    modifier: Modifier = Modifier,
 ) {
-    DesktopSelectableRow(selected = selected, onClick = onClick) { active ->
+    DesktopSelectableRow(
+        selected = selected,
+        onClick = onClick,
+        modifier = modifier.onPreviewKeyEvent { event ->
+            bangumiRowKeyEvent(
+                key = event.key,
+                type = event.type,
+                onClick = onClick,
+                onNavigationKey = onNavigationKey,
+            )
+        },
+    ) { active ->
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.DETAIL_MEDIA_PADDING_DP.dp),
@@ -235,11 +344,21 @@ private fun BangumiBatchMatchRow(
     selected: Boolean,
     status: String,
     onClick: () -> Unit,
+    onNavigationKey: (Key) -> Boolean = { false },
+    modifier: Modifier = Modifier,
 ) {
     val result = match.result
     DesktopSelectableRow(
         selected = selected,
         onClick = onClick,
+        modifier = modifier.onPreviewKeyEvent { event ->
+            bangumiRowKeyEvent(
+                key = event.key,
+                type = event.type,
+                onClick = onClick,
+                onNavigationKey = onNavigationKey,
+            )
+        },
         heightDp = MiruPlayUiMetrics.LIST_ROW_COMPACT_HEIGHT_DP,
         inactiveAlpha = 0.44f,
     ) { _ ->
@@ -280,5 +399,84 @@ private fun BangumiBatchMatchRow(
                 )
             }
         }
+    }
+}
+
+private const val BANGUMI_BATCH_MATCH_LIMIT = 4
+private const val BANGUMI_CANDIDATE_LIMIT = 4
+private const val BANGUMI_RESULT_LIMIT = 6
+
+internal enum class BangumiListSection {
+    BatchMatches,
+    BatchCandidates,
+    SearchResults,
+}
+
+internal data class BangumiListPosition(
+    val section: BangumiListSection,
+    val index: Int,
+)
+
+internal fun bangumiListNavigationTarget(
+    current: BangumiListPosition,
+    key: Key,
+    batchMatchCount: Int,
+    candidateCount: Int,
+    resultCount: Int,
+): BangumiListPosition? {
+    val visibleRows = buildList {
+        repeat(batchMatchCount.coerceIn(0, BANGUMI_BATCH_MATCH_LIMIT)) { index ->
+            add(BangumiListPosition(BangumiListSection.BatchMatches, index))
+        }
+        repeat(candidateCount.coerceIn(0, BANGUMI_CANDIDATE_LIMIT)) { index ->
+            add(BangumiListPosition(BangumiListSection.BatchCandidates, index))
+        }
+        repeat(resultCount.coerceIn(0, BANGUMI_RESULT_LIMIT)) { index ->
+            add(BangumiListPosition(BangumiListSection.SearchResults, index))
+        }
+    }
+    val currentIndex = visibleRows.indexOf(current)
+    if (currentIndex < 0) return null
+    val targetIndex = when (key) {
+        Key.DirectionRight -> {
+            if (current.section == BangumiListSection.BatchMatches && candidateCount > 0) {
+                return BangumiListPosition(
+                    section = BangumiListSection.BatchCandidates,
+                    index = current.index.coerceAtMost(candidateCount.coerceAtMost(BANGUMI_CANDIDATE_LIMIT) - 1),
+                )
+            }
+            return null
+        }
+        Key.DirectionLeft -> {
+            if (current.section == BangumiListSection.BatchCandidates && batchMatchCount > 0) {
+                return BangumiListPosition(
+                    section = BangumiListSection.BatchMatches,
+                    index = current.index.coerceAtMost(batchMatchCount.coerceAtMost(BANGUMI_BATCH_MATCH_LIMIT) - 1),
+                )
+            }
+            return null
+        }
+        Key.DirectionDown -> currentIndex + 1
+        Key.DirectionUp -> currentIndex - 1
+        else -> return null
+    }
+    return visibleRows.getOrNull(targetIndex)
+}
+
+private fun bangumiRowKeyEvent(
+    key: Key,
+    type: KeyEventType,
+    onClick: () -> Unit,
+    onNavigationKey: (Key) -> Boolean,
+): Boolean {
+    if (type != KeyEventType.KeyDown) return false
+    return when (key) {
+        Key.Enter,
+        Key.NumPadEnter,
+        -> {
+            onClick()
+            true
+        }
+        else -> onNavigationKey(key)
     }
 }
