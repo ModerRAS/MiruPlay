@@ -220,6 +220,59 @@ function Assert-ContentRegionChanged {
     }
 }
 
+function Write-InitialStore {
+    param([string]$Path)
+
+    $json = @{
+        nextSourceId = 1
+        nextRssSubscriptionId = 3
+        nextRssDownloadTaskId = 1
+        mediaSources = @()
+        progress = @()
+        index = @()
+        indexBatchUndo = @()
+        cloudDriveConfig = @{
+            endpointUrl = "http://127.0.0.1:19798"
+            username = "desktop-smoke"
+            webDavSourceId = $null
+            inboxPath = "/Downloads/RSS"
+            libraryPath = "/Library/Anime"
+            intervalMinutes = 30
+            enabled = $true
+            lastRunAt = 0
+            rssProxyEnabled = $false
+            rssProxyHost = ""
+            rssProxyPort = 1080
+        }
+        rssSubscriptions = @(
+            @{
+                id = 1
+                name = "Keyboard RSS Alpha"
+                url = "https://rss.example.test/alpha.xml"
+                filterRegex = "Alpha"
+                enabled = $true
+                lastCheckedAt = 0
+            },
+            @{
+                id = 2
+                name = "Keyboard RSS Beta"
+                url = "https://rss.example.test/beta.xml"
+                filterRegex = "Beta"
+                enabled = $true
+                lastCheckedAt = 0
+            }
+        )
+        rssProcessedItems = @()
+        rssDownloadTasks = @()
+        cloudDriveToken = $null
+        cloudDrivePassword = $null
+        bangumiAccessToken = $null
+    } | ConvertTo-Json -Depth 12
+
+    New-Item -ItemType Directory -Path (Split-Path -Parent $Path) -Force | Out-Null
+    Set-Content -LiteralPath $Path -Value $json -Encoding UTF8
+}
+
 $resolvedAppScript = Resolve-FullPath $AppScript
 $resolvedOutputRoot = Resolve-FullPath $OutputRoot
 if (-not (Test-Path -LiteralPath $resolvedAppScript)) {
@@ -234,10 +287,13 @@ $runDir = Join-Path $resolvedOutputRoot $runName
 $storePath = Join-Path $runDir "store\desktop-store.json"
 $sourceScreenshotPath = Join-Path $runDir "keyboard-settings-sources.png"
 $cloudScreenshotPath = Join-Path $runDir "keyboard-settings-cloud.png"
+$rssFirstScreenshotPath = Join-Path $runDir "keyboard-settings-rss-first.png"
+$rssSecondScreenshotPath = Join-Path $runDir "keyboard-settings-rss-second.png"
 $navDetailsScreenshotPath = Join-Path $runDir "keyboard-nav-details.png"
 $navPlayerScreenshotPath = Join-Path $runDir "keyboard-nav-player.png"
 New-Item -ItemType Directory -Path (Split-Path -Parent $storePath) -Force | Out-Null
 New-Item -ItemType Directory -Path $runDir -Force | Out-Null
+Write-InitialStore -Path $storePath
 
 $previousStoreEnv = $env:MIRUPLAY_DESKTOP_STORE
 $env:MIRUPLAY_DESKTOP_STORE = $storePath
@@ -255,9 +311,18 @@ try {
     Save-WindowScreenshot -Process $windowProcess -Path $cloudScreenshotPath
     Assert-ContentRegionChanged -BeforePath $sourceScreenshotPath -AfterPath $cloudScreenshotPath
 
+    Invoke-RelativeClick -Process $windowProcess -X 1080 -Y 765
+    Save-WindowScreenshot -Process $windowProcess -Path $rssFirstScreenshotPath
+    Assert-ContentRegionChanged -BeforePath $cloudScreenshotPath -AfterPath $rssFirstScreenshotPath -MinimumChangedRatio 0.01
+
+    Send-DesktopKey -Process $windowProcess -Key "{DOWN}"
+    Save-WindowScreenshot -Process $windowProcess -Path $rssSecondScreenshotPath
+    Assert-ContentRegionChanged -BeforePath $rssFirstScreenshotPath -AfterPath $rssSecondScreenshotPath -MinimumChangedRatio 0.01
+
     Invoke-RelativeClick -Process $windowProcess -X 170 -Y 286
     Save-WindowScreenshot -Process $windowProcess -Path $navDetailsScreenshotPath
 
+    Invoke-RelativeClick -Process $windowProcess -X 170 -Y 286
     Send-DesktopKey -Process $windowProcess -Key "{DOWN}"
     Save-WindowScreenshot -Process $windowProcess -Path $navPlayerScreenshotPath
     Assert-ContentRegionChanged -BeforePath $navDetailsScreenshotPath -AfterPath $navPlayerScreenshotPath
@@ -281,5 +346,7 @@ try {
 Write-Output "Run directory: $runDir"
 Write-Output "Sources screenshot: $sourceScreenshotPath"
 Write-Output "CloudDrive screenshot: $cloudScreenshotPath"
+Write-Output "RSS first subscription screenshot: $rssFirstScreenshotPath"
+Write-Output "RSS second subscription screenshot: $rssSecondScreenshotPath"
 Write-Output "Navigation details screenshot: $navDetailsScreenshotPath"
 Write-Output "Navigation player screenshot: $navPlayerScreenshotPath"
