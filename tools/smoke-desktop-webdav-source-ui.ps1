@@ -161,12 +161,16 @@ function Set-TextByRelativeClick {
         [int]$Y,
         [string]$Text,
         [string]$Description,
+        [switch]$SkipReadback,
         [int]$Attempts = 3
     )
 
     for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
         Invoke-RelativeClick -Process $Process -X $X -Y $Y
         Set-FocusedText -Text $Text
+        if ($SkipReadback) {
+            return
+        }
         $actual = Get-FocusedText
         if ($actual -eq $Text) {
             return
@@ -628,6 +632,7 @@ $serverReadyPath = Join-Path $runDir "fixture-server.ready"
 $serverLogPath = Join-Path $runDir "fixture-server.log"
 $openScreenshotPath = Join-Path $runDir "webdav-source-opened.png"
 $browseScreenshotPath = Join-Path $runDir "webdav-source-browsed.png"
+$keyboardUpScreenshotPath = Join-Path $runDir "webdav-source-keyboard-up.png"
 $keyboardBrowseScreenshotPath = Join-Path $runDir "webdav-source-keyboard-browse.png"
 $keyboardSelectScreenshotPath = Join-Path $runDir "webdav-source-keyboard-select.png"
 $scanScreenshotPath = Join-Path $runDir "webdav-source-scanned.png"
@@ -657,7 +662,7 @@ try {
     Invoke-RelativeMouseWheel -Process $windowProcess -Notches -8
     Set-TextByRelativeClick -Process $windowProcess -X 280 -Y 214 -Text $webDavUrl -Description "WebDAV URL"
     Set-TextByRelativeClick -Process $windowProcess -X 170 -Y 290 -Text $webDavUsername -Description "WebDAV username"
-    Set-TextByRelativeClick -Process $windowProcess -X 420 -Y 290 -Text $webDavPassword -Description "WebDAV password"
+    Set-TextByRelativeClick -Process $windowProcess -X 420 -Y 290 -Text $webDavPassword -Description "WebDAV password" -SkipReadback
     Invoke-RelativeClick -Process $windowProcess -X 145 -Y 358
 
     $state = Wait-StoreState -Path $storePath -Description "saved WebDAV source" -Predicate {
@@ -683,6 +688,11 @@ try {
     Wait-FileText -Path $serverLogPath -Pattern "PROPFIND\|Fixture WebDAV\|auth=True" -Description "authorized Fixture WebDAV directory PROPFIND"
     Start-Sleep -Milliseconds 900
     Save-WindowScreenshot -Process $windowProcess -Path $browseScreenshotPath
+    Send-AppKeys -Process $windowProcess -Keys "{UP}" -DelayMilliseconds 700
+    Wait-FileText -Path $serverLogPath -Pattern "PROPFIND\|\|auth=True" -Description "authorized root PROPFIND after keyboard Up"
+    Save-WindowScreenshot -Process $windowProcess -Path $keyboardUpScreenshotPath
+    Send-AppKeys -Process $windowProcess -Keys "{ENTER}" -DelayMilliseconds 700
+    Wait-FileText -Path $serverLogPath -Pattern "PROPFIND\|Fixture WebDAV\|auth=True" -Description "authorized Fixture WebDAV directory PROPFIND after keyboard Enter"
     Send-AppKeys -Process $windowProcess -Keys "{DOWN}" -DelayMilliseconds 700
     Save-WindowScreenshot -Process $windowProcess -Path $keyboardBrowseScreenshotPath
     Send-AppKeys -Process $windowProcess -Keys "{ENTER}" -DelayMilliseconds 700
@@ -757,6 +767,7 @@ Write-Output "Store: $storePath"
 Write-Output "Fixture server log: $serverLogPath"
 Write-Output "Open screenshot: $openScreenshotPath"
 Write-Output "Browse screenshot: $browseScreenshotPath"
+Write-Output "Keyboard up screenshot: $keyboardUpScreenshotPath"
 Write-Output "Keyboard browse screenshot: $keyboardBrowseScreenshotPath"
 Write-Output "Keyboard select screenshot: $keyboardSelectScreenshotPath"
 Write-Output "Scan screenshot: $scanScreenshotPath"
