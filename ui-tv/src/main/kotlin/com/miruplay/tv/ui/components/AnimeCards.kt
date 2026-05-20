@@ -33,6 +33,11 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -76,8 +81,16 @@ fun AnimePosterCard(
                 color = if (isFocused) FocusBorder else Color.White.copy(alpha = 0.08f),
                 shape = RoundedCornerShape(8.dp)
             )
-            .focusable()
             .onFocusChanged { isFocused = it.isFocused }
+            .onPreviewKeyEvent { event ->
+                if (event.type == KeyEventType.KeyDown && event.key.isActivateKey()) {
+                    onClick()
+                    true
+                } else {
+                    false
+                }
+            }
+            .focusable()
             .clickable(onClick = onClick)
     ) {
         RemoteImage(
@@ -163,8 +176,16 @@ fun FeatureAnimeCard(
                 color = if (isFocused) FocusBorder else Color.White.copy(alpha = 0.08f),
                 shape = RoundedCornerShape(8.dp)
             )
-            .focusable()
             .onFocusChanged { isFocused = it.isFocused }
+            .onPreviewKeyEvent { event ->
+                if (event.type == KeyEventType.KeyDown && event.key.isActivateKey()) {
+                    onClick()
+                    true
+                } else {
+                    false
+                }
+            }
+            .focusable()
             .clickable(onClick = onClick)
     ) {
         RemoteImage(
@@ -246,3 +267,8 @@ fun FeatureAnimeCard(
         }
     }
 }
+
+private fun Key.isActivateKey(): Boolean = this == Key.DirectionCenter ||
+    this == Key.Enter ||
+    this == Key.NumPadEnter ||
+    this == Key.Spacebar
