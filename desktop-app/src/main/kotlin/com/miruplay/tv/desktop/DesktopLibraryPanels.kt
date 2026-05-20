@@ -97,6 +97,24 @@ internal fun LibraryPanel(
                 onEntrySelected = onEntrySelected,
             )
 
+            PosterSectionHeader(title = "最高热度")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                posterGroups.toFeaturedPosterGroups().forEach { group ->
+                    FeaturedPosterCard(
+                        group = group,
+                        selected = selectedEntry?.path?.let { it in group.entryPaths } == true,
+                        onClick = { onEntrySelected(group.primaryEntry) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                if (posterGroups.size == 1) {
+                    Spacer(Modifier.weight(1f))
+                }
+            }
+
             PosterSectionHeader(title = "最近添加")
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 posterGroups
@@ -109,24 +127,6 @@ internal fun LibraryPanel(
                             onClick = { onEntrySelected(group.primaryEntry) },
                         )
                     }
-            }
-
-            PosterSectionHeader(title = "最高热度")
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                posterGroups.take(2).forEach { group ->
-                    FeaturedPosterCard(
-                        group = group,
-                        selected = selectedEntry?.path?.let { it in group.entryPaths } == true,
-                        onClick = { onEntrySelected(group.primaryEntry) },
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-                if (posterGroups.size == 1) {
-                    Spacer(Modifier.weight(1f))
-                }
             }
 
             PosterSearchBar(
@@ -512,6 +512,13 @@ internal fun List<MediaIndexEntry>.toDesktopPosterGroups(): List<DesktopPosterGr
 
 internal fun List<DesktopPosterGroup>.toPosterWallRows(columns: Int = POSTER_WALL_COLUMNS): List<List<DesktopPosterGroup>> =
     chunked(columns.coerceAtLeast(1))
+
+internal fun List<DesktopPosterGroup>.toFeaturedPosterGroups(limit: Int = 2): List<DesktopPosterGroup> =
+    sortedWith(
+        compareByDescending<DesktopPosterGroup> { it.entries.size }
+            .thenByDescending { it.lastModified }
+            .thenBy { it.title.lowercase() },
+    ).take(limit.coerceAtLeast(0))
 
 internal fun MediaIndexEntry.posterTitle(): String =
     metadataTitle?.takeIf { it.isNotBlank() }
