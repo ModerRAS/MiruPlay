@@ -71,6 +71,25 @@ class DesktopDetailHeroTest {
     }
 
     @Test
+    fun `detail hero stat labels mirror TV detail pills from indexed data`() {
+        val entry = MediaIndexEntry(
+            sourceId = 1,
+            path = "show/Frieren - S01E02.mkv",
+            animeName = "Frieren",
+            seasonNumber = 1,
+            episodeNumber = 2,
+            metadataSource = "Bangumi",
+        )
+
+        assertEquals(
+            listOf("全 3 话", "第 1 季", "Bangumi"),
+            detailHeroStatLabels(entry, episodeCount = 3),
+        )
+        assertEquals(emptyList<String>(), detailHeroStatLabels(null, episodeCount = 3))
+        assertEquals(listOf("第 1 季", "Bangumi"), detailHeroStatLabels(entry, episodeCount = 0))
+    }
+
+    @Test
     fun `detail episodes group selected anime and sort by season episode`() {
         val selected = MediaIndexEntry(
             sourceId = 1,

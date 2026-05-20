@@ -977,6 +977,7 @@ internal fun MiruPlayDesktopComposeApp() {
                     DesktopDetailHero(
                         entry = selectedIndexEntry,
                         source = activeSource?.info,
+                        episodeCount = detailEpisodes.size,
                         onFocusRecentPlayback = {
                             when (
                                 detailHeroDownTarget(
