@@ -61,7 +61,7 @@ function New-SampleVideo {
         "-loglevel", "error",
         "-y",
         "-f", "lavfi",
-        "-i", "testsrc2=size=640x360:rate=24:duration=4",
+        "-i", "testsrc2=size=640x360:rate=24:duration=12",
         "-pix_fmt", "yuv420p",
         "-movflags", "+faststart",
         $Path
@@ -345,6 +345,8 @@ $textSettings = New-UnicodeText @(0x8BBE, 0x7F6E)
 $textMediaSources = New-UnicodeText @(0x5A92, 0x4F53, 0x6E90)
 $textMetadata = New-UnicodeText @(0x5143, 0x6570, 0x636E)
 $textAddMediaSource = New-UnicodeText @(0x6DFB, 0x52A0, 0x5A92, 0x4F53, 0x6E90)
+$textEditMediaSource = New-UnicodeText @(0x7F16, 0x8F91, 0x5A92, 0x4F53, 0x6E90)
+$textNewSource = New-UnicodeText @(0x65B0, 0x5EFA)
 $textSaveSource = New-UnicodeText @(0x4FDD, 0x5B58, 0x6E90)
 $textDisplayName = New-UnicodeText @(0x663E, 0x793A, 0x540D, 0x79F0)
 $textMediaFolder = New-UnicodeText @(0x5A92, 0x4F53, 0x6587, 0x4EF6, 0x5939)
@@ -374,6 +376,7 @@ $libraryReturnScreenshot = Join-Path $runDir "android-tv-library-return.png"
 $settingsScreenshot = Join-Path $runDir "android-tv-settings.png"
 $settingsSourcesScreenshot = Join-Path $runDir "android-tv-settings-sources.png"
 $settingsSourceCardScreenshot = Join-Path $runDir "android-tv-settings-source-card-focus.png"
+$settingsSourceEditScreenshot = Join-Path $runDir "android-tv-settings-source-edit.png"
 $libraryXmlPath = Join-Path $runDir "android-tv-library.xml"
 $detailsXmlPath = Join-Path $runDir "android-tv-details.xml"
 $detailsEpisodeFocusXmlPath = Join-Path $runDir "android-tv-details-episode-focus.xml"
@@ -384,6 +387,7 @@ $settingsXmlPath = Join-Path $runDir "android-tv-settings.xml"
 $settingsSourcesXmlPath = Join-Path $runDir "android-tv-settings-sources.xml"
 $settingsSourceCardXmlPath = Join-Path $runDir "android-tv-settings-source-card-focus.xml"
 $settingsSourcesReturnXmlPath = Join-Path $runDir "android-tv-settings-sources-return.xml"
+$settingsSourceEditXmlPath = Join-Path $runDir "android-tv-settings-source-edit.xml"
 $reportPath = Join-Path $runDir "android-tv-smoke-report.json"
 New-Item -ItemType Directory -Path $runDir -Force | Out-Null
 
@@ -467,6 +471,13 @@ Invoke-DpadKey -KeyCode "KEYCODE_DPAD_LEFT" -DelayMilliseconds 900
 $xml = Wait-UiText -Needles @("Test Local", $textMediaSources) -XmlPath $settingsSourcesReturnXmlPath -TimeoutSeconds 30
 Assert-FocusedUiText -Xml $xml -Needles @($textMediaSources) -Description "Settings media source menu after content Left"
 
+Invoke-DpadKey -KeyCode "KEYCODE_DPAD_RIGHT" -DelayMilliseconds 900
+Invoke-DpadKey -KeyCode "KEYCODE_DPAD_CENTER" -DelayMilliseconds 1000
+$xml = Wait-UiText -Needles @($textEditMediaSource, $textNewSource) -XmlPath $settingsSourceEditXmlPath -TimeoutSeconds 30
+Assert-UiText -Xml $xml -Needles @("Test Local", $remoteFixtureRoot, $textEditMediaSource, $textNewSource, $textDisplayName, $textMediaFolder) -Description "Settings media source edit form"
+Assert-FocusedUiText -Xml $xml -Needles @("Test Local") -Description "Settings media source card after edit"
+Save-Screenshot -Path $settingsSourceEditScreenshot
+
 Write-Report -Path $reportPath -Report @{
     generatedAt = (Get-Date).ToString("o")
     deviceId = $DeviceId
@@ -482,6 +493,7 @@ Write-Report -Path $reportPath -Report @{
         settings = $settingsScreenshot
         settingsSources = $settingsSourcesScreenshot
         settingsSourceCard = $settingsSourceCardScreenshot
+        settingsSourceEdit = $settingsSourceEditScreenshot
     }
     xml = @{
         library = $libraryXmlPath
@@ -494,6 +506,7 @@ Write-Report -Path $reportPath -Report @{
         settingsSources = $settingsSourcesXmlPath
         settingsSourceCard = $settingsSourceCardXmlPath
         settingsSourcesReturn = $settingsSourcesReturnXmlPath
+        settingsSourceEdit = $settingsSourceEditXmlPath
     }
     assertions = @(
         "Library contains Explore, highest-heat row, recent row, and fixture poster.",
@@ -506,7 +519,8 @@ Write-Report -Path $reportPath -Report @{
         "DPAD Up/Right/Center from the returned Library poster wall opens Settings.",
         "Settings contains the WebUI, media sources, playback, CloudDrive, scan, and metadata sections.",
         "DPAD Down/Center in Settings opens the media sources panel with the auto-added local source and source form.",
-        "DPAD Right from the Settings media-source menu focuses the auto-added source card, and Left returns to the media-source menu."
+        "DPAD Right from the Settings media-source menu focuses the auto-added source card, and Left returns to the media-source menu.",
+        "DPAD Center on the focused Settings source card opens the edit source form without losing card focus."
     )
 }
 
@@ -521,4 +535,5 @@ Write-Output "Library return screenshot: $libraryReturnScreenshot"
 Write-Output "Settings screenshot: $settingsScreenshot"
 Write-Output "Settings sources screenshot: $settingsSourcesScreenshot"
 Write-Output "Settings source card screenshot: $settingsSourceCardScreenshot"
+Write-Output "Settings source edit screenshot: $settingsSourceEditScreenshot"
 Write-Output "Report: $reportPath"
