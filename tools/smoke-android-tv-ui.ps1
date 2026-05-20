@@ -306,7 +306,8 @@ function Invoke-DpadKey {
             "KEYCODE_DPAD_LEFT",
             "KEYCODE_DPAD_RIGHT",
             "KEYCODE_DPAD_CENTER",
-            "KEYCODE_ENTER"
+            "KEYCODE_ENTER",
+            "KEYCODE_BACK"
         )]
         [string]$KeyCode,
         [int]$Repeat = 1,
@@ -340,6 +341,9 @@ $textEpisodeOne = New-UnicodeText @(0x7B2C, 0x20, 0x31, 0x20, 0x96C6)
 $textLocalPlayback = New-UnicodeText @(0x672C, 0x5730, 0x64AD, 0x653E)
 $textSpeed = New-UnicodeText @(0x500D, 0x901F)
 $textPlaybackFailed = New-UnicodeText @(0x64AD, 0x653E, 0x5931, 0x8D25)
+$textSettings = New-UnicodeText @(0x8BBE, 0x7F6E)
+$textMediaSources = New-UnicodeText @(0x5A92, 0x4F53, 0x6E90)
+$textMetadata = New-UnicodeText @(0x5143, 0x6570, 0x636E)
 New-Item -ItemType Directory -Path $resolvedOutputRoot -Force | Out-Null
 
 if (-not (Get-Command adb -ErrorAction SilentlyContinue)) {
@@ -362,10 +366,15 @@ $libraryDpadScreenshot = Join-Path $runDir "android-tv-library-dpad-poster.png"
 $detailsScreenshot = Join-Path $runDir "android-tv-details.png"
 $detailsEpisodeFocusScreenshot = Join-Path $runDir "android-tv-details-episode-focus.png"
 $playerScreenshot = Join-Path $runDir "android-tv-player.png"
+$libraryReturnScreenshot = Join-Path $runDir "android-tv-library-return.png"
+$settingsScreenshot = Join-Path $runDir "android-tv-settings.png"
 $libraryXmlPath = Join-Path $runDir "android-tv-library.xml"
 $detailsXmlPath = Join-Path $runDir "android-tv-details.xml"
 $detailsEpisodeFocusXmlPath = Join-Path $runDir "android-tv-details-episode-focus.xml"
 $playerXmlPath = Join-Path $runDir "android-tv-player.xml"
+$detailsReturnXmlPath = Join-Path $runDir "android-tv-details-return.xml"
+$libraryReturnXmlPath = Join-Path $runDir "android-tv-library-return.xml"
+$settingsXmlPath = Join-Path $runDir "android-tv-settings.xml"
 $reportPath = Join-Path $runDir "android-tv-smoke-report.json"
 New-Item -ItemType Directory -Path $runDir -Force | Out-Null
 
@@ -415,6 +424,23 @@ if (Find-UiNode -Xml $xml -Needles @($textPlaybackFailed)) {
 }
 Save-Screenshot -Path $playerScreenshot
 
+Invoke-DpadKey -KeyCode "KEYCODE_BACK" -DelayMilliseconds 1200
+$xml = Wait-UiText -Needles @($textEpisodeShelf, $textPlay) -XmlPath $detailsReturnXmlPath -TimeoutSeconds 30
+Assert-UiText -Xml $xml -Needles @("Fixture Alpha", $textPlay, $textEpisodeShelf, $textEpisodeOne) -Description "Details after Player Back"
+
+Invoke-DpadKey -KeyCode "KEYCODE_BACK" -DelayMilliseconds 1200
+$xml = Wait-UiText -Needles @($textExplore, "Fixture Alpha") -XmlPath $libraryReturnXmlPath -TimeoutSeconds 30
+Assert-UiText -Xml $xml -Needles @($textExplore, $textScan, $textSettings, "Fixture Alpha") -Description "Library after Details Back"
+Assert-FocusedUiText -Xml $xml -Needles @("Fixture Alpha") -Description "Library poster after Back"
+Save-Screenshot -Path $libraryReturnScreenshot
+
+Invoke-DpadKey -KeyCode "KEYCODE_DPAD_UP" -DelayMilliseconds 800
+Invoke-DpadKey -KeyCode "KEYCODE_DPAD_RIGHT" -DelayMilliseconds 800
+Invoke-DpadKey -KeyCode "KEYCODE_DPAD_CENTER" -DelayMilliseconds 1200
+$xml = Wait-UiText -Needles @($textSettings, "WebUI", $textMediaSources) -XmlPath $settingsXmlPath -TimeoutSeconds 30
+Assert-UiText -Xml $xml -Needles @($textSettings, "WebUI", $textMediaSources, $textPlay, "CloudDrive", $textScan, $textMetadata) -Description "Settings"
+Save-Screenshot -Path $settingsScreenshot
+
 Write-Report -Path $reportPath -Report @{
     generatedAt = (Get-Date).ToString("o")
     deviceId = $DeviceId
@@ -426,12 +452,17 @@ Write-Report -Path $reportPath -Report @{
         details = $detailsScreenshot
         detailsEpisodeFocus = $detailsEpisodeFocusScreenshot
         player = $playerScreenshot
+        libraryReturn = $libraryReturnScreenshot
+        settings = $settingsScreenshot
     }
     xml = @{
         library = $libraryXmlPath
         details = $detailsXmlPath
         detailsEpisodeFocus = $detailsEpisodeFocusXmlPath
         player = $playerXmlPath
+        detailsReturn = $detailsReturnXmlPath
+        libraryReturn = $libraryReturnXmlPath
+        settings = $settingsXmlPath
     }
     assertions = @(
         "Library contains Explore, highest-heat row, recent row, and fixture poster.",
@@ -439,7 +470,10 @@ Write-Report -Path $reportPath -Report @{
         "Details contains hero/title, Play, episode list, and first episode row.",
         "DPAD Down from the Details play action focuses the first episode row.",
         "DPAD Center on the focused Details episode row opens Player.",
-        "Player contains local playback chrome and no playback failure overlay."
+        "Player contains local playback chrome and no playback failure overlay.",
+        "Android Back returns from Player to Details and from Details to the poster-focused Library wall.",
+        "DPAD Up/Right/Center from the returned Library poster wall opens Settings.",
+        "Settings contains the WebUI, media sources, playback, CloudDrive, scan, and metadata sections."
     )
 }
 
@@ -450,4 +484,6 @@ Write-Output "Library DPAD poster screenshot: $libraryDpadScreenshot"
 Write-Output "Details screenshot: $detailsScreenshot"
 Write-Output "Details episode focus screenshot: $detailsEpisodeFocusScreenshot"
 Write-Output "Player screenshot: $playerScreenshot"
+Write-Output "Library return screenshot: $libraryReturnScreenshot"
+Write-Output "Settings screenshot: $settingsScreenshot"
 Write-Output "Report: $reportPath"
