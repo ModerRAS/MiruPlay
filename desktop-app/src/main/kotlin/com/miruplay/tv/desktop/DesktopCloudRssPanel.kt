@@ -304,6 +304,14 @@ private fun CloudRssAutomationContent(
     onDeleteSubscription: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val subscriptionFocusRequesters = remember(subscriptions) {
+        subscriptions.associate { it.id to FocusRequester() }
+    }
+    fun selectSubscription(subscription: RssSubscriptionInfo) {
+        onSubscriptionSelected(subscription)
+        subscriptionFocusRequesters[subscription.id]?.requestFocus()
+    }
+
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp),
@@ -405,7 +413,17 @@ private fun CloudRssAutomationContent(
                             RssSubscriptionRow(
                                 subscription = subscription,
                                 selected = selectedSubscription?.id == subscription.id,
-                                onClick = { onSubscriptionSelected(subscription) },
+                                onClick = { selectSubscription(subscription) },
+                                onNavigate = { key ->
+                                    subscriptions.rssSubscriptionNavigationTarget(
+                                        currentSubscriptionId = subscription.id,
+                                        key = key,
+                                    )?.let { target ->
+                                        selectSubscription(target)
+                                        true
+                                    } ?: false
+                                },
+                                modifier = Modifier.focusRequester(subscriptionFocusRequesters.getValue(subscription.id)),
                             )
                             Spacer(Modifier.height(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp))
                         }
@@ -876,8 +894,18 @@ private fun RssSubscriptionRow(
     subscription: RssSubscriptionInfo,
     selected: Boolean,
     onClick: () -> Unit,
+    onNavigate: (Key) -> Boolean,
+    modifier: Modifier = Modifier,
 ) {
-    DesktopSelectableRow(selected = selected, onClick = onClick) {
+    DesktopSelectableRow(
+        selected = selected,
+        onClick = onClick,
+        modifier = modifier.onPreviewKeyEvent { event ->
+            event.type == KeyEventType.KeyDown &&
+                (event.key == Key.DirectionUp || event.key == Key.DirectionDown) &&
+                onNavigate(event.key)
+        },
+    ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.Center,
@@ -899,4 +927,25 @@ private fun RssSubscriptionRow(
             )
         }
     }
+}
+
+internal fun List<RssSubscriptionInfo>.rssSubscriptionNavigationTarget(
+    currentSubscriptionId: Long?,
+    key: Key,
+): RssSubscriptionInfo? {
+    if (isEmpty()) return null
+    val currentIndex = currentSubscriptionId
+        ?.let { id -> indexOfFirst { subscription -> subscription.id == id } }
+        ?.takeIf { it >= 0 }
+        ?: when (key) {
+            Key.DirectionDown -> -1
+            Key.DirectionUp -> size
+            else -> return null
+        }
+    val targetIndex = when (key) {
+        Key.DirectionDown -> currentIndex + 1
+        Key.DirectionUp -> currentIndex - 1
+        else -> return null
+    }
+    return getOrNull(targetIndex)
 }

@@ -1,8 +1,10 @@
 package com.miruplay.tv.desktop
 
+import androidx.compose.ui.input.key.Key
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.RssSubscriptionInfo
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -112,5 +114,22 @@ class DesktopSettingsPanelTest {
         assertTrue(subscriptionPreview.length <= 42)
         assertTrue(subscriptionPreview.startsWith("OFF"))
         assertTrue(subscriptionPreview.contains("..."))
+    }
+
+    @Test
+    fun `rss subscription directional keys move between saved subscriptions`() {
+        val subscriptions = listOf(
+            RssSubscriptionInfo(id = 10L, name = "Season A", url = "https://rss.example.test/a.xml"),
+            RssSubscriptionInfo(id = 11L, name = "Season B", url = "https://rss.example.test/b.xml"),
+            RssSubscriptionInfo(id = 12L, name = "Season C", url = "https://rss.example.test/c.xml"),
+        )
+
+        assertEquals(11L, subscriptions.rssSubscriptionNavigationTarget(10L, Key.DirectionDown)?.id)
+        assertEquals(10L, subscriptions.rssSubscriptionNavigationTarget(11L, Key.DirectionUp)?.id)
+        assertEquals(10L, subscriptions.rssSubscriptionNavigationTarget(null, Key.DirectionDown)?.id)
+        assertEquals(12L, subscriptions.rssSubscriptionNavigationTarget(null, Key.DirectionUp)?.id)
+        assertNull(subscriptions.rssSubscriptionNavigationTarget(12L, Key.DirectionDown))
+        assertNull(subscriptions.rssSubscriptionNavigationTarget(10L, Key.DirectionUp))
+        assertNull(subscriptions.rssSubscriptionNavigationTarget(10L, Key.DirectionRight))
     }
 }
