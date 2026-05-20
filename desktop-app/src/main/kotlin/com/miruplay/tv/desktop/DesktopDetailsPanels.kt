@@ -54,6 +54,7 @@ internal fun DesktopDetailHero(
     entry: MediaIndexEntry?,
     source: MediaSourceInfo?,
     episodeCount: Int = 0,
+    focusVersion: Int = 0,
     onFocusRecentPlayback: () -> Boolean,
     onBackToLibrary: () -> Unit,
     onPlay: () -> Unit,
@@ -81,7 +82,7 @@ internal fun DesktopDetailHero(
 
     val statLabels = detailHeroStatLabels(entry, episodeCount)
 
-    LaunchedEffect(entry?.sourceId, entry?.path) {
+    LaunchedEffect(focusVersion) {
         actionFocusRequesters.getValue(DesktopDetailHeroAction.Play).requestFocus()
     }
 
@@ -341,6 +342,8 @@ internal fun DetailEpisodePanel(
     selectedSeason: Int?,
     recentRecords: List<ProgressRecord>,
     focusVersion: Int,
+    onFocusPreviousPanel: () -> Boolean,
+    onFocusNextPanel: () -> Boolean,
     onSeasonSelected: (Int?) -> Unit,
     onEpisodeFocused: (MediaIndexEntry) -> Unit,
     onEpisodeSelected: (MediaIndexEntry) -> Unit,
@@ -358,11 +361,17 @@ internal fun DetailEpisodePanel(
     }
 
     fun moveEpisodeFocus(currentIndex: Int, delta: Int): Boolean {
-        val targetIndex = moveDetailEpisodeSelection(currentIndex, visibleEpisodes.size, delta) ?: return false
-        val target = visibleEpisodes[targetIndex]
-        onEpisodeFocused(target)
-        episodeFocusRequesters.getOrNull(targetIndex)?.requestFocus()
-        return true
+        return when (val target = moveDetailEpisodeFocusTarget(currentIndex, visibleEpisodes.size, delta)) {
+            is DetailEpisodeFocusTarget.Row -> {
+                val episode = visibleEpisodes[target.index]
+                onEpisodeFocused(episode)
+                episodeFocusRequesters.getOrNull(target.index)?.requestFocus()
+                true
+            }
+            DetailEpisodeFocusTarget.PreviousPanel -> onFocusPreviousPanel()
+            DetailEpisodeFocusTarget.NextPanel -> onFocusNextPanel()
+            null -> false
+        }
     }
 
     LaunchedEffect(focusVersion, visibleEpisodes.map { it.path }, selectedEntry?.path) {
@@ -540,9 +549,27 @@ internal fun moveDetailEpisodeSelection(
     itemCount: Int,
     delta: Int,
 ): Int? {
+    return (moveDetailEpisodeFocusTarget(currentIndex, itemCount, delta) as? DetailEpisodeFocusTarget.Row)?.index
+}
+
+internal sealed interface DetailEpisodeFocusTarget {
+    data class Row(val index: Int) : DetailEpisodeFocusTarget
+    data object PreviousPanel : DetailEpisodeFocusTarget
+    data object NextPanel : DetailEpisodeFocusTarget
+}
+
+internal fun moveDetailEpisodeFocusTarget(
+    currentIndex: Int,
+    itemCount: Int,
+    delta: Int,
+): DetailEpisodeFocusTarget? {
     if (itemCount <= 0) return null
     val targetIndex = currentIndex + delta
-    return targetIndex.takeIf { it in 0 until itemCount }
+    return when {
+        targetIndex < 0 -> DetailEpisodeFocusTarget.PreviousPanel
+        targetIndex >= itemCount -> DetailEpisodeFocusTarget.NextPanel
+        else -> DetailEpisodeFocusTarget.Row(targetIndex)
+    }
 }
 
 private val detailEpisodeComparator =

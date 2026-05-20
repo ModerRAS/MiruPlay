@@ -125,4 +125,21 @@ class DesktopDetailHeroTest {
         assertEquals(null, moveDetailEpisodeSelection(currentIndex = 2, itemCount = 3, delta = 1))
         assertEquals(null, moveDetailEpisodeSelection(currentIndex = 0, itemCount = 0, delta = 1))
     }
+
+    @Test
+    fun `detail episode focus exits to neighboring panels at row boundaries`() {
+        assertEquals(
+            DetailEpisodeFocusTarget.PreviousPanel,
+            moveDetailEpisodeFocusTarget(currentIndex = 0, itemCount = 3, delta = -1),
+        )
+        assertEquals(
+            DetailEpisodeFocusTarget.Row(1),
+            moveDetailEpisodeFocusTarget(currentIndex = 0, itemCount = 3, delta = 1),
+        )
+        assertEquals(
+            DetailEpisodeFocusTarget.NextPanel,
+            moveDetailEpisodeFocusTarget(currentIndex = 2, itemCount = 3, delta = 1),
+        )
+        assertEquals(null, moveDetailEpisodeFocusTarget(currentIndex = 0, itemCount = 0, delta = 1))
+    }
 }

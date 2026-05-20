@@ -289,6 +289,7 @@ internal fun MiruPlayDesktopComposeApp() {
     var recentProgress by remember { mutableStateOf(emptyList<ProgressRecord>()) }
     var selectedRecentProgress by remember { mutableStateOf<ProgressRecord?>(null) }
     var selectedDetailEpisodeSeason by remember { mutableStateOf<Int?>(null) }
+    var detailHeroFocusVersion by remember { mutableStateOf(0) }
     var detailEpisodeFocusVersion by remember { mutableStateOf(0) }
     var recentPlaybackFocusVersion by remember { mutableStateOf(0) }
     var recentStatus by remember { mutableStateOf(recentPlaybackInitialStatus()) }
@@ -978,6 +979,7 @@ internal fun MiruPlayDesktopComposeApp() {
                         entry = selectedIndexEntry,
                         source = activeSource?.info,
                         episodeCount = detailEpisodes.size,
+                        focusVersion = detailHeroFocusVersion,
                         onFocusRecentPlayback = {
                             when (
                                 detailHeroDownTarget(
@@ -1014,6 +1016,18 @@ internal fun MiruPlayDesktopComposeApp() {
                         selectedSeason = selectedDetailEpisodeSeason,
                         recentRecords = recentProgress,
                         focusVersion = detailEpisodeFocusVersion,
+                        onFocusPreviousPanel = {
+                            detailHeroFocusVersion += 1
+                            true
+                        },
+                        onFocusNextPanel = {
+                            if (recentProgress.isNotEmpty()) {
+                                recentPlaybackFocusVersion += 1
+                            } else {
+                                bangumiFocusVersion += 1
+                            }
+                            true
+                        },
                         onSeasonSelected = { season -> selectedDetailEpisodeSeason = season },
                         onEpisodeFocused = { episode ->
                             selectedIndexEntry = episode
