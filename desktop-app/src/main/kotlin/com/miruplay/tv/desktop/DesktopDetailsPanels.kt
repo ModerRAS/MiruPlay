@@ -19,11 +19,20 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -46,6 +55,23 @@ internal fun DesktopDetailHero(
     onBackToLibrary: () -> Unit,
     onPlay: () -> Unit,
 ) {
+    val actionFocusRequesters = remember {
+        mapOf(
+            DesktopDetailHeroAction.Play to FocusRequester(),
+            DesktopDetailHeroAction.BackToLibrary to FocusRequester(),
+        )
+    }
+
+    fun moveActionFocus(current: DesktopDetailHeroAction, delta: Int): Boolean {
+        val target = moveDesktopDetailHeroAction(current, delta) ?: return false
+        actionFocusRequesters.getValue(target).requestFocus()
+        return true
+    }
+
+    LaunchedEffect(entry?.sourceId, entry?.path) {
+        actionFocusRequesters.getValue(DesktopDetailHeroAction.Play).requestFocus()
+    }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -105,8 +131,29 @@ internal fun DesktopDetailHero(
                 }
                 Spacer(Modifier.height(18.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    TvActionButton("播放", onClick = onPlay, modifier = Modifier.width(180.dp))
-                    TvActionButton("返回海报墙", onClick = onBackToLibrary, secondary = true, modifier = Modifier.width(180.dp))
+                    TvActionButton(
+                        "播放",
+                        onClick = onPlay,
+                        modifier = Modifier
+                            .detailHeroActionNavigation(
+                                action = DesktopDetailHeroAction.Play,
+                                focusRequester = actionFocusRequesters.getValue(DesktopDetailHeroAction.Play),
+                                onMove = ::moveActionFocus,
+                            )
+                            .width(180.dp),
+                    )
+                    TvActionButton(
+                        "返回海报墙",
+                        onClick = onBackToLibrary,
+                        secondary = true,
+                        modifier = Modifier
+                            .detailHeroActionNavigation(
+                                action = DesktopDetailHeroAction.BackToLibrary,
+                                focusRequester = actionFocusRequesters.getValue(DesktopDetailHeroAction.BackToLibrary),
+                                onMove = ::moveActionFocus,
+                            )
+                            .width(180.dp),
+                    )
                 }
             }
             Box(
@@ -122,6 +169,41 @@ internal fun DesktopDetailHero(
         }
     }
 }
+
+private fun Modifier.detailHeroActionNavigation(
+    action: DesktopDetailHeroAction,
+    focusRequester: FocusRequester,
+    onMove: (DesktopDetailHeroAction, Int) -> Boolean,
+): Modifier =
+    focusRequester(focusRequester)
+        .onPreviewKeyEvent { event ->
+            if (event.type != KeyEventType.KeyDown) {
+                false
+            } else {
+                event.key.toDetailHeroActionDelta()?.let { delta -> onMove(action, delta) } ?: false
+            }
+        }
+
+internal enum class DesktopDetailHeroAction {
+    Play,
+    BackToLibrary,
+}
+
+internal fun moveDesktopDetailHeroAction(
+    current: DesktopDetailHeroAction,
+    delta: Int,
+): DesktopDetailHeroAction? {
+    val actions = DesktopDetailHeroAction.entries
+    val targetIndex = actions.indexOf(current) + delta
+    return actions.getOrNull(targetIndex)
+}
+
+private fun Key.toDetailHeroActionDelta(): Int? =
+    when (this) {
+        Key.DirectionLeft -> -1
+        Key.DirectionRight -> 1
+        else -> null
+    }
 
 @Composable
 private fun DetailPoster(title: String) {

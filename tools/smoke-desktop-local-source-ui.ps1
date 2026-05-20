@@ -423,7 +423,13 @@ try {
     Start-Sleep -Milliseconds 700
     Save-WindowScreenshot -Process $windowProcess -Path $detailsScreenshotPath
 
-    Invoke-RelativeClick -Process $windowProcess -X 674 -Y 466
+    if (-not $LibraryRoot.Trim()) {
+        Send-AppKeys -Process $windowProcess -Keys "{RIGHT}"
+        Send-AppKeys -Process $windowProcess -Keys "{LEFT}"
+        Send-AppKeys -Process $windowProcess -Keys "{ENTER}" -DelayMilliseconds 500
+    } else {
+        Invoke-RelativeClick -Process $windowProcess -X 674 -Y 466
+    }
     Start-Sleep -Milliseconds 500
     Invoke-RelativeClick -Process $windowProcess -X 520 -Y 615
     $selectedMediaPath = Get-FocusedText

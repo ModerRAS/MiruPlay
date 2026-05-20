@@ -30,4 +30,18 @@ class DesktopDetailHeroTest {
         assertTrue(subtitle.contains("EP2"))
         assertTrue(subtitle.contains("The Journey"))
     }
+
+    @Test
+    fun `detail hero action navigation moves within primary actions`() {
+        assertEquals(
+            DesktopDetailHeroAction.BackToLibrary,
+            moveDesktopDetailHeroAction(DesktopDetailHeroAction.Play, 1),
+        )
+        assertEquals(
+            DesktopDetailHeroAction.Play,
+            moveDesktopDetailHeroAction(DesktopDetailHeroAction.BackToLibrary, -1),
+        )
+        assertEquals(null, moveDesktopDetailHeroAction(DesktopDetailHeroAction.Play, -1))
+        assertEquals(null, moveDesktopDetailHeroAction(DesktopDetailHeroAction.BackToLibrary, 1))
+    }
 }
