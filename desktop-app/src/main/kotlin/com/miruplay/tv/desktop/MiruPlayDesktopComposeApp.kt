@@ -26,8 +26,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
@@ -688,6 +693,16 @@ internal fun MiruPlayDesktopComposeApp() {
         modifier = Modifier
             .fillMaxSize()
             .background(DarkBg)
+            .onKeyEvent { event ->
+                if (event.type == KeyEventType.KeyDown && event.key == Key.Escape) {
+                    selectedDesktopSection.desktopBackTarget()?.let { target ->
+                        selectedDesktopSection = target
+                        true
+                    } ?: false
+                } else {
+                    false
+                }
+            }
             .padding(32.dp),
         horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.MAIN_SECTION_GAP_DP.dp),
     ) {

@@ -291,6 +291,8 @@ $rssFirstScreenshotPath = Join-Path $runDir "keyboard-settings-rss-first.png"
 $rssSecondScreenshotPath = Join-Path $runDir "keyboard-settings-rss-second.png"
 $navDetailsScreenshotPath = Join-Path $runDir "keyboard-nav-details.png"
 $navPlayerScreenshotPath = Join-Path $runDir "keyboard-nav-player.png"
+$navBackDetailsScreenshotPath = Join-Path $runDir "keyboard-back-details.png"
+$navBackLibraryScreenshotPath = Join-Path $runDir "keyboard-back-library.png"
 New-Item -ItemType Directory -Path (Split-Path -Parent $storePath) -Force | Out-Null
 New-Item -ItemType Directory -Path $runDir -Force | Out-Null
 Write-InitialStore -Path $storePath
@@ -326,6 +328,14 @@ try {
     Send-DesktopKey -Process $windowProcess -Key "{DOWN}"
     Save-WindowScreenshot -Process $windowProcess -Path $navPlayerScreenshotPath
     Assert-ContentRegionChanged -BeforePath $navDetailsScreenshotPath -AfterPath $navPlayerScreenshotPath
+
+    Send-DesktopKey -Process $windowProcess -Key "{ESC}"
+    Save-WindowScreenshot -Process $windowProcess -Path $navBackDetailsScreenshotPath
+    Assert-ContentRegionChanged -BeforePath $navPlayerScreenshotPath -AfterPath $navBackDetailsScreenshotPath
+
+    Send-DesktopKey -Process $windowProcess -Key "{ESC}"
+    Save-WindowScreenshot -Process $windowProcess -Path $navBackLibraryScreenshotPath
+    Assert-ContentRegionChanged -BeforePath $navBackDetailsScreenshotPath -AfterPath $navBackLibraryScreenshotPath
 } finally {
     $env:MIRUPLAY_DESKTOP_STORE = $previousStoreEnv
     if (-not $KeepOpen) {
@@ -350,3 +360,5 @@ Write-Output "RSS first subscription screenshot: $rssFirstScreenshotPath"
 Write-Output "RSS second subscription screenshot: $rssSecondScreenshotPath"
 Write-Output "Navigation details screenshot: $navDetailsScreenshotPath"
 Write-Output "Navigation player screenshot: $navPlayerScreenshotPath"
+Write-Output "Back to details screenshot: $navBackDetailsScreenshotPath"
+Write-Output "Back to library screenshot: $navBackLibraryScreenshotPath"
