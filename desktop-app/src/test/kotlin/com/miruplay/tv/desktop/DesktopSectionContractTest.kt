@@ -21,4 +21,12 @@ class DesktopSectionContractTest {
             MiruPlayRouteSurface.desktopSectionOrder.map { it.menuLabel },
         )
     }
+
+    @Test
+    fun `desktop library header keeps Android TV scan and settings actions only`() {
+        assertEquals(
+            listOf("扫描", "设置"),
+            desktopLibraryHeaderActions().map { it.label },
+        )
+    }
 }
