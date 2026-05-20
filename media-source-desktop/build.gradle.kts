@@ -18,3 +18,17 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.okhttp.mockwebserver)
 }
+
+tasks.withType<Test>().configureEach {
+    listOf(
+        "miruplay.smbLiveUrl",
+        "miruplay.smbLiveUsername",
+        "miruplay.smbLivePassword",
+        "miruplay.smbLiveDomain",
+        "miruplay.smbLiveExpectedName",
+    ).forEach { propertyName ->
+        System.getProperty(propertyName)?.let { value ->
+            systemProperty(propertyName, value)
+        }
+    }
+}

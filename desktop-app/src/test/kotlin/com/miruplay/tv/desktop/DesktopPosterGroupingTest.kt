@@ -37,4 +37,33 @@ class DesktopPosterGroupingTest {
 
         assertEquals(listOf(6, 6, 1), rows.map { it.size })
     }
+
+    @Test
+    fun `featured row orders highest heat before poster wall`() {
+        val groups = listOf(
+            DesktopPosterGroup(
+                title = "Small",
+                entries = listOf(MediaIndexEntry(sourceId = 1, path = "Small - S01E01.mkv", episodeNumber = 1)),
+            ),
+            DesktopPosterGroup(
+                title = "Long Running",
+                entries = listOf(
+                    MediaIndexEntry(sourceId = 1, path = "Long Running - S01E01.mkv", episodeNumber = 1),
+                    MediaIndexEntry(sourceId = 1, path = "Long Running - S01E02.mkv", episodeNumber = 2),
+                    MediaIndexEntry(sourceId = 1, path = "Long Running - S01E03.mkv", episodeNumber = 3),
+                ),
+            ),
+            DesktopPosterGroup(
+                title = "Medium",
+                entries = listOf(
+                    MediaIndexEntry(sourceId = 1, path = "Medium - S01E01.mkv", episodeNumber = 1),
+                    MediaIndexEntry(sourceId = 1, path = "Medium - S01E02.mkv", episodeNumber = 2),
+                ),
+            ),
+        )
+
+        val featured = groups.toFeaturedPosterGroups()
+
+        assertEquals(listOf("Long Running", "Medium"), featured.map { it.title })
+    }
 }
