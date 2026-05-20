@@ -26,7 +26,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -241,7 +243,32 @@ private fun LibraryControlBar(
     onClearIndex: () -> Unit,
     onRemoveSource: () -> Unit,
 ) {
-    TvPanel(Modifier.fillMaxWidth()) {
+    val sourcePickerFocusRequester = remember { FocusRequester() }
+    var sourcePickerFocusVersion by remember { mutableIntStateOf(0) }
+    fun refocusSourcePicker() {
+        sourcePickerFocusVersion += 1
+    }
+    LaunchedEffect(sourcePickerFocusVersion) {
+        if (sourcePickerFocusVersion > 0) {
+            sourcePickerFocusRequester.requestFocus()
+        }
+    }
+
+    TvPanel(
+        Modifier
+            .fillMaxWidth()
+            .onPreviewKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) {
+                    false
+                } else {
+                    savedSources.savedSourcePickerNavigationTarget(activeSourceId, event.key)?.let { source ->
+                        onSavedSourceSelected(source)
+                        refocusSourcePicker()
+                        true
+                    } ?: false
+                }
+            },
+    ) {
         Text("媒体源", color = TextPrimary, fontSize = MiruPlayUiMetrics.SECTION_SUBTITLE_SP.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
         Row(
@@ -262,6 +289,7 @@ private fun LibraryControlBar(
                         activeSourceId = activeSourceId,
                         onSelected = onSavedSourceSelected,
                         modifier = Modifier.weight(0.82f),
+                        focusRequester = sourcePickerFocusRequester,
                     )
                 }
                 Row(
@@ -269,8 +297,23 @@ private fun LibraryControlBar(
                     horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
                 ) {
                     LabeledTextField("Index query", indexQuery, onValueChange = onIndexQueryChange, modifier = Modifier.weight(1.4f))
-                    TvActionButton("Open local", onClick = onOpenLocal, modifier = Modifier.weight(0.72f))
-                    TvActionButton("Scan", onClick = onScan, secondary = true, modifier = Modifier.weight(0.54f))
+                    TvActionButton(
+                        "Open local",
+                        onClick = {
+                            onOpenLocal()
+                            refocusSourcePicker()
+                        },
+                        modifier = Modifier.weight(0.72f),
+                    )
+                    TvActionButton(
+                        "Scan",
+                        onClick = {
+                            onScan()
+                            refocusSourcePicker()
+                        },
+                        secondary = true,
+                        modifier = Modifier.weight(0.54f),
+                    )
                     TvActionButton("Search", onClick = onSearch, secondary = true, modifier = Modifier.weight(1f))
                 }
             }

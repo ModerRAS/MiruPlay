@@ -2,6 +2,7 @@ package com.miruplay.tv.desktop
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
@@ -35,8 +36,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -85,24 +93,58 @@ internal fun SavedSourcePicker(
     activeSourceId: Long?,
     onSelected: (MediaSourceInfo) -> Unit,
     modifier: Modifier = Modifier,
+    focusRequester: FocusRequester? = null,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val selected = sources.firstOrNull { it.id == activeSourceId }
+    val pickerFocusRequester = focusRequester ?: remember { FocusRequester() }
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
     Box(modifier = modifier) {
-        OutlinedButton(
-            onClick = { expanded = true },
-            interactionSource = interactionSource,
-            shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(SOURCE_PICKER_HEIGHT_DP.dp)
+                .focusRequester(pickerFocusRequester)
+                .clip(RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
+                .background(CardBg.copy(alpha = if (isFocused) 0.62f else 0.34f))
                 .border(
                     width = if (isFocused) 2.dp else 1.dp,
                     color = if (isFocused) AnimeRed else Color.White.copy(alpha = 0.16f),
                     shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
-                ),
+                )
+                .onPreviewKeyEvent { event ->
+                    if (event.type != KeyEventType.KeyDown) {
+                        false
+                    } else {
+                        when (event.key) {
+                            Key.Enter,
+                            Key.NumPadEnter,
+                            -> {
+                                expanded = true
+                                true
+                            }
+                            Key.DirectionDown,
+                            Key.DirectionRight,
+                            Key.DirectionUp,
+                            Key.DirectionLeft,
+                            -> {
+                                sources.savedSourcePickerNavigationTarget(activeSourceId, event.key)?.let { source ->
+                                    onSelected(source)
+                                    true
+                                } ?: false
+                            }
+                            else -> false
+                        }
+                    }
+                }
+                .focusable(interactionSource = interactionSource)
+                .clickable(interactionSource = interactionSource, indication = null) {
+                    pickerFocusRequester.requestFocus()
+                    expanded = true
+                }
+                .padding(horizontal = 18.dp),
+            contentAlignment = Alignment.CenterStart,
         ) {
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -174,6 +216,24 @@ internal fun MediaSourceInfo.sourcePickerSubtitle(maxLength: Int = SOURCE_PICKER
         .orEmpty()
         .ifBlank { "未配置路径" }
         .compactMiddle(maxLength)
+
+internal fun List<MediaSourceInfo>.savedSourcePickerNavigationTarget(
+    activeSourceId: Long?,
+    key: Key,
+): MediaSourceInfo? {
+    if (isEmpty()) return null
+    val currentIndex = indexOfFirst { it.id == activeSourceId }
+    val targetIndex = when (key) {
+        Key.DirectionDown,
+        Key.DirectionRight,
+        -> if (currentIndex == -1) 0 else currentIndex + 1
+        Key.DirectionUp,
+        Key.DirectionLeft,
+        -> if (currentIndex == -1) lastIndex else currentIndex - 1
+        else -> null
+    } ?: return null
+    return getOrNull(targetIndex)
+}
 
 internal fun String.compactMiddle(maxLength: Int): String {
     val safeMaxLength = maxLength.coerceAtLeast(5)

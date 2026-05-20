@@ -6,6 +6,7 @@ import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -55,6 +56,24 @@ class DesktopSourcePickerTest {
         )
 
         assertEquals("未配置路径", source.sourcePickerSubtitle())
+    }
+
+    @Test
+    fun `source picker directional keys move between saved sources`() {
+        val sources = listOf(
+            MediaSourceInfoConventions.local(name = "A", rootPath = "D:/A").copy(id = 10L),
+            MediaSourceInfoConventions.webDav(url = "https://dav.example.test/anime").copy(id = 11L),
+            MediaSourceInfoConventions.smb(url = "smb://nas.local/anime").copy(id = 12L),
+        )
+
+        assertEquals(11L, sources.savedSourcePickerNavigationTarget(activeSourceId = 10L, key = Key.DirectionDown)?.id)
+        assertEquals(11L, sources.savedSourcePickerNavigationTarget(activeSourceId = 10L, key = Key.DirectionRight)?.id)
+        assertEquals(10L, sources.savedSourcePickerNavigationTarget(activeSourceId = 11L, key = Key.DirectionUp)?.id)
+        assertEquals(10L, sources.savedSourcePickerNavigationTarget(activeSourceId = 11L, key = Key.DirectionLeft)?.id)
+        assertEquals(10L, sources.savedSourcePickerNavigationTarget(activeSourceId = null, key = Key.DirectionDown)?.id)
+        assertEquals(12L, sources.savedSourcePickerNavigationTarget(activeSourceId = null, key = Key.DirectionUp)?.id)
+        assertNull(sources.savedSourcePickerNavigationTarget(activeSourceId = 12L, key = Key.DirectionDown))
+        assertNull(sources.savedSourcePickerNavigationTarget(activeSourceId = 10L, key = Key.DirectionUp))
     }
 
     @Test
