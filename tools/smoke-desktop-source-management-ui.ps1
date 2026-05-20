@@ -1,11 +1,23 @@
 [CmdletBinding()]
 param(
-    [string]$AppScript = (Join-Path $PSScriptRoot "..\desktop-app\build\install\desktop-app\bin\desktop-app.bat"),
-    [string]$OutputRoot = (Join-Path $PSScriptRoot "..\build\desktop-source-management-ui"),
+    [string]$AppScript,
+    [string]$OutputRoot,
     [switch]$KeepOpen
 )
 
 $ErrorActionPreference = "Stop"
+
+$scriptRoot = if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) {
+    Split-Path -Parent $MyInvocation.MyCommand.Path
+} else {
+    $PSScriptRoot
+}
+if ([string]::IsNullOrWhiteSpace($AppScript)) {
+    $AppScript = Join-Path $scriptRoot "..\desktop-app\build\install\desktop-app\bin\desktop-app.bat"
+}
+if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
+    $OutputRoot = Join-Path $scriptRoot "..\build\desktop-source-management-ui"
+}
 
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName System.Windows.Forms
@@ -112,9 +124,50 @@ function Invoke-RelativeMouseWheel {
     Start-Sleep -Milliseconds 700
 }
 
+function Set-ClipboardTextWithRetry {
+    param(
+        [AllowNull()][string]$Text,
+        [int]$Attempts = 5
+    )
+    if ($null -eq $Text) {
+        return $false
+    }
+
+    for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
+        try {
+            Set-Clipboard -Value $Text
+            return $true
+        } catch {
+            if ($attempt -eq $Attempts) {
+                Write-Warning "Unable to set clipboard text: $($_.Exception.Message)"
+                return $false
+            }
+            Start-Sleep -Milliseconds (120 * $attempt)
+        }
+    }
+}
+
+function Get-ClipboardTextWithRetry {
+    param([int]$Attempts = 5)
+
+    for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
+        try {
+            return Get-Clipboard -Raw
+        } catch {
+            if ($attempt -eq $Attempts) {
+                Write-Warning "Unable to read clipboard text: $($_.Exception.Message)"
+                return $null
+            }
+            Start-Sleep -Milliseconds (120 * $attempt)
+        }
+    }
+}
+
 function Set-FocusedText {
     param([string]$Text)
-    Set-Clipboard -Value $Text
+    if (-not (Set-ClipboardTextWithRetry -Text $Text)) {
+        throw "Unable to set clipboard text for focused input."
+    }
     [System.Windows.Forms.SendKeys]::SendWait("^a")
     Start-Sleep -Milliseconds 80
     [System.Windows.Forms.SendKeys]::SendWait("^v")
@@ -122,21 +175,24 @@ function Set-FocusedText {
 }
 
 function Get-FocusedText {
-    $before = Get-Clipboard -Raw -ErrorAction SilentlyContinue
+    $before = Get-ClipboardTextWithRetry
     try {
-        Set-Clipboard -Value "__MIRUPLAY_EMPTY_SELECTION__"
+        if (-not (Set-ClipboardTextWithRetry -Text "__MIRUPLAY_EMPTY_SELECTION__")) {
+            throw "Unable to set clipboard sentinel for focused input."
+        }
         [System.Windows.Forms.SendKeys]::SendWait("^a")
         Start-Sleep -Milliseconds 80
         [System.Windows.Forms.SendKeys]::SendWait("^c")
         Start-Sleep -Milliseconds 200
-        $text = (Get-Clipboard -Raw -ErrorAction SilentlyContinue).Trim()
+        $clipboardText = Get-ClipboardTextWithRetry
+        $text = if ($null -eq $clipboardText) { "" } else { $clipboardText.Trim() }
         if ($text -eq "__MIRUPLAY_EMPTY_SELECTION__") {
             return ""
         }
         return $text
     } finally {
         if ($null -ne $before) {
-            Set-Clipboard -Value $before
+            [void](Set-ClipboardTextWithRetry -Text $before)
         }
     }
 }
@@ -148,12 +204,16 @@ function Set-TextByRelativeClick {
         [int]$Y,
         [string]$Text,
         [string]$Description,
-        [int]$Attempts = 3
+        [int]$Attempts = 3,
+        [switch]$SkipReadback
     )
 
     for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
         Invoke-RelativeClick -Process $Process -X $X -Y $Y
         Set-FocusedText -Text $Text
+        if ($SkipReadback) {
+            return
+        }
         $actual = Get-FocusedText
         if ($actual -eq $Text) {
             return
@@ -295,7 +355,7 @@ Set-Content -LiteralPath $nfoPath -Encoding UTF8 -Value @"
 "@
 
 $resolvedLibraryRoot = Split-Path -Parent $fixtureDir
-$previousClipboard = Get-Clipboard -Raw -ErrorAction SilentlyContinue
+$previousClipboard = Get-ClipboardTextWithRetry
 $previousStoreEnv = $env:MIRUPLAY_DESKTOP_STORE
 $env:MIRUPLAY_DESKTOP_STORE = $storePath
 $startedProcess = $null
@@ -303,7 +363,7 @@ try {
     $startedProcess = Start-Process -FilePath $resolvedAppScript -PassThru
     $windowProcess = Wait-MiruPlayWindow
 
-    Set-TextByRelativeClick -Process $windowProcess -X 240 -Y 268 -Text $resolvedLibraryRoot -Description "local library root"
+    Set-TextByRelativeClick -Process $windowProcess -X 240 -Y 268 -Text $resolvedLibraryRoot -Description "local library root" -SkipReadback
     Invoke-RelativeClick -Process $windowProcess -X 500 -Y 337
     $state = Wait-StoreState -Path $storePath -Description "saved local source" -Predicate {
         param($state)
@@ -356,7 +416,7 @@ try {
     Save-WindowScreenshot -Process $windowProcess -Path $removedScreenshotPath
 } finally {
     if ($null -ne $previousClipboard) {
-        Set-Clipboard -Value $previousClipboard
+        [void](Set-ClipboardTextWithRetry -Text $previousClipboard)
     }
     $env:MIRUPLAY_DESKTOP_STORE = $previousStoreEnv
     if (-not $KeepOpen) {
@@ -369,7 +429,7 @@ try {
             }
         }
         if ($startedProcess -and -not $startedProcess.HasExited) {
-            Stop-Process -Id $startedProcess.Id -Force
+            Stop-Process -Id $startedProcess.Id -Force -ErrorAction SilentlyContinue
         }
     }
 }
