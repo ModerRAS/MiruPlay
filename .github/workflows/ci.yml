@@ -2,7 +2,7 @@ name: CI Build
 
 on:
   push:
-    branches: [ main, master, develop ]
+    branches: [ main, master, develop, 'codex/**' ]
   pull_request:
     branches: [ main, master, develop ]
   # 每天凌晨2点检查变更并发布nightly版本
