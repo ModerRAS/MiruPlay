@@ -94,6 +94,19 @@ function Invoke-RelativeClick {
     Start-Sleep -Milliseconds $DelayMilliseconds
 }
 
+function Send-AppKeys {
+    param(
+        [System.Diagnostics.Process]$Process,
+        [string]$Keys,
+        [int]$DelayMilliseconds = 500
+    )
+
+    [MiruPlayMpvLaunchSmokeWin32]::SetForegroundWindow($Process.MainWindowHandle) | Out-Null
+    Start-Sleep -Milliseconds 120
+    [System.Windows.Forms.SendKeys]::SendWait($Keys)
+    Start-Sleep -Milliseconds $DelayMilliseconds
+}
+
 function Set-FocusedText {
     param([string]$Text)
     Set-Clipboard -Value $Text
@@ -413,7 +426,7 @@ $sample = if ($SamplePath.Trim()) {
 }
 $preLaunchScreenshotPath = Join-Path $runDir "mpv-launch-ready.png"
 $launchedScreenshotPath = Join-Path $runDir "mpv-launched.png"
-$controlledScreenshotPath = Join-Path $runDir "mpv-controls-used.png"
+$keyboardControlledScreenshotPath = Join-Path $runDir "mpv-keyboard-controls-used.png"
 $stoppedScreenshotPath = Join-Path $runDir "mpv-stopped.png"
 New-Item -ItemType Directory -Path (Split-Path -Parent $storePath) -Force | Out-Null
 
@@ -450,11 +463,12 @@ try {
     Start-Sleep -Milliseconds 900
     Save-WindowScreenshotWithoutRedRequirement -Process $windowProcess -Path $launchedScreenshotPath
 
-    Invoke-RelativeClick -Process $windowProcess -X 596 -Y 278 -DelayMilliseconds 500
-    Invoke-RelativeClick -Process $windowProcess -X 498 -Y 278 -DelayMilliseconds 500
-    Invoke-RelativeClick -Process $windowProcess -X 696 -Y 278 -DelayMilliseconds 500
-    Save-WindowScreenshotWithoutRedRequirement -Process $windowProcess -Path $controlledScreenshotPath
-    Invoke-StopAndWait -WindowProcess $windowProcess -MpvProcessId $mpvProcess.ProcessId
+    Send-AppKeys -Process $windowProcess -Keys "{ENTER}" -DelayMilliseconds 500
+    Send-AppKeys -Process $windowProcess -Keys "{LEFT}{ENTER}" -DelayMilliseconds 500
+    Send-AppKeys -Process $windowProcess -Keys "{RIGHT}{RIGHT}{ENTER}" -DelayMilliseconds 500
+    Save-WindowScreenshotWithoutRedRequirement -Process $windowProcess -Path $keyboardControlledScreenshotPath
+    Send-AppKeys -Process $windowProcess -Keys "{RIGHT}{ENTER}" -DelayMilliseconds 1200
+    Wait-MpvProcessGone -ProcessId $mpvProcess.ProcessId
     $finalState = Wait-StoreState -Path $storePath -Description "stopped playback progress update" -Predicate {
         param($state)
         $records = @($state.progress | Where-Object { $_.episodeId -eq $sample })
@@ -495,5 +509,5 @@ if ($finalProgress) {
 }
 Write-Output "Pre-launch screenshot: $preLaunchScreenshotPath"
 Write-Output "Launched screenshot: $launchedScreenshotPath"
-Write-Output "Controls screenshot: $controlledScreenshotPath"
+Write-Output "Keyboard controls screenshot: $keyboardControlledScreenshotPath"
 Write-Output "Stopped screenshot: $stoppedScreenshotPath"
