@@ -326,7 +326,9 @@ try {
     }
     Save-WindowScreenshot -Process $windowProcess -Path $searchScreenshotPath
 
-    Send-AppKeys -Process $windowProcess -Keys "{DOWN}" -DelayMilliseconds 250
+    Send-AppKeys -Process $windowProcess -Keys "{RIGHT}" -DelayMilliseconds 250
+    Send-AppKeys -Process $windowProcess -Keys "{RIGHT}" -DelayMilliseconds 250
+    Send-AppKeys -Process $windowProcess -Keys "{LEFT}" -DelayMilliseconds 250
     Send-AppKeys -Process $windowProcess -Keys "{ENTER}" -DelayMilliseconds 900
     $state = Wait-StoreState -Path $storePath -Description "applied Bangumi metadata" -Predicate {
         param($state)

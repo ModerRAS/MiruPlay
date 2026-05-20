@@ -169,4 +169,48 @@ class DesktopBangumiNavigationTest {
         assertNull(bangumiActionFocusTarget(BangumiAction.Search, Key.DirectionRight))
         assertNull(bangumiActionFocusTarget(BangumiAction.AcceptReview, Key.DirectionDown))
     }
+
+    @Test
+    fun `bangumi action grid can enter and leave match lists horizontally`() {
+        assertEquals(
+            BangumiActionFocusTarget.ListPosition(BangumiListPosition(BangumiListSection.SearchResults, 0)),
+            bangumiActionFocusTarget(
+                current = BangumiAction.Search,
+                key = Key.DirectionRight,
+                batchMatchCount = 0,
+                candidateCount = 0,
+                resultCount = 2,
+            ),
+        )
+        assertEquals(
+            BangumiActionFocusTarget.ListPosition(BangumiListPosition(BangumiListSection.BatchMatches, 0)),
+            bangumiActionFocusTarget(
+                current = BangumiAction.ApplyBatch,
+                key = Key.DirectionRight,
+                batchMatchCount = 2,
+                candidateCount = 0,
+                resultCount = 2,
+            ),
+        )
+        assertEquals(
+            BangumiAction.ApplyMatch,
+            bangumiListExitActionTarget(
+                current = BangumiListPosition(BangumiListSection.SearchResults, 0),
+                key = Key.DirectionLeft,
+            ),
+        )
+        assertEquals(
+            BangumiAction.BatchPreview,
+            bangumiListExitActionTarget(
+                current = BangumiListPosition(BangumiListSection.BatchMatches, 0),
+                key = Key.DirectionLeft,
+            ),
+        )
+        assertNull(
+            bangumiListExitActionTarget(
+                current = BangumiListPosition(BangumiListSection.BatchCandidates, 0),
+                key = Key.DirectionLeft,
+            ),
+        )
+    }
 }
