@@ -65,7 +65,9 @@ internal fun BangumiPanel(
     onFocusPreviousPanel: () -> Boolean = { false },
     focusVersion: Int = 0,
 ) {
-    val useSelectedFocusRequester = remember { FocusRequester() }
+    val actionFocusRequesters = remember {
+        BangumiAction.entries.associateWith { FocusRequester() }
+    }
     val visibleBatchMatches = remember(batchMatches) { batchMatches.take(BANGUMI_BATCH_MATCH_LIMIT) }
     val visibleBatchCandidates = remember(selectedBatchMatch) {
         selectedBatchMatch
@@ -108,6 +110,16 @@ internal fun BangumiPanel(
             }
         }
 
+    fun moveActionFocus(action: BangumiAction, key: Key): Boolean =
+        when (val target = bangumiActionFocusTarget(action, key)) {
+            is BangumiActionFocusTarget.Action -> {
+                actionFocusRequesters.getValue(target.action).requestFocus()
+                true
+            }
+            BangumiActionFocusTarget.PreviousPanel -> onFocusPreviousPanel()
+            null -> false
+        }
+
     LaunchedEffect(
         visibleBatchMatches,
         visibleResults,
@@ -116,7 +128,7 @@ internal fun BangumiPanel(
         focusVersion,
     ) {
         if (focusVersion > 0) {
-            useSelectedFocusRequester.requestFocus()
+            actionFocusRequesters.getValue(BangumiAction.UseSelected).requestFocus()
         } else if (visibleBatchMatches.isNotEmpty()) {
             val selectedIndex = visibleBatchMatches.indexOfFirst { it.query == selectedBatchMatch?.query }.coerceAtLeast(0)
             batchFocusRequesters.getOrNull(selectedIndex)?.requestFocus()
@@ -147,37 +159,109 @@ internal fun BangumiPanel(
                         secondary = true,
                         modifier = Modifier
                             .weight(1f)
-                            .focusRequester(useSelectedFocusRequester)
-                            .onPreviewKeyEvent { event ->
-                                bangumiTopActionKeyEvent(
-                                    key = event.key,
-                                    type = event.type,
-                                    onFocusPreviousPanel = onFocusPreviousPanel,
-                                )
-                            },
+                            .bangumiActionNavigation(
+                                action = BangumiAction.UseSelected,
+                                focusRequester = actionFocusRequesters.getValue(BangumiAction.UseSelected),
+                                onMove = ::moveActionFocus,
+                            ),
                     )
-                    TvActionButton("Search", onClick = onSearch, modifier = Modifier.weight(1f))
+                    TvActionButton(
+                        "Search",
+                        onClick = onSearch,
+                        modifier = Modifier
+                            .weight(1f)
+                            .bangumiActionNavigation(
+                                action = BangumiAction.Search,
+                                focusRequester = actionFocusRequesters.getValue(BangumiAction.Search),
+                                onMove = ::moveActionFocus,
+                            ),
+                    )
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
                 ) {
-                    TvActionButton("Apply match", onClick = onApply, modifier = Modifier.weight(1f))
-                    TvActionButton("Clear metadata", onClick = onClear, secondary = true, modifier = Modifier.weight(1f))
+                    TvActionButton(
+                        "Apply match",
+                        onClick = onApply,
+                        modifier = Modifier
+                            .weight(1f)
+                            .bangumiActionNavigation(
+                                action = BangumiAction.ApplyMatch,
+                                focusRequester = actionFocusRequesters.getValue(BangumiAction.ApplyMatch),
+                                onMove = ::moveActionFocus,
+                            ),
+                    )
+                    TvActionButton(
+                        "Clear metadata",
+                        onClick = onClear,
+                        secondary = true,
+                        modifier = Modifier
+                            .weight(1f)
+                            .bangumiActionNavigation(
+                                action = BangumiAction.ClearMetadata,
+                                focusRequester = actionFocusRequesters.getValue(BangumiAction.ClearMetadata),
+                                onMove = ::moveActionFocus,
+                            ),
+                    )
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
                 ) {
-                    TvActionButton("Batch preview", onClick = onBatchPreview, secondary = true, modifier = Modifier.weight(1f))
-                    TvActionButton("Apply batch", onClick = onBatchApply, secondary = true, modifier = Modifier.weight(1f))
+                    TvActionButton(
+                        "Batch preview",
+                        onClick = onBatchPreview,
+                        secondary = true,
+                        modifier = Modifier
+                            .weight(1f)
+                            .bangumiActionNavigation(
+                                action = BangumiAction.BatchPreview,
+                                focusRequester = actionFocusRequesters.getValue(BangumiAction.BatchPreview),
+                                onMove = ::moveActionFocus,
+                            ),
+                    )
+                    TvActionButton(
+                        "Apply batch",
+                        onClick = onBatchApply,
+                        secondary = true,
+                        modifier = Modifier
+                            .weight(1f)
+                            .bangumiActionNavigation(
+                                action = BangumiAction.ApplyBatch,
+                                focusRequester = actionFocusRequesters.getValue(BangumiAction.ApplyBatch),
+                                onMove = ::moveActionFocus,
+                            ),
+                    )
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
                 ) {
-                    TvActionButton("Undo batch", onClick = onBatchUndo, secondary = true, modifier = Modifier.weight(1f))
-                    TvActionButton("Accept review", onClick = onBatchAcceptReview, secondary = true, modifier = Modifier.weight(1f))
+                    TvActionButton(
+                        "Undo batch",
+                        onClick = onBatchUndo,
+                        secondary = true,
+                        modifier = Modifier
+                            .weight(1f)
+                            .bangumiActionNavigation(
+                                action = BangumiAction.UndoBatch,
+                                focusRequester = actionFocusRequesters.getValue(BangumiAction.UndoBatch),
+                                onMove = ::moveActionFocus,
+                            ),
+                    )
+                    TvActionButton(
+                        "Accept review",
+                        onClick = onBatchAcceptReview,
+                        secondary = true,
+                        modifier = Modifier
+                            .weight(1f)
+                            .bangumiActionNavigation(
+                                action = BangumiAction.AcceptReview,
+                                focusRequester = actionFocusRequesters.getValue(BangumiAction.AcceptReview),
+                                onMove = ::moveActionFocus,
+                            ),
+                    )
                 }
                 StatusBox(status)
             }
@@ -437,6 +521,47 @@ internal data class BangumiListPosition(
     val index: Int,
 )
 
+internal enum class BangumiAction(
+    val row: Int,
+    val column: Int,
+) {
+    UseSelected(row = 0, column = 0),
+    Search(row = 0, column = 1),
+    ApplyMatch(row = 1, column = 0),
+    ClearMetadata(row = 1, column = 1),
+    BatchPreview(row = 2, column = 0),
+    ApplyBatch(row = 2, column = 1),
+    UndoBatch(row = 3, column = 0),
+    AcceptReview(row = 3, column = 1),
+}
+
+internal sealed interface BangumiActionFocusTarget {
+    data class Action(val action: BangumiAction) : BangumiActionFocusTarget
+    data object PreviousPanel : BangumiActionFocusTarget
+}
+
+internal fun bangumiActionFocusTarget(
+    current: BangumiAction,
+    key: Key,
+): BangumiActionFocusTarget? =
+    when (key) {
+        Key.DirectionLeft -> bangumiActionAt(current.row, current.column - 1)?.let(BangumiActionFocusTarget::Action)
+        Key.DirectionRight -> bangumiActionAt(current.row, current.column + 1)?.let(BangumiActionFocusTarget::Action)
+        Key.DirectionDown -> bangumiActionAt(current.row + 1, current.column)?.let(BangumiActionFocusTarget::Action)
+        Key.DirectionUp -> {
+            val target = bangumiActionAt(current.row - 1, current.column)
+            if (target == null && current.row == 0) {
+                BangumiActionFocusTarget.PreviousPanel
+            } else {
+                target?.let(BangumiActionFocusTarget::Action)
+            }
+        }
+        else -> null
+    }
+
+private fun bangumiActionAt(row: Int, column: Int): BangumiAction? =
+    BangumiAction.entries.firstOrNull { it.row == row && it.column == column }
+
 internal fun bangumiListNavigationTarget(
     current: BangumiListPosition,
     key: Key,
@@ -483,6 +608,16 @@ internal fun bangumiListNavigationTarget(
     return visibleRows.getOrNull(targetIndex)
 }
 
+private fun Modifier.bangumiActionNavigation(
+    action: BangumiAction,
+    focusRequester: FocusRequester,
+    onMove: (BangumiAction, Key) -> Boolean,
+): Modifier =
+    focusRequester(focusRequester)
+        .onPreviewKeyEvent { event ->
+            event.type == KeyEventType.KeyDown && onMove(action, event.key)
+        }
+
 private fun bangumiRowKeyEvent(
     key: Key,
     type: KeyEventType,
@@ -507,8 +642,6 @@ internal fun bangumiTopActionKeyEvent(
     onFocusPreviousPanel: () -> Boolean,
 ): Boolean {
     if (type != KeyEventType.KeyDown) return false
-    return when (key) {
-        Key.DirectionUp -> onFocusPreviousPanel()
-        else -> false
-    }
+    return bangumiActionFocusTarget(BangumiAction.UseSelected, key) == BangumiActionFocusTarget.PreviousPanel &&
+        onFocusPreviousPanel()
 }

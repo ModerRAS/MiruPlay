@@ -55,6 +55,23 @@ class DesktopDetailHeroTest {
     }
 
     @Test
+    fun `recent playback focus exits to neighboring details panels at row boundaries`() {
+        assertEquals(
+            RecentPlaybackFocusTarget.PreviousPanel,
+            moveRecentPlaybackFocusTarget(currentIndex = 0, itemCount = 3, delta = -1),
+        )
+        assertEquals(
+            RecentPlaybackFocusTarget.Row(1),
+            moveRecentPlaybackFocusTarget(currentIndex = 0, itemCount = 3, delta = 1),
+        )
+        assertEquals(
+            RecentPlaybackFocusTarget.NextPanel,
+            moveRecentPlaybackFocusTarget(currentIndex = 2, itemCount = 3, delta = 1),
+        )
+        assertEquals(null, moveRecentPlaybackFocusTarget(currentIndex = 0, itemCount = 0, delta = 1))
+    }
+
+    @Test
     fun `detail hero down key falls back to bangumi when recents are absent`() {
         assertEquals(
             DesktopDetailDownTarget.EpisodeList,
