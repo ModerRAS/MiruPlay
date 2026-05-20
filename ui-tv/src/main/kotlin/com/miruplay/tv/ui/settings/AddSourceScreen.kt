@@ -199,6 +199,7 @@ fun AddSourceScreen(
     var rssUrl by remember { mutableStateOf("") }
     var rssFilterRegex by remember { mutableStateOf("") }
     var rssEnabled by remember { mutableStateOf(true) }
+    var pendingDeletedSourceId by remember { mutableStateOf<Long?>(null) }
 
     val menuFocusRequesters = remember {
         SettingsSection.entries.associateWith { FocusRequester() }
@@ -244,6 +245,16 @@ fun AddSourceScreen(
         username = ""
         password = ""
         viewModel.clearTestResult()
+    }
+
+    LaunchedEffect(sources, pendingDeletedSourceId) {
+        val deletedSourceId = pendingDeletedSourceId ?: return@LaunchedEffect
+        if (sources.none { it.id == deletedSourceId }) {
+            selectedSection = SettingsSection.SOURCES
+            resetSourceForm()
+            menuFocusRequesters.getValue(SettingsSection.SOURCES).requestFocus()
+            pendingDeletedSourceId = null
+        }
     }
 
     fun loadSourceForEdit(source: MediaSourceInfo) {
@@ -313,6 +324,8 @@ fun AddSourceScreen(
                     selectedSourceId = editingSourceId,
                     onSelectSource = ::loadSourceForEdit,
                     onDeleteSource = { sourceId ->
+                        pendingDeletedSourceId = sourceId
+                        selectedSection = SettingsSection.SOURCES
                         viewModel.removeSource(sourceId)
                         if (editingSourceId == sourceId) {
                             resetSourceForm()
@@ -1044,6 +1057,8 @@ private fun SourceListItem(
     onDelete: () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+    val itemFocusRequester = remember { FocusRequester() }
+    val deleteFocusRequester = remember { FocusRequester() }
     val isFocused by interactionSource.collectIsFocusedAsState()
     val location = source.connectionInfo["url"] ?: source.connectionInfo["path"] ?: ""
     val background = when {
@@ -1060,6 +1075,8 @@ private fun SourceListItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .focusRequester(itemFocusRequester)
+            .focusProperties { right = deleteFocusRequester }
             .clip(RoundedCornerShape(8.dp))
             .background(background)
             .border(
@@ -1106,17 +1123,25 @@ private fun SourceListItem(
                 )
             }
         }
-        SourceDeleteButton(onClick = onDelete)
+        SourceDeleteButton(
+            onClick = onDelete,
+            modifier = Modifier
+                .focusRequester(deleteFocusRequester)
+                .focusProperties { left = itemFocusRequester }
+        )
     }
 }
 
 @Composable
-private fun SourceDeleteButton(onClick: () -> Unit) {
+private fun SourceDeleteButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
 
     Box(
-        modifier = Modifier
+        modifier = modifier
             .size(58.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(if (isFocused) AnimeRed else AnimeRed.copy(alpha = 0.72f))
