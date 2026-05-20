@@ -110,15 +110,37 @@ internal fun BangumiPanel(
             }
         }
 
+    fun focusAction(action: BangumiAction): Boolean {
+        actionFocusRequesters.getValue(action).requestFocus()
+        return true
+    }
+
     fun moveActionFocus(action: BangumiAction, key: Key): Boolean =
-        when (val target = bangumiActionFocusTarget(action, key)) {
-            is BangumiActionFocusTarget.Action -> {
-                actionFocusRequesters.getValue(target.action).requestFocus()
-                true
-            }
+        when (
+            val target = bangumiActionFocusTarget(
+                current = action,
+                key = key,
+                batchMatchCount = visibleBatchMatches.size,
+                candidateCount = visibleBatchCandidates.size,
+                resultCount = visibleResults.size,
+            )
+        ) {
+            is BangumiActionFocusTarget.Action -> focusAction(target.action)
+            is BangumiActionFocusTarget.ListPosition -> selectAndFocus(target.position)
             BangumiActionFocusTarget.PreviousPanel -> onFocusPreviousPanel()
             null -> false
         }
+
+    fun moveListFocus(position: BangumiListPosition, key: Key): Boolean =
+        bangumiListNavigationTarget(
+            current = position,
+            key = key,
+            batchMatchCount = visibleBatchMatches.size,
+            candidateCount = visibleBatchCandidates.size,
+            resultCount = visibleResults.size,
+        )?.let(::selectAndFocus)
+            ?: bangumiListExitActionTarget(position, key)?.let(::focusAction)
+            ?: false
 
     LaunchedEffect(
         visibleBatchMatches,
@@ -285,13 +307,7 @@ internal fun BangumiPanel(
                             status = batchPlan.statusFor(match),
                             onClick = { onBatchMatchSelected(match) },
                             onNavigationKey = { key ->
-                                bangumiListNavigationTarget(
-                                    current = BangumiListPosition(BangumiListSection.BatchMatches, index),
-                                    key = key,
-                                    batchMatchCount = visibleBatchMatches.size,
-                                    candidateCount = visibleBatchCandidates.size,
-                                    resultCount = visibleResults.size,
-                                )?.let(::selectAndFocus) ?: false
+                                moveListFocus(BangumiListPosition(BangumiListSection.BatchMatches, index), key)
                             },
                             modifier = Modifier.focusRequester(batchFocusRequesters[index]),
                         )
@@ -310,13 +326,7 @@ internal fun BangumiPanel(
                             selected = candidate.isSameCandidate(match.result),
                             onClick = { onBatchCandidateSelected(match, candidate) },
                             onNavigationKey = { key ->
-                                bangumiListNavigationTarget(
-                                    current = BangumiListPosition(BangumiListSection.BatchCandidates, index),
-                                    key = key,
-                                    batchMatchCount = visibleBatchMatches.size,
-                                    candidateCount = visibleBatchCandidates.size,
-                                    resultCount = visibleResults.size,
-                                )?.let(::selectAndFocus) ?: false
+                                moveListFocus(BangumiListPosition(BangumiListSection.BatchCandidates, index), key)
                             },
                             modifier = Modifier.focusRequester(candidateFocusRequesters[index]),
                         )
@@ -331,13 +341,7 @@ internal fun BangumiPanel(
                             selected = selectedResult?.animeId == result.animeId,
                             onClick = { onResultSelected(result) },
                             onNavigationKey = { key ->
-                                bangumiListNavigationTarget(
-                                    current = BangumiListPosition(BangumiListSection.SearchResults, index),
-                                    key = key,
-                                    batchMatchCount = visibleBatchMatches.size,
-                                    candidateCount = visibleBatchCandidates.size,
-                                    resultCount = visibleResults.size,
-                                )?.let(::selectAndFocus) ?: false
+                                moveListFocus(BangumiListPosition(BangumiListSection.SearchResults, index), key)
                             },
                             modifier = Modifier.focusRequester(resultFocusRequesters[index]),
                         )
@@ -537,16 +541,26 @@ internal enum class BangumiAction(
 
 internal sealed interface BangumiActionFocusTarget {
     data class Action(val action: BangumiAction) : BangumiActionFocusTarget
+    data class ListPosition(val position: BangumiListPosition) : BangumiActionFocusTarget
     data object PreviousPanel : BangumiActionFocusTarget
 }
 
 internal fun bangumiActionFocusTarget(
     current: BangumiAction,
     key: Key,
+    batchMatchCount: Int = 0,
+    candidateCount: Int = 0,
+    resultCount: Int = 0,
 ): BangumiActionFocusTarget? =
     when (key) {
         Key.DirectionLeft -> bangumiActionAt(current.row, current.column - 1)?.let(BangumiActionFocusTarget::Action)
-        Key.DirectionRight -> bangumiActionAt(current.row, current.column + 1)?.let(BangumiActionFocusTarget::Action)
+        Key.DirectionRight ->
+            bangumiActionAt(current.row, current.column + 1)?.let(BangumiActionFocusTarget::Action)
+                ?: firstBangumiListPosition(
+                    batchMatchCount = batchMatchCount,
+                    candidateCount = candidateCount,
+                    resultCount = resultCount,
+                )?.takeIf { current.column == 1 }?.let(BangumiActionFocusTarget::ListPosition)
         Key.DirectionDown -> bangumiActionAt(current.row + 1, current.column)?.let(BangumiActionFocusTarget::Action)
         Key.DirectionUp -> {
             val target = bangumiActionAt(current.row - 1, current.column)
@@ -561,6 +575,21 @@ internal fun bangumiActionFocusTarget(
 
 private fun bangumiActionAt(row: Int, column: Int): BangumiAction? =
     BangumiAction.entries.firstOrNull { it.row == row && it.column == column }
+
+private fun firstBangumiListPosition(
+    batchMatchCount: Int,
+    candidateCount: Int,
+    resultCount: Int,
+): BangumiListPosition? =
+    when {
+        batchMatchCount.coerceAtMost(BANGUMI_BATCH_MATCH_LIMIT) > 0 ->
+            BangumiListPosition(BangumiListSection.BatchMatches, 0)
+        candidateCount.coerceAtMost(BANGUMI_CANDIDATE_LIMIT) > 0 ->
+            BangumiListPosition(BangumiListSection.BatchCandidates, 0)
+        resultCount.coerceAtMost(BANGUMI_RESULT_LIMIT) > 0 ->
+            BangumiListPosition(BangumiListSection.SearchResults, 0)
+        else -> null
+    }
 
 internal fun bangumiListNavigationTarget(
     current: BangumiListPosition,
@@ -607,6 +636,20 @@ internal fun bangumiListNavigationTarget(
     }
     return visibleRows.getOrNull(targetIndex)
 }
+
+internal fun bangumiListExitActionTarget(
+    current: BangumiListPosition,
+    key: Key,
+): BangumiAction? =
+    if (key != Key.DirectionLeft) {
+        null
+    } else {
+        when (current.section) {
+            BangumiListSection.BatchMatches -> BangumiAction.BatchPreview
+            BangumiListSection.BatchCandidates -> null
+            BangumiListSection.SearchResults -> BangumiAction.ApplyMatch
+        }
+    }
 
 private fun Modifier.bangumiActionNavigation(
     action: BangumiAction,
