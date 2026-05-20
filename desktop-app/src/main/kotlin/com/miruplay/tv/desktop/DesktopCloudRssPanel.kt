@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,7 +28,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -51,6 +59,12 @@ private enum class DesktopSettingsSection(
     CloudDrive("CloudDrive", "RSS 离线下载与入库"),
     Scan("扫描", "媒体库更新"),
     Metadata("元数据", "Bangumi 匹配"),
+}
+
+private fun DesktopSettingsSection.step(delta: Int): DesktopSettingsSection {
+    val sections = DesktopSettingsSection.entries
+    val nextIndex = (sections.indexOf(this) + delta + sections.size) % sections.size
+    return sections[nextIndex]
 }
 
 @Composable
@@ -547,7 +561,34 @@ private fun SettingsSectionMenu(
     onSectionSelected: (DesktopSettingsSection) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    TvPanel(modifier) {
+    val sectionFocusRequesters = remember {
+        DesktopSettingsSection.entries.associateWith { FocusRequester() }
+    }
+    LaunchedEffect(selectedSection) {
+        sectionFocusRequesters[selectedSection]?.requestFocus()
+    }
+
+    TvPanel(
+        modifier
+            .onPreviewKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) {
+                    false
+                } else {
+                    when (event.key) {
+                        Key.DirectionDown -> {
+                            onSectionSelected(selectedSection.step(1))
+                            true
+                        }
+                        Key.DirectionUp -> {
+                            onSectionSelected(selectedSection.step(-1))
+                            true
+                        }
+                        else -> false
+                    }
+                }
+            }
+            .focusable(),
+    ) {
         Text("设置菜单", color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(6.dp))
         Text("像 TV 版一样按分类管理桌面能力。", color = TextSecondary, fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp)
@@ -564,6 +605,7 @@ private fun SettingsSectionMenu(
                 ),
                 selected = section == selectedSection,
                 onClick = { onSectionSelected(section) },
+                modifier = Modifier.focusRequester(sectionFocusRequesters.getValue(section)),
             )
             Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
         }
@@ -576,12 +618,13 @@ private fun SettingsSectionMenuRow(
     summary: String,
     selected: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val focused by interactionSource.collectIsFocusedAsState()
     val active = selected || focused
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .height(74.dp)
             .clip(RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
