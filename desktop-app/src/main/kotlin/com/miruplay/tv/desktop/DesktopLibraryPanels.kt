@@ -163,8 +163,6 @@ internal fun LibraryPanel(
 @Composable
 internal fun DesktopLibraryHeader(
     onScan: () -> Unit,
-    onDetails: () -> Unit,
-    onPlayer: () -> Unit,
     onSettings: () -> Unit,
 ) {
     Row(
@@ -178,13 +176,27 @@ internal fun DesktopLibraryHeader(
             Text("本地媒体库 · Bangumi 元数据", color = TextSecondary, fontSize = 24.sp)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            TvActionButton("扫描", onClick = onScan, modifier = Modifier.width(132.dp))
-            TvActionButton("详情", onClick = onDetails, secondary = true, modifier = Modifier.width(132.dp))
-            TvActionButton("播放", onClick = onPlayer, secondary = true, modifier = Modifier.width(132.dp))
-            TvActionButton("设置", onClick = onSettings, modifier = Modifier.width(132.dp))
+            desktopLibraryHeaderActions().forEach { action ->
+                TvActionButton(
+                    action.label,
+                    onClick = when (action) {
+                        DesktopLibraryHeaderAction.Scan -> onScan
+                        DesktopLibraryHeaderAction.Settings -> onSettings
+                    },
+                    modifier = Modifier.width(132.dp),
+                )
+            }
         }
     }
 }
+
+internal enum class DesktopLibraryHeaderAction(val label: String) {
+    Scan("扫描"),
+    Settings("设置"),
+}
+
+internal fun desktopLibraryHeaderActions(): List<DesktopLibraryHeaderAction> =
+    DesktopLibraryHeaderAction.entries
 
 @Composable
 private fun PosterSearchBar(

@@ -711,8 +711,6 @@ internal fun MiruPlayDesktopComposeApp() {
                                 scanCurrentSource { libraryStatus = it }
                             }
                         },
-                        onDetails = { selectedDesktopSection = MiruPlayRouteSurface.details },
-                        onPlayer = { selectedDesktopSection = MiruPlayRouteSurface.player },
                         onSettings = { selectedDesktopSection = MiruPlayRouteSurface.settings },
                     )
                 }
