@@ -166,6 +166,16 @@ function Find-UiNode {
     return $null
 }
 
+function Find-FocusedNode {
+    param([xml]$Xml)
+    foreach ($node in Get-UiNodes -Xml $Xml) {
+        if ((Get-NodeAttribute -Node $node -Name "focused") -eq "true") {
+            return $node
+        }
+    }
+    return $null
+}
+
 function Get-UiTextSummary {
     param([xml]$Xml)
     $values = foreach ($node in Get-UiNodes -Xml $Xml) {
@@ -209,6 +219,24 @@ function Assert-UiText {
     }
 }
 
+function Assert-FocusedUiText {
+    param(
+        [xml]$Xml,
+        [string[]]$Needles,
+        [string]$Description
+    )
+    $focused = Find-FocusedNode -Xml $Xml
+    if ($null -eq $focused) {
+        throw "Missing focused $Description node. Current UI: $(Get-UiTextSummary -Xml $Xml)"
+    }
+    $summary = Get-NodeTreeTextSummary -Node $focused
+    foreach ($needle in $Needles) {
+        if (-not $summary.Contains($needle)) {
+            throw "Focused $Description node does not contain '$needle'. Focused UI: $summary"
+        }
+    }
+}
+
 function Get-NearestClickableNode {
     param([System.Xml.XmlNode]$Node)
     $current = $Node
@@ -220,6 +248,26 @@ function Get-NearestClickableNode {
         $current = $current.ParentNode
     }
     return $Node
+}
+
+function Get-NodeTreeTextSummary {
+    param([System.Xml.XmlNode]$Node)
+    $values = New-Object System.Collections.Generic.List[string]
+    $stack = New-Object System.Collections.Generic.Stack[System.Xml.XmlNode]
+    $stack.Push($Node)
+    while ($stack.Count -gt 0) {
+        $current = $stack.Pop()
+        $text = Get-NodeAttribute -Node $current -Name "text"
+        $description = Get-NodeAttribute -Node $current -Name "content-desc"
+        if ($text.Trim()) { $values.Add($text.Trim()) }
+        if ($description.Trim()) { $values.Add($description.Trim()) }
+        foreach ($child in $current.ChildNodes) {
+            if ($child -is [System.Xml.XmlNode]) {
+                $stack.Push($child)
+            }
+        }
+    }
+    return ($values | Select-Object -Unique) -join " | "
 }
 
 function Get-NodeCenter {
@@ -312,9 +360,11 @@ $remoteFixtureRoot = "/sdcard/Movies/$(Split-Path -Leaf $fixtureRoot)"
 $libraryScreenshot = Join-Path $runDir "android-tv-library.png"
 $libraryDpadScreenshot = Join-Path $runDir "android-tv-library-dpad-poster.png"
 $detailsScreenshot = Join-Path $runDir "android-tv-details.png"
+$detailsEpisodeFocusScreenshot = Join-Path $runDir "android-tv-details-episode-focus.png"
 $playerScreenshot = Join-Path $runDir "android-tv-player.png"
 $libraryXmlPath = Join-Path $runDir "android-tv-library.xml"
 $detailsXmlPath = Join-Path $runDir "android-tv-details.xml"
+$detailsEpisodeFocusXmlPath = Join-Path $runDir "android-tv-details-episode-focus.xml"
 $playerXmlPath = Join-Path $runDir "android-tv-player.xml"
 $reportPath = Join-Path $runDir "android-tv-smoke-report.json"
 New-Item -ItemType Directory -Path $runDir -Force | Out-Null
@@ -352,6 +402,11 @@ $xml = Wait-UiText -Needles @($textEpisodeShelf, $textPlay) -XmlPath $detailsXml
 Assert-UiText -Xml $xml -Needles @("Fixture Alpha", $textPlay, $textEpisodeShelf, $textEpisodeOne) -Description "Details"
 Save-Screenshot -Path $detailsScreenshot
 
+Invoke-DpadKey -KeyCode "KEYCODE_DPAD_DOWN" -DelayMilliseconds 800
+$xml = Wait-UiText -Needles @($textEpisodeOne) -XmlPath $detailsEpisodeFocusXmlPath -TimeoutSeconds 15
+Assert-FocusedUiText -Xml $xml -Needles @($textEpisodeOne) -Description "Details episode row"
+Save-Screenshot -Path $detailsEpisodeFocusScreenshot
+
 Invoke-DpadKey -KeyCode "KEYCODE_DPAD_CENTER" -DelayMilliseconds 1200
 $xml = Wait-UiText -Needles @($textLocalPlayback, $textSpeed) -XmlPath $playerXmlPath -TimeoutSeconds 45
 Assert-UiText -Xml $xml -Needles @($textLocalPlayback, $textSpeed) -Description "Player"
@@ -369,18 +424,21 @@ Write-Report -Path $reportPath -Report @{
         library = $libraryScreenshot
         libraryDpadPoster = $libraryDpadScreenshot
         details = $detailsScreenshot
+        detailsEpisodeFocus = $detailsEpisodeFocusScreenshot
         player = $playerScreenshot
     }
     xml = @{
         library = $libraryXmlPath
         details = $detailsXmlPath
+        detailsEpisodeFocus = $detailsEpisodeFocusXmlPath
         player = $playerXmlPath
     }
     assertions = @(
         "Library contains Explore, highest-heat row, recent row, and fixture poster.",
         "Library content requests poster focus; DPAD Right/Left stays on the poster surface and DPAD Center opens Details.",
         "Details contains hero/title, Play, episode list, and first episode row.",
-        "DPAD Center on the Details play action opens Player.",
+        "DPAD Down from the Details play action focuses the first episode row.",
+        "DPAD Center on the focused Details episode row opens Player.",
         "Player contains local playback chrome and no playback failure overlay."
     )
 }
@@ -390,5 +448,6 @@ Write-Output "Remote fixture: $remoteFixtureRoot"
 Write-Output "Library screenshot: $libraryScreenshot"
 Write-Output "Library DPAD poster screenshot: $libraryDpadScreenshot"
 Write-Output "Details screenshot: $detailsScreenshot"
+Write-Output "Details episode focus screenshot: $detailsEpisodeFocusScreenshot"
 Write-Output "Player screenshot: $playerScreenshot"
 Write-Output "Report: $reportPath"
