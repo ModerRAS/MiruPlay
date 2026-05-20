@@ -36,7 +36,11 @@ Player transport paths by keyboard input.
 Release packaging now has a packaged runtime gate that builds `desktop-app.zip`,
 launches the packaged runtime source with `mpv.exe --version`, and verifies the
 zip contains the mpv executable, runtime manifest, and NVIDIA/DIRECTML RIFE
-scripts.
+scripts. `tools/verify-windows-port.ps1` now wraps the local port gate with
+safe defaults: Gradle/JVM/desktop install and Android debug build run by
+default, while GUI smokes, the real `D:\Software\dufs` library, Android TV
+emulator smoke, SMB share smoke, mpv runtime payload checks, and RIFE target
+hardware checks require explicit switches.
 
 ## Prompt-to-Artifact Completion Matrix
 
@@ -145,6 +149,19 @@ multi-panel traversal can still be expanded separately.
 ## Latest Verification Commands
 
 ```powershell
+.\tools\verify-windows-port.ps1
+
+# Optional live/device/runtime gates:
+.\tools\verify-windows-port.ps1 -Gui
+.\tools\verify-windows-port.ps1 -RealLibrary -RealLibraryRoot 'D:\Software\dufs'
+.\tools\verify-windows-port.ps1 -AndroidTv -AndroidDeviceId 10.137.32.118:5555
+.\tools\verify-windows-port.ps1 -Smb
+.\tools\verify-windows-port.ps1 -MpvRuntime -PackagedMpvRuntime
+.\tools\verify-windows-port.ps1 -Rife -RifeBackend ALL -AllowRifeFailures
+
+# The -Smb switch is restricted to \\smb.ynz.local\share\临时文件\测试.
+# Do not scan or modify unrelated files in that SMB share.
+
 .\tools\prepare-mpv-runtime.ps1 `
   -Source .\.gradle\mpv-playkit-20260510\mpv-lazy-20260510.exe `
   -OverlaySource .\.gradle\mpv-playkit-20260510\mpv-lazy-20260510-vsNV.7z.001 `
