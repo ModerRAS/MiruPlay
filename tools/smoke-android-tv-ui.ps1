@@ -350,6 +350,9 @@ $textHighestHeat = New-UnicodeText @(0x6700, 0x9AD8, 0x70ED, 0x5EA6)
 $textRecentlyAdded = New-UnicodeText @(0x6700, 0x8FD1, 0x6DFB, 0x52A0)
 $textEpisodeShelf = New-UnicodeText @(0x9009, 0x96C6)
 $textPlay = New-UnicodeText @(0x64AD, 0x653E)
+$textPlaybackEnd = New-UnicodeText @(0x64AD, 0x653E, 0x7ED3, 0x675F)
+$textReturnToDetail = New-UnicodeText @(0x8FD4, 0x56DE, 0x8BE6, 0x60C5)
+$textPlayNextEpisode = New-UnicodeText @(0x7EE7, 0x7EED, 0x4E0B, 0x4E00, 0x96C6)
 $textEpisodeOne = New-UnicodeText @(0x7B2C, 0x20, 0x31, 0x20, 0x96C6)
 $textLocalPlayback = New-UnicodeText @(0x672C, 0x5730, 0x64AD, 0x653E)
 $textSpeed = New-UnicodeText @(0x500D, 0x901F)
@@ -357,6 +360,16 @@ $textPlaybackFailed = New-UnicodeText @(0x64AD, 0x653E, 0x5931, 0x8D25)
 $textSettings = New-UnicodeText @(0x8BBE, 0x7F6E)
 $textMediaSources = New-UnicodeText @(0x5A92, 0x4F53, 0x6E90)
 $textMetadata = New-UnicodeText @(0x5143, 0x6570, 0x636E)
+$textCloudDriveAddress = "CloudDrive2"
+$textCloudDriveEndpoint = New-UnicodeText @(0x0043, 0x006C, 0x006F, 0x0075, 0x0064, 0x0044, 0x0072, 0x0069, 0x0076, 0x0065, 0x0032, 0x20, 0x5730, 0x5740)
+$textRssOffline = New-UnicodeText @(0x0052, 0x0053, 0x0053, 0x20, 0x79BB, 0x7EBF, 0x4E0B, 0x8F7D, 0x4E0E, 0x5165, 0x5E93)
+$textApiToken = "API Token / Key"
+$textMediaLibraryScan = New-UnicodeText @(0x5A92, 0x4F53, 0x5E93, 0x626B, 0x63CF)
+$textTimedScanOff = New-UnicodeText @(0x5B9A, 0x65F6, 0x5173, 0x95ED)
+$textMediaLibraryDisplay = New-UnicodeText @(0x5A92, 0x4F53, 0x5E93, 0x663E, 0x793A)
+$textMergeSameAnime = New-UnicodeText @(0x540C, 0x756A, 0x5408, 0x5E76)
+$textSeparateDirectories = New-UnicodeText @(0x76EE, 0x5F55, 0x5206, 0x5F00)
+$textBangumiToken = "Bangumi Access Token"
 $textAddMediaSource = New-UnicodeText @(0x6DFB, 0x52A0, 0x5A92, 0x4F53, 0x6E90)
 $textEditMediaSource = New-UnicodeText @(0x7F16, 0x8F91, 0x5A92, 0x4F53, 0x6E90)
 $textNewSource = New-UnicodeText @(0x65B0, 0x5EFA)
@@ -395,6 +408,10 @@ $settingsSourceCardScreenshot = Join-Path $runDir "android-tv-settings-source-ca
 $settingsSourceEditScreenshot = Join-Path $runDir "android-tv-settings-source-edit.png"
 $settingsSourceDeleteFocusScreenshot = Join-Path $runDir "android-tv-settings-source-delete-focus.png"
 $settingsSourceDeletedScreenshot = Join-Path $runDir "android-tv-settings-source-deleted.png"
+$settingsPlaybackScreenshot = Join-Path $runDir "android-tv-settings-playback.png"
+$settingsCloudDriveScreenshot = Join-Path $runDir "android-tv-settings-cloud-drive.png"
+$settingsScanScreenshot = Join-Path $runDir "android-tv-settings-scan.png"
+$settingsMetadataScreenshot = Join-Path $runDir "android-tv-settings-metadata.png"
 $libraryXmlPath = Join-Path $runDir "android-tv-library.xml"
 $detailsXmlPath = Join-Path $runDir "android-tv-details.xml"
 $detailsEpisodeFocusXmlPath = Join-Path $runDir "android-tv-details-episode-focus.xml"
@@ -408,6 +425,10 @@ $settingsSourcesReturnXmlPath = Join-Path $runDir "android-tv-settings-sources-r
 $settingsSourceEditXmlPath = Join-Path $runDir "android-tv-settings-source-edit.xml"
 $settingsSourceDeleteFocusXmlPath = Join-Path $runDir "android-tv-settings-source-delete-focus.xml"
 $settingsSourceDeletedXmlPath = Join-Path $runDir "android-tv-settings-source-deleted.xml"
+$settingsPlaybackXmlPath = Join-Path $runDir "android-tv-settings-playback.xml"
+$settingsCloudDriveXmlPath = Join-Path $runDir "android-tv-settings-cloud-drive.xml"
+$settingsScanXmlPath = Join-Path $runDir "android-tv-settings-scan.xml"
+$settingsMetadataXmlPath = Join-Path $runDir "android-tv-settings-metadata.xml"
 $reportPath = Join-Path $runDir "android-tv-smoke-report.json"
 New-Item -ItemType Directory -Path $runDir -Force | Out-Null
 
@@ -509,6 +530,33 @@ Assert-UiText -Xml $xml -Needles @($textMediaSources, $textNoMediaSources, $text
 Assert-UiTextAbsent -Xml $xml -Needles @("Test Local", $remoteFixtureRoot) -Description "deleted media source"
 Save-Screenshot -Path $settingsSourceDeletedScreenshot
 
+Invoke-DpadKey -KeyCode "KEYCODE_DPAD_DOWN" -DelayMilliseconds 800
+$xml = Wait-UiText -Needles @($textPlaybackEnd, $textReturnToDetail, $textPlayNextEpisode) -XmlPath $settingsPlaybackXmlPath -TimeoutSeconds 30
+Assert-UiText -Xml $xml -Needles @($textPlay, $textPlaybackEnd, $textReturnToDetail, $textPlayNextEpisode) -Description "Settings playback"
+Assert-FocusedUiText -Xml $xml -Needles @($textPlay) -Description "Settings playback menu"
+Save-Screenshot -Path $settingsPlaybackScreenshot
+
+Invoke-DpadKey -KeyCode "KEYCODE_DPAD_DOWN" -DelayMilliseconds 800
+$xml = Wait-UiText -Needles @($textCloudDriveAddress, $textCloudDriveEndpoint, $textApiToken) -XmlPath $settingsCloudDriveXmlPath -TimeoutSeconds 30
+Assert-UiText -Xml $xml -Needles @($textCloudDriveAddress, $textCloudDriveEndpoint, $textRssOffline, $textApiToken) -Description "Settings CloudDrive"
+Assert-FocusedUiText -Xml $xml -Needles @("CloudDrive") -Description "Settings CloudDrive menu"
+Save-Screenshot -Path $settingsCloudDriveScreenshot
+
+Invoke-DpadKey -KeyCode "KEYCODE_DPAD_DOWN" -DelayMilliseconds 800
+$xml = Wait-UiText -Needles @($textMediaLibraryScan, $textTimedScanOff, $textMediaLibraryDisplay) -XmlPath $settingsScanXmlPath -TimeoutSeconds 30
+Assert-UiText -Xml $xml -Needles @($textScan, $textMediaLibraryScan, $textTimedScanOff, $textMediaLibraryDisplay) -Description "Settings scan"
+if (-not (Find-UiNode -Xml $xml -Needles @($textMergeSameAnime, $textSeparateDirectories))) {
+    throw "Missing Settings scan media-display state. Current UI: $(Get-UiTextSummary -Xml $xml)"
+}
+Assert-FocusedUiText -Xml $xml -Needles @($textScan) -Description "Settings scan menu"
+Save-Screenshot -Path $settingsScanScreenshot
+
+Invoke-DpadKey -KeyCode "KEYCODE_DPAD_DOWN" -DelayMilliseconds 800
+$xml = Wait-UiText -Needles @($textMetadata, $textBangumiToken) -XmlPath $settingsMetadataXmlPath -TimeoutSeconds 30
+Assert-UiText -Xml $xml -Needles @($textMetadata, $textBangumiToken) -Description "Settings metadata"
+Assert-FocusedUiText -Xml $xml -Needles @($textMetadata) -Description "Settings metadata menu"
+Save-Screenshot -Path $settingsMetadataScreenshot
+
 Write-Report -Path $reportPath -Report @{
     generatedAt = (Get-Date).ToString("o")
     deviceId = $DeviceId
@@ -527,6 +575,10 @@ Write-Report -Path $reportPath -Report @{
         settingsSourceEdit = $settingsSourceEditScreenshot
         settingsSourceDeleteFocus = $settingsSourceDeleteFocusScreenshot
         settingsSourceDeleted = $settingsSourceDeletedScreenshot
+        settingsPlayback = $settingsPlaybackScreenshot
+        settingsCloudDrive = $settingsCloudDriveScreenshot
+        settingsScan = $settingsScanScreenshot
+        settingsMetadata = $settingsMetadataScreenshot
     }
     xml = @{
         library = $libraryXmlPath
@@ -542,6 +594,10 @@ Write-Report -Path $reportPath -Report @{
         settingsSourceEdit = $settingsSourceEditXmlPath
         settingsSourceDeleteFocus = $settingsSourceDeleteFocusXmlPath
         settingsSourceDeleted = $settingsSourceDeletedXmlPath
+        settingsPlayback = $settingsPlaybackXmlPath
+        settingsCloudDrive = $settingsCloudDriveXmlPath
+        settingsScan = $settingsScanXmlPath
+        settingsMetadata = $settingsMetadataXmlPath
     }
     assertions = @(
         "Library contains Explore, highest-heat row, recent row, and fixture poster.",
@@ -557,7 +613,8 @@ Write-Report -Path $reportPath -Report @{
         "DPAD Right from the Settings media-source menu focuses the auto-added source card, and Left returns to the media-source menu.",
         "DPAD Center on the focused Settings source card opens the edit source form without losing card focus.",
         "DPAD Right from the focused Settings source card focuses its delete button.",
-        "DPAD Center on the focused delete button removes the source and shows the empty media-source state."
+        "DPAD Center on the focused delete button removes the source and shows the empty media-source state.",
+        "DPAD Down from the media-source menu visits Playback, CloudDrive, Scan, and Metadata settings pages with matching menu focus."
     )
 }
 
@@ -575,4 +632,8 @@ Write-Output "Settings source card screenshot: $settingsSourceCardScreenshot"
 Write-Output "Settings source edit screenshot: $settingsSourceEditScreenshot"
 Write-Output "Settings source delete focus screenshot: $settingsSourceDeleteFocusScreenshot"
 Write-Output "Settings source deleted screenshot: $settingsSourceDeletedScreenshot"
+Write-Output "Settings playback screenshot: $settingsPlaybackScreenshot"
+Write-Output "Settings CloudDrive screenshot: $settingsCloudDriveScreenshot"
+Write-Output "Settings scan screenshot: $settingsScanScreenshot"
+Write-Output "Settings metadata screenshot: $settingsMetadataScreenshot"
 Write-Output "Report: $reportPath"
