@@ -244,6 +244,7 @@ private fun LibraryControlBar(
     onClearIndex: () -> Unit,
     onRemoveSource: () -> Unit,
 ) {
+    val labels = desktopLibrarySourceLabels()
     val sourcePickerFocusRequester = remember { FocusRequester() }
     var sourcePickerFocusVersion by remember { mutableIntStateOf(0) }
     fun refocusSourcePicker() {
@@ -284,7 +285,7 @@ private fun LibraryControlBar(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
                 ) {
-                    LabeledTextField("Local library root", libraryRoot, onValueChange = onLibraryRootChange, modifier = Modifier.weight(1.25f))
+                    LabeledTextField(labels.localLibraryRoot, libraryRoot, onValueChange = onLibraryRootChange, modifier = Modifier.weight(1.25f))
                     SavedSourcePicker(
                         sources = savedSources,
                         activeSourceId = activeSourceId,
@@ -297,9 +298,9 @@ private fun LibraryControlBar(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
                 ) {
-                    LabeledTextField("Index query", indexQuery, onValueChange = onIndexQueryChange, modifier = Modifier.weight(1.4f))
+                    LabeledTextField(labels.indexQuery, indexQuery, onValueChange = onIndexQueryChange, modifier = Modifier.weight(1.4f))
                     TvActionButton(
-                        "Open local",
+                        labels.openLocal,
                         onClick = {
                             onOpenLocal()
                             refocusSourcePicker()
@@ -307,7 +308,7 @@ private fun LibraryControlBar(
                         modifier = Modifier.weight(0.72f),
                     )
                     TvActionButton(
-                        "Scan",
+                        labels.scan,
                         onClick = {
                             onScan()
                             refocusSourcePicker()
@@ -315,12 +316,12 @@ private fun LibraryControlBar(
                         secondary = true,
                         modifier = Modifier.weight(0.54f),
                     )
-                    TvActionButton("Search", onClick = onSearch, secondary = true, modifier = Modifier.weight(1f))
+                    TvActionButton(labels.search, onClick = onSearch, secondary = true, modifier = Modifier.weight(1f))
                 }
             }
             Column(Modifier.width(220.dp), verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
-                TvActionButton("Clear index", onClick = onClearIndex, secondary = true, modifier = Modifier.fillMaxWidth())
-                TvActionButton("Remove source", onClick = onRemoveSource, secondary = true, modifier = Modifier.fillMaxWidth())
+                TvActionButton(labels.clearIndex, onClick = onClearIndex, secondary = true, modifier = Modifier.fillMaxWidth())
+                TvActionButton(labels.removeSource, onClick = onRemoveSource, secondary = true, modifier = Modifier.fillMaxWidth())
             }
         }
         Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
@@ -794,6 +795,7 @@ internal fun RemoteSourcesPanel(
     onEntryFocused: (FileEntry) -> Unit,
     onEntrySelected: (FileEntry) -> Unit,
 ) {
+    val labels = desktopLibrarySourceLabels()
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp),
@@ -808,52 +810,52 @@ internal fun RemoteSourcesPanel(
                 badge = "DAV",
                 endpoint = remoteSourcePreview(webDavUrl, fallback = "填写 WebDAV 地址"),
             ) {
-                LabeledTextField("WebDAV URL", webDavUrl, onValueChange = onWebDavUrlChange)
+                LabeledTextField(labels.webDavUrl, webDavUrl, onValueChange = onWebDavUrlChange)
                 Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp)) {
                     LabeledTextField(
-                        "WebDAV user",
+                        labels.webDavUser,
                         webDavUsername,
                         onValueChange = onWebDavUsernameChange,
                         modifier = Modifier.weight(1f),
                     )
                     LabeledTextField(
-                        "WebDAV password",
+                        labels.webDavPassword,
                         webDavPassword,
                         onValueChange = onWebDavPasswordChange,
                         modifier = Modifier.weight(1f),
                     )
                 }
-                TvActionButton("Open WebDAV", onClick = onOpenWebDav)
+                TvActionButton(labels.openWebDav, onClick = onOpenWebDav)
             }
             RemoteSourceEditorCard(
                 title = "SMB",
                 badge = "SMB",
                 endpoint = remoteSourcePreview(smbUrl, fallback = "填写 SMB 共享地址"),
             ) {
-                LabeledTextField("SMB URL", smbUrl, onValueChange = onSmbUrlChange)
+                LabeledTextField(labels.smbUrl, smbUrl, onValueChange = onSmbUrlChange)
                 Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp)) {
                     LabeledTextField(
-                        "SMB domain",
+                        labels.smbDomain,
                         smbDomain,
                         onValueChange = onSmbDomainChange,
                         modifier = Modifier.weight(1f),
                     )
                     LabeledTextField(
-                        "SMB user",
+                        labels.smbUser,
                         smbUsername,
                         onValueChange = onSmbUsernameChange,
                         modifier = Modifier.weight(1f),
                     )
                     LabeledTextField(
-                        "SMB password",
+                        labels.smbPassword,
                         smbPassword,
                         onValueChange = onSmbPasswordChange,
                         modifier = Modifier.weight(1f),
                     )
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
-                    TvActionButton("Open SMB", onClick = onOpenSmb)
-                    TvActionButton("Scan source", onClick = onScan, secondary = true)
+                    TvActionButton(labels.openSmb, onClick = onOpenSmb)
+                    TvActionButton(labels.scanSource, onClick = onScan, secondary = true)
                 }
             }
             StatusBox(status)
@@ -927,6 +929,7 @@ private fun RemoteBrowserPanel(
     onEntrySelected: (FileEntry) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val labels = desktopLibrarySourceLabels()
     val visibleEntries = remember(entries) { entries.take(8) }
     val focusRequesters = remember(visibleEntries) {
         visibleEntries.associate { it.path to FocusRequester() }
@@ -945,7 +948,7 @@ private fun RemoteBrowserPanel(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
-                Text("Remote browser", color = TextPrimary, fontSize = MiruPlayUiMetrics.SECTION_SUBTITLE_SP.sp, fontWeight = FontWeight.SemiBold)
+                Text(labels.remoteBrowser, color = TextPrimary, fontSize = MiruPlayUiMetrics.SECTION_SUBTITLE_SP.sp, fontWeight = FontWeight.SemiBold)
                 Text(
                     remoteBrowserPathPreview(remotePath),
                     color = TextSecondary,
@@ -954,12 +957,12 @@ private fun RemoteBrowserPanel(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            TvActionButton("Up", onClick = onUp, secondary = true, modifier = Modifier.width(MiruPlayUiMetrics.CONTROL_BUTTON_WIDTH_DP.dp))
+            TvActionButton(labels.up, onClick = onUp, secondary = true, modifier = Modifier.width(MiruPlayUiMetrics.CONTROL_BUTTON_WIDTH_DP.dp))
         }
         Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
         if (entries.isEmpty()) {
             DesktopEmptyState(
-                text = "Open a remote source to list files.",
+                text = labels.remoteEmpty,
                 heightDp = MiruPlayUiMetrics.REMOTE_EMPTY_STATE_HEIGHT_DP,
             )
         } else {
@@ -1037,7 +1040,7 @@ private fun RemoteFileRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                if (entry.isDirectory) "DIR" else "VID",
+                if (entry.isDirectory) "目录" else "视频",
                 color = if (entry.isDirectory) AnimeRed else TextSecondary,
                 fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
                 fontWeight = FontWeight.Bold,
@@ -1084,3 +1087,50 @@ internal fun remoteBrowserShouldNavigateUp(
     currentIndex: Int,
     key: Key,
 ): Boolean = currentIndex == 0 && key == Key.DirectionUp
+
+internal data class DesktopLibrarySourceLabels(
+    val localLibraryRoot: String,
+    val indexQuery: String,
+    val openLocal: String,
+    val scan: String,
+    val search: String,
+    val clearIndex: String,
+    val removeSource: String,
+    val webDavUrl: String,
+    val webDavUser: String,
+    val webDavPassword: String,
+    val openWebDav: String,
+    val smbUrl: String,
+    val smbDomain: String,
+    val smbUser: String,
+    val smbPassword: String,
+    val openSmb: String,
+    val scanSource: String,
+    val remoteBrowser: String,
+    val up: String,
+    val remoteEmpty: String,
+)
+
+internal fun desktopLibrarySourceLabels(): DesktopLibrarySourceLabels =
+    DesktopLibrarySourceLabels(
+        localLibraryRoot = "本地媒体库路径",
+        indexQuery = "索引搜索",
+        openLocal = "打开本地",
+        scan = "扫描",
+        search = "搜索",
+        clearIndex = "清空索引",
+        removeSource = "移除媒体源",
+        webDavUrl = "WebDAV 地址",
+        webDavUser = "WebDAV 用户名",
+        webDavPassword = "WebDAV 密码",
+        openWebDav = "打开 WebDAV",
+        smbUrl = "SMB 地址",
+        smbDomain = "SMB 域",
+        smbUser = "SMB 用户名",
+        smbPassword = "SMB 密码",
+        openSmb = "打开 SMB",
+        scanSource = "扫描媒体源",
+        remoteBrowser = "远程浏览",
+        up = "上级",
+        remoteEmpty = "先打开一个远程媒体源以浏览文件。",
+    )

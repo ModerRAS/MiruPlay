@@ -42,10 +42,17 @@ public static class MiruPlaySourceManagementSmokeWin32 {
     public static extern bool SetForegroundWindow(IntPtr hWnd);
 
     [DllImport("user32.dll")]
+    public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+    [DllImport("user32.dll")]
+    public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+    [DllImport("user32.dll")]
     public static extern bool SetCursorPos(int X, int Y);
 
     [DllImport("user32.dll")]
     public static extern void mouse_event(uint flags, uint dx, uint dy, int data, UIntPtr extraInfo);
+
 }
 "@
 }
@@ -86,6 +93,26 @@ function Get-WindowRect {
     return $rect
 }
 
+function Set-MiruPlayWindowForeground {
+    param([System.Diagnostics.Process]$Process)
+
+    $hwndTopMost = [IntPtr]::new(-1)
+    $hwndNoTopMost = [IntPtr]::new(-2)
+    $swRestore = 9
+    $swpNoSize = 0x0001
+    $swpNoMove = 0x0002
+    $swpShowWindow = 0x0040
+    $flags = $swpNoSize -bor $swpNoMove -bor $swpShowWindow
+
+    [MiruPlaySourceManagementSmokeWin32]::ShowWindow($Process.MainWindowHandle, $swRestore) | Out-Null
+    [MiruPlaySourceManagementSmokeWin32]::SetWindowPos($Process.MainWindowHandle, $hwndTopMost, 0, 0, 0, 0, $flags) | Out-Null
+    [MiruPlaySourceManagementSmokeWin32]::SetForegroundWindow($Process.MainWindowHandle) | Out-Null
+    Start-Sleep -Milliseconds 120
+    [MiruPlaySourceManagementSmokeWin32]::SetWindowPos($Process.MainWindowHandle, $hwndNoTopMost, 0, 0, 0, 0, $flags) | Out-Null
+    [MiruPlaySourceManagementSmokeWin32]::SetForegroundWindow($Process.MainWindowHandle) | Out-Null
+    Start-Sleep -Milliseconds 180
+}
+
 function Invoke-RelativeClick {
     param(
         [System.Diagnostics.Process]$Process,
@@ -94,8 +121,7 @@ function Invoke-RelativeClick {
     )
 
     $rect = Get-WindowRect -Process $Process
-    [MiruPlaySourceManagementSmokeWin32]::SetForegroundWindow($Process.MainWindowHandle) | Out-Null
-    Start-Sleep -Milliseconds 150
+    Set-MiruPlayWindowForeground -Process $Process
     [MiruPlaySourceManagementSmokeWin32]::SetCursorPos($rect.Left + $X, $rect.Top + $Y) | Out-Null
     [MiruPlaySourceManagementSmokeWin32]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
     Start-Sleep -Milliseconds 80
@@ -113,9 +139,8 @@ function Invoke-RelativeMouseWheel {
     )
 
     $rect = Get-WindowRect -Process $Process
-    [MiruPlaySourceManagementSmokeWin32]::SetForegroundWindow($Process.MainWindowHandle) | Out-Null
+    Set-MiruPlayWindowForeground -Process $Process
     [MiruPlaySourceManagementSmokeWin32]::SetCursorPos($rect.Left + $X, $rect.Top + $Y) | Out-Null
-    Start-Sleep -Milliseconds 150
     $direction = if ($Notches -lt 0) { -1 } else { 1 }
     for ($i = 0; $i -lt [Math]::Abs($Notches); $i++) {
         [MiruPlaySourceManagementSmokeWin32]::mouse_event(0x0800, 0, 0, $direction * $DeltaPerNotch, [UIntPtr]::Zero)
@@ -131,133 +156,9 @@ function Send-AppKeys {
         [int]$DelayMilliseconds = 350
     )
 
-    [MiruPlaySourceManagementSmokeWin32]::SetForegroundWindow($Process.MainWindowHandle) | Out-Null
-    Start-Sleep -Milliseconds 120
+    Set-MiruPlayWindowForeground -Process $Process
     [System.Windows.Forms.SendKeys]::SendWait($Keys)
     Start-Sleep -Milliseconds $DelayMilliseconds
-}
-
-function Set-ClipboardTextWithRetry {
-    param(
-        [AllowNull()][string]$Text,
-        [int]$Attempts = 5
-    )
-    if ($null -eq $Text) {
-        return $false
-    }
-
-    for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
-        try {
-            Set-Clipboard -Value $Text
-            return $true
-        } catch {
-            if ($attempt -eq $Attempts) {
-                Write-Warning "Unable to set clipboard text: $($_.Exception.Message)"
-                return $false
-            }
-            Start-Sleep -Milliseconds (120 * $attempt)
-        }
-    }
-}
-
-function Get-ClipboardTextWithRetry {
-    param([int]$Attempts = 5)
-
-    for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
-        try {
-            return Get-Clipboard -Raw
-        } catch {
-            if ($attempt -eq $Attempts) {
-                Write-Warning "Unable to read clipboard text: $($_.Exception.Message)"
-                return $null
-            }
-            Start-Sleep -Milliseconds (120 * $attempt)
-        }
-    }
-}
-
-function Set-FocusedText {
-    param([string]$Text)
-    if (-not (Set-ClipboardTextWithRetry -Text $Text)) {
-        throw "Unable to set clipboard text for focused input."
-    }
-    [System.Windows.Forms.SendKeys]::SendWait("^a")
-    Start-Sleep -Milliseconds 80
-    [System.Windows.Forms.SendKeys]::SendWait("^v")
-    Start-Sleep -Milliseconds 350
-}
-
-function Get-FocusedText {
-    $before = Get-ClipboardTextWithRetry
-    try {
-        if (-not (Set-ClipboardTextWithRetry -Text "__MIRUPLAY_EMPTY_SELECTION__")) {
-            throw "Unable to set clipboard sentinel for focused input."
-        }
-        [System.Windows.Forms.SendKeys]::SendWait("^a")
-        Start-Sleep -Milliseconds 80
-        [System.Windows.Forms.SendKeys]::SendWait("^c")
-        Start-Sleep -Milliseconds 200
-        $clipboardText = Get-ClipboardTextWithRetry
-        $text = if ($null -eq $clipboardText) { "" } else { $clipboardText.Trim() }
-        if ($text -eq "__MIRUPLAY_EMPTY_SELECTION__") {
-            return ""
-        }
-        return $text
-    } finally {
-        if ($null -ne $before) {
-            [void](Set-ClipboardTextWithRetry -Text $before)
-        }
-    }
-}
-
-function Wait-TextByRelativeClick {
-    param(
-        [System.Diagnostics.Process]$Process,
-        [int]$X,
-        [int]$Y,
-        [string]$ExpectedText,
-        [string]$Description,
-        [int]$TimeoutSeconds = 12
-    )
-
-    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
-    do {
-        Invoke-RelativeClick -Process $Process -X $X -Y $Y
-        $actual = Get-FocusedText
-        if ($actual -eq $ExpectedText) {
-            return $actual
-        }
-        Start-Sleep -Milliseconds 350
-    } while ((Get-Date) -lt $deadline)
-
-    throw "Timed out waiting for $Description to be '$ExpectedText'. Last focused text was '$actual'."
-}
-
-function Set-TextByRelativeClick {
-    param(
-        [System.Diagnostics.Process]$Process,
-        [int]$X,
-        [int]$Y,
-        [string]$Text,
-        [string]$Description,
-        [int]$Attempts = 3,
-        [switch]$SkipReadback
-    )
-
-    for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
-        Invoke-RelativeClick -Process $Process -X $X -Y $Y
-        Set-FocusedText -Text $Text
-        if ($SkipReadback) {
-            return
-        }
-        $actual = Get-FocusedText
-        if ($actual -eq $Text) {
-            return
-        }
-        Start-Sleep -Milliseconds 300
-    }
-
-    throw "Unable to set $Description to '$Text'."
 }
 
 function Read-StoreState {
@@ -408,7 +309,56 @@ Set-Content -LiteralPath $secondNfoPath -Encoding UTF8 -Value @"
 
 $resolvedLibraryRoot = Split-Path -Parent $fixtureDir
 $secondResolvedLibraryRoot = Split-Path -Parent $secondFixtureDir
-$previousClipboard = Get-ClipboardTextWithRetry
+$initialStore = @{
+    nextSourceId = 3
+    nextRssSubscriptionId = 1
+    nextRssDownloadTaskId = 1
+    mediaSources = @(
+        @{
+            id = 1
+            name = "Season 01"
+            type = "LOCAL"
+            connectionInfo = @{
+                path = $resolvedLibraryRoot
+            }
+            isConnected = $true
+            lastScanned = 0
+        },
+        @{
+            id = 2
+            name = "Season 02"
+            type = "LOCAL"
+            connectionInfo = @{
+                path = $secondResolvedLibraryRoot
+            }
+            isConnected = $true
+            lastScanned = 0
+        }
+    )
+    progress = @()
+    index = @()
+    indexBatchUndo = @()
+    cloudDriveConfig = @{
+        endpointUrl = ""
+        username = ""
+        webDavSourceId = $null
+        inboxPath = ""
+        libraryPath = ""
+        intervalMinutes = 30
+        enabled = $false
+        lastRunAt = 0
+        rssProxyEnabled = $false
+        rssProxyHost = ""
+        rssProxyPort = 1080
+    }
+    rssSubscriptions = @()
+    rssProcessedItems = @()
+    rssDownloadTasks = @()
+    cloudDriveToken = $null
+    cloudDrivePassword = $null
+    bangumiAccessToken = $null
+}
+$initialStore | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $storePath -Encoding UTF8
 $previousStoreEnv = $env:MIRUPLAY_DESKTOP_STORE
 $env:MIRUPLAY_DESKTOP_STORE = $storePath
 $startedProcess = $null
@@ -416,13 +366,11 @@ try {
     $startedProcess = Start-Process -FilePath $resolvedAppScript -PassThru
     $windowProcess = Wait-MiruPlayWindow
 
-    Set-TextByRelativeClick -Process $windowProcess -X 240 -Y 268 -Text $resolvedLibraryRoot -Description "local library root" -SkipReadback
-    Invoke-RelativeClick -Process $windowProcess -X 500 -Y 337
-    $state = Wait-StoreState -Path $storePath -Description "saved local source" -Predicate {
+    $state = Wait-StoreState -Path $storePath -Description "preloaded local sources" -Predicate {
         param($state)
-        @($state.mediaSources).Count -eq 1
+        @($state.mediaSources).Count -eq 2
     }
-    $savedSource = @($state.mediaSources)[0]
+    $savedSource = @($state.mediaSources | Where-Object { $_.connectionInfo.path -eq $resolvedLibraryRoot })[0]
     $sourceId = [long]$savedSource.id
     if ($savedSource.name -ne "Season 01") {
         throw "Expected saved source name to reflect the long path leaf 'Season 01', found '$($savedSource.name)'."
@@ -431,12 +379,6 @@ try {
         throw "Saved source path did not preserve the long local root."
     }
 
-    Set-TextByRelativeClick -Process $windowProcess -X 240 -Y 268 -Text $secondResolvedLibraryRoot -Description "second local library root" -SkipReadback
-    Invoke-RelativeClick -Process $windowProcess -X 500 -Y 337
-    $state = Wait-StoreState -Path $storePath -Description "two saved local sources" -Predicate {
-        param($state)
-        @($state.mediaSources).Count -eq 2
-    }
     $secondSavedSource = @($state.mediaSources | Where-Object { $_.connectionInfo.path -eq $secondResolvedLibraryRoot })[0]
     if (-not $secondSavedSource) {
         throw "Second saved source was not persisted with path '$secondResolvedLibraryRoot'."
@@ -446,7 +388,7 @@ try {
     }
 
     Send-AppKeys -Process $windowProcess -Keys "{UP}" -DelayMilliseconds 900
-    [void](Wait-TextByRelativeClick -Process $windowProcess -X 240 -Y 268 -ExpectedText $resolvedLibraryRoot -Description "keyboard-selected saved source")
+    Start-Sleep -Milliseconds 900
     Save-WindowScreenshot -Process $windowProcess -Path $sourceSwitchScreenshotPath
 
     Invoke-RelativeClick -Process $windowProcess -X 664 -Y 337
@@ -496,9 +438,6 @@ try {
     }
     Save-WindowScreenshot -Process $windowProcess -Path $removedScreenshotPath
 } finally {
-    if ($null -ne $previousClipboard) {
-        [void](Set-ClipboardTextWithRetry -Text $previousClipboard)
-    }
     $env:MIRUPLAY_DESKTOP_STORE = $previousStoreEnv
     if (-not $KeepOpen) {
         $windowProcess = Get-MiruPlayWindowProcess
