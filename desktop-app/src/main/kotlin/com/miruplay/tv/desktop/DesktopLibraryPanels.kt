@@ -617,17 +617,26 @@ internal fun List<DesktopPosterGroup>.toFeaturedPosterGroups(limit: Int = 2): Li
             .thenBy { it.title.lowercase() },
     ).take(limit.coerceAtLeast(0))
 
-private fun List<DesktopPosterGroup>.posterNavigationTarget(
+internal fun List<DesktopPosterGroup>.posterNavigationTarget(
     currentIndex: Int,
     key: Key,
     columns: Int = POSTER_WALL_COLUMNS,
 ): DesktopPosterGroup? {
     if (currentIndex !in indices) return null
+    val safeColumns = columns.coerceAtLeast(1)
+    val currentColumn = currentIndex % safeColumns
     val targetIndex = when (key) {
-        Key.DirectionRight -> if (currentIndex % columns == columns - 1) null else currentIndex + 1
-        Key.DirectionLeft -> if (currentIndex % columns == 0) null else currentIndex - 1
-        Key.DirectionDown -> currentIndex + columns
-        Key.DirectionUp -> currentIndex - columns
+        Key.DirectionRight -> if (currentColumn == safeColumns - 1) null else currentIndex + 1
+        Key.DirectionLeft -> if (currentColumn == 0) null else currentIndex - 1
+        Key.DirectionDown -> {
+            val nextRowStart = ((currentIndex / safeColumns) + 1) * safeColumns
+            if (nextRowStart !in indices) {
+                null
+            } else {
+                minOf(nextRowStart + currentColumn, lastIndex)
+            }
+        }
+        Key.DirectionUp -> currentIndex - safeColumns
         else -> null
     } ?: return null
     return getOrNull(targetIndex)
