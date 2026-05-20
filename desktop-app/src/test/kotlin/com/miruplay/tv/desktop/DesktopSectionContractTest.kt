@@ -7,7 +7,7 @@ import org.junit.Test
 
 class DesktopSectionContractTest {
     @Test
-    fun `desktop rail follows shared MiruPlay route surface`() {
+    fun `desktop rail follows shared TV route surface`() {
         assertEquals(
             listOf(
                 MiruPlayRouteSurface.LIBRARY_ID,
@@ -18,8 +18,12 @@ class DesktopSectionContractTest {
             MiruPlayRouteSurface.desktopSectionOrder.map { it.id },
         )
         assertEquals(
-            listOf("Library", "Details", "Player", "Settings"),
+            listOf("探索", "详情", "播放", "设置"),
             MiruPlayRouteSurface.desktopSectionOrder.map { it.menuLabel },
+        )
+        assertEquals(
+            listOf("探索", "详情", "播放", "设置"),
+            MiruPlayRouteSurface.desktopSectionOrder.map { it.title },
         )
     }
 

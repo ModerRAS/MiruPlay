@@ -30,6 +30,12 @@ public static class MiruPlayKeyboardFocusSmokeWin32 {
     public static extern bool SetForegroundWindow(IntPtr hWnd);
 
     [DllImport("user32.dll")]
+    public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+    [DllImport("user32.dll")]
+    public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+    [DllImport("user32.dll")]
     public static extern bool SetCursorPos(int X, int Y);
 
     [DllImport("user32.dll")]
@@ -74,6 +80,26 @@ function Get-WindowRect {
     return $rect
 }
 
+function Set-MiruPlayWindowForeground {
+    param([System.Diagnostics.Process]$Process)
+
+    $hwndTopMost = [IntPtr]::new(-1)
+    $hwndNoTopMost = [IntPtr]::new(-2)
+    $swRestore = 9
+    $swpNoSize = 0x0001
+    $swpNoMove = 0x0002
+    $swpShowWindow = 0x0040
+    $flags = $swpNoSize -bor $swpNoMove -bor $swpShowWindow
+
+    [MiruPlayKeyboardFocusSmokeWin32]::ShowWindow($Process.MainWindowHandle, $swRestore) | Out-Null
+    [MiruPlayKeyboardFocusSmokeWin32]::SetWindowPos($Process.MainWindowHandle, $hwndTopMost, 0, 0, 0, 0, $flags) | Out-Null
+    [MiruPlayKeyboardFocusSmokeWin32]::SetForegroundWindow($Process.MainWindowHandle) | Out-Null
+    Start-Sleep -Milliseconds 120
+    [MiruPlayKeyboardFocusSmokeWin32]::SetWindowPos($Process.MainWindowHandle, $hwndNoTopMost, 0, 0, 0, 0, $flags) | Out-Null
+    [MiruPlayKeyboardFocusSmokeWin32]::SetForegroundWindow($Process.MainWindowHandle) | Out-Null
+    Start-Sleep -Milliseconds 180
+}
+
 function Invoke-RelativeClick {
     param(
         [System.Diagnostics.Process]$Process,
@@ -82,8 +108,7 @@ function Invoke-RelativeClick {
     )
 
     $rect = Get-WindowRect -Process $Process
-    [MiruPlayKeyboardFocusSmokeWin32]::SetForegroundWindow($Process.MainWindowHandle) | Out-Null
-    Start-Sleep -Milliseconds 150
+    Set-MiruPlayWindowForeground -Process $Process
     [MiruPlayKeyboardFocusSmokeWin32]::SetCursorPos($rect.Left + $X, $rect.Top + $Y) | Out-Null
     [MiruPlayKeyboardFocusSmokeWin32]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
     Start-Sleep -Milliseconds 80
@@ -97,8 +122,7 @@ function Send-DesktopKey {
         [string]$Key
     )
 
-    [MiruPlayKeyboardFocusSmokeWin32]::SetForegroundWindow($Process.MainWindowHandle) | Out-Null
-    Start-Sleep -Milliseconds 150
+    Set-MiruPlayWindowForeground -Process $Process
     [System.Windows.Forms.SendKeys]::SendWait($Key)
     Start-Sleep -Milliseconds 350
 }
@@ -162,6 +186,7 @@ function Save-WindowScreenshot {
         [string]$Path
     )
 
+    Set-MiruPlayWindowForeground -Process $Process
     $rect = Get-WindowRect -Process $Process
     $width = $rect.Right - $rect.Left
     $height = $rect.Bottom - $rect.Top
