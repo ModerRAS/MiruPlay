@@ -160,6 +160,7 @@ private fun DesktopPlayerStage(
                 rifeBackend = rifeBackend,
                 isPlayerActive = isPlayerActive,
             ),
+            isPlayerActive = isPlayerActive,
             onBackToDetails = onBackToDetails,
             modifier = Modifier.align(Alignment.TopCenter),
         )
@@ -186,6 +187,7 @@ private fun DesktopPlayerStage(
 private fun PlayerStageTopBar(
     title: String,
     subtitle: String,
+    isPlayerActive: Boolean,
     onBackToDetails: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -216,7 +218,7 @@ private fun PlayerStageTopBar(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        PlayerInfoChip(if (title == "选择媒体") "mpv ready" else "Windows mpv")
+        PlayerInfoChip(desktopPlaybackStatusChip(isPlayerActive))
     }
 }
 
@@ -455,7 +457,7 @@ private fun PlayerStageBottomBar(
             PlayerInfoChip(if (rifeEnabled) "RIFE ${rifeBackend.name}" else "RIFE 关闭")
             PlayerInfoChip("字幕外载")
             Text(
-                launchStatus,
+                desktopPlaybackStatusText(launchStatus),
                 color = TextSecondary,
                 fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
                 maxLines = 1,
@@ -522,23 +524,24 @@ private fun PlaybackSettingsPanel(
     rifeBackend: RifeBackend,
     onRifeBackendChange: (RifeBackend) -> Unit,
 ) {
+    val labels = desktopPlaybackUiLabels()
     TvPanel(Modifier.fillMaxWidth()) {
         Text("播放设置", color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
-            LabeledTextField("Media URI or path", mediaPath, onValueChange = onMediaPathChange, modifier = Modifier.weight(1.6f))
-            LabeledTextField("Start seconds", startSeconds, onValueChange = onStartSecondsChange, modifier = Modifier.weight(0.42f))
+            LabeledTextField(labels.mediaPath, mediaPath, onValueChange = onMediaPathChange, modifier = Modifier.weight(1.6f))
+            LabeledTextField(labels.startSeconds, startSeconds, onValueChange = onStartSecondsChange, modifier = Modifier.weight(0.42f))
         }
         Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
-        LabeledTextField("Subtitle path", subtitlePath, onValueChange = onSubtitlePathChange)
+        LabeledTextField(labels.subtitlePath, subtitlePath, onValueChange = onSubtitlePathChange)
         Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
         ) {
-            ToggleRow("Fullscreen", fullscreen, onFullscreenChange)
-            ToggleRow("Keep open", keepOpen, onKeepOpenChange)
-            ToggleRow("RIFE", rifeEnabled, onRifeEnabledChange)
+            ToggleRow(labels.fullscreen, fullscreen, onFullscreenChange)
+            ToggleRow(labels.keepOpen, keepOpen, onKeepOpenChange)
+            ToggleRow(labels.rife, rifeEnabled, onRifeEnabledChange)
             RifeBackendPicker(rifeBackend, onSelected = onRifeBackendChange)
         }
     }
@@ -555,7 +558,7 @@ internal fun RuntimePanel(
     modifier: Modifier = Modifier,
 ) {
     TvPanel(modifier) {
-        Text("Runtime", color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
+        Text("运行时", color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
         LabeledTextField("mpv.exe", mpvPath, onValueChange = onMpvPathChange)
         Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
@@ -563,7 +566,7 @@ internal fun RuntimePanel(
         Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
         StatusBox(status)
         Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
-        TvActionButton("Check runtime", onClick = onCheckRuntime)
+        TvActionButton("检查运行时", onClick = onCheckRuntime)
     }
 }
 
@@ -574,9 +577,9 @@ internal fun CommandPanel(
     modifier: Modifier = Modifier,
 ) {
     TvPanel(modifier) {
-        Text("mpv diagnostics", color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
+        Text("mpv 诊断", color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
-        StatusBox(launchStatus)
+        StatusBox(desktopPlaybackStatusText(launchStatus))
         Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
         Box(
             modifier = Modifier
@@ -604,6 +607,50 @@ internal fun desktopPlaybackTitle(mediaPath: String): String {
     if (trimmed.isBlank()) return "选择媒体"
     return MediaPathConventions.stem(trimmed).takeIf { it.isNotBlank() }
         ?: trimmed.substringAfterLast('/').substringAfterLast('\\').ifBlank { trimmed }
+}
+
+internal data class DesktopPlaybackUiLabels(
+    val mediaPath: String,
+    val startSeconds: String,
+    val subtitlePath: String,
+    val fullscreen: String,
+    val keepOpen: String,
+    val rife: String,
+)
+
+internal fun desktopPlaybackUiLabels(): DesktopPlaybackUiLabels =
+    DesktopPlaybackUiLabels(
+        mediaPath = "媒体 URI 或文件路径",
+        startSeconds = "起播秒数",
+        subtitlePath = "外挂字幕路径",
+        fullscreen = "全屏",
+        keepOpen = "播完保留窗口",
+        rife = "RIFE",
+    )
+
+internal fun desktopPlaybackStatusChip(isPlayerActive: Boolean): String =
+    if (isPlayerActive) "mpv 播放中" else "mpv 待命"
+
+internal fun desktopPlaybackStatusText(status: String): String {
+    val trimmed = status.trim()
+    return when {
+        trimmed.isBlank() -> "mpv 待命。"
+        trimmed == "mpv is idle." -> "mpv 待命。"
+        trimmed.startsWith("mpv launched: pid ") -> "mpv 已启动：pid ${trimmed.removePrefix("mpv launched: pid ")}"
+        trimmed == "Unable to launch mpv." -> "无法启动 mpv。"
+        trimmed == "No mpv process is active." -> "没有正在运行的 mpv 进程。"
+        trimmed == "mpv pause toggled." -> "已切换暂停状态。"
+        trimmed.startsWith("mpv seeked back ") && trimmed.endsWith("s.") ->
+            "已后退 ${trimmed.removePrefix("mpv seeked back ").removeSuffix("s.")} 秒。"
+        trimmed.startsWith("mpv seeked forward ") && trimmed.endsWith("s.") ->
+            "已快进 ${trimmed.removePrefix("mpv seeked forward ").removeSuffix("s.")} 秒。"
+        trimmed == "mpv stopped." -> "mpv 已停止。"
+        trimmed.startsWith("mpv position synced at ") && trimmed.endsWith(".") ->
+            "播放进度已同步至 ${trimmed.removePrefix("mpv position synced at ").removeSuffix(".")}。"
+        trimmed == "Choose a media URI or file path before launching mpv." -> "请先选择媒体，再启动 mpv。"
+        trimmed == "Unable to build mpv command." -> "无法生成 mpv 命令。"
+        else -> trimmed
+    }
 }
 
 internal fun desktopPlaybackSourceLine(
