@@ -124,6 +124,19 @@ function Invoke-RelativeMouseWheel {
     Start-Sleep -Milliseconds 700
 }
 
+function Send-AppKeys {
+    param(
+        [System.Diagnostics.Process]$Process,
+        [string]$Keys,
+        [int]$DelayMilliseconds = 350
+    )
+
+    [MiruPlaySourceManagementSmokeWin32]::SetForegroundWindow($Process.MainWindowHandle) | Out-Null
+    Start-Sleep -Milliseconds 120
+    [System.Windows.Forms.SendKeys]::SendWait($Keys)
+    Start-Sleep -Milliseconds $DelayMilliseconds
+}
+
 function Set-ClipboardTextWithRetry {
     param(
         [AllowNull()][string]$Text,
@@ -195,6 +208,29 @@ function Get-FocusedText {
             [void](Set-ClipboardTextWithRetry -Text $before)
         }
     }
+}
+
+function Wait-TextByRelativeClick {
+    param(
+        [System.Diagnostics.Process]$Process,
+        [int]$X,
+        [int]$Y,
+        [string]$ExpectedText,
+        [string]$Description,
+        [int]$TimeoutSeconds = 12
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    do {
+        Invoke-RelativeClick -Process $Process -X $X -Y $Y
+        $actual = Get-FocusedText
+        if ($actual -eq $ExpectedText) {
+            return $actual
+        }
+        Start-Sleep -Milliseconds 350
+    } while ((Get-Date) -lt $deadline)
+
+    throw "Timed out waiting for $Description to be '$ExpectedText'. Last focused text was '$actual'."
 }
 
 function Set-TextByRelativeClick {
@@ -332,14 +368,17 @@ if (Get-MiruPlayWindowProcess) {
 $runName = "run-{0}" -f (Get-Date -Format "yyyyMMdd-HHmmss")
 $runDir = Join-Path $resolvedOutputRoot $runName
 $fixtureDir = Join-Path $runDir "media\Very Long Source Name For Focus And Path Preview Validation\Season 01\Manage"
+$secondFixtureDir = Join-Path $runDir "media\Very Long Source Name For Focus And Path Preview Validation\Season 02\Manage"
 $storePath = Join-Path $runDir "store\desktop-store.json"
 $scannedScreenshotPath = Join-Path $runDir "source-management-scanned.png"
 $controlsScreenshotPath = Join-Path $runDir "source-management-controls.png"
+$sourceSwitchScreenshotPath = Join-Path $runDir "source-management-saved-source-keyboard.png"
 $clearedScreenshotPath = Join-Path $runDir "source-management-cleared.png"
 $removeReadyScreenshotPath = Join-Path $runDir "source-management-remove-ready.png"
 $removedScreenshotPath = Join-Path $runDir "source-management-removed.png"
 New-Item -ItemType Directory -Path (Split-Path -Parent $storePath) -Force | Out-Null
 New-Item -ItemType Directory -Path $fixtureDir -Force | Out-Null
+New-Item -ItemType Directory -Path $secondFixtureDir -Force | Out-Null
 
 $episodePath = Join-Path $fixtureDir "Manage - S01E01.mkv"
 $nfoPath = Join-Path $fixtureDir "Manage - S01E01.nfo"
@@ -354,7 +393,21 @@ Set-Content -LiteralPath $nfoPath -Encoding UTF8 -Value @"
 </episodedetails>
 "@
 
+$secondEpisodePath = Join-Path $secondFixtureDir "Manage - S02E01.mkv"
+$secondNfoPath = Join-Path $secondFixtureDir "Manage - S02E01.nfo"
+Set-Content -LiteralPath $secondEpisodePath -Value "fixture second source video bytes" -Encoding UTF8
+Set-Content -LiteralPath $secondNfoPath -Encoding UTF8 -Value @"
+<episodedetails>
+  <showtitle>Fixture Manage Second</showtitle>
+  <title>Second Source Episode</title>
+  <season>2</season>
+  <episode>1</episode>
+  <plot>Fixture plot for saved-source keyboard switching.</plot>
+</episodedetails>
+"@
+
 $resolvedLibraryRoot = Split-Path -Parent $fixtureDir
+$secondResolvedLibraryRoot = Split-Path -Parent $secondFixtureDir
 $previousClipboard = Get-ClipboardTextWithRetry
 $previousStoreEnv = $env:MIRUPLAY_DESKTOP_STORE
 $env:MIRUPLAY_DESKTOP_STORE = $storePath
@@ -378,12 +431,33 @@ try {
         throw "Saved source path did not preserve the long local root."
     }
 
+    Set-TextByRelativeClick -Process $windowProcess -X 240 -Y 268 -Text $secondResolvedLibraryRoot -Description "second local library root" -SkipReadback
+    Invoke-RelativeClick -Process $windowProcess -X 500 -Y 337
+    $state = Wait-StoreState -Path $storePath -Description "two saved local sources" -Predicate {
+        param($state)
+        @($state.mediaSources).Count -eq 2
+    }
+    $secondSavedSource = @($state.mediaSources | Where-Object { $_.connectionInfo.path -eq $secondResolvedLibraryRoot })[0]
+    if (-not $secondSavedSource) {
+        throw "Second saved source was not persisted with path '$secondResolvedLibraryRoot'."
+    }
+    if ($secondSavedSource.name -ne "Season 02") {
+        throw "Expected second saved source name 'Season 02', found '$($secondSavedSource.name)'."
+    }
+
+    Send-AppKeys -Process $windowProcess -Keys "{UP}" -DelayMilliseconds 900
+    [void](Wait-TextByRelativeClick -Process $windowProcess -X 240 -Y 268 -ExpectedText $resolvedLibraryRoot -Description "keyboard-selected saved source")
+    Save-WindowScreenshot -Process $windowProcess -Path $sourceSwitchScreenshotPath
+
     Invoke-RelativeClick -Process $windowProcess -X 664 -Y 337
     $state = Wait-StoreState -Path $storePath -Description "scanned local index entry" -Predicate {
         param($state)
         @($state.index | Where-Object { -not $_.isDirectory }).Count -eq 1
     } -TimeoutSeconds 90
     $indexedVideo = @($state.index | Where-Object { -not $_.isDirectory })[0]
+    if ([long]$indexedVideo.sourceId -ne $sourceId) {
+        throw "Expected scan to index the keyboard-selected source id $sourceId, found '$($indexedVideo.sourceId)'."
+    }
     if ($indexedVideo.animeName -ne "Fixture Manage") {
         throw "Expected NFO anime name 'Fixture Manage', found '$($indexedVideo.animeName)'."
     }
@@ -398,10 +472,13 @@ try {
     Invoke-RelativeClick -Process $windowProcess -X 1112 -Y 356
     $state = Wait-StoreState -Path $storePath -Description "cleared source index" -Predicate {
         param($state)
-        @($state.mediaSources).Count -eq 1 -and @($state.index).Count -eq 0 -and @($state.indexBatchUndo).Count -eq 0
+        @($state.mediaSources).Count -eq 2 -and @($state.index).Count -eq 0 -and @($state.indexBatchUndo).Count -eq 0
     }
-    if ([long]@($state.mediaSources)[0].id -ne $sourceId) {
-        throw "Source id changed after clearing index."
+    if (-not (@($state.mediaSources) | Where-Object { [long]$_.id -eq $sourceId })) {
+        throw "Keyboard-selected source id disappeared after clearing index."
+    }
+    if (-not (@($state.mediaSources) | Where-Object { [long]$_.id -eq [long]$secondSavedSource.id })) {
+        throw "Second source disappeared after clearing the active source index."
     }
     Save-WindowScreenshot -Process $windowProcess -Path $clearedScreenshotPath
 
@@ -411,7 +488,11 @@ try {
     Invoke-RelativeClick -Process $windowProcess -X 1112 -Y 327
     $state = Wait-StoreState -Path $storePath -Description "removed source and associated index state" -Predicate {
         param($state)
-        @($state.mediaSources).Count -eq 0 -and @($state.index).Count -eq 0 -and @($state.indexBatchUndo).Count -eq 0
+        @($state.mediaSources).Count -eq 1 -and @($state.index).Count -eq 0 -and @($state.indexBatchUndo).Count -eq 0
+    }
+    $remainingSource = @($state.mediaSources)[0]
+    if ([long]$remainingSource.id -ne [long]$secondSavedSource.id) {
+        throw "Expected the untouched second source to remain after removing source $sourceId."
     }
     Save-WindowScreenshot -Process $windowProcess -Path $removedScreenshotPath
 } finally {
@@ -438,6 +519,7 @@ Write-Output "Run directory: $runDir"
 Write-Output "Store: $storePath"
 Write-Output "Scanned screenshot: $scannedScreenshotPath"
 Write-Output "Controls screenshot: $controlsScreenshotPath"
+Write-Output "Saved-source keyboard screenshot: $sourceSwitchScreenshotPath"
 Write-Output "Cleared screenshot: $clearedScreenshotPath"
 Write-Output "Remove ready screenshot: $removeReadyScreenshotPath"
 Write-Output "Removed screenshot: $removedScreenshotPath"
