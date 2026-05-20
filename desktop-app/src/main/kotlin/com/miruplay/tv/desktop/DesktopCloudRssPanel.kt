@@ -31,6 +31,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.miruplay.tv.design.MiruPlayUiMetrics
+import com.miruplay.tv.model.MediaSourceInfo
+import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.RssSubscriptionInfo
 
 private enum class DesktopSettingsSection(
@@ -94,7 +96,7 @@ internal fun CloudRssPanel(
     onSaveSubscription: () -> Unit,
     onSubscriptionSelected: (RssSubscriptionInfo) -> Unit,
     onDeleteSubscription: () -> Unit,
-    sourcesCount: Int,
+    sources: List<MediaSourceInfo>,
     activeSourceLabel: String,
     indexedItemCount: Int,
     recentCount: Int,
@@ -115,7 +117,7 @@ internal fun CloudRssPanel(
     ) {
         SettingsSectionMenu(
             selectedSection = selectedSection,
-            sourcesCount = sourcesCount,
+            sourcesCount = sources.size,
             rssCount = subscriptions.size,
             cloudEnabled = enabled,
             metadataSummary = metadataSummary,
@@ -177,8 +179,11 @@ internal fun CloudRssPanel(
             )
             DesktopSettingsSection.Sources -> SettingsSummaryContent(
                 section = selectedSection,
-                primary = "$sourcesCount 个媒体源",
-                secondary = "当前源：$activeSourceLabel",
+                tiles = sourceSettingsTiles(
+                    sources = sources,
+                    activeSourceLabel = activeSourceLabel,
+                    indexedItemCount = indexedItemCount,
+                ),
                 status = libraryStatus,
                 actions = listOf(
                     SettingsQuickAction("打开海报墙", onOpenLibrary),
@@ -188,16 +193,22 @@ internal fun CloudRssPanel(
             )
             DesktopSettingsSection.Playback -> SettingsSummaryContent(
                 section = selectedSection,
-                primary = playbackSummary,
-                secondary = "$recentCount 条继续观看记录",
+                tiles = playbackSettingsTiles(
+                    playbackSummary = playbackSummary,
+                    recentCount = recentCount,
+                    selectedMediaTitle = selectedMediaTitle,
+                ),
                 status = "mpv 播放设置保留在 Player 页面，RIFE/字幕/起播秒数仍可直接调整。",
                 actions = listOf(SettingsQuickAction("打开播放器", onOpenPlayer)),
                 modifier = Modifier.weight(1f),
             )
             DesktopSettingsSection.Scan -> SettingsSummaryContent(
                 section = selectedSection,
-                primary = "$indexedItemCount 条索引",
-                secondary = "CloudDrive 同步后扫描源：$linkedSourceLabel",
+                tiles = scanSettingsTiles(
+                    indexedItemCount = indexedItemCount,
+                    linkedSourceLabel = linkedSourceLabel,
+                    libraryStatus = libraryStatus,
+                ),
                 status = "扫描入口保留在 Library 海报墙和 CloudDrive 同步流程中。",
                 actions = listOf(
                     SettingsQuickAction("扫描当前源", onScanActiveSource),
@@ -207,8 +218,11 @@ internal fun CloudRssPanel(
             )
             DesktopSettingsSection.Metadata -> SettingsSummaryContent(
                 section = selectedSection,
-                primary = selectedMediaTitle,
-                secondary = metadataSummary,
+                tiles = metadataSettingsTiles(
+                    selectedMediaTitle = selectedMediaTitle,
+                    metadataSummary = metadataSummary,
+                    indexedItemCount = indexedItemCount,
+                ),
                 status = "Bangumi 搜索、批量预览、应用和撤销保留在 Details 页面。",
                 actions = listOf(SettingsQuickAction("打开详情", onOpenDetails)),
                 modifier = Modifier.weight(1f),
@@ -366,6 +380,12 @@ private data class SettingsQuickAction(
     val onClick: () -> Unit,
 )
 
+internal data class SettingsSummaryTile(
+    val label: String,
+    val value: String,
+    val detail: String,
+)
+
 @Composable
 private fun SettingsSectionMenu(
     selectedSection: DesktopSettingsSection,
@@ -455,8 +475,7 @@ private fun SettingsSectionMenuRow(
 @Composable
 private fun SettingsSummaryContent(
     section: DesktopSettingsSection,
-    primary: String,
-    secondary: String,
+    tiles: List<SettingsSummaryTile>,
     status: String,
     actions: List<SettingsQuickAction>,
     modifier: Modifier = Modifier,
@@ -466,9 +485,10 @@ private fun SettingsSummaryContent(
         Spacer(Modifier.height(4.dp))
         Text(section.description, color = TextSecondary, fontSize = MiruPlayUiMetrics.PANEL_BODY_SP.sp)
         Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp)) {
-            SettingsSummaryCard("当前", primary, Modifier.weight(1f))
-            SettingsSummaryCard("状态", secondary, Modifier.weight(1f))
+        Column(verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
+            tiles.chunked(3).forEach { row ->
+                SettingsSummaryTileRow(row)
+            }
         }
         Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
         StatusBox(status)
@@ -486,10 +506,21 @@ private fun SettingsSummaryContent(
 }
 
 @Composable
+private fun SettingsSummaryTileRow(tiles: List<SettingsSummaryTile>) {
+    Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp)) {
+        tiles.forEach { tile ->
+            SettingsSummaryCard(tile, Modifier.weight(1f))
+        }
+        repeat(3 - tiles.size) {
+            Spacer(Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
 private fun SettingsSummaryCard(
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier,
+    tile: SettingsSummaryTile,
+    modifier: Modifier,
 ) {
     Column(
         modifier = modifier
@@ -502,18 +533,136 @@ private fun SettingsSummaryCard(
             )
             .padding(MiruPlayUiMetrics.STATUS_BOX_PADDING_DP.dp),
     ) {
-        Text(label, color = TextSecondary, fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp, fontWeight = FontWeight.SemiBold)
+        Text(tile.label, color = TextSecondary, fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(6.dp))
         Text(
-            value,
+            tile.value,
             color = TextPrimary,
             fontSize = MiruPlayUiMetrics.SECTION_SUBTITLE_SP.sp,
             fontWeight = FontWeight.Bold,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            tile.detail,
+            color = TextSecondary,
+            fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
+            lineHeight = 18.sp,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
+
+internal fun sourceSettingsTiles(
+    sources: List<MediaSourceInfo>,
+    activeSourceLabel: String,
+    indexedItemCount: Int,
+): List<SettingsSummaryTile> =
+    listOf(
+        SettingsSummaryTile(
+            label = "媒体源",
+            value = "${sources.size} 个",
+            detail = sourceTypeBreakdown(sources),
+        ),
+        SettingsSummaryTile(
+            label = "当前源",
+            value = activeSourceLabel,
+            detail = "Library、远程浏览器和 Cloud/RSS 共用这个活动源。",
+        ),
+        SettingsSummaryTile(
+            label = "海报墙索引",
+            value = "$indexedItemCount 条",
+            detail = "扫描后优先回到 Library 海报墙。",
+        ),
+    )
+
+internal fun playbackSettingsTiles(
+    playbackSummary: String,
+    recentCount: Int,
+    selectedMediaTitle: String,
+): List<SettingsSummaryTile> =
+    listOf(
+        SettingsSummaryTile(
+            label = "播放模式",
+            value = playbackSummary,
+            detail = "mpv、RIFE、字幕和起播时间在 Player 页面调整。",
+        ),
+        SettingsSummaryTile(
+            label = "继续观看",
+            value = "$recentCount 条",
+            detail = "mpv 进度同步后会刷新这里。",
+        ),
+        SettingsSummaryTile(
+            label = "当前媒体",
+            value = selectedMediaTitle,
+            detail = "从海报墙或详情页选择后可直接播放。",
+        ),
+    )
+
+internal fun scanSettingsTiles(
+    indexedItemCount: Int,
+    linkedSourceLabel: String,
+    libraryStatus: String,
+): List<SettingsSummaryTile> =
+    listOf(
+        SettingsSummaryTile(
+            label = "索引",
+            value = "$indexedItemCount 条",
+            detail = "本地、WebDAV、SMB 都写入同一桌面索引。",
+        ),
+        SettingsSummaryTile(
+            label = "同步后扫描源",
+            value = linkedSourceLabel,
+            detail = "CloudDrive 完成后可触发这个源的重扫。",
+        ),
+        SettingsSummaryTile(
+            label = "最近扫描状态",
+            value = libraryStatus,
+            detail = "扫描入口也保留在 Library 顶部。",
+        ),
+    )
+
+internal fun metadataSettingsTiles(
+    selectedMediaTitle: String,
+    metadataSummary: String,
+    indexedItemCount: Int,
+): List<SettingsSummaryTile> =
+    listOf(
+        SettingsSummaryTile(
+            label = "选中条目",
+            value = selectedMediaTitle,
+            detail = "详情页会显示可应用的 Bangumi 匹配。",
+        ),
+        SettingsSummaryTile(
+            label = "匹配状态",
+            value = metadataSummary,
+            detail = "支持单条应用、批量预览、应用和撤销。",
+        ),
+        SettingsSummaryTile(
+            label = "候选范围",
+            value = "$indexedItemCount 条索引",
+            detail = "批量匹配会跳过已有冲突元数据。",
+        ),
+    )
+
+private fun sourceTypeBreakdown(sources: List<MediaSourceInfo>): String {
+    if (sources.isEmpty()) return "尚未添加本地、WebDAV 或 SMB 源。"
+    return MediaSourceType.entries
+        .mapNotNull { type ->
+            val count = sources.count { it.type == type }
+            if (count == 0) null else "${type.settingsLabel()} $count"
+        }
+        .joinToString(" · ")
+}
+
+private fun MediaSourceType.settingsLabel(): String =
+    when (this) {
+        MediaSourceType.LOCAL -> "本地"
+        MediaSourceType.WEBDAV -> "WebDAV"
+        MediaSourceType.SMB -> "SMB"
+    }
 
 private fun DesktopSettingsSection.menuSummary(
     sourcesCount: Int,

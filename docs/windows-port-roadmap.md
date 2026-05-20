@@ -24,7 +24,7 @@ The port is complete only when all of these are proven by current evidence:
 | Area | Status | Notes |
 |---|---|---|
 | Android TV build | Covered for debug build and Library/detail/player smoke | Latest local `:app:assembleDebug` passed. `tools/smoke-android-tv-ui.ps1` installs the debug APK on emulator `10.137.32.118:5555`, generates a playable fixture library, scans it through the TV UI, clicks Library -> Details -> Player, and records `build/android-tv-qa/run-20260520-081257/android-tv-library.png`, `android-tv-details.png`, `android-tv-player.png`, XML dumps, and a JSON report. |
-| Compose Desktop entry | Usable foundation | Swing production shell removed; screenshot QA exists for first screens. Latest Library UI now opens scanned libraries with the 6-column poster wall as the first media surface under the Explore header, with highest-heat/recent rows and search/source controls below it; saved indexes are restored on startup/source switch; poster selection routes directly into a TV-style Details hero. Android TV smoke confirms the TV baseline is a media-first Library, Details hero, and full-screen playback overlay; desktop deliberately approximates that inside a Windows window with a rail-free playback stage and advanced mpv controls below. Remaining mpv launch/config preparation now lives in `DesktopPlaybackPresenters.kt`; Settings now opens with a TV-style section menu before the Cloud/RSS form. |
+| Compose Desktop entry | Usable foundation | Swing production shell removed; screenshot QA exists for first screens. Latest Library UI now opens scanned libraries with the 6-column poster wall as the first media surface under the Explore header, with highest-heat/recent rows and search/source controls below it; saved indexes are restored on startup/source switch; poster selection routes directly into a TV-style Details hero. Android TV smoke confirms the TV baseline is a media-first Library, Details hero, and full-screen playback overlay; desktop deliberately approximates that inside a Windows window with a rail-free playback stage and advanced mpv controls below. Remaining mpv launch/config preparation now lives in `DesktopPlaybackPresenters.kt`; Settings now opens with a TV-style section menu and concrete source/playback/scan/metadata cards before the Cloud/RSS form. |
 | Shared UI palette | Covered structurally | `:ui-design` owns shared palette; drift check exists. |
 | Local/WebDAV/SMB desktop sources | Implemented | Local source GUI smoke now covers generated fixture and a real local library path; WebDAV GUI smoke covers a loopback Basic Auth fixture from add/open/browse through scan; SMB GUI smoke covers a real authenticated share fixture under the approved `临时文件\测试` directory and redacts credentials from stored evidence. |
 | Library/index/details | Implemented foundation | Local scan/index, WebDAV scan/index, SMB scan/index, clear-index/remove-source, TV-style poster-wall selection, details hero, and player handoff GUI smoke now passes for generated fixtures; local smoke also passes against `D:\Software\dufs` with the scanned Library opening directly on the poster wall. |
@@ -49,7 +49,7 @@ The port is complete only when all of these are proven by current evidence:
 - [x] Make scanned Windows libraries open directly as a TV-style 6-column poster wall and restore saved index entries on startup/source switch.
 - [x] Rework the Windows Details first screen toward Android TV: poster click opens Details directly, with a large backdrop/poster hero, title context, plot, Play, and Back-to-poster-wall actions.
 - [x] Rework the Windows Player first screen toward Android TV: rail-free playback stage, top return action, centered transport controls, bottom timeline/status chips, and advanced mpv/RIFE settings below.
-- [x] Rework the Windows Settings first screen toward Android TV: left-side settings categories with focused rows, summary cards, and quick actions for media sources, playback, scan, metadata, and Cloud/RSS.
+- [x] Rework the Windows Settings first screen toward Android TV: left-side settings categories with focused rows, concrete source/playback/scan/metadata cards, and quick actions before Cloud/RSS.
 - [x] Add a tiny generated media sample and GUI mpv launch smoke.
 - [x] Extract remaining playback launch/config presenter logic out of the Compose entry.
 
@@ -149,6 +149,5 @@ Verification:
 
 ## Immediate Next Actions
 
-1. Continue narrowing deeper desktop-vs-Android-TV UI gaps beyond the first screens, especially source management detail pages and navigation focus behavior.
-2. Promote Settings summary slices into fuller TV-like source/playback/metadata forms where desktop-specific controls are still too dense.
-3. Continue moving large desktop UI state/use cases out of `MiruPlayDesktopComposeApp.kt` where they can be shared or tested independently.
+1. Continue narrowing deeper desktop-vs-Android-TV UI gaps beyond the first screens, especially source-management detail pages and navigation focus behavior.
+2. Continue moving large desktop UI state/use cases out of `MiruPlayDesktopComposeApp.kt` where they can be shared or tested independently.

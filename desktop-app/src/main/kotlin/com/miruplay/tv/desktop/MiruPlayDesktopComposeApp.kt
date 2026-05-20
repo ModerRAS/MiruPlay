@@ -1482,7 +1482,7 @@ internal fun MiruPlayDesktopComposeApp() {
                         }
                     }
                 },
-                sourcesCount = savedSources.size,
+                sources = savedSources,
                 activeSourceLabel = activeSource?.info?.displayLabel() ?: "未选择",
                 indexedItemCount = indexedEntries.size,
                 recentCount = recentProgress.size,
