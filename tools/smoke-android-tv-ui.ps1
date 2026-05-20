@@ -1,8 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$DeviceId = "10.137.32.118:5555",
-    [string]$ApkPath = (Join-Path $PSScriptRoot "..\app\build\outputs\apk\debug\app-debug.apk"),
-    [string]$OutputRoot = (Join-Path $PSScriptRoot "..\build\android-tv-qa"),
+    [string]$ApkPath = "",
+    [string]$OutputRoot = "",
     [switch]$SkipInstall,
     [switch]$KeepAppData
 )
@@ -11,6 +11,18 @@ $ErrorActionPreference = "Stop"
 
 $PackageName = "com.miruplay.tv"
 $ActivityName = "com.miruplay.tv/.MainActivity"
+$ScriptDirectory = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
+if (-not $ApkPath) {
+    $ApkPath = Join-Path $ScriptDirectory "..\app\build\outputs\apk\debug\app-debug.apk"
+}
+if (-not $OutputRoot) {
+    $OutputRoot = Join-Path $ScriptDirectory "..\build\android-tv-qa"
+}
+
+function New-UnicodeText {
+    param([int[]]$CodePoints)
+    return -join ($CodePoints | ForEach-Object { [char]$_ })
+}
 
 function Resolve-FullPath {
     param([string]$Path)
@@ -30,7 +42,10 @@ function Invoke-Adb {
 
 function Invoke-AdbBestEffort {
     param([string[]]$Arguments)
-    & adb -s $DeviceId @Arguments *> $null
+    try {
+        & adb -s $DeviceId @Arguments *> $null
+    } catch {
+    }
 }
 
 function Invoke-Ffmpeg {
@@ -235,6 +250,27 @@ function Invoke-UiClick {
     Start-Sleep -Milliseconds 900
 }
 
+function Invoke-DpadKey {
+    param(
+        [ValidateSet(
+            "KEYCODE_DPAD_UP",
+            "KEYCODE_DPAD_DOWN",
+            "KEYCODE_DPAD_LEFT",
+            "KEYCODE_DPAD_RIGHT",
+            "KEYCODE_DPAD_CENTER",
+            "KEYCODE_ENTER"
+        )]
+        [string]$KeyCode,
+        [int]$Repeat = 1,
+        [int]$DelayMilliseconds = 450
+    )
+
+    for ($i = 0; $i -lt $Repeat; $i++) {
+        Invoke-Adb -Arguments @("shell", "input", "keyevent", $KeyCode) | Out-Null
+        Start-Sleep -Milliseconds $DelayMilliseconds
+    }
+}
+
 function Write-Report {
     param(
         [string]$Path,
@@ -245,6 +281,17 @@ function Write-Report {
 
 $resolvedApkPath = Resolve-FullPath $ApkPath
 $resolvedOutputRoot = Resolve-FullPath $OutputRoot
+$textExplore = New-UnicodeText @(0x63A2, 0x7D22)
+$textScan = New-UnicodeText @(0x626B, 0x63CF)
+$textScanMediaLibrary = New-UnicodeText @(0x626B, 0x63CF, 0x5A92, 0x4F53, 0x5E93)
+$textHighestHeat = New-UnicodeText @(0x6700, 0x9AD8, 0x70ED, 0x5EA6)
+$textRecentlyAdded = New-UnicodeText @(0x6700, 0x8FD1, 0x6DFB, 0x52A0)
+$textEpisodeShelf = New-UnicodeText @(0x9009, 0x96C6)
+$textPlay = New-UnicodeText @(0x64AD, 0x653E)
+$textEpisodeOne = New-UnicodeText @(0x7B2C, 0x20, 0x31, 0x20, 0x96C6)
+$textLocalPlayback = New-UnicodeText @(0x672C, 0x5730, 0x64AD, 0x653E)
+$textSpeed = New-UnicodeText @(0x500D, 0x901F)
+$textPlaybackFailed = New-UnicodeText @(0x64AD, 0x653E, 0x5931, 0x8D25)
 New-Item -ItemType Directory -Path $resolvedOutputRoot -Force | Out-Null
 
 if (-not (Get-Command adb -ErrorAction SilentlyContinue)) {
@@ -263,6 +310,7 @@ $fixtureRoot = Join-Path $runDir "fixture\MiruPlayTvSmoke-$($runName.Substring(4
 $samplePath = Join-Path $runDir "sample.mp4"
 $remoteFixtureRoot = "/sdcard/Movies/$(Split-Path -Leaf $fixtureRoot)"
 $libraryScreenshot = Join-Path $runDir "android-tv-library.png"
+$libraryDpadScreenshot = Join-Path $runDir "android-tv-library-dpad-poster.png"
 $detailsScreenshot = Join-Path $runDir "android-tv-details.png"
 $playerScreenshot = Join-Path $runDir "android-tv-player.png"
 $libraryXmlPath = Join-Path $runDir "android-tv-library.xml"
@@ -290,21 +338,24 @@ Invoke-AdbBestEffort -Arguments @("shell", "rm", "-rf", $remoteFixtureRoot)
 Invoke-Adb -Arguments @("push", $fixtureRoot, "/sdcard/Movies/") | Out-Null
 
 Invoke-Adb -Arguments @("shell", "am", "start", "-W", "-n", $ActivityName, "--es", "test_local_path", $remoteFixtureRoot) | Out-Null
-$xml = Wait-UiText -Needles @("探索", "扫描", "扫描媒体库") -XmlPath $libraryXmlPath -TimeoutSeconds 30
-Invoke-UiClick -Xml $xml -Needles @("扫描", "扫描媒体库") -Description "scan"
+$xml = Wait-UiText -Needles @($textExplore, $textScan, $textScanMediaLibrary) -XmlPath $libraryXmlPath -TimeoutSeconds 30
+Invoke-UiClick -Xml $xml -Needles @($textScan, $textScanMediaLibrary) -Description "scan"
 $xml = Wait-UiText -Needles @("Fixture Alpha") -XmlPath $libraryXmlPath -TimeoutSeconds 90
-Assert-UiText -Xml $xml -Needles @("探索", "最高热度", "最近添加", "Fixture Alpha") -Description "Library"
+Assert-UiText -Xml $xml -Needles @($textExplore, $textHighestHeat, $textRecentlyAdded, "Fixture Alpha") -Description "Library"
 Save-Screenshot -Path $libraryScreenshot
 
-Invoke-UiClick -Xml $xml -Needles @("Fixture Alpha") -Description "fixture poster"
-$xml = Wait-UiText -Needles @("选集", "播放") -XmlPath $detailsXmlPath -TimeoutSeconds 30
-Assert-UiText -Xml $xml -Needles @("Fixture Alpha", "播放", "选集", "第 1 集") -Description "Details"
+Invoke-DpadKey -KeyCode "KEYCODE_DPAD_RIGHT" -DelayMilliseconds 550
+Invoke-DpadKey -KeyCode "KEYCODE_DPAD_LEFT" -DelayMilliseconds 550
+Save-Screenshot -Path $libraryDpadScreenshot
+Invoke-DpadKey -KeyCode "KEYCODE_DPAD_CENTER" -DelayMilliseconds 1100
+$xml = Wait-UiText -Needles @($textEpisodeShelf, $textPlay) -XmlPath $detailsXmlPath -TimeoutSeconds 30
+Assert-UiText -Xml $xml -Needles @("Fixture Alpha", $textPlay, $textEpisodeShelf, $textEpisodeOne) -Description "Details"
 Save-Screenshot -Path $detailsScreenshot
 
-Invoke-UiClick -Xml $xml -Needles @("播放") -Description "play button"
-$xml = Wait-UiText -Needles @("本地播放", "倍速") -XmlPath $playerXmlPath -TimeoutSeconds 45
-Assert-UiText -Xml $xml -Needles @("本地播放", "倍速") -Description "Player"
-if (Find-UiNode -Xml $xml -Needles @("播放失败")) {
+Invoke-DpadKey -KeyCode "KEYCODE_DPAD_CENTER" -DelayMilliseconds 1200
+$xml = Wait-UiText -Needles @($textLocalPlayback, $textSpeed) -XmlPath $playerXmlPath -TimeoutSeconds 45
+Assert-UiText -Xml $xml -Needles @($textLocalPlayback, $textSpeed) -Description "Player"
+if (Find-UiNode -Xml $xml -Needles @($textPlaybackFailed)) {
     throw "Player reached an error overlay instead of the playback chrome."
 }
 Save-Screenshot -Path $playerScreenshot
@@ -316,6 +367,7 @@ Write-Report -Path $reportPath -Report @{
     remoteFixtureRoot = $remoteFixtureRoot
     screenshots = @{
         library = $libraryScreenshot
+        libraryDpadPoster = $libraryDpadScreenshot
         details = $detailsScreenshot
         player = $playerScreenshot
     }
@@ -326,7 +378,9 @@ Write-Report -Path $reportPath -Report @{
     }
     assertions = @(
         "Library contains Explore, highest-heat row, recent row, and fixture poster.",
+        "Library content requests poster focus; DPAD Right/Left stays on the poster surface and DPAD Center opens Details.",
         "Details contains hero/title, Play, episode list, and first episode row.",
+        "DPAD Center on the Details play action opens Player.",
         "Player contains local playback chrome and no playback failure overlay."
     )
 }
@@ -334,6 +388,7 @@ Write-Report -Path $reportPath -Report @{
 Write-Output "Run directory: $runDir"
 Write-Output "Remote fixture: $remoteFixtureRoot"
 Write-Output "Library screenshot: $libraryScreenshot"
+Write-Output "Library DPAD poster screenshot: $libraryDpadScreenshot"
 Write-Output "Details screenshot: $detailsScreenshot"
 Write-Output "Player screenshot: $playerScreenshot"
 Write-Output "Report: $reportPath"
