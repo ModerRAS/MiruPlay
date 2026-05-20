@@ -271,7 +271,7 @@ if (Get-MiruPlayWindowProcess) {
 
 $runName = "run-{0}" -f (Get-Date -Format "yyyyMMdd-HHmmss")
 $runDir = Join-Path $resolvedOutputRoot $runName
-$fixtureDir = Join-Path $runDir "media\Manage"
+$fixtureDir = Join-Path $runDir "media\Very Long Source Name For Focus And Path Preview Validation\Season 01\Manage"
 $storePath = Join-Path $runDir "store\desktop-store.json"
 $scannedScreenshotPath = Join-Path $runDir "source-management-scanned.png"
 $controlsScreenshotPath = Join-Path $runDir "source-management-controls.png"
@@ -309,7 +309,14 @@ try {
         param($state)
         @($state.mediaSources).Count -eq 1
     }
-    $sourceId = [long]@($state.mediaSources)[0].id
+    $savedSource = @($state.mediaSources)[0]
+    $sourceId = [long]$savedSource.id
+    if ($savedSource.name -ne "Season 01") {
+        throw "Expected saved source name to reflect the long path leaf 'Season 01', found '$($savedSource.name)'."
+    }
+    if ($savedSource.connectionInfo.path -ne $resolvedLibraryRoot) {
+        throw "Saved source path did not preserve the long local root."
+    }
 
     Invoke-RelativeClick -Process $windowProcess -X 664 -Y 337
     $state = Wait-StoreState -Path $storePath -Description "scanned local index entry" -Predicate {
