@@ -199,6 +199,7 @@ internal enum class DesktopDetailHeroAction {
 }
 
 internal enum class DesktopDetailDownTarget {
+    EpisodeList,
     RecentPlayback,
     BangumiMetadata,
 }
@@ -212,8 +213,15 @@ internal fun moveDesktopDetailHeroAction(
     return actions.getOrNull(targetIndex)
 }
 
-internal fun detailHeroDownTarget(hasRecentPlayback: Boolean): DesktopDetailDownTarget =
-    if (hasRecentPlayback) DesktopDetailDownTarget.RecentPlayback else DesktopDetailDownTarget.BangumiMetadata
+internal fun detailHeroDownTarget(
+    hasRelatedEpisodes: Boolean,
+    hasRecentPlayback: Boolean,
+): DesktopDetailDownTarget =
+    when {
+        hasRelatedEpisodes -> DesktopDetailDownTarget.EpisodeList
+        hasRecentPlayback -> DesktopDetailDownTarget.RecentPlayback
+        else -> DesktopDetailDownTarget.BangumiMetadata
+    }
 
 @Composable
 private fun DetailPoster(title: String) {
@@ -267,6 +275,236 @@ private fun detailHeroBrush(title: String): Brush {
     )
     return Brush.horizontalGradient(palettes[Math.floorMod(title.hashCode(), palettes.size)])
 }
+
+@Composable
+internal fun DetailEpisodePanel(
+    episodes: List<MediaIndexEntry>,
+    selectedEntry: MediaIndexEntry?,
+    selectedSeason: Int?,
+    recentRecords: List<ProgressRecord>,
+    focusVersion: Int,
+    onSeasonSelected: (Int?) -> Unit,
+    onEpisodeFocused: (MediaIndexEntry) -> Unit,
+    onEpisodeSelected: (MediaIndexEntry) -> Unit,
+) {
+    val seasons = remember(episodes) { detailEpisodeSeasons(episodes) }
+    val activeSeason = detailActiveEpisodeSeason(
+        episodes = episodes,
+        selectedEntry = selectedEntry,
+        requestedSeason = selectedSeason,
+    )
+    val visibleEpisodes = remember(episodes, activeSeason) { detailEpisodesForSeason(episodes, activeSeason) }
+    val progressByPath = remember(recentRecords) { recentRecords.associateBy { it.episodeId } }
+    val episodeFocusRequesters = remember(visibleEpisodes.map { it.path }) {
+        List(visibleEpisodes.size) { FocusRequester() }
+    }
+
+    fun moveEpisodeFocus(currentIndex: Int, delta: Int): Boolean {
+        val targetIndex = moveDetailEpisodeSelection(currentIndex, visibleEpisodes.size, delta) ?: return false
+        val target = visibleEpisodes[targetIndex]
+        onEpisodeFocused(target)
+        episodeFocusRequesters.getOrNull(targetIndex)?.requestFocus()
+        return true
+    }
+
+    LaunchedEffect(focusVersion, visibleEpisodes.map { it.path }, selectedEntry?.path) {
+        if (focusVersion > 0 && visibleEpisodes.isNotEmpty()) {
+            val selectedIndex = visibleEpisodes.indexOfFirst { it.path == selectedEntry?.path }.coerceAtLeast(0)
+            episodeFocusRequesters.getOrNull(selectedIndex)?.requestFocus()
+        }
+    }
+
+    TvPanel(Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column {
+                Text("选集", color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
+                Text(
+                    if (episodes.isEmpty()) "当前详情没有可播放索引项" else "${episodes.size} 集 · TV-style episode shelf",
+                    color = TextSecondary,
+                    fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
+                )
+            }
+            if (seasons.size > 1) {
+                Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
+                    seasons.forEach { season ->
+                        TvActionButton(
+                            text = "第 $season 季",
+                            onClick = { onSeasonSelected(season) },
+                            secondary = activeSeason != season,
+                            modifier = Modifier.width(132.dp),
+                        )
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
+        if (visibleEpisodes.isEmpty()) {
+            DesktopEmptyState("扫描媒体库后会在这里显示同番选集。", heightDp = 180)
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp)) {
+                visibleEpisodes.forEachIndexed { index, episode ->
+                    DetailEpisodeRow(
+                        entry = episode,
+                        selected = selectedEntry?.path == episode.path,
+                        progress = progressByPath[episode.path],
+                        onClick = { onEpisodeSelected(episode) },
+                        modifier = Modifier
+                            .focusRequester(episodeFocusRequesters[index])
+                            .onPreviewKeyEvent { event ->
+                                if (event.type != KeyEventType.KeyDown) {
+                                    false
+                                } else {
+                                    when (event.key) {
+                                        Key.DirectionUp -> moveEpisodeFocus(index, -1)
+                                        Key.DirectionDown -> moveEpisodeFocus(index, 1)
+                                        else -> false
+                                    }
+                                }
+                            },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailEpisodeRow(
+    entry: MediaIndexEntry,
+    selected: Boolean,
+    progress: ProgressRecord?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    DesktopSelectableRow(
+        selected = selected,
+        onClick = onClick,
+        modifier = modifier,
+        heightDp = 78,
+    ) { active ->
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.DETAIL_MEDIA_PADDING_DP.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(44.dp)
+                    .height(44.dp)
+                    .clip(RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
+                    .background(if (active) AnimeRed else AnimeRed.copy(alpha = 0.22f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    entry.episodeBadge(),
+                    color = TextPrimary,
+                    fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                )
+            }
+            Column(Modifier.weight(1f)) {
+                Text(
+                    entry.detailEpisodeTitle(),
+                    color = TextPrimary,
+                    fontSize = MiruPlayUiMetrics.ITEM_TITLE_SP.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    entry.path,
+                    color = TextSecondary,
+                    fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Text(
+                detailEpisodeProgressLabel(progress),
+                color = if (progress != null) AnimeRed else TextSecondary,
+                fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.width(148.dp),
+            )
+        }
+    }
+}
+
+internal fun detailEpisodesForSelection(
+    entries: List<MediaIndexEntry>,
+    selectedEntry: MediaIndexEntry?,
+): List<MediaIndexEntry> {
+    val selected = selectedEntry?.takeUnless { it.isDirectory } ?: return emptyList()
+    val title = selected.posterTitle()
+    return entries
+        .asSequence()
+        .filterNot { it.isDirectory }
+        .filter { it.sourceId == selected.sourceId && it.posterTitle() == title }
+        .sortedWith(detailEpisodeComparator)
+        .toList()
+}
+
+internal fun detailEpisodeSeasons(episodes: List<MediaIndexEntry>): List<Int> =
+    episodes
+        .mapNotNull { it.seasonNumber }
+        .distinct()
+        .sorted()
+
+internal fun detailActiveEpisodeSeason(
+    episodes: List<MediaIndexEntry>,
+    selectedEntry: MediaIndexEntry?,
+    requestedSeason: Int?,
+): Int? {
+    val seasons = detailEpisodeSeasons(episodes)
+    if (seasons.isEmpty()) return null
+    return when {
+        requestedSeason in seasons -> requestedSeason
+        selectedEntry?.seasonNumber in seasons -> selectedEntry?.seasonNumber
+        else -> seasons.first()
+    }
+}
+
+internal fun detailEpisodesForSeason(
+    episodes: List<MediaIndexEntry>,
+    season: Int?,
+): List<MediaIndexEntry> =
+    if (season == null) episodes.sortedWith(detailEpisodeComparator) else episodes.filter { it.seasonNumber == season }
+
+internal fun moveDetailEpisodeSelection(
+    currentIndex: Int,
+    itemCount: Int,
+    delta: Int,
+): Int? {
+    if (itemCount <= 0) return null
+    val targetIndex = currentIndex + delta
+    return targetIndex.takeIf { it in 0 until itemCount }
+}
+
+private val detailEpisodeComparator =
+    compareBy<MediaIndexEntry>(
+        { it.seasonNumber ?: Int.MAX_VALUE },
+        { it.episodeNumber ?: Int.MAX_VALUE },
+        { it.path.lowercase() },
+    )
+
+private fun MediaIndexEntry.episodeBadge(): String =
+    episodeNumber?.toString()?.padStart(2, '0') ?: "--"
+
+private fun MediaIndexEntry.detailEpisodeTitle(): String {
+    val number = episodeNumber?.let { "第 $it 集" } ?: "未编号"
+    val title = episodeTitle?.takeIf { it.isNotBlank() }
+    return if (title == null) number else "$number · $title"
+}
+
+private fun detailEpisodeProgressLabel(progress: ProgressRecord?): String =
+    progress?.let { "继续 ${formatPlaybackPosition(it.positionMs)}" } ?: "未观看"
 
 @Composable
 internal fun RecentPlaybackPanel(

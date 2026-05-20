@@ -56,7 +56,54 @@ class DesktopDetailHeroTest {
 
     @Test
     fun `detail hero down key falls back to bangumi when recents are absent`() {
-        assertEquals(DesktopDetailDownTarget.RecentPlayback, detailHeroDownTarget(hasRecentPlayback = true))
-        assertEquals(DesktopDetailDownTarget.BangumiMetadata, detailHeroDownTarget(hasRecentPlayback = false))
+        assertEquals(
+            DesktopDetailDownTarget.EpisodeList,
+            detailHeroDownTarget(hasRelatedEpisodes = true, hasRecentPlayback = false),
+        )
+        assertEquals(
+            DesktopDetailDownTarget.RecentPlayback,
+            detailHeroDownTarget(hasRelatedEpisodes = false, hasRecentPlayback = true),
+        )
+        assertEquals(
+            DesktopDetailDownTarget.BangumiMetadata,
+            detailHeroDownTarget(hasRelatedEpisodes = false, hasRecentPlayback = false),
+        )
+    }
+
+    @Test
+    fun `detail episodes group selected anime and sort by season episode`() {
+        val selected = MediaIndexEntry(
+            sourceId = 1,
+            path = "show/Frieren - S01E02.mkv",
+            animeName = "Frieren",
+            seasonNumber = 1,
+            episodeNumber = 2,
+        )
+        val entries = listOf(
+            selected,
+            MediaIndexEntry(sourceId = 1, path = "show/Frieren - S01E01.mkv", animeName = "Frieren", seasonNumber = 1, episodeNumber = 1),
+            MediaIndexEntry(sourceId = 1, path = "show/Frieren - S02E01.mkv", animeName = "Frieren", seasonNumber = 2, episodeNumber = 1),
+            MediaIndexEntry(sourceId = 1, path = "show/Bocchi - S01E01.mkv", animeName = "Bocchi", seasonNumber = 1, episodeNumber = 1),
+            MediaIndexEntry(sourceId = 2, path = "other/Frieren - S01E03.mkv", animeName = "Frieren", seasonNumber = 1, episodeNumber = 3),
+        )
+
+        val episodes = detailEpisodesForSelection(entries, selected)
+
+        assertEquals(
+            listOf("show/Frieren - S01E01.mkv", "show/Frieren - S01E02.mkv", "show/Frieren - S02E01.mkv"),
+            episodes.map { it.path },
+        )
+        assertEquals(listOf(1, 2), detailEpisodeSeasons(episodes))
+        assertEquals(1, detailActiveEpisodeSeason(episodes, selected, requestedSeason = null))
+        assertEquals(listOf("show/Frieren - S02E01.mkv"), detailEpisodesForSeason(episodes, 2).map { it.path })
+    }
+
+    @Test
+    fun `detail episode navigation moves within visible rows`() {
+        assertEquals(1, moveDetailEpisodeSelection(currentIndex = 0, itemCount = 3, delta = 1))
+        assertEquals(1, moveDetailEpisodeSelection(currentIndex = 2, itemCount = 3, delta = -1))
+        assertEquals(null, moveDetailEpisodeSelection(currentIndex = 0, itemCount = 3, delta = -1))
+        assertEquals(null, moveDetailEpisodeSelection(currentIndex = 2, itemCount = 3, delta = 1))
+        assertEquals(null, moveDetailEpisodeSelection(currentIndex = 0, itemCount = 0, delta = 1))
     }
 }

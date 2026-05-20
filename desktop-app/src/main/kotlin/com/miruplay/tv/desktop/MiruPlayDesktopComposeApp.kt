@@ -288,6 +288,8 @@ internal fun MiruPlayDesktopComposeApp() {
     var bangumiStatus by remember { mutableStateOf(metadataInitialStatus(BANGUMI_METADATA_SOURCE_NAME)) }
     var recentProgress by remember { mutableStateOf(emptyList<ProgressRecord>()) }
     var selectedRecentProgress by remember { mutableStateOf<ProgressRecord?>(null) }
+    var selectedDetailEpisodeSeason by remember { mutableStateOf<Int?>(null) }
+    var detailEpisodeFocusVersion by remember { mutableStateOf(0) }
     var recentPlaybackFocusVersion by remember { mutableStateOf(0) }
     var recentStatus by remember { mutableStateOf(recentPlaybackInitialStatus()) }
     var bangumiFocusVersion by remember { mutableStateOf(0) }
@@ -345,6 +347,18 @@ internal fun MiruPlayDesktopComposeApp() {
                 errorMessage = MPV_COMMAND_PREVIEW_ERROR_MESSAGE,
             )
         }
+    }
+
+    val detailEpisodes = remember(indexedEntries, selectedIndexEntry) {
+        detailEpisodesForSelection(indexedEntries, selectedIndexEntry)
+    }
+
+    LaunchedEffect(selectedIndexEntry?.sourceId, selectedIndexEntry?.path, detailEpisodes.map { it.seasonNumber }) {
+        selectedDetailEpisodeSeason = detailActiveEpisodeSeason(
+            episodes = detailEpisodes,
+            selectedEntry = selectedIndexEntry,
+            requestedSeason = selectedDetailEpisodeSeason,
+        )
     }
 
     DisposableEffect(playbackBridge, cloudRssScheduler) {
@@ -964,7 +978,16 @@ internal fun MiruPlayDesktopComposeApp() {
                         entry = selectedIndexEntry,
                         source = activeSource?.info,
                         onFocusRecentPlayback = {
-                            when (detailHeroDownTarget(recentProgress.isNotEmpty())) {
+                            when (
+                                detailHeroDownTarget(
+                                    hasRelatedEpisodes = detailEpisodes.isNotEmpty(),
+                                    hasRecentPlayback = recentProgress.isNotEmpty(),
+                                )
+                            ) {
+                                DesktopDetailDownTarget.EpisodeList -> {
+                                    detailEpisodeFocusVersion += 1
+                                    true
+                                }
                                 DesktopDetailDownTarget.RecentPlayback -> {
                                     recentPlaybackFocusVersion += 1
                                     true
@@ -982,6 +1005,25 @@ internal fun MiruPlayDesktopComposeApp() {
                                 launchStatus = entry.selectedForPlaybackStatus()
                                 selectedDesktopSection = MiruPlayRouteSurface.player
                             }
+                        },
+                    )
+                    DetailEpisodePanel(
+                        episodes = detailEpisodes,
+                        selectedEntry = selectedIndexEntry,
+                        selectedSeason = selectedDetailEpisodeSeason,
+                        recentRecords = recentProgress,
+                        focusVersion = detailEpisodeFocusVersion,
+                        onSeasonSelected = { season -> selectedDetailEpisodeSeason = season },
+                        onEpisodeFocused = { episode ->
+                            selectedIndexEntry = episode
+                            mediaPath = episode.path
+                            launchStatus = episode.selectedForPlaybackStatus()
+                        },
+                        onEpisodeSelected = { episode ->
+                            selectedIndexEntry = episode
+                            mediaPath = episode.path
+                            launchStatus = episode.selectedForPlaybackStatus()
+                            selectedDesktopSection = MiruPlayRouteSurface.player
                         },
                     )
                     BangumiPanel(
