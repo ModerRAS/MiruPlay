@@ -828,6 +828,11 @@ internal fun MiruPlayDesktopComposeApp() {
                         }
                     }
                 },
+                onEntryFocused = { entry ->
+                    selectedIndexEntry = entry
+                    mediaPath = entry.path
+                    launchStatus = entry.selectedForPlaybackStatus()
+                },
                 onEntrySelected = { entry ->
                     selectedIndexEntry = entry
                     mediaPath = entry.path

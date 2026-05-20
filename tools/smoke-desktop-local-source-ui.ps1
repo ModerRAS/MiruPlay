@@ -317,6 +317,7 @@ $fixtureDir = Join-Path $runDir "media\Frieren"
 $storePath = Join-Path $runDir "store\desktop-store.json"
 $scanScreenshotPath = Join-Path $runDir "local-source-scanned.png"
 $searchScreenshotPath = Join-Path $runDir "local-source-search.png"
+$posterKeyboardScreenshotPath = Join-Path $runDir "local-source-poster-keyboard.png"
 $detailsScreenshotPath = Join-Path $runDir "local-source-details.png"
 $playerScreenshotPath = Join-Path $runDir "local-source-player.png"
 New-Item -ItemType Directory -Path (Split-Path -Parent $storePath) -Force | Out-Null
@@ -415,7 +416,9 @@ try {
         Invoke-RelativeClick -Process $windowProcess -X 130 -Y 360
     } else {
         $selectedVideo = $indexedVideos[0]
-        Invoke-RelativeClick -Process $windowProcess -X 325 -Y 360
+        Send-AppKeys -Process $windowProcess -Keys "{RIGHT}"
+        Save-WindowScreenshot -Process $windowProcess -Path $posterKeyboardScreenshotPath
+        Send-AppKeys -Process $windowProcess -Keys "{ENTER}"
     }
     Start-Sleep -Milliseconds 700
     Save-WindowScreenshot -Process $windowProcess -Path $detailsScreenshotPath
@@ -458,6 +461,7 @@ Write-Output "Store: $storePath"
 Write-Output "Scan screenshot: $scanScreenshotPath"
 if (-not $LibraryRoot.Trim()) {
     Write-Output "Search screenshot: $searchScreenshotPath"
+    Write-Output "Poster keyboard screenshot: $posterKeyboardScreenshotPath"
 }
 Write-Output "Details screenshot: $detailsScreenshotPath"
 Write-Output "Player screenshot: $playerScreenshotPath"
