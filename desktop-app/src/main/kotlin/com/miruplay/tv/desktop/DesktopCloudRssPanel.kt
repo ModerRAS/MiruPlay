@@ -868,6 +868,18 @@ private fun sourceTypeBreakdown(sources: List<MediaSourceInfo>): String {
         .joinToString(" · ")
 }
 
+internal fun desktopActiveSourceLabel(source: MediaSourceInfo?): String =
+    source?.sourcePickerTitle() ?: "未选择"
+
+internal fun desktopLinkedSourceLabel(
+    sources: List<MediaSourceInfo>,
+    sourceId: Long?,
+): String {
+    if (sourceId == null) return "未选择"
+    return sources.firstOrNull { it.id == sourceId }?.sourcePickerTitle()
+        ?: "缺失媒体源 #$sourceId"
+}
+
 private fun MediaSourceType.settingsLabel(): String =
     when (this) {
         MediaSourceType.LOCAL -> "本地"

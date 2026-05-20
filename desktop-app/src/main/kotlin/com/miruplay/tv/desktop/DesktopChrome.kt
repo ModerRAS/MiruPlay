@@ -51,9 +51,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.miruplay.tv.design.MiruPlayUiMetrics
 import com.miruplay.tv.model.MediaSourceInfo
+import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.sourceLocation
 import com.miruplay.tv.player.mpv.RifeBackend
-import com.miruplay.tv.repository.displayLabel
 
 private const val SOURCE_PICKER_HEIGHT_DP = 70
 private const val SOURCE_PICKER_MENU_WIDTH_DP = 420
@@ -209,7 +209,23 @@ internal fun SavedSourcePicker(
 }
 
 internal fun MediaSourceInfo.sourcePickerTitle(): String =
-    displayLabel()
+    "${sourcePickerDisplayName()} · ${type.sourcePickerTypeLabel()}"
+
+private fun MediaSourceInfo.sourcePickerDisplayName(): String =
+    name.ifBlank {
+        when (type) {
+            MediaSourceType.LOCAL -> "本地媒体源"
+            MediaSourceType.WEBDAV -> "WebDAV 媒体源"
+            MediaSourceType.SMB -> "SMB 媒体源"
+        }
+    }
+
+private fun MediaSourceType.sourcePickerTypeLabel(): String =
+    when (this) {
+        MediaSourceType.LOCAL -> "本地"
+        MediaSourceType.WEBDAV -> "WebDAV"
+        MediaSourceType.SMB -> "SMB"
+    }
 
 internal fun MediaSourceInfo.sourcePickerSubtitle(maxLength: Int = SOURCE_PICKER_LOCATION_LIMIT): String =
     sourceLocation()

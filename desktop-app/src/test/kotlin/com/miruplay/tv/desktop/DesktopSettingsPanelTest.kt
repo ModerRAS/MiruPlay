@@ -11,13 +11,14 @@ import org.junit.Test
 class DesktopSettingsPanelTest {
     @Test
     fun `source settings tiles summarize source types active source and index`() {
+        val activeSource = MediaSourceInfoConventions.local(name = "Local Anime", rootPath = "D:/Anime")
         val tiles = sourceSettingsTiles(
             sources = listOf(
-                MediaSourceInfoConventions.local(name = "Local Anime", rootPath = "D:/Anime"),
+                activeSource,
                 MediaSourceInfoConventions.webDav(url = "https://dav.example.test/anime"),
                 MediaSourceInfoConventions.smb(url = "smb://nas.local/anime"),
             ),
-            activeSourceLabel = "Local Anime · LOCAL",
+            activeSourceLabel = desktopActiveSourceLabel(activeSource),
             indexedItemCount = 42,
         )
 
@@ -26,8 +27,19 @@ class DesktopSettingsPanelTest {
         assertTrue(tiles[0].detail.contains("本地 1"))
         assertTrue(tiles[0].detail.contains("WebDAV 1"))
         assertTrue(tiles[0].detail.contains("SMB 1"))
-        assertEquals("Local Anime · LOCAL", tiles[1].value)
+        assertEquals("Local Anime · 本地", tiles[1].value)
         assertEquals("42 条", tiles[2].value)
+    }
+
+    @Test
+    fun `desktop source status labels use TV facing type labels`() {
+        val linkedSource = MediaSourceInfoConventions.webDav(
+            url = "https://dav.example.test/anime",
+        ).copy(id = 42L, name = "Cloud WebDAV")
+
+        assertEquals("未选择", desktopActiveSourceLabel(null))
+        assertEquals("Cloud WebDAV · WebDAV", desktopLinkedSourceLabel(listOf(linkedSource), 42L))
+        assertEquals("缺失媒体源 #99", desktopLinkedSourceLabel(listOf(linkedSource), 99L))
     }
 
     @Test
@@ -78,14 +90,14 @@ class DesktopSettingsPanelTest {
             endpointUrl = "http://127.0.0.1:19798/clouddrive/very/long/endpoint",
             subscriptions = listOf(subscription),
             enabled = true,
-            linkedSourceLabel = "Cloud WebDAV · WEBDAV",
+            linkedSourceLabel = "Cloud WebDAV · WebDAV",
             schedulerStatus = "Scheduler running every 30 minutes with a very long diagnostic status line.",
         )
 
         assertEquals(listOf("CloudDrive2", "RSS 订阅", "同步后扫描"), tiles.map { it.label })
         assertEquals("已启用", tiles[0].value)
         assertEquals("1 个", tiles[1].value)
-        assertEquals("Cloud WebDAV · WEBDAV", tiles[2].value)
+        assertEquals("Cloud WebDAV · WebDAV", tiles[2].value)
         assertTrue(tiles[0].detail.length <= 58)
         assertTrue(tiles[1].detail.contains("ON"))
         assertTrue(tiles[1].detail.contains("Bangumi Feed"))

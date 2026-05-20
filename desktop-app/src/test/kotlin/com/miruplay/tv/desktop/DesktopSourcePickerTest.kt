@@ -18,7 +18,44 @@ class DesktopSourcePickerTest {
             rootPath = "D:/Anime",
         )
 
-        assertEquals("Living Room Anime · LOCAL", source.sourcePickerTitle())
+        assertEquals("Living Room Anime · 本地", source.sourcePickerTitle())
+    }
+
+    @Test
+    fun `source picker title localizes missing source names`() {
+        val source = MediaSourceInfo(
+            id = 1L,
+            name = "",
+            type = MediaSourceType.LOCAL,
+        )
+
+        assertEquals("本地媒体源 · 本地", source.sourcePickerTitle())
+    }
+
+    @Test
+    fun `source management controls use TV facing labels`() {
+        val labels = desktopLibrarySourceLabels()
+
+        assertEquals("本地媒体库路径", labels.localLibraryRoot)
+        assertEquals("索引搜索", labels.indexQuery)
+        assertEquals("打开本地", labels.openLocal)
+        assertEquals("扫描", labels.scan)
+        assertEquals("搜索", labels.search)
+        assertEquals("清空索引", labels.clearIndex)
+        assertEquals("移除媒体源", labels.removeSource)
+        assertEquals("WebDAV 地址", labels.webDavUrl)
+        assertEquals("WebDAV 用户名", labels.webDavUser)
+        assertEquals("WebDAV 密码", labels.webDavPassword)
+        assertEquals("打开 WebDAV", labels.openWebDav)
+        assertEquals("SMB 地址", labels.smbUrl)
+        assertEquals("SMB 域", labels.smbDomain)
+        assertEquals("SMB 用户名", labels.smbUser)
+        assertEquals("SMB 密码", labels.smbPassword)
+        assertEquals("打开 SMB", labels.openSmb)
+        assertEquals("扫描媒体源", labels.scanSource)
+        assertEquals("远程浏览", labels.remoteBrowser)
+        assertEquals("上级", labels.up)
+        assertEquals("先打开一个远程媒体源以浏览文件。", labels.remoteEmpty)
     }
 
     @Test

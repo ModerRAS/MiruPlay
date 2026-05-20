@@ -90,7 +90,6 @@ import com.miruplay.tv.repository.MetadataBatchPlan
 import com.miruplay.tv.repository.appliedStatus
 import com.miruplay.tv.repository.applyMetadataBatchPlan
 import com.miruplay.tv.repository.clearExternalMetadata
-import com.miruplay.tv.repository.displayLabel
 import com.miruplay.tv.repository.displayName
 import com.miruplay.tv.repository.desktop.DesktopRepositories
 import com.miruplay.tv.repository.indexClearedStatus
@@ -175,7 +174,6 @@ import com.miruplay.tv.sync.rss.cloudRssSchedulerDisabledStatus
 import com.miruplay.tv.sync.rss.cloudRssSchedulerStartStatus
 import com.miruplay.tv.sync.rss.cloudRssSchedulerStoppedStatus
 import com.miruplay.tv.sync.rss.completeStatus
-import com.miruplay.tv.sync.rss.linkedCloudDriveSourceLabel
 import com.miruplay.tv.sync.rss.linkedCloudRssScanSourceStatus
 import com.miruplay.tv.sync.rss.loadedStatus as rssLoadedStatus
 import com.miruplay.tv.sync.rss.rssSubscriptionDeletedStatus
@@ -1422,7 +1420,7 @@ internal fun MiruPlayDesktopComposeApp() {
                 selectedSubscription = selectedRssSubscription,
                 status = cloudRssStatus,
                 schedulerStatus = cloudRssSchedulerState.schedulerStatus(),
-                linkedSourceLabel = linkedCloudDriveSourceLabel(savedSources, cloudLinkedSourceId),
+                linkedSourceLabel = desktopLinkedSourceLabel(savedSources, cloudLinkedSourceId),
                 onSaveConfig = {
                     scope.launch {
                         val interval = parseCloudDriveIntervalMinutes(cloudIntervalMinutes)
@@ -1603,7 +1601,7 @@ internal fun MiruPlayDesktopComposeApp() {
                     }
                 },
                 sources = savedSources,
-                activeSourceLabel = activeSource?.info?.displayLabel() ?: "未选择",
+                activeSourceLabel = desktopActiveSourceLabel(activeSource?.info),
                 indexedItemCount = indexedEntries.size,
                 recentCount = recentProgress.size,
                 selectedMediaTitle = selectedIndexEntry?.detailTitle()
