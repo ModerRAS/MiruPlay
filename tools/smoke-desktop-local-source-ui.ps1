@@ -320,6 +320,7 @@ $searchScreenshotPath = Join-Path $runDir "local-source-search.png"
 $posterKeyboardScreenshotPath = Join-Path $runDir "local-source-poster-keyboard.png"
 $detailsScreenshotPath = Join-Path $runDir "local-source-details.png"
 $detailsEpisodesScreenshotPath = Join-Path $runDir "local-source-details-episodes.png"
+$detailsEpisodeSelectionScreenshotPath = Join-Path $runDir "local-source-details-episode-selected.png"
 $playerScreenshotPath = Join-Path $runDir "local-source-player.png"
 New-Item -ItemType Directory -Path (Split-Path -Parent $storePath) -Force | Out-Null
 
@@ -330,6 +331,18 @@ if ($LibraryRoot.Trim()) {
     }
 } else {
     New-Item -ItemType Directory -Path $fixtureDir -Force | Out-Null
+    $firstEpisodePath = Join-Path $fixtureDir "Frieren - S01E01.mkv"
+    $firstNfoPath = Join-Path $fixtureDir "Frieren - S01E01.nfo"
+    Set-Content -LiteralPath $firstEpisodePath -Value "first fixture video bytes" -Encoding UTF8
+    Set-Content -LiteralPath $firstNfoPath -Encoding UTF8 -Value @"
+<episodedetails>
+  <showtitle>Fixture Frieren</showtitle>
+  <title>Fixture First Episode</title>
+  <season>1</season>
+  <episode>1</episode>
+  <plot>Fixture plot for desktop GUI episode shelf smoke.</plot>
+</episodedetails>
+"@
     $episodePath = Join-Path $fixtureDir "Frieren - S01E02.mkv"
     $nfoPath = Join-Path $fixtureDir "Frieren - S01E02.nfo"
     Set-Content -LiteralPath $episodePath -Value "fixture video bytes" -Encoding UTF8
@@ -390,14 +403,15 @@ try {
     }
     if (-not $LibraryRoot.Trim()) {
         $frierenVideo = @($indexedVideos | Where-Object { $_.animeName -eq "Fixture Frieren" })
-        if ($frierenVideo.Count -ne 1) {
-            throw "Expected exactly one NFO anime named 'Fixture Frieren', found $($frierenVideo.Count)."
+        if ($frierenVideo.Count -ne 2) {
+            throw "Expected exactly two NFO episodes named 'Fixture Frieren', found $($frierenVideo.Count)."
         }
-        if ($frierenVideo[0].episodeNumber -ne 2) {
-            throw "Expected Frieren episode number 2, found '$($frierenVideo[0].episodeNumber)'."
+        $frierenEpisodeNumbers = @($frierenVideo | Sort-Object episodeNumber | ForEach-Object { $_.episodeNumber })
+        if (($frierenEpisodeNumbers -join ",") -ne "1,2") {
+            throw "Expected Frieren episode numbers 1,2, found '$($frierenEpisodeNumbers -join ",")'."
         }
-        if ($indexedVideos.Count -lt 2) {
-            throw "Expected at least two generated fixture videos for search filtering, found $($indexedVideos.Count)."
+        if ($indexedVideos.Count -lt 3) {
+            throw "Expected at least three generated fixture videos for search filtering, found $($indexedVideos.Count)."
         }
     }
 
@@ -406,7 +420,7 @@ try {
     if (-not $LibraryRoot.Trim()) {
         $searchQuery = "Frieren"
         $indexedVideos = Get-SearchMatches -Entries @($state.index | Where-Object { -not $_.isDirectory }) -Query $searchQuery
-        if ($indexedVideos.Count -ne 1 -or $indexedVideos[0].animeName -ne "Fixture Frieren") {
+        if ($indexedVideos.Count -ne 2 -or @($indexedVideos | Where-Object { $_.animeName -ne "Fixture Frieren" }).Count -ne 0) {
             throw "Expected repository search helper to isolate Fixture Frieren, found $($indexedVideos.Count) result(s)."
         }
         Save-WindowScreenshot -Process $windowProcess -Path $searchScreenshotPath
@@ -416,7 +430,7 @@ try {
         $selectedVideo = $null
         Invoke-RelativeClick -Process $windowProcess -X 130 -Y 360
     } else {
-        $selectedVideo = $indexedVideos[0]
+        $selectedVideo = @($indexedVideos | Where-Object { $_.episodeNumber -eq 2 })[0]
         Send-AppKeys -Process $windowProcess -Keys "{RIGHT}"
         Save-WindowScreenshot -Process $windowProcess -Path $posterKeyboardScreenshotPath
         Send-AppKeys -Process $windowProcess -Keys "{ENTER}"
@@ -427,9 +441,8 @@ try {
     if (-not $LibraryRoot.Trim()) {
         Send-AppKeys -Process $windowProcess -Keys "{DOWN}"
         Save-WindowScreenshot -Process $windowProcess -Path $detailsEpisodesScreenshotPath
-        Send-AppKeys -Process $windowProcess -Keys "{UP}"
-        Send-AppKeys -Process $windowProcess -Keys "{RIGHT}"
-        Send-AppKeys -Process $windowProcess -Keys "{LEFT}"
+        Send-AppKeys -Process $windowProcess -Keys "{DOWN}"
+        Save-WindowScreenshot -Process $windowProcess -Path $detailsEpisodeSelectionScreenshotPath
         Send-AppKeys -Process $windowProcess -Keys "{ENTER}" -DelayMilliseconds 500
     } else {
         Invoke-RelativeClick -Process $windowProcess -X 674 -Y 466
@@ -476,5 +489,6 @@ if (-not $LibraryRoot.Trim()) {
 Write-Output "Details screenshot: $detailsScreenshotPath"
 if (-not $LibraryRoot.Trim()) {
     Write-Output "Details episodes screenshot: $detailsEpisodesScreenshotPath"
+    Write-Output "Details episode selection screenshot: $detailsEpisodeSelectionScreenshotPath"
 }
 Write-Output "Player screenshot: $playerScreenshotPath"
