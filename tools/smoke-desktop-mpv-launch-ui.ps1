@@ -428,6 +428,7 @@ $preLaunchScreenshotPath = Join-Path $runDir "mpv-launch-ready.png"
 $launchedScreenshotPath = Join-Path $runDir "mpv-launched.png"
 $keyboardControlledScreenshotPath = Join-Path $runDir "mpv-keyboard-controls-used.png"
 $stoppedScreenshotPath = Join-Path $runDir "mpv-stopped.png"
+$recentKeyboardScreenshotPath = Join-Path $runDir "mpv-recent-keyboard-selected.png"
 New-Item -ItemType Directory -Path (Split-Path -Parent $storePath) -Force | Out-Null
 
 if ($SamplePath.Trim()) {
@@ -476,6 +477,19 @@ try {
     }
     $finalProgress = @($finalState.progress | Where-Object { $_.episodeId -eq $sample })[0]
     Save-WindowScreenshotWithoutRedRequirement -Process $windowProcess -Path $stoppedScreenshotPath
+
+    Invoke-RelativeClick -Process $windowProcess -X 142 -Y 116
+    Start-Sleep -Milliseconds 700
+    Send-AppKeys -Process $windowProcess -Keys "{DOWN}" -DelayMilliseconds 500
+    Send-AppKeys -Process $windowProcess -Keys "{ENTER}" -DelayMilliseconds 500
+    Save-WindowScreenshot -Process $windowProcess -Path $recentKeyboardScreenshotPath
+    Invoke-RelativeClick -Process $windowProcess -X 196 -Y 370
+    Start-Sleep -Milliseconds 500
+    Invoke-RelativeClick -Process $windowProcess -X 455 -Y 614
+    $recentMediaPath = Get-FocusedText
+    if ($recentMediaPath -ne $sample) {
+        throw "Recent playback keyboard selection did not restore sample path. Expected '$sample', found '$recentMediaPath'."
+    }
 } finally {
     if ($mpvProcess) {
         Stop-Process -Id $mpvProcess.ProcessId -Force -ErrorAction SilentlyContinue
@@ -511,3 +525,4 @@ Write-Output "Pre-launch screenshot: $preLaunchScreenshotPath"
 Write-Output "Launched screenshot: $launchedScreenshotPath"
 Write-Output "Keyboard controls screenshot: $keyboardControlledScreenshotPath"
 Write-Output "Stopped screenshot: $stoppedScreenshotPath"
+Write-Output "Recent keyboard screenshot: $recentKeyboardScreenshotPath"

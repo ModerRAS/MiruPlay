@@ -288,6 +288,7 @@ internal fun MiruPlayDesktopComposeApp() {
     var bangumiStatus by remember { mutableStateOf(metadataInitialStatus(BANGUMI_METADATA_SOURCE_NAME)) }
     var recentProgress by remember { mutableStateOf(emptyList<ProgressRecord>()) }
     var selectedRecentProgress by remember { mutableStateOf<ProgressRecord?>(null) }
+    var recentPlaybackFocusVersion by remember { mutableStateOf(0) }
     var recentStatus by remember { mutableStateOf(recentPlaybackInitialStatus()) }
     var cloudEndpointUrl by remember { mutableStateOf("") }
     var cloudUsername by remember { mutableStateOf("") }
@@ -659,6 +660,11 @@ internal fun MiruPlayDesktopComposeApp() {
         loadIndexedEntries(sourceInfo.id, sourceInfo.loadedStatus(saved = true))
     }
 
+    val contentScrollState = rememberScrollState()
+    LaunchedEffect(selectedDesktopSection) {
+        contentScrollState.scrollTo(0)
+    }
+
     Row(
         modifier = Modifier
             .fillMaxSize()
@@ -675,7 +681,7 @@ internal fun MiruPlayDesktopComposeApp() {
         Column(
             modifier = Modifier
                 .weight(1f)
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(contentScrollState),
             verticalArrangement = Arrangement.spacedBy(22.dp),
         ) {
             when (selectedDesktopSection) {
@@ -956,6 +962,14 @@ internal fun MiruPlayDesktopComposeApp() {
                     DesktopDetailHero(
                         entry = selectedIndexEntry,
                         source = activeSource?.info,
+                        onFocusRecentPlayback = {
+                            if (recentProgress.isEmpty()) {
+                                false
+                            } else {
+                                recentPlaybackFocusVersion += 1
+                                true
+                            }
+                        },
                         onBackToLibrary = { selectedDesktopSection = MiruPlayRouteSurface.library },
                         onPlay = {
                             selectedIndexEntry?.let { entry ->
@@ -1244,6 +1258,7 @@ internal fun MiruPlayDesktopComposeApp() {
                 records = recentProgress,
                 selectedRecord = selectedRecentProgress,
                 status = recentStatus,
+                focusVersion = recentPlaybackFocusVersion,
                 onRefresh = {
                     scope.launch {
                         refreshRecentProgress()
