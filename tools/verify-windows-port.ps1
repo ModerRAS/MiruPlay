@@ -58,8 +58,18 @@ function Get-JavaMajorVersion {
         return $null
     }
 
-    $versionOutput = & $javaExe -version 2>&1
-    $versionText = ($versionOutput -join "`n")
+    $processInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $processInfo.FileName = $javaExe
+    $processInfo.Arguments = "-version"
+    $processInfo.RedirectStandardOutput = $true
+    $processInfo.RedirectStandardError = $true
+    $processInfo.UseShellExecute = $false
+    $processInfo.CreateNoWindow = $true
+    $process = [System.Diagnostics.Process]::Start($processInfo)
+    $standardOutput = $process.StandardOutput.ReadToEnd()
+    $standardError = $process.StandardError.ReadToEnd()
+    $process.WaitForExit()
+    $versionText = (@($standardOutput, $standardError) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) -join "`n"
     if ($versionText -match 'version "(\d+)(?:\.(\d+))?') {
         $major = [int]$Matches[1]
         if ($major -eq 1 -and $Matches[2]) {

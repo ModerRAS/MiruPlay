@@ -1,11 +1,23 @@
 [CmdletBinding()]
 param(
-    [string]$AppScript = (Join-Path $PSScriptRoot "..\desktop-app\build\install\desktop-app\bin\desktop-app.bat"),
-    [string]$OutputRoot = (Join-Path $PSScriptRoot "..\build\desktop-keyboard-focus-ui"),
+    [string]$AppScript = "",
+    [string]$OutputRoot = "",
     [switch]$KeepOpen
 )
 
 $ErrorActionPreference = "Stop"
+
+$scriptRoot = if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) {
+    Split-Path -Parent $MyInvocation.MyCommand.Path
+} else {
+    $PSScriptRoot
+}
+if ([string]::IsNullOrWhiteSpace($AppScript)) {
+    $AppScript = Join-Path $scriptRoot "..\desktop-app\build\install\desktop-app\bin\desktop-app.bat"
+}
+if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
+    $OutputRoot = Join-Path $scriptRoot "..\build\desktop-keyboard-focus-ui"
+}
 
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName System.Windows.Forms
@@ -125,6 +137,54 @@ function Send-DesktopKey {
     Set-MiruPlayWindowForeground -Process $Process
     [System.Windows.Forms.SendKeys]::SendWait($Key)
     Start-Sleep -Milliseconds 350
+}
+
+function Start-MiruPlayDesktopSmokeProcess {
+    param(
+        [string]$LauncherPath,
+        [string]$StorePath
+    )
+
+    $binDir = Split-Path -Parent $LauncherPath
+    $appHome = Split-Path -Parent $binDir
+    $libDir = Join-Path $appHome "lib"
+    if (-not (Test-Path -LiteralPath $libDir -PathType Container)) {
+        throw "Desktop app lib directory was not found at $libDir. Run :desktop-app:installDist first."
+    }
+    $classpath = (Get-ChildItem -LiteralPath $libDir -Filter "*.jar" -File | ForEach-Object { $_.FullName }) -join ";"
+    if ([string]::IsNullOrWhiteSpace($classpath)) {
+        throw "Desktop app classpath is empty under $libDir."
+    }
+
+    $javaExe = "java.exe"
+    if (-not [string]::IsNullOrWhiteSpace($env:JAVA_HOME)) {
+        $javaHomeExe = Join-Path $env:JAVA_HOME "bin\java.exe"
+        if (Test-Path -LiteralPath $javaHomeExe -PathType Leaf) {
+            $javaExe = $javaHomeExe
+        }
+    }
+
+    $processInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $processInfo.FileName = $javaExe
+    $processInfo.UseShellExecute = $false
+    $processInfo.WorkingDirectory = $appHome
+    $processInfo.EnvironmentVariables["MIRUPLAY_DESKTOP_STORE"] = $StorePath
+    $processInfo.Arguments = @(
+        Quote-ProcessArgument "-Dmiruplay.desktop.store=$StorePath"
+        Quote-ProcessArgument "-classpath"
+        Quote-ProcessArgument $classpath
+        Quote-ProcessArgument "com.miruplay.tv.desktop.MiruPlayDesktopComposeAppKt"
+    ) -join " "
+    return [System.Diagnostics.Process]::Start($processInfo)
+}
+
+function Quote-ProcessArgument {
+    param([string]$Value)
+
+    if ($Value -notmatch '[\s"]') {
+        return $Value
+    }
+    return '"' + ($Value -replace '\\(?=\\*")', '$0\' -replace '"', '\"') + '"'
 }
 
 function Assert-ScreenshotHasContent {
@@ -295,7 +355,8 @@ function Write-InitialStore {
     } | ConvertTo-Json -Depth 12
 
     New-Item -ItemType Directory -Path (Split-Path -Parent $Path) -Force | Out-Null
-    Set-Content -LiteralPath $Path -Value $json -Encoding UTF8
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($Path, $json, $utf8NoBom)
 }
 
 $resolvedAppScript = Resolve-FullPath $AppScript
@@ -322,11 +383,9 @@ New-Item -ItemType Directory -Path (Split-Path -Parent $storePath) -Force | Out-
 New-Item -ItemType Directory -Path $runDir -Force | Out-Null
 Write-InitialStore -Path $storePath
 
-$previousStoreEnv = $env:MIRUPLAY_DESKTOP_STORE
-$env:MIRUPLAY_DESKTOP_STORE = $storePath
 $startedProcess = $null
 try {
-    $startedProcess = Start-Process -FilePath $resolvedAppScript -PassThru
+    $startedProcess = Start-MiruPlayDesktopSmokeProcess -LauncherPath $resolvedAppScript -StorePath $storePath
     $windowProcess = Wait-MiruPlayWindow
 
     Invoke-RelativeClick -Process $windowProcess -X 1170 -Y 109
@@ -362,7 +421,6 @@ try {
     Save-WindowScreenshot -Process $windowProcess -Path $navBackLibraryScreenshotPath
     Assert-ContentRegionChanged -BeforePath $navBackDetailsScreenshotPath -AfterPath $navBackLibraryScreenshotPath
 } finally {
-    $env:MIRUPLAY_DESKTOP_STORE = $previousStoreEnv
     if (-not $KeepOpen) {
         $windowProcess = Get-MiruPlayWindowProcess
         if ($windowProcess) {

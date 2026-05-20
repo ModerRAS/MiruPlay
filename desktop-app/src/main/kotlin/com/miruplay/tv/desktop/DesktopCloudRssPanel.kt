@@ -56,7 +56,7 @@ private enum class DesktopSettingsSection(
 ) {
     Sources("媒体源", "本地、WebDAV、SMB"),
     Playback("播放", "mpv 与 RIFE"),
-    CloudDrive("CloudDrive", "RSS 离线下载与入库"),
+    CloudDrive("云盘", "RSS 离线下载与入库"),
     Scan("扫描", "媒体库更新"),
     Metadata("元数据", "Bangumi 匹配"),
 }
@@ -205,7 +205,7 @@ internal fun CloudRssPanel(
                     activeSourceLabel = activeSourceLabel,
                     indexedItemCount = indexedItemCount,
                 ),
-                status = libraryStatus,
+                status = desktopLibraryStatusText(libraryStatus),
                 actions = listOf(
                     SettingsQuickAction("打开海报墙", onOpenLibrary),
                     SettingsQuickAction("扫描当前源", onScanActiveSource),
@@ -304,6 +304,9 @@ private fun CloudRssAutomationContent(
     onDeleteSubscription: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val labels = desktopCloudRssUiLabels()
+    val schedulerStatusText = desktopCloudRssStatusText(schedulerStatus)
+    val statusText = desktopCloudRssStatusText(status)
     val subscriptionFocusRequesters = remember(subscriptions) {
         subscriptions.associate { it.id to FocusRequester() }
     }
@@ -337,50 +340,50 @@ private fun CloudRssAutomationContent(
             ) {
                 CloudRssCard(
                     title = "CloudDrive2",
-                    badge = if (enabled) "ON" else "OFF",
-                    preview = cloudRssPreview(endpointUrl, fallback = "填写 CloudDrive2 endpoint"),
+                    badge = if (enabled) labels.enabledBadge else labels.disabledBadge,
+                    preview = cloudRssPreview(endpointUrl, fallback = labels.endpointFallback),
                 ) {
-                    LabeledTextField("CloudDrive2 endpoint", endpointUrl, onValueChange = onEndpointUrlChange)
-                    LabeledTextField("CloudDrive2 username", username, onValueChange = onUsernameChange)
+                    LabeledTextField(labels.endpoint, endpointUrl, onValueChange = onEndpointUrlChange)
+                    LabeledTextField(labels.username, username, onValueChange = onUsernameChange)
                     Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp)) {
-                        LabeledTextField("API token", token, onValueChange = onTokenChange, modifier = Modifier.weight(1f))
-                        LabeledTextField("Password", password, onValueChange = onPasswordChange, modifier = Modifier.weight(1f))
+                        LabeledTextField(labels.apiToken, token, onValueChange = onTokenChange, modifier = Modifier.weight(1f))
+                        LabeledTextField(labels.password, password, onValueChange = onPasswordChange, modifier = Modifier.weight(1f))
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
-                        TvActionButton("Save", onClick = onSaveCredentials, secondary = true, modifier = Modifier.weight(1f))
-                        TvActionButton("Clear", onClick = onClearCredentials, secondary = true, modifier = Modifier.weight(1f))
+                        TvActionButton(labels.saveCredentials, onClick = onSaveCredentials, secondary = true, modifier = Modifier.weight(1f))
+                        TvActionButton(labels.clearCredentials, onClick = onClearCredentials, secondary = true, modifier = Modifier.weight(1f))
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
-                        TvActionButton("Login", onClick = onLoginCloudDrive, secondary = true, modifier = Modifier.weight(1f))
-                        TvActionButton("Verify", onClick = onVerifyApiToken, secondary = true, modifier = Modifier.weight(1f))
+                        TvActionButton(labels.login, onClick = onLoginCloudDrive, secondary = true, modifier = Modifier.weight(1f))
+                        TvActionButton(labels.verify, onClick = onVerifyApiToken, secondary = true, modifier = Modifier.weight(1f))
                     }
                 }
                 CloudRssCard(
                     title = "同步路径",
-                    badge = "PATH",
+                    badge = labels.pathBadge,
                     preview = cloudRssPathPairPreview(inboxPath, libraryPath),
                 ) {
                     Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp)) {
-                        LabeledTextField("Inbox path", inboxPath, onValueChange = onInboxPathChange, modifier = Modifier.weight(1f))
-                        LabeledTextField("Library path", libraryPath, onValueChange = onLibraryPathChange, modifier = Modifier.weight(1f))
+                        LabeledTextField(labels.inboxPath, inboxPath, onValueChange = onInboxPathChange, modifier = Modifier.weight(1f))
+                        LabeledTextField(labels.libraryPath, libraryPath, onValueChange = onLibraryPathChange, modifier = Modifier.weight(1f))
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp)) {
-                        LabeledTextField("Interval minutes", intervalMinutes, onValueChange = onIntervalMinutesChange, modifier = Modifier.weight(1f))
-                        LabeledTextField("Proxy host", proxyHost, onValueChange = onProxyHostChange, modifier = Modifier.weight(1f))
-                        LabeledTextField("Proxy port", proxyPort, onValueChange = onProxyPortChange, modifier = Modifier.weight(1f))
+                        LabeledTextField(labels.intervalMinutes, intervalMinutes, onValueChange = onIntervalMinutesChange, modifier = Modifier.weight(1f))
+                        LabeledTextField(labels.proxyHost, proxyHost, onValueChange = onProxyHostChange, modifier = Modifier.weight(1f))
+                        LabeledTextField(labels.proxyPort, proxyPort, onValueChange = onProxyPortChange, modifier = Modifier.weight(1f))
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp)) {
-                        ToggleRow("Enabled", enabled, onEnabledChange)
-                        ToggleRow("RSS proxy", proxyEnabled, onProxyEnabledChange)
+                        ToggleRow(labels.enabledToggle, enabled, onEnabledChange)
+                        ToggleRow(labels.rssProxy, proxyEnabled, onProxyEnabledChange)
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
-                        TvActionButton("Use active source", onClick = onUseActiveScanSource, secondary = true)
-                        TvActionButton("Clear source", onClick = onClearScanSource, secondary = true)
+                        TvActionButton(labels.useActiveSource, onClick = onUseActiveScanSource, secondary = true)
+                        TvActionButton(labels.clearSource, onClick = onClearScanSource, secondary = true)
                     }
-                    Text("Post-sync source: $linkedSourceLabel", color = TextSecondary, fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp)
+                    Text("${labels.postSyncSource}$linkedSourceLabel", color = TextSecondary, fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp)
                     Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
-                        TvActionButton("Save sync config", onClick = onSaveConfig)
-                        TvActionButton("Run sync now", onClick = onRunSync, secondary = true)
+                        TvActionButton(labels.saveSyncConfig, onClick = onSaveConfig)
+                        TvActionButton(labels.runSyncNow, onClick = onRunSync, secondary = true)
                     }
                 }
             }
@@ -389,23 +392,23 @@ private fun CloudRssAutomationContent(
                 verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp),
             ) {
                 CloudRssCard(
-                    title = "RSS subscriptions",
+                    title = labels.rssSubscriptions,
                     badge = "${subscriptions.size}",
-                    preview = selectedSubscription?.let { rssSubscriptionPreview(it) } ?: "保存订阅后在这里显示",
+                    preview = selectedSubscription?.let { rssSubscriptionPreview(it) } ?: labels.rssPreviewFallback,
                 ) {
-                    LabeledTextField("Subscription name", rssName, onValueChange = onRssNameChange)
-                    LabeledTextField("Subscription URL", rssUrl, onValueChange = onRssUrlChange)
-                    LabeledTextField("Filter regex", rssFilter, onValueChange = onRssFilterChange)
+                    LabeledTextField(labels.subscriptionName, rssName, onValueChange = onRssNameChange)
+                    LabeledTextField(labels.subscriptionUrl, rssUrl, onValueChange = onRssUrlChange)
+                    LabeledTextField(labels.filterRegex, rssFilter, onValueChange = onRssFilterChange)
                     Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp)) {
-                        ToggleRow("Enabled", rssEnabled, onRssEnabledChange)
+                        ToggleRow(labels.enabledToggle, rssEnabled, onRssEnabledChange)
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
-                        TvActionButton("Save RSS", onClick = onSaveSubscription, secondary = true, modifier = Modifier.weight(1f))
-                        TvActionButton("Delete", onClick = onDeleteSubscription, secondary = true, modifier = Modifier.weight(1f))
+                        TvActionButton(labels.saveRss, onClick = onSaveSubscription, secondary = true, modifier = Modifier.weight(1f))
+                        TvActionButton(labels.deleteRss, onClick = onDeleteSubscription, secondary = true, modifier = Modifier.weight(1f))
                     }
                     if (subscriptions.isEmpty()) {
                         DesktopEmptyState(
-                            text = "Save a subscription to show it here.",
+                            text = labels.rssEmpty,
                             heightDp = MiruPlayUiMetrics.RSS_EMPTY_STATE_HEIGHT_DP,
                         )
                     } else {
@@ -431,16 +434,16 @@ private fun CloudRssAutomationContent(
                 }
                 CloudRssCard(
                     title = "运行状态",
-                    badge = "RUN",
-                    preview = cloudRssPreview(schedulerStatus, fallback = "Scheduler idle"),
+                    badge = labels.runBadge,
+                    preview = cloudRssPreview(schedulerStatusText, fallback = labels.schedulerIdle),
                 ) {
                     Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
-                        TvActionButton("Start scheduler", onClick = onStartScheduler, secondary = true)
-                        TvActionButton("Stop scheduler", onClick = onStopScheduler, secondary = true)
+                        TvActionButton(labels.startScheduler, onClick = onStartScheduler, secondary = true)
+                        TvActionButton(labels.stopScheduler, onClick = onStopScheduler, secondary = true)
                     }
-                    StatusBox(status)
+                    StatusBox(statusText)
                     Text(
-                        schedulerStatus,
+                        schedulerStatusText,
                         color = TextSecondary,
                         fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
                         lineHeight = 18.sp,
@@ -509,6 +512,85 @@ internal data class SettingsSummaryTile(
     val detail: String,
 )
 
+internal data class DesktopCloudRssUiLabels(
+    val endpoint: String,
+    val username: String,
+    val apiToken: String,
+    val password: String,
+    val saveCredentials: String,
+    val clearCredentials: String,
+    val login: String,
+    val verify: String,
+    val inboxPath: String,
+    val libraryPath: String,
+    val intervalMinutes: String,
+    val proxyHost: String,
+    val proxyPort: String,
+    val enabledToggle: String,
+    val rssProxy: String,
+    val useActiveSource: String,
+    val clearSource: String,
+    val postSyncSource: String,
+    val saveSyncConfig: String,
+    val runSyncNow: String,
+    val rssSubscriptions: String,
+    val subscriptionName: String,
+    val subscriptionUrl: String,
+    val filterRegex: String,
+    val saveRss: String,
+    val deleteRss: String,
+    val rssEmpty: String,
+    val rssPreviewFallback: String,
+    val startScheduler: String,
+    val stopScheduler: String,
+    val endpointFallback: String,
+    val schedulerIdle: String,
+    val enabledBadge: String,
+    val disabledBadge: String,
+    val pathBadge: String,
+    val runBadge: String,
+)
+
+internal fun desktopCloudRssUiLabels(): DesktopCloudRssUiLabels =
+    DesktopCloudRssUiLabels(
+        endpoint = "CloudDrive2 地址",
+        username = "CloudDrive2 用户名",
+        apiToken = "API 令牌",
+        password = "密码",
+        saveCredentials = "保存凭据",
+        clearCredentials = "清空凭据",
+        login = "登录",
+        verify = "验证令牌",
+        inboxPath = "收件路径",
+        libraryPath = "媒体库路径",
+        intervalMinutes = "间隔分钟",
+        proxyHost = "代理主机",
+        proxyPort = "代理端口",
+        enabledToggle = "启用",
+        rssProxy = "RSS 代理",
+        useActiveSource = "使用当前源",
+        clearSource = "清除扫描源",
+        postSyncSource = "同步后扫描源：",
+        saveSyncConfig = "保存同步配置",
+        runSyncNow = "立即同步",
+        rssSubscriptions = "RSS 订阅",
+        subscriptionName = "订阅名称",
+        subscriptionUrl = "订阅地址",
+        filterRegex = "过滤正则",
+        saveRss = "保存 RSS",
+        deleteRss = "删除订阅",
+        rssEmpty = "保存订阅后会显示在这里。",
+        rssPreviewFallback = "保存订阅后在这里显示",
+        startScheduler = "启动调度",
+        stopScheduler = "停止调度",
+        endpointFallback = "填写 CloudDrive2 地址",
+        schedulerIdle = "调度器待命",
+        enabledBadge = "启用",
+        disabledBadge = "停用",
+        pathBadge = "路径",
+        runBadge = "运行",
+    )
+
 internal fun cloudRssOverviewTiles(
     endpointUrl: String,
     subscriptions: List<RssSubscriptionInfo>,
@@ -520,7 +602,7 @@ internal fun cloudRssOverviewTiles(
         SettingsSummaryTile(
             label = "CloudDrive2",
             value = if (enabled) "已启用" else "未启用",
-            detail = cloudRssPreview(endpointUrl, fallback = "未配置 endpoint", maxLength = CLOUD_RSS_PREVIEW_LIMIT),
+            detail = cloudRssPreview(endpointUrl, fallback = "未配置端点", maxLength = CLOUD_RSS_PREVIEW_LIMIT),
         ),
         SettingsSummaryTile(
             label = "RSS 订阅",
@@ -530,7 +612,11 @@ internal fun cloudRssOverviewTiles(
         SettingsSummaryTile(
             label = "同步后扫描",
             value = linkedSourceLabel,
-            detail = cloudRssPreview(schedulerStatus, fallback = "Scheduler idle", maxLength = CLOUD_RSS_PREVIEW_LIMIT),
+            detail = cloudRssPreview(
+                desktopCloudRssStatusText(schedulerStatus),
+                fallback = "调度器待命",
+                maxLength = CLOUD_RSS_PREVIEW_LIMIT,
+            ),
         ),
     )
 
@@ -553,20 +639,108 @@ internal fun cloudRssPathPairPreview(
     val available = safeMaxLength - separator.length
     val inboxLength = available / 2
     val libraryLength = available - inboxLength
-    return cloudRssPreview(inboxPath, fallback = "Inbox", maxLength = inboxLength) +
+    return cloudRssPreview(inboxPath, fallback = "收件路径", maxLength = inboxLength) +
         separator +
-        cloudRssPreview(libraryPath, fallback = "Library", maxLength = libraryLength)
+        cloudRssPreview(libraryPath, fallback = "媒体库路径", maxLength = libraryLength)
 }
 
 internal fun rssSubscriptionPreview(
     subscription: RssSubscriptionInfo,
     maxLength: Int = CLOUD_RSS_WIDE_PREVIEW_LIMIT,
 ): String {
-    val state = if (subscription.enabled) "ON" else "OFF"
+    val state = if (subscription.enabled) "启用" else "停用"
     val filter = subscription.filterRegex?.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty()
     val label = subscription.name.ifBlank { "RSS" }
     return "$state · $label · ${subscription.url}$filter".compactMiddle(maxLength)
 }
+
+private val schedulerErrorStatusRegex = Regex("""^Scheduler (running|idle)\. Last check failed: (.+)$""")
+private val schedulerSummaryStatusRegex =
+    Regex("""^Scheduler (running|idle)\. Last run: (\d+) submitted, (\d+) skipped, (\d+) failed, (\d+) organized\.$""")
+private val syncCompleteStatusRegex =
+    Regex("""^Sync complete: (\d+) submitted, (\d+) skipped, (\d+) failed, (\d+) organized\.$""")
+private val loadedRssStatusRegex = Regex("""^Loaded (\d+) RSS subscription\(s\)\.$""")
+private val showingRssStatusRegex = Regex("""^Showing (\d+) RSS subscription\(s\)\.$""")
+private val verifiedTokenStatusRegex = Regex("""^CloudDrive2 API token verified and saved: (.+)\.$""")
+private val linkedScanSourceStatusRegex =
+    Regex("""^Linked Cloud/RSS post-sync scan source: (.+)\. Save sync config to persist it\.$""")
+private val rescanStartedStatusRegex = Regex("""^(.+) Rescanning (.+)\.\.\.$""")
+private val rssSubscriptionSavedRegex = Regex("""^RSS subscription saved: (.+)$""")
+private val rssSubscriptionSelectedRegex = Regex("""^Selected RSS subscription: (.+)$""")
+
+internal fun desktopCloudRssStatusText(status: String): String {
+    val trimmed = status.trim()
+    return when {
+        trimmed.isBlank() -> "Cloud/RSS 待命。"
+        trimmed == "Scheduler idle. No checks yet." -> "调度器待命，尚未检查。"
+        trimmed == "Scheduler idle. Last check found no due sync." -> "调度器待命，上次检查没有待同步内容。"
+        trimmed == "Scheduler running. No checks yet." -> "调度器运行中，尚未检查。"
+        trimmed == "Scheduler running. Last check found no due sync." -> "调度器运行中，上次检查没有待同步内容。"
+        trimmed == "Cloud/RSS automation settings saved." -> "Cloud/RSS 自动化设置已保存。"
+        trimmed == "Load or save Cloud/RSS automation settings." -> "加载或保存 Cloud/RSS 自动化设置。"
+        trimmed == "CloudDrive credentials saved." -> "CloudDrive 凭据已保存。"
+        trimmed == "CloudDrive credentials cleared." -> "CloudDrive 凭据已清空。"
+        trimmed == "Enter CloudDrive2 endpoint, username, and password first." -> "请先填写 CloudDrive2 地址、用户名和密码。"
+        trimmed == "Logging into CloudDrive2..." -> "正在登录 CloudDrive2..."
+        trimmed == "CloudDrive2 login succeeded; token saved." -> "CloudDrive2 登录成功，令牌已保存。"
+        trimmed == "Enter CloudDrive2 endpoint and API token first." -> "请先填写 CloudDrive2 地址和 API 令牌。"
+        trimmed == "Validating CloudDrive2 API token..." -> "正在验证 CloudDrive2 API 令牌..."
+        trimmed == "Running Cloud/RSS sync..." -> "正在执行 Cloud/RSS 同步..."
+        trimmed == "Enable and save Cloud/RSS sync before starting the scheduler." -> "启动调度前请先启用并保存 Cloud/RSS 同步。"
+        trimmed == "Cloud/RSS scheduler started." -> "Cloud/RSS 调度器已启动。"
+        trimmed == "Cloud/RSS scheduler is already running." -> "Cloud/RSS 调度器已经在运行。"
+        trimmed == "Cloud/RSS scheduler stopped." -> "Cloud/RSS 调度器已停止。"
+        trimmed == "Scheduled sync complete." -> "定时同步完成。"
+        trimmed == "Open a saved media source before linking Cloud/RSS scanning." -> "请先打开已保存的媒体源，再绑定 Cloud/RSS 扫描。"
+        trimmed == "Linked scan source was not found. Clear or relink the Cloud/RSS scan source." -> "未找到已绑定的扫描源，请清除或重新绑定 Cloud/RSS 扫描源。"
+        trimmed == "Cloud/RSS post-sync scan source cleared. Save sync config to persist it." -> "同步后扫描源已清除，请保存同步配置。"
+        trimmed == "Enter an RSS URL first." -> "请先填写 RSS 地址。"
+        trimmed == "No RSS subscriptions configured." -> "尚未配置 RSS 订阅。"
+        trimmed == "Failed to load RSS subscriptions." -> "RSS 订阅加载失败。"
+        trimmed == "Failed to refresh RSS subscriptions." -> "RSS 订阅刷新失败。"
+        trimmed == "Select an RSS subscription first." -> "请先选择一个 RSS 订阅。"
+        trimmed == "RSS subscription deleted." -> "RSS 订阅已删除。"
+        else -> desktopCloudRssDynamicStatusText(trimmed) ?: trimmed
+    }
+}
+
+private fun desktopCloudRssDynamicStatusText(status: String): String? {
+    schedulerErrorStatusRegex.matchEntire(status)?.let { match ->
+        return "${schedulerStateLabel(match.groupValues[1])}，上次检查失败：${match.groupValues[2]}"
+    }
+    schedulerSummaryStatusRegex.matchEntire(status)?.let { match ->
+        return "${schedulerStateLabel(match.groupValues[1])}，上次运行：提交 ${match.groupValues[2]} 个，跳过 ${match.groupValues[3]} 个，失败 ${match.groupValues[4]} 个，整理 ${match.groupValues[5]} 个。"
+    }
+    syncCompleteStatusRegex.matchEntire(status)?.let { match ->
+        return "同步完成：提交 ${match.groupValues[1]} 个，跳过 ${match.groupValues[2]} 个，失败 ${match.groupValues[3]} 个，整理 ${match.groupValues[4]} 个。"
+    }
+    loadedRssStatusRegex.matchEntire(status)?.let { match ->
+        return "已加载 ${match.groupValues[1]} 个 RSS 订阅。"
+    }
+    showingRssStatusRegex.matchEntire(status)?.let { match ->
+        return "正在显示 ${match.groupValues[1]} 个 RSS 订阅。"
+    }
+    verifiedTokenStatusRegex.matchEntire(status)?.let { match ->
+        return "CloudDrive2 API 令牌已验证并保存：${match.groupValues[1]}。"
+    }
+    linkedScanSourceStatusRegex.matchEntire(status)?.let { match ->
+        return "已绑定同步后扫描源：${match.groupValues[1]}。请保存同步配置。"
+    }
+    rescanStartedStatusRegex.matchEntire(status)?.let { match ->
+        val reason = desktopCloudRssStatusText(match.groupValues[1])
+        return "${reason.removeSuffix("。")}，正在重扫 ${match.groupValues[2]}..."
+    }
+    rssSubscriptionSavedRegex.matchEntire(status)?.let { match ->
+        return "RSS 订阅已保存：${match.groupValues[1]}"
+    }
+    rssSubscriptionSelectedRegex.matchEntire(status)?.let { match ->
+        return "已选择 RSS 订阅：${match.groupValues[1]}"
+    }
+    return null
+}
+
+private fun schedulerStateLabel(state: String): String =
+    if (state == "running") "调度器运行中" else "调度器待命"
 
 @Composable
 private fun SettingsSectionMenu(
