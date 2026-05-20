@@ -44,4 +44,13 @@ class DesktopDetailHeroTest {
         assertEquals(null, moveDesktopDetailHeroAction(DesktopDetailHeroAction.Play, -1))
         assertEquals(null, moveDesktopDetailHeroAction(DesktopDetailHeroAction.BackToLibrary, 1))
     }
+
+    @Test
+    fun `recent playback navigation moves within visible records`() {
+        assertEquals(1, moveRecentPlaybackSelection(currentIndex = 0, itemCount = 3, delta = 1))
+        assertEquals(1, moveRecentPlaybackSelection(currentIndex = 2, itemCount = 3, delta = -1))
+        assertEquals(null, moveRecentPlaybackSelection(currentIndex = 0, itemCount = 3, delta = -1))
+        assertEquals(null, moveRecentPlaybackSelection(currentIndex = 2, itemCount = 3, delta = 1))
+        assertEquals(null, moveRecentPlaybackSelection(currentIndex = 0, itemCount = 0, delta = 1))
+    }
 }

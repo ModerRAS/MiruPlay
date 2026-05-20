@@ -52,6 +52,7 @@ import com.miruplay.tv.repository.mediaDisplayName
 internal fun DesktopDetailHero(
     entry: MediaIndexEntry?,
     source: MediaSourceInfo?,
+    onFocusRecentPlayback: () -> Boolean,
     onBackToLibrary: () -> Unit,
     onPlay: () -> Unit,
 ) {
@@ -67,6 +68,14 @@ internal fun DesktopDetailHero(
         actionFocusRequesters.getValue(target).requestFocus()
         return true
     }
+
+    fun moveFromAction(current: DesktopDetailHeroAction, key: Key): Boolean =
+        when (key) {
+            Key.DirectionLeft -> moveActionFocus(current, -1)
+            Key.DirectionRight -> moveActionFocus(current, 1)
+            Key.DirectionDown -> onFocusRecentPlayback()
+            else -> false
+        }
 
     LaunchedEffect(entry?.sourceId, entry?.path) {
         actionFocusRequesters.getValue(DesktopDetailHeroAction.Play).requestFocus()
@@ -138,7 +147,7 @@ internal fun DesktopDetailHero(
                             .detailHeroActionNavigation(
                                 action = DesktopDetailHeroAction.Play,
                                 focusRequester = actionFocusRequesters.getValue(DesktopDetailHeroAction.Play),
-                                onMove = ::moveActionFocus,
+                                onMove = ::moveFromAction,
                             )
                             .width(180.dp),
                     )
@@ -150,7 +159,7 @@ internal fun DesktopDetailHero(
                             .detailHeroActionNavigation(
                                 action = DesktopDetailHeroAction.BackToLibrary,
                                 focusRequester = actionFocusRequesters.getValue(DesktopDetailHeroAction.BackToLibrary),
-                                onMove = ::moveActionFocus,
+                                onMove = ::moveFromAction,
                             )
                             .width(180.dp),
                     )
@@ -173,14 +182,14 @@ internal fun DesktopDetailHero(
 private fun Modifier.detailHeroActionNavigation(
     action: DesktopDetailHeroAction,
     focusRequester: FocusRequester,
-    onMove: (DesktopDetailHeroAction, Int) -> Boolean,
+    onMove: (DesktopDetailHeroAction, Key) -> Boolean,
 ): Modifier =
     focusRequester(focusRequester)
         .onPreviewKeyEvent { event ->
             if (event.type != KeyEventType.KeyDown) {
                 false
             } else {
-                event.key.toDetailHeroActionDelta()?.let { delta -> onMove(action, delta) } ?: false
+                onMove(action, event.key)
             }
         }
 
@@ -197,13 +206,6 @@ internal fun moveDesktopDetailHeroAction(
     val targetIndex = actions.indexOf(current) + delta
     return actions.getOrNull(targetIndex)
 }
-
-private fun Key.toDetailHeroActionDelta(): Int? =
-    when (this) {
-        Key.DirectionLeft -> -1
-        Key.DirectionRight -> 1
-        else -> null
-    }
 
 @Composable
 private fun DetailPoster(title: String) {
@@ -263,10 +265,28 @@ internal fun RecentPlaybackPanel(
     records: List<ProgressRecord>,
     selectedRecord: ProgressRecord?,
     status: String,
+    focusVersion: Int,
     onRefresh: () -> Unit,
     onRecordSelected: (ProgressRecord) -> Unit,
     onClearSelected: () -> Unit,
 ) {
+    val visibleRecords = records.take(6)
+    val recordFocusRequesters = remember(visibleRecords.map { it.episodeId }) {
+        List(visibleRecords.size) { FocusRequester() }
+    }
+
+    fun moveRecentFocus(currentIndex: Int, delta: Int): Boolean {
+        val targetIndex = moveRecentPlaybackSelection(currentIndex, visibleRecords.size, delta) ?: return false
+        recordFocusRequesters.getOrNull(targetIndex)?.requestFocus()
+        return true
+    }
+
+    LaunchedEffect(focusVersion) {
+        if (focusVersion > 0 && visibleRecords.isNotEmpty()) {
+            recordFocusRequesters.firstOrNull()?.requestFocus()
+        }
+    }
+
     TvPanel(Modifier.fillMaxWidth()) {
         Row(
             horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp),
@@ -290,11 +310,24 @@ internal fun RecentPlaybackPanel(
                 if (records.isEmpty()) {
                     DesktopEmptyState("Launch playback to create recent items.")
                 } else {
-                    records.take(6).forEach { record ->
+                    visibleRecords.forEachIndexed { index, record ->
                         RecentProgressRow(
                             record = record,
                             selected = selectedRecord?.episodeId == record.episodeId,
                             onClick = { onRecordSelected(record) },
+                            modifier = Modifier
+                                .focusRequester(recordFocusRequesters[index])
+                                .onPreviewKeyEvent { event ->
+                                    if (event.type != KeyEventType.KeyDown) {
+                                        false
+                                    } else {
+                                        when (event.key) {
+                                            Key.DirectionUp -> moveRecentFocus(index, -1)
+                                            Key.DirectionDown -> moveRecentFocus(index, 1)
+                                            else -> false
+                                        }
+                                    }
+                                },
                         )
                     }
                 }
@@ -308,8 +341,9 @@ private fun RecentProgressRow(
     record: ProgressRecord,
     selected: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    DesktopSelectableRow(selected = selected, onClick = onClick) { active ->
+    DesktopSelectableRow(selected = selected, onClick = onClick, modifier = modifier) { active ->
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.DETAIL_MEDIA_PADDING_DP.dp),
@@ -342,6 +376,16 @@ private fun RecentProgressRow(
             Text("x${record.playCount}", color = TextSecondary, fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp)
         }
     }
+}
+
+internal fun moveRecentPlaybackSelection(
+    currentIndex: Int,
+    itemCount: Int,
+    delta: Int,
+): Int? {
+    if (itemCount <= 0) return null
+    val targetIndex = currentIndex + delta
+    return targetIndex.takeIf { it in 0 until itemCount }
 }
 
 @Composable
