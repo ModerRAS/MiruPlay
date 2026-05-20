@@ -290,6 +290,7 @@ internal fun MiruPlayDesktopComposeApp() {
     var selectedRecentProgress by remember { mutableStateOf<ProgressRecord?>(null) }
     var recentPlaybackFocusVersion by remember { mutableStateOf(0) }
     var recentStatus by remember { mutableStateOf(recentPlaybackInitialStatus()) }
+    var bangumiFocusVersion by remember { mutableStateOf(0) }
     var cloudEndpointUrl by remember { mutableStateOf("") }
     var cloudUsername by remember { mutableStateOf("") }
     var cloudToken by remember { mutableStateOf("") }
@@ -963,11 +964,15 @@ internal fun MiruPlayDesktopComposeApp() {
                         entry = selectedIndexEntry,
                         source = activeSource?.info,
                         onFocusRecentPlayback = {
-                            if (recentProgress.isEmpty()) {
-                                false
-                            } else {
-                                recentPlaybackFocusVersion += 1
-                                true
+                            when (detailHeroDownTarget(recentProgress.isNotEmpty())) {
+                                DesktopDetailDownTarget.RecentPlayback -> {
+                                    recentPlaybackFocusVersion += 1
+                                    true
+                                }
+                                DesktopDetailDownTarget.BangumiMetadata -> {
+                                    bangumiFocusVersion += 1
+                                    true
+                                }
                             }
                         },
                         onBackToLibrary = { selectedDesktopSection = MiruPlayRouteSurface.library },
@@ -1253,6 +1258,7 @@ internal fun MiruPlayDesktopComposeApp() {
                         }
                     }
                 },
+                focusVersion = bangumiFocusVersion,
             )
             RecentPlaybackPanel(
                 records = recentProgress,

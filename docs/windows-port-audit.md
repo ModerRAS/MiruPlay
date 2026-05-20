@@ -27,9 +27,10 @@ Details. The remote browser list now supports `Up`/`Down` row movement, first-ro
 movement. Real Windows GUI
 smokes prove Sources to CloudDrive, Details to Player, poster-wall Right to
 Enter, CloudDrive RSS subscription row Down, Details hero Right to Left to
-Enter, Details hero Down to Continue watching Enter, WebDAV remote-browser Up
-to parent plus Down to Enter, saved-source card Up, and Player transport paths
-by keyboard input.
+Enter, Details hero Down to Continue watching Enter, Details hero Down to
+Bangumi Use selected when no recents exist, WebDAV remote-browser Up to parent
+plus Down to Enter, saved-source card Up, and Player transport paths by keyboard
+input.
 Release packaging now has a packaged runtime gate that builds `desktop-app.zip`,
 launches the packaged runtime source with `mpv.exe --version`, and verifies the
 zip contains the mpv executable, runtime manifest, and NVIDIA/DIRECTML RIFE
@@ -124,11 +125,14 @@ search-result row movement without depending on the live Bangumi service.
 search, subject details, and regular episode listing while writing token-free
 JSON evidence.
 The Bangumi metadata GUI smoke captured
-`build/desktop-bangumi-metadata-ui/run-20260520-135512/bangumi-details-ready.png`,
-`bangumi-search-results.png`, `bangumi-metadata-applied.png`, and
-`bangumi-metadata-cleared.png`, proving the real Windows Details panel can
-search Bangumi, apply the selected metadata, and clear it again in an isolated
-desktop store.
+`build/desktop-bangumi-metadata-ui/run-20260520-143300/bangumi-details-ready.png`,
+`bangumi-focus-bangumi.png`, `bangumi-search-results.png`,
+`bangumi-metadata-applied.png`, and `bangumi-metadata-cleared.png`, proving the
+real Windows Details panel can move from the hero to Bangumi controls by
+keyboard, search Bangumi, apply the selected metadata, and clear it again in an
+isolated desktop store.
+This covers the previous Details-to-Bangumi focus gap for the no-recents case;
+broader multi-panel traversal can still be expanded separately.
 
 ## Latest Verification Commands
 
@@ -289,7 +293,7 @@ adb -s 10.137.32.118:5555 exec-out screencap -p > build\android-tv-qa\library-fi
 
 ## Highest-Risk Remaining Work
 
-1. Continue narrowing TV parity gaps in less-traveled keyboard/DPAD focus paths outside the now-covered Settings category menu, Cloud/RSS subscription rows, desktop route rail, Library poster wall, Details hero actions, Continue watching recents, remote browser list including parent navigation, Player transport controls, saved-source card movement, Bangumi metadata lists, and Bangumi apply/clear flow.
+1. Continue narrowing TV parity gaps in less-traveled keyboard/DPAD focus paths outside the now-covered Settings category menu, Cloud/RSS subscription rows, desktop route rail, Library poster wall, Details hero actions, Details hero-to-recents/Bangumi fallback, remote browser list including parent navigation, Player transport controls, saved-source card movement, Bangumi metadata lists, and Bangumi apply/clear flow.
 2. Validate RIFE on target Windows hardware that is expected to support
    interpolation, and decide whether the optional Standard backend should ship
    an additional `rife` plugin.

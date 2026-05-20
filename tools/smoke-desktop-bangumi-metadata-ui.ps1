@@ -295,6 +295,7 @@ $fixtureDir = Join-Path $runDir "media\Frieren"
 $storePath = Join-Path $runDir "store\desktop-store.json"
 $episodePath = Join-Path $fixtureDir "Frieren - S01E01.mkv"
 $detailsScreenshotPath = Join-Path $runDir "bangumi-details-ready.png"
+$focusBangumiScreenshotPath = Join-Path $runDir "bangumi-focus-bangumi.png"
 $searchScreenshotPath = Join-Path $runDir "bangumi-search-results.png"
 $appliedScreenshotPath = Join-Path $runDir "bangumi-metadata-applied.png"
 $clearedScreenshotPath = Join-Path $runDir "bangumi-metadata-cleared.png"
@@ -312,7 +313,9 @@ try {
     Send-AppKeys -Process $windowProcess -Keys "{ENTER}" -DelayMilliseconds 900
     Save-WindowScreenshot -Process $windowProcess -Path $detailsScreenshotPath
 
-    Invoke-RelativeClick -Process $windowProcess -X 430 -Y 707
+    Send-AppKeys -Process $windowProcess -Keys "{DOWN}" -DelayMilliseconds 350
+    Save-WindowScreenshot -Process $windowProcess -Path $focusBangumiScreenshotPath
+    Send-AppKeys -Process $windowProcess -Keys "{ENTER}" -DelayMilliseconds 350
     Invoke-RelativeClick -Process $windowProcess -X 620 -Y 707 -DelayMilliseconds 3500
     $state = Wait-StoreState -Path $storePath -Description "metadata still clear after search" -Predicate {
         param($state)
@@ -360,6 +363,7 @@ try {
 Write-Output "Run directory: $runDir"
 Write-Output "Store: $storePath"
 Write-Output "Details screenshot: $detailsScreenshotPath"
+Write-Output "Bangumi focus screenshot: $focusBangumiScreenshotPath"
 Write-Output "Search screenshot: $searchScreenshotPath"
 Write-Output "Applied screenshot: $appliedScreenshotPath"
 Write-Output "Cleared screenshot: $clearedScreenshotPath"
