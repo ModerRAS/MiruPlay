@@ -40,7 +40,7 @@ object MiruPlayRouteSurface {
         menuLabel = "设置",
         title = "设置",
         subtitle = "自动化、RSS 与桌面服务",
-        summary = "CloudDrive2 and RSS",
+        summary = "CloudDrive2 与 RSS",
     )
 
     val desktopSectionOrder = listOf(library, details, player, settings)
