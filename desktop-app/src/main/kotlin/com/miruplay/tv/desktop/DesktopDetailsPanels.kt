@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
@@ -52,6 +53,7 @@ import com.miruplay.tv.repository.mediaDisplayName
 internal fun DesktopDetailHero(
     entry: MediaIndexEntry?,
     source: MediaSourceInfo?,
+    episodeCount: Int = 0,
     onFocusRecentPlayback: () -> Boolean,
     onBackToLibrary: () -> Unit,
     onPlay: () -> Unit,
@@ -76,6 +78,8 @@ internal fun DesktopDetailHero(
             Key.DirectionDown -> onFocusRecentPlayback()
             else -> false
         }
+
+    val statLabels = detailHeroStatLabels(entry, episodeCount)
 
     LaunchedEffect(entry?.sourceId, entry?.path) {
         actionFocusRequesters.getValue(DesktopDetailHeroAction.Play).requestFocus()
@@ -128,6 +132,24 @@ internal fun DesktopDetailHero(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
+                if (statLabels.isNotEmpty()) {
+                    Spacer(Modifier.height(14.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        statLabels.forEachIndexed { index, label ->
+                            DetailStatPill(
+                                text = label,
+                                color = when (index) {
+                                    0 -> TextSecondary
+                                    statLabels.lastIndex -> AnimeRed
+                                    else -> AccentBlue
+                                },
+                            )
+                        }
+                    }
+                }
                 entry?.plot?.takeIf { it.isNotBlank() }?.let { plot ->
                     Spacer(Modifier.height(12.dp))
                     Text(
@@ -179,6 +201,26 @@ internal fun DesktopDetailHero(
     }
 }
 
+@Composable
+private fun DetailStatPill(text: String, color: Color) {
+    Box(
+        modifier = Modifier
+            .widthIn(max = 190.dp)
+            .clip(RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
+            .background(color.copy(alpha = 0.13f))
+            .border(1.dp, color.copy(alpha = 0.38f), RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+    ) {
+        Text(
+            text = text,
+            color = color,
+            fontSize = 14.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
 private fun Modifier.detailHeroActionNavigation(
     action: DesktopDetailHeroAction,
     focusRequester: FocusRequester,
@@ -222,6 +264,22 @@ internal fun detailHeroDownTarget(
         hasRecentPlayback -> DesktopDetailDownTarget.RecentPlayback
         else -> DesktopDetailDownTarget.BangumiMetadata
     }
+
+internal fun detailHeroStatLabels(
+    entry: MediaIndexEntry?,
+    episodeCount: Int,
+): List<String> {
+    if (entry == null) return emptyList()
+    return buildList {
+        if (episodeCount > 0) {
+            add("全 $episodeCount 话")
+        }
+        entry.seasonNumber?.let { add("第 $it 季") }
+        entry.metadataSource
+            ?.takeIf { it.isNotBlank() }
+            ?.let { add(it.trim()) }
+    }
+}
 
 @Composable
 private fun DetailPoster(title: String) {
