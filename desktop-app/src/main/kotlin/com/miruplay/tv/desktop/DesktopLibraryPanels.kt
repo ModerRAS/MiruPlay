@@ -641,6 +641,7 @@ internal fun RemoteSourcesPanel(
     onOpenSmb: () -> Unit,
     onUp: () -> Unit,
     onScan: () -> Unit,
+    onEntryFocused: (FileEntry) -> Unit,
     onEntrySelected: (FileEntry) -> Unit,
 ) {
     Row(
@@ -712,6 +713,7 @@ internal fun RemoteSourcesPanel(
             entries = entries,
             selectedEntry = selectedEntry,
             onUp = onUp,
+            onEntryFocused = onEntryFocused,
             onEntrySelected = onEntrySelected,
             modifier = Modifier.weight(0.57f),
         )
@@ -771,9 +773,21 @@ private fun RemoteBrowserPanel(
     entries: List<FileEntry>,
     selectedEntry: FileEntry?,
     onUp: () -> Unit,
+    onEntryFocused: (FileEntry) -> Unit,
     onEntrySelected: (FileEntry) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val visibleEntries = remember(entries) { entries.take(8) }
+    val focusRequesters = remember(visibleEntries) {
+        visibleEntries.associate { it.path to FocusRequester() }
+    }
+    LaunchedEffect(visibleEntries, selectedEntry?.path) {
+        val focusTarget = visibleEntries.firstOrNull { it.path == selectedEntry?.path } ?: visibleEntries.firstOrNull()
+        focusTarget?.let { entry ->
+            focusRequesters[entry.path]?.requestFocus()
+        }
+    }
+
     TvPanel(modifier) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -799,11 +813,18 @@ private fun RemoteBrowserPanel(
                 heightDp = MiruPlayUiMetrics.REMOTE_EMPTY_STATE_HEIGHT_DP,
             )
         } else {
-            entries.take(8).forEach { entry ->
+            visibleEntries.forEachIndexed { index, entry ->
                 RemoteFileRow(
                     entry = entry,
                     selected = selectedEntry?.path == entry.path,
                     onClick = { onEntrySelected(entry) },
+                    onNavigationKey = { key ->
+                        visibleEntries.remoteBrowserNavigationTarget(index, key)?.let { target ->
+                            onEntryFocused(target)
+                            true
+                        } ?: false
+                    },
+                    modifier = Modifier.focusRequester(focusRequesters.getValue(entry.path)),
                 )
                 Spacer(Modifier.height(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp))
             }
@@ -833,8 +854,28 @@ private fun RemoteFileRow(
     entry: FileEntry,
     selected: Boolean,
     onClick: () -> Unit,
+    onNavigationKey: (Key) -> Boolean = { false },
+    modifier: Modifier = Modifier,
 ) {
-    DesktopSelectableRow(selected = selected, onClick = onClick) {
+    DesktopSelectableRow(
+        selected = selected,
+        onClick = onClick,
+        modifier = modifier.onPreviewKeyEvent { event ->
+            if (event.type != KeyEventType.KeyDown) {
+                false
+            } else {
+                when (event.key) {
+                    Key.Enter,
+                    Key.NumPadEnter,
+                    -> {
+                        onClick()
+                        true
+                    }
+                    else -> onNavigationKey(event.key)
+                }
+            }
+        },
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.DETAIL_MEDIA_PADDING_DP.dp),
@@ -869,4 +910,17 @@ private fun RemoteFileRow(
             }
         }
     }
+}
+
+private fun List<FileEntry>.remoteBrowserNavigationTarget(
+    currentIndex: Int,
+    key: Key,
+): FileEntry? {
+    if (currentIndex !in indices) return null
+    val targetIndex = when (key) {
+        Key.DirectionDown -> currentIndex + 1
+        Key.DirectionUp -> currentIndex - 1
+        else -> null
+    } ?: return null
+    return getOrNull(targetIndex)
 }
