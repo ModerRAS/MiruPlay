@@ -43,8 +43,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.miruplay.tv.design.MiruPlayUiMetrics
 import com.miruplay.tv.model.MediaSourceInfo
+import com.miruplay.tv.model.sourceLocation
 import com.miruplay.tv.player.mpv.RifeBackend
 import com.miruplay.tv.repository.displayLabel
+
+private const val SOURCE_PICKER_HEIGHT_DP = 70
+private const val SOURCE_PICKER_MENU_WIDTH_DP = 420
+private const val SOURCE_PICKER_LOCATION_LIMIT = 78
 
 @Composable
 internal fun LabeledTextField(
@@ -83,23 +88,73 @@ internal fun SavedSourcePicker(
 ) {
     var expanded by remember { mutableStateOf(false) }
     val selected = sources.firstOrNull { it.id == activeSourceId }
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
     Box(modifier = modifier) {
         OutlinedButton(
             onClick = { expanded = true },
-            modifier = Modifier.fillMaxWidth(),
+            interactionSource = interactionSource,
+            shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(SOURCE_PICKER_HEIGHT_DP.dp)
+                .border(
+                    width = if (isFocused) 2.dp else 1.dp,
+                    color = if (isFocused) AnimeRed else Color.White.copy(alpha = 0.16f),
+                    shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
+                ),
         ) {
-            Text(selected?.displayLabel() ?: "Saved sources")
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.Start,
+            ) {
+                Text(
+                    selected?.sourcePickerTitle() ?: "已保存媒体源",
+                    color = TextPrimary,
+                    fontSize = MiruPlayUiMetrics.ITEM_TITLE_SP.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    selected?.sourcePickerSubtitle() ?: "选择已配置媒体源",
+                    color = TextSecondary,
+                    fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.width(SOURCE_PICKER_MENU_WIDTH_DP.dp),
+        ) {
             if (sources.isEmpty()) {
                 DropdownMenuItem(
-                    text = { Text("No saved sources") },
+                    text = { Text("没有已保存媒体源") },
                     onClick = { expanded = false },
                 )
             } else {
                 sources.forEach { source ->
                     DropdownMenuItem(
-                        text = { Text(source.displayLabel()) },
+                        text = {
+                            Column(Modifier.fillMaxWidth()) {
+                                Text(
+                                    source.sourcePickerTitle(),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    source.sourcePickerSubtitle(),
+                                    color = TextSecondary,
+                                    fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        },
                         onClick = {
                             onSelected(source)
                             expanded = false
@@ -109,6 +164,26 @@ internal fun SavedSourcePicker(
             }
         }
     }
+}
+
+internal fun MediaSourceInfo.sourcePickerTitle(): String =
+    displayLabel()
+
+internal fun MediaSourceInfo.sourcePickerSubtitle(maxLength: Int = SOURCE_PICKER_LOCATION_LIMIT): String =
+    sourceLocation()
+        .orEmpty()
+        .ifBlank { "未配置路径" }
+        .compactMiddle(maxLength)
+
+internal fun String.compactMiddle(maxLength: Int): String {
+    val safeMaxLength = maxLength.coerceAtLeast(5)
+    if (length <= safeMaxLength) return this
+
+    val marker = "..."
+    val available = safeMaxLength - marker.length
+    val headLength = available / 2
+    val tailLength = available - headLength
+    return take(headLength) + marker + takeLast(tailLength)
 }
 
 @Composable
