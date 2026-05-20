@@ -61,10 +61,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -194,10 +200,13 @@ fun AddSourceScreen(
     var rssFilterRegex by remember { mutableStateOf("") }
     var rssEnabled by remember { mutableStateOf(true) }
 
-    val menuFocusRequester = remember { FocusRequester() }
+    val menuFocusRequesters = remember {
+        SettingsSection.entries.associateWith { FocusRequester() }
+    }
+    val firstMenuFocusRequester = menuFocusRequesters.getValue(SettingsSection.WEB_UI)
 
     LaunchedEffect(Unit) {
-        menuFocusRequester.requestFocus()
+        firstMenuFocusRequester.requestFocus()
     }
 
     LaunchedEffect(tokenSaved) {
@@ -291,7 +300,7 @@ fun AddSourceScreen(
                     cloudDriveEnabled = cloudEnabled,
                     rssCount = rssSubscriptions.size,
                     hasToken = savedToken.isNotBlank() || tokenSaved,
-                    firstItemRequester = menuFocusRequester,
+                    menuFocusRequesters = menuFocusRequesters,
                     onSectionSelected = { selectedSection = it },
                     modifier = Modifier
                         .width(300.dp)
@@ -309,6 +318,7 @@ fun AddSourceScreen(
                             resetSourceForm()
                         }
                     },
+                    menuFocusRequester = menuFocusRequesters.getValue(selectedSection),
                     selectedType = selectedType,
                     onTypeSelected = { type ->
                         if (type != selectedType) {
@@ -528,7 +538,7 @@ private fun SettingsMenuPanel(
     cloudDriveEnabled: Boolean,
     rssCount: Int,
     hasToken: Boolean,
-    firstItemRequester: FocusRequester,
+    menuFocusRequesters: Map<SettingsSection, FocusRequester>,
     onSectionSelected: (SettingsSection) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -571,7 +581,7 @@ private fun SettingsMenuPanel(
                     summary = summary,
                     selected = section == selectedSection,
                     onClick = { onSectionSelected(section) },
-                    modifier = if (index == 0) Modifier.focusRequester(firstItemRequester) else Modifier
+                    modifier = Modifier.focusRequester(menuFocusRequesters.getValue(section))
                 )
             }
         }
@@ -649,6 +659,7 @@ private fun SettingsContent(
     selectedSourceId: Long?,
     onSelectSource: (MediaSourceInfo) -> Unit,
     onDeleteSource: (Long) -> Unit,
+    menuFocusRequester: FocusRequester,
     selectedType: MediaSourceType,
     onTypeSelected: (MediaSourceType) -> Unit,
     name: String,
@@ -766,6 +777,15 @@ private fun SettingsContent(
                 modifier = Modifier
                     .weight(0.46f)
                     .fillMaxHeight()
+                    .focusProperties { left = menuFocusRequester }
+                    .onPreviewKeyEvent { event ->
+                        if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionLeft) {
+                            menuFocusRequester.requestFocus()
+                            true
+                        } else {
+                            false
+                        }
+                    }
             )
             Column(
                 modifier = Modifier
