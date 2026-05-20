@@ -24,13 +24,21 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -66,6 +74,7 @@ internal fun LibraryPanel(
     onSearch: () -> Unit,
     onClearIndex: () -> Unit,
     onRemoveSource: () -> Unit,
+    onEntryFocused: (MediaIndexEntry) -> Unit,
     onEntrySelected: (MediaIndexEntry) -> Unit,
 ) {
     val posterGroups = remember(entries) { entries.toDesktopPosterGroups() }
@@ -99,6 +108,7 @@ internal fun LibraryPanel(
             PosterWall(
                 groups = posterGroups,
                 selectedEntry = selectedEntry,
+                onEntryFocused = onEntryFocused,
                 onEntrySelected = onEntrySelected,
             )
 
@@ -302,19 +312,41 @@ private fun PosterSectionHeader(
 private fun PosterWall(
     groups: List<DesktopPosterGroup>,
     selectedEntry: MediaIndexEntry?,
+    onEntryFocused: (MediaIndexEntry) -> Unit,
     onEntrySelected: (MediaIndexEntry) -> Unit,
 ) {
+    val focusRequesters = remember(groups) {
+        groups.associate { it.primaryEntry.path to FocusRequester() }
+    }
+    val selectedGroup = groups.firstOrNull { group ->
+        selectedEntry?.path?.let { it in group.entryPaths } == true
+    }
+    LaunchedEffect(groups, selectedGroup?.primaryEntry?.path) {
+        val focusTarget = selectedGroup ?: groups.firstOrNull()
+        focusTarget?.let { group ->
+            focusRequesters[group.primaryEntry.path]?.requestFocus()
+        }
+    }
+
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        groups.toPosterWallRows().forEach { row ->
+        groups.toPosterWallRows().forEachIndexed { rowIndex, row ->
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                row.forEach { group ->
+                row.forEachIndexed { columnIndex, group ->
+                    val groupIndex = rowIndex * POSTER_WALL_COLUMNS + columnIndex
                     LibraryPosterCard(
                         group = group,
                         selected = selectedEntry?.path?.let { it in group.entryPaths } == true,
                         onClick = { onEntrySelected(group.primaryEntry) },
+                        onNavigationKey = { key ->
+                            groups.posterNavigationTarget(groupIndex, key)?.let { target ->
+                                onEntryFocused(target.primaryEntry)
+                                true
+                            } ?: false
+                        },
+                        modifier = Modifier.focusRequester(focusRequesters.getValue(group.primaryEntry.path)),
                     )
                 }
             }
@@ -412,12 +444,14 @@ private fun LibraryPosterCard(
     group: DesktopPosterGroup,
     selected: Boolean,
     onClick: () -> Unit,
+    onNavigationKey: (Key) -> Boolean = { false },
+    modifier: Modifier = Modifier,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val focused by interactionSource.collectIsFocusedAsState()
     val active = selected || focused
     Box(
-        modifier = Modifier
+        modifier = modifier
             .width(MiruPlayUiMetrics.POSTER_WIDTH_DP.dp)
             .height(MiruPlayUiMetrics.POSTER_HEIGHT_DP.dp)
             .clip(RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
@@ -427,6 +461,21 @@ private fun LibraryPosterCard(
                 color = if (active) AnimeRed else Color.White.copy(alpha = 0.10f),
                 shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
             )
+            .onPreviewKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) {
+                    false
+                } else {
+                    when (event.key) {
+                        Key.Enter,
+                        Key.NumPadEnter,
+                        -> {
+                            onClick()
+                            true
+                        }
+                        else -> onNavigationKey(event.key)
+                    }
+                }
+            }
             .focusable(interactionSource = interactionSource)
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
     ) {
@@ -524,6 +573,22 @@ internal fun List<DesktopPosterGroup>.toFeaturedPosterGroups(limit: Int = 2): Li
             .thenByDescending { it.lastModified }
             .thenBy { it.title.lowercase() },
     ).take(limit.coerceAtLeast(0))
+
+private fun List<DesktopPosterGroup>.posterNavigationTarget(
+    currentIndex: Int,
+    key: Key,
+    columns: Int = POSTER_WALL_COLUMNS,
+): DesktopPosterGroup? {
+    if (currentIndex !in indices) return null
+    val targetIndex = when (key) {
+        Key.DirectionRight -> if (currentIndex % columns == columns - 1) null else currentIndex + 1
+        Key.DirectionLeft -> if (currentIndex % columns == 0) null else currentIndex - 1
+        Key.DirectionDown -> currentIndex + columns
+        Key.DirectionUp -> currentIndex - columns
+        else -> null
+    } ?: return null
+    return getOrNull(targetIndex)
+}
 
 internal fun MediaIndexEntry.posterTitle(): String =
     metadataTitle?.takeIf { it.isNotBlank() }
