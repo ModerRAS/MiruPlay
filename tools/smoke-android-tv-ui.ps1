@@ -373,6 +373,7 @@ $playerScreenshot = Join-Path $runDir "android-tv-player.png"
 $libraryReturnScreenshot = Join-Path $runDir "android-tv-library-return.png"
 $settingsScreenshot = Join-Path $runDir "android-tv-settings.png"
 $settingsSourcesScreenshot = Join-Path $runDir "android-tv-settings-sources.png"
+$settingsSourceCardScreenshot = Join-Path $runDir "android-tv-settings-source-card-focus.png"
 $libraryXmlPath = Join-Path $runDir "android-tv-library.xml"
 $detailsXmlPath = Join-Path $runDir "android-tv-details.xml"
 $detailsEpisodeFocusXmlPath = Join-Path $runDir "android-tv-details-episode-focus.xml"
@@ -381,6 +382,8 @@ $detailsReturnXmlPath = Join-Path $runDir "android-tv-details-return.xml"
 $libraryReturnXmlPath = Join-Path $runDir "android-tv-library-return.xml"
 $settingsXmlPath = Join-Path $runDir "android-tv-settings.xml"
 $settingsSourcesXmlPath = Join-Path $runDir "android-tv-settings-sources.xml"
+$settingsSourceCardXmlPath = Join-Path $runDir "android-tv-settings-source-card-focus.xml"
+$settingsSourcesReturnXmlPath = Join-Path $runDir "android-tv-settings-sources-return.xml"
 $reportPath = Join-Path $runDir "android-tv-smoke-report.json"
 New-Item -ItemType Directory -Path $runDir -Force | Out-Null
 
@@ -455,6 +458,15 @@ Assert-UiText -Xml $xml -Needles @($textMediaSources, "Test Local", $remoteFixtu
 Assert-FocusedUiText -Xml $xml -Needles @($textMediaSources) -Description "Settings media source menu"
 Save-Screenshot -Path $settingsSourcesScreenshot
 
+Invoke-DpadKey -KeyCode "KEYCODE_DPAD_RIGHT" -DelayMilliseconds 900
+$xml = Wait-UiText -Needles @("Test Local", $remoteFixtureRoot) -XmlPath $settingsSourceCardXmlPath -TimeoutSeconds 30
+Assert-FocusedUiText -Xml $xml -Needles @("Test Local") -Description "Settings media source card"
+Save-Screenshot -Path $settingsSourceCardScreenshot
+
+Invoke-DpadKey -KeyCode "KEYCODE_DPAD_LEFT" -DelayMilliseconds 900
+$xml = Wait-UiText -Needles @("Test Local", $textMediaSources) -XmlPath $settingsSourcesReturnXmlPath -TimeoutSeconds 30
+Assert-FocusedUiText -Xml $xml -Needles @($textMediaSources) -Description "Settings media source menu after content Left"
+
 Write-Report -Path $reportPath -Report @{
     generatedAt = (Get-Date).ToString("o")
     deviceId = $DeviceId
@@ -469,6 +481,7 @@ Write-Report -Path $reportPath -Report @{
         libraryReturn = $libraryReturnScreenshot
         settings = $settingsScreenshot
         settingsSources = $settingsSourcesScreenshot
+        settingsSourceCard = $settingsSourceCardScreenshot
     }
     xml = @{
         library = $libraryXmlPath
@@ -479,6 +492,8 @@ Write-Report -Path $reportPath -Report @{
         libraryReturn = $libraryReturnXmlPath
         settings = $settingsXmlPath
         settingsSources = $settingsSourcesXmlPath
+        settingsSourceCard = $settingsSourceCardXmlPath
+        settingsSourcesReturn = $settingsSourcesReturnXmlPath
     }
     assertions = @(
         "Library contains Explore, highest-heat row, recent row, and fixture poster.",
@@ -490,7 +505,8 @@ Write-Report -Path $reportPath -Report @{
         "Android Back returns from Player to Details and from Details to the poster-focused Library wall.",
         "DPAD Up/Right/Center from the returned Library poster wall opens Settings.",
         "Settings contains the WebUI, media sources, playback, CloudDrive, scan, and metadata sections.",
-        "DPAD Down/Center in Settings opens the media sources panel with the auto-added local source and source form."
+        "DPAD Down/Center in Settings opens the media sources panel with the auto-added local source and source form.",
+        "DPAD Right from the Settings media-source menu focuses the auto-added source card, and Left returns to the media-source menu."
     )
 }
 
@@ -504,4 +520,5 @@ Write-Output "Player screenshot: $playerScreenshot"
 Write-Output "Library return screenshot: $libraryReturnScreenshot"
 Write-Output "Settings screenshot: $settingsScreenshot"
 Write-Output "Settings sources screenshot: $settingsSourcesScreenshot"
+Write-Output "Settings source card screenshot: $settingsSourceCardScreenshot"
 Write-Output "Report: $reportPath"
