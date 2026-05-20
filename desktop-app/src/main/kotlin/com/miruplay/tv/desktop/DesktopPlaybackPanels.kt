@@ -25,13 +25,21 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -222,6 +230,29 @@ private fun PlayerTransportControls(
     onStop: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val actions = remember(isPlayerActive) {
+        listOfNotNull(
+            PlayerTransportAction.SeekBack.takeIf { isPlayerActive },
+            PlayerTransportAction.Primary,
+            PlayerTransportAction.SeekForward.takeIf { isPlayerActive },
+            PlayerTransportAction.Stop.takeIf { isPlayerActive },
+        )
+    }
+    val focusRequesters = remember {
+        PlayerTransportAction.values().associateWith { FocusRequester() }
+    }
+    LaunchedEffect(isPlayerActive) {
+        focusRequesters.getValue(PlayerTransportAction.Primary).requestFocus()
+    }
+
+    fun moveFocus(current: PlayerTransportAction, delta: Int): Boolean {
+        val currentIndex = actions.indexOf(current)
+        if (currentIndex < 0) return false
+        val target = actions.getOrNull(currentIndex + delta) ?: return false
+        focusRequesters.getValue(target).requestFocus()
+        return true
+    }
+
     Row(
         modifier = modifier
             .clip(RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
@@ -231,14 +262,37 @@ private fun PlayerTransportControls(
         horizontalArrangement = Arrangement.spacedBy(22.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        PlayerRoundButton("-10", onClick = onSeekBack, size = 64.dp, enabled = isPlayerActive)
+        PlayerRoundButton(
+            "-10",
+            onClick = onSeekBack,
+            size = 64.dp,
+            enabled = isPlayerActive,
+            onNavigationKey = { key -> key.toTransportDelta()?.let { moveFocus(PlayerTransportAction.SeekBack, it) } ?: false },
+            modifier = Modifier.focusRequester(focusRequesters.getValue(PlayerTransportAction.SeekBack)),
+        )
         PlayerPrimaryButton(
             isPlayerActive = isPlayerActive,
             onLaunch = onLaunch,
             onTogglePause = onTogglePause,
+            onNavigationKey = { key -> key.toTransportDelta()?.let { moveFocus(PlayerTransportAction.Primary, it) } ?: false },
+            modifier = Modifier.focusRequester(focusRequesters.getValue(PlayerTransportAction.Primary)),
         )
-        PlayerRoundButton("+30", onClick = onSeekForward, size = 64.dp, enabled = isPlayerActive)
-        PlayerRoundButton("停止", onClick = onStop, size = 64.dp, enabled = isPlayerActive)
+        PlayerRoundButton(
+            "+30",
+            onClick = onSeekForward,
+            size = 64.dp,
+            enabled = isPlayerActive,
+            onNavigationKey = { key -> key.toTransportDelta()?.let { moveFocus(PlayerTransportAction.SeekForward, it) } ?: false },
+            modifier = Modifier.focusRequester(focusRequesters.getValue(PlayerTransportAction.SeekForward)),
+        )
+        PlayerRoundButton(
+            "停止",
+            onClick = onStop,
+            size = 64.dp,
+            enabled = isPlayerActive,
+            onNavigationKey = { key -> key.toTransportDelta()?.let { moveFocus(PlayerTransportAction.Stop, it) } ?: false },
+            modifier = Modifier.focusRequester(focusRequesters.getValue(PlayerTransportAction.Stop)),
+        )
     }
 }
 
@@ -247,11 +301,13 @@ private fun PlayerPrimaryButton(
     isPlayerActive: Boolean,
     onLaunch: () -> Unit,
     onTogglePause: () -> Unit,
+    onNavigationKey: (Key) -> Boolean = { false },
+    modifier: Modifier = Modifier,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val focused by interactionSource.collectIsFocusedAsState()
     Box(
-        modifier = Modifier
+        modifier = modifier
             .size(90.dp)
             .clip(CircleShape)
             .background(if (focused) AnimeRed.copy(alpha = 0.92f) else AnimeRed)
@@ -260,6 +316,21 @@ private fun PlayerPrimaryButton(
                 color = if (focused) Color.White else Color.White.copy(alpha = 0.20f),
                 shape = CircleShape,
             )
+            .onPreviewKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) {
+                    false
+                } else {
+                    when (event.key) {
+                        Key.Enter,
+                        Key.NumPadEnter,
+                        -> {
+                            if (isPlayerActive) onTogglePause() else onLaunch()
+                            true
+                        }
+                        else -> onNavigationKey(event.key)
+                    }
+                }
+            }
             .focusable(interactionSource = interactionSource)
             .clickable(
                 interactionSource = interactionSource,
@@ -282,6 +353,8 @@ private fun PlayerRoundButton(
     onClick: () -> Unit,
     size: Dp,
     enabled: Boolean = true,
+    onNavigationKey: (Key) -> Boolean = { false },
+    modifier: Modifier = Modifier,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val focused by interactionSource.collectIsFocusedAsState()
@@ -291,7 +364,7 @@ private fun PlayerRoundButton(
         else -> Color.White.copy(alpha = 0.14f)
     }
     Box(
-        modifier = Modifier
+        modifier = modifier
             .size(size)
             .clip(CircleShape)
             .background(background)
@@ -300,6 +373,21 @@ private fun PlayerRoundButton(
                 color = if (focused) Color.White else Color.White.copy(alpha = 0.18f),
                 shape = CircleShape,
             )
+            .onPreviewKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) {
+                    false
+                } else {
+                    when (event.key) {
+                        Key.Enter,
+                        Key.NumPadEnter,
+                        -> {
+                            if (enabled) onClick()
+                            enabled
+                        }
+                        else -> onNavigationKey(event.key)
+                    }
+                }
+            }
             .focusable(enabled = enabled, interactionSource = interactionSource)
             .clickable(
                 interactionSource = interactionSource,
@@ -319,6 +407,20 @@ private fun PlayerRoundButton(
         )
     }
 }
+
+private enum class PlayerTransportAction {
+    SeekBack,
+    Primary,
+    SeekForward,
+    Stop,
+}
+
+private fun Key.toTransportDelta(): Int? =
+    when (this) {
+        Key.DirectionLeft -> -1
+        Key.DirectionRight -> 1
+        else -> null
+    }
 
 @Composable
 private fun PlayerStageBottomBar(
