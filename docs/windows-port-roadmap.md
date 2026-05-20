@@ -32,7 +32,7 @@ The port is complete only when all of these are proven by current evidence:
 | mpv playback | Implemented foundation | Desktop Player keeps mpv/RIFE controls behind a TV-like playback stage; `tools/smoke-desktop-mpv-launch-ui.ps1` now generates a local Y4M sample, launches it through the Windows GUI, confirms an `mpv.exe` child process, exercises Pause/-10s/+30s/Stop by keyboard focus, verifies progress persistence, and captures launched/keyboard-control/stopped Player screens. |
 | RIFE runtime | Partial | Runtime structure and scripts are tracked; desktop launch keeps RIFE opt-in by default and missing mpv/RIFE launch errors now point users to Check runtime, prepare a backend, or turn RIFE off. Local machine RIFE playback is non-blocking because this host is not expected to run interpolation well. Backend matrix remains target-host validation. |
 | Cloud/RSS | Partial | Loopback tests exist and the desktop Settings UI now exposes Cloud/RSS as TV-style overview/config/subscription cards. RSS subscription rows now support keyboard `Up`/`Down` movement and the Settings keyboard smoke captures the first and second selected subscriptions in `build/desktop-keyboard-focus-ui/run-20260520-141716`. Real CloudDrive2 dry-run/live evidence still open. |
-| Release packaging | Partial | Lightweight install works; full bundled runtime `distZip` now has a packaged mpv/RIFE smoke gate. Installer/signing/target-host runtime validation remain open. |
+| Release packaging | Partial | Lightweight install works; full bundled runtime `distZip` now has a packaged mpv/RIFE smoke gate. `tools/verify-windows-port.ps1` now provides a repeatable local gate with safe defaults and opt-in GUI, real-library, Android TV, SMB, mpv-runtime, and RIFE checks. Installer/signing/target-host runtime validation remain open. |
 
 ## Work Plan
 
@@ -157,12 +157,23 @@ Verification:
 - [x] Build lightweight Windows install for GUI QA.
 - [x] Build full Windows distribution with bundled runtime source.
 - [x] Run `mpv.exe --version` smoke for the runtime used in the packaged distribution and verify packaged runtime zip entries.
+- [x] Add a repeatable local Windows-port verification orchestrator with safe defaults and explicit opt-in live/device/runtime checks.
 - [ ] Run RIFE matrix on target hardware; DirectML is target-host validation, NVIDIA depends on CUDA/TensorRT driver compatibility, Standard requires a plugin decision.
 - [ ] Keep CI green for Android and desktop/shared JVM gates.
 
 Verification:
 
 ```powershell
+.\tools\verify-windows-port.ps1
+
+# Optional live/device/runtime gates:
+.\tools\verify-windows-port.ps1 -Gui
+.\tools\verify-windows-port.ps1 -RealLibrary -RealLibraryRoot 'D:\Software\dufs'
+.\tools\verify-windows-port.ps1 -AndroidTv -AndroidDeviceId 10.137.32.118:5555
+.\tools\verify-windows-port.ps1 -Smb
+.\tools\verify-windows-port.ps1 -MpvRuntime -PackagedMpvRuntime
+.\tools\verify-windows-port.ps1 -Rife -RifeBackend ALL -AllowRifeFailures
+
 .\gradlew.bat :app:assembleDebug
 .\gradlew.bat checkDesktopComposeOnly checkDesktopPresenterSeparation checkUiPaletteDrift `
   :core:model:test :repository-api:test :player-mpv:test `
@@ -174,8 +185,11 @@ Verification:
   -PrequiredRifeBackends=NVIDIA,DIRECTML
 ```
 
+`-Smb` is intentionally restricted to the approved `\\smb.example.test\share\临时文件\测试` fixture directory; do not use it to scan or modify unrelated files in that share.
+
 ## Immediate Next Actions
 
 1. Run real CloudDrive2 dry-run/live QA and record token-free evidence for sync, organize, scheduler timing, and source rescan.
 2. Run RIFE backend matrix on target Windows hardware with the packaged runtime and record the JSON report.
 3. Continue narrowing deeper desktop-vs-Android-TV UI gaps beyond the first screens, especially less-traveled keyboard/DPAD focus paths outside the now-covered Settings category menu, Cloud/RSS subscription rows, desktop route rail, Library poster wall, Details hero actions, Details hero-to-episodes/recents/Bangumi fallback, remote browser list including parent navigation, Player transport controls, saved-source card movement, and Bangumi metadata lists/action grid/apply-clear flow.
+4. Use `tools/verify-windows-port.ps1` as the local gate before pushes; keep SMB and RIFE checks opt-in so the shared SMB folder and low-capability local host are not touched by default.

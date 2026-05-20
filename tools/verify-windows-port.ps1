@@ -1,0 +1,271 @@
+[CmdletBinding()]
+param(
+    [string]$Gradle = "",
+    [switch]$SkipGradle,
+    [switch]$SkipAndroidBuild,
+    [switch]$Gui,
+    [switch]$RealLibrary,
+    [string]$RealLibraryRoot = "D:\Software\dufs",
+    [switch]$AndroidTv,
+    [string]$AndroidDeviceId = "10.137.32.118:5555",
+    [switch]$Smb,
+    [switch]$MpvRuntime,
+    [switch]$PackagedMpvRuntime,
+    [string]$MpvRuntimeSource = "runtime\mpv",
+    [string]$RequiredRifeBackends = "NVIDIA,DIRECTML",
+    [switch]$Rife,
+    [ValidateSet("NVIDIA", "DIRECTML", "STANDARD", "ALL")]
+    [string]$RifeBackend = "DIRECTML",
+    [switch]$AllowRifeFailures
+)
+
+$ErrorActionPreference = "Stop"
+
+$scriptRoot = if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) {
+    Split-Path -Parent $MyInvocation.MyCommand.Path
+} else {
+    $PSScriptRoot
+}
+$repoRoot = [System.IO.Path]::GetFullPath((Join-Path $scriptRoot ".."))
+$toolsRoot = Join-Path $repoRoot "tools"
+if ([string]::IsNullOrWhiteSpace($Gradle)) {
+    $Gradle = Join-Path $repoRoot "gradlew.bat"
+}
+
+# Build the approved SMB smoke path without non-ASCII source literals.
+$temporaryFilesSegment = -join @(
+    [char]0x4E34,
+    [char]0x65F6,
+    [char]0x6587,
+    [char]0x4EF6
+)
+$testSegment = -join @(
+    [char]0x6D4B,
+    [char]0x8BD5
+)
+$approvedSmbShareTestPath = "\\smb.example.test\share\$temporaryFilesSegment\$testSegment"
+$approvedSmbBaseUrl = "smb://smb.example.test/share/$temporaryFilesSegment/$testSegment"
+$stepResults = New-Object 'System.Collections.Generic.List[object]'
+
+function Format-Duration {
+    param([TimeSpan]$Duration)
+    if ($Duration.TotalMinutes -ge 1) {
+        return "{0:n1}m" -f $Duration.TotalMinutes
+    }
+    return "{0:n1}s" -f $Duration.TotalSeconds
+}
+
+function Add-StepResult {
+    param(
+        [string]$Name,
+        [string]$Status,
+        [TimeSpan]$Duration
+    )
+
+    $stepResults.Add([pscustomobject]@{
+        Name = $Name
+        Status = $Status
+        Duration = $Duration
+    }) | Out-Null
+}
+
+function Write-StepSummary {
+    if ($stepResults.Count -eq 0) {
+        return
+    }
+
+    Write-Host ""
+    Write-Host "Verification summary:"
+    foreach ($result in $stepResults) {
+        Write-Host (" - {0}: {1} ({2})" -f $result.Status, $result.Name, (Format-Duration $result.Duration))
+    }
+}
+
+function Invoke-Step {
+    param(
+        [string]$Name,
+        [scriptblock]$Action
+    )
+
+    Write-Host ""
+    Write-Host "==> $Name"
+    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    try {
+        & $Action
+        $stopwatch.Stop()
+        Add-StepResult -Name $Name -Status "PASS" -Duration $stopwatch.Elapsed
+        Write-Host ("PASS: {0} ({1})" -f $Name, (Format-Duration $stopwatch.Elapsed))
+    } catch {
+        $stopwatch.Stop()
+        Add-StepResult -Name $Name -Status "FAIL" -Duration $stopwatch.Elapsed
+        Write-Host ("FAIL: {0} ({1})" -f $Name, (Format-Duration $stopwatch.Elapsed))
+        throw
+    }
+}
+
+function Invoke-Native {
+    param(
+        [string]$FilePath,
+        [string[]]$Arguments = @()
+    )
+
+    & $FilePath @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "$FilePath $($Arguments -join ' ') failed with exit code $LASTEXITCODE."
+    }
+}
+
+function Invoke-Gradle {
+    param([string[]]$Arguments)
+    Invoke-Native -FilePath $Gradle -Arguments $Arguments
+}
+
+function Invoke-ToolScript {
+    param(
+        [string]$ScriptName,
+        [string[]]$Arguments = @()
+    )
+
+    $scriptPath = Join-Path $toolsRoot $ScriptName
+    if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf)) {
+        throw "Tool script not found: $scriptPath"
+    }
+    Invoke-Native -FilePath "powershell.exe" -Arguments (@(
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        $scriptPath
+    ) + $Arguments)
+}
+
+$defaultGradleTasks = @(
+    "checkDesktopComposeOnly",
+    "checkDesktopPresenterSeparation",
+    "checkUiPaletteDrift",
+    ":core:model:test",
+    ":repository-api:test",
+    ":media-source-desktop:test",
+    ":scanner-desktop:test",
+    ":repository-desktop:test",
+    ":scraper-desktop:test",
+    ":player-mpv:test",
+    ":cloud-drive-desktop:test",
+    ":sync-engine-desktop:test",
+    ":desktop-app:test",
+    ":desktop-app:installDist",
+    "-PbundleMpvRuntime=false"
+)
+if (-not $SkipAndroidBuild) {
+    $defaultGradleTasks = @(":app:assembleDebug") + $defaultGradleTasks
+}
+
+Push-Location $repoRoot
+try {
+    if (-not $SkipGradle) {
+        Invoke-Step -Name "Safe Gradle gate" -Action {
+            Invoke-Gradle -Arguments $defaultGradleTasks
+        }
+    } else {
+        Write-Host "Skipping safe Gradle gate because -SkipGradle was supplied."
+    }
+
+    if ($MpvRuntime) {
+        Invoke-Step -Name "mpv runtime smoke" -Action {
+            Invoke-Gradle -Arguments @(
+                ":desktop-app:smokeMpvRuntime",
+                "-PmpvRuntimeSource=$MpvRuntimeSource",
+                "-PrequireMpvRuntime=true",
+                "-PrequiredRifeBackends=$RequiredRifeBackends"
+            )
+        }
+    }
+
+    if ($PackagedMpvRuntime) {
+        Invoke-Step -Name "packaged mpv runtime smoke" -Action {
+            Invoke-Gradle -Arguments @(
+                ":desktop-app:smokePackagedMpvRuntime",
+                "-PmpvRuntimeSource=$MpvRuntimeSource",
+                "-PrequireMpvRuntime=true",
+                "-PrequiredRifeBackends=$RequiredRifeBackends"
+            )
+        }
+    }
+
+    if ($Gui) {
+        Invoke-Step -Name "desktop screenshot QA" -Action {
+            Invoke-ToolScript -ScriptName "capture-desktop-ui.ps1"
+        }
+        Invoke-Step -Name "desktop keyboard focus GUI smoke" -Action {
+            Invoke-ToolScript -ScriptName "smoke-desktop-keyboard-focus-ui.ps1"
+        }
+        Invoke-Step -Name "desktop local source GUI smoke" -Action {
+            Invoke-ToolScript -ScriptName "smoke-desktop-local-source-ui.ps1"
+        }
+        Invoke-Step -Name "desktop source management GUI smoke" -Action {
+            Invoke-ToolScript -ScriptName "smoke-desktop-source-management-ui.ps1"
+        }
+        Invoke-Step -Name "desktop WebDAV GUI smoke" -Action {
+            Invoke-ToolScript -ScriptName "smoke-desktop-webdav-source-ui.ps1"
+        }
+        Invoke-Step -Name "desktop Bangumi GUI smoke" -Action {
+            Invoke-ToolScript -ScriptName "smoke-desktop-bangumi-metadata-ui.ps1"
+        }
+        Invoke-Step -Name "desktop mpv launch GUI smoke" -Action {
+            Invoke-ToolScript -ScriptName "smoke-desktop-mpv-launch-ui.ps1"
+        }
+    }
+
+    if ($RealLibrary) {
+        Invoke-Step -Name "real local library GUI smoke" -Action {
+            Invoke-ToolScript -ScriptName "smoke-desktop-local-source-ui.ps1" -Arguments @(
+                "-LibraryRoot",
+                $RealLibraryRoot
+            )
+        }
+    }
+
+    if ($Smb) {
+        Invoke-Step -Name "approved SMB GUI smoke" -Action {
+            Invoke-ToolScript -ScriptName "smoke-desktop-smb-source-ui.ps1" -Arguments @(
+                "-ShareTestPath",
+                $approvedSmbShareTestPath,
+                "-SmbBaseUrl",
+                $approvedSmbBaseUrl
+            )
+        }
+    } else {
+        Write-Host "SMB smoke skipped. It only runs with -Smb and is restricted to the approved test directory."
+    }
+
+    if ($AndroidTv) {
+        Invoke-Step -Name "Android TV emulator smoke" -Action {
+            Invoke-Native -FilePath "adb" -Arguments @("connect", $AndroidDeviceId)
+            Invoke-ToolScript -ScriptName "smoke-android-tv-ui.ps1" -Arguments @(
+                "-DeviceId",
+                $AndroidDeviceId
+            )
+        }
+    }
+
+    if ($Rife) {
+        Invoke-Step -Name "RIFE target-hardware smoke" -Action {
+            $reportName = if ($RifeBackend -eq "ALL") { "rife-matrix-report.json" } else { "rife-$($RifeBackend.ToLowerInvariant())-report.json" }
+            $rifeArgs = @(
+                "-Backend",
+                $RifeBackend,
+                "-ReportPath",
+                (Join-Path $repoRoot "build\mpv-smoke\$reportName")
+            )
+            if ($AllowRifeFailures) {
+                $rifeArgs += "-AllowFailures"
+            }
+            Invoke-ToolScript -ScriptName "smoke-mpv-rife.ps1" -Arguments $rifeArgs
+        }
+    } else {
+        Write-Host "RIFE smoke skipped. Run with -Rife only on target hardware expected to support interpolation."
+    }
+} finally {
+    Pop-Location
+    Write-StepSummary
+}
