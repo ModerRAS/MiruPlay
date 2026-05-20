@@ -54,4 +54,35 @@ class DesktopSourcePickerTest {
 
         assertEquals("未配置路径", source.sourcePickerSubtitle())
     }
+
+    @Test
+    fun `remote source preview falls back and compacts endpoints`() {
+        assertEquals("填写 SMB 共享地址", remoteSourcePreview("", fallback = "填写 SMB 共享地址", maxLength = 20))
+
+        val preview = remoteSourcePreview(
+            value = "smb://smb.example.test/share/temporary/test/very/deep/folder/with/long/name",
+            fallback = "fallback",
+            maxLength = 42,
+        )
+
+        assertTrue(preview.length <= 42)
+        assertTrue("Preview should keep the endpoint host prefix: $preview", preview.startsWith("smb://smb.example."))
+        assertTrue(preview.endsWith("/long/name"))
+        assertTrue(preview.contains("..."))
+    }
+
+    @Test
+    fun `remote browser path preview keeps root readable`() {
+        assertEquals("/", remoteBrowserPathPreview("", maxLength = 20))
+
+        val preview = remoteBrowserPathPreview(
+            path = "/Fixture WebDAV/Season 01/Subfolder With A Very Long Name/Episode.mkv",
+            maxLength = 36,
+        )
+
+        assertTrue(preview.length <= 36)
+        assertTrue(preview.startsWith("/Fixture"))
+        assertTrue(preview.endsWith("Episode.mkv"))
+        assertTrue(preview.contains("..."))
+    }
 }

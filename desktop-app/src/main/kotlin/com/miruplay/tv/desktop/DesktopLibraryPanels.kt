@@ -9,6 +9,7 @@ import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -43,6 +44,10 @@ import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.displayName
 
 private const val POSTER_WALL_COLUMNS = 6
+private const val REMOTE_SOURCE_PREVIEW_LIMIT = 70
+private const val REMOTE_BROWSER_PATH_LIMIT = 86
+private const val REMOTE_SOURCE_BADGE_WIDTH_DP = 74
+private const val REMOTE_SOURCE_BADGE_HEIGHT_DP = 32
 
 @Composable
 internal fun LibraryPanel(
@@ -573,16 +578,20 @@ internal fun RemoteSourcesPanel(
     onScan: () -> Unit,
     onEntrySelected: (FileEntry) -> Unit,
 ) {
-    TvPanel(Modifier.fillMaxWidth()) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp),
-            verticalAlignment = Alignment.Top,
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Column(
+            modifier = Modifier.weight(0.43f),
+            verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
         ) {
-            Column(
-                modifier = Modifier.weight(0.42f),
-                verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
+            RemoteSourceEditorCard(
+                title = "WebDAV",
+                badge = "DAV",
+                endpoint = remoteSourcePreview(webDavUrl, fallback = "填写 WebDAV 地址"),
             ) {
-                Text("Remote sources", color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
                 LabeledTextField("WebDAV URL", webDavUrl, onValueChange = onWebDavUrlChange)
                 Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp)) {
                     LabeledTextField(
@@ -599,7 +608,12 @@ internal fun RemoteSourcesPanel(
                     )
                 }
                 TvActionButton("Open WebDAV", onClick = onOpenWebDav)
-                Spacer(Modifier.height(MiruPlayUiMetrics.TINY_GAP_DP.dp))
+            }
+            RemoteSourceEditorCard(
+                title = "SMB",
+                badge = "SMB",
+                endpoint = remoteSourcePreview(smbUrl, fallback = "填写 SMB 共享地址"),
+            ) {
                 LabeledTextField("SMB URL", smbUrl, onValueChange = onSmbUrlChange)
                 Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp)) {
                     LabeledTextField(
@@ -625,47 +639,129 @@ internal fun RemoteSourcesPanel(
                     TvActionButton("Open SMB", onClick = onOpenSmb)
                     TvActionButton("Scan source", onClick = onScan, secondary = true)
                 }
-                StatusBox(status)
             }
-            Column(
-                modifier = Modifier.weight(0.58f),
-                verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp),
+            StatusBox(status)
+        }
+        RemoteBrowserPanel(
+            remotePath = remotePath,
+            entries = entries,
+            selectedEntry = selectedEntry,
+            onUp = onUp,
+            onEntrySelected = onEntrySelected,
+            modifier = Modifier.weight(0.57f),
+        )
+    }
+}
+
+@Composable
+private fun RemoteSourceEditorCard(
+    title: String,
+    badge: String,
+    endpoint: String,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
+            .background(CardBg.copy(alpha = 0.48f))
+            .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
+            .padding(MiruPlayUiMetrics.PANEL_PADDING_DP.dp),
+        verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(title, color = TextPrimary, fontSize = MiruPlayUiMetrics.SECTION_SUBTITLE_SP.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    endpoint,
+                    color = TextSecondary,
+                    fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .width(REMOTE_SOURCE_BADGE_WIDTH_DP.dp)
+                    .height(REMOTE_SOURCE_BADGE_HEIGHT_DP.dp)
+                    .clip(RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
+                    .background(AnimeRed.copy(alpha = 0.88f)),
+                contentAlignment = Alignment.Center,
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Remote browser", color = TextPrimary, fontSize = MiruPlayUiMetrics.SECTION_SUBTITLE_SP.sp, fontWeight = FontWeight.SemiBold)
-                        Text(
-                            remotePath.ifBlank { "/" },
-                            color = TextSecondary,
-                            fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    TvActionButton("Up", onClick = onUp, secondary = true, modifier = Modifier.width(MiruPlayUiMetrics.CONTROL_BUTTON_WIDTH_DP.dp))
-                }
-                if (entries.isEmpty()) {
-                    DesktopEmptyState(
-                        text = "Open a remote source to list files.",
-                        heightDp = MiruPlayUiMetrics.REMOTE_EMPTY_STATE_HEIGHT_DP,
-                    )
-                } else {
-                    entries.take(8).forEach { entry ->
-                        RemoteFileRow(
-                            entry = entry,
-                            selected = selectedEntry?.path == entry.path,
-                            onClick = { onEntrySelected(entry) },
-                        )
-                    }
-                }
+                Text(badge, color = Color.White, fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+        content()
+    }
+}
+
+@Composable
+private fun RemoteBrowserPanel(
+    remotePath: String,
+    entries: List<FileEntry>,
+    selectedEntry: FileEntry?,
+    onUp: () -> Unit,
+    onEntrySelected: (FileEntry) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    TvPanel(modifier) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("Remote browser", color = TextPrimary, fontSize = MiruPlayUiMetrics.SECTION_SUBTITLE_SP.sp, fontWeight = FontWeight.SemiBold)
+                Text(
+                    remoteBrowserPathPreview(remotePath),
+                    color = TextSecondary,
+                    fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            TvActionButton("Up", onClick = onUp, secondary = true, modifier = Modifier.width(MiruPlayUiMetrics.CONTROL_BUTTON_WIDTH_DP.dp))
+        }
+        Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
+        if (entries.isEmpty()) {
+            DesktopEmptyState(
+                text = "Open a remote source to list files.",
+                heightDp = MiruPlayUiMetrics.REMOTE_EMPTY_STATE_HEIGHT_DP,
+            )
+        } else {
+            entries.take(8).forEach { entry ->
+                RemoteFileRow(
+                    entry = entry,
+                    selected = selectedEntry?.path == entry.path,
+                    onClick = { onEntrySelected(entry) },
+                )
+                Spacer(Modifier.height(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp))
             }
         }
     }
 }
+
+internal fun remoteSourcePreview(
+    value: String,
+    fallback: String,
+    maxLength: Int = REMOTE_SOURCE_PREVIEW_LIMIT,
+): String =
+    value.trim()
+        .ifBlank { fallback }
+        .compactMiddle(maxLength)
+
+internal fun remoteBrowserPathPreview(
+    path: String,
+    maxLength: Int = REMOTE_BROWSER_PATH_LIMIT,
+): String =
+    path.trim()
+        .ifBlank { "/" }
+        .compactMiddle(maxLength)
 
 @Composable
 private fun RemoteFileRow(

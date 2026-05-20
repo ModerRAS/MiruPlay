@@ -4,8 +4,8 @@ param(
     [string]$OutputRoot = (Join-Path $PSScriptRoot "..\build\desktop-smb-source-ui"),
     [string]$ShareTestPath = "\\smb.example.test\share\临时文件\测试",
     [string]$SmbBaseUrl = "smb://smb.example.test/share/临时文件/测试",
-    [string]$SmbUsername = $env:MIRUPLAY_SMB_SMOKE_USERNAME,
-    [string]$SmbPassword = $env:MIRUPLAY_SMB_SMOKE_PASSWORD,
+    [string]$SmbUsername = $(if ($env:MIRUPLAY_SMB_SMOKE_USERNAME) { $env:MIRUPLAY_SMB_SMOKE_USERNAME } else { "test-user" }),
+    [string]$SmbPassword = $(if ($env:MIRUPLAY_SMB_SMOKE_PASSWORD) { $env:MIRUPLAY_SMB_SMOKE_PASSWORD } else { "test-user" }),
     [string]$SmbDomain = $env:MIRUPLAY_SMB_SMOKE_DOMAIN,
     [switch]$KeepFixture,
     [switch]$KeepOpen
@@ -366,15 +366,15 @@ try {
     $windowProcess = Wait-MiruPlayWindow
 
     Invoke-RelativeMouseWheel -Process $windowProcess -Notches -8
-    Set-TextByRelativeClick -Process $windowProcess -X 280 -Y 512 -Text $smbFixtureUrl -Description "SMB URL"
+    Set-TextByRelativeClick -Process $windowProcess -X 280 -Y 536 -Text $smbFixtureUrl -Description "SMB URL"
     if ($SmbDomain.Trim()) {
-        Set-TextByRelativeClick -Process $windowProcess -X 132 -Y 589 -Text $SmbDomain -Description "SMB domain"
+        Set-TextByRelativeClick -Process $windowProcess -X 132 -Y 614 -Text $SmbDomain -Description "SMB domain"
     }
     if ($SmbUsername.Trim()) {
-        Set-TextByRelativeClick -Process $windowProcess -X 292 -Y 589 -Text $SmbUsername -Description "SMB username"
+        Set-TextByRelativeClick -Process $windowProcess -X 292 -Y 614 -Text $SmbUsername -Description "SMB username"
     }
     if ($SmbPassword.Trim()) {
-        Set-TextByRelativeClick -Process $windowProcess -X 452 -Y 589 -Text $SmbPassword -Description "SMB password"
+        Set-TextByRelativeClick -Process $windowProcess -X 452 -Y 614 -Text $SmbPassword -Description "SMB password"
     }
     Invoke-RelativeClick -Process $windowProcess -X 139 -Y 681
 

@@ -653,10 +653,10 @@ try {
     $windowProcess = Wait-MiruPlayWindow
 
     Invoke-RelativeMouseWheel -Process $windowProcess -Notches -8
-    Set-TextByRelativeClick -Process $windowProcess -X 280 -Y 298 -Text $webDavUrl -Description "WebDAV URL"
-    Set-TextByRelativeClick -Process $windowProcess -X 170 -Y 375 -Text $webDavUsername -Description "WebDAV username"
-    Set-TextByRelativeClick -Process $windowProcess -X 420 -Y 375 -Text $webDavPassword -Description "WebDAV password"
-    Invoke-RelativeClick -Process $windowProcess -X 145 -Y 442
+    Set-TextByRelativeClick -Process $windowProcess -X 280 -Y 214 -Text $webDavUrl -Description "WebDAV URL"
+    Set-TextByRelativeClick -Process $windowProcess -X 170 -Y 290 -Text $webDavUsername -Description "WebDAV username"
+    Set-TextByRelativeClick -Process $windowProcess -X 420 -Y 290 -Text $webDavPassword -Description "WebDAV password"
+    Invoke-RelativeClick -Process $windowProcess -X 145 -Y 358
 
     $state = Wait-StoreState -Path $storePath -Description "saved WebDAV source" -Predicate {
         param($state)
@@ -677,7 +677,7 @@ try {
         throw "Stored WebDAV password does not match fixture password."
     }
 
-    Invoke-RelativeClick -Process $windowProcess -X 760 -Y 310
+    Invoke-RelativeClick -Process $windowProcess -X 760 -Y 212
     Wait-FileText -Path $serverLogPath -Pattern "PROPFIND\|Fixture WebDAV\|auth=True" -Description "authorized Fixture WebDAV directory PROPFIND"
     Start-Sleep -Milliseconds 900
     Save-WindowScreenshot -Process $windowProcess -Path $browseScreenshotPath
