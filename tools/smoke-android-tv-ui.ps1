@@ -219,6 +219,19 @@ function Assert-UiText {
     }
 }
 
+function Assert-UiTextAbsent {
+    param(
+        [xml]$Xml,
+        [string[]]$Needles,
+        [string]$Description
+    )
+    foreach ($needle in $Needles) {
+        if (Find-UiNode -Xml $Xml -Needles @($needle)) {
+            throw "Unexpected $Description text '$needle'. Current UI: $(Get-UiTextSummary -Xml $Xml)"
+        }
+    }
+}
+
 function Assert-FocusedUiText {
     param(
         [xml]$Xml,
@@ -348,6 +361,9 @@ $textAddMediaSource = New-UnicodeText @(0x6DFB, 0x52A0, 0x5A92, 0x4F53, 0x6E90)
 $textEditMediaSource = New-UnicodeText @(0x7F16, 0x8F91, 0x5A92, 0x4F53, 0x6E90)
 $textNewSource = New-UnicodeText @(0x65B0, 0x5EFA)
 $textSaveSource = New-UnicodeText @(0x4FDD, 0x5B58, 0x6E90)
+$textDelete = New-UnicodeText @(0x5220, 0x9664)
+$textNoMediaSources = New-UnicodeText @(0x8FD8, 0x6CA1, 0x6709, 0x914D, 0x7F6E, 0x5A92, 0x4F53, 0x6E90)
+$textAddLocalOrNetworkLibrary = New-UnicodeText @(0x5148, 0x6DFB, 0x52A0, 0x4E00, 0x4E2A, 0x672C, 0x5730, 0x6216, 0x7F51, 0x7EDC, 0x5A92, 0x4F53, 0x5E93)
 $textDisplayName = New-UnicodeText @(0x663E, 0x793A, 0x540D, 0x79F0)
 $textMediaFolder = New-UnicodeText @(0x5A92, 0x4F53, 0x6587, 0x4EF6, 0x5939)
 New-Item -ItemType Directory -Path $resolvedOutputRoot -Force | Out-Null
@@ -377,6 +393,8 @@ $settingsScreenshot = Join-Path $runDir "android-tv-settings.png"
 $settingsSourcesScreenshot = Join-Path $runDir "android-tv-settings-sources.png"
 $settingsSourceCardScreenshot = Join-Path $runDir "android-tv-settings-source-card-focus.png"
 $settingsSourceEditScreenshot = Join-Path $runDir "android-tv-settings-source-edit.png"
+$settingsSourceDeleteFocusScreenshot = Join-Path $runDir "android-tv-settings-source-delete-focus.png"
+$settingsSourceDeletedScreenshot = Join-Path $runDir "android-tv-settings-source-deleted.png"
 $libraryXmlPath = Join-Path $runDir "android-tv-library.xml"
 $detailsXmlPath = Join-Path $runDir "android-tv-details.xml"
 $detailsEpisodeFocusXmlPath = Join-Path $runDir "android-tv-details-episode-focus.xml"
@@ -388,6 +406,8 @@ $settingsSourcesXmlPath = Join-Path $runDir "android-tv-settings-sources.xml"
 $settingsSourceCardXmlPath = Join-Path $runDir "android-tv-settings-source-card-focus.xml"
 $settingsSourcesReturnXmlPath = Join-Path $runDir "android-tv-settings-sources-return.xml"
 $settingsSourceEditXmlPath = Join-Path $runDir "android-tv-settings-source-edit.xml"
+$settingsSourceDeleteFocusXmlPath = Join-Path $runDir "android-tv-settings-source-delete-focus.xml"
+$settingsSourceDeletedXmlPath = Join-Path $runDir "android-tv-settings-source-deleted.xml"
 $reportPath = Join-Path $runDir "android-tv-smoke-report.json"
 New-Item -ItemType Directory -Path $runDir -Force | Out-Null
 
@@ -478,6 +498,17 @@ Assert-UiText -Xml $xml -Needles @("Test Local", $remoteFixtureRoot, $textEditMe
 Assert-FocusedUiText -Xml $xml -Needles @("Test Local") -Description "Settings media source card after edit"
 Save-Screenshot -Path $settingsSourceEditScreenshot
 
+Invoke-DpadKey -KeyCode "KEYCODE_DPAD_RIGHT" -DelayMilliseconds 900
+$xml = Wait-UiText -Needles @($textDelete, $textEditMediaSource) -XmlPath $settingsSourceDeleteFocusXmlPath -TimeoutSeconds 30
+Assert-FocusedUiText -Xml $xml -Needles @($textDelete) -Description "Settings media source delete button"
+Save-Screenshot -Path $settingsSourceDeleteFocusScreenshot
+
+Invoke-DpadKey -KeyCode "KEYCODE_DPAD_CENTER" -DelayMilliseconds 1200
+$xml = Wait-UiText -Needles @($textNoMediaSources, $textAddLocalOrNetworkLibrary) -XmlPath $settingsSourceDeletedXmlPath -TimeoutSeconds 30
+Assert-UiText -Xml $xml -Needles @($textMediaSources, $textNoMediaSources, $textAddLocalOrNetworkLibrary, $textAddMediaSource, $textSaveSource) -Description "Settings media source empty state after delete"
+Assert-UiTextAbsent -Xml $xml -Needles @("Test Local", $remoteFixtureRoot) -Description "deleted media source"
+Save-Screenshot -Path $settingsSourceDeletedScreenshot
+
 Write-Report -Path $reportPath -Report @{
     generatedAt = (Get-Date).ToString("o")
     deviceId = $DeviceId
@@ -494,6 +525,8 @@ Write-Report -Path $reportPath -Report @{
         settingsSources = $settingsSourcesScreenshot
         settingsSourceCard = $settingsSourceCardScreenshot
         settingsSourceEdit = $settingsSourceEditScreenshot
+        settingsSourceDeleteFocus = $settingsSourceDeleteFocusScreenshot
+        settingsSourceDeleted = $settingsSourceDeletedScreenshot
     }
     xml = @{
         library = $libraryXmlPath
@@ -507,6 +540,8 @@ Write-Report -Path $reportPath -Report @{
         settingsSourceCard = $settingsSourceCardXmlPath
         settingsSourcesReturn = $settingsSourcesReturnXmlPath
         settingsSourceEdit = $settingsSourceEditXmlPath
+        settingsSourceDeleteFocus = $settingsSourceDeleteFocusXmlPath
+        settingsSourceDeleted = $settingsSourceDeletedXmlPath
     }
     assertions = @(
         "Library contains Explore, highest-heat row, recent row, and fixture poster.",
@@ -520,7 +555,9 @@ Write-Report -Path $reportPath -Report @{
         "Settings contains the WebUI, media sources, playback, CloudDrive, scan, and metadata sections.",
         "DPAD Down/Center in Settings opens the media sources panel with the auto-added local source and source form.",
         "DPAD Right from the Settings media-source menu focuses the auto-added source card, and Left returns to the media-source menu.",
-        "DPAD Center on the focused Settings source card opens the edit source form without losing card focus."
+        "DPAD Center on the focused Settings source card opens the edit source form without losing card focus.",
+        "DPAD Right from the focused Settings source card focuses its delete button.",
+        "DPAD Center on the focused delete button removes the source and shows the empty media-source state."
     )
 }
 
@@ -536,4 +573,6 @@ Write-Output "Settings screenshot: $settingsScreenshot"
 Write-Output "Settings sources screenshot: $settingsSourcesScreenshot"
 Write-Output "Settings source card screenshot: $settingsSourceCardScreenshot"
 Write-Output "Settings source edit screenshot: $settingsSourceEditScreenshot"
+Write-Output "Settings source delete focus screenshot: $settingsSourceDeleteFocusScreenshot"
+Write-Output "Settings source deleted screenshot: $settingsSourceDeletedScreenshot"
 Write-Output "Report: $reportPath"
