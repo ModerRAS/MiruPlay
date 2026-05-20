@@ -319,6 +319,7 @@ $scanScreenshotPath = Join-Path $runDir "local-source-scanned.png"
 $searchScreenshotPath = Join-Path $runDir "local-source-search.png"
 $posterKeyboardScreenshotPath = Join-Path $runDir "local-source-poster-keyboard.png"
 $detailsScreenshotPath = Join-Path $runDir "local-source-details.png"
+$detailsEpisodesScreenshotPath = Join-Path $runDir "local-source-details-episodes.png"
 $playerScreenshotPath = Join-Path $runDir "local-source-player.png"
 New-Item -ItemType Directory -Path (Split-Path -Parent $storePath) -Force | Out-Null
 
@@ -424,6 +425,9 @@ try {
     Save-WindowScreenshot -Process $windowProcess -Path $detailsScreenshotPath
 
     if (-not $LibraryRoot.Trim()) {
+        Send-AppKeys -Process $windowProcess -Keys "{DOWN}"
+        Save-WindowScreenshot -Process $windowProcess -Path $detailsEpisodesScreenshotPath
+        Send-AppKeys -Process $windowProcess -Keys "{UP}"
         Send-AppKeys -Process $windowProcess -Keys "{RIGHT}"
         Send-AppKeys -Process $windowProcess -Keys "{LEFT}"
         Send-AppKeys -Process $windowProcess -Keys "{ENTER}" -DelayMilliseconds 500
@@ -470,4 +474,7 @@ if (-not $LibraryRoot.Trim()) {
     Write-Output "Poster keyboard screenshot: $posterKeyboardScreenshotPath"
 }
 Write-Output "Details screenshot: $detailsScreenshotPath"
+if (-not $LibraryRoot.Trim()) {
+    Write-Output "Details episodes screenshot: $detailsEpisodesScreenshotPath"
+}
 Write-Output "Player screenshot: $playerScreenshotPath"
