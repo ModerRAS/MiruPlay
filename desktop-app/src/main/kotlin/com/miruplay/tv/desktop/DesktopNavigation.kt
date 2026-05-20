@@ -119,6 +119,16 @@ private fun DesktopSection.stepDesktopSection(delta: Int): DesktopSection {
     return sections[nextIndex]
 }
 
+internal fun DesktopSection.desktopBackTarget(): DesktopSection? =
+    when (id) {
+        MiruPlayRouteSurface.PLAYER_ID -> MiruPlayRouteSurface.details
+        MiruPlayRouteSurface.DETAILS_ID,
+        MiruPlayRouteSurface.SETTINGS_ID,
+        -> MiruPlayRouteSurface.library
+        MiruPlayRouteSurface.LIBRARY_ID -> null
+        else -> MiruPlayRouteSurface.library
+    }
+
 @Composable
 internal fun DesktopTvHeader(selectedSection: DesktopSection) {
     Column {
