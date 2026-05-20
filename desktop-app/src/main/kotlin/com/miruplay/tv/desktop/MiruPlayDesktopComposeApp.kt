@@ -205,8 +205,8 @@ internal val CardBg = Color(MiruPlayPalette.CARD_BG_ARGB)
 private const val COMPOSE_BATCH_BANGUMI_QUERY_LIMIT = 20
 private const val BANGUMI_METADATA_SOURCE_NAME = "Bangumi"
 private const val DESKTOP_PLAYBACK_MEDIA_SOURCE_ID = "desktop-compose"
-private const val DESKTOP_BLANK_MEDIA_MESSAGE = "Choose a media URI or file path before launching mpv."
-private const val MPV_COMMAND_PREVIEW_ERROR_MESSAGE = "Unable to build mpv command."
+private const val DESKTOP_BLANK_MEDIA_MESSAGE = "请先选择媒体，再启动 mpv。"
+private const val MPV_COMMAND_PREVIEW_ERROR_MESSAGE = "无法生成 mpv 命令。"
 private const val PLAYBACK_PROGRESS_POLL_INTERVAL_MS = 10_000L
 internal typealias DesktopSection = MiruPlayRouteSurface.Section
 
