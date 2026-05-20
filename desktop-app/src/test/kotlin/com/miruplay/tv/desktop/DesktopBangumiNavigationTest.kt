@@ -1,8 +1,11 @@
 package com.miruplay.tv.desktop
 
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DesktopBangumiNavigationTest {
@@ -102,6 +105,37 @@ class DesktopBangumiNavigationTest {
                 batchMatchCount = 10,
                 candidateCount = 10,
                 resultCount = 10,
+            ),
+        )
+    }
+
+    @Test
+    fun `bangumi top action up key exits to previous details panel`() {
+        var requestedPreviousPanel = false
+
+        assertTrue(
+            bangumiTopActionKeyEvent(
+                key = Key.DirectionUp,
+                type = KeyEventType.KeyDown,
+                onFocusPreviousPanel = {
+                    requestedPreviousPanel = true
+                    true
+                },
+            ),
+        )
+        assertTrue(requestedPreviousPanel)
+        assertFalse(
+            bangumiTopActionKeyEvent(
+                key = Key.DirectionDown,
+                type = KeyEventType.KeyDown,
+                onFocusPreviousPanel = { true },
+            ),
+        )
+        assertFalse(
+            bangumiTopActionKeyEvent(
+                key = Key.DirectionUp,
+                type = KeyEventType.KeyUp,
+                onFocusPreviousPanel = { true },
             ),
         )
     }

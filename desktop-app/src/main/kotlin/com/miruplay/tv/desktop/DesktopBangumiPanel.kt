@@ -62,6 +62,7 @@ internal fun BangumiPanel(
     onResultSelected: (ScraperResult) -> Unit,
     onApply: () -> Unit,
     onClear: () -> Unit,
+    onFocusPreviousPanel: () -> Boolean = { false },
     focusVersion: Int = 0,
 ) {
     val useSelectedFocusRequester = remember { FocusRequester() }
@@ -146,7 +147,14 @@ internal fun BangumiPanel(
                         secondary = true,
                         modifier = Modifier
                             .weight(1f)
-                            .focusRequester(useSelectedFocusRequester),
+                            .focusRequester(useSelectedFocusRequester)
+                            .onPreviewKeyEvent { event ->
+                                bangumiTopActionKeyEvent(
+                                    key = event.key,
+                                    type = event.type,
+                                    onFocusPreviousPanel = onFocusPreviousPanel,
+                                )
+                            },
                     )
                     TvActionButton("Search", onClick = onSearch, modifier = Modifier.weight(1f))
                 }
@@ -490,5 +498,17 @@ private fun bangumiRowKeyEvent(
             true
         }
         else -> onNavigationKey(key)
+    }
+}
+
+internal fun bangumiTopActionKeyEvent(
+    key: Key,
+    type: KeyEventType,
+    onFocusPreviousPanel: () -> Boolean,
+): Boolean {
+    if (type != KeyEventType.KeyDown) return false
+    return when (key) {
+        Key.DirectionUp -> onFocusPreviousPanel()
+        else -> false
     }
 }

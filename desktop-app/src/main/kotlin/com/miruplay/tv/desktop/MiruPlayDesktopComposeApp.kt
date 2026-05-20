@@ -1315,6 +1315,10 @@ internal fun MiruPlayDesktopComposeApp() {
                         }
                     }
                 },
+                onFocusPreviousPanel = {
+                    detailEpisodeFocusVersion += 1
+                    true
+                },
                 focusVersion = bangumiFocusVersion,
             )
             RecentPlaybackPanel(

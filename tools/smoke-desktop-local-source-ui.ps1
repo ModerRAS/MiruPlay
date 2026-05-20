@@ -322,6 +322,8 @@ $detailsScreenshotPath = Join-Path $runDir "local-source-details.png"
 $detailsEpisodesScreenshotPath = Join-Path $runDir "local-source-details-episodes.png"
 $detailsEpisodeBackToHeroScreenshotPath = Join-Path $runDir "local-source-details-episode-back-to-hero.png"
 $detailsEpisodeSelectionScreenshotPath = Join-Path $runDir "local-source-details-episode-selected.png"
+$detailsEpisodeToBangumiScreenshotPath = Join-Path $runDir "local-source-details-episode-to-bangumi.png"
+$detailsBangumiBackToEpisodeScreenshotPath = Join-Path $runDir "local-source-details-bangumi-back-to-episode.png"
 $playerScreenshotPath = Join-Path $runDir "local-source-player.png"
 New-Item -ItemType Directory -Path (Split-Path -Parent $storePath) -Force | Out-Null
 
@@ -447,6 +449,10 @@ try {
         Send-AppKeys -Process $windowProcess -Keys "{DOWN}"
         Send-AppKeys -Process $windowProcess -Keys "{DOWN}"
         Save-WindowScreenshot -Process $windowProcess -Path $detailsEpisodeSelectionScreenshotPath
+        Send-AppKeys -Process $windowProcess -Keys "{DOWN}"
+        Save-WindowScreenshot -Process $windowProcess -Path $detailsEpisodeToBangumiScreenshotPath
+        Send-AppKeys -Process $windowProcess -Keys "{UP}"
+        Save-WindowScreenshot -Process $windowProcess -Path $detailsBangumiBackToEpisodeScreenshotPath
         Send-AppKeys -Process $windowProcess -Keys "{ENTER}" -DelayMilliseconds 500
     } else {
         Invoke-RelativeClick -Process $windowProcess -X 674 -Y 466
@@ -495,5 +501,7 @@ if (-not $LibraryRoot.Trim()) {
     Write-Output "Details episodes screenshot: $detailsEpisodesScreenshotPath"
     Write-Output "Details episode back-to-hero screenshot: $detailsEpisodeBackToHeroScreenshotPath"
     Write-Output "Details episode selection screenshot: $detailsEpisodeSelectionScreenshotPath"
+    Write-Output "Details episode-to-Bangumi screenshot: $detailsEpisodeToBangumiScreenshotPath"
+    Write-Output "Details Bangumi back-to-episode screenshot: $detailsBangumiBackToEpisodeScreenshotPath"
 }
 Write-Output "Player screenshot: $playerScreenshotPath"
