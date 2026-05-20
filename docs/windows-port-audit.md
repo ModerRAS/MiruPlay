@@ -37,10 +37,11 @@ Release packaging now has a packaged runtime gate that builds `desktop-app.zip`,
 launches the packaged runtime source with `mpv.exe --version`, and verifies the
 zip contains the mpv executable, runtime manifest, and NVIDIA/DIRECTML RIFE
 scripts. `tools/verify-windows-port.ps1` now wraps the local port gate with
-safe defaults: Gradle/JVM/desktop install and Android debug build run by
-default, while GUI smokes, the real `D:\Software\dufs` library, Android TV
-emulator smoke, SMB share smoke, mpv runtime payload checks, and RIFE target
-hardware checks require explicit switches.
+safe defaults: it selects JDK 21 when available, Gradle/JVM/desktop install
+and Android debug build run by default, while GUI smokes, the real
+`D:\Software\dufs` library, Android TV emulator smoke, SMB share smoke, mpv
+runtime payload checks, and RIFE target hardware checks require explicit
+switches.
 
 ## Prompt-to-Artifact Completion Matrix
 
@@ -60,7 +61,7 @@ hardware checks require explicit switches.
 | Remote browser keyboard/DPAD navigation | `DesktopLibraryPanels.kt`, `DesktopSourcePickerTest.kt`, `tools/smoke-desktop-webdav-source-ui.ps1`, `build/desktop-webdav-source-ui/run-20260520-121024/*.png` | The remote browser now keeps focus on the selected row, moves with `Up`/`Down` without opening directories, opens/selects with `Enter`, and uses first-row `Up` to navigate to the parent/root path; the loopback WebDAV GUI smoke opens the fixture directory, sends `Up`, captures `webdav-source-keyboard-up.png` at the root, sends `Enter` back into the fixture directory, sends `Down`, captures `webdav-source-keyboard-browse.png`, sends `Enter`, captures `webdav-source-keyboard-select.png`, and then scans/opens Details/Player from the same remote source. | Deeper multi-level remote browsing can still be expanded later. |
 | Player transport keyboard/DPAD navigation | `DesktopPlaybackPanels.kt`, `tools/smoke-desktop-mpv-launch-ui.ps1`, `build/desktop-mpv-launch-ui/run-20260520-115654/*.png` | The Player stage now keeps focus on the primary transport, moves across active controls with `Left`/`Right`, and activates with `Enter`; the mpv GUI smoke launches a generated Y4M sample, sends `Enter`, `Left+Enter`, `Right+Right+Enter`, and `Right+Enter` to pause, seek, and stop, then verifies mpv exited and progress persisted. | Full-screen mpv/window-manager specific key paths can still be expanded later. |
 | Bangumi metadata-list keyboard/DPAD navigation | `DesktopBangumiPanel.kt`, `DesktopBangumiNavigationTest.kt`, `tools/smoke-desktop-bangumi-metadata-ui.ps1`, `build/desktop-bangumi-metadata-ui/run-20260520-163523/*.png` | Bangumi batch matches, candidate review rows, search results, and action buttons now share deterministic key handling: `Up`/`Down` moves through visible result rows, `Right` enters candidate review or enters the first visible match list from the action grid, `Left` returns to batch matches or exits search results back to Apply match, action buttons form a two-column grid, and `Enter` selects the focused row/button. `:desktop-app:test` covers row ordering, horizontal candidate review entry/exit, visible-row clamping, edge stops, action-grid movement, action-to-list handoff, list-to-action handoff, and top-action `Up` exit. `:scraper-desktop:smokeBangumiLive` now verifies live Bangumi search/details/episodes and writes token-free JSON evidence. The Windows GUI smoke opens Details, uses keyboard `Use selected`, `Search`, result-list handoff, `Apply match`, and `Clear metadata`, verifies Bangumi source/id/title are persisted then cleared, and captures `bangumi-details-ready.png`, `bangumi-focus-bangumi.png`, `bangumi-search-results.png`, `bangumi-metadata-applied.png`, and `bangumi-metadata-cleared.png`. | Broader live-service regression can be repeated with the smoke tasks as needed. |
-| Provide auditable verification gates | Gradle MCP build records, `.github/workflows/ci.yml`, scripts under `tools/`, this audit document | CI now runs the Android debug build plus desktop/shared JVM checks: `checkDesktopComposeOnly`, `checkDesktopPresenterSeparation`, `checkUiPaletteDrift`, `:core:model:test`, `:repository-api:test`, `:cloud-drive-api:test`, `:sync-engine-shared:test`, `:media-source-desktop:test`, `:scanner-desktop:test`, `:repository-desktop:test`, `:scraper-desktop:test`, `:player-mpv:test`, `:cloud-drive-desktop:test`, `:sync-engine-desktop:test`, `:desktop-app:test`, and lightweight `:desktop-app:installDist -PbundleMpvRuntime=false`. Latest local commands are listed below with passing evidence for Android build, desktop tests, mpv tests, CloudDrive loopback tests, runtime smoke, packaged runtime zip smoke, DirectML RIFE smoke, and screenshot QA. | Hardware/cloud/live-service checks are intentionally tracked as not achieved. |
+| Provide auditable verification gates | Gradle MCP build records, `.github/workflows/ci.yml`, scripts under `tools/`, this audit document | CI now runs the Android debug build plus desktop/shared JVM checks: `checkDesktopComposeOnly`, `checkDesktopPresenterSeparation`, `checkUiPaletteDrift`, `:core:model:test`, `:repository-api:test`, `:cloud-drive-api:test`, `:sync-engine-shared:test`, `:media-source-desktop:test`, `:scanner-desktop:test`, `:repository-desktop:test`, `:scraper-desktop:test`, `:player-mpv:test`, `:cloud-drive-desktop:test`, `:sync-engine-desktop:test`, `:desktop-app:test`, and lightweight `:desktop-app:installDist -PbundleMpvRuntime=false`. `tools/verify-windows-port.ps1` now auto-selects JDK 21 when launched from a newer JDK shell and the safe default gate passed after starting from Temurin 25. Latest local commands are listed below with passing evidence for Android build, desktop tests, mpv tests, CloudDrive loopback tests, runtime smoke, packaged runtime zip smoke, DirectML RIFE smoke, and screenshot QA. | Hardware/cloud/live-service checks are intentionally tracked as not achieved. |
 
 Completion decision: do not mark complete. The project has a usable Windows
 Compose Desktop port and preserved Android debug build evidence, but the
@@ -151,6 +152,8 @@ multi-panel traversal can still be expanded separately.
 ```powershell
 .\tools\verify-windows-port.ps1
 
+# Uses JDK 21 automatically when available; set JAVA21_HOME or JDK21_HOME to override discovery.
+
 # Optional live/device/runtime gates:
 .\tools\verify-windows-port.ps1 -Gui
 .\tools\verify-windows-port.ps1 -RealLibrary -RealLibraryRoot 'D:\Software\dufs'
@@ -168,9 +171,6 @@ multi-panel traversal can still be expanded separately.
   -Destination .\runtime\mpv `
   -RequiredRifeBackends 'NVIDIA,DIRECTML' `
   -Force
-
-$env:JAVA_HOME='C:\Users\adqew\scoop\apps\temurin21-jdk\current'
-$env:Path="$env:JAVA_HOME\bin;$env:Path"
 
 .\gradlew.bat :desktop-app:smokeMpvRuntime `
   -PrequireMpvRuntime=true

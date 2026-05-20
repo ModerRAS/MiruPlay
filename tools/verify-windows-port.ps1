@@ -47,6 +47,84 @@ $approvedSmbShareTestPath = "\\smb.ynz.local\share\$temporaryFilesSegment\$testS
 $approvedSmbBaseUrl = "smb://smb.ynz.local/share/$temporaryFilesSegment/$testSegment"
 $stepResults = New-Object 'System.Collections.Generic.List[object]'
 
+function Get-JavaMajorVersion {
+    param([string]$JavaHome)
+
+    if ([string]::IsNullOrWhiteSpace($JavaHome)) {
+        return $null
+    }
+    $javaExe = Join-Path $JavaHome "bin\java.exe"
+    if (-not (Test-Path -LiteralPath $javaExe -PathType Leaf)) {
+        return $null
+    }
+
+    $versionOutput = & $javaExe -version 2>&1
+    $versionText = ($versionOutput -join "`n")
+    if ($versionText -match 'version "(\d+)(?:\.(\d+))?') {
+        $major = [int]$Matches[1]
+        if ($major -eq 1 -and $Matches[2]) {
+            return [int]$Matches[2]
+        }
+        return $major
+    }
+    return $null
+}
+
+function Get-Jdk21HomeCandidates {
+    $candidates = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($path in @($env:JAVA21_HOME, $env:JDK21_HOME, $env:JAVA_HOME)) {
+        if (-not [string]::IsNullOrWhiteSpace($path)) {
+            $candidates.Add($path) | Out-Null
+        }
+    }
+
+    $userProfilePath = [Environment]::GetFolderPath("UserProfile")
+    if (-not [string]::IsNullOrWhiteSpace($userProfilePath)) {
+        foreach ($relative in @(
+            "scoop\apps\temurin21-jdk\current",
+            "scoop\apps\openjdk21\current",
+            ".jdks\temurin-21"
+        )) {
+            $candidates.Add((Join-Path $userProfilePath $relative)) | Out-Null
+        }
+    }
+
+    foreach ($root in @(
+        "C:\Program Files\Eclipse Adoptium",
+        "C:\Program Files\Java",
+        "C:\Program Files\Microsoft"
+    )) {
+        if (Test-Path -LiteralPath $root -PathType Container) {
+            Get-ChildItem -LiteralPath $root -Directory -ErrorAction SilentlyContinue |
+                Where-Object { $_.Name -match "21" } |
+                ForEach-Object { $candidates.Add($_.FullName) | Out-Null }
+        }
+    }
+
+    return @($candidates | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
+}
+
+function Use-Jdk21 {
+    $currentMajor = Get-JavaMajorVersion -JavaHome $env:JAVA_HOME
+    if ($currentMajor -eq 21) {
+        Write-Host "Using JDK 21: $env:JAVA_HOME"
+        return
+    }
+
+    foreach ($candidate in Get-Jdk21HomeCandidates) {
+        $major = Get-JavaMajorVersion -JavaHome $candidate
+        if ($major -eq 21) {
+            $env:JAVA_HOME = [System.IO.Path]::GetFullPath($candidate)
+            $env:Path = (Join-Path $env:JAVA_HOME "bin") + [System.IO.Path]::PathSeparator + $env:Path
+            Write-Host "Using JDK 21: $env:JAVA_HOME"
+            return
+        }
+    }
+
+    $currentText = if ($currentMajor) { "JDK $currentMajor" } else { "no valid JAVA_HOME" }
+    throw "MiruPlay verification requires JDK 21, but the current shell has $currentText. Set JAVA21_HOME, JDK21_HOME, or JAVA_HOME to a JDK 21 installation."
+}
+
 function Format-Duration {
     param([TimeSpan]$Duration)
     if ($Duration.TotalMinutes -ge 1) {
@@ -164,6 +242,8 @@ if (-not $SkipAndroidBuild) {
 
 Push-Location $repoRoot
 try {
+    Use-Jdk21
+
     if (-not $SkipGradle) {
         Invoke-Step -Name "Safe Gradle gate" -Action {
             Invoke-Gradle -Arguments $defaultGradleTasks
