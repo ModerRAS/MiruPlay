@@ -37,7 +37,6 @@ import com.miruplay.tv.repository.MetadataBatchMatch
 import com.miruplay.tv.repository.MetadataBatchPlan
 import com.miruplay.tv.repository.displayName
 import com.miruplay.tv.repository.isSameCandidate
-import com.miruplay.tv.repository.selectedCandidateLabel
 import com.miruplay.tv.repository.statusFor
 
 @Composable
@@ -65,6 +64,7 @@ internal fun BangumiPanel(
     onFocusPreviousPanel: () -> Boolean = { false },
     focusVersion: Int = 0,
 ) {
+    val labels = desktopBangumiUiLabels()
     val actionFocusRequesters = remember {
         BangumiAction.entries.associateWith { FocusRequester() }
     }
@@ -169,14 +169,14 @@ internal fun BangumiPanel(
                 modifier = Modifier.weight(0.42f),
                 verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
             ) {
-                Text("Bangumi metadata", color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
-                LabeledTextField("Bangumi query", query, onValueChange = onQueryChange)
+                Text(labels.title, color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
+                LabeledTextField(labels.query, query, onValueChange = onQueryChange)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
                 ) {
                     TvActionButton(
-                        "Use selected",
+                        labels.useSelected,
                         onClick = onUseSelectedEntry,
                         secondary = true,
                         modifier = Modifier
@@ -188,7 +188,7 @@ internal fun BangumiPanel(
                             ),
                     )
                     TvActionButton(
-                        "Search",
+                        labels.search,
                         onClick = onSearch,
                         modifier = Modifier
                             .weight(1f)
@@ -204,7 +204,7 @@ internal fun BangumiPanel(
                     horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
                 ) {
                     TvActionButton(
-                        "Apply match",
+                        labels.applyMatch,
                         onClick = onApply,
                         modifier = Modifier
                             .weight(1f)
@@ -215,7 +215,7 @@ internal fun BangumiPanel(
                             ),
                     )
                     TvActionButton(
-                        "Clear metadata",
+                        labels.clearMetadata,
                         onClick = onClear,
                         secondary = true,
                         modifier = Modifier
@@ -232,7 +232,7 @@ internal fun BangumiPanel(
                     horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
                 ) {
                     TvActionButton(
-                        "Batch preview",
+                        labels.batchPreview,
                         onClick = onBatchPreview,
                         secondary = true,
                         modifier = Modifier
@@ -244,7 +244,7 @@ internal fun BangumiPanel(
                             ),
                     )
                     TvActionButton(
-                        "Apply batch",
+                        labels.applyBatch,
                         onClick = onBatchApply,
                         secondary = true,
                         modifier = Modifier
@@ -261,7 +261,7 @@ internal fun BangumiPanel(
                     horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
                 ) {
                     TvActionButton(
-                        "Undo batch",
+                        labels.undoBatch,
                         onClick = onBatchUndo,
                         secondary = true,
                         modifier = Modifier
@@ -273,7 +273,7 @@ internal fun BangumiPanel(
                             ),
                     )
                     TvActionButton(
-                        "Accept review",
+                        labels.acceptReview,
                         onClick = onBatchAcceptReview,
                         secondary = true,
                         modifier = Modifier
@@ -285,18 +285,18 @@ internal fun BangumiPanel(
                             ),
                     )
                 }
-                StatusBox(status)
+                StatusBox(desktopBangumiStatusText(status))
             }
             Column(
                 modifier = Modifier.weight(0.58f),
                 verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp),
             ) {
-                Text("Selected index", color = TextPrimary, fontSize = MiruPlayUiMetrics.SECTION_SUBTITLE_SP.sp, fontWeight = FontWeight.SemiBold)
+                Text(labels.selectedIndex, color = TextPrimary, fontSize = MiruPlayUiMetrics.SECTION_SUBTITLE_SP.sp, fontWeight = FontWeight.SemiBold)
                 SelectedIndexSummary(selectedIndexEntry)
-                Text("Bangumi matches", color = TextPrimary, fontSize = MiruPlayUiMetrics.SECTION_SUBTITLE_SP.sp, fontWeight = FontWeight.SemiBold)
+                Text(labels.matches, color = TextPrimary, fontSize = MiruPlayUiMetrics.SECTION_SUBTITLE_SP.sp, fontWeight = FontWeight.SemiBold)
                 if (visibleBatchMatches.isNotEmpty()) {
                     Text(
-                        "Batch: ${batchMatches.size} quer${if (batchMatches.size == 1) "y" else "ies"} previewed",
+                        "批量：${batchMatches.size} 个查询已预览",
                         color = TextSecondary,
                         fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
                     )
@@ -315,7 +315,7 @@ internal fun BangumiPanel(
                 }
                 selectedBatchMatch?.takeIf { visibleBatchCandidates.isNotEmpty() }?.let { match ->
                     Text(
-                        "Batch candidates",
+                        labels.batchCandidates,
                         color = TextPrimary,
                         fontSize = MiruPlayUiMetrics.SECTION_SUBTITLE_SP.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -333,7 +333,7 @@ internal fun BangumiPanel(
                     }
                 }
                 if (visibleResults.isEmpty()) {
-                    DesktopEmptyState("Search to show Bangumi matches.")
+                    DesktopEmptyState(labels.emptyResults)
                 } else {
                     visibleResults.forEachIndexed { index, result ->
                         BangumiResultRow(
@@ -363,7 +363,7 @@ private fun SelectedIndexSummary(entry: MediaIndexEntry?) {
             .padding(MiruPlayUiMetrics.STACK_GAP_DP.dp),
     ) {
         if (entry == null) {
-            Text("No indexed video selected.", color = TextSecondary, fontSize = MiruPlayUiMetrics.PANEL_BODY_SP.sp)
+            Text("尚未选择索引视频。", color = TextSecondary, fontSize = MiruPlayUiMetrics.PANEL_BODY_SP.sp)
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.TINY_GAP_DP.dp)) {
                 Text(
@@ -375,7 +375,7 @@ private fun SelectedIndexSummary(entry: MediaIndexEntry?) {
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    entry.metadataTitle?.let { "Bangumi: $it" } ?: "Bangumi: not linked",
+                    entry.metadataTitle?.let { "Bangumi：$it" } ?: "Bangumi：未关联",
                     color = TextSecondary,
                     fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
                     maxLines = 1,
@@ -476,7 +476,7 @@ private fun BangumiBatchMatchRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                status,
+                desktopBangumiBatchStatusLabel(status),
                 color = if (status == "conflict") AnimeRed else TextSecondary,
                 fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
                 fontWeight = FontWeight.Bold,
@@ -494,12 +494,12 @@ private fun BangumiBatchMatchRow(
                 Text(
                     result?.let {
                         val candidateSuffix = if (match.candidates.size > 1) {
-                            " / ${match.selectedCandidateLabel()}"
+                            " / ${match.desktopSelectedCandidateLabel()}"
                         } else {
                             ""
                         }
                         it.bangumiCandidateSummary(candidateSuffix)
-                    } ?: "No match",
+                    } ?: "无匹配",
                     color = TextSecondary,
                     fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
                     maxLines = 1,
@@ -513,6 +513,163 @@ private fun BangumiBatchMatchRow(
 private const val BANGUMI_BATCH_MATCH_LIMIT = 4
 private const val BANGUMI_CANDIDATE_LIMIT = 4
 private const val BANGUMI_RESULT_LIMIT = 6
+
+internal data class DesktopBangumiUiLabels(
+    val title: String,
+    val query: String,
+    val useSelected: String,
+    val search: String,
+    val applyMatch: String,
+    val clearMetadata: String,
+    val batchPreview: String,
+    val applyBatch: String,
+    val undoBatch: String,
+    val acceptReview: String,
+    val selectedIndex: String,
+    val matches: String,
+    val batchCandidates: String,
+    val emptyResults: String,
+)
+
+internal fun desktopBangumiUiLabels(): DesktopBangumiUiLabels =
+    DesktopBangumiUiLabels(
+        title = "Bangumi 元数据",
+        query = "Bangumi 搜索词",
+        useSelected = "使用当前条目",
+        search = "搜索",
+        applyMatch = "应用匹配",
+        clearMetadata = "清除元数据",
+        batchPreview = "批量预览",
+        applyBatch = "应用批量",
+        undoBatch = "撤销批量",
+        acceptReview = "接受复核",
+        selectedIndex = "当前索引",
+        matches = "Bangumi 匹配",
+        batchCandidates = "候选条目",
+        emptyResults = "搜索后在这里显示 Bangumi 匹配。",
+    )
+
+private val metadataInitialStatusRegex = Regex("""^Select an indexed video, then search (.+)\.$""")
+private val metadataQueryRequiredRegex = Regex("""^Enter a (.+) query or select an indexed video\.$""")
+private val metadataSearchStartedRegex = Regex("""^Searching (.+) for "(.*)"\.\.\.$""")
+private val metadataNoMatchRegex = Regex("""^No (.+) metadata matched "(.*)"\.$""")
+private val metadataFoundRegex = Regex("""^Found (\d+) (.+) match\(es\)\.$""")
+private val selectedBatchCandidateRegex = Regex("""^Selected batch candidate for (.+): (.*)\.$""")
+private val selectedBatchReviewRegex = Regex("""^Selected batch review: (.+)\.$""")
+private val metadataBatchResultRequiredRegex = Regex("""^Select a batch match with a (.+) result first\.$""")
+private val metadataReviewConflictRegex = Regex("""^Selected review has (\d+) metadata conflict(s?); nothing was overwritten\.$""")
+private val selectedMetadataRegex = Regex("""^Selected (.+)\.$""")
+private val metadataApplyRequiredRegex = Regex("""^Select an indexed video before applying (.+) metadata\.$""")
+private val metadataSearchSelectionRequiredRegex = Regex("""^Search (.+) and select a match first\.$""")
+private val metadataAppliedRegex = Regex("""^Applied (.+) metadata to (.+)\.$""")
+private val metadataClearedRegex = Regex("""^Cleared external metadata for (.+)\.$""")
+private val metadataBatchSearchingRegex = Regex("""^Searching (.+) for (\d+) indexed title\(s\)\.\.\.$""")
+private val noMetadataBatchEntriesRegex = Regex("""^No indexed entries are available for (.+) batch matching\.$""")
+private val metadataPlanSummaryRegex = Regex("""^(\d+) ready, (\d+) review, (\d+) conflicts$""")
+private val metadataBatchAppliedRegex = Regex("""^Applied Bangumi batch metadata to (\d+) index entr(?:y|ies); (\d+) conflict(s?) skipped\.$""")
+private val metadataReviewAcceptedRegex = Regex("""^Accepted reviewed Bangumi match for (\d+) index entr(?:y|ies)\.$""")
+private val metadataBatchRestoredRegex = Regex("""^Restored (\d+) index entr(?:y|ies) from the previous Bangumi batch\.$""")
+
+internal fun desktopBangumiStatusText(status: String): String =
+    when {
+        status == "Select an indexed video first." ->
+            "请先选择一个索引视频。"
+        status == "Query set from selected index entry." ->
+            "已从当前索引条目填入搜索词。"
+        status == "Open or scan a source first." ->
+            "请先打开或扫描媒体源。"
+        status == "Selected review has no matching indexed entries." ->
+            "当前复核项没有匹配的索引条目。"
+        status == "Select an indexed video before clearing metadata." ->
+            "请先选择索引视频，再清除元数据。"
+        status == "Run Batch preview first; no high-confidence matches are ready." ->
+            "请先运行批量预览；当前没有可直接应用的高置信匹配。"
+        status == "No batch Bangumi changes are available to undo." ->
+            "没有可撤销的 Bangumi 批量更改。"
+        else -> desktopBangumiDynamicStatusText(status) ?: status
+    }
+
+private fun desktopBangumiDynamicStatusText(status: String): String? {
+    metadataInitialStatusRegex.matchEntire(status)?.let { match ->
+        return "选择索引视频后可搜索 ${match.groupValues[1]}。"
+    }
+    metadataQueryRequiredRegex.matchEntire(status)?.let { match ->
+        return "请输入 ${match.groupValues[1]} 搜索词，或先选择索引视频。"
+    }
+    metadataSearchStartedRegex.matchEntire(status)?.let { match ->
+        return "正在搜索 ${match.groupValues[1]}：\"${match.groupValues[2]}\"..."
+    }
+    metadataNoMatchRegex.matchEntire(status)?.let { match ->
+        return "没有匹配 \"${match.groupValues[2]}\" 的 ${match.groupValues[1]} 元数据。"
+    }
+    metadataFoundRegex.matchEntire(status)?.let { match ->
+        return "找到 ${match.groupValues[1]} 个 ${match.groupValues[2]} 匹配。"
+    }
+    selectedBatchCandidateRegex.matchEntire(status)?.let { match ->
+        return "已选择批量候选：${match.groupValues[1]} -> ${match.groupValues[2]}"
+    }
+    selectedBatchReviewRegex.matchEntire(status)?.let { match ->
+        return "已选择批量复核：${match.groupValues[1]}"
+    }
+    metadataBatchResultRequiredRegex.matchEntire(status)?.let { match ->
+        return "请先选择带 ${match.groupValues[1]} 结果的批量匹配。"
+    }
+    metadataReviewConflictRegex.matchEntire(status)?.let { match ->
+        return "当前复核项有 ${match.groupValues[1]} 个元数据冲突，未覆盖任何内容。"
+    }
+    selectedMetadataRegex.matchEntire(status)?.let { match ->
+        return "已选择：${match.groupValues[1]}"
+    }
+    metadataApplyRequiredRegex.matchEntire(status)?.let { match ->
+        return "请先选择索引视频，再应用 ${match.groupValues[1]} 元数据。"
+    }
+    metadataSearchSelectionRequiredRegex.matchEntire(status)?.let { match ->
+        return "请先搜索 ${match.groupValues[1]} 并选择一个匹配。"
+    }
+    metadataBatchAppliedRegex.matchEntire(status)?.let { match ->
+        return "已将 Bangumi 批量元数据应用到 ${match.groupValues[1]} 个索引条目，跳过 ${match.groupValues[2]} 个冲突。"
+    }
+    metadataAppliedRegex.matchEntire(status)?.let { match ->
+        return "已将 ${match.groupValues[1]} 元数据应用到 ${match.groupValues[2]}。"
+    }
+    metadataClearedRegex.matchEntire(status)?.let { match ->
+        return "已清除 ${match.groupValues[1]} 的外部元数据。"
+    }
+    metadataBatchSearchingRegex.matchEntire(status)?.let { match ->
+        return "正在用 ${match.groupValues[1]} 搜索 ${match.groupValues[2]} 个索引标题..."
+    }
+    noMetadataBatchEntriesRegex.matchEntire(status)?.let { match ->
+        return "没有可用于 ${match.groupValues[1]} 批量匹配的索引条目。"
+    }
+    metadataPlanSummaryRegex.matchEntire(status)?.let { match ->
+        return "${match.groupValues[1]} 个可应用，${match.groupValues[2]} 个需复核，${match.groupValues[3]} 个冲突"
+    }
+    metadataReviewAcceptedRegex.matchEntire(status)?.let { match ->
+        return "已接受复核的 Bangumi 匹配，更新 ${match.groupValues[1]} 个索引条目。"
+    }
+    metadataBatchRestoredRegex.matchEntire(status)?.let { match ->
+        return "已从上一次 Bangumi 批量更改中恢复 ${match.groupValues[1]} 个索引条目。"
+    }
+    return null
+}
+
+internal fun desktopBangumiBatchStatusLabel(status: String): String =
+    when (status) {
+        "preview" -> "预览"
+        "ready" -> "可用"
+        "review" -> "复核"
+        "conflict" -> "冲突"
+        else -> status
+    }
+
+internal fun MetadataBatchMatch.desktopSelectedCandidateLabel(): String {
+    val selectedIndex = candidates.indexOfFirst { it.isSameCandidate(result) }
+    return if (selectedIndex >= 0) {
+        "候选 ${selectedIndex + 1}/${candidates.size}"
+    } else {
+        "${candidates.size} 个候选"
+    }
+}
 
 internal enum class BangumiListSection {
     BatchMatches,
