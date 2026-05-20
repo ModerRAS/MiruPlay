@@ -53,4 +53,10 @@ class DesktopDetailHeroTest {
         assertEquals(null, moveRecentPlaybackSelection(currentIndex = 2, itemCount = 3, delta = 1))
         assertEquals(null, moveRecentPlaybackSelection(currentIndex = 0, itemCount = 0, delta = 1))
     }
+
+    @Test
+    fun `detail hero down key falls back to bangumi when recents are absent`() {
+        assertEquals(DesktopDetailDownTarget.RecentPlayback, detailHeroDownTarget(hasRecentPlayback = true))
+        assertEquals(DesktopDetailDownTarget.BangumiMetadata, detailHeroDownTarget(hasRecentPlayback = false))
+    }
 }

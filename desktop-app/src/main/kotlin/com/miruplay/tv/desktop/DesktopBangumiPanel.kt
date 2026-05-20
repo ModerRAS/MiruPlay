@@ -62,7 +62,9 @@ internal fun BangumiPanel(
     onResultSelected: (ScraperResult) -> Unit,
     onApply: () -> Unit,
     onClear: () -> Unit,
+    focusVersion: Int = 0,
 ) {
+    val useSelectedFocusRequester = remember { FocusRequester() }
     val visibleBatchMatches = remember(batchMatches) { batchMatches.take(BANGUMI_BATCH_MATCH_LIMIT) }
     val visibleBatchCandidates = remember(selectedBatchMatch) {
         selectedBatchMatch
@@ -110,8 +112,11 @@ internal fun BangumiPanel(
         visibleResults,
         selectedBatchMatch?.query,
         selectedResult?.animeId,
+        focusVersion,
     ) {
-        if (visibleBatchMatches.isNotEmpty()) {
+        if (focusVersion > 0) {
+            useSelectedFocusRequester.requestFocus()
+        } else if (visibleBatchMatches.isNotEmpty()) {
             val selectedIndex = visibleBatchMatches.indexOfFirst { it.query == selectedBatchMatch?.query }.coerceAtLeast(0)
             batchFocusRequesters.getOrNull(selectedIndex)?.requestFocus()
         } else if (visibleResults.isNotEmpty()) {
@@ -135,7 +140,14 @@ internal fun BangumiPanel(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
                 ) {
-                    TvActionButton("Use selected", onClick = onUseSelectedEntry, secondary = true, modifier = Modifier.weight(1f))
+                    TvActionButton(
+                        "Use selected",
+                        onClick = onUseSelectedEntry,
+                        secondary = true,
+                        modifier = Modifier
+                            .weight(1f)
+                            .focusRequester(useSelectedFocusRequester),
+                    )
                     TvActionButton("Search", onClick = onSearch, modifier = Modifier.weight(1f))
                 }
                 Row(

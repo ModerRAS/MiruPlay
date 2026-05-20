@@ -198,6 +198,11 @@ internal enum class DesktopDetailHeroAction {
     BackToLibrary,
 }
 
+internal enum class DesktopDetailDownTarget {
+    RecentPlayback,
+    BangumiMetadata,
+}
+
 internal fun moveDesktopDetailHeroAction(
     current: DesktopDetailHeroAction,
     delta: Int,
@@ -206,6 +211,9 @@ internal fun moveDesktopDetailHeroAction(
     val targetIndex = actions.indexOf(current) + delta
     return actions.getOrNull(targetIndex)
 }
+
+internal fun detailHeroDownTarget(hasRecentPlayback: Boolean): DesktopDetailDownTarget =
+    if (hasRecentPlayback) DesktopDetailDownTarget.RecentPlayback else DesktopDetailDownTarget.BangumiMetadata
 
 @Composable
 private fun DetailPoster(title: String) {
