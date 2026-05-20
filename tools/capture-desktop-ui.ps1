@@ -208,6 +208,9 @@ Invoke-RelativeClick -Process $windowProcess -X 140 -Y 118
 Invoke-RelativeClick -Process $windowProcess -X 170 -Y 462
 $captures += Save-WindowScreenshot -Process $windowProcess -Name "settings" -Directory $resolvedOutputDir
 
+Invoke-RelativeClick -Process $windowProcess -X 465 -Y 462
+$captures += Save-WindowScreenshot -Process $windowProcess -Name "settings-cloud" -Directory $resolvedOutputDir
+
 Assert-CapturesAreDistinct -Paths $captures
 
 if (-not $KeepOpen) {

@@ -1,6 +1,7 @@
 package com.miruplay.tv.desktop
 
 import com.miruplay.tv.model.MediaSourceInfoConventions
+import com.miruplay.tv.model.RssSubscriptionInfo
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -59,5 +60,57 @@ class DesktopSettingsPanelTest {
         assertEquals("Fixture Beta", metadataTiles[0].value)
         assertEquals("已匹配：Fixture Beta", metadataTiles[1].value)
         assertEquals("11 条索引", metadataTiles[2].value)
+    }
+
+    @Test
+    fun `cloud rss overview tiles summarize endpoint subscriptions and scheduler`() {
+        val subscription = RssSubscriptionInfo(
+            id = 7L,
+            name = "Bangumi Feed",
+            url = "https://rss.example.test/feeds/very/long/path/season-one.xml",
+            filterRegex = "S01",
+            enabled = true,
+        )
+
+        val tiles = cloudRssOverviewTiles(
+            endpointUrl = "http://127.0.0.1:19798/clouddrive/very/long/endpoint",
+            subscriptions = listOf(subscription),
+            enabled = true,
+            linkedSourceLabel = "Cloud WebDAV · WEBDAV",
+            schedulerStatus = "Scheduler running every 30 minutes with a very long diagnostic status line.",
+        )
+
+        assertEquals(listOf("CloudDrive2", "RSS 订阅", "同步后扫描"), tiles.map { it.label })
+        assertEquals("已启用", tiles[0].value)
+        assertEquals("1 个", tiles[1].value)
+        assertEquals("Cloud WebDAV · WEBDAV", tiles[2].value)
+        assertTrue(tiles[0].detail.length <= 58)
+        assertTrue(tiles[1].detail.contains("ON"))
+        assertTrue(tiles[1].detail.contains("Bangumi Feed"))
+        assertTrue(tiles[2].detail.length <= 58)
+    }
+
+    @Test
+    fun `cloud rss card previews compact long paths and subscriptions`() {
+        val pathPreview = cloudRssPathPairPreview(
+            inboxPath = "/Downloads/CloudDrive2/rss/inbox/very/deep/path",
+            libraryPath = "/Library/Anime/Season One/Very Long Destination",
+            maxLength = 46,
+        )
+        val subscriptionPreview = rssSubscriptionPreview(
+            RssSubscriptionInfo(
+                name = "Disabled Feed",
+                url = "https://rss.example.test/feeds/disabled.xml",
+                enabled = false,
+            ),
+            maxLength = 42,
+        )
+
+        assertTrue(pathPreview.length <= 46)
+        assertTrue(pathPreview.contains("..."))
+        assertTrue(pathPreview.contains("->"))
+        assertTrue(subscriptionPreview.length <= 42)
+        assertTrue(subscriptionPreview.startsWith("OFF"))
+        assertTrue(subscriptionPreview.contains("..."))
     }
 }

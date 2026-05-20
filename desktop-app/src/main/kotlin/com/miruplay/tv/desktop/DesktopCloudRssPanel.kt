@@ -7,7 +7,9 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -34,6 +36,11 @@ import com.miruplay.tv.design.MiruPlayUiMetrics
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.RssSubscriptionInfo
+
+private const val CLOUD_RSS_PREVIEW_LIMIT = 58
+private const val CLOUD_RSS_WIDE_PREVIEW_LIMIT = 86
+private const val CLOUD_RSS_BADGE_WIDTH_DP = 82
+private const val CLOUD_RSS_BADGE_HEIGHT_DP = 34
 
 private enum class DesktopSettingsSection(
     val title: String,
@@ -283,7 +290,21 @@ private fun CloudRssAutomationContent(
     onDeleteSubscription: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    TvPanel(modifier.fillMaxWidth()) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp)) {
+            cloudRssOverviewTiles(
+                endpointUrl = endpointUrl,
+                subscriptions = subscriptions,
+                enabled = enabled,
+                linkedSourceLabel = linkedSourceLabel,
+                schedulerStatus = schedulerStatus,
+            ).forEach { tile ->
+                SettingsSummaryCard(tile, Modifier.weight(1f))
+            }
+        }
         Row(
             horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp),
             verticalAlignment = Alignment.Top,
@@ -292,86 +313,156 @@ private fun CloudRssAutomationContent(
                 modifier = Modifier.weight(0.46f),
                 verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
             ) {
-                Text("Cloud/RSS sync", color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
-                LabeledTextField("CloudDrive2 endpoint", endpointUrl, onValueChange = onEndpointUrlChange)
-                LabeledTextField("CloudDrive2 username", username, onValueChange = onUsernameChange)
-                Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp)) {
-                    LabeledTextField("API token", token, onValueChange = onTokenChange, modifier = Modifier.weight(1f))
-                    LabeledTextField("Password", password, onValueChange = onPasswordChange, modifier = Modifier.weight(1f))
+                CloudRssCard(
+                    title = "CloudDrive2",
+                    badge = if (enabled) "ON" else "OFF",
+                    preview = cloudRssPreview(endpointUrl, fallback = "填写 CloudDrive2 endpoint"),
+                ) {
+                    LabeledTextField("CloudDrive2 endpoint", endpointUrl, onValueChange = onEndpointUrlChange)
+                    LabeledTextField("CloudDrive2 username", username, onValueChange = onUsernameChange)
+                    Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp)) {
+                        LabeledTextField("API token", token, onValueChange = onTokenChange, modifier = Modifier.weight(1f))
+                        LabeledTextField("Password", password, onValueChange = onPasswordChange, modifier = Modifier.weight(1f))
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
+                        TvActionButton("Save", onClick = onSaveCredentials, secondary = true, modifier = Modifier.weight(1f))
+                        TvActionButton("Clear", onClick = onClearCredentials, secondary = true, modifier = Modifier.weight(1f))
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
+                        TvActionButton("Login", onClick = onLoginCloudDrive, secondary = true, modifier = Modifier.weight(1f))
+                        TvActionButton("Verify", onClick = onVerifyApiToken, secondary = true, modifier = Modifier.weight(1f))
+                    }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp)) {
-                    LabeledTextField("Inbox path", inboxPath, onValueChange = onInboxPathChange, modifier = Modifier.weight(1f))
-                    LabeledTextField("Library path", libraryPath, onValueChange = onLibraryPathChange, modifier = Modifier.weight(1f))
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp)) {
-                    LabeledTextField("Interval minutes", intervalMinutes, onValueChange = onIntervalMinutesChange, modifier = Modifier.weight(1f))
-                    LabeledTextField("Proxy host", proxyHost, onValueChange = onProxyHostChange, modifier = Modifier.weight(1f))
-                    LabeledTextField("Proxy port", proxyPort, onValueChange = onProxyPortChange, modifier = Modifier.weight(1f))
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp)) {
-                    ToggleRow("Enabled", enabled, onEnabledChange)
-                    ToggleRow("RSS proxy", proxyEnabled, onProxyEnabledChange)
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
-                    TvActionButton("Use active source", onClick = onUseActiveScanSource, secondary = true)
-                    TvActionButton("Clear source", onClick = onClearScanSource, secondary = true)
-                }
-                Text("Post-sync source: $linkedSourceLabel", color = TextSecondary, fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp)
-                Column(verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SMALL_GAP_DP.dp)) {
+                CloudRssCard(
+                    title = "同步路径",
+                    badge = "PATH",
+                    preview = cloudRssPathPairPreview(inboxPath, libraryPath),
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp)) {
+                        LabeledTextField("Inbox path", inboxPath, onValueChange = onInboxPathChange, modifier = Modifier.weight(1f))
+                        LabeledTextField("Library path", libraryPath, onValueChange = onLibraryPathChange, modifier = Modifier.weight(1f))
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp)) {
+                        LabeledTextField("Interval minutes", intervalMinutes, onValueChange = onIntervalMinutesChange, modifier = Modifier.weight(1f))
+                        LabeledTextField("Proxy host", proxyHost, onValueChange = onProxyHostChange, modifier = Modifier.weight(1f))
+                        LabeledTextField("Proxy port", proxyPort, onValueChange = onProxyPortChange, modifier = Modifier.weight(1f))
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp)) {
+                        ToggleRow("Enabled", enabled, onEnabledChange)
+                        ToggleRow("RSS proxy", proxyEnabled, onProxyEnabledChange)
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
+                        TvActionButton("Use active source", onClick = onUseActiveScanSource, secondary = true)
+                        TvActionButton("Clear source", onClick = onClearScanSource, secondary = true)
+                    }
+                    Text("Post-sync source: $linkedSourceLabel", color = TextSecondary, fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp)
                     Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
                         TvActionButton("Save sync config", onClick = onSaveConfig)
                         TvActionButton("Run sync now", onClick = onRunSync, secondary = true)
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
-                        TvActionButton("Save credentials", onClick = onSaveCredentials, secondary = true)
-                        TvActionButton("Clear credentials", onClick = onClearCredentials, secondary = true)
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
-                        TvActionButton("Login", onClick = onLoginCloudDrive, secondary = true)
-                        TvActionButton("Verify token", onClick = onVerifyApiToken, secondary = true)
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
-                        TvActionButton("Start scheduler", onClick = onStartScheduler, secondary = true)
-                        TvActionButton("Stop scheduler", onClick = onStopScheduler, secondary = true)
-                    }
                 }
-                StatusBox(status)
-                Text(
-                    schedulerStatus,
-                    color = TextSecondary,
-                    fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
-                    lineHeight = 18.sp,
-                )
             }
             Column(
                 modifier = Modifier.weight(0.54f),
                 verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp),
             ) {
-                Text("RSS subscriptions", color = TextPrimary, fontSize = MiruPlayUiMetrics.SECTION_SUBTITLE_SP.sp, fontWeight = FontWeight.SemiBold)
-                LabeledTextField("Subscription name", rssName, onValueChange = onRssNameChange)
-                LabeledTextField("Subscription URL", rssUrl, onValueChange = onRssUrlChange)
-                LabeledTextField("Filter regex", rssFilter, onValueChange = onRssFilterChange)
-                Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp)) {
-                    ToggleRow("Enabled", rssEnabled, onRssEnabledChange)
-                    TvActionButton("Save subscription", onClick = onSaveSubscription, secondary = true)
-                    TvActionButton("Delete", onClick = onDeleteSubscription, secondary = true)
-                }
-                if (subscriptions.isEmpty()) {
-                    DesktopEmptyState(
-                        text = "Save a subscription to show it here.",
-                        heightDp = MiruPlayUiMetrics.RSS_EMPTY_STATE_HEIGHT_DP,
-                    )
-                } else {
-                    subscriptions.forEach { subscription ->
-                        RssSubscriptionRow(
-                            subscription = subscription,
-                            selected = selectedSubscription?.id == subscription.id,
-                            onClick = { onSubscriptionSelected(subscription) },
-                        )
+                CloudRssCard(
+                    title = "RSS subscriptions",
+                    badge = "${subscriptions.size}",
+                    preview = selectedSubscription?.let { rssSubscriptionPreview(it) } ?: "保存订阅后在这里显示",
+                ) {
+                    LabeledTextField("Subscription name", rssName, onValueChange = onRssNameChange)
+                    LabeledTextField("Subscription URL", rssUrl, onValueChange = onRssUrlChange)
+                    LabeledTextField("Filter regex", rssFilter, onValueChange = onRssFilterChange)
+                    Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp)) {
+                        ToggleRow("Enabled", rssEnabled, onRssEnabledChange)
                     }
+                    Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
+                        TvActionButton("Save RSS", onClick = onSaveSubscription, secondary = true, modifier = Modifier.weight(1f))
+                        TvActionButton("Delete", onClick = onDeleteSubscription, secondary = true, modifier = Modifier.weight(1f))
+                    }
+                    if (subscriptions.isEmpty()) {
+                        DesktopEmptyState(
+                            text = "Save a subscription to show it here.",
+                            heightDp = MiruPlayUiMetrics.RSS_EMPTY_STATE_HEIGHT_DP,
+                        )
+                    } else {
+                        subscriptions.forEach { subscription ->
+                            RssSubscriptionRow(
+                                subscription = subscription,
+                                selected = selectedSubscription?.id == subscription.id,
+                                onClick = { onSubscriptionSelected(subscription) },
+                            )
+                            Spacer(Modifier.height(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp))
+                        }
+                    }
+                }
+                CloudRssCard(
+                    title = "运行状态",
+                    badge = "RUN",
+                    preview = cloudRssPreview(schedulerStatus, fallback = "Scheduler idle"),
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
+                        TvActionButton("Start scheduler", onClick = onStartScheduler, secondary = true)
+                        TvActionButton("Stop scheduler", onClick = onStopScheduler, secondary = true)
+                    }
+                    StatusBox(status)
+                    Text(
+                        schedulerStatus,
+                        color = TextSecondary,
+                        fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
+                        lineHeight = 18.sp,
+                    )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun CloudRssCard(
+    title: String,
+    badge: String,
+    preview: String,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
+            .background(CardBg.copy(alpha = 0.48f))
+            .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
+            .padding(MiruPlayUiMetrics.PANEL_PADDING_DP.dp),
+        verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(title, color = TextPrimary, fontSize = MiruPlayUiMetrics.SECTION_SUBTITLE_SP.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    preview,
+                    color = TextSecondary,
+                    fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .width(CLOUD_RSS_BADGE_WIDTH_DP.dp)
+                    .height(CLOUD_RSS_BADGE_HEIGHT_DP.dp)
+                    .clip(RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
+                    .background(AnimeRed.copy(alpha = 0.88f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(badge, color = Color.White, fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+        content()
     }
 }
 
@@ -385,6 +476,65 @@ internal data class SettingsSummaryTile(
     val value: String,
     val detail: String,
 )
+
+internal fun cloudRssOverviewTiles(
+    endpointUrl: String,
+    subscriptions: List<RssSubscriptionInfo>,
+    enabled: Boolean,
+    linkedSourceLabel: String,
+    schedulerStatus: String,
+): List<SettingsSummaryTile> =
+    listOf(
+        SettingsSummaryTile(
+            label = "CloudDrive2",
+            value = if (enabled) "已启用" else "未启用",
+            detail = cloudRssPreview(endpointUrl, fallback = "未配置 endpoint", maxLength = CLOUD_RSS_PREVIEW_LIMIT),
+        ),
+        SettingsSummaryTile(
+            label = "RSS 订阅",
+            value = "${subscriptions.size} 个",
+            detail = subscriptions.firstOrNull()?.let { rssSubscriptionPreview(it, CLOUD_RSS_PREVIEW_LIMIT) } ?: "暂无订阅",
+        ),
+        SettingsSummaryTile(
+            label = "同步后扫描",
+            value = linkedSourceLabel,
+            detail = cloudRssPreview(schedulerStatus, fallback = "Scheduler idle", maxLength = CLOUD_RSS_PREVIEW_LIMIT),
+        ),
+    )
+
+internal fun cloudRssPreview(
+    value: String,
+    fallback: String,
+    maxLength: Int = CLOUD_RSS_WIDE_PREVIEW_LIMIT,
+): String =
+    value.trim()
+        .ifBlank { fallback }
+        .compactMiddle(maxLength)
+
+internal fun cloudRssPathPairPreview(
+    inboxPath: String,
+    libraryPath: String,
+    maxLength: Int = CLOUD_RSS_WIDE_PREVIEW_LIMIT,
+): String {
+    val separator = " -> "
+    val safeMaxLength = maxLength.coerceAtLeast(separator.length + 8)
+    val available = safeMaxLength - separator.length
+    val inboxLength = available / 2
+    val libraryLength = available - inboxLength
+    return cloudRssPreview(inboxPath, fallback = "Inbox", maxLength = inboxLength) +
+        separator +
+        cloudRssPreview(libraryPath, fallback = "Library", maxLength = libraryLength)
+}
+
+internal fun rssSubscriptionPreview(
+    subscription: RssSubscriptionInfo,
+    maxLength: Int = CLOUD_RSS_WIDE_PREVIEW_LIMIT,
+): String {
+    val state = if (subscription.enabled) "ON" else "OFF"
+    val filter = subscription.filterRegex?.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty()
+    val label = subscription.name.ifBlank { "RSS" }
+    return "$state · $label · ${subscription.url}$filter".compactMiddle(maxLength)
+}
 
 @Composable
 private fun SettingsSectionMenu(
