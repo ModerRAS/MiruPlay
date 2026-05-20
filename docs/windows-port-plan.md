@@ -16,7 +16,7 @@
 ## 当前已落地的第一步
 
 - `:core:common` 和 `:core:model` 已改成真正的 JVM/Kotlin 模块，Windows 端可以直接依赖番剧、剧集、播放源、播放状态、进度模型；番剧标题/字幕、播放源标题、文件大小、播放时间和外挂字幕 track 解析也已下沉到 `:core:model`，避免 TV/桌面 UI 各写一套格式化逻辑。
-- CI 的 debug build job 现在除了 Android `assembleDebug`，还会运行 `checkDesktopComposeOnly`、`checkUiPaletteDrift`、`:core:model:test`、`:repository-api:test`、`:player-mpv:test`、`:cloud-drive-desktop:test`、`:sync-engine-desktop:test`、`:desktop-app:test` 和轻量 `:desktop-app:installDist -PbundleMpvRuntime=false`，避免 Windows/JVM port 只在本地验证。
+- CI 的 debug build job 现在除了 Android `assembleDebug`，还会运行 `checkDesktopComposeOnly`、`checkDesktopPresenterSeparation`、`checkUiPaletteDrift`、`:core:model:test`、`:repository-api:test`、`:cloud-drive-api:test`、`:sync-engine-shared:test`、`:media-source-desktop:test`、`:scanner-desktop:test`、`:repository-desktop:test`、`:scraper-desktop:test`、`:player-mpv:test`、`:cloud-drive-desktop:test`、`:sync-engine-desktop:test`、`:desktop-app:test` 和轻量 `:desktop-app:installDist -PbundleMpvRuntime=false`，避免 Windows/JVM port 只在本地验证。
 - 新增 `:player-mpv` JVM 模块，负责构造和启动 Windows mpv 命令：
   - `--config-dir=<portable_config>` 隔离 MiruPlay 自带配置。
   - `--input-ipc-server=<pipe>` 预留 JSON IPC 控制通道。
