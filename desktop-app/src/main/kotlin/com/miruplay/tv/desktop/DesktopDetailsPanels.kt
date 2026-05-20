@@ -597,6 +597,8 @@ internal fun RecentPlaybackPanel(
     selectedRecord: ProgressRecord?,
     status: String,
     focusVersion: Int,
+    onFocusPreviousPanel: () -> Boolean,
+    onFocusNextPanel: () -> Boolean,
     onRefresh: () -> Unit,
     onRecordSelected: (ProgressRecord) -> Unit,
     onClearSelected: () -> Unit,
@@ -607,9 +609,15 @@ internal fun RecentPlaybackPanel(
     }
 
     fun moveRecentFocus(currentIndex: Int, delta: Int): Boolean {
-        val targetIndex = moveRecentPlaybackSelection(currentIndex, visibleRecords.size, delta) ?: return false
-        recordFocusRequesters.getOrNull(targetIndex)?.requestFocus()
-        return true
+        return when (val target = moveRecentPlaybackFocusTarget(currentIndex, visibleRecords.size, delta)) {
+            is RecentPlaybackFocusTarget.Row -> {
+                recordFocusRequesters.getOrNull(target.index)?.requestFocus()
+                true
+            }
+            RecentPlaybackFocusTarget.PreviousPanel -> onFocusPreviousPanel()
+            RecentPlaybackFocusTarget.NextPanel -> onFocusNextPanel()
+            null -> false
+        }
     }
 
     LaunchedEffect(focusVersion) {
@@ -714,9 +722,27 @@ internal fun moveRecentPlaybackSelection(
     itemCount: Int,
     delta: Int,
 ): Int? {
+    return (moveRecentPlaybackFocusTarget(currentIndex, itemCount, delta) as? RecentPlaybackFocusTarget.Row)?.index
+}
+
+internal sealed interface RecentPlaybackFocusTarget {
+    data class Row(val index: Int) : RecentPlaybackFocusTarget
+    data object PreviousPanel : RecentPlaybackFocusTarget
+    data object NextPanel : RecentPlaybackFocusTarget
+}
+
+internal fun moveRecentPlaybackFocusTarget(
+    currentIndex: Int,
+    itemCount: Int,
+    delta: Int,
+): RecentPlaybackFocusTarget? {
     if (itemCount <= 0) return null
     val targetIndex = currentIndex + delta
-    return targetIndex.takeIf { it in 0 until itemCount }
+    return when {
+        targetIndex < 0 -> RecentPlaybackFocusTarget.PreviousPanel
+        targetIndex >= itemCount -> RecentPlaybackFocusTarget.NextPanel
+        else -> RecentPlaybackFocusTarget.Row(targetIndex)
+    }
 }
 
 @Composable

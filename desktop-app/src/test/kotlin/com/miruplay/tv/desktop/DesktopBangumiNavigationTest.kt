@@ -139,4 +139,34 @@ class DesktopBangumiNavigationTest {
             ),
         )
     }
+
+    @Test
+    fun `bangumi action grid moves across metadata command buttons`() {
+        assertEquals(
+            BangumiActionFocusTarget.Action(BangumiAction.Search),
+            bangumiActionFocusTarget(BangumiAction.UseSelected, Key.DirectionRight),
+        )
+        assertEquals(
+            BangumiActionFocusTarget.Action(BangumiAction.ApplyMatch),
+            bangumiActionFocusTarget(BangumiAction.UseSelected, Key.DirectionDown),
+        )
+        assertEquals(
+            BangumiActionFocusTarget.Action(BangumiAction.ClearMetadata),
+            bangumiActionFocusTarget(BangumiAction.ApplyMatch, Key.DirectionRight),
+        )
+        assertEquals(
+            BangumiActionFocusTarget.Action(BangumiAction.ClearMetadata),
+            bangumiActionFocusTarget(BangumiAction.Search, Key.DirectionDown),
+        )
+        assertEquals(
+            BangumiActionFocusTarget.Action(BangumiAction.Search),
+            bangumiActionFocusTarget(BangumiAction.ClearMetadata, Key.DirectionUp),
+        )
+        assertEquals(
+            BangumiActionFocusTarget.PreviousPanel,
+            bangumiActionFocusTarget(BangumiAction.UseSelected, Key.DirectionUp),
+        )
+        assertNull(bangumiActionFocusTarget(BangumiAction.Search, Key.DirectionRight))
+        assertNull(bangumiActionFocusTarget(BangumiAction.AcceptReview, Key.DirectionDown))
+    }
 }

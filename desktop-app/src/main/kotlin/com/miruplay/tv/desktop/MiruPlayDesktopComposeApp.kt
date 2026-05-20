@@ -25,6 +25,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
@@ -242,6 +244,7 @@ internal fun MiruPlayDesktopComposeApp() {
     val repositories = remember { DesktopRepositories.fileBacked() }
     val playbackBridge = remember { DesktopPlaybackBridge() }
     val bangumiScraper = remember { DesktopBangumiScraper() }
+    val focusManager = LocalFocusManager.current
     val cloudRssEngine = remember {
         DesktopCloudDriveRssAutomationEngine(
             repository = repositories.cloudDriveAutomation,
@@ -1317,6 +1320,7 @@ internal fun MiruPlayDesktopComposeApp() {
                 },
                 onFocusPreviousPanel = {
                     detailEpisodeFocusVersion += 1
+                    focusManager.moveFocus(FocusDirection.Up)
                     true
                 },
                 focusVersion = bangumiFocusVersion,
@@ -1326,6 +1330,14 @@ internal fun MiruPlayDesktopComposeApp() {
                 selectedRecord = selectedRecentProgress,
                 status = recentStatus,
                 focusVersion = recentPlaybackFocusVersion,
+                onFocusPreviousPanel = {
+                    detailEpisodeFocusVersion += 1
+                    true
+                },
+                onFocusNextPanel = {
+                    bangumiFocusVersion += 1
+                    true
+                },
                 onRefresh = {
                     scope.launch {
                         refreshRecentProgress()

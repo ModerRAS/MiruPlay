@@ -313,10 +313,12 @@ try {
     Send-AppKeys -Process $windowProcess -Keys "{ENTER}" -DelayMilliseconds 900
     Save-WindowScreenshot -Process $windowProcess -Path $detailsScreenshotPath
 
+    Send-AppKeys -Process $windowProcess -Keys "{DOWN}" -DelayMilliseconds 250
     Send-AppKeys -Process $windowProcess -Keys "{DOWN}" -DelayMilliseconds 350
     Save-WindowScreenshot -Process $windowProcess -Path $focusBangumiScreenshotPath
     Send-AppKeys -Process $windowProcess -Keys "{ENTER}" -DelayMilliseconds 350
-    Invoke-RelativeClick -Process $windowProcess -X 620 -Y 707 -DelayMilliseconds 3500
+    Send-AppKeys -Process $windowProcess -Keys "{RIGHT}" -DelayMilliseconds 250
+    Send-AppKeys -Process $windowProcess -Keys "{ENTER}" -DelayMilliseconds 3500
     $state = Wait-StoreState -Path $storePath -Description "metadata still clear after search" -Predicate {
         param($state)
         $entry = @($state.index | Where-Object { -not $_.isDirectory })[0]
@@ -324,7 +326,8 @@ try {
     }
     Save-WindowScreenshot -Process $windowProcess -Path $searchScreenshotPath
 
-    Invoke-RelativeClick -Process $windowProcess -X 430 -Y 777 -DelayMilliseconds 900
+    Send-AppKeys -Process $windowProcess -Keys "{DOWN}" -DelayMilliseconds 250
+    Send-AppKeys -Process $windowProcess -Keys "{ENTER}" -DelayMilliseconds 900
     $state = Wait-StoreState -Path $storePath -Description "applied Bangumi metadata" -Predicate {
         param($state)
         $entry = @($state.index | Where-Object { -not $_.isDirectory })[0]
@@ -334,7 +337,8 @@ try {
     } -TimeoutSeconds 20
     Save-WindowScreenshot -Process $windowProcess -Path $appliedScreenshotPath
 
-    Invoke-RelativeClick -Process $windowProcess -X 620 -Y 777 -DelayMilliseconds 900
+    Send-AppKeys -Process $windowProcess -Keys "{RIGHT}" -DelayMilliseconds 250
+    Send-AppKeys -Process $windowProcess -Keys "{ENTER}" -DelayMilliseconds 900
     $state = Wait-StoreState -Path $storePath -Description "cleared Bangumi metadata" -Predicate {
         param($state)
         $entry = @($state.index | Where-Object { -not $_.isDirectory })[0]
