@@ -176,8 +176,9 @@ Verification:
 
 .\gradlew.bat :app:assembleDebug
 .\gradlew.bat checkDesktopComposeOnly checkDesktopPresenterSeparation checkUiPaletteDrift `
-  :core:model:test :repository-api:test :player-mpv:test `
-  :cloud-drive-desktop:test :sync-engine-desktop:test :desktop-app:test `
+  :core:model:test :repository-api:test :cloud-drive-api:test :sync-engine-shared:test `
+  :media-source-desktop:test :scanner-desktop:test :repository-desktop:test :scraper-desktop:test `
+  :player-mpv:test :cloud-drive-desktop:test :sync-engine-desktop:test :desktop-app:test `
   :desktop-app:installDist -PbundleMpvRuntime=false
 .\gradlew.bat :desktop-app:smokePackagedMpvRuntime `
   -PmpvRuntimeSource=runtime\mpv `

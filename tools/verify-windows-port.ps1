@@ -145,6 +145,8 @@ $defaultGradleTasks = @(
     "checkUiPaletteDrift",
     ":core:model:test",
     ":repository-api:test",
+    ":cloud-drive-api:test",
+    ":sync-engine-shared:test",
     ":media-source-desktop:test",
     ":scanner-desktop:test",
     ":repository-desktop:test",
