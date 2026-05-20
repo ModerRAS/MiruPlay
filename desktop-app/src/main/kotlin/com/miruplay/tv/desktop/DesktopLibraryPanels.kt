@@ -822,7 +822,12 @@ private fun RemoteBrowserPanel(
                         visibleEntries.remoteBrowserNavigationTarget(index, key)?.let { target ->
                             onEntryFocused(target)
                             true
-                        } ?: false
+                        } ?: if (remoteBrowserShouldNavigateUp(index, key)) {
+                            onUp()
+                            true
+                        } else {
+                            false
+                        }
                     },
                     modifier = Modifier.focusRequester(focusRequesters.getValue(entry.path)),
                 )
@@ -924,3 +929,8 @@ private fun List<FileEntry>.remoteBrowserNavigationTarget(
     } ?: return null
     return getOrNull(targetIndex)
 }
+
+internal fun remoteBrowserShouldNavigateUp(
+    currentIndex: Int,
+    key: Key,
+): Boolean = currentIndex == 0 && key == Key.DirectionUp

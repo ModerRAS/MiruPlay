@@ -1,9 +1,11 @@
 package com.miruplay.tv.desktop
 
+import androidx.compose.ui.input.key.Key
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -84,5 +86,12 @@ class DesktopSourcePickerTest {
         assertTrue(preview.startsWith("/Fixture"))
         assertTrue(preview.endsWith("Episode.mkv"))
         assertTrue(preview.contains("..."))
+    }
+
+    @Test
+    fun `remote browser first row up key maps to parent navigation`() {
+        assertTrue(remoteBrowserShouldNavigateUp(currentIndex = 0, key = Key.DirectionUp))
+        assertFalse(remoteBrowserShouldNavigateUp(currentIndex = 1, key = Key.DirectionUp))
+        assertFalse(remoteBrowserShouldNavigateUp(currentIndex = 0, key = Key.DirectionDown))
     }
 }
