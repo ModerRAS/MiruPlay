@@ -127,7 +127,7 @@ internal fun DesktopDetailHero(
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    entry?.detailSubtitle(source) ?: "从 Library 海报墙选择内容后显示详情。",
+                    entry?.detailSubtitle(source) ?: desktopDetailHeroEmptySubtitle(),
                     color = TextSecondary,
                     fontSize = MiruPlayUiMetrics.SECTION_SUBTITLE_SP.sp,
                     maxLines = 2,
@@ -316,6 +316,9 @@ internal fun MediaIndexEntry.detailSubtitle(source: MediaSourceInfo?): String = 
     append(MediaPathConventions.stem(path))
 }.trim().trimEnd('·').trim()
 
+internal fun desktopDetailHeroEmptySubtitle(): String =
+    "从媒体库海报墙选择内容后显示详情。"
+
 private fun detailPosterBrush(title: String): Brush {
     val palettes = listOf(
         listOf(Color(0xFFB83250), Color(0xFF2E183F), CardBg),
@@ -390,7 +393,7 @@ internal fun DetailEpisodePanel(
             Column {
                 Text("选集", color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
                 Text(
-                    if (episodes.isEmpty()) "当前详情没有可播放索引项" else "${episodes.size} 集 · TV-style episode shelf",
+                    detailEpisodeShelfSubtitle(episodes.size),
                     color = TextSecondary,
                     fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
                 )
@@ -518,6 +521,9 @@ internal fun detailEpisodesForSelection(
         .toList()
 }
 
+internal fun detailEpisodeShelfSubtitle(episodeCount: Int): String =
+    if (episodeCount <= 0) "当前详情没有可播放索引项" else "全 $episodeCount 话 · 同番选集"
+
 internal fun detailEpisodeSeasons(episodes: List<MediaIndexEntry>): List<Int> =
     episodes
         .mapNotNull { it.seasonNumber }
@@ -604,6 +610,7 @@ internal fun RecentPlaybackPanel(
     onClearSelected: () -> Unit,
 ) {
     val visibleRecords = records.take(6)
+    val labels = desktopRecentPlaybackLabels()
     val recordFocusRequesters = remember(visibleRecords.map { it.episodeId }) {
         List(visibleRecords.size) { FocusRequester() }
     }
@@ -635,10 +642,10 @@ internal fun RecentPlaybackPanel(
                 modifier = Modifier.weight(0.32f),
                 verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
             ) {
-                Text("Continue watching", color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
+                Text(labels.title, color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
                 Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
-                    TvActionButton("Refresh", onClick = onRefresh, secondary = true)
-                    TvActionButton("Clear item", onClick = onClearSelected, secondary = true)
+                    TvActionButton(labels.refreshAction, onClick = onRefresh, secondary = true)
+                    TvActionButton(labels.clearAction, onClick = onClearSelected, secondary = true)
                 }
                 StatusBox(status)
             }
@@ -647,7 +654,7 @@ internal fun RecentPlaybackPanel(
                 verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp),
             ) {
                 if (records.isEmpty()) {
-                    DesktopEmptyState("Launch playback to create recent items.")
+                    DesktopEmptyState(labels.emptyState)
                 } else {
                     visibleRecords.forEachIndexed { index, record ->
                         RecentProgressRow(
@@ -674,6 +681,21 @@ internal fun RecentPlaybackPanel(
         }
     }
 }
+
+internal data class DesktopRecentPlaybackLabels(
+    val title: String,
+    val refreshAction: String,
+    val clearAction: String,
+    val emptyState: String,
+)
+
+internal fun desktopRecentPlaybackLabels(): DesktopRecentPlaybackLabels =
+    DesktopRecentPlaybackLabels(
+        title = "继续观看",
+        refreshAction = "刷新",
+        clearAction = "清除条目",
+        emptyState = "开始播放后会在这里显示最近记录。",
+    )
 
 @Composable
 private fun RecentProgressRow(
@@ -752,12 +774,13 @@ internal fun MediaDetailsPanel(
     remoteEntry: FileEntry?,
     recentRecord: ProgressRecord?,
 ) {
+    val labels = desktopMediaDetailsLabels()
     TvPanel(Modifier.fillMaxWidth()) {
-        Text("Media details", color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
+        Text(labels.title, color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
         if (source == null && indexEntry == null && remoteEntry == null && recentRecord == null) {
             DesktopEmptyState(
-                text = "Select media to show details.",
+                text = labels.emptyState,
                 heightDp = MiruPlayUiMetrics.DETAIL_PREVIEW_HEIGHT_DP,
             )
             return@TvPanel
@@ -791,6 +814,17 @@ internal fun MediaDetailsPanel(
         }
     }
 }
+
+internal data class DesktopMediaDetailsLabels(
+    val title: String,
+    val emptyState: String,
+)
+
+internal fun desktopMediaDetailsLabels(): DesktopMediaDetailsLabels =
+    DesktopMediaDetailsLabels(
+        title = "媒体详情",
+        emptyState = "选择媒体后会在这里显示详细信息。",
+    )
 
 @Composable
 internal fun DetailLine(label: String, value: String) {

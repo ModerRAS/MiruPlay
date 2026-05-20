@@ -230,7 +230,7 @@ internal fun CloudRssPanel(
                     linkedSourceLabel = linkedSourceLabel,
                     libraryStatus = libraryStatus,
                 ),
-                status = "扫描入口保留在 Library 海报墙和 CloudDrive 同步流程中。",
+                status = "扫描入口保留在媒体库海报墙和 CloudDrive 同步流程中。",
                 actions = listOf(
                     SettingsQuickAction("扫描当前源", onScanActiveSource),
                     SettingsQuickAction("打开海报墙", onOpenLibrary),
@@ -954,12 +954,12 @@ internal fun sourceSettingsTiles(
         SettingsSummaryTile(
             label = "当前源",
             value = activeSourceLabel,
-            detail = "Library、远程浏览器和 Cloud/RSS 共用这个活动源。",
+            detail = "媒体库、远程浏览器和 Cloud/RSS 共用这个活动源。",
         ),
         SettingsSummaryTile(
             label = "海报墙索引",
             value = "$indexedItemCount 条",
-            detail = "扫描后优先回到 Library 海报墙。",
+            detail = "扫描后优先回到媒体库海报墙。",
         ),
     )
 
@@ -1005,7 +1005,7 @@ internal fun scanSettingsTiles(
         SettingsSummaryTile(
             label = "最近扫描状态",
             value = desktopLibraryStatusText(libraryStatus),
-            detail = "扫描入口也保留在 Library 顶部。",
+            detail = "扫描入口也保留在媒体库顶部。",
         ),
     )
 

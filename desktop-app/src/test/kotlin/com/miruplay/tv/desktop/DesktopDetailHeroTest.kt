@@ -107,6 +107,22 @@ class DesktopDetailHeroTest {
     }
 
     @Test
+    fun `detail panel chrome uses TV-facing Chinese labels`() {
+        val recents = desktopRecentPlaybackLabels()
+        val mediaDetails = desktopMediaDetailsLabels()
+
+        assertEquals("从媒体库海报墙选择内容后显示详情。", desktopDetailHeroEmptySubtitle())
+        assertEquals("当前详情没有可播放索引项", detailEpisodeShelfSubtitle(0))
+        assertEquals("全 12 话 · 同番选集", detailEpisodeShelfSubtitle(12))
+        assertEquals("继续观看", recents.title)
+        assertEquals("刷新", recents.refreshAction)
+        assertEquals("清除条目", recents.clearAction)
+        assertEquals("开始播放后会在这里显示最近记录。", recents.emptyState)
+        assertEquals("媒体详情", mediaDetails.title)
+        assertEquals("选择媒体后会在这里显示详细信息。", mediaDetails.emptyState)
+    }
+
+    @Test
     fun `detail episodes group selected anime and sort by season episode`() {
         val selected = MediaIndexEntry(
             sourceId = 1,

@@ -139,7 +139,6 @@ import com.miruplay.tv.repository.showingRemoteDirectoryStatus
 import com.miruplay.tv.repository.smbUrlRequiredStatus
 import com.miruplay.tv.repository.remoteBrowserInitialStatus
 import com.miruplay.tv.repository.remoteRootStatus
-import com.miruplay.tv.repository.rescanCompleteStatus
 import com.miruplay.tv.repository.sourceRemoveRequiredStatus
 import com.miruplay.tv.repository.sourceRemovedStatus
 import com.miruplay.tv.repository.summaryStatus
@@ -605,35 +604,21 @@ internal fun MiruPlayDesktopComposeApp() {
         }
 
         cloudRssStatus = sourceInfo.cloudRssRescanStartedStatus(reason)
-        val source = desktopSourceFromInfo(sourceInfo)
-        return when (val scan = DesktopMediaLibraryScanner().scan(sourceInfo.id, source)) {
+        return when (val rescan = rescanCloudRssLinkedSource(sourceInfo, reason, repositories.index)) {
             is Result.Success -> {
-                when (val indexed = repositories.index.rebuildIndex(sourceInfo.id, scan.data.entries)) {
-                    is Result.Success -> {
-                        if (activeSourceId == sourceInfo.id) {
-                            indexedEntries = scan.data.entries.filterNot { it.isDirectory }
-                            selectedIndexEntry = null
-                        }
-                        val message = rescanCompleteStatus(
-                            filesIndexed = scan.data.filesIndexed,
-                            directoriesVisited = scan.data.directoriesVisited,
-                        )
-                        if (sourceInfo.type == MediaSourceType.LOCAL) {
-                            libraryStatus = message
-                        } else {
-                            remoteStatus = message
-                        }
-                        message
-                    }
-                    is Result.Error -> {
-                        val message = indexed.error.toUserMessage()
-                        cloudRssStatus = message
-                        null
-                    }
+                val result = rescan.data
+                if (activeSourceId == sourceInfo.id) {
+                    indexedEntries = result.videoEntries
+                    selectedIndexEntry = null
                 }
+                when (result.targetStatus) {
+                    DesktopCloudRssRescanTargetStatus.LIBRARY -> libraryStatus = result.completedStatus
+                    DesktopCloudRssRescanTargetStatus.REMOTE -> remoteStatus = result.completedStatus
+                }
+                result.completedStatus
             }
             is Result.Error -> {
-                val message = scan.error.toUserMessage()
+                val message = rescan.error.toUserMessage()
                 cloudRssStatus = message
                 null
             }
