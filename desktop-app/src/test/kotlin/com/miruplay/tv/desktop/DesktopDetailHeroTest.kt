@@ -289,6 +289,10 @@ class DesktopDetailHeroTest {
 
     @Test
     fun `media details focus moves through two column rows and exits upward`() {
+        assertEquals(MediaDetailsFocusTarget.Row(0), mediaDetailsInitialFocusTarget(hasRows = true))
+        assertEquals(MediaDetailsFocusTarget.EmptyState, mediaDetailsInitialFocusTarget(hasRows = false))
+        assertEquals(MediaDetailsFocusTarget.PreviousPanel, mediaDetailsEmptyFocusTarget(Key.DirectionUp))
+        assertEquals(null, mediaDetailsEmptyFocusTarget(Key.DirectionDown))
         assertEquals(
             MediaDetailsFocusTarget.Row(1),
             mediaDetailsFocusTarget(currentIndex = 0, rowCount = 7, splitIndex = 4, key = Key.DirectionDown),

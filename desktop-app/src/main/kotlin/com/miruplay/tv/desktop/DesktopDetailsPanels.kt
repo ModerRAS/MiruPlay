@@ -934,28 +934,40 @@ internal fun MediaDetailsPanel(
     val focusRequesters = remember(rows.map { it.label to it.value }) {
         List(rows.size) { FocusRequester() }
     }
+    val emptyFocusRequester = remember { FocusRequester() }
 
-    fun moveMediaDetailFocus(currentIndex: Int, key: Key): Boolean {
-        return when (
-            val target = mediaDetailsFocusTarget(
-                currentIndex = currentIndex,
-                rowCount = rows.size,
-                splitIndex = splitIndex,
-                key = key,
-            )
-        ) {
+    fun requestMediaDetailFocus(target: MediaDetailsFocusTarget?): Boolean =
+        when (target) {
             is MediaDetailsFocusTarget.Row -> {
                 focusRequesters.getOrNull(target.index)?.requestFocus()
+                true
+            }
+            MediaDetailsFocusTarget.EmptyState -> {
+                emptyFocusRequester.requestFocus()
                 true
             }
             MediaDetailsFocusTarget.PreviousPanel -> onFocusPreviousPanel()
             null -> false
         }
+
+    fun moveMediaDetailFocus(currentIndex: Int, key: Key): Boolean {
+        return requestMediaDetailFocus(
+            mediaDetailsFocusTarget(
+                currentIndex = currentIndex,
+                rowCount = rows.size,
+                splitIndex = splitIndex,
+                key = key,
+            ),
+        )
     }
 
     LaunchedEffect(focusVersion) {
         if (focusVersion > 0) {
-            focusRequesters.firstOrNull()?.requestFocus()
+            requestMediaDetailFocus(
+                mediaDetailsInitialFocusTarget(
+                    hasRows = rows.isNotEmpty() && (source != null || indexEntry != null || remoteEntry != null || recentRecord != null),
+                ),
+            )
         }
     }
 
@@ -963,9 +975,13 @@ internal fun MediaDetailsPanel(
         Text(labels.title, color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
         if (rows.isEmpty() || (source == null && indexEntry == null && remoteEntry == null && recentRecord == null)) {
-            DesktopEmptyState(
+            MediaDetailsEmptyState(
                 text = labels.emptyState,
-                heightDp = MiruPlayUiMetrics.DETAIL_PREVIEW_HEIGHT_DP,
+                modifier = Modifier
+                    .focusRequester(emptyFocusRequester)
+                    .onPreviewKeyEvent { event ->
+                        event.type == KeyEventType.KeyDown && requestMediaDetailFocus(mediaDetailsEmptyFocusTarget(event.key))
+                    },
             )
             return@TvPanel
         }
@@ -1021,8 +1037,18 @@ internal fun desktopMediaDetailsLabels(): DesktopMediaDetailsLabels =
 
 internal sealed interface MediaDetailsFocusTarget {
     data class Row(val index: Int) : MediaDetailsFocusTarget
+    data object EmptyState : MediaDetailsFocusTarget
     data object PreviousPanel : MediaDetailsFocusTarget
 }
+
+internal fun mediaDetailsInitialFocusTarget(hasRows: Boolean): MediaDetailsFocusTarget =
+    if (hasRows) MediaDetailsFocusTarget.Row(0) else MediaDetailsFocusTarget.EmptyState
+
+internal fun mediaDetailsEmptyFocusTarget(key: Key): MediaDetailsFocusTarget? =
+    when (key) {
+        Key.DirectionUp -> MediaDetailsFocusTarget.PreviousPanel
+        else -> null
+    }
 
 internal fun mediaDetailsFocusTarget(
     currentIndex: Int,
@@ -1051,6 +1077,28 @@ internal fun mediaDetailsFocusTarget(
         targetIndex < 0 -> MediaDetailsFocusTarget.PreviousPanel
         targetIndex >= rowCount -> null
         else -> MediaDetailsFocusTarget.Row(targetIndex)
+    }
+}
+
+@Composable
+private fun MediaDetailsEmptyState(text: String, modifier: Modifier = Modifier) {
+    DesktopSelectableRow(
+        selected = false,
+        onClick = {},
+        modifier = modifier,
+        heightDp = MiruPlayUiMetrics.DETAIL_PREVIEW_HEIGHT_DP,
+        inactiveAlpha = 0.48f,
+    ) { active ->
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text,
+                color = if (active) TextPrimary else TextSecondary,
+                fontSize = MiruPlayUiMetrics.SECTION_BODY_SP.sp,
+            )
+        }
     }
 }
 
