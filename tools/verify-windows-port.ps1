@@ -12,6 +12,9 @@ param(
     [switch]$MpvRuntime,
     [switch]$PackagedMpvRuntime,
     [switch]$NativeAppImage,
+    [switch]$WindowsInstaller,
+    [ValidateSet("msi", "exe")]
+    [string]$WindowsInstallerType = "msi",
     [string]$MpvRuntimeSource = "runtime\mpv",
     [string]$RequiredRifeBackends = "NVIDIA,DIRECTML",
     [switch]$Rife,
@@ -322,6 +325,20 @@ try {
                 "-PrequireMpvRuntime=true",
                 "-PrequiredRifeBackends=$RequiredRifeBackends"
             )
+        }
+    }
+
+    if ($WindowsInstaller) {
+        Invoke-Step -Name "Windows installer smoke" -Action {
+            $installerArgs = @(
+                ":desktop-app:smokeWindowsInstaller",
+                "-PmpvRuntimeSource=$MpvRuntimeSource",
+                "-PrequireMpvRuntime=true",
+                "-PrequiredRifeBackends=$RequiredRifeBackends",
+                "-PwindowsInstallerType=$WindowsInstallerType",
+                "-PrequireWindowsInstallerToolchain=true"
+            )
+            Invoke-Gradle -Arguments $installerArgs
         }
     }
 
