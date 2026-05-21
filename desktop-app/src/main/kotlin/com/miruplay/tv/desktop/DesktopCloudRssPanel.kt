@@ -310,9 +310,45 @@ private fun CloudRssAutomationContent(
     val subscriptionFocusRequesters = remember(subscriptions) {
         subscriptions.associate { it.id to FocusRequester() }
     }
+    val actionFocusRequesters = remember {
+        CloudRssAction.entries.associateWith { FocusRequester() }
+    }
     fun selectSubscription(subscription: RssSubscriptionInfo) {
         onSubscriptionSelected(subscription)
         subscriptionFocusRequesters[subscription.id]?.requestFocus()
+    }
+    fun requestCloudRssFocus(target: CloudRssFocusTarget?): Boolean {
+        return when (target) {
+            is CloudRssFocusTarget.Action -> {
+                actionFocusRequesters.getValue(target.action).requestFocus()
+                true
+            }
+            is CloudRssFocusTarget.Subscription -> {
+                val subscription = subscriptions.getOrNull(target.index) ?: return false
+                onSubscriptionSelected(subscription)
+                subscriptionFocusRequesters[subscription.id]?.requestFocus()
+                true
+            }
+            null -> false
+        }
+    }
+    fun moveCloudRssActionFocus(action: CloudRssAction, key: Key): Boolean =
+        requestCloudRssFocus(
+            cloudRssActionFocusTarget(
+                current = action,
+                key = key,
+                subscriptionCount = subscriptions.size,
+            ),
+        )
+    fun moveCloudRssSubscriptionFocus(subscriptionId: Long, key: Key): Boolean {
+        val index = subscriptions.indexOfFirst { it.id == subscriptionId }
+        return requestCloudRssFocus(
+            cloudRssSubscriptionFocusTarget(
+                currentIndex = index,
+                itemCount = subscriptions.size,
+                key = key,
+            ),
+        )
     }
 
     Column(
@@ -350,12 +386,56 @@ private fun CloudRssAutomationContent(
                         LabeledTextField(labels.password, password, onValueChange = onPasswordChange, modifier = Modifier.weight(1f))
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
-                        TvActionButton(labels.saveCredentials, onClick = onSaveCredentials, secondary = true, modifier = Modifier.weight(1f))
-                        TvActionButton(labels.clearCredentials, onClick = onClearCredentials, secondary = true, modifier = Modifier.weight(1f))
+                        TvActionButton(
+                            labels.saveCredentials,
+                            onClick = onSaveCredentials,
+                            secondary = true,
+                            modifier = Modifier
+                                .weight(1f)
+                                .cloudRssActionNavigation(
+                                    action = CloudRssAction.SaveCredentials,
+                                    focusRequester = actionFocusRequesters.getValue(CloudRssAction.SaveCredentials),
+                                    onMove = ::moveCloudRssActionFocus,
+                                ),
+                        )
+                        TvActionButton(
+                            labels.clearCredentials,
+                            onClick = onClearCredentials,
+                            secondary = true,
+                            modifier = Modifier
+                                .weight(1f)
+                                .cloudRssActionNavigation(
+                                    action = CloudRssAction.ClearCredentials,
+                                    focusRequester = actionFocusRequesters.getValue(CloudRssAction.ClearCredentials),
+                                    onMove = ::moveCloudRssActionFocus,
+                                ),
+                        )
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
-                        TvActionButton(labels.login, onClick = onLoginCloudDrive, secondary = true, modifier = Modifier.weight(1f))
-                        TvActionButton(labels.verify, onClick = onVerifyApiToken, secondary = true, modifier = Modifier.weight(1f))
+                        TvActionButton(
+                            labels.login,
+                            onClick = onLoginCloudDrive,
+                            secondary = true,
+                            modifier = Modifier
+                                .weight(1f)
+                                .cloudRssActionNavigation(
+                                    action = CloudRssAction.LoginCloudDrive,
+                                    focusRequester = actionFocusRequesters.getValue(CloudRssAction.LoginCloudDrive),
+                                    onMove = ::moveCloudRssActionFocus,
+                                ),
+                        )
+                        TvActionButton(
+                            labels.verify,
+                            onClick = onVerifyApiToken,
+                            secondary = true,
+                            modifier = Modifier
+                                .weight(1f)
+                                .cloudRssActionNavigation(
+                                    action = CloudRssAction.VerifyApiToken,
+                                    focusRequester = actionFocusRequesters.getValue(CloudRssAction.VerifyApiToken),
+                                    onMove = ::moveCloudRssActionFocus,
+                                ),
+                        )
                     }
                 }
                 CloudRssCard(
@@ -377,13 +457,48 @@ private fun CloudRssAutomationContent(
                         ToggleRow(labels.rssProxy, proxyEnabled, onProxyEnabledChange)
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
-                        TvActionButton(labels.useActiveSource, onClick = onUseActiveScanSource, secondary = true)
-                        TvActionButton(labels.clearSource, onClick = onClearScanSource, secondary = true)
+                        TvActionButton(
+                            labels.useActiveSource,
+                            onClick = onUseActiveScanSource,
+                            secondary = true,
+                            modifier = Modifier.cloudRssActionNavigation(
+                                action = CloudRssAction.UseActiveSource,
+                                focusRequester = actionFocusRequesters.getValue(CloudRssAction.UseActiveSource),
+                                onMove = ::moveCloudRssActionFocus,
+                            ),
+                        )
+                        TvActionButton(
+                            labels.clearSource,
+                            onClick = onClearScanSource,
+                            secondary = true,
+                            modifier = Modifier.cloudRssActionNavigation(
+                                action = CloudRssAction.ClearScanSource,
+                                focusRequester = actionFocusRequesters.getValue(CloudRssAction.ClearScanSource),
+                                onMove = ::moveCloudRssActionFocus,
+                            ),
+                        )
                     }
                     Text("${labels.postSyncSource}$linkedSourceLabel", color = TextSecondary, fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp)
                     Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
-                        TvActionButton(labels.saveSyncConfig, onClick = onSaveConfig)
-                        TvActionButton(labels.runSyncNow, onClick = onRunSync, secondary = true)
+                        TvActionButton(
+                            labels.saveSyncConfig,
+                            onClick = onSaveConfig,
+                            modifier = Modifier.cloudRssActionNavigation(
+                                action = CloudRssAction.SaveSyncConfig,
+                                focusRequester = actionFocusRequesters.getValue(CloudRssAction.SaveSyncConfig),
+                                onMove = ::moveCloudRssActionFocus,
+                            ),
+                        )
+                        TvActionButton(
+                            labels.runSyncNow,
+                            onClick = onRunSync,
+                            secondary = true,
+                            modifier = Modifier.cloudRssActionNavigation(
+                                action = CloudRssAction.RunSyncNow,
+                                focusRequester = actionFocusRequesters.getValue(CloudRssAction.RunSyncNow),
+                                onMove = ::moveCloudRssActionFocus,
+                            ),
+                        )
                     }
                 }
             }
@@ -403,8 +518,30 @@ private fun CloudRssAutomationContent(
                         ToggleRow(labels.enabledToggle, rssEnabled, onRssEnabledChange)
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
-                        TvActionButton(labels.saveRss, onClick = onSaveSubscription, secondary = true, modifier = Modifier.weight(1f))
-                        TvActionButton(labels.deleteRss, onClick = onDeleteSubscription, secondary = true, modifier = Modifier.weight(1f))
+                        TvActionButton(
+                            labels.saveRss,
+                            onClick = onSaveSubscription,
+                            secondary = true,
+                            modifier = Modifier
+                                .weight(1f)
+                                .cloudRssActionNavigation(
+                                    action = CloudRssAction.SaveRss,
+                                    focusRequester = actionFocusRequesters.getValue(CloudRssAction.SaveRss),
+                                    onMove = ::moveCloudRssActionFocus,
+                                ),
+                        )
+                        TvActionButton(
+                            labels.deleteRss,
+                            onClick = onDeleteSubscription,
+                            secondary = true,
+                            modifier = Modifier
+                                .weight(1f)
+                                .cloudRssActionNavigation(
+                                    action = CloudRssAction.DeleteRss,
+                                    focusRequester = actionFocusRequesters.getValue(CloudRssAction.DeleteRss),
+                                    onMove = ::moveCloudRssActionFocus,
+                                ),
+                        )
                     }
                     if (subscriptions.isEmpty()) {
                         DesktopEmptyState(
@@ -418,13 +555,7 @@ private fun CloudRssAutomationContent(
                                 selected = selectedSubscription?.id == subscription.id,
                                 onClick = { selectSubscription(subscription) },
                                 onNavigate = { key ->
-                                    subscriptions.rssSubscriptionNavigationTarget(
-                                        currentSubscriptionId = subscription.id,
-                                        key = key,
-                                    )?.let { target ->
-                                        selectSubscription(target)
-                                        true
-                                    } ?: false
+                                    moveCloudRssSubscriptionFocus(subscription.id, key)
                                 },
                                 modifier = Modifier.focusRequester(subscriptionFocusRequesters.getValue(subscription.id)),
                             )
@@ -438,8 +569,26 @@ private fun CloudRssAutomationContent(
                     preview = cloudRssPreview(schedulerStatusText, fallback = labels.schedulerIdle),
                 ) {
                     Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
-                        TvActionButton(labels.startScheduler, onClick = onStartScheduler, secondary = true)
-                        TvActionButton(labels.stopScheduler, onClick = onStopScheduler, secondary = true)
+                        TvActionButton(
+                            labels.startScheduler,
+                            onClick = onStartScheduler,
+                            secondary = true,
+                            modifier = Modifier.cloudRssActionNavigation(
+                                action = CloudRssAction.StartScheduler,
+                                focusRequester = actionFocusRequesters.getValue(CloudRssAction.StartScheduler),
+                                onMove = ::moveCloudRssActionFocus,
+                            ),
+                        )
+                        TvActionButton(
+                            labels.stopScheduler,
+                            onClick = onStopScheduler,
+                            secondary = true,
+                            modifier = Modifier.cloudRssActionNavigation(
+                                action = CloudRssAction.StopScheduler,
+                                focusRequester = actionFocusRequesters.getValue(CloudRssAction.StopScheduler),
+                                onMove = ::moveCloudRssActionFocus,
+                            ),
+                        )
                     }
                     StatusBox(statusText)
                     Text(
@@ -500,6 +649,152 @@ private fun CloudRssCard(
         content()
     }
 }
+
+internal enum class CloudRssAction {
+    SaveCredentials,
+    ClearCredentials,
+    LoginCloudDrive,
+    VerifyApiToken,
+    UseActiveSource,
+    ClearScanSource,
+    SaveSyncConfig,
+    RunSyncNow,
+    SaveRss,
+    DeleteRss,
+    StartScheduler,
+    StopScheduler,
+}
+
+internal sealed interface CloudRssFocusTarget {
+    data class Action(val action: CloudRssAction) : CloudRssFocusTarget
+    data class Subscription(val index: Int) : CloudRssFocusTarget
+}
+
+private fun Modifier.cloudRssActionNavigation(
+    action: CloudRssAction,
+    focusRequester: FocusRequester,
+    onMove: (CloudRssAction, Key) -> Boolean,
+): Modifier =
+    focusRequester(focusRequester)
+        .onPreviewKeyEvent { event ->
+            event.type == KeyEventType.KeyDown && onMove(action, event.key)
+        }
+
+internal fun cloudRssActionFocusTarget(
+    current: CloudRssAction,
+    key: Key,
+    subscriptionCount: Int,
+): CloudRssFocusTarget? =
+    when (key) {
+        Key.DirectionLeft -> cloudRssHorizontalAction(current, -1)?.let(CloudRssFocusTarget::Action)
+        Key.DirectionRight -> cloudRssHorizontalAction(current, 1)?.let(CloudRssFocusTarget::Action)
+        Key.DirectionUp -> cloudRssActionUpTarget(current, subscriptionCount)
+        Key.DirectionDown -> cloudRssActionDownTarget(current, subscriptionCount)
+        else -> null
+    }
+
+internal fun cloudRssSubscriptionFocusTarget(
+    currentIndex: Int,
+    itemCount: Int,
+    key: Key,
+): CloudRssFocusTarget? {
+    if (itemCount <= 0) return null
+    return when (key) {
+        Key.DirectionUp -> {
+            if (currentIndex <= 0) {
+                CloudRssFocusTarget.Action(CloudRssAction.SaveRss)
+            } else {
+                CloudRssFocusTarget.Subscription(currentIndex - 1)
+            }
+        }
+        Key.DirectionDown -> {
+            if (currentIndex < 0) {
+                CloudRssFocusTarget.Subscription(0)
+            } else if (currentIndex >= itemCount - 1) {
+                CloudRssFocusTarget.Action(CloudRssAction.StartScheduler)
+            } else {
+                CloudRssFocusTarget.Subscription(currentIndex + 1)
+            }
+        }
+        else -> null
+    }
+}
+
+private fun cloudRssHorizontalAction(
+    current: CloudRssAction,
+    delta: Int,
+): CloudRssAction? {
+    val row = when (current) {
+        CloudRssAction.SaveCredentials,
+        CloudRssAction.ClearCredentials,
+        -> listOf(CloudRssAction.SaveCredentials, CloudRssAction.ClearCredentials)
+        CloudRssAction.LoginCloudDrive,
+        CloudRssAction.VerifyApiToken,
+        -> listOf(CloudRssAction.LoginCloudDrive, CloudRssAction.VerifyApiToken)
+        CloudRssAction.UseActiveSource,
+        CloudRssAction.ClearScanSource,
+        -> listOf(CloudRssAction.UseActiveSource, CloudRssAction.ClearScanSource)
+        CloudRssAction.SaveSyncConfig,
+        CloudRssAction.RunSyncNow,
+        -> listOf(CloudRssAction.SaveSyncConfig, CloudRssAction.RunSyncNow)
+        CloudRssAction.SaveRss,
+        CloudRssAction.DeleteRss,
+        -> listOf(CloudRssAction.SaveRss, CloudRssAction.DeleteRss)
+        CloudRssAction.StartScheduler,
+        CloudRssAction.StopScheduler,
+        -> listOf(CloudRssAction.StartScheduler, CloudRssAction.StopScheduler)
+    }
+    val targetIndex = row.indexOf(current) + delta
+    return row.getOrNull(targetIndex)
+}
+
+private fun cloudRssActionUpTarget(
+    current: CloudRssAction,
+    subscriptionCount: Int,
+): CloudRssFocusTarget? =
+    when (current) {
+        CloudRssAction.LoginCloudDrive -> CloudRssFocusTarget.Action(CloudRssAction.SaveCredentials)
+        CloudRssAction.VerifyApiToken -> CloudRssFocusTarget.Action(CloudRssAction.ClearCredentials)
+        CloudRssAction.UseActiveSource -> CloudRssFocusTarget.Action(CloudRssAction.LoginCloudDrive)
+        CloudRssAction.ClearScanSource -> CloudRssFocusTarget.Action(CloudRssAction.VerifyApiToken)
+        CloudRssAction.SaveSyncConfig -> CloudRssFocusTarget.Action(CloudRssAction.UseActiveSource)
+        CloudRssAction.RunSyncNow -> CloudRssFocusTarget.Action(CloudRssAction.ClearScanSource)
+        CloudRssAction.StartScheduler -> if (subscriptionCount > 0) {
+            CloudRssFocusTarget.Subscription(subscriptionCount - 1)
+        } else {
+            CloudRssFocusTarget.Action(CloudRssAction.SaveRss)
+        }
+        CloudRssAction.StopScheduler -> if (subscriptionCount > 0) {
+            CloudRssFocusTarget.Subscription(subscriptionCount - 1)
+        } else {
+            CloudRssFocusTarget.Action(CloudRssAction.DeleteRss)
+        }
+        else -> null
+    }
+
+private fun cloudRssActionDownTarget(
+    current: CloudRssAction,
+    subscriptionCount: Int,
+): CloudRssFocusTarget? =
+    when (current) {
+        CloudRssAction.SaveCredentials -> CloudRssFocusTarget.Action(CloudRssAction.LoginCloudDrive)
+        CloudRssAction.ClearCredentials -> CloudRssFocusTarget.Action(CloudRssAction.VerifyApiToken)
+        CloudRssAction.LoginCloudDrive -> CloudRssFocusTarget.Action(CloudRssAction.UseActiveSource)
+        CloudRssAction.VerifyApiToken -> CloudRssFocusTarget.Action(CloudRssAction.ClearScanSource)
+        CloudRssAction.UseActiveSource -> CloudRssFocusTarget.Action(CloudRssAction.SaveSyncConfig)
+        CloudRssAction.ClearScanSource -> CloudRssFocusTarget.Action(CloudRssAction.RunSyncNow)
+        CloudRssAction.SaveRss -> if (subscriptionCount > 0) {
+            CloudRssFocusTarget.Subscription(0)
+        } else {
+            CloudRssFocusTarget.Action(CloudRssAction.StartScheduler)
+        }
+        CloudRssAction.DeleteRss -> if (subscriptionCount > 0) {
+            CloudRssFocusTarget.Subscription(0)
+        } else {
+            CloudRssFocusTarget.Action(CloudRssAction.StopScheduler)
+        }
+        else -> null
+    }
 
 private data class SettingsQuickAction(
     val label: String,
@@ -1092,7 +1387,7 @@ private fun RssSubscriptionRow(
         onClick = onClick,
         modifier = modifier.onPreviewKeyEvent { event ->
             event.type == KeyEventType.KeyDown &&
-                (event.key == Key.DirectionUp || event.key == Key.DirectionDown) &&
+                event.key.isCloudRssVerticalKey() &&
                 onNavigate(event.key)
         },
     ) {
@@ -1118,6 +1413,9 @@ private fun RssSubscriptionRow(
         }
     }
 }
+
+private fun Key.isCloudRssVerticalKey(): Boolean =
+    this == Key.DirectionUp || this == Key.DirectionDown
 
 internal fun List<RssSubscriptionInfo>.rssSubscriptionNavigationTarget(
     currentSubscriptionId: Long?,
