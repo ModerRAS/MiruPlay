@@ -270,6 +270,15 @@ Verification:
   -RequiredDeviceId 10.137.32.118:5555
 .\tools\verify-windows-port.ps1 -Smb
 .\tools\verify-windows-port.ps1 -MpvRuntime -PackagedMpvRuntime -NativeAppImage
+.\tools\verify-windows-port.ps1 `
+  -WindowsInstaller `
+  -SignWindowsInstaller `
+  -WindowsInstallerType msi `
+  -MpvRuntimeSource runtime\mpv `
+  -RequiredRifeBackends NVIDIA,DIRECTML `
+  -WindowsInstallerCertPath C:\path\MiruPlay-release.pfx `
+  -WindowsInstallerSignTool C:\path\signtool.exe `
+  -WindowsInstallerCertPassword <password>
 .\tools\verify-windows-port.ps1 -Rife -RifeBackend ALL -AllowRifeFailures
 .\tools\verify-windows-port.ps1 `
   -CloudDrive `

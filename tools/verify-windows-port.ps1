@@ -15,6 +15,13 @@ param(
     [switch]$WindowsInstaller,
     [ValidateSet("msi", "exe")]
     [string]$WindowsInstallerType = "msi",
+    [switch]$SignWindowsInstaller,
+    [string]$WindowsInstallerCertPath = "",
+    [string]$WindowsInstallerCertPassword = "",
+    [string]$WindowsInstallerSignTool = "",
+    [string]$WindowsInstallerTimestampUrl = "",
+    [string]$WindowsPackageVersion = "",
+    [string]$WindowsInstallerUpgradeUuid = "",
     [string]$MpvRuntimeSource = "runtime\mpv",
     [string]$RequiredRifeBackends = "NVIDIA,DIRECTML",
     [switch]$Rife,
@@ -229,8 +236,47 @@ function Invoke-Native {
 
     & $FilePath @Arguments
     if ($LASTEXITCODE -ne 0) {
-        throw "$FilePath $($Arguments -join ' ') failed with exit code $LASTEXITCODE."
+        throw "$FilePath $(Format-CommandArgumentsForLog -Arguments $Arguments) failed with exit code $LASTEXITCODE."
     }
+}
+
+function Format-CommandArgumentsForLog {
+    param([string[]]$Arguments = @())
+
+    $secretNames = @(
+        "windowsInstallerCertPassword",
+        "CloudDriveToken",
+        "CloudRssToken",
+        "cloudDriveToken",
+        "cloudDriveRssToken",
+        "smbPassword"
+    )
+
+    $redacted = New-Object 'System.Collections.Generic.List[string]'
+    for ($i = 0; $i -lt $Arguments.Count; $i++) {
+        $argument = $Arguments[$i]
+        $matchedSeparatedSecret = $false
+        foreach ($name in $secretNames) {
+            if ($argument -match "^-P$name=") {
+                $redacted.Add("-P$name=<redacted>") | Out-Null
+                $matchedSeparatedSecret = $true
+                break
+            }
+            if ($argument -match "^-$name$") {
+                $redacted.Add("-$name") | Out-Null
+                if ($i + 1 -lt $Arguments.Count) {
+                    $redacted.Add("<redacted>") | Out-Null
+                    $i += 1
+                }
+                $matchedSeparatedSecret = $true
+                break
+            }
+        }
+        if (-not $matchedSeparatedSecret) {
+            $redacted.Add($argument) | Out-Null
+        }
+    }
+    return ($redacted.ToArray() -join ' ')
 }
 
 function Invoke-Gradle {
@@ -338,6 +384,27 @@ try {
                 "-PwindowsInstallerType=$WindowsInstallerType",
                 "-PrequireWindowsInstallerToolchain=true"
             )
+            if ($SignWindowsInstaller) {
+                $installerArgs += "-PsignWindowsInstaller=true"
+            }
+            if (-not [string]::IsNullOrWhiteSpace($WindowsInstallerCertPath)) {
+                $installerArgs += "-PwindowsInstallerCertPath=$WindowsInstallerCertPath"
+            }
+            if (-not [string]::IsNullOrWhiteSpace($WindowsInstallerCertPassword)) {
+                $installerArgs += "-PwindowsInstallerCertPassword=$WindowsInstallerCertPassword"
+            }
+            if (-not [string]::IsNullOrWhiteSpace($WindowsInstallerSignTool)) {
+                $installerArgs += "-PwindowsInstallerSignTool=$WindowsInstallerSignTool"
+            }
+            if (-not [string]::IsNullOrWhiteSpace($WindowsInstallerTimestampUrl)) {
+                $installerArgs += "-PwindowsInstallerTimestampUrl=$WindowsInstallerTimestampUrl"
+            }
+            if (-not [string]::IsNullOrWhiteSpace($WindowsPackageVersion)) {
+                $installerArgs += "-PwindowsPackageVersion=$WindowsPackageVersion"
+            }
+            if (-not [string]::IsNullOrWhiteSpace($WindowsInstallerUpgradeUuid)) {
+                $installerArgs += "-PwindowsInstallerUpgradeUuid=$WindowsInstallerUpgradeUuid"
+            }
             Invoke-Gradle -Arguments $installerArgs
         }
     }
