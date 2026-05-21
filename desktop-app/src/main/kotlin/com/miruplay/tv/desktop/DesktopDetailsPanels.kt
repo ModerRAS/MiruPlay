@@ -362,6 +362,7 @@ internal fun DetailEpisodePanel(
     val episodeFocusRequesters = remember(visibleEpisodes.map { it.path }) {
         List(visibleEpisodes.size) { FocusRequester() }
     }
+    val emptyFocusRequester = remember { FocusRequester() }
     val seasonFocusRequesters = remember(seasons) {
         List(seasons.size) { FocusRequester() }
     }
@@ -383,6 +384,14 @@ internal fun DetailEpisodePanel(
                 onSeasonSelected(season)
                 seasonFocusRequesters.getOrNull(target.index)?.requestFocus()
                 true
+            }
+            DetailEpisodeFocusTarget.EmptyState -> {
+                if (visibleEpisodes.isEmpty()) {
+                    emptyFocusRequester.requestFocus()
+                    true
+                } else {
+                    false
+                }
             }
             DetailEpisodeFocusTarget.PreviousPanel -> onFocusPreviousPanel()
             DetailEpisodeFocusTarget.NextPanel -> onFocusNextPanel()
@@ -414,9 +423,13 @@ internal fun DetailEpisodePanel(
         )
 
     LaunchedEffect(focusVersion, visibleEpisodes.map { it.path }, selectedEntry?.path) {
-        if (focusVersion > 0 && visibleEpisodes.isNotEmpty()) {
-            val selectedIndex = visibleEpisodes.indexOfFirst { it.path == selectedEntry?.path }.coerceAtLeast(0)
-            episodeFocusRequesters.getOrNull(selectedIndex)?.requestFocus()
+        if (focusVersion > 0) {
+            if (visibleEpisodes.isNotEmpty()) {
+                val selectedIndex = visibleEpisodes.indexOfFirst { it.path == selectedEntry?.path }.coerceAtLeast(0)
+                episodeFocusRequesters.getOrNull(selectedIndex)?.requestFocus()
+            } else {
+                emptyFocusRequester.requestFocus()
+            }
         }
     }
 
@@ -454,7 +467,11 @@ internal fun DetailEpisodePanel(
         }
         Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
         if (visibleEpisodes.isEmpty()) {
-            DesktopEmptyState("扫描媒体库后会在这里显示同番选集。", heightDp = 180)
+            DetailEpisodeEmptyState(
+                text = "扫描媒体库后会在这里显示同番选集。",
+                focusRequester = emptyFocusRequester,
+                onMove = ::requestEpisodePanelFocus,
+            )
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp)) {
                 visibleEpisodes.forEachIndexed { index, episode ->
@@ -479,6 +496,37 @@ internal fun DetailEpisodePanel(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun DetailEpisodeEmptyState(
+    text: String,
+    focusRequester: FocusRequester,
+    onMove: (DetailEpisodeFocusTarget?) -> Boolean,
+) {
+    DesktopSelectableRow(
+        selected = false,
+        onClick = {},
+        modifier = Modifier
+            .focusRequester(focusRequester)
+            .onPreviewKeyEvent { event ->
+                event.type == KeyEventType.KeyDown &&
+                    onMove(detailEpisodeEmptyFocusTarget(event.key))
+            },
+        heightDp = 180,
+        inactiveAlpha = 0.48f,
+    ) { active ->
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text,
+                color = if (active) TextPrimary else TextSecondary,
+                fontSize = MiruPlayUiMetrics.SECTION_BODY_SP.sp,
+            )
         }
     }
 }
@@ -602,6 +650,7 @@ internal fun moveDetailEpisodeSelection(
 internal sealed interface DetailEpisodeFocusTarget {
     data class Row(val index: Int) : DetailEpisodeFocusTarget
     data class Season(val index: Int) : DetailEpisodeFocusTarget
+    data object EmptyState : DetailEpisodeFocusTarget
     data object PreviousPanel : DetailEpisodeFocusTarget
     data object NextPanel : DetailEpisodeFocusTarget
 }
@@ -640,6 +689,13 @@ internal fun detailEpisodeSeasonFocusTarget(
         } else {
             DetailEpisodeFocusTarget.NextPanel
         }
+        else -> null
+    }
+
+internal fun detailEpisodeEmptyFocusTarget(key: Key): DetailEpisodeFocusTarget? =
+    when (key) {
+        Key.DirectionUp -> DetailEpisodeFocusTarget.PreviousPanel
+        Key.DirectionDown -> DetailEpisodeFocusTarget.NextPanel
         else -> null
     }
 

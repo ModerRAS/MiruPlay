@@ -194,6 +194,14 @@ class DesktopDetailHeroTest {
     }
 
     @Test
+    fun `detail episode empty state bridges to neighboring panels`() {
+        assertEquals(DetailEpisodeFocusTarget.PreviousPanel, detailEpisodeEmptyFocusTarget(Key.DirectionUp))
+        assertEquals(DetailEpisodeFocusTarget.NextPanel, detailEpisodeEmptyFocusTarget(Key.DirectionDown))
+        assertEquals(null, detailEpisodeEmptyFocusTarget(Key.DirectionLeft))
+        assertEquals(null, detailEpisodeEmptyFocusTarget(Key.DirectionRight))
+    }
+
+    @Test
     fun `detail episode focus bridges through season selector when multiple seasons exist`() {
         assertEquals(
             DetailEpisodeFocusTarget.Season(1),
