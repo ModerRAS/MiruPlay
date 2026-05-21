@@ -38,6 +38,7 @@ param(
     [int]$CloudRssSubmitLimit = 1,
     [switch]$RequireCloudRssCandidates,
     [switch]$CloudRssScheduler,
+    [switch]$SkipCloudRssScheduler,
     [int]$CloudRssSchedulerDurationMs = 2000,
     [int]$CloudRssSchedulerCheckIntervalMs = 250,
     [int]$CloudRssSchedulerRunAfterChecks = 2
@@ -279,6 +280,9 @@ if (-not $SkipAndroidBuild) {
 Push-Location $repoRoot
 try {
     Use-Jdk21
+    if ($CloudRssScheduler) {
+        Write-Host "CloudDrive RSS scheduler smoke now runs by default; -CloudRssScheduler is retained for compatibility."
+    }
 
     if (-not $SkipGradle) {
         Invoke-Step -Name "Safe Gradle gate" -Action {
@@ -521,7 +525,7 @@ try {
         Write-Host "CloudDrive RSS dry-run/live smoke skipped. Run with -CloudRssDryRun or -CloudRssLiveSubmit and explicit endpoint/token/RSS URL."
     }
 
-    if ($CloudRssScheduler) {
+    if (-not $SkipCloudRssScheduler) {
         Invoke-Step -Name "CloudDrive RSS scheduler smoke" -Action {
             $reportPath = Join-Path $repoRoot "build\cloud-rss-smoke\scheduler-report.json"
             Invoke-Gradle -Arguments @(
@@ -541,7 +545,7 @@ try {
             )
         }
     } else {
-        Write-Host "CloudDrive RSS scheduler smoke skipped. Run with -CloudRssScheduler for elapsed-time scheduler evidence."
+        Write-Host "CloudDrive RSS scheduler smoke skipped because -SkipCloudRssScheduler was supplied."
     }
 } finally {
     Pop-Location

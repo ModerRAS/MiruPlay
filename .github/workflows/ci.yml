@@ -66,8 +66,12 @@ jobs:
           :player-mpv:test
           :cloud-drive-desktop:test
           :sync-engine-desktop:test
+          :sync-engine-desktop:smokeCloudDriveRssScheduler
           :desktop-app:test
           :desktop-app:installDist
+          -PcloudDriveRssSchedulerDurationMs=2000
+          -PcloudDriveRssSchedulerCheckIntervalMs=250
+          -PcloudDriveRssSchedulerRunAfterChecks=2
           -PbundleMpvRuntime=false
           --no-daemon
           --stacktrace
