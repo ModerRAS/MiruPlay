@@ -214,6 +214,16 @@ curl.exe -s "http://10.137.32.118:9978/api/anime/$id"
   -PcloudDriveRssReportPath=build/cloud-rss-smoke/organize-report.json
 ```
 
+验证桌面调度器的真实时间循环时，可以使用无 CloudDrive2 副作用的 scheduler smoke。它会启动同一个桌面 scheduler loop，按真实 elapsed time 等待、观察 due run、停止调度器，并输出不含 endpoint/token 的 JSON 证据：
+
+```powershell
+.\gradlew.bat :sync-engine-desktop:smokeCloudDriveRssScheduler `
+  -PcloudDriveRssSchedulerDurationMs=2000 `
+  -PcloudDriveRssSchedulerCheckIntervalMs=250 `
+  -PcloudDriveRssSchedulerRunAfterChecks=2 `
+  -PcloudDriveRssSchedulerReportPath=build/cloud-rss-smoke/scheduler-report.json
+```
+
 ## 注意事项
 
 - 第一次提交离线任务时，文件可能还没下载完成，所以 `organized` 可能是 `0`；下载完成后再跑一次会整理。

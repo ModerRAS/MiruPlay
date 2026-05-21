@@ -18,8 +18,12 @@ data class DesktopCloudDriveRssSchedulerState(
     val lastError: String? = null,
 )
 
+fun interface CloudDriveRssDueRunner {
+    suspend fun runIfDue(): Result<CloudDriveRssRunSummary?>
+}
+
 class DesktopCloudDriveRssScheduler(
-    private val engine: DesktopCloudDriveRssAutomationEngine,
+    private val dueRunner: CloudDriveRssDueRunner,
     private val scope: CoroutineScope,
     private val checkIntervalMillis: Long = DEFAULT_CHECK_INTERVAL_MILLIS,
 ) {
@@ -28,12 +32,22 @@ class DesktopCloudDriveRssScheduler(
 
     private var job: Job? = null
 
+    constructor(
+        engine: DesktopCloudDriveRssAutomationEngine,
+        scope: CoroutineScope,
+        checkIntervalMillis: Long = DEFAULT_CHECK_INTERVAL_MILLIS,
+    ) : this(
+        dueRunner = CloudDriveRssDueRunner { engine.runIfDue() },
+        scope = scope,
+        checkIntervalMillis = checkIntervalMillis,
+    )
+
     fun start(): Boolean {
         if (job?.isActive == true) return false
         _state.update { it.copy(running = true, lastError = null) }
         val launchedJob = scope.launch {
             while (isActive) {
-                val result = engine.runIfDue()
+                val result = dueRunner.runIfDue()
                 val checkedAt = System.currentTimeMillis()
                 _state.update { current ->
                     when (result) {
