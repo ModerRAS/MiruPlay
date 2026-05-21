@@ -154,4 +154,52 @@ class DesktopChromeTest {
         )
         assertEquals(1, opens)
     }
+
+    @Test
+    fun `desktop selectable row key event shares confirm and navigation semantics`() {
+        var clicks = 0
+        var navigatedKey: Key? = null
+
+        assertTrue(
+            desktopSelectableRowKeyEvent(
+                key = Key.DirectionCenter,
+                type = KeyEventType.KeyDown,
+                onClick = { clicks += 1 },
+                onNavigationKey = { key ->
+                    navigatedKey = key
+                    true
+                },
+            ),
+        )
+        assertEquals(1, clicks)
+        assertEquals(null, navigatedKey)
+
+        assertTrue(
+            desktopSelectableRowKeyEvent(
+                key = Key.DirectionDown,
+                type = KeyEventType.KeyDown,
+                onClick = { clicks += 1 },
+                onNavigationKey = { key ->
+                    navigatedKey = key
+                    true
+                },
+            ),
+        )
+        assertEquals(1, clicks)
+        assertEquals(Key.DirectionDown, navigatedKey)
+
+        assertFalse(
+            desktopSelectableRowKeyEvent(
+                key = Key.DirectionCenter,
+                type = KeyEventType.KeyUp,
+                onClick = { clicks += 1 },
+                onNavigationKey = { key ->
+                    navigatedKey = key
+                    true
+                },
+            ),
+        )
+        assertEquals(1, clicks)
+        assertEquals(Key.DirectionDown, navigatedKey)
+    }
 }
