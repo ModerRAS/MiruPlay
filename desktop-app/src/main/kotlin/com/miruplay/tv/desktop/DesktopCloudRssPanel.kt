@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -841,6 +842,8 @@ private fun CloudDriveDirectoryBrowserCard(
     val entryFocusRequesters = remember(visibleEntries.map { it.path }) {
         List(visibleEntries.size) { FocusRequester() }
     }
+    val emptyFocusRequester = remember { FocusRequester() }
+    val hasEmptyFocusTarget = state.isLoading || state.entries.isEmpty()
 
     fun requestDirectoryFocus(target: CloudDriveDirectoryFocusTarget?): Boolean =
         when (target) {
@@ -850,6 +853,10 @@ private fun CloudDriveDirectoryBrowserCard(
             }
             is CloudDriveDirectoryFocusTarget.Row -> {
                 entryFocusRequesters.getOrNull(target.index)?.requestFocus()
+                true
+            }
+            CloudDriveDirectoryFocusTarget.EmptyState -> {
+                emptyFocusRequester.requestFocus()
                 true
             }
             null -> false
@@ -875,6 +882,7 @@ private fun CloudDriveDirectoryBrowserCard(
                         action = CloudDriveDirectoryAction.UseCurrent,
                         focusRequester = actionFocusRequesters.getValue(CloudDriveDirectoryAction.UseCurrent),
                         itemCount = visibleEntries.size,
+                        hasEmptyState = hasEmptyFocusTarget,
                         onMove = ::requestDirectoryFocus,
                     ),
             )
@@ -888,6 +896,7 @@ private fun CloudDriveDirectoryBrowserCard(
                         action = CloudDriveDirectoryAction.Parent,
                         focusRequester = actionFocusRequesters.getValue(CloudDriveDirectoryAction.Parent),
                         itemCount = visibleEntries.size,
+                        hasEmptyState = hasEmptyFocusTarget,
                         onMove = ::requestDirectoryFocus,
                     ),
             )
@@ -901,6 +910,7 @@ private fun CloudDriveDirectoryBrowserCard(
                         action = CloudDriveDirectoryAction.Close,
                         focusRequester = actionFocusRequesters.getValue(CloudDriveDirectoryAction.Close),
                         itemCount = visibleEntries.size,
+                        hasEmptyState = hasEmptyFocusTarget,
                         onMove = ::requestDirectoryFocus,
                     ),
             )
@@ -909,9 +919,17 @@ private fun CloudDriveDirectoryBrowserCard(
             StatusBox(state.message)
         }
         if (state.isLoading) {
-            DesktopEmptyState("正在读取 CloudDrive2 目录...", heightDp = 110)
+            CloudDriveDirectoryEmptyState(
+                text = "正在读取 CloudDrive2 目录...",
+                focusRequester = emptyFocusRequester,
+                onMove = ::requestDirectoryFocus,
+            )
         } else if (state.entries.isEmpty()) {
-            DesktopEmptyState("当前目录没有可进入的子目录。", heightDp = 110)
+            CloudDriveDirectoryEmptyState(
+                text = "当前目录没有可进入的子目录。",
+                focusRequester = emptyFocusRequester,
+                onMove = ::requestDirectoryFocus,
+            )
         } else {
             visibleEntries.forEachIndexed { index, entry ->
                 CloudDriveDirectoryRow(
@@ -920,15 +938,46 @@ private fun CloudDriveDirectoryBrowserCard(
                     onNavigate = { key ->
                         requestDirectoryFocus(
                             cloudDriveDirectoryRowFocusTarget(
-                            currentIndex = index,
-                            itemCount = visibleEntries.size,
-                            key = key,
+                                currentIndex = index,
+                                itemCount = visibleEntries.size,
+                                key = key,
                             ),
                         )
                     },
                     modifier = Modifier.focusRequester(entryFocusRequesters[index]),
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun CloudDriveDirectoryEmptyState(
+    text: String,
+    focusRequester: FocusRequester,
+    onMove: (CloudDriveDirectoryFocusTarget?) -> Boolean,
+) {
+    DesktopSelectableRow(
+        selected = false,
+        onClick = {},
+        modifier = Modifier
+            .focusRequester(focusRequester)
+            .onPreviewKeyEvent { event ->
+                event.type == KeyEventType.KeyDown &&
+                    onMove(cloudDriveDirectoryEmptyFocusTarget(event.key))
+            },
+        heightDp = 110,
+        inactiveAlpha = 0.48f,
+    ) { active ->
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text,
+                color = if (active) TextPrimary else TextSecondary,
+                fontSize = MiruPlayUiMetrics.SECTION_BODY_SP.sp,
+            )
         }
     }
 }
@@ -1241,29 +1290,42 @@ internal enum class CloudDriveDirectoryAction {
 internal sealed interface CloudDriveDirectoryFocusTarget {
     data class Action(val action: CloudDriveDirectoryAction) : CloudDriveDirectoryFocusTarget
     data class Row(val index: Int) : CloudDriveDirectoryFocusTarget
+    data object EmptyState : CloudDriveDirectoryFocusTarget
 }
 
 private fun Modifier.cloudDriveDirectoryActionNavigation(
     action: CloudDriveDirectoryAction,
     focusRequester: FocusRequester,
     itemCount: Int,
+    hasEmptyState: Boolean,
     onMove: (CloudDriveDirectoryFocusTarget?) -> Boolean,
 ): Modifier =
     focusRequester(focusRequester)
         .onPreviewKeyEvent { event ->
             event.type == KeyEventType.KeyDown &&
-                onMove(cloudDriveDirectoryActionFocusTarget(action, itemCount, event.key))
+                onMove(cloudDriveDirectoryActionFocusTarget(action, itemCount, event.key, hasEmptyState))
         }
 
 internal fun cloudDriveDirectoryActionFocusTarget(
     current: CloudDriveDirectoryAction,
     itemCount: Int,
     key: Key,
+    hasEmptyState: Boolean = false,
 ): CloudDriveDirectoryFocusTarget? =
     when (key) {
         Key.DirectionLeft -> cloudDriveDirectoryHorizontalAction(current, -1)?.let(CloudDriveDirectoryFocusTarget::Action)
         Key.DirectionRight -> cloudDriveDirectoryHorizontalAction(current, 1)?.let(CloudDriveDirectoryFocusTarget::Action)
-        Key.DirectionDown -> if (itemCount > 0) CloudDriveDirectoryFocusTarget.Row(0) else null
+        Key.DirectionDown -> when {
+            itemCount > 0 -> CloudDriveDirectoryFocusTarget.Row(0)
+            hasEmptyState -> CloudDriveDirectoryFocusTarget.EmptyState
+            else -> null
+        }
+        else -> null
+    }
+
+internal fun cloudDriveDirectoryEmptyFocusTarget(key: Key): CloudDriveDirectoryFocusTarget? =
+    when (key) {
+        Key.DirectionUp -> CloudDriveDirectoryFocusTarget.Action(CloudDriveDirectoryAction.UseCurrent)
         else -> null
     }
 

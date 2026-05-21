@@ -348,10 +348,24 @@ class DesktopSettingsPanelTest {
             CloudDriveDirectoryFocusTarget.Row(0),
             cloudDriveDirectoryActionFocusTarget(CloudDriveDirectoryAction.Close, itemCount = 3, Key.DirectionDown),
         )
+        assertEquals(
+            CloudDriveDirectoryFocusTarget.EmptyState,
+            cloudDriveDirectoryActionFocusTarget(
+                current = CloudDriveDirectoryAction.Close,
+                itemCount = 0,
+                key = Key.DirectionDown,
+                hasEmptyState = true,
+            ),
+        )
+        assertEquals(
+            CloudDriveDirectoryFocusTarget.Action(CloudDriveDirectoryAction.UseCurrent),
+            cloudDriveDirectoryEmptyFocusTarget(Key.DirectionUp),
+        )
         assertNull(cloudDriveDirectoryActionFocusTarget(CloudDriveDirectoryAction.UseCurrent, itemCount = 3, Key.DirectionLeft))
         assertNull(cloudDriveDirectoryActionFocusTarget(CloudDriveDirectoryAction.Close, itemCount = 3, Key.DirectionRight))
         assertNull(cloudDriveDirectoryActionFocusTarget(CloudDriveDirectoryAction.Close, itemCount = 0, Key.DirectionDown))
         assertNull(cloudDriveDirectoryActionFocusTarget(CloudDriveDirectoryAction.UseCurrent, itemCount = 3, Key.DirectionUp))
+        assertNull(cloudDriveDirectoryEmptyFocusTarget(Key.DirectionDown))
 
         assertEquals(CloudDriveDirectoryFocusTarget.Row(1), cloudDriveDirectoryRowFocusTarget(currentIndex = 0, itemCount = 3, Key.DirectionDown))
         assertEquals(CloudDriveDirectoryFocusTarget.Row(1), cloudDriveDirectoryRowFocusTarget(currentIndex = 2, itemCount = 3, Key.DirectionUp))
