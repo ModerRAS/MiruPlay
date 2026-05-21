@@ -58,7 +58,10 @@ desktop-entry smoke mode to verify the app-image resolves its own runtime before
 installer creation. The opt-in Windows installer gate preflights WiX, builds
 MSI/EXE artifacts from that verified app image, records SHA256/size/version and
 signing mode evidence, and can sign plus verify with explicit signtool/PFX
-inputs. `tools/verify-windows-port.ps1` now wraps the local port gate with
+inputs. The unified verifier now passes Windows installer signing options
+through to that gate and redacts token/password-like arguments when native
+commands fail, so signed installer QA can use the same release checklist
+without leaking credentials in error text. `tools/verify-windows-port.ps1` now wraps the local port gate with
 safe defaults: it selects JDK 21 when available, Gradle/JVM/desktop install,
 Cloud/RSS scheduler elapsed-time smoke, and Android debug build run by default,
 while GUI smokes, the real `D:\Software\dufs` library, Android TV emulator

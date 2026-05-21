@@ -222,6 +222,21 @@ When signing is enabled, the task signs and verifies the generated installer
 with `signtool`; `-PwindowsInstallerCertPassword=...` and
 `-PwindowsInstallerTimestampUrl=...` are optional release inputs.
 
+The same signed installer path can run through the unified port verifier so
+installer evidence is produced beside the rest of the release gate output:
+
+```powershell
+.\tools\verify-windows-port.ps1 `
+  -WindowsInstaller `
+  -SignWindowsInstaller `
+  -WindowsInstallerType msi `
+  -MpvRuntimeSource runtime\mpv `
+  -RequiredRifeBackends NVIDIA,DIRECTML `
+  -WindowsInstallerCertPath C:\path\MiruPlay-release.pfx `
+  -WindowsInstallerSignTool C:\path\signtool.exe `
+  -WindowsInstallerCertPassword <password>
+```
+
 For a real VapourSynth/RIFE filter smoke, run:
 
 ```powershell
