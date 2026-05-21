@@ -342,6 +342,10 @@ multi-panel traversal can still be expanded separately.
 
 .\tools\smoke-android-tv-ui.ps1 -DeviceId 10.137.32.118:5555
 
+.\tools\assert-android-tv-smoke-report.ps1 `
+  -ReportPath .\build\android-tv-qa\run-20260520-190519\android-tv-smoke-report.json `
+  -RequiredDeviceId 10.137.32.118:5555
+
 .\gradlew.bat checkDesktopComposeOnly
 
 .\gradlew.bat :ui-tv:compileDebugKotlin :desktop-app:test --rerun
@@ -357,6 +361,10 @@ multi-panel traversal can still be expanded separately.
 .\tools\smoke-desktop-smb-source-ui.ps1
 
 .\tools\smoke-android-tv-ui.ps1
+
+.\tools\assert-android-tv-smoke-report.ps1 `
+  -ReportPath .\build\android-tv-qa\run-YYYYMMDD-HHMMSS\android-tv-smoke-report.json `
+  -RequiredDeviceId 10.137.32.118:5555
 
 .\gradlew.bat checkDesktopPresenterSeparation `
   checkDesktopComposeOnly `

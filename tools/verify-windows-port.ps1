@@ -362,6 +362,17 @@ try {
                 "-DeviceId",
                 $AndroidDeviceId
             )
+            $androidTvLatestReport = Join-Path $repoRoot "build\android-tv-qa\latest-report.txt"
+            if (-not (Test-Path -LiteralPath $androidTvLatestReport -PathType Leaf)) {
+                throw "Android TV smoke did not write latest report pointer: $androidTvLatestReport"
+            }
+            $androidTvReportPath = [System.IO.File]::ReadAllText($androidTvLatestReport, [System.Text.Encoding]::UTF8).Trim()
+            Invoke-ToolScript -ScriptName "assert-android-tv-smoke-report.ps1" -Arguments @(
+                "-ReportPath",
+                $androidTvReportPath,
+                "-RequiredDeviceId",
+                $AndroidDeviceId
+            )
         }
     }
 
