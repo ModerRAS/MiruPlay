@@ -1,5 +1,6 @@
 package com.miruplay.tv.desktop
 
+import androidx.compose.ui.input.key.Key
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.repository.MediaIndexEntry
 import org.junit.Assert.assertEquals
@@ -190,5 +191,99 @@ class DesktopDetailHeroTest {
             moveDetailEpisodeFocusTarget(currentIndex = 2, itemCount = 3, delta = 1),
         )
         assertEquals(null, moveDetailEpisodeFocusTarget(currentIndex = 0, itemCount = 0, delta = 1))
+    }
+
+    @Test
+    fun `detail episode focus bridges through season selector when multiple seasons exist`() {
+        assertEquals(
+            DetailEpisodeFocusTarget.Season(1),
+            moveDetailEpisodeFocusTarget(
+                currentIndex = 0,
+                itemCount = 3,
+                delta = -1,
+                seasonCount = 3,
+                activeSeasonIndex = 1,
+            ),
+        )
+        assertEquals(
+            DetailEpisodeFocusTarget.Season(0),
+            detailEpisodeSeasonFocusTarget(
+                currentIndex = 1,
+                seasonCount = 3,
+                episodeCount = 3,
+                selectedEpisodeIndex = 2,
+                key = Key.DirectionLeft,
+            ),
+        )
+        assertEquals(
+            DetailEpisodeFocusTarget.Season(2),
+            detailEpisodeSeasonFocusTarget(
+                currentIndex = 1,
+                seasonCount = 3,
+                episodeCount = 3,
+                selectedEpisodeIndex = 2,
+                key = Key.DirectionRight,
+            ),
+        )
+        assertEquals(
+            DetailEpisodeFocusTarget.Row(2),
+            detailEpisodeSeasonFocusTarget(
+                currentIndex = 1,
+                seasonCount = 3,
+                episodeCount = 3,
+                selectedEpisodeIndex = 2,
+                key = Key.DirectionDown,
+            ),
+        )
+        assertEquals(
+            DetailEpisodeFocusTarget.PreviousPanel,
+            detailEpisodeSeasonFocusTarget(
+                currentIndex = 1,
+                seasonCount = 3,
+                episodeCount = 3,
+                selectedEpisodeIndex = 2,
+                key = Key.DirectionUp,
+            ),
+        )
+        assertEquals(
+            DetailEpisodeFocusTarget.NextPanel,
+            detailEpisodeSeasonFocusTarget(
+                currentIndex = 1,
+                seasonCount = 3,
+                episodeCount = 0,
+                selectedEpisodeIndex = 2,
+                key = Key.DirectionDown,
+            ),
+        )
+        assertEquals(
+            DetailEpisodeFocusTarget.PreviousPanel,
+            moveDetailEpisodeFocusTarget(
+                currentIndex = 0,
+                itemCount = 3,
+                delta = -1,
+                seasonCount = 1,
+                activeSeasonIndex = 0,
+            ),
+        )
+        assertEquals(
+            null,
+            detailEpisodeSeasonFocusTarget(
+                currentIndex = 0,
+                seasonCount = 3,
+                episodeCount = 3,
+                selectedEpisodeIndex = 0,
+                key = Key.DirectionLeft,
+            ),
+        )
+        assertEquals(
+            null,
+            detailEpisodeSeasonFocusTarget(
+                currentIndex = 2,
+                seasonCount = 3,
+                episodeCount = 3,
+                selectedEpisodeIndex = 0,
+                key = Key.DirectionRight,
+            ),
+        )
     }
 }
