@@ -139,7 +139,7 @@ class DesktopSettingsPanelTest {
 
         assertTrue(pathPreview.length <= 46)
         assertTrue(pathPreview.contains("..."))
-        assertTrue(pathPreview.contains("->"))
+        assertTrue(pathPreview.contains(" 到 "))
         assertTrue(subscriptionPreview.length <= 42)
         assertTrue(subscriptionPreview.startsWith("停用"))
         assertTrue(subscriptionPreview.contains("..."))

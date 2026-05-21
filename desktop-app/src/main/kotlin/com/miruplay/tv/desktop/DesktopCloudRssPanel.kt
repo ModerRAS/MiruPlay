@@ -1628,7 +1628,7 @@ internal fun cloudRssPathPairPreview(
     libraryPath: String,
     maxLength: Int = CLOUD_RSS_WIDE_PREVIEW_LIMIT,
 ): String {
-    val separator = " -> "
+    val separator = " 到 "
     val safeMaxLength = maxLength.coerceAtLeast(separator.length + 8)
     val available = safeMaxLength - separator.length
     val inboxLength = available / 2
