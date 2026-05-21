@@ -83,6 +83,146 @@ function Get-RifeScriptName {
     }
 }
 
+function Test-WindowsDrivePrefix {
+    param([string]$Value)
+    return $Value.Length -ge 2 -and $Value[1] -eq ":" -and [string]$Value[0] -match '^[A-Za-z]$'
+}
+
+function Normalize-RuntimeManifestEntry {
+    param([string]$Entry)
+
+    if ([string]::IsNullOrWhiteSpace($Entry)) {
+        return $null
+    }
+
+    $normalized = $Entry.Trim().Replace("\", "/")
+    $directoryEntry = $normalized.EndsWith("/")
+    if ($directoryEntry) {
+        $normalized = $normalized.TrimEnd("/")
+    }
+
+    if (
+        $normalized.Length -eq 0 -or
+        $normalized.StartsWith("/") -or
+        (Test-WindowsDrivePrefix -Value $normalized)
+    ) {
+        return $null
+    }
+
+    $segments = @($normalized -split "/")
+    foreach ($segment in $segments) {
+        if ([string]::IsNullOrWhiteSpace($segment) -or $segment -eq "." -or $segment -eq "..") {
+            return $null
+        }
+    }
+
+    if ($directoryEntry) {
+        return "$($segments -join '/')/"
+    }
+    return $segments -join "/"
+}
+
+function Get-RuntimeManifestStringArray {
+    param(
+        $Object,
+        [string]$PropertyName,
+        [System.Collections.Generic.List[string]]$Problems
+    )
+
+    $property = $Object.PSObject.Properties[$PropertyName]
+    if ($null -eq $property -or $null -eq $property.Value) {
+        return @()
+    }
+    if ($property.Value -is [string]) {
+        $Problems.Add("runtime-manifest.json $PropertyName must be an array, not a string.") | Out-Null
+        return @()
+    }
+
+    $values = @($property.Value)
+    $strings = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($value in $values) {
+        if ($null -eq $value -or $value -isnot [string] -or [string]::IsNullOrWhiteSpace($value)) {
+            $Problems.Add("runtime-manifest.json $PropertyName contains a non-string or blank entry.") | Out-Null
+        } else {
+            $strings.Add($value.Trim()) | Out-Null
+        }
+    }
+    return @($strings)
+}
+
+function Get-RuntimeManifestEvidence {
+    param([string]$RuntimeRoot)
+
+    $manifestPath = Join-Path $RuntimeRoot "runtime-manifest.json"
+    $present = Test-Path -LiteralPath $manifestPath -PathType Leaf
+    $problems = New-Object 'System.Collections.Generic.List[string]'
+    $requiredBackends = @()
+    $declaredFiles = @()
+
+    if ($present) {
+        $manifest = $null
+        try {
+            $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+        } catch {
+            $problems.Add("runtime-manifest.json could not be parsed: $($_.Exception.Message)") | Out-Null
+        }
+
+        if ($null -ne $manifest) {
+            $requiredBackends = @(
+                Get-RuntimeManifestStringArray `
+                    -Object $manifest `
+                    -PropertyName "requiredRifeBackends" `
+                    -Problems $problems |
+                    ForEach-Object { $_.Trim().ToUpperInvariant() } |
+                    Select-Object -Unique
+            )
+            foreach ($backend in $requiredBackends) {
+                if ($backend -notin @("NVIDIA", "DIRECTML", "STANDARD")) {
+                    $problems.Add("runtime-manifest.json requiredRifeBackends contains unknown backend: $backend") | Out-Null
+                    continue
+                }
+                $scriptName = Get-RifeScriptName -BackendName $backend
+                $scriptPath = Join-Path $RuntimeRoot "portable_config\vs\$scriptName"
+                if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf)) {
+                    $problems.Add("runtime-manifest.json requiredRifeBackends entry is missing script: portable_config/vs/$scriptName") | Out-Null
+                }
+            }
+
+            $declaredFiles = @(
+                Get-RuntimeManifestStringArray `
+                    -Object $manifest `
+                    -PropertyName "files" `
+                    -Problems $problems
+            )
+            foreach ($entry in $declaredFiles) {
+                $normalizedEntry = Normalize-RuntimeManifestEntry -Entry $entry
+                if ($null -eq $normalizedEntry) {
+                    $problems.Add("runtime-manifest.json files contains invalid package-relative entry: $entry") | Out-Null
+                    continue
+                }
+
+                $relativePath = $normalizedEntry.TrimEnd("/").Replace("/", "\")
+                $declaredPath = Join-Path $RuntimeRoot $relativePath
+                if ($normalizedEntry.EndsWith("/")) {
+                    if (-not (Test-Path -LiteralPath $declaredPath -PathType Container)) {
+                        $problems.Add("runtime-manifest.json files directory entry is missing: $normalizedEntry") | Out-Null
+                    }
+                } elseif (-not (Test-Path -LiteralPath $declaredPath -PathType Leaf)) {
+                    $problems.Add("runtime-manifest.json files entry is missing: $normalizedEntry") | Out-Null
+                }
+            }
+        }
+    }
+
+    return [pscustomobject]@{
+        Present = [bool]$present
+        Path = $manifestPath
+        RequiredRifeBackends = @($requiredBackends)
+        Files = @($declaredFiles)
+        Problems = @($problems)
+    }
+}
+
 function Get-CommandOutput {
     param(
         [string]$FilePath,
@@ -285,6 +425,7 @@ if ($resolvedReportPath.Length -gt 0) {
         }
         RequestedBackend = $Backend
         AllowFailures = [bool]$AllowFailures
+        RuntimeManifest = Get-RuntimeManifestEvidence -RuntimeRoot $resolvedRuntimeRoot
         Host = Get-RifeHostDiagnostics
         Results = @($results)
     } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $resolvedReportPath -Encoding UTF8

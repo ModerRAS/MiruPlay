@@ -420,7 +420,8 @@ try {
                 "-ReportPath",
                 $reportPath,
                 "-RequiredBackends",
-                $requiredReportBackends
+                $requiredReportBackends,
+                "-RequireRuntimeManifest"
             )
             if ($AllowRifeFailures) {
                 $assertArgs += "-AllowFailures"
