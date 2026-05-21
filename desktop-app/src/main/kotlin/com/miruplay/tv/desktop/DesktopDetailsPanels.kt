@@ -481,18 +481,14 @@ internal fun DetailEpisodePanel(
                         progress = progressByPath[episode.path],
                         onClick = { onEpisodeSelected(episode) },
                         modifier = Modifier
-                            .focusRequester(episodeFocusRequesters[index])
-                            .onPreviewKeyEvent { event ->
-                                if (event.type != KeyEventType.KeyDown) {
-                                    false
-                                } else {
-                                    when (event.key) {
-                                        Key.DirectionUp -> moveEpisodeFocus(index, -1)
-                                        Key.DirectionDown -> moveEpisodeFocus(index, 1)
-                                        else -> false
-                                    }
-                                }
-                            },
+                            .focusRequester(episodeFocusRequesters[index]),
+                        onNavigationKey = { key ->
+                            when (key) {
+                                Key.DirectionUp -> moveEpisodeFocus(index, -1)
+                                Key.DirectionDown -> moveEpisodeFocus(index, 1)
+                                else -> false
+                            }
+                        },
                     )
                 }
             }
@@ -510,13 +506,12 @@ private fun DetailEpisodeEmptyState(
         selected = false,
         onClick = {},
         modifier = Modifier
-            .focusRequester(focusRequester)
-            .onPreviewKeyEvent { event ->
-                event.type == KeyEventType.KeyDown &&
-                    onMove(detailEpisodeEmptyFocusTarget(event.key))
-            },
+            .focusRequester(focusRequester),
         heightDp = 180,
         inactiveAlpha = 0.48f,
+        onNavigationKey = { key ->
+            onMove(detailEpisodeEmptyFocusTarget(key))
+        },
     ) { active ->
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -538,12 +533,14 @@ private fun DetailEpisodeRow(
     progress: ProgressRecord?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onNavigationKey: (Key) -> Boolean = { false },
 ) {
     DesktopSelectableRow(
         selected = selected,
         onClick = onClick,
         modifier = modifier,
         heightDp = 78,
+        onNavigationKey = onNavigationKey,
     ) { active ->
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -853,18 +850,14 @@ internal fun RecentPlaybackPanel(
                             selected = selectedRecord?.episodeId == record.episodeId,
                             onClick = { onRecordSelected(record) },
                             modifier = Modifier
-                                .focusRequester(recordFocusRequesters[index])
-                                .onPreviewKeyEvent { event ->
-                                    if (event.type != KeyEventType.KeyDown) {
-                                        false
-                                    } else {
-                                        when (event.key) {
-                                            Key.DirectionUp -> moveRecentFocus(index, -1)
-                                            Key.DirectionDown -> moveRecentFocus(index, 1)
-                                            else -> false
-                                        }
-                                    }
-                                },
+                                .focusRequester(recordFocusRequesters[index]),
+                            onNavigationKey = { key ->
+                                when (key) {
+                                    Key.DirectionUp -> moveRecentFocus(index, -1)
+                                    Key.DirectionDown -> moveRecentFocus(index, 1)
+                                    else -> false
+                                }
+                            },
                         )
                     }
                 }
@@ -883,12 +876,10 @@ private fun RecentPlaybackEmptyState(
         selected = false,
         onClick = {},
         modifier = Modifier
-            .focusRequester(focusRequester)
-            .onPreviewKeyEvent { event ->
-                event.type == KeyEventType.KeyDown && onMove(event.key)
-            },
+            .focusRequester(focusRequester),
         heightDp = MiruPlayUiMetrics.EMPTY_STATE_HEIGHT_DP,
         inactiveAlpha = 0.48f,
+        onNavigationKey = onMove,
     ) { active ->
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -924,8 +915,14 @@ private fun RecentProgressRow(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onNavigationKey: (Key) -> Boolean = { false },
 ) {
-    DesktopSelectableRow(selected = selected, onClick = onClick, modifier = modifier) { active ->
+    DesktopSelectableRow(
+        selected = selected,
+        onClick = onClick,
+        modifier = modifier,
+        onNavigationKey = onNavigationKey,
+    ) { active ->
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.DETAIL_MEDIA_PADDING_DP.dp),
@@ -1088,10 +1085,10 @@ internal fun MediaDetailsPanel(
             MediaDetailsEmptyState(
                 text = labels.emptyState,
                 modifier = Modifier
-                    .focusRequester(emptyFocusRequester)
-                    .onPreviewKeyEvent { event ->
-                        event.type == KeyEventType.KeyDown && requestMediaDetailFocus(mediaDetailsEmptyFocusTarget(event.key))
-                    },
+                    .focusRequester(emptyFocusRequester),
+                onNavigationKey = { key ->
+                    requestMediaDetailFocus(mediaDetailsEmptyFocusTarget(key))
+                },
             )
             return@TvPanel
         }
@@ -1106,10 +1103,10 @@ internal fun MediaDetailsPanel(
                         row.label,
                         row.value,
                         modifier = Modifier
-                            .focusRequester(focusRequesters[index])
-                            .onPreviewKeyEvent { event ->
-                                event.type == KeyEventType.KeyDown && moveMediaDetailFocus(index, event.key)
-                            },
+                            .focusRequester(focusRequesters[index]),
+                        onNavigationKey = { key ->
+                            moveMediaDetailFocus(index, key)
+                        },
                     )
                 }
             }
@@ -1123,10 +1120,10 @@ internal fun MediaDetailsPanel(
                         row.label,
                         row.value,
                         modifier = Modifier
-                            .focusRequester(focusRequesters[rowIndex])
-                            .onPreviewKeyEvent { event ->
-                                event.type == KeyEventType.KeyDown && moveMediaDetailFocus(rowIndex, event.key)
-                            },
+                            .focusRequester(focusRequesters[rowIndex]),
+                        onNavigationKey = { key ->
+                            moveMediaDetailFocus(rowIndex, key)
+                        },
                     )
                 }
             }
@@ -1191,13 +1188,18 @@ internal fun mediaDetailsFocusTarget(
 }
 
 @Composable
-private fun MediaDetailsEmptyState(text: String, modifier: Modifier = Modifier) {
+private fun MediaDetailsEmptyState(
+    text: String,
+    modifier: Modifier = Modifier,
+    onNavigationKey: (Key) -> Boolean = { false },
+) {
     DesktopSelectableRow(
         selected = false,
         onClick = {},
         modifier = modifier,
         heightDp = MiruPlayUiMetrics.DETAIL_PREVIEW_HEIGHT_DP,
         inactiveAlpha = 0.48f,
+        onNavigationKey = onNavigationKey,
     ) { active ->
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -1213,13 +1215,19 @@ private fun MediaDetailsEmptyState(text: String, modifier: Modifier = Modifier) 
 }
 
 @Composable
-internal fun DetailLine(label: String, value: String, modifier: Modifier = Modifier) {
+internal fun DetailLine(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    onNavigationKey: (Key) -> Boolean = { false },
+) {
     DesktopSelectableRow(
         selected = false,
         onClick = {},
         modifier = modifier,
         heightDp = 92,
         inactiveAlpha = 0.42f,
+        onNavigationKey = onNavigationKey,
     ) { active ->
         Column(Modifier.fillMaxWidth()) {
             Text(label, color = TextSecondary, fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp, fontWeight = FontWeight.SemiBold)
