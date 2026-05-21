@@ -326,6 +326,7 @@ private fun CloudRssAutomationContent(
     val subscriptionFocusRequesters = remember(subscriptions) {
         subscriptions.associate { it.id to FocusRequester() }
     }
+    val subscriptionEmptyFocusRequester = remember { FocusRequester() }
     val actionFocusRequesters = remember {
         CloudRssAction.entries.associateWith { FocusRequester() }
     }
@@ -358,6 +359,14 @@ private fun CloudRssAutomationContent(
                 onSubscriptionSelected(subscription)
                 subscriptionFocusRequesters[subscription.id]?.requestFocus()
                 true
+            }
+            CloudRssFocusTarget.EmptySubscriptions -> {
+                if (subscriptions.isEmpty()) {
+                    subscriptionEmptyFocusRequester.requestFocus()
+                    true
+                } else {
+                    false
+                }
             }
             null -> false
         }
@@ -740,9 +749,10 @@ private fun CloudRssAutomationContent(
                         )
                     }
                     if (subscriptions.isEmpty()) {
-                        DesktopEmptyState(
+                        CloudRssSubscriptionEmptyState(
                             text = labels.rssEmpty,
-                            heightDp = MiruPlayUiMetrics.RSS_EMPTY_STATE_HEIGHT_DP,
+                            focusRequester = subscriptionEmptyFocusRequester,
+                            onMove = ::requestCloudRssFocus,
                         )
                     } else {
                         subscriptions.forEach { subscription ->
@@ -795,6 +805,37 @@ private fun CloudRssAutomationContent(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun CloudRssSubscriptionEmptyState(
+    text: String,
+    focusRequester: FocusRequester,
+    onMove: (CloudRssFocusTarget?) -> Boolean,
+) {
+    DesktopSelectableRow(
+        selected = false,
+        onClick = {},
+        modifier = Modifier
+            .focusRequester(focusRequester)
+            .onPreviewKeyEvent { event ->
+                event.type == KeyEventType.KeyDown &&
+                    onMove(cloudRssSubscriptionEmptyFocusTarget(event.key))
+            },
+        heightDp = MiruPlayUiMetrics.RSS_EMPTY_STATE_HEIGHT_DP,
+        inactiveAlpha = 0.48f,
+    ) { active ->
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text,
+                color = if (active) TextPrimary else TextSecondary,
+                fontSize = MiruPlayUiMetrics.SECTION_BODY_SP.sp,
+            )
         }
     }
 }
@@ -1111,6 +1152,7 @@ internal sealed interface CloudRssFocusTarget {
     data class Toggle(val toggle: CloudRssToggle) : CloudRssFocusTarget
     data class Field(val field: CloudRssField) : CloudRssFocusTarget
     data class Subscription(val index: Int) : CloudRssFocusTarget
+    data object EmptySubscriptions : CloudRssFocusTarget
 }
 
 private fun Modifier.cloudRssActionNavigation(
@@ -1281,6 +1323,13 @@ internal fun cloudRssSubscriptionFocusTarget(
     }
 }
 
+internal fun cloudRssSubscriptionEmptyFocusTarget(key: Key): CloudRssFocusTarget? =
+    when (key) {
+        Key.DirectionUp -> CloudRssFocusTarget.Action(CloudRssAction.SaveRss)
+        Key.DirectionDown -> CloudRssFocusTarget.Action(CloudRssAction.StartScheduler)
+        else -> null
+    }
+
 internal enum class CloudDriveDirectoryAction {
     UseCurrent,
     Parent,
@@ -1432,12 +1481,12 @@ private fun cloudRssActionDownTarget(
         CloudRssAction.SaveRss -> if (subscriptionCount > 0) {
             CloudRssFocusTarget.Subscription(0)
         } else {
-            CloudRssFocusTarget.Action(CloudRssAction.StartScheduler)
+            CloudRssFocusTarget.EmptySubscriptions
         }
         CloudRssAction.DeleteRss -> if (subscriptionCount > 0) {
             CloudRssFocusTarget.Subscription(0)
         } else {
-            CloudRssFocusTarget.Action(CloudRssAction.StopScheduler)
+            CloudRssFocusTarget.EmptySubscriptions
         }
         else -> null
     }

@@ -453,7 +453,7 @@ class DesktopSettingsPanelTest {
             cloudRssActionFocusTarget(CloudRssAction.SaveRss, Key.DirectionDown, subscriptionCount = 3),
         )
         assertEquals(
-            CloudRssFocusTarget.Action(CloudRssAction.StartScheduler),
+            CloudRssFocusTarget.EmptySubscriptions,
             cloudRssActionFocusTarget(CloudRssAction.SaveRss, Key.DirectionDown, subscriptionCount = 0),
         )
         assertEquals(
@@ -473,9 +473,18 @@ class DesktopSettingsPanelTest {
             cloudRssActionFocusTarget(CloudRssAction.StopScheduler, Key.DirectionUp, subscriptionCount = 3),
         )
         assertEquals(
-            CloudRssFocusTarget.Action(CloudRssAction.StopScheduler),
+            CloudRssFocusTarget.EmptySubscriptions,
             cloudRssActionFocusTarget(CloudRssAction.DeleteRss, Key.DirectionDown, subscriptionCount = 0),
         )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.SaveRss),
+            cloudRssSubscriptionEmptyFocusTarget(Key.DirectionUp),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.StartScheduler),
+            cloudRssSubscriptionEmptyFocusTarget(Key.DirectionDown),
+        )
+        assertNull(cloudRssSubscriptionEmptyFocusTarget(Key.DirectionLeft))
         assertNull(cloudRssSubscriptionFocusTarget(currentIndex = 0, itemCount = 0, Key.DirectionDown))
     }
 

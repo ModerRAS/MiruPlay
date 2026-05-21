@@ -63,6 +63,7 @@ The port is complete only when all of these are proven by current evidence:
 - [x] Add unit coverage for Settings summary quick-action row keyboard/DPAD navigation.
 - [x] Add Windows GUI smoke coverage for TV Back-equivalent `Esc` route navigation.
 - [x] Add Windows GUI smoke coverage for Cloud/RSS RSS subscription row keyboard/DPAD navigation.
+- [x] Add unit coverage for Cloud/RSS empty RSS subscription keyboard/DPAD focus bridging.
 - [x] Add unit coverage for Cloud/RSS action-grid keyboard/DPAD navigation.
 - [x] Add unit coverage for Cloud/RSS toggle-row keyboard/DPAD navigation.
 - [x] Add unit coverage for Cloud/RSS sync-path field keyboard/DPAD navigation into enable/proxy toggles.
