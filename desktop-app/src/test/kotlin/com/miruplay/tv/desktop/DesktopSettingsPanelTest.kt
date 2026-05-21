@@ -376,4 +376,14 @@ class DesktopSettingsPanelTest {
         assertEquals(DesktopSettingsSection.Metadata, DesktopSettingsSection.Scan.step(1))
         assertNull(DesktopSettingsSection.Metadata.step(1))
     }
+
+    @Test
+    fun `settings summary quick actions move across TV button rows`() {
+        assertEquals(1, settingsQuickActionNavigationTarget(currentIndex = 0, actionCount = 2, Key.DirectionRight))
+        assertEquals(0, settingsQuickActionNavigationTarget(currentIndex = 1, actionCount = 2, Key.DirectionLeft))
+        assertNull(settingsQuickActionNavigationTarget(currentIndex = 0, actionCount = 2, Key.DirectionLeft))
+        assertNull(settingsQuickActionNavigationTarget(currentIndex = 1, actionCount = 2, Key.DirectionRight))
+        assertNull(settingsQuickActionNavigationTarget(currentIndex = 0, actionCount = 2, Key.DirectionDown))
+        assertNull(settingsQuickActionNavigationTarget(currentIndex = 0, actionCount = 0, Key.DirectionRight))
+    }
 }
