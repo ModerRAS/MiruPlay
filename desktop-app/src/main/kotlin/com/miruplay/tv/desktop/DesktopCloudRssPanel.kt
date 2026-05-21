@@ -50,7 +50,7 @@ private const val CLOUD_RSS_WIDE_PREVIEW_LIMIT = 86
 private const val CLOUD_RSS_BADGE_WIDTH_DP = 82
 private const val CLOUD_RSS_BADGE_HEIGHT_DP = 34
 
-private enum class DesktopSettingsSection(
+internal enum class DesktopSettingsSection(
     val title: String,
     val description: String,
 ) {
@@ -61,10 +61,10 @@ private enum class DesktopSettingsSection(
     Metadata("元数据", "Bangumi 匹配"),
 }
 
-private fun DesktopSettingsSection.step(delta: Int): DesktopSettingsSection {
+internal fun DesktopSettingsSection.step(delta: Int): DesktopSettingsSection? {
     val sections = DesktopSettingsSection.entries
-    val nextIndex = (sections.indexOf(this) + delta + sections.size) % sections.size
-    return sections[nextIndex]
+    val nextIndex = sections.indexOf(this) + delta
+    return sections.getOrNull(nextIndex)
 }
 
 @Composable
@@ -768,12 +768,10 @@ private fun SettingsSectionMenu(
                 } else {
                     when (event.key) {
                         Key.DirectionDown -> {
-                            onSectionSelected(selectedSection.step(1))
-                            true
+                            selectedSection.step(1)?.let(onSectionSelected) != null
                         }
                         Key.DirectionUp -> {
-                            onSectionSelected(selectedSection.step(-1))
-                            true
+                            selectedSection.step(-1)?.let(onSectionSelected) != null
                         }
                         else -> false
                     }
