@@ -14,7 +14,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -67,56 +70,138 @@ internal fun BangumiPanel(
     val actionFocusRequesters = remember {
         BangumiAction.entries.associateWith { FocusRequester() }
     }
-    val visibleBatchMatches = remember(batchMatches) { batchMatches.take(BANGUMI_BATCH_MATCH_LIMIT) }
-    val visibleBatchCandidates = remember(selectedBatchMatch) {
+    var batchPageStartState by remember(batchMatches.map { it.query }) { mutableStateOf(0) }
+    val batchPageStart = bangumiCoercedPageStart(
+        pageStart = batchPageStartState,
+        itemCount = batchMatches.size,
+        pageSize = BANGUMI_BATCH_MATCH_LIMIT,
+    )
+    val visibleBatchMatches = remember(batchMatches, batchPageStart) {
+        batchMatches
+            .drop(batchPageStart)
+            .take(BANGUMI_BATCH_MATCH_LIMIT)
+    }
+    val batchCandidates = remember(selectedBatchMatch) {
         selectedBatchMatch
             ?.takeIf { it.candidates.size > 1 }
             ?.candidates
-            ?.take(BANGUMI_CANDIDATE_LIMIT)
             .orEmpty()
     }
-    val visibleResults = remember(results) { results.take(BANGUMI_RESULT_LIMIT) }
-    val batchFocusRequesters = remember(visibleBatchMatches.map { it.query }) {
+    var candidatePageStartState by remember(selectedBatchMatch?.query, batchCandidates.map { it.animeId to it.title }) {
+        mutableStateOf(0)
+    }
+    val candidatePageStart = bangumiCoercedPageStart(
+        pageStart = candidatePageStartState,
+        itemCount = batchCandidates.size,
+        pageSize = BANGUMI_CANDIDATE_LIMIT,
+    )
+    val visibleBatchCandidates = remember(batchCandidates, candidatePageStart) {
+        batchCandidates
+            .drop(candidatePageStart)
+            .take(BANGUMI_CANDIDATE_LIMIT)
+    }
+    var resultPageStartState by remember(results.map { it.animeId to it.title }) { mutableStateOf(0) }
+    val resultPageStart = bangumiCoercedPageStart(
+        pageStart = resultPageStartState,
+        itemCount = results.size,
+        pageSize = BANGUMI_RESULT_LIMIT,
+    )
+    val visibleResults = remember(results, resultPageStart) {
+        results
+            .drop(resultPageStart)
+            .take(BANGUMI_RESULT_LIMIT)
+    }
+    var pendingListFocus by remember { mutableStateOf<BangumiListPosition?>(null) }
+    val batchFocusRequesters = remember(batchPageStart, visibleBatchMatches.map { it.query }) {
         List(visibleBatchMatches.size) { FocusRequester() }
     }
-    val candidateFocusRequesters = remember(visibleBatchCandidates.map { it.animeId to it.title }) {
+    val candidateFocusRequesters = remember(candidatePageStart, visibleBatchCandidates.map { it.animeId to it.title }) {
         List(visibleBatchCandidates.size) { FocusRequester() }
     }
-    val resultFocusRequesters = remember(visibleResults.map { it.animeId to it.title }) {
+    val resultFocusRequesters = remember(resultPageStart, visibleResults.map { it.animeId to it.title }) {
         List(visibleResults.size) { FocusRequester() }
     }
     val emptyResultsFocusRequester = remember { FocusRequester() }
 
-    fun selectAndFocus(position: BangumiListPosition): Boolean =
+    fun requestVisibleListFocus(position: BangumiListPosition): Boolean =
         when (position.section) {
             BangumiListSection.BatchMatches -> {
-                val match = visibleBatchMatches.getOrNull(position.index) ?: return false
-                onBatchMatchSelected(match)
-                batchFocusRequesters.getOrNull(position.index)?.requestFocus()
-                true
+                val visibleIndex = position.index - batchPageStart
+                batchFocusRequesters.getOrNull(visibleIndex)?.requestFocus() != null
             }
             BangumiListSection.BatchCandidates -> {
-                val match = selectedBatchMatch ?: return false
-                val candidate = visibleBatchCandidates.getOrNull(position.index) ?: return false
-                onBatchCandidateSelected(match, candidate)
-                candidateFocusRequesters.getOrNull(position.index)?.requestFocus()
-                true
+                val visibleIndex = position.index - candidatePageStart
+                candidateFocusRequesters.getOrNull(visibleIndex)?.requestFocus() != null
             }
             BangumiListSection.SearchResults -> {
-                val result = visibleResults.getOrNull(position.index) ?: return false
-                onResultSelected(result)
-                resultFocusRequesters.getOrNull(position.index)?.requestFocus()
-                true
+                val visibleIndex = position.index - resultPageStart
+                resultFocusRequesters.getOrNull(visibleIndex)?.requestFocus() != null
             }
         }
 
+    fun requestListFocus(position: BangumiListPosition): Boolean {
+        when (position.section) {
+            BangumiListSection.BatchMatches -> {
+                if (position.index !in batchMatches.indices) return false
+                val targetPageStart = bangumiPageStartForIndex(
+                    index = position.index,
+                    itemCount = batchMatches.size,
+                    pageSize = BANGUMI_BATCH_MATCH_LIMIT,
+                )
+                batchPageStartState = targetPageStart
+            }
+            BangumiListSection.BatchCandidates -> {
+                if (position.index !in batchCandidates.indices) return false
+                val targetPageStart = bangumiPageStartForIndex(
+                    index = position.index,
+                    itemCount = batchCandidates.size,
+                    pageSize = BANGUMI_CANDIDATE_LIMIT,
+                )
+                candidatePageStartState = targetPageStart
+            }
+            BangumiListSection.SearchResults -> {
+                if (position.index !in results.indices) return false
+                val targetPageStart = bangumiPageStartForIndex(
+                    index = position.index,
+                    itemCount = results.size,
+                    pageSize = BANGUMI_RESULT_LIMIT,
+                )
+                resultPageStartState = targetPageStart
+            }
+        }
+        pendingListFocus = position
+        requestVisibleListFocus(position)
+        return true
+    }
+
+    fun selectAndFocus(position: BangumiListPosition): Boolean {
+        when (position.section) {
+            BangumiListSection.BatchMatches -> {
+                val match = batchMatches.getOrNull(position.index) ?: return false
+                onBatchMatchSelected(match)
+            }
+            BangumiListSection.BatchCandidates -> {
+                val match = selectedBatchMatch ?: return false
+                val candidate = batchCandidates.getOrNull(position.index) ?: return false
+                onBatchCandidateSelected(match, candidate)
+            }
+            BangumiListSection.SearchResults -> {
+                val result = results.getOrNull(position.index) ?: return false
+                onResultSelected(result)
+            }
+        }
+        return requestListFocus(position)
+    }
+
     fun focusAction(action: BangumiAction): Boolean {
+        pendingListFocus = null
         actionFocusRequesters.getValue(action).requestFocus()
         return true
     }
 
     fun focusEmptyResults(): Boolean {
         if (visibleResults.isNotEmpty()) return false
+        pendingListFocus = null
         emptyResultsFocusRequester.requestFocus()
         return true
     }
@@ -136,9 +221,9 @@ internal fun BangumiPanel(
             bangumiActionFocusTarget(
                 current = action,
                 key = key,
-                batchMatchCount = visibleBatchMatches.size,
-                candidateCount = visibleBatchCandidates.size,
-                resultCount = visibleResults.size,
+                batchMatchCount = batchMatches.size,
+                candidateCount = batchCandidates.size,
+                resultCount = results.size,
             ),
         )
 
@@ -146,17 +231,17 @@ internal fun BangumiPanel(
         bangumiListNavigationTarget(
             current = position,
             key = key,
-            batchMatchCount = visibleBatchMatches.size,
-            candidateCount = visibleBatchCandidates.size,
-            resultCount = visibleResults.size,
+            batchMatchCount = batchMatches.size,
+            candidateCount = batchCandidates.size,
+            resultCount = results.size,
         )?.let(::selectAndFocus)
             ?: requestBangumiFocus(
                 bangumiListExitFocusTarget(
                     current = position,
                     key = key,
-                    batchMatchCount = visibleBatchMatches.size,
-                    candidateCount = visibleBatchCandidates.size,
-                    resultCount = visibleResults.size,
+                    batchMatchCount = batchMatches.size,
+                    candidateCount = batchCandidates.size,
+                    resultCount = results.size,
                 ),
             )
 
@@ -164,26 +249,49 @@ internal fun BangumiPanel(
         requestBangumiFocus(
             bangumiEmptyResultsFocusTarget(
                 key = key,
-                batchMatchCount = visibleBatchMatches.size,
-                candidateCount = visibleBatchCandidates.size,
+                batchMatchCount = batchMatches.size,
+                candidateCount = batchCandidates.size,
             ),
         )
 
     LaunchedEffect(
+        batchPageStart,
         visibleBatchMatches,
+        candidatePageStart,
+        visibleBatchCandidates,
+        resultPageStart,
         visibleResults,
+        pendingListFocus,
+    ) {
+        val position = pendingListFocus ?: return@LaunchedEffect
+        if (requestVisibleListFocus(position)) {
+            pendingListFocus = null
+        }
+    }
+
+    LaunchedEffect(
+        batchMatches.map { it.query },
+        results.map { it.animeId to it.title },
         selectedBatchMatch?.query,
         selectedResult?.animeId,
         focusVersion,
     ) {
         if (focusVersion > 0) {
+            pendingListFocus = null
             actionFocusRequesters.getValue(BangumiAction.UseSelected).requestFocus()
-        } else if (visibleBatchMatches.isNotEmpty()) {
-            val selectedIndex = visibleBatchMatches.indexOfFirst { it.query == selectedBatchMatch?.query }.coerceAtLeast(0)
-            batchFocusRequesters.getOrNull(selectedIndex)?.requestFocus()
-        } else if (visibleResults.isNotEmpty()) {
-            val selectedIndex = visibleResults.indexOfFirst { it.animeId == selectedResult?.animeId }.coerceAtLeast(0)
-            resultFocusRequesters.getOrNull(selectedIndex)?.requestFocus()
+            return@LaunchedEffect
+        }
+        if (pendingListFocus != null) return@LaunchedEffect
+        if (batchMatches.isNotEmpty()) {
+            val selectedIndex = batchMatches
+                .indexOfFirst { it.query == selectedBatchMatch?.query }
+                .coerceAtLeast(0)
+            requestListFocus(BangumiListPosition(BangumiListSection.BatchMatches, selectedIndex))
+        } else if (results.isNotEmpty()) {
+            val selectedIndex = results
+                .indexOfFirst { it.animeId == selectedResult?.animeId }
+                .coerceAtLeast(0)
+            requestListFocus(BangumiListPosition(BangumiListSection.SearchResults, selectedIndex))
         }
     }
 
@@ -328,15 +436,29 @@ internal fun BangumiPanel(
                         fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
                     )
                     visibleBatchMatches.forEachIndexed { index, match ->
+                        val absoluteIndex = batchPageStart + index
                         BangumiBatchMatchRow(
                             match = match,
                             selected = selectedBatchMatch?.query == match.query,
                             status = batchPlan.statusFor(match),
-                            onClick = { onBatchMatchSelected(match) },
+                            onClick = { selectAndFocus(BangumiListPosition(BangumiListSection.BatchMatches, absoluteIndex)) },
                             onNavigationKey = { key ->
-                                moveListFocus(BangumiListPosition(BangumiListSection.BatchMatches, index), key)
+                                moveListFocus(BangumiListPosition(BangumiListSection.BatchMatches, absoluteIndex), key)
                             },
                             modifier = Modifier.focusRequester(batchFocusRequesters[index]),
+                        )
+                    }
+                    bangumiPageSummary(
+                        label = "批量",
+                        pageStart = batchPageStart,
+                        visibleCount = visibleBatchMatches.size,
+                        itemCount = batchMatches.size,
+                        pageSize = BANGUMI_BATCH_MATCH_LIMIT,
+                    )?.let { summary ->
+                        Text(
+                            summary,
+                            color = TextSecondary,
+                            fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
                         )
                     }
                 }
@@ -348,14 +470,28 @@ internal fun BangumiPanel(
                         fontWeight = FontWeight.SemiBold,
                     )
                     visibleBatchCandidates.forEachIndexed { index, candidate ->
+                        val absoluteIndex = candidatePageStart + index
                         BangumiResultRow(
                             result = candidate,
                             selected = candidate.isSameCandidate(match.result),
-                            onClick = { onBatchCandidateSelected(match, candidate) },
+                            onClick = { selectAndFocus(BangumiListPosition(BangumiListSection.BatchCandidates, absoluteIndex)) },
                             onNavigationKey = { key ->
-                                moveListFocus(BangumiListPosition(BangumiListSection.BatchCandidates, index), key)
+                                moveListFocus(BangumiListPosition(BangumiListSection.BatchCandidates, absoluteIndex), key)
                             },
                             modifier = Modifier.focusRequester(candidateFocusRequesters[index]),
+                        )
+                    }
+                    bangumiPageSummary(
+                        label = "候选",
+                        pageStart = candidatePageStart,
+                        visibleCount = visibleBatchCandidates.size,
+                        itemCount = batchCandidates.size,
+                        pageSize = BANGUMI_CANDIDATE_LIMIT,
+                    )?.let { summary ->
+                        Text(
+                            summary,
+                            color = TextSecondary,
+                            fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
                         )
                     }
                 }
@@ -367,14 +503,28 @@ internal fun BangumiPanel(
                     )
                 } else {
                     visibleResults.forEachIndexed { index, result ->
+                        val absoluteIndex = resultPageStart + index
                         BangumiResultRow(
                             result = result,
                             selected = selectedResult?.animeId == result.animeId,
-                            onClick = { onResultSelected(result) },
+                            onClick = { selectAndFocus(BangumiListPosition(BangumiListSection.SearchResults, absoluteIndex)) },
                             onNavigationKey = { key ->
-                                moveListFocus(BangumiListPosition(BangumiListSection.SearchResults, index), key)
+                                moveListFocus(BangumiListPosition(BangumiListSection.SearchResults, absoluteIndex), key)
                             },
                             modifier = Modifier.focusRequester(resultFocusRequesters[index]),
+                        )
+                    }
+                    bangumiPageSummary(
+                        label = "搜索结果",
+                        pageStart = resultPageStart,
+                        visibleCount = visibleResults.size,
+                        itemCount = results.size,
+                        pageSize = BANGUMI_RESULT_LIMIT,
+                    )?.let { summary ->
+                        Text(
+                            summary,
+                            color = TextSecondary,
+                            fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
                         )
                     }
                 }
@@ -796,11 +946,11 @@ private fun firstBangumiListPosition(
     resultCount: Int,
 ): BangumiListPosition? =
     when {
-        batchMatchCount.coerceAtMost(BANGUMI_BATCH_MATCH_LIMIT) > 0 ->
+        batchMatchCount > 0 ->
             BangumiListPosition(BangumiListSection.BatchMatches, 0)
-        candidateCount.coerceAtMost(BANGUMI_CANDIDATE_LIMIT) > 0 ->
+        candidateCount > 0 ->
             BangumiListPosition(BangumiListSection.BatchCandidates, 0)
-        resultCount.coerceAtMost(BANGUMI_RESULT_LIMIT) > 0 ->
+        resultCount > 0 ->
             BangumiListPosition(BangumiListSection.SearchResults, 0)
         else -> null
     }
@@ -812,14 +962,17 @@ internal fun bangumiListNavigationTarget(
     candidateCount: Int,
     resultCount: Int,
 ): BangumiListPosition? {
+    val safeBatchMatchCount = batchMatchCount.coerceAtLeast(0)
+    val safeCandidateCount = candidateCount.coerceAtLeast(0)
+    val safeResultCount = resultCount.coerceAtLeast(0)
     val visibleRows = buildList {
-        repeat(batchMatchCount.coerceIn(0, BANGUMI_BATCH_MATCH_LIMIT)) { index ->
+        repeat(safeBatchMatchCount) { index ->
             add(BangumiListPosition(BangumiListSection.BatchMatches, index))
         }
-        repeat(candidateCount.coerceIn(0, BANGUMI_CANDIDATE_LIMIT)) { index ->
+        repeat(safeCandidateCount) { index ->
             add(BangumiListPosition(BangumiListSection.BatchCandidates, index))
         }
-        repeat(resultCount.coerceIn(0, BANGUMI_RESULT_LIMIT)) { index ->
+        repeat(safeResultCount) { index ->
             add(BangumiListPosition(BangumiListSection.SearchResults, index))
         }
     }
@@ -827,19 +980,19 @@ internal fun bangumiListNavigationTarget(
     if (currentIndex < 0) return null
     val targetIndex = when (key) {
         Key.DirectionRight -> {
-            if (current.section == BangumiListSection.BatchMatches && candidateCount > 0) {
+            if (current.section == BangumiListSection.BatchMatches && safeCandidateCount > 0) {
                 return BangumiListPosition(
                     section = BangumiListSection.BatchCandidates,
-                    index = current.index.coerceAtMost(candidateCount.coerceAtMost(BANGUMI_CANDIDATE_LIMIT) - 1),
+                    index = current.index.coerceAtMost(safeCandidateCount - 1),
                 )
             }
             return null
         }
         Key.DirectionLeft -> {
-            if (current.section == BangumiListSection.BatchCandidates && batchMatchCount > 0) {
+            if (current.section == BangumiListSection.BatchCandidates && safeBatchMatchCount > 0) {
                 return BangumiListPosition(
                     section = BangumiListSection.BatchMatches,
-                    index = current.index.coerceAtMost(batchMatchCount.coerceAtMost(BANGUMI_BATCH_MATCH_LIMIT) - 1),
+                    index = current.index.coerceAtMost(safeBatchMatchCount - 1),
                 )
             }
             return null
@@ -909,18 +1062,58 @@ private fun lastBangumiListPosition(
     candidateCount: Int,
 ): BangumiListPosition? =
     when {
-        candidateCount.coerceAtMost(BANGUMI_CANDIDATE_LIMIT) > 0 ->
+        candidateCount > 0 ->
             BangumiListPosition(
                 BangumiListSection.BatchCandidates,
-                candidateCount.coerceAtMost(BANGUMI_CANDIDATE_LIMIT) - 1,
+                candidateCount - 1,
             )
-        batchMatchCount.coerceAtMost(BANGUMI_BATCH_MATCH_LIMIT) > 0 ->
+        batchMatchCount > 0 ->
             BangumiListPosition(
                 BangumiListSection.BatchMatches,
-                batchMatchCount.coerceAtMost(BANGUMI_BATCH_MATCH_LIMIT) - 1,
+                batchMatchCount - 1,
             )
         else -> null
     }
+
+internal fun bangumiPageStartForIndex(
+    index: Int,
+    itemCount: Int,
+    pageSize: Int,
+): Int {
+    if (itemCount <= 0 || pageSize <= 0) return 0
+    val safeIndex = index.coerceIn(0, itemCount - 1)
+    return (safeIndex / pageSize) * pageSize
+}
+
+internal fun bangumiCoercedPageStart(
+    pageStart: Int,
+    itemCount: Int,
+    pageSize: Int,
+): Int {
+    if (itemCount <= 0 || pageSize <= 0) return 0
+    val maxPageStart = bangumiPageStartForIndex(
+        index = itemCount - 1,
+        itemCount = itemCount,
+        pageSize = pageSize,
+    )
+    return (pageStart / pageSize)
+        .coerceAtLeast(0)
+        .times(pageSize)
+        .coerceAtMost(maxPageStart)
+}
+
+internal fun bangumiPageSummary(
+    label: String,
+    pageStart: Int,
+    visibleCount: Int,
+    itemCount: Int,
+    pageSize: Int,
+): String? {
+    if (itemCount <= 0 || visibleCount <= 0 || visibleCount >= itemCount) return null
+    val safeStart = bangumiCoercedPageStart(pageStart, itemCount, pageSize)
+    val end = (safeStart + visibleCount).coerceAtMost(itemCount)
+    return "$label：显示 ${safeStart + 1}-$end / $itemCount 个条目，按上/下继续翻页。"
+}
 
 private fun Modifier.bangumiActionNavigation(
     action: BangumiAction,
