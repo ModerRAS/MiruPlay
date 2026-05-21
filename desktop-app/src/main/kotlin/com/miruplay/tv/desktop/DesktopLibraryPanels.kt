@@ -1146,19 +1146,12 @@ private fun FeaturedPosterCard(
                 shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
             )
             .onPreviewKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown) {
-                    false
-                } else {
-                    when (event.key) {
-                        Key.Enter,
-                        Key.NumPadEnter,
-                        -> {
-                            onClick()
-                            true
-                        }
-                        else -> onNavigationKey(event.key)
-                    }
-                }
+                desktopConfirmOrNavigationKeyEvent(
+                    key = event.key,
+                    type = event.type,
+                    onClick = onClick,
+                    onNavigationKey = onNavigationKey,
+                )
             }
             .focusable(interactionSource = interactionSource)
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
@@ -1248,19 +1241,12 @@ private fun LibraryPosterCard(
                 shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
             )
             .onPreviewKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown) {
-                    false
-                } else {
-                    when (event.key) {
-                        Key.Enter,
-                        Key.NumPadEnter,
-                        -> {
-                            onClick()
-                            true
-                        }
-                        else -> onNavigationKey(event.key)
-                    }
-                }
+                desktopConfirmOrNavigationKeyEvent(
+                    key = event.key,
+                    type = event.type,
+                    onClick = onClick,
+                    onNavigationKey = onNavigationKey,
+                )
             }
             .focusable(interactionSource = interactionSource)
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
@@ -2032,19 +2018,12 @@ private fun RemoteFileRow(
         selected = selected,
         onClick = onClick,
         modifier = modifier.onPreviewKeyEvent { event ->
-            if (event.type != KeyEventType.KeyDown) {
-                false
-            } else {
-                when (event.key) {
-                    Key.Enter,
-                    Key.NumPadEnter,
-                    -> {
-                        onClick()
-                        true
-                    }
-                    else -> onNavigationKey(event.key)
-                }
-            }
+            desktopConfirmOrNavigationKeyEvent(
+                key = event.key,
+                type = event.type,
+                onClick = onClick,
+                onNavigationKey = onNavigationKey,
+            )
         },
     ) {
         Row(

@@ -383,19 +383,12 @@ private fun PlayerPrimaryButton(
                 shape = CircleShape,
             )
             .onPreviewKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown) {
-                    false
-                } else {
-                    when (event.key) {
-                        Key.Enter,
-                        Key.NumPadEnter,
-                        -> {
-                            if (isPlayerActive) onTogglePause() else onLaunch()
-                            true
-                        }
-                        else -> onNavigationKey(event.key)
-                    }
-                }
+                desktopConfirmOrNavigationKeyEvent(
+                    key = event.key,
+                    type = event.type,
+                    onClick = if (isPlayerActive) onTogglePause else onLaunch,
+                    onNavigationKey = onNavigationKey,
+                )
             }
             .focusable(interactionSource = interactionSource)
             .clickable(
@@ -440,19 +433,13 @@ private fun PlayerRoundButton(
                 shape = CircleShape,
             )
             .onPreviewKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown) {
-                    false
-                } else {
-                    when (event.key) {
-                        Key.Enter,
-                        Key.NumPadEnter,
-                        -> {
-                            if (enabled) onClick()
-                            enabled
-                        }
-                        else -> onNavigationKey(event.key)
-                    }
-                }
+                desktopConfirmOrNavigationKeyEvent(
+                    key = event.key,
+                    type = event.type,
+                    enabled = enabled,
+                    onClick = onClick,
+                    onNavigationKey = onNavigationKey,
+                )
             }
             .focusable(enabled = enabled, interactionSource = interactionSource)
             .clickable(
