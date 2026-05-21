@@ -1,6 +1,7 @@
 package com.miruplay.tv.desktop
 
 import androidx.compose.ui.input.key.Key
+import com.miruplay.tv.clouddrive.CloudDriveFileInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.RssSubscriptionInfo
 import org.junit.Assert.assertEquals
@@ -191,6 +192,14 @@ class DesktopSettingsPanelTest {
             CloudRssFocusTarget.Action(CloudRssAction.RunSyncNow),
             cloudRssActionFocusTarget(CloudRssAction.ClearScanSource, Key.DirectionDown, subscriptionCount = 2),
         )
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.InboxPath),
+            cloudRssActionFocusTarget(CloudRssAction.LoginCloudDrive, Key.DirectionDown, subscriptionCount = 2),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.LibraryPath),
+            cloudRssActionFocusTarget(CloudRssAction.VerifyApiToken, Key.DirectionDown, subscriptionCount = 2),
+        )
         assertNull(cloudRssActionFocusTarget(CloudRssAction.SaveCredentials, Key.DirectionLeft, subscriptionCount = 2))
     }
 
@@ -235,12 +244,32 @@ class DesktopSettingsPanelTest {
             cloudRssFieldFocusTarget(CloudRssField.InboxPath, Key.DirectionRight),
         )
         assertEquals(
-            CloudRssFocusTarget.Field(CloudRssField.IntervalMinutes),
+            CloudRssFocusTarget.Action(CloudRssAction.PickInboxPath),
             cloudRssFieldFocusTarget(CloudRssField.InboxPath, Key.DirectionDown),
         )
         assertEquals(
-            CloudRssFocusTarget.Field(CloudRssField.ProxyHost),
+            CloudRssFocusTarget.Action(CloudRssAction.PickLibraryPath),
             cloudRssFieldFocusTarget(CloudRssField.LibraryPath, Key.DirectionDown),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.InboxPath),
+            cloudRssActionFocusTarget(CloudRssAction.PickInboxPath, Key.DirectionUp, subscriptionCount = 2),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.LibraryPath),
+            cloudRssActionFocusTarget(CloudRssAction.PickLibraryPath, Key.DirectionUp, subscriptionCount = 2),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.IntervalMinutes),
+            cloudRssActionFocusTarget(CloudRssAction.PickInboxPath, Key.DirectionDown, subscriptionCount = 2),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.ProxyHost),
+            cloudRssActionFocusTarget(CloudRssAction.PickLibraryPath, Key.DirectionDown, subscriptionCount = 2),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.PickLibraryPath),
+            cloudRssActionFocusTarget(CloudRssAction.PickInboxPath, Key.DirectionRight, subscriptionCount = 2),
         )
         assertEquals(
             CloudRssFocusTarget.Field(CloudRssField.ProxyPort),
@@ -262,8 +291,53 @@ class DesktopSettingsPanelTest {
             CloudRssFocusTarget.Field(CloudRssField.ProxyHost),
             cloudRssToggleFocusTarget(CloudRssToggle.ProxyEnabled, Key.DirectionUp),
         )
-        assertNull(cloudRssFieldFocusTarget(CloudRssField.InboxPath, Key.DirectionUp))
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.LoginCloudDrive),
+            cloudRssFieldFocusTarget(CloudRssField.InboxPath, Key.DirectionUp),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.VerifyApiToken),
+            cloudRssFieldFocusTarget(CloudRssField.LibraryPath, Key.DirectionUp),
+        )
         assertNull(cloudRssFieldFocusTarget(CloudRssField.ProxyPort, Key.DirectionRight))
+    }
+
+    @Test
+    fun `desktop CloudDrive directory browser scopes paths to token root`() {
+        assertEquals("/", normalizeDesktopCloudDrivePath(""))
+        assertEquals("/Anime/Season 1", normalizeDesktopCloudDrivePath("Anime\\Season 1\\"))
+        assertEquals("/CloudRoot", desktopCloudDriveScopedPath("/", "/CloudRoot"))
+        assertEquals("/CloudRoot", desktopCloudDriveScopedPath("/Outside/Inbox", "/CloudRoot"))
+        assertEquals("/CloudRoot/Inbox", desktopCloudDriveScopedPath("/CloudRoot/Inbox", "/CloudRoot"))
+        assertEquals("CloudDrive 根目录", desktopCloudDriveDisplayPath("/"))
+        assertEquals("/CloudRoot", desktopCloudDriveParentPath("/CloudRoot/Inbox", "/CloudRoot"))
+        assertNull(desktopCloudDriveParentPath("/CloudRoot", "/CloudRoot"))
+    }
+
+    @Test
+    fun `desktop CloudDrive directory entries keep visible folders only`() {
+        val entries = cloudDriveDirectoryEntries(
+            listOf(
+                CloudDriveFileInfo("Episode 01.mkv", "/CloudRoot/Episode 01.mkv", isDirectory = false),
+                CloudDriveFileInfo(".hidden", "/CloudRoot/.hidden", isDirectory = true),
+                CloudDriveFileInfo("Season B", "/CloudRoot/Season B", isDirectory = true),
+                CloudDriveFileInfo("season a", "/CloudRoot/season a", isDirectory = true),
+                CloudDriveFileInfo("", "/CloudRoot/Extras", isDirectory = true),
+            ),
+        )
+
+        assertEquals(listOf("Extras", "season a", "Season B"), entries.map { it.name })
+        assertEquals(listOf("/CloudRoot/Extras", "/CloudRoot/season a", "/CloudRoot/Season B"), entries.map { it.path })
+    }
+
+    @Test
+    fun `desktop CloudDrive directory rows move vertically without wrapping`() {
+        assertEquals(1, cloudDriveDirectoryNavigationTarget(currentIndex = 0, itemCount = 3, Key.DirectionDown))
+        assertEquals(1, cloudDriveDirectoryNavigationTarget(currentIndex = 2, itemCount = 3, Key.DirectionUp))
+        assertNull(cloudDriveDirectoryNavigationTarget(currentIndex = 0, itemCount = 3, Key.DirectionUp))
+        assertNull(cloudDriveDirectoryNavigationTarget(currentIndex = 2, itemCount = 3, Key.DirectionDown))
+        assertNull(cloudDriveDirectoryNavigationTarget(currentIndex = 0, itemCount = 0, Key.DirectionDown))
+        assertNull(cloudDriveDirectoryNavigationTarget(currentIndex = 0, itemCount = 3, Key.DirectionRight))
     }
 
     @Test

@@ -40,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.miruplay.tv.clouddrive.CloudDriveFileInfo
 import com.miruplay.tv.design.MiruPlayUiMetrics
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
@@ -81,6 +82,11 @@ internal fun CloudRssPanel(
     onInboxPathChange: (String) -> Unit,
     libraryPath: String,
     onLibraryPathChange: (String) -> Unit,
+    directoryBrowser: DesktopCloudDriveDirectoryBrowserState,
+    onPickCloudDriveDirectory: (DesktopCloudDriveDirectoryTarget) -> Unit,
+    onBrowseCloudDriveDirectory: (String) -> Unit,
+    onSelectCloudDriveDirectory: (DesktopCloudDriveDirectoryTarget, String) -> Unit,
+    onCloseCloudDriveDirectory: () -> Unit,
     intervalMinutes: String,
     onIntervalMinutesChange: (String) -> Unit,
     enabled: Boolean,
@@ -160,6 +166,11 @@ internal fun CloudRssPanel(
                 onInboxPathChange = onInboxPathChange,
                 libraryPath = libraryPath,
                 onLibraryPathChange = onLibraryPathChange,
+                directoryBrowser = directoryBrowser,
+                onPickCloudDriveDirectory = onPickCloudDriveDirectory,
+                onBrowseCloudDriveDirectory = onBrowseCloudDriveDirectory,
+                onSelectCloudDriveDirectory = onSelectCloudDriveDirectory,
+                onCloseCloudDriveDirectory = onCloseCloudDriveDirectory,
                 intervalMinutes = intervalMinutes,
                 onIntervalMinutesChange = onIntervalMinutesChange,
                 enabled = enabled,
@@ -266,6 +277,11 @@ private fun CloudRssAutomationContent(
     onInboxPathChange: (String) -> Unit,
     libraryPath: String,
     onLibraryPathChange: (String) -> Unit,
+    directoryBrowser: DesktopCloudDriveDirectoryBrowserState,
+    onPickCloudDriveDirectory: (DesktopCloudDriveDirectoryTarget) -> Unit,
+    onBrowseCloudDriveDirectory: (String) -> Unit,
+    onSelectCloudDriveDirectory: (DesktopCloudDriveDirectoryTarget, String) -> Unit,
+    onCloseCloudDriveDirectory: () -> Unit,
     intervalMinutes: String,
     onIntervalMinutesChange: (String) -> Unit,
     enabled: Boolean,
@@ -500,27 +516,39 @@ private fun CloudRssAutomationContent(
                     preview = cloudRssPathPairPreview(inboxPath, libraryPath),
                 ) {
                     Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp)) {
-                        LabeledTextField(
-                            labels.inboxPath,
-                            inboxPath,
+                        CloudDrivePathSelectorField(
+                            label = labels.inboxPath,
+                            value = inboxPath,
                             onValueChange = onInboxPathChange,
-                            modifier = Modifier.weight(1f),
-                            inputModifier = Modifier.cloudRssFieldNavigation(
+                            onPick = { onPickCloudDriveDirectory(DesktopCloudDriveDirectoryTarget.INBOX) },
+                            fieldModifier = Modifier.cloudRssFieldNavigation(
                                 field = CloudRssField.InboxPath,
                                 focusRequester = fieldFocusRequesters.getValue(CloudRssField.InboxPath),
                                 onMove = ::moveCloudRssFieldFocus,
                             ),
-                        )
-                        LabeledTextField(
-                            labels.libraryPath,
-                            libraryPath,
-                            onValueChange = onLibraryPathChange,
+                            pickModifier = Modifier.cloudRssActionNavigation(
+                                action = CloudRssAction.PickInboxPath,
+                                focusRequester = actionFocusRequesters.getValue(CloudRssAction.PickInboxPath),
+                                onMove = ::moveCloudRssActionFocus,
+                            ),
                             modifier = Modifier.weight(1f),
-                            inputModifier = Modifier.cloudRssFieldNavigation(
+                        )
+                        CloudDrivePathSelectorField(
+                            label = labels.libraryPath,
+                            value = libraryPath,
+                            onValueChange = onLibraryPathChange,
+                            onPick = { onPickCloudDriveDirectory(DesktopCloudDriveDirectoryTarget.LIBRARY) },
+                            fieldModifier = Modifier.cloudRssFieldNavigation(
                                 field = CloudRssField.LibraryPath,
                                 focusRequester = fieldFocusRequesters.getValue(CloudRssField.LibraryPath),
                                 onMove = ::moveCloudRssFieldFocus,
                             ),
+                            pickModifier = Modifier.cloudRssActionNavigation(
+                                action = CloudRssAction.PickLibraryPath,
+                                focusRequester = actionFocusRequesters.getValue(CloudRssAction.PickLibraryPath),
+                                onMove = ::moveCloudRssActionFocus,
+                            ),
+                            modifier = Modifier.weight(1f),
                         )
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp)) {
@@ -624,6 +652,14 @@ private fun CloudRssAutomationContent(
                             ),
                         )
                     }
+                }
+                if (directoryBrowser.open) {
+                    CloudDriveDirectoryBrowserCard(
+                        state = directoryBrowser,
+                        onBrowse = onBrowseCloudDriveDirectory,
+                        onSelect = onSelectCloudDriveDirectory,
+                        onClose = onCloseCloudDriveDirectory,
+                    )
                 }
             }
             Column(
@@ -764,6 +800,146 @@ private fun CloudRssAutomationContent(
 }
 
 @Composable
+private fun CloudDrivePathSelectorField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    onPick: () -> Unit,
+    fieldModifier: Modifier,
+    pickModifier: Modifier,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp),
+    ) {
+        LabeledTextField(
+            label = label,
+            value = value,
+            onValueChange = onValueChange,
+            inputModifier = fieldModifier,
+        )
+        TvActionButton(
+            text = "选择目录",
+            onClick = onPick,
+            secondary = true,
+            modifier = pickModifier.fillMaxWidth(),
+        )
+    }
+}
+
+@Composable
+private fun CloudDriveDirectoryBrowserCard(
+    state: DesktopCloudDriveDirectoryBrowserState,
+    onBrowse: (String) -> Unit,
+    onSelect: (DesktopCloudDriveDirectoryTarget, String) -> Unit,
+    onClose: () -> Unit,
+) {
+    val visibleEntries = state.entries.take(6)
+    val useCurrentFocusRequester = remember { FocusRequester() }
+    val entryFocusRequesters = remember(visibleEntries.map { it.path }) {
+        List(visibleEntries.size) { FocusRequester() }
+    }
+    LaunchedEffect(state.open, state.path) {
+        if (state.open) {
+            useCurrentFocusRequester.requestFocus()
+        }
+    }
+    CloudRssCard(
+        title = state.target.title,
+        badge = "目录",
+        preview = state.displayPath,
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
+            TvActionButton(
+                text = "使用当前目录",
+                onClick = { onSelect(state.target, state.path) },
+                modifier = Modifier
+                    .weight(1f)
+                    .focusRequester(useCurrentFocusRequester),
+            )
+            TvActionButton(
+                text = "返回上级",
+                onClick = { state.parentPath?.let(onBrowse) },
+                secondary = true,
+                modifier = Modifier.weight(1f),
+            )
+            TvActionButton(
+                text = "关闭",
+                onClick = onClose,
+                secondary = true,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        if (!state.message.isNullOrBlank()) {
+            StatusBox(state.message)
+        }
+        if (state.isLoading) {
+            DesktopEmptyState("正在读取 CloudDrive2 目录...", heightDp = 110)
+        } else if (state.entries.isEmpty()) {
+            DesktopEmptyState("当前目录没有可进入的子目录。", heightDp = 110)
+        } else {
+            visibleEntries.forEachIndexed { index, entry ->
+                CloudDriveDirectoryRow(
+                    entry = entry,
+                    onClick = { onBrowse(entry.path) },
+                    onNavigate = { key ->
+                        cloudDriveDirectoryNavigationTarget(
+                            currentIndex = index,
+                            itemCount = visibleEntries.size,
+                            key = key,
+                        )?.let { target ->
+                            entryFocusRequesters[target].requestFocus()
+                            true
+                        } ?: false
+                    },
+                    modifier = Modifier.focusRequester(entryFocusRequesters[index]),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CloudDriveDirectoryRow(
+    entry: DesktopCloudDriveDirectoryEntry,
+    onClick: () -> Unit,
+    onNavigate: (Key) -> Boolean,
+    modifier: Modifier = Modifier,
+) {
+    DesktopSelectableRow(
+        selected = false,
+        onClick = onClick,
+        modifier = modifier.onPreviewKeyEvent { event ->
+            event.type == KeyEventType.KeyDown &&
+                event.key.isCloudRssVerticalKey() &&
+                onNavigate(event.key)
+        },
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Text(
+                entry.name,
+                color = TextPrimary,
+                fontSize = MiruPlayUiMetrics.ITEM_TITLE_SP.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                entry.path,
+                color = TextSecondary,
+                fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
 private fun CloudRssCard(
     title: String,
     badge: String,
@@ -815,6 +991,8 @@ internal enum class CloudRssAction {
     ClearCredentials,
     LoginCloudDrive,
     VerifyApiToken,
+    PickInboxPath,
+    PickLibraryPath,
     UseActiveSource,
     ClearScanSource,
     SaveSyncConfig,
@@ -852,6 +1030,30 @@ internal sealed interface CloudRssFocusTarget {
     data class Field(val field: CloudRssField) : CloudRssFocusTarget
     data class Subscription(val index: Int) : CloudRssFocusTarget
 }
+
+internal enum class DesktopCloudDriveDirectoryTarget(val title: String) {
+    INBOX("选择收件目录"),
+    LIBRARY("选择媒体库目录"),
+}
+
+internal data class DesktopCloudDriveDirectoryEntry(
+    val name: String,
+    val path: String,
+)
+
+internal data class DesktopCloudDriveDirectoryBrowserState(
+    val open: Boolean = false,
+    val target: DesktopCloudDriveDirectoryTarget = DesktopCloudDriveDirectoryTarget.INBOX,
+    val endpointUrl: String = "",
+    val token: String = "",
+    val rootPath: String = "/",
+    val path: String = "/",
+    val displayPath: String = "CloudDrive 根目录",
+    val parentPath: String? = null,
+    val entries: List<DesktopCloudDriveDirectoryEntry> = emptyList(),
+    val isLoading: Boolean = false,
+    val message: String? = null,
+)
 
 private fun Modifier.cloudRssActionNavigation(
     action: CloudRssAction,
@@ -928,6 +1130,8 @@ internal fun cloudRssFieldFocusTarget(
             CloudRssField.Username -> CloudRssFocusTarget.Field(CloudRssField.Endpoint)
             CloudRssField.ApiToken -> CloudRssFocusTarget.Field(CloudRssField.Username)
             CloudRssField.Password -> CloudRssFocusTarget.Field(CloudRssField.Username)
+            CloudRssField.InboxPath -> CloudRssFocusTarget.Action(CloudRssAction.LoginCloudDrive)
+            CloudRssField.LibraryPath -> CloudRssFocusTarget.Action(CloudRssAction.VerifyApiToken)
             CloudRssField.IntervalMinutes -> CloudRssFocusTarget.Field(CloudRssField.InboxPath)
             CloudRssField.ProxyHost,
             CloudRssField.ProxyPort,
@@ -941,8 +1145,8 @@ internal fun cloudRssFieldFocusTarget(
             CloudRssField.Username -> CloudRssFocusTarget.Field(CloudRssField.ApiToken)
             CloudRssField.ApiToken -> CloudRssFocusTarget.Action(CloudRssAction.SaveCredentials)
             CloudRssField.Password -> CloudRssFocusTarget.Action(CloudRssAction.ClearCredentials)
-            CloudRssField.InboxPath -> CloudRssFocusTarget.Field(CloudRssField.IntervalMinutes)
-            CloudRssField.LibraryPath -> CloudRssFocusTarget.Field(CloudRssField.ProxyHost)
+            CloudRssField.InboxPath -> CloudRssFocusTarget.Action(CloudRssAction.PickInboxPath)
+            CloudRssField.LibraryPath -> CloudRssFocusTarget.Action(CloudRssAction.PickLibraryPath)
             CloudRssField.IntervalMinutes -> CloudRssFocusTarget.Toggle(CloudRssToggle.SyncEnabled)
             CloudRssField.ProxyHost,
             CloudRssField.ProxyPort,
@@ -1019,6 +1223,77 @@ internal fun cloudRssSubscriptionFocusTarget(
     }
 }
 
+internal fun normalizeDesktopCloudDrivePath(path: String): String {
+    val trimmed = path.trim().replace('\\', '/').trimEnd('/')
+    return when {
+        trimmed.isBlank() -> "/"
+        trimmed.startsWith('/') -> trimmed
+        else -> "/$trimmed"
+    }
+}
+
+internal fun desktopCloudDriveDisplayPath(path: String): String =
+    normalizeDesktopCloudDrivePath(path).let { normalized ->
+        if (normalized == "/") "CloudDrive 根目录" else normalized
+    }
+
+internal fun desktopCloudDriveParentPath(
+    path: String,
+    rootPath: String,
+): String? {
+    val normalizedPath = normalizeDesktopCloudDrivePath(path)
+    val normalizedRoot = normalizeDesktopCloudDrivePath(rootPath)
+    if (normalizedPath == normalizedRoot || normalizedPath == "/") return null
+    val parent = normalizedPath.substringBeforeLast('/', "")
+    if (parent.isBlank() || parent == normalizedPath) return null
+    return when {
+        normalizedRoot == "/" -> parent.ifBlank { "/" }
+        parent == normalizedRoot || parent.startsWith("$normalizedRoot/") -> parent
+        else -> normalizedRoot
+    }
+}
+
+internal fun desktopCloudDriveScopedPath(
+    requestedPath: String,
+    rootPath: String,
+): String {
+    val requested = normalizeDesktopCloudDrivePath(requestedPath)
+    val root = normalizeDesktopCloudDrivePath(rootPath)
+    return when {
+        root == "/" -> requested
+        requested == "/" -> root
+        requested == root || requested.startsWith("$root/") -> requested
+        else -> root
+    }
+}
+
+internal fun cloudDriveDirectoryEntries(files: List<CloudDriveFileInfo>): List<DesktopCloudDriveDirectoryEntry> =
+    files.asSequence()
+        .filter { it.isDirectory }
+        .filter { !it.name.startsWith(".") }
+        .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name.ifBlank { it.path.substringAfterLast('/') } })
+        .map {
+            DesktopCloudDriveDirectoryEntry(
+                name = it.name.ifBlank { it.path.substringAfterLast('/') },
+                path = normalizeDesktopCloudDrivePath(it.path),
+            )
+        }
+        .toList()
+
+internal fun cloudDriveDirectoryNavigationTarget(
+    currentIndex: Int,
+    itemCount: Int,
+    key: Key,
+): Int? {
+    if (itemCount <= 0) return null
+    val delta = when (key) {
+        Key.DirectionUp -> -1
+        Key.DirectionDown -> 1
+        else -> return null
+    }
+    return (currentIndex + delta).takeIf { it in 0 until itemCount }
+}
+
 private fun cloudRssHorizontalAction(
     current: CloudRssAction,
     delta: Int,
@@ -1030,6 +1305,9 @@ private fun cloudRssHorizontalAction(
         CloudRssAction.LoginCloudDrive,
         CloudRssAction.VerifyApiToken,
         -> listOf(CloudRssAction.LoginCloudDrive, CloudRssAction.VerifyApiToken)
+        CloudRssAction.PickInboxPath,
+        CloudRssAction.PickLibraryPath,
+        -> listOf(CloudRssAction.PickInboxPath, CloudRssAction.PickLibraryPath)
         CloudRssAction.UseActiveSource,
         CloudRssAction.ClearScanSource,
         -> listOf(CloudRssAction.UseActiveSource, CloudRssAction.ClearScanSource)
@@ -1056,6 +1334,8 @@ private fun cloudRssActionUpTarget(
         CloudRssAction.ClearCredentials -> CloudRssFocusTarget.Field(CloudRssField.Password)
         CloudRssAction.LoginCloudDrive -> CloudRssFocusTarget.Action(CloudRssAction.SaveCredentials)
         CloudRssAction.VerifyApiToken -> CloudRssFocusTarget.Action(CloudRssAction.ClearCredentials)
+        CloudRssAction.PickInboxPath -> CloudRssFocusTarget.Field(CloudRssField.InboxPath)
+        CloudRssAction.PickLibraryPath -> CloudRssFocusTarget.Field(CloudRssField.LibraryPath)
         CloudRssAction.UseActiveSource -> CloudRssFocusTarget.Toggle(CloudRssToggle.SyncEnabled)
         CloudRssAction.ClearScanSource -> CloudRssFocusTarget.Toggle(CloudRssToggle.ProxyEnabled)
         CloudRssAction.SaveRss -> CloudRssFocusTarget.Toggle(CloudRssToggle.RssEnabled)
@@ -1082,8 +1362,10 @@ private fun cloudRssActionDownTarget(
     when (current) {
         CloudRssAction.SaveCredentials -> CloudRssFocusTarget.Action(CloudRssAction.LoginCloudDrive)
         CloudRssAction.ClearCredentials -> CloudRssFocusTarget.Action(CloudRssAction.VerifyApiToken)
-        CloudRssAction.LoginCloudDrive -> CloudRssFocusTarget.Action(CloudRssAction.UseActiveSource)
-        CloudRssAction.VerifyApiToken -> CloudRssFocusTarget.Action(CloudRssAction.ClearScanSource)
+        CloudRssAction.LoginCloudDrive -> CloudRssFocusTarget.Field(CloudRssField.InboxPath)
+        CloudRssAction.VerifyApiToken -> CloudRssFocusTarget.Field(CloudRssField.LibraryPath)
+        CloudRssAction.PickInboxPath -> CloudRssFocusTarget.Field(CloudRssField.IntervalMinutes)
+        CloudRssAction.PickLibraryPath -> CloudRssFocusTarget.Field(CloudRssField.ProxyHost)
         CloudRssAction.UseActiveSource -> CloudRssFocusTarget.Action(CloudRssAction.SaveSyncConfig)
         CloudRssAction.ClearScanSource -> CloudRssFocusTarget.Action(CloudRssAction.RunSyncNow)
         CloudRssAction.SaveRss -> if (subscriptionCount > 0) {
