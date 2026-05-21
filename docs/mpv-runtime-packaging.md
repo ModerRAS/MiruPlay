@@ -59,6 +59,9 @@ dialog reads this manifest when it is present and treats the declared relative
 file/directory entries plus required RIFE backends as verification evidence. A
 manifest that names missing files, unknown backends, absolute paths, or `..`
 entries is reported as incomplete instead of being accepted as provenance.
+The Gradle runtime gates use the same manifest evidence checks for source
+runtime payloads, packaged distribution zips, and native app-image runtime
+content.
 `-ExpectedSha256` is optional, but recommended for downloaded release assets; it
 is validated before archive
 extraction. For split archives or base+overlay builds, pass a semicolon separated
@@ -159,7 +162,9 @@ not start. To make `distZip` run the same smoke check during packaging, add
 For the full local release artifact gate, build the distribution zip, launch
 the runtime used for packaging with `mpv.exe --version`, and verify the zip
 contains `runtime/mpv/mpv.exe`, `runtime-manifest.json`, and the requested RIFE
-backend scripts:
+backend scripts. When the bundled runtime contains `runtime-manifest.json`, this
+task also verifies every manifest-declared package-relative file/directory and
+required backend against the actual zip entries:
 
 ```powershell
 .\gradlew.bat :desktop-app:smokePackagedMpvRuntime `
@@ -172,7 +177,7 @@ To verify the native Windows app-image shape before installer/signing work, run
 the jpackage gate. It builds `desktop-app/build/jpackage/output/MiruPlay/`,
 checks the launcher, validates the generated `app/MiruPlay.cfg` main class and
 jar classpath entries, verifies the bundled `runtime/mpv` payload plus the
-requested RIFE scripts, and launches the generated `MiruPlay.exe` with the
+requested RIFE scripts and manifest-declared entries, and launches the generated `MiruPlay.exe` with the
 headless desktop-entry smoke argument to confirm the app-image resolves its own
 runtime and writes a JSON report:
 
