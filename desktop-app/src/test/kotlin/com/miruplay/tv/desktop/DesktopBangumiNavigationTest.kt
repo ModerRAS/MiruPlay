@@ -171,13 +171,77 @@ class DesktopBangumiNavigationTest {
     }
 
     @Test
-    fun `bangumi navigation clamps to visible rows and stops at edges`() {
+    fun `bangumi navigation keeps rows beyond the first page reachable`() {
+        assertEquals(
+            BangumiListPosition(BangumiListSection.BatchMatches, 9),
+            bangumiListNavigationTarget(
+                current = BangumiListPosition(BangumiListSection.BatchCandidates, 9),
+                key = Key.DirectionLeft,
+                batchMatchCount = 10,
+                candidateCount = 10,
+                resultCount = 10,
+            ),
+        )
+        assertEquals(
+            BangumiListPosition(BangumiListSection.BatchMatches, 4),
+            bangumiListNavigationTarget(
+                current = BangumiListPosition(BangumiListSection.BatchMatches, 3),
+                key = Key.DirectionDown,
+                batchMatchCount = 10,
+                candidateCount = 10,
+                resultCount = 10,
+            ),
+        )
+        assertEquals(
+            BangumiListPosition(BangumiListSection.BatchCandidates, 4),
+            bangumiListNavigationTarget(
+                current = BangumiListPosition(BangumiListSection.BatchCandidates, 3),
+                key = Key.DirectionDown,
+                batchMatchCount = 10,
+                candidateCount = 10,
+                resultCount = 10,
+            ),
+        )
+        assertEquals(
+            BangumiListPosition(BangumiListSection.BatchCandidates, 0),
+            bangumiListNavigationTarget(
+                current = BangumiListPosition(BangumiListSection.BatchMatches, 9),
+                key = Key.DirectionDown,
+                batchMatchCount = 10,
+                candidateCount = 10,
+                resultCount = 10,
+            ),
+        )
+        assertEquals(
+            BangumiListPosition(BangumiListSection.SearchResults, 6),
+            bangumiListNavigationTarget(
+                current = BangumiListPosition(BangumiListSection.SearchResults, 5),
+                key = Key.DirectionDown,
+                batchMatchCount = 10,
+                candidateCount = 10,
+                resultCount = 10,
+            ),
+        )
+        assertEquals(
+            BangumiListPosition(BangumiListSection.SearchResults, 9),
+            bangumiListNavigationTarget(
+                current = BangumiListPosition(BangumiListSection.SearchResults, 8),
+                key = Key.DirectionDown,
+                batchMatchCount = 10,
+                candidateCount = 10,
+                resultCount = 10,
+            ),
+        )
+    }
+
+    @Test
+    fun `bangumi navigation stops at full list edges`() {
         assertEquals(
             BangumiListPosition(BangumiListSection.BatchMatches, 3),
             bangumiListNavigationTarget(
-                current = BangumiListPosition(BangumiListSection.BatchCandidates, 3),
+                current = BangumiListPosition(BangumiListSection.BatchCandidates, 9),
                 key = Key.DirectionLeft,
-                batchMatchCount = 10,
+                batchMatchCount = 4,
                 candidateCount = 10,
                 resultCount = 10,
             ),
@@ -193,7 +257,7 @@ class DesktopBangumiNavigationTest {
         )
         assertNull(
             bangumiListNavigationTarget(
-                current = BangumiListPosition(BangumiListSection.SearchResults, 5),
+                current = BangumiListPosition(BangumiListSection.SearchResults, 9),
                 key = Key.DirectionDown,
                 batchMatchCount = 10,
                 candidateCount = 10,
@@ -397,11 +461,11 @@ class DesktopBangumiNavigationTest {
             bangumiEmptyResultsFocusTarget(Key.DirectionUp),
         )
         assertEquals(
-            BangumiActionFocusTarget.ListPosition(BangumiListPosition(BangumiListSection.BatchMatches, 3)),
+            BangumiActionFocusTarget.ListPosition(BangumiListPosition(BangumiListSection.BatchMatches, 9)),
             bangumiEmptyResultsFocusTarget(Key.DirectionUp, batchMatchCount = 10, candidateCount = 0),
         )
         assertEquals(
-            BangumiActionFocusTarget.ListPosition(BangumiListPosition(BangumiListSection.BatchCandidates, 3)),
+            BangumiActionFocusTarget.ListPosition(BangumiListPosition(BangumiListSection.BatchCandidates, 9)),
             bangumiEmptyResultsFocusTarget(Key.DirectionUp, batchMatchCount = 10, candidateCount = 10),
         )
         assertEquals(
@@ -409,5 +473,28 @@ class DesktopBangumiNavigationTest {
             bangumiEmptyResultsFocusTarget(Key.DirectionDown),
         )
         assertNull(bangumiEmptyResultsFocusTarget(Key.DirectionRight))
+    }
+
+    @Test
+    fun `bangumi page helpers keep every metadata row reachable`() {
+        assertEquals(0, bangumiPageStartForIndex(index = 0, itemCount = 13, pageSize = 4))
+        assertEquals(0, bangumiPageStartForIndex(index = 3, itemCount = 13, pageSize = 4))
+        assertEquals(4, bangumiPageStartForIndex(index = 4, itemCount = 13, pageSize = 4))
+        assertEquals(12, bangumiPageStartForIndex(index = 12, itemCount = 13, pageSize = 4))
+        assertEquals(12, bangumiPageStartForIndex(index = 30, itemCount = 13, pageSize = 4))
+        assertEquals(6, bangumiPageStartForIndex(index = 6, itemCount = 12, pageSize = 6))
+        assertEquals(8, bangumiCoercedPageStart(pageStart = 10, itemCount = 13, pageSize = 4))
+        assertEquals(12, bangumiCoercedPageStart(pageStart = 40, itemCount = 13, pageSize = 4))
+        assertEquals(0, bangumiCoercedPageStart(pageStart = -4, itemCount = 13, pageSize = 4))
+
+        assertEquals(
+            "候选：显示 5-8 / 13 个条目，按上/下继续翻页。",
+            bangumiPageSummary(label = "候选", pageStart = 4, visibleCount = 4, itemCount = 13, pageSize = 4),
+        )
+        assertEquals(
+            "搜索结果：显示 13-13 / 13 个条目，按上/下继续翻页。",
+            bangumiPageSummary(label = "搜索结果", pageStart = 12, visibleCount = 1, itemCount = 13, pageSize = 4),
+        )
+        assertNull(bangumiPageSummary(label = "批量", pageStart = 0, visibleCount = 4, itemCount = 4, pageSize = 4))
     }
 }

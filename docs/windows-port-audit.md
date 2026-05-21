@@ -181,11 +181,16 @@ Continue watching selection from Details after playback stopped.
 `DesktopBangumiNavigationTest` now covers Bangumi batch-match, candidate,
 search-result, and empty-result row movement without depending on the live
 Bangumi service.
+Bangumi metadata match lists now page their fixed-height rows in TV-style
+windows too: batch matches and candidates page in four-row windows, search
+results page in six-row windows, `Down`/`Up` can cross those page boundaries,
+and each section shows a Chinese range summary so longer preview/search lists
+are not silently truncated.
 `:scraper-desktop:smokeBangumiLive` now covers the live service path for
 search, subject details, and regular episode listing while writing token-free
 JSON evidence.
 The Bangumi metadata GUI smoke captured
-`build/desktop-bangumi-metadata-ui/run-20260520-213906/bangumi-details-ready.png`,
+`build/desktop-bangumi-metadata-ui/run-20260521-221838/bangumi-details-ready.png`,
 `bangumi-focus-bangumi.png`, `bangumi-search-results.png`,
 `bangumi-metadata-applied.png`, and `bangumi-metadata-cleared.png`, proving the
 real Windows Details panel can move from the episode shelf to Bangumi controls
