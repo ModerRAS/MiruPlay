@@ -27,7 +27,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -77,7 +80,23 @@ internal fun PlaybackPanel(
     onSeekForward: () -> Unit,
     onStop: () -> Unit,
     modifier: Modifier = Modifier,
+    requestedSettingsFocusVersion: Int = 0,
+    requestedSettingsFocusTarget: PlaybackSettingFocusTarget = PlaybackSettingFocusTarget.MediaPath,
+    onFocusNextPanel: () -> Boolean = { false },
 ) {
+    var stageFocusVersion by remember { mutableIntStateOf(0) }
+    var settingsFocusVersion by remember { mutableIntStateOf(0) }
+    var settingsFocusTarget by remember { mutableStateOf(PlaybackSettingFocusTarget.MediaPath) }
+    fun requestSettingsFocus(target: PlaybackSettingFocusTarget): Boolean {
+        settingsFocusTarget = target
+        settingsFocusVersion += 1
+        return true
+    }
+    LaunchedEffect(requestedSettingsFocusVersion) {
+        if (requestedSettingsFocusVersion > 0) {
+            requestSettingsFocus(requestedSettingsFocusTarget)
+        }
+    }
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(18.dp),
@@ -95,6 +114,10 @@ internal fun PlaybackPanel(
             onSeekBack = onSeekBack,
             onSeekForward = onSeekForward,
             onStop = onStop,
+            focusVersion = stageFocusVersion,
+            onFocusNextPanel = {
+                requestSettingsFocus(PlaybackSettingFocusTarget.MediaPath)
+            },
         )
         PlaybackSettingsPanel(
             mediaPath = mediaPath,
@@ -111,6 +134,13 @@ internal fun PlaybackPanel(
             onRifeEnabledChange = onRifeEnabledChange,
             rifeBackend = rifeBackend,
             onRifeBackendChange = onRifeBackendChange,
+            focusVersion = settingsFocusVersion,
+            focusTarget = settingsFocusTarget,
+            onFocusPreviousPanel = {
+                stageFocusVersion += 1
+                true
+            },
+            onFocusNextPanel = onFocusNextPanel,
         )
     }
 }
@@ -129,6 +159,8 @@ private fun DesktopPlayerStage(
     onSeekBack: () -> Unit,
     onSeekForward: () -> Unit,
     onStop: () -> Unit,
+    focusVersion: Int = 0,
+    onFocusNextPanel: () -> Boolean = { false },
 ) {
     val title = desktopPlaybackTitle(mediaPath)
     val backToDetailsFocusRequester = remember { FocusRequester() }
@@ -177,6 +209,8 @@ private fun DesktopPlayerStage(
             onStop = onStop,
             primaryFocusRequester = primaryTransportFocusRequester,
             onFocusBackToDetails = { backToDetailsFocusRequester.requestFocus() },
+            onFocusNextPanel = onFocusNextPanel,
+            focusVersion = focusVersion,
             modifier = Modifier.align(Alignment.Center),
         )
         PlayerStageBottomBar(
@@ -260,6 +294,8 @@ private fun PlayerTransportControls(
     onStop: () -> Unit,
     primaryFocusRequester: FocusRequester,
     onFocusBackToDetails: () -> Unit,
+    onFocusNextPanel: () -> Boolean,
+    focusVersion: Int,
     modifier: Modifier = Modifier,
 ) {
     val focusRequesters = remember(primaryFocusRequester) {
@@ -267,7 +303,7 @@ private fun PlayerTransportControls(
             if (target == DesktopPlayerStageFocusTarget.Primary) primaryFocusRequester else FocusRequester()
         }
     }
-    LaunchedEffect(isPlayerActive) {
+    LaunchedEffect(isPlayerActive, focusVersion) {
         focusRequesters.getValue(DesktopPlayerStageFocusTarget.Primary).requestFocus()
     }
 
@@ -275,6 +311,8 @@ private fun PlayerTransportControls(
         val target = desktopPlayerStageNavigationTarget(current, key, isPlayerActive) ?: return false
         if (target == DesktopPlayerStageFocusTarget.BackToDetails) {
             onFocusBackToDetails()
+        } else if (target == DesktopPlayerStageFocusTarget.NextPanel) {
+            return onFocusNextPanel()
         } else {
             focusRequesters.getValue(target).requestFocus()
         }
@@ -442,6 +480,7 @@ internal enum class DesktopPlayerStageFocusTarget {
     Primary,
     SeekForward,
     Stop,
+    NextPanel,
 }
 
 internal fun desktopPlayerTransportTargets(isPlayerActive: Boolean): List<DesktopPlayerStageFocusTarget> =
@@ -460,6 +499,7 @@ internal fun desktopPlayerStageNavigationTarget(
     when (key) {
         Key.DirectionUp -> DesktopPlayerStageFocusTarget.BackToDetails.takeIf { current in desktopPlayerTransportTargets(isPlayerActive) }
         Key.DirectionDown -> DesktopPlayerStageFocusTarget.Primary.takeIf { current == DesktopPlayerStageFocusTarget.BackToDetails }
+            ?: DesktopPlayerStageFocusTarget.NextPanel.takeIf { current in desktopPlayerTransportTargets(isPlayerActive) }
         Key.DirectionLeft -> current.transportStep(delta = -1, isPlayerActive = isPlayerActive)
         Key.DirectionRight -> current.transportStep(delta = 1, isPlayerActive = isPlayerActive)
         else -> null
@@ -476,24 +516,74 @@ private fun DesktopPlayerStageFocusTarget.transportStep(
 }
 
 internal enum class PlaybackSettingFocusTarget {
+    MediaPath,
+    StartSeconds,
+    SubtitlePath,
     Fullscreen,
     KeepOpen,
     RifeToggle,
     RifeBackend,
+    PreviousPanel,
+    NextPanel,
 }
+
+private val playbackSettingFocusableTargets = listOf(
+    PlaybackSettingFocusTarget.MediaPath,
+    PlaybackSettingFocusTarget.StartSeconds,
+    PlaybackSettingFocusTarget.SubtitlePath,
+    PlaybackSettingFocusTarget.Fullscreen,
+    PlaybackSettingFocusTarget.KeepOpen,
+    PlaybackSettingFocusTarget.RifeToggle,
+    PlaybackSettingFocusTarget.RifeBackend,
+)
+
+private val playbackSettingToggleTargets = listOf(
+    PlaybackSettingFocusTarget.Fullscreen,
+    PlaybackSettingFocusTarget.KeepOpen,
+    PlaybackSettingFocusTarget.RifeToggle,
+    PlaybackSettingFocusTarget.RifeBackend,
+)
 
 internal fun playbackSettingNavigationTarget(
     current: PlaybackSettingFocusTarget,
     key: Key,
 ): PlaybackSettingFocusTarget? =
-    when (key) {
-        Key.DirectionLeft -> current.playbackSettingStep(delta = -1)
-        Key.DirectionRight -> current.playbackSettingStep(delta = 1)
-        else -> null
+    when (current) {
+        PlaybackSettingFocusTarget.MediaPath -> when (key) {
+            Key.DirectionRight -> PlaybackSettingFocusTarget.StartSeconds
+            Key.DirectionDown -> PlaybackSettingFocusTarget.SubtitlePath
+            Key.DirectionUp -> PlaybackSettingFocusTarget.PreviousPanel
+            else -> null
+        }
+        PlaybackSettingFocusTarget.StartSeconds -> when (key) {
+            Key.DirectionLeft -> PlaybackSettingFocusTarget.MediaPath
+            Key.DirectionDown -> PlaybackSettingFocusTarget.SubtitlePath
+            Key.DirectionUp -> PlaybackSettingFocusTarget.PreviousPanel
+            else -> null
+        }
+        PlaybackSettingFocusTarget.SubtitlePath -> when (key) {
+            Key.DirectionUp -> PlaybackSettingFocusTarget.MediaPath
+            Key.DirectionDown -> PlaybackSettingFocusTarget.Fullscreen
+            else -> null
+        }
+        PlaybackSettingFocusTarget.Fullscreen,
+        PlaybackSettingFocusTarget.KeepOpen,
+        PlaybackSettingFocusTarget.RifeToggle,
+        PlaybackSettingFocusTarget.RifeBackend,
+        -> when (key) {
+            Key.DirectionLeft -> current.playbackSettingToggleStep(delta = -1)
+            Key.DirectionRight -> current.playbackSettingToggleStep(delta = 1)
+            Key.DirectionUp -> PlaybackSettingFocusTarget.SubtitlePath
+            Key.DirectionDown -> PlaybackSettingFocusTarget.NextPanel
+            else -> null
+        }
+        PlaybackSettingFocusTarget.PreviousPanel,
+        PlaybackSettingFocusTarget.NextPanel,
+        -> null
     }
 
-private fun PlaybackSettingFocusTarget.playbackSettingStep(delta: Int): PlaybackSettingFocusTarget? {
-    val targets = PlaybackSettingFocusTarget.entries
+private fun PlaybackSettingFocusTarget.playbackSettingToggleStep(delta: Int): PlaybackSettingFocusTarget? {
+    val targets = playbackSettingToggleTargets
     val currentIndex = targets.indexOf(this)
     if (currentIndex < 0) return null
     return targets.getOrNull(currentIndex + delta)
@@ -513,7 +603,14 @@ internal enum class RuntimeFocusTarget {
     MpvPath,
     ConfigDir,
     CheckRuntime,
+    PreviousPanel,
 }
+
+private val runtimeFocusableTargets = listOf(
+    RuntimeFocusTarget.MpvPath,
+    RuntimeFocusTarget.ConfigDir,
+    RuntimeFocusTarget.CheckRuntime,
+)
 
 internal fun runtimeNavigationTarget(
     current: RuntimeFocusTarget,
@@ -521,12 +618,13 @@ internal fun runtimeNavigationTarget(
 ): RuntimeFocusTarget? =
     when (key) {
         Key.DirectionUp -> current.runtimeStep(delta = -1)
+            ?: RuntimeFocusTarget.PreviousPanel.takeIf { current == RuntimeFocusTarget.MpvPath }
         Key.DirectionDown -> current.runtimeStep(delta = 1)
         else -> null
     }
 
 private fun RuntimeFocusTarget.runtimeStep(delta: Int): RuntimeFocusTarget? {
-    val targets = RuntimeFocusTarget.entries
+    val targets = runtimeFocusableTargets
     val currentIndex = targets.indexOf(this)
     if (currentIndex < 0) return null
     return targets.getOrNull(currentIndex + delta)
@@ -641,25 +739,65 @@ private fun PlaybackSettingsPanel(
     onRifeEnabledChange: (Boolean) -> Unit,
     rifeBackend: RifeBackend,
     onRifeBackendChange: (RifeBackend) -> Unit,
+    focusVersion: Int = 0,
+    focusTarget: PlaybackSettingFocusTarget = PlaybackSettingFocusTarget.MediaPath,
+    onFocusPreviousPanel: () -> Boolean = { false },
+    onFocusNextPanel: () -> Boolean = { false },
 ) {
     val labels = desktopPlaybackUiLabels()
     val settingFocusRequesters = remember {
-        PlaybackSettingFocusTarget.entries.associateWith { FocusRequester() }
+        playbackSettingFocusableTargets.associateWith { FocusRequester() }
     }
     fun movePlaybackSettingFocus(target: PlaybackSettingFocusTarget, key: Key): Boolean {
         val next = playbackSettingNavigationTarget(target, key) ?: return false
+        if (next == PlaybackSettingFocusTarget.PreviousPanel) return onFocusPreviousPanel()
+        if (next == PlaybackSettingFocusTarget.NextPanel) return onFocusNextPanel()
         settingFocusRequesters.getValue(next).requestFocus()
         return true
+    }
+    LaunchedEffect(focusVersion) {
+        if (focusVersion > 0) {
+            settingFocusRequesters.getValue(focusTarget).requestFocus()
+        }
     }
     TvPanel(Modifier.fillMaxWidth()) {
         Text("播放设置", color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
-            LabeledTextField(labels.mediaPath, mediaPath, onValueChange = onMediaPathChange, modifier = Modifier.weight(1.6f))
-            LabeledTextField(labels.startSeconds, startSeconds, onValueChange = onStartSecondsChange, modifier = Modifier.weight(0.42f))
+            LabeledTextField(
+                labels.mediaPath,
+                mediaPath,
+                onValueChange = onMediaPathChange,
+                modifier = Modifier.weight(1.6f),
+                inputModifier = Modifier.playbackSettingNavigation(
+                    target = PlaybackSettingFocusTarget.MediaPath,
+                    focusRequester = settingFocusRequesters.getValue(PlaybackSettingFocusTarget.MediaPath),
+                    onMove = ::movePlaybackSettingFocus,
+                ),
+            )
+            LabeledTextField(
+                labels.startSeconds,
+                startSeconds,
+                onValueChange = onStartSecondsChange,
+                modifier = Modifier.weight(0.42f),
+                inputModifier = Modifier.playbackSettingNavigation(
+                    target = PlaybackSettingFocusTarget.StartSeconds,
+                    focusRequester = settingFocusRequesters.getValue(PlaybackSettingFocusTarget.StartSeconds),
+                    onMove = ::movePlaybackSettingFocus,
+                ),
+            )
         }
         Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
-        LabeledTextField(labels.subtitlePath, subtitlePath, onValueChange = onSubtitlePathChange)
+        LabeledTextField(
+            labels.subtitlePath,
+            subtitlePath,
+            onValueChange = onSubtitlePathChange,
+            inputModifier = Modifier.playbackSettingNavigation(
+                target = PlaybackSettingFocusTarget.SubtitlePath,
+                focusRequester = settingFocusRequesters.getValue(PlaybackSettingFocusTarget.SubtitlePath),
+                onMove = ::movePlaybackSettingFocus,
+            ),
+        )
         Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -717,14 +855,22 @@ internal fun RuntimePanel(
     status: String,
     onCheckRuntime: () -> Unit,
     modifier: Modifier = Modifier,
+    focusVersion: Int = 0,
+    onFocusPreviousPanel: () -> Boolean = { false },
 ) {
     val runtimeFocusRequesters = remember {
-        RuntimeFocusTarget.entries.associateWith { FocusRequester() }
+        runtimeFocusableTargets.associateWith { FocusRequester() }
     }
     fun moveRuntimeFocus(target: RuntimeFocusTarget, key: Key): Boolean {
         val next = runtimeNavigationTarget(target, key) ?: return false
+        if (next == RuntimeFocusTarget.PreviousPanel) return onFocusPreviousPanel()
         runtimeFocusRequesters.getValue(next).requestFocus()
         return true
+    }
+    LaunchedEffect(focusVersion) {
+        if (focusVersion > 0) {
+            runtimeFocusRequesters.getValue(RuntimeFocusTarget.MpvPath).requestFocus()
+        }
     }
     TvPanel(modifier) {
         Text("运行时", color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
