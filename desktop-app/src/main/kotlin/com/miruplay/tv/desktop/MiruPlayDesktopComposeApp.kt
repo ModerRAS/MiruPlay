@@ -35,6 +35,7 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.ApplicationScope
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.application
@@ -191,6 +192,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.awt.Dimension
+import java.nio.file.Files
+import java.nio.file.Path
 import java.nio.file.Paths
 import kotlin.math.roundToLong
 
@@ -210,6 +213,8 @@ private const val PLAYBACK_PROGRESS_POLL_INTERVAL_MS = 10_000L
 internal typealias DesktopSection = MiruPlayRouteSurface.Section
 
 private const val DESKTOP_START_SECTION_ENV = "MIRUPLAY_DESKTOP_START_SECTION"
+internal const val DESKTOP_ENTRY_SMOKE_ARG = "--miruplay-desktop-smoke"
+internal const val DESKTOP_ENTRY_SMOKE_REPORT_ARG_PREFIX = "--miruplay-desktop-smoke-report="
 
 private val MiruPlayDesktopColorScheme = darkColorScheme(
     primary = AnimeRed,
@@ -223,7 +228,16 @@ private val MiruPlayDesktopColorScheme = darkColorScheme(
     error = Color(MiruPlayPalette.ERROR_ARGB),
 )
 
-fun main() = application {
+fun main(args: Array<String>) {
+    if (runDesktopEntrySmoke(args)) return
+
+    application {
+        MiruPlayDesktopWindow()
+    }
+}
+
+@Composable
+private fun ApplicationScope.MiruPlayDesktopWindow() {
     val windowState = rememberWindowState(width = 1280.dp, height = 820.dp)
     var playerFullscreenRestorePlacement by remember { mutableStateOf<WindowPlacement?>(null) }
     fun applyPlayerFullscreen(active: Boolean) {
@@ -255,6 +269,80 @@ fun main() = application {
         }
     }
 }
+
+internal data class DesktopEntrySmokeReport(
+    val status: String,
+    val entryPoint: String,
+    val windowTitle: String,
+    val initialSection: String,
+    val runtimeRoot: String,
+    val mpvExecutable: String,
+    val configDirectory: String,
+) {
+    fun toJson(): String =
+        """
+        {
+          "status": ${status.jsonValue()},
+          "entryPoint": ${entryPoint.jsonValue()},
+          "windowTitle": ${windowTitle.jsonValue()},
+          "initialSection": ${initialSection.jsonValue()},
+          "runtimeRoot": ${runtimeRoot.jsonValue()},
+          "mpvExecutable": ${mpvExecutable.jsonValue()},
+          "configDirectory": ${configDirectory.jsonValue()}
+        }
+        """.trimIndent()
+}
+
+internal fun desktopEntrySmokeReport(): DesktopEntrySmokeReport {
+    val layout = MpvRuntimeDiscovery.defaultLayout()
+    return DesktopEntrySmokeReport(
+        status = "ok",
+        entryPoint = "com.miruplay.tv.desktop.MiruPlayDesktopComposeAppKt",
+        windowTitle = desktopWindowTitle(),
+        initialSection = desktopInitialSectionFromEnvironment().id,
+        runtimeRoot = layout.rootDirectory.toString(),
+        mpvExecutable = layout.executable.toString(),
+        configDirectory = layout.configDirectory.toString(),
+    )
+}
+
+internal fun desktopEntrySmokeReportPath(args: Array<String>): Path? =
+    args.firstOrNull { it.startsWith(DESKTOP_ENTRY_SMOKE_REPORT_ARG_PREFIX) }
+        ?.removePrefix(DESKTOP_ENTRY_SMOKE_REPORT_ARG_PREFIX)
+        ?.trim()
+        ?.takeIf { it.isNotEmpty() }
+        ?.let(Paths::get)
+
+internal fun shouldRunDesktopEntrySmoke(args: Array<String>): Boolean =
+    args.any { it == DESKTOP_ENTRY_SMOKE_ARG }
+
+internal fun runDesktopEntrySmoke(args: Array<String>): Boolean {
+    if (!shouldRunDesktopEntrySmoke(args)) return false
+
+    val report = desktopEntrySmokeReport().toJson()
+    desktopEntrySmokeReportPath(args)?.let { reportPath ->
+        reportPath.parent?.let(Files::createDirectories)
+        Files.writeString(reportPath, report)
+    }
+    println(report)
+    return true
+}
+
+private fun String.jsonValue(): String =
+    buildString {
+        append('"')
+        this@jsonValue.forEach { char ->
+            when (char) {
+                '\\' -> append("\\\\")
+                '"' -> append("\\\"")
+                '\n' -> append("\\n")
+                '\r' -> append("\\r")
+                '\t' -> append("\\t")
+                else -> append(char)
+            }
+        }
+        append('"')
+    }
 
 internal fun desktopWindowTitle(): String =
     "MiruPlay 桌面版"

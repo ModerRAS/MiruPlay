@@ -1,6 +1,7 @@
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.time.OffsetDateTime
+import java.util.concurrent.TimeUnit
 import java.util.zip.ZipFile
 import org.gradle.api.file.DuplicatesStrategy
 import org.gradle.api.tasks.Sync
@@ -50,6 +51,9 @@ val jpackageInputDir = layout.buildDirectory.dir("jpackage/input")
 val jpackageOutputDir = layout.buildDirectory.dir("jpackage/output")
 val jpackageAppImageRoot = jpackageOutputDir.map { it.dir("MiruPlay").asFile }
 val jpackageAppContentRuntimeDir = jpackageAppContentDir.map { it.dir("runtime") }
+val jpackageEntrySmokeReport = layout.buildDirectory.file("jpackage/smoke/native-entry-smoke.json")
+val desktopEntrySmokeArg = "--miruplay-desktop-smoke"
+val desktopEntrySmokeReportArgPrefix = "--miruplay-desktop-smoke-report="
 val mainJarFile = tasks.named<Jar>("jar").flatMap { it.archiveFile }
 val runtimeClasspath = configurations.named("runtimeClasspath")
 
@@ -341,6 +345,8 @@ val smokeNativeAppImageRuntime by tasks.registering {
     }
     inputs.dir(jpackageAppImageRoot).optional()
     inputs.property("requiredRifeBackends", requiredRifeBackends)
+    outputs.file(jpackageEntrySmokeReport)
+    outputs.upToDateWhen { false }
 
     doLast {
         val appRoot = jpackageAppImageRoot.get()
@@ -435,11 +441,81 @@ val smokeNativeAppImageRuntime by tasks.registering {
             )
         }
 
+        val entrySmokeReportFile = jpackageEntrySmokeReport.get().asFile
+        val entrySmokeOutputFile = entrySmokeReportFile.resolveSibling("native-entry-smoke-output.log")
+        delete(entrySmokeReportFile)
+        delete(entrySmokeOutputFile)
+        entrySmokeReportFile.parentFile.mkdirs()
+        val entrySmokeProcess = ProcessBuilder(
+            launcher.absolutePath,
+            desktopEntrySmokeArg,
+            "$desktopEntrySmokeReportArgPrefix${entrySmokeReportFile.absolutePath}",
+        )
+            .directory(appRoot)
+            .redirectErrorStream(true)
+            .redirectOutput(entrySmokeOutputFile)
+            .apply {
+                environment()["MIRUPLAY_DESKTOP_START_SECTION"] = "library"
+                environment()["MIRUPLAY_MPV_RUNTIME"] = ""
+            }
+            .start()
+        val entrySmokeFinished = entrySmokeProcess.waitFor(30, TimeUnit.SECONDS)
+        val entrySmokeText = entrySmokeOutputFile.takeIf { it.isFile }?.readText().orEmpty().trim()
+        if (!entrySmokeFinished) {
+            entrySmokeProcess.destroyForcibly()
+            throw GradleException(
+                "Native app image launcher smoke timed out after 30 seconds.\n$entrySmokeText"
+            )
+        }
+        if (entrySmokeProcess.exitValue() != 0) {
+            throw GradleException(
+                "Native app image launcher smoke failed with exit code ${entrySmokeProcess.exitValue()}.\n" +
+                    entrySmokeText
+            )
+        }
+        if (!entrySmokeReportFile.isFile) {
+            throw GradleException(
+                "Native app image launcher smoke did not write report: $entrySmokeReportFile\n$entrySmokeText"
+            )
+        }
+        val entrySmokeReport = entrySmokeReportFile.readText()
+        val expectedRuntimeRoot = runtimeRoot.toPath().toAbsolutePath().normalize().toString()
+        val expectedMpvExecutable = runtimeRoot.resolve("mpv.exe").toPath().toAbsolutePath().normalize().toString()
+        val expectedConfigDirectory = runtimeRoot.resolve("portable_config").toPath().toAbsolutePath().normalize().toString()
+        val expectedWindowTitle = "MiruPlay \u684c\u9762\u7248"
+        val missingReportFields = buildList {
+            if (!entrySmokeReport.contains("\"status\": \"ok\"")) add("status=ok")
+            if (!entrySmokeReport.contains("\"entryPoint\": ${expectedMainClass.jsonString()}")) {
+                add("entryPoint=$expectedMainClass")
+            }
+            if (!entrySmokeReport.contains("\"windowTitle\": ${expectedWindowTitle.jsonString()}")) {
+                add("windowTitle=$expectedWindowTitle")
+            }
+            if (!entrySmokeReport.contains("\"initialSection\": \"library\"")) add("initialSection=library")
+            if (!entrySmokeReport.contains("\"runtimeRoot\": ${expectedRuntimeRoot.jsonString()}")) {
+                add("runtimeRoot=$expectedRuntimeRoot")
+            }
+            if (!entrySmokeReport.contains("\"mpvExecutable\": ${expectedMpvExecutable.jsonString()}")) {
+                add("mpvExecutable=$expectedMpvExecutable")
+            }
+            if (!entrySmokeReport.contains("\"configDirectory\": ${expectedConfigDirectory.jsonString()}")) {
+                add("configDirectory=$expectedConfigDirectory")
+            }
+        }
+        if (missingReportFields.isNotEmpty()) {
+            throw GradleException(
+                "Native app image launcher smoke report is missing expected fields in $entrySmokeReportFile:\n" +
+                    missingReportFields.joinToString(separator = "\n") { " - $it" } +
+                    "\nReport:\n$entrySmokeReport"
+            )
+        }
+
         logger.lifecycle(
             "native app image verified: launcher=${launcher.toPath().toAbsolutePath().normalize()}, " +
                 "runtime=${runtimeRoot.toPath().toAbsolutePath().normalize()}, " +
                 "classpath jars=${configuredClasspathJars.size}, " +
-                "RIFE backends=${requestedBackends.ifEmpty { listOf("none") }.joinToString(", ")}"
+                "RIFE backends=${requestedBackends.ifEmpty { listOf("none") }.joinToString(", ")}, " +
+                "entry smoke report=${entrySmokeReportFile.toPath().toAbsolutePath().normalize()}"
         )
     }
 }
