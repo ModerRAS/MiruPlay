@@ -1,5 +1,6 @@
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.security.MessageDigest
 import java.time.OffsetDateTime
 import java.util.concurrent.TimeUnit
 import java.util.zip.ZipFile
@@ -51,12 +52,31 @@ val jpackageAppContentDir = layout.buildDirectory.dir("jpackage/app-content")
 val jpackageInputDir = layout.buildDirectory.dir("jpackage/input")
 val jpackageOutputDir = layout.buildDirectory.dir("jpackage/output")
 val jpackageAppImageRoot = jpackageOutputDir.map { it.dir("MiruPlay").asFile }
+val jpackageInstallerOutputDir = layout.buildDirectory.dir("jpackage/installer")
 val jpackageAppContentRuntimeDir = jpackageAppContentDir.map { it.dir("runtime") }
 val jpackageEntrySmokeReport = layout.buildDirectory.file("jpackage/smoke/native-entry-smoke.json")
+val jpackageInstallerSmokeReport = layout.buildDirectory.file("jpackage/smoke/windows-installer-smoke.json")
 val desktopEntrySmokeArg = "--miruplay-desktop-smoke"
 val desktopEntrySmokeReportArgPrefix = "--miruplay-desktop-smoke-report="
 val mainJarFile = tasks.named<Jar>("jar").flatMap { it.archiveFile }
 val runtimeClasspath = configurations.named("runtimeClasspath")
+val windowsPackageVersion = providers.gradleProperty("windowsPackageVersion")
+    .orElse("0.1.0")
+val windowsInstallerType = providers.gradleProperty("windowsInstallerType")
+    .orElse("msi")
+val requireWindowsInstallerToolchain = providers.gradleProperty("requireWindowsInstallerToolchain")
+    .map { it.equals("true", ignoreCase = true) }
+    .orElse(false)
+val signWindowsInstaller = providers.gradleProperty("signWindowsInstaller")
+    .map { it.equals("true", ignoreCase = true) }
+    .orElse(false)
+val windowsInstallerSignTool = providers.gradleProperty("windowsInstallerSignTool")
+val windowsInstallerCertPath = providers.gradleProperty("windowsInstallerCertPath")
+val windowsInstallerCertPassword = providers.gradleProperty("windowsInstallerCertPassword")
+val windowsInstallerTimestampUrl = providers.gradleProperty("windowsInstallerTimestampUrl")
+    .orElse("http://timestamp.digicert.com")
+val windowsInstallerUpgradeUuid = providers.gradleProperty("windowsInstallerUpgradeUuid")
+    .orElse("8b677436-92f3-4b59-83bb-4e6ad9f8f22a")
 
 fun requestedRifeBackends(): List<String> =
     requiredRifeBackends.get()
@@ -231,6 +251,100 @@ fun jpackageExecutable(): File {
         )
 }
 
+fun normalizeWindowsInstallerType(value: String): String =
+    value.trim().lowercase().also { normalized ->
+        if (normalized !in setOf("msi", "exe")) {
+            throw GradleException("windowsInstallerType must be msi or exe, but was: $value")
+        }
+    }
+
+fun commandExistsOnPath(commandName: String): Boolean {
+    val path = System.getenv("PATH").orEmpty()
+    val pathExt = System.getenv("PATHEXT")
+        ?.split(';')
+        ?.filter { it.isNotBlank() }
+        ?: listOf(".exe", ".cmd", ".bat")
+    val candidates = path.split(File.pathSeparatorChar)
+        .filter { it.isNotBlank() }
+        .flatMap { directory ->
+            val root = File(directory)
+            if (commandName.contains('.')) {
+                listOf(root.resolve(commandName))
+            } else {
+                pathExt.map { extension -> root.resolve("$commandName$extension") }
+            }
+        }
+    return candidates.any { it.isFile }
+}
+
+fun windowsInstallerToolchainAvailable(): Boolean =
+    commandExistsOnPath("candle.exe") && commandExistsOnPath("light.exe")
+
+fun signtoolExecutable(): File {
+    val explicit = windowsInstallerSignTool.orNull
+        ?.takeIf { it.isNotBlank() }
+        ?.let { File(it) }
+    if (explicit != null) {
+        if (explicit.isFile) return explicit
+        throw GradleException("windowsInstallerSignTool does not point to a file: $explicit")
+    }
+    val path = System.getenv("PATH").orEmpty()
+    val candidates = path.split(File.pathSeparatorChar)
+        .filter { it.isNotBlank() }
+        .map { File(it, "signtool.exe") }
+    return candidates.firstOrNull { it.isFile }
+        ?: throw GradleException(
+            "signtool.exe was not found. Set -PwindowsInstallerSignTool=<path> or disable -PsignWindowsInstaller."
+        )
+}
+
+fun sha256(file: File): String {
+    val digest = MessageDigest.getInstance("SHA-256")
+    file.inputStream().use { input ->
+        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+        while (true) {
+            val read = input.read(buffer)
+            if (read < 0) break
+            digest.update(buffer, 0, read)
+        }
+    }
+    return digest.digest().joinToString("") { "%02x".format(it) }
+}
+
+val verifyWindowsInstallerToolchain by tasks.registering {
+    group = "verification"
+    description = "Verify WiX and optional signing inputs for Windows installer packaging."
+    onlyIf { System.getProperty("os.name").contains("Windows", ignoreCase = true) }
+    inputs.property("windowsInstallerType", windowsInstallerType)
+    inputs.property("signWindowsInstaller", signWindowsInstaller)
+    inputs.property("windowsInstallerSignTool", windowsInstallerSignTool.orElse(""))
+    inputs.property("windowsInstallerCertPath", windowsInstallerCertPath.orElse(""))
+
+    doLast {
+        val installerType = normalizeWindowsInstallerType(windowsInstallerType.get())
+        if (!windowsInstallerToolchainAvailable()) {
+            throw GradleException(
+                "Windows installer toolchain was not found for $installerType packaging. " +
+                    "Install WiX Toolset and ensure candle.exe and light.exe are on PATH."
+            )
+        }
+        if (signWindowsInstaller.get()) {
+            signtoolExecutable()
+            val certPath = windowsInstallerCertPath.orNull
+                ?.takeIf { it.isNotBlank() }
+                ?.let { File(it) }
+                ?: throw GradleException("signWindowsInstaller=true requires -PwindowsInstallerCertPath=<pfx>.")
+            if (!certPath.isFile) {
+                throw GradleException("windowsInstallerCertPath does not point to a file: $certPath")
+            }
+        }
+        logger.lifecycle(
+            "Windows installer toolchain verified for $installerType packaging" +
+                if (signWindowsInstaller.get()) " with signing enabled." else " without signing."
+        )
+    }
+}
+
 val verifyMpvRuntimePayload by tasks.registering {
     group = "verification"
     description = "Verify the mpv runtime payload before creating a RIFE-capable Windows distribution."
@@ -376,6 +490,156 @@ val packageWindowsAppImage by tasks.registering {
         exec {
             commandLine(command)
         }
+    }
+}
+
+val packageWindowsInstaller by tasks.registering {
+    group = "distribution"
+    description = "Build a Windows MSI/EXE installer from the verified jpackage app image."
+    if (windowsInstallerToolchainAvailable() || requireWindowsInstallerToolchain.get()) {
+        dependsOn(verifyWindowsInstallerToolchain)
+    }
+    if (windowsInstallerToolchainAvailable()) {
+        dependsOn("smokeNativeAppImageRuntime")
+    }
+    onlyIf {
+        System.getProperty("os.name").contains("Windows", ignoreCase = true) &&
+            bundleMpvRuntime.get() &&
+            hasMpvRuntimeSource() &&
+            (windowsInstallerToolchainAvailable() || requireWindowsInstallerToolchain.get())
+    }
+    inputs.dir(jpackageAppImageRoot).optional()
+    inputs.property("windowsPackageVersion", windowsPackageVersion)
+    inputs.property("windowsInstallerType", windowsInstallerType)
+    inputs.property("windowsInstallerUpgradeUuid", windowsInstallerUpgradeUuid)
+    outputs.dir(jpackageInstallerOutputDir)
+
+    doFirst {
+        if (requireWindowsInstallerToolchain.get() && !windowsInstallerToolchainAvailable()) {
+            throw GradleException(
+                "Windows installer toolchain was not found. Install WiX Toolset and ensure " +
+                    "candle.exe and light.exe are on PATH."
+            )
+        }
+    }
+
+    doLast {
+        val installerType = normalizeWindowsInstallerType(windowsInstallerType.get())
+        val appImageRoot = jpackageAppImageRoot.get()
+        if (!appImageRoot.isDirectory) {
+            throw GradleException("Verified app image was not found: $appImageRoot")
+        }
+
+        val outputDir = jpackageInstallerOutputDir.get().asFile
+        delete(outputDir)
+        outputDir.mkdirs()
+
+        val command = mutableListOf(
+            jpackageExecutable().absolutePath,
+            "--type", installerType,
+            "--name", "MiruPlay",
+            "--app-image", appImageRoot.absolutePath,
+            "--dest", outputDir.absolutePath,
+            "--vendor", "MiruPlay",
+            "--app-version", windowsPackageVersion.get(),
+            "--description", "MiruPlay Windows desktop anime media manager",
+            "--win-menu",
+            "--win-shortcut",
+            "--win-dir-chooser",
+            "--win-upgrade-uuid", windowsInstallerUpgradeUuid.get(),
+        )
+        exec {
+            commandLine(command)
+        }
+    }
+}
+
+val smokeWindowsInstaller by tasks.registering {
+    group = "verification"
+    description = "Build the Windows installer and verify installer artifact metadata."
+    dependsOn(packageWindowsInstaller)
+    onlyIf {
+        System.getProperty("os.name").contains("Windows", ignoreCase = true) &&
+            bundleMpvRuntime.get() &&
+            hasMpvRuntimeSource() &&
+            (windowsInstallerToolchainAvailable() || requireWindowsInstallerToolchain.get())
+    }
+    inputs.dir(jpackageInstallerOutputDir).optional()
+    inputs.property("windowsInstallerType", windowsInstallerType)
+    inputs.property("windowsPackageVersion", windowsPackageVersion)
+    inputs.property("windowsInstallerUpgradeUuid", windowsInstallerUpgradeUuid)
+    inputs.property("signWindowsInstaller", signWindowsInstaller)
+    outputs.file(jpackageInstallerSmokeReport)
+    outputs.upToDateWhen { false }
+
+    doLast {
+        val installerType = normalizeWindowsInstallerType(windowsInstallerType.get())
+        val outputDir = jpackageInstallerOutputDir.get().asFile
+        if (!outputDir.isDirectory) {
+            throw GradleException("Windows installer output directory was not created: $outputDir")
+        }
+        val installer = outputDir.listFiles { file ->
+            file.isFile &&
+                file.extension.equals(installerType, ignoreCase = true) &&
+                file.name.startsWith("MiruPlay", ignoreCase = true)
+        }
+            ?.maxByOrNull { it.lastModified() }
+            ?: throw GradleException("Windows $installerType installer was not created under $outputDir")
+        if (installer.length() <= 0L) {
+            throw GradleException("Windows installer is empty: $installer")
+        }
+
+        val signatureMode = if (signWindowsInstaller.get()) "signed" else "unsigned"
+        if (signWindowsInstaller.get()) {
+            val signTool = signtoolExecutable()
+            val certPath = windowsInstallerCertPath.orNull
+                ?.takeIf { it.isNotBlank() }
+                ?.let { File(it) }
+                ?: throw GradleException("signWindowsInstaller=true requires -PwindowsInstallerCertPath=<pfx>.")
+            if (!certPath.isFile) {
+                throw GradleException("windowsInstallerCertPath does not point to a file: $certPath")
+            }
+            val signCommand = mutableListOf(
+                signTool.absolutePath,
+                "sign",
+                "/fd", "SHA256",
+                "/f", certPath.absolutePath,
+                "/tr", windowsInstallerTimestampUrl.get(),
+                "/td", "SHA256",
+            )
+            windowsInstallerCertPassword.orNull
+                ?.takeIf { it.isNotBlank() }
+                ?.let { password ->
+                    signCommand += listOf("/p", password)
+                }
+            signCommand += installer.absolutePath
+            exec {
+                commandLine(signCommand)
+            }
+            exec {
+                commandLine(signTool.absolutePath, "verify", "/pa", installer.absolutePath)
+            }
+        }
+
+        val report = """
+            {
+              "status": "ok",
+              "installerType": ${installerType.jsonString()},
+              "appVersion": ${windowsPackageVersion.get().jsonString()},
+              "signatureMode": ${signatureMode.jsonString()},
+              "installerPath": ${installer.toPath().toAbsolutePath().normalize().toString().jsonString()},
+              "sizeBytes": ${installer.length()},
+              "sha256": ${sha256(installer).jsonString()}
+            }
+        """.trimIndent()
+        val reportFile = jpackageInstallerSmokeReport.get().asFile
+        reportFile.parentFile.mkdirs()
+        reportFile.writeText(report)
+        logger.lifecycle(
+            "Windows $installerType installer verified: " +
+                "${installer.toPath().toAbsolutePath().normalize()} (${installer.length()} bytes, $signatureMode), " +
+                "smoke report=${reportFile.toPath().toAbsolutePath().normalize()}"
+        )
     }
 }
 

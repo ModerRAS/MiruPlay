@@ -189,8 +189,38 @@ runtime and writes a JSON report:
 ```
 
 This task uses the JDK `jpackage --type app-image` tool and intentionally stops
-at an unpacked app image; MSI/EXE installer generation and signing are separate
-release steps.
+at an unpacked app image. To continue from the verified app image into a Windows
+installer, use the opt-in installer gate. It requires a Windows installer
+toolchain such as WiX `candle.exe`/`light.exe` on `PATH`, reuses the native
+app-image smoke, then creates an MSI by default and writes
+`build/jpackage/smoke/windows-installer-smoke.json` with the installer path,
+size, SHA256, version, and signing mode:
+
+```powershell
+.\gradlew.bat :desktop-app:smokeWindowsInstaller `
+  -PmpvRuntimeSource=runtime\mpv `
+  -PrequireMpvRuntime=true `
+  -PrequiredRifeBackends=NVIDIA,DIRECTML `
+  -PrequireWindowsInstallerToolchain=true
+```
+
+Use `-PwindowsInstallerType=exe` for an EXE installer, or keep the default MSI.
+Unsigned artifacts are allowed for local QA. Release signing is explicit:
+
+```powershell
+.\gradlew.bat :desktop-app:smokeWindowsInstaller `
+  -PmpvRuntimeSource=runtime\mpv `
+  -PrequireMpvRuntime=true `
+  -PrequiredRifeBackends=NVIDIA,DIRECTML `
+  -PrequireWindowsInstallerToolchain=true `
+  -PsignWindowsInstaller=true `
+  -PwindowsInstallerCertPath=C:\path\MiruPlay-release.pfx `
+  -PwindowsInstallerSignTool=C:\path\signtool.exe
+```
+
+When signing is enabled, the task signs and verifies the generated installer
+with `signtool`; `-PwindowsInstallerCertPassword=...` and
+`-PwindowsInstallerTimestampUrl=...` are optional release inputs.
 
 For a real VapourSynth/RIFE filter smoke, run:
 
