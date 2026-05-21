@@ -1,9 +1,12 @@
 package com.miruplay.tv.desktop
 
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.window.WindowPlacement
 import com.miruplay.tv.design.MiruPlayRouteSurface
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DesktopSectionContractTest {
@@ -66,6 +69,42 @@ class DesktopSectionContractTest {
         assertEquals(MiruPlayRouteSurface.library, MiruPlayRouteSurface.details.desktopBackTarget())
         assertEquals(MiruPlayRouteSurface.library, MiruPlayRouteSurface.settings.desktopBackTarget())
         assertNull(MiruPlayRouteSurface.library.desktopBackTarget())
+    }
+
+    @Test
+    fun `desktop player fullscreen only applies while the Player route is active`() {
+        assertFalse(shouldUseDesktopPlayerFullscreen(MiruPlayRouteSurface.library, fullscreen = true))
+        assertFalse(shouldUseDesktopPlayerFullscreen(MiruPlayRouteSurface.details, fullscreen = true))
+        assertFalse(shouldUseDesktopPlayerFullscreen(MiruPlayRouteSurface.settings, fullscreen = true))
+        assertFalse(shouldUseDesktopPlayerFullscreen(MiruPlayRouteSurface.player, fullscreen = false))
+        assertTrue(shouldUseDesktopPlayerFullscreen(MiruPlayRouteSurface.player, fullscreen = true))
+    }
+
+    @Test
+    fun `desktop player fullscreen restores prior window placement`() {
+        val fromFloating = desktopPlayerFullscreenPlacement(
+            currentPlacement = WindowPlacement.Floating,
+            restorePlacement = null,
+            active = true,
+        )
+        assertEquals(WindowPlacement.Fullscreen, fromFloating.placement)
+        assertEquals(WindowPlacement.Floating, fromFloating.restorePlacement)
+
+        val whileFullscreen = desktopPlayerFullscreenPlacement(
+            currentPlacement = WindowPlacement.Fullscreen,
+            restorePlacement = WindowPlacement.Maximized,
+            active = true,
+        )
+        assertEquals(WindowPlacement.Fullscreen, whileFullscreen.placement)
+        assertEquals(WindowPlacement.Maximized, whileFullscreen.restorePlacement)
+
+        val restored = desktopPlayerFullscreenPlacement(
+            currentPlacement = WindowPlacement.Fullscreen,
+            restorePlacement = WindowPlacement.Maximized,
+            active = false,
+        )
+        assertEquals(WindowPlacement.Maximized, restored.placement)
+        assertNull(restored.restorePlacement)
     }
 
     @Test
