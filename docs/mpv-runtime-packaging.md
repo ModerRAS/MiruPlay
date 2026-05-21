@@ -165,7 +165,8 @@ backend scripts:
 
 To verify the native Windows app-image shape before installer/signing work, run
 the jpackage gate. It builds `desktop-app/build/jpackage/output/MiruPlay/`,
-checks the launcher, and verifies the bundled `runtime/mpv` payload plus the
+checks the launcher, validates the generated `app/MiruPlay.cfg` main class and
+jar classpath entries, and verifies the bundled `runtime/mpv` payload plus the
 requested RIFE scripts:
 
 ```powershell
