@@ -73,6 +73,7 @@ The port is complete only when all of these are proven by current evidence:
 - [x] Add unit coverage for Library highest-heat and recent poster shelf keyboard/DPAD navigation.
 - [x] Add unit coverage for Library poster-wall to highest-heat/recent shelf vertical keyboard/DPAD navigation.
 - [x] Add unit coverage for Library search row keyboard/DPAD navigation into media and source panels.
+- [x] Add unit coverage for Library empty media-state keyboard/DPAD focus bridging.
 - [x] Add Windows GUI smoke coverage for Details hero action keyboard/DPAD navigation.
 - [x] Add Windows GUI smoke coverage for Details episode shelf boundary keyboard/DPAD navigation.
 - [x] Add Windows GUI smoke coverage for Continue watching recent-playback keyboard/DPAD navigation.
