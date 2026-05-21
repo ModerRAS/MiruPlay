@@ -62,6 +62,7 @@ The port is complete only when all of these are proven by current evidence:
 - [x] Add Windows GUI smoke coverage for Settings category and desktop route rail keyboard/DPAD-style navigation.
 - [x] Make Settings category and desktop route rail keyboard movement stop at TV-list edges instead of wrapping.
 - [x] Add unit coverage for Settings summary quick-action row keyboard/DPAD navigation.
+- [x] Bridge Windows Settings summary quick-action rows back to the selected category with keyboard/DPAD Up.
 - [x] Add Windows GUI smoke coverage for TV Back-equivalent `Esc` route navigation.
 - [x] Add unit coverage for TV remote/navigation Back aliases while keeping `Backspace` available for text editing.
 - [x] Share desktop confirm-key handling so custom controls accept keyboard Enter, numpad Enter, and TV DPAD Center.

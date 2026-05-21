@@ -37,7 +37,8 @@ support horizontal `Left`/`Right` focus movement where applicable plus shared `E
 `Up` parent navigation, `Enter` without opening directories during focus
 movement, and a focusable empty state that returns to the `上级` action with `Up`.
 Settings summary quick-action rows now also have TV-style horizontal
-focus movement with row-edge stops. Real Windows GUI
+focus movement with row-edge stops, and `Up` bridges the row back to the
+selected Settings category. Real Windows GUI
 smokes prove Sources to CloudDrive, Details to Player, poster-wall Right to
 Enter, CloudDrive RSS subscription row Down, route rail Details to Player and `Esc` back to Details/Library, Details hero Right to Left to
 Enter, Details hero stat pills, Details hero Down to the episode shelf, episode shelf Up back to hero,
@@ -139,6 +140,9 @@ chain by keyboard input.
 The same smoke now writes its isolated desktop JSON store as UTF-8 without BOM,
 so both Windows PowerShell and PowerShell 7 launches preload the Cloud/RSS
 fixture state before screenshot assertions.
+Settings summary quick-action rows now return to the selected Settings category
+when pressing keyboard/DPAD `Up`, so the concrete source/playback/scan/metadata
+cards no longer trap focus inside their action row.
 Media-detail rows now page in six-item TV-style windows, keep two-column
 `Left`/`Right` movement inside each visible page, and preserve `Up`/`Down`
 movement across the full detail set instead of pushing later detail rows off the
