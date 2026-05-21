@@ -913,7 +913,7 @@ internal fun MiruPlayDesktopComposeApp(
             .fillMaxSize()
             .background(DarkBg)
             .onKeyEvent { event ->
-                if (event.type == KeyEventType.KeyDown && event.key == Key.Escape) {
+                if (event.type == KeyEventType.KeyDown && isDesktopBackKey(event.key)) {
                     selectedDesktopSection.desktopBackTarget()?.let { target ->
                         selectedDesktopSection = target
                         true

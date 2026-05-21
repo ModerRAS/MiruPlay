@@ -62,6 +62,7 @@ The port is complete only when all of these are proven by current evidence:
 - [x] Make Settings category and desktop route rail keyboard movement stop at TV-list edges instead of wrapping.
 - [x] Add unit coverage for Settings summary quick-action row keyboard/DPAD navigation.
 - [x] Add Windows GUI smoke coverage for TV Back-equivalent `Esc` route navigation.
+- [x] Add unit coverage for TV remote/navigation Back aliases while keeping `Backspace` available for text editing.
 - [x] Add Windows GUI smoke coverage for Cloud/RSS RSS subscription row keyboard/DPAD navigation.
 - [x] Add unit coverage for Cloud/RSS empty RSS subscription keyboard/DPAD focus bridging.
 - [x] Add unit coverage for Cloud/RSS action-grid keyboard/DPAD navigation.

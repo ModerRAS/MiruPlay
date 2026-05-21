@@ -73,6 +73,16 @@ class DesktopSectionContractTest {
     }
 
     @Test
+    fun `desktop back keys accept TV and navigation remotes without swallowing text editing`() {
+        assertTrue(isDesktopBackKey(Key.Escape))
+        assertTrue(isDesktopBackKey(Key.Back))
+        assertTrue(isDesktopBackKey(Key.NavigatePrevious))
+        assertTrue(isDesktopBackKey(Key.NavigateOut))
+        assertFalse(isDesktopBackKey(Key.Backspace))
+        assertFalse(isDesktopBackKey(Key.DirectionLeft))
+    }
+
+    @Test
     fun `desktop automation start section falls back to library`() {
         assertEquals(MiruPlayRouteSurface.library, desktopInitialSection(null))
         assertEquals(MiruPlayRouteSurface.library, desktopInitialSection(""))
