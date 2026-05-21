@@ -219,7 +219,7 @@ internal fun CloudRssPanel(
                     recentCount = recentCount,
                     selectedMediaTitle = selectedMediaTitle,
                 ),
-                status = "mpv 播放设置保留在 Player 页面，RIFE/字幕/起播秒数仍可直接调整。",
+                status = desktopPlaybackSettingsStatus(),
                 actions = listOf(SettingsQuickAction("打开播放器", onOpenPlayer)),
                 modifier = Modifier.weight(1f),
             )
@@ -244,7 +244,7 @@ internal fun CloudRssPanel(
                     metadataSummary = metadataSummary,
                     indexedItemCount = indexedItemCount,
                 ),
-                status = "Bangumi 搜索、批量预览、应用和撤销保留在 Details 页面。",
+                status = desktopMetadataSettingsStatus(),
                 actions = listOf(SettingsQuickAction("打开详情", onOpenDetails)),
                 modifier = Modifier.weight(1f),
             )
@@ -970,7 +970,7 @@ internal fun playbackSettingsTiles(
         SettingsSummaryTile(
             label = "播放模式",
             value = playbackSummary,
-            detail = "mpv、RIFE、字幕和起播时间在 Player 页面调整。",
+            detail = "mpv、RIFE、字幕和起播时间在播放页调整。",
         ),
         SettingsSummaryTile(
             label = "继续观看",
@@ -983,6 +983,12 @@ internal fun playbackSettingsTiles(
             detail = "从海报墙或详情页选择后可直接播放。",
         ),
     )
+
+internal fun desktopPlaybackSettingsStatus(): String =
+    "mpv 播放设置保留在播放页，RIFE/字幕/起播秒数仍可直接调整。"
+
+internal fun desktopMetadataSettingsStatus(): String =
+    "Bangumi 搜索、批量预览、应用和撤销保留在详情页。"
 
 internal fun scanSettingsTiles(
     indexedItemCount: Int,

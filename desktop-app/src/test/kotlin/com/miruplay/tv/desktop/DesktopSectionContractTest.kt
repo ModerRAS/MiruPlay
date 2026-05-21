@@ -28,6 +28,11 @@ class DesktopSectionContractTest {
     }
 
     @Test
+    fun `desktop route rail chrome uses TV facing copy`() {
+        assertEquals("电视式导航", desktopRouteRailSubtitle())
+    }
+
+    @Test
     fun `desktop library header keeps Android TV scan and settings actions only`() {
         assertEquals(
             listOf("扫描", "设置"),

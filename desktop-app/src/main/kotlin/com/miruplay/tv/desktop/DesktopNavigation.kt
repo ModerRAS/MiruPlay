@@ -65,7 +65,7 @@ internal fun DesktopTvNavigation(
             },
     ) {
         Text("MiruPlay", color = TextPrimary, fontSize = MiruPlayUiMetrics.SECTION_TITLE_SP.sp, fontWeight = FontWeight.Bold)
-        Text("Desktop", color = TextSecondary, fontSize = MiruPlayUiMetrics.SECTION_LEAD_SP.sp, modifier = Modifier.padding(top = 4.dp))
+        Text(desktopRouteRailSubtitle(), color = TextSecondary, fontSize = MiruPlayUiMetrics.SECTION_LEAD_SP.sp, modifier = Modifier.padding(top = 4.dp))
         Spacer(Modifier.height((MiruPlayUiMetrics.NAV_ITEM_GAP_DP * 1.5f).dp))
         MiruPlayRouteSurface.desktopSectionOrder.forEach { section ->
             val selected = section == selectedSection
@@ -110,6 +110,9 @@ internal fun DesktopTvNavigation(
         }
     }
 }
+
+internal fun desktopRouteRailSubtitle(): String =
+    "电视式导航"
 
 internal fun DesktopSection.stepDesktopSection(delta: Int): DesktopSection? {
     val sections = MiruPlayRouteSurface.desktopSectionOrder

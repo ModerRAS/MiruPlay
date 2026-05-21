@@ -51,8 +51,21 @@ class DesktopSettingsPanelTest {
         )
 
         assertEquals("RIFE DIRECTML", tiles[0].value)
+        assertEquals("mpv、RIFE、字幕和起播时间在播放页调整。", tiles[0].detail)
         assertEquals("5 条", tiles[1].value)
         assertEquals("Fixture Alpha", tiles[2].value)
+    }
+
+    @Test
+    fun `desktop settings summary statuses use TV facing page names`() {
+        assertEquals(
+            "mpv 播放设置保留在播放页，RIFE/字幕/起播秒数仍可直接调整。",
+            desktopPlaybackSettingsStatus(),
+        )
+        assertEquals(
+            "Bangumi 搜索、批量预览、应用和撤销保留在详情页。",
+            desktopMetadataSettingsStatus(),
+        )
     }
 
     @Test

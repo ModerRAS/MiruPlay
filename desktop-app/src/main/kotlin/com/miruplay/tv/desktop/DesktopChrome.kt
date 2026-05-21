@@ -445,7 +445,7 @@ internal fun PosterPlaceholder() {
         ) {
             Text("mpv", color = Color.White, fontSize = MiruPlayUiMetrics.HERO_TITLE_SP.sp, fontWeight = FontWeight.Bold)
             Text(
-                "Windows runtime",
+                desktopPosterPlaceholderSubtitle(),
                 color = TextSecondary,
                 fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
                 maxLines = 1,
@@ -454,6 +454,9 @@ internal fun PosterPlaceholder() {
         }
     }
 }
+
+internal fun desktopPosterPlaceholderSubtitle(): String =
+    "内置播放运行时"
 
 @Composable
 internal fun StatusBox(status: String) {
