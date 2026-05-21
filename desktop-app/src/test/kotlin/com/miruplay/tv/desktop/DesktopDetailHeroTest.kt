@@ -368,27 +368,72 @@ class DesktopDetailHeroTest {
         assertEquals(null, mediaDetailsEmptyFocusTarget(Key.DirectionDown))
         assertEquals(
             MediaDetailsFocusTarget.Row(1),
-            mediaDetailsFocusTarget(currentIndex = 0, rowCount = 7, splitIndex = 4, key = Key.DirectionDown),
+            mediaDetailsFocusTarget(currentIndex = 0, rowCount = 7, pageStart = 0, visibleCount = 6, key = Key.DirectionDown),
         )
         assertEquals(
             MediaDetailsFocusTarget.PreviousPanel,
-            mediaDetailsFocusTarget(currentIndex = 0, rowCount = 7, splitIndex = 4, key = Key.DirectionUp),
+            mediaDetailsFocusTarget(currentIndex = 0, rowCount = 7, pageStart = 0, visibleCount = 6, key = Key.DirectionUp),
         )
         assertEquals(
-            MediaDetailsFocusTarget.Row(4),
-            mediaDetailsFocusTarget(currentIndex = 0, rowCount = 7, splitIndex = 4, key = Key.DirectionRight),
+            MediaDetailsFocusTarget.Row(3),
+            mediaDetailsFocusTarget(currentIndex = 0, rowCount = 7, pageStart = 0, visibleCount = 6, key = Key.DirectionRight),
         )
         assertEquals(
             MediaDetailsFocusTarget.Row(2),
-            mediaDetailsFocusTarget(currentIndex = 6, rowCount = 7, splitIndex = 4, key = Key.DirectionLeft),
+            mediaDetailsFocusTarget(currentIndex = 5, rowCount = 7, pageStart = 0, visibleCount = 6, key = Key.DirectionLeft),
+        )
+        assertEquals(
+            MediaDetailsFocusTarget.Row(5),
+            mediaDetailsFocusTarget(currentIndex = 2, rowCount = 7, pageStart = 0, visibleCount = 6, key = Key.DirectionRight),
         )
         assertEquals(
             MediaDetailsFocusTarget.Row(6),
-            mediaDetailsFocusTarget(currentIndex = 3, rowCount = 7, splitIndex = 4, key = Key.DirectionRight),
+            mediaDetailsFocusTarget(currentIndex = 5, rowCount = 7, pageStart = 0, visibleCount = 6, key = Key.DirectionDown),
         )
-        assertEquals(null, mediaDetailsFocusTarget(currentIndex = 6, rowCount = 7, splitIndex = 4, key = Key.DirectionDown))
-        assertEquals(null, mediaDetailsFocusTarget(currentIndex = 0, rowCount = 7, splitIndex = 4, key = Key.DirectionLeft))
-        assertEquals(null, mediaDetailsFocusTarget(currentIndex = 4, rowCount = 7, splitIndex = 4, key = Key.DirectionRight))
-        assertEquals(null, mediaDetailsFocusTarget(currentIndex = 0, rowCount = 0, splitIndex = 0, key = Key.DirectionDown))
+        assertEquals(null, mediaDetailsFocusTarget(currentIndex = 0, rowCount = 7, pageStart = 0, visibleCount = 6, key = Key.DirectionLeft))
+        assertEquals(null, mediaDetailsFocusTarget(currentIndex = 3, rowCount = 7, pageStart = 0, visibleCount = 6, key = Key.DirectionRight))
+        assertEquals(null, mediaDetailsFocusTarget(currentIndex = 0, rowCount = 0, pageStart = 0, visibleCount = 0, key = Key.DirectionDown))
+    }
+
+    @Test
+    fun `media details page helpers keep every detail row reachable`() {
+        assertEquals(0, mediaDetailsPageStartForIndex(index = 0, itemCount = 13))
+        assertEquals(0, mediaDetailsPageStartForIndex(index = 5, itemCount = 13))
+        assertEquals(6, mediaDetailsPageStartForIndex(index = 6, itemCount = 13))
+        assertEquals(12, mediaDetailsPageStartForIndex(index = 12, itemCount = 13))
+        assertEquals(12, mediaDetailsPageStartForIndex(index = 30, itemCount = 13))
+        assertEquals(6, mediaDetailsCoercedPageStart(pageStart = 11, itemCount = 13))
+        assertEquals(12, mediaDetailsCoercedPageStart(pageStart = 42, itemCount = 13))
+        assertEquals(0, mediaDetailsCoercedPageStart(pageStart = -6, itemCount = 13))
+        assertEquals(3, mediaDetailsSplitIndex(pageStart = 0, visibleCount = 6))
+        assertEquals(9, mediaDetailsSplitIndex(pageStart = 6, visibleCount = 6))
+        assertEquals(13, mediaDetailsSplitIndex(pageStart = 12, visibleCount = 1))
+
+        assertEquals(
+            MediaDetailsFocusTarget.Row(7),
+            mediaDetailsFocusTarget(currentIndex = 6, rowCount = 13, pageStart = 6, visibleCount = 6, key = Key.DirectionDown),
+        )
+        assertEquals(
+            MediaDetailsFocusTarget.Row(9),
+            mediaDetailsFocusTarget(currentIndex = 6, rowCount = 13, pageStart = 6, visibleCount = 6, key = Key.DirectionRight),
+        )
+        assertEquals(
+            MediaDetailsFocusTarget.Row(8),
+            mediaDetailsFocusTarget(currentIndex = 11, rowCount = 13, pageStart = 6, visibleCount = 6, key = Key.DirectionLeft),
+        )
+        assertEquals(
+            MediaDetailsFocusTarget.Row(12),
+            mediaDetailsFocusTarget(currentIndex = 11, rowCount = 13, pageStart = 6, visibleCount = 6, key = Key.DirectionDown),
+        )
+        assertEquals(null, mediaDetailsFocusTarget(currentIndex = 12, rowCount = 13, pageStart = 12, visibleCount = 1, key = Key.DirectionRight))
+        assertEquals(
+            "显示 7-12 / 13 条详情，按上/下继续翻页。",
+            mediaDetailsPageSummary(pageStart = 6, visibleCount = 6, itemCount = 13),
+        )
+        assertEquals(
+            "显示 13-13 / 13 条详情，按上/下继续翻页。",
+            mediaDetailsPageSummary(pageStart = 12, visibleCount = 1, itemCount = 13),
+        )
+        assertEquals(null, mediaDetailsPageSummary(pageStart = 0, visibleCount = 5, itemCount = 5))
     }
 }

@@ -1018,6 +1018,7 @@ internal fun desktopRecentPlaybackLabels(): DesktopRecentPlaybackLabels =
     )
 
 private const val RECENT_PLAYBACK_PAGE_SIZE = 6
+private const val MEDIA_DETAILS_PAGE_SIZE = 6
 
 @Composable
 private fun RecentProgressRow(
@@ -1185,16 +1186,39 @@ internal fun MediaDetailsPanel(
             recentRecord = recentRecord,
         )
     }
-    val splitIndex = (rows.size + 1) / 2
-    val focusRequesters = remember(rows.map { it.label to it.value }) {
-        List(rows.size) { FocusRequester() }
+    var pageStartState by remember(rows.map { it.label to it.value }) { mutableStateOf(0) }
+    val pageStart = mediaDetailsCoercedPageStart(
+        pageStart = pageStartState,
+        itemCount = rows.size,
+    )
+    val visibleRows = remember(rows, pageStart) {
+        rows
+            .drop(pageStart)
+            .take(MEDIA_DETAILS_PAGE_SIZE)
     }
+    val splitIndex = mediaDetailsSplitIndex(pageStart, visibleRows.size)
+    val visibleSplitCount = splitIndex - pageStart
+    val focusRequesters = remember(pageStart, visibleRows.map { it.label to it.value }) {
+        List(visibleRows.size) { FocusRequester() }
+    }
+    var pendingRowFocus by remember { mutableStateOf<Int?>(null) }
     val emptyFocusRequester = remember { FocusRequester() }
 
-    fun requestMediaDetailFocus(target: MediaDetailsFocusTarget?): Boolean =
-        when (target) {
+    fun requestMediaDetailFocus(target: MediaDetailsFocusTarget?): Boolean {
+        return when (target) {
             is MediaDetailsFocusTarget.Row -> {
-                focusRequesters.getOrNull(target.index)?.requestFocus()
+                val index = target.index.takeIf { it in rows.indices } ?: return false
+                val targetPageStart = mediaDetailsPageStartForIndex(
+                    index = index,
+                    itemCount = rows.size,
+                )
+                pageStartState = targetPageStart
+                val visibleIndex = index - targetPageStart
+                if (targetPageStart == pageStart) {
+                    focusRequesters.getOrNull(visibleIndex)?.requestFocus() ?: return false
+                } else {
+                    pendingRowFocus = index
+                }
                 true
             }
             MediaDetailsFocusTarget.EmptyState -> {
@@ -1204,16 +1228,26 @@ internal fun MediaDetailsPanel(
             MediaDetailsFocusTarget.PreviousPanel -> onFocusPreviousPanel()
             null -> false
         }
+    }
 
     fun moveMediaDetailFocus(currentIndex: Int, key: Key): Boolean {
         return requestMediaDetailFocus(
             mediaDetailsFocusTarget(
                 currentIndex = currentIndex,
                 rowCount = rows.size,
-                splitIndex = splitIndex,
+                pageStart = pageStart,
+                visibleCount = visibleRows.size,
                 key = key,
             ),
         )
+    }
+
+    LaunchedEffect(pageStart, visibleRows.map { it.label to it.value }, pendingRowFocus) {
+        val pendingIndex = pendingRowFocus ?: return@LaunchedEffect
+        if (pendingIndex in pageStart until pageStart + visibleRows.size) {
+            focusRequesters.getOrNull(pendingIndex - pageStart)?.requestFocus()
+            pendingRowFocus = null
+        }
     }
 
     LaunchedEffect(focusVersion) {
@@ -1246,14 +1280,15 @@ internal fun MediaDetailsPanel(
                 modifier = Modifier.weight(0.5f),
                 verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SMALL_GAP_DP.dp),
             ) {
-                rows.take(splitIndex).forEachIndexed { index, row ->
+                visibleRows.take(visibleSplitCount).forEachIndexed { index, row ->
+                    val rowIndex = pageStart + index
                     DetailLine(
                         row.label,
                         row.value,
                         modifier = Modifier
                             .focusRequester(focusRequesters[index]),
                         onNavigationKey = { key ->
-                            moveMediaDetailFocus(index, key)
+                            moveMediaDetailFocus(rowIndex, key)
                         },
                     )
                 }
@@ -1262,19 +1297,32 @@ internal fun MediaDetailsPanel(
                 modifier = Modifier.weight(0.5f),
                 verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SMALL_GAP_DP.dp),
             ) {
-                rows.drop(splitIndex).forEachIndexed { index, row ->
-                    val rowIndex = splitIndex + index
+                visibleRows.drop(visibleSplitCount).forEachIndexed { index, row ->
+                    val visibleIndex = visibleSplitCount + index
+                    val rowIndex = pageStart + visibleIndex
                     DetailLine(
                         row.label,
                         row.value,
                         modifier = Modifier
-                            .focusRequester(focusRequesters[rowIndex]),
+                            .focusRequester(focusRequesters[visibleIndex]),
                         onNavigationKey = { key ->
                             moveMediaDetailFocus(rowIndex, key)
                         },
                     )
                 }
             }
+        }
+        mediaDetailsPageSummary(
+            pageStart = pageStart,
+            visibleCount = visibleRows.size,
+            itemCount = rows.size,
+        )?.let { summary ->
+            Spacer(Modifier.height(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp))
+            Text(
+                summary,
+                color = TextSecondary,
+                fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
+            )
         }
     }
 }
@@ -1308,21 +1356,26 @@ internal fun mediaDetailsEmptyFocusTarget(key: Key): MediaDetailsFocusTarget? =
 internal fun mediaDetailsFocusTarget(
     currentIndex: Int,
     rowCount: Int,
-    splitIndex: Int,
+    pageStart: Int,
+    visibleCount: Int,
     key: Key,
 ): MediaDetailsFocusTarget? {
     if (rowCount <= 0) return null
-    val normalizedSplitIndex = splitIndex.coerceIn(1, rowCount)
+    val safePageStart = mediaDetailsCoercedPageStart(pageStart, rowCount)
+    val safeVisibleCount = visibleCount.coerceIn(1, rowCount - safePageStart)
+    val splitIndex = mediaDetailsSplitIndex(safePageStart, safeVisibleCount)
+    val pageEnd = safePageStart + safeVisibleCount
     val targetIndex = when (key) {
         Key.DirectionUp -> currentIndex - 1
         Key.DirectionDown -> currentIndex + 1
-        Key.DirectionLeft -> if (currentIndex >= normalizedSplitIndex) {
-            (currentIndex - normalizedSplitIndex).coerceAtMost(normalizedSplitIndex - 1)
+        Key.DirectionLeft -> if (currentIndex >= splitIndex && currentIndex < pageEnd) {
+            val leftIndex = safePageStart + currentIndex - splitIndex
+            leftIndex.coerceAtMost(splitIndex - 1)
         } else {
             return null
         }
-        Key.DirectionRight -> if (currentIndex < normalizedSplitIndex) {
-            (currentIndex + normalizedSplitIndex).takeIf { it < rowCount } ?: rowCount - 1
+        Key.DirectionRight -> if (currentIndex in safePageStart until splitIndex && splitIndex < pageEnd) {
+            (currentIndex + splitIndex - safePageStart).takeIf { it < pageEnd } ?: pageEnd - 1
         } else {
             return null
         }
@@ -1333,6 +1386,49 @@ internal fun mediaDetailsFocusTarget(
         targetIndex >= rowCount -> null
         else -> MediaDetailsFocusTarget.Row(targetIndex)
     }
+}
+
+internal fun mediaDetailsPageStartForIndex(
+    index: Int,
+    itemCount: Int,
+    pageSize: Int = MEDIA_DETAILS_PAGE_SIZE,
+): Int {
+    if (itemCount <= 0 || pageSize <= 0) return 0
+    val safeIndex = index.coerceIn(0, itemCount - 1)
+    return (safeIndex / pageSize) * pageSize
+}
+
+internal fun mediaDetailsCoercedPageStart(
+    pageStart: Int,
+    itemCount: Int,
+    pageSize: Int = MEDIA_DETAILS_PAGE_SIZE,
+): Int {
+    if (itemCount <= 0 || pageSize <= 0) return 0
+    val maxPageStart = mediaDetailsPageStartForIndex(
+        index = itemCount - 1,
+        itemCount = itemCount,
+        pageSize = pageSize,
+    )
+    return (pageStart / pageSize)
+        .coerceAtLeast(0)
+        .times(pageSize)
+        .coerceAtMost(maxPageStart)
+}
+
+internal fun mediaDetailsPageSummary(
+    pageStart: Int,
+    visibleCount: Int,
+    itemCount: Int,
+): String? {
+    if (itemCount <= 0 || visibleCount <= 0 || visibleCount >= itemCount) return null
+    val safeStart = mediaDetailsCoercedPageStart(pageStart, itemCount)
+    val end = (safeStart + visibleCount).coerceAtMost(itemCount)
+    return "显示 ${safeStart + 1}-$end / $itemCount 条详情，按上/下继续翻页。"
+}
+
+internal fun mediaDetailsSplitIndex(pageStart: Int, visibleCount: Int): Int {
+    val safeVisibleCount = visibleCount.coerceAtLeast(0)
+    return pageStart + (safeVisibleCount + 1) / 2
 }
 
 @Composable

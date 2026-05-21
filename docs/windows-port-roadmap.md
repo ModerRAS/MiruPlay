@@ -55,6 +55,7 @@ The port is complete only when all of these are proven by current evidence:
 - [x] Add unit coverage for Details episode shelf multi-season selector keyboard/DPAD navigation.
 - [x] Add unit coverage for Details episode shelf empty-state keyboard/DPAD focus bridging.
 - [x] Add unit coverage for Details media-detail row/empty-state keyboard/DPAD navigation and bottom-panel focus bridging.
+- [x] Keep every Windows media-detail row reachable by keyboard/DPAD pagination, not only the first visible six rows.
 - [x] Rework the Windows Player first screen toward Android TV: rail-free playback stage, top return action, centered transport controls, bottom timeline/status chips, and TV-facing mpv/RIFE settings below.
 - [x] Rework the Windows Settings first screen toward Android TV: left-side settings categories with focused rows, concrete source/playback/scan/metadata cards, and quick actions before Cloud/RSS.
 - [x] Rework the Windows Cloud/RSS settings page into TV-style overview/config/subscription/scheduler cards.
