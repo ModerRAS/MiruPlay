@@ -205,11 +205,13 @@ class DesktopDetailHeroTest {
     }
 
     @Test
-    fun `detail episode navigation moves within visible rows`() {
+    fun `detail episode navigation moves within all rows`() {
         assertEquals(1, moveDetailEpisodeSelection(currentIndex = 0, itemCount = 3, delta = 1))
         assertEquals(1, moveDetailEpisodeSelection(currentIndex = 2, itemCount = 3, delta = -1))
         assertEquals(null, moveDetailEpisodeSelection(currentIndex = 0, itemCount = 3, delta = -1))
         assertEquals(null, moveDetailEpisodeSelection(currentIndex = 2, itemCount = 3, delta = 1))
+        assertEquals(6, moveDetailEpisodeSelection(currentIndex = 5, itemCount = 12, delta = 1))
+        assertEquals(5, moveDetailEpisodeSelection(currentIndex = 6, itemCount = 12, delta = -1))
         assertEquals(null, moveDetailEpisodeSelection(currentIndex = 0, itemCount = 0, delta = 1))
     }
 
@@ -227,7 +229,33 @@ class DesktopDetailHeroTest {
             DetailEpisodeFocusTarget.NextPanel,
             moveDetailEpisodeFocusTarget(currentIndex = 2, itemCount = 3, delta = 1),
         )
+        assertEquals(
+            DetailEpisodeFocusTarget.Row(6),
+            moveDetailEpisodeFocusTarget(currentIndex = 5, itemCount = 12, delta = 1),
+        )
         assertEquals(null, moveDetailEpisodeFocusTarget(currentIndex = 0, itemCount = 0, delta = 1))
+    }
+
+    @Test
+    fun `detail episode page helpers keep every episode row reachable`() {
+        assertEquals(0, detailEpisodePageStartForIndex(index = 0, itemCount = 14))
+        assertEquals(0, detailEpisodePageStartForIndex(index = 5, itemCount = 14))
+        assertEquals(6, detailEpisodePageStartForIndex(index = 6, itemCount = 14))
+        assertEquals(12, detailEpisodePageStartForIndex(index = 13, itemCount = 14))
+        assertEquals(12, detailEpisodePageStartForIndex(index = 30, itemCount = 14))
+        assertEquals(6, detailEpisodeCoercedPageStart(pageStart = 9, itemCount = 14))
+        assertEquals(12, detailEpisodeCoercedPageStart(pageStart = 48, itemCount = 14))
+        assertEquals(0, detailEpisodeCoercedPageStart(pageStart = -6, itemCount = 14))
+
+        assertEquals(
+            "显示 7-12 / 14 集，按上/下继续翻页。",
+            detailEpisodePageSummary(pageStart = 6, visibleCount = 6, itemCount = 14),
+        )
+        assertEquals(
+            "显示 13-14 / 14 集，按上/下继续翻页。",
+            detailEpisodePageSummary(pageStart = 12, visibleCount = 2, itemCount = 14),
+        )
+        assertEquals(null, detailEpisodePageSummary(pageStart = 0, visibleCount = 5, itemCount = 5))
     }
 
     @Test

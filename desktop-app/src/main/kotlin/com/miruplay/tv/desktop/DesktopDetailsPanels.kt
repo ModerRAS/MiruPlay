@@ -350,9 +350,20 @@ internal fun DetailEpisodePanel(
         selectedEntry = selectedEntry,
         requestedSeason = selectedSeason,
     )
-    val visibleEpisodes = remember(episodes, activeSeason) { detailEpisodesForSeason(episodes, activeSeason) }
+    val seasonEpisodes = remember(episodes, activeSeason) { detailEpisodesForSeason(episodes, activeSeason) }
+    var pageStartState by remember(activeSeason, seasonEpisodes.map { it.path }) { mutableStateOf(0) }
+    val pageStart = detailEpisodeCoercedPageStart(
+        pageStart = pageStartState,
+        itemCount = seasonEpisodes.size,
+    )
+    val visibleEpisodes = remember(seasonEpisodes, pageStart) {
+        seasonEpisodes
+            .drop(pageStart)
+            .take(DETAIL_EPISODE_PAGE_SIZE)
+    }
     val progressByPath = remember(recentRecords) { recentRecords.associateBy { it.episodeId } }
-    val episodeFocusRequesters = remember(visibleEpisodes.map { it.path }) {
+    var pendingEpisodeFocus by remember { mutableStateOf<Int?>(null) }
+    val episodeFocusRequesters = remember(pageStart, visibleEpisodes.map { it.path }) {
         List(visibleEpisodes.size) { FocusRequester() }
     }
     val emptyFocusRequester = remember { FocusRequester() }
@@ -360,16 +371,27 @@ internal fun DetailEpisodePanel(
         List(seasons.size) { FocusRequester() }
     }
     val activeSeasonIndex = seasons.indexOf(activeSeason).coerceAtLeast(0)
-    val selectedEpisodeIndex = visibleEpisodes
+    val selectedEpisodeIndex = seasonEpisodes
         .indexOfFirst { it.path == selectedEntry?.path }
         .coerceAtLeast(0)
 
     fun requestEpisodePanelFocus(target: DetailEpisodeFocusTarget?): Boolean {
         return when (target) {
             is DetailEpisodeFocusTarget.Row -> {
-                val episode = visibleEpisodes.getOrNull(target.index) ?: return false
+                val index = target.index.takeIf { it in seasonEpisodes.indices } ?: return false
+                val episode = seasonEpisodes[index]
                 onEpisodeFocused(episode)
-                episodeFocusRequesters.getOrNull(target.index)?.requestFocus()
+                val targetPageStart = detailEpisodePageStartForIndex(
+                    index = index,
+                    itemCount = seasonEpisodes.size,
+                )
+                pageStartState = targetPageStart
+                val visibleIndex = index - targetPageStart
+                if (targetPageStart == pageStart) {
+                    episodeFocusRequesters.getOrNull(visibleIndex)?.requestFocus() ?: return false
+                } else {
+                    pendingEpisodeFocus = index
+                }
                 true
             }
             is DetailEpisodeFocusTarget.Season -> {
@@ -379,7 +401,7 @@ internal fun DetailEpisodePanel(
                 true
             }
             DetailEpisodeFocusTarget.EmptyState -> {
-                if (visibleEpisodes.isEmpty()) {
+                if (seasonEpisodes.isEmpty()) {
                     emptyFocusRequester.requestFocus()
                     true
                 } else {
@@ -396,7 +418,7 @@ internal fun DetailEpisodePanel(
         return requestEpisodePanelFocus(
             moveDetailEpisodeFocusTarget(
                 currentIndex = currentIndex,
-                itemCount = visibleEpisodes.size,
+                itemCount = seasonEpisodes.size,
                 delta = delta,
                 seasonCount = seasons.size,
                 activeSeasonIndex = activeSeasonIndex,
@@ -409,17 +431,25 @@ internal fun DetailEpisodePanel(
             detailEpisodeSeasonFocusTarget(
                 currentIndex = currentIndex,
                 seasonCount = seasons.size,
-                episodeCount = visibleEpisodes.size,
+                episodeCount = seasonEpisodes.size,
                 selectedEpisodeIndex = selectedEpisodeIndex,
                 key = key,
             ),
         )
 
-    LaunchedEffect(focusVersion, visibleEpisodes.map { it.path }, selectedEntry?.path) {
+    LaunchedEffect(pageStart, visibleEpisodes.map { it.path }, pendingEpisodeFocus) {
+        val pendingIndex = pendingEpisodeFocus ?: return@LaunchedEffect
+        if (pendingIndex in pageStart until pageStart + visibleEpisodes.size) {
+            episodeFocusRequesters.getOrNull(pendingIndex - pageStart)?.requestFocus()
+            pendingEpisodeFocus = null
+        }
+    }
+
+    LaunchedEffect(focusVersion, seasonEpisodes.map { it.path }, selectedEntry?.path) {
         if (focusVersion > 0) {
-            if (visibleEpisodes.isNotEmpty()) {
-                val selectedIndex = visibleEpisodes.indexOfFirst { it.path == selectedEntry?.path }.coerceAtLeast(0)
-                episodeFocusRequesters.getOrNull(selectedIndex)?.requestFocus()
+            if (seasonEpisodes.isNotEmpty()) {
+                val selectedIndex = seasonEpisodes.indexOfFirst { it.path == selectedEntry?.path }.coerceAtLeast(0)
+                requestEpisodePanelFocus(DetailEpisodeFocusTarget.Row(selectedIndex))
             } else {
                 emptyFocusRequester.requestFocus()
             }
@@ -457,7 +487,7 @@ internal fun DetailEpisodePanel(
             }
         }
         Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
-        if (visibleEpisodes.isEmpty()) {
+        if (seasonEpisodes.isEmpty()) {
             DetailEpisodeEmptyState(
                 text = "扫描媒体库后会在这里显示同番选集。",
                 focusRequester = emptyFocusRequester,
@@ -466,20 +496,35 @@ internal fun DetailEpisodePanel(
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp)) {
                 visibleEpisodes.forEachIndexed { index, episode ->
+                    val absoluteIndex = pageStart + index
                     DetailEpisodeRow(
                         entry = episode,
                         selected = selectedEntry?.path == episode.path,
                         progress = progressByPath[episode.path],
-                        onClick = { onEpisodeSelected(episode) },
+                        onClick = {
+                            onEpisodeSelected(episode)
+                            requestEpisodePanelFocus(DetailEpisodeFocusTarget.Row(absoluteIndex))
+                        },
                         modifier = Modifier
                             .focusRequester(episodeFocusRequesters[index]),
                         onNavigationKey = { key ->
                             when (key) {
-                                Key.DirectionUp -> moveEpisodeFocus(index, -1)
-                                Key.DirectionDown -> moveEpisodeFocus(index, 1)
+                                Key.DirectionUp -> moveEpisodeFocus(absoluteIndex, -1)
+                                Key.DirectionDown -> moveEpisodeFocus(absoluteIndex, 1)
                                 else -> false
                             }
                         },
+                    )
+                }
+                detailEpisodePageSummary(
+                    pageStart = pageStart,
+                    visibleCount = visibleEpisodes.size,
+                    itemCount = seasonEpisodes.size,
+                )?.let { summary ->
+                    Text(
+                        summary,
+                        color = TextSecondary,
+                        fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
                     )
                 }
             }
@@ -627,6 +672,8 @@ internal fun detailEpisodesForSeason(
 ): List<MediaIndexEntry> =
     if (season == null) episodes.sortedWith(detailEpisodeComparator) else episodes.filter { it.seasonNumber == season }
 
+private const val DETAIL_EPISODE_PAGE_SIZE = 6
+
 internal fun moveDetailEpisodeSelection(
     currentIndex: Int,
     itemCount: Int,
@@ -686,6 +733,44 @@ internal fun detailEpisodeEmptyFocusTarget(key: Key): DetailEpisodeFocusTarget? 
         Key.DirectionDown -> DetailEpisodeFocusTarget.NextPanel
         else -> null
     }
+
+internal fun detailEpisodePageStartForIndex(
+    index: Int,
+    itemCount: Int,
+    pageSize: Int = DETAIL_EPISODE_PAGE_SIZE,
+): Int {
+    if (itemCount <= 0 || pageSize <= 0) return 0
+    val safeIndex = index.coerceIn(0, itemCount - 1)
+    return (safeIndex / pageSize) * pageSize
+}
+
+internal fun detailEpisodeCoercedPageStart(
+    pageStart: Int,
+    itemCount: Int,
+    pageSize: Int = DETAIL_EPISODE_PAGE_SIZE,
+): Int {
+    if (itemCount <= 0 || pageSize <= 0) return 0
+    val maxPageStart = detailEpisodePageStartForIndex(
+        index = itemCount - 1,
+        itemCount = itemCount,
+        pageSize = pageSize,
+    )
+    return (pageStart / pageSize)
+        .coerceAtLeast(0)
+        .times(pageSize)
+        .coerceAtMost(maxPageStart)
+}
+
+internal fun detailEpisodePageSummary(
+    pageStart: Int,
+    visibleCount: Int,
+    itemCount: Int,
+): String? {
+    if (itemCount <= 0 || visibleCount <= 0 || visibleCount >= itemCount) return null
+    val safeStart = detailEpisodeCoercedPageStart(pageStart, itemCount)
+    val end = (safeStart + visibleCount).coerceAtMost(itemCount)
+    return "显示 ${safeStart + 1}-$end / $itemCount 集，按上/下继续翻页。"
+}
 
 private val detailEpisodeComparator =
     compareBy<MediaIndexEntry>(

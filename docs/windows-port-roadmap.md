@@ -84,6 +84,7 @@ The port is complete only when all of these are proven by current evidence:
 - [x] Add unit coverage for Library empty media-state keyboard/DPAD focus bridging.
 - [x] Add Windows GUI smoke coverage for Details hero action keyboard/DPAD navigation.
 - [x] Add Windows GUI smoke coverage for Details episode shelf boundary keyboard/DPAD navigation.
+- [x] Keep every Windows Details episode-shelf row reachable by keyboard/DPAD pagination, not only the first visible six rows.
 - [x] Add Windows GUI smoke coverage for Continue watching recent-playback keyboard/DPAD navigation.
 - [x] Add unit coverage for Continue watching refresh/clear action-pair keyboard/DPAD navigation.
 - [x] Add unit coverage for Continue watching empty-state keyboard/DPAD focus bridging.
