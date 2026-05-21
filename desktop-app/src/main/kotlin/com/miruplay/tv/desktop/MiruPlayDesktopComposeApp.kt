@@ -39,6 +39,7 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import com.miruplay.tv.clouddrive.CloudDriveEndpoint
 import com.miruplay.tv.clouddrive.GrpcCloudDriveClient
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.design.MiruPlayPalette
@@ -308,11 +309,12 @@ internal fun MiruPlayDesktopComposeApp(
     val playbackBridge = remember { DesktopPlaybackBridge() }
     val bangumiScraper = remember { DesktopBangumiScraper() }
     val focusManager = LocalFocusManager.current
+    val cloudDriveClient = remember { GrpcCloudDriveClient() }
     val cloudRssEngine = remember {
         DesktopCloudDriveRssAutomationEngine(
             repository = repositories.cloudDriveAutomation,
             credentials = repositories.credentials,
-            cloudDriveClient = GrpcCloudDriveClient(),
+            cloudDriveClient = cloudDriveClient,
         )
     }
     val cloudRssScheduler = remember { DesktopCloudDriveRssScheduler(cloudRssEngine, scope) }
@@ -380,6 +382,7 @@ internal fun MiruPlayDesktopComposeApp(
     var rssSubscriptions by remember { mutableStateOf(emptyList<RssSubscriptionInfo>()) }
     var selectedRssSubscription by remember { mutableStateOf<RssSubscriptionInfo?>(null) }
     var cloudRssStatus by remember { mutableStateOf(cloudRssInitialStatus()) }
+    var cloudDirectoryBrowser by remember { mutableStateOf(DesktopCloudDriveDirectoryBrowserState()) }
     var mediaPath by remember { mutableStateOf("") }
     var subtitlePath by remember { mutableStateOf("") }
     var startSeconds by remember { mutableStateOf("0") }
@@ -685,6 +688,98 @@ internal fun MiruPlayDesktopComposeApp(
                 null
             }
         }
+    }
+
+    suspend fun loadCloudDriveDirectory(path: String) {
+        val browser = cloudDirectoryBrowser
+        if (!browser.open) return
+        val endpoint = browser.endpointUrl
+        val token = browser.token
+        if (endpoint.isBlank() || token.isBlank()) {
+            cloudRssStatus = cloudDriveTokenRequiredStatus()
+            cloudDirectoryBrowser = browser.copy(isLoading = false, message = desktopCloudRssStatusText(cloudDriveTokenRequiredStatus()))
+            return
+        }
+        val scopedPath = desktopCloudDriveScopedPath(path, browser.rootPath)
+        cloudDirectoryBrowser = browser.copy(
+            path = scopedPath,
+            displayPath = desktopCloudDriveDisplayPath(scopedPath),
+            parentPath = desktopCloudDriveParentPath(scopedPath, browser.rootPath),
+            isLoading = true,
+            message = null,
+        )
+        when (
+            val listing = cloudDriveClient.listFolder(
+                endpoint = CloudDriveEndpoint(endpoint, token),
+                path = scopedPath,
+                forceRefresh = false,
+            )
+        ) {
+            is Result.Success -> {
+                val current = cloudDirectoryBrowser
+                if (!current.open || current.endpointUrl != endpoint || current.token != token) return
+                cloudDirectoryBrowser = current.copy(
+                    entries = cloudDriveDirectoryEntries(listing.data),
+                    isLoading = false,
+                    message = null,
+                )
+                cloudRssStatus = "正在浏览 CloudDrive2 目录：$scopedPath"
+            }
+            is Result.Error -> {
+                val message = listing.error.toUserMessage()
+                cloudDirectoryBrowser = cloudDirectoryBrowser.copy(isLoading = false, message = message)
+                cloudRssStatus = message
+            }
+        }
+    }
+
+    fun openCloudDriveDirectory(target: DesktopCloudDriveDirectoryTarget) {
+        val endpoint = cloudEndpointUrl.trim()
+        val token = cloudToken.trim().ifBlank { repositories.credentials.cloudDriveToken.orEmpty() }
+        if (endpoint.isBlank() || token.isBlank()) {
+            cloudRssStatus = cloudDriveTokenRequiredStatus()
+            return
+        }
+        scope.launch {
+            val rootPath = when (val tokenInfo = cloudDriveClient.getApiTokenInfo(endpoint, token)) {
+                is Result.Success -> normalizeDesktopCloudDrivePath(tokenInfo.data.rootDir)
+                is Result.Error -> {
+                    val message = tokenInfo.error.toUserMessage()
+                    cloudRssStatus = message
+                    return@launch
+                }
+            }
+            val initialPath = when (target) {
+                DesktopCloudDriveDirectoryTarget.INBOX -> cloudInboxPath
+                DesktopCloudDriveDirectoryTarget.LIBRARY -> cloudLibraryPath
+            }.ifBlank { rootPath }
+            val scopedPath = desktopCloudDriveScopedPath(initialPath, rootPath)
+            cloudDirectoryBrowser = DesktopCloudDriveDirectoryBrowserState(
+                open = true,
+                target = target,
+                endpointUrl = endpoint,
+                token = token,
+                rootPath = rootPath,
+                path = scopedPath,
+                displayPath = desktopCloudDriveDisplayPath(scopedPath),
+                parentPath = desktopCloudDriveParentPath(scopedPath, rootPath),
+                isLoading = true,
+            )
+            loadCloudDriveDirectory(scopedPath)
+        }
+    }
+
+    fun selectCloudDriveDirectory(
+        target: DesktopCloudDriveDirectoryTarget,
+        path: String,
+    ) {
+        val normalized = normalizeDesktopCloudDrivePath(path)
+        when (target) {
+            DesktopCloudDriveDirectoryTarget.INBOX -> cloudInboxPath = normalized
+            DesktopCloudDriveDirectoryTarget.LIBRARY -> cloudLibraryPath = normalized
+        }
+        cloudDirectoryBrowser = cloudDirectoryBrowser.copy(open = false, isLoading = false)
+        cloudRssStatus = "已选择 ${target.title}：$normalized"
     }
 
     LaunchedEffect(cloudRssSchedulerState.lastRunCompletedAt) {
@@ -1476,6 +1571,17 @@ internal fun MiruPlayDesktopComposeApp(
                 onInboxPathChange = { cloudInboxPath = it },
                 libraryPath = cloudLibraryPath,
                 onLibraryPathChange = { cloudLibraryPath = it },
+                directoryBrowser = cloudDirectoryBrowser,
+                onPickCloudDriveDirectory = ::openCloudDriveDirectory,
+                onBrowseCloudDriveDirectory = { path ->
+                    scope.launch {
+                        loadCloudDriveDirectory(path)
+                    }
+                },
+                onSelectCloudDriveDirectory = ::selectCloudDriveDirectory,
+                onCloseCloudDriveDirectory = {
+                    cloudDirectoryBrowser = cloudDirectoryBrowser.copy(open = false, isLoading = false)
+                },
                 intervalMinutes = cloudIntervalMinutes,
                 onIntervalMinutesChange = { cloudIntervalMinutes = it },
                 enabled = cloudEnabled,
