@@ -221,6 +221,9 @@ Unsigned artifacts are allowed for local QA. Release signing is explicit:
 When signing is enabled, the task signs and verifies the generated installer
 with `signtool`; `-PwindowsInstallerCertPassword=...` and
 `-PwindowsInstallerTimestampUrl=...` are optional release inputs.
+`tools/assert-windows-installer-report.ps1` validates that the smoke report
+points at an existing MSI/EXE, that the file size and SHA256 match the report,
+and that the signing mode matches the release gate expectation.
 
 The same signed installer path can run through the unified port verifier so
 installer evidence is produced beside the rest of the release gate output:

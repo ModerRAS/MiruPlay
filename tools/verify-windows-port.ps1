@@ -406,6 +406,24 @@ try {
                 $installerArgs += "-PwindowsInstallerUpgradeUuid=$WindowsInstallerUpgradeUuid"
             }
             Invoke-Gradle -Arguments $installerArgs
+
+            $installerReportPath = Join-Path $repoRoot "desktop-app\build\jpackage\smoke\windows-installer-smoke.json"
+            $assertArgs = @(
+                "-ReportPath",
+                $installerReportPath,
+                "-RequiredInstallerType",
+                $WindowsInstallerType
+            )
+            if (-not [string]::IsNullOrWhiteSpace($WindowsPackageVersion)) {
+                $assertArgs += "-RequiredAppVersion"
+                $assertArgs += $WindowsPackageVersion
+            }
+            if ($SignWindowsInstaller) {
+                $assertArgs += "-RequireSigned"
+            } else {
+                $assertArgs += "-RequireUnsigned"
+            }
+            Invoke-ToolScript -ScriptName "assert-windows-installer-report.ps1" -Arguments $assertArgs
         }
     }
 
