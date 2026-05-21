@@ -182,6 +182,12 @@ Verification:
   -PcloudDriveLibrary=<library> `
   -PcloudDriveRssReportPath=build/cloud-rss-smoke/dry-run-report.json
 
+.\tools\assert-cloud-rss-report.ps1 `
+  -ReportPath .\build\cloud-rss-smoke\dry-run-report.json `
+  -RequiredInbox <inbox> `
+  -RequiredLibrary <library> `
+  -RequireCandidates
+
 .\gradlew.bat :sync-engine-desktop:smokeCloudDriveRssDryRun `
   -PcloudDriveEndpoint=<endpoint> `
   -PcloudDriveToken=<token> `
@@ -192,11 +198,22 @@ Verification:
   -PcloudDriveRssOrganizeConfirmation=I_UNDERSTAND_THIS_MOVES_REAL_CLOUDDRIVE_FILES `
   -PcloudDriveRssReportPath=build/cloud-rss-smoke/organize-report.json
 
+.\tools\assert-cloud-rss-report.ps1 `
+  -ReportPath .\build\cloud-rss-smoke\organize-report.json `
+  -RequiredInbox <inbox> `
+  -RequiredLibrary <library> `
+  -RequireOrganize
+
 .\gradlew.bat :sync-engine-desktop:smokeCloudDriveRssScheduler `
   -PcloudDriveRssSchedulerDurationMs=2000 `
   -PcloudDriveRssSchedulerCheckIntervalMs=250 `
   -PcloudDriveRssSchedulerRunAfterChecks=2 `
   -PcloudDriveRssSchedulerReportPath=build/cloud-rss-smoke/scheduler-report.json
+
+.\tools\assert-cloud-rss-scheduler-report.ps1 `
+  -ReportPath .\build\cloud-rss-smoke\scheduler-report.json `
+  -MinRunCount 1 `
+  -MinChecksObserved 2
 ```
 
 ### Phase 5: Release Readiness
@@ -228,10 +245,29 @@ Verification:
   -CloudDriveToken <token> `
   -CloudDrivePath /Downloads `
   -RequireCloudDriveOfflinePermission
+.\tools\verify-windows-port.ps1 -CloudRssScheduler
+.\tools\verify-windows-port.ps1 `
+  -CloudRssDryRun `
+  -CloudRssEndpoint http://127.0.0.1:19798 `
+  -CloudRssToken <token> `
+  -CloudRssUrl https://example.test/rss.xml `
+  -CloudRssInbox /Downloads `
+  -CloudRssLibrary /Library `
+  -CloudRssFilter Episode `
+  -RequireCloudRssCandidates
 .\tools\assert-cloud-drive-report.ps1 `
   -ReportPath .\build\cloud-drive-smoke\cloud-drive-report.json `
   -RequiredPath /Downloads `
   -RequireOfflinePermission
+.\tools\assert-cloud-rss-report.ps1 `
+  -ReportPath .\build\cloud-rss-smoke\dry-run-report.json `
+  -RequiredInbox /Downloads `
+  -RequiredLibrary /Library `
+  -RequireCandidates
+.\tools\assert-cloud-rss-scheduler-report.ps1 `
+  -ReportPath .\build\cloud-rss-smoke\scheduler-report.json `
+  -MinRunCount 1 `
+  -MinChecksObserved 2
 .\tools\assert-mpv-rife-report.ps1 `
   -ReportPath .\build\mpv-smoke\rife-matrix-report.json `
   -RequiredBackends NVIDIA,DIRECTML `
