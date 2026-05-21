@@ -77,6 +77,7 @@ The port is complete only when all of these are proven by current evidence:
 - [x] Add unit coverage for Continue watching refresh/clear action-pair keyboard/DPAD navigation.
 - [x] Add Windows GUI smoke coverage for Details hero Down -> Bangumi metadata focus fallback.
 - [x] Add Windows GUI smoke coverage for remote-browser row keyboard/DPAD navigation.
+- [x] Add unit coverage for remote-browser empty-state keyboard/DPAD focus.
 - [x] Add unit coverage for Bangumi match/candidate/result list keyboard/DPAD navigation.
 - [x] Add unit and Windows GUI smoke coverage for Bangumi action-grid keyboard/DPAD navigation.
 - [x] Localize Windows Bangumi metadata controls, empty states, batch chips, and status copy to TV-facing Chinese.

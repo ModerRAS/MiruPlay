@@ -580,6 +580,7 @@ internal fun remoteSourceActionNavigationTarget(
 internal sealed interface RemoteBrowserFocusTarget {
     data object UpButton : RemoteBrowserFocusTarget
     data class Row(val index: Int) : RemoteBrowserFocusTarget
+    data object EmptyState : RemoteBrowserFocusTarget
     data object PreviousPanel : RemoteBrowserFocusTarget
 }
 
@@ -1773,6 +1774,7 @@ private fun RemoteBrowserPanel(
     val focusRequesters = remember(visibleEntries) {
         visibleEntries.associate { it.path to FocusRequester() }
     }
+    val emptyFocusRequester = remember { FocusRequester() }
     LaunchedEffect(visibleEntries, selectedEntry?.path) {
         val focusTarget = visibleEntries.firstOrNull { it.path == selectedEntry?.path } ?: visibleEntries.firstOrNull()
         focusTarget?.let { entry ->
@@ -1791,6 +1793,14 @@ private fun RemoteBrowserPanel(
                     true
                 } ?: false
             }
+            RemoteBrowserFocusTarget.EmptyState -> {
+                if (visibleEntries.isEmpty()) {
+                    emptyFocusRequester.requestFocus()
+                    true
+                } else {
+                    false
+                }
+            }
             RemoteBrowserFocusTarget.PreviousPanel -> onFocusPreviousPanel()
             null -> false
         }
@@ -1798,9 +1808,14 @@ private fun RemoteBrowserPanel(
         if (focusVersion > 0) {
             val target = when (focusTarget) {
                 is RemoteBrowserFocusTarget.Row -> if (visibleEntries.isEmpty()) {
-                    RemoteBrowserFocusTarget.UpButton
+                    RemoteBrowserFocusTarget.EmptyState
                 } else {
                     RemoteBrowserFocusTarget.Row(focusTarget.index.coerceIn(visibleEntries.indices))
+                }
+                RemoteBrowserFocusTarget.EmptyState -> if (visibleEntries.isEmpty()) {
+                    RemoteBrowserFocusTarget.EmptyState
+                } else {
+                    RemoteBrowserFocusTarget.UpButton
                 }
                 else -> focusTarget
             }
@@ -1833,19 +1848,24 @@ private fun RemoteBrowserPanel(
                     .focusRequester(upFocusRequester)
                     .onPreviewKeyEvent { event ->
                         event.type == KeyEventType.KeyDown &&
-                            when (event.key) {
-                                Key.DirectionLeft -> onFocusPreviousPanel()
-                                Key.DirectionDown -> requestRemoteBrowserFocus(RemoteBrowserFocusTarget.Row(0))
-                                else -> false
+                            when (val target = remoteBrowserUpButtonFocusTarget(visibleEntries.size, event.key)) {
+                                RemoteBrowserFocusTarget.PreviousPanel -> onFocusPreviousPanel()
+                                is RemoteBrowserFocusTarget.Row,
+                                RemoteBrowserFocusTarget.EmptyState,
+                                -> requestRemoteBrowserFocus(target)
+                                RemoteBrowserFocusTarget.UpButton,
+                                null,
+                                -> false
                             }
                     },
             )
         }
         Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
         if (entries.isEmpty()) {
-            DesktopEmptyState(
+            RemoteBrowserEmptyState(
                 text = labels.remoteEmpty,
-                heightDp = MiruPlayUiMetrics.REMOTE_EMPTY_STATE_HEIGHT_DP,
+                focusRequester = emptyFocusRequester,
+                onMove = ::requestRemoteBrowserFocus,
             )
         } else {
             visibleEntries.forEachIndexed { index, entry ->
@@ -1864,6 +1884,7 @@ private fun RemoteBrowserPanel(
                                 upFocusRequester.requestFocus()
                                 true
                             }
+                            RemoteBrowserFocusTarget.EmptyState -> false
                             RemoteBrowserFocusTarget.PreviousPanel -> onFocusPreviousPanel()
                             null -> if (remoteBrowserShouldNavigateUp(index, key)) {
                                 onUp()
@@ -1897,6 +1918,37 @@ internal fun remoteBrowserPathPreview(
     path.trim()
         .ifBlank { "/" }
         .compactMiddle(maxLength)
+
+@Composable
+private fun RemoteBrowserEmptyState(
+    text: String,
+    focusRequester: FocusRequester,
+    onMove: (RemoteBrowserFocusTarget?) -> Boolean,
+) {
+    DesktopSelectableRow(
+        selected = false,
+        onClick = {},
+        modifier = Modifier
+            .focusRequester(focusRequester)
+            .onPreviewKeyEvent { event ->
+                event.type == KeyEventType.KeyDown &&
+                    onMove(remoteBrowserEmptyFocusTarget(event.key))
+            },
+        heightDp = MiruPlayUiMetrics.REMOTE_EMPTY_STATE_HEIGHT_DP,
+        inactiveAlpha = 0.48f,
+    ) { active ->
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text,
+                color = if (active) TextPrimary else TextSecondary,
+                fontSize = MiruPlayUiMetrics.SECTION_BODY_SP.sp,
+            )
+        }
+    }
+}
 
 @Composable
 private fun RemoteFileRow(
@@ -1986,6 +2038,27 @@ internal fun List<FileEntry>.remoteBrowserFocusTarget(
         else -> null
     }
 }
+
+internal fun remoteBrowserUpButtonFocusTarget(
+    itemCount: Int,
+    key: Key,
+): RemoteBrowserFocusTarget? =
+    when (key) {
+        Key.DirectionLeft -> RemoteBrowserFocusTarget.PreviousPanel
+        Key.DirectionDown -> if (itemCount > 0) {
+            RemoteBrowserFocusTarget.Row(0)
+        } else {
+            RemoteBrowserFocusTarget.EmptyState
+        }
+        else -> null
+    }
+
+internal fun remoteBrowserEmptyFocusTarget(key: Key): RemoteBrowserFocusTarget? =
+    when (key) {
+        Key.DirectionUp -> RemoteBrowserFocusTarget.UpButton
+        Key.DirectionLeft -> RemoteBrowserFocusTarget.PreviousPanel
+        else -> null
+    }
 
 internal fun remoteBrowserShouldNavigateUp(
     currentIndex: Int,
