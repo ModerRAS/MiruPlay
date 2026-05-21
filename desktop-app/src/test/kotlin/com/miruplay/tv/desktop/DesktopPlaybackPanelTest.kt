@@ -94,6 +94,22 @@ class DesktopPlaybackPanelTest {
                 isPlayerActive = true,
             ),
         )
+        assertEquals(
+            DesktopPlayerStageFocusTarget.NextPanel,
+            desktopPlayerStageNavigationTarget(
+                current = DesktopPlayerStageFocusTarget.Primary,
+                key = Key.DirectionDown,
+                isPlayerActive = false,
+            ),
+        )
+        assertEquals(
+            DesktopPlayerStageFocusTarget.NextPanel,
+            desktopPlayerStageNavigationTarget(
+                current = DesktopPlayerStageFocusTarget.Stop,
+                key = Key.DirectionDown,
+                isPlayerActive = true,
+            ),
+        )
     }
 
     @Test
@@ -149,7 +165,39 @@ class DesktopPlaybackPanelTest {
     }
 
     @Test
-    fun `desktop player settings toggles move across the TV control row`() {
+    fun `desktop player settings form moves from fields into the TV control row`() {
+        assertEquals(
+            PlaybackSettingFocusTarget.StartSeconds,
+            playbackSettingNavigationTarget(PlaybackSettingFocusTarget.MediaPath, Key.DirectionRight),
+        )
+        assertEquals(
+            PlaybackSettingFocusTarget.MediaPath,
+            playbackSettingNavigationTarget(PlaybackSettingFocusTarget.StartSeconds, Key.DirectionLeft),
+        )
+        assertEquals(
+            PlaybackSettingFocusTarget.SubtitlePath,
+            playbackSettingNavigationTarget(PlaybackSettingFocusTarget.MediaPath, Key.DirectionDown),
+        )
+        assertEquals(
+            PlaybackSettingFocusTarget.SubtitlePath,
+            playbackSettingNavigationTarget(PlaybackSettingFocusTarget.StartSeconds, Key.DirectionDown),
+        )
+        assertEquals(
+            PlaybackSettingFocusTarget.PreviousPanel,
+            playbackSettingNavigationTarget(PlaybackSettingFocusTarget.MediaPath, Key.DirectionUp),
+        )
+        assertEquals(
+            PlaybackSettingFocusTarget.MediaPath,
+            playbackSettingNavigationTarget(PlaybackSettingFocusTarget.SubtitlePath, Key.DirectionUp),
+        )
+        assertEquals(
+            PlaybackSettingFocusTarget.Fullscreen,
+            playbackSettingNavigationTarget(PlaybackSettingFocusTarget.SubtitlePath, Key.DirectionDown),
+        )
+    }
+
+    @Test
+    fun `desktop player settings toggles move across the TV control row and adjacent panels`() {
         assertEquals(
             PlaybackSettingFocusTarget.KeepOpen,
             playbackSettingNavigationTarget(PlaybackSettingFocusTarget.Fullscreen, Key.DirectionRight),
@@ -175,7 +223,11 @@ class DesktopPlaybackPanelTest {
             playbackSettingNavigationTarget(PlaybackSettingFocusTarget.RifeBackend, Key.DirectionRight),
         )
         assertEquals(
-            null,
+            PlaybackSettingFocusTarget.SubtitlePath,
+            playbackSettingNavigationTarget(PlaybackSettingFocusTarget.KeepOpen, Key.DirectionUp),
+        )
+        assertEquals(
+            PlaybackSettingFocusTarget.NextPanel,
             playbackSettingNavigationTarget(PlaybackSettingFocusTarget.KeepOpen, Key.DirectionDown),
         )
     }
@@ -195,7 +247,7 @@ class DesktopPlaybackPanelTest {
             runtimeNavigationTarget(RuntimeFocusTarget.CheckRuntime, Key.DirectionUp),
         )
         assertEquals(
-            null,
+            RuntimeFocusTarget.PreviousPanel,
             runtimeNavigationTarget(RuntimeFocusTarget.MpvPath, Key.DirectionUp),
         )
         assertEquals(

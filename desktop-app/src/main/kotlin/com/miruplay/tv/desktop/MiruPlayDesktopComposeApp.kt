@@ -722,6 +722,8 @@ internal fun MiruPlayDesktopComposeApp(
     val contentScrollState = rememberScrollState()
     var libraryHeaderFocusVersion by remember { mutableIntStateOf(0) }
     var libraryPanelFocusVersion by remember { mutableIntStateOf(0) }
+    var playerSettingsFocusVersion by remember { mutableIntStateOf(0) }
+    var playerRuntimeFocusVersion by remember { mutableIntStateOf(0) }
     LaunchedEffect(selectedDesktopSection) {
         contentScrollState.scrollTo(0)
     }
@@ -1817,6 +1819,12 @@ internal fun MiruPlayDesktopComposeApp(
                                 launchStatus = mpvStoppedStatus()
                             }
                         },
+                        requestedSettingsFocusVersion = playerSettingsFocusVersion,
+                        requestedSettingsFocusTarget = PlaybackSettingFocusTarget.RifeBackend,
+                        onFocusNextPanel = {
+                            playerRuntimeFocusVersion += 1
+                            true
+                        },
                     )
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(22.dp),
@@ -1830,6 +1838,11 @@ internal fun MiruPlayDesktopComposeApp(
                             status = status,
                             onCheckRuntime = { status = mpvRuntimeStatusFromInputs(mpvPath, configDir) },
                             modifier = Modifier.weight(0.42f),
+                            focusVersion = playerRuntimeFocusVersion,
+                            onFocusPreviousPanel = {
+                                playerSettingsFocusVersion += 1
+                                true
+                            },
                         )
                         CommandPanel(
                             commandPreview = commandPreview,
