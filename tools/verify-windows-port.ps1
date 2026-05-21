@@ -22,7 +22,24 @@ param(
     [string]$CloudDriveEndpoint = "",
     [string]$CloudDriveToken = "",
     [string]$CloudDrivePath = "/",
-    [switch]$RequireCloudDriveOfflinePermission
+    [switch]$RequireCloudDriveOfflinePermission,
+    [switch]$CloudRssDryRun,
+    [switch]$CloudRssLiveSubmit,
+    [switch]$CloudRssOrganize,
+    [switch]$ConfirmCloudRssLiveSubmit,
+    [switch]$ConfirmCloudRssOrganize,
+    [string]$CloudRssEndpoint = "",
+    [string]$CloudRssToken = "",
+    [string]$CloudRssUrl = "",
+    [string]$CloudRssInbox = "/Downloads",
+    [string]$CloudRssLibrary = "/Library",
+    [string]$CloudRssFilter = "",
+    [int]$CloudRssSubmitLimit = 1,
+    [switch]$RequireCloudRssCandidates,
+    [switch]$CloudRssScheduler,
+    [int]$CloudRssSchedulerDurationMs = 2000,
+    [int]$CloudRssSchedulerCheckIntervalMs = 250,
+    [int]$CloudRssSchedulerRunAfterChecks = 2
 )
 
 $ErrorActionPreference = "Stop"
@@ -52,6 +69,8 @@ $testSegment = -join @(
 $approvedSmbShareTestPath = "\\smb.example.test\share\$temporaryFilesSegment\$testSegment"
 $approvedSmbBaseUrl = "smb://smb.example.test/share/$temporaryFilesSegment/$testSegment"
 $stepResults = New-Object 'System.Collections.Generic.List[object]'
+$liveSubmitConfirmation = "I_UNDERSTAND_THIS_SUBMITS_REAL_CLOUDDRIVE_DOWNLOADS"
+$liveOrganizeConfirmation = "I_UNDERSTAND_THIS_MOVES_REAL_CLOUDDRIVE_FILES"
 
 function Get-JavaMajorVersion {
     param([string]$JavaHome)
@@ -411,6 +430,95 @@ try {
         }
     } else {
         Write-Host "CloudDrive2 live smoke skipped. Run with -CloudDrive and explicit endpoint/token only against a real test server."
+    }
+
+    if ($CloudRssDryRun -or $CloudRssLiveSubmit) {
+        $cloudRssStepName = if ($CloudRssLiveSubmit) { "CloudDrive RSS live submit smoke" } else { "CloudDrive RSS dry-run smoke" }
+        Invoke-Step -Name $cloudRssStepName -Action {
+            $rssEndpoint = if ([string]::IsNullOrWhiteSpace($CloudRssEndpoint)) { $CloudDriveEndpoint } else { $CloudRssEndpoint }
+            $rssToken = if ([string]::IsNullOrWhiteSpace($CloudRssToken)) { $CloudDriveToken } else { $CloudRssToken }
+            if ([string]::IsNullOrWhiteSpace($rssEndpoint) -or [string]::IsNullOrWhiteSpace($rssToken) -or [string]::IsNullOrWhiteSpace($CloudRssUrl)) {
+                throw "CloudDrive RSS smoke requires endpoint, token, and -CloudRssUrl. You can pass endpoint/token with -CloudRssEndpoint/-CloudRssToken or reuse -CloudDriveEndpoint/-CloudDriveToken."
+            }
+            if ($CloudRssLiveSubmit -and -not $ConfirmCloudRssLiveSubmit) {
+                throw "CloudDrive RSS live submit requires -ConfirmCloudRssLiveSubmit because it submits real offline downloads."
+            }
+            if ($CloudRssOrganize -and -not $ConfirmCloudRssOrganize) {
+                throw "CloudDrive RSS organize requires -ConfirmCloudRssOrganize because it moves real CloudDrive files."
+            }
+
+            $reportName = if ($CloudRssLiveSubmit) { "live-submit-report.json" } elseif ($CloudRssOrganize) { "organize-report.json" } else { "dry-run-report.json" }
+            $reportPath = Join-Path $repoRoot "build\cloud-rss-smoke\$reportName"
+            $taskName = if ($CloudRssLiveSubmit) { ":sync-engine-desktop:smokeCloudDriveRssLiveSubmit" } else { ":sync-engine-desktop:smokeCloudDriveRssDryRun" }
+            $gradleArgs = @(
+                $taskName,
+                "-PcloudDriveEndpoint=$rssEndpoint",
+                "-PcloudDriveToken=$rssToken",
+                "-PcloudDriveRssUrl=$CloudRssUrl",
+                "-PcloudDriveInbox=$CloudRssInbox",
+                "-PcloudDriveLibrary=$CloudRssLibrary",
+                "-PcloudDriveRssReportPath=$reportPath"
+            )
+            if (-not [string]::IsNullOrWhiteSpace($CloudRssFilter)) {
+                $gradleArgs += "-PcloudDriveRssFilter=$CloudRssFilter"
+            }
+            if ($CloudRssLiveSubmit) {
+                $gradleArgs += "-PcloudDriveRssSubmitConfirmation=$liveSubmitConfirmation"
+                $gradleArgs += "-PcloudDriveRssSubmitLimit=$CloudRssSubmitLimit"
+            }
+            if ($CloudRssOrganize) {
+                $gradleArgs += "-PcloudDriveRssOrganize=true"
+                $gradleArgs += "-PcloudDriveRssOrganizeConfirmation=$liveOrganizeConfirmation"
+            }
+            Invoke-Gradle -Arguments $gradleArgs
+
+            $assertArgs = @(
+                "-ReportPath",
+                $reportPath,
+                "-RequiredInbox",
+                $CloudRssInbox,
+                "-RequiredLibrary",
+                $CloudRssLibrary
+            )
+            if ($RequireCloudRssCandidates -or $CloudRssLiveSubmit) {
+                $assertArgs += "-RequireCandidates"
+            }
+            if ($CloudRssLiveSubmit) {
+                $assertArgs += "-RequireLiveSubmit"
+            }
+            if ($CloudRssOrganize) {
+                $assertArgs += "-RequireOrganize"
+            }
+            if ($RequireCloudDriveOfflinePermission -or $CloudRssLiveSubmit) {
+                $assertArgs += "-RequireOfflinePermission"
+            }
+            Invoke-ToolScript -ScriptName "assert-cloud-rss-report.ps1" -Arguments $assertArgs
+        }
+    } else {
+        Write-Host "CloudDrive RSS dry-run/live smoke skipped. Run with -CloudRssDryRun or -CloudRssLiveSubmit and explicit endpoint/token/RSS URL."
+    }
+
+    if ($CloudRssScheduler) {
+        Invoke-Step -Name "CloudDrive RSS scheduler smoke" -Action {
+            $reportPath = Join-Path $repoRoot "build\cloud-rss-smoke\scheduler-report.json"
+            Invoke-Gradle -Arguments @(
+                ":sync-engine-desktop:smokeCloudDriveRssScheduler",
+                "-PcloudDriveRssSchedulerDurationMs=$CloudRssSchedulerDurationMs",
+                "-PcloudDriveRssSchedulerCheckIntervalMs=$CloudRssSchedulerCheckIntervalMs",
+                "-PcloudDriveRssSchedulerRunAfterChecks=$CloudRssSchedulerRunAfterChecks",
+                "-PcloudDriveRssSchedulerReportPath=$reportPath"
+            )
+            Invoke-ToolScript -ScriptName "assert-cloud-rss-scheduler-report.ps1" -Arguments @(
+                "-ReportPath",
+                $reportPath,
+                "-MinRunCount",
+                "1",
+                "-MinChecksObserved",
+                "$CloudRssSchedulerRunAfterChecks"
+            )
+        }
+    } else {
+        Write-Host "CloudDrive RSS scheduler smoke skipped. Run with -CloudRssScheduler for elapsed-time scheduler evidence."
     }
 } finally {
     Pop-Location
