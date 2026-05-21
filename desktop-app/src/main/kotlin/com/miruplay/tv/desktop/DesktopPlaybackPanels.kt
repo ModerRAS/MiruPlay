@@ -564,7 +564,7 @@ internal fun RuntimePanel(
         Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
         LabeledTextField("portable_config", configDir, onValueChange = onConfigDirChange)
         Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
-        StatusBox(status)
+        StatusBox(desktopRuntimeStatusText(status))
         Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
         TvActionButton("检查运行时", onClick = onCheckRuntime)
     }
@@ -647,10 +647,71 @@ internal fun desktopPlaybackStatusText(status: String): String {
         trimmed == "mpv stopped." -> "mpv 已停止。"
         trimmed.startsWith("mpv position synced at ") && trimmed.endsWith(".") ->
             "播放进度已同步至 ${trimmed.removePrefix("mpv position synced at ").removeSuffix(".")}。"
+        trimmed.startsWith("播放出错：mpv executable not found: ") ->
+            trimmed.removePrefix("播放出错：").localizedMissingMpvExecutableMessage(prefix = "播放出错：")
+        trimmed.startsWith("播放出错：RIFE is enabled but script was not found: ") ->
+            trimmed.removePrefix("播放出错：").localizedMissingRifeScriptMessage(prefix = "播放出错：")
+        trimmed == "播放出错：RIFE is enabled but configDirectory is empty. Set portable_config, choose a runtime root, or turn RIFE off." ->
+            "播放出错：已开启 RIFE，但 portable_config 为空。请设置 portable_config、选择运行时目录，或关闭 RIFE。"
         trimmed == "Choose a media URI or file path before launching mpv." -> "请先选择媒体，再启动 mpv。"
         trimmed == "Unable to build mpv command." -> "无法生成 mpv 命令。"
         else -> trimmed
     }
+}
+
+internal fun desktopRuntimeStatusText(status: String): String =
+    status.trim()
+        .takeIf { it.isNotBlank() }
+        ?.lineSequence()
+        ?.joinToString(separator = "\n") { line -> desktopRuntimeStatusLine(line.trim()) }
+        ?: "尚未检查运行时。"
+
+private fun desktopRuntimeStatusLine(line: String): String {
+    val marker = " Manifest: present."
+    val hasManifest = line.endsWith(marker)
+    val body = if (hasManifest) line.removeSuffix(marker) else line
+    val suffix = if (hasManifest) "清单：已发现。" else ""
+    return when {
+        body.startsWith("Bundled mpv runtime is ready. RIFE: ") ->
+            "内置 mpv 运行时已就绪。RIFE：${
+                body.removePrefix("Bundled mpv runtime is ready. RIFE: ").removeSuffix(".").localizedRifeBackends()
+            }。$suffix"
+        body == "mpv runtime is playable. RIFE scripts are missing; leave RIFE off or prepare a RIFE backend." ->
+            "mpv 运行时可播放。缺少 RIFE 脚本；请关闭 RIFE 或准备 RIFE 后端。$suffix"
+        body.startsWith("mpv runtime is playable. Missing optional files: ") ->
+            "mpv 运行时可播放。缺少可选文件：${
+                body.removePrefix("mpv runtime is playable. Missing optional files: ").removeSuffix(".")
+            }。$suffix"
+        body.startsWith("mpv runtime is incomplete. Missing: ") ->
+            "mpv 运行时不完整。缺少：${
+                body.removePrefix("mpv runtime is incomplete. Missing: ").removeSuffix(".")
+            }。$suffix"
+        body.startsWith("Runtime check failed: ") ->
+            "运行时检查失败：${body.removePrefix("Runtime check failed: ")}"
+        body == "Runtime manifest" -> "运行时清单"
+        body.startsWith("Verified at: ") -> "验证时间：${body.removePrefix("Verified at: ")}"
+        body.startsWith("Source: ") -> "来源：${body.removePrefix("Source: ")}"
+        body.startsWith("Overlay source: ") -> "叠加包来源：${body.removePrefix("Overlay source: ")}"
+        body.startsWith("Runtime root: ") -> "运行时目录：${body.removePrefix("Runtime root: ")}"
+        body.startsWith("Required RIFE: ") -> "要求的 RIFE：${body.removePrefix("Required RIFE: ").localizedRifeBackends()}"
+        body.startsWith("Manifest files: ") -> "清单文件：${body.removePrefix("Manifest files: ")}"
+        else -> line
+    }
+}
+
+private fun String.localizedRifeBackends(): String =
+    if (equals("none", ignoreCase = true)) "无" else this
+
+private fun String.localizedMissingMpvExecutableMessage(prefix: String = ""): String {
+    val path = removePrefix("mpv executable not found: ")
+        .removeSuffix(". Choose the bundled runtime path, install mpv, or run Check runtime before launching.")
+    return "${prefix}找不到 mpv.exe：$path。请选择内置运行时路径、安装 mpv，或先检查运行时。"
+}
+
+private fun String.localizedMissingRifeScriptMessage(prefix: String = ""): String {
+    val path = removePrefix("RIFE is enabled but script was not found: ")
+        .removeSuffix(". Pick an installed backend, prepare the bundled runtime, or turn RIFE off.")
+    return "${prefix}已开启 RIFE，但找不到脚本：$path。请选择已安装后端、准备内置运行时，或关闭 RIFE。"
 }
 
 internal fun desktopPlaybackSourceLine(
