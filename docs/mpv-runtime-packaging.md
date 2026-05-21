@@ -166,8 +166,10 @@ backend scripts:
 To verify the native Windows app-image shape before installer/signing work, run
 the jpackage gate. It builds `desktop-app/build/jpackage/output/MiruPlay/`,
 checks the launcher, validates the generated `app/MiruPlay.cfg` main class and
-jar classpath entries, and verifies the bundled `runtime/mpv` payload plus the
-requested RIFE scripts:
+jar classpath entries, verifies the bundled `runtime/mpv` payload plus the
+requested RIFE scripts, and launches the generated `MiruPlay.exe` with the
+headless desktop-entry smoke argument to confirm the app-image resolves its own
+runtime and writes a JSON report:
 
 ```powershell
 .\gradlew.bat :desktop-app:smokeNativeAppImageRuntime `

@@ -3,6 +3,7 @@ package com.miruplay.tv.desktop
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.window.WindowPlacement
 import com.miruplay.tv.design.MiruPlayRouteSurface
+import java.nio.file.Paths
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -78,6 +79,47 @@ class DesktopSectionContractTest {
         assertEquals(MiruPlayRouteSurface.library, desktopInitialSection("missing"))
         assertEquals(MiruPlayRouteSurface.player, desktopInitialSection("player"))
         assertEquals(MiruPlayRouteSurface.settings, desktopInitialSection(" SETTINGS "))
+    }
+
+    @Test
+    fun `desktop entry smoke is opt in by launcher argument`() {
+        assertTrue(shouldRunDesktopEntrySmoke(arrayOf(DESKTOP_ENTRY_SMOKE_ARG)))
+        assertTrue(shouldRunDesktopEntrySmoke(arrayOf("ignored", DESKTOP_ENTRY_SMOKE_ARG)))
+        assertFalse(shouldRunDesktopEntrySmoke(emptyArray()))
+        assertFalse(shouldRunDesktopEntrySmoke(arrayOf("$DESKTOP_ENTRY_SMOKE_ARG=false")))
+    }
+
+    @Test
+    fun `desktop entry smoke report path is parsed from launcher argument`() {
+        assertEquals(
+            Paths.get("D:/MiruPlay/build/native-entry-smoke.json"),
+            desktopEntrySmokeReportPath(
+                arrayOf("${DESKTOP_ENTRY_SMOKE_REPORT_ARG_PREFIX}D:/MiruPlay/build/native-entry-smoke.json"),
+            ),
+        )
+        assertNull(desktopEntrySmokeReportPath(emptyArray()))
+        assertNull(desktopEntrySmokeReportPath(arrayOf(DESKTOP_ENTRY_SMOKE_REPORT_ARG_PREFIX)))
+    }
+
+    @Test
+    fun `desktop entry smoke report serializes launcher contract`() {
+        val report = DesktopEntrySmokeReport(
+            status = "ok",
+            entryPoint = "com.miruplay.tv.desktop.MiruPlayDesktopComposeAppKt",
+            windowTitle = "MiruPlay 桌面版",
+            initialSection = "library",
+            runtimeRoot = "D:\\MiruPlay\\runtime\\mpv",
+            mpvExecutable = "D:\\MiruPlay\\runtime\\mpv\\mpv.exe",
+            configDirectory = "D:\\MiruPlay\\runtime\\mpv\\portable_config",
+        ).toJson()
+
+        assertTrue(report.contains("\"status\": \"ok\""))
+        assertTrue(report.contains("\"entryPoint\": \"com.miruplay.tv.desktop.MiruPlayDesktopComposeAppKt\""))
+        assertTrue(report.contains("\"windowTitle\": \"MiruPlay 桌面版\""))
+        assertTrue(report.contains("\"initialSection\": \"library\""))
+        assertTrue(report.contains("\"runtimeRoot\": \"D:\\\\MiruPlay\\\\runtime\\\\mpv\""))
+        assertTrue(report.contains("\"mpvExecutable\": \"D:\\\\MiruPlay\\\\runtime\\\\mpv\\\\mpv.exe\""))
+        assertTrue(report.contains("\"configDirectory\": \"D:\\\\MiruPlay\\\\runtime\\\\mpv\\\\portable_config\""))
     }
 
     @Test
