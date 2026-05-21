@@ -1,6 +1,7 @@
 package com.miruplay.tv.desktop
 
 import androidx.compose.ui.input.key.Key
+import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
@@ -230,6 +231,38 @@ class DesktopSourcePickerTest {
     }
 
     @Test
+    fun `remote source editor can bridge focus into browser column`() {
+        assertEquals(
+            RemoteSourceFocusTarget.NextPanel,
+            remoteSourceFieldFocusTarget(RemoteSourceField.WebDavUrl, Key.DirectionRight),
+        )
+        assertEquals(
+            RemoteSourceFocusTarget.NextPanel,
+            remoteSourceFieldFocusTarget(RemoteSourceField.WebDavPassword, Key.DirectionRight),
+        )
+        assertEquals(
+            RemoteSourceFocusTarget.NextPanel,
+            remoteSourceFieldFocusTarget(RemoteSourceField.SmbUrl, Key.DirectionRight),
+        )
+        assertEquals(
+            RemoteSourceFocusTarget.NextPanel,
+            remoteSourceFieldFocusTarget(RemoteSourceField.SmbPassword, Key.DirectionRight),
+        )
+        assertEquals(
+            RemoteSourceFocusTarget.NextPanel,
+            remoteSourceActionFocusTarget(RemoteSourceAction.OpenWebDav, Key.DirectionRight),
+        )
+        assertEquals(
+            RemoteSourceFocusTarget.NextPanel,
+            remoteSourceActionFocusTarget(RemoteSourceAction.ScanSource, Key.DirectionRight),
+        )
+        assertEquals(
+            RemoteSourceFocusTarget.Action(RemoteSourceAction.ScanSource),
+            remoteSourceActionFocusTarget(RemoteSourceAction.OpenSmb, Key.DirectionRight),
+        )
+    }
+
+    @Test
     fun `remote source fields bridge into editor actions`() {
         assertEquals(
             RemoteSourceFocusTarget.Field(RemoteSourceField.WebDavUsername),
@@ -268,7 +301,10 @@ class DesktopSourcePickerTest {
             remoteSourceActionFocusTarget(RemoteSourceAction.OpenSmb, Key.DirectionRight),
         )
         assertNull(remoteSourceFieldFocusTarget(RemoteSourceField.WebDavUrl, Key.DirectionUp))
-        assertNull(remoteSourceFieldFocusTarget(RemoteSourceField.SmbPassword, Key.DirectionRight))
+        assertEquals(
+            RemoteSourceFocusTarget.NextPanel,
+            remoteSourceFieldFocusTarget(RemoteSourceField.SmbPassword, Key.DirectionRight),
+        )
     }
 
     @Test
@@ -307,5 +343,19 @@ class DesktopSourcePickerTest {
         assertTrue(remoteBrowserShouldNavigateUp(currentIndex = 0, key = Key.DirectionUp))
         assertFalse(remoteBrowserShouldNavigateUp(currentIndex = 1, key = Key.DirectionUp))
         assertFalse(remoteBrowserShouldNavigateUp(currentIndex = 0, key = Key.DirectionDown))
+    }
+
+    @Test
+    fun `remote browser rows can return focus to editor column`() {
+        val entries = listOf(
+            FileEntry(path = "/Season 01", name = "Season 01", isDirectory = true),
+            FileEntry(path = "/Season 01/Episode 01.mkv", name = "Episode 01.mkv", isDirectory = false),
+        )
+
+        assertEquals(RemoteBrowserFocusTarget.PreviousPanel, entries.remoteBrowserFocusTarget(0, Key.DirectionLeft))
+        assertEquals(RemoteBrowserFocusTarget.Row(1), entries.remoteBrowserFocusTarget(0, Key.DirectionDown))
+        assertEquals(RemoteBrowserFocusTarget.Row(0), entries.remoteBrowserFocusTarget(1, Key.DirectionUp))
+        assertNull(entries.remoteBrowserFocusTarget(0, Key.DirectionUp))
+        assertNull(entries.remoteBrowserFocusTarget(1, Key.DirectionDown))
     }
 }
