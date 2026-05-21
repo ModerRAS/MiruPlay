@@ -3,6 +3,7 @@ import java.io.File
 import java.time.OffsetDateTime
 import java.util.concurrent.TimeUnit
 import java.util.zip.ZipFile
+import groovy.json.JsonSlurper
 import org.gradle.api.file.DuplicatesStrategy
 import org.gradle.api.tasks.Sync
 import org.gradle.api.tasks.bundling.Zip
@@ -91,6 +92,122 @@ fun String.jsonString(): String =
 
 fun List<String>.jsonArray(): String = joinToString(prefix = "[", postfix = "]") { it.jsonString() }
 
+fun hasWindowsDrivePrefix(value: String): Boolean =
+    value.length >= 2 && value[1] == ':' && value[0].isLetter()
+
+fun normalizeRuntimeManifestEntry(entry: String): String? {
+    val normalized = entry.trim().replace('\\', '/')
+    if (normalized.isBlank() || normalized.startsWith("/") || hasWindowsDrivePrefix(normalized)) {
+        return null
+    }
+    val directory = normalized.endsWith("/")
+    val segments = normalized
+        .trimEnd('/')
+        .split('/')
+        .filter { it.isNotBlank() }
+    if (segments.isEmpty() || segments.any { it == "." || it == ".." }) {
+        return null
+    }
+    return segments.joinToString("/").let { if (directory) "$it/" else it }
+}
+
+fun parseRuntimeManifestText(
+    text: String,
+    context: String,
+    problems: MutableList<String>,
+): Map<*, *>? =
+    try {
+        JsonSlurper().parseText(text) as? Map<*, *>
+            ?: run {
+                problems += "$context must contain a JSON object"
+                null
+            }
+    } catch (error: Exception) {
+        problems += "$context could not be parsed: ${error.message ?: error::class.simpleName}"
+        null
+    }
+
+fun runtimeManifestStringList(
+    manifest: Map<*, *>,
+    key: String,
+    context: String,
+    problems: MutableList<String>,
+): List<String> {
+    val value = manifest[key] ?: return emptyList()
+    if (value !is Iterable<*>) {
+        problems += "$context $key must be an array"
+        return emptyList()
+    }
+    return value.mapNotNull { entry ->
+        entry as? String ?: run {
+            problems += "$context $key contains a non-string entry: $entry"
+            null
+        }
+    }
+}
+
+fun validateRuntimeManifestEvidence(
+    manifest: Map<*, *>,
+    context: String,
+    problems: MutableList<String>,
+    exists: (relativePath: String, directory: Boolean) -> Boolean,
+) {
+    val manifestBackends = runtimeManifestStringList(
+        manifest = manifest,
+        key = "requiredRifeBackends",
+        context = context,
+        problems = problems,
+    )
+        .map { it.trim().uppercase() }
+        .filter { it.isNotEmpty() }
+
+    val unknownBackends = manifestBackends.filterNot { it in backendScripts.keys }
+    unknownBackends.forEach { backend ->
+        problems += "$context requiredRifeBackends contains unknown backend: $backend"
+    }
+    manifestBackends
+        .mapNotNull { backendScripts[it] }
+        .forEach { scriptName ->
+            val relativePath = "portable_config/vs/$scriptName"
+            if (!exists(relativePath, false)) {
+                problems += "$context required backend file is missing: $relativePath"
+            }
+        }
+
+    runtimeManifestStringList(
+        manifest = manifest,
+        key = "files",
+        context = context,
+        problems = problems,
+    ).forEach { entry ->
+        val manifestPath = normalizeRuntimeManifestEntry(entry)
+        if (manifestPath == null) {
+            problems += "$context files contains invalid package-relative entry: ${entry.ifBlank { "<blank>" }}"
+            return@forEach
+        }
+        val directory = manifestPath.endsWith("/")
+        val relativePath = manifestPath.removeSuffix("/")
+        if (!exists(relativePath, directory)) {
+            problems += "$context files entry is missing: $manifestPath"
+        }
+    }
+}
+
+fun validateRuntimeManifestFile(root: File, problems: MutableList<String>) {
+    val manifestFile = root.resolve("runtime-manifest.json")
+    if (!manifestFile.isFile) return
+    val context = "runtime-manifest.json"
+    val manifest = parseRuntimeManifestText(manifestFile.readText(), context, problems) ?: return
+    validateRuntimeManifestEvidence(
+        manifest = manifest,
+        context = context,
+        problems = problems,
+    ) { relativePath, directory ->
+        val candidate = root.resolve(relativePath)
+        if (directory) candidate.isDirectory else candidate.isFile
+    }
+}
+
 fun hasMpvRuntimeSource(): Boolean =
     mpvRuntimeSource.isPresent || bundledMpvRuntime.asFile.exists()
 
@@ -143,6 +260,7 @@ val verifyMpvRuntimePayload by tasks.registering {
                 requireFile("portable_config/vs/${backendScripts.getValue(backend)}")
             }
         }
+        validateRuntimeManifestFile(root, missing)
 
         if (missing.isNotEmpty()) {
             throw GradleException(
@@ -300,10 +418,17 @@ val smokePackagedMpvRuntime by tasks.registering {
 
         val missingZipEntries = mutableListOf<String>()
         ZipFile(archive).use { zip ->
-            val entryNames = zip.entries().asSequence()
-                .filterNot { it.isDirectory }
-                .map { it.name.replace('\\', '/') }
-                .toSet()
+            val entries = zip.entries().asSequence()
+                .map { it.name.replace('\\', '/') to it }
+                .toMap()
+            val entryNames = entries.keys
+            val runtimeEntryPrefix = entryNames
+                .firstOrNull { it.endsWith("/runtime/mpv/runtime-manifest.json") }
+                ?.removeSuffix("runtime-manifest.json")
+                ?: entryNames
+                    .firstOrNull { it.endsWith("/runtime/mpv/mpv.exe") }
+                    ?.removeSuffix("mpv.exe")
+                ?: ""
 
             fun requireZipRuntimeFile(relativePath: String) {
                 val expectedSuffix = "/runtime/mpv/${relativePath.replace('\\', '/')}"
@@ -312,10 +437,41 @@ val smokePackagedMpvRuntime by tasks.registering {
                 }
             }
 
+            fun zipRuntimeFileEntry(relativePath: String): String? {
+                val normalized = relativePath.replace('\\', '/')
+                if (runtimeEntryPrefix.isNotEmpty()) {
+                    val candidate = "$runtimeEntryPrefix$normalized"
+                    if (candidate in entryNames) return candidate
+                }
+                val expectedSuffix = "/runtime/mpv/$normalized"
+                return entryNames.firstOrNull { it.endsWith(expectedSuffix) }
+            }
+
             requireZipRuntimeFile("mpv.exe")
             requireZipRuntimeFile("runtime-manifest.json")
             requestedBackends.forEach { backend ->
                 requireZipRuntimeFile("portable_config/vs/${backendScripts.getValue(backend)}")
+            }
+            zipRuntimeFileEntry("runtime-manifest.json")?.let { manifestEntryName ->
+                val manifestText = zip.getInputStream(entries.getValue(manifestEntryName)).bufferedReader().use { it.readText() }
+                parseRuntimeManifestText(
+                    text = manifestText,
+                    context = "packaged runtime-manifest.json",
+                    problems = missingZipEntries,
+                )?.let { manifest ->
+                    validateRuntimeManifestEvidence(
+                        manifest = manifest,
+                        context = "packaged runtime-manifest.json",
+                        problems = missingZipEntries,
+                    ) { relativePath, directory ->
+                        if (directory) {
+                            val prefix = "$runtimeEntryPrefix${relativePath.trimEnd('/')}/"
+                            entryNames.any { it.startsWith(prefix) }
+                        } else {
+                            zipRuntimeFileEntry(relativePath) != null
+                        }
+                    }
+                }
             }
         }
         if (missingZipEntries.isNotEmpty()) {
@@ -434,6 +590,7 @@ val smokeNativeAppImageRuntime by tasks.registering {
         requestedBackends.forEach { backend ->
             requireRuntimeFile("portable_config/vs/${backendScripts.getValue(backend)}")
         }
+        validateRuntimeManifestFile(runtimeRoot, missing)
         if (missing.isNotEmpty()) {
             throw GradleException(
                 "Native app image runtime is incomplete at $runtimeRoot. Missing:\n" +
