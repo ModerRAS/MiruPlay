@@ -954,18 +954,13 @@ private fun bangumiRowKeyEvent(
     type: KeyEventType,
     onClick: () -> Unit,
     onNavigationKey: (Key) -> Boolean,
-): Boolean {
-    if (type != KeyEventType.KeyDown) return false
-    return when (key) {
-        Key.Enter,
-        Key.NumPadEnter,
-        -> {
-            onClick()
-            true
-        }
-        else -> onNavigationKey(key)
-    }
-}
+): Boolean =
+    desktopConfirmOrNavigationKeyEvent(
+        key = key,
+        type = type,
+        onClick = onClick,
+        onNavigationKey = onNavigationKey,
+    )
 
 internal fun bangumiTopActionKeyEvent(
     key: Key,

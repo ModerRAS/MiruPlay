@@ -118,18 +118,17 @@ internal fun SavedSourcePicker(
                     if (event.type != KeyEventType.KeyDown) {
                         false
                     } else {
-                        when (event.key) {
-                            Key.Enter,
-                            Key.NumPadEnter,
-                            -> {
+                        when {
+                            isDesktopConfirmKey(event.key) -> {
                                 expanded = true
                                 true
                             }
-                            Key.DirectionDown,
-                            Key.DirectionRight,
-                            Key.DirectionUp,
-                            Key.DirectionLeft,
-                            -> {
+                            event.key in setOf(
+                                Key.DirectionDown,
+                                Key.DirectionRight,
+                                Key.DirectionUp,
+                                Key.DirectionLeft,
+                            ) -> {
                                 sources.savedSourcePickerNavigationTarget(activeSourceId, event.key)?.let { source ->
                                     onSelected(source)
                                     true
