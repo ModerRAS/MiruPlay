@@ -36,6 +36,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.miruplay.tv.clouddrive.GrpcCloudDriveClient
@@ -222,6 +223,16 @@ private val MiruPlayDesktopColorScheme = darkColorScheme(
 
 fun main() = application {
     val windowState = rememberWindowState(width = 1280.dp, height = 820.dp)
+    var playerFullscreenRestorePlacement by remember { mutableStateOf<WindowPlacement?>(null) }
+    fun applyPlayerFullscreen(active: Boolean) {
+        val nextPlacement = desktopPlayerFullscreenPlacement(
+            currentPlacement = windowState.placement,
+            restorePlacement = playerFullscreenRestorePlacement,
+            active = active,
+        )
+        windowState.placement = nextPlacement.placement
+        playerFullscreenRestorePlacement = nextPlacement.restorePlacement
+    }
     Window(
         onCloseRequest = ::exitApplication,
         title = desktopWindowTitle(),
@@ -235,7 +246,9 @@ fun main() = application {
                 modifier = Modifier.fillMaxSize(),
                 color = DarkBg,
             ) {
-                MiruPlayDesktopComposeApp()
+                MiruPlayDesktopComposeApp(
+                    onPlayerFullscreenActiveChange = ::applyPlayerFullscreen,
+                )
             }
         }
     }
@@ -244,8 +257,42 @@ fun main() = application {
 internal fun desktopWindowTitle(): String =
     "MiruPlay 桌面版"
 
+internal fun shouldUseDesktopPlayerFullscreen(
+    selectedSection: DesktopSection,
+    fullscreen: Boolean,
+): Boolean =
+    selectedSection == MiruPlayRouteSurface.player && fullscreen
+
+internal data class DesktopPlayerFullscreenPlacement(
+    val placement: WindowPlacement,
+    val restorePlacement: WindowPlacement?,
+)
+
+internal fun desktopPlayerFullscreenPlacement(
+    currentPlacement: WindowPlacement,
+    restorePlacement: WindowPlacement?,
+    active: Boolean,
+): DesktopPlayerFullscreenPlacement =
+    if (active) {
+        DesktopPlayerFullscreenPlacement(
+            placement = WindowPlacement.Fullscreen,
+            restorePlacement = if (currentPlacement == WindowPlacement.Fullscreen) {
+                restorePlacement
+            } else {
+                currentPlacement
+            },
+        )
+    } else {
+        DesktopPlayerFullscreenPlacement(
+            placement = restorePlacement ?: currentPlacement,
+            restorePlacement = null,
+        )
+    }
+
 @Composable
-internal fun MiruPlayDesktopComposeApp() {
+internal fun MiruPlayDesktopComposeApp(
+    onPlayerFullscreenActiveChange: (Boolean) -> Unit = {},
+) {
     val scope = rememberCoroutineScope()
     val repositories = remember { DesktopRepositories.fileBacked() }
     val playbackBridge = remember { DesktopPlaybackBridge() }
@@ -677,6 +724,14 @@ internal fun MiruPlayDesktopComposeApp() {
     var libraryPanelFocusVersion by remember { mutableIntStateOf(0) }
     LaunchedEffect(selectedDesktopSection) {
         contentScrollState.scrollTo(0)
+    }
+    LaunchedEffect(selectedDesktopSection, fullscreen) {
+        onPlayerFullscreenActiveChange(
+            shouldUseDesktopPlayerFullscreen(
+                selectedSection = selectedDesktopSection,
+                fullscreen = fullscreen,
+            )
+        )
     }
 
     Row(
