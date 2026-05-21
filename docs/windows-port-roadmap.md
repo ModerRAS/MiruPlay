@@ -140,6 +140,9 @@ Verification:
 .\tools\smoke-desktop-webdav-source-ui.ps1
 .\tools\smoke-desktop-smb-source-ui.ps1
 .\tools\smoke-android-tv-ui.ps1
+.\tools\assert-android-tv-smoke-report.ps1 `
+  -ReportPath .\build\android-tv-qa\run-YYYYMMDD-HHMMSS\android-tv-smoke-report.json `
+  -RequiredDeviceId 10.137.32.118:5555
 ```
 
 ### Phase 3: Prove Playback And Progress
@@ -236,6 +239,9 @@ Verification:
 .\tools\verify-windows-port.ps1 -Gui
 .\tools\verify-windows-port.ps1 -RealLibrary -RealLibraryRoot 'D:\Software\dufs'
 .\tools\verify-windows-port.ps1 -AndroidTv -AndroidDeviceId 10.137.32.118:5555
+.\tools\assert-android-tv-smoke-report.ps1 `
+  -ReportPath .\build\android-tv-qa\run-20260520-190519\android-tv-smoke-report.json `
+  -RequiredDeviceId 10.137.32.118:5555
 .\tools\verify-windows-port.ps1 -Smb
 .\tools\verify-windows-port.ps1 -MpvRuntime -PackagedMpvRuntime
 .\tools\verify-windows-port.ps1 -Rife -RifeBackend ALL -AllowRifeFailures

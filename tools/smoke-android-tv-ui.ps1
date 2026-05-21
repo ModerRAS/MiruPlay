@@ -618,6 +618,9 @@ Write-Report -Path $reportPath -Report @{
     )
 }
 
+$latestReportPath = Join-Path $resolvedOutputRoot "latest-report.txt"
+Set-Content -LiteralPath $latestReportPath -Encoding UTF8 -Value $reportPath
+
 Write-Output "Run directory: $runDir"
 Write-Output "Remote fixture: $remoteFixtureRoot"
 Write-Output "Library screenshot: $libraryScreenshot"
@@ -637,3 +640,4 @@ Write-Output "Settings CloudDrive screenshot: $settingsCloudDriveScreenshot"
 Write-Output "Settings scan screenshot: $settingsScanScreenshot"
 Write-Output "Settings metadata screenshot: $settingsMetadataScreenshot"
 Write-Output "Report: $reportPath"
+Write-Output "Latest report pointer: $latestReportPath"
