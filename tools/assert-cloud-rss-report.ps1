@@ -111,6 +111,7 @@ if ($null -ne $report.organize) {
     Assert-Truthy -Condition ($movedCount -ge 0) -Message "organize.movedCount must be non-negative."
     if ($RequireOrganize) {
         Assert-Truthy -Condition ([bool]$report.organize.enabled) -Message "Expected organize.enabled to be true."
+        Assert-Truthy -Condition ($movedCount -gt 0) -Message "Expected organize.movedCount to prove at least one file was moved."
         Assert-Truthy -Condition ($null -ne $report.organize.postOrganizeInboxItemCount) -Message "Expected postOrganizeInboxItemCount for organize evidence."
         Assert-Truthy -Condition ($null -ne $report.organize.postOrganizeLibraryItemCount) -Message "Expected postOrganizeLibraryItemCount for organize evidence."
     }

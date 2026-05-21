@@ -199,7 +199,7 @@ curl.exe -s "http://10.137.32.118:9978/api/anime/$id"
   -PcloudDriveRssReportPath=build/cloud-rss-smoke/live-submit-report.json
 ```
 
-下载完成后需要验证整理移动时，可以在同一个 smoke 里显式开启组织器。这个模式会真实移动 CloudDrive2 文件，所以要另带移动确认串；生成的 JSON 会记录 `organize.movedCount`、整理后下载目录计数和整理目录计数，但仍不会包含 token：
+下载完成后需要验证整理移动时，可以在同一个 smoke 里显式开启组织器。这个模式会真实移动 CloudDrive2 文件，所以要另带移动确认串；生成的 JSON 会记录 `organize.movedCount`、整理后下载目录计数和整理目录计数，但仍不会包含 token。后续用 `tools/assert-cloud-rss-report.ps1 -RequireOrganize` 校验时，`organize.movedCount` 必须大于 0，才能作为真实移动证据：
 
 ```powershell
 .\gradlew.bat :sync-engine-desktop:smokeCloudDriveRssDryRun `
