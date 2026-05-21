@@ -331,9 +331,7 @@ internal fun DesktopLibraryHeader(
                     modifier = Modifier
                         .width(132.dp)
                         .focusRequester(focusRequesters.getValue(action))
-                        .onPreviewKeyEvent { event ->
-                            event.type == KeyEventType.KeyDown && moveHeaderFocus(action, event.key)
-                        },
+                        .desktopNavigationKeyHandler { key -> moveHeaderFocus(action, key) },
                 )
             }
         }
@@ -392,9 +390,7 @@ private fun Modifier.librarySourceActionNavigation(
     onMove: (LibrarySourceAction, Key) -> Boolean,
 ): Modifier =
     focusRequester(focusRequester)
-        .onPreviewKeyEvent { event ->
-            event.type == KeyEventType.KeyDown && onMove(action, event.key)
-        }
+        .desktopNavigationKeyHandler { key -> onMove(action, key) }
 
 private fun Modifier.librarySourceFieldNavigation(
     field: LibrarySourceField,
@@ -402,9 +398,7 @@ private fun Modifier.librarySourceFieldNavigation(
     onMove: (LibrarySourceField, Key) -> Boolean,
 ): Modifier =
     focusRequester(focusRequester)
-        .onPreviewKeyEvent { event ->
-            event.type == KeyEventType.KeyDown && onMove(field, event.key)
-        }
+        .desktopNavigationKeyHandler { key -> onMove(field, key) }
 
 internal fun librarySourceActionFocusTarget(
     current: LibrarySourceAction,
@@ -504,9 +498,7 @@ private fun Modifier.remoteSourceActionNavigation(
     onMove: (RemoteSourceAction, Key) -> Boolean,
 ): Modifier =
     focusRequester(focusRequester)
-        .onPreviewKeyEvent { event ->
-            event.type == KeyEventType.KeyDown && onMove(action, event.key)
-        }
+        .desktopNavigationKeyHandler { key -> onMove(action, key) }
 
 private fun Modifier.remoteSourceFieldNavigation(
     field: RemoteSourceField,
@@ -514,9 +506,7 @@ private fun Modifier.remoteSourceFieldNavigation(
     onMove: (RemoteSourceField, Key) -> Boolean,
 ): Modifier =
     focusRequester(focusRequester)
-        .onPreviewKeyEvent { event ->
-            event.type == KeyEventType.KeyDown && onMove(field, event.key)
-        }
+        .desktopNavigationKeyHandler { key -> onMove(field, key) }
 
 internal fun remoteSourceActionFocusTarget(
     current: RemoteSourceAction,
@@ -663,10 +653,7 @@ private fun PosterSearchBar(
                 modifier = Modifier.weight(1f),
                 inputModifier = Modifier
                     .focusRequester(focusRequesters.getValue(LibrarySearchFocusTarget.Field))
-                    .onPreviewKeyEvent { event ->
-                        event.type == KeyEventType.KeyDown &&
-                            moveSearchFocus(LibrarySearchFocusTarget.Field, event.key)
-                    },
+                    .desktopNavigationKeyHandler { key -> moveSearchFocus(LibrarySearchFocusTarget.Field, key) },
             )
             TvActionButton(
                 "搜索",
@@ -674,10 +661,7 @@ private fun PosterSearchBar(
                 modifier = Modifier
                     .width(132.dp)
                     .focusRequester(focusRequesters.getValue(LibrarySearchFocusTarget.Action))
-                    .onPreviewKeyEvent { event ->
-                        event.type == KeyEventType.KeyDown &&
-                            moveSearchFocus(LibrarySearchFocusTarget.Action, event.key)
-                    },
+                    .desktopNavigationKeyHandler { key -> moveSearchFocus(LibrarySearchFocusTarget.Action, key) },
             )
             Text(
                 "$resultCount 部",
@@ -1901,17 +1885,16 @@ private fun RemoteBrowserPanel(
                 modifier = Modifier
                     .width(MiruPlayUiMetrics.CONTROL_BUTTON_WIDTH_DP.dp)
                     .focusRequester(upFocusRequester)
-                    .onPreviewKeyEvent { event ->
-                        event.type == KeyEventType.KeyDown &&
-                            when (val target = remoteBrowserUpButtonFocusTarget(visibleEntries.size, event.key)) {
-                                RemoteBrowserFocusTarget.PreviousPanel -> onFocusPreviousPanel()
-                                is RemoteBrowserFocusTarget.Row,
-                                RemoteBrowserFocusTarget.EmptyState,
-                                -> requestRemoteBrowserFocus(target)
-                                RemoteBrowserFocusTarget.UpButton,
-                                null,
-                                -> false
-                            }
+                    .desktopNavigationKeyHandler { key ->
+                        when (val target = remoteBrowserUpButtonFocusTarget(visibleEntries.size, key)) {
+                            RemoteBrowserFocusTarget.PreviousPanel -> onFocusPreviousPanel()
+                            is RemoteBrowserFocusTarget.Row,
+                            RemoteBrowserFocusTarget.EmptyState,
+                            -> requestRemoteBrowserFocus(target)
+                            RemoteBrowserFocusTarget.UpButton,
+                            null,
+                            -> false
+                        }
                     },
             )
         }

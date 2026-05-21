@@ -48,19 +48,11 @@ internal fun DesktopTvNavigation(
         modifier = Modifier
             .width(MiruPlayUiMetrics.NAV_RAIL_WIDTH_DP.dp)
             .fillMaxHeight()
-            .onPreviewKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown) {
-                    false
-                } else {
-                    when (event.key) {
-                        Key.DirectionDown -> {
-                            selectedSection.stepDesktopSection(1)?.let(onSectionSelected) != null
-                        }
-                        Key.DirectionUp -> {
-                            selectedSection.stepDesktopSection(-1)?.let(onSectionSelected) != null
-                        }
-                        else -> false
-                    }
+            .desktopNavigationKeyHandler { key ->
+                when (key) {
+                    Key.DirectionDown -> selectedSection.stepDesktopSection(1)?.let(onSectionSelected) != null
+                    Key.DirectionUp -> selectedSection.stepDesktopSection(-1)?.let(onSectionSelected) != null
+                    else -> false
                 }
             },
     ) {

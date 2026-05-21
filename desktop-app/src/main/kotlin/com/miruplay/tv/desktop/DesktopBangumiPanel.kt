@@ -23,9 +23,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -931,9 +928,7 @@ private fun Modifier.bangumiActionNavigation(
     onMove: (BangumiAction, Key) -> Boolean,
 ): Modifier =
     focusRequester(focusRequester)
-        .onPreviewKeyEvent { event ->
-            event.type == KeyEventType.KeyDown && onMove(action, event.key)
-        }
+        .desktopNavigationKeyHandler { key -> onMove(action, key) }
 
 internal fun bangumiTopActionKeyEvent(
     key: Key,

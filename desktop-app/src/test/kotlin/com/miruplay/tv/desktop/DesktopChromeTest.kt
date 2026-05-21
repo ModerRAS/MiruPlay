@@ -202,4 +202,45 @@ class DesktopChromeTest {
         assertEquals(1, clicks)
         assertEquals(Key.DirectionDown, navigatedKey)
     }
+
+    @Test
+    fun `desktop navigation key event handles only non-confirm key down`() {
+        var navigatedKey: Key? = null
+
+        assertTrue(
+            desktopNavigationKeyEvent(
+                key = Key.DirectionDown,
+                type = KeyEventType.KeyDown,
+                onNavigationKey = { key ->
+                    navigatedKey = key
+                    true
+                },
+            ),
+        )
+        assertEquals(Key.DirectionDown, navigatedKey)
+
+        assertFalse(
+            desktopNavigationKeyEvent(
+                key = Key.DirectionDown,
+                type = KeyEventType.KeyUp,
+                onNavigationKey = { key ->
+                    navigatedKey = key
+                    true
+                },
+            ),
+        )
+        assertEquals(Key.DirectionDown, navigatedKey)
+
+        assertFalse(
+            desktopNavigationKeyEvent(
+                key = Key.DirectionCenter,
+                type = KeyEventType.KeyDown,
+                onNavigationKey = { key ->
+                    navigatedKey = key
+                    true
+                },
+            ),
+        )
+        assertEquals(Key.DirectionDown, navigatedKey)
+    }
 }

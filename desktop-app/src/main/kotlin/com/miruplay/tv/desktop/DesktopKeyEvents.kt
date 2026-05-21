@@ -1,7 +1,11 @@
 package com.miruplay.tv.desktop
 
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 
 internal fun isDesktopConfirmKey(key: Key): Boolean =
     key == Key.Enter ||
@@ -49,3 +53,23 @@ internal fun desktopOpenPickerKeyEvent(
         enabled = enabled,
         onClick = onOpen,
     )
+
+internal fun desktopNavigationKeyEvent(
+    key: Key,
+    type: KeyEventType,
+    onNavigationKey: (Key) -> Boolean,
+): Boolean {
+    if (type != KeyEventType.KeyDown || isDesktopConfirmKey(key)) return false
+    return onNavigationKey(key)
+}
+
+internal fun Modifier.desktopNavigationKeyHandler(
+    onNavigationKey: (Key) -> Boolean,
+): Modifier =
+    onPreviewKeyEvent { event ->
+        desktopNavigationKeyEvent(
+            key = event.key,
+            type = event.type,
+            onNavigationKey = onNavigationKey,
+        )
+    }
