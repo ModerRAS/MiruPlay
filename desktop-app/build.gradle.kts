@@ -358,6 +358,59 @@ val smokeNativeAppImageRuntime by tasks.registering {
             }
             ?: throw GradleException("Native app image launcher was not found under $appRoot")
 
+        val appDir = appRoot.resolve("app")
+        val launcherConfig = appDir.resolve("MiruPlay.cfg")
+        if (!launcherConfig.isFile) {
+            throw GradleException("Native app image launcher config was not found: $launcherConfig")
+        }
+        val configLines = launcherConfig.readLines()
+        val expectedMainClass = application.mainClass.get()
+        val actualMainClass = configLines
+            .firstOrNull { it.startsWith("app.mainclass=") }
+            ?.substringAfter('=')
+        if (actualMainClass != expectedMainClass) {
+            throw GradleException(
+                "Native app image launcher config has wrong main class. " +
+                    "Expected $expectedMainClass but found ${actualMainClass ?: "<missing>"} in $launcherConfig"
+            )
+        }
+
+        val classpathPrefix = "app.classpath=\$APPDIR\\"
+        val configuredClasspathJars = configLines
+            .asSequence()
+            .filter { it.startsWith(classpathPrefix) }
+            .map { it.removePrefix(classpathPrefix).replace('\\', '/') }
+            .map { it.substringAfterLast('/') }
+            .filter { it.endsWith(".jar", ignoreCase = true) }
+            .toSet()
+        val appJars = appDir.listFiles { file -> file.isFile && file.extension.equals("jar", ignoreCase = true) }
+            ?.map { it.name }
+            ?.toSet()
+            .orEmpty()
+        val missingClasspathEntries = appJars - configuredClasspathJars
+        val missingClasspathFiles = configuredClasspathJars - appJars
+        if (mainJarFile.get().asFile.name !in configuredClasspathJars ||
+            missingClasspathEntries.isNotEmpty() ||
+            missingClasspathFiles.isNotEmpty()
+        ) {
+            throw GradleException(
+                buildString {
+                    appendLine("Native app image launcher classpath is inconsistent in $launcherConfig.")
+                    if (mainJarFile.get().asFile.name !in configuredClasspathJars) {
+                        appendLine("Missing main jar classpath entry: ${mainJarFile.get().asFile.name}")
+                    }
+                    if (missingClasspathEntries.isNotEmpty()) {
+                        appendLine("Jars missing from launcher classpath:")
+                        missingClasspathEntries.sorted().forEach { appendLine(" - $it") }
+                    }
+                    if (missingClasspathFiles.isNotEmpty()) {
+                        appendLine("Launcher classpath entries without jar files:")
+                        missingClasspathFiles.sorted().forEach { appendLine(" - $it") }
+                    }
+                }
+            )
+        }
+
         val runtimeRoot = appRoot.walkTopDown()
             .filter { it.isDirectory && it.name == "mpv" }
             .firstOrNull { candidate ->
@@ -385,6 +438,7 @@ val smokeNativeAppImageRuntime by tasks.registering {
         logger.lifecycle(
             "native app image verified: launcher=${launcher.toPath().toAbsolutePath().normalize()}, " +
                 "runtime=${runtimeRoot.toPath().toAbsolutePath().normalize()}, " +
+                "classpath jars=${configuredClasspathJars.size}, " +
                 "RIFE backends=${requestedBackends.ifEmpty { listOf("none") }.joinToString(", ")}"
         )
     }
