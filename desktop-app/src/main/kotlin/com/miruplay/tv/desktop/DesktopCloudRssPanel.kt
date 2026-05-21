@@ -1834,6 +1834,13 @@ private fun SettingsSectionMenuRow(
                 color = if (active) AnimeRed else Color.White.copy(alpha = MiruPlayUiMetrics.PANEL_BORDER_ALPHA),
                 shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
             )
+            .onPreviewKeyEvent { event ->
+                settingsSectionMenuRowKeyEvent(
+                    key = event.key,
+                    type = event.type,
+                    onSelected = onClick,
+                )
+            }
             .focusable(interactionSource = interactionSource)
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             .padding(horizontal = 14.dp),
@@ -1858,6 +1865,17 @@ private fun SettingsSectionMenuRow(
         }
     }
 }
+
+internal fun settingsSectionMenuRowKeyEvent(
+    key: Key,
+    type: KeyEventType,
+    onSelected: () -> Unit,
+): Boolean =
+    desktopConfirmOrNavigationKeyEvent(
+        key = key,
+        type = type,
+        onClick = onSelected,
+    )
 
 @Composable
 private fun SettingsSummaryContent(

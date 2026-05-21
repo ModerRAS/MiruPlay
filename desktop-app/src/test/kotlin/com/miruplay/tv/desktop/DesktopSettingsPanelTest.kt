@@ -1,10 +1,12 @@
 package com.miruplay.tv.desktop
 
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
 import com.miruplay.tv.clouddrive.CloudDriveFileInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.RssSubscriptionInfo
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -528,6 +530,38 @@ class DesktopSettingsPanelTest {
         assertEquals(DesktopSettingsSection.Playback, DesktopSettingsSection.CloudDrive.step(-1))
         assertEquals(DesktopSettingsSection.Metadata, DesktopSettingsSection.Scan.step(1))
         assertNull(DesktopSettingsSection.Metadata.step(1))
+    }
+
+    @Test
+    fun `settings category rows accept TV confirm keys`() {
+        var selected = 0
+
+        assertTrue(
+            settingsSectionMenuRowKeyEvent(
+                key = Key.DirectionCenter,
+                type = KeyEventType.KeyDown,
+                onSelected = { selected += 1 },
+            ),
+        )
+        assertEquals(1, selected)
+
+        assertTrue(
+            settingsSectionMenuRowKeyEvent(
+                key = Key.NumPadEnter,
+                type = KeyEventType.KeyDown,
+                onSelected = { selected += 1 },
+            ),
+        )
+        assertEquals(2, selected)
+
+        assertFalse(
+            settingsSectionMenuRowKeyEvent(
+                key = Key.DirectionUp,
+                type = KeyEventType.KeyDown,
+                onSelected = { selected += 1 },
+            ),
+        )
+        assertEquals(2, selected)
     }
 
     @Test
