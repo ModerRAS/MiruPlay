@@ -27,6 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -459,6 +460,7 @@ internal enum class RemoteSourceField {
 internal sealed interface RemoteSourceFocusTarget {
     data class Action(val action: RemoteSourceAction) : RemoteSourceFocusTarget
     data class Field(val field: RemoteSourceField) : RemoteSourceFocusTarget
+    data object NextPanel : RemoteSourceFocusTarget
 }
 
 private fun Modifier.remoteSourceActionNavigation(
@@ -486,6 +488,13 @@ internal fun remoteSourceActionFocusTarget(
     key: Key,
 ): RemoteSourceFocusTarget? =
     when (key) {
+        Key.DirectionRight -> when (current) {
+            RemoteSourceAction.OpenWebDav,
+            RemoteSourceAction.ScanSource,
+            -> RemoteSourceFocusTarget.NextPanel
+            RemoteSourceAction.OpenSmb -> remoteSourceActionNavigationTarget(current, key)
+                ?.let(RemoteSourceFocusTarget::Action)
+        }
         Key.DirectionUp -> when (current) {
             RemoteSourceAction.OpenWebDav -> RemoteSourceFocusTarget.Field(RemoteSourceField.WebDavPassword)
             RemoteSourceAction.OpenSmb -> RemoteSourceFocusTarget.Field(RemoteSourceField.SmbDomain)
@@ -501,6 +510,7 @@ internal fun remoteSourceFieldFocusTarget(
     when (key) {
         Key.DirectionLeft -> remoteSourceHorizontalField(current, -1)?.let(RemoteSourceFocusTarget::Field)
         Key.DirectionRight -> remoteSourceHorizontalField(current, 1)?.let(RemoteSourceFocusTarget::Field)
+            ?: RemoteSourceFocusTarget.NextPanel.takeIf { current.canExitToRemoteBrowser() }
         Key.DirectionUp -> when (current) {
             RemoteSourceField.WebDavUsername,
             RemoteSourceField.WebDavPassword,
@@ -524,6 +534,12 @@ internal fun remoteSourceFieldFocusTarget(
         }
         else -> null
     }
+
+private fun RemoteSourceField.canExitToRemoteBrowser(): Boolean =
+    this == RemoteSourceField.WebDavUrl ||
+        this == RemoteSourceField.WebDavPassword ||
+        this == RemoteSourceField.SmbUrl ||
+        this == RemoteSourceField.SmbPassword
 
 private fun remoteSourceHorizontalField(
     current: RemoteSourceField,
@@ -560,6 +576,12 @@ internal fun remoteSourceActionNavigationTarget(
         Key.DirectionDown -> if (current == RemoteSourceAction.OpenWebDav) RemoteSourceAction.OpenSmb else null
         else -> null
     }
+
+internal sealed interface RemoteBrowserFocusTarget {
+    data object UpButton : RemoteBrowserFocusTarget
+    data class Row(val index: Int) : RemoteBrowserFocusTarget
+    data object PreviousPanel : RemoteBrowserFocusTarget
+}
 
 @Composable
 private fun PosterSearchBar(
@@ -1501,23 +1523,40 @@ internal fun RemoteSourcesPanel(
     val fieldFocusRequesters = remember {
         RemoteSourceField.entries.associateWith { FocusRequester() }
     }
+    val browserUpFocusRequester = remember { FocusRequester() }
+    var remoteBrowserFocusVersion by remember { mutableIntStateOf(0) }
+    var remoteBrowserFocusTarget by remember { mutableStateOf<RemoteBrowserFocusTarget>(RemoteBrowserFocusTarget.UpButton) }
+    var previousEditorFocusTarget by remember {
+        mutableStateOf<RemoteSourceFocusTarget>(RemoteSourceFocusTarget.Action(RemoteSourceAction.OpenWebDav))
+    }
+    fun requestRemoteBrowserFocus(target: RemoteBrowserFocusTarget): Boolean {
+        remoteBrowserFocusTarget = target
+        remoteBrowserFocusVersion += 1
+        return true
+    }
     fun requestRemoteSourceFocus(target: RemoteSourceFocusTarget?): Boolean =
         when (target) {
             is RemoteSourceFocusTarget.Action -> {
+                previousEditorFocusTarget = target
                 actionFocusRequesters.getValue(target.action).requestFocus()
                 true
             }
             is RemoteSourceFocusTarget.Field -> {
+                previousEditorFocusTarget = target
                 fieldFocusRequesters.getValue(target.field).requestFocus()
                 true
             }
+            RemoteSourceFocusTarget.NextPanel -> requestRemoteBrowserFocus(RemoteBrowserFocusTarget.Row(0))
             null -> false
         }
     fun moveRemoteSourceActionFocus(action: RemoteSourceAction, key: Key): Boolean {
+        previousEditorFocusTarget = RemoteSourceFocusTarget.Action(action)
         return requestRemoteSourceFocus(remoteSourceActionFocusTarget(action, key))
     }
-    fun moveRemoteSourceFieldFocus(field: RemoteSourceField, key: Key): Boolean =
-        requestRemoteSourceFocus(remoteSourceFieldFocusTarget(field, key))
+    fun moveRemoteSourceFieldFocus(field: RemoteSourceField, key: Key): Boolean {
+        previousEditorFocusTarget = RemoteSourceFocusTarget.Field(field)
+        return requestRemoteSourceFocus(remoteSourceFieldFocusTarget(field, key))
+    }
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp),
@@ -1658,6 +1697,12 @@ internal fun RemoteSourcesPanel(
             onEntryFocused = onEntryFocused,
             onEntrySelected = onEntrySelected,
             modifier = Modifier.weight(0.57f),
+            upFocusRequester = browserUpFocusRequester,
+            focusVersion = remoteBrowserFocusVersion,
+            focusTarget = remoteBrowserFocusTarget,
+            onFocusPreviousPanel = {
+                requestRemoteSourceFocus(previousEditorFocusTarget)
+            },
         )
     }
 }
@@ -1718,6 +1763,10 @@ private fun RemoteBrowserPanel(
     onEntryFocused: (FileEntry) -> Unit,
     onEntrySelected: (FileEntry) -> Unit,
     modifier: Modifier = Modifier,
+    upFocusRequester: FocusRequester,
+    focusVersion: Int = 0,
+    focusTarget: RemoteBrowserFocusTarget = RemoteBrowserFocusTarget.UpButton,
+    onFocusPreviousPanel: () -> Boolean = { false },
 ) {
     val labels = desktopLibrarySourceLabels()
     val visibleEntries = remember(entries) { entries.take(8) }
@@ -1728,6 +1777,34 @@ private fun RemoteBrowserPanel(
         val focusTarget = visibleEntries.firstOrNull { it.path == selectedEntry?.path } ?: visibleEntries.firstOrNull()
         focusTarget?.let { entry ->
             focusRequesters[entry.path]?.requestFocus()
+        }
+    }
+    fun requestRemoteBrowserFocus(target: RemoteBrowserFocusTarget?): Boolean =
+        when (target) {
+            RemoteBrowserFocusTarget.UpButton -> {
+                upFocusRequester.requestFocus()
+                true
+            }
+            is RemoteBrowserFocusTarget.Row -> {
+                visibleEntries.getOrNull(target.index)?.let { entry ->
+                    focusRequesters.getValue(entry.path).requestFocus()
+                    true
+                } ?: false
+            }
+            RemoteBrowserFocusTarget.PreviousPanel -> onFocusPreviousPanel()
+            null -> false
+        }
+    LaunchedEffect(focusVersion, visibleEntries) {
+        if (focusVersion > 0) {
+            val target = when (focusTarget) {
+                is RemoteBrowserFocusTarget.Row -> if (visibleEntries.isEmpty()) {
+                    RemoteBrowserFocusTarget.UpButton
+                } else {
+                    RemoteBrowserFocusTarget.Row(focusTarget.index.coerceIn(visibleEntries.indices))
+                }
+                else -> focusTarget
+            }
+            requestRemoteBrowserFocus(target)
         }
     }
 
@@ -1747,7 +1824,22 @@ private fun RemoteBrowserPanel(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            TvActionButton(labels.up, onClick = onUp, secondary = true, modifier = Modifier.width(MiruPlayUiMetrics.CONTROL_BUTTON_WIDTH_DP.dp))
+            TvActionButton(
+                labels.up,
+                onClick = onUp,
+                secondary = true,
+                modifier = Modifier
+                    .width(MiruPlayUiMetrics.CONTROL_BUTTON_WIDTH_DP.dp)
+                    .focusRequester(upFocusRequester)
+                    .onPreviewKeyEvent { event ->
+                        event.type == KeyEventType.KeyDown &&
+                            when (event.key) {
+                                Key.DirectionLeft -> onFocusPreviousPanel()
+                                Key.DirectionDown -> requestRemoteBrowserFocus(RemoteBrowserFocusTarget.Row(0))
+                                else -> false
+                            }
+                    },
+            )
         }
         Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
         if (entries.isEmpty()) {
@@ -1762,14 +1854,23 @@ private fun RemoteBrowserPanel(
                     selected = selectedEntry?.path == entry.path,
                     onClick = { onEntrySelected(entry) },
                     onNavigationKey = { key ->
-                        visibleEntries.remoteBrowserNavigationTarget(index, key)?.let { target ->
-                            onEntryFocused(target)
-                            true
-                        } ?: if (remoteBrowserShouldNavigateUp(index, key)) {
-                            onUp()
-                            true
-                        } else {
-                            false
+                        when (val target = visibleEntries.remoteBrowserFocusTarget(index, key)) {
+                            is RemoteBrowserFocusTarget.Row -> {
+                                val targetEntry = visibleEntries[target.index]
+                                onEntryFocused(targetEntry)
+                                true
+                            }
+                            RemoteBrowserFocusTarget.UpButton -> {
+                                upFocusRequester.requestFocus()
+                                true
+                            }
+                            RemoteBrowserFocusTarget.PreviousPanel -> onFocusPreviousPanel()
+                            null -> if (remoteBrowserShouldNavigateUp(index, key)) {
+                                onUp()
+                                true
+                            } else {
+                                false
+                            }
                         }
                     },
                     modifier = Modifier.focusRequester(focusRequesters.getValue(entry.path)),
@@ -1871,6 +1972,19 @@ private fun List<FileEntry>.remoteBrowserNavigationTarget(
         else -> null
     } ?: return null
     return getOrNull(targetIndex)
+}
+
+internal fun List<FileEntry>.remoteBrowserFocusTarget(
+    currentIndex: Int,
+    key: Key,
+): RemoteBrowserFocusTarget? {
+    if (currentIndex !in indices) return null
+    return when (key) {
+        Key.DirectionLeft -> RemoteBrowserFocusTarget.PreviousPanel
+        Key.DirectionDown -> RemoteBrowserFocusTarget.Row(currentIndex + 1).takeIf { currentIndex + 1 in indices }
+        Key.DirectionUp -> RemoteBrowserFocusTarget.Row(currentIndex - 1).takeIf { currentIndex > 0 }
+        else -> null
+    }
 }
 
 internal fun remoteBrowserShouldNavigateUp(
