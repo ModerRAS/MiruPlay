@@ -72,6 +72,15 @@ class DesktopSectionContractTest {
     }
 
     @Test
+    fun `desktop automation start section falls back to library`() {
+        assertEquals(MiruPlayRouteSurface.library, desktopInitialSection(null))
+        assertEquals(MiruPlayRouteSurface.library, desktopInitialSection(""))
+        assertEquals(MiruPlayRouteSurface.library, desktopInitialSection("missing"))
+        assertEquals(MiruPlayRouteSurface.player, desktopInitialSection("player"))
+        assertEquals(MiruPlayRouteSurface.settings, desktopInitialSection(" SETTINGS "))
+    }
+
+    @Test
     fun `desktop player fullscreen only applies while the Player route is active`() {
         assertFalse(shouldUseDesktopPlayerFullscreen(MiruPlayRouteSurface.library, fullscreen = true))
         assertFalse(shouldUseDesktopPlayerFullscreen(MiruPlayRouteSurface.details, fullscreen = true))
