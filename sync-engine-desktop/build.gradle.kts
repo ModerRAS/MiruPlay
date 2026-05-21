@@ -173,3 +173,29 @@ val smokeCloudDriveRssLiveSubmit by tasks.registering(JavaExec::class) {
         }
     }
 }
+
+val smokeCloudDriveRssScheduler by tasks.registering(JavaExec::class) {
+    group = "verification"
+    description = "Verify the desktop Cloud/RSS scheduler loop over real elapsed time and write token-free evidence."
+    classpath = sourceSets.named("main").get().runtimeClasspath
+    mainClass.set("com.miruplay.tv.sync.rss.CloudDriveRssSchedulerSmokeKt")
+
+    val durationMillis = providers.gradleProperty("cloudDriveRssSchedulerDurationMs").orElse("2000")
+    val checkIntervalMillis = providers.gradleProperty("cloudDriveRssSchedulerCheckIntervalMs").orElse("250")
+    val runAfterChecks = providers.gradleProperty("cloudDriveRssSchedulerRunAfterChecks").orElse("1")
+    val reportPath = providers.gradleProperty("cloudDriveRssSchedulerReportPath")
+
+    doFirst {
+        args(
+            "--duration-ms",
+            durationMillis.get(),
+            "--check-interval-ms",
+            checkIntervalMillis.get(),
+            "--run-after-checks",
+            runAfterChecks.get(),
+        )
+        if (reportPath.isPresent) {
+            args("--report-path", reportPath.get())
+        }
+    }
+}

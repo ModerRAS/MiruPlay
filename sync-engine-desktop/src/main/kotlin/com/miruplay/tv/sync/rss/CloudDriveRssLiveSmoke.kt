@@ -268,16 +268,18 @@ suspend fun runCloudDriveRssLiveSmoke(
     )
 }
 
-fun main(args: Array<String>) = runBlocking {
-    val options = parseCloudDriveRssLiveSmokeOptions(args)
-    when (val result = runCloudDriveRssLiveSmoke(options)) {
-        is Result.Success -> {
-            printCloudDriveRssLiveSmokeReport(result.data)
-            options.reportPath?.let { reportPath ->
-                writeCloudDriveRssLiveSmokeReport(reportPath, options, result.data)
+fun main(args: Array<String>) {
+    runBlocking {
+        val options = parseCloudDriveRssLiveSmokeOptions(args)
+        when (val result = runCloudDriveRssLiveSmoke(options)) {
+            is Result.Success -> {
+                printCloudDriveRssLiveSmokeReport(result.data)
+                options.reportPath?.let { reportPath ->
+                    writeCloudDriveRssLiveSmokeReport(reportPath, options, result.data)
+                }
             }
+            is Result.Error -> error("CloudDrive RSS smoke failed: ${result.error.toUserMessage()}")
         }
-        is Result.Error -> error("CloudDrive RSS smoke failed: ${result.error.toUserMessage()}")
     }
 }
 
