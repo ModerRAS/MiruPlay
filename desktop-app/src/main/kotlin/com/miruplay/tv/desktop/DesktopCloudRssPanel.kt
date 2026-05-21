@@ -819,13 +819,12 @@ private fun CloudRssSubscriptionEmptyState(
         selected = false,
         onClick = {},
         modifier = Modifier
-            .focusRequester(focusRequester)
-            .onPreviewKeyEvent { event ->
-                event.type == KeyEventType.KeyDown &&
-                    onMove(cloudRssSubscriptionEmptyFocusTarget(event.key))
-            },
+            .focusRequester(focusRequester),
         heightDp = MiruPlayUiMetrics.RSS_EMPTY_STATE_HEIGHT_DP,
         inactiveAlpha = 0.48f,
+        onNavigationKey = { key ->
+            onMove(cloudRssSubscriptionEmptyFocusTarget(key))
+        },
     ) { active ->
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -1002,13 +1001,12 @@ private fun CloudDriveDirectoryEmptyState(
         selected = false,
         onClick = {},
         modifier = Modifier
-            .focusRequester(focusRequester)
-            .onPreviewKeyEvent { event ->
-                event.type == KeyEventType.KeyDown &&
-                    onMove(cloudDriveDirectoryEmptyFocusTarget(event.key))
-            },
+            .focusRequester(focusRequester),
         heightDp = 110,
         inactiveAlpha = 0.48f,
+        onNavigationKey = { key ->
+            onMove(cloudDriveDirectoryEmptyFocusTarget(key))
+        },
     ) { active ->
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -1033,10 +1031,9 @@ private fun CloudDriveDirectoryRow(
     DesktopSelectableRow(
         selected = false,
         onClick = onClick,
-        modifier = modifier.onPreviewKeyEvent { event ->
-            event.type == KeyEventType.KeyDown &&
-                event.key.isCloudRssVerticalKey() &&
-                onNavigate(event.key)
+        modifier = modifier,
+        onNavigationKey = { key ->
+            key.isCloudRssVerticalKey() && onNavigate(key)
         },
     ) {
         Column(
@@ -2129,10 +2126,9 @@ private fun RssSubscriptionRow(
     DesktopSelectableRow(
         selected = selected,
         onClick = onClick,
-        modifier = modifier.onPreviewKeyEvent { event ->
-            event.type == KeyEventType.KeyDown &&
-                event.key.isCloudRssVerticalKey() &&
-                onNavigate(event.key)
+        modifier = modifier,
+        onNavigationKey = { key ->
+            key.isCloudRssVerticalKey() && onNavigate(key)
         },
     ) {
         Column(

@@ -374,6 +374,7 @@ internal fun DesktopSelectableRow(
     modifier: Modifier = Modifier,
     heightDp: Int = MiruPlayUiMetrics.LIST_ROW_HEIGHT_DP,
     inactiveAlpha: Float = 0.55f,
+    onNavigationKey: (Key) -> Boolean = { false },
     content: @Composable (active: Boolean) -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -392,10 +393,11 @@ internal fun DesktopSelectableRow(
             .fillMaxWidth()
             .height(heightDp.dp)
             .onPreviewKeyEvent { event ->
-                desktopConfirmOrNavigationKeyEvent(
+                desktopSelectableRowKeyEvent(
                     key = event.key,
                     type = event.type,
                     onClick = onClick,
+                    onNavigationKey = onNavigationKey,
                 )
             }
             .border(
@@ -407,6 +409,19 @@ internal fun DesktopSelectableRow(
         content(active)
     }
 }
+
+internal fun desktopSelectableRowKeyEvent(
+    key: Key,
+    type: KeyEventType,
+    onClick: () -> Unit,
+    onNavigationKey: (Key) -> Boolean = { false },
+): Boolean =
+    desktopConfirmOrNavigationKeyEvent(
+        key = key,
+        type = type,
+        onClick = onClick,
+        onNavigationKey = onNavigationKey,
+    )
 
 @Composable
 internal fun TvActionButton(
