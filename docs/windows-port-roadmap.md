@@ -66,6 +66,7 @@ The port is complete only when all of these are proven by current evidence:
 - [x] Share desktop confirm-key handling so custom controls accept keyboard Enter, numpad Enter, and TV DPAD Center.
 - [x] Extend shared confirm-key handling to desktop switches/toggles and the RIFE backend picker.
 - [x] Extend shared confirm-key handling to Settings category rows.
+- [x] Share desktop navigation-only key handling for TV-style field/action focus bridges.
 - [x] Share desktop selectable-row confirm/navigation key handling for Cloud/RSS subscription and CloudDrive directory rows.
 - [x] Share desktop selectable-row confirm/navigation key handling for Library empty, remote-browser, and Bangumi list rows.
 - [x] Share desktop selectable-row confirm/navigation key handling for Details episode, recent-playback, and media-detail rows.

@@ -582,9 +582,7 @@ private fun Modifier.playbackSettingNavigation(
     onMove: (PlaybackSettingFocusTarget, Key) -> Boolean,
 ): Modifier =
     focusRequester(focusRequester)
-        .onPreviewKeyEvent { event ->
-            event.type == KeyEventType.KeyDown && onMove(target, event.key)
-        }
+        .desktopNavigationKeyHandler { key -> onMove(target, key) }
 
 internal enum class RuntimeFocusTarget {
     MpvPath,
@@ -623,9 +621,7 @@ private fun Modifier.runtimeNavigation(
     onMove: (RuntimeFocusTarget, Key) -> Boolean,
 ): Modifier =
     focusRequester(focusRequester)
-        .onPreviewKeyEvent { event ->
-            event.type == KeyEventType.KeyDown && onMove(target, event.key)
-        }
+        .desktopNavigationKeyHandler { key -> onMove(target, key) }
 
 @Composable
 private fun PlayerStageBottomBar(

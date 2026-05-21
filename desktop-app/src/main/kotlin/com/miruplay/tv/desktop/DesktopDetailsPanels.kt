@@ -30,10 +30,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -228,13 +224,7 @@ private fun Modifier.detailHeroActionNavigation(
     onMove: (DesktopDetailHeroAction, Key) -> Boolean,
 ): Modifier =
     focusRequester(focusRequester)
-        .onPreviewKeyEvent { event ->
-            if (event.type != KeyEventType.KeyDown) {
-                false
-            } else {
-                onMove(action, event.key)
-            }
-        }
+        .desktopNavigationKeyHandler { key -> onMove(action, key) }
 
 internal enum class DesktopDetailHeroAction {
     Play,
@@ -456,9 +446,7 @@ internal fun DetailEpisodePanel(
                             secondary = activeSeason != season,
                             modifier = Modifier
                                 .focusRequester(seasonFocusRequesters[index])
-                                .onPreviewKeyEvent { event ->
-                                    event.type == KeyEventType.KeyDown && moveSeasonFocus(index, event.key)
-                                }
+                                .desktopNavigationKeyHandler { key -> moveSeasonFocus(index, key) }
                                 .width(132.dp),
                         )
                     }
@@ -808,13 +796,7 @@ internal fun RecentPlaybackPanel(
                         secondary = true,
                         modifier = Modifier
                             .focusRequester(actionFocusRequesters.getValue(RecentPlaybackAction.Refresh))
-                            .onPreviewKeyEvent { event ->
-                                if (event.type == KeyEventType.KeyDown) {
-                                    moveRecentActionFocus(RecentPlaybackAction.Refresh, event.key)
-                                } else {
-                                    false
-                                }
-                            },
+                            .desktopNavigationKeyHandler { key -> moveRecentActionFocus(RecentPlaybackAction.Refresh, key) },
                     )
                     TvActionButton(
                         labels.clearAction,
@@ -822,13 +804,7 @@ internal fun RecentPlaybackPanel(
                         secondary = true,
                         modifier = Modifier
                             .focusRequester(actionFocusRequesters.getValue(RecentPlaybackAction.Clear))
-                            .onPreviewKeyEvent { event ->
-                                if (event.type == KeyEventType.KeyDown) {
-                                    moveRecentActionFocus(RecentPlaybackAction.Clear, event.key)
-                                } else {
-                                    false
-                                }
-                            },
+                            .desktopNavigationKeyHandler { key -> moveRecentActionFocus(RecentPlaybackAction.Clear, key) },
                     )
                 }
                 StatusBox(status)

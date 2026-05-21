@@ -1158,9 +1158,7 @@ private fun Modifier.cloudRssActionNavigation(
     onMove: (CloudRssAction, Key) -> Boolean,
 ): Modifier =
     focusRequester(focusRequester)
-        .onPreviewKeyEvent { event ->
-            event.type == KeyEventType.KeyDown && onMove(action, event.key)
-        }
+        .desktopNavigationKeyHandler { key -> onMove(action, key) }
 
 private fun Modifier.cloudRssToggleNavigation(
     toggle: CloudRssToggle,
@@ -1168,9 +1166,7 @@ private fun Modifier.cloudRssToggleNavigation(
     onMove: (CloudRssToggle, Key) -> Boolean,
 ): Modifier =
     focusRequester(focusRequester)
-        .onPreviewKeyEvent { event ->
-            event.type == KeyEventType.KeyDown && onMove(toggle, event.key)
-        }
+        .desktopNavigationKeyHandler { key -> onMove(toggle, key) }
 
 private fun Modifier.cloudRssFieldNavigation(
     field: CloudRssField,
@@ -1178,9 +1174,7 @@ private fun Modifier.cloudRssFieldNavigation(
     onMove: (CloudRssField, Key) -> Boolean,
 ): Modifier =
     focusRequester(focusRequester)
-        .onPreviewKeyEvent { event ->
-            event.type == KeyEventType.KeyDown && onMove(field, event.key)
-        }
+        .desktopNavigationKeyHandler { key -> onMove(field, key) }
 
 internal fun cloudRssToggleFocusTarget(
     current: CloudRssToggle,
@@ -1347,9 +1341,8 @@ private fun Modifier.cloudDriveDirectoryActionNavigation(
     onMove: (CloudDriveDirectoryFocusTarget?) -> Boolean,
 ): Modifier =
     focusRequester(focusRequester)
-        .onPreviewKeyEvent { event ->
-            event.type == KeyEventType.KeyDown &&
-                onMove(cloudDriveDirectoryActionFocusTarget(action, itemCount, event.key, hasEmptyState))
+        .desktopNavigationKeyHandler { key ->
+            onMove(cloudDriveDirectoryActionFocusTarget(action, itemCount, key, hasEmptyState))
         }
 
 internal fun cloudDriveDirectoryActionFocusTarget(
@@ -1763,19 +1756,11 @@ private fun SettingsSectionMenu(
 
     TvPanel(
         modifier
-            .onPreviewKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown) {
-                    false
-                } else {
-                    when (event.key) {
-                        Key.DirectionDown -> {
-                            selectedSection.step(1)?.let(onSectionSelected) != null
-                        }
-                        Key.DirectionUp -> {
-                            selectedSection.step(-1)?.let(onSectionSelected) != null
-                        }
-                        else -> false
-                    }
+            .desktopNavigationKeyHandler { key ->
+                when (key) {
+                    Key.DirectionDown -> selectedSection.step(1)?.let(onSectionSelected) != null
+                    Key.DirectionUp -> selectedSection.step(-1)?.let(onSectionSelected) != null
+                    else -> false
                 }
             }
             .focusable(),
@@ -1915,9 +1900,7 @@ private fun SettingsSummaryContent(
                     secondary = index != 0,
                     modifier = Modifier
                         .focusRequester(actionFocusRequesters[index])
-                        .onPreviewKeyEvent { event ->
-                            event.type == KeyEventType.KeyDown && moveActionFocus(index, event.key)
-                        },
+                        .desktopNavigationKeyHandler { key -> moveActionFocus(index, key) },
                 )
             }
         }
