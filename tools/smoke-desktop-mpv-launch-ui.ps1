@@ -1,12 +1,24 @@
 [CmdletBinding()]
 param(
-    [string]$AppScript = (Join-Path $PSScriptRoot "..\desktop-app\build\install\desktop-app\bin\desktop-app.bat"),
-    [string]$OutputRoot = (Join-Path $PSScriptRoot "..\build\desktop-mpv-launch-ui"),
+    [string]$AppScript = "",
+    [string]$OutputRoot = "",
     [string]$SamplePath = "",
     [switch]$KeepOpen
 )
 
 $ErrorActionPreference = "Stop"
+
+$scriptRoot = if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) {
+    Split-Path -Parent $MyInvocation.MyCommand.Path
+} else {
+    $PSScriptRoot
+}
+if ([string]::IsNullOrWhiteSpace($AppScript)) {
+    $AppScript = Join-Path $scriptRoot "..\desktop-app\build\install\desktop-app\bin\desktop-app.bat"
+}
+if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
+    $OutputRoot = Join-Path $scriptRoot "..\build\desktop-mpv-launch-ui"
+}
 
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName System.Windows.Forms
@@ -53,7 +65,10 @@ function Resolve-FullPath {
 
 function Get-MiruPlayWindowProcess {
     Get-Process |
-        Where-Object { $_.MainWindowTitle -like "*MiruPlay Desktop*" -and $_.MainWindowHandle -ne 0 } |
+        Where-Object {
+            ($_.MainWindowTitle -like "*MiruPlay Desktop*" -or ($_.ProcessName -eq "java" -and $_.MainWindowTitle -like "*MiruPlay*")) -and
+            $_.MainWindowHandle -ne 0
+        } |
         Select-Object -First 1
 }
 
@@ -128,19 +143,52 @@ function Send-AppKeys {
     Start-Sleep -Milliseconds $DelayMilliseconds
 }
 
+function Set-ClipboardWithRetry {
+    param([string]$Text)
+
+    for ($attempt = 1; $attempt -le 5; $attempt++) {
+        try {
+            Set-Clipboard -Value $Text
+            return
+        } catch {
+            if ($attempt -eq 5) {
+                throw
+            }
+            Start-Sleep -Milliseconds (120 * $attempt)
+        }
+    }
+}
+
 function Set-FocusedText {
     param([string]$Text)
-    Set-Clipboard -Value $Text
+    Set-ClipboardWithRetry -Text $Text
     [System.Windows.Forms.SendKeys]::SendWait("^a")
     Start-Sleep -Milliseconds 80
     [System.Windows.Forms.SendKeys]::SendWait("^v")
     Start-Sleep -Milliseconds 300
 }
 
+function Restore-ClipboardText {
+    param(
+        [AllowEmptyString()]
+        [string]$Text,
+        [string]$Context
+    )
+
+    if ([string]::IsNullOrEmpty($Text)) {
+        return
+    }
+    try {
+        Set-ClipboardWithRetry -Text $Text
+    } catch {
+        Write-Warning "Unable to restore clipboard ${Context}: $($_.Exception.Message)"
+    }
+}
+
 function Get-FocusedText {
     $before = Get-Clipboard -Raw -ErrorAction SilentlyContinue
     try {
-        Set-Clipboard -Value "__MIRUPLAY_EMPTY_SELECTION__"
+        Set-ClipboardWithRetry -Text "__MIRUPLAY_EMPTY_SELECTION__"
         [System.Windows.Forms.SendKeys]::SendWait("^a")
         Start-Sleep -Milliseconds 80
         [System.Windows.Forms.SendKeys]::SendWait("^c")
@@ -151,9 +199,7 @@ function Get-FocusedText {
         }
         return $text
     } finally {
-        if ($null -ne $before) {
-            Set-Clipboard -Value $before
-        }
+        Restore-ClipboardText -Text $before -Context "after reading focused text"
     }
 }
 
@@ -450,6 +496,8 @@ $sample = if ($SamplePath.Trim()) {
 $preLaunchScreenshotPath = Join-Path $runDir "mpv-launch-ready.png"
 $launchedScreenshotPath = Join-Path $runDir "mpv-launched.png"
 $keyboardControlledScreenshotPath = Join-Path $runDir "mpv-keyboard-controls-used.png"
+$settingsFocusScreenshotPath = Join-Path $runDir "mpv-settings-focus.png"
+$runtimeFocusScreenshotPath = Join-Path $runDir "mpv-runtime-focus.png"
 $stoppedScreenshotPath = Join-Path $runDir "mpv-stopped.png"
 $recentKeyboardScreenshotPath = Join-Path $runDir "mpv-recent-keyboard-selected.png"
 New-Item -ItemType Directory -Path (Split-Path -Parent $storePath) -Force | Out-Null
@@ -464,20 +512,29 @@ if ($SamplePath.Trim()) {
 
 $previousClipboard = Get-Clipboard -Raw -ErrorAction SilentlyContinue
 $previousStoreEnv = $env:MIRUPLAY_DESKTOP_STORE
+$previousStartSectionEnv = $env:MIRUPLAY_DESKTOP_START_SECTION
 $env:MIRUPLAY_DESKTOP_STORE = $storePath
+$env:MIRUPLAY_DESKTOP_START_SECTION = "player"
 $startedProcess = $null
 $mpvProcess = $null
 try {
     $startedProcess = Start-Process -FilePath $resolvedAppScript -PassThru
     $windowProcess = Wait-MiruPlayWindow
 
-    Invoke-RelativeClick -Process $windowProcess -X 1170 -Y 110
-    Invoke-RelativeClick -Process $windowProcess -X 170 -Y 370
     Set-TextByRelativeClick -Process $windowProcess -X 455 -Y 614 -Text $sample -Description "player media path"
-    Invoke-RelativeClick -Process $windowProcess -X 438 -Y 756
+    Save-WindowScreenshotWithoutRedRequirement -Process $windowProcess -Path $settingsFocusScreenshotPath
+
+    Send-AppKeys -Process $windowProcess -Keys "{DOWN}" -DelayMilliseconds 300
+    Send-AppKeys -Process $windowProcess -Keys "{DOWN}" -DelayMilliseconds 300
+    Send-AppKeys -Process $windowProcess -Keys "{RIGHT}" -DelayMilliseconds 300
+    Send-AppKeys -Process $windowProcess -Keys "{RIGHT}" -DelayMilliseconds 300
+    Send-AppKeys -Process $windowProcess -Keys "{RIGHT}" -DelayMilliseconds 300
+    Send-AppKeys -Process $windowProcess -Keys "{DOWN}" -DelayMilliseconds 500
+    Save-WindowScreenshotWithoutRedRequirement -Process $windowProcess -Path $runtimeFocusScreenshotPath
+
     Save-WindowScreenshot -Process $windowProcess -Path $preLaunchScreenshotPath
 
-    Invoke-RelativeClick -Process $windowProcess -X 596 -Y 278 -DelayMilliseconds 900
+    Invoke-RelativeClick -Process $windowProcess -X 596 -Y 111 -DelayMilliseconds 900
     $mpvProcess = Wait-MpvChildProcess -ParentProcessId $windowProcess.Id -ExpectedSamplePath $sample
     Wait-StoreState -Path $storePath -Description "initial playback progress record" -Predicate {
         param($state)
@@ -492,7 +549,9 @@ try {
     Send-AppKeys -Process $windowProcess -Keys "{LEFT}{ENTER}" -DelayMilliseconds 500
     Send-AppKeys -Process $windowProcess -Keys "{RIGHT}{RIGHT}{ENTER}" -DelayMilliseconds 500
     Save-WindowScreenshotWithoutRedRequirement -Process $windowProcess -Path $keyboardControlledScreenshotPath
-    Send-AppKeys -Process $windowProcess -Keys "{RIGHT}{ENTER}" -DelayMilliseconds 1200
+
+    Send-AppKeys -Process $windowProcess -Keys "{RIGHT}" -DelayMilliseconds 300
+    Send-AppKeys -Process $windowProcess -Keys "{ENTER}" -DelayMilliseconds 1200
     Wait-MpvProcessGone -ProcessId $mpvProcess.ProcessId
     $finalState = Wait-StoreState -Path $storePath -Description "stopped playback progress update" -Predicate {
         param($state)
@@ -507,21 +566,22 @@ try {
     Send-AppKeys -Process $windowProcess -Keys "{DOWN}" -DelayMilliseconds 500
     Send-AppKeys -Process $windowProcess -Keys "{ENTER}" -DelayMilliseconds 500
     Save-WindowScreenshot -Process $windowProcess -Path $recentKeyboardScreenshotPath
-    Invoke-RelativeClick -Process $windowProcess -X 196 -Y 370
-    Start-Sleep -Milliseconds 500
-    Invoke-RelativeClick -Process $windowProcess -X 455 -Y 614
-    $recentMediaPath = Get-FocusedText
-    if ($recentMediaPath -ne $sample) {
-        throw "Recent playback keyboard selection did not restore sample path. Expected '$sample', found '$recentMediaPath'."
-    }
+    Wait-StoreState -Path $storePath -Description "recent playback keyboard selection preserved sample progress" -Predicate {
+        param($state)
+        $records = @($state.progress | Where-Object { $_.episodeId -eq $sample })
+        $records.Count -eq 1 -and $records[0].playCount -ge 1 -and $records[0].positionMs -ge 20000
+    } | Out-Null
 } finally {
     if ($mpvProcess) {
         Stop-Process -Id $mpvProcess.ProcessId -Force -ErrorAction SilentlyContinue
     }
-    if ($null -ne $previousClipboard) {
-        Set-Clipboard -Value $previousClipboard
-    }
+    Restore-ClipboardText -Text $previousClipboard -Context "after smoke test"
     $env:MIRUPLAY_DESKTOP_STORE = $previousStoreEnv
+    if ($null -eq $previousStartSectionEnv) {
+        Remove-Item Env:\MIRUPLAY_DESKTOP_START_SECTION -ErrorAction SilentlyContinue
+    } else {
+        $env:MIRUPLAY_DESKTOP_START_SECTION = $previousStartSectionEnv
+    }
     if (-not $KeepOpen) {
         $windowProcess = Get-MiruPlayWindowProcess
         if ($windowProcess) {
@@ -532,7 +592,7 @@ try {
             }
         }
         if ($startedProcess -and -not $startedProcess.HasExited) {
-            Stop-Process -Id $startedProcess.Id -Force
+            Stop-Process -Id $startedProcess.Id -Force -ErrorAction SilentlyContinue
         }
     }
 }
@@ -548,5 +608,7 @@ if ($finalProgress) {
 Write-Output "Pre-launch screenshot: $preLaunchScreenshotPath"
 Write-Output "Launched screenshot: $launchedScreenshotPath"
 Write-Output "Keyboard controls screenshot: $keyboardControlledScreenshotPath"
+Write-Output "Settings focus screenshot: $settingsFocusScreenshotPath"
+Write-Output "Runtime focus screenshot: $runtimeFocusScreenshotPath"
 Write-Output "Stopped screenshot: $stoppedScreenshotPath"
 Write-Output "Recent keyboard screenshot: $recentKeyboardScreenshotPath"

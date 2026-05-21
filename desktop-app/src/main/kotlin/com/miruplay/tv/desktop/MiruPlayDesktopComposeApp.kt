@@ -209,6 +209,8 @@ private const val MPV_COMMAND_PREVIEW_ERROR_MESSAGE = "无法生成 mpv 命令�
 private const val PLAYBACK_PROGRESS_POLL_INTERVAL_MS = 10_000L
 internal typealias DesktopSection = MiruPlayRouteSurface.Section
 
+private const val DESKTOP_START_SECTION_ENV = "MIRUPLAY_DESKTOP_START_SECTION"
+
 private val MiruPlayDesktopColorScheme = darkColorScheme(
     primary = AnimeRed,
     secondary = AccentBlue,
@@ -289,6 +291,14 @@ internal fun desktopPlayerFullscreenPlacement(
         )
     }
 
+internal fun desktopInitialSection(startSectionId: String?): DesktopSection =
+    MiruPlayRouteSurface.desktopSectionOrder.firstOrNull { section ->
+        section.id.equals(startSectionId?.trim(), ignoreCase = true)
+    } ?: MiruPlayRouteSurface.library
+
+internal fun desktopInitialSectionFromEnvironment(): DesktopSection =
+    desktopInitialSection(System.getenv(DESKTOP_START_SECTION_ENV))
+
 @Composable
 internal fun MiruPlayDesktopComposeApp(
     onPlayerFullscreenActiveChange: (Boolean) -> Unit = {},
@@ -309,7 +319,7 @@ internal fun MiruPlayDesktopComposeApp(
     val cloudRssSchedulerState by cloudRssScheduler.state.collectAsState()
     val defaultMpvLayout = remember { MpvRuntimeDiscovery.defaultLayout() }
     val playbackLauncher = remember(playbackBridge) { DesktopPlaybackLauncher(playbackBridge) }
-    var selectedDesktopSection by remember { mutableStateOf(MiruPlayRouteSurface.library) }
+    var selectedDesktopSection by remember { mutableStateOf(desktopInitialSectionFromEnvironment()) }
     var player by remember { mutableStateOf<MpvProcessPlayer?>(null) }
     var activePlaybackSession by remember { mutableStateOf<PlaybackProgressSession?>(null) }
     var mpvPath by remember { mutableStateOf(defaultMpvLayout.executable.toString()) }
