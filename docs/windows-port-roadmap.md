@@ -56,6 +56,7 @@ The port is complete only when all of these are proven by current evidence:
 - [x] Rework the Windows Settings first screen toward Android TV: left-side settings categories with focused rows, concrete source/playback/scan/metadata cards, and quick actions before Cloud/RSS.
 - [x] Rework the Windows Cloud/RSS settings page into TV-style overview/config/subscription/scheduler cards.
 - [x] Add Windows GUI smoke coverage for Settings category and desktop route rail keyboard/DPAD-style navigation.
+- [x] Make Settings category and desktop route rail keyboard movement stop at TV-list edges instead of wrapping.
 - [x] Add Windows GUI smoke coverage for TV Back-equivalent `Esc` route navigation.
 - [x] Add Windows GUI smoke coverage for Cloud/RSS RSS subscription row keyboard/DPAD navigation.
 - [x] Add Windows GUI smoke coverage for Library poster-wall keyboard/DPAD navigation.

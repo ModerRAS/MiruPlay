@@ -54,12 +54,10 @@ internal fun DesktopTvNavigation(
                 } else {
                     when (event.key) {
                         Key.DirectionDown -> {
-                            onSectionSelected(selectedSection.stepDesktopSection(1))
-                            true
+                            selectedSection.stepDesktopSection(1)?.let(onSectionSelected) != null
                         }
                         Key.DirectionUp -> {
-                            onSectionSelected(selectedSection.stepDesktopSection(-1))
-                            true
+                            selectedSection.stepDesktopSection(-1)?.let(onSectionSelected) != null
                         }
                         else -> false
                     }
@@ -113,10 +111,10 @@ internal fun DesktopTvNavigation(
     }
 }
 
-private fun DesktopSection.stepDesktopSection(delta: Int): DesktopSection {
+internal fun DesktopSection.stepDesktopSection(delta: Int): DesktopSection? {
     val sections = MiruPlayRouteSurface.desktopSectionOrder
-    val nextIndex = (sections.indexOf(this) + delta + sections.size) % sections.size
-    return sections[nextIndex]
+    val nextIndex = sections.indexOf(this) + delta
+    return sections.getOrNull(nextIndex)
 }
 
 internal fun DesktopSection.desktopBackTarget(): DesktopSection? =

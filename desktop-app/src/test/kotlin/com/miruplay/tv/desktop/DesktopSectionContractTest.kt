@@ -42,4 +42,14 @@ class DesktopSectionContractTest {
         assertEquals(MiruPlayRouteSurface.library, MiruPlayRouteSurface.settings.desktopBackTarget())
         assertNull(MiruPlayRouteSurface.library.desktopBackTarget())
     }
+
+    @Test
+    fun `desktop route rail navigation stops at TV list edges`() {
+        assertNull(MiruPlayRouteSurface.library.stepDesktopSection(-1))
+        assertEquals(MiruPlayRouteSurface.details, MiruPlayRouteSurface.library.stepDesktopSection(1))
+        assertEquals(MiruPlayRouteSurface.player, MiruPlayRouteSurface.details.stepDesktopSection(1))
+        assertEquals(MiruPlayRouteSurface.details, MiruPlayRouteSurface.player.stepDesktopSection(-1))
+        assertEquals(MiruPlayRouteSurface.settings, MiruPlayRouteSurface.player.stepDesktopSection(1))
+        assertNull(MiruPlayRouteSurface.settings.stepDesktopSection(1))
+    }
 }

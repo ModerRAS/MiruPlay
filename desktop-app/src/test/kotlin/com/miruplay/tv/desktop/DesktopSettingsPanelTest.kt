@@ -159,4 +159,14 @@ class DesktopSettingsPanelTest {
         assertNull(subscriptions.rssSubscriptionNavigationTarget(10L, Key.DirectionUp))
         assertNull(subscriptions.rssSubscriptionNavigationTarget(10L, Key.DirectionRight))
     }
+
+    @Test
+    fun `settings category navigation stops at TV list edges`() {
+        assertNull(DesktopSettingsSection.Sources.step(-1))
+        assertEquals(DesktopSettingsSection.Playback, DesktopSettingsSection.Sources.step(1))
+        assertEquals(DesktopSettingsSection.CloudDrive, DesktopSettingsSection.Playback.step(1))
+        assertEquals(DesktopSettingsSection.Playback, DesktopSettingsSection.CloudDrive.step(-1))
+        assertEquals(DesktopSettingsSection.Metadata, DesktopSettingsSection.Scan.step(1))
+        assertNull(DesktopSettingsSection.Metadata.step(1))
+    }
 }
