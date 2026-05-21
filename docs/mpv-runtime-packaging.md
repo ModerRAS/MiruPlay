@@ -182,6 +182,25 @@ controllers, and `nvidia-smi` output when available:
   -ReportPath .\build\mpv-smoke\rife-target-report.json
 ```
 
+Validate a generated target-host report before attaching it to release QA:
+
+```powershell
+.\tools\assert-mpv-rife-report.ps1 `
+  -ReportPath .\build\mpv-smoke\rife-target-report.json `
+  -RequiredBackends DIRECTML
+```
+
+For a matrix report that intentionally allows unsupported backends to fail, pass
+the same allowance while still checking the report schema, host diagnostics, mpv
+version, and selected backend entries:
+
+```powershell
+.\tools\assert-mpv-rife-report.ps1 `
+  -ReportPath .\build\mpv-smoke\rife-matrix-report.json `
+  -RequiredBackends NVIDIA,DIRECTML `
+  -AllowFailures
+```
+
 To exercise every backend on a target machine and print a matrix summary, run:
 
 ```powershell
@@ -193,7 +212,8 @@ runs the selected RIFE backend with `--vo=null --ao=null`, writes an mpv log nex
 to the clip, and fails on timeout or non-zero exit. `-Backend ALL` prints a
 summary table for NVIDIA, DIRECTML, and STANDARD. Add `-AllowFailures` if you
 want the matrix report and optional JSON report to finish even when one or more
-backends fail. Use
+backends fail. `tools/verify-windows-port.ps1 -Rife` runs this smoke and then
+validates the generated JSON report with `assert-mpv-rife-report.ps1`. Use
 `-Backend NVIDIA` on a machine with a compatible NVIDIA driver/CUDA stack; use
 `-Backend STANDARD` only when the payload includes the extra Standard backend
 plugin stack.
