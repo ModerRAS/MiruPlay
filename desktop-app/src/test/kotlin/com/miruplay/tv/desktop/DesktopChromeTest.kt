@@ -75,4 +75,18 @@ class DesktopChromeTest {
         assertEquals(1, clicks)
         assertTrue(navigated)
     }
+
+    @Test
+    fun `desktop confirm key event ignores non-confirm keys without navigation fallback`() {
+        var clicks = 0
+
+        assertFalse(
+            desktopConfirmOrNavigationKeyEvent(
+                key = Key.DirectionRight,
+                type = KeyEventType.KeyDown,
+                onClick = { clicks += 1 },
+            ),
+        )
+        assertEquals(0, clicks)
+    }
 }

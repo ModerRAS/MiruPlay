@@ -81,6 +81,13 @@ internal fun DesktopTvNavigation(
                     .fillMaxWidth()
                     .height(MiruPlayUiMetrics.NAV_ITEM_HEIGHT_DP.dp)
                     .focusRequester(sectionFocusRequesters.getValue(section))
+                    .onPreviewKeyEvent { event ->
+                        desktopConfirmOrNavigationKeyEvent(
+                            key = event.key,
+                            type = event.type,
+                            onClick = { onSectionSelected(section) },
+                        )
+                    }
                     .border(
                         width = 1.dp,
                         color = if (selected) AnimeRed else Color.White.copy(alpha = MiruPlayUiMetrics.PANEL_BORDER_ALPHA),
