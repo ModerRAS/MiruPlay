@@ -17,7 +17,12 @@ param(
     [ValidateSet("NVIDIA", "DIRECTML", "STANDARD", "ALL")]
     [string]$RifeBackend = "DIRECTML",
     [string]$RequiredRifeReportBackends = "",
-    [switch]$AllowRifeFailures
+    [switch]$AllowRifeFailures,
+    [switch]$CloudDrive,
+    [string]$CloudDriveEndpoint = "",
+    [string]$CloudDriveToken = "",
+    [string]$CloudDrivePath = "/",
+    [switch]$RequireCloudDriveOfflinePermission
 )
 
 $ErrorActionPreference = "Stop"
@@ -378,6 +383,34 @@ try {
         }
     } else {
         Write-Host "RIFE smoke skipped. Run with -Rife only on target hardware expected to support interpolation."
+    }
+
+    if ($CloudDrive) {
+        Invoke-Step -Name "CloudDrive2 live smoke" -Action {
+            if ([string]::IsNullOrWhiteSpace($CloudDriveEndpoint) -or [string]::IsNullOrWhiteSpace($CloudDriveToken)) {
+                throw "CloudDrive live smoke requires -CloudDriveEndpoint and -CloudDriveToken."
+            }
+            $reportPath = Join-Path $repoRoot "build\cloud-drive-smoke\cloud-drive-report.json"
+            Invoke-Gradle -Arguments @(
+                ":cloud-drive-desktop:smokeCloudDrive2",
+                "-PcloudDriveEndpoint=$CloudDriveEndpoint",
+                "-PcloudDriveToken=$CloudDriveToken",
+                "-PcloudDrivePath=$CloudDrivePath",
+                "-PcloudDriveReportPath=$reportPath"
+            )
+            $assertArgs = @(
+                "-ReportPath",
+                $reportPath,
+                "-RequiredPath",
+                $CloudDrivePath
+            )
+            if ($RequireCloudDriveOfflinePermission) {
+                $assertArgs += "-RequireOfflinePermission"
+            }
+            Invoke-ToolScript -ScriptName "assert-cloud-drive-report.ps1" -Arguments $assertArgs
+        }
+    } else {
+        Write-Host "CloudDrive2 live smoke skipped. Run with -CloudDrive and explicit endpoint/token only against a real test server."
     }
 } finally {
     Pop-Location

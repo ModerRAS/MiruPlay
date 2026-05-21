@@ -73,7 +73,7 @@
   - 复用 `cloud-drive/src/main/proto/clouddrive.proto` 生成 gRPC lite 客户端代码，提供不依赖 Android/Hilt 的 `GrpcCloudDriveClient`。
   - 支持登录、API token info、离线下载提交、上传 torrent 文件、目录列表、建目录和移动文件，供 Windows RSS 自动化复用 CloudDrive2 能力。
   - `:cloud-drive-desktop:test` 已增加本地 loopback gRPC server 集成测试，覆盖生成 stub 的登录、API token info、Bearer 授权目录列表，以及 Bearer 被拒后的 raw token 兼容回退。
-  - `:cloud-drive-desktop:smokeCloudDrive2 -PcloudDriveEndpoint=... -PcloudDriveToken=... -PcloudDrivePath=/Downloads` 可对真实 CloudDrive2 服务执行 token info 与目录 listing 烟测，输出 token friendly name、权限摘要和列表结果，但不会打印 token。
+  - `:cloud-drive-desktop:smokeCloudDrive2 -PcloudDriveEndpoint=... -PcloudDriveToken=... -PcloudDrivePath=/Downloads -PcloudDriveReportPath=build/cloud-drive-smoke/cloud-drive-report.json` 可对真实 CloudDrive2 服务执行 token info 与目录 listing 烟测，输出 token friendly name、权限摘要和列表结果，并写出不含 token 的 JSON 证据报告；`tools/assert-cloud-drive-report.ps1` 可校验报告的 endpoint/path、权限布尔值、列表计数和预览项。
 - 新增 `:sync-engine-desktop` JVM 模块：
   - 提供不依赖 Android/Hilt 的 RSS feed fetcher、torrent 下载与 magnet 转换、CloudDrive path policy、桌面 CloudDrive organizer 和 `DesktopCloudDriveRssAutomationEngine`。
   - `desktop-app` 的 Cloud/RSS 面板已接入 CloudDrive2 `Login`、`Verify token`、`Run sync now`、`Start scheduler` 和 `Stop scheduler`，会读取桌面 JSON 仓库中的配置/订阅/凭证，执行 RSS 过滤、去重、提交离线下载、记录 processed item/download task、整理 inbox 到 library，并更新 `lastRunAt`。
