@@ -358,4 +358,29 @@ class DesktopSourcePickerTest {
         assertNull(entries.remoteBrowserFocusTarget(0, Key.DirectionUp))
         assertNull(entries.remoteBrowserFocusTarget(1, Key.DirectionDown))
     }
+
+    @Test
+    fun `remote browser up button can enter rows or empty state`() {
+        assertEquals(
+            RemoteBrowserFocusTarget.Row(0),
+            remoteBrowserUpButtonFocusTarget(itemCount = 3, key = Key.DirectionDown),
+        )
+        assertEquals(
+            RemoteBrowserFocusTarget.EmptyState,
+            remoteBrowserUpButtonFocusTarget(itemCount = 0, key = Key.DirectionDown),
+        )
+        assertEquals(
+            RemoteBrowserFocusTarget.PreviousPanel,
+            remoteBrowserUpButtonFocusTarget(itemCount = 0, key = Key.DirectionLeft),
+        )
+        assertNull(remoteBrowserUpButtonFocusTarget(itemCount = 0, key = Key.DirectionUp))
+    }
+
+    @Test
+    fun `remote browser empty state returns to up button or editor`() {
+        assertEquals(RemoteBrowserFocusTarget.UpButton, remoteBrowserEmptyFocusTarget(Key.DirectionUp))
+        assertEquals(RemoteBrowserFocusTarget.PreviousPanel, remoteBrowserEmptyFocusTarget(Key.DirectionLeft))
+        assertNull(remoteBrowserEmptyFocusTarget(Key.DirectionDown))
+        assertNull(remoteBrowserEmptyFocusTarget(Key.DirectionRight))
+    }
 }
