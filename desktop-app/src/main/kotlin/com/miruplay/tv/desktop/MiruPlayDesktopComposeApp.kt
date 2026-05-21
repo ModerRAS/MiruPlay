@@ -19,6 +19,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -672,6 +673,8 @@ internal fun MiruPlayDesktopComposeApp() {
     }
 
     val contentScrollState = rememberScrollState()
+    var libraryHeaderFocusVersion by remember { mutableIntStateOf(0) }
+    var libraryPanelFocusVersion by remember { mutableIntStateOf(0) }
     LaunchedEffect(selectedDesktopSection) {
         contentScrollState.scrollTo(0)
     }
@@ -714,6 +717,11 @@ internal fun MiruPlayDesktopComposeApp() {
                             }
                         },
                         onSettings = { selectedDesktopSection = MiruPlayRouteSurface.settings },
+                        focusVersion = libraryHeaderFocusVersion,
+                        onFocusNextPanel = {
+                            libraryPanelFocusVersion += 1
+                            true
+                        },
                     )
                 }
                 MiruPlayRouteSurface.player -> Unit
@@ -863,6 +871,11 @@ internal fun MiruPlayDesktopComposeApp() {
                     mediaPath = entry.path
                     launchStatus = entry.selectedForPlaybackStatus()
                     selectedDesktopSection = MiruPlayRouteSurface.details
+                },
+                focusVersion = libraryPanelFocusVersion,
+                onFocusPreviousPanel = {
+                    libraryHeaderFocusVersion += 1
+                    true
                 },
             )
             RemoteSourcesPanel(

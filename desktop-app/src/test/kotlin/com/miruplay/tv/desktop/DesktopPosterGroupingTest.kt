@@ -141,6 +141,17 @@ class DesktopPosterGroupingTest {
     @Test
     fun `library media focus moves from poster wall into lower shelves`() {
         assertEquals(
+            LibraryMediaFocusTarget.PreviousPanel,
+            libraryMediaFocusTarget(
+                current = LibraryMediaFocusTarget.PosterWall(0),
+                key = Key.DirectionUp,
+                posterCount = 8,
+                featuredCount = 2,
+                recentlyAddedCount = 4,
+                columns = 6,
+            ),
+        )
+        assertEquals(
             LibraryMediaFocusTarget.Featured(0),
             libraryMediaFocusTarget(
                 current = LibraryMediaFocusTarget.PosterWall(6),
