@@ -51,6 +51,7 @@ private const val CLOUD_RSS_WIDE_PREVIEW_LIMIT = 86
 private const val CLOUD_RSS_BADGE_WIDTH_DP = 82
 private const val CLOUD_RSS_BADGE_HEIGHT_DP = 34
 private const val CLOUD_DRIVE_DIRECTORY_PAGE_SIZE = 6
+private const val CLOUD_RSS_SUBSCRIPTION_PAGE_SIZE = 6
 
 internal enum class DesktopSettingsSection(
     val title: String,
@@ -324,9 +325,6 @@ private fun CloudRssAutomationContent(
     val labels = desktopCloudRssUiLabels()
     val schedulerStatusText = desktopCloudRssStatusText(schedulerStatus)
     val statusText = desktopCloudRssStatusText(status)
-    val subscriptionFocusRequesters = remember(subscriptions) {
-        subscriptions.associate { it.id to FocusRequester() }
-    }
     val subscriptionEmptyFocusRequester = remember { FocusRequester() }
     val actionFocusRequesters = remember {
         CloudRssAction.entries.associateWith { FocusRequester() }
@@ -337,10 +335,21 @@ private fun CloudRssAutomationContent(
     val fieldFocusRequesters = remember {
         CloudRssField.entries.associateWith { FocusRequester() }
     }
-    fun selectSubscription(subscription: RssSubscriptionInfo) {
-        onSubscriptionSelected(subscription)
-        subscriptionFocusRequesters[subscription.id]?.requestFocus()
+    var subscriptionPageStartState by remember(subscriptions.map { it.id }) { mutableStateOf(0) }
+    val subscriptionPageStart = cloudRssSubscriptionCoercedPageStart(
+        pageStart = subscriptionPageStartState,
+        itemCount = subscriptions.size,
+    )
+    val visibleSubscriptions = remember(subscriptions, subscriptionPageStart) {
+        subscriptions
+            .drop(subscriptionPageStart)
+            .take(CLOUD_RSS_SUBSCRIPTION_PAGE_SIZE)
     }
+    val subscriptionFocusRequesters = remember(subscriptionPageStart, visibleSubscriptions.map { it.id }) {
+        visibleSubscriptions.associate { it.id to FocusRequester() }
+    }
+    var pendingSubscriptionFocus by remember { mutableStateOf<Int?>(null) }
+
     fun requestCloudRssFocus(target: CloudRssFocusTarget?): Boolean {
         return when (target) {
             is CloudRssFocusTarget.Action -> {
@@ -356,9 +365,19 @@ private fun CloudRssAutomationContent(
                 true
             }
             is CloudRssFocusTarget.Subscription -> {
-                val subscription = subscriptions.getOrNull(target.index) ?: return false
+                val index = target.index.takeIf { it in subscriptions.indices } ?: return false
+                val subscription = subscriptions[index]
                 onSubscriptionSelected(subscription)
-                subscriptionFocusRequesters[subscription.id]?.requestFocus()
+                val targetPageStart = cloudRssSubscriptionPageStartForIndex(
+                    index = index,
+                    itemCount = subscriptions.size,
+                )
+                subscriptionPageStartState = targetPageStart
+                if (targetPageStart == subscriptionPageStart) {
+                    subscriptionFocusRequesters[subscription.id]?.requestFocus() ?: return false
+                } else {
+                    pendingSubscriptionFocus = index
+                }
                 true
             }
             CloudRssFocusTarget.EmptySubscriptions -> {
@@ -394,6 +413,23 @@ private fun CloudRssAutomationContent(
         requestCloudRssFocus(cloudRssToggleFocusTarget(toggle, key))
     fun moveCloudRssFieldFocus(field: CloudRssField, key: Key): Boolean =
         requestCloudRssFocus(cloudRssFieldFocusTarget(field, key))
+
+    LaunchedEffect(selectedSubscription?.id, subscriptions.map { it.id }) {
+        val selectedIndex = subscriptions.indexOfFirst { it.id == selectedSubscription?.id }
+        if (selectedIndex >= 0) {
+            subscriptionPageStartState = cloudRssSubscriptionPageStartForIndex(
+                index = selectedIndex,
+                itemCount = subscriptions.size,
+            )
+        }
+    }
+
+    LaunchedEffect(pendingSubscriptionFocus, subscriptionPageStart, visibleSubscriptions.map { it.id }) {
+        val index = pendingSubscriptionFocus ?: return@LaunchedEffect
+        val subscription = subscriptions.getOrNull(index) ?: return@LaunchedEffect
+        subscriptionFocusRequesters[subscription.id]?.requestFocus() ?: return@LaunchedEffect
+        pendingSubscriptionFocus = null
+    }
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -756,17 +792,29 @@ private fun CloudRssAutomationContent(
                             onMove = ::requestCloudRssFocus,
                         )
                     } else {
-                        subscriptions.forEach { subscription ->
+                        visibleSubscriptions.forEachIndexed { visibleIndex, subscription ->
+                            val absoluteIndex = subscriptionPageStart + visibleIndex
                             RssSubscriptionRow(
                                 subscription = subscription,
                                 selected = selectedSubscription?.id == subscription.id,
-                                onClick = { selectSubscription(subscription) },
+                                onClick = { requestCloudRssFocus(CloudRssFocusTarget.Subscription(absoluteIndex)) },
                                 onNavigate = { key ->
                                     moveCloudRssSubscriptionFocus(subscription.id, key)
                                 },
                                 modifier = Modifier.focusRequester(subscriptionFocusRequesters.getValue(subscription.id)),
                             )
                             Spacer(Modifier.height(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp))
+                        }
+                        cloudRssSubscriptionPageSummary(
+                            pageStart = subscriptionPageStart,
+                            visibleCount = visibleSubscriptions.size,
+                            itemCount = subscriptions.size,
+                        )?.let { summary ->
+                            Text(
+                                summary,
+                                color = TextSecondary,
+                                fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
+                            )
                         }
                     }
                 }
@@ -1361,6 +1409,44 @@ internal fun cloudRssSubscriptionEmptyFocusTarget(key: Key): CloudRssFocusTarget
         Key.DirectionDown -> CloudRssFocusTarget.Action(CloudRssAction.StartScheduler)
         else -> null
     }
+
+internal fun cloudRssSubscriptionPageStartForIndex(
+    index: Int,
+    itemCount: Int,
+    pageSize: Int = CLOUD_RSS_SUBSCRIPTION_PAGE_SIZE,
+): Int {
+    if (itemCount <= 0 || pageSize <= 0) return 0
+    val safeIndex = index.coerceIn(0, itemCount - 1)
+    return (safeIndex / pageSize) * pageSize
+}
+
+internal fun cloudRssSubscriptionCoercedPageStart(
+    pageStart: Int,
+    itemCount: Int,
+    pageSize: Int = CLOUD_RSS_SUBSCRIPTION_PAGE_SIZE,
+): Int {
+    if (itemCount <= 0 || pageSize <= 0) return 0
+    val maxPageStart = cloudRssSubscriptionPageStartForIndex(
+        index = itemCount - 1,
+        itemCount = itemCount,
+        pageSize = pageSize,
+    )
+    return (pageStart / pageSize)
+        .coerceAtLeast(0)
+        .times(pageSize)
+        .coerceAtMost(maxPageStart)
+}
+
+internal fun cloudRssSubscriptionPageSummary(
+    pageStart: Int,
+    visibleCount: Int,
+    itemCount: Int,
+): String? {
+    if (itemCount <= 0 || visibleCount <= 0 || visibleCount >= itemCount) return null
+    val safeStart = cloudRssSubscriptionCoercedPageStart(pageStart, itemCount)
+    val end = (safeStart + visibleCount).coerceAtMost(itemCount)
+    return "显示 ${safeStart + 1}-$end / $itemCount 个订阅，按上/下继续翻页。"
+}
 
 internal enum class CloudDriveDirectoryAction {
     UseCurrent,

@@ -516,6 +516,28 @@ class DesktopSettingsPanelTest {
     }
 
     @Test
+    fun `cloud rss subscription page helpers keep every subscription reachable`() {
+        assertEquals(0, cloudRssSubscriptionPageStartForIndex(index = 0, itemCount = 14))
+        assertEquals(0, cloudRssSubscriptionPageStartForIndex(index = 5, itemCount = 14))
+        assertEquals(6, cloudRssSubscriptionPageStartForIndex(index = 6, itemCount = 14))
+        assertEquals(12, cloudRssSubscriptionPageStartForIndex(index = 13, itemCount = 14))
+        assertEquals(12, cloudRssSubscriptionPageStartForIndex(index = 99, itemCount = 14))
+        assertEquals(6, cloudRssSubscriptionCoercedPageStart(pageStart = 10, itemCount = 14))
+        assertEquals(12, cloudRssSubscriptionCoercedPageStart(pageStart = 24, itemCount = 14))
+        assertEquals(0, cloudRssSubscriptionCoercedPageStart(pageStart = -6, itemCount = 14))
+
+        assertEquals(
+            "显示 7-12 / 14 个订阅，按上/下继续翻页。",
+            cloudRssSubscriptionPageSummary(pageStart = 6, visibleCount = 6, itemCount = 14),
+        )
+        assertEquals(
+            "显示 13-14 / 14 个订阅，按上/下继续翻页。",
+            cloudRssSubscriptionPageSummary(pageStart = 12, visibleCount = 2, itemCount = 14),
+        )
+        assertNull(cloudRssSubscriptionPageSummary(pageStart = 0, visibleCount = 4, itemCount = 4))
+    }
+
+    @Test
     fun `cloud rss scheduler actions move like a TV remote row`() {
         assertEquals(
             CloudRssFocusTarget.Action(CloudRssAction.StopScheduler),
