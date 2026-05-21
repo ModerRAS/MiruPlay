@@ -367,6 +367,13 @@ internal fun DesktopSelectableRow(
         modifier = modifier
             .fillMaxWidth()
             .height(heightDp.dp)
+            .onPreviewKeyEvent { event ->
+                desktopConfirmOrNavigationKeyEvent(
+                    key = event.key,
+                    type = event.type,
+                    onClick = onClick,
+                )
+            }
             .border(
                 width = if (active) 2.dp else 1.dp,
                 color = if (active) AnimeRed else Color.White.copy(alpha = MiruPlayUiMetrics.PANEL_BORDER_ALPHA),
@@ -408,6 +415,13 @@ internal fun TvActionButton(
         modifier = modifier
             .defaultMinSize(minWidth = MiruPlayUiMetrics.ACTION_BUTTON_MIN_WIDTH_DP.dp)
             .height(MiruPlayUiMetrics.ACTION_BUTTON_HEIGHT_DP.dp)
+            .onPreviewKeyEvent { event ->
+                desktopConfirmOrNavigationKeyEvent(
+                    key = event.key,
+                    type = event.type,
+                    onClick = onClick,
+                )
+            }
             .border(2.dp, border, RoundedCornerShape(MiruPlayUiMetrics.ACTION_BUTTON_RADIUS_DP.dp))
             .focusable(),
     ) {
