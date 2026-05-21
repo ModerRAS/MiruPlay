@@ -173,7 +173,8 @@ class DesktopPosterGroupingTest {
                 columns = 6,
             ),
         )
-        assertNull(
+        assertEquals(
+            LibraryMediaFocusTarget.SearchBar,
             libraryMediaFocusTarget(
                 current = LibraryMediaFocusTarget.PosterWall(7),
                 key = Key.DirectionDown,
@@ -253,7 +254,8 @@ class DesktopPosterGroupingTest {
                 columns = 6,
             ),
         )
-        assertNull(
+        assertEquals(
+            LibraryMediaFocusTarget.SearchBar,
             libraryMediaFocusTarget(
                 current = LibraryMediaFocusTarget.RecentlyAdded(3),
                 key = Key.DirectionDown,
@@ -263,5 +265,64 @@ class DesktopPosterGroupingTest {
                 columns = 6,
             ),
         )
+    }
+
+    @Test
+    fun `library media focus exits to search bar after poster shelves`() {
+        assertEquals(
+            LibraryMediaFocusTarget.SearchBar,
+            libraryMediaFocusTarget(
+                current = LibraryMediaFocusTarget.Featured(1),
+                key = Key.DirectionDown,
+                posterCount = 8,
+                featuredCount = 2,
+                recentlyAddedCount = 0,
+                columns = 6,
+            ),
+        )
+        assertEquals(
+            LibraryMediaFocusTarget.SearchBar,
+            libraryMediaFocusTarget(
+                current = LibraryMediaFocusTarget.RecentlyAdded(3),
+                key = Key.DirectionDown,
+                posterCount = 8,
+                featuredCount = 2,
+                recentlyAddedCount = 4,
+                columns = 6,
+            ),
+        )
+        assertEquals(
+            LibraryMediaFocusTarget.SearchBar,
+            libraryMediaFocusTarget(
+                current = LibraryMediaFocusTarget.PosterWall(7),
+                key = Key.DirectionDown,
+                posterCount = 8,
+                featuredCount = 0,
+                recentlyAddedCount = 0,
+                columns = 6,
+            ),
+        )
+    }
+
+    @Test
+    fun `library search bar focus moves between media and source panels`() {
+        assertEquals(
+            LibrarySearchFocusTarget.Action,
+            librarySearchFocusTarget(LibrarySearchFocusTarget.Field, Key.DirectionRight),
+        )
+        assertEquals(
+            LibrarySearchFocusTarget.Field,
+            librarySearchFocusTarget(LibrarySearchFocusTarget.Action, Key.DirectionLeft),
+        )
+        assertEquals(
+            LibrarySearchFocusTarget.PreviousPanel,
+            librarySearchFocusTarget(LibrarySearchFocusTarget.Field, Key.DirectionUp),
+        )
+        assertEquals(
+            LibrarySearchFocusTarget.NextPanel,
+            librarySearchFocusTarget(LibrarySearchFocusTarget.Action, Key.DirectionDown),
+        )
+        assertNull(librarySearchFocusTarget(LibrarySearchFocusTarget.Field, Key.DirectionLeft))
+        assertNull(librarySearchFocusTarget(LibrarySearchFocusTarget.Action, Key.DirectionRight))
     }
 }
