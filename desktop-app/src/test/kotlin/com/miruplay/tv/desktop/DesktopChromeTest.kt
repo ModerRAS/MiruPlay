@@ -89,4 +89,69 @@ class DesktopChromeTest {
         )
         assertEquals(0, clicks)
     }
+
+    @Test
+    fun `desktop toggle key event flips state on TV confirm keys`() {
+        var nextValue: Boolean? = null
+
+        assertTrue(
+            desktopToggleKeyEvent(
+                key = Key.DirectionCenter,
+                type = KeyEventType.KeyDown,
+                checked = true,
+                onCheckedChange = { nextValue = it },
+            ),
+        )
+        assertEquals(false, nextValue)
+
+        assertTrue(
+            desktopToggleKeyEvent(
+                key = Key.Enter,
+                type = KeyEventType.KeyDown,
+                checked = false,
+                onCheckedChange = { nextValue = it },
+            ),
+        )
+        assertEquals(true, nextValue)
+
+        assertFalse(
+            desktopToggleKeyEvent(
+                key = Key.DirectionLeft,
+                type = KeyEventType.KeyDown,
+                checked = false,
+                onCheckedChange = { nextValue = it },
+            ),
+        )
+        assertEquals(true, nextValue)
+    }
+
+    @Test
+    fun `desktop picker key event opens on TV confirm keys`() {
+        var opens = 0
+
+        assertTrue(
+            desktopOpenPickerKeyEvent(
+                key = Key.DirectionCenter,
+                type = KeyEventType.KeyDown,
+                onOpen = { opens += 1 },
+            ),
+        )
+        assertEquals(1, opens)
+
+        assertFalse(
+            desktopOpenPickerKeyEvent(
+                key = Key.DirectionCenter,
+                type = KeyEventType.KeyUp,
+                onOpen = { opens += 1 },
+            ),
+        )
+        assertFalse(
+            desktopOpenPickerKeyEvent(
+                key = Key.DirectionRight,
+                type = KeyEventType.KeyDown,
+                onOpen = { opens += 1 },
+            ),
+        )
+        assertEquals(1, opens)
+    }
 }
