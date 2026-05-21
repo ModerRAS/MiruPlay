@@ -83,6 +83,25 @@ internal fun LibraryPanel(
     onFocusPreviousPanel: () -> Boolean = { false },
 ) {
     val posterGroups = remember(entries) { entries.toDesktopPosterGroups() }
+    val emptyMediaFocusRequester = remember { FocusRequester() }
+    var emptySourceFocusVersion by remember { mutableIntStateOf(0) }
+
+    fun requestEmptyMediaFocus(): Boolean {
+        emptyMediaFocusRequester.requestFocus()
+        return true
+    }
+
+    fun requestSourceFocusFromEmpty(target: LibrarySourceFocusTarget?): Boolean =
+        when (target) {
+            is LibrarySourceFocusTarget.Field -> {
+                emptySourceFocusVersion += 1
+                true
+            }
+            is LibrarySourceFocusTarget.Action -> false
+            LibrarySourceFocusTarget.EmptyMedia -> false
+            LibrarySourceFocusTarget.PreviousPanel -> onFocusPreviousPanel()
+            null -> false
+        }
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -103,11 +122,15 @@ internal fun LibraryPanel(
                 onSearch = onSearch,
                 onClearIndex = onClearIndex,
                 onRemoveSource = onRemoveSource,
-                focusVersion = focusVersion,
+                focusVersion = focusVersion + emptySourceFocusVersion,
                 onFocusPreviousPanel = onFocusPreviousPanel,
+                hasEmptyMedia = true,
+                onFocusEmptyMedia = ::requestEmptyMediaFocus,
             )
-            DesktopEmptyState(
+            LibraryEmptyMediaState(
                 text = if (savedSources.isEmpty()) "添加媒体源开始使用" else "已配置媒体源\n点击扫描建立媒体库",
+                focusRequester = emptyMediaFocusRequester,
+                onMove = ::requestSourceFocusFromEmpty,
                 heightDp = 300,
             )
         } else {
@@ -359,6 +382,7 @@ internal enum class LibrarySourceField {
 internal sealed interface LibrarySourceFocusTarget {
     data class Action(val action: LibrarySourceAction) : LibrarySourceFocusTarget
     data class Field(val field: LibrarySourceField) : LibrarySourceFocusTarget
+    data object EmptyMedia : LibrarySourceFocusTarget
     data object PreviousPanel : LibrarySourceFocusTarget
 }
 
@@ -385,32 +409,43 @@ private fun Modifier.librarySourceFieldNavigation(
 internal fun librarySourceActionFocusTarget(
     current: LibrarySourceAction,
     key: Key,
+    hasEmptyMedia: Boolean = false,
 ): LibrarySourceFocusTarget? =
     when {
         current == LibrarySourceAction.OpenLocal && key == Key.DirectionLeft ->
             LibrarySourceFocusTarget.Field(LibrarySourceField.IndexQuery)
+        key == Key.DirectionDown -> librarySourceActionNavigationTarget(current, key)
+            ?.let(LibrarySourceFocusTarget::Action)
+            ?: LibrarySourceFocusTarget.EmptyMedia.takeIf { hasEmptyMedia }
         else -> librarySourceActionNavigationTarget(current, key)?.let(LibrarySourceFocusTarget::Action)
     }
 
 internal fun librarySourceFieldFocusTarget(
     current: LibrarySourceField,
     key: Key,
+    hasEmptyMedia: Boolean = false,
 ): LibrarySourceFocusTarget? =
     when (key) {
         Key.DirectionUp -> when (current) {
             LibrarySourceField.LocalRoot -> LibrarySourceFocusTarget.PreviousPanel
             LibrarySourceField.IndexQuery -> LibrarySourceFocusTarget.Field(LibrarySourceField.LocalRoot)
         }
-        Key.DirectionDown -> if (current == LibrarySourceField.LocalRoot) {
-            LibrarySourceFocusTarget.Field(LibrarySourceField.IndexQuery)
-        } else {
-            null
+        Key.DirectionDown -> when {
+            current == LibrarySourceField.LocalRoot -> LibrarySourceFocusTarget.Field(LibrarySourceField.IndexQuery)
+            hasEmptyMedia -> LibrarySourceFocusTarget.EmptyMedia
+            else -> null
         }
         Key.DirectionRight -> if (current == LibrarySourceField.IndexQuery) {
             LibrarySourceFocusTarget.Action(LibrarySourceAction.OpenLocal)
         } else {
             null
         }
+        else -> null
+    }
+
+internal fun libraryEmptyMediaFocusTarget(key: Key): LibrarySourceFocusTarget? =
+    when (key) {
+        Key.DirectionUp -> LibrarySourceFocusTarget.Field(LibrarySourceField.LocalRoot)
         else -> null
     }
 
@@ -671,6 +706,8 @@ private fun LibraryControlBar(
     onRemoveSource: () -> Unit,
     focusVersion: Int = 0,
     onFocusPreviousPanel: () -> Boolean = { false },
+    hasEmptyMedia: Boolean = false,
+    onFocusEmptyMedia: () -> Boolean = { false },
 ) {
     val labels = desktopLibrarySourceLabels()
     val sourcePickerFocusRequester = remember { FocusRequester() }
@@ -694,14 +731,15 @@ private fun LibraryControlBar(
                 fieldFocusRequesters.getValue(target.field).requestFocus()
                 true
             }
+            LibrarySourceFocusTarget.EmptyMedia -> onFocusEmptyMedia()
             LibrarySourceFocusTarget.PreviousPanel -> onFocusPreviousPanel()
             null -> false
         }
     fun moveLibrarySourceActionFocus(action: LibrarySourceAction, key: Key): Boolean {
-        return requestLibrarySourceFocus(librarySourceActionFocusTarget(action, key))
+        return requestLibrarySourceFocus(librarySourceActionFocusTarget(action, key, hasEmptyMedia))
     }
     fun moveLibrarySourceFieldFocus(field: LibrarySourceField, key: Key): Boolean =
-        requestLibrarySourceFocus(librarySourceFieldFocusTarget(field, key))
+        requestLibrarySourceFocus(librarySourceFieldFocusTarget(field, key, hasEmptyMedia))
     LaunchedEffect(sourcePickerFocusVersion) {
         if (sourcePickerFocusVersion > 0) {
             sourcePickerFocusRequester.requestFocus()
@@ -834,6 +872,38 @@ private fun LibraryControlBar(
         }
         Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
         StatusBox(desktopLibraryStatusText(status))
+    }
+}
+
+@Composable
+private fun LibraryEmptyMediaState(
+    text: String,
+    focusRequester: FocusRequester,
+    onMove: (LibrarySourceFocusTarget?) -> Boolean,
+    heightDp: Int,
+) {
+    DesktopSelectableRow(
+        selected = false,
+        onClick = {},
+        modifier = Modifier
+            .focusRequester(focusRequester)
+            .onPreviewKeyEvent { event ->
+                event.type == KeyEventType.KeyDown &&
+                    onMove(libraryEmptyMediaFocusTarget(event.key))
+            },
+        heightDp = heightDp,
+        inactiveAlpha = 0.48f,
+    ) { active ->
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text,
+                color = if (active) TextPrimary else TextSecondary,
+                fontSize = MiruPlayUiMetrics.SECTION_BODY_SP.sp,
+            )
+        }
     }
 }
 

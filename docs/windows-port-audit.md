@@ -29,7 +29,8 @@ toggles; RSS subscription rows and the empty subscription state now support
 menu and desktop route rail now support `Up`/`Down` key navigation with TV-list edge stops and
 TV-facing `探索`/`详情`/`播放`/`设置` route copy,
 and the Library poster wall supports directional movement plus `Enter` to open
-Details. The Library highest-heat and recently-added poster shelves now also
+Details. The Library empty media state is focusable, with source controls moving
+`Down` into it and `Up` returning to the media source form. The Library highest-heat and recently-added poster shelves now also
 support horizontal `Left`/`Right` focus movement and `Enter` activation. Compose Desktop now treats `Esc` as the TV Back equivalent for Player -> Details -> Library and Settings -> Library. The remote browser list now supports `Up`/`Down` row movement, first-row
 `Up` parent navigation, `Enter` without opening directories during focus
 movement, and a focusable empty state that returns to the `上级` action with `Up`.

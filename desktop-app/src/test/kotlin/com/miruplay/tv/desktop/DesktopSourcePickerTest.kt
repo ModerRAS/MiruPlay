@@ -205,6 +205,49 @@ class DesktopSourcePickerTest {
             librarySourceActionFocusTarget(LibrarySourceAction.OpenLocal, Key.DirectionRight),
         )
         assertNull(librarySourceFieldFocusTarget(LibrarySourceField.IndexQuery, Key.DirectionLeft))
+        assertNull(librarySourceFieldFocusTarget(LibrarySourceField.IndexQuery, Key.DirectionDown))
+        assertNull(librarySourceActionFocusTarget(LibrarySourceAction.RemoveSource, Key.DirectionDown))
+    }
+
+    @Test
+    fun `source management can bridge into empty media state`() {
+        assertEquals(
+            LibrarySourceFocusTarget.EmptyMedia,
+            librarySourceFieldFocusTarget(
+                LibrarySourceField.IndexQuery,
+                Key.DirectionDown,
+                hasEmptyMedia = true,
+            ),
+        )
+        assertEquals(
+            LibrarySourceFocusTarget.EmptyMedia,
+            librarySourceActionFocusTarget(
+                LibrarySourceAction.Search,
+                Key.DirectionDown,
+                hasEmptyMedia = true,
+            ),
+        )
+        assertEquals(
+            LibrarySourceFocusTarget.Action(LibrarySourceAction.RemoveSource),
+            librarySourceActionFocusTarget(
+                LibrarySourceAction.ClearIndex,
+                Key.DirectionDown,
+                hasEmptyMedia = true,
+            ),
+        )
+        assertEquals(
+            LibrarySourceFocusTarget.EmptyMedia,
+            librarySourceActionFocusTarget(
+                LibrarySourceAction.RemoveSource,
+                Key.DirectionDown,
+                hasEmptyMedia = true,
+            ),
+        )
+        assertEquals(
+            LibrarySourceFocusTarget.Field(LibrarySourceField.LocalRoot),
+            libraryEmptyMediaFocusTarget(Key.DirectionUp),
+        )
+        assertNull(libraryEmptyMediaFocusTarget(Key.DirectionDown))
     }
 
     @Test
