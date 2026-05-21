@@ -614,9 +614,19 @@ internal fun RecentPlaybackPanel(
     val recordFocusRequesters = remember(visibleRecords.map { it.episodeId }) {
         List(visibleRecords.size) { FocusRequester() }
     }
+    val actionFocusRequesters = remember {
+        mapOf(
+            RecentPlaybackAction.Refresh to FocusRequester(),
+            RecentPlaybackAction.Clear to FocusRequester(),
+        )
+    }
 
-    fun moveRecentFocus(currentIndex: Int, delta: Int): Boolean {
-        return when (val target = moveRecentPlaybackFocusTarget(currentIndex, visibleRecords.size, delta)) {
+    fun requestRecentFocus(target: RecentPlaybackFocusTarget?): Boolean {
+        return when (target) {
+            is RecentPlaybackFocusTarget.Action -> {
+                actionFocusRequesters.getValue(target.action).requestFocus()
+                true
+            }
             is RecentPlaybackFocusTarget.Row -> {
                 recordFocusRequesters.getOrNull(target.index)?.requestFocus()
                 true
@@ -627,9 +637,27 @@ internal fun RecentPlaybackPanel(
         }
     }
 
+    fun moveRecentFocus(currentIndex: Int, delta: Int): Boolean =
+        requestRecentFocus(moveRecentPlaybackFocusTarget(currentIndex, visibleRecords.size, delta))
+
+    fun moveRecentActionFocus(current: RecentPlaybackAction, key: Key): Boolean {
+        val target = when (key) {
+            Key.DirectionLeft -> moveRecentPlaybackAction(current, -1)?.let(RecentPlaybackFocusTarget::Action)
+            Key.DirectionRight -> moveRecentPlaybackAction(current, 1)?.let(RecentPlaybackFocusTarget::Action)
+            Key.DirectionUp -> recentPlaybackActionVerticalFocusTarget(direction = -1, hasRecords = visibleRecords.isNotEmpty())
+            Key.DirectionDown -> recentPlaybackActionVerticalFocusTarget(direction = 1, hasRecords = visibleRecords.isNotEmpty())
+            else -> null
+        }
+        return requestRecentFocus(target)
+    }
+
     LaunchedEffect(focusVersion) {
-        if (focusVersion > 0 && visibleRecords.isNotEmpty()) {
-            recordFocusRequesters.firstOrNull()?.requestFocus()
+        if (focusVersion > 0) {
+            if (visibleRecords.isNotEmpty()) {
+                recordFocusRequesters.firstOrNull()?.requestFocus()
+            } else {
+                actionFocusRequesters.getValue(RecentPlaybackAction.Refresh).requestFocus()
+            }
         }
     }
 
@@ -644,8 +672,34 @@ internal fun RecentPlaybackPanel(
             ) {
                 Text(labels.title, color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
                 Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
-                    TvActionButton(labels.refreshAction, onClick = onRefresh, secondary = true)
-                    TvActionButton(labels.clearAction, onClick = onClearSelected, secondary = true)
+                    TvActionButton(
+                        labels.refreshAction,
+                        onClick = onRefresh,
+                        secondary = true,
+                        modifier = Modifier
+                            .focusRequester(actionFocusRequesters.getValue(RecentPlaybackAction.Refresh))
+                            .onPreviewKeyEvent { event ->
+                                if (event.type == KeyEventType.KeyDown) {
+                                    moveRecentActionFocus(RecentPlaybackAction.Refresh, event.key)
+                                } else {
+                                    false
+                                }
+                            },
+                    )
+                    TvActionButton(
+                        labels.clearAction,
+                        onClick = onClearSelected,
+                        secondary = true,
+                        modifier = Modifier
+                            .focusRequester(actionFocusRequesters.getValue(RecentPlaybackAction.Clear))
+                            .onPreviewKeyEvent { event ->
+                                if (event.type == KeyEventType.KeyDown) {
+                                    moveRecentActionFocus(RecentPlaybackAction.Clear, event.key)
+                                } else {
+                                    false
+                                }
+                            },
+                    )
                 }
                 StatusBox(status)
             }
@@ -747,11 +801,37 @@ internal fun moveRecentPlaybackSelection(
     return (moveRecentPlaybackFocusTarget(currentIndex, itemCount, delta) as? RecentPlaybackFocusTarget.Row)?.index
 }
 
+internal enum class RecentPlaybackAction {
+    Refresh,
+    Clear,
+}
+
 internal sealed interface RecentPlaybackFocusTarget {
+    data class Action(val action: RecentPlaybackAction) : RecentPlaybackFocusTarget
     data class Row(val index: Int) : RecentPlaybackFocusTarget
     data object PreviousPanel : RecentPlaybackFocusTarget
     data object NextPanel : RecentPlaybackFocusTarget
 }
+
+internal fun moveRecentPlaybackAction(
+    current: RecentPlaybackAction,
+    delta: Int,
+): RecentPlaybackAction? {
+    val actions = RecentPlaybackAction.entries
+    val targetIndex = current.ordinal + delta
+    return actions.getOrNull(targetIndex)
+}
+
+internal fun recentPlaybackActionVerticalFocusTarget(
+    direction: Int,
+    hasRecords: Boolean,
+): RecentPlaybackFocusTarget? =
+    when {
+        direction < 0 -> RecentPlaybackFocusTarget.PreviousPanel
+        direction > 0 && hasRecords -> RecentPlaybackFocusTarget.Row(0)
+        direction > 0 -> RecentPlaybackFocusTarget.NextPanel
+        else -> null
+    }
 
 internal fun moveRecentPlaybackFocusTarget(
     currentIndex: Int,
@@ -761,7 +841,7 @@ internal fun moveRecentPlaybackFocusTarget(
     if (itemCount <= 0) return null
     val targetIndex = currentIndex + delta
     return when {
-        targetIndex < 0 -> RecentPlaybackFocusTarget.PreviousPanel
+        targetIndex < 0 -> RecentPlaybackFocusTarget.Action(RecentPlaybackAction.Refresh)
         targetIndex >= itemCount -> RecentPlaybackFocusTarget.NextPanel
         else -> RecentPlaybackFocusTarget.Row(targetIndex)
     }

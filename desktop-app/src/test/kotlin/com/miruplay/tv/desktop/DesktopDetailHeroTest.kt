@@ -55,9 +55,9 @@ class DesktopDetailHeroTest {
     }
 
     @Test
-    fun `recent playback focus exits to neighboring details panels at row boundaries`() {
+    fun `recent playback focus moves through actions and neighboring panels`() {
         assertEquals(
-            RecentPlaybackFocusTarget.PreviousPanel,
+            RecentPlaybackFocusTarget.Action(RecentPlaybackAction.Refresh),
             moveRecentPlaybackFocusTarget(currentIndex = 0, itemCount = 3, delta = -1),
         )
         assertEquals(
@@ -69,6 +69,22 @@ class DesktopDetailHeroTest {
             moveRecentPlaybackFocusTarget(currentIndex = 2, itemCount = 3, delta = 1),
         )
         assertEquals(null, moveRecentPlaybackFocusTarget(currentIndex = 0, itemCount = 0, delta = 1))
+        assertEquals(RecentPlaybackAction.Clear, moveRecentPlaybackAction(RecentPlaybackAction.Refresh, 1))
+        assertEquals(RecentPlaybackAction.Refresh, moveRecentPlaybackAction(RecentPlaybackAction.Clear, -1))
+        assertEquals(null, moveRecentPlaybackAction(RecentPlaybackAction.Refresh, -1))
+        assertEquals(null, moveRecentPlaybackAction(RecentPlaybackAction.Clear, 1))
+        assertEquals(
+            RecentPlaybackFocusTarget.PreviousPanel,
+            recentPlaybackActionVerticalFocusTarget(direction = -1, hasRecords = true),
+        )
+        assertEquals(
+            RecentPlaybackFocusTarget.Row(0),
+            recentPlaybackActionVerticalFocusTarget(direction = 1, hasRecords = true),
+        )
+        assertEquals(
+            RecentPlaybackFocusTarget.NextPanel,
+            recentPlaybackActionVerticalFocusTarget(direction = 1, hasRecords = false),
+        )
     }
 
     @Test
