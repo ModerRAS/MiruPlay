@@ -1,6 +1,7 @@
 package com.miruplay.tv.desktop
 
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
 import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
@@ -145,6 +146,65 @@ class DesktopSourcePickerTest {
         assertEquals(12L, sources.savedSourcePickerNavigationTarget(activeSourceId = null, key = Key.DirectionUp)?.id)
         assertNull(sources.savedSourcePickerNavigationTarget(activeSourceId = 12L, key = Key.DirectionDown))
         assertNull(sources.savedSourcePickerNavigationTarget(activeSourceId = 10L, key = Key.DirectionUp))
+    }
+
+    @Test
+    fun `source picker key event opens and navigates with TV keys`() {
+        val sources = listOf(
+            MediaSourceInfoConventions.local(name = "A", rootPath = "D:/A").copy(id = 10L),
+            MediaSourceInfoConventions.webDav(url = "https://dav.example.test/anime").copy(id = 11L),
+        )
+        var opens = 0
+        var selectedId: Long? = null
+
+        assertTrue(
+            savedSourcePickerKeyEvent(
+                sources = sources,
+                activeSourceId = 10L,
+                key = Key.DirectionCenter,
+                type = KeyEventType.KeyDown,
+                onOpen = { opens += 1 },
+                onSelected = { selectedId = it.id },
+            ),
+        )
+        assertEquals(1, opens)
+        assertNull(selectedId)
+
+        assertTrue(
+            savedSourcePickerKeyEvent(
+                sources = sources,
+                activeSourceId = 10L,
+                key = Key.DirectionDown,
+                type = KeyEventType.KeyDown,
+                onOpen = { opens += 1 },
+                onSelected = { selectedId = it.id },
+            ),
+        )
+        assertEquals(11L, selectedId)
+        assertEquals(1, opens)
+
+        assertFalse(
+            savedSourcePickerKeyEvent(
+                sources = sources,
+                activeSourceId = 10L,
+                key = Key.DirectionCenter,
+                type = KeyEventType.KeyUp,
+                onOpen = { opens += 1 },
+                onSelected = { selectedId = it.id },
+            ),
+        )
+        assertFalse(
+            savedSourcePickerKeyEvent(
+                sources = sources,
+                activeSourceId = 10L,
+                key = Key.DirectionUp,
+                type = KeyEventType.KeyDown,
+                onOpen = { opens += 1 },
+                onSelected = { selectedId = it.id },
+            ),
+        )
+        assertEquals(1, opens)
+        assertEquals(11L, selectedId)
     }
 
     @Test
