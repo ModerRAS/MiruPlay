@@ -130,6 +130,12 @@ internal fun DesktopSection.desktopBackTarget(): DesktopSection? =
         else -> MiruPlayRouteSurface.library
     }
 
+internal fun isDesktopBackKey(key: Key): Boolean =
+    key == Key.Escape ||
+        key == Key.Back ||
+        key == Key.NavigatePrevious ||
+        key == Key.NavigateOut
+
 @Composable
 internal fun DesktopTvHeader(selectedSection: DesktopSection) {
     Column {
