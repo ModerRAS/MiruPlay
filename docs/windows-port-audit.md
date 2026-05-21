@@ -30,8 +30,8 @@ menu and desktop route rail now support `Up`/`Down` key navigation with TV-list 
 TV-facing `探索`/`详情`/`播放`/`设置` route copy,
 and the Library poster wall supports directional movement plus `Enter` to open
 Details. The Library empty media state is focusable, with source controls moving
-`Down` into it and `Up` returning to the media source form. The Library highest-heat and recently-added poster shelves now also
-support horizontal `Left`/`Right` focus movement and shared `Enter`/numpad Enter/DPAD Center activation. Compose Desktop now treats `Esc`, TV remote `Back`, and navigation back/out keys as Back equivalents for Player -> Details -> Library and Settings -> Library while leaving `Backspace` to text fields. The remote browser list now supports `Up`/`Down` row movement, first-row
+`Down` into it and `Up` returning to the media source form. The Library highest-heat and recently-added poster shelves, desktop switches/toggles, and RIFE backend picker now also
+support horizontal `Left`/`Right` focus movement where applicable plus shared `Enter`/numpad Enter/DPAD Center activation. Compose Desktop now treats `Esc`, TV remote `Back`, and navigation back/out keys as Back equivalents for Player -> Details -> Library and Settings -> Library while leaving `Backspace` to text fields. The remote browser list now supports `Up`/`Down` row movement, first-row
 `Up` parent navigation, `Enter` without opening directories during focus
 movement, and a focusable empty state that returns to the `上级` action with `Up`.
 Settings summary quick-action rows now also have TV-style horizontal

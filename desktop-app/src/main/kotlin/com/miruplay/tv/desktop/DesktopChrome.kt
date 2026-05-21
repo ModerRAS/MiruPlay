@@ -272,7 +272,18 @@ internal fun ToggleRow(
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(label, color = TextPrimary, fontSize = MiruPlayUiMetrics.ITEM_TITLE_SP.sp, fontWeight = FontWeight.Medium)
         Spacer(Modifier.width(MiruPlayUiMetrics.SMALL_GAP_DP.dp))
-        Switch(checked = checked, onCheckedChange = onCheckedChange, modifier = modifier)
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            modifier = modifier.onPreviewKeyEvent { event ->
+                desktopToggleKeyEvent(
+                    key = event.key,
+                    type = event.type,
+                    checked = checked,
+                    onCheckedChange = onCheckedChange,
+                )
+            },
+        )
     }
 }
 
@@ -288,7 +299,14 @@ internal fun RifeBackendPicker(
             onClick = { expanded = true },
             modifier = modifier
                 .width(MiruPlayUiMetrics.BACKEND_PICKER_WIDTH_DP.dp)
-                .height(MiruPlayUiMetrics.BACKEND_PICKER_HEIGHT_DP.dp),
+                .height(MiruPlayUiMetrics.BACKEND_PICKER_HEIGHT_DP.dp)
+                .onPreviewKeyEvent { event ->
+                    desktopOpenPickerKeyEvent(
+                        key = event.key,
+                        type = event.type,
+                        onOpen = { expanded = true },
+                    )
+                },
         ) {
             Text(selected.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }

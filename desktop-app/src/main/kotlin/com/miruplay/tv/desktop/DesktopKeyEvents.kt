@@ -22,3 +22,30 @@ internal fun desktopConfirmOrNavigationKeyEvent(
     onClick()
     return true
 }
+
+internal fun desktopToggleKeyEvent(
+    key: Key,
+    type: KeyEventType,
+    checked: Boolean,
+    enabled: Boolean = true,
+    onCheckedChange: (Boolean) -> Unit,
+): Boolean =
+    desktopConfirmOrNavigationKeyEvent(
+        key = key,
+        type = type,
+        enabled = enabled,
+        onClick = { onCheckedChange(!checked) },
+    )
+
+internal fun desktopOpenPickerKeyEvent(
+    key: Key,
+    type: KeyEventType,
+    enabled: Boolean = true,
+    onOpen: () -> Unit,
+): Boolean =
+    desktopConfirmOrNavigationKeyEvent(
+        key = key,
+        type = type,
+        enabled = enabled,
+        onClick = onOpen,
+    )
