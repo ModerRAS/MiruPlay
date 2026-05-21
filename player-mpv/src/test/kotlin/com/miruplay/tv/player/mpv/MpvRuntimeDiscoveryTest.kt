@@ -2,6 +2,7 @@ package com.miruplay.tv.player.mpv
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.nio.file.Files
 import java.nio.file.Paths
@@ -46,6 +47,19 @@ class MpvRuntimeDiscoveryTest {
             tempDir.toFile().deleteRecursively()
             workingDir.toFile().deleteRecursively()
         }
+    }
+
+    @Test
+    fun `candidate roots include jpackage app image runtime beside launcher`() {
+        val appHome = Paths.get("D:/MiruPlay")
+        val workingDir = Paths.get("D:/Work")
+        val roots = MpvRuntimeDiscovery.candidateRoots(
+            appHome = appHome,
+            workingDirectory = workingDir,
+        )
+
+        assertTrue(appHome.resolve("runtime").resolve("mpv").toAbsolutePath().normalize() in roots)
+        assertTrue(appHome.resolve("app").resolve("runtime").resolve("mpv").toAbsolutePath().normalize() in roots)
     }
 
     @Test

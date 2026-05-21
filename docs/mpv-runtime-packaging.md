@@ -163,6 +163,22 @@ backend scripts:
   -PrequiredRifeBackends=NVIDIA,DIRECTML
 ```
 
+To verify the native Windows app-image shape before installer/signing work, run
+the jpackage gate. It builds `desktop-app/build/jpackage/output/MiruPlay/`,
+checks the launcher, and verifies the bundled `runtime/mpv` payload plus the
+requested RIFE scripts:
+
+```powershell
+.\gradlew.bat :desktop-app:smokeNativeAppImageRuntime `
+  -PmpvRuntimeSource=runtime\mpv `
+  -PrequireMpvRuntime=true `
+  -PrequiredRifeBackends=NVIDIA,DIRECTML
+```
+
+This task uses the JDK `jpackage --type app-image` tool and intentionally stops
+at an unpacked app image; MSI/EXE installer generation and signing are separate
+release steps.
+
 For a real VapourSynth/RIFE filter smoke, run:
 
 ```powershell
@@ -239,8 +255,9 @@ Runtime discovery checks these locations in order:
 1. Java system property `miruplay.mpv.runtime`
 2. Environment variable `MIRUPLAY_MPV_RUNTIME`
 3. `runtime/mpv` next to the installed desktop app
-4. `runtime/mpv` under the current working directory
-5. `mpv` under the current working directory
+4. `app/runtime/mpv` inside app-image layouts that keep extra content under `app/`
+5. `runtime/mpv` under the current working directory
+6. `mpv` under the current working directory
 
 Use overrides for development or for users who want to keep mpv_PlayKit outside
 the MiruPlay install directory.
