@@ -243,6 +243,39 @@ private fun librarySourceHorizontalAction(
         LibrarySourceAction.RemoveSource -> null
     }
 
+internal enum class RemoteSourceAction {
+    OpenWebDav,
+    OpenSmb,
+    ScanSource,
+}
+
+private fun Modifier.remoteSourceActionNavigation(
+    action: RemoteSourceAction,
+    focusRequester: FocusRequester,
+    onMove: (RemoteSourceAction, Key) -> Boolean,
+): Modifier =
+    focusRequester(focusRequester)
+        .onPreviewKeyEvent { event ->
+            event.type == KeyEventType.KeyDown && onMove(action, event.key)
+        }
+
+internal fun remoteSourceActionNavigationTarget(
+    current: RemoteSourceAction,
+    key: Key,
+): RemoteSourceAction? =
+    when (key) {
+        Key.DirectionLeft -> if (current == RemoteSourceAction.ScanSource) RemoteSourceAction.OpenSmb else null
+        Key.DirectionRight -> if (current == RemoteSourceAction.OpenSmb) RemoteSourceAction.ScanSource else null
+        Key.DirectionUp -> when (current) {
+            RemoteSourceAction.OpenSmb,
+            RemoteSourceAction.ScanSource,
+            -> RemoteSourceAction.OpenWebDav
+            RemoteSourceAction.OpenWebDav -> null
+        }
+        Key.DirectionDown -> if (current == RemoteSourceAction.OpenWebDav) RemoteSourceAction.OpenSmb else null
+        else -> null
+    }
+
 @Composable
 private fun PosterSearchBar(
     indexQuery: String,
@@ -880,6 +913,14 @@ internal fun RemoteSourcesPanel(
     onEntrySelected: (FileEntry) -> Unit,
 ) {
     val labels = desktopLibrarySourceLabels()
+    val actionFocusRequesters = remember {
+        RemoteSourceAction.entries.associateWith { FocusRequester() }
+    }
+    fun moveRemoteSourceActionFocus(action: RemoteSourceAction, key: Key): Boolean {
+        val target = remoteSourceActionNavigationTarget(action, key) ?: return false
+        actionFocusRequesters.getValue(target).requestFocus()
+        return true
+    }
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp),
@@ -909,7 +950,15 @@ internal fun RemoteSourcesPanel(
                         modifier = Modifier.weight(1f),
                     )
                 }
-                TvActionButton(labels.openWebDav, onClick = onOpenWebDav)
+                TvActionButton(
+                    labels.openWebDav,
+                    onClick = onOpenWebDav,
+                    modifier = Modifier.remoteSourceActionNavigation(
+                        action = RemoteSourceAction.OpenWebDav,
+                        focusRequester = actionFocusRequesters.getValue(RemoteSourceAction.OpenWebDav),
+                        onMove = ::moveRemoteSourceActionFocus,
+                    ),
+                )
             }
             RemoteSourceEditorCard(
                 title = "SMB",
@@ -938,8 +987,25 @@ internal fun RemoteSourcesPanel(
                     )
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
-                    TvActionButton(labels.openSmb, onClick = onOpenSmb)
-                    TvActionButton(labels.scanSource, onClick = onScan, secondary = true)
+                    TvActionButton(
+                        labels.openSmb,
+                        onClick = onOpenSmb,
+                        modifier = Modifier.remoteSourceActionNavigation(
+                            action = RemoteSourceAction.OpenSmb,
+                            focusRequester = actionFocusRequesters.getValue(RemoteSourceAction.OpenSmb),
+                            onMove = ::moveRemoteSourceActionFocus,
+                        ),
+                    )
+                    TvActionButton(
+                        labels.scanSource,
+                        onClick = onScan,
+                        secondary = true,
+                        modifier = Modifier.remoteSourceActionNavigation(
+                            action = RemoteSourceAction.ScanSource,
+                            focusRequester = actionFocusRequesters.getValue(RemoteSourceAction.ScanSource),
+                            onMove = ::moveRemoteSourceActionFocus,
+                        ),
+                    )
                 }
             }
             StatusBox(desktopLibraryStatusText(status))
