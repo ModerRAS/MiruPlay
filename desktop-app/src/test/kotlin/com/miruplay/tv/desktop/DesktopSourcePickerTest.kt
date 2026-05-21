@@ -147,6 +147,37 @@ class DesktopSourcePickerTest {
     }
 
     @Test
+    fun `source management action focus stays within visible button groups`() {
+        assertEquals(
+            LibrarySourceAction.Scan,
+            librarySourceActionNavigationTarget(LibrarySourceAction.OpenLocal, Key.DirectionRight),
+        )
+        assertEquals(
+            LibrarySourceAction.Search,
+            librarySourceActionNavigationTarget(LibrarySourceAction.Scan, Key.DirectionRight),
+        )
+        assertEquals(
+            LibrarySourceAction.ClearIndex,
+            librarySourceActionNavigationTarget(LibrarySourceAction.Search, Key.DirectionRight),
+        )
+        assertEquals(
+            LibrarySourceAction.Search,
+            librarySourceActionNavigationTarget(LibrarySourceAction.ClearIndex, Key.DirectionLeft),
+        )
+        assertEquals(
+            LibrarySourceAction.RemoveSource,
+            librarySourceActionNavigationTarget(LibrarySourceAction.ClearIndex, Key.DirectionDown),
+        )
+        assertEquals(
+            LibrarySourceAction.ClearIndex,
+            librarySourceActionNavigationTarget(LibrarySourceAction.RemoveSource, Key.DirectionUp),
+        )
+        assertNull(librarySourceActionNavigationTarget(LibrarySourceAction.OpenLocal, Key.DirectionLeft))
+        assertNull(librarySourceActionNavigationTarget(LibrarySourceAction.RemoveSource, Key.DirectionRight))
+        assertNull(librarySourceActionNavigationTarget(LibrarySourceAction.RemoveSource, Key.DirectionDown))
+    }
+
+    @Test
     fun `remote source preview falls back and compacts endpoints`() {
         assertEquals("填写 SMB 共享地址", remoteSourcePreview("", fallback = "填写 SMB 共享地址", maxLength = 20))
 
