@@ -1104,6 +1104,20 @@ private data class SettingsQuickAction(
     val onClick: () -> Unit,
 )
 
+internal fun settingsQuickActionNavigationTarget(
+    currentIndex: Int,
+    actionCount: Int,
+    key: Key,
+): Int? {
+    if (actionCount <= 0) return null
+    val delta = when (key) {
+        Key.DirectionLeft -> -1
+        Key.DirectionRight -> 1
+        else -> return null
+    }
+    return (currentIndex + delta).takeIf { it in 0 until actionCount }
+}
+
 internal data class SettingsSummaryTile(
     val label: String,
     val value: String,
@@ -1461,6 +1475,18 @@ private fun SettingsSummaryContent(
     actions: List<SettingsQuickAction>,
     modifier: Modifier = Modifier,
 ) {
+    val actionFocusRequesters = remember(actions.size) {
+        List(actions.size) { FocusRequester() }
+    }
+    fun moveActionFocus(currentIndex: Int, key: Key): Boolean {
+        val targetIndex = settingsQuickActionNavigationTarget(
+            currentIndex = currentIndex,
+            actionCount = actions.size,
+            key = key,
+        ) ?: return false
+        actionFocusRequesters[targetIndex].requestFocus()
+        return true
+    }
     TvPanel(modifier.fillMaxWidth()) {
         Text(section.title, color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(4.dp))
@@ -1480,6 +1506,11 @@ private fun SettingsSummaryContent(
                     action.label,
                     onClick = action.onClick,
                     secondary = index != 0,
+                    modifier = Modifier
+                        .focusRequester(actionFocusRequesters[index])
+                        .onPreviewKeyEvent { event ->
+                            event.type == KeyEventType.KeyDown && moveActionFocus(index, event.key)
+                        },
                 )
             }
         }
