@@ -39,7 +39,6 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
-import com.miruplay.tv.clouddrive.CloudDriveEndpoint
 import com.miruplay.tv.clouddrive.GrpcCloudDriveClient
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.design.MiruPlayPalette
@@ -693,40 +692,23 @@ internal fun MiruPlayDesktopComposeApp(
     suspend fun loadCloudDriveDirectory(path: String) {
         val browser = cloudDirectoryBrowser
         if (!browser.open) return
-        val endpoint = browser.endpointUrl
-        val token = browser.token
-        if (endpoint.isBlank() || token.isBlank()) {
+        if (browser.endpointUrl.isBlank() || browser.token.isBlank()) {
             cloudRssStatus = cloudDriveTokenRequiredStatus()
             cloudDirectoryBrowser = browser.copy(isLoading = false, message = desktopCloudRssStatusText(cloudDriveTokenRequiredStatus()))
             return
         }
-        val scopedPath = desktopCloudDriveScopedPath(path, browser.rootPath)
-        cloudDirectoryBrowser = browser.copy(
-            path = scopedPath,
-            displayPath = desktopCloudDriveDisplayPath(scopedPath),
-            parentPath = desktopCloudDriveParentPath(scopedPath, browser.rootPath),
-            isLoading = true,
-            message = null,
-        )
-        when (
-            val listing = cloudDriveClient.listFolder(
-                endpoint = CloudDriveEndpoint(endpoint, token),
-                path = scopedPath,
-                forceRefresh = false,
-            )
-        ) {
+        val loadingState = browser.loadingFor(path)
+        cloudDirectoryBrowser = loadingState
+        when (val loaded = loadDesktopCloudDriveDirectory(cloudDriveClient, loadingState, loadingState.path)) {
             is Result.Success -> {
                 val current = cloudDirectoryBrowser
-                if (!current.open || current.endpointUrl != endpoint || current.token != token) return
-                cloudDirectoryBrowser = current.copy(
-                    entries = cloudDriveDirectoryEntries(listing.data),
-                    isLoading = false,
-                    message = null,
-                )
-                cloudRssStatus = "正在浏览 CloudDrive2 目录：$scopedPath"
+                val next = loaded.data
+                if (!current.open || current.endpointUrl != next.endpointUrl || current.token != next.token) return
+                cloudDirectoryBrowser = next
+                cloudRssStatus = "正在浏览 CloudDrive2 目录：${next.path}"
             }
             is Result.Error -> {
-                val message = listing.error.toUserMessage()
+                val message = loaded.error.toUserMessage()
                 cloudDirectoryBrowser = cloudDirectoryBrowser.copy(isLoading = false, message = message)
                 cloudRssStatus = message
             }
@@ -741,31 +723,28 @@ internal fun MiruPlayDesktopComposeApp(
             return
         }
         scope.launch {
-            val rootPath = when (val tokenInfo = cloudDriveClient.getApiTokenInfo(endpoint, token)) {
-                is Result.Success -> normalizeDesktopCloudDrivePath(tokenInfo.data.rootDir)
+            val initialPath = when (target) {
+                DesktopCloudDriveDirectoryTarget.INBOX -> cloudInboxPath
+                DesktopCloudDriveDirectoryTarget.LIBRARY -> cloudLibraryPath
+            }
+            val prepared = when (
+                val result = prepareDesktopCloudDriveDirectoryBrowser(
+                    client = cloudDriveClient,
+                    target = target,
+                    endpointUrl = endpoint,
+                    token = token,
+                    initialPath = initialPath,
+                )
+            ) {
+                is Result.Success -> result.data
                 is Result.Error -> {
-                    val message = tokenInfo.error.toUserMessage()
+                    val message = result.error.toUserMessage()
                     cloudRssStatus = message
                     return@launch
                 }
             }
-            val initialPath = when (target) {
-                DesktopCloudDriveDirectoryTarget.INBOX -> cloudInboxPath
-                DesktopCloudDriveDirectoryTarget.LIBRARY -> cloudLibraryPath
-            }.ifBlank { rootPath }
-            val scopedPath = desktopCloudDriveScopedPath(initialPath, rootPath)
-            cloudDirectoryBrowser = DesktopCloudDriveDirectoryBrowserState(
-                open = true,
-                target = target,
-                endpointUrl = endpoint,
-                token = token,
-                rootPath = rootPath,
-                path = scopedPath,
-                displayPath = desktopCloudDriveDisplayPath(scopedPath),
-                parentPath = desktopCloudDriveParentPath(scopedPath, rootPath),
-                isLoading = true,
-            )
-            loadCloudDriveDirectory(scopedPath)
+            cloudDirectoryBrowser = prepared
+            loadCloudDriveDirectory(prepared.path)
         }
     }
 
@@ -773,13 +752,13 @@ internal fun MiruPlayDesktopComposeApp(
         target: DesktopCloudDriveDirectoryTarget,
         path: String,
     ) {
-        val normalized = normalizeDesktopCloudDrivePath(path)
-        when (target) {
-            DesktopCloudDriveDirectoryTarget.INBOX -> cloudInboxPath = normalized
-            DesktopCloudDriveDirectoryTarget.LIBRARY -> cloudLibraryPath = normalized
+        val selection = selectDesktopCloudDriveDirectory(target, path)
+        when (selection.target) {
+            DesktopCloudDriveDirectoryTarget.INBOX -> cloudInboxPath = selection.path
+            DesktopCloudDriveDirectoryTarget.LIBRARY -> cloudLibraryPath = selection.path
         }
         cloudDirectoryBrowser = cloudDirectoryBrowser.copy(open = false, isLoading = false)
-        cloudRssStatus = "已选择 ${target.title}：$normalized"
+        cloudRssStatus = selection.status
     }
 
     LaunchedEffect(cloudRssSchedulerState.lastRunCompletedAt) {

@@ -40,7 +40,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.miruplay.tv.clouddrive.CloudDriveFileInfo
 import com.miruplay.tv.design.MiruPlayUiMetrics
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
@@ -1031,30 +1030,6 @@ internal sealed interface CloudRssFocusTarget {
     data class Subscription(val index: Int) : CloudRssFocusTarget
 }
 
-internal enum class DesktopCloudDriveDirectoryTarget(val title: String) {
-    INBOX("选择收件目录"),
-    LIBRARY("选择媒体库目录"),
-}
-
-internal data class DesktopCloudDriveDirectoryEntry(
-    val name: String,
-    val path: String,
-)
-
-internal data class DesktopCloudDriveDirectoryBrowserState(
-    val open: Boolean = false,
-    val target: DesktopCloudDriveDirectoryTarget = DesktopCloudDriveDirectoryTarget.INBOX,
-    val endpointUrl: String = "",
-    val token: String = "",
-    val rootPath: String = "/",
-    val path: String = "/",
-    val displayPath: String = "CloudDrive 根目录",
-    val parentPath: String? = null,
-    val entries: List<DesktopCloudDriveDirectoryEntry> = emptyList(),
-    val isLoading: Boolean = false,
-    val message: String? = null,
-)
-
 private fun Modifier.cloudRssActionNavigation(
     action: CloudRssAction,
     focusRequester: FocusRequester,
@@ -1222,63 +1197,6 @@ internal fun cloudRssSubscriptionFocusTarget(
         else -> null
     }
 }
-
-internal fun normalizeDesktopCloudDrivePath(path: String): String {
-    val trimmed = path.trim().replace('\\', '/').trimEnd('/')
-    return when {
-        trimmed.isBlank() -> "/"
-        trimmed.startsWith('/') -> trimmed
-        else -> "/$trimmed"
-    }
-}
-
-internal fun desktopCloudDriveDisplayPath(path: String): String =
-    normalizeDesktopCloudDrivePath(path).let { normalized ->
-        if (normalized == "/") "CloudDrive 根目录" else normalized
-    }
-
-internal fun desktopCloudDriveParentPath(
-    path: String,
-    rootPath: String,
-): String? {
-    val normalizedPath = normalizeDesktopCloudDrivePath(path)
-    val normalizedRoot = normalizeDesktopCloudDrivePath(rootPath)
-    if (normalizedPath == normalizedRoot || normalizedPath == "/") return null
-    val parent = normalizedPath.substringBeforeLast('/', "")
-    if (parent.isBlank() || parent == normalizedPath) return null
-    return when {
-        normalizedRoot == "/" -> parent.ifBlank { "/" }
-        parent == normalizedRoot || parent.startsWith("$normalizedRoot/") -> parent
-        else -> normalizedRoot
-    }
-}
-
-internal fun desktopCloudDriveScopedPath(
-    requestedPath: String,
-    rootPath: String,
-): String {
-    val requested = normalizeDesktopCloudDrivePath(requestedPath)
-    val root = normalizeDesktopCloudDrivePath(rootPath)
-    return when {
-        root == "/" -> requested
-        requested == "/" -> root
-        requested == root || requested.startsWith("$root/") -> requested
-        else -> root
-    }
-}
-
-internal fun cloudDriveDirectoryEntries(files: List<CloudDriveFileInfo>): List<DesktopCloudDriveDirectoryEntry> =
-    files.asSequence()
-        .filter { it.isDirectory }
-        .filter { !it.name.startsWith(".") }
-        .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name.ifBlank { it.path.substringAfterLast('/') } })
-        .map {
-            DesktopCloudDriveDirectoryEntry(
-                name = it.name.ifBlank { it.path.substringAfterLast('/') },
-                path = normalizeDesktopCloudDrivePath(it.path),
-            )
-        }
-        .toList()
 
 internal fun cloudDriveDirectoryNavigationTarget(
     currentIndex: Int,
