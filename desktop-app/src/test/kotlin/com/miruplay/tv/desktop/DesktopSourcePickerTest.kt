@@ -188,6 +188,10 @@ class DesktopSourcePickerTest {
             librarySourceFieldFocusTarget(LibrarySourceField.IndexQuery, Key.DirectionUp),
         )
         assertEquals(
+            LibrarySourceFocusTarget.PreviousPanel,
+            librarySourceFieldFocusTarget(LibrarySourceField.LocalRoot, Key.DirectionUp),
+        )
+        assertEquals(
             LibrarySourceFocusTarget.Action(LibrarySourceAction.OpenLocal),
             librarySourceFieldFocusTarget(LibrarySourceField.IndexQuery, Key.DirectionRight),
         )
@@ -199,7 +203,6 @@ class DesktopSourcePickerTest {
             LibrarySourceFocusTarget.Action(LibrarySourceAction.Scan),
             librarySourceActionFocusTarget(LibrarySourceAction.OpenLocal, Key.DirectionRight),
         )
-        assertNull(librarySourceFieldFocusTarget(LibrarySourceField.LocalRoot, Key.DirectionUp))
         assertNull(librarySourceFieldFocusTarget(LibrarySourceField.IndexQuery, Key.DirectionLeft))
     }
 

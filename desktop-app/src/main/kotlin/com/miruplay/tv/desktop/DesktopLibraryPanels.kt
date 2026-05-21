@@ -114,7 +114,15 @@ internal fun LibraryPanel(
             var featuredFocusIndex by remember { mutableIntStateOf(0) }
             var recentlyAddedFocusVersion by remember { mutableIntStateOf(0) }
             var recentlyAddedFocusIndex by remember { mutableIntStateOf(0) }
+            var posterSearchFocusVersion by remember { mutableIntStateOf(0) }
+            var posterSearchFocusTarget by remember { mutableIntStateOf(LibrarySearchFocusTarget.Field.ordinal) }
+            var librarySourceFocusVersion by remember { mutableIntStateOf(0) }
 
+            fun requestPosterSearchFocus(target: LibrarySearchFocusTarget): Boolean {
+                posterSearchFocusTarget = target.ordinal
+                posterSearchFocusVersion += 1
+                return true
+            }
             fun requestLibraryMediaFocus(target: LibraryMediaFocusTarget): Boolean {
                 return when (target) {
                     is LibraryMediaFocusTarget.PosterWall -> {
@@ -136,8 +144,21 @@ internal fun LibraryPanel(
                         recentlyAddedFocusVersion += 1
                         true
                     }
+                    LibraryMediaFocusTarget.SearchBar -> requestPosterSearchFocus(LibrarySearchFocusTarget.Field)
                 }
             }
+            fun requestLastMediaFocus(): Boolean =
+                when {
+                    recentlyAddedGroups.isNotEmpty() -> requestLibraryMediaFocus(
+                        LibraryMediaFocusTarget.RecentlyAdded(recentlyAddedFocusIndex.coerceIn(recentlyAddedGroups.indices)),
+                    )
+                    featuredGroups.isNotEmpty() -> requestLibraryMediaFocus(
+                        LibraryMediaFocusTarget.Featured(featuredFocusIndex.coerceIn(featuredGroups.indices)),
+                    )
+                    else -> requestLibraryMediaFocus(
+                        LibraryMediaFocusTarget.PosterWall(posterWallFocusIndex.coerceIn(posterGroups.indices)),
+                    )
+                }
 
             PosterSectionHeader(title = "海报墙", trailing = "已收录 ${posterGroups.size} 部")
             PosterWall(
@@ -185,6 +206,15 @@ internal fun LibraryPanel(
                 onIndexQueryChange = onIndexQueryChange,
                 onSearch = onSearch,
                 resultCount = posterGroups.size,
+                focusVersion = posterSearchFocusVersion,
+                focusTarget = LibrarySearchFocusTarget.entries[
+                    posterSearchFocusTarget.coerceIn(LibrarySearchFocusTarget.entries.indices),
+                ],
+                onFocusPreviousPanel = ::requestLastMediaFocus,
+                onFocusNextPanel = {
+                    librarySourceFocusVersion += 1
+                    true
+                },
             )
             LibraryControlBar(
                 libraryRoot = libraryRoot,
@@ -200,6 +230,10 @@ internal fun LibraryPanel(
                 onSearch = onSearch,
                 onClearIndex = onClearIndex,
                 onRemoveSource = onRemoveSource,
+                focusVersion = librarySourceFocusVersion,
+                onFocusPreviousPanel = {
+                    requestPosterSearchFocus(LibrarySearchFocusTarget.Field)
+                },
             )
         }
     }
@@ -259,6 +293,7 @@ internal enum class LibrarySourceField {
 internal sealed interface LibrarySourceFocusTarget {
     data class Action(val action: LibrarySourceAction) : LibrarySourceFocusTarget
     data class Field(val field: LibrarySourceField) : LibrarySourceFocusTarget
+    data object PreviousPanel : LibrarySourceFocusTarget
 }
 
 private fun Modifier.librarySourceActionNavigation(
@@ -296,10 +331,9 @@ internal fun librarySourceFieldFocusTarget(
     key: Key,
 ): LibrarySourceFocusTarget? =
     when (key) {
-        Key.DirectionUp -> if (current == LibrarySourceField.IndexQuery) {
-            LibrarySourceFocusTarget.Field(LibrarySourceField.LocalRoot)
-        } else {
-            null
+        Key.DirectionUp -> when (current) {
+            LibrarySourceField.LocalRoot -> LibrarySourceFocusTarget.PreviousPanel
+            LibrarySourceField.IndexQuery -> LibrarySourceFocusTarget.Field(LibrarySourceField.LocalRoot)
         }
         Key.DirectionDown -> if (current == LibrarySourceField.LocalRoot) {
             LibrarySourceFocusTarget.Field(LibrarySourceField.IndexQuery)
@@ -468,7 +502,31 @@ private fun PosterSearchBar(
     onIndexQueryChange: (String) -> Unit,
     onSearch: () -> Unit,
     resultCount: Int,
+    focusVersion: Int = 0,
+    focusTarget: LibrarySearchFocusTarget = LibrarySearchFocusTarget.Field,
+    onFocusPreviousPanel: () -> Boolean = { false },
+    onFocusNextPanel: () -> Boolean = { false },
 ) {
+    val focusRequesters = remember {
+        LibrarySearchFocusTarget.entries.associateWith { FocusRequester() }
+    }
+    fun moveSearchFocus(target: LibrarySearchFocusTarget, key: Key): Boolean =
+        when (val next = librarySearchFocusTarget(target, key)) {
+            LibrarySearchFocusTarget.Field,
+            LibrarySearchFocusTarget.Action,
+            -> {
+                focusRequesters.getValue(next).requestFocus()
+                true
+            }
+            LibrarySearchFocusTarget.PreviousPanel -> onFocusPreviousPanel()
+            LibrarySearchFocusTarget.NextPanel -> onFocusNextPanel()
+            null -> false
+        }
+    LaunchedEffect(focusVersion) {
+        if (focusVersion > 0) {
+            focusRequesters.getValue(focusTarget).requestFocus()
+        }
+    }
     TvPanel(Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -480,8 +538,24 @@ private fun PosterSearchBar(
                 indexQuery,
                 onValueChange = onIndexQueryChange,
                 modifier = Modifier.weight(1f),
+                inputModifier = Modifier
+                    .focusRequester(focusRequesters.getValue(LibrarySearchFocusTarget.Field))
+                    .onPreviewKeyEvent { event ->
+                        event.type == KeyEventType.KeyDown &&
+                            moveSearchFocus(LibrarySearchFocusTarget.Field, event.key)
+                    },
             )
-            TvActionButton("搜索", onClick = onSearch, modifier = Modifier.width(132.dp))
+            TvActionButton(
+                "搜索",
+                onClick = onSearch,
+                modifier = Modifier
+                    .width(132.dp)
+                    .focusRequester(focusRequesters.getValue(LibrarySearchFocusTarget.Action))
+                    .onPreviewKeyEvent { event ->
+                        event.type == KeyEventType.KeyDown &&
+                            moveSearchFocus(LibrarySearchFocusTarget.Action, event.key)
+                    },
+            )
             Text(
                 "$resultCount 部",
                 color = TextSecondary,
@@ -507,6 +581,8 @@ private fun LibraryControlBar(
     onSearch: () -> Unit,
     onClearIndex: () -> Unit,
     onRemoveSource: () -> Unit,
+    focusVersion: Int = 0,
+    onFocusPreviousPanel: () -> Boolean = { false },
 ) {
     val labels = desktopLibrarySourceLabels()
     val sourcePickerFocusRequester = remember { FocusRequester() }
@@ -530,6 +606,7 @@ private fun LibraryControlBar(
                 fieldFocusRequesters.getValue(target.field).requestFocus()
                 true
             }
+            LibrarySourceFocusTarget.PreviousPanel -> onFocusPreviousPanel()
             null -> false
         }
     fun moveLibrarySourceActionFocus(action: LibrarySourceAction, key: Key): Boolean {
@@ -540,6 +617,11 @@ private fun LibraryControlBar(
     LaunchedEffect(sourcePickerFocusVersion) {
         if (sourcePickerFocusVersion > 0) {
             sourcePickerFocusRequester.requestFocus()
+        }
+    }
+    LaunchedEffect(focusVersion) {
+        if (focusVersion > 0) {
+            fieldFocusRequesters.getValue(LibrarySourceField.LocalRoot).requestFocus()
         }
     }
 
@@ -752,6 +834,7 @@ private fun PosterWall(
                                 }
                                 is LibraryMediaFocusTarget.Featured,
                                 is LibraryMediaFocusTarget.RecentlyAdded,
+                                LibraryMediaFocusTarget.SearchBar,
                                 -> onMediaFocusTarget(target)
                                 null -> false
                             }
@@ -810,6 +893,7 @@ private fun FeaturedPosterShelf(
                         }
                         is LibraryMediaFocusTarget.PosterWall,
                         is LibraryMediaFocusTarget.RecentlyAdded,
+                        LibraryMediaFocusTarget.SearchBar,
                         -> onMediaFocusTarget(target)
                         null -> false
                     }
@@ -868,6 +952,7 @@ private fun PosterCardShelf(
                         }
                         is LibraryMediaFocusTarget.PosterWall,
                         is LibraryMediaFocusTarget.Featured,
+                        LibraryMediaFocusTarget.SearchBar,
                         -> onMediaFocusTarget(target)
                         null -> false
                     }
@@ -1124,7 +1209,27 @@ internal sealed interface LibraryMediaFocusTarget {
     data class PosterWall(val index: Int) : LibraryMediaFocusTarget
     data class Featured(val index: Int) : LibraryMediaFocusTarget
     data class RecentlyAdded(val index: Int) : LibraryMediaFocusTarget
+    data object SearchBar : LibraryMediaFocusTarget
 }
+
+internal enum class LibrarySearchFocusTarget {
+    Field,
+    Action,
+    PreviousPanel,
+    NextPanel,
+}
+
+internal fun librarySearchFocusTarget(
+    current: LibrarySearchFocusTarget,
+    key: Key,
+): LibrarySearchFocusTarget? =
+    when (key) {
+        Key.DirectionLeft -> LibrarySearchFocusTarget.Field.takeIf { current == LibrarySearchFocusTarget.Action }
+        Key.DirectionRight -> LibrarySearchFocusTarget.Action.takeIf { current == LibrarySearchFocusTarget.Field }
+        Key.DirectionUp -> LibrarySearchFocusTarget.PreviousPanel
+        Key.DirectionDown -> LibrarySearchFocusTarget.NextPanel
+        else -> null
+    }
 
 internal fun List<DesktopPosterGroup>.posterShelfNavigationTarget(
     currentIndex: Int,
@@ -1161,25 +1266,30 @@ internal fun libraryMediaFocusTarget(
             key = key,
             shelfCount = featuredCount,
             previousCount = posterCount,
-            nextCount = recentlyAddedCount,
+            nextCount = recentlyAddedCount.takeIf { it > 0 } ?: 1,
             previousFactory = LibraryMediaFocusTarget::PosterWall,
             currentFactory = LibraryMediaFocusTarget::Featured,
-            nextFactory = LibraryMediaFocusTarget::RecentlyAdded,
+            nextFactory = if (recentlyAddedCount > 0) {
+                LibraryMediaFocusTarget::RecentlyAdded
+            } else {
+                { LibraryMediaFocusTarget.SearchBar }
+            },
         )
         is LibraryMediaFocusTarget.RecentlyAdded -> posterShelfMediaFocusTarget(
             currentIndex = current.index,
             key = key,
             shelfCount = recentlyAddedCount,
             previousCount = featuredCount.takeIf { it > 0 } ?: posterCount,
-            nextCount = 0,
+            nextCount = 1,
             previousFactory = if (featuredCount > 0) {
                 LibraryMediaFocusTarget::Featured
             } else {
                 LibraryMediaFocusTarget::PosterWall
             },
             currentFactory = LibraryMediaFocusTarget::RecentlyAdded,
-            nextFactory = { null },
+            nextFactory = { LibraryMediaFocusTarget.SearchBar },
         )
+        LibraryMediaFocusTarget.SearchBar -> null
     }
 
 private fun posterWallMediaFocusTarget(
@@ -1205,7 +1315,7 @@ private fun posterWallMediaFocusTarget(
                 return when {
                     featuredCount > 0 -> LibraryMediaFocusTarget.Featured(currentColumn.coerceAtMost(featuredCount - 1))
                     recentlyAddedCount > 0 -> LibraryMediaFocusTarget.RecentlyAdded(currentColumn.coerceAtMost(recentlyAddedCount - 1))
-                    else -> null
+                    else -> LibraryMediaFocusTarget.SearchBar
                 }
             }
         }
