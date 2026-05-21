@@ -200,8 +200,11 @@ For a real VapourSynth/RIFE filter smoke, run:
 
 For target-host evidence that can be attached to release QA, add `-ReportPath`.
 The JSON report records the runtime path, mpv version, generated clip shape,
-backend results, per-backend log paths, Windows version, CPU, detected video
-controllers, and `nvidia-smi` output when available:
+backend results, per-backend log paths, `runtime-manifest.json` evidence,
+Windows version, CPU, detected video controllers, and `nvidia-smi` output when
+available. Manifest evidence includes whether the file was present, declared
+RIFE backends, declared package-relative files/directories, and any manifest
+problems found while reading the target runtime:
 
 ```powershell
 .\tools\smoke-mpv-rife.ps1 `
@@ -216,7 +219,8 @@ Validate a generated target-host report before attaching it to release QA:
 ```powershell
 .\tools\assert-mpv-rife-report.ps1 `
   -ReportPath .\build\mpv-smoke\rife-target-report.json `
-  -RequiredBackends DIRECTML
+  -RequiredBackends DIRECTML `
+  -RequireRuntimeManifest
 ```
 
 For a matrix report that intentionally allows unsupported backends to fail, pass
@@ -227,6 +231,7 @@ version, and selected backend entries:
 .\tools\assert-mpv-rife-report.ps1 `
   -ReportPath .\build\mpv-smoke\rife-matrix-report.json `
   -RequiredBackends NVIDIA,DIRECTML `
+  -RequireRuntimeManifest `
   -AllowFailures
 ```
 
@@ -242,7 +247,9 @@ to the clip, and fails on timeout or non-zero exit. `-Backend ALL` prints a
 summary table for NVIDIA, DIRECTML, and STANDARD. Add `-AllowFailures` if you
 want the matrix report and optional JSON report to finish even when one or more
 backends fail. `tools/verify-windows-port.ps1 -Rife` runs this smoke and then
-validates the generated JSON report with `assert-mpv-rife-report.ps1`. Use
+validates the generated JSON report with `assert-mpv-rife-report.ps1` and
+`-RequireRuntimeManifest`, so target-host evidence must come from a runtime that
+still carries a valid manifest. Use
 `-Backend NVIDIA` on a machine with a compatible NVIDIA driver/CUDA stack; use
 `-Backend STANDARD` only when the payload includes the extra Standard backend
 plugin stack.

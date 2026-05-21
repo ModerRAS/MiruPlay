@@ -3,6 +3,7 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$ReportPath,
     [string]$RequiredBackends = "DIRECTML",
+    [switch]$RequireRuntimeManifest,
     [switch]$AllowFailures
 )
 
@@ -47,6 +48,14 @@ function Get-JsonArray {
     return ,@($Value)
 }
 
+function Expand-JsonArray {
+    param($Value)
+    if ($null -eq $Value) {
+        return @()
+    }
+    return @($Value)
+}
+
 $resolvedReportPath = Resolve-FullPath $ReportPath
 if (-not (Test-Path -LiteralPath $resolvedReportPath -PathType Leaf)) {
     throw "RIFE report was not found: $resolvedReportPath"
@@ -69,6 +78,37 @@ Assert-Truthy -Condition (-not [string]::IsNullOrWhiteSpace([string]$report.Clip
 Assert-Truthy -Condition (($report.Clip.Width -as [int]) -gt 0) -Message "Clip.Width must be positive."
 Assert-Truthy -Condition (($report.Clip.Height -as [int]) -gt 0) -Message "Clip.Height must be positive."
 Assert-Truthy -Condition (($report.Clip.Frames -as [int]) -gt 0) -Message "Clip.Frames must be positive."
+
+$runtimeManifestProperty = $report.PSObject.Properties["RuntimeManifest"]
+Assert-Truthy -Condition ($null -ne $runtimeManifestProperty -or -not $RequireRuntimeManifest) -Message "Missing RuntimeManifest evidence."
+if ($null -ne $runtimeManifestProperty) {
+    $runtimeManifest = $runtimeManifestProperty.Value
+    $runtimeManifestPresent = [bool]$runtimeManifest.Present
+    Assert-Truthy -Condition ($runtimeManifestPresent -or -not $RequireRuntimeManifest) -Message "RuntimeManifest.Present must be true."
+    Assert-Truthy -Condition (-not [string]::IsNullOrWhiteSpace([string]$runtimeManifest.Path)) -Message "RuntimeManifest.Path is missing."
+
+    if ($runtimeManifestPresent) {
+        $runtimeManifestProblems = @(
+            Expand-JsonArray $runtimeManifest.Problems |
+                ForEach-Object { [string]$_ } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+        )
+        Assert-Truthy -Condition ($runtimeManifestProblems.Count -eq 0) -Message "RuntimeManifest.Problems must be empty: $($runtimeManifestProblems -join '; ')"
+
+        $manifestBackends = @(
+            Expand-JsonArray $runtimeManifest.RequiredRifeBackends |
+                ForEach-Object { ([string]$_).Trim().ToUpperInvariant() } |
+                Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+                Select-Object -Unique
+        )
+        $unknownManifestBackends = @($manifestBackends | Where-Object { $_ -notin $allowed })
+        Assert-Truthy -Condition ($unknownManifestBackends.Count -eq 0) -Message "RuntimeManifest.RequiredRifeBackends contains unknown backend(s): $($unknownManifestBackends -join ', ')"
+
+        foreach ($backend in $required) {
+            Assert-Truthy -Condition ($backend -in $manifestBackends) -Message "RuntimeManifest.RequiredRifeBackends does not include required backend $backend."
+        }
+    }
+}
 
 Assert-Truthy -Condition ($null -ne $report.Host) -Message "Missing Host diagnostics."
 if ($null -ne $report.Host) {
