@@ -475,6 +475,40 @@ private fun DesktopPlayerStageFocusTarget.transportStep(
     return targets.getOrNull(currentIndex + delta)
 }
 
+internal enum class PlaybackSettingFocusTarget {
+    Fullscreen,
+    KeepOpen,
+    RifeToggle,
+    RifeBackend,
+}
+
+internal fun playbackSettingNavigationTarget(
+    current: PlaybackSettingFocusTarget,
+    key: Key,
+): PlaybackSettingFocusTarget? =
+    when (key) {
+        Key.DirectionLeft -> current.playbackSettingStep(delta = -1)
+        Key.DirectionRight -> current.playbackSettingStep(delta = 1)
+        else -> null
+    }
+
+private fun PlaybackSettingFocusTarget.playbackSettingStep(delta: Int): PlaybackSettingFocusTarget? {
+    val targets = PlaybackSettingFocusTarget.entries
+    val currentIndex = targets.indexOf(this)
+    if (currentIndex < 0) return null
+    return targets.getOrNull(currentIndex + delta)
+}
+
+private fun Modifier.playbackSettingNavigation(
+    target: PlaybackSettingFocusTarget,
+    focusRequester: FocusRequester,
+    onMove: (PlaybackSettingFocusTarget, Key) -> Boolean,
+): Modifier =
+    focusRequester(focusRequester)
+        .onPreviewKeyEvent { event ->
+            event.type == KeyEventType.KeyDown && onMove(target, event.key)
+        }
+
 @Composable
 private fun PlayerStageBottomBar(
     startSeconds: String,
@@ -576,6 +610,14 @@ private fun PlaybackSettingsPanel(
     onRifeBackendChange: (RifeBackend) -> Unit,
 ) {
     val labels = desktopPlaybackUiLabels()
+    val settingFocusRequesters = remember {
+        PlaybackSettingFocusTarget.entries.associateWith { FocusRequester() }
+    }
+    fun movePlaybackSettingFocus(target: PlaybackSettingFocusTarget, key: Key): Boolean {
+        val next = playbackSettingNavigationTarget(target, key) ?: return false
+        settingFocusRequesters.getValue(next).requestFocus()
+        return true
+    }
     TvPanel(Modifier.fillMaxWidth()) {
         Text("播放设置", color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
@@ -590,10 +632,45 @@ private fun PlaybackSettingsPanel(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
         ) {
-            ToggleRow(labels.fullscreen, fullscreen, onFullscreenChange)
-            ToggleRow(labels.keepOpen, keepOpen, onKeepOpenChange)
-            ToggleRow(labels.rife, rifeEnabled, onRifeEnabledChange)
-            RifeBackendPicker(rifeBackend, onSelected = onRifeBackendChange)
+            ToggleRow(
+                labels.fullscreen,
+                fullscreen,
+                onFullscreenChange,
+                modifier = Modifier.playbackSettingNavigation(
+                    target = PlaybackSettingFocusTarget.Fullscreen,
+                    focusRequester = settingFocusRequesters.getValue(PlaybackSettingFocusTarget.Fullscreen),
+                    onMove = ::movePlaybackSettingFocus,
+                ),
+            )
+            ToggleRow(
+                labels.keepOpen,
+                keepOpen,
+                onKeepOpenChange,
+                modifier = Modifier.playbackSettingNavigation(
+                    target = PlaybackSettingFocusTarget.KeepOpen,
+                    focusRequester = settingFocusRequesters.getValue(PlaybackSettingFocusTarget.KeepOpen),
+                    onMove = ::movePlaybackSettingFocus,
+                ),
+            )
+            ToggleRow(
+                labels.rife,
+                rifeEnabled,
+                onRifeEnabledChange,
+                modifier = Modifier.playbackSettingNavigation(
+                    target = PlaybackSettingFocusTarget.RifeToggle,
+                    focusRequester = settingFocusRequesters.getValue(PlaybackSettingFocusTarget.RifeToggle),
+                    onMove = ::movePlaybackSettingFocus,
+                ),
+            )
+            RifeBackendPicker(
+                rifeBackend,
+                onSelected = onRifeBackendChange,
+                modifier = Modifier.playbackSettingNavigation(
+                    target = PlaybackSettingFocusTarget.RifeBackend,
+                    focusRequester = settingFocusRequesters.getValue(PlaybackSettingFocusTarget.RifeBackend),
+                    onMove = ::movePlaybackSettingFocus,
+                ),
+            )
         }
     }
 }

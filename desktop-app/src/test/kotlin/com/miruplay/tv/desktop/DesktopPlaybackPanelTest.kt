@@ -149,6 +149,38 @@ class DesktopPlaybackPanelTest {
     }
 
     @Test
+    fun `desktop player settings toggles move across the TV control row`() {
+        assertEquals(
+            PlaybackSettingFocusTarget.KeepOpen,
+            playbackSettingNavigationTarget(PlaybackSettingFocusTarget.Fullscreen, Key.DirectionRight),
+        )
+        assertEquals(
+            PlaybackSettingFocusTarget.RifeToggle,
+            playbackSettingNavigationTarget(PlaybackSettingFocusTarget.KeepOpen, Key.DirectionRight),
+        )
+        assertEquals(
+            PlaybackSettingFocusTarget.RifeBackend,
+            playbackSettingNavigationTarget(PlaybackSettingFocusTarget.RifeToggle, Key.DirectionRight),
+        )
+        assertEquals(
+            PlaybackSettingFocusTarget.RifeToggle,
+            playbackSettingNavigationTarget(PlaybackSettingFocusTarget.RifeBackend, Key.DirectionLeft),
+        )
+        assertEquals(
+            null,
+            playbackSettingNavigationTarget(PlaybackSettingFocusTarget.Fullscreen, Key.DirectionLeft),
+        )
+        assertEquals(
+            null,
+            playbackSettingNavigationTarget(PlaybackSettingFocusTarget.RifeBackend, Key.DirectionRight),
+        )
+        assertEquals(
+            null,
+            playbackSettingNavigationTarget(PlaybackSettingFocusTarget.KeepOpen, Key.DirectionDown),
+        )
+    }
+
+    @Test
     fun `desktop player status text localizes backend statuses`() {
         assertEquals("mpv 待命。", desktopPlaybackStatusText("mpv is idle."))
         assertEquals("mpv 已启动：pid 1234", desktopPlaybackStatusText("mpv launched: pid 1234"))

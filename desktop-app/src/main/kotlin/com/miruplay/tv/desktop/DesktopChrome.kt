@@ -267,11 +267,12 @@ internal fun ToggleRow(
     label: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(label, color = TextPrimary, fontSize = MiruPlayUiMetrics.ITEM_TITLE_SP.sp, fontWeight = FontWeight.Medium)
         Spacer(Modifier.width(MiruPlayUiMetrics.SMALL_GAP_DP.dp))
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        Switch(checked = checked, onCheckedChange = onCheckedChange, modifier = modifier)
     }
 }
 
@@ -279,12 +280,13 @@ internal fun ToggleRow(
 internal fun RifeBackendPicker(
     selected: RifeBackend,
     onSelected: (RifeBackend) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }
     Box {
         OutlinedButton(
             onClick = { expanded = true },
-            modifier = Modifier
+            modifier = modifier
                 .width(MiruPlayUiMetrics.BACKEND_PICKER_WIDTH_DP.dp)
                 .height(MiruPlayUiMetrics.BACKEND_PICKER_HEIGHT_DP.dp),
         ) {
