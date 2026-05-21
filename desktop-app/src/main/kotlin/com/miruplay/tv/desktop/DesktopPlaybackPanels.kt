@@ -131,6 +131,8 @@ private fun DesktopPlayerStage(
     onStop: () -> Unit,
 ) {
     val title = desktopPlaybackTitle(mediaPath)
+    val backToDetailsFocusRequester = remember { FocusRequester() }
+    val primaryTransportFocusRequester = remember { FocusRequester() }
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -162,6 +164,8 @@ private fun DesktopPlayerStage(
             ),
             isPlayerActive = isPlayerActive,
             onBackToDetails = onBackToDetails,
+            focusRequester = backToDetailsFocusRequester,
+            onFocusTransport = { primaryTransportFocusRequester.requestFocus() },
             modifier = Modifier.align(Alignment.TopCenter),
         )
         PlayerTransportControls(
@@ -171,6 +175,8 @@ private fun DesktopPlayerStage(
             onSeekBack = onSeekBack,
             onSeekForward = onSeekForward,
             onStop = onStop,
+            primaryFocusRequester = primaryTransportFocusRequester,
+            onFocusBackToDetails = { backToDetailsFocusRequester.requestFocus() },
             modifier = Modifier.align(Alignment.Center),
         )
         PlayerStageBottomBar(
@@ -189,6 +195,8 @@ private fun PlayerStageTopBar(
     subtitle: String,
     isPlayerActive: Boolean,
     onBackToDetails: () -> Unit,
+    focusRequester: FocusRequester,
+    onFocusTransport: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -198,7 +206,27 @@ private fun PlayerStageTopBar(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.Top,
     ) {
-        TvActionButton("返回详情", onClick = onBackToDetails, secondary = true, modifier = Modifier.width(132.dp))
+        TvActionButton(
+            "返回详情",
+            onClick = onBackToDetails,
+            secondary = true,
+            modifier = Modifier
+                .width(132.dp)
+                .focusRequester(focusRequester)
+                .onPreviewKeyEvent { event ->
+                    if (event.type != KeyEventType.KeyDown) {
+                        false
+                    } else {
+                        when (desktopPlayerStageNavigationTarget(DesktopPlayerStageFocusTarget.BackToDetails, event.key, isPlayerActive)) {
+                            DesktopPlayerStageFocusTarget.Primary -> {
+                                onFocusTransport()
+                                true
+                            }
+                            else -> false
+                        }
+                    }
+                },
+        )
         Spacer(Modifier.width(18.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
@@ -230,28 +258,26 @@ private fun PlayerTransportControls(
     onSeekBack: () -> Unit,
     onSeekForward: () -> Unit,
     onStop: () -> Unit,
+    primaryFocusRequester: FocusRequester,
+    onFocusBackToDetails: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val actions = remember(isPlayerActive) {
-        listOfNotNull(
-            PlayerTransportAction.SeekBack.takeIf { isPlayerActive },
-            PlayerTransportAction.Primary,
-            PlayerTransportAction.SeekForward.takeIf { isPlayerActive },
-            PlayerTransportAction.Stop.takeIf { isPlayerActive },
-        )
-    }
-    val focusRequesters = remember {
-        PlayerTransportAction.values().associateWith { FocusRequester() }
+    val focusRequesters = remember(primaryFocusRequester) {
+        DesktopPlayerStageFocusTarget.entries.associateWith { target ->
+            if (target == DesktopPlayerStageFocusTarget.Primary) primaryFocusRequester else FocusRequester()
+        }
     }
     LaunchedEffect(isPlayerActive) {
-        focusRequesters.getValue(PlayerTransportAction.Primary).requestFocus()
+        focusRequesters.getValue(DesktopPlayerStageFocusTarget.Primary).requestFocus()
     }
 
-    fun moveFocus(current: PlayerTransportAction, delta: Int): Boolean {
-        val currentIndex = actions.indexOf(current)
-        if (currentIndex < 0) return false
-        val target = actions.getOrNull(currentIndex + delta) ?: return false
-        focusRequesters.getValue(target).requestFocus()
+    fun moveFocus(current: DesktopPlayerStageFocusTarget, key: Key): Boolean {
+        val target = desktopPlayerStageNavigationTarget(current, key, isPlayerActive) ?: return false
+        if (target == DesktopPlayerStageFocusTarget.BackToDetails) {
+            onFocusBackToDetails()
+        } else {
+            focusRequesters.getValue(target).requestFocus()
+        }
         return true
     }
 
@@ -269,31 +295,31 @@ private fun PlayerTransportControls(
             onClick = onSeekBack,
             size = 64.dp,
             enabled = isPlayerActive,
-            onNavigationKey = { key -> key.toTransportDelta()?.let { moveFocus(PlayerTransportAction.SeekBack, it) } ?: false },
-            modifier = Modifier.focusRequester(focusRequesters.getValue(PlayerTransportAction.SeekBack)),
+            onNavigationKey = { key -> moveFocus(DesktopPlayerStageFocusTarget.SeekBack, key) },
+            modifier = Modifier.focusRequester(focusRequesters.getValue(DesktopPlayerStageFocusTarget.SeekBack)),
         )
         PlayerPrimaryButton(
             isPlayerActive = isPlayerActive,
             onLaunch = onLaunch,
             onTogglePause = onTogglePause,
-            onNavigationKey = { key -> key.toTransportDelta()?.let { moveFocus(PlayerTransportAction.Primary, it) } ?: false },
-            modifier = Modifier.focusRequester(focusRequesters.getValue(PlayerTransportAction.Primary)),
+            onNavigationKey = { key -> moveFocus(DesktopPlayerStageFocusTarget.Primary, key) },
+            modifier = Modifier.focusRequester(focusRequesters.getValue(DesktopPlayerStageFocusTarget.Primary)),
         )
         PlayerRoundButton(
             "+30",
             onClick = onSeekForward,
             size = 64.dp,
             enabled = isPlayerActive,
-            onNavigationKey = { key -> key.toTransportDelta()?.let { moveFocus(PlayerTransportAction.SeekForward, it) } ?: false },
-            modifier = Modifier.focusRequester(focusRequesters.getValue(PlayerTransportAction.SeekForward)),
+            onNavigationKey = { key -> moveFocus(DesktopPlayerStageFocusTarget.SeekForward, key) },
+            modifier = Modifier.focusRequester(focusRequesters.getValue(DesktopPlayerStageFocusTarget.SeekForward)),
         )
         PlayerRoundButton(
             "停止",
             onClick = onStop,
             size = 64.dp,
             enabled = isPlayerActive,
-            onNavigationKey = { key -> key.toTransportDelta()?.let { moveFocus(PlayerTransportAction.Stop, it) } ?: false },
-            modifier = Modifier.focusRequester(focusRequesters.getValue(PlayerTransportAction.Stop)),
+            onNavigationKey = { key -> moveFocus(DesktopPlayerStageFocusTarget.Stop, key) },
+            modifier = Modifier.focusRequester(focusRequesters.getValue(DesktopPlayerStageFocusTarget.Stop)),
         )
     }
 }
@@ -410,19 +436,44 @@ private fun PlayerRoundButton(
     }
 }
 
-private enum class PlayerTransportAction {
+internal enum class DesktopPlayerStageFocusTarget {
+    BackToDetails,
     SeekBack,
     Primary,
     SeekForward,
     Stop,
 }
 
-private fun Key.toTransportDelta(): Int? =
-    when (this) {
-        Key.DirectionLeft -> -1
-        Key.DirectionRight -> 1
+internal fun desktopPlayerTransportTargets(isPlayerActive: Boolean): List<DesktopPlayerStageFocusTarget> =
+    listOfNotNull(
+        DesktopPlayerStageFocusTarget.SeekBack.takeIf { isPlayerActive },
+        DesktopPlayerStageFocusTarget.Primary,
+        DesktopPlayerStageFocusTarget.SeekForward.takeIf { isPlayerActive },
+        DesktopPlayerStageFocusTarget.Stop.takeIf { isPlayerActive },
+    )
+
+internal fun desktopPlayerStageNavigationTarget(
+    current: DesktopPlayerStageFocusTarget,
+    key: Key,
+    isPlayerActive: Boolean,
+): DesktopPlayerStageFocusTarget? =
+    when (key) {
+        Key.DirectionUp -> DesktopPlayerStageFocusTarget.BackToDetails.takeIf { current in desktopPlayerTransportTargets(isPlayerActive) }
+        Key.DirectionDown -> DesktopPlayerStageFocusTarget.Primary.takeIf { current == DesktopPlayerStageFocusTarget.BackToDetails }
+        Key.DirectionLeft -> current.transportStep(delta = -1, isPlayerActive = isPlayerActive)
+        Key.DirectionRight -> current.transportStep(delta = 1, isPlayerActive = isPlayerActive)
         else -> null
     }
+
+private fun DesktopPlayerStageFocusTarget.transportStep(
+    delta: Int,
+    isPlayerActive: Boolean,
+): DesktopPlayerStageFocusTarget? {
+    val targets = desktopPlayerTransportTargets(isPlayerActive)
+    val currentIndex = targets.indexOf(this)
+    if (currentIndex < 0) return null
+    return targets.getOrNull(currentIndex + delta)
+}
 
 @Composable
 private fun PlayerStageBottomBar(

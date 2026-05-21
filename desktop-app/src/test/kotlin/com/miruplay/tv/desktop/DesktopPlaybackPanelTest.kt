@@ -1,5 +1,6 @@
 package com.miruplay.tv.desktop
 
+import androidx.compose.ui.input.key.Key
 import com.miruplay.tv.player.mpv.RifeBackend
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -48,6 +49,103 @@ class DesktopPlaybackPanelTest {
         assertTrue(line.contains("远程串流"))
         assertTrue(line.contains("mpv 运行中"))
         assertTrue(line.contains("RIFE DIRECTML"))
+    }
+
+    @Test
+    fun `desktop player stage exposes transport targets for active and idle states`() {
+        assertEquals(
+            listOf(DesktopPlayerStageFocusTarget.Primary),
+            desktopPlayerTransportTargets(isPlayerActive = false),
+        )
+        assertEquals(
+            listOf(
+                DesktopPlayerStageFocusTarget.SeekBack,
+                DesktopPlayerStageFocusTarget.Primary,
+                DesktopPlayerStageFocusTarget.SeekForward,
+                DesktopPlayerStageFocusTarget.Stop,
+            ),
+            desktopPlayerTransportTargets(isPlayerActive = true),
+        )
+    }
+
+    @Test
+    fun `desktop player stage links return action and transport controls vertically`() {
+        assertEquals(
+            DesktopPlayerStageFocusTarget.Primary,
+            desktopPlayerStageNavigationTarget(
+                current = DesktopPlayerStageFocusTarget.BackToDetails,
+                key = Key.DirectionDown,
+                isPlayerActive = false,
+            ),
+        )
+        assertEquals(
+            DesktopPlayerStageFocusTarget.BackToDetails,
+            desktopPlayerStageNavigationTarget(
+                current = DesktopPlayerStageFocusTarget.Primary,
+                key = Key.DirectionUp,
+                isPlayerActive = false,
+            ),
+        )
+        assertEquals(
+            DesktopPlayerStageFocusTarget.BackToDetails,
+            desktopPlayerStageNavigationTarget(
+                current = DesktopPlayerStageFocusTarget.SeekForward,
+                key = Key.DirectionUp,
+                isPlayerActive = true,
+            ),
+        )
+    }
+
+    @Test
+    fun `desktop player stage moves horizontally only inside active transport controls`() {
+        assertEquals(
+            DesktopPlayerStageFocusTarget.SeekBack,
+            desktopPlayerStageNavigationTarget(
+                current = DesktopPlayerStageFocusTarget.Primary,
+                key = Key.DirectionLeft,
+                isPlayerActive = true,
+            ),
+        )
+        assertEquals(
+            DesktopPlayerStageFocusTarget.SeekForward,
+            desktopPlayerStageNavigationTarget(
+                current = DesktopPlayerStageFocusTarget.Primary,
+                key = Key.DirectionRight,
+                isPlayerActive = true,
+            ),
+        )
+        assertEquals(
+            DesktopPlayerStageFocusTarget.Stop,
+            desktopPlayerStageNavigationTarget(
+                current = DesktopPlayerStageFocusTarget.SeekForward,
+                key = Key.DirectionRight,
+                isPlayerActive = true,
+            ),
+        )
+        assertEquals(
+            null,
+            desktopPlayerStageNavigationTarget(
+                current = DesktopPlayerStageFocusTarget.Primary,
+                key = Key.DirectionRight,
+                isPlayerActive = false,
+            ),
+        )
+        assertEquals(
+            null,
+            desktopPlayerStageNavigationTarget(
+                current = DesktopPlayerStageFocusTarget.SeekBack,
+                key = Key.DirectionLeft,
+                isPlayerActive = true,
+            ),
+        )
+        assertEquals(
+            null,
+            desktopPlayerStageNavigationTarget(
+                current = DesktopPlayerStageFocusTarget.Stop,
+                key = Key.DirectionRight,
+                isPlayerActive = true,
+            ),
+        )
     }
 
     @Test
