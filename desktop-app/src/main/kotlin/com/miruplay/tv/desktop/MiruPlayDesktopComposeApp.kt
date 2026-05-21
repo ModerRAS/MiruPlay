@@ -223,7 +223,7 @@ fun main() = application {
     val windowState = rememberWindowState(width = 1280.dp, height = 820.dp)
     Window(
         onCloseRequest = ::exitApplication,
-        title = "MiruPlay Desktop",
+        title = desktopWindowTitle(),
         state = windowState,
     ) {
         LaunchedEffect(Unit) {
@@ -239,6 +239,9 @@ fun main() = application {
         }
     }
 }
+
+internal fun desktopWindowTitle(): String =
+    "MiruPlay 桌面版"
 
 @Composable
 internal fun MiruPlayDesktopComposeApp() {
