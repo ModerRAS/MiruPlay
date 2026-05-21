@@ -192,7 +192,6 @@ class DesktopSettingsPanelTest {
             cloudRssActionFocusTarget(CloudRssAction.ClearScanSource, Key.DirectionDown, subscriptionCount = 2),
         )
         assertNull(cloudRssActionFocusTarget(CloudRssAction.SaveCredentials, Key.DirectionLeft, subscriptionCount = 2))
-        assertNull(cloudRssActionFocusTarget(CloudRssAction.SaveCredentials, Key.DirectionUp, subscriptionCount = 2))
     }
 
     @Test
@@ -265,6 +264,74 @@ class DesktopSettingsPanelTest {
         )
         assertNull(cloudRssFieldFocusTarget(CloudRssField.InboxPath, Key.DirectionUp))
         assertNull(cloudRssFieldFocusTarget(CloudRssField.ProxyPort, Key.DirectionRight))
+    }
+
+    @Test
+    fun `cloud rss credential fields bridge into credential actions`() {
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.Username),
+            cloudRssFieldFocusTarget(CloudRssField.Endpoint, Key.DirectionDown),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.ApiToken),
+            cloudRssFieldFocusTarget(CloudRssField.Username, Key.DirectionDown),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.Password),
+            cloudRssFieldFocusTarget(CloudRssField.ApiToken, Key.DirectionRight),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.Username),
+            cloudRssFieldFocusTarget(CloudRssField.Password, Key.DirectionUp),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.SaveCredentials),
+            cloudRssFieldFocusTarget(CloudRssField.ApiToken, Key.DirectionDown),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.ClearCredentials),
+            cloudRssFieldFocusTarget(CloudRssField.Password, Key.DirectionDown),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.ApiToken),
+            cloudRssActionFocusTarget(CloudRssAction.SaveCredentials, Key.DirectionUp, subscriptionCount = 2),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.Password),
+            cloudRssActionFocusTarget(CloudRssAction.ClearCredentials, Key.DirectionUp, subscriptionCount = 2),
+        )
+        assertNull(cloudRssFieldFocusTarget(CloudRssField.Endpoint, Key.DirectionUp))
+        assertNull(cloudRssFieldFocusTarget(CloudRssField.Endpoint, Key.DirectionRight))
+    }
+
+    @Test
+    fun `cloud rss subscription fields bridge into rss actions`() {
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.SubscriptionUrl),
+            cloudRssFieldFocusTarget(CloudRssField.SubscriptionName, Key.DirectionDown),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.FilterRegex),
+            cloudRssFieldFocusTarget(CloudRssField.SubscriptionUrl, Key.DirectionDown),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Toggle(CloudRssToggle.RssEnabled),
+            cloudRssFieldFocusTarget(CloudRssField.FilterRegex, Key.DirectionDown),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.FilterRegex),
+            cloudRssToggleFocusTarget(CloudRssToggle.RssEnabled, Key.DirectionUp),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.SaveRss),
+            cloudRssToggleFocusTarget(CloudRssToggle.RssEnabled, Key.DirectionDown),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Toggle(CloudRssToggle.RssEnabled),
+            cloudRssActionFocusTarget(CloudRssAction.SaveRss, Key.DirectionUp, subscriptionCount = 0),
+        )
+        assertNull(cloudRssFieldFocusTarget(CloudRssField.SubscriptionName, Key.DirectionUp))
+        assertNull(cloudRssFieldFocusTarget(CloudRssField.SubscriptionUrl, Key.DirectionRight))
     }
 
     @Test

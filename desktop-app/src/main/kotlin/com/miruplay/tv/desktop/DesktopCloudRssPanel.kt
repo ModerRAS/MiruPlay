@@ -397,11 +397,49 @@ private fun CloudRssAutomationContent(
                     badge = if (enabled) labels.enabledBadge else labels.disabledBadge,
                     preview = cloudRssPreview(endpointUrl, fallback = labels.endpointFallback),
                 ) {
-                    LabeledTextField(labels.endpoint, endpointUrl, onValueChange = onEndpointUrlChange)
-                    LabeledTextField(labels.username, username, onValueChange = onUsernameChange)
+                    LabeledTextField(
+                        labels.endpoint,
+                        endpointUrl,
+                        onValueChange = onEndpointUrlChange,
+                        inputModifier = Modifier.cloudRssFieldNavigation(
+                            field = CloudRssField.Endpoint,
+                            focusRequester = fieldFocusRequesters.getValue(CloudRssField.Endpoint),
+                            onMove = ::moveCloudRssFieldFocus,
+                        ),
+                    )
+                    LabeledTextField(
+                        labels.username,
+                        username,
+                        onValueChange = onUsernameChange,
+                        inputModifier = Modifier.cloudRssFieldNavigation(
+                            field = CloudRssField.Username,
+                            focusRequester = fieldFocusRequesters.getValue(CloudRssField.Username),
+                            onMove = ::moveCloudRssFieldFocus,
+                        ),
+                    )
                     Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp)) {
-                        LabeledTextField(labels.apiToken, token, onValueChange = onTokenChange, modifier = Modifier.weight(1f))
-                        LabeledTextField(labels.password, password, onValueChange = onPasswordChange, modifier = Modifier.weight(1f))
+                        LabeledTextField(
+                            labels.apiToken,
+                            token,
+                            onValueChange = onTokenChange,
+                            modifier = Modifier.weight(1f),
+                            inputModifier = Modifier.cloudRssFieldNavigation(
+                                field = CloudRssField.ApiToken,
+                                focusRequester = fieldFocusRequesters.getValue(CloudRssField.ApiToken),
+                                onMove = ::moveCloudRssFieldFocus,
+                            ),
+                        )
+                        LabeledTextField(
+                            labels.password,
+                            password,
+                            onValueChange = onPasswordChange,
+                            modifier = Modifier.weight(1f),
+                            inputModifier = Modifier.cloudRssFieldNavigation(
+                                field = CloudRssField.Password,
+                                focusRequester = fieldFocusRequesters.getValue(CloudRssField.Password),
+                                onMove = ::moveCloudRssFieldFocus,
+                            ),
+                        )
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
                         TvActionButton(
@@ -597,9 +635,36 @@ private fun CloudRssAutomationContent(
                     badge = "${subscriptions.size}",
                     preview = selectedSubscription?.let { rssSubscriptionPreview(it) } ?: labels.rssPreviewFallback,
                 ) {
-                    LabeledTextField(labels.subscriptionName, rssName, onValueChange = onRssNameChange)
-                    LabeledTextField(labels.subscriptionUrl, rssUrl, onValueChange = onRssUrlChange)
-                    LabeledTextField(labels.filterRegex, rssFilter, onValueChange = onRssFilterChange)
+                    LabeledTextField(
+                        labels.subscriptionName,
+                        rssName,
+                        onValueChange = onRssNameChange,
+                        inputModifier = Modifier.cloudRssFieldNavigation(
+                            field = CloudRssField.SubscriptionName,
+                            focusRequester = fieldFocusRequesters.getValue(CloudRssField.SubscriptionName),
+                            onMove = ::moveCloudRssFieldFocus,
+                        ),
+                    )
+                    LabeledTextField(
+                        labels.subscriptionUrl,
+                        rssUrl,
+                        onValueChange = onRssUrlChange,
+                        inputModifier = Modifier.cloudRssFieldNavigation(
+                            field = CloudRssField.SubscriptionUrl,
+                            focusRequester = fieldFocusRequesters.getValue(CloudRssField.SubscriptionUrl),
+                            onMove = ::moveCloudRssFieldFocus,
+                        ),
+                    )
+                    LabeledTextField(
+                        labels.filterRegex,
+                        rssFilter,
+                        onValueChange = onRssFilterChange,
+                        inputModifier = Modifier.cloudRssFieldNavigation(
+                            field = CloudRssField.FilterRegex,
+                            focusRequester = fieldFocusRequesters.getValue(CloudRssField.FilterRegex),
+                            onMove = ::moveCloudRssFieldFocus,
+                        ),
+                    )
                     Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp)) {
                         ToggleRow(
                             labels.enabledToggle,
@@ -767,11 +832,18 @@ internal enum class CloudRssToggle {
 }
 
 internal enum class CloudRssField {
+    Endpoint,
+    Username,
+    ApiToken,
+    Password,
     InboxPath,
     LibraryPath,
     IntervalMinutes,
     ProxyHost,
     ProxyPort,
+    SubscriptionName,
+    SubscriptionUrl,
+    FilterRegex,
 }
 
 internal sealed interface CloudRssFocusTarget {
@@ -821,7 +893,7 @@ internal fun cloudRssToggleFocusTarget(
         Key.DirectionUp -> when (current) {
             CloudRssToggle.SyncEnabled -> CloudRssFocusTarget.Field(CloudRssField.IntervalMinutes)
             CloudRssToggle.ProxyEnabled -> CloudRssFocusTarget.Field(CloudRssField.ProxyHost)
-            CloudRssToggle.RssEnabled -> null
+            CloudRssToggle.RssEnabled -> CloudRssFocusTarget.Field(CloudRssField.FilterRegex)
         }
         Key.DirectionDown -> when (current) {
             CloudRssToggle.SyncEnabled -> CloudRssFocusTarget.Action(CloudRssAction.UseActiveSource)
@@ -853,19 +925,31 @@ internal fun cloudRssFieldFocusTarget(
         Key.DirectionLeft -> cloudRssHorizontalField(current, -1)?.let(CloudRssFocusTarget::Field)
         Key.DirectionRight -> cloudRssHorizontalField(current, 1)?.let(CloudRssFocusTarget::Field)
         Key.DirectionUp -> when (current) {
+            CloudRssField.Username -> CloudRssFocusTarget.Field(CloudRssField.Endpoint)
+            CloudRssField.ApiToken -> CloudRssFocusTarget.Field(CloudRssField.Username)
+            CloudRssField.Password -> CloudRssFocusTarget.Field(CloudRssField.Username)
             CloudRssField.IntervalMinutes -> CloudRssFocusTarget.Field(CloudRssField.InboxPath)
             CloudRssField.ProxyHost,
             CloudRssField.ProxyPort,
             -> CloudRssFocusTarget.Field(CloudRssField.LibraryPath)
+            CloudRssField.SubscriptionUrl -> CloudRssFocusTarget.Field(CloudRssField.SubscriptionName)
+            CloudRssField.FilterRegex -> CloudRssFocusTarget.Field(CloudRssField.SubscriptionUrl)
             else -> null
         }
         Key.DirectionDown -> when (current) {
+            CloudRssField.Endpoint -> CloudRssFocusTarget.Field(CloudRssField.Username)
+            CloudRssField.Username -> CloudRssFocusTarget.Field(CloudRssField.ApiToken)
+            CloudRssField.ApiToken -> CloudRssFocusTarget.Action(CloudRssAction.SaveCredentials)
+            CloudRssField.Password -> CloudRssFocusTarget.Action(CloudRssAction.ClearCredentials)
             CloudRssField.InboxPath -> CloudRssFocusTarget.Field(CloudRssField.IntervalMinutes)
             CloudRssField.LibraryPath -> CloudRssFocusTarget.Field(CloudRssField.ProxyHost)
             CloudRssField.IntervalMinutes -> CloudRssFocusTarget.Toggle(CloudRssToggle.SyncEnabled)
             CloudRssField.ProxyHost,
             CloudRssField.ProxyPort,
             -> CloudRssFocusTarget.Toggle(CloudRssToggle.ProxyEnabled)
+            CloudRssField.SubscriptionName -> CloudRssFocusTarget.Field(CloudRssField.SubscriptionUrl)
+            CloudRssField.SubscriptionUrl -> CloudRssFocusTarget.Field(CloudRssField.FilterRegex)
+            CloudRssField.FilterRegex -> CloudRssFocusTarget.Toggle(CloudRssToggle.RssEnabled)
         }
         else -> null
     }
@@ -875,6 +959,11 @@ private fun cloudRssHorizontalField(
     delta: Int,
 ): CloudRssField? {
     val row = when (current) {
+        CloudRssField.Endpoint -> listOf(CloudRssField.Endpoint)
+        CloudRssField.Username -> listOf(CloudRssField.Username)
+        CloudRssField.ApiToken,
+        CloudRssField.Password,
+        -> listOf(CloudRssField.ApiToken, CloudRssField.Password)
         CloudRssField.InboxPath,
         CloudRssField.LibraryPath,
         -> listOf(CloudRssField.InboxPath, CloudRssField.LibraryPath)
@@ -882,6 +971,9 @@ private fun cloudRssHorizontalField(
         CloudRssField.ProxyHost,
         CloudRssField.ProxyPort,
         -> listOf(CloudRssField.IntervalMinutes, CloudRssField.ProxyHost, CloudRssField.ProxyPort)
+        CloudRssField.SubscriptionName -> listOf(CloudRssField.SubscriptionName)
+        CloudRssField.SubscriptionUrl -> listOf(CloudRssField.SubscriptionUrl)
+        CloudRssField.FilterRegex -> listOf(CloudRssField.FilterRegex)
     }
     val targetIndex = row.indexOf(current) + delta
     return row.getOrNull(targetIndex)
@@ -960,6 +1052,8 @@ private fun cloudRssActionUpTarget(
     subscriptionCount: Int,
 ): CloudRssFocusTarget? =
     when (current) {
+        CloudRssAction.SaveCredentials -> CloudRssFocusTarget.Field(CloudRssField.ApiToken)
+        CloudRssAction.ClearCredentials -> CloudRssFocusTarget.Field(CloudRssField.Password)
         CloudRssAction.LoginCloudDrive -> CloudRssFocusTarget.Action(CloudRssAction.SaveCredentials)
         CloudRssAction.VerifyApiToken -> CloudRssFocusTarget.Action(CloudRssAction.ClearCredentials)
         CloudRssAction.UseActiveSource -> CloudRssFocusTarget.Toggle(CloudRssToggle.SyncEnabled)
