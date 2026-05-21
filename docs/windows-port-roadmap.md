@@ -73,6 +73,7 @@ The port is complete only when all of these are proven by current evidence:
 - [x] Localize Windows source-management controls and saved-source type labels to TV-facing Chinese copy.
 - [x] Localize Windows Library/source-management status messages to TV-facing Chinese copy.
 - [x] Localize Windows Cloud/RSS settings labels, previews, empty states, and status copy to TV-facing Chinese.
+- [x] Localize Windows route rail subtitle, playback poster placeholder, and Settings page references to TV-facing Chinese copy.
 - [x] Add unit coverage for saved-source card keyboard/DPAD navigation.
 - [x] Add Windows GUI smoke coverage for saved-source card keyboard/DPAD navigation.
 - [x] Rework the Windows WebDAV/SMB source setup into TV-style remote source cards with compact endpoint/path previews.
