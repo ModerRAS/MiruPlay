@@ -137,4 +137,131 @@ class DesktopPosterGroupingTest {
         assertNull(groups.posterShelfNavigationTarget(currentIndex = 3, key = Key.DirectionRight))
         assertNull(groups.posterShelfNavigationTarget(currentIndex = 1, key = Key.DirectionDown))
     }
+
+    @Test
+    fun `library media focus moves from poster wall into lower shelves`() {
+        assertEquals(
+            LibraryMediaFocusTarget.Featured(0),
+            libraryMediaFocusTarget(
+                current = LibraryMediaFocusTarget.PosterWall(6),
+                key = Key.DirectionDown,
+                posterCount = 8,
+                featuredCount = 2,
+                recentlyAddedCount = 4,
+                columns = 6,
+            ),
+        )
+        assertEquals(
+            LibraryMediaFocusTarget.Featured(1),
+            libraryMediaFocusTarget(
+                current = LibraryMediaFocusTarget.PosterWall(7),
+                key = Key.DirectionDown,
+                posterCount = 8,
+                featuredCount = 2,
+                recentlyAddedCount = 4,
+                columns = 6,
+            ),
+        )
+        assertEquals(
+            LibraryMediaFocusTarget.RecentlyAdded(1),
+            libraryMediaFocusTarget(
+                current = LibraryMediaFocusTarget.PosterWall(7),
+                key = Key.DirectionDown,
+                posterCount = 8,
+                featuredCount = 0,
+                recentlyAddedCount = 4,
+                columns = 6,
+            ),
+        )
+        assertNull(
+            libraryMediaFocusTarget(
+                current = LibraryMediaFocusTarget.PosterWall(7),
+                key = Key.DirectionDown,
+                posterCount = 8,
+                featuredCount = 0,
+                recentlyAddedCount = 0,
+                columns = 6,
+            ),
+        )
+    }
+
+    @Test
+    fun `library media focus moves between featured and recently added shelves`() {
+        assertEquals(
+            LibraryMediaFocusTarget.PosterWall(1),
+            libraryMediaFocusTarget(
+                current = LibraryMediaFocusTarget.Featured(1),
+                key = Key.DirectionUp,
+                posterCount = 8,
+                featuredCount = 2,
+                recentlyAddedCount = 4,
+                columns = 6,
+            ),
+        )
+        assertEquals(
+            LibraryMediaFocusTarget.RecentlyAdded(1),
+            libraryMediaFocusTarget(
+                current = LibraryMediaFocusTarget.Featured(1),
+                key = Key.DirectionDown,
+                posterCount = 8,
+                featuredCount = 2,
+                recentlyAddedCount = 4,
+                columns = 6,
+            ),
+        )
+        assertEquals(
+            LibraryMediaFocusTarget.Featured(1),
+            libraryMediaFocusTarget(
+                current = LibraryMediaFocusTarget.Featured(0),
+                key = Key.DirectionRight,
+                posterCount = 8,
+                featuredCount = 2,
+                recentlyAddedCount = 4,
+                columns = 6,
+            ),
+        )
+        assertEquals(
+            LibraryMediaFocusTarget.RecentlyAdded(2),
+            libraryMediaFocusTarget(
+                current = LibraryMediaFocusTarget.RecentlyAdded(3),
+                key = Key.DirectionLeft,
+                posterCount = 8,
+                featuredCount = 2,
+                recentlyAddedCount = 4,
+                columns = 6,
+            ),
+        )
+        assertEquals(
+            LibraryMediaFocusTarget.Featured(1),
+            libraryMediaFocusTarget(
+                current = LibraryMediaFocusTarget.RecentlyAdded(3),
+                key = Key.DirectionUp,
+                posterCount = 8,
+                featuredCount = 2,
+                recentlyAddedCount = 4,
+                columns = 6,
+            ),
+        )
+        assertEquals(
+            LibraryMediaFocusTarget.PosterWall(3),
+            libraryMediaFocusTarget(
+                current = LibraryMediaFocusTarget.RecentlyAdded(3),
+                key = Key.DirectionUp,
+                posterCount = 8,
+                featuredCount = 0,
+                recentlyAddedCount = 4,
+                columns = 6,
+            ),
+        )
+        assertNull(
+            libraryMediaFocusTarget(
+                current = LibraryMediaFocusTarget.RecentlyAdded(3),
+                key = Key.DirectionDown,
+                posterCount = 8,
+                featuredCount = 2,
+                recentlyAddedCount = 4,
+                columns = 6,
+            ),
+        )
+    }
 }
