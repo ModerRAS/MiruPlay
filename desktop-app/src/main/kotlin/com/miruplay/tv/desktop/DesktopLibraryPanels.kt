@@ -108,21 +108,61 @@ internal fun LibraryPanel(
         } else {
             val featuredGroups = remember(posterGroups) { posterGroups.toFeaturedPosterGroups() }
             val recentlyAddedGroups = remember(posterGroups) { posterGroups.toRecentlyAddedPosterGroups() }
+            var posterWallFocusVersion by remember { mutableIntStateOf(0) }
+            var posterWallFocusIndex by remember { mutableIntStateOf(0) }
+            var featuredFocusVersion by remember { mutableIntStateOf(0) }
+            var featuredFocusIndex by remember { mutableIntStateOf(0) }
+            var recentlyAddedFocusVersion by remember { mutableIntStateOf(0) }
+            var recentlyAddedFocusIndex by remember { mutableIntStateOf(0) }
+
+            fun requestLibraryMediaFocus(target: LibraryMediaFocusTarget): Boolean {
+                return when (target) {
+                    is LibraryMediaFocusTarget.PosterWall -> {
+                        val group = posterGroups.getOrNull(target.index) ?: return false
+                        posterWallFocusIndex = target.index
+                        posterWallFocusVersion += 1
+                        onEntryFocused(group.primaryEntry)
+                        true
+                    }
+                    is LibraryMediaFocusTarget.Featured -> {
+                        if (target.index !in featuredGroups.indices) return false
+                        featuredFocusIndex = target.index
+                        featuredFocusVersion += 1
+                        true
+                    }
+                    is LibraryMediaFocusTarget.RecentlyAdded -> {
+                        if (target.index !in recentlyAddedGroups.indices) return false
+                        recentlyAddedFocusIndex = target.index
+                        recentlyAddedFocusVersion += 1
+                        true
+                    }
+                }
+            }
 
             PosterSectionHeader(title = "海报墙", trailing = "已收录 ${posterGroups.size} 部")
             PosterWall(
                 groups = posterGroups,
+                featuredCount = featuredGroups.size,
+                recentlyAddedCount = recentlyAddedGroups.size,
                 selectedEntry = selectedEntry,
+                focusVersion = posterWallFocusVersion,
+                focusIndex = posterWallFocusIndex,
                 onEntryFocused = onEntryFocused,
                 onEntrySelected = onEntrySelected,
+                onMediaFocusTarget = ::requestLibraryMediaFocus,
             )
 
             if (featuredGroups.isNotEmpty()) {
                 PosterSectionHeader(title = "最高热度")
                 FeaturedPosterShelf(
                     groups = featuredGroups,
+                    posterCount = posterGroups.size,
+                    recentlyAddedCount = recentlyAddedGroups.size,
                     selectedEntry = selectedEntry,
+                    focusVersion = featuredFocusVersion,
+                    focusIndex = featuredFocusIndex,
                     onEntrySelected = onEntrySelected,
+                    onMediaFocusTarget = ::requestLibraryMediaFocus,
                 )
             }
 
@@ -130,8 +170,13 @@ internal fun LibraryPanel(
                 PosterSectionHeader(title = "最近添加")
                 PosterCardShelf(
                     groups = recentlyAddedGroups,
+                    posterCount = posterGroups.size,
+                    featuredCount = featuredGroups.size,
                     selectedEntry = selectedEntry,
+                    focusVersion = recentlyAddedFocusVersion,
+                    focusIndex = recentlyAddedFocusIndex,
                     onEntrySelected = onEntrySelected,
+                    onMediaFocusTarget = ::requestLibraryMediaFocus,
                 )
             }
 
@@ -649,9 +694,14 @@ private fun PosterSectionHeader(
 @Composable
 private fun PosterWall(
     groups: List<DesktopPosterGroup>,
+    featuredCount: Int,
+    recentlyAddedCount: Int,
     selectedEntry: MediaIndexEntry?,
+    focusVersion: Int = 0,
+    focusIndex: Int = 0,
     onEntryFocused: (MediaIndexEntry) -> Unit,
     onEntrySelected: (MediaIndexEntry) -> Unit,
+    onMediaFocusTarget: (LibraryMediaFocusTarget) -> Boolean = { false },
 ) {
     val focusRequesters = remember(groups) {
         groups.associate { it.primaryEntry.path to FocusRequester() }
@@ -663,6 +713,13 @@ private fun PosterWall(
         val focusTarget = selectedGroup ?: groups.firstOrNull()
         focusTarget?.let { group ->
             focusRequesters[group.primaryEntry.path]?.requestFocus()
+        }
+    }
+    LaunchedEffect(focusVersion) {
+        if (focusVersion > 0) {
+            groups.getOrNull(focusIndex)?.let { group ->
+                focusRequesters[group.primaryEntry.path]?.requestFocus()
+            }
         }
     }
 
@@ -679,10 +736,25 @@ private fun PosterWall(
                         selected = selectedEntry?.path?.let { it in group.entryPaths } == true,
                         onClick = { onEntrySelected(group.primaryEntry) },
                         onNavigationKey = { key ->
-                            groups.posterNavigationTarget(groupIndex, key)?.let { target ->
-                                onEntryFocused(target.primaryEntry)
-                                true
-                            } ?: false
+                            val target = libraryMediaFocusTarget(
+                                current = LibraryMediaFocusTarget.PosterWall(groupIndex),
+                                key = key,
+                                posterCount = groups.size,
+                                featuredCount = featuredCount,
+                                recentlyAddedCount = recentlyAddedCount,
+                            )
+                            when (target) {
+                                is LibraryMediaFocusTarget.PosterWall -> {
+                                    val targetGroup = groups[target.index]
+                                    onEntryFocused(targetGroup.primaryEntry)
+                                    focusRequesters.getValue(targetGroup.primaryEntry.path).requestFocus()
+                                    true
+                                }
+                                is LibraryMediaFocusTarget.Featured,
+                                is LibraryMediaFocusTarget.RecentlyAdded,
+                                -> onMediaFocusTarget(target)
+                                null -> false
+                            }
                         },
                         modifier = Modifier.focusRequester(focusRequesters.getValue(group.primaryEntry.path)),
                     )
@@ -695,11 +767,23 @@ private fun PosterWall(
 @Composable
 private fun FeaturedPosterShelf(
     groups: List<DesktopPosterGroup>,
+    posterCount: Int,
+    recentlyAddedCount: Int,
     selectedEntry: MediaIndexEntry?,
+    focusVersion: Int = 0,
+    focusIndex: Int = 0,
     onEntrySelected: (MediaIndexEntry) -> Unit,
+    onMediaFocusTarget: (LibraryMediaFocusTarget) -> Boolean = { false },
 ) {
     val focusRequesters = remember(groups) {
         groups.associate { it.primaryEntry.path to FocusRequester() }
+    }
+    LaunchedEffect(focusVersion) {
+        if (focusVersion > 0) {
+            groups.getOrNull(focusIndex)?.let { group ->
+                focusRequesters[group.primaryEntry.path]?.requestFocus()
+            }
+        }
     }
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -711,10 +795,24 @@ private fun FeaturedPosterShelf(
                 selected = selectedEntry?.path?.let { it in group.entryPaths } == true,
                 onClick = { onEntrySelected(group.primaryEntry) },
                 onNavigationKey = { key ->
-                    groups.posterShelfNavigationTarget(index, key)?.let { target ->
-                        focusRequesters.getValue(target.primaryEntry.path).requestFocus()
-                        true
-                    } ?: false
+                    val target = libraryMediaFocusTarget(
+                        current = LibraryMediaFocusTarget.Featured(index),
+                        key = key,
+                        posterCount = posterCount,
+                        featuredCount = groups.size,
+                        recentlyAddedCount = recentlyAddedCount,
+                    )
+                    when (target) {
+                        is LibraryMediaFocusTarget.Featured -> {
+                            val targetGroup = groups[target.index]
+                            focusRequesters.getValue(targetGroup.primaryEntry.path).requestFocus()
+                            true
+                        }
+                        is LibraryMediaFocusTarget.PosterWall,
+                        is LibraryMediaFocusTarget.RecentlyAdded,
+                        -> onMediaFocusTarget(target)
+                        null -> false
+                    }
                 },
                 modifier = Modifier
                     .weight(1f)
@@ -730,11 +828,23 @@ private fun FeaturedPosterShelf(
 @Composable
 private fun PosterCardShelf(
     groups: List<DesktopPosterGroup>,
+    posterCount: Int,
+    featuredCount: Int,
     selectedEntry: MediaIndexEntry?,
+    focusVersion: Int = 0,
+    focusIndex: Int = 0,
     onEntrySelected: (MediaIndexEntry) -> Unit,
+    onMediaFocusTarget: (LibraryMediaFocusTarget) -> Boolean = { false },
 ) {
     val focusRequesters = remember(groups) {
         groups.associate { it.primaryEntry.path to FocusRequester() }
+    }
+    LaunchedEffect(focusVersion) {
+        if (focusVersion > 0) {
+            groups.getOrNull(focusIndex)?.let { group ->
+                focusRequesters[group.primaryEntry.path]?.requestFocus()
+            }
+        }
     }
     Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         groups.forEachIndexed { index, group ->
@@ -743,10 +853,24 @@ private fun PosterCardShelf(
                 selected = selectedEntry?.path?.let { it in group.entryPaths } == true,
                 onClick = { onEntrySelected(group.primaryEntry) },
                 onNavigationKey = { key ->
-                    groups.posterShelfNavigationTarget(index, key)?.let { target ->
-                        focusRequesters.getValue(target.primaryEntry.path).requestFocus()
-                        true
-                    } ?: false
+                    val target = libraryMediaFocusTarget(
+                        current = LibraryMediaFocusTarget.RecentlyAdded(index),
+                        key = key,
+                        posterCount = posterCount,
+                        featuredCount = featuredCount,
+                        recentlyAddedCount = groups.size,
+                    )
+                    when (target) {
+                        is LibraryMediaFocusTarget.RecentlyAdded -> {
+                            val targetGroup = groups[target.index]
+                            focusRequesters.getValue(targetGroup.primaryEntry.path).requestFocus()
+                            true
+                        }
+                        is LibraryMediaFocusTarget.PosterWall,
+                        is LibraryMediaFocusTarget.Featured,
+                        -> onMediaFocusTarget(target)
+                        null -> false
+                    }
                 },
                 modifier = Modifier.focusRequester(focusRequesters.getValue(group.primaryEntry.path)),
             )
@@ -996,6 +1120,12 @@ internal fun List<DesktopPosterGroup>.toRecentlyAddedPosterGroups(limit: Int = 4
             .thenBy { it.title.lowercase() },
     ).take(limit.coerceAtLeast(0))
 
+internal sealed interface LibraryMediaFocusTarget {
+    data class PosterWall(val index: Int) : LibraryMediaFocusTarget
+    data class Featured(val index: Int) : LibraryMediaFocusTarget
+    data class RecentlyAdded(val index: Int) : LibraryMediaFocusTarget
+}
+
 internal fun List<DesktopPosterGroup>.posterShelfNavigationTarget(
     currentIndex: Int,
     key: Key,
@@ -1007,6 +1137,101 @@ internal fun List<DesktopPosterGroup>.posterShelfNavigationTarget(
         else -> null
     } ?: return null
     return getOrNull(targetIndex)
+}
+
+internal fun libraryMediaFocusTarget(
+    current: LibraryMediaFocusTarget,
+    key: Key,
+    posterCount: Int,
+    featuredCount: Int,
+    recentlyAddedCount: Int,
+    columns: Int = POSTER_WALL_COLUMNS,
+): LibraryMediaFocusTarget? =
+    when (current) {
+        is LibraryMediaFocusTarget.PosterWall -> posterWallMediaFocusTarget(
+            currentIndex = current.index,
+            key = key,
+            posterCount = posterCount,
+            featuredCount = featuredCount,
+            recentlyAddedCount = recentlyAddedCount,
+            columns = columns,
+        )
+        is LibraryMediaFocusTarget.Featured -> posterShelfMediaFocusTarget(
+            currentIndex = current.index,
+            key = key,
+            shelfCount = featuredCount,
+            previousCount = posterCount,
+            nextCount = recentlyAddedCount,
+            previousFactory = LibraryMediaFocusTarget::PosterWall,
+            currentFactory = LibraryMediaFocusTarget::Featured,
+            nextFactory = LibraryMediaFocusTarget::RecentlyAdded,
+        )
+        is LibraryMediaFocusTarget.RecentlyAdded -> posterShelfMediaFocusTarget(
+            currentIndex = current.index,
+            key = key,
+            shelfCount = recentlyAddedCount,
+            previousCount = featuredCount.takeIf { it > 0 } ?: posterCount,
+            nextCount = 0,
+            previousFactory = if (featuredCount > 0) {
+                LibraryMediaFocusTarget::Featured
+            } else {
+                LibraryMediaFocusTarget::PosterWall
+            },
+            currentFactory = LibraryMediaFocusTarget::RecentlyAdded,
+            nextFactory = { null },
+        )
+    }
+
+private fun posterWallMediaFocusTarget(
+    currentIndex: Int,
+    key: Key,
+    posterCount: Int,
+    featuredCount: Int,
+    recentlyAddedCount: Int,
+    columns: Int,
+): LibraryMediaFocusTarget? {
+    if (currentIndex !in 0 until posterCount) return null
+    val safeColumns = columns.coerceAtLeast(1)
+    val currentColumn = currentIndex % safeColumns
+    val targetIndex = when (key) {
+        Key.DirectionRight -> if (currentColumn == safeColumns - 1) null else currentIndex + 1
+        Key.DirectionLeft -> if (currentColumn == 0) null else currentIndex - 1
+        Key.DirectionUp -> currentIndex - safeColumns
+        Key.DirectionDown -> {
+            val nextRowStart = ((currentIndex / safeColumns) + 1) * safeColumns
+            if (nextRowStart in 0 until posterCount) {
+                minOf(nextRowStart + currentColumn, posterCount - 1)
+            } else {
+                return when {
+                    featuredCount > 0 -> LibraryMediaFocusTarget.Featured(currentColumn.coerceAtMost(featuredCount - 1))
+                    recentlyAddedCount > 0 -> LibraryMediaFocusTarget.RecentlyAdded(currentColumn.coerceAtMost(recentlyAddedCount - 1))
+                    else -> null
+                }
+            }
+        }
+        else -> null
+    } ?: return null
+    return LibraryMediaFocusTarget.PosterWall(targetIndex).takeIf { targetIndex in 0 until posterCount }
+}
+
+private fun posterShelfMediaFocusTarget(
+    currentIndex: Int,
+    key: Key,
+    shelfCount: Int,
+    previousCount: Int,
+    nextCount: Int,
+    previousFactory: (Int) -> LibraryMediaFocusTarget,
+    currentFactory: (Int) -> LibraryMediaFocusTarget,
+    nextFactory: (Int) -> LibraryMediaFocusTarget?,
+): LibraryMediaFocusTarget? {
+    if (currentIndex !in 0 until shelfCount) return null
+    return when (key) {
+        Key.DirectionRight -> currentFactory(currentIndex + 1).takeIf { currentIndex + 1 < shelfCount }
+        Key.DirectionLeft -> currentFactory(currentIndex - 1).takeIf { currentIndex > 0 }
+        Key.DirectionUp -> previousFactory(currentIndex.coerceAtMost(previousCount - 1)).takeIf { previousCount > 0 }
+        Key.DirectionDown -> nextFactory(currentIndex.coerceAtMost(nextCount - 1)).takeIf { nextCount > 0 }
+        else -> null
+    }
 }
 
 internal fun List<DesktopPosterGroup>.posterNavigationTarget(
