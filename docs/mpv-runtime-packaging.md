@@ -248,11 +248,14 @@ For a real VapourSynth/RIFE filter smoke, run:
 
 For target-host evidence that can be attached to release QA, add `-ReportPath`.
 The JSON report records the runtime path, mpv version, generated clip shape,
-backend results, per-backend log paths, `runtime-manifest.json` evidence,
+backend results, per-backend script/log paths, `runtime-manifest.json` evidence,
 Windows version, CPU, detected video controllers, and `nvidia-smi` output when
 available. Manifest evidence includes whether the file was present, declared
 RIFE backends, declared package-relative files/directories, and any manifest
-problems found while reading the target runtime:
+problems found while reading the target runtime. The assertion script verifies
+that the target-host runtime, mpv executable, config directory, generated clip,
+manifest file, and each passing backend's RIFE script/log files still exist, so
+release QA can attach the JSON report beside the concrete runtime evidence:
 
 ```powershell
 .\tools\smoke-mpv-rife.ps1 `
