@@ -196,6 +196,40 @@ class DesktopSettingsPanelTest {
     }
 
     @Test
+    fun `cloud rss toggles bridge into action rows`() {
+        assertEquals(
+            CloudRssFocusTarget.Toggle(CloudRssToggle.ProxyEnabled),
+            cloudRssToggleFocusTarget(CloudRssToggle.SyncEnabled, Key.DirectionRight),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Toggle(CloudRssToggle.SyncEnabled),
+            cloudRssToggleFocusTarget(CloudRssToggle.ProxyEnabled, Key.DirectionLeft),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.UseActiveSource),
+            cloudRssToggleFocusTarget(CloudRssToggle.SyncEnabled, Key.DirectionDown),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.ClearScanSource),
+            cloudRssToggleFocusTarget(CloudRssToggle.ProxyEnabled, Key.DirectionDown),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.SaveRss),
+            cloudRssToggleFocusTarget(CloudRssToggle.RssEnabled, Key.DirectionDown),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Toggle(CloudRssToggle.SyncEnabled),
+            cloudRssActionFocusTarget(CloudRssAction.UseActiveSource, Key.DirectionUp, subscriptionCount = 2),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Toggle(CloudRssToggle.RssEnabled),
+            cloudRssActionFocusTarget(CloudRssAction.DeleteRss, Key.DirectionUp, subscriptionCount = 2),
+        )
+        assertNull(cloudRssToggleFocusTarget(CloudRssToggle.SyncEnabled, Key.DirectionLeft))
+        assertNull(cloudRssToggleFocusTarget(CloudRssToggle.RssEnabled, Key.DirectionRight))
+    }
+
+    @Test
     fun `cloud rss rss and scheduler focus bridge through saved subscription rows`() {
         assertEquals(
             CloudRssFocusTarget.Subscription(0),
