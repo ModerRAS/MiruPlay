@@ -489,6 +489,38 @@ class DesktopSettingsPanelTest {
     }
 
     @Test
+    fun `cloud rss scheduler actions move like a TV remote row`() {
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.StopScheduler),
+            cloudRssActionFocusTarget(CloudRssAction.StartScheduler, Key.DirectionRight, subscriptionCount = 2),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.StartScheduler),
+            cloudRssActionFocusTarget(CloudRssAction.StopScheduler, Key.DirectionLeft, subscriptionCount = 2),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Subscription(1),
+            cloudRssActionFocusTarget(CloudRssAction.StartScheduler, Key.DirectionUp, subscriptionCount = 2),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Subscription(1),
+            cloudRssActionFocusTarget(CloudRssAction.StopScheduler, Key.DirectionUp, subscriptionCount = 2),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.SaveRss),
+            cloudRssActionFocusTarget(CloudRssAction.StartScheduler, Key.DirectionUp, subscriptionCount = 0),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.DeleteRss),
+            cloudRssActionFocusTarget(CloudRssAction.StopScheduler, Key.DirectionUp, subscriptionCount = 0),
+        )
+        assertNull(cloudRssActionFocusTarget(CloudRssAction.StartScheduler, Key.DirectionLeft, subscriptionCount = 2))
+        assertNull(cloudRssActionFocusTarget(CloudRssAction.StopScheduler, Key.DirectionRight, subscriptionCount = 2))
+        assertNull(cloudRssActionFocusTarget(CloudRssAction.StartScheduler, Key.DirectionDown, subscriptionCount = 2))
+        assertNull(cloudRssActionFocusTarget(CloudRssAction.StopScheduler, Key.DirectionDown, subscriptionCount = 2))
+    }
+
+    @Test
     fun `settings category navigation stops at TV list edges`() {
         assertNull(DesktopSettingsSection.Sources.step(-1))
         assertEquals(DesktopSettingsSection.Playback, DesktopSettingsSection.Sources.step(1))

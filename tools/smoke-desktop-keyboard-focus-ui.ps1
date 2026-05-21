@@ -378,6 +378,8 @@ $sourceScreenshotPath = Join-Path $runDir "keyboard-settings-sources.png"
 $cloudScreenshotPath = Join-Path $runDir "keyboard-settings-cloud.png"
 $rssFirstScreenshotPath = Join-Path $runDir "keyboard-settings-rss-first.png"
 $rssSecondScreenshotPath = Join-Path $runDir "keyboard-settings-rss-second.png"
+$schedulerStartedScreenshotPath = Join-Path $runDir "keyboard-settings-scheduler-started.png"
+$schedulerStoppedScreenshotPath = Join-Path $runDir "keyboard-settings-scheduler-stopped.png"
 $navDetailsScreenshotPath = Join-Path $runDir "keyboard-nav-details.png"
 $navPlayerScreenshotPath = Join-Path $runDir "keyboard-nav-player.png"
 $navBackDetailsScreenshotPath = Join-Path $runDir "keyboard-back-details.png"
@@ -407,6 +409,16 @@ try {
     Send-DesktopKey -Process $windowProcess -Key "{DOWN}"
     Save-WindowScreenshot -Process $windowProcess -Path $rssSecondScreenshotPath
     Assert-ContentRegionChanged -BeforePath $rssFirstScreenshotPath -AfterPath $rssSecondScreenshotPath -MinimumChangedRatio 0.01
+
+    Send-DesktopKey -Process $windowProcess -Key "{DOWN}"
+    Send-DesktopKey -Process $windowProcess -Key "{ENTER}"
+    Save-WindowScreenshot -Process $windowProcess -Path $schedulerStartedScreenshotPath
+    Assert-ContentRegionChanged -BeforePath $rssSecondScreenshotPath -AfterPath $schedulerStartedScreenshotPath -MinimumChangedRatio 0.002
+
+    Send-DesktopKey -Process $windowProcess -Key "{RIGHT}"
+    Send-DesktopKey -Process $windowProcess -Key "{ENTER}"
+    Save-WindowScreenshot -Process $windowProcess -Path $schedulerStoppedScreenshotPath
+    Assert-ContentRegionChanged -BeforePath $schedulerStartedScreenshotPath -AfterPath $schedulerStoppedScreenshotPath -MinimumChangedRatio 0.002
 
     Invoke-RelativeClick -Process $windowProcess -X 170 -Y 286
     Save-WindowScreenshot -Process $windowProcess -Path $navDetailsScreenshotPath
@@ -444,6 +456,8 @@ Write-Output "Sources screenshot: $sourceScreenshotPath"
 Write-Output "CloudDrive screenshot: $cloudScreenshotPath"
 Write-Output "RSS first subscription screenshot: $rssFirstScreenshotPath"
 Write-Output "RSS second subscription screenshot: $rssSecondScreenshotPath"
+Write-Output "Scheduler started screenshot: $schedulerStartedScreenshotPath"
+Write-Output "Scheduler stopped screenshot: $schedulerStoppedScreenshotPath"
 Write-Output "Navigation details screenshot: $navDetailsScreenshotPath"
 Write-Output "Navigation player screenshot: $navPlayerScreenshotPath"
 Write-Output "Back to details screenshot: $navBackDetailsScreenshotPath"
