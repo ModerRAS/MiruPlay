@@ -65,13 +65,14 @@ internal fun LabeledTextField(
     value: String,
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
+    inputModifier: Modifier = Modifier,
 ) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         label = { Text(label) },
         singleLine = true,
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().then(inputModifier),
         textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = MiruPlayUiMetrics.FIELD_TEXT_SP.sp),
         colors = OutlinedTextFieldDefaults.colors(
             focusedTextColor = TextPrimary,

@@ -509,6 +509,39 @@ private fun Modifier.playbackSettingNavigation(
             event.type == KeyEventType.KeyDown && onMove(target, event.key)
         }
 
+internal enum class RuntimeFocusTarget {
+    MpvPath,
+    ConfigDir,
+    CheckRuntime,
+}
+
+internal fun runtimeNavigationTarget(
+    current: RuntimeFocusTarget,
+    key: Key,
+): RuntimeFocusTarget? =
+    when (key) {
+        Key.DirectionUp -> current.runtimeStep(delta = -1)
+        Key.DirectionDown -> current.runtimeStep(delta = 1)
+        else -> null
+    }
+
+private fun RuntimeFocusTarget.runtimeStep(delta: Int): RuntimeFocusTarget? {
+    val targets = RuntimeFocusTarget.entries
+    val currentIndex = targets.indexOf(this)
+    if (currentIndex < 0) return null
+    return targets.getOrNull(currentIndex + delta)
+}
+
+private fun Modifier.runtimeNavigation(
+    target: RuntimeFocusTarget,
+    focusRequester: FocusRequester,
+    onMove: (RuntimeFocusTarget, Key) -> Boolean,
+): Modifier =
+    focusRequester(focusRequester)
+        .onPreviewKeyEvent { event ->
+            event.type == KeyEventType.KeyDown && onMove(target, event.key)
+        }
+
 @Composable
 private fun PlayerStageBottomBar(
     startSeconds: String,
@@ -685,16 +718,50 @@ internal fun RuntimePanel(
     onCheckRuntime: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val runtimeFocusRequesters = remember {
+        RuntimeFocusTarget.entries.associateWith { FocusRequester() }
+    }
+    fun moveRuntimeFocus(target: RuntimeFocusTarget, key: Key): Boolean {
+        val next = runtimeNavigationTarget(target, key) ?: return false
+        runtimeFocusRequesters.getValue(next).requestFocus()
+        return true
+    }
     TvPanel(modifier) {
         Text("运行时", color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
-        LabeledTextField("mpv.exe", mpvPath, onValueChange = onMpvPathChange)
+        LabeledTextField(
+            "mpv.exe",
+            mpvPath,
+            onValueChange = onMpvPathChange,
+            inputModifier = Modifier.runtimeNavigation(
+                target = RuntimeFocusTarget.MpvPath,
+                focusRequester = runtimeFocusRequesters.getValue(RuntimeFocusTarget.MpvPath),
+                onMove = ::moveRuntimeFocus,
+            ),
+        )
         Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
-        LabeledTextField("portable_config", configDir, onValueChange = onConfigDirChange)
+        LabeledTextField(
+            "portable_config",
+            configDir,
+            onValueChange = onConfigDirChange,
+            inputModifier = Modifier.runtimeNavigation(
+                target = RuntimeFocusTarget.ConfigDir,
+                focusRequester = runtimeFocusRequesters.getValue(RuntimeFocusTarget.ConfigDir),
+                onMove = ::moveRuntimeFocus,
+            ),
+        )
         Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
         StatusBox(desktopRuntimeStatusText(status))
         Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
-        TvActionButton("检查运行时", onClick = onCheckRuntime)
+        TvActionButton(
+            "检查运行时",
+            onClick = onCheckRuntime,
+            modifier = Modifier.runtimeNavigation(
+                target = RuntimeFocusTarget.CheckRuntime,
+                focusRequester = runtimeFocusRequesters.getValue(RuntimeFocusTarget.CheckRuntime),
+                onMove = ::moveRuntimeFocus,
+            ),
+        )
     }
 }
 
