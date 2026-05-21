@@ -1,5 +1,6 @@
 package com.miruplay.tv.desktop
 
+import androidx.compose.ui.input.key.Key
 import com.miruplay.tv.design.MiruPlayRouteSurface
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -38,6 +39,25 @@ class DesktopSectionContractTest {
             listOf("扫描", "设置"),
             desktopLibraryHeaderActions().map { it.label },
         )
+    }
+
+    @Test
+    fun `desktop library header focus moves like a TV action row`() {
+        assertEquals(
+            DesktopLibraryHeaderFocusTarget.Action(DesktopLibraryHeaderAction.Settings),
+            desktopLibraryHeaderFocusTarget(DesktopLibraryHeaderAction.Scan, Key.DirectionRight),
+        )
+        assertEquals(
+            DesktopLibraryHeaderFocusTarget.Action(DesktopLibraryHeaderAction.Scan),
+            desktopLibraryHeaderFocusTarget(DesktopLibraryHeaderAction.Settings, Key.DirectionLeft),
+        )
+        assertEquals(
+            DesktopLibraryHeaderFocusTarget.NextPanel,
+            desktopLibraryHeaderFocusTarget(DesktopLibraryHeaderAction.Scan, Key.DirectionDown),
+        )
+        assertNull(desktopLibraryHeaderFocusTarget(DesktopLibraryHeaderAction.Scan, Key.DirectionLeft))
+        assertNull(desktopLibraryHeaderFocusTarget(DesktopLibraryHeaderAction.Settings, Key.DirectionRight))
+        assertNull(desktopLibraryHeaderFocusTarget(DesktopLibraryHeaderAction.Scan, Key.DirectionUp))
     }
 
     @Test

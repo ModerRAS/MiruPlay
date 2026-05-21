@@ -78,6 +78,8 @@ internal fun LibraryPanel(
     onRemoveSource: () -> Unit,
     onEntryFocused: (MediaIndexEntry) -> Unit,
     onEntrySelected: (MediaIndexEntry) -> Unit,
+    focusVersion: Int = 0,
+    onFocusPreviousPanel: () -> Boolean = { false },
 ) {
     val posterGroups = remember(entries) { entries.toDesktopPosterGroups() }
 
@@ -100,6 +102,8 @@ internal fun LibraryPanel(
                 onSearch = onSearch,
                 onClearIndex = onClearIndex,
                 onRemoveSource = onRemoveSource,
+                focusVersion = focusVersion,
+                onFocusPreviousPanel = onFocusPreviousPanel,
             )
             DesktopEmptyState(
                 text = if (savedSources.isEmpty()) "添加媒体源开始使用" else "已配置媒体源\n点击扫描建立媒体库",
@@ -145,6 +149,7 @@ internal fun LibraryPanel(
                         true
                     }
                     LibraryMediaFocusTarget.SearchBar -> requestPosterSearchFocus(LibrarySearchFocusTarget.Field)
+                    LibraryMediaFocusTarget.PreviousPanel -> onFocusPreviousPanel()
                 }
             }
             fun requestLastMediaFocus(): Boolean =
@@ -159,6 +164,13 @@ internal fun LibraryPanel(
                         LibraryMediaFocusTarget.PosterWall(posterWallFocusIndex.coerceIn(posterGroups.indices)),
                     )
                 }
+            LaunchedEffect(focusVersion) {
+                if (focusVersion > 0) {
+                    requestLibraryMediaFocus(
+                        LibraryMediaFocusTarget.PosterWall(posterWallFocusIndex.coerceIn(posterGroups.indices)),
+                    )
+                }
+            }
 
             PosterSectionHeader(title = "海报墙", trailing = "已收录 ${posterGroups.size} 部")
             PosterWall(
@@ -243,7 +255,37 @@ internal fun LibraryPanel(
 internal fun DesktopLibraryHeader(
     onScan: () -> Unit,
     onSettings: () -> Unit,
+    focusVersion: Int = 0,
+    focusAction: DesktopLibraryHeaderAction = DesktopLibraryHeaderAction.Scan,
+    onFocusNextPanel: () -> Boolean = { false },
 ) {
+    val focusRequesters = remember {
+        DesktopLibraryHeaderAction.entries.associateWith { FocusRequester() }
+    }
+    var activeActionIndex by remember { mutableIntStateOf(focusAction.ordinal) }
+    fun requestHeaderFocus(target: DesktopLibraryHeaderFocusTarget?): Boolean =
+        when (target) {
+            is DesktopLibraryHeaderFocusTarget.Action -> {
+                activeActionIndex = target.action.ordinal
+                focusRequesters.getValue(target.action).requestFocus()
+                true
+            }
+            DesktopLibraryHeaderFocusTarget.NextPanel -> onFocusNextPanel()
+            null -> false
+        }
+    fun moveHeaderFocus(action: DesktopLibraryHeaderAction, key: Key): Boolean {
+        activeActionIndex = action.ordinal
+        return requestHeaderFocus(desktopLibraryHeaderFocusTarget(action, key))
+    }
+    LaunchedEffect(focusVersion) {
+        if (focusVersion > 0) {
+            val activeAction = DesktopLibraryHeaderAction.entries[
+                activeActionIndex.coerceIn(DesktopLibraryHeaderAction.entries.indices),
+            ]
+            focusRequesters.getValue(activeAction).requestFocus()
+        }
+    }
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -262,7 +304,12 @@ internal fun DesktopLibraryHeader(
                         DesktopLibraryHeaderAction.Scan -> onScan
                         DesktopLibraryHeaderAction.Settings -> onSettings
                     },
-                    modifier = Modifier.width(132.dp),
+                    modifier = Modifier
+                        .width(132.dp)
+                        .focusRequester(focusRequesters.getValue(action))
+                        .onPreviewKeyEvent { event ->
+                            event.type == KeyEventType.KeyDown && moveHeaderFocus(action, event.key)
+                        },
                 )
             }
         }
@@ -276,6 +323,24 @@ internal enum class DesktopLibraryHeaderAction(val label: String) {
 
 internal fun desktopLibraryHeaderActions(): List<DesktopLibraryHeaderAction> =
     DesktopLibraryHeaderAction.entries
+
+internal sealed interface DesktopLibraryHeaderFocusTarget {
+    data class Action(val action: DesktopLibraryHeaderAction) : DesktopLibraryHeaderFocusTarget
+    data object NextPanel : DesktopLibraryHeaderFocusTarget
+}
+
+internal fun desktopLibraryHeaderFocusTarget(
+    current: DesktopLibraryHeaderAction,
+    key: Key,
+): DesktopLibraryHeaderFocusTarget? =
+    when (key) {
+        Key.DirectionLeft -> DesktopLibraryHeaderFocusTarget.Action(DesktopLibraryHeaderAction.Scan)
+            .takeIf { current == DesktopLibraryHeaderAction.Settings }
+        Key.DirectionRight -> DesktopLibraryHeaderFocusTarget.Action(DesktopLibraryHeaderAction.Settings)
+            .takeIf { current == DesktopLibraryHeaderAction.Scan }
+        Key.DirectionDown -> DesktopLibraryHeaderFocusTarget.NextPanel
+        else -> null
+    }
 
 internal enum class LibrarySourceAction {
     OpenLocal,
@@ -835,6 +900,7 @@ private fun PosterWall(
                                 is LibraryMediaFocusTarget.Featured,
                                 is LibraryMediaFocusTarget.RecentlyAdded,
                                 LibraryMediaFocusTarget.SearchBar,
+                                LibraryMediaFocusTarget.PreviousPanel,
                                 -> onMediaFocusTarget(target)
                                 null -> false
                             }
@@ -894,6 +960,7 @@ private fun FeaturedPosterShelf(
                         is LibraryMediaFocusTarget.PosterWall,
                         is LibraryMediaFocusTarget.RecentlyAdded,
                         LibraryMediaFocusTarget.SearchBar,
+                        LibraryMediaFocusTarget.PreviousPanel,
                         -> onMediaFocusTarget(target)
                         null -> false
                     }
@@ -953,6 +1020,7 @@ private fun PosterCardShelf(
                         is LibraryMediaFocusTarget.PosterWall,
                         is LibraryMediaFocusTarget.Featured,
                         LibraryMediaFocusTarget.SearchBar,
+                        LibraryMediaFocusTarget.PreviousPanel,
                         -> onMediaFocusTarget(target)
                         null -> false
                     }
@@ -1210,6 +1278,7 @@ internal sealed interface LibraryMediaFocusTarget {
     data class Featured(val index: Int) : LibraryMediaFocusTarget
     data class RecentlyAdded(val index: Int) : LibraryMediaFocusTarget
     data object SearchBar : LibraryMediaFocusTarget
+    data object PreviousPanel : LibraryMediaFocusTarget
 }
 
 internal enum class LibrarySearchFocusTarget {
@@ -1290,6 +1359,7 @@ internal fun libraryMediaFocusTarget(
             nextFactory = { LibraryMediaFocusTarget.SearchBar },
         )
         LibraryMediaFocusTarget.SearchBar -> null
+        LibraryMediaFocusTarget.PreviousPanel -> null
     }
 
 private fun posterWallMediaFocusTarget(
@@ -1321,6 +1391,7 @@ private fun posterWallMediaFocusTarget(
         }
         else -> null
     } ?: return null
+    if (targetIndex < 0) return LibraryMediaFocusTarget.PreviousPanel
     return LibraryMediaFocusTarget.PosterWall(targetIndex).takeIf { targetIndex in 0 until posterCount }
 }
 
