@@ -206,6 +206,16 @@ internal enum class LibrarySourceAction {
     RemoveSource,
 }
 
+internal enum class LibrarySourceField {
+    LocalRoot,
+    IndexQuery,
+}
+
+internal sealed interface LibrarySourceFocusTarget {
+    data class Action(val action: LibrarySourceAction) : LibrarySourceFocusTarget
+    data class Field(val field: LibrarySourceField) : LibrarySourceFocusTarget
+}
+
 private fun Modifier.librarySourceActionNavigation(
     action: LibrarySourceAction,
     focusRequester: FocusRequester,
@@ -215,6 +225,49 @@ private fun Modifier.librarySourceActionNavigation(
         .onPreviewKeyEvent { event ->
             event.type == KeyEventType.KeyDown && onMove(action, event.key)
         }
+
+private fun Modifier.librarySourceFieldNavigation(
+    field: LibrarySourceField,
+    focusRequester: FocusRequester,
+    onMove: (LibrarySourceField, Key) -> Boolean,
+): Modifier =
+    focusRequester(focusRequester)
+        .onPreviewKeyEvent { event ->
+            event.type == KeyEventType.KeyDown && onMove(field, event.key)
+        }
+
+internal fun librarySourceActionFocusTarget(
+    current: LibrarySourceAction,
+    key: Key,
+): LibrarySourceFocusTarget? =
+    when {
+        current == LibrarySourceAction.OpenLocal && key == Key.DirectionLeft ->
+            LibrarySourceFocusTarget.Field(LibrarySourceField.IndexQuery)
+        else -> librarySourceActionNavigationTarget(current, key)?.let(LibrarySourceFocusTarget::Action)
+    }
+
+internal fun librarySourceFieldFocusTarget(
+    current: LibrarySourceField,
+    key: Key,
+): LibrarySourceFocusTarget? =
+    when (key) {
+        Key.DirectionUp -> if (current == LibrarySourceField.IndexQuery) {
+            LibrarySourceFocusTarget.Field(LibrarySourceField.LocalRoot)
+        } else {
+            null
+        }
+        Key.DirectionDown -> if (current == LibrarySourceField.LocalRoot) {
+            LibrarySourceFocusTarget.Field(LibrarySourceField.IndexQuery)
+        } else {
+            null
+        }
+        Key.DirectionRight -> if (current == LibrarySourceField.IndexQuery) {
+            LibrarySourceFocusTarget.Action(LibrarySourceAction.OpenLocal)
+        } else {
+            null
+        }
+        else -> null
+    }
 
 internal fun librarySourceActionNavigationTarget(
     current: LibrarySourceAction,
@@ -249,6 +302,21 @@ internal enum class RemoteSourceAction {
     ScanSource,
 }
 
+internal enum class RemoteSourceField {
+    WebDavUrl,
+    WebDavUsername,
+    WebDavPassword,
+    SmbUrl,
+    SmbDomain,
+    SmbUsername,
+    SmbPassword,
+}
+
+internal sealed interface RemoteSourceFocusTarget {
+    data class Action(val action: RemoteSourceAction) : RemoteSourceFocusTarget
+    data class Field(val field: RemoteSourceField) : RemoteSourceFocusTarget
+}
+
 private fun Modifier.remoteSourceActionNavigation(
     action: RemoteSourceAction,
     focusRequester: FocusRequester,
@@ -258,6 +326,79 @@ private fun Modifier.remoteSourceActionNavigation(
         .onPreviewKeyEvent { event ->
             event.type == KeyEventType.KeyDown && onMove(action, event.key)
         }
+
+private fun Modifier.remoteSourceFieldNavigation(
+    field: RemoteSourceField,
+    focusRequester: FocusRequester,
+    onMove: (RemoteSourceField, Key) -> Boolean,
+): Modifier =
+    focusRequester(focusRequester)
+        .onPreviewKeyEvent { event ->
+            event.type == KeyEventType.KeyDown && onMove(field, event.key)
+        }
+
+internal fun remoteSourceActionFocusTarget(
+    current: RemoteSourceAction,
+    key: Key,
+): RemoteSourceFocusTarget? =
+    when (key) {
+        Key.DirectionUp -> when (current) {
+            RemoteSourceAction.OpenWebDav -> RemoteSourceFocusTarget.Field(RemoteSourceField.WebDavPassword)
+            RemoteSourceAction.OpenSmb -> RemoteSourceFocusTarget.Field(RemoteSourceField.SmbDomain)
+            RemoteSourceAction.ScanSource -> RemoteSourceFocusTarget.Field(RemoteSourceField.SmbPassword)
+        }
+        else -> remoteSourceActionNavigationTarget(current, key)?.let(RemoteSourceFocusTarget::Action)
+    }
+
+internal fun remoteSourceFieldFocusTarget(
+    current: RemoteSourceField,
+    key: Key,
+): RemoteSourceFocusTarget? =
+    when (key) {
+        Key.DirectionLeft -> remoteSourceHorizontalField(current, -1)?.let(RemoteSourceFocusTarget::Field)
+        Key.DirectionRight -> remoteSourceHorizontalField(current, 1)?.let(RemoteSourceFocusTarget::Field)
+        Key.DirectionUp -> when (current) {
+            RemoteSourceField.WebDavUsername,
+            RemoteSourceField.WebDavPassword,
+            -> RemoteSourceFocusTarget.Field(RemoteSourceField.WebDavUrl)
+            RemoteSourceField.SmbDomain,
+            RemoteSourceField.SmbUsername,
+            RemoteSourceField.SmbPassword,
+            -> RemoteSourceFocusTarget.Field(RemoteSourceField.SmbUrl)
+            else -> null
+        }
+        Key.DirectionDown -> when (current) {
+            RemoteSourceField.WebDavUrl -> RemoteSourceFocusTarget.Field(RemoteSourceField.WebDavUsername)
+            RemoteSourceField.WebDavUsername,
+            RemoteSourceField.WebDavPassword,
+            -> RemoteSourceFocusTarget.Action(RemoteSourceAction.OpenWebDav)
+            RemoteSourceField.SmbUrl -> RemoteSourceFocusTarget.Field(RemoteSourceField.SmbDomain)
+            RemoteSourceField.SmbDomain -> RemoteSourceFocusTarget.Action(RemoteSourceAction.OpenSmb)
+            RemoteSourceField.SmbUsername,
+            RemoteSourceField.SmbPassword,
+            -> RemoteSourceFocusTarget.Action(RemoteSourceAction.ScanSource)
+        }
+        else -> null
+    }
+
+private fun remoteSourceHorizontalField(
+    current: RemoteSourceField,
+    delta: Int,
+): RemoteSourceField? {
+    val row = when (current) {
+        RemoteSourceField.WebDavUrl -> listOf(RemoteSourceField.WebDavUrl)
+        RemoteSourceField.WebDavUsername,
+        RemoteSourceField.WebDavPassword,
+        -> listOf(RemoteSourceField.WebDavUsername, RemoteSourceField.WebDavPassword)
+        RemoteSourceField.SmbUrl -> listOf(RemoteSourceField.SmbUrl)
+        RemoteSourceField.SmbDomain,
+        RemoteSourceField.SmbUsername,
+        RemoteSourceField.SmbPassword,
+        -> listOf(RemoteSourceField.SmbDomain, RemoteSourceField.SmbUsername, RemoteSourceField.SmbPassword)
+    }
+    val targetIndex = row.indexOf(current) + delta
+    return row.getOrNull(targetIndex)
+}
 
 internal fun remoteSourceActionNavigationTarget(
     current: RemoteSourceAction,
@@ -327,15 +468,30 @@ private fun LibraryControlBar(
     val actionFocusRequesters = remember {
         LibrarySourceAction.entries.associateWith { FocusRequester() }
     }
+    val fieldFocusRequesters = remember {
+        LibrarySourceField.entries.associateWith { FocusRequester() }
+    }
     var sourcePickerFocusVersion by remember { mutableIntStateOf(0) }
     fun refocusSourcePicker() {
         sourcePickerFocusVersion += 1
     }
+    fun requestLibrarySourceFocus(target: LibrarySourceFocusTarget?): Boolean =
+        when (target) {
+            is LibrarySourceFocusTarget.Action -> {
+                actionFocusRequesters.getValue(target.action).requestFocus()
+                true
+            }
+            is LibrarySourceFocusTarget.Field -> {
+                fieldFocusRequesters.getValue(target.field).requestFocus()
+                true
+            }
+            null -> false
+        }
     fun moveLibrarySourceActionFocus(action: LibrarySourceAction, key: Key): Boolean {
-        val target = librarySourceActionNavigationTarget(action, key) ?: return false
-        actionFocusRequesters.getValue(target).requestFocus()
-        return true
+        return requestLibrarySourceFocus(librarySourceActionFocusTarget(action, key))
     }
+    fun moveLibrarySourceFieldFocus(field: LibrarySourceField, key: Key): Boolean =
+        requestLibrarySourceFocus(librarySourceFieldFocusTarget(field, key))
     LaunchedEffect(sourcePickerFocusVersion) {
         if (sourcePickerFocusVersion > 0) {
             sourcePickerFocusRequester.requestFocus()
@@ -357,7 +513,17 @@ private fun LibraryControlBar(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
                 ) {
-                    LabeledTextField(labels.localLibraryRoot, libraryRoot, onValueChange = onLibraryRootChange, modifier = Modifier.weight(1.25f))
+                    LabeledTextField(
+                        labels.localLibraryRoot,
+                        libraryRoot,
+                        onValueChange = onLibraryRootChange,
+                        modifier = Modifier.weight(1.25f),
+                        inputModifier = Modifier.librarySourceFieldNavigation(
+                            field = LibrarySourceField.LocalRoot,
+                            focusRequester = fieldFocusRequesters.getValue(LibrarySourceField.LocalRoot),
+                            onMove = ::moveLibrarySourceFieldFocus,
+                        ),
+                    )
                     SavedSourcePicker(
                         sources = savedSources,
                         activeSourceId = activeSourceId,
@@ -370,7 +536,17 @@ private fun LibraryControlBar(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
                 ) {
-                    LabeledTextField(labels.indexQuery, indexQuery, onValueChange = onIndexQueryChange, modifier = Modifier.weight(1.4f))
+                    LabeledTextField(
+                        labels.indexQuery,
+                        indexQuery,
+                        onValueChange = onIndexQueryChange,
+                        modifier = Modifier.weight(1.4f),
+                        inputModifier = Modifier.librarySourceFieldNavigation(
+                            field = LibrarySourceField.IndexQuery,
+                            focusRequester = fieldFocusRequesters.getValue(LibrarySourceField.IndexQuery),
+                            onMove = ::moveLibrarySourceFieldFocus,
+                        ),
+                    )
                     TvActionButton(
                         labels.openLocal,
                         onClick = {
@@ -916,11 +1092,26 @@ internal fun RemoteSourcesPanel(
     val actionFocusRequesters = remember {
         RemoteSourceAction.entries.associateWith { FocusRequester() }
     }
-    fun moveRemoteSourceActionFocus(action: RemoteSourceAction, key: Key): Boolean {
-        val target = remoteSourceActionNavigationTarget(action, key) ?: return false
-        actionFocusRequesters.getValue(target).requestFocus()
-        return true
+    val fieldFocusRequesters = remember {
+        RemoteSourceField.entries.associateWith { FocusRequester() }
     }
+    fun requestRemoteSourceFocus(target: RemoteSourceFocusTarget?): Boolean =
+        when (target) {
+            is RemoteSourceFocusTarget.Action -> {
+                actionFocusRequesters.getValue(target.action).requestFocus()
+                true
+            }
+            is RemoteSourceFocusTarget.Field -> {
+                fieldFocusRequesters.getValue(target.field).requestFocus()
+                true
+            }
+            null -> false
+        }
+    fun moveRemoteSourceActionFocus(action: RemoteSourceAction, key: Key): Boolean {
+        return requestRemoteSourceFocus(remoteSourceActionFocusTarget(action, key))
+    }
+    fun moveRemoteSourceFieldFocus(field: RemoteSourceField, key: Key): Boolean =
+        requestRemoteSourceFocus(remoteSourceFieldFocusTarget(field, key))
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp),
@@ -935,19 +1126,38 @@ internal fun RemoteSourcesPanel(
                 badge = "DAV",
                 endpoint = remoteSourcePreview(webDavUrl, fallback = "填写 WebDAV 地址"),
             ) {
-                LabeledTextField(labels.webDavUrl, webDavUrl, onValueChange = onWebDavUrlChange)
+                LabeledTextField(
+                    labels.webDavUrl,
+                    webDavUrl,
+                    onValueChange = onWebDavUrlChange,
+                    inputModifier = Modifier.remoteSourceFieldNavigation(
+                        field = RemoteSourceField.WebDavUrl,
+                        focusRequester = fieldFocusRequesters.getValue(RemoteSourceField.WebDavUrl),
+                        onMove = ::moveRemoteSourceFieldFocus,
+                    ),
+                )
                 Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp)) {
                     LabeledTextField(
                         labels.webDavUser,
                         webDavUsername,
                         onValueChange = onWebDavUsernameChange,
                         modifier = Modifier.weight(1f),
+                        inputModifier = Modifier.remoteSourceFieldNavigation(
+                            field = RemoteSourceField.WebDavUsername,
+                            focusRequester = fieldFocusRequesters.getValue(RemoteSourceField.WebDavUsername),
+                            onMove = ::moveRemoteSourceFieldFocus,
+                        ),
                     )
                     LabeledTextField(
                         labels.webDavPassword,
                         webDavPassword,
                         onValueChange = onWebDavPasswordChange,
                         modifier = Modifier.weight(1f),
+                        inputModifier = Modifier.remoteSourceFieldNavigation(
+                            field = RemoteSourceField.WebDavPassword,
+                            focusRequester = fieldFocusRequesters.getValue(RemoteSourceField.WebDavPassword),
+                            onMove = ::moveRemoteSourceFieldFocus,
+                        ),
                     )
                 }
                 TvActionButton(
@@ -965,25 +1175,49 @@ internal fun RemoteSourcesPanel(
                 badge = "SMB",
                 endpoint = remoteSourcePreview(smbUrl, fallback = "填写 SMB 共享地址"),
             ) {
-                LabeledTextField(labels.smbUrl, smbUrl, onValueChange = onSmbUrlChange)
+                LabeledTextField(
+                    labels.smbUrl,
+                    smbUrl,
+                    onValueChange = onSmbUrlChange,
+                    inputModifier = Modifier.remoteSourceFieldNavigation(
+                        field = RemoteSourceField.SmbUrl,
+                        focusRequester = fieldFocusRequesters.getValue(RemoteSourceField.SmbUrl),
+                        onMove = ::moveRemoteSourceFieldFocus,
+                    ),
+                )
                 Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp)) {
                     LabeledTextField(
                         labels.smbDomain,
                         smbDomain,
                         onValueChange = onSmbDomainChange,
                         modifier = Modifier.weight(1f),
+                        inputModifier = Modifier.remoteSourceFieldNavigation(
+                            field = RemoteSourceField.SmbDomain,
+                            focusRequester = fieldFocusRequesters.getValue(RemoteSourceField.SmbDomain),
+                            onMove = ::moveRemoteSourceFieldFocus,
+                        ),
                     )
                     LabeledTextField(
                         labels.smbUser,
                         smbUsername,
                         onValueChange = onSmbUsernameChange,
                         modifier = Modifier.weight(1f),
+                        inputModifier = Modifier.remoteSourceFieldNavigation(
+                            field = RemoteSourceField.SmbUsername,
+                            focusRequester = fieldFocusRequesters.getValue(RemoteSourceField.SmbUsername),
+                            onMove = ::moveRemoteSourceFieldFocus,
+                        ),
                     )
                     LabeledTextField(
                         labels.smbPassword,
                         smbPassword,
                         onValueChange = onSmbPasswordChange,
                         modifier = Modifier.weight(1f),
+                        inputModifier = Modifier.remoteSourceFieldNavigation(
+                            field = RemoteSourceField.SmbPassword,
+                            focusRequester = fieldFocusRequesters.getValue(RemoteSourceField.SmbPassword),
+                            onMove = ::moveRemoteSourceFieldFocus,
+                        ),
                     )
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {

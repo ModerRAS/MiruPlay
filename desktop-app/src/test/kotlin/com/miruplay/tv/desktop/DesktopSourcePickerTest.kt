@@ -178,6 +178,32 @@ class DesktopSourcePickerTest {
     }
 
     @Test
+    fun `source management fields bridge into action rows`() {
+        assertEquals(
+            LibrarySourceFocusTarget.Field(LibrarySourceField.IndexQuery),
+            librarySourceFieldFocusTarget(LibrarySourceField.LocalRoot, Key.DirectionDown),
+        )
+        assertEquals(
+            LibrarySourceFocusTarget.Field(LibrarySourceField.LocalRoot),
+            librarySourceFieldFocusTarget(LibrarySourceField.IndexQuery, Key.DirectionUp),
+        )
+        assertEquals(
+            LibrarySourceFocusTarget.Action(LibrarySourceAction.OpenLocal),
+            librarySourceFieldFocusTarget(LibrarySourceField.IndexQuery, Key.DirectionRight),
+        )
+        assertEquals(
+            LibrarySourceFocusTarget.Field(LibrarySourceField.IndexQuery),
+            librarySourceActionFocusTarget(LibrarySourceAction.OpenLocal, Key.DirectionLeft),
+        )
+        assertEquals(
+            LibrarySourceFocusTarget.Action(LibrarySourceAction.Scan),
+            librarySourceActionFocusTarget(LibrarySourceAction.OpenLocal, Key.DirectionRight),
+        )
+        assertNull(librarySourceFieldFocusTarget(LibrarySourceField.LocalRoot, Key.DirectionUp))
+        assertNull(librarySourceFieldFocusTarget(LibrarySourceField.IndexQuery, Key.DirectionLeft))
+    }
+
+    @Test
     fun `remote source action focus follows editor card layout`() {
         assertEquals(
             RemoteSourceAction.OpenSmb,
@@ -198,6 +224,48 @@ class DesktopSourcePickerTest {
         assertNull(remoteSourceActionNavigationTarget(RemoteSourceAction.OpenWebDav, Key.DirectionUp))
         assertNull(remoteSourceActionNavigationTarget(RemoteSourceAction.ScanSource, Key.DirectionDown))
         assertNull(remoteSourceActionNavigationTarget(RemoteSourceAction.OpenSmb, Key.DirectionLeft))
+    }
+
+    @Test
+    fun `remote source fields bridge into editor actions`() {
+        assertEquals(
+            RemoteSourceFocusTarget.Field(RemoteSourceField.WebDavUsername),
+            remoteSourceFieldFocusTarget(RemoteSourceField.WebDavUrl, Key.DirectionDown),
+        )
+        assertEquals(
+            RemoteSourceFocusTarget.Field(RemoteSourceField.WebDavPassword),
+            remoteSourceFieldFocusTarget(RemoteSourceField.WebDavUsername, Key.DirectionRight),
+        )
+        assertEquals(
+            RemoteSourceFocusTarget.Action(RemoteSourceAction.OpenWebDav),
+            remoteSourceFieldFocusTarget(RemoteSourceField.WebDavPassword, Key.DirectionDown),
+        )
+        assertEquals(
+            RemoteSourceFocusTarget.Field(RemoteSourceField.WebDavPassword),
+            remoteSourceActionFocusTarget(RemoteSourceAction.OpenWebDav, Key.DirectionUp),
+        )
+        assertEquals(
+            RemoteSourceFocusTarget.Field(RemoteSourceField.SmbDomain),
+            remoteSourceFieldFocusTarget(RemoteSourceField.SmbUrl, Key.DirectionDown),
+        )
+        assertEquals(
+            RemoteSourceFocusTarget.Field(RemoteSourceField.SmbPassword),
+            remoteSourceFieldFocusTarget(RemoteSourceField.SmbUsername, Key.DirectionRight),
+        )
+        assertEquals(
+            RemoteSourceFocusTarget.Action(RemoteSourceAction.ScanSource),
+            remoteSourceFieldFocusTarget(RemoteSourceField.SmbPassword, Key.DirectionDown),
+        )
+        assertEquals(
+            RemoteSourceFocusTarget.Field(RemoteSourceField.SmbDomain),
+            remoteSourceActionFocusTarget(RemoteSourceAction.OpenSmb, Key.DirectionUp),
+        )
+        assertEquals(
+            RemoteSourceFocusTarget.Action(RemoteSourceAction.ScanSource),
+            remoteSourceActionFocusTarget(RemoteSourceAction.OpenSmb, Key.DirectionRight),
+        )
+        assertNull(remoteSourceFieldFocusTarget(RemoteSourceField.WebDavUrl, Key.DirectionUp))
+        assertNull(remoteSourceFieldFocusTarget(RemoteSourceField.SmbPassword, Key.DirectionRight))
     }
 
     @Test
