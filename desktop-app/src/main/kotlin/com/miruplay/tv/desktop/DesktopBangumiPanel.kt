@@ -62,6 +62,7 @@ internal fun BangumiPanel(
     onApply: () -> Unit,
     onClear: () -> Unit,
     onFocusPreviousPanel: () -> Boolean = { false },
+    onFocusNextPanel: () -> Boolean = { false },
     focusVersion: Int = 0,
 ) {
     val labels = desktopBangumiUiLabels()
@@ -128,6 +129,7 @@ internal fun BangumiPanel(
             is BangumiActionFocusTarget.Action -> focusAction(target.action)
             is BangumiActionFocusTarget.ListPosition -> selectAndFocus(target.position)
             BangumiActionFocusTarget.PreviousPanel -> onFocusPreviousPanel()
+            BangumiActionFocusTarget.NextPanel -> onFocusNextPanel()
             null -> false
         }
 
@@ -139,7 +141,17 @@ internal fun BangumiPanel(
             candidateCount = visibleBatchCandidates.size,
             resultCount = visibleResults.size,
         )?.let(::selectAndFocus)
-            ?: bangumiListExitActionTarget(position, key)?.let(::focusAction)
+            ?: when (val target = bangumiListExitFocusTarget(
+                current = position,
+                key = key,
+                batchMatchCount = visibleBatchMatches.size,
+                candidateCount = visibleBatchCandidates.size,
+                resultCount = visibleResults.size,
+            )) {
+                is BangumiActionFocusTarget.Action -> focusAction(target.action)
+                BangumiActionFocusTarget.NextPanel -> onFocusNextPanel()
+                else -> null
+            }
             ?: false
 
     LaunchedEffect(
@@ -700,6 +712,7 @@ internal sealed interface BangumiActionFocusTarget {
     data class Action(val action: BangumiAction) : BangumiActionFocusTarget
     data class ListPosition(val position: BangumiListPosition) : BangumiActionFocusTarget
     data object PreviousPanel : BangumiActionFocusTarget
+    data object NextPanel : BangumiActionFocusTarget
 }
 
 internal fun bangumiActionFocusTarget(
@@ -718,7 +731,9 @@ internal fun bangumiActionFocusTarget(
                     candidateCount = candidateCount,
                     resultCount = resultCount,
                 )?.takeIf { current.column == 1 }?.let(BangumiActionFocusTarget::ListPosition)
-        Key.DirectionDown -> bangumiActionAt(current.row + 1, current.column)?.let(BangumiActionFocusTarget::Action)
+        Key.DirectionDown ->
+            bangumiActionAt(current.row + 1, current.column)?.let(BangumiActionFocusTarget::Action)
+                ?: BangumiActionFocusTarget.NextPanel.takeIf { current.row == BangumiAction.entries.maxOf { it.row } }
         Key.DirectionUp -> {
             val target = bangumiActionAt(current.row - 1, current.column)
             if (target == null && current.row == 0) {
@@ -798,14 +813,31 @@ internal fun bangumiListExitActionTarget(
     current: BangumiListPosition,
     key: Key,
 ): BangumiAction? =
-    if (key != Key.DirectionLeft) {
-        null
-    } else {
-        when (current.section) {
-            BangumiListSection.BatchMatches -> BangumiAction.BatchPreview
+    (bangumiListExitFocusTarget(current, key) as? BangumiActionFocusTarget.Action)?.action
+
+internal fun bangumiListExitFocusTarget(
+    current: BangumiListPosition,
+    key: Key,
+    batchMatchCount: Int = 0,
+    candidateCount: Int = 0,
+    resultCount: Int = 0,
+): BangumiActionFocusTarget? =
+    when (key) {
+        Key.DirectionLeft -> when (current.section) {
+            BangumiListSection.BatchMatches -> BangumiActionFocusTarget.Action(BangumiAction.BatchPreview)
             BangumiListSection.BatchCandidates -> null
-            BangumiListSection.SearchResults -> BangumiAction.ApplyMatch
+            BangumiListSection.SearchResults -> BangumiActionFocusTarget.Action(BangumiAction.ApplyMatch)
         }
+        Key.DirectionDown -> BangumiActionFocusTarget.NextPanel.takeIf {
+            bangumiListNavigationTarget(
+                current = current,
+                key = key,
+                batchMatchCount = batchMatchCount,
+                candidateCount = candidateCount,
+                resultCount = resultCount,
+            ) == null
+        }
+        else -> null
     }
 
 private fun Modifier.bangumiActionNavigation(

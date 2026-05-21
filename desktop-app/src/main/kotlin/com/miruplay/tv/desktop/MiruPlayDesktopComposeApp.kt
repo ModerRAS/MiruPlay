@@ -300,6 +300,7 @@ internal fun MiruPlayDesktopComposeApp() {
     var detailHeroFocusVersion by remember { mutableStateOf(0) }
     var detailEpisodeFocusVersion by remember { mutableStateOf(0) }
     var recentPlaybackFocusVersion by remember { mutableStateOf(0) }
+    var mediaDetailsFocusVersion by remember { mutableStateOf(0) }
     var recentStatus by remember { mutableStateOf(recentPlaybackInitialStatus()) }
     var bangumiFocusVersion by remember { mutableStateOf(0) }
     var cloudEndpointUrl by remember { mutableStateOf("") }
@@ -1322,6 +1323,10 @@ internal fun MiruPlayDesktopComposeApp() {
                     focusManager.moveFocus(FocusDirection.Up)
                     true
                 },
+                onFocusNextPanel = {
+                    mediaDetailsFocusVersion += 1
+                    true
+                },
                 focusVersion = bangumiFocusVersion,
             )
             RecentPlaybackPanel(
@@ -1370,6 +1375,11 @@ internal fun MiruPlayDesktopComposeApp() {
                 indexEntry = selectedIndexEntry,
                 remoteEntry = selectedRemoteEntry,
                 recentRecord = selectedRecentProgress,
+                focusVersion = mediaDetailsFocusVersion,
+                onFocusPreviousPanel = {
+                    bangumiFocusVersion += 1
+                    true
+                },
             )
                 }
                 MiruPlayRouteSurface.settings -> {
