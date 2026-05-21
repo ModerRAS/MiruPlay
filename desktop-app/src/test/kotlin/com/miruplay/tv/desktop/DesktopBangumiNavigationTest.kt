@@ -259,8 +259,11 @@ class DesktopBangumiNavigationTest {
             BangumiActionFocusTarget.PreviousPanel,
             bangumiActionFocusTarget(BangumiAction.UseSelected, Key.DirectionUp),
         )
+        assertEquals(
+            BangumiActionFocusTarget.NextPanel,
+            bangumiActionFocusTarget(BangumiAction.AcceptReview, Key.DirectionDown),
+        )
         assertNull(bangumiActionFocusTarget(BangumiAction.Search, Key.DirectionRight))
-        assertNull(bangumiActionFocusTarget(BangumiAction.AcceptReview, Key.DirectionDown))
     }
 
     @Test
@@ -303,6 +306,39 @@ class DesktopBangumiNavigationTest {
             bangumiListExitActionTarget(
                 current = BangumiListPosition(BangumiListSection.BatchCandidates, 0),
                 key = Key.DirectionLeft,
+            ),
+        )
+    }
+
+    @Test
+    fun `bangumi list bottom exits to next details panel`() {
+        assertNull(
+            bangumiListExitFocusTarget(
+                current = BangumiListPosition(BangumiListSection.BatchMatches, 0),
+                key = Key.DirectionDown,
+                batchMatchCount = 2,
+                candidateCount = 0,
+                resultCount = 0,
+            ),
+        )
+        assertEquals(
+            BangumiActionFocusTarget.NextPanel,
+            bangumiListExitFocusTarget(
+                current = BangumiListPosition(BangumiListSection.BatchMatches, 1),
+                key = Key.DirectionDown,
+                batchMatchCount = 2,
+                candidateCount = 0,
+                resultCount = 0,
+            ),
+        )
+        assertEquals(
+            BangumiActionFocusTarget.NextPanel,
+            bangumiListExitFocusTarget(
+                current = BangumiListPosition(BangumiListSection.SearchResults, 1),
+                key = Key.DirectionDown,
+                batchMatchCount = 0,
+                candidateCount = 0,
+                resultCount = 2,
             ),
         )
     }

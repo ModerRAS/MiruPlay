@@ -918,12 +918,51 @@ internal fun MediaDetailsPanel(
     indexEntry: MediaIndexEntry?,
     remoteEntry: FileEntry?,
     recentRecord: ProgressRecord?,
+    focusVersion: Int = 0,
+    onFocusPreviousPanel: () -> Boolean = { false },
 ) {
     val labels = desktopMediaDetailsLabels()
+    val rows = remember(source, indexEntry, remoteEntry, recentRecord) {
+        MediaDetailRows.build(
+            source = source,
+            indexEntry = indexEntry,
+            remoteEntry = remoteEntry,
+            recentRecord = recentRecord,
+        )
+    }
+    val splitIndex = (rows.size + 1) / 2
+    val focusRequesters = remember(rows.map { it.label to it.value }) {
+        List(rows.size) { FocusRequester() }
+    }
+
+    fun moveMediaDetailFocus(currentIndex: Int, key: Key): Boolean {
+        return when (
+            val target = mediaDetailsFocusTarget(
+                currentIndex = currentIndex,
+                rowCount = rows.size,
+                splitIndex = splitIndex,
+                key = key,
+            )
+        ) {
+            is MediaDetailsFocusTarget.Row -> {
+                focusRequesters.getOrNull(target.index)?.requestFocus()
+                true
+            }
+            MediaDetailsFocusTarget.PreviousPanel -> onFocusPreviousPanel()
+            null -> false
+        }
+    }
+
+    LaunchedEffect(focusVersion) {
+        if (focusVersion > 0) {
+            focusRequesters.firstOrNull()?.requestFocus()
+        }
+    }
+
     TvPanel(Modifier.fillMaxWidth()) {
         Text(labels.title, color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
-        if (source == null && indexEntry == null && remoteEntry == null && recentRecord == null) {
+        if (rows.isEmpty() || (source == null && indexEntry == null && remoteEntry == null && recentRecord == null)) {
             DesktopEmptyState(
                 text = labels.emptyState,
                 heightDp = MiruPlayUiMetrics.DETAIL_PREVIEW_HEIGHT_DP,
@@ -931,29 +970,38 @@ internal fun MediaDetailsPanel(
             return@TvPanel
         }
 
-        val rows = MediaDetailRows.build(
-            source = source,
-            indexEntry = indexEntry,
-            remoteEntry = remoteEntry,
-            recentRecord = recentRecord,
-        )
-        val splitIndex = (rows.size + 1) / 2
-
         Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp)) {
             Column(
                 modifier = Modifier.weight(0.5f),
                 verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SMALL_GAP_DP.dp),
             ) {
-                rows.take(splitIndex).forEach { row ->
-                    DetailLine(row.label, row.value)
+                rows.take(splitIndex).forEachIndexed { index, row ->
+                    DetailLine(
+                        row.label,
+                        row.value,
+                        modifier = Modifier
+                            .focusRequester(focusRequesters[index])
+                            .onPreviewKeyEvent { event ->
+                                event.type == KeyEventType.KeyDown && moveMediaDetailFocus(index, event.key)
+                            },
+                    )
                 }
             }
             Column(
                 modifier = Modifier.weight(0.5f),
                 verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SMALL_GAP_DP.dp),
             ) {
-                rows.drop(splitIndex).forEach { row ->
-                    DetailLine(row.label, row.value)
+                rows.drop(splitIndex).forEachIndexed { index, row ->
+                    val rowIndex = splitIndex + index
+                    DetailLine(
+                        row.label,
+                        row.value,
+                        modifier = Modifier
+                            .focusRequester(focusRequesters[rowIndex])
+                            .onPreviewKeyEvent { event ->
+                                event.type == KeyEventType.KeyDown && moveMediaDetailFocus(rowIndex, event.key)
+                            },
+                    )
                 }
             }
         }
@@ -971,23 +1019,59 @@ internal fun desktopMediaDetailsLabels(): DesktopMediaDetailsLabels =
         emptyState = "选择媒体后会在这里显示详细信息。",
     )
 
+internal sealed interface MediaDetailsFocusTarget {
+    data class Row(val index: Int) : MediaDetailsFocusTarget
+    data object PreviousPanel : MediaDetailsFocusTarget
+}
+
+internal fun mediaDetailsFocusTarget(
+    currentIndex: Int,
+    rowCount: Int,
+    splitIndex: Int,
+    key: Key,
+): MediaDetailsFocusTarget? {
+    if (rowCount <= 0) return null
+    val normalizedSplitIndex = splitIndex.coerceIn(1, rowCount)
+    val targetIndex = when (key) {
+        Key.DirectionUp -> currentIndex - 1
+        Key.DirectionDown -> currentIndex + 1
+        Key.DirectionLeft -> if (currentIndex >= normalizedSplitIndex) {
+            (currentIndex - normalizedSplitIndex).coerceAtMost(normalizedSplitIndex - 1)
+        } else {
+            return null
+        }
+        Key.DirectionRight -> if (currentIndex < normalizedSplitIndex) {
+            (currentIndex + normalizedSplitIndex).takeIf { it < rowCount } ?: rowCount - 1
+        } else {
+            return null
+        }
+        else -> return null
+    }
+    return when {
+        targetIndex < 0 -> MediaDetailsFocusTarget.PreviousPanel
+        targetIndex >= rowCount -> null
+        else -> MediaDetailsFocusTarget.Row(targetIndex)
+    }
+}
+
 @Composable
-internal fun DetailLine(label: String, value: String) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
-            .background(CardBg.copy(alpha = 0.42f))
-            .border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
-            .padding(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp),
-    ) {
-        Text(label, color = TextSecondary, fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp, fontWeight = FontWeight.SemiBold)
-        Text(
-            value,
-            color = TextPrimary,
-            fontSize = MiruPlayUiMetrics.PANEL_BODY_SP.sp,
-            maxLines = 3,
-            overflow = TextOverflow.Ellipsis,
-        )
+internal fun DetailLine(label: String, value: String, modifier: Modifier = Modifier) {
+    DesktopSelectableRow(
+        selected = false,
+        onClick = {},
+        modifier = modifier,
+        heightDp = 92,
+        inactiveAlpha = 0.42f,
+    ) { active ->
+        Column(Modifier.fillMaxWidth()) {
+            Text(label, color = TextSecondary, fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp, fontWeight = FontWeight.SemiBold)
+            Text(
+                value,
+                color = if (active) TextPrimary else TextPrimary.copy(alpha = 0.84f),
+                fontSize = MiruPlayUiMetrics.PANEL_BODY_SP.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }

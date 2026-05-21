@@ -286,4 +286,32 @@ class DesktopDetailHeroTest {
             ),
         )
     }
+
+    @Test
+    fun `media details focus moves through two column rows and exits upward`() {
+        assertEquals(
+            MediaDetailsFocusTarget.Row(1),
+            mediaDetailsFocusTarget(currentIndex = 0, rowCount = 7, splitIndex = 4, key = Key.DirectionDown),
+        )
+        assertEquals(
+            MediaDetailsFocusTarget.PreviousPanel,
+            mediaDetailsFocusTarget(currentIndex = 0, rowCount = 7, splitIndex = 4, key = Key.DirectionUp),
+        )
+        assertEquals(
+            MediaDetailsFocusTarget.Row(4),
+            mediaDetailsFocusTarget(currentIndex = 0, rowCount = 7, splitIndex = 4, key = Key.DirectionRight),
+        )
+        assertEquals(
+            MediaDetailsFocusTarget.Row(2),
+            mediaDetailsFocusTarget(currentIndex = 6, rowCount = 7, splitIndex = 4, key = Key.DirectionLeft),
+        )
+        assertEquals(
+            MediaDetailsFocusTarget.Row(6),
+            mediaDetailsFocusTarget(currentIndex = 3, rowCount = 7, splitIndex = 4, key = Key.DirectionRight),
+        )
+        assertEquals(null, mediaDetailsFocusTarget(currentIndex = 6, rowCount = 7, splitIndex = 4, key = Key.DirectionDown))
+        assertEquals(null, mediaDetailsFocusTarget(currentIndex = 0, rowCount = 7, splitIndex = 4, key = Key.DirectionLeft))
+        assertEquals(null, mediaDetailsFocusTarget(currentIndex = 4, rowCount = 7, splitIndex = 4, key = Key.DirectionRight))
+        assertEquals(null, mediaDetailsFocusTarget(currentIndex = 0, rowCount = 0, splitIndex = 0, key = Key.DirectionDown))
+    }
 }
