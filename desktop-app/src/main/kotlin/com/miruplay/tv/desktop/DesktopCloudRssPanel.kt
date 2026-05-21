@@ -139,6 +139,12 @@ internal fun CloudRssPanel(
     onScanActiveSource: () -> Unit,
 ) {
     var selectedSection by remember { mutableStateOf(DesktopSettingsSection.Sources) }
+    val sectionFocusRequesters = remember {
+        DesktopSettingsSection.entries.associateWith { FocusRequester() }
+    }
+    fun focusSelectedSectionMenu() {
+        sectionFocusRequesters[selectedSection]?.requestFocus()
+    }
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp),
@@ -146,6 +152,7 @@ internal fun CloudRssPanel(
     ) {
         SettingsSectionMenu(
             selectedSection = selectedSection,
+            sectionFocusRequesters = sectionFocusRequesters,
             sourcesCount = sources.size,
             rssCount = subscriptions.size,
             cloudEnabled = enabled,
@@ -223,6 +230,7 @@ internal fun CloudRssPanel(
                     SettingsQuickAction("打开海报墙", onOpenLibrary),
                     SettingsQuickAction("扫描当前源", onScanActiveSource),
                 ),
+                onFocusSectionMenu = { focusSelectedSectionMenu() },
                 modifier = Modifier.weight(1f),
             )
             DesktopSettingsSection.Playback -> SettingsSummaryContent(
@@ -234,6 +242,7 @@ internal fun CloudRssPanel(
                 ),
                 status = desktopPlaybackSettingsStatus(),
                 actions = listOf(SettingsQuickAction("打开播放器", onOpenPlayer)),
+                onFocusSectionMenu = { focusSelectedSectionMenu() },
                 modifier = Modifier.weight(1f),
             )
             DesktopSettingsSection.Scan -> SettingsSummaryContent(
@@ -248,6 +257,7 @@ internal fun CloudRssPanel(
                     SettingsQuickAction("扫描当前源", onScanActiveSource),
                     SettingsQuickAction("打开海报墙", onOpenLibrary),
                 ),
+                onFocusSectionMenu = { focusSelectedSectionMenu() },
                 modifier = Modifier.weight(1f),
             )
             DesktopSettingsSection.Metadata -> SettingsSummaryContent(
@@ -259,6 +269,7 @@ internal fun CloudRssPanel(
                 ),
                 status = desktopMetadataSettingsStatus(),
                 actions = listOf(SettingsQuickAction("打开详情", onOpenDetails)),
+                onFocusSectionMenu = { focusSelectedSectionMenu() },
                 modifier = Modifier.weight(1f),
             )
         }
@@ -1665,6 +1676,29 @@ internal fun settingsQuickActionNavigationTarget(
     return (currentIndex + delta).takeIf { it in 0 until actionCount }
 }
 
+internal sealed interface SettingsQuickActionFocusTarget {
+    data class Action(val index: Int) : SettingsQuickActionFocusTarget
+    data object SectionMenu : SettingsQuickActionFocusTarget
+}
+
+internal fun settingsQuickActionFocusTarget(
+    currentIndex: Int,
+    actionCount: Int,
+    key: Key,
+): SettingsQuickActionFocusTarget? =
+    when (key) {
+        Key.DirectionLeft,
+        Key.DirectionRight,
+        -> settingsQuickActionNavigationTarget(
+            currentIndex = currentIndex,
+            actionCount = actionCount,
+            key = key,
+        )?.let(SettingsQuickActionFocusTarget::Action)
+        Key.DirectionUp -> SettingsQuickActionFocusTarget.SectionMenu
+            .takeIf { actionCount > 0 && currentIndex in 0 until actionCount }
+        else -> null
+    }
+
 internal data class SettingsSummaryTile(
     val label: String,
     val value: String,
@@ -1904,6 +1938,7 @@ private fun schedulerStateLabel(state: String): String =
 @Composable
 private fun SettingsSectionMenu(
     selectedSection: DesktopSettingsSection,
+    sectionFocusRequesters: Map<DesktopSettingsSection, FocusRequester>,
     sourcesCount: Int,
     rssCount: Int,
     cloudEnabled: Boolean,
@@ -1912,9 +1947,6 @@ private fun SettingsSectionMenu(
     onSectionSelected: (DesktopSettingsSection) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val sectionFocusRequesters = remember {
-        DesktopSettingsSection.entries.associateWith { FocusRequester() }
-    }
     LaunchedEffect(selectedSection) {
         sectionFocusRequesters[selectedSection]?.requestFocus()
     }
@@ -2030,19 +2062,28 @@ private fun SettingsSummaryContent(
     tiles: List<SettingsSummaryTile>,
     status: String,
     actions: List<SettingsQuickAction>,
+    onFocusSectionMenu: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val actionFocusRequesters = remember(actions.size) {
         List(actions.size) { FocusRequester() }
     }
     fun moveActionFocus(currentIndex: Int, key: Key): Boolean {
-        val targetIndex = settingsQuickActionNavigationTarget(
+        return when (val target = settingsQuickActionFocusTarget(
             currentIndex = currentIndex,
             actionCount = actions.size,
             key = key,
-        ) ?: return false
-        actionFocusRequesters[targetIndex].requestFocus()
-        return true
+        )) {
+            is SettingsQuickActionFocusTarget.Action -> {
+                actionFocusRequesters[target.index].requestFocus()
+                true
+            }
+            SettingsQuickActionFocusTarget.SectionMenu -> {
+                onFocusSectionMenu()
+                true
+            }
+            null -> false
+        }
     }
     TvPanel(modifier.fillMaxWidth()) {
         Text(section.title, color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)

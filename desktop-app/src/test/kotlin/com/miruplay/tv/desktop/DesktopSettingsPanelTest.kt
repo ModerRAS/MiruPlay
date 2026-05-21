@@ -619,5 +619,19 @@ class DesktopSettingsPanelTest {
         assertNull(settingsQuickActionNavigationTarget(currentIndex = 1, actionCount = 2, Key.DirectionRight))
         assertNull(settingsQuickActionNavigationTarget(currentIndex = 0, actionCount = 2, Key.DirectionDown))
         assertNull(settingsQuickActionNavigationTarget(currentIndex = 0, actionCount = 0, Key.DirectionRight))
+        assertEquals(
+            SettingsQuickActionFocusTarget.Action(1),
+            settingsQuickActionFocusTarget(currentIndex = 0, actionCount = 2, Key.DirectionRight),
+        )
+        assertEquals(
+            SettingsQuickActionFocusTarget.Action(0),
+            settingsQuickActionFocusTarget(currentIndex = 1, actionCount = 2, Key.DirectionLeft),
+        )
+        assertEquals(
+            SettingsQuickActionFocusTarget.SectionMenu,
+            settingsQuickActionFocusTarget(currentIndex = 0, actionCount = 2, Key.DirectionUp),
+        )
+        assertNull(settingsQuickActionFocusTarget(currentIndex = 0, actionCount = 2, Key.DirectionDown))
+        assertNull(settingsQuickActionFocusTarget(currentIndex = 0, actionCount = 0, Key.DirectionUp))
     }
 }
