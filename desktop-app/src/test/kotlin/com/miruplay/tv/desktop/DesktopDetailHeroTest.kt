@@ -83,9 +83,18 @@ class DesktopDetailHeroTest {
             recentPlaybackActionVerticalFocusTarget(direction = 1, hasRecords = true),
         )
         assertEquals(
-            RecentPlaybackFocusTarget.NextPanel,
+            RecentPlaybackFocusTarget.EmptyState,
             recentPlaybackActionVerticalFocusTarget(direction = 1, hasRecords = false),
         )
+        assertEquals(
+            RecentPlaybackFocusTarget.Action(RecentPlaybackAction.Refresh),
+            recentPlaybackEmptyFocusTarget(Key.DirectionUp),
+        )
+        assertEquals(
+            RecentPlaybackFocusTarget.NextPanel,
+            recentPlaybackEmptyFocusTarget(Key.DirectionDown),
+        )
+        assertEquals(null, recentPlaybackEmptyFocusTarget(Key.DirectionLeft))
     }
 
     @Test

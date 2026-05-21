@@ -741,6 +741,7 @@ internal fun RecentPlaybackPanel(
             RecentPlaybackAction.Clear to FocusRequester(),
         )
     }
+    val emptyFocusRequester = remember { FocusRequester() }
 
     fun requestRecentFocus(target: RecentPlaybackFocusTarget?): Boolean {
         return when (target) {
@@ -751,6 +752,14 @@ internal fun RecentPlaybackPanel(
             is RecentPlaybackFocusTarget.Row -> {
                 recordFocusRequesters.getOrNull(target.index)?.requestFocus()
                 true
+            }
+            RecentPlaybackFocusTarget.EmptyState -> {
+                if (visibleRecords.isEmpty()) {
+                    emptyFocusRequester.requestFocus()
+                    true
+                } else {
+                    false
+                }
             }
             RecentPlaybackFocusTarget.PreviousPanel -> onFocusPreviousPanel()
             RecentPlaybackFocusTarget.NextPanel -> onFocusNextPanel()
@@ -771,6 +780,9 @@ internal fun RecentPlaybackPanel(
         }
         return requestRecentFocus(target)
     }
+
+    fun moveRecentEmptyFocus(key: Key): Boolean =
+        requestRecentFocus(recentPlaybackEmptyFocusTarget(key))
 
     LaunchedEffect(focusVersion) {
         if (focusVersion > 0) {
@@ -829,7 +841,11 @@ internal fun RecentPlaybackPanel(
                 verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp),
             ) {
                 if (records.isEmpty()) {
-                    DesktopEmptyState(labels.emptyState)
+                    RecentPlaybackEmptyState(
+                        text = labels.emptyState,
+                        focusRequester = emptyFocusRequester,
+                        onMove = ::moveRecentEmptyFocus,
+                    )
                 } else {
                     visibleRecords.forEachIndexed { index, record ->
                         RecentProgressRow(
@@ -853,6 +869,36 @@ internal fun RecentPlaybackPanel(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun RecentPlaybackEmptyState(
+    text: String,
+    focusRequester: FocusRequester,
+    onMove: (Key) -> Boolean,
+) {
+    DesktopSelectableRow(
+        selected = false,
+        onClick = {},
+        modifier = Modifier
+            .focusRequester(focusRequester)
+            .onPreviewKeyEvent { event ->
+                event.type == KeyEventType.KeyDown && onMove(event.key)
+            },
+        heightDp = MiruPlayUiMetrics.EMPTY_STATE_HEIGHT_DP,
+        inactiveAlpha = 0.48f,
+    ) { active ->
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text,
+                color = if (active) TextPrimary else TextSecondary,
+                fontSize = MiruPlayUiMetrics.SECTION_BODY_SP.sp,
+            )
         }
     }
 }
@@ -930,6 +976,7 @@ internal enum class RecentPlaybackAction {
 internal sealed interface RecentPlaybackFocusTarget {
     data class Action(val action: RecentPlaybackAction) : RecentPlaybackFocusTarget
     data class Row(val index: Int) : RecentPlaybackFocusTarget
+    data object EmptyState : RecentPlaybackFocusTarget
     data object PreviousPanel : RecentPlaybackFocusTarget
     data object NextPanel : RecentPlaybackFocusTarget
 }
@@ -950,7 +997,14 @@ internal fun recentPlaybackActionVerticalFocusTarget(
     when {
         direction < 0 -> RecentPlaybackFocusTarget.PreviousPanel
         direction > 0 && hasRecords -> RecentPlaybackFocusTarget.Row(0)
-        direction > 0 -> RecentPlaybackFocusTarget.NextPanel
+        direction > 0 -> RecentPlaybackFocusTarget.EmptyState
+        else -> null
+    }
+
+internal fun recentPlaybackEmptyFocusTarget(key: Key): RecentPlaybackFocusTarget? =
+    when (key) {
+        Key.DirectionUp -> RecentPlaybackFocusTarget.Action(RecentPlaybackAction.Refresh)
+        Key.DirectionDown -> RecentPlaybackFocusTarget.NextPanel
         else -> null
     }
 

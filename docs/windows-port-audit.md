@@ -148,6 +148,8 @@ The WebDAV GUI smoke captured
 `webdav-source-keyboard-browse.png`, and `webdav-source-keyboard-select.png`,
 proving remote-browser parent navigation, row movement, and Enter selection by
 keyboard input without touching the SMB share.
+The Continue watching empty state is now also focusable, with `Up` returning to
+the `刷新`/`清除条目` action row and `Down` continuing to the next Details panel.
 The mpv GUI smoke captured
 `build/desktop-mpv-launch-ui/run-20260521-123909/mpv-settings-focus.png`,
 `mpv-runtime-focus.png`, `mpv-keyboard-controls-used.png`, and
