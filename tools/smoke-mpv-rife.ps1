@@ -306,6 +306,8 @@ function Invoke-RifeSmokeBackend {
         return [pscustomobject]@{
             Backend = $BackendName
             Status = "FAIL"
+            ScriptName = $scriptName
+            ScriptPath = $scriptPath
             Message = "RIFE script not found: $scriptPath"
             LogPath = $logPath
             ExitCode = $null
@@ -336,6 +338,8 @@ function Invoke-RifeSmokeBackend {
         return [pscustomobject]@{
             Backend = $BackendName
             Status = "FAIL"
+            ScriptName = $scriptName
+            ScriptPath = $scriptPath
             Message = "Timed out after 60 seconds"
             LogPath = $logPath
             ExitCode = $null
@@ -355,6 +359,8 @@ function Invoke-RifeSmokeBackend {
         return [pscustomobject]@{
             Backend = $BackendName
             Status = "FAIL"
+            ScriptName = $scriptName
+            ScriptPath = $scriptPath
             Message = $message
             LogPath = $logPath
             ExitCode = $process.ExitCode
@@ -366,6 +372,8 @@ function Invoke-RifeSmokeBackend {
     return [pscustomobject]@{
         Backend = $BackendName
         Status = "PASS"
+        ScriptName = $scriptName
+        ScriptPath = $scriptPath
         Message = "RIFE filter initialized and playback completed"
         LogPath = $logPath
         ExitCode = $process.ExitCode

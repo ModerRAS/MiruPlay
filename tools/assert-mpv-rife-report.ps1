@@ -56,6 +56,16 @@ function Expand-JsonArray {
     return @($Value)
 }
 
+function Get-RifeScriptName {
+    param([string]$BackendName)
+    switch ($BackendName) {
+        "NVIDIA" { return "MEMC_RIFE_NV.vpy" }
+        "DIRECTML" { return "MEMC_RIFE_DML.vpy" }
+        "STANDARD" { return "MEMC_RIFE_STD.vpy" }
+        default { return "" }
+    }
+}
+
 $resolvedReportPath = Resolve-FullPath $ReportPath
 if (-not (Test-Path -LiteralPath $resolvedReportPath -PathType Leaf)) {
     throw "RIFE report was not found: $resolvedReportPath"
@@ -70,11 +80,31 @@ $unknownRequired = @($required | Where-Object { $_ -notin $allowed })
 Assert-Truthy -Condition ($unknownRequired.Count -eq 0) -Message "Unknown required backend(s): $($unknownRequired -join ', ')"
 
 Assert-Truthy -Condition (-not [string]::IsNullOrWhiteSpace([string]$report.GeneratedAtUtc)) -Message "Missing GeneratedAtUtc."
-Assert-Truthy -Condition (-not [string]::IsNullOrWhiteSpace([string]$report.RuntimeRoot)) -Message "Missing RuntimeRoot."
-Assert-Truthy -Condition (-not [string]::IsNullOrWhiteSpace([string]$report.MpvPath)) -Message "Missing MpvPath."
+$runtimeRoot = [string]$report.RuntimeRoot
+$mpvPath = [string]$report.MpvPath
+$configDirectory = [string]$report.ConfigDirectory
+$clipPath = [string]$report.ClipPath
+Assert-Truthy -Condition (-not [string]::IsNullOrWhiteSpace($runtimeRoot)) -Message "Missing RuntimeRoot."
+if (-not [string]::IsNullOrWhiteSpace($runtimeRoot)) {
+    Assert-Truthy -Condition ([System.IO.Path]::IsPathRooted($runtimeRoot)) -Message "RuntimeRoot must be absolute."
+    Assert-Truthy -Condition (Test-Path -LiteralPath $runtimeRoot -PathType Container) -Message "RuntimeRoot does not point to an existing directory: $runtimeRoot"
+}
+Assert-Truthy -Condition (-not [string]::IsNullOrWhiteSpace($mpvPath)) -Message "Missing MpvPath."
+if (-not [string]::IsNullOrWhiteSpace($mpvPath)) {
+    Assert-Truthy -Condition ([System.IO.Path]::IsPathRooted($mpvPath)) -Message "MpvPath must be absolute."
+    Assert-Truthy -Condition (Test-Path -LiteralPath $mpvPath -PathType Leaf) -Message "MpvPath does not point to an existing file: $mpvPath"
+}
 Assert-Truthy -Condition ([string]$report.MpvVersion -match '^mpv ') -Message "MpvVersion does not look like an mpv --version line."
-Assert-Truthy -Condition (-not [string]::IsNullOrWhiteSpace([string]$report.ConfigDirectory)) -Message "Missing ConfigDirectory."
-Assert-Truthy -Condition (-not [string]::IsNullOrWhiteSpace([string]$report.ClipPath)) -Message "Missing ClipPath."
+Assert-Truthy -Condition (-not [string]::IsNullOrWhiteSpace($configDirectory)) -Message "Missing ConfigDirectory."
+if (-not [string]::IsNullOrWhiteSpace($configDirectory)) {
+    Assert-Truthy -Condition ([System.IO.Path]::IsPathRooted($configDirectory)) -Message "ConfigDirectory must be absolute."
+    Assert-Truthy -Condition (Test-Path -LiteralPath $configDirectory -PathType Container) -Message "ConfigDirectory does not point to an existing directory: $configDirectory"
+}
+Assert-Truthy -Condition (-not [string]::IsNullOrWhiteSpace($clipPath)) -Message "Missing ClipPath."
+if (-not [string]::IsNullOrWhiteSpace($clipPath)) {
+    Assert-Truthy -Condition ([System.IO.Path]::IsPathRooted($clipPath)) -Message "ClipPath must be absolute."
+    Assert-Truthy -Condition (Test-Path -LiteralPath $clipPath -PathType Leaf) -Message "ClipPath does not point to an existing file: $clipPath"
+}
 Assert-Truthy -Condition (($report.Clip.Width -as [int]) -gt 0) -Message "Clip.Width must be positive."
 Assert-Truthy -Condition (($report.Clip.Height -as [int]) -gt 0) -Message "Clip.Height must be positive."
 Assert-Truthy -Condition (($report.Clip.Frames -as [int]) -gt 0) -Message "Clip.Frames must be positive."
@@ -86,6 +116,10 @@ if ($null -ne $runtimeManifestProperty) {
     $runtimeManifestPresent = [bool]$runtimeManifest.Present
     Assert-Truthy -Condition ($runtimeManifestPresent -or -not $RequireRuntimeManifest) -Message "RuntimeManifest.Present must be true."
     Assert-Truthy -Condition (-not [string]::IsNullOrWhiteSpace([string]$runtimeManifest.Path)) -Message "RuntimeManifest.Path is missing."
+    if ($runtimeManifestPresent -and -not [string]::IsNullOrWhiteSpace([string]$runtimeManifest.Path)) {
+        Assert-Truthy -Condition ([System.IO.Path]::IsPathRooted([string]$runtimeManifest.Path)) -Message "RuntimeManifest.Path must be absolute."
+        Assert-Truthy -Condition (Test-Path -LiteralPath ([string]$runtimeManifest.Path) -PathType Leaf) -Message "RuntimeManifest.Path does not point to an existing file: $($runtimeManifest.Path)"
+    }
 
     if ($runtimeManifestPresent) {
         $runtimeManifestProblems = @(
@@ -125,12 +159,27 @@ foreach ($result in $results) {
     $backend = ([string]$result.Backend).Trim().ToUpperInvariant()
     Assert-Truthy -Condition ($backend -in $allowed) -Message "Unknown result backend: $($result.Backend)"
     Assert-Truthy -Condition ([string]$result.Status -in @("PASS", "FAIL")) -Message "Backend $backend has invalid Status: $($result.Status)"
+    $expectedScriptName = Get-RifeScriptName -BackendName $backend
+    Assert-Truthy -Condition ([string]$result.ScriptName -eq $expectedScriptName) -Message "Backend $backend ScriptName must be $expectedScriptName."
+    Assert-Truthy -Condition (-not [string]::IsNullOrWhiteSpace([string]$result.ScriptPath)) -Message "Backend $backend is missing ScriptPath."
+    if (-not [string]::IsNullOrWhiteSpace([string]$result.ScriptPath)) {
+        Assert-Truthy -Condition ([System.IO.Path]::IsPathRooted([string]$result.ScriptPath)) -Message "Backend $backend ScriptPath must be absolute."
+    }
     Assert-Truthy -Condition (-not [string]::IsNullOrWhiteSpace([string]$result.Message)) -Message "Backend $backend is missing Message."
     Assert-Truthy -Condition (-not [string]::IsNullOrWhiteSpace([string]$result.LogPath)) -Message "Backend $backend is missing LogPath."
+    if (-not [string]::IsNullOrWhiteSpace([string]$result.LogPath)) {
+        Assert-Truthy -Condition ([System.IO.Path]::IsPathRooted([string]$result.LogPath)) -Message "Backend $backend LogPath must be absolute."
+    }
     Assert-Truthy -Condition (-not [string]::IsNullOrWhiteSpace([string]$result.StartedAtUtc)) -Message "Backend $backend is missing StartedAtUtc."
     Assert-Truthy -Condition (-not [string]::IsNullOrWhiteSpace([string]$result.FinishedAtUtc)) -Message "Backend $backend is missing FinishedAtUtc."
     if ([string]$result.Status -eq "PASS") {
         Assert-Truthy -Condition (($result.ExitCode -as [int]) -eq 0) -Message "Backend $backend passed but ExitCode is not 0."
+        if (-not [string]::IsNullOrWhiteSpace([string]$result.ScriptPath)) {
+            Assert-Truthy -Condition (Test-Path -LiteralPath ([string]$result.ScriptPath) -PathType Leaf) -Message "Backend $backend passed but ScriptPath does not point to an existing file: $($result.ScriptPath)"
+        }
+        if (-not [string]::IsNullOrWhiteSpace([string]$result.LogPath)) {
+            Assert-Truthy -Condition (Test-Path -LiteralPath ([string]$result.LogPath) -PathType Leaf) -Message "Backend $backend passed but LogPath does not point to an existing file: $($result.LogPath)"
+        }
     }
     if (-not [string]::IsNullOrWhiteSpace($backend)) {
         $resultsByBackend[$backend] = $result
