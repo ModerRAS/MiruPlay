@@ -174,6 +174,61 @@ class DesktopSettingsPanelTest {
     }
 
     @Test
+    fun `cloud rss action grid moves like TV remote button rows`() {
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.ClearCredentials),
+            cloudRssActionFocusTarget(CloudRssAction.SaveCredentials, Key.DirectionRight, subscriptionCount = 2),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.LoginCloudDrive),
+            cloudRssActionFocusTarget(CloudRssAction.SaveCredentials, Key.DirectionDown, subscriptionCount = 2),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.SaveCredentials),
+            cloudRssActionFocusTarget(CloudRssAction.LoginCloudDrive, Key.DirectionUp, subscriptionCount = 2),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.RunSyncNow),
+            cloudRssActionFocusTarget(CloudRssAction.ClearScanSource, Key.DirectionDown, subscriptionCount = 2),
+        )
+        assertNull(cloudRssActionFocusTarget(CloudRssAction.SaveCredentials, Key.DirectionLeft, subscriptionCount = 2))
+        assertNull(cloudRssActionFocusTarget(CloudRssAction.SaveCredentials, Key.DirectionUp, subscriptionCount = 2))
+    }
+
+    @Test
+    fun `cloud rss rss and scheduler focus bridge through saved subscription rows`() {
+        assertEquals(
+            CloudRssFocusTarget.Subscription(0),
+            cloudRssActionFocusTarget(CloudRssAction.SaveRss, Key.DirectionDown, subscriptionCount = 3),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.StartScheduler),
+            cloudRssActionFocusTarget(CloudRssAction.SaveRss, Key.DirectionDown, subscriptionCount = 0),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.SaveRss),
+            cloudRssSubscriptionFocusTarget(currentIndex = 0, itemCount = 3, Key.DirectionUp),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Subscription(1),
+            cloudRssSubscriptionFocusTarget(currentIndex = 0, itemCount = 3, Key.DirectionDown),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.StartScheduler),
+            cloudRssSubscriptionFocusTarget(currentIndex = 2, itemCount = 3, Key.DirectionDown),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Subscription(2),
+            cloudRssActionFocusTarget(CloudRssAction.StopScheduler, Key.DirectionUp, subscriptionCount = 3),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.StopScheduler),
+            cloudRssActionFocusTarget(CloudRssAction.DeleteRss, Key.DirectionDown, subscriptionCount = 0),
+        )
+        assertNull(cloudRssSubscriptionFocusTarget(currentIndex = 0, itemCount = 0, Key.DirectionDown))
+    }
+
+    @Test
     fun `settings category navigation stops at TV list edges`() {
         assertNull(DesktopSettingsSection.Sources.step(-1))
         assertEquals(DesktopSettingsSection.Playback, DesktopSettingsSection.Sources.step(1))
