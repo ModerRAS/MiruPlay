@@ -886,13 +886,12 @@ private fun LibraryEmptyMediaState(
         selected = false,
         onClick = {},
         modifier = Modifier
-            .focusRequester(focusRequester)
-            .onPreviewKeyEvent { event ->
-                event.type == KeyEventType.KeyDown &&
-                    onMove(libraryEmptyMediaFocusTarget(event.key))
-            },
+            .focusRequester(focusRequester),
         heightDp = heightDp,
         inactiveAlpha = 0.48f,
+        onNavigationKey = { key ->
+            onMove(libraryEmptyMediaFocusTarget(key))
+        },
     ) { active ->
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -1985,13 +1984,12 @@ private fun RemoteBrowserEmptyState(
         selected = false,
         onClick = {},
         modifier = Modifier
-            .focusRequester(focusRequester)
-            .onPreviewKeyEvent { event ->
-                event.type == KeyEventType.KeyDown &&
-                    onMove(remoteBrowserEmptyFocusTarget(event.key))
-            },
+            .focusRequester(focusRequester),
         heightDp = MiruPlayUiMetrics.REMOTE_EMPTY_STATE_HEIGHT_DP,
         inactiveAlpha = 0.48f,
+        onNavigationKey = { key ->
+            onMove(remoteBrowserEmptyFocusTarget(key))
+        },
     ) { active ->
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -2017,14 +2015,8 @@ private fun RemoteFileRow(
     DesktopSelectableRow(
         selected = selected,
         onClick = onClick,
-        modifier = modifier.onPreviewKeyEvent { event ->
-            desktopConfirmOrNavigationKeyEvent(
-                key = event.key,
-                type = event.type,
-                onClick = onClick,
-                onNavigationKey = onNavigationKey,
-            )
-        },
+        modifier = modifier,
+        onNavigationKey = onNavigationKey,
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
