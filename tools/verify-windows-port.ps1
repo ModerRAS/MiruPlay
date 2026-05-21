@@ -16,6 +16,7 @@ param(
     [switch]$Rife,
     [ValidateSet("NVIDIA", "DIRECTML", "STANDARD", "ALL")]
     [string]$RifeBackend = "DIRECTML",
+    [string]$RequiredRifeReportBackends = "",
     [switch]$AllowRifeFailures
 )
 
@@ -343,16 +344,37 @@ try {
     if ($Rife) {
         Invoke-Step -Name "RIFE target-hardware smoke" -Action {
             $reportName = if ($RifeBackend -eq "ALL") { "rife-matrix-report.json" } else { "rife-$($RifeBackend.ToLowerInvariant())-report.json" }
+            $reportPath = Join-Path $repoRoot "build\mpv-smoke\$reportName"
             $rifeArgs = @(
                 "-Backend",
                 $RifeBackend,
                 "-ReportPath",
-                (Join-Path $repoRoot "build\mpv-smoke\$reportName")
+                $reportPath
             )
             if ($AllowRifeFailures) {
                 $rifeArgs += "-AllowFailures"
             }
             Invoke-ToolScript -ScriptName "smoke-mpv-rife.ps1" -Arguments $rifeArgs
+
+            $requiredReportBackends = if ([string]::IsNullOrWhiteSpace($RequiredRifeReportBackends)) {
+                if ($RifeBackend -eq "ALL") {
+                    $RequiredRifeBackends
+                } else {
+                    $RifeBackend
+                }
+            } else {
+                $RequiredRifeReportBackends
+            }
+            $assertArgs = @(
+                "-ReportPath",
+                $reportPath,
+                "-RequiredBackends",
+                $requiredReportBackends
+            )
+            if ($AllowRifeFailures) {
+                $assertArgs += "-AllowFailures"
+            }
+            Invoke-ToolScript -ScriptName "assert-mpv-rife-report.ps1" -Arguments $assertArgs
         }
     } else {
         Write-Host "RIFE smoke skipped. Run with -Rife only on target hardware expected to support interpolation."

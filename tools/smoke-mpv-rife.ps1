@@ -1,9 +1,9 @@
 [CmdletBinding()]
 param(
-    [string]$RuntimeRoot = (Join-Path $PSScriptRoot "..\runtime\mpv"),
+    [string]$RuntimeRoot = "",
     [ValidateSet("NVIDIA", "DIRECTML", "STANDARD", "ALL")]
     [string]$Backend = "DIRECTML",
-    [string]$ClipPath = (Join-Path $PSScriptRoot "..\build\mpv-smoke\clip-1440x810-2f.y4m"),
+    [string]$ClipPath = "",
     [int]$Width = 1440,
     [int]$Height = 810,
     [int]$Frames = 2,
@@ -12,6 +12,18 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+$scriptRoot = if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) {
+    Split-Path -Parent $MyInvocation.MyCommand.Path
+} else {
+    $PSScriptRoot
+}
+if ([string]::IsNullOrWhiteSpace($RuntimeRoot)) {
+    $RuntimeRoot = Join-Path $scriptRoot "..\runtime\mpv"
+}
+if ([string]::IsNullOrWhiteSpace($ClipPath)) {
+    $ClipPath = Join-Path $scriptRoot "..\build\mpv-smoke\clip-1440x810-2f.y4m"
+}
 
 function Resolve-FullPath {
     param([string]$Path)
