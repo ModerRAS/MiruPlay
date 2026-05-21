@@ -325,6 +325,12 @@ class DesktopPlaybackPanelTest {
             desktopRuntimeStatusText("mpv runtime is incomplete. Missing: mpv.exe, portable_config/."),
         )
         assertEquals(
+            "mpv 运行时可播放，但运行时清单声明的条目缺失或无效：portable_config/vs/missing.vpy。清单：已发现。",
+            desktopRuntimeStatusText(
+                "mpv runtime is playable. Runtime manifest entries are missing or invalid: portable_config/vs/missing.vpy. Manifest: present.",
+            ),
+        )
+        assertEquals(
             "运行时检查失败：missing path",
             desktopRuntimeStatusText("Runtime check failed: missing path"),
         )

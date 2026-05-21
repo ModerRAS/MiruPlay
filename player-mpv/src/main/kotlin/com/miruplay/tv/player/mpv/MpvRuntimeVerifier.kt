@@ -4,6 +4,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.Paths
 
 @Serializable
 data class MpvRuntimeManifest(
@@ -27,6 +28,8 @@ data class MpvRuntimeVerification(
 
     fun message(): String = when {
         isComplete -> "Bundled mpv runtime is ready. RIFE: ${formatBackends(availableRifeBackends)}."
+        isPlayable && manifestMissingEntries.isNotEmpty() ->
+            "mpv runtime is playable. Runtime manifest entries are missing or invalid: ${manifestMissingEntries.joinToString(", ")}."
         isPlayable && !hasRife -> "mpv runtime is playable. RIFE scripts are missing; leave RIFE off or prepare a RIFE backend."
         isPlayable -> "mpv runtime is playable. Missing optional files: ${missing.joinToString(", ")}."
         else -> "mpv runtime is incomplete. Missing: ${missing.joinToString(", ")}."
@@ -57,6 +60,11 @@ data class MpvRuntimeVerification(
 
     private fun String.withManifestMarker(): String =
         if (manifest == null) this else "$this Manifest: present."
+
+    private val manifestMissingEntries: List<String> =
+        missing.filter { it.startsWith(MANIFEST_MISSING_PREFIX) }
+            .map { it.removePrefix(MANIFEST_MISSING_PREFIX) }
+            .map { it.trimStart() }
 }
 
 object MpvRuntimeVerifier {
@@ -72,27 +80,39 @@ object MpvRuntimeVerifier {
 
     fun verify(layout: MpvRuntimeLayout): MpvRuntimeVerification {
         val manifest = readManifest(layout)
-        val requiredBackends = manifest
+        val declaredRequiredBackends = manifest
             ?.requiredRifeBackends
+            ?.map { it.trim().uppercase() }
+            ?.filter { it.isNotEmpty() }
+        val requiredBackends = declaredRequiredBackends
             ?.mapNotNull(::parseBackend)
             ?: RifeBackend.entries
-        val missing = buildList {
-            if (!Files.isRegularFile(layout.executable)) add("mpv.exe")
-            if (!Files.isDirectory(layout.configDirectory)) add("portable_config/")
-            if (requiredBackends.isNotEmpty() && !Files.isDirectory(layout.configDirectory.resolve("vs"))) {
-                add("portable_config/vs/")
-            }
+        val missing = linkedSetOf<String>()
+        fun addMissing(value: String) {
+            missing += value
+        }
 
-            requiredBackends.forEach { backend ->
-                if (!Files.isRegularFile(layout.rifeScript(backend))) {
-                    add("portable_config/vs/${backend.scriptName}")
-                }
+        if (!Files.isRegularFile(layout.executable)) addMissing("mpv.exe")
+        if (!Files.isDirectory(layout.configDirectory)) addMissing("portable_config/")
+        declaredRequiredBackends
+            ?.filter { parseBackend(it) == null }
+            ?.forEach { addMissing("$MANIFEST_MISSING_PREFIX requiredRifeBackends=$it") }
+        if (requiredBackends.isNotEmpty() && !Files.isDirectory(layout.configDirectory.resolve("vs"))) {
+            addMissing("portable_config/vs/")
+        }
+
+        requiredBackends.forEach { backend ->
+            if (!Files.isRegularFile(layout.rifeScript(backend))) {
+                addMissing("portable_config/vs/${backend.scriptName}")
             }
+        }
+        manifest?.files.orEmpty().forEach { entry ->
+            missingManifestEntry(layout, entry)?.let(::addMissing)
         }
 
         return MpvRuntimeVerification(
             layout = layout,
-            missing = missing,
+            missing = missing.toList(),
             availableRifeBackends = layout.availableRifeBackends(),
             manifest = manifest,
         )
@@ -111,4 +131,42 @@ object MpvRuntimeVerifier {
 
     private fun parseBackend(value: String): RifeBackend? =
         runCatching { RifeBackend.valueOf(value.trim().uppercase()) }.getOrNull()
+
+    private fun missingManifestEntry(layout: MpvRuntimeLayout, entry: String): String? {
+        val manifestPath = normalizeManifestFileEntry(entry)
+            ?: return "$MANIFEST_MISSING_PREFIX ${entry.ifBlank { "<blank>" }}"
+        val relativePath = manifestPath.removeSuffix("/")
+        val candidate = layout.rootDirectory.resolve(Paths.get(relativePath)).normalize()
+        if (!candidate.startsWith(layout.rootDirectory)) {
+            return "$MANIFEST_MISSING_PREFIX $manifestPath"
+        }
+
+        val exists = if (manifestPath.endsWith("/")) {
+            Files.isDirectory(candidate)
+        } else {
+            Files.isRegularFile(candidate)
+        }
+        return if (exists) null else "$MANIFEST_MISSING_PREFIX $manifestPath"
+    }
+
+    private fun normalizeManifestFileEntry(entry: String): String? {
+        val normalized = entry.trim().replace('\\', '/')
+        if (normalized.isBlank() || normalized.startsWith("/") || hasWindowsDrivePrefix(normalized)) {
+            return null
+        }
+        val directory = normalized.endsWith("/")
+        val segments = normalized
+            .trimEnd('/')
+            .split('/')
+            .filter { it.isNotBlank() }
+        if (segments.isEmpty() || segments.any { it == "." || it == ".." }) {
+            return null
+        }
+        return segments.joinToString("/").let { if (directory) "$it/" else it }
+    }
+
+    private fun hasWindowsDrivePrefix(value: String): Boolean =
+        value.length >= 2 && value[1] == ':' && value[0].isLetter()
 }
+
+private const val MANIFEST_MISSING_PREFIX = "runtime-manifest:"

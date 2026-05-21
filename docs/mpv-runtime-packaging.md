@@ -55,8 +55,12 @@ The script uses `7z.exe` for archives and self-extracting packages, validates
 the expected RIFE scripts, then writes `runtime-manifest.json` into the prepared
 payload. Passing an extracted directory as `-Source` or `-OverlaySource` skips
 extraction and copies that directory directly. The desktop app's `Check runtime`
-dialog reads this manifest when it is present. `-ExpectedSha256` is optional,
-but recommended for downloaded release assets; it is validated before archive
+dialog reads this manifest when it is present and treats the declared relative
+file/directory entries plus required RIFE backends as verification evidence. A
+manifest that names missing files, unknown backends, absolute paths, or `..`
+entries is reported as incomplete instead of being accepted as provenance.
+`-ExpectedSha256` is optional, but recommended for downloaded release assets; it
+is validated before archive
 extraction. For split archives or base+overlay builds, pass a semicolon separated
 `filename=sha256` list so every part is checked before extraction:
 
@@ -109,7 +113,8 @@ desktop-app/build/install/desktop-app/runtime/mpv/
 ```
 
 Launch `bin/desktop-app.bat` and click `Check runtime`. The app reports whether
-`mpv.exe`, `portable_config/`, and the configured RIFE scripts are present.
+`mpv.exe`, `portable_config/`, the configured RIFE scripts, and any
+`runtime-manifest.json` entries are present.
 
 ## Release Gate
 
