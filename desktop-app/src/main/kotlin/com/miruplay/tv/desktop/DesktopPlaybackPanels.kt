@@ -1019,6 +1019,10 @@ private fun desktopRuntimeStatusLine(line: String): String {
             }。$suffix"
         body == "mpv runtime is playable. RIFE scripts are missing; leave RIFE off or prepare a RIFE backend." ->
             "mpv 运行时可播放。缺少 RIFE 脚本；请关闭 RIFE 或准备 RIFE 后端。$suffix"
+        body.startsWith("mpv runtime is playable. Runtime manifest entries are missing or invalid: ") ->
+            "mpv 运行时可播放，但运行时清单声明的条目缺失或无效：${
+                body.removePrefix("mpv runtime is playable. Runtime manifest entries are missing or invalid: ").removeSuffix(".")
+            }。$suffix"
         body.startsWith("mpv runtime is playable. Missing optional files: ") ->
             "mpv 运行时可播放。缺少可选文件：${
                 body.removePrefix("mpv runtime is playable. Missing optional files: ").removeSuffix(".")

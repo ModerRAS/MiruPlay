@@ -146,6 +146,74 @@ class MpvRuntimeVerifierTest {
     }
 
     @Test
+    fun `verify treats missing or invalid manifest file entries as incomplete runtime evidence`() {
+        val tempDir = Files.createTempDirectory("miruplay-runtime")
+        try {
+            val layout = MpvRuntimeDiscovery.layoutFor(tempDir)
+            Files.createDirectories(layout.configDirectory.resolve("vs"))
+            Files.createFile(layout.executable)
+            Files.createFile(layout.rifeScript(RifeBackend.NVIDIA))
+            Files.writeString(
+                tempDir.resolve("runtime-manifest.json"),
+                """
+                {
+                  "requiredRifeBackends": ["NVIDIA"],
+                  "files": [
+                    "mpv.exe",
+                    "portable_config/",
+                    "portable_config/vs/MEMC_RIFE_NV.vpy",
+                    "portable_config/vs/missing.vpy",
+                    "../outside.txt",
+                    "C:/outside.txt",
+                    " "
+                  ]
+                }
+                """.trimIndent(),
+            )
+
+            val verification = MpvRuntimeVerifier.verify(layout)
+
+            assertTrue(verification.isPlayable)
+            assertFalse(verification.isComplete)
+            assertTrue("runtime-manifest: portable_config/vs/missing.vpy" in verification.missing)
+            assertTrue("runtime-manifest: ../outside.txt" in verification.missing)
+            assertTrue("runtime-manifest: C:/outside.txt" in verification.missing)
+            assertTrue("runtime-manifest: <blank>" in verification.missing)
+            assertTrue(verification.message().contains("Runtime manifest entries are missing or invalid"))
+        } finally {
+            tempDir.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `verify treats unknown manifest RIFE backend as incomplete runtime evidence`() {
+        val tempDir = Files.createTempDirectory("miruplay-runtime")
+        try {
+            val layout = MpvRuntimeDiscovery.layoutFor(tempDir)
+            Files.createDirectories(layout.configDirectory.resolve("vs"))
+            Files.createFile(layout.executable)
+            Files.writeString(
+                tempDir.resolve("runtime-manifest.json"),
+                """
+                {
+                  "requiredRifeBackends": ["NVIDIA", "ALIENWARE"],
+                  "files": ["mpv.exe", "portable_config/"]
+                }
+                """.trimIndent(),
+            )
+
+            val verification = MpvRuntimeVerifier.verify(layout)
+
+            assertTrue(verification.isPlayable)
+            assertFalse(verification.isComplete)
+            assertTrue("portable_config/vs/MEMC_RIFE_NV.vpy" in verification.missing)
+            assertTrue("runtime-manifest: requiredRifeBackends=ALIENWARE" in verification.missing)
+        } finally {
+            tempDir.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
     fun `verify ignores malformed runtime manifest`() {
         val tempDir = Files.createTempDirectory("miruplay-runtime")
         try {
