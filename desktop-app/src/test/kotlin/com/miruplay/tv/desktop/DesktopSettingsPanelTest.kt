@@ -332,12 +332,36 @@ class DesktopSettingsPanelTest {
 
     @Test
     fun `desktop CloudDrive directory rows move vertically without wrapping`() {
-        assertEquals(1, cloudDriveDirectoryNavigationTarget(currentIndex = 0, itemCount = 3, Key.DirectionDown))
-        assertEquals(1, cloudDriveDirectoryNavigationTarget(currentIndex = 2, itemCount = 3, Key.DirectionUp))
-        assertNull(cloudDriveDirectoryNavigationTarget(currentIndex = 0, itemCount = 3, Key.DirectionUp))
-        assertNull(cloudDriveDirectoryNavigationTarget(currentIndex = 2, itemCount = 3, Key.DirectionDown))
-        assertNull(cloudDriveDirectoryNavigationTarget(currentIndex = 0, itemCount = 0, Key.DirectionDown))
-        assertNull(cloudDriveDirectoryNavigationTarget(currentIndex = 0, itemCount = 3, Key.DirectionRight))
+        assertEquals(
+            CloudDriveDirectoryFocusTarget.Action(CloudDriveDirectoryAction.Parent),
+            cloudDriveDirectoryActionFocusTarget(CloudDriveDirectoryAction.UseCurrent, itemCount = 3, Key.DirectionRight),
+        )
+        assertEquals(
+            CloudDriveDirectoryFocusTarget.Action(CloudDriveDirectoryAction.UseCurrent),
+            cloudDriveDirectoryActionFocusTarget(CloudDriveDirectoryAction.Parent, itemCount = 3, Key.DirectionLeft),
+        )
+        assertEquals(
+            CloudDriveDirectoryFocusTarget.Action(CloudDriveDirectoryAction.Close),
+            cloudDriveDirectoryActionFocusTarget(CloudDriveDirectoryAction.Parent, itemCount = 3, Key.DirectionRight),
+        )
+        assertEquals(
+            CloudDriveDirectoryFocusTarget.Row(0),
+            cloudDriveDirectoryActionFocusTarget(CloudDriveDirectoryAction.Close, itemCount = 3, Key.DirectionDown),
+        )
+        assertNull(cloudDriveDirectoryActionFocusTarget(CloudDriveDirectoryAction.UseCurrent, itemCount = 3, Key.DirectionLeft))
+        assertNull(cloudDriveDirectoryActionFocusTarget(CloudDriveDirectoryAction.Close, itemCount = 3, Key.DirectionRight))
+        assertNull(cloudDriveDirectoryActionFocusTarget(CloudDriveDirectoryAction.Close, itemCount = 0, Key.DirectionDown))
+        assertNull(cloudDriveDirectoryActionFocusTarget(CloudDriveDirectoryAction.UseCurrent, itemCount = 3, Key.DirectionUp))
+
+        assertEquals(CloudDriveDirectoryFocusTarget.Row(1), cloudDriveDirectoryRowFocusTarget(currentIndex = 0, itemCount = 3, Key.DirectionDown))
+        assertEquals(CloudDriveDirectoryFocusTarget.Row(1), cloudDriveDirectoryRowFocusTarget(currentIndex = 2, itemCount = 3, Key.DirectionUp))
+        assertEquals(
+            CloudDriveDirectoryFocusTarget.Action(CloudDriveDirectoryAction.UseCurrent),
+            cloudDriveDirectoryRowFocusTarget(currentIndex = 0, itemCount = 3, Key.DirectionUp),
+        )
+        assertNull(cloudDriveDirectoryRowFocusTarget(currentIndex = 2, itemCount = 3, Key.DirectionDown))
+        assertNull(cloudDriveDirectoryRowFocusTarget(currentIndex = 0, itemCount = 0, Key.DirectionDown))
+        assertNull(cloudDriveDirectoryRowFocusTarget(currentIndex = 0, itemCount = 3, Key.DirectionRight))
     }
 
     @Test

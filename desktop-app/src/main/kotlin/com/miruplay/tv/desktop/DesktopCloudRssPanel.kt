@@ -835,13 +835,29 @@ private fun CloudDriveDirectoryBrowserCard(
     onClose: () -> Unit,
 ) {
     val visibleEntries = state.entries.take(6)
-    val useCurrentFocusRequester = remember { FocusRequester() }
+    val actionFocusRequesters = remember {
+        CloudDriveDirectoryAction.entries.associateWith { FocusRequester() }
+    }
     val entryFocusRequesters = remember(visibleEntries.map { it.path }) {
         List(visibleEntries.size) { FocusRequester() }
     }
+
+    fun requestDirectoryFocus(target: CloudDriveDirectoryFocusTarget?): Boolean =
+        when (target) {
+            is CloudDriveDirectoryFocusTarget.Action -> {
+                actionFocusRequesters.getValue(target.action).requestFocus()
+                true
+            }
+            is CloudDriveDirectoryFocusTarget.Row -> {
+                entryFocusRequesters.getOrNull(target.index)?.requestFocus()
+                true
+            }
+            null -> false
+        }
+
     LaunchedEffect(state.open, state.path) {
         if (state.open) {
-            useCurrentFocusRequester.requestFocus()
+            actionFocusRequesters.getValue(CloudDriveDirectoryAction.UseCurrent).requestFocus()
         }
     }
     CloudRssCard(
@@ -855,19 +871,38 @@ private fun CloudDriveDirectoryBrowserCard(
                 onClick = { onSelect(state.target, state.path) },
                 modifier = Modifier
                     .weight(1f)
-                    .focusRequester(useCurrentFocusRequester),
+                    .cloudDriveDirectoryActionNavigation(
+                        action = CloudDriveDirectoryAction.UseCurrent,
+                        focusRequester = actionFocusRequesters.getValue(CloudDriveDirectoryAction.UseCurrent),
+                        itemCount = visibleEntries.size,
+                        onMove = ::requestDirectoryFocus,
+                    ),
             )
             TvActionButton(
                 text = "返回上级",
                 onClick = { state.parentPath?.let(onBrowse) },
                 secondary = true,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .cloudDriveDirectoryActionNavigation(
+                        action = CloudDriveDirectoryAction.Parent,
+                        focusRequester = actionFocusRequesters.getValue(CloudDriveDirectoryAction.Parent),
+                        itemCount = visibleEntries.size,
+                        onMove = ::requestDirectoryFocus,
+                    ),
             )
             TvActionButton(
                 text = "关闭",
                 onClick = onClose,
                 secondary = true,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .cloudDriveDirectoryActionNavigation(
+                        action = CloudDriveDirectoryAction.Close,
+                        focusRequester = actionFocusRequesters.getValue(CloudDriveDirectoryAction.Close),
+                        itemCount = visibleEntries.size,
+                        onMove = ::requestDirectoryFocus,
+                    ),
             )
         }
         if (!state.message.isNullOrBlank()) {
@@ -883,14 +918,13 @@ private fun CloudDriveDirectoryBrowserCard(
                     entry = entry,
                     onClick = { onBrowse(entry.path) },
                     onNavigate = { key ->
-                        cloudDriveDirectoryNavigationTarget(
+                        requestDirectoryFocus(
+                            cloudDriveDirectoryRowFocusTarget(
                             currentIndex = index,
                             itemCount = visibleEntries.size,
                             key = key,
-                        )?.let { target ->
-                            entryFocusRequesters[target].requestFocus()
-                            true
-                        } ?: false
+                            ),
+                        )
                     },
                     modifier = Modifier.focusRequester(entryFocusRequesters[index]),
                 )
@@ -1198,18 +1232,65 @@ internal fun cloudRssSubscriptionFocusTarget(
     }
 }
 
-internal fun cloudDriveDirectoryNavigationTarget(
+internal enum class CloudDriveDirectoryAction {
+    UseCurrent,
+    Parent,
+    Close,
+}
+
+internal sealed interface CloudDriveDirectoryFocusTarget {
+    data class Action(val action: CloudDriveDirectoryAction) : CloudDriveDirectoryFocusTarget
+    data class Row(val index: Int) : CloudDriveDirectoryFocusTarget
+}
+
+private fun Modifier.cloudDriveDirectoryActionNavigation(
+    action: CloudDriveDirectoryAction,
+    focusRequester: FocusRequester,
+    itemCount: Int,
+    onMove: (CloudDriveDirectoryFocusTarget?) -> Boolean,
+): Modifier =
+    focusRequester(focusRequester)
+        .onPreviewKeyEvent { event ->
+            event.type == KeyEventType.KeyDown &&
+                onMove(cloudDriveDirectoryActionFocusTarget(action, itemCount, event.key))
+        }
+
+internal fun cloudDriveDirectoryActionFocusTarget(
+    current: CloudDriveDirectoryAction,
+    itemCount: Int,
+    key: Key,
+): CloudDriveDirectoryFocusTarget? =
+    when (key) {
+        Key.DirectionLeft -> cloudDriveDirectoryHorizontalAction(current, -1)?.let(CloudDriveDirectoryFocusTarget::Action)
+        Key.DirectionRight -> cloudDriveDirectoryHorizontalAction(current, 1)?.let(CloudDriveDirectoryFocusTarget::Action)
+        Key.DirectionDown -> if (itemCount > 0) CloudDriveDirectoryFocusTarget.Row(0) else null
+        else -> null
+    }
+
+internal fun cloudDriveDirectoryRowFocusTarget(
     currentIndex: Int,
     itemCount: Int,
     key: Key,
-): Int? {
+): CloudDriveDirectoryFocusTarget? {
     if (itemCount <= 0) return null
-    val delta = when (key) {
-        Key.DirectionUp -> -1
-        Key.DirectionDown -> 1
+    return when (key) {
+        Key.DirectionUp -> if (currentIndex <= 0) {
+            CloudDriveDirectoryFocusTarget.Action(CloudDriveDirectoryAction.UseCurrent)
+        } else {
+            CloudDriveDirectoryFocusTarget.Row(currentIndex - 1)
+        }
+        Key.DirectionDown -> CloudDriveDirectoryFocusTarget.Row(currentIndex + 1).takeIf { currentIndex + 1 in 0 until itemCount }
         else -> return null
     }
-    return (currentIndex + delta).takeIf { it in 0 until itemCount }
+}
+
+private fun cloudDriveDirectoryHorizontalAction(
+    current: CloudDriveDirectoryAction,
+    delta: Int,
+): CloudDriveDirectoryAction? {
+    val actions = CloudDriveDirectoryAction.entries
+    val targetIndex = actions.indexOf(current) + delta
+    return actions.getOrNull(targetIndex)
 }
 
 private fun cloudRssHorizontalAction(
