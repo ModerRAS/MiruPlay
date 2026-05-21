@@ -115,28 +115,14 @@ internal fun SavedSourcePicker(
                     shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
                 )
                 .onPreviewKeyEvent { event ->
-                    if (event.type != KeyEventType.KeyDown) {
-                        false
-                    } else {
-                        when {
-                            isDesktopConfirmKey(event.key) -> {
-                                expanded = true
-                                true
-                            }
-                            event.key in setOf(
-                                Key.DirectionDown,
-                                Key.DirectionRight,
-                                Key.DirectionUp,
-                                Key.DirectionLeft,
-                            ) -> {
-                                sources.savedSourcePickerNavigationTarget(activeSourceId, event.key)?.let { source ->
-                                    onSelected(source)
-                                    true
-                                } ?: false
-                            }
-                            else -> false
-                        }
-                    }
+                    savedSourcePickerKeyEvent(
+                        sources = sources,
+                        activeSourceId = activeSourceId,
+                        key = event.key,
+                        type = event.type,
+                        onOpen = { expanded = true },
+                        onSelected = onSelected,
+                    )
                 }
                 .focusable(interactionSource = interactionSource)
                 .clickable(interactionSource = interactionSource, indication = null) {
@@ -232,6 +218,26 @@ internal fun MediaSourceInfo.sourcePickerSubtitle(maxLength: Int = SOURCE_PICKER
         .orEmpty()
         .ifBlank { "未配置路径" }
         .compactMiddle(maxLength)
+
+internal fun savedSourcePickerKeyEvent(
+    sources: List<MediaSourceInfo>,
+    activeSourceId: Long?,
+    key: Key,
+    type: KeyEventType,
+    onOpen: () -> Unit,
+    onSelected: (MediaSourceInfo) -> Unit,
+): Boolean =
+    desktopConfirmOrNavigationKeyEvent(
+        key = key,
+        type = type,
+        onClick = onOpen,
+        onNavigationKey = { navigationKey ->
+            sources.savedSourcePickerNavigationTarget(activeSourceId, navigationKey)?.let { source ->
+                onSelected(source)
+                true
+            } ?: false
+        },
+    )
 
 internal fun List<MediaSourceInfo>.savedSourcePickerNavigationTarget(
     activeSourceId: Long?,
