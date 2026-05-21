@@ -137,6 +137,10 @@ chain by keyboard input.
 The same smoke now writes its isolated desktop JSON store as UTF-8 without BOM,
 so both Windows PowerShell and PowerShell 7 launches preload the Cloud/RSS
 fixture state before screenshot assertions.
+The CloudDrive directory picker now pages folder rows in six-item TV-style
+windows: `Down` from row 6 moves to row 7 on the next page, `Up` moves back
+across the page boundary, and the picker shows a Chinese range summary so
+large CloudDrive folders are not silently truncated.
 The generated local-source GUI smoke also captured
 `build/desktop-local-source-ui/run-20260520-162054/local-source-poster-keyboard.png`,
 proving the Library poster wall can move selection with keyboard input before

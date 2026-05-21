@@ -98,6 +98,7 @@ The port is complete only when all of these are proven by current evidence:
 - [x] Localize Windows source-management controls and saved-source type labels to TV-facing Chinese copy.
 - [x] Localize Windows Library/source-management status messages to TV-facing Chinese copy.
 - [x] Localize Windows Cloud/RSS settings labels, previews, empty states, and status copy to TV-facing Chinese.
+- [x] Keep every Windows CloudDrive directory picker folder reachable by keyboard/DPAD pagination, not only the first visible six rows.
 - [x] Localize Windows route rail subtitle, playback poster placeholder, and Settings page references to TV-facing Chinese copy.
 - [x] Add unit coverage for saved-source card keyboard/DPAD navigation.
 - [x] Share saved-source picker confirm/navigation key handling through the desktop confirm-key helper.

@@ -50,6 +50,7 @@ private const val CLOUD_RSS_PREVIEW_LIMIT = 58
 private const val CLOUD_RSS_WIDE_PREVIEW_LIMIT = 86
 private const val CLOUD_RSS_BADGE_WIDTH_DP = 82
 private const val CLOUD_RSS_BADGE_HEIGHT_DP = 34
+private const val CLOUD_DRIVE_DIRECTORY_PAGE_SIZE = 6
 
 internal enum class DesktopSettingsSection(
     val title: String,
@@ -875,24 +876,43 @@ private fun CloudDriveDirectoryBrowserCard(
     onSelect: (DesktopCloudDriveDirectoryTarget, String) -> Unit,
     onClose: () -> Unit,
 ) {
-    val visibleEntries = state.entries.take(6)
+    var directoryPageStart by remember(state.path, state.entries.size) { mutableStateOf(0) }
+    var pendingDirectoryRowFocus by remember { mutableStateOf<Int?>(null) }
+    val pageStart = cloudDriveDirectoryCoercedPageStart(
+        pageStart = directoryPageStart,
+        itemCount = state.entries.size,
+    )
+    val visibleEntries = state.entries
+        .drop(pageStart)
+        .take(CLOUD_DRIVE_DIRECTORY_PAGE_SIZE)
     val actionFocusRequesters = remember {
         CloudDriveDirectoryAction.entries.associateWith { FocusRequester() }
     }
-    val entryFocusRequesters = remember(visibleEntries.map { it.path }) {
+    val entryFocusRequesters = remember(pageStart, visibleEntries.map { it.path }) {
         List(visibleEntries.size) { FocusRequester() }
     }
     val emptyFocusRequester = remember { FocusRequester() }
     val hasEmptyFocusTarget = state.isLoading || state.entries.isEmpty()
 
-    fun requestDirectoryFocus(target: CloudDriveDirectoryFocusTarget?): Boolean =
-        when (target) {
+    fun requestDirectoryFocus(target: CloudDriveDirectoryFocusTarget?): Boolean {
+        return when (target) {
             is CloudDriveDirectoryFocusTarget.Action -> {
                 actionFocusRequesters.getValue(target.action).requestFocus()
                 true
             }
             is CloudDriveDirectoryFocusTarget.Row -> {
-                entryFocusRequesters.getOrNull(target.index)?.requestFocus()
+                val index = target.index.takeIf { it in state.entries.indices } ?: return false
+                val targetPageStart = cloudDriveDirectoryPageStartForIndex(
+                    index = index,
+                    itemCount = state.entries.size,
+                )
+                directoryPageStart = targetPageStart
+                val visibleIndex = index - targetPageStart
+                if (targetPageStart == pageStart) {
+                    entryFocusRequesters.getOrNull(visibleIndex)?.requestFocus() ?: return false
+                } else {
+                    pendingDirectoryRowFocus = index
+                }
                 true
             }
             CloudDriveDirectoryFocusTarget.EmptyState -> {
@@ -901,10 +921,20 @@ private fun CloudDriveDirectoryBrowserCard(
             }
             null -> false
         }
+    }
 
     LaunchedEffect(state.open, state.path) {
         if (state.open) {
+            directoryPageStart = 0
+            pendingDirectoryRowFocus = null
             actionFocusRequesters.getValue(CloudDriveDirectoryAction.UseCurrent).requestFocus()
+        }
+    }
+    LaunchedEffect(pageStart, visibleEntries.map { it.path }, pendingDirectoryRowFocus) {
+        val pendingIndex = pendingDirectoryRowFocus ?: return@LaunchedEffect
+        if (pendingIndex in pageStart until pageStart + visibleEntries.size) {
+            entryFocusRequesters.getOrNull(pendingIndex - pageStart)?.requestFocus()
+            pendingDirectoryRowFocus = null
         }
     }
     CloudRssCard(
@@ -978,13 +1008,24 @@ private fun CloudDriveDirectoryBrowserCard(
                     onNavigate = { key ->
                         requestDirectoryFocus(
                             cloudDriveDirectoryRowFocusTarget(
-                                currentIndex = index,
-                                itemCount = visibleEntries.size,
+                                currentIndex = pageStart + index,
+                                itemCount = state.entries.size,
                                 key = key,
                             ),
                         )
                     },
                     modifier = Modifier.focusRequester(entryFocusRequesters[index]),
+                )
+            }
+            cloudDriveDirectoryPageSummary(
+                pageStart = pageStart,
+                visibleCount = visibleEntries.size,
+                itemCount = state.entries.size,
+            )?.let { summary ->
+                Text(
+                    summary,
+                    color = TextSecondary,
+                    fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
                 )
             }
         }
@@ -1383,6 +1424,44 @@ internal fun cloudDriveDirectoryRowFocusTarget(
         Key.DirectionDown -> CloudDriveDirectoryFocusTarget.Row(currentIndex + 1).takeIf { currentIndex + 1 in 0 until itemCount }
         else -> return null
     }
+}
+
+internal fun cloudDriveDirectoryPageStartForIndex(
+    index: Int,
+    itemCount: Int,
+    pageSize: Int = CLOUD_DRIVE_DIRECTORY_PAGE_SIZE,
+): Int {
+    if (itemCount <= 0 || pageSize <= 0) return 0
+    val safeIndex = index.coerceIn(0, itemCount - 1)
+    return (safeIndex / pageSize) * pageSize
+}
+
+internal fun cloudDriveDirectoryCoercedPageStart(
+    pageStart: Int,
+    itemCount: Int,
+    pageSize: Int = CLOUD_DRIVE_DIRECTORY_PAGE_SIZE,
+): Int {
+    if (itemCount <= 0 || pageSize <= 0) return 0
+    val maxPageStart = cloudDriveDirectoryPageStartForIndex(
+        index = itemCount - 1,
+        itemCount = itemCount,
+        pageSize = pageSize,
+    )
+    return (pageStart / pageSize)
+        .coerceAtLeast(0)
+        .times(pageSize)
+        .coerceAtMost(maxPageStart)
+}
+
+internal fun cloudDriveDirectoryPageSummary(
+    pageStart: Int,
+    visibleCount: Int,
+    itemCount: Int,
+): String? {
+    if (itemCount <= 0 || visibleCount <= 0 || visibleCount >= itemCount) return null
+    val safeStart = cloudDriveDirectoryCoercedPageStart(pageStart, itemCount)
+    val end = (safeStart + visibleCount).coerceAtMost(itemCount)
+    return "显示 ${safeStart + 1}-$end / $itemCount 个目录，按上/下继续翻页。"
 }
 
 private fun cloudDriveDirectoryHorizontalAction(
