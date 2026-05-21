@@ -263,7 +263,10 @@ class DesktopBangumiNavigationTest {
             BangumiActionFocusTarget.NextPanel,
             bangumiActionFocusTarget(BangumiAction.AcceptReview, Key.DirectionDown),
         )
-        assertNull(bangumiActionFocusTarget(BangumiAction.Search, Key.DirectionRight))
+        assertEquals(
+            BangumiActionFocusTarget.EmptyResults,
+            bangumiActionFocusTarget(BangumiAction.Search, Key.DirectionRight),
+        )
     }
 
     @Test
@@ -279,6 +282,16 @@ class DesktopBangumiNavigationTest {
             ),
         )
         assertEquals(
+            BangumiActionFocusTarget.EmptyResults,
+            bangumiActionFocusTarget(
+                current = BangumiAction.Search,
+                key = Key.DirectionRight,
+                batchMatchCount = 0,
+                candidateCount = 0,
+                resultCount = 0,
+            ),
+        )
+        assertEquals(
             BangumiActionFocusTarget.ListPosition(BangumiListPosition(BangumiListSection.BatchMatches, 0)),
             bangumiActionFocusTarget(
                 current = BangumiAction.ApplyBatch,
@@ -286,6 +299,16 @@ class DesktopBangumiNavigationTest {
                 batchMatchCount = 2,
                 candidateCount = 0,
                 resultCount = 2,
+            ),
+        )
+        assertEquals(
+            BangumiActionFocusTarget.EmptyResults,
+            bangumiActionFocusTarget(
+                current = BangumiAction.AcceptReview,
+                key = Key.DirectionRight,
+                batchMatchCount = 0,
+                candidateCount = 0,
+                resultCount = 0,
             ),
         )
         assertEquals(
@@ -322,7 +345,7 @@ class DesktopBangumiNavigationTest {
             ),
         )
         assertEquals(
-            BangumiActionFocusTarget.NextPanel,
+            BangumiActionFocusTarget.EmptyResults,
             bangumiListExitFocusTarget(
                 current = BangumiListPosition(BangumiListSection.BatchMatches, 1),
                 key = Key.DirectionDown,
@@ -341,5 +364,50 @@ class DesktopBangumiNavigationTest {
                 resultCount = 2,
             ),
         )
+    }
+
+    @Test
+    fun `bangumi empty result state bridges between actions lists and next details panel`() {
+        assertEquals(
+            BangumiActionFocusTarget.EmptyResults,
+            bangumiListExitFocusTarget(
+                current = BangumiListPosition(BangumiListSection.BatchMatches, 1),
+                key = Key.DirectionDown,
+                batchMatchCount = 2,
+                candidateCount = 0,
+                resultCount = 0,
+            ),
+        )
+        assertEquals(
+            BangumiActionFocusTarget.EmptyResults,
+            bangumiListExitFocusTarget(
+                current = BangumiListPosition(BangumiListSection.BatchCandidates, 1),
+                key = Key.DirectionDown,
+                batchMatchCount = 2,
+                candidateCount = 2,
+                resultCount = 0,
+            ),
+        )
+        assertEquals(
+            BangumiActionFocusTarget.Action(BangumiAction.ApplyMatch),
+            bangumiEmptyResultsFocusTarget(Key.DirectionLeft),
+        )
+        assertEquals(
+            BangumiActionFocusTarget.Action(BangumiAction.Search),
+            bangumiEmptyResultsFocusTarget(Key.DirectionUp),
+        )
+        assertEquals(
+            BangumiActionFocusTarget.ListPosition(BangumiListPosition(BangumiListSection.BatchMatches, 3)),
+            bangumiEmptyResultsFocusTarget(Key.DirectionUp, batchMatchCount = 10, candidateCount = 0),
+        )
+        assertEquals(
+            BangumiActionFocusTarget.ListPosition(BangumiListPosition(BangumiListSection.BatchCandidates, 3)),
+            bangumiEmptyResultsFocusTarget(Key.DirectionUp, batchMatchCount = 10, candidateCount = 10),
+        )
+        assertEquals(
+            BangumiActionFocusTarget.NextPanel,
+            bangumiEmptyResultsFocusTarget(Key.DirectionDown),
+        )
+        assertNull(bangumiEmptyResultsFocusTarget(Key.DirectionRight))
     }
 }
