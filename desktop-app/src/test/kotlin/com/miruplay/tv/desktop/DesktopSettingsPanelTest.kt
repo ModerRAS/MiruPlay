@@ -230,6 +230,44 @@ class DesktopSettingsPanelTest {
     }
 
     @Test
+    fun `cloud rss sync path fields bridge into toggles`() {
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.LibraryPath),
+            cloudRssFieldFocusTarget(CloudRssField.InboxPath, Key.DirectionRight),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.IntervalMinutes),
+            cloudRssFieldFocusTarget(CloudRssField.InboxPath, Key.DirectionDown),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.ProxyHost),
+            cloudRssFieldFocusTarget(CloudRssField.LibraryPath, Key.DirectionDown),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.ProxyPort),
+            cloudRssFieldFocusTarget(CloudRssField.ProxyHost, Key.DirectionRight),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Toggle(CloudRssToggle.SyncEnabled),
+            cloudRssFieldFocusTarget(CloudRssField.IntervalMinutes, Key.DirectionDown),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Toggle(CloudRssToggle.ProxyEnabled),
+            cloudRssFieldFocusTarget(CloudRssField.ProxyPort, Key.DirectionDown),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.IntervalMinutes),
+            cloudRssToggleFocusTarget(CloudRssToggle.SyncEnabled, Key.DirectionUp),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.ProxyHost),
+            cloudRssToggleFocusTarget(CloudRssToggle.ProxyEnabled, Key.DirectionUp),
+        )
+        assertNull(cloudRssFieldFocusTarget(CloudRssField.InboxPath, Key.DirectionUp))
+        assertNull(cloudRssFieldFocusTarget(CloudRssField.ProxyPort, Key.DirectionRight))
+    }
+
+    @Test
     fun `cloud rss rss and scheduler focus bridge through saved subscription rows`() {
         assertEquals(
             CloudRssFocusTarget.Subscription(0),

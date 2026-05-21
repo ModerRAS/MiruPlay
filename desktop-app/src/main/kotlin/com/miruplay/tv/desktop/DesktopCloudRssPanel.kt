@@ -316,6 +316,9 @@ private fun CloudRssAutomationContent(
     val toggleFocusRequesters = remember {
         CloudRssToggle.entries.associateWith { FocusRequester() }
     }
+    val fieldFocusRequesters = remember {
+        CloudRssField.entries.associateWith { FocusRequester() }
+    }
     fun selectSubscription(subscription: RssSubscriptionInfo) {
         onSubscriptionSelected(subscription)
         subscriptionFocusRequesters[subscription.id]?.requestFocus()
@@ -328,6 +331,10 @@ private fun CloudRssAutomationContent(
             }
             is CloudRssFocusTarget.Toggle -> {
                 toggleFocusRequesters.getValue(target.toggle).requestFocus()
+                true
+            }
+            is CloudRssFocusTarget.Field -> {
+                fieldFocusRequesters.getValue(target.field).requestFocus()
                 true
             }
             is CloudRssFocusTarget.Subscription -> {
@@ -359,6 +366,8 @@ private fun CloudRssAutomationContent(
     }
     fun moveCloudRssToggleFocus(toggle: CloudRssToggle, key: Key): Boolean =
         requestCloudRssFocus(cloudRssToggleFocusTarget(toggle, key))
+    fun moveCloudRssFieldFocus(field: CloudRssField, key: Key): Boolean =
+        requestCloudRssFocus(cloudRssFieldFocusTarget(field, key))
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -453,13 +462,63 @@ private fun CloudRssAutomationContent(
                     preview = cloudRssPathPairPreview(inboxPath, libraryPath),
                 ) {
                     Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp)) {
-                        LabeledTextField(labels.inboxPath, inboxPath, onValueChange = onInboxPathChange, modifier = Modifier.weight(1f))
-                        LabeledTextField(labels.libraryPath, libraryPath, onValueChange = onLibraryPathChange, modifier = Modifier.weight(1f))
+                        LabeledTextField(
+                            labels.inboxPath,
+                            inboxPath,
+                            onValueChange = onInboxPathChange,
+                            modifier = Modifier.weight(1f),
+                            inputModifier = Modifier.cloudRssFieldNavigation(
+                                field = CloudRssField.InboxPath,
+                                focusRequester = fieldFocusRequesters.getValue(CloudRssField.InboxPath),
+                                onMove = ::moveCloudRssFieldFocus,
+                            ),
+                        )
+                        LabeledTextField(
+                            labels.libraryPath,
+                            libraryPath,
+                            onValueChange = onLibraryPathChange,
+                            modifier = Modifier.weight(1f),
+                            inputModifier = Modifier.cloudRssFieldNavigation(
+                                field = CloudRssField.LibraryPath,
+                                focusRequester = fieldFocusRequesters.getValue(CloudRssField.LibraryPath),
+                                onMove = ::moveCloudRssFieldFocus,
+                            ),
+                        )
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp)) {
-                        LabeledTextField(labels.intervalMinutes, intervalMinutes, onValueChange = onIntervalMinutesChange, modifier = Modifier.weight(1f))
-                        LabeledTextField(labels.proxyHost, proxyHost, onValueChange = onProxyHostChange, modifier = Modifier.weight(1f))
-                        LabeledTextField(labels.proxyPort, proxyPort, onValueChange = onProxyPortChange, modifier = Modifier.weight(1f))
+                        LabeledTextField(
+                            labels.intervalMinutes,
+                            intervalMinutes,
+                            onValueChange = onIntervalMinutesChange,
+                            modifier = Modifier.weight(1f),
+                            inputModifier = Modifier.cloudRssFieldNavigation(
+                                field = CloudRssField.IntervalMinutes,
+                                focusRequester = fieldFocusRequesters.getValue(CloudRssField.IntervalMinutes),
+                                onMove = ::moveCloudRssFieldFocus,
+                            ),
+                        )
+                        LabeledTextField(
+                            labels.proxyHost,
+                            proxyHost,
+                            onValueChange = onProxyHostChange,
+                            modifier = Modifier.weight(1f),
+                            inputModifier = Modifier.cloudRssFieldNavigation(
+                                field = CloudRssField.ProxyHost,
+                                focusRequester = fieldFocusRequesters.getValue(CloudRssField.ProxyHost),
+                                onMove = ::moveCloudRssFieldFocus,
+                            ),
+                        )
+                        LabeledTextField(
+                            labels.proxyPort,
+                            proxyPort,
+                            onValueChange = onProxyPortChange,
+                            modifier = Modifier.weight(1f),
+                            inputModifier = Modifier.cloudRssFieldNavigation(
+                                field = CloudRssField.ProxyPort,
+                                focusRequester = fieldFocusRequesters.getValue(CloudRssField.ProxyPort),
+                                onMove = ::moveCloudRssFieldFocus,
+                            ),
+                        )
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp)) {
                         ToggleRow(
@@ -707,9 +766,18 @@ internal enum class CloudRssToggle {
     RssEnabled,
 }
 
+internal enum class CloudRssField {
+    InboxPath,
+    LibraryPath,
+    IntervalMinutes,
+    ProxyHost,
+    ProxyPort,
+}
+
 internal sealed interface CloudRssFocusTarget {
     data class Action(val action: CloudRssAction) : CloudRssFocusTarget
     data class Toggle(val toggle: CloudRssToggle) : CloudRssFocusTarget
+    data class Field(val field: CloudRssField) : CloudRssFocusTarget
     data class Subscription(val index: Int) : CloudRssFocusTarget
 }
 
@@ -733,6 +801,16 @@ private fun Modifier.cloudRssToggleNavigation(
             event.type == KeyEventType.KeyDown && onMove(toggle, event.key)
         }
 
+private fun Modifier.cloudRssFieldNavigation(
+    field: CloudRssField,
+    focusRequester: FocusRequester,
+    onMove: (CloudRssField, Key) -> Boolean,
+): Modifier =
+    focusRequester(focusRequester)
+        .onPreviewKeyEvent { event ->
+            event.type == KeyEventType.KeyDown && onMove(field, event.key)
+        }
+
 internal fun cloudRssToggleFocusTarget(
     current: CloudRssToggle,
     key: Key,
@@ -740,6 +818,11 @@ internal fun cloudRssToggleFocusTarget(
     when (key) {
         Key.DirectionLeft -> cloudRssHorizontalToggle(current, -1)?.let(CloudRssFocusTarget::Toggle)
         Key.DirectionRight -> cloudRssHorizontalToggle(current, 1)?.let(CloudRssFocusTarget::Toggle)
+        Key.DirectionUp -> when (current) {
+            CloudRssToggle.SyncEnabled -> CloudRssFocusTarget.Field(CloudRssField.IntervalMinutes)
+            CloudRssToggle.ProxyEnabled -> CloudRssFocusTarget.Field(CloudRssField.ProxyHost)
+            CloudRssToggle.RssEnabled -> null
+        }
         Key.DirectionDown -> when (current) {
             CloudRssToggle.SyncEnabled -> CloudRssFocusTarget.Action(CloudRssAction.UseActiveSource)
             CloudRssToggle.ProxyEnabled -> CloudRssFocusTarget.Action(CloudRssAction.ClearScanSource)
@@ -757,6 +840,48 @@ private fun cloudRssHorizontalToggle(
         CloudRssToggle.ProxyEnabled,
         -> listOf(CloudRssToggle.SyncEnabled, CloudRssToggle.ProxyEnabled)
         CloudRssToggle.RssEnabled -> listOf(CloudRssToggle.RssEnabled)
+    }
+    val targetIndex = row.indexOf(current) + delta
+    return row.getOrNull(targetIndex)
+}
+
+internal fun cloudRssFieldFocusTarget(
+    current: CloudRssField,
+    key: Key,
+): CloudRssFocusTarget? =
+    when (key) {
+        Key.DirectionLeft -> cloudRssHorizontalField(current, -1)?.let(CloudRssFocusTarget::Field)
+        Key.DirectionRight -> cloudRssHorizontalField(current, 1)?.let(CloudRssFocusTarget::Field)
+        Key.DirectionUp -> when (current) {
+            CloudRssField.IntervalMinutes -> CloudRssFocusTarget.Field(CloudRssField.InboxPath)
+            CloudRssField.ProxyHost,
+            CloudRssField.ProxyPort,
+            -> CloudRssFocusTarget.Field(CloudRssField.LibraryPath)
+            else -> null
+        }
+        Key.DirectionDown -> when (current) {
+            CloudRssField.InboxPath -> CloudRssFocusTarget.Field(CloudRssField.IntervalMinutes)
+            CloudRssField.LibraryPath -> CloudRssFocusTarget.Field(CloudRssField.ProxyHost)
+            CloudRssField.IntervalMinutes -> CloudRssFocusTarget.Toggle(CloudRssToggle.SyncEnabled)
+            CloudRssField.ProxyHost,
+            CloudRssField.ProxyPort,
+            -> CloudRssFocusTarget.Toggle(CloudRssToggle.ProxyEnabled)
+        }
+        else -> null
+    }
+
+private fun cloudRssHorizontalField(
+    current: CloudRssField,
+    delta: Int,
+): CloudRssField? {
+    val row = when (current) {
+        CloudRssField.InboxPath,
+        CloudRssField.LibraryPath,
+        -> listOf(CloudRssField.InboxPath, CloudRssField.LibraryPath)
+        CloudRssField.IntervalMinutes,
+        CloudRssField.ProxyHost,
+        CloudRssField.ProxyPort,
+        -> listOf(CloudRssField.IntervalMinutes, CloudRssField.ProxyHost, CloudRssField.ProxyPort)
     }
     val targetIndex = row.indexOf(current) + delta
     return row.getOrNull(targetIndex)
