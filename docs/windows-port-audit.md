@@ -172,6 +172,10 @@ across the page boundary, and the browser shows a Chinese range summary so
 large remote folders are not silently truncated.
 The Continue watching empty state is now also focusable, with `Up` returning to
 the `刷新`/`清除条目` action row and `Down` continuing to the next Details panel.
+Continue watching records now page in six-row TV-style windows: `Down` from
+record 6 moves to record 7 on the next page, `Up` moves back across the page
+boundary, and the panel shows a Chinese range summary so long playback history
+lists are not silently truncated.
 The mpv GUI smoke captured
 `build/desktop-mpv-launch-ui/run-20260521-123909/mpv-settings-focus.png`,
 `mpv-runtime-focus.png`, `mpv-keyboard-controls-used.png`, and
@@ -452,7 +456,7 @@ adb -s 10.137.32.118:5555 exec-out screencap -p > build\android-tv-qa\library-fi
 
 ## Highest-Risk Remaining Work
 
-1. Continue narrowing TV parity gaps in less-traveled keyboard/DPAD focus paths outside the now-covered Android TV Settings category/page traversal, Settings summary quick-action rows, source-management local/remote fields plus actions and remote editor/browser focus bridge, Cloud/RSS credential/sync/RSS edit fields plus path picker/action/toggle/subscription/scheduler rows, desktop route rail, Library header action row, Library poster wall/highest-heat/recent shelves/search row/source bridge, Details hero actions, Details hero-to-episodes/recents/Bangumi/media-details fallback plus episode-shelf season selector, remote browser list including parent navigation, Player stage/settings/runtime focus bridge, saved-source card movement, and Bangumi metadata lists/action grid/apply-clear flow.
+1. Continue narrowing TV parity gaps in less-traveled keyboard/DPAD focus paths outside the now-covered Android TV Settings category/page traversal, Settings summary quick-action rows, source-management local/remote fields plus actions and remote editor/browser focus bridge, Cloud/RSS credential/sync/RSS edit fields plus path picker/action/toggle/subscription/scheduler rows, desktop route rail, Library header action row, Library poster wall/highest-heat/recent shelves/search row/source bridge, Details hero actions, Details hero-to-episodes/recents/Bangumi/media-details fallback plus episode-shelf season selector, remote browser list including parent navigation, Player stage/settings/runtime focus bridge, saved-source card movement, and Bangumi metadata action grid/apply-clear flow.
 2. Validate RIFE on target Windows hardware that is expected to support
    interpolation, and decide whether the optional Standard backend should ship
    an additional `rife` plugin.

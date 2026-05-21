@@ -21,7 +21,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -715,9 +718,19 @@ internal fun RecentPlaybackPanel(
     onRecordSelected: (ProgressRecord) -> Unit,
     onClearSelected: () -> Unit,
 ) {
-    val visibleRecords = records.take(6)
+    var pageStartState by remember(records.map { it.episodeId }) { mutableStateOf(0) }
+    val pageStart = recentPlaybackCoercedPageStart(
+        pageStart = pageStartState,
+        itemCount = records.size,
+    )
+    val visibleRecords = remember(records, pageStart) {
+        records
+            .drop(pageStart)
+            .take(RECENT_PLAYBACK_PAGE_SIZE)
+    }
+    var pendingRecordFocus by remember { mutableStateOf<Int?>(null) }
     val labels = desktopRecentPlaybackLabels()
-    val recordFocusRequesters = remember(visibleRecords.map { it.episodeId }) {
+    val recordFocusRequesters = remember(pageStart, visibleRecords.map { it.episodeId }) {
         List(visibleRecords.size) { FocusRequester() }
     }
     val actionFocusRequesters = remember {
@@ -735,7 +748,18 @@ internal fun RecentPlaybackPanel(
                 true
             }
             is RecentPlaybackFocusTarget.Row -> {
-                recordFocusRequesters.getOrNull(target.index)?.requestFocus()
+                val index = target.index.takeIf { it in records.indices } ?: return false
+                val targetPageStart = recentPlaybackPageStartForIndex(
+                    index = index,
+                    itemCount = records.size,
+                )
+                pageStartState = targetPageStart
+                val visibleIndex = index - targetPageStart
+                if (targetPageStart == pageStart) {
+                    recordFocusRequesters.getOrNull(visibleIndex)?.requestFocus() ?: return false
+                } else {
+                    pendingRecordFocus = index
+                }
                 true
             }
             RecentPlaybackFocusTarget.EmptyState -> {
@@ -753,14 +777,14 @@ internal fun RecentPlaybackPanel(
     }
 
     fun moveRecentFocus(currentIndex: Int, delta: Int): Boolean =
-        requestRecentFocus(moveRecentPlaybackFocusTarget(currentIndex, visibleRecords.size, delta))
+        requestRecentFocus(moveRecentPlaybackFocusTarget(currentIndex, records.size, delta))
 
     fun moveRecentActionFocus(current: RecentPlaybackAction, key: Key): Boolean {
         val target = when (key) {
             Key.DirectionLeft -> moveRecentPlaybackAction(current, -1)?.let(RecentPlaybackFocusTarget::Action)
             Key.DirectionRight -> moveRecentPlaybackAction(current, 1)?.let(RecentPlaybackFocusTarget::Action)
-            Key.DirectionUp -> recentPlaybackActionVerticalFocusTarget(direction = -1, hasRecords = visibleRecords.isNotEmpty())
-            Key.DirectionDown -> recentPlaybackActionVerticalFocusTarget(direction = 1, hasRecords = visibleRecords.isNotEmpty())
+            Key.DirectionUp -> recentPlaybackActionVerticalFocusTarget(direction = -1, hasRecords = records.isNotEmpty())
+            Key.DirectionDown -> recentPlaybackActionVerticalFocusTarget(direction = 1, hasRecords = records.isNotEmpty())
             else -> null
         }
         return requestRecentFocus(target)
@@ -769,10 +793,18 @@ internal fun RecentPlaybackPanel(
     fun moveRecentEmptyFocus(key: Key): Boolean =
         requestRecentFocus(recentPlaybackEmptyFocusTarget(key))
 
-    LaunchedEffect(focusVersion) {
+    LaunchedEffect(pageStart, visibleRecords.map { it.episodeId }, pendingRecordFocus) {
+        val pendingIndex = pendingRecordFocus ?: return@LaunchedEffect
+        if (pendingIndex in pageStart until pageStart + visibleRecords.size) {
+            recordFocusRequesters.getOrNull(pendingIndex - pageStart)?.requestFocus()
+            pendingRecordFocus = null
+        }
+    }
+
+    LaunchedEffect(focusVersion, records.map { it.episodeId }) {
         if (focusVersion > 0) {
-            if (visibleRecords.isNotEmpty()) {
-                recordFocusRequesters.firstOrNull()?.requestFocus()
+            if (records.isNotEmpty()) {
+                requestRecentFocus(RecentPlaybackFocusTarget.Row(0))
             } else {
                 actionFocusRequesters.getValue(RecentPlaybackAction.Refresh).requestFocus()
             }
@@ -821,19 +853,34 @@ internal fun RecentPlaybackPanel(
                     )
                 } else {
                     visibleRecords.forEachIndexed { index, record ->
+                        val absoluteIndex = pageStart + index
                         RecentProgressRow(
                             record = record,
                             selected = selectedRecord?.episodeId == record.episodeId,
-                            onClick = { onRecordSelected(record) },
+                            onClick = {
+                                onRecordSelected(record)
+                                requestRecentFocus(RecentPlaybackFocusTarget.Row(absoluteIndex))
+                            },
                             modifier = Modifier
                                 .focusRequester(recordFocusRequesters[index]),
                             onNavigationKey = { key ->
                                 when (key) {
-                                    Key.DirectionUp -> moveRecentFocus(index, -1)
-                                    Key.DirectionDown -> moveRecentFocus(index, 1)
+                                    Key.DirectionUp -> moveRecentFocus(absoluteIndex, -1)
+                                    Key.DirectionDown -> moveRecentFocus(absoluteIndex, 1)
                                     else -> false
                                 }
                             },
+                        )
+                    }
+                    recentPlaybackPageSummary(
+                        pageStart = pageStart,
+                        visibleCount = visibleRecords.size,
+                        itemCount = records.size,
+                    )?.let { summary ->
+                        Text(
+                            summary,
+                            color = TextSecondary,
+                            fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
                         )
                     }
                 }
@@ -884,6 +931,8 @@ internal fun desktopRecentPlaybackLabels(): DesktopRecentPlaybackLabels =
         clearAction = "清除条目",
         emptyState = "开始播放后会在这里显示最近记录。",
     )
+
+private const val RECENT_PLAYBACK_PAGE_SIZE = 6
 
 @Composable
 private fun RecentProgressRow(
@@ -993,6 +1042,44 @@ internal fun moveRecentPlaybackFocusTarget(
         targetIndex >= itemCount -> RecentPlaybackFocusTarget.NextPanel
         else -> RecentPlaybackFocusTarget.Row(targetIndex)
     }
+}
+
+internal fun recentPlaybackPageStartForIndex(
+    index: Int,
+    itemCount: Int,
+    pageSize: Int = RECENT_PLAYBACK_PAGE_SIZE,
+): Int {
+    if (itemCount <= 0 || pageSize <= 0) return 0
+    val safeIndex = index.coerceIn(0, itemCount - 1)
+    return (safeIndex / pageSize) * pageSize
+}
+
+internal fun recentPlaybackCoercedPageStart(
+    pageStart: Int,
+    itemCount: Int,
+    pageSize: Int = RECENT_PLAYBACK_PAGE_SIZE,
+): Int {
+    if (itemCount <= 0 || pageSize <= 0) return 0
+    val maxPageStart = recentPlaybackPageStartForIndex(
+        index = itemCount - 1,
+        itemCount = itemCount,
+        pageSize = pageSize,
+    )
+    return (pageStart / pageSize)
+        .coerceAtLeast(0)
+        .times(pageSize)
+        .coerceAtMost(maxPageStart)
+}
+
+internal fun recentPlaybackPageSummary(
+    pageStart: Int,
+    visibleCount: Int,
+    itemCount: Int,
+): String? {
+    if (itemCount <= 0 || visibleCount <= 0 || visibleCount >= itemCount) return null
+    val safeStart = recentPlaybackCoercedPageStart(pageStart, itemCount)
+    val end = (safeStart + visibleCount).coerceAtMost(itemCount)
+    return "显示 ${safeStart + 1}-$end / $itemCount 条记录，按上/下继续翻页。"
 }
 
 @Composable
