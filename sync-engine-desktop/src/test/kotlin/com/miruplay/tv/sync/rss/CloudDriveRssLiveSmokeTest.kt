@@ -52,6 +52,10 @@ class CloudDriveRssLiveSmokeTest {
                 "I_UNDERSTAND_THIS_SUBMITS_REAL_CLOUDDRIVE_DOWNLOADS",
                 "--submit-limit",
                 "2",
+                "--organize",
+                "true",
+                "--organize-confirmation",
+                "I_UNDERSTAND_THIS_MOVES_REAL_CLOUDDRIVE_FILES",
             )
         )
 
@@ -69,6 +73,8 @@ class CloudDriveRssLiveSmokeTest {
         assertTrue(options.submit)
         assertEquals("I_UNDERSTAND_THIS_SUBMITS_REAL_CLOUDDRIVE_DOWNLOADS", options.submitConfirmation)
         assertEquals(2, options.submitLimit)
+        assertTrue(options.organize)
+        assertEquals("I_UNDERSTAND_THIS_MOVES_REAL_CLOUDDRIVE_FILES", options.organizeConfirmation)
     }
 
     @Test
@@ -132,6 +138,10 @@ class CloudDriveRssLiveSmokeTest {
         assertEquals(0, report.submitSucceededCount)
         assertEquals(0, report.submitPreparedTorrentCount)
         assertEquals(null, report.postSubmitInboxItemCount)
+        assertFalse(report.organizeMode)
+        assertEquals(0, report.organizeMovedCount)
+        assertEquals(null, report.postOrganizeInboxItemCount)
+        assertEquals(null, report.postOrganizeLibraryItemCount)
         assertEquals(0, cloudDrive.offlineSubmissions)
         assertEquals(listOf("/Downloads", "/Library"), cloudDrive.listedPaths)
         assertEquals(listOf("https://example.test/rss.xml"), feedReader.fetchedUrls)
@@ -273,6 +283,79 @@ class CloudDriveRssLiveSmokeTest {
     }
 
     @Test
+    fun `organize requires explicit confirmation`() = runBlocking {
+        val cloudDrive = FakeCloudDriveClient(
+            files = mapOf(
+                "/Downloads" to listOf(
+                    CloudDriveFileInfo("[Subs] Test Show - 01.mkv", "/Downloads/[Subs] Test Show - 01.mkv", isDirectory = false)
+                ),
+                "/Library" to emptyList(),
+            )
+        )
+
+        val result = runCloudDriveRssLiveSmoke(
+            options = CloudDriveRssLiveSmokeOptions(
+                endpoint = "http://127.0.0.1:19798",
+                token = "api-token",
+                rssUrl = "https://example.test/rss.xml",
+                inboxPath = "/Downloads",
+                libraryPath = "/Library",
+                organize = true,
+                organizeConfirmation = "yes",
+            ),
+            cloudDriveClient = cloudDrive,
+            feedReader = FakeFeedReader(emptyList()),
+        )
+
+        assertTrue(result is Result.Error)
+        assertEquals(emptyList<Pair<List<String>, String>>(), cloudDrive.moves)
+    }
+
+    @Test
+    fun `organize moves downloaded videos and refreshes folder evidence`() = runBlocking {
+        val cloudDrive = FakeCloudDriveClient(
+            files = mapOf(
+                "/Downloads" to listOf(
+                    CloudDriveFileInfo("[Subs] Test Show - 01.mkv", "/Downloads/[Subs] Test Show - 01.mkv", isDirectory = false)
+                ),
+                "/Library" to emptyList(),
+            )
+        )
+
+        val result = runCloudDriveRssLiveSmoke(
+            options = CloudDriveRssLiveSmokeOptions(
+                endpoint = "http://127.0.0.1:19798",
+                token = "api-token",
+                rssUrl = "https://example.test/rss.xml",
+                inboxPath = "/Downloads",
+                libraryPath = "/Library",
+                organize = true,
+                organizeConfirmation = "I_UNDERSTAND_THIS_MOVES_REAL_CLOUDDRIVE_FILES",
+            ),
+            cloudDriveClient = cloudDrive,
+            feedReader = FakeFeedReader(emptyList()),
+            organizer = CloudDriveLibraryOrganizer(
+                cloudDriveClient = cloudDrive,
+                classifier = CloudDriveVideoClassifier {
+                    CloudDriveVideoClassification(showName = "Test Show", seasonNumber = 1)
+                },
+            ),
+        )
+
+        assertTrue(result is Result.Success)
+        val report = (result as Result.Success).data
+        assertTrue(report.organizeMode)
+        assertEquals(1, report.organizeMovedCount)
+        assertEquals(0, report.postOrganizeInboxItemCount)
+        assertEquals(1, report.postOrganizeLibraryItemCount)
+        assertEquals(listOf("/Library/Test Show", "/Library/Test Show/Season 1"), cloudDrive.createdFolders)
+        assertEquals(
+            listOf(listOf("/Downloads/[Subs] Test Show - 01.mkv") to "/Library/Test Show/Season 1"),
+            cloudDrive.moves,
+        )
+    }
+
+    @Test
     fun `dry run rejects library nested inside inbox`() = runBlocking {
         val result = runCloudDriveRssLiveSmoke(
             options = CloudDriveRssLiveSmokeOptions(
@@ -326,6 +409,10 @@ class CloudDriveRssLiveSmokeTest {
             submitSucceededCount = 1,
             submitPreparedTorrentCount = 0,
             postSubmitInboxItemCount = 4,
+            organizeMode = true,
+            organizeMovedCount = 1,
+            postOrganizeInboxItemCount = 0,
+            postOrganizeLibraryItemCount = 5,
             previewItems = listOf(
                 CloudDriveRssLiveSmokeItem(
                     title = "Episode 01",
@@ -348,6 +435,11 @@ class CloudDriveRssLiveSmokeTest {
         assertEquals(1, liveSubmit.getValue("attemptedCount").jsonPrimitive.int)
         assertEquals(0, liveSubmit.getValue("preparedTorrentCount").jsonPrimitive.int)
         assertEquals(4, liveSubmit.getValue("postSubmitInboxItemCount").jsonPrimitive.int)
+        val organize = root.getValue("organize").jsonObject
+        assertTrue(organize.getValue("enabled").jsonPrimitive.boolean)
+        assertEquals(1, organize.getValue("movedCount").jsonPrimitive.int)
+        assertEquals(0, organize.getValue("postOrganizeInboxItemCount").jsonPrimitive.int)
+        assertEquals(5, organize.getValue("postOrganizeLibraryItemCount").jsonPrimitive.int)
         assertEquals("desktop-token", root.getValue("tokenInfo").jsonObject.getValue("friendlyName").jsonPrimitive.content)
         assertEquals("Episode 01", root.getValue("previewItems").jsonArray.single().jsonObject.getValue("title").jsonPrimitive.content)
     }
@@ -366,12 +458,16 @@ class CloudDriveRssLiveSmokeTest {
     }
 
     private class FakeCloudDriveClient(
-        private val files: Map<String, List<CloudDriveFileInfo>> = emptyMap(),
+        files: Map<String, List<CloudDriveFileInfo>> = emptyMap(),
     ) : CloudDriveClient {
+        private val filesByPath = files
+            .mapValues { (_, entries) -> entries.toMutableList() }
+            .toMutableMap()
         val listedPaths = mutableListOf<String>()
         val offlineUrls = mutableListOf<String>()
         val createdFolders = mutableListOf<String>()
         val uploadedPaths = mutableListOf<String>()
+        val moves = mutableListOf<Pair<List<String>, String>>()
         var offlineTargetFolder: String = ""
         var offlineSubmissions = 0
 
@@ -416,16 +512,36 @@ class CloudDriveRssLiveSmokeTest {
             forceRefresh: Boolean,
         ): Result<List<CloudDriveFileInfo>> {
             listedPaths += path
-            return Result.success(files[path].orEmpty())
+            return Result.success(filesByPath[path].orEmpty())
         }
 
         override suspend fun createFolder(endpoint: CloudDriveEndpoint, parentPath: String, folderName: String): Result<Unit> {
-            createdFolders += "$parentPath/$folderName"
+            val folderPath = "$parentPath/$folderName"
+            createdFolders += folderPath
+            val parentEntries = filesByPath.getOrPut(parentPath) { mutableListOf() }
+            if (parentEntries.none { it.path == folderPath }) {
+                parentEntries += CloudDriveFileInfo(folderName, folderPath, isDirectory = true)
+            }
+            filesByPath.getOrPut(folderPath) { mutableListOf() }
             return Result.success(Unit)
         }
 
-        override suspend fun moveFiles(endpoint: CloudDriveEndpoint, paths: List<String>, destinationPath: String): Result<Unit> =
-            Result.success(Unit)
+        override suspend fun moveFiles(endpoint: CloudDriveEndpoint, paths: List<String>, destinationPath: String): Result<Unit> {
+            moves += paths to destinationPath
+            val destinationEntries = filesByPath.getOrPut(destinationPath) { mutableListOf() }
+            paths.forEach { path ->
+                val sourceParent = path.substringBeforeLast('/', missingDelimiterValue = "")
+                    .ifBlank { "/" }
+                val sourceEntries = filesByPath[sourceParent]
+                val entry = sourceEntries
+                    ?.firstOrNull { it.path == path }
+                    ?: CloudDriveFileInfo(path.substringAfterLast('/'), path, isDirectory = false)
+                sourceEntries?.removeAll { it.path == path }
+                val movedPath = "$destinationPath/${entry.name}"
+                destinationEntries += entry.copy(path = movedPath)
+            }
+            return Result.success(Unit)
+        }
     }
 
     private class FakeTorrentDownloader(

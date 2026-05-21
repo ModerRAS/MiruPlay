@@ -42,6 +42,8 @@ val smokeCloudDriveRssDryRun by tasks.registering(JavaExec::class) {
     val proxyHost = providers.gradleProperty("cloudDriveRssProxyHost").orElse("")
     val proxyPort = providers.gradleProperty("cloudDriveRssProxyPort").orElse("1080")
     val reportPath = providers.gradleProperty("cloudDriveRssReportPath")
+    val organize = providers.gradleProperty("cloudDriveRssOrganize").orElse("false")
+    val organizeConfirmation = providers.gradleProperty("cloudDriveRssOrganizeConfirmation")
 
     doFirst {
         if (!endpoint.isPresent || !token.isPresent || !rssUrl.isPresent || !inbox.isPresent || !library.isPresent) {
@@ -50,7 +52,9 @@ val smokeCloudDriveRssDryRun by tasks.registering(JavaExec::class) {
                     "-PcloudDriveRssUrl=<rss-url> -PcloudDriveInbox=/Downloads -PcloudDriveLibrary=/Library. " +
                     "Optional: -PcloudDriveRssFilter=<regex> -PcloudDriveRssMaxPreview=20 " +
                     "-PcloudDriveRssProxyEnabled=true -PcloudDriveRssProxyHost=127.0.0.1 -PcloudDriveRssProxyPort=7890 " +
-                    "-PcloudDriveRssReportPath=build/cloud-rss-smoke/report.json"
+                    "-PcloudDriveRssReportPath=build/cloud-rss-smoke/report.json " +
+                    "-PcloudDriveRssOrganize=true " +
+                    "-PcloudDriveRssOrganizeConfirmation=I_UNDERSTAND_THIS_MOVES_REAL_CLOUDDRIVE_FILES"
             )
         }
 
@@ -73,12 +77,17 @@ val smokeCloudDriveRssDryRun by tasks.registering(JavaExec::class) {
             proxyHost.get(),
             "--proxy-port",
             proxyPort.get(),
+            "--organize",
+            organize.get(),
         )
         if (filter.isPresent) {
             args("--filter", filter.get())
         }
         if (reportPath.isPresent) {
             args("--report-path", reportPath.get())
+        }
+        if (organizeConfirmation.isPresent) {
+            args("--organize-confirmation", organizeConfirmation.get())
         }
     }
 }
@@ -102,6 +111,8 @@ val smokeCloudDriveRssLiveSubmit by tasks.registering(JavaExec::class) {
     val reportPath = providers.gradleProperty("cloudDriveRssReportPath")
     val submitConfirmation = providers.gradleProperty("cloudDriveRssSubmitConfirmation")
     val submitLimit = providers.gradleProperty("cloudDriveRssSubmitLimit").orElse("1")
+    val organize = providers.gradleProperty("cloudDriveRssOrganize").orElse("false")
+    val organizeConfirmation = providers.gradleProperty("cloudDriveRssOrganizeConfirmation")
 
     doFirst {
         if (
@@ -117,7 +128,9 @@ val smokeCloudDriveRssLiveSubmit by tasks.registering(JavaExec::class) {
                     "-PcloudDriveRssUrl=<rss-url> -PcloudDriveInbox=/Downloads -PcloudDriveLibrary=/Library " +
                     "-PcloudDriveRssSubmitConfirmation=I_UNDERSTAND_THIS_SUBMITS_REAL_CLOUDDRIVE_DOWNLOADS. " +
                     "Optional: -PcloudDriveRssFilter=<regex> -PcloudDriveRssSubmitLimit=1 " +
-                    "-PcloudDriveRssReportPath=build/cloud-rss-smoke/live-submit-report.json"
+                    "-PcloudDriveRssReportPath=build/cloud-rss-smoke/live-submit-report.json " +
+                    "-PcloudDriveRssOrganize=true " +
+                    "-PcloudDriveRssOrganizeConfirmation=I_UNDERSTAND_THIS_MOVES_REAL_CLOUDDRIVE_FILES"
             )
         }
 
@@ -146,12 +159,17 @@ val smokeCloudDriveRssLiveSubmit by tasks.registering(JavaExec::class) {
             submitConfirmation.get(),
             "--submit-limit",
             submitLimit.get(),
+            "--organize",
+            organize.get(),
         )
         if (filter.isPresent) {
             args("--filter", filter.get())
         }
         if (reportPath.isPresent) {
             args("--report-path", reportPath.get())
+        }
+        if (organizeConfirmation.isPresent) {
+            args("--organize-confirmation", organizeConfirmation.get())
         }
     }
 }

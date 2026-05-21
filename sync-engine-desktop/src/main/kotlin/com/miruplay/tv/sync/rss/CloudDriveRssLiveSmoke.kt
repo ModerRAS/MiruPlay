@@ -31,6 +31,8 @@ data class CloudDriveRssLiveSmokeOptions(
     val submit: Boolean = false,
     val submitConfirmation: String? = null,
     val submitLimit: Int = 1,
+    val organize: Boolean = false,
+    val organizeConfirmation: String? = null,
 )
 
 data class CloudDriveRssLiveSmokeReport(
@@ -54,6 +56,10 @@ data class CloudDriveRssLiveSmokeReport(
     val submitSucceededCount: Int,
     val submitPreparedTorrentCount: Int,
     val postSubmitInboxItemCount: Int?,
+    val organizeMode: Boolean,
+    val organizeMovedCount: Int,
+    val postOrganizeInboxItemCount: Int?,
+    val postOrganizeLibraryItemCount: Int?,
     val previewItems: List<CloudDriveRssLiveSmokeItem>,
 )
 
@@ -88,6 +94,7 @@ enum class CloudDriveRssLiveSmokeSubmissionType {
 }
 
 private const val LIVE_SUBMIT_CONFIRMATION = "I_UNDERSTAND_THIS_SUBMITS_REAL_CLOUDDRIVE_DOWNLOADS"
+private const val LIVE_ORGANIZE_CONFIRMATION = "I_UNDERSTAND_THIS_MOVES_REAL_CLOUDDRIVE_FILES"
 
 fun parseCloudDriveRssLiveSmokeOptions(args: Array<String>): CloudDriveRssLiveSmokeOptions {
     val values = mutableMapOf<String, String>()
@@ -124,6 +131,8 @@ fun parseCloudDriveRssLiveSmokeOptions(args: Array<String>): CloudDriveRssLiveSm
             ?.toIntOrNull()
             ?.coerceIn(1, 10)
             ?: 1,
+        organize = values["organize"]?.toBooleanStrictOrNull() ?: false,
+        organizeConfirmation = values["organize-confirmation"]?.takeIf { it.isNotBlank() },
     )
 }
 
@@ -132,6 +141,7 @@ suspend fun runCloudDriveRssLiveSmoke(
     cloudDriveClient: CloudDriveClient = GrpcCloudDriveClient(),
     feedReader: RssFeedReader = RssFeedFetcher(),
     submissionPreparer: CloudDriveRssSubmissionPreparer = CloudDriveRssSubmissionPreparer(cloudDriveClient),
+    organizer: CloudDriveLibraryOrganizer = CloudDriveLibraryOrganizer(cloudDriveClient),
 ): Result<CloudDriveRssLiveSmokeReport> {
     val normalizedInbox = CloudDrivePaths.normalizeScoped(options.inboxPath)
     val normalizedLibrary = CloudDrivePaths.normalizeScoped(options.libraryPath)
@@ -188,6 +198,36 @@ suspend fun runCloudDriveRssLiveSmoke(
         null
     }
 
+    val organizeResult = if (options.organize) {
+        organizeLiveSmokeFiles(
+            options = options,
+            endpoint = endpoint,
+            organizer = organizer,
+            inboxPath = normalizedInbox,
+            libraryPath = normalizedLibrary,
+        )
+    } else {
+        Result.success(0)
+    }
+    if (organizeResult is Result.Error) return organizeResult
+    val organizedCount = (organizeResult as Result.Success).data
+
+    val postOrganizeInboxFiles: List<CloudDriveFileInfo>?
+    val postOrganizeLibraryFiles: List<CloudDriveFileInfo>?
+    if (options.organize) {
+        postOrganizeInboxFiles = when (val result = cloudDriveClient.listFolder(endpoint, normalizedInbox, forceRefresh = true)) {
+            is Result.Success -> result.data
+            is Result.Error -> return result
+        }
+        postOrganizeLibraryFiles = when (val result = cloudDriveClient.listFolder(endpoint, normalizedLibrary, forceRefresh = true)) {
+            is Result.Success -> result.data
+            is Result.Error -> return result
+        }
+    } else {
+        postOrganizeInboxFiles = null
+        postOrganizeLibraryFiles = null
+    }
+
     return Result.success(
         CloudDriveRssLiveSmokeReport(
             friendlyName = tokenInfo.friendlyName,
@@ -219,6 +259,10 @@ suspend fun runCloudDriveRssLiveSmoke(
             submitSucceededCount = submitted.succeededCount,
             submitPreparedTorrentCount = submitted.preparedTorrentCount,
             postSubmitInboxItemCount = postSubmitInboxItemCount,
+            organizeMode = options.organize,
+            organizeMovedCount = organizedCount,
+            postOrganizeInboxItemCount = postOrganizeInboxFiles?.size,
+            postOrganizeLibraryItemCount = postOrganizeLibraryFiles?.size,
             previewItems = decisions.take(options.maxPreviewItems),
         )
     )
@@ -306,6 +350,24 @@ private suspend fun submitLiveSmokeCandidates(
     }
 }
 
+private suspend fun organizeLiveSmokeFiles(
+    options: CloudDriveRssLiveSmokeOptions,
+    endpoint: CloudDriveEndpoint,
+    organizer: CloudDriveLibraryOrganizer,
+    inboxPath: String,
+    libraryPath: String,
+): Result<Int> {
+    if (options.organizeConfirmation != LIVE_ORGANIZE_CONFIRMATION) {
+        return Result.failure(
+            AppError.SyncError.WriteFailed(
+                "CloudDrive RSS smoke",
+                "live organize requires --organize-confirmation $LIVE_ORGANIZE_CONFIRMATION",
+            )
+        )
+    }
+    return organizer.organize(endpoint, inboxPath, libraryPath)
+}
+
 private fun validateSmokePaths(inboxPath: String, libraryPath: String): Result<Unit> {
     if (!CloudDrivePaths.isScopedDirectory(inboxPath)) {
         return Result.failure(AppError.SyncError.WriteFailed("CloudDrive", "请设置非根目录作为下载目录 A"))
@@ -379,6 +441,13 @@ private fun printCloudDriveRssLiveSmokeReport(report: CloudDriveRssLiveSmokeRepo
     } else {
         println("No offline downloads were submitted by this dry-run.")
     }
+    if (report.organizeMode) {
+        println("Moved ${report.organizeMovedCount} downloaded file(s) into the library.")
+        report.postOrganizeInboxItemCount?.let { println("Post-organize inbox listing: $it item(s)") }
+        report.postOrganizeLibraryItemCount?.let { println("Post-organize library listing: $it item(s)") }
+    } else {
+        println("No CloudDrive files were moved by this run.")
+    }
 }
 
 private fun writeCloudDriveRssLiveSmokeReport(
@@ -389,7 +458,7 @@ private fun writeCloudDriveRssLiveSmokeReport(
     val outputFile = File(reportPath).absoluteFile
     outputFile.parentFile?.mkdirs()
     outputFile.writeText(buildCloudDriveRssLiveSmokeReportJson(options, report), Charsets.UTF_8)
-    println("Wrote CloudDrive RSS dry-run report: ${outputFile.absolutePath}")
+    println("Wrote CloudDrive RSS smoke report: ${outputFile.absolutePath}")
 }
 
 internal fun buildCloudDriveRssLiveSmokeReportJson(
@@ -415,6 +484,12 @@ internal fun buildCloudDriveRssLiveSmokeReportJson(
             put("succeededCount", report.submitSucceededCount)
             put("preparedTorrentCount", report.submitPreparedTorrentCount)
             report.postSubmitInboxItemCount?.let { put("postSubmitInboxItemCount", it) }
+        }
+        putJsonObject("organize") {
+            put("enabled", report.organizeMode)
+            put("movedCount", report.organizeMovedCount)
+            report.postOrganizeInboxItemCount?.let { put("postOrganizeInboxItemCount", it) }
+            report.postOrganizeLibraryItemCount?.let { put("postOrganizeLibraryItemCount", it) }
         }
         putJsonObject("tokenInfo") {
             put("friendlyName", report.friendlyName)

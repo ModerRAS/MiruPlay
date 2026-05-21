@@ -199,6 +199,21 @@ curl.exe -s "http://10.137.32.118:9978/api/anime/$id"
   -PcloudDriveRssReportPath=build/cloud-rss-smoke/live-submit-report.json
 ```
 
+下载完成后需要验证整理移动时，可以在同一个 smoke 里显式开启组织器。这个模式会真实移动 CloudDrive2 文件，所以要另带移动确认串；生成的 JSON 会记录 `organize.movedCount`、整理后下载目录计数和整理目录计数，但仍不会包含 token：
+
+```powershell
+.\gradlew.bat :sync-engine-desktop:smokeCloudDriveRssDryRun `
+  -PcloudDriveEndpoint=http://203.0.113.20:19798 `
+  -PcloudDriveToken=<token> `
+  -PcloudDriveRssUrl=https://api.ani.rip/ani-torrent.xml `
+  -PcloudDriveInbox=/115open/下载/Ani `
+  -PcloudDriveLibrary=/115open/影音/动漫 `
+  -PcloudDriveRssFilter=百鬼夜行抄 `
+  -PcloudDriveRssOrganize=true `
+  -PcloudDriveRssOrganizeConfirmation=I_UNDERSTAND_THIS_MOVES_REAL_CLOUDDRIVE_FILES `
+  -PcloudDriveRssReportPath=build/cloud-rss-smoke/organize-report.json
+```
+
 ## 注意事项
 
 - 第一次提交离线任务时，文件可能还没下载完成，所以 `organized` 可能是 `0`；下载完成后再跑一次会整理。
