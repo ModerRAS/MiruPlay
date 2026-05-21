@@ -178,6 +178,29 @@ class DesktopSourcePickerTest {
     }
 
     @Test
+    fun `remote source action focus follows editor card layout`() {
+        assertEquals(
+            RemoteSourceAction.OpenSmb,
+            remoteSourceActionNavigationTarget(RemoteSourceAction.OpenWebDav, Key.DirectionDown),
+        )
+        assertEquals(
+            RemoteSourceAction.ScanSource,
+            remoteSourceActionNavigationTarget(RemoteSourceAction.OpenSmb, Key.DirectionRight),
+        )
+        assertEquals(
+            RemoteSourceAction.OpenSmb,
+            remoteSourceActionNavigationTarget(RemoteSourceAction.ScanSource, Key.DirectionLeft),
+        )
+        assertEquals(
+            RemoteSourceAction.OpenWebDav,
+            remoteSourceActionNavigationTarget(RemoteSourceAction.ScanSource, Key.DirectionUp),
+        )
+        assertNull(remoteSourceActionNavigationTarget(RemoteSourceAction.OpenWebDav, Key.DirectionUp))
+        assertNull(remoteSourceActionNavigationTarget(RemoteSourceAction.ScanSource, Key.DirectionDown))
+        assertNull(remoteSourceActionNavigationTarget(RemoteSourceAction.OpenSmb, Key.DirectionLeft))
+    }
+
+    @Test
     fun `remote source preview falls back and compacts endpoints`() {
         assertEquals("填写 SMB 共享地址", remoteSourcePreview("", fallback = "填写 SMB 共享地址", maxLength = 20))
 
