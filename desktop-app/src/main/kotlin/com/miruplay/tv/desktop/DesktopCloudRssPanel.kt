@@ -313,6 +313,9 @@ private fun CloudRssAutomationContent(
     val actionFocusRequesters = remember {
         CloudRssAction.entries.associateWith { FocusRequester() }
     }
+    val toggleFocusRequesters = remember {
+        CloudRssToggle.entries.associateWith { FocusRequester() }
+    }
     fun selectSubscription(subscription: RssSubscriptionInfo) {
         onSubscriptionSelected(subscription)
         subscriptionFocusRequesters[subscription.id]?.requestFocus()
@@ -321,6 +324,10 @@ private fun CloudRssAutomationContent(
         return when (target) {
             is CloudRssFocusTarget.Action -> {
                 actionFocusRequesters.getValue(target.action).requestFocus()
+                true
+            }
+            is CloudRssFocusTarget.Toggle -> {
+                toggleFocusRequesters.getValue(target.toggle).requestFocus()
                 true
             }
             is CloudRssFocusTarget.Subscription -> {
@@ -350,6 +357,8 @@ private fun CloudRssAutomationContent(
             ),
         )
     }
+    fun moveCloudRssToggleFocus(toggle: CloudRssToggle, key: Key): Boolean =
+        requestCloudRssFocus(cloudRssToggleFocusTarget(toggle, key))
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -453,8 +462,26 @@ private fun CloudRssAutomationContent(
                         LabeledTextField(labels.proxyPort, proxyPort, onValueChange = onProxyPortChange, modifier = Modifier.weight(1f))
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp)) {
-                        ToggleRow(labels.enabledToggle, enabled, onEnabledChange)
-                        ToggleRow(labels.rssProxy, proxyEnabled, onProxyEnabledChange)
+                        ToggleRow(
+                            labels.enabledToggle,
+                            enabled,
+                            onEnabledChange,
+                            modifier = Modifier.cloudRssToggleNavigation(
+                                toggle = CloudRssToggle.SyncEnabled,
+                                focusRequester = toggleFocusRequesters.getValue(CloudRssToggle.SyncEnabled),
+                                onMove = ::moveCloudRssToggleFocus,
+                            ),
+                        )
+                        ToggleRow(
+                            labels.rssProxy,
+                            proxyEnabled,
+                            onProxyEnabledChange,
+                            modifier = Modifier.cloudRssToggleNavigation(
+                                toggle = CloudRssToggle.ProxyEnabled,
+                                focusRequester = toggleFocusRequesters.getValue(CloudRssToggle.ProxyEnabled),
+                                onMove = ::moveCloudRssToggleFocus,
+                            ),
+                        )
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
                         TvActionButton(
@@ -515,7 +542,16 @@ private fun CloudRssAutomationContent(
                     LabeledTextField(labels.subscriptionUrl, rssUrl, onValueChange = onRssUrlChange)
                     LabeledTextField(labels.filterRegex, rssFilter, onValueChange = onRssFilterChange)
                     Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp)) {
-                        ToggleRow(labels.enabledToggle, rssEnabled, onRssEnabledChange)
+                        ToggleRow(
+                            labels.enabledToggle,
+                            rssEnabled,
+                            onRssEnabledChange,
+                            modifier = Modifier.cloudRssToggleNavigation(
+                                toggle = CloudRssToggle.RssEnabled,
+                                focusRequester = toggleFocusRequesters.getValue(CloudRssToggle.RssEnabled),
+                                onMove = ::moveCloudRssToggleFocus,
+                            ),
+                        )
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
                         TvActionButton(
@@ -665,8 +701,15 @@ internal enum class CloudRssAction {
     StopScheduler,
 }
 
+internal enum class CloudRssToggle {
+    SyncEnabled,
+    ProxyEnabled,
+    RssEnabled,
+}
+
 internal sealed interface CloudRssFocusTarget {
     data class Action(val action: CloudRssAction) : CloudRssFocusTarget
+    data class Toggle(val toggle: CloudRssToggle) : CloudRssFocusTarget
     data class Subscription(val index: Int) : CloudRssFocusTarget
 }
 
@@ -679,6 +722,45 @@ private fun Modifier.cloudRssActionNavigation(
         .onPreviewKeyEvent { event ->
             event.type == KeyEventType.KeyDown && onMove(action, event.key)
         }
+
+private fun Modifier.cloudRssToggleNavigation(
+    toggle: CloudRssToggle,
+    focusRequester: FocusRequester,
+    onMove: (CloudRssToggle, Key) -> Boolean,
+): Modifier =
+    focusRequester(focusRequester)
+        .onPreviewKeyEvent { event ->
+            event.type == KeyEventType.KeyDown && onMove(toggle, event.key)
+        }
+
+internal fun cloudRssToggleFocusTarget(
+    current: CloudRssToggle,
+    key: Key,
+): CloudRssFocusTarget? =
+    when (key) {
+        Key.DirectionLeft -> cloudRssHorizontalToggle(current, -1)?.let(CloudRssFocusTarget::Toggle)
+        Key.DirectionRight -> cloudRssHorizontalToggle(current, 1)?.let(CloudRssFocusTarget::Toggle)
+        Key.DirectionDown -> when (current) {
+            CloudRssToggle.SyncEnabled -> CloudRssFocusTarget.Action(CloudRssAction.UseActiveSource)
+            CloudRssToggle.ProxyEnabled -> CloudRssFocusTarget.Action(CloudRssAction.ClearScanSource)
+            CloudRssToggle.RssEnabled -> CloudRssFocusTarget.Action(CloudRssAction.SaveRss)
+        }
+        else -> null
+    }
+
+private fun cloudRssHorizontalToggle(
+    current: CloudRssToggle,
+    delta: Int,
+): CloudRssToggle? {
+    val row = when (current) {
+        CloudRssToggle.SyncEnabled,
+        CloudRssToggle.ProxyEnabled,
+        -> listOf(CloudRssToggle.SyncEnabled, CloudRssToggle.ProxyEnabled)
+        CloudRssToggle.RssEnabled -> listOf(CloudRssToggle.RssEnabled)
+    }
+    val targetIndex = row.indexOf(current) + delta
+    return row.getOrNull(targetIndex)
+}
 
 internal fun cloudRssActionFocusTarget(
     current: CloudRssAction,
@@ -755,8 +837,10 @@ private fun cloudRssActionUpTarget(
     when (current) {
         CloudRssAction.LoginCloudDrive -> CloudRssFocusTarget.Action(CloudRssAction.SaveCredentials)
         CloudRssAction.VerifyApiToken -> CloudRssFocusTarget.Action(CloudRssAction.ClearCredentials)
-        CloudRssAction.UseActiveSource -> CloudRssFocusTarget.Action(CloudRssAction.LoginCloudDrive)
-        CloudRssAction.ClearScanSource -> CloudRssFocusTarget.Action(CloudRssAction.VerifyApiToken)
+        CloudRssAction.UseActiveSource -> CloudRssFocusTarget.Toggle(CloudRssToggle.SyncEnabled)
+        CloudRssAction.ClearScanSource -> CloudRssFocusTarget.Toggle(CloudRssToggle.ProxyEnabled)
+        CloudRssAction.SaveRss -> CloudRssFocusTarget.Toggle(CloudRssToggle.RssEnabled)
+        CloudRssAction.DeleteRss -> CloudRssFocusTarget.Toggle(CloudRssToggle.RssEnabled)
         CloudRssAction.SaveSyncConfig -> CloudRssFocusTarget.Action(CloudRssAction.UseActiveSource)
         CloudRssAction.RunSyncNow -> CloudRssFocusTarget.Action(CloudRssAction.ClearScanSource)
         CloudRssAction.StartScheduler -> if (subscriptionCount > 0) {
