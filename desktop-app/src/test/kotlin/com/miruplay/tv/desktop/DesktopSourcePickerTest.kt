@@ -458,8 +458,35 @@ class DesktopSourcePickerTest {
         assertEquals(RemoteBrowserFocusTarget.PreviousPanel, entries.remoteBrowserFocusTarget(0, Key.DirectionLeft))
         assertEquals(RemoteBrowserFocusTarget.Row(1), entries.remoteBrowserFocusTarget(0, Key.DirectionDown))
         assertEquals(RemoteBrowserFocusTarget.Row(0), entries.remoteBrowserFocusTarget(1, Key.DirectionUp))
+        assertEquals(RemoteBrowserFocusTarget.Row(8), (0 until 10).map {
+            FileEntry(path = "/Item $it", name = "Item $it", isDirectory = true)
+        }.remoteBrowserFocusTarget(7, Key.DirectionDown))
+        assertEquals(RemoteBrowserFocusTarget.Row(7), (0 until 10).map {
+            FileEntry(path = "/Item $it", name = "Item $it", isDirectory = true)
+        }.remoteBrowserFocusTarget(8, Key.DirectionUp))
         assertNull(entries.remoteBrowserFocusTarget(0, Key.DirectionUp))
         assertNull(entries.remoteBrowserFocusTarget(1, Key.DirectionDown))
+    }
+
+    @Test
+    fun `remote browser page helpers keep every remote item reachable`() {
+        assertEquals(0, remoteBrowserPageStartForIndex(index = 0, itemCount = 17))
+        assertEquals(0, remoteBrowserPageStartForIndex(index = 7, itemCount = 17))
+        assertEquals(8, remoteBrowserPageStartForIndex(index = 8, itemCount = 17))
+        assertEquals(16, remoteBrowserPageStartForIndex(index = 16, itemCount = 17))
+        assertEquals(16, remoteBrowserPageStartForIndex(index = 30, itemCount = 17))
+        assertEquals(8, remoteBrowserCoercedPageStart(pageStart = 12, itemCount = 17))
+        assertEquals(16, remoteBrowserCoercedPageStart(pageStart = 40, itemCount = 17))
+        assertEquals(0, remoteBrowserCoercedPageStart(pageStart = -8, itemCount = 17))
+        assertEquals(
+            "显示 9-16 / 17 个条目，按上/下继续翻页。",
+            remoteBrowserPageSummary(pageStart = 8, visibleCount = 8, itemCount = 17),
+        )
+        assertEquals(
+            "显示 17-17 / 17 个条目，按上/下继续翻页。",
+            remoteBrowserPageSummary(pageStart = 16, visibleCount = 1, itemCount = 17),
+        )
+        assertNull(remoteBrowserPageSummary(pageStart = 0, visibleCount = 4, itemCount = 4))
     }
 
     @Test
