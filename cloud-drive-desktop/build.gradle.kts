@@ -53,6 +53,7 @@ dependencies {
     implementation(libs.grpc.okhttp)
     implementation(libs.grpc.protobuf.lite)
     implementation(libs.grpc.stub)
+    implementation(libs.kotlinx.serialization.json)
     implementation(libs.protobuf.javalite)
     implementation(libs.javax.annotation.api)
 
@@ -69,12 +70,15 @@ val smokeCloudDrive2 by tasks.registering(JavaExec::class) {
     val endpoint = providers.gradleProperty("cloudDriveEndpoint")
     val token = providers.gradleProperty("cloudDriveToken")
     val path = providers.gradleProperty("cloudDrivePath").orElse("/")
+    val reportPath = providers.gradleProperty("cloudDriveReportPath")
+    val maxPreview = providers.gradleProperty("cloudDriveMaxPreview").orElse("10")
 
     doFirst {
         if (!endpoint.isPresent || !token.isPresent) {
             throw GradleException(
                 "Provide -PcloudDriveEndpoint=http://host:port and -PcloudDriveToken=<token>. " +
-                    "Optional: -PcloudDrivePath=/path"
+                    "Optional: -PcloudDrivePath=/path -PcloudDriveMaxPreview=10 " +
+                    "-PcloudDriveReportPath=build/cloud-drive-smoke/report.json"
             )
         }
         args(
@@ -84,6 +88,11 @@ val smokeCloudDrive2 by tasks.registering(JavaExec::class) {
             token.get(),
             "--path",
             path.get(),
+            "--max-preview",
+            maxPreview.get(),
         )
+        if (reportPath.isPresent) {
+            args("--report-path", reportPath.get())
+        }
     }
 }
