@@ -230,6 +230,8 @@ Verification:
   -RequiredLibrary <library> `
   -RequireOrganize
 
+# -RequireOrganize requires organize.movedCount > 0, not just post-listing fields.
+
 .\gradlew.bat :sync-engine-desktop:smokeCloudDriveRssScheduler `
   -PcloudDriveRssSchedulerDurationMs=2000 `
   -PcloudDriveRssSchedulerCheckIntervalMs=250 `
