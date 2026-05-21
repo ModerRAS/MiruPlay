@@ -198,6 +198,51 @@ internal enum class DesktopLibraryHeaderAction(val label: String) {
 internal fun desktopLibraryHeaderActions(): List<DesktopLibraryHeaderAction> =
     DesktopLibraryHeaderAction.entries
 
+internal enum class LibrarySourceAction {
+    OpenLocal,
+    Scan,
+    Search,
+    ClearIndex,
+    RemoveSource,
+}
+
+private fun Modifier.librarySourceActionNavigation(
+    action: LibrarySourceAction,
+    focusRequester: FocusRequester,
+    onMove: (LibrarySourceAction, Key) -> Boolean,
+): Modifier =
+    focusRequester(focusRequester)
+        .onPreviewKeyEvent { event ->
+            event.type == KeyEventType.KeyDown && onMove(action, event.key)
+        }
+
+internal fun librarySourceActionNavigationTarget(
+    current: LibrarySourceAction,
+    key: Key,
+): LibrarySourceAction? =
+    when (key) {
+        Key.DirectionLeft -> librarySourceHorizontalAction(current, -1)
+        Key.DirectionRight -> librarySourceHorizontalAction(current, 1)
+        Key.DirectionUp -> if (current == LibrarySourceAction.RemoveSource) LibrarySourceAction.ClearIndex else null
+        Key.DirectionDown -> if (current == LibrarySourceAction.ClearIndex) LibrarySourceAction.RemoveSource else null
+        else -> null
+    }
+
+private fun librarySourceHorizontalAction(
+    current: LibrarySourceAction,
+    delta: Int,
+): LibrarySourceAction? =
+    when (current) {
+        LibrarySourceAction.OpenLocal,
+        LibrarySourceAction.Scan,
+        LibrarySourceAction.Search,
+        -> listOf(LibrarySourceAction.OpenLocal, LibrarySourceAction.Scan, LibrarySourceAction.Search, LibrarySourceAction.ClearIndex)
+            .let { row -> row.getOrNull(row.indexOf(current) + delta) }
+        LibrarySourceAction.ClearIndex -> listOf(LibrarySourceAction.Search, LibrarySourceAction.ClearIndex)
+            .let { row -> row.getOrNull(row.indexOf(current) + delta) }
+        LibrarySourceAction.RemoveSource -> null
+    }
+
 @Composable
 private fun PosterSearchBar(
     indexQuery: String,
@@ -246,9 +291,17 @@ private fun LibraryControlBar(
 ) {
     val labels = desktopLibrarySourceLabels()
     val sourcePickerFocusRequester = remember { FocusRequester() }
+    val actionFocusRequesters = remember {
+        LibrarySourceAction.entries.associateWith { FocusRequester() }
+    }
     var sourcePickerFocusVersion by remember { mutableIntStateOf(0) }
     fun refocusSourcePicker() {
         sourcePickerFocusVersion += 1
+    }
+    fun moveLibrarySourceActionFocus(action: LibrarySourceAction, key: Key): Boolean {
+        val target = librarySourceActionNavigationTarget(action, key) ?: return false
+        actionFocusRequesters.getValue(target).requestFocus()
+        return true
     }
     LaunchedEffect(sourcePickerFocusVersion) {
         if (sourcePickerFocusVersion > 0) {
@@ -256,21 +309,7 @@ private fun LibraryControlBar(
         }
     }
 
-    TvPanel(
-        Modifier
-            .fillMaxWidth()
-            .onPreviewKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown) {
-                    false
-                } else {
-                    savedSources.savedSourcePickerNavigationTarget(activeSourceId, event.key)?.let { source ->
-                        onSavedSourceSelected(source)
-                        refocusSourcePicker()
-                        true
-                    } ?: false
-                }
-            },
-    ) {
+    TvPanel(Modifier.fillMaxWidth()) {
         Text("媒体源", color = TextPrimary, fontSize = MiruPlayUiMetrics.SECTION_SUBTITLE_SP.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
         Row(
@@ -305,7 +344,13 @@ private fun LibraryControlBar(
                             onOpenLocal()
                             refocusSourcePicker()
                         },
-                        modifier = Modifier.weight(0.72f),
+                        modifier = Modifier
+                            .weight(0.72f)
+                            .librarySourceActionNavigation(
+                                action = LibrarySourceAction.OpenLocal,
+                                focusRequester = actionFocusRequesters.getValue(LibrarySourceAction.OpenLocal),
+                                onMove = ::moveLibrarySourceActionFocus,
+                            ),
                     )
                     TvActionButton(
                         labels.scan,
@@ -314,14 +359,53 @@ private fun LibraryControlBar(
                             refocusSourcePicker()
                         },
                         secondary = true,
-                        modifier = Modifier.weight(0.54f),
+                        modifier = Modifier
+                            .weight(0.54f)
+                            .librarySourceActionNavigation(
+                                action = LibrarySourceAction.Scan,
+                                focusRequester = actionFocusRequesters.getValue(LibrarySourceAction.Scan),
+                                onMove = ::moveLibrarySourceActionFocus,
+                            ),
                     )
-                    TvActionButton(labels.search, onClick = onSearch, secondary = true, modifier = Modifier.weight(1f))
+                    TvActionButton(
+                        labels.search,
+                        onClick = onSearch,
+                        secondary = true,
+                        modifier = Modifier
+                            .weight(1f)
+                            .librarySourceActionNavigation(
+                                action = LibrarySourceAction.Search,
+                                focusRequester = actionFocusRequesters.getValue(LibrarySourceAction.Search),
+                                onMove = ::moveLibrarySourceActionFocus,
+                            ),
+                    )
                 }
             }
             Column(Modifier.width(220.dp), verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
-                TvActionButton(labels.clearIndex, onClick = onClearIndex, secondary = true, modifier = Modifier.fillMaxWidth())
-                TvActionButton(labels.removeSource, onClick = onRemoveSource, secondary = true, modifier = Modifier.fillMaxWidth())
+                TvActionButton(
+                    labels.clearIndex,
+                    onClick = onClearIndex,
+                    secondary = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .librarySourceActionNavigation(
+                            action = LibrarySourceAction.ClearIndex,
+                            focusRequester = actionFocusRequesters.getValue(LibrarySourceAction.ClearIndex),
+                            onMove = ::moveLibrarySourceActionFocus,
+                        ),
+                )
+                TvActionButton(
+                    labels.removeSource,
+                    onClick = onRemoveSource,
+                    secondary = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .librarySourceActionNavigation(
+                            action = LibrarySourceAction.RemoveSource,
+                            focusRequester = actionFocusRequesters.getValue(LibrarySourceAction.RemoveSource),
+                            onMove = ::moveLibrarySourceActionFocus,
+                        ),
+                )
             }
         }
         Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
