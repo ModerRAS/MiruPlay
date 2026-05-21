@@ -934,8 +934,8 @@ internal fun bangumiTopActionKeyEvent(
     key: Key,
     type: KeyEventType,
     onFocusPreviousPanel: () -> Boolean,
-): Boolean {
-    if (type != KeyEventType.KeyDown) return false
-    return bangumiActionFocusTarget(BangumiAction.UseSelected, key) == BangumiActionFocusTarget.PreviousPanel &&
-        onFocusPreviousPanel()
-}
+): Boolean =
+    desktopNavigationKeyEvent(key, type) { navigationKey ->
+        bangumiActionFocusTarget(BangumiAction.UseSelected, navigationKey) == BangumiActionFocusTarget.PreviousPanel &&
+            onFocusPreviousPanel()
+    }
