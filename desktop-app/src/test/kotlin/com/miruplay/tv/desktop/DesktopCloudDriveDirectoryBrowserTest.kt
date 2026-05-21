@@ -116,7 +116,7 @@ class DesktopCloudDriveDirectoryBrowserTest {
 
         assertEquals(DesktopCloudDriveDirectoryTarget.LIBRARY, selection.target)
         assertEquals("/Anime/Season 1", selection.path)
-        assertEquals("已选择 选择媒体库目录：/Anime/Season 1", selection.status)
+        assertEquals("已选择媒体库目录：/Anime/Season 1", selection.status)
     }
 
     private class FakeCloudDriveClient(

@@ -5,9 +5,12 @@ import com.miruplay.tv.clouddrive.CloudDriveEndpoint
 import com.miruplay.tv.clouddrive.CloudDriveFileInfo
 import com.miruplay.tv.core.common.Result
 
-internal enum class DesktopCloudDriveDirectoryTarget(val title: String) {
-    INBOX("选择收件目录"),
-    LIBRARY("选择媒体库目录"),
+internal enum class DesktopCloudDriveDirectoryTarget(
+    val title: String,
+    val selectedLabel: String,
+) {
+    INBOX(title = "选择收件目录", selectedLabel = "收件目录"),
+    LIBRARY(title = "选择媒体库目录", selectedLabel = "媒体库目录"),
 }
 
 internal data class DesktopCloudDriveDirectoryEntry(
@@ -98,7 +101,7 @@ internal fun selectDesktopCloudDriveDirectory(
     return DesktopCloudDriveDirectorySelection(
         target = target,
         path = normalized,
-        status = "已选择 ${target.title}：$normalized",
+        status = "已选择${target.selectedLabel}：$normalized",
     )
 }
 
