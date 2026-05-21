@@ -47,11 +47,13 @@ class DesktopDetailHeroTest {
     }
 
     @Test
-    fun `recent playback navigation moves within visible records`() {
+    fun `recent playback navigation moves within all records`() {
         assertEquals(1, moveRecentPlaybackSelection(currentIndex = 0, itemCount = 3, delta = 1))
         assertEquals(1, moveRecentPlaybackSelection(currentIndex = 2, itemCount = 3, delta = -1))
         assertEquals(null, moveRecentPlaybackSelection(currentIndex = 0, itemCount = 3, delta = -1))
         assertEquals(null, moveRecentPlaybackSelection(currentIndex = 2, itemCount = 3, delta = 1))
+        assertEquals(6, moveRecentPlaybackSelection(currentIndex = 5, itemCount = 9, delta = 1))
+        assertEquals(5, moveRecentPlaybackSelection(currentIndex = 6, itemCount = 9, delta = -1))
         assertEquals(null, moveRecentPlaybackSelection(currentIndex = 0, itemCount = 0, delta = 1))
     }
 
@@ -68,6 +70,10 @@ class DesktopDetailHeroTest {
         assertEquals(
             RecentPlaybackFocusTarget.NextPanel,
             moveRecentPlaybackFocusTarget(currentIndex = 2, itemCount = 3, delta = 1),
+        )
+        assertEquals(
+            RecentPlaybackFocusTarget.Row(6),
+            moveRecentPlaybackFocusTarget(currentIndex = 5, itemCount = 9, delta = 1),
         )
         assertEquals(null, moveRecentPlaybackFocusTarget(currentIndex = 0, itemCount = 0, delta = 1))
         assertEquals(RecentPlaybackAction.Clear, moveRecentPlaybackAction(RecentPlaybackAction.Refresh, 1))
@@ -95,6 +101,28 @@ class DesktopDetailHeroTest {
             recentPlaybackEmptyFocusTarget(Key.DirectionDown),
         )
         assertEquals(null, recentPlaybackEmptyFocusTarget(Key.DirectionLeft))
+    }
+
+    @Test
+    fun `recent playback page helpers keep every recent record reachable`() {
+        assertEquals(0, recentPlaybackPageStartForIndex(index = 0, itemCount = 14))
+        assertEquals(0, recentPlaybackPageStartForIndex(index = 5, itemCount = 14))
+        assertEquals(6, recentPlaybackPageStartForIndex(index = 6, itemCount = 14))
+        assertEquals(12, recentPlaybackPageStartForIndex(index = 13, itemCount = 14))
+        assertEquals(12, recentPlaybackPageStartForIndex(index = 30, itemCount = 14))
+        assertEquals(6, recentPlaybackCoercedPageStart(pageStart = 8, itemCount = 14))
+        assertEquals(12, recentPlaybackCoercedPageStart(pageStart = 48, itemCount = 14))
+        assertEquals(0, recentPlaybackCoercedPageStart(pageStart = -6, itemCount = 14))
+
+        assertEquals(
+            "显示 7-12 / 14 条记录，按上/下继续翻页。",
+            recentPlaybackPageSummary(pageStart = 6, visibleCount = 6, itemCount = 14),
+        )
+        assertEquals(
+            "显示 13-14 / 14 条记录，按上/下继续翻页。",
+            recentPlaybackPageSummary(pageStart = 12, visibleCount = 2, itemCount = 14),
+        )
+        assertEquals(null, recentPlaybackPageSummary(pageStart = 0, visibleCount = 5, itemCount = 5))
     }
 
     @Test

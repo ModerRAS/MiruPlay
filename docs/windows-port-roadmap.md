@@ -87,6 +87,7 @@ The port is complete only when all of these are proven by current evidence:
 - [x] Add Windows GUI smoke coverage for Continue watching recent-playback keyboard/DPAD navigation.
 - [x] Add unit coverage for Continue watching refresh/clear action-pair keyboard/DPAD navigation.
 - [x] Add unit coverage for Continue watching empty-state keyboard/DPAD focus bridging.
+- [x] Keep every Windows Continue watching record reachable by keyboard/DPAD pagination, not only the first visible six rows.
 - [x] Add Windows GUI smoke coverage for Details hero Down -> Bangumi metadata focus fallback.
 - [x] Add Windows GUI smoke coverage for remote-browser row keyboard/DPAD navigation.
 - [x] Add unit coverage for remote-browser empty-state keyboard/DPAD focus.
