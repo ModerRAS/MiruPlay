@@ -1,7 +1,11 @@
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.time.OffsetDateTime
 import java.util.zip.ZipFile
+import org.gradle.api.file.DuplicatesStrategy
+import org.gradle.api.tasks.Sync
 import org.gradle.api.tasks.bundling.Zip
+import org.gradle.jvm.tasks.Jar
 
 plugins {
     id("application")
@@ -41,6 +45,13 @@ val backendScripts = mapOf(
     "DIRECTML" to "MEMC_RIFE_DML.vpy",
     "STANDARD" to "MEMC_RIFE_STD.vpy",
 )
+val jpackageAppContentDir = layout.buildDirectory.dir("jpackage/app-content")
+val jpackageInputDir = layout.buildDirectory.dir("jpackage/input")
+val jpackageOutputDir = layout.buildDirectory.dir("jpackage/output")
+val jpackageAppImageRoot = jpackageOutputDir.map { it.dir("MiruPlay").asFile }
+val jpackageAppContentRuntimeDir = jpackageAppContentDir.map { it.dir("runtime") }
+val mainJarFile = tasks.named<Jar>("jar").flatMap { it.archiveFile }
+val runtimeClasspath = configurations.named("runtimeClasspath")
 
 fun requestedRifeBackends(): List<String> =
     requiredRifeBackends.get()
@@ -81,6 +92,23 @@ fun hasMpvRuntimeSource(): Boolean =
 
 fun mpvRuntimeSourceHasManifest(): Boolean =
     hasMpvRuntimeSource() && effectiveMpvRuntimeRoot.get().resolve("runtime-manifest.json").isFile
+
+fun jpackageExecutable(): File {
+    val executableName = if (System.getProperty("os.name").contains("Windows", ignoreCase = true)) {
+        "jpackage.exe"
+    } else {
+        "jpackage"
+    }
+    val candidates = listOfNotNull(
+        System.getenv("JAVA_HOME")?.takeIf { it.isNotBlank() }?.let { File(it, "bin/$executableName") },
+        File(System.getProperty("java.home"), "bin/$executableName"),
+        File(System.getProperty("java.home"), "../bin/$executableName"),
+    )
+    return candidates.firstOrNull { it.isFile }
+        ?: throw GradleException(
+            "jpackage was not found. Use a full JDK 21 and set JAVA_HOME before running packageWindowsAppImage."
+        )
+}
 
 val verifyMpvRuntimePayload by tasks.registering {
     group = "verification"
@@ -159,6 +187,76 @@ val smokeMpvRuntime by tasks.registering {
 
 val distZipTask = tasks.named<Zip>("distZip")
 
+val prepareJpackageAppContent by tasks.registering(Sync::class) {
+    group = "distribution"
+    description = "Prepare bundled runtime content for JDK jpackage app images."
+    into(jpackageAppContentDir)
+    dependsOn(verifyMpvRuntimePayload)
+    dependsOn(generateMpvRuntimeManifest)
+
+    if (bundleMpvRuntime.get() && hasMpvRuntimeSource()) {
+        from(effectiveMpvRuntimeRoot) {
+            into("runtime/mpv")
+        }
+        if (!mpvRuntimeSourceHasManifest()) {
+            from(generatedMpvRuntimeManifest) {
+                into("runtime/mpv")
+            }
+        }
+    }
+
+    doFirst {
+        jpackageAppContentDir.get().asFile.mkdirs()
+    }
+}
+
+val prepareJpackageInput by tasks.registering(Sync::class) {
+    group = "distribution"
+    description = "Prepare application jars for JDK jpackage app images."
+    dependsOn(tasks.named("jar"))
+    from(mainJarFile)
+    from(runtimeClasspath)
+    into(jpackageInputDir)
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+val packageWindowsAppImage by tasks.registering {
+    group = "distribution"
+    description = "Build a Windows JDK jpackage app image with bundled mpv/RIFE runtime content."
+    dependsOn(prepareJpackageInput)
+    dependsOn(prepareJpackageAppContent)
+    onlyIf { System.getProperty("os.name").contains("Windows", ignoreCase = true) }
+    inputs.dir(jpackageInputDir)
+    inputs.dir(jpackageAppContentDir).optional()
+    outputs.dir(jpackageAppImageRoot)
+
+    doLast {
+        val appContentRuntime = jpackageAppContentRuntimeDir.get().asFile
+        val outputDir = jpackageOutputDir.get().asFile
+        delete(outputDir)
+        outputDir.mkdirs()
+
+        val command = mutableListOf(
+            jpackageExecutable().absolutePath,
+            "--type", "app-image",
+            "--name", "MiruPlay",
+            "--input", jpackageInputDir.get().asFile.absolutePath,
+            "--main-jar", mainJarFile.get().asFile.name,
+            "--main-class", application.mainClass.get(),
+            "--dest", outputDir.absolutePath,
+            "--vendor", "MiruPlay",
+            "--app-version", "0.1.0",
+            "--description", "MiruPlay Windows desktop anime media manager",
+        )
+        if (appContentRuntime.isDirectory) {
+            command += listOf("--app-content", appContentRuntime.absolutePath)
+        }
+        exec {
+            commandLine(command)
+        }
+    }
+}
+
 val smokePackagedMpvRuntime by tasks.registering {
     group = "verification"
     description = "Build the distribution zip, verify packaged mpv/RIFE entries, and smoke-check the runtime used for packaging."
@@ -228,6 +326,66 @@ val smokePackagedMpvRuntime by tasks.registering {
         logger.lifecycle(
             "packaged mpv runtime entries verified in ${archive.toPath().toAbsolutePath().normalize()} " +
                 "with RIFE backends: ${requestedBackends.ifEmpty { listOf("none") }.joinToString(", ")}"
+        )
+    }
+}
+
+val smokeNativeAppImageRuntime by tasks.registering {
+    group = "verification"
+    description = "Build the Windows app image and verify the bundled mpv/RIFE runtime resources."
+    dependsOn(packageWindowsAppImage)
+    onlyIf {
+        System.getProperty("os.name").contains("Windows", ignoreCase = true) &&
+            bundleMpvRuntime.get() &&
+            hasMpvRuntimeSource()
+    }
+    inputs.dir(jpackageAppImageRoot).optional()
+    inputs.property("requiredRifeBackends", requiredRifeBackends)
+
+    doLast {
+        val appRoot = jpackageAppImageRoot.get()
+        if (!appRoot.isDirectory) {
+            throw GradleException("Native app image output was not created: $appRoot")
+        }
+        val requestedBackends = requestedRifeBackends()
+        validateRifeBackends(requestedBackends)
+
+        val launcher = appRoot.walkTopDown()
+            .filter { it.isFile }
+            .firstOrNull { file ->
+                file.name.equals("MiruPlay.exe", ignoreCase = true) ||
+                    file.name == "MiruPlay"
+            }
+            ?: throw GradleException("Native app image launcher was not found under $appRoot")
+
+        val runtimeRoot = appRoot.walkTopDown()
+            .filter { it.isDirectory && it.name == "mpv" }
+            .firstOrNull { candidate ->
+                candidate.resolve("mpv.exe").isFile &&
+                    candidate.resolve("portable_config").isDirectory
+            }
+            ?: throw GradleException("Native app image is missing bundled runtime/mpv under $appRoot")
+
+        val missing = mutableListOf<String>()
+        fun requireRuntimeFile(relativePath: String) {
+            if (!runtimeRoot.resolve(relativePath).isFile) missing += relativePath
+        }
+        requireRuntimeFile("mpv.exe")
+        requireRuntimeFile("runtime-manifest.json")
+        requestedBackends.forEach { backend ->
+            requireRuntimeFile("portable_config/vs/${backendScripts.getValue(backend)}")
+        }
+        if (missing.isNotEmpty()) {
+            throw GradleException(
+                "Native app image runtime is incomplete at $runtimeRoot. Missing:\n" +
+                    missing.joinToString(separator = "\n") { " - $it" }
+            )
+        }
+
+        logger.lifecycle(
+            "native app image verified: launcher=${launcher.toPath().toAbsolutePath().normalize()}, " +
+                "runtime=${runtimeRoot.toPath().toAbsolutePath().normalize()}, " +
+                "RIFE backends=${requestedBackends.ifEmpty { listOf("none") }.joinToString(", ")}"
         )
     }
 }

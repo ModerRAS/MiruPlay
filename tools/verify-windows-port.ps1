@@ -11,6 +11,7 @@ param(
     [switch]$Smb,
     [switch]$MpvRuntime,
     [switch]$PackagedMpvRuntime,
+    [switch]$NativeAppImage,
     [string]$MpvRuntimeSource = "runtime\mpv",
     [string]$RequiredRifeBackends = "NVIDIA,DIRECTML",
     [switch]$Rife,
@@ -302,6 +303,17 @@ try {
         Invoke-Step -Name "packaged mpv runtime smoke" -Action {
             Invoke-Gradle -Arguments @(
                 ":desktop-app:smokePackagedMpvRuntime",
+                "-PmpvRuntimeSource=$MpvRuntimeSource",
+                "-PrequireMpvRuntime=true",
+                "-PrequiredRifeBackends=$RequiredRifeBackends"
+            )
+        }
+    }
+
+    if ($NativeAppImage) {
+        Invoke-Step -Name "native app image runtime smoke" -Action {
+            Invoke-Gradle -Arguments @(
+                ":desktop-app:smokeNativeAppImageRuntime",
                 "-PmpvRuntimeSource=$MpvRuntimeSource",
                 "-PrequireMpvRuntime=true",
                 "-PrequiredRifeBackends=$RequiredRifeBackends"

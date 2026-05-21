@@ -78,6 +78,7 @@ object MpvRuntimeDiscovery {
         )
         val discovered = listOfNotNull(
             appHome?.resolve("runtime")?.resolve("mpv"),
+            appHome?.resolve("app")?.resolve("runtime")?.resolve("mpv"),
             workingDirectory.resolve("runtime").resolve("mpv"),
             workingDirectory.resolve("mpv"),
         )
