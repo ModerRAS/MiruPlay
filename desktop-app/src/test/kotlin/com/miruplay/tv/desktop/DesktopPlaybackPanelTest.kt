@@ -181,6 +181,34 @@ class DesktopPlaybackPanelTest {
     }
 
     @Test
+    fun `desktop runtime controls move through the TV form column`() {
+        assertEquals(
+            RuntimeFocusTarget.ConfigDir,
+            runtimeNavigationTarget(RuntimeFocusTarget.MpvPath, Key.DirectionDown),
+        )
+        assertEquals(
+            RuntimeFocusTarget.CheckRuntime,
+            runtimeNavigationTarget(RuntimeFocusTarget.ConfigDir, Key.DirectionDown),
+        )
+        assertEquals(
+            RuntimeFocusTarget.ConfigDir,
+            runtimeNavigationTarget(RuntimeFocusTarget.CheckRuntime, Key.DirectionUp),
+        )
+        assertEquals(
+            null,
+            runtimeNavigationTarget(RuntimeFocusTarget.MpvPath, Key.DirectionUp),
+        )
+        assertEquals(
+            null,
+            runtimeNavigationTarget(RuntimeFocusTarget.CheckRuntime, Key.DirectionDown),
+        )
+        assertEquals(
+            null,
+            runtimeNavigationTarget(RuntimeFocusTarget.ConfigDir, Key.DirectionRight),
+        )
+    }
+
+    @Test
     fun `desktop player status text localizes backend statuses`() {
         assertEquals("mpv 待命。", desktopPlaybackStatusText("mpv is idle."))
         assertEquals("mpv 已启动：pid 1234", desktopPlaybackStatusText("mpv launched: pid 1234"))
