@@ -371,13 +371,38 @@ class DesktopSettingsPanelTest {
 
         assertEquals(CloudDriveDirectoryFocusTarget.Row(1), cloudDriveDirectoryRowFocusTarget(currentIndex = 0, itemCount = 3, Key.DirectionDown))
         assertEquals(CloudDriveDirectoryFocusTarget.Row(1), cloudDriveDirectoryRowFocusTarget(currentIndex = 2, itemCount = 3, Key.DirectionUp))
+        assertEquals(CloudDriveDirectoryFocusTarget.Row(6), cloudDriveDirectoryRowFocusTarget(currentIndex = 5, itemCount = 8, Key.DirectionDown))
+        assertEquals(CloudDriveDirectoryFocusTarget.Row(5), cloudDriveDirectoryRowFocusTarget(currentIndex = 6, itemCount = 8, Key.DirectionUp))
         assertEquals(
             CloudDriveDirectoryFocusTarget.Action(CloudDriveDirectoryAction.UseCurrent),
             cloudDriveDirectoryRowFocusTarget(currentIndex = 0, itemCount = 3, Key.DirectionUp),
         )
         assertNull(cloudDriveDirectoryRowFocusTarget(currentIndex = 2, itemCount = 3, Key.DirectionDown))
+        assertNull(cloudDriveDirectoryRowFocusTarget(currentIndex = 7, itemCount = 8, Key.DirectionDown))
         assertNull(cloudDriveDirectoryRowFocusTarget(currentIndex = 0, itemCount = 0, Key.DirectionDown))
         assertNull(cloudDriveDirectoryRowFocusTarget(currentIndex = 0, itemCount = 3, Key.DirectionRight))
+    }
+
+    @Test
+    fun `desktop CloudDrive directory page helpers keep every folder reachable`() {
+        assertEquals(0, cloudDriveDirectoryPageStartForIndex(index = 0, itemCount = 13))
+        assertEquals(0, cloudDriveDirectoryPageStartForIndex(index = 5, itemCount = 13))
+        assertEquals(6, cloudDriveDirectoryPageStartForIndex(index = 6, itemCount = 13))
+        assertEquals(12, cloudDriveDirectoryPageStartForIndex(index = 12, itemCount = 13))
+        assertEquals(12, cloudDriveDirectoryPageStartForIndex(index = 20, itemCount = 13))
+        assertEquals(6, cloudDriveDirectoryCoercedPageStart(pageStart = 9, itemCount = 13))
+        assertEquals(12, cloudDriveDirectoryCoercedPageStart(pageStart = 24, itemCount = 13))
+        assertEquals(0, cloudDriveDirectoryCoercedPageStart(pageStart = -6, itemCount = 13))
+
+        assertEquals(
+            "显示 7-12 / 13 个目录，按上/下继续翻页。",
+            cloudDriveDirectoryPageSummary(pageStart = 6, visibleCount = 6, itemCount = 13),
+        )
+        assertEquals(
+            "显示 13-13 / 13 个目录，按上/下继续翻页。",
+            cloudDriveDirectoryPageSummary(pageStart = 12, visibleCount = 1, itemCount = 13),
+        )
+        assertNull(cloudDriveDirectoryPageSummary(pageStart = 0, visibleCount = 5, itemCount = 5))
     }
 
     @Test
