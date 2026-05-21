@@ -362,13 +362,26 @@ internal fun DetailEpisodePanel(
     val episodeFocusRequesters = remember(visibleEpisodes.map { it.path }) {
         List(visibleEpisodes.size) { FocusRequester() }
     }
+    val seasonFocusRequesters = remember(seasons) {
+        List(seasons.size) { FocusRequester() }
+    }
+    val activeSeasonIndex = seasons.indexOf(activeSeason).coerceAtLeast(0)
+    val selectedEpisodeIndex = visibleEpisodes
+        .indexOfFirst { it.path == selectedEntry?.path }
+        .coerceAtLeast(0)
 
-    fun moveEpisodeFocus(currentIndex: Int, delta: Int): Boolean {
-        return when (val target = moveDetailEpisodeFocusTarget(currentIndex, visibleEpisodes.size, delta)) {
+    fun requestEpisodePanelFocus(target: DetailEpisodeFocusTarget?): Boolean {
+        return when (target) {
             is DetailEpisodeFocusTarget.Row -> {
-                val episode = visibleEpisodes[target.index]
+                val episode = visibleEpisodes.getOrNull(target.index) ?: return false
                 onEpisodeFocused(episode)
                 episodeFocusRequesters.getOrNull(target.index)?.requestFocus()
+                true
+            }
+            is DetailEpisodeFocusTarget.Season -> {
+                val season = seasons.getOrNull(target.index) ?: return false
+                onSeasonSelected(season)
+                seasonFocusRequesters.getOrNull(target.index)?.requestFocus()
                 true
             }
             DetailEpisodeFocusTarget.PreviousPanel -> onFocusPreviousPanel()
@@ -376,6 +389,29 @@ internal fun DetailEpisodePanel(
             null -> false
         }
     }
+
+    fun moveEpisodeFocus(currentIndex: Int, delta: Int): Boolean {
+        return requestEpisodePanelFocus(
+            moveDetailEpisodeFocusTarget(
+                currentIndex = currentIndex,
+                itemCount = visibleEpisodes.size,
+                delta = delta,
+                seasonCount = seasons.size,
+                activeSeasonIndex = activeSeasonIndex,
+            ),
+        )
+    }
+
+    fun moveSeasonFocus(currentIndex: Int, key: Key): Boolean =
+        requestEpisodePanelFocus(
+            detailEpisodeSeasonFocusTarget(
+                currentIndex = currentIndex,
+                seasonCount = seasons.size,
+                episodeCount = visibleEpisodes.size,
+                selectedEpisodeIndex = selectedEpisodeIndex,
+                key = key,
+            ),
+        )
 
     LaunchedEffect(focusVersion, visibleEpisodes.map { it.path }, selectedEntry?.path) {
         if (focusVersion > 0 && visibleEpisodes.isNotEmpty()) {
@@ -400,12 +436,17 @@ internal fun DetailEpisodePanel(
             }
             if (seasons.size > 1) {
                 Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
-                    seasons.forEach { season ->
+                    seasons.forEachIndexed { index, season ->
                         TvActionButton(
                             text = "第 $season 季",
                             onClick = { onSeasonSelected(season) },
                             secondary = activeSeason != season,
-                            modifier = Modifier.width(132.dp),
+                            modifier = Modifier
+                                .focusRequester(seasonFocusRequesters[index])
+                                .onPreviewKeyEvent { event ->
+                                    event.type == KeyEventType.KeyDown && moveSeasonFocus(index, event.key)
+                                }
+                                .width(132.dp),
                         )
                     }
                 }
@@ -560,6 +601,7 @@ internal fun moveDetailEpisodeSelection(
 
 internal sealed interface DetailEpisodeFocusTarget {
     data class Row(val index: Int) : DetailEpisodeFocusTarget
+    data class Season(val index: Int) : DetailEpisodeFocusTarget
     data object PreviousPanel : DetailEpisodeFocusTarget
     data object NextPanel : DetailEpisodeFocusTarget
 }
@@ -568,15 +610,38 @@ internal fun moveDetailEpisodeFocusTarget(
     currentIndex: Int,
     itemCount: Int,
     delta: Int,
+    seasonCount: Int = 0,
+    activeSeasonIndex: Int = 0,
 ): DetailEpisodeFocusTarget? {
     if (itemCount <= 0) return null
     val targetIndex = currentIndex + delta
     return when {
+        targetIndex < 0 && seasonCount > 1 ->
+            DetailEpisodeFocusTarget.Season(activeSeasonIndex.coerceIn(0, seasonCount - 1))
         targetIndex < 0 -> DetailEpisodeFocusTarget.PreviousPanel
         targetIndex >= itemCount -> DetailEpisodeFocusTarget.NextPanel
         else -> DetailEpisodeFocusTarget.Row(targetIndex)
     }
 }
+
+internal fun detailEpisodeSeasonFocusTarget(
+    currentIndex: Int,
+    seasonCount: Int,
+    episodeCount: Int,
+    selectedEpisodeIndex: Int,
+    key: Key,
+): DetailEpisodeFocusTarget? =
+    when (key) {
+        Key.DirectionLeft -> (currentIndex - 1).takeIf { it >= 0 }?.let(DetailEpisodeFocusTarget::Season)
+        Key.DirectionRight -> (currentIndex + 1).takeIf { it < seasonCount }?.let(DetailEpisodeFocusTarget::Season)
+        Key.DirectionUp -> DetailEpisodeFocusTarget.PreviousPanel
+        Key.DirectionDown -> if (episodeCount > 0) {
+            DetailEpisodeFocusTarget.Row(selectedEpisodeIndex.coerceIn(0, episodeCount - 1))
+        } else {
+            DetailEpisodeFocusTarget.NextPanel
+        }
+        else -> null
+    }
 
 private val detailEpisodeComparator =
     compareBy<MediaIndexEntry>(
