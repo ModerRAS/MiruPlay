@@ -154,8 +154,9 @@ The mpv GUI smoke captured
 `mpv-recent-keyboard-selected.png`, proving playback-setting/runtime focus
 movement before launch, Player transport movement while mpv was running, and
 Continue watching selection from Details after playback stopped.
-`DesktopBangumiNavigationTest` now covers Bangumi batch-match, candidate, and
-search-result row movement without depending on the live Bangumi service.
+`DesktopBangumiNavigationTest` now covers Bangumi batch-match, candidate,
+search-result, and empty-result row movement without depending on the live
+Bangumi service.
 `:scraper-desktop:smokeBangumiLive` now covers the live service path for
 search, subject details, and regular episode listing while writing token-free
 JSON evidence.

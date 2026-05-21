@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -87,6 +88,7 @@ internal fun BangumiPanel(
     val resultFocusRequesters = remember(visibleResults.map { it.animeId to it.title }) {
         List(visibleResults.size) { FocusRequester() }
     }
+    val emptyResultsFocusRequester = remember { FocusRequester() }
 
     fun selectAndFocus(position: BangumiListPosition): Boolean =
         when (position.section) {
@@ -116,22 +118,32 @@ internal fun BangumiPanel(
         return true
     }
 
+    fun focusEmptyResults(): Boolean {
+        if (visibleResults.isNotEmpty()) return false
+        emptyResultsFocusRequester.requestFocus()
+        return true
+    }
+
+    fun requestBangumiFocus(target: BangumiActionFocusTarget?): Boolean =
+        when (target) {
+            is BangumiActionFocusTarget.Action -> focusAction(target.action)
+            is BangumiActionFocusTarget.ListPosition -> selectAndFocus(target.position)
+            BangumiActionFocusTarget.EmptyResults -> focusEmptyResults()
+            BangumiActionFocusTarget.PreviousPanel -> onFocusPreviousPanel()
+            BangumiActionFocusTarget.NextPanel -> onFocusNextPanel()
+            null -> false
+        }
+
     fun moveActionFocus(action: BangumiAction, key: Key): Boolean =
-        when (
-            val target = bangumiActionFocusTarget(
+        requestBangumiFocus(
+            bangumiActionFocusTarget(
                 current = action,
                 key = key,
                 batchMatchCount = visibleBatchMatches.size,
                 candidateCount = visibleBatchCandidates.size,
                 resultCount = visibleResults.size,
-            )
-        ) {
-            is BangumiActionFocusTarget.Action -> focusAction(target.action)
-            is BangumiActionFocusTarget.ListPosition -> selectAndFocus(target.position)
-            BangumiActionFocusTarget.PreviousPanel -> onFocusPreviousPanel()
-            BangumiActionFocusTarget.NextPanel -> onFocusNextPanel()
-            null -> false
-        }
+            ),
+        )
 
     fun moveListFocus(position: BangumiListPosition, key: Key): Boolean =
         bangumiListNavigationTarget(
@@ -141,18 +153,24 @@ internal fun BangumiPanel(
             candidateCount = visibleBatchCandidates.size,
             resultCount = visibleResults.size,
         )?.let(::selectAndFocus)
-            ?: when (val target = bangumiListExitFocusTarget(
-                current = position,
+            ?: requestBangumiFocus(
+                bangumiListExitFocusTarget(
+                    current = position,
+                    key = key,
+                    batchMatchCount = visibleBatchMatches.size,
+                    candidateCount = visibleBatchCandidates.size,
+                    resultCount = visibleResults.size,
+                ),
+            )
+
+    fun moveEmptyResultsFocus(key: Key): Boolean =
+        requestBangumiFocus(
+            bangumiEmptyResultsFocusTarget(
                 key = key,
                 batchMatchCount = visibleBatchMatches.size,
                 candidateCount = visibleBatchCandidates.size,
-                resultCount = visibleResults.size,
-            )) {
-                is BangumiActionFocusTarget.Action -> focusAction(target.action)
-                BangumiActionFocusTarget.NextPanel -> onFocusNextPanel()
-                else -> null
-            }
-            ?: false
+            ),
+        )
 
     LaunchedEffect(
         visibleBatchMatches,
@@ -345,7 +363,11 @@ internal fun BangumiPanel(
                     }
                 }
                 if (visibleResults.isEmpty()) {
-                    DesktopEmptyState(labels.emptyResults)
+                    BangumiEmptyResultsState(
+                        text = labels.emptyResults,
+                        focusRequester = emptyResultsFocusRequester,
+                        onMove = ::moveEmptyResultsFocus,
+                    )
                 } else {
                     visibleResults.forEachIndexed { index, result ->
                         BangumiResultRow(
@@ -360,6 +382,36 @@ internal fun BangumiPanel(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun BangumiEmptyResultsState(
+    text: String,
+    focusRequester: FocusRequester,
+    onMove: (Key) -> Boolean,
+) {
+    DesktopSelectableRow(
+        selected = false,
+        onClick = {},
+        modifier = Modifier
+            .focusRequester(focusRequester)
+            .onPreviewKeyEvent { event ->
+                event.type == KeyEventType.KeyDown && onMove(event.key)
+            },
+        heightDp = MiruPlayUiMetrics.EMPTY_STATE_HEIGHT_DP,
+        inactiveAlpha = 0.48f,
+    ) { active ->
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text,
+                color = if (active) TextPrimary else TextSecondary,
+                fontSize = MiruPlayUiMetrics.SECTION_BODY_SP.sp,
+            )
         }
     }
 }
@@ -711,6 +763,7 @@ internal enum class BangumiAction(
 internal sealed interface BangumiActionFocusTarget {
     data class Action(val action: BangumiAction) : BangumiActionFocusTarget
     data class ListPosition(val position: BangumiListPosition) : BangumiActionFocusTarget
+    data object EmptyResults : BangumiActionFocusTarget
     data object PreviousPanel : BangumiActionFocusTarget
     data object NextPanel : BangumiActionFocusTarget
 }
@@ -731,6 +784,12 @@ internal fun bangumiActionFocusTarget(
                     candidateCount = candidateCount,
                     resultCount = resultCount,
                 )?.takeIf { current.column == 1 }?.let(BangumiActionFocusTarget::ListPosition)
+                ?: BangumiActionFocusTarget.EmptyResults.takeIf {
+                    current.column == 1 &&
+                        batchMatchCount == 0 &&
+                        candidateCount == 0 &&
+                        resultCount == 0
+                }
         Key.DirectionDown ->
             bangumiActionAt(current.row + 1, current.column)?.let(BangumiActionFocusTarget::Action)
                 ?: BangumiActionFocusTarget.NextPanel.takeIf { current.row == BangumiAction.entries.maxOf { it.row } }
@@ -836,7 +895,47 @@ internal fun bangumiListExitFocusTarget(
                 candidateCount = candidateCount,
                 resultCount = resultCount,
             ) == null
+        }?.let { target ->
+            if (resultCount == 0 && current.section != BangumiListSection.SearchResults) {
+                BangumiActionFocusTarget.EmptyResults
+            } else {
+                target
+            }
         }
+        else -> null
+    }
+
+internal fun bangumiEmptyResultsFocusTarget(
+    key: Key,
+    batchMatchCount: Int = 0,
+    candidateCount: Int = 0,
+): BangumiActionFocusTarget? =
+    when (key) {
+        Key.DirectionLeft -> BangumiActionFocusTarget.Action(BangumiAction.ApplyMatch)
+        Key.DirectionUp -> lastBangumiListPosition(
+            batchMatchCount = batchMatchCount,
+            candidateCount = candidateCount,
+        )?.let(BangumiActionFocusTarget::ListPosition)
+            ?: BangumiActionFocusTarget.Action(BangumiAction.Search)
+        Key.DirectionDown -> BangumiActionFocusTarget.NextPanel
+        else -> null
+    }
+
+private fun lastBangumiListPosition(
+    batchMatchCount: Int,
+    candidateCount: Int,
+): BangumiListPosition? =
+    when {
+        candidateCount.coerceAtMost(BANGUMI_CANDIDATE_LIMIT) > 0 ->
+            BangumiListPosition(
+                BangumiListSection.BatchCandidates,
+                candidateCount.coerceAtMost(BANGUMI_CANDIDATE_LIMIT) - 1,
+            )
+        batchMatchCount.coerceAtMost(BANGUMI_BATCH_MATCH_LIMIT) > 0 ->
+            BangumiListPosition(
+                BangumiListSection.BatchMatches,
+                batchMatchCount.coerceAtMost(BANGUMI_BATCH_MATCH_LIMIT) - 1,
+            )
         else -> null
     }
 
