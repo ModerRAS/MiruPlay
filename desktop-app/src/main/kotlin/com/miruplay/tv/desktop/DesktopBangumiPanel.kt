@@ -396,12 +396,10 @@ private fun BangumiEmptyResultsState(
         selected = false,
         onClick = {},
         modifier = Modifier
-            .focusRequester(focusRequester)
-            .onPreviewKeyEvent { event ->
-                event.type == KeyEventType.KeyDown && onMove(event.key)
-            },
+            .focusRequester(focusRequester),
         heightDp = MiruPlayUiMetrics.EMPTY_STATE_HEIGHT_DP,
         inactiveAlpha = 0.48f,
+        onNavigationKey = onMove,
     ) { active ->
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -468,14 +466,8 @@ private fun BangumiResultRow(
     DesktopSelectableRow(
         selected = selected,
         onClick = onClick,
-        modifier = modifier.onPreviewKeyEvent { event ->
-            bangumiRowKeyEvent(
-                key = event.key,
-                type = event.type,
-                onClick = onClick,
-                onNavigationKey = onNavigationKey,
-            )
-        },
+        modifier = modifier,
+        onNavigationKey = onNavigationKey,
     ) { active ->
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -523,16 +515,10 @@ private fun BangumiBatchMatchRow(
     DesktopSelectableRow(
         selected = selected,
         onClick = onClick,
-        modifier = modifier.onPreviewKeyEvent { event ->
-            bangumiRowKeyEvent(
-                key = event.key,
-                type = event.type,
-                onClick = onClick,
-                onNavigationKey = onNavigationKey,
-            )
-        },
+        modifier = modifier,
         heightDp = MiruPlayUiMetrics.LIST_ROW_COMPACT_HEIGHT_DP,
         inactiveAlpha = 0.44f,
+        onNavigationKey = onNavigationKey,
     ) { _ ->
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -948,19 +934,6 @@ private fun Modifier.bangumiActionNavigation(
         .onPreviewKeyEvent { event ->
             event.type == KeyEventType.KeyDown && onMove(action, event.key)
         }
-
-private fun bangumiRowKeyEvent(
-    key: Key,
-    type: KeyEventType,
-    onClick: () -> Unit,
-    onNavigationKey: (Key) -> Boolean,
-): Boolean =
-    desktopConfirmOrNavigationKeyEvent(
-        key = key,
-        type = type,
-        onClick = onClick,
-        onNavigationKey = onNavigationKey,
-    )
 
 internal fun bangumiTopActionKeyEvent(
     key: Key,
