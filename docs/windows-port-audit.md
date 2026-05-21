@@ -166,6 +166,10 @@ The WebDAV GUI smoke captured
 `webdav-source-keyboard-browse.png`, and `webdav-source-keyboard-select.png`,
 proving remote-browser parent navigation, row movement, and Enter selection by
 keyboard input without touching the SMB share.
+The remote WebDAV/SMB browser now pages file rows in eight-item TV-style
+windows: `Down` from row 8 moves to row 9 on the next page, `Up` moves back
+across the page boundary, and the browser shows a Chinese range summary so
+large remote folders are not silently truncated.
 The Continue watching empty state is now also focusable, with `Up` returning to
 the `刷新`/`清除条目` action row and `Down` continuing to the next Details panel.
 The mpv GUI smoke captured

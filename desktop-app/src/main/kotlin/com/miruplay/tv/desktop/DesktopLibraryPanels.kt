@@ -57,6 +57,7 @@ import com.miruplay.tv.repository.displayName
 private const val POSTER_WALL_COLUMNS = 6
 private const val REMOTE_SOURCE_PREVIEW_LIMIT = 70
 private const val REMOTE_BROWSER_PATH_LIMIT = 86
+private const val REMOTE_BROWSER_PAGE_SIZE = 8
 private const val REMOTE_SOURCE_BADGE_WIDTH_DP = 74
 private const val REMOTE_SOURCE_BADGE_HEIGHT_DP = 32
 
@@ -1809,28 +1810,61 @@ private fun RemoteBrowserPanel(
     onFocusPreviousPanel: () -> Boolean = { false },
 ) {
     val labels = desktopLibrarySourceLabels()
-    val visibleEntries = remember(entries) { entries.take(8) }
-    val focusRequesters = remember(visibleEntries) {
+    var remoteBrowserPageStart by remember(remotePath, entries.size) { mutableStateOf(0) }
+    var pendingRemoteBrowserRowFocus by remember(remotePath, entries.size) { mutableStateOf<Int?>(null) }
+    val pageStart = remoteBrowserCoercedPageStart(
+        pageStart = remoteBrowserPageStart,
+        itemCount = entries.size,
+    )
+    val visibleEntries = entries
+        .drop(pageStart)
+        .take(REMOTE_BROWSER_PAGE_SIZE)
+    val focusRequesters = remember(pageStart, visibleEntries.map { it.path }) {
         visibleEntries.associate { it.path to FocusRequester() }
     }
     val emptyFocusRequester = remember { FocusRequester() }
-    LaunchedEffect(visibleEntries, selectedEntry?.path) {
-        val focusTarget = visibleEntries.firstOrNull { it.path == selectedEntry?.path } ?: visibleEntries.firstOrNull()
+    LaunchedEffect(pageStart, visibleEntries.map { it.path }, pendingRemoteBrowserRowFocus) {
+        val pendingIndex = pendingRemoteBrowserRowFocus ?: return@LaunchedEffect
+        if (pendingIndex in pageStart until pageStart + visibleEntries.size) {
+            focusRequesters[visibleEntries[pendingIndex - pageStart].path]?.requestFocus()
+            pendingRemoteBrowserRowFocus = null
+        }
+    }
+    LaunchedEffect(pageStart, visibleEntries.map { it.path }, selectedEntry?.path, pendingRemoteBrowserRowFocus) {
+        if (pendingRemoteBrowserRowFocus != null) return@LaunchedEffect
+        val selectedIndex = entries.indexOfFirst { it.path == selectedEntry?.path }
+        if (selectedIndex >= 0 && selectedIndex !in pageStart until pageStart + visibleEntries.size) {
+            remoteBrowserPageStart = remoteBrowserPageStartForIndex(selectedIndex, entries.size)
+            pendingRemoteBrowserRowFocus = selectedIndex
+            return@LaunchedEffect
+        }
+        val focusTarget = visibleEntries.firstOrNull { it.path == selectedEntry?.path }
+            ?: visibleEntries.firstOrNull()
         focusTarget?.let { entry ->
             focusRequesters[entry.path]?.requestFocus()
         }
     }
-    fun requestRemoteBrowserFocus(target: RemoteBrowserFocusTarget?): Boolean =
-        when (target) {
+    fun requestRemoteBrowserFocus(target: RemoteBrowserFocusTarget?): Boolean {
+        return when (target) {
             RemoteBrowserFocusTarget.UpButton -> {
                 upFocusRequester.requestFocus()
                 true
             }
             is RemoteBrowserFocusTarget.Row -> {
-                visibleEntries.getOrNull(target.index)?.let { entry ->
+                val index = target.index.takeIf { it in entries.indices } ?: return false
+                val targetPageStart = remoteBrowserPageStartForIndex(
+                    index = index,
+                    itemCount = entries.size,
+                )
+                remoteBrowserPageStart = targetPageStart
+                val visibleIndex = index - targetPageStart
+                if (targetPageStart == pageStart) {
+                    val entry = visibleEntries.getOrNull(visibleIndex) ?: return false
                     focusRequesters.getValue(entry.path).requestFocus()
-                    true
-                } ?: false
+                } else {
+                    pendingRemoteBrowserRowFocus = index
+                }
+                true
             }
             RemoteBrowserFocusTarget.EmptyState -> {
                 if (visibleEntries.isEmpty()) {
@@ -1843,15 +1877,16 @@ private fun RemoteBrowserPanel(
             RemoteBrowserFocusTarget.PreviousPanel -> onFocusPreviousPanel()
             null -> false
         }
-    LaunchedEffect(focusVersion, visibleEntries) {
+    }
+    LaunchedEffect(focusVersion, entries.size) {
         if (focusVersion > 0) {
             val target = when (focusTarget) {
-                is RemoteBrowserFocusTarget.Row -> if (visibleEntries.isEmpty()) {
+                is RemoteBrowserFocusTarget.Row -> if (entries.isEmpty()) {
                     RemoteBrowserFocusTarget.EmptyState
                 } else {
-                    RemoteBrowserFocusTarget.Row(focusTarget.index.coerceIn(visibleEntries.indices))
+                    RemoteBrowserFocusTarget.Row(focusTarget.index.coerceIn(entries.indices))
                 }
-                RemoteBrowserFocusTarget.EmptyState -> if (visibleEntries.isEmpty()) {
+                RemoteBrowserFocusTarget.EmptyState -> if (entries.isEmpty()) {
                     RemoteBrowserFocusTarget.EmptyState
                 } else {
                     RemoteBrowserFocusTarget.UpButton
@@ -1886,7 +1921,7 @@ private fun RemoteBrowserPanel(
                     .width(MiruPlayUiMetrics.CONTROL_BUTTON_WIDTH_DP.dp)
                     .focusRequester(upFocusRequester)
                     .desktopNavigationKeyHandler { key ->
-                        when (val target = remoteBrowserUpButtonFocusTarget(visibleEntries.size, key)) {
+                        when (val target = remoteBrowserUpButtonFocusTarget(entries.size, key)) {
                             RemoteBrowserFocusTarget.PreviousPanel -> onFocusPreviousPanel()
                             is RemoteBrowserFocusTarget.Row,
                             RemoteBrowserFocusTarget.EmptyState,
@@ -1912,11 +1947,12 @@ private fun RemoteBrowserPanel(
                     selected = selectedEntry?.path == entry.path,
                     onClick = { onEntrySelected(entry) },
                     onNavigationKey = { key ->
-                        when (val target = visibleEntries.remoteBrowserFocusTarget(index, key)) {
+                        val absoluteIndex = pageStart + index
+                        when (val target = entries.remoteBrowserFocusTarget(absoluteIndex, key)) {
                             is RemoteBrowserFocusTarget.Row -> {
-                                val targetEntry = visibleEntries[target.index]
+                                val targetEntry = entries[target.index]
                                 onEntryFocused(targetEntry)
-                                true
+                                requestRemoteBrowserFocus(target)
                             }
                             RemoteBrowserFocusTarget.UpButton -> {
                                 upFocusRequester.requestFocus()
@@ -1924,7 +1960,7 @@ private fun RemoteBrowserPanel(
                             }
                             RemoteBrowserFocusTarget.EmptyState -> false
                             RemoteBrowserFocusTarget.PreviousPanel -> onFocusPreviousPanel()
-                            null -> if (remoteBrowserShouldNavigateUp(index, key)) {
+                            null -> if (remoteBrowserShouldNavigateUp(absoluteIndex, key)) {
                                 onUp()
                                 true
                             } else {
@@ -1935,6 +1971,17 @@ private fun RemoteBrowserPanel(
                     modifier = Modifier.focusRequester(focusRequesters.getValue(entry.path)),
                 )
                 Spacer(Modifier.height(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp))
+            }
+            remoteBrowserPageSummary(
+                pageStart = pageStart,
+                visibleCount = visibleEntries.size,
+                itemCount = entries.size,
+            )?.let { summary ->
+                Text(
+                    summary,
+                    color = TextSecondary,
+                    fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
+                )
             }
         }
     }
@@ -2088,6 +2135,44 @@ internal fun remoteBrowserShouldNavigateUp(
     currentIndex: Int,
     key: Key,
 ): Boolean = currentIndex == 0 && key == Key.DirectionUp
+
+internal fun remoteBrowserPageStartForIndex(
+    index: Int,
+    itemCount: Int,
+    pageSize: Int = REMOTE_BROWSER_PAGE_SIZE,
+): Int {
+    if (itemCount <= 0 || pageSize <= 0) return 0
+    val safeIndex = index.coerceIn(0, itemCount - 1)
+    return (safeIndex / pageSize) * pageSize
+}
+
+internal fun remoteBrowserCoercedPageStart(
+    pageStart: Int,
+    itemCount: Int,
+    pageSize: Int = REMOTE_BROWSER_PAGE_SIZE,
+): Int {
+    if (itemCount <= 0 || pageSize <= 0) return 0
+    val maxPageStart = remoteBrowserPageStartForIndex(
+        index = itemCount - 1,
+        itemCount = itemCount,
+        pageSize = pageSize,
+    )
+    return (pageStart / pageSize)
+        .coerceAtLeast(0)
+        .times(pageSize)
+        .coerceAtMost(maxPageStart)
+}
+
+internal fun remoteBrowserPageSummary(
+    pageStart: Int,
+    visibleCount: Int,
+    itemCount: Int,
+): String? {
+    if (itemCount <= 0 || visibleCount <= 0 || visibleCount >= itemCount) return null
+    val safeStart = remoteBrowserCoercedPageStart(pageStart, itemCount)
+    val end = (safeStart + visibleCount).coerceAtMost(itemCount)
+    return "显示 ${safeStart + 1}-$end / $itemCount 个条目，按上/下继续翻页。"
+}
 
 internal data class DesktopLibrarySourceLabels(
     val localLibraryRoot: String,

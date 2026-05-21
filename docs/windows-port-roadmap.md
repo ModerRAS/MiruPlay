@@ -106,6 +106,7 @@ The port is complete only when all of these are proven by current evidence:
 - [x] Add unit coverage for remote source open/scan action keyboard/DPAD navigation.
 - [x] Add unit coverage for source-management local/WebDAV/SMB field keyboard/DPAD navigation into adjacent actions.
 - [x] Add unit coverage for remote source editor-to-browser and browser-to-editor keyboard/DPAD focus bridging.
+- [x] Keep every Windows WebDAV/SMB remote-browser item reachable by keyboard/DPAD pagination, not only the first visible eight rows.
 - [x] Add Windows GUI smoke coverage for saved-source card keyboard/DPAD navigation.
 - [x] Rework the Windows WebDAV/SMB source setup into TV-style remote source cards with compact endpoint/path previews.
 - [x] Add a tiny generated media sample and GUI mpv launch smoke.
