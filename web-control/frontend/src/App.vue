@@ -152,7 +152,7 @@
                     </el-tag>
                     <div>
                       <strong>{{ source.name }}</strong>
-                      <span class="muted break-text">{{ sourceLocation(source) }}</span>
+                      <span class="muted break-text">{{ displayPath(sourceLocation(source)) }}</span>
                     </div>
                   </div>
                   <div class="source-actions">
@@ -451,7 +451,7 @@
               </template>
               <div class="now-playing">
                 <h2>{{ playback.mediaSourceId || '未播放' }}</h2>
-                <p class="muted break-text">{{ playback.uri || '暂无媒体' }}</p>
+                <p class="muted break-text">{{ displayPath(playback.uri) || '暂无媒体' }}</p>
                 <el-slider
                   v-model="seekValue"
                   :max="1000"
@@ -1302,9 +1302,22 @@ function sourceLocation(source) {
   return source.connectionInfo?.uri || source.connectionInfo?.url || source.connectionInfo?.path || ''
 }
 
+function displayPath(path) {
+  return safeDecodePath(path)
+}
+
 function folderName(path) {
   if (!path) return ''
-  return decodeURIComponent(path.split('/').filter(Boolean).pop() || path)
+  return safeDecodePath(path.split('/').filter(Boolean).pop() || path)
+}
+
+function safeDecodePath(path) {
+  if (!path) return ''
+  try {
+    return decodeURIComponent(path)
+  } catch {
+    return path
+  }
 }
 
 function normalizeCloudPath(path) {
