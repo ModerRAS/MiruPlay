@@ -193,8 +193,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    concurrency:
+      group: nightly-${{ github.ref }}
+      cancel-in-progress: true
     if: >
-      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') &&
+      (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
 
     steps:
@@ -226,12 +229,21 @@ jobs:
       - name: Check for code changes
         id: check_changes
         run: |
-          # 检查过去24小时是否有代码变更
-          SINCE_DATE=$(date -d '24 hours ago' '+%Y-%m-%dT%H:%M:%S')
-          CHANGES=$(git log --since="$SINCE_DATE" --oneline --name-only)
-          echo "Changes detected:"
-          echo "$CHANGES"
-          if [ -n "$CHANGES" ]; then
+          # Publish only when HEAD moved since the latest nightly tag.
+          # This keeps at most one nightly release per day without empty refreshes.
+          LATEST_TAG=$(git tag --list 'nightly-*' --sort=-version:refname | head -1)
+          if [ -n "$LATEST_TAG" ]; then
+            LATEST_NIGHTLY_SHA=$(git rev-list -n 1 "$LATEST_TAG")
+          else
+            LATEST_NIGHTLY_SHA=""
+          fi
+
+          echo "Event: ${{ github.event_name }}"
+          echo "HEAD: $GITHUB_SHA"
+          echo "Latest nightly tag: ${LATEST_TAG:-none}"
+          echo "Latest nightly SHA: ${LATEST_NIGHTLY_SHA:-none}"
+
+          if [ "$LATEST_NIGHTLY_SHA" != "$GITHUB_SHA" ]; then
             echo "has_changes=true" >> $GITHUB_OUTPUT
           else
             echo "has_changes=false" >> $GITHUB_OUTPUT
@@ -287,8 +299,9 @@ jobs:
           BUILD_DATE="$(date +'%Y-%m-%d')"
           TAG_NAME="nightly-${{ steps.version.outputs.version_name }}"
 
-          # Get commits since last nightly tag (or last 24h if no prior tag)
-          PREV_TAG=$(git tag --list 'nightly-*' --sort=-version:refname | head -1)
+          # Get commits since the previous nightly day. When today's release is
+          # refreshed after another master push, keep the notes complete for the day.
+          PREV_TAG=$(git tag --list 'nightly-*' --sort=-version:refname | grep -v "^${TAG_NAME}$" | head -1)
           if [ -n "$PREV_TAG" ]; then
             CHANGES=$(git log "$PREV_TAG"..HEAD --oneline --no-decorate)
           else
@@ -312,14 +325,24 @@ jobs:
           echo "Release notes written to release-notes.md"
           cat release-notes.md
 
+      - name: Update nightly tag
+        if: steps.check_changes.outputs.has_changes == 'true'
+        run: |
+          TAG_NAME="nightly-${{ steps.version.outputs.version_name }}"
+          git tag -f "$TAG_NAME" "$GITHUB_SHA"
+          git push --force origin "refs/tags/$TAG_NAME"
+
       - name: Create GitHub Release
         if: steps.check_changes.outputs.has_changes == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: nightly-${{ steps.version.outputs.version_name }}
+          target_commitish: ${{ github.sha }}
           name: Nightly ${{ steps.version.outputs.version_name }}
           body_path: release-notes.md
           files: app/build/outputs/apk/release/*-release.apk
+          overwrite_files: true
+          fail_on_unmatched_files: true
           prerelease: true
           draft: false
         env:
