@@ -8,7 +8,12 @@ import com.miruplay.tv.data.dao.MediaSourceDao
 import com.miruplay.tv.data.entity.MediaSourceEntity
 import com.miruplay.tv.data.secure.MediaSourceSecretStore
 import com.miruplay.tv.model.MediaSourceInfo
+import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.connectionPasswordOrNull
+import com.miruplay.tv.model.connectionUsername
+import com.miruplay.tv.model.hasConnectionPassword
+import com.miruplay.tv.model.persistenceLocation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
@@ -26,7 +31,7 @@ class MediaRepositoryImpl @Inject constructor(
 
     override suspend fun addSource(source: MediaSourceInfo): Result<Long> = withContext(Dispatchers.IO) {
         try {
-            val sourceLocation = source.connectionInfo["url"] ?: source.connectionInfo["path"]
+            val sourceLocation = source.persistenceLocation()
             // Check for duplicate url+type
             val existing = mediaSourceDao.getAll()
             val duplicate = existing.any {
@@ -40,7 +45,7 @@ class MediaRepositoryImpl @Inject constructor(
             
             val entity = source.toEntity()
             val id = mediaSourceDao.insert(entity)
-            secretStore.setMediaSourcePassword(id, source.connectionInfo["password"])
+            secretStore.setMediaSourcePassword(id, source.connectionPasswordOrNull())
             Result.success(id)
         } catch (e: Exception) {
             Result.failure(AppError.MediaSourceError.ConnectionLost(source.name))
@@ -70,14 +75,14 @@ class MediaRepositoryImpl @Inject constructor(
 
     override suspend fun updateSource(source: MediaSourceInfo): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            if ("password" in source.connectionInfo) {
-                secretStore.setMediaSourcePassword(source.id, source.connectionInfo["password"])
+            if (source.hasConnectionPassword()) {
+                secretStore.setMediaSourcePassword(source.id, source.connectionPasswordOrNull())
             }
             mediaSourceDao.update(
                 id = source.id,
                 name = source.name,
-                url = source.connectionInfo["url"],
-                username = source.connectionInfo["username"],
+                url = source.persistenceLocation(),
+                username = source.connectionUsername().ifBlank { null },
                 password = null,
                 extraConfig = source.extraConnectionInfoJson(),
                 isConnected = source.isConnected
@@ -103,8 +108,8 @@ class MediaRepositoryImpl @Inject constructor(
     private fun MediaSourceInfo.toEntity(): MediaSourceEntity = MediaSourceEntity(
         name = name,
         type = type.name,
-        url = connectionInfo["url"] ?: connectionInfo["path"],
-        username = connectionInfo["username"],
+        url = persistenceLocation(),
+        username = connectionUsername().ifBlank { null },
         password = null,
         extraConfig = extraConnectionInfoJson(),
         isConnected = isConnected,
@@ -115,24 +120,21 @@ class MediaRepositoryImpl @Inject constructor(
         val decodedLegacyPassword = decodeLegacyPassword(password)
         val securedPassword = secretStore.getMediaSourcePassword(id)
             ?: decodedLegacyPassword?.also { secretStore.setMediaSourcePassword(id, it) }
+        val sourceType = try { MediaSourceType.valueOf(type) } catch (e: Exception) { MediaSourceType.LOCAL }
 
         return MediaSourceInfo(
             id = id,
             name = name,
-            type = try { MediaSourceType.valueOf(type) } catch (e: Exception) { MediaSourceType.LOCAL },
-            connectionInfo = buildMap {
-                url?.let {
-                    put("url", it)
-                    if (type == MediaSourceType.LOCAL.name) {
-                        put("path", it)
-                    }
-                }
-                username?.let { put("username", it) }
-                securedPassword?.let { put("password", it) }
-                extraConfig
+            type = sourceType,
+            connectionInfo = MediaSourceInfoConventions.sourceConnectionInfoFromPersistence(
+                type = sourceType,
+                location = url,
+                username = username,
+                password = securedPassword,
+                extraConnectionInfo = extraConfig
                     ?.let { runCatching { mediaSourceJson.decodeFromString<Map<String, String>>(it) }.getOrNull() }
-                    ?.forEach { (key, value) -> put(key, value) }
-            },
+                    .orEmpty(),
+            ),
             isConnected = isConnected,
             lastScanned = lastScanned
         )
@@ -151,4 +153,4 @@ class MediaRepositoryImpl @Inject constructor(
 }
 
 private val mediaSourceJson = Json { ignoreUnknownKeys = true }
-private val persistedConnectionKeys = setOf("url", "path", "username", "password")
+private val persistedConnectionKeys = MediaSourceInfoConventions.PERSISTED_CONNECTION_KEYS
