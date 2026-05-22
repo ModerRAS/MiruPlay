@@ -1,0 +1,652 @@
+package com.miruplay.tv.desktop
+
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import com.miruplay.tv.clouddrive.CloudDriveFileInfo
+import com.miruplay.tv.model.MediaSourceInfoConventions
+import com.miruplay.tv.model.MiruPlaySettingsSection
+import com.miruplay.tv.model.RssSubscriptionInfo
+import com.miruplay.tv.model.desktopSettingsSectionOrder
+import com.miruplay.tv.model.stepDesktopSettingsSection
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class DesktopSettingsPanelTest {
+    @Test
+    fun `source settings tiles summarize source types active source and index`() {
+        val activeSource = MediaSourceInfoConventions.local(name = "Local Anime", rootPath = "D:/Anime")
+        val tiles = sourceSettingsTiles(
+            sources = listOf(
+                activeSource,
+                MediaSourceInfoConventions.webDav(url = "https://dav.example.test/anime"),
+                MediaSourceInfoConventions.smb(url = "smb://nas.local/anime"),
+            ),
+            activeSourceLabel = desktopActiveSourceLabel(activeSource),
+            indexedItemCount = 42,
+        )
+
+        assertEquals(listOf("媒体源", "当前源", "海报墙索引"), tiles.map { it.label })
+        assertEquals("3 个", tiles[0].value)
+        assertTrue(tiles[0].detail.contains("本地 1"))
+        assertTrue(tiles[0].detail.contains("WebDAV 1"))
+        assertTrue(tiles[0].detail.contains("SMB 1"))
+        assertEquals("Local Anime · 本地", tiles[1].value)
+        assertEquals("42 条", tiles[2].value)
+    }
+
+    @Test
+    fun `desktop source status labels use TV facing type labels`() {
+        val linkedSource = MediaSourceInfoConventions.webDav(
+            url = "https://dav.example.test/anime",
+        ).copy(id = 42L, name = "Cloud WebDAV")
+
+        assertEquals("未选择", desktopActiveSourceLabel(null))
+        assertEquals("Cloud WebDAV · WebDAV", desktopLinkedSourceLabel(listOf(linkedSource), 42L))
+        assertEquals("缺失媒体源 #99", desktopLinkedSourceLabel(listOf(linkedSource), 99L))
+    }
+
+    @Test
+    fun `playback settings tiles expose RIFE recents and selected media`() {
+        val tiles = playbackSettingsTiles(
+            playbackSummary = "RIFE DIRECTML",
+            recentCount = 5,
+            selectedMediaTitle = "Fixture Alpha",
+        )
+
+        assertEquals("RIFE DIRECTML", tiles[0].value)
+        assertEquals("mpv、RIFE、字幕和起播时间在播放页调整。", tiles[0].detail)
+        assertEquals("5 条", tiles[1].value)
+        assertEquals("Fixture Alpha", tiles[2].value)
+    }
+
+    @Test
+    fun `desktop settings summary statuses use TV facing page names`() {
+        assertEquals(
+            "mpv 播放设置保留在播放页，RIFE/字幕/起播秒数仍可直接调整。",
+            desktopPlaybackSettingsStatus(),
+        )
+        assertEquals(
+            "Bangumi 搜索、批量预览、应用和撤销保留在详情页。",
+            desktopMetadataSettingsStatus(),
+        )
+    }
+
+    @Test
+    fun `scan and metadata settings tiles keep TV settings content concrete`() {
+        val scanTiles = scanSettingsTiles(
+            indexedItemCount = 11,
+            linkedSourceLabel = "SMB Share · SMB",
+            libraryStatus = "Scan complete: 11 videos, 4 directories.",
+        )
+        val metadataTiles = metadataSettingsTiles(
+            selectedMediaTitle = "Fixture Beta",
+            metadataSummary = "已匹配：Fixture Beta",
+            indexedItemCount = 11,
+        )
+
+        assertEquals("11 条", scanTiles[0].value)
+        assertEquals("SMB Share · SMB", scanTiles[1].value)
+        assertEquals("扫描完成：11 个视频，4 个目录。", scanTiles[2].value)
+        assertEquals("Fixture Beta", metadataTiles[0].value)
+        assertEquals("已匹配：Fixture Beta", metadataTiles[1].value)
+        assertEquals("11 条索引", metadataTiles[2].value)
+    }
+
+    @Test
+    fun `cloud rss overview tiles summarize endpoint subscriptions and scheduler`() {
+        val subscription = RssSubscriptionInfo(
+            id = 7L,
+            name = "Bangumi Feed",
+            url = "https://rss.example.test/feeds/very/long/path/season-one.xml",
+            filterRegex = "S01",
+            enabled = true,
+        )
+
+        val tiles = cloudRssOverviewTiles(
+            endpointUrl = "http://127.0.0.1:19798/clouddrive/very/long/endpoint",
+            subscriptions = listOf(subscription),
+            enabled = true,
+            linkedSourceLabel = "Cloud WebDAV · WebDAV",
+            schedulerStatus = "Scheduler running. Last run: 3 submitted, 2 skipped, 1 failed, 4 organized.",
+        )
+
+        assertEquals(listOf("CloudDrive2", "RSS 订阅", "同步后扫描"), tiles.map { it.label })
+        assertEquals("已启用", tiles[0].value)
+        assertEquals("1 个", tiles[1].value)
+        assertEquals("Cloud WebDAV · WebDAV", tiles[2].value)
+        assertTrue(tiles[0].detail.length <= 58)
+        assertTrue(tiles[1].detail.contains("启用"))
+        assertTrue(tiles[1].detail.contains("Bangumi Feed"))
+        assertTrue(tiles[2].detail.contains("调度器运行中"))
+        assertTrue(tiles[2].detail.length <= 58)
+    }
+
+    @Test
+    fun `cloud rss card previews compact long paths and subscriptions`() {
+        val pathPreview = cloudRssPathPairPreview(
+            inboxPath = "/Downloads/CloudDrive2/rss/inbox/very/deep/path",
+            libraryPath = "/Library/Anime/Season One/Very Long Destination",
+            maxLength = 46,
+        )
+        val subscriptionPreview = rssSubscriptionPreview(
+            RssSubscriptionInfo(
+                name = "Disabled Feed",
+                url = "https://rss.example.test/feeds/disabled.xml",
+                enabled = false,
+            ),
+            maxLength = 42,
+        )
+
+        assertTrue(pathPreview.length <= 46)
+        assertTrue(pathPreview.contains("..."))
+        assertTrue(pathPreview.contains(" 到 "))
+        assertTrue(subscriptionPreview.length <= 42)
+        assertTrue(subscriptionPreview.startsWith("停用"))
+        assertTrue(subscriptionPreview.contains("..."))
+    }
+
+    @Test
+    fun `cloud rss status text localizes scheduler credentials and subscriptions`() {
+        assertEquals("调度器待命，尚未检查。", desktopCloudRssStatusText("Scheduler idle. No checks yet."))
+        assertEquals(
+            "同步完成：提交 3 个，跳过 2 个，失败 1 个，整理 4 个。",
+            desktopCloudRssStatusText("Sync complete: 3 submitted, 2 skipped, 1 failed, 4 organized."),
+        )
+        assertEquals("CloudDrive 凭据已保存。", desktopCloudRssStatusText("CloudDrive credentials saved."))
+        assertEquals(
+            "RSS 订阅已保存：Anime",
+            desktopCloudRssStatusText("RSS subscription saved: Anime"),
+        )
+    }
+
+    @Test
+    fun `rss subscription directional keys move between saved subscriptions`() {
+        val subscriptions = listOf(
+            RssSubscriptionInfo(id = 10L, name = "Season A", url = "https://rss.example.test/a.xml"),
+            RssSubscriptionInfo(id = 11L, name = "Season B", url = "https://rss.example.test/b.xml"),
+            RssSubscriptionInfo(id = 12L, name = "Season C", url = "https://rss.example.test/c.xml"),
+        )
+
+        assertEquals(11L, subscriptions.rssSubscriptionNavigationTarget(10L, Key.DirectionDown)?.id)
+        assertEquals(10L, subscriptions.rssSubscriptionNavigationTarget(11L, Key.DirectionUp)?.id)
+        assertEquals(10L, subscriptions.rssSubscriptionNavigationTarget(null, Key.DirectionDown)?.id)
+        assertEquals(12L, subscriptions.rssSubscriptionNavigationTarget(null, Key.DirectionUp)?.id)
+        assertNull(subscriptions.rssSubscriptionNavigationTarget(12L, Key.DirectionDown))
+        assertNull(subscriptions.rssSubscriptionNavigationTarget(10L, Key.DirectionUp))
+        assertNull(subscriptions.rssSubscriptionNavigationTarget(10L, Key.DirectionRight))
+    }
+
+    @Test
+    fun `cloud rss action grid moves like TV remote button rows`() {
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.ClearCredentials),
+            cloudRssActionFocusTarget(CloudRssAction.SaveCredentials, Key.DirectionRight, subscriptionCount = 2),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.LoginCloudDrive),
+            cloudRssActionFocusTarget(CloudRssAction.SaveCredentials, Key.DirectionDown, subscriptionCount = 2),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.SaveCredentials),
+            cloudRssActionFocusTarget(CloudRssAction.LoginCloudDrive, Key.DirectionUp, subscriptionCount = 2),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.RunSyncNow),
+            cloudRssActionFocusTarget(CloudRssAction.ClearScanSource, Key.DirectionDown, subscriptionCount = 2),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.InboxPath),
+            cloudRssActionFocusTarget(CloudRssAction.LoginCloudDrive, Key.DirectionDown, subscriptionCount = 2),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.LibraryPath),
+            cloudRssActionFocusTarget(CloudRssAction.VerifyApiToken, Key.DirectionDown, subscriptionCount = 2),
+        )
+        assertNull(cloudRssActionFocusTarget(CloudRssAction.SaveCredentials, Key.DirectionLeft, subscriptionCount = 2))
+    }
+
+    @Test
+    fun `cloud rss toggles bridge into action rows`() {
+        assertEquals(
+            CloudRssFocusTarget.Toggle(CloudRssToggle.ProxyEnabled),
+            cloudRssToggleFocusTarget(CloudRssToggle.SyncEnabled, Key.DirectionRight),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Toggle(CloudRssToggle.SyncEnabled),
+            cloudRssToggleFocusTarget(CloudRssToggle.ProxyEnabled, Key.DirectionLeft),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.UseActiveSource),
+            cloudRssToggleFocusTarget(CloudRssToggle.SyncEnabled, Key.DirectionDown),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.ClearScanSource),
+            cloudRssToggleFocusTarget(CloudRssToggle.ProxyEnabled, Key.DirectionDown),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.SaveRss),
+            cloudRssToggleFocusTarget(CloudRssToggle.RssEnabled, Key.DirectionDown),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Toggle(CloudRssToggle.SyncEnabled),
+            cloudRssActionFocusTarget(CloudRssAction.UseActiveSource, Key.DirectionUp, subscriptionCount = 2),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Toggle(CloudRssToggle.RssEnabled),
+            cloudRssActionFocusTarget(CloudRssAction.DeleteRss, Key.DirectionUp, subscriptionCount = 2),
+        )
+        assertNull(cloudRssToggleFocusTarget(CloudRssToggle.SyncEnabled, Key.DirectionLeft))
+        assertNull(cloudRssToggleFocusTarget(CloudRssToggle.RssEnabled, Key.DirectionRight))
+    }
+
+    @Test
+    fun `cloud rss sync path fields bridge into toggles`() {
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.LibraryPath),
+            cloudRssFieldFocusTarget(CloudRssField.InboxPath, Key.DirectionRight),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.PickInboxPath),
+            cloudRssFieldFocusTarget(CloudRssField.InboxPath, Key.DirectionDown),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.PickLibraryPath),
+            cloudRssFieldFocusTarget(CloudRssField.LibraryPath, Key.DirectionDown),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.InboxPath),
+            cloudRssActionFocusTarget(CloudRssAction.PickInboxPath, Key.DirectionUp, subscriptionCount = 2),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.LibraryPath),
+            cloudRssActionFocusTarget(CloudRssAction.PickLibraryPath, Key.DirectionUp, subscriptionCount = 2),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.IntervalMinutes),
+            cloudRssActionFocusTarget(CloudRssAction.PickInboxPath, Key.DirectionDown, subscriptionCount = 2),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.ProxyHost),
+            cloudRssActionFocusTarget(CloudRssAction.PickLibraryPath, Key.DirectionDown, subscriptionCount = 2),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.PickLibraryPath),
+            cloudRssActionFocusTarget(CloudRssAction.PickInboxPath, Key.DirectionRight, subscriptionCount = 2),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.ProxyPort),
+            cloudRssFieldFocusTarget(CloudRssField.ProxyHost, Key.DirectionRight),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Toggle(CloudRssToggle.SyncEnabled),
+            cloudRssFieldFocusTarget(CloudRssField.IntervalMinutes, Key.DirectionDown),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Toggle(CloudRssToggle.ProxyEnabled),
+            cloudRssFieldFocusTarget(CloudRssField.ProxyPort, Key.DirectionDown),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.IntervalMinutes),
+            cloudRssToggleFocusTarget(CloudRssToggle.SyncEnabled, Key.DirectionUp),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.ProxyHost),
+            cloudRssToggleFocusTarget(CloudRssToggle.ProxyEnabled, Key.DirectionUp),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.LoginCloudDrive),
+            cloudRssFieldFocusTarget(CloudRssField.InboxPath, Key.DirectionUp),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.VerifyApiToken),
+            cloudRssFieldFocusTarget(CloudRssField.LibraryPath, Key.DirectionUp),
+        )
+        assertNull(cloudRssFieldFocusTarget(CloudRssField.ProxyPort, Key.DirectionRight))
+    }
+
+    @Test
+    fun `desktop CloudDrive directory browser scopes paths to token root`() {
+        assertEquals("/", normalizeDesktopCloudDrivePath(""))
+        assertEquals("/Anime/Season 1", normalizeDesktopCloudDrivePath("Anime\\Season 1\\"))
+        assertEquals("/CloudRoot", desktopCloudDriveScopedPath("/", "/CloudRoot"))
+        assertEquals("/CloudRoot", desktopCloudDriveScopedPath("/Outside/Inbox", "/CloudRoot"))
+        assertEquals("/CloudRoot/Inbox", desktopCloudDriveScopedPath("/CloudRoot/Inbox", "/CloudRoot"))
+        assertEquals("CloudDrive 根目录", desktopCloudDriveDisplayPath("/"))
+        assertEquals("/CloudRoot", desktopCloudDriveParentPath("/CloudRoot/Inbox", "/CloudRoot"))
+        assertNull(desktopCloudDriveParentPath("/CloudRoot", "/CloudRoot"))
+    }
+
+    @Test
+    fun `desktop CloudDrive directory entries keep visible folders only`() {
+        val entries = cloudDriveDirectoryEntries(
+            listOf(
+                CloudDriveFileInfo("Episode 01.mkv", "/CloudRoot/Episode 01.mkv", isDirectory = false),
+                CloudDriveFileInfo(".hidden", "/CloudRoot/.hidden", isDirectory = true),
+                CloudDriveFileInfo("Season B", "/CloudRoot/Season B", isDirectory = true),
+                CloudDriveFileInfo("season a", "/CloudRoot/season a", isDirectory = true),
+                CloudDriveFileInfo("", "/CloudRoot/Extras", isDirectory = true),
+            ),
+        )
+
+        assertEquals(listOf("Extras", "season a", "Season B"), entries.map { it.name })
+        assertEquals(listOf("/CloudRoot/Extras", "/CloudRoot/season a", "/CloudRoot/Season B"), entries.map { it.path })
+    }
+
+    @Test
+    fun `desktop CloudDrive directory rows move vertically without wrapping`() {
+        assertEquals(
+            CloudDriveDirectoryFocusTarget.Action(CloudDriveDirectoryAction.Parent),
+            cloudDriveDirectoryActionFocusTarget(CloudDriveDirectoryAction.UseCurrent, itemCount = 3, Key.DirectionRight),
+        )
+        assertEquals(
+            CloudDriveDirectoryFocusTarget.Action(CloudDriveDirectoryAction.UseCurrent),
+            cloudDriveDirectoryActionFocusTarget(CloudDriveDirectoryAction.Parent, itemCount = 3, Key.DirectionLeft),
+        )
+        assertEquals(
+            CloudDriveDirectoryFocusTarget.Action(CloudDriveDirectoryAction.Close),
+            cloudDriveDirectoryActionFocusTarget(CloudDriveDirectoryAction.Parent, itemCount = 3, Key.DirectionRight),
+        )
+        assertEquals(
+            CloudDriveDirectoryFocusTarget.Row(0),
+            cloudDriveDirectoryActionFocusTarget(CloudDriveDirectoryAction.Close, itemCount = 3, Key.DirectionDown),
+        )
+        assertEquals(
+            CloudDriveDirectoryFocusTarget.EmptyState,
+            cloudDriveDirectoryActionFocusTarget(
+                current = CloudDriveDirectoryAction.Close,
+                itemCount = 0,
+                key = Key.DirectionDown,
+                hasEmptyState = true,
+            ),
+        )
+        assertEquals(
+            CloudDriveDirectoryFocusTarget.Action(CloudDriveDirectoryAction.UseCurrent),
+            cloudDriveDirectoryEmptyFocusTarget(Key.DirectionUp),
+        )
+        assertNull(cloudDriveDirectoryActionFocusTarget(CloudDriveDirectoryAction.UseCurrent, itemCount = 3, Key.DirectionLeft))
+        assertNull(cloudDriveDirectoryActionFocusTarget(CloudDriveDirectoryAction.Close, itemCount = 3, Key.DirectionRight))
+        assertNull(cloudDriveDirectoryActionFocusTarget(CloudDriveDirectoryAction.Close, itemCount = 0, Key.DirectionDown))
+        assertNull(cloudDriveDirectoryActionFocusTarget(CloudDriveDirectoryAction.UseCurrent, itemCount = 3, Key.DirectionUp))
+        assertNull(cloudDriveDirectoryEmptyFocusTarget(Key.DirectionDown))
+
+        assertEquals(CloudDriveDirectoryFocusTarget.Row(1), cloudDriveDirectoryRowFocusTarget(currentIndex = 0, itemCount = 3, Key.DirectionDown))
+        assertEquals(CloudDriveDirectoryFocusTarget.Row(1), cloudDriveDirectoryRowFocusTarget(currentIndex = 2, itemCount = 3, Key.DirectionUp))
+        assertEquals(CloudDriveDirectoryFocusTarget.Row(6), cloudDriveDirectoryRowFocusTarget(currentIndex = 5, itemCount = 8, Key.DirectionDown))
+        assertEquals(CloudDriveDirectoryFocusTarget.Row(5), cloudDriveDirectoryRowFocusTarget(currentIndex = 6, itemCount = 8, Key.DirectionUp))
+        assertEquals(
+            CloudDriveDirectoryFocusTarget.Action(CloudDriveDirectoryAction.UseCurrent),
+            cloudDriveDirectoryRowFocusTarget(currentIndex = 0, itemCount = 3, Key.DirectionUp),
+        )
+        assertNull(cloudDriveDirectoryRowFocusTarget(currentIndex = 2, itemCount = 3, Key.DirectionDown))
+        assertNull(cloudDriveDirectoryRowFocusTarget(currentIndex = 7, itemCount = 8, Key.DirectionDown))
+        assertNull(cloudDriveDirectoryRowFocusTarget(currentIndex = 0, itemCount = 0, Key.DirectionDown))
+        assertNull(cloudDriveDirectoryRowFocusTarget(currentIndex = 0, itemCount = 3, Key.DirectionRight))
+    }
+
+    @Test
+    fun `desktop CloudDrive directory page helpers keep every folder reachable`() {
+        assertEquals(0, cloudDriveDirectoryPageStartForIndex(index = 0, itemCount = 13))
+        assertEquals(0, cloudDriveDirectoryPageStartForIndex(index = 5, itemCount = 13))
+        assertEquals(6, cloudDriveDirectoryPageStartForIndex(index = 6, itemCount = 13))
+        assertEquals(12, cloudDriveDirectoryPageStartForIndex(index = 12, itemCount = 13))
+        assertEquals(12, cloudDriveDirectoryPageStartForIndex(index = 20, itemCount = 13))
+        assertEquals(6, cloudDriveDirectoryCoercedPageStart(pageStart = 9, itemCount = 13))
+        assertEquals(12, cloudDriveDirectoryCoercedPageStart(pageStart = 24, itemCount = 13))
+        assertEquals(0, cloudDriveDirectoryCoercedPageStart(pageStart = -6, itemCount = 13))
+
+        assertEquals(
+            "显示 7-12 / 13 个目录，按上/下继续翻页。",
+            cloudDriveDirectoryPageSummary(pageStart = 6, visibleCount = 6, itemCount = 13),
+        )
+        assertEquals(
+            "显示 13-13 / 13 个目录，按上/下继续翻页。",
+            cloudDriveDirectoryPageSummary(pageStart = 12, visibleCount = 1, itemCount = 13),
+        )
+        assertNull(cloudDriveDirectoryPageSummary(pageStart = 0, visibleCount = 5, itemCount = 5))
+    }
+
+    @Test
+    fun `cloud rss credential fields bridge into credential actions`() {
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.Username),
+            cloudRssFieldFocusTarget(CloudRssField.Endpoint, Key.DirectionDown),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.ApiToken),
+            cloudRssFieldFocusTarget(CloudRssField.Username, Key.DirectionDown),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.Password),
+            cloudRssFieldFocusTarget(CloudRssField.ApiToken, Key.DirectionRight),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.Username),
+            cloudRssFieldFocusTarget(CloudRssField.Password, Key.DirectionUp),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.SaveCredentials),
+            cloudRssFieldFocusTarget(CloudRssField.ApiToken, Key.DirectionDown),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.ClearCredentials),
+            cloudRssFieldFocusTarget(CloudRssField.Password, Key.DirectionDown),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.ApiToken),
+            cloudRssActionFocusTarget(CloudRssAction.SaveCredentials, Key.DirectionUp, subscriptionCount = 2),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.Password),
+            cloudRssActionFocusTarget(CloudRssAction.ClearCredentials, Key.DirectionUp, subscriptionCount = 2),
+        )
+        assertNull(cloudRssFieldFocusTarget(CloudRssField.Endpoint, Key.DirectionUp))
+        assertNull(cloudRssFieldFocusTarget(CloudRssField.Endpoint, Key.DirectionRight))
+    }
+
+    @Test
+    fun `cloud rss subscription fields bridge into rss actions`() {
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.SubscriptionUrl),
+            cloudRssFieldFocusTarget(CloudRssField.SubscriptionName, Key.DirectionDown),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.FilterRegex),
+            cloudRssFieldFocusTarget(CloudRssField.SubscriptionUrl, Key.DirectionDown),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Toggle(CloudRssToggle.RssEnabled),
+            cloudRssFieldFocusTarget(CloudRssField.FilterRegex, Key.DirectionDown),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.FilterRegex),
+            cloudRssToggleFocusTarget(CloudRssToggle.RssEnabled, Key.DirectionUp),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.SaveRss),
+            cloudRssToggleFocusTarget(CloudRssToggle.RssEnabled, Key.DirectionDown),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Toggle(CloudRssToggle.RssEnabled),
+            cloudRssActionFocusTarget(CloudRssAction.SaveRss, Key.DirectionUp, subscriptionCount = 0),
+        )
+        assertNull(cloudRssFieldFocusTarget(CloudRssField.SubscriptionName, Key.DirectionUp))
+        assertNull(cloudRssFieldFocusTarget(CloudRssField.SubscriptionUrl, Key.DirectionRight))
+    }
+
+    @Test
+    fun `cloud rss rss and scheduler focus bridge through saved subscription rows`() {
+        assertEquals(
+            CloudRssFocusTarget.Subscription(0),
+            cloudRssActionFocusTarget(CloudRssAction.SaveRss, Key.DirectionDown, subscriptionCount = 3),
+        )
+        assertEquals(
+            CloudRssFocusTarget.EmptySubscriptions,
+            cloudRssActionFocusTarget(CloudRssAction.SaveRss, Key.DirectionDown, subscriptionCount = 0),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.SaveRss),
+            cloudRssSubscriptionFocusTarget(currentIndex = 0, itemCount = 3, Key.DirectionUp),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Subscription(1),
+            cloudRssSubscriptionFocusTarget(currentIndex = 0, itemCount = 3, Key.DirectionDown),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.StartScheduler),
+            cloudRssSubscriptionFocusTarget(currentIndex = 2, itemCount = 3, Key.DirectionDown),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Subscription(2),
+            cloudRssActionFocusTarget(CloudRssAction.StopScheduler, Key.DirectionUp, subscriptionCount = 3),
+        )
+        assertEquals(
+            CloudRssFocusTarget.EmptySubscriptions,
+            cloudRssActionFocusTarget(CloudRssAction.DeleteRss, Key.DirectionDown, subscriptionCount = 0),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.SaveRss),
+            cloudRssSubscriptionEmptyFocusTarget(Key.DirectionUp),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.StartScheduler),
+            cloudRssSubscriptionEmptyFocusTarget(Key.DirectionDown),
+        )
+        assertNull(cloudRssSubscriptionEmptyFocusTarget(Key.DirectionLeft))
+        assertNull(cloudRssSubscriptionFocusTarget(currentIndex = 0, itemCount = 0, Key.DirectionDown))
+    }
+
+    @Test
+    fun `cloud rss subscription page helpers keep every subscription reachable`() {
+        assertEquals(0, cloudRssSubscriptionPageStartForIndex(index = 0, itemCount = 14))
+        assertEquals(0, cloudRssSubscriptionPageStartForIndex(index = 5, itemCount = 14))
+        assertEquals(6, cloudRssSubscriptionPageStartForIndex(index = 6, itemCount = 14))
+        assertEquals(12, cloudRssSubscriptionPageStartForIndex(index = 13, itemCount = 14))
+        assertEquals(12, cloudRssSubscriptionPageStartForIndex(index = 99, itemCount = 14))
+        assertEquals(6, cloudRssSubscriptionCoercedPageStart(pageStart = 10, itemCount = 14))
+        assertEquals(12, cloudRssSubscriptionCoercedPageStart(pageStart = 24, itemCount = 14))
+        assertEquals(0, cloudRssSubscriptionCoercedPageStart(pageStart = -6, itemCount = 14))
+
+        assertEquals(
+            "显示 7-12 / 14 个订阅，按上/下继续翻页。",
+            cloudRssSubscriptionPageSummary(pageStart = 6, visibleCount = 6, itemCount = 14),
+        )
+        assertEquals(
+            "显示 13-14 / 14 个订阅，按上/下继续翻页。",
+            cloudRssSubscriptionPageSummary(pageStart = 12, visibleCount = 2, itemCount = 14),
+        )
+        assertNull(cloudRssSubscriptionPageSummary(pageStart = 0, visibleCount = 4, itemCount = 4))
+    }
+
+    @Test
+    fun `cloud rss scheduler actions move like a TV remote row`() {
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.StopScheduler),
+            cloudRssActionFocusTarget(CloudRssAction.StartScheduler, Key.DirectionRight, subscriptionCount = 2),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.StartScheduler),
+            cloudRssActionFocusTarget(CloudRssAction.StopScheduler, Key.DirectionLeft, subscriptionCount = 2),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Subscription(1),
+            cloudRssActionFocusTarget(CloudRssAction.StartScheduler, Key.DirectionUp, subscriptionCount = 2),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Subscription(1),
+            cloudRssActionFocusTarget(CloudRssAction.StopScheduler, Key.DirectionUp, subscriptionCount = 2),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.SaveRss),
+            cloudRssActionFocusTarget(CloudRssAction.StartScheduler, Key.DirectionUp, subscriptionCount = 0),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.DeleteRss),
+            cloudRssActionFocusTarget(CloudRssAction.StopScheduler, Key.DirectionUp, subscriptionCount = 0),
+        )
+        assertNull(cloudRssActionFocusTarget(CloudRssAction.StartScheduler, Key.DirectionLeft, subscriptionCount = 2))
+        assertNull(cloudRssActionFocusTarget(CloudRssAction.StopScheduler, Key.DirectionRight, subscriptionCount = 2))
+        assertNull(cloudRssActionFocusTarget(CloudRssAction.StartScheduler, Key.DirectionDown, subscriptionCount = 2))
+        assertNull(cloudRssActionFocusTarget(CloudRssAction.StopScheduler, Key.DirectionDown, subscriptionCount = 2))
+    }
+
+    @Test
+    fun `desktop settings categories use shared TV section contract`() {
+        assertEquals(
+            listOf("媒体源", "播放", "云盘", "扫描", "元数据"),
+            desktopSettingsSectionOrder.map { it.desktopTitle },
+        )
+        assertEquals(
+            listOf("本地、WebDAV、SMB", "mpv 与 RIFE", "RSS 离线下载与入库", "媒体库更新", "Bangumi 匹配"),
+            desktopSettingsSectionOrder.map { it.desktopDescription },
+        )
+    }
+
+    @Test
+    fun `settings category navigation stops at TV list edges`() {
+        assertNull(MiruPlaySettingsSection.SOURCES.stepDesktopSettingsSection(-1))
+        assertEquals(MiruPlaySettingsSection.PLAYBACK, MiruPlaySettingsSection.SOURCES.stepDesktopSettingsSection(1))
+        assertEquals(MiruPlaySettingsSection.CLOUD_DRIVE, MiruPlaySettingsSection.PLAYBACK.stepDesktopSettingsSection(1))
+        assertEquals(MiruPlaySettingsSection.PLAYBACK, MiruPlaySettingsSection.CLOUD_DRIVE.stepDesktopSettingsSection(-1))
+        assertEquals(MiruPlaySettingsSection.METADATA, MiruPlaySettingsSection.SCAN.stepDesktopSettingsSection(1))
+        assertNull(MiruPlaySettingsSection.METADATA.stepDesktopSettingsSection(1))
+    }
+
+    @Test
+    fun `settings category rows accept TV confirm keys`() {
+        var selected = 0
+
+        assertTrue(
+            settingsSectionMenuRowKeyEvent(
+                key = Key.DirectionCenter,
+                type = KeyEventType.KeyDown,
+                onSelected = { selected += 1 },
+            ),
+        )
+        assertEquals(1, selected)
+
+        assertTrue(
+            settingsSectionMenuRowKeyEvent(
+                key = Key.NumPadEnter,
+                type = KeyEventType.KeyDown,
+                onSelected = { selected += 1 },
+            ),
+        )
+        assertEquals(2, selected)
+
+        assertFalse(
+            settingsSectionMenuRowKeyEvent(
+                key = Key.DirectionUp,
+                type = KeyEventType.KeyDown,
+                onSelected = { selected += 1 },
+            ),
+        )
+        assertEquals(2, selected)
+    }
+
+    @Test
+    fun `settings summary quick actions move across TV button rows`() {
+        assertEquals(1, settingsQuickActionNavigationTarget(currentIndex = 0, actionCount = 2, Key.DirectionRight))
+        assertEquals(0, settingsQuickActionNavigationTarget(currentIndex = 1, actionCount = 2, Key.DirectionLeft))
+        assertNull(settingsQuickActionNavigationTarget(currentIndex = 0, actionCount = 2, Key.DirectionLeft))
+        assertNull(settingsQuickActionNavigationTarget(currentIndex = 1, actionCount = 2, Key.DirectionRight))
+        assertNull(settingsQuickActionNavigationTarget(currentIndex = 0, actionCount = 2, Key.DirectionDown))
+        assertNull(settingsQuickActionNavigationTarget(currentIndex = 0, actionCount = 0, Key.DirectionRight))
+        assertEquals(
+            SettingsQuickActionFocusTarget.Action(1),
+            settingsQuickActionFocusTarget(currentIndex = 0, actionCount = 2, Key.DirectionRight),
+        )
+        assertEquals(
+            SettingsQuickActionFocusTarget.Action(0),
+            settingsQuickActionFocusTarget(currentIndex = 1, actionCount = 2, Key.DirectionLeft),
+        )
+        assertEquals(
+            SettingsQuickActionFocusTarget.SectionMenu,
+            settingsQuickActionFocusTarget(currentIndex = 0, actionCount = 2, Key.DirectionUp),
+        )
+        assertNull(settingsQuickActionFocusTarget(currentIndex = 0, actionCount = 2, Key.DirectionDown))
+        assertNull(settingsQuickActionFocusTarget(currentIndex = 0, actionCount = 0, Key.DirectionUp))
+    }
+}

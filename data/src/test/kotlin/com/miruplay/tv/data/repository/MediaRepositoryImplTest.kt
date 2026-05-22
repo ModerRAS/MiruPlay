@@ -2,10 +2,9 @@ package com.miruplay.tv.data.repository
 
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
-import com.miruplay.tv.data.dao.MediaSourceDao
 import com.miruplay.tv.data.db.MiruPlayDatabase
 import com.miruplay.tv.data.entity.IndexEntryEntity
-import com.miruplay.tv.data.entity.MediaSourceEntity
+import com.miruplay.tv.data.secure.MediaSourceSecretStore
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
 import kotlinx.coroutines.runBlocking
@@ -32,7 +31,8 @@ class MediaRepositoryImplTest {
         ).build()
         repository = MediaRepositoryImpl(
             mediaSourceDao = database.mediaSourceDao(),
-            indexDao = database.indexDao()
+            indexDao = database.indexDao(),
+            secretStore = InMemoryMediaSourceSecretStore()
         )
     }
     
@@ -151,5 +151,23 @@ class MediaRepositoryImplTest {
         val retrieved = repository.getSourceById(id).getOrNull()
         assertNotNull("Should retrieve updated source", retrieved)
         assertTrue("IsConnected should be true", retrieved!!.isConnected)
+    }
+}
+
+private class InMemoryMediaSourceSecretStore : MediaSourceSecretStore {
+    private val passwords = mutableMapOf<Long, String>()
+
+    override fun getMediaSourcePassword(sourceId: Long): String? = passwords[sourceId]
+
+    override fun setMediaSourcePassword(sourceId: Long, password: String?) {
+        if (password.isNullOrBlank()) {
+            passwords.remove(sourceId)
+        } else {
+            passwords[sourceId] = password
+        }
+    }
+
+    override fun clearMediaSourcePassword(sourceId: Long) {
+        passwords.remove(sourceId)
     }
 }

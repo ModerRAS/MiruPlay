@@ -1,0 +1,89 @@
+package com.miruplay.tv.sync.rss
+
+import com.miruplay.tv.core.common.AppError
+import com.miruplay.tv.core.common.Result
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.io.File
+import java.util.concurrent.TimeUnit
+
+data class DownloadedTorrentFile(
+    val file: File,
+    val remoteFileName: String
+)
+
+interface RssTorrentDownloader {
+    fun configureProxy(enabled: Boolean, host: String, port: Int)
+    suspend fun download(url: String, title: String, keyPrefix: String): Result<DownloadedTorrentFile>
+}
+
+class TorrentFileDownloader(
+    private val downloadDir: File = File(System.getProperty("java.io.tmpdir"), "miruplay-rss-torrents")
+) : RssTorrentDownloader {
+    private val client = ProxyAwareOkHttpClient(
+        OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .build()
+    )
+
+    override fun configureProxy(enabled: Boolean, host: String, port: Int) {
+        client.configureProxy(enabled, host, port)
+    }
+
+    override suspend fun download(url: String, title: String, keyPrefix: String): Result<DownloadedTorrentFile> =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                downloadDir.mkdirs()
+                val remoteFileName = buildTorrentFileName(title, url, keyPrefix)
+                val localFile = File(downloadDir, remoteFileName)
+                if (localFile.exists()) localFile.delete()
+
+                val response = client.newCall(Request.Builder().url(url).get().build()).execute()
+                response.use {
+                    if (!it.isSuccessful) {
+                        return@withContext Result.failure(AppError.NetworkError.HttpError(it.code, it.message))
+                    }
+                    val body = it.body
+                        ?: return@withContext Result.failure(AppError.NetworkError.ServerUnreachable(url))
+                    val contentLength = body.contentLength()
+                    if (contentLength > MAX_TORRENT_BYTES) {
+                        return@withContext Result.failure(AppError.SyncError.WriteFailed(url, "torrent 文件过大: $contentLength bytes"))
+                    }
+
+                    var totalBytes = 0L
+                    body.byteStream().use { input ->
+                        localFile.outputStream().use { output ->
+                            val buffer = ByteArray(32 * 1024)
+                            while (true) {
+                                val read = input.read(buffer)
+                                if (read < 0) break
+                                totalBytes += read
+                                if (totalBytes > MAX_TORRENT_BYTES) {
+                                    localFile.delete()
+                                    return@withContext Result.failure(AppError.SyncError.WriteFailed(url, "torrent 文件过大: $totalBytes bytes"))
+                                }
+                                output.write(buffer, 0, read)
+                            }
+                        }
+                    }
+
+                    if (totalBytes == 0L) {
+                        localFile.delete()
+                        return@withContext Result.failure(AppError.SyncError.WriteFailed(url, "torrent 文件为空"))
+                    }
+                }
+                Result.success(DownloadedTorrentFile(localFile, remoteFileName))
+            } catch (e: Exception) {
+                Result.failure(AppError.NetworkError.ServerUnreachable(url))
+            }
+        }
+
+    companion object {
+        private const val MAX_TORRENT_BYTES = 16L * 1024L * 1024L
+
+        internal fun buildTorrentFileName(title: String, url: String, keyPrefix: String): String =
+            CloudDriveRssNames.torrentFileName(title, url, keyPrefix)
+    }
+}

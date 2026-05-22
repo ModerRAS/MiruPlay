@@ -47,7 +47,8 @@ class MetadataManager @Inject constructor(
      */
     suspend fun findNfoFile(videoPath: String): String? {
         val file = File(videoPath)
-        val nfoPath = file.parent + File.separator + file.nameWithoutExtension + ".nfo"
-        return if (File(nfoPath).exists()) nfoPath else null
+        val parent = file.parentFile ?: return null
+        val nfoFile = File(parent, "${file.nameWithoutExtension}.nfo")
+        return nfoFile.absolutePath.takeIf { nfoFile.exists() }
     }
 }

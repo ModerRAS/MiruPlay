@@ -1,0 +1,201 @@
+plugins {
+    id("java-library")
+    id("org.jetbrains.kotlin.jvm")
+}
+
+kotlin {
+    jvmToolchain(21)
+}
+
+dependencies {
+    api(project(":sync-engine-shared"))
+    api(project(":core:model"))
+    api(project(":core:common"))
+    api(project(":repository-api"))
+    api(project(":cloud-drive-desktop"))
+
+    implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.okhttp)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.grpc.protobuf.lite)
+    testImplementation(libs.grpc.stub)
+    testImplementation(libs.protobuf.javalite)
+    testImplementation("io.grpc:grpc-netty-shaded:${libs.versions.grpc.get()}")
+}
+
+val smokeCloudDriveRssDryRun by tasks.registering(JavaExec::class) {
+    group = "verification"
+    description = "Verify a live CloudDrive2 endpoint and RSS feed without submitting offline downloads."
+    classpath = sourceSets.named("main").get().runtimeClasspath
+    mainClass.set("com.miruplay.tv.sync.rss.CloudDriveRssLiveSmokeKt")
+
+    val endpoint = providers.gradleProperty("cloudDriveEndpoint")
+    val token = providers.gradleProperty("cloudDriveToken")
+    val rssUrl = providers.gradleProperty("cloudDriveRssUrl")
+    val inbox = providers.gradleProperty("cloudDriveInbox")
+    val library = providers.gradleProperty("cloudDriveLibrary")
+    val filter = providers.gradleProperty("cloudDriveRssFilter")
+    val maxPreview = providers.gradleProperty("cloudDriveRssMaxPreview").orElse("20")
+    val proxyEnabled = providers.gradleProperty("cloudDriveRssProxyEnabled").orElse("false")
+    val proxyHost = providers.gradleProperty("cloudDriveRssProxyHost").orElse("")
+    val proxyPort = providers.gradleProperty("cloudDriveRssProxyPort").orElse("1080")
+    val reportPath = providers.gradleProperty("cloudDriveRssReportPath")
+    val organize = providers.gradleProperty("cloudDriveRssOrganize").orElse("false")
+    val organizeConfirmation = providers.gradleProperty("cloudDriveRssOrganizeConfirmation")
+
+    doFirst {
+        if (!endpoint.isPresent || !token.isPresent || !rssUrl.isPresent || !inbox.isPresent || !library.isPresent) {
+            throw GradleException(
+                    "Provide -PcloudDriveEndpoint=http://host:port -PcloudDriveToken=<token> " +
+                    "-PcloudDriveRssUrl=<rss-url> -PcloudDriveInbox=/Downloads -PcloudDriveLibrary=/Library. " +
+                    "Optional: -PcloudDriveRssFilter=<regex> -PcloudDriveRssMaxPreview=20 " +
+                    "-PcloudDriveRssProxyEnabled=true -PcloudDriveRssProxyHost=127.0.0.1 -PcloudDriveRssProxyPort=7890 " +
+                    "-PcloudDriveRssReportPath=build/cloud-rss-smoke/report.json " +
+                    "-PcloudDriveRssOrganize=true " +
+                    "-PcloudDriveRssOrganizeConfirmation=I_UNDERSTAND_THIS_MOVES_REAL_CLOUDDRIVE_FILES"
+            )
+        }
+
+        args(
+            "--endpoint",
+            endpoint.get(),
+            "--token",
+            token.get(),
+            "--rss-url",
+            rssUrl.get(),
+            "--inbox",
+            inbox.get(),
+            "--library",
+            library.get(),
+            "--max-preview",
+            maxPreview.get(),
+            "--proxy-enabled",
+            proxyEnabled.get(),
+            "--proxy-host",
+            proxyHost.get(),
+            "--proxy-port",
+            proxyPort.get(),
+            "--organize",
+            organize.get(),
+        )
+        if (filter.isPresent) {
+            args("--filter", filter.get())
+        }
+        if (reportPath.isPresent) {
+            args("--report-path", reportPath.get())
+        }
+        if (organizeConfirmation.isPresent) {
+            args("--organize-confirmation", organizeConfirmation.get())
+        }
+    }
+}
+
+val smokeCloudDriveRssLiveSubmit by tasks.registering(JavaExec::class) {
+    group = "verification"
+    description = "Submit a limited live CloudDrive2 RSS offline-download candidate after explicit confirmation."
+    classpath = sourceSets.named("main").get().runtimeClasspath
+    mainClass.set("com.miruplay.tv.sync.rss.CloudDriveRssLiveSmokeKt")
+
+    val endpoint = providers.gradleProperty("cloudDriveEndpoint")
+    val token = providers.gradleProperty("cloudDriveToken")
+    val rssUrl = providers.gradleProperty("cloudDriveRssUrl")
+    val inbox = providers.gradleProperty("cloudDriveInbox")
+    val library = providers.gradleProperty("cloudDriveLibrary")
+    val filter = providers.gradleProperty("cloudDriveRssFilter")
+    val maxPreview = providers.gradleProperty("cloudDriveRssMaxPreview").orElse("20")
+    val proxyEnabled = providers.gradleProperty("cloudDriveRssProxyEnabled").orElse("false")
+    val proxyHost = providers.gradleProperty("cloudDriveRssProxyHost").orElse("")
+    val proxyPort = providers.gradleProperty("cloudDriveRssProxyPort").orElse("1080")
+    val reportPath = providers.gradleProperty("cloudDriveRssReportPath")
+    val submitConfirmation = providers.gradleProperty("cloudDriveRssSubmitConfirmation")
+    val submitLimit = providers.gradleProperty("cloudDriveRssSubmitLimit").orElse("1")
+    val organize = providers.gradleProperty("cloudDriveRssOrganize").orElse("false")
+    val organizeConfirmation = providers.gradleProperty("cloudDriveRssOrganizeConfirmation")
+
+    doFirst {
+        if (
+            !endpoint.isPresent ||
+            !token.isPresent ||
+            !rssUrl.isPresent ||
+            !inbox.isPresent ||
+            !library.isPresent ||
+            !submitConfirmation.isPresent
+        ) {
+            throw GradleException(
+                "Provide -PcloudDriveEndpoint=http://host:port -PcloudDriveToken=<token> " +
+                    "-PcloudDriveRssUrl=<rss-url> -PcloudDriveInbox=/Downloads -PcloudDriveLibrary=/Library " +
+                    "-PcloudDriveRssSubmitConfirmation=I_UNDERSTAND_THIS_SUBMITS_REAL_CLOUDDRIVE_DOWNLOADS. " +
+                    "Optional: -PcloudDriveRssFilter=<regex> -PcloudDriveRssSubmitLimit=1 " +
+                    "-PcloudDriveRssReportPath=build/cloud-rss-smoke/live-submit-report.json " +
+                    "-PcloudDriveRssOrganize=true " +
+                    "-PcloudDriveRssOrganizeConfirmation=I_UNDERSTAND_THIS_MOVES_REAL_CLOUDDRIVE_FILES"
+            )
+        }
+
+        args(
+            "--endpoint",
+            endpoint.get(),
+            "--token",
+            token.get(),
+            "--rss-url",
+            rssUrl.get(),
+            "--inbox",
+            inbox.get(),
+            "--library",
+            library.get(),
+            "--max-preview",
+            maxPreview.get(),
+            "--proxy-enabled",
+            proxyEnabled.get(),
+            "--proxy-host",
+            proxyHost.get(),
+            "--proxy-port",
+            proxyPort.get(),
+            "--submit",
+            "true",
+            "--submit-confirmation",
+            submitConfirmation.get(),
+            "--submit-limit",
+            submitLimit.get(),
+            "--organize",
+            organize.get(),
+        )
+        if (filter.isPresent) {
+            args("--filter", filter.get())
+        }
+        if (reportPath.isPresent) {
+            args("--report-path", reportPath.get())
+        }
+        if (organizeConfirmation.isPresent) {
+            args("--organize-confirmation", organizeConfirmation.get())
+        }
+    }
+}
+
+val smokeCloudDriveRssScheduler by tasks.registering(JavaExec::class) {
+    group = "verification"
+    description = "Verify the desktop Cloud/RSS scheduler loop over real elapsed time and write token-free evidence."
+    classpath = sourceSets.named("main").get().runtimeClasspath
+    mainClass.set("com.miruplay.tv.sync.rss.CloudDriveRssSchedulerSmokeKt")
+
+    val durationMillis = providers.gradleProperty("cloudDriveRssSchedulerDurationMs").orElse("2000")
+    val checkIntervalMillis = providers.gradleProperty("cloudDriveRssSchedulerCheckIntervalMs").orElse("250")
+    val runAfterChecks = providers.gradleProperty("cloudDriveRssSchedulerRunAfterChecks").orElse("1")
+    val reportPath = providers.gradleProperty("cloudDriveRssSchedulerReportPath")
+
+    doFirst {
+        args(
+            "--duration-ms",
+            durationMillis.get(),
+            "--check-interval-ms",
+            checkIntervalMillis.get(),
+            "--run-after-checks",
+            runAfterChecks.get(),
+        )
+        if (reportPath.isPresent) {
+            args("--report-path", reportPath.get())
+        }
+    }
+}

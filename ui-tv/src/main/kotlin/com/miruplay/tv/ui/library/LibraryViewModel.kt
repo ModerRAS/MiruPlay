@@ -5,16 +5,16 @@ import androidx.lifecycle.viewModelScope
 import android.util.Log
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.data.preferences.ScanPreferencesManager
-import com.miruplay.tv.data.repository.IndexRepository
-import com.miruplay.tv.data.repository.MediaRepository
-import com.miruplay.tv.data.repository.MetadataRepository
-import com.miruplay.tv.data.repository.ProgressRepository
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.isCompleted
 import com.miruplay.tv.model.mergeSameAnimeForDisplay
+import com.miruplay.tv.repository.MediaIndexRepository
+import com.miruplay.tv.repository.MediaSourceRepository
+import com.miruplay.tv.repository.MetadataRepository
+import com.miruplay.tv.repository.PlaybackProgressRepository
 import com.miruplay.tv.scanner.ScanCoordinator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -59,10 +59,10 @@ sealed class LibraryUiState {
 
 @HiltViewModel
 class LibraryViewModel @Inject constructor(
-    private val mediaRepository: MediaRepository,
+    private val mediaRepository: MediaSourceRepository,
     private val metadataRepository: MetadataRepository,
-    private val indexRepository: IndexRepository,
-    private val progressRepository: ProgressRepository,
+    private val indexRepository: MediaIndexRepository,
+    private val progressRepository: PlaybackProgressRepository,
     private val scanCoordinator: ScanCoordinator,
     private val scanPreferences: ScanPreferencesManager
 ) : ViewModel() {

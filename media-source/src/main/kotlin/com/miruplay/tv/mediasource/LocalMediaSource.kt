@@ -7,6 +7,7 @@ import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.MediaCapabilities
 import com.miruplay.tv.model.MediaSourceInfo
+import com.miruplay.tv.model.localRootPath
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -30,7 +31,7 @@ class LocalMediaSource(
     )
 
     private val rootPath: String
-        get() = info.connectionInfo["uri"] ?: info.connectionInfo["path"] ?: info.connectionInfo["url"] ?: ""
+        get() = info.localRootPath().orEmpty()
 
     private val isDocumentTree: Boolean
         get() = rootPath.startsWith("content://")

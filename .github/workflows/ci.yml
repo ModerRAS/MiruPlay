@@ -2,7 +2,7 @@ name: CI Build
 
 on:
   push:
-    branches: [ main, master, develop ]
+    branches: [ main, master, develop, 'codex/**' ]
   pull_request:
     branches: [ main, master, develop ]
   # 每天凌晨2点检查变更并发布nightly版本
@@ -47,9 +47,34 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build debug APK
-        run: |
-          sed -i '/org.gradle.java.home/d' gradle.properties
-          ./gradlew assembleDebug --no-daemon --stacktrace
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Run desktop and shared JVM checks
+        run: >
+          ./gradlew
+          checkDesktopComposeOnly
+          checkDesktopPresenterSeparation
+          checkUiPaletteDrift
+          :core:model:test
+          :repository-api:test
+          :media-source-desktop:test
+          :scanner-desktop:test
+          :repository-desktop:test
+          :scraper-desktop:test
+          :cloud-drive-api:test
+          :sync-engine-shared:test
+          :player-mpv:test
+          :cloud-drive-desktop:test
+          :sync-engine-desktop:test
+          :sync-engine-desktop:smokeCloudDriveRssScheduler
+          :desktop-app:test
+          :desktop-app:installDist
+          -PcloudDriveRssSchedulerDurationMs=2000
+          -PcloudDriveRssSchedulerCheckIntervalMs=250
+          -PcloudDriveRssSchedulerRunAfterChecks=2
+          -PbundleMpvRuntime=false
+          --no-daemon
+          --stacktrace
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
@@ -117,9 +142,7 @@ jobs:
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
 
       - name: Build release APK
-        run: |
-          sed -i '/org.gradle.java.home/d' gradle.properties
-          ./gradlew assembleRelease --no-daemon --stacktrace
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
         env:
           RELEASE_STORE_FILE: ${{ runner.temp }}/miruplay-release.jks
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
@@ -155,9 +178,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Run lint
-        run: |
-          sed -i '/org.gradle.java.home/d' gradle.properties
-          ./gradlew lint --no-daemon
+        run: ./gradlew lint --no-daemon
         continue-on-error: true
 
       - name: Upload lint reports
@@ -170,9 +191,11 @@ jobs:
 
   nightly:
     runs-on: ubuntu-latest
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     permissions:
       contents: write
+    if: >
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
 
     steps:
       - name: Checkout code
@@ -247,7 +270,6 @@ jobs:
       - name: Build nightly APK
         if: steps.check_changes.outputs.has_changes == 'true'
         run: |
-          sed -i '/org.gradle.java.home/d' gradle.properties
           ./gradlew assembleRelease \
             -PVERSION_NAME=${{ steps.version.outputs.version_name }} \
             -PVERSION_CODE=${{ steps.version.outputs.version_code }} \
