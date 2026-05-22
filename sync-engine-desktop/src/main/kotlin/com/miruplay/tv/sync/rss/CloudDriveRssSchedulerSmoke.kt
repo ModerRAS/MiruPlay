@@ -2,6 +2,7 @@ package com.miruplay.tv.sync.rss
 
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.model.CloudDriveRssRunSummary
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel

@@ -6,6 +6,7 @@ import com.miruplay.tv.clouddrive.CloudDriveEndpoint
 import com.miruplay.tv.clouddrive.CloudDriveTokenInfo
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.model.CloudDriveRssRunSummary
 import com.miruplay.tv.model.RssDownloadStatus
 import com.miruplay.tv.model.RssDownloadTaskInfo
 import com.miruplay.tv.model.RssProcessedItemInfo
