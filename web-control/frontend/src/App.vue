@@ -27,6 +27,10 @@
             <el-icon><Cloudy /></el-icon>
             <span>自动化</span>
           </el-menu-item>
+          <el-menu-item index="logs">
+            <el-icon><Upload /></el-icon>
+            <span>日志上报</span>
+          </el-menu-item>
           <el-menu-item index="remote">
             <el-icon><SwitchButton /></el-icon>
             <span>遥控器</span>
@@ -439,6 +443,116 @@
             </el-card>
           </section>
 
+          <section v-show="activeView === 'logs'" class="log-layout">
+            <el-card shadow="never" class="panel-card">
+              <template #header>
+                <div class="card-header">
+                  <strong>OTLP / OpenObserve</strong>
+                  <el-tag :type="logUpload.tokenConfigured ? 'success' : 'info'">
+                    {{ logUpload.tokenConfigured ? 'Token 已保存' : '未保存 Token' }}
+                  </el-tag>
+                </div>
+              </template>
+
+              <el-skeleton v-if="loading.logUpload" animated :rows="6" />
+              <el-form v-else label-position="top" class="log-form" @submit.prevent>
+                <div class="switch-row">
+                  <el-switch
+                    v-model="logForm.enabled"
+                    active-text="自动上报"
+                    inactive-text="仅本地保存"
+                  />
+                  <span class="muted">
+                    待上报：{{ logUpload.status.pendingCount || 0 }} 条
+                  </span>
+                </div>
+
+                <el-form-item label="OTLP 服务器地址">
+                  <el-input
+                    v-model="logForm.endpoint"
+                    placeholder="https://openobserve.example.com/api/default/v1/logs"
+                  />
+                </el-form-item>
+
+                <div class="form-grid">
+                  <el-form-item label="Stream">
+                    <el-input v-model="logForm.streamName" placeholder="miruplay" />
+                  </el-form-item>
+                  <el-form-item label="Token">
+                    <el-input
+                      v-model="logForm.token"
+                      type="password"
+                      show-password
+                      autocomplete="new-password"
+                      placeholder="Basic Token 或 user:password"
+                    />
+                  </el-form-item>
+                </div>
+
+                <div class="form-actions">
+                  <el-button :icon="Setting" :loading="loading.logUploadSave" @click="saveLogUploadConfig">
+                    保存配置
+                  </el-button>
+                  <el-button :icon="Key" :loading="loading.logUploadToken" @click="saveLogUploadToken">
+                    保存 Token
+                  </el-button>
+                  <el-button
+                    type="danger"
+                    plain
+                    :disabled="!logUpload.tokenConfigured"
+                    :loading="loading.logUploadToken"
+                    @click="clearLogUploadToken"
+                  >
+                    清除 Token
+                  </el-button>
+                  <el-button
+                    type="primary"
+                    :icon="Upload"
+                    :loading="loading.logUploadRun"
+                    :disabled="!canRunLogUpload"
+                    @click="runLogUploadNow"
+                  >
+                    立即上报
+                  </el-button>
+                </div>
+              </el-form>
+            </el-card>
+
+            <el-card shadow="never" class="panel-card">
+              <template #header>
+                <div class="card-header">
+                  <strong>上报状态</strong>
+                  <el-tag :type="logForm.enabled ? 'success' : 'info'">
+                    {{ logForm.enabled ? '已启用' : '未启用' }}
+                  </el-tag>
+                </div>
+              </template>
+
+              <div class="log-status-grid">
+                <div class="status-tile">
+                  <span>待上报</span>
+                  <strong>{{ logUpload.status.pendingCount || 0 }}</strong>
+                </div>
+                <div class="status-tile">
+                  <span>上次上报</span>
+                  <strong>{{ formatDateTime(logUpload.status.lastUploadAt) || '尚未上报' }}</strong>
+                </div>
+                <div class="status-tile">
+                  <span>当前状态</span>
+                  <strong>{{ logUpload.status.isUploading ? '上报中' : '待命' }}</strong>
+                </div>
+              </div>
+
+              <el-alert
+                class="status-alert"
+                :type="logUploadStatusType"
+                :closable="false"
+                show-icon
+                :title="logUpload.status.lastUploadStatus || '暂无上报结果'"
+              />
+            </el-card>
+          </section>
+
           <section v-show="activeView === 'remote'" class="remote-layout">
             <el-card shadow="never" class="panel-card">
               <template #header>
@@ -646,6 +760,7 @@ import {
   Search,
   Setting,
   SwitchButton,
+  Upload,
   VideoPlay
 } from '@element-plus/icons-vue'
 import { api, formatTime, originalTitleOf, titleOf } from './api'
@@ -658,6 +773,17 @@ const sources = ref([])
 const automation = reactive({
   config: null,
   subscriptions: [],
+  tokenConfigured: false
+})
+const logUpload = reactive({
+  config: null,
+  status: {
+    pendingCount: 0,
+    isUploading: false,
+    lastUploadAt: 0,
+    lastUploadStatus: '',
+    tokenConfigured: false
+  },
   tokenConfigured: false
 })
 const playback = reactive({
@@ -682,7 +808,11 @@ const loading = reactive({
   cloudLogin: false,
   cloudToken: false,
   cloudRun: false,
-  rssSave: false
+  rssSave: false,
+  logUpload: false,
+  logUploadSave: false,
+  logUploadToken: false,
+  logUploadRun: false
 })
 const sourceForm = reactive({
   id: 0,
@@ -713,6 +843,12 @@ const rssForm = reactive({
   url: '',
   filterRegex: '',
   enabled: true
+})
+const logForm = reactive({
+  enabled: false,
+  endpoint: '',
+  streamName: 'miruplay',
+  token: ''
 })
 const localPicker = reactive({ open: false })
 const localBrowser = reactive({
@@ -748,6 +884,7 @@ const viewMeta = computed(() => ({
   library: ['片库', '浏览番剧、选择剧集并投到电视端播放。'],
   sources: ['媒体源', '用电脑或手机键盘添加、编辑和扫描媒体源。'],
   automation: ['自动化', '管理 RSS 订阅、CloudDrive2 离线下载和整理入库。'],
+  logs: ['日志上报', '配置 OTLP / OpenObserve，把本地日志从电视端发送出去。'],
   remote: ['遥控器', '播放控制、快进快退和进度拖动。']
 }[activeView.value]).reduce((meta, value, index) => {
   if (index === 0) meta.title = value
@@ -762,6 +899,16 @@ const continueWatching = computed(() =>
 const webDavSources = computed(() => sources.value.filter((source) => source.type === 'WEBDAV'))
 const canBrowseCloudDrive = computed(() =>
   Boolean(cloudForm.endpointUrl.trim()) && automation.tokenConfigured
+)
+const logUploadStatusType = computed(() => {
+  const status = logUpload.status.lastUploadStatus || ''
+  if (status.includes('失败')) return 'error'
+  if (status.includes('请填写')) return 'warning'
+  if (status.includes('已上报')) return 'success'
+  return 'info'
+})
+const canRunLogUpload = computed(() =>
+  Boolean(logForm.enabled && logForm.endpoint.trim() && (logUpload.tokenConfigured || logForm.token.trim()) && !logUpload.status.isUploading)
 )
 
 const accessUrl = computed(() => {
@@ -797,11 +944,12 @@ watch(activeView, (view) => {
     loadSources()
     loadCloudDriveAutomation()
   }
+  if (view === 'logs') loadLogUpload()
   if (view === 'remote') loadPlaybackStatus()
 })
 
 onMounted(async () => {
-  await Promise.all([loadInfo(), loadLibrary(), loadSources(), loadCloudDriveAutomation(), loadPlaybackStatus()])
+  await Promise.all([loadInfo(), loadLibrary(), loadSources(), loadCloudDriveAutomation(), loadLogUpload(), loadPlaybackStatus()])
   statusTimer = window.setInterval(loadPlaybackStatus, 2000)
 })
 
@@ -850,6 +998,15 @@ async function loadCloudDriveAutomation() {
   }
 }
 
+async function loadLogUpload() {
+  loading.logUpload = true
+  try {
+    applyLogUpload(await api('/api/log-upload'))
+  } finally {
+    loading.logUpload = false
+  }
+}
+
 function applyCloudDriveAutomation(data) {
   automation.config = data.config || null
   automation.subscriptions = data.subscriptions || []
@@ -872,6 +1029,18 @@ function applyCloudDriveAutomation(data) {
   })
 }
 
+function applyLogUpload(data) {
+  logUpload.config = data.config || null
+  logUpload.status = data.status || logUpload.status
+  logUpload.tokenConfigured = Boolean(data.tokenConfigured)
+  const config = data.config || {}
+  Object.assign(logForm, {
+    enabled: Boolean(config.enabled),
+    endpoint: config.endpoint || '',
+    streamName: config.streamName || 'miruplay'
+  })
+}
+
 async function loadPlaybackStatus() {
   const data = await api('/api/playback/status')
   Object.assign(playback, data)
@@ -881,6 +1050,7 @@ async function refreshCurrent() {
   if (activeView.value === 'library') await loadLibrary()
   if (activeView.value === 'sources') await loadSources()
   if (activeView.value === 'automation') await Promise.all([loadSources(), loadCloudDriveAutomation()])
+  if (activeView.value === 'logs') await loadLogUpload()
   if (activeView.value === 'remote') await loadPlaybackStatus()
 }
 
@@ -1279,6 +1449,100 @@ async function deleteRssSubscription(subscriptionId) {
   await api(`/api/cloud-drive/rss/${subscriptionId}`, { method: 'DELETE' })
   ElMessage.success('RSS 订阅已删除')
   await loadCloudDriveAutomation()
+}
+
+function logUploadConfigPayload() {
+  return {
+    enabled: Boolean(logForm.enabled),
+    endpoint: logForm.endpoint.trim(),
+    streamName: logForm.streamName.trim() || 'miruplay'
+  }
+}
+
+function validateLogUploadConfig(payload) {
+  if (payload.enabled && !payload.endpoint) {
+    ElMessage.warning('请填写 OTLP 服务器地址')
+    return false
+  }
+  return true
+}
+
+async function saveLogUploadConfig() {
+  const payload = logUploadConfigPayload()
+  if (!validateLogUploadConfig(payload)) return
+
+  loading.logUploadSave = true
+  try {
+    applyLogUpload(await api('/api/log-upload/config', {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    }))
+    ElMessage.success('日志上报配置已保存')
+  } finally {
+    loading.logUploadSave = false
+  }
+}
+
+async function saveLogUploadToken() {
+  if (!logForm.token.trim()) {
+    ElMessage.warning('请填写 OTLP Token')
+    return
+  }
+
+  loading.logUploadToken = true
+  try {
+    applyLogUpload(await api('/api/log-upload/token', {
+      method: 'POST',
+      body: JSON.stringify({ token: logForm.token.trim() })
+    }))
+    logForm.token = ''
+    ElMessage.success('OTLP Token 已保存')
+  } finally {
+    loading.logUploadToken = false
+  }
+}
+
+async function clearLogUploadToken() {
+  await ElMessageBox.confirm('确定清除 OTLP Token？', '清除 Token', {
+    confirmButtonText: '清除',
+    cancelButtonText: '取消',
+    type: 'warning'
+  })
+
+  loading.logUploadToken = true
+  try {
+    applyLogUpload(await api('/api/log-upload/token', { method: 'DELETE' }))
+    ElMessage.success('OTLP Token 已清除')
+  } finally {
+    loading.logUploadToken = false
+  }
+}
+
+async function runLogUploadNow() {
+  const payload = logUploadConfigPayload()
+  if (!validateLogUploadConfig(payload)) return
+  if (!payload.enabled) {
+    ElMessage.warning('请先开启自动上报')
+    return
+  }
+  if (!logUpload.tokenConfigured && !logForm.token.trim()) {
+    ElMessage.warning('请先保存 OTLP Token')
+    return
+  }
+  if (!logUpload.config || payload.endpoint !== logUpload.config.endpoint || payload.streamName !== logUpload.config.streamName || payload.enabled !== logUpload.config.enabled) {
+    await saveLogUploadConfig()
+  }
+  if (logForm.token.trim()) {
+    await saveLogUploadToken()
+  }
+
+  loading.logUploadRun = true
+  try {
+    applyLogUpload(await api('/api/log-upload/run', { method: 'POST' }))
+    ElMessage.success(logUpload.status.lastUploadStatus || '日志上报已执行')
+  } finally {
+    loading.logUploadRun = false
+  }
 }
 
 async function deleteSource(sourceId) {

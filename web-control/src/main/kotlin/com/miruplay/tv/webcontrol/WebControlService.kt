@@ -18,6 +18,7 @@ import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.player.PlaybackController
 import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
+import com.miruplay.tv.repository.LogUploadRepository
 import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
@@ -40,6 +41,7 @@ class WebControlService @Inject constructor(
     private val indexRepository: MediaIndexRepository,
     private val progressRepository: PlaybackProgressRepository,
     private val cloudDriveRepository: CloudDriveAutomationRepository,
+    private val logUploadRepository: LogUploadRepository,
     private val securePreferences: AppCredentialStore,
     private val cloudDriveClient: CloudDriveClient,
     private val cloudDriveEngine: CloudDriveRssAutomationEngine,
@@ -225,6 +227,45 @@ class WebControlService @Inject constructor(
 
     suspend fun deleteRssSubscription(id: Long) {
         requireSuccess(cloudDriveRepository.deleteSubscription(id), "删除 RSS 订阅失败")
+    }
+
+    suspend fun getLogUpload(): LogUploadDto {
+        val tokenConfigured = logUploadRepository.isTokenConfigured()
+        return LogUploadDto(
+            config = OtlpLogUploadConfigDto.from(logUploadRepository.getConfig()),
+            status = LogUploadStatusDto.from(logUploadRepository.status.first(), tokenConfigured),
+            tokenConfigured = tokenConfigured
+        )
+    }
+
+    suspend fun saveLogUploadConfig(request: LogUploadConfigRequest): LogUploadDto {
+        if (request.enabled && request.endpoint.isBlank()) {
+            throw IllegalArgumentException("请填写 OTLP 服务器地址")
+        }
+        logUploadRepository.saveConfig(
+            enabled = request.enabled,
+            endpoint = request.endpoint.trim(),
+            streamName = request.streamName.trim().ifBlank { "miruplay" }
+        )
+        return getLogUpload()
+    }
+
+    suspend fun saveLogUploadToken(request: LogUploadTokenRequest): LogUploadDto {
+        if (request.token.isBlank()) {
+            throw IllegalArgumentException("请填写 OTLP Token")
+        }
+        logUploadRepository.saveToken(request.token.trim())
+        return getLogUpload()
+    }
+
+    suspend fun clearLogUploadToken(): LogUploadDto {
+        logUploadRepository.clearToken()
+        return getLogUpload()
+    }
+
+    suspend fun uploadPendingLogs(): LogUploadDto {
+        logUploadRepository.uploadPendingLogs()
+        return getLogUpload()
     }
 
     suspend fun getLibrary(): LibraryDto {
