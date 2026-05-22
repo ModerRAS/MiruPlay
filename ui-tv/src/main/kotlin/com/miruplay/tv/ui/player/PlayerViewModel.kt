@@ -73,10 +73,13 @@ class PlayerViewModel @Inject constructor(
     private var positionPollJob: Job? = null
     private var finishObserverJob: Job? = null
     private var activeSource: PlaybackSource? = null
+    private var pendingSeekPositionMs: Long? = null
 
     fun play(source: PlaybackSource) {
         viewModelScope.launch {
             _errorMessage.value = null
+            pendingSeekPositionMs = null
+            _currentPosition.value = source.startPosition.coerceAtLeast(0L)
             activeSource = source
             _activePlaybackSource.value = source
             playbackController.play(source).also {
@@ -114,23 +117,15 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun seekTo(positionMs: Long) {
-        viewModelScope.launch {
-            playbackController.seekTo(positionMs)
-        }
+        seekFromControls(positionMs)
     }
 
     fun skipForward() {
-        viewModelScope.launch {
-            val pos = playbackController.getCurrentPosition()
-            playbackController.seekTo(pos + 30_000)
-        }
+        seekFromControls(seekBasePosition() + 30_000)
     }
 
     fun skipBackward() {
-        viewModelScope.launch {
-            val pos = playbackController.getCurrentPosition()
-            playbackController.seekTo((pos - 10_000).coerceAtLeast(0))
-        }
+        seekFromControls(seekBasePosition() - 10_000)
     }
 
     fun toggleControls() {
@@ -173,11 +168,39 @@ class PlayerViewModel @Inject constructor(
         positionPollJob?.cancel()
         positionPollJob = viewModelScope.launch {
             while (true) {
-                _currentPosition.value = playbackController.getCurrentPosition()
+                pendingSeekPositionMs?.let {
+                    _currentPosition.value = it
+                } ?: run {
+                    _currentPosition.value = playbackController.getCurrentPosition()
+                }
                 _duration.value = playbackController.getDuration()
                 refreshTracks()
                 delay(500)
             }
+        }
+    }
+
+    private fun seekFromControls(positionMs: Long) {
+        val target = coerceSeekPosition(positionMs)
+        pendingSeekPositionMs = target
+        _currentPosition.value = target
+        viewModelScope.launch {
+            playbackController.seekTo(target)
+            if (pendingSeekPositionMs == target) {
+                pendingSeekPositionMs = null
+            }
+        }
+    }
+
+    private fun seekBasePosition(): Long =
+        pendingSeekPositionMs ?: _currentPosition.value
+
+    private fun coerceSeekPosition(positionMs: Long): Long {
+        val durationMs = _duration.value
+        return if (durationMs > 0L) {
+            positionMs.coerceIn(0L, durationMs)
+        } else {
+            positionMs.coerceAtLeast(0L)
         }
     }
 
