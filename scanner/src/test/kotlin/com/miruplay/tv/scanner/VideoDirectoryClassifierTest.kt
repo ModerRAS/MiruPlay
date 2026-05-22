@@ -116,15 +116,16 @@ class VideoDirectoryClassifierTest {
 
     @Test
     fun `uses filename parser when release heuristics cannot identify show`() {
+        val parser = StaticFilenameParser(
+            FilenameParseResult(
+                title = "葬送的芙莉莲",
+                season = 2,
+                episode = 3
+            )
+        )
         val classifier = VideoDirectoryClassifier(
             episodeDetector = DefaultEpisodeDetector(),
-            filenameMetadataParser = StaticFilenameParser(
-                FilenameParseResult(
-                    title = "葬送的芙莉莲",
-                    season = 2,
-                    episode = 3
-                )
-            )
+            filenameMetadataParser = parser
         )
 
         val result = classifier.classifyVideo(
@@ -135,11 +136,17 @@ class VideoDirectoryClassifierTest {
         assertEquals("葬送的芙莉莲", result.animeName)
         assertEquals(2, result.seasonNumber)
         assertEquals(3, result.episodeNumber)
+        assertEquals(listOf(128), parser.maxLengths)
     }
 
     private class StaticFilenameParser(
         private val result: FilenameParseResult
     ) : FilenameMetadataParser {
-        override fun parse(filename: String, maxLength: Int): FilenameParseResult = result
+        val maxLengths = mutableListOf<Int>()
+
+        override fun parse(filename: String, maxLength: Int): FilenameParseResult {
+            maxLengths += maxLength
+            return result
+        }
     }
 }
