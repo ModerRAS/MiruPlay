@@ -11,6 +11,10 @@ android {
     compileSdk = 35
     defaultConfig {
         minSdk = 28
+        ksp {
+            arg("room.schemaLocation", "$projectDir/schemas")
+            arg("room.incremental", "true")
+        }
     }
     packaging {
         resources {
@@ -20,6 +24,7 @@ android {
 }
 
 dependencies {
+    api(project(":repository-api"))
     api(project(":core:model"))
     api(project(":core:common"))
     api(project(":media-source"))

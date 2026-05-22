@@ -1,5 +1,6 @@
 package com.miruplay.tv.ui.settings
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.miruplay.tv.clouddrive.CloudDriveClient
@@ -10,14 +11,17 @@ import com.miruplay.tv.core.common.WebControlConfig
 import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.data.preferences.PlaybackEndAction
 import com.miruplay.tv.data.preferences.PlaybackPreferencesManager
-import com.miruplay.tv.data.repository.CloudDriveAutomationRepository
-import com.miruplay.tv.data.repository.MediaRepository
-import com.miruplay.tv.data.secure.SecurePreferencesManager
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.MediaSourceInfo
+import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.RssSubscriptionInfo
+import com.miruplay.tv.model.connectionPassword
+import com.miruplay.tv.repository.AppCredentialStore
+import com.miruplay.tv.repository.CloudDriveAutomationRepository
+import com.miruplay.tv.repository.MediaSourceRepository
+import com.miruplay.tv.repository.WebControlAccessManager
 import com.miruplay.tv.sync.rss.CloudDriveRssAutomationEngine
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -32,11 +36,12 @@ import javax.inject.Inject
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
-    private val mediaRepository: MediaRepository,
+    private val mediaRepository: MediaSourceRepository,
     private val mediaSourceFactory: MediaSourceFactory,
-    private val securePrefs: SecurePreferencesManager,
+    private val securePrefs: AppCredentialStore,
     private val scanPreferences: ScanPreferencesManager,
     private val playbackPreferences: PlaybackPreferencesManager,
+    private val webControlPreferences: WebControlAccessManager,
     private val cloudDriveRepository: CloudDriveAutomationRepository,
     private val cloudDriveClient: CloudDriveClient,
     private val cloudDriveEngine: CloudDriveRssAutomationEngine
@@ -73,6 +78,12 @@ class SettingsViewModel @Inject constructor(
 
     private val _webUiUrls = MutableStateFlow<List<String>>(emptyList())
     val webUiUrls: StateFlow<List<String>> = _webUiUrls.asStateFlow()
+
+    private val _webControlEnabled = MutableStateFlow(webControlPreferences.webControlEnabled)
+    val webControlEnabled: StateFlow<Boolean> = _webControlEnabled.asStateFlow()
+
+    private val _webControlAccessToken = MutableStateFlow(webControlPreferences.accessToken)
+    val webControlAccessToken: StateFlow<String> = _webControlAccessToken.asStateFlow()
 
     private val _cloudDriveConfig = MutableStateFlow(CloudDriveAutomationConfig())
     val cloudDriveConfig: StateFlow<CloudDriveAutomationConfig> = _cloudDriveConfig.asStateFlow()
@@ -132,12 +143,12 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             val existing = mediaRepository.getSourceById(source.id).getOrNull()
             val mergedSource = if (
-                "password" !in source.connectionInfo &&
-                existing?.connectionInfo?.containsKey("password") == true
+                MediaSourceInfoConventions.CONNECTION_PASSWORD !in source.connectionInfo &&
+                existing?.connectionPassword()?.isNotBlank() == true
             ) {
                 source.copy(
                     connectionInfo = source.connectionInfo + (
-                        "password" to existing.connectionInfo.getValue("password")
+                        MediaSourceInfoConventions.CONNECTION_PASSWORD to existing.connectionPassword()
                     ),
                     isConnected = existing.isConnected,
                     lastScanned = existing.lastScanned
@@ -168,11 +179,12 @@ class SettingsViewModel @Inject constructor(
             val info = MediaSourceInfo(
                 name = "test",
                 type = type,
-                connectionInfo = buildMap {
-                    put("url", url)
-                    if (username.isNotBlank()) put("username", username)
-                    if (password.isNotBlank()) put("password", password)
-                }
+                connectionInfo = MediaSourceInfoConventions.sourceConnectionInfo(
+                    type = type,
+                    location = url,
+                    username = username,
+                    password = password,
+                )
             )
             val sourceResult = mediaSourceFactory.create(info)
             sourceResult.onSuccess { ms ->
@@ -439,9 +451,26 @@ class SettingsViewModel @Inject constructor(
         _playbackEndAction.value = action
     }
 
+    fun setWebControlEnabled(enabled: Boolean) {
+        webControlPreferences.webControlEnabled = enabled
+        _webControlEnabled.value = enabled
+        _webControlAccessToken.value = webControlPreferences.accessToken
+        refreshWebUiUrls()
+    }
+
+    fun rotateWebControlAccessToken() {
+        _webControlAccessToken.value = webControlPreferences.rotateAccessToken()
+        refreshWebUiUrls()
+    }
+
     fun refreshWebUiUrls() {
         viewModelScope.launch(Dispatchers.IO) {
-            _webUiUrls.value = findLocalIps().map { ip -> "http://$ip:${WebControlConfig.DEFAULT_PORT}" }
+            _webUiUrls.value = if (webControlPreferences.webControlEnabled) {
+                val token = Uri.encode(webControlPreferences.accessToken)
+                findLocalIps().map { ip -> "http://$ip:${WebControlConfig.DEFAULT_PORT}/?token=$token" }
+            } else {
+                emptyList()
+            }
         }
     }
 

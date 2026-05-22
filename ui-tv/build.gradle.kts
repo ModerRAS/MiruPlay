@@ -26,9 +26,11 @@ android {
 dependencies {
     api(project(":core:model"))
     api(project(":core:common"))
+    implementation(project(":ui-design"))
     api(project(":player-core"))
     api(project(":media-source"))
     api(project(":scanner"))
+    implementation(project(":repository-api"))
     implementation(project(":cloud-drive"))
     implementation(project(":data"))
     implementation(project(":scraper"))

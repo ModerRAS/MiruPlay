@@ -4,6 +4,9 @@ import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.MediaCapabilities
 import com.miruplay.tv.model.MediaSourceInfo
+import com.miruplay.tv.model.connectionPassword
+import com.miruplay.tv.model.connectionUsername
+import com.miruplay.tv.model.remoteUrl
 import jcifs.CIFSContext
 import jcifs.config.PropertyConfiguration
 import jcifs.context.BaseContext
@@ -31,9 +34,9 @@ class SmbMediaSource @Inject constructor() : MediaSource {
 
     constructor(info: MediaSourceInfo) : this() {
         this.info = info
-        this.smbRoot = info.connectionInfo["url"] ?: ""
-        val user = info.connectionInfo["username"] ?: ""
-        val pass = info.connectionInfo["password"] ?: ""
+        this.smbRoot = info.remoteUrl().orEmpty()
+        val user = info.connectionUsername()
+        val pass = info.connectionPassword()
 
         val props = Properties().apply {
             setProperty("jcifs.smb.client.minVersion", "SMB202")

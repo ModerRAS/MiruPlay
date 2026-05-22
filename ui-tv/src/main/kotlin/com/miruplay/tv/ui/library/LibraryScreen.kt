@@ -22,6 +22,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.*
 import com.miruplay.tv.model.Anime
+import com.miruplay.tv.model.displayTitle
 import com.miruplay.tv.ui.components.*
 import com.miruplay.tv.ui.theme.*
 
@@ -221,6 +222,14 @@ private fun LibraryContent(
                 .thenBy { it.displayTitle() }
         ).take(8)
     }
+    val firstFeaturedId = featured.firstOrNull()?.id
+    val firstContentFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(firstFeaturedId) {
+        if (firstFeaturedId != null) {
+            firstContentFocusRequester.requestFocus()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -237,6 +246,11 @@ private fun LibraryContent(
                 items(featured, key = { it.id }) { anime ->
                     FeatureAnimeCard(
                         anime = anime,
+                        modifier = if (anime.id == firstFeaturedId) {
+                            Modifier.focusRequester(firstContentFocusRequester)
+                        } else {
+                            Modifier
+                        },
                         onClick = { onNavigateToDetail(anime.id) }
                     )
                 }

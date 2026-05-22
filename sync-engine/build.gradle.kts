@@ -8,7 +8,7 @@ plugins {
 
 android {
     namespace = "com.miruplay.tv.sync.engine"
-    compileSdk = 34
+    compileSdk = 35
     defaultConfig {
         minSdk = 28
     }
@@ -21,9 +21,9 @@ android {
 
 dependencies {
     api(project(":core:model"))
+    api(project(":repository-api"))
     api(project(":metadata"))
     api(project(":media-source"))
-    api(project(":data"))
     implementation(project(":cloud-drive"))
     implementation(project(":scanner"))
     implementation(project(":scraper"))

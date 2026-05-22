@@ -1,0 +1,1487 @@
+package com.miruplay.tv.desktop
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.miruplay.tv.design.MiruPlayUiMetrics
+import com.miruplay.tv.model.FileEntry
+import com.miruplay.tv.model.MediaSourceInfo
+import com.miruplay.tv.model.MediaPathConventions
+import com.miruplay.tv.model.ProgressRecord
+import com.miruplay.tv.model.formatPlaybackPosition
+import com.miruplay.tv.repository.MediaDetailRows
+import com.miruplay.tv.repository.MediaIndexEntry
+import com.miruplay.tv.repository.displayName
+import com.miruplay.tv.repository.mediaDisplayName
+
+@Composable
+internal fun DesktopDetailHero(
+    entry: MediaIndexEntry?,
+    source: MediaSourceInfo?,
+    episodeCount: Int = 0,
+    focusVersion: Int = 0,
+    onFocusRecentPlayback: () -> Boolean,
+    onBackToLibrary: () -> Unit,
+    onPlay: () -> Unit,
+) {
+    val actionFocusRequesters = remember {
+        mapOf(
+            DesktopDetailHeroAction.Play to FocusRequester(),
+            DesktopDetailHeroAction.BackToLibrary to FocusRequester(),
+        )
+    }
+
+    fun moveActionFocus(current: DesktopDetailHeroAction, delta: Int): Boolean {
+        val target = moveDesktopDetailHeroAction(current, delta) ?: return false
+        actionFocusRequesters.getValue(target).requestFocus()
+        return true
+    }
+
+    fun moveFromAction(current: DesktopDetailHeroAction, key: Key): Boolean =
+        when (key) {
+            Key.DirectionLeft -> moveActionFocus(current, -1)
+            Key.DirectionRight -> moveActionFocus(current, 1)
+            Key.DirectionDown -> onFocusRecentPlayback()
+            else -> false
+        }
+
+    val statLabels = detailHeroStatLabels(entry, episodeCount)
+
+    LaunchedEffect(focusVersion) {
+        actionFocusRequesters.getValue(DesktopDetailHeroAction.Play).requestFocus()
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(360.dp)
+            .clip(RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
+            .background(detailHeroBrush(entry?.detailTitle().orEmpty()))
+            .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp)),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(Color.Black.copy(alpha = 0.88f), Color.Black.copy(alpha = 0.34f)),
+                    ),
+                ),
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            verticalAlignment = Alignment.Bottom,
+            horizontalArrangement = Arrangement.spacedBy(26.dp),
+        ) {
+            DetailPoster(entry?.detailTitle().orEmpty())
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
+                verticalArrangement = Arrangement.Bottom,
+            ) {
+                Text(
+                    entry?.detailTitle() ?: "选择一部番剧",
+                    color = TextPrimary,
+                    fontSize = MiruPlayUiMetrics.HERO_TITLE_SP.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    entry?.detailSubtitle(source) ?: desktopDetailHeroEmptySubtitle(),
+                    color = TextSecondary,
+                    fontSize = MiruPlayUiMetrics.SECTION_SUBTITLE_SP.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (statLabels.isNotEmpty()) {
+                    Spacer(Modifier.height(14.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        statLabels.forEachIndexed { index, label ->
+                            DetailStatPill(
+                                text = label,
+                                color = when (index) {
+                                    0 -> TextSecondary
+                                    statLabels.lastIndex -> AnimeRed
+                                    else -> AccentBlue
+                                },
+                            )
+                        }
+                    }
+                }
+                entry?.plot?.takeIf { it.isNotBlank() }?.let { plot ->
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        plot,
+                        color = TextPrimary.copy(alpha = 0.84f),
+                        fontSize = MiruPlayUiMetrics.PANEL_BODY_SP.sp,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Spacer(Modifier.height(18.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    TvActionButton(
+                        "播放",
+                        onClick = onPlay,
+                        modifier = Modifier
+                            .detailHeroActionNavigation(
+                                action = DesktopDetailHeroAction.Play,
+                                focusRequester = actionFocusRequesters.getValue(DesktopDetailHeroAction.Play),
+                                onMove = ::moveFromAction,
+                            )
+                            .width(180.dp),
+                    )
+                    TvActionButton(
+                        "返回海报墙",
+                        onClick = onBackToLibrary,
+                        secondary = true,
+                        modifier = Modifier
+                            .detailHeroActionNavigation(
+                                action = DesktopDetailHeroAction.BackToLibrary,
+                                focusRequester = actionFocusRequesters.getValue(DesktopDetailHeroAction.BackToLibrary),
+                                onMove = ::moveFromAction,
+                            )
+                            .width(180.dp),
+                    )
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .width(58.dp)
+                    .height(58.dp)
+                    .clip(RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
+                    .background(AnimeRed),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Color.White)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailStatPill(text: String, color: Color) {
+    Box(
+        modifier = Modifier
+            .widthIn(max = 190.dp)
+            .clip(RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
+            .background(color.copy(alpha = 0.13f))
+            .border(1.dp, color.copy(alpha = 0.38f), RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+    ) {
+        Text(
+            text = text,
+            color = color,
+            fontSize = 14.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+private fun Modifier.detailHeroActionNavigation(
+    action: DesktopDetailHeroAction,
+    focusRequester: FocusRequester,
+    onMove: (DesktopDetailHeroAction, Key) -> Boolean,
+): Modifier =
+    focusRequester(focusRequester)
+        .desktopNavigationKeyHandler { key -> onMove(action, key) }
+
+internal enum class DesktopDetailHeroAction {
+    Play,
+    BackToLibrary,
+}
+
+internal enum class DesktopDetailDownTarget {
+    EpisodeList,
+    RecentPlayback,
+    BangumiMetadata,
+}
+
+internal fun moveDesktopDetailHeroAction(
+    current: DesktopDetailHeroAction,
+    delta: Int,
+): DesktopDetailHeroAction? {
+    val actions = DesktopDetailHeroAction.entries
+    val targetIndex = actions.indexOf(current) + delta
+    return actions.getOrNull(targetIndex)
+}
+
+internal fun detailHeroDownTarget(
+    hasRelatedEpisodes: Boolean,
+    hasRecentPlayback: Boolean,
+): DesktopDetailDownTarget =
+    when {
+        hasRelatedEpisodes -> DesktopDetailDownTarget.EpisodeList
+        hasRecentPlayback -> DesktopDetailDownTarget.RecentPlayback
+        else -> DesktopDetailDownTarget.BangumiMetadata
+    }
+
+internal fun detailHeroStatLabels(
+    entry: MediaIndexEntry?,
+    episodeCount: Int,
+): List<String> {
+    if (entry == null) return emptyList()
+    return buildList {
+        if (episodeCount > 0) {
+            add("全 $episodeCount 话")
+        }
+        entry.seasonNumber?.let { add("第 $it 季") }
+        entry.metadataSource
+            ?.takeIf { it.isNotBlank() }
+            ?.let { add(it.trim()) }
+    }
+}
+
+@Composable
+private fun DetailPoster(title: String) {
+    Box(
+        modifier = Modifier
+            .width(205.dp)
+            .height(302.dp)
+            .clip(RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
+            .background(detailPosterBrush(title))
+            .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp)),
+    ) {
+        Text(
+            title.take(2).ifBlank { "MP" }.uppercase(),
+            color = Color.White.copy(alpha = 0.18f),
+            fontSize = 58.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.align(Alignment.Center),
+        )
+    }
+}
+
+internal fun MediaIndexEntry.detailTitle(): String =
+    metadataTitle?.takeIf { it.isNotBlank() }
+        ?: animeName?.takeIf { it.isNotBlank() }
+        ?: MediaPathConventions.stem(path).takeIf { it.isNotBlank() }
+        ?: displayName()
+
+internal fun MediaIndexEntry.detailSubtitle(source: MediaSourceInfo?): String = buildString {
+    source?.name?.takeIf { it.isNotBlank() }?.let { append(it).append(" · ") }
+    seasonNumber?.let { append("S").append(it).append(" · ") }
+    episodeNumber?.let { append("EP").append(it).append(" · ") }
+    episodeTitle?.takeIf { it.isNotBlank() }?.let { append(it).append(" · ") }
+    append(MediaPathConventions.stem(path))
+}.trim().trimEnd('·').trim()
+
+internal fun desktopDetailHeroEmptySubtitle(): String =
+    "从媒体库海报墙选择内容后显示详情。"
+
+private fun detailPosterBrush(title: String): Brush {
+    val palettes = listOf(
+        listOf(Color(0xFFB83250), Color(0xFF2E183F), CardBg),
+        listOf(Color(0xFF1E6A8A), Color(0xFF12213C), CardBg),
+        listOf(Color(0xFF7C4D1D), Color(0xFF221A12), CardBg),
+        listOf(Color(0xFF4F6F2A), Color(0xFF142115), CardBg),
+    )
+    return Brush.verticalGradient(palettes[Math.floorMod(title.hashCode(), palettes.size)])
+}
+
+private fun detailHeroBrush(title: String): Brush {
+    val palettes = listOf(
+        listOf(Color(0xFF9B2D45), Color(0xFF182447), Color(0xFF08080C)),
+        listOf(Color(0xFF1C6582), Color(0xFF271B4A), Color(0xFF08080C)),
+        listOf(Color(0xFF6C4A1A), Color(0xFF172A22), Color(0xFF08080C)),
+    )
+    return Brush.horizontalGradient(palettes[Math.floorMod(title.hashCode(), palettes.size)])
+}
+
+@Composable
+internal fun DetailEpisodePanel(
+    episodes: List<MediaIndexEntry>,
+    selectedEntry: MediaIndexEntry?,
+    selectedSeason: Int?,
+    recentRecords: List<ProgressRecord>,
+    focusVersion: Int,
+    onFocusPreviousPanel: () -> Boolean,
+    onFocusNextPanel: () -> Boolean,
+    onSeasonSelected: (Int?) -> Unit,
+    onEpisodeFocused: (MediaIndexEntry) -> Unit,
+    onEpisodeSelected: (MediaIndexEntry) -> Unit,
+) {
+    val seasons = remember(episodes) { detailEpisodeSeasons(episodes) }
+    val activeSeason = detailActiveEpisodeSeason(
+        episodes = episodes,
+        selectedEntry = selectedEntry,
+        requestedSeason = selectedSeason,
+    )
+    val seasonEpisodes = remember(episodes, activeSeason) { detailEpisodesForSeason(episodes, activeSeason) }
+    var pageStartState by remember(activeSeason, seasonEpisodes.map { it.path }) { mutableStateOf(0) }
+    val pageStart = detailEpisodeCoercedPageStart(
+        pageStart = pageStartState,
+        itemCount = seasonEpisodes.size,
+    )
+    val visibleEpisodes = remember(seasonEpisodes, pageStart) {
+        seasonEpisodes
+            .drop(pageStart)
+            .take(DETAIL_EPISODE_PAGE_SIZE)
+    }
+    val progressByPath = remember(recentRecords) { recentRecords.associateBy { it.episodeId } }
+    var pendingEpisodeFocus by remember { mutableStateOf<Int?>(null) }
+    val episodeFocusRequesters = remember(pageStart, visibleEpisodes.map { it.path }) {
+        List(visibleEpisodes.size) { FocusRequester() }
+    }
+    val emptyFocusRequester = remember { FocusRequester() }
+    val seasonFocusRequesters = remember(seasons) {
+        List(seasons.size) { FocusRequester() }
+    }
+    val activeSeasonIndex = seasons.indexOf(activeSeason).coerceAtLeast(0)
+    val selectedEpisodeIndex = seasonEpisodes
+        .indexOfFirst { it.path == selectedEntry?.path }
+        .coerceAtLeast(0)
+
+    fun requestEpisodePanelFocus(target: DetailEpisodeFocusTarget?): Boolean {
+        return when (target) {
+            is DetailEpisodeFocusTarget.Row -> {
+                val index = target.index.takeIf { it in seasonEpisodes.indices } ?: return false
+                val episode = seasonEpisodes[index]
+                onEpisodeFocused(episode)
+                val targetPageStart = detailEpisodePageStartForIndex(
+                    index = index,
+                    itemCount = seasonEpisodes.size,
+                )
+                pageStartState = targetPageStart
+                val visibleIndex = index - targetPageStart
+                if (targetPageStart == pageStart) {
+                    episodeFocusRequesters.getOrNull(visibleIndex)?.requestFocus() ?: return false
+                } else {
+                    pendingEpisodeFocus = index
+                }
+                true
+            }
+            is DetailEpisodeFocusTarget.Season -> {
+                val season = seasons.getOrNull(target.index) ?: return false
+                onSeasonSelected(season)
+                seasonFocusRequesters.getOrNull(target.index)?.requestFocus()
+                true
+            }
+            DetailEpisodeFocusTarget.EmptyState -> {
+                if (seasonEpisodes.isEmpty()) {
+                    emptyFocusRequester.requestFocus()
+                    true
+                } else {
+                    false
+                }
+            }
+            DetailEpisodeFocusTarget.PreviousPanel -> onFocusPreviousPanel()
+            DetailEpisodeFocusTarget.NextPanel -> onFocusNextPanel()
+            null -> false
+        }
+    }
+
+    fun moveEpisodeFocus(currentIndex: Int, delta: Int): Boolean {
+        return requestEpisodePanelFocus(
+            moveDetailEpisodeFocusTarget(
+                currentIndex = currentIndex,
+                itemCount = seasonEpisodes.size,
+                delta = delta,
+                seasonCount = seasons.size,
+                activeSeasonIndex = activeSeasonIndex,
+            ),
+        )
+    }
+
+    fun moveSeasonFocus(currentIndex: Int, key: Key): Boolean =
+        requestEpisodePanelFocus(
+            detailEpisodeSeasonFocusTarget(
+                currentIndex = currentIndex,
+                seasonCount = seasons.size,
+                episodeCount = seasonEpisodes.size,
+                selectedEpisodeIndex = selectedEpisodeIndex,
+                key = key,
+            ),
+        )
+
+    LaunchedEffect(pageStart, visibleEpisodes.map { it.path }, pendingEpisodeFocus) {
+        val pendingIndex = pendingEpisodeFocus ?: return@LaunchedEffect
+        if (pendingIndex in pageStart until pageStart + visibleEpisodes.size) {
+            episodeFocusRequesters.getOrNull(pendingIndex - pageStart)?.requestFocus()
+            pendingEpisodeFocus = null
+        }
+    }
+
+    LaunchedEffect(focusVersion, seasonEpisodes.map { it.path }, selectedEntry?.path) {
+        if (focusVersion > 0) {
+            if (seasonEpisodes.isNotEmpty()) {
+                val selectedIndex = seasonEpisodes.indexOfFirst { it.path == selectedEntry?.path }.coerceAtLeast(0)
+                requestEpisodePanelFocus(DetailEpisodeFocusTarget.Row(selectedIndex))
+            } else {
+                emptyFocusRequester.requestFocus()
+            }
+        }
+    }
+
+    TvPanel(Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column {
+                Text("选集", color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
+                Text(
+                    detailEpisodeShelfSubtitle(episodes.size),
+                    color = TextSecondary,
+                    fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
+                )
+            }
+            if (seasons.size > 1) {
+                Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
+                    seasons.forEachIndexed { index, season ->
+                        TvActionButton(
+                            text = "第 $season 季",
+                            onClick = { onSeasonSelected(season) },
+                            secondary = activeSeason != season,
+                            modifier = Modifier
+                                .focusRequester(seasonFocusRequesters[index])
+                                .desktopNavigationKeyHandler { key -> moveSeasonFocus(index, key) }
+                                .width(132.dp),
+                        )
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
+        if (seasonEpisodes.isEmpty()) {
+            DetailEpisodeEmptyState(
+                text = "扫描媒体库后会在这里显示同番选集。",
+                focusRequester = emptyFocusRequester,
+                onMove = ::requestEpisodePanelFocus,
+            )
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp)) {
+                visibleEpisodes.forEachIndexed { index, episode ->
+                    val absoluteIndex = pageStart + index
+                    DetailEpisodeRow(
+                        entry = episode,
+                        selected = selectedEntry?.path == episode.path,
+                        progress = progressByPath[episode.path],
+                        onClick = {
+                            onEpisodeSelected(episode)
+                            requestEpisodePanelFocus(DetailEpisodeFocusTarget.Row(absoluteIndex))
+                        },
+                        modifier = Modifier
+                            .focusRequester(episodeFocusRequesters[index]),
+                        onNavigationKey = { key ->
+                            when (key) {
+                                Key.DirectionUp -> moveEpisodeFocus(absoluteIndex, -1)
+                                Key.DirectionDown -> moveEpisodeFocus(absoluteIndex, 1)
+                                else -> false
+                            }
+                        },
+                    )
+                }
+                detailEpisodePageSummary(
+                    pageStart = pageStart,
+                    visibleCount = visibleEpisodes.size,
+                    itemCount = seasonEpisodes.size,
+                )?.let { summary ->
+                    Text(
+                        summary,
+                        color = TextSecondary,
+                        fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailEpisodeEmptyState(
+    text: String,
+    focusRequester: FocusRequester,
+    onMove: (DetailEpisodeFocusTarget?) -> Boolean,
+) {
+    DesktopSelectableRow(
+        selected = false,
+        onClick = {},
+        modifier = Modifier
+            .focusRequester(focusRequester),
+        heightDp = 180,
+        inactiveAlpha = 0.48f,
+        onNavigationKey = { key ->
+            onMove(detailEpisodeEmptyFocusTarget(key))
+        },
+    ) { active ->
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text,
+                color = if (active) TextPrimary else TextSecondary,
+                fontSize = MiruPlayUiMetrics.SECTION_BODY_SP.sp,
+            )
+        }
+    }
+}
+
+@Composable
+private fun DetailEpisodeRow(
+    entry: MediaIndexEntry,
+    selected: Boolean,
+    progress: ProgressRecord?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    onNavigationKey: (Key) -> Boolean = { false },
+) {
+    DesktopSelectableRow(
+        selected = selected,
+        onClick = onClick,
+        modifier = modifier,
+        heightDp = 78,
+        onNavigationKey = onNavigationKey,
+    ) { active ->
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.DETAIL_MEDIA_PADDING_DP.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(44.dp)
+                    .height(44.dp)
+                    .clip(RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp))
+                    .background(if (active) AnimeRed else AnimeRed.copy(alpha = 0.22f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    entry.episodeBadge(),
+                    color = TextPrimary,
+                    fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                )
+            }
+            Column(Modifier.weight(1f)) {
+                Text(
+                    entry.detailEpisodeTitle(),
+                    color = TextPrimary,
+                    fontSize = MiruPlayUiMetrics.ITEM_TITLE_SP.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    entry.path,
+                    color = TextSecondary,
+                    fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Text(
+                detailEpisodeProgressLabel(progress),
+                color = if (progress != null) AnimeRed else TextSecondary,
+                fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.width(148.dp),
+            )
+        }
+    }
+}
+
+internal fun detailEpisodesForSelection(
+    entries: List<MediaIndexEntry>,
+    selectedEntry: MediaIndexEntry?,
+): List<MediaIndexEntry> {
+    val selected = selectedEntry?.takeUnless { it.isDirectory } ?: return emptyList()
+    val title = selected.posterTitle()
+    return entries
+        .asSequence()
+        .filterNot { it.isDirectory }
+        .filter { it.sourceId == selected.sourceId && it.posterTitle() == title }
+        .sortedWith(detailEpisodeComparator)
+        .toList()
+}
+
+internal fun detailEpisodeShelfSubtitle(episodeCount: Int): String =
+    if (episodeCount <= 0) "当前详情没有可播放索引项" else "全 $episodeCount 话 · 同番选集"
+
+internal fun detailEpisodeSeasons(episodes: List<MediaIndexEntry>): List<Int> =
+    episodes
+        .mapNotNull { it.seasonNumber }
+        .distinct()
+        .sorted()
+
+internal fun detailActiveEpisodeSeason(
+    episodes: List<MediaIndexEntry>,
+    selectedEntry: MediaIndexEntry?,
+    requestedSeason: Int?,
+): Int? {
+    val seasons = detailEpisodeSeasons(episodes)
+    if (seasons.isEmpty()) return null
+    return when {
+        requestedSeason in seasons -> requestedSeason
+        selectedEntry?.seasonNumber in seasons -> selectedEntry?.seasonNumber
+        else -> seasons.first()
+    }
+}
+
+internal fun detailEpisodesForSeason(
+    episodes: List<MediaIndexEntry>,
+    season: Int?,
+): List<MediaIndexEntry> =
+    if (season == null) episodes.sortedWith(detailEpisodeComparator) else episodes.filter { it.seasonNumber == season }
+
+private const val DETAIL_EPISODE_PAGE_SIZE = 6
+
+internal fun moveDetailEpisodeSelection(
+    currentIndex: Int,
+    itemCount: Int,
+    delta: Int,
+): Int? {
+    return (moveDetailEpisodeFocusTarget(currentIndex, itemCount, delta) as? DetailEpisodeFocusTarget.Row)?.index
+}
+
+internal sealed interface DetailEpisodeFocusTarget {
+    data class Row(val index: Int) : DetailEpisodeFocusTarget
+    data class Season(val index: Int) : DetailEpisodeFocusTarget
+    data object EmptyState : DetailEpisodeFocusTarget
+    data object PreviousPanel : DetailEpisodeFocusTarget
+    data object NextPanel : DetailEpisodeFocusTarget
+}
+
+internal fun moveDetailEpisodeFocusTarget(
+    currentIndex: Int,
+    itemCount: Int,
+    delta: Int,
+    seasonCount: Int = 0,
+    activeSeasonIndex: Int = 0,
+): DetailEpisodeFocusTarget? {
+    if (itemCount <= 0) return null
+    val targetIndex = currentIndex + delta
+    return when {
+        targetIndex < 0 && seasonCount > 1 ->
+            DetailEpisodeFocusTarget.Season(activeSeasonIndex.coerceIn(0, seasonCount - 1))
+        targetIndex < 0 -> DetailEpisodeFocusTarget.PreviousPanel
+        targetIndex >= itemCount -> DetailEpisodeFocusTarget.NextPanel
+        else -> DetailEpisodeFocusTarget.Row(targetIndex)
+    }
+}
+
+internal fun detailEpisodeSeasonFocusTarget(
+    currentIndex: Int,
+    seasonCount: Int,
+    episodeCount: Int,
+    selectedEpisodeIndex: Int,
+    key: Key,
+): DetailEpisodeFocusTarget? =
+    when (key) {
+        Key.DirectionLeft -> (currentIndex - 1).takeIf { it >= 0 }?.let(DetailEpisodeFocusTarget::Season)
+        Key.DirectionRight -> (currentIndex + 1).takeIf { it < seasonCount }?.let(DetailEpisodeFocusTarget::Season)
+        Key.DirectionUp -> DetailEpisodeFocusTarget.PreviousPanel
+        Key.DirectionDown -> if (episodeCount > 0) {
+            DetailEpisodeFocusTarget.Row(selectedEpisodeIndex.coerceIn(0, episodeCount - 1))
+        } else {
+            DetailEpisodeFocusTarget.NextPanel
+        }
+        else -> null
+    }
+
+internal fun detailEpisodeEmptyFocusTarget(key: Key): DetailEpisodeFocusTarget? =
+    when (key) {
+        Key.DirectionUp -> DetailEpisodeFocusTarget.PreviousPanel
+        Key.DirectionDown -> DetailEpisodeFocusTarget.NextPanel
+        else -> null
+    }
+
+internal fun detailEpisodePageStartForIndex(
+    index: Int,
+    itemCount: Int,
+    pageSize: Int = DETAIL_EPISODE_PAGE_SIZE,
+): Int {
+    if (itemCount <= 0 || pageSize <= 0) return 0
+    val safeIndex = index.coerceIn(0, itemCount - 1)
+    return (safeIndex / pageSize) * pageSize
+}
+
+internal fun detailEpisodeCoercedPageStart(
+    pageStart: Int,
+    itemCount: Int,
+    pageSize: Int = DETAIL_EPISODE_PAGE_SIZE,
+): Int {
+    if (itemCount <= 0 || pageSize <= 0) return 0
+    val maxPageStart = detailEpisodePageStartForIndex(
+        index = itemCount - 1,
+        itemCount = itemCount,
+        pageSize = pageSize,
+    )
+    return (pageStart / pageSize)
+        .coerceAtLeast(0)
+        .times(pageSize)
+        .coerceAtMost(maxPageStart)
+}
+
+internal fun detailEpisodePageSummary(
+    pageStart: Int,
+    visibleCount: Int,
+    itemCount: Int,
+): String? {
+    if (itemCount <= 0 || visibleCount <= 0 || visibleCount >= itemCount) return null
+    val safeStart = detailEpisodeCoercedPageStart(pageStart, itemCount)
+    val end = (safeStart + visibleCount).coerceAtMost(itemCount)
+    return "显示 ${safeStart + 1}-$end / $itemCount 集，按上/下继续翻页。"
+}
+
+private val detailEpisodeComparator =
+    compareBy<MediaIndexEntry>(
+        { it.seasonNumber ?: Int.MAX_VALUE },
+        { it.episodeNumber ?: Int.MAX_VALUE },
+        { it.path.lowercase() },
+    )
+
+private fun MediaIndexEntry.episodeBadge(): String =
+    episodeNumber?.toString()?.padStart(2, '0') ?: "--"
+
+private fun MediaIndexEntry.detailEpisodeTitle(): String {
+    val number = episodeNumber?.let { "第 $it 集" } ?: "未编号"
+    val title = episodeTitle?.takeIf { it.isNotBlank() }
+    return if (title == null) number else "$number · $title"
+}
+
+private fun detailEpisodeProgressLabel(progress: ProgressRecord?): String =
+    progress?.let { "继续 ${formatPlaybackPosition(it.positionMs)}" } ?: "未观看"
+
+@Composable
+internal fun RecentPlaybackPanel(
+    records: List<ProgressRecord>,
+    selectedRecord: ProgressRecord?,
+    status: String,
+    focusVersion: Int,
+    onFocusPreviousPanel: () -> Boolean,
+    onFocusNextPanel: () -> Boolean,
+    onRefresh: () -> Unit,
+    onRecordSelected: (ProgressRecord) -> Unit,
+    onClearSelected: () -> Unit,
+) {
+    var pageStartState by remember(records.map { it.episodeId }) { mutableStateOf(0) }
+    val pageStart = recentPlaybackCoercedPageStart(
+        pageStart = pageStartState,
+        itemCount = records.size,
+    )
+    val visibleRecords = remember(records, pageStart) {
+        records
+            .drop(pageStart)
+            .take(RECENT_PLAYBACK_PAGE_SIZE)
+    }
+    var pendingRecordFocus by remember { mutableStateOf<Int?>(null) }
+    val labels = desktopRecentPlaybackLabels()
+    val recordFocusRequesters = remember(pageStart, visibleRecords.map { it.episodeId }) {
+        List(visibleRecords.size) { FocusRequester() }
+    }
+    val actionFocusRequesters = remember {
+        mapOf(
+            RecentPlaybackAction.Refresh to FocusRequester(),
+            RecentPlaybackAction.Clear to FocusRequester(),
+        )
+    }
+    val emptyFocusRequester = remember { FocusRequester() }
+
+    fun requestRecentFocus(target: RecentPlaybackFocusTarget?): Boolean {
+        return when (target) {
+            is RecentPlaybackFocusTarget.Action -> {
+                actionFocusRequesters.getValue(target.action).requestFocus()
+                true
+            }
+            is RecentPlaybackFocusTarget.Row -> {
+                val index = target.index.takeIf { it in records.indices } ?: return false
+                val targetPageStart = recentPlaybackPageStartForIndex(
+                    index = index,
+                    itemCount = records.size,
+                )
+                pageStartState = targetPageStart
+                val visibleIndex = index - targetPageStart
+                if (targetPageStart == pageStart) {
+                    recordFocusRequesters.getOrNull(visibleIndex)?.requestFocus() ?: return false
+                } else {
+                    pendingRecordFocus = index
+                }
+                true
+            }
+            RecentPlaybackFocusTarget.EmptyState -> {
+                if (visibleRecords.isEmpty()) {
+                    emptyFocusRequester.requestFocus()
+                    true
+                } else {
+                    false
+                }
+            }
+            RecentPlaybackFocusTarget.PreviousPanel -> onFocusPreviousPanel()
+            RecentPlaybackFocusTarget.NextPanel -> onFocusNextPanel()
+            null -> false
+        }
+    }
+
+    fun moveRecentFocus(currentIndex: Int, delta: Int): Boolean =
+        requestRecentFocus(moveRecentPlaybackFocusTarget(currentIndex, records.size, delta))
+
+    fun moveRecentActionFocus(current: RecentPlaybackAction, key: Key): Boolean {
+        val target = when (key) {
+            Key.DirectionLeft -> moveRecentPlaybackAction(current, -1)?.let(RecentPlaybackFocusTarget::Action)
+            Key.DirectionRight -> moveRecentPlaybackAction(current, 1)?.let(RecentPlaybackFocusTarget::Action)
+            Key.DirectionUp -> recentPlaybackActionVerticalFocusTarget(direction = -1, hasRecords = records.isNotEmpty())
+            Key.DirectionDown -> recentPlaybackActionVerticalFocusTarget(direction = 1, hasRecords = records.isNotEmpty())
+            else -> null
+        }
+        return requestRecentFocus(target)
+    }
+
+    fun moveRecentEmptyFocus(key: Key): Boolean =
+        requestRecentFocus(recentPlaybackEmptyFocusTarget(key))
+
+    LaunchedEffect(pageStart, visibleRecords.map { it.episodeId }, pendingRecordFocus) {
+        val pendingIndex = pendingRecordFocus ?: return@LaunchedEffect
+        if (pendingIndex in pageStart until pageStart + visibleRecords.size) {
+            recordFocusRequesters.getOrNull(pendingIndex - pageStart)?.requestFocus()
+            pendingRecordFocus = null
+        }
+    }
+
+    LaunchedEffect(focusVersion, records.map { it.episodeId }) {
+        if (focusVersion > 0) {
+            if (records.isNotEmpty()) {
+                requestRecentFocus(RecentPlaybackFocusTarget.Row(0))
+            } else {
+                actionFocusRequesters.getValue(RecentPlaybackAction.Refresh).requestFocus()
+            }
+        }
+    }
+
+    TvPanel(Modifier.fillMaxWidth()) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Column(
+                modifier = Modifier.weight(0.32f),
+                verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
+            ) {
+                Text(labels.title, color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
+                Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
+                    TvActionButton(
+                        labels.refreshAction,
+                        onClick = onRefresh,
+                        secondary = true,
+                        modifier = Modifier
+                            .focusRequester(actionFocusRequesters.getValue(RecentPlaybackAction.Refresh))
+                            .desktopNavigationKeyHandler { key -> moveRecentActionFocus(RecentPlaybackAction.Refresh, key) },
+                    )
+                    TvActionButton(
+                        labels.clearAction,
+                        onClick = onClearSelected,
+                        secondary = true,
+                        modifier = Modifier
+                            .focusRequester(actionFocusRequesters.getValue(RecentPlaybackAction.Clear))
+                            .desktopNavigationKeyHandler { key -> moveRecentActionFocus(RecentPlaybackAction.Clear, key) },
+                    )
+                }
+                StatusBox(status)
+            }
+            Column(
+                modifier = Modifier.weight(0.68f),
+                verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp),
+            ) {
+                if (records.isEmpty()) {
+                    RecentPlaybackEmptyState(
+                        text = labels.emptyState,
+                        focusRequester = emptyFocusRequester,
+                        onMove = ::moveRecentEmptyFocus,
+                    )
+                } else {
+                    visibleRecords.forEachIndexed { index, record ->
+                        val absoluteIndex = pageStart + index
+                        RecentProgressRow(
+                            record = record,
+                            selected = selectedRecord?.episodeId == record.episodeId,
+                            onClick = {
+                                onRecordSelected(record)
+                                requestRecentFocus(RecentPlaybackFocusTarget.Row(absoluteIndex))
+                            },
+                            modifier = Modifier
+                                .focusRequester(recordFocusRequesters[index]),
+                            onNavigationKey = { key ->
+                                when (key) {
+                                    Key.DirectionUp -> moveRecentFocus(absoluteIndex, -1)
+                                    Key.DirectionDown -> moveRecentFocus(absoluteIndex, 1)
+                                    else -> false
+                                }
+                            },
+                        )
+                    }
+                    recentPlaybackPageSummary(
+                        pageStart = pageStart,
+                        visibleCount = visibleRecords.size,
+                        itemCount = records.size,
+                    )?.let { summary ->
+                        Text(
+                            summary,
+                            color = TextSecondary,
+                            fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecentPlaybackEmptyState(
+    text: String,
+    focusRequester: FocusRequester,
+    onMove: (Key) -> Boolean,
+) {
+    DesktopSelectableRow(
+        selected = false,
+        onClick = {},
+        modifier = Modifier
+            .focusRequester(focusRequester),
+        heightDp = MiruPlayUiMetrics.EMPTY_STATE_HEIGHT_DP,
+        inactiveAlpha = 0.48f,
+        onNavigationKey = onMove,
+    ) { active ->
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text,
+                color = if (active) TextPrimary else TextSecondary,
+                fontSize = MiruPlayUiMetrics.SECTION_BODY_SP.sp,
+            )
+        }
+    }
+}
+
+internal data class DesktopRecentPlaybackLabels(
+    val title: String,
+    val refreshAction: String,
+    val clearAction: String,
+    val emptyState: String,
+)
+
+internal fun desktopRecentPlaybackLabels(): DesktopRecentPlaybackLabels =
+    DesktopRecentPlaybackLabels(
+        title = "继续观看",
+        refreshAction = "刷新",
+        clearAction = "清除条目",
+        emptyState = "开始播放后会在这里显示最近记录。",
+    )
+
+private const val RECENT_PLAYBACK_PAGE_SIZE = 6
+private const val MEDIA_DETAILS_PAGE_SIZE = 6
+
+@Composable
+private fun RecentProgressRow(
+    record: ProgressRecord,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    onNavigationKey: (Key) -> Boolean = { false },
+) {
+    DesktopSelectableRow(
+        selected = selected,
+        onClick = onClick,
+        modifier = modifier,
+        onNavigationKey = onNavigationKey,
+    ) { active ->
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.DETAIL_MEDIA_PADDING_DP.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                formatPlaybackPosition(record.positionMs),
+                color = if (active) AnimeRed else TextSecondary,
+                fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.width(64.dp),
+            )
+            Column(Modifier.weight(1f)) {
+                Text(
+                    record.mediaDisplayName(),
+                    color = TextPrimary,
+                    fontSize = MiruPlayUiMetrics.ITEM_TITLE_SP.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    record.episodeId,
+                    color = TextSecondary,
+                    fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Text("x${record.playCount}", color = TextSecondary, fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp)
+        }
+    }
+}
+
+internal fun moveRecentPlaybackSelection(
+    currentIndex: Int,
+    itemCount: Int,
+    delta: Int,
+): Int? {
+    return (moveRecentPlaybackFocusTarget(currentIndex, itemCount, delta) as? RecentPlaybackFocusTarget.Row)?.index
+}
+
+internal enum class RecentPlaybackAction {
+    Refresh,
+    Clear,
+}
+
+internal sealed interface RecentPlaybackFocusTarget {
+    data class Action(val action: RecentPlaybackAction) : RecentPlaybackFocusTarget
+    data class Row(val index: Int) : RecentPlaybackFocusTarget
+    data object EmptyState : RecentPlaybackFocusTarget
+    data object PreviousPanel : RecentPlaybackFocusTarget
+    data object NextPanel : RecentPlaybackFocusTarget
+}
+
+internal fun moveRecentPlaybackAction(
+    current: RecentPlaybackAction,
+    delta: Int,
+): RecentPlaybackAction? {
+    val actions = RecentPlaybackAction.entries
+    val targetIndex = current.ordinal + delta
+    return actions.getOrNull(targetIndex)
+}
+
+internal fun recentPlaybackActionVerticalFocusTarget(
+    direction: Int,
+    hasRecords: Boolean,
+): RecentPlaybackFocusTarget? =
+    when {
+        direction < 0 -> RecentPlaybackFocusTarget.PreviousPanel
+        direction > 0 && hasRecords -> RecentPlaybackFocusTarget.Row(0)
+        direction > 0 -> RecentPlaybackFocusTarget.EmptyState
+        else -> null
+    }
+
+internal fun recentPlaybackEmptyFocusTarget(key: Key): RecentPlaybackFocusTarget? =
+    when (key) {
+        Key.DirectionUp -> RecentPlaybackFocusTarget.Action(RecentPlaybackAction.Refresh)
+        Key.DirectionDown -> RecentPlaybackFocusTarget.NextPanel
+        else -> null
+    }
+
+internal fun moveRecentPlaybackFocusTarget(
+    currentIndex: Int,
+    itemCount: Int,
+    delta: Int,
+): RecentPlaybackFocusTarget? {
+    if (itemCount <= 0) return null
+    val targetIndex = currentIndex + delta
+    return when {
+        targetIndex < 0 -> RecentPlaybackFocusTarget.Action(RecentPlaybackAction.Refresh)
+        targetIndex >= itemCount -> RecentPlaybackFocusTarget.NextPanel
+        else -> RecentPlaybackFocusTarget.Row(targetIndex)
+    }
+}
+
+internal fun recentPlaybackPageStartForIndex(
+    index: Int,
+    itemCount: Int,
+    pageSize: Int = RECENT_PLAYBACK_PAGE_SIZE,
+): Int {
+    if (itemCount <= 0 || pageSize <= 0) return 0
+    val safeIndex = index.coerceIn(0, itemCount - 1)
+    return (safeIndex / pageSize) * pageSize
+}
+
+internal fun recentPlaybackCoercedPageStart(
+    pageStart: Int,
+    itemCount: Int,
+    pageSize: Int = RECENT_PLAYBACK_PAGE_SIZE,
+): Int {
+    if (itemCount <= 0 || pageSize <= 0) return 0
+    val maxPageStart = recentPlaybackPageStartForIndex(
+        index = itemCount - 1,
+        itemCount = itemCount,
+        pageSize = pageSize,
+    )
+    return (pageStart / pageSize)
+        .coerceAtLeast(0)
+        .times(pageSize)
+        .coerceAtMost(maxPageStart)
+}
+
+internal fun recentPlaybackPageSummary(
+    pageStart: Int,
+    visibleCount: Int,
+    itemCount: Int,
+): String? {
+    if (itemCount <= 0 || visibleCount <= 0 || visibleCount >= itemCount) return null
+    val safeStart = recentPlaybackCoercedPageStart(pageStart, itemCount)
+    val end = (safeStart + visibleCount).coerceAtMost(itemCount)
+    return "显示 ${safeStart + 1}-$end / $itemCount 条记录，按上/下继续翻页。"
+}
+
+@Composable
+internal fun MediaDetailsPanel(
+    source: MediaSourceInfo?,
+    indexEntry: MediaIndexEntry?,
+    remoteEntry: FileEntry?,
+    recentRecord: ProgressRecord?,
+    focusVersion: Int = 0,
+    onFocusPreviousPanel: () -> Boolean = { false },
+) {
+    val labels = desktopMediaDetailsLabels()
+    val rows = remember(source, indexEntry, remoteEntry, recentRecord) {
+        MediaDetailRows.build(
+            source = source,
+            indexEntry = indexEntry,
+            remoteEntry = remoteEntry,
+            recentRecord = recentRecord,
+        )
+    }
+    var pageStartState by remember(rows.map { it.label to it.value }) { mutableStateOf(0) }
+    val pageStart = mediaDetailsCoercedPageStart(
+        pageStart = pageStartState,
+        itemCount = rows.size,
+    )
+    val visibleRows = remember(rows, pageStart) {
+        rows
+            .drop(pageStart)
+            .take(MEDIA_DETAILS_PAGE_SIZE)
+    }
+    val splitIndex = mediaDetailsSplitIndex(pageStart, visibleRows.size)
+    val visibleSplitCount = splitIndex - pageStart
+    val focusRequesters = remember(pageStart, visibleRows.map { it.label to it.value }) {
+        List(visibleRows.size) { FocusRequester() }
+    }
+    var pendingRowFocus by remember { mutableStateOf<Int?>(null) }
+    val emptyFocusRequester = remember { FocusRequester() }
+
+    fun requestMediaDetailFocus(target: MediaDetailsFocusTarget?): Boolean {
+        return when (target) {
+            is MediaDetailsFocusTarget.Row -> {
+                val index = target.index.takeIf { it in rows.indices } ?: return false
+                val targetPageStart = mediaDetailsPageStartForIndex(
+                    index = index,
+                    itemCount = rows.size,
+                )
+                pageStartState = targetPageStart
+                val visibleIndex = index - targetPageStart
+                if (targetPageStart == pageStart) {
+                    focusRequesters.getOrNull(visibleIndex)?.requestFocus() ?: return false
+                } else {
+                    pendingRowFocus = index
+                }
+                true
+            }
+            MediaDetailsFocusTarget.EmptyState -> {
+                emptyFocusRequester.requestFocus()
+                true
+            }
+            MediaDetailsFocusTarget.PreviousPanel -> onFocusPreviousPanel()
+            null -> false
+        }
+    }
+
+    fun moveMediaDetailFocus(currentIndex: Int, key: Key): Boolean {
+        return requestMediaDetailFocus(
+            mediaDetailsFocusTarget(
+                currentIndex = currentIndex,
+                rowCount = rows.size,
+                pageStart = pageStart,
+                visibleCount = visibleRows.size,
+                key = key,
+            ),
+        )
+    }
+
+    LaunchedEffect(pageStart, visibleRows.map { it.label to it.value }, pendingRowFocus) {
+        val pendingIndex = pendingRowFocus ?: return@LaunchedEffect
+        if (pendingIndex in pageStart until pageStart + visibleRows.size) {
+            focusRequesters.getOrNull(pendingIndex - pageStart)?.requestFocus()
+            pendingRowFocus = null
+        }
+    }
+
+    LaunchedEffect(focusVersion) {
+        if (focusVersion > 0) {
+            requestMediaDetailFocus(
+                mediaDetailsInitialFocusTarget(
+                    hasRows = rows.isNotEmpty() && (source != null || indexEntry != null || remoteEntry != null || recentRecord != null),
+                ),
+            )
+        }
+    }
+
+    TvPanel(Modifier.fillMaxWidth()) {
+        Text(labels.title, color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
+        if (rows.isEmpty() || (source == null && indexEntry == null && remoteEntry == null && recentRecord == null)) {
+            MediaDetailsEmptyState(
+                text = labels.emptyState,
+                modifier = Modifier
+                    .focusRequester(emptyFocusRequester),
+                onNavigationKey = { key ->
+                    requestMediaDetailFocus(mediaDetailsEmptyFocusTarget(key))
+                },
+            )
+            return@TvPanel
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp)) {
+            Column(
+                modifier = Modifier.weight(0.5f),
+                verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SMALL_GAP_DP.dp),
+            ) {
+                visibleRows.take(visibleSplitCount).forEachIndexed { index, row ->
+                    val rowIndex = pageStart + index
+                    DetailLine(
+                        row.label,
+                        row.value,
+                        modifier = Modifier
+                            .focusRequester(focusRequesters[index]),
+                        onNavigationKey = { key ->
+                            moveMediaDetailFocus(rowIndex, key)
+                        },
+                    )
+                }
+            }
+            Column(
+                modifier = Modifier.weight(0.5f),
+                verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SMALL_GAP_DP.dp),
+            ) {
+                visibleRows.drop(visibleSplitCount).forEachIndexed { index, row ->
+                    val visibleIndex = visibleSplitCount + index
+                    val rowIndex = pageStart + visibleIndex
+                    DetailLine(
+                        row.label,
+                        row.value,
+                        modifier = Modifier
+                            .focusRequester(focusRequesters[visibleIndex]),
+                        onNavigationKey = { key ->
+                            moveMediaDetailFocus(rowIndex, key)
+                        },
+                    )
+                }
+            }
+        }
+        mediaDetailsPageSummary(
+            pageStart = pageStart,
+            visibleCount = visibleRows.size,
+            itemCount = rows.size,
+        )?.let { summary ->
+            Spacer(Modifier.height(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp))
+            Text(
+                summary,
+                color = TextSecondary,
+                fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
+            )
+        }
+    }
+}
+
+internal data class DesktopMediaDetailsLabels(
+    val title: String,
+    val emptyState: String,
+)
+
+internal fun desktopMediaDetailsLabels(): DesktopMediaDetailsLabels =
+    DesktopMediaDetailsLabels(
+        title = "媒体详情",
+        emptyState = "选择媒体后会在这里显示详细信息。",
+    )
+
+internal sealed interface MediaDetailsFocusTarget {
+    data class Row(val index: Int) : MediaDetailsFocusTarget
+    data object EmptyState : MediaDetailsFocusTarget
+    data object PreviousPanel : MediaDetailsFocusTarget
+}
+
+internal fun mediaDetailsInitialFocusTarget(hasRows: Boolean): MediaDetailsFocusTarget =
+    if (hasRows) MediaDetailsFocusTarget.Row(0) else MediaDetailsFocusTarget.EmptyState
+
+internal fun mediaDetailsEmptyFocusTarget(key: Key): MediaDetailsFocusTarget? =
+    when (key) {
+        Key.DirectionUp -> MediaDetailsFocusTarget.PreviousPanel
+        else -> null
+    }
+
+internal fun mediaDetailsFocusTarget(
+    currentIndex: Int,
+    rowCount: Int,
+    pageStart: Int,
+    visibleCount: Int,
+    key: Key,
+): MediaDetailsFocusTarget? {
+    if (rowCount <= 0) return null
+    val safePageStart = mediaDetailsCoercedPageStart(pageStart, rowCount)
+    val safeVisibleCount = visibleCount.coerceIn(1, rowCount - safePageStart)
+    val splitIndex = mediaDetailsSplitIndex(safePageStart, safeVisibleCount)
+    val pageEnd = safePageStart + safeVisibleCount
+    val targetIndex = when (key) {
+        Key.DirectionUp -> currentIndex - 1
+        Key.DirectionDown -> currentIndex + 1
+        Key.DirectionLeft -> if (currentIndex >= splitIndex && currentIndex < pageEnd) {
+            val leftIndex = safePageStart + currentIndex - splitIndex
+            leftIndex.coerceAtMost(splitIndex - 1)
+        } else {
+            return null
+        }
+        Key.DirectionRight -> if (currentIndex in safePageStart until splitIndex && splitIndex < pageEnd) {
+            (currentIndex + splitIndex - safePageStart).takeIf { it < pageEnd } ?: pageEnd - 1
+        } else {
+            return null
+        }
+        else -> return null
+    }
+    return when {
+        targetIndex < 0 -> MediaDetailsFocusTarget.PreviousPanel
+        targetIndex >= rowCount -> null
+        else -> MediaDetailsFocusTarget.Row(targetIndex)
+    }
+}
+
+internal fun mediaDetailsPageStartForIndex(
+    index: Int,
+    itemCount: Int,
+    pageSize: Int = MEDIA_DETAILS_PAGE_SIZE,
+): Int {
+    if (itemCount <= 0 || pageSize <= 0) return 0
+    val safeIndex = index.coerceIn(0, itemCount - 1)
+    return (safeIndex / pageSize) * pageSize
+}
+
+internal fun mediaDetailsCoercedPageStart(
+    pageStart: Int,
+    itemCount: Int,
+    pageSize: Int = MEDIA_DETAILS_PAGE_SIZE,
+): Int {
+    if (itemCount <= 0 || pageSize <= 0) return 0
+    val maxPageStart = mediaDetailsPageStartForIndex(
+        index = itemCount - 1,
+        itemCount = itemCount,
+        pageSize = pageSize,
+    )
+    return (pageStart / pageSize)
+        .coerceAtLeast(0)
+        .times(pageSize)
+        .coerceAtMost(maxPageStart)
+}
+
+internal fun mediaDetailsPageSummary(
+    pageStart: Int,
+    visibleCount: Int,
+    itemCount: Int,
+): String? {
+    if (itemCount <= 0 || visibleCount <= 0 || visibleCount >= itemCount) return null
+    val safeStart = mediaDetailsCoercedPageStart(pageStart, itemCount)
+    val end = (safeStart + visibleCount).coerceAtMost(itemCount)
+    return "显示 ${safeStart + 1}-$end / $itemCount 条详情，按上/下继续翻页。"
+}
+
+internal fun mediaDetailsSplitIndex(pageStart: Int, visibleCount: Int): Int {
+    val safeVisibleCount = visibleCount.coerceAtLeast(0)
+    return pageStart + (safeVisibleCount + 1) / 2
+}
+
+@Composable
+private fun MediaDetailsEmptyState(
+    text: String,
+    modifier: Modifier = Modifier,
+    onNavigationKey: (Key) -> Boolean = { false },
+) {
+    DesktopSelectableRow(
+        selected = false,
+        onClick = {},
+        modifier = modifier,
+        heightDp = MiruPlayUiMetrics.DETAIL_PREVIEW_HEIGHT_DP,
+        inactiveAlpha = 0.48f,
+        onNavigationKey = onNavigationKey,
+    ) { active ->
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text,
+                color = if (active) TextPrimary else TextSecondary,
+                fontSize = MiruPlayUiMetrics.SECTION_BODY_SP.sp,
+            )
+        }
+    }
+}
+
+@Composable
+internal fun DetailLine(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    onNavigationKey: (Key) -> Boolean = { false },
+) {
+    DesktopSelectableRow(
+        selected = false,
+        onClick = {},
+        modifier = modifier,
+        heightDp = 92,
+        inactiveAlpha = 0.42f,
+        onNavigationKey = onNavigationKey,
+    ) { active ->
+        Column(Modifier.fillMaxWidth()) {
+            Text(label, color = TextSecondary, fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp, fontWeight = FontWeight.SemiBold)
+            Text(
+                value,
+                color = if (active) TextPrimary else TextPrimary.copy(alpha = 0.84f),
+                fontSize = MiruPlayUiMetrics.PANEL_BODY_SP.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}

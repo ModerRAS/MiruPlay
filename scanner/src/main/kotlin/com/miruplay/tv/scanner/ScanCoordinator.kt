@@ -2,10 +2,6 @@ package com.miruplay.tv.scanner
 
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
-import com.miruplay.tv.data.repository.IndexRepository
-import com.miruplay.tv.data.repository.IndexRepositoryEntity
-import com.miruplay.tv.data.repository.MediaRepository
-import com.miruplay.tv.data.repository.MetadataRepository
 import com.miruplay.tv.mediasource.MediaSource
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.metadata.NfoWriteOptions
@@ -20,6 +16,10 @@ import com.miruplay.tv.model.NfoMetadata
 import com.miruplay.tv.model.ScanResult
 import com.miruplay.tv.model.TvShowNfoMetadata
 import com.miruplay.tv.model.UniqueId
+import com.miruplay.tv.repository.MediaIndexEntry
+import com.miruplay.tv.repository.MediaIndexRepository
+import com.miruplay.tv.repository.MediaSourceRepository
+import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.scraper.EpisodeMetadata
 import com.miruplay.tv.scraper.MetadataScraper
 import kotlinx.coroutines.Dispatchers
@@ -37,9 +37,9 @@ import javax.inject.Singleton
  */
 @Singleton
 class ScanCoordinator @Inject constructor(
-    private val mediaRepository: MediaRepository,
+    private val mediaRepository: MediaSourceRepository,
     private val mediaSourceFactory: MediaSourceFactory,
-    private val indexRepository: IndexRepository,
+    private val indexRepository: MediaIndexRepository,
     private val metadataRepository: MetadataRepository,
     private val filenameMetadataParser: FilenameMetadataParser,
     private val metadataScrapers: Set<@JvmSuppressWildcards MetadataScraper> = emptySet()
@@ -98,7 +98,7 @@ class ScanCoordinator @Inject constructor(
         // Single recursive traversal: build index + parse NFOs
         val detector = DefaultEpisodeDetector()
         val classifier = VideoDirectoryClassifier(detector, filenameMetadataParser)
-        val indexEntities = mutableListOf<IndexRepositoryEntity>()
+        val indexEntities = mutableListOf<MediaIndexEntry>()
         var totalFiles = 0
         var newEpisodes = 0
 
@@ -125,7 +125,7 @@ class ScanCoordinator @Inject constructor(
 
             for ((animeName, entries) in episodesByAnime) {
                 val sortedEntries = entries.sortedWith(
-                    compareBy<IndexRepositoryEntity>(
+                    compareBy<MediaIndexEntry>(
                         { it.seasonNumber ?: 1 },
                         { it.episodeNumber ?: Int.MAX_VALUE },
                         { it.path }
@@ -284,7 +284,7 @@ class ScanCoordinator @Inject constructor(
         path: String,
         sourceId: Long,
         classifier: VideoDirectoryClassifier,
-        indexEntities: MutableList<IndexRepositoryEntity>,
+        indexEntities: MutableList<MediaIndexEntry>,
         totalFiles: (Int) -> Unit,
         newEpisodes: (Int) -> Unit,
         depth: Int = 0,
@@ -330,7 +330,7 @@ class ScanCoordinator @Inject constructor(
                     if (ext in videoExtensions) {
                         totalFiles(1)
                         val match = classifier.classifyVideo(file.path, fileName)
-                        indexEntities.add(IndexRepositoryEntity(
+                        indexEntities.add(MediaIndexEntry(
                             sourceId = sourceId,
                             path = file.path,
                             animeName = match.animeName,
@@ -446,7 +446,7 @@ class ScanCoordinator @Inject constructor(
         classifier: VideoDirectoryClassifier,
         anime: Anime,
         episodes: List<Episode>,
-        entries: List<IndexRepositoryEntity>
+        entries: List<MediaIndexEntry>
     ) {
         if (episodes.isEmpty() || entries.isEmpty()) return
 

@@ -51,6 +51,20 @@ class ProgressExtensionsTest {
         assertEquals("已看", episode.progressLabel(progress))
     }
 
+    @Test
+    fun `recent playback status helpers share desktop wording`() {
+        val record = progress(positionMs = 123_456L)
+
+        assertEquals("No recent playback loaded.", recentPlaybackInitialStatus())
+        assertEquals("No recent playback yet.", recentPlaybackLoadedStatus(emptyList()))
+        assertEquals("Loaded 1 recent item(s).", recentPlaybackLoadedStatus(listOf(record)))
+        assertEquals("No recent playback yet.", recentPlaybackShowingStatus(emptyList()))
+        assertEquals("Showing 1 recent item(s).", recentPlaybackShowingStatus(listOf(record)))
+        assertEquals("Select a recent item first.", recentPlaybackRequiredStatus())
+        assertEquals("123", record.resumeStartSecondsText())
+        assertEquals("Loaded recent playback: Episode 1.", record.loadedPlaybackStatus("Episode 1"))
+    }
+
     private fun episode(
         duration: Long,
         bangumiCollectionType: Int? = null

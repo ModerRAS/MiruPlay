@@ -44,6 +44,10 @@ tmp/
 node_modules/
 web-control/frontend/dist/
 
+# Windows mpv/RIFE runtime payloads are packaged from local or release assets.
+runtime/mpv/*
+!runtime/mpv/README.md
+
 # Python tooling
 __pycache__/
 *.pyc

@@ -1,6 +1,7 @@
 package com.miruplay.tv.model
 
 import kotlinx.serialization.Serializable
+import kotlin.math.roundToLong
 
 @Serializable
 enum class ScraperSource { ANILIST, BANGUMI }
@@ -14,3 +15,6 @@ data class ScraperResult(
     val confidence: Float,  // 0-1
     val source: ScraperSource,
 )
+
+fun ScraperResult.confidencePercentLabel(): String =
+    "${(confidence * 100).roundToLong()}%"

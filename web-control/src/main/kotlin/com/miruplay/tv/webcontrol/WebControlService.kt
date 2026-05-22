@@ -5,12 +5,6 @@ import com.miruplay.tv.clouddrive.CloudDriveEndpoint
 import android.os.Build
 import com.miruplay.tv.core.common.LocalDirectoryBrowser
 import com.miruplay.tv.core.common.Result
-import com.miruplay.tv.data.repository.CloudDriveAutomationRepository
-import com.miruplay.tv.data.repository.IndexRepository
-import com.miruplay.tv.data.repository.MediaRepository
-import com.miruplay.tv.data.repository.MetadataRepository
-import com.miruplay.tv.data.repository.ProgressRepository
-import com.miruplay.tv.data.secure.SecurePreferencesManager
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.CloudDriveAutomationConfig
@@ -22,6 +16,12 @@ import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.PlaybackState
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.player.PlaybackController
+import com.miruplay.tv.repository.AppCredentialStore
+import com.miruplay.tv.repository.CloudDriveAutomationRepository
+import com.miruplay.tv.repository.MediaIndexRepository
+import com.miruplay.tv.repository.MediaSourceRepository
+import com.miruplay.tv.repository.MetadataRepository
+import com.miruplay.tv.repository.PlaybackProgressRepository
 import com.miruplay.tv.scanner.ScanCoordinator
 import com.miruplay.tv.sync.rss.CloudDriveRssAutomationEngine
 import kotlinx.coroutines.Dispatchers
@@ -35,12 +35,12 @@ import javax.inject.Singleton
 
 @Singleton
 class WebControlService @Inject constructor(
-    private val mediaRepository: MediaRepository,
+    private val mediaRepository: MediaSourceRepository,
     private val metadataRepository: MetadataRepository,
-    private val indexRepository: IndexRepository,
-    private val progressRepository: ProgressRepository,
+    private val indexRepository: MediaIndexRepository,
+    private val progressRepository: PlaybackProgressRepository,
     private val cloudDriveRepository: CloudDriveAutomationRepository,
-    private val securePreferences: SecurePreferencesManager,
+    private val securePreferences: AppCredentialStore,
     private val cloudDriveClient: CloudDriveClient,
     private val cloudDriveEngine: CloudDriveRssAutomationEngine,
     private val scanCoordinator: ScanCoordinator,
