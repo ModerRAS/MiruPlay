@@ -8,5 +8,7 @@ interface CloudDriveCredentialStore {
 
 interface AppCredentialStore : CloudDriveCredentialStore {
     var bangumiAccessToken: String?
+    var otlpAccessToken: String?
     fun clearBangumiToken()
+    fun clearOtlpAccessToken()
 }

@@ -12,5 +12,6 @@ project.extra.set("pureKotlin", true)
 
 dependencies {
     api(libs.kotlinx.coroutines.core)
+    api(libs.kotlinx.serialization.json)
     testImplementation(libs.junit)
 }

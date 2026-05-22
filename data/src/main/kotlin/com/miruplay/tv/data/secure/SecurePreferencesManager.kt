@@ -51,6 +51,12 @@ class SecurePreferencesManager @Inject constructor(
             securePrefs.edit().putString(KEY_CLOUD_DRIVE_PASSWORD, value).apply()
         }
 
+    override var otlpAccessToken: String?
+        get() = securePrefs.getString(KEY_OTLP_ACCESS_TOKEN, null)
+        set(value) {
+            securePrefs.edit().putString(KEY_OTLP_ACCESS_TOKEN, value).apply()
+        }
+
     var webControlAccessToken: String?
         get() = securePrefs.getString(KEY_WEB_CONTROL_ACCESS_TOKEN, null)
         set(value) {
@@ -95,6 +101,10 @@ class SecurePreferencesManager @Inject constructor(
         securePrefs.edit().remove(KEY_BANGUMI_TOKEN).apply()
     }
 
+    override fun clearOtlpAccessToken() {
+        securePrefs.edit().remove(KEY_OTLP_ACCESS_TOKEN).apply()
+    }
+
     override fun clearCloudDriveCredentials() {
         securePrefs.edit()
             .remove(KEY_CLOUD_DRIVE_TOKEN)
@@ -109,6 +119,7 @@ class SecurePreferencesManager @Inject constructor(
         private const val KEY_BANGUMI_TOKEN = "bangumi_access_token"
         private const val KEY_CLOUD_DRIVE_TOKEN = "cloud_drive_token"
         private const val KEY_CLOUD_DRIVE_PASSWORD = "cloud_drive_password"
+        private const val KEY_OTLP_ACCESS_TOKEN = "otlp_access_token"
         private const val KEY_WEB_CONTROL_ACCESS_TOKEN = "web_control_access_token"
         private const val KEY_MEDIA_SOURCE_PASSWORD_PREFIX = "media_source_password_"
         private const val WEB_CONTROL_TOKEN_BYTES = 24
