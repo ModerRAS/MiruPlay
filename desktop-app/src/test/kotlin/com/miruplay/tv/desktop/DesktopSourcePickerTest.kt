@@ -25,13 +25,21 @@ class DesktopSourcePickerTest {
 
     @Test
     fun `source picker title localizes missing source names`() {
-        val source = MediaSourceInfo(
+        val local = MediaSourceInfo(
             id = 1L,
             name = "",
             type = MediaSourceType.LOCAL,
         )
 
-        assertEquals("本地媒体源 · 本地", source.sourcePickerTitle())
+        assertEquals("本地媒体源 · 本地", local.sourcePickerTitle())
+        assertEquals(
+            "WebDAV 媒体源 · WebDAV",
+            local.copy(type = MediaSourceType.WEBDAV).sourcePickerTitle(),
+        )
+        assertEquals(
+            "SMB 媒体源 · SMB",
+            local.copy(type = MediaSourceType.SMB).sourcePickerTitle(),
+        )
     }
 
     @Test
