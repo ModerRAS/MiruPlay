@@ -2,10 +2,9 @@ package com.miruplay.tv.ui.library
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -25,6 +24,8 @@ import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.displayTitle
 import com.miruplay.tv.ui.components.*
 import com.miruplay.tv.ui.theme.*
+
+private const val POSTER_GRID_COLUMNS = 6
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -86,49 +87,53 @@ fun LibraryScreen(
                 }
             }
             
-            when (val state = uiState) {
-                is LibraryUiState.Loading -> {
-                    LoadingIndicator()
-                }
-                
-                is LibraryUiState.NoSources -> {
-                    EmptyState(
-                        message = "添加媒体源开始使用",
-                        buttonText = "添加源",
-                        onClick = onNavigateToSettings
-                    )
-                }
-                
-                is LibraryUiState.HasSources -> {
-                    EmptyState(
-                        message = "已配置媒体源\n点击扫描建立媒体库",
-                        buttonText = "扫描媒体库",
-                        onClick = { viewModel.scanNow() }
-                    )
-                }
-                
-                is LibraryUiState.Scanning -> {
-                    ScanningState(
-                        state = state,
-                        onCancel = { viewModel.cancelScan() }
-                    )
-                }
-                
-                is LibraryUiState.ScanError -> {
-                    EmptyState(
-                        message = state.message,
-                        buttonText = "手动扫描",
-                        onClick = { viewModel.scanNow() }
-                    )
-                }
-                
-                is LibraryUiState.HasContent -> {
-                    LibraryContent(
-                        continueWatching = state.continueWatching,
-                        recentlyAdded = state.recentlyAdded,
-                        allAnime = state.allAnime,
-                        onNavigateToDetail = onNavigateToDetail
-                    )
+            Box(
+                modifier = Modifier.fillMaxWidth().weight(1f)
+            ) {
+                when (val state = uiState) {
+                    is LibraryUiState.Loading -> {
+                        LoadingIndicator()
+                    }
+
+                    is LibraryUiState.NoSources -> {
+                        EmptyState(
+                            message = "添加媒体源开始使用",
+                            buttonText = "添加源",
+                            onClick = onNavigateToSettings
+                        )
+                    }
+
+                    is LibraryUiState.HasSources -> {
+                        EmptyState(
+                            message = "已配置媒体源\n点击扫描建立媒体库",
+                            buttonText = "扫描媒体库",
+                            onClick = { viewModel.scanNow() }
+                        )
+                    }
+
+                    is LibraryUiState.Scanning -> {
+                        ScanningState(
+                            state = state,
+                            onCancel = { viewModel.cancelScan() }
+                        )
+                    }
+
+                    is LibraryUiState.ScanError -> {
+                        EmptyState(
+                            message = state.message,
+                            buttonText = "手动扫描",
+                            onClick = { viewModel.scanNow() }
+                        )
+                    }
+
+                    is LibraryUiState.HasContent -> {
+                        LibraryContent(
+                            continueWatching = state.continueWatching,
+                            recentlyAdded = state.recentlyAdded,
+                            allAnime = state.allAnime,
+                            onNavigateToDetail = onNavigateToDetail
+                        )
+                    }
                 }
             }
         }
@@ -215,6 +220,9 @@ private fun LibraryContent(
     onNavigateToDetail: (String) -> Unit
 ) {
     val library = remember(allAnime) { allAnime.distinctBy { it.id }.sortedBy { it.displayTitle() } }
+    val posterRows = remember(library) {
+        library.filter { it.id.isNotBlank() }.chunked(POSTER_GRID_COLUMNS)
+    }
     val featured = remember(library) {
         library.sortedWith(
             compareByDescending<Anime> { it.rating }
@@ -231,88 +239,96 @@ private fun LibraryContent(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 28.dp)
     ) {
         if (featured.isNotEmpty()) {
-            SectionHeader(title = "最高热度", trailing = "已收录 ${library.size} 部")
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                contentPadding = PaddingValues(end = 24.dp),
-                modifier = Modifier.fillMaxWidth().padding(bottom = 30.dp)
-            ) {
-                items(featured, key = { it.id }) { anime ->
-                    FeatureAnimeCard(
-                        anime = anime,
-                        modifier = if (anime.id == firstFeaturedId) {
-                            Modifier.focusRequester(firstContentFocusRequester)
-                        } else {
-                            Modifier
-                        },
-                        onClick = { onNavigateToDetail(anime.id) }
-                    )
+            item(key = "featured") {
+                SectionHeader(title = "最高热度", trailing = "已收录 ${library.size} 部")
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    contentPadding = PaddingValues(end = 24.dp),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 30.dp)
+                ) {
+                    items(featured, key = { it.id }) { anime ->
+                        FeatureAnimeCard(
+                            anime = anime,
+                            modifier = if (anime.id == firstFeaturedId) {
+                                Modifier.focusRequester(firstContentFocusRequester)
+                            } else {
+                                Modifier
+                            },
+                            onClick = { onNavigateToDetail(anime.id) }
+                        )
+                    }
                 }
             }
         }
 
         if (continueWatching.isNotEmpty()) {
-            SectionHeader(title = "继续观看")
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                contentPadding = PaddingValues(end = 24.dp),
-                modifier = Modifier.fillMaxWidth().padding(bottom = 30.dp)
-            ) {
-                items(continueWatching.filter { it.anime != null }, key = { it.episode?.id ?: it.anime?.id.orEmpty() }) { item ->
-                    val anime = item.anime ?: return@items
-                    val animeId = anime.id
-                    val episodeNumber = item.episode?.episodeNumber
-                    val duration = item.episode?.duration?.takeIf { it > 0 } ?: 1L
-                    AnimePosterCard(
-                        anime = anime,
-                        subtitle = if (episodeNumber != null) "继续观看 ${episodeNumber.toString().padStart(2, '0')}" else "继续观看",
-                        progress = item.progress?.let { rec ->
-                            (rec.positionMs.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
-                        } ?: 0f,
-                        onClick = { onNavigateToDetail(animeId) }
-                    )
+            item(key = "continue_watching") {
+                SectionHeader(title = "继续观看")
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    contentPadding = PaddingValues(end = 24.dp),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 30.dp)
+                ) {
+                    items(continueWatching.filter { it.anime != null }, key = { it.episode?.id ?: it.anime?.id.orEmpty() }) { item ->
+                        val anime = item.anime ?: return@items
+                        val animeId = anime.id
+                        val episodeNumber = item.episode?.episodeNumber
+                        val duration = item.episode?.duration?.takeIf { it > 0 } ?: 1L
+                        AnimePosterCard(
+                            anime = anime,
+                            subtitle = if (episodeNumber != null) "继续观看 ${episodeNumber.toString().padStart(2, '0')}" else "继续观看",
+                            progress = item.progress?.let { rec ->
+                                (rec.positionMs.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
+                            } ?: 0f,
+                            onClick = { onNavigateToDetail(animeId) }
+                        )
+                    }
                 }
             }
         }
 
         if (recentlyAdded.isNotEmpty()) {
-            SectionHeader(title = "最近添加")
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                contentPadding = PaddingValues(end = 24.dp),
-                modifier = Modifier.fillMaxWidth().padding(bottom = 30.dp)
-            ) {
-                items(recentlyAdded.filter { it.id.isNotBlank() }, key = { it.id }) { anime ->
-                    AnimePosterCard(
-                        anime = anime,
-                        onClick = { onNavigateToDetail(anime.id) }
-                    )
+            item(key = "recently_added") {
+                SectionHeader(title = "最近添加")
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    contentPadding = PaddingValues(end = 24.dp),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 30.dp)
+                ) {
+                    items(recentlyAdded.filter { it.id.isNotBlank() }, key = { it.id }) { anime ->
+                        AnimePosterCard(
+                            anime = anime,
+                            onClick = { onNavigateToDetail(anime.id) }
+                        )
+                    }
                 }
             }
         }
 
-        if (library.isNotEmpty()) {
-            SectionHeader(title = "海报墙")
-            Column(
-                verticalArrangement = Arrangement.spacedBy(18.dp),
-                modifier = Modifier.fillMaxWidth().padding(bottom = 28.dp)
-            ) {
-                library.filter { it.id.isNotBlank() }.chunked(6).forEach { row ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        row.forEach { anime ->
-                            AnimePosterCard(
-                                anime = anime,
-                                width = 170.dp,
-                                height = 254.dp,
-                                onClick = { onNavigateToDetail(anime.id) }
-                            )
-                        }
+        if (posterRows.isNotEmpty()) {
+            item(key = "poster_wall_header") {
+                SectionHeader(title = "海报墙")
+            }
+            items(
+                items = posterRows,
+                key = { row -> row.joinToString("|") { it.id } }
+            ) { row ->
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 18.dp)
+                ) {
+                    row.forEach { anime ->
+                        AnimePosterCard(
+                            anime = anime,
+                            width = 170.dp,
+                            height = 254.dp,
+                            onClick = { onNavigateToDetail(anime.id) }
+                        )
                     }
                 }
             }
