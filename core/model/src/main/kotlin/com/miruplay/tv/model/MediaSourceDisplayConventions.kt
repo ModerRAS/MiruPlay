@@ -35,6 +35,9 @@ fun MediaSourceType.tvLocationLabel(): String =
         MediaSourceType.SMB -> "SMB 地址"
     }
 
+fun MediaSourceInfo.tvConnectionStatusLabel(): String =
+    if (isConnected) "可连接" else "待验证"
+
 fun MediaSourceInfo.tvDisplayName(fallbackName: String? = null): String =
     name.ifBlank {
         fallbackName?.takeIf { it.isNotBlank() } ?: type.defaultSourceName()
@@ -42,3 +45,6 @@ fun MediaSourceInfo.tvDisplayName(fallbackName: String? = null): String =
 
 fun MediaSourceInfo.tvDisplayLabel(fallbackName: String? = null): String =
     "${tvDisplayName(fallbackName)} · ${type.tvLabel()}"
+
+fun MediaSourceInfo.tvDisplayStatusLabel(): String =
+    "${type.tvLabel()} · ${tvConnectionStatusLabel()}"
