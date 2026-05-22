@@ -84,7 +84,9 @@ import com.miruplay.tv.data.preferences.PlaybackEndAction
 import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.MiruPlaySettingsSection
 import com.miruplay.tv.model.RssSubscriptionInfo
+import com.miruplay.tv.model.androidTvSettingsSectionOrder
 import com.miruplay.tv.model.defaultSourceName
 import com.miruplay.tv.model.tvLabel
 import com.miruplay.tv.model.tvLocationLabel
@@ -115,42 +117,15 @@ import java.util.Locale
 private const val DEFAULT_LOCAL_PATH = "/storage/emulated/0/Download"
 private const val QR_CODE_MATRIX_SIZE = 96
 
-private enum class SettingsSection(
-    val title: String,
-    val description: String,
-    val icon: ImageVector
-) {
-    WEB_UI(
-        title = "WebUI",
-        description = "访问地址与二维码",
-        icon = Icons.Filled.WifiTethering
-    ),
-    SOURCES(
-        title = "媒体源",
-        description = "本地、WebDAV、SMB",
-        icon = Icons.Filled.Storage
-    ),
-    PLAYBACK(
-        title = "播放",
-        description = "播完动作",
-        icon = Icons.Filled.PlayArrow
-    ),
-    AUTOMATION(
-        title = "CloudDrive",
-        description = "RSS 离线下载与入库",
-        icon = Icons.Filled.Cloud
-    ),
-    SCAN(
-        title = "扫描",
-        description = "媒体库更新策略",
-        icon = Icons.Filled.Refresh
-    ),
-    METADATA(
-        title = "元数据",
-        description = "Bangumi Token",
-        icon = Icons.Filled.Key
-    )
-}
+private fun MiruPlaySettingsSection.androidTvIcon(): ImageVector =
+    when (this) {
+        MiruPlaySettingsSection.WEB_UI -> Icons.Filled.WifiTethering
+        MiruPlaySettingsSection.SOURCES -> Icons.Filled.Storage
+        MiruPlaySettingsSection.PLAYBACK -> Icons.Filled.PlayArrow
+        MiruPlaySettingsSection.CLOUD_DRIVE -> Icons.Filled.Cloud
+        MiruPlaySettingsSection.SCAN -> Icons.Filled.Refresh
+        MiruPlaySettingsSection.METADATA -> Icons.Filled.Key
+    }
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -176,7 +151,7 @@ fun AddSourceScreen(
     val cloudDriveActionMessage by viewModel.cloudDriveActionMessage.collectAsStateWithLifecycle()
     val cloudDriveDirectoryBrowser by viewModel.cloudDriveDirectoryBrowser.collectAsStateWithLifecycle()
 
-    var selectedSection by remember { mutableStateOf(SettingsSection.WEB_UI) }
+    var selectedSection by remember { mutableStateOf(MiruPlaySettingsSection.WEB_UI) }
     var editingSourceId by remember { mutableStateOf<Long?>(null) }
     var selectedType by remember { mutableStateOf(MediaSourceType.LOCAL) }
     var name by remember { mutableStateOf(sourceNameOrDefault("", MediaSourceType.LOCAL)) }
@@ -206,9 +181,9 @@ fun AddSourceScreen(
     var pendingDeletedSourceId by remember { mutableStateOf<Long?>(null) }
 
     val menuFocusRequesters = remember {
-        SettingsSection.entries.associateWith { FocusRequester() }
+        androidTvSettingsSectionOrder.associateWith { FocusRequester() }
     }
-    val firstMenuFocusRequester = menuFocusRequesters.getValue(SettingsSection.WEB_UI)
+    val firstMenuFocusRequester = menuFocusRequesters.getValue(MiruPlaySettingsSection.WEB_UI)
 
     LaunchedEffect(Unit) {
         firstMenuFocusRequester.requestFocus()
@@ -254,16 +229,16 @@ fun AddSourceScreen(
     LaunchedEffect(sources, pendingDeletedSourceId) {
         val deletedSourceId = pendingDeletedSourceId ?: return@LaunchedEffect
         if (sources.none { it.id == deletedSourceId }) {
-            selectedSection = SettingsSection.SOURCES
+            selectedSection = MiruPlaySettingsSection.SOURCES
             resetSourceForm()
-            menuFocusRequesters.getValue(SettingsSection.SOURCES).requestFocus()
+            menuFocusRequesters.getValue(MiruPlaySettingsSection.SOURCES).requestFocus()
             pendingDeletedSourceId = null
         }
     }
 
     fun loadSourceForEdit(source: MediaSourceInfo) {
         editingSourceId = source.id
-        selectedSection = SettingsSection.SOURCES
+        selectedSection = MiruPlaySettingsSection.SOURCES
         selectedType = source.type
         name = source.name.ifBlank { sourceNameOrDefault("", source.type) }
         location = source.locationValue()
@@ -329,7 +304,7 @@ fun AddSourceScreen(
                     onSelectSource = ::loadSourceForEdit,
                     onDeleteSource = { sourceId ->
                         pendingDeletedSourceId = sourceId
-                        selectedSection = SettingsSection.SOURCES
+                        selectedSection = MiruPlaySettingsSection.SOURCES
                         viewModel.removeSource(sourceId)
                         if (editingSourceId == sourceId) {
                             resetSourceForm()
@@ -546,7 +521,7 @@ private fun SettingsHeader(onNavigateBack: () -> Unit) {
 
 @Composable
 private fun SettingsMenuPanel(
-    selectedSection: SettingsSection,
+    selectedSection: MiruPlaySettingsSection,
     sourcesCount: Int,
     webUiAddressCount: Int,
     autoScanEnabled: Boolean,
@@ -555,8 +530,8 @@ private fun SettingsMenuPanel(
     cloudDriveEnabled: Boolean,
     rssCount: Int,
     hasToken: Boolean,
-    menuFocusRequesters: Map<SettingsSection, FocusRequester>,
-    onSectionSelected: (SettingsSection) -> Unit,
+    menuFocusRequesters: Map<MiruPlaySettingsSection, FocusRequester>,
+    onSectionSelected: (MiruPlaySettingsSection) -> Unit,
     modifier: Modifier = Modifier
 ) {
     SettingsPanel(modifier = modifier) {
@@ -579,19 +554,19 @@ private fun SettingsMenuPanel(
                 .weight(1f),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            itemsIndexed(SettingsSection.entries) { index, section ->
+            itemsIndexed(androidTvSettingsSectionOrder) { index, section ->
                 val summary = when (section) {
-                    SettingsSection.WEB_UI -> if (webUiAddressCount > 0) "${webUiAddressCount} 个地址" else "等待网络"
-                    SettingsSection.SOURCES -> "${sourcesCount} 个源"
-                    SettingsSection.PLAYBACK -> playbackEndAction.menuSummary()
-                    SettingsSection.AUTOMATION -> if (cloudDriveEnabled) "${rssCount} 个订阅" else "未启用"
-                    SettingsSection.SCAN -> when {
+                    MiruPlaySettingsSection.WEB_UI -> if (webUiAddressCount > 0) "${webUiAddressCount} 个地址" else "等待网络"
+                    MiruPlaySettingsSection.SOURCES -> "${sourcesCount} 个源"
+                    MiruPlaySettingsSection.PLAYBACK -> playbackEndAction.menuSummary()
+                    MiruPlaySettingsSection.CLOUD_DRIVE -> if (cloudDriveEnabled) "${rssCount} 个订阅" else "未启用"
+                    MiruPlaySettingsSection.SCAN -> when {
                         autoScanEnabled && mergeSameAnimeEnabled -> "定时 · 合并"
                         autoScanEnabled -> "定时已开"
                         mergeSameAnimeEnabled -> "同番合并"
                         else -> "定时关闭"
                     }
-                    SettingsSection.METADATA -> if (hasToken) "Token 已设置" else "未设置"
+                    MiruPlaySettingsSection.METADATA -> if (hasToken) "Token 已设置" else "未设置"
                 }
                 SettingsMenuItem(
                     section = section,
@@ -607,7 +582,7 @@ private fun SettingsMenuPanel(
 
 @Composable
 private fun SettingsMenuItem(
-    section: SettingsSection,
+    section: MiruPlaySettingsSection,
     summary: String,
     selected: Boolean,
     onClick: () -> Unit,
@@ -645,7 +620,7 @@ private fun SettingsMenuItem(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            imageVector = section.icon,
+            imageVector = section.androidTvIcon(),
             contentDescription = null,
             tint = if (selected) AnimeRed else TextSecondary,
             modifier = Modifier.size(28.dp)
@@ -653,7 +628,7 @@ private fun SettingsMenuItem(
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = section.title,
+                text = section.androidTvTitle,
                 style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
                 color = TextPrimary,
                 maxLines = 1
@@ -671,7 +646,7 @@ private fun SettingsMenuItem(
 
 @Composable
 private fun SettingsContent(
-    selectedSection: SettingsSection,
+    selectedSection: MiruPlaySettingsSection,
     sources: List<MediaSourceInfo>,
     selectedSourceId: Long?,
     onSelectSource: (MediaSourceInfo) -> Unit,
@@ -766,7 +741,7 @@ private fun SettingsContent(
     modifier: Modifier = Modifier
 ) {
     when (selectedSection) {
-        SettingsSection.WEB_UI -> SettingsSingleSectionPage(
+        MiruPlaySettingsSection.WEB_UI -> SettingsSingleSectionPage(
             section = selectedSection,
             modifier = modifier
         ) {
@@ -782,7 +757,7 @@ private fun SettingsContent(
             )
         }
 
-        SettingsSection.SOURCES -> Row(
+        MiruPlaySettingsSection.SOURCES -> Row(
             modifier = modifier,
             horizontalArrangement = Arrangement.spacedBy(18.dp)
         ) {
@@ -834,7 +809,7 @@ private fun SettingsContent(
             }
         }
 
-        SettingsSection.AUTOMATION -> SettingsSingleSectionPage(
+        MiruPlaySettingsSection.CLOUD_DRIVE -> SettingsSingleSectionPage(
             section = selectedSection,
             modifier = modifier
         ) {
@@ -891,7 +866,7 @@ private fun SettingsContent(
             )
         }
 
-        SettingsSection.SCAN -> SettingsSingleSectionPage(
+        MiruPlaySettingsSection.SCAN -> SettingsSingleSectionPage(
             section = selectedSection,
             modifier = modifier
         ) {
@@ -906,7 +881,7 @@ private fun SettingsContent(
             )
         }
 
-        SettingsSection.PLAYBACK -> SettingsSingleSectionPage(
+        MiruPlaySettingsSection.PLAYBACK -> SettingsSingleSectionPage(
             section = selectedSection,
             modifier = modifier
         ) {
@@ -916,7 +891,7 @@ private fun SettingsContent(
             )
         }
 
-        SettingsSection.METADATA -> SettingsSingleSectionPage(
+        MiruPlaySettingsSection.METADATA -> SettingsSingleSectionPage(
             section = selectedSection,
             modifier = modifier
         ) {
@@ -934,7 +909,7 @@ private fun SettingsContent(
 
 @Composable
 private fun SettingsSingleSectionPage(
-    section: SettingsSection,
+    section: MiruPlaySettingsSection,
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit
 ) {
@@ -948,25 +923,25 @@ private fun SettingsSingleSectionPage(
 }
 
 @Composable
-private fun SettingsSectionHeader(section: SettingsSection) {
+private fun SettingsSectionHeader(section: MiruPlaySettingsSection) {
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
-                imageVector = section.icon,
+                imageVector = section.androidTvIcon(),
                 contentDescription = null,
                 tint = TextPrimary,
                 modifier = Modifier.size(30.dp)
             )
             Spacer(Modifier.width(10.dp))
             Text(
-                text = section.title,
+                text = section.androidTvTitle,
                 style = TvTypography.title,
                 color = TextPrimary
             )
         }
         Spacer(Modifier.height(4.dp))
         Text(
-            text = section.description,
+            text = section.androidTvDescription,
             style = TvTypography.body,
             color = TextSecondary
         )
