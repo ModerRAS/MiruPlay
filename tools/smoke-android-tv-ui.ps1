@@ -206,6 +206,26 @@ function Wait-UiText {
     throw "Timed out waiting for UI text '$($Needles -join "' or '")'. Current UI: $(Get-UiTextSummary -Xml $lastXml)"
 }
 
+function Wait-UiTexts {
+    param(
+        [string[]]$Needles,
+        [string]$XmlPath,
+        [int]$TimeoutSeconds = 45
+    )
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    $lastXml = $null
+    do {
+        $lastXml = Get-UiXml -Path $XmlPath
+        $missing = @($Needles | Where-Object { -not (Find-UiNode -Xml $lastXml -Needles @($_)) })
+        if ($missing.Count -eq 0) {
+            return $lastXml
+        }
+        Start-Sleep -Milliseconds 900
+    } while ((Get-Date) -lt $deadline)
+
+    throw "Timed out waiting for UI texts '$($Needles -join "', '")'. Current UI: $(Get-UiTextSummary -Xml $lastXml)"
+}
+
 function Assert-UiText {
     param(
         [xml]$Xml,
@@ -453,7 +473,7 @@ Invoke-Adb -Arguments @("push", $fixtureRoot, "/sdcard/Movies/") | Out-Null
 Invoke-Adb -Arguments @("shell", "am", "start", "-W", "-n", $ActivityName, "--es", "test_local_path", $remoteFixtureRoot) | Out-Null
 $xml = Wait-UiText -Needles @($textExplore, $textScan, $textScanMediaLibrary) -XmlPath $libraryXmlPath -TimeoutSeconds 30
 Invoke-UiClick -Xml $xml -Needles @($textScan, $textScanMediaLibrary) -Description "scan"
-$xml = Wait-UiText -Needles @("Fixture Alpha") -XmlPath $libraryXmlPath -TimeoutSeconds 90
+$xml = Wait-UiTexts -Needles @("Fixture Alpha", $textHighestHeat, $textRecentlyAdded) -XmlPath $libraryXmlPath -TimeoutSeconds 120
 Assert-UiText -Xml $xml -Needles @($textExplore, $textHighestHeat, $textRecentlyAdded, "Fixture Alpha") -Description "Library"
 Save-Screenshot -Path $libraryScreenshot
 
