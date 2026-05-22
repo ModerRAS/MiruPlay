@@ -12,6 +12,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
@@ -43,12 +44,22 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        MiruLog.i(
+            "MainActivity",
+            "Main activity created",
+            mapOf(
+                "has_saved_state" to (savedInstanceState != null).toString(),
+                "intent_action" to intent?.action.orEmpty(),
+                "has_test_source" to (intent.getStringExtra("test_local_path") != null).toString(),
+            )
+        )
 
         // Test hook: automatically add a Local source when launched with extra
         val testSourcePath = intent.getStringExtra("test_local_path")
 
         if (testSourcePath != null) {
             lifecycleScope.launch {
+                MiruLog.i("MainActivity", "Adding test local source from launch extra")
                 val source = MediaSourceInfo(
                     name = "Test Local",
                     type = MediaSourceType.LOCAL,
@@ -83,19 +94,37 @@ fun MiruPlayNavigation(
         webControlNavigator.commands.collect { command ->
             val payload = command.payload
             if (command.type == WebControlNavigator.TYPE_OPEN_PLAYER && payload != null) {
-                val source = Json.decodeFromJsonElement<WebPlaybackSource>(payload)
-                val encodedPath = Uri.encode(source.uri)
-                val encodedSource = Uri.encode(source.mediaSourceId)
-                val encodedEpisode = Uri.encode(source.episodeId ?: "")
-                navController.navigate(
-                    NavRoutes.player(
-                        uri = encodedPath,
-                        mediaSourceId = encodedSource,
-                        startPosition = source.startPositionMs,
-                        episodeId = encodedEpisode,
+                runCatching {
+                    val source = Json.decodeFromJsonElement<WebPlaybackSource>(payload)
+                    MiruLog.i(
+                        "MiruPlayNavigation",
+                        "Web control requested player navigation",
+                        mapOf(
+                            "media_source_id" to source.mediaSourceId,
+                            "has_episode_id" to (!source.episodeId.isNullOrBlank()).toString(),
+                            "start_position_ms" to source.startPositionMs.toString(),
+                        )
                     )
-                ) {
-                    launchSingleTop = true
+                    val encodedPath = Uri.encode(source.uri)
+                    val encodedSource = Uri.encode(source.mediaSourceId)
+                    val encodedEpisode = Uri.encode(source.episodeId ?: "")
+                    navController.navigate(
+                        NavRoutes.player(
+                            uri = encodedPath,
+                            mediaSourceId = encodedSource,
+                            startPosition = source.startPositionMs,
+                            episodeId = encodedEpisode,
+                        )
+                    ) {
+                        launchSingleTop = true
+                    }
+                }.onFailure { error ->
+                    MiruLog.e(
+                        "MiruPlayNavigation",
+                        "Failed to handle web control navigation command",
+                        error,
+                        mapOf("command_type" to command.type)
+                    )
                 }
             }
         }
@@ -130,23 +159,45 @@ fun MiruPlayNavigation(
                 onNavigateBack = { navController.popBackStack() },
                 onPlayEpisode = { episode ->
                     scope.launch {
-                        val playableUri = resolvePlayableUri(
-                            path = episode.filePath,
-                            episodeId = episode.id,
-                            mediaRepository = mediaRepository
-                        )
-                        val encodedPath = Uri.encode(playableUri)
-                        val encodedSource = Uri.encode(episode.animeId)
-                        val encodedEpisode = Uri.encode(episode.id)
-                        val startPosition = resumePositionFor(episode, progressRepository)
-                        navController.navigate(
-                            NavRoutes.player(
-                                uri = encodedPath,
-                                mediaSourceId = encodedSource,
-                                startPosition = startPosition,
-                                episodeId = encodedEpisode,
+                        runCatching {
+                            MiruLog.i(
+                                "MiruPlayNavigation",
+                                "Episode playback requested",
+                                mapOf(
+                                    "episode_id" to episode.id,
+                                    "anime_id" to episode.animeId,
+                                    "episode_number" to episode.episodeNumber.toString(),
+                                )
                             )
-                        )
+                            val playableUri = resolvePlayableUri(
+                                path = episode.filePath,
+                                episodeId = episode.id,
+                                mediaRepository = mediaRepository
+                            )
+                            val encodedPath = Uri.encode(playableUri)
+                            val encodedSource = Uri.encode(episode.animeId)
+                            val encodedEpisode = Uri.encode(episode.id)
+                            val startPosition = resumePositionFor(episode, progressRepository)
+                            navController.navigate(
+                                NavRoutes.player(
+                                    uri = encodedPath,
+                                    mediaSourceId = encodedSource,
+                                    startPosition = startPosition,
+                                    episodeId = encodedEpisode,
+                                )
+                            )
+                        }.onFailure { error ->
+                            MiruLog.e(
+                                "MiruPlayNavigation",
+                                "Failed to open episode playback",
+                                error,
+                                mapOf(
+                                    "episode_id" to episode.id,
+                                    "anime_id" to episode.animeId,
+                                    "episode_number" to episode.episodeNumber.toString(),
+                                )
+                            )
+                        }
                     }
                 }
             )

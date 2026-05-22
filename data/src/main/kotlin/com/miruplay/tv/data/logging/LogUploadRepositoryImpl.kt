@@ -82,9 +82,19 @@ class LogUploadRepositoryImpl @Inject constructor(
         when (result) {
             is OtlpLogUploader.UploadResult.Success -> {
                 localLogStore.removeUploaded(records.map { it.id }.toSet())
+                MiruLog.i(
+                    "LogUploadRepository",
+                    "OpenObserve log upload succeeded",
+                    mapOf("uploaded_count" to result.uploadedCount.toString())
+                )
                 updateStatus("已上报 ${result.uploadedCount} 条日志")
             }
             is OtlpLogUploader.UploadResult.Failed -> {
+                MiruLog.w(
+                    "LogUploadRepository",
+                    "OpenObserve log upload failed",
+                    attributes = mapOf("failure_message" to result.message)
+                )
                 updateStatus("上报失败：${result.message}")
             }
         }
