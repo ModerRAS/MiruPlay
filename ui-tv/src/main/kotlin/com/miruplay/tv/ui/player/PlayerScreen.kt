@@ -165,6 +165,12 @@ fun PlayerScreen(
         }
     }
 
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.stopPlaybackWhenLeaving()
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
