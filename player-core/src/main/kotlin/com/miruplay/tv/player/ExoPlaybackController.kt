@@ -205,9 +205,13 @@ class ExoPlaybackController @Inject constructor(
 
     override suspend fun stop() {
         withContext(Dispatchers.Main) {
-            exoPlayer.stop()
             exoPlayer.playWhenReady = false
-            currentSource?.let { _state.value = PlaybackState.Ended(it) }
+            exoPlayer.stop()
+            currentSource = null
+            autoResumeSeekCalled = false
+            availableSubtitles.clear()
+            availableAudioTracks.clear()
+            _state.value = PlaybackState.Idle
         }
     }
 
