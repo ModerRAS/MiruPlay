@@ -124,10 +124,27 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      - name: Prepare release keystore
+        run: |
+          test -n "$KEYSTORE_BASE64"
+          test -n "$KEY_ALIAS"
+          test -n "$KEY_PASSWORD"
+          test -n "$STORE_PASSWORD"
+          printf '%s' "$KEYSTORE_BASE64" \
+            | sed '/^-----BEGIN /d;/^-----END /d' \
+            | tr -d '[:space:]' \
+            | base64 --decode > "$RUNNER_TEMP/miruplay-release.jks"
+          keytool -list -keystore "$RUNNER_TEMP/miruplay-release.jks" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+
       - name: Build release APK
         run: ./gradlew assembleRelease --no-daemon --stacktrace
         env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          RELEASE_STORE_FILE: ${{ runner.temp }}/miruplay-release.jks
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
@@ -137,7 +154,7 @@ jobs:
         if: always()
         with:
           name: miruplay-release-apk-${{ github.run_number }}
-          path: app/build/outputs/apk/release/*.apk
+          path: app/build/outputs/apk/release/*-release.apk
           retention-days: 30
 
   lint:
@@ -232,6 +249,24 @@ jobs:
           echo "version_code=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
           echo "Nightly version: $VERSION_NAME"
 
+      - name: Prepare release keystore
+        if: steps.check_changes.outputs.has_changes == 'true'
+        run: |
+          test -n "$KEYSTORE_BASE64"
+          test -n "$KEY_ALIAS"
+          test -n "$KEY_PASSWORD"
+          test -n "$STORE_PASSWORD"
+          printf '%s' "$KEYSTORE_BASE64" \
+            | sed '/^-----BEGIN /d;/^-----END /d' \
+            | tr -d '[:space:]' \
+            | base64 --decode > "$RUNNER_TEMP/miruplay-release.jks"
+          keytool -list -keystore "$RUNNER_TEMP/miruplay-release.jks" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+
       - name: Build nightly APK
         if: steps.check_changes.outputs.has_changes == 'true'
         run: |
@@ -240,7 +275,7 @@ jobs:
             -PVERSION_CODE=${{ steps.version.outputs.version_code }} \
             --no-daemon --stacktrace
         env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          RELEASE_STORE_FILE: ${{ runner.temp }}/miruplay-release.jks
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
@@ -284,7 +319,7 @@ jobs:
           tag_name: nightly-${{ steps.version.outputs.version_name }}
           name: Nightly ${{ steps.version.outputs.version_name }}
           body_path: release-notes.md
-          files: app/build/outputs/apk/release/*.apk
+          files: app/build/outputs/apk/release/*-release.apk
           prerelease: true
           draft: false
         env:
@@ -295,5 +330,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: miruplay-nightly-${{ steps.version.outputs.version_name }}
-          path: app/build/outputs/apk/release/*.apk
+          path: app/build/outputs/apk/release/*-release.apk
           retention-days: 30

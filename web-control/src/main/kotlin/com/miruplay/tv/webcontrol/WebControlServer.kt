@@ -13,7 +13,6 @@ import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import java.io.FileNotFoundException
-import java.net.URLDecoder
 import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -83,12 +82,12 @@ class WebControlServer @Inject constructor(
                 jsonResponse(ListSerializer(com.miruplay.tv.model.MediaSourceInfo.serializer()), webControlService.listSources())
             }
             session.method == Method.GET && route == "/api/local-directories" -> {
-                val path = session.parameters["path"]?.firstOrNull().orEmpty()
+                val path = session.utf8QueryParameter("path")
                 jsonResponse(LocalDirectoryDto.serializer(), webControlService.browseLocalDirectories(path))
             }
             session.method == Method.GET && route == "/api/cloud-drive/directories" -> {
-                val endpointUrl = session.parameters["endpointUrl"]?.firstOrNull().orEmpty()
-                val path = session.parameters["path"]?.firstOrNull().orEmpty()
+                val endpointUrl = session.utf8QueryParameter("endpointUrl")
+                val path = session.utf8QueryParameter("path")
                 jsonResponse(CloudDriveDirectoryDto.serializer(), webControlService.browseCloudDriveDirectories(endpointUrl, path))
             }
             session.method == Method.POST && route == "/api/sources" -> {
@@ -149,11 +148,11 @@ class WebControlServer @Inject constructor(
                 jsonResponse(Unit.serializer(), Unit)
             }
             session.method == Method.GET && route == "/api/library" -> {
-                val query = session.parameters["query"]?.firstOrNull().orEmpty()
+                val query = session.utf8QueryParameter("query")
                 jsonResponse(LibraryDto.serializer(), webControlService.searchLibrary(query))
             }
             session.method == Method.GET && segments.size == 3 && segments[0] == "api" && segments[1] == "anime" -> {
-                val animeId = decodeSegment(segments[2])
+                val animeId = HttpRequestEncoding.decodeSegment(segments[2])
                 jsonResponse(AnimeDetailDto.serializer(), webControlService.getAnimeDetail(animeId))
             }
             session.method == Method.POST && route == "/api/playback/play" -> {
@@ -251,11 +250,14 @@ class WebControlServer @Inject constructor(
             throw IllegalArgumentException("请求体不能为空")
         }
 
-        return try {
-            json.decodeFromString(serializer, body)
-        } catch (e: SerializationException) {
-            throw IllegalArgumentException("JSON 格式不正确: ${e.message}")
+        for (candidate in HttpRequestEncoding.utf8BodyCandidates(body)) {
+            try {
+                return json.decodeFromString(serializer, candidate)
+            } catch (_: SerializationException) {
+                // Try the next decoding candidate below.
+            }
         }
+        throw IllegalArgumentException("JSON 格式不正确")
     }
 
     private fun addCommonHeaders(response: Response): Response {
@@ -279,8 +281,8 @@ class WebControlServer @Inject constructor(
         else -> "application/octet-stream"
     }
 
-    private fun decodeSegment(segment: String): String =
-        URLDecoder.decode(segment, Charsets.UTF_8.name())
+    private fun IHTTPSession.utf8QueryParameter(name: String): String =
+        HttpRequestEncoding.queryParameter(queryParameterString, parameters, name)
 
     private fun isAuthorized(session: IHTTPSession): Boolean {
         val expected = webControlPreferences.accessToken
