@@ -250,7 +250,7 @@ internal fun CloudRssPanel(
             MiruPlaySettingsSection.LOG_UPLOAD -> SettingsSummaryContent(
                 section = selectedSection,
                 tiles = desktopLogUploadSettingsTiles(),
-                status = "日志上报配置在 Android TV 设置页生效；本地日志会按 OTLP 配置写入上报队列。",
+                status = "日志上报配置在 Android TV 设置页生效；本地日志会按 OpenObserve JSON 配置写入上报队列。",
                 actions = listOf(SettingsQuickAction("打开海报墙", onOpenLibrary)),
                 onFocusSectionMenu = { focusSelectedSectionMenu() },
                 modifier = Modifier.weight(1f),
@@ -2290,9 +2290,9 @@ private fun desktopWebUiSettingsTiles(): List<SettingsSummaryTile> =
 private fun desktopLogUploadSettingsTiles(): List<SettingsSummaryTile> =
     listOf(
         SettingsSummaryTile(
-            label = "OTLP",
-            value = "OpenObserve",
-            detail = "服务器地址和访问令牌由 Android TV 设置页保存。",
+            label = "OpenObserve",
+            value = "JSON",
+            detail = "API 地址、Stream 和访问令牌由 Android TV 设置页保存。",
         ),
         SettingsSummaryTile(
             label = "本地日志",
@@ -2339,7 +2339,7 @@ private fun MiruPlaySettingsSection.menuSummary(
     MiruPlaySettingsSection.PLAYBACK -> playbackSummary
     MiruPlaySettingsSection.CLOUD_DRIVE -> if (cloudEnabled) "$rssCount 个订阅" else "未启用"
     MiruPlaySettingsSection.SCAN -> "媒体库更新"
-    MiruPlaySettingsSection.LOG_UPLOAD -> "OTLP"
+    MiruPlaySettingsSection.LOG_UPLOAD -> "OpenObserve"
     MiruPlaySettingsSection.METADATA -> metadataSummary
     MiruPlaySettingsSection.WEB_UI -> "访问地址"
 }

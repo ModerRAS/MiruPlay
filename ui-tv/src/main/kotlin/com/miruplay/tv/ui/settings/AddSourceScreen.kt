@@ -2642,12 +2642,12 @@ private fun LogUploadPanel(
                 modifier = Modifier.size(26.dp)
             )
             Spacer(Modifier.width(10.dp))
-            Text(text = "OTLP / OpenObserve", style = TvTypography.subtitle, color = TextPrimary)
+            Text(text = "OpenObserve JSON", style = TvTypography.subtitle, color = TextPrimary)
         }
 
         Spacer(Modifier.height(6.dp))
         Text(
-            text = "本地日志会先写入设备文件，再按配置自动上报到 OpenObserve OTLP 日志入口。",
+            text = "本地日志会先写入设备文件，再按配置自动上报到 OpenObserve JSON 日志入口。",
             style = TvTypography.body,
             color = TextSecondary
         )
@@ -2656,7 +2656,7 @@ private fun LogUploadPanel(
         TvTextField(
             value = endpoint,
             onValueChange = onEndpointChange,
-            label = "服务器地址或 /api/{org}/v1/logs",
+            label = "OpenObserve API 地址（例如 /api/{org}）",
             modifier = Modifier.fillMaxWidth()
         )
 
