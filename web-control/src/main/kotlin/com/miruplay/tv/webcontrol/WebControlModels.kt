@@ -5,6 +5,8 @@ import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.RssSubscriptionInfo
+import com.miruplay.tv.repository.LogUploadStatus
+import com.miruplay.tv.repository.OtlpLogUploadConfig
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 
@@ -150,6 +152,65 @@ data class CloudDriveRunResponse(
     val skipped: Int,
     val failed: Int,
     val organized: Int
+)
+
+@Serializable
+data class LogUploadDto(
+    val config: OtlpLogUploadConfigDto,
+    val status: LogUploadStatusDto,
+    val tokenConfigured: Boolean
+)
+
+@Serializable
+data class OtlpLogUploadConfigDto(
+    val enabled: Boolean,
+    val endpoint: String,
+    val streamName: String,
+    val lastUploadAt: Long,
+    val lastUploadStatus: String?
+) {
+    companion object {
+        fun from(config: OtlpLogUploadConfig): OtlpLogUploadConfigDto =
+            OtlpLogUploadConfigDto(
+                enabled = config.enabled,
+                endpoint = config.endpoint,
+                streamName = config.streamName,
+                lastUploadAt = config.lastUploadAt,
+                lastUploadStatus = config.lastUploadStatus
+            )
+    }
+}
+
+@Serializable
+data class LogUploadStatusDto(
+    val pendingCount: Int,
+    val isUploading: Boolean,
+    val lastUploadAt: Long,
+    val lastUploadStatus: String?,
+    val tokenConfigured: Boolean
+) {
+    companion object {
+        fun from(status: LogUploadStatus, tokenConfigured: Boolean = status.tokenConfigured): LogUploadStatusDto =
+            LogUploadStatusDto(
+                pendingCount = status.pendingCount,
+                isUploading = status.isUploading,
+                lastUploadAt = status.lastUploadAt,
+                lastUploadStatus = status.lastUploadStatus,
+                tokenConfigured = tokenConfigured
+            )
+    }
+}
+
+@Serializable
+data class LogUploadConfigRequest(
+    val enabled: Boolean = false,
+    val endpoint: String = "",
+    val streamName: String = "miruplay"
+)
+
+@Serializable
+data class LogUploadTokenRequest(
+    val token: String
 )
 
 @Serializable
