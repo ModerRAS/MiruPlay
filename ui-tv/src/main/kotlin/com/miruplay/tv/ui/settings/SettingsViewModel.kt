@@ -647,7 +647,7 @@ class SettingsViewModel @Inject constructor(
             }
             MiruLog.i(
                 "SettingsViewModel",
-                "OTLP log upload config saved",
+                "OpenObserve log upload config saved",
                 mapOf("enabled" to enabled.toString(), "stream_name" to streamName.trim().ifBlank { "miruplay" })
             )
             if (enabled) {
@@ -659,13 +659,13 @@ class SettingsViewModel @Inject constructor(
     fun clearLogUploadToken() {
         viewModelScope.launch {
             logUploadRepository.clearToken()
-            MiruLog.i("SettingsViewModel", "OTLP log upload token cleared")
+            MiruLog.i("SettingsViewModel", "OpenObserve log upload token cleared")
         }
     }
 
     fun uploadLogsNow() {
         viewModelScope.launch {
-            MiruLog.i("SettingsViewModel", "Manual OTLP log upload requested")
+            MiruLog.i("SettingsViewModel", "Manual OpenObserve log upload requested")
             logUploadRepository.uploadPendingLogs()
         }
     }
