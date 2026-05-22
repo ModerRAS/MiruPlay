@@ -45,6 +45,7 @@ import com.miruplay.tv.design.MiruPlayUiMetrics
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.RssSubscriptionInfo
+import com.miruplay.tv.model.tvLabel
 
 private const val CLOUD_RSS_PREVIEW_LIMIT = 58
 private const val CLOUD_RSS_WIDE_PREVIEW_LIMIT = 86
@@ -2266,7 +2267,7 @@ private fun sourceTypeBreakdown(sources: List<MediaSourceInfo>): String {
     return MediaSourceType.entries
         .mapNotNull { type ->
             val count = sources.count { it.type == type }
-            if (count == 0) null else "${type.settingsLabel()} $count"
+            if (count == 0) null else "${type.tvLabel()} $count"
         }
         .joinToString(" · ")
 }
@@ -2282,13 +2283,6 @@ internal fun desktopLinkedSourceLabel(
     return sources.firstOrNull { it.id == sourceId }?.sourcePickerTitle()
         ?: "缺失媒体源 #$sourceId"
 }
-
-private fun MediaSourceType.settingsLabel(): String =
-    when (this) {
-        MediaSourceType.LOCAL -> "本地"
-        MediaSourceType.WEBDAV -> "WebDAV"
-        MediaSourceType.SMB -> "SMB"
-    }
 
 private fun DesktopSettingsSection.menuSummary(
     sourcesCount: Int,

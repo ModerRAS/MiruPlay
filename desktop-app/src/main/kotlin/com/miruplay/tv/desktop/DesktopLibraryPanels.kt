@@ -50,7 +50,9 @@ import com.miruplay.tv.design.MiruPlayUiMetrics
 import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaPathConventions
+import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.formatFileSize
+import com.miruplay.tv.model.tvLabel
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.displayName
 
@@ -2265,7 +2267,7 @@ internal fun desktopLibraryStatusText(status: String): String =
 private fun desktopLibraryDynamicStatusText(status: String): String? {
     loadedSourceStatusRegex.matchEntire(status)?.let { match ->
         val saved = match.groupValues[1].isNotBlank()
-        val type = match.groupValues[2].desktopSourceTypeLabel()
+        val type = match.groupValues[2].sharedSourceTypeLabel()
         val name = match.groupValues[3]
         return if (saved) {
             "已载入已保存媒体源：$name · $type"
@@ -2274,7 +2276,7 @@ private fun desktopLibraryDynamicStatusText(status: String): String? {
         }
     }
     readySourceStatusRegex.matchEntire(status)?.let { match ->
-        val type = match.groupValues[1].desktopSourceTypeLabel()
+        val type = match.groupValues[1].sharedSourceTypeLabel()
         val sourceType = if (type == "本地") "${type}媒体源" else "$type 媒体源"
         return "${sourceType}已就绪：${match.groupValues[2]}"
     }
@@ -2291,7 +2293,7 @@ private fun desktopLibraryDynamicStatusText(status: String): String? {
         return "已清空媒体源 #${match.groupValues[1]} 的索引。"
     }
     loadingRemoteStatusRegex.matchEntire(status)?.let { match ->
-        return "正在载入 ${match.groupValues[1].desktopSourceTypeLabel()}：${match.groupValues[2]}"
+        return "正在载入 ${match.groupValues[1].sharedSourceTypeLabel()}：${match.groupValues[2]}"
     }
     showingRemoteStatusRegex.matchEntire(status)?.let { match ->
         return "${match.groupValues[2]} 中显示 ${match.groupValues[1]} 个条目。"
@@ -2311,15 +2313,8 @@ private fun desktopLibraryDynamicStatusText(status: String): String? {
     return null
 }
 
-private fun String.desktopSourceTypeLabel(): String =
-    when (this) {
-        "local",
-        "Local",
-        "LOCAL",
-        -> "本地"
-        "WebDAV",
-        "WEBDAV",
-        -> "WebDAV"
-        "SMB" -> "SMB"
-        else -> this
-    }
+private fun String.sharedSourceTypeLabel(): String =
+    runCatching { MediaSourceType.valueOf(uppercase()) }
+        .getOrNull()
+        ?.tvLabel()
+        ?: this

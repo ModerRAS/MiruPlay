@@ -85,6 +85,10 @@ import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.RssSubscriptionInfo
+import com.miruplay.tv.model.defaultSourceName
+import com.miruplay.tv.model.tvLabel
+import com.miruplay.tv.model.tvLocationLabel
+import com.miruplay.tv.model.tvSourceHint
 import com.miruplay.tv.ui.components.OverscanContainer
 import com.miruplay.tv.ui.components.TvButton
 import com.miruplay.tv.ui.components.TvTextField
@@ -2557,13 +2561,7 @@ private fun SettingsPanel(
 }
 
 private fun sourceNameOrDefault(name: String, type: MediaSourceType): String =
-    name.ifBlank {
-        when (type) {
-            MediaSourceType.LOCAL -> "本地下载"
-            MediaSourceType.WEBDAV -> "WebDAV 媒体库"
-            MediaSourceType.SMB -> "SMB 共享"
-        }
-    }
+    name.ifBlank { type.defaultSourceName() }
 
 private fun defaultLocationFor(type: MediaSourceType): String = when (type) {
     MediaSourceType.LOCAL -> DEFAULT_LOCAL_PATH
@@ -2618,23 +2616,11 @@ private fun formatLastScanAt(lastScanAt: Long): String {
 private fun formatTimestamp(timestamp: Long): String =
     SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(timestamp))
 
-private fun MediaSourceType.label(): String = when (this) {
-    MediaSourceType.LOCAL -> "本地"
-    MediaSourceType.WEBDAV -> "WebDAV"
-    MediaSourceType.SMB -> "SMB"
-}
+private fun MediaSourceType.label(): String = tvLabel()
 
-private fun MediaSourceType.hint(): String = when (this) {
-    MediaSourceType.LOCAL -> "设备文件夹"
-    MediaSourceType.WEBDAV -> "HTTP 文件服务"
-    MediaSourceType.SMB -> "局域网共享"
-}
+private fun MediaSourceType.hint(): String = tvSourceHint()
 
-private fun MediaSourceType.locationLabel(): String = when (this) {
-    MediaSourceType.LOCAL -> "媒体文件夹"
-    MediaSourceType.WEBDAV -> "WebDAV 地址"
-    MediaSourceType.SMB -> "SMB 地址"
-}
+private fun MediaSourceType.locationLabel(): String = tvLocationLabel()
 
 private fun MediaSourceType.sourceIcon(): ImageVector = when (this) {
     MediaSourceType.LOCAL -> Icons.Filled.Folder
