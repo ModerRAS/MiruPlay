@@ -88,6 +88,8 @@ import com.miruplay.tv.model.MiruPlaySettingsSection
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.androidTvSettingsSectionOrder
 import com.miruplay.tv.model.defaultSourceName
+import com.miruplay.tv.model.tvDisplayName
+import com.miruplay.tv.model.tvDisplayStatusLabel
 import com.miruplay.tv.model.tvLabel
 import com.miruplay.tv.model.tvLocationLabel
 import com.miruplay.tv.model.tvSourceHint
@@ -1080,7 +1082,7 @@ private fun SourceListItem(
         )
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = source.name.ifBlank { source.type.label() },
+                text = source.tvDisplayName(fallbackName = source.type.tvLabel()),
                 color = TextPrimary,
                 style = TvTypography.body,
                 maxLines = 1,
@@ -1088,7 +1090,7 @@ private fun SourceListItem(
             )
             Spacer(Modifier.height(3.dp))
             Text(
-                text = "${source.type.label()} · ${if (source.isConnected) "可连接" else "待验证"}",
+                text = source.tvDisplayStatusLabel(),
                 color = if (source.isConnected) ProgressGreen else WarningYellow,
                 style = TvTypography.caption
             )
@@ -2044,7 +2046,7 @@ private fun SourceFormPanel(
             TvTextField(
                 value = location,
                 onValueChange = onLocationChange,
-                label = selectedType.locationLabel(),
+                label = selectedType.tvLocationLabel(),
                 modifier = Modifier.fillMaxWidth()
             )
         }
@@ -2188,14 +2190,14 @@ private fun SourceTypeChip(
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            text = type.label(),
+            text = type.tvLabel(),
             style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
             color = TextPrimary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
         Text(
-            text = type.hint(),
+            text = type.tvSourceHint(),
             style = TvTypography.caption,
             color = TextSecondary,
             maxLines = 1,
@@ -2590,12 +2592,6 @@ private fun formatLastScanAt(lastScanAt: Long): String {
 
 private fun formatTimestamp(timestamp: Long): String =
     SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(timestamp))
-
-private fun MediaSourceType.label(): String = tvLabel()
-
-private fun MediaSourceType.hint(): String = tvSourceHint()
-
-private fun MediaSourceType.locationLabel(): String = tvLocationLabel()
 
 private fun MediaSourceType.sourceIcon(): ImageVector = when (this) {
     MediaSourceType.LOCAL -> Icons.Filled.Folder

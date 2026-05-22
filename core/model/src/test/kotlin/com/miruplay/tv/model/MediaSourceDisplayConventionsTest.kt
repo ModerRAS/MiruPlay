@@ -42,4 +42,18 @@ class MediaSourceDisplayConventionsTest {
             MediaSourceInfo(name = "", type = MediaSourceType.LOCAL).tvDisplayLabel(fallbackName = "本地媒体源"),
         )
     }
+
+    @Test
+    fun `media source status label combines shared type and connection copy`() {
+        assertEquals(
+            "WebDAV · 可连接",
+            MediaSourceInfo(name = "Remote", type = MediaSourceType.WEBDAV, isConnected = true)
+                .tvDisplayStatusLabel(),
+        )
+        assertEquals(
+            "SMB · 待验证",
+            MediaSourceInfo(name = "Share", type = MediaSourceType.SMB, isConnected = false)
+                .tvDisplayStatusLabel(),
+        )
+    }
 }
