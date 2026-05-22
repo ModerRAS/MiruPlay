@@ -56,12 +56,48 @@ class MediaSourceInfoConventionsTest {
 
     @Test
     fun `local stores root path`() {
-        val source = MediaSourceInfoConventions.local("Library", "D:/Anime")
+        val source = MediaSourceInfoConventions.local(
+            name = "Library",
+            rootPath = "content://tree/primary%3ADownload",
+            displayName = "Download",
+        )
 
         assertEquals("Library", source.name)
         assertEquals(MediaSourceType.LOCAL, source.type)
-        assertEquals("D:/Anime", source.connectionInfo.getValue("path"))
+        assertEquals("content://tree/primary%3ADownload", source.connectionInfo.getValue("path"))
+        assertEquals("content://tree/primary%3ADownload", source.connectionInfo.getValue("url"))
+        assertEquals("content://tree/primary%3ADownload", source.connectionInfo.getValue("uri"))
+        assertEquals("Download", source.connectionDisplayName())
         assertTrue(source.isConnected)
+    }
+
+    @Test
+    fun `shared connection info helper preserves Android TV form fields`() {
+        val local = MediaSourceInfoConventions.sourceConnectionInfo(
+            type = MediaSourceType.LOCAL,
+            location = " content://tree/primary%3AAnime ",
+            displayName = " Anime ",
+            username = " ignored-user ",
+            password = "secret",
+        )
+        val webDav = MediaSourceInfoConventions.sourceConnectionInfo(
+            type = MediaSourceType.WEBDAV,
+            location = " https://dav.example.test/anime ",
+            username = " alice ",
+            password = "secret",
+        )
+
+        assertEquals("content://tree/primary%3AAnime", local.getValue("url"))
+        assertEquals("content://tree/primary%3AAnime", local.getValue("path"))
+        assertEquals("content://tree/primary%3AAnime", local.getValue("uri"))
+        assertEquals("Anime", local.getValue("displayName"))
+        assertEquals("ignored-user", local.getValue("username"))
+        assertEquals("secret", local.getValue("password"))
+
+        assertEquals("https://dav.example.test/anime", webDav.getValue("url"))
+        assertFalse("path" in webDav)
+        assertFalse("displayName" in webDav)
+        assertEquals("alice", webDav.getValue("username"))
     }
 
     @Test
@@ -92,6 +128,7 @@ class MediaSourceInfoConventionsTest {
         assertEquals("WORKGROUP", source.connectionDomain())
         assertEquals("alice", source.connectionUsername())
         assertEquals("secret", source.connectionPassword())
+        assertEquals("", source.connectionDisplayName())
     }
 
     @Test
