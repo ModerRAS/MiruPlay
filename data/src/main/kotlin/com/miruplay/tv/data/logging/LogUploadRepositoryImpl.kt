@@ -66,8 +66,8 @@ class LogUploadRepositoryImpl @Inject constructor(
         val config = preferences.getConfig()
         val token = credentials.otlpAccessToken.orEmpty()
         if (!config.enabled) return@withContext currentStatus(isUploading = false)
-        if (config.endpoint.isBlank()) return@withContext updateStatus("请填写 OTLP 服务器地址")
-        if (token.isBlank()) return@withContext updateStatus("请填写 OTLP Token")
+        if (config.endpoint.isBlank()) return@withContext updateStatus("请填写 OpenObserve API 地址")
+        if (token.isBlank()) return@withContext updateStatus("请填写 OpenObserve Token")
 
         val records = localLogStore.readBatch(MAX_UPLOAD_BATCH)
         if (records.isEmpty()) return@withContext updateStatus("没有待上报日志")

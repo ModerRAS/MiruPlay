@@ -38,9 +38,9 @@ enum class MiruPlaySettingsSection(
     ),
     LOG_UPLOAD(
         androidTvTitle = "日志上报",
-        androidTvDescription = "OTLP / OpenObserve",
+        androidTvDescription = "OpenObserve JSON",
         desktopTitle = "日志",
-        desktopDescription = "OTLP / OpenObserve",
+        desktopDescription = "OpenObserve JSON",
     ),
     METADATA(
         androidTvTitle = "元数据",

@@ -525,7 +525,7 @@
             <el-card shadow="never" class="panel-card">
               <template #header>
                 <div class="card-header">
-                  <strong>OTLP / OpenObserve</strong>
+                  <strong>OpenObserve JSON</strong>
                   <el-tag :type="logUpload.tokenConfigured ? 'success' : 'info'">
                     {{ logUpload.tokenConfigured ? 'Token 已保存' : '未保存 Token' }}
                   </el-tag>
@@ -545,7 +545,7 @@
                   </span>
                 </div>
 
-                <el-form-item label="OpenObserve 基础地址">
+                <el-form-item label="OpenObserve API 地址">
                   <el-input
                     v-model="logForm.endpoint"
                     placeholder="https://openobserve.example.com/api/default"
@@ -974,7 +974,7 @@ const viewMeta = computed(() => ({
   sources: ['媒体源', '用电脑或手机键盘添加、编辑和扫描媒体源。'],
   automation: ['自动化', '管理 RSS 订阅、CloudDrive2 离线下载和整理入库。'],
   metadata: ['元数据', '配置 Bangumi Token，让收藏和观看进度同步不必在电视上输入。'],
-  logs: ['日志上报', '配置 OTLP / OpenObserve，把本地日志从电视端发送出去。'],
+  logs: ['日志上报', '配置 OpenObserve JSON，把本地日志从电视端发送出去。'],
   remote: ['遥控器', '播放控制、快进快退和进度拖动。']
 }[activeView.value]).reduce((meta, value, index) => {
   if (index === 0) meta.title = value
@@ -997,7 +997,7 @@ const logUploadStatusType = computed(() => {
   if (status.includes('已上报')) return 'success'
   return 'info'
 })
-const normalizedLogEndpoint = computed(() => normalizeOtlpEndpoint(logForm.endpoint))
+const normalizedLogEndpoint = computed(() => normalizeOpenObserveEndpoint(logForm.endpoint))
 const canRunLogUpload = computed(() =>
   Boolean(logForm.enabled && logForm.endpoint.trim() && (logUpload.tokenConfigured || logForm.token.trim()) && !logUpload.status.isUploading)
 )
@@ -1567,42 +1567,58 @@ function logUploadConfigPayload() {
 
 function validateLogUploadConfig(payload) {
   if (payload.enabled && !payload.endpoint) {
-    ElMessage.warning('请填写 OTLP 服务器地址')
+    ElMessage.warning('请填写 OpenObserve API 地址')
     return false
   }
   return true
 }
 
-function normalizeOtlpEndpoint(endpoint) {
+function normalizeOpenObserveEndpoint(endpoint) {
   const raw = String(endpoint || '').trim().replace(/\/+$/g, '')
   if (!raw) return ''
   const withScheme = /^https?:\/\//i.test(raw) ? raw : `http://${raw}`
   try {
     const url = new URL(withScheme)
     const path = url.pathname.replace(/\/+$/g, '')
-    let normalizedPath = path
-    if (path.endsWith('/v1/logs')) {
-      normalizedPath = path
+    const stream = logForm.streamName.trim() || 'miruplay'
+    let streamPath = path
+    if (path.endsWith('/_json')) {
+      streamPath = path
+    } else if (path.endsWith('/v1/logs')) {
+      streamPath = appendOpenObserveStream(path.slice(0, -'/v1/logs'.length), stream)
     } else if (path.endsWith('/v1/log')) {
-      normalizedPath = `${path}s`
+      streamPath = appendOpenObserveStream(path.slice(0, -'/v1/log'.length), stream)
     } else if (!path || path === '/') {
-      normalizedPath = '/api/default/v1/logs'
+      streamPath = `/api/default/${stream}`
     } else if (path === '/api') {
-      normalizedPath = '/api/default/v1/logs'
+      streamPath = `/api/default/${stream}`
     } else if (path.endsWith('/v1')) {
-      normalizedPath = `${path}/logs`
+      streamPath = appendOpenObserveStream(path.slice(0, -'/v1'.length), stream)
+    } else if (isOpenObserveStreamPath(path)) {
+      streamPath = path
     } else if (path.startsWith('/api/')) {
-      normalizedPath = `${path}/v1/logs`
+      streamPath = `${path}/${stream}`
     } else {
-      normalizedPath = `${path}/api/default/v1/logs`
+      streamPath = `${path}/api/default/${stream}`
     }
-    url.pathname = normalizedPath
+    url.pathname = streamPath.endsWith('/_json') ? streamPath : `${streamPath.replace(/\/+$/g, '')}/_json`
     url.search = ''
     url.hash = ''
     return url.toString()
   } catch {
     return withScheme
   }
+}
+
+function appendOpenObserveStream(basePath, stream) {
+  const normalized = String(basePath || '').replace(/\/+$/g, '')
+  if (!normalized) return `/api/default/${stream}`
+  return isOpenObserveStreamPath(normalized) ? normalized : `${normalized}/${stream}`
+}
+
+function isOpenObserveStreamPath(path) {
+  const segments = String(path || '').split('/').filter(Boolean)
+  return segments.length === 3 && segments[0] === 'api'
 }
 
 async function saveLogUploadConfig() {
@@ -1623,7 +1639,7 @@ async function saveLogUploadConfig() {
 
 async function saveLogUploadToken() {
   if (!logForm.token.trim()) {
-    ElMessage.warning('请填写 OTLP Token')
+    ElMessage.warning('请填写 OpenObserve Token')
     return
   }
 
@@ -1634,14 +1650,14 @@ async function saveLogUploadToken() {
       body: JSON.stringify({ token: logForm.token.trim() })
     }))
     logForm.token = ''
-    ElMessage.success('OTLP Token 已保存')
+    ElMessage.success('OpenObserve Token 已保存')
   } finally {
     loading.logUploadToken = false
   }
 }
 
 async function clearLogUploadToken() {
-  await ElMessageBox.confirm('确定清除 OTLP Token？', '清除 Token', {
+  await ElMessageBox.confirm('确定清除 OpenObserve Token？', '清除 Token', {
     confirmButtonText: '清除',
     cancelButtonText: '取消',
     type: 'warning'
@@ -1650,7 +1666,7 @@ async function clearLogUploadToken() {
   loading.logUploadToken = true
   try {
     applyLogUpload(await api('/api/log-upload/token', { method: 'DELETE' }))
-    ElMessage.success('OTLP Token 已清除')
+    ElMessage.success('OpenObserve Token 已清除')
   } finally {
     loading.logUploadToken = false
   }
@@ -1664,7 +1680,7 @@ async function runLogUploadNow() {
     return
   }
   if (!logUpload.tokenConfigured && !logForm.token.trim()) {
-    ElMessage.warning('请先保存 OTLP Token')
+    ElMessage.warning('请先保存 OpenObserve Token')
     return
   }
   if (!logUpload.config || payload.endpoint !== logUpload.config.endpoint || payload.streamName !== logUpload.config.streamName || payload.enabled !== logUpload.config.enabled) {

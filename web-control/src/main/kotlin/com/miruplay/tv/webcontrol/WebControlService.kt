@@ -240,7 +240,7 @@ class WebControlService @Inject constructor(
 
     suspend fun saveLogUploadConfig(request: LogUploadConfigRequest): LogUploadDto {
         if (request.enabled && request.endpoint.isBlank()) {
-            throw IllegalArgumentException("请填写 OTLP 服务器地址")
+            throw IllegalArgumentException("请填写 OpenObserve API 地址")
         }
         logUploadRepository.saveConfig(
             enabled = request.enabled,
@@ -252,7 +252,7 @@ class WebControlService @Inject constructor(
 
     suspend fun saveLogUploadToken(request: LogUploadTokenRequest): LogUploadDto {
         if (request.token.isBlank()) {
-            throw IllegalArgumentException("请填写 OTLP Token")
+            throw IllegalArgumentException("请填写 OpenObserve Token")
         }
         logUploadRepository.saveToken(request.token.trim())
         return getLogUpload()

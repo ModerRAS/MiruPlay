@@ -12,7 +12,7 @@ class SettingsSectionDisplayConventionsTest {
             androidTvSettingsSectionOrder.map { it.androidTvTitle },
         )
         assertEquals(
-            listOf("访问地址与二维码", "本地、WebDAV、SMB", "播完动作", "RSS 离线下载与入库", "媒体库更新策略", "OTLP / OpenObserve", "Bangumi Token"),
+            listOf("访问地址与二维码", "本地、WebDAV、SMB", "播完动作", "RSS 离线下载与入库", "媒体库更新策略", "OpenObserve JSON", "Bangumi Token"),
             androidTvSettingsSectionOrder.map { it.androidTvDescription },
         )
         assertEquals(
@@ -20,7 +20,7 @@ class SettingsSectionDisplayConventionsTest {
             desktopSettingsSectionOrder.map { it.desktopTitle },
         )
         assertEquals(
-            listOf("本地、WebDAV、SMB", "mpv 与 RIFE", "RSS 离线下载与入库", "媒体库更新", "OTLP / OpenObserve", "Bangumi 匹配"),
+            listOf("本地、WebDAV、SMB", "mpv 与 RIFE", "RSS 离线下载与入库", "媒体库更新", "OpenObserve JSON", "Bangumi 匹配"),
             desktopSettingsSectionOrder.map { it.desktopDescription },
         )
     }
