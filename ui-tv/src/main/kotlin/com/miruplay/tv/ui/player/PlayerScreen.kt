@@ -921,6 +921,16 @@ private fun handlePlayerKey(
 
     if (controlsVisible) {
         return when (event.key) {
+            Key.DirectionLeft -> {
+                viewModel.skipBackward()
+                viewModel.showControls()
+                true
+            }
+            Key.DirectionRight -> {
+                viewModel.skipForward()
+                viewModel.showControls()
+                true
+            }
             Key.MediaPlayPause -> {
                 viewModel.togglePlayback()
                 true
