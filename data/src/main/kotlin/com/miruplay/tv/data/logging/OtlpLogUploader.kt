@@ -70,6 +70,7 @@ internal object OtlpLogEndpoint {
         require(raw.isNotBlank()) { "OTLP endpoint is blank" }
         val trimmed = if (raw.startsWith("http://") || raw.startsWith("https://")) raw else "http://$raw"
         if (trimmed.endsWith("/v1/logs")) return trimmed
+        if (trimmed.endsWith("/v1/log")) return "${trimmed}s"
         val uri = URI(trimmed)
         val path = uri.path.orEmpty().trimEnd('/')
         val normalizedPath = when {

@@ -214,6 +214,16 @@ data class LogUploadTokenRequest(
 )
 
 @Serializable
+data class MetadataSettingsDto(
+    val bangumiTokenConfigured: Boolean
+)
+
+@Serializable
+data class BangumiTokenRequest(
+    val token: String
+)
+
+@Serializable
 data class LibraryDto(
     val continueWatching: List<ContinueWatchingDto>,
     val recentlyAdded: List<Anime>,

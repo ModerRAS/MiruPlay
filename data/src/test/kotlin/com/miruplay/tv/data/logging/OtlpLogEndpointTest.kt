@@ -29,6 +29,14 @@ class OtlpLogEndpointTest {
     }
 
     @Test
+    fun `singular log endpoint is corrected to logs endpoint`() {
+        assertEquals(
+            "https://openobserve.example.com/api/miruplay/v1/logs",
+            OtlpLogEndpoint.normalize("https://openobserve.example.com/api/miruplay/v1/log")
+        )
+    }
+
+    @Test
     fun `collector base endpoint appends logs signal`() {
         assertEquals(
             "https://openobserve.example.com/api/miruplay/v1/logs",

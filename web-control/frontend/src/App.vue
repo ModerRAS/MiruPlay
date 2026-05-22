@@ -27,6 +27,10 @@
             <el-icon><Cloudy /></el-icon>
             <span>自动化</span>
           </el-menu-item>
+          <el-menu-item index="metadata">
+            <el-icon><Key /></el-icon>
+            <span>元数据</span>
+          </el-menu-item>
           <el-menu-item index="logs">
             <el-icon><Upload /></el-icon>
             <span>日志上报</span>
@@ -443,6 +447,80 @@
             </el-card>
           </section>
 
+          <section v-show="activeView === 'metadata'" class="metadata-layout">
+            <el-card shadow="never" class="panel-card">
+              <template #header>
+                <div class="card-header">
+                  <strong>Bangumi</strong>
+                  <el-tag :type="metadataSettings.bangumiTokenConfigured ? 'success' : 'info'">
+                    {{ metadataSettings.bangumiTokenConfigured ? 'Token 已保存' : '未保存 Token' }}
+                  </el-tag>
+                </div>
+              </template>
+
+              <el-skeleton v-if="loading.metadata" animated :rows="4" />
+              <el-form v-else label-position="top" class="metadata-form" @submit.prevent>
+                <el-form-item label="Bangumi Access Token">
+                  <el-input
+                    v-model="metadataForm.bangumiToken"
+                    type="password"
+                    show-password
+                    autocomplete="new-password"
+                    placeholder="用于 Bangumi 收藏和观看进度同步"
+                  />
+                </el-form-item>
+
+                <el-alert
+                  type="info"
+                  :closable="false"
+                  show-icon
+                  title="Token 只保存到电视端加密凭据，WebUI 不回显明文。"
+                />
+
+                <div class="form-actions">
+                  <el-button :icon="Key" type="primary" :loading="loading.bangumiToken" @click="saveBangumiToken">
+                    保存 Token
+                  </el-button>
+                  <el-button
+                    type="danger"
+                    plain
+                    :disabled="!metadataSettings.bangumiTokenConfigured"
+                    :loading="loading.bangumiToken"
+                    @click="clearBangumiToken"
+                  >
+                    清除 Token
+                  </el-button>
+                </div>
+              </el-form>
+            </el-card>
+
+            <el-card shadow="never" class="panel-card">
+              <template #header>
+                <div class="card-header">
+                  <strong>元数据状态</strong>
+                  <el-tag :type="metadataSettings.bangumiTokenConfigured ? 'success' : 'warning'">
+                    {{ metadataSettings.bangumiTokenConfigured ? '可同步' : '仅公开数据' }}
+                  </el-tag>
+                </div>
+              </template>
+
+              <div class="log-status-grid">
+                <div class="status-tile">
+                  <span>Bangumi Token</span>
+                  <strong>{{ metadataSettings.bangumiTokenConfigured ? '已配置' : '未配置' }}</strong>
+                </div>
+                <div class="status-tile">
+                  <span>元数据匹配</span>
+                  <strong>可用</strong>
+                </div>
+                <div class="status-tile">
+                  <span>收藏同步</span>
+                  <strong>{{ metadataSettings.bangumiTokenConfigured ? '可用' : '待配置' }}</strong>
+                </div>
+              </div>
+            </el-card>
+          </section>
+
           <section v-show="activeView === 'logs'" class="log-layout">
             <el-card shadow="never" class="panel-card">
               <template #header>
@@ -467,11 +545,14 @@
                   </span>
                 </div>
 
-                <el-form-item label="OTLP 服务器地址">
+                <el-form-item label="OpenObserve 基础地址">
                   <el-input
                     v-model="logForm.endpoint"
-                    placeholder="https://openobserve.example.com/api/default/v1/logs"
+                    placeholder="https://openobserve.example.com/api/default"
                   />
+                  <span v-if="normalizedLogEndpoint" class="endpoint-preview">
+                    实际上报：{{ normalizedLogEndpoint }}
+                  </span>
                 </el-form-item>
 
                 <div class="form-grid">
@@ -786,6 +867,9 @@ const logUpload = reactive({
   },
   tokenConfigured: false
 })
+const metadataSettings = reactive({
+  bangumiTokenConfigured: false
+})
 const playback = reactive({
   state: 'Idle',
   uri: '',
@@ -812,7 +896,9 @@ const loading = reactive({
   logUpload: false,
   logUploadSave: false,
   logUploadToken: false,
-  logUploadRun: false
+  logUploadRun: false,
+  metadata: false,
+  bangumiToken: false
 })
 const sourceForm = reactive({
   id: 0,
@@ -850,6 +936,9 @@ const logForm = reactive({
   streamName: 'miruplay',
   token: ''
 })
+const metadataForm = reactive({
+  bangumiToken: ''
+})
 const localPicker = reactive({ open: false })
 const localBrowser = reactive({
   path: '',
@@ -884,6 +973,7 @@ const viewMeta = computed(() => ({
   library: ['片库', '浏览番剧、选择剧集并投到电视端播放。'],
   sources: ['媒体源', '用电脑或手机键盘添加、编辑和扫描媒体源。'],
   automation: ['自动化', '管理 RSS 订阅、CloudDrive2 离线下载和整理入库。'],
+  metadata: ['元数据', '配置 Bangumi Token，让收藏和观看进度同步不必在电视上输入。'],
   logs: ['日志上报', '配置 OTLP / OpenObserve，把本地日志从电视端发送出去。'],
   remote: ['遥控器', '播放控制、快进快退和进度拖动。']
 }[activeView.value]).reduce((meta, value, index) => {
@@ -907,6 +997,7 @@ const logUploadStatusType = computed(() => {
   if (status.includes('已上报')) return 'success'
   return 'info'
 })
+const normalizedLogEndpoint = computed(() => normalizeOtlpEndpoint(logForm.endpoint))
 const canRunLogUpload = computed(() =>
   Boolean(logForm.enabled && logForm.endpoint.trim() && (logUpload.tokenConfigured || logForm.token.trim()) && !logUpload.status.isUploading)
 )
@@ -944,12 +1035,13 @@ watch(activeView, (view) => {
     loadSources()
     loadCloudDriveAutomation()
   }
+  if (view === 'metadata') loadMetadataSettings()
   if (view === 'logs') loadLogUpload()
   if (view === 'remote') loadPlaybackStatus()
 })
 
 onMounted(async () => {
-  await Promise.all([loadInfo(), loadLibrary(), loadSources(), loadCloudDriveAutomation(), loadLogUpload(), loadPlaybackStatus()])
+  await Promise.all([loadInfo(), loadLibrary(), loadSources(), loadCloudDriveAutomation(), loadMetadataSettings(), loadLogUpload(), loadPlaybackStatus()])
   statusTimer = window.setInterval(loadPlaybackStatus, 2000)
 })
 
@@ -1007,6 +1099,15 @@ async function loadLogUpload() {
   }
 }
 
+async function loadMetadataSettings() {
+  loading.metadata = true
+  try {
+    applyMetadataSettings(await api('/api/metadata'))
+  } finally {
+    loading.metadata = false
+  }
+}
+
 function applyCloudDriveAutomation(data) {
   automation.config = data.config || null
   automation.subscriptions = data.subscriptions || []
@@ -1041,6 +1142,10 @@ function applyLogUpload(data) {
   })
 }
 
+function applyMetadataSettings(data) {
+  metadataSettings.bangumiTokenConfigured = Boolean(data.bangumiTokenConfigured)
+}
+
 async function loadPlaybackStatus() {
   const data = await api('/api/playback/status')
   Object.assign(playback, data)
@@ -1050,6 +1155,7 @@ async function refreshCurrent() {
   if (activeView.value === 'library') await loadLibrary()
   if (activeView.value === 'sources') await loadSources()
   if (activeView.value === 'automation') await Promise.all([loadSources(), loadCloudDriveAutomation()])
+  if (activeView.value === 'metadata') await loadMetadataSettings()
   if (activeView.value === 'logs') await loadLogUpload()
   if (activeView.value === 'remote') await loadPlaybackStatus()
 }
@@ -1467,6 +1573,38 @@ function validateLogUploadConfig(payload) {
   return true
 }
 
+function normalizeOtlpEndpoint(endpoint) {
+  const raw = String(endpoint || '').trim().replace(/\/+$/g, '')
+  if (!raw) return ''
+  const withScheme = /^https?:\/\//i.test(raw) ? raw : `http://${raw}`
+  try {
+    const url = new URL(withScheme)
+    const path = url.pathname.replace(/\/+$/g, '')
+    let normalizedPath = path
+    if (path.endsWith('/v1/logs')) {
+      normalizedPath = path
+    } else if (path.endsWith('/v1/log')) {
+      normalizedPath = `${path}s`
+    } else if (!path || path === '/') {
+      normalizedPath = '/api/default/v1/logs'
+    } else if (path === '/api') {
+      normalizedPath = '/api/default/v1/logs'
+    } else if (path.endsWith('/v1')) {
+      normalizedPath = `${path}/logs`
+    } else if (path.startsWith('/api/')) {
+      normalizedPath = `${path}/v1/logs`
+    } else {
+      normalizedPath = `${path}/api/default/v1/logs`
+    }
+    url.pathname = normalizedPath
+    url.search = ''
+    url.hash = ''
+    return url.toString()
+  } catch {
+    return withScheme
+  }
+}
+
 async function saveLogUploadConfig() {
   const payload = logUploadConfigPayload()
   if (!validateLogUploadConfig(payload)) return
@@ -1542,6 +1680,42 @@ async function runLogUploadNow() {
     ElMessage.success(logUpload.status.lastUploadStatus || '日志上报已执行')
   } finally {
     loading.logUploadRun = false
+  }
+}
+
+async function saveBangumiToken() {
+  if (!metadataForm.bangumiToken.trim()) {
+    ElMessage.warning('请填写 Bangumi Token')
+    return
+  }
+
+  loading.bangumiToken = true
+  try {
+    applyMetadataSettings(await api('/api/metadata/bangumi-token', {
+      method: 'POST',
+      body: JSON.stringify({ token: metadataForm.bangumiToken.trim() })
+    }))
+    metadataForm.bangumiToken = ''
+    ElMessage.success('Bangumi Token 已保存')
+  } finally {
+    loading.bangumiToken = false
+  }
+}
+
+async function clearBangumiToken() {
+  await ElMessageBox.confirm('确定清除 Bangumi Token？', '清除 Token', {
+    confirmButtonText: '清除',
+    cancelButtonText: '取消',
+    type: 'warning'
+  })
+
+  loading.bangumiToken = true
+  try {
+    applyMetadataSettings(await api('/api/metadata/bangumi-token', { method: 'DELETE' }))
+    metadataForm.bangumiToken = ''
+    ElMessage.success('Bangumi Token 已清除')
+  } finally {
+    loading.bangumiToken = false
   }
 }
 

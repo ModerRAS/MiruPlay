@@ -272,6 +272,7 @@ body {
 
 .source-layout,
 .automation-layout,
+.metadata-layout,
 .log-layout,
 .remote-layout {
   display: grid;
@@ -299,6 +300,7 @@ body {
 }
 
 .automation-form,
+.metadata-form,
 .log-form,
 .rss-form,
 .rss-list {
@@ -617,7 +619,7 @@ body {
 
   .nav-menu {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0.4rem;
   }
 
@@ -635,6 +637,7 @@ body {
   .header-actions,
   .source-layout,
   .automation-layout,
+  .metadata-layout,
   .log-layout,
   .remote-layout,
   .local-picker-field,
