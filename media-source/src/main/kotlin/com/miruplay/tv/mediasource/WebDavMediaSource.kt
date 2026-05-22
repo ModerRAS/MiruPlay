@@ -4,6 +4,9 @@ import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.MediaCapabilities
 import com.miruplay.tv.model.MediaSourceInfo
+import com.miruplay.tv.model.connectionPassword
+import com.miruplay.tv.model.connectionUsername
+import com.miruplay.tv.model.remoteUrl
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.*
@@ -43,9 +46,9 @@ class WebDavMediaSource @Inject constructor() : MediaSource {
 
     constructor(info: MediaSourceInfo) : this() {
         this.info = info
-        this.baseUrl = info.connectionInfo["url"] ?: ""
-        this.username = info.connectionInfo["username"] ?: ""
-        this.password = info.connectionInfo["password"] ?: ""
+        this.baseUrl = info.remoteUrl().orEmpty()
+        this.username = info.connectionUsername()
+        this.password = info.connectionPassword()
     }
 
     override val capabilities: MediaCapabilities = MediaCapabilities(

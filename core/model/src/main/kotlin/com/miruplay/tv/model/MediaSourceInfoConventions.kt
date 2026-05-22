@@ -80,6 +80,27 @@ object MediaSourceInfoConventions {
         putIfNotBlank(CONNECTION_PASSWORD, password)
     }
 
+    fun sourceConnectionInfoFromPersistence(
+        type: MediaSourceType,
+        location: String?,
+        username: String?,
+        password: String?,
+        extraConnectionInfo: Map<String, String> = emptyMap(),
+    ): Map<String, String> = buildMap {
+        location?.let { persistedLocation ->
+            put(CONNECTION_URL, persistedLocation)
+            if (type == MediaSourceType.LOCAL) {
+                put(CONNECTION_PATH, persistedLocation)
+                if (persistedLocation.startsWith(CONTENT_SCHEME, ignoreCase = true)) {
+                    put(CONNECTION_URI, persistedLocation)
+                }
+            }
+        }
+        username?.let { put(CONNECTION_USERNAME, it) }
+        password?.let { put(CONNECTION_PASSWORD, it) }
+        extraConnectionInfo.forEach { (key, value) -> put(key, value) }
+    }
+
     fun normalizeSmbRoot(rawUrl: String): String {
         val normalized = rawUrl.trim().replace('\\', '/').trimEnd('/')
         val withScheme = when {
@@ -128,6 +149,12 @@ object MediaSourceInfoConventions {
     const val CONNECTION_DOMAIN = "domain"
     const val CONNECTION_DISPLAY_NAME = "displayName"
     const val CONNECTION_URI = "uri"
+    val PERSISTED_CONNECTION_KEYS: Set<String> = setOf(
+        CONNECTION_URL,
+        CONNECTION_PATH,
+        CONNECTION_USERNAME,
+        CONNECTION_PASSWORD,
+    )
 
     private const val SMB_SCHEME = "smb://"
     private const val HTTP_SCHEME = "http://"
@@ -143,11 +170,20 @@ fun MediaSourceInfo.localRootPath(): String? =
 fun MediaSourceInfo.remoteUrl(): String? =
     connectionInfo[MediaSourceInfoConventions.CONNECTION_URL]
 
+fun MediaSourceInfo.persistenceLocation(): String? =
+    remoteUrl() ?: localRootPath()
+
 fun MediaSourceInfo.connectionUsername(): String =
     connectionInfo[MediaSourceInfoConventions.CONNECTION_USERNAME].orEmpty()
 
 fun MediaSourceInfo.connectionPassword(): String =
     connectionInfo[MediaSourceInfoConventions.CONNECTION_PASSWORD].orEmpty()
+
+fun MediaSourceInfo.connectionPasswordOrNull(): String? =
+    connectionInfo[MediaSourceInfoConventions.CONNECTION_PASSWORD]
+
+fun MediaSourceInfo.hasConnectionPassword(): Boolean =
+    MediaSourceInfoConventions.CONNECTION_PASSWORD in connectionInfo
 
 fun MediaSourceInfo.connectionDomain(): String =
     connectionInfo[MediaSourceInfoConventions.CONNECTION_DOMAIN].orEmpty()

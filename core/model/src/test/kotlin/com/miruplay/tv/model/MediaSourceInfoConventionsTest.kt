@@ -132,12 +132,63 @@ class MediaSourceInfoConventionsTest {
     }
 
     @Test
+    fun `persistence helper restores stored columns plus extra connection fields`() {
+        val local = MediaSourceInfoConventions.sourceConnectionInfoFromPersistence(
+            type = MediaSourceType.LOCAL,
+            location = "content://tree/primary%3AAnime",
+            username = null,
+            password = "secret",
+            extraConnectionInfo = mapOf("displayName" to "Anime"),
+        )
+        val webDav = MediaSourceInfoConventions.sourceConnectionInfoFromPersistence(
+            type = MediaSourceType.WEBDAV,
+            location = "https://dav.example.test/anime",
+            username = "alice",
+            password = null,
+            extraConnectionInfo = mapOf("displayName" to "Ignored"),
+        )
+
+        assertEquals("content://tree/primary%3AAnime", local.getValue("url"))
+        assertEquals("content://tree/primary%3AAnime", local.getValue("path"))
+        assertEquals("content://tree/primary%3AAnime", local.getValue("uri"))
+        assertEquals("secret", local.getValue("password"))
+        assertEquals("Anime", local.getValue("displayName"))
+
+        assertEquals("https://dav.example.test/anime", webDav.getValue("url"))
+        assertEquals("alice", webDav.getValue("username"))
+        assertEquals("Ignored", webDav.getValue("displayName"))
+        assertFalse("path" in webDav)
+        assertFalse("password" in webDav)
+    }
+
+    @Test
+    fun `persistenceLocation prefers url then local fallbacks`() {
+        assertEquals(
+            "https://dav.example.test/anime",
+            source(
+                type = MediaSourceType.WEBDAV,
+                connectionInfo = mapOf("url" to "https://dav.example.test/anime"),
+            ).persistenceLocation(),
+        )
+        assertEquals(
+            "D:/Anime",
+            source(connectionInfo = mapOf("path" to "D:/Anime")).persistenceLocation(),
+        )
+        assertEquals(
+            "content://tree/primary%3AAnime",
+            source(connectionInfo = mapOf("uri" to "content://tree/primary%3AAnime")).persistenceLocation(),
+        )
+    }
+
+    @Test
     fun `credential helpers return blank when absent`() {
         val source = source(connectionInfo = emptyMap())
 
         assertEquals("", source.connectionDomain())
         assertEquals("", source.connectionUsername())
         assertEquals("", source.connectionPassword())
+        assertEquals(null, source.connectionPasswordOrNull())
+        assertFalse(source.hasConnectionPassword())
     }
 
     @Test

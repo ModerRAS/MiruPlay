@@ -4,6 +4,8 @@ import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.localRootPath
+import com.miruplay.tv.model.remoteUrl
 
 suspend fun resolvePlayableUri(
     path: String,
@@ -29,7 +31,7 @@ suspend fun resolvePlayableUri(
     }
 
     return if (source?.type == MediaSourceType.WEBDAV) {
-        MediaPathConventions.joinRemoteUrl(source.connectionInfo["url"].orEmpty(), path)
+        MediaPathConventions.joinRemoteUrl(source.remoteUrl().orEmpty(), path)
     } else {
         path
     }
@@ -38,7 +40,7 @@ suspend fun resolvePlayableUri(
 private fun MediaSourceInfo.matchesPath(path: String): Boolean =
     when (type) {
         MediaSourceType.LOCAL -> {
-            val root = connectionInfo["path"] ?: connectionInfo["url"]
+            val root = localRootPath()
             root != null && (path == root || path.startsWith("${root.trimEnd('/')}/"))
         }
         MediaSourceType.WEBDAV -> path.startsWith("/")
