@@ -44,7 +44,10 @@ import androidx.compose.ui.unit.sp
 import com.miruplay.tv.design.MiruPlayUiMetrics
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.MiruPlaySettingsSection
 import com.miruplay.tv.model.RssSubscriptionInfo
+import com.miruplay.tv.model.desktopSettingsSectionOrder
+import com.miruplay.tv.model.stepDesktopSettingsSection
 import com.miruplay.tv.model.tvLabel
 
 private const val CLOUD_RSS_PREVIEW_LIMIT = 58
@@ -53,23 +56,6 @@ private const val CLOUD_RSS_BADGE_WIDTH_DP = 82
 private const val CLOUD_RSS_BADGE_HEIGHT_DP = 34
 private const val CLOUD_DRIVE_DIRECTORY_PAGE_SIZE = 6
 private const val CLOUD_RSS_SUBSCRIPTION_PAGE_SIZE = 6
-
-internal enum class DesktopSettingsSection(
-    val title: String,
-    val description: String,
-) {
-    Sources("媒体源", "本地、WebDAV、SMB"),
-    Playback("播放", "mpv 与 RIFE"),
-    CloudDrive("云盘", "RSS 离线下载与入库"),
-    Scan("扫描", "媒体库更新"),
-    Metadata("元数据", "Bangumi 匹配"),
-}
-
-internal fun DesktopSettingsSection.step(delta: Int): DesktopSettingsSection? {
-    val sections = DesktopSettingsSection.entries
-    val nextIndex = sections.indexOf(this) + delta
-    return sections.getOrNull(nextIndex)
-}
 
 @Composable
 internal fun CloudRssPanel(
@@ -139,9 +125,9 @@ internal fun CloudRssPanel(
     onOpenDetails: () -> Unit,
     onScanActiveSource: () -> Unit,
 ) {
-    var selectedSection by remember { mutableStateOf(DesktopSettingsSection.Sources) }
+    var selectedSection by remember { mutableStateOf(MiruPlaySettingsSection.SOURCES) }
     val sectionFocusRequesters = remember {
-        DesktopSettingsSection.entries.associateWith { FocusRequester() }
+        desktopSettingsSectionOrder.associateWith { FocusRequester() }
     }
     fun focusSelectedSectionMenu() {
         sectionFocusRequesters[selectedSection]?.requestFocus()
@@ -163,7 +149,7 @@ internal fun CloudRssPanel(
             modifier = Modifier.width(292.dp),
         )
         when (selectedSection) {
-            DesktopSettingsSection.CloudDrive -> CloudRssAutomationContent(
+            MiruPlaySettingsSection.CLOUD_DRIVE -> CloudRssAutomationContent(
                 endpointUrl = endpointUrl,
                 onEndpointUrlChange = onEndpointUrlChange,
                 username = username,
@@ -219,7 +205,7 @@ internal fun CloudRssPanel(
                 onDeleteSubscription = onDeleteSubscription,
                 modifier = Modifier.weight(1f),
             )
-            DesktopSettingsSection.Sources -> SettingsSummaryContent(
+            MiruPlaySettingsSection.SOURCES -> SettingsSummaryContent(
                 section = selectedSection,
                 tiles = sourceSettingsTiles(
                     sources = sources,
@@ -234,7 +220,7 @@ internal fun CloudRssPanel(
                 onFocusSectionMenu = { focusSelectedSectionMenu() },
                 modifier = Modifier.weight(1f),
             )
-            DesktopSettingsSection.Playback -> SettingsSummaryContent(
+            MiruPlaySettingsSection.PLAYBACK -> SettingsSummaryContent(
                 section = selectedSection,
                 tiles = playbackSettingsTiles(
                     playbackSummary = playbackSummary,
@@ -246,7 +232,7 @@ internal fun CloudRssPanel(
                 onFocusSectionMenu = { focusSelectedSectionMenu() },
                 modifier = Modifier.weight(1f),
             )
-            DesktopSettingsSection.Scan -> SettingsSummaryContent(
+            MiruPlaySettingsSection.SCAN -> SettingsSummaryContent(
                 section = selectedSection,
                 tiles = scanSettingsTiles(
                     indexedItemCount = indexedItemCount,
@@ -261,7 +247,7 @@ internal fun CloudRssPanel(
                 onFocusSectionMenu = { focusSelectedSectionMenu() },
                 modifier = Modifier.weight(1f),
             )
-            DesktopSettingsSection.Metadata -> SettingsSummaryContent(
+            MiruPlaySettingsSection.METADATA -> SettingsSummaryContent(
                 section = selectedSection,
                 tiles = metadataSettingsTiles(
                     selectedMediaTitle = selectedMediaTitle,
@@ -270,6 +256,14 @@ internal fun CloudRssPanel(
                 ),
                 status = desktopMetadataSettingsStatus(),
                 actions = listOf(SettingsQuickAction("打开详情", onOpenDetails)),
+                onFocusSectionMenu = { focusSelectedSectionMenu() },
+                modifier = Modifier.weight(1f),
+            )
+            MiruPlaySettingsSection.WEB_UI -> SettingsSummaryContent(
+                section = selectedSection,
+                tiles = desktopWebUiSettingsTiles(),
+                status = "WebUI 保留在 Android TV 端；桌面版使用原生窗口与键盘遥控。",
+                actions = listOf(SettingsQuickAction("打开海报墙", onOpenLibrary)),
                 onFocusSectionMenu = { focusSelectedSectionMenu() },
                 modifier = Modifier.weight(1f),
             )
@@ -1938,14 +1932,14 @@ private fun schedulerStateLabel(state: String): String =
 
 @Composable
 private fun SettingsSectionMenu(
-    selectedSection: DesktopSettingsSection,
-    sectionFocusRequesters: Map<DesktopSettingsSection, FocusRequester>,
+    selectedSection: MiruPlaySettingsSection,
+    sectionFocusRequesters: Map<MiruPlaySettingsSection, FocusRequester>,
     sourcesCount: Int,
     rssCount: Int,
     cloudEnabled: Boolean,
     metadataSummary: String,
     playbackSummary: String,
-    onSectionSelected: (DesktopSettingsSection) -> Unit,
+    onSectionSelected: (MiruPlaySettingsSection) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LaunchedEffect(selectedSection) {
@@ -1956,8 +1950,8 @@ private fun SettingsSectionMenu(
         modifier
             .desktopNavigationKeyHandler { key ->
                 when (key) {
-                    Key.DirectionDown -> selectedSection.step(1)?.let(onSectionSelected) != null
-                    Key.DirectionUp -> selectedSection.step(-1)?.let(onSectionSelected) != null
+                    Key.DirectionDown -> selectedSection.stepDesktopSettingsSection(1)?.let(onSectionSelected) != null
+                    Key.DirectionUp -> selectedSection.stepDesktopSettingsSection(-1)?.let(onSectionSelected) != null
                     else -> false
                 }
             }
@@ -1967,7 +1961,7 @@ private fun SettingsSectionMenu(
         Spacer(Modifier.height(6.dp))
         Text("像 TV 版一样按分类管理桌面能力。", color = TextSecondary, fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp)
         Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
-        DesktopSettingsSection.entries.forEach { section ->
+        desktopSettingsSectionOrder.forEach { section ->
             SettingsSectionMenuRow(
                 section = section,
                 summary = section.menuSummary(
@@ -1988,7 +1982,7 @@ private fun SettingsSectionMenu(
 
 @Composable
 private fun SettingsSectionMenuRow(
-    section: DesktopSettingsSection,
+    section: MiruPlaySettingsSection,
     summary: String,
     selected: Boolean,
     onClick: () -> Unit,
@@ -2028,7 +2022,7 @@ private fun SettingsSectionMenuRow(
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                section.title,
+                section.desktopTitle,
                 color = TextPrimary,
                 fontSize = MiruPlayUiMetrics.ACTION_BUTTON_TEXT_SP.sp,
                 fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
@@ -2059,7 +2053,7 @@ internal fun settingsSectionMenuRowKeyEvent(
 
 @Composable
 private fun SettingsSummaryContent(
-    section: DesktopSettingsSection,
+    section: MiruPlaySettingsSection,
     tiles: List<SettingsSummaryTile>,
     status: String,
     actions: List<SettingsQuickAction>,
@@ -2087,9 +2081,9 @@ private fun SettingsSummaryContent(
         }
     }
     TvPanel(modifier.fillMaxWidth()) {
-        Text(section.title, color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
+        Text(section.desktopTitle, color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(4.dp))
-        Text(section.description, color = TextSecondary, fontSize = MiruPlayUiMetrics.PANEL_BODY_SP.sp)
+        Text(section.desktopDescription, color = TextSecondary, fontSize = MiruPlayUiMetrics.PANEL_BODY_SP.sp)
         Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
         Column(verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
             tiles.chunked(3).forEach { row ->
@@ -2262,6 +2256,25 @@ internal fun metadataSettingsTiles(
         ),
     )
 
+private fun desktopWebUiSettingsTiles(): List<SettingsSummaryTile> =
+    listOf(
+        SettingsSummaryTile(
+            label = "WebUI",
+            value = "Android TV",
+            detail = "二维码和局域网令牌入口由 TV 设置页提供。",
+        ),
+        SettingsSummaryTile(
+            label = "桌面控制",
+            value = "原生窗口",
+            detail = "Windows 版保留键盘/遥控式导航和本机播放控制。",
+        ),
+        SettingsSummaryTile(
+            label = "远程自动化",
+            value = "Cloud/RSS",
+            detail = "CloudDrive2 与 RSS 同步在云盘设置页管理。",
+        ),
+    )
+
 private fun sourceTypeBreakdown(sources: List<MediaSourceInfo>): String {
     if (sources.isEmpty()) return "尚未添加本地、WebDAV 或 SMB 源。"
     return MediaSourceType.entries
@@ -2284,18 +2297,19 @@ internal fun desktopLinkedSourceLabel(
         ?: "缺失媒体源 #$sourceId"
 }
 
-private fun DesktopSettingsSection.menuSummary(
+private fun MiruPlaySettingsSection.menuSummary(
     sourcesCount: Int,
     rssCount: Int,
     cloudEnabled: Boolean,
     metadataSummary: String,
     playbackSummary: String,
 ): String = when (this) {
-    DesktopSettingsSection.Sources -> "$sourcesCount 个源"
-    DesktopSettingsSection.Playback -> playbackSummary
-    DesktopSettingsSection.CloudDrive -> if (cloudEnabled) "$rssCount 个订阅" else "未启用"
-    DesktopSettingsSection.Scan -> "媒体库更新"
-    DesktopSettingsSection.Metadata -> metadataSummary
+    MiruPlaySettingsSection.SOURCES -> "$sourcesCount 个源"
+    MiruPlaySettingsSection.PLAYBACK -> playbackSummary
+    MiruPlaySettingsSection.CLOUD_DRIVE -> if (cloudEnabled) "$rssCount 个订阅" else "未启用"
+    MiruPlaySettingsSection.SCAN -> "媒体库更新"
+    MiruPlaySettingsSection.METADATA -> metadataSummary
+    MiruPlaySettingsSection.WEB_UI -> "访问地址"
 }
 
 @Composable

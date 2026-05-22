@@ -4,7 +4,10 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import com.miruplay.tv.clouddrive.CloudDriveFileInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
+import com.miruplay.tv.model.MiruPlaySettingsSection
 import com.miruplay.tv.model.RssSubscriptionInfo
+import com.miruplay.tv.model.desktopSettingsSectionOrder
+import com.miruplay.tv.model.stepDesktopSettingsSection
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -570,13 +573,25 @@ class DesktopSettingsPanelTest {
     }
 
     @Test
+    fun `desktop settings categories use shared TV section contract`() {
+        assertEquals(
+            listOf("媒体源", "播放", "云盘", "扫描", "元数据"),
+            desktopSettingsSectionOrder.map { it.desktopTitle },
+        )
+        assertEquals(
+            listOf("本地、WebDAV、SMB", "mpv 与 RIFE", "RSS 离线下载与入库", "媒体库更新", "Bangumi 匹配"),
+            desktopSettingsSectionOrder.map { it.desktopDescription },
+        )
+    }
+
+    @Test
     fun `settings category navigation stops at TV list edges`() {
-        assertNull(DesktopSettingsSection.Sources.step(-1))
-        assertEquals(DesktopSettingsSection.Playback, DesktopSettingsSection.Sources.step(1))
-        assertEquals(DesktopSettingsSection.CloudDrive, DesktopSettingsSection.Playback.step(1))
-        assertEquals(DesktopSettingsSection.Playback, DesktopSettingsSection.CloudDrive.step(-1))
-        assertEquals(DesktopSettingsSection.Metadata, DesktopSettingsSection.Scan.step(1))
-        assertNull(DesktopSettingsSection.Metadata.step(1))
+        assertNull(MiruPlaySettingsSection.SOURCES.stepDesktopSettingsSection(-1))
+        assertEquals(MiruPlaySettingsSection.PLAYBACK, MiruPlaySettingsSection.SOURCES.stepDesktopSettingsSection(1))
+        assertEquals(MiruPlaySettingsSection.CLOUD_DRIVE, MiruPlaySettingsSection.PLAYBACK.stepDesktopSettingsSection(1))
+        assertEquals(MiruPlaySettingsSection.PLAYBACK, MiruPlaySettingsSection.CLOUD_DRIVE.stepDesktopSettingsSection(-1))
+        assertEquals(MiruPlaySettingsSection.METADATA, MiruPlaySettingsSection.SCAN.stepDesktopSettingsSection(1))
+        assertNull(MiruPlaySettingsSection.METADATA.stepDesktopSettingsSection(1))
     }
 
     @Test
