@@ -31,19 +31,24 @@ class AnimeFilenameParser @Inject constructor(
     }
     private val vocabDelegate = lazy { readVocab() }
     private val labelsDelegate = lazy { readLabels() }
+    private val maxLengthDelegate = lazy { readConfiguredMaxLength() }
     private val tokenizer by lazy { AnimeFilenameTokenizer(vocabDelegate.value) }
     private val session by sessionDelegate
     private val id2Label by labelsDelegate
+    private val graphMaxLength by maxLengthDelegate
 
     override fun parse(filename: String, maxLength: Int): ParsedAnimeFilename {
         val tokens = tokenizer.tokenize(filename)
         if (tokens.isEmpty()) return ParsedAnimeFilename()
 
-        val available = minOf(tokens.size, maxLength - 2)
+        val graphLength = graphMaxLength
+        val requestedLength = maxLength.takeIf { it > 0 } ?: graphLength
+        val sequenceLength = requestedLength.coerceAtMost(graphLength)
+        val available = minOf(tokens.size, sequenceLength - 2)
         if (available <= 0) return ParsedAnimeFilename()
 
-        val inputIds = LongArray(maxLength) { tokenizer.padTokenId.toLong() }
-        val attentionMask = LongArray(maxLength)
+        val inputIds = LongArray(graphLength) { tokenizer.padTokenId.toLong() }
+        val attentionMask = LongArray(graphLength)
         inputIds[0] = tokenizer.clsTokenId.toLong()
         attentionMask[0] = 1L
 
@@ -53,13 +58,13 @@ class AnimeFilenameParser @Inject constructor(
         }
 
         val sepIndex = available + 1
-        if (sepIndex < maxLength) {
+        if (sepIndex < graphLength) {
             inputIds[sepIndex] = tokenizer.sepTokenId.toLong()
             attentionMask[sepIndex] = 1L
         }
 
-        OnnxTensor.createTensor(environment, LongBuffer.wrap(inputIds), longArrayOf(1L, maxLength.toLong())).use { idsTensor ->
-            OnnxTensor.createTensor(environment, LongBuffer.wrap(attentionMask), longArrayOf(1L, maxLength.toLong())).use { maskTensor ->
+        OnnxTensor.createTensor(environment, LongBuffer.wrap(inputIds), longArrayOf(1L, graphLength.toLong())).use { idsTensor ->
+            OnnxTensor.createTensor(environment, LongBuffer.wrap(attentionMask), longArrayOf(1L, graphLength.toLong())).use { maskTensor ->
                 val inputs = mapOf(
                     "input_ids" to idsTensor,
                     "attention_mask" to maskTensor,
@@ -80,10 +85,58 @@ class AnimeFilenameParser @Inject constructor(
 
     private fun decodeLabelIds(value: Any?, tokenCount: Int): List<Int> {
         val batch = (value as? Array<*>)?.firstOrNull() as? Array<*> ?: return List(tokenCount) { 0 }
-        return (0 until tokenCount).map { tokenIndex ->
-            val logits = batch.getOrNull(tokenIndex + 1) as? FloatArray ?: return@map 0
-            logits.indices.maxByOrNull { logits[it] } ?: 0
+        val emissions = (0 until tokenCount).map { tokenIndex ->
+            batch.getOrNull(tokenIndex + 1) as? FloatArray ?: FloatArray(id2Label.keys.maxOrNull()?.plus(1) ?: 1)
         }
+        return constrainedBioDecode(emissions)
+    }
+
+    private fun constrainedBioDecode(emissions: List<FloatArray>): List<Int> {
+        if (emissions.isEmpty()) return emptyList()
+        val labelCount = emissions.maxOf { it.size }
+        val backpointers = Array(emissions.size) { IntArray(labelCount) }
+        var scores = FloatArray(labelCount) { Float.NEGATIVE_INFINITY }
+
+        for (labelId in 0 until labelCount) {
+            val label = id2Label[labelId] ?: "O"
+            if (!label.startsWith("I-")) {
+                scores[labelId] = emissions[0].getOrElse(labelId) { Float.NEGATIVE_INFINITY }
+            }
+        }
+
+        for (index in 1 until emissions.size) {
+            val nextScores = FloatArray(labelCount) { Float.NEGATIVE_INFINITY }
+            for (labelId in 0 until labelCount) {
+                val label = id2Label[labelId] ?: "O"
+                var bestScore = Float.NEGATIVE_INFINITY
+                var bestPrevious = 0
+                for (previousId in 0 until labelCount) {
+                    val previousLabel = id2Label[previousId] ?: "O"
+                    if (!isAllowedBioTransition(previousLabel, label)) continue
+                    val candidate = scores[previousId]
+                    if (candidate > bestScore) {
+                        bestScore = candidate
+                        bestPrevious = previousId
+                    }
+                }
+                nextScores[labelId] = bestScore + emissions[index].getOrElse(labelId) { Float.NEGATIVE_INFINITY }
+                backpointers[index][labelId] = bestPrevious
+            }
+            scores = nextScores
+        }
+
+        val decoded = IntArray(emissions.size)
+        decoded[decoded.lastIndex] = scores.indices.maxByOrNull { scores[it] } ?: 0
+        for (index in emissions.lastIndex downTo 1) {
+            decoded[index - 1] = backpointers[index][decoded[index]]
+        }
+        return decoded.toList()
+    }
+
+    private fun isAllowedBioTransition(previousLabel: String, label: String): Boolean {
+        if (!label.startsWith("I-")) return true
+        val entity = label.removePrefix("I-")
+        return previousLabel == "B-$entity" || previousLabel == "I-$entity"
     }
 
     private fun postprocess(tokens: List<String>, labels: List<String>): ParsedAnimeFilename {
@@ -120,7 +173,7 @@ class AnimeFilenameParser @Inject constructor(
 
         val title = entities
             .filter { it.first == "TITLE" }
-            .map { it.second.trimDecorations() }
+            .map { it.second.normalizeFieldText() }
             .filter { it.isNotBlank() }
             .joinToString(separator = " ")
             .ifBlank { null }
@@ -129,17 +182,17 @@ class AnimeFilenameParser @Inject constructor(
         var episode: Int? = null
         var group: String? = null
         var resolution: String? = null
-        var source: String? = null
+        val sourceCandidates = mutableListOf<String>()
         var special: String? = null
 
         entities.forEach { (type, text) ->
             when (type) {
                 "SEASON" -> extractNumber(text)?.let { season = it }
                 "EPISODE" -> if (episode == null) episode = extractNumber(text)
-                "GROUP" -> if (group == null) group = text.trimDecorations().ifBlank { null }
+                "GROUP" -> if (group == null) group = text.normalizeFieldText().ifBlank { null }
                 "RESOLUTION" -> resolution = text.trimDecorations().ifBlank { null }
-                "SOURCE" -> source = text.trimDecorations().ifBlank { null }
-                "SPECIAL" -> special = text.trimDecorations().ifBlank { null }
+                "SOURCE" -> sourceCandidates += text
+                "SPECIAL" -> special = text.normalizeFieldText().ifBlank { null }
             }
         }
 
@@ -149,7 +202,7 @@ class AnimeFilenameParser @Inject constructor(
             episode = episode,
             group = group,
             resolution = resolution,
-            source = source,
+            source = chooseThinSource(sourceCandidates),
             special = special,
         )
     }
@@ -174,6 +227,13 @@ class AnimeFilenameParser @Inject constructor(
         }.toMap().ifEmpty { defaultLabels }
     }
 
+    private fun readConfiguredMaxLength(): Int {
+        val config = json.parseToJsonElement(readAssetText(CONFIG_ASSET)).jsonObject
+        return config["max_seq_length"]?.jsonPrimitive?.content?.toIntOrNull()
+            ?: config["max_position_embeddings"]?.jsonPrimitive?.content?.toIntOrNull()
+            ?: MAX_LENGTH
+    }
+
     private fun readAsset(path: String): ByteArray =
         appContext.assets.open(path).use { it.readBytes() }
 
@@ -181,7 +241,38 @@ class AnimeFilenameParser @Inject constructor(
         appContext.assets.open(path).bufferedReader(Charsets.UTF_8).use { it.readText() }
 
     private fun String.trimDecorations(): String =
-        trim().trim('[', ']', '(', ')', '【', '】', '《', '》')
+        trim().trim('[', ']', '(', ')', '【', '】', '《', '》', '（', '）')
+
+    private fun String.normalizeFieldText(): String =
+        trimDecorations().trim(' ', '\t', '-', '_', '.')
+
+    private fun chooseThinSource(sources: List<String>): String? {
+        val cleaned = sources
+            .map { it.normalizeFieldText() }
+            .filter { it.isNotBlank() }
+            .map { normalizeSourceText(it) }
+        if (cleaned.isEmpty()) return null
+        return cleaned.maxWith(compareBy<String> { thinSourcePriority(it) })
+    }
+
+    private fun thinSourcePriority(source: String): Int {
+        val normalized = source.lowercase()
+            .replace("_", "-")
+            .replace(" ", "")
+        if (normalized in highPrioritySources) return 90
+        if (normalized in languageSources) return 70
+        if (normalized in codecSources) return 20
+        return if (source.any { it in "&+/, " }) 40 else 30
+    }
+
+    private fun normalizeSourceText(text: String): String {
+        return text.replace(Regex("""\s+"""), "")
+            .replace(Regex("""(?i)WEB[_ ]?DL"""), "WEB-DL")
+            .replace(Regex("""(?i)WEB[_ ]?Rip"""), "WebRip")
+            .replace(Regex("""(?i)U[_ ]?NEXT"""), "U-NEXT")
+            .replace(Regex("""(?i)AT[_ ]?X"""), "AT-X")
+            .replace("_", "-")
+    }
 
     private class AnimeFilenameTokenizer(private val vocab: Map<String, Int>) {
         val padTokenId: Int = vocab.getValue("[PAD]")
@@ -190,118 +281,18 @@ class AnimeFilenameParser @Inject constructor(
         val sepTokenId: Int = vocab.getValue("[SEP]")
 
         fun tokenize(text: String): List<String> {
-            if (text.isBlank()) return emptyList()
-
-            val placeholders = mutableListOf<String>()
-            var processed = protect(text, bracketRegex, placeholders)
-            processed = protect(processed, formatRegex, placeholders)
-
-            val result = mutableListOf<String>()
-            splitSeparators(processed).forEach { part ->
-                when {
-                    part.isEmpty() -> Unit
-                    part.length == 1 && part[0] in separators -> result += part
-                    part.indexOf(placeholderMarker) >= 0 -> appendPlaceholderPart(part, placeholders, result)
-                    else -> result += splitFragment(part)
-                }
-            }
-            return result
+            if (text.isEmpty()) return emptyList()
+            return text.map { it.toString() }
         }
 
         fun tokenToId(token: String): Int = vocab[token] ?: unkTokenId
-
-        private fun protect(text: String, regex: Regex, placeholders: MutableList<String>): String {
-            val builder = StringBuilder()
-            var lastEnd = 0
-            regex.findAll(text).forEach { match ->
-                builder.append(text, lastEnd, match.range.first)
-                val index = placeholders.size
-                placeholders += match.value
-                builder.append(placeholderMarker).append(index).append(placeholderMarker)
-                lastEnd = match.range.last + 1
-            }
-            builder.append(text, lastEnd, text.length)
-            return builder.toString()
-        }
-
-        private fun splitSeparators(text: String): List<String> {
-            val parts = mutableListOf<String>()
-            val current = StringBuilder()
-            text.forEach { char ->
-                if (char in separators) {
-                    if (current.isNotEmpty()) {
-                        parts += current.toString()
-                        current.clear()
-                    }
-                    parts += char.toString()
-                } else {
-                    current.append(char)
-                }
-            }
-            if (current.isNotEmpty()) parts += current.toString()
-            return parts
-        }
-
-        private fun appendPlaceholderPart(part: String, placeholders: List<String>, result: MutableList<String>) {
-            var lastEnd = 0
-            placeholderRegex.findAll(part).forEach { match ->
-                if (match.range.first > lastEnd) {
-                    result += splitFragment(part.substring(lastEnd, match.range.first))
-                }
-                val index = match.groupValues[1].toIntOrNull()
-                val placeholder = index?.let { placeholders.getOrNull(it) }
-                if (placeholder != null) result += placeholder
-                lastEnd = match.range.last + 1
-            }
-            if (lastEnd < part.length) {
-                result += splitFragment(part.substring(lastEnd))
-            }
-        }
-
-        private fun splitFragment(fragment: String): List<String> {
-            val tokens = mutableListOf<String>()
-            var index = 0
-            while (index < fragment.length) {
-                val char = fragment[index]
-                when {
-                    char.isCjkOrKana() -> {
-                        tokens += char.toString()
-                        index += 1
-                    }
-                    char.isAsciiLetter() -> {
-                        val start = index
-                        while (index < fragment.length && fragment[index].isAsciiLetter()) index += 1
-                        tokens += fragment.substring(start, index)
-                    }
-                    char.isDigit() -> {
-                        val start = index
-                        while (index < fragment.length && fragment[index].isDigit()) index += 1
-                        tokens += fragment.substring(start, index)
-                    }
-                    else -> {
-                        tokens += char.toString()
-                        index += 1
-                    }
-                }
-            }
-            return tokens
-        }
-
-        private fun Char.isAsciiLetter(): Boolean = code in 0..127 && isLetter()
-
-        private fun Char.isCjkOrKana(): Boolean =
-            code in 0x4E00..0x9FFF ||
-                code in 0x3400..0x4DBF ||
-                code in 0x3040..0x309F ||
-                code in 0x30A0..0x30FF
     }
 
     private companion object {
-        private const val MAX_LENGTH = 64
+        private const val MAX_LENGTH = 128
         private const val MODEL_ASSET = "anime_parser/anime_filename_parser.onnx"
         private const val VOCAB_ASSET = "anime_parser/vocab.json"
         private const val CONFIG_ASSET = "anime_parser/config.json"
-        private const val placeholderMarker = '\u0000'
 
         private val numberRegex = Regex("""(\d+)""")
         private val chineseNumbers = mapOf(
@@ -334,50 +325,65 @@ class AnimeFilenameParser @Inject constructor(
             14 to "I-SOURCE",
         )
 
-        private val separators = setOf(' ', '-', '_', '|', '～', '~', '.')
-        private val placeholderRegex = Regex("$placeholderMarker(\\d+)$placeholderMarker")
-        private val bracketRegex = Regex("""\[[^\]]*\]|\([^)]*\)|【[^】]*】|《[^》]*》""")
-        private val formatRegex = Regex(
-            listOf(
-                """\d{3,4}[pP]""",
-                """\d{3,4}[xX×]\d{3,4}""",
-                """\d[Kk]""",
-                """[xX]26[45]""",
-                """HEVC""",
-                """AVC""",
-                """AV1""",
-                """[hH]\.?26[45]""",
-                """FLAC""",
-                """AAC""",
-                """MP3""",
-                """DTS""",
-                """Opus""",
-                """Seasons?\s*\d+""",
-                """第[一二三四五六七八九十\d]+季""",
-                """\d+[sn][dt]\s+Season""",
-                """[Ss]\d+""",
-                """[Ee][Pp]?\d+""",
-                """#\d+""",
-                """第\d+[话話]""",
-                """\d+[Vv]\d*""",
-                """CH[ST]""",
-                """简[体體]""",
-                """繁[体體]""",
-                """JP""",
-                """GB""",
-                """BIG5""",
-                """简日双语""",
-                """WEB[-_]?DL""",
-                """BDRip""",
-                """DVDRip""",
-                """TVRip""",
-                """Baha""",
-                """Netflix""",
-                """AMZN""",
-                """CR""",
-                """WebRip""",
-                """\d+:\d+""",
-            ).joinToString("|"),
+        private val highPrioritySources = setOf(
+            "nf",
+            "netflix",
+            "amzn",
+            "baha",
+            "cr",
+            "abema",
+            "dsnp",
+            "u-next",
+            "hulu",
+            "at-x",
+            "web-dl",
+            "webdl",
+            "webrip",
+            "web-rip",
+            "bdrip",
+            "bluray",
+            "bdmv",
+            "bd",
+            "dvdrip",
+            "dvd",
+            "tvrip",
+            "hdtv",
+        )
+        private val languageSources = setOf(
+            "chs",
+            "cht",
+            "gb",
+            "big5",
+            "jpn",
+            "jp",
+            "jpsc",
+            "jptc",
+            "繁中",
+            "简中",
+        )
+        private val codecSources = setOf(
+            "x264",
+            "x265",
+            "h.264",
+            "h264",
+            "h.265",
+            "h265",
+            "hevc",
+            "avc",
+            "av1",
+            "aac",
+            "flac",
+            "mp3",
+            "dts",
+            "opus",
+            "10bit",
+            "8bit",
+            "hi10p",
+            "ma10p",
+            "srt",
+            "srtx2",
+            "ass",
+            "assx2",
         )
     }
 }

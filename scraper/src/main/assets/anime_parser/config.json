@@ -50,15 +50,15 @@
   },
   "layer_norm_eps": 1e-12,
   "max_position_embeddings": 128,
-  "max_seq_length": 64,
+  "max_seq_length": 128,
   "model_type": "bert",
   "num_attention_heads": 8,
   "num_hidden_layers": 4,
   "pad_token_id": 0,
   "tie_word_embeddings": true,
-  "tokenizer_variant": "regex",
-  "transformers_version": "5.8.0",
+  "tokenizer_variant": "char",
+  "transformers_version": "5.8.1",
   "type_vocab_size": 2,
   "use_cache": false,
-  "vocab_size": 3000
+  "vocab_size": 6199
 }
