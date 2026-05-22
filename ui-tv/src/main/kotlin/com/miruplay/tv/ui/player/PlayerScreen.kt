@@ -1,5 +1,9 @@
 package com.miruplay.tv.ui.player
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.view.WindowManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -40,6 +44,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -60,6 +65,7 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -102,6 +108,8 @@ fun PlayerScreen(
     val availableAudioTracks by viewModel.availableAudioTracks.collectAsStateWithLifecycle()
     val playbackSpeed by viewModel.playbackSpeed.collectAsStateWithLifecycle()
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
+    val keepScreenOn = playbackState.keepsScreenOn()
+    val view = LocalView.current
     val playerFocusRequester = remember { FocusRequester() }
     val currentPlaybackSource = activePlaybackSource ?: playbackSource
     val title = remember(currentPlaybackSource) { currentPlaybackSource.displayTitle() }
@@ -139,6 +147,21 @@ fun PlayerScreen(
         if (controlsVisible && openMenu == null && playbackState is PlaybackState.Playing) {
             delay(4200)
             viewModel.hideControls()
+        }
+    }
+
+    DisposableEffect(view, keepScreenOn) {
+        val window = view.context.findActivity()?.window
+        if (keepScreenOn) {
+            view.keepScreenOn = true
+            window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            view.keepScreenOn = false
+            window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+        onDispose {
+            view.keepScreenOn = false
+            window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
     }
 
@@ -259,6 +282,17 @@ fun PlayerScreen(
             )
         }
     }
+}
+
+private fun PlaybackState.keepsScreenOn(): Boolean =
+    this is PlaybackState.Loading ||
+        this is PlaybackState.Playing ||
+        this is PlaybackState.Buffering
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 @Composable
