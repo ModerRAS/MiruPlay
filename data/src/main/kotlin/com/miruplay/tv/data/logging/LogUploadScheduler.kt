@@ -26,7 +26,15 @@ class LogUploadScheduler @Inject constructor(
     }
 
     fun startIfNeeded() {
-        if (job?.isActive == true) return
+        if (job?.isActive == true) {
+            MiruLog.d("LogUploadScheduler", "Log upload scheduler already running")
+            return
+        }
+        MiruLog.i(
+            "LogUploadScheduler",
+            "Log upload scheduler started",
+            mapOf("upload_interval_ms" to UPLOAD_INTERVAL_MS.toString())
+        )
         job = scope.launch {
             while (isActive) {
                 repository.uploadPendingLogs()
@@ -36,6 +44,7 @@ class LogUploadScheduler @Inject constructor(
     }
 
     override fun close() {
+        MiruLog.i("LogUploadScheduler", "Log upload scheduler stopped")
         job?.cancel()
         job = null
     }
