@@ -105,7 +105,11 @@ jobs:
           test -n "$KEY_ALIAS"
           test -n "$KEY_PASSWORD"
           test -n "$STORE_PASSWORD"
-          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/miruplay-release.jks"
+          printf '%s' "$KEYSTORE_BASE64" \
+            | sed '/^-----BEGIN /d;/^-----END /d' \
+            | tr -d '[:space:]' \
+            | base64 --decode > "$RUNNER_TEMP/miruplay-release.jks"
+          keytool -list -keystore "$RUNNER_TEMP/miruplay-release.jks" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
@@ -229,7 +233,11 @@ jobs:
           test -n "$KEY_ALIAS"
           test -n "$KEY_PASSWORD"
           test -n "$STORE_PASSWORD"
-          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/miruplay-release.jks"
+          printf '%s' "$KEYSTORE_BASE64" \
+            | sed '/^-----BEGIN /d;/^-----END /d' \
+            | tr -d '[:space:]' \
+            | base64 --decode > "$RUNNER_TEMP/miruplay-release.jks"
+          keytool -list -keystore "$RUNNER_TEMP/miruplay-release.jks" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
