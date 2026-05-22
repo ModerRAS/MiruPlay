@@ -6,6 +6,7 @@ import com.miruplay.tv.clouddrive.CloudDriveEndpoint
 import com.miruplay.tv.clouddrive.CloudDriveTokenInfo
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.model.CloudDriveRssRunSummary
 import com.miruplay.tv.model.RssDownloadStatus
 import com.miruplay.tv.model.RssDownloadTaskInfo
@@ -72,6 +73,15 @@ class CloudDriveRssAutomationEngine @Inject constructor(
             ?: return@withContext Result.failure(AppError.MediaSourceError.AuthenticationFailed("CloudDrive2"))
         val endpoint = CloudDriveEndpoint(config.endpointUrl, token)
         val subscriptions = repository.listEnabledSubscriptions().getOrNull().orEmpty()
+        MiruLog.i(
+            "CloudDriveRss",
+            "CloudDrive RSS run started",
+            mapOf(
+                "subscription_count" to subscriptions.size.toString(),
+                "inbox_path" to inboxPath,
+                "library_path" to libraryPath
+            )
+        )
 
         var submitted = 0
         var skipped = 0
@@ -108,6 +118,15 @@ class CloudDriveRssAutomationEngine @Inject constructor(
                 if (preparedSubmissionUrl is Result.Error) {
                     failed += 1
                     Log.w("CloudDriveRss", "Prepare failed: ${item.title}: ${preparedSubmissionUrl.error}")
+                    MiruLog.w(
+                        "CloudDriveRss",
+                        "RSS item preparation failed",
+                        attributes = mapOf(
+                            "title" to item.title,
+                            "error_type" to preparedSubmissionUrl.error::class.simpleName.orEmpty(),
+                            "error_message" to preparedSubmissionUrl.error.toUserMessage()
+                        )
+                    )
                     return@forEach
                 }
 
@@ -139,6 +158,15 @@ class CloudDriveRssAutomationEngine @Inject constructor(
                     .onError { error ->
                         failed += 1
                         Log.w("CloudDriveRss", "Submit failed: ${item.title}: $error")
+                        MiruLog.w(
+                            "CloudDriveRss",
+                            "RSS item submit failed",
+                            attributes = mapOf(
+                                "title" to item.title,
+                                "error_type" to error::class.simpleName.orEmpty(),
+                                "error_message" to error.toUserMessage()
+                            )
+                        )
                     }
             }
             repository.markSubscriptionChecked(subscription.id, System.currentTimeMillis())
@@ -151,14 +179,23 @@ class CloudDriveRssAutomationEngine @Inject constructor(
         }
         repository.updateLastRunAt(System.currentTimeMillis())
 
-        Result.success(
-            CloudDriveRssRunSummary(
-                submitted = submitted,
-                skipped = skipped,
-                failed = failed,
-                organized = organized
+        val summary = CloudDriveRssRunSummary(
+            submitted = submitted,
+            skipped = skipped,
+            failed = failed,
+            organized = organized
+        )
+        MiruLog.i(
+            "CloudDriveRss",
+            "CloudDrive RSS run finished",
+            mapOf(
+                "submitted" to summary.submitted.toString(),
+                "skipped" to summary.skipped.toString(),
+                "failed" to summary.failed.toString(),
+                "organized" to summary.organized.toString()
             )
         )
+        Result.success(summary)
     }
 
     suspend fun runIfDue(): Result<CloudDriveRssRunSummary?> {

@@ -2,6 +2,7 @@ package com.miruplay.tv.scanner
 
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.mediasource.MediaSource
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.metadata.NfoWriteOptions
@@ -94,6 +95,16 @@ class ScanCoordinator @Inject constructor(
 
         // Report starting
         progressCallback?.onProgress(sourceInfo.name, 0, 0)
+        MiruLog.i(
+            "ScanCoordinator",
+            "Scanning source",
+            mapOf(
+                "source_id" to sourceId.toString(),
+                "source_name" to sourceInfo.name,
+                "source_type" to sourceInfo.type.name,
+                "root_path" to rootPath
+            )
+        )
 
         // Single recursive traversal: build index + parse NFOs
         val detector = DefaultEpisodeDetector()
@@ -186,6 +197,16 @@ class ScanCoordinator @Inject constructor(
 
         // Report done
         Log.d("ScanCoordinator", "Scan done: ${sourceInfo.name} -> $totalFiles files, $newEpisodes new episodes")
+        MiruLog.i(
+            "ScanCoordinator",
+            "Source scan done",
+            mapOf(
+                "source_id" to sourceId.toString(),
+                "source_name" to sourceInfo.name,
+                "files" to totalFiles.toString(),
+                "new_episodes" to newEpisodes.toString()
+            )
+        )
 
         Result.success(ScanResult(
             animeName = if (isLocalSource) sourceInfo.displayNameOrPath(rootPath) else sourceInfo.name,
@@ -246,6 +267,12 @@ class ScanCoordinator @Inject constructor(
             OnlineMetadata(anime, enrichedEpisodes)
         } catch (e: Exception) {
             Log.w("ScanCoordinator", "Bangumi metadata enrichment failed for $animeName", e)
+            MiruLog.w(
+                "ScanCoordinator",
+                "Bangumi metadata enrichment failed",
+                e,
+                mapOf("anime_name" to animeName)
+            )
             OnlineMetadata(null, episodes)
         }
     }
@@ -313,6 +340,11 @@ class ScanCoordinator @Inject constructor(
                 // Belt-and-suspenders: if file.path escapes root boundary, skip it
                 if (rootPath != null && !isWithinRoot(file.path, rootPath)) {
                     Log.w("ScanCoordinator", "Path escaped root boundary: ${file.path} (root=$rootPath), skipping")
+                    MiruLog.w(
+                        "ScanCoordinator",
+                        "Path escaped root boundary",
+                        attributes = mapOf("path" to file.path, "root_path" to rootPath)
+                    )
                     continue
                 }
 
@@ -355,6 +387,12 @@ class ScanCoordinator @Inject constructor(
             }
         } catch (e: Exception) {
             Log.w("ScanCoordinator", "Error traversing path: $path", e)
+            MiruLog.w(
+                "ScanCoordinator",
+                "Error traversing path",
+                e,
+                mapOf("path" to path)
+            )
         }
     }
 
@@ -439,6 +477,12 @@ class ScanCoordinator @Inject constructor(
             }
         } catch (e: Exception) {
             Log.w("ScanCoordinator", "Error parsing NFO: $nfoPath", e)
+            MiruLog.w(
+                "ScanCoordinator",
+                "Error parsing NFO",
+                e,
+                mapOf("nfo_path" to nfoPath)
+            )
         }
     }
 
@@ -461,6 +505,14 @@ class ScanCoordinator @Inject constructor(
                     generatedNfoWriter.writeTvShowNfo(tvshowPath.absolutePath, anime.toTvShowNfoMetadata())
                         .onError { error ->
                             Log.w("ScanCoordinator", "Failed to generate tvshow.nfo for ${anime.id}: $error")
+                            MiruLog.w(
+                                "ScanCoordinator",
+                                "Failed to generate tvshow.nfo",
+                                attributes = mapOf(
+                                    "anime_id" to anime.id,
+                                    "error" to error.toUserMessage()
+                                )
+                            )
                         }
                 }
             }
@@ -478,6 +530,14 @@ class ScanCoordinator @Inject constructor(
                 episode.toNfoMetadata(anime)
             ).onError { error ->
                 Log.w("ScanCoordinator", "Failed to generate episode NFO for ${episode.id}: $error")
+                MiruLog.w(
+                    "ScanCoordinator",
+                    "Failed to generate episode NFO",
+                    attributes = mapOf(
+                        "episode_id" to episode.id,
+                        "error" to error.toUserMessage()
+                    )
+                )
             }
         }
     }
