@@ -13,8 +13,10 @@ import com.miruplay.tv.data.preferences.PlaybackPreferencesManager
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.MediaSourceInfo
+import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.RssSubscriptionInfo
+import com.miruplay.tv.model.connectionPassword
 import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.MediaSourceRepository
@@ -136,12 +138,12 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             val existing = mediaRepository.getSourceById(source.id).getOrNull()
             val mergedSource = if (
-                "password" !in source.connectionInfo &&
-                existing?.connectionInfo?.containsKey("password") == true
+                MediaSourceInfoConventions.CONNECTION_PASSWORD !in source.connectionInfo &&
+                existing?.connectionPassword()?.isNotBlank() == true
             ) {
                 source.copy(
                     connectionInfo = source.connectionInfo + (
-                        "password" to existing.connectionInfo.getValue("password")
+                        MediaSourceInfoConventions.CONNECTION_PASSWORD to existing.connectionPassword()
                     ),
                     isConnected = existing.isConnected,
                     lastScanned = existing.lastScanned
@@ -172,11 +174,12 @@ class SettingsViewModel @Inject constructor(
             val info = MediaSourceInfo(
                 name = "test",
                 type = type,
-                connectionInfo = buildMap {
-                    put("url", url)
-                    if (username.isNotBlank()) put("username", username)
-                    if (password.isNotBlank()) put("password", password)
-                }
+                connectionInfo = MediaSourceInfoConventions.sourceConnectionInfo(
+                    type = type,
+                    location = url,
+                    username = username,
+                    password = password,
+                )
             )
             val sourceResult = mediaSourceFactory.create(info)
             sourceResult.onSuccess { ms ->

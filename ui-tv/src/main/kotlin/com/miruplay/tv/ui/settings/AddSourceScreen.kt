@@ -83,11 +83,15 @@ import androidx.tv.material3.Text
 import com.miruplay.tv.data.preferences.PlaybackEndAction
 import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.model.MediaSourceInfo
+import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.MiruPlaySettingsSection
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.androidTvSettingsSectionOrder
+import com.miruplay.tv.model.connectionDisplayName
+import com.miruplay.tv.model.connectionUsername
 import com.miruplay.tv.model.defaultSourceName
+import com.miruplay.tv.model.sourceLocation
 import com.miruplay.tv.model.tvDisplayName
 import com.miruplay.tv.model.tvDisplayStatusLabel
 import com.miruplay.tv.model.tvLabel
@@ -243,10 +247,11 @@ fun AddSourceScreen(
         selectedSection = MiruPlaySettingsSection.SOURCES
         selectedType = source.type
         name = source.name.ifBlank { sourceNameOrDefault("", source.type) }
-        location = source.locationValue()
-        locationDisplayName = source.connectionInfo["displayName"]
-            ?: if (source.type == MediaSourceType.LOCAL) displayNameForTreeUri(Uri.parse(location)) else ""
-        username = source.connectionInfo["username"].orEmpty()
+        location = source.sourceLocation().orEmpty()
+        locationDisplayName = source.connectionDisplayName().ifBlank {
+            if (source.type == MediaSourceType.LOCAL) displayNameForTreeUri(Uri.parse(location)) else ""
+        }
+        username = source.connectionUsername()
         password = ""
         viewModel.clearTestResult()
     }
@@ -256,7 +261,7 @@ fun AddSourceScreen(
             id = editingSourceId ?: 0L,
             name = sourceNameOrDefault(name, selectedType),
             type = selectedType,
-            connectionInfo = sourceConnectionInfo(
+            connectionInfo = MediaSourceInfoConventions.sourceConnectionInfo(
                 type = selectedType,
                 location = location,
                 displayName = locationDisplayName,
@@ -1041,7 +1046,7 @@ private fun SourceListItem(
     val itemFocusRequester = remember { FocusRequester() }
     val deleteFocusRequester = remember { FocusRequester() }
     val isFocused by interactionSource.collectIsFocusedAsState()
-    val location = source.connectionInfo["url"] ?: source.connectionInfo["path"] ?: ""
+    val location = source.sourceLocation().orEmpty()
     val background = when {
         isFocused -> AccentBlue
         selected -> AnimeRed.copy(alpha = 0.18f)
@@ -1759,7 +1764,7 @@ private fun CloudDriveWebDavSourceSelector(
                 )
                 sources.take(3).forEach { source ->
                     CloudDriveWebDavSourceChip(
-                        text = source.name.ifBlank { source.connectionInfo["url"].orEmpty() },
+                        text = source.tvDisplayName(fallbackName = source.sourceLocation().orEmpty()),
                         selected = source.id == selectedSourceId,
                         onClick = { onSelected(source.id) },
                         modifier = Modifier.weight(1f)
@@ -2546,25 +2551,6 @@ private fun defaultLocationFor(type: MediaSourceType): String = when (type) {
     MediaSourceType.SMB -> "smb://"
 }
 
-private fun sourceConnectionInfo(
-    type: MediaSourceType,
-    location: String,
-    displayName: String,
-    username: String,
-    password: String
-): Map<String, String> = buildMap {
-    put("url", location.trim())
-    if (type == MediaSourceType.LOCAL) {
-        put("path", location.trim())
-        if (location.startsWith("content://")) {
-            put("uri", location.trim())
-        }
-        if (displayName.isNotBlank()) put("displayName", displayName.trim())
-    }
-    if (username.isNotBlank()) put("username", username.trim())
-    if (password.isNotBlank()) put("password", password)
-}
-
 private fun createQrCodeMatrix(content: String): BitMatrix? {
     if (content.isBlank()) return null
     return runCatching {
@@ -2581,9 +2567,6 @@ private fun createQrCodeMatrix(content: String): BitMatrix? {
         )
     }.getOrNull()
 }
-
-private fun MediaSourceInfo.locationValue(): String =
-    connectionInfo["uri"] ?: connectionInfo["url"] ?: connectionInfo["path"] ?: ""
 
 private fun formatLastScanAt(lastScanAt: Long): String {
     if (lastScanAt <= 0L) return "还没有扫描记录"

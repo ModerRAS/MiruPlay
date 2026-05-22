@@ -4,12 +4,17 @@ object MediaSourceInfoConventions {
     fun local(
         name: String,
         rootPath: String,
+        displayName: String = "",
         isConnected: Boolean = true,
     ): MediaSourceInfo =
         MediaSourceInfo(
             name = name,
             type = MediaSourceType.LOCAL,
-            connectionInfo = mapOf(CONNECTION_PATH to rootPath),
+            connectionInfo = sourceConnectionInfo(
+                type = MediaSourceType.LOCAL,
+                location = rootPath,
+                displayName = displayName,
+            ),
             isConnected = isConnected,
         )
 
@@ -51,6 +56,28 @@ object MediaSourceInfoConventions {
             },
             isConnected = isConnected,
         )
+    }
+
+    fun sourceConnectionInfo(
+        type: MediaSourceType,
+        location: String,
+        displayName: String = "",
+        username: String = "",
+        password: String = "",
+        domain: String = "",
+    ): Map<String, String> = buildMap {
+        val trimmedLocation = location.trim()
+        put(CONNECTION_URL, trimmedLocation)
+        if (type == MediaSourceType.LOCAL) {
+            put(CONNECTION_PATH, trimmedLocation)
+            if (trimmedLocation.startsWith(CONTENT_SCHEME, ignoreCase = true)) {
+                put(CONNECTION_URI, trimmedLocation)
+            }
+            putIfNotBlank(CONNECTION_DISPLAY_NAME, displayName.trim())
+        }
+        putIfNotBlank(CONNECTION_DOMAIN, domain.trim())
+        putIfNotBlank(CONNECTION_USERNAME, username.trim())
+        putIfNotBlank(CONNECTION_PASSWORD, password)
     }
 
     fun normalizeSmbRoot(rawUrl: String): String {
@@ -99,15 +126,18 @@ object MediaSourceInfoConventions {
     const val CONNECTION_USERNAME = "username"
     const val CONNECTION_PASSWORD = "password"
     const val CONNECTION_DOMAIN = "domain"
+    const val CONNECTION_DISPLAY_NAME = "displayName"
+    const val CONNECTION_URI = "uri"
 
     private const val SMB_SCHEME = "smb://"
     private const val HTTP_SCHEME = "http://"
     private const val HTTPS_SCHEME = "https://"
+    private const val CONTENT_SCHEME = "content://"
 }
 
 fun MediaSourceInfo.localRootPath(): String? =
     connectionInfo[MediaSourceInfoConventions.CONNECTION_PATH]
-        ?: connectionInfo[LEGACY_CONNECTION_URI]
+        ?: connectionInfo[MediaSourceInfoConventions.CONNECTION_URI]
         ?: connectionInfo[MediaSourceInfoConventions.CONNECTION_URL]
 
 fun MediaSourceInfo.remoteUrl(): String? =
@@ -122,7 +152,8 @@ fun MediaSourceInfo.connectionPassword(): String =
 fun MediaSourceInfo.connectionDomain(): String =
     connectionInfo[MediaSourceInfoConventions.CONNECTION_DOMAIN].orEmpty()
 
+fun MediaSourceInfo.connectionDisplayName(): String =
+    connectionInfo[MediaSourceInfoConventions.CONNECTION_DISPLAY_NAME].orEmpty()
+
 fun MediaSourceInfo.sourceLocation(): String? =
     localRootPath() ?: remoteUrl()
-
-private const val LEGACY_CONNECTION_URI = "uri"
