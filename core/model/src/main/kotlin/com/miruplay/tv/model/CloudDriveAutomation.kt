@@ -55,3 +55,11 @@ enum class RssDownloadStatus {
     ORGANIZED,
     FAILED
 }
+
+@Serializable
+data class CloudDriveRssRunSummary(
+    val submitted: Int,
+    val skipped: Int,
+    val failed: Int,
+    val organized: Int
+)

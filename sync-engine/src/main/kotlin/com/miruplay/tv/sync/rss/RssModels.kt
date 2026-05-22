@@ -20,10 +20,3 @@ private fun String.isTorrentUrl(): Boolean =
     substringBefore('?')
         .substringBefore('#')
         .endsWith(".torrent", ignoreCase = true)
-
-data class CloudDriveRssRunSummary(
-    val submitted: Int,
-    val skipped: Int,
-    val failed: Int,
-    val organized: Int
-)

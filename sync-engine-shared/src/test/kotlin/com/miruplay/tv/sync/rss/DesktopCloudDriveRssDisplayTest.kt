@@ -1,6 +1,7 @@
 package com.miruplay.tv.sync.rss
 
 import com.miruplay.tv.clouddrive.CloudDriveTokenInfo
+import com.miruplay.tv.model.CloudDriveRssRunSummary
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.RssSubscriptionInfo
@@ -10,9 +11,9 @@ import org.junit.Test
 class DesktopCloudDriveRssDisplayTest {
     @Test
     fun `scheduler status describes idle and first run states`() {
-        assertEquals("Scheduler idle. No checks yet.", DesktopCloudDriveRssSchedulerState().schedulerStatus())
+        assertEquals("调度器待命，尚未检查。", DesktopCloudDriveRssSchedulerState().schedulerStatus())
         assertEquals(
-            "Scheduler idle. Last check found no due sync.",
+            "调度器待命，上次检查没有待同步内容。",
             DesktopCloudDriveRssSchedulerState(lastCheckedAt = 123L).schedulerStatus(),
         )
     }
@@ -25,7 +26,7 @@ class DesktopCloudDriveRssDisplayTest {
             lastSummary = CloudDriveRssRunSummary(submitted = 1, skipped = 2, failed = 0, organized = 3),
         )
 
-        assertEquals("Scheduler running. Last check failed: network down", state.schedulerStatus())
+        assertEquals("调度器运行中，上次检查失败：network down", state.schedulerStatus())
     }
 
     @Test
@@ -35,7 +36,7 @@ class DesktopCloudDriveRssDisplayTest {
             lastSummary = CloudDriveRssRunSummary(submitted = 2, skipped = 1, failed = 1, organized = 4),
         )
 
-        assertEquals("Scheduler idle. Last run: 2 submitted, 1 skipped, 1 failed, 4 organized.", state.schedulerStatus())
+        assertEquals("调度器待命，上次运行：提交 2 个，跳过 1 个，失败 1 个，整理 4 个。", state.schedulerStatus())
     }
 
     @Test
@@ -51,20 +52,20 @@ class DesktopCloudDriveRssDisplayTest {
 
     @Test
     fun `cloud drive credential statuses share desktop wording`() {
-        assertEquals("Cloud/RSS automation settings saved.", cloudRssConfigSavedStatus())
-        assertEquals("CloudDrive credentials saved.", cloudDriveCredentialsSavedStatus())
-        assertEquals("CloudDrive credentials cleared.", cloudDriveCredentialsClearedStatus())
+        assertEquals("Cloud/RSS 自动化设置已保存。", cloudRssConfigSavedStatus())
+        assertEquals("CloudDrive 凭据已保存。", cloudDriveCredentialsSavedStatus())
+        assertEquals("CloudDrive 凭据已清空。", cloudDriveCredentialsClearedStatus())
         assertEquals(
-            "Enter CloudDrive2 endpoint, username, and password first.",
+            "请先填写 CloudDrive2 地址、用户名和密码。",
             cloudDriveLoginRequiredStatus(),
         )
-        assertEquals("Logging into CloudDrive2...", cloudDriveLoginStartedStatus())
-        assertEquals("CloudDrive2 login succeeded; token saved.", cloudDriveLoginSucceededStatus())
+        assertEquals("正在登录 CloudDrive2...", cloudDriveLoginStartedStatus())
+        assertEquals("CloudDrive2 登录成功，令牌已保存。", cloudDriveLoginSucceededStatus())
         assertEquals(
-            "Enter CloudDrive2 endpoint and API token first.",
+            "请先填写 CloudDrive2 地址和 API 令牌。",
             cloudDriveTokenRequiredStatus(),
         )
-        assertEquals("Validating CloudDrive2 API token...", cloudDriveTokenValidationStartedStatus())
+        assertEquals("正在验证 CloudDrive2 API 令牌...", cloudDriveTokenValidationStartedStatus())
     }
 
     @Test
@@ -73,23 +74,23 @@ class DesktopCloudDriveRssDisplayTest {
         val rooted = tokenInfo(friendlyName = "", rootDir = "/Anime")
         val fallback = tokenInfo(friendlyName = "", rootDir = "")
 
-        assertEquals("CloudDrive2 API token verified and saved: MiruPlay.", named.verifiedStatus())
-        assertEquals("CloudDrive2 API token verified and saved: /Anime.", rooted.verifiedStatus())
-        assertEquals("CloudDrive2 API token verified and saved: CloudDrive2.", fallback.verifiedStatus())
+        assertEquals("CloudDrive2 API 令牌已验证并保存：MiruPlay。", named.verifiedStatus())
+        assertEquals("CloudDrive2 API 令牌已验证并保存：/Anime。", rooted.verifiedStatus())
+        assertEquals("CloudDrive2 API 令牌已验证并保存：CloudDrive2。", fallback.verifiedStatus())
     }
 
     @Test
     fun `subscription list statuses share desktop wording`() {
         val subscription = RssSubscriptionInfo(name = "Anime", url = "https://example.test/rss.xml")
 
-        assertEquals("Load or save Cloud/RSS automation settings.", cloudRssInitialStatus())
-        assertEquals("No RSS subscriptions configured.", emptyList<RssSubscriptionInfo>().loadedStatus())
-        assertEquals("Loaded 1 RSS subscription(s).", listOf(subscription).loadedStatus())
-        assertEquals("No RSS subscriptions configured.", emptyList<RssSubscriptionInfo>().showingStatus())
-        assertEquals("Showing 1 RSS subscription(s).", listOf(subscription).showingStatus())
-        assertEquals("Failed to load RSS subscriptions.", rssSubscriptionsLoadFailedStatus(null))
+        assertEquals("加载或保存 Cloud/RSS 自动化设置。", cloudRssInitialStatus())
+        assertEquals("尚未配置 RSS 订阅。", emptyList<RssSubscriptionInfo>().loadedStatus())
+        assertEquals("已加载 1 个 RSS 订阅。", listOf(subscription).loadedStatus())
+        assertEquals("尚未配置 RSS 订阅。", emptyList<RssSubscriptionInfo>().showingStatus())
+        assertEquals("正在显示 1 个 RSS 订阅。", listOf(subscription).showingStatus())
+        assertEquals("RSS 订阅加载失败。", rssSubscriptionsLoadFailedStatus(null))
         assertEquals("load failed", rssSubscriptionsLoadFailedStatus("load failed"))
-        assertEquals("Failed to refresh RSS subscriptions.", rssSubscriptionsRefreshFailedStatus(null))
+        assertEquals("RSS 订阅刷新失败。", rssSubscriptionsRefreshFailedStatus(null))
         assertEquals("refresh failed", rssSubscriptionsRefreshFailedStatus("refresh failed"))
     }
 
@@ -99,46 +100,46 @@ class DesktopCloudDriveRssDisplayTest {
         val source = MediaSourceInfo(id = 7L, name = "Cloud WebDAV", type = MediaSourceType.WEBDAV)
         val subscription = RssSubscriptionInfo(name = "Anime", url = "https://example.test/rss.xml")
 
-        assertEquals("Running Cloud/RSS sync...", cloudRssRunStartedStatus())
+        assertEquals("正在执行 Cloud/RSS 同步...", cloudRssRunStartedStatus())
         assertEquals(
-            "Sync complete: 3 submitted, 2 skipped, 1 failed, 4 organized.",
+            "同步完成：提交 3 个，跳过 2 个，失败 1 个，整理 4 个。",
             summary.completeStatus(),
         )
         assertEquals(
-            "Enable and save Cloud/RSS sync before starting the scheduler.",
+            "启动调度前请先启用并保存 Cloud/RSS 同步。",
             cloudRssSchedulerDisabledStatus(),
         )
-        assertEquals("Cloud/RSS scheduler started.", cloudRssSchedulerStartStatus(started = true))
+        assertEquals("Cloud/RSS 调度器已启动。", cloudRssSchedulerStartStatus(started = true))
         assertEquals(
-            "Cloud/RSS scheduler is already running.",
+            "Cloud/RSS 调度器已经在运行。",
             cloudRssSchedulerStartStatus(started = false),
         )
-        assertEquals("Cloud/RSS scheduler stopped.", cloudRssSchedulerStoppedStatus())
+        assertEquals("Cloud/RSS 调度器已停止。", cloudRssSchedulerStoppedStatus())
         assertEquals(
-            "Open a saved media source before linking Cloud/RSS scanning.",
+            "请先打开已保存的媒体源，再绑定 Cloud/RSS 扫描。",
             cloudRssScanSourceRequiredStatus(),
         )
         assertEquals(
-            "Linked scan source was not found. Clear or relink the Cloud/RSS scan source.",
+            "未找到已绑定的扫描源，请清除或重新绑定 Cloud/RSS 扫描源。",
             cloudRssScanSourceMissingStatus(),
         )
         assertEquals(
-            "Linked Cloud/RSS post-sync scan source: Cloud WebDAV. Save sync config to persist it.",
+            "已绑定同步后扫描源：Cloud WebDAV。请保存同步配置。",
             source.linkedCloudRssScanSourceStatus(),
         )
         assertEquals(
-            "Scheduled sync complete. Rescanning Cloud WebDAV...",
-            source.cloudRssRescanStartedStatus("Scheduled sync complete."),
+            "定时同步完成，正在重扫 Cloud WebDAV...",
+            source.cloudRssRescanStartedStatus("定时同步完成。"),
         )
         assertEquals(
-            "Cloud/RSS post-sync scan source cleared. Save sync config to persist it.",
+            "同步后扫描源已清除，请保存同步配置。",
             cloudRssScanSourceClearedStatus(),
         )
-        assertEquals("Enter an RSS URL first.", rssUrlRequiredStatus())
-        assertEquals("RSS subscription saved: Anime", subscription.savedStatus())
-        assertEquals("Selected RSS subscription: Anime", subscription.selectedStatus())
-        assertEquals("Select an RSS subscription first.", rssSubscriptionRequiredStatus())
-        assertEquals("RSS subscription deleted.", rssSubscriptionDeletedStatus())
+        assertEquals("请先填写 RSS 地址。", rssUrlRequiredStatus())
+        assertEquals("RSS 订阅已保存：Anime", subscription.savedStatus())
+        assertEquals("已选择 RSS 订阅：Anime", subscription.selectedStatus())
+        assertEquals("请先选择一个 RSS 订阅。", rssSubscriptionRequiredStatus())
+        assertEquals("RSS 订阅已删除。", rssSubscriptionDeletedStatus())
     }
 
     private fun tokenInfo(

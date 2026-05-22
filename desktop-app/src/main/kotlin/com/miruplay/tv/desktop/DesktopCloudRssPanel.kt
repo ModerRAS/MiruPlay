@@ -1860,6 +1860,7 @@ internal fun desktopCloudRssStatusText(status: String): String {
     val trimmed = status.trim()
     return when {
         trimmed.isBlank() -> "Cloud/RSS 待命。"
+        trimmed.isTvCloudRssStatus() -> trimmed
         trimmed == "Scheduler idle. No checks yet." -> "调度器待命，尚未检查。"
         trimmed == "Scheduler idle. Last check found no due sync." -> "调度器待命，上次检查没有待同步内容。"
         trimmed == "Scheduler running. No checks yet." -> "调度器运行中，尚未检查。"
@@ -1891,6 +1892,9 @@ internal fun desktopCloudRssStatusText(status: String): String {
         else -> desktopCloudRssDynamicStatusText(trimmed) ?: trimmed
     }
 }
+
+private fun String.isTvCloudRssStatus(): Boolean =
+    any { it in '\u4E00'..'\u9FFF' } && (endsWith("。") || endsWith("..."))
 
 private fun desktopCloudRssDynamicStatusText(status: String): String? {
     schedulerErrorStatusRegex.matchEntire(status)?.let { match ->
