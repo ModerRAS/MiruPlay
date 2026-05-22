@@ -3,6 +3,7 @@ package com.miruplay.tv.desktop
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.mediasource.desktop.DesktopLocalMediaSource
 import com.miruplay.tv.model.MediaSourceInfoConventions
+import com.miruplay.tv.model.cloudRssScheduledSyncCompleteStatus
 import com.miruplay.tv.repository.desktop.DesktopRepositories
 import com.miruplay.tv.scanner.desktop.DesktopMediaLibraryScanner
 import kotlinx.coroutines.runBlocking
@@ -66,7 +67,7 @@ class DesktopScanIndexIntegrationTest {
 
             val rescan = rescanCloudRssLinkedSource(
                 sourceInfo = persistedSourceInfo,
-                reason = "Scheduled sync complete.",
+                reason = cloudRssScheduledSyncCompleteStatus(),
                 indexRepository = repositories.index,
             ) as Result.Success
 
@@ -74,7 +75,7 @@ class DesktopScanIndexIntegrationTest {
             val videos = all.data.filterNot { it.isDirectory }
 
             assertEquals(DesktopCloudRssRescanTargetStatus.LIBRARY, rescan.data.targetStatus)
-            assertEquals("Scheduled sync complete. Rescanning Cloud RSS Local...", rescan.data.startedStatus)
+            assertEquals("定时同步完成，正在重扫 Cloud RSS Local...", rescan.data.startedStatus)
             assertEquals("Rescan complete: 1 videos, 2 directories.", rescan.data.completedStatus)
             assertEquals(listOf("New Show"), videos.map { it.animeName })
             assertEquals(2, videos.single().seasonNumber)

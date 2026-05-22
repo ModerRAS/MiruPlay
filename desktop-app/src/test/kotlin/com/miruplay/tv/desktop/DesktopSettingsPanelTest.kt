@@ -110,7 +110,7 @@ class DesktopSettingsPanelTest {
             subscriptions = listOf(subscription),
             enabled = true,
             linkedSourceLabel = "Cloud WebDAV · WebDAV",
-            schedulerStatus = "Scheduler running. Last run: 3 submitted, 2 skipped, 1 failed, 4 organized.",
+            schedulerStatus = "调度器运行中，上次运行：提交 3 个，跳过 2 个，失败 1 个，整理 4 个。",
         )
 
         assertEquals(listOf("CloudDrive2", "RSS 订阅", "同步后扫描"), tiles.map { it.label })
@@ -151,6 +151,7 @@ class DesktopSettingsPanelTest {
     @Test
     fun `cloud rss status text localizes scheduler credentials and subscriptions`() {
         assertEquals("调度器待命，尚未检查。", desktopCloudRssStatusText("Scheduler idle. No checks yet."))
+        assertEquals("调度器待命，尚未检查。", desktopCloudRssStatusText("调度器待命，尚未检查。"))
         assertEquals(
             "同步完成：提交 3 个，跳过 2 个，失败 1 个，整理 4 个。",
             desktopCloudRssStatusText("Sync complete: 3 submitted, 2 skipped, 1 failed, 4 organized."),

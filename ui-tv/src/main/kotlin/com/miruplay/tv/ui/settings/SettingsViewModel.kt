@@ -17,12 +17,23 @@ import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.RssSubscriptionInfo
+import com.miruplay.tv.model.cloudDriveApiTokenRequiredStatus
+import com.miruplay.tv.model.cloudDriveEndpointRequiredStatus
+import com.miruplay.tv.model.cloudDriveLoginRequiredStatus
+import com.miruplay.tv.model.cloudDriveLoginSucceededStatus
+import com.miruplay.tv.model.cloudDriveTokenLoginRequiredStatus
 import com.miruplay.tv.model.connectionPassword
+import com.miruplay.tv.model.cloudDriveTokenVerifiedStatus
+import com.miruplay.tv.model.cloudRssConfigSavedStatus
+import com.miruplay.tv.model.completeStatus
 import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.WebControlAccessManager
 import com.miruplay.tv.sync.rss.CloudDriveRssAutomationEngine
+import com.miruplay.tv.model.rssSubscriptionDeletedStatus
+import com.miruplay.tv.model.rssSubscriptionSavedStatus
+import com.miruplay.tv.model.rssUrlRequiredStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -237,14 +248,14 @@ class SettingsViewModel @Inject constructor(
                 rssProxyPort = rssProxyPort.coerceAtLeast(1).coerceAtMost(65535)
             )
             cloudDriveRepository.saveConfig(config)
-                .onSuccess { _cloudDriveActionMessage.value = "CloudDrive 设置已保存。" }
+                .onSuccess { _cloudDriveActionMessage.value = cloudRssConfigSavedStatus() }
                 .onError { error -> _cloudDriveActionMessage.value = error.toUserMessage() }
         }
     }
 
     fun loginCloudDrive(endpointUrl: String, username: String, password: String) {
         if (endpointUrl.isBlank() || username.isBlank() || password.isBlank()) {
-            _cloudDriveActionMessage.value = "请填写 CloudDrive2 地址、账号和密码。"
+            _cloudDriveActionMessage.value = cloudDriveLoginRequiredStatus()
             return
         }
         viewModelScope.launch {
@@ -252,7 +263,7 @@ class SettingsViewModel @Inject constructor(
             cloudDriveEngine.login(endpointUrl.trim(), username.trim(), password)
                 .onSuccess {
                     _cloudDriveTokenConfigured.value = true
-                    _cloudDriveActionMessage.value = "CloudDrive2 登录成功，令牌已保存。"
+                    _cloudDriveActionMessage.value = cloudDriveLoginSucceededStatus()
                 }
                 .onError { error ->
                     _cloudDriveActionMessage.value = error.toUserMessage()
@@ -263,12 +274,12 @@ class SettingsViewModel @Inject constructor(
 
     fun saveCloudDriveApiToken(endpointUrl: String, token: String) {
         if (endpointUrl.isBlank()) {
-            _cloudDriveActionMessage.value = "请先填写 CloudDrive2 地址。"
+            _cloudDriveActionMessage.value = cloudDriveEndpointRequiredStatus()
             return
         }
         val normalizedToken = token.trim()
         if (normalizedToken.isBlank()) {
-            _cloudDriveActionMessage.value = "请填写 CloudDrive2 API Token 或 Key。"
+            _cloudDriveActionMessage.value = cloudDriveApiTokenRequiredStatus()
             return
         }
         viewModelScope.launch {
@@ -276,8 +287,10 @@ class SettingsViewModel @Inject constructor(
             cloudDriveEngine.saveApiToken(endpointUrl.trim(), normalizedToken)
                 .onSuccess { info ->
                     _cloudDriveTokenConfigured.value = true
-                    _cloudDriveActionMessage.value =
-                        "CloudDrive2 API Token 已验证并保存，根目录 ${info.rootDir.ifBlank { "/" }}。"
+                    _cloudDriveActionMessage.value = cloudDriveTokenVerifiedStatus(
+                        friendlyName = info.friendlyName,
+                        rootDir = info.rootDir,
+                    )
                 }
                 .onError { error ->
                     _cloudDriveActionMessage.value = error.toUserMessage()
@@ -289,7 +302,7 @@ class SettingsViewModel @Inject constructor(
     fun addRssSubscription(name: String, url: String, filterRegex: String, enabled: Boolean) {
         val normalizedUrl = url.trim()
         if (normalizedUrl.isBlank()) {
-            _cloudDriveActionMessage.value = "请填写 RSS 地址。"
+            _cloudDriveActionMessage.value = rssUrlRequiredStatus()
             return
         }
         viewModelScope.launch {
@@ -300,7 +313,7 @@ class SettingsViewModel @Inject constructor(
                 enabled = enabled
             )
             cloudDriveRepository.saveSubscription(subscription)
-                .onSuccess { _cloudDriveActionMessage.value = "RSS 订阅已保存。" }
+                .onSuccess { _cloudDriveActionMessage.value = rssSubscriptionSavedStatus(subscription.name) }
                 .onError { error -> _cloudDriveActionMessage.value = error.toUserMessage() }
         }
     }
@@ -315,7 +328,7 @@ class SettingsViewModel @Inject constructor(
     fun deleteRssSubscription(id: Long) {
         viewModelScope.launch {
             cloudDriveRepository.deleteSubscription(id)
-                .onSuccess { _cloudDriveActionMessage.value = "RSS 订阅已删除。" }
+                .onSuccess { _cloudDriveActionMessage.value = rssSubscriptionDeletedStatus() }
                 .onError { error -> _cloudDriveActionMessage.value = error.toUserMessage() }
         }
     }
@@ -324,10 +337,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             _cloudDriveBusy.value = true
             cloudDriveEngine.runOnce()
-                .onSuccess { summary ->
-                    _cloudDriveActionMessage.value =
-                        "本轮完成：提交 ${summary.submitted} 个，跳过 ${summary.skipped} 个，整理 ${summary.organized} 个，失败 ${summary.failed} 个。"
-                }
+                .onSuccess { summary -> _cloudDriveActionMessage.value = summary.completeStatus() }
                 .onError { error ->
                     _cloudDriveActionMessage.value = error.toUserMessage()
                 }
@@ -342,12 +352,12 @@ class SettingsViewModel @Inject constructor(
     ) {
         val normalizedEndpoint = endpointUrl.trim()
         if (normalizedEndpoint.isBlank()) {
-            _cloudDriveActionMessage.value = "请先填写 CloudDrive2 地址。"
+            _cloudDriveActionMessage.value = cloudDriveEndpointRequiredStatus()
             return
         }
         val token = securePrefs.cloudDriveToken?.takeIf { it.isNotBlank() }
         if (token.isNullOrBlank()) {
-            _cloudDriveActionMessage.value = "请先登录 CloudDrive2 或保存 API Token。"
+            _cloudDriveActionMessage.value = cloudDriveTokenLoginRequiredStatus()
             return
         }
 
@@ -365,7 +375,7 @@ class SettingsViewModel @Inject constructor(
         if (!state.open) return
         val token = securePrefs.cloudDriveToken?.takeIf { it.isNotBlank() }
         if (token.isNullOrBlank()) {
-            _cloudDriveActionMessage.value = "请先登录 CloudDrive2 或保存 API Token。"
+            _cloudDriveActionMessage.value = cloudDriveTokenLoginRequiredStatus()
             return
         }
 

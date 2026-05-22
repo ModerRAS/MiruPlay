@@ -62,6 +62,7 @@ import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.buildRssSubscriptionFromForm
+import com.miruplay.tv.model.cloudRssScheduledSyncCompleteStatus
 import com.miruplay.tv.model.connectionDomain
 import com.miruplay.tv.model.connectionPassword
 import com.miruplay.tv.model.connectionUsername
@@ -851,7 +852,7 @@ internal fun MiruPlayDesktopComposeApp(
 
     LaunchedEffect(cloudRssSchedulerState.lastRunCompletedAt) {
         if (cloudRssSchedulerState.lastRunCompletedAt > 0L) {
-            rescanLinkedCloudSource("Scheduled sync complete.")
+            rescanLinkedCloudSource(cloudRssScheduledSyncCompleteStatus())
         }
     }
 
