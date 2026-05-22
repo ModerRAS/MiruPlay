@@ -11,5 +11,5 @@ data class FilenameParseResult(
 )
 
 interface FilenameMetadataParser {
-    fun parse(filename: String, maxLength: Int = 64): FilenameParseResult
+    fun parse(filename: String, maxLength: Int = 128): FilenameParseResult
 }
