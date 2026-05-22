@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.miruplay.tv.clouddrive.CloudDriveClient
 import com.miruplay.tv.clouddrive.CloudDriveEndpoint
+import com.miruplay.tv.core.common.LocalDirectoryBrowser
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.core.common.WebControlConfig
 import com.miruplay.tv.data.preferences.ScanPreferencesManager
@@ -91,6 +92,10 @@ class SettingsViewModel @Inject constructor(
     private val _cloudDriveDirectoryBrowser = MutableStateFlow(CloudDriveDirectoryBrowserState())
     val cloudDriveDirectoryBrowser: StateFlow<CloudDriveDirectoryBrowserState> =
         _cloudDriveDirectoryBrowser.asStateFlow()
+
+    private val _localDirectoryBrowser = MutableStateFlow(LocalDirectoryBrowserState())
+    val localDirectoryBrowser: StateFlow<LocalDirectoryBrowserState> =
+        _localDirectoryBrowser.asStateFlow()
 
     init {
         loadSources()
@@ -365,6 +370,55 @@ class SettingsViewModel @Inject constructor(
         )
     }
 
+    fun openLocalDirectoryPicker(initialPath: String) {
+        _localDirectoryBrowser.value = LocalDirectoryBrowserState(
+            open = true,
+            isLoading = true
+        )
+        browseLocalDirectory(initialPath.takeIf { it.startsWith("/") }.orEmpty())
+    }
+
+    fun browseLocalDirectory(path: String) {
+        val state = _localDirectoryBrowser.value
+        if (!state.open) return
+        _localDirectoryBrowser.value = state.copy(isLoading = true, message = null)
+        viewModelScope.launch(Dispatchers.IO) {
+            val result = runCatching { LocalDirectoryBrowser.browse(path) }
+            result.onSuccess { listing ->
+                val current = _localDirectoryBrowser.value
+                if (!current.open) return@onSuccess
+                _localDirectoryBrowser.value = current.copy(
+                    isLoading = false,
+                    path = listing.path,
+                    displayPath = listing.displayPath,
+                    parentPath = listing.parentPath,
+                    entries = listing.entries.map {
+                        LocalDirectoryEntry(
+                            name = it.name,
+                            path = it.path,
+                            canRead = it.canRead
+                        )
+                    },
+                    message = null
+                )
+            }.onFailure { error ->
+                val current = _localDirectoryBrowser.value
+                if (!current.open) return@onFailure
+                _localDirectoryBrowser.value = current.copy(
+                    isLoading = false,
+                    message = error.message ?: "读取目录失败"
+                )
+            }
+        }
+    }
+
+    fun closeLocalDirectoryPicker() {
+        _localDirectoryBrowser.value = _localDirectoryBrowser.value.copy(
+            open = false,
+            isLoading = false
+        )
+    }
+
     fun setAutoScanEnabled(enabled: Boolean) {
         scanPreferences.autoScanEnabled = enabled
         _autoScanEnabled.value = enabled
@@ -515,6 +569,22 @@ data class CloudDriveDirectoryBrowserState(
 data class CloudDriveDirectoryEntry(
     val name: String,
     val path: String
+)
+
+data class LocalDirectoryBrowserState(
+    val open: Boolean = false,
+    val isLoading: Boolean = false,
+    val path: String = "",
+    val displayPath: String = "设备存储",
+    val parentPath: String? = null,
+    val entries: List<LocalDirectoryEntry> = emptyList(),
+    val message: String? = null
+)
+
+data class LocalDirectoryEntry(
+    val name: String,
+    val path: String,
+    val canRead: Boolean
 )
 
 enum class CloudDriveDirectoryTarget {

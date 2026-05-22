@@ -1,10 +1,7 @@
 package com.miruplay.tv.ui.settings
 
-import android.content.Intent
 import android.net.Uri
 import android.provider.DocumentsContract
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -65,7 +62,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -163,6 +159,7 @@ fun AddSourceScreen(
     val cloudDriveBusy by viewModel.cloudDriveBusy.collectAsStateWithLifecycle()
     val cloudDriveActionMessage by viewModel.cloudDriveActionMessage.collectAsStateWithLifecycle()
     val cloudDriveDirectoryBrowser by viewModel.cloudDriveDirectoryBrowser.collectAsStateWithLifecycle()
+    val localDirectoryBrowser by viewModel.localDirectoryBrowser.collectAsStateWithLifecycle()
 
     var selectedSection by remember { mutableStateOf(SettingsSection.WEB_UI) }
     var editingSourceId by remember { mutableStateOf<Long?>(null) }
@@ -242,7 +239,7 @@ fun AddSourceScreen(
         name = source.name.ifBlank { sourceNameOrDefault("", source.type) }
         location = source.locationValue()
         locationDisplayName = source.connectionInfo["displayName"]
-            ?: if (source.type == MediaSourceType.LOCAL) displayNameForTreeUri(Uri.parse(location)) else ""
+            ?: if (source.type == MediaSourceType.LOCAL) displayNameForLocation(location) else ""
         username = source.connectionInfo["username"].orEmpty()
         password = ""
         viewModel.clearTestResult()
@@ -325,13 +322,8 @@ fun AddSourceScreen(
                     location = location,
                     onLocationChange = { location = it },
                     locationDisplayName = locationDisplayName,
-                    onLocalFolderSelected = { uri, displayName ->
-                        location = uri.toString()
-                        locationDisplayName = displayName
-                        if (name.isBlank() || name == "本地下载") {
-                            name = displayName.ifBlank { "本地媒体库" }
-                        }
-                        viewModel.clearTestResult()
+                    onPickLocalFolder = {
+                        viewModel.openLocalDirectoryPicker(location)
                     },
                     username = username,
                     onUsernameChange = { username = it },
@@ -478,6 +470,23 @@ fun AddSourceScreen(
                             CloudDriveDirectoryTarget.LIBRARY -> cloudLibraryPath = it
                         }
                         viewModel.closeCloudDriveDirectoryPicker()
+                    }
+                )
+            }
+
+            if (localDirectoryBrowser.open) {
+                LocalDirectoryPickerDialog(
+                    state = localDirectoryBrowser,
+                    onDismiss = viewModel::closeLocalDirectoryPicker,
+                    onNavigate = viewModel::browseLocalDirectory,
+                    onSelectCurrent = {
+                        location = it
+                        locationDisplayName = displayNameForLocalPath(it)
+                        if (name.isBlank() || name == "本地下载") {
+                            name = locationDisplayName.ifBlank { "本地媒体库" }
+                        }
+                        viewModel.clearTestResult()
+                        viewModel.closeLocalDirectoryPicker()
                     }
                 )
             }
@@ -648,7 +657,7 @@ private fun SettingsContent(
     location: String,
     onLocationChange: (String) -> Unit,
     locationDisplayName: String,
-    onLocalFolderSelected: (Uri, String) -> Unit,
+    onPickLocalFolder: () -> Unit,
     username: String,
     onUsernameChange: (String) -> Unit,
     password: String,
@@ -767,7 +776,7 @@ private fun SettingsContent(
                     location = location,
                     onLocationChange = onLocationChange,
                     locationDisplayName = locationDisplayName,
-                    onLocalFolderSelected = onLocalFolderSelected,
+                    onPickLocalFolder = onPickLocalFolder,
                     username = username,
                     onUsernameChange = onUsernameChange,
                     password = password,
@@ -1411,6 +1420,116 @@ private fun CloudDriveDirectoryPickerDialog(
 }
 
 @Composable
+private fun LocalDirectoryPickerDialog(
+    state: LocalDirectoryBrowserState,
+    onDismiss: () -> Unit,
+    onNavigate: (String) -> Unit,
+    onSelectCurrent: (String) -> Unit
+) {
+    val canSelectCurrent = state.path.isNotBlank()
+
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .width(760.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(DarkSurface)
+                .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(12.dp))
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Filled.FolderOpen,
+                    contentDescription = null,
+                    tint = TextPrimary,
+                    modifier = Modifier.size(26.dp)
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    text = "选择本地媒体文件夹",
+                    style = TvTypography.subtitle,
+                    color = TextPrimary
+                )
+                Spacer(Modifier.weight(1f))
+                TvButton(
+                    text = "关闭",
+                    icon = Icons.Filled.Close,
+                    enabled = true,
+                    onClick = onDismiss
+                )
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                ScanOptionChip(
+                    text = "上一级",
+                    icon = Icons.Filled.ArrowBack,
+                    selected = false,
+                    enabled = state.parentPath != null,
+                    onClick = { state.parentPath?.let(onNavigate) },
+                    modifier = Modifier.width(140.dp)
+                )
+                Text(
+                    text = state.displayPath.ifBlank { "设备存储" },
+                    style = TvTypography.body,
+                    color = TextSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            if (state.isLoading) {
+                Text(text = "正在读取目录...", color = TextSecondary, style = TvTypography.body)
+            } else if (state.entries.isEmpty()) {
+                Text(text = "没有可进入的子文件夹。", color = TextSecondary, style = TvTypography.body)
+            } else {
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.heightIn(max = 320.dp)
+                ) {
+                    items(state.entries) { entry ->
+                        ScanOptionChip(
+                            text = entry.name,
+                            icon = Icons.Filled.Folder,
+                            selected = false,
+                            enabled = entry.canRead,
+                            onClick = { onNavigate(entry.path) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            }
+
+            if (!state.message.isNullOrBlank()) {
+                Text(
+                    text = state.message,
+                    style = TvTypography.body,
+                    color = WarningYellow,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TvButton(
+                    text = "取消",
+                    icon = Icons.Filled.Close,
+                    enabled = true,
+                    onClick = onDismiss
+                )
+                TvButton(
+                    text = "选择当前目录",
+                    icon = Icons.Filled.CheckCircle,
+                    enabled = canSelectCurrent,
+                    onClick = { onSelectCurrent(state.path) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun CloudDriveAutomationPanel(
     sources: List<MediaSourceInfo>,
     endpoint: String,
@@ -1874,7 +1993,7 @@ private fun SourceFormPanel(
     location: String,
     onLocationChange: (String) -> Unit,
     locationDisplayName: String,
-    onLocalFolderSelected: (Uri, String) -> Unit,
+    onPickLocalFolder: () -> Unit,
     username: String,
     onUsernameChange: (String) -> Unit,
     password: String,
@@ -1885,25 +2004,6 @@ private fun SourceFormPanel(
     onTestConnection: () -> Unit,
     onSave: () -> Unit
 ) {
-    val context = LocalContext.current
-    val folderPicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocumentTree()
-    ) { uri ->
-        if (uri != null) {
-            val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
-                Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or
-                Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
-            runCatching {
-                context.contentResolver.takePersistableUriPermission(
-                    uri,
-                    flags and (Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-                )
-            }
-            onLocalFolderSelected(uri, displayNameForTreeUri(uri))
-        }
-    }
-
     SettingsPanel {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1964,11 +2064,9 @@ private fun SourceFormPanel(
 
         if (selectedType == MediaSourceType.LOCAL) {
             LocalFolderPickerRow(
-                displayName = locationDisplayName.ifBlank { displayNameForTreeUri(Uri.parse(location)) },
+                displayName = locationDisplayName.ifBlank { displayNameForLocation(location) },
                 location = location,
-                onPickFolder = {
-                    folderPicker.launch(localPickerStartUri())
-                }
+                onPickFolder = onPickLocalFolder
             )
         } else {
             TvTextField(
@@ -2560,5 +2658,16 @@ private fun displayNameForTreeUri(uri: Uri): String {
     return name ?: uri.lastPathSegment?.substringAfterLast(':')?.substringAfterLast('/') ?: "本地媒体库"
 }
 
-private fun localPickerStartUri(): Uri =
-    DocumentsContract.buildTreeDocumentUri("com.android.externalstorage.documents", "primary:")
+private fun displayNameForLocation(location: String): String =
+    if (location.startsWith("content://")) {
+        displayNameForTreeUri(Uri.parse(location))
+    } else {
+        displayNameForLocalPath(location)
+    }
+
+private fun displayNameForLocalPath(path: String): String =
+    path.trim()
+        .replace('\\', '/')
+        .trimEnd('/')
+        .substringAfterLast('/')
+        .ifBlank { "本地媒体库" }
