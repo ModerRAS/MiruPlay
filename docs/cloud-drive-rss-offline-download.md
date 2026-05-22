@@ -20,8 +20,8 @@
 | RSS | `https://api.ani.rip/ani-torrent.xml` |
 | 下载目录 | `/115open/下载/Ani` |
 | 整理目录 | `/115open/影音/动漫` |
-| ADB 设备 | `10.137.32.118:5555` |
-| Web 控制端口 | `http://10.137.32.118:9978` |
+| ADB 设备 | `<android-tv-device-id>` |
+| Web 控制端口 | `http://<android-tv-host>:9978` |
 
 Token 验证需要这些 CloudDrive2 权限：
 
@@ -118,7 +118,7 @@ classifier.classifyVideo(file.path, file.name)
 
 ## 实机验证记录
 
-在 `10.137.32.118:5555` 上安装 debug APK 后，用 Web 控制接口触发了一次 RSS 运行。
+在 `<android-tv-device-id>` 上安装 debug APK 后，用 Web 控制接口触发了一次 RSS 运行。
 
 首次运行提交了新 torrent 条目：
 
@@ -153,20 +153,20 @@ fileName=[ANi] 百鬼夜行抄 - 05 [1080P][Baha][WEB-DL][AAC AVC][CHT].mp4
 触发一次 RSS 离线下载、整理和扫描：
 
 ```powershell
-curl.exe -s -X POST http://10.137.32.118:9978/api/cloud-drive/run
+curl.exe -s -X POST http://<android-tv-host>:9978/api/cloud-drive/run
 ```
 
 查询库中某个番：
 
 ```powershell
-curl.exe -s -G http://10.137.32.118:9978/api/library --data-urlencode "query=百鬼夜行抄"
+curl.exe -s -G http://<android-tv-host>:9978/api/library --data-urlencode "query=百鬼夜行抄"
 ```
 
 查询番剧详情：
 
 ```powershell
 $id=[uri]::EscapeDataString('百鬼夜行抄')
-curl.exe -s "http://10.137.32.118:9978/api/anime/$id"
+curl.exe -s "http://<android-tv-host>:9978/api/anime/$id"
 ```
 
 ## 桌面端 smoke 验证

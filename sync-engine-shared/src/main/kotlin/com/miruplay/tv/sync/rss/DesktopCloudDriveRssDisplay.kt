@@ -1,23 +1,16 @@
 package com.miruplay.tv.sync.rss
 
 import com.miruplay.tv.clouddrive.CloudDriveTokenInfo
+import com.miruplay.tv.model.CloudDriveRssRunSummary
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.RssSubscriptionInfo
-
-fun DesktopCloudDriveRssSchedulerState.schedulerStatus(): String {
-    val prefix = if (running) "Scheduler running." else "Scheduler idle."
-    val error = lastError
-    if (!error.isNullOrBlank()) return "$prefix Last check failed: $error"
-    val summary = lastSummary
-    if (summary != null) {
-        return "$prefix Last run: ${summary.submitted} submitted, ${summary.skipped} skipped, ${summary.failed} failed, ${summary.organized} organized."
-    }
-    return if (lastCheckedAt > 0L) {
-        "$prefix Last check found no due sync."
-    } else {
-        "$prefix No checks yet."
-    }
-}
+import com.miruplay.tv.model.cloudDriveTokenVerifiedStatus
+import com.miruplay.tv.model.cloudDriveRssRunSummaryStatus
+import com.miruplay.tv.model.cloudRssLinkedScanSourceStatus
+import com.miruplay.tv.model.rssSubscriptionSavedStatus
+import com.miruplay.tv.model.rssSubscriptionSelectedStatus
+import com.miruplay.tv.model.rssSubscriptionsLoadedStatus
+import com.miruplay.tv.model.rssSubscriptionsShowingStatus
 
 fun linkedCloudDriveSourceLabel(
     sources: List<MediaSourceInfo>,
@@ -29,103 +22,92 @@ fun linkedCloudDriveSourceLabel(
 }
 
 fun cloudRssConfigSavedStatus(): String =
-    "Cloud/RSS automation settings saved."
+    com.miruplay.tv.model.cloudRssConfigSavedStatus()
 
 fun cloudRssInitialStatus(): String =
-    "Load or save Cloud/RSS automation settings."
+    com.miruplay.tv.model.cloudRssInitialStatus()
 
 fun cloudDriveCredentialsSavedStatus(): String =
-    "CloudDrive credentials saved."
+    com.miruplay.tv.model.cloudDriveCredentialsSavedStatus()
 
 fun cloudDriveCredentialsClearedStatus(): String =
-    "CloudDrive credentials cleared."
+    com.miruplay.tv.model.cloudDriveCredentialsClearedStatus()
 
 fun cloudDriveLoginRequiredStatus(): String =
-    "Enter CloudDrive2 endpoint, username, and password first."
+    com.miruplay.tv.model.cloudDriveLoginRequiredStatus()
 
 fun cloudDriveLoginStartedStatus(): String =
-    "Logging into CloudDrive2..."
+    com.miruplay.tv.model.cloudDriveLoginStartedStatus()
 
 fun cloudDriveLoginSucceededStatus(): String =
-    "CloudDrive2 login succeeded; token saved."
+    com.miruplay.tv.model.cloudDriveLoginSucceededStatus()
 
 fun cloudDriveTokenRequiredStatus(): String =
-    "Enter CloudDrive2 endpoint and API token first."
+    com.miruplay.tv.model.cloudDriveTokenRequiredStatus()
 
 fun cloudDriveTokenValidationStartedStatus(): String =
-    "Validating CloudDrive2 API token..."
+    com.miruplay.tv.model.cloudDriveTokenValidationStartedStatus()
 
 fun CloudDriveTokenInfo.verifiedStatus(): String {
-    val label = friendlyName.takeIf { it.isNotBlank() }
-        ?: rootDir.ifBlank { "CloudDrive2" }
-    return "CloudDrive2 API token verified and saved: $label."
+    return cloudDriveTokenVerifiedStatus(
+        friendlyName = friendlyName,
+        rootDir = rootDir,
+    )
 }
 
 fun cloudRssRunStartedStatus(): String =
-    "Running Cloud/RSS sync..."
+    com.miruplay.tv.model.cloudRssRunStartedStatus()
 
 fun CloudDriveRssRunSummary.completeStatus(): String =
-    "Sync complete: $submitted submitted, $skipped skipped, $failed failed, $organized organized."
+    cloudDriveRssRunSummaryStatus(this)
 
 fun cloudRssSchedulerDisabledStatus(): String =
-    "Enable and save Cloud/RSS sync before starting the scheduler."
+    com.miruplay.tv.model.cloudRssSchedulerDisabledStatus()
 
 fun cloudRssSchedulerStartStatus(started: Boolean): String =
-    if (started) {
-        "Cloud/RSS scheduler started."
-    } else {
-        "Cloud/RSS scheduler is already running."
-    }
+    com.miruplay.tv.model.cloudRssSchedulerStartStatus(started)
 
 fun cloudRssSchedulerStoppedStatus(): String =
-    "Cloud/RSS scheduler stopped."
+    com.miruplay.tv.model.cloudRssSchedulerStoppedStatus()
 
 fun cloudRssScanSourceRequiredStatus(): String =
-    "Open a saved media source before linking Cloud/RSS scanning."
+    com.miruplay.tv.model.cloudRssScanSourceRequiredStatus()
 
 fun cloudRssScanSourceMissingStatus(): String =
-    "Linked scan source was not found. Clear or relink the Cloud/RSS scan source."
+    com.miruplay.tv.model.cloudRssScanSourceMissingStatus()
 
 fun MediaSourceInfo.linkedCloudRssScanSourceStatus(): String =
-    "Linked Cloud/RSS post-sync scan source: $name. Save sync config to persist it."
+    cloudRssLinkedScanSourceStatus(name)
 
 fun MediaSourceInfo.cloudRssRescanStartedStatus(reason: String): String =
-    "$reason Rescanning $name..."
+    com.miruplay.tv.model.cloudRssRescanStartedStatus(reason, name)
 
 fun cloudRssScanSourceClearedStatus(): String =
-    "Cloud/RSS post-sync scan source cleared. Save sync config to persist it."
+    com.miruplay.tv.model.cloudRssScanSourceClearedStatus()
 
 fun rssUrlRequiredStatus(): String =
-    "Enter an RSS URL first."
+    com.miruplay.tv.model.rssUrlRequiredStatus()
 
 fun List<RssSubscriptionInfo>.loadedStatus(): String =
-    if (isEmpty()) {
-        "No RSS subscriptions configured."
-    } else {
-        "Loaded $size RSS subscription(s)."
-    }
+    rssSubscriptionsLoadedStatus(size)
 
 fun List<RssSubscriptionInfo>.showingStatus(): String =
-    if (isEmpty()) {
-        "No RSS subscriptions configured."
-    } else {
-        "Showing $size RSS subscription(s)."
-    }
+    rssSubscriptionsShowingStatus(size)
 
 fun rssSubscriptionsLoadFailedStatus(errorMessage: String?): String =
-    errorMessage ?: "Failed to load RSS subscriptions."
+    com.miruplay.tv.model.rssSubscriptionsLoadFailedStatus(errorMessage)
 
 fun rssSubscriptionsRefreshFailedStatus(errorMessage: String?): String =
-    errorMessage ?: "Failed to refresh RSS subscriptions."
+    com.miruplay.tv.model.rssSubscriptionsRefreshFailedStatus(errorMessage)
 
 fun RssSubscriptionInfo.savedStatus(): String =
-    "RSS subscription saved: $name"
+    rssSubscriptionSavedStatus(name)
 
 fun RssSubscriptionInfo.selectedStatus(): String =
-    "Selected RSS subscription: $name"
+    rssSubscriptionSelectedStatus(name)
 
 fun rssSubscriptionRequiredStatus(): String =
-    "Select an RSS subscription first."
+    com.miruplay.tv.model.rssSubscriptionRequiredStatus()
 
 fun rssSubscriptionDeletedStatus(): String =
-    "RSS subscription deleted."
+    com.miruplay.tv.model.rssSubscriptionDeletedStatus()

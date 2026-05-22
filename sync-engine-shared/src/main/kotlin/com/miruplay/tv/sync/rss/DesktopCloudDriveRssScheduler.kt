@@ -1,6 +1,9 @@
 package com.miruplay.tv.sync.rss
 
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.model.CloudDriveRssRunSummary
+import com.miruplay.tv.model.CloudDriveRssSchedulerUiState
+import com.miruplay.tv.model.tvStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -17,6 +20,17 @@ data class DesktopCloudDriveRssSchedulerState(
     val lastSummary: CloudDriveRssRunSummary? = null,
     val lastError: String? = null,
 )
+
+fun DesktopCloudDriveRssSchedulerState.toUiState(): CloudDriveRssSchedulerUiState =
+    CloudDriveRssSchedulerUiState(
+        running = running,
+        lastCheckedAt = lastCheckedAt,
+        lastSummary = lastSummary,
+        lastError = lastError,
+    )
+
+fun DesktopCloudDriveRssSchedulerState.schedulerStatus(): String =
+    toUiState().tvStatus()
 
 fun interface CloudDriveRssDueRunner {
     suspend fun runIfDue(): Result<CloudDriveRssRunSummary?>
