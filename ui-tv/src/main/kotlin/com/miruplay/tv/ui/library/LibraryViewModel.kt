@@ -3,7 +3,6 @@ package com.miruplay.tv.ui.library
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import android.util.Log
-import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
@@ -15,9 +14,8 @@ import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
-import com.miruplay.tv.scanner.ScanCoordinator
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -62,72 +60,63 @@ class LibraryViewModel @Inject constructor(
     private val metadataRepository: MetadataRepository,
     private val indexRepository: MediaIndexRepository,
     private val progressRepository: PlaybackProgressRepository,
-    private val scanCoordinator: ScanCoordinator,
+    private val libraryScanTask: LibraryScanTask,
     private val scanPreferences: ScanPreferencesManager
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<LibraryUiState>(LibraryUiState.Loading)
     val state: StateFlow<LibraryUiState> = _state.asStateFlow()
 
-    private var scanJob: Job? = null
-
     init {
-        scanCoordinator.setProgressCallback(ScanCoordinator.ScanProgressCallback { path, files, newEps ->
-            val current = _state.value
-            if (current is LibraryUiState.Scanning) {
-                _state.value = current.copy(
-                    currentPath = path,
-                    filesScanned = current.filesScanned + files,
-                    newEpisodes = current.newEpisodes + newEps
-                )
-            }
-        })
+        observeScanTask()
         refresh()
     }
 
     fun refresh() {
-        scanJob?.cancel()
-        scanJob = viewModelScope.launch {
+        viewModelScope.launch {
+            val scanState = libraryScanTask.state.value
+            if (scanState is LibraryScanState.Scanning) {
+                _state.value = scanState.toUiState()
+                return@launch
+            }
+
             val snapshot = loadLibraryContent(showLoading = true)
-            if (snapshot.hasSources && scanPreferences.shouldAutoScan()) {
-                scanAndLoadContent()
+            if (snapshot.hasSources) {
+                libraryScanTask.startAutoScanIfDue()
             }
         }
     }
 
     fun scanNow() {
-        scanJob?.cancel()
-        scanJob = viewModelScope.launch {
-            scanAndLoadContent()
-        }
+        libraryScanTask.startManualScan()
     }
 
-    private suspend fun scanAndLoadContent() {
-        val sources = mediaRepository.getSources().getOrNull() ?: emptyList()
-        Log.d("LibraryViewModel", "scanAndLoadContent: sources=${sources.size}")
-        if (sources.isEmpty()) {
-            _state.value = LibraryUiState.NoSources
-            return
-        }
-
-        _state.value = LibraryUiState.Scanning()
-        var scanError: String? = null
-        val scanResults = scanCoordinator.scanAllSources()
-        Log.d("LibraryViewModel", "scanAndLoadContent: scanResults=${scanResults?.getOrNull()?.size ?: -1}")
-        when (scanResults) {
-            is Result.Success -> {
-                scanPreferences.lastScanAt = System.currentTimeMillis()
+    private fun observeScanTask() {
+        viewModelScope.launch {
+            libraryScanTask.state.collectLatest { scanState ->
+                when (scanState) {
+                    is LibraryScanState.Idle -> Unit
+                    is LibraryScanState.Scanning -> {
+                        _state.value = scanState.toUiState()
+                    }
+                    is LibraryScanState.Finished -> {
+                        Log.d("LibraryViewModel", "scan finished: results=${scanState.results.size}")
+                        val snapshot = loadLibraryContent(showLoading = false)
+                        if (snapshot.hasSources && !snapshot.hasContent) {
+                            _state.value = LibraryUiState.ScanError("未找到番剧内容，请检查媒体源路径")
+                        }
+                    }
+                    is LibraryScanState.Failed -> {
+                        val snapshot = loadLibraryContent(showLoading = false)
+                        if (snapshot.hasSources && !snapshot.hasContent) {
+                            _state.value = LibraryUiState.ScanError(scanState.message)
+                        }
+                    }
+                    is LibraryScanState.Cancelled -> {
+                        loadLibraryContent(showLoading = false)
+                    }
+                }
             }
-            is Result.Error -> {
-                scanError = "扫描失败：${scanResults.error::class.simpleName}"
-            }
-        }
-
-        val snapshot = loadLibraryContent(showLoading = false)
-        if (snapshot.hasSources && !snapshot.hasContent && scanError != null) {
-            _state.value = LibraryUiState.ScanError(scanError)
-        } else if (snapshot.hasSources && !snapshot.hasContent) {
-            _state.value = LibraryUiState.ScanError("未找到番剧内容，请检查媒体源路径")
         }
     }
 
@@ -234,16 +223,10 @@ class LibraryViewModel @Inject constructor(
     }
 
     fun cancelScan() {
-        scanJob?.cancel()
-        scanJob = viewModelScope.launch {
+        libraryScanTask.cancel()
+        viewModelScope.launch {
             loadLibraryContent(showLoading = false)
         }
-    }
-
-    override fun onCleared() {
-        scanCoordinator.setProgressCallback(null)
-        scanJob?.cancel()
-        super.onCleared()
     }
 }
 
@@ -251,6 +234,13 @@ private data class LibraryLoadSnapshot(
     val hasSources: Boolean,
     val hasContent: Boolean
 )
+
+private fun LibraryScanState.Scanning.toUiState(): LibraryUiState.Scanning =
+    LibraryUiState.Scanning(
+        currentPath = currentPath,
+        filesScanned = filesScanned,
+        newEpisodes = newEpisodes
+    )
 
 private fun String.extractAnimeNameFromPath(): String? {
     val parts = split("/", "\\").filter { it.isNotBlank() }
