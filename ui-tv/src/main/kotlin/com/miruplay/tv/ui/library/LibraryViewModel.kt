@@ -22,7 +22,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 
 data class ProgressWithEpisode(
@@ -113,19 +112,13 @@ class LibraryViewModel @Inject constructor(
 
         _state.value = LibraryUiState.Scanning()
         var scanError: String? = null
-        val scanResults = withTimeoutOrNull(120_000L) {
-            scanCoordinator.scanAllSources()
-        }
+        val scanResults = scanCoordinator.scanAllSources()
         Log.d("LibraryViewModel", "scanAndLoadContent: scanResults=${scanResults?.getOrNull()?.size ?: -1}")
-        when {
-            scanResults == null -> {
-                Log.w("LibraryViewModel", "Scan timed out after 120s")
-                scanError = "扫描超时，已保留本地缓存内容"
-            }
-            scanResults is Result.Success -> {
+        when (scanResults) {
+            is Result.Success -> {
                 scanPreferences.lastScanAt = System.currentTimeMillis()
             }
-            scanResults is Result.Error -> {
+            is Result.Error -> {
                 scanError = "扫描失败：${scanResults.error::class.simpleName}"
             }
         }
