@@ -6,6 +6,7 @@ import com.miruplay.tv.clouddrive.CloudDriveEndpoint
 import com.miruplay.tv.clouddrive.CloudDriveFileInfo
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.model.FilenameMetadataParser
 import com.miruplay.tv.scanner.DefaultEpisodeDetector
 import com.miruplay.tv.scanner.VideoDirectoryClassifier
@@ -47,7 +48,19 @@ class CloudDriveLibraryOrganizer @Inject constructor(
 
             cloudDriveClient.moveFiles(endpoint, listOf(file.path), seasonPath)
                 .onSuccess { moved += 1 }
-                .onError { error -> Log.w("CloudDriveOrganizer", "Move failed for ${file.path}: $error") }
+                .onError { error ->
+                    Log.w("CloudDriveOrganizer", "Move failed for ${file.path}: $error")
+                    MiruLog.w(
+                        "CloudDriveOrganizer",
+                        "Move failed",
+                        attributes = mapOf(
+                            "source_path" to file.path,
+                            "target_path" to seasonPath,
+                            "error_type" to error::class.simpleName.orEmpty(),
+                            "error_message" to error.toUserMessage()
+                        )
+                    )
+                }
         }
         return Result.success(moved)
     }

@@ -1,6 +1,7 @@
 package com.miruplay.tv.sync.rss
 
 import android.util.Log
+import com.miruplay.tv.core.common.logging.MiruLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -30,10 +31,28 @@ class CloudDriveRssScheduler @Inject constructor(
                                 "CloudDriveRssScheduler",
                                 "RSS run complete: submitted=${summary.submitted}, organized=${summary.organized}"
                             )
+                            MiruLog.i(
+                                "CloudDriveRssScheduler",
+                                "RSS run complete",
+                                mapOf(
+                                    "submitted" to summary.submitted.toString(),
+                                    "organized" to summary.organized.toString(),
+                                    "skipped" to summary.skipped.toString(),
+                                    "failed" to summary.failed.toString()
+                                )
+                            )
                         }
                     }
                     .onError { error ->
                         Log.w("CloudDriveRssScheduler", "RSS run failed: $error")
+                        MiruLog.w(
+                            "CloudDriveRssScheduler",
+                            "RSS run failed",
+                            attributes = mapOf(
+                                "error_type" to error::class.simpleName.orEmpty(),
+                                "error_message" to error.toUserMessage()
+                            )
+                        )
                     }
                 delay(5 * 60_000L)
             }

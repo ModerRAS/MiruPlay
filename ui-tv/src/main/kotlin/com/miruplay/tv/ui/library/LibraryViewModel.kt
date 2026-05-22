@@ -3,6 +3,7 @@ package com.miruplay.tv.ui.library
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import android.util.Log
+import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
@@ -101,12 +102,22 @@ class LibraryViewModel @Inject constructor(
                     }
                     is LibraryScanState.Finished -> {
                         Log.d("LibraryViewModel", "scan finished: results=${scanState.results.size}")
+                        MiruLog.i(
+                            "LibraryViewModel",
+                            "Scan task state finished",
+                            mapOf("result_count" to scanState.results.size.toString())
+                        )
                         val snapshot = loadLibraryContent(showLoading = false)
                         if (snapshot.hasSources && !snapshot.hasContent) {
                             _state.value = LibraryUiState.ScanError("未找到番剧内容，请检查媒体源路径")
                         }
                     }
                     is LibraryScanState.Failed -> {
+                        MiruLog.w(
+                            "LibraryViewModel",
+                            "Scan task state failed",
+                            attributes = mapOf("message" to scanState.message)
+                        )
                         val snapshot = loadLibraryContent(showLoading = false)
                         if (snapshot.hasSources && !snapshot.hasContent) {
                             _state.value = LibraryUiState.ScanError(scanState.message)
@@ -127,6 +138,7 @@ class LibraryViewModel @Inject constructor(
 
         val sources = mediaRepository.getSources().getOrNull() ?: emptyList()
         Log.d("LibraryViewModel", "loadLibraryContent: sources=${sources.size}")
+        MiruLog.d("LibraryViewModel", "Library content loading", mapOf("source_count" to sources.size.toString()))
         if (sources.isEmpty()) {
             _state.value = LibraryUiState.NoSources
             return LibraryLoadSnapshot(hasSources = false, hasContent = false)
@@ -149,6 +161,14 @@ class LibraryViewModel @Inject constructor(
             continueWatching = continueWatching,
             recentlyAdded = displayAnime.takeLast(10),
             allAnime = displayAnime
+        )
+        MiruLog.i(
+            "LibraryViewModel",
+            "Library content loaded",
+            mapOf(
+                "anime_count" to displayAnime.size.toString(),
+                "continue_watching_count" to continueWatching.size.toString()
+            )
         )
         return LibraryLoadSnapshot(hasSources = true, hasContent = true)
     }
