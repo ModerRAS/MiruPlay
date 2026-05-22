@@ -271,27 +271,27 @@ tar -tf app\build\outputs\apk\debug\app-debug.apk | Select-String anime_parser
 示例设备：
 
 ```bash
-adb connect 10.137.32.118:5555
-adb -s 10.137.32.118:5555 install -r app/build/outputs/apk/debug/app-debug.apk
-adb -s 10.137.32.118:5555 shell am start -n com.miruplay.tv/.MainActivity
+adb connect <android-tv-device-id>
+adb -s <android-tv-device-id> install -r app/build/outputs/apk/debug/app-debug.apk
+adb -s <android-tv-device-id> shell am start -n com.miruplay.tv/.MainActivity
 ```
 
 准备测试文件：
 
 ```bash
-adb -s 10.137.32.118:5555 shell mkdir -p /sdcard/Download/MiruPlayBertAdbTest/raw
-adb -s 10.137.32.118:5555 shell touch '/sdcard/Download/MiruPlayBertAdbTest/raw/[ANi] 葬送的芙莉莲 S2 03 [1080P][WEB-DL].mkv'
-adb -s 10.137.32.118:5555 shell touch '/sdcard/Download/MiruPlayBertAdbTest/raw/Sousou no Frieren Season 2 EP03 1080P WEB-DL.mkv'
+adb -s <android-tv-device-id> shell mkdir -p /sdcard/Download/MiruPlayBertAdbTest/raw
+adb -s <android-tv-device-id> shell touch '/sdcard/Download/MiruPlayBertAdbTest/raw/[ANi] 葬送的芙莉莲 S2 03 [1080P][WEB-DL].mkv'
+adb -s <android-tv-device-id> shell touch '/sdcard/Download/MiruPlayBertAdbTest/raw/Sousou no Frieren Season 2 EP03 1080P WEB-DL.mkv'
 ```
 
 通过 WebControl API 添加本地源并扫描：
 
 ```bash
-curl -X POST http://10.137.32.118:9978/api/sources \
+curl -X POST http://<android-tv-host>:9978/api/sources \
   -H "Content-Type: application/json" \
   --data '{"name":"ADB BERT Test","type":"LOCAL","location":"/sdcard/Download/MiruPlayBertAdbTest","displayName":"ADB BERT Test"}'
 
-curl -X POST http://10.137.32.118:9978/api/sources/4/scan
+curl -X POST http://<android-tv-host>:9978/api/sources/4/scan
 ```
 
 PowerShell 下可以把上面的 `curl` 写成 `curl.exe`，或者改成单行执行。
@@ -312,7 +312,7 @@ PowerShell 下可以把上面的 `curl` 写成 `curl.exe`，或者改成单行�
 查询设备数据库：
 
 ```bash
-adb -s 10.137.32.118:5555 shell "run-as com.miruplay.tv sqlite3 databases/miruplay.db 'SELECT source_id,path,anime_name,season_number,episode_number FROM index_entry WHERE source_id=4 ORDER BY path;'"
+adb -s <android-tv-device-id> shell "run-as com.miruplay.tv sqlite3 databases/miruplay.db 'SELECT source_id,path,anime_name,season_number,episode_number FROM index_entry WHERE source_id=4 ORDER BY path;'"
 ```
 
 实测结果：

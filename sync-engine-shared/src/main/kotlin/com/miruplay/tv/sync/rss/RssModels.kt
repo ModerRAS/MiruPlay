@@ -12,10 +12,3 @@ data class RssFeedItem(
     val isTorrentSubmission: Boolean
         get() = RssSubmissionUrls.isTorrent(submissionUrl)
 }
-
-data class CloudDriveRssRunSummary(
-    val submitted: Int,
-    val skipped: Int,
-    val failed: Int,
-    val organized: Int
-)

@@ -1,6 +1,7 @@
 package com.miruplay.tv.sync.rss
 
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.model.CloudDriveRssRunSummary
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.boolean
