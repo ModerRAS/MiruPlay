@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$DeviceId = "10.137.32.118:5555",
+    [string]$DeviceId = "",
     [string]$ApkPath = "",
     [string]$OutputRoot = "",
     [switch]$SkipInstall,
@@ -8,6 +8,13 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+if ([string]::IsNullOrWhiteSpace($DeviceId)) {
+    $DeviceId = $env:MIRUPLAY_ANDROID_TV_DEVICE_ID
+}
+if ([string]::IsNullOrWhiteSpace($DeviceId)) {
+    throw "Pass -DeviceId or set MIRUPLAY_ANDROID_TV_DEVICE_ID before running the Android TV smoke."
+}
 
 $PackageName = "com.miruplay.tv"
 $ActivityName = "com.miruplay.tv/.MainActivity"

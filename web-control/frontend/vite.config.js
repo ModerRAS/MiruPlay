@@ -2,6 +2,8 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'node:path'
 
+const apiProxyTarget = process.env.MIRUPLAY_WEB_CONTROL_PROXY || 'http://localhost:9978'
+
 export default defineConfig({
   plugins: [vue()],
   base: '/',
@@ -12,7 +14,7 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/api': 'http://10.137.32.118:9978'
+      '/api': apiProxyTarget
     }
   }
 })
