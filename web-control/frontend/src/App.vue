@@ -545,11 +545,14 @@
                   </span>
                 </div>
 
-                <el-form-item label="OTLP 服务器地址">
+                <el-form-item label="OpenObserve 基础地址">
                   <el-input
                     v-model="logForm.endpoint"
-                    placeholder="https://openobserve.example.com/api/default/v1/logs"
+                    placeholder="https://openobserve.example.com/api/default"
                   />
+                  <span v-if="normalizedLogEndpoint" class="endpoint-preview">
+                    实际上报：{{ normalizedLogEndpoint }}
+                  </span>
                 </el-form-item>
 
                 <div class="form-grid">
@@ -994,6 +997,7 @@ const logUploadStatusType = computed(() => {
   if (status.includes('已上报')) return 'success'
   return 'info'
 })
+const normalizedLogEndpoint = computed(() => normalizeOtlpEndpoint(logForm.endpoint))
 const canRunLogUpload = computed(() =>
   Boolean(logForm.enabled && logForm.endpoint.trim() && (logUpload.tokenConfigured || logForm.token.trim()) && !logUpload.status.isUploading)
 )
@@ -1567,6 +1571,38 @@ function validateLogUploadConfig(payload) {
     return false
   }
   return true
+}
+
+function normalizeOtlpEndpoint(endpoint) {
+  const raw = String(endpoint || '').trim().replace(/\/+$/g, '')
+  if (!raw) return ''
+  const withScheme = /^https?:\/\//i.test(raw) ? raw : `http://${raw}`
+  try {
+    const url = new URL(withScheme)
+    const path = url.pathname.replace(/\/+$/g, '')
+    let normalizedPath = path
+    if (path.endsWith('/v1/logs')) {
+      normalizedPath = path
+    } else if (path.endsWith('/v1/log')) {
+      normalizedPath = `${path}s`
+    } else if (!path || path === '/') {
+      normalizedPath = '/api/default/v1/logs'
+    } else if (path === '/api') {
+      normalizedPath = '/api/default/v1/logs'
+    } else if (path.endsWith('/v1')) {
+      normalizedPath = `${path}/logs`
+    } else if (path.startsWith('/api/')) {
+      normalizedPath = `${path}/v1/logs`
+    } else {
+      normalizedPath = `${path}/api/default/v1/logs`
+    }
+    url.pathname = normalizedPath
+    url.search = ''
+    url.hash = ''
+    return url.toString()
+  } catch {
+    return withScheme
+  }
 }
 
 async function saveLogUploadConfig() {
