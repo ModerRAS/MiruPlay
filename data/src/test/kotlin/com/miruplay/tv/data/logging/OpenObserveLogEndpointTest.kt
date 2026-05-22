@@ -21,6 +21,14 @@ class OpenObserveLogEndpointTest {
     }
 
     @Test
+    fun `organization stream endpoint appends json suffix without duplicating stream`() {
+        assertEquals(
+            "https://openobserve.example.com/api/acme/default/_json",
+            OpenObserveLogEndpoint.normalize("https://openobserve.example.com/api/acme/default", "default")
+        )
+    }
+
+    @Test
     fun `full json endpoint is preserved`() {
         assertEquals(
             "https://openobserve.example.com/api/acme/default/_json",

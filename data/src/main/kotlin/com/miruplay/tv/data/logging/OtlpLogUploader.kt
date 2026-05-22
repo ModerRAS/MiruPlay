@@ -74,18 +74,33 @@ internal object OpenObserveLogEndpoint {
         val path = uri.path.orEmpty().trimEnd('/')
         if (path.endsWith("/_json")) return URI(uri.scheme, uri.authority, path, null, null).toString()
 
-        val basePath = when {
-            path.isBlank() -> "/api/default"
-            path == "/api" -> "/api/default"
-            path.endsWith("/v1/logs") -> path.removeSuffix("/v1/logs")
-            path.endsWith("/v1/log") -> path.removeSuffix("/v1/log")
-            path.endsWith("/v1") -> path.removeSuffix("/v1")
-            path.startsWith("/api/") -> path
-            else -> "$path/api/default"
-        }.trimEnd('/').ifBlank { "/api/default" }
         val safeStream = streamName.trim().ifBlank { DEFAULT_STREAM_NAME }
-        val normalizedPath = "$basePath/$safeStream/_json"
+        val jsonStreamPath = when {
+            path.isBlank() -> "/api/default/$safeStream"
+            path == "/api" -> "/api/default/$safeStream"
+            path.endsWith("/v1/logs") -> path.removeSuffix("/v1/logs").appendStreamIfNeeded(safeStream)
+            path.endsWith("/v1/log") -> path.removeSuffix("/v1/log").appendStreamIfNeeded(safeStream)
+            path.endsWith("/v1") -> path.removeSuffix("/v1").appendStreamIfNeeded(safeStream)
+            path.isOpenObserveStreamPath() -> path
+            path.startsWith("/api/") -> "$path/$safeStream"
+            else -> "$path/api/default/$safeStream"
+        }.trimEnd('/').ifBlank { "/api/default" }
+        val normalizedPath = "$jsonStreamPath/_json"
         return URI(uri.scheme, uri.authority, normalizedPath, null, null).toString()
+    }
+
+    private fun String.appendStreamIfNeeded(streamName: String): String {
+        val normalized = trimEnd('/')
+        return when {
+            normalized.isBlank() -> "/api/default/$streamName"
+            normalized.isOpenObserveStreamPath() -> normalized
+            else -> "$normalized/$streamName"
+        }
+    }
+
+    private fun String.isOpenObserveStreamPath(): Boolean {
+        val segments = trim('/').split('/').filter { it.isNotBlank() }
+        return segments.size == 3 && segments.firstOrNull() == "api"
     }
 
     private const val DEFAULT_STREAM_NAME = "miruplay"

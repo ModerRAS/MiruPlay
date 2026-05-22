@@ -1580,33 +1580,45 @@ function normalizeOpenObserveEndpoint(endpoint) {
   try {
     const url = new URL(withScheme)
     const path = url.pathname.replace(/\/+$/g, '')
-    let basePath = path
+    const stream = logForm.streamName.trim() || 'miruplay'
+    let streamPath = path
     if (path.endsWith('/_json')) {
-      basePath = path
+      streamPath = path
     } else if (path.endsWith('/v1/logs')) {
-      basePath = path.slice(0, -'/v1/logs'.length)
+      streamPath = appendOpenObserveStream(path.slice(0, -'/v1/logs'.length), stream)
     } else if (path.endsWith('/v1/log')) {
-      basePath = path.slice(0, -'/v1/log'.length)
+      streamPath = appendOpenObserveStream(path.slice(0, -'/v1/log'.length), stream)
     } else if (!path || path === '/') {
-      basePath = '/api/default'
+      streamPath = `/api/default/${stream}`
     } else if (path === '/api') {
-      basePath = '/api/default'
+      streamPath = `/api/default/${stream}`
     } else if (path.endsWith('/v1')) {
-      basePath = path.slice(0, -'/v1'.length)
+      streamPath = appendOpenObserveStream(path.slice(0, -'/v1'.length), stream)
+    } else if (isOpenObserveStreamPath(path)) {
+      streamPath = path
     } else if (path.startsWith('/api/')) {
-      basePath = path
+      streamPath = `${path}/${stream}`
     } else {
-      basePath = `${path}/api/default`
+      streamPath = `${path}/api/default/${stream}`
     }
-    url.pathname = basePath.endsWith('/_json')
-      ? basePath
-      : `${basePath.replace(/\/+$/g, '') || '/api/default'}/${logForm.streamName.trim() || 'miruplay'}/_json`
+    url.pathname = streamPath.endsWith('/_json') ? streamPath : `${streamPath.replace(/\/+$/g, '')}/_json`
     url.search = ''
     url.hash = ''
     return url.toString()
   } catch {
     return withScheme
   }
+}
+
+function appendOpenObserveStream(basePath, stream) {
+  const normalized = String(basePath || '').replace(/\/+$/g, '')
+  if (!normalized) return `/api/default/${stream}`
+  return isOpenObserveStreamPath(normalized) ? normalized : `${normalized}/${stream}`
+}
+
+function isOpenObserveStreamPath(path) {
+  const segments = String(path || '').split('/').filter(Boolean)
+  return segments.length === 3 && segments[0] === 'api'
 }
 
 async function saveLogUploadConfig() {
