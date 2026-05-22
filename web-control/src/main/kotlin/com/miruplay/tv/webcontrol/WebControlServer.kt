@@ -185,6 +185,16 @@ class WebControlServer @Inject constructor(
             session.method == Method.POST && route == "/api/log-upload/run" -> {
                 jsonResponse(LogUploadDto.serializer(), webControlService.uploadPendingLogs())
             }
+            session.method == Method.GET && route == "/api/metadata" -> {
+                jsonResponse(MetadataSettingsDto.serializer(), webControlService.getMetadataSettings())
+            }
+            session.method == Method.POST && route == "/api/metadata/bangumi-token" -> {
+                val request = parseBody(session, BangumiTokenRequest.serializer())
+                jsonResponse(MetadataSettingsDto.serializer(), webControlService.saveBangumiToken(request))
+            }
+            session.method == Method.DELETE && route == "/api/metadata/bangumi-token" -> {
+                jsonResponse(MetadataSettingsDto.serializer(), webControlService.clearBangumiToken())
+            }
             session.method == Method.GET && route == "/api/library" -> {
                 val query = session.utf8QueryParameter("query")
                 jsonResponse(LibraryDto.serializer(), webControlService.searchLibrary(query))

@@ -268,6 +268,25 @@ class WebControlService @Inject constructor(
         return getLogUpload()
     }
 
+    fun getMetadataSettings(): MetadataSettingsDto =
+        MetadataSettingsDto(
+            bangumiTokenConfigured = !securePreferences.bangumiAccessToken.isNullOrBlank()
+        )
+
+    fun saveBangumiToken(request: BangumiTokenRequest): MetadataSettingsDto {
+        val token = request.token.trim()
+        if (token.isBlank()) {
+            throw IllegalArgumentException("请填写 Bangumi Token")
+        }
+        securePreferences.bangumiAccessToken = token
+        return getMetadataSettings()
+    }
+
+    fun clearBangumiToken(): MetadataSettingsDto {
+        securePreferences.clearBangumiToken()
+        return getMetadataSettings()
+    }
+
     suspend fun getLibrary(): LibraryDto {
         val sources = (mediaRepository.getSources() as? Result.Success)?.data ?: emptyList()
         val anime = loadAllAnime(sources)
