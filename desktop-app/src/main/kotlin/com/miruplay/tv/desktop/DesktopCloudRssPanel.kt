@@ -247,6 +247,14 @@ internal fun CloudRssPanel(
                 onFocusSectionMenu = { focusSelectedSectionMenu() },
                 modifier = Modifier.weight(1f),
             )
+            MiruPlaySettingsSection.LOG_UPLOAD -> SettingsSummaryContent(
+                section = selectedSection,
+                tiles = desktopLogUploadSettingsTiles(),
+                status = "日志上报配置在 Android TV 设置页生效；本地日志会按 OTLP 配置写入上报队列。",
+                actions = listOf(SettingsQuickAction("打开海报墙", onOpenLibrary)),
+                onFocusSectionMenu = { focusSelectedSectionMenu() },
+                modifier = Modifier.weight(1f),
+            )
             MiruPlaySettingsSection.METADATA -> SettingsSummaryContent(
                 section = selectedSection,
                 tiles = metadataSettingsTiles(
@@ -2279,6 +2287,25 @@ private fun desktopWebUiSettingsTiles(): List<SettingsSummaryTile> =
         ),
     )
 
+private fun desktopLogUploadSettingsTiles(): List<SettingsSummaryTile> =
+    listOf(
+        SettingsSummaryTile(
+            label = "OTLP",
+            value = "OpenObserve",
+            detail = "服务器地址和访问令牌由 Android TV 设置页保存。",
+        ),
+        SettingsSummaryTile(
+            label = "本地日志",
+            value = "自动上报",
+            detail = "应用日志进入本地队列后按配置批量发送。",
+        ),
+        SettingsSummaryTile(
+            label = "凭据",
+            value = "安全存储",
+            detail = "令牌只保存配置状态，清理后会停止上报。",
+        ),
+    )
+
 private fun sourceTypeBreakdown(sources: List<MediaSourceInfo>): String {
     if (sources.isEmpty()) return "尚未添加本地、WebDAV 或 SMB 源。"
     return MediaSourceType.entries
@@ -2312,6 +2339,7 @@ private fun MiruPlaySettingsSection.menuSummary(
     MiruPlaySettingsSection.PLAYBACK -> playbackSummary
     MiruPlaySettingsSection.CLOUD_DRIVE -> if (cloudEnabled) "$rssCount 个订阅" else "未启用"
     MiruPlaySettingsSection.SCAN -> "媒体库更新"
+    MiruPlaySettingsSection.LOG_UPLOAD -> "OTLP"
     MiruPlaySettingsSection.METADATA -> metadataSummary
     MiruPlaySettingsSection.WEB_UI -> "访问地址"
 }
