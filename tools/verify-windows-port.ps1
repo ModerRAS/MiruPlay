@@ -7,7 +7,7 @@ param(
     [switch]$RealLibrary,
     [string]$RealLibraryRoot = "D:\Software\dufs",
     [switch]$AndroidTv,
-    [string]$AndroidDeviceId = "10.137.32.118:5555",
+    [string]$AndroidDeviceId = "",
     [switch]$Smb,
     [switch]$MpvRuntime,
     [switch]$PackagedMpvRuntime,
@@ -328,6 +328,10 @@ if (-not $SkipAndroidBuild) {
 
 Push-Location $repoRoot
 try {
+    if ([string]::IsNullOrWhiteSpace($AndroidDeviceId)) {
+        $AndroidDeviceId = $env:MIRUPLAY_ANDROID_TV_DEVICE_ID
+    }
+
     Use-Jdk21
     if ($CloudRssScheduler) {
         Write-Host "CloudDrive RSS scheduler smoke now runs by default; -CloudRssScheduler is retained for compatibility."
@@ -474,6 +478,9 @@ try {
     }
 
     if ($AndroidTv) {
+        if ([string]::IsNullOrWhiteSpace($AndroidDeviceId)) {
+            throw "Pass -AndroidDeviceId or set MIRUPLAY_ANDROID_TV_DEVICE_ID before running -AndroidTv."
+        }
         Invoke-Step -Name "Android TV emulator smoke" -Action {
             Invoke-Native -FilePath "adb" -Arguments @("connect", $AndroidDeviceId)
             Invoke-ToolScript -ScriptName "smoke-android-tv-ui.ps1" -Arguments @(
