@@ -8,18 +8,26 @@ plugins {
 }
 
 // 支持通过 -PVERSION_NAME 和 -PVERSION_CODE 传入版本信息
-val versionName = if (project.hasProperty("VERSION_NAME")) project.property("VERSION_NAME") as String else "0.1.0"
-val versionCode = if (project.hasProperty("VERSION_CODE")) (project.property("VERSION_CODE") as String).toInt() else 1
+val appVersionName = if (project.hasProperty("VERSION_NAME")) project.property("VERSION_NAME") as String else "0.1.0"
+val appVersionCode = if (project.hasProperty("VERSION_CODE")) (project.property("VERSION_CODE") as String).toInt() else 1
+val releaseStoreFile = providers.environmentVariable("RELEASE_STORE_FILE")
+val releaseStorePassword = providers.environmentVariable("STORE_PASSWORD")
+val releaseKeyAlias = providers.environmentVariable("KEY_ALIAS")
+val releaseKeyPassword = providers.environmentVariable("KEY_PASSWORD")
 
 android {
     namespace = "com.miruplay.tv"
     compileSdk = 35
     defaultConfig {
         applicationId = "com.miruplay.tv"
-        versionCode = versionCode
-        versionName = versionName
+        versionCode = appVersionCode
+        versionName = appVersionName
         minSdk = 28
         targetSdk = 35
+
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+        }
     }
     buildFeatures {
         compose = true
@@ -29,15 +37,27 @@ android {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
+        jniLibs {
+            useLegacyPackaging = true
+        }
     }
     lint {
         disable += "Instantiatable"
         checkReleaseBuilds = true
     }
+    signingConfigs {
+        create("release") {
+            storeFile = releaseStoreFile.orNull?.let { rootProject.file(it) }
+            storePassword = releaseStorePassword.orNull
+            keyAlias = releaseKeyAlias.orNull
+            keyPassword = releaseKeyPassword.orNull
+        }
+    }
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
