@@ -1,8 +1,9 @@
 package com.miruplay.tv.ui.library
 
+import android.os.SystemClock
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import android.util.Log
 import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.model.Anime
@@ -16,11 +17,15 @@ import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlin.coroutines.cancellation.CancellationException
 import javax.inject.Inject
 
 data class ProgressWithEpisode(
@@ -67,6 +72,7 @@ class LibraryViewModel @Inject constructor(
 
     private val _state = MutableStateFlow<LibraryUiState>(LibraryUiState.Loading)
     val state: StateFlow<LibraryUiState> = _state.asStateFlow()
+    private var refreshJob: Job? = null
 
     init {
         observeScanTask()
@@ -74,7 +80,12 @@ class LibraryViewModel @Inject constructor(
     }
 
     fun refresh() {
-        viewModelScope.launch {
+        if (refreshJob?.isActive == true) {
+            MiruLog.d("LibraryViewModel", "Library refresh skipped because a refresh is already active")
+            return
+        }
+
+        refreshJob = viewModelScope.launch {
             val scanState = libraryScanTask.state.value
             if (scanState is LibraryScanState.Scanning) {
                 _state.value = scanState.toUiState()
@@ -132,45 +143,62 @@ class LibraryViewModel @Inject constructor(
     }
 
     private suspend fun loadLibraryContent(showLoading: Boolean): LibraryLoadSnapshot {
+        val startedAt = SystemClock.elapsedRealtime()
         if (showLoading) {
             _state.value = LibraryUiState.Loading
         }
 
-        val sources = mediaRepository.getSources().getOrNull() ?: emptyList()
-        Log.d("LibraryViewModel", "loadLibraryContent: sources=${sources.size}")
-        MiruLog.d("LibraryViewModel", "Library content loading", mapOf("source_count" to sources.size.toString()))
-        if (sources.isEmpty()) {
-            _state.value = LibraryUiState.NoSources
-            return LibraryLoadSnapshot(hasSources = false, hasContent = false)
-        }
+        try {
+            val sources = mediaRepository.getSources().getOrNull() ?: emptyList()
+            Log.d("LibraryViewModel", "loadLibraryContent: sources=${sources.size}")
+            MiruLog.d("LibraryViewModel", "Library content loading", mapOf("source_count" to sources.size.toString()))
+            if (sources.isEmpty()) {
+                _state.value = LibraryUiState.NoSources
+                return LibraryLoadSnapshot(hasSources = false, hasContent = false)
+            }
 
-        val continueWatching = loadContinueWatching()
-        val allAnimeList = loadCachedAnime(sources)
-        val displayAnime = if (scanPreferences.mergeSameAnimeEnabled) {
-            allAnimeList.mergeSameAnimeForDisplay()
-        } else {
-            allAnimeList.distinctBy { it.id }
-        }
+            val continueWatching = loadContinueWatching()
+            val allAnimeList = loadCachedAnime(sources)
+            val displayAnime = withContext(Dispatchers.Default) {
+                if (scanPreferences.mergeSameAnimeEnabled) {
+                    allAnimeList.mergeSameAnimeForDisplay()
+                } else {
+                    allAnimeList.distinctBy { it.id }
+                }
+            }
 
-        if (displayAnime.isEmpty() && continueWatching.isEmpty()) {
-            _state.value = LibraryUiState.HasSources
+            if (displayAnime.isEmpty() && continueWatching.isEmpty()) {
+                _state.value = LibraryUiState.HasSources
+                return LibraryLoadSnapshot(hasSources = true, hasContent = false)
+            }
+
+            _state.value = LibraryUiState.HasContent(
+                continueWatching = continueWatching,
+                recentlyAdded = displayAnime.takeLast(10),
+                allAnime = displayAnime
+            )
+            MiruLog.i(
+                "LibraryViewModel",
+                "Library content loaded",
+                mapOf(
+                    "anime_count" to displayAnime.size.toString(),
+                    "continue_watching_count" to continueWatching.size.toString(),
+                    "duration_ms" to (SystemClock.elapsedRealtime() - startedAt).toString()
+                )
+            )
+            return LibraryLoadSnapshot(hasSources = true, hasContent = true)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            _state.value = LibraryUiState.ScanError(libraryLoadErrorMessage())
+            MiruLog.e(
+                "LibraryViewModel",
+                "Library content load failed",
+                e,
+                attributes = mapOf("duration_ms" to (SystemClock.elapsedRealtime() - startedAt).toString())
+            )
             return LibraryLoadSnapshot(hasSources = true, hasContent = false)
         }
-
-        _state.value = LibraryUiState.HasContent(
-            continueWatching = continueWatching,
-            recentlyAdded = displayAnime.takeLast(10),
-            allAnime = displayAnime
-        )
-        MiruLog.i(
-            "LibraryViewModel",
-            "Library content loaded",
-            mapOf(
-                "anime_count" to displayAnime.size.toString(),
-                "continue_watching_count" to continueWatching.size.toString()
-            )
-        )
-        return LibraryLoadSnapshot(hasSources = true, hasContent = true)
     }
 
     private suspend fun loadContinueWatching(): List<ProgressWithEpisode> {
@@ -229,17 +257,19 @@ class LibraryViewModel @Inject constructor(
     }
 
     private suspend fun loadCachedAnime(sources: List<MediaSourceInfo>): List<Anime> {
-        val allAnimeList = mutableListOf<Anime>()
-        for (source in sources) {
-            val animeNames = indexRepository.getAnimeInIndex(source.id).getOrNull() ?: continue
-            for (name in animeNames) {
-                val cached = metadataRepository.getCachedMetadata(name).getOrNull()
-                if (cached != null) {
-                    allAnimeList.add(cached)
-                }
-            }
+        val sourceAnimeNames = sources.flatMap { source ->
+            indexRepository.getAnimeInIndex(source.id).getOrNull().orEmpty()
         }
-        return allAnimeList
+        MiruLog.d(
+            "LibraryViewModel",
+            "Cached anime names loaded",
+            mapOf("name_count" to sourceAnimeNames.size.toString())
+        )
+        return metadataRepository.getCachedMetadata(sourceAnimeNames).getOrNull().orEmpty()
+    }
+
+    private fun libraryLoadErrorMessage(): String {
+        return "加载媒体库失败，请稍后重试"
     }
 
     fun cancelScan() {

@@ -21,25 +21,49 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.ui.theme.AccentBlue
 import com.miruplay.tv.ui.theme.CardBg
 import com.miruplay.tv.ui.theme.TextSecondary
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.IOException
 import java.security.MessageDigest
+import java.net.HttpURLConnection
 import java.net.URL
+import java.util.Collections
+import kotlin.math.max
 
 private object RemoteImageCache {
-    private val cache = LruCache<String, ImageBitmap>(80)
+    private const val MAX_MEMORY_CACHE_KIB = 24 * 1024
+    private const val MAX_DECODED_IMAGE_EDGE = 1_024
+    private const val MAX_PARALLEL_IMAGE_LOADS = 4
+
+    private val cache = object : LruCache<String, ImageBitmap>(MAX_MEMORY_CACHE_KIB) {
+        override fun sizeOf(key: String, value: ImageBitmap): Int {
+            return max(1, value.width * value.height * 4 / 1024)
+        }
+    }
+    private val loadSemaphore = Semaphore(MAX_PARALLEL_IMAGE_LOADS)
+    private val loggedFailureKeys = Collections.synchronizedSet(mutableSetOf<String>())
 
     fun get(url: String): ImageBitmap? = cache.get(url)
 
     private fun put(url: String, bitmap: ImageBitmap) {
         cache.put(url, bitmap)
+        loggedFailureKeys.remove(cacheKey(url))
     }
 
-    fun load(context: Context, url: String): ImageBitmap? {
+    suspend fun load(context: Context, url: String): ImageBitmap? = loadSemaphore.withPermit {
+        withContext(Dispatchers.IO) {
+            loadBlocking(context, url)
+        }
+    }
+
+    private fun loadBlocking(context: Context, url: String): ImageBitmap? {
         get(url)?.let { return it }
 
         val file = cacheFile(context, url)
@@ -48,36 +72,74 @@ private object RemoteImageCache {
             return bitmap
         }
 
+        val key = cacheKey(url)
         return runCatching {
             file.parentFile?.mkdirs()
-            val temp = File(file.parentFile, "${file.name}.tmp")
+            val temp = File.createTempFile(file.name, ".tmp", file.parentFile)
             val connection = URL(url).openConnection().apply {
                 connectTimeout = 10_000
                 readTimeout = 20_000
             }
-            connection.getInputStream().use { input ->
-                temp.outputStream().use { output ->
-                    input.copyTo(output)
+            try {
+                if (connection is HttpURLConnection && connection.responseCode !in 200..299) {
+                    throw IOException("HTTP ${connection.responseCode}")
+                }
+                connection.getInputStream().use { input ->
+                    temp.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                if (!temp.renameTo(file)) {
+                    temp.copyTo(file, overwrite = true)
+                }
+            } finally {
+                temp.delete()
+                if (connection is HttpURLConnection) {
+                    connection.disconnect()
                 }
             }
-            if (!temp.renameTo(file)) {
-                temp.copyTo(file, overwrite = true)
-                temp.delete()
-            }
             decode(file)
+        }.onFailure { error ->
+            if (loggedFailureKeys.add(key)) {
+                MiruLog.w(
+                    "RemoteImage",
+                    "Remote image load failed",
+                    error,
+                    attributes = mapOf("url_hash" to key)
+                )
+            }
         }.getOrNull()?.also { put(url, it) }
     }
 
     private fun decode(file: File): ImageBitmap? {
         if (!file.exists() || file.length() <= 0L) return null
-        return BitmapFactory.decodeFile(file.absolutePath)?.asImageBitmap()
+
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.absolutePath, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+
+        val options = BitmapFactory.Options().apply {
+            inSampleSize = calculateInSampleSize(bounds.outWidth, bounds.outHeight)
+        }
+        return BitmapFactory.decodeFile(file.absolutePath, options)?.asImageBitmap()
+    }
+
+    private fun calculateInSampleSize(width: Int, height: Int): Int {
+        var sampleSize = 1
+        while (width / sampleSize > MAX_DECODED_IMAGE_EDGE || height / sampleSize > MAX_DECODED_IMAGE_EDGE) {
+            sampleSize *= 2
+        }
+        return sampleSize
     }
 
     private fun cacheFile(context: Context, url: String): File {
-        val key = MessageDigest.getInstance("SHA-256")
+        return File(File(context.cacheDir, "miruplay_image_cache"), cacheKey(url))
+    }
+
+    private fun cacheKey(url: String): String {
+        return MessageDigest.getInstance("SHA-256")
             .digest(url.toByteArray(Charsets.UTF_8))
             .joinToString("") { "%02x".format(it) }
-        return File(File(context.cacheDir, "miruplay_image_cache"), key)
     }
 }
 
@@ -92,9 +154,7 @@ fun RemoteImage(
     val context = LocalContext.current.applicationContext
     val bitmapState = produceState<ImageBitmap?>(initialValue = null, key1 = url) {
         val target = url?.takeIf { it.isNotBlank() } ?: return@produceState
-        value = RemoteImageCache.get(target) ?: withContext(Dispatchers.IO) {
-            RemoteImageCache.load(context, target)
-        }
+        value = RemoteImageCache.get(target) ?: RemoteImageCache.load(context, target)
     }
 
     val bitmap = bitmapState.value
