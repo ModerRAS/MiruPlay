@@ -19,6 +19,9 @@ import com.miruplay.tv.sync.BangumiSyncEngine
 import androidx.media3.common.Player
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -238,7 +241,15 @@ class PlayerViewModel @Inject constructor(
     fun saveCurrentProgressAndNavigate(onSaved: () -> Unit) {
         viewModelScope.launch {
             saveProgressSnapshot(activeSource)
+            stopPlayback()
             onSaved()
+        }
+    }
+
+    fun stopPlaybackWhenLeaving() {
+        viewModelScope.launch {
+            saveProgressSnapshot(activeSource)
+            stopPlayback()
         }
     }
 
@@ -314,14 +325,29 @@ class PlayerViewModel @Inject constructor(
         return uri.substringAfterLast("/").substringBeforeLast(".")
     }
 
-    override fun onCleared() {
-        super.onCleared()
+    private suspend fun stopPlayback() {
         positionPollJob?.cancel()
         progressSaveJob?.cancel()
         finishObserverJob?.cancel()
-        viewModelScope.launch {
-            playbackController.stop()
+        pendingSeekPositionMs = null
+        playbackController.stop()
+        activeSource = null
+        _activePlaybackSource.value = null
+        _currentPosition.value = 0L
+        _duration.value = 0L
+        _availableSubtitles.value = emptyList()
+        _availableAudioTracks.value = emptyList()
+    }
+
+    override fun onCleared() {
+        positionPollJob?.cancel()
+        progressSaveJob?.cancel()
+        finishObserverJob?.cancel()
+        val controller = playbackController
+        CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate).launch {
+            controller.stop()
         }
+        super.onCleared()
     }
 }
 
