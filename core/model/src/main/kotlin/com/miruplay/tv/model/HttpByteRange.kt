@@ -4,7 +4,16 @@ data class HttpByteRangeRequest(
     val start: Long?,
     val endInclusive: Long?,
 ) {
+    init {
+        require(start != null || endInclusive != null) { "byte range must include a start or suffix length" }
+        require(start == null || start >= 0L) { "start must be non-negative" }
+        require(endInclusive == null || endInclusive >= 0L) { "endInclusive must be non-negative" }
+    }
+
     fun resolve(totalLength: Long?): HttpByteRange {
+        if (start != null && endInclusive != null && endInclusive < start) {
+            return HttpByteRange.Invalid(totalLength?.takeIf { it > 0L })
+        }
         val length = totalLength?.takeIf { it > 0L } ?: return HttpByteRange.Unresolved
         val resolvedStart = start ?: (length - (endInclusive ?: 0L)).coerceAtLeast(0L)
         val resolvedEnd = (if (start == null) length - 1 else endInclusive ?: length - 1)
@@ -21,13 +30,28 @@ data class HttpByteRangeRequest(
 
     companion object {
         fun parse(header: String): HttpByteRangeRequest? {
-            if (!header.startsWith("bytes=")) return null
-            val spec = header.removePrefix("bytes=").substringBefore(',').trim()
-            val start = spec.substringBefore('-', "").trim().takeIf { it.isNotBlank() }?.toLongOrNull()
-            val end = spec.substringAfter('-', "").trim().takeIf { it.isNotBlank() }?.toLongOrNull()
+            val equalsIndex = header.indexOf('=').takeIf { it >= 0 } ?: return null
+            val unit = header.substring(0, equalsIndex).trim()
+            if (!unit.equals(BYTE_RANGE_UNIT, ignoreCase = true)) return null
+
+            val spec = header.substring(equalsIndex + 1).substringBefore(',').trim()
+            val match = BYTE_RANGE_SPEC.matchEntire(spec) ?: return null
+            val startText = match.groupValues[1]
+            val endText = match.groupValues[2]
+            val start = startText.takeIf { it.isNotBlank() }?.toLongOrNull() ?: run {
+                if (startText.isNotBlank()) return null
+                null
+            }
+            val end = endText.takeIf { it.isNotBlank() }?.toLongOrNull() ?: run {
+                if (endText.isNotBlank()) return null
+                null
+            }
             if (start == null && end == null) return null
             return HttpByteRangeRequest(start = start, endInclusive = end)
         }
+
+        private const val BYTE_RANGE_UNIT = "bytes"
+        private val BYTE_RANGE_SPEC = Regex("""(\d*)\s*-\s*(\d*)""")
     }
 }
 

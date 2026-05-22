@@ -14,6 +14,18 @@ class HttpByteRangeTest {
     }
 
     @Test
+    fun `parse accepts byte range unit case and whitespace variants`() {
+        assertEquals(
+            HttpByteRangeRequest(start = 2L, endInclusive = 5L),
+            HttpByteRangeRequest.parse("Bytes = 2 - 5"),
+        )
+        assertEquals(
+            HttpByteRangeRequest(start = 7L, endInclusive = null),
+            HttpByteRangeRequest.parse("BYTES=7-"),
+        )
+    }
+
+    @Test
     fun `parse accepts suffix ranges and ignores extra ranges`() {
         assertEquals(
             HttpByteRangeRequest(start = null, endInclusive = 4L),
@@ -29,6 +41,21 @@ class HttpByteRangeTest {
     fun `parse rejects unsupported range units and blank ranges`() {
         assertNull(HttpByteRangeRequest.parse("items=2-5"))
         assertNull(HttpByteRangeRequest.parse("bytes=-"))
+    }
+
+    @Test
+    fun `parse rejects malformed byte ranges`() {
+        assertNull(HttpByteRangeRequest.parse("bytes=abc-5"))
+        assertNull(HttpByteRangeRequest.parse("bytes=2-abc"))
+        assertNull(HttpByteRangeRequest.parse("bytes=2"))
+        assertNull(HttpByteRangeRequest.parse("bytes=2--5"))
+    }
+
+    @Test
+    fun `range request rejects impossible constructor bounds`() {
+        assertTrue(runCatching { HttpByteRangeRequest(null, null) }.exceptionOrNull() is IllegalArgumentException)
+        assertTrue(runCatching { HttpByteRangeRequest(-1L, 5L) }.exceptionOrNull() is IllegalArgumentException)
+        assertTrue(runCatching { HttpByteRangeRequest(1L, -5L) }.exceptionOrNull() is IllegalArgumentException)
     }
 
     @Test
@@ -56,6 +83,14 @@ class HttpByteRangeTest {
 
         assertTrue(invalid is HttpByteRange.Invalid)
         assertEquals("bytes */10", (invalid as HttpByteRange.Invalid).contentRangeHeader)
+    }
+
+    @Test
+    fun `resolve reports reversed range as invalid before metadata is known`() {
+        val invalid = HttpByteRangeRequest(5L, 2L).resolve(null)
+
+        assertTrue(invalid is HttpByteRange.Invalid)
+        assertEquals("bytes */*", (invalid as HttpByteRange.Invalid).contentRangeHeader)
     }
 
     @Test
