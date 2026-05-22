@@ -49,6 +49,21 @@ class DesktopPlaybackBridgeTest {
     }
 
     @Test
+    fun `playableUri ignores malformed byte range requests instead of slicing stream`() {
+        val source = FakeMediaSource("0123456789")
+        DesktopPlaybackBridge().use { bridge ->
+            val url = bridge.playableUri(source, "smb://nas.local/anime/Episode 01.mkv")
+            val connection = URI.create(url).toURL().openConnection() as HttpURLConnection
+            connection.setRequestProperty("Range", "bytes=abc-5")
+
+            assertEquals(200, connection.responseCode)
+            assertEquals(null, connection.getHeaderField("Content-Range"))
+            assertEquals("0123456789", connection.inputStream.use { it.readBytes().decodeToString() })
+            assertEquals(null, source.lastRange)
+        }
+    }
+
+    @Test
     fun `playableUri rejects unsatisfiable byte ranges`() {
         val source = FakeMediaSource("0123456789")
         DesktopPlaybackBridge().use { bridge ->

@@ -14,6 +14,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.nio.file.Files
+import java.nio.file.Path
 
 class DesktopRepositoriesTest {
     @Test
@@ -30,7 +31,7 @@ class DesktopRepositoriesTest {
             } else {
                 System.setProperty(DesktopRepositoryPaths.STORE_PATH_PROPERTY, previous)
             }
-            Files.deleteIfExists(storePath.parent)
+            deleteTempStore(storePath)
         }
     }
 
@@ -56,8 +57,7 @@ class DesktopRepositoriesTest {
             assertEquals(1, sources.data.size)
             assertEquals("Anime Copy", sources.data.single().name)
         } finally {
-            Files.deleteIfExists(storePath)
-            Files.deleteIfExists(storePath.parent)
+            deleteTempStore(storePath)
         }
     }
 
@@ -90,8 +90,7 @@ class DesktopRepositoriesTest {
             assertEquals(99L, source.lastScanned)
             assertTrue(source.isConnected)
         } finally {
-            Files.deleteIfExists(storePath)
-            Files.deleteIfExists(storePath.parent)
+            deleteTempStore(storePath)
         }
     }
 
@@ -112,8 +111,7 @@ class DesktopRepositoriesTest {
             assertEquals(3_000L, recent.data.first().positionMs)
             assertEquals(1, recent.data.first().playCount)
         } finally {
-            Files.deleteIfExists(storePath)
-            Files.deleteIfExists(storePath.parent)
+            deleteTempStore(storePath)
         }
     }
 
@@ -142,8 +140,7 @@ class DesktopRepositoriesTest {
             assertTrue(sources.data.isEmpty())
             assertTrue(entries.data.isEmpty())
         } finally {
-            Files.deleteIfExists(storePath)
-            Files.deleteIfExists(storePath.parent)
+            deleteTempStore(storePath)
         }
     }
 
@@ -182,8 +179,7 @@ class DesktopRepositoriesTest {
             val cleared = repositories.index.queryIndex(7L, "") as Result.Success
             assertTrue(cleared.data.isEmpty())
         } finally {
-            Files.deleteIfExists(storePath)
-            Files.deleteIfExists(storePath.parent)
+            deleteTempStore(storePath)
         }
     }
 
@@ -225,8 +221,7 @@ class DesktopRepositoriesTest {
             val all = repositories.index.queryIndex(7L, "") as Result.Success
             assertEquals(1, all.data.size)
         } finally {
-            Files.deleteIfExists(storePath)
-            Files.deleteIfExists(storePath.parent)
+            deleteTempStore(storePath)
         }
     }
 
@@ -254,8 +249,7 @@ class DesktopRepositoriesTest {
             val cleared = reopened.index.getLastBatchUndo(7L) as Result.Success
             assertTrue(cleared.data.isEmpty())
         } finally {
-            Files.deleteIfExists(storePath)
-            Files.deleteIfExists(storePath.parent)
+            deleteTempStore(storePath)
         }
     }
 
@@ -283,8 +277,7 @@ class DesktopRepositoriesTest {
             assertTrue(config.data.enabled)
             assertEquals(123L, config.data.lastRunAt)
         } finally {
-            Files.deleteIfExists(storePath)
-            Files.deleteIfExists(storePath.parent)
+            deleteTempStore(storePath)
         }
     }
 
@@ -340,8 +333,7 @@ class DesktopRepositoriesTest {
             assertTrue(afterDelete.data.isEmpty())
             assertEquals(false, processedAfterDelete.data)
         } finally {
-            Files.deleteIfExists(storePath)
-            Files.deleteIfExists(storePath.parent)
+            deleteTempStore(storePath)
         }
     }
 
@@ -367,11 +359,14 @@ class DesktopRepositoriesTest {
             assertEquals(null, cleared.credentials.cloudDrivePassword)
             assertEquals(null, cleared.credentials.bangumiAccessToken)
         } finally {
-            Files.deleteIfExists(storePath)
-            Files.deleteIfExists(storePath.parent)
+            deleteTempStore(storePath)
         }
     }
 
     private fun tempStorePath() =
         Files.createTempDirectory("miruplay-repository").resolve("store.json")
+
+    private fun deleteTempStore(storePath: Path) {
+        storePath.parent.toFile().deleteRecursively()
+    }
 }

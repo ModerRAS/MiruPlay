@@ -164,7 +164,17 @@ API changes. Do not use tests as justification for broad Android rewrites.
 
 ## Immediate Next Step
 
-The next code change should be in shared/desktop only. A good small target is
-the remaining desktop HTTP range header formatting around `StreamRange`, because
-it continues the range abstraction already extracted from desktop playback and
-media-source code while leaving Android untouched.
+The latest shared/desktop-only cleanup tightened desktop HTTP byte-range
+handling around `StreamRange` without changing Android callers:
+`HttpByteRangeRequest.parse` now accepts case/whitespace variants, rejects
+malformed numeric ranges instead of interpreting them as suffix requests, and
+reports reversed ranges as invalid even when source metadata is unavailable.
+`DesktopPlaybackBridgeTest` now proves malformed `Range` headers fall back to a
+full loopback stream rather than slicing the remote media incorrectly. Verified
+with `:core:model:test --tests com.miruplay.tv.model.HttpByteRangeTest`,
+`:media-source-desktop:test --tests
+com.miruplay.tv.mediasource.desktop.DesktopPlaybackBridgeTest`,
+`:core:model:test :media-source-desktop:test`, and `:desktop-app:test`.
+
+Next cleanup work should continue in shared/desktop modules unless an Android
+behavior change is explicitly approved and verified as Android work.
