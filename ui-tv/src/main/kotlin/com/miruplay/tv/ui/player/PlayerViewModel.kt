@@ -4,10 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.miruplay.tv.data.preferences.PlaybackEndAction
 import com.miruplay.tv.data.preferences.PlaybackPreferencesManager
-import com.miruplay.tv.data.repository.MediaRepository
-import com.miruplay.tv.data.repository.MetadataRepository
-import com.miruplay.tv.data.repository.ProgressRepository
-import com.miruplay.tv.data.repository.resolvePlayableUri
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.PlaybackState
@@ -15,6 +11,10 @@ import com.miruplay.tv.model.resumePosition
 import com.miruplay.tv.player.AudioTrack
 import com.miruplay.tv.player.PlaybackController
 import com.miruplay.tv.model.SubtitleTrack
+import com.miruplay.tv.repository.MediaSourceRepository
+import com.miruplay.tv.repository.MetadataRepository
+import com.miruplay.tv.repository.PlaybackProgressRepository
+import com.miruplay.tv.repository.resolvePlayableUri
 import com.miruplay.tv.sync.BangumiSyncEngine
 import androidx.media3.common.Player
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -27,9 +27,9 @@ import javax.inject.Inject
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
     private val playbackController: PlaybackController,
-    private val progressRepository: ProgressRepository,
+    private val progressRepository: PlaybackProgressRepository,
     private val metadataRepository: MetadataRepository,
-    private val mediaRepository: MediaRepository,
+    private val mediaRepository: MediaSourceRepository,
     private val bangumiSyncEngine: BangumiSyncEngine,
     private val playbackPreferences: PlaybackPreferencesManager
 ) : ViewModel() {

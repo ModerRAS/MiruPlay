@@ -1,6 +1,21 @@
 package com.miruplay.tv.data.di
 
-import com.miruplay.tv.data.repository.*
+import com.miruplay.tv.data.preferences.WebControlPreferencesManager
+import com.miruplay.tv.data.repository.CloudDriveAutomationRepositoryImpl
+import com.miruplay.tv.data.repository.IndexRepositoryImpl
+import com.miruplay.tv.data.repository.MediaRepositoryImpl
+import com.miruplay.tv.data.repository.MetadataRepositoryImpl
+import com.miruplay.tv.data.repository.ProgressRepositoryImpl
+import com.miruplay.tv.data.secure.MediaSourceSecretStore
+import com.miruplay.tv.data.secure.SecurePreferencesManager
+import com.miruplay.tv.repository.AppCredentialStore
+import com.miruplay.tv.repository.CloudDriveAutomationRepository
+import com.miruplay.tv.repository.CloudDriveCredentialStore
+import com.miruplay.tv.repository.MediaIndexRepository
+import com.miruplay.tv.repository.MediaSourceRepository
+import com.miruplay.tv.repository.MetadataRepository
+import com.miruplay.tv.repository.PlaybackProgressRepository
+import com.miruplay.tv.repository.WebControlAccessManager
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -13,7 +28,21 @@ abstract class RepositoryModule {
 
     @Binds
     @Singleton
-    abstract fun bindMediaRepository(impl: MediaRepositoryImpl): MediaRepository
+    abstract fun bindMediaRepository(impl: MediaRepositoryImpl): MediaSourceRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindMediaSourceSecretStore(
+        impl: SecurePreferencesManager
+    ): MediaSourceSecretStore
+
+    @Binds
+    @Singleton
+    abstract fun bindAppCredentialStore(impl: SecurePreferencesManager): AppCredentialStore
+
+    @Binds
+    @Singleton
+    abstract fun bindCloudDriveCredentialStore(impl: SecurePreferencesManager): CloudDriveCredentialStore
 
     @Binds
     @Singleton
@@ -21,15 +50,21 @@ abstract class RepositoryModule {
 
     @Binds
     @Singleton
-    abstract fun bindProgressRepository(impl: ProgressRepositoryImpl): ProgressRepository
+    abstract fun bindProgressRepository(impl: ProgressRepositoryImpl): PlaybackProgressRepository
 
     @Binds
     @Singleton
-    abstract fun bindIndexRepository(impl: IndexRepositoryImpl): IndexRepository
+    abstract fun bindIndexRepository(impl: IndexRepositoryImpl): MediaIndexRepository
 
     @Binds
     @Singleton
     abstract fun bindCloudDriveAutomationRepository(
         impl: CloudDriveAutomationRepositoryImpl
     ): CloudDriveAutomationRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindWebControlAccessManager(
+        impl: WebControlPreferencesManager
+    ): WebControlAccessManager
 }

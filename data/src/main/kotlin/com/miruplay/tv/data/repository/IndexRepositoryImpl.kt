@@ -3,7 +3,9 @@ package com.miruplay.tv.data.repository
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.data.dao.IndexDao
+import com.miruplay.tv.data.db.MiruPlayDatabase
 import com.miruplay.tv.data.entity.IndexEntryEntity
+import androidx.room.withTransaction
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -11,20 +13,33 @@ import javax.inject.Singleton
 
 @Singleton
 class IndexRepositoryImpl @Inject constructor(
-    private val indexDao: IndexDao
+    private val indexDao: IndexDao,
+    private val database: MiruPlayDatabase
 ) : IndexRepository {
 
     override suspend fun rebuildIndex(sourceId: Long, entries: List<IndexRepositoryEntity>): Result<Unit> =
         withContext(Dispatchers.IO) {
             try {
-                indexDao.deleteBySourceId(sourceId)
-                if (entries.isNotEmpty()) {
-                    val entities = entries.map { it.toEntity(sourceId) }
-                    indexDao.insertAll(entities)
+                database.withTransaction {
+                    indexDao.deleteBySourceId(sourceId)
+                    if (entries.isNotEmpty()) {
+                        val entities = entries.map { it.toEntity(sourceId) }
+                        indexDao.insertAll(entities)
+                    }
                 }
                 Result.success(Unit)
             } catch (e: Exception) {
                 Result.failure(AppError.SyncError.WriteFailed("index_$sourceId", e.message ?: "Index rebuild failed"))
+            }
+        }
+
+    override suspend fun upsertEntry(sourceId: Long, entry: IndexRepositoryEntity): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            try {
+                indexDao.insertAll(listOf(entry.toEntity(sourceId)))
+                Result.success(Unit)
+            } catch (e: Exception) {
+                Result.failure(AppError.SyncError.WriteFailed("index_${sourceId}_${entry.path}", e.message ?: "Index upsert failed"))
             }
         }
 
@@ -57,6 +72,15 @@ class IndexRepositoryImpl @Inject constructor(
                 Result.failure(AppError.SyncError.WriteFailed("index_$sourceId", e.message ?: "Clear failed"))
             }
         }
+
+    override suspend fun saveLastBatchUndo(sourceId: Long, entries: List<IndexRepositoryEntity>): Result<Unit> =
+        Result.success(Unit)
+
+    override suspend fun getLastBatchUndo(sourceId: Long): Result<List<IndexRepositoryEntity>> =
+        Result.success(emptyList())
+
+    override suspend fun clearLastBatchUndo(sourceId: Long): Result<Unit> =
+        Result.success(Unit)
 }
 
 private fun IndexRepositoryEntity.toEntity(sourceId: Long) = IndexEntryEntity(
@@ -76,5 +100,7 @@ private fun IndexEntryEntity.toDomain() = IndexRepositoryEntity(
     animeName = animeName,
     seasonNumber = seasonNumber,
     episodeNumber = episodeNumber,
-    isDirectory = isDirectory
+    isDirectory = isDirectory,
+    fileSize = fileSize,
+    lastModified = lastModified
 )

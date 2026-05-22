@@ -2,12 +2,12 @@ package com.miruplay.tv.sync
 
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
-import com.miruplay.tv.data.repository.MetadataRepository
-import com.miruplay.tv.data.repository.ProgressRepository
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.isCompleted
+import com.miruplay.tv.repository.MetadataRepository
+import com.miruplay.tv.repository.PlaybackProgressRepository
 import com.miruplay.tv.scraper.BangumiEpisodeCollectionType
 import com.miruplay.tv.scraper.BangumiScraper
 import com.miruplay.tv.scraper.BangumiSubjectCollectionType
@@ -29,7 +29,7 @@ data class BangumiSyncSummary(
 class BangumiSyncEngine @Inject constructor(
     private val bangumiScraper: BangumiScraper,
     private val metadataRepository: MetadataRepository,
-    private val progressRepository: ProgressRepository
+    private val progressRepository: PlaybackProgressRepository
 ) {
     suspend fun syncAnime(animeId: String): Result<BangumiSyncSummary> = withContext(Dispatchers.IO) {
         try {

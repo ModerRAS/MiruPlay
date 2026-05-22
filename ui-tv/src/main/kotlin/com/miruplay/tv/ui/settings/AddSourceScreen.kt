@@ -30,7 +30,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Cloud
@@ -58,10 +58,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -73,8 +79,20 @@ import androidx.tv.material3.Text
 import com.miruplay.tv.data.preferences.PlaybackEndAction
 import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.model.MediaSourceInfo
+import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.MiruPlaySettingsSection
 import com.miruplay.tv.model.RssSubscriptionInfo
+import com.miruplay.tv.model.androidTvSettingsSectionOrder
+import com.miruplay.tv.model.connectionDisplayName
+import com.miruplay.tv.model.connectionUsername
+import com.miruplay.tv.model.defaultSourceName
+import com.miruplay.tv.model.sourceLocation
+import com.miruplay.tv.model.tvDisplayName
+import com.miruplay.tv.model.tvDisplayStatusLabel
+import com.miruplay.tv.model.tvLabel
+import com.miruplay.tv.model.tvLocationLabel
+import com.miruplay.tv.model.tvSourceHint
 import com.miruplay.tv.ui.components.OverscanContainer
 import com.miruplay.tv.ui.components.TvButton
 import com.miruplay.tv.ui.components.TvTextField
@@ -101,42 +119,15 @@ import java.util.Locale
 private const val DEFAULT_LOCAL_PATH = "/storage/emulated/0/Download"
 private const val QR_CODE_MATRIX_SIZE = 96
 
-private enum class SettingsSection(
-    val title: String,
-    val description: String,
-    val icon: ImageVector
-) {
-    WEB_UI(
-        title = "WebUI",
-        description = "访问地址与二维码",
-        icon = Icons.Filled.WifiTethering
-    ),
-    SOURCES(
-        title = "媒体源",
-        description = "本地、WebDAV、SMB",
-        icon = Icons.Filled.Storage
-    ),
-    PLAYBACK(
-        title = "播放",
-        description = "播完动作",
-        icon = Icons.Filled.PlayArrow
-    ),
-    AUTOMATION(
-        title = "CloudDrive",
-        description = "RSS 离线下载与入库",
-        icon = Icons.Filled.Cloud
-    ),
-    SCAN(
-        title = "扫描",
-        description = "媒体库更新策略",
-        icon = Icons.Filled.Refresh
-    ),
-    METADATA(
-        title = "元数据",
-        description = "Bangumi Token",
-        icon = Icons.Filled.Key
-    )
-}
+private fun MiruPlaySettingsSection.androidTvIcon(): ImageVector =
+    when (this) {
+        MiruPlaySettingsSection.WEB_UI -> Icons.Filled.WifiTethering
+        MiruPlaySettingsSection.SOURCES -> Icons.Filled.Storage
+        MiruPlaySettingsSection.PLAYBACK -> Icons.Filled.PlayArrow
+        MiruPlaySettingsSection.CLOUD_DRIVE -> Icons.Filled.Cloud
+        MiruPlaySettingsSection.SCAN -> Icons.Filled.Refresh
+        MiruPlaySettingsSection.METADATA -> Icons.Filled.Key
+    }
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -153,6 +144,8 @@ fun AddSourceScreen(
     val mergeSameAnimeEnabled by viewModel.mergeSameAnimeEnabled.collectAsStateWithLifecycle()
     val playbackEndAction by viewModel.playbackEndAction.collectAsStateWithLifecycle()
     val webUiUrls by viewModel.webUiUrls.collectAsStateWithLifecycle()
+    val webControlEnabled by viewModel.webControlEnabled.collectAsStateWithLifecycle()
+    val webControlAccessToken by viewModel.webControlAccessToken.collectAsStateWithLifecycle()
     val cloudDriveConfig by viewModel.cloudDriveConfig.collectAsStateWithLifecycle()
     val rssSubscriptions by viewModel.rssSubscriptions.collectAsStateWithLifecycle()
     val cloudDriveTokenConfigured by viewModel.cloudDriveTokenConfigured.collectAsStateWithLifecycle()
@@ -161,7 +154,7 @@ fun AddSourceScreen(
     val cloudDriveDirectoryBrowser by viewModel.cloudDriveDirectoryBrowser.collectAsStateWithLifecycle()
     val localDirectoryBrowser by viewModel.localDirectoryBrowser.collectAsStateWithLifecycle()
 
-    var selectedSection by remember { mutableStateOf(SettingsSection.WEB_UI) }
+    var selectedSection by remember { mutableStateOf(MiruPlaySettingsSection.WEB_UI) }
     var editingSourceId by remember { mutableStateOf<Long?>(null) }
     var selectedType by remember { mutableStateOf(MediaSourceType.LOCAL) }
     var name by remember { mutableStateOf(sourceNameOrDefault("", MediaSourceType.LOCAL)) }
@@ -188,11 +181,15 @@ fun AddSourceScreen(
     var rssUrl by remember { mutableStateOf("") }
     var rssFilterRegex by remember { mutableStateOf("") }
     var rssEnabled by remember { mutableStateOf(true) }
+    var pendingDeletedSourceId by remember { mutableStateOf<Long?>(null) }
 
-    val menuFocusRequester = remember { FocusRequester() }
+    val menuFocusRequesters = remember {
+        androidTvSettingsSectionOrder.associateWith { FocusRequester() }
+    }
+    val firstMenuFocusRequester = menuFocusRequesters.getValue(MiruPlaySettingsSection.WEB_UI)
 
     LaunchedEffect(Unit) {
-        menuFocusRequester.requestFocus()
+        firstMenuFocusRequester.requestFocus()
     }
 
     LaunchedEffect(tokenSaved) {
@@ -232,15 +229,26 @@ fun AddSourceScreen(
         viewModel.clearTestResult()
     }
 
+    LaunchedEffect(sources, pendingDeletedSourceId) {
+        val deletedSourceId = pendingDeletedSourceId ?: return@LaunchedEffect
+        if (sources.none { it.id == deletedSourceId }) {
+            selectedSection = MiruPlaySettingsSection.SOURCES
+            resetSourceForm()
+            menuFocusRequesters.getValue(MiruPlaySettingsSection.SOURCES).requestFocus()
+            pendingDeletedSourceId = null
+        }
+    }
+
     fun loadSourceForEdit(source: MediaSourceInfo) {
         editingSourceId = source.id
-        selectedSection = SettingsSection.SOURCES
+        selectedSection = MiruPlaySettingsSection.SOURCES
         selectedType = source.type
         name = source.name.ifBlank { sourceNameOrDefault("", source.type) }
-        location = source.locationValue()
-        locationDisplayName = source.connectionInfo["displayName"]
-            ?: if (source.type == MediaSourceType.LOCAL) displayNameForLocation(location) else ""
-        username = source.connectionInfo["username"].orEmpty()
+        location = source.sourceLocation().orEmpty()
+        locationDisplayName = source.connectionDisplayName().ifBlank {
+            if (source.type == MediaSourceType.LOCAL) displayNameForLocation(location) else ""
+        }
+        username = source.connectionUsername()
         password = ""
         viewModel.clearTestResult()
     }
@@ -250,7 +258,7 @@ fun AddSourceScreen(
             id = editingSourceId ?: 0L,
             name = sourceNameOrDefault(name, selectedType),
             type = selectedType,
-            connectionInfo = sourceConnectionInfo(
+            connectionInfo = MediaSourceInfoConventions.sourceConnectionInfo(
                 type = selectedType,
                 location = location,
                 displayName = locationDisplayName,
@@ -286,7 +294,7 @@ fun AddSourceScreen(
                     cloudDriveEnabled = cloudEnabled,
                     rssCount = rssSubscriptions.size,
                     hasToken = savedToken.isNotBlank() || tokenSaved,
-                    firstItemRequester = menuFocusRequester,
+                    menuFocusRequesters = menuFocusRequesters,
                     onSectionSelected = { selectedSection = it },
                     modifier = Modifier
                         .width(300.dp)
@@ -299,11 +307,14 @@ fun AddSourceScreen(
                     selectedSourceId = editingSourceId,
                     onSelectSource = ::loadSourceForEdit,
                     onDeleteSource = { sourceId ->
+                        pendingDeletedSourceId = sourceId
+                        selectedSection = MiruPlaySettingsSection.SOURCES
                         viewModel.removeSource(sourceId)
                         if (editingSourceId == sourceId) {
                             resetSourceForm()
                         }
                     },
+                    menuFocusRequester = menuFocusRequesters.getValue(selectedSection),
                     selectedType = selectedType,
                     onTypeSelected = { type ->
                         if (type != selectedType) {
@@ -365,8 +376,14 @@ fun AddSourceScreen(
                         tokenSaved = false
                     },
                     webUiUrls = webUiUrls,
+                    webControlEnabled = webControlEnabled,
+                    webControlAccessToken = webControlAccessToken,
                     selectedWebUiUrl = selectedWebUiUrl,
                     onWebUiUrlSelected = { selectedWebUiUrl = it },
+                    onToggleWebControl = {
+                        viewModel.setWebControlEnabled(!webControlEnabled)
+                    },
+                    onRotateWebControlToken = viewModel::rotateWebControlAccessToken,
                     onRefreshWebUiUrls = viewModel::refreshWebUiUrls,
                     cloudEndpoint = cloudEndpoint,
                     onCloudEndpointChange = { cloudEndpoint = it },
@@ -520,7 +537,7 @@ private fun SettingsHeader(onNavigateBack: () -> Unit) {
 
 @Composable
 private fun SettingsMenuPanel(
-    selectedSection: SettingsSection,
+    selectedSection: MiruPlaySettingsSection,
     sourcesCount: Int,
     webUiAddressCount: Int,
     autoScanEnabled: Boolean,
@@ -529,8 +546,8 @@ private fun SettingsMenuPanel(
     cloudDriveEnabled: Boolean,
     rssCount: Int,
     hasToken: Boolean,
-    firstItemRequester: FocusRequester,
-    onSectionSelected: (SettingsSection) -> Unit,
+    menuFocusRequesters: Map<MiruPlaySettingsSection, FocusRequester>,
+    onSectionSelected: (MiruPlaySettingsSection) -> Unit,
     modifier: Modifier = Modifier
 ) {
     SettingsPanel(modifier = modifier) {
@@ -553,26 +570,26 @@ private fun SettingsMenuPanel(
                 .weight(1f),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            itemsIndexed(SettingsSection.entries) { index, section ->
+            itemsIndexed(androidTvSettingsSectionOrder) { index, section ->
                 val summary = when (section) {
-                    SettingsSection.WEB_UI -> if (webUiAddressCount > 0) "${webUiAddressCount} 个地址" else "等待网络"
-                    SettingsSection.SOURCES -> "${sourcesCount} 个源"
-                    SettingsSection.PLAYBACK -> playbackEndAction.menuSummary()
-                    SettingsSection.AUTOMATION -> if (cloudDriveEnabled) "${rssCount} 个订阅" else "未启用"
-                    SettingsSection.SCAN -> when {
+                    MiruPlaySettingsSection.WEB_UI -> if (webUiAddressCount > 0) "${webUiAddressCount} 个地址" else "等待网络"
+                    MiruPlaySettingsSection.SOURCES -> "${sourcesCount} 个源"
+                    MiruPlaySettingsSection.PLAYBACK -> playbackEndAction.menuSummary()
+                    MiruPlaySettingsSection.CLOUD_DRIVE -> if (cloudDriveEnabled) "${rssCount} 个订阅" else "未启用"
+                    MiruPlaySettingsSection.SCAN -> when {
                         autoScanEnabled && mergeSameAnimeEnabled -> "定时 · 合并"
                         autoScanEnabled -> "定时已开"
                         mergeSameAnimeEnabled -> "同番合并"
                         else -> "定时关闭"
                     }
-                    SettingsSection.METADATA -> if (hasToken) "Token 已设置" else "未设置"
+                    MiruPlaySettingsSection.METADATA -> if (hasToken) "Token 已设置" else "未设置"
                 }
                 SettingsMenuItem(
                     section = section,
                     summary = summary,
                     selected = section == selectedSection,
                     onClick = { onSectionSelected(section) },
-                    modifier = if (index == 0) Modifier.focusRequester(firstItemRequester) else Modifier
+                    modifier = Modifier.focusRequester(menuFocusRequesters.getValue(section))
                 )
             }
         }
@@ -581,7 +598,7 @@ private fun SettingsMenuPanel(
 
 @Composable
 private fun SettingsMenuItem(
-    section: SettingsSection,
+    section: MiruPlaySettingsSection,
     summary: String,
     selected: Boolean,
     onClick: () -> Unit,
@@ -619,7 +636,7 @@ private fun SettingsMenuItem(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            imageVector = section.icon,
+            imageVector = section.androidTvIcon(),
             contentDescription = null,
             tint = if (selected) AnimeRed else TextSecondary,
             modifier = Modifier.size(28.dp)
@@ -627,7 +644,7 @@ private fun SettingsMenuItem(
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = section.title,
+                text = section.androidTvTitle,
                 style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
                 color = TextPrimary,
                 maxLines = 1
@@ -645,11 +662,12 @@ private fun SettingsMenuItem(
 
 @Composable
 private fun SettingsContent(
-    selectedSection: SettingsSection,
+    selectedSection: MiruPlaySettingsSection,
     sources: List<MediaSourceInfo>,
     selectedSourceId: Long?,
     onSelectSource: (MediaSourceInfo) -> Unit,
     onDeleteSource: (Long) -> Unit,
+    menuFocusRequester: FocusRequester,
     selectedType: MediaSourceType,
     onTypeSelected: (MediaSourceType) -> Unit,
     name: String,
@@ -683,8 +701,12 @@ private fun SettingsContent(
     onSaveToken: () -> Unit,
     onClearToken: () -> Unit,
     webUiUrls: List<String>,
+    webControlEnabled: Boolean,
+    webControlAccessToken: String,
     selectedWebUiUrl: String,
     onWebUiUrlSelected: (String) -> Unit,
+    onToggleWebControl: () -> Unit,
+    onRotateWebControlToken: () -> Unit,
     onRefreshWebUiUrls: () -> Unit,
     cloudEndpoint: String,
     onCloudEndpointChange: (String) -> Unit,
@@ -735,19 +757,23 @@ private fun SettingsContent(
     modifier: Modifier = Modifier
 ) {
     when (selectedSection) {
-        SettingsSection.WEB_UI -> SettingsSingleSectionPage(
+        MiruPlaySettingsSection.WEB_UI -> SettingsSingleSectionPage(
             section = selectedSection,
             modifier = modifier
         ) {
             WebUiPanel(
                 urls = webUiUrls,
+                enabled = webControlEnabled,
+                accessToken = webControlAccessToken,
                 selectedUrl = selectedWebUiUrl,
                 onUrlSelected = onWebUiUrlSelected,
+                onToggleEnabled = onToggleWebControl,
+                onRotateToken = onRotateWebControlToken,
                 onRefresh = onRefreshWebUiUrls
             )
         }
 
-        SettingsSection.SOURCES -> Row(
+        MiruPlaySettingsSection.SOURCES -> Row(
             modifier = modifier,
             horizontalArrangement = Arrangement.spacedBy(18.dp)
         ) {
@@ -759,6 +785,15 @@ private fun SettingsContent(
                 modifier = Modifier
                     .weight(0.46f)
                     .fillMaxHeight()
+                    .focusProperties { left = menuFocusRequester }
+                    .onPreviewKeyEvent { event ->
+                        if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionLeft) {
+                            menuFocusRequester.requestFocus()
+                            true
+                        } else {
+                            false
+                        }
+                    }
             )
             Column(
                 modifier = Modifier
@@ -790,7 +825,7 @@ private fun SettingsContent(
             }
         }
 
-        SettingsSection.AUTOMATION -> SettingsSingleSectionPage(
+        MiruPlaySettingsSection.CLOUD_DRIVE -> SettingsSingleSectionPage(
             section = selectedSection,
             modifier = modifier
         ) {
@@ -847,7 +882,7 @@ private fun SettingsContent(
             )
         }
 
-        SettingsSection.SCAN -> SettingsSingleSectionPage(
+        MiruPlaySettingsSection.SCAN -> SettingsSingleSectionPage(
             section = selectedSection,
             modifier = modifier
         ) {
@@ -862,7 +897,7 @@ private fun SettingsContent(
             )
         }
 
-        SettingsSection.PLAYBACK -> SettingsSingleSectionPage(
+        MiruPlaySettingsSection.PLAYBACK -> SettingsSingleSectionPage(
             section = selectedSection,
             modifier = modifier
         ) {
@@ -872,7 +907,7 @@ private fun SettingsContent(
             )
         }
 
-        SettingsSection.METADATA -> SettingsSingleSectionPage(
+        MiruPlaySettingsSection.METADATA -> SettingsSingleSectionPage(
             section = selectedSection,
             modifier = modifier
         ) {
@@ -890,7 +925,7 @@ private fun SettingsContent(
 
 @Composable
 private fun SettingsSingleSectionPage(
-    section: SettingsSection,
+    section: MiruPlaySettingsSection,
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit
 ) {
@@ -904,25 +939,25 @@ private fun SettingsSingleSectionPage(
 }
 
 @Composable
-private fun SettingsSectionHeader(section: SettingsSection) {
+private fun SettingsSectionHeader(section: MiruPlaySettingsSection) {
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
-                imageVector = section.icon,
+                imageVector = section.androidTvIcon(),
                 contentDescription = null,
                 tint = TextPrimary,
                 modifier = Modifier.size(30.dp)
             )
             Spacer(Modifier.width(10.dp))
             Text(
-                text = section.title,
+                text = section.androidTvTitle,
                 style = TvTypography.title,
                 color = TextPrimary
             )
         }
         Spacer(Modifier.height(4.dp))
         Text(
-            text = section.description,
+            text = section.androidTvDescription,
             style = TvTypography.body,
             color = TextSecondary
         )
@@ -1017,8 +1052,10 @@ private fun SourceListItem(
     onDelete: () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+    val itemFocusRequester = remember { FocusRequester() }
+    val deleteFocusRequester = remember { FocusRequester() }
     val isFocused by interactionSource.collectIsFocusedAsState()
-    val location = source.connectionInfo["url"] ?: source.connectionInfo["path"] ?: ""
+    val location = source.sourceLocation().orEmpty()
     val background = when {
         isFocused -> AccentBlue
         selected -> AnimeRed.copy(alpha = 0.18f)
@@ -1033,6 +1070,8 @@ private fun SourceListItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .focusRequester(itemFocusRequester)
+            .focusProperties { right = deleteFocusRequester }
             .clip(RoundedCornerShape(8.dp))
             .background(background)
             .border(
@@ -1057,7 +1096,7 @@ private fun SourceListItem(
         )
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = source.name.ifBlank { source.type.label() },
+                text = source.tvDisplayName(fallbackName = source.type.tvLabel()),
                 color = TextPrimary,
                 style = TvTypography.body,
                 maxLines = 1,
@@ -1065,7 +1104,7 @@ private fun SourceListItem(
             )
             Spacer(Modifier.height(3.dp))
             Text(
-                text = "${source.type.label()} · ${if (source.isConnected) "可连接" else "待验证"}",
+                text = source.tvDisplayStatusLabel(),
                 color = if (source.isConnected) ProgressGreen else WarningYellow,
                 style = TvTypography.caption
             )
@@ -1079,17 +1118,25 @@ private fun SourceListItem(
                 )
             }
         }
-        SourceDeleteButton(onClick = onDelete)
+        SourceDeleteButton(
+            onClick = onDelete,
+            modifier = Modifier
+                .focusRequester(deleteFocusRequester)
+                .focusProperties { left = itemFocusRequester }
+        )
     }
 }
 
 @Composable
-private fun SourceDeleteButton(onClick: () -> Unit) {
+private fun SourceDeleteButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
 
     Box(
-        modifier = Modifier
+        modifier = modifier
             .size(58.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(if (isFocused) AnimeRed else AnimeRed.copy(alpha = 0.72f))
@@ -1117,8 +1164,12 @@ private fun SourceDeleteButton(onClick: () -> Unit) {
 @Composable
 private fun WebUiPanel(
     urls: List<String>,
+    enabled: Boolean,
+    accessToken: String,
     selectedUrl: String,
     onUrlSelected: (String) -> Unit,
+    onToggleEnabled: () -> Unit,
+    onRotateToken: () -> Unit,
     onRefresh: () -> Unit
 ) {
     val activeUrl = selectedUrl.ifBlank { urls.firstOrNull().orEmpty() }
@@ -1137,23 +1188,55 @@ private fun WebUiPanel(
 
         Spacer(Modifier.height(6.dp))
         Text(
-            text = "手机或电脑与电视在同一局域网时，可以打开下面的地址管理媒体源和遥控播放。",
+            text = "默认关闭。开启后，同一局域网设备需要携带访问令牌才能管理媒体源和遥控播放。",
             style = TvTypography.body,
             color = TextSecondary
         )
 
-        if (urls.isEmpty()) {
-            StatusMessage(
-                icon = Icons.Filled.Refresh,
-                text = "暂未检测到局域网地址，请确认电视已连接网络后刷新。",
-                color = WarningYellow
+        Spacer(Modifier.height(14.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            TvButton(
+                text = if (enabled) "关闭 WebUI" else "开启 WebUI",
+                icon = Icons.Filled.WifiTethering,
+                onClick = onToggleEnabled,
+                modifier = Modifier.width(156.dp)
             )
-            Spacer(Modifier.height(12.dp))
+            TvButton(
+                text = "更换令牌",
+                icon = Icons.Filled.Key,
+                onClick = onRotateToken,
+                enabled = enabled,
+                modifier = Modifier.width(150.dp)
+            )
             TvButton(
                 text = "刷新地址",
                 icon = Icons.Filled.Refresh,
                 onClick = onRefresh,
+                enabled = enabled,
                 modifier = Modifier.width(150.dp)
+            )
+        }
+
+        Spacer(Modifier.height(12.dp))
+        Text(
+            text = "访问令牌：${accessToken.ifBlank { "未生成" }}",
+            style = TvTypography.caption,
+            color = TextSecondary,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        if (!enabled) {
+            StatusMessage(
+                icon = Icons.Filled.Close,
+                text = "WebUI 当前未启用，不会监听局域网端口。",
+                color = WarningYellow
+            )
+        } else if (urls.isEmpty()) {
+            StatusMessage(
+                icon = Icons.Filled.Refresh,
+                text = "暂未检测到局域网地址，请确认电视已连接网络后刷新。",
+                color = WarningYellow
             )
         } else {
             Spacer(Modifier.height(16.dp))
@@ -1179,12 +1262,6 @@ private fun WebUiPanel(
                             onClick = { onUrlSelected(url) }
                         )
                     }
-                    TvButton(
-                        text = "刷新地址",
-                        icon = Icons.Filled.Refresh,
-                        onClick = onRefresh,
-                        modifier = Modifier.width(150.dp)
-                    )
                 }
 
                 Column(
@@ -1353,7 +1430,7 @@ private fun CloudDriveDirectoryPickerDialog(
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 ScanOptionChip(
                     text = "上一级",
-                    icon = Icons.Filled.ArrowBack,
+                    icon = Icons.AutoMirrored.Filled.ArrowBack,
                     selected = false,
                     enabled = state.parentPath != null,
                     onClick = { state.parentPath?.let(onNavigate) },
@@ -1463,7 +1540,7 @@ private fun LocalDirectoryPickerDialog(
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 ScanOptionChip(
                     text = "上一级",
-                    icon = Icons.Filled.ArrowBack,
+                    icon = Icons.AutoMirrored.Filled.ArrowBack,
                     selected = false,
                     enabled = state.parentPath != null,
                     onClick = { state.parentPath?.let(onNavigate) },
@@ -1806,7 +1883,7 @@ private fun CloudDriveWebDavSourceSelector(
                 )
                 sources.take(3).forEach { source ->
                     CloudDriveWebDavSourceChip(
-                        text = source.name.ifBlank { source.connectionInfo["url"].orEmpty() },
+                        text = source.tvDisplayName(fallbackName = source.sourceLocation().orEmpty()),
                         selected = source.id == selectedSourceId,
                         onClick = { onSelected(source.id) },
                         modifier = Modifier.weight(1f)
@@ -2072,7 +2149,7 @@ private fun SourceFormPanel(
             TvTextField(
                 value = location,
                 onValueChange = onLocationChange,
-                label = selectedType.locationLabel(),
+                label = selectedType.tvLocationLabel(),
                 modifier = Modifier.fillMaxWidth()
             )
         }
@@ -2216,14 +2293,14 @@ private fun SourceTypeChip(
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            text = type.label(),
+            text = type.tvLabel(),
             style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
             color = TextPrimary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
         Text(
-            text = type.hint(),
+            text = type.tvSourceHint(),
             style = TvTypography.caption,
             color = TextSecondary,
             maxLines = 1,
@@ -2370,7 +2447,7 @@ private fun PlaybackPanel(
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ScanOptionChip(
                 text = "返回详情",
-                icon = Icons.Filled.ArrowBack,
+                icon = Icons.AutoMirrored.Filled.ArrowBack,
                 selected = endAction == PlaybackEndAction.RETURN_TO_DETAIL,
                 enabled = true,
                 onClick = { onEndActionSelected(PlaybackEndAction.RETURN_TO_DETAIL) },
@@ -2564,37 +2641,12 @@ private fun SettingsPanel(
 }
 
 private fun sourceNameOrDefault(name: String, type: MediaSourceType): String =
-    name.ifBlank {
-        when (type) {
-            MediaSourceType.LOCAL -> "本地下载"
-            MediaSourceType.WEBDAV -> "WebDAV 媒体库"
-            MediaSourceType.SMB -> "SMB 共享"
-        }
-    }
+    name.ifBlank { type.defaultSourceName() }
 
 private fun defaultLocationFor(type: MediaSourceType): String = when (type) {
     MediaSourceType.LOCAL -> DEFAULT_LOCAL_PATH
     MediaSourceType.WEBDAV -> ""
     MediaSourceType.SMB -> "smb://"
-}
-
-private fun sourceConnectionInfo(
-    type: MediaSourceType,
-    location: String,
-    displayName: String,
-    username: String,
-    password: String
-): Map<String, String> = buildMap {
-    put("url", location.trim())
-    if (type == MediaSourceType.LOCAL) {
-        put("path", location.trim())
-        if (location.startsWith("content://")) {
-            put("uri", location.trim())
-        }
-        if (displayName.isNotBlank()) put("displayName", displayName.trim())
-    }
-    if (username.isNotBlank()) put("username", username.trim())
-    if (password.isNotBlank()) put("password", password)
 }
 
 private fun createQrCodeMatrix(content: String): BitMatrix? {
@@ -2614,9 +2666,6 @@ private fun createQrCodeMatrix(content: String): BitMatrix? {
     }.getOrNull()
 }
 
-private fun MediaSourceInfo.locationValue(): String =
-    connectionInfo["uri"] ?: connectionInfo["url"] ?: connectionInfo["path"] ?: ""
-
 private fun formatLastScanAt(lastScanAt: Long): String {
     if (lastScanAt <= 0L) return "还没有扫描记录"
     return "上次扫描 " + SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(lastScanAt))
@@ -2624,24 +2673,6 @@ private fun formatLastScanAt(lastScanAt: Long): String {
 
 private fun formatTimestamp(timestamp: Long): String =
     SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(timestamp))
-
-private fun MediaSourceType.label(): String = when (this) {
-    MediaSourceType.LOCAL -> "本地"
-    MediaSourceType.WEBDAV -> "WebDAV"
-    MediaSourceType.SMB -> "SMB"
-}
-
-private fun MediaSourceType.hint(): String = when (this) {
-    MediaSourceType.LOCAL -> "设备文件夹"
-    MediaSourceType.WEBDAV -> "HTTP 文件服务"
-    MediaSourceType.SMB -> "局域网共享"
-}
-
-private fun MediaSourceType.locationLabel(): String = when (this) {
-    MediaSourceType.LOCAL -> "媒体文件夹"
-    MediaSourceType.WEBDAV -> "WebDAV 地址"
-    MediaSourceType.SMB -> "SMB 地址"
-}
 
 private fun MediaSourceType.sourceIcon(): ImageVector = when (this) {
     MediaSourceType.LOCAL -> Icons.Filled.Folder

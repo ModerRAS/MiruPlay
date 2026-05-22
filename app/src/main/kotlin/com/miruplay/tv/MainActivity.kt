@@ -12,14 +12,15 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.miruplay.tv.data.repository.MediaRepository
-import com.miruplay.tv.data.repository.ProgressRepository
-import com.miruplay.tv.data.repository.resolvePlayableUri
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.resumePosition
+import com.miruplay.tv.repository.MediaSourceRepository
+import com.miruplay.tv.repository.PlaybackProgressRepository
+import com.miruplay.tv.repository.resolvePlayableUri
+import com.miruplay.tv.navigation.NavRoutes
 import com.miruplay.tv.ui.detail.AnimeDetailScreen
 import com.miruplay.tv.ui.library.LibraryScreen
 import com.miruplay.tv.ui.player.PlayerScreen
@@ -36,8 +37,8 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
-    @Inject lateinit var mediaRepository: MediaRepository
-    @Inject lateinit var progressRepository: ProgressRepository
+    @Inject lateinit var mediaRepository: MediaSourceRepository
+    @Inject lateinit var progressRepository: PlaybackProgressRepository
     @Inject lateinit var webControlNavigator: WebControlNavigator
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -47,7 +48,7 @@ class MainActivity : ComponentActivity() {
         val testSourcePath = intent.getStringExtra("test_local_path")
 
         if (testSourcePath != null) {
-            lifecycleScope.launchWhenStarted {
+            lifecycleScope.launch {
                 val source = MediaSourceInfo(
                     name = "Test Local",
                     type = MediaSourceType.LOCAL,
@@ -71,8 +72,8 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MiruPlayNavigation(
-    mediaRepository: MediaRepository,
-    progressRepository: ProgressRepository,
+    mediaRepository: MediaSourceRepository,
+    progressRepository: PlaybackProgressRepository,
     webControlNavigator: WebControlNavigator
 ) {
     val navController = rememberNavController()
@@ -87,7 +88,12 @@ fun MiruPlayNavigation(
                 val encodedSource = Uri.encode(source.mediaSourceId)
                 val encodedEpisode = Uri.encode(source.episodeId ?: "")
                 navController.navigate(
-                    "player/$encodedPath?mediaSourceId=$encodedSource&startPosition=${source.startPositionMs}&episodeId=$encodedEpisode"
+                    NavRoutes.player(
+                        uri = encodedPath,
+                        mediaSourceId = encodedSource,
+                        startPosition = source.startPositionMs,
+                        episodeId = encodedEpisode,
+                    )
                 ) {
                     launchSingleTop = true
                 }
@@ -97,25 +103,25 @@ fun MiruPlayNavigation(
     
     NavHost(
         navController = navController,
-        startDestination = "library"
+        startDestination = NavRoutes.LIBRARY
     ) {
-        composable("library") {
+        composable(NavRoutes.LIBRARY) {
             LibraryScreen(
-                onNavigateToSettings = { navController.navigate("settings") },
+                onNavigateToSettings = { navController.navigate(NavRoutes.SETTINGS) },
                 onNavigateToDetail = { animeId ->
-                    navController.navigate("anime/$animeId")
+                    navController.navigate(NavRoutes.animeDetail(animeId))
                 }
             )
         }
 
-        composable("settings") {
+        composable(NavRoutes.SETTINGS) {
             AddSourceScreen(
                 onNavigateBack = { navController.popBackStack() }
             )
         }
 
         composable(
-            route = "anime/{animeId}",
+            route = NavRoutes.ANIME_DETAIL,
             arguments = listOf(navArgument("animeId") { type = NavType.StringType })
         ) { backStackEntry ->
             val animeId = backStackEntry.arguments?.getString("animeId") ?: return@composable
@@ -134,7 +140,12 @@ fun MiruPlayNavigation(
                         val encodedEpisode = Uri.encode(episode.id)
                         val startPosition = resumePositionFor(episode, progressRepository)
                         navController.navigate(
-                            "player/$encodedPath?mediaSourceId=$encodedSource&startPosition=$startPosition&episodeId=$encodedEpisode"
+                            NavRoutes.player(
+                                uri = encodedPath,
+                                mediaSourceId = encodedSource,
+                                startPosition = startPosition,
+                                episodeId = encodedEpisode,
+                            )
                         )
                     }
                 }
@@ -142,7 +153,7 @@ fun MiruPlayNavigation(
         }
 
         composable(
-            route = "player/{uri}?mediaSourceId={mediaSourceId}&startPosition={startPosition}&episodeId={episodeId}",
+            route = NavRoutes.PLAYER_WITH_OPTIONS,
             arguments = listOf(
                 navArgument("uri") { type = NavType.StringType },
                 navArgument("mediaSourceId") {
@@ -183,7 +194,7 @@ fun MiruPlayNavigation(
 
 private suspend fun resumePositionFor(
     episode: Episode,
-    progressRepository: ProgressRepository
+    progressRepository: PlaybackProgressRepository
 ): Long {
     val progress = progressRepository.getProgress(episode.id).getOrNull()
     return episode.resumePosition(progress)

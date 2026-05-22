@@ -33,6 +33,11 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -41,6 +46,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import com.miruplay.tv.model.Anime
+import com.miruplay.tv.model.displayTitle
+import com.miruplay.tv.model.featureSubtitle
+import com.miruplay.tv.model.posterSubtitle
 import com.miruplay.tv.ui.theme.AnimeRed
 import com.miruplay.tv.ui.theme.CardBg
 import com.miruplay.tv.ui.theme.FocusBorder
@@ -73,8 +81,16 @@ fun AnimePosterCard(
                 color = if (isFocused) FocusBorder else Color.White.copy(alpha = 0.08f),
                 shape = RoundedCornerShape(8.dp)
             )
-            .focusable()
             .onFocusChanged { isFocused = it.isFocused }
+            .onPreviewKeyEvent { event ->
+                if (event.type == KeyEventType.KeyDown && event.key.isActivateKey()) {
+                    onClick()
+                    true
+                } else {
+                    false
+                }
+            }
+            .focusable()
             .clickable(onClick = onClick)
     ) {
         RemoteImage(
@@ -160,8 +176,16 @@ fun FeatureAnimeCard(
                 color = if (isFocused) FocusBorder else Color.White.copy(alpha = 0.08f),
                 shape = RoundedCornerShape(8.dp)
             )
-            .focusable()
             .onFocusChanged { isFocused = it.isFocused }
+            .onPreviewKeyEvent { event ->
+                if (event.type == KeyEventType.KeyDown && event.key.isActivateKey()) {
+                    onClick()
+                    true
+                } else {
+                    false
+                }
+            }
+            .focusable()
             .clickable(onClick = onClick)
     ) {
         RemoteImage(
@@ -244,21 +268,7 @@ fun FeatureAnimeCard(
     }
 }
 
-fun Anime.displayTitle(): String = titleCn?.takeIf { it.isNotBlank() } ?: title.ifBlank { id }
-
-private fun Anime.posterSubtitle(): String {
-    val parts = buildList {
-        if (episodeCount > 0) add("${episodeCount} 集")
-        if (rating > 0f) add("Bangumi ${"%.1f".format(rating)}")
-    }
-    return parts.joinToString(" · ")
-}
-
-private fun Anime.featureSubtitle(): String {
-    val parts = buildList {
-        airDate?.takeIf { it.isNotBlank() }?.let { add(it) }
-        if (episodeCount > 0) add("全 $episodeCount 话")
-        if (rating > 0f) add("评分 ${"%.1f".format(rating)}")
-    }
-    return parts.joinToString(" · ").ifBlank { "本地媒体库" }
-}
+private fun Key.isActivateKey(): Boolean = this == Key.DirectionCenter ||
+    this == Key.Enter ||
+    this == Key.NumPadEnter ||
+    this == Key.Spacebar

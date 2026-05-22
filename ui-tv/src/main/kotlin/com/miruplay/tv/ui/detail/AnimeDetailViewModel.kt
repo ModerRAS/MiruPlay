@@ -4,16 +4,16 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.data.preferences.ScanPreferencesManager
-import com.miruplay.tv.data.repository.IndexRepository
-import com.miruplay.tv.data.repository.MediaRepository
-import com.miruplay.tv.data.repository.MetadataRepository
-import com.miruplay.tv.data.repository.ProgressRepository
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.Season
 import com.miruplay.tv.model.mergeAnimeGroupForDisplay
 import com.miruplay.tv.model.sameAnimeGroupFor
+import com.miruplay.tv.repository.MediaIndexRepository
+import com.miruplay.tv.repository.MediaSourceRepository
+import com.miruplay.tv.repository.MetadataRepository
+import com.miruplay.tv.repository.PlaybackProgressRepository
 import com.miruplay.tv.scraper.MetadataScraper
 import com.miruplay.tv.sync.BangumiSyncEngine
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -25,10 +25,10 @@ import javax.inject.Inject
 
 @HiltViewModel
 class AnimeDetailViewModel @Inject constructor(
-    private val mediaRepository: MediaRepository,
+    private val mediaRepository: MediaSourceRepository,
     private val metadataRepository: MetadataRepository,
-    private val indexRepository: IndexRepository,
-    private val progressRepository: ProgressRepository,
+    private val indexRepository: MediaIndexRepository,
+    private val progressRepository: PlaybackProgressRepository,
     private val bangumiSyncEngine: BangumiSyncEngine,
     private val scanPreferences: ScanPreferencesManager,
     private val metadataScrapers: Set<@JvmSuppressWildcards MetadataScraper>

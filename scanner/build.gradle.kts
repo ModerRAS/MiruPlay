@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.miruplay.tv.scanner"
-    compileSdk = 34
+    compileSdk = 35
     defaultConfig {
         minSdk = 28
     }
@@ -20,7 +20,7 @@ dependencies {
     api(project(":core:model"))
     api(project(":core:common"))
     api(project(":media-source"))
-    api(project(":data"))
+    api(project(":repository-api"))
     api(project(":metadata"))
     implementation(project(":scraper"))
     implementation(libs.kotlinx.coroutines.core)

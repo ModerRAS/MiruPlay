@@ -26,7 +26,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
@@ -74,6 +74,8 @@ import androidx.tv.material3.Text
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.PlaybackState
 import com.miruplay.tv.model.SubtitleTrack
+import com.miruplay.tv.model.displayTitle
+import com.miruplay.tv.model.formatPlaybackPosition
 import com.miruplay.tv.player.AudioTrack
 import com.miruplay.tv.ui.theme.AnimeRed
 import com.miruplay.tv.ui.theme.DarkSurface
@@ -82,8 +84,6 @@ import com.miruplay.tv.ui.theme.TextPrimary
 import com.miruplay.tv.ui.theme.TextSecondary
 import com.miruplay.tv.ui.theme.TvTypography
 import kotlinx.coroutines.delay
-import java.net.URLDecoder
-import java.nio.charset.StandardCharsets
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -355,7 +355,7 @@ private fun PlayerTopBar(
         verticalAlignment = Alignment.CenterVertically
     ) {
         PlayerIconButton(
-            icon = Icons.Filled.ArrowBack,
+            icon = Icons.AutoMirrored.Filled.ArrowBack,
             label = "返回",
             onClick = onBack,
             size = 54.dp
@@ -448,7 +448,7 @@ private fun PlayerBottomBar(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            TimeText(formatTime(currentPosition))
+            TimeText(formatPlaybackPosition(currentPosition))
             PlaybackTimeline(
                 progress = if (duration > 0L) {
                     currentPosition.toFloat() / duration.toFloat()
@@ -459,7 +459,7 @@ private fun PlayerBottomBar(
                     .weight(1f)
                     .padding(horizontal = 18.dp)
             )
-            TimeText(formatTime(duration))
+            TimeText(formatPlaybackPosition(duration))
         }
 
         Spacer(Modifier.height(18.dp))
@@ -955,25 +955,6 @@ private fun handlePlayerKey(
             true
         }
         else -> false
-    }
-}
-
-private fun PlaybackSource.displayTitle(): String {
-    val name = uri.substringAfterLast("/").substringBefore("?").substringBeforeLast(".")
-    return runCatching {
-        URLDecoder.decode(name, StandardCharsets.UTF_8.name())
-    }.getOrDefault(name).ifBlank { mediaSourceId }
-}
-
-private fun formatTime(ms: Long): String {
-    val totalSeconds = (ms / 1000).coerceAtLeast(0)
-    val hours = totalSeconds / 3600
-    val minutes = (totalSeconds % 3600) / 60
-    val seconds = totalSeconds % 60
-    return if (hours > 0) {
-        "%d:%02d:%02d".format(hours, minutes, seconds)
-    } else {
-        "%02d:%02d".format(minutes, seconds)
     }
 }
 
