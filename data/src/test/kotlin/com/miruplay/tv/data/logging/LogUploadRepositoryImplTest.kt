@@ -87,9 +87,10 @@ class LogUploadRepositoryImplTest {
 
         val status = repository.uploadPendingLogs()
 
-        assertEquals(251, status.pendingCount)
+        assertEquals(250, status.pendingCount)
         assertTrue(status.lastUploadStatus.orEmpty().contains("已上报 200 条日志，后续上报失败"))
-        assertEquals(251, localLogStore.pendingCount())
+        assertEquals(250, localLogStore.pendingCount())
+        assertTrue(localLogStore.readBatch(300).none { it.tag == "LogUploadRepository" })
         assertRequestPayloadSizes(200, 200)
     }
 

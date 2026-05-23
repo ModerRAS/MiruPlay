@@ -113,15 +113,17 @@ class LogUploadRepositoryImpl @Inject constructor(
                     _status.value = currentStatus(isUploading = true)
                 }
                 is OtlpLogUploader.UploadResult.Failed -> {
-                    MiruLog.w(
-                        "LogUploadRepository",
-                        "OpenObserve log upload failed",
-                        attributes = mapOf(
-                            "failure_message" to result.message,
-                            "uploaded_count" to uploadedCount.toString(),
-                            "completed_batches" to (batchCount - 1).toString()
+                    MiruLog.withoutSinkRecording {
+                        MiruLog.w(
+                            "LogUploadRepository",
+                            "OpenObserve log upload failed",
+                            attributes = mapOf(
+                                "failure_message" to result.message,
+                                "uploaded_count" to uploadedCount.toString(),
+                                "completed_batches" to (batchCount - 1).toString()
+                            )
                         )
-                    )
+                    }
                     return updateStatus(
                         if (uploadedCount > 0) {
                             "已上报 $uploadedCount 条日志，后续上报失败：${result.message}"
