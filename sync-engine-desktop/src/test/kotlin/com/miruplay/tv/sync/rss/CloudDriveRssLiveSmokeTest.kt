@@ -377,7 +377,7 @@ class CloudDriveRssLiveSmokeTest {
         val options = CloudDriveRssLiveSmokeOptions(
             endpoint = "http://127.0.0.1:19798",
             token = "secret-token",
-            rssUrl = "https://example.test/rss.xml",
+            rssUrl = "https://example.test/rss.xml?passkey=rss-secret",
             inboxPath = "/Downloads",
             libraryPath = "/Library",
         )
@@ -416,8 +416,8 @@ class CloudDriveRssLiveSmokeTest {
             previewItems = listOf(
                 CloudDriveRssLiveSmokeItem(
                     title = "Episode 01",
-                    guid = "guid-1",
-                    submissionUrl = "magnet:?xt=urn:btih:abc",
+                    guid = "guid-secret-1",
+                    submissionUrl = "magnet:?xt=urn:btih:abc&dn=secret-title",
                     status = CloudDriveRssLiveSmokeItemStatus.WOULD_SUBMIT,
                     submissionType = CloudDriveRssLiveSmokeSubmissionType.MAGNET,
                 )
@@ -427,8 +427,18 @@ class CloudDriveRssLiveSmokeTest {
         val json = buildCloudDriveRssLiveSmokeReportJson(options, report)
 
         assertFalse(json.contains("secret-token"))
+        assertFalse(json.contains("rss-secret"))
+        assertFalse(json.contains("guid-secret-1"))
+        assertFalse(json.contains("magnet:?xt=urn:btih:abc"))
+        assertFalse(json.contains("secret-title"))
         val root = Json.parseToJsonElement(json).jsonObject
         assertEquals("http://127.0.0.1:19798", root.getValue("endpoint").jsonPrimitive.content)
+        assertEquals("https://example.test/...", root.getValue("rssUrl").jsonPrimitive.content)
+        val rssUrlEvidence = root.getValue("rssUrlEvidence").jsonObject
+        assertEquals("https://example.test/...", rssUrlEvidence.getValue("redacted").jsonPrimitive.content)
+        assertEquals("https", rssUrlEvidence.getValue("scheme").jsonPrimitive.content)
+        assertEquals("example.test", rssUrlEvidence.getValue("host").jsonPrimitive.content)
+        assertEquals(64, rssUrlEvidence.getValue("sha256").jsonPrimitive.content.length)
         assertEquals(1, root.getValue("candidateCount").jsonPrimitive.int)
         val liveSubmit = root.getValue("liveSubmit").jsonObject
         assertTrue(liveSubmit.getValue("enabled").jsonPrimitive.boolean)
@@ -441,7 +451,29 @@ class CloudDriveRssLiveSmokeTest {
         assertEquals(0, organize.getValue("postOrganizeInboxItemCount").jsonPrimitive.int)
         assertEquals(5, organize.getValue("postOrganizeLibraryItemCount").jsonPrimitive.int)
         assertEquals("desktop-token", root.getValue("tokenInfo").jsonObject.getValue("friendlyName").jsonPrimitive.content)
-        assertEquals("Episode 01", root.getValue("previewItems").jsonArray.single().jsonObject.getValue("title").jsonPrimitive.content)
+        val preview = root.getValue("previewItems").jsonArray.single().jsonObject
+        assertEquals("Episode 01", preview.getValue("title").jsonPrimitive.content)
+        assertTrue(preview.getValue("hasGuid").jsonPrimitive.boolean)
+        assertEquals(64, preview.getValue("guidSha256").jsonPrimitive.content.length)
+        assertTrue(preview.getValue("hasSubmissionUrl").jsonPrimitive.boolean)
+        val submissionEvidence = preview.getValue("submissionUrlEvidence").jsonObject
+        assertEquals("magnet:?<redacted>", submissionEvidence.getValue("redacted").jsonPrimitive.content)
+        assertEquals("magnet", submissionEvidence.getValue("scheme").jsonPrimitive.content)
+        assertEquals("", submissionEvidence.getValue("host").jsonPrimitive.content)
+        assertEquals(64, submissionEvidence.getValue("sha256").jsonPrimitive.content.length)
+        assertFalse(preview.containsKey("guid"))
+        assertFalse(preview.containsKey("submissionUrl"))
+    }
+
+    @Test
+    fun `redacts private RSS evidence URLs by scheme`() {
+        assertEquals(
+            "https://tracker.example:8443/...",
+            redactCloudDriveRssEvidenceUrl("https://user:pass@tracker.example:8443/rss?passkey=secret")
+        )
+        assertEquals("file:///<redacted>", redactCloudDriveRssEvidenceUrl("file:///D:/feeds/private.xml"))
+        assertEquals("magnet:?<redacted>", redactCloudDriveRssEvidenceUrl("magnet:?xt=urn:btih:abc&dn=secret"))
+        assertEquals("ftp:<redacted>", redactCloudDriveRssEvidenceUrl("ftp://example.test/private.torrent"))
     }
 
     private class FakeFeedReader(
