@@ -447,31 +447,40 @@ internal sealed interface LibrarySourceFocusTarget {
 private fun Modifier.librarySourceActionNavigation(
     action: LibrarySourceAction,
     focusRequester: FocusRequester,
-    onMove: (LibrarySourceAction, Key) -> Boolean,
+    onMove: (LibrarySourceAction, MiruPlayInputIntent) -> Boolean,
 ): Modifier =
     focusRequester(focusRequester)
-        .desktopNavigationKeyHandler { key -> onMove(action, key) }
+        .desktopNavigationIntentHandler { intent -> onMove(action, intent) }
 
 private fun Modifier.librarySourceFieldNavigation(
     field: LibrarySourceField,
     focusRequester: FocusRequester,
-    onMove: (LibrarySourceField, Key) -> Boolean,
+    onMove: (LibrarySourceField, MiruPlayInputIntent) -> Boolean,
 ): Modifier =
     focusRequester(focusRequester)
-        .desktopNavigationKeyHandler { key -> onMove(field, key) }
+        .desktopNavigationIntentHandler { intent -> onMove(field, intent) }
 
 internal fun librarySourceActionFocusTarget(
     current: LibrarySourceAction,
     key: Key,
     hasEmptyMedia: Boolean = false,
 ): LibrarySourceFocusTarget? =
+    key.toMiruPlayInputIntent()?.let { intent ->
+        librarySourceActionFocusTarget(current, intent, hasEmptyMedia)
+    }
+
+internal fun librarySourceActionFocusTarget(
+    current: LibrarySourceAction,
+    intent: MiruPlayInputIntent,
+    hasEmptyMedia: Boolean = false,
+): LibrarySourceFocusTarget? =
     when {
-        current == LibrarySourceAction.OpenLocal && key == Key.DirectionLeft ->
+        current == LibrarySourceAction.OpenLocal && intent.horizontalNavigationDelta() == -1 ->
             LibrarySourceFocusTarget.Field(LibrarySourceField.IndexQuery)
-        key == Key.DirectionDown -> librarySourceActionNavigationTarget(current, key)
+        intent.verticalNavigationDelta() == 1 -> librarySourceActionNavigationTarget(current, intent)
             ?.let(LibrarySourceFocusTarget::Action)
             ?: LibrarySourceFocusTarget.EmptyMedia.takeIf { hasEmptyMedia }
-        else -> librarySourceActionNavigationTarget(current, key)?.let(LibrarySourceFocusTarget::Action)
+        else -> librarySourceActionNavigationTarget(current, intent)?.let(LibrarySourceFocusTarget::Action)
     }
 
 internal fun librarySourceFieldFocusTarget(
@@ -479,27 +488,41 @@ internal fun librarySourceFieldFocusTarget(
     key: Key,
     hasEmptyMedia: Boolean = false,
 ): LibrarySourceFocusTarget? =
-    when (key) {
-        Key.DirectionUp -> when (current) {
+    key.toMiruPlayInputIntent()?.let { intent ->
+        librarySourceFieldFocusTarget(current, intent, hasEmptyMedia)
+    }
+
+internal fun librarySourceFieldFocusTarget(
+    current: LibrarySourceField,
+    intent: MiruPlayInputIntent,
+    hasEmptyMedia: Boolean = false,
+): LibrarySourceFocusTarget? =
+    when (intent.verticalNavigationDelta()) {
+        -1 -> when (current) {
             LibrarySourceField.LocalRoot -> LibrarySourceFocusTarget.PreviousPanel
             LibrarySourceField.IndexQuery -> LibrarySourceFocusTarget.Field(LibrarySourceField.LocalRoot)
         }
-        Key.DirectionDown -> when {
+        1 -> when {
             current == LibrarySourceField.LocalRoot -> LibrarySourceFocusTarget.Field(LibrarySourceField.IndexQuery)
             hasEmptyMedia -> LibrarySourceFocusTarget.EmptyMedia
             else -> null
         }
-        Key.DirectionRight -> if (current == LibrarySourceField.IndexQuery) {
-            LibrarySourceFocusTarget.Action(LibrarySourceAction.OpenLocal)
-        } else {
-            null
+        else -> when (intent.horizontalNavigationDelta()) {
+            1 -> if (current == LibrarySourceField.IndexQuery) {
+                LibrarySourceFocusTarget.Action(LibrarySourceAction.OpenLocal)
+            } else {
+                null
+            }
+            else -> null
         }
-        else -> null
     }
 
 internal fun libraryEmptyMediaFocusTarget(key: Key): LibrarySourceFocusTarget? =
-    when (key) {
-        Key.DirectionUp -> LibrarySourceFocusTarget.Field(LibrarySourceField.LocalRoot)
+    key.toMiruPlayInputIntent()?.let(::libraryEmptyMediaFocusTarget)
+
+internal fun libraryEmptyMediaFocusTarget(intent: MiruPlayInputIntent): LibrarySourceFocusTarget? =
+    when (intent.verticalNavigationDelta()) {
+        -1 -> LibrarySourceFocusTarget.Field(LibrarySourceField.LocalRoot)
         else -> null
     }
 
@@ -563,48 +586,63 @@ internal sealed interface RemoteSourceFocusTarget {
 private fun Modifier.remoteSourceActionNavigation(
     action: RemoteSourceAction,
     focusRequester: FocusRequester,
-    onMove: (RemoteSourceAction, Key) -> Boolean,
+    onMove: (RemoteSourceAction, MiruPlayInputIntent) -> Boolean,
 ): Modifier =
     focusRequester(focusRequester)
-        .desktopNavigationKeyHandler { key -> onMove(action, key) }
+        .desktopNavigationIntentHandler { intent -> onMove(action, intent) }
 
 private fun Modifier.remoteSourceFieldNavigation(
     field: RemoteSourceField,
     focusRequester: FocusRequester,
-    onMove: (RemoteSourceField, Key) -> Boolean,
+    onMove: (RemoteSourceField, MiruPlayInputIntent) -> Boolean,
 ): Modifier =
     focusRequester(focusRequester)
-        .desktopNavigationKeyHandler { key -> onMove(field, key) }
+        .desktopNavigationIntentHandler { intent -> onMove(field, intent) }
 
 internal fun remoteSourceActionFocusTarget(
     current: RemoteSourceAction,
     key: Key,
 ): RemoteSourceFocusTarget? =
-    when (key) {
-        Key.DirectionRight -> when (current) {
+    key.toMiruPlayInputIntent()?.let { intent ->
+        remoteSourceActionFocusTarget(current, intent)
+    }
+
+internal fun remoteSourceActionFocusTarget(
+    current: RemoteSourceAction,
+    intent: MiruPlayInputIntent,
+): RemoteSourceFocusTarget? =
+    when (intent.horizontalNavigationDelta()) {
+        1 -> when (current) {
             RemoteSourceAction.OpenWebDav,
             RemoteSourceAction.ScanSource,
             -> RemoteSourceFocusTarget.NextPanel
-            RemoteSourceAction.OpenSmb -> remoteSourceActionNavigationTarget(current, key)
+            RemoteSourceAction.OpenSmb -> remoteSourceActionNavigationTarget(current, intent)
                 ?.let(RemoteSourceFocusTarget::Action)
         }
-        Key.DirectionUp -> when (current) {
-            RemoteSourceAction.OpenWebDav -> RemoteSourceFocusTarget.Field(RemoteSourceField.WebDavPassword)
-            RemoteSourceAction.OpenSmb -> RemoteSourceFocusTarget.Field(RemoteSourceField.SmbDomain)
-            RemoteSourceAction.ScanSource -> RemoteSourceFocusTarget.Field(RemoteSourceField.SmbPassword)
+        else -> when (intent.verticalNavigationDelta()) {
+            -1 -> when (current) {
+                RemoteSourceAction.OpenWebDav -> RemoteSourceFocusTarget.Field(RemoteSourceField.WebDavPassword)
+                RemoteSourceAction.OpenSmb -> RemoteSourceFocusTarget.Field(RemoteSourceField.SmbDomain)
+                RemoteSourceAction.ScanSource -> RemoteSourceFocusTarget.Field(RemoteSourceField.SmbPassword)
+            }
+            else -> remoteSourceActionNavigationTarget(current, intent)?.let(RemoteSourceFocusTarget::Action)
         }
-        else -> remoteSourceActionNavigationTarget(current, key)?.let(RemoteSourceFocusTarget::Action)
     }
 
 internal fun remoteSourceFieldFocusTarget(
     current: RemoteSourceField,
     key: Key,
 ): RemoteSourceFocusTarget? =
-    when (key) {
-        Key.DirectionLeft -> remoteSourceHorizontalField(current, -1)?.let(RemoteSourceFocusTarget::Field)
-        Key.DirectionRight -> remoteSourceHorizontalField(current, 1)?.let(RemoteSourceFocusTarget::Field)
-            ?: RemoteSourceFocusTarget.NextPanel.takeIf { current.canExitToRemoteBrowser() }
-        Key.DirectionUp -> when (current) {
+    key.toMiruPlayInputIntent()?.let { intent ->
+        remoteSourceFieldFocusTarget(current, intent)
+    }
+
+internal fun remoteSourceFieldFocusTarget(
+    current: RemoteSourceField,
+    intent: MiruPlayInputIntent,
+): RemoteSourceFocusTarget? =
+    when (intent.verticalNavigationDelta()) {
+        -1 -> when (current) {
             RemoteSourceField.WebDavUsername,
             RemoteSourceField.WebDavPassword,
             -> RemoteSourceFocusTarget.Field(RemoteSourceField.WebDavUrl)
@@ -614,7 +652,7 @@ internal fun remoteSourceFieldFocusTarget(
             -> RemoteSourceFocusTarget.Field(RemoteSourceField.SmbUrl)
             else -> null
         }
-        Key.DirectionDown -> when (current) {
+        1 -> when (current) {
             RemoteSourceField.WebDavUrl -> RemoteSourceFocusTarget.Field(RemoteSourceField.WebDavUsername)
             RemoteSourceField.WebDavUsername,
             RemoteSourceField.WebDavPassword,
@@ -625,7 +663,10 @@ internal fun remoteSourceFieldFocusTarget(
             RemoteSourceField.SmbPassword,
             -> RemoteSourceFocusTarget.Action(RemoteSourceAction.ScanSource)
         }
-        else -> null
+        else -> intent.horizontalNavigationDelta()?.let { delta ->
+            remoteSourceHorizontalField(current, delta)?.let(RemoteSourceFocusTarget::Field)
+                ?: RemoteSourceFocusTarget.NextPanel.takeIf { delta == 1 && current.canExitToRemoteBrowser() }
+        }
     }
 
 private fun RemoteSourceField.canExitToRemoteBrowser(): Boolean =
@@ -797,11 +838,11 @@ private fun LibraryControlBar(
             LibrarySourceFocusTarget.PreviousPanel -> onFocusPreviousPanel()
             null -> false
         }
-    fun moveLibrarySourceActionFocus(action: LibrarySourceAction, key: Key): Boolean {
-        return requestLibrarySourceFocus(librarySourceActionFocusTarget(action, key, hasEmptyMedia))
+    fun moveLibrarySourceActionFocus(action: LibrarySourceAction, intent: MiruPlayInputIntent): Boolean {
+        return requestLibrarySourceFocus(librarySourceActionFocusTarget(action, intent, hasEmptyMedia))
     }
-    fun moveLibrarySourceFieldFocus(field: LibrarySourceField, key: Key): Boolean =
-        requestLibrarySourceFocus(librarySourceFieldFocusTarget(field, key, hasEmptyMedia))
+    fun moveLibrarySourceFieldFocus(field: LibrarySourceField, intent: MiruPlayInputIntent): Boolean =
+        requestLibrarySourceFocus(librarySourceFieldFocusTarget(field, intent, hasEmptyMedia))
     LaunchedEffect(sourcePickerFocusVersion) {
         if (sourcePickerFocusVersion > 0) {
             sourcePickerFocusRequester.requestFocus()
@@ -956,8 +997,8 @@ private fun LibraryEmptyMediaState(
             .focusRequester(focusRequester),
         heightDp = heightDp,
         inactiveAlpha = 0.48f,
-        onNavigationKey = { key ->
-            onMove(libraryEmptyMediaFocusTarget(key))
+        onNavigationIntent = { intent ->
+            onMove(libraryEmptyMediaFocusTarget(intent))
         },
     ) { active ->
         Box(
@@ -1720,13 +1761,13 @@ internal fun RemoteSourcesPanel(
             RemoteSourceFocusTarget.NextPanel -> requestRemoteBrowserFocus(RemoteBrowserFocusTarget.Row(0))
             null -> false
         }
-    fun moveRemoteSourceActionFocus(action: RemoteSourceAction, key: Key): Boolean {
+    fun moveRemoteSourceActionFocus(action: RemoteSourceAction, intent: MiruPlayInputIntent): Boolean {
         previousEditorFocusTarget = RemoteSourceFocusTarget.Action(action)
-        return requestRemoteSourceFocus(remoteSourceActionFocusTarget(action, key))
+        return requestRemoteSourceFocus(remoteSourceActionFocusTarget(action, intent))
     }
-    fun moveRemoteSourceFieldFocus(field: RemoteSourceField, key: Key): Boolean {
+    fun moveRemoteSourceFieldFocus(field: RemoteSourceField, intent: MiruPlayInputIntent): Boolean {
         previousEditorFocusTarget = RemoteSourceFocusTarget.Field(field)
-        return requestRemoteSourceFocus(remoteSourceFieldFocusTarget(field, key))
+        return requestRemoteSourceFocus(remoteSourceFieldFocusTarget(field, intent))
     }
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -2050,8 +2091,8 @@ private fun RemoteBrowserPanel(
                 modifier = Modifier
                     .width(MiruPlayUiMetrics.CONTROL_BUTTON_WIDTH_DP.dp)
                     .focusRequester(upFocusRequester)
-                    .desktopNavigationKeyHandler { key ->
-                        when (val target = remoteBrowserUpButtonFocusTarget(entries.size, key)) {
+                    .desktopNavigationIntentHandler { intent ->
+                        when (val target = remoteBrowserUpButtonFocusTarget(entries.size, intent)) {
                             RemoteBrowserFocusTarget.PreviousPanel -> onFocusPreviousPanel()
                             is RemoteBrowserFocusTarget.Row,
                             RemoteBrowserFocusTarget.EmptyState,
@@ -2076,9 +2117,9 @@ private fun RemoteBrowserPanel(
                     entry = entry,
                     selected = selectedEntry?.path == entry.path,
                     onClick = { onEntrySelected(entry) },
-                    onNavigationKey = { key ->
+                    onNavigationIntent = { intent ->
                         val absoluteIndex = pageStart + index
-                        when (val target = entries.remoteBrowserFocusTarget(absoluteIndex, key)) {
+                        when (val target = entries.remoteBrowserFocusTarget(absoluteIndex, intent)) {
                             is RemoteBrowserFocusTarget.Row -> {
                                 val targetEntry = entries[target.index]
                                 onEntryFocused(targetEntry)
@@ -2090,7 +2131,7 @@ private fun RemoteBrowserPanel(
                             }
                             RemoteBrowserFocusTarget.EmptyState -> false
                             RemoteBrowserFocusTarget.PreviousPanel -> onFocusPreviousPanel()
-                            null -> if (remoteBrowserShouldNavigateUp(absoluteIndex, key)) {
+                            null -> if (remoteBrowserShouldNavigateUp(absoluteIndex, intent)) {
                                 onUp()
                                 true
                             } else {
@@ -2153,8 +2194,8 @@ private fun RemoteBrowserEmptyState(
             .focusRequester(focusRequester),
         heightDp = MiruPlayUiMetrics.REMOTE_EMPTY_STATE_HEIGHT_DP,
         inactiveAlpha = 0.48f,
-        onNavigationKey = { key ->
-            onMove(remoteBrowserEmptyFocusTarget(key))
+        onNavigationIntent = { intent ->
+            onMove(remoteBrowserEmptyFocusTarget(intent))
         },
     ) { active ->
         Box(
@@ -2175,14 +2216,14 @@ private fun RemoteFileRow(
     entry: FileEntry,
     selected: Boolean,
     onClick: () -> Unit,
-    onNavigationKey: (Key) -> Boolean = { false },
+    onNavigationIntent: (MiruPlayInputIntent) -> Boolean = { false },
     modifier: Modifier = Modifier,
 ) {
     DesktopSelectableRow(
         selected = selected,
         onClick = onClick,
         modifier = modifier,
-        onNavigationKey = onNavigationKey,
+        onNavigationIntent = onNavigationIntent,
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -2220,29 +2261,27 @@ private fun RemoteFileRow(
     }
 }
 
-private fun List<FileEntry>.remoteBrowserNavigationTarget(
-    currentIndex: Int,
-    key: Key,
-): FileEntry? {
-    if (currentIndex !in indices) return null
-    val targetIndex = when (key) {
-        Key.DirectionDown -> currentIndex + 1
-        Key.DirectionUp -> currentIndex - 1
-        else -> null
-    } ?: return null
-    return getOrNull(targetIndex)
-}
-
 internal fun List<FileEntry>.remoteBrowserFocusTarget(
     currentIndex: Int,
     key: Key,
 ): RemoteBrowserFocusTarget? {
+    return key.toMiruPlayInputIntent()?.let { intent ->
+        remoteBrowserFocusTarget(currentIndex, intent)
+    }
+}
+
+internal fun List<FileEntry>.remoteBrowserFocusTarget(
+    currentIndex: Int,
+    intent: MiruPlayInputIntent,
+): RemoteBrowserFocusTarget? {
     if (currentIndex !in indices) return null
-    return when (key) {
-        Key.DirectionLeft -> RemoteBrowserFocusTarget.PreviousPanel
-        Key.DirectionDown -> RemoteBrowserFocusTarget.Row(currentIndex + 1).takeIf { currentIndex + 1 in indices }
-        Key.DirectionUp -> RemoteBrowserFocusTarget.Row(currentIndex - 1).takeIf { currentIndex > 0 }
-        else -> null
+    return when (intent.horizontalNavigationDelta()) {
+        -1 -> RemoteBrowserFocusTarget.PreviousPanel
+        else -> when (intent.verticalNavigationDelta()) {
+            1 -> RemoteBrowserFocusTarget.Row(currentIndex + 1).takeIf { currentIndex + 1 in indices }
+            -1 -> RemoteBrowserFocusTarget.Row(currentIndex - 1).takeIf { currentIndex > 0 }
+            else -> null
+        }
     }
 }
 
@@ -2250,27 +2289,50 @@ internal fun remoteBrowserUpButtonFocusTarget(
     itemCount: Int,
     key: Key,
 ): RemoteBrowserFocusTarget? =
-    when (key) {
-        Key.DirectionLeft -> RemoteBrowserFocusTarget.PreviousPanel
-        Key.DirectionDown -> if (itemCount > 0) {
-            RemoteBrowserFocusTarget.Row(0)
-        } else {
-            RemoteBrowserFocusTarget.EmptyState
+    key.toMiruPlayInputIntent()?.let { intent ->
+        remoteBrowserUpButtonFocusTarget(itemCount, intent)
+    }
+
+internal fun remoteBrowserUpButtonFocusTarget(
+    itemCount: Int,
+    intent: MiruPlayInputIntent,
+): RemoteBrowserFocusTarget? =
+    when (intent.horizontalNavigationDelta()) {
+        -1 -> RemoteBrowserFocusTarget.PreviousPanel
+        else -> when (intent.verticalNavigationDelta()) {
+            1 -> if (itemCount > 0) {
+                RemoteBrowserFocusTarget.Row(0)
+            } else {
+                RemoteBrowserFocusTarget.EmptyState
+            }
+            else -> null
         }
-        else -> null
     }
 
 internal fun remoteBrowserEmptyFocusTarget(key: Key): RemoteBrowserFocusTarget? =
-    when (key) {
-        Key.DirectionUp -> RemoteBrowserFocusTarget.UpButton
-        Key.DirectionLeft -> RemoteBrowserFocusTarget.PreviousPanel
-        else -> null
+    key.toMiruPlayInputIntent()?.let(::remoteBrowserEmptyFocusTarget)
+
+internal fun remoteBrowserEmptyFocusTarget(intent: MiruPlayInputIntent): RemoteBrowserFocusTarget? =
+    when (intent.horizontalNavigationDelta()) {
+        -1 -> RemoteBrowserFocusTarget.PreviousPanel
+        else -> when (intent.verticalNavigationDelta()) {
+            -1 -> RemoteBrowserFocusTarget.UpButton
+            else -> null
+        }
     }
 
 internal fun remoteBrowserShouldNavigateUp(
     currentIndex: Int,
     key: Key,
-): Boolean = currentIndex == 0 && key == Key.DirectionUp
+): Boolean =
+    key.toMiruPlayInputIntent()?.let { intent ->
+        remoteBrowserShouldNavigateUp(currentIndex, intent)
+    } == true
+
+internal fun remoteBrowserShouldNavigateUp(
+    currentIndex: Int,
+    intent: MiruPlayInputIntent,
+): Boolean = currentIndex == 0 && intent.verticalNavigationDelta() == -1
 
 internal fun remoteBrowserPageStartForIndex(
     index: Int,

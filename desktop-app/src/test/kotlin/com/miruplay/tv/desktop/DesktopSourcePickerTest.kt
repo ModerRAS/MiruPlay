@@ -427,6 +427,40 @@ class DesktopSourcePickerTest {
     }
 
     @Test
+    fun `source management focus also accepts shared direction intents`() {
+        assertEquals(
+            LibrarySourceFocusTarget.Field(LibrarySourceField.IndexQuery),
+            librarySourceFieldFocusTarget(LibrarySourceField.LocalRoot, MiruPlayInputIntent.DirectionDown),
+        )
+        assertEquals(
+            LibrarySourceFocusTarget.PreviousPanel,
+            librarySourceFieldFocusTarget(LibrarySourceField.LocalRoot, MiruPlayInputIntent.DirectionUp),
+        )
+        assertEquals(
+            LibrarySourceFocusTarget.Action(LibrarySourceAction.OpenLocal),
+            librarySourceFieldFocusTarget(LibrarySourceField.IndexQuery, MiruPlayInputIntent.DirectionRight),
+        )
+        assertEquals(
+            LibrarySourceFocusTarget.Field(LibrarySourceField.IndexQuery),
+            librarySourceActionFocusTarget(LibrarySourceAction.OpenLocal, MiruPlayInputIntent.DirectionLeft),
+        )
+        assertEquals(
+            LibrarySourceFocusTarget.EmptyMedia,
+            librarySourceActionFocusTarget(
+                current = LibrarySourceAction.Search,
+                intent = MiruPlayInputIntent.DirectionDown,
+                hasEmptyMedia = true,
+            ),
+        )
+        assertEquals(
+            LibrarySourceFocusTarget.Field(LibrarySourceField.LocalRoot),
+            libraryEmptyMediaFocusTarget(MiruPlayInputIntent.DirectionUp),
+        )
+        assertNull(librarySourceFieldFocusTarget(LibrarySourceField.IndexQuery, MiruPlayInputIntent.Activate))
+        assertNull(libraryEmptyMediaFocusTarget(MiruPlayInputIntent.DirectionDown))
+    }
+
+    @Test
     fun `source management can bridge into empty media state`() {
         assertEquals(
             LibrarySourceFocusTarget.EmptyMedia,
@@ -612,6 +646,40 @@ class DesktopSourcePickerTest {
     }
 
     @Test
+    fun `remote source focus also accepts shared direction intents`() {
+        assertEquals(
+            RemoteSourceFocusTarget.NextPanel,
+            remoteSourceFieldFocusTarget(RemoteSourceField.WebDavUrl, MiruPlayInputIntent.DirectionRight),
+        )
+        assertEquals(
+            RemoteSourceFocusTarget.Field(RemoteSourceField.WebDavUsername),
+            remoteSourceFieldFocusTarget(RemoteSourceField.WebDavUrl, MiruPlayInputIntent.DirectionDown),
+        )
+        assertEquals(
+            RemoteSourceFocusTarget.Field(RemoteSourceField.WebDavPassword),
+            remoteSourceFieldFocusTarget(RemoteSourceField.WebDavUsername, MiruPlayInputIntent.DirectionRight),
+        )
+        assertEquals(
+            RemoteSourceFocusTarget.Action(RemoteSourceAction.OpenWebDav),
+            remoteSourceFieldFocusTarget(RemoteSourceField.WebDavPassword, MiruPlayInputIntent.DirectionDown),
+        )
+        assertEquals(
+            RemoteSourceFocusTarget.NextPanel,
+            remoteSourceActionFocusTarget(RemoteSourceAction.ScanSource, MiruPlayInputIntent.DirectionRight),
+        )
+        assertEquals(
+            RemoteSourceFocusTarget.Field(RemoteSourceField.SmbDomain),
+            remoteSourceActionFocusTarget(RemoteSourceAction.OpenSmb, MiruPlayInputIntent.DirectionUp),
+        )
+        assertEquals(
+            RemoteSourceFocusTarget.Action(RemoteSourceAction.ScanSource),
+            remoteSourceActionFocusTarget(RemoteSourceAction.OpenSmb, MiruPlayInputIntent.DirectionRight),
+        )
+        assertNull(remoteSourceFieldFocusTarget(RemoteSourceField.WebDavUrl, MiruPlayInputIntent.Activate))
+        assertNull(remoteSourceActionFocusTarget(RemoteSourceAction.OpenSmb, MiruPlayInputIntent.DirectionLeft))
+    }
+
+    @Test
     fun `remote source preview falls back and compacts endpoints`() {
         assertEquals("填写 SMB 共享地址", remoteSourcePreview("", fallback = "填写 SMB 共享地址", maxLength = 20))
 
@@ -678,6 +746,22 @@ class DesktopSourcePickerTest {
     }
 
     @Test
+    fun `remote browser focus also accepts shared direction intents`() {
+        val entries = listOf(
+            FileEntry(path = "/Season 01", name = "Season 01", isDirectory = true),
+            FileEntry(path = "/Season 01/Episode 01.mkv", name = "Episode 01.mkv", isDirectory = false),
+        )
+
+        assertEquals(RemoteBrowserFocusTarget.PreviousPanel, entries.remoteBrowserFocusTarget(0, MiruPlayInputIntent.DirectionLeft))
+        assertEquals(RemoteBrowserFocusTarget.Row(1), entries.remoteBrowserFocusTarget(0, MiruPlayInputIntent.DirectionDown))
+        assertEquals(RemoteBrowserFocusTarget.Row(0), entries.remoteBrowserFocusTarget(1, MiruPlayInputIntent.DirectionUp))
+        assertNull(entries.remoteBrowserFocusTarget(0, MiruPlayInputIntent.DirectionUp))
+        assertNull(entries.remoteBrowserFocusTarget(0, MiruPlayInputIntent.Activate))
+        assertTrue(remoteBrowserShouldNavigateUp(currentIndex = 0, intent = MiruPlayInputIntent.DirectionUp))
+        assertFalse(remoteBrowserShouldNavigateUp(currentIndex = 1, intent = MiruPlayInputIntent.DirectionUp))
+    }
+
+    @Test
     fun `remote browser page helpers keep every remote item reachable`() {
         assertEquals(0, remoteBrowserPageStartForIndex(index = 0, itemCount = 17))
         assertEquals(0, remoteBrowserPageStartForIndex(index = 7, itemCount = 17))
@@ -713,6 +797,26 @@ class DesktopSourcePickerTest {
             remoteBrowserUpButtonFocusTarget(itemCount = 0, key = Key.DirectionLeft),
         )
         assertNull(remoteBrowserUpButtonFocusTarget(itemCount = 0, key = Key.DirectionUp))
+    }
+
+    @Test
+    fun `remote browser up button and empty state also accept shared direction intents`() {
+        assertEquals(
+            RemoteBrowserFocusTarget.Row(0),
+            remoteBrowserUpButtonFocusTarget(itemCount = 3, intent = MiruPlayInputIntent.DirectionDown),
+        )
+        assertEquals(
+            RemoteBrowserFocusTarget.EmptyState,
+            remoteBrowserUpButtonFocusTarget(itemCount = 0, intent = MiruPlayInputIntent.DirectionDown),
+        )
+        assertEquals(
+            RemoteBrowserFocusTarget.PreviousPanel,
+            remoteBrowserUpButtonFocusTarget(itemCount = 3, intent = MiruPlayInputIntent.DirectionLeft),
+        )
+        assertEquals(RemoteBrowserFocusTarget.UpButton, remoteBrowserEmptyFocusTarget(MiruPlayInputIntent.DirectionUp))
+        assertEquals(RemoteBrowserFocusTarget.PreviousPanel, remoteBrowserEmptyFocusTarget(MiruPlayInputIntent.DirectionLeft))
+        assertNull(remoteBrowserUpButtonFocusTarget(itemCount = 3, intent = MiruPlayInputIntent.DirectionUp))
+        assertNull(remoteBrowserEmptyFocusTarget(MiruPlayInputIntent.DirectionDown))
     }
 
     @Test
