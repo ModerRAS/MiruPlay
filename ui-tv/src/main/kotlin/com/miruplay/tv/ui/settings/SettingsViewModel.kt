@@ -17,6 +17,7 @@ import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.RssSubscriptionInfo
+import com.miruplay.tv.model.buildRssSubscriptionFromForm
 import com.miruplay.tv.model.cloudDriveApiTokenRequiredStatus
 import com.miruplay.tv.model.cloudDriveEndpointRequiredStatus
 import com.miruplay.tv.model.cloudDriveLoginRequiredStatus
@@ -26,6 +27,7 @@ import com.miruplay.tv.model.connectionPassword
 import com.miruplay.tv.model.cloudDriveTokenVerifiedStatus
 import com.miruplay.tv.model.cloudRssConfigSavedStatus
 import com.miruplay.tv.model.completeStatus
+import com.miruplay.tv.model.withAutomationFormValues
 import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.MediaSourceRepository
@@ -240,17 +242,17 @@ class SettingsViewModel @Inject constructor(
     ) {
         viewModelScope.launch {
             val current = _cloudDriveConfig.value
-            val config = current.copy(
+            val config = current.withAutomationFormValues(
                 endpointUrl = endpointUrl.trim(),
                 username = username.trim(),
                 webDavSourceId = webDavSourceId,
                 inboxPath = inboxPath.trim(),
                 libraryPath = libraryPath.trim(),
-                intervalMinutes = intervalMinutes.coerceAtLeast(MIN_CLOUD_DRIVE_INTERVAL_MINUTES),
+                intervalMinutes = intervalMinutes,
                 enabled = enabled,
                 rssProxyEnabled = rssProxyEnabled,
                 rssProxyHost = rssProxyHost.trim(),
-                rssProxyPort = rssProxyPort.coerceAtLeast(1).coerceAtMost(65535)
+                rssProxyPort = rssProxyPort
             )
             cloudDriveRepository.saveConfig(config)
                 .onSuccess { _cloudDriveActionMessage.value = cloudRssConfigSavedStatus() }
@@ -305,18 +307,17 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun addRssSubscription(name: String, url: String, filterRegex: String, enabled: Boolean) {
-        val normalizedUrl = url.trim()
-        if (normalizedUrl.isBlank()) {
+        val subscription = buildRssSubscriptionFromForm(
+            name = name,
+            url = url,
+            filterRegex = filterRegex,
+            enabled = enabled,
+        )
+        if (subscription == null) {
             _cloudDriveActionMessage.value = rssUrlRequiredStatus()
             return
         }
         viewModelScope.launch {
-            val subscription = RssSubscriptionInfo(
-                name = name.trim().ifBlank { normalizedUrl },
-                url = normalizedUrl,
-                filterRegex = filterRegex.trim().takeIf { it.isNotBlank() },
-                enabled = enabled
-            )
             cloudDriveRepository.saveSubscription(subscription)
                 .onSuccess { _cloudDriveActionMessage.value = rssSubscriptionSavedStatus(subscription.name) }
                 .onError { error -> _cloudDriveActionMessage.value = error.toUserMessage() }
@@ -548,7 +549,6 @@ class SettingsViewModel @Inject constructor(
 
     companion object {
         private const val MILLIS_PER_HOUR = 60 * 60 * 1000L
-        private const val MIN_CLOUD_DRIVE_INTERVAL_MINUTES = 5
     }
 }
 

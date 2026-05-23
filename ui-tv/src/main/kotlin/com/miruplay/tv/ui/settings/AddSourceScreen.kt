@@ -196,6 +196,8 @@ import com.miruplay.tv.model.rssSubscriptionNewEnabledLabel
 import com.miruplay.tv.model.rssSubscriptionStateActionLabel
 import com.miruplay.tv.model.rssSubscriptionUrlFieldLabel
 import com.miruplay.tv.model.rssSubscriptionsTitleLabel
+import com.miruplay.tv.model.parseCloudDriveIntervalMinutes
+import com.miruplay.tv.model.parseRssProxyPort
 import com.miruplay.tv.model.tvDisplayName
 import com.miruplay.tv.model.tvDisplayStatusLabel
 import com.miruplay.tv.model.tvLabel
@@ -554,11 +556,11 @@ fun AddSourceScreen(
                             webDavSourceId = cloudWebDavSourceId,
                             inboxPath = cloudInboxPath,
                             libraryPath = cloudLibraryPath,
-                            intervalMinutes = cloudIntervalMinutes.toIntOrNull() ?: 30,
+                            intervalMinutes = parseCloudDriveIntervalMinutes(cloudIntervalMinutes),
                             enabled = cloudEnabled,
                             rssProxyEnabled = rssProxyEnabled,
                             rssProxyHost = rssProxyHost,
-                            rssProxyPort = rssProxyPort.toIntOrNull() ?: 1080
+                            rssProxyPort = parseRssProxyPort(rssProxyPort)
                         )
                     },
                     onLoginCloudDrive = {
