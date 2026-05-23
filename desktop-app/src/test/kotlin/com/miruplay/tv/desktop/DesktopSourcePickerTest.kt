@@ -14,6 +14,7 @@ import com.miruplay.tv.model.localizedLibraryRescanCompleteStatus
 import com.miruplay.tv.model.localizedLibraryScanCompleteStatus
 import com.miruplay.tv.model.localizedLibraryScanningStatus
 import com.miruplay.tv.model.localizedMediaSourceStatusText
+import com.miruplay.tv.model.mediaSourceStatusText
 import com.miruplay.tv.model.mediaSourceClearIndexActionLabel
 import com.miruplay.tv.model.mediaSourceIndexQueryFieldLabel
 import com.miruplay.tv.model.mediaSourceLocationMissingLabel
@@ -101,45 +102,45 @@ class DesktopSourcePickerTest {
     fun `source management statuses use TV facing text`() {
         assertEquals(
             localizedMediaSourceStatusText("Add a local library source or load an existing one."),
-            desktopLibraryStatusText("Add a local library source or load an existing one."),
+            mediaSourceStatusText("Add a local library source or load an existing one."),
         )
         assertEquals(
             localizedMediaSourceStatusText("Open a WebDAV or SMB source to browse it."),
-            desktopLibraryStatusText("Open a WebDAV or SMB source to browse it."),
+            mediaSourceStatusText("Open a WebDAV or SMB source to browse it."),
         )
-        assertEquals(localizedMediaSourceStatusText("Enter a local library root first."), desktopLibraryStatusText("Enter a local library root first."))
-        assertEquals(localizedMediaSourceStatusText("Enter a WebDAV URL first."), desktopLibraryStatusText("Enter a WebDAV URL first."))
-        assertEquals(localizedMediaSourceStatusText("Enter an SMB URL first."), desktopLibraryStatusText("Enter an SMB URL first."))
-        assertEquals(localizedMediaSourceStatusText("Open a source before scanning."), desktopLibraryStatusText("Open a source before scanning."))
-        assertEquals(localizedMediaSourceStatusText("Loaded local source: Library"), desktopLibraryStatusText("Loaded local source: Library"))
-        assertEquals(localizedMediaSourceStatusText("Loaded saved local source: Library"), desktopLibraryStatusText("Loaded saved local source: Library"))
-        assertEquals(localizedMediaSourceStatusText("WebDAV source ready: Cloud"), desktopLibraryStatusText("WebDAV source ready: Cloud"))
-        assertEquals(localizedLibraryScanningStatus("Library"), desktopLibraryStatusText(libraryScanningStatus("Library")))
-        assertEquals(localizedLibraryScanCompleteStatus(12, 3), desktopLibraryStatusText(libraryScanCompleteStatus(12, 3)))
-        assertEquals(localizedLibraryRescanCompleteStatus(12, 3), desktopLibraryStatusText(libraryRescanCompleteStatus(12, 3)))
-        assertEquals(localizedMediaSourceStatusText("Open or scan a source before searching."), desktopLibraryStatusText("Open or scan a source before searching."))
+        assertEquals(localizedMediaSourceStatusText("Enter a local library root first."), mediaSourceStatusText("Enter a local library root first."))
+        assertEquals(localizedMediaSourceStatusText("Enter a WebDAV URL first."), mediaSourceStatusText("Enter a WebDAV URL first."))
+        assertEquals(localizedMediaSourceStatusText("Enter an SMB URL first."), mediaSourceStatusText("Enter an SMB URL first."))
+        assertEquals(localizedMediaSourceStatusText("Open a source before scanning."), mediaSourceStatusText("Open a source before scanning."))
+        assertEquals(localizedMediaSourceStatusText("Loaded local source: Library"), mediaSourceStatusText("Loaded local source: Library"))
+        assertEquals(localizedMediaSourceStatusText("Loaded saved local source: Library"), mediaSourceStatusText("Loaded saved local source: Library"))
+        assertEquals(localizedMediaSourceStatusText("WebDAV source ready: Cloud"), mediaSourceStatusText("WebDAV source ready: Cloud"))
+        assertEquals(localizedLibraryScanningStatus("Library"), mediaSourceStatusText(libraryScanningStatus("Library")))
+        assertEquals(localizedLibraryScanCompleteStatus(12, 3), mediaSourceStatusText(libraryScanCompleteStatus(12, 3)))
+        assertEquals(localizedLibraryRescanCompleteStatus(12, 3), mediaSourceStatusText(libraryRescanCompleteStatus(12, 3)))
+        assertEquals(localizedMediaSourceStatusText("Open or scan a source before searching."), mediaSourceStatusText("Open or scan a source before searching."))
         assertEquals(
             localizedMediaSourceStatusText("Open or scan a source before clearing its index."),
-            desktopLibraryStatusText("Open or scan a source before clearing its index."),
+            mediaSourceStatusText("Open or scan a source before clearing its index."),
         )
-        assertEquals(localizedMediaSourceStatusText("Index cleared for source id: 42."), desktopLibraryStatusText("Index cleared for source id: 42."))
-        assertEquals(localizedMediaSourceStatusText("Open a source before removing it."), desktopLibraryStatusText("Open a source before removing it."))
+        assertEquals(localizedMediaSourceStatusText("Index cleared for source id: 42."), mediaSourceStatusText("Index cleared for source id: 42."))
+        assertEquals(localizedMediaSourceStatusText("Open a source before removing it."), mediaSourceStatusText("Open a source before removing it."))
         assertEquals(
             localizedMediaSourceStatusText("Source removed. Associated index entries were cleared."),
-            desktopLibraryStatusText("Source removed. Associated index entries were cleared."),
+            mediaSourceStatusText("Source removed. Associated index entries were cleared."),
         )
-        assertEquals(localizedMediaSourceStatusText("Already at the source root."), desktopLibraryStatusText("Already at the source root."))
-        assertEquals(localizedMediaSourceStatusText("Open a remote source before browsing."), desktopLibraryStatusText("Open a remote source before browsing."))
-        assertEquals(localizedMediaSourceStatusText("Loading WEBDAV /Anime..."), desktopLibraryStatusText("Loading WEBDAV /Anime..."))
-        assertEquals(localizedMediaSourceStatusText("Showing 1 item(s) from Cloud."), desktopLibraryStatusText("Showing 1 item(s) from Cloud."))
-        assertEquals(localizedMediaSourceStatusText("Selected Frieren EP1 for playback."), desktopLibraryStatusText("Selected Frieren EP1 for playback."))
+        assertEquals(localizedMediaSourceStatusText("Already at the source root."), mediaSourceStatusText("Already at the source root."))
+        assertEquals(localizedMediaSourceStatusText("Open a remote source before browsing."), mediaSourceStatusText("Open a remote source before browsing."))
+        assertEquals(localizedMediaSourceStatusText("Loading WEBDAV /Anime..."), mediaSourceStatusText("Loading WEBDAV /Anime..."))
+        assertEquals(localizedMediaSourceStatusText("Showing 1 item(s) from Cloud."), mediaSourceStatusText("Showing 1 item(s) from Cloud."))
+        assertEquals(localizedMediaSourceStatusText("Selected Frieren EP1 for playback."), mediaSourceStatusText("Selected Frieren EP1 for playback."))
         assertEquals(
             localizedMediaSourceStatusText("Selected remote media: Episode.mkv. mpv will stream through the local bridge."),
-            desktopLibraryStatusText("Selected remote media: Episode.mkv. mpv will stream through the local bridge."),
+            mediaSourceStatusText("Selected remote media: Episode.mkv. mpv will stream through the local bridge."),
         )
-        assertEquals(localizedMediaSourceStatusText("No indexed media matched \"frieren\"."), desktopLibraryStatusText("No indexed media matched \"frieren\"."))
-        assertEquals(localizedMediaSourceStatusText("Showing 24 indexed video result(s)."), desktopLibraryStatusText("Showing 24 indexed video result(s)."))
-        assertEquals("custom status", desktopLibraryStatusText("custom status"))
+        assertEquals(localizedMediaSourceStatusText("No indexed media matched \"frieren\"."), mediaSourceStatusText("No indexed media matched \"frieren\"."))
+        assertEquals(localizedMediaSourceStatusText("Showing 24 indexed video result(s)."), mediaSourceStatusText("Showing 24 indexed video result(s)."))
+        assertEquals("custom status", mediaSourceStatusText("custom status"))
     }
 
     @Test

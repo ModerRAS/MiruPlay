@@ -116,6 +116,7 @@ class MetadataUiConventionsTest {
         )
         assertEquals("没有可撤销的 Bangumi 批量更改。", localizedMetadataStatusText("No batch Bangumi changes are available to undo."))
         assertNull(localizedMetadataStatusText("custom status"))
+        assertEquals("custom status", metadataStatusText("custom status"))
     }
 
     @Test

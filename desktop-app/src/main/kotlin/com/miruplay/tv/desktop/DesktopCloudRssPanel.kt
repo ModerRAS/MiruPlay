@@ -90,12 +90,13 @@ import com.miruplay.tv.model.cloudDriveRssUseActiveSourceActionLabel
 import com.miruplay.tv.model.cloudDriveRssUseCurrentDirectoryActionLabel
 import com.miruplay.tv.model.cloudDriveRssUsernameFieldLabel
 import com.miruplay.tv.model.cloudDriveRssVerifyApiTokenActionLabel
+import com.miruplay.tv.model.cloudRssStatusText
 import com.miruplay.tv.model.desktopSettingsSectionOrder
-import com.miruplay.tv.model.localizedCloudRssStatusText
 import com.miruplay.tv.model.metadataBangumiTokenFieldLabel
 import com.miruplay.tv.model.metadataBangumiTokenSettingsStatus
 import com.miruplay.tv.model.metadataBangumiTokenTileDetail
 import com.miruplay.tv.model.metadataBangumiTokenTileLabel
+import com.miruplay.tv.model.mediaSourceStatusText
 import com.miruplay.tv.model.pagedListCoercedPageStart
 import com.miruplay.tv.model.pagedListPageStartForIndex
 import com.miruplay.tv.model.pagedListPageSummary
@@ -110,7 +111,6 @@ import com.miruplay.tv.model.settingsDesktopScanMenuSummary
 import com.miruplay.tv.model.settingsDesktopScanStatusMessage
 import com.miruplay.tv.model.settingsDesktopWebUiMenuSummary
 import com.miruplay.tv.model.settingsDesktopWebUiStatusMessage
-import com.miruplay.tv.model.settingsActiveSourceLabel
 import com.miruplay.tv.model.settingsActiveSourceTileLabel
 import com.miruplay.tv.model.settingsCloudRssLinkedSourceValue
 import com.miruplay.tv.model.settingsCloudRssOverviewValue
@@ -118,7 +118,6 @@ import com.miruplay.tv.model.settingsCloudRssSubscriptionsValue
 import com.miruplay.tv.model.settingsIndexedCountValue
 import com.miruplay.tv.model.settingsIndexSharedDetail
 import com.miruplay.tv.model.settingsIndexTileLabel
-import com.miruplay.tv.model.settingsLinkedSourceLabel
 import com.miruplay.tv.model.settingsMenuPanelDescription
 import com.miruplay.tv.model.settingsMenuPanelTitle
 import com.miruplay.tv.model.settingsMetadataCandidateScopeDetail
@@ -340,7 +339,7 @@ internal fun CloudRssPanel(
                     activeSourceLabel = activeSourceLabel,
                     indexedItemCount = indexedItemCount,
                 ),
-                status = desktopLibraryStatusText(libraryStatus),
+                status = mediaSourceStatusText(libraryStatus),
                 actions = listOf(
                     SettingsQuickAction(settingsOpenLibraryActionLabel(), onOpenLibrary),
                     SettingsQuickAction(settingsScanActiveSourceActionLabel(), onScanActiveSource),
@@ -355,7 +354,7 @@ internal fun CloudRssPanel(
                     recentCount = recentCount,
                     selectedMediaTitle = selectedMediaTitle,
                 ),
-                status = desktopPlaybackSettingsStatus(),
+                status = settingsPlaybackStatusMessage(),
                 actions = listOf(SettingsQuickAction(settingsOpenPlayerActionLabel(), onOpenPlayer)),
                 onFocusSectionMenu = { focusSelectedSectionMenu() },
                 modifier = Modifier.weight(1f),
@@ -383,7 +382,7 @@ internal fun CloudRssPanel(
                     indexedItemCount = indexedItemCount,
                     bangumiTokenConfigured = bangumiTokenConfigured,
                 ),
-                status = desktopMetadataSettingsStatus(bangumiTokenConfigured),
+                status = metadataBangumiTokenSettingsStatus(bangumiTokenConfigured),
                 actions = listOf(
                     SettingsQuickAction(settingsOpenDetailsActionLabel(), onOpenDetails),
                     SettingsQuickAction(settingsSaveTokenActionLabel(), onSaveBangumiToken, enabled = bangumiToken.isNotBlank()),
@@ -469,8 +468,8 @@ private fun CloudRssAutomationContent(
     modifier: Modifier = Modifier,
 ) {
     val labels = desktopCloudRssUiLabels()
-    val schedulerStatusText = desktopCloudRssStatusText(schedulerStatus)
-    val statusText = desktopCloudRssStatusText(status)
+    val schedulerStatusText = cloudRssStatusText(schedulerStatus)
+    val statusText = cloudRssStatusText(status)
     val subscriptionEmptyFocusRequester = remember { FocusRequester() }
     val actionFocusRequesters = remember {
         CloudRssAction.entries.associateWith { FocusRequester() }
@@ -2012,7 +2011,7 @@ internal fun cloudRssOverviewTiles(
             label = cloudDriveRssPostSyncScanSummaryLabel(),
             value = settingsCloudRssLinkedSourceValue(linkedSourceLabel),
             detail = cloudRssPreview(
-                desktopCloudRssStatusText(schedulerStatus),
+                cloudRssStatusText(schedulerStatus),
                 fallback = cloudDriveRssSchedulerIdleLabel(),
                 maxLength = CLOUD_RSS_PREVIEW_LIMIT,
             ),
@@ -2052,9 +2051,6 @@ internal fun rssSubscriptionPreview(
     val label = subscription.name.ifBlank { rssSubscriptionFallbackTitleLabel() }
     return "$state · $label · ${subscription.url}$filter".compactMiddle(maxLength)
 }
-
-internal fun desktopCloudRssStatusText(status: String): String =
-    localizedCloudRssStatusText(status) ?: status.trim()
 
 @Composable
 private fun SettingsSectionMenu(
@@ -2345,12 +2341,6 @@ internal fun playbackSettingsTiles(
         ),
     )
 
-internal fun desktopPlaybackSettingsStatus(): String =
-    settingsPlaybackStatusMessage()
-
-internal fun desktopMetadataSettingsStatus(bangumiTokenConfigured: Boolean = false): String =
-    metadataBangumiTokenSettingsStatus(bangumiTokenConfigured)
-
 internal fun scanSettingsTiles(
     indexedItemCount: Int,
     linkedSourceLabel: String,
@@ -2369,7 +2359,7 @@ internal fun scanSettingsTiles(
         ),
         SettingsSummaryTile(
             label = settingsRecentScanStatusTileLabel(),
-            value = desktopLibraryStatusText(libraryStatus),
+            value = mediaSourceStatusText(libraryStatus),
             detail = settingsRecentScanStatusDetail(),
         ),
     )
@@ -2421,14 +2411,6 @@ private fun desktopWebUiSettingsTiles(): List<SettingsSummaryTile> =
             detail = settingsRemoteAutomationTileDetail(),
         ),
     )
-
-internal fun desktopActiveSourceLabel(source: MediaSourceInfo?): String =
-    settingsActiveSourceLabel(source)
-
-internal fun desktopLinkedSourceLabel(
-    sources: List<MediaSourceInfo>,
-    sourceId: Long?,
-): String = settingsLinkedSourceLabel(sources, sourceId)
 
 private fun MiruPlaySettingsSection.menuSummary(
     sourcesCount: Int,

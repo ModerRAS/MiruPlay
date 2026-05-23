@@ -4,13 +4,14 @@ import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.mediasource.desktop.desktopSourceFromInfo
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.cloudRssRescanStartedStatus
+import com.miruplay.tv.model.sourcePickerTitle
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.mediaFilesOnly
 import com.miruplay.tv.repository.rescanCompleteStatus
 import com.miruplay.tv.repository.scanCompleteStatus
 import com.miruplay.tv.scanner.desktop.DesktopMediaLibraryScanner
-import com.miruplay.tv.sync.rss.cloudRssRescanStartedStatus
 
 internal data class DesktopSourceScanResult(
     val sourceId: Long,
@@ -34,7 +35,7 @@ internal enum class DesktopCloudRssRescanTargetStatus {
 }
 
 internal fun desktopCloudRssRescanStartedStatus(sourceInfo: MediaSourceInfo, reason: String): String =
-    sourceInfo.cloudRssRescanStartedStatus(reason)
+    cloudRssRescanStartedStatus(reason, sourceInfo.sourcePickerTitle())
 
 internal suspend fun scanAndIndexDesktopSource(
     sourceInfo: MediaSourceInfo,

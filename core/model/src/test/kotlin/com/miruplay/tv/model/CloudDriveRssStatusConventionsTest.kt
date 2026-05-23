@@ -190,6 +190,7 @@ class CloudDriveRssStatusConventionsTest {
     @Test
     fun `localized Cloud RSS status text converts stable desktop wire statuses`() {
         assertEquals("Cloud/RSS 待命。", localizedCloudRssStatusText(""))
+        assertEquals("Cloud/RSS 待命。", cloudRssStatusText(""))
         assertEquals("调度器待命，尚未检查。", localizedCloudRssStatusText("Scheduler idle. No checks yet."))
         assertEquals(
             "调度器待命，上次检查没有待同步内容。",
@@ -244,6 +245,7 @@ class CloudDriveRssStatusConventionsTest {
         assertEquals("RSS 订阅已删除。", localizedCloudRssStatusText("RSS subscription deleted."))
         assertEquals("调度器待命，尚未检查。", localizedCloudRssStatusText("调度器待命，尚未检查。"))
         assertEquals(null, localizedCloudRssStatusText("custom status"))
+        assertEquals("custom status", cloudRssStatusText("custom status"))
     }
 
     @Test

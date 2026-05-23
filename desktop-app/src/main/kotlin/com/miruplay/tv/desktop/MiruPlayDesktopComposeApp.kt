@@ -66,10 +66,29 @@ import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.RssSubscriptionFormResult
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.ScraperResult
+import com.miruplay.tv.model.cloudDriveCredentialsClearedStatus
+import com.miruplay.tv.model.cloudDriveCredentialsSavedStatus
 import com.miruplay.tv.model.cloudRssScheduledSyncCompleteStatus
+import com.miruplay.tv.model.cloudDriveRssDirectoryBrowsingStatus
+import com.miruplay.tv.model.cloudDriveTokenRequiredStatus
+import com.miruplay.tv.model.cloudDriveTokenValidationStartedStatus
+import com.miruplay.tv.model.cloudDriveTokenVerifiedStatus
+import com.miruplay.tv.model.cloudDriveLoginStartedStatus
+import com.miruplay.tv.model.cloudDriveLoginSucceededStatus
+import com.miruplay.tv.model.cloudRssConfigSavedStatus
+import com.miruplay.tv.model.cloudRssInitialStatus
+import com.miruplay.tv.model.cloudRssLinkedScanSourceStatus
+import com.miruplay.tv.model.cloudRssRunStartedStatus
+import com.miruplay.tv.model.cloudRssScanSourceClearedStatus
+import com.miruplay.tv.model.cloudRssScanSourceMissingStatus
+import com.miruplay.tv.model.cloudRssScanSourceRequiredStatus
+import com.miruplay.tv.model.cloudRssSchedulerDisabledStatus
+import com.miruplay.tv.model.cloudRssSchedulerStartStatus
+import com.miruplay.tv.model.cloudRssSchedulerStoppedStatus
+import com.miruplay.tv.model.cloudRssStatusText
+import com.miruplay.tv.model.completeStatus
 import com.miruplay.tv.model.detailBangumiSyncCompleteMessage
 import com.miruplay.tv.model.detailBangumiSyncStartedMessage
-import com.miruplay.tv.model.cloudDriveRssDirectoryBrowsingStatus
 import com.miruplay.tv.model.desktopWindowTitleLabel
 import com.miruplay.tv.model.loadedPlaybackStatus
 import com.miruplay.tv.model.metadataBangumiTokenClearedMessage
@@ -89,7 +108,18 @@ import com.miruplay.tv.model.resumeStartSecondsText
 import com.miruplay.tv.model.nextEpisodeAfter
 import com.miruplay.tv.model.retainedSelectionInProgressRecords
 import com.miruplay.tv.model.retainedSelectionInRssSubscriptions
+import com.miruplay.tv.model.rssSubscriptionDeletedStatus
+import com.miruplay.tv.model.rssSubscriptionRequiredStatus
+import com.miruplay.tv.model.rssSubscriptionSavedStatus
+import com.miruplay.tv.model.rssSubscriptionSelectedStatus
+import com.miruplay.tv.model.rssSubscriptionsLoadedStatus
+import com.miruplay.tv.model.rssSubscriptionsLoadFailedStatus
+import com.miruplay.tv.model.rssSubscriptionsRefreshFailedStatus
+import com.miruplay.tv.model.rssSubscriptionsShowingStatus
 import com.miruplay.tv.model.saveBangumiTokenFormResult
+import com.miruplay.tv.model.sourcePickerTitle
+import com.miruplay.tv.model.settingsActiveSourceLabel
+import com.miruplay.tv.model.settingsLinkedSourceLabel
 import com.miruplay.tv.model.toPlaybackSource
 import com.miruplay.tv.model.validateCloudDriveApiTokenForm
 import com.miruplay.tv.model.validateCloudDriveDirectoryPickerForm
@@ -186,38 +216,11 @@ import com.miruplay.tv.sync.rss.CloudDriveDirectoryBrowserState
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryTarget
 import com.miruplay.tv.sync.rss.DesktopCloudDriveRssAutomationEngine
 import com.miruplay.tv.sync.rss.DesktopCloudDriveRssScheduler
-import com.miruplay.tv.sync.rss.cloudDriveCredentialsClearedStatus
-import com.miruplay.tv.sync.rss.cloudDriveCredentialsSavedStatus
-import com.miruplay.tv.sync.rss.cloudDriveLoginRequiredStatus
-import com.miruplay.tv.sync.rss.cloudDriveLoginStartedStatus
-import com.miruplay.tv.sync.rss.cloudDriveLoginSucceededStatus
-import com.miruplay.tv.sync.rss.cloudDriveTokenRequiredStatus
-import com.miruplay.tv.sync.rss.cloudDriveTokenValidationStartedStatus
-import com.miruplay.tv.sync.rss.cloudRssConfigSavedStatus
-import com.miruplay.tv.sync.rss.cloudRssInitialStatus
-import com.miruplay.tv.sync.rss.cloudRssRunStartedStatus
-import com.miruplay.tv.sync.rss.cloudRssScanSourceClearedStatus
-import com.miruplay.tv.sync.rss.cloudRssScanSourceMissingStatus
-import com.miruplay.tv.sync.rss.cloudRssScanSourceRequiredStatus
-import com.miruplay.tv.sync.rss.cloudRssSchedulerDisabledStatus
-import com.miruplay.tv.sync.rss.cloudRssSchedulerStartStatus
-import com.miruplay.tv.sync.rss.cloudRssSchedulerStoppedStatus
-import com.miruplay.tv.sync.rss.completeStatus
-import com.miruplay.tv.sync.rss.linkedCloudRssScanSourceStatus
 import com.miruplay.tv.sync.rss.loadCloudDriveDirectory as loadSharedCloudDriveDirectory
-import com.miruplay.tv.sync.rss.loadedStatus as rssLoadedStatus
 import com.miruplay.tv.sync.rss.loadingFor
 import com.miruplay.tv.sync.rss.prepareCloudDriveDirectoryBrowser
-import com.miruplay.tv.sync.rss.rssSubscriptionDeletedStatus
-import com.miruplay.tv.sync.rss.rssSubscriptionRequiredStatus
-import com.miruplay.tv.sync.rss.rssSubscriptionsLoadFailedStatus
-import com.miruplay.tv.sync.rss.rssSubscriptionsRefreshFailedStatus
 import com.miruplay.tv.sync.rss.schedulerStatus
 import com.miruplay.tv.sync.rss.selectCloudDriveDirectory as selectSharedCloudDriveDirectory
-import com.miruplay.tv.sync.rss.savedStatus as rssSavedStatus
-import com.miruplay.tv.sync.rss.selectedStatus as rssSelectedStatus
-import com.miruplay.tv.sync.rss.showingStatus as rssShowingStatus
-import com.miruplay.tv.sync.rss.verifiedStatus
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -690,7 +693,7 @@ internal fun MiruPlayDesktopComposeApp(
             repositories.cloudDriveAutomation.observeSubscriptions().first()
         }.onSuccess { subscriptions ->
             rssSubscriptions = subscriptions
-            cloudRssStatus = subscriptions.rssLoadedStatus()
+            cloudRssStatus = rssSubscriptionsLoadedStatus(subscriptions.size)
         }.onFailure { error ->
             cloudRssStatus = rssSubscriptionsLoadFailedStatus(error.message)
         }
@@ -933,7 +936,7 @@ internal fun MiruPlayDesktopComposeApp(
         }.onSuccess { subscriptions ->
             rssSubscriptions = subscriptions
             selectedRssSubscription = selectedRssSubscription.retainedSelectionInRssSubscriptions(subscriptions)
-            cloudRssStatus = subscriptions.rssShowingStatus()
+            cloudRssStatus = rssSubscriptionsShowingStatus(subscriptions.size)
         }.onFailure { error ->
             cloudRssStatus = rssSubscriptionsRefreshFailedStatus(error.message)
         }
@@ -1003,7 +1006,7 @@ internal fun MiruPlayDesktopComposeApp(
         if (!browser.open) return
         if (browser.endpointUrl.isBlank() || browser.token.isBlank()) {
             cloudRssStatus = cloudDriveTokenRequiredStatus()
-            cloudDirectoryBrowser = browser.copy(isLoading = false, message = desktopCloudRssStatusText(cloudDriveTokenRequiredStatus()))
+            cloudDirectoryBrowser = browser.copy(isLoading = false, message = cloudRssStatusText(cloudDriveTokenRequiredStatus()))
             return
         }
         val loadingState = browser.loadingFor(path)
@@ -1884,7 +1887,7 @@ internal fun MiruPlayDesktopComposeApp(
                 bangumiToken = bangumiTokenInput,
                 onBangumiTokenChange = { bangumiTokenInput = it },
                 bangumiTokenConfigured = bangumiTokenConfigured,
-                linkedSourceLabel = desktopLinkedSourceLabel(savedSources, cloudLinkedSourceId),
+                linkedSourceLabel = settingsLinkedSourceLabel(savedSources, cloudLinkedSourceId),
                 onSaveConfig = {
                     scope.launch {
                         val interval = parseCloudDriveIntervalMinutes(cloudIntervalMinutes)
@@ -1967,7 +1970,10 @@ internal fun MiruPlayDesktopComposeApp(
                         when (val result = cloudRssEngine.saveApiToken(form.endpointUrl, form.token)) {
                             is Result.Success -> {
                                 cloudToken = form.token
-                                cloudRssStatus = result.data.verifiedStatus()
+                                cloudRssStatus = cloudDriveTokenVerifiedStatus(
+                                    friendlyName = result.data.friendlyName,
+                                    rootDir = result.data.rootDir,
+                                )
                             }
                             is Result.Error -> cloudRssStatus = result.error.toUserMessage()
                         }
@@ -2013,7 +2019,7 @@ internal fun MiruPlayDesktopComposeApp(
                         cloudRssStatus = cloudRssScanSourceRequiredStatus()
                     } else {
                         cloudLinkedSourceId = sourceId
-                        cloudRssStatus = sourceInfo.linkedCloudRssScanSourceStatus()
+                        cloudRssStatus = cloudRssLinkedScanSourceStatus(sourceInfo.sourcePickerTitle())
                     }
                 },
                 onClearScanSource = {
@@ -2039,7 +2045,7 @@ internal fun MiruPlayDesktopComposeApp(
                         }
                         when (val result = repositories.cloudDriveAutomation.saveSubscription(subscription)) {
                             is Result.Success -> {
-                                cloudRssStatus = subscription.rssSavedStatus()
+                                cloudRssStatus = rssSubscriptionSavedStatus(subscription.name)
                                 refreshRssSubscriptions()
                             }
                             is Result.Error -> cloudRssStatus = result.error.toUserMessage()
@@ -2052,7 +2058,7 @@ internal fun MiruPlayDesktopComposeApp(
                     rssUrl = subscription.url
                     rssFilter = subscription.filterRegex.orEmpty()
                     rssEnabled = subscription.enabled
-                    cloudRssStatus = subscription.rssSelectedStatus()
+                    cloudRssStatus = rssSubscriptionSelectedStatus(subscription.name)
                 },
                 onDeleteSubscription = {
                     scope.launch {
@@ -2092,7 +2098,7 @@ internal fun MiruPlayDesktopComposeApp(
                     bangumiStatus = metadataBangumiTokenClearedMessage()
                 },
                 sources = savedSources,
-                activeSourceLabel = desktopActiveSourceLabel(activeSource?.info),
+                activeSourceLabel = settingsActiveSourceLabel(activeSource?.info),
                 indexedItemCount = indexedEntries.size,
                 recentCount = recentProgress.size,
                 selectedMediaTitle = selectedIndexEntry?.detailTitle()

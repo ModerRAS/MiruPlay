@@ -304,6 +304,9 @@ fun localizedMediaSourceStatusText(status: String): String? {
     }
 }
 
+fun mediaSourceStatusText(status: String): String =
+    localizedMediaSourceStatusText(status) ?: status
+
 private fun localizedDynamicMediaSourceStatusText(status: String): String? {
     localizedSharedMediaSourceStatusRegexes.forEach { regex ->
         if (regex.matches(status)) return status

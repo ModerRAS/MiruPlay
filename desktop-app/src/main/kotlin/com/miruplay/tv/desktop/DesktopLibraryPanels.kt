@@ -82,7 +82,7 @@ import com.miruplay.tv.model.mediaSourceScanSourceActionLabel
 import com.miruplay.tv.model.mediaSourceSearchActionLabel
 import com.miruplay.tv.model.mediaSourceSmbDomainFieldLabel
 import com.miruplay.tv.model.mediaSourceUpActionLabel
-import com.miruplay.tv.model.localizedMediaSourceStatusText
+import com.miruplay.tv.model.mediaSourceStatusText
 import com.miruplay.tv.model.openSourceActionLabel
 import com.miruplay.tv.model.pagedListCoercedPageStart
 import com.miruplay.tv.model.pagedListPageStartForIndex
@@ -979,7 +979,7 @@ private fun LibraryControlBar(
             }
         }
         Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
-        StatusBox(desktopLibraryStatusText(status))
+        StatusBox(mediaSourceStatusText(status))
     }
 }
 
@@ -1899,7 +1899,7 @@ internal fun RemoteSourcesPanel(
                     )
                 }
             }
-            StatusBox(desktopLibraryStatusText(status))
+            StatusBox(mediaSourceStatusText(status))
         }
         RemoteBrowserPanel(
             remotePath = remotePath,
@@ -2407,6 +2407,3 @@ internal fun desktopLibrarySourceLabels(): DesktopLibrarySourceLabels =
         up = mediaSourceUpActionLabel(),
         remoteEmpty = mediaSourceRemoteBrowserEmptyMessage(),
     )
-
-internal fun desktopLibraryStatusText(status: String): String =
-    localizedMediaSourceStatusText(status) ?: status

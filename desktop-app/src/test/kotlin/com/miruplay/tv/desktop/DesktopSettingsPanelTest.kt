@@ -25,6 +25,7 @@ import com.miruplay.tv.model.cloudDriveRssPostSyncScanSummaryLabel
 import com.miruplay.tv.model.cloudDriveRssRunNowActionLabel
 import com.miruplay.tv.model.cloudDriveRssSaveConfigActionLabel
 import com.miruplay.tv.model.cloudDriveRssTitleLabel
+import com.miruplay.tv.model.cloudRssStatusText
 import com.miruplay.tv.model.cloudDriveRssUsernameFieldLabel
 import com.miruplay.tv.model.metadataBangumiTokenSettingsStatus
 import com.miruplay.tv.model.metadataBangumiTokenTileDetail
@@ -68,11 +69,11 @@ class DesktopSettingsPanelTest {
         val activeSource = MediaSourceInfoConventions.local(name = "Local Anime", rootPath = "D:/Anime")
         val tiles = sourceSettingsTiles(
             sources = listOf(
-                activeSource,
-                MediaSourceInfoConventions.webDav(url = "https://dav.example.test/anime"),
-                MediaSourceInfoConventions.smb(url = "smb://nas.local/anime"),
-            ),
-            activeSourceLabel = desktopActiveSourceLabel(activeSource),
+            activeSource,
+            MediaSourceInfoConventions.webDav(url = "https://dav.example.test/anime"),
+            MediaSourceInfoConventions.smb(url = "smb://nas.local/anime"),
+        ),
+            activeSourceLabel = settingsActiveSourceLabel(activeSource),
             indexedItemCount = 42,
         )
 
@@ -91,10 +92,9 @@ class DesktopSettingsPanelTest {
             url = "https://dav.example.test/anime",
         ).copy(id = 42L, name = "Cloud WebDAV")
 
-        assertEquals(settingsNoSourceSelectedValue(), desktopActiveSourceLabel(null))
-        assertEquals(settingsActiveSourceLabel(null), desktopActiveSourceLabel(null))
-        assertEquals(settingsLinkedSourceLabel(listOf(linkedSource), 42L), desktopLinkedSourceLabel(listOf(linkedSource), 42L))
-        assertEquals(settingsMissingSourceValue(99L), desktopLinkedSourceLabel(listOf(linkedSource), 99L))
+        assertEquals(settingsNoSourceSelectedValue(), settingsActiveSourceLabel(null))
+        assertEquals("Cloud WebDAV · WebDAV", settingsLinkedSourceLabel(listOf(linkedSource), 42L))
+        assertEquals(settingsMissingSourceValue(99L), settingsLinkedSourceLabel(listOf(linkedSource), 99L))
     }
 
     @Test
@@ -112,18 +112,18 @@ class DesktopSettingsPanelTest {
     }
 
     @Test
-    fun `desktop settings summary statuses use TV facing page names`() {
+    fun `shared settings summary statuses use TV facing page names`() {
         assertEquals(
+            "mpv 播放设置保留在播放页，RIFE/字幕/起播秒数仍可直接调整。",
             settingsPlaybackStatusMessage(),
-            desktopPlaybackSettingsStatus(),
         )
         assertEquals(
+            "Bangumi 搜索、批量预览、应用和撤销保留在详情页。 保存 Token 后可同步观看进度。",
             metadataBangumiTokenSettingsStatus(configured = false),
-            desktopMetadataSettingsStatus(bangumiTokenConfigured = false),
         )
         assertEquals(
+            "Bangumi 搜索、批量预览、应用和撤销保留在详情页。 Bangumi Token 已保存。",
             metadataBangumiTokenSettingsStatus(configured = true),
-            desktopMetadataSettingsStatus(bangumiTokenConfigured = true),
         )
     }
 
@@ -232,25 +232,25 @@ class DesktopSettingsPanelTest {
     fun `cloud rss status text localizes scheduler credentials and subscriptions`() {
         assertEquals(
             localizedCloudRssStatusText("Scheduler idle. No checks yet."),
-            desktopCloudRssStatusText("Scheduler idle. No checks yet."),
+            cloudRssStatusText("Scheduler idle. No checks yet."),
         )
         assertEquals(
             localizedCloudRssStatusText("调度器待命，尚未检查。"),
-            desktopCloudRssStatusText("调度器待命，尚未检查。"),
+            cloudRssStatusText("调度器待命，尚未检查。"),
         )
         assertEquals(
             localizedCloudRssStatusText("Sync complete: 3 submitted, 2 skipped, 1 failed, 4 organized."),
-            desktopCloudRssStatusText("Sync complete: 3 submitted, 2 skipped, 1 failed, 4 organized."),
+            cloudRssStatusText("Sync complete: 3 submitted, 2 skipped, 1 failed, 4 organized."),
         )
         assertEquals(
             localizedCloudRssStatusText("CloudDrive credentials saved."),
-            desktopCloudRssStatusText("CloudDrive credentials saved."),
+            cloudRssStatusText("CloudDrive credentials saved."),
         )
         assertEquals(
             localizedCloudRssStatusText("RSS subscription saved: Anime"),
-            desktopCloudRssStatusText("RSS subscription saved: Anime"),
+            cloudRssStatusText("RSS subscription saved: Anime"),
         )
-        assertEquals("custom status", desktopCloudRssStatusText("custom status"))
+        assertEquals("custom status", cloudRssStatusText("custom status"))
     }
 
     @Test

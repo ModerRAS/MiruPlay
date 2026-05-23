@@ -380,6 +380,9 @@ fun rssSubscriptionDeletedStatus(): String =
 fun cloudRssIdleStatus(): String =
     "Cloud/RSS 待命。"
 
+fun cloudRssStatusText(status: String): String =
+    localizedCloudRssStatusText(status) ?: status.trim()
+
 fun localizedCloudRssStatusText(status: String): String? {
     val trimmed = status.trim()
     return when {

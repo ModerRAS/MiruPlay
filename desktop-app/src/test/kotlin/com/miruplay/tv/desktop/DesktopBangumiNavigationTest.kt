@@ -23,6 +23,7 @@ import com.miruplay.tv.model.metadataBatchStatusLabel
 import com.miruplay.tv.model.metadataSearchActionLabel
 import com.miruplay.tv.model.metadataSelectedCandidateLabel
 import com.miruplay.tv.model.metadataSelectedIndexSectionTitle
+import com.miruplay.tv.model.metadataStatusText
 import com.miruplay.tv.model.metadataUndoBatchActionLabel
 import com.miruplay.tv.model.metadataUseSelectedEntryActionLabel
 import com.miruplay.tv.repository.MetadataBatchMatch
@@ -57,94 +58,94 @@ class DesktopBangumiNavigationTest {
 
     @Test
     fun `bangumi status messages use TV facing Chinese text`() {
-        assertEquals(localizedMetadataStatusText("Select an indexed video first."), desktopBangumiStatusText("Select an indexed video first."))
+        assertEquals(localizedMetadataStatusText("Select an indexed video first."), metadataStatusText("Select an indexed video first."))
         assertEquals(
             localizedMetadataStatusText("Select an indexed video, then search Bangumi."),
-            desktopBangumiStatusText("Select an indexed video, then search Bangumi."),
+            metadataStatusText("Select an indexed video, then search Bangumi."),
         )
         assertEquals(
             localizedMetadataStatusText("Query set from selected index entry."),
-            desktopBangumiStatusText("Query set from selected index entry."),
+            metadataStatusText("Query set from selected index entry."),
         )
         assertEquals(
             localizedMetadataStatusText("Enter a Bangumi query or select an indexed video."),
-            desktopBangumiStatusText("Enter a Bangumi query or select an indexed video."),
+            metadataStatusText("Enter a Bangumi query or select an indexed video."),
         )
-        assertEquals(localizedMetadataStatusText("Searching Bangumi for \"Frieren\"..."), desktopBangumiStatusText("Searching Bangumi for \"Frieren\"..."))
+        assertEquals(localizedMetadataStatusText("Searching Bangumi for \"Frieren\"..."), metadataStatusText("Searching Bangumi for \"Frieren\"..."))
         assertEquals(
             localizedMetadataStatusText("No Bangumi metadata matched \"Frieren\"."),
-            desktopBangumiStatusText("No Bangumi metadata matched \"Frieren\"."),
+            metadataStatusText("No Bangumi metadata matched \"Frieren\"."),
         )
-        assertEquals(localizedMetadataStatusText("Found 2 Bangumi match(es)."), desktopBangumiStatusText("Found 2 Bangumi match(es)."))
-        assertEquals(localizedMetadataStatusText("Open or scan a source first."), desktopBangumiStatusText("Open or scan a source first."))
-        assertEquals(localizedMetadataStatusText("Selected batch review: Frieren."), desktopBangumiStatusText("Selected batch review: Frieren."))
+        assertEquals(localizedMetadataStatusText("Found 2 Bangumi match(es)."), metadataStatusText("Found 2 Bangumi match(es)."))
+        assertEquals(localizedMetadataStatusText("Open or scan a source first."), metadataStatusText("Open or scan a source first."))
+        assertEquals(localizedMetadataStatusText("Selected batch review: Frieren."), metadataStatusText("Selected batch review: Frieren."))
         assertEquals(
             localizedMetadataStatusText("Select a batch match with a Bangumi result first."),
-            desktopBangumiStatusText("Select a batch match with a Bangumi result first."),
+            metadataStatusText("Select a batch match with a Bangumi result first."),
         )
         assertEquals(
             localizedMetadataStatusText("Selected review has 2 metadata conflicts; nothing was overwritten."),
-            desktopBangumiStatusText("Selected review has 2 metadata conflicts; nothing was overwritten."),
+            metadataStatusText("Selected review has 2 metadata conflicts; nothing was overwritten."),
         )
         assertEquals(
             localizedMetadataStatusText("Selected review has no matching indexed entries."),
-            desktopBangumiStatusText("Selected review has no matching indexed entries."),
+            metadataStatusText("Selected review has no matching indexed entries."),
         )
-        assertEquals(localizedMetadataStatusText("Selected 葬送的芙莉莲."), desktopBangumiStatusText("Selected 葬送的芙莉莲."))
+        assertEquals(localizedMetadataStatusText("Selected 葬送的芙莉莲."), metadataStatusText("Selected 葬送的芙莉莲."))
         assertEquals(
             localizedMetadataStatusText("Select an indexed video before applying Bangumi metadata."),
-            desktopBangumiStatusText("Select an indexed video before applying Bangumi metadata."),
+            metadataStatusText("Select an indexed video before applying Bangumi metadata."),
         )
         assertEquals(
             localizedMetadataStatusText("Search Bangumi and select a match first."),
-            desktopBangumiStatusText("Search Bangumi and select a match first."),
+            metadataStatusText("Search Bangumi and select a match first."),
         )
         assertEquals(
             localizedMetadataStatusText("Applied Bangumi metadata to D:/Anime/Frieren/01.mkv."),
-            desktopBangumiStatusText("Applied Bangumi metadata to D:/Anime/Frieren/01.mkv."),
+            metadataStatusText("Applied Bangumi metadata to D:/Anime/Frieren/01.mkv."),
         )
         assertEquals(
             localizedMetadataStatusText("Select an indexed video before clearing metadata."),
-            desktopBangumiStatusText("Select an indexed video before clearing metadata."),
+            metadataStatusText("Select an indexed video before clearing metadata."),
         )
         assertEquals(
             localizedMetadataStatusText("Cleared external metadata for D:/Anime/Frieren/01.mkv."),
-            desktopBangumiStatusText("Cleared external metadata for D:/Anime/Frieren/01.mkv."),
+            metadataStatusText("Cleared external metadata for D:/Anime/Frieren/01.mkv."),
         )
         assertEquals(
             localizedMetadataStatusText("Searching Bangumi for 2 indexed title(s)..."),
-            desktopBangumiStatusText("Searching Bangumi for 2 indexed title(s)..."),
+            metadataStatusText("Searching Bangumi for 2 indexed title(s)..."),
         )
         assertEquals(
             localizedMetadataStatusText("No indexed entries are available for Bangumi batch matching."),
-            desktopBangumiStatusText("No indexed entries are available for Bangumi batch matching."),
+            metadataStatusText("No indexed entries are available for Bangumi batch matching."),
         )
-        assertEquals(localizedMetadataStatusText("2 ready, 1 review, 0 conflicts"), desktopBangumiStatusText("2 ready, 1 review, 0 conflicts"))
+        assertEquals(localizedMetadataStatusText("2 ready, 1 review, 0 conflicts"), metadataStatusText("2 ready, 1 review, 0 conflicts"))
         assertEquals(
             localizedMetadataStatusText("Selected batch candidate for Frieren: 葬送的芙莉莲."),
-            desktopBangumiStatusText("Selected batch candidate for Frieren: 葬送的芙莉莲."),
+            metadataStatusText("Selected batch candidate for Frieren: 葬送的芙莉莲."),
         )
         assertEquals(
             localizedMetadataStatusText("Applied Bangumi batch metadata to 1 index entry; 2 conflicts skipped."),
-            desktopBangumiStatusText("Applied Bangumi batch metadata to 1 index entry; 2 conflicts skipped."),
+            metadataStatusText("Applied Bangumi batch metadata to 1 index entry; 2 conflicts skipped."),
         )
         assertEquals(
             localizedMetadataStatusText("Accepted reviewed Bangumi match for 1 index entry."),
-            desktopBangumiStatusText("Accepted reviewed Bangumi match for 1 index entry."),
+            metadataStatusText("Accepted reviewed Bangumi match for 1 index entry."),
         )
         assertEquals(
             localizedMetadataStatusText("Restored 2 index entries from the previous Bangumi batch."),
-            desktopBangumiStatusText("Restored 2 index entries from the previous Bangumi batch."),
+            metadataStatusText("Restored 2 index entries from the previous Bangumi batch."),
         )
         assertEquals(
             localizedMetadataStatusText("Run Batch preview first; no high-confidence matches are ready."),
-            desktopBangumiStatusText("Run Batch preview first; no high-confidence matches are ready."),
+            metadataStatusText("Run Batch preview first; no high-confidence matches are ready."),
         )
         assertEquals(
             localizedMetadataStatusText("No batch Bangumi changes are available to undo."),
-            desktopBangumiStatusText("No batch Bangumi changes are available to undo."),
+            metadataStatusText("No batch Bangumi changes are available to undo."),
         )
-        assertEquals("custom status", desktopBangumiStatusText("custom status"))
+        assertEquals("custom status", metadataStatusText("custom status"))
     }
 
     @Test

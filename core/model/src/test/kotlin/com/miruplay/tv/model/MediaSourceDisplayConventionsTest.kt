@@ -213,6 +213,7 @@ class MediaSourceDisplayConventionsTest {
         assertEquals("已经在媒体源根目录。", localizedMediaSourceStatusText("Already at the source root."))
         assertEquals("请先打开远程媒体源，再浏览。", localizedMediaSourceStatusText("Open a remote source before browsing."))
         assertEquals(null, localizedMediaSourceStatusText("custom status"))
+        assertEquals("custom status", mediaSourceStatusText("custom status"))
     }
 
     @Test

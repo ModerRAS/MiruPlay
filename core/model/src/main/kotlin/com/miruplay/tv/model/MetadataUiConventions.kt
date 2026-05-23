@@ -188,6 +188,9 @@ fun localizedMetadataStatusText(status: String): String? =
         else -> localizedDynamicMetadataStatusText(trimmed)
     }
 
+fun metadataStatusText(status: String): String =
+    localizedMetadataStatusText(status) ?: status
+
 fun metadataBatchStatusLabel(status: String): String =
     when (status) {
         "preview" -> "预览"

@@ -37,7 +37,6 @@ import com.miruplay.tv.design.verticalNavigationDelta
 import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.confidencePercentLabel
 import com.miruplay.tv.model.detailSyncProgressActionLabel
-import com.miruplay.tv.model.localizedMetadataStatusText
 import com.miruplay.tv.model.metadataAcceptReviewActionLabel
 import com.miruplay.tv.model.metadataApplyBatchActionLabel
 import com.miruplay.tv.model.metadataApplyMatchActionLabel
@@ -59,6 +58,7 @@ import com.miruplay.tv.model.metadataQueryFieldLabel
 import com.miruplay.tv.model.metadataSearchActionLabel
 import com.miruplay.tv.model.metadataSearchResultsPageLabel
 import com.miruplay.tv.model.metadataSelectedIndexSectionTitle
+import com.miruplay.tv.model.metadataStatusText
 import com.miruplay.tv.model.metadataUndoBatchActionLabel
 import com.miruplay.tv.model.metadataUseSelectedEntryActionLabel
 import com.miruplay.tv.model.pagedListCoercedPageStart
@@ -466,7 +466,7 @@ internal fun BangumiPanel(
                             onMove = ::moveActionFocus,
                         ),
                 )
-                StatusBox(desktopBangumiStatusText(status))
+                StatusBox(metadataStatusText(status))
             }
             Column(
                 modifier = Modifier.weight(0.58f),
@@ -793,9 +793,6 @@ internal fun desktopBangumiUiLabels(isSyncingProgress: Boolean = false): Desktop
         batchCandidates = metadataBatchCandidatesSectionTitle(),
         emptyResults = metadataEmptyResultsMessage(),
     )
-
-internal fun desktopBangumiStatusText(status: String): String =
-    localizedMetadataStatusText(status) ?: status
 
 internal fun desktopBangumiBatchStatusLabel(status: String): String =
     metadataBatchStatusLabel(status)
