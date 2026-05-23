@@ -53,6 +53,7 @@ import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.PLAYBACK_SEEK_BACK_SECONDS
 import com.miruplay.tv.model.PLAYBACK_SEEK_FORWARD_SECONDS
 import com.miruplay.tv.model.CloudDriveApiTokenFormResult
+import com.miruplay.tv.model.CloudDriveDirectoryPickerFormResult
 import com.miruplay.tv.model.CloudDriveLoginFormResult
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
@@ -62,9 +63,9 @@ import com.miruplay.tv.model.PlaybackProgressSession
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.PlaybackTimingConventions
 import com.miruplay.tv.model.ProgressRecord
+import com.miruplay.tv.model.RssSubscriptionFormResult
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.ScraperResult
-import com.miruplay.tv.model.buildRssSubscriptionFromForm
 import com.miruplay.tv.model.cloudRssScheduledSyncCompleteStatus
 import com.miruplay.tv.model.detailBangumiSyncCompleteMessage
 import com.miruplay.tv.model.detailBangumiSyncStartedMessage
@@ -79,6 +80,7 @@ import com.miruplay.tv.model.parseRssProxyPort
 import com.miruplay.tv.model.playbackBlankMediaMessage
 import com.miruplay.tv.model.playbackCommandPreviewErrorMessage
 import com.miruplay.tv.model.playbackRifeStateLabel
+import com.miruplay.tv.model.prepareRssSubscriptionForm
 import com.miruplay.tv.model.recentPlaybackInitialStatus
 import com.miruplay.tv.model.recentPlaybackLoadedStatus
 import com.miruplay.tv.model.recentPlaybackRequiredStatus
@@ -87,8 +89,10 @@ import com.miruplay.tv.model.resumeStartSecondsText
 import com.miruplay.tv.model.nextEpisodeAfter
 import com.miruplay.tv.model.retainedSelectionInProgressRecords
 import com.miruplay.tv.model.retainedSelectionInRssSubscriptions
+import com.miruplay.tv.model.saveBangumiTokenFormResult
 import com.miruplay.tv.model.toPlaybackSource
 import com.miruplay.tv.model.validateCloudDriveApiTokenForm
+import com.miruplay.tv.model.validateCloudDriveDirectoryPickerForm
 import com.miruplay.tv.model.validateCloudDriveLoginForm
 import com.miruplay.tv.model.withAutomationFormValues
 import com.miruplay.tv.player.mpv.MpvProcessPlayer
@@ -208,7 +212,6 @@ import com.miruplay.tv.sync.rss.rssSubscriptionDeletedStatus
 import com.miruplay.tv.sync.rss.rssSubscriptionRequiredStatus
 import com.miruplay.tv.sync.rss.rssSubscriptionsLoadFailedStatus
 import com.miruplay.tv.sync.rss.rssSubscriptionsRefreshFailedStatus
-import com.miruplay.tv.sync.rss.rssUrlRequiredStatus
 import com.miruplay.tv.sync.rss.schedulerStatus
 import com.miruplay.tv.sync.rss.selectCloudDriveDirectory as selectSharedCloudDriveDirectory
 import com.miruplay.tv.sync.rss.savedStatus as rssSavedStatus
@@ -1022,11 +1025,18 @@ internal fun MiruPlayDesktopComposeApp(
     }
 
     fun openCloudDriveDirectory(target: CloudDriveDirectoryTarget) {
-        val endpoint = cloudEndpointUrl.trim()
-        val token = cloudToken.trim().ifBlank { repositories.credentials.cloudDriveToken.orEmpty() }
-        if (endpoint.isBlank() || token.isBlank()) {
-            cloudRssStatus = cloudDriveTokenRequiredStatus()
-            return
+        val form = when (
+            val result = validateCloudDriveDirectoryPickerForm(
+                endpointUrl = cloudEndpointUrl,
+                tokenInput = cloudToken,
+                savedToken = repositories.credentials.cloudDriveToken,
+            )
+        ) {
+            is CloudDriveDirectoryPickerFormResult.Ready -> result.request
+            is CloudDriveDirectoryPickerFormResult.Invalid -> {
+                cloudRssStatus = result.status
+                return
+            }
         }
         scope.launch {
             val initialPath = when (target) {
@@ -1037,8 +1047,8 @@ internal fun MiruPlayDesktopComposeApp(
                 val result = prepareCloudDriveDirectoryBrowser(
                     client = cloudDriveClient,
                     target = target,
-                    endpointUrl = endpoint,
-                    token = token,
+                    endpointUrl = form.endpointUrl,
+                    token = form.token,
                     initialPath = initialPath,
                 )
             ) {
@@ -2012,22 +2022,20 @@ internal fun MiruPlayDesktopComposeApp(
                 },
                 onSaveSubscription = {
                     scope.launch {
-                        val url = rssUrl.trim()
-                        if (url.isBlank()) {
-                            cloudRssStatus = rssUrlRequiredStatus()
-                            return@launch
-                        }
-                        val selectedMatchingSubscription = selectedRssSubscription?.takeIf { it.url == url }
-                        val subscription = buildRssSubscriptionFromForm(
-                            name = rssName,
-                            url = rssUrl,
-                            filterRegex = rssFilter,
-                            enabled = rssEnabled,
-                            existingId = selectedMatchingSubscription?.id ?: 0L,
-                            existingLastCheckedAt = selectedMatchingSubscription?.lastCheckedAt ?: 0L,
-                        ) ?: run {
-                            cloudRssStatus = rssUrlRequiredStatus()
-                            return@launch
+                        val subscription = when (
+                            val result = prepareRssSubscriptionForm(
+                                name = rssName,
+                                url = rssUrl,
+                                filterRegex = rssFilter,
+                                enabled = rssEnabled,
+                                selectedSubscription = selectedRssSubscription,
+                            )
+                        ) {
+                            is RssSubscriptionFormResult.Ready -> result.subscription
+                            is RssSubscriptionFormResult.Invalid -> {
+                                cloudRssStatus = result.status
+                                return@launch
+                            }
                         }
                         when (val result = repositories.cloudDriveAutomation.saveSubscription(subscription)) {
                             is Result.Success -> {
@@ -2068,7 +2076,7 @@ internal fun MiruPlayDesktopComposeApp(
                     }
                 },
                 onSaveBangumiToken = {
-                    val saveResult = desktopBangumiTokenSaveResult(
+                    val saveResult = saveBangumiTokenFormResult(
                         input = bangumiTokenInput,
                         existingToken = repositories.credentials.bangumiAccessToken,
                     )

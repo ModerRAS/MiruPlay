@@ -229,6 +229,34 @@ fun metadataBangumiTokenEmptyMessage(): String =
 fun metadataBangumiTokenClearedMessage(): String =
     "Bangumi Access Token 已清除。"
 
+data class BangumiTokenSaveResult(
+    val token: String?,
+    val configured: Boolean,
+    val status: String,
+    val shouldPersistTokenInput: Boolean,
+)
+
+fun saveBangumiTokenFormResult(
+    input: String,
+    existingToken: String?,
+): BangumiTokenSaveResult {
+    val normalized = input.trim()
+    if (normalized.isBlank()) {
+        return BangumiTokenSaveResult(
+            token = existingToken,
+            configured = !existingToken.isNullOrBlank(),
+            status = metadataBangumiTokenEmptyMessage(),
+            shouldPersistTokenInput = false,
+        )
+    }
+    return BangumiTokenSaveResult(
+        token = normalized,
+        configured = true,
+        status = metadataBangumiTokenSavedMessage(),
+        shouldPersistTokenInput = true,
+    )
+}
+
 fun metadataBangumiTokenSettingsStatus(configured: Boolean): String =
     if (configured) {
         "${settingsMetadataStatusMessage()} ${metadataBangumiTokenSavedMessage()}"

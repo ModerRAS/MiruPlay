@@ -102,6 +102,22 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("Bangumi Token 已保存。", metadataBangumiTokenSavedMessage())
         assertEquals("Bangumi Access Token 为空，未保存。", metadataBangumiTokenEmptyMessage())
         assertEquals("Bangumi Access Token 已清除。", metadataBangumiTokenClearedMessage())
+        val emptyTokenResult = saveBangumiTokenFormResult(
+            input = "   ",
+            existingToken = "existing-token",
+        )
+        assertEquals("existing-token", emptyTokenResult.token)
+        assertEquals(true, emptyTokenResult.configured)
+        assertEquals(metadataBangumiTokenEmptyMessage(), emptyTokenResult.status)
+        assertEquals(false, emptyTokenResult.shouldPersistTokenInput)
+        val savedTokenResult = saveBangumiTokenFormResult(
+            input = "  new-token  ",
+            existingToken = "existing-token",
+        )
+        assertEquals("new-token", savedTokenResult.token)
+        assertEquals(true, savedTokenResult.configured)
+        assertEquals(metadataBangumiTokenSavedMessage(), savedTokenResult.status)
+        assertEquals(true, savedTokenResult.shouldPersistTokenInput)
         assertEquals(
             "Bangumi 搜索、批量预览、应用和撤销保留在详情页。 保存 Token 后可同步观看进度。",
             metadataBangumiTokenSettingsStatus(configured = false),

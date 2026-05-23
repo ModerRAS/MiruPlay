@@ -196,6 +196,9 @@ import com.miruplay.tv.model.rssSubscriptionNewEnabledLabel
 import com.miruplay.tv.model.rssSubscriptionStateActionLabel
 import com.miruplay.tv.model.rssSubscriptionUrlFieldLabel
 import com.miruplay.tv.model.rssSubscriptionsTitleLabel
+import com.miruplay.tv.model.prepareRssSubscriptionForm
+import com.miruplay.tv.model.saveBangumiTokenFormResult
+import com.miruplay.tv.model.shouldClearFormAfterSubmit
 import com.miruplay.tv.model.parseCloudDriveIntervalMinutes
 import com.miruplay.tv.model.parseRssProxyPort
 import com.miruplay.tv.model.tvDisplayName
@@ -476,11 +479,14 @@ fun AddSourceScreen(
                     tokenSaved = tokenSaved,
                     onTokenChange = { tokenInput = it },
                     onSaveToken = {
-                        val token = tokenInput.trim()
-                        if (token.isNotBlank()) {
-                            viewModel.saveBangumiToken(token)
+                        val result = saveBangumiTokenFormResult(
+                            input = tokenInput,
+                            existingToken = savedToken,
+                        )
+                        if (result.shouldPersistTokenInput) {
+                            viewModel.saveBangumiToken(tokenInput)
                             tokenInput = ""
-                            tokenSaved = true
+                            tokenSaved = result.configured
                         }
                     },
                     onClearToken = {
@@ -573,8 +579,9 @@ fun AddSourceScreen(
                     },
                     onRunCloudDriveNow = viewModel::runCloudDriveNow,
                     onAddRssSubscription = {
+                        val formResult = prepareRssSubscriptionForm(rssName, rssUrl, rssFilterRegex, rssEnabled)
                         viewModel.addRssSubscription(rssName, rssUrl, rssFilterRegex, rssEnabled)
-                        if (rssUrl.isNotBlank()) {
+                        if (formResult.shouldClearFormAfterSubmit) {
                             rssName = ""
                             rssUrl = ""
                             rssFilterRegex = ""

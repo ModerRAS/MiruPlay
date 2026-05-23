@@ -62,6 +62,38 @@ fun buildRssSubscriptionFromForm(
     )
 }
 
+sealed class RssSubscriptionFormResult {
+    data class Ready(val subscription: RssSubscriptionInfo) : RssSubscriptionFormResult()
+    data class Invalid(val status: String) : RssSubscriptionFormResult()
+}
+
+val RssSubscriptionFormResult.shouldClearFormAfterSubmit: Boolean
+    get() = this is RssSubscriptionFormResult.Ready
+
+fun prepareRssSubscriptionForm(
+    name: String,
+    url: String,
+    filterRegex: String,
+    enabled: Boolean,
+    selectedSubscription: RssSubscriptionInfo? = null,
+): RssSubscriptionFormResult {
+    val normalizedUrl = url.trim()
+    if (normalizedUrl.isBlank()) {
+        return RssSubscriptionFormResult.Invalid(rssUrlRequiredStatus())
+    }
+    val existingSubscription = selectedSubscription?.takeIf { it.url.trim() == normalizedUrl }
+    val subscription = buildRssSubscriptionFromForm(
+        name = name,
+        url = normalizedUrl,
+        filterRegex = filterRegex,
+        enabled = enabled,
+        existingId = existingSubscription?.id ?: 0L,
+        existingLastCheckedAt = existingSubscription?.lastCheckedAt ?: 0L,
+    ) ?: return RssSubscriptionFormResult.Invalid(rssUrlRequiredStatus())
+
+    return RssSubscriptionFormResult.Ready(subscription)
+}
+
 data class CloudDriveLoginFormRequest(
     val endpointUrl: String,
     val username: String,
@@ -69,6 +101,11 @@ data class CloudDriveLoginFormRequest(
 )
 
 data class CloudDriveApiTokenFormRequest(
+    val endpointUrl: String,
+    val token: String,
+)
+
+data class CloudDriveDirectoryPickerRequest(
     val endpointUrl: String,
     val token: String,
 )
@@ -81,6 +118,11 @@ sealed class CloudDriveLoginFormResult {
 sealed class CloudDriveApiTokenFormResult {
     data class Ready(val request: CloudDriveApiTokenFormRequest) : CloudDriveApiTokenFormResult()
     data class Invalid(val status: String) : CloudDriveApiTokenFormResult()
+}
+
+sealed class CloudDriveDirectoryPickerFormResult {
+    data class Ready(val request: CloudDriveDirectoryPickerRequest) : CloudDriveDirectoryPickerFormResult()
+    data class Invalid(val status: String) : CloudDriveDirectoryPickerFormResult()
 }
 
 fun validateCloudDriveLoginForm(
@@ -120,4 +162,25 @@ fun validateCloudDriveApiTokenForm(
             ),
         )
     }
+}
+
+fun validateCloudDriveDirectoryPickerForm(
+    endpointUrl: String,
+    tokenInput: String,
+    savedToken: String?,
+): CloudDriveDirectoryPickerFormResult {
+    val endpoint = endpointUrl.trim()
+    if (endpoint.isBlank()) {
+        return CloudDriveDirectoryPickerFormResult.Invalid(cloudDriveEndpointRequiredStatus())
+    }
+    val token = tokenInput.trim().ifBlank { savedToken.orEmpty() }.trim()
+    if (token.isBlank()) {
+        return CloudDriveDirectoryPickerFormResult.Invalid(cloudDriveTokenLoginRequiredStatus())
+    }
+    return CloudDriveDirectoryPickerFormResult.Ready(
+        CloudDriveDirectoryPickerRequest(
+            endpointUrl = endpoint,
+            token = token,
+        ),
+    )
 }

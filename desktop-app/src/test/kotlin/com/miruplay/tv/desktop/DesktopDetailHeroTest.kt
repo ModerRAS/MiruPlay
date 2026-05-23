@@ -10,8 +10,6 @@ import com.miruplay.tv.model.detailHeroEmptyTitle
 import com.miruplay.tv.model.detailHeroEmptySubtitle
 import com.miruplay.tv.model.libraryContinueWatchingSectionTitle
 import com.miruplay.tv.model.mediaDetailsPageUnitLabel
-import com.miruplay.tv.model.metadataBangumiTokenEmptyMessage
-import com.miruplay.tv.model.metadataBangumiTokenSavedMessage
 import com.miruplay.tv.model.mediaDetailsEmptyMessage
 import com.miruplay.tv.model.mediaDetailsSectionTitle
 import com.miruplay.tv.model.pagedListPageSummary
@@ -339,30 +337,6 @@ class DesktopDetailHeroTest {
         assertEquals(2, episode.episodeNumber)
         assertEquals("旅途", episode.title)
         assertEquals("Frieren - S01E02.mkv", episode.fileName)
-    }
-
-    @Test
-    fun `desktop Bangumi token save keeps existing token when input is blank`() {
-        val result = desktopBangumiTokenSaveResult(
-            input = "   ",
-            existingToken = "existing-token",
-        )
-
-        assertEquals("existing-token", result.token)
-        assertTrue(result.configured)
-        assertEquals(metadataBangumiTokenEmptyMessage(), result.status)
-    }
-
-    @Test
-    fun `desktop Bangumi token save trims and stores non blank input`() {
-        val result = desktopBangumiTokenSaveResult(
-            input = "  new-token  ",
-            existingToken = "existing-token",
-        )
-
-        assertEquals("new-token", result.token)
-        assertTrue(result.configured)
-        assertEquals(metadataBangumiTokenSavedMessage(), result.status)
     }
 
     @Test

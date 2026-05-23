@@ -90,6 +90,89 @@ class CloudDriveAutomationFormsTest {
     }
 
     @Test
+    fun `rss subscription form result reports blank url`() {
+        val result = prepareRssSubscriptionForm(
+            name = "Anime",
+            url = "   ",
+            filterRegex = "",
+            enabled = true,
+        )
+
+        assertEquals(
+            RssSubscriptionFormResult.Invalid(rssUrlRequiredStatus()),
+            result,
+        )
+        assertEquals(false, result.shouldClearFormAfterSubmit)
+    }
+
+    @Test
+    fun `rss subscription form result preserves selected matching subscription`() {
+        val selected = RssSubscriptionInfo(
+            id = 9L,
+            name = "Old name",
+            url = " https://example.test/feed.xml ",
+            filterRegex = "old",
+            enabled = false,
+            lastCheckedAt = 1234L,
+        )
+
+        val result = prepareRssSubscriptionForm(
+            name = " New name ",
+            url = " https://example.test/feed.xml ",
+            filterRegex = " 1080 ",
+            enabled = true,
+            selectedSubscription = selected,
+        )
+
+        assertEquals(
+            RssSubscriptionFormResult.Ready(
+                RssSubscriptionInfo(
+                    id = 9L,
+                    name = "New name",
+                    url = "https://example.test/feed.xml",
+                    filterRegex = "1080",
+                    enabled = true,
+                    lastCheckedAt = 1234L,
+                ),
+            ),
+            result,
+        )
+        assertEquals(true, result.shouldClearFormAfterSubmit)
+    }
+
+    @Test
+    fun `rss subscription form result creates new subscription for different url`() {
+        val selected = RssSubscriptionInfo(
+            id = 9L,
+            name = "Old name",
+            url = "https://example.test/old.xml",
+            filterRegex = "old",
+            enabled = false,
+            lastCheckedAt = 1234L,
+        )
+
+        assertEquals(
+            RssSubscriptionFormResult.Ready(
+                RssSubscriptionInfo(
+                    id = 0L,
+                    name = "https://example.test/new.xml",
+                    url = "https://example.test/new.xml",
+                    filterRegex = null,
+                    enabled = true,
+                    lastCheckedAt = 0L,
+                ),
+            ),
+            prepareRssSubscriptionForm(
+                name = " ",
+                url = " https://example.test/new.xml ",
+                filterRegex = " ",
+                enabled = true,
+                selectedSubscription = selected,
+            ),
+        )
+    }
+
+    @Test
     fun `cloud drive login form trims endpoint and username`() {
         val result = validateCloudDriveLoginForm(
             endpointUrl = " http://127.0.0.1:19798 ",
@@ -164,6 +247,56 @@ class CloudDriveAutomationFormsTest {
                 ),
             ),
             result,
+        )
+    }
+
+    @Test
+    fun `cloud drive directory picker form distinguishes endpoint and token errors`() {
+        assertEquals(
+            CloudDriveDirectoryPickerFormResult.Invalid(cloudDriveEndpointRequiredStatus()),
+            validateCloudDriveDirectoryPickerForm(
+                endpointUrl = " ",
+                tokenInput = "token",
+                savedToken = null,
+            ),
+        )
+        assertEquals(
+            CloudDriveDirectoryPickerFormResult.Invalid(cloudDriveTokenLoginRequiredStatus()),
+            validateCloudDriveDirectoryPickerForm(
+                endpointUrl = "http://cloud.test",
+                tokenInput = " ",
+                savedToken = "",
+            ),
+        )
+    }
+
+    @Test
+    fun `cloud drive directory picker form prefers typed token then saved token`() {
+        assertEquals(
+            CloudDriveDirectoryPickerFormResult.Ready(
+                CloudDriveDirectoryPickerRequest(
+                    endpointUrl = "http://cloud.test",
+                    token = "typed-token",
+                ),
+            ),
+            validateCloudDriveDirectoryPickerForm(
+                endpointUrl = " http://cloud.test ",
+                tokenInput = " typed-token ",
+                savedToken = "saved-token",
+            ),
+        )
+        assertEquals(
+            CloudDriveDirectoryPickerFormResult.Ready(
+                CloudDriveDirectoryPickerRequest(
+                    endpointUrl = "http://cloud.test",
+                    token = "saved-token",
+                ),
+            ),
+            validateCloudDriveDirectoryPickerForm(
+                endpointUrl = "http://cloud.test",
+                tokenInput = " ",
+                savedToken = " saved-token ",
+            ),
         )
     }
 }

@@ -99,8 +99,14 @@ scoped navigation, visible-folder filtering, loading state, and selection
 status shaping. `core:model` owns the Cloud/RSS form normalization helpers used
 by both Android TV Settings and Windows Cloud/RSS Settings for config trimming,
 interval/proxy-port bounds, RSS subscription fallback names, blank URL
-rejection, selected subscription identity preservation, and CloudDrive
-login/API-token request validation. `:sync-engine-shared` also owns Bangumi metadata refresh/cache merge behavior through `BangumiMetadataRefreshCore`,
+rejection, same-URL subscription update identity/last-check preservation, and
+CloudDrive login/API-token request validation. CloudDrive directory picker
+endpoint/token readiness checks now also live in `core:model`, so Android TV
+and Windows report the same missing-endpoint vs missing-login/token states
+before opening the shared directory browser. `core:model` also owns the
+Bangumi token save-form result shared by Android TV Settings and Windows
+metadata settings, including trimming, blank-input preservation, configured
+state, and TV-facing status copy. `:sync-engine-shared` also owns Bangumi metadata refresh/cache merge behavior through `BangumiMetadataRefreshCore`,
 including index-entry-to-local-episode/cache-id mapping, so Android Detail
 rescrape, Windows single-item apply, and Windows sync cache preparation use the
 same details/episodes fetch, cached-episode-id check, local episode merge,

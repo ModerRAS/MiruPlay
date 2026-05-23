@@ -18,16 +18,19 @@ import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.CloudDriveApiTokenFormResult
+import com.miruplay.tv.model.CloudDriveDirectoryPickerFormResult
 import com.miruplay.tv.model.CloudDriveLoginFormResult
-import com.miruplay.tv.model.buildRssSubscriptionFromForm
-import com.miruplay.tv.model.cloudDriveEndpointRequiredStatus
+import com.miruplay.tv.model.RssSubscriptionFormResult
 import com.miruplay.tv.model.cloudDriveLoginSucceededStatus
 import com.miruplay.tv.model.cloudDriveTokenLoginRequiredStatus
 import com.miruplay.tv.model.connectionPassword
 import com.miruplay.tv.model.cloudDriveTokenVerifiedStatus
 import com.miruplay.tv.model.cloudRssConfigSavedStatus
 import com.miruplay.tv.model.completeStatus
+import com.miruplay.tv.model.prepareRssSubscriptionForm
+import com.miruplay.tv.model.saveBangumiTokenFormResult
 import com.miruplay.tv.model.withAutomationFormValues
+import com.miruplay.tv.model.validateCloudDriveDirectoryPickerForm
 import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.MediaSourceRepository
@@ -40,7 +43,6 @@ import com.miruplay.tv.sync.rss.loadingFor
 import com.miruplay.tv.sync.rss.prepareCloudDriveDirectoryBrowser
 import com.miruplay.tv.model.rssSubscriptionDeletedStatus
 import com.miruplay.tv.model.rssSubscriptionSavedStatus
-import com.miruplay.tv.model.rssUrlRequiredStatus
 import com.miruplay.tv.model.validateCloudDriveApiTokenForm
 import com.miruplay.tv.model.validateCloudDriveLoginForm
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -221,8 +223,12 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun saveBangumiToken(token: String) {
-        securePrefs.bangumiAccessToken = token
-        _bangumiToken.value = token
+        val result = saveBangumiTokenFormResult(
+            input = token,
+            existingToken = securePrefs.bangumiAccessToken,
+        )
+        securePrefs.bangumiAccessToken = result.token
+        _bangumiToken.value = result.token.orEmpty()
     }
 
     fun clearBangumiToken() {
@@ -310,15 +316,19 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun addRssSubscription(name: String, url: String, filterRegex: String, enabled: Boolean) {
-        val subscription = buildRssSubscriptionFromForm(
-            name = name,
-            url = url,
-            filterRegex = filterRegex,
-            enabled = enabled,
-        )
-        if (subscription == null) {
-            _cloudDriveActionMessage.value = rssUrlRequiredStatus()
-            return
+        val subscription = when (
+            val result = prepareRssSubscriptionForm(
+                name = name,
+                url = url,
+                filterRegex = filterRegex,
+                enabled = enabled,
+            )
+        ) {
+            is RssSubscriptionFormResult.Ready -> result.subscription
+            is RssSubscriptionFormResult.Invalid -> {
+                _cloudDriveActionMessage.value = result.status
+                return
+            }
         }
         viewModelScope.launch {
             cloudDriveRepository.saveSubscription(subscription)
@@ -359,15 +369,18 @@ class SettingsViewModel @Inject constructor(
         endpointUrl: String,
         initialPath: String
     ) {
-        val normalizedEndpoint = endpointUrl.trim()
-        if (normalizedEndpoint.isBlank()) {
-            _cloudDriveActionMessage.value = cloudDriveEndpointRequiredStatus()
-            return
-        }
-        val token = securePrefs.cloudDriveToken?.takeIf { it.isNotBlank() }
-        if (token.isNullOrBlank()) {
-            _cloudDriveActionMessage.value = cloudDriveTokenLoginRequiredStatus()
-            return
+        val form = when (
+            val result = validateCloudDriveDirectoryPickerForm(
+                endpointUrl = endpointUrl,
+                tokenInput = "",
+                savedToken = securePrefs.cloudDriveToken,
+            )
+        ) {
+            is CloudDriveDirectoryPickerFormResult.Ready -> result.request
+            is CloudDriveDirectoryPickerFormResult.Invalid -> {
+                _cloudDriveActionMessage.value = result.status
+                return
+            }
         }
 
         viewModelScope.launch {
@@ -375,8 +388,8 @@ class SettingsViewModel @Inject constructor(
                 val prepared = prepareCloudDriveDirectoryBrowser(
                     client = cloudDriveClient,
                     target = target,
-                    endpointUrl = normalizedEndpoint,
-                    token = token,
+                    endpointUrl = form.endpointUrl,
+                    token = form.token,
                     initialPath = initialPath,
                 )
             ) {
