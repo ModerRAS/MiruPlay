@@ -450,26 +450,26 @@ internal fun DetailEpisodePanel(
         }
     }
 
-    fun moveEpisodeFocus(currentIndex: Int, delta: Int): Boolean {
+    fun moveEpisodeFocus(currentIndex: Int, intent: MiruPlayInputIntent): Boolean {
         return requestEpisodePanelFocus(
             moveDetailEpisodeFocusTarget(
                 currentIndex = currentIndex,
                 itemCount = seasonEpisodes.size,
-                delta = delta,
+                intent = intent,
                 seasonCount = seasons.size,
                 activeSeasonIndex = activeSeasonIndex,
             ),
         )
     }
 
-    fun moveSeasonFocus(currentIndex: Int, key: Key): Boolean =
+    fun moveSeasonFocus(currentIndex: Int, intent: MiruPlayInputIntent): Boolean =
         requestEpisodePanelFocus(
             detailEpisodeSeasonFocusTarget(
                 currentIndex = currentIndex,
                 seasonCount = seasons.size,
                 episodeCount = seasonEpisodes.size,
                 selectedEpisodeIndex = selectedEpisodeIndex,
-                key = key,
+                intent = intent,
             ),
         )
 
@@ -520,7 +520,7 @@ internal fun DetailEpisodePanel(
                             secondary = activeSeason != season,
                             modifier = Modifier
                                 .focusRequester(seasonFocusRequesters[index])
-                                .desktopNavigationKeyHandler { key -> moveSeasonFocus(index, key) }
+                                .desktopNavigationIntentHandler { intent -> moveSeasonFocus(index, intent) }
                                 .width(132.dp),
                         )
                     }
@@ -548,13 +548,7 @@ internal fun DetailEpisodePanel(
                         },
                         modifier = Modifier
                             .focusRequester(episodeFocusRequesters[index]),
-                        onNavigationKey = { key ->
-                            when (key) {
-                                Key.DirectionUp -> moveEpisodeFocus(absoluteIndex, -1)
-                                Key.DirectionDown -> moveEpisodeFocus(absoluteIndex, 1)
-                                else -> false
-                            }
-                        },
+                        onNavigationIntent = { intent -> moveEpisodeFocus(absoluteIndex, intent) },
                     )
                 }
                 detailEpisodePageSummary(
@@ -586,8 +580,8 @@ private fun DetailEpisodeEmptyState(
             .focusRequester(focusRequester),
         heightDp = 180,
         inactiveAlpha = 0.48f,
-        onNavigationKey = { key ->
-            onMove(detailEpisodeEmptyFocusTarget(key))
+        onNavigationIntent = { intent ->
+            onMove(detailEpisodeEmptyFocusTarget(intent))
         },
     ) { active ->
         Box(
@@ -610,14 +604,14 @@ private fun DetailEpisodeRow(
     progress: ProgressRecord?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    onNavigationKey: (Key) -> Boolean = { false },
+    onNavigationIntent: (MiruPlayInputIntent) -> Boolean = { false },
 ) {
     DesktopSelectableRow(
         selected = selected,
         onClick = onClick,
         modifier = modifier,
         heightDp = 78,
-        onNavigationKey = onNavigationKey,
+        onNavigationIntent = onNavigationIntent,
     ) { active ->
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -720,6 +714,14 @@ internal fun moveDetailEpisodeSelection(
     return (moveDetailEpisodeFocusTarget(currentIndex, itemCount, delta) as? DetailEpisodeFocusTarget.Row)?.index
 }
 
+internal fun moveDetailEpisodeSelection(
+    currentIndex: Int,
+    itemCount: Int,
+    intent: MiruPlayInputIntent,
+): Int? {
+    return (moveDetailEpisodeFocusTarget(currentIndex, itemCount, intent) as? DetailEpisodeFocusTarget.Row)?.index
+}
+
 internal sealed interface DetailEpisodeFocusTarget {
     data class Row(val index: Int) : DetailEpisodeFocusTarget
     data class Season(val index: Int) : DetailEpisodeFocusTarget
@@ -745,6 +747,23 @@ internal fun moveDetailEpisodeFocusTarget(
         else -> DetailEpisodeFocusTarget.Row(targetIndex)
     }
 }
+
+internal fun moveDetailEpisodeFocusTarget(
+    currentIndex: Int,
+    itemCount: Int,
+    intent: MiruPlayInputIntent,
+    seasonCount: Int = 0,
+    activeSeasonIndex: Int = 0,
+): DetailEpisodeFocusTarget? =
+    intent.verticalNavigationDelta()?.let { delta ->
+        moveDetailEpisodeFocusTarget(
+            currentIndex = currentIndex,
+            itemCount = itemCount,
+            delta = delta,
+            seasonCount = seasonCount,
+            activeSeasonIndex = activeSeasonIndex,
+        )
+    }
 
 internal fun detailEpisodeSeasonFocusTarget(
     currentIndex: Int,
@@ -901,22 +920,14 @@ internal fun RecentPlaybackPanel(
         }
     }
 
-    fun moveRecentFocus(currentIndex: Int, delta: Int): Boolean =
-        requestRecentFocus(moveRecentPlaybackFocusTarget(currentIndex, records.size, delta))
+    fun moveRecentFocus(currentIndex: Int, intent: MiruPlayInputIntent): Boolean =
+        requestRecentFocus(moveRecentPlaybackFocusTarget(currentIndex, records.size, intent))
 
-    fun moveRecentActionFocus(current: RecentPlaybackAction, key: Key): Boolean {
-        val target = when (key) {
-            Key.DirectionLeft -> moveRecentPlaybackAction(current, -1)?.let(RecentPlaybackFocusTarget::Action)
-            Key.DirectionRight -> moveRecentPlaybackAction(current, 1)?.let(RecentPlaybackFocusTarget::Action)
-            Key.DirectionUp -> recentPlaybackActionVerticalFocusTarget(direction = -1, hasRecords = records.isNotEmpty())
-            Key.DirectionDown -> recentPlaybackActionVerticalFocusTarget(direction = 1, hasRecords = records.isNotEmpty())
-            else -> null
-        }
-        return requestRecentFocus(target)
-    }
+    fun moveRecentActionFocus(current: RecentPlaybackAction, intent: MiruPlayInputIntent): Boolean =
+        requestRecentFocus(recentPlaybackActionFocusTarget(current, intent, hasRecords = records.isNotEmpty()))
 
-    fun moveRecentEmptyFocus(key: Key): Boolean =
-        requestRecentFocus(recentPlaybackEmptyFocusTarget(key))
+    fun moveRecentEmptyFocus(intent: MiruPlayInputIntent): Boolean =
+        requestRecentFocus(recentPlaybackEmptyFocusTarget(intent))
 
     LaunchedEffect(pageStart, visibleRecords.map { it.episodeId }, pendingRecordFocus) {
         val pendingIndex = pendingRecordFocus ?: return@LaunchedEffect
@@ -953,7 +964,7 @@ internal fun RecentPlaybackPanel(
                         secondary = true,
                         modifier = Modifier
                             .focusRequester(actionFocusRequesters.getValue(RecentPlaybackAction.Refresh))
-                            .desktopNavigationKeyHandler { key -> moveRecentActionFocus(RecentPlaybackAction.Refresh, key) },
+                            .desktopNavigationIntentHandler { intent -> moveRecentActionFocus(RecentPlaybackAction.Refresh, intent) },
                     )
                     TvActionButton(
                         labels.clearAction,
@@ -961,7 +972,7 @@ internal fun RecentPlaybackPanel(
                         secondary = true,
                         modifier = Modifier
                             .focusRequester(actionFocusRequesters.getValue(RecentPlaybackAction.Clear))
-                            .desktopNavigationKeyHandler { key -> moveRecentActionFocus(RecentPlaybackAction.Clear, key) },
+                            .desktopNavigationIntentHandler { intent -> moveRecentActionFocus(RecentPlaybackAction.Clear, intent) },
                     )
                 }
                 StatusBox(status)
@@ -988,13 +999,7 @@ internal fun RecentPlaybackPanel(
                             },
                             modifier = Modifier
                                 .focusRequester(recordFocusRequesters[index]),
-                            onNavigationKey = { key ->
-                                when (key) {
-                                    Key.DirectionUp -> moveRecentFocus(absoluteIndex, -1)
-                                    Key.DirectionDown -> moveRecentFocus(absoluteIndex, 1)
-                                    else -> false
-                                }
-                            },
+                            onNavigationIntent = { intent -> moveRecentFocus(absoluteIndex, intent) },
                         )
                     }
                     recentPlaybackPageSummary(
@@ -1018,7 +1023,7 @@ internal fun RecentPlaybackPanel(
 private fun RecentPlaybackEmptyState(
     text: String,
     focusRequester: FocusRequester,
-    onMove: (Key) -> Boolean,
+    onMove: (MiruPlayInputIntent) -> Boolean,
 ) {
     DesktopSelectableRow(
         selected = false,
@@ -1027,7 +1032,7 @@ private fun RecentPlaybackEmptyState(
             .focusRequester(focusRequester),
         heightDp = MiruPlayUiMetrics.EMPTY_STATE_HEIGHT_DP,
         inactiveAlpha = 0.48f,
-        onNavigationKey = onMove,
+        onNavigationIntent = onMove,
     ) { active ->
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -1066,13 +1071,13 @@ private fun RecentProgressRow(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    onNavigationKey: (Key) -> Boolean = { false },
+    onNavigationIntent: (MiruPlayInputIntent) -> Boolean = { false },
 ) {
     DesktopSelectableRow(
         selected = selected,
         onClick = onClick,
         modifier = modifier,
-        onNavigationKey = onNavigationKey,
+        onNavigationIntent = onNavigationIntent,
     ) { active ->
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1116,6 +1121,14 @@ internal fun moveRecentPlaybackSelection(
     return (moveRecentPlaybackFocusTarget(currentIndex, itemCount, delta) as? RecentPlaybackFocusTarget.Row)?.index
 }
 
+internal fun moveRecentPlaybackSelection(
+    currentIndex: Int,
+    itemCount: Int,
+    intent: MiruPlayInputIntent,
+): Int? {
+    return (moveRecentPlaybackFocusTarget(currentIndex, itemCount, intent) as? RecentPlaybackFocusTarget.Row)?.index
+}
+
 internal enum class RecentPlaybackAction {
     Refresh,
     Clear,
@@ -1149,6 +1162,26 @@ internal fun recentPlaybackActionVerticalFocusTarget(
         else -> null
     }
 
+internal fun recentPlaybackActionFocusTarget(
+    current: RecentPlaybackAction,
+    key: Key,
+    hasRecords: Boolean,
+): RecentPlaybackFocusTarget? =
+    key.toMiruPlayInputIntent()?.let { intent ->
+        recentPlaybackActionFocusTarget(current, intent, hasRecords)
+    }
+
+internal fun recentPlaybackActionFocusTarget(
+    current: RecentPlaybackAction,
+    intent: MiruPlayInputIntent,
+    hasRecords: Boolean,
+): RecentPlaybackFocusTarget? =
+    intent.horizontalNavigationDelta()
+        ?.let { delta -> moveRecentPlaybackAction(current, delta)?.let(RecentPlaybackFocusTarget::Action) }
+        ?: intent.verticalNavigationDelta()?.let { direction ->
+            recentPlaybackActionVerticalFocusTarget(direction, hasRecords)
+        }
+
 internal fun recentPlaybackEmptyFocusTarget(key: Key): RecentPlaybackFocusTarget? =
     key.toMiruPlayInputIntent()?.let(::recentPlaybackEmptyFocusTarget)
 
@@ -1172,6 +1205,15 @@ internal fun moveRecentPlaybackFocusTarget(
         else -> RecentPlaybackFocusTarget.Row(targetIndex)
     }
 }
+
+internal fun moveRecentPlaybackFocusTarget(
+    currentIndex: Int,
+    itemCount: Int,
+    intent: MiruPlayInputIntent,
+): RecentPlaybackFocusTarget? =
+    intent.verticalNavigationDelta()?.let { delta ->
+        moveRecentPlaybackFocusTarget(currentIndex, itemCount, delta)
+    }
 
 internal fun recentPlaybackPageStartForIndex(
     index: Int,

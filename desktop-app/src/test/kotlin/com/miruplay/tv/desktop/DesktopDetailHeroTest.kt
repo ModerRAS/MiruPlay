@@ -155,6 +155,52 @@ class DesktopDetailHeroTest {
     }
 
     @Test
+    fun `recent playback row and action focus also accept shared direction intents`() {
+        assertEquals(
+            RecentPlaybackFocusTarget.Action(RecentPlaybackAction.Refresh),
+            moveRecentPlaybackFocusTarget(
+                currentIndex = 0,
+                itemCount = 3,
+                intent = MiruPlayInputIntent.DirectionUp,
+            ),
+        )
+        assertEquals(
+            RecentPlaybackFocusTarget.Row(1),
+            moveRecentPlaybackFocusTarget(
+                currentIndex = 0,
+                itemCount = 3,
+                intent = MiruPlayInputIntent.DirectionDown,
+            ),
+        )
+        assertEquals(
+            RecentPlaybackFocusTarget.Action(RecentPlaybackAction.Clear),
+            recentPlaybackActionFocusTarget(
+                current = RecentPlaybackAction.Refresh,
+                intent = MiruPlayInputIntent.DirectionRight,
+                hasRecords = true,
+            ),
+        )
+        assertEquals(
+            RecentPlaybackFocusTarget.PreviousPanel,
+            recentPlaybackActionFocusTarget(
+                current = RecentPlaybackAction.Refresh,
+                intent = MiruPlayInputIntent.DirectionUp,
+                hasRecords = true,
+            ),
+        )
+        assertEquals(
+            RecentPlaybackFocusTarget.EmptyState,
+            recentPlaybackActionFocusTarget(
+                current = RecentPlaybackAction.Refresh,
+                intent = MiruPlayInputIntent.DirectionDown,
+                hasRecords = false,
+            ),
+        )
+        assertEquals(null, moveRecentPlaybackFocusTarget(currentIndex = 0, itemCount = 3, intent = MiruPlayInputIntent.DirectionLeft))
+        assertEquals(null, recentPlaybackActionFocusTarget(RecentPlaybackAction.Refresh, MiruPlayInputIntent.Activate, hasRecords = true))
+    }
+
+    @Test
     fun `recent playback empty focus also accepts shared direction intents`() {
         assertEquals(
             RecentPlaybackFocusTarget.Action(RecentPlaybackAction.Refresh),
@@ -349,6 +395,38 @@ class DesktopDetailHeroTest {
             moveDetailEpisodeFocusTarget(currentIndex = 5, itemCount = 12, delta = 1),
         )
         assertEquals(null, moveDetailEpisodeFocusTarget(currentIndex = 0, itemCount = 0, delta = 1))
+    }
+
+    @Test
+    fun `detail episode row focus also accepts shared direction intents`() {
+        assertEquals(
+            DetailEpisodeFocusTarget.Season(1),
+            moveDetailEpisodeFocusTarget(
+                currentIndex = 0,
+                itemCount = 3,
+                intent = MiruPlayInputIntent.DirectionUp,
+                seasonCount = 3,
+                activeSeasonIndex = 1,
+            ),
+        )
+        assertEquals(
+            DetailEpisodeFocusTarget.Row(1),
+            moveDetailEpisodeFocusTarget(
+                currentIndex = 0,
+                itemCount = 3,
+                intent = MiruPlayInputIntent.DirectionDown,
+            ),
+        )
+        assertEquals(
+            DetailEpisodeFocusTarget.NextPanel,
+            moveDetailEpisodeFocusTarget(
+                currentIndex = 2,
+                itemCount = 3,
+                intent = MiruPlayInputIntent.DirectionDown,
+            ),
+        )
+        assertEquals(null, moveDetailEpisodeFocusTarget(currentIndex = 0, itemCount = 3, intent = MiruPlayInputIntent.DirectionLeft))
+        assertEquals(null, moveDetailEpisodeSelection(currentIndex = 0, itemCount = 3, intent = MiruPlayInputIntent.Activate))
     }
 
     @Test

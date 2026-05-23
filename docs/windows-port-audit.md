@@ -277,8 +277,9 @@ action row now also expose intent-level navigation contracts. The Library
 poster wall, highest-heat/recent shelves, and search row now use the same
 intent-level navigation path, reducing raw desktop `Key` branching on the
 media-first surface. The Details hero action row, episode-season selector,
-episode/recents empty states, and two-column media-details list now also expose
-intent-level focus contracts. The Windows Player stage transport,
+episode rows, Continue watching action/record rows, episode/recents empty
+states, and two-column media-details list now also expose intent-level focus
+contracts. The Windows Player stage transport,
 playback-setting form/toggle row, playback-end action row, and runtime form now
 also use intent-level navigation contracts, matching the shared playback-input
 layer used by Android TV fullscreen playback. Cloud/RSS credential/path/RSS
