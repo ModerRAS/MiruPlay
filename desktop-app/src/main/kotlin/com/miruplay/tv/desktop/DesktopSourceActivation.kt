@@ -1,5 +1,8 @@
 package com.miruplay.tv.desktop
 
+import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.mediasource.desktop.DesktopMediaSource
+import com.miruplay.tv.mediasource.desktop.desktopSourceFromInfo
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.connectionDomain
@@ -7,7 +10,9 @@ import com.miruplay.tv.model.connectionPassword
 import com.miruplay.tv.model.connectionUsername
 import com.miruplay.tv.model.localRootPath
 import com.miruplay.tv.model.remoteUrl
+import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.loadedStatus
+import com.miruplay.tv.repository.readyStatus
 
 internal data class DesktopSourceFormState(
     val libraryRoot: String = "",
@@ -28,6 +33,14 @@ internal data class DesktopSourceActivationState(
     val clearsRemoteBrowser: Boolean = false,
     val loadsRemoteRoot: Boolean = false,
     val indexedEmptyStatus: String,
+)
+
+internal data class DesktopSourceOpenResult(
+    val sourceInfo: MediaSourceInfo,
+    val source: DesktopMediaSource,
+    val formState: DesktopSourceFormState,
+    val status: String,
+    val opensRemoteRoot: Boolean,
 )
 
 internal fun List<MediaSourceInfo>.desktopSourceFormState(): DesktopSourceFormState =
@@ -61,6 +74,26 @@ internal fun MediaSourceInfo.desktopSourceActivationState(saved: Boolean = false
         )
     }
 }
+
+internal suspend fun openDesktopSource(
+    repository: MediaSourceRepository,
+    sourceInfo: MediaSourceInfo,
+): Result<DesktopSourceOpenResult> =
+    when (val result = repository.addSource(sourceInfo)) {
+        is Result.Success -> {
+            val stored = sourceInfo.copy(id = result.data)
+            Result.success(
+                DesktopSourceOpenResult(
+                    sourceInfo = stored,
+                    source = desktopSourceFromInfo(stored),
+                    formState = DesktopSourceFormState().withSource(stored),
+                    status = stored.readyStatus(),
+                    opensRemoteRoot = stored.type != MediaSourceType.LOCAL,
+                )
+            )
+        }
+        is Result.Error -> result
+    }
 
 private fun DesktopSourceFormState.withSource(sourceInfo: MediaSourceInfo): DesktopSourceFormState =
     when (sourceInfo.type) {

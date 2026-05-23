@@ -48,10 +48,7 @@ import com.miruplay.tv.design.MiruPlayUiMetrics
 import com.miruplay.tv.mediasource.desktop.DesktopLocalMediaSource
 import com.miruplay.tv.mediasource.desktop.DesktopMediaSource
 import com.miruplay.tv.mediasource.desktop.DesktopPlaybackBridge
-import com.miruplay.tv.mediasource.desktop.desktopLocalSourceFromInfo
-import com.miruplay.tv.mediasource.desktop.desktopSmbSourceFromInfo
 import com.miruplay.tv.mediasource.desktop.desktopSourceFromInfo
-import com.miruplay.tv.mediasource.desktop.desktopWebDavSourceFromInfo
 import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.PLAYBACK_SEEK_BACK_SECONDS
 import com.miruplay.tv.model.PLAYBACK_SEEK_FORWARD_SECONDS
@@ -169,7 +166,6 @@ import com.miruplay.tv.repository.upsertById
 import com.miruplay.tv.repository.updatedSelectionAfterReplacingByMediaKeys
 import com.miruplay.tv.repository.webDavUrlRequiredStatus
 import com.miruplay.tv.repository.withExternalMetadata
-import com.miruplay.tv.repository.readyStatus
 import com.miruplay.tv.repository.replaceByMediaKey
 import com.miruplay.tv.repository.replaceByMediaKeys
 import com.miruplay.tv.repository.replaceMatch
@@ -1181,15 +1177,14 @@ internal fun MiruPlayDesktopComposeApp(
                             rootPath = root.toString(),
                             isConnected = true,
                         )
-                        when (val result = repositories.mediaSources.addSource(sourceInfo)) {
+                        when (val result = openDesktopSource(repositories.mediaSources, sourceInfo)) {
                             is Result.Success -> {
-                                activeSourceId = result.data
-                                val stored = sourceInfo.copy(id = result.data)
-                                val localSource = desktopLocalSourceFromInfo(stored)
-                                activeLocalSource = localSource
-                                activeSource = localSource
-                                savedSources = savedSources.upsertById(stored)
-                                libraryStatus = stored.readyStatus()
+                                activeSourceId = result.data.sourceInfo.id
+                                activeSource = result.data.source
+                                activeLocalSource = result.data.source as? DesktopLocalMediaSource
+                                applySourceFormState(result.data.formState)
+                                savedSources = savedSources.upsertById(result.data.sourceInfo)
+                                libraryStatus = result.data.status
                             }
                             is Result.Error -> libraryStatus = result.error.toUserMessage()
                         }
@@ -1334,16 +1329,18 @@ internal fun MiruPlayDesktopComposeApp(
                             password = webDavPassword,
                             isConnected = true,
                         )
-                        when (val result = repositories.mediaSources.addSource(sourceInfo)) {
+                        when (val result = openDesktopSource(repositories.mediaSources, sourceInfo)) {
                             is Result.Success -> {
-                                val stored = sourceInfo.copy(id = result.data)
-                                val source = desktopWebDavSourceFromInfo(stored)
-                                activeSourceId = result.data
-                                activeSource = source
-                                savedSources = savedSources.upsertById(stored)
+                                activeSourceId = result.data.sourceInfo.id
+                                activeSource = result.data.source
+                                activeLocalSource = null
+                                applySourceFormState(result.data.formState)
+                                savedSources = savedSources.upsertById(result.data.sourceInfo)
                                 remotePath = ""
-                                remoteStatus = stored.readyStatus()
-                                loadRemoteDirectory(source, "")
+                                remoteStatus = result.data.status
+                                if (result.data.opensRemoteRoot) {
+                                    loadRemoteDirectory(result.data.source, "")
+                                }
                             }
                             is Result.Error -> remoteStatus = result.error.toUserMessage()
                         }
@@ -1363,16 +1360,18 @@ internal fun MiruPlayDesktopComposeApp(
                             password = smbPassword,
                             isConnected = true,
                         )
-                        when (val result = repositories.mediaSources.addSource(sourceInfo)) {
+                        when (val result = openDesktopSource(repositories.mediaSources, sourceInfo)) {
                             is Result.Success -> {
-                                val stored = sourceInfo.copy(id = result.data)
-                                val source = desktopSmbSourceFromInfo(stored)
-                                activeSourceId = result.data
-                                activeSource = source
-                                savedSources = savedSources.upsertById(stored)
+                                activeSourceId = result.data.sourceInfo.id
+                                activeSource = result.data.source
+                                activeLocalSource = null
+                                applySourceFormState(result.data.formState)
+                                savedSources = savedSources.upsertById(result.data.sourceInfo)
                                 remotePath = ""
-                                remoteStatus = stored.readyStatus()
-                                loadRemoteDirectory(source, "")
+                                remoteStatus = result.data.status
+                                if (result.data.opensRemoteRoot) {
+                                    loadRemoteDirectory(result.data.source, "")
+                                }
                             }
                             is Result.Error -> remoteStatus = result.error.toUserMessage()
                         }
