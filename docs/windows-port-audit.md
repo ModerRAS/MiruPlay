@@ -278,7 +278,10 @@ poster wall, highest-heat/recent shelves, and search row now use the same
 intent-level navigation path, reducing raw desktop `Key` branching on the
 media-first surface. The Details hero action row, episode-season selector,
 episode/recents empty states, and two-column media-details list now also expose
-intent-level focus contracts. Verified with
+intent-level focus contracts. The Windows Player stage transport,
+playback-setting form/toggle row, playback-end action row, and runtime form now
+also use intent-level navigation contracts, matching the shared playback-input
+layer used by Android TV fullscreen playback. Verified with
 `.\gradlew.bat :ui-design:test :ui-tv:test :desktop-app:test checkDesktopPresenterSeparation checkDesktopComposeOnly -PbundleMpvRuntime=false`
 on 2026-05-24.
 

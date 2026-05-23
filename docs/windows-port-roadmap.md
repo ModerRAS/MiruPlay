@@ -49,7 +49,10 @@ The Library poster wall, highest-heat/recent shelves, and search row now follow
 that contract as well, keeping the Windows media-first surface aligned with TV
 DPAD direction semantics. The Details hero action row, episode-season selector,
 episode/recents empty states, and two-column media-details list now expose the
-same intent-level focus contracts.
+same intent-level focus contracts. The Windows Player stage transport,
+playback-setting form/toggle row, playback-end action row, and runtime form now
+also use intent-level navigation contracts, matching the shared playback-input
+layer used by Android TV fullscreen playback.
 Verified with
 `.\gradlew.bat :ui-design:test :ui-tv:test :desktop-app:test checkDesktopPresenterSeparation checkDesktopComposeOnly -PbundleMpvRuntime=false`.
 

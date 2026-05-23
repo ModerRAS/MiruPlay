@@ -2,6 +2,7 @@ package com.miruplay.tv.desktop
 
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
+import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.model.PLAYBACK_SEEK_BACK_SECONDS
 import com.miruplay.tv.model.PLAYBACK_SEEK_FORWARD_SECONDS
 import com.miruplay.tv.model.PlaybackEndAction
@@ -191,6 +192,58 @@ class DesktopPlaybackPanelTest {
             desktopPlayerStageNavigationTarget(
                 current = DesktopPlayerStageFocusTarget.Stop,
                 key = Key.DirectionRight,
+                isPlayerActive = true,
+            ),
+        )
+    }
+
+    @Test
+    fun `desktop player stage navigation also accepts shared direction intents`() {
+        assertEquals(
+            DesktopPlayerStageFocusTarget.Primary,
+            desktopPlayerStageNavigationTarget(
+                current = DesktopPlayerStageFocusTarget.BackToDetails,
+                intent = MiruPlayInputIntent.DirectionDown,
+                isPlayerActive = false,
+            ),
+        )
+        assertEquals(
+            DesktopPlayerStageFocusTarget.BackToDetails,
+            desktopPlayerStageNavigationTarget(
+                current = DesktopPlayerStageFocusTarget.Primary,
+                intent = MiruPlayInputIntent.DirectionUp,
+                isPlayerActive = true,
+            ),
+        )
+        assertEquals(
+            DesktopPlayerStageFocusTarget.SeekBack,
+            desktopPlayerStageNavigationTarget(
+                current = DesktopPlayerStageFocusTarget.Primary,
+                intent = MiruPlayInputIntent.DirectionLeft,
+                isPlayerActive = true,
+            ),
+        )
+        assertEquals(
+            DesktopPlayerStageFocusTarget.SeekForward,
+            desktopPlayerStageNavigationTarget(
+                current = DesktopPlayerStageFocusTarget.Primary,
+                intent = MiruPlayInputIntent.DirectionRight,
+                isPlayerActive = true,
+            ),
+        )
+        assertEquals(
+            null,
+            desktopPlayerStageNavigationTarget(
+                current = DesktopPlayerStageFocusTarget.Primary,
+                intent = MiruPlayInputIntent.DirectionRight,
+                isPlayerActive = false,
+            ),
+        )
+        assertEquals(
+            null,
+            desktopPlayerStageNavigationTarget(
+                current = DesktopPlayerStageFocusTarget.Primary,
+                intent = MiruPlayInputIntent.Activate,
                 isPlayerActive = true,
             ),
         )
@@ -398,6 +451,91 @@ class DesktopPlaybackPanelTest {
     }
 
     @Test
+    fun `desktop player settings toggles also accept shared direction intents`() {
+        assertEquals(
+            PlaybackSettingFocusTarget.KeepOpen,
+            playbackSettingNavigationTarget(
+                PlaybackSettingFocusTarget.Fullscreen,
+                MiruPlayInputIntent.DirectionRight,
+            ),
+        )
+        assertEquals(
+            PlaybackSettingFocusTarget.RifeToggle,
+            playbackSettingNavigationTarget(
+                PlaybackSettingFocusTarget.RifeBackend,
+                MiruPlayInputIntent.DirectionLeft,
+            ),
+        )
+        assertEquals(
+            PlaybackSettingFocusTarget.EndAction,
+            playbackSettingNavigationTarget(
+                PlaybackSettingFocusTarget.KeepOpen,
+                MiruPlayInputIntent.DirectionUp,
+            ),
+        )
+        assertEquals(
+            PlaybackSettingFocusTarget.NextPanel,
+            playbackSettingNavigationTarget(
+                PlaybackSettingFocusTarget.KeepOpen,
+                MiruPlayInputIntent.DirectionDown,
+            ),
+        )
+        assertEquals(
+            null,
+            playbackSettingNavigationTarget(
+                PlaybackSettingFocusTarget.RifeBackend,
+                MiruPlayInputIntent.DirectionRight,
+            ),
+        )
+    }
+
+    @Test
+    fun `desktop player settings form also accepts shared direction intents`() {
+        assertEquals(
+            PlaybackSettingFocusTarget.StartSeconds,
+            playbackSettingNavigationTarget(
+                PlaybackSettingFocusTarget.MediaPath,
+                MiruPlayInputIntent.DirectionRight,
+            ),
+        )
+        assertEquals(
+            PlaybackSettingFocusTarget.MediaPath,
+            playbackSettingNavigationTarget(
+                PlaybackSettingFocusTarget.StartSeconds,
+                MiruPlayInputIntent.DirectionLeft,
+            ),
+        )
+        assertEquals(
+            PlaybackSettingFocusTarget.SubtitlePath,
+            playbackSettingNavigationTarget(
+                PlaybackSettingFocusTarget.MediaPath,
+                MiruPlayInputIntent.DirectionDown,
+            ),
+        )
+        assertEquals(
+            PlaybackSettingFocusTarget.PreviousPanel,
+            playbackSettingNavigationTarget(
+                PlaybackSettingFocusTarget.MediaPath,
+                MiruPlayInputIntent.DirectionUp,
+            ),
+        )
+        assertEquals(
+            PlaybackSettingFocusTarget.EndAction,
+            playbackSettingNavigationTarget(
+                PlaybackSettingFocusTarget.SubtitlePath,
+                MiruPlayInputIntent.DirectionDown,
+            ),
+        )
+        assertEquals(
+            null,
+            playbackSettingNavigationTarget(
+                PlaybackSettingFocusTarget.MediaPath,
+                MiruPlayInputIntent.Activate,
+            ),
+        )
+    }
+
+    @Test
     fun `desktop playback end action rows move left and right within the selection group`() {
         assertEquals(
             PlaybackEndAction.PLAY_NEXT_EPISODE,
@@ -410,6 +548,38 @@ class DesktopPlaybackPanelTest {
         assertEquals(
             null,
             playbackEndActionNavigationTarget(PlaybackEndAction.RETURN_TO_DETAIL, Key.DirectionLeft),
+        )
+    }
+
+    @Test
+    fun `desktop playback end action rows also accept shared direction intents`() {
+        assertEquals(
+            PlaybackEndAction.PLAY_NEXT_EPISODE,
+            playbackEndActionNavigationTarget(
+                PlaybackEndAction.RETURN_TO_DETAIL,
+                MiruPlayInputIntent.DirectionRight,
+            ),
+        )
+        assertEquals(
+            PlaybackEndAction.RETURN_TO_DETAIL,
+            playbackEndActionNavigationTarget(
+                PlaybackEndAction.PLAY_NEXT_EPISODE,
+                MiruPlayInputIntent.DirectionLeft,
+            ),
+        )
+        assertEquals(
+            null,
+            playbackEndActionNavigationTarget(
+                PlaybackEndAction.RETURN_TO_DETAIL,
+                MiruPlayInputIntent.DirectionLeft,
+            ),
+        )
+        assertEquals(
+            null,
+            playbackEndActionNavigationTarget(
+                PlaybackEndAction.RETURN_TO_DETAIL,
+                MiruPlayInputIntent.Activate,
+            ),
         )
     }
 
@@ -439,6 +609,28 @@ class DesktopPlaybackPanelTest {
             null,
             runtimeNavigationTarget(RuntimeFocusTarget.ConfigDir, Key.DirectionRight),
         )
+    }
+
+    @Test
+    fun `desktop runtime controls also accept shared direction intents`() {
+        assertEquals(
+            RuntimeFocusTarget.ConfigDir,
+            runtimeNavigationTarget(RuntimeFocusTarget.MpvPath, MiruPlayInputIntent.DirectionDown),
+        )
+        assertEquals(
+            RuntimeFocusTarget.CheckRuntime,
+            runtimeNavigationTarget(RuntimeFocusTarget.ConfigDir, MiruPlayInputIntent.DirectionDown),
+        )
+        assertEquals(
+            RuntimeFocusTarget.ConfigDir,
+            runtimeNavigationTarget(RuntimeFocusTarget.CheckRuntime, MiruPlayInputIntent.DirectionUp),
+        )
+        assertEquals(
+            RuntimeFocusTarget.PreviousPanel,
+            runtimeNavigationTarget(RuntimeFocusTarget.MpvPath, MiruPlayInputIntent.DirectionUp),
+        )
+        assertEquals(null, runtimeNavigationTarget(RuntimeFocusTarget.CheckRuntime, MiruPlayInputIntent.DirectionDown))
+        assertEquals(null, runtimeNavigationTarget(RuntimeFocusTarget.ConfigDir, MiruPlayInputIntent.DirectionRight))
     }
 
     @Test

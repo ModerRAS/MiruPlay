@@ -50,10 +50,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.design.MiruPlayPlaybackInputAction
 import com.miruplay.tv.design.MiruPlayUiMetrics
 import com.miruplay.tv.design.desktopPlaybackGlobalMediaAction
 import com.miruplay.tv.design.desktopPlaybackStageAction
+import com.miruplay.tv.design.horizontalNavigationDelta
+import com.miruplay.tv.design.verticalNavigationDelta
 import com.miruplay.tv.model.mpvPlaybackSourceLine
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.mpvPlaybackStatusText
@@ -549,13 +552,22 @@ internal fun desktopPlayerStageNavigationTarget(
     key: Key,
     isPlayerActive: Boolean,
 ): DesktopPlayerStageFocusTarget? =
-    when (key) {
-        Key.DirectionUp -> DesktopPlayerStageFocusTarget.BackToDetails.takeIf { current in desktopPlayerTransportTargets(isPlayerActive) }
-        Key.DirectionDown -> DesktopPlayerStageFocusTarget.Primary.takeIf { current == DesktopPlayerStageFocusTarget.BackToDetails }
+    key.toMiruPlayInputIntent()?.let { intent ->
+        desktopPlayerStageNavigationTarget(current, intent, isPlayerActive)
+    }
+
+internal fun desktopPlayerStageNavigationTarget(
+    current: DesktopPlayerStageFocusTarget,
+    intent: MiruPlayInputIntent,
+    isPlayerActive: Boolean,
+): DesktopPlayerStageFocusTarget? =
+    when (intent.verticalNavigationDelta()) {
+        -1 -> DesktopPlayerStageFocusTarget.BackToDetails.takeIf { current in desktopPlayerTransportTargets(isPlayerActive) }
+        1 -> DesktopPlayerStageFocusTarget.Primary.takeIf { current == DesktopPlayerStageFocusTarget.BackToDetails }
             ?: DesktopPlayerStageFocusTarget.NextPanel.takeIf { current in desktopPlayerTransportTargets(isPlayerActive) }
-        Key.DirectionLeft -> current.transportStep(delta = -1, isPlayerActive = isPlayerActive)
-        Key.DirectionRight -> current.transportStep(delta = 1, isPlayerActive = isPlayerActive)
-        else -> null
+        else -> intent.horizontalNavigationDelta()?.let { delta ->
+            current.transportStep(delta = delta, isPlayerActive = isPlayerActive)
+        }
     }
 
 private fun DesktopPlayerStageFocusTarget.transportStep(
@@ -690,39 +702,49 @@ internal fun playbackSettingNavigationTarget(
     current: PlaybackSettingFocusTarget,
     key: Key,
 ): PlaybackSettingFocusTarget? =
+    key.toMiruPlayInputIntent()?.let { intent ->
+        playbackSettingNavigationTarget(current, intent)
+    }
+
+internal fun playbackSettingNavigationTarget(
+    current: PlaybackSettingFocusTarget,
+    intent: MiruPlayInputIntent,
+): PlaybackSettingFocusTarget? =
     when (current) {
-        PlaybackSettingFocusTarget.MediaPath -> when (key) {
-            Key.DirectionRight -> PlaybackSettingFocusTarget.StartSeconds
-            Key.DirectionDown -> PlaybackSettingFocusTarget.SubtitlePath
-            Key.DirectionUp -> PlaybackSettingFocusTarget.PreviousPanel
+        PlaybackSettingFocusTarget.MediaPath -> when (intent.verticalNavigationDelta()) {
+            -1 -> PlaybackSettingFocusTarget.PreviousPanel
+            1 -> PlaybackSettingFocusTarget.SubtitlePath
+            else -> PlaybackSettingFocusTarget.StartSeconds.takeIf {
+                intent.horizontalNavigationDelta() == 1
+            }
+        }
+        PlaybackSettingFocusTarget.StartSeconds -> when (intent.verticalNavigationDelta()) {
+            -1 -> PlaybackSettingFocusTarget.PreviousPanel
+            1 -> PlaybackSettingFocusTarget.SubtitlePath
+            else -> PlaybackSettingFocusTarget.MediaPath.takeIf {
+                intent.horizontalNavigationDelta() == -1
+            }
+        }
+        PlaybackSettingFocusTarget.SubtitlePath -> when (intent.verticalNavigationDelta()) {
+            -1 -> PlaybackSettingFocusTarget.MediaPath
+            1 -> PlaybackSettingFocusTarget.EndAction
             else -> null
         }
-        PlaybackSettingFocusTarget.StartSeconds -> when (key) {
-            Key.DirectionLeft -> PlaybackSettingFocusTarget.MediaPath
-            Key.DirectionDown -> PlaybackSettingFocusTarget.SubtitlePath
-            Key.DirectionUp -> PlaybackSettingFocusTarget.PreviousPanel
-            else -> null
-        }
-        PlaybackSettingFocusTarget.SubtitlePath -> when (key) {
-            Key.DirectionUp -> PlaybackSettingFocusTarget.MediaPath
-            Key.DirectionDown -> PlaybackSettingFocusTarget.EndAction
-            else -> null
-        }
-        PlaybackSettingFocusTarget.EndAction -> when (key) {
-            Key.DirectionUp -> PlaybackSettingFocusTarget.SubtitlePath
-            Key.DirectionDown -> PlaybackSettingFocusTarget.Fullscreen
+        PlaybackSettingFocusTarget.EndAction -> when (intent.verticalNavigationDelta()) {
+            -1 -> PlaybackSettingFocusTarget.SubtitlePath
+            1 -> PlaybackSettingFocusTarget.Fullscreen
             else -> null
         }
         PlaybackSettingFocusTarget.Fullscreen,
         PlaybackSettingFocusTarget.KeepOpen,
         PlaybackSettingFocusTarget.RifeToggle,
         PlaybackSettingFocusTarget.RifeBackend,
-        -> when (key) {
-            Key.DirectionLeft -> current.playbackSettingToggleStep(delta = -1)
-            Key.DirectionRight -> current.playbackSettingToggleStep(delta = 1)
-            Key.DirectionUp -> PlaybackSettingFocusTarget.EndAction
-            Key.DirectionDown -> PlaybackSettingFocusTarget.NextPanel
-            else -> null
+        -> when (intent.verticalNavigationDelta()) {
+            -1 -> PlaybackSettingFocusTarget.EndAction
+            1 -> PlaybackSettingFocusTarget.NextPanel
+            else -> intent.horizontalNavigationDelta()?.let { delta ->
+                current.playbackSettingToggleStep(delta = delta)
+            }
         }
         PlaybackSettingFocusTarget.PreviousPanel,
         PlaybackSettingFocusTarget.NextPanel,
@@ -761,10 +783,18 @@ internal fun runtimeNavigationTarget(
     current: RuntimeFocusTarget,
     key: Key,
 ): RuntimeFocusTarget? =
-    when (key) {
-        Key.DirectionUp -> current.runtimeStep(delta = -1)
+    key.toMiruPlayInputIntent()?.let { intent ->
+        runtimeNavigationTarget(current, intent)
+    }
+
+internal fun runtimeNavigationTarget(
+    current: RuntimeFocusTarget,
+    intent: MiruPlayInputIntent,
+): RuntimeFocusTarget? =
+    when (intent.verticalNavigationDelta()) {
+        -1 -> current.runtimeStep(delta = -1)
             ?: RuntimeFocusTarget.PreviousPanel.takeIf { current == RuntimeFocusTarget.MpvPath }
-        Key.DirectionDown -> current.runtimeStep(delta = 1)
+        1 -> current.runtimeStep(delta = 1)
         else -> null
     }
 
@@ -1259,15 +1289,18 @@ internal fun playbackEndActionNavigationTarget(
     current: PlaybackEndAction,
     key: Key,
 ): PlaybackEndAction? =
-    when (current) {
-        PlaybackEndAction.RETURN_TO_DETAIL -> when (key) {
-            Key.DirectionRight -> PlaybackEndAction.PLAY_NEXT_EPISODE
-            else -> null
-        }
-        PlaybackEndAction.PLAY_NEXT_EPISODE -> when (key) {
-            Key.DirectionLeft -> PlaybackEndAction.RETURN_TO_DETAIL
-            else -> null
-        }
+    key.toMiruPlayInputIntent()?.let { intent ->
+        playbackEndActionNavigationTarget(current, intent)
+    }
+
+internal fun playbackEndActionNavigationTarget(
+    current: PlaybackEndAction,
+    intent: MiruPlayInputIntent,
+): PlaybackEndAction? =
+    when (intent.horizontalNavigationDelta()) {
+        1 -> PlaybackEndAction.PLAY_NEXT_EPISODE.takeIf { current == PlaybackEndAction.RETURN_TO_DETAIL }
+        -1 -> PlaybackEndAction.RETURN_TO_DETAIL.takeIf { current == PlaybackEndAction.PLAY_NEXT_EPISODE }
+        else -> null
     }
 
 private fun playerStageBrush(title: String): Brush {
