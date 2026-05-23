@@ -2,6 +2,7 @@ package com.miruplay.tv.desktop
 
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.window.WindowPlacement
+import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.design.MiruPlayRouteSurface
 import com.miruplay.tv.model.desktopRouteRailSubtitleLabel
 import com.miruplay.tv.model.desktopWindowTitleLabel
@@ -78,6 +79,10 @@ class DesktopSectionContractTest {
 
     @Test
     fun `desktop back keys accept TV and navigation remotes without swallowing text editing`() {
+        assertEquals(MiruPlayInputIntent.Back, Key.Escape.toMiruPlayInputIntent())
+        assertEquals(MiruPlayInputIntent.Back, Key.Back.toMiruPlayInputIntent())
+        assertEquals(MiruPlayInputIntent.NavigatePrevious, Key.NavigatePrevious.toMiruPlayInputIntent())
+        assertEquals(MiruPlayInputIntent.NavigateOut, Key.NavigateOut.toMiruPlayInputIntent())
         assertTrue(isDesktopBackKey(Key.Escape))
         assertTrue(isDesktopBackKey(Key.Back))
         assertTrue(isDesktopBackKey(Key.NavigatePrevious))

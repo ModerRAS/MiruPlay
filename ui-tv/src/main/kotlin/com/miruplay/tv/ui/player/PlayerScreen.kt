@@ -101,7 +101,11 @@ import com.miruplay.tv.model.playbackSpeedValueLabel
 import com.miruplay.tv.model.playbackSubtitleCountLabel
 import com.miruplay.tv.model.playbackSubtitleOptionLabel
 import com.miruplay.tv.model.playbackSubtitlesMenuTitle
+import com.miruplay.tv.design.MiruPlayPlaybackInputAction
+import com.miruplay.tv.design.shouldRefreshTvPlaybackControls
+import com.miruplay.tv.design.tvPlaybackOverlayAction
 import com.miruplay.tv.ui.components.isTvActivateKey
+import com.miruplay.tv.ui.components.toMiruPlayInputIntent
 import com.miruplay.tv.player.AudioTrack
 import com.miruplay.tv.ui.theme.AnimeRed
 import com.miruplay.tv.ui.theme.DarkSurface
@@ -949,85 +953,53 @@ private fun handlePlayerKey(
 ): Boolean {
     if (event.type != KeyEventType.KeyDown) return false
 
-    if (controlsVisible) {
-        return when (event.key) {
-            Key.DirectionLeft -> {
-                viewModel.skipBackward()
-                viewModel.showControls()
-                true
-            }
-            Key.DirectionRight -> {
-                viewModel.skipForward()
-                viewModel.showControls()
-                true
-            }
-            Key.MediaPlayPause -> {
-                viewModel.togglePlayback()
-                true
-            }
-            Key.MediaPlay -> {
-                viewModel.resume()
-                true
-            }
-            Key.MediaPause -> {
-                viewModel.pause()
-                true
-            }
-            Key.Back -> {
-                if (hasOpenMenu) {
-                    onCloseMenu()
-                } else {
-                    onHideControls()
-                }
-                true
-            }
-            else -> false
-        }
+    val action = event.key.toMiruPlayInputIntent()
+        ?.tvPlaybackOverlayAction(
+            controlsVisible = controlsVisible,
+            hasOpenMenu = hasOpenMenu,
+        )
+        ?: return false
+
+    if (action.shouldRefreshTvPlaybackControls(controlsVisible)) {
+        viewModel.showControls()
     }
 
-    return when (event.key) {
-        Key.DirectionLeft -> {
-            viewModel.showControls()
+    return when (action) {
+        MiruPlayPlaybackInputAction.SeekBack -> {
             viewModel.skipBackward()
             true
         }
-        Key.DirectionRight -> {
-            viewModel.showControls()
+        MiruPlayPlaybackInputAction.SeekForward -> {
             viewModel.skipForward()
             true
         }
-        Key.DirectionUp,
-        Key.DirectionDown -> {
-            viewModel.showControls()
-            true
-        }
-        Key.DirectionCenter,
-        Key.Enter,
-        Key.NumPadEnter,
-        Key.Spacebar,
-        Key.MediaPlayPause -> {
-            viewModel.showControls()
+        MiruPlayPlaybackInputAction.ShowControls -> true
+        MiruPlayPlaybackInputAction.TogglePause -> {
             viewModel.togglePlayback()
             true
         }
-        Key.MediaPlay -> {
-            viewModel.showControls()
+        MiruPlayPlaybackInputAction.Resume -> {
             viewModel.resume()
             true
         }
-        Key.MediaPause -> {
-            viewModel.showControls()
+        MiruPlayPlaybackInputAction.Pause -> {
             viewModel.pause()
             true
         }
-        Key.Back -> {
-            if (controlsVisible) {
-                viewModel.hideControls()
-            } else {
-                onNavigateBack()
-            }
+        MiruPlayPlaybackInputAction.HideControls -> {
+            onHideControls()
             true
         }
-        else -> false
+        MiruPlayPlaybackInputAction.CloseMenu -> {
+            onCloseMenu()
+            true
+        }
+        MiruPlayPlaybackInputAction.NavigateBack -> {
+            onNavigateBack()
+            true
+        }
+        MiruPlayPlaybackInputAction.Launch,
+        MiruPlayPlaybackInputAction.Stop,
+        -> false
     }
 }

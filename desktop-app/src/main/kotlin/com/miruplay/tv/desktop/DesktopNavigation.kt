@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.miruplay.tv.design.MiruPlayRouteSurface
 import com.miruplay.tv.design.MiruPlayUiMetrics
+import com.miruplay.tv.design.isBackIntent
 import com.miruplay.tv.model.desktopRouteRailSubtitleLabel
 
 @Composable
@@ -122,10 +123,7 @@ internal fun DesktopSection.desktopBackTarget(): DesktopSection? =
     MiruPlayRouteSurface.backTarget(this)
 
 internal fun isDesktopBackKey(key: Key): Boolean =
-    key == Key.Escape ||
-        key == Key.Back ||
-        key == Key.NavigatePrevious ||
-        key == Key.NavigateOut
+    key.toMiruPlayInputIntent()?.isBackIntent() == true
 
 @Composable
 internal fun DesktopTvHeader(selectedSection: DesktopSection) {

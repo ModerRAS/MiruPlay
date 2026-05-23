@@ -2,6 +2,7 @@ package com.miruplay.tv.desktop
 
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
+import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.model.desktopPosterPlaceholderSubtitleLabel
 import com.miruplay.tv.model.desktopWindowTitleLabel
 import org.junit.Assert.assertEquals
@@ -22,6 +23,10 @@ class DesktopChromeTest {
 
     @Test
     fun `desktop confirm keys include keyboard enter and TV DPAD center`() {
+        assertEquals(MiruPlayInputIntent.Activate, Key.Enter.toMiruPlayInputIntent())
+        assertEquals(MiruPlayInputIntent.Activate, Key.NumPadEnter.toMiruPlayInputIntent())
+        assertEquals(MiruPlayInputIntent.Activate, Key.DirectionCenter.toMiruPlayInputIntent())
+        assertEquals(MiruPlayInputIntent.Activate, Key.Spacebar.toMiruPlayInputIntent())
         assertTrue(isDesktopConfirmKey(Key.Enter))
         assertTrue(isDesktopConfirmKey(Key.NumPadEnter))
         assertTrue(isDesktopConfirmKey(Key.DirectionCenter))

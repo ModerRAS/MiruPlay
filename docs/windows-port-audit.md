@@ -259,6 +259,19 @@ then cleared.
 This covers the previous Details-to-Bangumi action-grid focus gap; broader
 multi-panel traversal can still be expanded separately.
 
+Latest shared-input evidence: `ui-design/src/main/kotlin/com/miruplay/tv/design/MiruPlayInputIntent.kt`
+now owns the cross-platform activation, Back/navigation-back, directional, and
+media playback input semantics. Android TV maps Compose `Key` values through
+`ui-tv/src/main/kotlin/com/miruplay/tv/ui/components/TvKeyEvents.kt`, and
+Windows maps them through
+`desktop-app/src/main/kotlin/com/miruplay/tv/desktop/DesktopKeyEvents.kt`, so
+the two platforms share one intent contract while keeping platform-specific key
+adapters thin. The Android TV fullscreen player and Windows desktop playback
+stage now both dispatch activation and media playback controls through that
+shared intent layer. Verified with
+`.\gradlew.bat :ui-design:test :ui-tv:test :desktop-app:test checkDesktopPresenterSeparation checkDesktopComposeOnly -PbundleMpvRuntime=false`
+on 2026-05-24.
+
 ## Latest Verification Commands
 
 ```powershell

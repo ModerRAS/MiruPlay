@@ -50,7 +50,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.miruplay.tv.design.MiruPlayPlaybackInputAction
 import com.miruplay.tv.design.MiruPlayUiMetrics
+import com.miruplay.tv.design.desktopPlaybackGlobalMediaAction
+import com.miruplay.tv.design.desktopPlaybackStageAction
 import com.miruplay.tv.model.mpvPlaybackSourceLine
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.mpvPlaybackStatusText
@@ -575,36 +578,33 @@ internal enum class DesktopPlayerKeyAction {
     Stop,
 }
 
+private fun MiruPlayPlaybackInputAction.toDesktopPlayerKeyAction(): DesktopPlayerKeyAction? =
+    when (this) {
+        MiruPlayPlaybackInputAction.Launch -> DesktopPlayerKeyAction.Launch
+        MiruPlayPlaybackInputAction.TogglePause -> DesktopPlayerKeyAction.TogglePause
+        MiruPlayPlaybackInputAction.Resume -> DesktopPlayerKeyAction.Resume
+        MiruPlayPlaybackInputAction.Pause -> DesktopPlayerKeyAction.Pause
+        MiruPlayPlaybackInputAction.SeekBack -> DesktopPlayerKeyAction.SeekBack
+        MiruPlayPlaybackInputAction.SeekForward -> DesktopPlayerKeyAction.SeekForward
+        MiruPlayPlaybackInputAction.Stop -> DesktopPlayerKeyAction.Stop
+        else -> null
+    }
+
 internal fun desktopPlayerKeyAction(
     key: Key,
     isPlayerActive: Boolean,
 ): DesktopPlayerKeyAction? =
-    when (key) {
-        Key.DirectionLeft -> DesktopPlayerKeyAction.SeekBack.takeIf { isPlayerActive }
-        Key.DirectionRight -> DesktopPlayerKeyAction.SeekForward.takeIf { isPlayerActive }
-        Key.DirectionCenter,
-        Key.Enter,
-        Key.NumPadEnter,
-        Key.Spacebar,
-        Key.MediaPlayPause,
-        -> if (isPlayerActive) DesktopPlayerKeyAction.TogglePause else DesktopPlayerKeyAction.Launch
-        Key.MediaPlay -> if (isPlayerActive) DesktopPlayerKeyAction.Resume else DesktopPlayerKeyAction.Launch
-        Key.MediaPause -> DesktopPlayerKeyAction.Pause.takeIf { isPlayerActive }
-        Key.MediaStop -> DesktopPlayerKeyAction.Stop.takeIf { isPlayerActive }
-        else -> null
-    }
+    key.toMiruPlayInputIntent()
+        ?.desktopPlaybackStageAction(isPlayerActive)
+        ?.toDesktopPlayerKeyAction()
 
 internal fun desktopPlayerPageKeyAction(
     key: Key,
     isPlayerActive: Boolean,
 ): DesktopPlayerKeyAction? =
-    when (key) {
-        Key.MediaPlayPause -> if (isPlayerActive) DesktopPlayerKeyAction.TogglePause else DesktopPlayerKeyAction.Launch
-        Key.MediaPlay -> if (isPlayerActive) DesktopPlayerKeyAction.Resume else DesktopPlayerKeyAction.Launch
-        Key.MediaPause -> DesktopPlayerKeyAction.Pause.takeIf { isPlayerActive }
-        Key.MediaStop -> DesktopPlayerKeyAction.Stop.takeIf { isPlayerActive }
-        else -> null
-    }
+    key.toMiruPlayInputIntent()
+        ?.desktopPlaybackGlobalMediaAction(isPlayerActive)
+        ?.toDesktopPlayerKeyAction()
 
 internal fun desktopPlayerKeyEvent(
     key: Key,
