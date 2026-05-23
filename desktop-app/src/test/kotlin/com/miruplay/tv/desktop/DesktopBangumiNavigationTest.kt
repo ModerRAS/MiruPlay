@@ -2,6 +2,7 @@ package com.miruplay.tv.desktop
 
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
+import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.ScraperSource
 import com.miruplay.tv.model.detailSyncProgressActionLabel
@@ -349,6 +350,39 @@ class DesktopBangumiNavigationTest {
     }
 
     @Test
+    fun `bangumi list navigation follows shared input intents`() {
+        assertEquals(
+            BangumiListPosition(BangumiListSection.BatchCandidates, 1),
+            bangumiListNavigationTarget(
+                current = BangumiListPosition(BangumiListSection.BatchMatches, 1),
+                intent = MiruPlayInputIntent.DirectionRight,
+                batchMatchCount = 3,
+                candidateCount = 2,
+                resultCount = 2,
+            ),
+        )
+        assertEquals(
+            BangumiListPosition(BangumiListSection.SearchResults, 0),
+            bangumiListNavigationTarget(
+                current = BangumiListPosition(BangumiListSection.BatchCandidates, 1),
+                intent = MiruPlayInputIntent.DirectionDown,
+                batchMatchCount = 2,
+                candidateCount = 2,
+                resultCount = 2,
+            ),
+        )
+        assertNull(
+            bangumiListNavigationTarget(
+                current = BangumiListPosition(BangumiListSection.SearchResults, 0),
+                intent = MiruPlayInputIntent.Activate,
+                batchMatchCount = 2,
+                candidateCount = 2,
+                resultCount = 2,
+            ),
+        )
+    }
+
+    @Test
     fun `bangumi top action up key exits to previous details panel`() {
         var requestedPreviousPanel = false
 
@@ -485,6 +519,41 @@ class DesktopBangumiNavigationTest {
                 key = Key.DirectionLeft,
             ),
         )
+    }
+
+    @Test
+    fun `bangumi action and empty states follow shared input intents`() {
+        assertEquals(
+            BangumiActionFocusTarget.Action(BangumiAction.Search),
+            bangumiActionFocusTarget(
+                current = BangumiAction.UseSelected,
+                intent = MiruPlayInputIntent.DirectionRight,
+            ),
+        )
+        assertEquals(
+            BangumiActionFocusTarget.ListPosition(BangumiListPosition(BangumiListSection.SearchResults, 0)),
+            bangumiActionFocusTarget(
+                current = BangumiAction.Search,
+                intent = MiruPlayInputIntent.DirectionRight,
+                resultCount = 2,
+            ),
+        )
+        assertEquals(
+            BangumiActionFocusTarget.Action(BangumiAction.ApplyMatch),
+            bangumiListExitFocusTarget(
+                current = BangumiListPosition(BangumiListSection.SearchResults, 0),
+                intent = MiruPlayInputIntent.DirectionLeft,
+            ),
+        )
+        assertEquals(
+            BangumiActionFocusTarget.Action(BangumiAction.Search),
+            bangumiEmptyResultsFocusTarget(MiruPlayInputIntent.DirectionUp),
+        )
+        assertEquals(
+            BangumiActionFocusTarget.NextPanel,
+            bangumiEmptyResultsFocusTarget(MiruPlayInputIntent.DirectionDown),
+        )
+        assertNull(bangumiEmptyResultsFocusTarget(MiruPlayInputIntent.DirectionRight))
     }
 
     @Test

@@ -355,6 +355,7 @@ internal fun DesktopSelectableRow(
     inactiveAlpha: Float = 0.55f,
     fillMaxWidth: Boolean = true,
     onNavigationKey: (Key) -> Boolean = { false },
+    onNavigationIntent: (MiruPlayInputIntent) -> Boolean = { false },
     content: @Composable (active: Boolean) -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -378,6 +379,7 @@ internal fun DesktopSelectableRow(
                     type = event.type,
                     onClick = onClick,
                     onNavigationKey = onNavigationKey,
+                    onNavigationIntent = onNavigationIntent,
                 )
             }
             .border(
@@ -395,12 +397,16 @@ internal fun desktopSelectableRowKeyEvent(
     type: KeyEventType,
     onClick: () -> Unit,
     onNavigationKey: (Key) -> Boolean = { false },
+    onNavigationIntent: (MiruPlayInputIntent) -> Boolean = { false },
 ): Boolean =
     desktopConfirmOrNavigationKeyEvent(
         key = key,
         type = type,
         onClick = onClick,
-        onNavigationKey = onNavigationKey,
+        onNavigationKey = { navigationKey ->
+            navigationKey.toMiruPlayInputIntent()?.let(onNavigationIntent) == true ||
+                onNavigationKey(navigationKey)
+        },
     )
 
 @Composable

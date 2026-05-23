@@ -284,7 +284,10 @@ also use intent-level navigation contracts, matching the shared playback-input
 layer used by Android TV fullscreen playback. Cloud/RSS credential/path/RSS
 fields, action rows, toggles, subscription rows, CloudDrive directory browser,
 RSS picker, and Settings quick-action rows now also use intent-level navigation
-contracts while retaining thin Compose `Key` adapters. Verified with
+contracts while retaining thin Compose `Key` adapters. The Bangumi action grid,
+batch-match/candidate/search-result lists, list exits, and empty-results bridge
+now also use those intent-level navigation helpers, so the metadata panel keeps
+raw Compose `Key` handling at the adapter boundary. Verified with
 `.\gradlew.bat :ui-design:test :ui-tv:test :desktop-app:test checkDesktopPresenterSeparation checkDesktopComposeOnly -PbundleMpvRuntime=false`
 on 2026-05-24.
 
