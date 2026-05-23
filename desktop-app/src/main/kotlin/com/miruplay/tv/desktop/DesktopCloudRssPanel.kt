@@ -2070,12 +2070,9 @@ private fun SettingsSectionMenu(
 
     TvPanel(
         modifier
-            .desktopNavigationKeyHandler { key ->
-                when (key) {
-                    Key.DirectionDown -> selectedSection.stepDesktopSettingsSection(1)?.let(onSectionSelected) != null
-                    Key.DirectionUp -> selectedSection.stepDesktopSettingsSection(-1)?.let(onSectionSelected) != null
-                    else -> false
-                }
+            .desktopNavigationIntentHandler { intent ->
+                settingsSectionNavigationTarget(selectedSection, intent)
+                    ?.let(onSectionSelected) != null
             }
             .focusable(),
     ) {
@@ -2101,6 +2098,20 @@ private fun SettingsSectionMenu(
         }
     }
 }
+
+internal fun settingsSectionNavigationTarget(
+    current: MiruPlaySettingsSection,
+    key: Key,
+): MiruPlaySettingsSection? =
+    key.toMiruPlayInputIntent()?.let { intent ->
+        settingsSectionNavigationTarget(current, intent)
+    }
+
+internal fun settingsSectionNavigationTarget(
+    current: MiruPlaySettingsSection,
+    intent: MiruPlayInputIntent,
+): MiruPlaySettingsSection? =
+    intent.verticalNavigationDelta()?.let(current::stepDesktopSettingsSection)
 
 @Composable
 private fun SettingsSectionMenuRow(

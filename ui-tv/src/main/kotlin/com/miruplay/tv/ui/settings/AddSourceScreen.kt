@@ -77,6 +77,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
 import com.miruplay.tv.data.preferences.ScanPreferencesManager
+import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.CLOUD_DRIVE_ROOT_DISPLAY_NAME
 import com.miruplay.tv.model.MediaSourceInfo
@@ -203,6 +204,7 @@ import com.miruplay.tv.model.tvSourceHint
 import com.miruplay.tv.ui.components.OverscanContainer
 import com.miruplay.tv.ui.components.TvButton
 import com.miruplay.tv.ui.components.TvTextField
+import com.miruplay.tv.ui.components.toMiruPlayInputIntent
 import com.miruplay.tv.ui.theme.AccentBlue
 import com.miruplay.tv.ui.theme.AnimeRed
 import com.miruplay.tv.ui.theme.CardBg
@@ -889,7 +891,10 @@ private fun SettingsContent(
                     .fillMaxHeight()
                     .focusProperties { left = menuFocusRequester }
                     .onPreviewKeyEvent { event ->
-                        if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionLeft) {
+                        if (
+                            event.type == KeyEventType.KeyDown &&
+                            event.key.toMiruPlayInputIntent() == MiruPlayInputIntent.DirectionLeft
+                        ) {
                             menuFocusRequester.requestFocus()
                             true
                         } else {

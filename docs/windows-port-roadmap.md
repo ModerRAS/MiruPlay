@@ -45,7 +45,9 @@ the desktop route rail and saved-source picker consume those deltas through
 intent-based key handlers instead of branching directly on Compose `Key`
 values, and the Library header, local-source fields/action row, remote-source
 fields/action row, and remote-browser rows/actions/empty state now expose
-intent-level navigation contracts for the same reason.
+intent-level navigation contracts for the same reason. The Settings category
+menu also steps sections from the shared intent layer instead of branching on
+desktop key values.
 The Library poster wall, highest-heat/recent shelves, and search row now follow
 that contract as well, keeping the Windows media-first surface aligned with TV
 DPAD direction semantics. The Details hero action row, episode-season selector,

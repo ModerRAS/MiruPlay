@@ -840,6 +840,42 @@ class DesktopSettingsPanelTest {
     }
 
     @Test
+    fun `settings category navigation accepts shared direction intents`() {
+        assertEquals(
+            MiruPlaySettingsSection.PLAYBACK,
+            settingsSectionNavigationTarget(
+                current = MiruPlaySettingsSection.SOURCES,
+                intent = MiruPlayInputIntent.DirectionDown,
+            ),
+        )
+        assertEquals(
+            MiruPlaySettingsSection.PLAYBACK,
+            settingsSectionNavigationTarget(
+                current = MiruPlaySettingsSection.CLOUD_DRIVE,
+                intent = MiruPlayInputIntent.DirectionUp,
+            ),
+        )
+        assertNull(
+            settingsSectionNavigationTarget(
+                current = MiruPlaySettingsSection.SOURCES,
+                intent = MiruPlayInputIntent.DirectionUp,
+            ),
+        )
+        assertNull(
+            settingsSectionNavigationTarget(
+                current = MiruPlaySettingsSection.SOURCES,
+                intent = MiruPlayInputIntent.DirectionRight,
+            ),
+        )
+        assertNull(
+            settingsSectionNavigationTarget(
+                current = MiruPlaySettingsSection.SOURCES,
+                intent = MiruPlayInputIntent.Activate,
+            ),
+        )
+    }
+
+    @Test
     fun `settings category rows accept TV confirm keys`() {
         var selected = 0
 
