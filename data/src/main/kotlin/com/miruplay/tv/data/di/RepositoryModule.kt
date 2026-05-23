@@ -1,6 +1,7 @@
 package com.miruplay.tv.data.di
 
 import com.miruplay.tv.data.preferences.WebControlPreferencesManager
+import com.miruplay.tv.data.preferences.PlaybackPreferencesManager
 import com.miruplay.tv.data.repository.CloudDriveAutomationRepositoryImpl
 import com.miruplay.tv.data.repository.IndexRepositoryImpl
 import com.miruplay.tv.data.repository.MediaRepositoryImpl
@@ -15,6 +16,7 @@ import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
+import com.miruplay.tv.repository.PlaybackPreferencesRepository
 import com.miruplay.tv.repository.WebControlAccessManager
 import dagger.Binds
 import dagger.Module
@@ -51,6 +53,12 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindProgressRepository(impl: ProgressRepositoryImpl): PlaybackProgressRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindPlaybackPreferencesRepository(
+        impl: PlaybackPreferencesManager
+    ): PlaybackPreferencesRepository
 
     @Binds
     @Singleton

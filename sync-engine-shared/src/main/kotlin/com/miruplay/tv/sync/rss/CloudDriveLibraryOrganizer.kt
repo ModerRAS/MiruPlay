@@ -34,7 +34,10 @@ class CloudDriveLibraryOrganizer(
             return Result.failure(AppError.SyncError.WriteFailed("CloudDrive2", "整理目录不能位于下载目录内部"))
         }
 
-        val videos = collectVideos(endpoint, inbox, depth = 0).getOrNull() ?: return Result.success(0)
+        val videos = when (val collected = collectVideos(endpoint, inbox, depth = 0)) {
+            is Result.Error -> return collected
+            is Result.Success -> collected.data
+        }
         var moved = 0
         for (video in videos) {
             if (!CloudDrivePaths.isChild(video.path, inbox)) continue
@@ -44,11 +47,19 @@ class CloudDriveLibraryOrganizer(
             val showPath = "$library/$showFolder"
             val seasonPath = "$showPath/$seasonFolder"
 
-            ensureFolder(endpoint, library, showFolder)
-            ensureFolder(endpoint, showPath, seasonFolder)
+            when (val ensuredShowFolder = ensureFolder(endpoint, library, showFolder)) {
+                is Result.Error -> return ensuredShowFolder
+                is Result.Success -> Unit
+            }
+            when (val ensuredSeasonFolder = ensureFolder(endpoint, showPath, seasonFolder)) {
+                is Result.Error -> return ensuredSeasonFolder
+                is Result.Success -> Unit
+            }
 
-            cloudDriveClient.moveFiles(endpoint, listOf(video.path), seasonPath)
-                .onSuccess { moved += 1 }
+            when (val movedResult = cloudDriveClient.moveFiles(endpoint, listOf(video.path), seasonPath)) {
+                is Result.Error -> return movedResult
+                is Result.Success -> moved += 1
+            }
         }
         return Result.success(moved)
     }
@@ -60,13 +71,19 @@ class CloudDriveLibraryOrganizer(
     ): Result<List<CloudDriveFileInfo>> {
         if (depth > MAX_DEPTH) return Result.success(emptyList())
         val listing = cloudDriveClient.listFolder(endpoint, path, forceRefresh = true)
-        val entries = listing.getOrNull() ?: return listing
+        val entries = when (listing) {
+            is Result.Error -> return listing
+            is Result.Success -> listing.data
+        }
         val videos = mutableListOf<CloudDriveFileInfo>()
         for (entry in entries) {
             if (!CloudDrivePaths.isSameOrChild(entry.path, path)) continue
             if (entry.name.startsWith(".") || entry.name.endsWith(".trickplay")) continue
             if (entry.isDirectory) {
-                videos += collectVideos(endpoint, entry.path, depth + 1).getOrNull().orEmpty()
+                when (val childVideos = collectVideos(endpoint, entry.path, depth + 1)) {
+                    is Result.Error -> return childVideos
+                    is Result.Success -> videos += childVideos.data
+                }
             } else if (entry.name.substringAfterLast('.', "").lowercase() in VIDEO_EXTENSIONS) {
                 videos += entry
             }
@@ -74,14 +91,21 @@ class CloudDriveLibraryOrganizer(
         return Result.success(videos)
     }
 
-    private suspend fun ensureFolder(endpoint: CloudDriveEndpoint, parentPath: String, folderName: String) {
-        val exists = cloudDriveClient.listFolder(endpoint, parentPath, forceRefresh = false)
-            .getOrNull()
-            .orEmpty()
-            .any { it.isDirectory && it.name == folderName }
-        if (!exists) {
-            cloudDriveClient.createFolder(endpoint, parentPath, folderName)
+    private suspend fun ensureFolder(
+        endpoint: CloudDriveEndpoint,
+        parentPath: String,
+        folderName: String
+    ): Result<Unit> {
+        val entries = when (val listing = cloudDriveClient.listFolder(endpoint, parentPath, forceRefresh = false)) {
+            is Result.Error -> return listing
+            is Result.Success -> listing.data
         }
+        val exists = entries.any { it.isDirectory && it.name == folderName }
+        if (!exists) {
+            val created = cloudDriveClient.createFolder(endpoint, parentPath, folderName)
+            if (created is Result.Error) return created
+        }
+        return Result.success(Unit)
     }
 
     private companion object {

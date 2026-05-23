@@ -4,6 +4,23 @@ import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.ProgressRecord
+import com.miruplay.tv.model.mediaDetailBrowserItemLabel
+import com.miruplay.tv.model.mediaDetailBrowserKindLabel
+import com.miruplay.tv.model.mediaDetailFileValue
+import com.miruplay.tv.model.mediaDetailIndexedSizeLabel
+import com.miruplay.tv.model.mediaDetailIndexedTitleLabel
+import com.miruplay.tv.model.mediaDetailIndexedTypeLabel
+import com.miruplay.tv.model.mediaDetailMetadataIdLabel
+import com.miruplay.tv.model.mediaDetailMetadataSourceLabel
+import com.miruplay.tv.model.mediaDetailMetadataTitleLabel
+import com.miruplay.tv.model.mediaDetailMimeLabel
+import com.miruplay.tv.model.mediaDetailPathLabel
+import com.miruplay.tv.model.mediaDetailPlayCountLabel
+import com.miruplay.tv.model.mediaDetailPlotLabel
+import com.miruplay.tv.model.mediaDetailResumeLabel
+import com.miruplay.tv.model.mediaDetailSourceEmptyValue
+import com.miruplay.tv.model.mediaDetailSourceLabel
+import com.miruplay.tv.model.mediaDetailVideoValue
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -49,20 +66,20 @@ class MediaDetailRowsTest {
             ),
         )
 
-        assertTrue(rows.any { it.label == "Source" && it.value == "Library · LOCAL" })
-        assertTrue(rows.any { it.label == "Indexed title" && it.value == "Show EP1 - First Light" })
-        assertTrue(rows.any { it.label == "Indexed type" && it.value == "Video" })
-        assertTrue(rows.any { it.label == "Metadata source" && it.value == "BANGUMI" })
-        assertTrue(rows.any { it.label == "Metadata ID" && it.value == "431767" })
-        assertTrue(rows.any { it.label == "Metadata title" && it.value == "Show Metadata Title" })
-        assertTrue(rows.any { it.label == "Indexed size" && it.value == "2.0 MB" })
-        assertTrue(rows.any { it.label == "Browser item" && it.value == "01.mkv" })
-        assertTrue(rows.any { it.label == "Browser kind" && it.value == "File" })
-        assertTrue(rows.any { it.label == "MIME" && it.value == "video/x-matroska" })
-        assertTrue(rows.any { it.label == "Resume" && it.value == "01:35" })
-        assertTrue(rows.any { it.label == "Play count" && it.value == "3" })
-        assertTrue(rows.any { it.label == "Plot" && it.value == "The story starts here." })
-        assertTrue(rows.any { it.label == "Path" && it.value == "D:/Anime/Show/01.mkv" })
+        assertTrue(rows.any { it.label == mediaDetailSourceLabel() && it.value == "Library · 本地" })
+        assertTrue(rows.any { it.label == mediaDetailIndexedTitleLabel() && it.value == "Show EP1 - First Light" })
+        assertTrue(rows.any { it.label == mediaDetailIndexedTypeLabel() && it.value == mediaDetailVideoValue() })
+        assertTrue(rows.any { it.label == mediaDetailMetadataSourceLabel() && it.value == "BANGUMI" })
+        assertTrue(rows.any { it.label == mediaDetailMetadataIdLabel() && it.value == "431767" })
+        assertTrue(rows.any { it.label == mediaDetailMetadataTitleLabel() && it.value == "Show Metadata Title" })
+        assertTrue(rows.any { it.label == mediaDetailIndexedSizeLabel() && it.value == "2.0 MB" })
+        assertTrue(rows.any { it.label == mediaDetailBrowserItemLabel() && it.value == "01.mkv" })
+        assertTrue(rows.any { it.label == mediaDetailBrowserKindLabel() && it.value == mediaDetailFileValue() })
+        assertTrue(rows.any { it.label == mediaDetailMimeLabel() && it.value == "video/x-matroska" })
+        assertTrue(rows.any { it.label == mediaDetailResumeLabel() && it.value == "01:35" })
+        assertTrue(rows.any { it.label == mediaDetailPlayCountLabel() && it.value == "3" })
+        assertTrue(rows.any { it.label == mediaDetailPlotLabel() && it.value == "The story starts here." })
+        assertTrue(rows.any { it.label == mediaDetailPathLabel() && it.value == "D:/Anime/Show/01.mkv" })
     }
 
     @Test
@@ -79,8 +96,24 @@ class MediaDetailRowsTest {
             ),
         )
 
-        assertEquals("None", rows.first().value)
-        assertTrue(rows.any { it.label == "Resume" && it.value == "01:35" })
-        assertTrue(rows.any { it.label == "Path" && it.value == "smb://nas/anime/Show/02.mkv" })
+        assertEquals(mediaDetailSourceEmptyValue(), rows.first().value)
+        assertTrue(rows.any { it.label == mediaDetailResumeLabel() && it.value == "01:35" })
+        assertTrue(rows.any { it.label == mediaDetailPathLabel() && it.value == "smb://nas/anime/Show/02.mkv" })
+    }
+
+    @Test
+    fun `build uses shared media source fallback label`() {
+        val rows = MediaDetailRows.build(
+            source = MediaSourceInfo(
+                name = "",
+                type = MediaSourceType.SMB,
+                connectionInfo = mapOf("url" to "smb://nas/anime"),
+            ),
+            indexEntry = null,
+            remoteEntry = null,
+            recentRecord = null,
+        )
+
+        assertEquals("SMB 共享 · SMB", rows.first { it.label == mediaDetailSourceLabel() }.value)
     }
 }

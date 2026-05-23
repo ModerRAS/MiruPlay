@@ -5,6 +5,8 @@ import com.miruplay.tv.model.CloudDriveRssRunSummary
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.RssSubscriptionInfo
+import com.miruplay.tv.model.settingsMissingSourceValue
+import com.miruplay.tv.model.settingsNoSourceSelectedValue
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -43,11 +45,13 @@ class DesktopCloudDriveRssDisplayTest {
     fun `linked source label handles none missing and existing source`() {
         val sources = listOf(
             MediaSourceInfo(id = 7L, name = "Cloud WebDAV", type = MediaSourceType.WEBDAV),
+            MediaSourceInfo(id = 9L, name = "", type = MediaSourceType.SMB),
         )
 
-        assertEquals("None", linkedCloudDriveSourceLabel(sources, null))
-        assertEquals("Missing source #8", linkedCloudDriveSourceLabel(sources, 8L))
-        assertEquals("Cloud WebDAV (WEBDAV)", linkedCloudDriveSourceLabel(sources, 7L))
+        assertEquals(settingsNoSourceSelectedValue(), linkedCloudDriveSourceLabel(sources, null))
+        assertEquals(settingsMissingSourceValue(8L), linkedCloudDriveSourceLabel(sources, 8L))
+        assertEquals("Cloud WebDAV · WebDAV", linkedCloudDriveSourceLabel(sources, 7L))
+        assertEquals("SMB 媒体源 · SMB", linkedCloudDriveSourceLabel(sources, 9L))
     }
 
     @Test
@@ -124,11 +128,11 @@ class DesktopCloudDriveRssDisplayTest {
             cloudRssScanSourceMissingStatus(),
         )
         assertEquals(
-            "已绑定同步后扫描源：Cloud WebDAV。请保存同步配置。",
+            "已绑定同步后扫描源：Cloud WebDAV · WebDAV。请保存同步配置。",
             source.linkedCloudRssScanSourceStatus(),
         )
         assertEquals(
-            "定时同步完成，正在重扫 Cloud WebDAV...",
+            "定时同步完成，正在重扫 Cloud WebDAV · WebDAV...",
             source.cloudRssRescanStartedStatus("定时同步完成。"),
         )
         assertEquals(

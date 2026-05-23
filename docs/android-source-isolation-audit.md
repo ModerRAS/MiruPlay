@@ -38,8 +38,11 @@ Files:
 - `app/build.gradle.kts`
 - `data/build.gradle.kts`
 - `scanner/build.gradle.kts`
+- `metadata/build.gradle.kts`
+- `scraper/build.gradle.kts`
 - `sync-engine/build.gradle.kts`
 - `web-control/build.gradle.kts`
+- `player-core/build.gradle.kts`
 - `ui-tv/build.gradle.kts`
 
 Decision:
@@ -60,6 +63,8 @@ Files:
 - `app/src/main/kotlin/com/miruplay/tv/MainActivity.kt`
 - `ui-tv/src/main/kotlin/com/miruplay/tv/ui/*/*ViewModel.kt`
 - `scanner/src/main/kotlin/com/miruplay/tv/scanner/ScanCoordinator.kt`
+- `metadata/src/main/kotlin/com/miruplay/tv/metadata/MetadataManager.kt`
+- `scraper/src/main/kotlin/com/miruplay/tv/scraper/BangumiScraper.kt`
 - `sync-engine/src/main/kotlin/com/miruplay/tv/sync/*.kt`
 - `sync-engine/src/main/kotlin/com/miruplay/tv/sync/rss/CloudDriveRssAutomationEngine.kt`
 - `web-control/src/main/kotlin/com/miruplay/tv/webcontrol/WebControlService.kt`
@@ -158,23 +163,35 @@ API changes. Do not use tests as justification for broad Android rewrites.
 5. Required local verification before claiming safety:
    - `:app:assembleDebug`
    - `:core:model:test`
+   - `:metadata:test`
+   - `:scraper:test`
+   - `:sync-engine:test`
+   - `:web-control:test`
    - affected desktop/shared module tests
    - existing guard tasks such as `checkDesktopComposeOnly` and
      `checkUiPaletteDrift`
 
 ## Immediate Next Step
 
-The latest shared/desktop-only cleanup tightened desktop HTTP byte-range
-handling around `StreamRange` without changing Android callers:
-`HttpByteRangeRequest.parse` now accepts case/whitespace variants, rejects
-malformed numeric ranges instead of interpreting them as suffix requests, and
-reports reversed ranges as invalid even when source metadata is unavailable.
-`DesktopPlaybackBridgeTest` now proves malformed `Range` headers fall back to a
-full loopback stream rather than slicing the remote media incorrectly. Verified
-with `:core:model:test --tests com.miruplay.tv.model.HttpByteRangeTest`,
-`:media-source-desktop:test --tests
-com.miruplay.tv.mediasource.desktop.DesktopPlaybackBridgeTest`,
-`:core:model:test :media-source-desktop:test`, and `:desktop-app:test`.
+The latest cleanup extracted platform-neutral media-source and NFO contracts
+without making desktop modules depend on Android implementations:
+`:media-source-api` owns `MediaSource`/`MediaSourceFactory` and range-capable
+streaming contracts, `:metadata-core` owns XML NFO parser/writer behavior,
+`:scraper-core` owns the platform-neutral `MetadataScraper` contract plus shared
+Bangumi API request/paging/collection behavior, Android and Windows Bangumi
+wrappers now implement that same contract, `BangumiScraper` reads tokens through
+shared `AppCredentialStore`, `:sync-engine-shared` owns Bangumi metadata
+refresh/cache merge behavior plus index-entry-to-local-episode/cache-id mapping
+reused by Android Detail rescrape and Windows metadata apply/sync cache
+preparation, `:repository-api` owns media-index replacement and selected-entry
+preservation helpers used by desktop batch metadata flows, and
+`SyncEngineImplTest` locks NFO resume import as milliseconds instead of
+seconds. Verified with `:metadata:test :metadata-core:test :sync-engine:test
+:web-control:test :scraper:test :player-core:test :scanner:test
+:scanner-desktop:test :desktop-app:test :ui-tv:compileDebugKotlin
+:app:assembleDebug`, followed by `:scraper:test :sync-engine:test
+:web-control:test :metadata:test :ui-tv:compileDebugKotlin :app:assembleDebug
+:scraper-desktop:test :desktop-app:test`.
 
 Next cleanup work should continue in shared/desktop modules unless an Android
 behavior change is explicitly approved and verified as Android work.

@@ -1034,6 +1034,7 @@ dependencies {
     implementation(project(":scanner-desktop"))
     implementation(project(":scraper-desktop"))
     implementation(project(":sync-engine-desktop"))
+    implementation(project(":sync-engine-shared"))
     implementation(compose.desktop.currentOs)
     implementation(compose.material3)
     implementation(libs.kotlinx.coroutines.core)

@@ -76,3 +76,326 @@ fun MiruPlaySettingsSection.stepAndroidTvSettingsSection(delta: Int): MiruPlaySe
 
 fun MiruPlaySettingsSection.stepDesktopSettingsSection(delta: Int): MiruPlaySettingsSection? =
     stepInSettingsOrder(desktopSettingsSectionOrder, delta)
+
+fun settingsWebUiMenuSummary(addressCount: Int): String =
+    if (addressCount > 0) "$addressCount 个地址" else "等待网络"
+
+fun settingsSourcesMenuSummary(sourceCount: Int): String =
+    "$sourceCount 个源"
+
+fun settingsCloudDriveMenuSummary(enabled: Boolean, rssCount: Int): String =
+    if (enabled) "$rssCount 个订阅" else "未启用"
+
+fun settingsScanMenuSummary(
+    autoScanEnabled: Boolean,
+    mergeSameAnimeEnabled: Boolean,
+): String =
+    when {
+        autoScanEnabled && mergeSameAnimeEnabled -> "定时 · 合并"
+        autoScanEnabled -> "定时已开"
+        mergeSameAnimeEnabled -> "同番合并"
+        else -> "定时关闭"
+    }
+
+fun settingsMetadataTokenMenuSummary(hasToken: Boolean): String =
+    if (hasToken) "Token 已设置" else "未设置"
+
+fun settingsDesktopScanMenuSummary(): String =
+    "媒体库更新"
+
+fun settingsDesktopWebUiMenuSummary(): String =
+    "访问地址"
+
+fun settingsMenuPanelTitle(): String =
+    "设置菜单"
+
+fun settingsMenuPanelDescription(): String =
+    "像 TV 版一样按分类管理桌面能力。"
+
+fun settingsOpenLibraryActionLabel(): String =
+    "打开海报墙"
+
+fun settingsScanActiveSourceActionLabel(): String =
+    "扫描当前源"
+
+fun settingsOpenPlayerActionLabel(): String =
+    "打开播放器"
+
+fun settingsOpenDetailsActionLabel(): String =
+    "打开详情"
+
+fun settingsBackActionLabel(): String =
+    "返回"
+
+fun settingsSaveTokenActionLabel(): String =
+    "保存 Token"
+
+fun settingsClearTokenActionLabel(): String =
+    "清除 Token"
+
+fun settingsDesktopScanStatusMessage(): String =
+    "扫描入口保留在媒体库海报墙和 CloudDrive 同步流程中。"
+
+fun settingsDesktopWebUiStatusMessage(): String =
+    "WebUI 保留在 Android TV 端；桌面版使用原生窗口与键盘遥控。"
+
+fun settingsWebUiPanelTitleLabel(): String =
+    "WebUI 访问"
+
+fun settingsWebUiPanelDescription(): String =
+    "默认关闭。开启后，同一局域网设备需要携带访问令牌才能管理媒体源和遥控播放。"
+
+fun settingsWebUiToggleActionLabel(enabled: Boolean): String =
+    if (enabled) "关闭 WebUI" else "开启 WebUI"
+
+fun settingsWebUiRotateTokenActionLabel(): String =
+    "更换令牌"
+
+fun settingsWebUiRefreshAddressActionLabel(): String =
+    "刷新地址"
+
+fun settingsWebUiAccessTokenMissingValue(): String =
+    "未生成"
+
+fun settingsWebUiAccessTokenLabel(accessToken: String): String =
+    "访问令牌：${accessToken.ifBlank { settingsWebUiAccessTokenMissingValue() }}"
+
+fun settingsWebUiDisabledStatus(): String =
+    "WebUI 当前未启用，不会监听局域网端口。"
+
+fun settingsWebUiNoLanAddressStatus(): String =
+    "暂未检测到局域网地址，请确认电视已连接网络后刷新。"
+
+fun settingsWebUiAvailableAddressesLabel(): String =
+    "可用地址"
+
+fun settingsWebUiAddressLabel(index: Int): String =
+    if (index <= 0) "主地址" else "备用地址"
+
+fun settingsWebUiQrOpenLabel(): String =
+    "扫码打开"
+
+fun settingsWebUiTileLabel(): String =
+    "WebUI"
+
+fun settingsWebUiAndroidTvValue(): String =
+    "Android TV"
+
+fun settingsActiveSourceSharedDetail(): String =
+    "媒体库、远程浏览器和 Cloud/RSS 共用这个活动源。"
+
+fun settingsPosterWallIndexDetail(): String =
+    "扫描后优先回到媒体库海报墙。"
+
+fun settingsPlaybackPageDetail(): String =
+    "mpv、RIFE、字幕和起播时间在播放页调整。"
+
+fun settingsRecentPlaybackDetail(): String =
+    "mpv 进度同步后会刷新这里。"
+
+fun settingsSelectedMediaDetail(): String =
+    "从海报墙或详情页选择后可直接播放。"
+
+fun settingsPlaybackStatusMessage(): String =
+    "mpv 播放设置保留在播放页，RIFE/字幕/起播秒数仍可直接调整。"
+
+fun settingsMetadataStatusMessage(): String =
+    "Bangumi 搜索、批量预览、应用和撤销保留在详情页。"
+
+fun metadataBangumiTokenFieldLabel(): String =
+    "Bangumi Access Token"
+
+fun metadataBangumiTokenOptionalHint(): String =
+    "Bangumi Token 是可选项，用于 Bangumi 收藏与观看进度同步；元数据搜索不需要 Token。"
+
+fun metadataBangumiTokenSavedStatus(): String =
+    "Token 已保存在加密存储中。"
+
+fun metadataBangumiTokenMissingStatus(): String =
+    "当前未设置 Token。"
+
+fun metadataBangumiTokenTileLabel(): String =
+    "Bangumi Token"
+
+fun metadataBangumiTokenTileDetail(): String =
+    "仅用于 Bangumi 收藏与观看进度同步。"
+
+fun metadataBangumiTokenSavedMessage(): String =
+    "Bangumi Token 已保存。"
+
+fun metadataBangumiTokenEmptyMessage(): String =
+    "Bangumi Access Token 为空，未保存。"
+
+fun metadataBangumiTokenClearedMessage(): String =
+    "Bangumi Access Token 已清除。"
+
+fun metadataBangumiTokenSettingsStatus(configured: Boolean): String =
+    if (configured) {
+        "${settingsMetadataStatusMessage()} ${metadataBangumiTokenSavedMessage()}"
+    } else {
+        "${settingsMetadataStatusMessage()} 保存 Token 后可同步观看进度。"
+    }
+
+fun settingsIndexSharedDetail(): String =
+    "本地、WebDAV、SMB 都写入同一桌面索引。"
+
+fun settingsCloudDriveRescanSourceDetail(): String =
+    "CloudDrive 完成后可触发这个源的重扫。"
+
+fun settingsRecentScanStatusDetail(): String =
+    "扫描入口也保留在媒体库顶部。"
+
+fun settingsScanPanelTitleLabel(): String =
+    "媒体库扫描"
+
+fun settingsScanPanelDescription(): String =
+    "首页的扫描按钮会立即执行；定时扫描只会在到达间隔后回到首页时触发。"
+
+fun settingsAutoScanToggleLabel(enabled: Boolean): String =
+    if (enabled) "定时已开" else "定时关闭"
+
+fun settingsScanIntervalOptionLabel(hours: Int): String =
+    "${hours.coerceAtLeast(0)}小时"
+
+fun settingsCurrentScanIntervalStatus(
+    intervalHours: Int,
+    lastScanText: String,
+): String =
+    "当前间隔 ${intervalHours.coerceAtLeast(0)} 小时 · $lastScanText"
+
+fun settingsLibraryDisplayTitleLabel(): String =
+    "媒体库显示"
+
+fun settingsMergeSameAnimeToggleLabel(enabled: Boolean): String =
+    if (enabled) "同番合并" else "目录分开"
+
+fun settingsMergeSameAnimeStatus(enabled: Boolean): String =
+    if (enabled) {
+        "首页和详情会按 Bangumi ID 或标题合并同一番。"
+    } else {
+        "首页按扫描出的目录条目分别显示。"
+    }
+
+fun settingsSelectedMetadataEntryDetail(): String =
+    "详情页会显示可应用的 Bangumi 匹配。"
+
+fun settingsMetadataMatchStatusDetail(): String =
+    "支持单条应用、批量预览、应用和撤销。"
+
+fun settingsMetadataCandidateScopeDetail(): String =
+    "批量匹配会跳过已有冲突元数据。"
+
+fun settingsSourceTileLabel(): String =
+    "媒体源"
+
+fun settingsActiveSourceTileLabel(): String =
+    "当前源"
+
+fun settingsPosterWallIndexTileLabel(): String =
+    "海报墙索引"
+
+fun settingsPlaybackModeTileLabel(): String =
+    "播放模式"
+
+fun settingsRecentPlaybackTileLabel(): String =
+    "继续观看"
+
+fun settingsSelectedMediaTileLabel(): String =
+    "当前媒体"
+
+fun settingsIndexTileLabel(): String =
+    "索引"
+
+fun settingsPostSyncSourceTileLabel(): String =
+    "同步后扫描源"
+
+fun settingsRecentScanStatusTileLabel(): String =
+    "最近扫描状态"
+
+fun settingsSelectedMetadataEntryTileLabel(): String =
+    "选中条目"
+
+fun settingsMetadataMatchStatusTileLabel(): String =
+    "匹配状态"
+
+fun settingsMetadataCandidateScopeTileLabel(): String =
+    "候选范围"
+
+fun settingsWebUiNativeControlTileLabel(): String =
+    "桌面控制"
+
+fun settingsRemoteAutomationTileLabel(): String =
+    "远程自动化"
+
+fun settingsCountValue(count: Int): String =
+    "${count.coerceAtLeast(0)} 个"
+
+fun settingsRecordCountValue(count: Int): String =
+    "${count.coerceAtLeast(0)} 条"
+
+fun settingsIndexedCountValue(count: Int): String =
+    "${count.coerceAtLeast(0)} 条索引"
+
+fun settingsSavedStateValue(saved: Boolean): String =
+    if (saved) "已保存" else "未保存"
+
+fun settingsNoSourceSelectedValue(): String =
+    "未选择"
+
+fun settingsMissingSourceValue(sourceId: Long): String =
+    "缺失媒体源 #$sourceId"
+
+fun settingsSourceTypeBreakdown(sources: List<MediaSourceInfo>): String {
+    if (sources.isEmpty()) return "尚未添加本地、WebDAV 或 SMB 源。"
+    return MediaSourceType.entries
+        .mapNotNull { type ->
+            val count = sources.count { it.type == type }
+            if (count == 0) null else "${type.tvLabel()} $count"
+        }
+        .joinToString(" · ")
+}
+
+fun settingsActiveSourceLabel(source: MediaSourceInfo?): String =
+    source?.sourcePickerTitle() ?: settingsNoSourceSelectedValue()
+
+fun settingsLinkedSourceLabel(
+    sources: List<MediaSourceInfo>,
+    sourceId: Long?,
+): String {
+    if (sourceId == null) return settingsNoSourceSelectedValue()
+    return sources.firstOrNull { it.id == sourceId }?.sourcePickerTitle()
+        ?: settingsMissingSourceValue(sourceId)
+}
+
+fun settingsWebUiTileDetail(): String =
+    "二维码和局域网令牌入口由 TV 设置页提供。"
+
+fun settingsDesktopControlTileValue(): String =
+    "原生窗口"
+
+fun settingsDesktopControlTileDetail(): String =
+    "Windows 版保留键盘/遥控式导航和本机播放控制。"
+
+fun settingsRemoteAutomationTileValue(): String =
+    "Cloud/RSS"
+
+fun settingsRemoteAutomationTileDetail(): String =
+    "CloudDrive2 与 RSS 同步在云盘设置页管理。"
+
+fun settingsCloudRssOverviewValue(enabled: Boolean): String =
+    if (enabled) "已启用" else "未启用"
+
+fun settingsCloudRssSubscriptionsValue(subscriptionCount: Int): String =
+    settingsCountValue(subscriptionCount)
+
+fun settingsCloudRssLinkedSourceValue(linkedSourceLabel: String): String =
+    linkedSourceLabel
+
+fun settingsCloudRssSchedulerIdleStatus(): String =
+    "调度器待命，尚未检查。"
+
+fun settingsCloudRssStatusFallback(): String =
+    "调度器待命，尚未检查。"
+
+fun settingsCloudRssOverviewDetail(value: String): String =
+    value

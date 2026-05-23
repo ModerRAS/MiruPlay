@@ -76,8 +76,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
-import com.miruplay.tv.data.preferences.PlaybackEndAction
 import com.miruplay.tv.data.preferences.ScanPreferencesManager
+import com.miruplay.tv.model.PlaybackEndAction
+import com.miruplay.tv.model.CLOUD_DRIVE_ROOT_DISPLAY_NAME
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
@@ -86,8 +87,114 @@ import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.androidTvSettingsSectionOrder
 import com.miruplay.tv.model.connectionDisplayName
 import com.miruplay.tv.model.connectionUsername
+import com.miruplay.tv.model.cloudDriveRssApiTokenFieldLabel
+import com.miruplay.tv.model.cloudDriveRssChooseDirectoryActionLabel
+import com.miruplay.tv.model.cloudDriveRssCloseActionLabel
+import com.miruplay.tv.model.cloudDriveRssCredentialsBadgeLabel
+import com.miruplay.tv.model.cloudDriveRssDescriptionLabel
+import com.miruplay.tv.model.cloudDriveRssEmptyDirectoryMessage
+import com.miruplay.tv.model.cloudDriveRssEndpointFieldLabel
+import com.miruplay.tv.model.cloudDriveRssInboxDirectoryPickerTitle
+import com.miruplay.tv.model.cloudDriveRssInboxPathFieldLabel
+import com.miruplay.tv.model.cloudDriveRssIntervalMinutesFieldLabel
+import com.miruplay.tv.model.cloudDriveRssLibraryDirectoryPickerTitle
+import com.miruplay.tv.model.cloudDriveRssLibraryPathFieldLabel
+import com.miruplay.tv.model.cloudDriveRssLoadingDirectoriesMessage
+import com.miruplay.tv.model.cloudDriveRssLoginActionLabel
+import com.miruplay.tv.model.cloudDriveRssNoScanSourceOptionLabel
+import com.miruplay.tv.model.cloudDriveRssNoWebDavSourceMessage
+import com.miruplay.tv.model.cloudDriveRssParentDirectoryActionLabel
+import com.miruplay.tv.model.cloudDriveRssPasswordFieldLabel
+import com.miruplay.tv.model.cloudDriveRssProxyHostFieldLabel
+import com.miruplay.tv.model.cloudDriveRssProxyPortFieldLabel
+import com.miruplay.tv.model.cloudDriveRssProxyToggleLabel
+import com.miruplay.tv.model.cloudDriveRssRunNowActionLabel
+import com.miruplay.tv.model.cloudDriveRssSaveApiTokenActionLabel
+import com.miruplay.tv.model.cloudDriveRssSaveConfigActionLabel
+import com.miruplay.tv.model.cloudDriveRssScanSourceTitleLabel
+import com.miruplay.tv.model.cloudDriveRssScheduledChipLabel
+import com.miruplay.tv.model.cloudDriveRssTitleLabel
+import com.miruplay.tv.model.cloudDriveRssTokenStatusMessage
+import com.miruplay.tv.model.cloudDriveRssUseCurrentDirectoryActionLabel
+import com.miruplay.tv.model.cloudDriveRssUsernameFieldLabel
 import com.miruplay.tv.model.defaultSourceName
+import com.miruplay.tv.model.defaultSourceLocation
+import com.miruplay.tv.model.directoryBrowserCancelActionLabel
+import com.miruplay.tv.model.directoryBrowserCloseActionLabel
+import com.miruplay.tv.model.directoryBrowserEmptyMessage
+import com.miruplay.tv.model.directoryBrowserLoadingMessage
+import com.miruplay.tv.model.directoryBrowserParentActionLabel
+import com.miruplay.tv.model.directoryBrowserRootDisplayName
+import com.miruplay.tv.model.directoryBrowserTitleLabel
+import com.miruplay.tv.model.directoryBrowserUseCurrentActionLabel
+import com.miruplay.tv.model.mediaSourceChooseFolderActionLabel
+import com.miruplay.tv.model.mediaSourceConfiguredCountLabel
+import com.miruplay.tv.model.mediaSourceConnectionSuccessMessage
+import com.miruplay.tv.model.mediaSourceConnectionTestingMessage
+import com.miruplay.tv.model.mediaSourceDisplayNameFieldLabel
+import com.miruplay.tv.model.mediaSourceEmptyListMessage
+import com.miruplay.tv.model.mediaSourceFormDescriptionLabel
+import com.miruplay.tv.model.mediaSourceFormTitleLabel
+import com.miruplay.tv.model.mediaSourceListTitleLabel
+import com.miruplay.tv.model.mediaSourceLocalLibraryFallbackName
+import com.miruplay.tv.model.mediaSourceLocalFolderAuthorizedLabel
+import com.miruplay.tv.model.mediaSourceLocalFolderEmptyLabel
+import com.miruplay.tv.model.mediaSourceLocalPathDisplayName
+import com.miruplay.tv.model.mediaSourceNewActionLabel
+import com.miruplay.tv.model.mediaSourcePasswordOptionalFieldLabel
+import com.miruplay.tv.model.mediaSourceSaveActionLabel
+import com.miruplay.tv.model.mediaSourceTestConnectionActionLabel
+import com.miruplay.tv.model.mediaSourceUsernameOptionalFieldLabel
+import com.miruplay.tv.model.playbackEndPlayNextEpisodeActionLabel
+import com.miruplay.tv.model.playbackEndPlayNextEpisodeDetail
+import com.miruplay.tv.model.playbackEndPlayNextEpisodeSummary
+import com.miruplay.tv.model.playbackEndReturnToDetailActionLabel
+import com.miruplay.tv.model.playbackEndReturnToDetailDetail
+import com.miruplay.tv.model.playbackEndReturnToDetailSummary
+import com.miruplay.tv.model.playbackEndSettingsDescriptionLabel
+import com.miruplay.tv.model.playbackEndSettingsTitleLabel
+import com.miruplay.tv.model.metadataPanelTitleLabel
+import com.miruplay.tv.model.metadataBangumiTokenFieldLabel
+import com.miruplay.tv.model.metadataBangumiTokenMissingStatus
+import com.miruplay.tv.model.metadataBangumiTokenOptionalHint
+import com.miruplay.tv.model.metadataBangumiTokenSavedStatus
+import com.miruplay.tv.model.settingsAutoScanToggleLabel
+import com.miruplay.tv.model.settingsBackActionLabel
+import com.miruplay.tv.model.settingsCloudDriveMenuSummary
+import com.miruplay.tv.model.settingsCurrentScanIntervalStatus
+import com.miruplay.tv.model.settingsLibraryDisplayTitleLabel
+import com.miruplay.tv.model.settingsMergeSameAnimeStatus
+import com.miruplay.tv.model.settingsMergeSameAnimeToggleLabel
+import com.miruplay.tv.model.settingsMetadataTokenMenuSummary
+import com.miruplay.tv.model.settingsScanIntervalOptionLabel
+import com.miruplay.tv.model.settingsScanMenuSummary
+import com.miruplay.tv.model.settingsScanPanelDescription
+import com.miruplay.tv.model.settingsScanPanelTitleLabel
+import com.miruplay.tv.model.settingsClearTokenActionLabel
+import com.miruplay.tv.model.settingsSaveTokenActionLabel
+import com.miruplay.tv.model.settingsSourcesMenuSummary
+import com.miruplay.tv.model.settingsWebUiAccessTokenLabel
+import com.miruplay.tv.model.settingsWebUiAddressLabel
+import com.miruplay.tv.model.settingsWebUiAvailableAddressesLabel
+import com.miruplay.tv.model.settingsWebUiDisabledStatus
+import com.miruplay.tv.model.settingsWebUiMenuSummary
+import com.miruplay.tv.model.settingsWebUiNoLanAddressStatus
+import com.miruplay.tv.model.settingsWebUiPanelDescription
+import com.miruplay.tv.model.settingsWebUiPanelTitleLabel
+import com.miruplay.tv.model.settingsWebUiQrOpenLabel
+import com.miruplay.tv.model.settingsWebUiRefreshAddressActionLabel
+import com.miruplay.tv.model.settingsWebUiRotateTokenActionLabel
+import com.miruplay.tv.model.settingsWebUiToggleActionLabel
 import com.miruplay.tv.model.sourceLocation
+import com.miruplay.tv.model.rssSubscriptionAddActionLabel
+import com.miruplay.tv.model.rssSubscriptionEmptyMessage
+import com.miruplay.tv.model.rssSubscriptionFilterRegexFieldLabel
+import com.miruplay.tv.model.rssSubscriptionLastCheckedLabel
+import com.miruplay.tv.model.rssSubscriptionNameFieldLabel
+import com.miruplay.tv.model.rssSubscriptionNewEnabledLabel
+import com.miruplay.tv.model.rssSubscriptionStateActionLabel
+import com.miruplay.tv.model.rssSubscriptionUrlFieldLabel
+import com.miruplay.tv.model.rssSubscriptionsTitleLabel
 import com.miruplay.tv.model.tvDisplayName
 import com.miruplay.tv.model.tvDisplayStatusLabel
 import com.miruplay.tv.model.tvLabel
@@ -159,7 +266,7 @@ fun AddSourceScreen(
     var selectedType by remember { mutableStateOf(MediaSourceType.LOCAL) }
     var name by remember { mutableStateOf(sourceNameOrDefault("", MediaSourceType.LOCAL)) }
     var location by remember { mutableStateOf(DEFAULT_LOCAL_PATH) }
-    var locationDisplayName by remember { mutableStateOf("Download") }
+    var locationDisplayName by remember { mutableStateOf(mediaSourceLocalPathDisplayName(DEFAULT_LOCAL_PATH)) }
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var tokenInput by remember { mutableStateOf("") }
@@ -222,8 +329,8 @@ fun AddSourceScreen(
         editingSourceId = null
         selectedType = type
         name = sourceNameOrDefault("", type)
-        location = defaultLocationFor(type)
-        locationDisplayName = if (type == MediaSourceType.LOCAL) "Download" else ""
+        location = type.defaultSourceLocation(DEFAULT_LOCAL_PATH)
+        locationDisplayName = if (type == MediaSourceType.LOCAL) mediaSourceLocalPathDisplayName(location) else ""
         username = ""
         password = ""
         viewModel.clearTestResult()
@@ -321,8 +428,8 @@ fun AddSourceScreen(
                             editingSourceId = null
                             selectedType = type
                             name = sourceNameOrDefault("", type)
-                            location = defaultLocationFor(type)
-                            locationDisplayName = if (type == MediaSourceType.LOCAL) "Download" else ""
+                            location = type.defaultSourceLocation(DEFAULT_LOCAL_PATH)
+                            locationDisplayName = if (type == MediaSourceType.LOCAL) mediaSourceLocalPathDisplayName(location) else ""
                             username = ""
                             password = ""
                             viewModel.clearTestResult()
@@ -498,9 +605,9 @@ fun AddSourceScreen(
                     onNavigate = viewModel::browseLocalDirectory,
                     onSelectCurrent = {
                         location = it
-                        locationDisplayName = displayNameForLocalPath(it)
+                        locationDisplayName = mediaSourceLocalPathDisplayName(it)
                         if (name.isBlank() || name == "本地下载") {
-                            name = locationDisplayName.ifBlank { "本地媒体库" }
+                            name = locationDisplayName.ifBlank { mediaSourceLocalLibraryFallbackName() }
                         }
                         viewModel.clearTestResult()
                         viewModel.closeLocalDirectoryPicker()
@@ -531,7 +638,7 @@ private fun SettingsHeader(onNavigateBack: () -> Unit) {
                 color = TextSecondary
             )
         }
-        TvButton(text = "返回", onClick = onNavigateBack)
+        TvButton(text = settingsBackActionLabel(), onClick = onNavigateBack)
     }
 }
 
@@ -572,17 +679,12 @@ private fun SettingsMenuPanel(
         ) {
             itemsIndexed(androidTvSettingsSectionOrder) { index, section ->
                 val summary = when (section) {
-                    MiruPlaySettingsSection.WEB_UI -> if (webUiAddressCount > 0) "${webUiAddressCount} 个地址" else "等待网络"
-                    MiruPlaySettingsSection.SOURCES -> "${sourcesCount} 个源"
+                    MiruPlaySettingsSection.WEB_UI -> settingsWebUiMenuSummary(webUiAddressCount)
+                    MiruPlaySettingsSection.SOURCES -> settingsSourcesMenuSummary(sourcesCount)
                     MiruPlaySettingsSection.PLAYBACK -> playbackEndAction.menuSummary()
-                    MiruPlaySettingsSection.CLOUD_DRIVE -> if (cloudDriveEnabled) "${rssCount} 个订阅" else "未启用"
-                    MiruPlaySettingsSection.SCAN -> when {
-                        autoScanEnabled && mergeSameAnimeEnabled -> "定时 · 合并"
-                        autoScanEnabled -> "定时已开"
-                        mergeSameAnimeEnabled -> "同番合并"
-                        else -> "定时关闭"
-                    }
-                    MiruPlaySettingsSection.METADATA -> if (hasToken) "Token 已设置" else "未设置"
+                    MiruPlaySettingsSection.CLOUD_DRIVE -> settingsCloudDriveMenuSummary(cloudDriveEnabled, rssCount)
+                    MiruPlaySettingsSection.SCAN -> settingsScanMenuSummary(autoScanEnabled, mergeSameAnimeEnabled)
+                    MiruPlaySettingsSection.METADATA -> settingsMetadataTokenMenuSummary(hasToken)
                 }
                 SettingsMenuItem(
                     section = section,
@@ -981,15 +1083,15 @@ private fun SourceListPanel(
                 modifier = Modifier.size(26.dp)
             )
             Spacer(Modifier.width(10.dp))
-            Text(text = "媒体源", style = TvTypography.subtitle, color = TextPrimary)
+            Text(text = mediaSourceListTitleLabel(), style = TvTypography.subtitle, color = TextPrimary)
         }
 
         Spacer(Modifier.height(8.dp))
         Text(
             text = if (sources.isEmpty()) {
-                "还没有配置媒体源"
+                mediaSourceEmptyListMessage()
             } else {
-                "已配置 ${sources.size} 个源"
+                mediaSourceConfiguredCountLabel(sources.size)
             },
             style = TvTypography.body,
             color = TextSecondary
@@ -1183,12 +1285,12 @@ private fun WebUiPanel(
                 modifier = Modifier.size(26.dp)
             )
             Spacer(Modifier.width(10.dp))
-            Text(text = "WebUI 访问", style = TvTypography.subtitle, color = TextPrimary)
+            Text(text = settingsWebUiPanelTitleLabel(), style = TvTypography.subtitle, color = TextPrimary)
         }
 
         Spacer(Modifier.height(6.dp))
         Text(
-            text = "默认关闭。开启后，同一局域网设备需要携带访问令牌才能管理媒体源和遥控播放。",
+            text = settingsWebUiPanelDescription(),
             style = TvTypography.body,
             color = TextSecondary
         )
@@ -1196,20 +1298,20 @@ private fun WebUiPanel(
         Spacer(Modifier.height(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             TvButton(
-                text = if (enabled) "关闭 WebUI" else "开启 WebUI",
+                text = settingsWebUiToggleActionLabel(enabled),
                 icon = Icons.Filled.WifiTethering,
                 onClick = onToggleEnabled,
                 modifier = Modifier.width(156.dp)
             )
             TvButton(
-                text = "更换令牌",
+                text = settingsWebUiRotateTokenActionLabel(),
                 icon = Icons.Filled.Key,
                 onClick = onRotateToken,
                 enabled = enabled,
                 modifier = Modifier.width(150.dp)
             )
             TvButton(
-                text = "刷新地址",
+                text = settingsWebUiRefreshAddressActionLabel(),
                 icon = Icons.Filled.Refresh,
                 onClick = onRefresh,
                 enabled = enabled,
@@ -1219,7 +1321,7 @@ private fun WebUiPanel(
 
         Spacer(Modifier.height(12.dp))
         Text(
-            text = "访问令牌：${accessToken.ifBlank { "未生成" }}",
+            text = settingsWebUiAccessTokenLabel(accessToken),
             style = TvTypography.caption,
             color = TextSecondary,
             maxLines = 2,
@@ -1229,13 +1331,13 @@ private fun WebUiPanel(
         if (!enabled) {
             StatusMessage(
                 icon = Icons.Filled.Close,
-                text = "WebUI 当前未启用，不会监听局域网端口。",
+                text = settingsWebUiDisabledStatus(),
                 color = WarningYellow
             )
         } else if (urls.isEmpty()) {
             StatusMessage(
                 icon = Icons.Filled.Refresh,
-                text = "暂未检测到局域网地址，请确认电视已连接网络后刷新。",
+                text = settingsWebUiNoLanAddressStatus(),
                 color = WarningYellow
             )
         } else {
@@ -1250,14 +1352,14 @@ private fun WebUiPanel(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text(
-                        text = "可用地址",
+                        text = settingsWebUiAvailableAddressesLabel(),
                         style = TvTypography.caption,
                         color = TextSecondary
                     )
                     urls.forEachIndexed { index, url ->
                         WebUiMenuItem(
                             url = url,
-                            label = if (index == 0) "主地址" else "备用地址",
+                            label = settingsWebUiAddressLabel(index),
                             selected = url == activeUrl,
                             onClick = { onUrlSelected(url) }
                         )
@@ -1274,7 +1376,7 @@ private fun WebUiPanel(
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        text = "扫码打开",
+                        text = settingsWebUiQrOpenLabel(),
                         style = TvTypography.caption,
                         color = TextSecondary,
                         maxLines = 1
@@ -1414,13 +1516,17 @@ private fun CloudDriveDirectoryPickerDialog(
                 )
                 Spacer(Modifier.width(10.dp))
                 Text(
-                    text = if (state.target == CloudDriveDirectoryTarget.INBOX) "选择下载目录 A" else "选择整理目录 B",
+                    text = if (state.target == CloudDriveDirectoryTarget.INBOX) {
+                        cloudDriveRssInboxDirectoryPickerTitle()
+                    } else {
+                        cloudDriveRssLibraryDirectoryPickerTitle()
+                    },
                     style = TvTypography.subtitle,
                     color = TextPrimary
                 )
                 Spacer(Modifier.weight(1f))
                 TvButton(
-                    text = "关闭",
+                    text = cloudDriveRssCloseActionLabel(),
                     icon = Icons.Filled.Close,
                     enabled = true,
                     onClick = onDismiss
@@ -1429,7 +1535,7 @@ private fun CloudDriveDirectoryPickerDialog(
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 ScanOptionChip(
-                    text = "上一级",
+                    text = cloudDriveRssParentDirectoryActionLabel(),
                     icon = Icons.AutoMirrored.Filled.ArrowBack,
                     selected = false,
                     enabled = state.parentPath != null,
@@ -1437,7 +1543,7 @@ private fun CloudDriveDirectoryPickerDialog(
                     modifier = Modifier.width(140.dp)
                 )
                 Text(
-                    text = state.displayPath.ifBlank { "CloudDrive 根目录" },
+                    text = state.displayPath.ifBlank { CLOUD_DRIVE_ROOT_DISPLAY_NAME },
                     style = TvTypography.body,
                     color = TextSecondary,
                     maxLines = 1,
@@ -1447,9 +1553,9 @@ private fun CloudDriveDirectoryPickerDialog(
             }
 
             if (state.isLoading) {
-                Text(text = "正在读取目录...", color = TextSecondary, style = TvTypography.body)
+                Text(text = cloudDriveRssLoadingDirectoriesMessage(), color = TextSecondary, style = TvTypography.body)
             } else if (state.entries.isEmpty()) {
-                Text(text = "没有可进入的子文件夹。", color = TextSecondary, style = TvTypography.body)
+                Text(text = cloudDriveRssEmptyDirectoryMessage(), color = TextSecondary, style = TvTypography.body)
             } else {
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -1480,13 +1586,13 @@ private fun CloudDriveDirectoryPickerDialog(
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 TvButton(
-                    text = "取消",
+                    text = cloudDriveRssCloseActionLabel(),
                     icon = Icons.Filled.Close,
                     enabled = true,
                     onClick = onDismiss
                 )
                 TvButton(
-                    text = "选择当前目录",
+                    text = cloudDriveRssUseCurrentDirectoryActionLabel(),
                     icon = Icons.Filled.CheckCircle,
                     enabled = canSelectCurrent,
                     onClick = { onSelectCurrent(state.path) }
@@ -1524,13 +1630,13 @@ private fun LocalDirectoryPickerDialog(
                 )
                 Spacer(Modifier.width(10.dp))
                 Text(
-                    text = "选择本地媒体文件夹",
+                    text = directoryBrowserTitleLabel(isLocal = true),
                     style = TvTypography.subtitle,
                     color = TextPrimary
                 )
                 Spacer(Modifier.weight(1f))
                 TvButton(
-                    text = "关闭",
+                    text = directoryBrowserCloseActionLabel(),
                     icon = Icons.Filled.Close,
                     enabled = true,
                     onClick = onDismiss
@@ -1539,7 +1645,7 @@ private fun LocalDirectoryPickerDialog(
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 ScanOptionChip(
-                    text = "上一级",
+                    text = directoryBrowserParentActionLabel(isLocal = true),
                     icon = Icons.AutoMirrored.Filled.ArrowBack,
                     selected = false,
                     enabled = state.parentPath != null,
@@ -1547,7 +1653,7 @@ private fun LocalDirectoryPickerDialog(
                     modifier = Modifier.width(140.dp)
                 )
                 Text(
-                    text = state.displayPath.ifBlank { "设备存储" },
+                    text = state.displayPath.ifBlank { directoryBrowserRootDisplayName(isLocal = true) },
                     style = TvTypography.body,
                     color = TextSecondary,
                     maxLines = 1,
@@ -1557,9 +1663,9 @@ private fun LocalDirectoryPickerDialog(
             }
 
             if (state.isLoading) {
-                Text(text = "正在读取目录...", color = TextSecondary, style = TvTypography.body)
+                Text(text = directoryBrowserLoadingMessage(isLocal = true), color = TextSecondary, style = TvTypography.body)
             } else if (state.entries.isEmpty()) {
-                Text(text = "没有可进入的子文件夹。", color = TextSecondary, style = TvTypography.body)
+                Text(text = directoryBrowserEmptyMessage(isLocal = true), color = TextSecondary, style = TvTypography.body)
             } else {
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -1590,13 +1696,13 @@ private fun LocalDirectoryPickerDialog(
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 TvButton(
-                    text = "取消",
+                    text = directoryBrowserCancelActionLabel(),
                     icon = Icons.Filled.Close,
                     enabled = true,
                     onClick = onDismiss
                 )
                 TvButton(
-                    text = "选择当前目录",
+                    text = directoryBrowserUseCurrentActionLabel(isLocal = true),
                     icon = Icons.Filled.CheckCircle,
                     enabled = canSelectCurrent,
                     onClick = { onSelectCurrent(state.path) }
@@ -1655,12 +1761,12 @@ private fun CloudDriveAutomationPanel(
                 modifier = Modifier.size(26.dp)
             )
             Spacer(Modifier.width(10.dp))
-            Text(text = "CloudDrive2", style = TvTypography.subtitle, color = TextPrimary)
+            Text(text = cloudDriveRssTitleLabel(), style = TvTypography.subtitle, color = TextPrimary)
         }
 
         Spacer(Modifier.height(6.dp))
         Text(
-            text = "RSS 会提交到 CloudDrive2 离线下载目录，整理后触发所选 WebDAV 媒体源扫描。",
+            text = cloudDriveRssDescriptionLabel(),
             style = TvTypography.body,
             color = TextSecondary
         )
@@ -1668,7 +1774,7 @@ private fun CloudDriveAutomationPanel(
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ScanOptionChip(
-                text = if (enabled) "定时已开" else "定时关闭",
+                text = cloudDriveRssScheduledChipLabel(enabled),
                 icon = Icons.Filled.Refresh,
                 selected = enabled,
                 enabled = true,
@@ -1676,7 +1782,7 @@ private fun CloudDriveAutomationPanel(
                 modifier = Modifier.width(150.dp)
             )
             ScanOptionChip(
-                text = if (tokenConfigured) "已登录" else "未登录",
+                text = cloudDriveRssCredentialsBadgeLabel(tokenConfigured),
                 icon = Icons.Filled.CheckCircle,
                 selected = tokenConfigured,
                 enabled = false,
@@ -1689,7 +1795,7 @@ private fun CloudDriveAutomationPanel(
         TvTextField(
             value = endpoint,
             onValueChange = onEndpointChange,
-            label = "CloudDrive2 地址",
+            label = cloudDriveRssEndpointFieldLabel(),
             modifier = Modifier.fillMaxWidth()
         )
 
@@ -1698,13 +1804,13 @@ private fun CloudDriveAutomationPanel(
             TvTextField(
                 value = username,
                 onValueChange = onUsernameChange,
-                label = "账号",
+                label = cloudDriveRssUsernameFieldLabel(),
                 modifier = Modifier.weight(1f)
             )
             TvTextField(
                 value = password,
                 onValueChange = onPasswordChange,
-                label = "密码",
+                label = cloudDriveRssPasswordFieldLabel(),
                 isPassword = true,
                 modifier = Modifier.weight(1f)
             )
@@ -1714,7 +1820,7 @@ private fun CloudDriveAutomationPanel(
         TvTextField(
             value = apiToken,
             onValueChange = onApiTokenChange,
-            label = "API Token / Key",
+            label = cloudDriveRssApiTokenFieldLabel(),
             isPassword = true,
             modifier = Modifier.fillMaxWidth()
         )
@@ -1724,7 +1830,7 @@ private fun CloudDriveAutomationPanel(
             CloudDrivePathSelectorField(
                 value = inboxPath,
                 onValueChange = onInboxPathChange,
-                label = "下载目录 A",
+                label = cloudDriveRssInboxPathFieldLabel(),
                 canPick = canPickCloudDriveDirectory,
                 onPick = onPickCloudInboxPath,
                 modifier = Modifier.weight(1f)
@@ -1732,7 +1838,7 @@ private fun CloudDriveAutomationPanel(
             CloudDrivePathSelectorField(
                 value = libraryPath,
                 onValueChange = onLibraryPathChange,
-                label = "整理目录 B",
+                label = cloudDriveRssLibraryPathFieldLabel(),
                 canPick = canPickCloudDriveDirectory,
                 onPick = onPickCloudLibraryPath,
                 modifier = Modifier.weight(1f)
@@ -1743,14 +1849,14 @@ private fun CloudDriveAutomationPanel(
         TvTextField(
             value = intervalMinutes,
             onValueChange = onIntervalMinutesChange,
-            label = "定时间隔（分钟）",
+            label = cloudDriveRssIntervalMinutesFieldLabel(),
             modifier = Modifier.width(220.dp)
         )
 
         Spacer(Modifier.height(14.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             ScanOptionChip(
-                text = if (rssProxyEnabled) "RSS 代理已开" else "RSS 代理关闭",
+                text = cloudDriveRssProxyToggleLabel(rssProxyEnabled),
                 icon = Icons.Filled.Dns,
                 selected = rssProxyEnabled,
                 enabled = true,
@@ -1764,13 +1870,13 @@ private fun CloudDriveAutomationPanel(
                 TvTextField(
                     value = rssProxyHost,
                     onValueChange = onRssProxyHostChange,
-                    label = "代理地址",
+                    label = cloudDriveRssProxyHostFieldLabel(),
                     modifier = Modifier.weight(1f)
                 )
                 TvTextField(
                     value = rssProxyPort,
                     onValueChange = onRssProxyPortChange,
-                    label = "代理端口",
+                    label = cloudDriveRssProxyPortFieldLabel(),
                     modifier = Modifier.width(160.dp)
                 )
             }
@@ -1786,25 +1892,25 @@ private fun CloudDriveAutomationPanel(
         Spacer(Modifier.height(18.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             TvButton(
-                text = "保存",
+                text = cloudDriveRssSaveConfigActionLabel(),
                 icon = Icons.Filled.Save,
                 enabled = endpoint.isNotBlank(),
                 onClick = onSave
             )
             TvButton(
-                text = if (busy) "处理中" else "登录",
+                text = cloudDriveRssLoginActionLabel(busy),
                 icon = Icons.Filled.Key,
                 enabled = !busy && endpoint.isNotBlank() && username.isNotBlank() && password.isNotBlank(),
                 onClick = onLogin
             )
             TvButton(
-                text = "保存 Key",
+                text = cloudDriveRssSaveApiTokenActionLabel(),
                 icon = Icons.Filled.Key,
                 enabled = apiToken.isNotBlank(),
                 onClick = onSaveApiToken
             )
             TvButton(
-                text = if (busy) "执行中" else "立即执行",
+                text = cloudDriveRssRunNowActionLabel(busy),
                 icon = Icons.Filled.Refresh,
                 enabled = !busy && tokenConfigured,
                 onClick = onRunNow
@@ -1813,7 +1919,7 @@ private fun CloudDriveAutomationPanel(
 
         StatusMessage(
             icon = if (tokenConfigured) Icons.Filled.CheckCircle else Icons.Filled.Cloud,
-            text = if (tokenConfigured) "CloudDrive2 令牌已保存在加密存储中。" else "登录后才能提交离线下载任务。",
+            text = cloudDriveRssTokenStatusMessage(tokenConfigured),
             color = if (tokenConfigured) ProgressGreen else TextSecondary
         )
         if (!actionMessage.isNullOrBlank()) {
@@ -1844,7 +1950,7 @@ private fun CloudDrivePathSelectorField(
         )
         Spacer(Modifier.height(8.dp))
         ScanOptionChip(
-            text = "选择目录",
+            text = cloudDriveRssChooseDirectoryActionLabel(),
             icon = Icons.Filled.FolderOpen,
             selected = false,
             enabled = canPick,
@@ -1862,7 +1968,7 @@ private fun CloudDriveWebDavSourceSelector(
 ) {
     Column {
         Text(
-            text = "入库后扫描的 WebDAV 媒体源",
+            text = cloudDriveRssScanSourceTitleLabel(),
             style = TvTypography.caption,
             color = TextSecondary
         )
@@ -1870,13 +1976,13 @@ private fun CloudDriveWebDavSourceSelector(
         if (sources.isEmpty()) {
             StatusMessage(
                 icon = Icons.Filled.Storage,
-                text = "还没有 WebDAV 媒体源，请先在媒体源里添加 CloudDrive WebDAV 地址。",
+                text = cloudDriveRssNoWebDavSourceMessage(),
                 color = WarningYellow
             )
         } else {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 CloudDriveWebDavSourceChip(
-                    text = "暂不扫描",
+                    text = cloudDriveRssNoScanSourceOptionLabel(),
                     selected = selectedSourceId == null,
                     onClick = { onSelected(null) },
                     modifier = Modifier.width(130.dp)
@@ -1934,42 +2040,42 @@ private fun RssSubscriptionsPanel(
                 modifier = Modifier.size(26.dp)
             )
             Spacer(Modifier.width(10.dp))
-            Text(text = "RSS 订阅", style = TvTypography.subtitle, color = TextPrimary)
+            Text(text = rssSubscriptionsTitleLabel(), style = TvTypography.subtitle, color = TextPrimary)
         }
 
         Spacer(Modifier.height(14.dp))
         TvTextField(
             value = name,
             onValueChange = onNameChange,
-            label = "订阅名称",
+            label = rssSubscriptionNameFieldLabel(),
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(Modifier.height(12.dp))
         TvTextField(
             value = url,
             onValueChange = onUrlChange,
-            label = "RSS 地址",
+            label = rssSubscriptionUrlFieldLabel(),
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(Modifier.height(12.dp))
         TvTextField(
             value = filterRegex,
             onValueChange = onFilterRegexChange,
-            label = "标题过滤正则（可选）",
+            label = rssSubscriptionFilterRegexFieldLabel(),
             modifier = Modifier.fillMaxWidth()
         )
 
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ScanOptionChip(
-                text = if (enabled) "新增后启用" else "新增后停用",
+                text = rssSubscriptionNewEnabledLabel(enabled),
                 selected = enabled,
                 enabled = true,
                 onClick = onToggleEnabled,
                 modifier = Modifier.width(150.dp)
             )
             TvButton(
-                text = "添加订阅",
+                text = rssSubscriptionAddActionLabel(),
                 icon = Icons.Filled.Add,
                 enabled = url.isNotBlank(),
                 onClick = onAdd
@@ -1979,7 +2085,7 @@ private fun RssSubscriptionsPanel(
         Spacer(Modifier.height(18.dp))
         if (subscriptions.isEmpty()) {
             Text(
-                text = "还没有 RSS 订阅。",
+                text = rssSubscriptionEmptyMessage(),
                 style = TvTypography.body,
                 color = TextSecondary
             )
@@ -2046,13 +2152,15 @@ private fun RssSubscriptionRow(
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                text = if (subscription.lastCheckedAt > 0) "上次检查 ${formatTimestamp(subscription.lastCheckedAt)}" else "尚未检查",
+                text = rssSubscriptionLastCheckedLabel(
+                    subscription.lastCheckedAt.takeIf { it > 0 }?.let(::formatTimestamp)
+                ),
                 style = TvTypography.caption,
                 color = TextSecondary
             )
         }
         TvButton(
-            text = if (subscription.enabled) "停用" else "启用",
+            text = rssSubscriptionStateActionLabel(subscription.enabled),
             icon = Icons.Filled.Refresh,
             onClick = onToggle,
             modifier = Modifier.width(112.dp)
@@ -2089,24 +2197,20 @@ private fun SourceFormPanel(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = if (isEditing) "编辑媒体源" else "添加媒体源",
+                    text = mediaSourceFormTitleLabel(isEditing),
                     style = TvTypography.subtitle,
                     color = TextPrimary
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    text = if (isEditing) {
-                        "修改媒体库位置或凭据，保存后会覆盖当前配置。"
-                    } else {
-                        "选择媒体库所在位置，保存后可在首页手动扫描。"
-                    },
+                    text = mediaSourceFormDescriptionLabel(isEditing),
                     style = TvTypography.body,
                     color = TextSecondary
                 )
             }
             if (isEditing) {
                 TvButton(
-                    text = "新建",
+                    text = mediaSourceNewActionLabel(),
                     icon = Icons.Filled.Add,
                     onClick = onNewSource,
                     modifier = Modifier.width(128.dp)
@@ -2133,7 +2237,7 @@ private fun SourceFormPanel(
         TvTextField(
             value = name,
             onValueChange = onNameChange,
-            label = "显示名称",
+            label = mediaSourceDisplayNameFieldLabel(),
             modifier = Modifier.fillMaxWidth()
         )
 
@@ -2159,14 +2263,14 @@ private fun SourceFormPanel(
             TvTextField(
                 value = username,
                 onValueChange = onUsernameChange,
-                label = "用户名（可选）",
+                label = mediaSourceUsernameOptionalFieldLabel(),
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(Modifier.height(12.dp))
             TvTextField(
                 value = password,
                 onValueChange = onPasswordChange,
-                label = if (isEditing) "密码（留空则保留）" else "密码（可选）",
+                label = mediaSourcePasswordOptionalFieldLabel(isEditing),
                 isPassword = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -2176,13 +2280,13 @@ private fun SourceFormPanel(
 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             TvButton(
-                text = if (testResult is ConnectionTestResult.Testing) "测试中" else "测试连接",
+                text = mediaSourceTestConnectionActionLabel(testResult is ConnectionTestResult.Testing),
                 icon = Icons.Filled.WifiTethering,
                 enabled = testResult !is ConnectionTestResult.Testing,
                 onClick = onTestConnection
             )
             TvButton(
-                text = if (isEditing) "更新源" else "保存源",
+                text = mediaSourceSaveActionLabel(isEditing),
                 icon = Icons.Filled.Save,
                 enabled = location.isNotBlank(),
                 onClick = onSave
@@ -2201,7 +2305,7 @@ private fun LocalFolderPickerRow(
 ) {
     Column {
         Text(
-            text = "媒体文件夹",
+            text = MediaSourceType.LOCAL.tvLocationLabel(),
             style = TvTypography.caption,
             color = TextSecondary
         )
@@ -2230,14 +2334,14 @@ private fun LocalFolderPickerRow(
                 Spacer(Modifier.width(10.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = displayName.ifBlank { "尚未选择文件夹" },
+                        text = displayName.ifBlank { mediaSourceLocalFolderEmptyLabel() },
                         style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
                         color = TextPrimary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = if (location.startsWith("content://")) "已授权访问" else location,
+                        text = if (location.startsWith("content://")) mediaSourceLocalFolderAuthorizedLabel() else location,
                         style = TvTypography.caption,
                         color = TextSecondary,
                         maxLines = 1,
@@ -2246,7 +2350,7 @@ private fun LocalFolderPickerRow(
                 }
             }
             TvButton(
-                text = "选择文件夹",
+                text = mediaSourceChooseFolderActionLabel(),
                 icon = Icons.Filled.FolderOpen,
                 onClick = onPickFolder,
                 modifier = Modifier.width(170.dp)
@@ -2314,7 +2418,7 @@ private fun ConnectionStatus(result: ConnectionTestResult?) {
     when (result) {
         is ConnectionTestResult.Success -> StatusMessage(
             icon = Icons.Filled.CheckCircle,
-            text = "连接正常，可以保存并返回首页扫描。",
+            text = mediaSourceConnectionSuccessMessage(),
             color = ProgressGreen
         )
         is ConnectionTestResult.Failed -> StatusMessage(
@@ -2324,7 +2428,7 @@ private fun ConnectionStatus(result: ConnectionTestResult?) {
         )
         is ConnectionTestResult.Testing -> StatusMessage(
             icon = Icons.Filled.WifiTethering,
-            text = "正在验证连接...",
+            text = mediaSourceConnectionTestingMessage(),
             color = TextSecondary
         )
         null -> Unit
@@ -2350,12 +2454,12 @@ private fun ScanPanel(
                 modifier = Modifier.size(26.dp)
             )
             Spacer(Modifier.width(10.dp))
-            Text(text = "媒体库扫描", style = TvTypography.subtitle, color = TextPrimary)
+            Text(text = settingsScanPanelTitleLabel(), style = TvTypography.subtitle, color = TextPrimary)
         }
 
         Spacer(Modifier.height(6.dp))
         Text(
-            text = "首页的扫描按钮会立即执行；定时扫描只会在到达间隔后回到首页时触发。",
+            text = settingsScanPanelDescription(),
             style = TvTypography.body,
             color = TextSecondary
         )
@@ -2363,7 +2467,7 @@ private fun ScanPanel(
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ScanOptionChip(
-                text = if (autoScanEnabled) "定时已开" else "定时关闭",
+                text = settingsAutoScanToggleLabel(autoScanEnabled),
                 icon = Icons.Filled.Refresh,
                 selected = autoScanEnabled,
                 enabled = true,
@@ -2375,7 +2479,7 @@ private fun ScanPanel(
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ScanPreferencesManager.INTERVAL_OPTIONS_HOURS.forEach { hours ->
                 ScanOptionChip(
-                    text = "${hours}小时",
+                    text = settingsScanIntervalOptionLabel(hours),
                     selected = autoScanEnabled && hours == autoScanIntervalHours,
                     enabled = autoScanEnabled,
                     onClick = { onIntervalSelected(hours) },
@@ -2386,20 +2490,20 @@ private fun ScanPanel(
 
         StatusMessage(
             icon = Icons.Filled.CheckCircle,
-            text = "当前间隔 ${autoScanIntervalHours} 小时 · ${formatLastScanAt(lastScanAt)}",
+            text = settingsCurrentScanIntervalStatus(autoScanIntervalHours, formatLastScanAt(lastScanAt)),
             color = if (autoScanEnabled) ProgressGreen else TextSecondary
         )
 
         Spacer(Modifier.height(18.dp))
         Text(
-            text = "媒体库显示",
+            text = settingsLibraryDisplayTitleLabel(),
             style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
             color = TextPrimary
         )
         Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ScanOptionChip(
-                text = if (mergeSameAnimeEnabled) "同番合并" else "目录分开",
+                text = settingsMergeSameAnimeToggleLabel(mergeSameAnimeEnabled),
                 icon = Icons.Filled.Dns,
                 selected = mergeSameAnimeEnabled,
                 enabled = true,
@@ -2409,11 +2513,7 @@ private fun ScanPanel(
         }
         StatusMessage(
             icon = Icons.Filled.CheckCircle,
-            text = if (mergeSameAnimeEnabled) {
-                "首页和详情会按 Bangumi ID 或标题合并同一番。"
-            } else {
-                "首页按扫描出的目录条目分别显示。"
-            },
+            text = settingsMergeSameAnimeStatus(mergeSameAnimeEnabled),
             color = if (mergeSameAnimeEnabled) ProgressGreen else TextSecondary
         )
     }
@@ -2433,12 +2533,12 @@ private fun PlaybackPanel(
                 modifier = Modifier.size(26.dp)
             )
             Spacer(Modifier.width(10.dp))
-            Text(text = "播放结束", style = TvTypography.subtitle, color = TextPrimary)
+            Text(text = playbackEndSettingsTitleLabel(), style = TvTypography.subtitle, color = TextPrimary)
         }
 
         Spacer(Modifier.height(6.dp))
         Text(
-            text = "选定剧集播完后，可以直接回到详情页，也可以自动切到下一集。",
+            text = playbackEndSettingsDescriptionLabel(),
             style = TvTypography.body,
             color = TextSecondary
         )
@@ -2446,7 +2546,7 @@ private fun PlaybackPanel(
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ScanOptionChip(
-                text = "返回详情",
+                text = playbackEndReturnToDetailActionLabel(),
                 icon = Icons.AutoMirrored.Filled.ArrowBack,
                 selected = endAction == PlaybackEndAction.RETURN_TO_DETAIL,
                 enabled = true,
@@ -2454,7 +2554,7 @@ private fun PlaybackPanel(
                 modifier = Modifier.width(160.dp)
             )
             ScanOptionChip(
-                text = "继续下一集",
+                text = playbackEndPlayNextEpisodeActionLabel(),
                 icon = Icons.Filled.PlayArrow,
                 selected = endAction == PlaybackEndAction.PLAY_NEXT_EPISODE,
                 enabled = true,
@@ -2466,8 +2566,8 @@ private fun PlaybackPanel(
         StatusMessage(
             icon = Icons.Filled.CheckCircle,
             text = when (endAction) {
-                PlaybackEndAction.RETURN_TO_DETAIL -> "播完后会停在详情页，方便手动挑下一集。"
-                PlaybackEndAction.PLAY_NEXT_EPISODE -> "播完后会自动开始下一集，没有下一集时会回到详情页。"
+                PlaybackEndAction.RETURN_TO_DETAIL -> playbackEndReturnToDetailDetail()
+                PlaybackEndAction.PLAY_NEXT_EPISODE -> playbackEndPlayNextEpisodeDetail()
             },
             color = if (endAction == PlaybackEndAction.PLAY_NEXT_EPISODE) ProgressGreen else TextSecondary
         )
@@ -2533,8 +2633,8 @@ private fun ScanOptionChip(
 }
 
 private fun PlaybackEndAction.menuSummary(): String = when (this) {
-    PlaybackEndAction.RETURN_TO_DETAIL -> "播完返回"
-    PlaybackEndAction.PLAY_NEXT_EPISODE -> "自动下一集"
+    PlaybackEndAction.RETURN_TO_DETAIL -> playbackEndReturnToDetailSummary()
+    PlaybackEndAction.PLAY_NEXT_EPISODE -> playbackEndPlayNextEpisodeSummary()
 }
 
 @Composable
@@ -2555,12 +2655,12 @@ private fun MetadataPanel(
                 modifier = Modifier.size(26.dp)
             )
             Spacer(Modifier.width(10.dp))
-            Text(text = "元数据", style = TvTypography.subtitle, color = TextPrimary)
+            Text(text = metadataPanelTitleLabel(), style = TvTypography.subtitle, color = TextPrimary)
         }
 
         Spacer(Modifier.height(6.dp))
         Text(
-            text = "Bangumi Token 是可选项，只用于更完整的在线元数据。",
+            text = metadataBangumiTokenOptionalHint(),
             style = TvTypography.body,
             color = TextSecondary
         )
@@ -2569,7 +2669,7 @@ private fun MetadataPanel(
         TvTextField(
             value = tokenInput,
             onValueChange = onTokenChange,
-            label = "Bangumi Access Token",
+            label = metadataBangumiTokenFieldLabel(),
             isPassword = true,
             modifier = Modifier.fillMaxWidth()
         )
@@ -2577,13 +2677,13 @@ private fun MetadataPanel(
         Spacer(Modifier.height(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             TvButton(
-                text = "保存",
+                text = settingsSaveTokenActionLabel(),
                 icon = Icons.Filled.Save,
                 enabled = tokenInput.isNotBlank(),
                 onClick = onSaveToken
             )
             TvButton(
-                text = "清除",
+                text = settingsClearTokenActionLabel(),
                 icon = Icons.Filled.Delete,
                 enabled = savedToken.isNotBlank(),
                 onClick = onClearToken
@@ -2593,7 +2693,7 @@ private fun MetadataPanel(
         val hasToken = savedToken.isNotBlank() || tokenSaved
         StatusMessage(
             icon = if (hasToken) Icons.Filled.CheckCircle else Icons.Filled.Key,
-            text = if (hasToken) "Token 已保存在加密存储中。" else "当前未设置 Token。",
+            text = if (hasToken) metadataBangumiTokenSavedStatus() else metadataBangumiTokenMissingStatus(),
             color = if (hasToken) ProgressGreen else TextSecondary
         )
     }
@@ -2643,12 +2743,6 @@ private fun SettingsPanel(
 private fun sourceNameOrDefault(name: String, type: MediaSourceType): String =
     name.ifBlank { type.defaultSourceName() }
 
-private fun defaultLocationFor(type: MediaSourceType): String = when (type) {
-    MediaSourceType.LOCAL -> DEFAULT_LOCAL_PATH
-    MediaSourceType.WEBDAV -> ""
-    MediaSourceType.SMB -> "smb://"
-}
-
 private fun createQrCodeMatrix(content: String): BitMatrix? {
     if (content.isBlank()) return null
     return runCatching {
@@ -2686,19 +2780,13 @@ private fun displayNameForTreeUri(uri: Uri): String {
         ?.substringAfter(':', "")
         ?.substringAfterLast('/')
         ?.takeIf { it.isNotBlank() }
-    return name ?: uri.lastPathSegment?.substringAfterLast(':')?.substringAfterLast('/') ?: "本地媒体库"
+    return name ?: uri.lastPathSegment?.substringAfterLast(':')?.substringAfterLast('/')
+        ?: mediaSourceLocalLibraryFallbackName()
 }
 
 private fun displayNameForLocation(location: String): String =
     if (location.startsWith("content://")) {
         displayNameForTreeUri(Uri.parse(location))
     } else {
-        displayNameForLocalPath(location)
+        mediaSourceLocalPathDisplayName(location)
     }
-
-private fun displayNameForLocalPath(path: String): String =
-    path.trim()
-        .replace('\\', '/')
-        .trimEnd('/')
-        .substringAfterLast('/')
-        .ifBlank { "本地媒体库" }

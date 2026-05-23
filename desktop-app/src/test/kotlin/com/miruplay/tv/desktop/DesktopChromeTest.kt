@@ -2,6 +2,8 @@ package com.miruplay.tv.desktop
 
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
+import com.miruplay.tv.model.desktopPosterPlaceholderSubtitleLabel
+import com.miruplay.tv.model.desktopWindowTitleLabel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -10,12 +12,12 @@ import org.junit.Test
 class DesktopChromeTest {
     @Test
     fun `window title uses TV-facing desktop copy`() {
-        assertEquals("MiruPlay 桌面版", desktopWindowTitle())
+        assertEquals(desktopWindowTitleLabel(), desktopWindowTitle())
     }
 
     @Test
     fun `poster placeholder subtitle uses TV-facing runtime copy`() {
-        assertEquals("内置播放运行时", desktopPosterPlaceholderSubtitle())
+        assertEquals(desktopPosterPlaceholderSubtitleLabel(), desktopPosterPlaceholderSubtitle())
     }
 
     @Test
@@ -23,6 +25,7 @@ class DesktopChromeTest {
         assertTrue(isDesktopConfirmKey(Key.Enter))
         assertTrue(isDesktopConfirmKey(Key.NumPadEnter))
         assertTrue(isDesktopConfirmKey(Key.DirectionCenter))
+        assertTrue(isDesktopConfirmKey(Key.Spacebar))
         assertFalse(isDesktopConfirmKey(Key.DirectionLeft))
         assertFalse(isDesktopConfirmKey(Key.Back))
     }
@@ -106,7 +109,7 @@ class DesktopChromeTest {
 
         assertTrue(
             desktopToggleKeyEvent(
-                key = Key.Enter,
+                key = Key.Spacebar,
                 type = KeyEventType.KeyDown,
                 checked = false,
                 onCheckedChange = { nextValue = it },

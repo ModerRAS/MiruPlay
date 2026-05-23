@@ -6,6 +6,7 @@ import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MediaIndexRepository
+import com.miruplay.tv.repository.mediaFilesOnly
 import com.miruplay.tv.repository.rescanCompleteStatus
 import com.miruplay.tv.scanner.desktop.DesktopMediaLibraryScanner
 import com.miruplay.tv.sync.rss.cloudRssRescanStartedStatus
@@ -42,7 +43,7 @@ internal suspend fun rescanCloudRssLinkedSource(
                                 filesIndexed = scan.data.filesIndexed,
                                 directoriesVisited = scan.data.directoriesVisited,
                             ),
-                            videoEntries = scan.data.entries.filterNot { it.isDirectory },
+                            videoEntries = scan.data.entries.mediaFilesOnly(),
                             targetStatus = when (sourceInfo.type) {
                                 MediaSourceType.LOCAL -> DesktopCloudRssRescanTargetStatus.LIBRARY
                                 MediaSourceType.WEBDAV,

@@ -11,15 +11,13 @@ import com.miruplay.tv.model.rssSubscriptionSavedStatus
 import com.miruplay.tv.model.rssSubscriptionSelectedStatus
 import com.miruplay.tv.model.rssSubscriptionsLoadedStatus
 import com.miruplay.tv.model.rssSubscriptionsShowingStatus
+import com.miruplay.tv.model.settingsLinkedSourceLabel
+import com.miruplay.tv.model.sourcePickerTitle
 
 fun linkedCloudDriveSourceLabel(
     sources: List<MediaSourceInfo>,
     sourceId: Long?,
-): String {
-    if (sourceId == null) return "None"
-    val source = sources.firstOrNull { it.id == sourceId }
-    return source?.let { "${it.name} (${it.type.name})" } ?: "Missing source #$sourceId"
-}
+): String = settingsLinkedSourceLabel(sources, sourceId)
 
 fun cloudRssConfigSavedStatus(): String =
     com.miruplay.tv.model.cloudRssConfigSavedStatus()
@@ -77,10 +75,10 @@ fun cloudRssScanSourceMissingStatus(): String =
     com.miruplay.tv.model.cloudRssScanSourceMissingStatus()
 
 fun MediaSourceInfo.linkedCloudRssScanSourceStatus(): String =
-    cloudRssLinkedScanSourceStatus(name)
+    cloudRssLinkedScanSourceStatus(sourcePickerTitle())
 
 fun MediaSourceInfo.cloudRssRescanStartedStatus(reason: String): String =
-    com.miruplay.tv.model.cloudRssRescanStartedStatus(reason, name)
+    com.miruplay.tv.model.cloudRssRescanStartedStatus(reason, sourcePickerTitle())
 
 fun cloudRssScanSourceClearedStatus(): String =
     com.miruplay.tv.model.cloudRssScanSourceClearedStatus()

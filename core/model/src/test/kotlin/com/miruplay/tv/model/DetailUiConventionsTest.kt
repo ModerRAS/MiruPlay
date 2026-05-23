@@ -1,0 +1,89 @@
+package com.miruplay.tv.model
+
+import org.junit.Assert.assertEquals
+import org.junit.Test
+
+class DetailUiConventionsTest {
+    @Test
+    fun `shared detail action and section labels match TV and desktop copy`() {
+        assertEquals("播放", detailPlayActionLabel())
+        assertEquals("返回海报墙", detailBackToLibraryActionLabel())
+        assertEquals("重新刮削", detailRescrapeActionLabel())
+        assertEquals("同步进度", detailSyncProgressActionLabel(isSyncing = false))
+        assertEquals("同步中", detailSyncProgressActionLabel(isSyncing = true))
+        assertEquals("正在重新匹配 Bangumi...", detailBangumiRescrapeStartedMessage())
+        assertEquals("Bangumi 刮削器不可用", detailBangumiScraperUnavailableMessage())
+        assertEquals("没有找到可靠的 Bangumi 匹配", detailBangumiNoReliableMatchMessage())
+        assertEquals("Bangumi 详情获取失败", detailBangumiDetailsFailedMessage())
+        assertEquals("Bangumi 元数据已更新", detailBangumiMetadataUpdatedMessage())
+        assertEquals("正在同步 Bangumi...", detailBangumiSyncStartedMessage())
+        assertEquals("同步完成：上传 0 集，拉取 3 集", detailBangumiSyncCompleteMessage(-1, 3))
+        assertEquals("选集", detailEpisodeSectionTitle())
+        assertEquals("选择一部番剧", detailHeroEmptyTitle())
+        assertEquals("从媒体库海报墙选择内容后显示详情。", detailHeroEmptySubtitle())
+        assertEquals("扫描媒体库后会在这里显示同番选集。", detailEpisodeEmptyMessage())
+    }
+
+    @Test
+    fun `shared detail episode labels clamp and format consistently`() {
+        assertEquals("当前详情没有可播放索引项", detailEpisodeShelfSubtitle(0))
+        assertEquals("全 12 话 · 同番选集", detailEpisodeShelfSubtitle(12))
+        assertEquals("第 2 季", detailSeasonLabel(2))
+        assertEquals("第 3 集", detailEpisodeNumberLabel(3))
+        assertEquals("03", detailEpisodeBadge(3))
+        assertEquals("--", detailEpisodeBadge(null))
+        assertEquals("第 3 集", detailEpisodeTitleLabel(3, ""))
+        assertEquals("第 3 集 · First Light", detailEpisodeTitleLabel(3, "First Light"))
+        assertEquals("未编号 · Special", detailEpisodeTitleLabel(null, "Special"))
+        assertEquals("全 0 话", detailEpisodeCountLabel(-1))
+        assertEquals("集", detailEpisodePageUnitLabel())
+        assertEquals("条记录", recentPlaybackPageUnitLabel())
+        assertEquals("条详情", mediaDetailsPageUnitLabel())
+        assertEquals("评分 8.6", detailRatingLabel(8.55f))
+        assertEquals("播放", detailContinueActionLabel(null))
+        assertEquals("继续观看 7", detailContinueActionLabel(7))
+    }
+
+    @Test
+    fun `shared detail page summary hides complete pages`() {
+        assertEquals("显示 7-12 / 14 集，按上/下继续翻页。", detailPageSummary(6, 6, 14, "集"))
+        assertEquals("显示 13-14 / 14 条记录，按上/下继续翻页。", detailPageSummary(12, 2, 14, "条记录"))
+        assertEquals(null, detailPageSummary(0, 5, 5, "集"))
+    }
+
+    @Test
+    fun `shared bangumi collection labels match TV detail pills`() {
+        assertEquals("想看", detailBangumiCollectionLabel(1))
+        assertEquals("看过", detailBangumiCollectionLabel(2))
+        assertEquals("在看", detailBangumiCollectionLabel(3))
+        assertEquals("搁置", detailBangumiCollectionLabel(4))
+        assertEquals("抛弃", detailBangumiCollectionLabel(5))
+        assertEquals("已关联", detailBangumiCollectionLabel(99))
+        assertEquals("Bangumi 在看", detailBangumiCollectionPillLabel(3))
+    }
+
+    @Test
+    fun `shared media detail row labels use TV-facing copy`() {
+        assertEquals("媒体源", mediaDetailSourceLabel())
+        assertEquals("无", mediaDetailSourceEmptyValue())
+        assertEquals("索引标题", mediaDetailIndexedTitleLabel())
+        assertEquals("索引类型", mediaDetailIndexedTypeLabel())
+        assertEquals("番剧", mediaDetailAnimeLabel())
+        assertEquals("季度", mediaDetailSeasonLabel())
+        assertEquals("集数", mediaDetailEpisodeLabel())
+        assertEquals("单集标题", mediaDetailEpisodeTitleLabel())
+        assertEquals("元数据来源", mediaDetailMetadataSourceLabel())
+        assertEquals("元数据 ID", mediaDetailMetadataIdLabel())
+        assertEquals("元数据标题", mediaDetailMetadataTitleLabel())
+        assertEquals("播放进度", mediaDetailResumeLabel())
+        assertEquals("播放次数", mediaDetailPlayCountLabel())
+        assertEquals("路径", mediaDetailPathLabel())
+        assertEquals("未知", mediaDetailUnknownValue())
+        assertEquals("未关联", mediaDetailNotLinkedValue())
+        assertEquals("目录", mediaDetailDirectoryValue())
+        assertEquals("文件", mediaDetailFileValue())
+        assertEquals("视频", mediaDetailVideoValue())
+        assertEquals("目录", mediaDetailIndexedKindValue(isDirectory = true))
+        assertEquals("视频", mediaDetailIndexedKindValue(isDirectory = false))
+    }
+}

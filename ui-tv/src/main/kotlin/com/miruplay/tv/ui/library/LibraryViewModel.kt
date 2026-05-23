@@ -7,8 +7,10 @@ import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
+import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.isCompleted
+import com.miruplay.tv.model.libraryNoContentAfterScanMessage
 import com.miruplay.tv.model.mergeSameAnimeForDisplay
 import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaSourceRepository
@@ -31,7 +33,7 @@ data class ProgressWithEpisode(
 /**
  * Home screen states:
  * - Loading: initial load
- * - NoSources: no sources configured -> show "添加媒体源开始使用"
+ * - NoSources: no sources configured
  * - HasSources: sources configured but nothing scanned yet
  * - Scanning: actively scanning with progress
  * - HasContent: anime data loaded -> show library
@@ -103,7 +105,7 @@ class LibraryViewModel @Inject constructor(
                         Log.d("LibraryViewModel", "scan finished: results=${scanState.results.size}")
                         val snapshot = loadLibraryContent(showLoading = false)
                         if (snapshot.hasSources && !snapshot.hasContent) {
-                            _state.value = LibraryUiState.ScanError("未找到番剧内容，请检查媒体源路径")
+                            _state.value = LibraryUiState.ScanError(libraryNoContentAfterScanMessage())
                         }
                     }
                     is LibraryScanState.Failed -> {
@@ -175,7 +177,7 @@ class LibraryViewModel @Inject constructor(
             val pathParts = record.episodeId.split(":", limit = 2)
             val episodePath = pathParts.getOrNull(1) ?: record.episodeId
             val sourceId = pathParts.getOrNull(0)?.toLongOrNull()
-            val animeName = episodePath.extractAnimeNameFromPath()
+            val animeName = MediaPathConventions.animeNameFromEpisodePath(episodePath)
             if (animeName == null || sourceId == null) return@mapNotNull null
 
             val anime = metadataRepository.getCachedMetadata(animeName).getOrNull()
@@ -241,13 +243,3 @@ private fun LibraryScanState.Scanning.toUiState(): LibraryUiState.Scanning =
         filesScanned = filesScanned,
         newEpisodes = newEpisodes
     )
-
-private fun String.extractAnimeNameFromPath(): String? {
-    val parts = split("/", "\\").filter { it.isNotBlank() }
-    val downloadIndex = parts.indexOfLast { it.equals("Download", ignoreCase = true) }
-    return if (downloadIndex >= 0 && downloadIndex < parts.lastIndex) {
-        parts[downloadIndex + 1]
-    } else {
-        parts.firstOrNull()
-    }
-}

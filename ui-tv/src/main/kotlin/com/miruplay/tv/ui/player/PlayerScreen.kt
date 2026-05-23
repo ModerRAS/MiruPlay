@@ -79,9 +79,29 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.PlaybackState
+import com.miruplay.tv.model.PLAYBACK_SEEK_BACK_SECONDS
+import com.miruplay.tv.model.PLAYBACK_SEEK_FORWARD_SECONDS
 import com.miruplay.tv.model.SubtitleTrack
 import com.miruplay.tv.model.displayTitle
 import com.miruplay.tv.model.formatPlaybackPosition
+import com.miruplay.tv.model.playbackAudioMenuTitle
+import com.miruplay.tv.model.playbackAudioOptionLabel
+import com.miruplay.tv.model.playbackAudioTrackCountLabel
+import com.miruplay.tv.model.playbackBackLabel
+import com.miruplay.tv.model.playbackErrorTitle
+import com.miruplay.tv.model.playbackLocalSourceLabel
+import com.miruplay.tv.model.playbackPauseLabel
+import com.miruplay.tv.model.playbackPlayLabel
+import com.miruplay.tv.model.playbackRetryLabel
+import com.miruplay.tv.model.playbackSeekBackLabel
+import com.miruplay.tv.model.playbackSeekForwardLabel
+import com.miruplay.tv.model.playbackSpeedChipLabel
+import com.miruplay.tv.model.playbackSpeedMenuTitle
+import com.miruplay.tv.model.playbackSpeedValueLabel
+import com.miruplay.tv.model.playbackSubtitleCountLabel
+import com.miruplay.tv.model.playbackSubtitleOptionLabel
+import com.miruplay.tv.model.playbackSubtitlesMenuTitle
+import com.miruplay.tv.ui.components.isTvActivateKey
 import com.miruplay.tv.player.AudioTrack
 import com.miruplay.tv.ui.theme.AnimeRed
 import com.miruplay.tv.ui.theme.DarkSurface
@@ -396,7 +416,7 @@ private fun PlayerTopBar(
     ) {
         PlayerIconButton(
             icon = Icons.AutoMirrored.Filled.ArrowBack,
-            label = "返回",
+            label = playbackBackLabel(),
             onClick = onBack,
             size = 54.dp
         )
@@ -445,13 +465,13 @@ private fun TransportControls(
     ) {
         PlayerIconButton(
             icon = Icons.Filled.FastRewind,
-            label = "快退 10 秒",
+            label = playbackSeekBackLabel(PLAYBACK_SEEK_BACK_SECONDS),
             onClick = onSkipBackward,
             size = 62.dp
         )
         PlayerIconButton(
             icon = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-            label = if (isPlaying) "暂停" else "播放",
+            label = if (isPlaying) playbackPauseLabel() else playbackPlayLabel(),
             onClick = onTogglePlayback,
             size = 82.dp,
             modifier = Modifier.focusRequester(playFocusRequester),
@@ -460,7 +480,7 @@ private fun TransportControls(
         )
         PlayerIconButton(
             icon = Icons.Filled.FastForward,
-            label = "快进 30 秒",
+            label = playbackSeekForwardLabel(PLAYBACK_SEEK_FORWARD_SECONDS),
             onClick = onSkipForward,
             size = 62.dp
         )
@@ -510,24 +530,24 @@ private fun PlayerBottomBar(
         ) {
             PlayerInfoChip(
                 icon = Icons.Filled.GraphicEq,
-                text = "本地播放"
+                text = playbackLocalSourceLabel()
             )
             PlayerActionChip(
                 icon = Icons.Filled.Speed,
-                text = "倍速 ${trimSpeed(playbackSpeed)}x",
+                text = playbackSpeedChipLabel(playbackSpeed),
                 selected = openMenu == PlayerMenu.Speed,
                 onClick = { onOpenMenu(PlayerMenu.Speed) }
             )
             PlayerActionChip(
                 icon = Icons.Filled.Subtitles,
-                text = if (subtitles.isEmpty()) "无字幕" else "字幕 ${subtitles.size}",
+                text = playbackSubtitleCountLabel(subtitles.size),
                 selected = openMenu == PlayerMenu.Subtitles,
                 enabled = subtitles.isNotEmpty(),
                 onClick = { onOpenMenu(PlayerMenu.Subtitles) }
             )
             PlayerActionChip(
                 icon = Icons.Filled.Audiotrack,
-                text = if (audioTracks.isEmpty()) "音轨 0" else "音轨 ${audioTracks.size}",
+                text = playbackAudioTrackCountLabel(audioTracks.size),
                 selected = openMenu == PlayerMenu.Audio,
                 enabled = audioTracks.isNotEmpty(),
                 onClick = { onOpenMenu(PlayerMenu.Audio) }
@@ -603,7 +623,7 @@ private fun PlayerIconButton(
                 onClick = onClick
             )
             .onKeyEvent { event ->
-                if (enabled && event.type == KeyEventType.KeyDown && event.key.isActivateKey()) {
+                if (enabled && event.type == KeyEventType.KeyDown && event.key.isTvActivateKey()) {
                     onClick()
                     true
                 } else {
@@ -676,7 +696,7 @@ private fun PlayerActionChip(
             .height(48.dp)
             .clip(RoundedCornerShape(8.dp))
             .onPreviewKeyEvent { event ->
-                if (enabled && event.type == KeyEventType.KeyDown && event.key.isActivateKey()) {
+                if (enabled && event.type == KeyEventType.KeyDown && event.key.isTvActivateKey()) {
                     onClick()
                     true
                 } else {
@@ -745,9 +765,9 @@ private fun PlayerOptionsPanel(
     ) {
         Text(
             text = when (menu) {
-                PlayerMenu.Speed -> "播放速度"
-                PlayerMenu.Subtitles -> "字幕"
-                PlayerMenu.Audio -> "音轨"
+                PlayerMenu.Speed -> playbackSpeedMenuTitle()
+                PlayerMenu.Subtitles -> playbackSubtitlesMenuTitle()
+                PlayerMenu.Audio -> playbackAudioMenuTitle()
             },
             style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
             color = TextPrimary
@@ -760,7 +780,7 @@ private fun PlayerOptionsPanel(
             when (menu) {
                 PlayerMenu.Speed -> speeds.forEachIndexed { index, speed ->
                     PlayerOptionButton(
-                        text = "${trimSpeed(speed)}x",
+                        text = playbackSpeedValueLabel(speed),
                         selected = speed == playbackSpeed,
                         onClick = { onSelectSpeed(speed) },
                         modifier = if (index == 0) {
@@ -772,7 +792,7 @@ private fun PlayerOptionsPanel(
                 }
                 PlayerMenu.Subtitles -> subtitles.forEachIndexed { index, track ->
                     PlayerOptionButton(
-                        text = track.title.ifBlank { track.language.ifBlank { "字幕 ${index + 1}" } },
+                        text = playbackSubtitleOptionLabel(track, index),
                         selected = false,
                         onClick = { onSelectSubtitle(index) },
                         modifier = if (index == 0) {
@@ -784,7 +804,11 @@ private fun PlayerOptionsPanel(
                 }
                 PlayerMenu.Audio -> audioTracks.forEachIndexed { index, track ->
                     PlayerOptionButton(
-                        text = track.title ?: track.language.ifBlank { "音轨 ${index + 1}" },
+                        text = playbackAudioOptionLabel(
+                            title = track.title,
+                            language = track.language,
+                            index = index,
+                        ),
                         selected = false,
                         onClick = { onSelectAudioTrack(index) },
                         modifier = if (index == 0) {
@@ -821,7 +845,7 @@ private fun PlayerOptionButton(
             .height(48.dp)
             .clip(RoundedCornerShape(8.dp))
             .onPreviewKeyEvent { event ->
-                if (event.type == KeyEventType.KeyDown && event.key.isActivateKey()) {
+                if (event.type == KeyEventType.KeyDown && event.key.isTvActivateKey()) {
                     onClick()
                     true
                 } else {
@@ -870,7 +894,7 @@ private fun ErrorOverlay(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "播放失败",
+                text = playbackErrorTitle(),
                 style = TvTypography.subtitle,
                 color = TextPrimary
             )
@@ -899,7 +923,7 @@ private fun ErrorOverlay(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = "重试",
+                    text = playbackRetryLabel(),
                     color = Color.White,
                     style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold)
                 )
@@ -1007,11 +1031,3 @@ private fun handlePlayerKey(
         else -> false
     }
 }
-
-private fun trimSpeed(speed: Float): String =
-    if (speed % 1f == 0f) speed.toInt().toString() else "%.2f".format(speed).trimEnd('0')
-
-private fun Key.isActivateKey(): Boolean = this == Key.DirectionCenter ||
-    this == Key.Enter ||
-    this == Key.NumPadEnter ||
-    this == Key.Spacebar

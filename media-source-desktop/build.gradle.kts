@@ -9,6 +9,7 @@ kotlin {
 }
 
 dependencies {
+    api(project(":media-source-api"))
     api(project(":core:model"))
     api(project(":core:common"))
     implementation(libs.kotlinx.coroutines.core)

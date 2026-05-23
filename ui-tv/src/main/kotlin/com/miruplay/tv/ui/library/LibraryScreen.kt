@@ -23,6 +23,24 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.*
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.displayTitle
+import com.miruplay.tv.model.libraryAddSourceActionLabel
+import com.miruplay.tv.model.libraryCancelScanActionLabel
+import com.miruplay.tv.model.libraryContinueWatchingSubtitle
+import com.miruplay.tv.model.libraryCollectedCountLabel
+import com.miruplay.tv.model.libraryContinueWatchingSectionTitle
+import com.miruplay.tv.model.libraryFeaturedSectionTitle
+import com.miruplay.tv.model.libraryFilesScannedLabel
+import com.miruplay.tv.model.libraryHasSourcesEmptyMessage
+import com.miruplay.tv.model.libraryManualScanActionLabel
+import com.miruplay.tv.model.libraryNoSourcesMessage
+import com.miruplay.tv.model.libraryPosterWallSectionTitle
+import com.miruplay.tv.model.libraryRecentlyAddedSectionTitle
+import com.miruplay.tv.model.libraryScanActionLabel
+import com.miruplay.tv.model.libraryScanNowActionLabel
+import com.miruplay.tv.model.libraryScanningTitle
+import com.miruplay.tv.model.librarySettingsActionLabel
+import com.miruplay.tv.model.librarySubtitleLabel
+import com.miruplay.tv.model.libraryTitleLabel
 import com.miruplay.tv.ui.components.*
 import com.miruplay.tv.ui.theme.*
 
@@ -60,26 +78,26 @@ fun LibraryScreen(
             ) {
                 Column {
                     Text(
-                        text = "探索",
+                        text = libraryTitleLabel(),
                         style = TvTypography.title,
                         color = TextPrimary
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        text = "本地媒体库 · Bangumi 元数据",
+                        text = librarySubtitleLabel(),
                         style = TvTypography.body,
                         color = TextSecondary
                     )
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     TvButton(
-                        text = "扫描",
+                        text = libraryScanActionLabel(),
                         icon = Icons.Filled.Refresh,
                         onClick = { viewModel.scanNow() },
                         modifier = Modifier.width(132.dp)
                     )
                     TvButton(
-                        text = "设置",
+                        text = librarySettingsActionLabel(),
                         onClick = onNavigateToSettings,
                         modifier = Modifier.width(132.dp)
                     )
@@ -93,16 +111,16 @@ fun LibraryScreen(
                 
                 is LibraryUiState.NoSources -> {
                     EmptyState(
-                        message = "添加媒体源开始使用",
-                        buttonText = "添加源",
+                        message = libraryNoSourcesMessage(),
+                        buttonText = libraryAddSourceActionLabel(),
                         onClick = onNavigateToSettings
                     )
                 }
                 
                 is LibraryUiState.HasSources -> {
                     EmptyState(
-                        message = "已配置媒体源\n点击扫描建立媒体库",
-                        buttonText = "扫描媒体库",
+                        message = libraryHasSourcesEmptyMessage(),
+                        buttonText = libraryScanNowActionLabel(),
                         onClick = { viewModel.scanNow() }
                     )
                 }
@@ -117,7 +135,7 @@ fun LibraryScreen(
                 is LibraryUiState.ScanError -> {
                     EmptyState(
                         message = state.message,
-                        buttonText = "手动扫描",
+                        buttonText = libraryManualScanActionLabel(),
                         onClick = { viewModel.scanNow() }
                     )
                 }
@@ -176,13 +194,13 @@ private fun ScanningState(
         )
         Spacer(Modifier.height(24.dp))
         Text(
-            text = "正在扫描媒体库...",
+            text = libraryScanningTitle(),
             color = TextPrimary,
             style = TvTypography.subtitle
         )
         Spacer(Modifier.height(12.dp))
         Text(
-            text = "已扫描 ${state.filesScanned} 个文件",
+            text = libraryFilesScannedLabel(state.filesScanned),
             color = TextSecondary,
             style = TvTypography.body
         )
@@ -196,7 +214,7 @@ private fun ScanningState(
         }
         Spacer(Modifier.height(32.dp))
         TvButton(
-            text = "取消扫描",
+            text = libraryCancelScanActionLabel(),
             onClick = onCancel,
             modifier = Modifier.focusRequester(focusRequester)
         )
@@ -237,7 +255,7 @@ private fun LibraryContent(
             .verticalScroll(rememberScrollState())
     ) {
         if (featured.isNotEmpty()) {
-            SectionHeader(title = "最高热度", trailing = "已收录 ${library.size} 部")
+            SectionHeader(title = libraryFeaturedSectionTitle(), trailing = libraryCollectedCountLabel(library.size))
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 contentPadding = PaddingValues(end = 24.dp),
@@ -258,7 +276,7 @@ private fun LibraryContent(
         }
 
         if (continueWatching.isNotEmpty()) {
-            SectionHeader(title = "继续观看")
+            SectionHeader(title = libraryContinueWatchingSectionTitle())
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
                 contentPadding = PaddingValues(end = 24.dp),
@@ -271,7 +289,7 @@ private fun LibraryContent(
                     val duration = item.episode?.duration?.takeIf { it > 0 } ?: 1L
                     AnimePosterCard(
                         anime = anime,
-                        subtitle = if (episodeNumber != null) "继续观看 ${episodeNumber.toString().padStart(2, '0')}" else "继续观看",
+                        subtitle = libraryContinueWatchingSubtitle(episodeNumber),
                         progress = item.progress?.let { rec ->
                             (rec.positionMs.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
                         } ?: 0f,
@@ -282,7 +300,7 @@ private fun LibraryContent(
         }
 
         if (recentlyAdded.isNotEmpty()) {
-            SectionHeader(title = "最近添加")
+            SectionHeader(title = libraryRecentlyAddedSectionTitle())
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
                 contentPadding = PaddingValues(end = 24.dp),
@@ -298,7 +316,7 @@ private fun LibraryContent(
         }
 
         if (library.isNotEmpty()) {
-            SectionHeader(title = "海报墙")
+            SectionHeader(title = libraryPosterWallSectionTitle())
             Column(
                 verticalArrangement = Arrangement.spacedBy(18.dp),
                 modifier = Modifier.fillMaxWidth().padding(bottom = 28.dp)

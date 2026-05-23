@@ -11,7 +11,10 @@ kotlin {
 dependencies {
     api(project(":core:model"))
     api(project(":core:common"))
+    api(project(":repository-api"))
+    api(project(":scraper-core"))
     implementation(libs.okhttp)
+    implementation(libs.icu4j)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.json)
 

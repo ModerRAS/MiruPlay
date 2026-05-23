@@ -13,5 +13,6 @@ dependencies {
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.json)
 
+    testImplementation(project(":sync-engine-shared"))
     testImplementation(libs.junit)
 }

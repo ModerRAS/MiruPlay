@@ -49,12 +49,50 @@ import androidx.compose.ui.unit.sp
 import com.miruplay.tv.design.MiruPlayUiMetrics
 import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.MediaSourceInfo
-import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.formatFileSize
+import com.miruplay.tv.model.libraryCollectedCountLabel
+import com.miruplay.tv.model.libraryFeaturedSectionTitle
+import com.miruplay.tv.model.libraryHasSourcesEmptyMessage
+import com.miruplay.tv.model.libraryNoSourcesMessage
+import com.miruplay.tv.model.libraryPosterWallSectionTitle
+import com.miruplay.tv.model.libraryRecentlyAddedSectionTitle
+import com.miruplay.tv.model.libraryScanActionLabel
+import com.miruplay.tv.model.librarySearchActionLabel
+import com.miruplay.tv.model.librarySearchFieldLabel
+import com.miruplay.tv.model.librarySearchResultCountLabel
+import com.miruplay.tv.model.librarySettingsActionLabel
+import com.miruplay.tv.model.librarySubtitleLabel
+import com.miruplay.tv.model.libraryTitleLabel
+import com.miruplay.tv.model.mediaSourceClearIndexActionLabel
+import com.miruplay.tv.model.mediaSourceIndexQueryFieldLabel
+import com.miruplay.tv.model.mediaSourceListTitleLabel
+import com.miruplay.tv.model.mediaSourceLocalLibraryRootFieldLabel
+import com.miruplay.tv.model.mediaSourceRemoteBrowserEmptyMessage
+import com.miruplay.tv.model.mediaSourceRemoteBrowserItemTypeLabel
+import com.miruplay.tv.model.mediaSourceRemoteBrowserPageUnitLabel
+import com.miruplay.tv.model.mediaSourceRemoteBrowserTitleLabel
+import com.miruplay.tv.model.mediaSourceRemoveActionLabel
+import com.miruplay.tv.model.mediaSourceScanActionLabel
+import com.miruplay.tv.model.mediaSourceScanSourceActionLabel
+import com.miruplay.tv.model.mediaSourceSearchActionLabel
+import com.miruplay.tv.model.mediaSourceSmbDomainFieldLabel
+import com.miruplay.tv.model.mediaSourceUpActionLabel
+import com.miruplay.tv.model.localizedMediaSourceStatusText
+import com.miruplay.tv.model.openSourceActionLabel
+import com.miruplay.tv.model.pagedListCoercedPageStart
+import com.miruplay.tv.model.pagedListPageStartForIndex
+import com.miruplay.tv.model.pagedListPageSummary
+import com.miruplay.tv.model.sourceEndpointPlaceholderLabel
+import com.miruplay.tv.model.sourcePasswordFieldLabel
+import com.miruplay.tv.model.sourceUsernameFieldLabel
+import com.miruplay.tv.model.tvBadgeLabel
 import com.miruplay.tv.model.tvLabel
+import com.miruplay.tv.model.tvLocationLabel
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.displayName
+import com.miruplay.tv.repository.mediaFilesOnly
 
 private const val POSTER_WALL_COLUMNS = 6
 private const val REMOTE_SOURCE_PREVIEW_LIMIT = 70
@@ -131,7 +169,7 @@ internal fun LibraryPanel(
                 onFocusEmptyMedia = ::requestEmptyMediaFocus,
             )
             LibraryEmptyMediaState(
-                text = if (savedSources.isEmpty()) "添加媒体源开始使用" else "已配置媒体源\n点击扫描建立媒体库",
+                text = if (savedSources.isEmpty()) libraryNoSourcesMessage() else libraryHasSourcesEmptyMessage(),
                 focusRequester = emptyMediaFocusRequester,
                 onMove = ::requestSourceFocusFromEmpty,
                 heightDp = 300,
@@ -199,7 +237,7 @@ internal fun LibraryPanel(
                 }
             }
 
-            PosterSectionHeader(title = "海报墙", trailing = "已收录 ${posterGroups.size} 部")
+            PosterSectionHeader(title = libraryPosterWallSectionTitle(), trailing = libraryCollectedCountLabel(posterGroups.size))
             PosterWall(
                 groups = posterGroups,
                 featuredCount = featuredGroups.size,
@@ -213,7 +251,7 @@ internal fun LibraryPanel(
             )
 
             if (featuredGroups.isNotEmpty()) {
-                PosterSectionHeader(title = "最高热度")
+                PosterSectionHeader(title = libraryFeaturedSectionTitle())
                 FeaturedPosterShelf(
                     groups = featuredGroups,
                     posterCount = posterGroups.size,
@@ -227,7 +265,7 @@ internal fun LibraryPanel(
             }
 
             if (recentlyAddedGroups.isNotEmpty()) {
-                PosterSectionHeader(title = "最近添加")
+                PosterSectionHeader(title = libraryRecentlyAddedSectionTitle())
                 PosterCardShelf(
                     groups = recentlyAddedGroups,
                     posterCount = posterGroups.size,
@@ -319,9 +357,9 @@ internal fun DesktopLibraryHeader(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column {
-            Text("探索", color = TextPrimary, fontSize = 44.sp, fontWeight = FontWeight.Bold)
+            Text(libraryTitleLabel(), color = TextPrimary, fontSize = 44.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(4.dp))
-            Text("本地媒体库 · Bangumi 元数据", color = TextSecondary, fontSize = 24.sp)
+            Text(librarySubtitleLabel(), color = TextSecondary, fontSize = 24.sp)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             desktopLibraryHeaderActions().forEach { action ->
@@ -341,9 +379,15 @@ internal fun DesktopLibraryHeader(
     }
 }
 
-internal enum class DesktopLibraryHeaderAction(val label: String) {
-    Scan("扫描"),
-    Settings("设置"),
+internal enum class DesktopLibraryHeaderAction {
+    Scan,
+    Settings;
+
+    val label: String
+        get() = when (this) {
+            Scan -> libraryScanActionLabel()
+            Settings -> librarySettingsActionLabel()
+        }
 }
 
 internal fun desktopLibraryHeaderActions(): List<DesktopLibraryHeaderAction> =
@@ -650,7 +694,7 @@ private fun PosterSearchBar(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             LabeledTextField(
-                "搜索媒体库",
+                librarySearchFieldLabel(),
                 indexQuery,
                 onValueChange = onIndexQueryChange,
                 modifier = Modifier.weight(1f),
@@ -659,7 +703,7 @@ private fun PosterSearchBar(
                     .desktopNavigationKeyHandler { key -> moveSearchFocus(LibrarySearchFocusTarget.Field, key) },
             )
             TvActionButton(
-                "搜索",
+                librarySearchActionLabel(),
                 onClick = onSearch,
                 modifier = Modifier
                     .width(132.dp)
@@ -667,7 +711,7 @@ private fun PosterSearchBar(
                     .desktopNavigationKeyHandler { key -> moveSearchFocus(LibrarySearchFocusTarget.Action, key) },
             )
             Text(
-                "$resultCount 部",
+                librarySearchResultCountLabel(resultCount),
                 color = TextSecondary,
                 fontSize = MiruPlayUiMetrics.PANEL_BODY_SP.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -739,7 +783,12 @@ private fun LibraryControlBar(
     }
 
     TvPanel(Modifier.fillMaxWidth()) {
-        Text("媒体源", color = TextPrimary, fontSize = MiruPlayUiMetrics.SECTION_SUBTITLE_SP.sp, fontWeight = FontWeight.SemiBold)
+        Text(
+            mediaSourceListTitleLabel(),
+            color = TextPrimary,
+            fontSize = MiruPlayUiMetrics.SECTION_SUBTITLE_SP.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
         Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
         Row(
             horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp),
@@ -1317,7 +1366,7 @@ internal data class DesktopPosterGroup(
 }
 
 internal fun List<MediaIndexEntry>.toDesktopPosterGroups(): List<DesktopPosterGroup> =
-    filterNot { it.isDirectory }
+    mediaFilesOnly()
         .groupBy { it.posterTitle() }
         .map { (title, groupEntries) -> DesktopPosterGroup(title = title, entries = groupEntries) }
         .sortedBy { it.title.lowercase() }
@@ -1610,9 +1659,9 @@ internal fun RemoteSourcesPanel(
             verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
         ) {
             RemoteSourceEditorCard(
-                title = "WebDAV",
-                badge = "DAV",
-                endpoint = remoteSourcePreview(webDavUrl, fallback = "填写 WebDAV 地址"),
+                title = MediaSourceType.WEBDAV.remoteSourceEditorTitle(),
+                badge = MediaSourceType.WEBDAV.remoteSourceEditorBadge(),
+                endpoint = remoteSourcePreview(webDavUrl, fallback = MediaSourceType.WEBDAV.sourceEndpointPlaceholderLabel()),
             ) {
                 LabeledTextField(
                     labels.webDavUrl,
@@ -1659,9 +1708,9 @@ internal fun RemoteSourcesPanel(
                 )
             }
             RemoteSourceEditorCard(
-                title = "SMB",
-                badge = "SMB",
-                endpoint = remoteSourcePreview(smbUrl, fallback = "填写 SMB 共享地址"),
+                title = MediaSourceType.SMB.remoteSourceEditorTitle(),
+                badge = MediaSourceType.SMB.remoteSourceEditorBadge(),
+                endpoint = remoteSourcePreview(smbUrl, fallback = MediaSourceType.SMB.sourceEndpointPlaceholderLabel()),
             ) {
                 LabeledTextField(
                     labels.smbUrl,
@@ -2006,6 +2055,12 @@ internal fun remoteBrowserPathPreview(
         .ifBlank { "/" }
         .compactMiddle(maxLength)
 
+internal fun MediaSourceType.remoteSourceEditorTitle(): String =
+    tvLabel()
+
+internal fun MediaSourceType.remoteSourceEditorBadge(): String =
+    tvBadgeLabel()
+
 @Composable
 private fun RemoteBrowserEmptyState(
     text: String,
@@ -2056,7 +2111,7 @@ private fun RemoteFileRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                if (entry.isDirectory) "目录" else "视频",
+                mediaSourceRemoteBrowserItemTypeLabel(entry.isDirectory),
                 color = if (entry.isDirectory) AnimeRed else TextSecondary,
                 fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
                 fontWeight = FontWeight.Bold,
@@ -2142,38 +2197,27 @@ internal fun remoteBrowserPageStartForIndex(
     index: Int,
     itemCount: Int,
     pageSize: Int = REMOTE_BROWSER_PAGE_SIZE,
-): Int {
-    if (itemCount <= 0 || pageSize <= 0) return 0
-    val safeIndex = index.coerceIn(0, itemCount - 1)
-    return (safeIndex / pageSize) * pageSize
-}
+): Int = pagedListPageStartForIndex(index, itemCount, pageSize)
 
 internal fun remoteBrowserCoercedPageStart(
     pageStart: Int,
     itemCount: Int,
     pageSize: Int = REMOTE_BROWSER_PAGE_SIZE,
-): Int {
-    if (itemCount <= 0 || pageSize <= 0) return 0
-    val maxPageStart = remoteBrowserPageStartForIndex(
-        index = itemCount - 1,
-        itemCount = itemCount,
-        pageSize = pageSize,
-    )
-    return (pageStart / pageSize)
-        .coerceAtLeast(0)
-        .times(pageSize)
-        .coerceAtMost(maxPageStart)
-}
+): Int = pagedListCoercedPageStart(pageStart, itemCount, pageSize)
 
 internal fun remoteBrowserPageSummary(
     pageStart: Int,
     visibleCount: Int,
     itemCount: Int,
 ): String? {
-    if (itemCount <= 0 || visibleCount <= 0 || visibleCount >= itemCount) return null
     val safeStart = remoteBrowserCoercedPageStart(pageStart, itemCount)
-    val end = (safeStart + visibleCount).coerceAtMost(itemCount)
-    return "显示 ${safeStart + 1}-$end / $itemCount 个条目，按上/下继续翻页。"
+    return pagedListPageSummary(
+        pageStart = safeStart,
+        visibleCount = visibleCount,
+        itemCount = itemCount,
+        pageSize = REMOTE_BROWSER_PAGE_SIZE,
+        unitLabel = mediaSourceRemoteBrowserPageUnitLabel(),
+    )
 }
 
 internal data class DesktopLibrarySourceLabels(
@@ -2201,120 +2245,27 @@ internal data class DesktopLibrarySourceLabels(
 
 internal fun desktopLibrarySourceLabels(): DesktopLibrarySourceLabels =
     DesktopLibrarySourceLabels(
-        localLibraryRoot = "本地媒体库路径",
-        indexQuery = "索引搜索",
-        openLocal = "打开本地",
-        scan = "扫描",
-        search = "搜索",
-        clearIndex = "清空索引",
-        removeSource = "移除媒体源",
-        webDavUrl = "WebDAV 地址",
-        webDavUser = "WebDAV 用户名",
-        webDavPassword = "WebDAV 密码",
-        openWebDav = "打开 WebDAV",
-        smbUrl = "SMB 地址",
-        smbDomain = "SMB 域",
-        smbUser = "SMB 用户名",
-        smbPassword = "SMB 密码",
-        openSmb = "打开 SMB",
-        scanSource = "扫描媒体源",
-        remoteBrowser = "远程浏览",
-        up = "上级",
-        remoteEmpty = "先打开一个远程媒体源以浏览文件。",
+        localLibraryRoot = mediaSourceLocalLibraryRootFieldLabel(),
+        indexQuery = mediaSourceIndexQueryFieldLabel(),
+        openLocal = MediaSourceType.LOCAL.openSourceActionLabel(),
+        scan = mediaSourceScanActionLabel(),
+        search = mediaSourceSearchActionLabel(),
+        clearIndex = mediaSourceClearIndexActionLabel(),
+        removeSource = mediaSourceRemoveActionLabel(),
+        webDavUrl = MediaSourceType.WEBDAV.tvLocationLabel(),
+        webDavUser = MediaSourceType.WEBDAV.sourceUsernameFieldLabel(),
+        webDavPassword = MediaSourceType.WEBDAV.sourcePasswordFieldLabel(),
+        openWebDav = MediaSourceType.WEBDAV.openSourceActionLabel(),
+        smbUrl = MediaSourceType.SMB.tvLocationLabel(),
+        smbDomain = mediaSourceSmbDomainFieldLabel(),
+        smbUser = MediaSourceType.SMB.sourceUsernameFieldLabel(),
+        smbPassword = MediaSourceType.SMB.sourcePasswordFieldLabel(),
+        openSmb = MediaSourceType.SMB.openSourceActionLabel(),
+        scanSource = mediaSourceScanSourceActionLabel(),
+        remoteBrowser = mediaSourceRemoteBrowserTitleLabel(),
+        up = mediaSourceUpActionLabel(),
+        remoteEmpty = mediaSourceRemoteBrowserEmptyMessage(),
     )
 
-private val loadedSourceStatusRegex = Regex("""^Loaded( saved)? (local|WebDAV|SMB) source: (.+)$""")
-private val readySourceStatusRegex = Regex("""^(Local|WebDAV|SMB) source ready: (.+)$""")
-private val scanCompleteStatusRegex = Regex("""^Scan complete: (\d+) videos, (\d+) directories\.$""")
-private val rescanCompleteStatusRegex = Regex("""^Rescan complete: (\d+) videos, (\d+) directories\.$""")
-private val indexClearedStatusRegex = Regex("""^Index cleared for source id: (\d+)\.$""")
-private val loadingRemoteStatusRegex = Regex("""^Loading (LOCAL|WEBDAV|SMB) (.+)\.\.\.$""")
-private val showingRemoteStatusRegex = Regex("""^Showing (\d+) item\(s\) from (.+)\.$""")
-private val remotePlaybackStatusRegex = Regex("""^Selected remote media: (.+)\. mpv will stream through the local bridge\.$""")
-private val selectedPlaybackStatusRegex = Regex("""^Selected (.+) for playback\.$""")
-private val indexedNoMatchStatusRegex = Regex("""^No indexed media matched "(.*)"\.$""")
-private val indexedResultStatusRegex = Regex("""^Showing (\d+) indexed video result\(s\)\.$""")
-
 internal fun desktopLibraryStatusText(status: String): String =
-    when {
-        status == "Add a local library source or load an existing one." ->
-            "添加本地媒体源，或载入已保存的媒体源。"
-        status == "Open a WebDAV or SMB source to browse it." ->
-            "打开 WebDAV 或 SMB 媒体源后即可浏览文件。"
-        status == "Enter a local library root first." ->
-            "请先填写本地媒体库路径。"
-        status == "Enter a WebDAV URL first." ->
-            "请先填写 WebDAV 地址。"
-        status == "Enter an SMB URL first." ->
-            "请先填写 SMB 地址。"
-        status == "Open a source before scanning." ->
-            "请先打开媒体源，再开始扫描。"
-        status == "Open or scan a source before searching." ->
-            "请先打开或扫描媒体源，再搜索。"
-        status == "Open or scan a source before clearing its index." ->
-            "请先打开或扫描媒体源，再清空索引。"
-        status == "Open a source before removing it." ->
-            "请先打开媒体源，再移除。"
-        status == "Source removed. Associated index entries were cleared." ->
-            "媒体源已移除，关联索引已清空。"
-        status == "Already at the source root." ->
-            "已经在媒体源根目录。"
-        status == "Open a remote source before browsing." ->
-            "请先打开远程媒体源，再浏览。"
-        else -> desktopLibraryDynamicStatusText(status) ?: status
-    }
-
-private fun desktopLibraryDynamicStatusText(status: String): String? {
-    loadedSourceStatusRegex.matchEntire(status)?.let { match ->
-        val saved = match.groupValues[1].isNotBlank()
-        val type = match.groupValues[2].sharedSourceTypeLabel()
-        val name = match.groupValues[3]
-        return if (saved) {
-            "已载入已保存媒体源：$name · $type"
-        } else {
-            "已载入媒体源：$name · $type"
-        }
-    }
-    readySourceStatusRegex.matchEntire(status)?.let { match ->
-        val type = match.groupValues[1].sharedSourceTypeLabel()
-        val sourceType = if (type == "本地") "${type}媒体源" else "$type 媒体源"
-        return "${sourceType}已就绪：${match.groupValues[2]}"
-    }
-    status.removePrefix("Scanning ").takeIf { it != status && it.endsWith("...") }?.let { name ->
-        return "正在扫描：${name.removeSuffix("...")}"
-    }
-    scanCompleteStatusRegex.matchEntire(status)?.let { match ->
-        return "扫描完成：${match.groupValues[1]} 个视频，${match.groupValues[2]} 个目录。"
-    }
-    rescanCompleteStatusRegex.matchEntire(status)?.let { match ->
-        return "重扫完成：${match.groupValues[1]} 个视频，${match.groupValues[2]} 个目录。"
-    }
-    indexClearedStatusRegex.matchEntire(status)?.let { match ->
-        return "已清空媒体源 #${match.groupValues[1]} 的索引。"
-    }
-    loadingRemoteStatusRegex.matchEntire(status)?.let { match ->
-        return "正在载入 ${match.groupValues[1].sharedSourceTypeLabel()}：${match.groupValues[2]}"
-    }
-    showingRemoteStatusRegex.matchEntire(status)?.let { match ->
-        return "${match.groupValues[2]} 中显示 ${match.groupValues[1]} 个条目。"
-    }
-    remotePlaybackStatusRegex.matchEntire(status)?.let { match ->
-        return "已选择远程媒体：${match.groupValues[1]}。mpv 将通过本地桥接串流。"
-    }
-    selectedPlaybackStatusRegex.matchEntire(status)?.let { match ->
-        return "已选择播放：${match.groupValues[1]}"
-    }
-    indexedNoMatchStatusRegex.matchEntire(status)?.let { match ->
-        return "没有匹配 \"${match.groupValues[1]}\" 的索引媒体。"
-    }
-    indexedResultStatusRegex.matchEntire(status)?.let { match ->
-        return "显示 ${match.groupValues[1]} 条索引视频结果。"
-    }
-    return null
-}
-
-private fun String.sharedSourceTypeLabel(): String =
-    runCatching { MediaSourceType.valueOf(uppercase()) }
-        .getOrNull()
-        ?.tvLabel()
-        ?: this
+    localizedMediaSourceStatusText(status) ?: status

@@ -534,12 +534,12 @@ try {
 
     Save-WindowScreenshot -Process $windowProcess -Path $preLaunchScreenshotPath
 
-    Invoke-RelativeClick -Process $windowProcess -X 596 -Y 111 -DelayMilliseconds 900
+    Invoke-RelativeClick -Process $windowProcess -X 596 -Y 166 -DelayMilliseconds 900
     $mpvProcess = Wait-MpvChildProcess -ParentProcessId $windowProcess.Id -ExpectedSamplePath $sample
     Wait-StoreState -Path $storePath -Description "initial playback progress record" -Predicate {
         param($state)
         $records = @($state.progress | Where-Object { $_.episodeId -eq $sample })
-        $records.Count -eq 1 -and $records[0].playCount -ge 1
+        $records.Count -eq 1 -and $records[0].playCount -eq 0
     } | Out-Null
     Minimize-ProcessWindow -ProcessId $mpvProcess.ProcessId
     Start-Sleep -Milliseconds 900
@@ -556,7 +556,7 @@ try {
     $finalState = Wait-StoreState -Path $storePath -Description "stopped playback progress update" -Predicate {
         param($state)
         $records = @($state.progress | Where-Object { $_.episodeId -eq $sample })
-        $records.Count -eq 1 -and $records[0].playCount -ge 1 -and $records[0].positionMs -ge 20000
+        $records.Count -eq 1 -and $records[0].playCount -eq 0 -and $records[0].positionMs -ge 20000
     }
     $finalProgress = @($finalState.progress | Where-Object { $_.episodeId -eq $sample })[0]
     Save-WindowScreenshotWithoutRedRequirement -Process $windowProcess -Path $stoppedScreenshotPath
@@ -569,7 +569,7 @@ try {
     Wait-StoreState -Path $storePath -Description "recent playback keyboard selection preserved sample progress" -Predicate {
         param($state)
         $records = @($state.progress | Where-Object { $_.episodeId -eq $sample })
-        $records.Count -eq 1 -and $records[0].playCount -ge 1 -and $records[0].positionMs -ge 20000
+        $records.Count -eq 1 -and $records[0].playCount -eq 0 -and $records[0].positionMs -ge 20000
     } | Out-Null
 } finally {
     if ($mpvProcess) {

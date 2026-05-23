@@ -23,7 +23,7 @@ fun Anime.featureSubtitle(): String {
         if (episodeCount > 0) add("全 $episodeCount 话")
         if (rating > 0f) add("评分 ${"%.1f".format(rating)}")
     }
-    return parts.joinToString(" · ").ifBlank { "本地媒体库" }
+    return parts.joinToString(" · ").ifBlank { mediaSourceLocalLibraryFallbackName() }
 }
 
 fun PlaybackSource.displayTitle(): String {

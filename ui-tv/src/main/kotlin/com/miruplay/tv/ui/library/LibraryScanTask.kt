@@ -4,6 +4,7 @@ import android.util.Log
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.model.ScanResult
+import com.miruplay.tv.model.libraryScanFailedMessage
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.scanner.ScanCoordinator
 import javax.inject.Inject
@@ -84,7 +85,7 @@ class LibraryScanTask @Inject constructor(
                         _state.value = LibraryScanState.Finished(result.data)
                     }
                     is Result.Error -> {
-                        _state.value = LibraryScanState.Failed("扫描失败：${result.error::class.simpleName}")
+                        _state.value = LibraryScanState.Failed(libraryScanFailedMessage(result.error::class.simpleName))
                     }
                 }
             } catch (e: CancellationException) {
@@ -92,7 +93,7 @@ class LibraryScanTask @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 Log.w("LibraryScanTask", "Library scan failed", e)
-                _state.value = LibraryScanState.Failed("扫描失败：${e::class.simpleName}")
+                _state.value = LibraryScanState.Failed(libraryScanFailedMessage(e::class.simpleName))
             } finally {
                 scanCoordinator.setProgressCallback(null)
             }

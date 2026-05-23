@@ -49,6 +49,7 @@ protobuf {
 }
 
 dependencies {
+    api(project(":cloud-drive-api"))
     api(project(":core:model"))
     api(project(":core:common"))
 

@@ -71,7 +71,7 @@ class MetadataBatchOperationsTest {
     }
 
     @Test
-    fun `metadata batch operation summaries share desktop wording`() {
+    fun `metadata batch operation summaries share TV wording`() {
         val entry = MediaIndexEntry(sourceId = 7L, path = "D:/Anime/Frieren/01.mkv")
         val write = MetadataBatchWriteResult(
             updatedEntries = listOf(entry),
@@ -79,26 +79,26 @@ class MetadataBatchOperationsTest {
         )
 
         assertEquals(
-            "Applied Bangumi batch metadata to 1 index entry; 2 conflicts skipped.",
+            "已将 Bangumi 批量元数据应用到 1 个索引条目，跳过 2 个冲突。",
             write.appliedStatus(conflictCount = 2),
         )
         assertEquals(
-            "Accepted reviewed Bangumi match for 1 index entry.",
+            "已接受复核的 Bangumi 匹配，更新 1 个索引条目。",
             write.reviewAcceptedStatus(),
         )
         assertEquals(
-            "Restored 2 index entries from the previous Bangumi batch.",
+            "已从上一次 Bangumi 批量更改中恢复 2 个索引条目。",
             MetadataBatchUndoResult(
                 rollbackEntries = listOf(entry, entry.copy(path = "D:/Anime/Frieren/02.mkv")),
                 restoredCount = 2,
             ).restoredStatus(),
         )
         assertEquals(
-            "Run Batch preview first; no high-confidence matches are ready.",
+            "请先运行批量预览；当前没有可直接应用的高置信匹配。",
             noMetadataBatchPreviewStatus(),
         )
         assertEquals(
-            "No batch Bangumi changes are available to undo.",
+            "没有可撤销的 Bangumi 批量更改。",
             noMetadataBatchUndoStatus(),
         )
     }

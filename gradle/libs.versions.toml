@@ -25,6 +25,7 @@ grpc = "1.81.0"
 protobuf = "3.25.9"
 protobuf-plugin = "0.9.6"
 onnxruntime = "1.25.1"
+icu4j = "78.3"
 
 [libraries]
 # === Compose ===
@@ -72,6 +73,7 @@ androidx-security-crypto = { group = "androidx.security", name = "security-crypt
 # === Serialization ===
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
 kotlinx-serialization-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-core", version.ref = "kotlinx-serialization" }
+icu4j = { group = "com.ibm.icu", name = "icu4j", version.ref = "icu4j" }
 
 # === Coroutines ===
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }

@@ -5,7 +5,10 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.model.FileEntry
+import com.miruplay.tv.model.FileMetadata
 import com.miruplay.tv.model.MediaCapabilities
+import com.miruplay.tv.model.MediaFileConventions
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.localRootPath
 import kotlinx.coroutines.Dispatchers
@@ -36,12 +39,6 @@ class LocalMediaSource(
     private val isDocumentTree: Boolean
         get() = rootPath.startsWith("content://")
 
-    // Hidden file patterns to filter + protected system dirs
-    private val hiddenPatterns = listOf(
-        ".DS_Store", "Thumbs.db", "@eaDir", ".Trash",
-        "proc", "sys", "dev", "lost+found"
-    )
-
     // System directories that should never be traversed
     private val systemDirs = setOf("/proc", "/sys", "/dev", "/selinux", "/sys/kernel/debug")
 
@@ -68,7 +65,7 @@ class LocalMediaSource(
             }
 
             val entries = dir.listFiles()
-                ?.filter { file -> hiddenPatterns.none { file.name == it } }
+                ?.filter { file -> !MediaFileConventions.isHiddenName(file.name) }
                 ?.map { file ->
                     // Use absolutePath — does NOT follow symlinks, so paths stay within root
                     // (unlike canonicalPath which resolves symlinks and can escape root)
@@ -78,19 +75,12 @@ class LocalMediaSource(
                         isDirectory = file.isDirectory,
                         size = if (file.isFile) file.length() else 0L,
                         lastModified = file.lastModified(),
-                        mimeType = file.extension.lowercase().let { ext ->
-                            when (ext) {
-                                "mkv", "mp4", "avi", "mov" -> "video/$ext"
-                                "jpg", "jpeg", "png", "webp" -> "image/$ext"
-                                "srt", "ass", "ssa" -> "text/$ext"
-                                else -> null
-                            }
-                        }
+                        mimeType = MediaFileConventions.mimeTypeForName(file.name),
                     )
                 }
                 ?: emptyList()
 
-            Result.success(entries.sortedWith(compareBy({ !it.isDirectory }, { it.name.lowercase() })))
+            Result.success(entries.sortedWith(mediaSourceFileEntryComparator()))
         } catch (e: SecurityException) {
             Result.failure(AppError.MediaSourceError.PermissionDenied(path))
         }
@@ -122,14 +112,13 @@ class LocalMediaSource(
     override suspend fun getMetadata(path: String): Result<FileMetadata> = withContext(Dispatchers.IO) {
         try {
             if (path.startsWith("content://")) {
+                val entry = FileEntry(
+                    name = displayNameFor(path),
+                    path = path,
+                    isDirectory = true,
+                )
                 return@withContext Result.success(
-                    FileMetadata(
-                        entry = FileEntry(
-                            name = displayNameFor(path),
-                            path = path,
-                            isDirectory = true
-                        )
-                    )
+                    MediaFileConventions.metadataFor(entry)
                 )
             }
 
@@ -145,7 +134,7 @@ class LocalMediaSource(
                 size = file.length(),
                 lastModified = file.lastModified()
             )
-            Result.success(FileMetadata(entry = entry))
+            Result.success(MediaFileConventions.metadataFor(entry))
         } catch (e: Exception) {
             Result.failure(AppError.MediaSourceError.NotFound(path))
         }
@@ -207,7 +196,7 @@ class LocalMediaSource(
                 val treeUri = Uri.parse(rootPath)
                 while (cursor.moveToNext()) {
                     val name = cursor.getStringOrNull(nameIndex) ?: continue
-                    if (hiddenPatterns.any { name == it }) continue
+                    if (MediaFileConventions.isHiddenName(name)) continue
 
                     val documentId = cursor.getStringOrNull(idIndex) ?: continue
                     val mimeType = cursor.getStringOrNull(mimeIndex)
@@ -223,7 +212,7 @@ class LocalMediaSource(
                 }
             } ?: return Result.failure(AppError.MediaSourceError.NotFound(path))
 
-            Result.success(entries.sortedWith(compareBy({ !it.isDirectory }, { it.name.lowercase() })))
+            Result.success(entries.sortedWith(mediaSourceFileEntryComparator()))
         } catch (e: SecurityException) {
             Result.failure(AppError.MediaSourceError.PermissionDenied(path))
         } catch (e: Exception) {
@@ -243,6 +232,9 @@ class LocalMediaSource(
 
     private fun displayNameFor(path: String): String =
         Uri.parse(path).lastPathSegment?.substringAfterLast(':')?.substringAfterLast('/') ?: path
+
+    private fun mediaSourceFileEntryComparator(): Comparator<FileEntry> =
+        MediaFileConventions.fileEntryComparator(FileEntry::isDirectory, FileEntry::name)
 
     private fun android.database.Cursor.getStringOrNull(index: Int): String? =
         if (index >= 0 && !isNull(index)) getString(index) else null

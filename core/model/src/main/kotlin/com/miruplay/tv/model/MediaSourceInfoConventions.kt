@@ -101,6 +101,16 @@ object MediaSourceInfoConventions {
         extraConnectionInfo.forEach { (key, value) -> put(key, value) }
     }
 
+    fun defaultSourceLocation(
+        type: MediaSourceType,
+        localPath: String,
+    ): String =
+        when (type) {
+            MediaSourceType.LOCAL -> localPath
+            MediaSourceType.WEBDAV -> ""
+            MediaSourceType.SMB -> SMB_SCHEME
+        }
+
     fun normalizeSmbRoot(rawUrl: String): String {
         val normalized = rawUrl.trim().replace('\\', '/').trimEnd('/')
         val withScheme = when {
@@ -172,6 +182,9 @@ fun MediaSourceInfo.remoteUrl(): String? =
 
 fun MediaSourceInfo.persistenceLocation(): String? =
     remoteUrl() ?: localRootPath()
+
+fun MediaSourceType.defaultSourceLocation(localPath: String): String =
+    MediaSourceInfoConventions.defaultSourceLocation(this, localPath)
 
 fun MediaSourceInfo.connectionUsername(): String =
     connectionInfo[MediaSourceInfoConventions.CONNECTION_USERNAME].orEmpty()

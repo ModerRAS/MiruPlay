@@ -1,0 +1,320 @@
+package com.miruplay.tv.scraper.core
+
+import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.repository.BangumiEpisodeCollectionType
+import com.miruplay.tv.repository.BangumiSubjectCollectionType
+import kotlinx.coroutines.runBlocking
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class BangumiApiClientTest {
+    @Test
+    fun `searchAnime posts Bangumi query and maps ranked results`() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(
+                MockResponse().setBody(
+                    """
+                    {
+                      "data": [
+                        {
+                          "id": 431767,
+                          "name": "葬送のフリーレン",
+                          "name_cn": "葬送的芙莉莲",
+                          "rating": { "score": 8.8 },
+                          "infobox": [
+                            { "key": "别名", "value": [ { "v": "Frieren" } ] }
+                          ]
+                        }
+                      ]
+                    }
+                    """.trimIndent()
+                )
+            )
+            val client = BangumiApiClient(baseUrl = server.url("/").toString())
+
+            val result = client.searchAnime("葬送的芙莉莲")
+
+            assertTrue(result is Result.Success)
+            val data = (result as Result.Success).data
+            assertEquals("431767", data.single().animeId)
+            assertEquals("葬送的芙莉莲", data.single().matchedTitle)
+            assertTrue(data.single().confidence > 0.9f)
+
+            val request = server.takeRequest()
+            assertEquals("/v0/search/subjects?limit=10&offset=0", request.path)
+            assertTrue(request.body.readUtf8().contains("葬送的芙莉莲"))
+        }
+    }
+
+    @Test
+    fun `searchAnime can normalize query before posting and scoring`() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(
+                MockResponse().setBody(
+                    """
+                    {
+                      "data": [
+                        {
+                          "id": 1,
+                          "name": "Old",
+                          "name_cn": "简体标题",
+                          "rating": { "score": 8.0 }
+                        }
+                      ]
+                    }
+                    """.trimIndent()
+                )
+            )
+            val client = BangumiApiClient(
+                baseUrl = server.url("/").toString(),
+                normalizeQuery = { value -> if (value == "繁體標題") "简体标题" else value }
+            )
+
+            val result = client.searchAnime("繁體標題")
+
+            assertTrue(result is Result.Success)
+            assertEquals(1.0f, (result as Result.Success).data.single().confidence)
+            assertTrue(server.takeRequest().body.readUtf8().contains("简体标题"))
+        }
+    }
+
+    @Test
+    fun `searchByAlias stops on the first confident candidate`() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(
+                MockResponse().setBody(
+                    """
+                    {
+                      "data": [
+                        {
+                          "id": 11,
+                          "name": "Completely Different",
+                          "name_cn": "完全不同",
+                          "rating": { "score": 7.0 }
+                        }
+                      ]
+                    }
+                    """.trimIndent()
+                )
+            )
+            server.enqueue(
+                MockResponse().setBody(
+                    """
+                    {
+                      "data": [
+                        {
+                          "id": 22,
+                          "name": "Candidate Two",
+                          "name_cn": "候选二",
+                          "rating": { "score": 8.0 }
+                        }
+                      ]
+                    }
+                    """.trimIndent()
+                )
+            )
+            val client = BangumiApiClient(baseUrl = server.url("/").toString())
+
+            val result = client.searchByAlias(
+                normalizedName = "候选甲",
+                candidates = listOf("候选甲", "候选二"),
+            )
+
+            assertTrue(result is Result.Success)
+            assertEquals("22", (result as Result.Success).data?.animeId)
+
+            val firstRequest = server.takeRequest()
+            assertTrue(firstRequest.body.readUtf8().contains("候选甲"))
+            val secondRequest = server.takeRequest()
+            assertTrue(secondRequest.body.readUtf8().contains("候选二"))
+        }
+    }
+
+    @Test
+    fun `getAnimeDetails maps subject metadata`() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(
+                MockResponse().setBody(
+                    """
+                    {
+                      "id": 431767,
+                      "name": "葬送のフリーレン",
+                      "name_cn": "葬送的芙莉莲",
+                      "summary": "<p>旅行仍在继续。</p>",
+                      "tags": [ { "name": "奇幻" }, { "name": "冒险" } ],
+                      "eps": 28,
+                      "date": "2023-09-29",
+                      "rating": { "score": 8.8 },
+                      "images": { "large": "https://img.example/frieren.jpg" },
+                      "collection": { "doing": 1000 }
+                    }
+                    """.trimIndent()
+                )
+            )
+            val client = BangumiApiClient(baseUrl = server.url("/").toString())
+
+            val result = client.getAnimeDetails("431767")
+
+            assertTrue(result is Result.Success)
+            val anime = (result as Result.Success).data
+            assertEquals("431767", anime.id)
+            assertEquals("葬送的芙莉莲", anime.titleCn)
+            assertEquals("旅行仍在继续。", anime.summary)
+            assertEquals(listOf("奇幻", "冒险"), anime.genres)
+            assertEquals(28, anime.episodeCount)
+            assertEquals("https://img.example/frieren.jpg", anime.posterUrl)
+            assertEquals("/v0/subjects/431767", server.takeRequest().path)
+        }
+    }
+
+    @Test
+    fun `getEpisodes maps and sorts regular episodes`() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(
+                MockResponse().setBody(
+                    """
+                    {
+                      "total": 2,
+                      "data": [
+                        { "id": 20, "type": 0, "ep": 2, "name": "Second", "name_cn": "第二集", "duration_seconds": 1440 },
+                        { "id": 10, "type": 0, "ep": 1, "name": "First", "name_cn": "第一集", "duration_seconds": 1500 }
+                      ]
+                    }
+                    """.trimIndent()
+                )
+            )
+            val client = BangumiApiClient(baseUrl = server.url("/").toString())
+
+            val result = client.getEpisodes("431767")
+
+            assertTrue(result is Result.Success)
+            val episodes = (result as Result.Success).data
+            assertEquals(listOf(1, 2), episodes.map { it.episodeNumber })
+            assertEquals("第一集", episodes.first().title)
+            assertEquals(1_500_000L, episodes.first().durationMs)
+            assertEquals("/v0/episodes?subject_id=431767&type=0&limit=200&offset=0", server.takeRequest().path)
+        }
+    }
+
+    @Test
+    fun `collection requests include bearer token and map subject collection`() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(
+                MockResponse().setBody(
+                    """
+                    {
+                      "subject_id": 431767,
+                      "type": 3,
+                      "rate": 0,
+                      "ep_status": 7,
+                      "updated_at": "2026-05-22T12:00:00Z"
+                    }
+                    """.trimIndent()
+                )
+            )
+            val client = BangumiApiClient(baseUrl = server.url("/").toString(), tokenProvider = { "desktop-token" })
+
+            val result = client.getSubjectCollection(431767)
+
+            assertTrue(client.hasToken)
+            assertTrue(result is Result.Success)
+            val collection = (result as Result.Success).data
+            assertEquals(431767, collection?.subjectId)
+            assertEquals(BangumiSubjectCollectionType.DOING.value, collection?.type)
+            assertEquals(7, collection?.epStatus)
+
+            val request = server.takeRequest()
+            assertEquals("/v0/users/-/collections/431767", request.path)
+            assertEquals("Bearer desktop-token", request.getHeader("Authorization"))
+        }
+    }
+
+    @Test
+    fun `missing subject collection returns null`() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setResponseCode(404))
+            val client = BangumiApiClient(baseUrl = server.url("/").toString(), tokenProvider = { "desktop-token" })
+
+            val result = client.getSubjectCollection(431767)
+
+            assertTrue(result is Result.Success)
+            assertEquals(null, (result as Result.Success).data)
+        }
+    }
+
+    @Test
+    fun `episode collections are paged and parsed`() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(
+                MockResponse().setBody(
+                    """
+                    {
+                      "total": 1,
+                      "data": [
+                        {
+                          "type": 2,
+                          "updated_at": 1710000000,
+                          "episode": { "id": 10, "ep": 1 }
+                        }
+                      ]
+                    }
+                    """.trimIndent()
+                )
+            )
+            val client = BangumiApiClient(baseUrl = server.url("/").toString(), tokenProvider = { "desktop-token" })
+
+            val result = client.getEpisodeCollections(431767)
+
+            assertTrue(result is Result.Success)
+            val collection = (result as Result.Success).data.single()
+            assertEquals(10, collection.episodeId)
+            assertEquals(1, collection.episodeNumber)
+            assertEquals(BangumiEpisodeCollectionType.DONE.value, collection.type)
+            assertEquals(1710000000L, collection.updatedAt)
+            assertEquals("/v0/users/-/collections/431767/episodes?episode_type=0&limit=1000&offset=0", server.takeRequest().path)
+        }
+    }
+
+    @Test
+    fun `updates subject and episode collections`() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setResponseCode(204))
+            server.enqueue(MockResponse().setResponseCode(204))
+            server.enqueue(MockResponse().setResponseCode(204))
+            val client = BangumiApiClient(baseUrl = server.url("/").toString(), tokenProvider = { "desktop-token" })
+
+            assertTrue(client.upsertSubjectCollection(431767, BangumiSubjectCollectionType.DOING) is Result.Success)
+            assertTrue(client.updateEpisodeCollections(431767, listOf(10, 20, 10), BangumiEpisodeCollectionType.DONE) is Result.Success)
+            assertTrue(client.updateEpisodeCollection(30, BangumiEpisodeCollectionType.DONE) is Result.Success)
+
+            val subjectRequest = server.takeRequest()
+            assertEquals("POST", subjectRequest.method)
+            assertEquals("/v0/users/-/collections/431767", subjectRequest.path)
+            assertTrue(subjectRequest.body.readUtf8().contains(""""type":3"""))
+
+            val episodeBatchRequest = server.takeRequest()
+            assertEquals("PATCH", episodeBatchRequest.method)
+            assertEquals("/v0/users/-/collections/431767/episodes", episodeBatchRequest.path)
+            val batchBody = episodeBatchRequest.body.readUtf8()
+            assertTrue(batchBody.contains(""""episode_id":[10,20]"""))
+            assertTrue(batchBody.contains(""""type":2"""))
+
+            val episodeRequest = server.takeRequest()
+            assertEquals("PUT", episodeRequest.method)
+            assertEquals("/v0/users/-/collections/-/episodes/30", episodeRequest.path)
+            assertTrue(episodeRequest.body.readUtf8().contains(""""type":2"""))
+        }
+    }
+
+    @Test
+    fun `collection service reports missing token`() = runBlocking {
+        val client = BangumiApiClient(tokenProvider = { "" })
+
+        assertFalse(client.hasToken)
+        assertTrue(client.getCurrentUser() is Result.Error)
+    }
+}

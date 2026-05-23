@@ -10,7 +10,8 @@ import androidx.compose.ui.input.key.type
 internal fun isDesktopConfirmKey(key: Key): Boolean =
     key == Key.Enter ||
         key == Key.NumPadEnter ||
-        key == Key.DirectionCenter
+        key == Key.DirectionCenter ||
+        key == Key.Spacebar
 
 internal fun desktopConfirmOrNavigationKeyEvent(
     key: Key,

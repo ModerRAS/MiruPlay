@@ -2,6 +2,31 @@ package com.miruplay.tv.repository
 
 import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.displayTitle
+import com.miruplay.tv.model.metadataApplyEntryRequiredTvStatus
+import com.miruplay.tv.model.metadataAppliedTvStatus
+import com.miruplay.tv.model.metadataBatchResultRequiredTvStatus
+import com.miruplay.tv.model.metadataBatchSearchingTvStatus
+import com.miruplay.tv.model.metadataBatchStatusLabel
+import com.miruplay.tv.model.metadataCandidateCountLabel
+import com.miruplay.tv.model.metadataClearEntryRequiredTvStatus
+import com.miruplay.tv.model.metadataClearedTvStatus
+import com.miruplay.tv.model.metadataIndexedVideoRequiredTvStatus
+import com.miruplay.tv.model.metadataInitialTvStatus
+import com.miruplay.tv.model.metadataNoBatchEntriesTvStatus
+import com.miruplay.tv.model.metadataNoMatchLabel
+import com.miruplay.tv.model.metadataPlanSummaryTvStatus
+import com.miruplay.tv.model.metadataQueryRequiredTvStatus
+import com.miruplay.tv.model.metadataQuerySetFromIndexTvStatus
+import com.miruplay.tv.model.metadataReviewConflictTvStatus
+import com.miruplay.tv.model.metadataReviewNoMatchTvStatus
+import com.miruplay.tv.model.metadataSearchResultTvStatus
+import com.miruplay.tv.model.metadataSearchSelectionRequiredTvStatus
+import com.miruplay.tv.model.metadataSearchStartedTvStatus
+import com.miruplay.tv.model.metadataSelectedBatchCandidateTvStatus
+import com.miruplay.tv.model.metadataSelectedCandidateLabel
+import com.miruplay.tv.model.metadataSelectedBatchReviewTvStatus
+import com.miruplay.tv.model.metadataSelectedResultTvStatus
+import com.miruplay.tv.model.metadataSourceRequiredTvStatus
 
 data class MetadataBatchMatch(
     val query: String,
@@ -60,9 +85,9 @@ fun MetadataBatchMatch.withSelectedCandidate(candidate: ScraperResult): Metadata
 fun MetadataBatchMatch.selectedCandidateLabel(): String {
     val selectedIndex = candidates.indexOfFirst { it.isSameCandidate(result) }
     return if (selectedIndex >= 0) {
-        "candidate ${selectedIndex + 1}/${candidates.size}"
+        metadataSelectedCandidateLabel(selectedIndex, candidates.size)
     } else {
-        "${candidates.size} candidates"
+        metadataCandidateCountLabel(candidates.size)
     }
 }
 
@@ -82,75 +107,71 @@ fun MetadataBatchCandidateSelection.selectedStatus(): String =
     updatedMatch.selectedCandidateStatus()
 
 fun MetadataBatchMatch.selectedCandidateStatus(): String =
-    "Selected batch candidate for $query: ${result?.displayTitle().orEmpty()}."
+    metadataSelectedBatchCandidateTvStatus(query, result?.displayTitle().orEmpty())
 
 fun metadataInitialStatus(sourceName: String = "metadata"): String =
-    "Select an indexed video, then search $sourceName."
+    metadataInitialTvStatus(sourceName)
 
 fun metadataIndexedVideoRequiredStatus(): String =
-    "Select an indexed video first."
+    metadataIndexedVideoRequiredTvStatus()
 
 fun metadataQuerySetFromIndexStatus(): String =
-    "Query set from selected index entry."
+    metadataQuerySetFromIndexTvStatus()
 
 fun metadataQueryRequiredStatus(sourceName: String = "metadata"): String =
-    "Enter a $sourceName query or select an indexed video."
+    metadataQueryRequiredTvStatus(sourceName)
 
 fun metadataSearchStartedStatus(query: String, sourceName: String = "metadata"): String =
-    "Searching $sourceName for \"$query\"..."
+    metadataSearchStartedTvStatus(query, sourceName)
 
 fun metadataSearchResultStatus(
     query: String,
     resultCount: Int,
     sourceName: String = "metadata",
 ): String =
-    if (resultCount == 0) {
-        "No $sourceName metadata matched \"$query\"."
-    } else {
-        "Found $resultCount $sourceName match(es)."
-    }
+    metadataSearchResultTvStatus(query, resultCount, sourceName)
 
 fun metadataSourceRequiredStatus(): String =
-    "Open or scan a source first."
+    metadataSourceRequiredTvStatus()
 
 fun MetadataBatchMatch.selectedReviewStatus(): String =
-    "Selected batch review: $query."
+    metadataSelectedBatchReviewTvStatus(query)
 
 fun metadataBatchResultRequiredStatus(sourceName: String = "metadata"): String =
-    "Select a batch match with a $sourceName result first."
+    metadataBatchResultRequiredTvStatus(sourceName)
 
 fun MetadataBatchPlan.reviewConflictStatus(): String =
-    "Selected review has ${conflicts.size} metadata conflict${if (conflicts.size == 1) "" else "s"}; nothing was overwritten."
+    metadataReviewConflictTvStatus(conflicts.size)
 
 fun metadataReviewNoMatchStatus(): String =
-    "Selected review has no matching indexed entries."
+    metadataReviewNoMatchTvStatus()
 
 fun ScraperResult.selectedMetadataStatus(): String =
-    "Selected ${displayTitle()}."
+    metadataSelectedResultTvStatus(displayTitle())
 
 fun metadataApplyEntryRequiredStatus(sourceName: String = "metadata"): String =
-    "Select an indexed video before applying $sourceName metadata."
+    metadataApplyEntryRequiredTvStatus(sourceName)
 
 fun metadataSearchSelectionRequiredStatus(sourceName: String = "metadata"): String =
-    "Search $sourceName and select a match first."
+    metadataSearchSelectionRequiredTvStatus(sourceName)
 
 fun MediaIndexEntry.metadataAppliedStatus(sourceName: String = "metadata"): String =
-    "Applied $sourceName metadata to $path."
+    metadataAppliedTvStatus(sourceName, path)
 
 fun metadataClearEntryRequiredStatus(): String =
-    "Select an indexed video before clearing metadata."
+    metadataClearEntryRequiredTvStatus()
 
 fun MediaIndexEntry.metadataClearedStatus(): String =
-    "Cleared external metadata for $path."
+    metadataClearedTvStatus(path)
 
 fun metadataBatchSearchingStatus(
     queryCount: Int,
     sourceName: String = "metadata",
 ): String =
-    "Searching $sourceName for $queryCount indexed title(s)..."
+    metadataBatchSearchingTvStatus(queryCount, sourceName)
 
 fun noMetadataBatchEntriesStatus(sourceName: String = "metadata"): String =
-    "No indexed entries are available for $sourceName batch matching."
+    metadataNoBatchEntriesTvStatus(sourceName)
 
 object MetadataBatchPlanner {
     private const val READY_CONFIDENCE = 0.85f
@@ -169,9 +190,9 @@ object MetadataBatchPlanner {
     suspend fun previewFor(
         entries: List<MediaIndexEntry>,
         queryLimit: Int,
-        searchCandidates: suspend (String) -> List<ScraperResult>,
+        searchCandidates: suspend (String, List<String>) -> List<ScraperResult>,
     ): MetadataBatchPreview {
-        val mediaEntries = entries.filterNot { it.isDirectory }
+        val mediaEntries = entries.mediaFilesOnly()
         val queries = previewQueriesFor(mediaEntries, queryLimit)
         if (queries.isEmpty()) {
             return MetadataBatchPreview(
@@ -182,7 +203,7 @@ object MetadataBatchPlanner {
         }
 
         val matches = queries.map { query ->
-            val candidates = searchCandidates(query)
+            val candidates = searchCandidates(query, candidatesForQuery(query, mediaEntries))
             MetadataBatchMatch(
                 query = query,
                 result = candidates.firstOrNull(),
@@ -204,7 +225,7 @@ object MetadataBatchPlanner {
         match: MetadataBatchMatch,
         candidate: ScraperResult,
     ): MetadataBatchCandidateSelection {
-        val mediaEntries = entries.filterNot { it.isDirectory }
+        val mediaEntries = entries.mediaFilesOnly()
         val updatedMatch = match.withSelectedCandidate(candidate)
         val updatedMatches = matches.replaceMatch(updatedMatch)
         return MetadataBatchCandidateSelection(
@@ -217,10 +238,32 @@ object MetadataBatchPlanner {
     fun acceptedMatches(matches: List<MetadataBatchMatch>): List<MetadataBatchMatch> =
         matches.filter { (it.result?.confidence ?: 0f) >= READY_CONFIDENCE }
 
+    fun candidatesForQuery(
+        query: String,
+        entries: List<MediaIndexEntry>,
+    ): List<String> {
+        val trimmedQuery = query.trim()
+        val candidates = entries
+            .mediaFilesOnly()
+            .filter { it.metadataQuery() == query }
+            .flatMap { entry ->
+                listOfNotNull(
+                    entry.animeName,
+                    entry.metadataTitle,
+                    entry.metadataId,
+                )
+            }
+        return (listOf(trimmedQuery) + candidates)
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+    }
+
     fun planFor(
         entries: List<MediaIndexEntry>,
         matches: List<MetadataBatchMatch>,
     ): MetadataBatchPlan {
+        val mediaEntries = entries.mediaFilesOnly()
         val readyUpdates = mutableListOf<MetadataBatchUpdate>()
         val reviewMatches = mutableListOf<MetadataBatchMatch>()
         val conflicts = mutableListOf<MetadataBatchConflict>()
@@ -230,7 +273,7 @@ object MetadataBatchPlanner {
                 reviewMatches += match
                 return@forEach
             }
-            val matchingEntries = entries.filter { it.metadataQuery() == match.query }
+            val matchingEntries = mediaEntries.filter { it.metadataQuery() == match.query }
             if (matchingEntries.any(::hasExternalMetadata)) {
                 conflicts += matchingEntries.map { MetadataBatchConflict(match.query, it) }
                 return@forEach
@@ -257,15 +300,24 @@ object MetadataBatchPlanner {
             val status = if ((result?.confidence ?: 0f) >= READY_CONFIDENCE) "ready" else "review"
             append(match.query)
             append(": ")
-            append(result?.let(::displayCandidate) ?: "No match")
-            append(" [$status]")
-            if (match.candidates.size > 1) append(" candidates=${match.candidates.size}")
+            append(result?.let(::displayCandidate) ?: metadataNoMatchLabel())
+            append(" [")
+            append(metadataBatchStatusLabel(status))
+            append("]")
+            if (match.candidates.size > 1) {
+                append(" ")
+                append(metadataCandidateCountLabel(match.candidates.size))
+            }
             appendLine()
         }
     }
 
     fun displayPlanSummary(plan: MetadataBatchPlan): String =
-        "${plan.readyUpdates.size} ready, ${plan.reviewMatches.size} review, ${plan.conflicts.size} conflicts"
+        metadataPlanSummaryTvStatus(
+            readyCount = plan.readyUpdates.size,
+            reviewCount = plan.reviewMatches.size,
+            conflictCount = plan.conflicts.size,
+        )
 
     private fun displayCandidate(result: ScraperResult): String =
         result.title + result.titleCn?.takeIf { it.isNotBlank() }?.let { " / $it" }.orEmpty()
@@ -279,6 +331,6 @@ object MetadataBatchPlanner {
         entries: List<MediaIndexEntry>,
         queryLimit: Int,
     ): List<String> =
-        queriesFor(entries.filterNot { it.isDirectory })
+        queriesFor(entries.mediaFilesOnly())
             .take(queryLimit.coerceAtLeast(0))
 }

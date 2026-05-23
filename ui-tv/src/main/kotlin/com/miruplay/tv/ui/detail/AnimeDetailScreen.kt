@@ -59,6 +59,15 @@ import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.continueEpisodeProgress
+import com.miruplay.tv.model.detailBangumiCollectionPillLabel
+import com.miruplay.tv.model.detailContinueActionLabel
+import com.miruplay.tv.model.detailEpisodeCountLabel
+import com.miruplay.tv.model.detailEpisodeSectionTitle
+import com.miruplay.tv.model.detailEpisodeTitleLabel
+import com.miruplay.tv.model.detailRatingLabel
+import com.miruplay.tv.model.detailRescrapeActionLabel
+import com.miruplay.tv.model.detailSeasonLabel
+import com.miruplay.tv.model.detailSyncProgressActionLabel
 import com.miruplay.tv.model.displayTitle
 import com.miruplay.tv.model.isCompleted
 import com.miruplay.tv.model.progressFraction
@@ -67,6 +76,7 @@ import com.miruplay.tv.ui.components.LoadingIndicator
 import com.miruplay.tv.ui.components.OverscanContainer
 import com.miruplay.tv.ui.components.RemoteImage
 import com.miruplay.tv.ui.components.TvButton
+import com.miruplay.tv.ui.components.isTvActivateKey
 import com.miruplay.tv.ui.theme.AccentBlue
 import com.miruplay.tv.ui.theme.AnimeRed
 import com.miruplay.tv.ui.theme.CardBg
@@ -224,14 +234,14 @@ private fun DetailContent(
                                 .focusRequester(playButtonFocusRequester)
                         )
                         TvButton(
-                            text = "重新刮削",
+                            text = detailRescrapeActionLabel(),
                             icon = Icons.Filled.Refresh,
                             enabled = !isSyncing,
                             onClick = onRescrape,
                             modifier = Modifier.width(170.dp)
                         )
                         TvButton(
-                            text = if (isSyncing) "同步中" else "同步进度",
+                            text = detailSyncProgressActionLabel(isSyncing),
                             icon = Icons.Filled.Sync,
                             enabled = !isSyncing,
                             onClick = onSyncBangumi,
@@ -278,7 +288,7 @@ private fun DetailContent(
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 seasons.forEach { season ->
                     TvButton(
-                        text = "第 $season 季",
+                        text = detailSeasonLabel(season),
                         onClick = { onSelectSeason(season) },
                         modifier = Modifier.width(132.dp)
                     )
@@ -287,7 +297,7 @@ private fun DetailContent(
             Spacer(Modifier.height(18.dp))
         }
 
-        Text(text = "选集", style = TvTypography.subtitle, color = TextPrimary)
+        Text(text = detailEpisodeSectionTitle(), style = TvTypography.subtitle, color = TextPrimary)
         Spacer(Modifier.height(12.dp))
         episodes.forEach { (episode, progress) ->
             EpisodeListItem(
@@ -306,16 +316,16 @@ private fun DetailContent(
 private fun DetailStats(anime: Anime) {
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
         if (anime.rating > 0) {
-            StatPill("评分 ${"%.1f".format(anime.rating)}", WarningYellow)
+            StatPill(detailRatingLabel(anime.rating), WarningYellow)
         }
         if (anime.episodeCount > 0) {
-            StatPill("全 ${anime.episodeCount} 话", TextSecondary)
+            StatPill(detailEpisodeCountLabel(anime.episodeCount), TextSecondary)
         }
         anime.airDate?.takeIf { it.isNotBlank() }?.let {
             StatPill(it, TextSecondary)
         }
         anime.bangumiCollectionType?.let {
-            StatPill("Bangumi ${subjectCollectionLabel(it)}", AnimeRed)
+            StatPill(detailBangumiCollectionPillLabel(it), AnimeRed)
         }
     }
 }
@@ -377,7 +387,7 @@ private fun EpisodeListItem(
             )
             .onFocusChanged { isFocused = it.isFocused }
             .onPreviewKeyEvent { event ->
-                if (event.type == KeyEventType.KeyDown && event.key.isActivateKey()) {
+                if (event.type == KeyEventType.KeyDown && event.key.isTvActivateKey()) {
                     onPlay()
                     true
                 } else {
@@ -418,7 +428,7 @@ private fun EpisodeListItem(
 
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "第 ${episode.episodeNumber} 集${episode.title.takeIf { it.isNotBlank() }?.let { " · $it" } ?: ""}",
+                text = detailEpisodeTitleLabel(episode.episodeNumber, episode.title),
                 color = TextPrimary,
                 fontSize = 17.sp,
                 maxLines = 1,
@@ -475,14 +485,9 @@ private fun Episode.displayPath(): String {
 
 private fun continueButtonText(episodes: List<Pair<Episode, ProgressRecord?>>): String {
     val next = episodes.firstOrNull { (episode, progress) -> episode.continueEpisodeProgress(progress) }
-        ?: return "播放"
-    return "继续观看 ${next.first.episodeNumber}"
+        ?: return detailContinueActionLabel(null)
+    return detailContinueActionLabel(next.first.episodeNumber)
 }
-
-private fun Key.isActivateKey(): Boolean = this == Key.DirectionCenter ||
-    this == Key.Enter ||
-    this == Key.NumPadEnter ||
-    this == Key.Spacebar
 
 private fun continueEpisode(episodes: List<Pair<Episode, ProgressRecord?>>): Episode? {
     val partial = episodes
@@ -493,13 +498,4 @@ private fun continueEpisode(episodes: List<Pair<Episode, ProgressRecord?>>): Epi
 
     return episodes.firstOrNull { (episode, progress) -> !episode.isCompleted(progress) }?.first
         ?: episodes.firstOrNull()?.first
-}
-
-private fun subjectCollectionLabel(type: Int): String = when (type) {
-    1 -> "想看"
-    2 -> "看过"
-    3 -> "在看"
-    4 -> "搁置"
-    5 -> "抛弃"
-    else -> "已关联"
 }

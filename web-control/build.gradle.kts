@@ -28,7 +28,7 @@ dependencies {
     implementation(project(":cloud-drive"))
     implementation(project(":player-core"))
     implementation(project(":scanner"))
-    implementation(project(":media-source"))
+    implementation(project(":media-source-api"))
     implementation(project(":sync-engine"))
 
     implementation(libs.kotlinx.serialization.json)

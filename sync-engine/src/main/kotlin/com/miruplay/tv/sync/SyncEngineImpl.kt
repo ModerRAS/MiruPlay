@@ -48,7 +48,7 @@ class SyncEngineImpl @Inject constructor(
                 }
                 localProgress == null && nfoMetadata != null -> {
                     // Remote only, import from NFO
-                    val position = nfoMetadata.resumePosition * 1000 // convert seconds to ms
+                    val position = nfoMetadata.resumePosition
                     progressRepository.saveProgress(episode.id, position, System.currentTimeMillis())
                     SyncResult(episode.id, SyncAction.SYNCED_FROM_NFO, position, System.currentTimeMillis())
                 }
@@ -63,7 +63,7 @@ class SyncEngineImpl @Inject constructor(
                             SyncResult(episode.id, SyncAction.SYNCED_TO_NFO, localProgress.positionMs, System.currentTimeMillis())
                         }
                         ConflictResolution.REMOTE_WINS -> {
-                            val position = nfoMetadata.resumePosition * 1000
+                            val position = nfoMetadata.resumePosition
                             progressRepository.saveProgress(episode.id, position, System.currentTimeMillis())
                             SyncResult(episode.id, SyncAction.SYNCED_FROM_NFO, position, System.currentTimeMillis())
                         }
@@ -72,7 +72,7 @@ class SyncEngineImpl @Inject constructor(
                                 metadataManager.updateNfoProgress(nfoPath, localProgress.positionMs)
                                 SyncResult(episode.id, SyncAction.SYNCED_TO_NFO, localProgress.positionMs, System.currentTimeMillis())
                             } else {
-                                val position = nfoMetadata.resumePosition * 1000
+                                val position = nfoMetadata.resumePosition
                                 progressRepository.saveProgress(episode.id, position, System.currentTimeMillis())
                                 SyncResult(episode.id, SyncAction.SYNCED_FROM_NFO, position, System.currentTimeMillis())
                             }

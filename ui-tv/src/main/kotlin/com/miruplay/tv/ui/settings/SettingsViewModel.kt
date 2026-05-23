@@ -9,14 +9,20 @@ import com.miruplay.tv.core.common.LocalDirectoryBrowser
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.core.common.WebControlConfig
 import com.miruplay.tv.data.preferences.ScanPreferencesManager
-import com.miruplay.tv.data.preferences.PlaybackEndAction
 import com.miruplay.tv.data.preferences.PlaybackPreferencesManager
+import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.model.CloudDriveAutomationConfig
+import com.miruplay.tv.model.CLOUD_DRIVE_ROOT_DISPLAY_NAME
+import com.miruplay.tv.model.directoryBrowserRootDisplayName
+import com.miruplay.tv.model.CloudDriveDirectoryItem
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.RssSubscriptionInfo
+import com.miruplay.tv.model.cloudDriveDirectoryDisplayPath
+import com.miruplay.tv.model.cloudDriveDirectoryItems
+import com.miruplay.tv.model.cloudDriveDirectoryParentPath
 import com.miruplay.tv.model.cloudDriveApiTokenRequiredStatus
 import com.miruplay.tv.model.cloudDriveEndpointRequiredStatus
 import com.miruplay.tv.model.cloudDriveLoginRequiredStatus
@@ -26,6 +32,7 @@ import com.miruplay.tv.model.connectionPassword
 import com.miruplay.tv.model.cloudDriveTokenVerifiedStatus
 import com.miruplay.tv.model.cloudRssConfigSavedStatus
 import com.miruplay.tv.model.completeStatus
+import com.miruplay.tv.model.normalizeCloudDriveDirectoryPath
 import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.MediaSourceRepository
@@ -34,6 +41,7 @@ import com.miruplay.tv.sync.rss.CloudDriveRssAutomationEngine
 import com.miruplay.tv.model.rssSubscriptionDeletedStatus
 import com.miruplay.tv.model.rssSubscriptionSavedStatus
 import com.miruplay.tv.model.rssUrlRequiredStatus
+import com.miruplay.tv.model.scopedCloudDriveDirectoryPath
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -508,14 +516,8 @@ class SettingsViewModel @Inject constructor(
     ) {
         val endpoint = CloudDriveEndpoint(endpointUrl, token)
         val tokenInfo = cloudDriveClient.getApiTokenInfo(endpointUrl, token).getOrNull()
-        val rootPath = normalizeCloudDrivePath(tokenInfo?.rootDir ?: "")
-        val requestedPath = normalizeCloudDrivePath(path.ifBlank { rootPath })
-        val currentPath = when {
-            rootPath == "/" -> requestedPath.ifBlank { "/" }
-            requestedPath == "/" -> rootPath
-            requestedPath == rootPath || requestedPath.startsWith("$rootPath/") -> requestedPath
-            else -> rootPath
-        }
+        val rootPath = normalizeCloudDriveDirectoryPath(tokenInfo?.rootDir ?: "")
+        val currentPath = scopedCloudDriveDirectoryPath(path.ifBlank { rootPath }, rootPath)
 
         when (val result = cloudDriveClient.listFolder(endpoint, currentPath, forceRefresh = false)) {
             is Result.Success -> {
@@ -524,17 +526,21 @@ class SettingsViewModel @Inject constructor(
                 _cloudDriveDirectoryBrowser.value = state.copy(
                     isLoading = false,
                     path = currentPath,
-                    displayPath = if (currentPath == "/") "CloudDrive 根目录" else currentPath,
-                    parentPath = cloudDriveParentPath(currentPath, rootPath),
-                    entries = result.data
-                        .asSequence()
-                        .filter { it.isDirectory }
-                        .filter { !it.name.startsWith(".") }
-                        .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
+                    displayPath = cloudDriveDirectoryDisplayPath(currentPath),
+                    parentPath = cloudDriveDirectoryParentPath(currentPath, rootPath),
+                    entries = cloudDriveDirectoryItems(
+                        result.data.filter { it.isDirectory }
+                            .map {
+                                CloudDriveDirectoryItem(
+                                    name = it.name,
+                                    path = it.path
+                                )
+                            }
+                    )
                         .map {
                             CloudDriveDirectoryEntry(
-                                name = it.name.ifBlank { it.path.substringAfterLast('/') },
-                                path = normalizeCloudDrivePath(it.path)
+                                name = it.name,
+                                path = it.path
                             )
                         }
                         .toList(),
@@ -565,28 +571,6 @@ class SettingsViewModel @Inject constructor(
         }.getOrDefault(emptyList())
     }
 
-    private fun normalizeCloudDrivePath(path: String): String {
-        val trimmed = path.trim().replace('\\', '/').trimEnd('/')
-        return when {
-            trimmed.isBlank() -> "/"
-            trimmed.startsWith('/') -> trimmed
-            else -> "/$trimmed"
-        }
-    }
-
-    private fun cloudDriveParentPath(path: String, rootPath: String): String? {
-        val normalizedPath = normalizeCloudDrivePath(path)
-        val normalizedRoot = normalizeCloudDrivePath(rootPath)
-        if (normalizedPath == normalizedRoot || normalizedPath == "/") return null
-        val parent = normalizedPath.substringBeforeLast('/', "")
-        if (parent.isBlank() || parent == normalizedPath) return null
-        return when {
-            normalizedRoot == "/" -> parent.ifBlank { "/" }
-            parent == normalizedRoot || parent.startsWith("$normalizedRoot/") -> parent
-            else -> normalizedRoot
-        }
-    }
-
     companion object {
         private const val MILLIS_PER_HOUR = 60 * 60 * 1000L
         private const val MIN_CLOUD_DRIVE_INTERVAL_MINUTES = 5
@@ -599,7 +583,7 @@ data class CloudDriveDirectoryBrowserState(
     val endpointUrl: String = "",
     val isLoading: Boolean = false,
     val path: String = "",
-    val displayPath: String = "CloudDrive 根目录",
+    val displayPath: String = CLOUD_DRIVE_ROOT_DISPLAY_NAME,
     val parentPath: String? = null,
     val entries: List<CloudDriveDirectoryEntry> = emptyList(),
     val message: String? = null
@@ -614,7 +598,7 @@ data class LocalDirectoryBrowserState(
     val open: Boolean = false,
     val isLoading: Boolean = false,
     val path: String = "",
-    val displayPath: String = "设备存储",
+    val displayPath: String = directoryBrowserRootDisplayName(isLocal = true),
     val parentPath: String? = null,
     val entries: List<LocalDirectoryEntry> = emptyList(),
     val message: String? = null
@@ -635,16 +619,4 @@ sealed class ConnectionTestResult {
     data object Testing : ConnectionTestResult()
     data object Success : ConnectionTestResult()
     data class Failed(val message: String) : ConnectionTestResult()
-}
-
-private fun com.miruplay.tv.core.common.AppError.toUserMessage(): String = when (this) {
-    is com.miruplay.tv.core.common.AppError.NetworkError.HttpError -> "HTTP ${code}: $message"
-    is com.miruplay.tv.core.common.AppError.NetworkError.NoConnectivity -> "网络不可用"
-    is com.miruplay.tv.core.common.AppError.NetworkError.ServerUnreachable -> "服务器无法访问: $url"
-    is com.miruplay.tv.core.common.AppError.NetworkError.RateLimited -> "请求过于频繁"
-    is com.miruplay.tv.core.common.AppError.MediaSourceError.ConnectionLost -> "连接丢失"
-    is com.miruplay.tv.core.common.AppError.MediaSourceError.AuthenticationFailed -> "认证失败"
-    is com.miruplay.tv.core.common.AppError.MediaSourceError.Timeout -> "连接超时"
-    is com.miruplay.tv.core.common.AppError.MediaSourceError.PermissionDenied -> "权限不足"
-    else -> "未知错误: ${this::class.simpleName}"
 }

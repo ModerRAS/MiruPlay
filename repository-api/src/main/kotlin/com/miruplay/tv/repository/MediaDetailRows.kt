@@ -6,6 +6,34 @@ import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.formatFileSize
 import com.miruplay.tv.model.formatLocalTimestamp
 import com.miruplay.tv.model.formatPlaybackPosition
+import com.miruplay.tv.model.mediaDetailAnimeLabel
+import com.miruplay.tv.model.mediaDetailBrowserItemLabel
+import com.miruplay.tv.model.mediaDetailBrowserKindLabel
+import com.miruplay.tv.model.mediaDetailBrowserModifiedLabel
+import com.miruplay.tv.model.mediaDetailBrowserSizeLabel
+import com.miruplay.tv.model.mediaDetailDirectoryValue
+import com.miruplay.tv.model.mediaDetailEpisodeLabel
+import com.miruplay.tv.model.mediaDetailEpisodeTitleLabel
+import com.miruplay.tv.model.mediaDetailFileValue
+import com.miruplay.tv.model.mediaDetailIndexedModifiedLabel
+import com.miruplay.tv.model.mediaDetailIndexedSizeLabel
+import com.miruplay.tv.model.mediaDetailIndexedTitleLabel
+import com.miruplay.tv.model.mediaDetailIndexedTypeLabel
+import com.miruplay.tv.model.mediaDetailLastWatchedLabel
+import com.miruplay.tv.model.mediaDetailMetadataIdLabel
+import com.miruplay.tv.model.mediaDetailMetadataSourceLabel
+import com.miruplay.tv.model.mediaDetailMetadataTitleLabel
+import com.miruplay.tv.model.mediaDetailMimeLabel
+import com.miruplay.tv.model.mediaDetailNotLinkedValue
+import com.miruplay.tv.model.mediaDetailPathLabel
+import com.miruplay.tv.model.mediaDetailPlayCountLabel
+import com.miruplay.tv.model.mediaDetailPlotLabel
+import com.miruplay.tv.model.mediaDetailResumeLabel
+import com.miruplay.tv.model.mediaDetailSeasonLabel
+import com.miruplay.tv.model.mediaDetailSourceEmptyValue
+import com.miruplay.tv.model.mediaDetailSourceLabel
+import com.miruplay.tv.model.mediaDetailUnknownValue
+import com.miruplay.tv.model.mediaDetailVideoValue
 
 data class MediaDetailRow(
     val label: String,
@@ -19,34 +47,34 @@ object MediaDetailRows {
         remoteEntry: FileEntry?,
         recentRecord: ProgressRecord?,
     ): List<MediaDetailRow> = buildList {
-        addRow("Source", source?.displayLabel() ?: "None")
+        addRow(mediaDetailSourceLabel(), source?.displayLabel() ?: mediaDetailSourceEmptyValue())
         indexEntry?.let { entry ->
-            addRow("Indexed title", entry.displayName())
-            addRow("Indexed type", if (entry.isDirectory) "Directory" else "Video")
-            addRow("Anime", entry.animeName.orEmpty().ifBlank { "Unknown" })
-            entry.seasonNumber?.let { addRow("Season", it.toString()) }
-            addRow("Episode", entry.episodeNumber?.toString() ?: "Unknown")
-            entry.episodeTitle?.takeIf { it.isNotBlank() }?.let { addRow("Episode title", it) }
-            entry.metadataSource?.takeIf { it.isNotBlank() }?.let { addRow("Metadata source", it) }
-            entry.metadataId?.takeIf { it.isNotBlank() }?.let { addRow("Metadata ID", it) }
-            addRow("Metadata title", entry.metadataTitle?.takeIf { it.isNotBlank() } ?: "Not linked")
-            entry.fileSize.takeIf { it > 0L }?.let { addRow("Indexed size", formatFileSize(it)) }
-            formatLocalTimestamp(entry.lastModified)?.let { addRow("Indexed modified", it) }
+            addRow(mediaDetailIndexedTitleLabel(), entry.displayName())
+            addRow(mediaDetailIndexedTypeLabel(), if (entry.isDirectory) mediaDetailDirectoryValue() else mediaDetailVideoValue())
+            addRow(mediaDetailAnimeLabel(), entry.animeName.orEmpty().ifBlank { mediaDetailUnknownValue() })
+            entry.seasonNumber?.let { addRow(mediaDetailSeasonLabel(), it.toString()) }
+            addRow(mediaDetailEpisodeLabel(), entry.episodeNumber?.toString() ?: mediaDetailUnknownValue())
+            entry.episodeTitle?.takeIf { it.isNotBlank() }?.let { addRow(mediaDetailEpisodeTitleLabel(), it) }
+            entry.metadataSource?.takeIf { it.isNotBlank() }?.let { addRow(mediaDetailMetadataSourceLabel(), it) }
+            entry.metadataId?.takeIf { it.isNotBlank() }?.let { addRow(mediaDetailMetadataIdLabel(), it) }
+            addRow(mediaDetailMetadataTitleLabel(), entry.metadataTitle?.takeIf { it.isNotBlank() } ?: mediaDetailNotLinkedValue())
+            entry.fileSize.takeIf { it > 0L }?.let { addRow(mediaDetailIndexedSizeLabel(), formatFileSize(it)) }
+            formatLocalTimestamp(entry.lastModified)?.let { addRow(mediaDetailIndexedModifiedLabel(), it) }
         }
         remoteEntry?.let { entry ->
-            addRow("Browser item", entry.name)
-            addRow("Browser kind", if (entry.isDirectory) "Directory" else "File")
-            entry.mimeType?.takeIf { it.isNotBlank() }?.let { addRow("MIME", it) }
-            addRow("Browser size", if (entry.size > 0L) formatFileSize(entry.size) else "Unknown")
-            formatLocalTimestamp(entry.lastModified)?.let { addRow("Browser modified", it) }
+            addRow(mediaDetailBrowserItemLabel(), entry.name)
+            addRow(mediaDetailBrowserKindLabel(), if (entry.isDirectory) mediaDetailDirectoryValue() else mediaDetailFileValue())
+            entry.mimeType?.takeIf { it.isNotBlank() }?.let { addRow(mediaDetailMimeLabel(), it) }
+            addRow(mediaDetailBrowserSizeLabel(), if (entry.size > 0L) formatFileSize(entry.size) else mediaDetailUnknownValue())
+            formatLocalTimestamp(entry.lastModified)?.let { addRow(mediaDetailBrowserModifiedLabel(), it) }
         }
         recentRecord?.let { record ->
-            addRow("Resume", formatPlaybackPosition(record.positionMs))
-            addRow("Play count", record.playCount.toString())
-            formatLocalTimestamp(record.lastWatched)?.let { addRow("Last watched", it) }
+            addRow(mediaDetailResumeLabel(), formatPlaybackPosition(record.positionMs))
+            addRow(mediaDetailPlayCountLabel(), record.playCount.toString())
+            formatLocalTimestamp(record.lastWatched)?.let { addRow(mediaDetailLastWatchedLabel(), it) }
         }
-        indexEntry?.plot?.takeIf { it.isNotBlank() }?.let { addRow("Plot", it) }
-        addRow("Path", indexEntry?.path ?: remoteEntry?.path ?: recentRecord?.episodeId ?: "None")
+        indexEntry?.plot?.takeIf { it.isNotBlank() }?.let { addRow(mediaDetailPlotLabel(), it) }
+        addRow(mediaDetailPathLabel(), indexEntry?.path ?: remoteEntry?.path ?: recentRecord?.episodeId ?: mediaDetailSourceEmptyValue())
     }
 
     private fun MutableList<MediaDetailRow>.addRow(label: String, value: String) {

@@ -84,4 +84,61 @@ class WebDavMediaSourceTest {
         assertEquals("/番剧", entries.single().path)
         assertEquals("番剧", entries.single().name)
     }
+
+    @Test
+    fun `parsePropfindResponse uses shared WebDAV ordering and hidden filtering`() {
+        val source = WebDavMediaSource(
+            MediaSourceInfo(
+                name = "WebDAV",
+                type = MediaSourceType.WEBDAV,
+                connectionInfo = mapOf("url" to "http://nas.local/dav")
+            )
+        )
+
+        val entries = source.parsePropfindResponse(
+            xml = """
+                <?xml version="1.0" encoding="utf-8" ?>
+                <D:multistatus xmlns:D="DAV:">
+                    <D:response>
+                        <D:href>/dav/%E7%95%AA%E5%89%A7/</D:href>
+                        <D:propstat>
+                            <D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop>
+                        </D:propstat>
+                    </D:response>
+                    <D:response>
+                        <D:href>/dav/%E7%95%AA%E5%89%A7/Episode%2001%20%231%3F.mkv</D:href>
+                        <D:propstat>
+                            <D:prop>
+                                <D:getcontentlength>2048</D:getcontentlength>
+                                <D:getcontenttype>video/x-matroska</D:getcontenttype>
+                                <D:resourcetype></D:resourcetype>
+                            </D:prop>
+                        </D:propstat>
+                    </D:response>
+                    <D:response>
+                        <D:href>/dav/%E7%95%AA%E5%89%A7/Season%2001/</D:href>
+                        <D:propstat>
+                            <D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop>
+                        </D:propstat>
+                    </D:response>
+                    <D:response>
+                        <D:href>/dav/%E7%95%AA%E5%89%A7/.DS_Store</D:href>
+                        <D:propstat>
+                            <D:prop>
+                                <D:getcontentlength>4</D:getcontentlength>
+                                <D:resourcetype></D:resourcetype>
+                            </D:prop>
+                        </D:propstat>
+                    </D:response>
+                </D:multistatus>
+            """.trimIndent(),
+            requestedPath = "/番剧"
+        )
+
+        assertEquals(listOf("Season 01", "Episode 01 #1?.mkv"), entries.map { it.name })
+        assertTrue(entries.first().isDirectory)
+        assertEquals("/番剧/Episode 01 #1?.mkv", entries.last().path)
+        assertEquals(2048L, entries.last().size)
+        assertEquals("video/x-matroska", entries.last().mimeType)
+    }
 }

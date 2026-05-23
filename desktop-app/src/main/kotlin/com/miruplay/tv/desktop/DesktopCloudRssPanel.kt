@@ -43,12 +43,129 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.miruplay.tv.design.MiruPlayUiMetrics
 import com.miruplay.tv.model.MediaSourceInfo
-import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.MiruPlaySettingsSection
 import com.miruplay.tv.model.RssSubscriptionInfo
+import com.miruplay.tv.model.cloudDriveRssApiTokenFieldLabel
+import com.miruplay.tv.model.cloudDriveRssChooseDirectoryActionLabel
+import com.miruplay.tv.model.cloudDriveRssClearCredentialsActionLabel
+import com.miruplay.tv.model.cloudDriveRssClearScanSourceActionLabel
+import com.miruplay.tv.model.cloudDriveRssCloseActionLabel
+import com.miruplay.tv.model.cloudDriveRssDirectoryBadgeLabel
+import com.miruplay.tv.model.cloudDriveRssDirectoryPageUnitLabel
+import com.miruplay.tv.model.cloudDriveRssEmptyDirectoryMessage
+import com.miruplay.tv.model.cloudDriveRssEnabledBadgeLabel
+import com.miruplay.tv.model.cloudDriveRssEnabledToggleLabel
+import com.miruplay.tv.model.cloudDriveRssEndpointFallbackLabel
+import com.miruplay.tv.model.cloudDriveRssEndpointFieldLabel
+import com.miruplay.tv.model.cloudDriveRssInboxPathFieldLabel
+import com.miruplay.tv.model.cloudDriveRssIntervalMinutesFieldLabel
+import com.miruplay.tv.model.cloudDriveRssLibraryPathFieldLabel
+import com.miruplay.tv.model.cloudDriveRssLoadingDirectoriesMessage
+import com.miruplay.tv.model.cloudDriveRssLoginActionLabel
+import com.miruplay.tv.model.cloudDriveRssPasswordFieldLabel
+import com.miruplay.tv.model.cloudDriveRssParentDirectoryActionLabel
+import com.miruplay.tv.model.cloudDriveRssPathBadgeLabel
+import com.miruplay.tv.model.cloudDriveRssPathPairSeparator
+import com.miruplay.tv.model.cloudDriveRssPostSyncScanSummaryLabel
+import com.miruplay.tv.model.cloudDriveRssPostSyncSourceLabel
+import com.miruplay.tv.model.cloudDriveRssProxyHostFieldLabel
+import com.miruplay.tv.model.cloudDriveRssProxyPortFieldLabel
+import com.miruplay.tv.model.cloudDriveRssProxySettingLabel
+import com.miruplay.tv.model.cloudDriveRssRunBadgeLabel
+import com.miruplay.tv.model.cloudDriveRssRunNowActionLabel
+import com.miruplay.tv.model.cloudDriveRssRuntimeTitleLabel
+import com.miruplay.tv.model.cloudDriveRssSaveApiTokenActionLabel
+import com.miruplay.tv.model.cloudDriveRssSaveConfigActionLabel
+import com.miruplay.tv.model.cloudDriveRssSaveCredentialsActionLabel
+import com.miruplay.tv.model.cloudDriveRssSchedulerIdleLabel
+import com.miruplay.tv.model.cloudDriveRssStartSchedulerActionLabel
+import com.miruplay.tv.model.cloudDriveRssStopSchedulerActionLabel
+import com.miruplay.tv.model.cloudDriveRssSyncPathTitleLabel
+import com.miruplay.tv.model.cloudDriveRssTitleLabel
+import com.miruplay.tv.model.cloudDriveRssUnconfiguredEndpointLabel
+import com.miruplay.tv.model.cloudDriveRssUseActiveSourceActionLabel
+import com.miruplay.tv.model.cloudDriveRssUseCurrentDirectoryActionLabel
+import com.miruplay.tv.model.cloudDriveRssUsernameFieldLabel
+import com.miruplay.tv.model.cloudDriveRssVerifyApiTokenActionLabel
 import com.miruplay.tv.model.desktopSettingsSectionOrder
+import com.miruplay.tv.model.localizedCloudRssStatusText
+import com.miruplay.tv.model.metadataBangumiTokenFieldLabel
+import com.miruplay.tv.model.metadataBangumiTokenSettingsStatus
+import com.miruplay.tv.model.metadataBangumiTokenTileDetail
+import com.miruplay.tv.model.metadataBangumiTokenTileLabel
+import com.miruplay.tv.model.pagedListCoercedPageStart
+import com.miruplay.tv.model.pagedListPageStartForIndex
+import com.miruplay.tv.model.pagedListPageSummary
+import com.miruplay.tv.model.settingsActiveSourceSharedDetail
+import com.miruplay.tv.model.settingsCloudDriveMenuSummary
+import com.miruplay.tv.model.settingsCloudDriveRescanSourceDetail
+import com.miruplay.tv.model.settingsClearTokenActionLabel
+import com.miruplay.tv.model.settingsCountValue
+import com.miruplay.tv.model.settingsDesktopControlTileDetail
+import com.miruplay.tv.model.settingsDesktopControlTileValue
+import com.miruplay.tv.model.settingsDesktopScanMenuSummary
+import com.miruplay.tv.model.settingsDesktopScanStatusMessage
+import com.miruplay.tv.model.settingsDesktopWebUiMenuSummary
+import com.miruplay.tv.model.settingsDesktopWebUiStatusMessage
+import com.miruplay.tv.model.settingsActiveSourceLabel
+import com.miruplay.tv.model.settingsActiveSourceTileLabel
+import com.miruplay.tv.model.settingsCloudRssLinkedSourceValue
+import com.miruplay.tv.model.settingsCloudRssOverviewValue
+import com.miruplay.tv.model.settingsCloudRssSubscriptionsValue
+import com.miruplay.tv.model.settingsIndexedCountValue
+import com.miruplay.tv.model.settingsIndexSharedDetail
+import com.miruplay.tv.model.settingsIndexTileLabel
+import com.miruplay.tv.model.settingsLinkedSourceLabel
+import com.miruplay.tv.model.settingsMenuPanelDescription
+import com.miruplay.tv.model.settingsMenuPanelTitle
+import com.miruplay.tv.model.settingsMetadataCandidateScopeDetail
+import com.miruplay.tv.model.settingsMetadataCandidateScopeTileLabel
+import com.miruplay.tv.model.settingsMetadataMatchStatusDetail
+import com.miruplay.tv.model.settingsMetadataMatchStatusTileLabel
+import com.miruplay.tv.model.settingsOpenDetailsActionLabel
+import com.miruplay.tv.model.settingsOpenLibraryActionLabel
+import com.miruplay.tv.model.settingsOpenPlayerActionLabel
+import com.miruplay.tv.model.settingsPlaybackPageDetail
+import com.miruplay.tv.model.settingsPlaybackModeTileLabel
+import com.miruplay.tv.model.settingsPlaybackStatusMessage
+import com.miruplay.tv.model.settingsPosterWallIndexDetail
+import com.miruplay.tv.model.settingsPosterWallIndexTileLabel
+import com.miruplay.tv.model.settingsPostSyncSourceTileLabel
+import com.miruplay.tv.model.settingsRecentPlaybackDetail
+import com.miruplay.tv.model.settingsRecentPlaybackTileLabel
+import com.miruplay.tv.model.settingsRecentScanStatusDetail
+import com.miruplay.tv.model.settingsRecentScanStatusTileLabel
+import com.miruplay.tv.model.settingsRecordCountValue
+import com.miruplay.tv.model.settingsRemoteAutomationTileDetail
+import com.miruplay.tv.model.settingsRemoteAutomationTileLabel
+import com.miruplay.tv.model.settingsRemoteAutomationTileValue
+import com.miruplay.tv.model.settingsSaveTokenActionLabel
+import com.miruplay.tv.model.settingsSavedStateValue
+import com.miruplay.tv.model.settingsScanActiveSourceActionLabel
+import com.miruplay.tv.model.settingsSelectedMediaDetail
+import com.miruplay.tv.model.settingsSelectedMediaTileLabel
+import com.miruplay.tv.model.settingsSelectedMetadataEntryDetail
+import com.miruplay.tv.model.settingsSelectedMetadataEntryTileLabel
+import com.miruplay.tv.model.settingsSourceTileLabel
+import com.miruplay.tv.model.settingsSourceTypeBreakdown
+import com.miruplay.tv.model.settingsSourcesMenuSummary
+import com.miruplay.tv.model.settingsWebUiNativeControlTileLabel
+import com.miruplay.tv.model.settingsWebUiAndroidTvValue
+import com.miruplay.tv.model.settingsWebUiTileLabel
+import com.miruplay.tv.model.settingsWebUiTileDetail
 import com.miruplay.tv.model.stepDesktopSettingsSection
-import com.miruplay.tv.model.tvLabel
+import com.miruplay.tv.model.rssSubscriptionDeleteActionLabel
+import com.miruplay.tv.model.rssSubscriptionEmptyMessage
+import com.miruplay.tv.model.rssSubscriptionFallbackTitleLabel
+import com.miruplay.tv.model.rssSubscriptionFilterRegexFieldLabel
+import com.miruplay.tv.model.rssSubscriptionFormPreviewFallbackLabel
+import com.miruplay.tv.model.rssSubscriptionNameFieldLabel
+import com.miruplay.tv.model.rssSubscriptionPageUnitLabel
+import com.miruplay.tv.model.rssSubscriptionPreviewFallbackLabel
+import com.miruplay.tv.model.rssSubscriptionSaveActionLabel
+import com.miruplay.tv.model.rssSubscriptionStateLabel
+import com.miruplay.tv.model.rssSubscriptionUrlFieldLabel
+import com.miruplay.tv.model.rssSubscriptionsTitleLabel
 
 private const val CLOUD_RSS_PREVIEW_LIMIT = 58
 private const val CLOUD_RSS_WIDE_PREVIEW_LIMIT = 86
@@ -98,6 +215,9 @@ internal fun CloudRssPanel(
     selectedSubscription: RssSubscriptionInfo?,
     status: String,
     schedulerStatus: String,
+    bangumiToken: String,
+    onBangumiTokenChange: (String) -> Unit,
+    bangumiTokenConfigured: Boolean,
     linkedSourceLabel: String,
     onSaveConfig: () -> Unit,
     onSaveCredentials: () -> Unit,
@@ -112,6 +232,8 @@ internal fun CloudRssPanel(
     onSaveSubscription: () -> Unit,
     onSubscriptionSelected: (RssSubscriptionInfo) -> Unit,
     onDeleteSubscription: () -> Unit,
+    onSaveBangumiToken: () -> Unit,
+    onClearBangumiToken: () -> Unit,
     sources: List<MediaSourceInfo>,
     activeSourceLabel: String,
     indexedItemCount: Int,
@@ -214,8 +336,8 @@ internal fun CloudRssPanel(
                 ),
                 status = desktopLibraryStatusText(libraryStatus),
                 actions = listOf(
-                    SettingsQuickAction("打开海报墙", onOpenLibrary),
-                    SettingsQuickAction("扫描当前源", onScanActiveSource),
+                    SettingsQuickAction(settingsOpenLibraryActionLabel(), onOpenLibrary),
+                    SettingsQuickAction(settingsScanActiveSourceActionLabel(), onScanActiveSource),
                 ),
                 onFocusSectionMenu = { focusSelectedSectionMenu() },
                 modifier = Modifier.weight(1f),
@@ -228,7 +350,7 @@ internal fun CloudRssPanel(
                     selectedMediaTitle = selectedMediaTitle,
                 ),
                 status = desktopPlaybackSettingsStatus(),
-                actions = listOf(SettingsQuickAction("打开播放器", onOpenPlayer)),
+                actions = listOf(SettingsQuickAction(settingsOpenPlayerActionLabel(), onOpenPlayer)),
                 onFocusSectionMenu = { focusSelectedSectionMenu() },
                 modifier = Modifier.weight(1f),
             )
@@ -239,10 +361,10 @@ internal fun CloudRssPanel(
                     linkedSourceLabel = linkedSourceLabel,
                     libraryStatus = libraryStatus,
                 ),
-                status = "扫描入口保留在媒体库海报墙和 CloudDrive 同步流程中。",
+                status = settingsDesktopScanStatusMessage(),
                 actions = listOf(
-                    SettingsQuickAction("扫描当前源", onScanActiveSource),
-                    SettingsQuickAction("打开海报墙", onOpenLibrary),
+                    SettingsQuickAction(settingsScanActiveSourceActionLabel(), onScanActiveSource),
+                    SettingsQuickAction(settingsOpenLibraryActionLabel(), onOpenLibrary),
                 ),
                 onFocusSectionMenu = { focusSelectedSectionMenu() },
                 modifier = Modifier.weight(1f),
@@ -253,17 +375,29 @@ internal fun CloudRssPanel(
                     selectedMediaTitle = selectedMediaTitle,
                     metadataSummary = metadataSummary,
                     indexedItemCount = indexedItemCount,
+                    bangumiTokenConfigured = bangumiTokenConfigured,
                 ),
-                status = desktopMetadataSettingsStatus(),
-                actions = listOf(SettingsQuickAction("打开详情", onOpenDetails)),
+                status = desktopMetadataSettingsStatus(bangumiTokenConfigured),
+                actions = listOf(
+                    SettingsQuickAction(settingsOpenDetailsActionLabel(), onOpenDetails),
+                    SettingsQuickAction(settingsSaveTokenActionLabel(), onSaveBangumiToken, enabled = bangumiToken.isNotBlank()),
+                    SettingsQuickAction(settingsClearTokenActionLabel(), onClearBangumiToken, enabled = bangumiTokenConfigured),
+                ),
                 onFocusSectionMenu = { focusSelectedSectionMenu() },
+                extraContent = {
+                    LabeledTextField(
+                        metadataBangumiTokenFieldLabel(),
+                        bangumiToken,
+                        onValueChange = onBangumiTokenChange,
+                    )
+                },
                 modifier = Modifier.weight(1f),
             )
             MiruPlaySettingsSection.WEB_UI -> SettingsSummaryContent(
                 section = selectedSection,
                 tiles = desktopWebUiSettingsTiles(),
-                status = "WebUI 保留在 Android TV 端；桌面版使用原生窗口与键盘遥控。",
-                actions = listOf(SettingsQuickAction("打开海报墙", onOpenLibrary)),
+                status = settingsDesktopWebUiStatusMessage(),
+                actions = listOf(SettingsQuickAction(settingsOpenLibraryActionLabel(), onOpenLibrary)),
                 onFocusSectionMenu = { focusSelectedSectionMenu() },
                 modifier = Modifier.weight(1f),
             )
@@ -461,7 +595,7 @@ private fun CloudRssAutomationContent(
                 verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
             ) {
                 CloudRssCard(
-                    title = "CloudDrive2",
+                    title = cloudDriveRssTitleLabel(),
                     badge = if (enabled) labels.enabledBadge else labels.disabledBadge,
                     preview = cloudRssPreview(endpointUrl, fallback = labels.endpointFallback),
                 ) {
@@ -563,7 +697,7 @@ private fun CloudRssAutomationContent(
                     }
                 }
                 CloudRssCard(
-                    title = "同步路径",
+                    title = cloudDriveRssSyncPathTitleLabel(),
                     badge = labels.pathBadge,
                     preview = cloudRssPathPairPreview(inboxPath, libraryPath),
                 ) {
@@ -825,7 +959,7 @@ private fun CloudRssAutomationContent(
                     }
                 }
                 CloudRssCard(
-                    title = "运行状态",
+                    title = cloudDriveRssRuntimeTitleLabel(),
                     badge = labels.runBadge,
                     preview = cloudRssPreview(schedulerStatusText, fallback = labels.schedulerIdle),
                 ) {
@@ -914,8 +1048,8 @@ private fun CloudDrivePathSelectorField(
             onValueChange = onValueChange,
             inputModifier = fieldModifier,
         )
-        TvActionButton(
-            text = "选择目录",
+            TvActionButton(
+                text = cloudDriveRssChooseDirectoryActionLabel(),
             onClick = onPick,
             secondary = true,
             modifier = pickModifier.fillMaxWidth(),
@@ -993,12 +1127,12 @@ private fun CloudDriveDirectoryBrowserCard(
     }
     CloudRssCard(
         title = state.target.title,
-        badge = "目录",
+        badge = cloudDriveRssDirectoryBadgeLabel(),
         preview = state.displayPath,
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
             TvActionButton(
-                text = "使用当前目录",
+                text = cloudDriveRssUseCurrentDirectoryActionLabel(),
                 onClick = { onSelect(state.target, state.path) },
                 modifier = Modifier
                     .weight(1f)
@@ -1011,7 +1145,7 @@ private fun CloudDriveDirectoryBrowserCard(
                     ),
             )
             TvActionButton(
-                text = "返回上级",
+                text = cloudDriveRssParentDirectoryActionLabel(),
                 onClick = { state.parentPath?.let(onBrowse) },
                 secondary = true,
                 modifier = Modifier
@@ -1025,7 +1159,7 @@ private fun CloudDriveDirectoryBrowserCard(
                     ),
             )
             TvActionButton(
-                text = "关闭",
+                text = cloudDriveRssCloseActionLabel(),
                 onClick = onClose,
                 secondary = true,
                 modifier = Modifier
@@ -1044,13 +1178,13 @@ private fun CloudDriveDirectoryBrowserCard(
         }
         if (state.isLoading) {
             CloudDriveDirectoryEmptyState(
-                text = "正在读取 CloudDrive2 目录...",
+                text = cloudDriveRssLoadingDirectoriesMessage(),
                 focusRequester = emptyFocusRequester,
                 onMove = ::requestDirectoryFocus,
             )
         } else if (state.entries.isEmpty()) {
             CloudDriveDirectoryEmptyState(
-                text = "当前目录没有可进入的子目录。",
+                text = cloudDriveRssEmptyDirectoryMessage(),
                 focusRequester = emptyFocusRequester,
                 onMove = ::requestDirectoryFocus,
             )
@@ -1420,38 +1554,27 @@ internal fun cloudRssSubscriptionPageStartForIndex(
     index: Int,
     itemCount: Int,
     pageSize: Int = CLOUD_RSS_SUBSCRIPTION_PAGE_SIZE,
-): Int {
-    if (itemCount <= 0 || pageSize <= 0) return 0
-    val safeIndex = index.coerceIn(0, itemCount - 1)
-    return (safeIndex / pageSize) * pageSize
-}
+): Int = pagedListPageStartForIndex(index, itemCount, pageSize)
 
 internal fun cloudRssSubscriptionCoercedPageStart(
     pageStart: Int,
     itemCount: Int,
     pageSize: Int = CLOUD_RSS_SUBSCRIPTION_PAGE_SIZE,
-): Int {
-    if (itemCount <= 0 || pageSize <= 0) return 0
-    val maxPageStart = cloudRssSubscriptionPageStartForIndex(
-        index = itemCount - 1,
-        itemCount = itemCount,
-        pageSize = pageSize,
-    )
-    return (pageStart / pageSize)
-        .coerceAtLeast(0)
-        .times(pageSize)
-        .coerceAtMost(maxPageStart)
-}
+): Int = pagedListCoercedPageStart(pageStart, itemCount, pageSize)
 
 internal fun cloudRssSubscriptionPageSummary(
     pageStart: Int,
     visibleCount: Int,
     itemCount: Int,
 ): String? {
-    if (itemCount <= 0 || visibleCount <= 0 || visibleCount >= itemCount) return null
     val safeStart = cloudRssSubscriptionCoercedPageStart(pageStart, itemCount)
-    val end = (safeStart + visibleCount).coerceAtMost(itemCount)
-    return "显示 ${safeStart + 1}-$end / $itemCount 个订阅，按上/下继续翻页。"
+    return pagedListPageSummary(
+        pageStart = safeStart,
+        visibleCount = visibleCount,
+        itemCount = itemCount,
+        pageSize = CLOUD_RSS_SUBSCRIPTION_PAGE_SIZE,
+        unitLabel = rssSubscriptionPageUnitLabel(),
+    )
 }
 
 internal enum class CloudDriveDirectoryAction {
@@ -1522,38 +1645,27 @@ internal fun cloudDriveDirectoryPageStartForIndex(
     index: Int,
     itemCount: Int,
     pageSize: Int = CLOUD_DRIVE_DIRECTORY_PAGE_SIZE,
-): Int {
-    if (itemCount <= 0 || pageSize <= 0) return 0
-    val safeIndex = index.coerceIn(0, itemCount - 1)
-    return (safeIndex / pageSize) * pageSize
-}
+): Int = pagedListPageStartForIndex(index, itemCount, pageSize)
 
 internal fun cloudDriveDirectoryCoercedPageStart(
     pageStart: Int,
     itemCount: Int,
     pageSize: Int = CLOUD_DRIVE_DIRECTORY_PAGE_SIZE,
-): Int {
-    if (itemCount <= 0 || pageSize <= 0) return 0
-    val maxPageStart = cloudDriveDirectoryPageStartForIndex(
-        index = itemCount - 1,
-        itemCount = itemCount,
-        pageSize = pageSize,
-    )
-    return (pageStart / pageSize)
-        .coerceAtLeast(0)
-        .times(pageSize)
-        .coerceAtMost(maxPageStart)
-}
+): Int = pagedListCoercedPageStart(pageStart, itemCount, pageSize)
 
 internal fun cloudDriveDirectoryPageSummary(
     pageStart: Int,
     visibleCount: Int,
     itemCount: Int,
 ): String? {
-    if (itemCount <= 0 || visibleCount <= 0 || visibleCount >= itemCount) return null
     val safeStart = cloudDriveDirectoryCoercedPageStart(pageStart, itemCount)
-    val end = (safeStart + visibleCount).coerceAtMost(itemCount)
-    return "显示 ${safeStart + 1}-$end / $itemCount 个目录，按上/下继续翻页。"
+    return pagedListPageSummary(
+        pageStart = safeStart,
+        visibleCount = visibleCount,
+        itemCount = itemCount,
+        pageSize = CLOUD_DRIVE_DIRECTORY_PAGE_SIZE,
+        unitLabel = cloudDriveRssDirectoryPageUnitLabel(),
+    )
 }
 
 private fun cloudDriveDirectoryHorizontalAction(
@@ -1655,20 +1767,28 @@ private fun cloudRssActionDownTarget(
 private data class SettingsQuickAction(
     val label: String,
     val onClick: () -> Unit,
+    val enabled: Boolean = true,
 )
 
 internal fun settingsQuickActionNavigationTarget(
     currentIndex: Int,
-    actionCount: Int,
+    actionCount: Int = 0,
     key: Key,
+    enabledActions: List<Boolean> = List(actionCount) { true },
 ): Int? {
-    if (actionCount <= 0) return null
+    val count = enabledActions.size.takeIf { actionCount == 0 } ?: actionCount
+    if (count <= 0 || currentIndex !in 0 until count) return null
     val delta = when (key) {
         Key.DirectionLeft -> -1
         Key.DirectionRight -> 1
         else -> return null
     }
-    return (currentIndex + delta).takeIf { it in 0 until actionCount }
+    var target = currentIndex + delta
+    while (target in 0 until count) {
+        if (enabledActions.getOrElse(target) { true }) return target
+        target += delta
+    }
+    return null
 }
 
 internal sealed interface SettingsQuickActionFocusTarget {
@@ -1678,8 +1798,9 @@ internal sealed interface SettingsQuickActionFocusTarget {
 
 internal fun settingsQuickActionFocusTarget(
     currentIndex: Int,
-    actionCount: Int,
+    actionCount: Int = 0,
     key: Key,
+    enabledActions: List<Boolean> = List(actionCount) { true },
 ): SettingsQuickActionFocusTarget? =
     when (key) {
         Key.DirectionLeft,
@@ -1688,9 +1809,15 @@ internal fun settingsQuickActionFocusTarget(
             currentIndex = currentIndex,
             actionCount = actionCount,
             key = key,
+            enabledActions = enabledActions,
         )?.let(SettingsQuickActionFocusTarget::Action)
         Key.DirectionUp -> SettingsQuickActionFocusTarget.SectionMenu
-            .takeIf { actionCount > 0 && currentIndex in 0 until actionCount }
+            .takeIf {
+                val count = enabledActions.size.takeIf { actionCount == 0 } ?: actionCount
+                count > 0 &&
+                    currentIndex in 0 until count &&
+                    enabledActions.getOrElse(currentIndex) { true }
+            }
         else -> null
     }
 
@@ -1741,42 +1868,42 @@ internal data class DesktopCloudRssUiLabels(
 
 internal fun desktopCloudRssUiLabels(): DesktopCloudRssUiLabels =
     DesktopCloudRssUiLabels(
-        endpoint = "CloudDrive2 地址",
-        username = "CloudDrive2 用户名",
-        apiToken = "API 令牌",
-        password = "密码",
-        saveCredentials = "保存凭据",
-        clearCredentials = "清空凭据",
-        login = "登录",
-        verify = "验证令牌",
-        inboxPath = "收件路径",
-        libraryPath = "媒体库路径",
-        intervalMinutes = "间隔分钟",
-        proxyHost = "代理主机",
-        proxyPort = "代理端口",
-        enabledToggle = "启用",
-        rssProxy = "RSS 代理",
-        useActiveSource = "使用当前源",
-        clearSource = "清除扫描源",
-        postSyncSource = "同步后扫描源：",
-        saveSyncConfig = "保存同步配置",
-        runSyncNow = "立即同步",
-        rssSubscriptions = "RSS 订阅",
-        subscriptionName = "订阅名称",
-        subscriptionUrl = "订阅地址",
-        filterRegex = "过滤正则",
-        saveRss = "保存 RSS",
-        deleteRss = "删除订阅",
-        rssEmpty = "保存订阅后会显示在这里。",
-        rssPreviewFallback = "保存订阅后在这里显示",
-        startScheduler = "启动调度",
-        stopScheduler = "停止调度",
-        endpointFallback = "填写 CloudDrive2 地址",
-        schedulerIdle = "调度器待命",
-        enabledBadge = "启用",
-        disabledBadge = "停用",
-        pathBadge = "路径",
-        runBadge = "运行",
+        endpoint = cloudDriveRssEndpointFieldLabel(),
+        username = cloudDriveRssUsernameFieldLabel(),
+        apiToken = cloudDriveRssApiTokenFieldLabel(),
+        password = cloudDriveRssPasswordFieldLabel(),
+        saveCredentials = cloudDriveRssSaveCredentialsActionLabel(),
+        clearCredentials = cloudDriveRssClearCredentialsActionLabel(),
+        login = cloudDriveRssLoginActionLabel(),
+        verify = cloudDriveRssVerifyApiTokenActionLabel(),
+        inboxPath = cloudDriveRssInboxPathFieldLabel(),
+        libraryPath = cloudDriveRssLibraryPathFieldLabel(),
+        intervalMinutes = cloudDriveRssIntervalMinutesFieldLabel(),
+        proxyHost = cloudDriveRssProxyHostFieldLabel(),
+        proxyPort = cloudDriveRssProxyPortFieldLabel(),
+        enabledToggle = cloudDriveRssEnabledToggleLabel(),
+        rssProxy = cloudDriveRssProxySettingLabel(),
+        useActiveSource = cloudDriveRssUseActiveSourceActionLabel(),
+        clearSource = cloudDriveRssClearScanSourceActionLabel(),
+        postSyncSource = cloudDriveRssPostSyncSourceLabel(),
+        saveSyncConfig = cloudDriveRssSaveConfigActionLabel(),
+        runSyncNow = cloudDriveRssRunNowActionLabel(),
+        rssSubscriptions = rssSubscriptionsTitleLabel(),
+        subscriptionName = rssSubscriptionNameFieldLabel(),
+        subscriptionUrl = rssSubscriptionUrlFieldLabel(),
+        filterRegex = rssSubscriptionFilterRegexFieldLabel(),
+        saveRss = rssSubscriptionSaveActionLabel(),
+        deleteRss = rssSubscriptionDeleteActionLabel(),
+        rssEmpty = rssSubscriptionEmptyMessage(),
+        rssPreviewFallback = rssSubscriptionFormPreviewFallbackLabel(),
+        startScheduler = cloudDriveRssStartSchedulerActionLabel(),
+        stopScheduler = cloudDriveRssStopSchedulerActionLabel(),
+        endpointFallback = cloudDriveRssEndpointFallbackLabel(),
+        schedulerIdle = cloudDriveRssSchedulerIdleLabel(),
+        enabledBadge = cloudDriveRssEnabledBadgeLabel(true),
+        disabledBadge = cloudDriveRssEnabledBadgeLabel(false),
+        pathBadge = cloudDriveRssPathBadgeLabel(),
+        runBadge = cloudDriveRssRunBadgeLabel(),
     )
 
 internal fun cloudRssOverviewTiles(
@@ -1788,21 +1915,26 @@ internal fun cloudRssOverviewTiles(
 ): List<SettingsSummaryTile> =
     listOf(
         SettingsSummaryTile(
-            label = "CloudDrive2",
-            value = if (enabled) "已启用" else "未启用",
-            detail = cloudRssPreview(endpointUrl, fallback = "未配置端点", maxLength = CLOUD_RSS_PREVIEW_LIMIT),
+            label = cloudDriveRssTitleLabel(),
+            value = settingsCloudRssOverviewValue(enabled),
+            detail = cloudRssPreview(
+                endpointUrl,
+                fallback = cloudDriveRssUnconfiguredEndpointLabel(),
+                maxLength = CLOUD_RSS_PREVIEW_LIMIT,
+            ),
         ),
         SettingsSummaryTile(
-            label = "RSS 订阅",
-            value = "${subscriptions.size} 个",
-            detail = subscriptions.firstOrNull()?.let { rssSubscriptionPreview(it, CLOUD_RSS_PREVIEW_LIMIT) } ?: "暂无订阅",
+            label = rssSubscriptionsTitleLabel(),
+            value = settingsCloudRssSubscriptionsValue(subscriptions.size),
+            detail = subscriptions.firstOrNull()?.let { rssSubscriptionPreview(it, CLOUD_RSS_PREVIEW_LIMIT) }
+                ?: rssSubscriptionPreviewFallbackLabel(),
         ),
         SettingsSummaryTile(
-            label = "同步后扫描",
-            value = linkedSourceLabel,
+            label = cloudDriveRssPostSyncScanSummaryLabel(),
+            value = settingsCloudRssLinkedSourceValue(linkedSourceLabel),
             detail = cloudRssPreview(
                 desktopCloudRssStatusText(schedulerStatus),
-                fallback = "调度器待命",
+                fallback = cloudDriveRssSchedulerIdleLabel(),
                 maxLength = CLOUD_RSS_PREVIEW_LIMIT,
             ),
         ),
@@ -1822,117 +1954,28 @@ internal fun cloudRssPathPairPreview(
     libraryPath: String,
     maxLength: Int = CLOUD_RSS_WIDE_PREVIEW_LIMIT,
 ): String {
-    val separator = " 到 "
+    val separator = cloudDriveRssPathPairSeparator()
     val safeMaxLength = maxLength.coerceAtLeast(separator.length + 8)
     val available = safeMaxLength - separator.length
     val inboxLength = available / 2
     val libraryLength = available - inboxLength
-    return cloudRssPreview(inboxPath, fallback = "收件路径", maxLength = inboxLength) +
+    return cloudRssPreview(inboxPath, fallback = cloudDriveRssInboxPathFieldLabel(), maxLength = inboxLength) +
         separator +
-        cloudRssPreview(libraryPath, fallback = "媒体库路径", maxLength = libraryLength)
+        cloudRssPreview(libraryPath, fallback = cloudDriveRssLibraryPathFieldLabel(), maxLength = libraryLength)
 }
 
 internal fun rssSubscriptionPreview(
     subscription: RssSubscriptionInfo,
     maxLength: Int = CLOUD_RSS_WIDE_PREVIEW_LIMIT,
 ): String {
-    val state = if (subscription.enabled) "启用" else "停用"
+    val state = rssSubscriptionStateLabel(subscription.enabled)
     val filter = subscription.filterRegex?.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty()
-    val label = subscription.name.ifBlank { "RSS" }
+    val label = subscription.name.ifBlank { rssSubscriptionFallbackTitleLabel() }
     return "$state · $label · ${subscription.url}$filter".compactMiddle(maxLength)
 }
 
-private val schedulerErrorStatusRegex = Regex("""^Scheduler (running|idle)\. Last check failed: (.+)$""")
-private val schedulerSummaryStatusRegex =
-    Regex("""^Scheduler (running|idle)\. Last run: (\d+) submitted, (\d+) skipped, (\d+) failed, (\d+) organized\.$""")
-private val syncCompleteStatusRegex =
-    Regex("""^Sync complete: (\d+) submitted, (\d+) skipped, (\d+) failed, (\d+) organized\.$""")
-private val loadedRssStatusRegex = Regex("""^Loaded (\d+) RSS subscription\(s\)\.$""")
-private val showingRssStatusRegex = Regex("""^Showing (\d+) RSS subscription\(s\)\.$""")
-private val verifiedTokenStatusRegex = Regex("""^CloudDrive2 API token verified and saved: (.+)\.$""")
-private val linkedScanSourceStatusRegex =
-    Regex("""^Linked Cloud/RSS post-sync scan source: (.+)\. Save sync config to persist it\.$""")
-private val rescanStartedStatusRegex = Regex("""^(.+) Rescanning (.+)\.\.\.$""")
-private val rssSubscriptionSavedRegex = Regex("""^RSS subscription saved: (.+)$""")
-private val rssSubscriptionSelectedRegex = Regex("""^Selected RSS subscription: (.+)$""")
-
-internal fun desktopCloudRssStatusText(status: String): String {
-    val trimmed = status.trim()
-    return when {
-        trimmed.isBlank() -> "Cloud/RSS 待命。"
-        trimmed.isTvCloudRssStatus() -> trimmed
-        trimmed == "Scheduler idle. No checks yet." -> "调度器待命，尚未检查。"
-        trimmed == "Scheduler idle. Last check found no due sync." -> "调度器待命，上次检查没有待同步内容。"
-        trimmed == "Scheduler running. No checks yet." -> "调度器运行中，尚未检查。"
-        trimmed == "Scheduler running. Last check found no due sync." -> "调度器运行中，上次检查没有待同步内容。"
-        trimmed == "Cloud/RSS automation settings saved." -> "Cloud/RSS 自动化设置已保存。"
-        trimmed == "Load or save Cloud/RSS automation settings." -> "加载或保存 Cloud/RSS 自动化设置。"
-        trimmed == "CloudDrive credentials saved." -> "CloudDrive 凭据已保存。"
-        trimmed == "CloudDrive credentials cleared." -> "CloudDrive 凭据已清空。"
-        trimmed == "Enter CloudDrive2 endpoint, username, and password first." -> "请先填写 CloudDrive2 地址、用户名和密码。"
-        trimmed == "Logging into CloudDrive2..." -> "正在登录 CloudDrive2..."
-        trimmed == "CloudDrive2 login succeeded; token saved." -> "CloudDrive2 登录成功，令牌已保存。"
-        trimmed == "Enter CloudDrive2 endpoint and API token first." -> "请先填写 CloudDrive2 地址和 API 令牌。"
-        trimmed == "Validating CloudDrive2 API token..." -> "正在验证 CloudDrive2 API 令牌..."
-        trimmed == "Running Cloud/RSS sync..." -> "正在执行 Cloud/RSS 同步..."
-        trimmed == "Enable and save Cloud/RSS sync before starting the scheduler." -> "启动调度前请先启用并保存 Cloud/RSS 同步。"
-        trimmed == "Cloud/RSS scheduler started." -> "Cloud/RSS 调度器已启动。"
-        trimmed == "Cloud/RSS scheduler is already running." -> "Cloud/RSS 调度器已经在运行。"
-        trimmed == "Cloud/RSS scheduler stopped." -> "Cloud/RSS 调度器已停止。"
-        trimmed == "Scheduled sync complete." -> "定时同步完成。"
-        trimmed == "Open a saved media source before linking Cloud/RSS scanning." -> "请先打开已保存的媒体源，再绑定 Cloud/RSS 扫描。"
-        trimmed == "Linked scan source was not found. Clear or relink the Cloud/RSS scan source." -> "未找到已绑定的扫描源，请清除或重新绑定 Cloud/RSS 扫描源。"
-        trimmed == "Cloud/RSS post-sync scan source cleared. Save sync config to persist it." -> "同步后扫描源已清除，请保存同步配置。"
-        trimmed == "Enter an RSS URL first." -> "请先填写 RSS 地址。"
-        trimmed == "No RSS subscriptions configured." -> "尚未配置 RSS 订阅。"
-        trimmed == "Failed to load RSS subscriptions." -> "RSS 订阅加载失败。"
-        trimmed == "Failed to refresh RSS subscriptions." -> "RSS 订阅刷新失败。"
-        trimmed == "Select an RSS subscription first." -> "请先选择一个 RSS 订阅。"
-        trimmed == "RSS subscription deleted." -> "RSS 订阅已删除。"
-        else -> desktopCloudRssDynamicStatusText(trimmed) ?: trimmed
-    }
-}
-
-private fun String.isTvCloudRssStatus(): Boolean =
-    any { it in '\u4E00'..'\u9FFF' } && (endsWith("。") || endsWith("..."))
-
-private fun desktopCloudRssDynamicStatusText(status: String): String? {
-    schedulerErrorStatusRegex.matchEntire(status)?.let { match ->
-        return "${schedulerStateLabel(match.groupValues[1])}，上次检查失败：${match.groupValues[2]}"
-    }
-    schedulerSummaryStatusRegex.matchEntire(status)?.let { match ->
-        return "${schedulerStateLabel(match.groupValues[1])}，上次运行：提交 ${match.groupValues[2]} 个，跳过 ${match.groupValues[3]} 个，失败 ${match.groupValues[4]} 个，整理 ${match.groupValues[5]} 个。"
-    }
-    syncCompleteStatusRegex.matchEntire(status)?.let { match ->
-        return "同步完成：提交 ${match.groupValues[1]} 个，跳过 ${match.groupValues[2]} 个，失败 ${match.groupValues[3]} 个，整理 ${match.groupValues[4]} 个。"
-    }
-    loadedRssStatusRegex.matchEntire(status)?.let { match ->
-        return "已加载 ${match.groupValues[1]} 个 RSS 订阅。"
-    }
-    showingRssStatusRegex.matchEntire(status)?.let { match ->
-        return "正在显示 ${match.groupValues[1]} 个 RSS 订阅。"
-    }
-    verifiedTokenStatusRegex.matchEntire(status)?.let { match ->
-        return "CloudDrive2 API 令牌已验证并保存：${match.groupValues[1]}。"
-    }
-    linkedScanSourceStatusRegex.matchEntire(status)?.let { match ->
-        return "已绑定同步后扫描源：${match.groupValues[1]}。请保存同步配置。"
-    }
-    rescanStartedStatusRegex.matchEntire(status)?.let { match ->
-        val reason = desktopCloudRssStatusText(match.groupValues[1])
-        return "${reason.removeSuffix("。")}，正在重扫 ${match.groupValues[2]}..."
-    }
-    rssSubscriptionSavedRegex.matchEntire(status)?.let { match ->
-        return "RSS 订阅已保存：${match.groupValues[1]}"
-    }
-    rssSubscriptionSelectedRegex.matchEntire(status)?.let { match ->
-        return "已选择 RSS 订阅：${match.groupValues[1]}"
-    }
-    return null
-}
-
-private fun schedulerStateLabel(state: String): String =
-    if (state == "running") "调度器运行中" else "调度器待命"
+internal fun desktopCloudRssStatusText(status: String): String =
+    localizedCloudRssStatusText(status) ?: status.trim()
 
 @Composable
 private fun SettingsSectionMenu(
@@ -1961,9 +2004,9 @@ private fun SettingsSectionMenu(
             }
             .focusable(),
     ) {
-        Text("设置菜单", color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
+        Text(settingsMenuPanelTitle(), color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(6.dp))
-        Text("像 TV 版一样按分类管理桌面能力。", color = TextSecondary, fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp)
+        Text(settingsMenuPanelDescription(), color = TextSecondary, fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp)
         Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
         desktopSettingsSectionOrder.forEach { section ->
             SettingsSectionMenuRow(
@@ -2063,6 +2106,7 @@ private fun SettingsSummaryContent(
     actions: List<SettingsQuickAction>,
     onFocusSectionMenu: () -> Unit,
     modifier: Modifier = Modifier,
+    extraContent: @Composable ColumnScope.() -> Unit = {},
 ) {
     val actionFocusRequesters = remember(actions.size) {
         List(actions.size) { FocusRequester() }
@@ -2072,6 +2116,7 @@ private fun SettingsSummaryContent(
             currentIndex = currentIndex,
             actionCount = actions.size,
             key = key,
+            enabledActions = actions.map { it.enabled },
         )) {
             is SettingsQuickActionFocusTarget.Action -> {
                 actionFocusRequesters[target.index].requestFocus()
@@ -2094,6 +2139,7 @@ private fun SettingsSummaryContent(
                 SettingsSummaryTileRow(row)
             }
         }
+        extraContent()
         Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
         StatusBox(status)
         Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
@@ -2103,6 +2149,7 @@ private fun SettingsSummaryContent(
                     action.label,
                     onClick = action.onClick,
                     secondary = index != 0,
+                    enabled = action.enabled,
                     modifier = Modifier
                         .focusRequester(actionFocusRequesters[index])
                         .desktopNavigationKeyHandler { key -> moveActionFocus(index, key) },
@@ -2169,19 +2216,19 @@ internal fun sourceSettingsTiles(
 ): List<SettingsSummaryTile> =
     listOf(
         SettingsSummaryTile(
-            label = "媒体源",
-            value = "${sources.size} 个",
-            detail = sourceTypeBreakdown(sources),
+            label = settingsSourceTileLabel(),
+            value = settingsCountValue(sources.size),
+            detail = settingsSourceTypeBreakdown(sources),
         ),
         SettingsSummaryTile(
-            label = "当前源",
+            label = settingsActiveSourceTileLabel(),
             value = activeSourceLabel,
-            detail = "媒体库、远程浏览器和 Cloud/RSS 共用这个活动源。",
+            detail = settingsActiveSourceSharedDetail(),
         ),
         SettingsSummaryTile(
-            label = "海报墙索引",
-            value = "$indexedItemCount 条",
-            detail = "扫描后优先回到媒体库海报墙。",
+            label = settingsPosterWallIndexTileLabel(),
+            value = settingsRecordCountValue(indexedItemCount),
+            detail = settingsPosterWallIndexDetail(),
         ),
     )
 
@@ -2192,27 +2239,27 @@ internal fun playbackSettingsTiles(
 ): List<SettingsSummaryTile> =
     listOf(
         SettingsSummaryTile(
-            label = "播放模式",
+            label = settingsPlaybackModeTileLabel(),
             value = playbackSummary,
-            detail = "mpv、RIFE、字幕和起播时间在播放页调整。",
+            detail = settingsPlaybackPageDetail(),
         ),
         SettingsSummaryTile(
-            label = "继续观看",
-            value = "$recentCount 条",
-            detail = "mpv 进度同步后会刷新这里。",
+            label = settingsRecentPlaybackTileLabel(),
+            value = settingsRecordCountValue(recentCount),
+            detail = settingsRecentPlaybackDetail(),
         ),
         SettingsSummaryTile(
-            label = "当前媒体",
+            label = settingsSelectedMediaTileLabel(),
             value = selectedMediaTitle,
-            detail = "从海报墙或详情页选择后可直接播放。",
+            detail = settingsSelectedMediaDetail(),
         ),
     )
 
 internal fun desktopPlaybackSettingsStatus(): String =
-    "mpv 播放设置保留在播放页，RIFE/字幕/起播秒数仍可直接调整。"
+    settingsPlaybackStatusMessage()
 
-internal fun desktopMetadataSettingsStatus(): String =
-    "Bangumi 搜索、批量预览、应用和撤销保留在详情页。"
+internal fun desktopMetadataSettingsStatus(bangumiTokenConfigured: Boolean = false): String =
+    metadataBangumiTokenSettingsStatus(bangumiTokenConfigured)
 
 internal fun scanSettingsTiles(
     indexedItemCount: Int,
@@ -2221,19 +2268,19 @@ internal fun scanSettingsTiles(
 ): List<SettingsSummaryTile> =
     listOf(
         SettingsSummaryTile(
-            label = "索引",
-            value = "$indexedItemCount 条",
-            detail = "本地、WebDAV、SMB 都写入同一桌面索引。",
+            label = settingsIndexTileLabel(),
+            value = settingsRecordCountValue(indexedItemCount),
+            detail = settingsIndexSharedDetail(),
         ),
         SettingsSummaryTile(
-            label = "同步后扫描源",
+            label = settingsPostSyncSourceTileLabel(),
             value = linkedSourceLabel,
-            detail = "CloudDrive 完成后可触发这个源的重扫。",
+            detail = settingsCloudDriveRescanSourceDetail(),
         ),
         SettingsSummaryTile(
-            label = "最近扫描状态",
+            label = settingsRecentScanStatusTileLabel(),
             value = desktopLibraryStatusText(libraryStatus),
-            detail = "扫描入口也保留在媒体库顶部。",
+            detail = settingsRecentScanStatusDetail(),
         ),
     )
 
@@ -2241,65 +2288,57 @@ internal fun metadataSettingsTiles(
     selectedMediaTitle: String,
     metadataSummary: String,
     indexedItemCount: Int,
+    bangumiTokenConfigured: Boolean = false,
 ): List<SettingsSummaryTile> =
     listOf(
         SettingsSummaryTile(
-            label = "选中条目",
+            label = settingsSelectedMetadataEntryTileLabel(),
             value = selectedMediaTitle,
-            detail = "详情页会显示可应用的 Bangumi 匹配。",
+            detail = settingsSelectedMetadataEntryDetail(),
         ),
         SettingsSummaryTile(
-            label = "匹配状态",
+            label = settingsMetadataMatchStatusTileLabel(),
             value = metadataSummary,
-            detail = "支持单条应用、批量预览、应用和撤销。",
+            detail = settingsMetadataMatchStatusDetail(),
         ),
         SettingsSummaryTile(
-            label = "候选范围",
-            value = "$indexedItemCount 条索引",
-            detail = "批量匹配会跳过已有冲突元数据。",
+            label = settingsMetadataCandidateScopeTileLabel(),
+            value = settingsIndexedCountValue(indexedItemCount),
+            detail = settingsMetadataCandidateScopeDetail(),
+        ),
+        SettingsSummaryTile(
+            label = metadataBangumiTokenTileLabel(),
+            value = settingsSavedStateValue(bangumiTokenConfigured),
+            detail = metadataBangumiTokenTileDetail(),
         ),
     )
 
 private fun desktopWebUiSettingsTiles(): List<SettingsSummaryTile> =
     listOf(
         SettingsSummaryTile(
-            label = "WebUI",
-            value = "Android TV",
-            detail = "二维码和局域网令牌入口由 TV 设置页提供。",
+            label = settingsWebUiTileLabel(),
+            value = settingsWebUiAndroidTvValue(),
+            detail = settingsWebUiTileDetail(),
         ),
         SettingsSummaryTile(
-            label = "桌面控制",
-            value = "原生窗口",
-            detail = "Windows 版保留键盘/遥控式导航和本机播放控制。",
+            label = settingsWebUiNativeControlTileLabel(),
+            value = settingsDesktopControlTileValue(),
+            detail = settingsDesktopControlTileDetail(),
         ),
         SettingsSummaryTile(
-            label = "远程自动化",
-            value = "Cloud/RSS",
-            detail = "CloudDrive2 与 RSS 同步在云盘设置页管理。",
+            label = settingsRemoteAutomationTileLabel(),
+            value = settingsRemoteAutomationTileValue(),
+            detail = settingsRemoteAutomationTileDetail(),
         ),
     )
 
-private fun sourceTypeBreakdown(sources: List<MediaSourceInfo>): String {
-    if (sources.isEmpty()) return "尚未添加本地、WebDAV 或 SMB 源。"
-    return MediaSourceType.entries
-        .mapNotNull { type ->
-            val count = sources.count { it.type == type }
-            if (count == 0) null else "${type.tvLabel()} $count"
-        }
-        .joinToString(" · ")
-}
-
 internal fun desktopActiveSourceLabel(source: MediaSourceInfo?): String =
-    source?.sourcePickerTitle() ?: "未选择"
+    settingsActiveSourceLabel(source)
 
 internal fun desktopLinkedSourceLabel(
     sources: List<MediaSourceInfo>,
     sourceId: Long?,
-): String {
-    if (sourceId == null) return "未选择"
-    return sources.firstOrNull { it.id == sourceId }?.sourcePickerTitle()
-        ?: "缺失媒体源 #$sourceId"
-}
+): String = settingsLinkedSourceLabel(sources, sourceId)
 
 private fun MiruPlaySettingsSection.menuSummary(
     sourcesCount: Int,
@@ -2308,12 +2347,12 @@ private fun MiruPlaySettingsSection.menuSummary(
     metadataSummary: String,
     playbackSummary: String,
 ): String = when (this) {
-    MiruPlaySettingsSection.SOURCES -> "$sourcesCount 个源"
+    MiruPlaySettingsSection.SOURCES -> settingsSourcesMenuSummary(sourcesCount)
     MiruPlaySettingsSection.PLAYBACK -> playbackSummary
-    MiruPlaySettingsSection.CLOUD_DRIVE -> if (cloudEnabled) "$rssCount 个订阅" else "未启用"
-    MiruPlaySettingsSection.SCAN -> "媒体库更新"
+    MiruPlaySettingsSection.CLOUD_DRIVE -> settingsCloudDriveMenuSummary(cloudEnabled, rssCount)
+    MiruPlaySettingsSection.SCAN -> settingsDesktopScanMenuSummary()
     MiruPlaySettingsSection.METADATA -> metadataSummary
-    MiruPlaySettingsSection.WEB_UI -> "访问地址"
+    MiruPlaySettingsSection.WEB_UI -> settingsDesktopWebUiMenuSummary()
 }
 
 @Composable

@@ -7,6 +7,8 @@ import com.miruplay.tv.clouddrive.CloudDriveLoginResult
 import com.miruplay.tv.clouddrive.CloudDriveTokenInfo
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.model.cloudDriveRssDirectorySelectedStatus
+import com.miruplay.tv.model.cloudDriveRssLibraryDirectorySelectedLabel
 import java.io.File
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -116,7 +118,10 @@ class DesktopCloudDriveDirectoryBrowserTest {
 
         assertEquals(DesktopCloudDriveDirectoryTarget.LIBRARY, selection.target)
         assertEquals("/Anime/Season 1", selection.path)
-        assertEquals("已选择媒体库目录：/Anime/Season 1", selection.status)
+        assertEquals(
+            cloudDriveRssDirectorySelectedStatus(cloudDriveRssLibraryDirectorySelectedLabel(), "/Anime/Season 1"),
+            selection.status,
+        )
     }
 
     private class FakeCloudDriveClient(

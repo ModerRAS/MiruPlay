@@ -17,7 +17,7 @@ object WebDavPropfindParser {
         val doc = factory.newDocumentBuilder().parse(xml.byteInputStream())
         val responses = doc.getElementsByTagNameNS(NS_DAV, "response")
 
-        val normalizedRequestedPath = MediaPathConventions.normalizeRemotePath(requestedPath)
+        val normalizedRequestedPath = MediaPathConventions.normalizeRemoteFilePath(requestedPath)
         val entries = mutableListOf<FileEntry>()
         for (i in 0 until responses.length) {
             val response = responses.item(i) as? Element ?: continue
@@ -44,18 +44,15 @@ object WebDavPropfindParser {
     }
 
     private fun hrefToRemotePath(href: String, baseUrl: String): String {
-        val decoded = MediaPathConventions.decodePath(href)
+        val decodedPath = MediaPathConventions.decodePath(pathFromUriOrManual(href))
         val basePath = extractBasePath(baseUrl)
-        val withoutBaseUrl = decoded.removePrefix(baseUrl.trimEnd('/'))
         val withoutBase = when {
-            basePath.isBlank() -> pathFromUriOrManual(withoutBaseUrl)
-            withoutBaseUrl == basePath -> ""
-            withoutBaseUrl.startsWith("$basePath/") -> withoutBaseUrl.removePrefix(basePath)
-            decoded == basePath -> ""
-            decoded.startsWith("$basePath/") -> decoded.removePrefix(basePath)
-            else -> pathFromUriOrManual(decoded).removePrefix(basePath)
+            basePath.isBlank() -> decodedPath
+            decodedPath == basePath -> ""
+            decodedPath.startsWith("$basePath/") -> decodedPath.removePrefix(basePath)
+            else -> decodedPath
         }
-        return MediaPathConventions.normalizeRemotePath(withoutBase)
+        return MediaPathConventions.normalizeRemoteFilePath(withoutBase)
     }
 
     private fun extractBasePath(baseUrl: String): String {

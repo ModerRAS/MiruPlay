@@ -27,7 +27,7 @@ dependencies {
     api(project(":repository-api"))
     api(project(":core:model"))
     api(project(":core:common"))
-    api(project(":media-source"))
+    api(project(":media-source-api"))
     
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)

@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.miruplay.tv.design.MiruPlayRouteSurface
 import com.miruplay.tv.design.MiruPlayUiMetrics
+import com.miruplay.tv.model.desktopRouteRailSubtitleLabel
 
 @Composable
 internal fun DesktopTvNavigation(
@@ -111,23 +112,14 @@ internal fun DesktopTvNavigation(
 }
 
 internal fun desktopRouteRailSubtitle(): String =
-    "电视式导航"
+    desktopRouteRailSubtitleLabel()
 
 internal fun DesktopSection.stepDesktopSection(delta: Int): DesktopSection? {
-    val sections = MiruPlayRouteSurface.desktopSectionOrder
-    val nextIndex = sections.indexOf(this) + delta
-    return sections.getOrNull(nextIndex)
+    return MiruPlayRouteSurface.desktopSectionStep(this, delta)
 }
 
 internal fun DesktopSection.desktopBackTarget(): DesktopSection? =
-    when (id) {
-        MiruPlayRouteSurface.PLAYER_ID -> MiruPlayRouteSurface.details
-        MiruPlayRouteSurface.DETAILS_ID,
-        MiruPlayRouteSurface.SETTINGS_ID,
-        -> MiruPlayRouteSurface.library
-        MiruPlayRouteSurface.LIBRARY_ID -> null
-        else -> MiruPlayRouteSurface.library
-    }
+    MiruPlayRouteSurface.backTarget(this)
 
 internal fun isDesktopBackKey(key: Key): Boolean =
     key == Key.Escape ||

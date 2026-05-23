@@ -4,13 +4,26 @@ import com.miruplay.tv.clouddrive.CloudDriveClient
 import com.miruplay.tv.clouddrive.CloudDriveEndpoint
 import com.miruplay.tv.clouddrive.CloudDriveFileInfo
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.model.CLOUD_DRIVE_ROOT_DISPLAY_NAME
+import com.miruplay.tv.model.CLOUD_DRIVE_ROOT_PATH
+import com.miruplay.tv.model.CloudDriveDirectoryItem
+import com.miruplay.tv.model.cloudDriveDirectoryDisplayPath
+import com.miruplay.tv.model.cloudDriveDirectoryItems
+import com.miruplay.tv.model.cloudDriveDirectoryParentPath
+import com.miruplay.tv.model.cloudDriveRssDirectorySelectedStatus
+import com.miruplay.tv.model.cloudDriveRssInboxDirectoryPickerTitle
+import com.miruplay.tv.model.cloudDriveRssInboxDirectorySelectedLabel
+import com.miruplay.tv.model.cloudDriveRssLibraryDirectoryPickerTitle
+import com.miruplay.tv.model.cloudDriveRssLibraryDirectorySelectedLabel
+import com.miruplay.tv.model.normalizeCloudDriveDirectoryPath
+import com.miruplay.tv.model.scopedCloudDriveDirectoryPath
 
 internal enum class DesktopCloudDriveDirectoryTarget(
     val title: String,
     val selectedLabel: String,
 ) {
-    INBOX(title = "选择收件目录", selectedLabel = "收件目录"),
-    LIBRARY(title = "选择媒体库目录", selectedLabel = "媒体库目录"),
+    INBOX(title = cloudDriveRssInboxDirectoryPickerTitle(), selectedLabel = cloudDriveRssInboxDirectorySelectedLabel()),
+    LIBRARY(title = cloudDriveRssLibraryDirectoryPickerTitle(), selectedLabel = cloudDriveRssLibraryDirectorySelectedLabel()),
 }
 
 internal data class DesktopCloudDriveDirectoryEntry(
@@ -23,9 +36,9 @@ internal data class DesktopCloudDriveDirectoryBrowserState(
     val target: DesktopCloudDriveDirectoryTarget = DesktopCloudDriveDirectoryTarget.INBOX,
     val endpointUrl: String = "",
     val token: String = "",
-    val rootPath: String = "/",
-    val path: String = "/",
-    val displayPath: String = "CloudDrive 根目录",
+    val rootPath: String = CLOUD_DRIVE_ROOT_PATH,
+    val path: String = CLOUD_DRIVE_ROOT_PATH,
+    val displayPath: String = CLOUD_DRIVE_ROOT_DISPLAY_NAME,
     val parentPath: String? = null,
     val entries: List<DesktopCloudDriveDirectoryEntry> = emptyList(),
     val isLoading: Boolean = false,
@@ -48,7 +61,7 @@ internal suspend fun prepareDesktopCloudDriveDirectoryBrowser(
     val endpoint = endpointUrl.trim()
     val apiToken = token.trim()
     return client.getApiTokenInfo(endpoint, apiToken).map { tokenInfo ->
-        val rootPath = normalizeDesktopCloudDrivePath(tokenInfo.rootDir)
+        val rootPath = normalizeCloudDriveDirectoryPath(tokenInfo.rootDir)
         DesktopCloudDriveDirectoryBrowserState(
             open = true,
             target = target,
@@ -82,11 +95,11 @@ internal suspend fun loadDesktopCloudDriveDirectory(
 internal fun DesktopCloudDriveDirectoryBrowserState.loadingFor(
     requestedPath: String,
 ): DesktopCloudDriveDirectoryBrowserState {
-    val scopedPath = desktopCloudDriveScopedPath(requestedPath, rootPath)
+    val scopedPath = scopedCloudDriveDirectoryPath(requestedPath, rootPath)
     return copy(
         path = scopedPath,
-        displayPath = desktopCloudDriveDisplayPath(scopedPath),
-        parentPath = desktopCloudDriveParentPath(scopedPath, rootPath),
+        displayPath = cloudDriveDirectoryDisplayPath(scopedPath),
+        parentPath = cloudDriveDirectoryParentPath(scopedPath, rootPath),
         entries = emptyList(),
         isLoading = true,
         message = null,
@@ -97,67 +110,26 @@ internal fun selectDesktopCloudDriveDirectory(
     target: DesktopCloudDriveDirectoryTarget,
     path: String,
 ): DesktopCloudDriveDirectorySelection {
-    val normalized = normalizeDesktopCloudDrivePath(path)
+    val normalized = normalizeCloudDriveDirectoryPath(path)
     return DesktopCloudDriveDirectorySelection(
         target = target,
         path = normalized,
-        status = "已选择${target.selectedLabel}：$normalized",
+        status = cloudDriveRssDirectorySelectedStatus(target.selectedLabel, normalized),
     )
 }
 
-internal fun normalizeDesktopCloudDrivePath(path: String): String {
-    val trimmed = path.trim().replace('\\', '/').trimEnd('/')
-    return when {
-        trimmed.isBlank() -> "/"
-        trimmed.startsWith('/') -> trimmed
-        else -> "/$trimmed"
-    }
-}
-
-internal fun desktopCloudDriveDisplayPath(path: String): String =
-    normalizeDesktopCloudDrivePath(path).let { normalized ->
-        if (normalized == "/") "CloudDrive 根目录" else normalized
-    }
-
-internal fun desktopCloudDriveParentPath(
-    path: String,
-    rootPath: String,
-): String? {
-    val normalizedPath = normalizeDesktopCloudDrivePath(path)
-    val normalizedRoot = normalizeDesktopCloudDrivePath(rootPath)
-    if (normalizedPath == normalizedRoot || normalizedPath == "/") return null
-    val parent = normalizedPath.substringBeforeLast('/', "")
-    if (parent.isBlank() || parent == normalizedPath) return null
-    return when {
-        normalizedRoot == "/" -> parent.ifBlank { "/" }
-        parent == normalizedRoot || parent.startsWith("$normalizedRoot/") -> parent
-        else -> normalizedRoot
-    }
-}
-
-internal fun desktopCloudDriveScopedPath(
-    requestedPath: String,
-    rootPath: String,
-): String {
-    val requested = normalizeDesktopCloudDrivePath(requestedPath)
-    val root = normalizeDesktopCloudDrivePath(rootPath)
-    return when {
-        root == "/" -> requested
-        requested == "/" -> root
-        requested == root || requested.startsWith("$root/") -> requested
-        else -> root
-    }
-}
-
 internal fun cloudDriveDirectoryEntries(files: List<CloudDriveFileInfo>): List<DesktopCloudDriveDirectoryEntry> =
-    files.asSequence()
-        .filter { it.isDirectory }
-        .filter { !it.name.startsWith(".") }
-        .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name.ifBlank { it.path.substringAfterLast('/') } })
-        .map {
-            DesktopCloudDriveDirectoryEntry(
-                name = it.name.ifBlank { it.path.substringAfterLast('/') },
-                path = normalizeDesktopCloudDrivePath(it.path),
-            )
-        }
-        .toList()
+    cloudDriveDirectoryItems(
+        files.filter { it.isDirectory }
+            .map {
+                CloudDriveDirectoryItem(
+                    name = it.name,
+                    path = it.path,
+                )
+            },
+    ).map {
+        DesktopCloudDriveDirectoryEntry(
+            name = it.name,
+            path = it.path,
+        )
+    }

@@ -4,6 +4,26 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.ScraperSource
+import com.miruplay.tv.model.detailSyncProgressActionLabel
+import com.miruplay.tv.model.metadataAcceptReviewActionLabel
+import com.miruplay.tv.model.metadataApplyBatchActionLabel
+import com.miruplay.tv.model.metadataApplyMatchActionLabel
+import com.miruplay.tv.model.metadataBatchCandidatesSectionTitle
+import com.miruplay.tv.model.metadataBatchPreviewActionLabel
+import com.miruplay.tv.model.localizedMetadataStatusText
+import com.miruplay.tv.model.metadataCandidateCountLabel
+import com.miruplay.tv.model.metadataClearActionLabel
+import com.miruplay.tv.model.metadataEmptyResultsMessage
+import com.miruplay.tv.model.metadataMatchesSectionTitle
+import com.miruplay.tv.model.metadataPageUnitLabel
+import com.miruplay.tv.model.metadataPanelTitleLabel
+import com.miruplay.tv.model.metadataQueryFieldLabel
+import com.miruplay.tv.model.metadataBatchStatusLabel
+import com.miruplay.tv.model.metadataSearchActionLabel
+import com.miruplay.tv.model.metadataSelectedCandidateLabel
+import com.miruplay.tv.model.metadataSelectedIndexSectionTitle
+import com.miruplay.tv.model.metadataUndoBatchActionLabel
+import com.miruplay.tv.model.metadataUseSelectedEntryActionLabel
 import com.miruplay.tv.repository.MetadataBatchMatch
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -16,61 +36,123 @@ class DesktopBangumiNavigationTest {
     fun `bangumi panel labels use TV facing Chinese text`() {
         val labels = desktopBangumiUiLabels()
 
-        assertEquals("Bangumi 元数据", labels.title)
-        assertEquals("Bangumi 搜索词", labels.query)
-        assertEquals("使用当前条目", labels.useSelected)
-        assertEquals("搜索", labels.search)
-        assertEquals("应用匹配", labels.applyMatch)
-        assertEquals("清除元数据", labels.clearMetadata)
-        assertEquals("批量预览", labels.batchPreview)
-        assertEquals("应用批量", labels.applyBatch)
-        assertEquals("撤销批量", labels.undoBatch)
-        assertEquals("接受复核", labels.acceptReview)
-        assertEquals("当前索引", labels.selectedIndex)
-        assertEquals("Bangumi 匹配", labels.matches)
-        assertEquals("候选条目", labels.batchCandidates)
-        assertEquals("搜索后在这里显示 Bangumi 匹配。", labels.emptyResults)
+        assertEquals(metadataPanelTitleLabel(), labels.title)
+        assertEquals(metadataQueryFieldLabel(), labels.query)
+        assertEquals(metadataUseSelectedEntryActionLabel(), labels.useSelected)
+        assertEquals(metadataSearchActionLabel(), labels.search)
+        assertEquals(metadataApplyMatchActionLabel(), labels.applyMatch)
+        assertEquals(metadataClearActionLabel(), labels.clearMetadata)
+        assertEquals(metadataBatchPreviewActionLabel(), labels.batchPreview)
+        assertEquals(metadataApplyBatchActionLabel(), labels.applyBatch)
+        assertEquals(metadataUndoBatchActionLabel(), labels.undoBatch)
+        assertEquals(metadataAcceptReviewActionLabel(), labels.acceptReview)
+        assertEquals(detailSyncProgressActionLabel(isSyncing = false), labels.syncProgress)
+        assertEquals(detailSyncProgressActionLabel(isSyncing = true), desktopBangumiUiLabels(isSyncingProgress = true).syncProgress)
+        assertEquals(metadataSelectedIndexSectionTitle(), labels.selectedIndex)
+        assertEquals(metadataMatchesSectionTitle(), labels.matches)
+        assertEquals(metadataBatchCandidatesSectionTitle(), labels.batchCandidates)
+        assertEquals(metadataEmptyResultsMessage(), labels.emptyResults)
     }
 
     @Test
     fun `bangumi status messages use TV facing Chinese text`() {
-        assertEquals("请先选择一个索引视频。", desktopBangumiStatusText("Select an indexed video first."))
-        assertEquals("选择索引视频后可搜索 Bangumi。", desktopBangumiStatusText("Select an indexed video, then search Bangumi."))
-        assertEquals("已从当前索引条目填入搜索词。", desktopBangumiStatusText("Query set from selected index entry."))
-        assertEquals("请输入 Bangumi 搜索词，或先选择索引视频。", desktopBangumiStatusText("Enter a Bangumi query or select an indexed video."))
-        assertEquals("正在搜索 Bangumi：\"Frieren\"...", desktopBangumiStatusText("Searching Bangumi for \"Frieren\"..."))
-        assertEquals("没有匹配 \"Frieren\" 的 Bangumi 元数据。", desktopBangumiStatusText("No Bangumi metadata matched \"Frieren\"."))
-        assertEquals("找到 2 个 Bangumi 匹配。", desktopBangumiStatusText("Found 2 Bangumi match(es)."))
-        assertEquals("请先打开或扫描媒体源。", desktopBangumiStatusText("Open or scan a source first."))
-        assertEquals("已选择批量复核：Frieren", desktopBangumiStatusText("Selected batch review: Frieren."))
-        assertEquals("请先选择带 Bangumi 结果的批量匹配。", desktopBangumiStatusText("Select a batch match with a Bangumi result first."))
-        assertEquals("当前复核项有 2 个元数据冲突，未覆盖任何内容。", desktopBangumiStatusText("Selected review has 2 metadata conflicts; nothing was overwritten."))
-        assertEquals("当前复核项没有匹配的索引条目。", desktopBangumiStatusText("Selected review has no matching indexed entries."))
-        assertEquals("已选择：葬送的芙莉莲", desktopBangumiStatusText("Selected 葬送的芙莉莲."))
-        assertEquals("请先选择索引视频，再应用 Bangumi 元数据。", desktopBangumiStatusText("Select an indexed video before applying Bangumi metadata."))
-        assertEquals("请先搜索 Bangumi 并选择一个匹配。", desktopBangumiStatusText("Search Bangumi and select a match first."))
-        assertEquals("已将 Bangumi 元数据应用到 D:/Anime/Frieren/01.mkv。", desktopBangumiStatusText("Applied Bangumi metadata to D:/Anime/Frieren/01.mkv."))
-        assertEquals("请先选择索引视频，再清除元数据。", desktopBangumiStatusText("Select an indexed video before clearing metadata."))
-        assertEquals("已清除 D:/Anime/Frieren/01.mkv 的外部元数据。", desktopBangumiStatusText("Cleared external metadata for D:/Anime/Frieren/01.mkv."))
-        assertEquals("正在用 Bangumi 搜索 2 个索引标题...", desktopBangumiStatusText("Searching Bangumi for 2 indexed title(s)..."))
-        assertEquals("没有可用于 Bangumi 批量匹配的索引条目。", desktopBangumiStatusText("No indexed entries are available for Bangumi batch matching."))
-        assertEquals("2 个可应用，1 个需复核，0 个冲突", desktopBangumiStatusText("2 ready, 1 review, 0 conflicts"))
-        assertEquals("已选择批量候选：Frieren -> 葬送的芙莉莲", desktopBangumiStatusText("Selected batch candidate for Frieren: 葬送的芙莉莲."))
-        assertEquals("已将 Bangumi 批量元数据应用到 1 个索引条目，跳过 2 个冲突。", desktopBangumiStatusText("Applied Bangumi batch metadata to 1 index entry; 2 conflicts skipped."))
-        assertEquals("已接受复核的 Bangumi 匹配，更新 1 个索引条目。", desktopBangumiStatusText("Accepted reviewed Bangumi match for 1 index entry."))
-        assertEquals("已从上一次 Bangumi 批量更改中恢复 2 个索引条目。", desktopBangumiStatusText("Restored 2 index entries from the previous Bangumi batch."))
-        assertEquals("请先运行批量预览；当前没有可直接应用的高置信匹配。", desktopBangumiStatusText("Run Batch preview first; no high-confidence matches are ready."))
-        assertEquals("没有可撤销的 Bangumi 批量更改。", desktopBangumiStatusText("No batch Bangumi changes are available to undo."))
+        assertEquals(localizedMetadataStatusText("Select an indexed video first."), desktopBangumiStatusText("Select an indexed video first."))
+        assertEquals(
+            localizedMetadataStatusText("Select an indexed video, then search Bangumi."),
+            desktopBangumiStatusText("Select an indexed video, then search Bangumi."),
+        )
+        assertEquals(
+            localizedMetadataStatusText("Query set from selected index entry."),
+            desktopBangumiStatusText("Query set from selected index entry."),
+        )
+        assertEquals(
+            localizedMetadataStatusText("Enter a Bangumi query or select an indexed video."),
+            desktopBangumiStatusText("Enter a Bangumi query or select an indexed video."),
+        )
+        assertEquals(localizedMetadataStatusText("Searching Bangumi for \"Frieren\"..."), desktopBangumiStatusText("Searching Bangumi for \"Frieren\"..."))
+        assertEquals(
+            localizedMetadataStatusText("No Bangumi metadata matched \"Frieren\"."),
+            desktopBangumiStatusText("No Bangumi metadata matched \"Frieren\"."),
+        )
+        assertEquals(localizedMetadataStatusText("Found 2 Bangumi match(es)."), desktopBangumiStatusText("Found 2 Bangumi match(es)."))
+        assertEquals(localizedMetadataStatusText("Open or scan a source first."), desktopBangumiStatusText("Open or scan a source first."))
+        assertEquals(localizedMetadataStatusText("Selected batch review: Frieren."), desktopBangumiStatusText("Selected batch review: Frieren."))
+        assertEquals(
+            localizedMetadataStatusText("Select a batch match with a Bangumi result first."),
+            desktopBangumiStatusText("Select a batch match with a Bangumi result first."),
+        )
+        assertEquals(
+            localizedMetadataStatusText("Selected review has 2 metadata conflicts; nothing was overwritten."),
+            desktopBangumiStatusText("Selected review has 2 metadata conflicts; nothing was overwritten."),
+        )
+        assertEquals(
+            localizedMetadataStatusText("Selected review has no matching indexed entries."),
+            desktopBangumiStatusText("Selected review has no matching indexed entries."),
+        )
+        assertEquals(localizedMetadataStatusText("Selected 葬送的芙莉莲."), desktopBangumiStatusText("Selected 葬送的芙莉莲."))
+        assertEquals(
+            localizedMetadataStatusText("Select an indexed video before applying Bangumi metadata."),
+            desktopBangumiStatusText("Select an indexed video before applying Bangumi metadata."),
+        )
+        assertEquals(
+            localizedMetadataStatusText("Search Bangumi and select a match first."),
+            desktopBangumiStatusText("Search Bangumi and select a match first."),
+        )
+        assertEquals(
+            localizedMetadataStatusText("Applied Bangumi metadata to D:/Anime/Frieren/01.mkv."),
+            desktopBangumiStatusText("Applied Bangumi metadata to D:/Anime/Frieren/01.mkv."),
+        )
+        assertEquals(
+            localizedMetadataStatusText("Select an indexed video before clearing metadata."),
+            desktopBangumiStatusText("Select an indexed video before clearing metadata."),
+        )
+        assertEquals(
+            localizedMetadataStatusText("Cleared external metadata for D:/Anime/Frieren/01.mkv."),
+            desktopBangumiStatusText("Cleared external metadata for D:/Anime/Frieren/01.mkv."),
+        )
+        assertEquals(
+            localizedMetadataStatusText("Searching Bangumi for 2 indexed title(s)..."),
+            desktopBangumiStatusText("Searching Bangumi for 2 indexed title(s)..."),
+        )
+        assertEquals(
+            localizedMetadataStatusText("No indexed entries are available for Bangumi batch matching."),
+            desktopBangumiStatusText("No indexed entries are available for Bangumi batch matching."),
+        )
+        assertEquals(localizedMetadataStatusText("2 ready, 1 review, 0 conflicts"), desktopBangumiStatusText("2 ready, 1 review, 0 conflicts"))
+        assertEquals(
+            localizedMetadataStatusText("Selected batch candidate for Frieren: 葬送的芙莉莲."),
+            desktopBangumiStatusText("Selected batch candidate for Frieren: 葬送的芙莉莲."),
+        )
+        assertEquals(
+            localizedMetadataStatusText("Applied Bangumi batch metadata to 1 index entry; 2 conflicts skipped."),
+            desktopBangumiStatusText("Applied Bangumi batch metadata to 1 index entry; 2 conflicts skipped."),
+        )
+        assertEquals(
+            localizedMetadataStatusText("Accepted reviewed Bangumi match for 1 index entry."),
+            desktopBangumiStatusText("Accepted reviewed Bangumi match for 1 index entry."),
+        )
+        assertEquals(
+            localizedMetadataStatusText("Restored 2 index entries from the previous Bangumi batch."),
+            desktopBangumiStatusText("Restored 2 index entries from the previous Bangumi batch."),
+        )
+        assertEquals(
+            localizedMetadataStatusText("Run Batch preview first; no high-confidence matches are ready."),
+            desktopBangumiStatusText("Run Batch preview first; no high-confidence matches are ready."),
+        )
+        assertEquals(
+            localizedMetadataStatusText("No batch Bangumi changes are available to undo."),
+            desktopBangumiStatusText("No batch Bangumi changes are available to undo."),
+        )
         assertEquals("custom status", desktopBangumiStatusText("custom status"))
     }
 
     @Test
     fun `bangumi batch status chips use TV facing Chinese labels`() {
-        assertEquals("预览", desktopBangumiBatchStatusLabel("preview"))
-        assertEquals("可用", desktopBangumiBatchStatusLabel("ready"))
-        assertEquals("复核", desktopBangumiBatchStatusLabel("review"))
-        assertEquals("冲突", desktopBangumiBatchStatusLabel("conflict"))
-        assertEquals("custom", desktopBangumiBatchStatusLabel("custom"))
+        assertEquals(metadataBatchStatusLabel("preview"), desktopBangumiBatchStatusLabel("preview"))
+        assertEquals(metadataBatchStatusLabel("ready"), desktopBangumiBatchStatusLabel("ready"))
+        assertEquals(metadataBatchStatusLabel("review"), desktopBangumiBatchStatusLabel("review"))
+        assertEquals(metadataBatchStatusLabel("conflict"), desktopBangumiBatchStatusLabel("conflict"))
+        assertEquals(metadataBatchStatusLabel("custom"), desktopBangumiBatchStatusLabel("custom"))
     }
 
     @Test
@@ -91,12 +173,12 @@ class DesktopBangumiNavigationTest {
         )
 
         assertEquals(
-            "候选 2/2",
+            metadataSelectedCandidateLabel(selectedIndex = 1, count = 2),
             MetadataBatchMatch(query = "Frieren", result = second, candidates = listOf(first, second))
                 .desktopSelectedCandidateLabel(),
         )
         assertEquals(
-            "2 个候选",
+            metadataCandidateCountLabel(2),
             MetadataBatchMatch(query = "Frieren", result = null, candidates = listOf(first, second))
                 .desktopSelectedCandidateLabel(),
         )
@@ -328,6 +410,14 @@ class DesktopBangumiNavigationTest {
             bangumiActionFocusTarget(BangumiAction.AcceptReview, Key.DirectionDown),
         )
         assertEquals(
+            BangumiActionFocusTarget.Action(BangumiAction.AcceptReview),
+            bangumiActionFocusTarget(BangumiAction.SyncProgress, Key.DirectionDown),
+        )
+        assertEquals(
+            BangumiActionFocusTarget.Action(BangumiAction.UndoBatch),
+            bangumiActionFocusTarget(BangumiAction.AcceptReview, Key.DirectionUp),
+        )
+        assertEquals(
             BangumiActionFocusTarget.EmptyResults,
             bangumiActionFocusTarget(BangumiAction.Search, Key.DirectionRight),
         )
@@ -488,11 +578,11 @@ class DesktopBangumiNavigationTest {
         assertEquals(0, bangumiCoercedPageStart(pageStart = -4, itemCount = 13, pageSize = 4))
 
         assertEquals(
-            "候选：显示 5-8 / 13 个条目，按上/下继续翻页。",
+            "候选：显示 5-8 / 13 ${metadataPageUnitLabel()}，按上/下继续翻页。",
             bangumiPageSummary(label = "候选", pageStart = 4, visibleCount = 4, itemCount = 13, pageSize = 4),
         )
         assertEquals(
-            "搜索结果：显示 13-13 / 13 个条目，按上/下继续翻页。",
+            "搜索结果：显示 13-13 / 13 ${metadataPageUnitLabel()}，按上/下继续翻页。",
             bangumiPageSummary(label = "搜索结果", pageStart = 12, visibleCount = 1, itemCount = 13, pageSize = 4),
         )
         assertNull(bangumiPageSummary(label = "批量", pageStart = 0, visibleCount = 4, itemCount = 4, pageSize = 4))

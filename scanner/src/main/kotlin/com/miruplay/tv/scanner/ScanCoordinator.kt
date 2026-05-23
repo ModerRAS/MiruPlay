@@ -12,6 +12,8 @@ import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.FilenameMetadataParser
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.MediaFileConventions
+import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.NfoMetadata
 import com.miruplay.tv.model.ScanResult
 import com.miruplay.tv.model.TvShowNfoMetadata
@@ -28,7 +30,6 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import android.util.Log
 import java.io.File
-import java.net.URLEncoder
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -99,6 +100,7 @@ class ScanCoordinator @Inject constructor(
         val detector = DefaultEpisodeDetector()
         val classifier = VideoDirectoryClassifier(detector, filenameMetadataParser)
         val indexEntities = mutableListOf<MediaIndexEntry>()
+        val titleCandidatesByAnime = mutableMapOf<String, MutableSet<String>>()
         var totalFiles = 0
         var newEpisodes = 0
 
@@ -108,6 +110,7 @@ class ScanCoordinator @Inject constructor(
             sourceId = sourceId,
             classifier = classifier,
             indexEntities = indexEntities,
+            titleCandidatesByAnime = titleCandidatesByAnime,
             totalFiles = { totalFiles += 1 },
             newEpisodes = { newEpisodes += 1 },
             rootPath = realRootPath,
@@ -143,7 +146,11 @@ class ScanCoordinator @Inject constructor(
                             fileName = fileNameOf(entry.path)
                         )
                     }
-                val online = enrichWithOnlineMetadata(animeName, episodes)
+                val online = enrichWithOnlineMetadata(
+                    animeName = animeName,
+                    episodes = episodes,
+                    extraTitleCandidates = titleCandidatesByAnime[animeName].orEmpty()
+                )
                 metadataRepository.cacheEpisodes(animeName, online.episodes)
 
                 // Update or create anime metadata with episode count
@@ -200,12 +207,16 @@ class ScanCoordinator @Inject constructor(
         val episodes: List<Episode>
     )
 
-    private suspend fun enrichWithOnlineMetadata(animeName: String, episodes: List<Episode>): OnlineMetadata {
+    private suspend fun enrichWithOnlineMetadata(
+        animeName: String,
+        episodes: List<Episode>,
+        extraTitleCandidates: Collection<String> = emptyList()
+    ): OnlineMetadata {
         val bangumi = metadataScrapers.firstOrNull { it.sourceName.equals("Bangumi", ignoreCase = true) }
             ?: return OnlineMetadata(null, episodes)
 
         return try {
-            val candidates = titleCandidates(animeName)
+            val candidates = titleCandidates(animeName, extraTitleCandidates)
             var match = bangumi.searchByAlias(animeName, candidates).getOrNull()
             if (match == null) {
                 for (candidate in candidates) {
@@ -250,17 +261,22 @@ class ScanCoordinator @Inject constructor(
         }
     }
 
-    private fun titleCandidates(animeName: String): List<String> {
-        val withoutBracketGroups = animeName
-            .replace(Regex("\\[[^\\]]*]"), " ")
-            .replace(Regex("【[^】]*】"), " ")
-        val withoutSeasonSuffix = withoutBracketGroups
-            .replace(Regex("(?i)\\b(s\\d{1,2}|season\\s*\\d{1,2}|第\\s*\\d+\\s*[季期])\\b"), " ")
-        return listOf(animeName, withoutBracketGroups, withoutSeasonSuffix)
+    private fun titleCandidates(
+        animeName: String,
+        extraCandidates: Collection<String> = emptyList()
+    ): List<String> =
+        (listOf(animeName) + extraCandidates)
+            .flatMap { candidate ->
+                val withoutBracketGroups = candidate
+                    .replace(Regex("\\[[^\\]]*]"), " ")
+                    .replace(Regex("【[^】]*】"), " ")
+                val withoutSeasonSuffix = withoutBracketGroups
+                    .replace(Regex("(?i)\\b(s\\d{1,2}|season\\s*\\d{1,2}|第\\s*\\d+\\s*[季期])\\b"), " ")
+                listOf(candidate, withoutBracketGroups, withoutSeasonSuffix)
+            }
             .map { it.replace(Regex("[._]+"), " ").replace(Regex("\\s+"), " ").trim() }
             .filter { it.isNotBlank() }
             .distinct()
-    }
 
     /** Progress callback for scan operations */
     fun interface ScanProgressCallback {
@@ -285,6 +301,7 @@ class ScanCoordinator @Inject constructor(
         sourceId: Long,
         classifier: VideoDirectoryClassifier,
         indexEntities: MutableList<MediaIndexEntry>,
+        titleCandidatesByAnime: MutableMap<String, MutableSet<String>>,
         totalFiles: (Int) -> Unit,
         newEpisodes: (Int) -> Unit,
         depth: Int = 0,
@@ -292,7 +309,7 @@ class ScanCoordinator @Inject constructor(
         isLocalSource: Boolean
     ) {
         // Guard: skip hidden directories
-        val pathName = path.substringAfterLast('/')
+        val pathName = MediaPathConventions.fileName(path)
         if (pathName.startsWith(".")) return
 
         // Guard: skip Android system media directories
@@ -322,12 +339,22 @@ class ScanCoordinator @Inject constructor(
                     if (isLocalSource && file.name in skipDirs) continue
                     
                     // Recurse into subdirectory
-                    traverseAndProcess(ms, file.path, sourceId, classifier, indexEntities, totalFiles, newEpisodes, depth + 1, rootPath, isLocalSource)
+                    traverseAndProcess(
+                        ms = ms,
+                        path = file.path,
+                        sourceId = sourceId,
+                        classifier = classifier,
+                        indexEntities = indexEntities,
+                        titleCandidatesByAnime = titleCandidatesByAnime,
+                        totalFiles = totalFiles,
+                        newEpisodes = newEpisodes,
+                        depth = depth + 1,
+                        rootPath = rootPath,
+                        isLocalSource = isLocalSource
+                    )
                 } else {
                     val fileName = file.name
-                    val ext = fileName.substringAfterLast('.', "").lowercase()
-
-                    if (ext in videoExtensions) {
+                    if (MediaFileConventions.isVideoName(fileName, videoExtensions)) {
                         totalFiles(1)
                         val match = classifier.classifyVideo(file.path, fileName)
                         indexEntities.add(MediaIndexEntry(
@@ -340,6 +367,9 @@ class ScanCoordinator @Inject constructor(
                             fileSize = file.size,
                             lastModified = file.lastModified
                         ))
+                        titleCandidatesByAnime
+                            .getOrPut(match.animeName) { linkedSetOf() }
+                            .addAll(match.titleCandidates)
                         if (match.episodeNumber != null) newEpisodes(1)
 
                         // Report progress every 5 video files
@@ -347,7 +377,7 @@ class ScanCoordinator @Inject constructor(
                             progressCallback?.onProgress(match.animeName, 1, if (match.episodeNumber != null) 1 else 0)
                         }
                     } else {
-                        if (ext == "nfo") {
+                        if (MediaFileConventions.hasExtension(fileName, "nfo")) {
                             parseAndCacheRemoteNfo(ms, file.path, classifier.classifyNfo(file.path).animeName)
                         }
                     }
@@ -374,31 +404,20 @@ class ScanCoordinator @Inject constructor(
     private fun toPlayablePath(path: String, sourceRoot: String, sourceType: MediaSourceType): String =
         when (sourceType) {
             MediaSourceType.LOCAL -> path
-            MediaSourceType.WEBDAV -> joinRemoteUrl(sourceRoot, path)
+            MediaSourceType.WEBDAV -> MediaPathConventions.joinRemoteUrl(sourceRoot, path)
             MediaSourceType.SMB -> path
         }
-
-    private fun joinRemoteUrl(baseUrl: String, path: String): String {
-        val base = baseUrl.trimEnd('/')
-        val encodedPath = path
-            .trimStart('/')
-            .split('/')
-            .joinToString("/") { segment ->
-                URLEncoder.encode(segment, Charsets.UTF_8.name()).replace("+", "%20")
-            }
-        return "$base/$encodedPath"
-    }
 
     private fun nameOfPath(path: String): String =
         when {
             path.startsWith("content://") -> {
                 val tail = path.substringAfterLast(':', path).substringAfterLast('/')
-                java.net.URLDecoder.decode(tail, Charsets.UTF_8.name())
+                MediaPathConventions.decodePath(tail)
             }
-            else -> path.substringAfterLast('/')
+            else -> MediaPathConventions.fileName(path)
         }
 
-    private fun fileNameOf(path: String): String = nameOfPath(path).ifEmpty { path.substringAfterLast('/') }
+    private fun fileNameOf(path: String): String = nameOfPath(path).ifEmpty { MediaPathConventions.fileName(path) }
 
     private fun MediaSourceInfo.displayNameOrPath(path: String): String =
         connectionInfo["displayName"] ?: nameOfPath(path).ifEmpty { path }

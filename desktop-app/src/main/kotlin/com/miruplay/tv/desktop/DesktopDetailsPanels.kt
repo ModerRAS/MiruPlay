@@ -42,10 +42,35 @@ import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.ProgressRecord
+import com.miruplay.tv.model.detailBackToLibraryActionLabel
+import com.miruplay.tv.model.detailEpisodeBadge
+import com.miruplay.tv.model.detailEpisodeCountLabel
+import com.miruplay.tv.model.detailEpisodeEmptyMessage
+import com.miruplay.tv.model.detailEpisodePageUnitLabel
+import com.miruplay.tv.model.detailEpisodeSectionTitle
+import com.miruplay.tv.model.detailEpisodeShelfSubtitle
+import com.miruplay.tv.model.detailEpisodeTitleLabel
+import com.miruplay.tv.model.detailHeroEmptyTitle
+import com.miruplay.tv.model.detailHeroEmptySubtitle
+import com.miruplay.tv.model.detailPlayActionLabel
+import com.miruplay.tv.model.detailSeasonLabel
 import com.miruplay.tv.model.formatPlaybackPosition
+import com.miruplay.tv.model.libraryContinueWatchingSectionTitle
+import com.miruplay.tv.model.mediaDetailsEmptyMessage
+import com.miruplay.tv.model.mediaDetailsPageUnitLabel
+import com.miruplay.tv.model.mediaDetailsSectionTitle
+import com.miruplay.tv.model.pagedListCoercedPageStart
+import com.miruplay.tv.model.pagedListPageStartForIndex
+import com.miruplay.tv.model.pagedListPageSummary
+import com.miruplay.tv.model.playbackProgressRecordLabel
+import com.miruplay.tv.model.recentPlaybackClearActionLabel
+import com.miruplay.tv.model.recentPlaybackEmptyMessage
+import com.miruplay.tv.model.recentPlaybackPageUnitLabel
+import com.miruplay.tv.model.recentPlaybackRefreshActionLabel
 import com.miruplay.tv.repository.MediaDetailRows
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.displayName
+import com.miruplay.tv.repository.mediaFilesOnly
 import com.miruplay.tv.repository.mediaDisplayName
 
 @Composable
@@ -117,7 +142,7 @@ internal fun DesktopDetailHero(
                 verticalArrangement = Arrangement.Bottom,
             ) {
                 Text(
-                    entry?.detailTitle() ?: "选择一部番剧",
+                    entry?.detailTitle() ?: detailHeroEmptyTitle(),
                     color = TextPrimary,
                     fontSize = MiruPlayUiMetrics.HERO_TITLE_SP.sp,
                     fontWeight = FontWeight.Bold,
@@ -126,7 +151,7 @@ internal fun DesktopDetailHero(
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    entry?.detailSubtitle(source) ?: desktopDetailHeroEmptySubtitle(),
+                    entry?.detailSubtitle(source) ?: detailHeroEmptySubtitle(),
                     color = TextSecondary,
                     fontSize = MiruPlayUiMetrics.SECTION_SUBTITLE_SP.sp,
                     maxLines = 2,
@@ -163,7 +188,7 @@ internal fun DesktopDetailHero(
                 Spacer(Modifier.height(18.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     TvActionButton(
-                        "播放",
+                        detailPlayActionLabel(),
                         onClick = onPlay,
                         modifier = Modifier
                             .detailHeroActionNavigation(
@@ -174,7 +199,7 @@ internal fun DesktopDetailHero(
                             .width(180.dp),
                     )
                     TvActionButton(
-                        "返回海报墙",
+                        detailBackToLibraryActionLabel(),
                         onClick = onBackToLibrary,
                         secondary = true,
                         modifier = Modifier
@@ -266,9 +291,9 @@ internal fun detailHeroStatLabels(
     if (entry == null) return emptyList()
     return buildList {
         if (episodeCount > 0) {
-            add("全 $episodeCount 话")
+            add(detailEpisodeCountLabel(episodeCount))
         }
-        entry.seasonNumber?.let { add("第 $it 季") }
+        entry.seasonNumber?.let { add(detailSeasonLabel(it)) }
         entry.metadataSource
             ?.takeIf { it.isNotBlank() }
             ?.let { add(it.trim()) }
@@ -308,9 +333,6 @@ internal fun MediaIndexEntry.detailSubtitle(source: MediaSourceInfo?): String = 
     episodeTitle?.takeIf { it.isNotBlank() }?.let { append(it).append(" · ") }
     append(MediaPathConventions.stem(path))
 }.trim().trimEnd('·').trim()
-
-internal fun desktopDetailHeroEmptySubtitle(): String =
-    "从媒体库海报墙选择内容后显示详情。"
 
 private fun detailPosterBrush(title: String): Brush {
     val palettes = listOf(
@@ -463,7 +485,12 @@ internal fun DetailEpisodePanel(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column {
-                Text("选集", color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
+                Text(
+                    detailEpisodeSectionTitle(),
+                    color = TextPrimary,
+                    fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
                 Text(
                     detailEpisodeShelfSubtitle(episodes.size),
                     color = TextSecondary,
@@ -474,7 +501,7 @@ internal fun DetailEpisodePanel(
                 Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
                     seasons.forEachIndexed { index, season ->
                         TvActionButton(
-                            text = "第 $season 季",
+                            text = detailSeasonLabel(season),
                             onClick = { onSeasonSelected(season) },
                             secondary = activeSeason != season,
                             modifier = Modifier
@@ -489,7 +516,7 @@ internal fun DetailEpisodePanel(
         Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
         if (seasonEpisodes.isEmpty()) {
             DetailEpisodeEmptyState(
-                text = "扫描媒体库后会在这里显示同番选集。",
+                text = detailEpisodeEmptyMessage(),
                 focusRequester = emptyFocusRequester,
                 onMove = ::requestEpisodePanelFocus,
             )
@@ -592,7 +619,7 @@ private fun DetailEpisodeRow(
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    entry.episodeBadge(),
+                    detailEpisodeBadge(entry.episodeNumber),
                     color = TextPrimary,
                     fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
                     fontWeight = FontWeight.Bold,
@@ -601,7 +628,7 @@ private fun DetailEpisodeRow(
             }
             Column(Modifier.weight(1f)) {
                 Text(
-                    entry.detailEpisodeTitle(),
+                    detailEpisodeTitleLabel(entry.episodeNumber, entry.episodeTitle),
                     color = TextPrimary,
                     fontSize = MiruPlayUiMetrics.ITEM_TITLE_SP.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -636,15 +663,12 @@ internal fun detailEpisodesForSelection(
     val selected = selectedEntry?.takeUnless { it.isDirectory } ?: return emptyList()
     val title = selected.posterTitle()
     return entries
+        .mediaFilesOnly()
         .asSequence()
-        .filterNot { it.isDirectory }
         .filter { it.sourceId == selected.sourceId && it.posterTitle() == title }
         .sortedWith(detailEpisodeComparator)
         .toList()
 }
-
-internal fun detailEpisodeShelfSubtitle(episodeCount: Int): String =
-    if (episodeCount <= 0) "当前详情没有可播放索引项" else "全 $episodeCount 话 · 同番选集"
 
 internal fun detailEpisodeSeasons(episodes: List<MediaIndexEntry>): List<Int> =
     episodes
@@ -738,38 +762,27 @@ internal fun detailEpisodePageStartForIndex(
     index: Int,
     itemCount: Int,
     pageSize: Int = DETAIL_EPISODE_PAGE_SIZE,
-): Int {
-    if (itemCount <= 0 || pageSize <= 0) return 0
-    val safeIndex = index.coerceIn(0, itemCount - 1)
-    return (safeIndex / pageSize) * pageSize
-}
+): Int = pagedListPageStartForIndex(index, itemCount, pageSize)
 
 internal fun detailEpisodeCoercedPageStart(
     pageStart: Int,
     itemCount: Int,
     pageSize: Int = DETAIL_EPISODE_PAGE_SIZE,
-): Int {
-    if (itemCount <= 0 || pageSize <= 0) return 0
-    val maxPageStart = detailEpisodePageStartForIndex(
-        index = itemCount - 1,
-        itemCount = itemCount,
-        pageSize = pageSize,
-    )
-    return (pageStart / pageSize)
-        .coerceAtLeast(0)
-        .times(pageSize)
-        .coerceAtMost(maxPageStart)
-}
+): Int = pagedListCoercedPageStart(pageStart, itemCount, pageSize)
 
 internal fun detailEpisodePageSummary(
     pageStart: Int,
     visibleCount: Int,
     itemCount: Int,
 ): String? {
-    if (itemCount <= 0 || visibleCount <= 0 || visibleCount >= itemCount) return null
     val safeStart = detailEpisodeCoercedPageStart(pageStart, itemCount)
-    val end = (safeStart + visibleCount).coerceAtMost(itemCount)
-    return "显示 ${safeStart + 1}-$end / $itemCount 集，按上/下继续翻页。"
+    return pagedListPageSummary(
+        pageStart = safeStart,
+        visibleCount = visibleCount,
+        itemCount = itemCount,
+        pageSize = DETAIL_EPISODE_PAGE_SIZE,
+        unitLabel = detailEpisodePageUnitLabel(),
+    )
 }
 
 private val detailEpisodeComparator =
@@ -779,17 +792,8 @@ private val detailEpisodeComparator =
         { it.path.lowercase() },
     )
 
-private fun MediaIndexEntry.episodeBadge(): String =
-    episodeNumber?.toString()?.padStart(2, '0') ?: "--"
-
-private fun MediaIndexEntry.detailEpisodeTitle(): String {
-    val number = episodeNumber?.let { "第 $it 集" } ?: "未编号"
-    val title = episodeTitle?.takeIf { it.isNotBlank() }
-    return if (title == null) number else "$number · $title"
-}
-
-private fun detailEpisodeProgressLabel(progress: ProgressRecord?): String =
-    progress?.let { "继续 ${formatPlaybackPosition(it.positionMs)}" } ?: "未观看"
+internal fun detailEpisodeProgressLabel(progress: ProgressRecord?): String =
+    playbackProgressRecordLabel(progress)
 
 @Composable
 internal fun RecentPlaybackPanel(
@@ -1011,10 +1015,10 @@ internal data class DesktopRecentPlaybackLabels(
 
 internal fun desktopRecentPlaybackLabels(): DesktopRecentPlaybackLabels =
     DesktopRecentPlaybackLabels(
-        title = "继续观看",
-        refreshAction = "刷新",
-        clearAction = "清除条目",
-        emptyState = "开始播放后会在这里显示最近记录。",
+        title = libraryContinueWatchingSectionTitle(),
+        refreshAction = recentPlaybackRefreshActionLabel(),
+        clearAction = recentPlaybackClearActionLabel(),
+        emptyState = recentPlaybackEmptyMessage(),
     )
 
 private const val RECENT_PLAYBACK_PAGE_SIZE = 6
@@ -1134,38 +1138,27 @@ internal fun recentPlaybackPageStartForIndex(
     index: Int,
     itemCount: Int,
     pageSize: Int = RECENT_PLAYBACK_PAGE_SIZE,
-): Int {
-    if (itemCount <= 0 || pageSize <= 0) return 0
-    val safeIndex = index.coerceIn(0, itemCount - 1)
-    return (safeIndex / pageSize) * pageSize
-}
+): Int = pagedListPageStartForIndex(index, itemCount, pageSize)
 
 internal fun recentPlaybackCoercedPageStart(
     pageStart: Int,
     itemCount: Int,
     pageSize: Int = RECENT_PLAYBACK_PAGE_SIZE,
-): Int {
-    if (itemCount <= 0 || pageSize <= 0) return 0
-    val maxPageStart = recentPlaybackPageStartForIndex(
-        index = itemCount - 1,
-        itemCount = itemCount,
-        pageSize = pageSize,
-    )
-    return (pageStart / pageSize)
-        .coerceAtLeast(0)
-        .times(pageSize)
-        .coerceAtMost(maxPageStart)
-}
+): Int = pagedListCoercedPageStart(pageStart, itemCount, pageSize)
 
 internal fun recentPlaybackPageSummary(
     pageStart: Int,
     visibleCount: Int,
     itemCount: Int,
 ): String? {
-    if (itemCount <= 0 || visibleCount <= 0 || visibleCount >= itemCount) return null
     val safeStart = recentPlaybackCoercedPageStart(pageStart, itemCount)
-    val end = (safeStart + visibleCount).coerceAtMost(itemCount)
-    return "显示 ${safeStart + 1}-$end / $itemCount 条记录，按上/下继续翻页。"
+    return pagedListPageSummary(
+        pageStart = safeStart,
+        visibleCount = visibleCount,
+        itemCount = itemCount,
+        pageSize = RECENT_PLAYBACK_PAGE_SIZE,
+        unitLabel = recentPlaybackPageUnitLabel(),
+    )
 }
 
 @Composable
@@ -1334,8 +1327,8 @@ internal data class DesktopMediaDetailsLabels(
 
 internal fun desktopMediaDetailsLabels(): DesktopMediaDetailsLabels =
     DesktopMediaDetailsLabels(
-        title = "媒体详情",
-        emptyState = "选择媒体后会在这里显示详细信息。",
+        title = mediaDetailsSectionTitle(),
+        emptyState = mediaDetailsEmptyMessage(),
     )
 
 internal sealed interface MediaDetailsFocusTarget {
@@ -1392,38 +1385,27 @@ internal fun mediaDetailsPageStartForIndex(
     index: Int,
     itemCount: Int,
     pageSize: Int = MEDIA_DETAILS_PAGE_SIZE,
-): Int {
-    if (itemCount <= 0 || pageSize <= 0) return 0
-    val safeIndex = index.coerceIn(0, itemCount - 1)
-    return (safeIndex / pageSize) * pageSize
-}
+): Int = pagedListPageStartForIndex(index, itemCount, pageSize)
 
 internal fun mediaDetailsCoercedPageStart(
     pageStart: Int,
     itemCount: Int,
     pageSize: Int = MEDIA_DETAILS_PAGE_SIZE,
-): Int {
-    if (itemCount <= 0 || pageSize <= 0) return 0
-    val maxPageStart = mediaDetailsPageStartForIndex(
-        index = itemCount - 1,
-        itemCount = itemCount,
-        pageSize = pageSize,
-    )
-    return (pageStart / pageSize)
-        .coerceAtLeast(0)
-        .times(pageSize)
-        .coerceAtMost(maxPageStart)
-}
+): Int = pagedListCoercedPageStart(pageStart, itemCount, pageSize)
 
 internal fun mediaDetailsPageSummary(
     pageStart: Int,
     visibleCount: Int,
     itemCount: Int,
 ): String? {
-    if (itemCount <= 0 || visibleCount <= 0 || visibleCount >= itemCount) return null
     val safeStart = mediaDetailsCoercedPageStart(pageStart, itemCount)
-    val end = (safeStart + visibleCount).coerceAtMost(itemCount)
-    return "显示 ${safeStart + 1}-$end / $itemCount 条详情，按上/下继续翻页。"
+    return pagedListPageSummary(
+        pageStart = safeStart,
+        visibleCount = visibleCount,
+        itemCount = itemCount,
+        pageSize = MEDIA_DETAILS_PAGE_SIZE,
+        unitLabel = mediaDetailsPageUnitLabel(),
+    )
 }
 
 internal fun mediaDetailsSplitIndex(pageStart: Int, visibleCount: Int): Int {
