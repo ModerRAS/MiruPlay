@@ -17,10 +17,10 @@ import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.RssSubscriptionInfo
+import com.miruplay.tv.model.CloudDriveApiTokenFormResult
+import com.miruplay.tv.model.CloudDriveLoginFormResult
 import com.miruplay.tv.model.buildRssSubscriptionFromForm
-import com.miruplay.tv.model.cloudDriveApiTokenRequiredStatus
 import com.miruplay.tv.model.cloudDriveEndpointRequiredStatus
-import com.miruplay.tv.model.cloudDriveLoginRequiredStatus
 import com.miruplay.tv.model.cloudDriveLoginSucceededStatus
 import com.miruplay.tv.model.cloudDriveTokenLoginRequiredStatus
 import com.miruplay.tv.model.connectionPassword
@@ -41,6 +41,8 @@ import com.miruplay.tv.sync.rss.prepareCloudDriveDirectoryBrowser
 import com.miruplay.tv.model.rssSubscriptionDeletedStatus
 import com.miruplay.tv.model.rssSubscriptionSavedStatus
 import com.miruplay.tv.model.rssUrlRequiredStatus
+import com.miruplay.tv.model.validateCloudDriveApiTokenForm
+import com.miruplay.tv.model.validateCloudDriveLoginForm
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -261,13 +263,16 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun loginCloudDrive(endpointUrl: String, username: String, password: String) {
-        if (endpointUrl.isBlank() || username.isBlank() || password.isBlank()) {
-            _cloudDriveActionMessage.value = cloudDriveLoginRequiredStatus()
-            return
+        val form = when (val result = validateCloudDriveLoginForm(endpointUrl, username, password)) {
+            is CloudDriveLoginFormResult.Ready -> result.request
+            is CloudDriveLoginFormResult.Invalid -> {
+                _cloudDriveActionMessage.value = result.status
+                return
+            }
         }
         viewModelScope.launch {
             _cloudDriveBusy.value = true
-            cloudDriveEngine.login(endpointUrl.trim(), username.trim(), password)
+            cloudDriveEngine.login(form.endpointUrl, form.username, form.password)
                 .onSuccess {
                     _cloudDriveTokenConfigured.value = true
                     _cloudDriveActionMessage.value = cloudDriveLoginSucceededStatus()
@@ -280,18 +285,16 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun saveCloudDriveApiToken(endpointUrl: String, token: String) {
-        if (endpointUrl.isBlank()) {
-            _cloudDriveActionMessage.value = cloudDriveEndpointRequiredStatus()
-            return
-        }
-        val normalizedToken = token.trim()
-        if (normalizedToken.isBlank()) {
-            _cloudDriveActionMessage.value = cloudDriveApiTokenRequiredStatus()
-            return
+        val form = when (val result = validateCloudDriveApiTokenForm(endpointUrl, token)) {
+            is CloudDriveApiTokenFormResult.Ready -> result.request
+            is CloudDriveApiTokenFormResult.Invalid -> {
+                _cloudDriveActionMessage.value = result.status
+                return
+            }
         }
         viewModelScope.launch {
             _cloudDriveBusy.value = true
-            cloudDriveEngine.saveApiToken(endpointUrl.trim(), normalizedToken)
+            cloudDriveEngine.saveApiToken(form.endpointUrl, form.token)
                 .onSuccess { info ->
                     _cloudDriveTokenConfigured.value = true
                     _cloudDriveActionMessage.value = cloudDriveTokenVerifiedStatus(

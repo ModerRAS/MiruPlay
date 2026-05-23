@@ -52,6 +52,8 @@ import com.miruplay.tv.mediasource.desktop.desktopSourceFromInfo
 import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.PLAYBACK_SEEK_BACK_SECONDS
 import com.miruplay.tv.model.PLAYBACK_SEEK_FORWARD_SECONDS
+import com.miruplay.tv.model.CloudDriveApiTokenFormResult
+import com.miruplay.tv.model.CloudDriveLoginFormResult
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaPathConventions
@@ -86,6 +88,8 @@ import com.miruplay.tv.model.nextEpisodeAfter
 import com.miruplay.tv.model.retainedSelectionInProgressRecords
 import com.miruplay.tv.model.retainedSelectionInRssSubscriptions
 import com.miruplay.tv.model.toPlaybackSource
+import com.miruplay.tv.model.validateCloudDriveApiTokenForm
+import com.miruplay.tv.model.validateCloudDriveLoginForm
 import com.miruplay.tv.model.withAutomationFormValues
 import com.miruplay.tv.player.mpv.MpvProcessPlayer
 import com.miruplay.tv.player.mpv.MpvRuntimeDiscovery
@@ -1911,15 +1915,21 @@ internal fun MiruPlayDesktopComposeApp(
                 },
                 onLoginCloudDrive = {
                     scope.launch {
-                        val endpoint = cloudEndpointUrl.trim()
-                        val user = cloudUsername.trim()
-                        val pass = cloudPassword
-                        if (endpoint.isBlank() || user.isBlank() || pass.isBlank()) {
-                            cloudRssStatus = cloudDriveLoginRequiredStatus()
-                            return@launch
+                        val form = when (
+                            val validation = validateCloudDriveLoginForm(
+                                endpointUrl = cloudEndpointUrl,
+                                username = cloudUsername,
+                                password = cloudPassword,
+                            )
+                        ) {
+                            is CloudDriveLoginFormResult.Ready -> validation.request
+                            is CloudDriveLoginFormResult.Invalid -> {
+                                cloudRssStatus = validation.status
+                                return@launch
+                            }
                         }
                         cloudRssStatus = cloudDriveLoginStartedStatus()
-                        when (val result = cloudRssEngine.login(endpoint, user, pass)) {
+                        when (val result = cloudRssEngine.login(form.endpointUrl, form.username, form.password)) {
                             is Result.Success -> {
                                 cloudToken = repositories.credentials.cloudDriveToken.orEmpty()
                                 cloudRssStatus = cloudDriveLoginSucceededStatus()
@@ -1930,16 +1940,23 @@ internal fun MiruPlayDesktopComposeApp(
                 },
                 onVerifyApiToken = {
                     scope.launch {
-                        val endpoint = cloudEndpointUrl.trim()
-                        val apiToken = cloudToken.trim()
-                        if (endpoint.isBlank() || apiToken.isBlank()) {
-                            cloudRssStatus = cloudDriveTokenRequiredStatus()
-                            return@launch
+                        val form = when (
+                            val validation = validateCloudDriveApiTokenForm(
+                                endpointUrl = cloudEndpointUrl,
+                                token = cloudToken,
+                                blankTokenStatus = cloudDriveTokenRequiredStatus(),
+                            )
+                        ) {
+                            is CloudDriveApiTokenFormResult.Ready -> validation.request
+                            is CloudDriveApiTokenFormResult.Invalid -> {
+                                cloudRssStatus = validation.status
+                                return@launch
+                            }
                         }
                         cloudRssStatus = cloudDriveTokenValidationStartedStatus()
-                        when (val result = cloudRssEngine.saveApiToken(endpoint, apiToken)) {
+                        when (val result = cloudRssEngine.saveApiToken(form.endpointUrl, form.token)) {
                             is Result.Success -> {
-                                cloudToken = apiToken
+                                cloudToken = form.token
                                 cloudRssStatus = result.data.verifiedStatus()
                             }
                             is Result.Error -> cloudRssStatus = result.error.toUserMessage()

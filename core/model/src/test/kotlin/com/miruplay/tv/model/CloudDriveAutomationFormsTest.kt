@@ -88,4 +88,82 @@ class CloudDriveAutomationFormsTest {
             )
         )
     }
+
+    @Test
+    fun `cloud drive login form trims endpoint and username`() {
+        val result = validateCloudDriveLoginForm(
+            endpointUrl = " http://127.0.0.1:19798 ",
+            username = " miru ",
+            password = " secret ",
+        )
+
+        assertEquals(
+            CloudDriveLoginFormResult.Ready(
+                CloudDriveLoginFormRequest(
+                    endpointUrl = "http://127.0.0.1:19798",
+                    username = "miru",
+                    password = " secret ",
+                ),
+            ),
+            result,
+        )
+    }
+
+    @Test
+    fun `cloud drive login form reports missing required fields`() {
+        assertEquals(
+            CloudDriveLoginFormResult.Invalid(cloudDriveLoginRequiredStatus()),
+            validateCloudDriveLoginForm(endpointUrl = "", username = "miru", password = "secret"),
+        )
+        assertEquals(
+            CloudDriveLoginFormResult.Invalid(cloudDriveLoginRequiredStatus()),
+            validateCloudDriveLoginForm(endpointUrl = "http://cloud.test", username = " ", password = "secret"),
+        )
+        assertEquals(
+            CloudDriveLoginFormResult.Invalid(cloudDriveLoginRequiredStatus()),
+            validateCloudDriveLoginForm(endpointUrl = "http://cloud.test", username = "miru", password = ""),
+        )
+    }
+
+    @Test
+    fun `cloud drive api token form distinguishes endpoint and token errors`() {
+        assertEquals(
+            CloudDriveApiTokenFormResult.Invalid(cloudDriveTokenRequiredStatus()),
+            validateCloudDriveApiTokenForm(endpointUrl = "", token = ""),
+        )
+        assertEquals(
+            CloudDriveApiTokenFormResult.Invalid(cloudDriveEndpointRequiredStatus()),
+            validateCloudDriveApiTokenForm(endpointUrl = " ", token = "api-token"),
+        )
+        assertEquals(
+            CloudDriveApiTokenFormResult.Invalid(cloudDriveApiTokenRequiredStatus()),
+            validateCloudDriveApiTokenForm(endpointUrl = "http://cloud.test", token = " "),
+        )
+        assertEquals(
+            CloudDriveApiTokenFormResult.Invalid(cloudDriveTokenRequiredStatus()),
+            validateCloudDriveApiTokenForm(
+                endpointUrl = "http://cloud.test",
+                token = " ",
+                blankTokenStatus = cloudDriveTokenRequiredStatus(),
+            ),
+        )
+    }
+
+    @Test
+    fun `cloud drive api token form trims ready values`() {
+        val result = validateCloudDriveApiTokenForm(
+            endpointUrl = " http://cloud.test ",
+            token = " api-token ",
+        )
+
+        assertEquals(
+            CloudDriveApiTokenFormResult.Ready(
+                CloudDriveApiTokenFormRequest(
+                    endpointUrl = "http://cloud.test",
+                    token = "api-token",
+                ),
+            ),
+            result,
+        )
+    }
 }

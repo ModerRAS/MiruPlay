@@ -61,3 +61,63 @@ fun buildRssSubscriptionFromForm(
         lastCheckedAt = existingLastCheckedAt,
     )
 }
+
+data class CloudDriveLoginFormRequest(
+    val endpointUrl: String,
+    val username: String,
+    val password: String,
+)
+
+data class CloudDriveApiTokenFormRequest(
+    val endpointUrl: String,
+    val token: String,
+)
+
+sealed class CloudDriveLoginFormResult {
+    data class Ready(val request: CloudDriveLoginFormRequest) : CloudDriveLoginFormResult()
+    data class Invalid(val status: String) : CloudDriveLoginFormResult()
+}
+
+sealed class CloudDriveApiTokenFormResult {
+    data class Ready(val request: CloudDriveApiTokenFormRequest) : CloudDriveApiTokenFormResult()
+    data class Invalid(val status: String) : CloudDriveApiTokenFormResult()
+}
+
+fun validateCloudDriveLoginForm(
+    endpointUrl: String,
+    username: String,
+    password: String,
+): CloudDriveLoginFormResult {
+    val endpoint = endpointUrl.trim()
+    val user = username.trim()
+    if (endpoint.isBlank() || user.isBlank() || password.isBlank()) {
+        return CloudDriveLoginFormResult.Invalid(cloudDriveLoginRequiredStatus())
+    }
+    return CloudDriveLoginFormResult.Ready(
+        CloudDriveLoginFormRequest(
+            endpointUrl = endpoint,
+            username = user,
+            password = password,
+        ),
+    )
+}
+
+fun validateCloudDriveApiTokenForm(
+    endpointUrl: String,
+    token: String,
+    blankTokenStatus: String = cloudDriveApiTokenRequiredStatus(),
+): CloudDriveApiTokenFormResult {
+    val endpoint = endpointUrl.trim()
+    val apiToken = token.trim()
+    return when {
+        endpoint.isBlank() && apiToken.isBlank() -> CloudDriveApiTokenFormResult.Invalid(cloudDriveTokenRequiredStatus())
+        endpoint.isBlank() -> CloudDriveApiTokenFormResult.Invalid(cloudDriveEndpointRequiredStatus())
+        apiToken.isBlank() -> CloudDriveApiTokenFormResult.Invalid(blankTokenStatus)
+        else -> CloudDriveApiTokenFormResult.Ready(
+            CloudDriveApiTokenFormRequest(
+                endpointUrl = endpoint,
+                token = apiToken,
+            ),
+        )
+    }
+}
