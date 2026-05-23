@@ -41,7 +41,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.design.MiruPlayUiMetrics
+import com.miruplay.tv.design.horizontalNavigationDelta
+import com.miruplay.tv.design.verticalNavigationDelta
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MiruPlaySettingsSection
 import com.miruplay.tv.model.RssSubscriptionInfo
@@ -1409,20 +1412,28 @@ internal fun cloudRssToggleFocusTarget(
     current: CloudRssToggle,
     key: Key,
 ): CloudRssFocusTarget? =
-    when (key) {
-        Key.DirectionLeft -> cloudRssHorizontalToggle(current, -1)?.let(CloudRssFocusTarget::Toggle)
-        Key.DirectionRight -> cloudRssHorizontalToggle(current, 1)?.let(CloudRssFocusTarget::Toggle)
-        Key.DirectionUp -> when (current) {
+    key.toMiruPlayInputIntent()?.let { intent ->
+        cloudRssToggleFocusTarget(current, intent)
+    }
+
+internal fun cloudRssToggleFocusTarget(
+    current: CloudRssToggle,
+    intent: MiruPlayInputIntent,
+): CloudRssFocusTarget? =
+    when (intent.verticalNavigationDelta()) {
+        -1 -> when (current) {
             CloudRssToggle.SyncEnabled -> CloudRssFocusTarget.Field(CloudRssField.IntervalMinutes)
             CloudRssToggle.ProxyEnabled -> CloudRssFocusTarget.Field(CloudRssField.ProxyHost)
             CloudRssToggle.RssEnabled -> CloudRssFocusTarget.Field(CloudRssField.FilterRegex)
         }
-        Key.DirectionDown -> when (current) {
+        1 -> when (current) {
             CloudRssToggle.SyncEnabled -> CloudRssFocusTarget.Action(CloudRssAction.UseActiveSource)
             CloudRssToggle.ProxyEnabled -> CloudRssFocusTarget.Action(CloudRssAction.ClearScanSource)
             CloudRssToggle.RssEnabled -> CloudRssFocusTarget.Action(CloudRssAction.SaveRss)
         }
-        else -> null
+        else -> intent.horizontalNavigationDelta()?.let { delta ->
+            cloudRssHorizontalToggle(current, delta)?.let(CloudRssFocusTarget::Toggle)
+        }
     }
 
 private fun cloudRssHorizontalToggle(
@@ -1443,10 +1454,16 @@ internal fun cloudRssFieldFocusTarget(
     current: CloudRssField,
     key: Key,
 ): CloudRssFocusTarget? =
-    when (key) {
-        Key.DirectionLeft -> cloudRssHorizontalField(current, -1)?.let(CloudRssFocusTarget::Field)
-        Key.DirectionRight -> cloudRssHorizontalField(current, 1)?.let(CloudRssFocusTarget::Field)
-        Key.DirectionUp -> when (current) {
+    key.toMiruPlayInputIntent()?.let { intent ->
+        cloudRssFieldFocusTarget(current, intent)
+    }
+
+internal fun cloudRssFieldFocusTarget(
+    current: CloudRssField,
+    intent: MiruPlayInputIntent,
+): CloudRssFocusTarget? =
+    when (intent.verticalNavigationDelta()) {
+        -1 -> when (current) {
             CloudRssField.Username -> CloudRssFocusTarget.Field(CloudRssField.Endpoint)
             CloudRssField.ApiToken -> CloudRssFocusTarget.Field(CloudRssField.Username)
             CloudRssField.Password -> CloudRssFocusTarget.Field(CloudRssField.Username)
@@ -1460,7 +1477,7 @@ internal fun cloudRssFieldFocusTarget(
             CloudRssField.FilterRegex -> CloudRssFocusTarget.Field(CloudRssField.SubscriptionUrl)
             else -> null
         }
-        Key.DirectionDown -> when (current) {
+        1 -> when (current) {
             CloudRssField.Endpoint -> CloudRssFocusTarget.Field(CloudRssField.Username)
             CloudRssField.Username -> CloudRssFocusTarget.Field(CloudRssField.ApiToken)
             CloudRssField.ApiToken -> CloudRssFocusTarget.Action(CloudRssAction.SaveCredentials)
@@ -1475,7 +1492,9 @@ internal fun cloudRssFieldFocusTarget(
             CloudRssField.SubscriptionUrl -> CloudRssFocusTarget.Field(CloudRssField.FilterRegex)
             CloudRssField.FilterRegex -> CloudRssFocusTarget.Toggle(CloudRssToggle.RssEnabled)
         }
-        else -> null
+        else -> intent.horizontalNavigationDelta()?.let { delta ->
+            cloudRssHorizontalField(current, delta)?.let(CloudRssFocusTarget::Field)
+        }
     }
 
 private fun cloudRssHorizontalField(
@@ -1508,29 +1527,47 @@ internal fun cloudRssActionFocusTarget(
     key: Key,
     subscriptionCount: Int,
 ): CloudRssFocusTarget? =
-    when (key) {
-        Key.DirectionLeft -> cloudRssHorizontalAction(current, -1)?.let(CloudRssFocusTarget::Action)
-        Key.DirectionRight -> cloudRssHorizontalAction(current, 1)?.let(CloudRssFocusTarget::Action)
-        Key.DirectionUp -> cloudRssActionUpTarget(current, subscriptionCount)
-        Key.DirectionDown -> cloudRssActionDownTarget(current, subscriptionCount)
-        else -> null
+    key.toMiruPlayInputIntent()?.let { intent ->
+        cloudRssActionFocusTarget(current, intent, subscriptionCount)
+    }
+
+internal fun cloudRssActionFocusTarget(
+    current: CloudRssAction,
+    intent: MiruPlayInputIntent,
+    subscriptionCount: Int,
+): CloudRssFocusTarget? =
+    when (intent.verticalNavigationDelta()) {
+        -1 -> cloudRssActionUpTarget(current, subscriptionCount)
+        1 -> cloudRssActionDownTarget(current, subscriptionCount)
+        else -> intent.horizontalNavigationDelta()?.let { delta ->
+            cloudRssHorizontalAction(current, delta)?.let(CloudRssFocusTarget::Action)
+        }
     }
 
 internal fun cloudRssSubscriptionFocusTarget(
     currentIndex: Int,
     itemCount: Int,
     key: Key,
+): CloudRssFocusTarget? =
+    key.toMiruPlayInputIntent()?.let { intent ->
+        cloudRssSubscriptionFocusTarget(currentIndex, itemCount, intent)
+    }
+
+internal fun cloudRssSubscriptionFocusTarget(
+    currentIndex: Int,
+    itemCount: Int,
+    intent: MiruPlayInputIntent,
 ): CloudRssFocusTarget? {
     if (itemCount <= 0) return null
-    return when (key) {
-        Key.DirectionUp -> {
+    return when (intent.verticalNavigationDelta()) {
+        -1 -> {
             if (currentIndex <= 0) {
                 CloudRssFocusTarget.Action(CloudRssAction.SaveRss)
             } else {
                 CloudRssFocusTarget.Subscription(currentIndex - 1)
             }
         }
-        Key.DirectionDown -> {
+        1 -> {
             if (currentIndex < 0) {
                 CloudRssFocusTarget.Subscription(0)
             } else if (currentIndex >= itemCount - 1) {
@@ -1544,9 +1581,12 @@ internal fun cloudRssSubscriptionFocusTarget(
 }
 
 internal fun cloudRssSubscriptionEmptyFocusTarget(key: Key): CloudRssFocusTarget? =
-    when (key) {
-        Key.DirectionUp -> CloudRssFocusTarget.Action(CloudRssAction.SaveRss)
-        Key.DirectionDown -> CloudRssFocusTarget.Action(CloudRssAction.StartScheduler)
+    key.toMiruPlayInputIntent()?.let(::cloudRssSubscriptionEmptyFocusTarget)
+
+internal fun cloudRssSubscriptionEmptyFocusTarget(intent: MiruPlayInputIntent): CloudRssFocusTarget? =
+    when (intent.verticalNavigationDelta()) {
+        -1 -> CloudRssFocusTarget.Action(CloudRssAction.SaveRss)
+        1 -> CloudRssFocusTarget.Action(CloudRssAction.StartScheduler)
         else -> null
     }
 
@@ -1607,20 +1647,33 @@ internal fun cloudDriveDirectoryActionFocusTarget(
     key: Key,
     hasEmptyState: Boolean = false,
 ): CloudDriveDirectoryFocusTarget? =
-    when (key) {
-        Key.DirectionLeft -> cloudDriveDirectoryHorizontalAction(current, -1)?.let(CloudDriveDirectoryFocusTarget::Action)
-        Key.DirectionRight -> cloudDriveDirectoryHorizontalAction(current, 1)?.let(CloudDriveDirectoryFocusTarget::Action)
-        Key.DirectionDown -> when {
+    key.toMiruPlayInputIntent()?.let { intent ->
+        cloudDriveDirectoryActionFocusTarget(current, itemCount, intent, hasEmptyState)
+    }
+
+internal fun cloudDriveDirectoryActionFocusTarget(
+    current: CloudDriveDirectoryAction,
+    itemCount: Int,
+    intent: MiruPlayInputIntent,
+    hasEmptyState: Boolean = false,
+): CloudDriveDirectoryFocusTarget? =
+    when (intent.verticalNavigationDelta()) {
+        1 -> when {
             itemCount > 0 -> CloudDriveDirectoryFocusTarget.Row(0)
             hasEmptyState -> CloudDriveDirectoryFocusTarget.EmptyState
             else -> null
         }
-        else -> null
+        else -> intent.horizontalNavigationDelta()?.let { delta ->
+            cloudDriveDirectoryHorizontalAction(current, delta)?.let(CloudDriveDirectoryFocusTarget::Action)
+        }
     }
 
 internal fun cloudDriveDirectoryEmptyFocusTarget(key: Key): CloudDriveDirectoryFocusTarget? =
-    when (key) {
-        Key.DirectionUp -> CloudDriveDirectoryFocusTarget.Action(CloudDriveDirectoryAction.UseCurrent)
+    key.toMiruPlayInputIntent()?.let(::cloudDriveDirectoryEmptyFocusTarget)
+
+internal fun cloudDriveDirectoryEmptyFocusTarget(intent: MiruPlayInputIntent): CloudDriveDirectoryFocusTarget? =
+    when (intent.verticalNavigationDelta()) {
+        -1 -> CloudDriveDirectoryFocusTarget.Action(CloudDriveDirectoryAction.UseCurrent)
         else -> null
     }
 
@@ -1628,15 +1681,24 @@ internal fun cloudDriveDirectoryRowFocusTarget(
     currentIndex: Int,
     itemCount: Int,
     key: Key,
+): CloudDriveDirectoryFocusTarget? =
+    key.toMiruPlayInputIntent()?.let { intent ->
+        cloudDriveDirectoryRowFocusTarget(currentIndex, itemCount, intent)
+    }
+
+internal fun cloudDriveDirectoryRowFocusTarget(
+    currentIndex: Int,
+    itemCount: Int,
+    intent: MiruPlayInputIntent,
 ): CloudDriveDirectoryFocusTarget? {
     if (itemCount <= 0) return null
-    return when (key) {
-        Key.DirectionUp -> if (currentIndex <= 0) {
+    return when (intent.verticalNavigationDelta()) {
+        -1 -> if (currentIndex <= 0) {
             CloudDriveDirectoryFocusTarget.Action(CloudDriveDirectoryAction.UseCurrent)
         } else {
             CloudDriveDirectoryFocusTarget.Row(currentIndex - 1)
         }
-        Key.DirectionDown -> CloudDriveDirectoryFocusTarget.Row(currentIndex + 1).takeIf { currentIndex + 1 in 0 until itemCount }
+        1 -> CloudDriveDirectoryFocusTarget.Row(currentIndex + 1).takeIf { currentIndex + 1 in 0 until itemCount }
         else -> return null
     }
 }
@@ -1775,14 +1837,20 @@ internal fun settingsQuickActionNavigationTarget(
     actionCount: Int = 0,
     key: Key,
     enabledActions: List<Boolean> = List(actionCount) { true },
+): Int? =
+    key.toMiruPlayInputIntent()?.let { intent ->
+        settingsQuickActionNavigationTarget(currentIndex, actionCount, intent, enabledActions)
+    }
+
+internal fun settingsQuickActionNavigationTarget(
+    currentIndex: Int,
+    actionCount: Int = 0,
+    intent: MiruPlayInputIntent,
+    enabledActions: List<Boolean> = List(actionCount) { true },
 ): Int? {
     val count = enabledActions.size.takeIf { actionCount == 0 } ?: actionCount
     if (count <= 0 || currentIndex !in 0 until count) return null
-    val delta = when (key) {
-        Key.DirectionLeft -> -1
-        Key.DirectionRight -> 1
-        else -> return null
-    }
+    val delta = intent.horizontalNavigationDelta() ?: return null
     var target = currentIndex + delta
     while (target in 0 until count) {
         if (enabledActions.getOrElse(target) { true }) return target
@@ -1802,23 +1870,30 @@ internal fun settingsQuickActionFocusTarget(
     key: Key,
     enabledActions: List<Boolean> = List(actionCount) { true },
 ): SettingsQuickActionFocusTarget? =
-    when (key) {
-        Key.DirectionLeft,
-        Key.DirectionRight,
-        -> settingsQuickActionNavigationTarget(
-            currentIndex = currentIndex,
-            actionCount = actionCount,
-            key = key,
-            enabledActions = enabledActions,
-        )?.let(SettingsQuickActionFocusTarget::Action)
-        Key.DirectionUp -> SettingsQuickActionFocusTarget.SectionMenu
+    key.toMiruPlayInputIntent()?.let { intent ->
+        settingsQuickActionFocusTarget(currentIndex, actionCount, intent, enabledActions)
+    }
+
+internal fun settingsQuickActionFocusTarget(
+    currentIndex: Int,
+    actionCount: Int = 0,
+    intent: MiruPlayInputIntent,
+    enabledActions: List<Boolean> = List(actionCount) { true },
+): SettingsQuickActionFocusTarget? =
+    when (intent.verticalNavigationDelta()) {
+        -1 -> SettingsQuickActionFocusTarget.SectionMenu
             .takeIf {
                 val count = enabledActions.size.takeIf { actionCount == 0 } ?: actionCount
                 count > 0 &&
                     currentIndex in 0 until count &&
                     enabledActions.getOrElse(currentIndex) { true }
             }
-        else -> null
+        else -> settingsQuickActionNavigationTarget(
+            currentIndex = currentIndex,
+            actionCount = actionCount,
+            intent = intent,
+            enabledActions = enabledActions,
+        )?.let(SettingsQuickActionFocusTarget::Action)
     }
 
 internal data class SettingsSummaryTile(
@@ -2395,25 +2470,30 @@ private fun RssSubscriptionRow(
 }
 
 private fun Key.isCloudRssVerticalKey(): Boolean =
-    this == Key.DirectionUp || this == Key.DirectionDown
+    toMiruPlayInputIntent()?.verticalNavigationDelta() != null
 
 internal fun List<RssSubscriptionInfo>.rssSubscriptionNavigationTarget(
     currentSubscriptionId: Long?,
     key: Key,
+): RssSubscriptionInfo? =
+    key.toMiruPlayInputIntent()?.let { intent ->
+        rssSubscriptionNavigationTarget(currentSubscriptionId, intent)
+    }
+
+internal fun List<RssSubscriptionInfo>.rssSubscriptionNavigationTarget(
+    currentSubscriptionId: Long?,
+    intent: MiruPlayInputIntent,
 ): RssSubscriptionInfo? {
     if (isEmpty()) return null
+    val delta = intent.verticalNavigationDelta() ?: return null
     val currentIndex = currentSubscriptionId
         ?.let { id -> indexOfFirst { subscription -> subscription.id == id } }
         ?.takeIf { it >= 0 }
-        ?: when (key) {
-            Key.DirectionDown -> -1
-            Key.DirectionUp -> size
+        ?: when {
+            delta > 0 -> -1
+            delta < 0 -> size
             else -> return null
         }
-    val targetIndex = when (key) {
-        Key.DirectionDown -> currentIndex + 1
-        Key.DirectionUp -> currentIndex - 1
-        else -> return null
-    }
+    val targetIndex = currentIndex + delta
     return getOrNull(targetIndex)
 }

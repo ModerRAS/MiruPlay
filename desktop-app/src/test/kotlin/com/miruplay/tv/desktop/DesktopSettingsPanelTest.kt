@@ -3,6 +3,7 @@ package com.miruplay.tv.desktop
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import com.miruplay.tv.clouddrive.CloudDriveFileInfo
+import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.model.cloudDriveDirectoryDisplayPath
 import com.miruplay.tv.model.cloudDriveDirectoryParentPath
 import com.miruplay.tv.model.MediaSourceInfoConventions
@@ -269,6 +270,22 @@ class DesktopSettingsPanelTest {
     }
 
     @Test
+    fun `rss subscription navigation also accepts shared direction intents`() {
+        val subscriptions = listOf(
+            RssSubscriptionInfo(id = 10L, name = "Season A", url = "https://rss.example.test/a.xml"),
+            RssSubscriptionInfo(id = 11L, name = "Season B", url = "https://rss.example.test/b.xml"),
+            RssSubscriptionInfo(id = 12L, name = "Season C", url = "https://rss.example.test/c.xml"),
+        )
+
+        assertEquals(11L, subscriptions.rssSubscriptionNavigationTarget(10L, MiruPlayInputIntent.DirectionDown)?.id)
+        assertEquals(10L, subscriptions.rssSubscriptionNavigationTarget(11L, MiruPlayInputIntent.DirectionUp)?.id)
+        assertEquals(10L, subscriptions.rssSubscriptionNavigationTarget(null, MiruPlayInputIntent.DirectionDown)?.id)
+        assertEquals(12L, subscriptions.rssSubscriptionNavigationTarget(null, MiruPlayInputIntent.DirectionUp)?.id)
+        assertNull(subscriptions.rssSubscriptionNavigationTarget(12L, MiruPlayInputIntent.DirectionDown))
+        assertNull(subscriptions.rssSubscriptionNavigationTarget(10L, MiruPlayInputIntent.DirectionRight))
+    }
+
+    @Test
     fun `cloud rss action grid moves like TV remote button rows`() {
         assertEquals(
             CloudRssFocusTarget.Action(CloudRssAction.ClearCredentials),
@@ -295,6 +312,41 @@ class DesktopSettingsPanelTest {
             cloudRssActionFocusTarget(CloudRssAction.VerifyApiToken, Key.DirectionDown, subscriptionCount = 2),
         )
         assertNull(cloudRssActionFocusTarget(CloudRssAction.SaveCredentials, Key.DirectionLeft, subscriptionCount = 2))
+    }
+
+    @Test
+    fun `cloud rss action grid also accepts shared direction intents`() {
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.ClearCredentials),
+            cloudRssActionFocusTarget(
+                CloudRssAction.SaveCredentials,
+                MiruPlayInputIntent.DirectionRight,
+                subscriptionCount = 2,
+            ),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.LoginCloudDrive),
+            cloudRssActionFocusTarget(
+                CloudRssAction.SaveCredentials,
+                MiruPlayInputIntent.DirectionDown,
+                subscriptionCount = 2,
+            ),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.SaveCredentials),
+            cloudRssActionFocusTarget(
+                CloudRssAction.LoginCloudDrive,
+                MiruPlayInputIntent.DirectionUp,
+                subscriptionCount = 2,
+            ),
+        )
+        assertNull(
+            cloudRssActionFocusTarget(
+                CloudRssAction.SaveCredentials,
+                MiruPlayInputIntent.Activate,
+                subscriptionCount = 2,
+            ),
+        )
     }
 
     @Test
@@ -329,6 +381,24 @@ class DesktopSettingsPanelTest {
         )
         assertNull(cloudRssToggleFocusTarget(CloudRssToggle.SyncEnabled, Key.DirectionLeft))
         assertNull(cloudRssToggleFocusTarget(CloudRssToggle.RssEnabled, Key.DirectionRight))
+    }
+
+    @Test
+    fun `cloud rss toggles also accept shared direction intents`() {
+        assertEquals(
+            CloudRssFocusTarget.Toggle(CloudRssToggle.ProxyEnabled),
+            cloudRssToggleFocusTarget(CloudRssToggle.SyncEnabled, MiruPlayInputIntent.DirectionRight),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.IntervalMinutes),
+            cloudRssToggleFocusTarget(CloudRssToggle.SyncEnabled, MiruPlayInputIntent.DirectionUp),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.UseActiveSource),
+            cloudRssToggleFocusTarget(CloudRssToggle.SyncEnabled, MiruPlayInputIntent.DirectionDown),
+        )
+        assertNull(cloudRssToggleFocusTarget(CloudRssToggle.SyncEnabled, MiruPlayInputIntent.DirectionLeft))
+        assertNull(cloudRssToggleFocusTarget(CloudRssToggle.SyncEnabled, MiruPlayInputIntent.Activate))
     }
 
     @Test
@@ -394,6 +464,28 @@ class DesktopSettingsPanelTest {
             cloudRssFieldFocusTarget(CloudRssField.LibraryPath, Key.DirectionUp),
         )
         assertNull(cloudRssFieldFocusTarget(CloudRssField.ProxyPort, Key.DirectionRight))
+    }
+
+    @Test
+    fun `cloud rss fields also accept shared direction intents`() {
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.LibraryPath),
+            cloudRssFieldFocusTarget(CloudRssField.InboxPath, MiruPlayInputIntent.DirectionRight),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.PickInboxPath),
+            cloudRssFieldFocusTarget(CloudRssField.InboxPath, MiruPlayInputIntent.DirectionDown),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.LoginCloudDrive),
+            cloudRssFieldFocusTarget(CloudRssField.InboxPath, MiruPlayInputIntent.DirectionUp),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Toggle(CloudRssToggle.SyncEnabled),
+            cloudRssFieldFocusTarget(CloudRssField.IntervalMinutes, MiruPlayInputIntent.DirectionDown),
+        )
+        assertNull(cloudRssFieldFocusTarget(CloudRssField.Endpoint, MiruPlayInputIntent.DirectionRight))
+        assertNull(cloudRssFieldFocusTarget(CloudRssField.Endpoint, MiruPlayInputIntent.Activate))
     }
 
     @Test
@@ -473,6 +565,70 @@ class DesktopSettingsPanelTest {
         assertNull(cloudDriveDirectoryRowFocusTarget(currentIndex = 7, itemCount = 8, Key.DirectionDown))
         assertNull(cloudDriveDirectoryRowFocusTarget(currentIndex = 0, itemCount = 0, Key.DirectionDown))
         assertNull(cloudDriveDirectoryRowFocusTarget(currentIndex = 0, itemCount = 3, Key.DirectionRight))
+    }
+
+    @Test
+    fun `desktop CloudDrive directory rows also accept shared direction intents`() {
+        assertEquals(
+            CloudDriveDirectoryFocusTarget.Action(CloudDriveDirectoryAction.Parent),
+            cloudDriveDirectoryActionFocusTarget(
+                CloudDriveDirectoryAction.UseCurrent,
+                itemCount = 3,
+                intent = MiruPlayInputIntent.DirectionRight,
+            ),
+        )
+        assertEquals(
+            CloudDriveDirectoryFocusTarget.Row(0),
+            cloudDriveDirectoryActionFocusTarget(
+                CloudDriveDirectoryAction.Close,
+                itemCount = 3,
+                intent = MiruPlayInputIntent.DirectionDown,
+            ),
+        )
+        assertEquals(
+            CloudDriveDirectoryFocusTarget.EmptyState,
+            cloudDriveDirectoryActionFocusTarget(
+                current = CloudDriveDirectoryAction.Close,
+                itemCount = 0,
+                intent = MiruPlayInputIntent.DirectionDown,
+                hasEmptyState = true,
+            ),
+        )
+        assertEquals(
+            CloudDriveDirectoryFocusTarget.Action(CloudDriveDirectoryAction.UseCurrent),
+            cloudDriveDirectoryEmptyFocusTarget(MiruPlayInputIntent.DirectionUp),
+        )
+        assertEquals(
+            CloudDriveDirectoryFocusTarget.Row(1),
+            cloudDriveDirectoryRowFocusTarget(
+                currentIndex = 0,
+                itemCount = 3,
+                intent = MiruPlayInputIntent.DirectionDown,
+            ),
+        )
+        assertEquals(
+            CloudDriveDirectoryFocusTarget.Action(CloudDriveDirectoryAction.UseCurrent),
+            cloudDriveDirectoryRowFocusTarget(
+                currentIndex = 0,
+                itemCount = 3,
+                intent = MiruPlayInputIntent.DirectionUp,
+            ),
+        )
+        assertNull(
+            cloudDriveDirectoryActionFocusTarget(
+                CloudDriveDirectoryAction.UseCurrent,
+                itemCount = 3,
+                intent = MiruPlayInputIntent.DirectionLeft,
+            ),
+        )
+        assertNull(cloudDriveDirectoryEmptyFocusTarget(MiruPlayInputIntent.DirectionDown))
+        assertNull(
+            cloudDriveDirectoryRowFocusTarget(
+                currentIndex = 0,
+                itemCount = 3,
+                intent = MiruPlayInputIntent.DirectionRight,
+            ),
+        )
     }
 
     @Test
@@ -737,6 +893,56 @@ class DesktopSettingsPanelTest {
         )
         assertNull(settingsQuickActionFocusTarget(currentIndex = 0, actionCount = 2, Key.DirectionDown))
         assertNull(settingsQuickActionFocusTarget(currentIndex = 0, actionCount = 0, Key.DirectionUp))
+    }
+
+    @Test
+    fun `settings summary quick actions also accept shared direction intents`() {
+        assertEquals(
+            1,
+            settingsQuickActionNavigationTarget(
+                currentIndex = 0,
+                actionCount = 2,
+                intent = MiruPlayInputIntent.DirectionRight,
+            ),
+        )
+        assertEquals(
+            0,
+            settingsQuickActionNavigationTarget(
+                currentIndex = 1,
+                actionCount = 2,
+                intent = MiruPlayInputIntent.DirectionLeft,
+            ),
+        )
+        assertEquals(
+            SettingsQuickActionFocusTarget.Action(1),
+            settingsQuickActionFocusTarget(
+                currentIndex = 0,
+                actionCount = 2,
+                intent = MiruPlayInputIntent.DirectionRight,
+            ),
+        )
+        assertEquals(
+            SettingsQuickActionFocusTarget.SectionMenu,
+            settingsQuickActionFocusTarget(
+                currentIndex = 0,
+                actionCount = 2,
+                intent = MiruPlayInputIntent.DirectionUp,
+            ),
+        )
+        assertNull(
+            settingsQuickActionFocusTarget(
+                currentIndex = 0,
+                actionCount = 2,
+                intent = MiruPlayInputIntent.DirectionDown,
+            ),
+        )
+        assertNull(
+            settingsQuickActionNavigationTarget(
+                currentIndex = 0,
+                actionCount = 2,
+                intent = MiruPlayInputIntent.Activate,
+            ),
+        )
     }
 
     @Test
