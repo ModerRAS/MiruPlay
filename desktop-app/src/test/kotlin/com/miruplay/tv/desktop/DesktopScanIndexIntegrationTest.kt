@@ -3,6 +3,7 @@ package com.miruplay.tv.desktop
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.mediasource.desktop.DesktopLocalMediaSource
 import com.miruplay.tv.model.MediaSourceInfoConventions
+import com.miruplay.tv.model.libraryScanCompleteStatus
 import com.miruplay.tv.model.cloudRssScheduledSyncCompleteStatus
 import com.miruplay.tv.model.libraryRescanCompleteStatus
 import com.miruplay.tv.repository.desktop.DesktopRepositories
@@ -25,13 +26,21 @@ class DesktopScanIndexIntegrationTest {
             val repositories = DesktopRepositories.fileBacked(storePath)
             val source = DesktopLocalMediaSource.create("Local", mediaRoot)
             val sourceId = 1L
+            val sourceInfo = source.info.copy(id = sourceId)
 
-            val scan = DesktopMediaLibraryScanner().scan(sourceId, source) as Result.Success
-            repositories.index.rebuildIndex(sourceId, scan.data.entries)
+            val scan = scanAndIndexDesktopSource(
+                sourceInfo = sourceInfo,
+                indexRepository = repositories.index,
+            ) as Result.Success
 
             val query = repositories.index.queryIndex(sourceId, "Bocchi") as Result.Success
             val videos = query.data.filterNot { it.isDirectory }
 
+            assertEquals(sourceId, scan.data.sourceId)
+            assertEquals(libraryScanCompleteStatus(1, 2), scan.data.completedStatus)
+            assertEquals(1, scan.data.filesIndexed)
+            assertEquals(2, scan.data.directoriesVisited)
+            assertEquals(videos, scan.data.videoEntries)
             assertEquals(1, videos.size)
             assertEquals("Bocchi the Rock", videos.single().animeName)
             assertEquals(3, videos.single().episodeNumber)

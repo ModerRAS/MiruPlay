@@ -147,7 +147,6 @@ import com.miruplay.tv.repository.restoredStatus
 import com.miruplay.tv.repository.retainedSelectionInMediaIndex
 import com.miruplay.tv.repository.reviewAcceptedStatus
 import com.miruplay.tv.repository.reviewConflictStatus
-import com.miruplay.tv.repository.scanCompleteStatus
 import com.miruplay.tv.repository.scanningStatus
 import com.miruplay.tv.repository.selectedCandidateStatus
 import com.miruplay.tv.repository.selectedForPlaybackStatus
@@ -170,7 +169,6 @@ import com.miruplay.tv.repository.replaceByMediaKey
 import com.miruplay.tv.repository.replaceByMediaKeys
 import com.miruplay.tv.repository.replaceMatch
 import com.miruplay.tv.repository.withSelectedCandidate
-import com.miruplay.tv.scanner.desktop.DesktopMediaLibraryScanner
 import com.miruplay.tv.scraper.searchPreferredResults
 import com.miruplay.tv.scraper.desktop.DesktopBangumiScraper
 import com.miruplay.tv.sync.BangumiMetadataRefreshCore
@@ -187,7 +185,6 @@ import com.miruplay.tv.sync.rss.cloudDriveTokenRequiredStatus
 import com.miruplay.tv.sync.rss.cloudDriveTokenValidationStartedStatus
 import com.miruplay.tv.sync.rss.cloudRssConfigSavedStatus
 import com.miruplay.tv.sync.rss.cloudRssInitialStatus
-import com.miruplay.tv.sync.rss.cloudRssRescanStartedStatus
 import com.miruplay.tv.sync.rss.cloudRssRunStartedStatus
 import com.miruplay.tv.sync.rss.cloudRssScanSourceClearedStatus
 import com.miruplay.tv.sync.rss.cloudRssScanSourceMissingStatus
@@ -937,21 +934,12 @@ internal fun MiruPlayDesktopComposeApp(
             return
         }
         updateStatus(source.info.scanningStatus())
-        when (val scan = DesktopMediaLibraryScanner().scan(sourceId, source)) {
+        when (val scan = scanAndIndexDesktopSource(source.info.copy(id = sourceId), repositories.index)) {
             is Result.Success -> {
-                when (val indexed = repositories.index.rebuildIndex(sourceId, scan.data.entries)) {
-                    is Result.Success -> {
-                        indexedEntries = scan.data.entries.mediaFilesOnly()
-                        selectedIndexEntry = null
-                        val message = scanCompleteStatus(
-                            filesIndexed = scan.data.filesIndexed,
-                            directoriesVisited = scan.data.directoriesVisited,
-                        )
-                        updateStatus(message)
-                        libraryStatus = message
-                    }
-                    is Result.Error -> updateStatus(indexed.error.toUserMessage())
-                }
+                indexedEntries = scan.data.videoEntries
+                selectedIndexEntry = null
+                updateStatus(scan.data.completedStatus)
+                libraryStatus = scan.data.completedStatus
             }
             is Result.Error -> updateStatus(scan.error.toUserMessage())
         }
@@ -975,7 +963,7 @@ internal fun MiruPlayDesktopComposeApp(
             return null
         }
 
-        cloudRssStatus = sourceInfo.cloudRssRescanStartedStatus(reason)
+        cloudRssStatus = desktopCloudRssRescanStartedStatus(sourceInfo, reason)
         return when (val rescan = rescanCloudRssLinkedSource(sourceInfo, reason, repositories.index)) {
             is Result.Success -> {
                 val result = rescan.data
