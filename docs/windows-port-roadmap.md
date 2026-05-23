@@ -39,7 +39,13 @@ Latest local shared-input update: `:ui-design` now owns `MiruPlayInputIntent`
 for platform-neutral activation, Back/navigation-back, direction, and media
 playback intents. Android TV and Windows keep only thin Compose `Key` adapters,
 so DPAD Center/Enter/Space activation, TV/desktop Back aliases, and
-play/pause/stop media keys cannot drift between platforms. Verified with
+play/pause/stop media keys cannot drift between platforms. The same shared
+intent layer now also owns horizontal, vertical, and linear directional deltas;
+the desktop route rail and saved-source picker consume those deltas through
+intent-based key handlers instead of branching directly on Compose `Key`
+values, and the Library header, local-source action row, and remote-source
+action row now expose intent-level navigation contracts for the same reason.
+Verified with
 `.\gradlew.bat :ui-design:test :ui-tv:test :desktop-app:test checkDesktopPresenterSeparation checkDesktopComposeOnly -PbundleMpvRuntime=false`.
 
 ## Work Plan

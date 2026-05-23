@@ -46,7 +46,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.design.MiruPlayUiMetrics
+import com.miruplay.tv.design.horizontalNavigationDelta
+import com.miruplay.tv.design.verticalNavigationDelta
 import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
@@ -402,13 +405,23 @@ internal fun desktopLibraryHeaderFocusTarget(
     current: DesktopLibraryHeaderAction,
     key: Key,
 ): DesktopLibraryHeaderFocusTarget? =
-    when (key) {
-        Key.DirectionLeft -> DesktopLibraryHeaderFocusTarget.Action(DesktopLibraryHeaderAction.Scan)
-            .takeIf { current == DesktopLibraryHeaderAction.Settings }
-        Key.DirectionRight -> DesktopLibraryHeaderFocusTarget.Action(DesktopLibraryHeaderAction.Settings)
-            .takeIf { current == DesktopLibraryHeaderAction.Scan }
-        Key.DirectionDown -> DesktopLibraryHeaderFocusTarget.NextPanel
-        else -> null
+    key.toMiruPlayInputIntent()?.let { intent ->
+        desktopLibraryHeaderFocusTarget(current, intent)
+    }
+
+internal fun desktopLibraryHeaderFocusTarget(
+    current: DesktopLibraryHeaderAction,
+    intent: MiruPlayInputIntent,
+): DesktopLibraryHeaderFocusTarget? =
+    when {
+        intent == MiruPlayInputIntent.DirectionDown -> DesktopLibraryHeaderFocusTarget.NextPanel
+        else -> when (intent.horizontalNavigationDelta()) {
+            -1 -> DesktopLibraryHeaderFocusTarget.Action(DesktopLibraryHeaderAction.Scan)
+                .takeIf { current == DesktopLibraryHeaderAction.Settings }
+            1 -> DesktopLibraryHeaderFocusTarget.Action(DesktopLibraryHeaderAction.Settings)
+                .takeIf { current == DesktopLibraryHeaderAction.Scan }
+            else -> null
+        }
     }
 
 internal enum class LibrarySourceAction {
@@ -494,12 +507,20 @@ internal fun librarySourceActionNavigationTarget(
     current: LibrarySourceAction,
     key: Key,
 ): LibrarySourceAction? =
-    when (key) {
-        Key.DirectionLeft -> librarySourceHorizontalAction(current, -1)
-        Key.DirectionRight -> librarySourceHorizontalAction(current, 1)
-        Key.DirectionUp -> if (current == LibrarySourceAction.RemoveSource) LibrarySourceAction.ClearIndex else null
-        Key.DirectionDown -> if (current == LibrarySourceAction.ClearIndex) LibrarySourceAction.RemoveSource else null
-        else -> null
+    key.toMiruPlayInputIntent()?.let { intent ->
+        librarySourceActionNavigationTarget(current, intent)
+    }
+
+internal fun librarySourceActionNavigationTarget(
+    current: LibrarySourceAction,
+    intent: MiruPlayInputIntent,
+): LibrarySourceAction? =
+    when (intent.verticalNavigationDelta()) {
+        -1 -> if (current == LibrarySourceAction.RemoveSource) LibrarySourceAction.ClearIndex else null
+        1 -> if (current == LibrarySourceAction.ClearIndex) LibrarySourceAction.RemoveSource else null
+        else -> intent.horizontalNavigationDelta()?.let { delta ->
+            librarySourceHorizontalAction(current, delta)
+        }
     }
 
 private fun librarySourceHorizontalAction(
@@ -636,17 +657,27 @@ internal fun remoteSourceActionNavigationTarget(
     current: RemoteSourceAction,
     key: Key,
 ): RemoteSourceAction? =
-    when (key) {
-        Key.DirectionLeft -> if (current == RemoteSourceAction.ScanSource) RemoteSourceAction.OpenSmb else null
-        Key.DirectionRight -> if (current == RemoteSourceAction.OpenSmb) RemoteSourceAction.ScanSource else null
-        Key.DirectionUp -> when (current) {
+    key.toMiruPlayInputIntent()?.let { intent ->
+        remoteSourceActionNavigationTarget(current, intent)
+    }
+
+internal fun remoteSourceActionNavigationTarget(
+    current: RemoteSourceAction,
+    intent: MiruPlayInputIntent,
+): RemoteSourceAction? =
+    when (intent.verticalNavigationDelta()) {
+        -1 -> when (current) {
             RemoteSourceAction.OpenSmb,
             RemoteSourceAction.ScanSource,
             -> RemoteSourceAction.OpenWebDav
             RemoteSourceAction.OpenWebDav -> null
         }
-        Key.DirectionDown -> if (current == RemoteSourceAction.OpenWebDav) RemoteSourceAction.OpenSmb else null
-        else -> null
+        1 -> if (current == RemoteSourceAction.OpenWebDav) RemoteSourceAction.OpenSmb else null
+        else -> when (intent.horizontalNavigationDelta()) {
+            -1 -> if (current == RemoteSourceAction.ScanSource) RemoteSourceAction.OpenSmb else null
+            1 -> if (current == RemoteSourceAction.OpenSmb) RemoteSourceAction.ScanSource else null
+            else -> null
+        }
     }
 
 internal sealed interface RemoteBrowserFocusTarget {

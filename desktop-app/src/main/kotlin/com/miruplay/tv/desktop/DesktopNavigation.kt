@@ -21,7 +21,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
@@ -29,9 +28,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.design.MiruPlayRouteSurface
 import com.miruplay.tv.design.MiruPlayUiMetrics
 import com.miruplay.tv.design.isBackIntent
+import com.miruplay.tv.design.verticalNavigationDelta
 import com.miruplay.tv.model.desktopRouteRailSubtitleLabel
 
 @Composable
@@ -50,12 +51,8 @@ internal fun DesktopTvNavigation(
         modifier = Modifier
             .width(MiruPlayUiMetrics.NAV_RAIL_WIDTH_DP.dp)
             .fillMaxHeight()
-            .desktopNavigationKeyHandler { key ->
-                when (key) {
-                    Key.DirectionDown -> selectedSection.stepDesktopSection(1)?.let(onSectionSelected) != null
-                    Key.DirectionUp -> selectedSection.stepDesktopSection(-1)?.let(onSectionSelected) != null
-                    else -> false
-                }
+            .desktopNavigationIntentHandler { intent ->
+                selectedSection.stepDesktopSection(intent)?.let(onSectionSelected) != null
             },
     ) {
         Text("MiruPlay", color = TextPrimary, fontSize = MiruPlayUiMetrics.SECTION_TITLE_SP.sp, fontWeight = FontWeight.Bold)
@@ -76,7 +73,7 @@ internal fun DesktopTvNavigation(
                     .height(MiruPlayUiMetrics.NAV_ITEM_HEIGHT_DP.dp)
                     .focusRequester(sectionFocusRequesters.getValue(section))
                     .onPreviewKeyEvent { event ->
-                        desktopConfirmOrNavigationKeyEvent(
+                        desktopConfirmOrNavigationIntentEvent(
                             key = event.key,
                             type = event.type,
                             onClick = { onSectionSelected(section) },
@@ -118,6 +115,9 @@ internal fun desktopRouteRailSubtitle(): String =
 internal fun DesktopSection.stepDesktopSection(delta: Int): DesktopSection? {
     return MiruPlayRouteSurface.desktopSectionStep(this, delta)
 }
+
+internal fun DesktopSection.stepDesktopSection(intent: MiruPlayInputIntent): DesktopSection? =
+    intent.verticalNavigationDelta()?.let(::stepDesktopSection)
 
 internal fun DesktopSection.desktopBackTarget(): DesktopSection? =
     MiruPlayRouteSurface.backTarget(this)

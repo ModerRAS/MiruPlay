@@ -41,6 +41,23 @@ fun MiruPlayInputIntent.isPlaybackToggleIntent(): Boolean =
     this == MiruPlayInputIntent.Activate ||
         this == MiruPlayInputIntent.MediaPlayPause
 
+fun MiruPlayInputIntent.horizontalNavigationDelta(): Int? =
+    when (this) {
+        MiruPlayInputIntent.DirectionLeft -> -1
+        MiruPlayInputIntent.DirectionRight -> 1
+        else -> null
+    }
+
+fun MiruPlayInputIntent.verticalNavigationDelta(): Int? =
+    when (this) {
+        MiruPlayInputIntent.DirectionUp -> -1
+        MiruPlayInputIntent.DirectionDown -> 1
+        else -> null
+    }
+
+fun MiruPlayInputIntent.linearNavigationDelta(): Int? =
+    horizontalNavigationDelta() ?: verticalNavigationDelta()
+
 fun MiruPlayInputIntent.desktopPlaybackStageAction(isPlayerActive: Boolean): MiruPlayPlaybackInputAction? =
     when (this) {
         MiruPlayInputIntent.DirectionLeft -> MiruPlayPlaybackInputAction.SeekBack.takeIf { isPlayerActive }

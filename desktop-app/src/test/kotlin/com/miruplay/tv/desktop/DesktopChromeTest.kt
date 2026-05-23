@@ -85,6 +85,54 @@ class DesktopChromeTest {
     }
 
     @Test
+    fun `desktop confirm intent event exposes shared navigation intents`() {
+        var clicks = 0
+        var navigatedIntent: MiruPlayInputIntent? = null
+
+        assertTrue(
+            desktopConfirmOrNavigationIntentEvent(
+                key = Key.DirectionCenter,
+                type = KeyEventType.KeyDown,
+                onClick = { clicks += 1 },
+                onNavigationIntent = { intent ->
+                    navigatedIntent = intent
+                    true
+                },
+            ),
+        )
+        assertEquals(1, clicks)
+        assertEquals(null, navigatedIntent)
+
+        assertTrue(
+            desktopConfirmOrNavigationIntentEvent(
+                key = Key.DirectionRight,
+                type = KeyEventType.KeyDown,
+                onClick = { clicks += 1 },
+                onNavigationIntent = { intent ->
+                    navigatedIntent = intent
+                    true
+                },
+            ),
+        )
+        assertEquals(1, clicks)
+        assertEquals(MiruPlayInputIntent.DirectionRight, navigatedIntent)
+
+        assertFalse(
+            desktopConfirmOrNavigationIntentEvent(
+                key = Key.DirectionRight,
+                type = KeyEventType.KeyUp,
+                onClick = { clicks += 1 },
+                onNavigationIntent = { intent ->
+                    navigatedIntent = intent
+                    true
+                },
+            ),
+        )
+        assertEquals(1, clicks)
+        assertEquals(MiruPlayInputIntent.DirectionRight, navigatedIntent)
+    }
+
+    @Test
     fun `desktop confirm key event ignores non-confirm keys without navigation fallback`() {
         var clicks = 0
 
@@ -250,5 +298,46 @@ class DesktopChromeTest {
             ),
         )
         assertEquals(Key.DirectionDown, navigatedKey)
+    }
+
+    @Test
+    fun `desktop navigation intent event handles non-confirm mapped intents`() {
+        var navigatedIntent: MiruPlayInputIntent? = null
+
+        assertTrue(
+            desktopNavigationIntentEvent(
+                key = Key.DirectionDown,
+                type = KeyEventType.KeyDown,
+                onNavigationIntent = { intent ->
+                    navigatedIntent = intent
+                    true
+                },
+            ),
+        )
+        assertEquals(MiruPlayInputIntent.DirectionDown, navigatedIntent)
+
+        assertFalse(
+            desktopNavigationIntentEvent(
+                key = Key.DirectionDown,
+                type = KeyEventType.KeyUp,
+                onNavigationIntent = { intent ->
+                    navigatedIntent = intent
+                    true
+                },
+            ),
+        )
+        assertEquals(MiruPlayInputIntent.DirectionDown, navigatedIntent)
+
+        assertFalse(
+            desktopNavigationIntentEvent(
+                key = Key.DirectionCenter,
+                type = KeyEventType.KeyDown,
+                onNavigationIntent = { intent ->
+                    navigatedIntent = intent
+                    true
+                },
+            ),
+        )
+        assertEquals(MiruPlayInputIntent.DirectionDown, navigatedIntent)
     }
 }

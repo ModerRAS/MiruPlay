@@ -2,6 +2,7 @@ package com.miruplay.tv.desktop
 
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
+import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
@@ -197,6 +198,70 @@ class DesktopSourcePickerTest {
     }
 
     @Test
+    fun `source picker navigation also accepts shared direction intents`() {
+        val sources = listOf(
+            MediaSourceInfoConventions.local(name = "A", rootPath = "D:/A").copy(id = 10L),
+            MediaSourceInfoConventions.webDav(url = "https://dav.example.test/anime").copy(id = 11L),
+            MediaSourceInfoConventions.smb(url = "smb://nas.local/anime").copy(id = 12L),
+        )
+
+        assertEquals(
+            11L,
+            sources.savedSourcePickerNavigationTarget(
+                activeSourceId = 10L,
+                intent = MiruPlayInputIntent.DirectionDown,
+            )?.id,
+        )
+        assertEquals(
+            11L,
+            sources.savedSourcePickerNavigationTarget(
+                activeSourceId = 10L,
+                intent = MiruPlayInputIntent.DirectionRight,
+            )?.id,
+        )
+        assertEquals(
+            10L,
+            sources.savedSourcePickerNavigationTarget(
+                activeSourceId = 11L,
+                intent = MiruPlayInputIntent.DirectionUp,
+            )?.id,
+        )
+        assertEquals(
+            10L,
+            sources.savedSourcePickerNavigationTarget(
+                activeSourceId = 11L,
+                intent = MiruPlayInputIntent.DirectionLeft,
+            )?.id,
+        )
+        assertEquals(
+            10L,
+            sources.savedSourcePickerNavigationTarget(
+                activeSourceId = null,
+                intent = MiruPlayInputIntent.DirectionDown,
+            )?.id,
+        )
+        assertEquals(
+            12L,
+            sources.savedSourcePickerNavigationTarget(
+                activeSourceId = null,
+                intent = MiruPlayInputIntent.DirectionUp,
+            )?.id,
+        )
+        assertNull(
+            sources.savedSourcePickerNavigationTarget(
+                activeSourceId = 12L,
+                intent = MiruPlayInputIntent.DirectionDown,
+            ),
+        )
+        assertNull(
+            sources.savedSourcePickerNavigationTarget(
+                activeSourceId = 10L,
+                intent = MiruPlayInputIntent.Activate,
+            ),
+        )
+    }
+
+    @Test
     fun `source picker key event opens and navigates with TV keys`() {
         val sources = listOf(
             MediaSourceInfoConventions.local(name = "A", rootPath = "D:/A").copy(id = 10L),
@@ -284,6 +349,50 @@ class DesktopSourcePickerTest {
         assertNull(librarySourceActionNavigationTarget(LibrarySourceAction.OpenLocal, Key.DirectionLeft))
         assertNull(librarySourceActionNavigationTarget(LibrarySourceAction.RemoveSource, Key.DirectionRight))
         assertNull(librarySourceActionNavigationTarget(LibrarySourceAction.RemoveSource, Key.DirectionDown))
+    }
+
+    @Test
+    fun `source management action navigation also accepts shared direction intents`() {
+        assertEquals(
+            LibrarySourceAction.Scan,
+            librarySourceActionNavigationTarget(
+                LibrarySourceAction.OpenLocal,
+                MiruPlayInputIntent.DirectionRight,
+            ),
+        )
+        assertEquals(
+            LibrarySourceAction.Search,
+            librarySourceActionNavigationTarget(
+                LibrarySourceAction.ClearIndex,
+                MiruPlayInputIntent.DirectionLeft,
+            ),
+        )
+        assertEquals(
+            LibrarySourceAction.RemoveSource,
+            librarySourceActionNavigationTarget(
+                LibrarySourceAction.ClearIndex,
+                MiruPlayInputIntent.DirectionDown,
+            ),
+        )
+        assertEquals(
+            LibrarySourceAction.ClearIndex,
+            librarySourceActionNavigationTarget(
+                LibrarySourceAction.RemoveSource,
+                MiruPlayInputIntent.DirectionUp,
+            ),
+        )
+        assertNull(
+            librarySourceActionNavigationTarget(
+                LibrarySourceAction.OpenLocal,
+                MiruPlayInputIntent.DirectionLeft,
+            ),
+        )
+        assertNull(
+            librarySourceActionNavigationTarget(
+                LibrarySourceAction.RemoveSource,
+                MiruPlayInputIntent.Activate,
+            ),
+        )
     }
 
     @Test
@@ -379,6 +488,50 @@ class DesktopSourcePickerTest {
         assertNull(remoteSourceActionNavigationTarget(RemoteSourceAction.OpenWebDav, Key.DirectionUp))
         assertNull(remoteSourceActionNavigationTarget(RemoteSourceAction.ScanSource, Key.DirectionDown))
         assertNull(remoteSourceActionNavigationTarget(RemoteSourceAction.OpenSmb, Key.DirectionLeft))
+    }
+
+    @Test
+    fun `remote source action navigation also accepts shared direction intents`() {
+        assertEquals(
+            RemoteSourceAction.OpenSmb,
+            remoteSourceActionNavigationTarget(
+                RemoteSourceAction.OpenWebDav,
+                MiruPlayInputIntent.DirectionDown,
+            ),
+        )
+        assertEquals(
+            RemoteSourceAction.ScanSource,
+            remoteSourceActionNavigationTarget(
+                RemoteSourceAction.OpenSmb,
+                MiruPlayInputIntent.DirectionRight,
+            ),
+        )
+        assertEquals(
+            RemoteSourceAction.OpenSmb,
+            remoteSourceActionNavigationTarget(
+                RemoteSourceAction.ScanSource,
+                MiruPlayInputIntent.DirectionLeft,
+            ),
+        )
+        assertEquals(
+            RemoteSourceAction.OpenWebDav,
+            remoteSourceActionNavigationTarget(
+                RemoteSourceAction.ScanSource,
+                MiruPlayInputIntent.DirectionUp,
+            ),
+        )
+        assertNull(
+            remoteSourceActionNavigationTarget(
+                RemoteSourceAction.OpenWebDav,
+                MiruPlayInputIntent.DirectionUp,
+            ),
+        )
+        assertNull(
+            remoteSourceActionNavigationTarget(
+                RemoteSourceAction.OpenSmb,
+                MiruPlayInputIntent.Activate,
+            ),
+        )
     }
 
     @Test

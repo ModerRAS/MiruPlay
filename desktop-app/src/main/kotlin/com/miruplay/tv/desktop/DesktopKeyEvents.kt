@@ -43,7 +43,24 @@ internal fun desktopConfirmOrNavigationKeyEvent(
     onNavigationKey: (Key) -> Boolean = { false },
 ): Boolean {
     if (type != KeyEventType.KeyDown) return false
-    if (!isDesktopConfirmKey(key)) return onNavigationKey(key)
+    val intent = key.toMiruPlayInputIntent()
+    if (intent?.isActivationIntent() != true) return onNavigationKey(key)
+    if (!enabled) return false
+
+    onClick()
+    return true
+}
+
+internal fun desktopConfirmOrNavigationIntentEvent(
+    key: Key,
+    type: KeyEventType,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+    onNavigationIntent: (MiruPlayInputIntent) -> Boolean = { false },
+): Boolean {
+    if (type != KeyEventType.KeyDown) return false
+    val intent = key.toMiruPlayInputIntent() ?: return false
+    if (!intent.isActivationIntent()) return onNavigationIntent(intent)
     if (!enabled) return false
 
     onClick()
@@ -86,6 +103,17 @@ internal fun desktopNavigationKeyEvent(
     return onNavigationKey(key)
 }
 
+internal fun desktopNavigationIntentEvent(
+    key: Key,
+    type: KeyEventType,
+    onNavigationIntent: (MiruPlayInputIntent) -> Boolean,
+): Boolean {
+    if (type != KeyEventType.KeyDown) return false
+    val intent = key.toMiruPlayInputIntent() ?: return false
+    if (intent.isActivationIntent()) return false
+    return onNavigationIntent(intent)
+}
+
 internal fun Modifier.desktopNavigationKeyHandler(
     onNavigationKey: (Key) -> Boolean,
 ): Modifier =
@@ -94,5 +122,16 @@ internal fun Modifier.desktopNavigationKeyHandler(
             key = event.key,
             type = event.type,
             onNavigationKey = onNavigationKey,
+        )
+    }
+
+internal fun Modifier.desktopNavigationIntentHandler(
+    onNavigationIntent: (MiruPlayInputIntent) -> Boolean,
+): Modifier =
+    onPreviewKeyEvent { event ->
+        desktopNavigationIntentEvent(
+            key = event.key,
+            type = event.type,
+            onNavigationIntent = onNavigationIntent,
         )
     }

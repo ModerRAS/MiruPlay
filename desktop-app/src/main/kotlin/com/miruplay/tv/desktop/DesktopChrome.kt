@@ -49,7 +49,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.design.MiruPlayUiMetrics
+import com.miruplay.tv.design.linearNavigationDelta
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.compactMiddleText
 import com.miruplay.tv.model.desktopPosterPlaceholderSubtitleLabel
@@ -207,12 +209,12 @@ internal fun savedSourcePickerKeyEvent(
     onOpen: () -> Unit,
     onSelected: (MediaSourceInfo) -> Unit,
 ): Boolean =
-    desktopConfirmOrNavigationKeyEvent(
+    desktopConfirmOrNavigationIntentEvent(
         key = key,
         type = type,
         onClick = onOpen,
-        onNavigationKey = { navigationKey ->
-            sources.savedSourcePickerNavigationTarget(activeSourceId, navigationKey)?.let { source ->
+        onNavigationIntent = { intent ->
+            sources.savedSourcePickerNavigationTarget(activeSourceId, intent)?.let { source ->
                 onSelected(source)
                 true
             } ?: false
@@ -222,18 +224,23 @@ internal fun savedSourcePickerKeyEvent(
 internal fun List<MediaSourceInfo>.savedSourcePickerNavigationTarget(
     activeSourceId: Long?,
     key: Key,
+): MediaSourceInfo? =
+    key.toMiruPlayInputIntent()?.let { intent ->
+        savedSourcePickerNavigationTarget(activeSourceId, intent)
+    }
+
+internal fun List<MediaSourceInfo>.savedSourcePickerNavigationTarget(
+    activeSourceId: Long?,
+    intent: MiruPlayInputIntent,
 ): MediaSourceInfo? {
     if (isEmpty()) return null
     val currentIndex = indexOfFirst { it.id == activeSourceId }
-    val targetIndex = when (key) {
-        Key.DirectionDown,
-        Key.DirectionRight,
-        -> if (currentIndex == -1) 0 else currentIndex + 1
-        Key.DirectionUp,
-        Key.DirectionLeft,
-        -> if (currentIndex == -1) lastIndex else currentIndex - 1
-        else -> null
-    } ?: return null
+    val delta = intent.linearNavigationDelta() ?: return null
+    val targetIndex = if (currentIndex == -1) {
+        if (delta > 0) 0 else lastIndex
+    } else {
+        currentIndex + delta
+    }
     return getOrNull(targetIndex)
 }
 

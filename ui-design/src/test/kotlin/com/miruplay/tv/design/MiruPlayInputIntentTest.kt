@@ -32,6 +32,23 @@ class MiruPlayInputIntentTest {
     }
 
     @Test
+    fun `direction intents expose shared navigation deltas`() {
+        assertEquals(-1, MiruPlayInputIntent.DirectionLeft.horizontalNavigationDelta())
+        assertEquals(1, MiruPlayInputIntent.DirectionRight.horizontalNavigationDelta())
+        assertNull(MiruPlayInputIntent.DirectionUp.horizontalNavigationDelta())
+
+        assertEquals(-1, MiruPlayInputIntent.DirectionUp.verticalNavigationDelta())
+        assertEquals(1, MiruPlayInputIntent.DirectionDown.verticalNavigationDelta())
+        assertNull(MiruPlayInputIntent.DirectionRight.verticalNavigationDelta())
+
+        assertEquals(-1, MiruPlayInputIntent.DirectionLeft.linearNavigationDelta())
+        assertEquals(1, MiruPlayInputIntent.DirectionRight.linearNavigationDelta())
+        assertEquals(-1, MiruPlayInputIntent.DirectionUp.linearNavigationDelta())
+        assertEquals(1, MiruPlayInputIntent.DirectionDown.linearNavigationDelta())
+        assertNull(MiruPlayInputIntent.Activate.linearNavigationDelta())
+    }
+
+    @Test
     fun `desktop playback stage action maps shared playback intents`() {
         assertEquals(
             MiruPlayPlaybackInputAction.Launch,

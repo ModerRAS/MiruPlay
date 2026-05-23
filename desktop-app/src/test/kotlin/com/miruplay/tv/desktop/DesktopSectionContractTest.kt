@@ -70,6 +70,43 @@ class DesktopSectionContractTest {
     }
 
     @Test
+    fun `desktop library header focus also uses shared direction intents`() {
+        assertEquals(
+            DesktopLibraryHeaderFocusTarget.Action(DesktopLibraryHeaderAction.Settings),
+            desktopLibraryHeaderFocusTarget(
+                DesktopLibraryHeaderAction.Scan,
+                MiruPlayInputIntent.DirectionRight,
+            ),
+        )
+        assertEquals(
+            DesktopLibraryHeaderFocusTarget.Action(DesktopLibraryHeaderAction.Scan),
+            desktopLibraryHeaderFocusTarget(
+                DesktopLibraryHeaderAction.Settings,
+                MiruPlayInputIntent.DirectionLeft,
+            ),
+        )
+        assertEquals(
+            DesktopLibraryHeaderFocusTarget.NextPanel,
+            desktopLibraryHeaderFocusTarget(
+                DesktopLibraryHeaderAction.Scan,
+                MiruPlayInputIntent.DirectionDown,
+            ),
+        )
+        assertNull(
+            desktopLibraryHeaderFocusTarget(
+                DesktopLibraryHeaderAction.Scan,
+                MiruPlayInputIntent.DirectionUp,
+            ),
+        )
+        assertNull(
+            desktopLibraryHeaderFocusTarget(
+                DesktopLibraryHeaderAction.Scan,
+                MiruPlayInputIntent.Activate,
+            ),
+        )
+    }
+
+    @Test
     fun `desktop escape back follows Android TV route hierarchy`() {
         assertEquals(MiruPlayRouteSurface.details, MiruPlayRouteSurface.player.desktopBackTarget())
         assertEquals(MiruPlayRouteSurface.library, MiruPlayRouteSurface.details.desktopBackTarget())
@@ -190,5 +227,20 @@ class DesktopSectionContractTest {
             MiruPlayRouteSurface.desktopSectionStep(MiruPlayRouteSurface.player, -1),
             MiruPlayRouteSurface.player.stepDesktopSection(-1),
         )
+    }
+
+    @Test
+    fun `desktop route rail navigation uses shared direction intents`() {
+        assertEquals(
+            MiruPlayRouteSurface.details,
+            MiruPlayRouteSurface.library.stepDesktopSection(MiruPlayInputIntent.DirectionDown),
+        )
+        assertEquals(
+            MiruPlayRouteSurface.details,
+            MiruPlayRouteSurface.player.stepDesktopSection(MiruPlayInputIntent.DirectionUp),
+        )
+        assertNull(MiruPlayRouteSurface.library.stepDesktopSection(MiruPlayInputIntent.DirectionUp))
+        assertNull(MiruPlayRouteSurface.library.stepDesktopSection(MiruPlayInputIntent.DirectionRight))
+        assertNull(MiruPlayRouteSurface.library.stepDesktopSection(MiruPlayInputIntent.Activate))
     }
 }

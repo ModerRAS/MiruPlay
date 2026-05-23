@@ -268,7 +268,12 @@ Windows maps them through
 the two platforms share one intent contract while keeping platform-specific key
 adapters thin. The Android TV fullscreen player and Windows desktop playback
 stage now both dispatch activation and media playback controls through that
-shared intent layer. Verified with
+shared intent layer. The shared layer also owns direction-to-delta helpers for
+horizontal, vertical, and linear focus movement; the Windows route rail and
+saved-source picker now consume intent-based navigation handlers so those
+high-reuse controls no longer carry raw Compose `Key` branching beyond the
+platform adapter; the Library header, local-source action row, and remote-source
+action row now also expose intent-level navigation contracts. Verified with
 `.\gradlew.bat :ui-design:test :ui-tv:test :desktop-app:test checkDesktopPresenterSeparation checkDesktopComposeOnly -PbundleMpvRuntime=false`
 on 2026-05-24.
 
