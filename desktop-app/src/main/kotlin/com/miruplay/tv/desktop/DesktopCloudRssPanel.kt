@@ -169,6 +169,9 @@ import com.miruplay.tv.model.rssSubscriptionSaveActionLabel
 import com.miruplay.tv.model.rssSubscriptionStateLabel
 import com.miruplay.tv.model.rssSubscriptionUrlFieldLabel
 import com.miruplay.tv.model.rssSubscriptionsTitleLabel
+import com.miruplay.tv.sync.rss.CloudDriveDirectoryBrowserState
+import com.miruplay.tv.sync.rss.CloudDriveDirectoryEntry
+import com.miruplay.tv.sync.rss.CloudDriveDirectoryTarget
 
 private const val CLOUD_RSS_PREVIEW_LIMIT = 58
 private const val CLOUD_RSS_WIDE_PREVIEW_LIMIT = 86
@@ -191,10 +194,10 @@ internal fun CloudRssPanel(
     onInboxPathChange: (String) -> Unit,
     libraryPath: String,
     onLibraryPathChange: (String) -> Unit,
-    directoryBrowser: DesktopCloudDriveDirectoryBrowserState,
-    onPickCloudDriveDirectory: (DesktopCloudDriveDirectoryTarget) -> Unit,
+    directoryBrowser: CloudDriveDirectoryBrowserState,
+    onPickCloudDriveDirectory: (CloudDriveDirectoryTarget) -> Unit,
     onBrowseCloudDriveDirectory: (String) -> Unit,
-    onSelectCloudDriveDirectory: (DesktopCloudDriveDirectoryTarget, String) -> Unit,
+    onSelectCloudDriveDirectory: (CloudDriveDirectoryTarget, String) -> Unit,
     onCloseCloudDriveDirectory: () -> Unit,
     intervalMinutes: String,
     onIntervalMinutesChange: (String) -> Unit,
@@ -422,10 +425,10 @@ private fun CloudRssAutomationContent(
     onInboxPathChange: (String) -> Unit,
     libraryPath: String,
     onLibraryPathChange: (String) -> Unit,
-    directoryBrowser: DesktopCloudDriveDirectoryBrowserState,
-    onPickCloudDriveDirectory: (DesktopCloudDriveDirectoryTarget) -> Unit,
+    directoryBrowser: CloudDriveDirectoryBrowserState,
+    onPickCloudDriveDirectory: (CloudDriveDirectoryTarget) -> Unit,
     onBrowseCloudDriveDirectory: (String) -> Unit,
-    onSelectCloudDriveDirectory: (DesktopCloudDriveDirectoryTarget, String) -> Unit,
+    onSelectCloudDriveDirectory: (CloudDriveDirectoryTarget, String) -> Unit,
     onCloseCloudDriveDirectory: () -> Unit,
     intervalMinutes: String,
     onIntervalMinutesChange: (String) -> Unit,
@@ -709,7 +712,7 @@ private fun CloudRssAutomationContent(
                             label = labels.inboxPath,
                             value = inboxPath,
                             onValueChange = onInboxPathChange,
-                            onPick = { onPickCloudDriveDirectory(DesktopCloudDriveDirectoryTarget.INBOX) },
+                            onPick = { onPickCloudDriveDirectory(CloudDriveDirectoryTarget.INBOX) },
                             fieldModifier = Modifier.cloudRssFieldNavigation(
                                 field = CloudRssField.InboxPath,
                                 focusRequester = fieldFocusRequesters.getValue(CloudRssField.InboxPath),
@@ -726,7 +729,7 @@ private fun CloudRssAutomationContent(
                             label = labels.libraryPath,
                             value = libraryPath,
                             onValueChange = onLibraryPathChange,
-                            onPick = { onPickCloudDriveDirectory(DesktopCloudDriveDirectoryTarget.LIBRARY) },
+                            onPick = { onPickCloudDriveDirectory(CloudDriveDirectoryTarget.LIBRARY) },
                             fieldModifier = Modifier.cloudRssFieldNavigation(
                                 field = CloudRssField.LibraryPath,
                                 focusRequester = fieldFocusRequesters.getValue(CloudRssField.LibraryPath),
@@ -1062,9 +1065,9 @@ private fun CloudDrivePathSelectorField(
 
 @Composable
 private fun CloudDriveDirectoryBrowserCard(
-    state: DesktopCloudDriveDirectoryBrowserState,
+    state: CloudDriveDirectoryBrowserState,
     onBrowse: (String) -> Unit,
-    onSelect: (DesktopCloudDriveDirectoryTarget, String) -> Unit,
+    onSelect: (CloudDriveDirectoryTarget, String) -> Unit,
     onClose: () -> Unit,
 ) {
     var directoryPageStart by remember(state.path, state.entries.size) { mutableStateOf(0) }
@@ -1176,8 +1179,9 @@ private fun CloudDriveDirectoryBrowserCard(
                     ),
             )
         }
-        if (!state.message.isNullOrBlank()) {
-            StatusBox(state.message)
+        val browserMessage = state.message
+        if (!browserMessage.isNullOrBlank()) {
+            StatusBox(browserMessage)
         }
         if (state.isLoading) {
             CloudDriveDirectoryEmptyState(
@@ -1255,7 +1259,7 @@ private fun CloudDriveDirectoryEmptyState(
 
 @Composable
 private fun CloudDriveDirectoryRow(
-    entry: DesktopCloudDriveDirectoryEntry,
+    entry: CloudDriveDirectoryEntry,
     onClick: () -> Unit,
     onNavigate: (Key) -> Boolean,
     modifier: Modifier = Modifier,

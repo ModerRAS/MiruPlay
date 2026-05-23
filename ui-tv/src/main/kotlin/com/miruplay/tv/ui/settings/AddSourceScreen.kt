@@ -205,6 +205,8 @@ import com.miruplay.tv.ui.components.OverscanContainer
 import com.miruplay.tv.ui.components.TvButton
 import com.miruplay.tv.ui.components.TvTextField
 import com.miruplay.tv.ui.components.toMiruPlayInputIntent
+import com.miruplay.tv.sync.rss.CloudDriveDirectoryBrowserState
+import com.miruplay.tv.sync.rss.CloudDriveDirectoryTarget
 import com.miruplay.tv.ui.theme.AccentBlue
 import com.miruplay.tv.ui.theme.AnimeRed
 import com.miruplay.tv.ui.theme.CardBg
@@ -1579,9 +1581,10 @@ private fun CloudDriveDirectoryPickerDialog(
                 }
             }
 
-            if (!state.message.isNullOrBlank()) {
+            val cloudDirectoryMessage = state.message
+            if (!cloudDirectoryMessage.isNullOrBlank()) {
                 Text(
-                    text = state.message,
+                    text = cloudDirectoryMessage,
                     style = TvTypography.body,
                     color = WarningYellow,
                     maxLines = 2,
@@ -1689,9 +1692,10 @@ private fun LocalDirectoryPickerDialog(
                 }
             }
 
-            if (!state.message.isNullOrBlank()) {
+            val localDirectoryMessage = state.message
+            if (!localDirectoryMessage.isNullOrBlank()) {
                 Text(
-                    text = state.message,
+                    text = localDirectoryMessage,
                     style = TvTypography.body,
                     color = WarningYellow,
                     maxLines = 2,

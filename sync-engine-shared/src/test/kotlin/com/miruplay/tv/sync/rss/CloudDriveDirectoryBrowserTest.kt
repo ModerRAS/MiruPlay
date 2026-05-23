@@ -1,4 +1,4 @@
-package com.miruplay.tv.desktop
+package com.miruplay.tv.sync.rss
 
 import com.miruplay.tv.clouddrive.CloudDriveClient
 import com.miruplay.tv.clouddrive.CloudDriveEndpoint
@@ -16,14 +16,14 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class DesktopCloudDriveDirectoryBrowserTest {
+class CloudDriveDirectoryBrowserTest {
     @Test
     fun `prepare verifies token and scopes initial path to token root`() = runBlocking {
         val client = FakeCloudDriveClient(rootDir = "/CloudRoot")
 
-        val result = prepareDesktopCloudDriveDirectoryBrowser(
+        val result = prepareCloudDriveDirectoryBrowser(
             client = client,
-            target = DesktopCloudDriveDirectoryTarget.INBOX,
+            target = CloudDriveDirectoryTarget.INBOX,
             endpointUrl = " http://127.0.0.1:19798 ",
             token = " api-token ",
             initialPath = "/Outside/Inbox",
@@ -32,7 +32,7 @@ class DesktopCloudDriveDirectoryBrowserTest {
         val state = (result as Result.Success).data
         assertEquals(listOf("http://127.0.0.1:19798" to "api-token"), client.tokenInfoRequests)
         assertTrue(state.open)
-        assertEquals(DesktopCloudDriveDirectoryTarget.INBOX, state.target)
+        assertEquals(CloudDriveDirectoryTarget.INBOX, state.target)
         assertEquals("http://127.0.0.1:19798", state.endpointUrl)
         assertEquals("api-token", state.token)
         assertEquals("/CloudRoot", state.rootPath)
@@ -52,15 +52,15 @@ class DesktopCloudDriveDirectoryBrowserTest {
                 CloudDriveFileInfo("season a", "/CloudRoot/Anime/season a", isDirectory = true),
             ),
         )
-        val state = DesktopCloudDriveDirectoryBrowserState(
+        val state = CloudDriveDirectoryBrowserState(
             open = true,
-            target = DesktopCloudDriveDirectoryTarget.LIBRARY,
+            target = CloudDriveDirectoryTarget.LIBRARY,
             endpointUrl = "http://127.0.0.1:19798",
             token = "api-token",
             rootPath = "/CloudRoot",
         )
 
-        val result = loadDesktopCloudDriveDirectory(
+        val result = loadCloudDriveDirectory(
             client = client,
             state = state,
             requestedPath = "/CloudRoot/Anime",
@@ -79,14 +79,14 @@ class DesktopCloudDriveDirectoryBrowserTest {
     @Test
     fun `load clamps outside requests before listing`() = runBlocking {
         val client = FakeCloudDriveClient()
-        val state = DesktopCloudDriveDirectoryBrowserState(
+        val state = CloudDriveDirectoryBrowserState(
             open = true,
             endpointUrl = "http://127.0.0.1:19798",
             token = "api-token",
             rootPath = "/CloudRoot",
         )
 
-        val result = loadDesktopCloudDriveDirectory(client, state, "/Outside")
+        val result = loadCloudDriveDirectory(client, state, "/Outside")
 
         val loaded = (result as Result.Success).data
         assertEquals("/CloudRoot", loaded.path)
@@ -97,26 +97,26 @@ class DesktopCloudDriveDirectoryBrowserTest {
     fun `load returns listing errors without mutating them`() = runBlocking {
         val failure = AppError.MediaSourceError.AuthenticationFailed("CloudDrive2")
         val client = FakeCloudDriveClient(listFailure = failure)
-        val state = DesktopCloudDriveDirectoryBrowserState(
+        val state = CloudDriveDirectoryBrowserState(
             open = true,
             endpointUrl = "http://127.0.0.1:19798",
             token = "api-token",
             rootPath = "/CloudRoot",
         )
 
-        val result = loadDesktopCloudDriveDirectory(client, state, "/CloudRoot")
+        val result = loadCloudDriveDirectory(client, state, "/CloudRoot")
 
         assertEquals(failure, (result as Result.Error).error)
     }
 
     @Test
-    fun `select normalizes selected desktop CloudDrive path`() {
-        val selection = selectDesktopCloudDriveDirectory(
-            target = DesktopCloudDriveDirectoryTarget.LIBRARY,
+    fun `select normalizes selected shared CloudDrive path`() {
+        val selection = selectCloudDriveDirectory(
+            target = CloudDriveDirectoryTarget.LIBRARY,
             path = "Anime\\Season 1\\",
         )
 
-        assertEquals(DesktopCloudDriveDirectoryTarget.LIBRARY, selection.target)
+        assertEquals(CloudDriveDirectoryTarget.LIBRARY, selection.target)
         assertEquals("/Anime/Season 1", selection.path)
         assertEquals(
             cloudDriveRssDirectorySelectedStatus(cloudDriveRssLibraryDirectorySelectedLabel(), "/Anime/Season 1"),

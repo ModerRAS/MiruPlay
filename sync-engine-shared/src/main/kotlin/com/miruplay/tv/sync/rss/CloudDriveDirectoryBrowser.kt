@@ -1,4 +1,4 @@
-package com.miruplay.tv.desktop
+package com.miruplay.tv.sync.rss
 
 import com.miruplay.tv.clouddrive.CloudDriveClient
 import com.miruplay.tv.clouddrive.CloudDriveEndpoint
@@ -18,7 +18,7 @@ import com.miruplay.tv.model.cloudDriveRssLibraryDirectorySelectedLabel
 import com.miruplay.tv.model.normalizeCloudDriveDirectoryPath
 import com.miruplay.tv.model.scopedCloudDriveDirectoryPath
 
-internal enum class DesktopCloudDriveDirectoryTarget(
+enum class CloudDriveDirectoryTarget(
     val title: String,
     val selectedLabel: String,
 ) {
@@ -26,43 +26,43 @@ internal enum class DesktopCloudDriveDirectoryTarget(
     LIBRARY(title = cloudDriveRssLibraryDirectoryPickerTitle(), selectedLabel = cloudDriveRssLibraryDirectorySelectedLabel()),
 }
 
-internal data class DesktopCloudDriveDirectoryEntry(
+data class CloudDriveDirectoryEntry(
     val name: String,
     val path: String,
 )
 
-internal data class DesktopCloudDriveDirectoryBrowserState(
+data class CloudDriveDirectoryBrowserState(
     val open: Boolean = false,
-    val target: DesktopCloudDriveDirectoryTarget = DesktopCloudDriveDirectoryTarget.INBOX,
+    val target: CloudDriveDirectoryTarget = CloudDriveDirectoryTarget.INBOX,
     val endpointUrl: String = "",
     val token: String = "",
     val rootPath: String = CLOUD_DRIVE_ROOT_PATH,
     val path: String = CLOUD_DRIVE_ROOT_PATH,
     val displayPath: String = CLOUD_DRIVE_ROOT_DISPLAY_NAME,
     val parentPath: String? = null,
-    val entries: List<DesktopCloudDriveDirectoryEntry> = emptyList(),
+    val entries: List<CloudDriveDirectoryEntry> = emptyList(),
     val isLoading: Boolean = false,
     val message: String? = null,
 )
 
-internal data class DesktopCloudDriveDirectorySelection(
-    val target: DesktopCloudDriveDirectoryTarget,
+data class CloudDriveDirectorySelection(
+    val target: CloudDriveDirectoryTarget,
     val path: String,
     val status: String,
 )
 
-internal suspend fun prepareDesktopCloudDriveDirectoryBrowser(
+suspend fun prepareCloudDriveDirectoryBrowser(
     client: CloudDriveClient,
-    target: DesktopCloudDriveDirectoryTarget,
+    target: CloudDriveDirectoryTarget,
     endpointUrl: String,
     token: String,
     initialPath: String,
-): Result<DesktopCloudDriveDirectoryBrowserState> {
+): Result<CloudDriveDirectoryBrowserState> {
     val endpoint = endpointUrl.trim()
     val apiToken = token.trim()
     return client.getApiTokenInfo(endpoint, apiToken).map { tokenInfo ->
         val rootPath = normalizeCloudDriveDirectoryPath(tokenInfo.rootDir)
-        DesktopCloudDriveDirectoryBrowserState(
+        CloudDriveDirectoryBrowserState(
             open = true,
             target = target,
             endpointUrl = endpoint,
@@ -72,11 +72,11 @@ internal suspend fun prepareDesktopCloudDriveDirectoryBrowser(
     }
 }
 
-internal suspend fun loadDesktopCloudDriveDirectory(
+suspend fun loadCloudDriveDirectory(
     client: CloudDriveClient,
-    state: DesktopCloudDriveDirectoryBrowserState,
+    state: CloudDriveDirectoryBrowserState,
     requestedPath: String,
-): Result<DesktopCloudDriveDirectoryBrowserState> {
+): Result<CloudDriveDirectoryBrowserState> {
     if (!state.open) return Result.success(state)
     val loadingState = state.loadingFor(requestedPath)
     return client.listFolder(
@@ -92,9 +92,9 @@ internal suspend fun loadDesktopCloudDriveDirectory(
     }
 }
 
-internal fun DesktopCloudDriveDirectoryBrowserState.loadingFor(
+fun CloudDriveDirectoryBrowserState.loadingFor(
     requestedPath: String,
-): DesktopCloudDriveDirectoryBrowserState {
+): CloudDriveDirectoryBrowserState {
     val scopedPath = scopedCloudDriveDirectoryPath(requestedPath, rootPath)
     return copy(
         path = scopedPath,
@@ -106,19 +106,19 @@ internal fun DesktopCloudDriveDirectoryBrowserState.loadingFor(
     )
 }
 
-internal fun selectDesktopCloudDriveDirectory(
-    target: DesktopCloudDriveDirectoryTarget,
+fun selectCloudDriveDirectory(
+    target: CloudDriveDirectoryTarget,
     path: String,
-): DesktopCloudDriveDirectorySelection {
+): CloudDriveDirectorySelection {
     val normalized = normalizeCloudDriveDirectoryPath(path)
-    return DesktopCloudDriveDirectorySelection(
+    return CloudDriveDirectorySelection(
         target = target,
         path = normalized,
         status = cloudDriveRssDirectorySelectedStatus(target.selectedLabel, normalized),
     )
 }
 
-internal fun cloudDriveDirectoryEntries(files: List<CloudDriveFileInfo>): List<DesktopCloudDriveDirectoryEntry> =
+fun cloudDriveDirectoryEntries(files: List<CloudDriveFileInfo>): List<CloudDriveDirectoryEntry> =
     cloudDriveDirectoryItems(
         files.filter { it.isDirectory }
             .map {
@@ -128,7 +128,7 @@ internal fun cloudDriveDirectoryEntries(files: List<CloudDriveFileInfo>): List<D
                 )
             },
     ).map {
-        DesktopCloudDriveDirectoryEntry(
+        CloudDriveDirectoryEntry(
             name = it.name,
             path = it.path,
         )

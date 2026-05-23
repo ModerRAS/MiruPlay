@@ -4,7 +4,6 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.miruplay.tv.clouddrive.CloudDriveClient
-import com.miruplay.tv.clouddrive.CloudDriveEndpoint
 import com.miruplay.tv.core.common.LocalDirectoryBrowser
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.core.common.WebControlConfig
@@ -13,16 +12,11 @@ import com.miruplay.tv.data.preferences.PlaybackPreferencesManager
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.model.CloudDriveAutomationConfig
-import com.miruplay.tv.model.CLOUD_DRIVE_ROOT_DISPLAY_NAME
 import com.miruplay.tv.model.directoryBrowserRootDisplayName
-import com.miruplay.tv.model.CloudDriveDirectoryItem
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.RssSubscriptionInfo
-import com.miruplay.tv.model.cloudDriveDirectoryDisplayPath
-import com.miruplay.tv.model.cloudDriveDirectoryItems
-import com.miruplay.tv.model.cloudDriveDirectoryParentPath
 import com.miruplay.tv.model.cloudDriveApiTokenRequiredStatus
 import com.miruplay.tv.model.cloudDriveEndpointRequiredStatus
 import com.miruplay.tv.model.cloudDriveLoginRequiredStatus
@@ -32,16 +26,19 @@ import com.miruplay.tv.model.connectionPassword
 import com.miruplay.tv.model.cloudDriveTokenVerifiedStatus
 import com.miruplay.tv.model.cloudRssConfigSavedStatus
 import com.miruplay.tv.model.completeStatus
-import com.miruplay.tv.model.normalizeCloudDriveDirectoryPath
 import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.WebControlAccessManager
 import com.miruplay.tv.sync.rss.CloudDriveRssAutomationEngine
+import com.miruplay.tv.sync.rss.CloudDriveDirectoryBrowserState
+import com.miruplay.tv.sync.rss.CloudDriveDirectoryTarget
+import com.miruplay.tv.sync.rss.loadCloudDriveDirectory
+import com.miruplay.tv.sync.rss.loadingFor
+import com.miruplay.tv.sync.rss.prepareCloudDriveDirectoryBrowser
 import com.miruplay.tv.model.rssSubscriptionDeletedStatus
 import com.miruplay.tv.model.rssSubscriptionSavedStatus
 import com.miruplay.tv.model.rssUrlRequiredStatus
-import com.miruplay.tv.model.scopedCloudDriveDirectoryPath
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -369,27 +366,54 @@ class SettingsViewModel @Inject constructor(
             return
         }
 
-        _cloudDriveDirectoryBrowser.value = CloudDriveDirectoryBrowserState(
-            open = true,
-            target = target,
-            endpointUrl = normalizedEndpoint,
-            isLoading = true
-        )
-        browseCloudDriveDirectory(initialPath.ifBlank { "/" })
+        viewModelScope.launch {
+            when (
+                val prepared = prepareCloudDriveDirectoryBrowser(
+                    client = cloudDriveClient,
+                    target = target,
+                    endpointUrl = normalizedEndpoint,
+                    token = token,
+                    initialPath = initialPath,
+                )
+            ) {
+                is Result.Success -> {
+                    _cloudDriveDirectoryBrowser.value = prepared.data
+                    browseCloudDriveDirectory(prepared.data.path)
+                }
+                is Result.Error -> {
+                    _cloudDriveActionMessage.value = prepared.error.toUserMessage()
+                }
+            }
+        }
     }
 
     fun browseCloudDriveDirectory(path: String) {
         val state = _cloudDriveDirectoryBrowser.value
         if (!state.open) return
-        val token = securePrefs.cloudDriveToken?.takeIf { it.isNotBlank() }
-        if (token.isNullOrBlank()) {
+        if (state.token.isBlank()) {
             _cloudDriveActionMessage.value = cloudDriveTokenLoginRequiredStatus()
             return
         }
 
-        _cloudDriveDirectoryBrowser.value = state.copy(isLoading = true, message = null)
+        val loadingState = state.loadingFor(path)
+        _cloudDriveDirectoryBrowser.value = loadingState
         viewModelScope.launch {
-            loadCloudDriveDirectory(state.endpointUrl, token, path)
+            when (val result = loadCloudDriveDirectory(cloudDriveClient, loadingState, loadingState.path)) {
+                is Result.Success -> {
+                    val current = _cloudDriveDirectoryBrowser.value
+                    val next = result.data
+                    if (!current.open || current.endpointUrl != next.endpointUrl || current.token != next.token) return@launch
+                    _cloudDriveDirectoryBrowser.value = next
+                }
+                is Result.Error -> {
+                    val current = _cloudDriveDirectoryBrowser.value
+                    if (!current.open || current.endpointUrl != loadingState.endpointUrl || current.token != loadingState.token) return@launch
+                    _cloudDriveDirectoryBrowser.value = current.copy(
+                        isLoading = false,
+                        message = result.error.toUserMessage()
+                    )
+                }
+            }
         }
     }
 
@@ -509,55 +533,6 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    private suspend fun loadCloudDriveDirectory(
-        endpointUrl: String,
-        token: String,
-        path: String
-    ) {
-        val endpoint = CloudDriveEndpoint(endpointUrl, token)
-        val tokenInfo = cloudDriveClient.getApiTokenInfo(endpointUrl, token).getOrNull()
-        val rootPath = normalizeCloudDriveDirectoryPath(tokenInfo?.rootDir ?: "")
-        val currentPath = scopedCloudDriveDirectoryPath(path.ifBlank { rootPath }, rootPath)
-
-        when (val result = cloudDriveClient.listFolder(endpoint, currentPath, forceRefresh = false)) {
-            is Result.Success -> {
-                val state = _cloudDriveDirectoryBrowser.value
-                if (!state.open || state.endpointUrl != endpointUrl) return
-                _cloudDriveDirectoryBrowser.value = state.copy(
-                    isLoading = false,
-                    path = currentPath,
-                    displayPath = cloudDriveDirectoryDisplayPath(currentPath),
-                    parentPath = cloudDriveDirectoryParentPath(currentPath, rootPath),
-                    entries = cloudDriveDirectoryItems(
-                        result.data.filter { it.isDirectory }
-                            .map {
-                                CloudDriveDirectoryItem(
-                                    name = it.name,
-                                    path = it.path
-                                )
-                            }
-                    )
-                        .map {
-                            CloudDriveDirectoryEntry(
-                                name = it.name,
-                                path = it.path
-                            )
-                        }
-                        .toList(),
-                    message = null
-                )
-            }
-            is Result.Error -> {
-                val state = _cloudDriveDirectoryBrowser.value
-                if (!state.open || state.endpointUrl != endpointUrl) return
-                _cloudDriveDirectoryBrowser.value = state.copy(
-                    isLoading = false,
-                    message = result.error.toUserMessage()
-                )
-            }
-        }
-    }
-
     private fun findLocalIps(): List<String> {
         return runCatching {
             NetworkInterface.getNetworkInterfaces().toList()
@@ -577,23 +552,6 @@ class SettingsViewModel @Inject constructor(
     }
 }
 
-data class CloudDriveDirectoryBrowserState(
-    val open: Boolean = false,
-    val target: CloudDriveDirectoryTarget = CloudDriveDirectoryTarget.INBOX,
-    val endpointUrl: String = "",
-    val isLoading: Boolean = false,
-    val path: String = "",
-    val displayPath: String = CLOUD_DRIVE_ROOT_DISPLAY_NAME,
-    val parentPath: String? = null,
-    val entries: List<CloudDriveDirectoryEntry> = emptyList(),
-    val message: String? = null
-)
-
-data class CloudDriveDirectoryEntry(
-    val name: String,
-    val path: String
-)
-
 data class LocalDirectoryBrowserState(
     val open: Boolean = false,
     val isLoading: Boolean = false,
@@ -609,11 +567,6 @@ data class LocalDirectoryEntry(
     val path: String,
     val canRead: Boolean
 )
-
-enum class CloudDriveDirectoryTarget {
-    INBOX,
-    LIBRARY
-}
 
 sealed class ConnectionTestResult {
     data object Testing : ConnectionTestResult()

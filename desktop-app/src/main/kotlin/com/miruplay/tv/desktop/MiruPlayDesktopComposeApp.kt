@@ -174,6 +174,8 @@ import com.miruplay.tv.scraper.desktop.DesktopBangumiScraper
 import com.miruplay.tv.sync.BangumiMetadataRefreshCore
 import com.miruplay.tv.sync.BangumiSyncCore
 import com.miruplay.tv.sync.bangumiMetadataCacheId
+import com.miruplay.tv.sync.rss.CloudDriveDirectoryBrowserState
+import com.miruplay.tv.sync.rss.CloudDriveDirectoryTarget
 import com.miruplay.tv.sync.rss.DesktopCloudDriveRssAutomationEngine
 import com.miruplay.tv.sync.rss.DesktopCloudDriveRssScheduler
 import com.miruplay.tv.sync.rss.cloudDriveCredentialsClearedStatus
@@ -194,13 +196,17 @@ import com.miruplay.tv.sync.rss.cloudRssSchedulerStartStatus
 import com.miruplay.tv.sync.rss.cloudRssSchedulerStoppedStatus
 import com.miruplay.tv.sync.rss.completeStatus
 import com.miruplay.tv.sync.rss.linkedCloudRssScanSourceStatus
+import com.miruplay.tv.sync.rss.loadCloudDriveDirectory as loadSharedCloudDriveDirectory
 import com.miruplay.tv.sync.rss.loadedStatus as rssLoadedStatus
+import com.miruplay.tv.sync.rss.loadingFor
+import com.miruplay.tv.sync.rss.prepareCloudDriveDirectoryBrowser
 import com.miruplay.tv.sync.rss.rssSubscriptionDeletedStatus
 import com.miruplay.tv.sync.rss.rssSubscriptionRequiredStatus
 import com.miruplay.tv.sync.rss.rssSubscriptionsLoadFailedStatus
 import com.miruplay.tv.sync.rss.rssSubscriptionsRefreshFailedStatus
 import com.miruplay.tv.sync.rss.rssUrlRequiredStatus
 import com.miruplay.tv.sync.rss.schedulerStatus
+import com.miruplay.tv.sync.rss.selectCloudDriveDirectory as selectSharedCloudDriveDirectory
 import com.miruplay.tv.sync.rss.savedStatus as rssSavedStatus
 import com.miruplay.tv.sync.rss.selectedStatus as rssSelectedStatus
 import com.miruplay.tv.sync.rss.showingStatus as rssShowingStatus
@@ -499,7 +505,7 @@ internal fun MiruPlayDesktopComposeApp(
     var rssSubscriptions by remember { mutableStateOf(emptyList<RssSubscriptionInfo>()) }
     var selectedRssSubscription by remember { mutableStateOf<RssSubscriptionInfo?>(null) }
     var cloudRssStatus by remember { mutableStateOf(cloudRssInitialStatus()) }
-    var cloudDirectoryBrowser by remember { mutableStateOf(DesktopCloudDriveDirectoryBrowserState()) }
+    var cloudDirectoryBrowser by remember { mutableStateOf(CloudDriveDirectoryBrowserState()) }
     var mediaPath by remember { mutableStateOf("") }
     var subtitlePath by remember { mutableStateOf("") }
     var startSeconds by remember { mutableStateOf("0") }
@@ -995,7 +1001,7 @@ internal fun MiruPlayDesktopComposeApp(
         }
         val loadingState = browser.loadingFor(path)
         cloudDirectoryBrowser = loadingState
-        when (val loaded = loadDesktopCloudDriveDirectory(cloudDriveClient, loadingState, loadingState.path)) {
+        when (val loaded = loadSharedCloudDriveDirectory(cloudDriveClient, loadingState, loadingState.path)) {
             is Result.Success -> {
                 val current = cloudDirectoryBrowser
                 val next = loaded.data
@@ -1011,7 +1017,7 @@ internal fun MiruPlayDesktopComposeApp(
         }
     }
 
-    fun openCloudDriveDirectory(target: DesktopCloudDriveDirectoryTarget) {
+    fun openCloudDriveDirectory(target: CloudDriveDirectoryTarget) {
         val endpoint = cloudEndpointUrl.trim()
         val token = cloudToken.trim().ifBlank { repositories.credentials.cloudDriveToken.orEmpty() }
         if (endpoint.isBlank() || token.isBlank()) {
@@ -1020,11 +1026,11 @@ internal fun MiruPlayDesktopComposeApp(
         }
         scope.launch {
             val initialPath = when (target) {
-                DesktopCloudDriveDirectoryTarget.INBOX -> cloudInboxPath
-                DesktopCloudDriveDirectoryTarget.LIBRARY -> cloudLibraryPath
+                CloudDriveDirectoryTarget.INBOX -> cloudInboxPath
+                CloudDriveDirectoryTarget.LIBRARY -> cloudLibraryPath
             }
             val prepared = when (
-                val result = prepareDesktopCloudDriveDirectoryBrowser(
+                val result = prepareCloudDriveDirectoryBrowser(
                     client = cloudDriveClient,
                     target = target,
                     endpointUrl = endpoint,
@@ -1045,13 +1051,13 @@ internal fun MiruPlayDesktopComposeApp(
     }
 
     fun selectCloudDriveDirectory(
-        target: DesktopCloudDriveDirectoryTarget,
+        target: CloudDriveDirectoryTarget,
         path: String,
     ) {
-        val selection = selectDesktopCloudDriveDirectory(target, path)
+        val selection = selectSharedCloudDriveDirectory(target, path)
         when (selection.target) {
-            DesktopCloudDriveDirectoryTarget.INBOX -> cloudInboxPath = selection.path
-            DesktopCloudDriveDirectoryTarget.LIBRARY -> cloudLibraryPath = selection.path
+            CloudDriveDirectoryTarget.INBOX -> cloudInboxPath = selection.path
+            CloudDriveDirectoryTarget.LIBRARY -> cloudLibraryPath = selection.path
         }
         cloudDirectoryBrowser = cloudDirectoryBrowser.copy(open = false, isLoading = false)
         cloudRssStatus = selection.status
