@@ -273,7 +273,10 @@ horizontal, vertical, and linear focus movement; the Windows route rail and
 saved-source picker now consume intent-based navigation handlers so those
 high-reuse controls no longer carry raw Compose `Key` branching beyond the
 platform adapter; the Library header, local-source action row, and remote-source
-action row now also expose intent-level navigation contracts. Verified with
+action row now also expose intent-level navigation contracts. The Library
+poster wall, highest-heat/recent shelves, and search row now use the same
+intent-level navigation path, reducing raw desktop `Key` branching on the
+media-first surface. Verified with
 `.\gradlew.bat :ui-design:test :ui-tv:test :desktop-app:test checkDesktopPresenterSeparation checkDesktopComposeOnly -PbundleMpvRuntime=false`
 on 2026-05-24.
 

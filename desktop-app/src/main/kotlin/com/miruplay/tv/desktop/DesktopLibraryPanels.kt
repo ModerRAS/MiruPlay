@@ -1437,24 +1437,38 @@ internal fun librarySearchFocusTarget(
     current: LibrarySearchFocusTarget,
     key: Key,
 ): LibrarySearchFocusTarget? =
-    when (key) {
-        Key.DirectionLeft -> LibrarySearchFocusTarget.Field.takeIf { current == LibrarySearchFocusTarget.Action }
-        Key.DirectionRight -> LibrarySearchFocusTarget.Action.takeIf { current == LibrarySearchFocusTarget.Field }
-        Key.DirectionUp -> LibrarySearchFocusTarget.PreviousPanel
-        Key.DirectionDown -> LibrarySearchFocusTarget.NextPanel
-        else -> null
+    key.toMiruPlayInputIntent()?.let { intent ->
+        librarySearchFocusTarget(current, intent)
+    }
+
+internal fun librarySearchFocusTarget(
+    current: LibrarySearchFocusTarget,
+    intent: MiruPlayInputIntent,
+): LibrarySearchFocusTarget? =
+    when (intent.verticalNavigationDelta()) {
+        -1 -> LibrarySearchFocusTarget.PreviousPanel
+        1 -> LibrarySearchFocusTarget.NextPanel
+        else -> when (intent.horizontalNavigationDelta()) {
+            -1 -> LibrarySearchFocusTarget.Field.takeIf { current == LibrarySearchFocusTarget.Action }
+            1 -> LibrarySearchFocusTarget.Action.takeIf { current == LibrarySearchFocusTarget.Field }
+            else -> null
+        }
     }
 
 internal fun List<DesktopPosterGroup>.posterShelfNavigationTarget(
     currentIndex: Int,
     key: Key,
+): DesktopPosterGroup? =
+    key.toMiruPlayInputIntent()?.let { intent ->
+        posterShelfNavigationTarget(currentIndex, intent)
+    }
+
+internal fun List<DesktopPosterGroup>.posterShelfNavigationTarget(
+    currentIndex: Int,
+    intent: MiruPlayInputIntent,
 ): DesktopPosterGroup? {
     if (currentIndex !in indices) return null
-    val targetIndex = when (key) {
-        Key.DirectionRight -> currentIndex + 1
-        Key.DirectionLeft -> currentIndex - 1
-        else -> null
-    } ?: return null
+    val targetIndex = intent.horizontalNavigationDelta()?.let { delta -> currentIndex + delta } ?: return null
     return getOrNull(targetIndex)
 }
 
@@ -1466,10 +1480,29 @@ internal fun libraryMediaFocusTarget(
     recentlyAddedCount: Int,
     columns: Int = POSTER_WALL_COLUMNS,
 ): LibraryMediaFocusTarget? =
+    key.toMiruPlayInputIntent()?.let { intent ->
+        libraryMediaFocusTarget(
+            current = current,
+            intent = intent,
+            posterCount = posterCount,
+            featuredCount = featuredCount,
+            recentlyAddedCount = recentlyAddedCount,
+            columns = columns,
+        )
+    }
+
+internal fun libraryMediaFocusTarget(
+    current: LibraryMediaFocusTarget,
+    intent: MiruPlayInputIntent,
+    posterCount: Int,
+    featuredCount: Int,
+    recentlyAddedCount: Int,
+    columns: Int = POSTER_WALL_COLUMNS,
+): LibraryMediaFocusTarget? =
     when (current) {
         is LibraryMediaFocusTarget.PosterWall -> posterWallMediaFocusTarget(
             currentIndex = current.index,
-            key = key,
+            intent = intent,
             posterCount = posterCount,
             featuredCount = featuredCount,
             recentlyAddedCount = recentlyAddedCount,
@@ -1477,7 +1510,7 @@ internal fun libraryMediaFocusTarget(
         )
         is LibraryMediaFocusTarget.Featured -> posterShelfMediaFocusTarget(
             currentIndex = current.index,
-            key = key,
+            intent = intent,
             shelfCount = featuredCount,
             previousCount = posterCount,
             nextCount = recentlyAddedCount.takeIf { it > 0 } ?: 1,
@@ -1491,7 +1524,7 @@ internal fun libraryMediaFocusTarget(
         )
         is LibraryMediaFocusTarget.RecentlyAdded -> posterShelfMediaFocusTarget(
             currentIndex = current.index,
-            key = key,
+            intent = intent,
             shelfCount = recentlyAddedCount,
             previousCount = featuredCount.takeIf { it > 0 } ?: posterCount,
             nextCount = 1,
@@ -1509,7 +1542,7 @@ internal fun libraryMediaFocusTarget(
 
 private fun posterWallMediaFocusTarget(
     currentIndex: Int,
-    key: Key,
+    intent: MiruPlayInputIntent,
     posterCount: Int,
     featuredCount: Int,
     recentlyAddedCount: Int,
@@ -1518,23 +1551,25 @@ private fun posterWallMediaFocusTarget(
     if (currentIndex !in 0 until posterCount) return null
     val safeColumns = columns.coerceAtLeast(1)
     val currentColumn = currentIndex % safeColumns
-    val targetIndex = when (key) {
-        Key.DirectionRight -> if (currentColumn == safeColumns - 1) null else currentIndex + 1
-        Key.DirectionLeft -> if (currentColumn == 0) null else currentIndex - 1
-        Key.DirectionUp -> currentIndex - safeColumns
-        Key.DirectionDown -> {
-            val nextRowStart = ((currentIndex / safeColumns) + 1) * safeColumns
-            if (nextRowStart in 0 until posterCount) {
-                minOf(nextRowStart + currentColumn, posterCount - 1)
-            } else {
-                return when {
-                    featuredCount > 0 -> LibraryMediaFocusTarget.Featured(currentColumn.coerceAtMost(featuredCount - 1))
-                    recentlyAddedCount > 0 -> LibraryMediaFocusTarget.RecentlyAdded(currentColumn.coerceAtMost(recentlyAddedCount - 1))
-                    else -> LibraryMediaFocusTarget.SearchBar
+    val targetIndex = when (intent.horizontalNavigationDelta()) {
+        1 -> if (currentColumn == safeColumns - 1) null else currentIndex + 1
+        -1 -> if (currentColumn == 0) null else currentIndex - 1
+        else -> when (intent.verticalNavigationDelta()) {
+            -1 -> currentIndex - safeColumns
+            1 -> {
+                val nextRowStart = ((currentIndex / safeColumns) + 1) * safeColumns
+                if (nextRowStart in 0 until posterCount) {
+                    minOf(nextRowStart + currentColumn, posterCount - 1)
+                } else {
+                    return when {
+                        featuredCount > 0 -> LibraryMediaFocusTarget.Featured(currentColumn.coerceAtMost(featuredCount - 1))
+                        recentlyAddedCount > 0 -> LibraryMediaFocusTarget.RecentlyAdded(currentColumn.coerceAtMost(recentlyAddedCount - 1))
+                        else -> LibraryMediaFocusTarget.SearchBar
+                    }
                 }
             }
+            else -> null
         }
-        else -> null
     } ?: return null
     if (targetIndex < 0) return LibraryMediaFocusTarget.PreviousPanel
     return LibraryMediaFocusTarget.PosterWall(targetIndex).takeIf { targetIndex in 0 until posterCount }
@@ -1542,7 +1577,7 @@ private fun posterWallMediaFocusTarget(
 
 private fun posterShelfMediaFocusTarget(
     currentIndex: Int,
-    key: Key,
+    intent: MiruPlayInputIntent,
     shelfCount: Int,
     previousCount: Int,
     nextCount: Int,
@@ -1551,12 +1586,14 @@ private fun posterShelfMediaFocusTarget(
     nextFactory: (Int) -> LibraryMediaFocusTarget?,
 ): LibraryMediaFocusTarget? {
     if (currentIndex !in 0 until shelfCount) return null
-    return when (key) {
-        Key.DirectionRight -> currentFactory(currentIndex + 1).takeIf { currentIndex + 1 < shelfCount }
-        Key.DirectionLeft -> currentFactory(currentIndex - 1).takeIf { currentIndex > 0 }
-        Key.DirectionUp -> previousFactory(currentIndex.coerceAtMost(previousCount - 1)).takeIf { previousCount > 0 }
-        Key.DirectionDown -> nextFactory(currentIndex.coerceAtMost(nextCount - 1)).takeIf { nextCount > 0 }
-        else -> null
+    return when (intent.horizontalNavigationDelta()) {
+        1 -> currentFactory(currentIndex + 1).takeIf { currentIndex + 1 < shelfCount }
+        -1 -> currentFactory(currentIndex - 1).takeIf { currentIndex > 0 }
+        else -> when (intent.verticalNavigationDelta()) {
+            -1 -> previousFactory(currentIndex.coerceAtMost(previousCount - 1)).takeIf { previousCount > 0 }
+            1 -> nextFactory(currentIndex.coerceAtMost(nextCount - 1)).takeIf { nextCount > 0 }
+            else -> null
+        }
     }
 }
 
@@ -1564,23 +1601,34 @@ internal fun List<DesktopPosterGroup>.posterNavigationTarget(
     currentIndex: Int,
     key: Key,
     columns: Int = POSTER_WALL_COLUMNS,
+): DesktopPosterGroup? =
+    key.toMiruPlayInputIntent()?.let { intent ->
+        posterNavigationTarget(currentIndex, intent, columns)
+    }
+
+internal fun List<DesktopPosterGroup>.posterNavigationTarget(
+    currentIndex: Int,
+    intent: MiruPlayInputIntent,
+    columns: Int = POSTER_WALL_COLUMNS,
 ): DesktopPosterGroup? {
     if (currentIndex !in indices) return null
     val safeColumns = columns.coerceAtLeast(1)
     val currentColumn = currentIndex % safeColumns
-    val targetIndex = when (key) {
-        Key.DirectionRight -> if (currentColumn == safeColumns - 1) null else currentIndex + 1
-        Key.DirectionLeft -> if (currentColumn == 0) null else currentIndex - 1
-        Key.DirectionDown -> {
-            val nextRowStart = ((currentIndex / safeColumns) + 1) * safeColumns
-            if (nextRowStart !in indices) {
-                null
-            } else {
-                minOf(nextRowStart + currentColumn, lastIndex)
+    val targetIndex = when (intent.horizontalNavigationDelta()) {
+        1 -> if (currentColumn == safeColumns - 1) null else currentIndex + 1
+        -1 -> if (currentColumn == 0) null else currentIndex - 1
+        else -> when (intent.verticalNavigationDelta()) {
+            1 -> {
+                val nextRowStart = ((currentIndex / safeColumns) + 1) * safeColumns
+                if (nextRowStart !in indices) {
+                    null
+                } else {
+                    minOf(nextRowStart + currentColumn, lastIndex)
+                }
             }
+            -1 -> currentIndex - safeColumns
+            else -> null
         }
-        Key.DirectionUp -> currentIndex - safeColumns
-        else -> null
     } ?: return null
     return getOrNull(targetIndex)
 }

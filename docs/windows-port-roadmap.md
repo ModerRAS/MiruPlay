@@ -45,6 +45,9 @@ the desktop route rail and saved-source picker consume those deltas through
 intent-based key handlers instead of branching directly on Compose `Key`
 values, and the Library header, local-source action row, and remote-source
 action row now expose intent-level navigation contracts for the same reason.
+The Library poster wall, highest-heat/recent shelves, and search row now follow
+that contract as well, keeping the Windows media-first surface aligned with TV
+DPAD direction semantics.
 Verified with
 `.\gradlew.bat :ui-design:test :ui-tv:test :desktop-app:test checkDesktopPresenterSeparation checkDesktopComposeOnly -PbundleMpvRuntime=false`.
 
