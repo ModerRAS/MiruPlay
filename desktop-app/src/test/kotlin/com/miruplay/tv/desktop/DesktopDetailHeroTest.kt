@@ -1,6 +1,7 @@
 package com.miruplay.tv.desktop
 
 import androidx.compose.ui.input.key.Key
+import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.detailEpisodePageUnitLabel
@@ -65,6 +66,38 @@ class DesktopDetailHeroTest {
     }
 
     @Test
+    fun `detail hero action navigation also accepts shared direction intents`() {
+        assertEquals(
+            DesktopDetailHeroAction.BackToLibrary,
+            detailHeroActionFocusTarget(
+                DesktopDetailHeroAction.Play,
+                MiruPlayInputIntent.DirectionRight,
+            ),
+        )
+        assertEquals(
+            DesktopDetailHeroAction.Play,
+            detailHeroActionFocusTarget(
+                DesktopDetailHeroAction.BackToLibrary,
+                MiruPlayInputIntent.DirectionLeft,
+            ),
+        )
+        assertEquals(
+            null,
+            detailHeroActionFocusTarget(
+                DesktopDetailHeroAction.Play,
+                MiruPlayInputIntent.DirectionLeft,
+            ),
+        )
+        assertEquals(
+            null,
+            detailHeroActionFocusTarget(
+                DesktopDetailHeroAction.Play,
+                MiruPlayInputIntent.DirectionDown,
+            ),
+        )
+    }
+
+    @Test
     fun `recent playback navigation moves within all records`() {
         assertEquals(1, moveRecentPlaybackSelection(currentIndex = 0, itemCount = 3, delta = 1))
         assertEquals(1, moveRecentPlaybackSelection(currentIndex = 2, itemCount = 3, delta = -1))
@@ -119,6 +152,20 @@ class DesktopDetailHeroTest {
             recentPlaybackEmptyFocusTarget(Key.DirectionDown),
         )
         assertEquals(null, recentPlaybackEmptyFocusTarget(Key.DirectionLeft))
+    }
+
+    @Test
+    fun `recent playback empty focus also accepts shared direction intents`() {
+        assertEquals(
+            RecentPlaybackFocusTarget.Action(RecentPlaybackAction.Refresh),
+            recentPlaybackEmptyFocusTarget(MiruPlayInputIntent.DirectionUp),
+        )
+        assertEquals(
+            RecentPlaybackFocusTarget.NextPanel,
+            recentPlaybackEmptyFocusTarget(MiruPlayInputIntent.DirectionDown),
+        )
+        assertEquals(null, recentPlaybackEmptyFocusTarget(MiruPlayInputIntent.DirectionLeft))
+        assertEquals(null, recentPlaybackEmptyFocusTarget(MiruPlayInputIntent.Activate))
     }
 
     @Test
@@ -335,6 +382,20 @@ class DesktopDetailHeroTest {
     }
 
     @Test
+    fun `detail episode empty state also accepts shared direction intents`() {
+        assertEquals(
+            DetailEpisodeFocusTarget.PreviousPanel,
+            detailEpisodeEmptyFocusTarget(MiruPlayInputIntent.DirectionUp),
+        )
+        assertEquals(
+            DetailEpisodeFocusTarget.NextPanel,
+            detailEpisodeEmptyFocusTarget(MiruPlayInputIntent.DirectionDown),
+        )
+        assertEquals(null, detailEpisodeEmptyFocusTarget(MiruPlayInputIntent.DirectionLeft))
+        assertEquals(null, detailEpisodeEmptyFocusTarget(MiruPlayInputIntent.Activate))
+    }
+
+    @Test
     fun `detail episode progress labels mirror shared progress copy`() {
         assertEquals("未看", detailEpisodeProgressLabel(null))
         assertEquals(
@@ -444,6 +505,60 @@ class DesktopDetailHeroTest {
     }
 
     @Test
+    fun `detail episode season selector also accepts shared direction intents`() {
+        assertEquals(
+            DetailEpisodeFocusTarget.Season(0),
+            detailEpisodeSeasonFocusTarget(
+                currentIndex = 1,
+                seasonCount = 3,
+                episodeCount = 3,
+                selectedEpisodeIndex = 2,
+                intent = MiruPlayInputIntent.DirectionLeft,
+            ),
+        )
+        assertEquals(
+            DetailEpisodeFocusTarget.Season(2),
+            detailEpisodeSeasonFocusTarget(
+                currentIndex = 1,
+                seasonCount = 3,
+                episodeCount = 3,
+                selectedEpisodeIndex = 2,
+                intent = MiruPlayInputIntent.DirectionRight,
+            ),
+        )
+        assertEquals(
+            DetailEpisodeFocusTarget.Row(2),
+            detailEpisodeSeasonFocusTarget(
+                currentIndex = 1,
+                seasonCount = 3,
+                episodeCount = 3,
+                selectedEpisodeIndex = 2,
+                intent = MiruPlayInputIntent.DirectionDown,
+            ),
+        )
+        assertEquals(
+            DetailEpisodeFocusTarget.PreviousPanel,
+            detailEpisodeSeasonFocusTarget(
+                currentIndex = 1,
+                seasonCount = 3,
+                episodeCount = 3,
+                selectedEpisodeIndex = 2,
+                intent = MiruPlayInputIntent.DirectionUp,
+            ),
+        )
+        assertEquals(
+            null,
+            detailEpisodeSeasonFocusTarget(
+                currentIndex = 1,
+                seasonCount = 3,
+                episodeCount = 3,
+                selectedEpisodeIndex = 2,
+                intent = MiruPlayInputIntent.Activate,
+            ),
+        )
+    }
+
+    @Test
     fun `media details focus moves through two column rows and exits upward`() {
         assertEquals(MediaDetailsFocusTarget.Row(0), mediaDetailsInitialFocusTarget(hasRows = true))
         assertEquals(MediaDetailsFocusTarget.EmptyState, mediaDetailsInitialFocusTarget(hasRows = false))
@@ -476,6 +591,65 @@ class DesktopDetailHeroTest {
         assertEquals(null, mediaDetailsFocusTarget(currentIndex = 0, rowCount = 7, pageStart = 0, visibleCount = 6, key = Key.DirectionLeft))
         assertEquals(null, mediaDetailsFocusTarget(currentIndex = 3, rowCount = 7, pageStart = 0, visibleCount = 6, key = Key.DirectionRight))
         assertEquals(null, mediaDetailsFocusTarget(currentIndex = 0, rowCount = 0, pageStart = 0, visibleCount = 0, key = Key.DirectionDown))
+    }
+
+    @Test
+    fun `media details focus also accepts shared direction intents`() {
+        assertEquals(
+            MediaDetailsFocusTarget.PreviousPanel,
+            mediaDetailsEmptyFocusTarget(MiruPlayInputIntent.DirectionUp),
+        )
+        assertEquals(null, mediaDetailsEmptyFocusTarget(MiruPlayInputIntent.DirectionDown))
+        assertEquals(
+            MediaDetailsFocusTarget.Row(1),
+            mediaDetailsFocusTarget(
+                currentIndex = 0,
+                rowCount = 7,
+                pageStart = 0,
+                visibleCount = 6,
+                intent = MiruPlayInputIntent.DirectionDown,
+            ),
+        )
+        assertEquals(
+            MediaDetailsFocusTarget.PreviousPanel,
+            mediaDetailsFocusTarget(
+                currentIndex = 0,
+                rowCount = 7,
+                pageStart = 0,
+                visibleCount = 6,
+                intent = MiruPlayInputIntent.DirectionUp,
+            ),
+        )
+        assertEquals(
+            MediaDetailsFocusTarget.Row(3),
+            mediaDetailsFocusTarget(
+                currentIndex = 0,
+                rowCount = 7,
+                pageStart = 0,
+                visibleCount = 6,
+                intent = MiruPlayInputIntent.DirectionRight,
+            ),
+        )
+        assertEquals(
+            MediaDetailsFocusTarget.Row(2),
+            mediaDetailsFocusTarget(
+                currentIndex = 5,
+                rowCount = 7,
+                pageStart = 0,
+                visibleCount = 6,
+                intent = MiruPlayInputIntent.DirectionLeft,
+            ),
+        )
+        assertEquals(
+            null,
+            mediaDetailsFocusTarget(
+                currentIndex = 0,
+                rowCount = 7,
+                pageStart = 0,
+                visibleCount = 6,
+                intent = MiruPlayInputIntent.Activate,
+            ),
+        )
     }
 
     @Test

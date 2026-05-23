@@ -276,7 +276,9 @@ platform adapter; the Library header, local-source action row, and remote-source
 action row now also expose intent-level navigation contracts. The Library
 poster wall, highest-heat/recent shelves, and search row now use the same
 intent-level navigation path, reducing raw desktop `Key` branching on the
-media-first surface. Verified with
+media-first surface. The Details hero action row, episode-season selector,
+episode/recents empty states, and two-column media-details list now also expose
+intent-level focus contracts. Verified with
 `.\gradlew.bat :ui-design:test :ui-tv:test :desktop-app:test checkDesktopPresenterSeparation checkDesktopComposeOnly -PbundleMpvRuntime=false`
 on 2026-05-24.
 

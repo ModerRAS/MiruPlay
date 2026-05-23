@@ -37,7 +37,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.design.MiruPlayUiMetrics
+import com.miruplay.tv.design.horizontalNavigationDelta
+import com.miruplay.tv.design.verticalNavigationDelta
 import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaPathConventions
@@ -97,12 +100,15 @@ internal fun DesktopDetailHero(
     }
 
     fun moveFromAction(current: DesktopDetailHeroAction, key: Key): Boolean =
-        when (key) {
-            Key.DirectionLeft -> moveActionFocus(current, -1)
-            Key.DirectionRight -> moveActionFocus(current, 1)
-            Key.DirectionDown -> onFocusRecentPlayback()
-            else -> false
+        key.toMiruPlayInputIntent()?.let { intent ->
+            when (intent) {
+                MiruPlayInputIntent.DirectionDown -> onFocusRecentPlayback()
+                else -> intent.horizontalNavigationDelta()?.let { delta ->
+                    moveActionFocus(current, delta)
+                } ?: false
+            }
         }
+            ?: false
 
     val statLabels = detailHeroStatLabels(entry, episodeCount)
 
@@ -273,6 +279,14 @@ internal fun moveDesktopDetailHeroAction(
     val targetIndex = actions.indexOf(current) + delta
     return actions.getOrNull(targetIndex)
 }
+
+internal fun detailHeroActionFocusTarget(
+    current: DesktopDetailHeroAction,
+    intent: MiruPlayInputIntent,
+): DesktopDetailHeroAction? =
+    intent.horizontalNavigationDelta()?.let { delta ->
+        moveDesktopDetailHeroAction(current, delta)
+    }
 
 internal fun detailHeroDownTarget(
     hasRelatedEpisodes: Boolean,
@@ -739,22 +753,44 @@ internal fun detailEpisodeSeasonFocusTarget(
     selectedEpisodeIndex: Int,
     key: Key,
 ): DetailEpisodeFocusTarget? =
-    when (key) {
-        Key.DirectionLeft -> (currentIndex - 1).takeIf { it >= 0 }?.let(DetailEpisodeFocusTarget::Season)
-        Key.DirectionRight -> (currentIndex + 1).takeIf { it < seasonCount }?.let(DetailEpisodeFocusTarget::Season)
-        Key.DirectionUp -> DetailEpisodeFocusTarget.PreviousPanel
-        Key.DirectionDown -> if (episodeCount > 0) {
+    key.toMiruPlayInputIntent()?.let { intent ->
+        detailEpisodeSeasonFocusTarget(
+            currentIndex = currentIndex,
+            seasonCount = seasonCount,
+            episodeCount = episodeCount,
+            selectedEpisodeIndex = selectedEpisodeIndex,
+            intent = intent,
+        )
+    }
+
+internal fun detailEpisodeSeasonFocusTarget(
+    currentIndex: Int,
+    seasonCount: Int,
+    episodeCount: Int,
+    selectedEpisodeIndex: Int,
+    intent: MiruPlayInputIntent,
+): DetailEpisodeFocusTarget? =
+    when (intent.verticalNavigationDelta()) {
+        -1 -> DetailEpisodeFocusTarget.PreviousPanel
+        1 -> if (episodeCount > 0) {
             DetailEpisodeFocusTarget.Row(selectedEpisodeIndex.coerceIn(0, episodeCount - 1))
         } else {
             DetailEpisodeFocusTarget.NextPanel
         }
-        else -> null
+        else -> when (intent.horizontalNavigationDelta()) {
+            -1 -> (currentIndex - 1).takeIf { it >= 0 }?.let(DetailEpisodeFocusTarget::Season)
+            1 -> (currentIndex + 1).takeIf { it < seasonCount }?.let(DetailEpisodeFocusTarget::Season)
+            else -> null
+        }
     }
 
 internal fun detailEpisodeEmptyFocusTarget(key: Key): DetailEpisodeFocusTarget? =
-    when (key) {
-        Key.DirectionUp -> DetailEpisodeFocusTarget.PreviousPanel
-        Key.DirectionDown -> DetailEpisodeFocusTarget.NextPanel
+    key.toMiruPlayInputIntent()?.let(::detailEpisodeEmptyFocusTarget)
+
+internal fun detailEpisodeEmptyFocusTarget(intent: MiruPlayInputIntent): DetailEpisodeFocusTarget? =
+    when (intent.verticalNavigationDelta()) {
+        -1 -> DetailEpisodeFocusTarget.PreviousPanel
+        1 -> DetailEpisodeFocusTarget.NextPanel
         else -> null
     }
 
@@ -1114,9 +1150,12 @@ internal fun recentPlaybackActionVerticalFocusTarget(
     }
 
 internal fun recentPlaybackEmptyFocusTarget(key: Key): RecentPlaybackFocusTarget? =
-    when (key) {
-        Key.DirectionUp -> RecentPlaybackFocusTarget.Action(RecentPlaybackAction.Refresh)
-        Key.DirectionDown -> RecentPlaybackFocusTarget.NextPanel
+    key.toMiruPlayInputIntent()?.let(::recentPlaybackEmptyFocusTarget)
+
+internal fun recentPlaybackEmptyFocusTarget(intent: MiruPlayInputIntent): RecentPlaybackFocusTarget? =
+    when (intent.verticalNavigationDelta()) {
+        -1 -> RecentPlaybackFocusTarget.Action(RecentPlaybackAction.Refresh)
+        1 -> RecentPlaybackFocusTarget.NextPanel
         else -> null
     }
 
@@ -1341,8 +1380,11 @@ internal fun mediaDetailsInitialFocusTarget(hasRows: Boolean): MediaDetailsFocus
     if (hasRows) MediaDetailsFocusTarget.Row(0) else MediaDetailsFocusTarget.EmptyState
 
 internal fun mediaDetailsEmptyFocusTarget(key: Key): MediaDetailsFocusTarget? =
-    when (key) {
-        Key.DirectionUp -> MediaDetailsFocusTarget.PreviousPanel
+    key.toMiruPlayInputIntent()?.let(::mediaDetailsEmptyFocusTarget)
+
+internal fun mediaDetailsEmptyFocusTarget(intent: MiruPlayInputIntent): MediaDetailsFocusTarget? =
+    when (intent.verticalNavigationDelta()) {
+        -1 -> MediaDetailsFocusTarget.PreviousPanel
         else -> null
     }
 
@@ -1352,27 +1394,46 @@ internal fun mediaDetailsFocusTarget(
     pageStart: Int,
     visibleCount: Int,
     key: Key,
+): MediaDetailsFocusTarget? =
+    key.toMiruPlayInputIntent()?.let { intent ->
+        mediaDetailsFocusTarget(
+            currentIndex = currentIndex,
+            rowCount = rowCount,
+            pageStart = pageStart,
+            visibleCount = visibleCount,
+            intent = intent,
+        )
+    }
+
+internal fun mediaDetailsFocusTarget(
+    currentIndex: Int,
+    rowCount: Int,
+    pageStart: Int,
+    visibleCount: Int,
+    intent: MiruPlayInputIntent,
 ): MediaDetailsFocusTarget? {
     if (rowCount <= 0) return null
     val safePageStart = mediaDetailsCoercedPageStart(pageStart, rowCount)
     val safeVisibleCount = visibleCount.coerceIn(1, rowCount - safePageStart)
     val splitIndex = mediaDetailsSplitIndex(safePageStart, safeVisibleCount)
     val pageEnd = safePageStart + safeVisibleCount
-    val targetIndex = when (key) {
-        Key.DirectionUp -> currentIndex - 1
-        Key.DirectionDown -> currentIndex + 1
-        Key.DirectionLeft -> if (currentIndex >= splitIndex && currentIndex < pageEnd) {
-            val leftIndex = safePageStart + currentIndex - splitIndex
-            leftIndex.coerceAtMost(splitIndex - 1)
-        } else {
-            return null
+    val targetIndex = when (intent.verticalNavigationDelta()) {
+        -1 -> currentIndex - 1
+        1 -> currentIndex + 1
+        else -> when (intent.horizontalNavigationDelta()) {
+            -1 -> if (currentIndex >= splitIndex && currentIndex < pageEnd) {
+                val leftIndex = safePageStart + currentIndex - splitIndex
+                leftIndex.coerceAtMost(splitIndex - 1)
+            } else {
+                return null
+            }
+            1 -> if (currentIndex in safePageStart until splitIndex && splitIndex < pageEnd) {
+                (currentIndex + splitIndex - safePageStart).takeIf { it < pageEnd } ?: pageEnd - 1
+            } else {
+                return null
+            }
+            else -> return null
         }
-        Key.DirectionRight -> if (currentIndex in safePageStart until splitIndex && splitIndex < pageEnd) {
-            (currentIndex + splitIndex - safePageStart).takeIf { it < pageEnd } ?: pageEnd - 1
-        } else {
-            return null
-        }
-        else -> return null
     }
     return when {
         targetIndex < 0 -> MediaDetailsFocusTarget.PreviousPanel
