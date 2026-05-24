@@ -295,34 +295,94 @@ class DesktopDetailHeroTest {
     }
 
     @Test
-    fun `detail hero down key routes to episode list or bangumi metadata`() {
+    fun `detail panel focus chain follows visible panel order`() {
         assertEquals(
-            DesktopDetailDownTarget.EpisodeList,
-            detailHeroDownTarget(hasRelatedEpisodes = true),
+            DesktopDetailFocusPanel.EpisodeList,
+            detailPanelFocusTarget(
+                current = DesktopDetailFocusPanel.Hero,
+                direction = 1,
+                hasRelatedEpisodes = true,
+                hasRecentPlayback = true,
+            ),
         )
         assertEquals(
-            DesktopDetailDownTarget.BangumiMetadata,
-            detailHeroDownTarget(hasRelatedEpisodes = false),
+            DesktopDetailFocusPanel.BangumiMetadata,
+            detailPanelFocusTarget(
+                current = DesktopDetailFocusPanel.EpisodeList,
+                direction = 1,
+                hasRelatedEpisodes = true,
+                hasRecentPlayback = true,
+            ),
         )
+        assertEquals(
+            DesktopDetailFocusPanel.RecentPlayback,
+            detailPanelFocusTarget(
+                current = DesktopDetailFocusPanel.BangumiMetadata,
+                direction = 1,
+                hasRelatedEpisodes = true,
+                hasRecentPlayback = true,
+            ),
+        )
+        assertEquals(
+            DesktopDetailFocusPanel.MediaDetails,
+            detailPanelFocusTarget(
+                current = DesktopDetailFocusPanel.RecentPlayback,
+                direction = 1,
+                hasRelatedEpisodes = true,
+                hasRecentPlayback = true,
+            ),
+        )
+        assertEquals(
+            DesktopDetailFocusPanel.RecentPlayback,
+            detailPanelFocusTarget(
+                current = DesktopDetailFocusPanel.MediaDetails,
+                direction = -1,
+                hasRelatedEpisodes = true,
+                hasRecentPlayback = true,
+            ),
+        )
+        assertEquals(null, detailPanelFocusTarget(DesktopDetailFocusPanel.Hero, -1, true, true))
+        assertEquals(null, detailPanelFocusTarget(DesktopDetailFocusPanel.MediaDetails, 1, true, true))
+        assertEquals(null, detailPanelFocusTarget(DesktopDetailFocusPanel.Hero, 0, true, true))
     }
 
     @Test
-    fun `bangumi focus chain routes to recents or media details`() {
+    fun `detail panel focus chain skips missing episode and recent panels`() {
         assertEquals(
-            DesktopDetailAfterBangumiTarget.RecentPlayback,
-            detailAfterBangumiFocusTarget(hasRecentPlayback = true),
+            DesktopDetailFocusPanel.BangumiMetadata,
+            detailPanelFocusTarget(
+                current = DesktopDetailFocusPanel.Hero,
+                direction = 1,
+                hasRelatedEpisodes = false,
+                hasRecentPlayback = true,
+            ),
         )
         assertEquals(
-            DesktopDetailAfterBangumiTarget.MediaDetails,
-            detailAfterBangumiFocusTarget(hasRecentPlayback = false),
+            DesktopDetailFocusPanel.Hero,
+            detailPanelFocusTarget(
+                current = DesktopDetailFocusPanel.BangumiMetadata,
+                direction = -1,
+                hasRelatedEpisodes = false,
+                hasRecentPlayback = true,
+            ),
         )
         assertEquals(
-            DesktopDetailBeforeMediaDetailsTarget.RecentPlayback,
-            detailBeforeMediaDetailsFocusTarget(hasRecentPlayback = true),
+            DesktopDetailFocusPanel.MediaDetails,
+            detailPanelFocusTarget(
+                current = DesktopDetailFocusPanel.BangumiMetadata,
+                direction = 1,
+                hasRelatedEpisodes = true,
+                hasRecentPlayback = false,
+            ),
         )
         assertEquals(
-            DesktopDetailBeforeMediaDetailsTarget.BangumiMetadata,
-            detailBeforeMediaDetailsFocusTarget(hasRecentPlayback = false),
+            DesktopDetailFocusPanel.BangumiMetadata,
+            detailPanelFocusTarget(
+                current = DesktopDetailFocusPanel.MediaDetails,
+                direction = -1,
+                hasRelatedEpisodes = true,
+                hasRecentPlayback = false,
+            ),
         )
     }
 

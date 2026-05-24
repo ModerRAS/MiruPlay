@@ -27,14 +27,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.ApplicationScope
 import androidx.compose.ui.window.Window
@@ -406,7 +404,6 @@ internal fun MiruPlayDesktopComposeApp(
             progressRepository = repositories.progress,
         )
     }
-    val focusManager = LocalFocusManager.current
     val cloudDriveClient = remember { GrpcCloudDriveClient() }
     val cloudRssEngine = remember {
         DesktopCloudDriveRssAutomationEngine(
@@ -855,6 +852,25 @@ internal fun MiruPlayDesktopComposeApp(
             fallbackMediaSourceId = DESKTOP_PLAYBACK_MEDIA_SOURCE_ID,
             episodeId = episodeId,
         )
+
+    fun requestDetailPanelFocus(panel: DesktopDetailFocusPanel): Boolean {
+        when (panel) {
+            DesktopDetailFocusPanel.Hero -> detailHeroFocusVersion += 1
+            DesktopDetailFocusPanel.EpisodeList -> detailEpisodeFocusVersion += 1
+            DesktopDetailFocusPanel.BangumiMetadata -> bangumiFocusVersion += 1
+            DesktopDetailFocusPanel.RecentPlayback -> recentPlaybackFocusVersion += 1
+            DesktopDetailFocusPanel.MediaDetails -> mediaDetailsFocusVersion += 1
+        }
+        return true
+    }
+
+    fun moveDetailPanelFocus(current: DesktopDetailFocusPanel, direction: Int): Boolean =
+        detailPanelFocusTarget(
+            current = current,
+            direction = direction,
+            hasRelatedEpisodes = detailEpisodes.isNotEmpty(),
+            hasRecentPlayback = recentProgress.isNotEmpty(),
+        )?.let(::requestDetailPanelFocus) ?: false
 
     suspend fun launchDesktopPlayback(
         path: String = mediaPath,
@@ -1629,20 +1645,7 @@ internal fun MiruPlayDesktopComposeApp(
                         episodeCount = detailEpisodes.size,
                         focusVersion = detailHeroFocusVersion,
                         onFocusRecentPlayback = {
-                            when (
-                                detailHeroDownTarget(
-                                    hasRelatedEpisodes = detailEpisodes.isNotEmpty(),
-                                )
-                            ) {
-                                DesktopDetailDownTarget.EpisodeList -> {
-                                    detailEpisodeFocusVersion += 1
-                                    true
-                                }
-                                DesktopDetailDownTarget.BangumiMetadata -> {
-                                    bangumiFocusVersion += 1
-                                    true
-                                }
-                            }
+                            moveDetailPanelFocus(DesktopDetailFocusPanel.Hero, 1)
                         },
                         onBackToLibrary = { selectedDesktopSection = MiruPlayRouteSurface.library },
                         onPlay = {
@@ -1660,12 +1663,10 @@ internal fun MiruPlayDesktopComposeApp(
                         recentRecords = recentProgress.map { it.progress },
                         focusVersion = detailEpisodeFocusVersion,
                         onFocusPreviousPanel = {
-                            detailHeroFocusVersion += 1
-                            true
+                            moveDetailPanelFocus(DesktopDetailFocusPanel.EpisodeList, -1)
                         },
                         onFocusNextPanel = {
-                            bangumiFocusVersion += 1
-                            true
+                            moveDetailPanelFocus(DesktopDetailFocusPanel.EpisodeList, 1)
                         },
                         onSeasonSelected = { season -> selectedDetailEpisodeSeason = season },
                         onEpisodeFocused = { episode ->
@@ -1872,16 +1873,10 @@ internal fun MiruPlayDesktopComposeApp(
                     }
                 },
                 onFocusPreviousPanel = {
-                    detailEpisodeFocusVersion += 1
-                    focusManager.moveFocus(FocusDirection.Up)
-                    true
+                    moveDetailPanelFocus(DesktopDetailFocusPanel.BangumiMetadata, -1)
                 },
                 onFocusNextPanel = {
-                    when (detailAfterBangumiFocusTarget(hasRecentPlayback = recentProgress.isNotEmpty())) {
-                        DesktopDetailAfterBangumiTarget.RecentPlayback -> recentPlaybackFocusVersion += 1
-                        DesktopDetailAfterBangumiTarget.MediaDetails -> mediaDetailsFocusVersion += 1
-                    }
-                    true
+                    moveDetailPanelFocus(DesktopDetailFocusPanel.BangumiMetadata, 1)
                 },
                 focusVersion = bangumiFocusVersion,
             )
@@ -1891,12 +1886,10 @@ internal fun MiruPlayDesktopComposeApp(
                 status = recentStatus,
                 focusVersion = recentPlaybackFocusVersion,
                 onFocusPreviousPanel = {
-                    bangumiFocusVersion += 1
-                    true
+                    moveDetailPanelFocus(DesktopDetailFocusPanel.RecentPlayback, -1)
                 },
                 onFocusNextPanel = {
-                    mediaDetailsFocusVersion += 1
-                    true
+                    moveDetailPanelFocus(DesktopDetailFocusPanel.RecentPlayback, 1)
                 },
                 onRefresh = {
                     scope.launch {
@@ -1933,11 +1926,7 @@ internal fun MiruPlayDesktopComposeApp(
                 recentRecord = selectedRecentProgress?.progress,
                 focusVersion = mediaDetailsFocusVersion,
                 onFocusPreviousPanel = {
-                    when (detailBeforeMediaDetailsFocusTarget(hasRecentPlayback = recentProgress.isNotEmpty())) {
-                        DesktopDetailBeforeMediaDetailsTarget.RecentPlayback -> recentPlaybackFocusVersion += 1
-                        DesktopDetailBeforeMediaDetailsTarget.BangumiMetadata -> bangumiFocusVersion += 1
-                    }
-                    true
+                    moveDetailPanelFocus(DesktopDetailFocusPanel.MediaDetails, -1)
                 },
             )
                 }

@@ -281,19 +281,12 @@ internal enum class DesktopDetailHeroAction {
     BackToLibrary,
 }
 
-internal enum class DesktopDetailDownTarget {
+internal enum class DesktopDetailFocusPanel {
+    Hero,
     EpisodeList,
     BangumiMetadata,
-}
-
-internal enum class DesktopDetailAfterBangumiTarget {
     RecentPlayback,
     MediaDetails,
-}
-
-internal enum class DesktopDetailBeforeMediaDetailsTarget {
-    RecentPlayback,
-    BangumiMetadata,
 }
 
 internal fun moveDesktopDetailHeroAction(
@@ -313,26 +306,58 @@ internal fun detailHeroActionFocusTarget(
         moveDesktopDetailHeroAction(current, delta)
     }
 
-internal fun detailHeroDownTarget(
+internal fun detailPanelFocusTarget(
+    current: DesktopDetailFocusPanel,
+    direction: Int,
     hasRelatedEpisodes: Boolean,
-): DesktopDetailDownTarget =
+    hasRecentPlayback: Boolean,
+): DesktopDetailFocusPanel? =
     when {
-        hasRelatedEpisodes -> DesktopDetailDownTarget.EpisodeList
-        else -> DesktopDetailDownTarget.BangumiMetadata
+        direction < 0 -> detailPreviousPanelFocusTarget(current, hasRelatedEpisodes, hasRecentPlayback)
+        direction > 0 -> detailNextPanelFocusTarget(current, hasRelatedEpisodes, hasRecentPlayback)
+        else -> null
     }
 
-internal fun detailAfterBangumiFocusTarget(hasRecentPlayback: Boolean): DesktopDetailAfterBangumiTarget =
-    if (hasRecentPlayback) {
-        DesktopDetailAfterBangumiTarget.RecentPlayback
-    } else {
-        DesktopDetailAfterBangumiTarget.MediaDetails
+private fun detailPreviousPanelFocusTarget(
+    current: DesktopDetailFocusPanel,
+    hasRelatedEpisodes: Boolean,
+    hasRecentPlayback: Boolean,
+): DesktopDetailFocusPanel? =
+    when (current) {
+        DesktopDetailFocusPanel.Hero -> null
+        DesktopDetailFocusPanel.EpisodeList -> DesktopDetailFocusPanel.Hero
+        DesktopDetailFocusPanel.BangumiMetadata -> if (hasRelatedEpisodes) {
+            DesktopDetailFocusPanel.EpisodeList
+        } else {
+            DesktopDetailFocusPanel.Hero
+        }
+        DesktopDetailFocusPanel.RecentPlayback -> DesktopDetailFocusPanel.BangumiMetadata
+        DesktopDetailFocusPanel.MediaDetails -> if (hasRecentPlayback) {
+            DesktopDetailFocusPanel.RecentPlayback
+        } else {
+            DesktopDetailFocusPanel.BangumiMetadata
+        }
     }
 
-internal fun detailBeforeMediaDetailsFocusTarget(hasRecentPlayback: Boolean): DesktopDetailBeforeMediaDetailsTarget =
-    if (hasRecentPlayback) {
-        DesktopDetailBeforeMediaDetailsTarget.RecentPlayback
-    } else {
-        DesktopDetailBeforeMediaDetailsTarget.BangumiMetadata
+private fun detailNextPanelFocusTarget(
+    current: DesktopDetailFocusPanel,
+    hasRelatedEpisodes: Boolean,
+    hasRecentPlayback: Boolean,
+): DesktopDetailFocusPanel? =
+    when (current) {
+        DesktopDetailFocusPanel.Hero -> if (hasRelatedEpisodes) {
+            DesktopDetailFocusPanel.EpisodeList
+        } else {
+            DesktopDetailFocusPanel.BangumiMetadata
+        }
+        DesktopDetailFocusPanel.EpisodeList -> DesktopDetailFocusPanel.BangumiMetadata
+        DesktopDetailFocusPanel.BangumiMetadata -> if (hasRecentPlayback) {
+            DesktopDetailFocusPanel.RecentPlayback
+        } else {
+            DesktopDetailFocusPanel.MediaDetails
+        }
+        DesktopDetailFocusPanel.RecentPlayback -> DesktopDetailFocusPanel.MediaDetails
+        DesktopDetailFocusPanel.MediaDetails -> null
     }
 
 @Composable
