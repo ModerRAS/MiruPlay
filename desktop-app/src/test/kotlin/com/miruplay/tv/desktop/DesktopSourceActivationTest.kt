@@ -111,7 +111,7 @@ class DesktopSourceActivationTest {
         assertTrue(result is Result.Success)
         val opened = (result as Result.Success).data
         assertEquals(42L, opened.sourceInfo.id)
-        assertEquals(source.copy(id = 42L), repository.addedSources.single())
+        assertEquals(source.copy(id = 42L, isConnected = false), repository.addedSources.single())
         assertEquals(source.copy(id = 42L, isConnected = true), repository.updatedSources.single())
         assertTrue(opened.sourceInfo.isConnected)
         assertTrue(opened.source is DesktopLocalMediaSource)
@@ -148,6 +148,8 @@ class DesktopSourceActivationTest {
         assertTrue(openedWebDav.source is DesktopWebDavMediaSource)
         assertEquals(7L, openedWebDav.sourceInfo.id)
         assertTrue(openedWebDav.sourceInfo.isConnected)
+        assertEquals(webDav.copy(id = 7L, isConnected = false), repository.addedSources[0])
+        assertEquals(webDav.copy(id = 7L, isConnected = true), repository.updatedSources[0])
         assertEquals("https://dav.example.test/anime", openedWebDav.formState.webDavUrl)
         assertEquals("alice", openedWebDav.formState.webDavUsername)
         assertEquals("secret", openedWebDav.formState.webDavPassword)
@@ -157,6 +159,8 @@ class DesktopSourceActivationTest {
         assertTrue(openedSmb.source is DesktopSmbMediaSource)
         assertEquals(8L, openedSmb.sourceInfo.id)
         assertTrue(openedSmb.sourceInfo.isConnected)
+        assertEquals(smb.copy(id = 8L, isConnected = false), repository.addedSources[1])
+        assertEquals(smb.copy(id = 8L, isConnected = true), repository.updatedSources[1])
         assertEquals("smb://nas/anime", openedSmb.formState.smbUrl)
         assertEquals("WORKGROUP", openedSmb.formState.smbDomain)
         assertEquals("bob", openedSmb.formState.smbUsername)
@@ -186,6 +190,7 @@ class DesktopSourceActivationTest {
 
         assertEquals(9L, opened.sourceInfo.id)
         assertFalse(opened.sourceInfo.isConnected)
+        assertEquals(false, repository.addedSources.single().isConnected)
         assertEquals(false, repository.updatedSources.single().isConnected)
         assertEquals("WebDAV 媒体源已就绪：Cloud", opened.status)
     }

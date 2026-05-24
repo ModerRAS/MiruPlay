@@ -118,6 +118,7 @@ import com.miruplay.tv.player.mpv.mpvSeekBackStatus
 import com.miruplay.tv.player.mpv.mpvSeekForwardStatus
 import com.miruplay.tv.player.mpv.mpvStoppedStatus
 import com.miruplay.tv.repository.MediaIndexEntry
+import com.miruplay.tv.repository.MediaSourceActionCoordinator
 import com.miruplay.tv.repository.MetadataBatchMatch
 import com.miruplay.tv.repository.MetadataBatchPlanner
 import com.miruplay.tv.repository.MetadataBatchPlan
@@ -412,6 +413,7 @@ internal fun MiruPlayDesktopComposeApp(
     val scope = rememberCoroutineScope()
     val repositories = remember { DesktopRepositories.fileBacked() }
     val desktopMediaSourceFactory = remember { DesktopMediaSourceFactory() }
+    val mediaSourceActions = remember(repositories) { MediaSourceActionCoordinator(repositories.mediaSources) }
     val playbackBridge = remember { DesktopPlaybackBridge() }
     val bangumiScraper = remember { DesktopBangumiScraper { repositories.credentials.bangumiAccessToken } }
     val bangumiMetadataRefreshCore = remember(bangumiScraper, repositories) {
@@ -1444,7 +1446,7 @@ internal fun MiruPlayDesktopComposeApp(
                             libraryStatus = sourceRemoveRequiredStatus()
                             return@launch
                         }
-                        when (val result = repositories.mediaSources.removeSource(sourceId)) {
+                        when (val result = mediaSourceActions.removeSource(sourceId)) {
                             is Result.Success -> {
                                 activeSourceId = null
                                 activeSource = null

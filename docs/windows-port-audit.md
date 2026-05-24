@@ -159,6 +159,12 @@ instead of being marked connected unconditionally; `DesktopSourceActivationTest`
 covers connected and disconnected open results, the focused desktop gate passed
 in Gradle MCP build `b-155` with 214 tests passed, the shared/Android/WebUI
 compile gate passed in `b-156`, and Android debug assemble passed in `b-157`.
+Windows now also starts desktop-opened Local/WebDAV/SMB sources as disconnected
+before the shared add/test/update action writes the final connection state, and
+desktop plus WebUI source removal now route through
+`MediaSourceActionCoordinator.removeSource`; the focused desktop/WebUI gate
+passed in Gradle MCP build `b-158` with 288 tests passed, and Android debug
+assemble passed in `b-159`.
 `SyncEngineImplTest` also locks imported NFO resume positions as milliseconds,
 matching the shared model. `core:model` now also owns shared
 Episode ordering, season grouping/selection/filtering, distinct episode counts,

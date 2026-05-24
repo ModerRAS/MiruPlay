@@ -125,6 +125,18 @@ checkDesktopPresenterSeparation checkDesktopComposeOnly -PbundleMpvRuntime=false
 passed in Gradle MCP build `b-155` with 214 tests passed; the shared/Android/WebUI
 compile gate passed in `b-156`, and Android debug assemble
 `:app:assembleDebug -PbundleMpvRuntime=false` passed in `b-157`.
+Latest media-source action closure update: Windows now persists desktop-opened
+Local/WebDAV/SMB sources as disconnected before the shared add/test/update
+action writes the final connection state, and both desktop source removal and
+WebUI source removal now call `MediaSourceActionCoordinator.removeSource`
+instead of direct repository removal. `DesktopSourceActivationTest` asserts the
+initial disconnected add plus connected/disconnected post-test updates for
+Local/WebDAV/SMB opens. The focused gate `:desktop-app:test
+:web-control-core:test :web-control:compileDebugKotlin
+:ui-tv:compileDebugKotlin checkDesktopPresenterSeparation
+checkDesktopComposeOnly -PbundleMpvRuntime=false` passed in Gradle MCP build
+`b-158` with 288 tests passed, and Android debug assemble
+`:app:assembleDebug -PbundleMpvRuntime=false` passed in `b-159`.
 
 Latest local shared-input update: `:ui-design` now owns `MiruPlayInputIntent`
 for platform-neutral activation, Back/navigation-back, direction, and media

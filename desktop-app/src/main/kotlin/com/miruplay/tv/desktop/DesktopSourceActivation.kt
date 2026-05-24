@@ -89,7 +89,10 @@ internal suspend fun openDesktopSource(
     },
 ): Result<DesktopSourceOpenResult> =
     when (
-        val result = MediaSourceActionCoordinator(repository).addSource(sourceInfo, testConnection)
+        val result = MediaSourceActionCoordinator(repository).addSource(
+            source = sourceInfo.copy(isConnected = false),
+            testConnection = testConnection,
+        )
     ) {
         is MediaSourceAddActionResult.Saved -> {
             val stored = result.source

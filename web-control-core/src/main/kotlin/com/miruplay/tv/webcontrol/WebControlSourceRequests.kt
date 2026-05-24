@@ -87,7 +87,10 @@ suspend fun MediaSourceRepository.updateWebControlSource(
 }
 
 suspend fun MediaSourceRepository.removeWebControlSource(sourceId: Long) {
-    requireWebControlSuccess(removeSource(sourceId), "删除媒体源失败")
+    requireWebControlSuccess(
+        MediaSourceActionCoordinator(this).removeSource(sourceId),
+        "删除媒体源失败",
+    )
 }
 
 fun parseWebControlSourceType(type: String): MediaSourceType =
