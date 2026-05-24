@@ -114,6 +114,17 @@ responses do not drift. The focused shared/desktop gate
 checkDesktopComposeOnly --rerun-tasks -PbundleMpvRuntime=false` passed in Gradle
 MCP build `b-153` with 358 tests passed, and Android debug assemble
 `:app:assembleDebug -PbundleMpvRuntime=false` passed in `b-154`.
+Latest desktop media-source opening update: Windows Local/WebDAV/SMB open
+actions now also route through `MediaSourceActionCoordinator` with
+`DesktopMediaSourceFactory`, so desktop no longer marks newly opened remote
+sources connected without running the same post-add connection-state update as
+Android TV Settings and WebUI. `DesktopSourceActivationTest` covers connected
+and disconnected open results while preserving the desktop activation model and
+remote-root behavior. The focused desktop gate `:desktop-app:test
+checkDesktopPresenterSeparation checkDesktopComposeOnly -PbundleMpvRuntime=false`
+passed in Gradle MCP build `b-155` with 214 tests passed; the shared/Android/WebUI
+compile gate passed in `b-156`, and Android debug assemble
+`:app:assembleDebug -PbundleMpvRuntime=false` passed in `b-157`.
 
 Latest local shared-input update: `:ui-design` now owns `MiruPlayInputIntent`
 for platform-neutral activation, Back/navigation-back, direction, and media

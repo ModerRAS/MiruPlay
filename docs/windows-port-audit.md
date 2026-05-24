@@ -152,7 +152,13 @@ add/update/remove orchestration, password preservation on edits,
 connection-state and last-scan preservation, and post-add connection-state
 updates from one repository action layer; the focused shared/desktop gate
 passed in Gradle MCP build `b-153` with 358 tests passed, and Android debug
-assemble passed in `b-154`.
+assemble passed in `b-154`. Windows Local/WebDAV/SMB open actions now also
+route through `MediaSourceActionCoordinator` with `DesktopMediaSourceFactory`,
+so newly opened desktop sources use the same post-add connection-state update
+instead of being marked connected unconditionally; `DesktopSourceActivationTest`
+covers connected and disconnected open results, the focused desktop gate passed
+in Gradle MCP build `b-155` with 214 tests passed, the shared/Android/WebUI
+compile gate passed in `b-156`, and Android debug assemble passed in `b-157`.
 `SyncEngineImplTest` also locks imported NFO resume positions as milliseconds,
 matching the shared model. `core:model` now also owns shared
 Episode ordering, season grouping/selection/filtering, distinct episode counts,

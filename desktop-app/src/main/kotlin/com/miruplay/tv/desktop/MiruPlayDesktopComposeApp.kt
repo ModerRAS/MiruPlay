@@ -48,6 +48,7 @@ import com.miruplay.tv.design.MiruPlayRouteSurface
 import com.miruplay.tv.design.MiruPlayUiMetrics
 import com.miruplay.tv.mediasource.desktop.DesktopLocalMediaSource
 import com.miruplay.tv.mediasource.desktop.DesktopMediaSource
+import com.miruplay.tv.mediasource.desktop.DesktopMediaSourceFactory
 import com.miruplay.tv.mediasource.desktop.DesktopPlaybackBridge
 import com.miruplay.tv.mediasource.desktop.desktopSourceFromInfo
 import com.miruplay.tv.model.FileEntry
@@ -410,6 +411,7 @@ internal fun MiruPlayDesktopComposeApp(
 ) {
     val scope = rememberCoroutineScope()
     val repositories = remember { DesktopRepositories.fileBacked() }
+    val desktopMediaSourceFactory = remember { DesktopMediaSourceFactory() }
     val playbackBridge = remember { DesktopPlaybackBridge() }
     val bangumiScraper = remember { DesktopBangumiScraper { repositories.credentials.bangumiAccessToken } }
     val bangumiMetadataRefreshCore = remember(bangumiScraper, repositories) {
@@ -1367,7 +1369,13 @@ internal fun MiruPlayDesktopComposeApp(
                             rootPath = root.toString(),
                             isConnected = true,
                         )
-                        when (val result = openDesktopSource(repositories.mediaSources, sourceInfo)) {
+                        when (
+                            val result = openDesktopSource(
+                                repository = repositories.mediaSources,
+                                mediaSourceFactory = desktopMediaSourceFactory,
+                                sourceInfo = sourceInfo,
+                            )
+                        ) {
                             is Result.Success -> {
                                 activeSourceId = result.data.sourceInfo.id
                                 activeSource = result.data.source
@@ -1520,7 +1528,13 @@ internal fun MiruPlayDesktopComposeApp(
                             password = webDavPassword,
                             isConnected = true,
                         )
-                        when (val result = openDesktopSource(repositories.mediaSources, sourceInfo)) {
+                        when (
+                            val result = openDesktopSource(
+                                repository = repositories.mediaSources,
+                                mediaSourceFactory = desktopMediaSourceFactory,
+                                sourceInfo = sourceInfo,
+                            )
+                        ) {
                             is Result.Success -> {
                                 activeSourceId = result.data.sourceInfo.id
                                 activeSource = result.data.source
@@ -1551,7 +1565,13 @@ internal fun MiruPlayDesktopComposeApp(
                             password = smbPassword,
                             isConnected = true,
                         )
-                        when (val result = openDesktopSource(repositories.mediaSources, sourceInfo)) {
+                        when (
+                            val result = openDesktopSource(
+                                repository = repositories.mediaSources,
+                                mediaSourceFactory = desktopMediaSourceFactory,
+                                sourceInfo = sourceInfo,
+                            )
+                        ) {
                             is Result.Success -> {
                                 activeSourceId = result.data.sourceInfo.id
                                 activeSource = result.data.source
