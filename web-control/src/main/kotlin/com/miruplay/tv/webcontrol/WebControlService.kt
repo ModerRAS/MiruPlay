@@ -18,6 +18,7 @@ import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.cloudDriveDirectoryDisplayPath
 import com.miruplay.tv.model.cloudDriveDirectoryItems
 import com.miruplay.tv.model.cloudDriveDirectoryParentPath
+import com.miruplay.tv.model.connectionPasswordOrNull
 import com.miruplay.tv.model.normalizeCloudDriveDirectoryPath
 import com.miruplay.tv.model.scopedCloudDriveDirectoryPath
 import com.miruplay.tv.player.PlaybackController
@@ -99,9 +100,12 @@ class WebControlService @Inject constructor(
 
     override suspend fun updateSource(sourceId: Long, request: SourceRequest): MediaSourceInfo {
         val existing = requireSuccess(mediaRepository.getSourceById(sourceId), "媒体源不存在")
-        val currentPassword = existing.connectionInfo["password"]
-        val source = request.toMediaSourceInfo(sourceId, currentPassword)
-            .copy(isConnected = existing.isConnected, lastScanned = existing.lastScanned)
+        val source = request.toMediaSourceInfo(
+            sourceId = sourceId,
+            fallbackPassword = existing.connectionPasswordOrNull(),
+            isConnected = existing.isConnected,
+            lastScanned = existing.lastScanned,
+        )
         requireSuccess(mediaRepository.updateSource(source), "更新媒体源失败")
         return source.safeForApi()
     }
@@ -482,67 +486,6 @@ class WebControlService @Inject constructor(
                 URLEncoder.encode(segment, Charsets.UTF_8.name()).replace("+", "%20")
             }
     }
-
-    private fun SourceRequest.toMediaSourceInfo(
-        sourceId: Long = id,
-        fallbackPassword: String? = null
-    ): MediaSourceInfo {
-        val sourceType = parseSourceType(type)
-        val trimmedLocation = location.trim()
-        return MediaSourceInfo(
-            id = sourceId,
-            name = name.trim().ifBlank { sourceType.defaultName() },
-            type = sourceType,
-            connectionInfo = buildMap {
-                put("url", trimmedLocation)
-                if (sourceType == MediaSourceType.LOCAL) {
-                    put("path", trimmedLocation)
-                    requestDisplayName()?.let { put("displayName", it) }
-                }
-                username?.trim()?.takeIf { it.isNotBlank() }?.let { put("username", it) }
-                val newPassword = password?.takeIf { it.isNotBlank() }
-                when {
-                    newPassword != null -> put("password", newPassword)
-                    fallbackPassword != null -> put("password", fallbackPassword)
-                }
-            }
-        )
-    }
-
-    private fun SourceTestRequest.toMediaSourceInfo(): MediaSourceInfo {
-        val sourceType = parseSourceType(type)
-        val trimmedLocation = location.trim()
-        return MediaSourceInfo(
-            name = "test",
-            type = sourceType,
-            connectionInfo = buildMap {
-                put("url", trimmedLocation)
-                if (sourceType == MediaSourceType.LOCAL) {
-                    put("path", trimmedLocation)
-                    requestDisplayName()?.let { put("displayName", it) }
-                }
-                username?.trim()?.takeIf { it.isNotBlank() }?.let { put("username", it) }
-                password?.takeIf { it.isNotBlank() }?.let { put("password", it) }
-            }
-        )
-    }
-
-    private fun parseSourceType(type: String): MediaSourceType {
-        return runCatching { MediaSourceType.valueOf(type.uppercase()) }
-            .getOrElse { throw IllegalArgumentException("不支持的媒体源类型: $type") }
-    }
-
-    private fun MediaSourceType.defaultName(): String = when (this) {
-        MediaSourceType.LOCAL -> "本地媒体库"
-        MediaSourceType.WEBDAV -> "WebDAV 媒体库"
-        MediaSourceType.SMB -> "SMB 共享"
-    }
-
-    private fun SourceRequest.requestDisplayName(): String? =
-        displayName?.trim()?.takeIf { it.isNotBlank() }
-
-    private fun SourceTestRequest.requestDisplayName(): String? =
-        displayName?.trim()?.takeIf { it.isNotBlank() }
 
     private fun findLocalIps(): List<String> {
         return NetworkInterface.getNetworkInterfaces().toList()

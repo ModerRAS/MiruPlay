@@ -4,6 +4,7 @@ import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
+import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.RssSubscriptionInfo
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
@@ -225,6 +226,6 @@ data class WebPlaybackSource(
 
 fun MediaSourceInfo.safeForApi(): MediaSourceInfo = copy(
     connectionInfo = connectionInfo.filterKeys { key ->
-        !key.equals("password", ignoreCase = true)
+        !key.equals(MediaSourceInfoConventions.CONNECTION_PASSWORD, ignoreCase = true)
     },
 )

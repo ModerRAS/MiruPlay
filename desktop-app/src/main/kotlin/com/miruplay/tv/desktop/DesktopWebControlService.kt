@@ -10,8 +10,8 @@ import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.MediaSourceInfo
-import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.connectionPasswordOrNull
 import com.miruplay.tv.model.completeStatus
 import com.miruplay.tv.model.remoteUrl
 import com.miruplay.tv.model.sortedForPlaybackQueue
@@ -55,7 +55,9 @@ import com.miruplay.tv.webcontrol.relativeSeekDeltaMs
 import com.miruplay.tv.webcontrol.safeForApi
 import com.miruplay.tv.webcontrol.skipBackwardDeltaMs
 import com.miruplay.tv.webcontrol.skipForwardDeltaMs
+import com.miruplay.tv.webcontrol.toMediaSourceInfo
 import com.miruplay.tv.webcontrol.toWebControlLibrary
+import com.miruplay.tv.webcontrol.webControlDefaultSourceName
 import kotlinx.coroutines.flow.first
 import java.io.File
 import java.net.Inet4Address
@@ -178,8 +180,10 @@ internal class DesktopWebControlService(
         val existing = requireSuccess(repositories.mediaSources.getSourceById(sourceId), "媒体源不存在")
         val source = request.toMediaSourceInfo(
             sourceId = sourceId,
-            fallbackPassword = existing.connectionInfo[MediaSourceInfoConventions.CONNECTION_PASSWORD],
-        ).copy(isConnected = existing.isConnected, lastScanned = existing.lastScanned)
+            fallbackPassword = existing.connectionPasswordOrNull(),
+            isConnected = existing.isConnected,
+            lastScanned = existing.lastScanned,
+        )
         requireSuccess(repositories.mediaSources.updateSource(source), "更新媒体源失败")
         return source.safeForApi()
     }
@@ -455,7 +459,7 @@ internal class DesktopWebControlService(
     private fun DesktopSourceScanResult.toSourceScanResponse(source: MediaSourceInfo): SourceScanResponse =
         SourceScanResponse(
             sourceId = sourceId,
-            animeName = source.name.ifBlank { source.type.defaultName() },
+            animeName = source.name.ifBlank { source.type.webControlDefaultSourceName() },
             episodesFound = videoEntries.size,
             newEpisodes = videoEntries.size,
             updatedEpisodes = 0,
@@ -476,52 +480,6 @@ internal class DesktopWebControlService(
             source?.type == MediaSourceType.WEBDAV -> MediaPathConventions.joinRemoteUrl(source.remoteUrl().orEmpty(), path)
             else -> path
         }
-
-    private fun SourceRequest.toMediaSourceInfo(
-        sourceId: Long = id,
-        fallbackPassword: String? = null,
-    ): MediaSourceInfo {
-        val sourceType = parseSourceType(type)
-        val trimmedLocation = location.trim()
-        return MediaSourceInfo(
-            id = sourceId,
-            name = name.trim().ifBlank { sourceType.defaultName() },
-            type = sourceType,
-            connectionInfo = MediaSourceInfoConventions.sourceConnectionInfo(
-                type = sourceType,
-                location = trimmedLocation,
-                displayName = displayName.orEmpty(),
-                username = username.orEmpty(),
-                password = password?.takeIf { it.isNotBlank() } ?: fallbackPassword.orEmpty(),
-            ),
-            isConnected = sourceType == MediaSourceType.LOCAL,
-        )
-    }
-
-    private fun SourceTestRequest.toMediaSourceInfo(): MediaSourceInfo {
-        val sourceType = parseSourceType(type)
-        return MediaSourceInfo(
-            name = "test",
-            type = sourceType,
-            connectionInfo = MediaSourceInfoConventions.sourceConnectionInfo(
-                type = sourceType,
-                location = location.trim(),
-                displayName = displayName.orEmpty(),
-                username = username.orEmpty(),
-                password = password.orEmpty(),
-            ),
-        )
-    }
-
-    private fun parseSourceType(type: String): MediaSourceType =
-        runCatching { MediaSourceType.valueOf(type.uppercase()) }
-            .getOrElse { throw IllegalArgumentException("不支持的媒体源类型: $type") }
-
-    private fun MediaSourceType.defaultName(): String = when (this) {
-        MediaSourceType.LOCAL -> "本地媒体库"
-        MediaSourceType.WEBDAV -> "WebDAV 媒体库"
-        MediaSourceType.SMB -> "SMB 共享"
-    }
 
     private fun findLocalIps(): List<String> =
         NetworkInterface.getNetworkInterfaces().toList()
