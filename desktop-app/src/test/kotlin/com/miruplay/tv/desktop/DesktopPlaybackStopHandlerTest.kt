@@ -1,73 +1,14 @@
 package com.miruplay.tv.desktop
 
 import com.miruplay.tv.core.common.Result
-import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.PlaybackProgressSession
 import com.miruplay.tv.model.PlaybackSource
-import com.miruplay.tv.model.ProgressRecord
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class DesktopPlaybackStopHandlerTest {
-    @Test
-    fun `desktop next playback source uses shared episode ordering and resume rules`() = runBlocking {
-        val episodes = listOf(
-            episode(id = "ep2", number = 2, duration = 100_000L),
-            episode(id = "ep1", number = 1, duration = 100_000L),
-        )
-
-        val target = desktopNextPlaybackSource(
-            currentEpisodeId = "ep1",
-            episodes = episodes,
-            nextProgress = ProgressRecord(
-                episodeId = "ep2",
-                positionMs = 30_000L,
-                lastWatched = 1L,
-            ),
-        )
-
-        assertEquals(
-            PlaybackSource(
-                uri = "D:/Anime/ep2.mkv",
-                mediaSourceId = "anime",
-                startPosition = 30_000L,
-                episodeId = "ep2",
-            ),
-            target,
-        )
-    }
-
-    @Test
-    fun `desktop next playback source clears start position for completed episode`() = runBlocking {
-        val episodes = listOf(
-            episode(id = "ep1", number = 1, duration = 100_000L),
-            episode(id = "ep2", number = 2, duration = 100_000L),
-        )
-
-        val target = desktopNextPlaybackSource(
-            currentEpisodeId = "ep1",
-            episodes = episodes,
-            nextProgress = ProgressRecord(
-                episodeId = "ep2",
-                positionMs = 95_000L,
-                lastWatched = 1L,
-                playCount = 1,
-            ),
-        )
-
-        assertEquals(
-            PlaybackSource(
-                uri = "D:/Anime/ep2.mkv",
-                mediaSourceId = "anime",
-                startPosition = 0L,
-                episodeId = "ep2",
-            ),
-            target,
-        )
-    }
-
     @Test
     fun `playback start saves resume position without incrementing play count`() = runBlocking {
         val session = PlaybackProgressSession(
@@ -199,17 +140,4 @@ class DesktopPlaybackStopHandlerTest {
         val incrementPlayCount: Boolean,
     )
 
-    private fun episode(
-        id: String,
-        number: Int,
-        duration: Long,
-    ): Episode =
-        Episode(
-            id = id,
-            animeId = "anime",
-            episodeNumber = number,
-            filePath = "D:/Anime/$id.mkv",
-            fileName = "$id.mkv",
-            duration = duration,
-        )
 }

@@ -12,11 +12,10 @@ import com.miruplay.tv.player.PlaybackController
 import com.miruplay.tv.model.SubtitleTrack
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
+import com.miruplay.tv.repository.NextPlaybackSourceResolver
 import com.miruplay.tv.repository.PlaybackPreferencesRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
-import com.miruplay.tv.repository.resolvePlayableUri
 import com.miruplay.tv.repository.savePlaybackProgressSnapshot
-import com.miruplay.tv.repository.buildNextPlaybackSource as buildSharedNextPlaybackSource
 import com.miruplay.tv.sync.BangumiSyncEngine
 import androidx.media3.common.Player
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -79,6 +78,11 @@ class PlayerViewModel @Inject constructor(
     private var finishObserverJob: Job? = null
     private var activeSource: PlaybackSource? = null
     private var pendingSeekPositionMs: Long? = null
+    private val nextPlaybackSourceResolver = NextPlaybackSourceResolver(
+        metadata = metadataRepository,
+        progress = progressRepository,
+        mediaSources = mediaRepository,
+    )
 
     fun play(source: PlaybackSource) {
         viewModelScope.launch {
@@ -297,19 +301,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     private suspend fun buildNextPlaybackSource(source: PlaybackSource): PlaybackSource? {
-        return buildSharedNextPlaybackSource(
-            currentSource = source,
-            loadCurrentEpisode = { episodeId -> metadataRepository.getCachedEpisode(episodeId).getOrNull() },
-            loadEpisodes = { animeId -> metadataRepository.getCachedEpisodes(animeId).getOrNull().orEmpty() },
-            loadProgress = { episodeId -> progressRepository.getProgress(episodeId).getOrNull() },
-            resolvePlayableUri = { episode ->
-                resolvePlayableUri(
-                    path = episode.filePath,
-                    episodeId = episode.id,
-                    mediaRepository = mediaRepository
-                )
-            },
-        )
+        return nextPlaybackSourceResolver.build(source)
     }
 
     private fun extractEpisodeId(uri: String): String {

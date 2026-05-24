@@ -1,24 +1,9 @@
 package com.miruplay.tv.desktop
 
 import com.miruplay.tv.core.common.Result
-import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.PlaybackProgressSession
 import com.miruplay.tv.model.PlaybackSource
-import com.miruplay.tv.model.ProgressRecord
-import com.miruplay.tv.repository.buildNextPlaybackSource
 import com.miruplay.tv.repository.savePlaybackProgressSnapshot
-
-internal suspend fun desktopNextPlaybackSource(
-    currentEpisodeId: String,
-    episodes: List<Episode>,
-    nextProgress: ProgressRecord?,
-): PlaybackSource? =
-    buildNextPlaybackSource(
-        currentEpisodeId = currentEpisodeId,
-        loadCurrentEpisode = { id -> episodes.firstOrNull { it.id == id } },
-        loadEpisodes = { animeId -> episodes.filter { it.animeId == animeId } },
-        loadProgress = { nextProgress },
-    )
 
 internal suspend fun saveDesktopPlaybackStartProgress(
     session: PlaybackProgressSession,

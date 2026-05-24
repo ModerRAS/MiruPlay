@@ -6,6 +6,31 @@ import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.nextEpisodeAfter
 import com.miruplay.tv.model.toPlaybackSource
 
+class NextPlaybackSourceResolver(
+    private val metadata: MetadataRepository,
+    private val progress: PlaybackProgressRepository,
+    private val mediaSources: MediaSourceRepository,
+    private val playbackUriForEpisode: suspend (Episode) -> String = { episode ->
+        resolvePlayableUri(
+            path = episode.filePath,
+            episodeId = episode.id,
+            mediaRepository = mediaSources,
+        )
+    },
+) {
+    suspend fun build(currentSource: PlaybackSource): PlaybackSource? =
+        build(currentSource.episodeId)
+
+    suspend fun build(currentEpisodeId: String?): PlaybackSource? =
+        buildNextPlaybackSource(
+            currentEpisodeId = currentEpisodeId,
+            loadCurrentEpisode = { episodeId -> metadata.getCachedEpisode(episodeId).getOrNull() },
+            loadEpisodes = { animeId -> metadata.getCachedEpisodes(animeId).getOrNull().orEmpty() },
+            loadProgress = { episodeId -> progress.getProgress(episodeId).getOrNull() },
+            resolvePlayableUri = playbackUriForEpisode,
+        )
+}
+
 suspend fun buildNextPlaybackSource(
     currentEpisodeId: String?,
     loadCurrentEpisode: suspend (String) -> Episode?,

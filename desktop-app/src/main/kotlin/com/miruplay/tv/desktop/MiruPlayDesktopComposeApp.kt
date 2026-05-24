@@ -120,13 +120,13 @@ import com.miruplay.tv.repository.MediaSourceActionCoordinator
 import com.miruplay.tv.repository.MetadataBatchMatch
 import com.miruplay.tv.repository.MetadataBatchPlanner
 import com.miruplay.tv.repository.MetadataBatchPlan
+import com.miruplay.tv.repository.NextPlaybackSourceResolver
 import com.miruplay.tv.repository.ScanPreferenceActionSnapshot
 import com.miruplay.tv.repository.SettingsPreferenceActionCoordinator
 import com.miruplay.tv.repository.WebControlAccessActionCoordinator
 import com.miruplay.tv.repository.WebControlAccessSnapshot
 import com.miruplay.tv.repository.appliedStatus
 import com.miruplay.tv.repository.applyMetadataBatchPlan
-import com.miruplay.tv.repository.buildNextPlaybackSource
 import com.miruplay.tv.repository.clearExternalMetadata
 import com.miruplay.tv.repository.displayName
 import com.miruplay.tv.repository.desktop.DesktopRepositories
@@ -572,6 +572,14 @@ internal fun MiruPlayDesktopComposeApp(
             mergeSameAnimeEnabled = { repositories.scanPreferences.getPreferences().mergeSameAnimeEnabled },
         )
     }
+    val nextPlaybackSourceResolver = remember(repositories) {
+        NextPlaybackSourceResolver(
+            metadata = repositories.metadata,
+            progress = repositories.progress,
+            mediaSources = repositories.mediaSources,
+            playbackUriForEpisode = { episode -> episode.filePath },
+        )
+    }
     val commandPreview by remember(
         mpvPath,
         configDir,
@@ -1000,12 +1008,7 @@ internal fun MiruPlayDesktopComposeApp(
     }
 
     suspend fun nextDesktopPlaybackSource(currentEpisodeId: String): PlaybackSource? {
-        return buildNextPlaybackSource(
-            currentEpisodeId = currentEpisodeId,
-            loadCurrentEpisode = { episodeId -> repositories.metadata.getCachedEpisode(episodeId).getOrNull() },
-            loadEpisodes = { animeId -> repositories.metadata.getCachedEpisodes(animeId).getOrNull().orEmpty() },
-            loadProgress = { episodeId -> repositories.progress.getProgress(episodeId).getOrNull() },
-        )
+        return nextPlaybackSourceResolver.build(currentEpisodeId)
     }
 
     LaunchedEffect(player, activePlaybackSession) {
