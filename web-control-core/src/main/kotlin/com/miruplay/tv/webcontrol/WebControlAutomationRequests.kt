@@ -34,6 +34,16 @@ fun RssSubscriptionRequest.toSubscription(existingLastCheckedAt: Long = 0L): Rss
 fun RssSubscriptionInfo.withSavedId(savedId: Long): RssSubscriptionInfo =
     copy(id = if (id > 0L) id else savedId)
 
+fun CloudDriveAutomationConfig.toWebControlAutomationDto(
+    subscriptions: List<RssSubscriptionInfo>,
+    tokenConfigured: Boolean,
+): CloudDriveAutomationDto =
+    CloudDriveAutomationDto(
+        config = this,
+        subscriptions = subscriptions,
+        tokenConfigured = tokenConfigured,
+    )
+
 fun CloudDriveLoginRequest.validated(): CloudDriveLoginRequest {
     val endpoint = endpointUrl.trim()
     val user = username.trim()

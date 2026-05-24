@@ -93,6 +93,30 @@ class WebControlAutomationRequestsTest {
     }
 
     @Test
+    fun `automation config maps to WebUI dto`() {
+        val config = CloudDriveAutomationConfig(
+            endpointUrl = "https://cloud.example.test",
+            username = "miru",
+        )
+        val subscriptions = listOf(
+            RssSubscriptionInfo(
+                id = 7L,
+                name = "Season",
+                url = "https://rss.example.test/feed.xml",
+            ),
+        )
+
+        val dto = config.toWebControlAutomationDto(
+            subscriptions = subscriptions,
+            tokenConfigured = true,
+        )
+
+        assertEquals(config, dto.config)
+        assertEquals(subscriptions, dto.subscriptions)
+        assertEquals(true, dto.tokenConfigured)
+    }
+
+    @Test
     fun `login request validates and trims endpoint and username`() {
         val request = CloudDriveLoginRequest(
             endpointUrl = " https://cloud.example.test ",

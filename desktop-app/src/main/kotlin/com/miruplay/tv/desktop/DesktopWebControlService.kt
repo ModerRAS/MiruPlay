@@ -56,6 +56,7 @@ import com.miruplay.tv.webcontrol.skipForwardDeltaMs
 import com.miruplay.tv.webcontrol.toAutomationConfig
 import com.miruplay.tv.webcontrol.toMediaSourceInfo
 import com.miruplay.tv.webcontrol.toSubscription
+import com.miruplay.tv.webcontrol.toWebControlAutomationDto
 import com.miruplay.tv.webcontrol.toWebControlContinueWatching
 import com.miruplay.tv.webcontrol.toWebControlResponse
 import com.miruplay.tv.webcontrol.toWebControlDirectoryDto
@@ -199,8 +200,7 @@ internal class DesktopWebControlService(
 
     override suspend fun getCloudDriveAutomation(): CloudDriveAutomationDto {
         val config = repositories.cloudDriveAutomation.getConfig().getOrNull() ?: CloudDriveAutomationConfig()
-        return CloudDriveAutomationDto(
-            config = config,
+        return config.toWebControlAutomationDto(
             subscriptions = repositories.cloudDriveAutomation.observeSubscriptions().first(),
             tokenConfigured = !repositories.credentials.cloudDriveToken.isNullOrBlank(),
         )

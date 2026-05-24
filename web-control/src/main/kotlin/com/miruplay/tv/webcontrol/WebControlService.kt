@@ -132,10 +132,9 @@ class WebControlService @Inject constructor(
 
     override suspend fun getCloudDriveAutomation(): CloudDriveAutomationDto {
         val config = requireWebControlSuccess(cloudDriveRepository.getConfig(), "读取 CloudDrive 设置失败")
-        return CloudDriveAutomationDto(
-            config = config,
+        return config.toWebControlAutomationDto(
             subscriptions = cloudDriveRepository.observeSubscriptions().first(),
-            tokenConfigured = !securePreferences.cloudDriveToken.isNullOrBlank()
+            tokenConfigured = !securePreferences.cloudDriveToken.isNullOrBlank(),
         )
     }
 
