@@ -3,8 +3,17 @@ package com.miruplay.tv.sync.rss
 import com.miruplay.tv.clouddrive.CloudDriveTokenInfo
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.CloudDriveAutomationConfig
+import com.miruplay.tv.model.CloudDriveApiTokenFormResult
+import com.miruplay.tv.model.CloudDriveLoginFormResult
 import com.miruplay.tv.model.CloudDriveRssRunSummary
 import com.miruplay.tv.model.RssSubscriptionInfo
+import com.miruplay.tv.model.cloudDriveApiTokenRequiredStatus
+import com.miruplay.tv.model.cloudDriveLoginStartedStatus
+import com.miruplay.tv.model.cloudDriveLoginSucceededStatus
+import com.miruplay.tv.model.cloudDriveTokenValidationStartedStatus
+import com.miruplay.tv.model.cloudDriveTokenVerifiedStatus
+import com.miruplay.tv.model.validateCloudDriveApiTokenForm
+import com.miruplay.tv.model.validateCloudDriveLoginForm
 import com.miruplay.tv.model.withAutomationFormValues
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.CloudDriveCredentialStore
@@ -13,6 +22,12 @@ interface CloudDriveRssAutomationRunner {
     suspend fun login(endpointUrl: String, username: String, password: String): Result<Unit>
     suspend fun saveApiToken(endpointUrl: String, token: String): Result<CloudDriveTokenInfo>
     suspend fun runOnce(): Result<CloudDriveRssRunSummary>
+}
+
+sealed class CloudDriveActionResult {
+    data class Invalid(val status: String) : CloudDriveActionResult()
+    data class Success(val status: String, val token: String? = null) : CloudDriveActionResult()
+    data class Failed(val status: String) : CloudDriveActionResult()
 }
 
 class CloudDriveRssActionCoordinator(
@@ -68,6 +83,61 @@ class CloudDriveRssActionCoordinator(
 
     suspend fun verifyApiToken(endpointUrl: String, token: String): Result<CloudDriveTokenInfo> =
         runner.saveApiToken(endpointUrl, token)
+
+    suspend fun loginCloudDrive(
+        endpointUrl: String,
+        username: String,
+        password: String,
+        onStarted: (String) -> Unit = {},
+    ): CloudDriveActionResult {
+        val form = when (val validation = validateCloudDriveLoginForm(endpointUrl, username, password)) {
+            is CloudDriveLoginFormResult.Ready -> validation.request
+            is CloudDriveLoginFormResult.Invalid -> {
+                return CloudDriveActionResult.Invalid(validation.status)
+            }
+        }
+
+        onStarted(cloudDriveLoginStartedStatus())
+        return when (val result = login(form.endpointUrl, form.username, form.password)) {
+            is Result.Success -> CloudDriveActionResult.Success(
+                status = cloudDriveLoginSucceededStatus(),
+                token = credentials.cloudDriveToken,
+            )
+            is Result.Error -> CloudDriveActionResult.Failed(result.error.toUserMessage())
+        }
+    }
+
+    suspend fun verifyCloudDriveApiToken(
+        endpointUrl: String,
+        token: String,
+        blankTokenStatus: String = cloudDriveApiTokenRequiredStatus(),
+        onStarted: (String) -> Unit = {},
+    ): CloudDriveActionResult {
+        val form = when (
+            val validation = validateCloudDriveApiTokenForm(
+                endpointUrl = endpointUrl,
+                token = token,
+                blankTokenStatus = blankTokenStatus,
+            )
+        ) {
+            is CloudDriveApiTokenFormResult.Ready -> validation.request
+            is CloudDriveApiTokenFormResult.Invalid -> {
+                return CloudDriveActionResult.Invalid(validation.status)
+            }
+        }
+
+        onStarted(cloudDriveTokenValidationStartedStatus())
+        return when (val result = verifyApiToken(form.endpointUrl, form.token)) {
+            is Result.Success -> CloudDriveActionResult.Success(
+                status = cloudDriveTokenVerifiedStatus(
+                    friendlyName = result.data.friendlyName,
+                    rootDir = result.data.rootDir,
+                ),
+                token = form.token,
+            )
+            is Result.Error -> CloudDriveActionResult.Failed(result.error.toUserMessage())
+        }
+    }
 
     suspend fun runOnce(): Result<CloudDriveRssRunSummary> =
         runner.runOnce()

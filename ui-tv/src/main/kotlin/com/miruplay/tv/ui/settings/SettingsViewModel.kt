@@ -14,12 +14,8 @@ import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.RssSubscriptionInfo
-import com.miruplay.tv.model.CloudDriveApiTokenFormResult
-import com.miruplay.tv.model.CloudDriveLoginFormResult
 import com.miruplay.tv.model.RssSubscriptionFormResult
-import com.miruplay.tv.model.cloudDriveLoginSucceededStatus
 import com.miruplay.tv.model.connectionPassword
-import com.miruplay.tv.model.cloudDriveTokenVerifiedStatus
 import com.miruplay.tv.model.cloudRssConfigSavedStatus
 import com.miruplay.tv.model.completeStatus
 import com.miruplay.tv.model.prepareRssSubscriptionForm
@@ -34,6 +30,7 @@ import com.miruplay.tv.repository.WebControlAccessManager
 import com.miruplay.tv.repository.toScanIntervalHours
 import com.miruplay.tv.repository.toScanIntervalMillis
 import com.miruplay.tv.sync.rss.CloudDriveRssAutomationEngine
+import com.miruplay.tv.sync.rss.CloudDriveActionResult
 import com.miruplay.tv.sync.rss.CloudDriveRssActionCoordinator
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryBrowserCoordinator
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryBrowserState
@@ -42,8 +39,6 @@ import com.miruplay.tv.sync.rss.CloudDriveDirectoryOpenResult
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryTarget
 import com.miruplay.tv.model.rssSubscriptionDeletedStatus
 import com.miruplay.tv.model.rssSubscriptionSavedStatus
-import com.miruplay.tv.model.validateCloudDriveApiTokenForm
-import com.miruplay.tv.model.validateCloudDriveLoginForm
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -289,48 +284,39 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun loginCloudDrive(endpointUrl: String, username: String, password: String) {
-        val form = when (val result = validateCloudDriveLoginForm(endpointUrl, username, password)) {
-            is CloudDriveLoginFormResult.Ready -> result.request
-            is CloudDriveLoginFormResult.Invalid -> {
-                _cloudDriveActionMessage.value = result.status
-                return
-            }
-        }
         viewModelScope.launch {
             _cloudDriveBusy.value = true
-            cloudDriveActions.login(form.endpointUrl, form.username, form.password)
-                .onSuccess {
+            when (val result = cloudDriveActions.loginCloudDrive(endpointUrl, username, password)) {
+                is CloudDriveActionResult.Success -> {
                     _cloudDriveTokenConfigured.value = true
-                    _cloudDriveActionMessage.value = cloudDriveLoginSucceededStatus()
+                    _cloudDriveActionMessage.value = result.status
                 }
-                .onError { error ->
-                    _cloudDriveActionMessage.value = error.toUserMessage()
+                is CloudDriveActionResult.Invalid -> {
+                    _cloudDriveActionMessage.value = result.status
                 }
+                is CloudDriveActionResult.Failed -> {
+                    _cloudDriveActionMessage.value = result.status
+                }
+            }
             _cloudDriveBusy.value = false
         }
     }
 
     fun saveCloudDriveApiToken(endpointUrl: String, token: String) {
-        val form = when (val result = validateCloudDriveApiTokenForm(endpointUrl, token)) {
-            is CloudDriveApiTokenFormResult.Ready -> result.request
-            is CloudDriveApiTokenFormResult.Invalid -> {
-                _cloudDriveActionMessage.value = result.status
-                return
-            }
-        }
         viewModelScope.launch {
             _cloudDriveBusy.value = true
-            cloudDriveActions.verifyApiToken(form.endpointUrl, form.token)
-                .onSuccess { info ->
+            when (val result = cloudDriveActions.verifyCloudDriveApiToken(endpointUrl, token)) {
+                is CloudDriveActionResult.Success -> {
                     _cloudDriveTokenConfigured.value = true
-                    _cloudDriveActionMessage.value = cloudDriveTokenVerifiedStatus(
-                        friendlyName = info.friendlyName,
-                        rootDir = info.rootDir,
-                    )
+                    _cloudDriveActionMessage.value = result.status
                 }
-                .onError { error ->
-                    _cloudDriveActionMessage.value = error.toUserMessage()
+                is CloudDriveActionResult.Invalid -> {
+                    _cloudDriveActionMessage.value = result.status
                 }
+                is CloudDriveActionResult.Failed -> {
+                    _cloudDriveActionMessage.value = result.status
+                }
+            }
             _cloudDriveBusy.value = false
         }
     }

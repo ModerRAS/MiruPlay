@@ -46,6 +46,15 @@ the coordinator with fake-client evidence, and the focused shared/desktop gate
 checkDesktopPresenterSeparation checkDesktopComposeOnly
 -PbundleMpvRuntime=false` passed in Gradle MCP build `b-131`, and Android
 debug assemble `:app:assembleDebug -PbundleMpvRuntime=false` passed in `b-132`.
+Latest Cloud/RSS credential-action sharing update: `CloudDriveRssActionCoordinator`
+now also returns `CloudDriveActionResult` for CloudDrive login and API-token
+verification, so Android TV Settings and Windows Settings share the same form
+validation, success/failure status mapping, and normalized token handoff while
+platform code keeps only busy indicators and text-field/UI state. The focused
+shared/desktop gate `:sync-engine-shared:test :ui-tv:compileDebugKotlin
+:desktop-app:test checkDesktopPresenterSeparation checkDesktopComposeOnly
+-PbundleMpvRuntime=false` passed in Gradle MCP build `b-136`, and Android
+debug assemble `:app:assembleDebug -PbundleMpvRuntime=false` passed in `b-137`.
 
 Latest local shared-input update: `:ui-design` now owns `MiruPlayInputIntent`
 for platform-neutral activation, Back/navigation-back, direction, and media

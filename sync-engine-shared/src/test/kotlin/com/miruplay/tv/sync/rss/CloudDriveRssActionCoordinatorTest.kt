@@ -9,6 +9,13 @@ import com.miruplay.tv.model.MIN_CLOUD_DRIVE_INTERVAL_MINUTES
 import com.miruplay.tv.model.RssDownloadTaskInfo
 import com.miruplay.tv.model.RssProcessedItemInfo
 import com.miruplay.tv.model.RssSubscriptionInfo
+import com.miruplay.tv.model.cloudDriveApiTokenRequiredStatus
+import com.miruplay.tv.model.cloudDriveEndpointRequiredStatus
+import com.miruplay.tv.model.cloudDriveLoginRequiredStatus
+import com.miruplay.tv.model.cloudDriveLoginStartedStatus
+import com.miruplay.tv.model.cloudDriveLoginSucceededStatus
+import com.miruplay.tv.model.cloudDriveTokenValidationStartedStatus
+import com.miruplay.tv.model.cloudDriveTokenVerifiedStatus
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.CloudDriveCredentialStore
 import kotlinx.coroutines.flow.Flow
@@ -112,6 +119,129 @@ class CloudDriveRssActionCoordinatorTest {
     }
 
     @Test
+    fun `login action validates form before delegating`() = runBlocking {
+        val runner = FakeCloudDriveRssAutomationRunner()
+        val coordinator = coordinator(runner = runner)
+
+        val result = coordinator.loginCloudDrive(
+            endpointUrl = "https://cloud.example.test",
+            username = " ",
+            password = "secret",
+            onStarted = { throw AssertionError("Invalid login form must not start runner") },
+        )
+
+        assertEquals(CloudDriveActionResult.Invalid(cloudDriveLoginRequiredStatus()), result)
+        assertEquals(emptyList<String>(), runner.loginCalls)
+    }
+
+    @Test
+    fun `login action trims form values and returns saved token`() = runBlocking {
+        val credentials = FakeCloudDriveCredentialStore(token = "login-token")
+        val runner = FakeCloudDriveRssAutomationRunner()
+        val coordinator = coordinator(credentials = credentials, runner = runner)
+
+        var startedStatus = ""
+
+        val result = coordinator.loginCloudDrive(
+            endpointUrl = " https://cloud.example.test ",
+            username = " miru ",
+            password = "secret",
+            onStarted = { status -> startedStatus = status },
+        )
+
+        assertEquals(CloudDriveActionResult.Success(cloudDriveLoginSucceededStatus(), token = "login-token"), result)
+        assertEquals(cloudDriveLoginStartedStatus(), startedStatus)
+        assertEquals(listOf("https://cloud.example.test|miru|secret"), runner.loginCalls)
+    }
+
+    @Test
+    fun `login action maps runner failures to user status`() = runBlocking {
+        val error = AppError.MediaSourceError.AuthenticationFailed("CloudDrive2")
+        val coordinator = coordinator(
+            runner = FakeCloudDriveRssAutomationRunner(loginResult = Result.failure(error)),
+        )
+
+        val result = coordinator.loginCloudDrive(
+            endpointUrl = "https://cloud.example.test",
+            username = "miru",
+            password = "secret",
+        )
+
+        assertEquals(CloudDriveActionResult.Failed(error.toUserMessage()), result)
+    }
+
+    @Test
+    fun `api token action validates form before delegating`() = runBlocking {
+        val runner = FakeCloudDriveRssAutomationRunner()
+        val coordinator = coordinator(runner = runner)
+
+        val blankToken = coordinator.verifyCloudDriveApiToken(
+            endpointUrl = "https://cloud.example.test",
+            token = " ",
+            onStarted = { throw AssertionError("Invalid token form must not start runner") },
+        )
+        val blankEndpoint = coordinator.verifyCloudDriveApiToken(
+            endpointUrl = " ",
+            token = "api-token",
+            onStarted = { throw AssertionError("Invalid endpoint form must not start runner") },
+        )
+
+        assertEquals(CloudDriveActionResult.Invalid(cloudDriveApiTokenRequiredStatus()), blankToken)
+        assertEquals(CloudDriveActionResult.Invalid(cloudDriveEndpointRequiredStatus()), blankEndpoint)
+        assertEquals(emptyList<String>(), runner.tokenCalls)
+    }
+
+    @Test
+    fun `api token action trims token and returns verified status`() = runBlocking {
+        val runner = FakeCloudDriveRssAutomationRunner(
+            tokenInfo = CloudDriveTokenInfo(
+                rootDir = "/Anime",
+                friendlyName = "Miru",
+                allowList = true,
+                allowCreateFolder = false,
+                allowCreateFile = false,
+                allowWrite = false,
+                allowMove = false,
+                allowAddOfflineDownload = false,
+            ),
+        )
+        val coordinator = coordinator(runner = runner)
+
+        var startedStatus = ""
+
+        val result = coordinator.verifyCloudDriveApiToken(
+            endpointUrl = " https://cloud.example.test ",
+            token = " api-token ",
+            onStarted = { status -> startedStatus = status },
+        )
+
+        assertEquals(
+            CloudDriveActionResult.Success(
+                status = cloudDriveTokenVerifiedStatus(friendlyName = "Miru", rootDir = "/Anime"),
+                token = "api-token",
+            ),
+            result,
+        )
+        assertEquals(cloudDriveTokenValidationStartedStatus(), startedStatus)
+        assertEquals(listOf("https://cloud.example.test|api-token"), runner.tokenCalls)
+    }
+
+    @Test
+    fun `api token action maps runner failures to user status`() = runBlocking {
+        val error = AppError.MediaSourceError.Timeout("CloudDrive2")
+        val coordinator = coordinator(
+            runner = FakeCloudDriveRssAutomationRunner(tokenResult = Result.failure(error)),
+        )
+
+        val result = coordinator.verifyCloudDriveApiToken(
+            endpointUrl = "https://cloud.example.test",
+            token = "api-token",
+        )
+
+        assertEquals(CloudDriveActionResult.Failed(error.toUserMessage()), result)
+    }
+
+    @Test
     fun `subscription save and delete delegate to repository`() = runBlocking {
         val repository = FakeCloudDriveAutomationRepository()
         val coordinator = coordinator(repository = repository)
@@ -205,30 +335,32 @@ class CloudDriveRssActionCoordinatorTest {
         }
     }
 
-    private class FakeCloudDriveRssAutomationRunner : CloudDriveRssAutomationRunner {
+    private class FakeCloudDriveRssAutomationRunner(
+        private val loginResult: Result<Unit> = Result.success(Unit),
+        private val tokenResult: Result<CloudDriveTokenInfo>? = null,
+        private val tokenInfo: CloudDriveTokenInfo = CloudDriveTokenInfo(
+            rootDir = "/",
+            friendlyName = "Miru",
+            allowList = true,
+            allowCreateFolder = false,
+            allowCreateFile = false,
+            allowWrite = false,
+            allowMove = false,
+            allowAddOfflineDownload = false,
+        ),
+    ) : CloudDriveRssAutomationRunner {
         val loginCalls = mutableListOf<String>()
         val tokenCalls = mutableListOf<String>()
         var runCalls = 0
 
         override suspend fun login(endpointUrl: String, username: String, password: String): Result<Unit> {
             loginCalls += "$endpointUrl|$username|$password"
-            return Result.success(Unit)
+            return loginResult
         }
 
         override suspend fun saveApiToken(endpointUrl: String, token: String): Result<CloudDriveTokenInfo> {
             tokenCalls += "$endpointUrl|$token"
-            return Result.success(
-                CloudDriveTokenInfo(
-                    rootDir = "/",
-                    friendlyName = "Miru",
-                    allowList = true,
-                    allowCreateFolder = false,
-                    allowCreateFile = false,
-                    allowWrite = false,
-                    allowMove = false,
-                    allowAddOfflineDownload = false,
-                )
-            )
+            return tokenResult ?: Result.success(tokenInfo)
         }
 
         override suspend fun runOnce(): Result<CloudDriveRssRunSummary> {

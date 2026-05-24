@@ -101,6 +101,11 @@ status shaping. It also owns `CloudDriveDirectoryBrowserCoordinator`, so Android
 TV Settings and Windows Cloud/RSS Settings share directory-picker form
 validation, opening, loading, stale-result filtering, error propagation, and
 browsing-status orchestration instead of rebuilding that flow in each UI shell.
+`CloudDriveRssActionCoordinator` now also owns CloudDrive login and API-token
+verification form validation, status mapping, and normalized-token handoff
+through `CloudDriveActionResult`, leaving Android TV Settings and Windows
+Settings to mutate only busy flags and local UI state around the shared action
+result.
 `core:model` owns the Cloud/RSS form normalization helpers used
 by both Android TV Settings and Windows Cloud/RSS Settings for config trimming,
 interval/proxy-port bounds, RSS subscription fallback names, blank URL
@@ -240,6 +245,12 @@ contract. The focused shared picker gate `:sync-engine-shared:test
 checkDesktopComposeOnly -PbundleMpvRuntime=false` passed in Gradle MCP build
 `b-131`, and Android debug assemble `:app:assembleDebug
 -PbundleMpvRuntime=false` passed in `b-132`.
+CloudDrive login/API-token validation and status mapping now also flow through
+`CloudDriveActionResult`, and the focused shared credential-action gate
+`:sync-engine-shared:test :ui-tv:compileDebugKotlin :desktop-app:test
+checkDesktopPresenterSeparation checkDesktopComposeOnly
+-PbundleMpvRuntime=false` passed in Gradle MCP build `b-136`; Android debug
+assemble `:app:assembleDebug -PbundleMpvRuntime=false` passed in `b-137`.
 The generated local-source GUI smoke also captured
 `build/desktop-local-source-ui/run-20260520-162054/local-source-poster-keyboard.png`,
 proving the Library poster wall can move selection with keyboard input before

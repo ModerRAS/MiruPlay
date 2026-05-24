@@ -54,8 +54,6 @@ import com.miruplay.tv.mediasource.desktop.desktopSourceFromInfo
 import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.PLAYBACK_SEEK_BACK_SECONDS
 import com.miruplay.tv.model.PLAYBACK_SEEK_FORWARD_SECONDS
-import com.miruplay.tv.model.CloudDriveApiTokenFormResult
-import com.miruplay.tv.model.CloudDriveLoginFormResult
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaPathConventions
@@ -70,11 +68,6 @@ import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.cloudDriveCredentialsClearedStatus
 import com.miruplay.tv.model.cloudDriveCredentialsSavedStatus
 import com.miruplay.tv.model.cloudRssScheduledSyncCompleteStatus
-import com.miruplay.tv.model.cloudDriveTokenRequiredStatus
-import com.miruplay.tv.model.cloudDriveTokenValidationStartedStatus
-import com.miruplay.tv.model.cloudDriveTokenVerifiedStatus
-import com.miruplay.tv.model.cloudDriveLoginStartedStatus
-import com.miruplay.tv.model.cloudDriveLoginSucceededStatus
 import com.miruplay.tv.model.cloudRssConfigSavedStatus
 import com.miruplay.tv.model.cloudRssInitialStatus
 import com.miruplay.tv.model.cloudRssRescanStartedStatus
@@ -120,8 +113,6 @@ import com.miruplay.tv.model.saveBangumiTokenFormResult
 import com.miruplay.tv.model.sourcePickerTitle
 import com.miruplay.tv.model.settingsActiveSourceLabel
 import com.miruplay.tv.model.settingsLinkedSourceLabel
-import com.miruplay.tv.model.validateCloudDriveApiTokenForm
-import com.miruplay.tv.model.validateCloudDriveLoginForm
 import com.miruplay.tv.player.mpv.MpvProcessPlayer
 import com.miruplay.tv.player.mpv.MpvRuntimeDiscovery
 import com.miruplay.tv.player.mpv.RifeBackend
@@ -215,6 +206,7 @@ import com.miruplay.tv.scraper.desktop.DesktopBangumiScraper
 import com.miruplay.tv.sync.BangumiMetadataRefreshCore
 import com.miruplay.tv.sync.BangumiSyncCore
 import com.miruplay.tv.sync.bangumiMetadataCacheId
+import com.miruplay.tv.sync.rss.CloudDriveActionResult
 import com.miruplay.tv.sync.rss.CloudDriveRssActionCoordinator
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryBrowserCoordinator
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryBrowserState
@@ -2131,54 +2123,46 @@ internal fun MiruPlayDesktopComposeApp(
                 },
                 onLoginCloudDrive = {
                     scope.launch {
-                        val form = when (
-                            val validation = validateCloudDriveLoginForm(
+                        when (
+                            val result = cloudRssActions.loginCloudDrive(
                                 endpointUrl = cloudEndpointUrl,
                                 username = cloudUsername,
                                 password = cloudPassword,
+                                onStarted = { status -> cloudRssStatus = status },
                             )
                         ) {
-                            is CloudDriveLoginFormResult.Ready -> validation.request
-                            is CloudDriveLoginFormResult.Invalid -> {
-                                cloudRssStatus = validation.status
-                                return@launch
+                            is CloudDriveActionResult.Success -> {
+                                cloudToken = result.token.orEmpty()
+                                cloudRssStatus = result.status
                             }
-                        }
-                        cloudRssStatus = cloudDriveLoginStartedStatus()
-                        when (val result = cloudRssActions.login(form.endpointUrl, form.username, form.password)) {
-                            is Result.Success -> {
-                                cloudToken = repositories.credentials.cloudDriveToken.orEmpty()
-                                cloudRssStatus = cloudDriveLoginSucceededStatus()
+                            is CloudDriveActionResult.Invalid -> {
+                                cloudRssStatus = result.status
                             }
-                            is Result.Error -> cloudRssStatus = result.error.toUserMessage()
+                            is CloudDriveActionResult.Failed -> {
+                                cloudRssStatus = result.status
+                            }
                         }
                     }
                 },
                 onVerifyApiToken = {
                     scope.launch {
-                        val form = when (
-                            val validation = validateCloudDriveApiTokenForm(
+                        when (
+                            val result = cloudRssActions.verifyCloudDriveApiToken(
                                 endpointUrl = cloudEndpointUrl,
                                 token = cloudToken,
-                                blankTokenStatus = cloudDriveTokenRequiredStatus(),
+                                onStarted = { status -> cloudRssStatus = status },
                             )
                         ) {
-                            is CloudDriveApiTokenFormResult.Ready -> validation.request
-                            is CloudDriveApiTokenFormResult.Invalid -> {
-                                cloudRssStatus = validation.status
-                                return@launch
+                            is CloudDriveActionResult.Success -> {
+                                cloudToken = result.token.orEmpty()
+                                cloudRssStatus = result.status
                             }
-                        }
-                        cloudRssStatus = cloudDriveTokenValidationStartedStatus()
-                        when (val result = cloudRssActions.verifyApiToken(form.endpointUrl, form.token)) {
-                            is Result.Success -> {
-                                cloudToken = form.token
-                                cloudRssStatus = cloudDriveTokenVerifiedStatus(
-                                    friendlyName = result.data.friendlyName,
-                                    rootDir = result.data.rootDir,
-                                )
+                            is CloudDriveActionResult.Invalid -> {
+                                cloudRssStatus = result.status
                             }
-                            is Result.Error -> cloudRssStatus = result.error.toUserMessage()
+                            is CloudDriveActionResult.Failed -> {
+                                cloudRssStatus = result.status
+                            }
                         }
                     }
                 },
