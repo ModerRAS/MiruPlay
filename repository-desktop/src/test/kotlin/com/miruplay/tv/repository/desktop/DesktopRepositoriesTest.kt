@@ -18,6 +18,7 @@ import com.miruplay.tv.repository.BangumiSubjectCollection
 import com.miruplay.tv.repository.BangumiSubjectCollectionType
 import com.miruplay.tv.repository.BangumiUser
 import com.miruplay.tv.repository.MediaIndexEntry
+import com.miruplay.tv.repository.SCAN_PREFERENCES_MIN_INTERVAL_MS
 import com.miruplay.tv.sync.BangumiSyncCore
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -137,6 +138,29 @@ class DesktopRepositoriesTest {
 
             val reopened = DesktopRepositories.fileBacked(storePath)
             assertEquals(PlaybackEndAction.PLAY_NEXT_EPISODE, reopened.playbackPreferences.getEndAction())
+        } finally {
+            deleteTempStore(storePath)
+        }
+    }
+
+    @Test
+    fun `scan preferences are persisted and normalize intervals`() = runBlocking {
+        val storePath = tempStorePath()
+        try {
+            val repositories = DesktopRepositories.fileBacked(storePath)
+
+            repositories.scanPreferences.setAutoScanEnabled(true)
+            repositories.scanPreferences.setAutoScanIntervalMs(1L)
+            repositories.scanPreferences.setLastScanAt(123L)
+            repositories.scanPreferences.setMergeSameAnimeEnabled(true)
+
+            val reopened = DesktopRepositories.fileBacked(storePath)
+            val preferences = reopened.scanPreferences.getPreferences()
+
+            assertEquals(true, preferences.autoScanEnabled)
+            assertEquals(SCAN_PREFERENCES_MIN_INTERVAL_MS, preferences.autoScanIntervalMs)
+            assertEquals(123L, preferences.lastScanAt)
+            assertEquals(true, preferences.mergeSameAnimeEnabled)
         } finally {
             deleteTempStore(storePath)
         }

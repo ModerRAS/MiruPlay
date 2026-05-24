@@ -82,18 +82,26 @@ import com.miruplay.tv.model.mediaSourceStatusText
 import com.miruplay.tv.model.playbackSettingsTiles
 import com.miruplay.tv.model.settingsCloudDriveMenuSummary
 import com.miruplay.tv.model.settingsClearTokenActionLabel
-import com.miruplay.tv.model.settingsDesktopScanMenuSummary
 import com.miruplay.tv.model.settingsDesktopScanStatusMessage
 import com.miruplay.tv.model.settingsDesktopWebUiMenuSummary
 import com.miruplay.tv.model.settingsDesktopWebUiStatusMessage
+import com.miruplay.tv.model.settingsAutoScanToggleLabel
+import com.miruplay.tv.model.settingsCurrentScanIntervalStatus
+import com.miruplay.tv.model.settingsLibraryDisplayTitleLabel
 import com.miruplay.tv.model.settingsMenuPanelDescription
 import com.miruplay.tv.model.settingsMenuPanelTitle
+import com.miruplay.tv.model.settingsMergeSameAnimeStatus
+import com.miruplay.tv.model.settingsMergeSameAnimeToggleLabel
 import com.miruplay.tv.model.settingsOpenDetailsActionLabel
 import com.miruplay.tv.model.settingsOpenLibraryActionLabel
 import com.miruplay.tv.model.settingsOpenPlayerActionLabel
 import com.miruplay.tv.model.settingsPlaybackStatusMessage
 import com.miruplay.tv.model.settingsSaveTokenActionLabel
 import com.miruplay.tv.model.settingsScanActiveSourceActionLabel
+import com.miruplay.tv.model.settingsScanIntervalOptionLabel
+import com.miruplay.tv.model.settingsScanPanelDescription
+import com.miruplay.tv.model.settingsScanPanelTitleLabel
+import com.miruplay.tv.model.settingsScanMenuSummary
 import com.miruplay.tv.model.settingsSourcesMenuSummary
 import com.miruplay.tv.model.settingsWebUiAccessTokenLabel
 import com.miruplay.tv.model.settingsWebUiAddressLabel
@@ -160,6 +168,14 @@ internal fun CloudRssPanel(
     onBangumiTokenChange: (String) -> Unit,
     bangumiTokenConfigured: Boolean,
     linkedSourceLabel: String,
+    autoScanEnabled: Boolean,
+    autoScanIntervalHours: Int,
+    scanIntervalOptionsHours: List<Int>,
+    lastScanAt: Long,
+    mergeSameAnimeEnabled: Boolean,
+    onToggleAutoScan: () -> Unit,
+    onScanIntervalSelected: (Int) -> Unit,
+    onToggleMergeSameAnime: () -> Unit,
     onSaveConfig: () -> Unit,
     onSaveCredentials: () -> Unit,
     onLoginCloudDrive: () -> Unit,
@@ -213,6 +229,8 @@ internal fun CloudRssPanel(
             rssCount = subscriptions.size,
             cloudEnabled = enabled,
             webUiAddressCount = webUiUrls.size,
+            autoScanEnabled = autoScanEnabled,
+            mergeSameAnimeEnabled = mergeSameAnimeEnabled,
             metadataSummary = metadataSummary,
             playbackSummary = playbackSummary,
             onSectionSelected = { selectedSection = it },
@@ -315,6 +333,18 @@ internal fun CloudRssPanel(
                     SettingsQuickAction(settingsOpenLibraryActionLabel(), onOpenLibrary),
                 ),
                 onFocusSectionMenu = { focusSelectedSectionMenu() },
+                extraContent = {
+                    DesktopScanPreferencesContent(
+                        autoScanEnabled = autoScanEnabled,
+                        autoScanIntervalHours = autoScanIntervalHours,
+                        intervalOptionsHours = scanIntervalOptionsHours,
+                        lastScanAt = lastScanAt,
+                        mergeSameAnimeEnabled = mergeSameAnimeEnabled,
+                        onToggleAutoScan = onToggleAutoScan,
+                        onIntervalSelected = onScanIntervalSelected,
+                        onToggleMergeSameAnime = onToggleMergeSameAnime,
+                    )
+                },
                 modifier = Modifier.weight(1f),
             )
             MiruPlaySettingsSection.METADATA -> SettingsSummaryContent(
@@ -1809,6 +1839,8 @@ private fun SettingsSectionMenu(
     rssCount: Int,
     cloudEnabled: Boolean,
     webUiAddressCount: Int,
+    autoScanEnabled: Boolean,
+    mergeSameAnimeEnabled: Boolean,
     metadataSummary: String,
     playbackSummary: String,
     onSectionSelected: (MiruPlaySettingsSection) -> Unit,
@@ -1838,6 +1870,8 @@ private fun SettingsSectionMenu(
                     rssCount = rssCount,
                     cloudEnabled = cloudEnabled,
                     webUiAddressCount = webUiAddressCount,
+                    autoScanEnabled = autoScanEnabled,
+                    mergeSameAnimeEnabled = mergeSameAnimeEnabled,
                     metadataSummary = metadataSummary,
                     playbackSummary = playbackSummary,
                 ),
@@ -2027,6 +2061,60 @@ private fun DesktopWebUiAccessSummary(
 }
 
 @Composable
+private fun DesktopScanPreferencesContent(
+    autoScanEnabled: Boolean,
+    autoScanIntervalHours: Int,
+    intervalOptionsHours: List<Int>,
+    lastScanAt: Long,
+    mergeSameAnimeEnabled: Boolean,
+    onToggleAutoScan: () -> Unit,
+    onIntervalSelected: (Int) -> Unit,
+    onToggleMergeSameAnime: () -> Unit,
+) {
+    Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
+    CloudRssCard(
+        title = settingsScanPanelTitleLabel(),
+        badge = settingsAutoScanToggleLabel(autoScanEnabled),
+        preview = settingsCurrentScanIntervalStatus(autoScanIntervalHours, lastScanAt),
+    ) {
+        Text(
+            settingsScanPanelDescription(),
+            color = TextSecondary,
+            fontSize = MiruPlayUiMetrics.PANEL_BODY_SP.sp,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
+            TvActionButton(
+                settingsAutoScanToggleLabel(autoScanEnabled),
+                onClick = onToggleAutoScan,
+                secondary = true,
+            )
+            intervalOptionsHours.forEach { hours ->
+                TvActionButton(
+                    settingsScanIntervalOptionLabel(hours),
+                    onClick = { onIntervalSelected(hours) },
+                    secondary = autoScanIntervalHours != hours,
+                    enabled = autoScanEnabled,
+                )
+            }
+        }
+        StatusBox(settingsCurrentScanIntervalStatus(autoScanIntervalHours, lastScanAt))
+    }
+    Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
+    CloudRssCard(
+        title = settingsLibraryDisplayTitleLabel(),
+        badge = settingsMergeSameAnimeToggleLabel(mergeSameAnimeEnabled),
+        preview = settingsMergeSameAnimeStatus(mergeSameAnimeEnabled),
+    ) {
+        TvActionButton(
+            settingsMergeSameAnimeToggleLabel(mergeSameAnimeEnabled),
+            onClick = onToggleMergeSameAnime,
+            secondary = true,
+        )
+        StatusBox(settingsMergeSameAnimeStatus(mergeSameAnimeEnabled))
+    }
+}
+
+@Composable
 private fun SettingsSummaryTileRow(tiles: List<SettingsSummaryTile>) {
     Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp)) {
         tiles.forEach { tile ->
@@ -2081,13 +2169,15 @@ private fun MiruPlaySettingsSection.menuSummary(
     rssCount: Int,
     cloudEnabled: Boolean,
     webUiAddressCount: Int,
+    autoScanEnabled: Boolean,
+    mergeSameAnimeEnabled: Boolean,
     metadataSummary: String,
     playbackSummary: String,
 ): String = when (this) {
     MiruPlaySettingsSection.SOURCES -> settingsSourcesMenuSummary(sourcesCount)
     MiruPlaySettingsSection.PLAYBACK -> playbackSummary
     MiruPlaySettingsSection.CLOUD_DRIVE -> settingsCloudDriveMenuSummary(cloudEnabled, rssCount)
-    MiruPlaySettingsSection.SCAN -> settingsDesktopScanMenuSummary()
+    MiruPlaySettingsSection.SCAN -> settingsScanMenuSummary(autoScanEnabled, mergeSameAnimeEnabled)
     MiruPlaySettingsSection.METADATA -> metadataSummary
     MiruPlaySettingsSection.WEB_UI -> settingsDesktopWebUiMenuSummary(webUiAddressCount)
 }

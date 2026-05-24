@@ -10,6 +10,7 @@ import com.miruplay.tv.model.RssDownloadTaskInfo
 import com.miruplay.tv.model.RssProcessedItemInfo
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.repository.MediaIndexEntry
+import com.miruplay.tv.repository.ScanPreferencesSnapshot
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
@@ -70,6 +71,7 @@ internal data class DesktopRepositoryState(
     val episodes: List<Episode> = emptyList(),
     val indexBatchUndo: List<MediaIndexBatchUndoState> = emptyList(),
     val playbackEndAction: PlaybackEndAction = PlaybackEndAction.RETURN_TO_DETAIL,
+    val scanPreferences: ScanPreferencesSnapshot = ScanPreferencesSnapshot(),
     val cloudDriveConfig: CloudDriveAutomationConfig = CloudDriveAutomationConfig(),
     val rssSubscriptions: List<RssSubscriptionInfo> = emptyList(),
     val rssProcessedItems: List<RssProcessedItemInfo> = emptyList(),

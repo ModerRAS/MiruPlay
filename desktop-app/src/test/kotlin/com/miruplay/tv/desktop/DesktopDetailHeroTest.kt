@@ -339,6 +339,49 @@ class DesktopDetailHeroTest {
     }
 
     @Test
+    fun `detail episodes can merge entries that share external metadata`() {
+        val selected = MediaIndexEntry(
+            sourceId = 1,
+            path = "Frieren Season 1/01.mkv",
+            animeName = "Frieren Season 1",
+            metadataId = "431767",
+            metadataTitle = "葬送的芙莉莲",
+            seasonNumber = 1,
+            episodeNumber = 1,
+        )
+        val entries = listOf(
+            selected,
+            MediaIndexEntry(
+                sourceId = 1,
+                path = "Frieren Season 2/01.mkv",
+                animeName = "Frieren Season 2",
+                metadataId = "431767",
+                metadataTitle = "葬送的芙莉莲",
+                seasonNumber = 2,
+                episodeNumber = 1,
+            ),
+            MediaIndexEntry(
+                sourceId = 1,
+                path = "Bocchi/01.mkv",
+                animeName = "Bocchi",
+                metadataId = "999",
+                metadataTitle = "Bocchi",
+                seasonNumber = 1,
+                episodeNumber = 1,
+            ),
+        )
+
+        assertEquals(
+            listOf("Frieren Season 1/01.mkv"),
+            detailEpisodesForSelection(entries, selected, mergeSameAnimeEnabled = false).map { it.path },
+        )
+        assertEquals(
+            listOf("Frieren Season 1/01.mkv", "Frieren Season 2/01.mkv"),
+            detailEpisodesForSelection(entries, selected, mergeSameAnimeEnabled = true).map { it.path },
+        )
+    }
+
+    @Test
     fun `shared Bangumi cache ids and episodes mirror indexed metadata`() {
         val entry = MediaIndexEntry(
             sourceId = 1,

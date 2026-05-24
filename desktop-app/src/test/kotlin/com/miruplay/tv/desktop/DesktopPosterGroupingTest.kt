@@ -58,6 +58,36 @@ class DesktopPosterGroupingTest {
     }
 
     @Test
+    fun `poster wall can merge entries that share external metadata`() {
+        val entries = listOf(
+            MediaIndexEntry(
+                sourceId = 1,
+                path = "Frieren Season 1/01.mkv",
+                animeName = "Frieren Season 1",
+                metadataId = "431767",
+                metadataTitle = "葬送的芙莉莲",
+            ),
+            MediaIndexEntry(
+                sourceId = 1,
+                path = "Frieren Season 2/01.mkv",
+                animeName = "Frieren Season 2",
+                metadataId = "431767",
+                metadataTitle = "葬送的芙莉莲",
+            ),
+        )
+
+        assertEquals(2, entries.toDesktopPosterGroups(mergeSameAnimeEnabled = false).size)
+
+        val merged = entries.toDesktopPosterGroups(mergeSameAnimeEnabled = true)
+
+        assertEquals(listOf("葬送的芙莉莲"), merged.map { it.title })
+        assertEquals(
+            listOf("Frieren Season 1/01.mkv", "Frieren Season 2/01.mkv"),
+            merged.single().entries.map { it.path },
+        )
+    }
+
+    @Test
     fun `poster wall navigation also accepts shared direction intents`() {
         val groups = (1..8).map { index ->
             DesktopPosterGroup(

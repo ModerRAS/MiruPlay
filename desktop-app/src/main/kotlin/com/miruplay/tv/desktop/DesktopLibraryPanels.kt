@@ -106,12 +106,15 @@ internal fun LibraryPanel(
     onSearch: () -> Unit,
     onClearIndex: () -> Unit,
     onRemoveSource: () -> Unit,
+    mergeSameAnimeEnabled: Boolean,
     onEntryFocused: (MediaIndexEntry) -> Unit,
     onEntrySelected: (MediaIndexEntry) -> Unit,
     focusVersion: Int = 0,
     onFocusPreviousPanel: () -> Boolean = { false },
 ) {
-    val posterGroups = remember(entries) { entries.toDesktopPosterGroups() }
+    val posterGroups = remember(entries, mergeSameAnimeEnabled) {
+        entries.toDesktopPosterGroups(mergeSameAnimeEnabled)
+    }
     val emptyMediaFocusRequester = remember { FocusRequester() }
     var emptySourceFocusVersion by remember { mutableIntStateOf(0) }
 
@@ -1422,10 +1425,17 @@ internal data class DesktopPosterGroup(
     }
 }
 
-internal fun List<MediaIndexEntry>.toDesktopPosterGroups(): List<DesktopPosterGroup> =
+internal fun List<MediaIndexEntry>.toDesktopPosterGroups(
+    mergeSameAnimeEnabled: Boolean = false,
+): List<DesktopPosterGroup> =
     mediaFilesOnly()
-        .groupBy { it.posterTitle() }
-        .map { (title, groupEntries) -> DesktopPosterGroup(title = title, entries = groupEntries) }
+        .groupBy { it.posterGroupingKey(mergeSameAnimeEnabled) }
+        .map { (_, groupEntries) ->
+            DesktopPosterGroup(
+                title = groupEntries.posterGroupTitle(),
+                entries = groupEntries,
+            )
+        }
         .sortedBy { it.title.lowercase() }
 
 internal fun List<DesktopPosterGroup>.toPosterWallRows(columns: Int = POSTER_WALL_COLUMNS): List<List<DesktopPosterGroup>> =
@@ -1664,6 +1674,33 @@ internal fun MediaIndexEntry.posterTitle(): String =
         ?: animeName?.takeIf { it.isNotBlank() }
         ?: MediaPathConventions.stem(path).takeIf { it.isNotBlank() }
         ?: path.substringAfterLast('/').substringAfterLast('\\')
+
+internal fun MediaIndexEntry.posterGroupingKey(mergeSameAnimeEnabled: Boolean): String =
+    if (mergeSameAnimeEnabled) {
+        metadataId?.takeIf { it.isNotBlank() }?.let { id -> "metadata:$id" }
+            ?: metadataTitle?.takeIf { it.isNotBlank() }?.let { title -> "title:${title.lowercase()}" }
+            ?: scannedPosterTitle()
+    } else {
+        scannedPosterTitle()
+    }
+
+private fun List<MediaIndexEntry>.posterGroupTitle(): String =
+    firstNotNullOfOrNull { it.metadataTitle?.takeIf(String::isNotBlank) }
+        ?: firstNotNullOfOrNull { it.animeName?.takeIf(String::isNotBlank) }
+        ?: firstOrNull()?.posterTitle()
+        ?: ""
+
+private fun MediaIndexEntry.scannedPosterTitle(): String =
+    animeName?.takeIf { it.isNotBlank() }
+        ?: MediaPathConventions.stem(path).takeIf { it.isNotBlank() }
+        ?: path.substringAfterLast('/').substringAfterLast('\\')
+
+internal fun MediaIndexEntry.belongsToPosterGroup(
+    selected: MediaIndexEntry,
+    mergeSameAnimeEnabled: Boolean,
+): Boolean =
+    sourceId == selected.sourceId &&
+        posterGroupingKey(mergeSameAnimeEnabled) == selected.posterGroupingKey(mergeSameAnimeEnabled)
 
 private fun posterBrush(title: String): Brush {
     val palettes = listOf(

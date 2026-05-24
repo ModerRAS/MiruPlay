@@ -3,7 +3,6 @@ package com.miruplay.tv.ui.library
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import android.util.Log
-import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
@@ -16,6 +15,7 @@ import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
+import com.miruplay.tv.repository.ScanPreferencesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -63,7 +63,7 @@ class LibraryViewModel @Inject constructor(
     private val indexRepository: MediaIndexRepository,
     private val progressRepository: PlaybackProgressRepository,
     private val libraryScanTask: LibraryScanTask,
-    private val scanPreferences: ScanPreferencesManager
+    private val scanPreferences: ScanPreferencesRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<LibraryUiState>(LibraryUiState.Loading)
@@ -136,7 +136,7 @@ class LibraryViewModel @Inject constructor(
 
         val continueWatching = loadContinueWatching()
         val allAnimeList = loadCachedAnime(sources)
-        val displayAnime = if (scanPreferences.mergeSameAnimeEnabled) {
+        val displayAnime = if (scanPreferences.getPreferences().mergeSameAnimeEnabled) {
             allAnimeList.mergeSameAnimeForDisplay()
         } else {
             allAnimeList.distinctBy { it.id }

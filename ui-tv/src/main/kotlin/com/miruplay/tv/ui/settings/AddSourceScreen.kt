@@ -76,7 +76,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
-import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.CLOUD_DRIVE_ROOT_DISPLAY_NAME
@@ -89,6 +88,7 @@ import com.miruplay.tv.model.androidTvSettingsSectionOrder
 import com.miruplay.tv.model.connectionDisplayName
 import com.miruplay.tv.model.connectionUsername
 import com.miruplay.tv.model.cloudDriveRssApiTokenFieldLabel
+import com.miruplay.tv.repository.scanPreferencesIntervalOptionsHours
 import com.miruplay.tv.model.cloudDriveRssChooseDirectoryActionLabel
 import com.miruplay.tv.model.cloudDriveRssCloseActionLabel
 import com.miruplay.tv.model.cloudDriveRssCredentialsBadgeLabel
@@ -2492,7 +2492,7 @@ private fun ScanPanel(
         }
         Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            ScanPreferencesManager.INTERVAL_OPTIONS_HOURS.forEach { hours ->
+            scanPreferencesIntervalOptionsHours.forEach { hours ->
                 ScanOptionChip(
                     text = settingsScanIntervalOptionLabel(hours),
                     selected = autoScanEnabled && hours == autoScanIntervalHours,

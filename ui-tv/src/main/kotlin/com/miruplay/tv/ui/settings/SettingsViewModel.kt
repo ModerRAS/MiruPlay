@@ -6,7 +6,6 @@ import com.miruplay.tv.clouddrive.CloudDriveClient
 import com.miruplay.tv.core.common.LocalDirectoryBrowser
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.core.common.buildWebControlAccessUrls
-import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.PlaybackEndAction
@@ -33,7 +32,11 @@ import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.PlaybackPreferencesRepository
+import com.miruplay.tv.repository.SCAN_PREFERENCES_DEFAULT_INTERVAL_MS
+import com.miruplay.tv.repository.ScanPreferencesRepository
 import com.miruplay.tv.repository.WebControlAccessManager
+import com.miruplay.tv.repository.toScanIntervalHours
+import com.miruplay.tv.repository.toScanIntervalMillis
 import com.miruplay.tv.sync.rss.CloudDriveRssAutomationEngine
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryBrowserState
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryTarget
@@ -58,7 +61,7 @@ class SettingsViewModel @Inject constructor(
     private val mediaRepository: MediaSourceRepository,
     private val mediaSourceFactory: MediaSourceFactory,
     private val securePrefs: AppCredentialStore,
-    private val scanPreferences: ScanPreferencesManager,
+    private val scanPreferences: ScanPreferencesRepository,
     private val playbackPreferences: PlaybackPreferencesRepository,
     private val webControlPreferences: WebControlAccessManager,
     private val cloudDriveRepository: CloudDriveAutomationRepository,
@@ -78,18 +81,16 @@ class SettingsViewModel @Inject constructor(
     private val _bangumiToken = MutableStateFlow(securePrefs.bangumiAccessToken ?: "")
     val bangumiToken: StateFlow<String> = _bangumiToken.asStateFlow()
 
-    private val _autoScanEnabled = MutableStateFlow(scanPreferences.autoScanEnabled)
+    private val _autoScanEnabled = MutableStateFlow(false)
     val autoScanEnabled: StateFlow<Boolean> = _autoScanEnabled.asStateFlow()
 
-    private val _autoScanIntervalHours = MutableStateFlow(
-        (scanPreferences.autoScanIntervalMs / MILLIS_PER_HOUR).toInt()
-    )
+    private val _autoScanIntervalHours = MutableStateFlow(SCAN_PREFERENCES_DEFAULT_INTERVAL_MS.toScanIntervalHours())
     val autoScanIntervalHours: StateFlow<Int> = _autoScanIntervalHours.asStateFlow()
 
-    private val _lastScanAt = MutableStateFlow(scanPreferences.lastScanAt)
+    private val _lastScanAt = MutableStateFlow(0L)
     val lastScanAt: StateFlow<Long> = _lastScanAt.asStateFlow()
 
-    private val _mergeSameAnimeEnabled = MutableStateFlow(scanPreferences.mergeSameAnimeEnabled)
+    private val _mergeSameAnimeEnabled = MutableStateFlow(false)
     val mergeSameAnimeEnabled: StateFlow<Boolean> = _mergeSameAnimeEnabled.asStateFlow()
 
     private val _playbackEndAction = MutableStateFlow(PlaybackEndAction.RETURN_TO_DETAIL)
@@ -129,9 +130,20 @@ class SettingsViewModel @Inject constructor(
 
     init {
         loadSources()
+        loadScanPreferences()
         loadPlaybackPreferences()
         refreshWebUiUrls()
         observeCloudDriveAutomation()
+    }
+
+    private fun loadScanPreferences() {
+        viewModelScope.launch {
+            val preferences = scanPreferences.getPreferences()
+            _autoScanEnabled.value = preferences.autoScanEnabled
+            _autoScanIntervalHours.value = preferences.autoScanIntervalMs.toScanIntervalHours()
+            _lastScanAt.value = preferences.lastScanAt
+            _mergeSameAnimeEnabled.value = preferences.mergeSameAnimeEnabled
+        }
     }
 
     private fun loadPlaybackPreferences() {
@@ -495,18 +507,24 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun setAutoScanEnabled(enabled: Boolean) {
-        scanPreferences.autoScanEnabled = enabled
         _autoScanEnabled.value = enabled
+        viewModelScope.launch {
+            scanPreferences.setAutoScanEnabled(enabled)
+        }
     }
 
     fun setAutoScanIntervalHours(hours: Int) {
-        scanPreferences.autoScanIntervalMs = hours * MILLIS_PER_HOUR
         _autoScanIntervalHours.value = hours
+        viewModelScope.launch {
+            scanPreferences.setAutoScanIntervalMs(hours.toScanIntervalMillis())
+        }
     }
 
     fun setMergeSameAnimeEnabled(enabled: Boolean) {
-        scanPreferences.mergeSameAnimeEnabled = enabled
         _mergeSameAnimeEnabled.value = enabled
+        viewModelScope.launch {
+            scanPreferences.setMergeSameAnimeEnabled(enabled)
+        }
     }
 
     fun setPlaybackEndAction(action: PlaybackEndAction) {
@@ -555,9 +573,6 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    companion object {
-        private const val MILLIS_PER_HOUR = 60 * 60 * 1000L
-    }
 }
 
 data class LocalDirectoryBrowserState(

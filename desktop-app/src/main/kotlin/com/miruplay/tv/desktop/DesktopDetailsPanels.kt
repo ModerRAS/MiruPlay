@@ -662,13 +662,13 @@ private fun DetailEpisodeRow(
 internal fun detailEpisodesForSelection(
     entries: List<MediaIndexEntry>,
     selectedEntry: MediaIndexEntry?,
+    mergeSameAnimeEnabled: Boolean = false,
 ): List<MediaIndexEntry> {
     val selected = selectedEntry?.takeUnless { it.isDirectory } ?: return emptyList()
-    val title = selected.posterTitle()
     return entries
         .mediaFilesOnly()
         .asSequence()
-        .filter { it.sourceId == selected.sourceId && it.posterTitle() == title }
+        .filter { it.belongsToPosterGroup(selected, mergeSameAnimeEnabled) }
         .sortedWith(detailEpisodeComparator)
         .toList()
 }

@@ -3,7 +3,6 @@ package com.miruplay.tv.ui.detail
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.miruplay.tv.core.common.Result
-import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.ProgressRecord
@@ -19,6 +18,7 @@ import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
+import com.miruplay.tv.repository.ScanPreferencesRepository
 import com.miruplay.tv.scraper.MetadataScraper
 import com.miruplay.tv.sync.BangumiMetadataRefreshCore
 import com.miruplay.tv.sync.BangumiSyncEngine
@@ -36,7 +36,7 @@ class AnimeDetailViewModel @Inject constructor(
     private val indexRepository: MediaIndexRepository,
     private val progressRepository: PlaybackProgressRepository,
     private val bangumiSyncEngine: BangumiSyncEngine,
-    private val scanPreferences: ScanPreferencesManager,
+    private val scanPreferences: ScanPreferencesRepository,
     private val metadataScrapers: Set<@JvmSuppressWildcards MetadataScraper>
 ) : ViewModel() {
 
@@ -68,7 +68,7 @@ class AnimeDetailViewModel @Inject constructor(
             _isLoading.value = true
 
             val cached = metadataRepository.getCachedMetadata(animeId).getOrNull()
-            val relatedAnime = if (scanPreferences.mergeSameAnimeEnabled && cached != null) {
+            val relatedAnime = if (scanPreferences.getPreferences().mergeSameAnimeEnabled && cached != null) {
                 loadRelatedAnime(cached)
             } else {
                 listOfNotNull(cached)
