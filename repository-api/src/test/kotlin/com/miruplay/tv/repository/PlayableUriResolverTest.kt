@@ -44,6 +44,64 @@ class PlayableUriResolverTest {
     }
 
     @Test
+    fun `resolvePlayableUri joins SMB source URL when episode id carries source id`() = runBlocking {
+        val repository = FakeMediaSourceRepository(
+            listOf(MediaSourceInfoConventions.smb(url = "smb://nas/anime/", name = "NAS").copy(id = 9)),
+        )
+
+        val uri = resolvePlayableUri(
+            path = "Season 01/Episode 01.mkv",
+            episodeId = "9:episode",
+            mediaRepository = repository,
+        )
+
+        assertEquals("smb://nas/anime/Season%2001/Episode%2001.mkv", uri)
+    }
+
+    @Test
+    fun `playable uri helper joins WebDAV and SMB indexed paths consistently`() {
+        val webDav = MediaSourceInfoConventions.webDav(url = "https://dav.example/anime/", name = "DAV")
+        val smb = MediaSourceInfoConventions.smb(url = "smb://nas/anime/", name = "NAS")
+
+        assertEquals(
+            "https://dav.example/anime/%E5%AD%A4%E7%8B%AC%E6%91%87%E6%BB%9A/Season%2001/Episode%2001.mkv",
+            webDav.playableUriForIndexedPath("/孤独摇滚/Season 01/Episode 01.mkv"),
+        )
+        assertEquals(
+            "smb://nas/anime/%E5%AD%A4%E7%8B%AC%E6%91%87%E6%BB%9A/Season%2001/Episode%2001.mkv",
+            smb.playableUriForIndexedPath("孤独摇滚/Season 01/Episode 01.mkv"),
+        )
+        assertEquals(
+            "smb://nas/anime/Season 01/Episode 01.mkv",
+            smb.playableUriForIndexedPath("smb://nas/anime/Season 01/Episode 01.mkv"),
+        )
+        assertEquals(
+            "https://cdn.example/episode.mkv",
+            smb.playableUriForIndexedPath("https://cdn.example/episode.mkv"),
+        )
+    }
+
+    @Test
+    fun `indexed entry maps to episode with shared playable path and ordering`() {
+        val source = MediaSourceInfoConventions.webDav(url = "https://dav.example/anime", name = "DAV").copy(id = 7L)
+        val entries = listOf(
+            MediaIndexEntry(sourceId = 7L, path = "/Show/Episode 02.mkv", episodeNumber = 2, episodeTitle = "Second"),
+            MediaIndexEntry(sourceId = 7L, path = "/Show/Episode 01.mkv", episodeNumber = 1, episodeTitle = "First"),
+        )
+
+        val episodes = entries.toIndexedEpisodes(source, animeId = "show")
+
+        assertEquals(listOf("7:/Show/Episode 01.mkv", "7:/Show/Episode 02.mkv"), episodes.map { it.id })
+        assertEquals("show", episodes.first().animeId)
+        assertEquals("First", episodes.first().title)
+        assertEquals(
+            "https://dav.example/anime/Show/Episode%2001.mkv",
+            episodes.first().filePath,
+        )
+        assertEquals("Episode 01.mkv", episodes.first().fileName)
+    }
+
+    @Test
     fun `resolvePlayableUri returns local path when no matching WebDAV source exists`() = runBlocking {
         val repository = FakeMediaSourceRepository(
             listOf(

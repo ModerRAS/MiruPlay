@@ -119,6 +119,15 @@ RSS ids, and existing subscription `lastCheckedAt` across Android Room and
 desktop JSON repositories. The focused shared/WebUI/desktop gate passed in
 Gradle MCP build `b-163` with 282 tests passed, and Android debug assemble
 passed in `b-164`.
+`:repository-api` now also owns WebUI indexed-entry-to-episode mapping and
+Local/WebDAV/SMB playable URI resolution. Android TV WebUI no longer keeps a
+private `URLEncoder` path builder, Windows WebUI no longer keeps a private
+indexed-entry episode mapper, and both WebUI services use
+`toIndexedEpisode`/`toIndexedEpisodes` with one WebDAV/SMB encoded remote-path
+rule. `PlayableUriResolverTest` covers WebDAV, SMB, already-playable URLs,
+repository source-id resolution, and ordered indexed episodes; `:repository-api:test`
+passed in Gradle MCP build `b-167` with 74 tests passed, and the
+Android/WebUI/desktop compile gate passed in `b-166`.
 `core:model` owns the Cloud/RSS form normalization helpers used
 by both Android TV Settings and Windows Cloud/RSS Settings for config trimming,
 interval/proxy-port bounds, RSS subscription fallback names, blank URL

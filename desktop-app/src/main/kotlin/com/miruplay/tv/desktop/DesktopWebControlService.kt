@@ -9,13 +9,12 @@ import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.MediaSourceInfo
-import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.completeStatus
-import com.miruplay.tv.model.remoteUrl
-import com.miruplay.tv.model.sortedForPlaybackQueue
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.desktop.DesktopRepositories
 import com.miruplay.tv.repository.mediaIndexPosterAnimeId
+import com.miruplay.tv.repository.toIndexedEpisode
+import com.miruplay.tv.repository.toIndexedEpisodes
 import com.miruplay.tv.repository.toMediaIndexPosterGroups
 import com.miruplay.tv.sync.rss.CloudDriveRssActionCoordinator
 import com.miruplay.tv.sync.rss.DesktopCloudDriveRssAutomationEngine
@@ -283,7 +282,7 @@ internal class DesktopWebControlService(
             ?: return null
         val source = repositories.mediaSources.getSourceById(sourceId).getOrNull()
         val mergeSameAnimeEnabled = repositories.scanPreferences.getPreferences().mergeSameAnimeEnabled
-        return entry.toEpisode(source, entry.mediaIndexPosterAnimeId(mergeSameAnimeEnabled))
+        return entry.toIndexedEpisode(source, entry.mediaIndexPosterAnimeId(mergeSameAnimeEnabled))
     }
 
     private suspend fun loadEpisodesForAnime(
@@ -293,9 +292,7 @@ internal class DesktopWebControlService(
         val cachedEpisodes = repositories.metadata.getCachedEpisodes(anime.id).getOrNull().orEmpty()
         if (cachedEpisodes.isNotEmpty()) return cachedEpisodes
         val indexedGroup = group ?: return emptyList()
-        return indexedGroup.entries
-            .map { entry -> entry.toEpisode(indexedGroup.source, indexedGroup.animeId) }
-            .sortedForPlaybackQueue()
+        return indexedGroup.entries.toIndexedEpisodes(indexedGroup.source, indexedGroup.animeId)
     }
 
     private suspend fun indexedAnimeGroups(): List<IndexedAnimeGroup> {
@@ -315,19 +312,6 @@ internal class DesktopWebControlService(
                     )
                 }
         }
-    }
-
-    private fun MediaIndexEntry.toEpisode(source: MediaSourceInfo?, animeId: String): Episode {
-        val episodeId = "$sourceId:$path"
-        return Episode(
-            id = episodeId,
-            animeId = animeId,
-            seasonNumber = seasonNumber ?: 1,
-            episodeNumber = episodeNumber ?: 1,
-            title = episodeTitle.orEmpty(),
-            filePath = playablePath(source, path),
-            fileName = MediaPathConventions.fileName(path),
-        )
     }
 
     private fun IndexedAnimeGroup.toAnime(): Anime {
@@ -355,15 +339,6 @@ internal class DesktopWebControlService(
         val source = repositories.mediaSources.getSourceById(sourceId).getOrNull() ?: return
         rescanCloudRssLinkedSource(source, reason, repositories.index)
     }
-
-    private fun playablePath(source: MediaSourceInfo?, path: String): String =
-        when {
-            path.startsWith("http://") ||
-                path.startsWith("https://") ||
-                path.startsWith("content://") -> path
-            source?.type == MediaSourceType.WEBDAV -> MediaPathConventions.joinRemoteUrl(source.remoteUrl().orEmpty(), path)
-            else -> path
-        }
 
     private data class IndexedAnimeGroup(
         val source: MediaSourceInfo,

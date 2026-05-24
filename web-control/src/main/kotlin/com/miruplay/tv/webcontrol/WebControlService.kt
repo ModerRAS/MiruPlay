@@ -8,7 +8,6 @@ import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
-import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.PlaybackState
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.player.PlaybackController
@@ -18,13 +17,13 @@ import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
+import com.miruplay.tv.repository.toIndexedEpisode
 import com.miruplay.tv.scanner.ScanCoordinator
 import com.miruplay.tv.sync.rss.CloudDriveRssActionCoordinator
 import com.miruplay.tv.sync.rss.CloudDriveRssAutomationEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
-import java.net.URLEncoder
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -302,38 +301,10 @@ class WebControlService @Inject constructor(
             ?: matches.firstOrNull { it.path.substringAfterLast("/") == fileName }
             ?: return null
 
-        return Episode(
-            id = episodeId,
+        return entry.toIndexedEpisode(
+            source = source,
             animeId = entry.animeName ?: path.substringBeforeLast("/").substringAfterLast("/"),
-            seasonNumber = entry.seasonNumber ?: 1,
-            episodeNumber = entry.episodeNumber ?: 1,
-            title = "",
-            filePath = source?.playableUriFor(entry.path) ?: entry.path,
-            fileName = fileName
-        )
-    }
-
-    private fun MediaSourceInfo.playableUriFor(path: String): String {
-        return when (type) {
-            MediaSourceType.LOCAL -> path
-            MediaSourceType.WEBDAV,
-            MediaSourceType.SMB -> {
-                if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("smb://")) {
-                    path
-                } else {
-                    val baseUrl = connectionInfo["url"].orEmpty().trimEnd('/')
-                    val relativePath = path.trimStart('/')
-                    "$baseUrl/${encodePathSegments(relativePath)}"
-                }
-            }
-        }
-    }
-
-    private fun encodePathSegments(path: String): String {
-        return path.split('/')
-            .joinToString("/") { segment ->
-                URLEncoder.encode(segment, Charsets.UTF_8.name()).replace("+", "%20")
-            }
+        ).copy(id = episodeId)
     }
 
 }

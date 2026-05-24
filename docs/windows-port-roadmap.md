@@ -89,6 +89,15 @@ shared/WebUI/desktop gate `:sync-engine-shared:test :web-control-core:test
 checkDesktopPresenterSeparation checkDesktopComposeOnly -PbundleMpvRuntime=false`
 passed in Gradle MCP build `b-163` with 282 tests passed, and Android debug
 assemble `:app:assembleDebug -PbundleMpvRuntime=false` passed in `b-164`.
+Latest WebUI indexed-playback sharing update: `:repository-api` now owns
+indexed-entry-to-episode mapping plus Local/WebDAV/SMB playable URI resolution
+for WebUI playback. Android TV WebUI removed its private `URLEncoder` path
+builder, Windows WebUI removed its private indexed-entry episode mapper, and
+both now use `toIndexedEpisode`/`toIndexedEpisodes` with the same WebDAV/SMB
+encoded remote-path rules. `PlayableUriResolverTest` covers WebDAV, SMB,
+already-playable URLs, repository source-id resolution, and ordered indexed
+episodes; `:repository-api:test` passed in Gradle MCP build `b-167` with
+74 tests passed, and the Android/WebUI/desktop compile gate passed in `b-166`.
 Latest Bangumi credential sharing update: `:sync-engine-shared` now owns
 `BangumiCredentialActionCoordinator`, so Android TV Settings and Windows
 Settings share Bangumi token persistence, blank-input handling, clear behavior,
