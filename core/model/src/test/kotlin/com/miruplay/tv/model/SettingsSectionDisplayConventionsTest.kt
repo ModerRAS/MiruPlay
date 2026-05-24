@@ -17,11 +17,11 @@ class SettingsSectionDisplayConventionsTest {
             androidTvSettingsSectionOrder.map { it.androidTvDescription },
         )
         assertEquals(
-            listOf("媒体源", "播放", "云盘", "扫描", "元数据"),
+            listOf("WebUI", "媒体源", "播放", "云盘", "扫描", "元数据"),
             desktopSettingsSectionOrder.map { it.desktopTitle },
         )
         assertEquals(
-            listOf("本地、WebDAV、SMB", "mpv 与 RIFE", "RSS 离线下载与入库", "媒体库更新", "Bangumi 匹配"),
+            listOf("访问地址与二维码", "本地、WebDAV、SMB", "mpv 与 RIFE", "RSS 离线下载与入库", "媒体库更新", "Bangumi 匹配"),
             desktopSettingsSectionOrder.map { it.desktopDescription },
         )
     }
@@ -29,7 +29,7 @@ class SettingsSectionDisplayConventionsTest {
     @Test
     fun `settings section orders keep platform entry points explicit`() {
         assertEquals(MiruPlaySettingsSection.WEB_UI, androidTvSettingsSectionOrder.first())
-        assertEquals(MiruPlaySettingsSection.SOURCES, desktopSettingsSectionOrder.first())
+        assertEquals(MiruPlaySettingsSection.WEB_UI, desktopSettingsSectionOrder.first())
         assertEquals(MiruPlaySettingsSection.METADATA, androidTvSettingsSectionOrder.last())
         assertEquals(MiruPlaySettingsSection.METADATA, desktopSettingsSectionOrder.last())
     }
@@ -49,6 +49,8 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("未设置", settingsMetadataTokenMenuSummary(hasToken = false))
         assertEquals("媒体库更新", settingsDesktopScanMenuSummary())
         assertEquals("访问地址", settingsDesktopWebUiMenuSummary())
+        assertEquals("等待网络", settingsDesktopWebUiMenuSummary(addressCount = 0))
+        assertEquals("2 个地址", settingsDesktopWebUiMenuSummary(addressCount = 2))
     }
 
     @Test
@@ -63,7 +65,18 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("保存 Token", settingsSaveTokenActionLabel())
         assertEquals("清除 Token", settingsClearTokenActionLabel())
         assertEquals("扫描入口保留在媒体库海报墙和 CloudDrive 同步流程中。", settingsDesktopScanStatusMessage())
-        assertEquals("WebUI 保留在 Android TV 端；桌面版使用原生窗口与键盘遥控。", settingsDesktopWebUiStatusMessage())
+        assertEquals(
+            "WebUI 当前未启用；Windows 已复用同一套访问令牌和地址生成规则。",
+            settingsDesktopWebUiStatusMessage(enabled = false, addressCount = 2),
+        )
+        assertEquals(
+            "WebUI 访问配置已启用；Windows JVM 服务接入后会监听这些地址。",
+            settingsDesktopWebUiStatusMessage(enabled = true, addressCount = 2),
+        )
+        assertEquals(
+            "WebUI 访问配置已启用；暂未检测到可展示的局域网地址。",
+            settingsDesktopWebUiStatusMessage(enabled = true, addressCount = 0),
+        )
         assertEquals("WebUI 访问", settingsWebUiPanelTitleLabel())
         assertEquals(
             "默认关闭。开启后，同一局域网设备需要携带访问令牌才能管理媒体源和遥控播放。",
@@ -84,6 +97,7 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("扫码打开", settingsWebUiQrOpenLabel())
         assertEquals("WebUI", settingsWebUiTileLabel())
         assertEquals("Android TV", settingsWebUiAndroidTvValue())
+        assertEquals("Windows", settingsWebUiDesktopValue())
         assertEquals("媒体库、远程浏览器和 Cloud/RSS 共用这个活动源。", settingsActiveSourceSharedDetail())
         assertEquals("扫描后优先回到媒体库海报墙。", settingsPosterWallIndexDetail())
         assertEquals("mpv、RIFE、字幕和起播时间在播放页调整。", settingsPlaybackPageDetail())
@@ -168,7 +182,7 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("未保存", settingsSavedStateValue(false))
         assertEquals("未选择", settingsNoSourceSelectedValue())
         assertEquals("缺失媒体源 #99", settingsMissingSourceValue(99L))
-        assertEquals("二维码和局域网令牌入口由 TV 设置页提供。", settingsWebUiTileDetail())
+        assertEquals("二维码和局域网令牌入口由各平台设置页提供。", settingsWebUiTileDetail())
         assertEquals("原生窗口", settingsDesktopControlTileValue())
         assertEquals("Windows 版保留键盘/遥控式导航和本机播放控制。", settingsDesktopControlTileDetail())
         assertEquals("Cloud/RSS", settingsRemoteAutomationTileValue())
@@ -227,11 +241,13 @@ class SettingsSectionDisplayConventionsTest {
             indexedItemCount = 11,
             bangumiTokenConfigured = true,
         )
+        val webUiTiles = webUiSettingsTiles(platformValue = settingsWebUiDesktopValue())
 
         assertEquals(listOf(settingsSourceTileLabel(), settingsActiveSourceTileLabel(), settingsPosterWallIndexTileLabel()), sourceTiles.map { it.label })
         assertEquals(listOf(settingsPlaybackModeTileLabel(), settingsRecentPlaybackTileLabel(), settingsSelectedMediaTileLabel()), playbackTiles.map { it.label })
         assertEquals(listOf(settingsIndexTileLabel(), settingsPostSyncSourceTileLabel(), settingsRecentScanStatusTileLabel()), scanTiles.map { it.label })
         assertEquals(listOf(settingsSelectedMetadataEntryTileLabel(), settingsMetadataMatchStatusTileLabel(), settingsMetadataCandidateScopeTileLabel(), metadataBangumiTokenTileLabel()), metadataTiles.map { it.label })
+        assertEquals(listOf(settingsWebUiTileLabel(), settingsWebUiNativeControlTileLabel(), settingsRemoteAutomationTileLabel()), webUiTiles.map { it.label })
         assertEquals(settingsCountValue(3), sourceTiles[0].value)
         assertEquals("Local Anime · 本地", sourceTiles[1].value)
         assertEquals(settingsRecordCountValue(42), sourceTiles[2].value)
@@ -244,6 +260,9 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals(metadataMatchedSummaryLabel("Fixture Beta"), metadataTiles[1].value)
         assertEquals(settingsIndexedCountValue(11), metadataTiles[2].value)
         assertEquals(settingsSavedStateValue(true), metadataTiles[3].value)
+        assertEquals(settingsWebUiDesktopValue(), webUiTiles[0].value)
+        assertEquals(settingsWebUiTileDetail(), webUiTiles[0].detail)
+        assertEquals(settingsDesktopControlTileValue(), webUiTiles[1].value)
     }
 
     @Test
@@ -259,7 +278,15 @@ class SettingsSectionDisplayConventionsTest {
         )
         assertNull(MiruPlaySettingsSection.METADATA.stepAndroidTvSettingsSection(1))
 
-        assertNull(MiruPlaySettingsSection.SOURCES.stepDesktopSettingsSection(-1))
+        assertNull(MiruPlaySettingsSection.WEB_UI.stepDesktopSettingsSection(-1))
+        assertEquals(
+            MiruPlaySettingsSection.SOURCES,
+            MiruPlaySettingsSection.WEB_UI.stepDesktopSettingsSection(1),
+        )
+        assertEquals(
+            MiruPlaySettingsSection.WEB_UI,
+            MiruPlaySettingsSection.SOURCES.stepDesktopSettingsSection(-1),
+        )
         assertEquals(
             MiruPlaySettingsSection.PLAYBACK,
             MiruPlaySettingsSection.SOURCES.stepDesktopSettingsSection(1),

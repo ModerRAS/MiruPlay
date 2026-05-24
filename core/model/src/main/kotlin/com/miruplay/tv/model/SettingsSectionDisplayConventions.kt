@@ -56,6 +56,7 @@ val androidTvSettingsSectionOrder: List<MiruPlaySettingsSection> =
 
 val desktopSettingsSectionOrder: List<MiruPlaySettingsSection> =
     listOf(
+        MiruPlaySettingsSection.WEB_UI,
         MiruPlaySettingsSection.SOURCES,
         MiruPlaySettingsSection.PLAYBACK,
         MiruPlaySettingsSection.CLOUD_DRIVE,
@@ -106,6 +107,9 @@ fun settingsDesktopScanMenuSummary(): String =
 fun settingsDesktopWebUiMenuSummary(): String =
     "访问地址"
 
+fun settingsDesktopWebUiMenuSummary(addressCount: Int): String =
+    settingsWebUiMenuSummary(addressCount)
+
 fun settingsMenuPanelTitle(): String =
     "设置菜单"
 
@@ -136,8 +140,15 @@ fun settingsClearTokenActionLabel(): String =
 fun settingsDesktopScanStatusMessage(): String =
     "扫描入口保留在媒体库海报墙和 CloudDrive 同步流程中。"
 
-fun settingsDesktopWebUiStatusMessage(): String =
-    "WebUI 保留在 Android TV 端；桌面版使用原生窗口与键盘遥控。"
+fun settingsDesktopWebUiStatusMessage(
+    enabled: Boolean = false,
+    addressCount: Int = 0,
+): String =
+    when {
+        !enabled -> "WebUI 当前未启用；Windows 已复用同一套访问令牌和地址生成规则。"
+        addressCount > 0 -> "WebUI 访问配置已启用；Windows JVM 服务接入后会监听这些地址。"
+        else -> "WebUI 访问配置已启用；暂未检测到可展示的局域网地址。"
+    }
 
 fun settingsWebUiPanelTitleLabel(): String =
     "WebUI 访问"
@@ -180,6 +191,9 @@ fun settingsWebUiTileLabel(): String =
 
 fun settingsWebUiAndroidTvValue(): String =
     "Android TV"
+
+fun settingsWebUiDesktopValue(): String =
+    "Windows"
 
 fun settingsActiveSourceSharedDetail(): String =
     "媒体库、远程浏览器和 Cloud/RSS 共用这个活动源。"
@@ -508,8 +522,33 @@ fun metadataSettingsTiles(
         ),
     )
 
+fun webUiSettingsTiles(
+    platformValue: String,
+    nativeControlValue: String = settingsDesktopControlTileValue(),
+    nativeControlDetail: String = settingsDesktopControlTileDetail(),
+    remoteAutomationValue: String = settingsRemoteAutomationTileValue(),
+    remoteAutomationDetail: String = settingsRemoteAutomationTileDetail(),
+): List<SettingsSummaryTile> =
+    listOf(
+        SettingsSummaryTile(
+            label = settingsWebUiTileLabel(),
+            value = platformValue,
+            detail = settingsWebUiTileDetail(),
+        ),
+        SettingsSummaryTile(
+            label = settingsWebUiNativeControlTileLabel(),
+            value = nativeControlValue,
+            detail = nativeControlDetail,
+        ),
+        SettingsSummaryTile(
+            label = settingsRemoteAutomationTileLabel(),
+            value = remoteAutomationValue,
+            detail = remoteAutomationDetail,
+        ),
+    )
+
 fun settingsWebUiTileDetail(): String =
-    "二维码和局域网令牌入口由 TV 设置页提供。"
+    "二维码和局域网令牌入口由各平台设置页提供。"
 
 fun settingsDesktopControlTileValue(): String =
     "原生窗口"

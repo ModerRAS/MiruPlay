@@ -42,6 +42,7 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.miruplay.tv.clouddrive.GrpcCloudDriveClient
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.core.common.buildWebControlAccessUrls
 import com.miruplay.tv.design.MiruPlayPalette
 import com.miruplay.tv.design.MiruPlayRouteSurface
 import com.miruplay.tv.design.MiruPlayUiMetrics
@@ -485,6 +486,9 @@ internal fun MiruPlayDesktopComposeApp(
     var bangumiTokenInput by remember { mutableStateOf("") }
     var bangumiTokenConfigured by remember { mutableStateOf(false) }
     var bangumiSyncing by remember { mutableStateOf(false) }
+    var webControlEnabled by remember { mutableStateOf(false) }
+    var webControlAccessToken by remember { mutableStateOf("") }
+    var webUiUrls by remember { mutableStateOf(emptyList<String>()) }
     var recentProgress by remember { mutableStateOf(emptyList<ProgressRecord>()) }
     var selectedRecentProgress by remember { mutableStateOf<ProgressRecord?>(null) }
     var selectedDetailEpisodeSeason by remember { mutableStateOf<Int?>(null) }
@@ -687,6 +691,13 @@ internal fun MiruPlayDesktopComposeApp(
         cloudToken = repositories.credentials.cloudDriveToken.orEmpty()
         cloudPassword = repositories.credentials.cloudDrivePassword.orEmpty()
         bangumiTokenConfigured = !repositories.credentials.bangumiAccessToken.isNullOrBlank()
+        webControlEnabled = repositories.webControlAccess.webControlEnabled
+        webControlAccessToken = repositories.webControlAccess.accessToken
+        webUiUrls = if (webControlEnabled) {
+            buildWebControlAccessUrls(webControlAccessToken)
+        } else {
+            emptyList()
+        }
         runCatching {
             repositories.cloudDriveAutomation.observeSubscriptions().first()
         }.onSuccess { subscriptions ->
@@ -705,6 +716,16 @@ internal fun MiruPlayDesktopComposeApp(
                 recentStatus = recentPlaybackShowingStatus(recents.data)
             }
             is Result.Error -> recentStatus = recents.error.toUserMessage()
+        }
+    }
+
+    fun refreshDesktopWebUiUrls() {
+        webControlEnabled = repositories.webControlAccess.webControlEnabled
+        webControlAccessToken = repositories.webControlAccess.accessToken
+        webUiUrls = if (webControlEnabled) {
+            buildWebControlAccessUrls(webControlAccessToken)
+        } else {
+            emptyList()
         }
     }
 
@@ -2107,6 +2128,18 @@ internal fun MiruPlayDesktopComposeApp(
                     metadataMatchSummaryLabel(entry.metadataTitle)
                 } ?: metadataNoSelectedEntryLabel(),
                 libraryStatus = libraryStatus,
+                webControlEnabled = webControlEnabled,
+                webUiUrls = webUiUrls,
+                webControlAccessToken = webControlAccessToken,
+                onToggleWebControl = {
+                    repositories.webControlAccess.webControlEnabled = !webControlEnabled
+                    refreshDesktopWebUiUrls()
+                },
+                onRotateWebControlToken = {
+                    webControlAccessToken = repositories.webControlAccess.rotateAccessToken()
+                    refreshDesktopWebUiUrls()
+                },
+                onRefreshWebUiUrls = ::refreshDesktopWebUiUrls,
                 onOpenLibrary = { selectedDesktopSection = MiruPlayRouteSurface.library },
                 onOpenPlayer = { selectedDesktopSection = MiruPlayRouteSurface.player },
                 onOpenDetails = { selectedDesktopSection = MiruPlayRouteSurface.details },

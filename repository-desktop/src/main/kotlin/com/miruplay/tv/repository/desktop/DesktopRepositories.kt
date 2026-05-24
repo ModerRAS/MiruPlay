@@ -7,6 +7,7 @@ import com.miruplay.tv.repository.PlaybackPreferencesRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.AppCredentialStore
+import com.miruplay.tv.repository.WebControlAccessManager
 import java.nio.file.Path
 
 class DesktopRepositories private constructor(
@@ -17,6 +18,7 @@ class DesktopRepositories private constructor(
     val metadata: MetadataRepository,
     val cloudDriveAutomation: CloudDriveAutomationRepository,
     val credentials: AppCredentialStore,
+    val webControlAccess: WebControlAccessManager,
 ) {
     companion object {
         fun fileBacked(storePath: Path = DesktopRepositoryPaths.defaultStorePath()): DesktopRepositories {
@@ -29,6 +31,7 @@ class DesktopRepositories private constructor(
                 metadata = FileBackedMetadataRepository(store),
                 cloudDriveAutomation = FileBackedCloudDriveAutomationRepository(store),
                 credentials = FileBackedCredentialStore(store),
+                webControlAccess = FileBackedWebControlAccessManager(store),
             )
         }
     }

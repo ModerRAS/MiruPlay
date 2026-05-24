@@ -1,12 +1,11 @@
 package com.miruplay.tv.ui.settings
 
-import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.miruplay.tv.clouddrive.CloudDriveClient
 import com.miruplay.tv.core.common.LocalDirectoryBrowser
 import com.miruplay.tv.core.common.Result
-import com.miruplay.tv.core.common.WebControlConfig
+import com.miruplay.tv.core.common.buildWebControlAccessUrls
 import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.data.preferences.PlaybackPreferencesManager
 import com.miruplay.tv.model.PlaybackEndAction
@@ -52,8 +51,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import java.net.Inet4Address
-import java.net.NetworkInterface
 import javax.inject.Inject
 
 @HiltViewModel
@@ -525,8 +522,7 @@ class SettingsViewModel @Inject constructor(
     fun refreshWebUiUrls() {
         viewModelScope.launch(Dispatchers.IO) {
             _webUiUrls.value = if (webControlPreferences.webControlEnabled) {
-                val token = Uri.encode(webControlPreferences.accessToken)
-                findLocalIps().map { ip -> "http://$ip:${WebControlConfig.DEFAULT_PORT}/?token=$token" }
+                buildWebControlAccessUrls(webControlPreferences.accessToken)
             } else {
                 emptyList()
             }
@@ -548,19 +544,6 @@ class SettingsViewModel @Inject constructor(
                 _rssSubscriptions.value = subscriptions
             }
         }
-    }
-
-    private fun findLocalIps(): List<String> {
-        return runCatching {
-            NetworkInterface.getNetworkInterfaces().toList()
-                .filter { it.isUp && !it.isLoopback }
-                .flatMap { it.inetAddresses.toList() }
-                .filterIsInstance<Inet4Address>()
-                .filterNot { it.isLoopbackAddress }
-                .mapNotNull { it.hostAddress }
-                .filter { it.isNotBlank() }
-                .distinct()
-        }.getOrDefault(emptyList())
     }
 
     companion object {

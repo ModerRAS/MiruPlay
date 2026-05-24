@@ -82,8 +82,6 @@ import com.miruplay.tv.model.mediaSourceStatusText
 import com.miruplay.tv.model.playbackSettingsTiles
 import com.miruplay.tv.model.settingsCloudDriveMenuSummary
 import com.miruplay.tv.model.settingsClearTokenActionLabel
-import com.miruplay.tv.model.settingsDesktopControlTileDetail
-import com.miruplay.tv.model.settingsDesktopControlTileValue
 import com.miruplay.tv.model.settingsDesktopScanMenuSummary
 import com.miruplay.tv.model.settingsDesktopScanStatusMessage
 import com.miruplay.tv.model.settingsDesktopWebUiMenuSummary
@@ -94,21 +92,22 @@ import com.miruplay.tv.model.settingsOpenDetailsActionLabel
 import com.miruplay.tv.model.settingsOpenLibraryActionLabel
 import com.miruplay.tv.model.settingsOpenPlayerActionLabel
 import com.miruplay.tv.model.settingsPlaybackStatusMessage
-import com.miruplay.tv.model.settingsRemoteAutomationTileDetail
-import com.miruplay.tv.model.settingsRemoteAutomationTileLabel
-import com.miruplay.tv.model.settingsRemoteAutomationTileValue
 import com.miruplay.tv.model.settingsSaveTokenActionLabel
 import com.miruplay.tv.model.settingsScanActiveSourceActionLabel
 import com.miruplay.tv.model.settingsSourcesMenuSummary
-import com.miruplay.tv.model.settingsWebUiNativeControlTileLabel
-import com.miruplay.tv.model.settingsWebUiAndroidTvValue
-import com.miruplay.tv.model.settingsWebUiTileLabel
-import com.miruplay.tv.model.settingsWebUiTileDetail
+import com.miruplay.tv.model.settingsWebUiAccessTokenLabel
+import com.miruplay.tv.model.settingsWebUiAddressLabel
+import com.miruplay.tv.model.settingsWebUiAvailableAddressesLabel
+import com.miruplay.tv.model.settingsWebUiDesktopValue
+import com.miruplay.tv.model.settingsWebUiRefreshAddressActionLabel
+import com.miruplay.tv.model.settingsWebUiRotateTokenActionLabel
+import com.miruplay.tv.model.settingsWebUiToggleActionLabel
 import com.miruplay.tv.model.stepDesktopSettingsSection
 import com.miruplay.tv.model.rssSubscriptionPreview
 import com.miruplay.tv.model.rssSubscriptionsTitleLabel
 import com.miruplay.tv.model.scanSettingsTiles
 import com.miruplay.tv.model.sourceSettingsTiles
+import com.miruplay.tv.model.webUiSettingsTiles
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryBrowserState
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryEntry
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryTarget
@@ -184,12 +183,18 @@ internal fun CloudRssPanel(
     playbackSummary: String,
     metadataSummary: String,
     libraryStatus: String,
+    webControlEnabled: Boolean,
+    webUiUrls: List<String>,
+    webControlAccessToken: String,
+    onToggleWebControl: () -> Unit,
+    onRotateWebControlToken: () -> Unit,
+    onRefreshWebUiUrls: () -> Unit,
     onOpenLibrary: () -> Unit,
     onOpenPlayer: () -> Unit,
     onOpenDetails: () -> Unit,
     onScanActiveSource: () -> Unit,
 ) {
-    var selectedSection by remember { mutableStateOf(MiruPlaySettingsSection.SOURCES) }
+    var selectedSection by remember { mutableStateOf(MiruPlaySettingsSection.WEB_UI) }
     val sectionFocusRequesters = remember {
         desktopSettingsSectionOrder.associateWith { FocusRequester() }
     }
@@ -207,6 +212,7 @@ internal fun CloudRssPanel(
             sourcesCount = sources.size,
             rssCount = subscriptions.size,
             cloudEnabled = enabled,
+            webUiAddressCount = webUiUrls.size,
             metadataSummary = metadataSummary,
             playbackSummary = playbackSummary,
             onSectionSelected = { selectedSection = it },
@@ -337,10 +343,23 @@ internal fun CloudRssPanel(
             )
             MiruPlaySettingsSection.WEB_UI -> SettingsSummaryContent(
                 section = selectedSection,
-                tiles = desktopWebUiSettingsTiles(),
-                status = settingsDesktopWebUiStatusMessage(),
-                actions = listOf(SettingsQuickAction(settingsOpenLibraryActionLabel(), onOpenLibrary)),
+                tiles = webUiSettingsTiles(platformValue = settingsWebUiDesktopValue()),
+                status = settingsDesktopWebUiStatusMessage(
+                    enabled = webControlEnabled,
+                    addressCount = webUiUrls.size,
+                ),
+                actions = listOf(
+                    SettingsQuickAction(settingsWebUiToggleActionLabel(webControlEnabled), onToggleWebControl),
+                    SettingsQuickAction(settingsWebUiRotateTokenActionLabel(), onRotateWebControlToken),
+                    SettingsQuickAction(settingsWebUiRefreshAddressActionLabel(), onRefreshWebUiUrls),
+                ),
                 onFocusSectionMenu = { focusSelectedSectionMenu() },
+                extraContent = {
+                    DesktopWebUiAccessSummary(
+                        urls = webUiUrls,
+                        accessToken = webControlAccessToken,
+                    )
+                },
                 modifier = Modifier.weight(1f),
             )
         }
@@ -1789,6 +1808,7 @@ private fun SettingsSectionMenu(
     sourcesCount: Int,
     rssCount: Int,
     cloudEnabled: Boolean,
+    webUiAddressCount: Int,
     metadataSummary: String,
     playbackSummary: String,
     onSectionSelected: (MiruPlaySettingsSection) -> Unit,
@@ -1817,6 +1837,7 @@ private fun SettingsSectionMenu(
                     sourcesCount = sourcesCount,
                     rssCount = rssCount,
                     cloudEnabled = cloudEnabled,
+                    webUiAddressCount = webUiAddressCount,
                     metadataSummary = metadataSummary,
                     playbackSummary = playbackSummary,
                 ),
@@ -1976,6 +1997,36 @@ private fun SettingsSummaryContent(
 }
 
 @Composable
+private fun DesktopWebUiAccessSummary(
+    urls: List<String>,
+    accessToken: String,
+) {
+    Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
+    StatusBox(settingsWebUiAccessTokenLabel(accessToken))
+    if (urls.isNotEmpty()) {
+        Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
+        Text(
+            settingsWebUiAvailableAddressesLabel(),
+            color = TextPrimary,
+            fontSize = MiruPlayUiMetrics.SECTION_SUBTITLE_SP.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Spacer(Modifier.height(6.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            urls.take(3).forEachIndexed { index, url ->
+                Text(
+                    "${settingsWebUiAddressLabel(index)}：$url",
+                    color = TextSecondary,
+                    fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun SettingsSummaryTileRow(tiles: List<SettingsSummaryTile>) {
     Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp)) {
         tiles.forEach { tile ->
@@ -2025,29 +2076,11 @@ private fun SettingsSummaryCard(
     }
 }
 
-private fun desktopWebUiSettingsTiles(): List<SettingsSummaryTile> =
-    listOf(
-        SettingsSummaryTile(
-            label = settingsWebUiTileLabel(),
-            value = settingsWebUiAndroidTvValue(),
-            detail = settingsWebUiTileDetail(),
-        ),
-        SettingsSummaryTile(
-            label = settingsWebUiNativeControlTileLabel(),
-            value = settingsDesktopControlTileValue(),
-            detail = settingsDesktopControlTileDetail(),
-        ),
-        SettingsSummaryTile(
-            label = settingsRemoteAutomationTileLabel(),
-            value = settingsRemoteAutomationTileValue(),
-            detail = settingsRemoteAutomationTileDetail(),
-        ),
-    )
-
 private fun MiruPlaySettingsSection.menuSummary(
     sourcesCount: Int,
     rssCount: Int,
     cloudEnabled: Boolean,
+    webUiAddressCount: Int,
     metadataSummary: String,
     playbackSummary: String,
 ): String = when (this) {
@@ -2056,7 +2089,7 @@ private fun MiruPlaySettingsSection.menuSummary(
     MiruPlaySettingsSection.CLOUD_DRIVE -> settingsCloudDriveMenuSummary(cloudEnabled, rssCount)
     MiruPlaySettingsSection.SCAN -> settingsDesktopScanMenuSummary()
     MiruPlaySettingsSection.METADATA -> metadataSummary
-    MiruPlaySettingsSection.WEB_UI -> settingsDesktopWebUiMenuSummary()
+    MiruPlaySettingsSection.WEB_UI -> settingsDesktopWebUiMenuSummary(webUiAddressCount)
 }
 
 @Composable

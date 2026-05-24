@@ -62,6 +62,10 @@ import com.miruplay.tv.model.settingsPlaybackStatusMessage
 import com.miruplay.tv.model.settingsPosterWallIndexTileLabel
 import com.miruplay.tv.model.settingsRecordCountValue
 import com.miruplay.tv.model.settingsSavedStateValue
+import com.miruplay.tv.model.settingsWebUiDesktopValue
+import com.miruplay.tv.model.settingsWebUiNativeControlTileLabel
+import com.miruplay.tv.model.settingsWebUiTileLabel
+import com.miruplay.tv.model.webUiSettingsTiles
 import com.miruplay.tv.model.metadataSettingsTiles
 import com.miruplay.tv.model.playbackSettingsTiles
 import com.miruplay.tv.model.scopedCloudDriveDirectoryPath
@@ -197,6 +201,19 @@ class DesktopSettingsPanelTest {
         assertTrue(tiles[1].detail.contains("Bangumi Feed"))
         assertTrue(tiles[2].detail.contains("调度器运行中"))
         assertTrue(tiles[2].detail.length <= 58)
+    }
+
+    @Test
+    fun `desktop web ui settings tiles expose Windows access summary`() {
+        val tiles = webUiSettingsTiles(platformValue = settingsWebUiDesktopValue())
+
+        assertEquals(
+            listOf(settingsWebUiTileLabel(), settingsWebUiNativeControlTileLabel(), "远程自动化"),
+            tiles.map { it.label },
+        )
+        assertEquals(settingsWebUiDesktopValue(), tiles[0].value)
+        assertEquals("原生窗口", tiles[1].value)
+        assertEquals("Cloud/RSS", tiles[2].value)
     }
 
     @Test
@@ -835,18 +852,20 @@ class DesktopSettingsPanelTest {
     @Test
     fun `desktop settings categories use shared TV section contract`() {
         assertEquals(
-            listOf("媒体源", "播放", "云盘", "扫描", "元数据"),
+            listOf("WebUI", "媒体源", "播放", "云盘", "扫描", "元数据"),
             desktopSettingsSectionOrder.map { it.desktopTitle },
         )
         assertEquals(
-            listOf("本地、WebDAV、SMB", "mpv 与 RIFE", "RSS 离线下载与入库", "媒体库更新", "Bangumi 匹配"),
+            listOf("访问地址与二维码", "本地、WebDAV、SMB", "mpv 与 RIFE", "RSS 离线下载与入库", "媒体库更新", "Bangumi 匹配"),
             desktopSettingsSectionOrder.map { it.desktopDescription },
         )
     }
 
     @Test
     fun `settings category navigation stops at TV list edges`() {
-        assertNull(MiruPlaySettingsSection.SOURCES.stepDesktopSettingsSection(-1))
+        assertNull(MiruPlaySettingsSection.WEB_UI.stepDesktopSettingsSection(-1))
+        assertEquals(MiruPlaySettingsSection.SOURCES, MiruPlaySettingsSection.WEB_UI.stepDesktopSettingsSection(1))
+        assertEquals(MiruPlaySettingsSection.WEB_UI, MiruPlaySettingsSection.SOURCES.stepDesktopSettingsSection(-1))
         assertEquals(MiruPlaySettingsSection.PLAYBACK, MiruPlaySettingsSection.SOURCES.stepDesktopSettingsSection(1))
         assertEquals(MiruPlaySettingsSection.CLOUD_DRIVE, MiruPlaySettingsSection.PLAYBACK.stepDesktopSettingsSection(1))
         assertEquals(MiruPlaySettingsSection.PLAYBACK, MiruPlaySettingsSection.CLOUD_DRIVE.stepDesktopSettingsSection(-1))
@@ -857,9 +876,9 @@ class DesktopSettingsPanelTest {
     @Test
     fun `settings category navigation accepts shared direction intents`() {
         assertEquals(
-            MiruPlaySettingsSection.PLAYBACK,
+            MiruPlaySettingsSection.SOURCES,
             settingsSectionNavigationTarget(
-                current = MiruPlaySettingsSection.SOURCES,
+                current = MiruPlaySettingsSection.WEB_UI,
                 intent = MiruPlayInputIntent.DirectionDown,
             ),
         )
@@ -872,7 +891,7 @@ class DesktopSettingsPanelTest {
         )
         assertNull(
             settingsSectionNavigationTarget(
-                current = MiruPlaySettingsSection.SOURCES,
+                current = MiruPlaySettingsSection.WEB_UI,
                 intent = MiruPlayInputIntent.DirectionUp,
             ),
         )
