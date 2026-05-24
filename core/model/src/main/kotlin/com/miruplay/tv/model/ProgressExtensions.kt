@@ -35,6 +35,17 @@ fun Episode.continueEpisodeProgress(progress: ProgressRecord?): Boolean {
     return position > 0L && !isCompleted(progress)
 }
 
+fun List<Pair<Episode, ProgressRecord?>>.continueEpisode(): Episode? {
+    val partial = continueProgressEpisode()
+    if (partial != null) return partial
+
+    return firstOrNull { (episode, progress) -> !episode.isCompleted(progress) }?.first
+        ?: firstOrNull()?.first
+}
+
+fun List<Pair<Episode, ProgressRecord?>>.continueActionLabel(): String =
+    detailContinueActionLabel(continueProgressEpisode()?.episodeNumber)
+
 fun playbackProgressPositionLabel(positionMs: Long): String =
     "看到 ${formatPlaybackPosition(positionMs.coerceAtLeast(0L))}"
 
@@ -78,3 +89,8 @@ fun ProgressRecord.loadedPlaybackStatus(displayName: String): String =
 
 private fun completionThreshold(duration: Long): Long =
     (duration * COMPLETION_RATIO).toLong().coerceAtLeast(1L)
+
+private fun List<Pair<Episode, ProgressRecord?>>.continueProgressEpisode(): Episode? =
+    filter { (episode, progress) -> episode.continueEpisodeProgress(progress) }
+        .maxByOrNull { (_, progress) -> progress?.lastWatched ?: 0L }
+        ?.first

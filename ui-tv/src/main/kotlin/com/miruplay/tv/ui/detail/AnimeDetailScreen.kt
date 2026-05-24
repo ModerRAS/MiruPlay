@@ -58,9 +58,9 @@ import androidx.tv.material3.Text
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.ProgressRecord
-import com.miruplay.tv.model.continueEpisodeProgress
+import com.miruplay.tv.model.continueActionLabel
+import com.miruplay.tv.model.continueEpisode
 import com.miruplay.tv.model.detailBangumiCollectionPillLabel
-import com.miruplay.tv.model.detailContinueActionLabel
 import com.miruplay.tv.model.detailEpisodeCountLabel
 import com.miruplay.tv.model.detailEpisodeSectionTitle
 import com.miruplay.tv.model.detailEpisodeTitleLabel
@@ -224,9 +224,9 @@ private fun DetailContent(
                     DetailStats(anime)
                     Spacer(Modifier.height(18.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        val continueTarget = continueEpisode(episodes)
+                        val continueTarget = episodes.continueEpisode()
                         TvButton(
-                            text = continueButtonText(episodes),
+                            text = episodes.continueActionLabel(),
                             onClick = { continueTarget?.let(onPlayEpisode) },
                             enabled = continueTarget != null,
                             modifier = Modifier
@@ -481,21 +481,4 @@ private fun Episode.displayPath(): String {
         ?.takeIf { it.isNotBlank() }
 
     return sourcePath ?: Uri.decode(filePath).ifBlank { fileName }
-}
-
-private fun continueButtonText(episodes: List<Pair<Episode, ProgressRecord?>>): String {
-    val next = episodes.firstOrNull { (episode, progress) -> episode.continueEpisodeProgress(progress) }
-        ?: return detailContinueActionLabel(null)
-    return detailContinueActionLabel(next.first.episodeNumber)
-}
-
-private fun continueEpisode(episodes: List<Pair<Episode, ProgressRecord?>>): Episode? {
-    val partial = episodes
-        .filter { (episode, progress) -> episode.continueEpisodeProgress(progress) }
-        .maxByOrNull { (_, progress) -> progress?.lastWatched ?: 0L }
-        ?.first
-    if (partial != null) return partial
-
-    return episodes.firstOrNull { (episode, progress) -> !episode.isCompleted(progress) }?.first
-        ?: episodes.firstOrNull()?.first
 }

@@ -71,15 +71,44 @@ class ProgressExtensionsTest {
         assertEquals("已载入最近播放：Episode 1。", record.loadedPlaybackStatus("Episode 1"))
     }
 
+    @Test
+    fun `continue episode picks most recently watched partial episode`() {
+        val first = episode(episodeId = "ep1", episodeNumber = 1, duration = 100_000L)
+        val second = episode(episodeId = "ep2", episodeNumber = 2, duration = 100_000L)
+        val third = episode(episodeId = "ep3", episodeNumber = 3, duration = 100_000L)
+        val episodes = listOf(
+            first to progress(episodeId = "ep1", positionMs = 30_000L, lastWatched = 100L),
+            second to progress(episodeId = "ep2", positionMs = 40_000L, lastWatched = 300L),
+            third to progress(episodeId = "ep3", positionMs = 0L, lastWatched = 0L),
+        )
+
+        assertEquals(second, episodes.continueEpisode())
+        assertEquals("继续观看 2", episodes.continueActionLabel())
+    }
+
+    @Test
+    fun `continue episode falls back to first unfinished then first episode`() {
+        val first = episode(episodeId = "ep1", episodeNumber = 1, duration = 100_000L)
+        val second = episode(episodeId = "ep2", episodeNumber = 2, duration = 100_000L)
+        val watched = progress(episodeId = "ep1", positionMs = 90_000L)
+
+        assertEquals(second, listOf(first to watched, second to null).continueEpisode())
+        assertEquals(first, listOf(first to watched).continueEpisode())
+        assertEquals(null, emptyList<Pair<Episode, ProgressRecord?>>().continueEpisode())
+        assertEquals("播放", emptyList<Pair<Episode, ProgressRecord?>>().continueActionLabel())
+    }
+
     private fun episode(
+        episodeId: String = "ep1",
+        episodeNumber: Int = 1,
         duration: Long,
         bangumiCollectionType: Int? = null
     ): Episode = Episode(
-        id = "ep1",
+        id = episodeId,
         animeId = "anime1",
-        episodeNumber = 1,
-        filePath = "/anime/ep1.mkv",
-        fileName = "ep1.mkv",
+        episodeNumber = episodeNumber,
+        filePath = "/anime/$episodeId.mkv",
+        fileName = "$episodeId.mkv",
         duration = duration,
         bangumiCollectionType = bangumiCollectionType
     )
@@ -87,11 +116,12 @@ class ProgressExtensionsTest {
     private fun progress(
         episodeId: String = "ep1",
         positionMs: Long,
-        playCount: Int = 0
+        playCount: Int = 0,
+        lastWatched: Long = 123L
     ): ProgressRecord = ProgressRecord(
         episodeId = episodeId,
         positionMs = positionMs,
-        lastWatched = 123L,
+        lastWatched = lastWatched,
         playCount = playCount
     )
 }
