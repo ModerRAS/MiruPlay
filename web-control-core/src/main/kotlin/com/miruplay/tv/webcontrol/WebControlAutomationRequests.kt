@@ -6,6 +6,7 @@ import com.miruplay.tv.model.CloudDriveRssRunSummary
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.buildRssSubscriptionFromForm
 import com.miruplay.tv.model.withAutomationFormValues
+import com.miruplay.tv.repository.CloudDriveAutomationRepository
 
 fun CloudDriveConfigRequest.toAutomationConfig(current: CloudDriveAutomationConfig): CloudDriveAutomationConfig =
     current.withAutomationFormValues(
@@ -33,6 +34,24 @@ fun RssSubscriptionRequest.toSubscription(existingLastCheckedAt: Long = 0L): Rss
 
 fun RssSubscriptionInfo.withSavedId(savedId: Long): RssSubscriptionInfo =
     copy(id = if (id > 0L) id else savedId)
+
+suspend fun CloudDriveAutomationRepository.saveWebControlRssSubscription(
+    request: RssSubscriptionRequest,
+): RssSubscriptionInfo {
+    val subscription = request.toSubscription() ?: throw IllegalArgumentException("请填写 RSS 地址")
+    val id = requireWebControlSuccess(saveSubscription(subscription), "保存 RSS 订阅失败")
+    return subscription.withSavedId(id)
+}
+
+suspend fun CloudDriveAutomationRepository.updateWebControlRssSubscription(
+    id: Long,
+    request: RssSubscriptionRequest,
+): RssSubscriptionInfo =
+    saveWebControlRssSubscription(request.copy(id = id))
+
+suspend fun CloudDriveAutomationRepository.deleteWebControlRssSubscription(id: Long) {
+    requireWebControlSuccess(deleteSubscription(id), "删除 RSS 订阅失败")
+}
 
 fun CloudDriveAutomationConfig.toWebControlAutomationDto(
     subscriptions: List<RssSubscriptionInfo>,

@@ -45,17 +45,18 @@ import com.miruplay.tv.webcontrol.WebControlPlaybackCommandKind
 import com.miruplay.tv.webcontrol.absoluteSeekPositionMs
 import com.miruplay.tv.webcontrol.browseWebControlCloudDriveDirectory
 import com.miruplay.tv.webcontrol.buildWebControlServerInfo
+import com.miruplay.tv.webcontrol.deleteWebControlRssSubscription
 import com.miruplay.tv.webcontrol.filteredByQuery
 import com.miruplay.tv.webcontrol.idleWebControlPlaybackStatus
 import com.miruplay.tv.webcontrol.playbackCommandKind
 import com.miruplay.tv.webcontrol.relativeSeekDeltaMs
 import com.miruplay.tv.webcontrol.requireWebControlSuccess
 import com.miruplay.tv.webcontrol.safeForApi
+import com.miruplay.tv.webcontrol.saveWebControlRssSubscription
 import com.miruplay.tv.webcontrol.skipBackwardDeltaMs
 import com.miruplay.tv.webcontrol.skipForwardDeltaMs
 import com.miruplay.tv.webcontrol.toAutomationConfig
 import com.miruplay.tv.webcontrol.toMediaSourceInfo
-import com.miruplay.tv.webcontrol.toSubscription
 import com.miruplay.tv.webcontrol.toWebControlAnimeDetail
 import com.miruplay.tv.webcontrol.toWebControlAutomationDto
 import com.miruplay.tv.webcontrol.toWebControlContinueWatching
@@ -64,11 +65,11 @@ import com.miruplay.tv.webcontrol.toWebControlDirectoryDto
 import com.miruplay.tv.webcontrol.toWebControlSourceTestResponse
 import com.miruplay.tv.webcontrol.toWebControlLibrary
 import com.miruplay.tv.webcontrol.toWebControlSourceScanResponse
+import com.miruplay.tv.webcontrol.updateWebControlRssSubscription
 import com.miruplay.tv.webcontrol.validated
 import com.miruplay.tv.webcontrol.webControlDefaultSourceName
 import com.miruplay.tv.webcontrol.webControlMediaSourceIdFromEpisodeId
 import com.miruplay.tv.webcontrol.webControlPlaybackStatus
-import com.miruplay.tv.webcontrol.withSavedId
 import kotlinx.coroutines.flow.first
 import java.io.File
 
@@ -229,19 +230,17 @@ internal class DesktopWebControlService(
     }
 
     override suspend fun saveRssSubscription(request: RssSubscriptionRequest): com.miruplay.tv.model.RssSubscriptionInfo {
-        val subscription = request.toSubscription() ?: throw IllegalArgumentException("请填写 RSS 地址")
-        val id = requireWebControlSuccess(repositories.cloudDriveAutomation.saveSubscription(subscription), "保存 RSS 订阅失败")
-        return subscription.withSavedId(id)
+        return repositories.cloudDriveAutomation.saveWebControlRssSubscription(request)
     }
 
     override suspend fun updateRssSubscription(
         id: Long,
         request: RssSubscriptionRequest,
     ): com.miruplay.tv.model.RssSubscriptionInfo =
-        saveRssSubscription(request.copy(id = id))
+        repositories.cloudDriveAutomation.updateWebControlRssSubscription(id, request)
 
     override suspend fun deleteRssSubscription(id: Long) {
-        requireWebControlSuccess(repositories.cloudDriveAutomation.deleteSubscription(id), "删除 RSS 订阅失败")
+        repositories.cloudDriveAutomation.deleteWebControlRssSubscription(id)
     }
 
     override suspend fun searchLibrary(query: String): LibraryDto {

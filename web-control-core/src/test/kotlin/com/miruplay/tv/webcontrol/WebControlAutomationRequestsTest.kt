@@ -1,12 +1,20 @@
 package com.miruplay.tv.webcontrol
 
+import com.miruplay.tv.core.common.AppError
+import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.clouddrive.CloudDriveTokenInfo
 import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.CloudDriveRssRunSummary
 import com.miruplay.tv.model.MAX_RSS_PROXY_PORT
 import com.miruplay.tv.model.MIN_CLOUD_DRIVE_INTERVAL_MINUTES
 import com.miruplay.tv.model.MIN_RSS_PROXY_PORT
+import com.miruplay.tv.model.RssDownloadTaskInfo
+import com.miruplay.tv.model.RssProcessedItemInfo
 import com.miruplay.tv.model.RssSubscriptionInfo
+import com.miruplay.tv.repository.CloudDriveAutomationRepository
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -90,6 +98,70 @@ class WebControlAutomationRequestsTest {
     fun `saved id keeps existing id when updating`() {
         assertEquals(7L, RssSubscriptionInfo(id = 7L).withSavedId(9L).id)
         assertEquals(9L, RssSubscriptionInfo(id = 0L).withSavedId(9L).id)
+    }
+
+    @Test
+    fun `repository saves WebUI RSS subscription and returns persisted id`() = runBlocking {
+        val repository = FakeCloudDriveAutomationRepository(nextSubscriptionId = 42L)
+
+        val saved = repository.saveWebControlRssSubscription(
+            RssSubscriptionRequest(
+                name = " Season ",
+                url = " https://rss.example.test/feed.xml ",
+                filterRegex = " 1080p ",
+                enabled = false,
+            )
+        )
+
+        assertEquals(42L, saved.id)
+        assertEquals("Season", saved.name)
+        assertEquals("https://rss.example.test/feed.xml", saved.url)
+        assertEquals("1080p", saved.filterRegex)
+        assertEquals(false, saved.enabled)
+        assertEquals(saved, repository.savedSubscriptions.single().withSavedId(42L))
+    }
+
+    @Test
+    fun `repository update keeps requested RSS subscription id`() = runBlocking {
+        val repository = FakeCloudDriveAutomationRepository(nextSubscriptionId = 99L)
+
+        val saved = repository.updateWebControlRssSubscription(
+            id = 7L,
+            request = RssSubscriptionRequest(
+                name = "Season",
+                url = "https://rss.example.test/feed.xml",
+            ),
+        )
+
+        assertEquals(7L, saved.id)
+        assertEquals(7L, repository.savedSubscriptions.single().id)
+    }
+
+    @Test
+    fun `repository save WebUI RSS subscription rejects blank url`() = runBlocking {
+        val repository = FakeCloudDriveAutomationRepository()
+
+        val failure = runCatching {
+            repository.saveWebControlRssSubscription(RssSubscriptionRequest(name = "Season", url = " "))
+        }.exceptionOrNull()
+
+        assertTrue(failure is IllegalArgumentException)
+        assertEquals("请填写 RSS 地址", failure?.message)
+        assertEquals(emptyList<RssSubscriptionInfo>(), repository.savedSubscriptions)
+    }
+
+    @Test
+    fun `repository delete WebUI RSS subscription maps repository errors`() = runBlocking {
+        val repository = FakeCloudDriveAutomationRepository(
+            deleteResult = Result.failure(AppError.SyncError.WriteFailed(path = "rss", cause = "boom")),
+        )
+
+        val failure = runCatching {
+            repository.deleteWebControlRssSubscription(7L)
+        }.exceptionOrNull()
+
+        assertTrue(failure is IllegalStateException)
+        assertEquals("删除 RSS 订阅失败: 写入失败：boom", failure?.message)
     }
 
     @Test
@@ -196,5 +268,50 @@ class WebControlAutomationRequestsTest {
         assertEquals(2, response.skipped)
         assertEquals(1, response.failed)
         assertEquals(4, response.organized)
+    }
+
+    private class FakeCloudDriveAutomationRepository(
+        private val nextSubscriptionId: Long = 1L,
+        private val deleteResult: Result<Unit> = Result.success(Unit),
+    ) : CloudDriveAutomationRepository {
+        val savedSubscriptions = mutableListOf<RssSubscriptionInfo>()
+
+        override fun observeConfig(): Flow<CloudDriveAutomationConfig> =
+            flowOf(CloudDriveAutomationConfig())
+
+        override suspend fun getConfig(): Result<CloudDriveAutomationConfig> =
+            Result.success(CloudDriveAutomationConfig())
+
+        override suspend fun saveConfig(config: CloudDriveAutomationConfig): Result<Unit> =
+            Result.success(Unit)
+
+        override suspend fun updateLastRunAt(timestamp: Long): Result<Unit> =
+            Result.success(Unit)
+
+        override fun observeSubscriptions(): Flow<List<RssSubscriptionInfo>> =
+            flowOf(savedSubscriptions)
+
+        override suspend fun listEnabledSubscriptions(): Result<List<RssSubscriptionInfo>> =
+            Result.success(savedSubscriptions.filter { it.enabled })
+
+        override suspend fun saveSubscription(subscription: RssSubscriptionInfo): Result<Long> {
+            savedSubscriptions += subscription
+            return Result.success(nextSubscriptionId)
+        }
+
+        override suspend fun deleteSubscription(id: Long): Result<Unit> =
+            deleteResult
+
+        override suspend fun markSubscriptionChecked(id: Long, timestamp: Long): Result<Unit> =
+            Result.success(Unit)
+
+        override suspend fun isItemProcessed(subscriptionId: Long, itemKey: String): Result<Boolean> =
+            Result.success(false)
+
+        override suspend fun markItemProcessed(item: RssProcessedItemInfo): Result<Unit> =
+            Result.success(Unit)
+
+        override suspend fun saveDownloadTask(task: RssDownloadTaskInfo): Result<Long> =
+            Result.success(1L)
     }
 }

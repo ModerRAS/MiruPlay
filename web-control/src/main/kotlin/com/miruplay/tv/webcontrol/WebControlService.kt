@@ -149,16 +149,14 @@ class WebControlService @Inject constructor(
     }
 
     override suspend fun saveRssSubscription(request: RssSubscriptionRequest): RssSubscriptionInfo {
-        val subscription = request.toSubscription() ?: throw IllegalArgumentException("请填写 RSS 地址")
-        val id = requireWebControlSuccess(cloudDriveRepository.saveSubscription(subscription), "保存 RSS 订阅失败")
-        return subscription.withSavedId(id)
+        return cloudDriveRepository.saveWebControlRssSubscription(request)
     }
 
     override suspend fun updateRssSubscription(id: Long, request: RssSubscriptionRequest): RssSubscriptionInfo =
-        saveRssSubscription(request.copy(id = id))
+        cloudDriveRepository.updateWebControlRssSubscription(id, request)
 
     override suspend fun deleteRssSubscription(id: Long) {
-        requireWebControlSuccess(cloudDriveRepository.deleteSubscription(id), "删除 RSS 订阅失败")
+        cloudDriveRepository.deleteWebControlRssSubscription(id)
     }
 
     suspend fun getLibrary(): LibraryDto {
