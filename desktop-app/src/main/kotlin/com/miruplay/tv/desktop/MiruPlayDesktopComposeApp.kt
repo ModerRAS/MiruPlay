@@ -158,6 +158,7 @@ import com.miruplay.tv.repository.loadingRemoteDirectoryStatus
 import com.miruplay.tv.repository.localLibraryInitialStatus
 import com.miruplay.tv.repository.localRootRequiredStatus
 import com.miruplay.tv.repository.mediaDisplayName
+import com.miruplay.tv.repository.mediaIndexEpisodesForPosterSelection
 import com.miruplay.tv.repository.mediaFilesOnly
 import com.miruplay.tv.repository.metadataAppliedStatus
 import com.miruplay.tv.repository.metadataApplyEntryRequiredStatus
@@ -589,7 +590,7 @@ internal fun MiruPlayDesktopComposeApp(
     }
 
     val detailEpisodes = remember(indexedEntries, selectedIndexEntry, mergeSameAnimeEnabled) {
-        detailEpisodesForSelection(indexedEntries, selectedIndexEntry, mergeSameAnimeEnabled)
+        indexedEntries.mediaIndexEpisodesForPosterSelection(selectedIndexEntry, mergeSameAnimeEnabled)
     }
 
     LaunchedEffect(selectedIndexEntry?.sourceId, selectedIndexEntry?.path, detailEpisodes.map { it.seasonNumber }) {

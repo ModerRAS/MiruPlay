@@ -311,7 +311,7 @@ class DesktopDetailHeroTest {
     }
 
     @Test
-    fun `detail episodes group selected anime and sort by season episode`() {
+    fun `detail episode season helpers choose active season and filter episodes`() {
         val selected = MediaIndexEntry(
             sourceId = 1,
             path = "show/Frieren - S01E02.mkv",
@@ -319,66 +319,16 @@ class DesktopDetailHeroTest {
             seasonNumber = 1,
             episodeNumber = 2,
         )
-        val entries = listOf(
-            selected,
+        val episodes = listOf(
             MediaIndexEntry(sourceId = 1, path = "show/Frieren - S01E01.mkv", animeName = "Frieren", seasonNumber = 1, episodeNumber = 1),
+            selected,
             MediaIndexEntry(sourceId = 1, path = "show/Frieren - S02E01.mkv", animeName = "Frieren", seasonNumber = 2, episodeNumber = 1),
-            MediaIndexEntry(sourceId = 1, path = "show/Bocchi - S01E01.mkv", animeName = "Bocchi", seasonNumber = 1, episodeNumber = 1),
-            MediaIndexEntry(sourceId = 2, path = "other/Frieren - S01E03.mkv", animeName = "Frieren", seasonNumber = 1, episodeNumber = 3),
         )
 
-        val episodes = detailEpisodesForSelection(entries, selected)
-
-        assertEquals(
-            listOf("show/Frieren - S01E01.mkv", "show/Frieren - S01E02.mkv", "show/Frieren - S02E01.mkv"),
-            episodes.map { it.path },
-        )
         assertEquals(listOf(1, 2), detailEpisodeSeasons(episodes))
         assertEquals(1, detailActiveEpisodeSeason(episodes, selected, requestedSeason = null))
+        assertEquals(2, detailActiveEpisodeSeason(episodes, selected, requestedSeason = 2))
         assertEquals(listOf("show/Frieren - S02E01.mkv"), detailEpisodesForSeason(episodes, 2).map { it.path })
-    }
-
-    @Test
-    fun `detail episodes can merge entries that share external metadata`() {
-        val selected = MediaIndexEntry(
-            sourceId = 1,
-            path = "Frieren Season 1/01.mkv",
-            animeName = "Frieren Season 1",
-            metadataId = "431767",
-            metadataTitle = "葬送的芙莉莲",
-            seasonNumber = 1,
-            episodeNumber = 1,
-        )
-        val entries = listOf(
-            selected,
-            MediaIndexEntry(
-                sourceId = 1,
-                path = "Frieren Season 2/01.mkv",
-                animeName = "Frieren Season 2",
-                metadataId = "431767",
-                metadataTitle = "葬送的芙莉莲",
-                seasonNumber = 2,
-                episodeNumber = 1,
-            ),
-            MediaIndexEntry(
-                sourceId = 1,
-                path = "Bocchi/01.mkv",
-                animeName = "Bocchi",
-                metadataId = "999",
-                metadataTitle = "Bocchi",
-                seasonNumber = 1,
-                episodeNumber = 1,
-            ),
-        )
-
-        assertEquals(
-            listOf("Frieren Season 1/01.mkv"),
-            detailEpisodesForSelection(entries, selected, mergeSameAnimeEnabled = false).map { it.path },
-        )
-        assertEquals(
-            listOf("Frieren Season 1/01.mkv", "Frieren Season 2/01.mkv"),
-            detailEpisodesForSelection(entries, selected, mergeSameAnimeEnabled = true).map { it.path },
-        )
     }
 
     @Test

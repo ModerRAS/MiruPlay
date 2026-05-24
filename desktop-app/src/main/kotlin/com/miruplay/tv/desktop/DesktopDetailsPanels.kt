@@ -76,8 +76,8 @@ import com.miruplay.tv.model.recentPlaybackLabels
 import com.miruplay.tv.repository.MediaDetailRows
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.displayName
-import com.miruplay.tv.repository.mediaFilesOnly
 import com.miruplay.tv.repository.mediaDisplayName
+import com.miruplay.tv.repository.sortedByMediaIndexEpisodeOrder
 
 @Composable
 internal fun DesktopDetailHero(
@@ -659,20 +659,6 @@ private fun DetailEpisodeRow(
     }
 }
 
-internal fun detailEpisodesForSelection(
-    entries: List<MediaIndexEntry>,
-    selectedEntry: MediaIndexEntry?,
-    mergeSameAnimeEnabled: Boolean = false,
-): List<MediaIndexEntry> {
-    val selected = selectedEntry?.takeUnless { it.isDirectory } ?: return emptyList()
-    return entries
-        .mediaFilesOnly()
-        .asSequence()
-        .filter { it.belongsToPosterGroup(selected, mergeSameAnimeEnabled) }
-        .sortedWith(detailEpisodeComparator)
-        .toList()
-}
-
 internal fun detailEpisodeSeasons(episodes: List<MediaIndexEntry>): List<Int> =
     episodes
         .mapNotNull { it.seasonNumber }
@@ -697,7 +683,7 @@ internal fun detailEpisodesForSeason(
     episodes: List<MediaIndexEntry>,
     season: Int?,
 ): List<MediaIndexEntry> =
-    if (season == null) episodes.sortedWith(detailEpisodeComparator) else episodes.filter { it.seasonNumber == season }
+    if (season == null) episodes.sortedByMediaIndexEpisodeOrder() else episodes.filter { it.seasonNumber == season }
 
 internal fun moveDetailEpisodeSelection(
     currentIndex: Int,
@@ -805,13 +791,6 @@ internal fun detailEpisodeEmptyFocusTarget(intent: MiruPlayInputIntent): DetailE
         1 -> DetailEpisodeFocusTarget.NextPanel
         else -> null
     }
-
-private val detailEpisodeComparator =
-    compareBy<MediaIndexEntry>(
-        { it.seasonNumber ?: Int.MAX_VALUE },
-        { it.episodeNumber ?: Int.MAX_VALUE },
-        { it.path.lowercase() },
-    )
 
 @Composable
 internal fun RecentPlaybackPanel(

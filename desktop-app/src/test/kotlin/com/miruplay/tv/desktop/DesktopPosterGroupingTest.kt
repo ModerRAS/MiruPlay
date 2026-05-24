@@ -5,28 +5,9 @@ import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.repository.MediaIndexEntry
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DesktopPosterGroupingTest {
-    @Test
-    fun `poster wall groups indexed episodes by anime title`() {
-        val entries = listOf(
-            MediaIndexEntry(sourceId = 1, path = "show/Frieren - 02.mkv", animeName = "Frieren", episodeNumber = 2),
-            MediaIndexEntry(sourceId = 1, path = "show/Frieren - 01.mkv", animeName = "Frieren", episodeNumber = 1),
-            MediaIndexEntry(sourceId = 1, path = "show/Bocchi - 01.mkv", animeName = "Bocchi", episodeNumber = 1),
-            MediaIndexEntry(sourceId = 1, path = "show/Frieren", animeName = "Frieren", isDirectory = true),
-        )
-
-        val groups = entries.toDesktopPosterGroups()
-
-        assertEquals(listOf("Bocchi", "Frieren"), groups.map { it.title })
-        val frieren = groups.single { it.title == "Frieren" }
-        assertEquals(2, frieren.entries.size)
-        assertTrue(frieren.primaryEntry.path.endsWith("Frieren - 01.mkv"))
-        assertEquals("2 episodes", frieren.subtitle)
-    }
-
     @Test
     fun `poster wall uses six poster columns like Android TV library`() {
         val groups = (1..13).map { index ->
@@ -55,36 +36,6 @@ class DesktopPosterGroupingTest {
         assertEquals("Show 8", groups.posterNavigationTarget(currentIndex = 4, key = Key.DirectionDown)?.title)
         assertEquals("Show 8", groups.posterNavigationTarget(currentIndex = 5, key = Key.DirectionDown)?.title)
         assertNull(groups.posterNavigationTarget(currentIndex = 6, key = Key.DirectionDown))
-    }
-
-    @Test
-    fun `poster wall can merge entries that share external metadata`() {
-        val entries = listOf(
-            MediaIndexEntry(
-                sourceId = 1,
-                path = "Frieren Season 1/01.mkv",
-                animeName = "Frieren Season 1",
-                metadataId = "431767",
-                metadataTitle = "葬送的芙莉莲",
-            ),
-            MediaIndexEntry(
-                sourceId = 1,
-                path = "Frieren Season 2/01.mkv",
-                animeName = "Frieren Season 2",
-                metadataId = "431767",
-                metadataTitle = "葬送的芙莉莲",
-            ),
-        )
-
-        assertEquals(2, entries.toDesktopPosterGroups(mergeSameAnimeEnabled = false).size)
-
-        val merged = entries.toDesktopPosterGroups(mergeSameAnimeEnabled = true)
-
-        assertEquals(listOf("葬送的芙莉莲"), merged.map { it.title })
-        assertEquals(
-            listOf("Frieren Season 1/01.mkv", "Frieren Season 2/01.mkv"),
-            merged.single().entries.map { it.path },
-        )
     }
 
     @Test
