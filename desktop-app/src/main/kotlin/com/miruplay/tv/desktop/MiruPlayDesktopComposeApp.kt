@@ -77,6 +77,7 @@ import com.miruplay.tv.model.cloudDriveLoginStartedStatus
 import com.miruplay.tv.model.cloudDriveLoginSucceededStatus
 import com.miruplay.tv.model.cloudRssConfigSavedStatus
 import com.miruplay.tv.model.cloudRssInitialStatus
+import com.miruplay.tv.model.cloudRssRescanStartedStatus
 import com.miruplay.tv.model.cloudRssLinkedScanSourceStatus
 import com.miruplay.tv.model.cloudRssRunStartedStatus
 import com.miruplay.tv.model.cloudRssScanSourceClearedStatus
@@ -979,7 +980,7 @@ internal fun MiruPlayDesktopComposeApp(
             return null
         }
 
-        cloudRssStatus = desktopCloudRssRescanStartedStatus(sourceInfo, reason)
+        cloudRssStatus = cloudRssRescanStartedStatus(reason, sourceInfo.sourcePickerTitle())
         return when (val rescan = rescanCloudRssLinkedSource(sourceInfo, reason, repositories.index)) {
             is Result.Success -> {
                 val result = rescan.data

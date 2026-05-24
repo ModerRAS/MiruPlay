@@ -186,6 +186,12 @@ fun playbackEndReturnToDetailActionLabel(): String = playbackBackToDetailsLabel(
 
 fun playbackEndPlayNextEpisodeActionLabel(): String = "继续下一集"
 
+fun PlaybackEndAction.playbackEndActionLabel(): String =
+    when (this) {
+        PlaybackEndAction.RETURN_TO_DETAIL -> playbackEndReturnToDetailActionLabel()
+        PlaybackEndAction.PLAY_NEXT_EPISODE -> playbackEndPlayNextEpisodeActionLabel()
+    }
+
 fun playbackEndReturnToDetailDetail(): String =
     "播完后会停在详情页，方便手动挑下一集。"
 

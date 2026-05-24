@@ -64,8 +64,7 @@ import com.miruplay.tv.model.playbackBackToDetailsLabel
 import com.miruplay.tv.model.playbackCheckRuntimeActionLabel
 import com.miruplay.tv.model.playbackChooseMediaLabel
 import com.miruplay.tv.model.playbackDiagnosticsTitleLabel
-import com.miruplay.tv.model.playbackEndPlayNextEpisodeActionLabel
-import com.miruplay.tv.model.playbackEndReturnToDetailActionLabel
+import com.miruplay.tv.model.playbackEndActionLabel
 import com.miruplay.tv.model.playbackEndSettingsDescriptionLabel
 import com.miruplay.tv.model.playbackEndSettingsTitleLabel
 import com.miruplay.tv.model.playbackExternalSubtitleLabel
@@ -221,7 +220,7 @@ private fun DesktopPlayerStage(
     focusVersion: Int = 0,
     onFocusNextPanel: () -> Boolean = { false },
 ) {
-    val title = desktopPlaybackTitle(mediaPath)
+    val title = playbackMediaTitle(mediaPath)
     val backToDetailsFocusRequester = remember { FocusRequester() }
     val primaryTransportFocusRequester = remember { FocusRequester() }
     Box(
@@ -349,7 +348,7 @@ private fun PlayerStageTopBar(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        PlayerInfoChip(desktopPlaybackStatusChip(isPlayerActive))
+        PlayerInfoChip(playbackMpvRuntimeStateLabel(isPlayerActive))
     }
 }
 
@@ -828,7 +827,7 @@ private fun PlayerStageBottomBar(
             .padding(start = 36.dp, end = 36.dp, top = 18.dp, bottom = 26.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            TimeText(desktopPlaybackStartPositionLabel(startSeconds))
+            TimeText(playbackStartPositionLabel(startSeconds))
             PlaybackTimeline(
                 progress = 0f,
                 modifier = Modifier
@@ -846,7 +845,7 @@ private fun PlayerStageBottomBar(
             PlayerInfoChip(playbackRifeStateLabel(rifeEnabled, rifeBackend.name))
             PlayerInfoChip(playbackExternalSubtitleLabel())
             Text(
-                desktopPlaybackStatusText(launchStatus),
+                mpvPlaybackStatusText(launchStatus),
                 color = TextSecondary,
                 fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
                 maxLines = 1,
@@ -1086,7 +1085,7 @@ internal fun RuntimePanel(
             ),
         )
         Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
-        StatusBox(desktopRuntimeStatusText(status))
+        StatusBox(playbackRuntimeStatusText(status))
         Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
         TvActionButton(
             playbackCheckRuntimeActionLabel(),
@@ -1109,7 +1108,7 @@ internal fun CommandPanel(
     TvPanel(modifier) {
         Text(playbackDiagnosticsTitleLabel(), color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
-        StatusBox(desktopPlaybackStatusText(launchStatus))
+        StatusBox(mpvPlaybackStatusText(launchStatus))
         Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
         Box(
             modifier = Modifier
@@ -1132,10 +1131,6 @@ internal fun CommandPanel(
     }
 }
 
-internal fun desktopPlaybackTitle(mediaPath: String): String {
-    return playbackMediaTitle(mediaPath)
-}
-
 internal data class DesktopPlaybackUiLabels(
     val mediaPath: String,
     val startSeconds: String,
@@ -1155,15 +1150,6 @@ internal fun desktopPlaybackUiLabels(): DesktopPlaybackUiLabels =
         rife = playbackRifeToggleLabel(),
     )
 
-internal fun desktopPlaybackStatusChip(isPlayerActive: Boolean): String =
-    playbackMpvRuntimeStateLabel(isPlayerActive)
-
-internal fun desktopPlaybackStatusText(status: String): String =
-    mpvPlaybackStatusText(status)
-
-internal fun desktopRuntimeStatusText(status: String): String =
-    playbackRuntimeStatusText(status)
-
 internal fun desktopPlaybackSourceLine(
     mediaPath: String,
     rifeEnabled: Boolean,
@@ -1176,10 +1162,6 @@ internal fun desktopPlaybackSourceLine(
         rifeBackendName = rifeBackend.name,
         isPlayerActive = isPlayerActive,
     )
-}
-
-internal fun desktopPlaybackStartPositionLabel(startSeconds: String): String {
-    return playbackStartPositionLabel(startSeconds)
 }
 
 @Composable
@@ -1218,13 +1200,13 @@ private fun PlaybackEndActionPicker(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         PlaybackEndActionChoiceChip(
-            text = PlaybackEndAction.RETURN_TO_DETAIL.desktopActionLabel(),
+            text = PlaybackEndAction.RETURN_TO_DETAIL.playbackEndActionLabel(),
             selected = selected == PlaybackEndAction.RETURN_TO_DETAIL,
             onClick = { onSelected(PlaybackEndAction.RETURN_TO_DETAIL) },
             widthDp = 160,
         )
         PlaybackEndActionChoiceChip(
-            text = PlaybackEndAction.PLAY_NEXT_EPISODE.desktopActionLabel(),
+            text = PlaybackEndAction.PLAY_NEXT_EPISODE.playbackEndActionLabel(),
             selected = selected == PlaybackEndAction.PLAY_NEXT_EPISODE,
             onClick = { onSelected(PlaybackEndAction.PLAY_NEXT_EPISODE) },
             widthDp = 170,
@@ -1278,12 +1260,6 @@ private fun PlaybackEndActionChoiceChip(
         )
     }
 }
-
-internal fun PlaybackEndAction.desktopActionLabel(): String =
-    when (this) {
-        PlaybackEndAction.RETURN_TO_DETAIL -> playbackEndReturnToDetailActionLabel()
-        PlaybackEndAction.PLAY_NEXT_EPISODE -> playbackEndPlayNextEpisodeActionLabel()
-    }
 
 internal fun playbackEndActionNavigationTarget(
     current: PlaybackEndAction,

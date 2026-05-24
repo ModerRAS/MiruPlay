@@ -18,7 +18,7 @@ class DesktopChromeTest {
 
     @Test
     fun `poster placeholder subtitle uses TV-facing runtime copy`() {
-        assertEquals(desktopPosterPlaceholderSubtitleLabel(), desktopPosterPlaceholderSubtitle())
+        assertEquals("内置播放运行时", desktopPosterPlaceholderSubtitleLabel())
     }
 
     @Test

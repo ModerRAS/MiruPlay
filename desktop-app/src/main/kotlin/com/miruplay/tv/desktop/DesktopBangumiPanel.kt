@@ -719,7 +719,7 @@ private fun BangumiBatchMatchRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                desktopBangumiBatchStatusLabel(status),
+                metadataBatchStatusLabel(status),
                 color = if (status == "conflict") AnimeRed else TextSecondary,
                 fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
                 fontWeight = FontWeight.Bold,
@@ -737,7 +737,7 @@ private fun BangumiBatchMatchRow(
                 Text(
                     result?.let {
                         val candidateSuffix = if (match.candidates.size > 1) {
-                            " / ${match.desktopSelectedCandidateLabel()}"
+                            " / ${match.selectedCandidateLabel()}"
                         } else {
                             ""
                         }
@@ -793,13 +793,6 @@ internal fun desktopBangumiUiLabels(isSyncingProgress: Boolean = false): Desktop
         batchCandidates = metadataBatchCandidatesSectionTitle(),
         emptyResults = metadataEmptyResultsMessage(),
     )
-
-internal fun desktopBangumiBatchStatusLabel(status: String): String =
-    metadataBatchStatusLabel(status)
-
-internal fun MetadataBatchMatch.desktopSelectedCandidateLabel(): String {
-    return selectedCandidateLabel()
-}
 
 internal enum class BangumiListSection {
     BatchMatches,

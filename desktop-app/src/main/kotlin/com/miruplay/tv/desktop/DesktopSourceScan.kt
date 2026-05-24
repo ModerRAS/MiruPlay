@@ -34,9 +34,6 @@ internal enum class DesktopCloudRssRescanTargetStatus {
     REMOTE,
 }
 
-internal fun desktopCloudRssRescanStartedStatus(sourceInfo: MediaSourceInfo, reason: String): String =
-    cloudRssRescanStartedStatus(reason, sourceInfo.sourcePickerTitle())
-
 internal suspend fun scanAndIndexDesktopSource(
     sourceInfo: MediaSourceInfo,
     indexRepository: MediaIndexRepository,
@@ -78,7 +75,7 @@ internal suspend fun rescanCloudRssLinkedSource(
             Result.success(
                 DesktopCloudRssRescanResult(
                     sourceId = scan.data.sourceId,
-                    startedStatus = desktopCloudRssRescanStartedStatus(sourceInfo, reason),
+                    startedStatus = cloudRssRescanStartedStatus(reason, sourceInfo.sourcePickerTitle()),
                     completedStatus = rescanCompleteStatus(
                         filesIndexed = scan.data.filesIndexed,
                         directoriesVisited = scan.data.directoriesVisited,
