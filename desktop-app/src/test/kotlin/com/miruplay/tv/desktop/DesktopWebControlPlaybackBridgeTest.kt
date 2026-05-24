@@ -14,6 +14,8 @@ import com.miruplay.tv.model.PlaybackProgressSession
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.player.mpv.MpvProcessPlayer
+import com.miruplay.tv.player.mpv.MpvIpcController
+import com.miruplay.tv.player.mpv.MpvSeekMode
 import com.miruplay.tv.player.mpv.MpvRuntimeConfig
 import com.miruplay.tv.webcontrol.PlayEpisodeRequest
 import com.miruplay.tv.webcontrol.PlaybackCommandRequest
@@ -68,16 +70,16 @@ class DesktopWebControlPlaybackBridgeTest {
 
     @Test
     fun `desktop WebUI speed command sends mpv playback speed over IPC`() = runBlocking {
-        val pipe = Files.createTempFile("miruplay-desktop-web-speed", ".json")
         val mpv = Files.createTempFile("miruplay-mpv", ".exe")
         try {
+            val ipc = FakeMpvIpcController()
             val player = MpvProcessPlayer(
                 config = MpvRuntimeConfig(
                     mpvExecutable = mpv,
-                    ipcServer = pipe.toString(),
                     rife = null,
                 ),
                 processLauncher = { AliveProcess() },
+                ipcClient = ipc,
             )
             player.play(PlaybackSource(uri = "D:/Anime/Frieren.mkv", mediaSourceId = "7"))
             val session = PlaybackProgressSession(episodeId = "7:D:/Anime/Frieren.mkv", startPositionMs = 12_000L)
@@ -91,12 +93,71 @@ class DesktopWebControlPlaybackBridgeTest {
 
             assertEquals("Playing", status.state)
             assertTrue(status.isPlaying)
-            assertEquals(
-                """{"command":["set_property","speed",1.25]}""",
-                Files.readString(pipe).trim(),
-            )
+            assertEquals(listOf(1.25), ipc.speedValues)
         } finally {
-            Files.deleteIfExists(pipe)
+            Files.deleteIfExists(mpv)
+        }
+    }
+
+    @Test
+    fun `desktop WebUI playback status reads observed mpv position and duration`() = runBlocking {
+        val mpv = Files.createTempFile("miruplay-mpv", ".exe")
+        try {
+            val ipc = FakeMpvIpcController(positionSeconds = 42.5, durationSeconds = 1_500.0)
+            val player = MpvProcessPlayer(
+                config = MpvRuntimeConfig(mpvExecutable = mpv, rife = null),
+                processLauncher = { AliveProcess() },
+                ipcClient = ipc,
+            )
+            player.play(PlaybackSource(uri = "D:/Anime/Frieren.mkv", mediaSourceId = "7"))
+            val session = PlaybackProgressSession(episodeId = "7:D:/Anime/Frieren.mkv", startPositionMs = 12_000L)
+
+            val status = desktopWebControlPlaybackStatus(
+                player = player,
+                session = session,
+                mediaPath = "D:/Anime/Frieren.mkv",
+                launchStatus = "playing",
+            )
+
+            assertEquals("Playing", status.state)
+            assertEquals("D:/Anime/Frieren.mkv", status.uri)
+            assertEquals("7", status.mediaSourceId)
+            assertEquals(42_500L, status.positionMs)
+            assertEquals(1_500_000L, status.durationMs)
+            assertEquals(42_500L, session.currentPositionMs())
+        } finally {
+            Files.deleteIfExists(mpv)
+        }
+    }
+
+    @Test
+    fun `desktop WebUI command response reuses observed playback status`() = runBlocking {
+        val mpv = Files.createTempFile("miruplay-mpv", ".exe")
+        try {
+            val ipc = FakeMpvIpcController(positionSeconds = 11.0, durationSeconds = 120.0)
+            val player = MpvProcessPlayer(
+                config = MpvRuntimeConfig(mpvExecutable = mpv, rife = null),
+                processLauncher = { AliveProcess() },
+                ipcClient = ipc,
+            )
+            player.play(PlaybackSource(uri = "D:/Anime/Frieren.mkv", mediaSourceId = "7"))
+            val session = PlaybackProgressSession(episodeId = "7:D:/Anime/Frieren.mkv", startPositionMs = 5_000L)
+
+            val status = desktopWebControlPlaybackCommand(
+                request = PlaybackCommandRequest(command = "pause"),
+                player = player,
+                session = session,
+                mediaPath = "D:/Anime/Frieren.mkv",
+                launchStatus = "playing",
+                stopPlayback = {},
+            )
+
+            assertEquals("Playing", status.state)
+            assertEquals("D:/Anime/Frieren.mkv", status.uri)
+            assertEquals(11_000L, status.positionMs)
+            assertEquals(120_000L, status.durationMs)
+            assertEquals(listOf(true), ipc.pausedValues)
+        } finally {
             Files.deleteIfExists(mpv)
         }
     }
@@ -339,5 +400,41 @@ class DesktopWebControlPlaybackBridgeTest {
         override fun isAlive(): Boolean = true
 
         override fun pid(): Long = 77L
+    }
+
+    private class FakeMpvIpcController(
+        private val positionSeconds: Double? = null,
+        private val durationSeconds: Double? = null,
+    ) : MpvIpcController {
+        val pausedValues = mutableListOf<Boolean>()
+        val speedValues = mutableListOf<Double>()
+
+        override suspend fun cyclePause(): Result<Unit> =
+            Result.success(Unit)
+
+        override suspend fun setPaused(paused: Boolean): Result<Unit> {
+            pausedValues += paused
+            return Result.success(Unit)
+        }
+
+        override suspend fun setSpeed(speed: Double): Result<Unit> {
+            speedValues += speed
+            return Result.success(Unit)
+        }
+
+        override suspend fun seekBy(seconds: Double, mode: MpvSeekMode): Result<Unit> =
+            Result.success(Unit)
+
+        override suspend fun quit(): Result<Unit> =
+            Result.success(Unit)
+
+        override suspend fun getTimePositionSeconds(): Result<Double?> =
+            Result.success(positionSeconds)
+
+        override suspend fun getDurationSeconds(): Result<Double?> =
+            Result.success(durationSeconds)
+
+        override suspend fun getEofReached(): Result<Boolean?> =
+            Result.success(false)
     }
 }

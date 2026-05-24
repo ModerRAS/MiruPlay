@@ -12,11 +12,11 @@ class MpvProcessPlayer(
     private val config: MpvRuntimeConfig,
     private val commandBuilder: MpvCommandBuilder = MpvCommandBuilder(config),
     private val processLauncher: MpvProcessLauncher = ProcessBuilderMpvProcessLauncher,
+    private val ipcClient: MpvIpcController? = config.ipcServer
+        ?.takeIf { it.isNotBlank() }
+        ?.let(::MpvIpcClient),
 ) {
     private var process: Process? = null
-    private val ipcClient: MpvIpcClient? = config.ipcServer
-        ?.takeIf { it.isNotBlank() }
-        ?.let(::MpvIpcClient)
 
     suspend fun play(source: PlaybackSource): Result<MpvLaunch> = withContext(Dispatchers.IO) {
         when (val validation = config.validateLaunchRuntime()) {
@@ -100,7 +100,7 @@ class MpvProcessPlayer(
     suspend fun queryEofReached(): Result<Boolean?> =
         ipcClientOrError()?.getEofReached() ?: missingIpcError()
 
-    private fun ipcClientOrError(): MpvIpcClient? =
+    private fun ipcClientOrError(): MpvIpcController? =
         ipcClient
 
     private fun <T> missingIpcError(): Result<T> =

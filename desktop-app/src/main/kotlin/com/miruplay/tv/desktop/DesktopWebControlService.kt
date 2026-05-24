@@ -255,7 +255,7 @@ internal class DesktopWebControlService(
 
 }
 
-internal fun desktopWebControlPlaybackStatus(
+internal suspend fun desktopWebControlPlaybackStatus(
     player: com.miruplay.tv.player.mpv.MpvProcessPlayer?,
     session: com.miruplay.tv.model.PlaybackProgressSession?,
     mediaPath: String,
@@ -264,12 +264,18 @@ internal fun desktopWebControlPlaybackStatus(
     if (player == null || session == null) {
         return idlePlaybackStatus()
     }
+    val observedPositionMs = player.queryTimePositionMs().getOrNull()
+    if (observedPositionMs != null) {
+        session.syncPosition(observedPositionMs)
+    }
+    val positionMs = observedPositionMs ?: session.currentPositionMs()
+    val durationMs = player.queryDurationMs().getOrNull() ?: 0L
     return webControlPlaybackStatus(
-        state = "Playing",
+        state = if (player.isActive()) "Playing" else "Idle",
         uri = mediaPath.takeIf { it.isNotBlank() },
         mediaSourceId = session.episodeId.webControlMediaSourceIdFromEpisodeId(),
-        positionMs = session.currentPositionMs(),
-        durationMs = 0L,
+        positionMs = positionMs,
+        durationMs = durationMs,
         isPlaying = player.isActive(),
         error = launchStatus.takeIf { it.contains("failed", ignoreCase = true) },
     )
@@ -280,6 +286,8 @@ internal suspend fun desktopWebControlPlaybackCommand(
     player: com.miruplay.tv.player.mpv.MpvProcessPlayer?,
     session: com.miruplay.tv.model.PlaybackProgressSession?,
     stopPlayback: suspend () -> Unit,
+    mediaPath: String = "",
+    launchStatus: String = "",
 ): PlaybackStatusDto {
     val activePlayer = player ?: return idlePlaybackStatus()
     when (request.playbackCommandKind()) {
@@ -320,13 +328,11 @@ internal suspend fun desktopWebControlPlaybackCommand(
         WebControlPlaybackCommandKind.SPEED -> activePlayer.setSpeed(request.playbackSpeed().toDouble())
         WebControlPlaybackCommandKind.UNKNOWN -> throw IllegalArgumentException("未知播放命令: ${request.command}")
     }
-    return webControlPlaybackStatus(
-        state = if (activePlayer.isActive()) "Playing" else "Idle",
-        uri = session?.episodeId,
-        mediaSourceId = session?.episodeId?.webControlMediaSourceIdFromEpisodeId(),
-        positionMs = session?.currentPositionMs() ?: 0L,
-        durationMs = 0L,
-        isPlaying = activePlayer.isActive(),
+    return desktopWebControlPlaybackStatus(
+        player = activePlayer,
+        session = session,
+        mediaPath = mediaPath,
+        launchStatus = launchStatus,
     )
 }
 

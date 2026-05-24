@@ -954,6 +954,8 @@ internal fun MiruPlayDesktopComposeApp(
                 request = command,
                 player = player,
                 session = activePlaybackSession,
+                mediaPath = mediaPath,
+                launchStatus = launchStatus,
                 stopPlayback = {
                     stopDesktopPlayback(
                         player = player,
