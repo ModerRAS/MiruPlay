@@ -56,11 +56,11 @@ import com.miruplay.tv.webcontrol.skipForwardDeltaMs
 import com.miruplay.tv.webcontrol.toAutomationConfig
 import com.miruplay.tv.webcontrol.toMediaSourceInfo
 import com.miruplay.tv.webcontrol.toSubscription
+import com.miruplay.tv.webcontrol.toWebControlAnimeDetail
 import com.miruplay.tv.webcontrol.toWebControlAutomationDto
 import com.miruplay.tv.webcontrol.toWebControlContinueWatching
 import com.miruplay.tv.webcontrol.toWebControlResponse
 import com.miruplay.tv.webcontrol.toWebControlDirectoryDto
-import com.miruplay.tv.webcontrol.toWebControlEpisodeWithProgress
 import com.miruplay.tv.webcontrol.toWebControlSourceTestResponse
 import com.miruplay.tv.webcontrol.toWebControlLibrary
 import com.miruplay.tv.webcontrol.validated
@@ -271,13 +271,9 @@ internal class DesktopWebControlService(
         val anime = cached ?: group?.toAnime()
             ?: throw IllegalArgumentException("番剧不存在")
         val episodes = loadEpisodesForAnime(anime, group)
-        return AnimeDetailDto(
-            anime = anime,
-            episodes = episodes.map { episode ->
-                val progress = repositories.progress.getProgress(episode.id).getOrNull()
-                episode.toWebControlEpisodeWithProgress(progress)
-            },
-        )
+        return anime.toWebControlAnimeDetail(episodes) { episode ->
+            repositories.progress.getProgress(episode.id).getOrNull()
+        }
     }
 
     override suspend fun playEpisode(request: PlayEpisodeRequest): PlaybackStatusDto {

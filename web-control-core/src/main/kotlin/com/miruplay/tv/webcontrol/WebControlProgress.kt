@@ -12,6 +12,17 @@ fun Episode.toWebControlEpisodeWithProgress(progress: ProgressRecord?): EpisodeW
         playCount = progress?.playCount ?: 0,
     )
 
+suspend fun Anime.toWebControlAnimeDetail(
+    episodes: List<Episode>,
+    progressForEpisode: suspend (Episode) -> ProgressRecord?,
+): AnimeDetailDto =
+    AnimeDetailDto(
+        anime = this,
+        episodes = episodes.map { episode ->
+            episode.toWebControlEpisodeWithProgress(progressForEpisode(episode))
+        },
+    )
+
 fun ProgressRecord.toWebControlContinueWatching(
     episode: Episode?,
     anime: Anime?,

@@ -3,6 +3,7 @@ package com.miruplay.tv.webcontrol
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.ProgressRecord
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Test
@@ -54,6 +55,37 @@ class WebControlProgressTest {
         assertEquals(3, dto.playCount)
         assertSame(episode, dto.episode)
         assertSame(anime, dto.anime)
+    }
+
+    @Test
+    fun `anime detail maps episodes with progress`() = runBlocking {
+        val anime = Anime(id = "anime-1", title = "Frieren")
+        val first = episode("episode-1")
+        val second = episode("episode-2")
+
+        val dto = anime.toWebControlAnimeDetail(
+            episodes = listOf(first, second),
+            progressForEpisode = { episode ->
+                if (episode.id == first.id) {
+                    ProgressRecord(
+                        episodeId = first.id,
+                        positionMs = 12_000L,
+                        lastWatched = 34L,
+                        playCount = 2,
+                    )
+                } else {
+                    null
+                }
+            },
+        )
+
+        assertSame(anime, dto.anime)
+        assertSame(first, dto.episodes[0].episode)
+        assertEquals(12_000L, dto.episodes[0].progressMs)
+        assertEquals(34L, dto.episodes[0].lastWatched)
+        assertEquals(2, dto.episodes[0].playCount)
+        assertSame(second, dto.episodes[1].episode)
+        assertEquals(0L, dto.episodes[1].progressMs)
     }
 
     private fun episode(id: String): Episode =

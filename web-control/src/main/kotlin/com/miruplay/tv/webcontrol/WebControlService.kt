@@ -196,11 +196,9 @@ class WebControlService @Inject constructor(
         val anime = requireWebControlSuccess(metadataRepository.getCachedMetadata(animeId), "番剧不存在")
             ?: throw IllegalArgumentException("番剧不存在")
         val episodes = requireWebControlSuccess(metadataRepository.getCachedEpisodes(animeId), "读取剧集失败")
-            .map { episode ->
-                val progress = progressRepository.getProgress(episode.id).getOrNull()
-                episode.toWebControlEpisodeWithProgress(progress)
-            }
-        return AnimeDetailDto(anime = anime, episodes = episodes)
+        return anime.toWebControlAnimeDetail(episodes) { episode ->
+            progressRepository.getProgress(episode.id).getOrNull()
+        }
     }
 
     override suspend fun playEpisode(request: PlayEpisodeRequest): PlaybackStatusDto {
