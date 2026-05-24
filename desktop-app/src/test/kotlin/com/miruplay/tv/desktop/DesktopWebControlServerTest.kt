@@ -457,6 +457,73 @@ class DesktopWebControlServerTest {
     }
 
     @Test
+    fun `desktop web control playback endpoints return idle without injected handlers`() = runBlocking {
+        val storePath = Files.createTempDirectory("miruplay-web-control-store").resolve("store.json")
+        val mediaRoot = Files.createTempDirectory("miruplay-web-control-media")
+        val port = freePort()
+        try {
+            val showDir = Files.createDirectory(mediaRoot.resolve("Frieren"))
+            val firstEpisode = showDir.resolve("Frieren - 01.mkv")
+            Files.writeString(firstEpisode, "video")
+            val repositories = DesktopRepositories.fileBacked(storePath)
+            val sourceId = (repositories.mediaSources.addSource(
+                MediaSourceInfoConventions.local(
+                    name = "Local Anime",
+                    rootPath = mediaRoot.toString(),
+                    isConnected = true,
+                )
+            ) as Result.Success).data
+            val episodeId = "$sourceId:${firstEpisode}"
+            repositories.metadata.cacheMetadata(Anime(id = "Frieren", title = "Frieren"))
+            repositories.metadata.cacheEpisodes(
+                animeId = "Frieren",
+                episodes = listOf(
+                    Episode(
+                        id = episodeId,
+                        animeId = "Frieren",
+                        episodeNumber = 1,
+                        filePath = firstEpisode.toString(),
+                        fileName = firstEpisode.fileName.toString(),
+                    ),
+                ),
+            )
+            repositories.webControlAccess.webControlEnabled = true
+            val token = repositories.webControlAccess.accessToken
+            val service = DesktopWebControlService(repositories, deviceName = "Windows Test")
+            val server = DesktopWebControlServer(
+                webControlService = service,
+                webControlAccess = repositories.webControlAccess,
+                port = port,
+            )
+            server.startIfNeeded()
+            try {
+                val play = request(
+                    url = "http://127.0.0.1:$port/api/playback/play?token=$token",
+                    method = "POST",
+                    body = """{"episodeId":"${episodeId.jsonEscaped()}"}""",
+                )
+                assertEquals(200, play.code)
+                assertTrue(play.body.contains("\"state\":\"Idle\""))
+                assertTrue(play.body.contains("\"isPlaying\":false"))
+
+                val command = request(
+                    url = "http://127.0.0.1:$port/api/playback/command?token=$token",
+                    method = "POST",
+                    body = """{"command":"pause"}""",
+                )
+                assertEquals(200, command.code)
+                assertTrue(command.body.contains("\"state\":\"Idle\""))
+                assertTrue(command.body.contains("\"isPlaying\":false"))
+            } finally {
+                server.stopIfRunning()
+            }
+        } finally {
+            mediaRoot.toFile().deleteRecursively()
+            storePath.parent.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
     fun `desktop web control uses shared CloudDrive engine and directory browser`() = runBlocking {
         val storePath = Files.createTempDirectory("miruplay-web-control-store").resolve("store.json")
         val port = freePort()

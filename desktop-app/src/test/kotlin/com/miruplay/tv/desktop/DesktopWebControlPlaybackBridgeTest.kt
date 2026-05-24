@@ -26,6 +26,19 @@ import java.io.InputStream
 
 class DesktopWebControlPlaybackBridgeTest {
     @Test
+    fun `default WebUI playback handlers return idle status`() = runBlocking {
+        val handlers = DesktopWebControlPlaybackHandlers()
+
+        val play = handlers.playEpisode(PlayEpisodeRequest(episodeId = "missing"), episode())
+        val command = handlers.playbackCommand(PlaybackCommandRequest(command = "pause"))
+
+        assertEquals("Idle", play.state)
+        assertEquals("Idle", command.state)
+        assertFalse(play.isPlaying)
+        assertFalse(command.isPlaying)
+    }
+
+    @Test
     fun `command status maps WebUI playback commands to shared mpv status text`() {
         assertEquals(
             "mpv seeked back 4s.",

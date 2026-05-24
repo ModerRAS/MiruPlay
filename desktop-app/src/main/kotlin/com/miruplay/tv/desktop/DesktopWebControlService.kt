@@ -73,10 +73,10 @@ internal class DesktopWebControlService(
     ),
     private val playbackStatusProvider: suspend () -> PlaybackStatusDto = { idlePlaybackStatus() },
     private val playEpisodeHandler: suspend (PlayEpisodeRequest, Episode) -> PlaybackStatusDto = { _, _ ->
-        throw UnsupportedOperationException("Windows WebUI 暂未接入远程播放启动")
+        idlePlaybackStatus()
     },
     private val playbackCommandHandler: suspend (PlaybackCommandRequest) -> PlaybackStatusDto = {
-        throw UnsupportedOperationException("Windows WebUI 暂未接入远程播放控制")
+        idlePlaybackStatus()
     },
     private val clock: () -> Long = System::currentTimeMillis,
     private val deviceName: String = "Windows",

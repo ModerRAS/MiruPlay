@@ -21,6 +21,7 @@ import com.miruplay.tv.webcontrol.PlaybackCommandRequest
 import com.miruplay.tv.webcontrol.PlaybackStatusDto
 import com.miruplay.tv.webcontrol.WebControlPlaybackCommandKind
 import com.miruplay.tv.webcontrol.absoluteSeekPositionMs
+import com.miruplay.tv.webcontrol.idleWebControlPlaybackStatus
 import com.miruplay.tv.webcontrol.playbackCommandKind
 import com.miruplay.tv.webcontrol.relativeSeekDeltaMs
 import com.miruplay.tv.webcontrol.skipBackwardDeltaMs
@@ -29,12 +30,8 @@ import com.miruplay.tv.webcontrol.toWebControlPlaybackSource
 import kotlin.math.absoluteValue
 
 internal class DesktopWebControlPlaybackHandlers {
-    var playEpisode: suspend (PlayEpisodeRequest, Episode) -> PlaybackStatusDto = { _, _ ->
-        throw UnsupportedOperationException("Windows WebUI 暂未接入远程播放启动")
-    }
-    var playbackCommand: suspend (PlaybackCommandRequest) -> PlaybackStatusDto = {
-        throw UnsupportedOperationException("Windows WebUI 暂未接入远程播放控制")
-    }
+    var playEpisode: suspend (PlayEpisodeRequest, Episode) -> PlaybackStatusDto = { _, _ -> idleWebControlPlaybackStatus() }
+    var playbackCommand: suspend (PlaybackCommandRequest) -> PlaybackStatusDto = { idleWebControlPlaybackStatus() }
 }
 
 internal data class DesktopWebControlPlaybackSourceSelection(
