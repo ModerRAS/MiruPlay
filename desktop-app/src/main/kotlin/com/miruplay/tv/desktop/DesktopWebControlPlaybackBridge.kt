@@ -25,7 +25,7 @@ import com.miruplay.tv.webcontrol.playbackCommandKind
 import com.miruplay.tv.webcontrol.relativeSeekDeltaMs
 import com.miruplay.tv.webcontrol.skipBackwardDeltaMs
 import com.miruplay.tv.webcontrol.skipForwardDeltaMs
-import com.miruplay.tv.webcontrol.startPositionFor
+import com.miruplay.tv.webcontrol.toWebControlPlaybackSource
 import kotlin.math.absoluteValue
 
 internal class DesktopWebControlPlaybackHandlers {
@@ -100,12 +100,12 @@ internal suspend fun desktopWebControlPlaybackSourceSelection(
     )
 }
 
-internal fun desktopWebControlPlaybackStartPosition(
+internal fun desktopWebControlPlaybackSource(
     request: PlayEpisodeRequest,
     episode: Episode,
     progress: ProgressRecord?,
-): Long =
-    request.startPositionFor(episode, progress)
+): PlaybackSource =
+    request.toWebControlPlaybackSource(episode, progress)
 
 internal fun desktopWebControlNextPlaybackSource(
     nextTarget: PlaybackSource?,

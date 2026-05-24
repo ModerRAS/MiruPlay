@@ -10,7 +10,6 @@ import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
-import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.PlaybackState
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.connectionPasswordOrNull
@@ -186,22 +185,8 @@ class WebControlService @Inject constructor(
         val episode = findEpisodeById(request.episodeId)
             ?: throw IllegalArgumentException("剧集不存在")
         val progress = progressRepository.getProgress(episode.id).getOrNull()
-        val startPosition = request.startPositionFor(episode, progress)
-        val source = PlaybackSource(
-            uri = episode.filePath,
-            mediaSourceId = episode.animeId,
-            startPosition = startPosition,
-            subtitleTracks = emptyList(),
-            episodeId = episode.id
-        )
-        navigator.openPlayer(
-            WebPlaybackSource(
-                uri = source.uri,
-                mediaSourceId = source.mediaSourceId,
-                startPositionMs = source.startPosition,
-                episodeId = source.episodeId
-            )
-        )
+        val source = request.toWebControlPlaybackSource(episode, progress)
+        navigator.openPlayer(source.toWebPlaybackSource())
         return playbackStatus()
     }
 

@@ -933,14 +933,14 @@ internal fun MiruPlayDesktopComposeApp(
                 loadSourceById = { id -> repositories.mediaSources.getSourceById(id).getOrNull() },
             )
             val progress = repositories.progress.getProgress(episode.id).getOrNull()
-            val startPositionMs = desktopWebControlPlaybackStartPosition(request, episode, progress)
+            val playbackSource = desktopWebControlPlaybackSource(request, episode, progress)
             when (
                 val launched = launchDesktopPlayback(
-                    path = episode.filePath,
-                    startPositionMs = startPositionMs,
+                    path = playbackSource.uri,
+                    startPositionMs = playbackSource.startPosition,
                     sourceOverride = selection.source,
                     sourceIdOverride = selection.sourceId,
-                    episodeId = episode.id,
+                    episodeId = playbackSource.episodeId,
                 )
             ) {
                 is Result.Success -> {

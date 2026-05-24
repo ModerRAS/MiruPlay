@@ -125,7 +125,7 @@ class DesktopWebControlPlaybackBridgeTest {
     }
 
     @Test
-    fun `start position prefers WebUI request over saved progress`() {
+    fun `playback source prefers WebUI request over saved progress`() {
         val episode = episode(duration = 120_000L)
         val progress = ProgressRecord(
             episodeId = episode.id,
@@ -133,18 +133,20 @@ class DesktopWebControlPlaybackBridgeTest {
             lastWatched = 1L,
         )
 
-        assertEquals(
-            5_000L,
-            desktopWebControlPlaybackStartPosition(
-                request = PlayEpisodeRequest(episodeId = episode.id, startPositionMs = 5_000L),
-                episode = episode,
-                progress = progress,
-            ),
+        val source = desktopWebControlPlaybackSource(
+            request = PlayEpisodeRequest(episodeId = episode.id, startPositionMs = 5_000L),
+            episode = episode,
+            progress = progress,
         )
+
+        assertEquals(episode.filePath, source.uri)
+        assertEquals(episode.animeId, source.mediaSourceId)
+        assertEquals(5_000L, source.startPosition)
+        assertEquals(episode.id, source.episodeId)
     }
 
     @Test
-    fun `start position falls back to resumable saved progress`() {
+    fun `playback source falls back to resumable saved progress`() {
         val episode = episode(duration = 120_000L)
         val progress = ProgressRecord(
             episodeId = episode.id,
@@ -154,16 +156,16 @@ class DesktopWebControlPlaybackBridgeTest {
 
         assertEquals(
             30_000L,
-            desktopWebControlPlaybackStartPosition(
+            desktopWebControlPlaybackSource(
                 request = PlayEpisodeRequest(episodeId = episode.id),
                 episode = episode,
                 progress = progress,
-            ),
+            ).startPosition,
         )
     }
 
     @Test
-    fun `start position resets completed progress`() {
+    fun `playback source resets completed progress`() {
         val episode = episode(duration = 100_000L)
         val progress = ProgressRecord(
             episodeId = episode.id,
@@ -173,11 +175,11 @@ class DesktopWebControlPlaybackBridgeTest {
 
         assertEquals(
             0L,
-            desktopWebControlPlaybackStartPosition(
+            desktopWebControlPlaybackSource(
                 request = PlayEpisodeRequest(episodeId = episode.id),
                 episode = episode,
                 progress = progress,
-            ),
+            ).startPosition,
         )
     }
 
