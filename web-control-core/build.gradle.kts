@@ -15,6 +15,7 @@ dependencies {
     api(project(":core:common"))
     api(project(":cloud-drive-api"))
     api(project(":repository-api"))
+    api(project(":media-source-api"))
     api(project(":sync-engine-shared"))
     api(libs.nanohttpd)
 

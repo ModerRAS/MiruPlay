@@ -1,6 +1,7 @@
 package com.miruplay.tv.webcontrol
 
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.mediasource.MediaSourceConnectionTestResult
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
@@ -113,6 +114,18 @@ fun Result<Boolean>.toWebControlSourceTestResponse(): SourceTestResponse =
         is Result.Error -> SourceTestResponse(
             connected = false,
             message = error.toUserMessage(),
+        )
+    }
+
+fun MediaSourceConnectionTestResult.toWebControlSourceTestResponse(): SourceTestResponse =
+    when (this) {
+        MediaSourceConnectionTestResult.Success -> SourceTestResponse(
+            connected = true,
+            message = "连接正常",
+        )
+        is MediaSourceConnectionTestResult.Failed -> SourceTestResponse(
+            connected = false,
+            message = message,
         )
     }
 

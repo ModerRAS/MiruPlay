@@ -2,6 +2,7 @@ package com.miruplay.tv.webcontrol
 
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.mediasource.MediaSourceConnectionTestResult
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
@@ -253,6 +254,17 @@ class WebControlSourceRequestsTest {
         assertEquals("连接正常", connected.message)
         assertEquals(false, disconnected.connected)
         assertEquals("无法连接到服务器", disconnected.message)
+    }
+
+    @Test
+    fun `source test result maps shared media source connection results`() {
+        val connected = MediaSourceConnectionTestResult.Success.toWebControlSourceTestResponse()
+        val failed = MediaSourceConnectionTestResult.Failed("认证失败").toWebControlSourceTestResponse()
+
+        assertEquals(true, connected.connected)
+        assertEquals("连接正常", connected.message)
+        assertEquals(false, failed.connected)
+        assertEquals("认证失败", failed.message)
     }
 
     @Test

@@ -5,6 +5,7 @@ import android.os.Build
 import com.miruplay.tv.core.common.LocalDirectoryBrowser
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.mediasource.MediaSourceFactory
+import com.miruplay.tv.mediasource.testConnection
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.PlaybackState
 import com.miruplay.tv.model.RssSubscriptionInfo
@@ -223,11 +224,7 @@ class WebControlService @Inject constructor(
     }
 
     private suspend fun testSource(source: MediaSourceInfo): SourceTestResponse {
-        val mediaSource = when (val result = mediaSourceFactory.create(source)) {
-            is Result.Success -> result.data
-            is Result.Error -> return result.toWebControlSourceTestResponse()
-        }
-        return mediaSource.testConnection().toWebControlSourceTestResponse()
+        return mediaSourceFactory.testConnection(source).toWebControlSourceTestResponse()
     }
 
     override suspend fun browseCloudDriveDirectories(endpointUrl: String, path: String): CloudDriveDirectoryDto = withContext(Dispatchers.IO) {

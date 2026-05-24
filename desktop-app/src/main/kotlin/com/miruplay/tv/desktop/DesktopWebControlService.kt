@@ -4,7 +4,10 @@ import com.miruplay.tv.core.common.LocalDirectoryBrowser
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.clouddrive.CloudDriveClient
 import com.miruplay.tv.clouddrive.GrpcCloudDriveClient
+import com.miruplay.tv.mediasource.MediaSourceFactory
+import com.miruplay.tv.mediasource.desktop.DesktopMediaSourceFactory
 import com.miruplay.tv.mediasource.desktop.desktopSourceFromInfo
+import com.miruplay.tv.mediasource.testConnection
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.completeStatus
@@ -65,6 +68,7 @@ import java.io.File
 
 internal class DesktopWebControlService(
     private val repositories: DesktopRepositories,
+    private val mediaSourceFactory: MediaSourceFactory = DesktopMediaSourceFactory(),
     private val cloudDriveClient: CloudDriveClient = GrpcCloudDriveClient(),
     private val cloudRssEngine: DesktopCloudDriveRssAutomationEngine = DesktopCloudDriveRssAutomationEngine(
         repository = repositories.cloudDriveAutomation,
@@ -152,12 +156,7 @@ internal class DesktopWebControlService(
     }
 
     private suspend fun testSource(source: MediaSourceInfo): SourceTestResponse {
-        val mediaSource = desktopSourceFromInfo(source)
-        return try {
-            mediaSource.testConnection().toWebControlSourceTestResponse()
-        } finally {
-            mediaSource.close()
-        }
+        return mediaSourceFactory.testConnection(source).toWebControlSourceTestResponse()
     }
 
     override suspend fun scanSource(sourceId: Long): SourceScanResponse {
