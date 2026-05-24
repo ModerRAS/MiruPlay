@@ -76,6 +76,15 @@ resets. The focused shared/desktop gate `:sync-engine-shared:test
 checkDesktopComposeOnly -PbundleMpvRuntime=false` passed in Gradle MCP build
 `b-140`, and Android debug assemble `:app:assembleDebug
 -PbundleMpvRuntime=false` passed in `b-141`.
+Latest Bangumi credential sharing update: `:sync-engine-shared` now owns
+`BangumiCredentialActionCoordinator`, so Android TV Settings and Windows
+Settings share Bangumi token persistence, blank-input handling, clear behavior,
+and status mapping while their UI code only clears text fields and updates local
+state. The focused shared/desktop gate `:sync-engine-shared:test
+:ui-tv:compileDebugKotlin :desktop-app:test checkDesktopPresenterSeparation
+checkDesktopComposeOnly -PbundleMpvRuntime=false` passed in Gradle MCP build
+`b-142`, and Android debug assemble `:app:assembleDebug
+-PbundleMpvRuntime=false` passed in `b-143`.
 
 Latest local shared-input update: `:ui-design` now owns `MiruPlayInputIntent`
 for platform-neutral activation, Back/navigation-back, direction, and media

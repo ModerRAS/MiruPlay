@@ -80,7 +80,6 @@ import com.miruplay.tv.model.detailBangumiSyncCompleteMessage
 import com.miruplay.tv.model.detailBangumiSyncStartedMessage
 import com.miruplay.tv.model.desktopWindowTitleLabel
 import com.miruplay.tv.model.loadedPlaybackStatus
-import com.miruplay.tv.model.metadataBangumiTokenClearedMessage
 import com.miruplay.tv.model.metadataMatchSummaryLabel
 import com.miruplay.tv.model.metadataNoSelectedEntryLabel
 import com.miruplay.tv.model.parseCloudDriveIntervalMinutes
@@ -101,7 +100,6 @@ import com.miruplay.tv.model.rssSubscriptionsLoadedStatus
 import com.miruplay.tv.model.rssSubscriptionsLoadFailedStatus
 import com.miruplay.tv.model.rssSubscriptionsRefreshFailedStatus
 import com.miruplay.tv.model.rssSubscriptionsShowingStatus
-import com.miruplay.tv.model.saveBangumiTokenFormResult
 import com.miruplay.tv.model.sourcePickerTitle
 import com.miruplay.tv.model.settingsActiveSourceLabel
 import com.miruplay.tv.model.settingsLinkedSourceLabel
@@ -195,6 +193,7 @@ import com.miruplay.tv.repository.replaceMatch
 import com.miruplay.tv.repository.withSelectedCandidate
 import com.miruplay.tv.scraper.searchPreferredResults
 import com.miruplay.tv.scraper.desktop.DesktopBangumiScraper
+import com.miruplay.tv.sync.BangumiCredentialActionCoordinator
 import com.miruplay.tv.sync.BangumiMetadataRefreshCore
 import com.miruplay.tv.sync.BangumiSyncCore
 import com.miruplay.tv.sync.bangumiMetadataCacheId
@@ -441,6 +440,7 @@ internal fun MiruPlayDesktopComposeApp(
             runner = cloudRssEngine,
         )
     }
+    val bangumiCredentialActions = remember { BangumiCredentialActionCoordinator(repositories.credentials) }
     val cloudDirectoryActions = remember { CloudDriveDirectoryBrowserCoordinator(cloudDriveClient) }
     val cloudRssScheduler = remember { DesktopCloudDriveRssScheduler(cloudRssEngine, scope) }
     val cloudRssSchedulerState by cloudRssScheduler.state.collectAsState()
@@ -2273,20 +2273,18 @@ internal fun MiruPlayDesktopComposeApp(
                     }
                 },
                 onSaveBangumiToken = {
-                    val saveResult = saveBangumiTokenFormResult(
-                        input = bangumiTokenInput,
-                        existingToken = repositories.credentials.bangumiAccessToken,
-                    )
-                    repositories.credentials.bangumiAccessToken = saveResult.token
-                    bangumiTokenInput = ""
-                    bangumiTokenConfigured = saveResult.configured
-                    bangumiStatus = saveResult.status
+                    val result = bangumiCredentialActions.saveToken(bangumiTokenInput)
+                    if (result.shouldClearInput) {
+                        bangumiTokenInput = ""
+                    }
+                    bangumiTokenConfigured = result.configured
+                    bangumiStatus = result.status
                 },
                 onClearBangumiToken = {
-                    repositories.credentials.clearBangumiToken()
+                    val result = bangumiCredentialActions.clearToken()
                     bangumiTokenInput = ""
                     bangumiTokenConfigured = false
-                    bangumiStatus = metadataBangumiTokenClearedMessage()
+                    bangumiStatus = result.status
                 },
                 sources = savedSources,
                 activeSourceLabel = settingsActiveSourceLabel(activeSource?.info),

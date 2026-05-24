@@ -271,6 +271,13 @@ the UIs keep only field updates. The focused shared config/credential gate
 checkDesktopPresenterSeparation checkDesktopComposeOnly
 -PbundleMpvRuntime=false` passed in Gradle MCP build `b-140`, and Android
 debug assemble `:app:assembleDebug -PbundleMpvRuntime=false` passed in `b-141`.
+Bangumi token save/clear now goes through `BangumiCredentialActionCoordinator`
+in `:sync-engine-shared`, so Android TV and Windows share token persistence,
+blank-input, clear, and status-result behavior. The focused shared Bangumi
+credential gate `:sync-engine-shared:test :ui-tv:compileDebugKotlin
+:desktop-app:test checkDesktopPresenterSeparation checkDesktopComposeOnly
+-PbundleMpvRuntime=false` passed in Gradle MCP build `b-142`, and Android debug
+assemble `:app:assembleDebug -PbundleMpvRuntime=false` passed in `b-143`.
 The generated local-source GUI smoke also captured
 `build/desktop-local-source-ui/run-20260520-162054/local-source-poster-keyboard.png`,
 proving the Library poster wall can move selection with keyboard input before

@@ -15,7 +15,6 @@ import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.connectionPassword
-import com.miruplay.tv.model.saveBangumiTokenFormResult
 import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.MediaSourceRepository
@@ -25,6 +24,8 @@ import com.miruplay.tv.repository.ScanPreferencesRepository
 import com.miruplay.tv.repository.WebControlAccessManager
 import com.miruplay.tv.repository.toScanIntervalHours
 import com.miruplay.tv.repository.toScanIntervalMillis
+import com.miruplay.tv.sync.BangumiCredentialActionCoordinator
+import com.miruplay.tv.sync.BangumiTokenActionResult
 import com.miruplay.tv.sync.rss.CloudDriveRssAutomationEngine
 import com.miruplay.tv.sync.rss.CloudDriveActionResult
 import com.miruplay.tv.sync.rss.CloudDriveConfigActionResult
@@ -62,6 +63,7 @@ class SettingsViewModel @Inject constructor(
         credentials = securePrefs,
         runner = cloudDriveEngine,
     )
+    private val bangumiCredentialActions = BangumiCredentialActionCoordinator(securePrefs)
     private val cloudDriveDirectoryActions = CloudDriveDirectoryBrowserCoordinator(cloudDriveClient)
 
     private val _sources = MutableStateFlow<List<MediaSourceInfo>>(emptyList())
@@ -233,18 +235,16 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun saveBangumiToken(token: String) {
-        val result = saveBangumiTokenFormResult(
-            input = token,
-            existingToken = securePrefs.bangumiAccessToken,
-        )
-        securePrefs.bangumiAccessToken = result.token
+    fun saveBangumiToken(token: String): BangumiTokenActionResult.Saved {
+        val result = bangumiCredentialActions.saveToken(token)
         _bangumiToken.value = result.token.orEmpty()
+        return result
     }
 
-    fun clearBangumiToken() {
-        securePrefs.clearBangumiToken()
+    fun clearBangumiToken(): BangumiTokenActionResult.Cleared {
+        val result = bangumiCredentialActions.clearToken()
         _bangumiToken.value = ""
+        return result
     }
 
     fun saveCloudDriveConfig(

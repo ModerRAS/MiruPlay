@@ -197,7 +197,6 @@ import com.miruplay.tv.model.rssSubscriptionStateActionLabel
 import com.miruplay.tv.model.rssSubscriptionUrlFieldLabel
 import com.miruplay.tv.model.rssSubscriptionsTitleLabel
 import com.miruplay.tv.model.prepareRssSubscriptionForm
-import com.miruplay.tv.model.saveBangumiTokenFormResult
 import com.miruplay.tv.model.shouldClearFormAfterSubmit
 import com.miruplay.tv.model.parseCloudDriveIntervalMinutes
 import com.miruplay.tv.model.parseRssProxyPort
@@ -476,15 +475,11 @@ fun AddSourceScreen(
                     tokenSaved = tokenSaved,
                     onTokenChange = { tokenInput = it },
                     onSaveToken = {
-                        val result = saveBangumiTokenFormResult(
-                            input = tokenInput,
-                            existingToken = savedToken,
-                        )
-                        if (result.shouldPersistTokenInput) {
-                            viewModel.saveBangumiToken(tokenInput)
+                        val result = viewModel.saveBangumiToken(tokenInput)
+                        if (result.shouldClearInput) {
                             tokenInput = ""
-                            tokenSaved = result.configured
                         }
+                        tokenSaved = result.configured
                     },
                     onClearToken = {
                         viewModel.clearBangumiToken()
