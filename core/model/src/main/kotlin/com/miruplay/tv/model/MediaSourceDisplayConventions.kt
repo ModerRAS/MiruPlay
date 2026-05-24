@@ -167,6 +167,19 @@ fun mediaSourceLocalPathDisplayName(path: String): String =
         .substringAfterLast('/')
         .ifBlank { mediaSourceLocalLibraryFallbackName() }
 
+fun mediaSourceLocalScanDisplayName(path: String): String {
+    val trimmed = path.trim()
+    if (trimmed.isBlank()) return ""
+    if (trimmed.startsWith("content://", ignoreCase = true)) {
+        val tail = trimmed.substringAfterLast('/')
+        val decoded = MediaPathConventions.decodePath(tail)
+        return decoded
+            .substringAfter(':', decoded)
+            .substringAfterLast('/')
+    }
+    return MediaPathConventions.fileName(trimmed).ifBlank { trimmed }
+}
+
 fun mediaSourceChooseFolderActionLabel(): String = "选择文件夹"
 
 fun mediaSourceConnectionSuccessMessage(): String = "连接正常，可以保存并返回首页扫描。"
@@ -268,6 +281,17 @@ fun MediaSourceInfo.tvDisplayLabel(fallbackName: String? = null): String =
 
 fun MediaSourceInfo.tvDisplayStatusLabel(): String =
     "${type.tvLabel()} · ${tvConnectionStatusLabel()}"
+
+fun MediaSourceInfo.scanResultDisplayName(rootPath: String? = null): String =
+    when (type) {
+        MediaSourceType.LOCAL -> connectionDisplayName().ifBlank {
+            val localPath = rootPath ?: localRootPath().orEmpty()
+            mediaSourceLocalScanDisplayName(localPath)
+                .ifBlank { tvDisplayName(fallbackName = mediaSourceLocalLibraryFallbackName()) }
+        }
+        MediaSourceType.WEBDAV,
+        MediaSourceType.SMB -> tvDisplayName(fallbackName = type.defaultSourceName())
+    }
 
 fun MediaSourceInfo.sourcePickerTitle(): String =
     tvDisplayLabel(fallbackName = type.genericSourceName())

@@ -57,11 +57,10 @@ import com.miruplay.tv.webcontrol.skipBackwardDeltaMs
 import com.miruplay.tv.webcontrol.skipForwardDeltaMs
 import com.miruplay.tv.webcontrol.toMediaSourceInfo
 import com.miruplay.tv.webcontrol.toWebControlDirectoryDto
-import com.miruplay.tv.webcontrol.toWebControlSourceTestResponse
 import com.miruplay.tv.webcontrol.toWebControlSourceScanResponse
+import com.miruplay.tv.webcontrol.toWebControlSourceTestResponse
 import com.miruplay.tv.webcontrol.updateWebControlRssSubscription
 import com.miruplay.tv.webcontrol.updateWebControlSource
-import com.miruplay.tv.webcontrol.webControlDefaultSourceName
 import com.miruplay.tv.webcontrol.webControlMediaSourceIdFromEpisodeId
 import com.miruplay.tv.webcontrol.webControlPlaybackStatus
 import java.io.File
@@ -165,13 +164,13 @@ internal class DesktopWebControlService(
             scanAndIndexDesktopSource(source, repositories.index, repositories.metadata),
             "扫描媒体源失败",
         )
-        return result.toSourceScanResponse(source)
+        return result.toSourceScanResponse()
     }
 
     override suspend fun scanAllSources(): List<SourceScanResponse> {
         return repositories.mediaSources.scanAllWebControlSources { source ->
             scanAndIndexDesktopSource(source, repositories.index, repositories.metadata)
-                .map { it.toSourceScanResponse(source) }
+                .map { it.toSourceScanResponse() }
         }
     }
 
@@ -243,14 +242,8 @@ internal class DesktopWebControlService(
     override suspend fun playbackStatus(): PlaybackStatusDto =
         playbackStatusProvider()
 
-    private fun DesktopSourceScanResult.toSourceScanResponse(source: MediaSourceInfo): SourceScanResponse =
-        toWebControlSourceScanResponse(
-            sourceId = sourceId,
-            animeName = source.name.ifBlank { source.type.webControlDefaultSourceName() },
-            episodesFound = videoEntries.size,
-            newEpisodes = videoEntries.size,
-            updatedEpisodes = 0,
-        )
+    private fun DesktopSourceScanResult.toSourceScanResponse(): SourceScanResponse =
+        scanResult.toWebControlSourceScanResponse(sourceId)
 
     private suspend fun rescanLinkedCloudDriveSource(reason: String) {
         val config = repositories.cloudDriveAutomation.getConfig().getOrNull() ?: return

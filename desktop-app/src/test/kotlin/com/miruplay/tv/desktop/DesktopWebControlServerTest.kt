@@ -322,7 +322,7 @@ class DesktopWebControlServerTest {
                 )
                 assertEquals(200, scanOne.code)
                 assertTrue(scanOne.body.contains("\"sourceId\":$firstSourceId"))
-                assertTrue(scanOne.body.contains("\"animeName\":\"Local Anime\""))
+                assertTrue(scanOne.body.contains("\"animeName\":\"${mediaRoot.fileName.toString().jsonEscaped()}\""))
                 assertTrue(scanOne.body.contains("\"episodesFound\":1"))
                 assertTrue(scanOne.body.contains("\"newEpisodes\":1"))
 

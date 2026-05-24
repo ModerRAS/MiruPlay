@@ -4,7 +4,10 @@ import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.mediasource.desktop.desktopSourceFromInfo
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.ScanResult
 import com.miruplay.tv.model.cloudRssRescanStartedStatus
+import com.miruplay.tv.model.localRootPath
+import com.miruplay.tv.model.scanResultDisplayName
 import com.miruplay.tv.model.sourcePickerTitle
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MediaIndexMetadataCache
@@ -17,6 +20,7 @@ import com.miruplay.tv.scanner.desktop.DesktopMediaLibraryScanner
 
 internal data class DesktopSourceScanResult(
     val sourceId: Long,
+    val scanResult: ScanResult,
     val completedStatus: String,
     val videoEntries: List<MediaIndexEntry>,
     val filesIndexed: Int,
@@ -43,10 +47,16 @@ internal suspend fun scanAndIndexDesktopSource(
     scanner: DesktopMediaLibraryScanner = DesktopMediaLibraryScanner(),
 ): Result<DesktopSourceScanResult> {
     val source = desktopSourceFromInfo(sourceInfo)
-    return when (val scan = scanner.scan(sourceInfo.id, source)) {
+    val rootPath = when (sourceInfo.type) {
+        MediaSourceType.LOCAL -> sourceInfo.localRootPath().orEmpty()
+        MediaSourceType.WEBDAV,
+        MediaSourceType.SMB -> ""
+    }
+    return when (val scan = scanner.scan(sourceInfo.id, source, rootPath = rootPath)) {
         is Result.Success -> {
             when (val indexed = indexRepository.rebuildIndex(sourceInfo.id, scan.data.entries)) {
                 is Result.Success -> {
+                    val videoEntries = scan.data.entries.mediaFilesOnly()
                     MediaIndexMetadataCache(metadataRepository).cache(
                         source = sourceInfo,
                         entries = scan.data.entries,
@@ -54,11 +64,17 @@ internal suspend fun scanAndIndexDesktopSource(
                     Result.success(
                         DesktopSourceScanResult(
                             sourceId = sourceInfo.id,
+                            scanResult = ScanResult(
+                                animeName = sourceInfo.scanResultDisplayName(scan.data.rootPath),
+                                episodesFound = videoEntries.size,
+                                newEpisodes = videoEntries.size,
+                                updatedEpisodes = 0,
+                            ),
                             completedStatus = scanCompleteStatus(
                                 filesIndexed = scan.data.filesIndexed,
                                 directoriesVisited = scan.data.directoriesVisited,
                             ),
-                            videoEntries = scan.data.entries.mediaFilesOnly(),
+                            videoEntries = videoEntries,
                             filesIndexed = scan.data.filesIndexed,
                             directoriesVisited = scan.data.directoriesVisited,
                         )

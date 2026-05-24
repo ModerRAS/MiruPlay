@@ -40,6 +40,10 @@ class DesktopScanIndexIntegrationTest {
             val cachedEpisodes = repositories.metadata.getCachedEpisodes("Bocchi the Rock").getOrNull().orEmpty()
 
             assertEquals(sourceId, scan.data.sourceId)
+            assertEquals(mediaRoot.fileName.toString(), scan.data.scanResult.animeName)
+            assertEquals(1, scan.data.scanResult.episodesFound)
+            assertEquals(1, scan.data.scanResult.newEpisodes)
+            assertEquals(0, scan.data.scanResult.updatedEpisodes)
             assertEquals(libraryScanCompleteStatus(1, 2), scan.data.completedStatus)
             assertEquals(1, scan.data.filesIndexed)
             assertEquals(2, scan.data.directoriesVisited)

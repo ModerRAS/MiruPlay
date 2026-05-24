@@ -169,6 +169,8 @@ class MediaSourceDisplayConventionsTest {
         assertEquals("Download", mediaSourceLocalPathDisplayName("/storage/emulated/0/Download"))
         assertEquals("Anime", mediaSourceLocalPathDisplayName("D:\\Media\\Anime\\"))
         assertEquals("本地媒体库", mediaSourceLocalPathDisplayName(" / "))
+        assertEquals("Download", mediaSourceLocalScanDisplayName("/storage/emulated/0/Download"))
+        assertEquals("Anime Library", mediaSourceLocalScanDisplayName("content://tree/primary%3AAnime%20Library"))
         assertEquals("选择文件夹", mediaSourceChooseFolderActionLabel())
         assertEquals("连接正常，可以保存并返回首页扫描。", mediaSourceConnectionSuccessMessage())
         assertEquals("正在验证连接...", mediaSourceConnectionTestingMessage())
@@ -189,6 +191,14 @@ class MediaSourceDisplayConventionsTest {
         assertEquals("本地媒体源已就绪：Library", local.mediaSourceReadyStatus())
         assertEquals("WebDAV 媒体源已就绪：Cloud", webDav.mediaSourceReadyStatus())
         assertEquals("SMB 媒体源已就绪：NAS", smb.mediaSourceReadyStatus())
+        assertEquals("Anime", local.scanResultDisplayName("D:/Media/Anime"))
+        assertEquals(
+            "Authorized Anime",
+            local.copy(connectionInfo = mapOf(MediaSourceInfoConventions.CONNECTION_DISPLAY_NAME to "Authorized Anime"))
+                .scanResultDisplayName("D:/Media/Anime"),
+        )
+        assertEquals("Cloud", webDav.scanResultDisplayName("/remote/root"))
+        assertEquals("NAS", smb.scanResultDisplayName("/remote/root"))
         assertEquals("请先填写本地媒体库路径。", mediaSourceLocalRootRequiredStatus())
         assertEquals("请先填写 WebDAV 地址。", mediaSourceWebDavUrlRequiredStatus())
         assertEquals("请先填写 SMB 地址。", mediaSourceSmbUrlRequiredStatus())

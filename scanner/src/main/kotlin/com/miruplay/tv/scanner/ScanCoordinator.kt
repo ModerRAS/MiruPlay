@@ -18,6 +18,7 @@ import com.miruplay.tv.model.NfoMetadata
 import com.miruplay.tv.model.ScanResult
 import com.miruplay.tv.model.TvShowNfoMetadata
 import com.miruplay.tv.model.UniqueId
+import com.miruplay.tv.model.scanResultDisplayName
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MediaIndexMetadataCache
 import com.miruplay.tv.repository.MediaIndexRepository
@@ -174,7 +175,7 @@ class ScanCoordinator @Inject constructor(
         Log.d("ScanCoordinator", "Scan done: ${sourceInfo.name} -> $totalFiles files, $newEpisodes new episodes")
 
         Result.success(ScanResult(
-            animeName = if (isLocalSource) sourceInfo.displayNameOrPath(rootPath) else sourceInfo.name,
+            animeName = sourceInfo.scanResultDisplayName(rootPath),
             episodesFound = totalFiles,
             newEpisodes = newEpisodes,
             updatedEpisodes = 0
@@ -379,18 +380,6 @@ class ScanCoordinator @Inject constructor(
 
     private fun normalizeLocalPath(path: String): String =
         path.replace('\\', '/').trimEnd('/')
-
-    private fun nameOfPath(path: String): String =
-        when {
-            path.startsWith("content://") -> {
-                val tail = path.substringAfterLast(':', path).substringAfterLast('/')
-                MediaPathConventions.decodePath(tail)
-            }
-            else -> MediaPathConventions.fileName(path)
-        }
-
-    private fun MediaSourceInfo.displayNameOrPath(path: String): String =
-        connectionInfo["displayName"] ?: nameOfPath(path).ifEmpty { path }
 
     /**
      * Download and parse a single NFO file, cache metadata using showDirName as the cache key.
