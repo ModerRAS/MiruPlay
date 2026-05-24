@@ -14,11 +14,8 @@ import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.RssSubscriptionInfo
-import com.miruplay.tv.model.RssSubscriptionFormResult
 import com.miruplay.tv.model.connectionPassword
 import com.miruplay.tv.model.cloudRssConfigSavedStatus
-import com.miruplay.tv.model.completeStatus
-import com.miruplay.tv.model.prepareRssSubscriptionForm
 import com.miruplay.tv.model.saveBangumiTokenFormResult
 import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
@@ -31,14 +28,14 @@ import com.miruplay.tv.repository.toScanIntervalHours
 import com.miruplay.tv.repository.toScanIntervalMillis
 import com.miruplay.tv.sync.rss.CloudDriveRssAutomationEngine
 import com.miruplay.tv.sync.rss.CloudDriveActionResult
+import com.miruplay.tv.sync.rss.CloudDriveRunActionResult
 import com.miruplay.tv.sync.rss.CloudDriveRssActionCoordinator
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryBrowserCoordinator
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryBrowserState
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryLoadResult
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryOpenResult
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryTarget
-import com.miruplay.tv.model.rssSubscriptionDeletedStatus
-import com.miruplay.tv.model.rssSubscriptionSavedStatus
+import com.miruplay.tv.sync.rss.RssSubscriptionActionResult
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -322,50 +319,78 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun addRssSubscription(name: String, url: String, filterRegex: String, enabled: Boolean) {
-        val subscription = when (
-            val result = prepareRssSubscriptionForm(
-                name = name,
-                url = url,
-                filterRegex = filterRegex,
-                enabled = enabled,
-            )
-        ) {
-            is RssSubscriptionFormResult.Ready -> result.subscription
-            is RssSubscriptionFormResult.Invalid -> {
-                _cloudDriveActionMessage.value = result.status
-                return
-            }
-        }
         viewModelScope.launch {
-            cloudDriveActions.saveSubscription(subscription)
-                .onSuccess { _cloudDriveActionMessage.value = rssSubscriptionSavedStatus(subscription.name) }
-                .onError { error -> _cloudDriveActionMessage.value = error.toUserMessage() }
+            when (
+                val result = cloudDriveActions.saveRssSubscription(
+                    name = name,
+                    url = url,
+                    filterRegex = filterRegex,
+                    enabled = enabled,
+                )
+            ) {
+                is RssSubscriptionActionResult.Saved -> {
+                    _cloudDriveActionMessage.value = result.status
+                }
+                is RssSubscriptionActionResult.Invalid -> {
+                    _cloudDriveActionMessage.value = result.status
+                }
+                is RssSubscriptionActionResult.Failed -> {
+                    _cloudDriveActionMessage.value = result.status
+                }
+                is RssSubscriptionActionResult.Deleted -> Unit
+            }
         }
     }
 
     fun setRssSubscriptionEnabled(subscription: RssSubscriptionInfo, enabled: Boolean) {
         viewModelScope.launch {
-            cloudDriveActions.saveSubscription(subscription.copy(enabled = enabled))
-                .onError { error -> _cloudDriveActionMessage.value = error.toUserMessage() }
+            when (
+                val result = cloudDriveActions.saveRssSubscription(
+                    name = subscription.name,
+                    url = subscription.url,
+                    filterRegex = subscription.filterRegex.orEmpty(),
+                    enabled = enabled,
+                    selectedSubscription = subscription,
+                )
+            ) {
+                is RssSubscriptionActionResult.Failed -> {
+                    _cloudDriveActionMessage.value = result.status
+                }
+                is RssSubscriptionActionResult.Invalid -> {
+                    _cloudDriveActionMessage.value = result.status
+                }
+                is RssSubscriptionActionResult.Saved -> Unit
+                is RssSubscriptionActionResult.Deleted -> Unit
+            }
         }
     }
 
     fun deleteRssSubscription(id: Long) {
         viewModelScope.launch {
-            cloudDriveActions.deleteSubscription(id)
-                .onSuccess { _cloudDriveActionMessage.value = rssSubscriptionDeletedStatus() }
-                .onError { error -> _cloudDriveActionMessage.value = error.toUserMessage() }
+            when (val result = cloudDriveActions.deleteRssSubscription(id)) {
+                is RssSubscriptionActionResult.Deleted -> {
+                    _cloudDriveActionMessage.value = result.status
+                }
+                is RssSubscriptionActionResult.Failed -> {
+                    _cloudDriveActionMessage.value = result.status
+                }
+                is RssSubscriptionActionResult.Invalid -> Unit
+                is RssSubscriptionActionResult.Saved -> Unit
+            }
         }
     }
 
     fun runCloudDriveNow() {
         viewModelScope.launch {
             _cloudDriveBusy.value = true
-            cloudDriveActions.runOnce()
-                .onSuccess { summary -> _cloudDriveActionMessage.value = summary.completeStatus() }
-                .onError { error ->
-                    _cloudDriveActionMessage.value = error.toUserMessage()
+            when (val result = cloudDriveActions.runCloudDriveOnce()) {
+                is CloudDriveRunActionResult.Completed -> {
+                    _cloudDriveActionMessage.value = result.status
                 }
+                is CloudDriveRunActionResult.Failed -> {
+                    _cloudDriveActionMessage.value = result.status
+                }
+            }
             _cloudDriveBusy.value = false
         }
     }

@@ -16,6 +16,11 @@ import com.miruplay.tv.model.cloudDriveLoginStartedStatus
 import com.miruplay.tv.model.cloudDriveLoginSucceededStatus
 import com.miruplay.tv.model.cloudDriveTokenValidationStartedStatus
 import com.miruplay.tv.model.cloudDriveTokenVerifiedStatus
+import com.miruplay.tv.model.cloudRssRunStartedStatus
+import com.miruplay.tv.model.completeStatus
+import com.miruplay.tv.model.rssSubscriptionDeletedStatus
+import com.miruplay.tv.model.rssSubscriptionSavedStatus
+import com.miruplay.tv.model.rssUrlRequiredStatus
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.CloudDriveCredentialStore
 import kotlinx.coroutines.flow.Flow
@@ -256,6 +261,130 @@ class CloudDriveRssActionCoordinatorTest {
         assertEquals(listOf(7L), repository.deletedSubscriptionIds)
     }
 
+    @Test
+    fun `subscription action validates form before saving`() = runBlocking {
+        val repository = FakeCloudDriveAutomationRepository()
+        val coordinator = coordinator(repository = repository)
+
+        val result = coordinator.saveRssSubscription(
+            name = "Season",
+            url = " ",
+            filterRegex = "",
+            enabled = true,
+        )
+
+        assertEquals(RssSubscriptionActionResult.Invalid(rssUrlRequiredStatus()), result)
+        assertEquals(emptyList<RssSubscriptionInfo>(), repository.savedSubscriptions)
+    }
+
+    @Test
+    fun `subscription action normalizes form values and returns saved status`() = runBlocking {
+        val repository = FakeCloudDriveAutomationRepository()
+        val coordinator = coordinator(repository = repository)
+
+        val result = coordinator.saveRssSubscription(
+            name = " Season ",
+            url = " https://rss.example.test/feed.xml ",
+            filterRegex = " 1080p ",
+            enabled = true,
+        ) as RssSubscriptionActionResult.Saved
+
+        assertEquals("Season", result.subscription.name)
+        assertEquals("https://rss.example.test/feed.xml", result.subscription.url)
+        assertEquals("1080p", result.subscription.filterRegex)
+        assertEquals(rssSubscriptionSavedStatus("Season"), result.status)
+        assertEquals(listOf(result.subscription), repository.savedSubscriptions)
+    }
+
+    @Test
+    fun `subscription action preserves selected subscription identity when updating`() = runBlocking {
+        val repository = FakeCloudDriveAutomationRepository()
+        val coordinator = coordinator(repository = repository)
+        val selected = RssSubscriptionInfo(
+            id = 9L,
+            name = "Old",
+            url = "https://rss.example.test/feed.xml",
+            filterRegex = "old",
+            enabled = false,
+            lastCheckedAt = 123L,
+        )
+
+        val result = coordinator.saveRssSubscription(
+            name = "New",
+            url = "https://rss.example.test/feed.xml",
+            filterRegex = "",
+            enabled = true,
+            selectedSubscription = selected,
+        ) as RssSubscriptionActionResult.Saved
+
+        assertEquals(9L, result.subscription.id)
+        assertEquals(123L, result.subscription.lastCheckedAt)
+        assertEquals(true, result.subscription.enabled)
+        assertEquals("New", result.subscription.name)
+    }
+
+    @Test
+    fun `subscription action maps save and delete failures to user status`() = runBlocking {
+        val saveError = AppError.SyncError.WriteFailed("rss", "save failed")
+        val deleteError = AppError.SyncError.WriteFailed("rss", "delete failed")
+        val saveCoordinator = coordinator(
+            repository = FakeCloudDriveAutomationRepository(saveSubscriptionResult = Result.failure(saveError)),
+        )
+        val deleteCoordinator = coordinator(
+            repository = FakeCloudDriveAutomationRepository(deleteSubscriptionResult = Result.failure(deleteError)),
+        )
+
+        val saveResult = saveCoordinator.saveRssSubscription(
+            name = "Season",
+            url = "https://rss.example.test/feed.xml",
+            filterRegex = "",
+            enabled = true,
+        )
+        val deleteResult = deleteCoordinator.deleteRssSubscription(7L)
+
+        assertEquals(RssSubscriptionActionResult.Failed(saveError.toUserMessage()), saveResult)
+        assertEquals(RssSubscriptionActionResult.Failed(deleteError.toUserMessage()), deleteResult)
+    }
+
+    @Test
+    fun `subscription delete action returns deleted status`() = runBlocking {
+        val repository = FakeCloudDriveAutomationRepository()
+        val coordinator = coordinator(repository = repository)
+
+        val result = coordinator.deleteRssSubscription(7L)
+
+        assertEquals(RssSubscriptionActionResult.Deleted(rssSubscriptionDeletedStatus()), result)
+        assertEquals(listOf(7L), repository.deletedSubscriptionIds)
+    }
+
+    @Test
+    fun `run action reports started and completed statuses`() = runBlocking {
+        val runner = FakeCloudDriveRssAutomationRunner()
+        val coordinator = coordinator(runner = runner)
+        var startedStatus = ""
+
+        val result = coordinator.runCloudDriveOnce(
+            onStarted = { status -> startedStatus = status },
+        ) as CloudDriveRunActionResult.Completed
+
+        assertEquals(cloudRssRunStartedStatus(), startedStatus)
+        assertEquals(CloudDriveRssRunSummary(submitted = 1, skipped = 2, failed = 0, organized = 3), result.summary)
+        assertEquals(result.summary.completeStatus(), result.status)
+        assertEquals(1, runner.runCalls)
+    }
+
+    @Test
+    fun `run action maps runner failures to user status`() = runBlocking {
+        val error = AppError.SyncError.WriteFailed("rss", "run failed")
+        val coordinator = coordinator(
+            runner = FakeCloudDriveRssAutomationRunner(runResult = Result.failure(error)),
+        )
+
+        val result = coordinator.runCloudDriveOnce()
+
+        assertEquals(CloudDriveRunActionResult.Failed(error.toUserMessage()), result)
+    }
+
     private fun coordinator(
         repository: FakeCloudDriveAutomationRepository = FakeCloudDriveAutomationRepository(),
         credentials: FakeCloudDriveCredentialStore = FakeCloudDriveCredentialStore(),
@@ -338,6 +467,7 @@ class CloudDriveRssActionCoordinatorTest {
     private class FakeCloudDriveRssAutomationRunner(
         private val loginResult: Result<Unit> = Result.success(Unit),
         private val tokenResult: Result<CloudDriveTokenInfo>? = null,
+        private val runResult: Result<CloudDriveRssRunSummary>? = null,
         private val tokenInfo: CloudDriveTokenInfo = CloudDriveTokenInfo(
             rootDir = "/",
             friendlyName = "Miru",
@@ -365,7 +495,7 @@ class CloudDriveRssActionCoordinatorTest {
 
         override suspend fun runOnce(): Result<CloudDriveRssRunSummary> {
             runCalls += 1
-            return Result.success(
+            return runResult ?: Result.success(
                 CloudDriveRssRunSummary(
                     submitted = 1,
                     skipped = 2,

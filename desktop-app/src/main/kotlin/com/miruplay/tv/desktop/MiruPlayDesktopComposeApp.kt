@@ -62,7 +62,6 @@ import com.miruplay.tv.model.PlaybackProgressSession
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.PlaybackTimingConventions
 import com.miruplay.tv.model.ProgressRecord
-import com.miruplay.tv.model.RssSubscriptionFormResult
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.cloudDriveCredentialsClearedStatus
@@ -72,7 +71,6 @@ import com.miruplay.tv.model.cloudRssConfigSavedStatus
 import com.miruplay.tv.model.cloudRssInitialStatus
 import com.miruplay.tv.model.cloudRssRescanStartedStatus
 import com.miruplay.tv.model.cloudRssLinkedScanSourceStatus
-import com.miruplay.tv.model.cloudRssRunStartedStatus
 import com.miruplay.tv.model.cloudRssScanSourceClearedStatus
 import com.miruplay.tv.model.cloudRssScanSourceMissingStatus
 import com.miruplay.tv.model.cloudRssScanSourceRequiredStatus
@@ -93,7 +91,6 @@ import com.miruplay.tv.model.parseRssProxyPort
 import com.miruplay.tv.model.playbackBlankMediaMessage
 import com.miruplay.tv.model.playbackCommandPreviewErrorMessage
 import com.miruplay.tv.model.playbackRifeStateLabel
-import com.miruplay.tv.model.prepareRssSubscriptionForm
 import com.miruplay.tv.model.recentPlaybackInitialStatus
 import com.miruplay.tv.model.recentPlaybackLoadedStatus
 import com.miruplay.tv.model.recentPlaybackRequiredStatus
@@ -101,9 +98,7 @@ import com.miruplay.tv.model.recentPlaybackShowingStatus
 import com.miruplay.tv.model.resumeStartSecondsText
 import com.miruplay.tv.model.retainedSelectionInProgressRecords
 import com.miruplay.tv.model.retainedSelectionInRssSubscriptions
-import com.miruplay.tv.model.rssSubscriptionDeletedStatus
 import com.miruplay.tv.model.rssSubscriptionRequiredStatus
-import com.miruplay.tv.model.rssSubscriptionSavedStatus
 import com.miruplay.tv.model.rssSubscriptionSelectedStatus
 import com.miruplay.tv.model.rssSubscriptionsLoadedStatus
 import com.miruplay.tv.model.rssSubscriptionsLoadFailedStatus
@@ -207,6 +202,7 @@ import com.miruplay.tv.sync.BangumiMetadataRefreshCore
 import com.miruplay.tv.sync.BangumiSyncCore
 import com.miruplay.tv.sync.bangumiMetadataCacheId
 import com.miruplay.tv.sync.rss.CloudDriveActionResult
+import com.miruplay.tv.sync.rss.CloudDriveRunActionResult
 import com.miruplay.tv.sync.rss.CloudDriveRssActionCoordinator
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryBrowserCoordinator
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryBrowserState
@@ -215,6 +211,7 @@ import com.miruplay.tv.sync.rss.CloudDriveDirectoryOpenResult
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryTarget
 import com.miruplay.tv.sync.rss.DesktopCloudDriveRssAutomationEngine
 import com.miruplay.tv.sync.rss.DesktopCloudDriveRssScheduler
+import com.miruplay.tv.sync.rss.RssSubscriptionActionResult
 import com.miruplay.tv.sync.rss.schedulerStatus
 import com.miruplay.tv.sync.rss.selectCloudDriveDirectory as selectSharedCloudDriveDirectory
 import kotlinx.coroutines.delay
@@ -2174,16 +2171,20 @@ internal fun MiruPlayDesktopComposeApp(
                 },
                 onRunSync = {
                     scope.launch {
-                        cloudRssStatus = cloudRssRunStartedStatus()
-                        when (val result = cloudRssActions.runOnce()) {
-                            is Result.Success -> {
-                                val message = result.data.completeStatus()
-                                cloudRssStatus = message
-                                rescanLinkedCloudSource(message)?.let { scanMessage ->
-                                    cloudRssStatus = "$message $scanMessage"
+                        when (
+                            val result = cloudRssActions.runCloudDriveOnce(
+                                onStarted = { status -> cloudRssStatus = status },
+                            )
+                        ) {
+                            is CloudDriveRunActionResult.Completed -> {
+                                cloudRssStatus = result.status
+                                rescanLinkedCloudSource(result.status)?.let { scanMessage ->
+                                    cloudRssStatus = "${result.status} $scanMessage"
                                 }
                             }
-                            is Result.Error -> cloudRssStatus = result.error.toUserMessage()
+                            is CloudDriveRunActionResult.Failed -> {
+                                cloudRssStatus = result.status
+                            }
                         }
                     }
                 },
@@ -2215,8 +2216,8 @@ internal fun MiruPlayDesktopComposeApp(
                 },
                 onSaveSubscription = {
                     scope.launch {
-                        val subscription = when (
-                            val result = prepareRssSubscriptionForm(
+                        when (
+                            val result = cloudRssActions.saveRssSubscription(
                                 name = rssName,
                                 url = rssUrl,
                                 filterRegex = rssFilter,
@@ -2224,18 +2225,17 @@ internal fun MiruPlayDesktopComposeApp(
                                 selectedSubscription = selectedRssSubscription,
                             )
                         ) {
-                            is RssSubscriptionFormResult.Ready -> result.subscription
-                            is RssSubscriptionFormResult.Invalid -> {
+                            is RssSubscriptionActionResult.Saved -> {
                                 cloudRssStatus = result.status
-                                return@launch
-                            }
-                        }
-                        when (val result = cloudRssActions.saveSubscription(subscription)) {
-                            is Result.Success -> {
-                                cloudRssStatus = rssSubscriptionSavedStatus(subscription.name)
                                 refreshRssSubscriptions()
                             }
-                            is Result.Error -> cloudRssStatus = result.error.toUserMessage()
+                            is RssSubscriptionActionResult.Invalid -> {
+                                cloudRssStatus = result.status
+                            }
+                            is RssSubscriptionActionResult.Failed -> {
+                                cloudRssStatus = result.status
+                            }
+                            is RssSubscriptionActionResult.Deleted -> Unit
                         }
                     }
                 },
@@ -2254,17 +2254,21 @@ internal fun MiruPlayDesktopComposeApp(
                             cloudRssStatus = rssSubscriptionRequiredStatus()
                             return@launch
                         }
-                        when (val result = cloudRssActions.deleteSubscription(subscription.id)) {
-                            is Result.Success -> {
+                        when (val result = cloudRssActions.deleteRssSubscription(subscription.id)) {
+                            is RssSubscriptionActionResult.Deleted -> {
                                 selectedRssSubscription = null
                                 rssName = ""
                                 rssUrl = ""
                                 rssFilter = ""
                                 rssEnabled = true
-                                cloudRssStatus = rssSubscriptionDeletedStatus()
+                                cloudRssStatus = result.status
                                 refreshRssSubscriptions()
                             }
-                            is Result.Error -> cloudRssStatus = result.error.toUserMessage()
+                            is RssSubscriptionActionResult.Failed -> {
+                                cloudRssStatus = result.status
+                            }
+                            is RssSubscriptionActionResult.Invalid -> Unit
+                            is RssSubscriptionActionResult.Saved -> Unit
                         }
                     }
                 },

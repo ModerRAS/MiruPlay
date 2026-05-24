@@ -7,11 +7,17 @@ import com.miruplay.tv.model.CloudDriveApiTokenFormResult
 import com.miruplay.tv.model.CloudDriveLoginFormResult
 import com.miruplay.tv.model.CloudDriveRssRunSummary
 import com.miruplay.tv.model.RssSubscriptionInfo
+import com.miruplay.tv.model.RssSubscriptionFormResult
 import com.miruplay.tv.model.cloudDriveApiTokenRequiredStatus
 import com.miruplay.tv.model.cloudDriveLoginStartedStatus
 import com.miruplay.tv.model.cloudDriveLoginSucceededStatus
 import com.miruplay.tv.model.cloudDriveTokenValidationStartedStatus
 import com.miruplay.tv.model.cloudDriveTokenVerifiedStatus
+import com.miruplay.tv.model.cloudRssRunStartedStatus
+import com.miruplay.tv.model.completeStatus
+import com.miruplay.tv.model.prepareRssSubscriptionForm
+import com.miruplay.tv.model.rssSubscriptionDeletedStatus
+import com.miruplay.tv.model.rssSubscriptionSavedStatus
 import com.miruplay.tv.model.validateCloudDriveApiTokenForm
 import com.miruplay.tv.model.validateCloudDriveLoginForm
 import com.miruplay.tv.model.withAutomationFormValues
@@ -28,6 +34,18 @@ sealed class CloudDriveActionResult {
     data class Invalid(val status: String) : CloudDriveActionResult()
     data class Success(val status: String, val token: String? = null) : CloudDriveActionResult()
     data class Failed(val status: String) : CloudDriveActionResult()
+}
+
+sealed class RssSubscriptionActionResult {
+    data class Invalid(val status: String) : RssSubscriptionActionResult()
+    data class Saved(val subscription: RssSubscriptionInfo, val status: String) : RssSubscriptionActionResult()
+    data class Deleted(val status: String) : RssSubscriptionActionResult()
+    data class Failed(val status: String) : RssSubscriptionActionResult()
+}
+
+sealed class CloudDriveRunActionResult {
+    data class Completed(val summary: CloudDriveRssRunSummary, val status: String) : CloudDriveRunActionResult()
+    data class Failed(val status: String) : CloudDriveRunActionResult()
 }
 
 class CloudDriveRssActionCoordinator(
@@ -142,12 +160,62 @@ class CloudDriveRssActionCoordinator(
     suspend fun runOnce(): Result<CloudDriveRssRunSummary> =
         runner.runOnce()
 
+    suspend fun runCloudDriveOnce(
+        onStarted: (String) -> Unit = {},
+    ): CloudDriveRunActionResult {
+        onStarted(cloudRssRunStartedStatus())
+        return when (val result = runOnce()) {
+            is Result.Success -> CloudDriveRunActionResult.Completed(
+                summary = result.data,
+                status = result.data.completeStatus(),
+            )
+            is Result.Error -> CloudDriveRunActionResult.Failed(result.error.toUserMessage())
+        }
+    }
+
     suspend fun saveSubscription(subscription: RssSubscriptionInfo): Result<Unit> =
         when (val result = repository.saveSubscription(subscription)) {
             is Result.Success -> Result.success(Unit)
             is Result.Error -> result
         }
 
+    suspend fun saveRssSubscription(
+        name: String,
+        url: String,
+        filterRegex: String,
+        enabled: Boolean,
+        selectedSubscription: RssSubscriptionInfo? = null,
+    ): RssSubscriptionActionResult {
+        val subscription = when (
+            val result = prepareRssSubscriptionForm(
+                name = name,
+                url = url,
+                filterRegex = filterRegex,
+                enabled = enabled,
+                selectedSubscription = selectedSubscription,
+            )
+        ) {
+            is RssSubscriptionFormResult.Ready -> result.subscription
+            is RssSubscriptionFormResult.Invalid -> {
+                return RssSubscriptionActionResult.Invalid(result.status)
+            }
+        }
+
+        return when (val result = saveSubscription(subscription)) {
+            is Result.Success -> RssSubscriptionActionResult.Saved(
+                subscription = subscription,
+                status = rssSubscriptionSavedStatus(subscription.name),
+            )
+            is Result.Error -> RssSubscriptionActionResult.Failed(result.error.toUserMessage())
+        }
+    }
+
     suspend fun deleteSubscription(id: Long): Result<Unit> =
         repository.deleteSubscription(id)
+
+    suspend fun deleteRssSubscription(id: Long): RssSubscriptionActionResult =
+        when (val result = deleteSubscription(id)) {
+            is Result.Success -> RssSubscriptionActionResult.Deleted(rssSubscriptionDeletedStatus())
+            is Result.Error -> RssSubscriptionActionResult.Failed(result.error.toUserMessage())
+        }
 }

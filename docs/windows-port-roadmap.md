@@ -55,6 +55,17 @@ shared/desktop gate `:sync-engine-shared:test :ui-tv:compileDebugKotlin
 :desktop-app:test checkDesktopPresenterSeparation checkDesktopComposeOnly
 -PbundleMpvRuntime=false` passed in Gradle MCP build `b-136`, and Android
 debug assemble `:app:assembleDebug -PbundleMpvRuntime=false` passed in `b-137`.
+Latest Cloud/RSS subscription/run-action sharing update:
+`CloudDriveRssActionCoordinator` now returns `RssSubscriptionActionResult` and
+`CloudDriveRunActionResult`, so Android TV Settings and Windows Settings share
+RSS subscription validation/save/delete status mapping and manual run started,
+completed, and failure statuses. Windows keeps only its platform-specific
+subscription refresh/form reset and post-run linked-source rescan around the
+shared result. The focused shared/desktop gate `:sync-engine-shared:test
+:ui-tv:compileDebugKotlin :desktop-app:test checkDesktopPresenterSeparation
+checkDesktopComposeOnly -PbundleMpvRuntime=false` passed in Gradle MCP build
+`b-138`, and Android debug assemble `:app:assembleDebug
+-PbundleMpvRuntime=false` passed in `b-139`.
 
 Latest local shared-input update: `:ui-design` now owns `MiruPlayInputIntent`
 for platform-neutral activation, Back/navigation-back, direction, and media

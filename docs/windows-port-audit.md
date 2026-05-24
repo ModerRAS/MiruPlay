@@ -106,6 +106,11 @@ verification form validation, status mapping, and normalized-token handoff
 through `CloudDriveActionResult`, leaving Android TV Settings and Windows
 Settings to mutate only busy flags and local UI state around the shared action
 result.
+The same coordinator now also owns RSS subscription validation/save/delete
+status mapping and manual run started/completed/failure status mapping through
+`RssSubscriptionActionResult` and `CloudDriveRunActionResult`; Windows keeps
+only its platform-specific subscription refresh/form reset and post-run
+linked-source rescan around the shared results.
 `core:model` owns the Cloud/RSS form normalization helpers used
 by both Android TV Settings and Windows Cloud/RSS Settings for config trimming,
 interval/proxy-port bounds, RSS subscription fallback names, blank URL
@@ -251,6 +256,13 @@ CloudDrive login/API-token validation and status mapping now also flow through
 checkDesktopPresenterSeparation checkDesktopComposeOnly
 -PbundleMpvRuntime=false` passed in Gradle MCP build `b-136`; Android debug
 assemble `:app:assembleDebug -PbundleMpvRuntime=false` passed in `b-137`.
+RSS subscription save/delete and manual Cloud/RSS run status mapping now flow
+through `RssSubscriptionActionResult` and `CloudDriveRunActionResult`; the
+focused shared subscription/run-action gate `:sync-engine-shared:test
+:ui-tv:compileDebugKotlin :desktop-app:test checkDesktopPresenterSeparation
+checkDesktopComposeOnly -PbundleMpvRuntime=false` passed in Gradle MCP build
+`b-138`, and Android debug assemble `:app:assembleDebug
+-PbundleMpvRuntime=false` passed in `b-139`.
 The generated local-source GUI smoke also captured
 `build/desktop-local-source-ui/run-20260520-162054/local-source-poster-keyboard.png`,
 proving the Library poster wall can move selection with keyboard input before
