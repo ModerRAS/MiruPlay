@@ -156,19 +156,7 @@ class WebControlService @Inject constructor(
 
     override suspend fun saveCloudDriveConfig(request: CloudDriveConfigRequest): CloudDriveAutomationDto {
         val current = requireSuccess(cloudDriveRepository.getConfig(), "读取 CloudDrive 设置失败")
-        val config = CloudDriveAutomationConfig(
-            endpointUrl = request.endpointUrl.trim(),
-            username = request.username.trim(),
-            webDavSourceId = request.webDavSourceId?.takeIf { it > 0L },
-            inboxPath = request.inboxPath.trim(),
-            libraryPath = request.libraryPath.trim(),
-            intervalMinutes = request.intervalMinutes.coerceAtLeast(5),
-            enabled = request.enabled,
-            lastRunAt = current.lastRunAt,
-            rssProxyEnabled = request.rssProxyEnabled,
-            rssProxyHost = request.rssProxyHost.trim(),
-            rssProxyPort = request.rssProxyPort.coerceAtLeast(1).coerceAtMost(65535)
-        )
+        val config = request.toAutomationConfig(current)
         requireSuccess(cloudDriveRepository.saveConfig(config), "保存 CloudDrive 设置失败")
         return getCloudDriveAutomation()
     }
@@ -215,18 +203,9 @@ class WebControlService @Inject constructor(
     }
 
     override suspend fun saveRssSubscription(request: RssSubscriptionRequest): RssSubscriptionInfo {
-        if (request.url.isBlank()) {
-            throw IllegalArgumentException("请填写 RSS 地址")
-        }
-        val subscription = RssSubscriptionInfo(
-            id = request.id,
-            name = request.name.trim().ifBlank { request.url.trim() },
-            url = request.url.trim(),
-            filterRegex = request.filterRegex?.trim()?.takeIf { it.isNotBlank() },
-            enabled = request.enabled
-        )
+        val subscription = request.toSubscription() ?: throw IllegalArgumentException("请填写 RSS 地址")
         val id = requireSuccess(cloudDriveRepository.saveSubscription(subscription), "保存 RSS 订阅失败")
-        return subscription.copy(id = if (subscription.id > 0L) subscription.id else id)
+        return subscription.withSavedId(id)
     }
 
     override suspend fun updateRssSubscription(id: Long, request: RssSubscriptionRequest): RssSubscriptionInfo =

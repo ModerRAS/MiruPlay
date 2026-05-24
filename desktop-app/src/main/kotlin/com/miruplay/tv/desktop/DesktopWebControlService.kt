@@ -55,9 +55,12 @@ import com.miruplay.tv.webcontrol.relativeSeekDeltaMs
 import com.miruplay.tv.webcontrol.safeForApi
 import com.miruplay.tv.webcontrol.skipBackwardDeltaMs
 import com.miruplay.tv.webcontrol.skipForwardDeltaMs
+import com.miruplay.tv.webcontrol.toAutomationConfig
 import com.miruplay.tv.webcontrol.toMediaSourceInfo
+import com.miruplay.tv.webcontrol.toSubscription
 import com.miruplay.tv.webcontrol.toWebControlLibrary
 import com.miruplay.tv.webcontrol.webControlDefaultSourceName
+import com.miruplay.tv.webcontrol.withSavedId
 import kotlinx.coroutines.flow.first
 import java.io.File
 import java.net.Inet4Address
@@ -238,19 +241,7 @@ internal class DesktopWebControlService(
 
     override suspend fun saveCloudDriveConfig(request: CloudDriveConfigRequest): CloudDriveAutomationDto {
         val current = repositories.cloudDriveAutomation.getConfig().getOrNull() ?: CloudDriveAutomationConfig()
-        val config = CloudDriveAutomationConfig(
-            endpointUrl = request.endpointUrl.trim(),
-            username = request.username.trim(),
-            webDavSourceId = request.webDavSourceId?.takeIf { it > 0L },
-            inboxPath = request.inboxPath.trim(),
-            libraryPath = request.libraryPath.trim(),
-            intervalMinutes = request.intervalMinutes.coerceAtLeast(5),
-            enabled = request.enabled,
-            lastRunAt = current.lastRunAt,
-            rssProxyEnabled = request.rssProxyEnabled,
-            rssProxyHost = request.rssProxyHost.trim(),
-            rssProxyPort = request.rssProxyPort.coerceIn(1, 65535),
-        )
+        val config = request.toAutomationConfig(current)
         requireSuccess(repositories.cloudDriveAutomation.saveConfig(config), "保存 CloudDrive 设置失败")
         return getCloudDriveAutomation()
     }
@@ -305,18 +296,9 @@ internal class DesktopWebControlService(
     }
 
     override suspend fun saveRssSubscription(request: RssSubscriptionRequest): com.miruplay.tv.model.RssSubscriptionInfo {
-        if (request.url.isBlank()) {
-            throw IllegalArgumentException("请填写 RSS 地址")
-        }
-        val subscription = com.miruplay.tv.model.RssSubscriptionInfo(
-            id = request.id,
-            name = request.name.trim().ifBlank { request.url.trim() },
-            url = request.url.trim(),
-            filterRegex = request.filterRegex?.trim()?.takeIf { it.isNotBlank() },
-            enabled = request.enabled,
-        )
+        val subscription = request.toSubscription() ?: throw IllegalArgumentException("请填写 RSS 地址")
         val id = requireSuccess(repositories.cloudDriveAutomation.saveSubscription(subscription), "保存 RSS 订阅失败")
-        return subscription.copy(id = if (subscription.id > 0L) subscription.id else id)
+        return subscription.withSavedId(id)
     }
 
     override suspend fun updateRssSubscription(
