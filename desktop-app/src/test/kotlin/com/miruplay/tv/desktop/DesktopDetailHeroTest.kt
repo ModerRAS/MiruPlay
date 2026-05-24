@@ -8,6 +8,7 @@ import com.miruplay.tv.model.detailEpisodePageUnitLabel
 import com.miruplay.tv.model.detailEpisodeShelfSubtitle
 import com.miruplay.tv.model.detailHeroEmptyTitle
 import com.miruplay.tv.model.detailHeroEmptySubtitle
+import com.miruplay.tv.model.detailHeroStatLabels
 import com.miruplay.tv.model.libraryContinueWatchingSectionTitle
 import com.miruplay.tv.model.mediaDetailsPageUnitLabel
 import com.miruplay.tv.model.mediaDetailsEmptyMessage
@@ -266,10 +267,21 @@ class DesktopDetailHeroTest {
 
         assertEquals(
             listOf("全 3 话", "第 1 季", "Bangumi"),
-            detailHeroStatLabels(entry, episodeCount = 3),
+            detailHeroStatLabels(
+                episodeCount = 3,
+                seasonNumber = entry.seasonNumber,
+                metadataSource = entry.metadataSource,
+            ),
         )
-        assertEquals(emptyList<String>(), detailHeroStatLabels(null, episodeCount = 3))
-        assertEquals(listOf("第 1 季", "Bangumi"), detailHeroStatLabels(entry, episodeCount = 0))
+        assertEquals(listOf("全 3 话"), detailHeroStatLabels(episodeCount = 3))
+        assertEquals(
+            listOf("第 1 季", "Bangumi"),
+            detailHeroStatLabels(
+                episodeCount = 0,
+                seasonNumber = entry.seasonNumber,
+                metadataSource = entry.metadataSource,
+            ),
+        )
     }
 
     @Test

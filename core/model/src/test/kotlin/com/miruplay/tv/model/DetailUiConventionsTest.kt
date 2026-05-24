@@ -45,6 +45,27 @@ class DetailUiConventionsTest {
     }
 
     @Test
+    fun `shared detail hero stat labels keep episode season and metadata order`() {
+        assertEquals(
+            listOf("全 3 话", "第 1 季", "Bangumi"),
+            detailHeroStatLabels(
+                episodeCount = 3,
+                seasonNumber = 1,
+                metadataSource = "Bangumi",
+            ),
+        )
+        assertEquals(listOf("全 3 话"), detailHeroStatLabels(episodeCount = 3))
+        assertEquals(
+            listOf("第 1 季", "Bangumi"),
+            detailHeroStatLabels(
+                episodeCount = 0,
+                seasonNumber = 1,
+                metadataSource = "Bangumi",
+            ),
+        )
+    }
+
+    @Test
     fun `shared detail page summary hides complete pages`() {
         assertEquals("显示 7-12 / 14 集，按上/下继续翻页。", detailPageSummary(6, 6, 14, "集"))
         assertEquals("显示 13-14 / 14 条记录，按上/下继续翻页。", detailPageSummary(12, 2, 14, "条记录"))

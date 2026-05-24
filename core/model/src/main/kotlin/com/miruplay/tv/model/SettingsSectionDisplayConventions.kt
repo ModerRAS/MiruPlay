@@ -395,6 +395,110 @@ fun settingsLinkedSourceLabel(
         ?: settingsMissingSourceValue(sourceId)
 }
 
+data class SettingsSummaryTile(
+    val label: String,
+    val value: String,
+    val detail: String,
+)
+
+fun sourceSettingsTiles(
+    sources: List<MediaSourceInfo>,
+    activeSourceLabel: String,
+    indexedItemCount: Int,
+): List<SettingsSummaryTile> =
+    listOf(
+        SettingsSummaryTile(
+            label = settingsSourceTileLabel(),
+            value = settingsCountValue(sources.size),
+            detail = settingsSourceTypeBreakdown(sources),
+        ),
+        SettingsSummaryTile(
+            label = settingsActiveSourceTileLabel(),
+            value = activeSourceLabel,
+            detail = settingsActiveSourceSharedDetail(),
+        ),
+        SettingsSummaryTile(
+            label = settingsPosterWallIndexTileLabel(),
+            value = settingsRecordCountValue(indexedItemCount),
+            detail = settingsPosterWallIndexDetail(),
+        ),
+    )
+
+fun playbackSettingsTiles(
+    playbackSummary: String,
+    recentCount: Int,
+    selectedMediaTitle: String,
+): List<SettingsSummaryTile> =
+    listOf(
+        SettingsSummaryTile(
+            label = settingsPlaybackModeTileLabel(),
+            value = playbackSummary,
+            detail = settingsPlaybackPageDetail(),
+        ),
+        SettingsSummaryTile(
+            label = settingsRecentPlaybackTileLabel(),
+            value = settingsRecordCountValue(recentCount),
+            detail = settingsRecentPlaybackDetail(),
+        ),
+        SettingsSummaryTile(
+            label = settingsSelectedMediaTileLabel(),
+            value = selectedMediaTitle,
+            detail = settingsSelectedMediaDetail(),
+        ),
+    )
+
+fun scanSettingsTiles(
+    indexedItemCount: Int,
+    linkedSourceLabel: String,
+    libraryStatus: String,
+): List<SettingsSummaryTile> =
+    listOf(
+        SettingsSummaryTile(
+            label = settingsIndexTileLabel(),
+            value = settingsRecordCountValue(indexedItemCount),
+            detail = settingsIndexSharedDetail(),
+        ),
+        SettingsSummaryTile(
+            label = settingsPostSyncSourceTileLabel(),
+            value = linkedSourceLabel,
+            detail = settingsCloudDriveRescanSourceDetail(),
+        ),
+        SettingsSummaryTile(
+            label = settingsRecentScanStatusTileLabel(),
+            value = mediaSourceStatusText(libraryStatus),
+            detail = settingsRecentScanStatusDetail(),
+        ),
+    )
+
+fun metadataSettingsTiles(
+    selectedMediaTitle: String,
+    metadataSummary: String,
+    indexedItemCount: Int,
+    bangumiTokenConfigured: Boolean = false,
+): List<SettingsSummaryTile> =
+    listOf(
+        SettingsSummaryTile(
+            label = settingsSelectedMetadataEntryTileLabel(),
+            value = selectedMediaTitle,
+            detail = settingsSelectedMetadataEntryDetail(),
+        ),
+        SettingsSummaryTile(
+            label = settingsMetadataMatchStatusTileLabel(),
+            value = metadataSummary,
+            detail = settingsMetadataMatchStatusDetail(),
+        ),
+        SettingsSummaryTile(
+            label = settingsMetadataCandidateScopeTileLabel(),
+            value = settingsIndexedCountValue(indexedItemCount),
+            detail = settingsMetadataCandidateScopeDetail(),
+        ),
+        SettingsSummaryTile(
+            label = metadataBangumiTokenTileLabel(),
+            value = settingsSavedStateValue(bangumiTokenConfigured),
+            detail = metadataBangumiTokenTileDetail(),
+        ),
+    )
+
 fun settingsWebUiTileDetail(): String =
     "二维码和局域网令牌入口由 TV 设置页提供。"
 

@@ -55,6 +55,7 @@ import com.miruplay.tv.model.detailEpisodeShelfSubtitle
 import com.miruplay.tv.model.detailEpisodeTitleLabel
 import com.miruplay.tv.model.detailHeroEmptyTitle
 import com.miruplay.tv.model.detailHeroEmptySubtitle
+import com.miruplay.tv.model.detailHeroStatLabels
 import com.miruplay.tv.model.detailPlayActionLabel
 import com.miruplay.tv.model.detailSeasonLabel
 import com.miruplay.tv.model.formatPlaybackPosition
@@ -106,7 +107,15 @@ internal fun DesktopDetailHero(
         }
             ?: false
 
-    val statLabels = detailHeroStatLabels(entry, episodeCount)
+    val statLabels = entry
+        ?.let {
+            detailHeroStatLabels(
+                episodeCount = episodeCount,
+                seasonNumber = it.seasonNumber,
+                metadataSource = it.metadataSource,
+            )
+        }
+        .orEmpty()
 
     LaunchedEffect(focusVersion) {
         actionFocusRequesters.getValue(DesktopDetailHeroAction.Play).requestFocus()
@@ -293,22 +302,6 @@ internal fun detailHeroDownTarget(
         hasRecentPlayback -> DesktopDetailDownTarget.RecentPlayback
         else -> DesktopDetailDownTarget.BangumiMetadata
     }
-
-internal fun detailHeroStatLabels(
-    entry: MediaIndexEntry?,
-    episodeCount: Int,
-): List<String> {
-    if (entry == null) return emptyList()
-    return buildList {
-        if (episodeCount > 0) {
-            add(detailEpisodeCountLabel(episodeCount))
-        }
-        entry.seasonNumber?.let { add(detailSeasonLabel(it)) }
-        entry.metadataSource
-            ?.takeIf { it.isNotBlank() }
-            ?.let { add(it.trim()) }
-    }
-}
 
 @Composable
 private fun DetailPoster(title: String) {

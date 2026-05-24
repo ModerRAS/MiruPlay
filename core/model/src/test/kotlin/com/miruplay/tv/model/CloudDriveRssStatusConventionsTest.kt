@@ -1,6 +1,7 @@
 package com.miruplay.tv.model
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CloudDriveRssStatusConventionsTest {
@@ -102,6 +103,50 @@ class CloudDriveRssStatusConventionsTest {
         assertEquals("上次检查 05-22 10:30", rssSubscriptionLastCheckedLabel("05-22 10:30"))
         assertEquals("尚未检查", rssSubscriptionLastCheckedLabel(null))
         assertEquals("尚未检查", rssSubscriptionLastCheckedLabel(""))
+    }
+
+    @Test
+    fun `cloud rss summary tiles and previews are shared`() {
+        val subscription = RssSubscriptionInfo(
+            id = 7L,
+            name = "Bangumi Feed",
+            url = "https://rss.example.test/feeds/very/long/path/season-one.xml",
+            filterRegex = "S01",
+            enabled = true,
+        )
+
+        val tiles = cloudRssOverviewTiles(
+            endpointUrl = "http://127.0.0.1:19798/clouddrive/very/long/endpoint",
+            subscriptions = listOf(subscription),
+            enabled = true,
+            linkedSourceLabel = "Cloud WebDAV · WebDAV",
+            schedulerStatus = "调度器运行中，上次运行：提交 3 个，跳过 2 个，失败 1 个，整理 4 个。",
+        )
+        val pathPreview = cloudRssPathPairPreview(
+            inboxPath = "/Downloads/CloudDrive2/rss/inbox/very/deep/path",
+            libraryPath = "/Library/Anime/Season One/Very Long Destination",
+            maxLength = 46,
+        )
+        val subscriptionPreview = rssSubscriptionPreview(subscription, maxLength = 42)
+
+        assertEquals(
+            listOf(cloudDriveRssTitleLabel(), rssSubscriptionsTitleLabel(), cloudDriveRssPostSyncScanSummaryLabel()),
+            tiles.map { it.label },
+        )
+        assertEquals(settingsCloudRssOverviewValue(true), tiles[0].value)
+        assertEquals(settingsCloudRssSubscriptionsValue(1), tiles[1].value)
+        assertEquals(settingsCloudRssLinkedSourceValue("Cloud WebDAV · WebDAV"), tiles[2].value)
+        assertTrue(tiles[0].detail.length <= 58)
+        assertTrue(tiles[1].detail.contains(rssSubscriptionStateLabel(true)))
+        assertTrue(tiles[1].detail.contains("Bangumi Feed"))
+        assertTrue(tiles[2].detail.contains("调度器运行中"))
+        assertTrue(tiles[2].detail.length <= 58)
+        assertTrue(pathPreview.length <= 46)
+        assertTrue(pathPreview.contains("..."))
+        assertTrue(pathPreview.contains(cloudDriveRssPathPairSeparator()))
+        assertTrue(subscriptionPreview.length <= 42)
+        assertTrue(subscriptionPreview.startsWith(rssSubscriptionStateLabel(true)))
+        assertTrue(subscriptionPreview.contains("..."))
     }
 
     @Test

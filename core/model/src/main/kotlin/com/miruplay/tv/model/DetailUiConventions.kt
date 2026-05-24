@@ -55,6 +55,21 @@ fun detailEpisodeTitleLabel(episodeNumber: Int?, episodeTitle: String?): String 
 fun detailEpisodeCountLabel(episodeCount: Int): String =
     "全 ${episodeCount.coerceAtLeast(0)} 话"
 
+fun detailHeroStatLabels(
+    episodeCount: Int,
+    seasonNumber: Int? = null,
+    metadataSource: String? = null,
+): List<String> =
+    buildList {
+        if (episodeCount > 0) {
+            add(detailEpisodeCountLabel(episodeCount))
+        }
+        seasonNumber?.let { add(detailSeasonLabel(it)) }
+        metadataSource
+            ?.takeIf { it.isNotBlank() }
+            ?.let { add(it.trim()) }
+    }
+
 fun detailEpisodePageUnitLabel(): String = "集"
 
 fun recentPlaybackPageUnitLabel(): String = "条记录"

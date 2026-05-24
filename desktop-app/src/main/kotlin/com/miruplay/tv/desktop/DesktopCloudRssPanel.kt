@@ -48,101 +48,68 @@ import com.miruplay.tv.design.verticalNavigationDelta
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MiruPlaySettingsSection
 import com.miruplay.tv.model.RssSubscriptionInfo
+import com.miruplay.tv.model.SettingsSummaryTile
 import com.miruplay.tv.model.cloudDriveRssChooseDirectoryActionLabel
 import com.miruplay.tv.model.cloudDriveRssCloseActionLabel
 import com.miruplay.tv.model.cloudDriveRssDirectoryBadgeLabel
 import com.miruplay.tv.model.cloudDriveRssDirectoryPageUnitLabel
 import com.miruplay.tv.model.cloudDriveRssEmptyDirectoryMessage
-import com.miruplay.tv.model.cloudDriveRssInboxPathFieldLabel
-import com.miruplay.tv.model.cloudDriveRssLibraryPathFieldLabel
 import com.miruplay.tv.model.cloudDriveRssLoadingDirectoriesMessage
 import com.miruplay.tv.model.cloudDriveRssParentDirectoryActionLabel
-import com.miruplay.tv.model.cloudDriveRssPathPairSeparator
-import com.miruplay.tv.model.cloudDriveRssPostSyncScanSummaryLabel
 import com.miruplay.tv.model.cloudDriveRssRuntimeTitleLabel
-import com.miruplay.tv.model.cloudDriveRssSchedulerIdleLabel
 import com.miruplay.tv.model.cloudDriveRssSyncPathTitleLabel
 import com.miruplay.tv.model.cloudDriveRssTitleLabel
 import com.miruplay.tv.model.cloudDriveRssUiLabels
-import com.miruplay.tv.model.cloudDriveRssUnconfiguredEndpointLabel
 import com.miruplay.tv.model.cloudDriveRssUseCurrentDirectoryActionLabel
+import com.miruplay.tv.model.cloudRssOverviewTiles
+import com.miruplay.tv.model.cloudRssPathPairPreview
+import com.miruplay.tv.model.cloudRssPreview
 import com.miruplay.tv.model.cloudRssStatusText
 import com.miruplay.tv.model.desktopSettingsSectionOrder
 import com.miruplay.tv.model.metadataBangumiTokenFieldLabel
 import com.miruplay.tv.model.metadataBangumiTokenSettingsStatus
 import com.miruplay.tv.model.metadataBangumiTokenTileDetail
 import com.miruplay.tv.model.metadataBangumiTokenTileLabel
+import com.miruplay.tv.model.metadataSettingsTiles
 import com.miruplay.tv.model.mediaSourceStatusText
 import com.miruplay.tv.model.pagedListCoercedPageStart
 import com.miruplay.tv.model.pagedListPageStartForIndex
 import com.miruplay.tv.model.pagedListPageSummary
-import com.miruplay.tv.model.settingsActiveSourceSharedDetail
+import com.miruplay.tv.model.playbackSettingsTiles
 import com.miruplay.tv.model.settingsCloudDriveMenuSummary
-import com.miruplay.tv.model.settingsCloudDriveRescanSourceDetail
 import com.miruplay.tv.model.settingsClearTokenActionLabel
-import com.miruplay.tv.model.settingsCountValue
 import com.miruplay.tv.model.settingsDesktopControlTileDetail
 import com.miruplay.tv.model.settingsDesktopControlTileValue
 import com.miruplay.tv.model.settingsDesktopScanMenuSummary
 import com.miruplay.tv.model.settingsDesktopScanStatusMessage
 import com.miruplay.tv.model.settingsDesktopWebUiMenuSummary
 import com.miruplay.tv.model.settingsDesktopWebUiStatusMessage
-import com.miruplay.tv.model.settingsActiveSourceTileLabel
-import com.miruplay.tv.model.settingsCloudRssLinkedSourceValue
-import com.miruplay.tv.model.settingsCloudRssOverviewValue
-import com.miruplay.tv.model.settingsCloudRssSubscriptionsValue
-import com.miruplay.tv.model.settingsIndexedCountValue
-import com.miruplay.tv.model.settingsIndexSharedDetail
-import com.miruplay.tv.model.settingsIndexTileLabel
 import com.miruplay.tv.model.settingsMenuPanelDescription
 import com.miruplay.tv.model.settingsMenuPanelTitle
-import com.miruplay.tv.model.settingsMetadataCandidateScopeDetail
-import com.miruplay.tv.model.settingsMetadataCandidateScopeTileLabel
-import com.miruplay.tv.model.settingsMetadataMatchStatusDetail
-import com.miruplay.tv.model.settingsMetadataMatchStatusTileLabel
 import com.miruplay.tv.model.settingsOpenDetailsActionLabel
 import com.miruplay.tv.model.settingsOpenLibraryActionLabel
 import com.miruplay.tv.model.settingsOpenPlayerActionLabel
-import com.miruplay.tv.model.settingsPlaybackPageDetail
-import com.miruplay.tv.model.settingsPlaybackModeTileLabel
 import com.miruplay.tv.model.settingsPlaybackStatusMessage
-import com.miruplay.tv.model.settingsPosterWallIndexDetail
-import com.miruplay.tv.model.settingsPosterWallIndexTileLabel
-import com.miruplay.tv.model.settingsPostSyncSourceTileLabel
-import com.miruplay.tv.model.settingsRecentPlaybackDetail
-import com.miruplay.tv.model.settingsRecentPlaybackTileLabel
-import com.miruplay.tv.model.settingsRecentScanStatusDetail
-import com.miruplay.tv.model.settingsRecentScanStatusTileLabel
-import com.miruplay.tv.model.settingsRecordCountValue
 import com.miruplay.tv.model.settingsRemoteAutomationTileDetail
 import com.miruplay.tv.model.settingsRemoteAutomationTileLabel
 import com.miruplay.tv.model.settingsRemoteAutomationTileValue
 import com.miruplay.tv.model.settingsSaveTokenActionLabel
-import com.miruplay.tv.model.settingsSavedStateValue
 import com.miruplay.tv.model.settingsScanActiveSourceActionLabel
-import com.miruplay.tv.model.settingsSelectedMediaDetail
-import com.miruplay.tv.model.settingsSelectedMediaTileLabel
-import com.miruplay.tv.model.settingsSelectedMetadataEntryDetail
-import com.miruplay.tv.model.settingsSelectedMetadataEntryTileLabel
-import com.miruplay.tv.model.settingsSourceTileLabel
-import com.miruplay.tv.model.settingsSourceTypeBreakdown
 import com.miruplay.tv.model.settingsSourcesMenuSummary
 import com.miruplay.tv.model.settingsWebUiNativeControlTileLabel
 import com.miruplay.tv.model.settingsWebUiAndroidTvValue
 import com.miruplay.tv.model.settingsWebUiTileLabel
 import com.miruplay.tv.model.settingsWebUiTileDetail
 import com.miruplay.tv.model.stepDesktopSettingsSection
-import com.miruplay.tv.model.rssSubscriptionFallbackTitleLabel
 import com.miruplay.tv.model.rssSubscriptionPageUnitLabel
-import com.miruplay.tv.model.rssSubscriptionPreviewFallbackLabel
-import com.miruplay.tv.model.rssSubscriptionStateLabel
+import com.miruplay.tv.model.rssSubscriptionPreview
 import com.miruplay.tv.model.rssSubscriptionsTitleLabel
+import com.miruplay.tv.model.scanSettingsTiles
+import com.miruplay.tv.model.sourceSettingsTiles
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryBrowserState
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryEntry
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryTarget
 
-private const val CLOUD_RSS_PREVIEW_LIMIT = 58
-private const val CLOUD_RSS_WIDE_PREVIEW_LIMIT = 86
 private const val CLOUD_RSS_BADGE_WIDTH_DP = 82
 private const val CLOUD_RSS_BADGE_HEIGHT_DP = 34
 private const val CLOUD_DRIVE_DIRECTORY_PAGE_SIZE = 6
@@ -1868,80 +1835,6 @@ internal fun settingsQuickActionFocusTarget(
         )?.let(SettingsQuickActionFocusTarget::Action)
     }
 
-internal data class SettingsSummaryTile(
-    val label: String,
-    val value: String,
-    val detail: String,
-)
-
-internal fun cloudRssOverviewTiles(
-    endpointUrl: String,
-    subscriptions: List<RssSubscriptionInfo>,
-    enabled: Boolean,
-    linkedSourceLabel: String,
-    schedulerStatus: String,
-): List<SettingsSummaryTile> =
-    listOf(
-        SettingsSummaryTile(
-            label = cloudDriveRssTitleLabel(),
-            value = settingsCloudRssOverviewValue(enabled),
-            detail = cloudRssPreview(
-                endpointUrl,
-                fallback = cloudDriveRssUnconfiguredEndpointLabel(),
-                maxLength = CLOUD_RSS_PREVIEW_LIMIT,
-            ),
-        ),
-        SettingsSummaryTile(
-            label = rssSubscriptionsTitleLabel(),
-            value = settingsCloudRssSubscriptionsValue(subscriptions.size),
-            detail = subscriptions.firstOrNull()?.let { rssSubscriptionPreview(it, CLOUD_RSS_PREVIEW_LIMIT) }
-                ?: rssSubscriptionPreviewFallbackLabel(),
-        ),
-        SettingsSummaryTile(
-            label = cloudDriveRssPostSyncScanSummaryLabel(),
-            value = settingsCloudRssLinkedSourceValue(linkedSourceLabel),
-            detail = cloudRssPreview(
-                cloudRssStatusText(schedulerStatus),
-                fallback = cloudDriveRssSchedulerIdleLabel(),
-                maxLength = CLOUD_RSS_PREVIEW_LIMIT,
-            ),
-        ),
-    )
-
-internal fun cloudRssPreview(
-    value: String,
-    fallback: String,
-    maxLength: Int = CLOUD_RSS_WIDE_PREVIEW_LIMIT,
-): String =
-    value.trim()
-        .ifBlank { fallback }
-        .compactMiddle(maxLength)
-
-internal fun cloudRssPathPairPreview(
-    inboxPath: String,
-    libraryPath: String,
-    maxLength: Int = CLOUD_RSS_WIDE_PREVIEW_LIMIT,
-): String {
-    val separator = cloudDriveRssPathPairSeparator()
-    val safeMaxLength = maxLength.coerceAtLeast(separator.length + 8)
-    val available = safeMaxLength - separator.length
-    val inboxLength = available / 2
-    val libraryLength = available - inboxLength
-    return cloudRssPreview(inboxPath, fallback = cloudDriveRssInboxPathFieldLabel(), maxLength = inboxLength) +
-        separator +
-        cloudRssPreview(libraryPath, fallback = cloudDriveRssLibraryPathFieldLabel(), maxLength = libraryLength)
-}
-
-internal fun rssSubscriptionPreview(
-    subscription: RssSubscriptionInfo,
-    maxLength: Int = CLOUD_RSS_WIDE_PREVIEW_LIMIT,
-): String {
-    val state = rssSubscriptionStateLabel(subscription.enabled)
-    val filter = subscription.filterRegex?.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty()
-    val label = subscription.name.ifBlank { rssSubscriptionFallbackTitleLabel() }
-    return "$state · $label · ${subscription.url}$filter".compactMiddle(maxLength)
-}
-
 @Composable
 private fun SettingsSectionMenu(
     selectedSection: MiruPlaySettingsSection,
@@ -2184,104 +2077,6 @@ private fun SettingsSummaryCard(
         )
     }
 }
-
-internal fun sourceSettingsTiles(
-    sources: List<MediaSourceInfo>,
-    activeSourceLabel: String,
-    indexedItemCount: Int,
-): List<SettingsSummaryTile> =
-    listOf(
-        SettingsSummaryTile(
-            label = settingsSourceTileLabel(),
-            value = settingsCountValue(sources.size),
-            detail = settingsSourceTypeBreakdown(sources),
-        ),
-        SettingsSummaryTile(
-            label = settingsActiveSourceTileLabel(),
-            value = activeSourceLabel,
-            detail = settingsActiveSourceSharedDetail(),
-        ),
-        SettingsSummaryTile(
-            label = settingsPosterWallIndexTileLabel(),
-            value = settingsRecordCountValue(indexedItemCount),
-            detail = settingsPosterWallIndexDetail(),
-        ),
-    )
-
-internal fun playbackSettingsTiles(
-    playbackSummary: String,
-    recentCount: Int,
-    selectedMediaTitle: String,
-): List<SettingsSummaryTile> =
-    listOf(
-        SettingsSummaryTile(
-            label = settingsPlaybackModeTileLabel(),
-            value = playbackSummary,
-            detail = settingsPlaybackPageDetail(),
-        ),
-        SettingsSummaryTile(
-            label = settingsRecentPlaybackTileLabel(),
-            value = settingsRecordCountValue(recentCount),
-            detail = settingsRecentPlaybackDetail(),
-        ),
-        SettingsSummaryTile(
-            label = settingsSelectedMediaTileLabel(),
-            value = selectedMediaTitle,
-            detail = settingsSelectedMediaDetail(),
-        ),
-    )
-
-internal fun scanSettingsTiles(
-    indexedItemCount: Int,
-    linkedSourceLabel: String,
-    libraryStatus: String,
-): List<SettingsSummaryTile> =
-    listOf(
-        SettingsSummaryTile(
-            label = settingsIndexTileLabel(),
-            value = settingsRecordCountValue(indexedItemCount),
-            detail = settingsIndexSharedDetail(),
-        ),
-        SettingsSummaryTile(
-            label = settingsPostSyncSourceTileLabel(),
-            value = linkedSourceLabel,
-            detail = settingsCloudDriveRescanSourceDetail(),
-        ),
-        SettingsSummaryTile(
-            label = settingsRecentScanStatusTileLabel(),
-            value = mediaSourceStatusText(libraryStatus),
-            detail = settingsRecentScanStatusDetail(),
-        ),
-    )
-
-internal fun metadataSettingsTiles(
-    selectedMediaTitle: String,
-    metadataSummary: String,
-    indexedItemCount: Int,
-    bangumiTokenConfigured: Boolean = false,
-): List<SettingsSummaryTile> =
-    listOf(
-        SettingsSummaryTile(
-            label = settingsSelectedMetadataEntryTileLabel(),
-            value = selectedMediaTitle,
-            detail = settingsSelectedMetadataEntryDetail(),
-        ),
-        SettingsSummaryTile(
-            label = settingsMetadataMatchStatusTileLabel(),
-            value = metadataSummary,
-            detail = settingsMetadataMatchStatusDetail(),
-        ),
-        SettingsSummaryTile(
-            label = settingsMetadataCandidateScopeTileLabel(),
-            value = settingsIndexedCountValue(indexedItemCount),
-            detail = settingsMetadataCandidateScopeDetail(),
-        ),
-        SettingsSummaryTile(
-            label = metadataBangumiTokenTileLabel(),
-            value = settingsSavedStateValue(bangumiTokenConfigured),
-            detail = metadataBangumiTokenTileDetail(),
-        ),
-    )
 
 private fun desktopWebUiSettingsTiles(): List<SettingsSummaryTile> =
     listOf(

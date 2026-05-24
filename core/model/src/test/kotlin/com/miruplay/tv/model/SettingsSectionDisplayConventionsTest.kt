@@ -195,6 +195,55 @@ class SettingsSectionDisplayConventionsTest {
     }
 
     @Test
+    fun `settings summary tiles are shared`() {
+        val sources = listOf(
+            MediaSourceInfoConventions.local(name = "Local Anime", rootPath = "D:/Anime").copy(id = 1L),
+            MediaSourceInfoConventions.webDav(url = "https://dav.example.test/anime")
+                .copy(id = 2L, name = "Cloud WebDAV"),
+            MediaSourceInfoConventions.smb(url = "smb://nas.local/anime").copy(id = 3L),
+        )
+
+        val sourceTiles = sourceSettingsTiles(
+            sources = sources,
+            activeSourceLabel = settingsActiveSourceLabel(sources.first()),
+            indexedItemCount = 42,
+        )
+        val playbackTiles = playbackSettingsTiles(
+            playbackSummary = "RIFE DIRECTML",
+            recentCount = 5,
+            selectedMediaTitle = "Fixture Alpha",
+        )
+        val scanTiles = scanSettingsTiles(
+            indexedItemCount = 11,
+            linkedSourceLabel = "SMB Share · SMB",
+            libraryStatus = libraryScanCompleteStatus(11, 4),
+        )
+        val metadataTiles = metadataSettingsTiles(
+            selectedMediaTitle = "Fixture Beta",
+            metadataSummary = metadataMatchedSummaryLabel("Fixture Beta"),
+            indexedItemCount = 11,
+            bangumiTokenConfigured = true,
+        )
+
+        assertEquals(listOf(settingsSourceTileLabel(), settingsActiveSourceTileLabel(), settingsPosterWallIndexTileLabel()), sourceTiles.map { it.label })
+        assertEquals(listOf(settingsPlaybackModeTileLabel(), settingsRecentPlaybackTileLabel(), settingsSelectedMediaTileLabel()), playbackTiles.map { it.label })
+        assertEquals(listOf(settingsIndexTileLabel(), settingsPostSyncSourceTileLabel(), settingsRecentScanStatusTileLabel()), scanTiles.map { it.label })
+        assertEquals(listOf(settingsSelectedMetadataEntryTileLabel(), settingsMetadataMatchStatusTileLabel(), settingsMetadataCandidateScopeTileLabel(), metadataBangumiTokenTileLabel()), metadataTiles.map { it.label })
+        assertEquals(settingsCountValue(3), sourceTiles[0].value)
+        assertEquals("Local Anime · 本地", sourceTiles[1].value)
+        assertEquals(settingsRecordCountValue(42), sourceTiles[2].value)
+        assertEquals(settingsPlaybackPageDetail(), playbackTiles[0].detail)
+        assertEquals(settingsRecordCountValue(5), playbackTiles[1].value)
+        assertEquals("Fixture Alpha", playbackTiles[2].value)
+        assertEquals(settingsIndexSharedDetail(), scanTiles[0].detail)
+        assertEquals("SMB Share · SMB", scanTiles[1].value)
+        assertEquals(localizedLibraryScanCompleteStatus(11, 4), scanTiles[2].value)
+        assertEquals(metadataMatchedSummaryLabel("Fixture Beta"), metadataTiles[1].value)
+        assertEquals(settingsIndexedCountValue(11), metadataTiles[2].value)
+        assertEquals(settingsSavedStateValue(true), metadataTiles[3].value)
+    }
+
+    @Test
     fun `settings section navigation stops at platform list edges`() {
         assertNull(MiruPlaySettingsSection.WEB_UI.stepAndroidTvSettingsSection(-1))
         assertEquals(

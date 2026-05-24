@@ -106,6 +106,9 @@ fun cloudDriveRssUnconfiguredEndpointLabel(): String =
 fun cloudDriveRssSchedulerIdleLabel(): String =
     "调度器待命"
 
+private const val CLOUD_RSS_OVERVIEW_PREVIEW_LIMIT = 58
+private const val CLOUD_RSS_WIDE_PREVIEW_LIMIT = 86
+
 data class CloudDriveRssUiLabels(
     val endpoint: String,
     val username: String,
@@ -184,6 +187,74 @@ fun cloudDriveRssUiLabels(): CloudDriveRssUiLabels =
         pathBadge = cloudDriveRssPathBadgeLabel(),
         runBadge = cloudDriveRssRunBadgeLabel(),
     )
+
+fun cloudRssOverviewTiles(
+    endpointUrl: String,
+    subscriptions: List<RssSubscriptionInfo>,
+    enabled: Boolean,
+    linkedSourceLabel: String,
+    schedulerStatus: String,
+): List<SettingsSummaryTile> =
+    listOf(
+        SettingsSummaryTile(
+            label = cloudDriveRssTitleLabel(),
+            value = settingsCloudRssOverviewValue(enabled),
+            detail = cloudRssPreview(
+                endpointUrl,
+                fallback = cloudDriveRssUnconfiguredEndpointLabel(),
+                maxLength = CLOUD_RSS_OVERVIEW_PREVIEW_LIMIT,
+            ),
+        ),
+        SettingsSummaryTile(
+            label = rssSubscriptionsTitleLabel(),
+            value = settingsCloudRssSubscriptionsValue(subscriptions.size),
+            detail = subscriptions.firstOrNull()?.let { rssSubscriptionPreview(it, CLOUD_RSS_OVERVIEW_PREVIEW_LIMIT) }
+                ?: rssSubscriptionPreviewFallbackLabel(),
+        ),
+        SettingsSummaryTile(
+            label = cloudDriveRssPostSyncScanSummaryLabel(),
+            value = settingsCloudRssLinkedSourceValue(linkedSourceLabel),
+            detail = cloudRssPreview(
+                cloudRssStatusText(schedulerStatus),
+                fallback = cloudDriveRssSchedulerIdleLabel(),
+                maxLength = CLOUD_RSS_OVERVIEW_PREVIEW_LIMIT,
+            ),
+        ),
+    )
+
+fun cloudRssPreview(
+    value: String,
+    fallback: String,
+    maxLength: Int = CLOUD_RSS_WIDE_PREVIEW_LIMIT,
+): String =
+    value.trim()
+        .ifBlank { fallback }
+        .compactMiddleText(maxLength)
+
+fun cloudRssPathPairPreview(
+    inboxPath: String,
+    libraryPath: String,
+    maxLength: Int = CLOUD_RSS_WIDE_PREVIEW_LIMIT,
+): String {
+    val separator = cloudDriveRssPathPairSeparator()
+    val safeMaxLength = maxLength.coerceAtLeast(separator.length + 8)
+    val available = safeMaxLength - separator.length
+    val inboxLength = available / 2
+    val libraryLength = available - inboxLength
+    return cloudRssPreview(inboxPath, fallback = cloudDriveRssInboxPathFieldLabel(), maxLength = inboxLength) +
+        separator +
+        cloudRssPreview(libraryPath, fallback = cloudDriveRssLibraryPathFieldLabel(), maxLength = libraryLength)
+}
+
+fun rssSubscriptionPreview(
+    subscription: RssSubscriptionInfo,
+    maxLength: Int = CLOUD_RSS_WIDE_PREVIEW_LIMIT,
+): String {
+    val state = rssSubscriptionStateLabel(subscription.enabled)
+    val filter = subscription.filterRegex?.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty()
+    val label = subscription.name.ifBlank { rssSubscriptionFallbackTitleLabel() }
+    return "$state · $label · ${subscription.url}$filter".compactMiddleText(maxLength)
+}
 
 fun cloudDriveRssCloudDriveEnabledValue(enabled: Boolean): String =
     if (enabled) "已启用" else "未启用"
