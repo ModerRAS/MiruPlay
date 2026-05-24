@@ -160,6 +160,73 @@ class DesktopWebControlServerTest {
     }
 
     @Test
+    fun `desktop web control library follows shared poster merge preference`() = runBlocking {
+        val storePath = Files.createTempDirectory("miruplay-web-control-store").resolve("store.json")
+        try {
+            val repositories = DesktopRepositories.fileBacked(storePath)
+            val sourceId = (repositories.mediaSources.addSource(
+                MediaSourceInfoConventions.local(
+                    name = "Local Anime",
+                    rootPath = "D:/Anime",
+                    isConnected = true,
+                )
+            ) as Result.Success).data
+            repositories.index.rebuildIndex(
+                sourceId = sourceId,
+                entries = listOf(
+                    MediaIndexEntry(
+                        sourceId = sourceId,
+                        path = "D:/Anime/Frieren Season 1/01.mkv",
+                        animeName = "Frieren Season 1",
+                        metadataId = "431767",
+                        metadataTitle = "葬送的芙莉莲",
+                        seasonNumber = 1,
+                        episodeNumber = 1,
+                    ),
+                    MediaIndexEntry(
+                        sourceId = sourceId,
+                        path = "D:/Anime/Frieren Season 2/01.mkv",
+                        animeName = "Frieren Season 2",
+                        metadataId = "431767",
+                        metadataTitle = "葬送的芙莉莲",
+                        seasonNumber = 2,
+                        episodeNumber = 1,
+                    ),
+                ),
+            )
+            val service = DesktopWebControlService(repositories, deviceName = "Windows Test")
+
+            val splitLibrary = service.searchLibrary("")
+            assertEquals(2, splitLibrary.allAnime.size)
+            assertEquals(
+                setOf("Frieren Season 1", "Frieren Season 2"),
+                splitLibrary.allAnime.map { it.id }.toSet(),
+            )
+            assertEquals(setOf("葬送的芙莉莲"), splitLibrary.allAnime.map { it.title }.toSet())
+            val splitDetail = service.getAnimeDetail("Frieren Season 1")
+            assertEquals(listOf("D:/Anime/Frieren Season 1/01.mkv"), splitDetail.episodes.map { it.episode.filePath })
+            assertEquals("Frieren Season 1", splitDetail.episodes.single().episode.animeId)
+
+            repositories.scanPreferences.setMergeSameAnimeEnabled(true)
+            val mergedLibrary = service.searchLibrary("")
+            assertEquals(1, mergedLibrary.allAnime.size)
+            assertEquals("431767", mergedLibrary.allAnime.single().id)
+            assertEquals("葬送的芙莉莲", mergedLibrary.allAnime.single().title)
+            val mergedDetail = service.getAnimeDetail("431767")
+            assertEquals(
+                listOf(
+                    "D:/Anime/Frieren Season 1/01.mkv",
+                    "D:/Anime/Frieren Season 2/01.mkv",
+                ),
+                mergedDetail.episodes.map { it.episode.filePath },
+            )
+            assertEquals(setOf("431767"), mergedDetail.episodes.map { it.episode.animeId }.toSet())
+        } finally {
+            storePath.parent.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
     fun `desktop web control scans sources through shared desktop scanner`() = runBlocking {
         val storePath = Files.createTempDirectory("miruplay-web-control-store").resolve("store.json")
         val mediaRoot = Files.createTempDirectory("miruplay-web-control-media")

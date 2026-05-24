@@ -19,7 +19,8 @@ import com.miruplay.tv.model.remoteUrl
 import com.miruplay.tv.model.sortedForPlaybackQueue
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.desktop.DesktopRepositories
-import com.miruplay.tv.repository.mediaFilesOnly
+import com.miruplay.tv.repository.mediaIndexPosterAnimeId
+import com.miruplay.tv.repository.toMediaIndexPosterGroups
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryTarget
 import com.miruplay.tv.sync.rss.DesktopCloudDriveRssAutomationEngine
 import com.miruplay.tv.sync.rss.loadCloudDriveDirectory
@@ -401,7 +402,8 @@ internal class DesktopWebControlService(
             .firstOrNull { it.path == path }
             ?: return null
         val source = repositories.mediaSources.getSourceById(sourceId).getOrNull()
-        return entry.toEpisode(source)
+        val mergeSameAnimeEnabled = repositories.scanPreferences.getPreferences().mergeSameAnimeEnabled
+        return entry.toEpisode(source, entry.mediaIndexPosterAnimeId(mergeSameAnimeEnabled))
     }
 
     private suspend fun loadEpisodesForAnime(
@@ -410,32 +412,36 @@ internal class DesktopWebControlService(
     ): List<Episode> {
         val cachedEpisodes = repositories.metadata.getCachedEpisodes(anime.id).getOrNull().orEmpty()
         if (cachedEpisodes.isNotEmpty()) return cachedEpisodes
-        return group?.entries.orEmpty()
-            .map { entry -> entry.toEpisode(group?.source) }
+        val indexedGroup = group ?: return emptyList()
+        return indexedGroup.entries
+            .map { entry -> entry.toEpisode(indexedGroup.source, indexedGroup.animeId) }
             .sortedForPlaybackQueue()
     }
 
     private suspend fun indexedAnimeGroups(): List<IndexedAnimeGroup> {
         val sources = repositories.mediaSources.getSources().getOrNull().orEmpty()
+        val mergeSameAnimeEnabled = repositories.scanPreferences.getPreferences().mergeSameAnimeEnabled
         return sources.flatMap { source ->
             repositories.index.queryIndex(source.id, "")
                 .getOrNull()
                 .orEmpty()
-                .mediaFilesOnly()
-                .groupBy { it.animeGroupKey() }
-                .values
-                .mapNotNull { entries ->
-                    val first = entries.firstOrNull() ?: return@mapNotNull null
-                    IndexedAnimeGroup(source = source, animeId = first.animeGroupKey(), entries = entries)
+                .toMediaIndexPosterGroups(mergeSameAnimeEnabled)
+                .map { group ->
+                    IndexedAnimeGroup(
+                        source = source,
+                        animeId = group.animeId,
+                        title = group.title,
+                        entries = group.entries,
+                    )
                 }
         }
     }
 
-    private fun MediaIndexEntry.toEpisode(source: MediaSourceInfo?): Episode {
+    private fun MediaIndexEntry.toEpisode(source: MediaSourceInfo?, animeId: String): Episode {
         val episodeId = "$sourceId:$path"
         return Episode(
             id = episodeId,
-            animeId = animeGroupKey(),
+            animeId = animeId,
             seasonNumber = seasonNumber ?: 1,
             episodeNumber = episodeNumber ?: 1,
             title = episodeTitle.orEmpty(),
@@ -446,10 +452,6 @@ internal class DesktopWebControlService(
 
     private fun IndexedAnimeGroup.toAnime(): Anime {
         val first = entries.first()
-        val title = first.metadataTitle?.takeIf { it.isNotBlank() }
-            ?: first.animeName?.takeIf { it.isNotBlank() }
-            ?: MediaPathConventions.parentName(first.path).takeIf { it.isNotBlank() }
-            ?: MediaPathConventions.stem(first.path).ifBlank { animeId }
         return Anime(
             id = animeId,
             title = title,
@@ -457,13 +459,6 @@ internal class DesktopWebControlService(
             summary = first.plot.orEmpty(),
         )
     }
-
-    private fun MediaIndexEntry.animeGroupKey(): String =
-        metadataId?.takeIf { it.isNotBlank() }
-            ?: animeName?.takeIf { it.isNotBlank() }
-            ?: metadataTitle?.takeIf { it.isNotBlank() }
-            ?: MediaPathConventions.parentName(path).takeIf { it.isNotBlank() }
-            ?: MediaPathConventions.stem(path).ifBlank { path }
 
     private fun DesktopSourceScanResult.toSourceScanResponse(source: MediaSourceInfo): SourceScanResponse =
         SourceScanResponse(
@@ -554,6 +549,7 @@ internal class DesktopWebControlService(
     private data class IndexedAnimeGroup(
         val source: MediaSourceInfo,
         val animeId: String,
+        val title: String,
         val entries: List<MediaIndexEntry>,
     )
 }

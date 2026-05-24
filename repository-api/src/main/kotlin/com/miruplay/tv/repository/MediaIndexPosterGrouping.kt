@@ -5,6 +5,7 @@ import com.miruplay.tv.model.MediaPathConventions
 data class MediaIndexPosterGroup(
     val title: String,
     val entries: List<MediaIndexEntry>,
+    val animeId: String = entries.posterGroupAnimeId(mergeSameAnimeEnabled = false),
 ) {
     val primaryEntry: MediaIndexEntry =
         entries
@@ -30,6 +31,7 @@ fun List<MediaIndexEntry>.toMediaIndexPosterGroups(
             MediaIndexPosterGroup(
                 title = groupEntries.posterGroupTitle(),
                 entries = groupEntries,
+                animeId = groupEntries.posterGroupAnimeId(mergeSameAnimeEnabled),
             )
         }
         .sortedBy { it.title.lowercase() }
@@ -56,6 +58,15 @@ fun MediaIndexEntry.belongsToPosterGroup(
     sourceId == selected.sourceId &&
         posterGroupingKey(mergeSameAnimeEnabled) == selected.posterGroupingKey(mergeSameAnimeEnabled)
 
+fun MediaIndexEntry.mediaIndexPosterAnimeId(mergeSameAnimeEnabled: Boolean): String =
+    if (mergeSameAnimeEnabled) {
+        metadataId?.takeIf { it.isNotBlank() }
+            ?: metadataTitle?.takeIf { it.isNotBlank() }
+            ?: scannedPosterTitle()
+    } else {
+        scannedPosterTitle()
+    }
+
 fun List<MediaIndexEntry>.mediaIndexEpisodesForPosterSelection(
     selectedEntry: MediaIndexEntry?,
     mergeSameAnimeEnabled: Boolean = false,
@@ -76,6 +87,12 @@ private fun List<MediaIndexEntry>.posterGroupTitle(): String =
         ?: firstNotNullOfOrNull { it.animeName?.takeIf(String::isNotBlank) }
         ?: firstOrNull()?.posterTitle()
         ?: ""
+
+private fun List<MediaIndexEntry>.posterGroupAnimeId(mergeSameAnimeEnabled: Boolean): String =
+    asSequence()
+        .map { it.mediaIndexPosterAnimeId(mergeSameAnimeEnabled) }
+        .firstOrNull { it.isNotBlank() }
+        ?: firstOrNull()?.path.orEmpty()
 
 private fun MediaIndexEntry.scannedPosterTitle(): String =
     animeName?.takeIf { it.isNotBlank() }

@@ -51,6 +51,36 @@ class MediaIndexPosterGroupingTest {
             listOf("Frieren Season 1/01.mkv", "Frieren Season 2/01.mkv"),
             merged.single().entries.map { it.path },
         )
+        assertEquals("431767", merged.single().animeId)
+    }
+
+    @Test
+    fun `poster group ids follow merge preference`() {
+        val entries = listOf(
+            MediaIndexEntry(
+                sourceId = 1,
+                path = "Frieren Season 1/01.mkv",
+                animeName = "Frieren Season 1",
+                metadataId = "431767",
+                metadataTitle = "葬送的芙莉莲",
+            ),
+            MediaIndexEntry(
+                sourceId = 1,
+                path = "Frieren Season 2/01.mkv",
+                animeName = "Frieren Season 2",
+                metadataId = "431767",
+                metadataTitle = "葬送的芙莉莲",
+            ),
+        )
+
+        assertEquals(
+            listOf("Frieren Season 1", "Frieren Season 2"),
+            entries.toMediaIndexPosterGroups(mergeSameAnimeEnabled = false).map { it.animeId },
+        )
+        assertEquals(
+            listOf("431767"),
+            entries.toMediaIndexPosterGroups(mergeSameAnimeEnabled = true).map { it.animeId },
+        )
     }
 
     @Test
