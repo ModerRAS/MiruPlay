@@ -7,6 +7,34 @@ import org.junit.Test
 
 class WebControlLibrarySearchTest {
     @Test
+    fun `anime list builds stable library with sorted unique items and recently added window`() {
+        val continueWatching = listOf(
+            ContinueWatchingDto(
+                progressEpisodeId = "episode-1",
+                positionMs = 12_000L,
+                lastWatched = 34L,
+                playCount = 1,
+                episode = null,
+                anime = null,
+            )
+        )
+        val anime = listOf(
+            anime("zeta", "Zeta"),
+            anime("alpha", "Alpha Duplicate"),
+            anime("alpha", "Alpha"),
+        ) + (1..25).map { index -> anime("show-$index", "Show $index") }
+
+        val library = anime.toWebControlLibrary(continueWatching)
+
+        assertEquals(27, library.allAnime.size)
+        assertEquals(continueWatching, library.continueWatching)
+        assertEquals("alpha", library.allAnime.first().id)
+        assertEquals("zeta", library.allAnime.last().id)
+        assertEquals(24, library.recentlyAdded.size)
+        assertEquals(library.allAnime.takeLast(24).map { it.id }, library.recentlyAdded.map { it.id })
+    }
+
+    @Test
     fun `blank query preserves the original library`() {
         val library = LibraryDto(
             continueWatching = emptyList(),

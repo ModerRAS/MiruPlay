@@ -51,6 +51,7 @@ import com.miruplay.tv.webcontrol.SourceTestResponse
 import com.miruplay.tv.webcontrol.WebControlEndpointService
 import com.miruplay.tv.webcontrol.filteredByQuery
 import com.miruplay.tv.webcontrol.safeForApi
+import com.miruplay.tv.webcontrol.toWebControlLibrary
 import kotlinx.coroutines.flow.first
 import java.io.File
 import java.net.Inet4Address
@@ -360,13 +361,7 @@ internal class DesktopWebControlService(
     private suspend fun loadLibrary(): LibraryDto {
         val anime = indexedAnimeGroups()
             .map { group -> repositories.metadata.getCachedMetadata(group.animeId).getOrNull() ?: group.toAnime() }
-            .distinctBy { it.id }
-            .sortedBy { it.title.ifBlank { it.id } }
-        return LibraryDto(
-            continueWatching = loadContinueWatching(),
-            recentlyAdded = anime.takeLast(24),
-            allAnime = anime,
-        )
+        return anime.toWebControlLibrary(continueWatching = loadContinueWatching())
     }
 
     private suspend fun loadContinueWatching(): List<ContinueWatchingDto> =

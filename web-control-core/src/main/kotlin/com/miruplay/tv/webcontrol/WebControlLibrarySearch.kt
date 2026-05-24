@@ -1,6 +1,20 @@
 package com.miruplay.tv.webcontrol
 
-private const val WEB_CONTROL_RECENTLY_ADDED_LIMIT = 24
+import com.miruplay.tv.model.Anime
+
+private const val WEB_CONTROL_LIBRARY_WINDOW_LIMIT = 24
+
+fun List<Anime>.toWebControlLibrary(
+    continueWatching: List<ContinueWatchingDto> = emptyList(),
+): LibraryDto {
+    val anime = distinctBy { it.id }
+        .sortedBy { it.title.ifBlank { it.id } }
+    return LibraryDto(
+        continueWatching = continueWatching,
+        recentlyAdded = anime.takeLast(WEB_CONTROL_LIBRARY_WINDOW_LIMIT),
+        allAnime = anime,
+    )
+}
 
 fun LibraryDto.filteredByQuery(query: String): LibraryDto {
     val normalized = query.trim()
@@ -12,7 +26,7 @@ fun LibraryDto.filteredByQuery(query: String): LibraryDto {
             item.titleCn?.contains(normalized, ignoreCase = true) == true
     }
     return copy(
-        recentlyAdded = filtered.take(WEB_CONTROL_RECENTLY_ADDED_LIMIT),
+        recentlyAdded = filtered.take(WEB_CONTROL_LIBRARY_WINDOW_LIMIT),
         allAnime = filtered,
     )
 }

@@ -236,11 +236,7 @@ class WebControlService @Inject constructor(
     suspend fun getLibrary(): LibraryDto {
         val sources = (mediaRepository.getSources() as? Result.Success)?.data ?: emptyList()
         val anime = loadAllAnime(sources)
-        return LibraryDto(
-            continueWatching = loadContinueWatching(),
-            recentlyAdded = anime.takeLast(24),
-            allAnime = anime
-        )
+        return anime.toWebControlLibrary(continueWatching = loadContinueWatching())
     }
 
     override suspend fun searchLibrary(query: String): LibraryDto {
@@ -369,7 +365,7 @@ class WebControlService @Inject constructor(
                 }
             }
         }
-        return all.distinctBy { it.id }.sortedBy { it.title.ifBlank { it.id } }
+        return all
     }
 
     private suspend fun loadContinueWatching(): List<ContinueWatchingDto> {
