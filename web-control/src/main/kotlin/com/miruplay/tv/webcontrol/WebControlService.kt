@@ -98,26 +98,14 @@ class WebControlService @Inject constructor(
 
     override suspend fun scanSource(sourceId: Long): SourceScanResponse {
         val result = requireWebControlSuccess(scanCoordinator.scanSource(sourceId), "扫描媒体源失败")
-        return SourceScanResponse(
-            sourceId = sourceId,
-            animeName = result.animeName,
-            episodesFound = result.episodesFound,
-            newEpisodes = result.newEpisodes,
-            updatedEpisodes = result.updatedEpisodes
-        )
+        return result.toWebControlSourceScanResponse(sourceId)
     }
 
     override suspend fun scanAllSources(): List<SourceScanResponse> {
         val sources = (mediaRepository.getSources() as? Result.Success)?.data ?: emptyList()
         return sources.mapNotNull { source ->
             when (val result = scanCoordinator.scanSource(source.id)) {
-                is Result.Success -> SourceScanResponse(
-                    sourceId = source.id,
-                    animeName = result.data.animeName,
-                    episodesFound = result.data.episodesFound,
-                    newEpisodes = result.data.newEpisodes,
-                    updatedEpisodes = result.data.updatedEpisodes
-                )
+                is Result.Success -> result.data.toWebControlSourceScanResponse(source.id)
                 is Result.Error -> null
             }
         }

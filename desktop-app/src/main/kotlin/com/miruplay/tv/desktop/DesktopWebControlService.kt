@@ -63,6 +63,7 @@ import com.miruplay.tv.webcontrol.toWebControlResponse
 import com.miruplay.tv.webcontrol.toWebControlDirectoryDto
 import com.miruplay.tv.webcontrol.toWebControlSourceTestResponse
 import com.miruplay.tv.webcontrol.toWebControlLibrary
+import com.miruplay.tv.webcontrol.toWebControlSourceScanResponse
 import com.miruplay.tv.webcontrol.validated
 import com.miruplay.tv.webcontrol.webControlDefaultSourceName
 import com.miruplay.tv.webcontrol.webControlMediaSourceIdFromEpisodeId
@@ -355,7 +356,7 @@ internal class DesktopWebControlService(
     }
 
     private fun DesktopSourceScanResult.toSourceScanResponse(source: MediaSourceInfo): SourceScanResponse =
-        SourceScanResponse(
+        toWebControlSourceScanResponse(
             sourceId = sourceId,
             animeName = source.name.ifBlank { source.type.webControlDefaultSourceName() },
             episodesFound = videoEntries.size,

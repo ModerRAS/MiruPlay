@@ -4,6 +4,7 @@ import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.ScanResult
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
@@ -113,5 +114,38 @@ class WebControlSourceRequestsTest {
 
         assertEquals(false, response.connected)
         assertEquals("WebDAV 认证失败，请检查用户名和密码", response.message)
+    }
+
+    @Test
+    fun `scan result maps to WebUI scan response`() {
+        val response = ScanResult(
+            animeName = "Frieren",
+            episodesFound = 3,
+            newEpisodes = 2,
+            updatedEpisodes = 1,
+        ).toWebControlSourceScanResponse(sourceId = 7L)
+
+        assertEquals(7L, response.sourceId)
+        assertEquals("Frieren", response.animeName)
+        assertEquals(3, response.episodesFound)
+        assertEquals(2, response.newEpisodes)
+        assertEquals(1, response.updatedEpisodes)
+    }
+
+    @Test
+    fun `scan response builder normalizes blank name and negative counts`() {
+        val response = toWebControlSourceScanResponse(
+            sourceId = 8L,
+            animeName = "",
+            episodesFound = -1,
+            newEpisodes = -2,
+            updatedEpisodes = -3,
+        )
+
+        assertEquals(8L, response.sourceId)
+        assertEquals("Unknown", response.animeName)
+        assertEquals(0, response.episodesFound)
+        assertEquals(0, response.newEpisodes)
+        assertEquals(0, response.updatedEpisodes)
     }
 }

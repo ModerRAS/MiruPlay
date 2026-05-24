@@ -4,6 +4,7 @@ import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.ScanResult
 
 fun SourceRequest.toMediaSourceInfo(
     sourceId: Long = id,
@@ -67,6 +68,30 @@ fun Result<Boolean>.toWebControlSourceTestResponse(): SourceTestResponse =
             message = error.toUserMessage(),
         )
     }
+
+fun ScanResult.toWebControlSourceScanResponse(sourceId: Long): SourceScanResponse =
+    toWebControlSourceScanResponse(
+        sourceId = sourceId,
+        animeName = animeName,
+        episodesFound = episodesFound,
+        newEpisodes = newEpisodes,
+        updatedEpisodes = updatedEpisodes,
+    )
+
+fun toWebControlSourceScanResponse(
+    sourceId: Long,
+    animeName: String,
+    episodesFound: Int,
+    newEpisodes: Int,
+    updatedEpisodes: Int,
+): SourceScanResponse =
+    SourceScanResponse(
+        sourceId = sourceId,
+        animeName = animeName.ifBlank { "Unknown" },
+        episodesFound = episodesFound.coerceAtLeast(0),
+        newEpisodes = newEpisodes.coerceAtLeast(0),
+        updatedEpisodes = updatedEpisodes.coerceAtLeast(0),
+    )
 
 private fun MediaSourceType.webControlSourceLocation(location: String): String =
     when (this) {
