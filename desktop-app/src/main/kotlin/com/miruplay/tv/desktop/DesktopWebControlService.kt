@@ -162,14 +162,17 @@ internal class DesktopWebControlService(
 
     override suspend fun scanSource(sourceId: Long): SourceScanResponse {
         val source = requireWebControlSuccess(repositories.mediaSources.getSourceById(sourceId), "媒体源不存在")
-        val result = requireWebControlSuccess(scanAndIndexDesktopSource(source, repositories.index), "扫描媒体源失败")
+        val result = requireWebControlSuccess(
+            scanAndIndexDesktopSource(source, repositories.index, repositories.metadata),
+            "扫描媒体源失败",
+        )
         return result.toSourceScanResponse(source)
     }
 
     override suspend fun scanAllSources(): List<SourceScanResponse> {
         val sources = repositories.mediaSources.getSources().getOrNull().orEmpty()
         return sources.mapNotNull { source ->
-            when (val result = scanAndIndexDesktopSource(source, repositories.index)) {
+            when (val result = scanAndIndexDesktopSource(source, repositories.index, repositories.metadata)) {
                 is Result.Success -> result.data.toSourceScanResponse(source)
                 is Result.Error -> null
             }
@@ -257,7 +260,7 @@ internal class DesktopWebControlService(
         val config = repositories.cloudDriveAutomation.getConfig().getOrNull() ?: return
         val sourceId = config.webDavSourceId?.takeIf { it > 0L } ?: return
         val source = repositories.mediaSources.getSourceById(sourceId).getOrNull() ?: return
-        rescanCloudRssLinkedSource(source, reason, repositories.index)
+        rescanCloudRssLinkedSource(source, reason, repositories.index, repositories.metadata)
     }
 
 }

@@ -19,6 +19,7 @@ import com.miruplay.tv.model.ScanResult
 import com.miruplay.tv.model.TvShowNfoMetadata
 import com.miruplay.tv.model.UniqueId
 import com.miruplay.tv.repository.MediaIndexEntry
+import com.miruplay.tv.repository.MediaIndexMetadataCache
 import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
@@ -121,74 +122,52 @@ class ScanCoordinator @Inject constructor(
         if (indexEntities.isNotEmpty()) {
             indexRepository.rebuildIndex(sourceId, indexEntities)
 
-            // Also cache episodes in the episode table so AnimeDetailViewModel can read them
-            val episodesByAnime = indexEntities
-                .filter { !it.isDirectory && it.episodeNumber != null }
-                .groupBy { it.animeName ?: "Unknown" }
-
-            for ((animeName, entries) in episodesByAnime) {
-                val sortedEntries = entries.sortedWith(
-                    compareBy<MediaIndexEntry>(
-                        { it.seasonNumber ?: 1 },
-                        { it.episodeNumber ?: Int.MAX_VALUE },
-                        { it.path }
-                    )
-                )
-                val episodes = sortedEntries.mapIndexed { idx, entry ->
-                    val playablePath = toPlayablePath(entry.path, rootPath, sourceInfo.type)
-                        Episode(
-                            id = "${sourceId}:${entry.path}",
-                            animeId = animeName,
-                            seasonNumber = entry.seasonNumber ?: 1,
-                            episodeNumber = entry.episodeNumber ?: (idx + 1),
-                            title = "",
-                            filePath = playablePath,
-                            fileName = fileNameOf(entry.path)
-                        )
-                    }
-                val online = enrichWithOnlineMetadata(
+            val onlineMetadataByAnime = mutableMapOf<String, OnlineMetadata>()
+            suspend fun onlineMetadataFor(animeName: String, episodes: List<Episode>): OnlineMetadata {
+                onlineMetadataByAnime[animeName]?.let { return it }
+                return enrichWithOnlineMetadata(
                     animeName = animeName,
                     episodes = episodes,
-                    extraTitleCandidates = titleCandidatesByAnime[animeName].orEmpty()
-                )
-                metadataRepository.cacheEpisodes(animeName, online.episodes)
+                    extraTitleCandidates = titleCandidatesByAnime[animeName].orEmpty(),
+                ).also { onlineMetadataByAnime[animeName] = it }
+            }
 
-                // Update or create anime metadata with episode count
-                var animeForNfo: Anime? = null
-                if (online.anime != null) {
-                    metadataRepository.cacheMetadata(online.anime)
-                    animeForNfo = online.anime
-                } else {
-                    metadataRepository.getCachedMetadata(animeName).onSuccess { cachedAnime ->
-                        if (cachedAnime != null) {
-                            val updated = cachedAnime.copy(episodeCount = episodes.size)
-                            metadataRepository.cacheMetadata(updated)
-                            animeForNfo = updated
-                        } else {
-                            // Create minimal anime metadata if none exists (no NFO was found)
-                            val minimal = Anime(
-                                id = animeName,
-                                title = animeName,
-                                titleCn = animeName,
-                                episodeCount = episodes.size
+            MediaIndexMetadataCache(metadataRepository).cache(
+                source = sourceInfo,
+                entries = indexEntities,
+                episodeTransform = { animeName, episodes ->
+                    onlineMetadataFor(animeName, episodes).episodes
+                },
+                animeTransform = { animeName, episodes ->
+                    val online = onlineMetadataFor(animeName, episodes)
+                    val anime = online.anime
+                        ?: metadataRepository.getCachedMetadata(animeName).getOrNull()?.copy(episodeCount = episodes.size)
+                        ?: Anime(
+                            id = animeName,
+                            title = animeName,
+                            titleCn = animeName,
+                            episodeCount = episodes.size,
+                        )
+                    if (isLocalSource && !isDocumentTree) {
+                        val sortedEntries = indexEntities
+                            .filter { !it.isDirectory && (it.animeName ?: "Unknown") == animeName }
+                            .sortedWith(
+                                compareBy<MediaIndexEntry>(
+                                    { it.seasonNumber ?: 1 },
+                                    { it.episodeNumber ?: Int.MAX_VALUE },
+                                    { it.path },
+                                ),
                             )
-                            metadataRepository.cacheMetadata(minimal)
-                            animeForNfo = minimal
-                        }
-                    }
-                }
-
-                if (isLocalSource && !isDocumentTree) {
-                    animeForNfo?.let { anime ->
                         writeGeneratedNfoIfMissing(
                             classifier = classifier,
                             anime = anime,
-                            episodes = online.episodes,
-                            entries = sortedEntries
+                            episodes = episodes,
+                            entries = sortedEntries,
                         )
                     }
-                }
-            }
+                    anime
+                },
+            )
         }
 
         // Report done
@@ -401,13 +380,6 @@ class ScanCoordinator @Inject constructor(
     private fun normalizeLocalPath(path: String): String =
         path.replace('\\', '/').trimEnd('/')
 
-    private fun toPlayablePath(path: String, sourceRoot: String, sourceType: MediaSourceType): String =
-        when (sourceType) {
-            MediaSourceType.LOCAL -> path
-            MediaSourceType.WEBDAV -> MediaPathConventions.joinRemoteUrl(sourceRoot, path)
-            MediaSourceType.SMB -> path
-        }
-
     private fun nameOfPath(path: String): String =
         when {
             path.startsWith("content://") -> {
@@ -416,8 +388,6 @@ class ScanCoordinator @Inject constructor(
             }
             else -> MediaPathConventions.fileName(path)
         }
-
-    private fun fileNameOf(path: String): String = nameOfPath(path).ifEmpty { MediaPathConventions.fileName(path) }
 
     private fun MediaSourceInfo.displayNameOrPath(path: String): String =
         connectionInfo["displayName"] ?: nameOfPath(path).ifEmpty { path }

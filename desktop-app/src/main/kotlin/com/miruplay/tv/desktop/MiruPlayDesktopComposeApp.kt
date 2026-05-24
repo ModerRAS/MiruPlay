@@ -1141,7 +1141,13 @@ internal fun MiruPlayDesktopComposeApp(
             return
         }
         updateStatus(source.info.scanningStatus())
-        when (val scan = scanAndIndexDesktopSource(source.info.copy(id = sourceId), repositories.index)) {
+        when (
+            val scan = scanAndIndexDesktopSource(
+                sourceInfo = source.info.copy(id = sourceId),
+                indexRepository = repositories.index,
+                metadataRepository = repositories.metadata,
+            )
+        ) {
             is Result.Success -> {
                 indexedEntries = scan.data.videoEntries
                 selectedIndexEntry = null
@@ -1182,7 +1188,14 @@ internal fun MiruPlayDesktopComposeApp(
         }
 
         cloudRssStatus = cloudRssRescanStartedStatus(reason, sourceInfo.sourcePickerTitle())
-        return when (val rescan = rescanCloudRssLinkedSource(sourceInfo, reason, repositories.index)) {
+        return when (
+            val rescan = rescanCloudRssLinkedSource(
+                sourceInfo = sourceInfo,
+                reason = reason,
+                indexRepository = repositories.index,
+                metadataRepository = repositories.metadata,
+            )
+        ) {
             is Result.Success -> {
                 val result = rescan.data
                 if (activeSourceId == sourceInfo.id) {

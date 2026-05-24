@@ -7,7 +7,9 @@ import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.cloudRssRescanStartedStatus
 import com.miruplay.tv.model.sourcePickerTitle
 import com.miruplay.tv.repository.MediaIndexEntry
+import com.miruplay.tv.repository.MediaIndexMetadataCache
 import com.miruplay.tv.repository.MediaIndexRepository
+import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.mediaFilesOnly
 import com.miruplay.tv.repository.rescanCompleteStatus
 import com.miruplay.tv.repository.scanCompleteStatus
@@ -37,6 +39,7 @@ internal enum class DesktopCloudRssRescanTargetStatus {
 internal suspend fun scanAndIndexDesktopSource(
     sourceInfo: MediaSourceInfo,
     indexRepository: MediaIndexRepository,
+    metadataRepository: MetadataRepository,
     scanner: DesktopMediaLibraryScanner = DesktopMediaLibraryScanner(),
 ): Result<DesktopSourceScanResult> {
     val source = desktopSourceFromInfo(sourceInfo)
@@ -44,6 +47,10 @@ internal suspend fun scanAndIndexDesktopSource(
         is Result.Success -> {
             when (val indexed = indexRepository.rebuildIndex(sourceInfo.id, scan.data.entries)) {
                 is Result.Success -> {
+                    MediaIndexMetadataCache(metadataRepository).cache(
+                        source = sourceInfo,
+                        entries = scan.data.entries,
+                    )
                     Result.success(
                         DesktopSourceScanResult(
                             sourceId = sourceInfo.id,
@@ -68,9 +75,10 @@ internal suspend fun rescanCloudRssLinkedSource(
     sourceInfo: MediaSourceInfo,
     reason: String,
     indexRepository: MediaIndexRepository,
+    metadataRepository: MetadataRepository,
     scanner: DesktopMediaLibraryScanner = DesktopMediaLibraryScanner(),
 ): Result<DesktopCloudRssRescanResult> {
-    return when (val scan = scanAndIndexDesktopSource(sourceInfo, indexRepository, scanner)) {
+    return when (val scan = scanAndIndexDesktopSource(sourceInfo, indexRepository, metadataRepository, scanner)) {
         is Result.Success -> {
             Result.success(
                 DesktopCloudRssRescanResult(

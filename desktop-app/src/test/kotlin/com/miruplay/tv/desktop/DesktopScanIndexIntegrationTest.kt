@@ -31,10 +31,13 @@ class DesktopScanIndexIntegrationTest {
             val scan = scanAndIndexDesktopSource(
                 sourceInfo = sourceInfo,
                 indexRepository = repositories.index,
+                metadataRepository = repositories.metadata,
             ) as Result.Success
 
             val query = repositories.index.queryIndex(sourceId, "Bocchi") as Result.Success
             val videos = query.data.filterNot { it.isDirectory }
+            val cachedAnime = repositories.metadata.getCachedMetadata("Bocchi the Rock").getOrNull()
+            val cachedEpisodes = repositories.metadata.getCachedEpisodes("Bocchi the Rock").getOrNull().orEmpty()
 
             assertEquals(sourceId, scan.data.sourceId)
             assertEquals(libraryScanCompleteStatus(1, 2), scan.data.completedStatus)
@@ -45,6 +48,10 @@ class DesktopScanIndexIntegrationTest {
             assertEquals("Bocchi the Rock", videos.single().animeName)
             assertEquals(3, videos.single().episodeNumber)
             assertTrue(videos.single().path.endsWith("Bocchi the Rock - 03.mkv"))
+            assertEquals("Bocchi the Rock", cachedAnime?.title)
+            assertEquals(1, cachedAnime?.episodeCount)
+            assertEquals(listOf(3), cachedEpisodes.map { it.episodeNumber })
+            assertEquals(videos.single().path, cachedEpisodes.single().filePath)
         } finally {
             mediaRoot.toFile().deleteRecursively()
             storePath.parent.toFile().deleteRecursively()
@@ -79,10 +86,12 @@ class DesktopScanIndexIntegrationTest {
                 sourceInfo = persistedSourceInfo,
                 reason = cloudRssScheduledSyncCompleteStatus(),
                 indexRepository = repositories.index,
+                metadataRepository = repositories.metadata,
             ) as Result.Success
 
             val all = repositories.index.queryIndex(sourceId, "") as Result.Success
             val videos = all.data.filterNot { it.isDirectory }
+            val cachedEpisodes = repositories.metadata.getCachedEpisodes("New Show").getOrNull().orEmpty()
 
             assertEquals(DesktopCloudRssRescanTargetStatus.LIBRARY, rescan.data.targetStatus)
             assertEquals("定时同步完成，正在重扫 Cloud RSS Local · 本地...", rescan.data.startedStatus)
@@ -91,6 +100,7 @@ class DesktopScanIndexIntegrationTest {
             assertEquals(2, videos.single().seasonNumber)
             assertEquals(3, videos.single().episodeNumber)
             assertTrue(videos.none { it.path.contains("Old Show") })
+            assertEquals(listOf(3), cachedEpisodes.map { it.episodeNumber })
         } finally {
             mediaRoot.toFile().deleteRecursively()
             storePath.parent.toFile().deleteRecursively()
