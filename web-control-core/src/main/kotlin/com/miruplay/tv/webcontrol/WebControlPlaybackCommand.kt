@@ -57,4 +57,35 @@ fun PlaybackCommandRequest.seekTargetPositionMs(currentPositionMs: Long): Long? 
 fun PlaybackCommandRequest.playbackSpeed(): Float =
     speed ?: 1.0f
 
+suspend fun PlaybackCommandRequest.executeWebControlPlaybackCommand(
+    target: WebControlPlaybackCommandTarget,
+) {
+    when (playbackCommandKind()) {
+        WebControlPlaybackCommandKind.PAUSE -> target.pause()
+        WebControlPlaybackCommandKind.RESUME -> target.resume()
+        WebControlPlaybackCommandKind.TOGGLE -> target.toggle()
+        WebControlPlaybackCommandKind.STOP -> target.stop()
+        WebControlPlaybackCommandKind.SEEK -> target.seekTo(absoluteSeekPositionMs())
+        WebControlPlaybackCommandKind.SEEK_RELATIVE -> target.seekBy(relativeSeekDeltaMs())
+        WebControlPlaybackCommandKind.SKIP_FORWARD -> target.seekBy(skipForwardDeltaMs())
+        WebControlPlaybackCommandKind.SKIP_BACKWARD -> target.seekBy(-skipBackwardDeltaMs())
+        WebControlPlaybackCommandKind.SPEED -> target.setPlaybackSpeed(playbackSpeed())
+        WebControlPlaybackCommandKind.UNKNOWN -> throw IllegalArgumentException("未知播放命令: $command")
+    }
+}
+
+interface WebControlPlaybackCommandTarget {
+    suspend fun pause()
+    suspend fun resume()
+    suspend fun toggle()
+    suspend fun stop()
+    suspend fun seekTo(positionMs: Long)
+    suspend fun setPlaybackSpeed(speed: Float)
+    suspend fun currentPositionMs(): Long
+
+    suspend fun seekBy(deltaMs: Long) {
+        seekTo((currentPositionMs() + deltaMs).coerceAtLeast(0L))
+    }
+}
+
 private const val MILLIS_PER_SECOND = 1_000L

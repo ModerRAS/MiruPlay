@@ -1,5 +1,6 @@
 package com.miruplay.tv.webcontrol
 
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -84,5 +85,74 @@ class WebControlPlaybackCommandTest {
             PlaybackCommandRequest(command = "speed", speed = 1.25f).playbackSpeed(),
             0.0f,
         )
+    }
+
+    @Test
+    fun `execute command dispatches transport actions`() = runBlocking {
+        val target = RecordingPlaybackCommandTarget(currentPositionMs = 12_000L)
+
+        PlaybackCommandRequest(command = "pause").executeWebControlPlaybackCommand(target)
+        PlaybackCommandRequest(command = "resume").executeWebControlPlaybackCommand(target)
+        PlaybackCommandRequest(command = "toggle").executeWebControlPlaybackCommand(target)
+        PlaybackCommandRequest(command = "stop").executeWebControlPlaybackCommand(target)
+        PlaybackCommandRequest(command = "speed", speed = 1.5f).executeWebControlPlaybackCommand(target)
+
+        assertEquals(
+            listOf("pause", "resume", "toggle", "stop", "speed:1.5"),
+            target.actions,
+        )
+    }
+
+    @Test
+    fun `execute seek commands share target current position semantics`() = runBlocking {
+        val target = RecordingPlaybackCommandTarget(currentPositionMs = 12_000L)
+
+        PlaybackCommandRequest(command = "seek", positionMs = 45_000L)
+            .executeWebControlPlaybackCommand(target)
+        PlaybackCommandRequest(command = "seek_relative", deltaMs = -20_000L)
+            .executeWebControlPlaybackCommand(target)
+        PlaybackCommandRequest(command = "skip_forward", deltaMs = 2_500L)
+            .executeWebControlPlaybackCommand(target)
+        PlaybackCommandRequest(command = "skip_backward", deltaMs = 2_500L)
+            .executeWebControlPlaybackCommand(target)
+
+        assertEquals(
+            listOf(45_000L, 0L, 14_500L, 9_500L),
+            target.seekPositions,
+        )
+    }
+
+    private class RecordingPlaybackCommandTarget(
+        private val currentPositionMs: Long,
+    ) : WebControlPlaybackCommandTarget {
+        val actions = mutableListOf<String>()
+        val seekPositions = mutableListOf<Long>()
+
+        override suspend fun pause() {
+            actions += "pause"
+        }
+
+        override suspend fun resume() {
+            actions += "resume"
+        }
+
+        override suspend fun toggle() {
+            actions += "toggle"
+        }
+
+        override suspend fun stop() {
+            actions += "stop"
+        }
+
+        override suspend fun seekTo(positionMs: Long) {
+            seekPositions += positionMs
+        }
+
+        override suspend fun setPlaybackSpeed(speed: Float) {
+            actions += "speed:$speed"
+        }
+
+        override suspend fun currentPositionMs(): Long =
+            currentPositionMs
     }
 }

@@ -34,19 +34,15 @@ import com.miruplay.tv.webcontrol.SourceTestRequest
 import com.miruplay.tv.webcontrol.SourceTestResponse
 import com.miruplay.tv.webcontrol.WebControlEndpointService
 import com.miruplay.tv.webcontrol.WebControlLibraryLoader
-import com.miruplay.tv.webcontrol.WebControlPlaybackCommandKind
-import com.miruplay.tv.webcontrol.absoluteSeekPositionMs
 import com.miruplay.tv.webcontrol.addWebControlSource
 import com.miruplay.tv.webcontrol.browseWebControlCloudDriveDirectory
 import com.miruplay.tv.webcontrol.buildWebControlServerInfo
 import com.miruplay.tv.webcontrol.deleteWebControlRssSubscription
+import com.miruplay.tv.webcontrol.executeWebControlPlaybackCommand
 import com.miruplay.tv.webcontrol.getWebControlCloudDriveAutomation
 import com.miruplay.tv.webcontrol.idleWebControlPlaybackStatus
 import com.miruplay.tv.webcontrol.loginWebControlCloudDrive
 import com.miruplay.tv.webcontrol.listWebControlSources
-import com.miruplay.tv.webcontrol.playbackCommandKind
-import com.miruplay.tv.webcontrol.playbackSpeed
-import com.miruplay.tv.webcontrol.relativeSeekDeltaMs
 import com.miruplay.tv.webcontrol.removeWebControlSource
 import com.miruplay.tv.webcontrol.requireWebControlSuccess
 import com.miruplay.tv.webcontrol.runWebControlCloudDriveAutomationNow
@@ -54,8 +50,6 @@ import com.miruplay.tv.webcontrol.saveWebControlCloudDriveConfig
 import com.miruplay.tv.webcontrol.saveWebControlCloudDriveToken
 import com.miruplay.tv.webcontrol.saveWebControlRssSubscription
 import com.miruplay.tv.webcontrol.scanAllWebControlSources
-import com.miruplay.tv.webcontrol.skipBackwardDeltaMs
-import com.miruplay.tv.webcontrol.skipForwardDeltaMs
 import com.miruplay.tv.webcontrol.toMediaSourceInfo
 import com.miruplay.tv.webcontrol.toWebControlDirectoryDto
 import com.miruplay.tv.webcontrol.toWebControlSourceScanResponse
@@ -64,6 +58,7 @@ import com.miruplay.tv.webcontrol.updateWebControlRssSubscription
 import com.miruplay.tv.webcontrol.updateWebControlSource
 import com.miruplay.tv.webcontrol.webControlMediaSourceIdFromEpisodeId
 import com.miruplay.tv.webcontrol.webControlPlaybackStatus
+import com.miruplay.tv.webcontrol.WebControlPlaybackCommandTarget
 import java.io.File
 
 internal class DesktopWebControlService(
@@ -290,44 +285,13 @@ internal suspend fun desktopWebControlPlaybackCommand(
     launchStatus: String = "",
 ): PlaybackStatusDto {
     val activePlayer = player ?: return idlePlaybackStatus()
-    when (request.playbackCommandKind()) {
-        WebControlPlaybackCommandKind.PAUSE -> {
-            activePlayer.setPaused(true)
-            session?.setPaused(true)
-        }
-        WebControlPlaybackCommandKind.RESUME -> {
-            activePlayer.setPaused(false)
-            session?.setPaused(false)
-        }
-        WebControlPlaybackCommandKind.TOGGLE -> {
-            activePlayer.togglePause()
-            session?.togglePaused()
-        }
-        WebControlPlaybackCommandKind.STOP -> stopPlayback()
-        WebControlPlaybackCommandKind.SEEK -> {
-            val targetMs = request.absoluteSeekPositionMs()
-            val currentMs = session?.currentPositionMs() ?: 0L
-            activePlayer.seekBy((targetMs - currentMs) / 1000.0)
-            session?.syncPosition(targetMs)
-        }
-        WebControlPlaybackCommandKind.SEEK_RELATIVE -> {
-            val deltaMs = request.relativeSeekDeltaMs()
-            activePlayer.seekBy(deltaMs / 1000.0)
-            session?.seekBy(deltaMs / 1000.0)
-        }
-        WebControlPlaybackCommandKind.SKIP_FORWARD -> {
-            val deltaMs = request.skipForwardDeltaMs()
-            activePlayer.seekBy(deltaMs / 1000.0)
-            session?.seekBy(deltaMs / 1000.0)
-        }
-        WebControlPlaybackCommandKind.SKIP_BACKWARD -> {
-            val deltaMs = request.skipBackwardDeltaMs()
-            activePlayer.seekBy(-deltaMs / 1000.0)
-            session?.seekBy(-deltaMs / 1000.0)
-        }
-        WebControlPlaybackCommandKind.SPEED -> activePlayer.setSpeed(request.playbackSpeed().toDouble())
-        WebControlPlaybackCommandKind.UNKNOWN -> throw IllegalArgumentException("未知播放命令: ${request.command}")
-    }
+    request.executeWebControlPlaybackCommand(
+        DesktopMpvWebControlPlaybackCommandTarget(
+            player = activePlayer,
+            session = session,
+            stopPlayback = stopPlayback,
+        ),
+    )
     return desktopWebControlPlaybackStatus(
         player = activePlayer,
         session = session,
@@ -336,5 +300,50 @@ internal suspend fun desktopWebControlPlaybackCommand(
     )
 }
 
+private class DesktopMpvWebControlPlaybackCommandTarget(
+    private val player: com.miruplay.tv.player.mpv.MpvProcessPlayer,
+    private val session: com.miruplay.tv.model.PlaybackProgressSession?,
+    private val stopPlayback: suspend () -> Unit,
+) : WebControlPlaybackCommandTarget {
+    override suspend fun pause() {
+        player.setPaused(true)
+        session?.setPaused(true)
+    }
+
+    override suspend fun resume() {
+        player.setPaused(false)
+        session?.setPaused(false)
+    }
+
+    override suspend fun toggle() {
+        player.togglePause()
+        session?.togglePaused()
+    }
+
+    override suspend fun stop() {
+        stopPlayback()
+    }
+
+    override suspend fun seekTo(positionMs: Long) {
+        val currentMs = currentPositionMs()
+        player.seekBy((positionMs - currentMs) / MILLIS_PER_SECOND_DOUBLE)
+        session?.syncPosition(positionMs)
+    }
+
+    override suspend fun seekBy(deltaMs: Long) {
+        player.seekBy(deltaMs / MILLIS_PER_SECOND_DOUBLE)
+        session?.seekBy(deltaMs / MILLIS_PER_SECOND_DOUBLE)
+    }
+
+    override suspend fun setPlaybackSpeed(speed: Float) {
+        player.setSpeed(speed.toDouble())
+    }
+
+    override suspend fun currentPositionMs(): Long =
+        session?.currentPositionMs() ?: 0L
+}
+
 private fun idlePlaybackStatus(): PlaybackStatusDto =
     idleWebControlPlaybackStatus()
+
+private const val MILLIS_PER_SECOND_DOUBLE = 1_000.0

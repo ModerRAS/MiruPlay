@@ -20,7 +20,6 @@ import com.miruplay.tv.scanner.ScanCoordinator
 import com.miruplay.tv.sync.rss.CloudDriveRssActionCoordinator
 import com.miruplay.tv.sync.rss.CloudDriveRssAutomationEngine
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -164,22 +163,7 @@ class WebControlService @Inject constructor(
     }
 
     override suspend fun playbackCommand(request: PlaybackCommandRequest): PlaybackStatusDto {
-        when (request.playbackCommandKind()) {
-            WebControlPlaybackCommandKind.PAUSE -> playbackController.pause()
-            WebControlPlaybackCommandKind.RESUME -> playbackController.resume()
-            WebControlPlaybackCommandKind.TOGGLE -> {
-                if (playbackController.isPlaying()) playbackController.pause() else playbackController.resume()
-            }
-            WebControlPlaybackCommandKind.STOP -> playbackController.stop()
-            WebControlPlaybackCommandKind.SEEK,
-            WebControlPlaybackCommandKind.SEEK_RELATIVE,
-            WebControlPlaybackCommandKind.SKIP_FORWARD,
-            WebControlPlaybackCommandKind.SKIP_BACKWARD -> playbackController.seekTo(
-                request.seekTargetPositionMs(playbackController.getCurrentPosition()) ?: 0L,
-            )
-            WebControlPlaybackCommandKind.SPEED -> playbackController.setPlaybackSpeed(request.playbackSpeed())
-            WebControlPlaybackCommandKind.UNKNOWN -> throw IllegalArgumentException("未知播放命令: ${request.command}")
-        }
+        request.executeWebControlPlaybackCommand(AndroidWebControlPlaybackCommandTarget(playbackController))
         return playbackStatus()
     }
 
@@ -234,4 +218,39 @@ class WebControlService @Inject constructor(
         )
     }
 
+}
+
+private class AndroidWebControlPlaybackCommandTarget(
+    private val playbackController: PlaybackController,
+) : WebControlPlaybackCommandTarget {
+    override suspend fun pause() {
+        playbackController.pause()
+    }
+
+    override suspend fun resume() {
+        playbackController.resume()
+    }
+
+    override suspend fun toggle() {
+        if (playbackController.isPlaying()) {
+            playbackController.pause()
+        } else {
+            playbackController.resume()
+        }
+    }
+
+    override suspend fun stop() {
+        playbackController.stop()
+    }
+
+    override suspend fun seekTo(positionMs: Long) {
+        playbackController.seekTo(positionMs)
+    }
+
+    override suspend fun setPlaybackSpeed(speed: Float) {
+        playbackController.setPlaybackSpeed(speed)
+    }
+
+    override suspend fun currentPositionMs(): Long =
+        playbackController.getCurrentPosition()
 }
