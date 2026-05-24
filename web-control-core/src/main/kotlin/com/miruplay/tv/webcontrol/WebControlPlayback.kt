@@ -4,6 +4,7 @@ import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.resumePosition
+import com.miruplay.tv.repository.buildEpisodePlaybackSource
 
 fun PlayEpisodeRequest.startPositionFor(
     episode: Episode,
@@ -16,12 +17,11 @@ fun PlayEpisodeRequest.toWebControlPlaybackSource(
     progress: ProgressRecord?,
     playableUri: String = episode.filePath,
 ): PlaybackSource =
-    PlaybackSource(
-        uri = playableUri,
-        mediaSourceId = episode.animeId,
-        startPosition = startPositionFor(episode, progress),
-        subtitleTracks = emptyList(),
-        episodeId = episode.id,
+    buildEpisodePlaybackSource(
+        episode = episode,
+        progress = progress,
+        playableUri = playableUri,
+        startPositionOverrideMs = startPositionMs,
     )
 
 fun PlaybackSource.toWebPlaybackSource(): WebPlaybackSource =
