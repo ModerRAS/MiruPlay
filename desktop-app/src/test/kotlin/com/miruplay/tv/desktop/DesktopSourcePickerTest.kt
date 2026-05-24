@@ -30,6 +30,8 @@ import com.miruplay.tv.model.mediaSourceSearchActionLabel
 import com.miruplay.tv.model.mediaSourceSmbDomainFieldLabel
 import com.miruplay.tv.model.mediaSourceUpActionLabel
 import com.miruplay.tv.model.openSourceActionLabel
+import com.miruplay.tv.model.remoteBrowserPathPreview
+import com.miruplay.tv.model.remoteSourcePreview
 import com.miruplay.tv.model.sourcePasswordFieldLabel
 import com.miruplay.tv.model.sourcePickerSubtitle
 import com.miruplay.tv.model.sourcePickerTitle

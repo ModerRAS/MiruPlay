@@ -87,6 +87,28 @@ class MediaSourceDisplayConventionsTest {
     }
 
     @Test
+    fun `remote source previews compact and fall back consistently`() {
+        assertEquals("填写 SMB 共享地址", remoteSourcePreview("", fallback = "填写 SMB 共享地址", maxLength = 20))
+
+        val preview = remoteSourcePreview(
+            "https://smb.example.test/shares/very/long/path/with/subdirs",
+            fallback = "填写 SMB 共享地址",
+            maxLength = 24,
+        )
+        assertEquals(24, preview.length)
+        assertEquals(true, preview.contains("..."))
+
+        assertEquals("/", remoteBrowserPathPreview("", maxLength = 20))
+
+        val browserPreview = remoteBrowserPathPreview(
+            "/mnt/media/library/very/long/season/path",
+            maxLength = 24,
+        )
+        assertEquals(24, browserPreview.length)
+        assertEquals(true, browserPreview.contains("..."))
+    }
+
+    @Test
     fun `media source management labels are shared by TV and desktop`() {
         assertEquals("媒体源", mediaSourceListTitleLabel())
         assertEquals("还没有配置媒体源", mediaSourceEmptyListMessage())

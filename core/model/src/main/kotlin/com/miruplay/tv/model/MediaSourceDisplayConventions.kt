@@ -250,6 +250,26 @@ fun MediaSourceInfo.sourcePickerSubtitle(maxLength: Int = DEFAULT_SOURCE_PICKER_
         .ifBlank { mediaSourceLocationMissingLabel() }
         .compactMiddleText(maxLength)
 
+private const val REMOTE_SOURCE_PREVIEW_LIMIT = 70
+private const val REMOTE_BROWSER_PATH_LIMIT = 86
+
+fun remoteSourcePreview(
+    value: String,
+    fallback: String,
+    maxLength: Int = REMOTE_SOURCE_PREVIEW_LIMIT,
+): String =
+    value.trim()
+        .ifBlank { fallback }
+        .compactMiddleText(maxLength)
+
+fun remoteBrowserPathPreview(
+    path: String,
+    maxLength: Int = REMOTE_BROWSER_PATH_LIMIT,
+): String =
+    path.trim()
+        .ifBlank { "/" }
+        .compactMiddleText(maxLength)
+
 fun String.compactMiddleText(maxLength: Int): String {
     val safeMaxLength = maxLength.coerceAtLeast(5)
     if (length <= safeMaxLength) return this

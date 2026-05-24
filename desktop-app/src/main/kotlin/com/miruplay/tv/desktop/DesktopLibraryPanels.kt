@@ -76,6 +76,8 @@ import com.miruplay.tv.model.mediaSourceStatusText
 import com.miruplay.tv.model.pagedListCoercedPageStart
 import com.miruplay.tv.model.pagedListPageStartForIndex
 import com.miruplay.tv.model.pagedListPageSummary
+import com.miruplay.tv.model.remoteBrowserPathPreview
+import com.miruplay.tv.model.remoteSourcePreview
 import com.miruplay.tv.model.sourceEndpointPlaceholderLabel
 import com.miruplay.tv.model.tvBadgeLabel
 import com.miruplay.tv.model.tvLabel
@@ -84,8 +86,6 @@ import com.miruplay.tv.repository.displayName
 import com.miruplay.tv.repository.mediaFilesOnly
 
 private const val POSTER_WALL_COLUMNS = 6
-private const val REMOTE_SOURCE_PREVIEW_LIMIT = 70
-private const val REMOTE_BROWSER_PATH_LIMIT = 86
 private const val REMOTE_BROWSER_PAGE_SIZE = 8
 private const val REMOTE_SOURCE_BADGE_WIDTH_DP = 74
 private const val REMOTE_SOURCE_BADGE_HEIGHT_DP = 32
@@ -2143,23 +2143,6 @@ private fun RemoteBrowserPanel(
         }
     }
 }
-
-internal fun remoteSourcePreview(
-    value: String,
-    fallback: String,
-    maxLength: Int = REMOTE_SOURCE_PREVIEW_LIMIT,
-): String =
-    value.trim()
-        .ifBlank { fallback }
-        .compactMiddle(maxLength)
-
-internal fun remoteBrowserPathPreview(
-    path: String,
-    maxLength: Int = REMOTE_BROWSER_PATH_LIMIT,
-): String =
-    path.trim()
-        .ifBlank { "/" }
-        .compactMiddle(maxLength)
 
 @Composable
 private fun RemoteBrowserEmptyState(
