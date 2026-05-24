@@ -283,6 +283,15 @@ internal enum class DesktopDetailHeroAction {
 
 internal enum class DesktopDetailDownTarget {
     EpisodeList,
+    BangumiMetadata,
+}
+
+internal enum class DesktopDetailAfterBangumiTarget {
+    RecentPlayback,
+    MediaDetails,
+}
+
+internal enum class DesktopDetailBeforeMediaDetailsTarget {
     RecentPlayback,
     BangumiMetadata,
 }
@@ -306,12 +315,24 @@ internal fun detailHeroActionFocusTarget(
 
 internal fun detailHeroDownTarget(
     hasRelatedEpisodes: Boolean,
-    hasRecentPlayback: Boolean,
 ): DesktopDetailDownTarget =
     when {
         hasRelatedEpisodes -> DesktopDetailDownTarget.EpisodeList
-        hasRecentPlayback -> DesktopDetailDownTarget.RecentPlayback
         else -> DesktopDetailDownTarget.BangumiMetadata
+    }
+
+internal fun detailAfterBangumiFocusTarget(hasRecentPlayback: Boolean): DesktopDetailAfterBangumiTarget =
+    if (hasRecentPlayback) {
+        DesktopDetailAfterBangumiTarget.RecentPlayback
+    } else {
+        DesktopDetailAfterBangumiTarget.MediaDetails
+    }
+
+internal fun detailBeforeMediaDetailsFocusTarget(hasRecentPlayback: Boolean): DesktopDetailBeforeMediaDetailsTarget =
+    if (hasRecentPlayback) {
+        DesktopDetailBeforeMediaDetailsTarget.RecentPlayback
+    } else {
+        DesktopDetailBeforeMediaDetailsTarget.BangumiMetadata
     }
 
 @Composable

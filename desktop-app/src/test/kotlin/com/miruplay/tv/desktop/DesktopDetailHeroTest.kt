@@ -295,18 +295,34 @@ class DesktopDetailHeroTest {
     }
 
     @Test
-    fun `detail hero down key falls back to bangumi when recents are absent`() {
+    fun `detail hero down key routes to episode list or bangumi metadata`() {
         assertEquals(
             DesktopDetailDownTarget.EpisodeList,
-            detailHeroDownTarget(hasRelatedEpisodes = true, hasRecentPlayback = false),
-        )
-        assertEquals(
-            DesktopDetailDownTarget.RecentPlayback,
-            detailHeroDownTarget(hasRelatedEpisodes = false, hasRecentPlayback = true),
+            detailHeroDownTarget(hasRelatedEpisodes = true),
         )
         assertEquals(
             DesktopDetailDownTarget.BangumiMetadata,
-            detailHeroDownTarget(hasRelatedEpisodes = false, hasRecentPlayback = false),
+            detailHeroDownTarget(hasRelatedEpisodes = false),
+        )
+    }
+
+    @Test
+    fun `bangumi focus chain routes to recents or media details`() {
+        assertEquals(
+            DesktopDetailAfterBangumiTarget.RecentPlayback,
+            detailAfterBangumiFocusTarget(hasRecentPlayback = true),
+        )
+        assertEquals(
+            DesktopDetailAfterBangumiTarget.MediaDetails,
+            detailAfterBangumiFocusTarget(hasRecentPlayback = false),
+        )
+        assertEquals(
+            DesktopDetailBeforeMediaDetailsTarget.RecentPlayback,
+            detailBeforeMediaDetailsFocusTarget(hasRecentPlayback = true),
+        )
+        assertEquals(
+            DesktopDetailBeforeMediaDetailsTarget.BangumiMetadata,
+            detailBeforeMediaDetailsFocusTarget(hasRecentPlayback = false),
         )
     }
 

@@ -1632,15 +1632,10 @@ internal fun MiruPlayDesktopComposeApp(
                             when (
                                 detailHeroDownTarget(
                                     hasRelatedEpisodes = detailEpisodes.isNotEmpty(),
-                                    hasRecentPlayback = recentProgress.isNotEmpty(),
                                 )
                             ) {
                                 DesktopDetailDownTarget.EpisodeList -> {
                                     detailEpisodeFocusVersion += 1
-                                    true
-                                }
-                                DesktopDetailDownTarget.RecentPlayback -> {
-                                    recentPlaybackFocusVersion += 1
                                     true
                                 }
                                 DesktopDetailDownTarget.BangumiMetadata -> {
@@ -1669,11 +1664,7 @@ internal fun MiruPlayDesktopComposeApp(
                             true
                         },
                         onFocusNextPanel = {
-                            if (recentProgress.isNotEmpty()) {
-                                recentPlaybackFocusVersion += 1
-                            } else {
-                                bangumiFocusVersion += 1
-                            }
+                            bangumiFocusVersion += 1
                             true
                         },
                         onSeasonSelected = { season -> selectedDetailEpisodeSeason = season },
@@ -1886,7 +1877,10 @@ internal fun MiruPlayDesktopComposeApp(
                     true
                 },
                 onFocusNextPanel = {
-                    mediaDetailsFocusVersion += 1
+                    when (detailAfterBangumiFocusTarget(hasRecentPlayback = recentProgress.isNotEmpty())) {
+                        DesktopDetailAfterBangumiTarget.RecentPlayback -> recentPlaybackFocusVersion += 1
+                        DesktopDetailAfterBangumiTarget.MediaDetails -> mediaDetailsFocusVersion += 1
+                    }
                     true
                 },
                 focusVersion = bangumiFocusVersion,
@@ -1897,11 +1891,11 @@ internal fun MiruPlayDesktopComposeApp(
                 status = recentStatus,
                 focusVersion = recentPlaybackFocusVersion,
                 onFocusPreviousPanel = {
-                    detailEpisodeFocusVersion += 1
+                    bangumiFocusVersion += 1
                     true
                 },
                 onFocusNextPanel = {
-                    bangumiFocusVersion += 1
+                    mediaDetailsFocusVersion += 1
                     true
                 },
                 onRefresh = {
@@ -1939,7 +1933,10 @@ internal fun MiruPlayDesktopComposeApp(
                 recentRecord = selectedRecentProgress?.progress,
                 focusVersion = mediaDetailsFocusVersion,
                 onFocusPreviousPanel = {
-                    bangumiFocusVersion += 1
+                    when (detailBeforeMediaDetailsFocusTarget(hasRecentPlayback = recentProgress.isNotEmpty())) {
+                        DesktopDetailBeforeMediaDetailsTarget.RecentPlayback -> recentPlaybackFocusVersion += 1
+                        DesktopDetailBeforeMediaDetailsTarget.BangumiMetadata -> bangumiFocusVersion += 1
+                    }
                     true
                 },
             )
