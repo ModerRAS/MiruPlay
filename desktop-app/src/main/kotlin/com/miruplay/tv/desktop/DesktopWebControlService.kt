@@ -38,7 +38,6 @@ import com.miruplay.tv.webcontrol.SourceRequest
 import com.miruplay.tv.webcontrol.SourceScanResponse
 import com.miruplay.tv.webcontrol.SourceTestRequest
 import com.miruplay.tv.webcontrol.SourceTestResponse
-import com.miruplay.tv.webcontrol.WebControlCloudDriveAutomationRunner
 import com.miruplay.tv.webcontrol.WebControlEndpointService
 import com.miruplay.tv.webcontrol.WebControlPlaybackCommandKind
 import com.miruplay.tv.webcontrol.absoluteSeekPositionMs
@@ -94,16 +93,6 @@ internal class DesktopWebControlService(
     private val deviceName: String = "Windows",
 ) : WebControlEndpointService {
     private val startedAt = clock()
-    private val webControlCloudDriveRunner = object : WebControlCloudDriveAutomationRunner {
-        override suspend fun login(endpointUrl: String, username: String, password: String) =
-            cloudRssEngine.login(endpointUrl, username, password)
-
-        override suspend fun saveApiToken(endpointUrl: String, token: String) =
-            cloudRssEngine.saveApiToken(endpointUrl, token)
-
-        override suspend fun runOnce() =
-            cloudRssEngine.runOnce()
-    }
 
     override suspend fun getServerInfo(port: Int): ServerInfoDto =
         buildWebControlServerInfo(
@@ -195,7 +184,7 @@ internal class DesktopWebControlService(
     }
 
     override suspend fun loginCloudDrive(request: CloudDriveLoginRequest): CloudDriveAutomationDto {
-        return webControlCloudDriveRunner.loginWebControlCloudDrive(
+        return cloudRssEngine.loginWebControlCloudDrive(
             request = request,
             repository = repositories.cloudDriveAutomation,
             credentials = repositories.credentials,
@@ -203,11 +192,11 @@ internal class DesktopWebControlService(
     }
 
     override suspend fun saveCloudDriveToken(request: CloudDriveTokenRequest): CloudDriveTokenResponse {
-        return webControlCloudDriveRunner.saveWebControlCloudDriveToken(request)
+        return cloudRssEngine.saveWebControlCloudDriveToken(request)
     }
 
     override suspend fun runCloudDriveAutomationNow(): CloudDriveRunResponse {
-        return webControlCloudDriveRunner.runWebControlCloudDriveAutomationNow { summary ->
+        return cloudRssEngine.runWebControlCloudDriveAutomationNow { summary ->
             rescanLinkedCloudDriveSource(summary.completeStatus())
         }
     }

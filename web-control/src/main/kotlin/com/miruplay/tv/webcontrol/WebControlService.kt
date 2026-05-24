@@ -43,16 +43,6 @@ class WebControlService @Inject constructor(
     private val navigator: WebControlNavigator
 ) : WebControlEndpointService {
     private val startedAt = System.currentTimeMillis()
-    private val webControlCloudDriveRunner = object : WebControlCloudDriveAutomationRunner {
-        override suspend fun login(endpointUrl: String, username: String, password: String) =
-            cloudDriveEngine.login(endpointUrl, username, password)
-
-        override suspend fun saveApiToken(endpointUrl: String, token: String) =
-            cloudDriveEngine.saveApiToken(endpointUrl, token)
-
-        override suspend fun runOnce() =
-            cloudDriveEngine.runOnce()
-    }
 
     override suspend fun getServerInfo(port: Int): ServerInfoDto = withContext(Dispatchers.IO) {
         buildWebControlServerInfo(
@@ -114,7 +104,7 @@ class WebControlService @Inject constructor(
     }
 
     override suspend fun loginCloudDrive(request: CloudDriveLoginRequest): CloudDriveAutomationDto {
-        return webControlCloudDriveRunner.loginWebControlCloudDrive(
+        return cloudDriveEngine.loginWebControlCloudDrive(
             request = request,
             repository = cloudDriveRepository,
             credentials = securePreferences,
@@ -122,11 +112,11 @@ class WebControlService @Inject constructor(
     }
 
     override suspend fun saveCloudDriveToken(request: CloudDriveTokenRequest): CloudDriveTokenResponse {
-        return webControlCloudDriveRunner.saveWebControlCloudDriveToken(request)
+        return cloudDriveEngine.saveWebControlCloudDriveToken(request)
     }
 
     override suspend fun runCloudDriveAutomationNow(): CloudDriveRunResponse {
-        return webControlCloudDriveRunner.runWebControlCloudDriveAutomationNow()
+        return cloudDriveEngine.runWebControlCloudDriveAutomationNow()
     }
 
     override suspend fun saveRssSubscription(request: RssSubscriptionRequest): RssSubscriptionInfo {

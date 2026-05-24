@@ -125,7 +125,6 @@ import com.miruplay.tv.model.settingsLinkedSourceLabel
 import com.miruplay.tv.model.validateCloudDriveApiTokenForm
 import com.miruplay.tv.model.validateCloudDriveDirectoryPickerForm
 import com.miruplay.tv.model.validateCloudDriveLoginForm
-import com.miruplay.tv.model.withAutomationFormValues
 import com.miruplay.tv.player.mpv.MpvProcessPlayer
 import com.miruplay.tv.player.mpv.MpvRuntimeDiscovery
 import com.miruplay.tv.player.mpv.RifeBackend
@@ -219,6 +218,7 @@ import com.miruplay.tv.scraper.desktop.DesktopBangumiScraper
 import com.miruplay.tv.sync.BangumiMetadataRefreshCore
 import com.miruplay.tv.sync.BangumiSyncCore
 import com.miruplay.tv.sync.bangumiMetadataCacheId
+import com.miruplay.tv.sync.rss.CloudDriveRssActionCoordinator
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryBrowserState
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryTarget
 import com.miruplay.tv.sync.rss.DesktopCloudDriveRssAutomationEngine
@@ -448,6 +448,13 @@ internal fun MiruPlayDesktopComposeApp(
             repository = repositories.cloudDriveAutomation,
             credentials = repositories.credentials,
             cloudDriveClient = cloudDriveClient,
+        )
+    }
+    val cloudRssActions = remember {
+        CloudDriveRssActionCoordinator(
+            repository = repositories.cloudDriveAutomation,
+            credentials = repositories.credentials,
+            runner = cloudRssEngine,
         )
     }
     val cloudRssScheduler = remember { DesktopCloudDriveRssScheduler(cloudRssEngine, scope) }
@@ -2106,14 +2113,7 @@ internal fun MiruPlayDesktopComposeApp(
                     scope.launch {
                         val interval = parseCloudDriveIntervalMinutes(cloudIntervalMinutes)
                         val proxyPort = parseRssProxyPort(rssProxyPort)
-                        val currentConfig = when (val current = repositories.cloudDriveAutomation.getConfig()) {
-                            is Result.Success -> current.data
-                            is Result.Error -> {
-                                cloudRssStatus = current.error.toUserMessage()
-                                return@launch
-                            }
-                        }
-                        val config = currentConfig.withAutomationFormValues(
+                        when (val result = cloudRssActions.saveConfig(
                             endpointUrl = cloudEndpointUrl,
                             username = cloudUsername,
                             webDavSourceId = cloudLinkedSourceId,
@@ -2124,8 +2124,7 @@ internal fun MiruPlayDesktopComposeApp(
                             rssProxyEnabled = rssProxyEnabled,
                             rssProxyHost = rssProxyHost,
                             rssProxyPort = proxyPort,
-                        )
-                        when (val result = repositories.cloudDriveAutomation.saveConfig(config)) {
+                        )) {
                             is Result.Success -> {
                                 cloudIntervalMinutes = interval.toString()
                                 rssProxyPort = proxyPort.toString()
@@ -2136,8 +2135,7 @@ internal fun MiruPlayDesktopComposeApp(
                     }
                 },
                 onSaveCredentials = {
-                    repositories.credentials.cloudDriveToken = cloudToken.trim().takeIf { it.isNotBlank() }
-                    repositories.credentials.cloudDrivePassword = cloudPassword.takeIf { it.isNotBlank() }
+                    cloudRssActions.saveCredentials(cloudToken, cloudPassword)
                     cloudRssStatus = cloudDriveCredentialsSavedStatus()
                 },
                 onLoginCloudDrive = {
@@ -2156,7 +2154,7 @@ internal fun MiruPlayDesktopComposeApp(
                             }
                         }
                         cloudRssStatus = cloudDriveLoginStartedStatus()
-                        when (val result = cloudRssEngine.login(form.endpointUrl, form.username, form.password)) {
+                        when (val result = cloudRssActions.login(form.endpointUrl, form.username, form.password)) {
                             is Result.Success -> {
                                 cloudToken = repositories.credentials.cloudDriveToken.orEmpty()
                                 cloudRssStatus = cloudDriveLoginSucceededStatus()
@@ -2181,7 +2179,7 @@ internal fun MiruPlayDesktopComposeApp(
                             }
                         }
                         cloudRssStatus = cloudDriveTokenValidationStartedStatus()
-                        when (val result = cloudRssEngine.saveApiToken(form.endpointUrl, form.token)) {
+                        when (val result = cloudRssActions.verifyApiToken(form.endpointUrl, form.token)) {
                             is Result.Success -> {
                                 cloudToken = form.token
                                 cloudRssStatus = cloudDriveTokenVerifiedStatus(
@@ -2194,7 +2192,7 @@ internal fun MiruPlayDesktopComposeApp(
                     }
                 },
                 onClearCredentials = {
-                    repositories.credentials.clearCloudDriveCredentials()
+                    cloudRssActions.clearCredentials()
                     cloudToken = ""
                     cloudPassword = ""
                     cloudRssStatus = cloudDriveCredentialsClearedStatus()
@@ -2202,7 +2200,7 @@ internal fun MiruPlayDesktopComposeApp(
                 onRunSync = {
                     scope.launch {
                         cloudRssStatus = cloudRssRunStartedStatus()
-                        when (val result = cloudRssEngine.runOnce()) {
+                        when (val result = cloudRssActions.runOnce()) {
                             is Result.Success -> {
                                 val message = result.data.completeStatus()
                                 cloudRssStatus = message
@@ -2257,7 +2255,7 @@ internal fun MiruPlayDesktopComposeApp(
                                 return@launch
                             }
                         }
-                        when (val result = repositories.cloudDriveAutomation.saveSubscription(subscription)) {
+                        when (val result = cloudRssActions.saveSubscription(subscription)) {
                             is Result.Success -> {
                                 cloudRssStatus = rssSubscriptionSavedStatus(subscription.name)
                                 refreshRssSubscriptions()
@@ -2281,7 +2279,7 @@ internal fun MiruPlayDesktopComposeApp(
                             cloudRssStatus = rssSubscriptionRequiredStatus()
                             return@launch
                         }
-                        when (val result = repositories.cloudDriveAutomation.deleteSubscription(subscription.id)) {
+                        when (val result = cloudRssActions.deleteSubscription(subscription.id)) {
                             is Result.Success -> {
                                 selectedRssSubscription = null
                                 rssName = ""

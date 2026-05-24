@@ -13,6 +13,7 @@ import com.miruplay.tv.model.RssProcessedItemInfo
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.CloudDriveCredentialStore
+import com.miruplay.tv.sync.rss.CloudDriveRssAutomationRunner
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -522,7 +523,7 @@ class WebControlAutomationRequestsTest {
                 organized = 0,
             )
         ),
-    ) : WebControlCloudDriveAutomationRunner {
+    ) : CloudDriveRssAutomationRunner {
         val loginCalls = mutableListOf<String>()
         val tokenCalls = mutableListOf<String>()
         var runCalls = 0

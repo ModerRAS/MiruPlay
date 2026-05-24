@@ -1,7 +1,6 @@
 package com.miruplay.tv.webcontrol
 
 import com.miruplay.tv.clouddrive.CloudDriveTokenInfo
-import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.CloudDriveRssRunSummary
 import com.miruplay.tv.model.RssSubscriptionInfo
@@ -9,13 +8,8 @@ import com.miruplay.tv.model.buildRssSubscriptionFromForm
 import com.miruplay.tv.model.withAutomationFormValues
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.CloudDriveCredentialStore
+import com.miruplay.tv.sync.rss.CloudDriveRssAutomationRunner
 import kotlinx.coroutines.flow.first
-
-interface WebControlCloudDriveAutomationRunner {
-    suspend fun login(endpointUrl: String, username: String, password: String): Result<Unit>
-    suspend fun saveApiToken(endpointUrl: String, token: String): Result<CloudDriveTokenInfo>
-    suspend fun runOnce(): Result<CloudDriveRssRunSummary>
-}
 
 fun CloudDriveConfigRequest.toAutomationConfig(current: CloudDriveAutomationConfig): CloudDriveAutomationConfig =
     current.withAutomationFormValues(
@@ -82,7 +76,7 @@ suspend fun CloudDriveAutomationRepository.saveWebControlCloudDriveConfig(
     return getWebControlCloudDriveAutomation(credentials)
 }
 
-suspend fun WebControlCloudDriveAutomationRunner.loginWebControlCloudDrive(
+suspend fun CloudDriveRssAutomationRunner.loginWebControlCloudDrive(
     request: CloudDriveLoginRequest,
     repository: CloudDriveAutomationRepository,
     credentials: CloudDriveCredentialStore,
@@ -95,7 +89,7 @@ suspend fun WebControlCloudDriveAutomationRunner.loginWebControlCloudDrive(
     return repository.getWebControlCloudDriveAutomation(credentials)
 }
 
-suspend fun WebControlCloudDriveAutomationRunner.saveWebControlCloudDriveToken(
+suspend fun CloudDriveRssAutomationRunner.saveWebControlCloudDriveToken(
     request: CloudDriveTokenRequest,
 ): CloudDriveTokenResponse {
     val tokenRequest = request.validated()
@@ -106,7 +100,7 @@ suspend fun WebControlCloudDriveAutomationRunner.saveWebControlCloudDriveToken(
     return tokenInfo.toWebControlResponse()
 }
 
-suspend fun WebControlCloudDriveAutomationRunner.runWebControlCloudDriveAutomationNow(
+suspend fun CloudDriveRssAutomationRunner.runWebControlCloudDriveAutomationNow(
     afterRun: suspend (CloudDriveRssRunSummary) -> Unit = {},
 ): CloudDriveRunResponse {
     val summary = requireWebControlSuccess(runOnce(), "CloudDrive/RSS 执行失败")

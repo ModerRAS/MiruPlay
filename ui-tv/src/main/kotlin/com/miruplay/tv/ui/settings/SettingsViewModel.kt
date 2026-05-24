@@ -26,7 +26,6 @@ import com.miruplay.tv.model.cloudRssConfigSavedStatus
 import com.miruplay.tv.model.completeStatus
 import com.miruplay.tv.model.prepareRssSubscriptionForm
 import com.miruplay.tv.model.saveBangumiTokenFormResult
-import com.miruplay.tv.model.withAutomationFormValues
 import com.miruplay.tv.model.validateCloudDriveDirectoryPickerForm
 import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
@@ -38,6 +37,7 @@ import com.miruplay.tv.repository.WebControlAccessManager
 import com.miruplay.tv.repository.toScanIntervalHours
 import com.miruplay.tv.repository.toScanIntervalMillis
 import com.miruplay.tv.sync.rss.CloudDriveRssAutomationEngine
+import com.miruplay.tv.sync.rss.CloudDriveRssActionCoordinator
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryBrowserState
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryTarget
 import com.miruplay.tv.sync.rss.loadCloudDriveDirectory
@@ -68,6 +68,11 @@ class SettingsViewModel @Inject constructor(
     private val cloudDriveClient: CloudDriveClient,
     private val cloudDriveEngine: CloudDriveRssAutomationEngine
 ) : ViewModel() {
+    private val cloudDriveActions = CloudDriveRssActionCoordinator(
+        repository = cloudDriveRepository,
+        credentials = securePrefs,
+        runner = cloudDriveEngine,
+    )
 
     private val _sources = MutableStateFlow<List<MediaSourceInfo>>(emptyList())
     val sources: StateFlow<List<MediaSourceInfo>> = _sources.asStateFlow()
@@ -265,21 +270,22 @@ class SettingsViewModel @Inject constructor(
         rssProxyPort: Int = 1080
     ) {
         viewModelScope.launch {
-            val current = _cloudDriveConfig.value
-            val config = current.withAutomationFormValues(
-                endpointUrl = endpointUrl.trim(),
-                username = username.trim(),
+            cloudDriveActions.saveConfig(
+                endpointUrl = endpointUrl,
+                username = username,
                 webDavSourceId = webDavSourceId,
-                inboxPath = inboxPath.trim(),
-                libraryPath = libraryPath.trim(),
+                inboxPath = inboxPath,
+                libraryPath = libraryPath,
                 intervalMinutes = intervalMinutes,
                 enabled = enabled,
                 rssProxyEnabled = rssProxyEnabled,
-                rssProxyHost = rssProxyHost.trim(),
-                rssProxyPort = rssProxyPort
+                rssProxyHost = rssProxyHost,
+                rssProxyPort = rssProxyPort,
             )
-            cloudDriveRepository.saveConfig(config)
-                .onSuccess { _cloudDriveActionMessage.value = cloudRssConfigSavedStatus() }
+                .onSuccess { config ->
+                    _cloudDriveConfig.value = config
+                    _cloudDriveActionMessage.value = cloudRssConfigSavedStatus()
+                }
                 .onError { error -> _cloudDriveActionMessage.value = error.toUserMessage() }
         }
     }
@@ -294,7 +300,7 @@ class SettingsViewModel @Inject constructor(
         }
         viewModelScope.launch {
             _cloudDriveBusy.value = true
-            cloudDriveEngine.login(form.endpointUrl, form.username, form.password)
+            cloudDriveActions.login(form.endpointUrl, form.username, form.password)
                 .onSuccess {
                     _cloudDriveTokenConfigured.value = true
                     _cloudDriveActionMessage.value = cloudDriveLoginSucceededStatus()
@@ -316,7 +322,7 @@ class SettingsViewModel @Inject constructor(
         }
         viewModelScope.launch {
             _cloudDriveBusy.value = true
-            cloudDriveEngine.saveApiToken(form.endpointUrl, form.token)
+            cloudDriveActions.verifyApiToken(form.endpointUrl, form.token)
                 .onSuccess { info ->
                     _cloudDriveTokenConfigured.value = true
                     _cloudDriveActionMessage.value = cloudDriveTokenVerifiedStatus(
@@ -347,7 +353,7 @@ class SettingsViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
-            cloudDriveRepository.saveSubscription(subscription)
+            cloudDriveActions.saveSubscription(subscription)
                 .onSuccess { _cloudDriveActionMessage.value = rssSubscriptionSavedStatus(subscription.name) }
                 .onError { error -> _cloudDriveActionMessage.value = error.toUserMessage() }
         }
@@ -355,14 +361,14 @@ class SettingsViewModel @Inject constructor(
 
     fun setRssSubscriptionEnabled(subscription: RssSubscriptionInfo, enabled: Boolean) {
         viewModelScope.launch {
-            cloudDriveRepository.saveSubscription(subscription.copy(enabled = enabled))
+            cloudDriveActions.saveSubscription(subscription.copy(enabled = enabled))
                 .onError { error -> _cloudDriveActionMessage.value = error.toUserMessage() }
         }
     }
 
     fun deleteRssSubscription(id: Long) {
         viewModelScope.launch {
-            cloudDriveRepository.deleteSubscription(id)
+            cloudDriveActions.deleteSubscription(id)
                 .onSuccess { _cloudDriveActionMessage.value = rssSubscriptionDeletedStatus() }
                 .onError { error -> _cloudDriveActionMessage.value = error.toUserMessage() }
         }
@@ -371,7 +377,7 @@ class SettingsViewModel @Inject constructor(
     fun runCloudDriveNow() {
         viewModelScope.launch {
             _cloudDriveBusy.value = true
-            cloudDriveEngine.runOnce()
+            cloudDriveActions.runOnce()
                 .onSuccess { summary -> _cloudDriveActionMessage.value = summary.completeStatus() }
                 .onError { error ->
                     _cloudDriveActionMessage.value = error.toUserMessage()

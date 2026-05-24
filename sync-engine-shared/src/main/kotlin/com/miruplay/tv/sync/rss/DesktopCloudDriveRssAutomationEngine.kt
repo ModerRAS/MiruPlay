@@ -14,7 +14,7 @@ class DesktopCloudDriveRssAutomationEngine(
     feedFetcher: RssFeedReader = RssFeedFetcher(),
     organizer: CloudDriveLibraryOrganizer = CloudDriveLibraryOrganizer(cloudDriveClient),
     submissionPreparer: CloudDriveRssSubmissionPreparer = CloudDriveRssSubmissionPreparer(cloudDriveClient),
-) {
+) : CloudDriveRssAutomationRunner {
     private val core = CloudDriveRssAutomationCore(
         repository = repository,
         credentials = credentials,
@@ -24,13 +24,13 @@ class DesktopCloudDriveRssAutomationEngine(
         submissionPreparer = submissionPreparer,
     )
 
-    suspend fun login(endpointUrl: String, username: String, password: String): Result<Unit> =
+    override suspend fun login(endpointUrl: String, username: String, password: String): Result<Unit> =
         core.login(endpointUrl, username, password)
 
-    suspend fun saveApiToken(endpointUrl: String, token: String): Result<CloudDriveTokenInfo> =
+    override suspend fun saveApiToken(endpointUrl: String, token: String): Result<CloudDriveTokenInfo> =
         core.saveApiToken(endpointUrl, token)
 
-    suspend fun runOnce(): Result<CloudDriveRssRunSummary> =
+    override suspend fun runOnce(): Result<CloudDriveRssRunSummary> =
         core.runOnce()
 
     suspend fun runIfDue(): Result<CloudDriveRssRunSummary?> =
