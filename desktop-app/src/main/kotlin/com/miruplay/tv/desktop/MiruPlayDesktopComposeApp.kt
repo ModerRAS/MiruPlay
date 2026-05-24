@@ -55,7 +55,6 @@ import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.PLAYBACK_SEEK_BACK_SECONDS
 import com.miruplay.tv.model.PLAYBACK_SEEK_FORWARD_SECONDS
 import com.miruplay.tv.model.CloudDriveApiTokenFormResult
-import com.miruplay.tv.model.CloudDriveDirectoryPickerFormResult
 import com.miruplay.tv.model.CloudDriveLoginFormResult
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
@@ -71,7 +70,6 @@ import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.cloudDriveCredentialsClearedStatus
 import com.miruplay.tv.model.cloudDriveCredentialsSavedStatus
 import com.miruplay.tv.model.cloudRssScheduledSyncCompleteStatus
-import com.miruplay.tv.model.cloudDriveRssDirectoryBrowsingStatus
 import com.miruplay.tv.model.cloudDriveTokenRequiredStatus
 import com.miruplay.tv.model.cloudDriveTokenValidationStartedStatus
 import com.miruplay.tv.model.cloudDriveTokenVerifiedStatus
@@ -123,7 +121,6 @@ import com.miruplay.tv.model.sourcePickerTitle
 import com.miruplay.tv.model.settingsActiveSourceLabel
 import com.miruplay.tv.model.settingsLinkedSourceLabel
 import com.miruplay.tv.model.validateCloudDriveApiTokenForm
-import com.miruplay.tv.model.validateCloudDriveDirectoryPickerForm
 import com.miruplay.tv.model.validateCloudDriveLoginForm
 import com.miruplay.tv.player.mpv.MpvProcessPlayer
 import com.miruplay.tv.player.mpv.MpvRuntimeDiscovery
@@ -219,13 +216,13 @@ import com.miruplay.tv.sync.BangumiMetadataRefreshCore
 import com.miruplay.tv.sync.BangumiSyncCore
 import com.miruplay.tv.sync.bangumiMetadataCacheId
 import com.miruplay.tv.sync.rss.CloudDriveRssActionCoordinator
+import com.miruplay.tv.sync.rss.CloudDriveDirectoryBrowserCoordinator
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryBrowserState
+import com.miruplay.tv.sync.rss.CloudDriveDirectoryLoadResult
+import com.miruplay.tv.sync.rss.CloudDriveDirectoryOpenResult
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryTarget
 import com.miruplay.tv.sync.rss.DesktopCloudDriveRssAutomationEngine
 import com.miruplay.tv.sync.rss.DesktopCloudDriveRssScheduler
-import com.miruplay.tv.sync.rss.loadCloudDriveDirectory as loadSharedCloudDriveDirectory
-import com.miruplay.tv.sync.rss.loadingFor
-import com.miruplay.tv.sync.rss.prepareCloudDriveDirectoryBrowser
 import com.miruplay.tv.sync.rss.schedulerStatus
 import com.miruplay.tv.sync.rss.selectCloudDriveDirectory as selectSharedCloudDriveDirectory
 import kotlinx.coroutines.delay
@@ -457,6 +454,7 @@ internal fun MiruPlayDesktopComposeApp(
             runner = cloudRssEngine,
         )
     }
+    val cloudDirectoryActions = remember { CloudDriveDirectoryBrowserCoordinator(cloudDriveClient) }
     val cloudRssScheduler = remember { DesktopCloudDriveRssScheduler(cloudRssEngine, scope) }
     val cloudRssSchedulerState by cloudRssScheduler.state.collectAsState()
     val defaultMpvLayout = remember { MpvRuntimeDiscovery.defaultLayout() }
@@ -1199,68 +1197,61 @@ internal fun MiruPlayDesktopComposeApp(
     }
 
     suspend fun loadCloudDriveDirectory(path: String) {
-        val browser = cloudDirectoryBrowser
-        if (!browser.open) return
-        if (browser.endpointUrl.isBlank() || browser.token.isBlank()) {
-            cloudRssStatus = cloudDriveTokenRequiredStatus()
-            cloudDirectoryBrowser = browser.copy(isLoading = false, message = cloudRssStatusText(cloudDriveTokenRequiredStatus()))
-            return
-        }
-        val loadingState = browser.loadingFor(path)
-        cloudDirectoryBrowser = loadingState
-        when (val loaded = loadSharedCloudDriveDirectory(cloudDriveClient, loadingState, loadingState.path)) {
-            is Result.Success -> {
-                val current = cloudDirectoryBrowser
-                val next = loaded.data
-                if (!current.open || current.endpointUrl != next.endpointUrl || current.token != next.token) return
-                cloudDirectoryBrowser = next
-                cloudRssStatus = cloudDriveRssDirectoryBrowsingStatus(next.path)
+        when (val loading = cloudDirectoryActions.loading(cloudDirectoryBrowser, path)) {
+            CloudDriveDirectoryLoadResult.Ignored -> return
+            is CloudDriveDirectoryLoadResult.Failed -> {
+                cloudDirectoryBrowser = loading.state.copy(message = cloudRssStatusText(loading.status))
+                cloudRssStatus = loading.status
             }
-            is Result.Error -> {
-                val message = loaded.error.toUserMessage()
-                cloudDirectoryBrowser = cloudDirectoryBrowser.copy(isLoading = false, message = message)
-                cloudRssStatus = message
+            is CloudDriveDirectoryLoadResult.Loading -> {
+                cloudDirectoryBrowser = loading.state
+                val loaded = cloudDirectoryActions.load(loading.state)
+                when (val result = cloudDirectoryActions.applyLoadedIfCurrent(cloudDirectoryBrowser, loaded)) {
+                    CloudDriveDirectoryLoadResult.Ignored -> Unit
+                    is CloudDriveDirectoryLoadResult.Loading -> Unit
+                    is CloudDriveDirectoryLoadResult.Loaded -> {
+                        cloudDirectoryBrowser = result.state
+                        cloudRssStatus = result.status
+                    }
+                    is CloudDriveDirectoryLoadResult.Failed -> {
+                        cloudDirectoryBrowser = result.state
+                        cloudRssStatus = result.status
+                    }
+                }
+            }
+            is CloudDriveDirectoryLoadResult.Loaded -> {
+                cloudDirectoryBrowser = loading.state
+                cloudRssStatus = loading.status
             }
         }
     }
 
     fun openCloudDriveDirectory(target: CloudDriveDirectoryTarget) {
-        val form = when (
-            val result = validateCloudDriveDirectoryPickerForm(
-                endpointUrl = cloudEndpointUrl,
-                tokenInput = cloudToken,
-                savedToken = repositories.credentials.cloudDriveToken,
-            )
-        ) {
-            is CloudDriveDirectoryPickerFormResult.Ready -> result.request
-            is CloudDriveDirectoryPickerFormResult.Invalid -> {
-                cloudRssStatus = result.status
-                return
-            }
-        }
         scope.launch {
             val initialPath = when (target) {
                 CloudDriveDirectoryTarget.INBOX -> cloudInboxPath
                 CloudDriveDirectoryTarget.LIBRARY -> cloudLibraryPath
             }
-            val prepared = when (
-                val result = prepareCloudDriveDirectoryBrowser(
-                    client = cloudDriveClient,
+            when (
+                val opened = cloudDirectoryActions.open(
                     target = target,
-                    endpointUrl = form.endpointUrl,
-                    token = form.token,
+                    endpointUrl = cloudEndpointUrl,
+                    tokenInput = cloudToken,
+                    savedToken = repositories.credentials.cloudDriveToken,
                     initialPath = initialPath,
                 )
             ) {
-                is Result.Success -> result.data
-                is Result.Error -> {
-                    val message = result.error.toUserMessage()
-                    cloudRssStatus = message
-                    return@launch
+                is CloudDriveDirectoryOpenResult.Ready -> {
+                    cloudDirectoryBrowser = opened.state
+                    loadCloudDriveDirectory(opened.loadPath)
+                }
+                is CloudDriveDirectoryOpenResult.Invalid -> {
+                    cloudRssStatus = opened.status
+                }
+                is CloudDriveDirectoryOpenResult.Failed -> {
+                    cloudRssStatus = opened.status
                 }
             }
-            cloudDirectoryBrowser = prepared
-            loadCloudDriveDirectory(prepared.path)
         }
     }
 

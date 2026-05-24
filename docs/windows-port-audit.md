@@ -97,7 +97,11 @@ instead of carrying separate alias loops. `:sync-engine-shared` now also owns
 the platform-neutral CloudDrive directory-browser contract used by both Android
 TV Settings and Windows Cloud/RSS Settings, including token-root preparation,
 scoped navigation, visible-folder filtering, loading state, and selection
-status shaping. `core:model` owns the Cloud/RSS form normalization helpers used
+status shaping. It also owns `CloudDriveDirectoryBrowserCoordinator`, so Android
+TV Settings and Windows Cloud/RSS Settings share directory-picker form
+validation, opening, loading, stale-result filtering, error propagation, and
+browsing-status orchestration instead of rebuilding that flow in each UI shell.
+`core:model` owns the Cloud/RSS form normalization helpers used
 by both Android TV Settings and Windows Cloud/RSS Settings for config trimming,
 interval/proxy-port bounds, RSS subscription fallback names, blank URL
 rejection, same-URL subscription update identity/last-check preservation, and
@@ -227,6 +231,15 @@ The CloudDrive directory picker now pages folder rows in six-item TV-style
 windows: `Down` from row 6 moves to row 7 on the next page, `Up` moves back
 across the page boundary, and the picker shows a Chinese range summary so
 large CloudDrive folders are not silently truncated.
+The Android TV and Windows CloudDrive directory pickers now share
+`CloudDriveDirectoryBrowserCoordinator` for validation, open/load orchestration,
+stale-result filtering, listing-error propagation, and browsing status; the
+desktop layer keeps only Windows paging/focus behavior around that shared
+contract. The focused shared picker gate `:sync-engine-shared:test
+:ui-tv:compileDebugKotlin :desktop-app:test checkDesktopPresenterSeparation
+checkDesktopComposeOnly -PbundleMpvRuntime=false` passed in Gradle MCP build
+`b-131`, and Android debug assemble `:app:assembleDebug
+-PbundleMpvRuntime=false` passed in `b-132`.
 The generated local-source GUI smoke also captured
 `build/desktop-local-source-ui/run-20260520-162054/local-source-poster-keyboard.png`,
 proving the Library poster wall can move selection with keyboard input before
