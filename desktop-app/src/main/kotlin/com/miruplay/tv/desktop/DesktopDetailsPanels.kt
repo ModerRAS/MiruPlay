@@ -58,18 +58,14 @@ import com.miruplay.tv.model.detailHeroEmptySubtitle
 import com.miruplay.tv.model.detailPlayActionLabel
 import com.miruplay.tv.model.detailSeasonLabel
 import com.miruplay.tv.model.formatPlaybackPosition
-import com.miruplay.tv.model.libraryContinueWatchingSectionTitle
-import com.miruplay.tv.model.mediaDetailsEmptyMessage
 import com.miruplay.tv.model.mediaDetailsPageUnitLabel
-import com.miruplay.tv.model.mediaDetailsSectionTitle
 import com.miruplay.tv.model.pagedListCoercedPageStart
 import com.miruplay.tv.model.pagedListPageStartForIndex
 import com.miruplay.tv.model.pagedListPageSummary
 import com.miruplay.tv.model.playbackProgressRecordLabel
-import com.miruplay.tv.model.recentPlaybackClearActionLabel
-import com.miruplay.tv.model.recentPlaybackEmptyMessage
 import com.miruplay.tv.model.recentPlaybackPageUnitLabel
-import com.miruplay.tv.model.recentPlaybackRefreshActionLabel
+import com.miruplay.tv.model.mediaDetailsLabels
+import com.miruplay.tv.model.recentPlaybackLabels
 import com.miruplay.tv.repository.MediaDetailRows
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.displayName
@@ -870,7 +866,7 @@ internal fun RecentPlaybackPanel(
             .take(RECENT_PLAYBACK_PAGE_SIZE)
     }
     var pendingRecordFocus by remember { mutableStateOf<Int?>(null) }
-    val labels = desktopRecentPlaybackLabels()
+    val labels = recentPlaybackLabels()
     val recordFocusRequesters = remember(pageStart, visibleRecords.map { it.episodeId }) {
         List(visibleRecords.size) { FocusRequester() }
     }
@@ -1043,21 +1039,6 @@ private fun RecentPlaybackEmptyState(
         }
     }
 }
-
-internal data class DesktopRecentPlaybackLabels(
-    val title: String,
-    val refreshAction: String,
-    val clearAction: String,
-    val emptyState: String,
-)
-
-internal fun desktopRecentPlaybackLabels(): DesktopRecentPlaybackLabels =
-    DesktopRecentPlaybackLabels(
-        title = libraryContinueWatchingSectionTitle(),
-        refreshAction = recentPlaybackRefreshActionLabel(),
-        clearAction = recentPlaybackClearActionLabel(),
-        emptyState = recentPlaybackEmptyMessage(),
-    )
 
 private const val RECENT_PLAYBACK_PAGE_SIZE = 6
 private const val MEDIA_DETAILS_PAGE_SIZE = 6
@@ -1248,7 +1229,7 @@ internal fun MediaDetailsPanel(
     focusVersion: Int = 0,
     onFocusPreviousPanel: () -> Boolean = { false },
 ) {
-    val labels = desktopMediaDetailsLabels()
+    val labels = mediaDetailsLabels()
     val rows = remember(source, indexEntry, remoteEntry, recentRecord) {
         MediaDetailRows.build(
             source = source,
@@ -1397,17 +1378,6 @@ internal fun MediaDetailsPanel(
         }
     }
 }
-
-internal data class DesktopMediaDetailsLabels(
-    val title: String,
-    val emptyState: String,
-)
-
-internal fun desktopMediaDetailsLabels(): DesktopMediaDetailsLabels =
-    DesktopMediaDetailsLabels(
-        title = mediaDetailsSectionTitle(),
-        emptyState = mediaDetailsEmptyMessage(),
-    )
 
 internal sealed interface MediaDetailsFocusTarget {
     data class Row(val index: Int) : MediaDetailsFocusTarget

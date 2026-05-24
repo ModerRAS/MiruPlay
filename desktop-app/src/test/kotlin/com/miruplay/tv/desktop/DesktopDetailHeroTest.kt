@@ -18,6 +18,8 @@ import com.miruplay.tv.model.recentPlaybackClearActionLabel
 import com.miruplay.tv.model.recentPlaybackEmptyMessage
 import com.miruplay.tv.model.recentPlaybackPageUnitLabel
 import com.miruplay.tv.model.recentPlaybackRefreshActionLabel
+import com.miruplay.tv.model.mediaDetailsLabels
+import com.miruplay.tv.model.recentPlaybackLabels
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.sync.bangumiMetadataCacheId
 import com.miruplay.tv.sync.toBangumiLocalEpisode
@@ -272,8 +274,8 @@ class DesktopDetailHeroTest {
 
     @Test
     fun `detail panel chrome uses TV-facing Chinese labels`() {
-        val recents = desktopRecentPlaybackLabels()
-        val mediaDetails = desktopMediaDetailsLabels()
+        val recents = recentPlaybackLabels()
+        val mediaDetails = mediaDetailsLabels()
 
         assertEquals("选择一部番剧", detailHeroEmptyTitle())
         assertEquals("从媒体库海报墙选择内容后显示详情。", detailHeroEmptySubtitle())
