@@ -7,13 +7,18 @@ import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.Season
+import com.miruplay.tv.model.activeSeasonOrDefault
 import com.miruplay.tv.model.detailBangumiMetadataUpdatedMessage
 import com.miruplay.tv.model.detailBangumiRescrapeStartedMessage
 import com.miruplay.tv.model.detailBangumiScraperUnavailableMessage
 import com.miruplay.tv.model.detailBangumiSyncCompleteMessage
 import com.miruplay.tv.model.detailBangumiSyncStartedMessage
+import com.miruplay.tv.model.distinctSeasonEpisodeCount
+import com.miruplay.tv.model.episodesForSeason
 import com.miruplay.tv.model.mergeAnimeGroupForDisplay
 import com.miruplay.tv.model.sameAnimeGroupFor
+import com.miruplay.tv.model.sortedForPlaybackQueue
+import com.miruplay.tv.model.toSeasons
 import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
@@ -80,13 +85,7 @@ class AnimeDetailViewModel @Inject constructor(
             val epList = episodeAnimeIds
                 .flatMap { id -> metadataRepository.getCachedEpisodes(id).getOrNull().orEmpty() }
                 .distinctBy { it.id }
-                .sortedWith(
-                    compareBy<Episode>(
-                        { it.seasonNumber },
-                        { it.episodeNumber },
-                        { it.filePath }
-                    )
-                )
+                .sortedForPlaybackQueue()
 
             if (cached != null) {
                 val displayAnime = if (relatedAnime.size > 1) {
@@ -97,7 +96,7 @@ class AnimeDetailViewModel @Inject constructor(
                 _anime.value = displayAnime.copy(
                     episodeCount = maxOf(
                         displayAnime.episodeCount,
-                        epList.distinctBy { it.seasonNumber to it.episodeNumber }.size
+                        epList.distinctSeasonEpisodeCount()
                     )
                 )
             }
@@ -109,8 +108,7 @@ class AnimeDetailViewModel @Inject constructor(
 
     fun selectSeason(seasonNumber: Int) {
         _selectedSeason.value = seasonNumber
-        // Filter from full list by season
-        _episodesWithProgress.value = allEpisodesWithProgress.filter { it.first.seasonNumber == seasonNumber }
+        _episodesWithProgress.value = allEpisodesWithProgress.episodesForSeason(seasonNumber)
     }
 
     private suspend fun loadRelatedAnime(anchor: Anime): List<Anime> {
@@ -129,21 +127,8 @@ class AnimeDetailViewModel @Inject constructor(
     }
 
     private suspend fun updateEpisodes(epList: List<Episode>) {
-        val seasonMap = epList.groupBy { it.seasonNumber }
-        _seasons.value = seasonMap.map { (seasonNum, eps) ->
-            Season(
-                seasonNumber = seasonNum,
-                title = "Season $seasonNum",
-                episodes = eps,
-                episodeCount = eps.size
-            )
-        }
-
-        val selectedSeason = if (seasonMap.containsKey(_selectedSeason.value)) {
-            _selectedSeason.value
-        } else {
-            seasonMap.keys.minOrNull() ?: 1
-        }
+        _seasons.value = epList.toSeasons()
+        val selectedSeason = epList.activeSeasonOrDefault(_selectedSeason.value)
         _selectedSeason.value = selectedSeason
 
         val withProgress = epList.map { episode ->
@@ -151,7 +136,7 @@ class AnimeDetailViewModel @Inject constructor(
             Pair(episode, progress)
         }
         allEpisodesWithProgress = withProgress
-        _episodesWithProgress.value = withProgress.filter { it.first.seasonNumber == selectedSeason }
+        _episodesWithProgress.value = withProgress.episodesForSeason(selectedSeason)
     }
 
     fun rescrapeMetadata() {

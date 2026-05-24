@@ -16,6 +16,7 @@ import com.miruplay.tv.model.PLAYBACK_SEEK_BACK_SECONDS
 import com.miruplay.tv.model.PLAYBACK_SEEK_FORWARD_SECONDS
 import com.miruplay.tv.model.completeStatus
 import com.miruplay.tv.model.remoteUrl
+import com.miruplay.tv.model.sortedForPlaybackQueue
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.desktop.DesktopRepositories
 import com.miruplay.tv.repository.mediaFilesOnly
@@ -411,7 +412,7 @@ internal class DesktopWebControlService(
         if (cachedEpisodes.isNotEmpty()) return cachedEpisodes
         return group?.entries.orEmpty()
             .map { entry -> entry.toEpisode(group?.source) }
-            .sortedWith(compareBy<Episode>({ it.seasonNumber }, { it.episodeNumber }, { it.filePath }))
+            .sortedForPlaybackQueue()
     }
 
     private suspend fun indexedAnimeGroups(): List<IndexedAnimeGroup> {

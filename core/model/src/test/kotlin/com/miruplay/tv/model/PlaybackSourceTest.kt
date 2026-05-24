@@ -81,6 +81,38 @@ class PlaybackSourceTest {
     }
 
     @Test
+    fun `episode seasons and selection rules are reusable`() {
+        val episodes = listOf(
+            episode(id = "s2e1", season = 2, number = 1, path = "S02E01.mkv"),
+            episode(id = "s1e2a", season = 1, number = 2, path = "S01E02-A.mkv"),
+            episode(id = "s1e2b", season = 1, number = 2, path = "S01E02-B.mkv"),
+            episode(id = "s1e1", season = 1, number = 1, path = "S01E01.mkv"),
+        ).sortedForPlaybackQueue()
+
+        val seasons = episodes.toSeasons()
+
+        assertEquals(listOf(1, 2), seasons.map { it.seasonNumber })
+        assertEquals(listOf("s1e1", "s1e2a", "s1e2b"), seasons.first().episodes.map { it.id })
+        assertEquals(3, seasons.first().episodeCount)
+        assertEquals(3, episodes.distinctSeasonEpisodeCount())
+        assertEquals(2, episodes.activeSeasonOrDefault(requestedSeason = 2))
+        assertEquals(1, episodes.activeSeasonOrDefault(requestedSeason = 9))
+        assertEquals(1, emptyList<Episode>().activeSeasonOrDefault(requestedSeason = 9))
+    }
+
+    @Test
+    fun `episodes with progress can be filtered by season`() {
+        val s1e1 = episode(id = "s1e1", season = 1, number = 1)
+        val s2e1 = episode(id = "s2e1", season = 2, number = 1)
+        val records = listOf(
+            s1e1 to ProgressRecord(episodeId = s1e1.id, positionMs = 1_000L, lastWatched = 1L),
+            s2e1 to null,
+        )
+
+        assertEquals(listOf(s2e1), records.episodesForSeason(2).map { it.first })
+    }
+
+    @Test
     fun `episode playback source resumes from progress unless already completed`() {
         val source = episode(id = "ep1", duration = 100_000L).toPlaybackSource(
             playableUri = "https://media.example.test/ep1.mkv",
