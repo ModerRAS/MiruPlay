@@ -6,8 +6,6 @@ import com.miruplay.tv.mediasource.desktop.desktopSourceFromInfo
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
-import com.miruplay.tv.model.PLAYBACK_SEEK_BACK_SECONDS
-import com.miruplay.tv.model.PLAYBACK_SEEK_FORWARD_SECONDS
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.player.mpv.mpvIdleStatus
@@ -21,6 +19,12 @@ import com.miruplay.tv.player.mpv.mpvStoppedStatus
 import com.miruplay.tv.webcontrol.PlayEpisodeRequest
 import com.miruplay.tv.webcontrol.PlaybackCommandRequest
 import com.miruplay.tv.webcontrol.PlaybackStatusDto
+import com.miruplay.tv.webcontrol.WebControlPlaybackCommandKind
+import com.miruplay.tv.webcontrol.absoluteSeekPositionMs
+import com.miruplay.tv.webcontrol.playbackCommandKind
+import com.miruplay.tv.webcontrol.relativeSeekDeltaMs
+import com.miruplay.tv.webcontrol.skipBackwardDeltaMs
+import com.miruplay.tv.webcontrol.skipForwardDeltaMs
 import com.miruplay.tv.webcontrol.startPositionFor
 import kotlin.math.absoluteValue
 
@@ -46,24 +50,28 @@ internal data class DesktopWebControlNextPlaybackSource(
 )
 
 internal fun webControlPlaybackCommandStatus(command: PlaybackCommandRequest): String =
-    when (command.command.lowercase()) {
-        "pause" -> mpvPausedStatus()
-        "resume", "play" -> mpvResumedStatus()
-        "toggle" -> mpvPauseToggledStatus()
-        "stop" -> mpvStoppedStatus()
-        "seek" -> mpvPositionSyncedStatus(command.positionMs ?: 0L)
-        "seek_relative" -> if ((command.deltaMs ?: 0L) < 0L) {
-            mpvSeekBackStatus(seconds = ((command.deltaMs ?: 0L).absoluteValue / 1000L).toInt())
-        } else {
-            mpvSeekForwardStatus(seconds = ((command.deltaMs ?: 0L) / 1000L).toInt())
+    when (command.playbackCommandKind()) {
+        WebControlPlaybackCommandKind.PAUSE -> mpvPausedStatus()
+        WebControlPlaybackCommandKind.RESUME -> mpvResumedStatus()
+        WebControlPlaybackCommandKind.TOGGLE -> mpvPauseToggledStatus()
+        WebControlPlaybackCommandKind.STOP -> mpvStoppedStatus()
+        WebControlPlaybackCommandKind.SEEK -> mpvPositionSyncedStatus(command.absoluteSeekPositionMs())
+        WebControlPlaybackCommandKind.SEEK_RELATIVE -> {
+            val deltaMs = command.relativeSeekDeltaMs()
+            if (deltaMs < 0L) {
+                mpvSeekBackStatus(seconds = (deltaMs.absoluteValue / 1000L).toInt())
+            } else {
+                mpvSeekForwardStatus(seconds = (deltaMs / 1000L).toInt())
+            }
         }
-        "skip_forward" -> mpvSeekForwardStatus(
-            seconds = ((command.deltaMs ?: PLAYBACK_SEEK_FORWARD_SECONDS * 1000L) / 1000L).toInt(),
+        WebControlPlaybackCommandKind.SKIP_FORWARD -> mpvSeekForwardStatus(
+            seconds = (command.skipForwardDeltaMs() / 1000L).toInt(),
         )
-        "skip_backward" -> mpvSeekBackStatus(
-            seconds = ((command.deltaMs ?: PLAYBACK_SEEK_BACK_SECONDS * 1000L) / 1000L).toInt(),
+        WebControlPlaybackCommandKind.SKIP_BACKWARD -> mpvSeekBackStatus(
+            seconds = (command.skipBackwardDeltaMs() / 1000L).toInt(),
         )
-        else -> mpvIdleStatus()
+        WebControlPlaybackCommandKind.SPEED,
+        WebControlPlaybackCommandKind.UNKNOWN -> mpvIdleStatus()
     }
 
 internal suspend fun desktopWebControlPlaybackSourceSelection(

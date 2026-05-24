@@ -12,8 +12,6 @@ import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
-import com.miruplay.tv.model.PLAYBACK_SEEK_BACK_SECONDS
-import com.miruplay.tv.model.PLAYBACK_SEEK_FORWARD_SECONDS
 import com.miruplay.tv.model.completeStatus
 import com.miruplay.tv.model.remoteUrl
 import com.miruplay.tv.model.sortedForPlaybackQueue
@@ -49,8 +47,14 @@ import com.miruplay.tv.webcontrol.SourceScanResponse
 import com.miruplay.tv.webcontrol.SourceTestRequest
 import com.miruplay.tv.webcontrol.SourceTestResponse
 import com.miruplay.tv.webcontrol.WebControlEndpointService
+import com.miruplay.tv.webcontrol.WebControlPlaybackCommandKind
+import com.miruplay.tv.webcontrol.absoluteSeekPositionMs
 import com.miruplay.tv.webcontrol.filteredByQuery
+import com.miruplay.tv.webcontrol.playbackCommandKind
+import com.miruplay.tv.webcontrol.relativeSeekDeltaMs
 import com.miruplay.tv.webcontrol.safeForApi
+import com.miruplay.tv.webcontrol.skipBackwardDeltaMs
+import com.miruplay.tv.webcontrol.skipForwardDeltaMs
 import com.miruplay.tv.webcontrol.toWebControlLibrary
 import kotlinx.coroutines.flow.first
 import java.io.File
@@ -569,43 +573,43 @@ internal suspend fun desktopWebControlPlaybackCommand(
     stopPlayback: suspend () -> Unit,
 ): PlaybackStatusDto {
     val activePlayer = player ?: return PlaybackStatusDto(state = "Idle")
-    when (request.command.lowercase()) {
-        "pause" -> {
+    when (request.playbackCommandKind()) {
+        WebControlPlaybackCommandKind.PAUSE -> {
             activePlayer.setPaused(true)
             session?.setPaused(true)
         }
-        "resume", "play" -> {
+        WebControlPlaybackCommandKind.RESUME -> {
             activePlayer.setPaused(false)
             session?.setPaused(false)
         }
-        "toggle" -> {
+        WebControlPlaybackCommandKind.TOGGLE -> {
             activePlayer.togglePause()
             session?.togglePaused()
         }
-        "stop" -> stopPlayback()
-        "seek" -> {
-            val targetMs = (request.positionMs ?: 0L).coerceAtLeast(0L)
+        WebControlPlaybackCommandKind.STOP -> stopPlayback()
+        WebControlPlaybackCommandKind.SEEK -> {
+            val targetMs = request.absoluteSeekPositionMs()
             val currentMs = session?.currentPositionMs() ?: 0L
             activePlayer.seekBy((targetMs - currentMs) / 1000.0)
             session?.syncPosition(targetMs)
         }
-        "seek_relative" -> {
-            val deltaMs = request.deltaMs ?: 0L
+        WebControlPlaybackCommandKind.SEEK_RELATIVE -> {
+            val deltaMs = request.relativeSeekDeltaMs()
             activePlayer.seekBy(deltaMs / 1000.0)
             session?.seekBy(deltaMs / 1000.0)
         }
-        "skip_forward" -> {
-            val deltaMs = request.deltaMs ?: PLAYBACK_SEEK_FORWARD_SECONDS * 1000L
+        WebControlPlaybackCommandKind.SKIP_FORWARD -> {
+            val deltaMs = request.skipForwardDeltaMs()
             activePlayer.seekBy(deltaMs / 1000.0)
             session?.seekBy(deltaMs / 1000.0)
         }
-        "skip_backward" -> {
-            val deltaMs = request.deltaMs ?: PLAYBACK_SEEK_BACK_SECONDS * 1000L
+        WebControlPlaybackCommandKind.SKIP_BACKWARD -> {
+            val deltaMs = request.skipBackwardDeltaMs()
             activePlayer.seekBy(-deltaMs / 1000.0)
             session?.seekBy(-deltaMs / 1000.0)
         }
-        "speed" -> Unit
-        else -> throw IllegalArgumentException("未知播放命令: ${request.command}")
+        WebControlPlaybackCommandKind.SPEED -> Unit
+        WebControlPlaybackCommandKind.UNKNOWN -> throw IllegalArgumentException("未知播放命令: ${request.command}")
     }
     return PlaybackStatusDto(
         state = if (activePlayer.isActive()) "Playing" else "Idle",

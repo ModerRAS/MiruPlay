@@ -283,28 +283,21 @@ class WebControlService @Inject constructor(
     }
 
     override suspend fun playbackCommand(request: PlaybackCommandRequest): PlaybackStatusDto {
-        when (request.command.lowercase()) {
-            "pause" -> playbackController.pause()
-            "resume", "play" -> playbackController.resume()
-            "toggle" -> {
+        when (request.playbackCommandKind()) {
+            WebControlPlaybackCommandKind.PAUSE -> playbackController.pause()
+            WebControlPlaybackCommandKind.RESUME -> playbackController.resume()
+            WebControlPlaybackCommandKind.TOGGLE -> {
                 if (playbackController.isPlaying()) playbackController.pause() else playbackController.resume()
             }
-            "stop" -> playbackController.stop()
-            "seek" -> playbackController.seekTo((request.positionMs ?: 0L).coerceAtLeast(0L))
-            "seek_relative" -> {
-                val next = playbackController.getCurrentPosition() + (request.deltaMs ?: 0L)
-                playbackController.seekTo(next.coerceAtLeast(0L))
-            }
-            "skip_forward" -> {
-                val next = playbackController.getCurrentPosition() + (request.deltaMs ?: 30_000L)
-                playbackController.seekTo(next.coerceAtLeast(0L))
-            }
-            "skip_backward" -> {
-                val next = playbackController.getCurrentPosition() - (request.deltaMs ?: 10_000L)
-                playbackController.seekTo(next.coerceAtLeast(0L))
-            }
-            "speed" -> playbackController.setPlaybackSpeed(request.speed ?: 1.0f)
-            else -> throw IllegalArgumentException("未知播放命令: ${request.command}")
+            WebControlPlaybackCommandKind.STOP -> playbackController.stop()
+            WebControlPlaybackCommandKind.SEEK,
+            WebControlPlaybackCommandKind.SEEK_RELATIVE,
+            WebControlPlaybackCommandKind.SKIP_FORWARD,
+            WebControlPlaybackCommandKind.SKIP_BACKWARD -> playbackController.seekTo(
+                request.seekTargetPositionMs(playbackController.getCurrentPosition()) ?: 0L,
+            )
+            WebControlPlaybackCommandKind.SPEED -> playbackController.setPlaybackSpeed(request.playbackSpeed())
+            WebControlPlaybackCommandKind.UNKNOWN -> throw IllegalArgumentException("未知播放命令: ${request.command}")
         }
         return playbackStatus()
     }
