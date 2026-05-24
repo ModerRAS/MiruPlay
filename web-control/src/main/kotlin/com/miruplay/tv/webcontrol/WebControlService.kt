@@ -30,8 +30,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.net.URLEncoder
-import java.net.Inet4Address
-import java.net.NetworkInterface
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -53,12 +51,10 @@ class WebControlService @Inject constructor(
     private val startedAt = System.currentTimeMillis()
 
     override suspend fun getServerInfo(port: Int): ServerInfoDto = withContext(Dispatchers.IO) {
-        ServerInfoDto(
-            appName = "MiruPlay",
+        buildWebControlServerInfo(
             deviceName = Build.MODEL ?: "Android TV",
             port = port,
-            localIps = findLocalIps(),
-            startedAt = startedAt
+            startedAt = startedAt,
         )
     }
 
@@ -400,17 +396,6 @@ class WebControlService @Inject constructor(
             .joinToString("/") { segment ->
                 URLEncoder.encode(segment, Charsets.UTF_8.name()).replace("+", "%20")
             }
-    }
-
-    private fun findLocalIps(): List<String> {
-        return NetworkInterface.getNetworkInterfaces().toList()
-            .filter { it.isUp && !it.isLoopback }
-            .flatMap { it.inetAddresses.toList() }
-            .filterIsInstance<Inet4Address>()
-            .filterNot { it.isLoopbackAddress }
-            .map { it.hostAddress ?: "" }
-            .filter { it.isNotBlank() }
-            .distinct()
     }
 
 }

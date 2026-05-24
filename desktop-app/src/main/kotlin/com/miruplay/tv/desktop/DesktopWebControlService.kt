@@ -46,6 +46,7 @@ import com.miruplay.tv.webcontrol.SourceTestResponse
 import com.miruplay.tv.webcontrol.WebControlEndpointService
 import com.miruplay.tv.webcontrol.WebControlPlaybackCommandKind
 import com.miruplay.tv.webcontrol.absoluteSeekPositionMs
+import com.miruplay.tv.webcontrol.buildWebControlServerInfo
 import com.miruplay.tv.webcontrol.filteredByQuery
 import com.miruplay.tv.webcontrol.playbackCommandKind
 import com.miruplay.tv.webcontrol.relativeSeekDeltaMs
@@ -68,8 +69,6 @@ import com.miruplay.tv.webcontrol.webControlDefaultSourceName
 import com.miruplay.tv.webcontrol.withSavedId
 import kotlinx.coroutines.flow.first
 import java.io.File
-import java.net.Inet4Address
-import java.net.NetworkInterface
 
 internal class DesktopWebControlService(
     private val repositories: DesktopRepositories,
@@ -92,11 +91,9 @@ internal class DesktopWebControlService(
     private val startedAt = clock()
 
     override suspend fun getServerInfo(port: Int): ServerInfoDto =
-        ServerInfoDto(
-            appName = "MiruPlay",
+        buildWebControlServerInfo(
             deviceName = deviceName,
             port = port,
-            localIps = findLocalIps(),
             startedAt = startedAt,
         )
 
@@ -395,15 +392,6 @@ internal class DesktopWebControlService(
             source?.type == MediaSourceType.WEBDAV -> MediaPathConventions.joinRemoteUrl(source.remoteUrl().orEmpty(), path)
             else -> path
         }
-
-    private fun findLocalIps(): List<String> =
-        NetworkInterface.getNetworkInterfaces().toList()
-            .filter { it.isUp && !it.isLoopback }
-            .flatMap { it.inetAddresses.toList() }
-            .filterIsInstance<Inet4Address>()
-            .filterNot { it.isLoopbackAddress }
-            .mapNotNull { it.hostAddress?.takeIf(String::isNotBlank) }
-            .distinct()
 
     private data class IndexedAnimeGroup(
         val source: MediaSourceInfo,
