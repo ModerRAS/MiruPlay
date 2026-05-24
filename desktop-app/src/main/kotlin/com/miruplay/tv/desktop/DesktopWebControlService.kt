@@ -50,6 +50,7 @@ import com.miruplay.tv.webcontrol.absoluteSeekPositionMs
 import com.miruplay.tv.webcontrol.filteredByQuery
 import com.miruplay.tv.webcontrol.playbackCommandKind
 import com.miruplay.tv.webcontrol.relativeSeekDeltaMs
+import com.miruplay.tv.webcontrol.requireWebControlSuccess
 import com.miruplay.tv.webcontrol.safeForApi
 import com.miruplay.tv.webcontrol.skipBackwardDeltaMs
 import com.miruplay.tv.webcontrol.skipForwardDeltaMs
@@ -124,7 +125,7 @@ internal class DesktopWebControlService(
         }
         val token = repositories.credentials.cloudDriveToken?.takeIf { it.isNotBlank() }
             ?: throw IllegalArgumentException("请先登录 CloudDrive2 或保存 API Token")
-        val prepared = requireSuccess(
+        val prepared = requireWebControlSuccess(
             prepareCloudDriveDirectoryBrowser(
                 client = cloudDriveClient,
                 target = CloudDriveDirectoryTarget.INBOX,
@@ -134,7 +135,7 @@ internal class DesktopWebControlService(
             ),
             "读取 CloudDrive 目录失败",
         )
-        val loaded = requireSuccess(
+        val loaded = requireWebControlSuccess(
             loadCloudDriveDirectory(
                 client = cloudDriveClient,
                 state = prepared,
@@ -147,26 +148,26 @@ internal class DesktopWebControlService(
 
     override suspend fun addSource(request: SourceRequest): MediaSourceInfo {
         val source = request.toMediaSourceInfo()
-        val sourceId = requireSuccess(repositories.mediaSources.addSource(source), "添加媒体源失败")
+        val sourceId = requireWebControlSuccess(repositories.mediaSources.addSource(source), "添加媒体源失败")
         val persisted = source.copy(id = sourceId, isConnected = source.type == MediaSourceType.LOCAL)
         repositories.mediaSources.updateSource(persisted)
         return persisted.safeForApi()
     }
 
     override suspend fun updateSource(sourceId: Long, request: SourceRequest): MediaSourceInfo {
-        val existing = requireSuccess(repositories.mediaSources.getSourceById(sourceId), "媒体源不存在")
+        val existing = requireWebControlSuccess(repositories.mediaSources.getSourceById(sourceId), "媒体源不存在")
         val source = request.toMediaSourceInfo(
             sourceId = sourceId,
             fallbackPassword = existing.connectionPasswordOrNull(),
             isConnected = existing.isConnected,
             lastScanned = existing.lastScanned,
         )
-        requireSuccess(repositories.mediaSources.updateSource(source), "更新媒体源失败")
+        requireWebControlSuccess(repositories.mediaSources.updateSource(source), "更新媒体源失败")
         return source.safeForApi()
     }
 
     override suspend fun removeSource(sourceId: Long) {
-        requireSuccess(repositories.mediaSources.removeSource(sourceId), "删除媒体源失败")
+        requireWebControlSuccess(repositories.mediaSources.removeSource(sourceId), "删除媒体源失败")
     }
 
     override suspend fun testSource(request: SourceTestRequest): SourceTestResponse {
@@ -180,8 +181,8 @@ internal class DesktopWebControlService(
     }
 
     override suspend fun scanSource(sourceId: Long): SourceScanResponse {
-        val source = requireSuccess(repositories.mediaSources.getSourceById(sourceId), "媒体源不存在")
-        val result = requireSuccess(scanAndIndexDesktopSource(source, repositories.index), "扫描媒体源失败")
+        val source = requireWebControlSuccess(repositories.mediaSources.getSourceById(sourceId), "媒体源不存在")
+        val result = requireWebControlSuccess(scanAndIndexDesktopSource(source, repositories.index), "扫描媒体源失败")
         return result.toSourceScanResponse(source)
     }
 
@@ -207,13 +208,13 @@ internal class DesktopWebControlService(
     override suspend fun saveCloudDriveConfig(request: CloudDriveConfigRequest): CloudDriveAutomationDto {
         val current = repositories.cloudDriveAutomation.getConfig().getOrNull() ?: CloudDriveAutomationConfig()
         val config = request.toAutomationConfig(current)
-        requireSuccess(repositories.cloudDriveAutomation.saveConfig(config), "保存 CloudDrive 设置失败")
+        requireWebControlSuccess(repositories.cloudDriveAutomation.saveConfig(config), "保存 CloudDrive 设置失败")
         return getCloudDriveAutomation()
     }
 
     override suspend fun loginCloudDrive(request: CloudDriveLoginRequest): CloudDriveAutomationDto {
         val login = request.validated()
-        requireSuccess(
+        requireWebControlSuccess(
             cloudRssEngine.login(
                 endpointUrl = login.endpointUrl,
                 username = login.username,
@@ -226,7 +227,7 @@ internal class DesktopWebControlService(
 
     override suspend fun saveCloudDriveToken(request: CloudDriveTokenRequest): CloudDriveTokenResponse {
         val tokenRequest = request.validated()
-        val tokenInfo = requireSuccess(
+        val tokenInfo = requireWebControlSuccess(
             cloudRssEngine.saveApiToken(
                 endpointUrl = tokenRequest.endpointUrl,
                 token = tokenRequest.token,
@@ -237,14 +238,14 @@ internal class DesktopWebControlService(
     }
 
     override suspend fun runCloudDriveAutomationNow(): CloudDriveRunResponse {
-        val summary = requireSuccess(cloudRssEngine.runOnce(), "CloudDrive/RSS 执行失败")
+        val summary = requireWebControlSuccess(cloudRssEngine.runOnce(), "CloudDrive/RSS 执行失败")
         rescanLinkedCloudDriveSource(summary.completeStatus())
         return summary.toWebControlResponse()
     }
 
     override suspend fun saveRssSubscription(request: RssSubscriptionRequest): com.miruplay.tv.model.RssSubscriptionInfo {
         val subscription = request.toSubscription() ?: throw IllegalArgumentException("请填写 RSS 地址")
-        val id = requireSuccess(repositories.cloudDriveAutomation.saveSubscription(subscription), "保存 RSS 订阅失败")
+        val id = requireWebControlSuccess(repositories.cloudDriveAutomation.saveSubscription(subscription), "保存 RSS 订阅失败")
         return subscription.withSavedId(id)
     }
 
@@ -255,7 +256,7 @@ internal class DesktopWebControlService(
         saveRssSubscription(request.copy(id = id))
 
     override suspend fun deleteRssSubscription(id: Long) {
-        requireSuccess(repositories.cloudDriveAutomation.deleteSubscription(id), "删除 RSS 订阅失败")
+        requireWebControlSuccess(repositories.cloudDriveAutomation.deleteSubscription(id), "删除 RSS 订阅失败")
     }
 
     override suspend fun searchLibrary(query: String): LibraryDto {
@@ -418,12 +419,6 @@ internal class DesktopWebControlService(
             .filterNot { it.isLoopbackAddress }
             .mapNotNull { it.hostAddress?.takeIf(String::isNotBlank) }
             .distinct()
-
-    private fun <T> requireSuccess(result: Result<T>, message: String): T =
-        when (result) {
-            is Result.Success -> result.data
-            is Result.Error -> throw IllegalStateException("$message: ${result.error.toUserMessage()}")
-        }
 
     private data class IndexedAnimeGroup(
         val source: MediaSourceInfo,

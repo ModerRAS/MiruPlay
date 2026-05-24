@@ -76,7 +76,7 @@ class WebControlService @Inject constructor(
 
     override suspend fun addSource(request: SourceRequest): MediaSourceInfo {
         val source = request.toMediaSourceInfo()
-        val id = requireSuccess(mediaRepository.addSource(source), "添加媒体源失败")
+        val id = requireWebControlSuccess(mediaRepository.addSource(source), "添加媒体源失败")
         val connected = testSource(source).connected
         val savedSource = source.copy(id = id, isConnected = connected)
         mediaRepository.updateSource(savedSource)
@@ -84,19 +84,19 @@ class WebControlService @Inject constructor(
     }
 
     override suspend fun updateSource(sourceId: Long, request: SourceRequest): MediaSourceInfo {
-        val existing = requireSuccess(mediaRepository.getSourceById(sourceId), "媒体源不存在")
+        val existing = requireWebControlSuccess(mediaRepository.getSourceById(sourceId), "媒体源不存在")
         val source = request.toMediaSourceInfo(
             sourceId = sourceId,
             fallbackPassword = existing.connectionPasswordOrNull(),
             isConnected = existing.isConnected,
             lastScanned = existing.lastScanned,
         )
-        requireSuccess(mediaRepository.updateSource(source), "更新媒体源失败")
+        requireWebControlSuccess(mediaRepository.updateSource(source), "更新媒体源失败")
         return source.safeForApi()
     }
 
     override suspend fun removeSource(sourceId: Long) {
-        requireSuccess(mediaRepository.removeSource(sourceId), "删除媒体源失败")
+        requireWebControlSuccess(mediaRepository.removeSource(sourceId), "删除媒体源失败")
     }
 
     override suspend fun testSource(request: SourceTestRequest): SourceTestResponse {
@@ -104,7 +104,7 @@ class WebControlService @Inject constructor(
     }
 
     override suspend fun scanSource(sourceId: Long): SourceScanResponse {
-        val result = requireSuccess(scanCoordinator.scanSource(sourceId), "扫描媒体源失败")
+        val result = requireWebControlSuccess(scanCoordinator.scanSource(sourceId), "扫描媒体源失败")
         return SourceScanResponse(
             sourceId = sourceId,
             animeName = result.animeName,
@@ -131,7 +131,7 @@ class WebControlService @Inject constructor(
     }
 
     override suspend fun getCloudDriveAutomation(): CloudDriveAutomationDto {
-        val config = requireSuccess(cloudDriveRepository.getConfig(), "读取 CloudDrive 设置失败")
+        val config = requireWebControlSuccess(cloudDriveRepository.getConfig(), "读取 CloudDrive 设置失败")
         return CloudDriveAutomationDto(
             config = config,
             subscriptions = cloudDriveRepository.observeSubscriptions().first(),
@@ -140,15 +140,15 @@ class WebControlService @Inject constructor(
     }
 
     override suspend fun saveCloudDriveConfig(request: CloudDriveConfigRequest): CloudDriveAutomationDto {
-        val current = requireSuccess(cloudDriveRepository.getConfig(), "读取 CloudDrive 设置失败")
+        val current = requireWebControlSuccess(cloudDriveRepository.getConfig(), "读取 CloudDrive 设置失败")
         val config = request.toAutomationConfig(current)
-        requireSuccess(cloudDriveRepository.saveConfig(config), "保存 CloudDrive 设置失败")
+        requireWebControlSuccess(cloudDriveRepository.saveConfig(config), "保存 CloudDrive 设置失败")
         return getCloudDriveAutomation()
     }
 
     override suspend fun loginCloudDrive(request: CloudDriveLoginRequest): CloudDriveAutomationDto {
         val login = request.validated()
-        requireSuccess(
+        requireWebControlSuccess(
             cloudDriveEngine.login(login.endpointUrl, login.username, login.password),
             "CloudDrive2 登录失败"
         )
@@ -157,7 +157,7 @@ class WebControlService @Inject constructor(
 
     override suspend fun saveCloudDriveToken(request: CloudDriveTokenRequest): CloudDriveTokenResponse {
         val tokenRequest = request.validated()
-        val tokenInfo = requireSuccess(
+        val tokenInfo = requireWebControlSuccess(
             cloudDriveEngine.saveApiToken(tokenRequest.endpointUrl, tokenRequest.token),
             "CloudDrive2 API Token 验证失败"
         )
@@ -165,13 +165,13 @@ class WebControlService @Inject constructor(
     }
 
     override suspend fun runCloudDriveAutomationNow(): CloudDriveRunResponse {
-        val summary = requireSuccess(cloudDriveEngine.runOnce(), "CloudDrive/RSS 执行失败")
+        val summary = requireWebControlSuccess(cloudDriveEngine.runOnce(), "CloudDrive/RSS 执行失败")
         return summary.toWebControlResponse()
     }
 
     override suspend fun saveRssSubscription(request: RssSubscriptionRequest): RssSubscriptionInfo {
         val subscription = request.toSubscription() ?: throw IllegalArgumentException("请填写 RSS 地址")
-        val id = requireSuccess(cloudDriveRepository.saveSubscription(subscription), "保存 RSS 订阅失败")
+        val id = requireWebControlSuccess(cloudDriveRepository.saveSubscription(subscription), "保存 RSS 订阅失败")
         return subscription.withSavedId(id)
     }
 
@@ -179,7 +179,7 @@ class WebControlService @Inject constructor(
         saveRssSubscription(request.copy(id = id))
 
     override suspend fun deleteRssSubscription(id: Long) {
-        requireSuccess(cloudDriveRepository.deleteSubscription(id), "删除 RSS 订阅失败")
+        requireWebControlSuccess(cloudDriveRepository.deleteSubscription(id), "删除 RSS 订阅失败")
     }
 
     suspend fun getLibrary(): LibraryDto {
@@ -194,9 +194,9 @@ class WebControlService @Inject constructor(
     }
 
     override suspend fun getAnimeDetail(animeId: String): AnimeDetailDto {
-        val anime = requireSuccess(metadataRepository.getCachedMetadata(animeId), "番剧不存在")
+        val anime = requireWebControlSuccess(metadataRepository.getCachedMetadata(animeId), "番剧不存在")
             ?: throw IllegalArgumentException("番剧不存在")
-        val episodes = requireSuccess(metadataRepository.getCachedEpisodes(animeId), "读取剧集失败")
+        val episodes = requireWebControlSuccess(metadataRepository.getCachedEpisodes(animeId), "读取剧集失败")
             .map { episode ->
                 val progress = progressRepository.getProgress(episode.id).getOrNull()
                 EpisodeWithProgressDto(
@@ -323,14 +323,14 @@ class WebControlService @Inject constructor(
 
     override suspend fun browseCloudDriveDirectories(endpointUrl: String, path: String): CloudDriveDirectoryDto = withContext(Dispatchers.IO) {
         val resolvedEndpoint = endpointUrl.trim().takeIf { it.isNotBlank() }
-            ?: requireSuccess(cloudDriveRepository.getConfig(), "读取 CloudDrive 设置失败").endpointUrl
+            ?: requireWebControlSuccess(cloudDriveRepository.getConfig(), "读取 CloudDrive 设置失败").endpointUrl
         if (resolvedEndpoint.isBlank()) {
             throw IllegalArgumentException("请先填写 CloudDrive2 地址")
         }
 
         val token = securePreferences.cloudDriveToken?.takeIf { it.isNotBlank() }
             ?: throw IllegalArgumentException("请先登录 CloudDrive2 或保存 API Token")
-        val prepared = requireSuccess(
+        val prepared = requireWebControlSuccess(
             prepareCloudDriveDirectoryBrowser(
                 client = cloudDriveClient,
                 target = CloudDriveDirectoryTarget.INBOX,
@@ -340,7 +340,7 @@ class WebControlService @Inject constructor(
             ),
             "读取 CloudDrive 目录失败",
         )
-        val loaded = requireSuccess(
+        val loaded = requireWebControlSuccess(
             loadCloudDriveDirectory(
                 client = cloudDriveClient,
                 state = prepared,
@@ -426,13 +426,6 @@ class WebControlService @Inject constructor(
             .map { it.hostAddress ?: "" }
             .filter { it.isNotBlank() }
             .distinct()
-    }
-
-    private fun <T> requireSuccess(result: Result<T>, message: String): T {
-        return when (result) {
-            is Result.Success -> result.data
-            is Result.Error -> throw IllegalStateException("$message: ${result.error}")
-        }
     }
 
 }
