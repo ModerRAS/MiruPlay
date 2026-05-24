@@ -6,7 +6,6 @@ import com.miruplay.tv.clouddrive.CloudDriveClient
 import com.miruplay.tv.clouddrive.GrpcCloudDriveClient
 import com.miruplay.tv.mediasource.desktop.desktopSourceFromInfo
 import com.miruplay.tv.model.Anime
-import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.MediaSourceInfo
@@ -39,6 +38,7 @@ import com.miruplay.tv.webcontrol.SourceRequest
 import com.miruplay.tv.webcontrol.SourceScanResponse
 import com.miruplay.tv.webcontrol.SourceTestRequest
 import com.miruplay.tv.webcontrol.SourceTestResponse
+import com.miruplay.tv.webcontrol.WebControlCloudDriveAutomationRunner
 import com.miruplay.tv.webcontrol.WebControlEndpointService
 import com.miruplay.tv.webcontrol.WebControlPlaybackCommandKind
 import com.miruplay.tv.webcontrol.absoluteSeekPositionMs
@@ -47,32 +47,32 @@ import com.miruplay.tv.webcontrol.browseWebControlCloudDriveDirectory
 import com.miruplay.tv.webcontrol.buildWebControlServerInfo
 import com.miruplay.tv.webcontrol.deleteWebControlRssSubscription
 import com.miruplay.tv.webcontrol.filteredByQuery
+import com.miruplay.tv.webcontrol.getWebControlCloudDriveAutomation
 import com.miruplay.tv.webcontrol.idleWebControlPlaybackStatus
+import com.miruplay.tv.webcontrol.loginWebControlCloudDrive
 import com.miruplay.tv.webcontrol.playbackCommandKind
 import com.miruplay.tv.webcontrol.relativeSeekDeltaMs
 import com.miruplay.tv.webcontrol.removeWebControlSource
 import com.miruplay.tv.webcontrol.requireWebControlSuccess
+import com.miruplay.tv.webcontrol.runWebControlCloudDriveAutomationNow
 import com.miruplay.tv.webcontrol.safeForApi
+import com.miruplay.tv.webcontrol.saveWebControlCloudDriveConfig
+import com.miruplay.tv.webcontrol.saveWebControlCloudDriveToken
 import com.miruplay.tv.webcontrol.saveWebControlRssSubscription
 import com.miruplay.tv.webcontrol.skipBackwardDeltaMs
 import com.miruplay.tv.webcontrol.skipForwardDeltaMs
-import com.miruplay.tv.webcontrol.toAutomationConfig
 import com.miruplay.tv.webcontrol.toMediaSourceInfo
 import com.miruplay.tv.webcontrol.toWebControlAnimeDetail
-import com.miruplay.tv.webcontrol.toWebControlAutomationDto
 import com.miruplay.tv.webcontrol.toWebControlContinueWatching
-import com.miruplay.tv.webcontrol.toWebControlResponse
 import com.miruplay.tv.webcontrol.toWebControlDirectoryDto
 import com.miruplay.tv.webcontrol.toWebControlSourceTestResponse
 import com.miruplay.tv.webcontrol.toWebControlLibrary
 import com.miruplay.tv.webcontrol.toWebControlSourceScanResponse
 import com.miruplay.tv.webcontrol.updateWebControlRssSubscription
 import com.miruplay.tv.webcontrol.updateWebControlSource
-import com.miruplay.tv.webcontrol.validated
 import com.miruplay.tv.webcontrol.webControlDefaultSourceName
 import com.miruplay.tv.webcontrol.webControlMediaSourceIdFromEpisodeId
 import com.miruplay.tv.webcontrol.webControlPlaybackStatus
-import kotlinx.coroutines.flow.first
 import java.io.File
 
 internal class DesktopWebControlService(
@@ -94,6 +94,16 @@ internal class DesktopWebControlService(
     private val deviceName: String = "Windows",
 ) : WebControlEndpointService {
     private val startedAt = clock()
+    private val webControlCloudDriveRunner = object : WebControlCloudDriveAutomationRunner {
+        override suspend fun login(endpointUrl: String, username: String, password: String) =
+            cloudRssEngine.login(endpointUrl, username, password)
+
+        override suspend fun saveApiToken(endpointUrl: String, token: String) =
+            cloudRssEngine.saveApiToken(endpointUrl, token)
+
+        override suspend fun runOnce() =
+            cloudRssEngine.runOnce()
+    }
 
     override suspend fun getServerInfo(port: Int): ServerInfoDto =
         buildWebControlServerInfo(
@@ -177,49 +187,29 @@ internal class DesktopWebControlService(
     }
 
     override suspend fun getCloudDriveAutomation(): CloudDriveAutomationDto {
-        val config = repositories.cloudDriveAutomation.getConfig().getOrNull() ?: CloudDriveAutomationConfig()
-        return config.toWebControlAutomationDto(
-            subscriptions = repositories.cloudDriveAutomation.observeSubscriptions().first(),
-            tokenConfigured = !repositories.credentials.cloudDriveToken.isNullOrBlank(),
-        )
+        return repositories.cloudDriveAutomation.getWebControlCloudDriveAutomation(repositories.credentials)
     }
 
     override suspend fun saveCloudDriveConfig(request: CloudDriveConfigRequest): CloudDriveAutomationDto {
-        val current = repositories.cloudDriveAutomation.getConfig().getOrNull() ?: CloudDriveAutomationConfig()
-        val config = request.toAutomationConfig(current)
-        requireWebControlSuccess(repositories.cloudDriveAutomation.saveConfig(config), "保存 CloudDrive 设置失败")
-        return getCloudDriveAutomation()
+        return repositories.cloudDriveAutomation.saveWebControlCloudDriveConfig(request, repositories.credentials)
     }
 
     override suspend fun loginCloudDrive(request: CloudDriveLoginRequest): CloudDriveAutomationDto {
-        val login = request.validated()
-        requireWebControlSuccess(
-            cloudRssEngine.login(
-                endpointUrl = login.endpointUrl,
-                username = login.username,
-                password = login.password,
-            ),
-            "CloudDrive2 登录失败",
+        return webControlCloudDriveRunner.loginWebControlCloudDrive(
+            request = request,
+            repository = repositories.cloudDriveAutomation,
+            credentials = repositories.credentials,
         )
-        return getCloudDriveAutomation()
     }
 
     override suspend fun saveCloudDriveToken(request: CloudDriveTokenRequest): CloudDriveTokenResponse {
-        val tokenRequest = request.validated()
-        val tokenInfo = requireWebControlSuccess(
-            cloudRssEngine.saveApiToken(
-                endpointUrl = tokenRequest.endpointUrl,
-                token = tokenRequest.token,
-            ),
-            "CloudDrive2 API Token 验证失败",
-        )
-        return tokenInfo.toWebControlResponse()
+        return webControlCloudDriveRunner.saveWebControlCloudDriveToken(request)
     }
 
     override suspend fun runCloudDriveAutomationNow(): CloudDriveRunResponse {
-        val summary = requireWebControlSuccess(cloudRssEngine.runOnce(), "CloudDrive/RSS 执行失败")
-        rescanLinkedCloudDriveSource(summary.completeStatus())
-        return summary.toWebControlResponse()
+        return webControlCloudDriveRunner.runWebControlCloudDriveAutomationNow { summary ->
+            rescanLinkedCloudDriveSource(summary.completeStatus())
+        }
     }
 
     override suspend fun saveRssSubscription(request: RssSubscriptionRequest): com.miruplay.tv.model.RssSubscriptionInfo {

@@ -6,7 +6,6 @@ import com.miruplay.tv.core.common.LocalDirectoryBrowser
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.model.Anime
-import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
@@ -44,6 +43,16 @@ class WebControlService @Inject constructor(
     private val navigator: WebControlNavigator
 ) : WebControlEndpointService {
     private val startedAt = System.currentTimeMillis()
+    private val webControlCloudDriveRunner = object : WebControlCloudDriveAutomationRunner {
+        override suspend fun login(endpointUrl: String, username: String, password: String) =
+            cloudDriveEngine.login(endpointUrl, username, password)
+
+        override suspend fun saveApiToken(endpointUrl: String, token: String) =
+            cloudDriveEngine.saveApiToken(endpointUrl, token)
+
+        override suspend fun runOnce() =
+            cloudDriveEngine.runOnce()
+    }
 
     override suspend fun getServerInfo(port: Int): ServerInfoDto = withContext(Dispatchers.IO) {
         buildWebControlServerInfo(
@@ -97,41 +106,27 @@ class WebControlService @Inject constructor(
     }
 
     override suspend fun getCloudDriveAutomation(): CloudDriveAutomationDto {
-        val config = requireWebControlSuccess(cloudDriveRepository.getConfig(), "读取 CloudDrive 设置失败")
-        return config.toWebControlAutomationDto(
-            subscriptions = cloudDriveRepository.observeSubscriptions().first(),
-            tokenConfigured = !securePreferences.cloudDriveToken.isNullOrBlank(),
-        )
+        return cloudDriveRepository.getWebControlCloudDriveAutomation(securePreferences)
     }
 
     override suspend fun saveCloudDriveConfig(request: CloudDriveConfigRequest): CloudDriveAutomationDto {
-        val current = requireWebControlSuccess(cloudDriveRepository.getConfig(), "读取 CloudDrive 设置失败")
-        val config = request.toAutomationConfig(current)
-        requireWebControlSuccess(cloudDriveRepository.saveConfig(config), "保存 CloudDrive 设置失败")
-        return getCloudDriveAutomation()
+        return cloudDriveRepository.saveWebControlCloudDriveConfig(request, securePreferences)
     }
 
     override suspend fun loginCloudDrive(request: CloudDriveLoginRequest): CloudDriveAutomationDto {
-        val login = request.validated()
-        requireWebControlSuccess(
-            cloudDriveEngine.login(login.endpointUrl, login.username, login.password),
-            "CloudDrive2 登录失败"
+        return webControlCloudDriveRunner.loginWebControlCloudDrive(
+            request = request,
+            repository = cloudDriveRepository,
+            credentials = securePreferences,
         )
-        return getCloudDriveAutomation()
     }
 
     override suspend fun saveCloudDriveToken(request: CloudDriveTokenRequest): CloudDriveTokenResponse {
-        val tokenRequest = request.validated()
-        val tokenInfo = requireWebControlSuccess(
-            cloudDriveEngine.saveApiToken(tokenRequest.endpointUrl, tokenRequest.token),
-            "CloudDrive2 API Token 验证失败"
-        )
-        return tokenInfo.toWebControlResponse()
+        return webControlCloudDriveRunner.saveWebControlCloudDriveToken(request)
     }
 
     override suspend fun runCloudDriveAutomationNow(): CloudDriveRunResponse {
-        val summary = requireWebControlSuccess(cloudDriveEngine.runOnce(), "CloudDrive/RSS 执行失败")
-        return summary.toWebControlResponse()
+        return webControlCloudDriveRunner.runWebControlCloudDriveAutomationNow()
     }
 
     override suspend fun saveRssSubscription(request: RssSubscriptionRequest): RssSubscriptionInfo {

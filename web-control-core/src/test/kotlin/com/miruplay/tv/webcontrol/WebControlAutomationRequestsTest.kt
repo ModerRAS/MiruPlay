@@ -12,6 +12,7 @@ import com.miruplay.tv.model.RssDownloadTaskInfo
 import com.miruplay.tv.model.RssProcessedItemInfo
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
+import com.miruplay.tv.repository.CloudDriveCredentialStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -165,6 +166,170 @@ class WebControlAutomationRequestsTest {
     }
 
     @Test
+    fun `repository WebUI automation summary includes subscriptions and token state`() = runBlocking {
+        val config = CloudDriveAutomationConfig(endpointUrl = "https://cloud.example.test")
+        val subscription = RssSubscriptionInfo(id = 7L, name = "Season", url = "https://rss.example.test/feed.xml")
+        val repository = FakeCloudDriveAutomationRepository(
+            config = config,
+            subscriptions = mutableListOf(subscription),
+        )
+        val credentials = FakeCloudDriveCredentialStore(token = "token")
+
+        val dto = repository.getWebControlCloudDriveAutomation(credentials)
+
+        assertEquals(config, dto.config)
+        assertEquals(listOf(subscription), dto.subscriptions)
+        assertEquals(true, dto.tokenConfigured)
+    }
+
+    @Test
+    fun `repository WebUI automation summary maps config read failures`() = runBlocking {
+        val repository = FakeCloudDriveAutomationRepository(
+            configResult = Result.failure(AppError.NetworkError.ServerUnreachable("cloud")),
+        )
+
+        val failure = runCatching {
+            repository.getWebControlCloudDriveAutomation(FakeCloudDriveCredentialStore())
+        }.exceptionOrNull()
+
+        assertTrue(failure is IllegalStateException)
+        assertEquals("读取 CloudDrive 设置失败: 无法连接服务器：cloud", failure?.message)
+    }
+
+    @Test
+    fun `repository saves WebUI CloudDrive config and returns refreshed automation dto`() = runBlocking {
+        val repository = FakeCloudDriveAutomationRepository(
+            config = CloudDriveAutomationConfig(lastRunAt = 77L),
+        )
+
+        val dto = repository.saveWebControlCloudDriveConfig(
+            request = CloudDriveConfigRequest(
+                endpointUrl = " https://cloud.example.test ",
+                username = " miru ",
+                webDavSourceId = 9L,
+                inboxPath = " /Inbox ",
+                libraryPath = " /Library ",
+                intervalMinutes = 15,
+                enabled = true,
+            ),
+            credentials = FakeCloudDriveCredentialStore(token = null),
+        )
+
+        assertEquals("https://cloud.example.test", repository.savedConfigs.single().endpointUrl)
+        assertEquals("miru", repository.savedConfigs.single().username)
+        assertEquals(9L, repository.savedConfigs.single().webDavSourceId)
+        assertEquals("/Inbox", repository.savedConfigs.single().inboxPath)
+        assertEquals("/Library", repository.savedConfigs.single().libraryPath)
+        assertEquals(77L, repository.savedConfigs.single().lastRunAt)
+        assertEquals(repository.savedConfigs.single(), dto.config)
+        assertEquals(false, dto.tokenConfigured)
+    }
+
+    @Test
+    fun `runner WebUI login validates request invokes engine and returns refreshed automation dto`() = runBlocking {
+        val repository = FakeCloudDriveAutomationRepository(
+            config = CloudDriveAutomationConfig(username = "miru"),
+        )
+        val runner = FakeWebControlCloudDriveAutomationRunner()
+
+        val dto = runner.loginWebControlCloudDrive(
+            request = CloudDriveLoginRequest(
+                endpointUrl = " https://cloud.example.test ",
+                username = " miru ",
+                password = " secret ",
+            ),
+            repository = repository,
+            credentials = FakeCloudDriveCredentialStore(token = "token"),
+        )
+
+        assertEquals(listOf("https://cloud.example.test|miru| secret "), runner.loginCalls)
+        assertEquals("miru", dto.config.username)
+        assertEquals(true, dto.tokenConfigured)
+    }
+
+    @Test
+    fun `runner WebUI login maps engine failures`() = runBlocking {
+        val runner = FakeWebControlCloudDriveAutomationRunner(
+            loginResult = Result.failure(AppError.NetworkError.ServerUnreachable("denied")),
+        )
+
+        val failure = runCatching {
+            runner.loginWebControlCloudDrive(
+                request = CloudDriveLoginRequest(
+                    endpointUrl = "https://cloud.example.test",
+                    username = "miru",
+                    password = "secret",
+                ),
+                repository = FakeCloudDriveAutomationRepository(),
+                credentials = FakeCloudDriveCredentialStore(),
+            )
+        }.exceptionOrNull()
+
+        assertTrue(failure is IllegalStateException)
+        assertEquals("CloudDrive2 登录失败: 无法连接服务器：denied", failure?.message)
+    }
+
+    @Test
+    fun `runner WebUI token request validates invokes engine and maps response`() = runBlocking {
+        val runner = FakeWebControlCloudDriveAutomationRunner(
+            tokenInfo = CloudDriveTokenInfo(
+                rootDir = "/CloudRoot",
+                friendlyName = "Miru",
+                allowList = true,
+                allowCreateFolder = false,
+                allowCreateFile = false,
+                allowWrite = false,
+                allowMove = false,
+                allowAddOfflineDownload = false,
+            ),
+        )
+
+        val response = runner.saveWebControlCloudDriveToken(
+            CloudDriveTokenRequest(
+                endpointUrl = " https://cloud.example.test ",
+                token = " token ",
+            )
+        )
+
+        assertEquals(listOf("https://cloud.example.test|token"), runner.tokenCalls)
+        assertEquals("/CloudRoot", response.rootDir)
+        assertEquals("Miru", response.friendlyName)
+        assertEquals(true, response.allowList)
+    }
+
+    @Test
+    fun `runner WebUI run maps summary and invokes after-run hook`() = runBlocking {
+        val summary = CloudDriveRssRunSummary(submitted = 3, skipped = 2, failed = 1, organized = 4)
+        val runner = FakeWebControlCloudDriveAutomationRunner(runResult = Result.success(summary))
+        val hookSummaries = mutableListOf<CloudDriveRssRunSummary>()
+
+        val response = runner.runWebControlCloudDriveAutomationNow { hookSummaries += it }
+
+        assertEquals(1, runner.runCalls)
+        assertEquals(listOf(summary), hookSummaries)
+        assertEquals(3, response.submitted)
+        assertEquals(2, response.skipped)
+        assertEquals(1, response.failed)
+        assertEquals(4, response.organized)
+    }
+
+    @Test
+    fun `runner WebUI run skips after-run hook on failure`() = runBlocking {
+        val runner = FakeWebControlCloudDriveAutomationRunner(
+            runResult = Result.failure(AppError.SyncError.WriteFailed(path = "rss", cause = "boom")),
+        )
+        var hookCalled = false
+
+        val failure = runCatching {
+            runner.runWebControlCloudDriveAutomationNow { hookCalled = true }
+        }.exceptionOrNull()
+
+        assertTrue(failure is IllegalStateException)
+        assertEquals("CloudDrive/RSS 执行失败: 写入失败：boom", failure?.message)
+        assertEquals(false, hookCalled)
+    }
+
+    @Test
     fun `automation config maps to WebUI dto`() {
         val config = CloudDriveAutomationConfig(
             endpointUrl = "https://cloud.example.test",
@@ -271,28 +436,36 @@ class WebControlAutomationRequestsTest {
     }
 
     private class FakeCloudDriveAutomationRepository(
+        private var config: CloudDriveAutomationConfig = CloudDriveAutomationConfig(),
+        private val configResult: Result<CloudDriveAutomationConfig>? = null,
+        private val saveConfigResult: Result<Unit> = Result.success(Unit),
+        private val subscriptions: MutableList<RssSubscriptionInfo> = mutableListOf(),
         private val nextSubscriptionId: Long = 1L,
         private val deleteResult: Result<Unit> = Result.success(Unit),
     ) : CloudDriveAutomationRepository {
         val savedSubscriptions = mutableListOf<RssSubscriptionInfo>()
+        val savedConfigs = mutableListOf<CloudDriveAutomationConfig>()
 
         override fun observeConfig(): Flow<CloudDriveAutomationConfig> =
-            flowOf(CloudDriveAutomationConfig())
+            flowOf(config)
 
         override suspend fun getConfig(): Result<CloudDriveAutomationConfig> =
-            Result.success(CloudDriveAutomationConfig())
+            configResult ?: Result.success(config)
 
-        override suspend fun saveConfig(config: CloudDriveAutomationConfig): Result<Unit> =
-            Result.success(Unit)
+        override suspend fun saveConfig(config: CloudDriveAutomationConfig): Result<Unit> {
+            savedConfigs += config
+            this.config = config
+            return saveConfigResult
+        }
 
         override suspend fun updateLastRunAt(timestamp: Long): Result<Unit> =
             Result.success(Unit)
 
         override fun observeSubscriptions(): Flow<List<RssSubscriptionInfo>> =
-            flowOf(savedSubscriptions)
+            flowOf(subscriptions + savedSubscriptions)
 
         override suspend fun listEnabledSubscriptions(): Result<List<RssSubscriptionInfo>> =
-            Result.success(savedSubscriptions.filter { it.enabled })
+            Result.success((subscriptions + savedSubscriptions).filter { it.enabled })
 
         override suspend fun saveSubscription(subscription: RssSubscriptionInfo): Result<Long> {
             savedSubscriptions += subscription
@@ -313,5 +486,60 @@ class WebControlAutomationRequestsTest {
 
         override suspend fun saveDownloadTask(task: RssDownloadTaskInfo): Result<Long> =
             Result.success(1L)
+    }
+
+    private class FakeCloudDriveCredentialStore(
+        token: String? = null,
+        password: String? = null,
+    ) : CloudDriveCredentialStore {
+        override var cloudDriveToken: String? = token
+        override var cloudDrivePassword: String? = password
+
+        override fun clearCloudDriveCredentials() {
+            cloudDriveToken = null
+            cloudDrivePassword = null
+        }
+    }
+
+    private class FakeWebControlCloudDriveAutomationRunner(
+        private val loginResult: Result<Unit> = Result.success(Unit),
+        private val tokenInfo: CloudDriveTokenInfo = CloudDriveTokenInfo(
+            rootDir = "/",
+            friendlyName = "",
+            allowList = false,
+            allowCreateFolder = false,
+            allowCreateFile = false,
+            allowWrite = false,
+            allowMove = false,
+            allowAddOfflineDownload = false,
+        ),
+        private val tokenResult: Result<CloudDriveTokenInfo> = Result.success(tokenInfo),
+        private val runResult: Result<CloudDriveRssRunSummary> = Result.success(
+            CloudDriveRssRunSummary(
+                submitted = 0,
+                skipped = 0,
+                failed = 0,
+                organized = 0,
+            )
+        ),
+    ) : WebControlCloudDriveAutomationRunner {
+        val loginCalls = mutableListOf<String>()
+        val tokenCalls = mutableListOf<String>()
+        var runCalls = 0
+
+        override suspend fun login(endpointUrl: String, username: String, password: String): Result<Unit> {
+            loginCalls += "$endpointUrl|$username|$password"
+            return loginResult
+        }
+
+        override suspend fun saveApiToken(endpointUrl: String, token: String): Result<CloudDriveTokenInfo> {
+            tokenCalls += "$endpointUrl|$token"
+            return tokenResult
+        }
+
+        override suspend fun runOnce(): Result<CloudDriveRssRunSummary> {
+            runCalls += 1
+            return runResult
+        }
     }
 }

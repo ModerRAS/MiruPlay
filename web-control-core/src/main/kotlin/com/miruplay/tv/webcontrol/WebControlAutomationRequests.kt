@@ -1,12 +1,21 @@
 package com.miruplay.tv.webcontrol
 
 import com.miruplay.tv.clouddrive.CloudDriveTokenInfo
+import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.CloudDriveRssRunSummary
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.buildRssSubscriptionFromForm
 import com.miruplay.tv.model.withAutomationFormValues
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
+import com.miruplay.tv.repository.CloudDriveCredentialStore
+import kotlinx.coroutines.flow.first
+
+interface WebControlCloudDriveAutomationRunner {
+    suspend fun login(endpointUrl: String, username: String, password: String): Result<Unit>
+    suspend fun saveApiToken(endpointUrl: String, token: String): Result<CloudDriveTokenInfo>
+    suspend fun runOnce(): Result<CloudDriveRssRunSummary>
+}
 
 fun CloudDriveConfigRequest.toAutomationConfig(current: CloudDriveAutomationConfig): CloudDriveAutomationConfig =
     current.withAutomationFormValues(
@@ -51,6 +60,58 @@ suspend fun CloudDriveAutomationRepository.updateWebControlRssSubscription(
 
 suspend fun CloudDriveAutomationRepository.deleteWebControlRssSubscription(id: Long) {
     requireWebControlSuccess(deleteSubscription(id), "删除 RSS 订阅失败")
+}
+
+suspend fun CloudDriveAutomationRepository.getWebControlCloudDriveAutomation(
+    credentials: CloudDriveCredentialStore,
+): CloudDriveAutomationDto {
+    val config = requireWebControlSuccess(getConfig(), "读取 CloudDrive 设置失败")
+    return config.toWebControlAutomationDto(
+        subscriptions = observeSubscriptions().first(),
+        tokenConfigured = !credentials.cloudDriveToken.isNullOrBlank(),
+    )
+}
+
+suspend fun CloudDriveAutomationRepository.saveWebControlCloudDriveConfig(
+    request: CloudDriveConfigRequest,
+    credentials: CloudDriveCredentialStore,
+): CloudDriveAutomationDto {
+    val current = requireWebControlSuccess(getConfig(), "读取 CloudDrive 设置失败")
+    val config = request.toAutomationConfig(current)
+    requireWebControlSuccess(saveConfig(config), "保存 CloudDrive 设置失败")
+    return getWebControlCloudDriveAutomation(credentials)
+}
+
+suspend fun WebControlCloudDriveAutomationRunner.loginWebControlCloudDrive(
+    request: CloudDriveLoginRequest,
+    repository: CloudDriveAutomationRepository,
+    credentials: CloudDriveCredentialStore,
+): CloudDriveAutomationDto {
+    val validatedLogin = request.validated()
+    requireWebControlSuccess(
+        login(validatedLogin.endpointUrl, validatedLogin.username, validatedLogin.password),
+        "CloudDrive2 登录失败",
+    )
+    return repository.getWebControlCloudDriveAutomation(credentials)
+}
+
+suspend fun WebControlCloudDriveAutomationRunner.saveWebControlCloudDriveToken(
+    request: CloudDriveTokenRequest,
+): CloudDriveTokenResponse {
+    val tokenRequest = request.validated()
+    val tokenInfo = requireWebControlSuccess(
+        saveApiToken(tokenRequest.endpointUrl, tokenRequest.token),
+        "CloudDrive2 API Token 验证失败",
+    )
+    return tokenInfo.toWebControlResponse()
+}
+
+suspend fun WebControlCloudDriveAutomationRunner.runWebControlCloudDriveAutomationNow(
+    afterRun: suspend (CloudDriveRssRunSummary) -> Unit = {},
+): CloudDriveRunResponse {
+    val summary = requireWebControlSuccess(runOnce(), "CloudDrive/RSS 执行失败")
+    afterRun(summary)
+    return summary.toWebControlResponse()
 }
 
 fun CloudDriveAutomationConfig.toWebControlAutomationDto(
