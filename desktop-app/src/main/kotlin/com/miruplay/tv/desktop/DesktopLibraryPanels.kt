@@ -46,8 +46,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.miruplay.tv.design.MiruPlayFocusAxis
 import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.design.MiruPlayUiMetrics
+import com.miruplay.tv.design.focusIndexAfter
+import com.miruplay.tv.design.focusTargetAfter
 import com.miruplay.tv.design.horizontalNavigationDelta
 import com.miruplay.tv.design.verticalNavigationDelta
 import com.miruplay.tv.model.FileEntry
@@ -543,9 +546,9 @@ private fun librarySourceHorizontalAction(
         LibrarySourceAction.Scan,
         LibrarySourceAction.Search,
         -> listOf(LibrarySourceAction.OpenLocal, LibrarySourceAction.Scan, LibrarySourceAction.Search, LibrarySourceAction.ClearIndex)
-            .let { row -> row.getOrNull(row.indexOf(current) + delta) }
+            .focusTargetAfter(current = current, delta = delta)
         LibrarySourceAction.ClearIndex -> listOf(LibrarySourceAction.Search, LibrarySourceAction.ClearIndex)
-            .let { row -> row.getOrNull(row.indexOf(current) + delta) }
+            .focusTargetAfter(current = current, delta = delta)
         LibrarySourceAction.RemoveSource -> null
     }
 
@@ -678,8 +681,7 @@ private fun remoteSourceHorizontalField(
         RemoteSourceField.SmbPassword,
         -> listOf(RemoteSourceField.SmbDomain, RemoteSourceField.SmbUsername, RemoteSourceField.SmbPassword)
     }
-    val targetIndex = row.indexOf(current) + delta
-    return row.getOrNull(targetIndex)
+    return row.focusTargetAfter(current = current, delta = delta)
 }
 
 internal fun remoteSourceActionNavigationTarget(
@@ -1477,8 +1479,13 @@ internal fun List<DesktopPosterGroup>.posterShelfNavigationTarget(
     intent: MiruPlayInputIntent,
 ): DesktopPosterGroup? {
     if (currentIndex !in indices) return null
-    val targetIndex = intent.horizontalNavigationDelta()?.let { delta -> currentIndex + delta } ?: return null
-    return getOrNull(targetIndex)
+    return focusIndexAfter(
+        currentIndex = currentIndex,
+        intent = intent,
+        axis = MiruPlayFocusAxis.Horizontal,
+        itemCount = size,
+    )
+        ?.let(::get)
 }
 
 internal fun libraryMediaFocusTarget(

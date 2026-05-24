@@ -224,6 +224,12 @@ focus rules and Settings quick-action rows now consume that shared primitive
 instead of keeping local index-walk loops in Compose panels, so future Android
 TV or KMP surfaces can reuse the same directional traversal contract without
 depending on Compose Desktop.
+The follow-up now also covers direct index stepping, and the saved-source
+picker, Library source action rows, remote-source field rows, Details hero and
+Continue watching action rows, Details episode/recent row movement, Cloud/RSS
+field/toggle/action rows, CloudDrive directory action/row movement, RSS
+subscription picker entry, and poster shelf row movement consume the shared
+primitive while keeping only their panel-exit targets local.
 Verified with
 `:ui-design:test :ui-tv:test :desktop-app:test -PbundleMpvRuntime=false`
 and
@@ -231,6 +237,10 @@ and
 in Gradle MCP builds `b-238` and `b-239`; the focus traversal follow-up passed
 `:ui-design:test :desktop-app:test -PbundleMpvRuntime=false` in `b-240` with
 243 tests and the same Android/desktop compile/separation gate in `b-241`.
+The broader traversal reuse pass passed `:ui-design:test :desktop-app:test
+-PbundleMpvRuntime=false` in `b-243` after catching and preserving the RSS
+subscription picker's virtual-list-entry behavior, and passed the same
+Android/desktop compile/separation gate in `b-244`.
 
 ## Work Plan
 

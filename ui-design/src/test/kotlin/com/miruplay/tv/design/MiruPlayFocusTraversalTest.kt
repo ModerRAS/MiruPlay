@@ -91,8 +91,45 @@ class MiruPlayFocusTraversalTest {
     }
 
     @Test
+    fun `index traversal moves by shared direction intents with edge stops`() {
+        assertEquals(
+            1,
+            focusIndexAfter(
+                currentIndex = 2,
+                intent = MiruPlayInputIntent.DirectionLeft,
+                axis = MiruPlayFocusAxis.Horizontal,
+                itemCount = 4,
+            ),
+        )
+        assertEquals(
+            3,
+            focusIndexAfter(
+                currentIndex = 2,
+                delta = 1,
+                itemCount = 4,
+            ),
+        )
+        assertNull(
+            focusIndexAfter(
+                currentIndex = 0,
+                intent = MiruPlayInputIntent.DirectionLeft,
+                axis = MiruPlayFocusAxis.Horizontal,
+                itemCount = 4,
+            ),
+        )
+        assertNull(
+            focusIndexAfter(
+                currentIndex = -1,
+                delta = 1,
+                itemCount = 4,
+            ),
+        )
+    }
+
+    @Test
     fun `first enabled focus index respects disabled leading actions`() {
         assertEquals(2, firstEnabledFocusIndex(itemCount = 4, enabledItems = listOf(false, false, true, true)))
+        assertEquals(0, firstEnabledFocusIndex(itemCount = 3))
         assertNull(firstEnabledFocusIndex(itemCount = 3, enabledItems = listOf(false, false, false)))
         assertNull(firstEnabledFocusIndex(itemCount = 0))
     }

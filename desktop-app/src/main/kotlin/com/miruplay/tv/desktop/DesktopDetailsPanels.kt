@@ -37,8 +37,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.miruplay.tv.design.MiruPlayFocusAxis
 import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.design.MiruPlayUiMetrics
+import com.miruplay.tv.design.focusIndexAfter
+import com.miruplay.tv.design.focusTargetAfter
 import com.miruplay.tv.design.horizontalNavigationDelta
 import com.miruplay.tv.design.verticalNavigationDelta
 import com.miruplay.tv.model.DETAIL_EPISODE_PAGE_SIZE
@@ -292,19 +295,18 @@ internal enum class DesktopDetailFocusPanel {
 internal fun moveDesktopDetailHeroAction(
     current: DesktopDetailHeroAction,
     delta: Int,
-): DesktopDetailHeroAction? {
-    val actions = DesktopDetailHeroAction.entries
-    val targetIndex = actions.indexOf(current) + delta
-    return actions.getOrNull(targetIndex)
-}
+): DesktopDetailHeroAction? =
+    DesktopDetailHeroAction.entries.focusTargetAfter(current = current, delta = delta)
 
 internal fun detailHeroActionFocusTarget(
     current: DesktopDetailHeroAction,
     intent: MiruPlayInputIntent,
 ): DesktopDetailHeroAction? =
-    intent.horizontalNavigationDelta()?.let { delta ->
-        moveDesktopDetailHeroAction(current, delta)
-    }
+    DesktopDetailHeroAction.entries.focusTargetAfter(
+        current = current,
+        intent = intent,
+        axis = MiruPlayFocusAxis.Horizontal,
+    )
 
 internal fun detailPanelFocusTarget(
     current: DesktopDetailFocusPanel,
@@ -783,13 +785,16 @@ internal fun moveDetailEpisodeFocusTarget(
     activeSeasonIndex: Int = 0,
 ): DetailEpisodeFocusTarget? {
     if (itemCount <= 0) return null
-    val targetIndex = currentIndex + delta
-    return when {
-        targetIndex < 0 && seasonCount > 1 ->
+    return focusIndexAfter(
+        currentIndex = currentIndex,
+        delta = delta,
+        itemCount = itemCount,
+    )?.let(DetailEpisodeFocusTarget::Row) ?: when {
+        delta < 0 && seasonCount > 1 ->
             DetailEpisodeFocusTarget.Season(activeSeasonIndex.coerceIn(0, seasonCount - 1))
-        targetIndex < 0 -> DetailEpisodeFocusTarget.PreviousPanel
-        targetIndex >= itemCount -> DetailEpisodeFocusTarget.NextPanel
-        else -> DetailEpisodeFocusTarget.Row(targetIndex)
+        delta < 0 -> DetailEpisodeFocusTarget.PreviousPanel
+        delta > 0 -> DetailEpisodeFocusTarget.NextPanel
+        else -> null
     }
 }
 
@@ -1166,11 +1171,8 @@ internal sealed interface RecentPlaybackFocusTarget {
 internal fun moveRecentPlaybackAction(
     current: RecentPlaybackAction,
     delta: Int,
-): RecentPlaybackAction? {
-    val actions = RecentPlaybackAction.entries
-    val targetIndex = current.ordinal + delta
-    return actions.getOrNull(targetIndex)
-}
+): RecentPlaybackAction? =
+    RecentPlaybackAction.entries.focusTargetAfter(current = current, delta = delta)
 
 internal fun recentPlaybackActionVerticalFocusTarget(
     direction: Int,
@@ -1219,11 +1221,14 @@ internal fun moveRecentPlaybackFocusTarget(
     delta: Int,
 ): RecentPlaybackFocusTarget? {
     if (itemCount <= 0) return null
-    val targetIndex = currentIndex + delta
-    return when {
-        targetIndex < 0 -> RecentPlaybackFocusTarget.Action(RecentPlaybackAction.Refresh)
-        targetIndex >= itemCount -> RecentPlaybackFocusTarget.NextPanel
-        else -> RecentPlaybackFocusTarget.Row(targetIndex)
+    return focusIndexAfter(
+        currentIndex = currentIndex,
+        delta = delta,
+        itemCount = itemCount,
+    )?.let(RecentPlaybackFocusTarget::Row) ?: when {
+        delta < 0 -> RecentPlaybackFocusTarget.Action(RecentPlaybackAction.Refresh)
+        delta > 0 -> RecentPlaybackFocusTarget.NextPanel
+        else -> null
     }
 }
 

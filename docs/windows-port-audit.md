@@ -455,14 +455,23 @@ raw Compose `Key` handling at the adapter boundary. `MiruPlayFocusTraversal`
 now also lives in `:ui-design`, covering pure Kotlin row/column stepping,
 edge-stop behavior, and disabled-control skipping; Windows Player transport,
 playback-setting/runtime traversal, and Settings quick-action rows now consume
-that shared primitive instead of private Compose-panel index loops. Verified with
+that shared primitive instead of private Compose-panel index loops. The same
+shared traversal now also covers direct index stepping; saved-source picker,
+Library source action rows, remote-source field rows, Details hero/recent
+action rows, Details episode/recent rows, Cloud/RSS field/toggle/action rows,
+CloudDrive directory action/row movement, RSS subscription picker entry, and
+poster shelf row movement all consume the shared primitive while retaining only
+their panel-specific exit targets locally. Verified with
 `:ui-design:test :ui-tv:test :desktop-app:test -PbundleMpvRuntime=false`
 and
 `checkDesktopPresenterSeparation checkDesktopComposeOnly :ui-tv:compileDebugKotlin :app:assembleDebug -PbundleMpvRuntime=false`
 in Gradle MCP builds `b-238` and `b-239`; the focus traversal follow-up passed
 `:ui-design:test :desktop-app:test -PbundleMpvRuntime=false` in Gradle MCP
 build `b-240` with 243 tests and the same Android/desktop compile/separation
-gate in `b-241`.
+gate in `b-241`. The broader traversal reuse pass passed
+`:ui-design:test :desktop-app:test -PbundleMpvRuntime=false` in Gradle MCP
+build `b-243` after preserving the RSS subscription picker's virtual-list-entry
+behavior, and passed the same Android/desktop compile/separation gate in `b-244`.
 
 ## Latest Verification Commands
 

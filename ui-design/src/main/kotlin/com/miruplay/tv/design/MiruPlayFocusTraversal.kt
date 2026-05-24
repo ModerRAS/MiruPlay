@@ -31,11 +31,34 @@ fun <T> List<T>.focusTargetAfter(
         focusTargetAfter(current = current, delta = delta)
     }
 
+fun focusIndexAfter(
+    currentIndex: Int,
+    delta: Int,
+    itemCount: Int,
+): Int? {
+    if (itemCount <= 0 || currentIndex !in 0 until itemCount) return null
+    return (currentIndex + delta).takeIf { it in 0 until itemCount }
+}
+
+fun focusIndexAfter(
+    currentIndex: Int,
+    intent: MiruPlayInputIntent,
+    axis: MiruPlayFocusAxis,
+    itemCount: Int,
+): Int? =
+    intent.navigationDelta(axis)?.let { delta ->
+        focusIndexAfter(
+            currentIndex = currentIndex,
+            delta = delta,
+            itemCount = itemCount,
+        )
+    }
+
 fun nextEnabledFocusIndex(
     currentIndex: Int,
     delta: Int,
     itemCount: Int,
-    enabledItems: List<Boolean> = List(itemCount) { true },
+    enabledItems: List<Boolean> = emptyList(),
 ): Int? {
     if (itemCount <= 0 || delta == 0 || currentIndex !in 0 until itemCount) return null
     var targetIndex = currentIndex + delta
@@ -51,7 +74,7 @@ fun nextEnabledFocusIndex(
     intent: MiruPlayInputIntent,
     axis: MiruPlayFocusAxis,
     itemCount: Int,
-    enabledItems: List<Boolean> = List(itemCount) { true },
+    enabledItems: List<Boolean> = emptyList(),
 ): Int? =
     intent.navigationDelta(axis)?.let { delta ->
         nextEnabledFocusIndex(
@@ -64,7 +87,7 @@ fun nextEnabledFocusIndex(
 
 fun firstEnabledFocusIndex(
     itemCount: Int,
-    enabledItems: List<Boolean> = List(itemCount) { true },
+    enabledItems: List<Boolean> = emptyList(),
 ): Int? {
     if (itemCount <= 0) return null
     return (0 until itemCount).firstOrNull { index ->

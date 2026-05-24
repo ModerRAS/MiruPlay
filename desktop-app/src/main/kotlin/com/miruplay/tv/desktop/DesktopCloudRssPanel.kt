@@ -45,6 +45,8 @@ import com.miruplay.tv.design.MiruPlayFocusAxis
 import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.design.MiruPlayUiMetrics
 import com.miruplay.tv.design.firstEnabledFocusIndex
+import com.miruplay.tv.design.focusIndexAfter
+import com.miruplay.tv.design.focusTargetAfter
 import com.miruplay.tv.design.horizontalNavigationDelta
 import com.miruplay.tv.design.nextEnabledFocusIndex
 import com.miruplay.tv.design.verticalNavigationDelta
@@ -1440,8 +1442,7 @@ private fun cloudRssHorizontalToggle(
         -> listOf(CloudRssToggle.SyncEnabled, CloudRssToggle.ProxyEnabled)
         CloudRssToggle.RssEnabled -> listOf(CloudRssToggle.RssEnabled)
     }
-    val targetIndex = row.indexOf(current) + delta
-    return row.getOrNull(targetIndex)
+    return row.focusTargetAfter(current = current, delta = delta)
 }
 
 internal fun cloudRssFieldFocusTarget(
@@ -1512,8 +1513,7 @@ private fun cloudRssHorizontalField(
         CloudRssField.SubscriptionUrl -> listOf(CloudRssField.SubscriptionUrl)
         CloudRssField.FilterRegex -> listOf(CloudRssField.FilterRegex)
     }
-    val targetIndex = row.indexOf(current) + delta
-    return row.getOrNull(targetIndex)
+    return row.focusTargetAfter(current = current, delta = delta)
 }
 
 internal fun cloudRssActionFocusTarget(
@@ -1660,12 +1660,11 @@ internal fun cloudDriveDirectoryRowFocusTarget(
 ): CloudDriveDirectoryFocusTarget? {
     if (itemCount <= 0) return null
     return when (intent.verticalNavigationDelta()) {
-        -1 -> if (currentIndex <= 0) {
-            CloudDriveDirectoryFocusTarget.Action(CloudDriveDirectoryAction.UseCurrent)
-        } else {
-            CloudDriveDirectoryFocusTarget.Row(currentIndex - 1)
-        }
-        1 -> CloudDriveDirectoryFocusTarget.Row(currentIndex + 1).takeIf { currentIndex + 1 in 0 until itemCount }
+        -1 -> focusIndexAfter(currentIndex = currentIndex, delta = -1, itemCount = itemCount)
+            ?.let(CloudDriveDirectoryFocusTarget::Row)
+            ?: CloudDriveDirectoryFocusTarget.Action(CloudDriveDirectoryAction.UseCurrent)
+        1 -> focusIndexAfter(currentIndex = currentIndex, delta = 1, itemCount = itemCount)
+            ?.let(CloudDriveDirectoryFocusTarget::Row)
         else -> return null
     }
 }
@@ -1673,11 +1672,8 @@ internal fun cloudDriveDirectoryRowFocusTarget(
 private fun cloudDriveDirectoryHorizontalAction(
     current: CloudDriveDirectoryAction,
     delta: Int,
-): CloudDriveDirectoryAction? {
-    val actions = CloudDriveDirectoryAction.entries
-    val targetIndex = actions.indexOf(current) + delta
-    return actions.getOrNull(targetIndex)
-}
+): CloudDriveDirectoryAction? =
+    CloudDriveDirectoryAction.entries.focusTargetAfter(current = current, delta = delta)
 
 private fun cloudRssHorizontalAction(
     current: CloudRssAction,
@@ -1706,8 +1702,7 @@ private fun cloudRssHorizontalAction(
         CloudRssAction.StopScheduler,
         -> listOf(CloudRssAction.StartScheduler, CloudRssAction.StopScheduler)
     }
-    val targetIndex = row.indexOf(current) + delta
-    return row.getOrNull(targetIndex)
+    return row.focusTargetAfter(current = current, delta = delta)
 }
 
 private fun cloudRssActionUpTarget(
@@ -2317,6 +2312,16 @@ internal fun List<RssSubscriptionInfo>.rssSubscriptionNavigationTarget(
             delta < 0 -> size
             else -> return null
         }
-    val targetIndex = currentIndex + delta
-    return getOrNull(targetIndex)
+    if (currentIndex !in indices) {
+        return when (delta) {
+            1 -> first()
+            -1 -> last()
+            else -> null
+        }
+    }
+    return focusIndexAfter(
+        currentIndex = currentIndex,
+        delta = delta,
+        itemCount = size,
+    )?.let(::get)
 }
