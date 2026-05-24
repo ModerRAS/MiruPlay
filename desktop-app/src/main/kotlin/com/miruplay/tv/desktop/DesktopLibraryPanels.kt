@@ -54,6 +54,7 @@ import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.MediaPathConventions
+import com.miruplay.tv.model.REMOTE_BROWSER_PAGE_SIZE
 import com.miruplay.tv.model.formatFileSize
 import com.miruplay.tv.model.libraryCollectedCountLabel
 import com.miruplay.tv.model.libraryFeaturedSectionTitle
@@ -71,12 +72,11 @@ import com.miruplay.tv.model.librarySubtitleLabel
 import com.miruplay.tv.model.libraryTitleLabel
 import com.miruplay.tv.model.mediaSourceListTitleLabel
 import com.miruplay.tv.model.mediaSourceRemoteBrowserItemTypeLabel
-import com.miruplay.tv.model.mediaSourceRemoteBrowserPageUnitLabel
 import com.miruplay.tv.model.mediaSourceStatusText
-import com.miruplay.tv.model.pagedListCoercedPageStart
-import com.miruplay.tv.model.pagedListPageStartForIndex
-import com.miruplay.tv.model.pagedListPageSummary
+import com.miruplay.tv.model.remoteBrowserCoercedPageStart
 import com.miruplay.tv.model.remoteBrowserPathPreview
+import com.miruplay.tv.model.remoteBrowserPageStartForIndex
+import com.miruplay.tv.model.remoteBrowserPageSummary
 import com.miruplay.tv.model.remoteSourcePreview
 import com.miruplay.tv.model.sourceEndpointPlaceholderLabel
 import com.miruplay.tv.model.tvBadgeLabel
@@ -86,7 +86,6 @@ import com.miruplay.tv.repository.displayName
 import com.miruplay.tv.repository.mediaFilesOnly
 
 private const val POSTER_WALL_COLUMNS = 6
-private const val REMOTE_BROWSER_PAGE_SIZE = 8
 private const val REMOTE_SOURCE_BADGE_WIDTH_DP = 74
 private const val REMOTE_SOURCE_BADGE_HEIGHT_DP = 32
 
@@ -2296,30 +2295,3 @@ internal fun remoteBrowserShouldNavigateUp(
     currentIndex: Int,
     intent: MiruPlayInputIntent,
 ): Boolean = currentIndex == 0 && intent.verticalNavigationDelta() == -1
-
-internal fun remoteBrowserPageStartForIndex(
-    index: Int,
-    itemCount: Int,
-    pageSize: Int = REMOTE_BROWSER_PAGE_SIZE,
-): Int = pagedListPageStartForIndex(index, itemCount, pageSize)
-
-internal fun remoteBrowserCoercedPageStart(
-    pageStart: Int,
-    itemCount: Int,
-    pageSize: Int = REMOTE_BROWSER_PAGE_SIZE,
-): Int = pagedListCoercedPageStart(pageStart, itemCount, pageSize)
-
-internal fun remoteBrowserPageSummary(
-    pageStart: Int,
-    visibleCount: Int,
-    itemCount: Int,
-): String? {
-    val safeStart = remoteBrowserCoercedPageStart(pageStart, itemCount)
-    return pagedListPageSummary(
-        pageStart = safeStart,
-        visibleCount = visibleCount,
-        itemCount = itemCount,
-        pageSize = REMOTE_BROWSER_PAGE_SIZE,
-        unitLabel = mediaSourceRemoteBrowserPageUnitLabel(),
-    )
-}

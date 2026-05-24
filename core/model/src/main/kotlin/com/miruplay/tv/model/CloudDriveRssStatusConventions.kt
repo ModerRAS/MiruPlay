@@ -1,5 +1,8 @@
 package com.miruplay.tv.model
 
+const val CLOUD_DRIVE_DIRECTORY_PAGE_SIZE = 6
+const val CLOUD_RSS_SUBSCRIPTION_PAGE_SIZE = 6
+
 data class CloudDriveRssSchedulerUiState(
     val running: Boolean = false,
     val lastCheckedAt: Long = 0L,
@@ -277,6 +280,31 @@ fun cloudDriveRssCloseActionLabel(): String =
 fun cloudDriveRssDirectoryPageUnitLabel(): String =
     "个目录"
 
+fun cloudDriveDirectoryPageStartForIndex(
+    index: Int,
+    itemCount: Int,
+    pageSize: Int = CLOUD_DRIVE_DIRECTORY_PAGE_SIZE,
+): Int = pagedListPageStartForIndex(index, itemCount, pageSize)
+
+fun cloudDriveDirectoryCoercedPageStart(
+    pageStart: Int,
+    itemCount: Int,
+    pageSize: Int = CLOUD_DRIVE_DIRECTORY_PAGE_SIZE,
+): Int = pagedListCoercedPageStart(pageStart, itemCount, pageSize)
+
+fun cloudDriveDirectoryPageSummary(
+    pageStart: Int,
+    visibleCount: Int,
+    itemCount: Int,
+): String? =
+    pagedListPageSummary(
+        pageStart = cloudDriveDirectoryCoercedPageStart(pageStart, itemCount),
+        visibleCount = visibleCount,
+        itemCount = itemCount,
+        pageSize = CLOUD_DRIVE_DIRECTORY_PAGE_SIZE,
+        unitLabel = cloudDriveRssDirectoryPageUnitLabel(),
+    )
+
 fun cloudDriveRssLoadingDirectoriesMessage(): String =
     directoryBrowserLoadingMessage(isLocal = false)
 
@@ -336,6 +364,31 @@ fun rssSubscriptionsTitleLabel(): String =
 
 fun rssSubscriptionPageUnitLabel(): String =
     "个订阅"
+
+fun cloudRssSubscriptionPageStartForIndex(
+    index: Int,
+    itemCount: Int,
+    pageSize: Int = CLOUD_RSS_SUBSCRIPTION_PAGE_SIZE,
+): Int = pagedListPageStartForIndex(index, itemCount, pageSize)
+
+fun cloudRssSubscriptionCoercedPageStart(
+    pageStart: Int,
+    itemCount: Int,
+    pageSize: Int = CLOUD_RSS_SUBSCRIPTION_PAGE_SIZE,
+): Int = pagedListCoercedPageStart(pageStart, itemCount, pageSize)
+
+fun cloudRssSubscriptionPageSummary(
+    pageStart: Int,
+    visibleCount: Int,
+    itemCount: Int,
+): String? =
+    pagedListPageSummary(
+        pageStart = cloudRssSubscriptionCoercedPageStart(pageStart, itemCount),
+        visibleCount = visibleCount,
+        itemCount = itemCount,
+        pageSize = CLOUD_RSS_SUBSCRIPTION_PAGE_SIZE,
+        unitLabel = rssSubscriptionPageUnitLabel(),
+    )
 
 fun rssSubscriptionNameFieldLabel(): String =
     "订阅名称"

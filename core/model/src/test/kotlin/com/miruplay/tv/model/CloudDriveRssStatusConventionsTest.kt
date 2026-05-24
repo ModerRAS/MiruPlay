@@ -106,6 +106,22 @@ class CloudDriveRssStatusConventionsTest {
     }
 
     @Test
+    fun `cloud rss pagination helpers are shared by TV and desktop`() {
+        assertEquals(6, CLOUD_RSS_SUBSCRIPTION_PAGE_SIZE)
+        assertEquals(6, CLOUD_DRIVE_DIRECTORY_PAGE_SIZE)
+
+        assertEquals(12, cloudRssSubscriptionPageStartForIndex(index = 99, itemCount = 14))
+        assertEquals(6, cloudRssSubscriptionCoercedPageStart(pageStart = 10, itemCount = 14))
+        assertEquals("显示 13-14 / 14 个订阅，按上/下继续翻页。", cloudRssSubscriptionPageSummary(12, 2, 14))
+        assertEquals(null, cloudRssSubscriptionPageSummary(0, 4, 4))
+
+        assertEquals(12, cloudDriveDirectoryPageStartForIndex(index = 20, itemCount = 13))
+        assertEquals(6, cloudDriveDirectoryCoercedPageStart(pageStart = 9, itemCount = 13))
+        assertEquals("显示 13-13 / 13 个目录，按上/下继续翻页。", cloudDriveDirectoryPageSummary(12, 1, 13))
+        assertEquals(null, cloudDriveDirectoryPageSummary(0, 5, 5))
+    }
+
+    @Test
     fun `cloud rss summary tiles and previews are shared`() {
         val subscription = RssSubscriptionInfo(
             id = 7L,

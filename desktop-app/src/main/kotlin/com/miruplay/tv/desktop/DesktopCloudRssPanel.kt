@@ -45,14 +45,18 @@ import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.design.MiruPlayUiMetrics
 import com.miruplay.tv.design.horizontalNavigationDelta
 import com.miruplay.tv.design.verticalNavigationDelta
+import com.miruplay.tv.model.CLOUD_DRIVE_DIRECTORY_PAGE_SIZE
+import com.miruplay.tv.model.CLOUD_RSS_SUBSCRIPTION_PAGE_SIZE
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MiruPlaySettingsSection
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.SettingsSummaryTile
+import com.miruplay.tv.model.cloudDriveDirectoryCoercedPageStart
+import com.miruplay.tv.model.cloudDriveDirectoryPageStartForIndex
+import com.miruplay.tv.model.cloudDriveDirectoryPageSummary
 import com.miruplay.tv.model.cloudDriveRssChooseDirectoryActionLabel
 import com.miruplay.tv.model.cloudDriveRssCloseActionLabel
 import com.miruplay.tv.model.cloudDriveRssDirectoryBadgeLabel
-import com.miruplay.tv.model.cloudDriveRssDirectoryPageUnitLabel
 import com.miruplay.tv.model.cloudDriveRssEmptyDirectoryMessage
 import com.miruplay.tv.model.cloudDriveRssLoadingDirectoriesMessage
 import com.miruplay.tv.model.cloudDriveRssParentDirectoryActionLabel
@@ -65,6 +69,9 @@ import com.miruplay.tv.model.cloudRssOverviewTiles
 import com.miruplay.tv.model.cloudRssPathPairPreview
 import com.miruplay.tv.model.cloudRssPreview
 import com.miruplay.tv.model.cloudRssStatusText
+import com.miruplay.tv.model.cloudRssSubscriptionCoercedPageStart
+import com.miruplay.tv.model.cloudRssSubscriptionPageStartForIndex
+import com.miruplay.tv.model.cloudRssSubscriptionPageSummary
 import com.miruplay.tv.model.desktopSettingsSectionOrder
 import com.miruplay.tv.model.metadataBangumiTokenFieldLabel
 import com.miruplay.tv.model.metadataBangumiTokenSettingsStatus
@@ -72,9 +79,6 @@ import com.miruplay.tv.model.metadataBangumiTokenTileDetail
 import com.miruplay.tv.model.metadataBangumiTokenTileLabel
 import com.miruplay.tv.model.metadataSettingsTiles
 import com.miruplay.tv.model.mediaSourceStatusText
-import com.miruplay.tv.model.pagedListCoercedPageStart
-import com.miruplay.tv.model.pagedListPageStartForIndex
-import com.miruplay.tv.model.pagedListPageSummary
 import com.miruplay.tv.model.playbackSettingsTiles
 import com.miruplay.tv.model.settingsCloudDriveMenuSummary
 import com.miruplay.tv.model.settingsClearTokenActionLabel
@@ -101,7 +105,6 @@ import com.miruplay.tv.model.settingsWebUiAndroidTvValue
 import com.miruplay.tv.model.settingsWebUiTileLabel
 import com.miruplay.tv.model.settingsWebUiTileDetail
 import com.miruplay.tv.model.stepDesktopSettingsSection
-import com.miruplay.tv.model.rssSubscriptionPageUnitLabel
 import com.miruplay.tv.model.rssSubscriptionPreview
 import com.miruplay.tv.model.rssSubscriptionsTitleLabel
 import com.miruplay.tv.model.scanSettingsTiles
@@ -112,8 +115,6 @@ import com.miruplay.tv.sync.rss.CloudDriveDirectoryTarget
 
 private const val CLOUD_RSS_BADGE_WIDTH_DP = 82
 private const val CLOUD_RSS_BADGE_HEIGHT_DP = 34
-private const val CLOUD_DRIVE_DIRECTORY_PAGE_SIZE = 6
-private const val CLOUD_RSS_SUBSCRIPTION_PAGE_SIZE = 6
 
 @Composable
 internal fun CloudRssPanel(
@@ -1529,33 +1530,6 @@ internal fun cloudRssSubscriptionEmptyFocusTarget(intent: MiruPlayInputIntent): 
         else -> null
     }
 
-internal fun cloudRssSubscriptionPageStartForIndex(
-    index: Int,
-    itemCount: Int,
-    pageSize: Int = CLOUD_RSS_SUBSCRIPTION_PAGE_SIZE,
-): Int = pagedListPageStartForIndex(index, itemCount, pageSize)
-
-internal fun cloudRssSubscriptionCoercedPageStart(
-    pageStart: Int,
-    itemCount: Int,
-    pageSize: Int = CLOUD_RSS_SUBSCRIPTION_PAGE_SIZE,
-): Int = pagedListCoercedPageStart(pageStart, itemCount, pageSize)
-
-internal fun cloudRssSubscriptionPageSummary(
-    pageStart: Int,
-    visibleCount: Int,
-    itemCount: Int,
-): String? {
-    val safeStart = cloudRssSubscriptionCoercedPageStart(pageStart, itemCount)
-    return pagedListPageSummary(
-        pageStart = safeStart,
-        visibleCount = visibleCount,
-        itemCount = itemCount,
-        pageSize = CLOUD_RSS_SUBSCRIPTION_PAGE_SIZE,
-        unitLabel = rssSubscriptionPageUnitLabel(),
-    )
-}
-
 internal enum class CloudDriveDirectoryAction {
     UseCurrent,
     Parent,
@@ -1640,33 +1614,6 @@ internal fun cloudDriveDirectoryRowFocusTarget(
         1 -> CloudDriveDirectoryFocusTarget.Row(currentIndex + 1).takeIf { currentIndex + 1 in 0 until itemCount }
         else -> return null
     }
-}
-
-internal fun cloudDriveDirectoryPageStartForIndex(
-    index: Int,
-    itemCount: Int,
-    pageSize: Int = CLOUD_DRIVE_DIRECTORY_PAGE_SIZE,
-): Int = pagedListPageStartForIndex(index, itemCount, pageSize)
-
-internal fun cloudDriveDirectoryCoercedPageStart(
-    pageStart: Int,
-    itemCount: Int,
-    pageSize: Int = CLOUD_DRIVE_DIRECTORY_PAGE_SIZE,
-): Int = pagedListCoercedPageStart(pageStart, itemCount, pageSize)
-
-internal fun cloudDriveDirectoryPageSummary(
-    pageStart: Int,
-    visibleCount: Int,
-    itemCount: Int,
-): String? {
-    val safeStart = cloudDriveDirectoryCoercedPageStart(pageStart, itemCount)
-    return pagedListPageSummary(
-        pageStart = safeStart,
-        visibleCount = visibleCount,
-        itemCount = itemCount,
-        pageSize = CLOUD_DRIVE_DIRECTORY_PAGE_SIZE,
-        unitLabel = cloudDriveRssDirectoryPageUnitLabel(),
-    )
 }
 
 private fun cloudDriveDirectoryHorizontalAction(

@@ -1,6 +1,7 @@
 package com.miruplay.tv.model
 
 private const val DEFAULT_SOURCE_PICKER_LOCATION_LIMIT = 78
+const val REMOTE_BROWSER_PAGE_SIZE = 8
 
 fun MediaSourceType.tvLabel(): String =
     when (this) {
@@ -106,6 +107,31 @@ fun mediaSourceRemoteBrowserItemTypeLabel(isDirectory: Boolean): String =
     if (isDirectory) mediaDetailDirectoryValue() else mediaDetailVideoValue()
 
 fun mediaSourceRemoteBrowserPageUnitLabel(): String = "个条目"
+
+fun remoteBrowserPageStartForIndex(
+    index: Int,
+    itemCount: Int,
+    pageSize: Int = REMOTE_BROWSER_PAGE_SIZE,
+): Int = pagedListPageStartForIndex(index, itemCount, pageSize)
+
+fun remoteBrowserCoercedPageStart(
+    pageStart: Int,
+    itemCount: Int,
+    pageSize: Int = REMOTE_BROWSER_PAGE_SIZE,
+): Int = pagedListCoercedPageStart(pageStart, itemCount, pageSize)
+
+fun remoteBrowserPageSummary(
+    pageStart: Int,
+    visibleCount: Int,
+    itemCount: Int,
+): String? =
+    pagedListPageSummary(
+        pageStart = remoteBrowserCoercedPageStart(pageStart, itemCount),
+        visibleCount = visibleCount,
+        itemCount = itemCount,
+        pageSize = REMOTE_BROWSER_PAGE_SIZE,
+        unitLabel = mediaSourceRemoteBrowserPageUnitLabel(),
+    )
 
 fun mediaSourceSavedPickerTitleLabel(): String = "已保存媒体源"
 

@@ -42,6 +42,23 @@ class MetadataUiConventionsTest {
     }
 
     @Test
+    fun `bangumi pagination helpers are shared by TV and desktop`() {
+        assertEquals(4, BANGUMI_BATCH_MATCH_LIMIT)
+        assertEquals(4, BANGUMI_CANDIDATE_LIMIT)
+        assertEquals(6, BANGUMI_RESULT_LIMIT)
+        assertEquals(12, bangumiPageStartForIndex(index = 30, itemCount = 13, pageSize = 4))
+        assertEquals(6, bangumiPageStartForIndex(index = 6, itemCount = 12, pageSize = 6))
+        assertEquals(8, bangumiCoercedPageStart(pageStart = 10, itemCount = 13, pageSize = 4))
+        assertEquals(12, bangumiCoercedPageStart(pageStart = 40, itemCount = 13, pageSize = 4))
+        assertEquals(0, bangumiCoercedPageStart(pageStart = -4, itemCount = 13, pageSize = 4))
+        assertEquals(
+            "候选：显示 5-8 / 13 个条目，按上/下继续翻页。",
+            bangumiPageSummary(label = "候选", pageStart = 4, visibleCount = 4, itemCount = 13, pageSize = 4),
+        )
+        assertEquals(null, bangumiPageSummary(label = "批量", pageStart = 0, visibleCount = 4, itemCount = 4, pageSize = 4))
+    }
+
+    @Test
     fun `metadata status helpers provide shared TV text`() {
         assertEquals("选择索引视频后可搜索 Bangumi。", metadataInitialTvStatus("Bangumi"))
         assertEquals("请先选择一个索引视频。", metadataIndexedVideoRequiredTvStatus())

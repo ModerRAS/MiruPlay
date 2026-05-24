@@ -41,15 +41,20 @@ import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.design.MiruPlayUiMetrics
 import com.miruplay.tv.design.horizontalNavigationDelta
 import com.miruplay.tv.design.verticalNavigationDelta
+import com.miruplay.tv.model.DETAIL_EPISODE_PAGE_SIZE
 import com.miruplay.tv.model.FileEntry
+import com.miruplay.tv.model.MEDIA_DETAILS_PAGE_SIZE
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.ProgressRecord
+import com.miruplay.tv.model.RECENT_PLAYBACK_PAGE_SIZE
 import com.miruplay.tv.model.detailBackToLibraryActionLabel
 import com.miruplay.tv.model.detailEpisodeBadge
+import com.miruplay.tv.model.detailEpisodeCoercedPageStart
 import com.miruplay.tv.model.detailEpisodeCountLabel
 import com.miruplay.tv.model.detailEpisodeEmptyMessage
-import com.miruplay.tv.model.detailEpisodePageUnitLabel
+import com.miruplay.tv.model.detailEpisodePageStartForIndex
+import com.miruplay.tv.model.detailEpisodePageSummary
 import com.miruplay.tv.model.detailEpisodeSectionTitle
 import com.miruplay.tv.model.detailEpisodeShelfSubtitle
 import com.miruplay.tv.model.detailEpisodeTitleLabel
@@ -59,13 +64,14 @@ import com.miruplay.tv.model.detailHeroStatLabels
 import com.miruplay.tv.model.detailPlayActionLabel
 import com.miruplay.tv.model.detailSeasonLabel
 import com.miruplay.tv.model.formatPlaybackPosition
-import com.miruplay.tv.model.mediaDetailsPageUnitLabel
-import com.miruplay.tv.model.pagedListCoercedPageStart
-import com.miruplay.tv.model.pagedListPageStartForIndex
-import com.miruplay.tv.model.pagedListPageSummary
+import com.miruplay.tv.model.mediaDetailsCoercedPageStart
+import com.miruplay.tv.model.mediaDetailsPageStartForIndex
+import com.miruplay.tv.model.mediaDetailsPageSummary
 import com.miruplay.tv.model.playbackProgressRecordLabel
-import com.miruplay.tv.model.recentPlaybackPageUnitLabel
+import com.miruplay.tv.model.recentPlaybackCoercedPageStart
 import com.miruplay.tv.model.mediaDetailsLabels
+import com.miruplay.tv.model.recentPlaybackPageStartForIndex
+import com.miruplay.tv.model.recentPlaybackPageSummary
 import com.miruplay.tv.model.recentPlaybackLabels
 import com.miruplay.tv.repository.MediaDetailRows
 import com.miruplay.tv.repository.MediaIndexEntry
@@ -693,8 +699,6 @@ internal fun detailEpisodesForSeason(
 ): List<MediaIndexEntry> =
     if (season == null) episodes.sortedWith(detailEpisodeComparator) else episodes.filter { it.seasonNumber == season }
 
-private const val DETAIL_EPISODE_PAGE_SIZE = 6
-
 internal fun moveDetailEpisodeSelection(
     currentIndex: Int,
     itemCount: Int,
@@ -801,33 +805,6 @@ internal fun detailEpisodeEmptyFocusTarget(intent: MiruPlayInputIntent): DetailE
         1 -> DetailEpisodeFocusTarget.NextPanel
         else -> null
     }
-
-internal fun detailEpisodePageStartForIndex(
-    index: Int,
-    itemCount: Int,
-    pageSize: Int = DETAIL_EPISODE_PAGE_SIZE,
-): Int = pagedListPageStartForIndex(index, itemCount, pageSize)
-
-internal fun detailEpisodeCoercedPageStart(
-    pageStart: Int,
-    itemCount: Int,
-    pageSize: Int = DETAIL_EPISODE_PAGE_SIZE,
-): Int = pagedListCoercedPageStart(pageStart, itemCount, pageSize)
-
-internal fun detailEpisodePageSummary(
-    pageStart: Int,
-    visibleCount: Int,
-    itemCount: Int,
-): String? {
-    val safeStart = detailEpisodeCoercedPageStart(pageStart, itemCount)
-    return pagedListPageSummary(
-        pageStart = safeStart,
-        visibleCount = visibleCount,
-        itemCount = itemCount,
-        pageSize = DETAIL_EPISODE_PAGE_SIZE,
-        unitLabel = detailEpisodePageUnitLabel(),
-    )
-}
 
 private val detailEpisodeComparator =
     compareBy<MediaIndexEntry>(
@@ -1033,9 +1010,6 @@ private fun RecentPlaybackEmptyState(
     }
 }
 
-private const val RECENT_PLAYBACK_PAGE_SIZE = 6
-private const val MEDIA_DETAILS_PAGE_SIZE = 6
-
 @Composable
 private fun RecentProgressRow(
     record: ProgressRecord,
@@ -1185,33 +1159,6 @@ internal fun moveRecentPlaybackFocusTarget(
     intent.verticalNavigationDelta()?.let { delta ->
         moveRecentPlaybackFocusTarget(currentIndex, itemCount, delta)
     }
-
-internal fun recentPlaybackPageStartForIndex(
-    index: Int,
-    itemCount: Int,
-    pageSize: Int = RECENT_PLAYBACK_PAGE_SIZE,
-): Int = pagedListPageStartForIndex(index, itemCount, pageSize)
-
-internal fun recentPlaybackCoercedPageStart(
-    pageStart: Int,
-    itemCount: Int,
-    pageSize: Int = RECENT_PLAYBACK_PAGE_SIZE,
-): Int = pagedListCoercedPageStart(pageStart, itemCount, pageSize)
-
-internal fun recentPlaybackPageSummary(
-    pageStart: Int,
-    visibleCount: Int,
-    itemCount: Int,
-): String? {
-    val safeStart = recentPlaybackCoercedPageStart(pageStart, itemCount)
-    return pagedListPageSummary(
-        pageStart = safeStart,
-        visibleCount = visibleCount,
-        itemCount = itemCount,
-        pageSize = RECENT_PLAYBACK_PAGE_SIZE,
-        unitLabel = recentPlaybackPageUnitLabel(),
-    )
-}
 
 @Composable
 internal fun MediaDetailsPanel(
@@ -1442,33 +1389,6 @@ internal fun mediaDetailsFocusTarget(
         targetIndex >= rowCount -> null
         else -> MediaDetailsFocusTarget.Row(targetIndex)
     }
-}
-
-internal fun mediaDetailsPageStartForIndex(
-    index: Int,
-    itemCount: Int,
-    pageSize: Int = MEDIA_DETAILS_PAGE_SIZE,
-): Int = pagedListPageStartForIndex(index, itemCount, pageSize)
-
-internal fun mediaDetailsCoercedPageStart(
-    pageStart: Int,
-    itemCount: Int,
-    pageSize: Int = MEDIA_DETAILS_PAGE_SIZE,
-): Int = pagedListCoercedPageStart(pageStart, itemCount, pageSize)
-
-internal fun mediaDetailsPageSummary(
-    pageStart: Int,
-    visibleCount: Int,
-    itemCount: Int,
-): String? {
-    val safeStart = mediaDetailsCoercedPageStart(pageStart, itemCount)
-    return pagedListPageSummary(
-        pageStart = safeStart,
-        visibleCount = visibleCount,
-        itemCount = itemCount,
-        pageSize = MEDIA_DETAILS_PAGE_SIZE,
-        unitLabel = mediaDetailsPageUnitLabel(),
-    )
 }
 
 internal fun mediaDetailsSplitIndex(pageStart: Int, visibleCount: Int): Int {

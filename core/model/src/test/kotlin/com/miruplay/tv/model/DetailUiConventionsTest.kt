@@ -73,6 +73,28 @@ class DetailUiConventionsTest {
     }
 
     @Test
+    fun `shared detail pagination helpers keep desktop page sizes and units`() {
+        assertEquals(6, DETAIL_EPISODE_PAGE_SIZE)
+        assertEquals(6, RECENT_PLAYBACK_PAGE_SIZE)
+        assertEquals(6, MEDIA_DETAILS_PAGE_SIZE)
+
+        assertEquals(12, detailEpisodePageStartForIndex(index = 30, itemCount = 14))
+        assertEquals(6, detailEpisodeCoercedPageStart(pageStart = 9, itemCount = 14))
+        assertEquals("显示 7-12 / 14 集，按上/下继续翻页。", detailEpisodePageSummary(6, 6, 14))
+        assertEquals(null, detailEpisodePageSummary(0, 5, 5))
+
+        assertEquals(12, recentPlaybackPageStartForIndex(index = 30, itemCount = 14))
+        assertEquals(6, recentPlaybackCoercedPageStart(pageStart = 8, itemCount = 14))
+        assertEquals("显示 13-14 / 14 条记录，按上/下继续翻页。", recentPlaybackPageSummary(12, 2, 14))
+        assertEquals(null, recentPlaybackPageSummary(0, 5, 5))
+
+        assertEquals(12, mediaDetailsPageStartForIndex(index = 30, itemCount = 13))
+        assertEquals(6, mediaDetailsCoercedPageStart(pageStart = 11, itemCount = 13))
+        assertEquals("显示 13-13 / 13 条详情，按上/下继续翻页。", mediaDetailsPageSummary(12, 1, 13))
+        assertEquals(null, mediaDetailsPageSummary(0, 5, 5))
+    }
+
+    @Test
     fun `shared bangumi collection labels match TV detail pills`() {
         assertEquals("想看", detailBangumiCollectionLabel(1))
         assertEquals("看过", detailBangumiCollectionLabel(2))

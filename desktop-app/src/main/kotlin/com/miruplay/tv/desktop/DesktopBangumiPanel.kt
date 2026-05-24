@@ -34,7 +34,14 @@ import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.design.MiruPlayUiMetrics
 import com.miruplay.tv.design.horizontalNavigationDelta
 import com.miruplay.tv.design.verticalNavigationDelta
+import com.miruplay.tv.model.BANGUMI_BATCH_MATCH_LIMIT
+import com.miruplay.tv.model.BANGUMI_CANDIDATE_LIMIT
+import com.miruplay.tv.model.BANGUMI_RESULT_LIMIT
 import com.miruplay.tv.model.ScraperResult
+import com.miruplay.tv.model.bangumiCoercedPageStart
+import com.miruplay.tv.model.bangumiPageStartForIndex
+import com.miruplay.tv.model.bangumiPageSummary
+import com.miruplay.tv.model.bangumiUiLabels
 import com.miruplay.tv.model.confidencePercentLabel
 import com.miruplay.tv.model.metadataBatchPageLabel
 import com.miruplay.tv.model.metadataBatchPreviewedCountLabel
@@ -43,13 +50,8 @@ import com.miruplay.tv.model.metadataBangumiLinkedLabel
 import com.miruplay.tv.model.metadataCandidatePageLabel
 import com.miruplay.tv.model.metadataNoMatchLabel
 import com.miruplay.tv.model.metadataNoSelectedIndexMessage
-import com.miruplay.tv.model.metadataPageUnitLabel
 import com.miruplay.tv.model.metadataStatusText
 import com.miruplay.tv.model.metadataSearchResultsPageLabel
-import com.miruplay.tv.model.bangumiUiLabels
-import com.miruplay.tv.model.pagedListCoercedPageStart
-import com.miruplay.tv.model.pagedListPageStartForIndex
-import com.miruplay.tv.model.pagedListPageSummary
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MetadataBatchMatch
 import com.miruplay.tv.repository.MetadataBatchPlan
@@ -739,10 +741,6 @@ private fun BangumiBatchMatchRow(
     }
 }
 
-private const val BANGUMI_BATCH_MATCH_LIMIT = 4
-private const val BANGUMI_CANDIDATE_LIMIT = 4
-private const val BANGUMI_RESULT_LIMIT = 6
-
 internal enum class BangumiListSection {
     BatchMatches,
     BatchCandidates,
@@ -1029,36 +1027,6 @@ private fun lastBangumiListPosition(
             )
         else -> null
     }
-
-internal fun bangumiPageStartForIndex(
-    index: Int,
-    itemCount: Int,
-    pageSize: Int,
-): Int = pagedListPageStartForIndex(index, itemCount, pageSize)
-
-internal fun bangumiCoercedPageStart(
-    pageStart: Int,
-    itemCount: Int,
-    pageSize: Int,
-): Int = pagedListCoercedPageStart(pageStart, itemCount, pageSize)
-
-internal fun bangumiPageSummary(
-    label: String,
-    pageStart: Int,
-    visibleCount: Int,
-    itemCount: Int,
-    pageSize: Int,
-): String? {
-    val safeStart = bangumiCoercedPageStart(pageStart, itemCount, pageSize)
-    return pagedListPageSummary(
-        pageStart = safeStart,
-        visibleCount = visibleCount,
-        itemCount = itemCount,
-        pageSize = pageSize,
-        unitLabel = metadataPageUnitLabel(),
-        prefix = label,
-    )
-}
 
 private fun Modifier.bangumiActionNavigation(
     action: BangumiAction,

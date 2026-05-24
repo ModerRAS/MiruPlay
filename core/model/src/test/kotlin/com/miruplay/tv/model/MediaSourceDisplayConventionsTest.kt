@@ -109,6 +109,21 @@ class MediaSourceDisplayConventionsTest {
     }
 
     @Test
+    fun `remote browser pagination helpers are shared by TV and desktop`() {
+        assertEquals(8, REMOTE_BROWSER_PAGE_SIZE)
+        assertEquals(0, remoteBrowserPageStartForIndex(index = 0, itemCount = 17))
+        assertEquals(0, remoteBrowserPageStartForIndex(index = 7, itemCount = 17))
+        assertEquals(8, remoteBrowserPageStartForIndex(index = 8, itemCount = 17))
+        assertEquals(16, remoteBrowserPageStartForIndex(index = 30, itemCount = 17))
+        assertEquals(8, remoteBrowserCoercedPageStart(pageStart = 12, itemCount = 17))
+        assertEquals(16, remoteBrowserCoercedPageStart(pageStart = 40, itemCount = 17))
+        assertEquals(0, remoteBrowserCoercedPageStart(pageStart = -8, itemCount = 17))
+        assertEquals("显示 9-16 / 17 个条目，按上/下继续翻页。", remoteBrowserPageSummary(8, 8, 17))
+        assertEquals("显示 17-17 / 17 个条目，按上/下继续翻页。", remoteBrowserPageSummary(16, 1, 17))
+        assertEquals(null, remoteBrowserPageSummary(0, 4, 4))
+    }
+
+    @Test
     fun `media source management labels are shared by TV and desktop`() {
         assertEquals("媒体源", mediaSourceListTitleLabel())
         assertEquals("还没有配置媒体源", mediaSourceEmptyListMessage())
