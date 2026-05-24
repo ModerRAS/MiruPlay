@@ -199,12 +199,7 @@ class WebControlService @Inject constructor(
         val episodes = requireWebControlSuccess(metadataRepository.getCachedEpisodes(animeId), "读取剧集失败")
             .map { episode ->
                 val progress = progressRepository.getProgress(episode.id).getOrNull()
-                EpisodeWithProgressDto(
-                    episode = episode,
-                    progressMs = progress?.positionMs ?: 0L,
-                    lastWatched = progress?.lastWatched ?: 0L,
-                    playCount = progress?.playCount ?: 0
-                )
+                episode.toWebControlEpisodeWithProgress(progress)
             }
         return AnimeDetailDto(anime = anime, episodes = episodes)
     }
@@ -310,14 +305,7 @@ class WebControlService @Inject constructor(
         return (progressRepository.getContinueWatching(30).getOrNull() ?: emptyList()).mapNotNull { record ->
             val episode = findEpisodeById(record.episodeId)
             val anime = episode?.let { metadataRepository.getCachedMetadata(it.animeId).getOrNull() }
-            ContinueWatchingDto(
-                progressEpisodeId = record.episodeId,
-                positionMs = record.positionMs,
-                lastWatched = record.lastWatched,
-                playCount = record.playCount,
-                episode = episode,
-                anime = anime
-            )
+            record.toWebControlContinueWatching(episode, anime)
         }
     }
 

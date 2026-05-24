@@ -32,7 +32,6 @@ import com.miruplay.tv.webcontrol.CloudDriveRunResponse
 import com.miruplay.tv.webcontrol.CloudDriveTokenRequest
 import com.miruplay.tv.webcontrol.CloudDriveTokenResponse
 import com.miruplay.tv.webcontrol.ContinueWatchingDto
-import com.miruplay.tv.webcontrol.EpisodeWithProgressDto
 import com.miruplay.tv.webcontrol.LibraryDto
 import com.miruplay.tv.webcontrol.LocalDirectoryDto
 import com.miruplay.tv.webcontrol.PlayEpisodeRequest
@@ -57,8 +56,10 @@ import com.miruplay.tv.webcontrol.skipForwardDeltaMs
 import com.miruplay.tv.webcontrol.toAutomationConfig
 import com.miruplay.tv.webcontrol.toMediaSourceInfo
 import com.miruplay.tv.webcontrol.toSubscription
+import com.miruplay.tv.webcontrol.toWebControlContinueWatching
 import com.miruplay.tv.webcontrol.toWebControlResponse
 import com.miruplay.tv.webcontrol.toWebControlDirectoryDto
+import com.miruplay.tv.webcontrol.toWebControlEpisodeWithProgress
 import com.miruplay.tv.webcontrol.toWebControlSourceTestResponse
 import com.miruplay.tv.webcontrol.toWebControlLibrary
 import com.miruplay.tv.webcontrol.validated
@@ -274,12 +275,7 @@ internal class DesktopWebControlService(
             anime = anime,
             episodes = episodes.map { episode ->
                 val progress = repositories.progress.getProgress(episode.id).getOrNull()
-                EpisodeWithProgressDto(
-                    episode = episode,
-                    progressMs = progress?.positionMs ?: 0L,
-                    lastWatched = progress?.lastWatched ?: 0L,
-                    playCount = progress?.playCount ?: 0,
-                )
+                episode.toWebControlEpisodeWithProgress(progress)
             },
         )
     }
@@ -307,14 +303,7 @@ internal class DesktopWebControlService(
             val episode = findEpisodeById(record.episodeId)
             val anime = episode?.let { repositories.metadata.getCachedMetadata(it.animeId).getOrNull() }
                 ?: episode?.let { indexedAnimeGroups().firstOrNull { group -> group.animeId == it.animeId }?.toAnime() }
-            ContinueWatchingDto(
-                progressEpisodeId = record.episodeId,
-                positionMs = record.positionMs,
-                lastWatched = record.lastWatched,
-                playCount = record.playCount,
-                episode = episode,
-                anime = anime,
-            )
+            record.toWebControlContinueWatching(episode, anime)
         }
 
     private suspend fun findEpisodeById(episodeId: String): Episode? {
