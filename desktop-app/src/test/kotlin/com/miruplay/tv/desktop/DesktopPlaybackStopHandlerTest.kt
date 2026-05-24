@@ -12,7 +12,7 @@ import org.junit.Test
 
 class DesktopPlaybackStopHandlerTest {
     @Test
-    fun `desktop next playback source uses shared episode ordering and resume rules`() {
+    fun `desktop next playback source uses shared episode ordering and resume rules`() = runBlocking {
         val episodes = listOf(
             episode(id = "ep2", number = 2, duration = 100_000L),
             episode(id = "ep1", number = 1, duration = 100_000L),
@@ -40,7 +40,7 @@ class DesktopPlaybackStopHandlerTest {
     }
 
     @Test
-    fun `desktop next playback source clears start position for completed episode`() {
+    fun `desktop next playback source clears start position for completed episode`() = runBlocking {
         val episodes = listOf(
             episode(id = "ep1", number = 1, duration = 100_000L),
             episode(id = "ep2", number = 2, duration = 100_000L),

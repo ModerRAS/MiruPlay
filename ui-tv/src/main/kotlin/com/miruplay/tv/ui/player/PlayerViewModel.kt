@@ -8,16 +8,15 @@ import com.miruplay.tv.model.PLAYBACK_SEEK_BACK_SECONDS
 import com.miruplay.tv.model.PLAYBACK_SEEK_FORWARD_SECONDS
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.PlaybackState
-import com.miruplay.tv.model.nextEpisodeAfter
 import com.miruplay.tv.player.AudioTrack
 import com.miruplay.tv.player.PlaybackController
 import com.miruplay.tv.model.SubtitleTrack
-import com.miruplay.tv.model.toPlaybackSource
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
 import com.miruplay.tv.repository.resolvePlayableUri
 import com.miruplay.tv.repository.savePlaybackProgressSnapshot
+import com.miruplay.tv.repository.buildNextPlaybackSource as buildSharedNextPlaybackSource
 import com.miruplay.tv.sync.BangumiSyncEngine
 import androidx.media3.common.Player
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -298,20 +297,18 @@ class PlayerViewModel @Inject constructor(
     }
 
     private suspend fun buildNextPlaybackSource(source: PlaybackSource): PlaybackSource? {
-        val episodeId = source.episodeId ?: return null
-        val currentEpisode = metadataRepository.getCachedEpisode(episodeId).getOrNull() ?: return null
-        val episodes = metadataRepository.getCachedEpisodes(currentEpisode.animeId).getOrNull().orEmpty()
-        val nextEpisode = episodes.nextEpisodeAfter(currentEpisode.id) ?: return null
-        val progress = progressRepository.getProgress(nextEpisode.id).getOrNull()
-        val playableUri = resolvePlayableUri(
-            path = nextEpisode.filePath,
-            episodeId = nextEpisode.id,
-            mediaRepository = mediaRepository
-        )
-
-        return nextEpisode.toPlaybackSource(
-            playableUri = playableUri,
-            progress = progress,
+        return buildSharedNextPlaybackSource(
+            currentSource = source,
+            loadCurrentEpisode = { episodeId -> metadataRepository.getCachedEpisode(episodeId).getOrNull() },
+            loadEpisodes = { animeId -> metadataRepository.getCachedEpisodes(animeId).getOrNull().orEmpty() },
+            loadProgress = { episodeId -> progressRepository.getProgress(episodeId).getOrNull() },
+            resolvePlayableUri = { episode ->
+                resolvePlayableUri(
+                    path = episode.filePath,
+                    episodeId = episode.id,
+                    mediaRepository = mediaRepository
+                )
+            },
         )
     }
 

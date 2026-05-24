@@ -108,7 +108,6 @@ import com.miruplay.tv.model.recentPlaybackLoadedStatus
 import com.miruplay.tv.model.recentPlaybackRequiredStatus
 import com.miruplay.tv.model.recentPlaybackShowingStatus
 import com.miruplay.tv.model.resumeStartSecondsText
-import com.miruplay.tv.model.nextEpisodeAfter
 import com.miruplay.tv.model.retainedSelectionInProgressRecords
 import com.miruplay.tv.model.retainedSelectionInRssSubscriptions
 import com.miruplay.tv.model.rssSubscriptionDeletedStatus
@@ -123,7 +122,6 @@ import com.miruplay.tv.model.saveBangumiTokenFormResult
 import com.miruplay.tv.model.sourcePickerTitle
 import com.miruplay.tv.model.settingsActiveSourceLabel
 import com.miruplay.tv.model.settingsLinkedSourceLabel
-import com.miruplay.tv.model.toPlaybackSource
 import com.miruplay.tv.model.validateCloudDriveApiTokenForm
 import com.miruplay.tv.model.validateCloudDriveDirectoryPickerForm
 import com.miruplay.tv.model.validateCloudDriveLoginForm
@@ -148,6 +146,7 @@ import com.miruplay.tv.repository.MetadataBatchPlanner
 import com.miruplay.tv.repository.MetadataBatchPlan
 import com.miruplay.tv.repository.appliedStatus
 import com.miruplay.tv.repository.applyMetadataBatchPlan
+import com.miruplay.tv.repository.buildNextPlaybackSource
 import com.miruplay.tv.repository.clearExternalMetadata
 import com.miruplay.tv.repository.displayName
 import com.miruplay.tv.repository.desktop.DesktopRepositories
@@ -978,13 +977,11 @@ internal fun MiruPlayDesktopComposeApp(
     }
 
     suspend fun nextDesktopPlaybackSource(currentEpisodeId: String): PlaybackSource? {
-        val currentEpisode = repositories.metadata.getCachedEpisode(currentEpisodeId).getOrNull() ?: return null
-        val episodes = repositories.metadata.getCachedEpisodes(currentEpisode.animeId).getOrNull().orEmpty()
-        val nextEpisode = episodes.nextEpisodeAfter(currentEpisode.id) ?: return null
-        val progress = repositories.progress.getProgress(nextEpisode.id).getOrNull()
-        return nextEpisode.toPlaybackSource(
-            playableUri = nextEpisode.filePath,
-            progress = progress,
+        return buildNextPlaybackSource(
+            currentEpisodeId = currentEpisodeId,
+            loadCurrentEpisode = { episodeId -> repositories.metadata.getCachedEpisode(episodeId).getOrNull() },
+            loadEpisodes = { animeId -> repositories.metadata.getCachedEpisodes(animeId).getOrNull().orEmpty() },
+            loadProgress = { episodeId -> repositories.progress.getProgress(episodeId).getOrNull() },
         )
     }
 
