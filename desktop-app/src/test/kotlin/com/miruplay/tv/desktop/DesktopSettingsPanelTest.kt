@@ -27,6 +27,7 @@ import com.miruplay.tv.model.cloudDriveRssSaveConfigActionLabel
 import com.miruplay.tv.model.cloudDriveRssTitleLabel
 import com.miruplay.tv.model.cloudRssStatusText
 import com.miruplay.tv.model.cloudDriveRssUsernameFieldLabel
+import com.miruplay.tv.model.cloudDriveRssUiLabels
 import com.miruplay.tv.model.metadataBangumiTokenSettingsStatus
 import com.miruplay.tv.model.metadataBangumiTokenTileDetail
 import com.miruplay.tv.model.metadataBangumiTokenTileLabel
@@ -187,7 +188,7 @@ class DesktopSettingsPanelTest {
 
     @Test
     fun `desktop cloud rss labels use shared TV copy`() {
-        val labels = desktopCloudRssUiLabels()
+        val labels = cloudDriveRssUiLabels()
 
         assertEquals(cloudDriveRssEndpointFieldLabel(), labels.endpoint)
         assertEquals(cloudDriveRssUsernameFieldLabel(), labels.username)

@@ -14,6 +14,7 @@ import com.miruplay.tv.model.localizedLibraryRescanCompleteStatus
 import com.miruplay.tv.model.localizedLibraryScanCompleteStatus
 import com.miruplay.tv.model.localizedLibraryScanningStatus
 import com.miruplay.tv.model.localizedMediaSourceStatusText
+import com.miruplay.tv.model.librarySourceLabels
 import com.miruplay.tv.model.mediaSourceStatusText
 import com.miruplay.tv.model.mediaSourceClearIndexActionLabel
 import com.miruplay.tv.model.mediaSourceIndexQueryFieldLabel
@@ -74,7 +75,7 @@ class DesktopSourcePickerTest {
 
     @Test
     fun `source management controls use TV facing labels`() {
-        val labels = desktopLibrarySourceLabels()
+        val labels = librarySourceLabels()
 
         assertEquals(mediaSourceLocalLibraryRootFieldLabel(), labels.localLibraryRoot)
         assertEquals(mediaSourceIndexQueryFieldLabel(), labels.indexQuery)

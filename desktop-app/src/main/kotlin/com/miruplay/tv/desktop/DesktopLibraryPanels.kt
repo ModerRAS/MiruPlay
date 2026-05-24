@@ -66,33 +66,19 @@ import com.miruplay.tv.model.librarySearchActionLabel
 import com.miruplay.tv.model.librarySearchFieldLabel
 import com.miruplay.tv.model.librarySearchResultCountLabel
 import com.miruplay.tv.model.librarySettingsActionLabel
+import com.miruplay.tv.model.librarySourceLabels
 import com.miruplay.tv.model.librarySubtitleLabel
 import com.miruplay.tv.model.libraryTitleLabel
-import com.miruplay.tv.model.mediaSourceClearIndexActionLabel
-import com.miruplay.tv.model.mediaSourceIndexQueryFieldLabel
 import com.miruplay.tv.model.mediaSourceListTitleLabel
-import com.miruplay.tv.model.mediaSourceLocalLibraryRootFieldLabel
-import com.miruplay.tv.model.mediaSourceRemoteBrowserEmptyMessage
 import com.miruplay.tv.model.mediaSourceRemoteBrowserItemTypeLabel
 import com.miruplay.tv.model.mediaSourceRemoteBrowserPageUnitLabel
-import com.miruplay.tv.model.mediaSourceRemoteBrowserTitleLabel
-import com.miruplay.tv.model.mediaSourceRemoveActionLabel
-import com.miruplay.tv.model.mediaSourceScanActionLabel
-import com.miruplay.tv.model.mediaSourceScanSourceActionLabel
-import com.miruplay.tv.model.mediaSourceSearchActionLabel
-import com.miruplay.tv.model.mediaSourceSmbDomainFieldLabel
-import com.miruplay.tv.model.mediaSourceUpActionLabel
 import com.miruplay.tv.model.mediaSourceStatusText
-import com.miruplay.tv.model.openSourceActionLabel
 import com.miruplay.tv.model.pagedListCoercedPageStart
 import com.miruplay.tv.model.pagedListPageStartForIndex
 import com.miruplay.tv.model.pagedListPageSummary
 import com.miruplay.tv.model.sourceEndpointPlaceholderLabel
-import com.miruplay.tv.model.sourcePasswordFieldLabel
-import com.miruplay.tv.model.sourceUsernameFieldLabel
 import com.miruplay.tv.model.tvBadgeLabel
 import com.miruplay.tv.model.tvLabel
-import com.miruplay.tv.model.tvLocationLabel
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.displayName
 import com.miruplay.tv.repository.mediaFilesOnly
@@ -812,7 +798,7 @@ private fun LibraryControlBar(
     hasEmptyMedia: Boolean = false,
     onFocusEmptyMedia: () -> Boolean = { false },
 ) {
-    val labels = desktopLibrarySourceLabels()
+    val labels = librarySourceLabels()
     val sourcePickerFocusRequester = remember { FocusRequester() }
     val actionFocusRequesters = remember {
         LibrarySourceAction.entries.associateWith { FocusRequester() }
@@ -1728,7 +1714,7 @@ internal fun RemoteSourcesPanel(
     onEntryFocused: (FileEntry) -> Unit,
     onEntrySelected: (FileEntry) -> Unit,
 ) {
-    val labels = desktopLibrarySourceLabels()
+    val labels = librarySourceLabels()
     val actionFocusRequesters = remember {
         RemoteSourceAction.entries.associateWith { FocusRequester() }
     }
@@ -1980,7 +1966,7 @@ private fun RemoteBrowserPanel(
     focusTarget: RemoteBrowserFocusTarget = RemoteBrowserFocusTarget.UpButton,
     onFocusPreviousPanel: () -> Boolean = { false },
 ) {
-    val labels = desktopLibrarySourceLabels()
+    val labels = librarySourceLabels()
     var remoteBrowserPageStart by remember(remotePath, entries.size) { mutableStateOf(0) }
     var pendingRemoteBrowserRowFocus by remember(remotePath, entries.size) { mutableStateOf<Int?>(null) }
     val pageStart = remoteBrowserCoercedPageStart(
@@ -2354,50 +2340,3 @@ internal fun remoteBrowserPageSummary(
         unitLabel = mediaSourceRemoteBrowserPageUnitLabel(),
     )
 }
-
-internal data class DesktopLibrarySourceLabels(
-    val localLibraryRoot: String,
-    val indexQuery: String,
-    val openLocal: String,
-    val scan: String,
-    val search: String,
-    val clearIndex: String,
-    val removeSource: String,
-    val webDavUrl: String,
-    val webDavUser: String,
-    val webDavPassword: String,
-    val openWebDav: String,
-    val smbUrl: String,
-    val smbDomain: String,
-    val smbUser: String,
-    val smbPassword: String,
-    val openSmb: String,
-    val scanSource: String,
-    val remoteBrowser: String,
-    val up: String,
-    val remoteEmpty: String,
-)
-
-internal fun desktopLibrarySourceLabels(): DesktopLibrarySourceLabels =
-    DesktopLibrarySourceLabels(
-        localLibraryRoot = mediaSourceLocalLibraryRootFieldLabel(),
-        indexQuery = mediaSourceIndexQueryFieldLabel(),
-        openLocal = MediaSourceType.LOCAL.openSourceActionLabel(),
-        scan = mediaSourceScanActionLabel(),
-        search = mediaSourceSearchActionLabel(),
-        clearIndex = mediaSourceClearIndexActionLabel(),
-        removeSource = mediaSourceRemoveActionLabel(),
-        webDavUrl = MediaSourceType.WEBDAV.tvLocationLabel(),
-        webDavUser = MediaSourceType.WEBDAV.sourceUsernameFieldLabel(),
-        webDavPassword = MediaSourceType.WEBDAV.sourcePasswordFieldLabel(),
-        openWebDav = MediaSourceType.WEBDAV.openSourceActionLabel(),
-        smbUrl = MediaSourceType.SMB.tvLocationLabel(),
-        smbDomain = mediaSourceSmbDomainFieldLabel(),
-        smbUser = MediaSourceType.SMB.sourceUsernameFieldLabel(),
-        smbPassword = MediaSourceType.SMB.sourcePasswordFieldLabel(),
-        openSmb = MediaSourceType.SMB.openSourceActionLabel(),
-        scanSource = mediaSourceScanSourceActionLabel(),
-        remoteBrowser = mediaSourceRemoteBrowserTitleLabel(),
-        up = mediaSourceUpActionLabel(),
-        remoteEmpty = mediaSourceRemoteBrowserEmptyMessage(),
-    )

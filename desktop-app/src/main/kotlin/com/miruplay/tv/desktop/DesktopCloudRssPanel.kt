@@ -48,48 +48,24 @@ import com.miruplay.tv.design.verticalNavigationDelta
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MiruPlaySettingsSection
 import com.miruplay.tv.model.RssSubscriptionInfo
-import com.miruplay.tv.model.cloudDriveRssApiTokenFieldLabel
 import com.miruplay.tv.model.cloudDriveRssChooseDirectoryActionLabel
-import com.miruplay.tv.model.cloudDriveRssClearCredentialsActionLabel
-import com.miruplay.tv.model.cloudDriveRssClearScanSourceActionLabel
 import com.miruplay.tv.model.cloudDriveRssCloseActionLabel
 import com.miruplay.tv.model.cloudDriveRssDirectoryBadgeLabel
 import com.miruplay.tv.model.cloudDriveRssDirectoryPageUnitLabel
 import com.miruplay.tv.model.cloudDriveRssEmptyDirectoryMessage
-import com.miruplay.tv.model.cloudDriveRssEnabledBadgeLabel
-import com.miruplay.tv.model.cloudDriveRssEnabledToggleLabel
-import com.miruplay.tv.model.cloudDriveRssEndpointFallbackLabel
-import com.miruplay.tv.model.cloudDriveRssEndpointFieldLabel
 import com.miruplay.tv.model.cloudDriveRssInboxPathFieldLabel
-import com.miruplay.tv.model.cloudDriveRssIntervalMinutesFieldLabel
 import com.miruplay.tv.model.cloudDriveRssLibraryPathFieldLabel
 import com.miruplay.tv.model.cloudDriveRssLoadingDirectoriesMessage
-import com.miruplay.tv.model.cloudDriveRssLoginActionLabel
-import com.miruplay.tv.model.cloudDriveRssPasswordFieldLabel
 import com.miruplay.tv.model.cloudDriveRssParentDirectoryActionLabel
-import com.miruplay.tv.model.cloudDriveRssPathBadgeLabel
 import com.miruplay.tv.model.cloudDriveRssPathPairSeparator
 import com.miruplay.tv.model.cloudDriveRssPostSyncScanSummaryLabel
-import com.miruplay.tv.model.cloudDriveRssPostSyncSourceLabel
-import com.miruplay.tv.model.cloudDriveRssProxyHostFieldLabel
-import com.miruplay.tv.model.cloudDriveRssProxyPortFieldLabel
-import com.miruplay.tv.model.cloudDriveRssProxySettingLabel
-import com.miruplay.tv.model.cloudDriveRssRunBadgeLabel
-import com.miruplay.tv.model.cloudDriveRssRunNowActionLabel
 import com.miruplay.tv.model.cloudDriveRssRuntimeTitleLabel
-import com.miruplay.tv.model.cloudDriveRssSaveApiTokenActionLabel
-import com.miruplay.tv.model.cloudDriveRssSaveConfigActionLabel
-import com.miruplay.tv.model.cloudDriveRssSaveCredentialsActionLabel
 import com.miruplay.tv.model.cloudDriveRssSchedulerIdleLabel
-import com.miruplay.tv.model.cloudDriveRssStartSchedulerActionLabel
-import com.miruplay.tv.model.cloudDriveRssStopSchedulerActionLabel
 import com.miruplay.tv.model.cloudDriveRssSyncPathTitleLabel
 import com.miruplay.tv.model.cloudDriveRssTitleLabel
+import com.miruplay.tv.model.cloudDriveRssUiLabels
 import com.miruplay.tv.model.cloudDriveRssUnconfiguredEndpointLabel
-import com.miruplay.tv.model.cloudDriveRssUseActiveSourceActionLabel
 import com.miruplay.tv.model.cloudDriveRssUseCurrentDirectoryActionLabel
-import com.miruplay.tv.model.cloudDriveRssUsernameFieldLabel
-import com.miruplay.tv.model.cloudDriveRssVerifyApiTokenActionLabel
 import com.miruplay.tv.model.cloudRssStatusText
 import com.miruplay.tv.model.desktopSettingsSectionOrder
 import com.miruplay.tv.model.metadataBangumiTokenFieldLabel
@@ -156,17 +132,10 @@ import com.miruplay.tv.model.settingsWebUiAndroidTvValue
 import com.miruplay.tv.model.settingsWebUiTileLabel
 import com.miruplay.tv.model.settingsWebUiTileDetail
 import com.miruplay.tv.model.stepDesktopSettingsSection
-import com.miruplay.tv.model.rssSubscriptionDeleteActionLabel
-import com.miruplay.tv.model.rssSubscriptionEmptyMessage
 import com.miruplay.tv.model.rssSubscriptionFallbackTitleLabel
-import com.miruplay.tv.model.rssSubscriptionFilterRegexFieldLabel
-import com.miruplay.tv.model.rssSubscriptionFormPreviewFallbackLabel
-import com.miruplay.tv.model.rssSubscriptionNameFieldLabel
 import com.miruplay.tv.model.rssSubscriptionPageUnitLabel
 import com.miruplay.tv.model.rssSubscriptionPreviewFallbackLabel
-import com.miruplay.tv.model.rssSubscriptionSaveActionLabel
 import com.miruplay.tv.model.rssSubscriptionStateLabel
-import com.miruplay.tv.model.rssSubscriptionUrlFieldLabel
 import com.miruplay.tv.model.rssSubscriptionsTitleLabel
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryBrowserState
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryEntry
@@ -467,7 +436,7 @@ private fun CloudRssAutomationContent(
     onDeleteSubscription: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val labels = desktopCloudRssUiLabels()
+    val labels = cloudDriveRssUiLabels()
     val schedulerStatusText = cloudRssStatusText(schedulerStatus)
     val statusText = cloudRssStatusText(status)
     val subscriptionEmptyFocusRequester = remember { FocusRequester() }
@@ -1904,85 +1873,6 @@ internal data class SettingsSummaryTile(
     val value: String,
     val detail: String,
 )
-
-internal data class DesktopCloudRssUiLabels(
-    val endpoint: String,
-    val username: String,
-    val apiToken: String,
-    val password: String,
-    val saveCredentials: String,
-    val clearCredentials: String,
-    val login: String,
-    val verify: String,
-    val inboxPath: String,
-    val libraryPath: String,
-    val intervalMinutes: String,
-    val proxyHost: String,
-    val proxyPort: String,
-    val enabledToggle: String,
-    val rssProxy: String,
-    val useActiveSource: String,
-    val clearSource: String,
-    val postSyncSource: String,
-    val saveSyncConfig: String,
-    val runSyncNow: String,
-    val rssSubscriptions: String,
-    val subscriptionName: String,
-    val subscriptionUrl: String,
-    val filterRegex: String,
-    val saveRss: String,
-    val deleteRss: String,
-    val rssEmpty: String,
-    val rssPreviewFallback: String,
-    val startScheduler: String,
-    val stopScheduler: String,
-    val endpointFallback: String,
-    val schedulerIdle: String,
-    val enabledBadge: String,
-    val disabledBadge: String,
-    val pathBadge: String,
-    val runBadge: String,
-)
-
-internal fun desktopCloudRssUiLabels(): DesktopCloudRssUiLabels =
-    DesktopCloudRssUiLabels(
-        endpoint = cloudDriveRssEndpointFieldLabel(),
-        username = cloudDriveRssUsernameFieldLabel(),
-        apiToken = cloudDriveRssApiTokenFieldLabel(),
-        password = cloudDriveRssPasswordFieldLabel(),
-        saveCredentials = cloudDriveRssSaveCredentialsActionLabel(),
-        clearCredentials = cloudDriveRssClearCredentialsActionLabel(),
-        login = cloudDriveRssLoginActionLabel(),
-        verify = cloudDriveRssVerifyApiTokenActionLabel(),
-        inboxPath = cloudDriveRssInboxPathFieldLabel(),
-        libraryPath = cloudDriveRssLibraryPathFieldLabel(),
-        intervalMinutes = cloudDriveRssIntervalMinutesFieldLabel(),
-        proxyHost = cloudDriveRssProxyHostFieldLabel(),
-        proxyPort = cloudDriveRssProxyPortFieldLabel(),
-        enabledToggle = cloudDriveRssEnabledToggleLabel(),
-        rssProxy = cloudDriveRssProxySettingLabel(),
-        useActiveSource = cloudDriveRssUseActiveSourceActionLabel(),
-        clearSource = cloudDriveRssClearScanSourceActionLabel(),
-        postSyncSource = cloudDriveRssPostSyncSourceLabel(),
-        saveSyncConfig = cloudDriveRssSaveConfigActionLabel(),
-        runSyncNow = cloudDriveRssRunNowActionLabel(),
-        rssSubscriptions = rssSubscriptionsTitleLabel(),
-        subscriptionName = rssSubscriptionNameFieldLabel(),
-        subscriptionUrl = rssSubscriptionUrlFieldLabel(),
-        filterRegex = rssSubscriptionFilterRegexFieldLabel(),
-        saveRss = rssSubscriptionSaveActionLabel(),
-        deleteRss = rssSubscriptionDeleteActionLabel(),
-        rssEmpty = rssSubscriptionEmptyMessage(),
-        rssPreviewFallback = rssSubscriptionFormPreviewFallbackLabel(),
-        startScheduler = cloudDriveRssStartSchedulerActionLabel(),
-        stopScheduler = cloudDriveRssStopSchedulerActionLabel(),
-        endpointFallback = cloudDriveRssEndpointFallbackLabel(),
-        schedulerIdle = cloudDriveRssSchedulerIdleLabel(),
-        enabledBadge = cloudDriveRssEnabledBadgeLabel(true),
-        disabledBadge = cloudDriveRssEnabledBadgeLabel(false),
-        pathBadge = cloudDriveRssPathBadgeLabel(),
-        runBadge = cloudDriveRssRunBadgeLabel(),
-    )
 
 internal fun cloudRssOverviewTiles(
     endpointUrl: String,
