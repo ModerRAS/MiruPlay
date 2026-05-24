@@ -6,14 +6,15 @@ import com.miruplay.tv.clouddrive.CloudDriveClient
 import com.miruplay.tv.core.common.LocalDirectoryBrowser
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.mediasource.MediaSourceFactory
+import com.miruplay.tv.mediasource.MediaSourceConnectionTestResult
+import com.miruplay.tv.mediasource.testConnection
+import com.miruplay.tv.mediasource.testConnectionState
 import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.directoryBrowserRootDisplayName
 import com.miruplay.tv.model.MediaSourceInfo
-import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.RssSubscriptionInfo
-import com.miruplay.tv.model.mediaSourceConnectionFailedMessage
 import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.MediaSourceActionCoordinator
@@ -165,9 +166,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             when (
                 val result = mediaSourceActions.addSource(source) { persisted ->
-                    mediaSourceFactory.create(persisted).flatMap { mediaSource ->
-                        mediaSource.testConnection()
-                    }
+                    Result.success(mediaSourceFactory.testConnectionState(persisted))
                 }
             ) {
                 is MediaSourceAddActionResult.Saved -> loadSources()
@@ -199,34 +198,16 @@ class SettingsViewModel @Inject constructor(
     fun testConnection(type: MediaSourceType, url: String, username: String = "", password: String = "") {
         viewModelScope.launch {
             _testResult.value = ConnectionTestResult.Testing
-            val info = MediaSourceInfo(
-                name = "test",
-                type = type,
-                connectionInfo = MediaSourceInfoConventions.sourceConnectionInfo(
+            _testResult.value = when (
+                val result = mediaSourceFactory.testConnection(
                     type = type,
                     location = url,
                     username = username,
                     password = password,
                 )
-            )
-            when (val sourceResult = mediaSourceFactory.create(info)) {
-                is Result.Success -> {
-                    when (val test = sourceResult.data.testConnection()) {
-                        is Result.Success -> {
-                            _testResult.value = if (test.data) {
-                                ConnectionTestResult.Success
-                            } else {
-                                ConnectionTestResult.Failed(mediaSourceConnectionFailedMessage())
-                            }
-                        }
-                        is Result.Error -> {
-                            _testResult.value = ConnectionTestResult.Failed(test.error.toUserMessage())
-                        }
-                    }
-                }
-                is Result.Error -> {
-                    _testResult.value = ConnectionTestResult.Failed(sourceResult.error.toUserMessage())
-                }
+            ) {
+                MediaSourceConnectionTestResult.Success -> ConnectionTestResult.Success
+                is MediaSourceConnectionTestResult.Failed -> ConnectionTestResult.Failed(result.message)
             }
         }
     }

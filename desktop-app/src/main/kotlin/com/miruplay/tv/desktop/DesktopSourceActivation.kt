@@ -4,6 +4,7 @@ import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.mediasource.desktop.DesktopMediaSource
 import com.miruplay.tv.mediasource.desktop.desktopSourceFromInfo
+import com.miruplay.tv.mediasource.testConnectionState
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.connectionDomain
@@ -83,9 +84,7 @@ internal suspend fun openDesktopSource(
     mediaSourceFactory: MediaSourceFactory,
     sourceInfo: MediaSourceInfo,
     testConnection: suspend (MediaSourceInfo) -> Result<Boolean> = { persisted ->
-        mediaSourceFactory.create(persisted).flatMap { source ->
-            source.testConnection()
-        }
+        Result.success(mediaSourceFactory.testConnectionState(persisted))
     },
 ): Result<DesktopSourceOpenResult> =
     when (
