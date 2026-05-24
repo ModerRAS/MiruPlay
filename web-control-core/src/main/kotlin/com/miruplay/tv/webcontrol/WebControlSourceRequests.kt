@@ -5,7 +5,10 @@ import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.ScanResult
-import com.miruplay.tv.model.connectionPasswordOrNull
+import com.miruplay.tv.model.mediaSourceConnectionFailedMessage
+import com.miruplay.tv.repository.MediaSourceActionCoordinator
+import com.miruplay.tv.repository.MediaSourceAddActionResult
+import com.miruplay.tv.repository.MediaSourceAddFailurePhase
 import com.miruplay.tv.repository.MediaSourceRepository
 
 fun SourceRequest.toMediaSourceInfo(
@@ -52,28 +55,35 @@ suspend fun MediaSourceRepository.addWebControlSource(
     request: SourceRequest,
     testConnection: suspend (MediaSourceInfo) -> SourceTestResponse,
 ): MediaSourceInfo {
-    val source = request.toMediaSourceInfo()
-    val sourceId = requireWebControlSuccess(addSource(source), "添加媒体源失败")
-    val persisted = source.copy(id = sourceId)
-    val connected = testConnection(persisted).connected
-    val savedSource = persisted.copy(isConnected = connected)
-    requireWebControlSuccess(updateSource(savedSource), "更新媒体源失败")
-    return savedSource.safeForApi()
+    val coordinator = MediaSourceActionCoordinator(this)
+    return when (
+        val result = coordinator.addSource(request.toMediaSourceInfo()) { source ->
+            Result.success(testConnection(source).connected)
+        }
+    ) {
+        is MediaSourceAddActionResult.Saved -> result.source.safeForApi()
+        is MediaSourceAddActionResult.Failed -> {
+            val prefix = when (result.phase) {
+                MediaSourceAddFailurePhase.AddSource -> "添加媒体源失败"
+                MediaSourceAddFailurePhase.UpdateConnectionState -> "更新媒体源失败"
+            }
+            throw IllegalStateException("$prefix: ${result.error.toUserMessage()}")
+        }
+    }
 }
 
 suspend fun MediaSourceRepository.updateWebControlSource(
     sourceId: Long,
     request: SourceRequest,
 ): MediaSourceInfo {
-    val existing = requireWebControlSuccess(getSourceById(sourceId), "媒体源不存在")
+    requireWebControlSuccess(getSourceById(sourceId), "媒体源不存在")
     val source = request.toMediaSourceInfo(
         sourceId = sourceId,
-        fallbackPassword = existing.connectionPasswordOrNull(),
-        isConnected = existing.isConnected,
-        lastScanned = existing.lastScanned,
     )
-    requireWebControlSuccess(updateSource(source), "更新媒体源失败")
-    return source.safeForApi()
+    return requireWebControlSuccess(
+        MediaSourceActionCoordinator(this).updateSource(source),
+        "更新媒体源失败",
+    ).safeForApi()
 }
 
 suspend fun MediaSourceRepository.removeWebControlSource(sourceId: Long) {
@@ -95,7 +105,7 @@ fun Result<Boolean>.toWebControlSourceTestResponse(): SourceTestResponse =
     when (this) {
         is Result.Success -> SourceTestResponse(
             connected = data,
-            message = if (data) "连接正常" else "无法连接",
+            message = if (data) "连接正常" else mediaSourceConnectionFailedMessage(),
         )
         is Result.Error -> SourceTestResponse(
             connected = false,

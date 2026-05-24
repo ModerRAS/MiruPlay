@@ -171,6 +171,8 @@ fun mediaSourceChooseFolderActionLabel(): String = "选择文件夹"
 
 fun mediaSourceConnectionSuccessMessage(): String = "连接正常，可以保存并返回首页扫描。"
 
+fun mediaSourceConnectionFailedMessage(): String = "无法连接到服务器"
+
 fun mediaSourceConnectionTestingMessage(): String = "正在验证连接..."
 
 fun mediaSourceLocalLibraryInitialStatus(): String =

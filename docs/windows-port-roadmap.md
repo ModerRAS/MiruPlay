@@ -102,6 +102,18 @@ shared/desktop gate `:repository-api:test :ui-tv:compileDebugKotlin
 :desktop-app:test checkDesktopPresenterSeparation checkDesktopComposeOnly
 -PbundleMpvRuntime=false` passed in Gradle MCP build `b-146`, and Android debug
 assemble `:app:assembleDebug -PbundleMpvRuntime=false` passed in `b-147`.
+Latest media-source action sharing update: `:repository-api` now owns
+`MediaSourceActionCoordinator`, so Android TV Settings and WebUI source APIs
+share source add/update/remove orchestration, password preservation on edits,
+connection-state and last-scan preservation, and post-add connection-state
+updates from the same repository action layer. The same pass also moved the
+disconnected source-test message into `core:model` so TV Settings and WebUI
+responses do not drift. The focused shared/desktop gate
+`:repository-api:test :web-control-core:test :web-control:compileDebugKotlin
+:ui-tv:compileDebugKotlin :desktop-app:test checkDesktopPresenterSeparation
+checkDesktopComposeOnly --rerun-tasks -PbundleMpvRuntime=false` passed in Gradle
+MCP build `b-153` with 358 tests passed, and Android debug assemble
+`:app:assembleDebug -PbundleMpvRuntime=false` passed in `b-154`.
 
 Latest local shared-input update: `:ui-design` now owns `MiruPlayInputIntent`
 for platform-neutral activation, Back/navigation-back, direction, and media

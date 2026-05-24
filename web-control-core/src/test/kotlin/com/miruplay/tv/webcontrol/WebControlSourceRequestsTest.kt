@@ -121,7 +121,7 @@ class WebControlSourceRequestsTest {
 
         val response = repository.addWebControlSource(
             request = SourceRequest(name = "Local", type = "local", location = "D:/Anime"),
-            testConnection = { SourceTestResponse(connected = false, message = "无法连接") },
+            testConnection = { SourceTestResponse(connected = false, message = "无法连接到服务器") },
         )
 
         assertEquals(false, requireNotNull(repository.updatedSource).isConnected)
@@ -252,7 +252,7 @@ class WebControlSourceRequestsTest {
         assertEquals(true, connected.connected)
         assertEquals("连接正常", connected.message)
         assertEquals(false, disconnected.connected)
-        assertEquals("无法连接", disconnected.message)
+        assertEquals("无法连接到服务器", disconnected.message)
     }
 
     @Test

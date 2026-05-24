@@ -146,8 +146,15 @@ scan-preference loading, auto-scan toggle persistence, interval
 hour-to-millisecond conversion, same-anime merge persistence, and playback-end
 action persistence through the same refreshed snapshots/results; the focused
 shared/desktop gate passed in Gradle MCP build `b-146`, and Android debug
-assemble passed in `b-147`. `SyncEngineImplTest` also locks imported NFO resume
-positions as milliseconds, matching the shared model. `core:model` now also owns shared
+assemble passed in `b-147`. `MediaSourceActionCoordinator` now also sits in
+`:repository-api`, so Android TV Settings and WebUI source APIs share source
+add/update/remove orchestration, password preservation on edits,
+connection-state and last-scan preservation, and post-add connection-state
+updates from one repository action layer; the focused shared/desktop gate
+passed in Gradle MCP build `b-153` with 358 tests passed, and Android debug
+assemble passed in `b-154`.
+`SyncEngineImplTest` also locks imported NFO resume positions as milliseconds,
+matching the shared model. `core:model` now also owns shared
 Episode ordering, season grouping/selection/filtering, distinct episode counts,
 and the Android TV Detail continue-play target and button-label rule, keeping
 the chosen episode and visible label aligned instead of leaving that decision in

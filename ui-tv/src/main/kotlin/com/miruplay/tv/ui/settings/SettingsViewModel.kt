@@ -13,9 +13,12 @@ import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.RssSubscriptionInfo
-import com.miruplay.tv.model.connectionPassword
+import com.miruplay.tv.model.mediaSourceConnectionFailedMessage
 import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
+import com.miruplay.tv.repository.MediaSourceActionCoordinator
+import com.miruplay.tv.repository.MediaSourceAddActionResult
+import com.miruplay.tv.repository.MediaSourceAddFailurePhase
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.PlaybackPreferencesRepository
 import com.miruplay.tv.repository.ScanPreferenceActionSnapshot
@@ -67,6 +70,7 @@ class SettingsViewModel @Inject constructor(
     private val cloudDriveDirectoryActions = CloudDriveDirectoryBrowserCoordinator(cloudDriveClient)
     private val webControlActions = WebControlAccessActionCoordinator(webControlPreferences)
     private val settingsPreferenceActions = SettingsPreferenceActionCoordinator(scanPreferences, playbackPreferences)
+    private val mediaSourceActions = MediaSourceActionCoordinator(mediaRepository)
 
     private val _sources = MutableStateFlow<List<MediaSourceInfo>>(emptyList())
     val sources: StateFlow<List<MediaSourceInfo>> = _sources.asStateFlow()
@@ -159,40 +163,26 @@ class SettingsViewModel @Inject constructor(
 
     fun addSource(source: MediaSourceInfo) {
         viewModelScope.launch {
-            mediaRepository.addSource(source).onSuccess { id ->
-                // Test connection after adding, then update status
-                val msResult = mediaSourceFactory.create(source)
-                msResult.onSuccess { ms ->
-                    ms.testConnection().onSuccess {
-                        mediaRepository.updateSource(source.copy(id = id, isConnected = true))
+            when (
+                val result = mediaSourceActions.addSource(source) { persisted ->
+                    mediaSourceFactory.create(persisted).flatMap { mediaSource ->
+                        mediaSource.testConnection()
                     }
                 }
-                loadSources()
+            ) {
+                is MediaSourceAddActionResult.Saved -> loadSources()
+                is MediaSourceAddActionResult.Failed -> {
+                    if (result.phase == MediaSourceAddFailurePhase.UpdateConnectionState) {
+                        loadSources()
+                    }
+                }
             }
         }
     }
 
     fun updateSource(source: MediaSourceInfo) {
         viewModelScope.launch {
-            val existing = mediaRepository.getSourceById(source.id).getOrNull()
-            val mergedSource = if (
-                MediaSourceInfoConventions.CONNECTION_PASSWORD !in source.connectionInfo &&
-                existing?.connectionPassword()?.isNotBlank() == true
-            ) {
-                source.copy(
-                    connectionInfo = source.connectionInfo + (
-                        MediaSourceInfoConventions.CONNECTION_PASSWORD to existing.connectionPassword()
-                    ),
-                    isConnected = existing.isConnected,
-                    lastScanned = existing.lastScanned
-                )
-            } else {
-                source.copy(
-                    isConnected = existing?.isConnected ?: source.isConnected,
-                    lastScanned = existing?.lastScanned ?: source.lastScanned
-                )
-            }
-            mediaRepository.updateSource(mergedSource).onSuccess {
+            mediaSourceActions.updateSource(source).onSuccess {
                 loadSources()
             }
         }
@@ -200,7 +190,7 @@ class SettingsViewModel @Inject constructor(
 
     fun removeSource(sourceId: Long) {
         viewModelScope.launch {
-            mediaRepository.removeSource(sourceId).onSuccess {
+            mediaSourceActions.removeSource(sourceId).onSuccess {
                 loadSources()
             }
         }
@@ -219,16 +209,24 @@ class SettingsViewModel @Inject constructor(
                     password = password,
                 )
             )
-            val sourceResult = mediaSourceFactory.create(info)
-            sourceResult.onSuccess { ms ->
-                val test = ms.testConnection()
-                test.onSuccess { connected ->
-                    _testResult.value = if (connected) ConnectionTestResult.Success else ConnectionTestResult.Failed("无法连接到服务器")
-                }.onError { error ->
-                    _testResult.value = ConnectionTestResult.Failed(error.toUserMessage())
+            when (val sourceResult = mediaSourceFactory.create(info)) {
+                is Result.Success -> {
+                    when (val test = sourceResult.data.testConnection()) {
+                        is Result.Success -> {
+                            _testResult.value = if (test.data) {
+                                ConnectionTestResult.Success
+                            } else {
+                                ConnectionTestResult.Failed(mediaSourceConnectionFailedMessage())
+                            }
+                        }
+                        is Result.Error -> {
+                            _testResult.value = ConnectionTestResult.Failed(test.error.toUserMessage())
+                        }
+                    }
                 }
-            }.onError { error ->
-                _testResult.value = ConnectionTestResult.Failed(error.toUserMessage())
+                is Result.Error -> {
+                    _testResult.value = ConnectionTestResult.Failed(sourceResult.error.toUserMessage())
+                }
             }
         }
     }
