@@ -23,9 +23,6 @@ import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
 import com.miruplay.tv.scanner.ScanCoordinator
 import com.miruplay.tv.sync.rss.CloudDriveRssAutomationEngine
-import com.miruplay.tv.sync.rss.CloudDriveDirectoryTarget
-import com.miruplay.tv.sync.rss.loadCloudDriveDirectory
-import com.miruplay.tv.sync.rss.prepareCloudDriveDirectoryBrowser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -303,33 +300,18 @@ class WebControlService @Inject constructor(
     }
 
     override suspend fun browseCloudDriveDirectories(endpointUrl: String, path: String): CloudDriveDirectoryDto = withContext(Dispatchers.IO) {
-        val resolvedEndpoint = endpointUrl.trim().takeIf { it.isNotBlank() }
-            ?: requireWebControlSuccess(cloudDriveRepository.getConfig(), "读取 CloudDrive 设置失败").endpointUrl
-        if (resolvedEndpoint.isBlank()) {
-            throw IllegalArgumentException("请先填写 CloudDrive2 地址")
-        }
-
-        val token = securePreferences.cloudDriveToken?.takeIf { it.isNotBlank() }
-            ?: throw IllegalArgumentException("请先登录 CloudDrive2 或保存 API Token")
-        val prepared = requireWebControlSuccess(
-            prepareCloudDriveDirectoryBrowser(
+        requireWebControlSuccess(
+            browseWebControlCloudDriveDirectory(
                 client = cloudDriveClient,
-                target = CloudDriveDirectoryTarget.INBOX,
-                endpointUrl = resolvedEndpoint,
-                token = token,
-                initialPath = path,
+                endpointUrl = endpointUrl,
+                fallbackEndpointUrl = {
+                    requireWebControlSuccess(cloudDriveRepository.getConfig(), "读取 CloudDrive 设置失败").endpointUrl
+                },
+                token = securePreferences.cloudDriveToken,
+                path = path,
             ),
             "读取 CloudDrive 目录失败",
         )
-        val loaded = requireWebControlSuccess(
-            loadCloudDriveDirectory(
-                client = cloudDriveClient,
-                state = prepared,
-                requestedPath = prepared.path,
-            ),
-            "读取 CloudDrive 目录失败",
-        )
-        loaded.toWebControlDirectoryDto()
     }
 
     private suspend fun findEpisodeById(episodeId: String): Episode? {

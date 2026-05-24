@@ -19,10 +19,7 @@ import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.desktop.DesktopRepositories
 import com.miruplay.tv.repository.mediaIndexPosterAnimeId
 import com.miruplay.tv.repository.toMediaIndexPosterGroups
-import com.miruplay.tv.sync.rss.CloudDriveDirectoryTarget
 import com.miruplay.tv.sync.rss.DesktopCloudDriveRssAutomationEngine
-import com.miruplay.tv.sync.rss.loadCloudDriveDirectory
-import com.miruplay.tv.sync.rss.prepareCloudDriveDirectoryBrowser
 import com.miruplay.tv.webcontrol.AnimeDetailDto
 import com.miruplay.tv.webcontrol.CloudDriveAutomationDto
 import com.miruplay.tv.webcontrol.CloudDriveConfigRequest
@@ -46,6 +43,7 @@ import com.miruplay.tv.webcontrol.SourceTestResponse
 import com.miruplay.tv.webcontrol.WebControlEndpointService
 import com.miruplay.tv.webcontrol.WebControlPlaybackCommandKind
 import com.miruplay.tv.webcontrol.absoluteSeekPositionMs
+import com.miruplay.tv.webcontrol.browseWebControlCloudDriveDirectory
 import com.miruplay.tv.webcontrol.buildWebControlServerInfo
 import com.miruplay.tv.webcontrol.filteredByQuery
 import com.miruplay.tv.webcontrol.idleWebControlPlaybackStatus
@@ -119,33 +117,18 @@ internal class DesktopWebControlService(
     }
 
     override suspend fun browseCloudDriveDirectories(endpointUrl: String, path: String): CloudDriveDirectoryDto {
-        val endpoint = endpointUrl.trim().ifBlank {
-            repositories.cloudDriveAutomation.getConfig().getOrNull()?.endpointUrl.orEmpty()
-        }
-        if (endpoint.isBlank()) {
-            throw IllegalArgumentException("请先填写 CloudDrive2 地址")
-        }
-        val token = repositories.credentials.cloudDriveToken?.takeIf { it.isNotBlank() }
-            ?: throw IllegalArgumentException("请先登录 CloudDrive2 或保存 API Token")
-        val prepared = requireWebControlSuccess(
-            prepareCloudDriveDirectoryBrowser(
+        return requireWebControlSuccess(
+            browseWebControlCloudDriveDirectory(
                 client = cloudDriveClient,
-                target = CloudDriveDirectoryTarget.INBOX,
-                endpointUrl = endpoint,
-                token = token,
-                initialPath = path,
+                endpointUrl = endpointUrl,
+                fallbackEndpointUrl = {
+                    repositories.cloudDriveAutomation.getConfig().getOrNull()?.endpointUrl.orEmpty()
+                },
+                token = repositories.credentials.cloudDriveToken,
+                path = path,
             ),
             "读取 CloudDrive 目录失败",
         )
-        val loaded = requireWebControlSuccess(
-            loadCloudDriveDirectory(
-                client = cloudDriveClient,
-                state = prepared,
-                requestedPath = prepared.path,
-            ),
-            "读取 CloudDrive 目录失败",
-        )
-        return loaded.toWebControlDirectoryDto()
     }
 
     override suspend fun addSource(request: SourceRequest): MediaSourceInfo {
