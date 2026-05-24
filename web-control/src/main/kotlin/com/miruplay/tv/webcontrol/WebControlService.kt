@@ -162,44 +162,26 @@ class WebControlService @Inject constructor(
     }
 
     override suspend fun loginCloudDrive(request: CloudDriveLoginRequest): CloudDriveAutomationDto {
-        if (request.endpointUrl.isBlank() || request.username.isBlank() || request.password.isBlank()) {
-            throw IllegalArgumentException("请填写 CloudDrive2 地址、用户名和密码")
-        }
+        val login = request.validated()
         requireSuccess(
-            cloudDriveEngine.login(request.endpointUrl.trim(), request.username.trim(), request.password),
+            cloudDriveEngine.login(login.endpointUrl, login.username, login.password),
             "CloudDrive2 登录失败"
         )
         return getCloudDriveAutomation()
     }
 
     override suspend fun saveCloudDriveToken(request: CloudDriveTokenRequest): CloudDriveTokenResponse {
-        if (request.endpointUrl.isBlank() || request.token.isBlank()) {
-            throw IllegalArgumentException("请填写 CloudDrive2 地址和 API Token")
-        }
+        val tokenRequest = request.validated()
         val tokenInfo = requireSuccess(
-            cloudDriveEngine.saveApiToken(request.endpointUrl.trim(), request.token.trim()),
+            cloudDriveEngine.saveApiToken(tokenRequest.endpointUrl, tokenRequest.token),
             "CloudDrive2 API Token 验证失败"
         )
-        return CloudDriveTokenResponse(
-            rootDir = tokenInfo.rootDir,
-            friendlyName = tokenInfo.friendlyName,
-            allowList = tokenInfo.allowList,
-            allowCreateFolder = tokenInfo.allowCreateFolder,
-            allowCreateFile = tokenInfo.allowCreateFile,
-            allowWrite = tokenInfo.allowWrite,
-            allowMove = tokenInfo.allowMove,
-            allowAddOfflineDownload = tokenInfo.allowAddOfflineDownload
-        )
+        return tokenInfo.toWebControlResponse()
     }
 
     override suspend fun runCloudDriveAutomationNow(): CloudDriveRunResponse {
         val summary = requireSuccess(cloudDriveEngine.runOnce(), "CloudDrive/RSS 执行失败")
-        return CloudDriveRunResponse(
-            submitted = summary.submitted,
-            skipped = summary.skipped,
-            failed = summary.failed,
-            organized = summary.organized
-        )
+        return summary.toWebControlResponse()
     }
 
     override suspend fun saveRssSubscription(request: RssSubscriptionRequest): RssSubscriptionInfo {

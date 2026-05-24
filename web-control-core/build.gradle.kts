@@ -12,6 +12,7 @@ project.extra.set("pureKotlin", true)
 
 dependencies {
     api(project(":core:model"))
+    api(project(":cloud-drive-api"))
     api(project(":repository-api"))
     api(libs.nanohttpd)
 

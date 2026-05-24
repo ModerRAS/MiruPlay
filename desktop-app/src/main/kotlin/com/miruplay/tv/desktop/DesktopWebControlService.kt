@@ -58,7 +58,9 @@ import com.miruplay.tv.webcontrol.skipForwardDeltaMs
 import com.miruplay.tv.webcontrol.toAutomationConfig
 import com.miruplay.tv.webcontrol.toMediaSourceInfo
 import com.miruplay.tv.webcontrol.toSubscription
+import com.miruplay.tv.webcontrol.toWebControlResponse
 import com.miruplay.tv.webcontrol.toWebControlLibrary
+import com.miruplay.tv.webcontrol.validated
 import com.miruplay.tv.webcontrol.webControlDefaultSourceName
 import com.miruplay.tv.webcontrol.withSavedId
 import kotlinx.coroutines.flow.first
@@ -247,14 +249,12 @@ internal class DesktopWebControlService(
     }
 
     override suspend fun loginCloudDrive(request: CloudDriveLoginRequest): CloudDriveAutomationDto {
-        if (request.endpointUrl.isBlank() || request.username.isBlank() || request.password.isBlank()) {
-            throw IllegalArgumentException("请填写 CloudDrive2 地址、用户名和密码")
-        }
+        val login = request.validated()
         requireSuccess(
             cloudRssEngine.login(
-                endpointUrl = request.endpointUrl.trim(),
-                username = request.username.trim(),
-                password = request.password,
+                endpointUrl = login.endpointUrl,
+                username = login.username,
+                password = login.password,
             ),
             "CloudDrive2 登录失败",
         )
@@ -262,37 +262,21 @@ internal class DesktopWebControlService(
     }
 
     override suspend fun saveCloudDriveToken(request: CloudDriveTokenRequest): CloudDriveTokenResponse {
-        if (request.endpointUrl.isBlank() || request.token.isBlank()) {
-            throw IllegalArgumentException("请填写 CloudDrive2 地址和 API Token")
-        }
+        val tokenRequest = request.validated()
         val tokenInfo = requireSuccess(
             cloudRssEngine.saveApiToken(
-                endpointUrl = request.endpointUrl.trim(),
-                token = request.token.trim(),
+                endpointUrl = tokenRequest.endpointUrl,
+                token = tokenRequest.token,
             ),
             "CloudDrive2 API Token 验证失败",
         )
-        return CloudDriveTokenResponse(
-            rootDir = tokenInfo.rootDir,
-            friendlyName = tokenInfo.friendlyName,
-            allowList = tokenInfo.allowList,
-            allowCreateFolder = tokenInfo.allowCreateFolder,
-            allowCreateFile = tokenInfo.allowCreateFile,
-            allowWrite = tokenInfo.allowWrite,
-            allowMove = tokenInfo.allowMove,
-            allowAddOfflineDownload = tokenInfo.allowAddOfflineDownload,
-        )
+        return tokenInfo.toWebControlResponse()
     }
 
     override suspend fun runCloudDriveAutomationNow(): CloudDriveRunResponse {
         val summary = requireSuccess(cloudRssEngine.runOnce(), "CloudDrive/RSS 执行失败")
         rescanLinkedCloudDriveSource(summary.completeStatus())
-        return CloudDriveRunResponse(
-            submitted = summary.submitted,
-            skipped = summary.skipped,
-            failed = summary.failed,
-            organized = summary.organized,
-        )
+        return summary.toWebControlResponse()
     }
 
     override suspend fun saveRssSubscription(request: RssSubscriptionRequest): com.miruplay.tv.model.RssSubscriptionInfo {
