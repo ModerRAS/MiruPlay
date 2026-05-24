@@ -41,9 +41,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.miruplay.tv.design.MiruPlayFocusAxis
 import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.design.MiruPlayUiMetrics
+import com.miruplay.tv.design.firstEnabledFocusIndex
 import com.miruplay.tv.design.horizontalNavigationDelta
+import com.miruplay.tv.design.nextEnabledFocusIndex
 import com.miruplay.tv.design.verticalNavigationDelta
 import com.miruplay.tv.model.CLOUD_DRIVE_DIRECTORY_PAGE_SIZE
 import com.miruplay.tv.model.CLOUD_RSS_SUBSCRIPTION_PAGE_SIZE
@@ -1784,17 +1787,14 @@ internal fun settingsQuickActionNavigationTarget(
     actionCount: Int = 0,
     intent: MiruPlayInputIntent,
     enabledActions: List<Boolean> = List(actionCount) { true },
-): Int? {
-    val count = enabledActions.size.takeIf { actionCount == 0 } ?: actionCount
-    if (count <= 0 || currentIndex !in 0 until count) return null
-    val delta = intent.horizontalNavigationDelta() ?: return null
-    var target = currentIndex + delta
-    while (target in 0 until count) {
-        if (enabledActions.getOrElse(target) { true }) return target
-        target += delta
-    }
-    return null
-}
+): Int? =
+    nextEnabledFocusIndex(
+        currentIndex = currentIndex,
+        intent = intent,
+        axis = MiruPlayFocusAxis.Horizontal,
+        itemCount = enabledActions.size.takeIf { actionCount == 0 } ?: actionCount,
+        enabledItems = enabledActions,
+    )
 
 internal sealed interface SettingsQuickActionFocusTarget {
     data class Action(val index: Int) : SettingsQuickActionFocusTarget
@@ -1860,13 +1860,11 @@ internal fun settingsSummaryExtraFocusTarget(
 private fun firstEnabledSettingsQuickActionIndex(
     actionCount: Int,
     enabledActions: List<Boolean>,
-): Int? {
-    val count = enabledActions.size.takeIf { actionCount == 0 } ?: actionCount
-    if (count <= 0) return null
-    return (0 until count).firstOrNull { index ->
-        enabledActions.getOrElse(index) { true }
-    }
-}
+): Int? =
+    firstEnabledFocusIndex(
+        itemCount = enabledActions.size.takeIf { actionCount == 0 } ?: actionCount,
+        enabledItems = enabledActions,
+    )
 
 @Composable
 private fun SettingsSectionMenu(

@@ -451,11 +451,18 @@ RSS picker, and Settings quick-action rows now also use intent-level navigation
 contracts while retaining thin Compose `Key` adapters. The Bangumi action grid,
 batch-match/candidate/search-result lists, list exits, and empty-results bridge
 now also use those intent-level navigation helpers, so the metadata panel keeps
-raw Compose `Key` handling at the adapter boundary. Verified with
+raw Compose `Key` handling at the adapter boundary. `MiruPlayFocusTraversal`
+now also lives in `:ui-design`, covering pure Kotlin row/column stepping,
+edge-stop behavior, and disabled-control skipping; Windows Player transport,
+playback-setting/runtime traversal, and Settings quick-action rows now consume
+that shared primitive instead of private Compose-panel index loops. Verified with
 `:ui-design:test :ui-tv:test :desktop-app:test -PbundleMpvRuntime=false`
 and
 `checkDesktopPresenterSeparation checkDesktopComposeOnly :ui-tv:compileDebugKotlin :app:assembleDebug -PbundleMpvRuntime=false`
-in Gradle MCP builds `b-238` and `b-239`.
+in Gradle MCP builds `b-238` and `b-239`; the focus traversal follow-up passed
+`:ui-design:test :desktop-app:test -PbundleMpvRuntime=false` in Gradle MCP
+build `b-240` with 243 tests and the same Android/desktop compile/separation
+gate in `b-241`.
 
 ## Latest Verification Commands
 

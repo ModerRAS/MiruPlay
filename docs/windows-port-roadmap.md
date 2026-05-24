@@ -217,11 +217,20 @@ contracts while retaining thin Compose `Key` adapters. The Bangumi action grid,
 batch-match/candidate/search-result lists, list exits, and empty-results bridge
 now use the same intent-level navigation helpers, leaving Compose `Key`
 handling as an adapter instead of the metadata focus contract.
+Latest shared focus traversal follow-up: `:ui-design` now also owns
+`MiruPlayFocusTraversal` for pure Kotlin row/column stepping, TV-style edge
+stops, and disabled-control skipping. The Windows Player transport/runtime
+focus rules and Settings quick-action rows now consume that shared primitive
+instead of keeping local index-walk loops in Compose panels, so future Android
+TV or KMP surfaces can reuse the same directional traversal contract without
+depending on Compose Desktop.
 Verified with
 `:ui-design:test :ui-tv:test :desktop-app:test -PbundleMpvRuntime=false`
 and
 `checkDesktopPresenterSeparation checkDesktopComposeOnly :ui-tv:compileDebugKotlin :app:assembleDebug -PbundleMpvRuntime=false`
-in Gradle MCP builds `b-238` and `b-239`.
+in Gradle MCP builds `b-238` and `b-239`; the focus traversal follow-up passed
+`:ui-design:test :desktop-app:test -PbundleMpvRuntime=false` in `b-240` with
+243 tests and the same Android/desktop compile/separation gate in `b-241`.
 
 ## Work Plan
 

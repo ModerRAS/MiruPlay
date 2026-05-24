@@ -50,11 +50,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.miruplay.tv.design.MiruPlayFocusAxis
 import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.design.MiruPlayPlaybackInputAction
 import com.miruplay.tv.design.MiruPlayUiMetrics
 import com.miruplay.tv.design.desktopPlaybackGlobalMediaAction
 import com.miruplay.tv.design.desktopPlaybackStageAction
+import com.miruplay.tv.design.focusTargetAfter
 import com.miruplay.tv.design.horizontalNavigationDelta
 import com.miruplay.tv.design.verticalNavigationDelta
 import com.miruplay.tv.model.mpvPlaybackSourceLine
@@ -567,12 +569,8 @@ internal fun desktopPlayerStageNavigationTarget(
 private fun DesktopPlayerStageFocusTarget.transportStep(
     delta: Int,
     isPlayerActive: Boolean,
-): DesktopPlayerStageFocusTarget? {
-    val targets = desktopPlayerTransportTargets(isPlayerActive)
-    val currentIndex = targets.indexOf(this)
-    if (currentIndex < 0) return null
-    return targets.getOrNull(currentIndex + delta)
-}
+): DesktopPlayerStageFocusTarget? =
+    desktopPlayerTransportTargets(isPlayerActive).focusTargetAfter(current = this, delta = delta)
 
 internal enum class DesktopPlayerKeyAction {
     Launch,
@@ -736,21 +734,16 @@ internal fun playbackSettingNavigationTarget(
         -> when (intent.verticalNavigationDelta()) {
             -1 -> PlaybackSettingFocusTarget.EndAction
             1 -> PlaybackSettingFocusTarget.NextPanel
-            else -> intent.horizontalNavigationDelta()?.let { delta ->
-                current.playbackSettingToggleStep(delta = delta)
-            }
+            else -> playbackSettingToggleTargets.focusTargetAfter(
+                current = current,
+                intent = intent,
+                axis = MiruPlayFocusAxis.Horizontal,
+            )
         }
         PlaybackSettingFocusTarget.PreviousPanel,
         PlaybackSettingFocusTarget.NextPanel,
         -> null
     }
-
-private fun PlaybackSettingFocusTarget.playbackSettingToggleStep(delta: Int): PlaybackSettingFocusTarget? {
-    val targets = playbackSettingToggleTargets
-    val currentIndex = targets.indexOf(this)
-    if (currentIndex < 0) return null
-    return targets.getOrNull(currentIndex + delta)
-}
 
 private fun Modifier.playbackSettingNavigation(
     target: PlaybackSettingFocusTarget,
@@ -792,12 +785,8 @@ internal fun runtimeNavigationTarget(
         else -> null
     }
 
-private fun RuntimeFocusTarget.runtimeStep(delta: Int): RuntimeFocusTarget? {
-    val targets = runtimeFocusableTargets
-    val currentIndex = targets.indexOf(this)
-    if (currentIndex < 0) return null
-    return targets.getOrNull(currentIndex + delta)
-}
+private fun RuntimeFocusTarget.runtimeStep(delta: Int): RuntimeFocusTarget? =
+    runtimeFocusableTargets.focusTargetAfter(current = this, delta = delta)
 
 private fun Modifier.runtimeNavigation(
     target: RuntimeFocusTarget,
