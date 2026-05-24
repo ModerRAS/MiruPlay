@@ -17,6 +17,9 @@ import com.miruplay.tv.sync.rss.CloudDriveLibraryOrganizer
 import com.miruplay.tv.sync.rss.DesktopCloudDriveRssAutomationEngine
 import com.miruplay.tv.sync.rss.RssFeedItem
 import com.miruplay.tv.sync.rss.RssFeedReader
+import com.miruplay.tv.webcontrol.PlayEpisodeRequest
+import com.miruplay.tv.webcontrol.PlaybackCommandRequest
+import com.miruplay.tv.webcontrol.PlaybackStatusDto
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -234,6 +237,110 @@ class DesktopWebControlServerTest {
     }
 
     @Test
+    fun `desktop web control routes playback requests through injected desktop handlers`() = runBlocking {
+        val storePath = Files.createTempDirectory("miruplay-web-control-store").resolve("store.json")
+        val mediaRoot = Files.createTempDirectory("miruplay-web-control-media")
+        val port = freePort()
+        try {
+            val showDir = Files.createDirectory(mediaRoot.resolve("Frieren"))
+            val firstEpisode = showDir.resolve("Frieren - 01.mkv")
+            Files.writeString(firstEpisode, "video")
+            val repositories = DesktopRepositories.fileBacked(storePath)
+            val sourceId = (repositories.mediaSources.addSource(
+                MediaSourceInfoConventions.local(
+                    name = "Local Anime",
+                    rootPath = mediaRoot.toString(),
+                    isConnected = true,
+                )
+            ) as Result.Success).data
+            val episodeId = "$sourceId:${firstEpisode}"
+            repositories.metadata.cacheMetadata(
+                Anime(
+                    id = "Frieren",
+                    title = "Sousou no Frieren",
+                    titleCn = "葬送的芙莉莲",
+                ),
+            )
+            repositories.metadata.cacheEpisodes(
+                animeId = "Frieren",
+                episodes = listOf(
+                    Episode(
+                        id = episodeId,
+                        animeId = "Frieren",
+                        episodeNumber = 1,
+                        filePath = firstEpisode.toString(),
+                        fileName = firstEpisode.fileName.toString(),
+                    ),
+                ),
+            )
+            repositories.webControlAccess.webControlEnabled = true
+            val token = repositories.webControlAccess.accessToken
+            val played = mutableListOf<Pair<PlayEpisodeRequest, Episode>>()
+            val commands = mutableListOf<PlaybackCommandRequest>()
+            val service = DesktopWebControlService(
+                repositories = repositories,
+                deviceName = "Windows Test",
+                playEpisodeHandler = { request, episode ->
+                    played += request to episode
+                    PlaybackStatusDto(
+                        state = "Playing",
+                        uri = episode.filePath,
+                        mediaSourceId = episode.id.substringBefore(':'),
+                        positionMs = request.startPositionMs ?: 0L,
+                        durationMs = 0L,
+                        isPlaying = true,
+                    )
+                },
+                playbackCommandHandler = { command ->
+                    commands += command
+                    PlaybackStatusDto(
+                        state = "Playing",
+                        positionMs = command.positionMs ?: 0L,
+                        durationMs = 0L,
+                        isPlaying = true,
+                    )
+                },
+            )
+            val server = DesktopWebControlServer(
+                webControlService = service,
+                webControlAccess = repositories.webControlAccess,
+                port = port,
+            )
+            server.startIfNeeded()
+            try {
+                val play = request(
+                    url = "http://127.0.0.1:$port/api/playback/play?token=$token",
+                    method = "POST",
+                    body = """{"episodeId":"${episodeId.jsonEscaped()}","startPositionMs":12000}""",
+                )
+                assertEquals(200, play.code)
+                assertTrue(play.body.contains("\"state\":\"Playing\""))
+                assertTrue(play.body.contains("\"positionMs\":12000"))
+                assertEquals(1, played.size)
+                assertEquals(episodeId, played.single().first.episodeId)
+                assertEquals(12_000L, played.single().first.startPositionMs)
+                assertEquals(firstEpisode.toString(), played.single().second.filePath)
+
+                val seek = request(
+                    url = "http://127.0.0.1:$port/api/playback/command?token=$token",
+                    method = "POST",
+                    body = """{"command":"seek","positionMs":45000}""",
+                )
+                assertEquals(200, seek.code)
+                assertTrue(seek.body.contains("\"positionMs\":45000"))
+                assertEquals(1, commands.size)
+                assertEquals("seek", commands.single().command)
+                assertEquals(45_000L, commands.single().positionMs)
+            } finally {
+                server.stopIfRunning()
+            }
+        } finally {
+            mediaRoot.toFile().deleteRecursively()
+            storePath.parent.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
     fun `desktop web control uses shared CloudDrive engine and directory browser`() = runBlocking {
         val storePath = Files.createTempDirectory("miruplay-web-control-store").resolve("store.json")
         val port = freePort()
@@ -368,6 +475,9 @@ class DesktopWebControlServerTest {
 
     private fun freePort(): Int =
         ServerSocket(0).use { it.localPort }
+
+    private fun String.jsonEscaped(): String =
+        replace("\\", "\\\\").replace("\"", "\\\"")
 
     private fun request(url: String, method: String = "GET", body: String? = null): HttpResult {
         val connection = URI(url).toURL().openConnection() as HttpURLConnection

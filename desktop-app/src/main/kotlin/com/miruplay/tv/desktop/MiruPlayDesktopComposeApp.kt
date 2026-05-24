@@ -16,6 +16,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -56,9 +57,11 @@ import com.miruplay.tv.model.PLAYBACK_SEEK_FORWARD_SECONDS
 import com.miruplay.tv.model.CloudDriveApiTokenFormResult
 import com.miruplay.tv.model.CloudDriveDirectoryPickerFormResult
 import com.miruplay.tv.model.CloudDriveLoginFormResult
+import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaPathConventions
+import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.PlaybackProgressSession
 import com.miruplay.tv.model.PlaybackSource
@@ -223,6 +226,9 @@ import com.miruplay.tv.sync.rss.loadingFor
 import com.miruplay.tv.sync.rss.prepareCloudDriveDirectoryBrowser
 import com.miruplay.tv.sync.rss.schedulerStatus
 import com.miruplay.tv.sync.rss.selectCloudDriveDirectory as selectSharedCloudDriveDirectory
+import com.miruplay.tv.webcontrol.PlayEpisodeRequest
+import com.miruplay.tv.webcontrol.PlaybackCommandRequest
+import com.miruplay.tv.webcontrol.PlaybackStatusDto
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -230,6 +236,7 @@ import java.awt.Dimension
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import kotlin.math.absoluteValue
 import kotlin.math.roundToLong
 
 internal val AnimeRed = Color(MiruPlayPalette.ANIME_RED_ARGB)
@@ -245,6 +252,36 @@ private const val DESKTOP_PLAYBACK_MEDIA_SOURCE_ID = "desktop-compose"
 private const val PLAYBACK_EOF_POLL_INTERVAL_MS = 1_000L
 private const val PLAYBACK_PROGRESS_POLL_INTERVAL_MS = 10_000L
 internal typealias DesktopSection = MiruPlayRouteSurface.Section
+
+private class DesktopWebControlPlaybackHandlers {
+    var playEpisode: suspend (PlayEpisodeRequest, Episode) -> PlaybackStatusDto = { _, _ ->
+        throw UnsupportedOperationException("Windows WebUI 暂未接入远程播放启动")
+    }
+    var playbackCommand: suspend (PlaybackCommandRequest) -> PlaybackStatusDto = {
+        throw UnsupportedOperationException("Windows WebUI 暂未接入远程播放控制")
+    }
+}
+
+private fun webControlPlaybackCommandStatus(command: PlaybackCommandRequest): String =
+    when (command.command.lowercase()) {
+        "pause" -> mpvPausedStatus()
+        "resume", "play" -> mpvResumedStatus()
+        "toggle" -> mpvPauseToggledStatus()
+        "stop" -> mpvStoppedStatus()
+        "seek" -> mpvPositionSyncedStatus(command.positionMs ?: 0L)
+        "seek_relative" -> if ((command.deltaMs ?: 0L) < 0L) {
+            mpvSeekBackStatus(seconds = ((command.deltaMs ?: 0L).absoluteValue / 1000L).toInt())
+        } else {
+            mpvSeekForwardStatus(seconds = ((command.deltaMs ?: 0L) / 1000L).toInt())
+        }
+        "skip_forward" -> mpvSeekForwardStatus(
+            seconds = ((command.deltaMs ?: PLAYBACK_SEEK_FORWARD_SECONDS * 1000L) / 1000L).toInt(),
+        )
+        "skip_backward" -> mpvSeekBackStatus(
+            seconds = ((command.deltaMs ?: PLAYBACK_SEEK_BACK_SECONDS * 1000L) / 1000L).toInt(),
+        )
+        else -> mpvIdleStatus()
+    }
 
 private const val DESKTOP_START_SECTION_ENV = "MIRUPLAY_DESKTOP_START_SECTION"
 internal const val DESKTOP_ENTRY_SMOKE_ARG = "--miruplay-desktop-smoke"
@@ -453,6 +490,7 @@ internal fun MiruPlayDesktopComposeApp(
     var selectedDesktopSection by remember { mutableStateOf(desktopInitialSectionFromEnvironment()) }
     var player by remember { mutableStateOf<MpvProcessPlayer?>(null) }
     var activePlaybackSession by remember { mutableStateOf<PlaybackProgressSession?>(null) }
+    var webControlPlaybackSource by remember { mutableStateOf<DesktopMediaSource?>(null) }
     var mpvPath by remember { mutableStateOf(defaultMpvLayout.executable.toString()) }
     var configDir by remember { mutableStateOf(defaultMpvLayout.configDirectory.toString()) }
     var libraryRoot by remember { mutableStateOf("") }
@@ -528,6 +566,7 @@ internal fun MiruPlayDesktopComposeApp(
     var rifeBackend by remember { mutableStateOf(RifeBackend.NVIDIA) }
     var status by remember { mutableStateOf(mpvRuntimeStatusFromInputs(mpvPath, configDir)) }
     var launchStatus by remember { mutableStateOf(mpvIdleStatus()) }
+    val webControlPlaybackHandlers = remember { DesktopWebControlPlaybackHandlers() }
     val desktopWebControlService = remember(repositories) {
         DesktopWebControlService(
             repositories = repositories,
@@ -541,6 +580,8 @@ internal fun MiruPlayDesktopComposeApp(
                     launchStatus = launchStatus,
                 )
             },
+            playEpisodeHandler = { request, episode -> webControlPlaybackHandlers.playEpisode(request, episode) },
+            playbackCommandHandler = { command -> webControlPlaybackHandlers.playbackCommand(command) },
         )
     }
     val desktopWebControlServer = remember(desktopWebControlService, repositories) {
@@ -594,6 +635,14 @@ internal fun MiruPlayDesktopComposeApp(
             desktopWebControlServer.stopIfRunning()
             playbackBridge.close()
             cloudRssScheduler.stop()
+        }
+    }
+
+    suspend fun clearWebControlPlaybackSource() {
+        val source = webControlPlaybackSource
+        webControlPlaybackSource = null
+        if (source != null && source !== activeSource && source !== activeLocalSource) {
+            source.close()
         }
     }
 
@@ -819,7 +868,13 @@ internal fun MiruPlayDesktopComposeApp(
             incrementPlayCount = incrementPlayCount,
         )
 
-    fun playbackLaunchRequestFor(path: String, startPositionMs: Long): DesktopPlaybackLaunchRequest =
+    fun playbackLaunchRequestFor(
+        path: String,
+        startPositionMs: Long,
+        sourceOverride: DesktopMediaSource? = null,
+        sourceIdOverride: Long? = null,
+        episodeId: String? = null,
+    ): DesktopPlaybackLaunchRequest =
         DesktopPlaybackLaunchRequest(
             mpvPath = mpvPath,
             configDir = configDir,
@@ -832,24 +887,37 @@ internal fun MiruPlayDesktopComposeApp(
             keepOpen = keepOpen,
             rifeEnabled = rifeEnabled,
             rifeBackend = rifeBackend,
-            activeSource = activeSource,
-            activeSourceId = activeSourceId,
+            activeSource = sourceOverride ?: activeSource,
+            activeSourceId = sourceIdOverride ?: activeSourceId,
             blankMediaMessage = playbackBlankMediaMessage(),
             fallbackMediaSourceId = DESKTOP_PLAYBACK_MEDIA_SOURCE_ID,
+            episodeId = episodeId,
         )
 
-    suspend fun launchDesktopPlayback(path: String = mediaPath, startPositionMs: Long? = null): Result<DesktopPlaybackLaunchResult> {
+    suspend fun launchDesktopPlayback(
+        path: String = mediaPath,
+        startPositionMs: Long? = null,
+        sourceOverride: DesktopMediaSource? = null,
+        sourceIdOverride: Long? = null,
+        episodeId: String? = null,
+    ): Result<DesktopPlaybackLaunchResult> {
         val previousMediaPath = mediaPath
         val request = playbackLaunchRequestFor(
             path = path,
             startPositionMs = startPositionMs ?: PlaybackTimingConventions.parseSecondsToPositionMs(startSeconds),
+            sourceOverride = sourceOverride,
+            sourceIdOverride = sourceIdOverride,
+            episodeId = episodeId,
         )
         return when (val result = playbackLauncher.launch(request)) {
             is Result.Success -> {
-                val launchedEpisodeId = result.data.session.episodeId
+                val launchedMediaPath = path.trim()
+                if (sourceOverride !== webControlPlaybackSource) {
+                    clearWebControlPlaybackSource()
+                }
                 player = result.data.player
                 activePlaybackSession = result.data.session
-                mediaPath = launchedEpisodeId
+                mediaPath = launchedMediaPath
                 startSeconds = PlaybackTimingConventions.formatMpvStartSeconds(result.data.source.startPosition)
                 if (path != previousMediaPath) {
                     subtitlePath = ""
@@ -861,10 +929,10 @@ internal fun MiruPlayDesktopComposeApp(
                         savePlaybackProgress(episodeId, positionMs, lastWatched, incrementPlayCount)
                     },
                 )
-                indexedEntries.firstOrNull { it.path == launchedEpisodeId }?.let { entry ->
+                indexedEntries.firstOrNull { it.path == launchedMediaPath }?.let { entry ->
                     selectedIndexEntry = entry
                 }
-                selectedIndexEntry?.takeIf { it.path == launchedEpisodeId }?.let { entry ->
+                selectedIndexEntry?.takeIf { it.path == launchedMediaPath }?.let { entry ->
                     ensureSelectedMetadataCache(entry)
                 }
                 refreshRecentProgress()
@@ -875,6 +943,84 @@ internal fun MiruPlayDesktopComposeApp(
                 launchStatus = result.error.toUserMessage()
                 result
             }
+        }
+    }
+
+    SideEffect {
+        webControlPlaybackHandlers.playEpisode = { request, episode ->
+            val sourceId = episode.id.substringBefore(':', "").toLongOrNull()
+            val sourceInfo = sourceId?.let { id ->
+                savedSources.firstOrNull { it.id == id }
+                    ?: repositories.mediaSources.getSourceById(id).getOrNull()
+            }
+            val sourceOverride = when {
+                sourceInfo == null -> null
+                sourceInfo.type == MediaSourceType.LOCAL -> activeLocalSource ?: desktopSourceFromInfo(sourceInfo)
+                sourceInfo.id == activeSourceId -> activeSource ?: desktopSourceFromInfo(sourceInfo)
+                else -> desktopSourceFromInfo(sourceInfo)
+            }
+            val ownsSourceOverride = sourceOverride != null &&
+                sourceOverride !== activeSource &&
+                sourceOverride !== activeLocalSource
+            val progress = repositories.progress.getProgress(episode.id).getOrNull()
+            val startPositionMs = request.startPositionMs
+                ?: episode.toPlaybackSource(
+                    playableUri = episode.filePath,
+                    progress = progress,
+                ).startPosition
+            when (
+                val launched = launchDesktopPlayback(
+                    path = episode.filePath,
+                    startPositionMs = startPositionMs,
+                    sourceOverride = sourceOverride,
+                    sourceIdOverride = sourceId,
+                    episodeId = episode.id,
+                )
+            ) {
+                is Result.Success -> {
+                    if (ownsSourceOverride) {
+                        webControlPlaybackSource = sourceOverride
+                    }
+                    selectedDesktopSection = MiruPlayRouteSurface.player
+                    desktopWebControlPlaybackStatus(
+                        player = player,
+                        session = activePlaybackSession,
+                        mediaPath = mediaPath,
+                        launchStatus = launchStatus,
+                    )
+                }
+                is Result.Error -> {
+                    if (ownsSourceOverride) {
+                        sourceOverride?.close()
+                    }
+                    throw IllegalStateException(launched.error.toUserMessage())
+                }
+            }
+        }
+        webControlPlaybackHandlers.playbackCommand = { command ->
+            val statusDto = desktopWebControlPlaybackCommand(
+                request = command,
+                player = player,
+                session = activePlaybackSession,
+                stopPlayback = {
+                    stopDesktopPlayback(
+                        player = player,
+                        session = activePlaybackSession,
+                        saveProgress = { episodeId, positionMs, lastWatched, incrementPlayCount ->
+                            savePlaybackProgress(episodeId, positionMs, lastWatched, incrementPlayCount)
+                        },
+                    )
+                    player = null
+                    activePlaybackSession = null
+                    clearWebControlPlaybackSource()
+                    refreshRecentProgress()
+                },
+            )
+            launchStatus = webControlPlaybackCommandStatus(command)
+            if (!statusDto.isPlaying && command.command.equals("stop", ignoreCase = true)) {
+                selectedDesktopSection = MiruPlayRouteSurface.details
+            }
+            statusDto
         }
     }
 
@@ -921,15 +1067,32 @@ internal fun MiruPlayDesktopComposeApp(
                             }
                         }
                         activePlayer.stop()
+                        val nextSource = nextTarget?.let { webControlPlaybackSource }
+                        val nextSourceId = nextTarget?.episodeId
+                            ?.substringBefore(':', "")
+                            ?.toLongOrNull()
                         player = null
                         activePlaybackSession = null
                         refreshRecentProgress()
                         if (nextTarget != null) {
-                            launchDesktopPlayback(
-                                path = nextTarget.uri,
-                                startPositionMs = nextTarget.startPosition,
-                            )
+                            when (
+                                val nextLaunch = launchDesktopPlayback(
+                                    path = nextTarget.uri,
+                                    startPositionMs = nextTarget.startPosition,
+                                    sourceOverride = nextSource,
+                                    sourceIdOverride = nextSourceId,
+                                    episodeId = nextTarget.episodeId,
+                                )
+                            ) {
+                                is Result.Success -> Unit
+                                is Result.Error -> {
+                                    clearWebControlPlaybackSource()
+                                    launchStatus = nextLaunch.error.toUserMessage()
+                                    selectedDesktopSection = MiruPlayRouteSurface.details
+                                }
+                            }
                         } else {
+                            clearWebControlPlaybackSource()
                             launchStatus = mpvPlaybackCompletedStatus(completed.data)
                             selectedDesktopSection = MiruPlayRouteSurface.details
                         }
@@ -951,6 +1114,7 @@ internal fun MiruPlayDesktopComposeApp(
                 )
                 player = null
                 activePlaybackSession = null
+                clearWebControlPlaybackSource()
                 refreshRecentProgress()
                 launchStatus = mpvExitedStatus()
                 return@LaunchedEffect
@@ -2310,6 +2474,7 @@ internal fun MiruPlayDesktopComposeApp(
                             )
                             player = null
                             activePlaybackSession = null
+                            clearWebControlPlaybackSource()
                             refreshRecentProgress()
                             launchStatus = mpvStoppedStatus()
                         }

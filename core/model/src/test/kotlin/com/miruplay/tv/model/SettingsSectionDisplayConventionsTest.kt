@@ -70,7 +70,7 @@ class SettingsSectionDisplayConventionsTest {
             settingsDesktopWebUiStatusMessage(enabled = false, addressCount = 2),
         )
         assertEquals(
-            "WebUI 已启用，Windows 正在监听局域网访问地址；部分遥控和写入接口仍在完善。",
+            "WebUI 已启用，Windows 正在监听局域网访问地址；可管理媒体源并遥控播放。",
             settingsDesktopWebUiStatusMessage(enabled = true, addressCount = 2),
         )
         assertEquals(

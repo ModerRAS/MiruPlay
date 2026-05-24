@@ -70,6 +70,7 @@ internal data class DesktopPlaybackLaunchRequest(
     val activeSourceId: Long?,
     val blankMediaMessage: String,
     val fallbackMediaSourceId: String,
+    val episodeId: String? = null,
 )
 
 internal data class DesktopPreparedPlaybackLaunch(
@@ -113,14 +114,14 @@ internal class DesktopPlaybackLauncher(
             mediaSourceId = request.activeSourceId?.toString()
                 ?: request.activeSource?.info?.type?.name
                 ?: request.fallbackMediaSourceId,
-            episodeId = selectedMediaPath.ifBlank { null },
+            episodeId = request.episodeId ?: selectedMediaPath.ifBlank { null },
             blankMediaMessage = request.blankMediaMessage,
         )
         return Result.success(
             DesktopPreparedPlaybackLaunch(
                 config = config,
                 source = source,
-                session = PlaybackProgressSession(selectedMediaPath, source.startPosition),
+                session = PlaybackProgressSession(source.episodeId ?: selectedMediaPath, source.startPosition),
             )
         )
     }
