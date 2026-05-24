@@ -76,6 +76,19 @@ resets. The focused shared/desktop gate `:sync-engine-shared:test
 checkDesktopComposeOnly -PbundleMpvRuntime=false` passed in Gradle MCP build
 `b-140`, and Android debug assemble `:app:assembleDebug
 -PbundleMpvRuntime=false` passed in `b-141`.
+Latest WebUI Cloud/RSS action sharing update: WebUI CloudDrive config save,
+login, API-token verification, manual run, and RSS subscription save/update/delete
+now route through `CloudDriveRssActionCoordinator` on both Android TV WebUI and
+Windows WebUI instead of keeping direct repository/runner action copies in
+`web-control-core`. The coordinator now returns token-info evidence for API
+token verification and preserves repository-assigned RSS subscription ids, while
+WebUI update reads the existing subscription before saving so `lastCheckedAt`
+is preserved across Android Room and desktop JSON repositories. The focused
+shared/WebUI/desktop gate `:sync-engine-shared:test :web-control-core:test
+:web-control:compileDebugKotlin :ui-tv:compileDebugKotlin :desktop-app:test
+checkDesktopPresenterSeparation checkDesktopComposeOnly -PbundleMpvRuntime=false`
+passed in Gradle MCP build `b-163` with 282 tests passed, and Android debug
+assemble `:app:assembleDebug -PbundleMpvRuntime=false` passed in `b-164`.
 Latest Bangumi credential sharing update: `:sync-engine-shared` now owns
 `BangumiCredentialActionCoordinator`, so Android TV Settings and Windows
 Settings share Bangumi token persistence, blank-input handling, clear behavior,

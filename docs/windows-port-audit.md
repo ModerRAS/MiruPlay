@@ -111,6 +111,14 @@ status mapping and manual run started/completed/failure status mapping through
 `RssSubscriptionActionResult` and `CloudDriveRunActionResult`; Windows keeps
 only its platform-specific subscription refresh/form reset and post-run
 linked-source rescan around the shared results.
+Android TV WebUI and Windows WebUI now call that same coordinator for
+CloudDrive config save, login, API-token verification, manual run, and RSS
+subscription save/update/delete; `web-control-core` keeps only DTO/HTTP error
+shaping while shared actions preserve token-info responses, repository-assigned
+RSS ids, and existing subscription `lastCheckedAt` across Android Room and
+desktop JSON repositories. The focused shared/WebUI/desktop gate passed in
+Gradle MCP build `b-163` with 282 tests passed, and Android debug assemble
+passed in `b-164`.
 `core:model` owns the Cloud/RSS form normalization helpers used
 by both Android TV Settings and Windows Cloud/RSS Settings for config trimming,
 interval/proxy-port bounds, RSS subscription fallback names, blank URL

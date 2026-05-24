@@ -17,6 +17,7 @@ import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.desktop.DesktopRepositories
 import com.miruplay.tv.repository.mediaIndexPosterAnimeId
 import com.miruplay.tv.repository.toMediaIndexPosterGroups
+import com.miruplay.tv.sync.rss.CloudDriveRssActionCoordinator
 import com.miruplay.tv.sync.rss.DesktopCloudDriveRssAutomationEngine
 import com.miruplay.tv.webcontrol.AnimeDetailDto
 import com.miruplay.tv.webcontrol.CloudDriveAutomationDto
@@ -93,6 +94,11 @@ internal class DesktopWebControlService(
     private val deviceName: String = "Windows",
 ) : WebControlEndpointService {
     private val startedAt = clock()
+    private val cloudRssActions = CloudDriveRssActionCoordinator(
+        repository = repositories.cloudDriveAutomation,
+        credentials = repositories.credentials,
+        runner = cloudRssEngine,
+    )
 
     override suspend fun getServerInfo(port: Int): ServerInfoDto =
         buildWebControlServerInfo(
@@ -180,11 +186,15 @@ internal class DesktopWebControlService(
     }
 
     override suspend fun saveCloudDriveConfig(request: CloudDriveConfigRequest): CloudDriveAutomationDto {
-        return repositories.cloudDriveAutomation.saveWebControlCloudDriveConfig(request, repositories.credentials)
+        return cloudRssActions.saveWebControlCloudDriveConfig(
+            request = request,
+            repository = repositories.cloudDriveAutomation,
+            credentials = repositories.credentials,
+        )
     }
 
     override suspend fun loginCloudDrive(request: CloudDriveLoginRequest): CloudDriveAutomationDto {
-        return cloudRssEngine.loginWebControlCloudDrive(
+        return cloudRssActions.loginWebControlCloudDrive(
             request = request,
             repository = repositories.cloudDriveAutomation,
             credentials = repositories.credentials,
@@ -192,27 +202,31 @@ internal class DesktopWebControlService(
     }
 
     override suspend fun saveCloudDriveToken(request: CloudDriveTokenRequest): CloudDriveTokenResponse {
-        return cloudRssEngine.saveWebControlCloudDriveToken(request)
+        return cloudRssActions.saveWebControlCloudDriveToken(request)
     }
 
     override suspend fun runCloudDriveAutomationNow(): CloudDriveRunResponse {
-        return cloudRssEngine.runWebControlCloudDriveAutomationNow { summary ->
+        return cloudRssActions.runWebControlCloudDriveAutomationNow { summary ->
             rescanLinkedCloudDriveSource(summary.completeStatus())
         }
     }
 
     override suspend fun saveRssSubscription(request: RssSubscriptionRequest): com.miruplay.tv.model.RssSubscriptionInfo {
-        return repositories.cloudDriveAutomation.saveWebControlRssSubscription(request)
+        return cloudRssActions.saveWebControlRssSubscription(request)
     }
 
     override suspend fun updateRssSubscription(
         id: Long,
         request: RssSubscriptionRequest,
     ): com.miruplay.tv.model.RssSubscriptionInfo =
-        repositories.cloudDriveAutomation.updateWebControlRssSubscription(id, request)
+        cloudRssActions.updateWebControlRssSubscription(
+            id = id,
+            request = request,
+            repository = repositories.cloudDriveAutomation,
+        )
 
     override suspend fun deleteRssSubscription(id: Long) {
-        repositories.cloudDriveAutomation.deleteWebControlRssSubscription(id)
+        cloudRssActions.deleteWebControlRssSubscription(id)
     }
 
     override suspend fun searchLibrary(query: String): LibraryDto {

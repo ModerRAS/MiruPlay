@@ -5,14 +5,12 @@ import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.clouddrive.CloudDriveTokenInfo
 import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.CloudDriveRssRunSummary
-import com.miruplay.tv.model.MAX_RSS_PROXY_PORT
-import com.miruplay.tv.model.MIN_CLOUD_DRIVE_INTERVAL_MINUTES
-import com.miruplay.tv.model.MIN_RSS_PROXY_PORT
 import com.miruplay.tv.model.RssDownloadTaskInfo
 import com.miruplay.tv.model.RssProcessedItemInfo
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.CloudDriveCredentialStore
+import com.miruplay.tv.sync.rss.CloudDriveRssActionCoordinator
 import com.miruplay.tv.sync.rss.CloudDriveRssAutomationRunner
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -23,50 +21,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class WebControlAutomationRequestsTest {
-    @Test
-    fun `cloud drive config request trims values clamps ranges and preserves last run`() {
-        val current = CloudDriveAutomationConfig(lastRunAt = 123_456L)
-
-        val config = CloudDriveConfigRequest(
-            endpointUrl = " https://cloud.example.test ",
-            username = " miru ",
-            webDavSourceId = 0L,
-            inboxPath = " /Inbox ",
-            libraryPath = " /Library ",
-            intervalMinutes = 1,
-            enabled = true,
-            rssProxyEnabled = true,
-            rssProxyHost = " 127.0.0.1 ",
-            rssProxyPort = 70_000,
-        ).toAutomationConfig(current)
-
-        assertEquals("https://cloud.example.test", config.endpointUrl)
-        assertEquals("miru", config.username)
-        assertNull(config.webDavSourceId)
-        assertEquals("/Inbox", config.inboxPath)
-        assertEquals("/Library", config.libraryPath)
-        assertEquals(MIN_CLOUD_DRIVE_INTERVAL_MINUTES, config.intervalMinutes)
-        assertEquals(true, config.enabled)
-        assertEquals(123_456L, config.lastRunAt)
-        assertEquals(true, config.rssProxyEnabled)
-        assertEquals("127.0.0.1", config.rssProxyHost)
-        assertEquals(MAX_RSS_PROXY_PORT, config.rssProxyPort)
-    }
-
-    @Test
-    fun `cloud drive config request keeps positive source id and clamps low proxy port`() {
-        val config = CloudDriveConfigRequest(
-            endpointUrl = "",
-            webDavSourceId = 42L,
-            inboxPath = "",
-            libraryPath = "",
-            rssProxyPort = -1,
-        ).toAutomationConfig(CloudDriveAutomationConfig())
-
-        assertEquals(42L, config.webDavSourceId)
-        assertEquals(MIN_RSS_PROXY_PORT, config.rssProxyPort)
-    }
-
     @Test
     fun `rss subscription request trims fields and falls back to url name`() {
         val subscription = RssSubscriptionRequest(
@@ -97,16 +51,11 @@ class WebControlAutomationRequestsTest {
     }
 
     @Test
-    fun `saved id keeps existing id when updating`() {
-        assertEquals(7L, RssSubscriptionInfo(id = 7L).withSavedId(9L).id)
-        assertEquals(9L, RssSubscriptionInfo(id = 0L).withSavedId(9L).id)
-    }
-
-    @Test
-    fun `repository saves WebUI RSS subscription and returns persisted id`() = runBlocking {
+    fun `coordinator saves WebUI RSS subscription and returns persisted id`() = runBlocking {
         val repository = FakeCloudDriveAutomationRepository(nextSubscriptionId = 42L)
+        val coordinator = coordinator(repository = repository)
 
-        val saved = repository.saveWebControlRssSubscription(
+        val saved = coordinator.saveWebControlRssSubscription(
             RssSubscriptionRequest(
                 name = " Season ",
                 url = " https://rss.example.test/feed.xml ",
@@ -120,19 +69,21 @@ class WebControlAutomationRequestsTest {
         assertEquals("https://rss.example.test/feed.xml", saved.url)
         assertEquals("1080p", saved.filterRegex)
         assertEquals(false, saved.enabled)
-        assertEquals(saved, repository.savedSubscriptions.single().withSavedId(42L))
+        assertEquals(saved.copy(id = 0L), repository.savedSubscriptions.single())
     }
 
     @Test
-    fun `repository update keeps requested RSS subscription id`() = runBlocking {
+    fun `coordinator update keeps requested RSS subscription id`() = runBlocking {
         val repository = FakeCloudDriveAutomationRepository(nextSubscriptionId = 99L)
+        val coordinator = coordinator(repository = repository)
 
-        val saved = repository.updateWebControlRssSubscription(
+        val saved = coordinator.updateWebControlRssSubscription(
             id = 7L,
             request = RssSubscriptionRequest(
                 name = "Season",
                 url = "https://rss.example.test/feed.xml",
             ),
+            repository = repository,
         )
 
         assertEquals(7L, saved.id)
@@ -140,26 +91,61 @@ class WebControlAutomationRequestsTest {
     }
 
     @Test
-    fun `repository save WebUI RSS subscription rejects blank url`() = runBlocking {
+    fun `coordinator update preserves existing RSS subscription last checked timestamp`() = runBlocking {
+        val existing = RssSubscriptionInfo(
+            id = 7L,
+            name = "Old",
+            url = "https://rss.example.test/feed.xml",
+            filterRegex = "old",
+            enabled = true,
+            lastCheckedAt = 123L,
+        )
+        val repository = FakeCloudDriveAutomationRepository(
+            nextSubscriptionId = 99L,
+            subscriptions = mutableListOf(existing),
+        )
+        val coordinator = coordinator(repository = repository)
+
+        val saved = coordinator.updateWebControlRssSubscription(
+            id = 7L,
+            request = RssSubscriptionRequest(
+                name = "New",
+                url = "https://rss.example.test/feed.xml",
+                enabled = false,
+            ),
+            repository = repository,
+        )
+
+        assertEquals(7L, saved.id)
+        assertEquals(123L, saved.lastCheckedAt)
+        assertEquals("New", saved.name)
+        assertEquals(false, saved.enabled)
+        assertEquals(123L, repository.savedSubscriptions.single().lastCheckedAt)
+    }
+
+    @Test
+    fun `coordinator save WebUI RSS subscription rejects blank url`() = runBlocking {
         val repository = FakeCloudDriveAutomationRepository()
+        val coordinator = coordinator(repository = repository)
 
         val failure = runCatching {
-            repository.saveWebControlRssSubscription(RssSubscriptionRequest(name = "Season", url = " "))
+            coordinator.saveWebControlRssSubscription(RssSubscriptionRequest(name = "Season", url = " "))
         }.exceptionOrNull()
 
         assertTrue(failure is IllegalArgumentException)
-        assertEquals("请填写 RSS 地址", failure?.message)
+        assertEquals("请先填写 RSS 地址。", failure?.message)
         assertEquals(emptyList<RssSubscriptionInfo>(), repository.savedSubscriptions)
     }
 
     @Test
-    fun `repository delete WebUI RSS subscription maps repository errors`() = runBlocking {
+    fun `coordinator delete WebUI RSS subscription maps repository errors`() = runBlocking {
         val repository = FakeCloudDriveAutomationRepository(
             deleteResult = Result.failure(AppError.SyncError.WriteFailed(path = "rss", cause = "boom")),
         )
+        val coordinator = coordinator(repository = repository)
 
         val failure = runCatching {
-            repository.deleteWebControlRssSubscription(7L)
+            coordinator.deleteWebControlRssSubscription(7L)
         }.exceptionOrNull()
 
         assertTrue(failure is IllegalStateException)
@@ -198,12 +184,14 @@ class WebControlAutomationRequestsTest {
     }
 
     @Test
-    fun `repository saves WebUI CloudDrive config and returns refreshed automation dto`() = runBlocking {
+    fun `coordinator saves WebUI CloudDrive config and returns refreshed automation dto`() = runBlocking {
         val repository = FakeCloudDriveAutomationRepository(
             config = CloudDriveAutomationConfig(lastRunAt = 77L),
         )
+        val credentials = FakeCloudDriveCredentialStore(token = null)
+        val coordinator = coordinator(repository = repository, credentials = credentials)
 
-        val dto = repository.saveWebControlCloudDriveConfig(
+        val dto = coordinator.saveWebControlCloudDriveConfig(
             request = CloudDriveConfigRequest(
                 endpointUrl = " https://cloud.example.test ",
                 username = " miru ",
@@ -213,7 +201,8 @@ class WebControlAutomationRequestsTest {
                 intervalMinutes = 15,
                 enabled = true,
             ),
-            credentials = FakeCloudDriveCredentialStore(token = null),
+            repository = repository,
+            credentials = credentials,
         )
 
         assertEquals("https://cloud.example.test", repository.savedConfigs.single().endpointUrl)
@@ -227,20 +216,22 @@ class WebControlAutomationRequestsTest {
     }
 
     @Test
-    fun `runner WebUI login validates request invokes engine and returns refreshed automation dto`() = runBlocking {
+    fun `coordinator WebUI login validates request invokes engine and returns refreshed automation dto`() = runBlocking {
         val repository = FakeCloudDriveAutomationRepository(
             config = CloudDriveAutomationConfig(username = "miru"),
         )
+        val credentials = FakeCloudDriveCredentialStore(token = "token")
         val runner = FakeWebControlCloudDriveAutomationRunner()
+        val coordinator = coordinator(repository = repository, credentials = credentials, runner = runner)
 
-        val dto = runner.loginWebControlCloudDrive(
+        val dto = coordinator.loginWebControlCloudDrive(
             request = CloudDriveLoginRequest(
                 endpointUrl = " https://cloud.example.test ",
                 username = " miru ",
                 password = " secret ",
             ),
             repository = repository,
-            credentials = FakeCloudDriveCredentialStore(token = "token"),
+            credentials = credentials,
         )
 
         assertEquals(listOf("https://cloud.example.test|miru| secret "), runner.loginCalls)
@@ -249,13 +240,14 @@ class WebControlAutomationRequestsTest {
     }
 
     @Test
-    fun `runner WebUI login maps engine failures`() = runBlocking {
+    fun `coordinator WebUI login maps engine failures`() = runBlocking {
         val runner = FakeWebControlCloudDriveAutomationRunner(
             loginResult = Result.failure(AppError.NetworkError.ServerUnreachable("denied")),
         )
+        val coordinator = coordinator(runner = runner)
 
         val failure = runCatching {
-            runner.loginWebControlCloudDrive(
+            coordinator.loginWebControlCloudDrive(
                 request = CloudDriveLoginRequest(
                     endpointUrl = "https://cloud.example.test",
                     username = "miru",
@@ -271,7 +263,7 @@ class WebControlAutomationRequestsTest {
     }
 
     @Test
-    fun `runner WebUI token request validates invokes engine and maps response`() = runBlocking {
+    fun `coordinator WebUI token request validates invokes engine and maps response`() = runBlocking {
         val runner = FakeWebControlCloudDriveAutomationRunner(
             tokenInfo = CloudDriveTokenInfo(
                 rootDir = "/CloudRoot",
@@ -284,8 +276,9 @@ class WebControlAutomationRequestsTest {
                 allowAddOfflineDownload = false,
             ),
         )
+        val coordinator = coordinator(runner = runner)
 
-        val response = runner.saveWebControlCloudDriveToken(
+        val response = coordinator.saveWebControlCloudDriveToken(
             CloudDriveTokenRequest(
                 endpointUrl = " https://cloud.example.test ",
                 token = " token ",
@@ -299,12 +292,13 @@ class WebControlAutomationRequestsTest {
     }
 
     @Test
-    fun `runner WebUI run maps summary and invokes after-run hook`() = runBlocking {
+    fun `coordinator WebUI run maps summary and invokes after-run hook`() = runBlocking {
         val summary = CloudDriveRssRunSummary(submitted = 3, skipped = 2, failed = 1, organized = 4)
         val runner = FakeWebControlCloudDriveAutomationRunner(runResult = Result.success(summary))
+        val coordinator = coordinator(runner = runner)
         val hookSummaries = mutableListOf<CloudDriveRssRunSummary>()
 
-        val response = runner.runWebControlCloudDriveAutomationNow { hookSummaries += it }
+        val response = coordinator.runWebControlCloudDriveAutomationNow { hookSummaries += it }
 
         assertEquals(1, runner.runCalls)
         assertEquals(listOf(summary), hookSummaries)
@@ -315,14 +309,15 @@ class WebControlAutomationRequestsTest {
     }
 
     @Test
-    fun `runner WebUI run skips after-run hook on failure`() = runBlocking {
+    fun `coordinator WebUI run skips after-run hook on failure`() = runBlocking {
         val runner = FakeWebControlCloudDriveAutomationRunner(
             runResult = Result.failure(AppError.SyncError.WriteFailed(path = "rss", cause = "boom")),
         )
+        val coordinator = coordinator(runner = runner)
         var hookCalled = false
 
         val failure = runCatching {
-            runner.runWebControlCloudDriveAutomationNow { hookCalled = true }
+            coordinator.runWebControlCloudDriveAutomationNow { hookCalled = true }
         }.exceptionOrNull()
 
         assertTrue(failure is IllegalStateException)
@@ -352,50 +347,6 @@ class WebControlAutomationRequestsTest {
         assertEquals(config, dto.config)
         assertEquals(subscriptions, dto.subscriptions)
         assertEquals(true, dto.tokenConfigured)
-    }
-
-    @Test
-    fun `login request validates and trims endpoint and username`() {
-        val request = CloudDriveLoginRequest(
-            endpointUrl = " https://cloud.example.test ",
-            username = " miru ",
-            password = " secret ",
-        ).validated()
-
-        assertEquals("https://cloud.example.test", request.endpointUrl)
-        assertEquals("miru", request.username)
-        assertEquals(" secret ", request.password)
-    }
-
-    @Test
-    fun `login request rejects blank required fields`() {
-        val failure = runCatching {
-            CloudDriveLoginRequest(endpointUrl = "", username = "miru", password = "secret").validated()
-        }.exceptionOrNull()
-
-        assertTrue(failure is IllegalArgumentException)
-        assertEquals("请填写 CloudDrive2 地址、用户名和密码", failure?.message)
-    }
-
-    @Test
-    fun `token request validates and trims endpoint and token`() {
-        val request = CloudDriveTokenRequest(
-            endpointUrl = " https://cloud.example.test ",
-            token = " token ",
-        ).validated()
-
-        assertEquals("https://cloud.example.test", request.endpointUrl)
-        assertEquals("token", request.token)
-    }
-
-    @Test
-    fun `token request rejects blank required fields`() {
-        val failure = runCatching {
-            CloudDriveTokenRequest(endpointUrl = "https://cloud.example.test", token = " ").validated()
-        }.exceptionOrNull()
-
-        assertTrue(failure is IllegalArgumentException)
-        assertEquals("请填写 CloudDrive2 地址和 API Token", failure?.message)
     }
 
     @Test
@@ -435,6 +386,17 @@ class WebControlAutomationRequestsTest {
         assertEquals(1, response.failed)
         assertEquals(4, response.organized)
     }
+
+    private fun coordinator(
+        repository: FakeCloudDriveAutomationRepository = FakeCloudDriveAutomationRepository(),
+        credentials: FakeCloudDriveCredentialStore = FakeCloudDriveCredentialStore(),
+        runner: FakeWebControlCloudDriveAutomationRunner = FakeWebControlCloudDriveAutomationRunner(),
+    ): CloudDriveRssActionCoordinator =
+        CloudDriveRssActionCoordinator(
+            repository = repository,
+            credentials = credentials,
+            runner = runner,
+        )
 
     private class FakeCloudDriveAutomationRepository(
         private var config: CloudDriveAutomationConfig = CloudDriveAutomationConfig(),

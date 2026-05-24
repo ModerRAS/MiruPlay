@@ -5,25 +5,14 @@ import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.CloudDriveRssRunSummary
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.buildRssSubscriptionFromForm
-import com.miruplay.tv.model.withAutomationFormValues
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.CloudDriveCredentialStore
-import com.miruplay.tv.sync.rss.CloudDriveRssAutomationRunner
+import com.miruplay.tv.sync.rss.CloudDriveActionResult
+import com.miruplay.tv.sync.rss.CloudDriveConfigActionResult
+import com.miruplay.tv.sync.rss.CloudDriveRssActionCoordinator
+import com.miruplay.tv.sync.rss.CloudDriveRunActionResult
+import com.miruplay.tv.sync.rss.RssSubscriptionActionResult
 import kotlinx.coroutines.flow.first
-
-fun CloudDriveConfigRequest.toAutomationConfig(current: CloudDriveAutomationConfig): CloudDriveAutomationConfig =
-    current.withAutomationFormValues(
-        endpointUrl = endpointUrl,
-        username = username,
-        webDavSourceId = webDavSourceId?.takeIf { it > 0L },
-        inboxPath = inboxPath,
-        libraryPath = libraryPath,
-        intervalMinutes = intervalMinutes,
-        enabled = enabled,
-        rssProxyEnabled = rssProxyEnabled,
-        rssProxyHost = rssProxyHost,
-        rssProxyPort = rssProxyPort,
-    )
 
 fun RssSubscriptionRequest.toSubscription(existingLastCheckedAt: Long = 0L): RssSubscriptionInfo? =
     buildRssSubscriptionFromForm(
@@ -35,25 +24,56 @@ fun RssSubscriptionRequest.toSubscription(existingLastCheckedAt: Long = 0L): Rss
         existingLastCheckedAt = existingLastCheckedAt,
     )
 
-fun RssSubscriptionInfo.withSavedId(savedId: Long): RssSubscriptionInfo =
-    copy(id = if (id > 0L) id else savedId)
-
-suspend fun CloudDriveAutomationRepository.saveWebControlRssSubscription(
+suspend fun CloudDriveRssActionCoordinator.saveWebControlRssSubscription(
     request: RssSubscriptionRequest,
 ): RssSubscriptionInfo {
-    val subscription = request.toSubscription() ?: throw IllegalArgumentException("请填写 RSS 地址")
-    val id = requireWebControlSuccess(saveSubscription(subscription), "保存 RSS 订阅失败")
-    return subscription.withSavedId(id)
+    return when (
+        val result = saveRssSubscription(
+            name = request.name,
+            url = request.url,
+            filterRegex = request.filterRegex.orEmpty(),
+            enabled = request.enabled,
+            selectedSubscription = null,
+        )
+    ) {
+        is RssSubscriptionActionResult.Saved -> result.subscription
+        is RssSubscriptionActionResult.Invalid -> throw IllegalArgumentException(result.status)
+        is RssSubscriptionActionResult.Failed -> throw IllegalStateException("保存 RSS 订阅失败: ${result.status}")
+        is RssSubscriptionActionResult.Deleted -> error("Unexpected RSS delete result while saving")
+    }
 }
 
-suspend fun CloudDriveAutomationRepository.updateWebControlRssSubscription(
+suspend fun CloudDriveRssActionCoordinator.updateWebControlRssSubscription(
     id: Long,
     request: RssSubscriptionRequest,
-): RssSubscriptionInfo =
-    saveWebControlRssSubscription(request.copy(id = id))
+    repository: CloudDriveAutomationRepository,
+): RssSubscriptionInfo {
+    val selected = repository.observeSubscriptions().first().firstOrNull { it.id == id }
+        ?: request.copy(id = id).toSubscription()
+        ?: RssSubscriptionInfo(id = id, name = request.name, url = request.url)
+    return when (
+        val result = saveRssSubscription(
+            name = request.name,
+            url = request.url,
+            filterRegex = request.filterRegex.orEmpty(),
+            enabled = request.enabled,
+            selectedSubscription = selected,
+        )
+    ) {
+        is RssSubscriptionActionResult.Saved -> result.subscription
+        is RssSubscriptionActionResult.Invalid -> throw IllegalArgumentException(result.status)
+        is RssSubscriptionActionResult.Failed -> throw IllegalStateException("保存 RSS 订阅失败: ${result.status}")
+        is RssSubscriptionActionResult.Deleted -> error("Unexpected RSS delete result while updating")
+    }
+}
 
-suspend fun CloudDriveAutomationRepository.deleteWebControlRssSubscription(id: Long) {
-    requireWebControlSuccess(deleteSubscription(id), "删除 RSS 订阅失败")
+suspend fun CloudDriveRssActionCoordinator.deleteWebControlRssSubscription(id: Long) {
+    when (val result = deleteRssSubscription(id)) {
+        is RssSubscriptionActionResult.Deleted -> Unit
+        is RssSubscriptionActionResult.Failed -> throw IllegalStateException("删除 RSS 订阅失败: ${result.status}")
+        is RssSubscriptionActionResult.Invalid -> throw IllegalArgumentException(result.status)
+        is RssSubscriptionActionResult.Saved -> error("Unexpected RSS save result while deleting")
+    }
 }
 
 suspend fun CloudDriveAutomationRepository.getWebControlCloudDriveAutomation(
@@ -66,46 +86,73 @@ suspend fun CloudDriveAutomationRepository.getWebControlCloudDriveAutomation(
     )
 }
 
-suspend fun CloudDriveAutomationRepository.saveWebControlCloudDriveConfig(
+suspend fun CloudDriveRssActionCoordinator.saveWebControlCloudDriveConfig(
     request: CloudDriveConfigRequest,
+    repository: CloudDriveAutomationRepository,
     credentials: CloudDriveCredentialStore,
 ): CloudDriveAutomationDto {
-    val current = requireWebControlSuccess(getConfig(), "读取 CloudDrive 设置失败")
-    val config = request.toAutomationConfig(current)
-    requireWebControlSuccess(saveConfig(config), "保存 CloudDrive 设置失败")
-    return getWebControlCloudDriveAutomation(credentials)
+    return when (
+        val result = saveConfig(
+            endpointUrl = request.endpointUrl,
+            username = request.username,
+            webDavSourceId = request.webDavSourceId?.takeIf { it > 0L },
+            inboxPath = request.inboxPath,
+            libraryPath = request.libraryPath,
+            intervalMinutes = request.intervalMinutes,
+            enabled = request.enabled,
+            rssProxyEnabled = request.rssProxyEnabled,
+            rssProxyHost = request.rssProxyHost,
+            rssProxyPort = request.rssProxyPort,
+        )
+    ) {
+        is CloudDriveConfigActionResult.Saved -> repository.getWebControlCloudDriveAutomation(credentials)
+        is CloudDriveConfigActionResult.Failed -> throw IllegalStateException("保存 CloudDrive 设置失败: ${result.status}")
+    }
 }
 
-suspend fun CloudDriveRssAutomationRunner.loginWebControlCloudDrive(
+suspend fun CloudDriveRssActionCoordinator.loginWebControlCloudDrive(
     request: CloudDriveLoginRequest,
     repository: CloudDriveAutomationRepository,
     credentials: CloudDriveCredentialStore,
 ): CloudDriveAutomationDto {
-    val validatedLogin = request.validated()
-    requireWebControlSuccess(
-        login(validatedLogin.endpointUrl, validatedLogin.username, validatedLogin.password),
-        "CloudDrive2 登录失败",
-    )
-    return repository.getWebControlCloudDriveAutomation(credentials)
+    return when (
+        val result = loginCloudDrive(
+            endpointUrl = request.endpointUrl,
+            username = request.username,
+            password = request.password,
+        )
+    ) {
+        is CloudDriveActionResult.Success -> repository.getWebControlCloudDriveAutomation(credentials)
+        is CloudDriveActionResult.Invalid -> throw IllegalArgumentException(result.status)
+        is CloudDriveActionResult.Failed -> throw IllegalStateException("CloudDrive2 登录失败: ${result.status}")
+    }
 }
 
-suspend fun CloudDriveRssAutomationRunner.saveWebControlCloudDriveToken(
+suspend fun CloudDriveRssActionCoordinator.saveWebControlCloudDriveToken(
     request: CloudDriveTokenRequest,
 ): CloudDriveTokenResponse {
-    val tokenRequest = request.validated()
-    val tokenInfo = requireWebControlSuccess(
-        saveApiToken(tokenRequest.endpointUrl, tokenRequest.token),
-        "CloudDrive2 API Token 验证失败",
-    )
-    return tokenInfo.toWebControlResponse()
+    return when (
+        val result = verifyCloudDriveApiToken(
+            endpointUrl = request.endpointUrl,
+            token = request.token,
+        )
+    ) {
+        is CloudDriveActionResult.Success -> requireNotNull(result.tokenInfo).toWebControlResponse()
+        is CloudDriveActionResult.Invalid -> throw IllegalArgumentException(result.status)
+        is CloudDriveActionResult.Failed -> throw IllegalStateException("CloudDrive2 API Token 验证失败: ${result.status}")
+    }
 }
 
-suspend fun CloudDriveRssAutomationRunner.runWebControlCloudDriveAutomationNow(
+suspend fun CloudDriveRssActionCoordinator.runWebControlCloudDriveAutomationNow(
     afterRun: suspend (CloudDriveRssRunSummary) -> Unit = {},
 ): CloudDriveRunResponse {
-    val summary = requireWebControlSuccess(runOnce(), "CloudDrive/RSS 执行失败")
-    afterRun(summary)
-    return summary.toWebControlResponse()
+    return when (val result = runCloudDriveOnce()) {
+        is CloudDriveRunActionResult.Completed -> {
+            afterRun(result.summary)
+            result.summary.toWebControlResponse()
+        }
+        is CloudDriveRunActionResult.Failed -> throw IllegalStateException("CloudDrive/RSS 执行失败: ${result.status}")
+    }
 }
 
 fun CloudDriveAutomationConfig.toWebControlAutomationDto(
@@ -117,24 +164,6 @@ fun CloudDriveAutomationConfig.toWebControlAutomationDto(
         subscriptions = subscriptions,
         tokenConfigured = tokenConfigured,
     )
-
-fun CloudDriveLoginRequest.validated(): CloudDriveLoginRequest {
-    val endpoint = endpointUrl.trim()
-    val user = username.trim()
-    if (endpoint.isBlank() || user.isBlank() || password.isBlank()) {
-        throw IllegalArgumentException("请填写 CloudDrive2 地址、用户名和密码")
-    }
-    return copy(endpointUrl = endpoint, username = user)
-}
-
-fun CloudDriveTokenRequest.validated(): CloudDriveTokenRequest {
-    val endpoint = endpointUrl.trim()
-    val apiToken = token.trim()
-    if (endpoint.isBlank() || apiToken.isBlank()) {
-        throw IllegalArgumentException("请填写 CloudDrive2 地址和 API Token")
-    }
-    return copy(endpointUrl = endpoint, token = apiToken)
-}
 
 fun CloudDriveTokenInfo.toWebControlResponse(): CloudDriveTokenResponse =
     CloudDriveTokenResponse(

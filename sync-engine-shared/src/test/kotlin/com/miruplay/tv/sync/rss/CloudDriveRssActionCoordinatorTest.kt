@@ -279,6 +279,16 @@ class CloudDriveRssActionCoordinatorTest {
             CloudDriveActionResult.Success(
                 status = cloudDriveTokenVerifiedStatus(friendlyName = "Miru", rootDir = "/Anime"),
                 token = "api-token",
+                tokenInfo = CloudDriveTokenInfo(
+                    rootDir = "/Anime",
+                    friendlyName = "Miru",
+                    allowList = true,
+                    allowCreateFolder = false,
+                    allowCreateFile = false,
+                    allowWrite = false,
+                    allowMove = false,
+                    allowAddOfflineDownload = false,
+                ),
             ),
             result,
         )
@@ -345,10 +355,11 @@ class CloudDriveRssActionCoordinatorTest {
         ) as RssSubscriptionActionResult.Saved
 
         assertEquals("Season", result.subscription.name)
+        assertEquals(1L, result.subscription.id)
         assertEquals("https://rss.example.test/feed.xml", result.subscription.url)
         assertEquals("1080p", result.subscription.filterRegex)
         assertEquals(rssSubscriptionSavedStatus("Season"), result.status)
-        assertEquals(listOf(result.subscription), repository.savedSubscriptions)
+        assertEquals(listOf(result.subscription.copy(id = 0L)), repository.savedSubscriptions)
     }
 
     @Test

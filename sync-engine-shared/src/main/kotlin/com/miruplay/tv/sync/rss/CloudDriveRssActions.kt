@@ -35,7 +35,11 @@ interface CloudDriveRssAutomationRunner {
 
 sealed class CloudDriveActionResult {
     data class Invalid(val status: String) : CloudDriveActionResult()
-    data class Success(val status: String, val token: String? = null) : CloudDriveActionResult()
+    data class Success(
+        val status: String,
+        val token: String? = null,
+        val tokenInfo: CloudDriveTokenInfo? = null,
+    ) : CloudDriveActionResult()
     data class Failed(val status: String) : CloudDriveActionResult()
 }
 
@@ -181,6 +185,7 @@ class CloudDriveRssActionCoordinator(
                     rootDir = result.data.rootDir,
                 ),
                 token = form.token,
+                tokenInfo = result.data,
             )
             is Result.Error -> CloudDriveActionResult.Failed(result.error.toUserMessage())
         }
@@ -202,9 +207,9 @@ class CloudDriveRssActionCoordinator(
         }
     }
 
-    suspend fun saveSubscription(subscription: RssSubscriptionInfo): Result<Unit> =
+    suspend fun saveSubscription(subscription: RssSubscriptionInfo): Result<Long> =
         when (val result = repository.saveSubscription(subscription)) {
-            is Result.Success -> Result.success(Unit)
+            is Result.Success -> result
             is Result.Error -> result
         }
 
@@ -231,10 +236,15 @@ class CloudDriveRssActionCoordinator(
         }
 
         return when (val result = saveSubscription(subscription)) {
-            is Result.Success -> RssSubscriptionActionResult.Saved(
-                subscription = subscription,
-                status = rssSubscriptionSavedStatus(subscription.name),
-            )
+            is Result.Success -> {
+                val savedSubscription = subscription.copy(
+                    id = subscription.id.takeIf { it > 0L } ?: result.data,
+                )
+                RssSubscriptionActionResult.Saved(
+                    subscription = savedSubscription,
+                    status = rssSubscriptionSavedStatus(savedSubscription.name),
+                )
+            }
             is Result.Error -> RssSubscriptionActionResult.Failed(result.error.toUserMessage())
         }
     }

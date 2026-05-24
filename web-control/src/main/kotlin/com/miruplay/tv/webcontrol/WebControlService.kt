@@ -19,6 +19,7 @@ import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
 import com.miruplay.tv.scanner.ScanCoordinator
+import com.miruplay.tv.sync.rss.CloudDriveRssActionCoordinator
 import com.miruplay.tv.sync.rss.CloudDriveRssAutomationEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -43,6 +44,11 @@ class WebControlService @Inject constructor(
     private val navigator: WebControlNavigator
 ) : WebControlEndpointService {
     private val startedAt = System.currentTimeMillis()
+    private val cloudDriveActions = CloudDriveRssActionCoordinator(
+        repository = cloudDriveRepository,
+        credentials = securePreferences,
+        runner = cloudDriveEngine,
+    )
 
     override suspend fun getServerInfo(port: Int): ServerInfoDto = withContext(Dispatchers.IO) {
         buildWebControlServerInfo(
@@ -100,11 +106,15 @@ class WebControlService @Inject constructor(
     }
 
     override suspend fun saveCloudDriveConfig(request: CloudDriveConfigRequest): CloudDriveAutomationDto {
-        return cloudDriveRepository.saveWebControlCloudDriveConfig(request, securePreferences)
+        return cloudDriveActions.saveWebControlCloudDriveConfig(
+            request = request,
+            repository = cloudDriveRepository,
+            credentials = securePreferences,
+        )
     }
 
     override suspend fun loginCloudDrive(request: CloudDriveLoginRequest): CloudDriveAutomationDto {
-        return cloudDriveEngine.loginWebControlCloudDrive(
+        return cloudDriveActions.loginWebControlCloudDrive(
             request = request,
             repository = cloudDriveRepository,
             credentials = securePreferences,
@@ -112,22 +122,26 @@ class WebControlService @Inject constructor(
     }
 
     override suspend fun saveCloudDriveToken(request: CloudDriveTokenRequest): CloudDriveTokenResponse {
-        return cloudDriveEngine.saveWebControlCloudDriveToken(request)
+        return cloudDriveActions.saveWebControlCloudDriveToken(request)
     }
 
     override suspend fun runCloudDriveAutomationNow(): CloudDriveRunResponse {
-        return cloudDriveEngine.runWebControlCloudDriveAutomationNow()
+        return cloudDriveActions.runWebControlCloudDriveAutomationNow()
     }
 
     override suspend fun saveRssSubscription(request: RssSubscriptionRequest): RssSubscriptionInfo {
-        return cloudDriveRepository.saveWebControlRssSubscription(request)
+        return cloudDriveActions.saveWebControlRssSubscription(request)
     }
 
     override suspend fun updateRssSubscription(id: Long, request: RssSubscriptionRequest): RssSubscriptionInfo =
-        cloudDriveRepository.updateWebControlRssSubscription(id, request)
+        cloudDriveActions.updateWebControlRssSubscription(
+            id = id,
+            request = request,
+            repository = cloudDriveRepository,
+        )
 
     override suspend fun deleteRssSubscription(id: Long) {
-        cloudDriveRepository.deleteWebControlRssSubscription(id)
+        cloudDriveActions.deleteWebControlRssSubscription(id)
     }
 
     suspend fun getLibrary(): LibraryDto {
