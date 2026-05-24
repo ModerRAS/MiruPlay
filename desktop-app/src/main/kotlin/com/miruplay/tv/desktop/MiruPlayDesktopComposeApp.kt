@@ -64,10 +64,7 @@ import com.miruplay.tv.model.PlaybackTimingConventions
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.ScraperResult
-import com.miruplay.tv.model.cloudDriveCredentialsClearedStatus
-import com.miruplay.tv.model.cloudDriveCredentialsSavedStatus
 import com.miruplay.tv.model.cloudRssScheduledSyncCompleteStatus
-import com.miruplay.tv.model.cloudRssConfigSavedStatus
 import com.miruplay.tv.model.cloudRssInitialStatus
 import com.miruplay.tv.model.cloudRssRescanStartedStatus
 import com.miruplay.tv.model.cloudRssLinkedScanSourceStatus
@@ -202,6 +199,7 @@ import com.miruplay.tv.sync.BangumiMetadataRefreshCore
 import com.miruplay.tv.sync.BangumiSyncCore
 import com.miruplay.tv.sync.bangumiMetadataCacheId
 import com.miruplay.tv.sync.rss.CloudDriveActionResult
+import com.miruplay.tv.sync.rss.CloudDriveConfigActionResult
 import com.miruplay.tv.sync.rss.CloudDriveRunActionResult
 import com.miruplay.tv.sync.rss.CloudDriveRssActionCoordinator
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryBrowserCoordinator
@@ -2105,18 +2103,20 @@ internal fun MiruPlayDesktopComposeApp(
                             rssProxyHost = rssProxyHost,
                             rssProxyPort = proxyPort,
                         )) {
-                            is Result.Success -> {
+                            is CloudDriveConfigActionResult.Saved -> {
                                 cloudIntervalMinutes = interval.toString()
                                 rssProxyPort = proxyPort.toString()
-                                cloudRssStatus = cloudRssConfigSavedStatus()
+                                cloudRssStatus = result.status
                             }
-                            is Result.Error -> cloudRssStatus = result.error.toUserMessage()
+                            is CloudDriveConfigActionResult.Failed -> cloudRssStatus = result.status
                         }
                     }
                 },
                 onSaveCredentials = {
-                    cloudRssActions.saveCredentials(cloudToken, cloudPassword)
-                    cloudRssStatus = cloudDriveCredentialsSavedStatus()
+                    val result = cloudRssActions.saveCredentials(cloudToken, cloudPassword)
+                    cloudToken = result.token.orEmpty()
+                    cloudPassword = result.password.orEmpty()
+                    cloudRssStatus = result.status
                 },
                 onLoginCloudDrive = {
                     scope.launch {
@@ -2164,10 +2164,10 @@ internal fun MiruPlayDesktopComposeApp(
                     }
                 },
                 onClearCredentials = {
-                    cloudRssActions.clearCredentials()
+                    val result = cloudRssActions.clearCredentials()
                     cloudToken = ""
                     cloudPassword = ""
-                    cloudRssStatus = cloudDriveCredentialsClearedStatus()
+                    cloudRssStatus = result.status
                 },
                 onRunSync = {
                     scope.launch {

@@ -66,6 +66,16 @@ shared result. The focused shared/desktop gate `:sync-engine-shared:test
 checkDesktopComposeOnly -PbundleMpvRuntime=false` passed in Gradle MCP build
 `b-138`, and Android debug assemble `:app:assembleDebug
 -PbundleMpvRuntime=false` passed in `b-139`.
+Latest Cloud/RSS config/credential result sharing update:
+`CloudDriveRssActionCoordinator` now also returns `CloudDriveConfigActionResult`
+and `CloudDriveCredentialActionResult`, so Android TV Settings and Windows
+Settings share the same normalized config-save result and credential
+save/clear/status handling while platform code keeps only its local field
+resets. The focused shared/desktop gate `:sync-engine-shared:test
+:ui-tv:compileDebugKotlin :desktop-app:test checkDesktopPresenterSeparation
+checkDesktopComposeOnly -PbundleMpvRuntime=false` passed in Gradle MCP build
+`b-140`, and Android debug assemble `:app:assembleDebug
+-PbundleMpvRuntime=false` passed in `b-141`.
 
 Latest local shared-input update: `:ui-design` now owns `MiruPlayInputIntent`
 for platform-neutral activation, Back/navigation-back, direction, and media

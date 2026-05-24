@@ -15,7 +15,6 @@ import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.connectionPassword
-import com.miruplay.tv.model.cloudRssConfigSavedStatus
 import com.miruplay.tv.model.saveBangumiTokenFormResult
 import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
@@ -28,6 +27,7 @@ import com.miruplay.tv.repository.toScanIntervalHours
 import com.miruplay.tv.repository.toScanIntervalMillis
 import com.miruplay.tv.sync.rss.CloudDriveRssAutomationEngine
 import com.miruplay.tv.sync.rss.CloudDriveActionResult
+import com.miruplay.tv.sync.rss.CloudDriveConfigActionResult
 import com.miruplay.tv.sync.rss.CloudDriveRunActionResult
 import com.miruplay.tv.sync.rss.CloudDriveRssActionCoordinator
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryBrowserCoordinator
@@ -260,7 +260,7 @@ class SettingsViewModel @Inject constructor(
         rssProxyPort: Int = 1080
     ) {
         viewModelScope.launch {
-            cloudDriveActions.saveConfig(
+            when (val result = cloudDriveActions.saveConfig(
                 endpointUrl = endpointUrl,
                 username = username,
                 webDavSourceId = webDavSourceId,
@@ -271,12 +271,15 @@ class SettingsViewModel @Inject constructor(
                 rssProxyEnabled = rssProxyEnabled,
                 rssProxyHost = rssProxyHost,
                 rssProxyPort = rssProxyPort,
-            )
-                .onSuccess { config ->
-                    _cloudDriveConfig.value = config
-                    _cloudDriveActionMessage.value = cloudRssConfigSavedStatus()
+            )) {
+                is CloudDriveConfigActionResult.Saved -> {
+                    _cloudDriveConfig.value = result.config
+                    _cloudDriveActionMessage.value = result.status
                 }
-                .onError { error -> _cloudDriveActionMessage.value = error.toUserMessage() }
+                is CloudDriveConfigActionResult.Failed -> {
+                    _cloudDriveActionMessage.value = result.status
+                }
+            }
         }
     }
 

@@ -9,10 +9,13 @@ import com.miruplay.tv.model.CloudDriveRssRunSummary
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.RssSubscriptionFormResult
 import com.miruplay.tv.model.cloudDriveApiTokenRequiredStatus
+import com.miruplay.tv.model.cloudDriveCredentialsClearedStatus
+import com.miruplay.tv.model.cloudDriveCredentialsSavedStatus
 import com.miruplay.tv.model.cloudDriveLoginStartedStatus
 import com.miruplay.tv.model.cloudDriveLoginSucceededStatus
 import com.miruplay.tv.model.cloudDriveTokenValidationStartedStatus
 import com.miruplay.tv.model.cloudDriveTokenVerifiedStatus
+import com.miruplay.tv.model.cloudRssConfigSavedStatus
 import com.miruplay.tv.model.cloudRssRunStartedStatus
 import com.miruplay.tv.model.completeStatus
 import com.miruplay.tv.model.prepareRssSubscriptionForm
@@ -34,6 +37,21 @@ sealed class CloudDriveActionResult {
     data class Invalid(val status: String) : CloudDriveActionResult()
     data class Success(val status: String, val token: String? = null) : CloudDriveActionResult()
     data class Failed(val status: String) : CloudDriveActionResult()
+}
+
+sealed class CloudDriveConfigActionResult {
+    data class Saved(val config: CloudDriveAutomationConfig, val status: String) : CloudDriveConfigActionResult()
+    data class Failed(val status: String) : CloudDriveConfigActionResult()
+}
+
+sealed class CloudDriveCredentialActionResult {
+    data class Saved(
+        val token: String?,
+        val password: String?,
+        val status: String,
+    ) : CloudDriveCredentialActionResult()
+
+    data class Cleared(val status: String) : CloudDriveCredentialActionResult()
 }
 
 sealed class RssSubscriptionActionResult {
@@ -64,10 +82,10 @@ class CloudDriveRssActionCoordinator(
         rssProxyEnabled: Boolean = false,
         rssProxyHost: String = "",
         rssProxyPort: Int = 1080,
-    ): Result<CloudDriveAutomationConfig> {
+    ): CloudDriveConfigActionResult {
         val current = when (val configResult = repository.getConfig()) {
             is Result.Success -> configResult.data
-            is Result.Error -> return configResult
+            is Result.Error -> return CloudDriveConfigActionResult.Failed(configResult.error.toUserMessage())
         }
         val config = current.withAutomationFormValues(
             endpointUrl = endpointUrl,
@@ -82,18 +100,29 @@ class CloudDriveRssActionCoordinator(
             rssProxyPort = rssProxyPort,
         )
         return when (val saveResult = repository.saveConfig(config)) {
-            is Result.Success -> Result.success(config)
-            is Result.Error -> saveResult
+            is Result.Success -> CloudDriveConfigActionResult.Saved(
+                config = config,
+                status = cloudRssConfigSavedStatus(),
+            )
+            is Result.Error -> CloudDriveConfigActionResult.Failed(saveResult.error.toUserMessage())
         }
     }
 
-    fun saveCredentials(token: String?, password: String?) {
-        credentials.cloudDriveToken = token?.trim()?.takeIf { it.isNotBlank() }
-        credentials.cloudDrivePassword = password?.takeIf { it.isNotBlank() }
+    fun saveCredentials(token: String?, password: String?): CloudDriveCredentialActionResult.Saved {
+        val normalizedToken = token?.trim()?.takeIf { it.isNotBlank() }
+        val normalizedPassword = password?.takeIf { it.isNotBlank() }
+        credentials.cloudDriveToken = normalizedToken
+        credentials.cloudDrivePassword = normalizedPassword
+        return CloudDriveCredentialActionResult.Saved(
+            token = normalizedToken,
+            password = normalizedPassword,
+            status = cloudDriveCredentialsSavedStatus(),
+        )
     }
 
-    fun clearCredentials() {
+    fun clearCredentials(): CloudDriveCredentialActionResult.Cleared {
         credentials.clearCloudDriveCredentials()
+        return CloudDriveCredentialActionResult.Cleared(cloudDriveCredentialsClearedStatus())
     }
 
     suspend fun login(endpointUrl: String, username: String, password: String): Result<Unit> =

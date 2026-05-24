@@ -16,6 +16,9 @@ import com.miruplay.tv.model.cloudDriveLoginStartedStatus
 import com.miruplay.tv.model.cloudDriveLoginSucceededStatus
 import com.miruplay.tv.model.cloudDriveTokenValidationStartedStatus
 import com.miruplay.tv.model.cloudDriveTokenVerifiedStatus
+import com.miruplay.tv.model.cloudDriveCredentialsClearedStatus
+import com.miruplay.tv.model.cloudDriveCredentialsSavedStatus
+import com.miruplay.tv.model.cloudRssConfigSavedStatus
 import com.miruplay.tv.model.cloudRssRunStartedStatus
 import com.miruplay.tv.model.completeStatus
 import com.miruplay.tv.model.rssSubscriptionDeletedStatus
@@ -51,7 +54,7 @@ class CloudDriveRssActionCoordinatorTest {
             rssProxyPort = 70_000,
         )
 
-        val saved = (result as Result.Success).data
+        val saved = (result as CloudDriveConfigActionResult.Saved).config
         assertEquals(saved, repository.savedConfigs.single())
         assertEquals("https://cloud.example.test", saved.endpointUrl)
         assertEquals("miru", saved.username)
@@ -64,6 +67,7 @@ class CloudDriveRssActionCoordinatorTest {
         assertEquals(true, saved.rssProxyEnabled)
         assertEquals("127.0.0.1", saved.rssProxyHost)
         assertEquals(65_535, saved.rssProxyPort)
+        assertEquals(cloudRssConfigSavedStatus(), result.status)
     }
 
     @Test
@@ -83,8 +87,31 @@ class CloudDriveRssActionCoordinatorTest {
             enabled = true,
         )
 
-        assertEquals(true, result is Result.Error)
+        assertEquals(
+            CloudDriveConfigActionResult.Failed(AppError.NetworkError.ServerUnreachable("cloud").toUserMessage()),
+            result,
+        )
         assertEquals(emptyList<CloudDriveAutomationConfig>(), repository.savedConfigs)
+    }
+
+    @Test
+    fun `save config maps save failure to user status`() = runBlocking {
+        val error = AppError.SyncError.WriteFailed("cloud", "save failed")
+        val repository = FakeCloudDriveAutomationRepository(saveConfigResult = Result.failure(error))
+        val coordinator = coordinator(repository = repository)
+
+        val result = coordinator.saveConfig(
+            endpointUrl = "https://cloud.example.test",
+            username = "miru",
+            webDavSourceId = null,
+            inboxPath = "/Inbox",
+            libraryPath = "/Library",
+            intervalMinutes = 30,
+            enabled = true,
+        )
+
+        assertEquals(CloudDriveConfigActionResult.Failed(error.toUserMessage()), result)
+        assertEquals(1, repository.savedConfigs.size)
     }
 
     @Test
@@ -92,10 +119,18 @@ class CloudDriveRssActionCoordinatorTest {
         val credentials = FakeCloudDriveCredentialStore()
         val coordinator = coordinator(credentials = credentials)
 
-        coordinator.saveCredentials(token = " token ", password = " secret ")
+        val result = coordinator.saveCredentials(token = " token ", password = " secret ")
 
         assertEquals("token", credentials.cloudDriveToken)
         assertEquals(" secret ", credentials.cloudDrivePassword)
+        assertEquals(
+            CloudDriveCredentialActionResult.Saved(
+                token = "token",
+                password = " secret ",
+                status = cloudDriveCredentialsSavedStatus(),
+            ),
+            result,
+        )
     }
 
     @Test
@@ -103,10 +138,30 @@ class CloudDriveRssActionCoordinatorTest {
         val credentials = FakeCloudDriveCredentialStore(token = "old", password = "old")
         val coordinator = coordinator(credentials = credentials)
 
-        coordinator.saveCredentials(token = " ", password = "")
+        val result = coordinator.saveCredentials(token = " ", password = "")
 
         assertNull(credentials.cloudDriveToken)
         assertNull(credentials.cloudDrivePassword)
+        assertEquals(
+            CloudDriveCredentialActionResult.Saved(
+                token = null,
+                password = null,
+                status = cloudDriveCredentialsSavedStatus(),
+            ),
+            result,
+        )
+    }
+
+    @Test
+    fun `credentials clear removes token and password and returns shared status`() {
+        val credentials = FakeCloudDriveCredentialStore(token = "old", password = "old")
+        val coordinator = coordinator(credentials = credentials)
+
+        val result = coordinator.clearCredentials()
+
+        assertNull(credentials.cloudDriveToken)
+        assertNull(credentials.cloudDrivePassword)
+        assertEquals(CloudDriveCredentialActionResult.Cleared(cloudDriveCredentialsClearedStatus()), result)
     }
 
     @Test

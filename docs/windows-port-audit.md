@@ -263,6 +263,14 @@ focused shared subscription/run-action gate `:sync-engine-shared:test
 checkDesktopComposeOnly -PbundleMpvRuntime=false` passed in Gradle MCP build
 `b-138`, and Android debug assemble `:app:assembleDebug
 -PbundleMpvRuntime=false` passed in `b-139`.
+Cloud/RSS config save and credential save/clear status mapping now also flow
+through `CloudDriveConfigActionResult` and `CloudDriveCredentialActionResult`,
+keeping Android TV and Windows on the same normalization/status contract while
+the UIs keep only field updates. The focused shared config/credential gate
+`:sync-engine-shared:test :ui-tv:compileDebugKotlin :desktop-app:test
+checkDesktopPresenterSeparation checkDesktopComposeOnly
+-PbundleMpvRuntime=false` passed in Gradle MCP build `b-140`, and Android
+debug assemble `:app:assembleDebug -PbundleMpvRuntime=false` passed in `b-141`.
 The generated local-source GUI smoke also captured
 `build/desktop-local-source-ui/run-20260520-162054/local-source-poster-keyboard.png`,
 proving the Library poster wall can move selection with keyboard input before
