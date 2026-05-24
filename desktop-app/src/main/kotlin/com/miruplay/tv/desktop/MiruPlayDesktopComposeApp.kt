@@ -120,6 +120,8 @@ import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MetadataBatchMatch
 import com.miruplay.tv.repository.MetadataBatchPlanner
 import com.miruplay.tv.repository.MetadataBatchPlan
+import com.miruplay.tv.repository.ScanPreferenceActionSnapshot
+import com.miruplay.tv.repository.SettingsPreferenceActionCoordinator
 import com.miruplay.tv.repository.WebControlAccessActionCoordinator
 import com.miruplay.tv.repository.WebControlAccessSnapshot
 import com.miruplay.tv.repository.appliedStatus
@@ -182,8 +184,6 @@ import com.miruplay.tv.repository.sourceRemoveRequiredStatus
 import com.miruplay.tv.repository.sourceRemovedStatus
 import com.miruplay.tv.repository.summaryStatus
 import com.miruplay.tv.repository.syncObservedPlaybackProgress
-import com.miruplay.tv.repository.toScanIntervalHours
-import com.miruplay.tv.repository.toScanIntervalMillis
 import com.miruplay.tv.repository.upsertById
 import com.miruplay.tv.repository.updatedSelectionAfterReplacingByMediaKeys
 import com.miruplay.tv.repository.webDavUrlRequiredStatus
@@ -445,6 +445,12 @@ internal fun MiruPlayDesktopComposeApp(
     val cloudDirectoryActions = remember { CloudDriveDirectoryBrowserCoordinator(cloudDriveClient) }
     val cloudRssScheduler = remember { DesktopCloudDriveRssScheduler(cloudRssEngine, scope) }
     val cloudRssSchedulerState by cloudRssScheduler.state.collectAsState()
+    val settingsPreferenceActions = remember {
+        SettingsPreferenceActionCoordinator(
+            scanPreferences = repositories.scanPreferences,
+            playbackPreferences = repositories.playbackPreferences,
+        )
+    }
     val defaultMpvLayout = remember { MpvRuntimeDiscovery.defaultLayout() }
     val playbackLauncher = remember(playbackBridge) { DesktopPlaybackLauncher(playbackBridge) }
     var selectedDesktopSection by remember { mutableStateOf(desktopInitialSectionFromEnvironment()) }
@@ -626,6 +632,13 @@ internal fun MiruPlayDesktopComposeApp(
         syncDesktopWebControlServer()
     }
 
+    fun applyScanPreferenceSnapshot(snapshot: ScanPreferenceActionSnapshot) {
+        autoScanEnabled = snapshot.autoScanEnabled
+        autoScanIntervalHours = snapshot.autoScanIntervalHours
+        lastScanAt = snapshot.lastScanAt
+        mergeSameAnimeEnabled = snapshot.mergeSameAnimeEnabled
+    }
+
     suspend fun loadIndexedEntries(sourceId: Long, statusWhenEmpty: String) {
         when (val result = repositories.index.queryIndex(sourceId, "")) {
             is Result.Success -> {
@@ -723,12 +736,8 @@ internal fun MiruPlayDesktopComposeApp(
             }
             is Result.Error -> recentStatus = recents.error.toUserMessage()
         }
-        playbackEndAction = repositories.playbackPreferences.getEndAction()
-        val scanPreferences = repositories.scanPreferences.getPreferences()
-        autoScanEnabled = scanPreferences.autoScanEnabled
-        autoScanIntervalHours = scanPreferences.autoScanIntervalMs.toScanIntervalHours()
-        lastScanAt = scanPreferences.lastScanAt
-        mergeSameAnimeEnabled = scanPreferences.mergeSameAnimeEnabled
+        playbackEndAction = settingsPreferenceActions.currentPlaybackEndAction()
+        applyScanPreferenceSnapshot(settingsPreferenceActions.currentScanPreferences())
         when (val config = repositories.cloudDriveAutomation.getConfig()) {
             is Result.Success -> {
                 cloudEndpointUrl = config.data.endpointUrl
@@ -2065,21 +2074,20 @@ internal fun MiruPlayDesktopComposeApp(
                 lastScanAt = lastScanAt,
                 mergeSameAnimeEnabled = mergeSameAnimeEnabled,
                 onToggleAutoScan = {
-                    autoScanEnabled = !autoScanEnabled
+                    val enabled = !autoScanEnabled
                     scope.launch {
-                        repositories.scanPreferences.setAutoScanEnabled(autoScanEnabled)
+                        applyScanPreferenceSnapshot(settingsPreferenceActions.setAutoScanEnabled(enabled))
                     }
                 },
                 onScanIntervalSelected = { hours ->
-                    autoScanIntervalHours = hours
                     scope.launch {
-                        repositories.scanPreferences.setAutoScanIntervalMs(hours.toScanIntervalMillis())
+                        applyScanPreferenceSnapshot(settingsPreferenceActions.setAutoScanIntervalHours(hours))
                     }
                 },
                 onToggleMergeSameAnime = {
-                    mergeSameAnimeEnabled = !mergeSameAnimeEnabled
+                    val enabled = !mergeSameAnimeEnabled
                     scope.launch {
-                        repositories.scanPreferences.setMergeSameAnimeEnabled(mergeSameAnimeEnabled)
+                        applyScanPreferenceSnapshot(settingsPreferenceActions.setMergeSameAnimeEnabled(enabled))
                     }
                 },
                 onSaveConfig = {
@@ -2331,9 +2339,8 @@ internal fun MiruPlayDesktopComposeApp(
                     onRifeBackendChange = { rifeBackend = it },
                     playbackEndAction = playbackEndAction,
                     onPlaybackEndActionChange = { action ->
-                        playbackEndAction = action
                         scope.launch {
-                            repositories.playbackPreferences.setEndAction(action)
+                            playbackEndAction = settingsPreferenceActions.setPlaybackEndAction(action)
                         }
                     },
                     isPlayerActive = player != null,

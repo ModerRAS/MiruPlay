@@ -140,8 +140,14 @@ rules out of platform UI shells. Android business modules were tightened so
 `metadata`, `scanner`, `sync-engine`, `web-control`, `scraper`, and
 `player-core` depend on shared API modules or repository interfaces instead of
 leaking Android data/media-source implementations through unrelated module
-boundaries. `SyncEngineImplTest` also locks imported NFO resume positions as
-milliseconds, matching the shared model. `core:model` now also owns shared
+boundaries. `SettingsPreferenceActionCoordinator` now also sits in
+`:repository-api`, so Android TV Settings and Windows Settings share
+scan-preference loading, auto-scan toggle persistence, interval
+hour-to-millisecond conversion, same-anime merge persistence, and playback-end
+action persistence through the same refreshed snapshots/results; the focused
+shared/desktop gate passed in Gradle MCP build `b-146`, and Android debug
+assemble passed in `b-147`. `SyncEngineImplTest` also locks imported NFO resume
+positions as milliseconds, matching the shared model. `core:model` now also owns shared
 Episode ordering, season grouping/selection/filtering, distinct episode counts,
 and the Android TV Detail continue-play target and button-label rule, keeping
 the chosen episode and visible label aligned instead of leaving that decision in

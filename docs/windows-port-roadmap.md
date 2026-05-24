@@ -93,6 +93,15 @@ The focused shared/desktop gate `:repository-api:test :ui-tv:compileDebugKotlin
 :desktop-app:test checkDesktopPresenterSeparation checkDesktopComposeOnly
 -PbundleMpvRuntime=false` passed in Gradle MCP build `b-144`, and Android debug
 assemble `:app:assembleDebug -PbundleMpvRuntime=false` passed in `b-145`.
+Latest settings preference action sharing update: `:repository-api` now owns
+`SettingsPreferenceActionCoordinator`, so Android TV Settings and Windows
+Settings share scan-preference loading, auto-scan toggle persistence, interval
+hour-to-millisecond conversion, same-anime merge persistence, and playback-end
+action persistence through the same refreshed snapshots/results. The focused
+shared/desktop gate `:repository-api:test :ui-tv:compileDebugKotlin
+:desktop-app:test checkDesktopPresenterSeparation checkDesktopComposeOnly
+-PbundleMpvRuntime=false` passed in Gradle MCP build `b-146`, and Android debug
+assemble `:app:assembleDebug -PbundleMpvRuntime=false` passed in `b-147`.
 
 Latest local shared-input update: `:ui-design` now owns `MiruPlayInputIntent`
 for platform-neutral activation, Back/navigation-back, direction, and media
