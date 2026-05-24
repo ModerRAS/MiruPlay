@@ -118,6 +118,7 @@ class DesktopWebControlServerTest {
                         episodeNumber = 1,
                         filePath = firstEpisode.toString(),
                         fileName = firstEpisode.fileName.toString(),
+                        duration = 120_000L,
                     ),
                 ),
             )

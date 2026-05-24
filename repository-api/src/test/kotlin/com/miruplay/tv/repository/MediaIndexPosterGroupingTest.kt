@@ -84,6 +84,33 @@ class MediaIndexPosterGroupingTest {
     }
 
     @Test
+    fun `poster group maps to fallback anime`() {
+        val group = listOf(
+            MediaIndexEntry(
+                sourceId = 1,
+                path = "Frieren/02.mkv",
+                animeName = "Frieren",
+                episodeNumber = 2,
+                plot = "A quiet journey.",
+            ),
+            MediaIndexEntry(
+                sourceId = 1,
+                path = "Frieren/01.mkv",
+                animeName = "Frieren",
+                episodeNumber = 1,
+                plot = "The beginning.",
+            ),
+        ).toMediaIndexPosterGroups().single()
+
+        val anime = group.toIndexedAnime()
+
+        assertEquals("Frieren", anime.id)
+        assertEquals("Frieren", anime.title)
+        assertEquals(2, anime.episodeCount)
+        assertEquals("The beginning.", anime.summary)
+    }
+
+    @Test
     fun `detail episodes group selected anime and sort by season episode`() {
         val selected = MediaIndexEntry(
             sourceId = 1,

@@ -111,6 +111,18 @@ Gradle MCP build `b-171` with 74 tests passed, and the combined
 `:repository-api:test :web-control-core:test :web-control:compileDebugKotlin
 :desktop-app:test checkDesktopPresenterSeparation checkDesktopComposeOnly
 :app:assembleDebug -PbundleMpvRuntime=false` gate passed in `b-172`.
+Latest library episode-resolution sharing update: `:repository-api` now owns
+`LibraryEpisodeResolver` plus the indexed-poster-to-`Anime` fallback mapper for
+shared continue-watching and playback episode lookup. Android TV Library and
+WebUI library loading both reuse the same cached-episode, indexed Local/WebDAV/SMB
+path, completion-filter, progress-field, same-anime merge, and fallback-anime
+resolution rules instead of carrying separate path/name inference logic in UI
+or WebUI layers. `LibraryEpisodeResolverTest` covers cached lookup priority,
+WebDAV playable indexed lookup, completed-progress filtering, progress field
+attachment, and indexed continue-watching fallback; the focused
+`:repository-api:test :web-control-core:test :ui-tv:compileDebugKotlin
+-PbundleMpvRuntime=false` gate passed in Gradle MCP build `b-175` with
+153 tests passed.
 Latest Bangumi credential sharing update: `:sync-engine-shared` now owns
 `BangumiCredentialActionCoordinator`, so Android TV Settings and Windows
 Settings share Bangumi token persistence, blank-input handling, clear behavior,

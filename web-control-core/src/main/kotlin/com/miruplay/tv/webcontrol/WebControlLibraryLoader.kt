@@ -2,16 +2,15 @@ package com.miruplay.tv.webcontrol
 
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
-import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.MediaSourceInfo
-import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MediaIndexRepository
+import com.miruplay.tv.repository.MediaIndexPosterGroup
 import com.miruplay.tv.repository.MediaSourceRepository
+import com.miruplay.tv.repository.LibraryEpisodeResolver
 import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
-import com.miruplay.tv.repository.mediaIndexPosterAnimeId
-import com.miruplay.tv.repository.toIndexedEpisode
 import com.miruplay.tv.repository.toIndexedEpisodes
+import com.miruplay.tv.repository.toIndexedAnime
 import com.miruplay.tv.repository.toMediaIndexPosterGroups
 
 class WebControlLibraryLoader(
@@ -21,6 +20,14 @@ class WebControlLibraryLoader(
     private val progress: PlaybackProgressRepository,
     private val mergeSameAnimeEnabled: suspend () -> Boolean = { false },
 ) {
+    private val episodeResolver = LibraryEpisodeResolver(
+        mediaSources = mediaSources,
+        metadata = metadata,
+        index = index,
+        progress = progress,
+        mergeSameAnimeEnabled = mergeSameAnimeEnabled,
+    )
+
     suspend fun loadLibrary(): LibraryDto {
         val anime = indexedAnimeGroups()
             .map { group -> metadata.getCachedMetadata(group.animeId).getOrNull() ?: group.toAnime() }
@@ -42,49 +49,13 @@ class WebControlLibraryLoader(
     }
 
     suspend fun findEpisodeById(episodeId: String): Episode? {
-        metadata.getCachedEpisode(episodeId).getOrNull()?.let { return it }
-        findIndexedEpisodeById(episodeId)?.let { return it }
-
-        val sources = mediaSources.getSources().getOrNull().orEmpty()
-        val candidateAnimeIds = linkedSetOf<String>()
-        for (source in sources) {
-            candidateAnimeIds += index.getAnimeInIndex(source.id).getOrNull().orEmpty()
-        }
-        candidateAnimeIds += indexedAnimeGroups().map { it.animeId }
-
-        for (animeId in candidateAnimeIds) {
-            val episode = metadata.getCachedEpisodes(animeId)
-                .getOrNull()
-                .orEmpty()
-                .firstOrNull { it.id == episodeId || it.filePath == episodeId }
-            if (episode != null) return episode
-        }
-        return null
+        return episodeResolver.findEpisodeById(episodeId)
     }
 
     suspend fun loadContinueWatching(): List<ContinueWatchingDto> =
-        progress.getContinueWatching(30).getOrNull().orEmpty().map { record ->
-            val episode = findEpisodeById(record.episodeId)
-            val anime = episode?.let { metadata.getCachedMetadata(it.animeId).getOrNull() }
-                ?: episode?.let { indexedAnimeGroups().firstOrNull { group -> group.animeId == it.animeId }?.toAnime() }
-            record.toWebControlContinueWatching(episode, anime)
+        episodeResolver.loadContinueWatchingEpisodes(limit = 30).map { item ->
+            item.progress.toWebControlContinueWatching(item.episode, item.anime)
         }
-
-    private suspend fun findIndexedEpisodeById(episodeId: String): Episode? {
-        val sourceParts = episodeId.split(":", limit = 2)
-        val sourceId = sourceParts.getOrNull(0)?.toLongOrNull() ?: return null
-        val path = sourceParts.getOrNull(1)?.takeIf { it.isNotBlank() } ?: return null
-        val source = mediaSources.getSourceById(sourceId).getOrNull()
-        val fileName = MediaPathConventions.fileName(path)
-        val entries = index.queryIndex(sourceId, MediaPathConventions.stem(path))
-            .getOrNull()
-            .orEmpty()
-        val entry = entries.firstOrNull { it.path == path || episodeId.endsWith(it.path) }
-            ?: entries.firstOrNull { MediaPathConventions.fileName(it.path) == fileName }
-            ?: return null
-        val animeId = entry.mediaIndexPosterAnimeId(mergeSameAnimeEnabled())
-        return entry.toIndexedEpisode(source, animeId).copy(id = episodeId)
-    }
 
     private suspend fun loadEpisodesForAnime(
         anime: Anime,
@@ -107,28 +78,21 @@ class WebControlLibraryLoader(
                 .map { group ->
                     IndexedAnimeGroup(
                         source = source,
-                        animeId = group.animeId,
-                        title = group.title,
-                        entries = group.entries,
+                        group = group,
                     )
                 }
         }
     }
 
     private fun IndexedAnimeGroup.toAnime(): Anime {
-        val first = entries.first()
-        return Anime(
-            id = animeId,
-            title = title,
-            episodeCount = entries.size,
-            summary = first.plot.orEmpty(),
-        )
+        return group.toIndexedAnime()
     }
 
     private data class IndexedAnimeGroup(
         val source: MediaSourceInfo,
-        val animeId: String,
-        val title: String,
-        val entries: List<MediaIndexEntry>,
-    )
+        val group: MediaIndexPosterGroup,
+    ) {
+        val animeId: String = group.animeId
+        val entries = group.entries
+    }
 }

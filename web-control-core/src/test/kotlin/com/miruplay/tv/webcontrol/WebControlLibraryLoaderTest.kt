@@ -162,7 +162,6 @@ class WebControlLibraryLoaderTest {
                     episodeId = "1:D:/Anime/Frieren/Episode 01.mkv",
                     positionMs = 45_000L,
                     lastWatched = 99L,
-                    playCount = 2,
                 ),
             ),
         )

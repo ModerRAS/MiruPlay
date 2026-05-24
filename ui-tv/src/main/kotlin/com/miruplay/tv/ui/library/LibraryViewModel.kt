@@ -6,11 +6,10 @@ import android.util.Log
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
-import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.ProgressRecord
-import com.miruplay.tv.model.isCompleted
 import com.miruplay.tv.model.libraryNoContentAfterScanMessage
 import com.miruplay.tv.model.mergeSameAnimeForDisplay
+import com.miruplay.tv.repository.LibraryEpisodeResolver
 import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
@@ -65,6 +64,13 @@ class LibraryViewModel @Inject constructor(
     private val libraryScanTask: LibraryScanTask,
     private val scanPreferences: ScanPreferencesRepository
 ) : ViewModel() {
+    private val libraryEpisodeResolver = LibraryEpisodeResolver(
+        mediaSources = mediaRepository,
+        metadata = metadataRepository,
+        index = indexRepository,
+        progress = progressRepository,
+        mergeSameAnimeEnabled = { scanPreferences.getPreferences().mergeSameAnimeEnabled },
+    )
 
     private val _state = MutableStateFlow<LibraryUiState>(LibraryUiState.Loading)
     val state: StateFlow<LibraryUiState> = _state.asStateFlow()
@@ -156,57 +162,13 @@ class LibraryViewModel @Inject constructor(
     }
 
     private suspend fun loadContinueWatching(): List<ProgressWithEpisode> {
-        val progressRecords = progressRepository.getContinueWatching().getOrNull() ?: emptyList()
-        return progressRecords.mapNotNull { record ->
-            val cachedEpisode = metadataRepository.getCachedEpisode(record.episodeId).getOrNull()
-            if (cachedEpisode != null) {
-                if (cachedEpisode.isCompleted(record)) return@mapNotNull null
-                val anime = metadataRepository.getCachedMetadata(cachedEpisode.animeId).getOrNull()
-                    ?: return@mapNotNull null
-                return@mapNotNull ProgressWithEpisode(
-                    progress = record,
-                    episode = cachedEpisode.copy(
-                        watchedPosition = record.positionMs,
-                        lastWatchedTimestamp = record.lastWatched,
-                        playCount = record.playCount
-                    ),
-                    anime = anime
-                )
-            }
-
-            val pathParts = record.episodeId.split(":", limit = 2)
-            val episodePath = pathParts.getOrNull(1) ?: record.episodeId
-            val sourceId = pathParts.getOrNull(0)?.toLongOrNull()
-            val animeName = MediaPathConventions.animeNameFromEpisodePath(episodePath)
-            if (animeName == null || sourceId == null) return@mapNotNull null
-
-            val anime = metadataRepository.getCachedMetadata(animeName).getOrNull()
-                ?: return@mapNotNull null
-
-            val matchedEntry = indexRepository.queryIndex(sourceId, animeName)
-                .getOrNull()
-                .orEmpty()
-                .find { it.path == episodePath }
-                ?: return@mapNotNull null
-
-            val episode = Episode(
-                id = record.episodeId,
-                animeId = animeName,
-                seasonNumber = matchedEntry.seasonNumber ?: 1,
-                episodeNumber = matchedEntry.episodeNumber ?: 1,
-                title = "",
-                filePath = episodePath,
-                fileName = episodePath.substringAfterLast("/"),
-                duration = 0L,
-                watchedPosition = record.positionMs,
-                lastWatchedTimestamp = record.lastWatched,
-                playCount = record.playCount,
-                thumbnailPath = null
+        return libraryEpisodeResolver.loadContinueWatchingEpisodes().mapNotNull { item ->
+            val anime = item.anime ?: return@mapNotNull null
+            ProgressWithEpisode(
+                progress = item.progress,
+                episode = item.episode,
+                anime = anime,
             )
-
-            if (episode.isCompleted(record)) return@mapNotNull null
-
-            ProgressWithEpisode(progress = record, episode = episode, anime = anime)
         }
     }
 

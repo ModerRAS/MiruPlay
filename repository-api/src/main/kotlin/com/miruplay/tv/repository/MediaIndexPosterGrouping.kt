@@ -1,5 +1,6 @@
 package com.miruplay.tv.repository
 
+import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.MediaPathConventions
 
 data class MediaIndexPosterGroup(
@@ -35,6 +36,14 @@ fun List<MediaIndexEntry>.toMediaIndexPosterGroups(
             )
         }
         .sortedBy { it.title.lowercase() }
+
+fun MediaIndexPosterGroup.toIndexedAnime(): Anime =
+    Anime(
+        id = animeId,
+        title = title,
+        episodeCount = entries.size,
+        summary = primaryEntry.plot.orEmpty(),
+    )
 
 fun MediaIndexEntry.posterTitle(): String =
     metadataTitle?.takeIf { it.isNotBlank() }
