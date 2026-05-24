@@ -42,6 +42,7 @@ import com.miruplay.tv.webcontrol.SourceTestResponse
 import com.miruplay.tv.webcontrol.WebControlEndpointService
 import com.miruplay.tv.webcontrol.WebControlPlaybackCommandKind
 import com.miruplay.tv.webcontrol.absoluteSeekPositionMs
+import com.miruplay.tv.webcontrol.addWebControlSource
 import com.miruplay.tv.webcontrol.browseWebControlCloudDriveDirectory
 import com.miruplay.tv.webcontrol.buildWebControlServerInfo
 import com.miruplay.tv.webcontrol.deleteWebControlRssSubscription
@@ -135,11 +136,7 @@ internal class DesktopWebControlService(
     }
 
     override suspend fun addSource(request: SourceRequest): MediaSourceInfo {
-        val source = request.toMediaSourceInfo()
-        val sourceId = requireWebControlSuccess(repositories.mediaSources.addSource(source), "添加媒体源失败")
-        val persisted = source.copy(id = sourceId, isConnected = source.type == MediaSourceType.LOCAL)
-        repositories.mediaSources.updateSource(persisted)
-        return persisted.safeForApi()
+        return repositories.mediaSources.addWebControlSource(request) { source -> testSource(source) }
     }
 
     override suspend fun updateSource(sourceId: Long, request: SourceRequest): MediaSourceInfo {
@@ -151,7 +148,10 @@ internal class DesktopWebControlService(
     }
 
     override suspend fun testSource(request: SourceTestRequest): SourceTestResponse {
-        val source = request.toMediaSourceInfo()
+        return testSource(request.toMediaSourceInfo())
+    }
+
+    private suspend fun testSource(source: MediaSourceInfo): SourceTestResponse {
         val mediaSource = desktopSourceFromInfo(source)
         return try {
             mediaSource.testConnection().toWebControlSourceTestResponse()

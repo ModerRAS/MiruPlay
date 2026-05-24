@@ -66,12 +66,7 @@ class WebControlService @Inject constructor(
     }
 
     override suspend fun addSource(request: SourceRequest): MediaSourceInfo {
-        val source = request.toMediaSourceInfo()
-        val id = requireWebControlSuccess(mediaRepository.addSource(source), "添加媒体源失败")
-        val connected = testSource(source).connected
-        val savedSource = source.copy(id = id, isConnected = connected)
-        mediaRepository.updateSource(savedSource)
-        return savedSource.safeForApi()
+        return mediaRepository.addWebControlSource(request) { source -> testSource(source) }
     }
 
     override suspend fun updateSource(sourceId: Long, request: SourceRequest): MediaSourceInfo {

@@ -83,6 +83,88 @@ class WebControlSourceRequestsTest {
     }
 
     @Test
+    fun `repository add WebUI source tests persisted source and redacts response`() = runBlocking {
+        val repository = FakeMediaSourceRepository(addResult = Result.success(42L))
+        val testedSources = mutableListOf<MediaSourceInfo>()
+
+        val response = repository.addWebControlSource(
+            request = SourceRequest(
+                name = " Remote ",
+                type = "webdav",
+                location = " https://dav.example.test/root ",
+                username = " miru ",
+                password = "secret",
+            ),
+            testConnection = { source ->
+                testedSources += source
+                SourceTestResponse(connected = true, message = "连接正常")
+            },
+        )
+
+        val tested = testedSources.single()
+        val saved = requireNotNull(repository.updatedSource)
+        assertEquals(42L, tested.id)
+        assertEquals("Remote", tested.name)
+        assertEquals("secret", tested.connectionInfo[MediaSourceInfoConventions.CONNECTION_PASSWORD])
+        assertEquals(false, tested.isConnected)
+        assertEquals(42L, saved.id)
+        assertEquals(true, saved.isConnected)
+        assertEquals("secret", saved.connectionInfo[MediaSourceInfoConventions.CONNECTION_PASSWORD])
+        assertEquals(42L, response.id)
+        assertEquals(true, response.isConnected)
+        assertEquals(null, response.connectionInfo[MediaSourceInfoConventions.CONNECTION_PASSWORD])
+    }
+
+    @Test
+    fun `repository add WebUI source persists disconnected test result`() = runBlocking {
+        val repository = FakeMediaSourceRepository(addResult = Result.success(43L))
+
+        val response = repository.addWebControlSource(
+            request = SourceRequest(name = "Local", type = "local", location = "D:/Anime"),
+            testConnection = { SourceTestResponse(connected = false, message = "无法连接") },
+        )
+
+        assertEquals(false, requireNotNull(repository.updatedSource).isConnected)
+        assertEquals(false, response.isConnected)
+    }
+
+    @Test
+    fun `repository add WebUI source maps add failures`() = runBlocking {
+        val repository = FakeMediaSourceRepository(
+            addResult = Result.failure(AppError.MediaSourceError.PermissionDenied("D:/Anime")),
+        )
+
+        val failure = runCatching {
+            repository.addWebControlSource(
+                request = SourceRequest(name = "Local", type = "local", location = "D:/Anime"),
+                testConnection = { SourceTestResponse(connected = true, message = "连接正常") },
+            )
+        }.exceptionOrNull()
+
+        assertTrue(failure is IllegalStateException)
+        assertEquals("添加媒体源失败: 无权限访问：D:/Anime", failure?.message)
+        assertEquals(null, repository.updatedSource)
+    }
+
+    @Test
+    fun `repository add WebUI source maps connected-state update failures`() = runBlocking {
+        val repository = FakeMediaSourceRepository(
+            addResult = Result.success(42L),
+            updateResult = Result.failure(AppError.MediaSourceError.PermissionDenied("42")),
+        )
+
+        val failure = runCatching {
+            repository.addWebControlSource(
+                request = SourceRequest(name = "Local", type = "local", location = "D:/Anime"),
+                testConnection = { SourceTestResponse(connected = true, message = "连接正常") },
+            )
+        }.exceptionOrNull()
+
+        assertTrue(failure is IllegalStateException)
+        assertEquals("更新媒体源失败: 无权限访问：42", failure?.message)
+    }
+
+    @Test
     fun `repository update WebUI source preserves existing password and state and redacts response`() = runBlocking {
         val existing = MediaSourceInfoConventions.webDav(
             name = "Old",
@@ -218,13 +300,15 @@ class WebControlSourceRequestsTest {
 
     private class FakeMediaSourceRepository(
         existing: MediaSourceInfo = MediaSourceInfoConventions.local(name = "Local", rootPath = "D:/Anime"),
+        private val addResult: Result<Long> = Result.success(1L),
         private val getResult: Result<MediaSourceInfo> = Result.success(existing),
         private val removeResult: Result<Unit> = Result.success(Unit),
+        private val updateResult: Result<Unit> = Result.success(Unit),
     ) : MediaSourceRepository {
         var updatedSource: MediaSourceInfo? = null
 
         override suspend fun addSource(source: MediaSourceInfo): Result<Long> =
-            Result.success(1L)
+            addResult
 
         override suspend fun removeSource(sourceId: Long): Result<Unit> =
             removeResult
@@ -234,7 +318,7 @@ class WebControlSourceRequestsTest {
 
         override suspend fun updateSource(source: MediaSourceInfo): Result<Unit> {
             updatedSource = source
-            return Result.success(Unit)
+            return updateResult
         }
 
         override suspend fun getSourceById(sourceId: Long): Result<MediaSourceInfo> =

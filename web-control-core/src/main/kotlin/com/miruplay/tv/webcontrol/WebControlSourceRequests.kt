@@ -48,6 +48,19 @@ fun SourceTestRequest.toMediaSourceInfo(): MediaSourceInfo {
     )
 }
 
+suspend fun MediaSourceRepository.addWebControlSource(
+    request: SourceRequest,
+    testConnection: suspend (MediaSourceInfo) -> SourceTestResponse,
+): MediaSourceInfo {
+    val source = request.toMediaSourceInfo()
+    val sourceId = requireWebControlSuccess(addSource(source), "添加媒体源失败")
+    val persisted = source.copy(id = sourceId)
+    val connected = testConnection(persisted).connected
+    val savedSource = persisted.copy(isConnected = connected)
+    requireWebControlSuccess(updateSource(savedSource), "更新媒体源失败")
+    return savedSource.safeForApi()
+}
+
 suspend fun MediaSourceRepository.updateWebControlSource(
     sourceId: Long,
     request: SourceRequest,

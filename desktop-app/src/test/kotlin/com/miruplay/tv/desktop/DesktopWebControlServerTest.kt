@@ -160,6 +160,54 @@ class DesktopWebControlServerTest {
     }
 
     @Test
+    fun `desktop web control adds source through shared connection test`() = runBlocking {
+        val storePath = Files.createTempDirectory("miruplay-web-control-store").resolve("store.json")
+        val mediaRoot = Files.createTempDirectory("miruplay-web-control-media")
+        val port = freePort()
+        try {
+            val repositories = DesktopRepositories.fileBacked(storePath)
+            repositories.webControlAccess.webControlEnabled = true
+            val token = repositories.webControlAccess.accessToken
+            val service = DesktopWebControlService(repositories, deviceName = "Windows Test")
+            val server = DesktopWebControlServer(
+                webControlService = service,
+                webControlAccess = repositories.webControlAccess,
+                port = port,
+            )
+            server.startIfNeeded()
+            try {
+                val added = request(
+                    url = "http://127.0.0.1:$port/api/sources?token=$token",
+                    method = "POST",
+                    body = """
+                        {
+                          "name":"Local Anime",
+                          "type":"local",
+                          "location":"${mediaRoot.toString().jsonEscaped()}",
+                          "displayName":"Fixture Drive"
+                        }
+                    """.trimIndent(),
+                )
+
+                assertEquals(200, added.code)
+                assertTrue(added.body.contains("\"name\":\"Local Anime\""))
+                assertTrue(added.body.contains("\"isConnected\":true"))
+                assertTrue(added.body.contains("Fixture Drive"))
+
+                val source = repositories.mediaSources.getSources().getOrNull().orEmpty().single()
+                assertEquals("Local Anime", source.name)
+                assertEquals(true, source.isConnected)
+                assertEquals(mediaRoot.toString(), source.connectionInfo[MediaSourceInfoConventions.CONNECTION_PATH])
+            } finally {
+                server.stopIfRunning()
+            }
+        } finally {
+            mediaRoot.toFile().deleteRecursively()
+            storePath.parent.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
     fun `desktop web control library follows shared poster merge preference`() = runBlocking {
         val storePath = Files.createTempDirectory("miruplay-web-control-store").resolve("store.json")
         try {
