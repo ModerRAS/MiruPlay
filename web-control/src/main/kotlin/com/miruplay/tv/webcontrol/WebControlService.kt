@@ -1,26 +1,19 @@
 package com.miruplay.tv.webcontrol
 
 import com.miruplay.tv.clouddrive.CloudDriveClient
-import com.miruplay.tv.clouddrive.CloudDriveEndpoint
 import android.os.Build
 import com.miruplay.tv.core.common.LocalDirectoryBrowser
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.CloudDriveAutomationConfig
-import com.miruplay.tv.model.CloudDriveDirectoryItem
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.PlaybackState
 import com.miruplay.tv.model.RssSubscriptionInfo
-import com.miruplay.tv.model.cloudDriveDirectoryDisplayPath
-import com.miruplay.tv.model.cloudDriveDirectoryItems
-import com.miruplay.tv.model.cloudDriveDirectoryParentPath
 import com.miruplay.tv.model.connectionPasswordOrNull
-import com.miruplay.tv.model.normalizeCloudDriveDirectoryPath
-import com.miruplay.tv.model.scopedCloudDriveDirectoryPath
 import com.miruplay.tv.player.PlaybackController
 import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
@@ -30,6 +23,9 @@ import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
 import com.miruplay.tv.scanner.ScanCoordinator
 import com.miruplay.tv.sync.rss.CloudDriveRssAutomationEngine
+import com.miruplay.tv.sync.rss.CloudDriveDirectoryTarget
+import com.miruplay.tv.sync.rss.loadCloudDriveDirectory
+import com.miruplay.tv.sync.rss.prepareCloudDriveDirectoryBrowser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -348,38 +344,25 @@ class WebControlService @Inject constructor(
 
         val token = securePreferences.cloudDriveToken?.takeIf { it.isNotBlank() }
             ?: throw IllegalArgumentException("请先登录 CloudDrive2 或保存 API Token")
-        val endpoint = CloudDriveEndpoint(resolvedEndpoint, token)
-        val tokenInfo = cloudDriveClient.getApiTokenInfo(resolvedEndpoint, token).getOrNull()
-        val rootPath = normalizeCloudDriveDirectoryPath(tokenInfo?.rootDir ?: "")
-        val currentPath = scopedCloudDriveDirectoryPath(path.ifBlank { rootPath }, rootPath)
-
-        val listing = requireSuccess(
-            cloudDriveClient.listFolder(endpoint, currentPath, forceRefresh = false),
-            "读取 CloudDrive 目录失败"
+        val prepared = requireSuccess(
+            prepareCloudDriveDirectoryBrowser(
+                client = cloudDriveClient,
+                target = CloudDriveDirectoryTarget.INBOX,
+                endpointUrl = resolvedEndpoint,
+                token = token,
+                initialPath = path,
+            ),
+            "读取 CloudDrive 目录失败",
         )
-        val entries = cloudDriveDirectoryItems(
-            listing.filter { it.isDirectory }
-                .map {
-                    CloudDriveDirectoryItem(
-                        name = it.name,
-                        path = it.path
-                    )
-                }
+        val loaded = requireSuccess(
+            loadCloudDriveDirectory(
+                client = cloudDriveClient,
+                state = prepared,
+                requestedPath = prepared.path,
+            ),
+            "读取 CloudDrive 目录失败",
         )
-            .map {
-                CloudDriveDirectoryEntryDto(
-                    name = it.name,
-                    path = it.path,
-                    canRead = true
-                )
-            }
-
-        CloudDriveDirectoryDto(
-            path = currentPath,
-            displayPath = cloudDriveDirectoryDisplayPath(currentPath),
-            parentPath = cloudDriveDirectoryParentPath(currentPath, rootPath),
-            entries = entries
-        )
+        loaded.toWebControlDirectoryDto()
     }
 
     private suspend fun findEpisodeById(episodeId: String): Episode? {

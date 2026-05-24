@@ -27,7 +27,6 @@ import com.miruplay.tv.webcontrol.AnimeDetailDto
 import com.miruplay.tv.webcontrol.CloudDriveAutomationDto
 import com.miruplay.tv.webcontrol.CloudDriveConfigRequest
 import com.miruplay.tv.webcontrol.CloudDriveDirectoryDto
-import com.miruplay.tv.webcontrol.CloudDriveDirectoryEntryDto
 import com.miruplay.tv.webcontrol.CloudDriveLoginRequest
 import com.miruplay.tv.webcontrol.CloudDriveRunResponse
 import com.miruplay.tv.webcontrol.CloudDriveTokenRequest
@@ -59,6 +58,7 @@ import com.miruplay.tv.webcontrol.toAutomationConfig
 import com.miruplay.tv.webcontrol.toMediaSourceInfo
 import com.miruplay.tv.webcontrol.toSubscription
 import com.miruplay.tv.webcontrol.toWebControlResponse
+import com.miruplay.tv.webcontrol.toWebControlDirectoryDto
 import com.miruplay.tv.webcontrol.toWebControlLibrary
 import com.miruplay.tv.webcontrol.validated
 import com.miruplay.tv.webcontrol.webControlDefaultSourceName
@@ -159,18 +159,7 @@ internal class DesktopWebControlService(
             ),
             "读取 CloudDrive 目录失败",
         )
-        return CloudDriveDirectoryDto(
-            path = loaded.path,
-            displayPath = loaded.displayPath,
-            parentPath = loaded.parentPath,
-            entries = loaded.entries.map {
-                CloudDriveDirectoryEntryDto(
-                    name = it.name,
-                    path = it.path,
-                    canRead = true,
-                )
-            },
-        )
+        return loaded.toWebControlDirectoryDto()
     }
 
     override suspend fun addSource(request: SourceRequest): MediaSourceInfo {
