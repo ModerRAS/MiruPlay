@@ -43,11 +43,13 @@ import com.miruplay.tv.design.horizontalNavigationDelta
 import com.miruplay.tv.design.verticalNavigationDelta
 import com.miruplay.tv.model.DETAIL_EPISODE_PAGE_SIZE
 import com.miruplay.tv.model.FileEntry
+import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MEDIA_DETAILS_PAGE_SIZE
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.RECENT_PLAYBACK_PAGE_SIZE
+import com.miruplay.tv.model.activeSeasonOrDefault
 import com.miruplay.tv.model.detailBackToLibraryActionLabel
 import com.miruplay.tv.model.detailEpisodeBadge
 import com.miruplay.tv.model.detailEpisodeCoercedPageStart
@@ -664,7 +666,7 @@ private fun DetailEpisodeRow(
 
 internal fun detailEpisodeSeasons(episodes: List<MediaIndexEntry>): List<Int> =
     episodes
-        .mapNotNull { it.seasonNumber }
+        .map { it.seasonNumber ?: 1 }
         .distinct()
         .sorted()
 
@@ -673,20 +675,35 @@ internal fun detailActiveEpisodeSeason(
     selectedEntry: MediaIndexEntry?,
     requestedSeason: Int?,
 ): Int? {
-    val seasons = detailEpisodeSeasons(episodes)
-    if (seasons.isEmpty()) return null
-    return when {
-        requestedSeason in seasons -> requestedSeason
-        selectedEntry?.seasonNumber in seasons -> selectedEntry?.seasonNumber
-        else -> seasons.first()
-    }
+    if (episodes.isEmpty()) return null
+    return episodes
+        .map { it.toDetailEpisode() }
+        .activeSeasonOrDefault(
+            requestedSeason = requestedSeason ?: selectedEntry?.seasonNumber,
+        )
 }
 
 internal fun detailEpisodesForSeason(
     episodes: List<MediaIndexEntry>,
     season: Int?,
 ): List<MediaIndexEntry> =
-    if (season == null) episodes.sortedByMediaIndexEpisodeOrder() else episodes.filter { it.seasonNumber == season }
+    if (season == null) {
+        episodes.sortedByMediaIndexEpisodeOrder()
+    } else {
+        episodes
+            .filter { (it.seasonNumber ?: 1) == season }
+            .sortedByMediaIndexEpisodeOrder()
+    }
+
+private fun MediaIndexEntry.toDetailEpisode(): Episode =
+    Episode(
+        id = path,
+        animeId = animeName.orEmpty(),
+        seasonNumber = seasonNumber ?: 1,
+        episodeNumber = episodeNumber ?: 1,
+        filePath = path,
+        fileName = MediaPathConventions.fileName(path),
+    )
 
 internal fun moveDetailEpisodeSelection(
     currentIndex: Int,

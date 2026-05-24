@@ -379,6 +379,18 @@ class DesktopDetailHeroTest {
     }
 
     @Test
+    fun `detail episode season helpers default missing season values to season one`() {
+        val episodes = listOf(
+            MediaIndexEntry(sourceId = 1, path = "show/Frieren - S01E02.mkv", animeName = "Frieren", episodeNumber = 2),
+            MediaIndexEntry(sourceId = 1, path = "show/Frieren - S01E01.mkv", animeName = "Frieren", episodeNumber = 1),
+        )
+
+        assertEquals(listOf(1), detailEpisodeSeasons(episodes))
+        assertEquals(1, detailActiveEpisodeSeason(episodes, selectedEntry = null, requestedSeason = null))
+        assertEquals(listOf("show/Frieren - S01E01.mkv", "show/Frieren - S01E02.mkv"), detailEpisodesForSeason(episodes, 1).map { it.path })
+    }
+
+    @Test
     fun `shared Bangumi cache ids and episodes mirror indexed metadata`() {
         val entry = MediaIndexEntry(
             sourceId = 1,
