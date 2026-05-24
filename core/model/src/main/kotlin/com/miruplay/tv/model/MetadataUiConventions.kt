@@ -200,6 +200,43 @@ fun metadataBatchStatusLabel(status: String): String =
         else -> status
     }
 
+data class BangumiUiLabels(
+    val title: String,
+    val query: String,
+    val useSelected: String,
+    val search: String,
+    val applyMatch: String,
+    val clearMetadata: String,
+    val batchPreview: String,
+    val applyBatch: String,
+    val undoBatch: String,
+    val acceptReview: String,
+    val syncProgress: String,
+    val selectedIndex: String,
+    val matches: String,
+    val batchCandidates: String,
+    val emptyResults: String,
+)
+
+fun bangumiUiLabels(isSyncingProgress: Boolean = false): BangumiUiLabels =
+    BangumiUiLabels(
+        title = metadataPanelTitleLabel(),
+        query = metadataQueryFieldLabel(),
+        useSelected = metadataUseSelectedEntryActionLabel(),
+        search = metadataSearchActionLabel(),
+        applyMatch = metadataApplyMatchActionLabel(),
+        clearMetadata = metadataClearActionLabel(),
+        batchPreview = metadataBatchPreviewActionLabel(),
+        applyBatch = metadataApplyBatchActionLabel(),
+        undoBatch = metadataUndoBatchActionLabel(),
+        acceptReview = metadataAcceptReviewActionLabel(),
+        syncProgress = detailSyncProgressActionLabel(isSyncing = isSyncingProgress),
+        selectedIndex = metadataSelectedIndexSectionTitle(),
+        matches = metadataMatchesSectionTitle(),
+        batchCandidates = metadataBatchCandidatesSectionTitle(),
+        emptyResults = metadataEmptyResultsMessage(),
+    )
+
 private fun localizedDynamicMetadataStatusText(status: String): String? {
     if (status.isTvMetadataStatus()) {
         return status

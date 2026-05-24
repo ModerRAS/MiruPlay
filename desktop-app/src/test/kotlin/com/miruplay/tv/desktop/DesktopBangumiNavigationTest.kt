@@ -28,6 +28,7 @@ import com.miruplay.tv.model.metadataUndoBatchActionLabel
 import com.miruplay.tv.model.metadataUseSelectedEntryActionLabel
 import com.miruplay.tv.repository.MetadataBatchMatch
 import com.miruplay.tv.repository.selectedCandidateLabel
+import com.miruplay.tv.model.bangumiUiLabels
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -37,7 +38,7 @@ import org.junit.Test
 class DesktopBangumiNavigationTest {
     @Test
     fun `bangumi panel labels use TV facing Chinese text`() {
-        val labels = desktopBangumiUiLabels()
+        val labels = bangumiUiLabels()
 
         assertEquals(metadataPanelTitleLabel(), labels.title)
         assertEquals(metadataQueryFieldLabel(), labels.query)
@@ -50,7 +51,7 @@ class DesktopBangumiNavigationTest {
         assertEquals(metadataUndoBatchActionLabel(), labels.undoBatch)
         assertEquals(metadataAcceptReviewActionLabel(), labels.acceptReview)
         assertEquals(detailSyncProgressActionLabel(isSyncing = false), labels.syncProgress)
-        assertEquals(detailSyncProgressActionLabel(isSyncing = true), desktopBangumiUiLabels(isSyncingProgress = true).syncProgress)
+        assertEquals(detailSyncProgressActionLabel(isSyncing = true), bangumiUiLabels(isSyncingProgress = true).syncProgress)
         assertEquals(metadataSelectedIndexSectionTitle(), labels.selectedIndex)
         assertEquals(metadataMatchesSectionTitle(), labels.matches)
         assertEquals(metadataBatchCandidatesSectionTitle(), labels.batchCandidates)

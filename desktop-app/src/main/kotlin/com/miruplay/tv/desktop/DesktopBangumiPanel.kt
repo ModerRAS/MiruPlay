@@ -36,31 +36,17 @@ import com.miruplay.tv.design.horizontalNavigationDelta
 import com.miruplay.tv.design.verticalNavigationDelta
 import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.confidencePercentLabel
-import com.miruplay.tv.model.detailSyncProgressActionLabel
-import com.miruplay.tv.model.metadataAcceptReviewActionLabel
-import com.miruplay.tv.model.metadataApplyBatchActionLabel
-import com.miruplay.tv.model.metadataApplyMatchActionLabel
-import com.miruplay.tv.model.metadataBatchCandidatesSectionTitle
 import com.miruplay.tv.model.metadataBatchPageLabel
-import com.miruplay.tv.model.metadataBatchPreviewActionLabel
 import com.miruplay.tv.model.metadataBatchPreviewedCountLabel
 import com.miruplay.tv.model.metadataBatchStatusLabel
 import com.miruplay.tv.model.metadataBangumiLinkedLabel
 import com.miruplay.tv.model.metadataCandidatePageLabel
-import com.miruplay.tv.model.metadataClearActionLabel
-import com.miruplay.tv.model.metadataEmptyResultsMessage
-import com.miruplay.tv.model.metadataMatchesSectionTitle
 import com.miruplay.tv.model.metadataNoMatchLabel
 import com.miruplay.tv.model.metadataNoSelectedIndexMessage
 import com.miruplay.tv.model.metadataPageUnitLabel
-import com.miruplay.tv.model.metadataPanelTitleLabel
-import com.miruplay.tv.model.metadataQueryFieldLabel
-import com.miruplay.tv.model.metadataSearchActionLabel
-import com.miruplay.tv.model.metadataSearchResultsPageLabel
-import com.miruplay.tv.model.metadataSelectedIndexSectionTitle
 import com.miruplay.tv.model.metadataStatusText
-import com.miruplay.tv.model.metadataUndoBatchActionLabel
-import com.miruplay.tv.model.metadataUseSelectedEntryActionLabel
+import com.miruplay.tv.model.metadataSearchResultsPageLabel
+import com.miruplay.tv.model.bangumiUiLabels
 import com.miruplay.tv.model.pagedListCoercedPageStart
 import com.miruplay.tv.model.pagedListPageStartForIndex
 import com.miruplay.tv.model.pagedListPageSummary
@@ -100,7 +86,7 @@ internal fun BangumiPanel(
     onFocusNextPanel: () -> Boolean = { false },
     focusVersion: Int = 0,
 ) {
-    val labels = desktopBangumiUiLabels(isSyncingProgress = isSyncingProgress)
+    val labels = bangumiUiLabels(isSyncingProgress = isSyncingProgress)
     val actionFocusRequesters = remember {
         BangumiAction.entries.associateWith { FocusRequester() }
     }
@@ -756,43 +742,6 @@ private fun BangumiBatchMatchRow(
 private const val BANGUMI_BATCH_MATCH_LIMIT = 4
 private const val BANGUMI_CANDIDATE_LIMIT = 4
 private const val BANGUMI_RESULT_LIMIT = 6
-
-internal data class DesktopBangumiUiLabels(
-    val title: String,
-    val query: String,
-    val useSelected: String,
-    val search: String,
-    val applyMatch: String,
-    val clearMetadata: String,
-    val batchPreview: String,
-    val applyBatch: String,
-    val undoBatch: String,
-    val acceptReview: String,
-    val syncProgress: String,
-    val selectedIndex: String,
-    val matches: String,
-    val batchCandidates: String,
-    val emptyResults: String,
-)
-
-internal fun desktopBangumiUiLabels(isSyncingProgress: Boolean = false): DesktopBangumiUiLabels =
-    DesktopBangumiUiLabels(
-        title = metadataPanelTitleLabel(),
-        query = metadataQueryFieldLabel(),
-        useSelected = metadataUseSelectedEntryActionLabel(),
-        search = metadataSearchActionLabel(),
-        applyMatch = metadataApplyMatchActionLabel(),
-        clearMetadata = metadataClearActionLabel(),
-        batchPreview = metadataBatchPreviewActionLabel(),
-        applyBatch = metadataApplyBatchActionLabel(),
-        undoBatch = metadataUndoBatchActionLabel(),
-        acceptReview = metadataAcceptReviewActionLabel(),
-        syncProgress = detailSyncProgressActionLabel(isSyncing = isSyncingProgress),
-        selectedIndex = metadataSelectedIndexSectionTitle(),
-        matches = metadataMatchesSectionTitle(),
-        batchCandidates = metadataBatchCandidatesSectionTitle(),
-        emptyResults = metadataEmptyResultsMessage(),
-    )
 
 internal enum class BangumiListSection {
     BatchMatches,

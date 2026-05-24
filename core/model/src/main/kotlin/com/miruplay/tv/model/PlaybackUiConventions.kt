@@ -137,6 +137,25 @@ fun playbackStartPositionLabel(startSeconds: String): String {
     return formatPlaybackPosition(startMs)
 }
 
+data class PlaybackUiLabels(
+    val mediaPath: String,
+    val startSeconds: String,
+    val subtitlePath: String,
+    val fullscreen: String,
+    val keepOpen: String,
+    val rife: String,
+)
+
+fun playbackUiLabels(): PlaybackUiLabels =
+    PlaybackUiLabels(
+        mediaPath = playbackMediaPathFieldLabel(),
+        startSeconds = playbackStartSecondsFieldLabel(),
+        subtitlePath = playbackSubtitlePathFieldLabel(),
+        fullscreen = playbackFullscreenToggleLabel(),
+        keepOpen = playbackKeepOpenToggleLabel(),
+        rife = playbackRifeToggleLabel(),
+    )
+
 fun mpvPlaybackStatusText(status: String): String {
     val trimmed = status.trim()
     return when {

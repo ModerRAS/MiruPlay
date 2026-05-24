@@ -68,25 +68,20 @@ import com.miruplay.tv.model.playbackEndActionLabel
 import com.miruplay.tv.model.playbackEndSettingsDescriptionLabel
 import com.miruplay.tv.model.playbackEndSettingsTitleLabel
 import com.miruplay.tv.model.playbackExternalSubtitleLabel
-import com.miruplay.tv.model.playbackFullscreenToggleLabel
-import com.miruplay.tv.model.playbackKeepOpenToggleLabel
-import com.miruplay.tv.model.playbackMediaPathFieldLabel
 import com.miruplay.tv.model.playbackMediaTitle
 import com.miruplay.tv.model.playbackMpvExecutableFieldLabel
 import com.miruplay.tv.model.playbackMpvRuntimeStateLabel
 import com.miruplay.tv.model.playbackPauseLabel
 import com.miruplay.tv.model.playbackPortableConfigFieldLabel
 import com.miruplay.tv.model.playbackRifeStateLabel
-import com.miruplay.tv.model.playbackRifeToggleLabel
 import com.miruplay.tv.model.playbackRuntimeStatusText
 import com.miruplay.tv.model.playbackRuntimeTitleLabel
 import com.miruplay.tv.model.playbackSeekBackCompactLabel
 import com.miruplay.tv.model.playbackSeekForwardCompactLabel
 import com.miruplay.tv.model.playbackSettingsTitleLabel
 import com.miruplay.tv.model.playbackStartPositionLabel
-import com.miruplay.tv.model.playbackStartSecondsFieldLabel
+import com.miruplay.tv.model.playbackUiLabels
 import com.miruplay.tv.model.playbackStopLabel
-import com.miruplay.tv.model.playbackSubtitlePathFieldLabel
 import com.miruplay.tv.model.playbackUnknownDurationLabel
 import com.miruplay.tv.player.mpv.RifeBackend
 
@@ -918,7 +913,7 @@ private fun PlaybackSettingsPanel(
     onFocusPreviousPanel: () -> Boolean = { false },
     onFocusNextPanel: () -> Boolean = { false },
 ) {
-    val labels = desktopPlaybackUiLabels()
+    val labels = playbackUiLabels()
     val settingFocusRequesters = remember {
         playbackSettingFocusableTargets.associateWith { FocusRequester() }
     }
@@ -1130,25 +1125,6 @@ internal fun CommandPanel(
         }
     }
 }
-
-internal data class DesktopPlaybackUiLabels(
-    val mediaPath: String,
-    val startSeconds: String,
-    val subtitlePath: String,
-    val fullscreen: String,
-    val keepOpen: String,
-    val rife: String,
-)
-
-internal fun desktopPlaybackUiLabels(): DesktopPlaybackUiLabels =
-    DesktopPlaybackUiLabels(
-        mediaPath = playbackMediaPathFieldLabel(),
-        startSeconds = playbackStartSecondsFieldLabel(),
-        subtitlePath = playbackSubtitlePathFieldLabel(),
-        fullscreen = playbackFullscreenToggleLabel(),
-        keepOpen = playbackKeepOpenToggleLabel(),
-        rife = playbackRifeToggleLabel(),
-    )
 
 internal fun desktopPlaybackSourceLine(
     mediaPath: String,

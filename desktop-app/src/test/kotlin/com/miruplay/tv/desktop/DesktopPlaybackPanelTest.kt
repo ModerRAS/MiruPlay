@@ -22,6 +22,7 @@ import com.miruplay.tv.model.playbackRuntimeStatusText
 import com.miruplay.tv.model.playbackStartPositionLabel
 import com.miruplay.tv.model.playbackStartSecondsFieldLabel
 import com.miruplay.tv.model.playbackSubtitlePathFieldLabel
+import com.miruplay.tv.model.playbackUiLabels
 import com.miruplay.tv.player.mpv.RifeBackend
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -42,7 +43,7 @@ class DesktopPlaybackPanelTest {
 
     @Test
     fun `desktop player controls use TV facing labels`() {
-        val labels = desktopPlaybackUiLabels()
+        val labels = playbackUiLabels()
 
         assertEquals(playbackMediaPathFieldLabel(), labels.mediaPath)
         assertEquals(playbackStartSecondsFieldLabel(), labels.startSeconds)
