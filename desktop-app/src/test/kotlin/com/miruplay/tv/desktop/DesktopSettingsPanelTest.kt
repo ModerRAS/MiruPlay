@@ -1016,6 +1016,68 @@ class DesktopSettingsPanelTest {
     }
 
     @Test
+    fun `settings summary extra field bridges between menu and quick actions`() {
+        assertEquals(
+            SettingsQuickActionFocusTarget.ExtraContent,
+            settingsQuickActionFocusTarget(
+                currentIndex = 0,
+                actionCount = 3,
+                key = Key.DirectionUp,
+                hasExtraFocus = true,
+            ),
+        )
+        assertEquals(
+            SettingsQuickActionFocusTarget.SectionMenu,
+            settingsSummaryExtraFocusTarget(
+                actionCount = 3,
+                key = Key.DirectionUp,
+            ),
+        )
+        assertEquals(
+            SettingsQuickActionFocusTarget.Action(0),
+            settingsSummaryExtraFocusTarget(
+                actionCount = 3,
+                key = Key.DirectionDown,
+            ),
+        )
+        assertNull(settingsSummaryExtraFocusTarget(actionCount = 3, key = Key.DirectionRight))
+    }
+
+    @Test
+    fun `settings summary extra field uses shared intents and skips disabled quick actions`() {
+        val enabledActions = listOf(false, true, true)
+
+        assertEquals(
+            SettingsQuickActionFocusTarget.ExtraContent,
+            settingsQuickActionFocusTarget(
+                currentIndex = 1,
+                intent = MiruPlayInputIntent.DirectionUp,
+                enabledActions = enabledActions,
+                hasExtraFocus = true,
+            ),
+        )
+        assertEquals(
+            SettingsQuickActionFocusTarget.Action(1),
+            settingsSummaryExtraFocusTarget(
+                intent = MiruPlayInputIntent.DirectionDown,
+                enabledActions = enabledActions,
+            ),
+        )
+        assertNull(
+            settingsSummaryExtraFocusTarget(
+                intent = MiruPlayInputIntent.DirectionDown,
+                enabledActions = listOf(false, false),
+            ),
+        )
+        assertNull(
+            settingsSummaryExtraFocusTarget(
+                intent = MiruPlayInputIntent.Activate,
+                enabledActions = enabledActions,
+            ),
+        )
+    }
+
+    @Test
     fun `settings summary quick actions skip disabled buttons`() {
         val enabledActions = listOf(true, false, true)
 

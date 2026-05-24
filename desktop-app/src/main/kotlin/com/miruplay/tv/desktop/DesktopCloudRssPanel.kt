@@ -362,11 +362,13 @@ internal fun CloudRssPanel(
                     SettingsQuickAction(settingsClearTokenActionLabel(), onClearBangumiToken, enabled = bangumiTokenConfigured),
                 ),
                 onFocusSectionMenu = { focusSelectedSectionMenu() },
-                extraContent = {
+                extraContentFocusable = true,
+                extraContent = { focusModifier ->
                     LabeledTextField(
                         metadataBangumiTokenFieldLabel(),
                         bangumiToken,
                         onValueChange = onBangumiTokenChange,
+                        inputModifier = focusModifier,
                     )
                 },
                 modifier = Modifier.weight(1f),
@@ -1796,6 +1798,7 @@ internal fun settingsQuickActionNavigationTarget(
 
 internal sealed interface SettingsQuickActionFocusTarget {
     data class Action(val index: Int) : SettingsQuickActionFocusTarget
+    data object ExtraContent : SettingsQuickActionFocusTarget
     data object SectionMenu : SettingsQuickActionFocusTarget
 }
 
@@ -1804,9 +1807,10 @@ internal fun settingsQuickActionFocusTarget(
     actionCount: Int = 0,
     key: Key,
     enabledActions: List<Boolean> = List(actionCount) { true },
+    hasExtraFocus: Boolean = false,
 ): SettingsQuickActionFocusTarget? =
     key.toMiruPlayInputIntent()?.let { intent ->
-        settingsQuickActionFocusTarget(currentIndex, actionCount, intent, enabledActions)
+        settingsQuickActionFocusTarget(currentIndex, actionCount, intent, enabledActions, hasExtraFocus)
     }
 
 internal fun settingsQuickActionFocusTarget(
@@ -1814,9 +1818,10 @@ internal fun settingsQuickActionFocusTarget(
     actionCount: Int = 0,
     intent: MiruPlayInputIntent,
     enabledActions: List<Boolean> = List(actionCount) { true },
+    hasExtraFocus: Boolean = false,
 ): SettingsQuickActionFocusTarget? =
     when (intent.verticalNavigationDelta()) {
-        -1 -> SettingsQuickActionFocusTarget.SectionMenu
+        -1 -> (if (hasExtraFocus) SettingsQuickActionFocusTarget.ExtraContent else SettingsQuickActionFocusTarget.SectionMenu)
             .takeIf {
                 val count = enabledActions.size.takeIf { actionCount == 0 } ?: actionCount
                 count > 0 &&
@@ -1830,6 +1835,38 @@ internal fun settingsQuickActionFocusTarget(
             enabledActions = enabledActions,
         )?.let(SettingsQuickActionFocusTarget::Action)
     }
+
+internal fun settingsSummaryExtraFocusTarget(
+    actionCount: Int = 0,
+    key: Key,
+    enabledActions: List<Boolean> = List(actionCount) { true },
+): SettingsQuickActionFocusTarget? =
+    key.toMiruPlayInputIntent()?.let { intent ->
+        settingsSummaryExtraFocusTarget(actionCount, intent, enabledActions)
+    }
+
+internal fun settingsSummaryExtraFocusTarget(
+    actionCount: Int = 0,
+    intent: MiruPlayInputIntent,
+    enabledActions: List<Boolean> = List(actionCount) { true },
+): SettingsQuickActionFocusTarget? =
+    when (intent.verticalNavigationDelta()) {
+        -1 -> SettingsQuickActionFocusTarget.SectionMenu
+        1 -> firstEnabledSettingsQuickActionIndex(actionCount, enabledActions)
+            ?.let(SettingsQuickActionFocusTarget::Action)
+        else -> null
+    }
+
+private fun firstEnabledSettingsQuickActionIndex(
+    actionCount: Int,
+    enabledActions: List<Boolean>,
+): Int? {
+    val count = enabledActions.size.takeIf { actionCount == 0 } ?: actionCount
+    if (count <= 0) return null
+    return (0 until count).firstOrNull { index ->
+        enabledActions.getOrElse(index) { true }
+    }
+}
 
 @Composable
 private fun SettingsSectionMenu(
@@ -1977,20 +2014,32 @@ private fun SettingsSummaryContent(
     actions: List<SettingsQuickAction>,
     onFocusSectionMenu: () -> Unit,
     modifier: Modifier = Modifier,
-    extraContent: @Composable ColumnScope.() -> Unit = {},
+    extraContentFocusable: Boolean = false,
+    extraContent: @Composable ColumnScope.(Modifier) -> Unit = {},
 ) {
     val actionFocusRequesters = remember(actions.size) {
         List(actions.size) { FocusRequester() }
+    }
+    val extraContentFocusRequester = remember { FocusRequester() }
+    val enabledActions = actions.map { it.enabled }
+    fun requestActionFocus(index: Int): Boolean {
+        if (index !in actions.indices || !actions[index].enabled) return false
+        actionFocusRequesters[index].requestFocus()
+        return true
     }
     fun moveActionFocus(currentIndex: Int, key: Key): Boolean {
         return when (val target = settingsQuickActionFocusTarget(
             currentIndex = currentIndex,
             actionCount = actions.size,
             key = key,
-            enabledActions = actions.map { it.enabled },
+            enabledActions = enabledActions,
+            hasExtraFocus = extraContentFocusable,
         )) {
             is SettingsQuickActionFocusTarget.Action -> {
-                actionFocusRequesters[target.index].requestFocus()
+                requestActionFocus(target.index)
+            }
+            SettingsQuickActionFocusTarget.ExtraContent -> {
+                extraContentFocusRequester.requestFocus()
                 true
             }
             SettingsQuickActionFocusTarget.SectionMenu -> {
@@ -1998,6 +2047,22 @@ private fun SettingsSummaryContent(
                 true
             }
             null -> false
+        }
+    }
+    fun moveExtraContentFocus(key: Key): Boolean {
+        return when (val target = settingsSummaryExtraFocusTarget(
+            actionCount = actions.size,
+            key = key,
+            enabledActions = enabledActions,
+        )) {
+            is SettingsQuickActionFocusTarget.Action -> requestActionFocus(target.index)
+            SettingsQuickActionFocusTarget.SectionMenu -> {
+                onFocusSectionMenu()
+                true
+            }
+            SettingsQuickActionFocusTarget.ExtraContent,
+            null,
+            -> false
         }
     }
     TvPanel(modifier.fillMaxWidth()) {
@@ -2010,7 +2075,15 @@ private fun SettingsSummaryContent(
                 SettingsSummaryTileRow(row)
             }
         }
-        extraContent()
+        extraContent(
+            if (extraContentFocusable) {
+                Modifier
+                    .focusRequester(extraContentFocusRequester)
+                    .desktopNavigationKeyHandler(::moveExtraContentFocus)
+            } else {
+                Modifier
+            },
+        )
         Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
         StatusBox(status)
         Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
