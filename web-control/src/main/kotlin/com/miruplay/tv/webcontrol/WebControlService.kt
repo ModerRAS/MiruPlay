@@ -244,16 +244,8 @@ class WebControlService @Inject constructor(
     }
 
     override suspend fun searchLibrary(query: String): LibraryDto {
-        val normalized = query.trim()
         val library = getLibrary()
-        if (normalized.isBlank()) return library
-
-        val filtered = library.allAnime.filter { item ->
-            item.id.contains(normalized, ignoreCase = true) ||
-                item.title.contains(normalized, ignoreCase = true) ||
-                (item.titleCn?.contains(normalized, ignoreCase = true) == true)
-        }
-        return library.copy(recentlyAdded = filtered.take(24), allAnime = filtered)
+        return library.filteredByQuery(query)
     }
 
     override suspend fun getAnimeDetail(animeId: String): AnimeDetailDto {

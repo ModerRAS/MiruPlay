@@ -49,6 +49,7 @@ import com.miruplay.tv.webcontrol.SourceScanResponse
 import com.miruplay.tv.webcontrol.SourceTestRequest
 import com.miruplay.tv.webcontrol.SourceTestResponse
 import com.miruplay.tv.webcontrol.WebControlEndpointService
+import com.miruplay.tv.webcontrol.filteredByQuery
 import com.miruplay.tv.webcontrol.safeForApi
 import kotlinx.coroutines.flow.first
 import java.io.File
@@ -321,15 +322,7 @@ internal class DesktopWebControlService(
 
     override suspend fun searchLibrary(query: String): LibraryDto {
         val library = loadLibrary()
-        val normalized = query.trim()
-        if (normalized.isBlank()) return library
-
-        val filtered = library.allAnime.filter { item ->
-            item.id.contains(normalized, ignoreCase = true) ||
-                item.title.contains(normalized, ignoreCase = true) ||
-                item.titleCn?.contains(normalized, ignoreCase = true) == true
-        }
-        return library.copy(recentlyAdded = filtered.take(24), allAnime = filtered)
+        return library.filteredByQuery(query)
     }
 
     override suspend fun getAnimeDetail(animeId: String): AnimeDetailDto {
