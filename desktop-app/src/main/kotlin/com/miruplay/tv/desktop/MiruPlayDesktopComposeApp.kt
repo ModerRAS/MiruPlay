@@ -118,16 +118,12 @@ import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.LibraryEpisodeResolver
 import com.miruplay.tv.repository.MediaSourceActionCoordinator
 import com.miruplay.tv.repository.MetadataBatchMatch
-import com.miruplay.tv.repository.MetadataBatchPlanner
 import com.miruplay.tv.repository.MetadataBatchPlan
 import com.miruplay.tv.repository.NextPlaybackSourceResolver
 import com.miruplay.tv.repository.ScanPreferenceActionSnapshot
 import com.miruplay.tv.repository.SettingsPreferenceActionCoordinator
 import com.miruplay.tv.repository.WebControlAccessActionCoordinator
 import com.miruplay.tv.repository.WebControlAccessSnapshot
-import com.miruplay.tv.repository.appliedStatus
-import com.miruplay.tv.repository.applyMetadataBatchPlan
-import com.miruplay.tv.repository.clearExternalMetadata
 import com.miruplay.tv.repository.displayName
 import com.miruplay.tv.repository.desktop.DesktopRepositories
 import com.miruplay.tv.repository.indexClearedStatus
@@ -140,38 +136,19 @@ import com.miruplay.tv.repository.localRootRequiredStatus
 import com.miruplay.tv.repository.mediaDisplayName
 import com.miruplay.tv.repository.mediaIndexEpisodesForPosterSelection
 import com.miruplay.tv.repository.mediaFilesOnly
-import com.miruplay.tv.repository.metadataAppliedStatus
 import com.miruplay.tv.repository.metadataApplyEntryRequiredStatus
-import com.miruplay.tv.repository.metadataBatchResultRequiredStatus
-import com.miruplay.tv.repository.metadataBatchSearchingStatus
-import com.miruplay.tv.repository.metadataClearEntryRequiredStatus
-import com.miruplay.tv.repository.metadataClearedStatus
 import com.miruplay.tv.repository.metadataIndexedVideoRequiredStatus
 import com.miruplay.tv.repository.metadataInitialStatus
 import com.miruplay.tv.repository.metadataQuery
-import com.miruplay.tv.repository.metadataQueryRequiredStatus
 import com.miruplay.tv.repository.metadataQuerySetFromIndexStatus
-import com.miruplay.tv.repository.metadataReviewNoMatchStatus
-import com.miruplay.tv.repository.metadataSearchResultStatus
-import com.miruplay.tv.repository.metadataSearchSelectionRequiredStatus
-import com.miruplay.tv.repository.metadataSearchStartedStatus
-import com.miruplay.tv.repository.metadataSourceRequiredStatus
-import com.miruplay.tv.repository.noMetadataBatchEntriesStatus
-import com.miruplay.tv.repository.noMetadataBatchPreviewStatus
-import com.miruplay.tv.repository.noMetadataBatchUndoStatus
 import com.miruplay.tv.repository.openRemoteSourceBeforeBrowsingStatus
 import com.miruplay.tv.repository.openSourceBeforeClearingIndexStatus
 import com.miruplay.tv.repository.openSourceBeforeScanningStatus
 import com.miruplay.tv.repository.openSourceBeforeSearchingStatus
-import com.miruplay.tv.repository.restoreMetadataBatchUndo
-import com.miruplay.tv.repository.restoredStatus
 import com.miruplay.tv.repository.retainedSelectionInMediaIndex
 import com.miruplay.tv.repository.scanPreferencesIntervalOptionsHours
-import com.miruplay.tv.repository.reviewAcceptedStatus
 import com.miruplay.tv.repository.shouldAutoScan
-import com.miruplay.tv.repository.reviewConflictStatus
 import com.miruplay.tv.repository.scanningStatus
-import com.miruplay.tv.repository.selectedCandidateStatus
 import com.miruplay.tv.repository.selectedForPlaybackStatus
 import com.miruplay.tv.repository.selectedMetadataStatus
 import com.miruplay.tv.repository.selectedReviewStatus
@@ -187,17 +164,14 @@ import com.miruplay.tv.repository.syncObservedPlaybackProgress
 import com.miruplay.tv.repository.upsertById
 import com.miruplay.tv.repository.updatedSelectionAfterReplacingByMediaKeys
 import com.miruplay.tv.repository.webDavUrlRequiredStatus
-import com.miruplay.tv.repository.withExternalMetadata
 import com.miruplay.tv.repository.replaceByMediaKey
 import com.miruplay.tv.repository.replaceByMediaKeys
-import com.miruplay.tv.repository.replaceMatch
-import com.miruplay.tv.repository.withSelectedCandidate
-import com.miruplay.tv.scraper.searchPreferredResults
 import com.miruplay.tv.scraper.desktop.DesktopBangumiScraper
+import com.miruplay.tv.sync.BANGUMI_METADATA_SOURCE_NAME
 import com.miruplay.tv.sync.BangumiCredentialActionCoordinator
+import com.miruplay.tv.sync.BangumiIndexMetadataCoordinator
 import com.miruplay.tv.sync.BangumiMetadataRefreshCore
 import com.miruplay.tv.sync.BangumiSyncCore
-import com.miruplay.tv.sync.bangumiMetadataCacheId
 import com.miruplay.tv.sync.rss.CloudDriveActionResult
 import com.miruplay.tv.sync.rss.CloudDriveConfigActionResult
 import com.miruplay.tv.sync.rss.CloudDriveRunActionResult
@@ -227,8 +201,6 @@ internal val AccentBlue = Color(MiruPlayPalette.ACCENT_BLUE_ARGB)
 internal val TextPrimary = Color(MiruPlayPalette.TEXT_PRIMARY_ARGB)
 internal val TextSecondary = Color(MiruPlayPalette.TEXT_SECONDARY_ARGB)
 internal val CardBg = Color(MiruPlayPalette.CARD_BG_ARGB)
-private const val COMPOSE_BATCH_BANGUMI_QUERY_LIMIT = 20
-private const val BANGUMI_METADATA_SOURCE_NAME = "Bangumi"
 private const val DESKTOP_PLAYBACK_MEDIA_SOURCE_ID = "desktop-compose"
 private const val PLAYBACK_EOF_POLL_INTERVAL_MS = 1_000L
 private const val PLAYBACK_PROGRESS_POLL_INTERVAL_MS = 10_000L
@@ -416,6 +388,13 @@ internal fun MiruPlayDesktopComposeApp(
     val bangumiScraper = remember { DesktopBangumiScraper { repositories.credentials.bangumiAccessToken } }
     val bangumiMetadataRefreshCore = remember(bangumiScraper, repositories) {
         BangumiMetadataRefreshCore(
+            metadataRepository = repositories.metadata,
+            bangumiScraper = bangumiScraper,
+        )
+    }
+    val bangumiIndexMetadataCoordinator = remember(bangumiScraper, repositories) {
+        BangumiIndexMetadataCoordinator(
+            indexRepository = repositories.index,
             metadataRepository = repositories.metadata,
             bangumiScraper = bangumiScraper,
         )
@@ -802,16 +781,6 @@ internal fun MiruPlayDesktopComposeApp(
     fun refreshDesktopWebUiUrls() {
         applyWebControlSnapshot(webControlActions.refreshUrls())
     }
-
-    suspend fun updateSelectedMetadataCache(
-        entry: MediaIndexEntry,
-        match: ScraperResult,
-    ): Result<Unit> =
-        bangumiMetadataRefreshCore.cacheMatchedIndexMetadata(
-            entry = entry,
-            relatedEntries = detailEpisodes,
-            match = match,
-        ).map { Unit }
 
     suspend fun ensureSelectedMetadataCache(entry: MediaIndexEntry): Result<String> =
         bangumiMetadataRefreshCore.ensureCachedIndexMetadata(
@@ -1740,27 +1709,16 @@ internal fun MiruPlayDesktopComposeApp(
                 },
                 onSearch = {
                     scope.launch {
-                        val query = bangumiQuery.trim().ifBlank {
-                            selectedIndexEntry?.metadataQuery().orEmpty()
-                        }
-                        if (query.isBlank()) {
-                            bangumiStatus = metadataQueryRequiredStatus(BANGUMI_METADATA_SOURCE_NAME)
-                            return@launch
-                        }
-                        bangumiQuery = query
-                        bangumiStatus = metadataSearchStartedStatus(query, BANGUMI_METADATA_SOURCE_NAME)
-                        when (val result = bangumiScraper.searchPreferredResults(
-                            query = query,
-                            candidates = listOfNotNull(
-                                selectedIndexEntry?.metadataTitle?.takeIf { it.isNotBlank() },
-                                selectedIndexEntry?.metadataQuery(),
-                                selectedIndexEntry?.metadataId?.takeIf { it.isNotBlank() },
-                            ).distinct(),
+                        when (val result = bangumiIndexMetadataCoordinator.search(
+                            query = bangumiQuery,
+                            selectedEntry = selectedIndexEntry,
+                            onSearchStarted = { bangumiStatus = it },
                         )) {
                             is Result.Success -> {
-                                bangumiResults = result.data
-                                selectedBangumiResult = result.data.firstOrNull()
-                                bangumiStatus = metadataSearchResultStatus(query, result.data.size, BANGUMI_METADATA_SOURCE_NAME)
+                                bangumiQuery = result.data.query
+                                bangumiResults = result.data.results
+                                selectedBangumiResult = result.data.selectedResult
+                                bangumiStatus = result.data.status
                             }
                             is Result.Error -> bangumiStatus = result.error.toUserMessage()
                         }
@@ -1768,95 +1726,58 @@ internal fun MiruPlayDesktopComposeApp(
                 },
                 onBatchPreview = {
                     scope.launch {
-                        val sourceId = activeSourceId
-                        if (sourceId == null) {
-                            bangumiStatus = metadataSourceRequiredStatus()
-                            return@launch
-                        }
-                        when (val entriesResult = repositories.index.queryIndex(sourceId, "")) {
+                        when (val preview = bangumiIndexMetadataCoordinator.previewBatch(
+                            sourceId = activeSourceId,
+                            onSearchStarted = { bangumiStatus = it },
+                        )) {
                             is Result.Success -> {
-                                val entries = entriesResult.data
-                                val queryCount = MetadataBatchPlanner.previewQueryCount(
-                                    entries = entries,
-                                    queryLimit = COMPOSE_BATCH_BANGUMI_QUERY_LIMIT,
-                                )
-                                if (queryCount == 0) {
-                                    bangumiBatchMatches = emptyList()
-                                    selectedBangumiBatchMatch = null
-                                    bangumiBatchPlan = null
-                                    bangumiStatus = noMetadataBatchEntriesStatus("Bangumi")
-                                    return@launch
-                                }
-
-                                bangumiStatus = metadataBatchSearchingStatus(queryCount, "Bangumi")
-                                val preview = MetadataBatchPlanner.previewFor(
-                                    entries = entries,
-                                    queryLimit = COMPOSE_BATCH_BANGUMI_QUERY_LIMIT,
-                                    searchCandidates = { query, candidates ->
-                                        bangumiScraper.searchPreferredResults(
-                                            query = query,
-                                            candidates = candidates,
-                                        ).getOrNull().orEmpty()
-                                    },
-                                )
-                                bangumiBatchMatches = preview.matches
-                                bangumiBatchPlan = preview.plan
-                                selectedBangumiBatchMatch = preview.selectedMatch
-                                bangumiStatus = preview.summaryStatus()
+                                bangumiBatchMatches = preview.data.matches
+                                bangumiBatchPlan = preview.data.plan
+                                selectedBangumiBatchMatch = preview.data.selectedMatch
+                                bangumiStatus = preview.data.status
                             }
-                            is Result.Error -> bangumiStatus = entriesResult.error.toUserMessage()
+                            is Result.Error -> bangumiStatus = preview.error.toUserMessage()
                         }
                     }
                 },
                 onBatchApply = {
                     scope.launch {
-                        val sourceId = activeSourceId
-                        if (sourceId == null) {
-                            bangumiStatus = metadataSourceRequiredStatus()
-                            return@launch
-                        }
-                        if (bangumiBatchMatches.isEmpty()) {
-                            bangumiStatus = noMetadataBatchPreviewStatus()
-                            return@launch
-                        }
-                        when (val entriesResult = repositories.index.queryIndex(sourceId, "")) {
+                        when (val apply = bangumiIndexMetadataCoordinator.applyBatch(
+                            sourceId = activeSourceId,
+                            matches = bangumiBatchMatches,
+                        )) {
                             is Result.Success -> {
-                                val entries = entriesResult.data.mediaFilesOnly()
-                                val plan = MetadataBatchPlanner.planFor(entries, bangumiBatchMatches)
-                                bangumiBatchPlan = plan
-                                if (plan.readyUpdates.isEmpty()) {
-                                    bangumiStatus = MetadataBatchPlanner.displayPlanSummary(plan)
-                                    return@launch
+                                bangumiBatchPlan = apply.data.plan
+                                if (apply.data.plan?.readyUpdates?.isNotEmpty() == true) {
+                                    bangumiBatchRollback = apply.data.write.rollbackEntries
                                 }
-                                val write = repositories.index.applyMetadataBatchPlan(sourceId, plan)
-                                bangumiBatchRollback = write.rollbackEntries
-                                indexedEntries = indexedEntries.replaceByMediaKeys(write.updatedEntries)
-                                selectedIndexEntry = selectedIndexEntry.updatedSelectionAfterReplacingByMediaKeys(write.updatedEntries)
-                                bangumiStatus = write.appliedStatus(plan.conflicts.size)
+                                indexedEntries = indexedEntries.replaceByMediaKeys(apply.data.write.updatedEntries)
+                                selectedIndexEntry = selectedIndexEntry.updatedSelectionAfterReplacingByMediaKeys(
+                                    apply.data.write.updatedEntries,
+                                )
+                                bangumiStatus = apply.data.status
                             }
-                            is Result.Error -> bangumiStatus = entriesResult.error.toUserMessage()
+                            is Result.Error -> bangumiStatus = apply.error.toUserMessage()
                         }
                     }
                 },
                 onBatchUndo = {
                     scope.launch {
-                        val sourceId = activeSourceId
-                        if (sourceId == null) {
-                            bangumiStatus = metadataSourceRequiredStatus()
-                            return@launch
-                        }
-                        when (val restore = repositories.index.restoreMetadataBatchUndo(sourceId, bangumiBatchRollback)) {
+                        when (val undo = bangumiIndexMetadataCoordinator.undoBatch(
+                            sourceId = activeSourceId,
+                            rollbackEntries = bangumiBatchRollback,
+                        )) {
                             is Result.Success -> {
-                                if (restore.data.rollbackEntries.isEmpty()) {
-                                    bangumiStatus = noMetadataBatchUndoStatus()
-                                    return@launch
+                                indexedEntries = indexedEntries.replaceByMediaKeys(undo.data.restore.rollbackEntries)
+                                selectedIndexEntry = selectedIndexEntry.updatedSelectionAfterReplacingByMediaKeys(
+                                    undo.data.restore.rollbackEntries,
+                                )
+                                if (undo.data.restore.rollbackEntries.isNotEmpty()) {
+                                    bangumiBatchRollback = emptyList()
                                 }
-                                indexedEntries = indexedEntries.replaceByMediaKeys(restore.data.rollbackEntries)
-                                selectedIndexEntry = selectedIndexEntry.updatedSelectionAfterReplacingByMediaKeys(restore.data.rollbackEntries)
-                                bangumiBatchRollback = emptyList()
-                                bangumiStatus = restore.data.restoredStatus()
+                                bangumiStatus = undo.data.status
                             }
-                            is Result.Error -> bangumiStatus = restore.error.toUserMessage()
+                            is Result.Error -> bangumiStatus = undo.error.toUserMessage()
                         }
                     }
                 },
@@ -1868,68 +1789,42 @@ internal fun MiruPlayDesktopComposeApp(
                 },
                 onBatchCandidateSelected = { match, candidate ->
                     scope.launch {
-                        var updatedMatch = match.withSelectedCandidate(candidate)
-                        var updatedMatches = bangumiBatchMatches.replaceMatch(updatedMatch)
-                        val sourceId = activeSourceId
-                        if (sourceId != null) {
-                            when (val entriesResult = repositories.index.queryIndex(sourceId, "")) {
-                                is Result.Success -> {
-                                    val selection = MetadataBatchPlanner.selectCandidate(
-                                        entries = entriesResult.data,
-                                        matches = bangumiBatchMatches,
-                                        match = match,
-                                        candidate = candidate,
-                                    )
-                                    updatedMatch = selection.updatedMatch
-                                    updatedMatches = selection.updatedMatches
-                                    bangumiBatchPlan = selection.plan
-                                }
-                                is Result.Error -> {
-                                    bangumiStatus = entriesResult.error.toUserMessage()
-                                    return@launch
-                                }
+                        when (val selection = bangumiIndexMetadataCoordinator.selectBatchCandidate(
+                            sourceId = activeSourceId,
+                            matches = bangumiBatchMatches,
+                            match = match,
+                            candidate = candidate,
+                        )) {
+                            is Result.Success -> {
+                                bangumiBatchMatches = selection.data.updatedMatches
+                                selectedBangumiBatchMatch = selection.data.updatedMatch
+                                selectedBangumiResult = selection.data.selectedResult
+                                bangumiBatchPlan = selection.data.plan
+                                bangumiQuery = match.query
+                                bangumiStatus = selection.data.status
                             }
+                            is Result.Error -> bangumiStatus = selection.error.toUserMessage()
                         }
-                        bangumiBatchMatches = updatedMatches
-                        selectedBangumiBatchMatch = updatedMatch
-                        selectedBangumiResult = candidate
-                        bangumiQuery = match.query
-                        bangumiStatus = updatedMatch.selectedCandidateStatus()
                     }
                 },
                 onBatchAcceptReview = {
                     scope.launch {
-                        val sourceId = activeSourceId
-                        val match = selectedBangumiBatchMatch
-                        val result = match?.result
-                        if (sourceId == null) {
-                            bangumiStatus = metadataSourceRequiredStatus()
-                            return@launch
-                        }
-                        if (match == null || result == null) {
-                            bangumiStatus = metadataBatchResultRequiredStatus(BANGUMI_METADATA_SOURCE_NAME)
-                            return@launch
-                        }
-                        when (val entriesResult = repositories.index.queryIndex(sourceId, "")) {
+                        when (val review = bangumiIndexMetadataCoordinator.acceptBatchReview(
+                            sourceId = activeSourceId,
+                            match = selectedBangumiBatchMatch,
+                        )) {
                             is Result.Success -> {
-                                val entries = entriesResult.data.mediaFilesOnly()
-                                val reviewed = match.copy(result = result.copy(confidence = 1f))
-                                val plan = MetadataBatchPlanner.planFor(entries, listOf(reviewed))
-                                if (plan.conflicts.isNotEmpty()) {
-                                    bangumiStatus = plan.reviewConflictStatus()
-                                    return@launch
+                                bangumiBatchPlan = review.data.plan
+                                if (review.data.plan?.readyUpdates?.isNotEmpty() == true) {
+                                    bangumiBatchRollback = review.data.write.rollbackEntries
                                 }
-                                if (plan.readyUpdates.isEmpty()) {
-                                    bangumiStatus = metadataReviewNoMatchStatus()
-                                    return@launch
-                                }
-                                val write = repositories.index.applyMetadataBatchPlan(sourceId, plan)
-                                bangumiBatchRollback = write.rollbackEntries
-                                indexedEntries = indexedEntries.replaceByMediaKeys(write.updatedEntries)
-                                selectedIndexEntry = selectedIndexEntry.updatedSelectionAfterReplacingByMediaKeys(write.updatedEntries)
-                                bangumiStatus = write.reviewAcceptedStatus()
+                                indexedEntries = indexedEntries.replaceByMediaKeys(review.data.write.updatedEntries)
+                                selectedIndexEntry = selectedIndexEntry.updatedSelectionAfterReplacingByMediaKeys(
+                                    review.data.write.updatedEntries,
+                                )
+                                bangumiStatus = review.data.status
                             }
-                            is Result.Error -> bangumiStatus = entriesResult.error.toUserMessage()
+                            is Result.Error -> bangumiStatus = review.error.toUserMessage()
                         }
                     }
                 },
@@ -1939,54 +1834,37 @@ internal fun MiruPlayDesktopComposeApp(
                 },
                 onApply = {
                     scope.launch {
-                        val sourceId = activeSourceId
-                        val entry = selectedIndexEntry
-                        val bangumi = selectedBangumiResult ?: bangumiResults.firstOrNull()
-                        if (sourceId == null) {
-                            bangumiStatus = metadataSourceRequiredStatus()
-                            return@launch
-                        }
-                        if (entry == null || entry.isDirectory) {
-                            bangumiStatus = metadataApplyEntryRequiredStatus(BANGUMI_METADATA_SOURCE_NAME)
-                            return@launch
-                        }
-                        if (bangumi == null) {
-                            bangumiStatus = metadataSearchSelectionRequiredStatus(BANGUMI_METADATA_SOURCE_NAME)
-                            return@launch
-                        }
-                        val updated = entry.withExternalMetadata(bangumi, sourceId = sourceId)
-                        when (val result = repositories.index.upsertEntry(sourceId, updated)) {
+                        when (val apply = bangumiIndexMetadataCoordinator.applyEntryMetadata(
+                            sourceId = activeSourceId,
+                            entry = selectedIndexEntry,
+                            match = selectedBangumiResult ?: bangumiResults.firstOrNull(),
+                            relatedEntries = detailEpisodes,
+                        )) {
                             is Result.Success -> {
-                                updateSelectedMetadataCache(updated, bangumi)
-                                indexedEntries = indexedEntries.replaceByMediaKey(updated)
-                                selectedIndexEntry = updated
-                                bangumiStatus = updated.metadataAppliedStatus(BANGUMI_METADATA_SOURCE_NAME)
+                                apply.data.updatedEntry?.let { updated ->
+                                    indexedEntries = indexedEntries.replaceByMediaKey(updated)
+                                    selectedIndexEntry = updated
+                                }
+                                bangumiStatus = apply.data.status
                             }
-                            is Result.Error -> bangumiStatus = result.error.toUserMessage()
+                            is Result.Error -> bangumiStatus = apply.error.toUserMessage()
                         }
                     }
                 },
                 onClear = {
                     scope.launch {
-                        val sourceId = activeSourceId
-                        val entry = selectedIndexEntry
-                        if (sourceId == null) {
-                            bangumiStatus = metadataSourceRequiredStatus()
-                            return@launch
-                        }
-                        if (entry == null || entry.isDirectory) {
-                            bangumiStatus = metadataClearEntryRequiredStatus()
-                            return@launch
-                        }
-                        val updated = entry.clearExternalMetadata(sourceId = sourceId)
-                        when (val result = repositories.index.upsertEntry(sourceId, updated)) {
+                        when (val clear = bangumiIndexMetadataCoordinator.clearEntryMetadata(
+                            sourceId = activeSourceId,
+                            entry = selectedIndexEntry,
+                        )) {
                             is Result.Success -> {
-                                repositories.metadata.invalidateCache(entry.bangumiMetadataCacheId())
-                                indexedEntries = indexedEntries.replaceByMediaKey(updated)
-                                selectedIndexEntry = updated
-                                bangumiStatus = updated.metadataClearedStatus()
+                                clear.data.updatedEntry?.let { updated ->
+                                    indexedEntries = indexedEntries.replaceByMediaKey(updated)
+                                    selectedIndexEntry = updated
+                                }
+                                bangumiStatus = clear.data.status
                             }
-                            is Result.Error -> bangumiStatus = result.error.toUserMessage()
+                            is Result.Error -> bangumiStatus = clear.error.toUserMessage()
                         }
                     }
                 },
