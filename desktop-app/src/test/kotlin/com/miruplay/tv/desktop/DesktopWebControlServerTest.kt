@@ -1,16 +1,28 @@
 package com.miruplay.tv.desktop
 
+import com.miruplay.tv.clouddrive.CloudDriveClient
+import com.miruplay.tv.clouddrive.CloudDriveEndpoint
+import com.miruplay.tv.clouddrive.CloudDriveFileInfo
+import com.miruplay.tv.clouddrive.CloudDriveLoginResult
+import com.miruplay.tv.clouddrive.CloudDriveTokenInfo
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.Anime
+import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfoConventions
+import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.desktop.DesktopRepositories
+import com.miruplay.tv.sync.rss.CloudDriveLibraryOrganizer
+import com.miruplay.tv.sync.rss.DesktopCloudDriveRssAutomationEngine
+import com.miruplay.tv.sync.rss.RssFeedItem
+import com.miruplay.tv.sync.rss.RssFeedReader
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 import java.net.HttpURLConnection
 import java.net.ServerSocket
 import java.net.URI
@@ -222,6 +234,111 @@ class DesktopWebControlServerTest {
     }
 
     @Test
+    fun `desktop web control uses shared CloudDrive engine and directory browser`() = runBlocking {
+        val storePath = Files.createTempDirectory("miruplay-web-control-store").resolve("store.json")
+        val port = freePort()
+        try {
+            val repositories = DesktopRepositories.fileBacked(storePath)
+            val cloudDrive = FakeCloudDriveClient(
+                rootDir = "/CloudRoot",
+                files = listOf(
+                    CloudDriveFileInfo("Episode 01.mkv", "/CloudRoot/Anime/Episode 01.mkv", isDirectory = false),
+                    CloudDriveFileInfo(".cache", "/CloudRoot/Anime/.cache", isDirectory = true),
+                    CloudDriveFileInfo("Season 02", "/CloudRoot/Anime/Season 02", isDirectory = true),
+                    CloudDriveFileInfo("season 01", "/CloudRoot/Anime/season 01", isDirectory = true),
+                ),
+            )
+            val cloudRssEngine = DesktopCloudDriveRssAutomationEngine(
+                repository = repositories.cloudDriveAutomation,
+                credentials = repositories.credentials,
+                cloudDriveClient = cloudDrive,
+                feedFetcher = FakeFeedReader(),
+                organizer = CloudDriveLibraryOrganizer(cloudDrive),
+            )
+            repositories.cloudDriveAutomation.saveConfig(
+                CloudDriveAutomationConfig(
+                    endpointUrl = "http://cloud.test",
+                    username = "miru",
+                    inboxPath = "/Downloads",
+                    libraryPath = "/Library",
+                )
+            )
+            repositories.cloudDriveAutomation.saveSubscription(
+                RssSubscriptionInfo(
+                    name = "Anime",
+                    url = "https://example.test/rss.xml",
+                    enabled = true,
+                )
+            )
+            repositories.webControlAccess.webControlEnabled = true
+            val token = repositories.webControlAccess.accessToken
+            val service = DesktopWebControlService(
+                repositories = repositories,
+                cloudDriveClient = cloudDrive,
+                cloudRssEngine = cloudRssEngine,
+                deviceName = "Windows Test",
+            )
+            val server = DesktopWebControlServer(
+                webControlService = service,
+                webControlAccess = repositories.webControlAccess,
+                port = port,
+            )
+            server.startIfNeeded()
+            try {
+                val login = request(
+                    url = "http://127.0.0.1:$port/api/cloud-drive/login?token=$token",
+                    method = "POST",
+                    body = """{"endpointUrl":"http://cloud.test","username":"miru","password":"secret"}""",
+                )
+                assertEquals(200, login.code)
+                assertTrue(login.body.contains("\"tokenConfigured\":true"))
+                assertEquals("login-token", repositories.credentials.cloudDriveToken)
+                assertEquals("secret", repositories.credentials.cloudDrivePassword)
+
+                val verified = request(
+                    url = "http://127.0.0.1:$port/api/cloud-drive/token?token=$token",
+                    method = "POST",
+                    body = """{"endpointUrl":"http://cloud.test","token":"api-token"}""",
+                )
+                assertEquals(200, verified.code)
+                assertTrue(verified.body.contains("\"rootDir\":\"/CloudRoot\""))
+                assertTrue(verified.body.contains("\"friendlyName\":\"desktop-token\""))
+                assertTrue(verified.body.contains("\"allowList\":true"))
+                assertEquals("api-token", repositories.credentials.cloudDriveToken)
+
+                val directories = request(
+                    "http://127.0.0.1:$port/api/cloud-drive/directories?token=$token&endpointUrl=http%3A%2F%2Fcloud.test&path=%2FOutside%2FAnime",
+                )
+                assertEquals(200, directories.code)
+                assertTrue(directories.body.contains("\"path\":\"/CloudRoot\""))
+                assertTrue(!directories.body.contains("Episode 01.mkv"))
+
+                val animeDirectories = request(
+                    "http://127.0.0.1:$port/api/cloud-drive/directories?token=$token&endpointUrl=http%3A%2F%2Fcloud.test&path=%2FCloudRoot%2FAnime",
+                )
+                assertEquals(200, animeDirectories.code)
+                assertTrue(animeDirectories.body.contains("season 01"))
+                assertTrue(animeDirectories.body.contains("Season 02"))
+                assertTrue(!animeDirectories.body.contains(".cache"))
+
+                val run = request(
+                    url = "http://127.0.0.1:$port/api/cloud-drive/run?token=$token",
+                    method = "POST",
+                )
+                assertEquals(200, run.code)
+                assertTrue(run.body.contains("\"submitted\":1"))
+                assertTrue(run.body.contains("\"organized\":0"))
+                assertEquals(listOf("magnet:?xt=urn:btih:abc"), cloudDrive.offlineUrls)
+                assertEquals("/Downloads", cloudDrive.offlineTargetFolder)
+            } finally {
+                server.stopIfRunning()
+            }
+        } finally {
+            storePath.parent.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
     fun `desktop web control stops serving api when disabled`() {
         val storePath = Files.createTempDirectory("miruplay-web-control-store").resolve("store.json")
         val port = freePort()
@@ -252,11 +369,18 @@ class DesktopWebControlServerTest {
     private fun freePort(): Int =
         ServerSocket(0).use { it.localPort }
 
-    private fun request(url: String, method: String = "GET"): HttpResult {
+    private fun request(url: String, method: String = "GET", body: String? = null): HttpResult {
         val connection = URI(url).toURL().openConnection() as HttpURLConnection
         connection.connectTimeout = 2_000
         connection.readTimeout = 2_000
         connection.requestMethod = method
+        if (body != null) {
+            connection.doOutput = true
+            connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            connection.outputStream.use { output ->
+                output.write(body.toByteArray(Charsets.UTF_8))
+            }
+        }
         val code = connection.responseCode
         val stream = if (code >= 400) connection.errorStream else connection.inputStream
         val body = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
@@ -277,5 +401,80 @@ class DesktopWebControlServerTest {
                 .firstOrNull { it.key.equals(name, ignoreCase = true) }
                 ?.value
                 ?.firstOrNull()
+    }
+
+    private class FakeFeedReader : RssFeedReader {
+        override fun configureProxy(enabled: Boolean, host: String, port: Int) = Unit
+
+        override suspend fun fetch(url: String): Result<List<RssFeedItem>> =
+            Result.success(
+                listOf(
+                    RssFeedItem(
+                        title = "Episode 01",
+                        guid = "guid-1",
+                        link = "magnet:?xt=urn:btih:abc",
+                        enclosureUrl = null,
+                    )
+                )
+            )
+    }
+
+    private class FakeCloudDriveClient(
+        private val rootDir: String = "/",
+        private val files: List<CloudDriveFileInfo> = emptyList(),
+    ) : CloudDriveClient {
+        val offlineUrls = mutableListOf<String>()
+        var offlineTargetFolder: String = ""
+
+        override suspend fun login(endpointUrl: String, username: String, password: String): Result<CloudDriveLoginResult> =
+            Result.success(CloudDriveLoginResult("login-token"))
+
+        override suspend fun getApiTokenInfo(endpointUrl: String, token: String): Result<CloudDriveTokenInfo> =
+            Result.success(
+                CloudDriveTokenInfo(
+                    rootDir = rootDir,
+                    friendlyName = "desktop-token",
+                    allowList = true,
+                    allowCreateFolder = true,
+                    allowCreateFile = true,
+                    allowWrite = true,
+                    allowMove = true,
+                    allowAddOfflineDownload = true,
+                )
+            )
+
+        override suspend fun addOfflineFiles(
+            endpoint: CloudDriveEndpoint,
+            urls: List<String>,
+            targetFolder: String,
+        ): Result<Unit> {
+            offlineUrls += urls
+            offlineTargetFolder = targetFolder
+            return Result.success(Unit)
+        }
+
+        override suspend fun uploadFile(
+            endpoint: CloudDriveEndpoint,
+            localFile: File,
+            parentPath: String,
+            remoteFileName: String,
+        ): Result<String> =
+            Result.success("$parentPath/$remoteFileName")
+
+        override suspend fun listFolder(
+            endpoint: CloudDriveEndpoint,
+            path: String,
+            forceRefresh: Boolean,
+        ): Result<List<CloudDriveFileInfo>> =
+            Result.success(files.filter { it.path.parentCloudPath() == path.trimEnd('/') })
+
+        override suspend fun createFolder(endpoint: CloudDriveEndpoint, parentPath: String, folderName: String): Result<Unit> =
+            Result.success(Unit)
+
+        override suspend fun moveFiles(endpoint: CloudDriveEndpoint, paths: List<String>, destinationPath: String): Result<Unit> =
+            Result.success(Unit)
+
+        private fun String.parentCloudPath(): String =
+            trimEnd('/').substringBeforeLast('/', "").ifBlank { "/" }
     }
 }

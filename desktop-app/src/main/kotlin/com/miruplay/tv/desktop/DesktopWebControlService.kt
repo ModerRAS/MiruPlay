@@ -2,7 +2,9 @@ package com.miruplay.tv.desktop
 
 import com.miruplay.tv.core.common.LocalDirectoryBrowser
 import com.miruplay.tv.core.common.Result
-import com.miruplay.tv.core.common.WebControlConfig
+import com.miruplay.tv.clouddrive.CloudDriveClient
+import com.miruplay.tv.clouddrive.GrpcCloudDriveClient
+import com.miruplay.tv.mediasource.desktop.desktopSourceFromInfo
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.Episode
@@ -12,11 +14,15 @@ import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.PLAYBACK_SEEK_BACK_SECONDS
 import com.miruplay.tv.model.PLAYBACK_SEEK_FORWARD_SECONDS
-import com.miruplay.tv.model.localRootPath
+import com.miruplay.tv.model.completeStatus
 import com.miruplay.tv.model.remoteUrl
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.desktop.DesktopRepositories
 import com.miruplay.tv.repository.mediaFilesOnly
+import com.miruplay.tv.sync.rss.CloudDriveDirectoryTarget
+import com.miruplay.tv.sync.rss.DesktopCloudDriveRssAutomationEngine
+import com.miruplay.tv.sync.rss.loadCloudDriveDirectory
+import com.miruplay.tv.sync.rss.prepareCloudDriveDirectoryBrowser
 import com.miruplay.tv.webcontrol.AnimeDetailDto
 import com.miruplay.tv.webcontrol.CloudDriveAutomationDto
 import com.miruplay.tv.webcontrol.CloudDriveConfigRequest
@@ -49,6 +55,12 @@ import java.net.NetworkInterface
 
 internal class DesktopWebControlService(
     private val repositories: DesktopRepositories,
+    private val cloudDriveClient: CloudDriveClient = GrpcCloudDriveClient(),
+    private val cloudRssEngine: DesktopCloudDriveRssAutomationEngine = DesktopCloudDriveRssAutomationEngine(
+        repository = repositories.cloudDriveAutomation,
+        credentials = repositories.credentials,
+        cloudDriveClient = cloudDriveClient,
+    ),
     private val playbackStatusProvider: suspend () -> PlaybackStatusDto = { idlePlaybackStatus() },
     private val playEpisodeHandler: suspend (PlayEpisodeRequest, Episode) -> PlaybackStatusDto = { _, _ ->
         throw UnsupportedOperationException("Windows WebUI 暂未接入远程播放启动")
@@ -106,7 +118,44 @@ internal class DesktopWebControlService(
     }
 
     override suspend fun browseCloudDriveDirectories(endpointUrl: String, path: String): CloudDriveDirectoryDto {
-        throw UnsupportedOperationException("Windows WebUI 暂未接入 CloudDrive 目录浏览")
+        val endpoint = endpointUrl.trim().ifBlank {
+            repositories.cloudDriveAutomation.getConfig().getOrNull()?.endpointUrl.orEmpty()
+        }
+        if (endpoint.isBlank()) {
+            throw IllegalArgumentException("请先填写 CloudDrive2 地址")
+        }
+        val token = repositories.credentials.cloudDriveToken?.takeIf { it.isNotBlank() }
+            ?: throw IllegalArgumentException("请先登录 CloudDrive2 或保存 API Token")
+        val prepared = requireSuccess(
+            prepareCloudDriveDirectoryBrowser(
+                client = cloudDriveClient,
+                target = CloudDriveDirectoryTarget.INBOX,
+                endpointUrl = endpoint,
+                token = token,
+                initialPath = path,
+            ),
+            "读取 CloudDrive 目录失败",
+        )
+        val loaded = requireSuccess(
+            loadCloudDriveDirectory(
+                client = cloudDriveClient,
+                state = prepared,
+                requestedPath = prepared.path,
+            ),
+            "读取 CloudDrive 目录失败",
+        )
+        return CloudDriveDirectoryDto(
+            path = loaded.path,
+            displayPath = loaded.displayPath,
+            parentPath = loaded.parentPath,
+            entries = loaded.entries.map {
+                CloudDriveDirectoryEntryDto(
+                    name = it.name,
+                    path = it.path,
+                    canRead = true,
+                )
+            },
+        )
     }
 
     override suspend fun addSource(request: SourceRequest): MediaSourceInfo {
@@ -133,10 +182,20 @@ internal class DesktopWebControlService(
 
     override suspend fun testSource(request: SourceTestRequest): SourceTestResponse {
         val source = request.toMediaSourceInfo()
-        return if (source.type == MediaSourceType.LOCAL && source.localRootPath()?.isNotBlank() == true) {
-            SourceTestResponse(connected = true, message = "本地路径格式可用")
-        } else {
-            SourceTestResponse(connected = false, message = "Windows WebUI 暂未接入远程媒体源连通性测试")
+        val mediaSource = desktopSourceFromInfo(source)
+        return try {
+            when (val tested = mediaSource.testConnection()) {
+                is Result.Success -> SourceTestResponse(
+                    connected = tested.data,
+                    message = if (tested.data) "连接正常" else "无法连接",
+                )
+                is Result.Error -> SourceTestResponse(
+                    connected = false,
+                    message = tested.error.toUserMessage(),
+                )
+            }
+        } finally {
+            mediaSource.close()
         }
     }
 
@@ -185,28 +244,52 @@ internal class DesktopWebControlService(
     }
 
     override suspend fun loginCloudDrive(request: CloudDriveLoginRequest): CloudDriveAutomationDto {
-        throw UnsupportedOperationException("Windows WebUI 暂未接入 CloudDrive 登录")
+        if (request.endpointUrl.isBlank() || request.username.isBlank() || request.password.isBlank()) {
+            throw IllegalArgumentException("请填写 CloudDrive2 地址、用户名和密码")
+        }
+        requireSuccess(
+            cloudRssEngine.login(
+                endpointUrl = request.endpointUrl.trim(),
+                username = request.username.trim(),
+                password = request.password,
+            ),
+            "CloudDrive2 登录失败",
+        )
+        return getCloudDriveAutomation()
     }
 
     override suspend fun saveCloudDriveToken(request: CloudDriveTokenRequest): CloudDriveTokenResponse {
-        if (request.token.isBlank()) {
-            throw IllegalArgumentException("请填写 CloudDrive2 API Token")
+        if (request.endpointUrl.isBlank() || request.token.isBlank()) {
+            throw IllegalArgumentException("请填写 CloudDrive2 地址和 API Token")
         }
-        repositories.credentials.cloudDriveToken = request.token.trim()
+        val tokenInfo = requireSuccess(
+            cloudRssEngine.saveApiToken(
+                endpointUrl = request.endpointUrl.trim(),
+                token = request.token.trim(),
+            ),
+            "CloudDrive2 API Token 验证失败",
+        )
         return CloudDriveTokenResponse(
-            rootDir = "",
-            friendlyName = "CloudDrive2",
-            allowList = false,
-            allowCreateFolder = false,
-            allowCreateFile = false,
-            allowWrite = false,
-            allowMove = false,
-            allowAddOfflineDownload = false,
+            rootDir = tokenInfo.rootDir,
+            friendlyName = tokenInfo.friendlyName,
+            allowList = tokenInfo.allowList,
+            allowCreateFolder = tokenInfo.allowCreateFolder,
+            allowCreateFile = tokenInfo.allowCreateFile,
+            allowWrite = tokenInfo.allowWrite,
+            allowMove = tokenInfo.allowMove,
+            allowAddOfflineDownload = tokenInfo.allowAddOfflineDownload,
         )
     }
 
     override suspend fun runCloudDriveAutomationNow(): CloudDriveRunResponse {
-        throw UnsupportedOperationException("Windows WebUI 暂未接入 CloudDrive 手动执行")
+        val summary = requireSuccess(cloudRssEngine.runOnce(), "CloudDrive/RSS 执行失败")
+        rescanLinkedCloudDriveSource(summary.completeStatus())
+        return CloudDriveRunResponse(
+            submitted = summary.submitted,
+            skipped = summary.skipped,
+            failed = summary.failed,
+            organized = summary.organized,
+        )
     }
 
     override suspend fun saveRssSubscription(request: RssSubscriptionRequest): com.miruplay.tv.model.RssSubscriptionInfo {
@@ -389,6 +472,13 @@ internal class DesktopWebControlService(
             newEpisodes = videoEntries.size,
             updatedEpisodes = 0,
         )
+
+    private suspend fun rescanLinkedCloudDriveSource(reason: String) {
+        val config = repositories.cloudDriveAutomation.getConfig().getOrNull() ?: return
+        val sourceId = config.webDavSourceId?.takeIf { it > 0L } ?: return
+        val source = repositories.mediaSources.getSourceById(sourceId).getOrNull() ?: return
+        rescanCloudRssLinkedSource(source, reason, repositories.index)
+    }
 
     private fun playablePath(source: MediaSourceInfo?, path: String): String =
         when {

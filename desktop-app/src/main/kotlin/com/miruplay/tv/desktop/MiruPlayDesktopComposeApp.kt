@@ -531,6 +531,8 @@ internal fun MiruPlayDesktopComposeApp(
     val desktopWebControlService = remember(repositories) {
         DesktopWebControlService(
             repositories = repositories,
+            cloudDriveClient = cloudDriveClient,
+            cloudRssEngine = cloudRssEngine,
             playbackStatusProvider = {
                 desktopWebControlPlaybackStatus(
                     player = player,
