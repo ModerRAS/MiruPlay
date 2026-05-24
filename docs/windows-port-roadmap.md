@@ -98,6 +98,19 @@ encoded remote-path rules. `PlayableUriResolverTest` covers WebDAV, SMB,
 already-playable URLs, repository source-id resolution, and ordered indexed
 episodes; `:repository-api:test` passed in Gradle MCP build `b-167` with
 74 tests passed, and the Android/WebUI/desktop compile gate passed in `b-166`.
+Latest WebUI library-loader sharing update: `:web-control-core` now owns
+`WebControlLibraryLoader`, which builds WebUI library/search/detail/continue
+watching responses and resolves playback episode ids from cached metadata plus
+indexed Local/WebDAV/SMB entries. Android TV `WebControlService` and Windows
+`DesktopWebControlService` now delegate those flows to the same loader while
+supplying only platform playback launch/control hooks. `WebControlLibraryLoaderTest`
+covers indexed fallback library rows, cached metadata priority, Chinese-title
+search, same-anime merge preference, WebDAV playable detail episodes, continue
+watching fallback, and cached-episode lookup; `:web-control-core:test` passed in
+Gradle MCP build `b-171` with 74 tests passed, and the combined
+`:repository-api:test :web-control-core:test :web-control:compileDebugKotlin
+:desktop-app:test checkDesktopPresenterSeparation checkDesktopComposeOnly
+:app:assembleDebug -PbundleMpvRuntime=false` gate passed in `b-172`.
 Latest Bangumi credential sharing update: `:sync-engine-shared` now owns
 `BangumiCredentialActionCoordinator`, so Android TV Settings and Windows
 Settings share Bangumi token persistence, blank-input handling, clear behavior,

@@ -5,17 +5,10 @@ import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.clouddrive.CloudDriveClient
 import com.miruplay.tv.clouddrive.GrpcCloudDriveClient
 import com.miruplay.tv.mediasource.desktop.desktopSourceFromInfo
-import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
-import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.completeStatus
-import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.desktop.DesktopRepositories
-import com.miruplay.tv.repository.mediaIndexPosterAnimeId
-import com.miruplay.tv.repository.toIndexedEpisode
-import com.miruplay.tv.repository.toIndexedEpisodes
-import com.miruplay.tv.repository.toMediaIndexPosterGroups
 import com.miruplay.tv.sync.rss.CloudDriveRssActionCoordinator
 import com.miruplay.tv.sync.rss.DesktopCloudDriveRssAutomationEngine
 import com.miruplay.tv.webcontrol.AnimeDetailDto
@@ -26,7 +19,6 @@ import com.miruplay.tv.webcontrol.CloudDriveLoginRequest
 import com.miruplay.tv.webcontrol.CloudDriveRunResponse
 import com.miruplay.tv.webcontrol.CloudDriveTokenRequest
 import com.miruplay.tv.webcontrol.CloudDriveTokenResponse
-import com.miruplay.tv.webcontrol.ContinueWatchingDto
 import com.miruplay.tv.webcontrol.LibraryDto
 import com.miruplay.tv.webcontrol.LocalDirectoryDto
 import com.miruplay.tv.webcontrol.PlayEpisodeRequest
@@ -39,13 +31,13 @@ import com.miruplay.tv.webcontrol.SourceScanResponse
 import com.miruplay.tv.webcontrol.SourceTestRequest
 import com.miruplay.tv.webcontrol.SourceTestResponse
 import com.miruplay.tv.webcontrol.WebControlEndpointService
+import com.miruplay.tv.webcontrol.WebControlLibraryLoader
 import com.miruplay.tv.webcontrol.WebControlPlaybackCommandKind
 import com.miruplay.tv.webcontrol.absoluteSeekPositionMs
 import com.miruplay.tv.webcontrol.addWebControlSource
 import com.miruplay.tv.webcontrol.browseWebControlCloudDriveDirectory
 import com.miruplay.tv.webcontrol.buildWebControlServerInfo
 import com.miruplay.tv.webcontrol.deleteWebControlRssSubscription
-import com.miruplay.tv.webcontrol.filteredByQuery
 import com.miruplay.tv.webcontrol.getWebControlCloudDriveAutomation
 import com.miruplay.tv.webcontrol.idleWebControlPlaybackStatus
 import com.miruplay.tv.webcontrol.loginWebControlCloudDrive
@@ -61,11 +53,8 @@ import com.miruplay.tv.webcontrol.saveWebControlRssSubscription
 import com.miruplay.tv.webcontrol.skipBackwardDeltaMs
 import com.miruplay.tv.webcontrol.skipForwardDeltaMs
 import com.miruplay.tv.webcontrol.toMediaSourceInfo
-import com.miruplay.tv.webcontrol.toWebControlAnimeDetail
-import com.miruplay.tv.webcontrol.toWebControlContinueWatching
 import com.miruplay.tv.webcontrol.toWebControlDirectoryDto
 import com.miruplay.tv.webcontrol.toWebControlSourceTestResponse
-import com.miruplay.tv.webcontrol.toWebControlLibrary
 import com.miruplay.tv.webcontrol.toWebControlSourceScanResponse
 import com.miruplay.tv.webcontrol.updateWebControlRssSubscription
 import com.miruplay.tv.webcontrol.updateWebControlSource
@@ -97,6 +86,13 @@ internal class DesktopWebControlService(
         repository = repositories.cloudDriveAutomation,
         credentials = repositories.credentials,
         runner = cloudRssEngine,
+    )
+    private val libraryLoader = WebControlLibraryLoader(
+        mediaSources = repositories.mediaSources,
+        metadata = repositories.metadata,
+        index = repositories.index,
+        progress = repositories.progress,
+        mergeSameAnimeEnabled = { repositories.scanPreferences.getPreferences().mergeSameAnimeEnabled },
     )
 
     override suspend fun getServerInfo(port: Int): ServerInfoDto =
@@ -229,23 +225,15 @@ internal class DesktopWebControlService(
     }
 
     override suspend fun searchLibrary(query: String): LibraryDto {
-        val library = loadLibrary()
-        return library.filteredByQuery(query)
+        return libraryLoader.searchLibrary(query)
     }
 
     override suspend fun getAnimeDetail(animeId: String): AnimeDetailDto {
-        val group = indexedAnimeGroups().firstOrNull { it.animeId == animeId }
-        val cached = repositories.metadata.getCachedMetadata(animeId).getOrNull()
-        val anime = cached ?: group?.toAnime()
-            ?: throw IllegalArgumentException("番剧不存在")
-        val episodes = loadEpisodesForAnime(anime, group)
-        return anime.toWebControlAnimeDetail(episodes) { episode ->
-            repositories.progress.getProgress(episode.id).getOrNull()
-        }
+        return libraryLoader.loadAnimeDetail(animeId)
     }
 
     override suspend fun playEpisode(request: PlayEpisodeRequest): PlaybackStatusDto {
-        val episode = findEpisodeById(request.episodeId)
+        val episode = libraryLoader.findEpisodeById(request.episodeId)
             ?: throw IllegalArgumentException("剧集不存在")
         return playEpisodeHandler(request, episode)
     }
@@ -255,74 +243,6 @@ internal class DesktopWebControlService(
 
     override suspend fun playbackStatus(): PlaybackStatusDto =
         playbackStatusProvider()
-
-    private suspend fun loadLibrary(): LibraryDto {
-        val anime = indexedAnimeGroups()
-            .map { group -> repositories.metadata.getCachedMetadata(group.animeId).getOrNull() ?: group.toAnime() }
-        return anime.toWebControlLibrary(continueWatching = loadContinueWatching())
-    }
-
-    private suspend fun loadContinueWatching(): List<ContinueWatchingDto> =
-        repositories.progress.getContinueWatching(30).getOrNull().orEmpty().map { record ->
-            val episode = findEpisodeById(record.episodeId)
-            val anime = episode?.let { repositories.metadata.getCachedMetadata(it.animeId).getOrNull() }
-                ?: episode?.let { indexedAnimeGroups().firstOrNull { group -> group.animeId == it.animeId }?.toAnime() }
-            record.toWebControlContinueWatching(episode, anime)
-        }
-
-    private suspend fun findEpisodeById(episodeId: String): Episode? {
-        repositories.metadata.getCachedEpisode(episodeId).getOrNull()?.let { return it }
-        val sourceParts = episodeId.split(":", limit = 2)
-        val sourceId = sourceParts.getOrNull(0)?.toLongOrNull() ?: return null
-        val path = sourceParts.getOrNull(1)?.takeIf { it.isNotBlank() } ?: return null
-        val entry = repositories.index.queryIndex(sourceId, MediaPathConventions.stem(path))
-            .getOrNull()
-            .orEmpty()
-            .firstOrNull { it.path == path }
-            ?: return null
-        val source = repositories.mediaSources.getSourceById(sourceId).getOrNull()
-        val mergeSameAnimeEnabled = repositories.scanPreferences.getPreferences().mergeSameAnimeEnabled
-        return entry.toIndexedEpisode(source, entry.mediaIndexPosterAnimeId(mergeSameAnimeEnabled))
-    }
-
-    private suspend fun loadEpisodesForAnime(
-        anime: Anime,
-        group: IndexedAnimeGroup?,
-    ): List<Episode> {
-        val cachedEpisodes = repositories.metadata.getCachedEpisodes(anime.id).getOrNull().orEmpty()
-        if (cachedEpisodes.isNotEmpty()) return cachedEpisodes
-        val indexedGroup = group ?: return emptyList()
-        return indexedGroup.entries.toIndexedEpisodes(indexedGroup.source, indexedGroup.animeId)
-    }
-
-    private suspend fun indexedAnimeGroups(): List<IndexedAnimeGroup> {
-        val sources = repositories.mediaSources.getSources().getOrNull().orEmpty()
-        val mergeSameAnimeEnabled = repositories.scanPreferences.getPreferences().mergeSameAnimeEnabled
-        return sources.flatMap { source ->
-            repositories.index.queryIndex(source.id, "")
-                .getOrNull()
-                .orEmpty()
-                .toMediaIndexPosterGroups(mergeSameAnimeEnabled)
-                .map { group ->
-                    IndexedAnimeGroup(
-                        source = source,
-                        animeId = group.animeId,
-                        title = group.title,
-                        entries = group.entries,
-                    )
-                }
-        }
-    }
-
-    private fun IndexedAnimeGroup.toAnime(): Anime {
-        val first = entries.first()
-        return Anime(
-            id = animeId,
-            title = title,
-            episodeCount = entries.size,
-            summary = first.plot.orEmpty(),
-        )
-    }
 
     private fun DesktopSourceScanResult.toSourceScanResponse(source: MediaSourceInfo): SourceScanResponse =
         toWebControlSourceScanResponse(
@@ -340,12 +260,6 @@ internal class DesktopWebControlService(
         rescanCloudRssLinkedSource(source, reason, repositories.index)
     }
 
-    private data class IndexedAnimeGroup(
-        val source: MediaSourceInfo,
-        val animeId: String,
-        val title: String,
-        val entries: List<MediaIndexEntry>,
-    )
 }
 
 internal fun desktopWebControlPlaybackStatus(

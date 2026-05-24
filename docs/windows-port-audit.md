@@ -128,6 +128,17 @@ rule. `PlayableUriResolverTest` covers WebDAV, SMB, already-playable URLs,
 repository source-id resolution, and ordered indexed episodes; `:repository-api:test`
 passed in Gradle MCP build `b-167` with 74 tests passed, and the
 Android/WebUI/desktop compile gate passed in `b-166`.
+`:web-control-core` now also owns `WebControlLibraryLoader` for WebUI
+library/search/detail/continue-watching shaping and playback episode lookup
+over cached metadata plus indexed Local/WebDAV/SMB entries. Android TV
+`WebControlService` and Windows `DesktopWebControlService` delegate those flows
+to the shared loader and keep only platform-specific playback launch/control
+work around it. `WebControlLibraryLoaderTest` covers indexed fallback library
+rows, cached metadata priority, Chinese-title search, same-anime merge
+preference, WebDAV playable detail episodes, continue-watching fallback, and
+cached-episode lookup; `:web-control-core:test` passed in Gradle MCP build
+`b-171` with 74 tests passed, and the combined repository/WebUI/desktop/Android
+gate passed in `b-172`.
 `core:model` owns the Cloud/RSS form normalization helpers used
 by both Android TV Settings and Windows Cloud/RSS Settings for config trimming,
 interval/proxy-port bounds, RSS subscription fallback names, blank URL
