@@ -146,8 +146,8 @@ fun settingsDesktopWebUiStatusMessage(
 ): String =
     when {
         !enabled -> "WebUI 当前未启用；Windows 已复用同一套访问令牌和地址生成规则。"
-        addressCount > 0 -> "WebUI 访问配置已启用；Windows JVM 服务接入后会监听这些地址。"
-        else -> "WebUI 访问配置已启用；暂未检测到可展示的局域网地址。"
+        addressCount > 0 -> "WebUI 已启用，Windows 正在监听局域网访问地址；部分遥控和写入接口仍在完善。"
+        else -> "WebUI 已启用，Windows 正在监听；暂未检测到可展示的局域网地址。"
     }
 
 fun settingsWebUiPanelTitleLabel(): String =

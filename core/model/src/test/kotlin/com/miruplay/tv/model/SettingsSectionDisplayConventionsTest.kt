@@ -70,11 +70,11 @@ class SettingsSectionDisplayConventionsTest {
             settingsDesktopWebUiStatusMessage(enabled = false, addressCount = 2),
         )
         assertEquals(
-            "WebUI 访问配置已启用；Windows JVM 服务接入后会监听这些地址。",
+            "WebUI 已启用，Windows 正在监听局域网访问地址；部分遥控和写入接口仍在完善。",
             settingsDesktopWebUiStatusMessage(enabled = true, addressCount = 2),
         )
         assertEquals(
-            "WebUI 访问配置已启用；暂未检测到可展示的局域网地址。",
+            "WebUI 已启用，Windows 正在监听；暂未检测到可展示的局域网地址。",
             settingsDesktopWebUiStatusMessage(enabled = true, addressCount = 0),
         )
         assertEquals("WebUI 访问", settingsWebUiPanelTitleLabel())

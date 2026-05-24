@@ -528,6 +528,25 @@ internal fun MiruPlayDesktopComposeApp(
     var rifeBackend by remember { mutableStateOf(RifeBackend.NVIDIA) }
     var status by remember { mutableStateOf(mpvRuntimeStatusFromInputs(mpvPath, configDir)) }
     var launchStatus by remember { mutableStateOf(mpvIdleStatus()) }
+    val desktopWebControlService = remember(repositories) {
+        DesktopWebControlService(
+            repositories = repositories,
+            playbackStatusProvider = {
+                desktopWebControlPlaybackStatus(
+                    player = player,
+                    session = activePlaybackSession,
+                    mediaPath = mediaPath,
+                    launchStatus = launchStatus,
+                )
+            },
+        )
+    }
+    val desktopWebControlServer = remember(desktopWebControlService, repositories) {
+        DesktopWebControlServer(
+            webControlService = desktopWebControlService,
+            webControlAccess = repositories.webControlAccess,
+        )
+    }
     val commandPreview by remember(
         mpvPath,
         configDir,
@@ -568,10 +587,19 @@ internal fun MiruPlayDesktopComposeApp(
         )
     }
 
-    DisposableEffect(playbackBridge, cloudRssScheduler) {
+    DisposableEffect(playbackBridge, cloudRssScheduler, desktopWebControlServer) {
         onDispose {
+            desktopWebControlServer.stopIfRunning()
             playbackBridge.close()
             cloudRssScheduler.stop()
+        }
+    }
+
+    fun syncDesktopWebControlServer() {
+        if (repositories.webControlAccess.webControlEnabled) {
+            desktopWebControlServer.startIfNeeded()
+        } else {
+            desktopWebControlServer.stopIfRunning()
         }
     }
 
@@ -698,6 +726,7 @@ internal fun MiruPlayDesktopComposeApp(
         } else {
             emptyList()
         }
+        syncDesktopWebControlServer()
         runCatching {
             repositories.cloudDriveAutomation.observeSubscriptions().first()
         }.onSuccess { subscriptions ->
@@ -727,6 +756,7 @@ internal fun MiruPlayDesktopComposeApp(
         } else {
             emptyList()
         }
+        syncDesktopWebControlServer()
     }
 
     suspend fun updateSelectedMetadataCache(

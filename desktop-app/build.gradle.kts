@@ -27,6 +27,12 @@ application {
     mainClass.set("com.miruplay.tv.desktop.MiruPlayDesktopComposeAppKt")
 }
 
+sourceSets {
+    main {
+        resources.srcDir(project(":web-control").projectDir.resolve("src/main/assets"))
+    }
+}
+
 val generatedMpvRuntimeManifest = layout.buildDirectory.file("generated/mpv-runtime/runtime-manifest.json")
 val mpvRuntimeSource = providers.gradleProperty("mpvRuntimeSource")
 val requireMpvRuntime = providers.gradleProperty("requireMpvRuntime")
@@ -1037,6 +1043,7 @@ dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:common"))
     implementation(project(":ui-design"))
+    implementation(project(":web-control-core"))
     implementation(project(":cloud-drive-desktop"))
     implementation(project(":media-source-desktop"))
     implementation(project(":player-mpv"))
