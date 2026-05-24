@@ -2,6 +2,8 @@ package com.miruplay.tv.desktop
 
 import androidx.compose.ui.input.key.Key
 import com.miruplay.tv.design.MiruPlayInputIntent
+import com.miruplay.tv.model.Anime
+import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.detailEpisodeCoercedPageStart
@@ -30,6 +32,7 @@ import com.miruplay.tv.model.recentPlaybackPageUnitLabel
 import com.miruplay.tv.model.recentPlaybackRefreshActionLabel
 import com.miruplay.tv.model.mediaDetailsLabels
 import com.miruplay.tv.model.recentPlaybackLabels
+import com.miruplay.tv.repository.LibraryContinueWatchingEpisode
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.sync.bangumiMetadataCacheId
 import com.miruplay.tv.sync.toBangumiLocalEpisode
@@ -223,6 +226,50 @@ class DesktopDetailHeroTest {
         )
         assertEquals(null, recentPlaybackEmptyFocusTarget(MiruPlayInputIntent.DirectionLeft))
         assertEquals(null, recentPlaybackEmptyFocusTarget(MiruPlayInputIntent.Activate))
+    }
+
+    @Test
+    fun `recent playback item uses resolved episode display fields`() {
+        val item = LibraryContinueWatchingEpisode(
+            progress = ProgressRecord(
+                episodeId = "1:D:/Anime/Frieren/01.mkv",
+                positionMs = 12_000L,
+                lastWatched = 34L,
+                playCount = 2,
+            ),
+            episode = Episode(
+                id = "1:D:/Anime/Frieren/01.mkv",
+                animeId = "frieren",
+                episodeNumber = 1,
+                title = "旅途的开始",
+                filePath = "D:/Anime/Frieren/01.mkv",
+                fileName = "01.mkv",
+            ),
+            anime = Anime(id = "frieren", title = "Frieren"),
+        ).toDesktopRecentPlaybackItem()
+
+        assertEquals("旅途的开始", item.displayName)
+        assertEquals("D:/Anime/Frieren/01.mkv", item.pathLabel)
+        assertEquals("12", item.resumeStartSecondsText())
+        assertEquals("已载入最近播放：旅途的开始。", item.loadedPlaybackStatus())
+    }
+
+    @Test
+    fun `recent playback item selection is retained by progress id`() {
+        val selected = DesktopRecentPlaybackItem(
+            progress = ProgressRecord("episode-1", positionMs = 12_000L, lastWatched = 1L),
+            displayName = "old",
+            pathLabel = "old-path",
+        )
+        val refreshed = DesktopRecentPlaybackItem(
+            progress = ProgressRecord("episode-1", positionMs = 30_000L, lastWatched = 2L),
+            displayName = "new",
+            pathLabel = "new-path",
+        )
+
+        assertEquals(refreshed, selected.retainedSelectionInRecentPlaybackItems(listOf(refreshed)))
+        assertEquals(null, selected.retainedSelectionInRecentPlaybackItems(emptyList()))
+        assertEquals(null, null.retainedSelectionInRecentPlaybackItems(listOf(refreshed)))
     }
 
     @Test

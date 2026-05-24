@@ -141,15 +141,17 @@ cached-episode lookup; `:web-control-core:test` passed in Gradle MCP build
 gate passed in `b-172`.
 `:repository-api` now also owns `LibraryEpisodeResolver` and
 `MediaIndexPosterGroup.toIndexedAnime()` for shared continue-watching and
-playback episode resolution. Android TV Library and WebUI library loading now
-use the same cached-episode priority, indexed Local/WebDAV/SMB path lookup,
-completion filtering, progress-field attachment, same-anime merge handling, and
-fallback-anime shaping instead of duplicating path/name inference in their UI
-layers. `LibraryEpisodeResolverTest` covers cached lookup priority, WebDAV
-playable indexed lookup, completed-progress filtering, progress field
-attachment, and indexed continue-watching fallback; the focused
-repository/WebUI/TV compile gate passed in Gradle MCP build `b-175` with
-153 tests passed.
+playback episode resolution. Android TV Library, WebUI library loading, and the
+Windows Details continue-watching panel now use the same cached-episode
+priority, indexed Local/WebDAV/SMB path lookup, completion filtering,
+progress-field attachment, same-anime merge handling, fallback-anime shaping,
+and result/error-preserving lookup instead of duplicating path/name inference in
+their UI layers. `LibraryEpisodeResolverTest` covers cached lookup priority,
+WebDAV playable indexed lookup, completed-progress filtering, progress field
+attachment, indexed continue-watching fallback, and progress-error preservation;
+desktop detail tests cover the Windows recent-playback display adapter and
+selection retention; the focused repository/desktop gate passed in Gradle MCP
+build `b-180` with 296 tests passed.
 `core:model` owns the Cloud/RSS form normalization helpers used
 by both Android TV Settings and Windows Cloud/RSS Settings for config trimming,
 interval/proxy-port bounds, RSS subscription fallback names, blank URL

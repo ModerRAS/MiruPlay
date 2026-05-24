@@ -1,5 +1,6 @@
 package com.miruplay.tv.repository
 
+import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaPathConventions
@@ -47,19 +48,28 @@ class LibraryEpisodeResolver(
     }
 
     suspend fun loadContinueWatchingEpisodes(limit: Int = 20): List<LibraryContinueWatchingEpisode> =
-        progress.getContinueWatching(limit).getOrNull().orEmpty().mapNotNull { record ->
-            val episode = findEpisodeById(record.episodeId) ?: return@mapNotNull null
-            if (episode.isCompleted(record)) return@mapNotNull null
-            LibraryContinueWatchingEpisode(
-                progress = record,
-                episode = episode.copy(
-                    watchedPosition = record.positionMs,
-                    lastWatchedTimestamp = record.lastWatched,
-                    playCount = record.playCount,
-                ),
-                anime = findAnimeById(episode.animeId),
-            )
+        loadContinueWatchingEpisodesResult(limit).getOrNull().orEmpty()
+
+    suspend fun loadContinueWatchingEpisodesResult(limit: Int = 20): Result<List<LibraryContinueWatchingEpisode>> =
+        progress.getContinueWatching(limit).map { records ->
+            records.mapNotNull { record ->
+                record.toContinueWatchingEpisode()
+            }
         }
+
+    private suspend fun ProgressRecord.toContinueWatchingEpisode(): LibraryContinueWatchingEpisode? {
+        val episode = findEpisodeById(episodeId) ?: return null
+        if (episode.isCompleted(this)) return null
+        return LibraryContinueWatchingEpisode(
+            progress = this,
+            episode = episode.copy(
+                watchedPosition = positionMs,
+                lastWatchedTimestamp = lastWatched,
+                playCount = playCount,
+            ),
+            anime = findAnimeById(episode.animeId),
+        )
+    }
 
     private suspend fun findIndexedEpisodeById(episodeId: String): Episode? {
         val sourceParts = episodeId.split(":", limit = 2)

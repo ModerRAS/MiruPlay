@@ -9,6 +9,7 @@ import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.ProgressRecord
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -116,19 +117,33 @@ class LibraryEpisodeResolverTest {
         assertEquals(45_000L, items.single().episode.watchedPosition)
     }
 
+    @Test
+    fun `continue watching result preserves progress errors`() = runBlocking {
+        val error = AppError.MediaSourceError.NotFound("progress-store")
+        val resolver = resolver(
+            progressError = error,
+        )
+
+        val result = resolver.loadContinueWatchingEpisodesResult()
+
+        assertEquals(Result.failure(error), result)
+        assertTrue(resolver.loadContinueWatchingEpisodes().isEmpty())
+    }
+
     private fun resolver(
         sources: List<MediaSourceInfo> = emptyList(),
         entries: List<MediaIndexEntry> = emptyList(),
         cachedAnime: Map<String, Anime> = emptyMap(),
         cachedEpisodes: Map<String, List<Episode>> = emptyMap(),
         progressRecords: List<ProgressRecord> = emptyList(),
+        progressError: AppError? = null,
         mergeSameAnimeEnabled: Boolean = false,
     ): LibraryEpisodeResolver =
         LibraryEpisodeResolver(
             mediaSources = FakeMediaSourceRepository(sources),
             metadata = FakeMetadataRepository(cachedAnime, cachedEpisodes),
             index = FakeMediaIndexRepository(entries),
-            progress = FakeProgressRepository(progressRecords),
+            progress = FakeProgressRepository(progressRecords, progressError),
             mergeSameAnimeEnabled = { mergeSameAnimeEnabled },
         )
 
@@ -214,6 +229,7 @@ class LibraryEpisodeResolverTest {
 
     private class FakeProgressRepository(
         private val records: List<ProgressRecord>,
+        private val error: AppError?,
     ) : PlaybackProgressRepository {
         override suspend fun saveProgress(
             episodeId: String,
@@ -233,6 +249,6 @@ class LibraryEpisodeResolverTest {
             Result.success(Unit)
 
         override suspend fun getContinueWatching(limit: Int): Result<List<ProgressRecord>> =
-            Result.success(records.take(limit))
+            error?.let { Result.failure(it) } ?: Result.success(records.take(limit))
     }
 }

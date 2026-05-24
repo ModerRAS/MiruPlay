@@ -73,6 +73,9 @@ import com.miruplay.tv.model.mediaDetailsLabels
 import com.miruplay.tv.model.recentPlaybackPageStartForIndex
 import com.miruplay.tv.model.recentPlaybackPageSummary
 import com.miruplay.tv.model.recentPlaybackLabels
+import com.miruplay.tv.model.loadedPlaybackStatus
+import com.miruplay.tv.model.resumeStartSecondsText
+import com.miruplay.tv.repository.LibraryContinueWatchingEpisode
 import com.miruplay.tv.repository.MediaDetailRows
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.displayName
@@ -792,19 +795,50 @@ internal fun detailEpisodeEmptyFocusTarget(intent: MiruPlayInputIntent): DetailE
         else -> null
     }
 
+internal data class DesktopRecentPlaybackItem(
+    val progress: ProgressRecord,
+    val displayName: String,
+    val pathLabel: String,
+)
+
+internal fun LibraryContinueWatchingEpisode.toDesktopRecentPlaybackItem(): DesktopRecentPlaybackItem =
+    DesktopRecentPlaybackItem(
+        progress = progress,
+        displayName = episode.title
+            .takeIf { it.isNotBlank() }
+            ?: episode.fileName.takeIf { it.isNotBlank() }
+            ?: anime?.titleCn?.takeIf { it.isNotBlank() }
+            ?: anime?.title?.takeIf { it.isNotBlank() }
+            ?: progress.mediaDisplayName(),
+        pathLabel = episode.filePath.ifBlank { progress.episodeId },
+    )
+
+internal fun DesktopRecentPlaybackItem.loadedPlaybackStatus(): String =
+    progress.loadedPlaybackStatus(displayName)
+
+internal fun DesktopRecentPlaybackItem.resumeStartSecondsText(): String =
+    progress.resumeStartSecondsText()
+
+internal fun DesktopRecentPlaybackItem?.retainedSelectionInRecentPlaybackItems(
+    items: List<DesktopRecentPlaybackItem>,
+): DesktopRecentPlaybackItem? =
+    this?.let { selected ->
+        items.firstOrNull { it.progress.episodeId == selected.progress.episodeId }
+    }
+
 @Composable
 internal fun RecentPlaybackPanel(
-    records: List<ProgressRecord>,
-    selectedRecord: ProgressRecord?,
+    records: List<DesktopRecentPlaybackItem>,
+    selectedRecord: DesktopRecentPlaybackItem?,
     status: String,
     focusVersion: Int,
     onFocusPreviousPanel: () -> Boolean,
     onFocusNextPanel: () -> Boolean,
     onRefresh: () -> Unit,
-    onRecordSelected: (ProgressRecord) -> Unit,
+    onRecordSelected: (DesktopRecentPlaybackItem) -> Unit,
     onClearSelected: () -> Unit,
 ) {
-    var pageStartState by remember(records.map { it.episodeId }) { mutableStateOf(0) }
+    var pageStartState by remember(records.map { it.progress.episodeId }) { mutableStateOf(0) }
     val pageStart = recentPlaybackCoercedPageStart(
         pageStart = pageStartState,
         itemCount = records.size,
@@ -816,7 +850,7 @@ internal fun RecentPlaybackPanel(
     }
     var pendingRecordFocus by remember { mutableStateOf<Int?>(null) }
     val labels = recentPlaybackLabels()
-    val recordFocusRequesters = remember(pageStart, visibleRecords.map { it.episodeId }) {
+    val recordFocusRequesters = remember(pageStart, visibleRecords.map { it.progress.episodeId }) {
         List(visibleRecords.size) { FocusRequester() }
     }
     val actionFocusRequesters = remember {
@@ -871,7 +905,7 @@ internal fun RecentPlaybackPanel(
     fun moveRecentEmptyFocus(intent: MiruPlayInputIntent): Boolean =
         requestRecentFocus(recentPlaybackEmptyFocusTarget(intent))
 
-    LaunchedEffect(pageStart, visibleRecords.map { it.episodeId }, pendingRecordFocus) {
+    LaunchedEffect(pageStart, visibleRecords.map { it.progress.episodeId }, pendingRecordFocus) {
         val pendingIndex = pendingRecordFocus ?: return@LaunchedEffect
         if (pendingIndex in pageStart until pageStart + visibleRecords.size) {
             recordFocusRequesters.getOrNull(pendingIndex - pageStart)?.requestFocus()
@@ -879,7 +913,7 @@ internal fun RecentPlaybackPanel(
         }
     }
 
-    LaunchedEffect(focusVersion, records.map { it.episodeId }) {
+    LaunchedEffect(focusVersion, records.map { it.progress.episodeId }) {
         if (focusVersion > 0) {
             if (records.isNotEmpty()) {
                 requestRecentFocus(RecentPlaybackFocusTarget.Row(0))
@@ -934,7 +968,7 @@ internal fun RecentPlaybackPanel(
                         val absoluteIndex = pageStart + index
                         RecentProgressRow(
                             record = record,
-                            selected = selectedRecord?.episodeId == record.episodeId,
+                            selected = selectedRecord?.progress?.episodeId == record.progress.episodeId,
                             onClick = {
                                 onRecordSelected(record)
                                 requestRecentFocus(RecentPlaybackFocusTarget.Row(absoluteIndex))
@@ -991,7 +1025,7 @@ private fun RecentPlaybackEmptyState(
 
 @Composable
 private fun RecentProgressRow(
-    record: ProgressRecord,
+    record: DesktopRecentPlaybackItem,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -1009,7 +1043,7 @@ private fun RecentProgressRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                formatPlaybackPosition(record.positionMs),
+                formatPlaybackPosition(record.progress.positionMs),
                 color = if (active) AnimeRed else TextSecondary,
                 fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
                 fontWeight = FontWeight.Bold,
@@ -1017,7 +1051,7 @@ private fun RecentProgressRow(
             )
             Column(Modifier.weight(1f)) {
                 Text(
-                    record.mediaDisplayName(),
+                    record.displayName,
                     color = TextPrimary,
                     fontSize = MiruPlayUiMetrics.ITEM_TITLE_SP.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -1025,14 +1059,14 @@ private fun RecentProgressRow(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    record.episodeId,
+                    record.pathLabel,
                     color = TextSecondary,
                     fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Text("x${record.playCount}", color = TextSecondary, fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp)
+            Text("x${record.progress.playCount}", color = TextSecondary, fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp)
         }
     }
 }

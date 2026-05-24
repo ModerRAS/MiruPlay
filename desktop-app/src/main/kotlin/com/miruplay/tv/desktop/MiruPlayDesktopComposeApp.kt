@@ -79,7 +79,6 @@ import com.miruplay.tv.model.completeStatus
 import com.miruplay.tv.model.detailBangumiSyncCompleteMessage
 import com.miruplay.tv.model.detailBangumiSyncStartedMessage
 import com.miruplay.tv.model.desktopWindowTitleLabel
-import com.miruplay.tv.model.loadedPlaybackStatus
 import com.miruplay.tv.model.metadataMatchSummaryLabel
 import com.miruplay.tv.model.metadataNoSelectedEntryLabel
 import com.miruplay.tv.model.parseCloudDriveIntervalMinutes
@@ -91,8 +90,6 @@ import com.miruplay.tv.model.recentPlaybackInitialStatus
 import com.miruplay.tv.model.recentPlaybackLoadedStatus
 import com.miruplay.tv.model.recentPlaybackRequiredStatus
 import com.miruplay.tv.model.recentPlaybackShowingStatus
-import com.miruplay.tv.model.resumeStartSecondsText
-import com.miruplay.tv.model.retainedSelectionInProgressRecords
 import com.miruplay.tv.model.retainedSelectionInRssSubscriptions
 import com.miruplay.tv.model.rssSubscriptionRequiredStatus
 import com.miruplay.tv.model.rssSubscriptionSelectedStatus
@@ -118,6 +115,7 @@ import com.miruplay.tv.player.mpv.mpvSeekBackStatus
 import com.miruplay.tv.player.mpv.mpvSeekForwardStatus
 import com.miruplay.tv.player.mpv.mpvStoppedStatus
 import com.miruplay.tv.repository.MediaIndexEntry
+import com.miruplay.tv.repository.LibraryEpisodeResolver
 import com.miruplay.tv.repository.MediaSourceActionCoordinator
 import com.miruplay.tv.repository.MetadataBatchMatch
 import com.miruplay.tv.repository.MetadataBatchPlanner
@@ -501,8 +499,8 @@ internal fun MiruPlayDesktopComposeApp(
     var autoScanIntervalHours by remember { mutableStateOf(6) }
     var lastScanAt by remember { mutableStateOf(0L) }
     var mergeSameAnimeEnabled by remember { mutableStateOf(false) }
-    var recentProgress by remember { mutableStateOf(emptyList<ProgressRecord>()) }
-    var selectedRecentProgress by remember { mutableStateOf<ProgressRecord?>(null) }
+    var recentProgress by remember { mutableStateOf(emptyList<DesktopRecentPlaybackItem>()) }
+    var selectedRecentProgress by remember { mutableStateOf<DesktopRecentPlaybackItem?>(null) }
     var selectedDetailEpisodeSeason by remember { mutableStateOf<Int?>(null) }
     var detailHeroFocusVersion by remember { mutableStateOf(0) }
     var detailEpisodeFocusVersion by remember { mutableStateOf(0) }
@@ -565,6 +563,15 @@ internal fun MiruPlayDesktopComposeApp(
         )
     }
     val webControlActions = remember(repositories) { WebControlAccessActionCoordinator(repositories.webControlAccess) }
+    val libraryEpisodeResolver = remember(repositories) {
+        LibraryEpisodeResolver(
+            mediaSources = repositories.mediaSources,
+            metadata = repositories.metadata,
+            index = repositories.index,
+            progress = repositories.progress,
+            mergeSameAnimeEnabled = { repositories.scanPreferences.getPreferences().mergeSameAnimeEnabled },
+        )
+    }
     val commandPreview by remember(
         mpvPath,
         configDir,
@@ -733,10 +740,11 @@ internal fun MiruPlayDesktopComposeApp(
         startupSource?.let { source ->
             loadIndexedEntries(source.id, source.loadedStatus())
         }
-        when (val recents = repositories.progress.getContinueWatching(limit = 12)) {
+        when (val recents = libraryEpisodeResolver.loadContinueWatchingEpisodesResult(limit = 12)) {
             is Result.Success -> {
-                recentProgress = recents.data
-                recentStatus = recentPlaybackLoadedStatus(recents.data)
+                val items = recents.data.map { it.toDesktopRecentPlaybackItem() }
+                recentProgress = items
+                recentStatus = recentPlaybackLoadedStatus(items.map { it.progress })
             }
             is Result.Error -> recentStatus = recents.error.toUserMessage()
         }
@@ -772,11 +780,12 @@ internal fun MiruPlayDesktopComposeApp(
     }
 
     suspend fun refreshRecentProgress() {
-        when (val recents = repositories.progress.getContinueWatching(limit = 12)) {
+        when (val recents = libraryEpisodeResolver.loadContinueWatchingEpisodesResult(limit = 12)) {
             is Result.Success -> {
-                recentProgress = recents.data
-                selectedRecentProgress = selectedRecentProgress.retainedSelectionInProgressRecords(recents.data)
-                recentStatus = recentPlaybackShowingStatus(recents.data)
+                val items = recents.data.map { it.toDesktopRecentPlaybackItem() }
+                recentProgress = items
+                selectedRecentProgress = selectedRecentProgress.retainedSelectionInRecentPlaybackItems(items)
+                recentStatus = recentPlaybackShowingStatus(items.map { it.progress })
             }
             is Result.Error -> recentStatus = recents.error.toUserMessage()
         }
@@ -1666,7 +1675,7 @@ internal fun MiruPlayDesktopComposeApp(
                         episodes = detailEpisodes,
                         selectedEntry = selectedIndexEntry,
                         selectedSeason = selectedDetailEpisodeSeason,
-                        recentRecords = recentProgress,
+                        recentRecords = recentProgress.map { it.progress },
                         focusVersion = detailEpisodeFocusVersion,
                         onFocusPreviousPanel = {
                             detailHeroFocusVersion += 1
@@ -2006,9 +2015,9 @@ internal fun MiruPlayDesktopComposeApp(
                 },
                 onRecordSelected = { record ->
                     selectedRecentProgress = record
-                    mediaPath = record.episodeId
+                    mediaPath = record.progress.episodeId
                     startSeconds = record.resumeStartSecondsText()
-                    launchStatus = record.loadedPlaybackStatus(record.mediaDisplayName())
+                    launchStatus = record.loadedPlaybackStatus()
                 },
                 onClearSelected = {
                     scope.launch {
@@ -2017,7 +2026,7 @@ internal fun MiruPlayDesktopComposeApp(
                             recentStatus = recentPlaybackRequiredStatus()
                             return@launch
                         }
-                        when (val result = repositories.progress.deleteProgress(selected.episodeId)) {
+                        when (val result = repositories.progress.deleteProgress(selected.progress.episodeId)) {
                             is Result.Success -> {
                                 selectedRecentProgress = null
                                 refreshRecentProgress()
@@ -2031,7 +2040,7 @@ internal fun MiruPlayDesktopComposeApp(
                 source = activeSource?.info,
                 indexEntry = selectedIndexEntry,
                 remoteEntry = selectedRemoteEntry,
-                recentRecord = selectedRecentProgress,
+                recentRecord = selectedRecentProgress?.progress,
                 focusVersion = mediaDetailsFocusVersion,
                 onFocusPreviousPanel = {
                     bangumiFocusVersion += 1
@@ -2316,7 +2325,7 @@ internal fun MiruPlayDesktopComposeApp(
                 indexedItemCount = indexedEntries.size,
                 recentCount = recentProgress.size,
                 selectedMediaTitle = selectedIndexEntry?.detailTitle()
-                    ?: selectedRecentProgress?.mediaDisplayName()
+                    ?: selectedRecentProgress?.displayName
                     ?: metadataNoSelectedEntryLabel(),
                 playbackSummary = playbackRifeStateLabel(rifeEnabled, rifeBackend.name),
                 metadataSummary = selectedIndexEntry?.let { entry ->
