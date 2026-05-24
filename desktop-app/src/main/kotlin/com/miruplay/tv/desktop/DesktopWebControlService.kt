@@ -45,6 +45,7 @@ import com.miruplay.tv.webcontrol.idleWebControlPlaybackStatus
 import com.miruplay.tv.webcontrol.loginWebControlCloudDrive
 import com.miruplay.tv.webcontrol.listWebControlSources
 import com.miruplay.tv.webcontrol.playbackCommandKind
+import com.miruplay.tv.webcontrol.playbackSpeed
 import com.miruplay.tv.webcontrol.relativeSeekDeltaMs
 import com.miruplay.tv.webcontrol.removeWebControlSource
 import com.miruplay.tv.webcontrol.requireWebControlSuccess
@@ -316,7 +317,7 @@ internal suspend fun desktopWebControlPlaybackCommand(
             activePlayer.seekBy(-deltaMs / 1000.0)
             session?.seekBy(-deltaMs / 1000.0)
         }
-        WebControlPlaybackCommandKind.SPEED -> Unit
+        WebControlPlaybackCommandKind.SPEED -> activePlayer.setSpeed(request.playbackSpeed().toDouble())
         WebControlPlaybackCommandKind.UNKNOWN -> throw IllegalArgumentException("未知播放命令: ${request.command}")
     }
     return webControlPlaybackStatus(

@@ -10,8 +10,11 @@ import com.miruplay.tv.model.FileMetadata
 import com.miruplay.tv.model.MediaCapabilities
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
+import com.miruplay.tv.model.PlaybackProgressSession
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.ProgressRecord
+import com.miruplay.tv.player.mpv.MpvProcessPlayer
+import com.miruplay.tv.player.mpv.MpvRuntimeConfig
 import com.miruplay.tv.webcontrol.PlayEpisodeRequest
 import com.miruplay.tv.webcontrol.PlaybackCommandRequest
 import kotlinx.coroutines.runBlocking
@@ -23,6 +26,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.io.InputStream
+import java.nio.file.Files
 
 class DesktopWebControlPlaybackBridgeTest {
     @Test
@@ -60,6 +64,41 @@ class DesktopWebControlPlaybackBridgeTest {
             "mpv position synced at 00:45.",
             webControlPlaybackCommandStatus(PlaybackCommandRequest(command = "seek", positionMs = 45_000L)),
         )
+    }
+
+    @Test
+    fun `desktop WebUI speed command sends mpv playback speed over IPC`() = runBlocking {
+        val pipe = Files.createTempFile("miruplay-desktop-web-speed", ".json")
+        val mpv = Files.createTempFile("miruplay-mpv", ".exe")
+        try {
+            val player = MpvProcessPlayer(
+                config = MpvRuntimeConfig(
+                    mpvExecutable = mpv,
+                    ipcServer = pipe.toString(),
+                    rife = null,
+                ),
+                processLauncher = { AliveProcess() },
+            )
+            player.play(PlaybackSource(uri = "D:/Anime/Frieren.mkv", mediaSourceId = "7"))
+            val session = PlaybackProgressSession(episodeId = "7:D:/Anime/Frieren.mkv", startPositionMs = 12_000L)
+
+            val status = desktopWebControlPlaybackCommand(
+                request = PlaybackCommandRequest(command = "speed", speed = 1.25f),
+                player = player,
+                session = session,
+                stopPlayback = {},
+            )
+
+            assertEquals("Playing", status.state)
+            assertTrue(status.isPlaying)
+            assertEquals(
+                """{"command":["set_property","speed",1.25]}""",
+                Files.readString(pipe).trim(),
+            )
+        } finally {
+            Files.deleteIfExists(pipe)
+            Files.deleteIfExists(mpv)
+        }
     }
 
     @Test
@@ -281,5 +320,24 @@ class DesktopWebControlPlaybackBridgeTest {
             Result.success(true)
 
         override suspend fun close() = Unit
+    }
+
+    private class AliveProcess : Process() {
+        override fun getOutputStream(): java.io.OutputStream = java.io.ByteArrayOutputStream()
+
+        override fun getInputStream(): InputStream = ByteArrayInputStream(ByteArray(0))
+
+        override fun getErrorStream(): InputStream = ByteArrayInputStream(ByteArray(0))
+
+        override fun waitFor(): Int = 0
+
+        override fun exitValue(): Int =
+            throw IllegalThreadStateException("still running")
+
+        override fun destroy() = Unit
+
+        override fun isAlive(): Boolean = true
+
+        override fun pid(): Long = 77L
     }
 }

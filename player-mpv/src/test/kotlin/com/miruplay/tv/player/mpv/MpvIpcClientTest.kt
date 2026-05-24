@@ -25,6 +25,22 @@ class MpvIpcClientTest {
     }
 
     @Test
+    fun `setSpeed writes mpv speed property command`() = runBlocking {
+        val pipe = Files.createTempFile("miruplay-mpv-ipc", ".json")
+        try {
+            val result = MpvIpcClient(pipe.toString(), connectTimeoutMillis = 0L).setSpeed(1.25)
+
+            assertTrue(result is Result.Success)
+            assertEquals(
+                """{"command":["set_property","speed",1.25]}""",
+                Files.readString(pipe).trim(),
+            )
+        } finally {
+            Files.deleteIfExists(pipe)
+        }
+    }
+
+    @Test
     fun `seekBy writes relative exact seek command`() = runBlocking {
         val pipe = Files.createTempFile("miruplay-mpv-ipc", ".json")
         try {

@@ -36,6 +36,9 @@ class MpvIpcClient(
     suspend fun setPaused(paused: Boolean): Result<Unit> =
         sendCommand("set_property".json, "pause".json, JsonPrimitive(paused))
 
+    suspend fun setSpeed(speed: Double): Result<Unit> =
+        sendCommand("set_property".json, "speed".json, JsonPrimitive(speed))
+
     suspend fun seekBy(seconds: Double, mode: MpvSeekMode = MpvSeekMode.RELATIVE_EXACT): Result<Unit> =
         sendCommand("seek".json, JsonPrimitive(seconds), mode.mpvValue.json)
 

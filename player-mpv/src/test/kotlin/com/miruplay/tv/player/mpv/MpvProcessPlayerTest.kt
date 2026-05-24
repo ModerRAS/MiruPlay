@@ -4,6 +4,7 @@ import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.PlaybackSource
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.ByteArrayInputStream
@@ -67,6 +68,32 @@ class MpvProcessPlayerTest {
         assertTrue(stop is Result.Success)
         assertTrue(fakeProcess.destroyCalled)
         assertTrue(fakeProcess.destroyForciblyCalled)
+    }
+
+    @Test
+    fun `setSpeed clamps to mpv supported playback speed range`() = runBlocking {
+        val pipe = Files.createTempFile("miruplay-mpv-ipc", ".json")
+        val mpv = Files.createTempFile("miruplay-mpv", ".exe")
+        try {
+            val player = MpvProcessPlayer(
+                config = MpvRuntimeConfig(
+                    mpvExecutable = mpv,
+                    ipcServer = pipe.toString(),
+                    rife = null,
+                ),
+            )
+
+            val tooFast = player.setSpeed(4.0)
+
+            assertTrue(tooFast is Result.Success)
+            assertEquals(
+                """{"command":["set_property","speed",3.0]}""",
+                Files.readString(pipe).trim(),
+            )
+        } finally {
+            Files.deleteIfExists(pipe)
+            Files.deleteIfExists(mpv)
+        }
     }
 
     private class ControllableProcess(

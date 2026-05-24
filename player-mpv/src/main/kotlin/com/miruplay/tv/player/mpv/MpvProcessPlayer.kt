@@ -81,6 +81,9 @@ class MpvProcessPlayer(
     suspend fun setPaused(paused: Boolean): Result<Unit> =
         ipcClientOrError()?.setPaused(paused) ?: missingIpcError()
 
+    suspend fun setSpeed(speed: Double): Result<Unit> =
+        ipcClientOrError()?.setSpeed(speed.coerceIn(0.25, 3.0)) ?: missingIpcError()
+
     suspend fun seekBy(seconds: Double, mode: MpvSeekMode = MpvSeekMode.RELATIVE_EXACT): Result<Unit> =
         ipcClientOrError()?.seekBy(seconds, mode) ?: missingIpcError()
 
