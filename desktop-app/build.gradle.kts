@@ -7,6 +7,7 @@ import java.util.zip.ZipFile
 import groovy.json.JsonSlurper
 import org.gradle.api.file.DuplicatesStrategy
 import org.gradle.api.tasks.Sync
+import org.gradle.api.tasks.bundling.Tar
 import org.gradle.api.tasks.bundling.Zip
 import org.gradle.jvm.tasks.Jar
 
@@ -423,6 +424,12 @@ val smokeMpvRuntime by tasks.registering {
 
 val distZipTask = tasks.named<Zip>("distZip")
 
+tasks.withType<Zip>().configureEach {
+    if (name == "distZip") {
+        archiveVersion.set(windowsPackageVersion)
+    }
+}
+
 val prepareJpackageAppContent by tasks.registering(Sync::class) {
     group = "distribution"
     description = "Prepare bundled runtime content for JDK jpackage app images."
@@ -464,6 +471,7 @@ val packageWindowsAppImage by tasks.registering {
     onlyIf { System.getProperty("os.name").contains("Windows", ignoreCase = true) }
     inputs.dir(jpackageInputDir)
     inputs.dir(jpackageAppContentDir).optional()
+    inputs.property("windowsPackageVersion", windowsPackageVersion)
     outputs.dir(jpackageAppImageRoot)
 
     doLast {
@@ -481,7 +489,7 @@ val packageWindowsAppImage by tasks.registering {
             "--main-class", application.mainClass.get(),
             "--dest", outputDir.absolutePath,
             "--vendor", "MiruPlay",
-            "--app-version", "0.1.0",
+            "--app-version", windowsPackageVersion.get(),
             "--description", "MiruPlay Windows desktop anime media manager",
         )
         if (appContentRuntime.isDirectory) {
@@ -1018,9 +1026,11 @@ distZipTask {
     dependsOn(generateMpvRuntimeManifest)
 }
 
-tasks.named("distTar") {
+tasks.named<Tar>("distTar") {
+    inputs.property("windowsPackageVersion", windowsPackageVersion)
     dependsOn(verifyMpvRuntimePayload)
     dependsOn(generateMpvRuntimeManifest)
+    archiveVersion.set(windowsPackageVersion)
 }
 
 dependencies {
