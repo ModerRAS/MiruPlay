@@ -291,6 +291,15 @@ fun settingsCurrentScanIntervalStatus(
 ): String =
     "当前间隔 ${intervalHours.coerceAtLeast(0)} 小时 · $lastScanText"
 
+fun settingsLastScanLabel(lastScanAt: Long): String =
+    formatShortLocalTimestamp(lastScanAt)?.let { "上次扫描 $it" } ?: "还没有扫描记录"
+
+fun settingsCurrentScanIntervalStatus(
+    intervalHours: Int,
+    lastScanAt: Long,
+): String =
+    settingsCurrentScanIntervalStatus(intervalHours, settingsLastScanLabel(lastScanAt))
+
 fun settingsLibraryDisplayTitleLabel(): String =
     "媒体库显示"
 

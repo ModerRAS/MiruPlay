@@ -228,9 +228,6 @@ import com.google.zxing.common.BitMatrix
 import com.google.zxing.qrcode.QRCodeWriter
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import kotlinx.coroutines.delay
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 private const val DEFAULT_LOCAL_PATH = "/storage/emulated/0/Download"
 private const val QR_CODE_MATRIX_SIZE = 96
@@ -2171,7 +2168,7 @@ private fun RssSubscriptionRow(
             )
             Text(
                 text = rssSubscriptionLastCheckedLabel(
-                    subscription.lastCheckedAt.takeIf { it > 0 }?.let(::formatTimestamp)
+                    subscription.lastCheckedAt
                 ),
                 style = TvTypography.caption,
                 color = TextSecondary
@@ -2508,7 +2505,7 @@ private fun ScanPanel(
 
         StatusMessage(
             icon = Icons.Filled.CheckCircle,
-            text = settingsCurrentScanIntervalStatus(autoScanIntervalHours, formatLastScanAt(lastScanAt)),
+            text = settingsCurrentScanIntervalStatus(autoScanIntervalHours, lastScanAt),
             color = if (autoScanEnabled) ProgressGreen else TextSecondary
         )
 
@@ -2777,14 +2774,6 @@ private fun createQrCodeMatrix(content: String): BitMatrix? {
         )
     }.getOrNull()
 }
-
-private fun formatLastScanAt(lastScanAt: Long): String {
-    if (lastScanAt <= 0L) return "还没有扫描记录"
-    return "上次扫描 " + SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(lastScanAt))
-}
-
-private fun formatTimestamp(timestamp: Long): String =
-    SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(timestamp))
 
 private fun MediaSourceType.sourceIcon(): ImageVector = when (this) {
     MediaSourceType.LOCAL -> Icons.Filled.Folder

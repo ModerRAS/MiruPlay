@@ -432,6 +432,9 @@ fun rssSubscriptionFallbackTitleLabel(): String =
 fun rssSubscriptionLastCheckedLabel(timestampText: String?): String =
     timestampText?.takeIf { it.isNotBlank() }?.let { "上次检查 $it" } ?: "尚未检查"
 
+fun rssSubscriptionLastCheckedLabel(lastCheckedAt: Long): String =
+    rssSubscriptionLastCheckedLabel(formatShortLocalTimestamp(lastCheckedAt))
+
 fun CloudDriveRssSchedulerUiState.tvStatus(): String {
     val prefix = if (running) "调度器运行中" else "调度器待命"
     val error = lastError

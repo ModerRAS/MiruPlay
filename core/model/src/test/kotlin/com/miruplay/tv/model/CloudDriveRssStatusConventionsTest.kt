@@ -103,6 +103,8 @@ class CloudDriveRssStatusConventionsTest {
         assertEquals("上次检查 05-22 10:30", rssSubscriptionLastCheckedLabel("05-22 10:30"))
         assertEquals("尚未检查", rssSubscriptionLastCheckedLabel(null))
         assertEquals("尚未检查", rssSubscriptionLastCheckedLabel(""))
+        assertEquals("尚未检查", rssSubscriptionLastCheckedLabel(0L))
+        assertTrue(rssSubscriptionLastCheckedLabel(1_700_000_000_000L).startsWith("上次检查 "))
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.miruplay.tv.model
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SettingsSectionDisplayConventionsTest {
@@ -136,6 +137,8 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("2小时", settingsScanIntervalOptionLabel(2))
         assertEquals("0小时", settingsScanIntervalOptionLabel(-1))
         assertEquals("当前间隔 6 小时 · 今天 12:00", settingsCurrentScanIntervalStatus(6, "今天 12:00"))
+        assertEquals("还没有扫描记录", settingsLastScanLabel(0L))
+        assertTrue(settingsCurrentScanIntervalStatus(6, 1_700_000_000_000L).startsWith("当前间隔 6 小时 · 上次扫描 "))
         assertEquals("媒体库显示", settingsLibraryDisplayTitleLabel())
         assertEquals("同番合并", settingsMergeSameAnimeToggleLabel(enabled = true))
         assertEquals("目录分开", settingsMergeSameAnimeToggleLabel(enabled = false))
