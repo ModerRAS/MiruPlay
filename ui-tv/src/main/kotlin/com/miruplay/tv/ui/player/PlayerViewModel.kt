@@ -2,7 +2,6 @@ package com.miruplay.tv.ui.player
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.miruplay.tv.data.preferences.PlaybackPreferencesManager
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.PLAYBACK_SEEK_BACK_SECONDS
 import com.miruplay.tv.model.PLAYBACK_SEEK_FORWARD_SECONDS
@@ -13,6 +12,7 @@ import com.miruplay.tv.player.PlaybackController
 import com.miruplay.tv.model.SubtitleTrack
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
+import com.miruplay.tv.repository.PlaybackPreferencesRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
 import com.miruplay.tv.repository.resolvePlayableUri
 import com.miruplay.tv.repository.savePlaybackProgressSnapshot
@@ -36,7 +36,7 @@ class PlayerViewModel @Inject constructor(
     private val metadataRepository: MetadataRepository,
     private val mediaRepository: MediaSourceRepository,
     private val bangumiSyncEngine: BangumiSyncEngine,
-    private val playbackPreferences: PlaybackPreferencesManager
+    private val playbackPreferences: PlaybackPreferencesRepository
 ) : ViewModel() {
 
     val playbackState: StateFlow<PlaybackState> = playbackController.state
@@ -279,7 +279,7 @@ class PlayerViewModel @Inject constructor(
         )
         val episodeId = source.episodeId ?: extractEpisodeId(source.uri)
 
-        val nextSource = if (playbackPreferences.endAction == PlaybackEndAction.PLAY_NEXT_EPISODE) {
+        val nextSource = if (playbackPreferences.getEndAction() == PlaybackEndAction.PLAY_NEXT_EPISODE) {
             buildNextPlaybackSource(source)
         } else {
             null

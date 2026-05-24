@@ -7,10 +7,9 @@ import com.miruplay.tv.core.common.LocalDirectoryBrowser
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.core.common.buildWebControlAccessUrls
 import com.miruplay.tv.data.preferences.ScanPreferencesManager
-import com.miruplay.tv.data.preferences.PlaybackPreferencesManager
-import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.model.CloudDriveAutomationConfig
+import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.directoryBrowserRootDisplayName
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
@@ -33,6 +32,7 @@ import com.miruplay.tv.model.validateCloudDriveDirectoryPickerForm
 import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.MediaSourceRepository
+import com.miruplay.tv.repository.PlaybackPreferencesRepository
 import com.miruplay.tv.repository.WebControlAccessManager
 import com.miruplay.tv.sync.rss.CloudDriveRssAutomationEngine
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryBrowserState
@@ -59,7 +59,7 @@ class SettingsViewModel @Inject constructor(
     private val mediaSourceFactory: MediaSourceFactory,
     private val securePrefs: AppCredentialStore,
     private val scanPreferences: ScanPreferencesManager,
-    private val playbackPreferences: PlaybackPreferencesManager,
+    private val playbackPreferences: PlaybackPreferencesRepository,
     private val webControlPreferences: WebControlAccessManager,
     private val cloudDriveRepository: CloudDriveAutomationRepository,
     private val cloudDriveClient: CloudDriveClient,
@@ -92,7 +92,7 @@ class SettingsViewModel @Inject constructor(
     private val _mergeSameAnimeEnabled = MutableStateFlow(scanPreferences.mergeSameAnimeEnabled)
     val mergeSameAnimeEnabled: StateFlow<Boolean> = _mergeSameAnimeEnabled.asStateFlow()
 
-    private val _playbackEndAction = MutableStateFlow(playbackPreferences.endAction)
+    private val _playbackEndAction = MutableStateFlow(PlaybackEndAction.RETURN_TO_DETAIL)
     val playbackEndAction: StateFlow<PlaybackEndAction> = _playbackEndAction.asStateFlow()
 
     private val _webUiUrls = MutableStateFlow<List<String>>(emptyList())
@@ -129,8 +129,15 @@ class SettingsViewModel @Inject constructor(
 
     init {
         loadSources()
+        loadPlaybackPreferences()
         refreshWebUiUrls()
         observeCloudDriveAutomation()
+    }
+
+    private fun loadPlaybackPreferences() {
+        viewModelScope.launch {
+            _playbackEndAction.value = playbackPreferences.getEndAction()
+        }
     }
 
     fun loadSources() {
@@ -503,8 +510,10 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun setPlaybackEndAction(action: PlaybackEndAction) {
-        playbackPreferences.endAction = action
         _playbackEndAction.value = action
+        viewModelScope.launch {
+            playbackPreferences.setEndAction(action)
+        }
     }
 
     fun setWebControlEnabled(enabled: Boolean) {
