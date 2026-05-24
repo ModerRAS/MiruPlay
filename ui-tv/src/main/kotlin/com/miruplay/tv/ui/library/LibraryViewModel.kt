@@ -8,7 +8,7 @@ import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.libraryNoContentAfterScanMessage
-import com.miruplay.tv.model.mergeSameAnimeForDisplay
+import com.miruplay.tv.repository.LibraryAnimeResolver
 import com.miruplay.tv.repository.LibraryEpisodeResolver
 import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaSourceRepository
@@ -69,6 +69,12 @@ class LibraryViewModel @Inject constructor(
         metadata = metadataRepository,
         index = indexRepository,
         progress = progressRepository,
+        mergeSameAnimeEnabled = { scanPreferences.getPreferences().mergeSameAnimeEnabled },
+    )
+    private val libraryAnimeResolver = LibraryAnimeResolver(
+        mediaSources = mediaRepository,
+        metadata = metadataRepository,
+        index = indexRepository,
         mergeSameAnimeEnabled = { scanPreferences.getPreferences().mergeSameAnimeEnabled },
     )
 
@@ -141,12 +147,7 @@ class LibraryViewModel @Inject constructor(
         }
 
         val continueWatching = loadContinueWatching()
-        val allAnimeList = loadCachedAnime(sources)
-        val displayAnime = if (scanPreferences.getPreferences().mergeSameAnimeEnabled) {
-            allAnimeList.mergeSameAnimeForDisplay()
-        } else {
-            allAnimeList.distinctBy { it.id }
-        }
+        val displayAnime = libraryAnimeResolver.loadDisplayAnime()
 
         if (displayAnime.isEmpty() && continueWatching.isEmpty()) {
             _state.value = LibraryUiState.HasSources
@@ -171,21 +172,6 @@ class LibraryViewModel @Inject constructor(
             )
         }
     }
-
-    private suspend fun loadCachedAnime(sources: List<MediaSourceInfo>): List<Anime> {
-        val allAnimeList = mutableListOf<Anime>()
-        for (source in sources) {
-            val animeNames = indexRepository.getAnimeInIndex(source.id).getOrNull() ?: continue
-            for (name in animeNames) {
-                val cached = metadataRepository.getCachedMetadata(name).getOrNull()
-                if (cached != null) {
-                    allAnimeList.add(cached)
-                }
-            }
-        }
-        return allAnimeList
-    }
-
     fun cancelScan() {
         libraryScanTask.cancel()
         viewModelScope.launch {

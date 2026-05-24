@@ -13,12 +13,9 @@ import com.miruplay.tv.model.detailBangumiRescrapeStartedMessage
 import com.miruplay.tv.model.detailBangumiScraperUnavailableMessage
 import com.miruplay.tv.model.detailBangumiSyncCompleteMessage
 import com.miruplay.tv.model.detailBangumiSyncStartedMessage
-import com.miruplay.tv.model.distinctSeasonEpisodeCount
 import com.miruplay.tv.model.episodesForSeason
-import com.miruplay.tv.model.mergeAnimeGroupForDisplay
-import com.miruplay.tv.model.sameAnimeGroupFor
-import com.miruplay.tv.model.sortedForPlaybackQueue
 import com.miruplay.tv.model.toSeasons
+import com.miruplay.tv.repository.LibraryAnimeResolver
 import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
@@ -44,6 +41,12 @@ class AnimeDetailViewModel @Inject constructor(
     private val scanPreferences: ScanPreferencesRepository,
     private val metadataScrapers: Set<@JvmSuppressWildcards MetadataScraper>
 ) : ViewModel() {
+    private val libraryAnimeResolver = LibraryAnimeResolver(
+        mediaSources = mediaRepository,
+        metadata = metadataRepository,
+        index = indexRepository,
+        mergeSameAnimeEnabled = { scanPreferences.getPreferences().mergeSameAnimeEnabled },
+    )
 
     private val _anime = MutableStateFlow<Anime?>(null)
     val anime: StateFlow<Anime?> = _anime.asStateFlow()
@@ -72,36 +75,9 @@ class AnimeDetailViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
 
-            val cached = metadataRepository.getCachedMetadata(animeId).getOrNull()
-            val relatedAnime = if (scanPreferences.getPreferences().mergeSameAnimeEnabled && cached != null) {
-                loadRelatedAnime(cached)
-            } else {
-                listOfNotNull(cached)
-            }.ifEmpty {
-                listOfNotNull(cached)
-            }
-
-            val episodeAnimeIds = relatedAnime.map { it.id }.ifEmpty { listOf(animeId) }
-            val epList = episodeAnimeIds
-                .flatMap { id -> metadataRepository.getCachedEpisodes(id).getOrNull().orEmpty() }
-                .distinctBy { it.id }
-                .sortedForPlaybackQueue()
-
-            if (cached != null) {
-                val displayAnime = if (relatedAnime.size > 1) {
-                    relatedAnime.mergeAnimeGroupForDisplay().copy(id = animeId)
-                } else {
-                    cached
-                }
-                _anime.value = displayAnime.copy(
-                    episodeCount = maxOf(
-                        displayAnime.episodeCount,
-                        epList.distinctSeasonEpisodeCount()
-                    )
-                )
-            }
-
-            updateEpisodes(epList)
+            val detail = libraryAnimeResolver.loadAnimeDetail(animeId)
+            _anime.value = detail?.anime
+            updateEpisodes(detail?.episodes.orEmpty())
             _isLoading.value = false
         }
     }
@@ -109,21 +85,6 @@ class AnimeDetailViewModel @Inject constructor(
     fun selectSeason(seasonNumber: Int) {
         _selectedSeason.value = seasonNumber
         _episodesWithProgress.value = allEpisodesWithProgress.episodesForSeason(seasonNumber)
-    }
-
-    private suspend fun loadRelatedAnime(anchor: Anime): List<Anime> {
-        val sources = mediaRepository.getSources().getOrNull().orEmpty()
-        val candidates = mutableListOf(anchor)
-        for (source in sources) {
-            val names = indexRepository.getAnimeInIndex(source.id).getOrNull().orEmpty()
-            for (name in names) {
-                val cached = metadataRepository.getCachedMetadata(name).getOrNull() ?: continue
-                candidates += cached
-            }
-        }
-        return candidates
-            .distinctBy { it.id }
-            .sameAnimeGroupFor(anchor)
     }
 
     private suspend fun updateEpisodes(epList: List<Episode>) {
