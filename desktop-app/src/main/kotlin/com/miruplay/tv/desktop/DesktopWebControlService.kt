@@ -48,6 +48,7 @@ import com.miruplay.tv.webcontrol.WebControlPlaybackCommandKind
 import com.miruplay.tv.webcontrol.absoluteSeekPositionMs
 import com.miruplay.tv.webcontrol.buildWebControlServerInfo
 import com.miruplay.tv.webcontrol.filteredByQuery
+import com.miruplay.tv.webcontrol.idleWebControlPlaybackStatus
 import com.miruplay.tv.webcontrol.playbackCommandKind
 import com.miruplay.tv.webcontrol.relativeSeekDeltaMs
 import com.miruplay.tv.webcontrol.requireWebControlSuccess
@@ -66,6 +67,8 @@ import com.miruplay.tv.webcontrol.toWebControlSourceTestResponse
 import com.miruplay.tv.webcontrol.toWebControlLibrary
 import com.miruplay.tv.webcontrol.validated
 import com.miruplay.tv.webcontrol.webControlDefaultSourceName
+import com.miruplay.tv.webcontrol.webControlMediaSourceIdFromEpisodeId
+import com.miruplay.tv.webcontrol.webControlPlaybackStatus
 import com.miruplay.tv.webcontrol.withSavedId
 import kotlinx.coroutines.flow.first
 import java.io.File
@@ -408,12 +411,12 @@ internal fun desktopWebControlPlaybackStatus(
     launchStatus: String,
 ): PlaybackStatusDto {
     if (player == null || session == null) {
-        return PlaybackStatusDto(state = "Idle")
+        return idlePlaybackStatus()
     }
-    return PlaybackStatusDto(
+    return webControlPlaybackStatus(
         state = "Playing",
         uri = mediaPath.takeIf { it.isNotBlank() },
-        mediaSourceId = session.episodeId.substringBefore(':', "").ifBlank { null },
+        mediaSourceId = session.episodeId.webControlMediaSourceIdFromEpisodeId(),
         positionMs = session.currentPositionMs(),
         durationMs = 0L,
         isPlaying = player.isActive(),
@@ -427,7 +430,7 @@ internal suspend fun desktopWebControlPlaybackCommand(
     session: com.miruplay.tv.model.PlaybackProgressSession?,
     stopPlayback: suspend () -> Unit,
 ): PlaybackStatusDto {
-    val activePlayer = player ?: return PlaybackStatusDto(state = "Idle")
+    val activePlayer = player ?: return idlePlaybackStatus()
     when (request.playbackCommandKind()) {
         WebControlPlaybackCommandKind.PAUSE -> {
             activePlayer.setPaused(true)
@@ -466,15 +469,15 @@ internal suspend fun desktopWebControlPlaybackCommand(
         WebControlPlaybackCommandKind.SPEED -> Unit
         WebControlPlaybackCommandKind.UNKNOWN -> throw IllegalArgumentException("未知播放命令: ${request.command}")
     }
-    return PlaybackStatusDto(
+    return webControlPlaybackStatus(
         state = if (activePlayer.isActive()) "Playing" else "Idle",
         uri = session?.episodeId,
-        mediaSourceId = session?.episodeId?.substringBefore(':', "")?.ifBlank { null },
+        mediaSourceId = session?.episodeId?.webControlMediaSourceIdFromEpisodeId(),
         positionMs = session?.currentPositionMs() ?: 0L,
         durationMs = 0L,
         isPlaying = activePlayer.isActive(),
     )
 }
 
-private suspend fun idlePlaybackStatus(): PlaybackStatusDto =
-    PlaybackStatusDto(state = "Idle")
+private fun idlePlaybackStatus(): PlaybackStatusDto =
+    idleWebControlPlaybackStatus()

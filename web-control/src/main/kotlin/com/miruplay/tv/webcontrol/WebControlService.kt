@@ -261,7 +261,7 @@ class WebControlService @Inject constructor(
             is PlaybackState.Buffering -> state.position
             else -> currentPosition
         }
-        return PlaybackStatusDto(
+        return webControlPlaybackStatus(
             state = state::class.simpleName ?: "Idle",
             uri = source?.uri,
             mediaSourceId = source?.mediaSourceId,
