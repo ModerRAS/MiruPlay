@@ -134,7 +134,7 @@ class DesktopWebControlPlaybackBridgeTest {
     fun `desktop WebUI command response reuses observed playback status`() = runBlocking {
         val mpv = Files.createTempFile("miruplay-mpv", ".exe")
         try {
-            val ipc = FakeMpvIpcController(positionSeconds = 11.0, durationSeconds = 120.0)
+            val ipc = FakeMpvIpcController(positionSeconds = 11.0, durationSeconds = 120.0, paused = true)
             val player = MpvProcessPlayer(
                 config = MpvRuntimeConfig(mpvExecutable = mpv, rife = null),
                 processLauncher = { AliveProcess() },
@@ -152,7 +152,8 @@ class DesktopWebControlPlaybackBridgeTest {
                 stopPlayback = {},
             )
 
-            assertEquals("Playing", status.state)
+            assertEquals("Paused", status.state)
+            assertFalse(status.isPlaying)
             assertEquals("D:/Anime/Frieren.mkv", status.uri)
             assertEquals(11_000L, status.positionMs)
             assertEquals(120_000L, status.durationMs)
@@ -405,6 +406,7 @@ class DesktopWebControlPlaybackBridgeTest {
     private class FakeMpvIpcController(
         private val positionSeconds: Double? = null,
         private val durationSeconds: Double? = null,
+        private val paused: Boolean? = null,
     ) : MpvIpcController {
         val pausedValues = mutableListOf<Boolean>()
         val speedValues = mutableListOf<Double>()
@@ -433,6 +435,9 @@ class DesktopWebControlPlaybackBridgeTest {
 
         override suspend fun getDurationSeconds(): Result<Double?> =
             Result.success(durationSeconds)
+
+        override suspend fun getPaused(): Result<Boolean?> =
+            Result.success(paused)
 
         override suspend fun getEofReached(): Result<Boolean?> =
             Result.success(false)

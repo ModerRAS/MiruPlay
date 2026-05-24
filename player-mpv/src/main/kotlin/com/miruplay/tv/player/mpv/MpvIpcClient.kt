@@ -28,6 +28,7 @@ interface MpvIpcController {
     suspend fun quit(): Result<Unit>
     suspend fun getTimePositionSeconds(): Result<Double?>
     suspend fun getDurationSeconds(): Result<Double?>
+    suspend fun getPaused(): Result<Boolean?>
     suspend fun getEofReached(): Result<Boolean?>
 }
 
@@ -64,6 +65,11 @@ class MpvIpcClient(
     override suspend fun getDurationSeconds(): Result<Double?> =
         getProperty("duration").map { data ->
             data?.jsonPrimitive?.doubleOrNull
+        }
+
+    override suspend fun getPaused(): Result<Boolean?> =
+        getProperty("pause").map { data ->
+            data?.jsonPrimitive?.booleanOrNull
         }
 
     override suspend fun getEofReached(): Result<Boolean?> =

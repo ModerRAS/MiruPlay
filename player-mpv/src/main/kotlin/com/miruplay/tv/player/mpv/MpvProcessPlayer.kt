@@ -97,6 +97,9 @@ class MpvProcessPlayer(
             seconds?.let(PlaybackTimingConventions::secondsToPositionMsFloored)
         } ?: missingIpcError()
 
+    suspend fun queryPaused(): Result<Boolean?> =
+        ipcClientOrError()?.getPaused() ?: missingIpcError()
+
     suspend fun queryEofReached(): Result<Boolean?> =
         ipcClientOrError()?.getEofReached() ?: missingIpcError()
 

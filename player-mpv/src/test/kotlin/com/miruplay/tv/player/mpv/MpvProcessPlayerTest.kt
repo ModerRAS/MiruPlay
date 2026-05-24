@@ -96,6 +96,21 @@ class MpvProcessPlayerTest {
         }
     }
 
+    @Test
+    fun `queryPaused reads mpv pause property`() = runBlocking {
+        val mpv = Files.createTempFile("miruplay-mpv", ".exe")
+        try {
+            val player = MpvProcessPlayer(
+                config = MpvRuntimeConfig(mpvExecutable = mpv, rife = null),
+                ipcClient = FakeMpvIpcController(paused = true),
+            )
+
+            assertEquals(Result.success(true), player.queryPaused())
+        } finally {
+            Files.deleteIfExists(mpv)
+        }
+    }
+
     private class ControllableProcess(
         var alive: Boolean,
     ) : Process() {
@@ -166,5 +181,36 @@ class MpvProcessPlayerTest {
         override fun isAlive(): Boolean = alive
 
         override fun pid(): Long = 42L
+    }
+
+    private class FakeMpvIpcController(
+        private val paused: Boolean? = null,
+    ) : MpvIpcController {
+        override suspend fun cyclePause(): Result<Unit> =
+            Result.success(Unit)
+
+        override suspend fun setPaused(paused: Boolean): Result<Unit> =
+            Result.success(Unit)
+
+        override suspend fun setSpeed(speed: Double): Result<Unit> =
+            Result.success(Unit)
+
+        override suspend fun seekBy(seconds: Double, mode: MpvSeekMode): Result<Unit> =
+            Result.success(Unit)
+
+        override suspend fun quit(): Result<Unit> =
+            Result.success(Unit)
+
+        override suspend fun getTimePositionSeconds(): Result<Double?> =
+            Result.success(null)
+
+        override suspend fun getDurationSeconds(): Result<Double?> =
+            Result.success(null)
+
+        override suspend fun getPaused(): Result<Boolean?> =
+            Result.success(paused)
+
+        override suspend fun getEofReached(): Result<Boolean?> =
+            Result.success(false)
     }
 }

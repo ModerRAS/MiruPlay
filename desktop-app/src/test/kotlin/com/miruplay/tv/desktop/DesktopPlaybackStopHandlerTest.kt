@@ -238,6 +238,9 @@ class DesktopPlaybackStopHandlerTest {
         override suspend fun getDurationSeconds(): Result<Double?> =
             Result.success(null)
 
+        override suspend fun getPaused(): Result<Boolean?> =
+            Result.success(false)
+
         override suspend fun getEofReached(): Result<Boolean?> =
             Result.success(false)
     }

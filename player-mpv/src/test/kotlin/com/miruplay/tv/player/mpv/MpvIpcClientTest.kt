@@ -79,6 +79,17 @@ class MpvIpcClientTest {
     }
 
     @Test
+    fun `getPaused requests pause property and parses response`() = runBlocking {
+        val transport = RecordingTransport("""{"data":true,"error":"success"}""")
+
+        val result = MpvIpcClient("pipe", transport = transport).getPaused()
+
+        assertTrue(result is Result.Success)
+        assertEquals(true, (result as Result.Success).data)
+        assertEquals("""{"command":["get_property","pause"]}""", transport.requestPayload)
+    }
+
+    @Test
     fun `getEofReached requests eof reached and parses response`() = runBlocking {
         val transport = RecordingTransport("""{"data":true,"error":"success"}""")
 

@@ -265,13 +265,19 @@ internal suspend fun desktopWebControlPlaybackStatus(
     }
     val positionMs = observedPositionMs ?: session.currentPositionMs()
     val durationMs = player.queryDurationMs().getOrNull() ?: 0L
+    val paused = player.queryPaused().getOrNull() == true
+    val isActive = player.isActive()
     return webControlPlaybackStatus(
-        state = if (player.isActive()) "Playing" else "Idle",
+        state = when {
+            paused && isActive -> "Paused"
+            isActive -> "Playing"
+            else -> "Idle"
+        },
         uri = mediaPath.takeIf { it.isNotBlank() },
         mediaSourceId = session.episodeId.webControlMediaSourceIdFromEpisodeId(),
         positionMs = positionMs,
         durationMs = durationMs,
-        isPlaying = player.isActive(),
+        isPlaying = isActive && !paused,
         error = launchStatus.takeIf { it.contains("failed", ignoreCase = true) },
     )
 }
