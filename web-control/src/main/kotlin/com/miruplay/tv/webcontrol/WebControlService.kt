@@ -3,7 +3,6 @@ package com.miruplay.tv.webcontrol
 import com.miruplay.tv.clouddrive.CloudDriveClient
 import android.os.Build
 import com.miruplay.tv.core.common.LocalDirectoryBrowser
-import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.mediasource.testConnection
 import com.miruplay.tv.model.MediaSourceInfo
@@ -64,12 +63,8 @@ class WebControlService @Inject constructor(
         )
     }
 
-    override suspend fun listSources(): List<MediaSourceInfo> {
-        return (mediaRepository.getSources() as? Result.Success)
-            ?.data
-            ?.map { it.safeForApi() }
-            ?: emptyList()
-    }
+    override suspend fun listSources(): List<MediaSourceInfo> =
+        mediaRepository.listWebControlSources()
 
     override suspend fun browseLocalDirectories(path: String): LocalDirectoryDto = withContext(Dispatchers.IO) {
         val listing = LocalDirectoryBrowser.browse(path)
@@ -98,12 +93,9 @@ class WebControlService @Inject constructor(
     }
 
     override suspend fun scanAllSources(): List<SourceScanResponse> {
-        val sources = (mediaRepository.getSources() as? Result.Success)?.data ?: emptyList()
-        return sources.mapNotNull { source ->
-            when (val result = scanCoordinator.scanSource(source.id)) {
-                is Result.Success -> result.data.toWebControlSourceScanResponse(source.id)
-                is Result.Error -> null
-            }
+        return mediaRepository.scanAllWebControlSources { source ->
+            scanCoordinator.scanSource(source.id)
+                .map { it.toWebControlSourceScanResponse(source.id) }
         }
     }
 

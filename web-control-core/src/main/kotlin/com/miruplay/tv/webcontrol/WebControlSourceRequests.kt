@@ -94,6 +94,16 @@ suspend fun MediaSourceRepository.removeWebControlSource(sourceId: Long) {
     )
 }
 
+suspend fun MediaSourceRepository.listWebControlSources(): List<MediaSourceInfo> =
+    getSources().getOrNull().orEmpty().map { it.safeForApi() }
+
+suspend fun MediaSourceRepository.scanAllWebControlSources(
+    scanSource: suspend (MediaSourceInfo) -> Result<SourceScanResponse>,
+): List<SourceScanResponse> =
+    getSources().getOrNull().orEmpty().mapNotNull { source ->
+        scanSource(source).getOrNull()
+    }
+
 fun parseWebControlSourceType(type: String): MediaSourceType =
     runCatching { MediaSourceType.valueOf(type.trim().uppercase()) }
         .getOrElse { throw IllegalArgumentException("不支持的媒体源类型: $type") }

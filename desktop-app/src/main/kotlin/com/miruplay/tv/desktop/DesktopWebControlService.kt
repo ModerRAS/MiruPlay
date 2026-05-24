@@ -1,7 +1,6 @@
 package com.miruplay.tv.desktop
 
 import com.miruplay.tv.core.common.LocalDirectoryBrowser
-import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.clouddrive.CloudDriveClient
 import com.miruplay.tv.clouddrive.GrpcCloudDriveClient
 import com.miruplay.tv.mediasource.MediaSourceFactory
@@ -44,15 +43,16 @@ import com.miruplay.tv.webcontrol.deleteWebControlRssSubscription
 import com.miruplay.tv.webcontrol.getWebControlCloudDriveAutomation
 import com.miruplay.tv.webcontrol.idleWebControlPlaybackStatus
 import com.miruplay.tv.webcontrol.loginWebControlCloudDrive
+import com.miruplay.tv.webcontrol.listWebControlSources
 import com.miruplay.tv.webcontrol.playbackCommandKind
 import com.miruplay.tv.webcontrol.relativeSeekDeltaMs
 import com.miruplay.tv.webcontrol.removeWebControlSource
 import com.miruplay.tv.webcontrol.requireWebControlSuccess
 import com.miruplay.tv.webcontrol.runWebControlCloudDriveAutomationNow
-import com.miruplay.tv.webcontrol.safeForApi
 import com.miruplay.tv.webcontrol.saveWebControlCloudDriveConfig
 import com.miruplay.tv.webcontrol.saveWebControlCloudDriveToken
 import com.miruplay.tv.webcontrol.saveWebControlRssSubscription
+import com.miruplay.tv.webcontrol.scanAllWebControlSources
 import com.miruplay.tv.webcontrol.skipBackwardDeltaMs
 import com.miruplay.tv.webcontrol.skipForwardDeltaMs
 import com.miruplay.tv.webcontrol.toMediaSourceInfo
@@ -107,7 +107,7 @@ internal class DesktopWebControlService(
         )
 
     override suspend fun listSources(): List<MediaSourceInfo> =
-        repositories.mediaSources.getSources().getOrNull().orEmpty().map { it.safeForApi() }
+        repositories.mediaSources.listWebControlSources()
 
     override suspend fun browseLocalDirectories(path: String): LocalDirectoryDto {
         if (path.isBlank()) {
@@ -169,12 +169,9 @@ internal class DesktopWebControlService(
     }
 
     override suspend fun scanAllSources(): List<SourceScanResponse> {
-        val sources = repositories.mediaSources.getSources().getOrNull().orEmpty()
-        return sources.mapNotNull { source ->
-            when (val result = scanAndIndexDesktopSource(source, repositories.index, repositories.metadata)) {
-                is Result.Success -> result.data.toSourceScanResponse(source)
-                is Result.Error -> null
-            }
+        return repositories.mediaSources.scanAllWebControlSources { source ->
+            scanAndIndexDesktopSource(source, repositories.index, repositories.metadata)
+                .map { it.toSourceScanResponse(source) }
         }
     }
 

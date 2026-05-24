@@ -229,6 +229,86 @@ class WebControlSourceRequestsTest {
     }
 
     @Test
+    fun `repository list WebUI sources redacts secrets`() = runBlocking {
+        val repository = FakeMediaSourceRepository(
+            sources = listOf(
+                MediaSourceInfoConventions.webDav(
+                    name = "Remote",
+                    url = "https://dav.example.test",
+                    username = "miru",
+                    password = "secret",
+                ).copy(id = 7L),
+            ),
+        )
+
+        val sources = repository.listWebControlSources()
+
+        assertEquals(1, sources.size)
+        assertEquals(7L, sources.single().id)
+        assertFalse(MediaSourceInfoConventions.CONNECTION_PASSWORD in sources.single().connectionInfo)
+    }
+
+    @Test
+    fun `repository list WebUI sources returns empty list on repository error`() = runBlocking {
+        val repository = FakeMediaSourceRepository(
+            sourcesResult = Result.failure(AppError.MediaSourceError.NotFound("sources")),
+        )
+
+        assertEquals(emptyList<MediaSourceInfo>(), repository.listWebControlSources())
+    }
+
+    @Test
+    fun `repository scan all WebUI sources skips failed scans`() = runBlocking {
+        val local = MediaSourceInfoConventions.local(name = "Local", rootPath = "D:/Anime").copy(id = 7L)
+        val remote = MediaSourceInfoConventions.webDav(name = "Remote", url = "https://dav.example.test").copy(id = 8L)
+        val repository = FakeMediaSourceRepository(sources = listOf(local, remote))
+        val scannedSourceIds = mutableListOf<Long>()
+
+        val responses = repository.scanAllWebControlSources { source ->
+            scannedSourceIds += source.id
+            if (source.id == local.id) {
+                Result.success(
+                    toWebControlSourceScanResponse(
+                        sourceId = source.id,
+                        animeName = source.name,
+                        episodesFound = 2,
+                        newEpisodes = 1,
+                        updatedEpisodes = 0,
+                    ),
+                )
+            } else {
+                Result.failure(AppError.MediaSourceError.ConnectionLost(source.name))
+            }
+        }
+
+        assertEquals(listOf(7L, 8L), scannedSourceIds)
+        assertEquals(1, responses.size)
+        assertEquals(7L, responses.single().sourceId)
+        assertEquals("Local", responses.single().animeName)
+    }
+
+    @Test
+    fun `repository scan all WebUI sources returns empty list on repository error`() = runBlocking {
+        val repository = FakeMediaSourceRepository(
+            sourcesResult = Result.failure(AppError.MediaSourceError.NotFound("sources")),
+        )
+
+        val responses = repository.scanAllWebControlSources {
+            Result.success(
+                toWebControlSourceScanResponse(
+                    sourceId = it.id,
+                    animeName = it.name,
+                    episodesFound = 1,
+                    newEpisodes = 1,
+                    updatedEpisodes = 0,
+                ),
+            )
+        }
+
+        assertEquals(emptyList<SourceScanResponse>(), responses)
+    }
+
+    @Test
     fun `safe api source removes connection password case insensitively`() {
         val source = SourceRequest(
             name = "Remote",
@@ -312,8 +392,10 @@ class WebControlSourceRequestsTest {
 
     private class FakeMediaSourceRepository(
         existing: MediaSourceInfo = MediaSourceInfoConventions.local(name = "Local", rootPath = "D:/Anime"),
+        sources: List<MediaSourceInfo> = emptyList(),
         private val addResult: Result<Long> = Result.success(1L),
         private val getResult: Result<MediaSourceInfo> = Result.success(existing),
+        private val sourcesResult: Result<List<MediaSourceInfo>> = Result.success(sources),
         private val removeResult: Result<Unit> = Result.success(Unit),
         private val updateResult: Result<Unit> = Result.success(Unit),
     ) : MediaSourceRepository {
@@ -326,7 +408,7 @@ class WebControlSourceRequestsTest {
             removeResult
 
         override suspend fun getSources(): Result<List<MediaSourceInfo>> =
-            Result.success(emptyList())
+            sourcesResult
 
         override suspend fun updateSource(source: MediaSourceInfo): Result<Unit> {
             updatedSource = source
