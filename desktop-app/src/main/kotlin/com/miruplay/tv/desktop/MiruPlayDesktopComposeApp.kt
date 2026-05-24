@@ -284,7 +284,7 @@ private fun ApplicationScope.MiruPlayDesktopWindow() {
     }
     Window(
         onCloseRequest = ::exitApplication,
-        title = desktopWindowTitle(),
+        title = desktopWindowTitleLabel(),
         state = windowState,
     ) {
         LaunchedEffect(Unit) {
@@ -331,7 +331,7 @@ internal fun desktopEntrySmokeReport(): DesktopEntrySmokeReport {
     return DesktopEntrySmokeReport(
         status = "ok",
         entryPoint = "com.miruplay.tv.desktop.MiruPlayDesktopComposeAppKt",
-        windowTitle = desktopWindowTitle(),
+        windowTitle = desktopWindowTitleLabel(),
         initialSection = desktopInitialSectionFromEnvironment().id,
         runtimeRoot = layout.rootDirectory.toString(),
         mpvExecutable = layout.executable.toString(),
@@ -376,9 +376,6 @@ private fun String.jsonValue(): String =
         }
         append('"')
     }
-
-internal fun desktopWindowTitle(): String =
-    desktopWindowTitleLabel()
 
 internal fun shouldUseDesktopPlayerFullscreen(
     selectedSection: DesktopSection,
