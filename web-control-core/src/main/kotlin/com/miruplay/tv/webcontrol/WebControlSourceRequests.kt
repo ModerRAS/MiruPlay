@@ -1,5 +1,6 @@
 package com.miruplay.tv.webcontrol
 
+import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
@@ -53,6 +54,18 @@ fun MediaSourceType.webControlDefaultSourceName(): String =
         MediaSourceType.LOCAL -> "本地媒体库"
         MediaSourceType.WEBDAV -> "WebDAV 媒体库"
         MediaSourceType.SMB -> "SMB 共享"
+    }
+
+fun Result<Boolean>.toWebControlSourceTestResponse(): SourceTestResponse =
+    when (this) {
+        is Result.Success -> SourceTestResponse(
+            connected = data,
+            message = if (data) "连接正常" else "无法连接",
+        )
+        is Result.Error -> SourceTestResponse(
+            connected = false,
+            message = error.toUserMessage(),
+        )
     }
 
 private fun MediaSourceType.webControlSourceLocation(location: String): String =

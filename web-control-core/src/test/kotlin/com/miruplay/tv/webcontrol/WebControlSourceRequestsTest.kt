@@ -1,5 +1,7 @@
 package com.miruplay.tv.webcontrol
 
+import com.miruplay.tv.core.common.AppError
+import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
 import org.junit.Assert.assertEquals
@@ -90,5 +92,26 @@ class WebControlSourceRequestsTest {
 
         assertFalse(MediaSourceInfoConventions.CONNECTION_PASSWORD in safe.connectionInfo)
         assertFalse("Password" in safe.connectionInfo)
+    }
+
+    @Test
+    fun `source test result maps success and disconnected messages`() {
+        val connected = Result.success(true).toWebControlSourceTestResponse()
+        val disconnected = Result.success(false).toWebControlSourceTestResponse()
+
+        assertEquals(true, connected.connected)
+        assertEquals("连接正常", connected.message)
+        assertEquals(false, disconnected.connected)
+        assertEquals("无法连接", disconnected.message)
+    }
+
+    @Test
+    fun `source test result uses user facing error messages`() {
+        val response = Result.failure(
+            AppError.MediaSourceError.AuthenticationFailed("WebDAV"),
+        ).toWebControlSourceTestResponse()
+
+        assertEquals(false, response.connected)
+        assertEquals("WebDAV 认证失败，请检查用户名和密码", response.message)
     }
 }

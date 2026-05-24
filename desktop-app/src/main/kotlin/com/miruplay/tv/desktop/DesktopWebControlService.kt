@@ -35,7 +35,6 @@ import com.miruplay.tv.webcontrol.ContinueWatchingDto
 import com.miruplay.tv.webcontrol.EpisodeWithProgressDto
 import com.miruplay.tv.webcontrol.LibraryDto
 import com.miruplay.tv.webcontrol.LocalDirectoryDto
-import com.miruplay.tv.webcontrol.LocalDirectoryEntryDto
 import com.miruplay.tv.webcontrol.PlayEpisodeRequest
 import com.miruplay.tv.webcontrol.PlaybackCommandRequest
 import com.miruplay.tv.webcontrol.PlaybackStatusDto
@@ -59,6 +58,7 @@ import com.miruplay.tv.webcontrol.toMediaSourceInfo
 import com.miruplay.tv.webcontrol.toSubscription
 import com.miruplay.tv.webcontrol.toWebControlResponse
 import com.miruplay.tv.webcontrol.toWebControlDirectoryDto
+import com.miruplay.tv.webcontrol.toWebControlSourceTestResponse
 import com.miruplay.tv.webcontrol.toWebControlLibrary
 import com.miruplay.tv.webcontrol.validated
 import com.miruplay.tv.webcontrol.webControlDefaultSourceName
@@ -102,34 +102,17 @@ internal class DesktopWebControlService(
 
     override suspend fun browseLocalDirectories(path: String): LocalDirectoryDto {
         if (path.isBlank()) {
-            return LocalDirectoryDto(
+            return LocalDirectoryBrowser.Listing(
                 path = "",
                 displayPath = "设备存储",
                 parentPath = null,
                 entries = File.listRoots()
                     .filter { it.exists() && it.isDirectory && it.canRead() }
-                    .map {
-                        LocalDirectoryEntryDto(
-                            name = it.absolutePath,
-                            path = it.absolutePath,
-                            canRead = it.canRead(),
-                        )
-                    },
-            )
+                    .map { LocalDirectoryBrowser.Entry(it.absolutePath, it.absolutePath, it.canRead()) },
+            ).toWebControlDirectoryDto()
         }
         val listing = LocalDirectoryBrowser.browse(path)
-        return LocalDirectoryDto(
-            path = listing.path,
-            displayPath = listing.displayPath,
-            parentPath = listing.parentPath,
-            entries = listing.entries.map {
-                LocalDirectoryEntryDto(
-                    name = it.name,
-                    path = it.path,
-                    canRead = it.canRead,
-                )
-            },
-        )
+        return listing.toWebControlDirectoryDto()
     }
 
     override suspend fun browseCloudDriveDirectories(endpointUrl: String, path: String): CloudDriveDirectoryDto {
@@ -190,16 +173,7 @@ internal class DesktopWebControlService(
         val source = request.toMediaSourceInfo()
         val mediaSource = desktopSourceFromInfo(source)
         return try {
-            when (val tested = mediaSource.testConnection()) {
-                is Result.Success -> SourceTestResponse(
-                    connected = tested.data,
-                    message = if (tested.data) "连接正常" else "无法连接",
-                )
-                is Result.Error -> SourceTestResponse(
-                    connected = false,
-                    message = tested.error.toUserMessage(),
-                )
-            }
+            mediaSource.testConnection().toWebControlSourceTestResponse()
         } finally {
             mediaSource.close()
         }

@@ -12,12 +12,12 @@ project.extra.set("pureKotlin", true)
 
 dependencies {
     api(project(":core:model"))
+    api(project(":core:common"))
     api(project(":cloud-drive-api"))
     api(project(":repository-api"))
     api(project(":sync-engine-shared"))
     api(libs.nanohttpd)
 
-    implementation(project(":core:common"))
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.core)
 

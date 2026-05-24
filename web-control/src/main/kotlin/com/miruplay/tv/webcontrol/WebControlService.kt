@@ -71,18 +71,7 @@ class WebControlService @Inject constructor(
 
     override suspend fun browseLocalDirectories(path: String): LocalDirectoryDto = withContext(Dispatchers.IO) {
         val listing = LocalDirectoryBrowser.browse(path)
-        LocalDirectoryDto(
-            path = listing.path,
-            displayPath = listing.displayPath,
-            parentPath = listing.parentPath,
-            entries = listing.entries.map {
-                LocalDirectoryEntryDto(
-                    name = it.name,
-                    path = it.path,
-                    canRead = it.canRead
-                )
-            }
-        )
+        listing.toWebControlDirectoryDto()
     }
 
     override suspend fun addSource(request: SourceRequest): MediaSourceInfo {
@@ -298,12 +287,9 @@ class WebControlService @Inject constructor(
     private suspend fun testSource(source: MediaSourceInfo): SourceTestResponse {
         val mediaSource = when (val result = mediaSourceFactory.create(source)) {
             is Result.Success -> result.data
-            is Result.Error -> return SourceTestResponse(false, result.error.toString())
+            is Result.Error -> return result.toWebControlSourceTestResponse()
         }
-        return when (val result = mediaSource.testConnection()) {
-            is Result.Success -> SourceTestResponse(result.data, if (result.data) "连接正常" else "无法连接")
-            is Result.Error -> SourceTestResponse(false, result.error.toString())
-        }
+        return mediaSource.testConnection().toWebControlSourceTestResponse()
     }
 
     private suspend fun loadAllAnime(sources: List<MediaSourceInfo>): List<Anime> {
