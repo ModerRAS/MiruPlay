@@ -85,6 +85,14 @@ state. The focused shared/desktop gate `:sync-engine-shared:test
 checkDesktopComposeOnly -PbundleMpvRuntime=false` passed in Gradle MCP build
 `b-142`, and Android debug assemble `:app:assembleDebug
 -PbundleMpvRuntime=false` passed in `b-143`.
+Latest WebUI access sharing update: `:repository-api` now owns
+`WebControlAccessActionCoordinator`, so Android TV Settings and Windows
+Settings share WebUI enable/disable, token rotation, access-token snapshot, and
+URL rebuild behavior while Windows keeps only its local server start/stop hook.
+The focused shared/desktop gate `:repository-api:test :ui-tv:compileDebugKotlin
+:desktop-app:test checkDesktopPresenterSeparation checkDesktopComposeOnly
+-PbundleMpvRuntime=false` passed in Gradle MCP build `b-144`, and Android debug
+assemble `:app:assembleDebug -PbundleMpvRuntime=false` passed in `b-145`.
 
 Latest local shared-input update: `:ui-design` now owns `MiruPlayInputIntent`
 for platform-neutral activation, Back/navigation-back, direction, and media

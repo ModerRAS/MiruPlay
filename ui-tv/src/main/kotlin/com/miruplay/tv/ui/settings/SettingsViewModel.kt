@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.miruplay.tv.clouddrive.CloudDriveClient
 import com.miruplay.tv.core.common.LocalDirectoryBrowser
 import com.miruplay.tv.core.common.Result
-import com.miruplay.tv.core.common.buildWebControlAccessUrls
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.PlaybackEndAction
@@ -21,6 +20,8 @@ import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.PlaybackPreferencesRepository
 import com.miruplay.tv.repository.SCAN_PREFERENCES_DEFAULT_INTERVAL_MS
 import com.miruplay.tv.repository.ScanPreferencesRepository
+import com.miruplay.tv.repository.WebControlAccessActionCoordinator
+import com.miruplay.tv.repository.WebControlAccessSnapshot
 import com.miruplay.tv.repository.WebControlAccessManager
 import com.miruplay.tv.repository.toScanIntervalHours
 import com.miruplay.tv.repository.toScanIntervalMillis
@@ -65,6 +66,7 @@ class SettingsViewModel @Inject constructor(
     )
     private val bangumiCredentialActions = BangumiCredentialActionCoordinator(securePrefs)
     private val cloudDriveDirectoryActions = CloudDriveDirectoryBrowserCoordinator(cloudDriveClient)
+    private val webControlActions = WebControlAccessActionCoordinator(webControlPreferences)
 
     private val _sources = MutableStateFlow<List<MediaSourceInfo>>(emptyList())
     val sources: StateFlow<List<MediaSourceInfo>> = _sources.asStateFlow()
@@ -547,25 +549,33 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun setWebControlEnabled(enabled: Boolean) {
-        webControlPreferences.webControlEnabled = enabled
-        _webControlEnabled.value = enabled
-        _webControlAccessToken.value = webControlPreferences.accessToken
-        refreshWebUiUrls()
+        updateWebControlSnapshot {
+            webControlActions.setEnabled(enabled)
+        }
     }
 
     fun rotateWebControlAccessToken() {
-        _webControlAccessToken.value = webControlPreferences.rotateAccessToken()
-        refreshWebUiUrls()
+        updateWebControlSnapshot {
+            webControlActions.rotateAccessToken()
+        }
     }
 
     fun refreshWebUiUrls() {
-        viewModelScope.launch(Dispatchers.IO) {
-            _webUiUrls.value = if (webControlPreferences.webControlEnabled) {
-                buildWebControlAccessUrls(webControlPreferences.accessToken)
-            } else {
-                emptyList()
-            }
+        updateWebControlSnapshot {
+            webControlActions.refreshUrls()
         }
+    }
+
+    private fun updateWebControlSnapshot(snapshotProvider: () -> WebControlAccessSnapshot) {
+        viewModelScope.launch(Dispatchers.IO) {
+            applyWebControlSnapshot(snapshotProvider())
+        }
+    }
+
+    private fun applyWebControlSnapshot(snapshot: WebControlAccessSnapshot) {
+        _webControlEnabled.value = snapshot.enabled
+        _webControlAccessToken.value = snapshot.accessToken
+        _webUiUrls.value = snapshot.urls
     }
 
     fun clearTestResult() {

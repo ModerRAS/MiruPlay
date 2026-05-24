@@ -278,6 +278,14 @@ credential gate `:sync-engine-shared:test :ui-tv:compileDebugKotlin
 :desktop-app:test checkDesktopPresenterSeparation checkDesktopComposeOnly
 -PbundleMpvRuntime=false` passed in Gradle MCP build `b-142`, and Android debug
 assemble `:app:assembleDebug -PbundleMpvRuntime=false` passed in `b-143`.
+WebUI enable/disable, token rotation, access-token snapshot, and URL rebuilds
+now flow through `WebControlAccessActionCoordinator` in `:repository-api`;
+Android TV and Windows share the access-state contract while Windows keeps only
+its JVM listener start/stop hook. The focused shared WebUI access gate
+`:repository-api:test :ui-tv:compileDebugKotlin :desktop-app:test
+checkDesktopPresenterSeparation checkDesktopComposeOnly
+-PbundleMpvRuntime=false` passed in Gradle MCP build `b-144`, and Android debug
+assemble `:app:assembleDebug -PbundleMpvRuntime=false` passed in `b-145`.
 The generated local-source GUI smoke also captured
 `build/desktop-local-source-ui/run-20260520-162054/local-source-poster-keyboard.png`,
 proving the Library poster wall can move selection with keyboard input before

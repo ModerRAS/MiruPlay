@@ -43,7 +43,6 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.miruplay.tv.clouddrive.GrpcCloudDriveClient
 import com.miruplay.tv.core.common.Result
-import com.miruplay.tv.core.common.buildWebControlAccessUrls
 import com.miruplay.tv.design.MiruPlayPalette
 import com.miruplay.tv.design.MiruPlayRouteSurface
 import com.miruplay.tv.design.MiruPlayUiMetrics
@@ -121,6 +120,8 @@ import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MetadataBatchMatch
 import com.miruplay.tv.repository.MetadataBatchPlanner
 import com.miruplay.tv.repository.MetadataBatchPlan
+import com.miruplay.tv.repository.WebControlAccessActionCoordinator
+import com.miruplay.tv.repository.WebControlAccessSnapshot
 import com.miruplay.tv.repository.appliedStatus
 import com.miruplay.tv.repository.applyMetadataBatchPlan
 import com.miruplay.tv.repository.buildNextPlaybackSource
@@ -553,6 +554,7 @@ internal fun MiruPlayDesktopComposeApp(
             webControlAccess = repositories.webControlAccess,
         )
     }
+    val webControlActions = remember(repositories) { WebControlAccessActionCoordinator(repositories.webControlAccess) }
     val commandPreview by remember(
         mpvPath,
         configDir,
@@ -615,6 +617,13 @@ internal fun MiruPlayDesktopComposeApp(
         } else {
             desktopWebControlServer.stopIfRunning()
         }
+    }
+
+    fun applyWebControlSnapshot(snapshot: WebControlAccessSnapshot) {
+        webControlEnabled = snapshot.enabled
+        webControlAccessToken = snapshot.accessToken
+        webUiUrls = snapshot.urls
+        syncDesktopWebControlServer()
     }
 
     suspend fun loadIndexedEntries(sourceId: Long, statusWhenEmpty: String) {
@@ -738,14 +747,7 @@ internal fun MiruPlayDesktopComposeApp(
         cloudToken = repositories.credentials.cloudDriveToken.orEmpty()
         cloudPassword = repositories.credentials.cloudDrivePassword.orEmpty()
         bangumiTokenConfigured = !repositories.credentials.bangumiAccessToken.isNullOrBlank()
-        webControlEnabled = repositories.webControlAccess.webControlEnabled
-        webControlAccessToken = repositories.webControlAccess.accessToken
-        webUiUrls = if (webControlEnabled) {
-            buildWebControlAccessUrls(webControlAccessToken)
-        } else {
-            emptyList()
-        }
-        syncDesktopWebControlServer()
+        applyWebControlSnapshot(webControlActions.current())
         runCatching {
             repositories.cloudDriveAutomation.observeSubscriptions().first()
         }.onSuccess { subscriptions ->
@@ -768,14 +770,7 @@ internal fun MiruPlayDesktopComposeApp(
     }
 
     fun refreshDesktopWebUiUrls() {
-        webControlEnabled = repositories.webControlAccess.webControlEnabled
-        webControlAccessToken = repositories.webControlAccess.accessToken
-        webUiUrls = if (webControlEnabled) {
-            buildWebControlAccessUrls(webControlAccessToken)
-        } else {
-            emptyList()
-        }
-        syncDesktopWebControlServer()
+        applyWebControlSnapshot(webControlActions.refreshUrls())
     }
 
     suspend fun updateSelectedMetadataCache(
@@ -2302,12 +2297,10 @@ internal fun MiruPlayDesktopComposeApp(
                 webUiUrls = webUiUrls,
                 webControlAccessToken = webControlAccessToken,
                 onToggleWebControl = {
-                    repositories.webControlAccess.webControlEnabled = !webControlEnabled
-                    refreshDesktopWebUiUrls()
+                    applyWebControlSnapshot(webControlActions.setEnabled(!webControlEnabled))
                 },
                 onRotateWebControlToken = {
-                    webControlAccessToken = repositories.webControlAccess.rotateAccessToken()
-                    refreshDesktopWebUiUrls()
+                    applyWebControlSnapshot(webControlActions.rotateAccessToken())
                 },
                 onRefreshWebUiUrls = ::refreshDesktopWebUiUrls,
                 onOpenLibrary = { selectedDesktopSection = MiruPlayRouteSurface.library },
