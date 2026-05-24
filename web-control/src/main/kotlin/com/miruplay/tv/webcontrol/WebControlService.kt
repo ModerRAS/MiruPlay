@@ -6,7 +6,6 @@ import com.miruplay.tv.core.common.LocalDirectoryBrowser
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.mediasource.testConnection
 import com.miruplay.tv.model.MediaSourceInfo
-import com.miruplay.tv.model.PlaybackState
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.player.PlaybackController
 import com.miruplay.tv.repository.AppCredentialStore
@@ -173,29 +172,9 @@ class WebControlService @Inject constructor(
             .coerceAtLeast(0L)
         val duration = runCatching { playbackController.getDuration() }.getOrDefault(0L)
             .coerceAtLeast(0L)
-        val source = when (state) {
-            is PlaybackState.Loading -> state.source
-            is PlaybackState.Playing -> state.source
-            is PlaybackState.Paused -> state.source
-            is PlaybackState.Buffering -> state.source
-            is PlaybackState.Ended -> state.source
-            is PlaybackState.Error -> state.source
-            PlaybackState.Idle -> null
-        }
-        val position = when (state) {
-            is PlaybackState.Playing -> state.position
-            is PlaybackState.Paused -> state.position
-            is PlaybackState.Buffering -> state.position
-            else -> currentPosition
-        }
-        return webControlPlaybackStatus(
-            state = state::class.simpleName ?: "Idle",
-            uri = source?.uri,
-            mediaSourceId = source?.mediaSourceId,
-            positionMs = position,
+        return state.toWebControlPlaybackStatus(
+            currentPositionMs = currentPosition,
             durationMs = duration,
-            isPlaying = state is PlaybackState.Playing,
-            error = (state as? PlaybackState.Error)?.error
         )
     }
 
