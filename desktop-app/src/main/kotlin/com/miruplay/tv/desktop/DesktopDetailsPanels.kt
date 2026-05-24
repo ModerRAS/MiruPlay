@@ -652,7 +652,7 @@ private fun DetailEpisodeRow(
                 )
             }
             Text(
-                detailEpisodeProgressLabel(progress),
+                playbackProgressRecordLabel(progress),
                 color = if (progress != null) AnimeRed else TextSecondary,
                 fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -846,9 +846,6 @@ private val detailEpisodeComparator =
         { it.episodeNumber ?: Int.MAX_VALUE },
         { it.path.lowercase() },
     )
-
-internal fun detailEpisodeProgressLabel(progress: ProgressRecord?): String =
-    playbackProgressRecordLabel(progress)
 
 @Composable
 internal fun RecentPlaybackPanel(

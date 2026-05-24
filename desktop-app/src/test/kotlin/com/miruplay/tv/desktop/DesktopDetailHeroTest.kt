@@ -13,6 +13,7 @@ import com.miruplay.tv.model.mediaDetailsPageUnitLabel
 import com.miruplay.tv.model.mediaDetailsEmptyMessage
 import com.miruplay.tv.model.mediaDetailsSectionTitle
 import com.miruplay.tv.model.pagedListPageSummary
+import com.miruplay.tv.model.playbackProgressRecordLabel
 import com.miruplay.tv.model.recentPlaybackClearActionLabel
 import com.miruplay.tv.model.recentPlaybackEmptyMessage
 import com.miruplay.tv.model.recentPlaybackPageUnitLabel
@@ -449,10 +450,10 @@ class DesktopDetailHeroTest {
 
     @Test
     fun `detail episode progress labels mirror shared progress copy`() {
-        assertEquals("未看", detailEpisodeProgressLabel(null))
+        assertEquals("未看", playbackProgressRecordLabel(null))
         assertEquals(
             "看到 02:03",
-            detailEpisodeProgressLabel(
+            playbackProgressRecordLabel(
                 ProgressRecord(
                     episodeId = "episode-1",
                     positionMs = 123_456L,
