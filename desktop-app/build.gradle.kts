@@ -236,7 +236,7 @@ fun validateRuntimeManifestFile(root: File, problems: MutableList<String>) {
 }
 
 fun hasMpvRuntimeSource(): Boolean =
-    mpvRuntimeSource.isPresent || bundledMpvRuntime.asFile.exists()
+    effectiveMpvRuntimeRoot.get().resolve("mpv.exe").isFile
 
 fun mpvRuntimeSourceHasManifest(): Boolean =
     hasMpvRuntimeSource() && effectiveMpvRuntimeRoot.get().resolve("runtime-manifest.json").isFile
