@@ -21,6 +21,7 @@ coroutines = "1.7.3"
 lifecycle = "2.7.0"
 activity-compose = "1.8.2"
 navigation-compose = "2.7.7"
+work = "2.11.2"
 grpc = "1.81.0"
 protobuf = "3.25.9"
 protobuf-plugin = "0.9.6"
@@ -81,6 +82,7 @@ kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-cor
 # === Lifecycle ===
 androidx-lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycle" }
 androidx-lifecycle-viewmodel-compose = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "lifecycle" }
+androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
 
 # === Activity Compose ===
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activity-compose" }

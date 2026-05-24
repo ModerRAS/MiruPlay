@@ -8,6 +8,7 @@ import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.CloudDriveAutomationConfig
+import com.miruplay.tv.model.MIN_CLOUD_DRIVE_INTERVAL_MINUTES
 import com.miruplay.tv.model.CloudDriveDirectoryItem
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
@@ -30,6 +31,7 @@ import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
 import com.miruplay.tv.scanner.ScanCoordinator
 import com.miruplay.tv.sync.rss.CloudDriveRssAutomationEngine
+import com.miruplay.tv.sync.rss.CloudDriveRssScheduler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -49,6 +51,7 @@ class WebControlService @Inject constructor(
     private val securePreferences: AppCredentialStore,
     private val cloudDriveClient: CloudDriveClient,
     private val cloudDriveEngine: CloudDriveRssAutomationEngine,
+    private val cloudDriveScheduler: CloudDriveRssScheduler,
     private val scanCoordinator: ScanCoordinator,
     private val mediaSourceFactory: MediaSourceFactory,
     private val playbackController: PlaybackController,
@@ -159,7 +162,8 @@ class WebControlService @Inject constructor(
             webDavSourceId = request.webDavSourceId?.takeIf { it > 0L },
             inboxPath = request.inboxPath.trim(),
             libraryPath = request.libraryPath.trim(),
-            intervalMinutes = request.intervalMinutes.coerceAtLeast(5),
+            libraryMode = request.libraryMode,
+            intervalMinutes = request.intervalMinutes.coerceAtLeast(MIN_CLOUD_DRIVE_INTERVAL_MINUTES),
             enabled = request.enabled,
             lastRunAt = current.lastRunAt,
             rssProxyEnabled = request.rssProxyEnabled,
@@ -167,6 +171,7 @@ class WebControlService @Inject constructor(
             rssProxyPort = request.rssProxyPort.coerceAtLeast(1).coerceAtMost(65535)
         )
         requireSuccess(cloudDriveRepository.saveConfig(config), "保存 CloudDrive 设置失败")
+        cloudDriveScheduler.syncPeriodicWork(config)
         return getCloudDriveAutomation()
     }
 
@@ -207,7 +212,10 @@ class WebControlService @Inject constructor(
             submitted = summary.submitted,
             skipped = summary.skipped,
             failed = summary.failed,
-            organized = summary.organized
+            organized = summary.organized,
+            indexed = summary.indexed,
+            scraped = summary.scraped,
+            noMatch = summary.noMatch,
         )
     }
 

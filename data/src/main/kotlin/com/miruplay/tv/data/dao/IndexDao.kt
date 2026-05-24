@@ -6,7 +6,8 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.miruplay.tv.data.entity.IndexEntryEntity
 
-private const val INDEX_COLUMNS = "id, source_id, path, anime_name, season_number, episode_number, is_directory, file_size, last_modified"
+private const val INDEX_COLUMNS =
+    "id, source_id, path, anime_name, episode_title, plot, season_number, episode_number, metadata_source, metadata_id, metadata_title, scrape_status, scrape_message, scraped_at, is_directory, file_size, last_modified"
 
 @Dao
 interface IndexDao {

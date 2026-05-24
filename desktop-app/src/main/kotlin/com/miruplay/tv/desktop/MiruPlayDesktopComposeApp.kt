@@ -55,6 +55,7 @@ import com.miruplay.tv.model.PLAYBACK_SEEK_FORWARD_SECONDS
 import com.miruplay.tv.model.CloudDriveApiTokenFormResult
 import com.miruplay.tv.model.CloudDriveDirectoryPickerFormResult
 import com.miruplay.tv.model.CloudDriveLoginFormResult
+import com.miruplay.tv.model.CloudDriveLibraryMode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaPathConventions
@@ -502,6 +503,7 @@ internal fun MiruPlayDesktopComposeApp(
     var cloudPassword by remember { mutableStateOf("") }
     var cloudInboxPath by remember { mutableStateOf("") }
     var cloudLibraryPath by remember { mutableStateOf("") }
+    var cloudLibraryMode by remember { mutableStateOf(CloudDriveLibraryMode.ORGANIZED_LIBRARY) }
     var cloudLinkedSourceId by remember { mutableStateOf<Long?>(null) }
     var cloudIntervalMinutes by remember { mutableStateOf("30") }
     var cloudEnabled by remember { mutableStateOf(false) }
@@ -678,6 +680,7 @@ internal fun MiruPlayDesktopComposeApp(
                 cloudLinkedSourceId = config.data.webDavSourceId
                 cloudInboxPath = config.data.inboxPath
                 cloudLibraryPath = config.data.libraryPath
+                cloudLibraryMode = config.data.libraryMode
                 cloudIntervalMinutes = config.data.intervalMinutes.toString()
                 cloudEnabled = config.data.enabled
                 rssProxyEnabled = config.data.rssProxyEnabled
@@ -1851,6 +1854,8 @@ internal fun MiruPlayDesktopComposeApp(
                 onInboxPathChange = { cloudInboxPath = it },
                 libraryPath = cloudLibraryPath,
                 onLibraryPathChange = { cloudLibraryPath = it },
+                libraryMode = cloudLibraryMode,
+                onLibraryModeChange = { cloudLibraryMode = it },
                 directoryBrowser = cloudDirectoryBrowser,
                 onPickCloudDriveDirectory = ::openCloudDriveDirectory,
                 onBrowseCloudDriveDirectory = { path ->
@@ -1899,16 +1904,17 @@ internal fun MiruPlayDesktopComposeApp(
                                 return@launch
                             }
                         }
-                        val config = currentConfig.withAutomationFormValues(
-                            endpointUrl = cloudEndpointUrl,
-                            username = cloudUsername,
-                            webDavSourceId = cloudLinkedSourceId,
-                            inboxPath = cloudInboxPath,
-                            libraryPath = cloudLibraryPath,
-                            intervalMinutes = interval,
-                            enabled = cloudEnabled,
-                            rssProxyEnabled = rssProxyEnabled,
-                            rssProxyHost = rssProxyHost,
+                            val config = currentConfig.withAutomationFormValues(
+                                endpointUrl = cloudEndpointUrl,
+                                username = cloudUsername,
+                                webDavSourceId = cloudLinkedSourceId,
+                                inboxPath = cloudInboxPath,
+                                libraryPath = cloudLibraryPath,
+                                libraryMode = cloudLibraryMode,
+                                intervalMinutes = interval,
+                                enabled = cloudEnabled,
+                                rssProxyEnabled = rssProxyEnabled,
+                                rssProxyHost = rssProxyHost,
                             rssProxyPort = proxyPort,
                         )
                         when (val result = repositories.cloudDriveAutomation.saveConfig(config)) {

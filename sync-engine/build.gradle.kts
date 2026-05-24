@@ -30,6 +30,7 @@ dependencies {
     implementation(project(":scraper"))
     implementation(libs.okhttp)
     implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.dagger.hilt.android)
     ksp(libs.dagger.hilt.compiler)
     testImplementation(libs.junit)

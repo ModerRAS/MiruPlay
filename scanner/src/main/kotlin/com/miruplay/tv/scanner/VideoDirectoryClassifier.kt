@@ -12,7 +12,8 @@ import com.miruplay.tv.model.FilenameParseResult
  */
 class VideoDirectoryClassifier(
     private val episodeDetector: EpisodeDetector,
-    private val filenameMetadataParser: FilenameMetadataParser? = null
+    private val filenameMetadataParser: FilenameMetadataParser? = null,
+    private val filenameOnly: Boolean = false,
 ) {
     private val parsedTextCache = mutableMapOf<String, FilenameParseResult?>()
 
@@ -24,23 +25,27 @@ class VideoDirectoryClassifier(
         } else {
             segments.dropLast(1).ifEmpty { segments }
         }
-        val seasonFolder = findSeasonFolder(parentSegments)
         val detectorMatch = episodeDetector.detectEpisode(fileName)
-        val showContext = findShowContext(parentSegments, seasonFolder)
         val fileParsed = parseMetadata(stripVideoExtension(fileName))
-        val folderContexts = parentSegments
-            .takeLast(maxParsedContextSegments)
-            .asReversed()
-            .filter { it.shouldParseContextSegment() }
-            .mapIndexedNotNull { distance, rawName ->
-                parseMetadata(rawName)?.let { parsed ->
-                    evidenceFromParsed(
-                        parsed = parsed,
-                        source = EvidenceSource.FOLDER_BERT,
-                        distance = distance
-                    )
+        val seasonFolder = if (filenameOnly) null else findSeasonFolder(parentSegments)
+        val showContext = if (filenameOnly) null else findShowContext(parentSegments, seasonFolder)
+        val folderContexts = if (filenameOnly) {
+            emptyList()
+        } else {
+            parentSegments
+                .takeLast(maxParsedContextSegments)
+                .asReversed()
+                .filter { it.shouldParseContextSegment() }
+                .mapIndexedNotNull { distance, rawName ->
+                    parseMetadata(rawName)?.let { parsed ->
+                        evidenceFromParsed(
+                            parsed = parsed,
+                            source = EvidenceSource.FOLDER_BERT,
+                            distance = distance
+                        )
+                    }
                 }
-            }
+        }
         val evidence = buildList {
             release?.let { add(evidenceFromRelease(it)) }
             fileParsed?.let { add(evidenceFromParsed(it, EvidenceSource.FILE_BERT, 0)) }

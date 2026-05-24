@@ -114,6 +114,7 @@ private fun Anime.toEntity(): AnimeEntity = AnimeEntity(
     anilistId = anilistId?.toString(),
     tmdbId = tmdbId?.toString(),
     posterUrl = posterUrl,
+    posterLocalPath = posterLocalPath,
     fanartUrl = fanartUrl,
     bangumiCollectionType = bangumiCollectionType,
     bangumiEpStatus = bangumiEpStatus
@@ -141,6 +142,7 @@ private fun AnimeEntity.toDomain(episodeEntities: List<EpisodeEntity>): Anime {
         anilistId = anilistId?.toIntOrNull(),
         tmdbId = tmdbId?.toIntOrNull(),
         posterUrl = posterUrl,
+        posterLocalPath = posterLocalPath,
         fanartUrl = fanartUrl,
         bangumiCollectionType = bangumiCollectionType,
         bangumiEpStatus = bangumiEpStatus

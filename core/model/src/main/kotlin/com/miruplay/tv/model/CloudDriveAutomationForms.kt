@@ -1,7 +1,7 @@
 package com.miruplay.tv.model
 
 const val DEFAULT_CLOUD_DRIVE_INTERVAL_MINUTES = 30
-const val MIN_CLOUD_DRIVE_INTERVAL_MINUTES = 5
+const val MIN_CLOUD_DRIVE_INTERVAL_MINUTES = 15
 const val DEFAULT_RSS_PROXY_PORT = 1080
 const val MIN_RSS_PROXY_PORT = 1
 const val MAX_RSS_PROXY_PORT = 65_535
@@ -22,6 +22,7 @@ fun CloudDriveAutomationConfig.withAutomationFormValues(
     webDavSourceId: Long?,
     inboxPath: String,
     libraryPath: String,
+    libraryMode: CloudDriveLibraryMode,
     intervalMinutes: Int,
     enabled: Boolean,
     rssProxyEnabled: Boolean = false,
@@ -34,6 +35,7 @@ fun CloudDriveAutomationConfig.withAutomationFormValues(
         webDavSourceId = webDavSourceId,
         inboxPath = inboxPath.trim(),
         libraryPath = libraryPath.trim(),
+        libraryMode = libraryMode,
         intervalMinutes = intervalMinutes.coerceAtLeast(MIN_CLOUD_DRIVE_INTERVAL_MINUTES),
         enabled = enabled,
         rssProxyEnabled = rssProxyEnabled,

@@ -22,6 +22,7 @@ class CloudDriveAutomationFormsTest {
             webDavSourceId = 7L,
             inboxPath = "  /downloads  ",
             libraryPath = "  /anime  ",
+            libraryMode = CloudDriveLibraryMode.SINGLE_DIRECTORY,
             intervalMinutes = 1,
             enabled = false,
             rssProxyEnabled = true,
@@ -34,6 +35,7 @@ class CloudDriveAutomationFormsTest {
         assertEquals(7L, config.webDavSourceId)
         assertEquals("/downloads", config.inboxPath)
         assertEquals("/anime", config.libraryPath)
+        assertEquals(CloudDriveLibraryMode.SINGLE_DIRECTORY, config.libraryMode)
         assertEquals(MIN_CLOUD_DRIVE_INTERVAL_MINUTES, config.intervalMinutes)
         assertEquals(false, config.enabled)
         assertEquals(123_456L, config.lastRunAt)

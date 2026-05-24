@@ -83,6 +83,7 @@ import com.miruplay.tv.model.CLOUD_DRIVE_ROOT_DISPLAY_NAME
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.CloudDriveLibraryMode
 import com.miruplay.tv.model.MiruPlaySettingsSection
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.androidTvSettingsSectionOrder
@@ -100,6 +101,8 @@ import com.miruplay.tv.model.cloudDriveRssInboxPathFieldLabel
 import com.miruplay.tv.model.cloudDriveRssIntervalMinutesFieldLabel
 import com.miruplay.tv.model.cloudDriveRssLibraryDirectoryPickerTitle
 import com.miruplay.tv.model.cloudDriveRssLibraryPathFieldLabel
+import com.miruplay.tv.model.cloudDriveRssLibraryModeOrganizedLabel
+import com.miruplay.tv.model.cloudDriveRssLibraryModeSingleDirectoryLabel
 import com.miruplay.tv.model.cloudDriveRssLoadingDirectoriesMessage
 import com.miruplay.tv.model.cloudDriveRssLoginActionLabel
 import com.miruplay.tv.model.cloudDriveRssNoScanSourceOptionLabel
@@ -287,6 +290,7 @@ fun AddSourceScreen(
     var cloudApiToken by remember { mutableStateOf("") }
     var cloudInboxPath by remember { mutableStateOf("") }
     var cloudLibraryPath by remember { mutableStateOf("") }
+    var cloudLibraryMode by remember { mutableStateOf(CloudDriveLibraryMode.ORGANIZED_LIBRARY) }
     var cloudIntervalMinutes by remember { mutableStateOf("30") }
     var cloudEnabled by remember { mutableStateOf(false) }
     var cloudWebDavSourceId by remember { mutableStateOf<Long?>(null) }
@@ -326,6 +330,7 @@ fun AddSourceScreen(
         cloudUsername = cloudDriveConfig.username
         cloudInboxPath = cloudDriveConfig.inboxPath
         cloudLibraryPath = cloudDriveConfig.libraryPath
+        cloudLibraryMode = cloudDriveConfig.libraryMode
         cloudIntervalMinutes = cloudDriveConfig.intervalMinutes.toString()
         cloudEnabled = cloudDriveConfig.enabled
         cloudWebDavSourceId = cloudDriveConfig.webDavSourceId
@@ -516,6 +521,8 @@ fun AddSourceScreen(
                     onCloudInboxPathChange = { cloudInboxPath = it },
                     cloudLibraryPath = cloudLibraryPath,
                     onCloudLibraryPathChange = { cloudLibraryPath = it },
+                    cloudLibraryMode = cloudLibraryMode,
+                    onCloudLibraryModeChange = { cloudLibraryMode = it },
                     cloudIntervalMinutes = cloudIntervalMinutes,
                     onCloudIntervalMinutesChange = { cloudIntervalMinutes = it.filter(Char::isDigit).take(4) },
                     cloudEnabled = cloudEnabled,
@@ -562,6 +569,7 @@ fun AddSourceScreen(
                             webDavSourceId = cloudWebDavSourceId,
                             inboxPath = cloudInboxPath,
                             libraryPath = cloudLibraryPath,
+                            libraryMode = cloudLibraryMode,
                             intervalMinutes = parseCloudDriveIntervalMinutes(cloudIntervalMinutes),
                             enabled = cloudEnabled,
                             rssProxyEnabled = rssProxyEnabled,
@@ -835,6 +843,8 @@ private fun SettingsContent(
     onCloudInboxPathChange: (String) -> Unit,
     cloudLibraryPath: String,
     onCloudLibraryPathChange: (String) -> Unit,
+    cloudLibraryMode: CloudDriveLibraryMode,
+    onCloudLibraryModeChange: (CloudDriveLibraryMode) -> Unit,
     cloudIntervalMinutes: String,
     onCloudIntervalMinutesChange: (String) -> Unit,
     cloudEnabled: Boolean,
@@ -961,6 +971,8 @@ private fun SettingsContent(
                 onInboxPathChange = onCloudInboxPathChange,
                 libraryPath = cloudLibraryPath,
                 onLibraryPathChange = onCloudLibraryPathChange,
+                cloudLibraryMode = cloudLibraryMode,
+                onCloudLibraryModeChange = onCloudLibraryModeChange,
                 intervalMinutes = cloudIntervalMinutes,
                 onIntervalMinutesChange = onCloudIntervalMinutesChange,
                 enabled = cloudEnabled,
@@ -1745,6 +1757,8 @@ private fun CloudDriveAutomationPanel(
     onInboxPathChange: (String) -> Unit,
     libraryPath: String,
     onLibraryPathChange: (String) -> Unit,
+    cloudLibraryMode: CloudDriveLibraryMode,
+    onCloudLibraryModeChange: (CloudDriveLibraryMode) -> Unit,
     intervalMinutes: String,
     onIntervalMinutesChange: (String) -> Unit,
     enabled: Boolean,
@@ -1845,21 +1859,42 @@ private fun CloudDriveAutomationPanel(
 
         Spacer(Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            CloudDrivePathSelectorField(
-                value = inboxPath,
-                onValueChange = onInboxPathChange,
-                label = cloudDriveRssInboxPathFieldLabel(),
-                canPick = canPickCloudDriveDirectory,
-                onPick = onPickCloudInboxPath,
+            ScanOptionChip(
+                text = cloudDriveRssLibraryModeOrganizedLabel(),
+                icon = Icons.Filled.Folder,
+                selected = cloudLibraryMode == CloudDriveLibraryMode.ORGANIZED_LIBRARY,
+                enabled = true,
+                onClick = { onCloudLibraryModeChange(CloudDriveLibraryMode.ORGANIZED_LIBRARY) },
                 modifier = Modifier.weight(1f)
             )
+            ScanOptionChip(
+                text = cloudDriveRssLibraryModeSingleDirectoryLabel(),
+                icon = Icons.Filled.Storage,
+                selected = cloudLibraryMode == CloudDriveLibraryMode.SINGLE_DIRECTORY,
+                enabled = true,
+                onClick = { onCloudLibraryModeChange(CloudDriveLibraryMode.SINGLE_DIRECTORY) },
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        Spacer(Modifier.height(12.dp))
+        CloudDrivePathSelectorField(
+            value = inboxPath,
+            onValueChange = onInboxPathChange,
+            label = cloudDriveRssInboxPathFieldLabel(),
+            canPick = canPickCloudDriveDirectory,
+            onPick = onPickCloudInboxPath,
+            modifier = Modifier.fillMaxWidth()
+        )
+        if (cloudLibraryMode == CloudDriveLibraryMode.ORGANIZED_LIBRARY) {
+            Spacer(Modifier.height(12.dp))
             CloudDrivePathSelectorField(
                 value = libraryPath,
                 onValueChange = onLibraryPathChange,
                 label = cloudDriveRssLibraryPathFieldLabel(),
                 canPick = canPickCloudDriveDirectory,
                 onPick = onPickCloudLibraryPath,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.fillMaxWidth()
             )
         }
 

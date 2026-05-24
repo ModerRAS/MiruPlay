@@ -8,6 +8,7 @@ import com.miruplay.tv.data.entity.RssDownloadTaskEntity
 import com.miruplay.tv.data.entity.RssProcessedItemEntity
 import com.miruplay.tv.data.entity.RssSubscriptionEntity
 import com.miruplay.tv.model.CloudDriveAutomationConfig
+import com.miruplay.tv.model.CloudDriveLibraryMode
 import com.miruplay.tv.model.RssDownloadTaskInfo
 import com.miruplay.tv.model.RssProcessedItemInfo
 import com.miruplay.tv.model.RssSubscriptionInfo
@@ -90,6 +91,7 @@ private fun CloudDriveConfigEntity.toDomain(): CloudDriveAutomationConfig =
         webDavSourceId = webDavSourceId,
         inboxPath = inboxPath,
         libraryPath = libraryPath,
+        libraryMode = libraryMode.toLibraryMode(),
         intervalMinutes = intervalMinutes,
         enabled = enabled,
         lastRunAt = lastRunAt,
@@ -105,6 +107,7 @@ private fun CloudDriveAutomationConfig.toEntity(): CloudDriveConfigEntity =
         webDavSourceId = webDavSourceId,
         inboxPath = inboxPath,
         libraryPath = libraryPath,
+        libraryMode = libraryMode.name,
         intervalMinutes = intervalMinutes,
         enabled = enabled,
         lastRunAt = lastRunAt,
@@ -112,6 +115,10 @@ private fun CloudDriveAutomationConfig.toEntity(): CloudDriveConfigEntity =
         rssProxyHost = rssProxyHost,
         rssProxyPort = rssProxyPort
     )
+
+private fun String.toLibraryMode(): CloudDriveLibraryMode =
+    runCatching { CloudDriveLibraryMode.valueOf(this) }
+        .getOrDefault(CloudDriveLibraryMode.ORGANIZED_LIBRARY)
 
 private fun RssSubscriptionEntity.toDomain(): RssSubscriptionInfo =
     RssSubscriptionInfo(

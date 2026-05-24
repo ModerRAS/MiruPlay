@@ -12,6 +12,7 @@ import com.miruplay.tv.data.preferences.PlaybackPreferencesManager
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.model.CloudDriveAutomationConfig
+import com.miruplay.tv.model.CloudDriveLibraryMode
 import com.miruplay.tv.model.directoryBrowserRootDisplayName
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
@@ -36,6 +37,7 @@ import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.WebControlAccessManager
 import com.miruplay.tv.sync.rss.CloudDriveRssAutomationEngine
+import com.miruplay.tv.sync.rss.CloudDriveRssScheduler
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryBrowserState
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryTarget
 import com.miruplay.tv.sync.rss.loadCloudDriveDirectory
@@ -66,7 +68,8 @@ class SettingsViewModel @Inject constructor(
     private val webControlPreferences: WebControlAccessManager,
     private val cloudDriveRepository: CloudDriveAutomationRepository,
     private val cloudDriveClient: CloudDriveClient,
-    private val cloudDriveEngine: CloudDriveRssAutomationEngine
+    private val cloudDriveEngine: CloudDriveRssAutomationEngine,
+    private val cloudDriveScheduler: CloudDriveRssScheduler
 ) : ViewModel() {
 
     private val _sources = MutableStateFlow<List<MediaSourceInfo>>(emptyList())
@@ -242,6 +245,7 @@ class SettingsViewModel @Inject constructor(
         webDavSourceId: Long?,
         inboxPath: String,
         libraryPath: String,
+        libraryMode: CloudDriveLibraryMode,
         intervalMinutes: Int,
         enabled: Boolean,
         rssProxyEnabled: Boolean = false,
@@ -256,6 +260,7 @@ class SettingsViewModel @Inject constructor(
                 webDavSourceId = webDavSourceId,
                 inboxPath = inboxPath.trim(),
                 libraryPath = libraryPath.trim(),
+                libraryMode = libraryMode,
                 intervalMinutes = intervalMinutes,
                 enabled = enabled,
                 rssProxyEnabled = rssProxyEnabled,
@@ -263,7 +268,10 @@ class SettingsViewModel @Inject constructor(
                 rssProxyPort = rssProxyPort
             )
             cloudDriveRepository.saveConfig(config)
-                .onSuccess { _cloudDriveActionMessage.value = cloudRssConfigSavedStatus() }
+                .onSuccess {
+                    cloudDriveScheduler.syncPeriodicWork(config)
+                    _cloudDriveActionMessage.value = cloudRssConfigSavedStatus()
+                }
                 .onError { error -> _cloudDriveActionMessage.value = error.toUserMessage() }
         }
     }

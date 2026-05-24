@@ -23,6 +23,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.miruplay.tv.ui.theme.AnimeRed
+import com.miruplay.tv.ui.theme.TextSecondary
 
 @Composable
 fun TvButton(
@@ -30,18 +31,26 @@ fun TvButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    icon: ImageVector? = null
+    icon: ImageVector? = null,
+    secondary: Boolean = false,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
 
     val containerColor = when {
         !enabled -> Color.Gray.copy(alpha = 0.3f)
+        secondary -> Color.Transparent
         isFocused -> AnimeRed
         else -> AnimeRed.copy(alpha = 0.8f)
     }
 
-    val contentColor = if (enabled) Color.White else Color.Gray
+    val contentColor = if (enabled) Color.White else TextSecondary
+    val borderColor = when {
+        !enabled -> Color.White.copy(alpha = 0.08f)
+        isFocused -> Color.White
+        secondary -> Color.White.copy(alpha = 0.18f)
+        else -> Color.Transparent
+    }
 
     Button(
         onClick = onClick,
@@ -52,8 +61,8 @@ fun TvButton(
             .height(56.dp)
             .clip(RoundedCornerShape(12.dp))
             .border(
-                width = if (isFocused) 2.dp else 0.dp,
-                color = Color.White,
+                width = 2.dp,
+                color = borderColor,
                 shape = RoundedCornerShape(12.dp)
             )
             .semantics { role = Role.Button },
@@ -62,7 +71,7 @@ fun TvButton(
             containerColor = containerColor,
             contentColor = contentColor,
             disabledContainerColor = Color.Gray.copy(alpha = 0.3f),
-            disabledContentColor = Color.Gray
+            disabledContentColor = TextSecondary
         ),
         contentPadding = PaddingValues(0.dp),
         elevation = ButtonDefaults.buttonElevation(
