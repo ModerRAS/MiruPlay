@@ -415,14 +415,18 @@ then cleared.
 This covers the previous Details-to-Bangumi action-grid focus gap; broader
 multi-panel traversal can still be expanded separately.
 
-Latest shared-input evidence: `ui-design/src/main/kotlin/com/miruplay/tv/design/MiruPlayInputIntent.kt`
-now owns the cross-platform activation, Back/navigation-back, directional, and
-media playback input semantics. Android TV maps Compose `Key` values through
+Latest shared-input evidence: `ui-design/src/main/kotlin/com/miruplay/tv/design/MiruPlayKeyInput.kt`
+and `MiruPlayInputIntent.kt` now own pure Kotlin key profiles plus
+cross-platform activation, Back/navigation-back, directional, and media
+playback input semantics. Android TV maps Compose `Key` values to the shared
+key profile through
 `ui-tv/src/main/kotlin/com/miruplay/tv/ui/components/TvKeyEvents.kt`, and
-Windows maps them through
-`desktop-app/src/main/kotlin/com/miruplay/tv/desktop/DesktopKeyEvents.kt`, so
-the two platforms share one intent contract while keeping platform-specific key
-adapters thin. The Android TV fullscreen player and Windows desktop playback
+Windows maps Compose `Key` values to the same profile through
+`desktop-app/src/main/kotlin/com/miruplay/tv/desktop/DesktopKeyEvents.kt`;
+only the desktop adapter opts into Escape/NavigatePrevious/NavigateOut back
+aliases. This keeps the two platforms on one intent contract while keeping
+platform-specific key adapters thin. The Android TV fullscreen player and
+Windows desktop playback
 stage now both dispatch activation and media playback controls through that
 shared intent layer. The shared layer also owns direction-to-delta helpers for
 horizontal, vertical, and linear focus movement; the Windows route rail and
@@ -448,8 +452,10 @@ contracts while retaining thin Compose `Key` adapters. The Bangumi action grid,
 batch-match/candidate/search-result lists, list exits, and empty-results bridge
 now also use those intent-level navigation helpers, so the metadata panel keeps
 raw Compose `Key` handling at the adapter boundary. Verified with
-`.\gradlew.bat :ui-design:test :ui-tv:test :desktop-app:test checkDesktopPresenterSeparation checkDesktopComposeOnly -PbundleMpvRuntime=false`
-on 2026-05-24.
+`:ui-design:test :ui-tv:test :desktop-app:test -PbundleMpvRuntime=false`
+and
+`checkDesktopPresenterSeparation checkDesktopComposeOnly :ui-tv:compileDebugKotlin :app:assembleDebug -PbundleMpvRuntime=false`
+in Gradle MCP builds `b-238` and `b-239`.
 
 ## Latest Verification Commands
 

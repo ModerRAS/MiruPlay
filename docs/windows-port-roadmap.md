@@ -187,12 +187,14 @@ checkDesktopComposeOnly -PbundleMpvRuntime=false` passed in Gradle MCP build
 `b-158` with 288 tests passed, and Android debug assemble
 `:app:assembleDebug -PbundleMpvRuntime=false` passed in `b-159`.
 
-Latest local shared-input update: `:ui-design` now owns `MiruPlayInputIntent`
-for platform-neutral activation, Back/navigation-back, direction, and media
-playback intents. Android TV and Windows keep only thin Compose `Key` adapters,
-so DPAD Center/Enter/Space activation, TV/desktop Back aliases, and
-play/pause/stop media keys cannot drift between platforms. The same shared
-intent layer now also owns horizontal, vertical, and linear directional deltas;
+Latest local shared-input update: `:ui-design` now owns `MiruPlayKeyInput`
+plus `MiruPlayInputIntent` for platform-neutral activation,
+Back/navigation-back, direction, and media playback intents. Android TV and
+Windows keep only thin Compose `Key`-to-`MiruPlayKeyInput` adapters, so DPAD
+Center/Enter/Space activation, TV-vs-desktop Back alias profiles, and
+play/pause/stop media keys share one pure Kotlin mapping contract instead of
+duplicating intent maps in each UI shell. The same shared intent layer now also
+owns horizontal, vertical, and linear directional deltas;
 the desktop route rail and saved-source picker consume those deltas through
 intent-based key handlers instead of branching directly on Compose `Key`
 values, and the Library header, local-source fields/action row, remote-source
@@ -216,7 +218,10 @@ batch-match/candidate/search-result lists, list exits, and empty-results bridge
 now use the same intent-level navigation helpers, leaving Compose `Key`
 handling as an adapter instead of the metadata focus contract.
 Verified with
-`.\gradlew.bat :ui-design:test :ui-tv:test :desktop-app:test checkDesktopPresenterSeparation checkDesktopComposeOnly -PbundleMpvRuntime=false`.
+`:ui-design:test :ui-tv:test :desktop-app:test -PbundleMpvRuntime=false`
+and
+`checkDesktopPresenterSeparation checkDesktopComposeOnly :ui-tv:compileDebugKotlin :app:assembleDebug -PbundleMpvRuntime=false`
+in Gradle MCP builds `b-238` and `b-239`.
 
 ## Work Plan
 
