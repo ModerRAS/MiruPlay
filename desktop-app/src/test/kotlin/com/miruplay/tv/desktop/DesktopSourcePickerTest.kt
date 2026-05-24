@@ -698,10 +698,10 @@ class DesktopSourcePickerTest {
 
     @Test
     fun `remote source editor chrome uses shared source type labels`() {
-        assertEquals(MediaSourceType.WEBDAV.tvLabel(), MediaSourceType.WEBDAV.remoteSourceEditorTitle())
-        assertEquals(MediaSourceType.WEBDAV.tvBadgeLabel(), MediaSourceType.WEBDAV.remoteSourceEditorBadge())
-        assertEquals(MediaSourceType.SMB.tvLabel(), MediaSourceType.SMB.remoteSourceEditorTitle())
-        assertEquals(MediaSourceType.SMB.tvBadgeLabel(), MediaSourceType.SMB.remoteSourceEditorBadge())
+        assertEquals("WebDAV", MediaSourceType.WEBDAV.tvLabel())
+        assertEquals("DAV", MediaSourceType.WEBDAV.tvBadgeLabel())
+        assertEquals("SMB", MediaSourceType.SMB.tvLabel())
+        assertEquals("SMB", MediaSourceType.SMB.tvBadgeLabel())
     }
 
     @Test

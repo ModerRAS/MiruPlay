@@ -1779,8 +1779,8 @@ internal fun RemoteSourcesPanel(
             verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
         ) {
             RemoteSourceEditorCard(
-                title = MediaSourceType.WEBDAV.remoteSourceEditorTitle(),
-                badge = MediaSourceType.WEBDAV.remoteSourceEditorBadge(),
+                title = MediaSourceType.WEBDAV.tvLabel(),
+                badge = MediaSourceType.WEBDAV.tvBadgeLabel(),
                 endpoint = remoteSourcePreview(webDavUrl, fallback = MediaSourceType.WEBDAV.sourceEndpointPlaceholderLabel()),
             ) {
                 LabeledTextField(
@@ -1828,8 +1828,8 @@ internal fun RemoteSourcesPanel(
                 )
             }
             RemoteSourceEditorCard(
-                title = MediaSourceType.SMB.remoteSourceEditorTitle(),
-                badge = MediaSourceType.SMB.remoteSourceEditorBadge(),
+                title = MediaSourceType.SMB.tvLabel(),
+                badge = MediaSourceType.SMB.tvBadgeLabel(),
                 endpoint = remoteSourcePreview(smbUrl, fallback = MediaSourceType.SMB.sourceEndpointPlaceholderLabel()),
             ) {
                 LabeledTextField(
@@ -2174,12 +2174,6 @@ internal fun remoteBrowserPathPreview(
     path.trim()
         .ifBlank { "/" }
         .compactMiddle(maxLength)
-
-internal fun MediaSourceType.remoteSourceEditorTitle(): String =
-    tvLabel()
-
-internal fun MediaSourceType.remoteSourceEditorBadge(): String =
-    tvBadgeLabel()
 
 @Composable
 private fun RemoteBrowserEmptyState(
