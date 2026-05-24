@@ -11,7 +11,6 @@ import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.CloudDriveDirectoryItem
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
-import com.miruplay.tv.model.resumePosition
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.PlaybackState
@@ -264,8 +263,7 @@ class WebControlService @Inject constructor(
         val episode = findEpisodeById(request.episodeId)
             ?: throw IllegalArgumentException("剧集不存在")
         val progress = progressRepository.getProgress(episode.id).getOrNull()
-        val startPosition = request.startPositionMs
-            ?: episode.resumePosition(progress)
+        val startPosition = request.startPositionFor(episode, progress)
         val source = PlaybackSource(
             uri = episode.filePath,
             mediaSourceId = episode.animeId,

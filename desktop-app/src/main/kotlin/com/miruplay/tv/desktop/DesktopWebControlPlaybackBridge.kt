@@ -10,7 +10,6 @@ import com.miruplay.tv.model.PLAYBACK_SEEK_BACK_SECONDS
 import com.miruplay.tv.model.PLAYBACK_SEEK_FORWARD_SECONDS
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.ProgressRecord
-import com.miruplay.tv.model.resumePosition
 import com.miruplay.tv.player.mpv.mpvIdleStatus
 import com.miruplay.tv.player.mpv.mpvPausedStatus
 import com.miruplay.tv.player.mpv.mpvPauseToggledStatus
@@ -22,6 +21,7 @@ import com.miruplay.tv.player.mpv.mpvStoppedStatus
 import com.miruplay.tv.webcontrol.PlayEpisodeRequest
 import com.miruplay.tv.webcontrol.PlaybackCommandRequest
 import com.miruplay.tv.webcontrol.PlaybackStatusDto
+import com.miruplay.tv.webcontrol.startPositionFor
 import kotlin.math.absoluteValue
 
 internal class DesktopWebControlPlaybackHandlers {
@@ -97,7 +97,7 @@ internal fun desktopWebControlPlaybackStartPosition(
     episode: Episode,
     progress: ProgressRecord?,
 ): Long =
-    request.startPositionMs ?: episode.resumePosition(progress)
+    request.startPositionFor(episode, progress)
 
 internal fun desktopWebControlNextPlaybackSource(
     nextTarget: PlaybackSource?,
