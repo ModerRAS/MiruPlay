@@ -5,6 +5,8 @@ import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.ScanResult
+import com.miruplay.tv.model.connectionPasswordOrNull
+import com.miruplay.tv.repository.MediaSourceRepository
 
 fun SourceRequest.toMediaSourceInfo(
     sourceId: Long = id,
@@ -44,6 +46,25 @@ fun SourceTestRequest.toMediaSourceInfo(): MediaSourceInfo {
             password = password.orEmpty(),
         ),
     )
+}
+
+suspend fun MediaSourceRepository.updateWebControlSource(
+    sourceId: Long,
+    request: SourceRequest,
+): MediaSourceInfo {
+    val existing = requireWebControlSuccess(getSourceById(sourceId), "媒体源不存在")
+    val source = request.toMediaSourceInfo(
+        sourceId = sourceId,
+        fallbackPassword = existing.connectionPasswordOrNull(),
+        isConnected = existing.isConnected,
+        lastScanned = existing.lastScanned,
+    )
+    requireWebControlSuccess(updateSource(source), "更新媒体源失败")
+    return source.safeForApi()
+}
+
+suspend fun MediaSourceRepository.removeWebControlSource(sourceId: Long) {
+    requireWebControlSuccess(removeSource(sourceId), "删除媒体源失败")
 }
 
 fun parseWebControlSourceType(type: String): MediaSourceType =

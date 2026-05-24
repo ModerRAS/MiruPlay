@@ -12,7 +12,6 @@ import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.PlaybackState
 import com.miruplay.tv.model.RssSubscriptionInfo
-import com.miruplay.tv.model.connectionPasswordOrNull
 import com.miruplay.tv.player.PlaybackController
 import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
@@ -76,19 +75,11 @@ class WebControlService @Inject constructor(
     }
 
     override suspend fun updateSource(sourceId: Long, request: SourceRequest): MediaSourceInfo {
-        val existing = requireWebControlSuccess(mediaRepository.getSourceById(sourceId), "媒体源不存在")
-        val source = request.toMediaSourceInfo(
-            sourceId = sourceId,
-            fallbackPassword = existing.connectionPasswordOrNull(),
-            isConnected = existing.isConnected,
-            lastScanned = existing.lastScanned,
-        )
-        requireWebControlSuccess(mediaRepository.updateSource(source), "更新媒体源失败")
-        return source.safeForApi()
+        return mediaRepository.updateWebControlSource(sourceId, request)
     }
 
     override suspend fun removeSource(sourceId: Long) {
-        requireWebControlSuccess(mediaRepository.removeSource(sourceId), "删除媒体源失败")
+        mediaRepository.removeWebControlSource(sourceId)
     }
 
     override suspend fun testSource(request: SourceTestRequest): SourceTestResponse {

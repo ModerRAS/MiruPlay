@@ -11,7 +11,6 @@ import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
-import com.miruplay.tv.model.connectionPasswordOrNull
 import com.miruplay.tv.model.completeStatus
 import com.miruplay.tv.model.remoteUrl
 import com.miruplay.tv.model.sortedForPlaybackQueue
@@ -50,6 +49,7 @@ import com.miruplay.tv.webcontrol.filteredByQuery
 import com.miruplay.tv.webcontrol.idleWebControlPlaybackStatus
 import com.miruplay.tv.webcontrol.playbackCommandKind
 import com.miruplay.tv.webcontrol.relativeSeekDeltaMs
+import com.miruplay.tv.webcontrol.removeWebControlSource
 import com.miruplay.tv.webcontrol.requireWebControlSuccess
 import com.miruplay.tv.webcontrol.safeForApi
 import com.miruplay.tv.webcontrol.saveWebControlRssSubscription
@@ -66,6 +66,7 @@ import com.miruplay.tv.webcontrol.toWebControlSourceTestResponse
 import com.miruplay.tv.webcontrol.toWebControlLibrary
 import com.miruplay.tv.webcontrol.toWebControlSourceScanResponse
 import com.miruplay.tv.webcontrol.updateWebControlRssSubscription
+import com.miruplay.tv.webcontrol.updateWebControlSource
 import com.miruplay.tv.webcontrol.validated
 import com.miruplay.tv.webcontrol.webControlDefaultSourceName
 import com.miruplay.tv.webcontrol.webControlMediaSourceIdFromEpisodeId
@@ -142,19 +143,11 @@ internal class DesktopWebControlService(
     }
 
     override suspend fun updateSource(sourceId: Long, request: SourceRequest): MediaSourceInfo {
-        val existing = requireWebControlSuccess(repositories.mediaSources.getSourceById(sourceId), "媒体源不存在")
-        val source = request.toMediaSourceInfo(
-            sourceId = sourceId,
-            fallbackPassword = existing.connectionPasswordOrNull(),
-            isConnected = existing.isConnected,
-            lastScanned = existing.lastScanned,
-        )
-        requireWebControlSuccess(repositories.mediaSources.updateSource(source), "更新媒体源失败")
-        return source.safeForApi()
+        return repositories.mediaSources.updateWebControlSource(sourceId, request)
     }
 
     override suspend fun removeSource(sourceId: Long) {
-        requireWebControlSuccess(repositories.mediaSources.removeSource(sourceId), "删除媒体源失败")
+        repositories.mediaSources.removeWebControlSource(sourceId)
     }
 
     override suspend fun testSource(request: SourceTestRequest): SourceTestResponse {

@@ -2,11 +2,15 @@ package com.miruplay.tv.webcontrol
 
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.ScanResult
+import com.miruplay.tv.repository.MediaSourceRepository
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class WebControlSourceRequestsTest {
@@ -79,6 +83,69 @@ class WebControlSourceRequestsTest {
     }
 
     @Test
+    fun `repository update WebUI source preserves existing password and state and redacts response`() = runBlocking {
+        val existing = MediaSourceInfoConventions.webDav(
+            name = "Old",
+            url = "https://old.example.test/dav",
+            username = "old-user",
+            password = "old-secret",
+            isConnected = true,
+        ).copy(id = 7L, lastScanned = 123L)
+        val repository = FakeMediaSourceRepository(existing = existing)
+
+        val response = repository.updateWebControlSource(
+            sourceId = 7L,
+            request = SourceRequest(
+                name = " New ",
+                type = "webdav",
+                location = " https://new.example.test/dav ",
+                username = " new-user ",
+                password = " ",
+            ),
+        )
+
+        val saved = requireNotNull(repository.updatedSource)
+        assertEquals(7L, saved.id)
+        assertEquals("New", saved.name)
+        assertEquals(true, saved.isConnected)
+        assertEquals(123L, saved.lastScanned)
+        assertEquals("new-user", saved.connectionInfo[MediaSourceInfoConventions.CONNECTION_USERNAME])
+        assertEquals("old-secret", saved.connectionInfo[MediaSourceInfoConventions.CONNECTION_PASSWORD])
+        assertEquals(null, response.connectionInfo[MediaSourceInfoConventions.CONNECTION_PASSWORD])
+    }
+
+    @Test
+    fun `repository update WebUI source maps missing source`() = runBlocking {
+        val repository = FakeMediaSourceRepository(
+            getResult = Result.failure(AppError.MediaSourceError.NotFound("7")),
+        )
+
+        val failure = runCatching {
+            repository.updateWebControlSource(
+                sourceId = 7L,
+                request = SourceRequest(name = "New", type = "local", location = "D:/Anime"),
+            )
+        }.exceptionOrNull()
+
+        assertTrue(failure is IllegalStateException)
+        assertEquals("媒体源不存在: 找不到文件或目录：7", failure?.message)
+    }
+
+    @Test
+    fun `repository remove WebUI source maps repository errors`() = runBlocking {
+        val repository = FakeMediaSourceRepository(
+            removeResult = Result.failure(AppError.MediaSourceError.PermissionDenied("7")),
+        )
+
+        val failure = runCatching {
+            repository.removeWebControlSource(7L)
+        }.exceptionOrNull()
+
+        assertTrue(failure is IllegalStateException)
+        assertEquals("删除媒体源失败: 无权限访问：7", failure?.message)
+    }
+
+    @Test
     fun `safe api source removes connection password case insensitively`() {
         val source = SourceRequest(
             name = "Remote",
@@ -147,5 +214,30 @@ class WebControlSourceRequestsTest {
         assertEquals(0, response.episodesFound)
         assertEquals(0, response.newEpisodes)
         assertEquals(0, response.updatedEpisodes)
+    }
+
+    private class FakeMediaSourceRepository(
+        existing: MediaSourceInfo = MediaSourceInfoConventions.local(name = "Local", rootPath = "D:/Anime"),
+        private val getResult: Result<MediaSourceInfo> = Result.success(existing),
+        private val removeResult: Result<Unit> = Result.success(Unit),
+    ) : MediaSourceRepository {
+        var updatedSource: MediaSourceInfo? = null
+
+        override suspend fun addSource(source: MediaSourceInfo): Result<Long> =
+            Result.success(1L)
+
+        override suspend fun removeSource(sourceId: Long): Result<Unit> =
+            removeResult
+
+        override suspend fun getSources(): Result<List<MediaSourceInfo>> =
+            Result.success(emptyList())
+
+        override suspend fun updateSource(source: MediaSourceInfo): Result<Unit> {
+            updatedSource = source
+            return Result.success(Unit)
+        }
+
+        override suspend fun getSourceById(sourceId: Long): Result<MediaSourceInfo> =
+            getResult
     }
 }
