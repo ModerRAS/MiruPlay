@@ -141,11 +141,19 @@ internal class DesktopWebControlService(
     }
 
     override suspend fun scanSource(sourceId: Long): SourceScanResponse {
-        throw UnsupportedOperationException("Windows WebUI 暂未接入媒体源扫描")
+        val source = requireSuccess(repositories.mediaSources.getSourceById(sourceId), "媒体源不存在")
+        val result = requireSuccess(scanAndIndexDesktopSource(source, repositories.index), "扫描媒体源失败")
+        return result.toSourceScanResponse(source)
     }
 
     override suspend fun scanAllSources(): List<SourceScanResponse> {
-        throw UnsupportedOperationException("Windows WebUI 暂未接入媒体源扫描")
+        val sources = repositories.mediaSources.getSources().getOrNull().orEmpty()
+        return sources.mapNotNull { source ->
+            when (val result = scanAndIndexDesktopSource(source, repositories.index)) {
+                is Result.Success -> result.data.toSourceScanResponse(source)
+                is Result.Error -> null
+            }
+        }
     }
 
     override suspend fun getCloudDriveAutomation(): CloudDriveAutomationDto {
@@ -372,6 +380,15 @@ internal class DesktopWebControlService(
             ?: metadataTitle?.takeIf { it.isNotBlank() }
             ?: MediaPathConventions.parentName(path).takeIf { it.isNotBlank() }
             ?: MediaPathConventions.stem(path).ifBlank { path }
+
+    private fun DesktopSourceScanResult.toSourceScanResponse(source: MediaSourceInfo): SourceScanResponse =
+        SourceScanResponse(
+            sourceId = sourceId,
+            animeName = source.name.ifBlank { source.type.defaultName() },
+            episodesFound = videoEntries.size,
+            newEpisodes = videoEntries.size,
+            updatedEpisodes = 0,
+        )
 
     private fun playablePath(source: MediaSourceInfo?, path: String): String =
         when {

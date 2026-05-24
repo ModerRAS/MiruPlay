@@ -145,6 +145,83 @@ class DesktopWebControlServerTest {
     }
 
     @Test
+    fun `desktop web control scans sources through shared desktop scanner`() = runBlocking {
+        val storePath = Files.createTempDirectory("miruplay-web-control-store").resolve("store.json")
+        val mediaRoot = Files.createTempDirectory("miruplay-web-control-media")
+        val secondMediaRoot = Files.createTempDirectory("miruplay-web-control-media-second")
+        val port = freePort()
+        try {
+            val firstShowDir = Files.createDirectory(mediaRoot.resolve("Bocchi"))
+            Files.writeString(firstShowDir.resolve("Bocchi - 01.mkv"), "video")
+            val secondShowDir = Files.createDirectory(secondMediaRoot.resolve("K-On"))
+            Files.writeString(secondShowDir.resolve("K-On - 01.mkv"), "video")
+
+            val repositories = DesktopRepositories.fileBacked(storePath)
+            val firstSourceId = (repositories.mediaSources.addSource(
+                MediaSourceInfoConventions.local(
+                    name = "Local Anime",
+                    rootPath = mediaRoot.toString(),
+                    isConnected = true,
+                )
+            ) as Result.Success).data
+            val secondSourceId = (repositories.mediaSources.addSource(
+                MediaSourceInfoConventions.local(
+                    name = "Second Anime",
+                    rootPath = secondMediaRoot.toString(),
+                    isConnected = true,
+                )
+            ) as Result.Success).data
+            repositories.webControlAccess.webControlEnabled = true
+            val token = repositories.webControlAccess.accessToken
+            val service = DesktopWebControlService(repositories, deviceName = "Windows Test")
+            val server = DesktopWebControlServer(
+                webControlService = service,
+                webControlAccess = repositories.webControlAccess,
+                port = port,
+            )
+            server.startIfNeeded()
+            try {
+                val initialLibrary = request("http://127.0.0.1:$port/api/library?token=$token")
+                assertEquals(200, initialLibrary.code)
+                assertTrue(!initialLibrary.body.contains("Bocchi"))
+
+                val scanOne = request(
+                    url = "http://127.0.0.1:$port/api/sources/$firstSourceId/scan?token=$token",
+                    method = "POST",
+                )
+                assertEquals(200, scanOne.code)
+                assertTrue(scanOne.body.contains("\"sourceId\":$firstSourceId"))
+                assertTrue(scanOne.body.contains("\"animeName\":\"Local Anime\""))
+                assertTrue(scanOne.body.contains("\"episodesFound\":1"))
+                assertTrue(scanOne.body.contains("\"newEpisodes\":1"))
+
+                val scannedLibrary = request("http://127.0.0.1:$port/api/library?token=$token")
+                assertEquals(200, scannedLibrary.code)
+                assertTrue(scannedLibrary.body.contains("Bocchi"))
+
+                val scanAll = request(
+                    url = "http://127.0.0.1:$port/api/sources/scan-all?token=$token",
+                    method = "POST",
+                )
+                assertEquals(200, scanAll.code)
+                assertTrue(scanAll.body.contains("\"sourceId\":$firstSourceId"))
+                assertTrue(scanAll.body.contains("\"sourceId\":$secondSourceId"))
+
+                val fullLibrary = request("http://127.0.0.1:$port/api/library?token=$token")
+                assertEquals(200, fullLibrary.code)
+                assertTrue(fullLibrary.body.contains("Bocchi"))
+                assertTrue(fullLibrary.body.contains("K-On"))
+            } finally {
+                server.stopIfRunning()
+            }
+        } finally {
+            secondMediaRoot.toFile().deleteRecursively()
+            mediaRoot.toFile().deleteRecursively()
+            storePath.parent.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
     fun `desktop web control stops serving api when disabled`() {
         val storePath = Files.createTempDirectory("miruplay-web-control-store").resolve("store.json")
         val port = freePort()
@@ -175,17 +252,18 @@ class DesktopWebControlServerTest {
     private fun freePort(): Int =
         ServerSocket(0).use { it.localPort }
 
-    private fun request(url: String): HttpResult {
+    private fun request(url: String, method: String = "GET"): HttpResult {
         val connection = URI(url).toURL().openConnection() as HttpURLConnection
         connection.connectTimeout = 2_000
         connection.readTimeout = 2_000
+        connection.requestMethod = method
         val code = connection.responseCode
         val stream = if (code >= 400) connection.errorStream else connection.inputStream
         val body = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
         return HttpResult(
             code = code,
             body = body,
-            headers = connection.headerFields.filterKeys { it != null },
+            headers = connection.headerFields.mapKeys { it.key.orEmpty() },
         )
     }
 
