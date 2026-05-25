@@ -116,7 +116,7 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Build Windows desktop ZIP
-        run: .\gradlew.bat :desktop-app:test :desktop-app:distZip -PwindowsPackageVersion=0.1.${{ github.run_number }} -PbundleMpvRuntime=false --no-daemon --stacktrace
+        run: .\gradlew.bat :desktop-app:test :desktop-app:distZip "-PwindowsPackageVersion=0.1.${{ github.run_number }}" -PbundleMpvRuntime=false --no-daemon --stacktrace
 
       - name: Upload Windows desktop ZIP
         uses: actions/upload-artifact@v4
@@ -415,7 +415,7 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Build nightly Windows desktop ZIP
-        run: .\gradlew.bat :desktop-app:test :desktop-app:distZip -PwindowsPackageVersion=${{ needs.nightly.outputs.version_name }} -PbundleMpvRuntime=false --no-daemon --stacktrace
+        run: .\gradlew.bat :desktop-app:test :desktop-app:distZip "-PwindowsPackageVersion=${{ needs.nightly.outputs.version_name }}" -PbundleMpvRuntime=false --no-daemon --stacktrace
 
       - name: Upload nightly Windows desktop artifact
         uses: actions/upload-artifact@v4
