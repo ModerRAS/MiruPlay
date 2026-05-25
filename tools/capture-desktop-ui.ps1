@@ -12,6 +12,7 @@ $scriptRoot = if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) {
     $PSScriptRoot
 }
 . (Join-Path $scriptRoot "desktop-window-helper.ps1")
+. (Join-Path $scriptRoot "desktop-smoke-common.ps1")
 if ([string]::IsNullOrWhiteSpace($AppScript)) {
     $AppScript = Join-Path $scriptRoot "..\desktop-app\build\install\desktop-app\bin\desktop-app.bat"
 }
@@ -46,14 +47,6 @@ public static class MiruPlayWin32 {
     public static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extraInfo);
 }
 "@
-
-function Resolve-FullPath {
-    param([string]$Path)
-    if ([System.IO.Path]::IsPathRooted($Path)) {
-        return [System.IO.Path]::GetFullPath($Path)
-    }
-    return [System.IO.Path]::GetFullPath((Join-Path (Get-Location) $Path))
-}
 
 function Get-WindowRect {
     param([System.Diagnostics.Process]$Process)
@@ -172,8 +165,8 @@ function Save-WindowScreenshot {
     return $path
 }
 
-$resolvedAppScript = Resolve-FullPath $AppScript
-$resolvedOutputDir = Resolve-FullPath $OutputDir
+$resolvedAppScript = Resolve-DesktopSmokeFullPath $AppScript
+$resolvedOutputDir = Resolve-DesktopSmokeFullPath $OutputDir
 if (-not (Test-Path -LiteralPath $resolvedAppScript)) {
     throw "Desktop app launcher was not found at $resolvedAppScript. Run :desktop-app:installDist first."
 }
