@@ -95,8 +95,14 @@ import com.miruplay.tv.model.mediaSourceStatusText
 import com.miruplay.tv.model.playbackSettingsTiles
 import com.miruplay.tv.model.settingsClearTokenActionLabel
 import com.miruplay.tv.model.settingsDesktopScanStatusMessage
-import com.miruplay.tv.model.settingsDesktopLogUploadStatusMessage
 import com.miruplay.tv.model.settingsDesktopWebUiStatusMessage
+import com.miruplay.tv.model.settingsLogUploadAutoToggleLabel
+import com.miruplay.tv.model.settingsLogUploadEndpointFieldLabel
+import com.miruplay.tv.model.settingsLogUploadRunNowActionLabel
+import com.miruplay.tv.model.settingsLogUploadSaveConfigActionLabel
+import com.miruplay.tv.model.settingsLogUploadStreamFieldLabel
+import com.miruplay.tv.model.settingsLogUploadTokenFieldLabel
+import com.miruplay.tv.model.settingsLogUploadTokenConfiguredStatus
 import com.miruplay.tv.model.settingsAutoScanToggleLabel
 import com.miruplay.tv.model.settingsCurrentScanIntervalStatus
 import com.miruplay.tv.model.settingsLibraryDisplayTitleLabel
@@ -223,6 +229,21 @@ internal fun CloudRssPanel(
     onOpenPlayer: () -> Unit,
     onOpenDetails: () -> Unit,
     onScanActiveSource: () -> Unit,
+    logUploadEnabled: Boolean,
+    onLogUploadEnabledChange: (Boolean) -> Unit,
+    logUploadEndpoint: String,
+    onLogUploadEndpointChange: (String) -> Unit,
+    logUploadStreamName: String,
+    onLogUploadStreamNameChange: (String) -> Unit,
+    logUploadToken: String,
+    onLogUploadTokenChange: (String) -> Unit,
+    logUploadTokenConfigured: Boolean,
+    onSaveLogUploadConfig: () -> Unit,
+    onSaveLogUploadToken: () -> Unit,
+    onClearLogUploadToken: () -> Unit,
+    onRunLogUploadNow: () -> Unit,
+    canRunLogUploadNow: Boolean,
+    logUploadStatusMessage: String,
 ) {
     var selectedSection by remember { mutableStateOf(MiruPlaySettingsSection.WEB_UI) }
     val sectionFocusRequesters = remember {
@@ -366,9 +387,29 @@ internal fun CloudRssPanel(
             MiruPlaySettingsSection.LOG_UPLOAD -> SettingsSummaryContent(
                 section = selectedSection,
                 tiles = logUploadSettingsTiles(),
-                status = settingsDesktopLogUploadStatusMessage(),
-                actions = listOf(SettingsQuickAction(settingsOpenLibraryActionLabel(), onOpenLibrary)),
+                status = logUploadStatusMessage,
+                actions = listOf(
+                    SettingsQuickAction(settingsLogUploadSaveConfigActionLabel(), onSaveLogUploadConfig),
+                    SettingsQuickAction(settingsSaveTokenActionLabel(), onSaveLogUploadToken, enabled = logUploadToken.isNotBlank()),
+                    SettingsQuickAction(settingsClearTokenActionLabel(), onClearLogUploadToken, enabled = logUploadTokenConfigured),
+                    SettingsQuickAction(settingsLogUploadRunNowActionLabel(), onRunLogUploadNow, enabled = canRunLogUploadNow),
+                ),
                 onFocusSectionMenu = { focusSelectedSectionMenu() },
+                extraContentFocusable = true,
+                extraContent = { focusModifier ->
+                    DesktopLogUploadContent(
+                        enabled = logUploadEnabled,
+                        onEnabledChange = onLogUploadEnabledChange,
+                        endpoint = logUploadEndpoint,
+                        onEndpointChange = onLogUploadEndpointChange,
+                        streamName = logUploadStreamName,
+                        onStreamNameChange = onLogUploadStreamNameChange,
+                        token = logUploadToken,
+                        onTokenChange = onLogUploadTokenChange,
+                        tokenConfigured = logUploadTokenConfigured,
+                        inputModifier = focusModifier,
+                    )
+                },
                 modifier = Modifier.weight(1f),
             )
             MiruPlaySettingsSection.METADATA -> SettingsSummaryContent(
@@ -2243,6 +2284,50 @@ private fun DesktopScanPreferencesContent(
         )
         StatusBox(settingsMergeSameAnimeStatus(mergeSameAnimeEnabled))
     }
+}
+
+@Composable
+private fun DesktopLogUploadContent(
+    enabled: Boolean,
+    onEnabledChange: (Boolean) -> Unit,
+    endpoint: String,
+    onEndpointChange: (String) -> Unit,
+    streamName: String,
+    onStreamNameChange: (String) -> Unit,
+    token: String,
+    onTokenChange: (String) -> Unit,
+    tokenConfigured: Boolean,
+    inputModifier: Modifier,
+) {
+    Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
+    ToggleRow(
+        label = settingsLogUploadAutoToggleLabel(),
+        checked = enabled,
+        onCheckedChange = onEnabledChange,
+    )
+    Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
+    LabeledTextField(
+        label = settingsLogUploadEndpointFieldLabel(),
+        value = endpoint,
+        onValueChange = onEndpointChange,
+        inputModifier = inputModifier,
+    )
+    Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
+    LabeledTextField(
+        label = settingsLogUploadStreamFieldLabel(),
+        value = streamName,
+        onValueChange = onStreamNameChange,
+    )
+    Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
+    LabeledTextField(
+        label = settingsLogUploadTokenFieldLabel(),
+        value = token,
+        onValueChange = onTokenChange,
+    )
+    Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
+    StatusBox(
+        settingsLogUploadTokenConfiguredStatus(tokenConfigured),
+    )
 }
 
 @Composable

@@ -99,6 +99,7 @@ import com.miruplay.tv.model.rssSubscriptionsLoadedStatus
 import com.miruplay.tv.model.rssSubscriptionsLoadFailedStatus
 import com.miruplay.tv.model.rssSubscriptionsRefreshFailedStatus
 import com.miruplay.tv.model.rssSubscriptionsShowingStatus
+import com.miruplay.tv.model.settingsDesktopLogUploadStatusMessage
 import com.miruplay.tv.model.sourcePickerTitle
 import com.miruplay.tv.model.settingsActiveSourceLabel
 import com.miruplay.tv.model.settingsLinkedSourceLabel
@@ -119,10 +120,12 @@ import com.miruplay.tv.player.mpv.mpvSpeedChangedStatus
 import com.miruplay.tv.player.mpv.mpvStoppedStatus
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.LibraryEpisodeResolver
+import com.miruplay.tv.repository.LogUploadActionCoordinator
 import com.miruplay.tv.repository.MediaSourceActionCoordinator
 import com.miruplay.tv.repository.MetadataBatchMatch
 import com.miruplay.tv.repository.MetadataBatchPlan
 import com.miruplay.tv.repository.NextPlaybackSourceResolver
+import com.miruplay.tv.repository.OtlpLogUploadActionSnapshot
 import com.miruplay.tv.repository.ScanPreferenceActionSnapshot
 import com.miruplay.tv.repository.SettingsPreferenceActionCoordinator
 import com.miruplay.tv.repository.WebControlAccessActionCoordinator
@@ -436,6 +439,7 @@ internal fun MiruPlayDesktopComposeApp(
             playbackPreferences = repositories.playbackPreferences,
         )
     }
+    val logUploadActions = remember(repositories) { LogUploadActionCoordinator(repositories.logUpload) }
     val defaultMpvLayout = remember { MpvRuntimeDiscovery.defaultLayout() }
     val playbackLauncher = remember(playbackBridge) { DesktopPlaybackLauncher(playbackBridge) }
     var selectedDesktopSection by remember { mutableStateOf(desktopInitialSectionFromEnvironment()) }
@@ -512,6 +516,8 @@ internal fun MiruPlayDesktopComposeApp(
     var selectedRssSubscription by remember { mutableStateOf<RssSubscriptionInfo?>(null) }
     var cloudRssStatus by remember { mutableStateOf(cloudRssInitialStatus()) }
     var cloudDirectoryBrowser by remember { mutableStateOf(CloudDriveDirectoryBrowserState()) }
+    var logUploadSnapshot by remember { mutableStateOf(OtlpLogUploadActionSnapshot()) }
+    var logUploadTokenInput by remember { mutableStateOf("") }
     var mediaPath by remember { mutableStateOf("") }
     var subtitlePath by remember { mutableStateOf("") }
     var startSeconds by remember { mutableStateOf("0") }
@@ -783,6 +789,7 @@ internal fun MiruPlayDesktopComposeApp(
         cloudToken = repositories.credentials.cloudDriveToken.orEmpty()
         cloudPassword = repositories.credentials.cloudDrivePassword.orEmpty()
         bangumiTokenConfigured = !repositories.credentials.bangumiAccessToken.isNullOrBlank()
+        logUploadSnapshot = logUploadActions.current()
         applyWebControlSnapshot(webControlActions.current())
         runCatching {
             repositories.cloudDriveAutomation.observeSubscriptions().first()
@@ -2282,6 +2289,67 @@ internal fun MiruPlayDesktopComposeApp(
                         scanCurrentSource { libraryStatus = it }
                     }
                 },
+                logUploadEnabled = logUploadSnapshot.enabled,
+                onLogUploadEnabledChange = { enabled ->
+                    logUploadSnapshot = logUploadSnapshot.copy(enabled = enabled)
+                },
+                logUploadEndpoint = logUploadSnapshot.endpoint,
+                onLogUploadEndpointChange = { endpoint ->
+                    logUploadSnapshot = logUploadSnapshot.copy(endpoint = endpoint)
+                },
+                logUploadStreamName = logUploadSnapshot.streamName,
+                onLogUploadStreamNameChange = { streamName ->
+                    logUploadSnapshot = logUploadSnapshot.copy(streamName = streamName)
+                },
+                logUploadToken = logUploadTokenInput,
+                onLogUploadTokenChange = { token ->
+                    logUploadTokenInput = token
+                },
+                logUploadTokenConfigured = logUploadSnapshot.tokenConfigured,
+                onSaveLogUploadConfig = {
+                    scope.launch {
+                        logUploadSnapshot = logUploadActions.saveConfig(
+                            enabled = logUploadSnapshot.enabled,
+                            endpoint = logUploadSnapshot.endpoint,
+                            streamName = logUploadSnapshot.streamName,
+                        )
+                    }
+                },
+                onSaveLogUploadToken = {
+                    scope.launch {
+                        val token = logUploadTokenInput.trim()
+                        if (token.isNotEmpty()) {
+                            logUploadSnapshot = logUploadActions.saveToken(token)
+                            logUploadTokenInput = ""
+                        }
+                    }
+                },
+                onClearLogUploadToken = {
+                    scope.launch {
+                        logUploadSnapshot = logUploadActions.clearToken()
+                        logUploadTokenInput = ""
+                    }
+                },
+                onRunLogUploadNow = {
+                    scope.launch {
+                        if (logUploadTokenInput.isNotBlank()) {
+                            logUploadSnapshot = logUploadActions.saveToken(logUploadTokenInput.trim())
+                            logUploadTokenInput = ""
+                        }
+                        logUploadSnapshot = logUploadActions.runNow()
+                    }
+                },
+                canRunLogUploadNow = logUploadSnapshot.enabled &&
+                    logUploadSnapshot.endpoint.isNotBlank() &&
+                    !logUploadSnapshot.isUploading &&
+                    (logUploadSnapshot.tokenConfigured || logUploadTokenInput.isNotBlank()),
+                logUploadStatusMessage = settingsDesktopLogUploadStatusMessage(
+                    pendingCount = logUploadSnapshot.pendingCount,
+                    isUploading = logUploadSnapshot.isUploading,
+                    tokenConfigured = logUploadSnapshot.tokenConfigured,
+                    lastUploadAt = logUploadSnapshot.lastUploadAt,
+                    lastUploadStatus = logUploadSnapshot.lastUploadStatus,
+                ),
             )
             }
             MiruPlayRouteSurface.player -> {

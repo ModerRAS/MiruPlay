@@ -198,7 +198,56 @@ fun settingsAndroidTvLogUploadHintMessage(): String =
     "请在桌面端设置页或 Web 控制端配置 OpenObserve。"
 
 fun settingsDesktopLogUploadStatusMessage(): String =
-    "日志上报配置在 Android TV 设置页生效；本地日志会按 OpenObserve JSON 配置写入上报队列。"
+    "可在当前页面或 Web 控制端配置 OpenObserve JSON；本地日志会按同一配置写入上报队列。"
+
+fun settingsLogUploadAutoToggleLabel(): String =
+    "自动上报"
+
+fun settingsLogUploadEndpointFieldLabel(): String =
+    "OpenObserve API 地址"
+
+fun settingsLogUploadStreamFieldLabel(): String =
+    "Stream"
+
+fun settingsLogUploadTokenFieldLabel(): String =
+    "OpenObserve Token"
+
+fun settingsLogUploadSaveConfigActionLabel(): String =
+    "保存配置"
+
+fun settingsLogUploadRunNowActionLabel(): String =
+    "立即上报"
+
+fun settingsLogUploadPendingStatus(pendingCount: Int): String =
+    "待上报 ${pendingCount.coerceAtLeast(0)} 条"
+
+fun settingsLogUploadUploadStateStatus(isUploading: Boolean): String =
+    if (isUploading) "上报中" else "待命"
+
+fun settingsLogUploadTokenConfiguredStatus(configured: Boolean): String =
+    if (configured) "Token 已保存" else "未保存 Token"
+
+fun settingsLogUploadLastUploadStatus(lastUploadAt: Long): String =
+    formatShortLocalTimestamp(lastUploadAt)?.let { "上次上报 $it" } ?: "尚未上报"
+
+fun settingsLogUploadResultStatus(lastUploadStatus: String?): String =
+    lastUploadStatus?.trim()?.takeIf { it.isNotEmpty() } ?: "暂无上报结果"
+
+fun settingsDesktopLogUploadStatusMessage(
+    pendingCount: Int,
+    isUploading: Boolean,
+    tokenConfigured: Boolean,
+    lastUploadAt: Long,
+    lastUploadStatus: String?,
+): String =
+    listOf(
+        settingsDesktopLogUploadStatusMessage(),
+        settingsLogUploadPendingStatus(pendingCount),
+        settingsLogUploadUploadStateStatus(isUploading),
+        settingsLogUploadTokenConfiguredStatus(tokenConfigured),
+        settingsLogUploadLastUploadStatus(lastUploadAt),
+        settingsLogUploadResultStatus(lastUploadStatus),
+    ).joinToString(" · ")
 
 fun settingsDesktopWebUiStatusMessage(
     enabled: Boolean = false,
