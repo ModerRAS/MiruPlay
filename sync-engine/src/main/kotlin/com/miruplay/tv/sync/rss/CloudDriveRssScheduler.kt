@@ -19,7 +19,7 @@ class CloudDriveRssScheduler @Inject constructor(
         val newScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         scope = newScope
         newScope.launchCloudDriveRssSchedulerLoop(
-            dueRunner = CloudDriveRssDueRunner { engine.runIfDue() },
+            dueRunner = engine,
             checkIntervalMillis = CHECK_INTERVAL_MILLIS,
         ) { _, result ->
             result

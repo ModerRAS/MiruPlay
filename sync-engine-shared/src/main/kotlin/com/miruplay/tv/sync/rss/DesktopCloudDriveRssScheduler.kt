@@ -44,7 +44,7 @@ class DesktopCloudDriveRssScheduler(
         scope: CoroutineScope,
         checkIntervalMillis: Long = DEFAULT_CHECK_INTERVAL_MILLIS,
     ) : this(
-        dueRunner = CloudDriveRssDueRunner { engine.runIfDue() },
+        dueRunner = engine,
         scope = scope,
         checkIntervalMillis = checkIntervalMillis,
     )
