@@ -2,6 +2,7 @@ package com.miruplay.tv.data.di
 
 import com.miruplay.tv.data.preferences.WebControlPreferencesManager
 import com.miruplay.tv.data.preferences.PlaybackPreferencesManager
+import com.miruplay.tv.data.logging.LogUploadRepositoryImpl
 import com.miruplay.tv.data.repository.CloudDriveAutomationRepositoryImpl
 import com.miruplay.tv.data.repository.IndexRepositoryImpl
 import com.miruplay.tv.data.repository.MediaRepositoryImpl
@@ -14,6 +15,7 @@ import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.CloudDriveCredentialStore
 import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaSourceRepository
+import com.miruplay.tv.repository.LogUploadRepository
 import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
 import com.miruplay.tv.repository.PlaybackPreferencesRepository
@@ -69,6 +71,12 @@ abstract class RepositoryModule {
     abstract fun bindCloudDriveAutomationRepository(
         impl: CloudDriveAutomationRepositoryImpl
     ): CloudDriveAutomationRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindLogUploadRepository(
+        impl: LogUploadRepositoryImpl
+    ): LogUploadRepository
 
     @Binds
     @Singleton
