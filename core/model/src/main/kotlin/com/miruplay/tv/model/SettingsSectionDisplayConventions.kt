@@ -109,6 +109,9 @@ fun settingsScanMenuSummary(
 fun settingsLogUploadMenuSummary(): String =
     "OpenObserve"
 
+fun settingsAndroidTvLogUploadMenuSummary(): String =
+    "在桌面端配置"
+
 fun settingsMetadataTokenMenuSummary(hasToken: Boolean): String =
     if (hasToken) "Token 已设置" else "未设置"
 
@@ -121,6 +124,7 @@ data class SettingsSectionMenuSummaryInput(
     val autoScanEnabled: Boolean = false,
     val mergeSameAnimeEnabled: Boolean = false,
     val metadataSummary: String = "",
+    val logUploadSummary: String = settingsLogUploadMenuSummary(),
 )
 
 fun MiruPlaySettingsSection.settingsMenuSummary(
@@ -132,7 +136,7 @@ fun MiruPlaySettingsSection.settingsMenuSummary(
         MiruPlaySettingsSection.PLAYBACK -> input.playbackSummary
         MiruPlaySettingsSection.CLOUD_DRIVE -> settingsCloudDriveMenuSummary(input.cloudDriveEnabled, input.rssCount)
         MiruPlaySettingsSection.SCAN -> settingsScanMenuSummary(input.autoScanEnabled, input.mergeSameAnimeEnabled)
-        MiruPlaySettingsSection.LOG_UPLOAD -> settingsLogUploadMenuSummary()
+        MiruPlaySettingsSection.LOG_UPLOAD -> input.logUploadSummary
         MiruPlaySettingsSection.METADATA -> input.metadataSummary
     }
 
@@ -186,6 +190,15 @@ fun settingsClearTokenActionLabel(): String =
 
 fun settingsDesktopScanStatusMessage(): String =
     "扫描入口保留在媒体库海报墙和 CloudDrive 同步流程中。"
+
+fun settingsAndroidTvLogUploadStatusMessage(): String =
+    "Android TV 端暂不提供日志上报配置。"
+
+fun settingsAndroidTvLogUploadHintMessage(): String =
+    "请在桌面端设置页或 Web 控制端配置 OpenObserve。"
+
+fun settingsDesktopLogUploadStatusMessage(): String =
+    "日志上报配置在 Android TV 设置页生效；本地日志会按 OpenObserve JSON 配置写入上报队列。"
 
 fun settingsDesktopWebUiStatusMessage(
     enabled: Boolean = false,
@@ -591,6 +604,25 @@ fun webUiSettingsTiles(
             label = settingsRemoteAutomationTileLabel(),
             value = remoteAutomationValue,
             detail = remoteAutomationDetail,
+        ),
+    )
+
+fun logUploadSettingsTiles(): List<SettingsSummaryTile> =
+    listOf(
+        SettingsSummaryTile(
+            label = "OpenObserve",
+            value = "JSON",
+            detail = "API 地址、Stream 和访问令牌由 Android TV 设置页保存。",
+        ),
+        SettingsSummaryTile(
+            label = "本地日志",
+            value = "自动上报",
+            detail = "应用日志进入本地队列后按配置批量发送。",
+        ),
+        SettingsSummaryTile(
+            label = "凭据",
+            value = "安全存储",
+            detail = "令牌只保存配置状态，清理后会停止上报。",
         ),
     )
 
