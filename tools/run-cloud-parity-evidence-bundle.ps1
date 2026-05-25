@@ -35,8 +35,6 @@ $args = @(
     '-CloudDrivePath',
     $effectiveCloudDrivePath,
     '-CloudRssEvidenceBundle',
-    '-CloudRssLiveSubmit',
-    '-CloudRssOrganize',
     '-ConfirmCloudRssLiveSubmit',
     '-ConfirmCloudRssOrganize',
     '-CloudRssEndpoint',

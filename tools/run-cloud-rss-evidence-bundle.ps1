@@ -20,8 +20,6 @@ $args = @(
     '-SkipGradle',
     '-SkipCloudRssScheduler',
     '-CloudRssEvidenceBundle',
-    '-CloudRssLiveSubmit',
-    '-CloudRssOrganize',
     '-ConfirmCloudRssLiveSubmit',
     '-ConfirmCloudRssOrganize',
     '-CloudRssEndpoint',

@@ -629,8 +629,6 @@ Verification:
   -RequireCloudRssCandidates
 .\tools\verify-windows-port.ps1 `
   -CloudRssEvidenceBundle `
-  -CloudRssLiveSubmit `
-  -CloudRssOrganize `
   -ConfirmCloudRssLiveSubmit `
   -ConfirmCloudRssOrganize `
   -CloudRssEndpoint http://127.0.0.1:19798 `

@@ -420,7 +420,7 @@ try {
         Write-Host "CloudDrive RSS scheduler smoke now runs by default; -CloudRssScheduler is retained for compatibility."
     }
     if ($CloudRssEvidenceBundle) {
-        Write-Host "CloudDrive RSS evidence bundle mode enabled: dry-run + live-submit(+organize) reports will run as one checklist."
+        Write-Host "CloudDrive RSS evidence bundle mode enabled: dry-run + live-submit + organize reports will run as one checklist."
     }
 
     if (-not $SkipGradle) {
@@ -659,15 +659,6 @@ try {
     $rssToken = if ([string]::IsNullOrWhiteSpace($CloudRssToken)) { $CloudDriveToken } else { $CloudRssToken }
 
     if ($CloudRssEvidenceBundle) {
-        if (-not $CloudRssDryRun -and -not $CloudRssLiveSubmit) {
-            throw "CloudDrive RSS evidence bundle requires -CloudRssDryRun and/or -CloudRssLiveSubmit."
-        }
-        if (-not $CloudRssLiveSubmit) {
-            throw "CloudDrive RSS evidence bundle requires -CloudRssLiveSubmit for real submit evidence."
-        }
-        if (-not $CloudRssOrganize) {
-            throw "CloudDrive RSS evidence bundle requires -CloudRssOrganize for organizer move evidence."
-        }
         Invoke-CloudRssSmokeAndAssert -StepName "CloudDrive RSS dry-run smoke" -LiveSubmitEnabled $false -OrganizeEnabled $false -RssEndpoint $rssEndpoint -RssToken $rssToken
         Invoke-CloudRssSmokeAndAssert -StepName "CloudDrive RSS live submit smoke" -LiveSubmitEnabled $true -OrganizeEnabled $true -RssEndpoint $rssEndpoint -RssToken $rssToken
     } elseif ($CloudRssDryRun -or $CloudRssLiveSubmit) {
