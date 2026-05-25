@@ -72,6 +72,8 @@ class SettingsSectionDisplayConventionsTest {
 
     @Test
     fun `desktop settings summary detail copy is shared`() {
+        assertEquals("设置", settingsScreenTitleLabel())
+        assertEquals("管理媒体源、WebUI 和元数据服务", settingsScreenSubtitleLabel())
         assertEquals("设置菜单", settingsMenuPanelTitle())
         assertEquals("像 TV 版一样按分类管理桌面能力。", settingsMenuPanelDescription())
         assertEquals("像 TV 版一样按分类管理桌面能力。", settingsMenuPanelDescriptionDesktop())

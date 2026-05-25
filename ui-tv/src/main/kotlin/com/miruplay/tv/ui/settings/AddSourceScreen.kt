@@ -169,6 +169,8 @@ import com.miruplay.tv.model.settingsMetadataTokenMenuSummary
 import com.miruplay.tv.model.settingsMenuSummary
 import com.miruplay.tv.model.settingsMenuPanelDescriptionAndroidTv
 import com.miruplay.tv.model.settingsMenuPanelTitle
+import com.miruplay.tv.model.settingsScreenSubtitleLabel
+import com.miruplay.tv.model.settingsScreenTitleLabel
 import com.miruplay.tv.model.settingsScanIntervalOptionLabel
 import com.miruplay.tv.model.settingsScanPanelDescription
 import com.miruplay.tv.model.settingsScanPanelTitleLabel
@@ -631,13 +633,13 @@ private fun SettingsHeader(onNavigateBack: () -> Unit) {
     ) {
         Column {
             Text(
-                text = "设置",
+                text = settingsScreenTitleLabel(),
                 style = TvTypography.title,
                 color = TextPrimary
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "管理媒体源、WebUI 和元数据服务",
+                text = settingsScreenSubtitleLabel(),
                 style = TvTypography.body,
                 color = TextSecondary
             )
@@ -768,6 +770,28 @@ private fun SettingsMenuItem(
     }
 }
 
+internal fun settingsSourceListMenuBridgeKeyEvent(
+    key: Key,
+    type: KeyEventType,
+    onFocusMenu: () -> Unit,
+): Boolean =
+    settingsSourceListMenuBridgeIntent(
+        intent = key.toMiruPlayInputIntent(),
+        type = type,
+        onFocusMenu = onFocusMenu,
+    )
+
+internal fun settingsSourceListMenuBridgeIntent(
+    intent: MiruPlayInputIntent?,
+    type: KeyEventType,
+    onFocusMenu: () -> Unit,
+): Boolean {
+    if (type != KeyEventType.KeyDown) return false
+    if (intent != MiruPlayInputIntent.DirectionLeft) return false
+    onFocusMenu()
+    return true
+}
+
 @Composable
 private fun SettingsContent(
     selectedSection: MiruPlaySettingsSection,
@@ -895,15 +919,11 @@ private fun SettingsContent(
                     .fillMaxHeight()
                     .focusProperties { left = menuFocusRequester }
                     .onPreviewKeyEvent { event ->
-                        if (
-                            event.type == KeyEventType.KeyDown &&
-                            event.key.toMiruPlayInputIntent() == MiruPlayInputIntent.DirectionLeft
-                        ) {
-                            menuFocusRequester.requestFocus()
-                            true
-                        } else {
-                            false
-                        }
+                        settingsSourceListMenuBridgeKeyEvent(
+                            key = event.key,
+                            type = event.type,
+                            onFocusMenu = { menuFocusRequester.requestFocus() },
+                        )
                     }
             )
             Column(

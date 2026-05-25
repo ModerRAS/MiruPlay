@@ -136,6 +136,12 @@ fun settingsDesktopWebUiMenuSummary(addressCount: Int): String =
 fun settingsMenuPanelTitle(): String =
     "设置菜单"
 
+fun settingsScreenTitleLabel(): String =
+    "设置"
+
+fun settingsScreenSubtitleLabel(): String =
+    "管理媒体源、WebUI 和元数据服务"
+
 fun settingsMenuPanelDescriptionDesktop(): String =
     "像 TV 版一样按分类管理桌面能力。"
 
