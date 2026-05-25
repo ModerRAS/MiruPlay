@@ -52,6 +52,7 @@ import com.miruplay.tv.mediasource.desktop.desktopSourceFromInfo
 import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.PLAYBACK_SEEK_BACK_SECONDS
 import com.miruplay.tv.model.PLAYBACK_SEEK_FORWARD_SECONDS
+import com.miruplay.tv.model.PLAYBACK_SPEED_NORMAL
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaPathConventions
@@ -74,6 +75,7 @@ import com.miruplay.tv.model.cloudRssSchedulerStartStatus
 import com.miruplay.tv.model.cloudRssSchedulerStoppedStatus
 import com.miruplay.tv.model.cloudRssStatusText
 import com.miruplay.tv.model.completeStatus
+import com.miruplay.tv.model.coercePlaybackSpeed
 import com.miruplay.tv.model.detailBangumiSyncCompleteMessage
 import com.miruplay.tv.model.detailBangumiSyncStartedMessage
 import com.miruplay.tv.model.desktopWindowTitleLabel
@@ -111,6 +113,7 @@ import com.miruplay.tv.player.mpv.mpvPositionSyncedStatus
 import com.miruplay.tv.player.mpv.mpvResumedStatus
 import com.miruplay.tv.player.mpv.mpvSeekBackStatus
 import com.miruplay.tv.player.mpv.mpvSeekForwardStatus
+import com.miruplay.tv.player.mpv.mpvSpeedChangedStatus
 import com.miruplay.tv.player.mpv.mpvStoppedStatus
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.LibraryEpisodeResolver
@@ -184,6 +187,9 @@ import com.miruplay.tv.sync.rss.DesktopCloudDriveRssScheduler
 import com.miruplay.tv.sync.rss.RssSubscriptionActionResult
 import com.miruplay.tv.sync.rss.schedulerStatus
 import com.miruplay.tv.sync.rss.selectCloudDriveDirectory as selectSharedCloudDriveDirectory
+import com.miruplay.tv.webcontrol.WebControlPlaybackCommandKind
+import com.miruplay.tv.webcontrol.playbackCommandKind
+import com.miruplay.tv.webcontrol.playbackSpeed
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -510,6 +516,7 @@ internal fun MiruPlayDesktopComposeApp(
     var fullscreen by remember { mutableStateOf(false) }
     var keepOpen by remember { mutableStateOf(false) }
     var playbackEndAction by remember { mutableStateOf(PlaybackEndAction.RETURN_TO_DETAIL) }
+    var playbackSpeed by remember { mutableStateOf(PLAYBACK_SPEED_NORMAL) }
     var rifeEnabled by remember { mutableStateOf(DEFAULT_DESKTOP_RIFE_ENABLED) }
     var rifeBackend by remember { mutableStateOf(RifeBackend.NVIDIA) }
     var status by remember { mutableStateOf(mpvRuntimeStatusFromInputs(mpvPath, configDir)) }
@@ -622,6 +629,16 @@ internal fun MiruPlayDesktopComposeApp(
     fun applyDesktopPlaybackStatusToTimeline(status: com.miruplay.tv.webcontrol.PlaybackStatusDto) {
         playbackPositionMs = status.positionMs.coerceAtLeast(0L)
         playbackDurationMs = status.durationMs.coerceAtLeast(0L)
+    }
+
+    suspend fun applyDesktopPlaybackSpeed(speed: Float) {
+        val selectedSpeed = coercePlaybackSpeed(speed)
+        playbackSpeed = selectedSpeed
+        val activePlayer = player ?: return
+        when (val result = activePlayer.setSpeed(selectedSpeed.toDouble())) {
+            is Result.Success -> launchStatus = mpvSpeedChangedStatus(selectedSpeed)
+            is Result.Error -> launchStatus = result.error.toUserMessage()
+        }
     }
 
     fun syncDesktopWebControlServer() {
@@ -929,6 +946,9 @@ internal fun MiruPlayDesktopComposeApp(
                 }
                 refreshRecentProgress()
                 launchStatus = result.data.status
+                if (playbackSpeed != PLAYBACK_SPEED_NORMAL) {
+                    applyDesktopPlaybackSpeed(playbackSpeed)
+                }
                 result
             }
             is Result.Error -> {
@@ -1002,6 +1022,9 @@ internal fun MiruPlayDesktopComposeApp(
                 },
             )
             launchStatus = webControlPlaybackCommandStatus(command)
+            if (command.playbackCommandKind() == WebControlPlaybackCommandKind.SPEED) {
+                playbackSpeed = coercePlaybackSpeed(command.playbackSpeed())
+            }
             if (!statusDto.isPlaying && command.command.equals("stop", ignoreCase = true)) {
                 resetDesktopPlaybackTimeline()
                 selectedDesktopSection = MiruPlayRouteSurface.details
@@ -2285,6 +2308,12 @@ internal fun MiruPlayDesktopComposeApp(
                     onPlaybackEndActionChange = { action ->
                         scope.launch {
                             playbackEndAction = settingsPreferenceActions.setPlaybackEndAction(action)
+                        }
+                    },
+                    playbackSpeed = playbackSpeed,
+                    onPlaybackSpeedChange = { speed ->
+                        scope.launch {
+                            applyDesktopPlaybackSpeed(speed)
                         }
                     },
                     isPlayerActive = player != null,

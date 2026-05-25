@@ -98,6 +98,7 @@ import com.miruplay.tv.model.playbackSeekBackLabel
 import com.miruplay.tv.model.playbackSeekForwardLabel
 import com.miruplay.tv.model.playbackSpeedChipLabel
 import com.miruplay.tv.model.playbackSpeedMenuTitle
+import com.miruplay.tv.model.playbackSpeedOptions
 import com.miruplay.tv.model.playbackSpeedValueLabel
 import com.miruplay.tv.model.playbackSubtitleCountLabel
 import com.miruplay.tv.model.playbackSubtitleOptionLabel
@@ -750,7 +751,7 @@ private fun PlayerOptionsPanel(
     modifier: Modifier = Modifier
 ) {
     val firstOptionFocus = remember(menu) { FocusRequester() }
-    val speeds = remember { listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f) }
+    val speeds = remember { playbackSpeedOptions() }
 
     LaunchedEffect(menu) {
         firstOptionFocus.requestFocus()

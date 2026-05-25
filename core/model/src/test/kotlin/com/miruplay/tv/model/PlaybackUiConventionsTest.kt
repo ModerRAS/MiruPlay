@@ -29,9 +29,13 @@ class PlaybackUiConventionsTest {
         assertEquals("字幕 2", playbackSubtitleCountLabel(2))
         assertEquals("音轨 0", playbackAudioTrackCountLabel(-1))
         assertEquals("音轨 3", playbackAudioTrackCountLabel(3))
+        assertEquals(listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f), playbackSpeedOptions())
         assertEquals("1x", playbackSpeedValueLabel(1f))
         assertEquals("1.25x", playbackSpeedValueLabel(1.25f))
         assertEquals("倍速 0.75x", playbackSpeedChipLabel(0.75f))
+        assertEquals(PLAYBACK_SPEED_MIN, coercePlaybackSpeed(0.1f))
+        assertEquals(PLAYBACK_SPEED_MAX, coercePlaybackSpeed(4.0f))
+        assertEquals(PLAYBACK_SPEED_NORMAL, coercePlaybackSpeed(Float.NaN))
     }
 
     @Test
@@ -114,6 +118,7 @@ class PlaybackUiConventionsTest {
         assertEquals("已暂停播放。", mpvPlaybackStatusText("mpv paused."))
         assertEquals("已后退 10 秒。", mpvPlaybackStatusText("mpv seeked back 10s."))
         assertEquals("已快进 30 秒。", mpvPlaybackStatusText("mpv seeked forward 30s."))
+        assertEquals("播放速度已设为 1.25x。", mpvPlaybackStatusText("mpv speed set to 1.25x."))
         assertEquals("mpv 已停止。", mpvPlaybackStatusText("mpv stopped."))
         assertEquals("mpv 已退出。", mpvPlaybackStatusText("mpv exited."))
         assertEquals("播放已完成：24:00。", mpvPlaybackStatusText("mpv playback completed at 24:00."))

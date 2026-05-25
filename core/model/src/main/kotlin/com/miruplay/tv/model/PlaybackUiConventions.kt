@@ -6,6 +6,24 @@ const val PLAYBACK_SEEK_BACK_SECONDS = 10
 
 const val PLAYBACK_SEEK_FORWARD_SECONDS = 30
 
+const val PLAYBACK_SPEED_MIN = 0.25f
+
+const val PLAYBACK_SPEED_NORMAL = 1.0f
+
+const val PLAYBACK_SPEED_MAX = 3.0f
+
+private val playbackSpeedOptionValues: List<Float> = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
+
+fun playbackSpeedOptions(): List<Float> =
+    playbackSpeedOptionValues
+
+fun coercePlaybackSpeed(speed: Float): Float =
+    if (speed.isFinite()) {
+        speed.coerceIn(PLAYBACK_SPEED_MIN, PLAYBACK_SPEED_MAX)
+    } else {
+        PLAYBACK_SPEED_NORMAL
+    }
+
 fun playbackBackLabel(): String = "返回"
 
 fun playbackBackToDetailsLabel(): String = "返回详情"
@@ -171,6 +189,8 @@ fun mpvPlaybackStatusText(status: String): String {
             "已后退 ${trimmed.removePrefix("mpv seeked back ").removeSuffix("s.")} 秒。"
         trimmed.startsWith("mpv seeked forward ") && trimmed.endsWith("s.") ->
             "已快进 ${trimmed.removePrefix("mpv seeked forward ").removeSuffix("s.")} 秒。"
+        trimmed.startsWith("mpv speed set to ") && trimmed.endsWith(".") ->
+            "播放速度已设为 ${trimmed.removePrefix("mpv speed set to ").removeSuffix(".")}。"
         trimmed == "mpv stopped." -> "mpv 已停止。"
         trimmed == "mpv exited." -> "mpv 已退出。"
         trimmed.startsWith("mpv playback completed at ") && trimmed.endsWith(".") ->

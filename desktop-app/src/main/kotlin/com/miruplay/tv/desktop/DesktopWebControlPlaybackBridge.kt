@@ -15,6 +15,7 @@ import com.miruplay.tv.player.mpv.mpvPositionSyncedStatus
 import com.miruplay.tv.player.mpv.mpvResumedStatus
 import com.miruplay.tv.player.mpv.mpvSeekBackStatus
 import com.miruplay.tv.player.mpv.mpvSeekForwardStatus
+import com.miruplay.tv.player.mpv.mpvSpeedChangedStatus
 import com.miruplay.tv.player.mpv.mpvStoppedStatus
 import com.miruplay.tv.webcontrol.PlayEpisodeRequest
 import com.miruplay.tv.webcontrol.PlaybackCommandRequest
@@ -23,6 +24,7 @@ import com.miruplay.tv.webcontrol.WebControlPlaybackCommandKind
 import com.miruplay.tv.webcontrol.absoluteSeekPositionMs
 import com.miruplay.tv.webcontrol.idleWebControlPlaybackStatus
 import com.miruplay.tv.webcontrol.playbackCommandKind
+import com.miruplay.tv.webcontrol.playbackSpeed
 import com.miruplay.tv.webcontrol.relativeSeekDeltaMs
 import com.miruplay.tv.webcontrol.skipBackwardDeltaMs
 import com.miruplay.tv.webcontrol.skipForwardDeltaMs
@@ -67,7 +69,7 @@ internal fun webControlPlaybackCommandStatus(command: PlaybackCommandRequest): S
         WebControlPlaybackCommandKind.SKIP_BACKWARD -> mpvSeekBackStatus(
             seconds = (command.skipBackwardDeltaMs() / 1000L).toInt(),
         )
-        WebControlPlaybackCommandKind.SPEED,
+        WebControlPlaybackCommandKind.SPEED -> mpvSpeedChangedStatus(command.playbackSpeed())
         WebControlPlaybackCommandKind.UNKNOWN -> mpvIdleStatus()
     }
 

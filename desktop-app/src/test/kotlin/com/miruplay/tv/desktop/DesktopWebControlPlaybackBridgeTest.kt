@@ -66,6 +66,10 @@ class DesktopWebControlPlaybackBridgeTest {
             "mpv position synced at 00:45.",
             webControlPlaybackCommandStatus(PlaybackCommandRequest(command = "seek", positionMs = 45_000L)),
         )
+        assertEquals(
+            "mpv speed set to 1.25x.",
+            webControlPlaybackCommandStatus(PlaybackCommandRequest(command = "speed", speed = 1.25f)),
+        )
     }
 
     @Test
