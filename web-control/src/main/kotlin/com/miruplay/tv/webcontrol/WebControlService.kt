@@ -244,42 +244,23 @@ class WebControlService @Inject constructor(
     }
 
     suspend fun getLogUpload(): LogUploadDto {
-        val tokenConfigured = logUploadRepository.isTokenConfigured()
-        return LogUploadDto(
-            config = OtlpLogUploadConfigDto.from(logUploadRepository.getConfig()),
-            status = LogUploadStatusDto.from(logUploadRepository.status.first(), tokenConfigured),
-            tokenConfigured = tokenConfigured
-        )
+        return logUploadRepository.getWebControlLogUpload()
     }
 
     suspend fun saveLogUploadConfig(request: LogUploadConfigRequest): LogUploadDto {
-        if (request.enabled && request.endpoint.isBlank()) {
-            throw IllegalArgumentException("请填写 OpenObserve API 地址")
-        }
-        logUploadRepository.saveConfig(
-            enabled = request.enabled,
-            endpoint = request.endpoint.trim(),
-            streamName = request.streamName.trim().ifBlank { "miruplay" }
-        )
-        return getLogUpload()
+        return logUploadRepository.saveWebControlLogUploadConfig(request)
     }
 
     suspend fun saveLogUploadToken(request: LogUploadTokenRequest): LogUploadDto {
-        if (request.token.isBlank()) {
-            throw IllegalArgumentException("请填写 OpenObserve Token")
-        }
-        logUploadRepository.saveToken(request.token.trim())
-        return getLogUpload()
+        return logUploadRepository.saveWebControlLogUploadToken(request)
     }
 
     suspend fun clearLogUploadToken(): LogUploadDto {
-        logUploadRepository.clearToken()
-        return getLogUpload()
+        return logUploadRepository.clearWebControlLogUploadToken()
     }
 
     suspend fun uploadPendingLogs(): LogUploadDto {
-        logUploadRepository.uploadPendingLogs()
-        return getLogUpload()
+        return logUploadRepository.runWebControlLogUploadNow()
     }
 
     fun getMetadataSettings(): MetadataSettingsDto =
