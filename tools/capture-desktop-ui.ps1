@@ -1,11 +1,22 @@
 [CmdletBinding()]
 param(
-    [string]$AppScript = (Join-Path $PSScriptRoot "..\desktop-app\build\install\desktop-app\bin\desktop-app.bat"),
-    [string]$OutputDir = (Join-Path $PSScriptRoot "..\build\desktop-ui-qa"),
+    [string]$AppScript = "",
+    [string]$OutputDir = "",
     [switch]$KeepOpen
 )
 
 $ErrorActionPreference = "Stop"
+$scriptRoot = if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) {
+    Split-Path -Parent $MyInvocation.MyCommand.Path
+} else {
+    $PSScriptRoot
+}
+if ([string]::IsNullOrWhiteSpace($AppScript)) {
+    $AppScript = Join-Path $scriptRoot "..\desktop-app\build\install\desktop-app\bin\desktop-app.bat"
+}
+if ([string]::IsNullOrWhiteSpace($OutputDir)) {
+    $OutputDir = Join-Path $scriptRoot "..\build\desktop-ui-qa"
+}
 
 Add-Type -AssemblyName System.Drawing
 Add-Type -TypeDefinition @"
@@ -50,6 +61,31 @@ function Get-MiruPlayWindowProcess {
             $_.MainWindowHandle -ne 0
         } |
         Select-Object -First 1
+}
+
+function Get-MiruPlayWindowProcesses {
+    Get-Process |
+        Where-Object {
+            ($_.MainWindowTitle -like "*MiruPlay Desktop*" -or ($_.ProcessName -eq "java" -and $_.MainWindowTitle -like "*MiruPlay*")) -and
+            $_.MainWindowHandle -ne 0
+        }
+}
+
+function Stop-MiruPlayWindowProcesses {
+    $processes = @(Get-MiruPlayWindowProcesses)
+    foreach ($process in $processes) {
+        try {
+            $process.CloseMainWindow() | Out-Null
+            Start-Sleep -Milliseconds 400
+            if (-not $process.HasExited) {
+                Stop-Process -Id $process.Id -Force
+            }
+        } catch {
+            if (-not $process.HasExited) {
+                Stop-Process -Id $process.Id -Force
+            }
+        }
+    }
 }
 
 function Wait-MiruPlayWindow {
@@ -191,27 +227,25 @@ if (-not (Test-Path -LiteralPath $resolvedOutputDir)) {
     New-Item -ItemType Directory -Path $resolvedOutputDir -Force | Out-Null
 }
 
-$startedProcess = $null
-$windowProcess = Get-MiruPlayWindowProcess
-if (-not $windowProcess) {
-    $startedProcess = Start-Process -FilePath $resolvedAppScript -PassThru
-    $windowProcess = Wait-MiruPlayWindow
-}
+Stop-MiruPlayWindowProcesses
+$startedProcess = Start-Process -FilePath $resolvedAppScript -PassThru
+$windowProcess = Wait-MiruPlayWindow
 
 $captures = @()
 $captures += Save-WindowScreenshot -Process $windowProcess -Name "library" -Directory $resolvedOutputDir
 
-Invoke-RelativeClick -Process $windowProcess -X 885 -Y 95
-$captures += Save-WindowScreenshot -Process $windowProcess -Name "details" -Directory $resolvedOutputDir
-
-Invoke-RelativeClick -Process $windowProcess -X 170 -Y 378
-$captures += Save-WindowScreenshot -Process $windowProcess -Name "player" -Directory $resolvedOutputDir
-
-Invoke-RelativeClick -Process $windowProcess -X 140 -Y 118
-Invoke-RelativeClick -Process $windowProcess -X 170 -Y 462
+Invoke-RelativeClick -Process $windowProcess -X 1165 -Y 110
 $captures += Save-WindowScreenshot -Process $windowProcess -Name "settings" -Directory $resolvedOutputDir
 
-Invoke-RelativeClick -Process $windowProcess -X 465 -Y 462
+Invoke-RelativeClick -Process $windowProcess -X 120 -Y 290
+$captures += Save-WindowScreenshot -Process $windowProcess -Name "details" -Directory $resolvedOutputDir
+
+Invoke-RelativeClick -Process $windowProcess -X 120 -Y 370
+$captures += Save-WindowScreenshot -Process $windowProcess -Name "player" -Directory $resolvedOutputDir
+
+Invoke-RelativeClick -Process $windowProcess -X 130 -Y 120
+Invoke-RelativeClick -Process $windowProcess -X 120 -Y 450
+Invoke-RelativeClick -Process $windowProcess -X 410 -Y 450
 $captures += Save-WindowScreenshot -Process $windowProcess -Name "settings-cloud" -Directory $resolvedOutputDir
 
 Assert-CapturesAreDistinct -Paths $captures

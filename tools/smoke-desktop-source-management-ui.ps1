@@ -361,7 +361,9 @@ $initialStore = @{
     cloudDrivePassword = $null
     bangumiAccessToken = $null
 }
-$initialStore | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $storePath -Encoding UTF8
+$initialStoreJson = $initialStore | ConvertTo-Json -Depth 20
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+[System.IO.File]::WriteAllText($storePath, $initialStoreJson, $utf8NoBom)
 $previousStoreEnv = $env:MIRUPLAY_DESKTOP_STORE
 $env:MIRUPLAY_DESKTOP_STORE = $storePath
 $startedProcess = $null
@@ -448,11 +450,17 @@ try {
             $windowProcess.CloseMainWindow() | Out-Null
             Start-Sleep -Milliseconds 700
             if (-not $windowProcess.HasExited) {
-                Stop-Process -Id $windowProcess.Id -Force
+                $runningWindowProcess = Get-Process -Id $windowProcess.Id -ErrorAction SilentlyContinue
+                if ($runningWindowProcess) {
+                    Stop-Process -Id $windowProcess.Id -Force -ErrorAction SilentlyContinue
+                }
             }
         }
         if ($startedProcess -and -not $startedProcess.HasExited) {
-            Stop-Process -Id $startedProcess.Id -Force -ErrorAction SilentlyContinue
+            $runningStartedProcess = Get-Process -Id $startedProcess.Id -ErrorAction SilentlyContinue
+            if ($runningStartedProcess) {
+                Stop-Process -Id $startedProcess.Id -Force -ErrorAction SilentlyContinue
+            }
         }
     }
 }

@@ -18,6 +18,7 @@ if ([string]::IsNullOrWhiteSpace($AppScript)) {
 if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
     $OutputRoot = Join-Path $scriptRoot "..\build\desktop-bangumi-metadata-ui"
 }
+$bangumiFixtureTitle = ([char]0x846C) + ([char]0x9001) + ([char]0x7684) + ([char]0x8299) + ([char]0x8389) + ([char]0x83B2)
 
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName System.Windows.Forms
@@ -244,7 +245,7 @@ function Write-InitialStore {
             @{
                 sourceId = 1
                 path = $EpisodePath
-                animeName = "葬送的芙莉莲"
+                animeName = $bangumiFixtureTitle
                 episodeTitle = "Fixture Metadata Episode"
                 plot = "Fixture plot for Bangumi metadata GUI smoke."
                 seasonNumber = 1
@@ -325,7 +326,7 @@ try {
     $state = Wait-StoreState -Path $storePath -Description "metadata still clear after search" -Predicate {
         param($state)
         $entry = @($state.index | Where-Object { -not $_.isDirectory })[0]
-        $entry.metadataId -eq $null -and $entry.animeName -eq "葬送的芙莉莲"
+        $entry.metadataId -eq $null -and $entry.animeName -eq $bangumiFixtureTitle
     }
     Save-WindowScreenshot -Process $windowProcess -Path $searchScreenshotPath
 
@@ -338,7 +339,7 @@ try {
         $entry = @($state.index | Where-Object { -not $_.isDirectory })[0]
         $entry.metadataSource -eq "BANGUMI" -and
             $entry.metadataId -eq "400602" -and
-            $entry.metadataTitle -eq "葬送的芙莉莲"
+            $entry.metadataTitle -eq $bangumiFixtureTitle
     } -TimeoutSeconds 20
     Save-WindowScreenshot -Process $windowProcess -Path $appliedScreenshotPath
 

@@ -394,7 +394,7 @@ try {
     $windowProcess = Wait-MiruPlayWindow
 
     Invoke-RelativeClick -Process $windowProcess -X 1170 -Y 109
-    Invoke-RelativeClick -Process $windowProcess -X 465 -Y 292
+    Invoke-RelativeClick -Process $windowProcess -X 465 -Y 360
     Save-WindowScreenshot -Process $windowProcess -Path $sourceScreenshotPath
 
     Send-DesktopKey -Process $windowProcess -Key "{DOWN}"
