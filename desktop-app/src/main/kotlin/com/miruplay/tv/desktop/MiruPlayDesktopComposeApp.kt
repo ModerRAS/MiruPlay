@@ -172,6 +172,7 @@ import com.miruplay.tv.repository.syncObservedPlaybackProgress
 import com.miruplay.tv.repository.upsertById
 import com.miruplay.tv.repository.updatedSelectionAfterReplacingByMediaKeys
 import com.miruplay.tv.repository.webDavUrlRequiredStatus
+import com.miruplay.tv.repository.withRuntimeStatus
 import com.miruplay.tv.repository.replaceByMediaKey
 import com.miruplay.tv.repository.replaceByMediaKeys
 import com.miruplay.tv.scraper.desktop.DesktopBangumiScraper
@@ -837,6 +838,15 @@ internal fun MiruPlayDesktopComposeApp(
             .collect {
                 logUploadAutoScheduler.syncWithConfig(repositories.logUpload.getConfig())
             }
+    }
+
+    LaunchedEffect(repositories) {
+        repositories.logUpload.status.collect { status ->
+            logUploadSnapshot = logUploadSnapshot.withRuntimeStatus(
+                status = status,
+                tokenConfigured = status.tokenConfigured || repositories.logUpload.isTokenConfigured(),
+            )
+        }
     }
 
     LaunchedEffect(repositories, cloudRssScheduler) {
