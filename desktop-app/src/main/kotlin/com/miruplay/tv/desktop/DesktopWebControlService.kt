@@ -61,7 +61,6 @@ import com.miruplay.tv.webcontrol.webControlMediaSourceIdFromEpisodeId
 import com.miruplay.tv.webcontrol.webControlPlaybackStatus
 import com.miruplay.tv.webcontrol.WebControlPlaybackCommandTarget
 import com.miruplay.tv.webcontrol.webControlPlaybackCommandTarget
-import java.io.File
 
 internal class DesktopWebControlService(
     private val repositories: DesktopRepositories,
@@ -107,16 +106,6 @@ internal class DesktopWebControlService(
         repositories.mediaSources.listWebControlSources()
 
     override suspend fun browseLocalDirectories(path: String): LocalDirectoryDto {
-        if (path.isBlank()) {
-            return LocalDirectoryBrowser.Listing(
-                path = "",
-                displayPath = "设备存储",
-                parentPath = null,
-                entries = File.listRoots()
-                    .filter { it.exists() && it.isDirectory && it.canRead() }
-                    .map { LocalDirectoryBrowser.Entry(it.absolutePath, it.absolutePath, it.canRead()) },
-            ).toWebControlDirectoryDto()
-        }
         val listing = LocalDirectoryBrowser.browse(path)
         return listing.toWebControlDirectoryDto()
     }
