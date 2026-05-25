@@ -98,8 +98,32 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("Android TV 端暂不提供日志上报配置。", settingsAndroidTvLogUploadStatusMessage())
         assertEquals("请在桌面端设置页或 Web 控制端配置 OpenObserve。", settingsAndroidTvLogUploadHintMessage())
         assertEquals(
-            "日志上报配置在 Android TV 设置页生效；本地日志会按 OpenObserve JSON 配置写入上报队列。",
+            "可在当前页面或 Web 控制端配置 OpenObserve JSON；本地日志会按同一配置写入上报队列。",
             settingsDesktopLogUploadStatusMessage(),
+        )
+        assertEquals("自动上报", settingsLogUploadAutoToggleLabel())
+        assertEquals("OpenObserve API 地址", settingsLogUploadEndpointFieldLabel())
+        assertEquals("Stream", settingsLogUploadStreamFieldLabel())
+        assertEquals("OpenObserve Token", settingsLogUploadTokenFieldLabel())
+        assertEquals("保存配置", settingsLogUploadSaveConfigActionLabel())
+        assertEquals("立即上报", settingsLogUploadRunNowActionLabel())
+        assertEquals("待上报 0 条", settingsLogUploadPendingStatus(-8))
+        assertEquals("待命", settingsLogUploadUploadStateStatus(false))
+        assertEquals("上报中", settingsLogUploadUploadStateStatus(true))
+        assertEquals("Token 已保存", settingsLogUploadTokenConfiguredStatus(true))
+        assertEquals("未保存 Token", settingsLogUploadTokenConfiguredStatus(false))
+        assertEquals("尚未上报", settingsLogUploadLastUploadStatus(0L))
+        assertEquals("暂无上报结果", settingsLogUploadResultStatus("  "))
+        assertEquals("HTTP 200", settingsLogUploadResultStatus("  HTTP 200  "))
+        assertEquals(
+            "可在当前页面或 Web 控制端配置 OpenObserve JSON；本地日志会按同一配置写入上报队列。 · 待上报 12 条 · 待命 · Token 已保存 · 尚未上报 · 已上报 12 条日志",
+            settingsDesktopLogUploadStatusMessage(
+                pendingCount = 12,
+                isUploading = false,
+                tokenConfigured = true,
+                lastUploadAt = 0L,
+                lastUploadStatus = "已上报 12 条日志",
+            ),
         )
         assertEquals(
             "WebUI 当前未启用；Windows 已复用同一套访问令牌和地址生成规则。",
