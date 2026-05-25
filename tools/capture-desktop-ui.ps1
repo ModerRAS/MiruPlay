@@ -76,55 +76,7 @@ function Invoke-RelativeClick {
 
 function Assert-ScreenshotHasVisualQuality {
     param([string]$Path)
-    $file = Get-Item -LiteralPath $Path
-    if ($file.Length -lt 20000) {
-        throw "Screenshot file is unexpectedly small: $Path ($($file.Length) bytes)"
-    }
-
-    $bitmap = [System.Drawing.Bitmap]::FromFile($Path)
-    try {
-        $colors = New-Object 'System.Collections.Generic.HashSet[int]'
-        $sampleCount = 0
-        $darkPixels = 0
-        $redAccentPixels = 0
-        $brightTextPixels = 0
-        $xStep = [Math]::Max(1, [int]($bitmap.Width / 96))
-        $yStep = [Math]::Max(1, [int]($bitmap.Height / 64))
-        for ($x = 0; $x -lt $bitmap.Width; $x += $xStep) {
-            for ($y = 0; $y -lt $bitmap.Height; $y += $yStep) {
-                $pixel = $bitmap.GetPixel($x, $y)
-                [void]$colors.Add($pixel.ToArgb())
-                $sampleCount++
-                $r = [int]$pixel.R
-                $g = [int]$pixel.G
-                $b = [int]$pixel.B
-                if ($r -le 55 -and $g -le 75 -and $b -le 110) {
-                    $darkPixels++
-                }
-                if ($r -ge 150 -and $g -ge 35 -and $g -le 125 -and $b -ge 45 -and $b -le 155 -and ($r - $g) -ge 55) {
-                    $redAccentPixels++
-                }
-                if ($r -ge 140 -and $g -ge 140 -and $b -ge 140) {
-                    $brightTextPixels++
-                }
-            }
-        }
-        if ($colors.Count -lt 28) {
-            throw "Screenshot appears blank or nearly blank: $Path"
-        }
-        $darkRatio = $darkPixels / [double]$sampleCount
-        if ($darkRatio -lt 0.20) {
-            throw "Screenshot does not look like the dark TV theme: $Path (dark sample ratio $([Math]::Round($darkRatio, 3)))"
-        }
-        if ($redAccentPixels -lt 8) {
-            throw "Screenshot is missing the expected MiruPlay red accent: $Path"
-        }
-        if ($brightTextPixels -lt 8) {
-            throw "Screenshot has too little readable light text: $Path"
-        }
-    } finally {
-        $bitmap.Dispose()
-    }
+    Assert-DesktopSmokeScreenshotQuality -Path $Path -RequireDarkTheme $true
 }
 
 function Assert-CapturesAreDistinct {
