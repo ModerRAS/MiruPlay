@@ -20,7 +20,7 @@ import com.miruplay.tv.webcontrol.PlaybackCommandRequest
 import com.miruplay.tv.webcontrol.PlaybackStatusDto
 import com.miruplay.tv.webcontrol.executeWebControlPlaybackCommand
 import com.miruplay.tv.webcontrol.idleWebControlPlaybackStatus
-import com.miruplay.tv.webcontrol.shouldReturnIdlePlaybackStatus
+import com.miruplay.tv.webcontrol.playbackCommandKind
 import com.miruplay.tv.webcontrol.WebControlPlaybackCommandTarget
 import com.miruplay.tv.webcontrol.SharedWebControlEndpointService
 import com.miruplay.tv.webcontrol.webControlMediaSourceIdFromEpisodeId
@@ -150,6 +150,7 @@ internal suspend fun desktopWebControlPlaybackCommand(
     launchStatus: String = "",
 ): PlaybackStatusDto {
     val activePlayer = player ?: return idlePlaybackStatus()
+    val commandKind = request.playbackCommandKind()
     request.executeWebControlPlaybackCommand(
         desktopMpvWebControlPlaybackCommandTarget(
             player = activePlayer,
@@ -157,7 +158,7 @@ internal suspend fun desktopWebControlPlaybackCommand(
             stopPlayback = stopPlayback,
         )
     )
-    if (request.shouldReturnIdlePlaybackStatus()) {
+    if (commandKind == com.miruplay.tv.webcontrol.WebControlPlaybackCommandKind.STOP) {
         return idlePlaybackStatus()
     }
     return desktopWebControlPlaybackStatus(

@@ -2,9 +2,7 @@ package com.miruplay.tv.webcontrol
 
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class WebControlPlaybackCommandTest {
@@ -97,12 +95,6 @@ class WebControlPlaybackCommandTest {
             PlaybackCommandRequest(command = "speed", speed = 1.25f).playbackSpeed(),
             0.0f,
         )
-    }
-
-    @Test
-    fun `stop command requests idle status response`() {
-        assertTrue(PlaybackCommandRequest(command = "stop").shouldReturnIdlePlaybackStatus())
-        assertFalse(PlaybackCommandRequest(command = "pause").shouldReturnIdlePlaybackStatus())
     }
 
     @Test

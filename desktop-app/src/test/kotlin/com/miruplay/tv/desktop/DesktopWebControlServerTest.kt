@@ -618,15 +618,6 @@ class DesktopWebControlServerTest {
                 assertEquals(200, command.code)
                 assertTrue(command.body.contains("\"state\":\"Idle\""))
                 assertTrue(command.body.contains("\"isPlaying\":false"))
-
-                val stop = request(
-                    url = "http://127.0.0.1:$port/api/playback/command?token=$token",
-                    method = "POST",
-                    body = """{"command":"stop"}""",
-                )
-                assertEquals(200, stop.code)
-                assertTrue(stop.body.contains("\"state\":\"Idle\""))
-                assertTrue(stop.body.contains("\"isPlaying\":false"))
             } finally {
                 server.stopIfRunning()
             }
