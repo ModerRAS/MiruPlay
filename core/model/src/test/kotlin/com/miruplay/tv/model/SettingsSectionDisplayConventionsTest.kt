@@ -46,7 +46,19 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("同番合并", settingsScanMenuSummary(autoScanEnabled = false, mergeSameAnimeEnabled = true))
         assertEquals("定时关闭", settingsScanMenuSummary(autoScanEnabled = false, mergeSameAnimeEnabled = false))
         assertEquals("OpenObserve", settingsLogUploadMenuSummary())
-        assertEquals("在桌面端配置", settingsAndroidTvLogUploadMenuSummary())
+        assertEquals("未启用", settingsAndroidTvLogUploadMenuSummary())
+        assertEquals(
+            "自动上报",
+            settingsAndroidTvLogUploadMenuSummary(enabled = true, tokenConfigured = true, isUploading = false),
+        )
+        assertEquals(
+            "上报中",
+            settingsAndroidTvLogUploadMenuSummary(enabled = true, tokenConfigured = true, isUploading = true),
+        )
+        assertEquals(
+            "等待 Token",
+            settingsAndroidTvLogUploadMenuSummary(enabled = true, tokenConfigured = false, isUploading = false),
+        )
         assertEquals("Token 已设置", settingsMetadataTokenMenuSummary(hasToken = true))
         assertEquals("未设置", settingsMetadataTokenMenuSummary(hasToken = false))
         assertEquals("媒体库更新", settingsDesktopScanMenuSummary())
@@ -74,7 +86,7 @@ class SettingsSectionDisplayConventionsTest {
 
         val androidLogUploadInput = androidInput.copy(logUploadSummary = settingsAndroidTvLogUploadMenuSummary())
         assertEquals(
-            "在桌面端配置",
+            "未启用",
             MiruPlaySettingsSection.LOG_UPLOAD.settingsMenuSummary(androidLogUploadInput),
         )
     }
@@ -95,8 +107,14 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("保存 Token", settingsSaveTokenActionLabel())
         assertEquals("清除 Token", settingsClearTokenActionLabel())
         assertEquals("扫描入口保留在媒体库海报墙和 CloudDrive 同步流程中。", settingsDesktopScanStatusMessage())
-        assertEquals("Android TV 端暂不提供日志上报配置。", settingsAndroidTvLogUploadStatusMessage())
-        assertEquals("请在桌面端设置页或 Web 控制端配置 OpenObserve。", settingsAndroidTvLogUploadHintMessage())
+        assertEquals(
+            "可在当前页面配置 OpenObserve JSON；本地日志会按同一配置写入上报队列。",
+            settingsAndroidTvLogUploadStatusMessage(),
+        )
+        assertEquals(
+            "建议先保存配置，再保存 Token；开启自动上报后会定时上传待处理日志。",
+            settingsAndroidTvLogUploadHintMessage(),
+        )
         assertEquals(
             "可在当前页面或 Web 控制端配置 OpenObserve JSON；本地日志会按同一配置写入上报队列。",
             settingsDesktopLogUploadStatusMessage(),
@@ -256,7 +274,7 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("OpenObserve", logUploadTiles[0].label)
         assertEquals("JSON", logUploadTiles[0].value)
         assertEquals(
-            "API 地址、Stream 和访问令牌可在桌面设置页或 Web 控制端保存。",
+            "API 地址、Stream 和访问令牌可在设置页或 Web 控制端保存。",
             logUploadTiles[0].detail,
         )
     }

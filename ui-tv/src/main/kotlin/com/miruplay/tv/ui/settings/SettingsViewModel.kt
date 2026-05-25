@@ -34,7 +34,12 @@ import com.miruplay.tv.model.withAutomationFormValues
 import com.miruplay.tv.model.validateCloudDriveDirectoryPickerForm
 import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
+import com.miruplay.tv.repository.LogUploadActionCoordinator
+import com.miruplay.tv.repository.LogUploadAutoScheduler
+import com.miruplay.tv.repository.LogUploadRepository
 import com.miruplay.tv.repository.MediaSourceRepository
+import com.miruplay.tv.repository.OtlpLogUploadActionSnapshot
+import com.miruplay.tv.repository.OtlpLogUploadConfig
 import com.miruplay.tv.repository.WebControlAccessManager
 import com.miruplay.tv.sync.rss.CloudDriveRssAutomationEngine
 import com.miruplay.tv.sync.rss.CloudDriveRssScheduler
@@ -45,14 +50,18 @@ import com.miruplay.tv.sync.rss.loadingFor
 import com.miruplay.tv.sync.rss.prepareCloudDriveDirectoryBrowser
 import com.miruplay.tv.model.rssSubscriptionDeletedStatus
 import com.miruplay.tv.model.rssSubscriptionSavedStatus
+import com.miruplay.tv.model.settingsDesktopLogUploadStatusMessage
 import com.miruplay.tv.model.validateCloudDriveApiTokenForm
 import com.miruplay.tv.model.validateCloudDriveLoginForm
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.net.Inet4Address
 import java.net.NetworkInterface
@@ -67,10 +76,18 @@ class SettingsViewModel @Inject constructor(
     private val playbackPreferences: PlaybackPreferencesManager,
     private val webControlPreferences: WebControlAccessManager,
     private val cloudDriveRepository: CloudDriveAutomationRepository,
+    private val logUploadRepository: LogUploadRepository,
     private val cloudDriveClient: CloudDriveClient,
     private val cloudDriveEngine: CloudDriveRssAutomationEngine,
     private val cloudDriveScheduler: CloudDriveRssScheduler
 ) : ViewModel() {
+
+    private val logUploadActions = LogUploadActionCoordinator(logUploadRepository)
+    private val logUploadAutoScheduler = LogUploadAutoScheduler(
+        repository = logUploadRepository,
+        scope = viewModelScope,
+    )
+    private var logUploadConfigObserverJob: Job? = null
 
     private val _sources = MutableStateFlow<List<MediaSourceInfo>>(emptyList())
     val sources: StateFlow<List<MediaSourceInfo>> = _sources.asStateFlow()
@@ -133,10 +150,17 @@ class SettingsViewModel @Inject constructor(
     val localDirectoryBrowser: StateFlow<LocalDirectoryBrowserState> =
         _localDirectoryBrowser.asStateFlow()
 
+    private val _logUploadSnapshot = MutableStateFlow(OtlpLogUploadActionSnapshot())
+    val logUploadSnapshot: StateFlow<OtlpLogUploadActionSnapshot> = _logUploadSnapshot.asStateFlow()
+
+    private val _logUploadStatusMessage = MutableStateFlow(settingsDesktopLogUploadStatusMessage())
+    val logUploadStatusMessage: StateFlow<String> = _logUploadStatusMessage.asStateFlow()
+
     init {
         loadSources()
         refreshWebUiUrls()
         observeCloudDriveAutomation()
+        observeLogUploadAutomation()
     }
 
     fun loadSources() {
@@ -545,6 +569,63 @@ class SettingsViewModel @Inject constructor(
         _testResult.value = null
     }
 
+    fun setLogUploadEnabled(enabled: Boolean) {
+        _logUploadSnapshot.value = _logUploadSnapshot.value.copy(enabled = enabled)
+    }
+
+    fun setLogUploadEndpoint(endpoint: String) {
+        _logUploadSnapshot.value = _logUploadSnapshot.value.copy(endpoint = endpoint)
+    }
+
+    fun setLogUploadStreamName(streamName: String) {
+        _logUploadSnapshot.value = _logUploadSnapshot.value.copy(streamName = streamName)
+    }
+
+    fun saveLogUploadConfig() {
+        viewModelScope.launch {
+            val current = _logUploadSnapshot.value
+            val next = logUploadActions.saveConfig(
+                enabled = current.enabled,
+                endpoint = current.endpoint,
+                streamName = current.streamName,
+            )
+            applyLogUploadSnapshot(next)
+            logUploadAutoScheduler.syncWithConfig(
+                OtlpLogUploadConfig(
+                    enabled = next.enabled,
+                    endpoint = next.endpoint,
+                    streamName = next.streamName,
+                    lastUploadAt = next.lastUploadAt,
+                    lastUploadStatus = next.lastUploadStatus,
+                ),
+            )
+        }
+    }
+
+    fun saveLogUploadToken(token: String) {
+        viewModelScope.launch {
+            val trimmed = token.trim()
+            if (trimmed.isEmpty()) return@launch
+            applyLogUploadSnapshot(logUploadActions.saveToken(trimmed))
+        }
+    }
+
+    fun clearLogUploadToken() {
+        viewModelScope.launch {
+            applyLogUploadSnapshot(logUploadActions.clearToken())
+        }
+    }
+
+    fun runLogUploadNow(tokenInput: String) {
+        viewModelScope.launch {
+            val trimmed = tokenInput.trim()
+            if (trimmed.isNotEmpty()) {
+                applyLogUploadSnapshot(logUploadActions.saveToken(trimmed))
+            }
+            applyLogUploadSnapshot(logUploadActions.runNow())
+        }
+    }
+
     private fun observeCloudDriveAutomation() {
         viewModelScope.launch {
             cloudDriveRepository.observeConfig().collectLatest { config ->
@@ -556,6 +637,42 @@ class SettingsViewModel @Inject constructor(
                 _rssSubscriptions.value = subscriptions
             }
         }
+    }
+
+    private fun observeLogUploadAutomation() {
+        viewModelScope.launch {
+            applyLogUploadSnapshot(logUploadActions.current())
+            logUploadAutoScheduler.syncWithConfig(
+                OtlpLogUploadConfig(
+                    enabled = _logUploadSnapshot.value.enabled,
+                    endpoint = _logUploadSnapshot.value.endpoint,
+                    streamName = _logUploadSnapshot.value.streamName,
+                    lastUploadAt = _logUploadSnapshot.value.lastUploadAt,
+                    lastUploadStatus = _logUploadSnapshot.value.lastUploadStatus,
+                ),
+            )
+        }
+        logUploadConfigObserverJob?.cancel()
+        logUploadConfigObserverJob = viewModelScope.launch {
+            logUploadRepository.observeConfig()
+                .map { it.enabled }
+                .distinctUntilChanged()
+                .collect {
+                    logUploadAutoScheduler.syncWithConfig(logUploadRepository.getConfig())
+                    applyLogUploadSnapshot(logUploadActions.current())
+                }
+        }
+    }
+
+    private fun applyLogUploadSnapshot(snapshot: OtlpLogUploadActionSnapshot) {
+        _logUploadSnapshot.value = snapshot
+        _logUploadStatusMessage.value = settingsDesktopLogUploadStatusMessage(
+            pendingCount = snapshot.pendingCount,
+            isUploading = snapshot.isUploading,
+            tokenConfigured = snapshot.tokenConfigured,
+            lastUploadAt = snapshot.lastUploadAt,
+            lastUploadStatus = snapshot.lastUploadStatus,
+        )
     }
 
     private fun findLocalIps(): List<String> {
@@ -573,6 +690,12 @@ class SettingsViewModel @Inject constructor(
 
     companion object {
         private const val MILLIS_PER_HOUR = 60 * 60 * 1000L
+    }
+
+    override fun onCleared() {
+        logUploadConfigObserverJob?.cancel()
+        logUploadAutoScheduler.stop()
+        super.onCleared()
     }
 }
 

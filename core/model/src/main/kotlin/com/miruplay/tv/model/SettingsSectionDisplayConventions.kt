@@ -109,8 +109,17 @@ fun settingsScanMenuSummary(
 fun settingsLogUploadMenuSummary(): String =
     "OpenObserve"
 
-fun settingsAndroidTvLogUploadMenuSummary(): String =
-    "在桌面端配置"
+fun settingsAndroidTvLogUploadMenuSummary(
+    enabled: Boolean = false,
+    tokenConfigured: Boolean = false,
+    isUploading: Boolean = false,
+): String =
+    when {
+        enabled && isUploading -> "上报中"
+        enabled && tokenConfigured -> "自动上报"
+        enabled -> "等待 Token"
+        else -> "未启用"
+    }
 
 fun settingsMetadataTokenMenuSummary(hasToken: Boolean): String =
     if (hasToken) "Token 已设置" else "未设置"
@@ -192,10 +201,10 @@ fun settingsDesktopScanStatusMessage(): String =
     "扫描入口保留在媒体库海报墙和 CloudDrive 同步流程中。"
 
 fun settingsAndroidTvLogUploadStatusMessage(): String =
-    "Android TV 端暂不提供日志上报配置。"
+    "可在当前页面配置 OpenObserve JSON；本地日志会按同一配置写入上报队列。"
 
 fun settingsAndroidTvLogUploadHintMessage(): String =
-    "请在桌面端设置页或 Web 控制端配置 OpenObserve。"
+    "建议先保存配置，再保存 Token；开启自动上报后会定时上传待处理日志。"
 
 fun settingsDesktopLogUploadStatusMessage(): String =
     "可在当前页面或 Web 控制端配置 OpenObserve JSON；本地日志会按同一配置写入上报队列。"
@@ -661,7 +670,7 @@ fun logUploadSettingsTiles(): List<SettingsSummaryTile> =
         SettingsSummaryTile(
             label = "OpenObserve",
             value = "JSON",
-            detail = "API 地址、Stream 和访问令牌可在桌面设置页或 Web 控制端保存。",
+            detail = "API 地址、Stream 和访问令牌可在设置页或 Web 控制端保存。",
         ),
         SettingsSummaryTile(
             label = "本地日志",
