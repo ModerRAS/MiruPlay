@@ -5,9 +5,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -21,27 +18,31 @@ class CloudDriveRssScheduler @Inject constructor(
         if (scope != null) return
         val newScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         scope = newScope
-        newScope.launch {
-            while (isActive) {
-                engine.runIfDue()
-                    .onSuccess { summary ->
-                        if (summary != null) {
-                            Log.d(
-                                "CloudDriveRssScheduler",
-                                "RSS run complete: submitted=${summary.submitted}, organized=${summary.organized}"
-                            )
-                        }
+        newScope.launchCloudDriveRssSchedulerLoop(
+            dueRunner = CloudDriveRssDueRunner { engine.runIfDue() },
+            checkIntervalMillis = CHECK_INTERVAL_MILLIS,
+        ) { _, result ->
+            result
+                .onSuccess { summary ->
+                    if (summary != null) {
+                        Log.d(
+                            "CloudDriveRssScheduler",
+                            "RSS run complete: submitted=${summary.submitted}, organized=${summary.organized}"
+                        )
                     }
-                    .onError { error ->
-                        Log.w("CloudDriveRssScheduler", "RSS run failed: $error")
-                    }
-                delay(5 * 60_000L)
-            }
+                }
+                .onError { error ->
+                    Log.w("CloudDriveRssScheduler", "RSS run failed: $error")
+                }
         }
     }
 
     fun stop() {
         scope?.cancel()
         scope = null
+    }
+
+    companion object {
+        private const val CHECK_INTERVAL_MILLIS = 5 * 60_000L
     }
 }
