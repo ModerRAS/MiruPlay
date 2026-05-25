@@ -6,16 +6,14 @@ import com.miruplay.tv.core.common.logging.MiruLogSink
 import com.miruplay.tv.repository.LogUploadRepository
 import com.miruplay.tv.repository.LogUploadStatus
 import com.miruplay.tv.repository.OtlpLogUploadConfig
+import com.miruplay.tv.repository.OpenObserveLogConventions
+import com.miruplay.tv.repository.OpenObservePayloadContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.buildJsonArray
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -152,8 +150,13 @@ internal class FileBackedLogUploadRepository(
         records: List<MiruLogRecord>,
     ): DesktopOtlpUploadResult {
         if (records.isEmpty()) return DesktopOtlpUploadResult.Success(0)
-        val endpoint = DesktopOpenObserveLogEndpoint.normalize(config.endpoint, config.streamName)
-        val payload = json.encodeToString(DesktopOpenObserveJsonPayloadBuilder.build(records))
+        val endpoint = OpenObserveLogConventions.normalizeEndpoint(config.endpoint, config.streamName)
+        val payload = json.encodeToString(
+            OpenObserveLogConventions.buildJsonPayload(
+                records = records,
+                context = WINDOWS_PAYLOAD_CONTEXT,
+            )
+        )
         val request = HttpRequest.newBuilder(URI(endpoint))
             .header("Authorization", authorizationHeader(token))
             .header("Content-Type", "application/json")
@@ -240,90 +243,16 @@ internal class FileBackedLogUploadRepository(
         }
         private const val MAX_UPLOAD_BATCH = 200
         private const val DEFAULT_STREAM_NAME = "miruplay"
+        private val WINDOWS_PAYLOAD_CONTEXT = OpenObservePayloadContext(
+            serviceName = "miruplay-windows",
+            deploymentEnvironment = "windows",
+        )
     }
 }
 
 private sealed class DesktopOtlpUploadResult {
     data class Success(val uploadedCount: Int) : DesktopOtlpUploadResult()
     data class Failed(val message: String) : DesktopOtlpUploadResult()
-}
-
-private object DesktopOpenObserveJsonPayloadBuilder {
-    fun build(records: List<MiruLogRecord>): JsonArray = buildJsonArray {
-        records.forEach { record ->
-            add(
-                buildJsonObject {
-                    put("_timestamp", record.timestampMs)
-                    put("level", record.level.severityText.lowercase())
-                    put("severity", record.level.severityText)
-                    put("tag", record.tag)
-                    put("log", record.message)
-                    put("message", record.message)
-                    put("job", "miruplay")
-                    put("service_name", "miruplay-windows")
-                    put("service_namespace", "miruplay")
-                    put("deployment_environment", "windows")
-                    put("record_id", record.id)
-                    record.throwableClass?.let { put("exception_type", it) }
-                    record.throwableMessage?.let { put("exception_message", it) }
-                    record.stackTrace?.let { put("exception_stacktrace", it) }
-                    record.attributes.forEach { (key, value) ->
-                        put(safeFieldName(key), value)
-                    }
-                },
-            )
-        }
-    }
-
-    private fun safeFieldName(key: String): String =
-        key.trim()
-            .replace(Regex("""[^A-Za-z0-9_]+"""), "_")
-            .trim('_')
-            .ifBlank { "attribute" }
-}
-
-private object DesktopOpenObserveLogEndpoint {
-    fun normalize(endpoint: String, streamName: String): String {
-        val raw = endpoint.trim().trimEnd('/')
-        require(raw.isNotBlank()) { "OpenObserve endpoint is blank" }
-        val trimmed = if (raw.startsWith("http://") || raw.startsWith("https://")) raw else "http://$raw"
-        val uri = URI(trimmed)
-        val path = uri.path.orEmpty().trimEnd('/')
-        if (path.endsWith("/_json")) {
-            return URI(uri.scheme, uri.authority, path, null, null).toString()
-        }
-
-        val safeStream = streamName.trim().ifBlank { DEFAULT_STREAM_NAME }
-        val jsonStreamPath = when {
-            path.isBlank() -> "/api/default/$safeStream"
-            path == "/api" -> "/api/default/$safeStream"
-            path.endsWith("/v1/logs") -> appendStreamIfNeeded(path.removeSuffix("/v1/logs"), safeStream)
-            path.endsWith("/v1/log") -> appendStreamIfNeeded(path.removeSuffix("/v1/log"), safeStream)
-            path.endsWith("/v1") -> appendStreamIfNeeded(path.removeSuffix("/v1"), safeStream)
-            path.isOpenObserveStreamPath() -> path
-            path.startsWith("/api/") -> "$path/$safeStream"
-            else -> "$path/api/default/$safeStream"
-        }.trimEnd('/').ifBlank { "/api/default" }
-
-        val normalizedPath = "$jsonStreamPath/_json"
-        return URI(uri.scheme, uri.authority, normalizedPath, null, null).toString()
-    }
-
-    private fun appendStreamIfNeeded(path: String, streamName: String): String {
-        val normalized = path.trimEnd('/')
-        return when {
-            normalized.isBlank() -> "/api/default/$streamName"
-            normalized.isOpenObserveStreamPath() -> normalized
-            else -> "$normalized/$streamName"
-        }
-    }
-
-    private fun String.isOpenObserveStreamPath(): Boolean {
-        val segments = trim('/').split('/').filter { it.isNotBlank() }
-        return segments.size == 3 && segments.firstOrNull() == "api"
-    }
-
-    private const val DEFAULT_STREAM_NAME = "miruplay"
 }
 
 private class DesktopLocalLogQueue(
