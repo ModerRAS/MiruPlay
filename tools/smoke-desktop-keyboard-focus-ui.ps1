@@ -67,7 +67,7 @@ function Resolve-FullPath {
 function Get-MiruPlayWindowProcess {
     Get-Process |
         Where-Object {
-            ($_.MainWindowTitle -like "*MiruPlay Desktop*" -or ($_.ProcessName -eq "java" -and $_.MainWindowTitle -like "*MiruPlay*")) -and
+            ($_.MainWindowTitle -like "*MiruPlay Desktop*" -or $_.MainWindowTitle -like "*MiruPlay 桌面版*" -or ($_.ProcessName -eq "java" -and $_.MainWindowTitle -like "*MiruPlay*")) -and
             $_.MainWindowHandle -ne 0
         } |
         Select-Object -First 1
