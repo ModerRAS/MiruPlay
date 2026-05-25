@@ -38,9 +38,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.miruplay.tv.design.MiruPlayFocusAxis
+import com.miruplay.tv.design.MiruPlayFocusEdge
+import com.miruplay.tv.design.MiruPlayFocusMove
 import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.design.MiruPlayUiMetrics
 import com.miruplay.tv.design.focusIndexAfter
+import com.miruplay.tv.design.focusMoveAfter
 import com.miruplay.tv.design.focusTargetAfter
 import com.miruplay.tv.design.horizontalNavigationDelta
 import com.miruplay.tv.design.splitColumnFocusIndexAfter
@@ -787,16 +790,27 @@ internal fun moveDetailEpisodeFocusTarget(
     activeSeasonIndex: Int = 0,
 ): DetailEpisodeFocusTarget? {
     if (itemCount <= 0) return null
-    return focusIndexAfter(
+    return when (val move = focusMoveAfter(
         currentIndex = currentIndex,
         delta = delta,
         itemCount = itemCount,
-    )?.let(DetailEpisodeFocusTarget::Row) ?: when {
-        delta < 0 && seasonCount > 1 ->
-            DetailEpisodeFocusTarget.Season(activeSeasonIndex.coerceIn(0, seasonCount - 1))
-        delta < 0 -> DetailEpisodeFocusTarget.PreviousPanel
-        delta > 0 -> DetailEpisodeFocusTarget.NextPanel
-        else -> null
+    )) {
+        is MiruPlayFocusMove.Index -> DetailEpisodeFocusTarget.Row(move.index)
+        is MiruPlayFocusMove.Edge -> when (move.edge) {
+            MiruPlayFocusEdge.Before -> if (seasonCount > 1) {
+                DetailEpisodeFocusTarget.Season(activeSeasonIndex.coerceIn(0, seasonCount - 1))
+            } else {
+                DetailEpisodeFocusTarget.PreviousPanel
+            }
+            MiruPlayFocusEdge.After -> DetailEpisodeFocusTarget.NextPanel
+        }
+        null -> when {
+            delta < 0 && seasonCount > 1 ->
+                DetailEpisodeFocusTarget.Season(activeSeasonIndex.coerceIn(0, seasonCount - 1))
+            delta < 0 -> DetailEpisodeFocusTarget.PreviousPanel
+            delta > 0 -> DetailEpisodeFocusTarget.NextPanel
+            else -> null
+        }
     }
 }
 

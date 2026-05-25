@@ -241,7 +241,10 @@ action-grid movement and match-list vertical movement now also reuse
 `gridFocusIndexAfter`/`focusIndexAfter`, with only match-list exits and empty
 states staying desktop-local. Details media-detail two-column page movement now
 uses shared `splitColumnFocusIndexAfter` and `splitColumnSecondColumnStart`,
-with only the desktop PreviousPanel exit staying local.
+with only the desktop PreviousPanel exit staying local. Details episode rows,
+CloudDrive directory rows, and Cloud/RSS subscription rows now share
+`focusMoveAfter` edge-aware index movement while mapping before/after edges to
+their desktop-specific season/action/panel targets locally.
 Verified with
 `:ui-design:test :ui-tv:test :desktop-app:test -PbundleMpvRuntime=false`
 and
@@ -261,7 +264,10 @@ in `b-254` with 249 tests and the Android/desktop compile/separation gate in
 compile/separation gate in `b-258`. The split-column Details extraction passed
 focused `DesktopDetailHeroTest` plus `:ui-design:test` in `b-259`, broad
 `:ui-design:test :desktop-app:test -PbundleMpvRuntime=false` in `b-260`, and
-the Android/desktop compile/separation gate in `b-261`.
+the Android/desktop compile/separation gate in `b-261`. The edge-aware row
+traversal pass passed focused Details/Settings plus `:ui-design:test` in
+`b-263`, broad `:ui-design:test :desktop-app:test -PbundleMpvRuntime=false` in
+`b-264`, and the Android/desktop compile/separation gate in `b-265`.
 
 ## Work Plan
 

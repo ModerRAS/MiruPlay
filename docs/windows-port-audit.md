@@ -468,7 +468,10 @@ match-list vertical movement now also delegate their regular grid/list steps to
 `gridFocusIndexAfter`/`focusIndexAfter`, leaving only match-list exits and empty
 states in the desktop panel. Details media-detail two-column page movement now
 uses shared `splitColumnFocusIndexAfter` and `splitColumnSecondColumnStart`,
-leaving only the desktop PreviousPanel exit local. Verified with
+leaving only the desktop PreviousPanel exit local. Details episode rows,
+CloudDrive directory rows, and Cloud/RSS subscription rows now share
+`focusMoveAfter` edge-aware index movement, with each desktop panel mapping the
+before/after edges to its own season/action/panel target locally. Verified with
 `:ui-design:test :ui-tv:test :desktop-app:test -PbundleMpvRuntime=false`
 and
 `checkDesktopPresenterSeparation checkDesktopComposeOnly :ui-tv:compileDebugKotlin :app:assembleDebug -PbundleMpvRuntime=false`
@@ -493,7 +496,10 @@ traversal reuse pass passed focused `DesktopBangumiNavigationTest` in build
 split-column Details extraction passed focused `DesktopDetailHeroTest` plus
 `:ui-design:test` in build `b-259`, broad `:ui-design:test :desktop-app:test
 -PbundleMpvRuntime=false` in build `b-260`, and the Android/desktop
-compile/separation gate in build `b-261`.
+compile/separation gate in build `b-261`. The edge-aware row traversal pass
+passed focused Details/Settings plus `:ui-design:test` in build `b-263`, broad
+`:ui-design:test :desktop-app:test -PbundleMpvRuntime=false` in build `b-264`,
+and the Android/desktop compile/separation gate in build `b-265`.
 
 ## Latest Verification Commands
 

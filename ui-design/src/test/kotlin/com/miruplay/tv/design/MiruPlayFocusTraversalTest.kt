@@ -127,6 +127,58 @@ class MiruPlayFocusTraversalTest {
     }
 
     @Test
+    fun `edge-aware index traversal reports before and after list edges`() {
+        assertEquals(
+            MiruPlayFocusMove.Edge(MiruPlayFocusEdge.Before),
+            focusMoveAfter(
+                currentIndex = 0,
+                delta = -1,
+                itemCount = 3,
+            ),
+        )
+        assertEquals(
+            MiruPlayFocusMove.Index(1),
+            focusMoveAfter(
+                currentIndex = 0,
+                intent = MiruPlayInputIntent.DirectionDown,
+                axis = MiruPlayFocusAxis.Vertical,
+                itemCount = 3,
+            ),
+        )
+        assertEquals(
+            MiruPlayFocusMove.Edge(MiruPlayFocusEdge.After),
+            focusMoveAfter(
+                currentIndex = 2,
+                intent = MiruPlayInputIntent.DirectionDown,
+                axis = MiruPlayFocusAxis.Vertical,
+                itemCount = 3,
+            ),
+        )
+        assertNull(
+            focusMoveAfter(
+                currentIndex = 0,
+                delta = 0,
+                itemCount = 3,
+            ),
+        )
+        assertNull(
+            focusMoveAfter(
+                currentIndex = -1,
+                delta = 1,
+                itemCount = 3,
+            ),
+        )
+        assertNull(
+            focusMoveAfter(
+                currentIndex = 0,
+                intent = MiruPlayInputIntent.Activate,
+                axis = MiruPlayFocusAxis.Vertical,
+                itemCount = 3,
+            ),
+        )
+    }
+
+    @Test
     fun `first enabled focus index respects disabled leading actions`() {
         assertEquals(2, firstEnabledFocusIndex(itemCount = 4, enabledItems = listOf(false, false, true, true)))
         assertEquals(0, firstEnabledFocusIndex(itemCount = 3))

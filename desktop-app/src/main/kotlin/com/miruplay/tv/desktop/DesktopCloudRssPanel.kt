@@ -42,10 +42,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.miruplay.tv.design.MiruPlayFocusAxis
+import com.miruplay.tv.design.MiruPlayFocusEdge
+import com.miruplay.tv.design.MiruPlayFocusMove
 import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.design.MiruPlayUiMetrics
 import com.miruplay.tv.design.firstEnabledFocusIndex
 import com.miruplay.tv.design.focusIndexAfter
+import com.miruplay.tv.design.focusMoveAfter
 import com.miruplay.tv.design.focusTargetAfter
 import com.miruplay.tv.design.horizontalNavigationDelta
 import com.miruplay.tv.design.nextEnabledFocusIndex
@@ -1553,28 +1556,26 @@ internal fun cloudRssSubscriptionFocusTarget(
     intent: MiruPlayInputIntent,
 ): CloudRssFocusTarget? {
     if (itemCount <= 0) return null
-    return when (intent.verticalNavigationDelta()) {
-        -1 -> focusIndexAfter(
-            currentIndex = currentIndex,
-            intent = intent,
-            axis = MiruPlayFocusAxis.Vertical,
-            itemCount = itemCount,
-        )?.let(CloudRssFocusTarget::Subscription)
-            ?: CloudRssFocusTarget.Action(CloudRssAction.SaveRss)
-        1 -> {
-            if (currentIndex < 0) {
+    return when (val move = focusMoveAfter(
+        currentIndex = currentIndex,
+        intent = intent,
+        axis = MiruPlayFocusAxis.Vertical,
+        itemCount = itemCount,
+    )) {
+        is MiruPlayFocusMove.Index -> CloudRssFocusTarget.Subscription(move.index)
+        is MiruPlayFocusMove.Edge -> when (move.edge) {
+            MiruPlayFocusEdge.Before -> CloudRssFocusTarget.Action(CloudRssAction.SaveRss)
+            MiruPlayFocusEdge.After -> CloudRssFocusTarget.Action(CloudRssAction.StartScheduler)
+        }
+        null -> when (intent.verticalNavigationDelta()) {
+            -1 -> CloudRssFocusTarget.Action(CloudRssAction.SaveRss)
+            1 -> if (currentIndex < 0) {
                 CloudRssFocusTarget.Subscription(0)
             } else {
-                focusIndexAfter(
-                    currentIndex = currentIndex,
-                    intent = intent,
-                    axis = MiruPlayFocusAxis.Vertical,
-                    itemCount = itemCount,
-                )?.let(CloudRssFocusTarget::Subscription)
-                    ?: CloudRssFocusTarget.Action(CloudRssAction.StartScheduler)
+                CloudRssFocusTarget.Action(CloudRssAction.StartScheduler)
             }
+            else -> null
         }
-        else -> null
     }
 }
 
@@ -1663,13 +1664,18 @@ internal fun cloudDriveDirectoryRowFocusTarget(
     intent: MiruPlayInputIntent,
 ): CloudDriveDirectoryFocusTarget? {
     if (itemCount <= 0) return null
-    return when (intent.verticalNavigationDelta()) {
-        -1 -> focusIndexAfter(currentIndex = currentIndex, delta = -1, itemCount = itemCount)
-            ?.let(CloudDriveDirectoryFocusTarget::Row)
-            ?: CloudDriveDirectoryFocusTarget.Action(CloudDriveDirectoryAction.UseCurrent)
-        1 -> focusIndexAfter(currentIndex = currentIndex, delta = 1, itemCount = itemCount)
-            ?.let(CloudDriveDirectoryFocusTarget::Row)
-        else -> return null
+    return when (val move = focusMoveAfter(
+        currentIndex = currentIndex,
+        intent = intent,
+        axis = MiruPlayFocusAxis.Vertical,
+        itemCount = itemCount,
+    )) {
+        is MiruPlayFocusMove.Index -> CloudDriveDirectoryFocusTarget.Row(move.index)
+        is MiruPlayFocusMove.Edge -> when (move.edge) {
+            MiruPlayFocusEdge.Before -> CloudDriveDirectoryFocusTarget.Action(CloudDriveDirectoryAction.UseCurrent)
+            MiruPlayFocusEdge.After -> null
+        }
+        null -> null
     }
 }
 

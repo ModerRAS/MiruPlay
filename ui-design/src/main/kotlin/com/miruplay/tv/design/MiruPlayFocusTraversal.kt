@@ -6,6 +6,16 @@ enum class MiruPlayFocusAxis {
     Linear,
 }
 
+enum class MiruPlayFocusEdge {
+    Before,
+    After,
+}
+
+sealed interface MiruPlayFocusMove {
+    data class Index(val index: Int) : MiruPlayFocusMove
+    data class Edge(val edge: MiruPlayFocusEdge) : MiruPlayFocusMove
+}
+
 fun MiruPlayInputIntent.navigationDelta(axis: MiruPlayFocusAxis): Int? =
     when (axis) {
         MiruPlayFocusAxis.Horizontal -> horizontalNavigationDelta()
@@ -48,6 +58,34 @@ fun focusIndexAfter(
 ): Int? =
     intent.navigationDelta(axis)?.let { delta ->
         focusIndexAfter(
+            currentIndex = currentIndex,
+            delta = delta,
+            itemCount = itemCount,
+        )
+    }
+
+fun focusMoveAfter(
+    currentIndex: Int,
+    delta: Int,
+    itemCount: Int,
+): MiruPlayFocusMove? {
+    if (itemCount <= 0 || delta == 0 || currentIndex !in 0 until itemCount) return null
+    val targetIndex = currentIndex + delta
+    return when {
+        targetIndex < 0 -> MiruPlayFocusMove.Edge(MiruPlayFocusEdge.Before)
+        targetIndex >= itemCount -> MiruPlayFocusMove.Edge(MiruPlayFocusEdge.After)
+        else -> MiruPlayFocusMove.Index(targetIndex)
+    }
+}
+
+fun focusMoveAfter(
+    currentIndex: Int,
+    intent: MiruPlayInputIntent,
+    axis: MiruPlayFocusAxis,
+    itemCount: Int,
+): MiruPlayFocusMove? =
+    intent.navigationDelta(axis)?.let { delta ->
+        focusMoveAfter(
             currentIndex = currentIndex,
             delta = delta,
             itemCount = itemCount,
