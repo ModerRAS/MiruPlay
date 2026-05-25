@@ -6,23 +6,17 @@ import android.os.Build
 import com.miruplay.tv.core.common.LocalDirectoryBrowser
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.mediasource.MediaSourceFactory
-import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.MIN_CLOUD_DRIVE_INTERVAL_MINUTES
 import com.miruplay.tv.model.CloudDriveDirectoryItem
-import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
-import com.miruplay.tv.model.resumePosition
 import com.miruplay.tv.model.MediaSourceType
-import com.miruplay.tv.model.PlaybackSource
-import com.miruplay.tv.model.PlaybackState
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.cloudDriveDirectoryDisplayPath
 import com.miruplay.tv.model.cloudDriveDirectoryItems
 import com.miruplay.tv.model.cloudDriveDirectoryParentPath
 import com.miruplay.tv.model.normalizeCloudDriveDirectoryPath
 import com.miruplay.tv.model.scopedCloudDriveDirectoryPath
-import com.miruplay.tv.player.PlaybackController
 import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.LogUploadRepository
@@ -30,6 +24,8 @@ import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
+import com.miruplay.tv.repository.ScanPreferencesRepository
+import com.miruplay.tv.player.PlaybackController
 import com.miruplay.tv.scanner.ScanCoordinator
 import com.miruplay.tv.sync.rss.CloudDriveRssAutomationEngine
 import com.miruplay.tv.sync.rss.CloudDriveRssScheduler
@@ -48,6 +44,7 @@ class WebControlService @Inject constructor(
     private val metadataRepository: MetadataRepository,
     private val indexRepository: MediaIndexRepository,
     private val progressRepository: PlaybackProgressRepository,
+    private val scanPreferencesRepository: ScanPreferencesRepository,
     private val cloudDriveRepository: CloudDriveAutomationRepository,
     private val logUploadRepository: LogUploadRepository,
     private val securePreferences: AppCredentialStore,
@@ -60,6 +57,13 @@ class WebControlService @Inject constructor(
     private val navigator: WebControlNavigator
 ) {
     private val startedAt = System.currentTimeMillis()
+    private val libraryLoader = WebControlLibraryLoader(
+        mediaSources = mediaRepository,
+        metadata = metadataRepository,
+        index = indexRepository,
+        progress = progressRepository,
+        mergeSameAnimeEnabled = { scanPreferencesRepository.getPreferences().mergeSameAnimeEnabled },
+    )
 
     suspend fun getServerInfo(port: Int): ServerInfoDto = withContext(Dispatchers.IO) {
         ServerInfoDto(
@@ -283,124 +287,54 @@ class WebControlService @Inject constructor(
     }
 
     suspend fun getLibrary(): LibraryDto {
-        val sources = (mediaRepository.getSources() as? Result.Success)?.data ?: emptyList()
-        val anime = loadAllAnime(sources)
-        return LibraryDto(
-            continueWatching = loadContinueWatching(),
-            recentlyAdded = anime.takeLast(24),
-            allAnime = anime
-        )
+        return libraryLoader.loadLibrary()
     }
 
     suspend fun searchLibrary(query: String): LibraryDto {
-        val normalized = query.trim()
-        val library = getLibrary()
-        if (normalized.isBlank()) return library
-
-        val filtered = library.allAnime.filter { item ->
-            item.id.contains(normalized, ignoreCase = true) ||
-                item.title.contains(normalized, ignoreCase = true) ||
-                (item.titleCn?.contains(normalized, ignoreCase = true) == true)
-        }
-        return library.copy(recentlyAdded = filtered.take(24), allAnime = filtered)
+        return libraryLoader.searchLibrary(query)
     }
 
     suspend fun getAnimeDetail(animeId: String): AnimeDetailDto {
-        val anime = requireSuccess(metadataRepository.getCachedMetadata(animeId), "番剧不存在")
-            ?: throw IllegalArgumentException("番剧不存在")
-        val episodes = requireSuccess(metadataRepository.getCachedEpisodes(animeId), "读取剧集失败")
-            .map { episode ->
-                val progress = progressRepository.getProgress(episode.id).getOrNull()
-                EpisodeWithProgressDto(
-                    episode = episode,
-                    progressMs = progress?.positionMs ?: 0L,
-                    lastWatched = progress?.lastWatched ?: 0L,
-                    playCount = progress?.playCount ?: 0
-                )
-            }
-        return AnimeDetailDto(anime = anime, episodes = episodes)
+        return libraryLoader.loadAnimeDetail(animeId)
     }
 
     suspend fun playEpisode(request: PlayEpisodeRequest): PlaybackStatusDto {
-        val episode = findEpisodeById(request.episodeId)
+        val episode = libraryLoader.findEpisodeById(request.episodeId)
             ?: throw IllegalArgumentException("剧集不存在")
         val progress = progressRepository.getProgress(episode.id).getOrNull()
-        val startPosition = request.startPositionMs
-            ?: episode.resumePosition(progress)
-        val source = PlaybackSource(
-            uri = episode.filePath,
-            mediaSourceId = episode.animeId,
-            startPosition = startPosition,
-            subtitleTracks = emptyList(),
-            episodeId = episode.id
-        )
-        navigator.openPlayer(
-            WebPlaybackSource(
-                uri = source.uri,
-                mediaSourceId = source.mediaSourceId,
-                startPositionMs = source.startPosition,
-                episodeId = source.episodeId
-            )
-        )
+        navigator.openPlayer(request.toWebControlPlaybackSource(episode, progress).toWebPlaybackSource())
         return playbackStatus()
     }
 
     suspend fun playbackCommand(request: PlaybackCommandRequest): PlaybackStatusDto {
-        when (request.command.lowercase()) {
-            "pause" -> playbackController.pause()
-            "resume", "play" -> playbackController.resume()
-            "toggle" -> {
-                if (playbackController.isPlaying()) playbackController.pause() else playbackController.resume()
-            }
-            "stop" -> playbackController.stop()
-            "seek" -> playbackController.seekTo((request.positionMs ?: 0L).coerceAtLeast(0L))
-            "seek_relative" -> {
-                val next = playbackController.getCurrentPosition() + (request.deltaMs ?: 0L)
-                playbackController.seekTo(next.coerceAtLeast(0L))
-            }
-            "skip_forward" -> {
-                val next = playbackController.getCurrentPosition() + (request.deltaMs ?: 30_000L)
-                playbackController.seekTo(next.coerceAtLeast(0L))
-            }
-            "skip_backward" -> {
-                val next = playbackController.getCurrentPosition() - (request.deltaMs ?: 10_000L)
-                playbackController.seekTo(next.coerceAtLeast(0L))
-            }
-            "speed" -> playbackController.setPlaybackSpeed(request.speed ?: 1.0f)
-            else -> throw IllegalArgumentException("未知播放命令: ${request.command}")
-        }
+        request.executeWebControlPlaybackCommand(
+            webControlPlaybackCommandTarget(
+                pause = { playbackController.pause() },
+                resume = { playbackController.resume() },
+                toggle = {
+                    if (playbackController.isPlaying()) playbackController.pause() else playbackController.resume()
+                },
+                stop = { playbackController.stop() },
+                seekTo = { positionMs -> playbackController.seekTo(positionMs) },
+                setPlaybackSpeed = { speed -> playbackController.setPlaybackSpeed(speed) },
+                currentPositionMs = {
+                    runCatching { playbackController.getCurrentPosition() }.getOrDefault(0L)
+                },
+                durationMs = {
+                    runCatching { playbackController.getDuration() }.getOrDefault(0L)
+                },
+            )
+        )
         return playbackStatus()
     }
 
     suspend fun playbackStatus(): PlaybackStatusDto {
         val state = playbackController.state.value
         val currentPosition = runCatching { playbackController.getCurrentPosition() }.getOrDefault(0L)
-            .coerceAtLeast(0L)
         val duration = runCatching { playbackController.getDuration() }.getOrDefault(0L)
-            .coerceAtLeast(0L)
-        val source = when (state) {
-            is PlaybackState.Loading -> state.source
-            is PlaybackState.Playing -> state.source
-            is PlaybackState.Paused -> state.source
-            is PlaybackState.Buffering -> state.source
-            is PlaybackState.Ended -> state.source
-            is PlaybackState.Error -> state.source
-            PlaybackState.Idle -> null
-        }
-        val position = when (state) {
-            is PlaybackState.Playing -> state.position
-            is PlaybackState.Paused -> state.position
-            is PlaybackState.Buffering -> state.position
-            else -> currentPosition
-        }
-        return PlaybackStatusDto(
-            state = state::class.simpleName ?: "Idle",
-            uri = source?.uri,
-            mediaSourceId = source?.mediaSourceId,
-            positionMs = position,
+        return state.toWebControlPlaybackStatus(
+            currentPositionMs = currentPosition,
             durationMs = duration,
-            isPlaying = state is PlaybackState.Playing,
-            error = (state as? PlaybackState.Error)?.error
         )
     }
 
@@ -412,35 +346,6 @@ class WebControlService @Inject constructor(
         return when (val result = mediaSource.testConnection()) {
             is Result.Success -> SourceTestResponse(result.data, if (result.data) "连接正常" else "无法连接")
             is Result.Error -> SourceTestResponse(false, result.error.toString())
-        }
-    }
-
-    private suspend fun loadAllAnime(sources: List<MediaSourceInfo>): List<Anime> {
-        val all = mutableListOf<Anime>()
-        for (source in sources) {
-            val names = indexRepository.getAnimeInIndex(source.id).getOrNull() ?: emptyList()
-            for (name in names) {
-                val cached = metadataRepository.getCachedMetadata(name).getOrNull()
-                if (cached != null) {
-                    all += cached
-                }
-            }
-        }
-        return all.distinctBy { it.id }.sortedBy { it.title.ifBlank { it.id } }
-    }
-
-    private suspend fun loadContinueWatching(): List<ContinueWatchingDto> {
-        return (progressRepository.getContinueWatching(30).getOrNull() ?: emptyList()).mapNotNull { record ->
-            val episode = findEpisodeById(record.episodeId)
-            val anime = episode?.let { metadataRepository.getCachedMetadata(it.animeId).getOrNull() }
-            ContinueWatchingDto(
-                progressEpisodeId = record.episodeId,
-                positionMs = record.positionMs,
-                lastWatched = record.lastWatched,
-                playCount = record.playCount,
-                episode = episode,
-                anime = anime
-            )
         }
     }
 
@@ -484,49 +389,6 @@ class WebControlService @Inject constructor(
             displayPath = cloudDriveDirectoryDisplayPath(currentPath),
             parentPath = cloudDriveDirectoryParentPath(currentPath, rootPath),
             entries = entries
-        )
-    }
-
-    private suspend fun findEpisodeById(episodeId: String): Episode? {
-        findEpisodeFromIndex(episodeId)?.let { return it }
-
-        val sources = mediaRepository.getSources().getOrNull() ?: emptyList()
-        val candidateAnimeIds = linkedSetOf<String>()
-        for (source in sources) {
-            candidateAnimeIds += indexRepository.getAnimeInIndex(source.id).getOrNull() ?: emptyList()
-        }
-        candidateAnimeIds += loadAllAnime(sources).map { it.id }
-
-        for (animeId in candidateAnimeIds) {
-            val episode = metadataRepository.getCachedEpisodes(animeId)
-                .getOrNull()
-                ?.firstOrNull { it.id == episodeId || it.filePath == episodeId }
-            if (episode != null) return episode
-        }
-        return null
-    }
-
-    private suspend fun findEpisodeFromIndex(episodeId: String): Episode? {
-        val sourceParts = episodeId.split(":", limit = 2)
-        val sourceId = sourceParts.getOrNull(0)?.toLongOrNull() ?: return null
-        val path = sourceParts.getOrNull(1)?.takeIf { it.isNotBlank() } ?: return null
-        val source = mediaRepository.getSourceById(sourceId).getOrNull()
-        val fileName = path.substringAfterLast("/")
-        val matches = indexRepository.queryIndex(sourceId, fileName.substringBeforeLast("."))
-            .getOrNull()
-            .orEmpty()
-        val entry = matches.firstOrNull { it.path == path || episodeId.endsWith(it.path) }
-            ?: matches.firstOrNull { it.path.substringAfterLast("/") == fileName }
-            ?: return null
-
-        return Episode(
-            id = episodeId,
-            animeId = entry.animeName ?: path.substringBeforeLast("/").substringAfterLast("/"),
-            seasonNumber = entry.seasonNumber ?: 1,
-            episodeNumber = entry.episodeNumber ?: 1,
-            title = "",
-            filePath = source?.playableUriFor(entry.path) ?: entry.path,
-            fileName = fileName
         )
     }
 
