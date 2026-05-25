@@ -318,7 +318,15 @@ class WebControlAutomationRequestsTest {
 
     @Test
     fun `coordinator WebUI run maps summary and invokes after-run hook`() = runBlocking {
-        val summary = CloudDriveRssRunSummary(submitted = 3, skipped = 2, failed = 1, organized = 4)
+        val summary = CloudDriveRssRunSummary(
+            submitted = 3,
+            skipped = 2,
+            failed = 1,
+            organized = 4,
+            indexed = 5,
+            scraped = 6,
+            noMatch = 7,
+        )
         val runner = FakeWebControlCloudDriveAutomationRunner(runResult = Result.success(summary))
         val coordinator = coordinator(runner = runner)
         val hookSummaries = mutableListOf<CloudDriveRssRunSummary>()
@@ -331,6 +339,9 @@ class WebControlAutomationRequestsTest {
         assertEquals(2, response.skipped)
         assertEquals(1, response.failed)
         assertEquals(4, response.organized)
+        assertEquals(5, response.indexed)
+        assertEquals(6, response.scraped)
+        assertEquals(7, response.noMatch)
     }
 
     @Test
@@ -404,12 +415,18 @@ class WebControlAutomationRequestsTest {
             skipped = 2,
             failed = 1,
             organized = 4,
+            indexed = 5,
+            scraped = 6,
+            noMatch = 7,
         ).toWebControlResponse()
 
         assertEquals(3, response.submitted)
         assertEquals(2, response.skipped)
         assertEquals(1, response.failed)
         assertEquals(4, response.organized)
+        assertEquals(5, response.indexed)
+        assertEquals(6, response.scraped)
+        assertEquals(7, response.noMatch)
     }
 
     private fun coordinator(
