@@ -61,6 +61,7 @@ import com.miruplay.tv.model.PlaybackProgressSession
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.PlaybackTimingConventions
 import com.miruplay.tv.model.ProgressRecord
+import com.miruplay.tv.model.RssSubscriptionFormResult
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.cloudRssScheduledSyncCompleteStatus
@@ -495,6 +496,7 @@ internal fun MiruPlayDesktopComposeApp(
     var cloudPassword by remember { mutableStateOf("") }
     var cloudInboxPath by remember { mutableStateOf("") }
     var cloudLibraryPath by remember { mutableStateOf("") }
+    var cloudLibraryMode by remember { mutableStateOf(CloudDriveLibraryMode.ORGANIZED_LIBRARY) }
     var cloudLinkedSourceId by remember { mutableStateOf<Long?>(null) }
     var cloudIntervalMinutes by remember { mutableStateOf("30") }
     var cloudEnabled by remember { mutableStateOf(false) }
@@ -1992,6 +1994,8 @@ internal fun MiruPlayDesktopComposeApp(
                 onInboxPathChange = { cloudInboxPath = it },
                 libraryPath = cloudLibraryPath,
                 onLibraryPathChange = { cloudLibraryPath = it },
+                libraryMode = cloudLibraryMode,
+                onLibraryModeChange = { cloudLibraryMode = it },
                 directoryBrowser = cloudDirectoryBrowser,
                 onPickCloudDriveDirectory = ::openCloudDriveDirectory,
                 onBrowseCloudDriveDirectory = { path ->

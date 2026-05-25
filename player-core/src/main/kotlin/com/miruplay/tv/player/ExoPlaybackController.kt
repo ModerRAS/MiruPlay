@@ -10,6 +10,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.PlaybackState
 import com.miruplay.tv.model.SubtitleFormat
@@ -105,6 +106,16 @@ class ExoPlaybackController @Inject constructor(
 
         override fun onPlayerError(error: PlaybackException) {
             val source = currentSource
+            MiruLog.e(
+                "ExoPlaybackController",
+                "Player error",
+                error,
+                mapOf(
+                    "source_uri" to source?.uri.orEmpty(),
+                    "media_source_id" to source?.mediaSourceId.orEmpty(),
+                    "error_code" to error.errorCode.toString()
+                )
+            )
             _state.value = PlaybackState.Error(source, error.localizedMessage ?: "Playback error")
         }
 
@@ -131,6 +142,16 @@ class ExoPlaybackController @Inject constructor(
         withContext(Dispatchers.Main) {
             currentSource = source
             _state.value = PlaybackState.Loading(source)
+            MiruLog.i(
+                "ExoPlaybackController",
+                "Playback started",
+                mapOf(
+                    "source_uri" to source.uri,
+                    "media_source_id" to source.mediaSourceId,
+                    "start_position_ms" to source.startPosition.toString(),
+                    "subtitle_count" to source.subtitleTracks.size.toString()
+                )
+            )
 
             try {
                 ensureMediaSessionService()
@@ -164,6 +185,12 @@ class ExoPlaybackController @Inject constructor(
                 exoPlayer.prepare()
                 exoPlayer.playWhenReady = true
             } catch (e: Exception) {
+                MiruLog.e(
+                    "ExoPlaybackController",
+                    "Failed to start playback",
+                    e,
+                    mapOf("source_uri" to source.uri)
+                )
                 _state.value = PlaybackState.Error(source, e.message ?: "Failed to play")
             }
         }
@@ -205,6 +232,16 @@ class ExoPlaybackController @Inject constructor(
 
     override suspend fun stop() {
         withContext(Dispatchers.Main) {
+            currentSource?.let { source ->
+                MiruLog.i(
+                    "ExoPlaybackController",
+                    "Playback stopped",
+                    mapOf(
+                        "source_uri" to source.uri,
+                        "position_ms" to exoPlayer.currentPosition.toString()
+                    )
+                )
+            }
             exoPlayer.playWhenReady = false
             exoPlayer.stop()
             currentSource = null
@@ -287,7 +324,7 @@ class ExoPlaybackController @Inject constructor(
                 }
             }
         } catch (e: Exception) {
-            // Ignore track enumeration errors
+            MiruLog.w("ExoPlaybackController", "Failed to enumerate media tracks", e)
         }
     }
 

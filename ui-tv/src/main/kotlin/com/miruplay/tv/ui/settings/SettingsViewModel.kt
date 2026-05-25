@@ -60,7 +60,8 @@ class SettingsViewModel @Inject constructor(
     private val webControlPreferences: WebControlAccessManager,
     private val cloudDriveRepository: CloudDriveAutomationRepository,
     private val cloudDriveClient: CloudDriveClient,
-    private val cloudDriveEngine: CloudDriveRssAutomationEngine
+    private val cloudDriveEngine: CloudDriveRssAutomationEngine,
+    private val cloudDriveScheduler: CloudDriveRssScheduler
 ) : ViewModel() {
     private val cloudDriveActions = CloudDriveRssActionCoordinator(
         repository = cloudDriveRepository,
@@ -230,6 +231,7 @@ class SettingsViewModel @Inject constructor(
         webDavSourceId: Long?,
         inboxPath: String,
         libraryPath: String,
+        libraryMode: CloudDriveLibraryMode,
         intervalMinutes: Int,
         enabled: Boolean,
         rssProxyEnabled: Boolean = false,

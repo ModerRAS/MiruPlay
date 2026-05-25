@@ -34,6 +34,9 @@ dependencies {
     ksp(libs.androidx.room.compiler)
     
     implementation(libs.androidx.security.crypto)
+    implementation(libs.okhttp)
+    implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.kotlinx.serialization.json)
     
     implementation(libs.dagger.hilt.android)
     ksp(libs.dagger.hilt.compiler)
@@ -41,5 +44,6 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.androidx.test.core)
     testImplementation(libs.androidx.test.runner)
+    testImplementation(libs.okhttp.mockwebserver)
     testImplementation(libs.robolectric)
 }

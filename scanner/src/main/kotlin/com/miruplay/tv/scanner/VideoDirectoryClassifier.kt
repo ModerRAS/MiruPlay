@@ -12,7 +12,8 @@ import com.miruplay.tv.model.FilenameParseResult
  */
 class VideoDirectoryClassifier(
     private val episodeDetector: EpisodeDetector,
-    private val filenameMetadataParser: FilenameMetadataParser? = null
+    private val filenameMetadataParser: FilenameMetadataParser? = null,
+    private val filenameOnly: Boolean = false,
 ) {
     private val parsedTextCache = mutableMapOf<String, FilenameParseResult?>()
 
@@ -24,7 +25,6 @@ class VideoDirectoryClassifier(
         } else {
             segments.dropLast(1).ifEmpty { segments }
         }
-        val seasonFolder = findSeasonFolder(parentSegments)
         val detectorMatch = episodeDetector.detectEpisode(fileName)
         val showContext = findShowContext(parentSegments, seasonFolder)
         val fileParsed = parseMetadata(stripVideoExtension(fileName))

@@ -77,6 +77,7 @@ private fun String?.normalizedMergeTitle(): String? =
 private fun Anime.metadataScore(): Int =
     listOf(
         if (!posterUrl.isNullOrBlank()) 8 else 0,
+        if (!posterLocalPath.isNullOrBlank()) 8 else 0,
         if (!fanartUrl.isNullOrBlank()) 4 else 0,
         if (summary.isNotBlank()) 2 else 0,
         if (bangumiId != null || anilistId != null || tmdbId != null) 2 else 0,

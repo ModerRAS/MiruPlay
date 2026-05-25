@@ -502,7 +502,25 @@ fun cloudRssRunStartedStatus(): String =
     "正在执行 Cloud/RSS 同步..."
 
 fun CloudDriveRssRunSummary.completeStatus(): String =
-    "同步完成：提交 $submitted 个，跳过 $skipped 个，失败 $failed 个，整理 $organized 个。"
+    buildString {
+        val handledLabel = if (organized > 0 || (indexed == 0 && scraped == 0 && noMatch == 0)) {
+            "整理 $organized 个"
+        } else {
+            "入库 $indexed 个"
+        }
+        append("同步完成：提交 $submitted 个，跳过 $skipped 个，失败 $failed 个，")
+        append(handledLabel)
+        val extras = buildList {
+            if (indexed > 0) add("索引 $indexed 个")
+            if (scraped > 0) add("刮削 $scraped 个")
+            if (noMatch > 0) add("未匹配 $noMatch 个")
+        }
+        if (extras.isNotEmpty()) {
+            append("，")
+            append(extras.joinToString("，"))
+        }
+        append("。")
+    }
 
 fun cloudDriveRssRunSummaryStatus(summary: CloudDriveRssRunSummary): String =
     summary.completeStatus()

@@ -336,11 +336,11 @@ class DesktopSettingsPanelTest {
             cloudRssActionFocusTarget(CloudRssAction.ClearScanSource, Key.DirectionDown, subscriptionCount = 2),
         )
         assertEquals(
-            CloudRssFocusTarget.Field(CloudRssField.InboxPath),
+            CloudRssFocusTarget.Action(CloudRssAction.VerifyApiToken),
             cloudRssActionFocusTarget(CloudRssAction.LoginCloudDrive, Key.DirectionDown, subscriptionCount = 2),
         )
         assertEquals(
-            CloudRssFocusTarget.Field(CloudRssField.LibraryPath),
+            CloudRssFocusTarget.Action(CloudRssAction.SetOrganizedMode),
             cloudRssActionFocusTarget(CloudRssAction.VerifyApiToken, Key.DirectionDown, subscriptionCount = 2),
         )
         assertNull(cloudRssActionFocusTarget(CloudRssAction.SaveCredentials, Key.DirectionLeft, subscriptionCount = 2))
@@ -488,11 +488,11 @@ class DesktopSettingsPanelTest {
             cloudRssToggleFocusTarget(CloudRssToggle.ProxyEnabled, Key.DirectionUp),
         )
         assertEquals(
-            CloudRssFocusTarget.Action(CloudRssAction.LoginCloudDrive),
+            CloudRssFocusTarget.Action(CloudRssAction.SetSingleDirectoryMode),
             cloudRssFieldFocusTarget(CloudRssField.InboxPath, Key.DirectionUp),
         )
         assertEquals(
-            CloudRssFocusTarget.Action(CloudRssAction.VerifyApiToken),
+            CloudRssFocusTarget.Action(CloudRssAction.SetSingleDirectoryMode),
             cloudRssFieldFocusTarget(CloudRssField.LibraryPath, Key.DirectionUp),
         )
         assertNull(cloudRssFieldFocusTarget(CloudRssField.ProxyPort, Key.DirectionRight))
@@ -869,7 +869,8 @@ class DesktopSettingsPanelTest {
         assertEquals(MiruPlaySettingsSection.PLAYBACK, MiruPlaySettingsSection.SOURCES.stepDesktopSettingsSection(1))
         assertEquals(MiruPlaySettingsSection.CLOUD_DRIVE, MiruPlaySettingsSection.PLAYBACK.stepDesktopSettingsSection(1))
         assertEquals(MiruPlaySettingsSection.PLAYBACK, MiruPlaySettingsSection.CLOUD_DRIVE.stepDesktopSettingsSection(-1))
-        assertEquals(MiruPlaySettingsSection.METADATA, MiruPlaySettingsSection.SCAN.stepDesktopSettingsSection(1))
+        assertEquals(MiruPlaySettingsSection.LOG_UPLOAD, MiruPlaySettingsSection.SCAN.stepDesktopSettingsSection(1))
+        assertEquals(MiruPlaySettingsSection.METADATA, MiruPlaySettingsSection.LOG_UPLOAD.stepDesktopSettingsSection(1))
         assertNull(MiruPlaySettingsSection.METADATA.stepDesktopSettingsSection(1))
     }
 

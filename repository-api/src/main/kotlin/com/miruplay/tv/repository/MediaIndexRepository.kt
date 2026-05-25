@@ -3,6 +3,15 @@ package com.miruplay.tv.repository
 import com.miruplay.tv.core.common.Result
 import kotlinx.serialization.Serializable
 
+@Serializable
+enum class MediaScrapeStatus {
+    PENDING,
+    SCRAPING,
+    SCRAPED,
+    NO_MATCH,
+    FAILED,
+}
+
 interface MediaIndexRepository {
     suspend fun rebuildIndex(sourceId: Long, entries: List<MediaIndexEntry>): Result<Unit>
     suspend fun upsertEntry(sourceId: Long, entry: MediaIndexEntry): Result<Unit>
@@ -26,6 +35,9 @@ data class MediaIndexEntry(
     val metadataSource: String? = null,
     val metadataId: String? = null,
     val metadataTitle: String? = null,
+    val scrapeStatus: MediaScrapeStatus? = null,
+    val scrapeMessage: String? = null,
+    val scrapedAt: Long = 0L,
     val isDirectory: Boolean = false,
     val fileSize: Long = 0L,
     val lastModified: Long = 0L,

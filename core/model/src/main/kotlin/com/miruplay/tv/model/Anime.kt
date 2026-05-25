@@ -18,6 +18,7 @@ data class Anime(
     val anilistId: Int? = null,
     val tmdbId: Int? = null,
     val posterUrl: String? = null,
+    val posterLocalPath: String? = null,
     val fanartUrl: String? = null,
     val bangumiCollectionType: Int? = null,
     val bangumiEpStatus: Int = 0,

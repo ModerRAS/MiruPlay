@@ -3,12 +3,19 @@ package com.miruplay.tv.model
 import kotlinx.serialization.Serializable
 
 @Serializable
+enum class CloudDriveLibraryMode {
+    ORGANIZED_LIBRARY,
+    SINGLE_DIRECTORY
+}
+
+@Serializable
 data class CloudDriveAutomationConfig(
     val endpointUrl: String = "",
     val username: String = "",
     val webDavSourceId: Long? = null,
     val inboxPath: String = "",
     val libraryPath: String = "",
+    val libraryMode: CloudDriveLibraryMode = CloudDriveLibraryMode.ORGANIZED_LIBRARY,
     val intervalMinutes: Int = 30,
     val enabled: Boolean = false,
     val lastRunAt: Long = 0L,
@@ -61,5 +68,8 @@ data class CloudDriveRssRunSummary(
     val submitted: Int,
     val skipped: Int,
     val failed: Int,
-    val organized: Int
+    val organized: Int,
+    val indexed: Int = 0,
+    val scraped: Int = 0,
+    val noMatch: Int = 0,
 )

@@ -36,6 +36,12 @@ enum class MiruPlaySettingsSection(
         desktopTitle = "扫描",
         desktopDescription = "媒体库更新",
     ),
+    LOG_UPLOAD(
+        androidTvTitle = "日志上报",
+        androidTvDescription = "OpenObserve JSON",
+        desktopTitle = "日志",
+        desktopDescription = "OpenObserve JSON",
+    ),
     METADATA(
         androidTvTitle = "元数据",
         androidTvDescription = "Bangumi Token",
@@ -51,6 +57,7 @@ val androidTvSettingsSectionOrder: List<MiruPlaySettingsSection> =
         MiruPlaySettingsSection.PLAYBACK,
         MiruPlaySettingsSection.CLOUD_DRIVE,
         MiruPlaySettingsSection.SCAN,
+        MiruPlaySettingsSection.LOG_UPLOAD,
         MiruPlaySettingsSection.METADATA,
     )
 
@@ -61,6 +68,7 @@ val desktopSettingsSectionOrder: List<MiruPlaySettingsSection> =
         MiruPlaySettingsSection.PLAYBACK,
         MiruPlaySettingsSection.CLOUD_DRIVE,
         MiruPlaySettingsSection.SCAN,
+        MiruPlaySettingsSection.LOG_UPLOAD,
         MiruPlaySettingsSection.METADATA,
     )
 

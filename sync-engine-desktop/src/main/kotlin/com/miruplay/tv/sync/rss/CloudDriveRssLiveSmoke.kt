@@ -18,6 +18,8 @@ import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 import kotlinx.coroutines.runBlocking
 import java.io.File
+import java.net.URI
+import java.security.MessageDigest
 import java.time.Instant
 
 data class CloudDriveRssLiveSmokeOptions(

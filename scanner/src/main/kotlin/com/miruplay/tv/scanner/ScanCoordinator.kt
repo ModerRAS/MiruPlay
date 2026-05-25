@@ -15,6 +15,7 @@ import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.MediaFileConventions
 import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.NfoMetadata
+import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.ScanResult
 import com.miruplay.tv.model.TvShowNfoMetadata
 import com.miruplay.tv.model.UniqueId
@@ -22,6 +23,7 @@ import com.miruplay.tv.model.scanResultDisplayName
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MediaIndexMetadataCache
 import com.miruplay.tv.repository.MediaIndexRepository
+import com.miruplay.tv.repository.MediaScrapeStatus
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.scraper.EpisodeMetadata
@@ -53,7 +55,11 @@ class ScanCoordinator @Inject constructor(
      * Full scan of a media source, updates index + metadata in one pass.
      * Cancellable via coroutineContext.
      */
-    suspend fun scanSource(sourceId: Long): Result<ScanResult> = withContext(Dispatchers.IO) {
+    suspend fun scanSource(
+        sourceId: Long,
+        filenameOnly: Boolean = false,
+        posterCacheDirectory: File? = null,
+    ): Result<ScanResult> = withContext(Dispatchers.IO) {
         val sourceResult = mediaRepository.getSourceById(sourceId)
         if (sourceResult !is Result.Success) {
             return@withContext Result.failure((sourceResult as Result.Error).error)
@@ -100,11 +106,13 @@ class ScanCoordinator @Inject constructor(
 
         // Single recursive traversal: build index + parse NFOs
         val detector = DefaultEpisodeDetector()
-        val classifier = VideoDirectoryClassifier(detector, filenameMetadataParser)
+        val classifier = VideoDirectoryClassifier(detector, filenameMetadataParser, filenameOnly = filenameOnly)
         val indexEntities = mutableListOf<MediaIndexEntry>()
         val titleCandidatesByAnime = mutableMapOf<String, MutableSet<String>>()
         var totalFiles = 0
         var newEpisodes = 0
+        var scrapedFiles = 0
+        var noMatchFiles = 0
 
         traverseAndProcess(
             ms = ms,
@@ -116,12 +124,14 @@ class ScanCoordinator @Inject constructor(
             totalFiles = { totalFiles += 1 },
             newEpisodes = { newEpisodes += 1 },
             rootPath = realRootPath,
-            isLocalSource = isLocalSource
+            isLocalSource = isLocalSource,
+            filenameOnly = filenameOnly,
         )
 
         // Save index
         if (indexEntities.isNotEmpty()) {
-            indexRepository.rebuildIndex(sourceId, indexEntities)
+            val updatedIndexEntities = mutableListOf<MediaIndexEntry>()
+            updatedIndexEntities += indexEntities.filter { it.isDirectory }
 
             val onlineMetadataByAnime = mutableMapOf<String, OnlineMetadata>()
             suspend fun onlineMetadataFor(animeName: String, episodes: List<Episode>): OnlineMetadata {
@@ -178,13 +188,18 @@ class ScanCoordinator @Inject constructor(
             animeName = sourceInfo.scanResultDisplayName(rootPath),
             episodesFound = totalFiles,
             newEpisodes = newEpisodes,
-            updatedEpisodes = 0
+            updatedEpisodes = 0,
+            scraped = scrapedFiles,
+            noMatch = noMatchFiles,
         ))
     }
 
     private data class OnlineMetadata(
         val anime: Anime?,
-        val episodes: List<Episode>
+        val episodes: List<Episode>,
+        val match: ScraperResult? = null,
+        val scrapeStatus: MediaScrapeStatus = MediaScrapeStatus.NO_MATCH,
+        val scrapeMessage: String? = null,
     )
 
     private suspend fun enrichWithOnlineMetadata(
@@ -193,7 +208,12 @@ class ScanCoordinator @Inject constructor(
         extraTitleCandidates: Collection<String> = emptyList()
     ): OnlineMetadata {
         val bangumi = metadataScrapers.firstOrNull { it.sourceName.equals("Bangumi", ignoreCase = true) }
-            ?: return OnlineMetadata(null, episodes)
+            ?: return OnlineMetadata(
+                anime = null,
+                episodes = episodes,
+                scrapeStatus = MediaScrapeStatus.PENDING,
+                scrapeMessage = "Bangumi scraper unavailable",
+            )
 
         return try {
             val candidates = titleCandidates(animeName, extraTitleCandidates)
@@ -205,7 +225,12 @@ class ScanCoordinator @Inject constructor(
                     if (match != null) break
                 }
             }
-            match ?: return OnlineMetadata(null, episodes)
+            match ?: return OnlineMetadata(
+                anime = null,
+                episodes = episodes,
+                scrapeStatus = MediaScrapeStatus.NO_MATCH,
+                scrapeMessage = "Bangumi no reliable match",
+            )
 
             val details = bangumi.getAnimeDetails(match.animeId).getOrNull()
             val episodeMetadata = bangumi.getEpisodes(match.animeId).getOrNull()
@@ -226,18 +251,38 @@ class ScanCoordinator @Inject constructor(
                 }
             }
 
-            val anime = details?.copy(
+            val posterLocalPath = details?.posterUrl
+                ?.takeIf { it.isNotBlank() }
+                ?.let { cachePoster(posterCacheDirectory, it) }
+            val baseAnime = details ?: Anime(
                 id = animeName,
-                title = details.title.ifBlank { animeName },
-                titleCn = details.titleCn ?: match.titleCn,
-                episodeCount = maxOf(details.episodeCount, enrichedEpisodes.size),
-                bangumiId = details.bangumiId ?: match.animeId.toIntOrNull()
+                title = match.title.ifBlank { animeName },
+                titleCn = match.titleCn,
+                bangumiId = match.animeId.toIntOrNull(),
+            )
+            val anime = baseAnime.copy(
+                id = animeName,
+                title = baseAnime.title.ifBlank { animeName },
+                titleCn = baseAnime.titleCn ?: match.titleCn,
+                episodeCount = maxOf(baseAnime.episodeCount, enrichedEpisodes.size),
+                bangumiId = baseAnime.bangumiId ?: match.animeId.toIntOrNull(),
+                posterLocalPath = posterLocalPath ?: baseAnime.posterLocalPath,
             )
 
-            OnlineMetadata(anime, enrichedEpisodes)
+            OnlineMetadata(
+                anime = anime,
+                episodes = enrichedEpisodes,
+                match = match,
+                scrapeStatus = MediaScrapeStatus.SCRAPED,
+            )
         } catch (e: Exception) {
             Log.w("ScanCoordinator", "Bangumi metadata enrichment failed for $animeName", e)
-            OnlineMetadata(null, episodes)
+            OnlineMetadata(
+                anime = null,
+                episodes = episodes,
+                scrapeStatus = MediaScrapeStatus.FAILED,
+                scrapeMessage = e.message ?: "Bangumi metadata enrichment failed",
+            )
         }
     }
 
@@ -286,7 +331,8 @@ class ScanCoordinator @Inject constructor(
         newEpisodes: (Int) -> Unit,
         depth: Int = 0,
         rootPath: String?,
-        isLocalSource: Boolean
+        isLocalSource: Boolean,
+        filenameOnly: Boolean,
     ) {
         // Guard: skip hidden directories
         val pathName = MediaPathConventions.fileName(path)

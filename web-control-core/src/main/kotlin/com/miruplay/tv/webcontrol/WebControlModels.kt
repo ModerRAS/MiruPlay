@@ -6,6 +6,8 @@ import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.RssSubscriptionInfo
+import com.miruplay.tv.repository.LogUploadStatus
+import com.miruplay.tv.repository.OtlpLogUploadConfig
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 
@@ -105,6 +107,7 @@ data class CloudDriveConfigRequest(
     val webDavSourceId: Long? = null,
     val inboxPath: String,
     val libraryPath: String,
+    val libraryMode: CloudDriveLibraryMode = CloudDriveLibraryMode.ORGANIZED_LIBRARY,
     val intervalMinutes: Int = 30,
     val enabled: Boolean = false,
     val rssProxyEnabled: Boolean = false,

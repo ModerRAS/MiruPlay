@@ -10,6 +10,7 @@ import com.miruplay.tv.model.ScanResult
 import com.miruplay.tv.player.PlaybackController
 import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
+import com.miruplay.tv.repository.LogUploadRepository
 import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
@@ -18,6 +19,7 @@ import com.miruplay.tv.repository.ScanPreferencesRepository
 import com.miruplay.tv.scanner.ScanCoordinator
 import com.miruplay.tv.sync.rss.CloudDriveRssActionCoordinator
 import com.miruplay.tv.sync.rss.CloudDriveRssAutomationEngine
+import com.miruplay.tv.sync.rss.CloudDriveRssScheduler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -60,6 +62,64 @@ class WebControlService @Inject constructor(
 
     override suspend fun scanSourceResultFor(source: MediaSourceInfo): Result<ScanResult> =
         scanCoordinator.scanSource(source.id)
+
+    suspend fun getLogUpload(): LogUploadDto {
+        val tokenConfigured = logUploadRepository.isTokenConfigured()
+        return LogUploadDto(
+            config = OtlpLogUploadConfigDto.from(logUploadRepository.getConfig()),
+            status = LogUploadStatusDto.from(logUploadRepository.status.first(), tokenConfigured),
+            tokenConfigured = tokenConfigured
+        )
+    }
+
+    suspend fun saveLogUploadConfig(request: LogUploadConfigRequest): LogUploadDto {
+        if (request.enabled && request.endpoint.isBlank()) {
+            throw IllegalArgumentException("请填写 OpenObserve API 地址")
+        }
+        logUploadRepository.saveConfig(
+            enabled = request.enabled,
+            endpoint = request.endpoint.trim(),
+            streamName = request.streamName.trim().ifBlank { "miruplay" }
+        )
+        return getLogUpload()
+    }
+
+    suspend fun saveLogUploadToken(request: LogUploadTokenRequest): LogUploadDto {
+        if (request.token.isBlank()) {
+            throw IllegalArgumentException("请填写 OpenObserve Token")
+        }
+        logUploadRepository.saveToken(request.token.trim())
+        return getLogUpload()
+    }
+
+    suspend fun clearLogUploadToken(): LogUploadDto {
+        logUploadRepository.clearToken()
+        return getLogUpload()
+    }
+
+    suspend fun uploadPendingLogs(): LogUploadDto {
+        logUploadRepository.uploadPendingLogs()
+        return getLogUpload()
+    }
+
+    fun getMetadataSettings(): MetadataSettingsDto =
+        MetadataSettingsDto(
+            bangumiTokenConfigured = !securePreferences.bangumiAccessToken.isNullOrBlank()
+        )
+
+    fun saveBangumiToken(request: BangumiTokenRequest): MetadataSettingsDto {
+        val token = request.token.trim()
+        if (token.isBlank()) {
+            throw IllegalArgumentException("请填写 Bangumi Token")
+        }
+        securePreferences.bangumiAccessToken = token
+        return getMetadataSettings()
+    }
+
+    fun clearBangumiToken(): MetadataSettingsDto {
+        securePreferences.clearBangumiToken()
+        return getMetadataSettings()
+    }
 
     suspend fun getLibrary(): LibraryDto {
         return loadLibrary()

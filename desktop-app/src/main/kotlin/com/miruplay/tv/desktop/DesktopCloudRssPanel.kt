@@ -256,6 +256,8 @@ internal fun CloudRssPanel(
                 onInboxPathChange = onInboxPathChange,
                 libraryPath = libraryPath,
                 onLibraryPathChange = onLibraryPathChange,
+                libraryMode = libraryMode,
+                onLibraryModeChange = onLibraryModeChange,
                 directoryBrowser = directoryBrowser,
                 onPickCloudDriveDirectory = onPickCloudDriveDirectory,
                 onBrowseCloudDriveDirectory = onBrowseCloudDriveDirectory,
@@ -351,6 +353,14 @@ internal fun CloudRssPanel(
                         onToggleMergeSameAnime = onToggleMergeSameAnime,
                     )
                 },
+                modifier = Modifier.weight(1f),
+            )
+            MiruPlaySettingsSection.LOG_UPLOAD -> SettingsSummaryContent(
+                section = selectedSection,
+                tiles = desktopLogUploadSettingsTiles(),
+                status = "日志上报配置在 Android TV 设置页生效；本地日志会按 OpenObserve JSON 配置写入上报队列。",
+                actions = listOf(SettingsQuickAction(settingsOpenLibraryActionLabel(), onOpenLibrary)),
+                onFocusSectionMenu = { focusSelectedSectionMenu() },
                 modifier = Modifier.weight(1f),
             )
             MiruPlaySettingsSection.METADATA -> SettingsSummaryContent(
@@ -698,8 +708,35 @@ private fun CloudRssAutomationContent(
                 CloudRssCard(
                     title = cloudDriveRssSyncPathTitleLabel(),
                     badge = labels.pathBadge,
-                    preview = cloudRssPathPairPreview(inboxPath, libraryPath),
+                    preview = cloudRssSyncPathPreview(libraryMode, inboxPath, libraryPath),
                 ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp)) {
+                        TvActionButton(
+                            cloudDriveRssLibraryModeOrganizedLabel(),
+                            onClick = { onLibraryModeChange(CloudDriveLibraryMode.ORGANIZED_LIBRARY) },
+                            secondary = libraryMode != CloudDriveLibraryMode.ORGANIZED_LIBRARY,
+                            modifier = Modifier
+                                .weight(1f)
+                                .cloudRssActionNavigation(
+                                    action = CloudRssAction.SetOrganizedMode,
+                                    focusRequester = actionFocusRequesters.getValue(CloudRssAction.SetOrganizedMode),
+                                    onMove = ::moveCloudRssActionFocus,
+                                ),
+                        )
+                        TvActionButton(
+                            cloudDriveRssLibraryModeSingleDirectoryLabel(),
+                            onClick = { onLibraryModeChange(CloudDriveLibraryMode.SINGLE_DIRECTORY) },
+                            secondary = libraryMode != CloudDriveLibraryMode.SINGLE_DIRECTORY,
+                            modifier = Modifier
+                                .weight(1f)
+                                .cloudRssActionNavigation(
+                                    action = CloudRssAction.SetSingleDirectoryMode,
+                                    focusRequester = actionFocusRequesters.getValue(CloudRssAction.SetSingleDirectoryMode),
+                                    onMove = ::moveCloudRssActionFocus,
+                                ),
+                        )
+                    }
+                    Spacer(Modifier.height(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.COMPACT_STACK_GAP_DP.dp)) {
                         CloudDrivePathSelectorField(
                             label = labels.inboxPath,
@@ -1340,6 +1377,8 @@ internal enum class CloudRssAction {
     ClearCredentials,
     LoginCloudDrive,
     VerifyApiToken,
+    SetOrganizedMode,
+    SetSingleDirectoryMode,
     PickInboxPath,
     PickLibraryPath,
     UseActiveSource,
@@ -1463,8 +1502,8 @@ internal fun cloudRssFieldFocusTarget(
             CloudRssField.Username -> CloudRssFocusTarget.Field(CloudRssField.Endpoint)
             CloudRssField.ApiToken -> CloudRssFocusTarget.Field(CloudRssField.Username)
             CloudRssField.Password -> CloudRssFocusTarget.Field(CloudRssField.Username)
-            CloudRssField.InboxPath -> CloudRssFocusTarget.Action(CloudRssAction.LoginCloudDrive)
-            CloudRssField.LibraryPath -> CloudRssFocusTarget.Action(CloudRssAction.VerifyApiToken)
+            CloudRssField.InboxPath -> CloudRssFocusTarget.Action(CloudRssAction.SetSingleDirectoryMode)
+            CloudRssField.LibraryPath -> CloudRssFocusTarget.Action(CloudRssAction.SetSingleDirectoryMode)
             CloudRssField.IntervalMinutes -> CloudRssFocusTarget.Field(CloudRssField.InboxPath)
             CloudRssField.ProxyHost,
             CloudRssField.ProxyPort,
@@ -1694,6 +1733,9 @@ private fun cloudRssHorizontalAction(
         CloudRssAction.LoginCloudDrive,
         CloudRssAction.VerifyApiToken,
         -> listOf(CloudRssAction.LoginCloudDrive, CloudRssAction.VerifyApiToken)
+        CloudRssAction.SetOrganizedMode,
+        CloudRssAction.SetSingleDirectoryMode,
+        -> listOf(CloudRssAction.SetOrganizedMode, CloudRssAction.SetSingleDirectoryMode)
         CloudRssAction.PickInboxPath,
         CloudRssAction.PickLibraryPath,
         -> listOf(CloudRssAction.PickInboxPath, CloudRssAction.PickLibraryPath)
@@ -1722,6 +1764,8 @@ private fun cloudRssActionUpTarget(
         CloudRssAction.ClearCredentials -> CloudRssFocusTarget.Field(CloudRssField.Password)
         CloudRssAction.LoginCloudDrive -> CloudRssFocusTarget.Action(CloudRssAction.SaveCredentials)
         CloudRssAction.VerifyApiToken -> CloudRssFocusTarget.Action(CloudRssAction.ClearCredentials)
+        CloudRssAction.SetOrganizedMode -> CloudRssFocusTarget.Action(CloudRssAction.VerifyApiToken)
+        CloudRssAction.SetSingleDirectoryMode -> CloudRssFocusTarget.Action(CloudRssAction.SetOrganizedMode)
         CloudRssAction.PickInboxPath -> CloudRssFocusTarget.Field(CloudRssField.InboxPath)
         CloudRssAction.PickLibraryPath -> CloudRssFocusTarget.Field(CloudRssField.LibraryPath)
         CloudRssAction.UseActiveSource -> CloudRssFocusTarget.Toggle(CloudRssToggle.SyncEnabled)
@@ -1750,8 +1794,10 @@ private fun cloudRssActionDownTarget(
     when (current) {
         CloudRssAction.SaveCredentials -> CloudRssFocusTarget.Action(CloudRssAction.LoginCloudDrive)
         CloudRssAction.ClearCredentials -> CloudRssFocusTarget.Action(CloudRssAction.VerifyApiToken)
-        CloudRssAction.LoginCloudDrive -> CloudRssFocusTarget.Field(CloudRssField.InboxPath)
-        CloudRssAction.VerifyApiToken -> CloudRssFocusTarget.Field(CloudRssField.LibraryPath)
+        CloudRssAction.LoginCloudDrive -> CloudRssFocusTarget.Action(CloudRssAction.VerifyApiToken)
+        CloudRssAction.VerifyApiToken -> CloudRssFocusTarget.Action(CloudRssAction.SetOrganizedMode)
+        CloudRssAction.SetOrganizedMode -> CloudRssFocusTarget.Action(CloudRssAction.SetSingleDirectoryMode)
+        CloudRssAction.SetSingleDirectoryMode -> CloudRssFocusTarget.Field(CloudRssField.InboxPath)
         CloudRssAction.PickInboxPath -> CloudRssFocusTarget.Field(CloudRssField.IntervalMinutes)
         CloudRssAction.PickLibraryPath -> CloudRssFocusTarget.Field(CloudRssField.ProxyHost)
         CloudRssAction.UseActiveSource -> CloudRssFocusTarget.Action(CloudRssAction.SaveSyncConfig)

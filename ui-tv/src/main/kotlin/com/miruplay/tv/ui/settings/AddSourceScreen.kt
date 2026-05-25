@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material.icons.filled.WifiTethering
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
@@ -82,6 +83,7 @@ import com.miruplay.tv.model.CLOUD_DRIVE_ROOT_DISPLAY_NAME
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.CloudDriveLibraryMode
 import com.miruplay.tv.model.MiruPlaySettingsSection
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.androidTvSettingsSectionOrder
@@ -239,6 +241,7 @@ private fun MiruPlaySettingsSection.androidTvIcon(): ImageVector =
         MiruPlaySettingsSection.PLAYBACK -> Icons.Filled.PlayArrow
         MiruPlaySettingsSection.CLOUD_DRIVE -> Icons.Filled.Cloud
         MiruPlaySettingsSection.SCAN -> Icons.Filled.Refresh
+        MiruPlaySettingsSection.LOG_UPLOAD -> Icons.Filled.Upload
         MiruPlaySettingsSection.METADATA -> Icons.Filled.Key
     }
 
@@ -284,6 +287,7 @@ fun AddSourceScreen(
     var cloudApiToken by remember { mutableStateOf("") }
     var cloudInboxPath by remember { mutableStateOf("") }
     var cloudLibraryPath by remember { mutableStateOf("") }
+    var cloudLibraryMode by remember { mutableStateOf(CloudDriveLibraryMode.ORGANIZED_LIBRARY) }
     var cloudIntervalMinutes by remember { mutableStateOf("30") }
     var cloudEnabled by remember { mutableStateOf(false) }
     var cloudWebDavSourceId by remember { mutableStateOf<Long?>(null) }
@@ -323,6 +327,7 @@ fun AddSourceScreen(
         cloudUsername = cloudDriveConfig.username
         cloudInboxPath = cloudDriveConfig.inboxPath
         cloudLibraryPath = cloudDriveConfig.libraryPath
+        cloudLibraryMode = cloudDriveConfig.libraryMode
         cloudIntervalMinutes = cloudDriveConfig.intervalMinutes.toString()
         cloudEnabled = cloudDriveConfig.enabled
         cloudWebDavSourceId = cloudDriveConfig.webDavSourceId
@@ -509,6 +514,8 @@ fun AddSourceScreen(
                     onCloudInboxPathChange = { cloudInboxPath = it },
                     cloudLibraryPath = cloudLibraryPath,
                     onCloudLibraryPathChange = { cloudLibraryPath = it },
+                    cloudLibraryMode = cloudLibraryMode,
+                    onCloudLibraryModeChange = { cloudLibraryMode = it },
                     cloudIntervalMinutes = cloudIntervalMinutes,
                     onCloudIntervalMinutesChange = { cloudIntervalMinutes = it.filter(Char::isDigit).take(4) },
                     cloudEnabled = cloudEnabled,
@@ -852,6 +859,8 @@ private fun SettingsContent(
     onCloudInboxPathChange: (String) -> Unit,
     cloudLibraryPath: String,
     onCloudLibraryPathChange: (String) -> Unit,
+    cloudLibraryMode: CloudDriveLibraryMode,
+    onCloudLibraryModeChange: (CloudDriveLibraryMode) -> Unit,
     cloudIntervalMinutes: String,
     onCloudIntervalMinutesChange: (String) -> Unit,
     cloudEnabled: Boolean,
@@ -974,6 +983,8 @@ private fun SettingsContent(
                 onInboxPathChange = onCloudInboxPathChange,
                 libraryPath = cloudLibraryPath,
                 onLibraryPathChange = onCloudLibraryPathChange,
+                cloudLibraryMode = cloudLibraryMode,
+                onCloudLibraryModeChange = onCloudLibraryModeChange,
                 intervalMinutes = cloudIntervalMinutes,
                 onIntervalMinutesChange = onCloudIntervalMinutesChange,
                 enabled = cloudEnabled,
@@ -1036,6 +1047,24 @@ private fun SettingsContent(
                 endAction = playbackEndAction,
                 onEndActionSelected = onPlaybackEndActionSelected
             )
+        }
+
+        MiruPlaySettingsSection.LOG_UPLOAD -> SettingsSingleSectionPage(
+            section = selectedSection,
+            modifier = modifier
+        ) {
+            SettingsPanel {
+                Text(
+                    text = "Android TV 端暂不提供日志上报配置。",
+                    style = TvTypography.body,
+                    color = TextSecondary
+                )
+                Text(
+                    text = "请在桌面端设置页或 Web 控制端配置 OpenObserve。",
+                    style = TvTypography.caption,
+                    color = TextSecondary
+                )
+            }
         }
 
         MiruPlaySettingsSection.METADATA -> SettingsSingleSectionPage(
@@ -1758,6 +1787,8 @@ private fun CloudDriveAutomationPanel(
     onInboxPathChange: (String) -> Unit,
     libraryPath: String,
     onLibraryPathChange: (String) -> Unit,
+    cloudLibraryMode: CloudDriveLibraryMode,
+    onCloudLibraryModeChange: (CloudDriveLibraryMode) -> Unit,
     intervalMinutes: String,
     onIntervalMinutesChange: (String) -> Unit,
     enabled: Boolean,
@@ -1866,13 +1897,34 @@ private fun CloudDriveAutomationPanel(
                 onPick = onPickCloudInboxPath,
                 modifier = Modifier.weight(1f)
             )
+            ScanOptionChip(
+                text = cloudDriveRssLibraryModeSingleDirectoryLabel(),
+                icon = Icons.Filled.Storage,
+                selected = cloudLibraryMode == CloudDriveLibraryMode.SINGLE_DIRECTORY,
+                enabled = true,
+                onClick = { onCloudLibraryModeChange(CloudDriveLibraryMode.SINGLE_DIRECTORY) },
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        Spacer(Modifier.height(12.dp))
+        CloudDrivePathSelectorField(
+            value = inboxPath,
+            onValueChange = onInboxPathChange,
+            label = cloudDriveRssInboxPathFieldLabel(),
+            canPick = canPickCloudDriveDirectory,
+            onPick = onPickCloudInboxPath,
+            modifier = Modifier.fillMaxWidth()
+        )
+        if (cloudLibraryMode == CloudDriveLibraryMode.ORGANIZED_LIBRARY) {
+            Spacer(Modifier.height(12.dp))
             CloudDrivePathSelectorField(
                 value = libraryPath,
                 onValueChange = onLibraryPathChange,
                 label = cloudDriveRssLibraryPathFieldLabel(),
                 canPick = canPickCloudDriveDirectory,
                 onPick = onPickCloudLibraryPath,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.fillMaxWidth()
             )
         }
 

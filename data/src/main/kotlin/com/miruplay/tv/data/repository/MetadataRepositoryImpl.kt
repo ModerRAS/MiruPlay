@@ -23,6 +23,7 @@ class MetadataRepositoryImpl @Inject constructor(
 
     companion object {
         private const val CACHE_DURATION_MS = 24 * 60 * 60 * 1000L  // 24 hours
+        private const val SQLITE_BIND_PARAMETER_BATCH_SIZE = 900
     }
 
     override suspend fun cacheMetadata(anime: Anime): Result<Unit> = withContext(Dispatchers.IO) {
@@ -46,6 +47,29 @@ class MetadataRepositoryImpl @Inject constructor(
             Result.success(entity.toDomain(episodes))
         } catch (e: Exception) {
             Result.success(null)
+        }
+    }
+
+    override suspend fun getCachedMetadata(animeIds: Collection<String>): Result<List<Anime>> = withContext(Dispatchers.IO) {
+        try {
+            val ids = animeIds.filter { it.isNotBlank() }.distinct()
+            if (ids.isEmpty()) {
+                return@withContext Result.success(emptyList())
+            }
+
+            val now = System.currentTimeMillis()
+            val entities = ids.chunked(SQLITE_BIND_PARAMETER_BATCH_SIZE)
+                .flatMap { batch -> animeDao.getByIds(batch) }
+                .filter { now - it.lastUpdated <= CACHE_DURATION_MS }
+            val episodesByAnime = entities.map { it.id }
+                .chunked(SQLITE_BIND_PARAMETER_BATCH_SIZE)
+                .flatMap { batch -> episodeDao.getByAnimeIds(batch) }
+                .groupBy { it.animeId }
+            Result.success(entities.map { entity ->
+                entity.toDomain(episodesByAnime[entity.id].orEmpty())
+            })
+        } catch (e: Exception) {
+            Result.success(emptyList())
         }
     }
 
@@ -114,6 +138,7 @@ private fun Anime.toEntity(): AnimeEntity = AnimeEntity(
     anilistId = anilistId?.toString(),
     tmdbId = tmdbId?.toString(),
     posterUrl = posterUrl,
+    posterLocalPath = posterLocalPath,
     fanartUrl = fanartUrl,
     bangumiCollectionType = bangumiCollectionType,
     bangumiEpStatus = bangumiEpStatus
@@ -134,13 +159,14 @@ private fun AnimeEntity.toDomain(episodeEntities: List<EpisodeEntity>): Anime {
         } ?: emptyList(),
         studio = studio,
         director = director,
-        episodeCount = episodeCount,
+        episodeCount = episodeEntities.size.takeIf { it > 0 } ?: episodeCount,
         airDate = airDate,
         rating = rating,
         bangumiId = bangumiId?.toIntOrNull(),
         anilistId = anilistId?.toIntOrNull(),
         tmdbId = tmdbId?.toIntOrNull(),
         posterUrl = posterUrl,
+        posterLocalPath = posterLocalPath,
         fanartUrl = fanartUrl,
         bangumiCollectionType = bangumiCollectionType,
         bangumiEpStatus = bangumiEpStatus

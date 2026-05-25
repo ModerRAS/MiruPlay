@@ -24,6 +24,12 @@ internal class FileBackedCredentialStore(
             updateBlocking { state -> state.copy(bangumiAccessToken = value) }
         }
 
+    override var otlpAccessToken: String?
+        get() = storeBlocking { it.otlpAccessToken }
+        set(value) {
+            updateBlocking { state -> state.copy(otlpAccessToken = value) }
+        }
+
     override fun clearCloudDriveCredentials() {
         updateBlocking { state ->
             state.copy(
@@ -35,6 +41,10 @@ internal class FileBackedCredentialStore(
 
     override fun clearBangumiToken() {
         updateBlocking { state -> state.copy(bangumiAccessToken = null) }
+    }
+
+    override fun clearOtlpAccessToken() {
+        updateBlocking { state -> state.copy(otlpAccessToken = null) }
     }
 
     private fun <T> storeBlocking(block: (DesktopRepositoryState) -> T): T =

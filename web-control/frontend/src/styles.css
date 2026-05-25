@@ -272,6 +272,8 @@ body {
 
 .source-layout,
 .automation-layout,
+.metadata-layout,
+.log-layout,
 .remote-layout {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
@@ -298,6 +300,8 @@ body {
 }
 
 .automation-form,
+.metadata-form,
+.log-form,
 .rss-form,
 .rss-list {
   display: grid;
@@ -475,6 +479,37 @@ body {
   gap: 0.8rem;
 }
 
+.log-status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  gap: 0.75rem;
+}
+
+.status-tile {
+  min-width: 0;
+  min-height: 5rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: #10131a;
+  padding: 0.8rem;
+  display: grid;
+  gap: 0.35rem;
+  align-content: center;
+}
+
+.status-tile span {
+  color: var(--muted);
+}
+
+.status-tile strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.status-alert {
+  margin-top: 1rem;
+}
+
 .now-playing {
   display: grid;
   gap: 0.75rem;
@@ -584,7 +619,7 @@ body {
 
   .nav-menu {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0.4rem;
   }
 
@@ -602,6 +637,8 @@ body {
   .header-actions,
   .source-layout,
   .automation-layout,
+  .metadata-layout,
+  .log-layout,
   .remote-layout,
   .local-picker-field,
   .folder-toolbar,
@@ -633,6 +670,10 @@ body {
   .source-main {
     grid-template-columns: 1fr;
     gap: 0.55rem;
+  }
+
+  .nav-menu {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .rss-main {
