@@ -16,6 +16,7 @@ import com.miruplay.tv.repository.LogUploadRepository
 import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
+import com.miruplay.tv.repository.OtlpLogUploadConfig
 import com.miruplay.tv.repository.PlaybackProgressRepository
 import com.miruplay.tv.repository.ScanPreferencesRepository
 import com.miruplay.tv.sync.rss.CloudDriveRssActionCoordinator
@@ -50,7 +51,11 @@ abstract class SharedWebControlEndpointService(
 
     protected abstract suspend fun scanSourceResultFor(source: MediaSourceInfo): Result<ScanResult>
 
+    protected open suspend fun afterCloudDriveConfigSaved(config: com.miruplay.tv.model.CloudDriveAutomationConfig) = Unit
+
     protected open suspend fun afterCloudDriveAutomationRun(summary: CloudDriveRssRunSummary) = Unit
+
+    protected open suspend fun afterLogUploadConfigSaved(config: OtlpLogUploadConfig) = Unit
 
     protected abstract suspend fun playEpisodeResolved(
         request: PlayEpisodeRequest,
@@ -128,7 +133,9 @@ abstract class SharedWebControlEndpointService(
             request = request,
             repository = cloudDriveRepository,
             credentials = credentials,
-        )
+        ).also { dto ->
+            afterCloudDriveConfigSaved(dto.config)
+        }
 
     override suspend fun loginCloudDrive(request: CloudDriveLoginRequest): CloudDriveAutomationDto =
         cloudDriveActions.loginWebControlCloudDrive(
@@ -165,7 +172,17 @@ abstract class SharedWebControlEndpointService(
     }
 
     override suspend fun saveLogUploadConfig(request: LogUploadConfigRequest): LogUploadDto {
-        return logUploadRepository.saveWebControlLogUploadConfig(request)
+        return logUploadRepository.saveWebControlLogUploadConfig(request).also { dto ->
+            afterLogUploadConfigSaved(
+                OtlpLogUploadConfig(
+                    enabled = dto.config.enabled,
+                    endpoint = dto.config.endpoint,
+                    streamName = dto.config.streamName,
+                    lastUploadAt = dto.config.lastUploadAt,
+                    lastUploadStatus = dto.config.lastUploadStatus,
+                ),
+            )
+        }
     }
 
     override suspend fun saveLogUploadToken(request: LogUploadTokenRequest): LogUploadDto {

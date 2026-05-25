@@ -8,19 +8,25 @@ import com.miruplay.tv.model.RssProcessedItemInfo
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 internal class FileBackedCloudDriveAutomationRepository(
     private val store: DesktopRepositoryStore,
 ) : CloudDriveAutomationRepository {
-    override fun observeConfig(): Flow<CloudDriveAutomationConfig> = flow {
-        emit(getConfig().getOrNull() ?: CloudDriveAutomationConfig())
-    }
+    private val configFlow = MutableStateFlow(readConfigState())
+    private val subscriptionsFlow = MutableStateFlow(readSubscriptionsState())
+
+    override fun observeConfig(): Flow<CloudDriveAutomationConfig> =
+        configFlow.asStateFlow()
 
     override suspend fun getConfig(): Result<CloudDriveAutomationConfig> = runCatching {
         store.read { it.cloudDriveConfig }
     }.fold(
-        onSuccess = { Result.success(it) },
+        onSuccess = {
+            configFlow.value = it
+            Result.success(it)
+        },
         onFailure = { Result.failure(AppError.SyncError.WriteFailed("cloud-drive-config", it.message ?: "read failed")) },
     )
 
@@ -29,7 +35,10 @@ internal class FileBackedCloudDriveAutomationRepository(
             state.copy(cloudDriveConfig = config) to Unit
         }
     }.fold(
-        onSuccess = { Result.success(Unit) },
+        onSuccess = {
+            configFlow.value = config
+            Result.success(Unit)
+        },
         onFailure = { Result.failure(AppError.SyncError.WriteFailed("cloud-drive-config", it.message ?: "save failed")) },
     )
 
@@ -38,13 +47,15 @@ internal class FileBackedCloudDriveAutomationRepository(
             state.copy(cloudDriveConfig = state.cloudDriveConfig.copy(lastRunAt = timestamp)) to Unit
         }
     }.fold(
-        onSuccess = { Result.success(Unit) },
+        onSuccess = {
+            refreshConfigState()
+            Result.success(Unit)
+        },
         onFailure = { Result.failure(AppError.SyncError.WriteFailed("cloud-drive-config", it.message ?: "update failed")) },
     )
 
-    override fun observeSubscriptions(): Flow<List<RssSubscriptionInfo>> = flow {
-        emit(store.read { it.rssSubscriptions.sortedByDescending(RssSubscriptionInfo::id) })
-    }
+    override fun observeSubscriptions(): Flow<List<RssSubscriptionInfo>> =
+        subscriptionsFlow.asStateFlow()
 
     override suspend fun listEnabledSubscriptions(): Result<List<RssSubscriptionInfo>> = runCatching {
         store.read { state ->
@@ -77,7 +88,10 @@ internal class FileBackedCloudDriveAutomationRepository(
             ) to id
         }
     }.fold(
-        onSuccess = { Result.success(it) },
+        onSuccess = {
+            refreshSubscriptionsState()
+            Result.success(it)
+        },
         onFailure = { Result.failure(AppError.SyncError.WriteFailed("rss-subscriptions", it.message ?: "save failed")) },
     )
 
@@ -90,7 +104,10 @@ internal class FileBackedCloudDriveAutomationRepository(
             ) to Unit
         }
     }.fold(
-        onSuccess = { Result.success(Unit) },
+        onSuccess = {
+            refreshSubscriptionsState()
+            Result.success(Unit)
+        },
         onFailure = { Result.failure(AppError.SyncError.WriteFailed("rss-subscriptions", it.message ?: "delete failed")) },
     )
 
@@ -103,7 +120,10 @@ internal class FileBackedCloudDriveAutomationRepository(
             ) to Unit
         }
     }.fold(
-        onSuccess = { Result.success(Unit) },
+        onSuccess = {
+            refreshSubscriptionsState()
+            Result.success(Unit)
+        },
         onFailure = { Result.failure(AppError.SyncError.WriteFailed("rss-subscriptions", it.message ?: "update failed")) },
     )
 
@@ -147,4 +167,26 @@ internal class FileBackedCloudDriveAutomationRepository(
         onSuccess = { Result.success(it) },
         onFailure = { Result.failure(AppError.SyncError.WriteFailed("rss-download-tasks", it.message ?: "save failed")) },
     )
+
+    private fun readConfigState(): CloudDriveAutomationConfig =
+        kotlinx.coroutines.runBlocking {
+            runCatching { store.read { it.cloudDriveConfig } }.getOrDefault(CloudDriveAutomationConfig())
+        }
+
+    private fun readSubscriptionsState(): List<RssSubscriptionInfo> =
+        kotlinx.coroutines.runBlocking {
+            runCatching {
+                store.read { state -> state.rssSubscriptions.sortedByDescending(RssSubscriptionInfo::id) }
+            }.getOrDefault(emptyList())
+        }
+
+    private suspend fun refreshConfigState() {
+        runCatching { store.read { it.cloudDriveConfig } }
+            .onSuccess { configFlow.value = it }
+    }
+
+    private suspend fun refreshSubscriptionsState() {
+        runCatching { store.read { state -> state.rssSubscriptions.sortedByDescending(RssSubscriptionInfo::id) } }
+            .onSuccess { subscriptionsFlow.value = it }
+    }
 }

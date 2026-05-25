@@ -67,10 +67,8 @@ class WebControlService @Inject constructor(
     override suspend fun scanSourceResultFor(source: MediaSourceInfo): Result<ScanResult> =
         scanCoordinator.scanSource(source.id)
 
-    override suspend fun saveCloudDriveConfig(request: CloudDriveConfigRequest): CloudDriveAutomationDto {
-        val dto = super.saveCloudDriveConfig(request)
-        cloudDriveScheduler.syncPeriodicWork(dto.config)
-        return dto
+    override suspend fun afterCloudDriveConfigSaved(config: com.miruplay.tv.model.CloudDriveAutomationConfig) {
+        cloudDriveScheduler.syncPeriodicWork(config)
     }
 
     override suspend fun playEpisodeResolved(

@@ -5,11 +5,13 @@ import com.miruplay.tv.clouddrive.CloudDriveClient
 import com.miruplay.tv.clouddrive.GrpcCloudDriveClient
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.mediasource.desktop.DesktopMediaSourceFactory
+import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.CloudDriveRssRunSummary
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.ScanResult
 import com.miruplay.tv.model.completeStatus
+import com.miruplay.tv.repository.OtlpLogUploadConfig
 import com.miruplay.tv.repository.desktop.DesktopRepositories
 import com.miruplay.tv.sync.rss.CloudDriveRssActionCoordinator
 import com.miruplay.tv.sync.rss.DesktopCloudDriveRssAutomationEngine
@@ -40,6 +42,8 @@ internal class DesktopWebControlService(
     private val playbackCommandHandler: suspend (PlaybackCommandRequest) -> PlaybackStatusDto = {
         idlePlaybackStatus()
     },
+    private val onCloudDriveConfigSaved: suspend (CloudDriveAutomationConfig) -> Unit = {},
+    private val onLogUploadConfigSaved: suspend (OtlpLogUploadConfig) -> Unit = {},
     private val clock: () -> Long = System::currentTimeMillis,
     private val deviceName: String = "Windows",
 ) : SharedWebControlEndpointService(
@@ -68,6 +72,14 @@ internal class DesktopWebControlService(
 
     override suspend fun afterCloudDriveAutomationRun(summary: CloudDriveRssRunSummary) {
         rescanLinkedCloudDriveSource(summary.completeStatus())
+    }
+
+    override suspend fun afterCloudDriveConfigSaved(config: CloudDriveAutomationConfig) {
+        onCloudDriveConfigSaved(config)
+    }
+
+    override suspend fun afterLogUploadConfigSaved(config: OtlpLogUploadConfig) {
+        onLogUploadConfigSaved(config)
     }
 
     override suspend fun playEpisodeResolved(
