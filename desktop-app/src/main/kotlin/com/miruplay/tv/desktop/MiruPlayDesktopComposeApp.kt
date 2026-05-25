@@ -197,7 +197,10 @@ import com.miruplay.tv.webcontrol.WebControlPlaybackCommandKind
 import com.miruplay.tv.webcontrol.playbackCommandKind
 import com.miruplay.tv.webcontrol.playbackSpeed
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.awt.Dimension
 import java.nio.file.Files
@@ -819,6 +822,15 @@ internal fun MiruPlayDesktopComposeApp(
         }.onFailure { error ->
             cloudRssStatus = rssSubscriptionsLoadFailedStatus(error.message)
         }
+    }
+
+    LaunchedEffect(repositories, logUploadAutoScheduler) {
+        repositories.logUpload.observeConfig()
+            .map { it.enabled }
+            .distinctUntilChanged()
+            .collect {
+                logUploadAutoScheduler.syncWithConfig(repositories.logUpload.getConfig())
+            }
     }
 
     suspend fun refreshRecentProgress() {
