@@ -103,6 +103,7 @@ suspend fun CloudDriveRssActionCoordinator.saveWebControlCloudDriveConfig(
             webDavSourceId = request.webDavSourceId?.takeIf { it > 0L },
             inboxPath = request.inboxPath,
             libraryPath = request.libraryPath,
+            libraryMode = request.libraryMode,
             intervalMinutes = request.intervalMinutes,
             enabled = request.enabled,
             rssProxyEnabled = request.rssProxyEnabled,
@@ -192,4 +193,7 @@ fun CloudDriveRssRunSummary.toWebControlResponse(): CloudDriveRunResponse =
         skipped = skipped,
         failed = failed,
         organized = organized,
+        indexed = indexed,
+        scraped = scraped,
+        noMatch = noMatch,
     )

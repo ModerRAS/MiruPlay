@@ -4,6 +4,7 @@ import com.miruplay.tv.clouddrive.CloudDriveTokenInfo
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.CloudDriveApiTokenFormResult
+import com.miruplay.tv.model.CloudDriveLibraryMode
 import com.miruplay.tv.model.CloudDriveLoginFormResult
 import com.miruplay.tv.model.CloudDriveRssRunSummary
 import com.miruplay.tv.model.RssSubscriptionInfo
@@ -81,6 +82,7 @@ class CloudDriveRssActionCoordinator(
         webDavSourceId: Long?,
         inboxPath: String,
         libraryPath: String,
+        libraryMode: CloudDriveLibraryMode? = null,
         intervalMinutes: Int,
         enabled: Boolean,
         rssProxyEnabled: Boolean = false,
@@ -97,7 +99,7 @@ class CloudDriveRssActionCoordinator(
             webDavSourceId = webDavSourceId,
             inboxPath = inboxPath,
             libraryPath = libraryPath,
-            libraryMode = current.libraryMode,
+            libraryMode = libraryMode ?: current.libraryMode,
             intervalMinutes = intervalMinutes,
             enabled = enabled,
             rssProxyEnabled = rssProxyEnabled,
