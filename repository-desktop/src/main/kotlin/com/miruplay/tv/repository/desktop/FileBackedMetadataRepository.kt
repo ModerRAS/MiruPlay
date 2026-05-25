@@ -27,6 +27,18 @@ internal class FileBackedMetadataRepository(
         onFailure = { Result.success(null) },
     )
 
+    override suspend fun getCachedMetadata(animeIds: Collection<String>): Result<List<Anime>> = runCatching {
+        val ids = animeIds.filter { it.isNotBlank() }.toSet()
+        if (ids.isEmpty()) {
+            emptyList()
+        } else {
+            store.read { state -> state.animeMetadata.filter { it.id in ids } }
+        }
+    }.fold(
+        onSuccess = { Result.success(it) },
+        onFailure = { Result.success(emptyList()) },
+    )
+
     override suspend fun getCachedEpisode(episodeId: String): Result<Episode?> = runCatching {
         store.read { state -> state.episodes.firstOrNull { it.id == episodeId } }
     }.fold(
