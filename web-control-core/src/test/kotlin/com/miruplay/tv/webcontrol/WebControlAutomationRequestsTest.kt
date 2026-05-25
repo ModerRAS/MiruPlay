@@ -4,6 +4,7 @@ import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.clouddrive.CloudDriveTokenInfo
 import com.miruplay.tv.model.CloudDriveAutomationConfig
+import com.miruplay.tv.model.CloudDriveLibraryMode
 import com.miruplay.tv.model.CloudDriveRssRunSummary
 import com.miruplay.tv.model.RssDownloadTaskInfo
 import com.miruplay.tv.model.RssProcessedItemInfo
@@ -223,6 +224,7 @@ class WebControlAutomationRequestsTest {
                 webDavSourceId = 9L,
                 inboxPath = " /Inbox ",
                 libraryPath = " /Library ",
+                libraryMode = CloudDriveLibraryMode.SINGLE_DIRECTORY,
                 intervalMinutes = 15,
                 enabled = true,
             ),
@@ -235,6 +237,7 @@ class WebControlAutomationRequestsTest {
         assertEquals(9L, repository.savedConfigs.single().webDavSourceId)
         assertEquals("/Inbox", repository.savedConfigs.single().inboxPath)
         assertEquals("/Library", repository.savedConfigs.single().libraryPath)
+        assertEquals(CloudDriveLibraryMode.SINGLE_DIRECTORY, repository.savedConfigs.single().libraryMode)
         assertEquals(77L, repository.savedConfigs.single().lastRunAt)
         assertEquals(repository.savedConfigs.single(), dto.config)
         assertEquals(false, dto.tokenConfigured)
