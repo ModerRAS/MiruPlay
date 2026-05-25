@@ -106,4 +106,52 @@ interface WebControlPlaybackCommandTarget {
     }
 }
 
+fun webControlPlaybackCommandTarget(
+    pause: suspend () -> Unit,
+    resume: suspend () -> Unit,
+    toggle: suspend () -> Unit,
+    stop: suspend () -> Unit,
+    seekTo: suspend (Long) -> Unit,
+    setPlaybackSpeed: suspend (Float) -> Unit,
+    currentPositionMs: suspend () -> Long,
+    durationMs: suspend () -> Long = { 0L },
+): WebControlPlaybackCommandTarget =
+    LambdaWebControlPlaybackCommandTarget(
+        pauseAction = pause,
+        resumeAction = resume,
+        toggleAction = toggle,
+        stopAction = stop,
+        seekToAction = seekTo,
+        setPlaybackSpeedAction = setPlaybackSpeed,
+        currentPositionMsProvider = currentPositionMs,
+        durationMsProvider = durationMs,
+    )
+
+private class LambdaWebControlPlaybackCommandTarget(
+    private val pauseAction: suspend () -> Unit,
+    private val resumeAction: suspend () -> Unit,
+    private val toggleAction: suspend () -> Unit,
+    private val stopAction: suspend () -> Unit,
+    private val seekToAction: suspend (Long) -> Unit,
+    private val setPlaybackSpeedAction: suspend (Float) -> Unit,
+    private val currentPositionMsProvider: suspend () -> Long,
+    private val durationMsProvider: suspend () -> Long,
+) : WebControlPlaybackCommandTarget {
+    override suspend fun pause(): Unit = pauseAction()
+
+    override suspend fun resume(): Unit = resumeAction()
+
+    override suspend fun toggle(): Unit = toggleAction()
+
+    override suspend fun stop(): Unit = stopAction()
+
+    override suspend fun seekTo(positionMs: Long): Unit = seekToAction.invoke(positionMs)
+
+    override suspend fun setPlaybackSpeed(speed: Float): Unit = setPlaybackSpeedAction.invoke(speed)
+
+    override suspend fun currentPositionMs(): Long = currentPositionMsProvider.invoke()
+
+    override suspend fun durationMs(): Long = durationMsProvider.invoke()
+}
+
 private const val MILLIS_PER_SECOND = 1_000L

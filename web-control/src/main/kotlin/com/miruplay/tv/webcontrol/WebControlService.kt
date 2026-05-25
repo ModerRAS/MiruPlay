@@ -162,7 +162,7 @@ class WebControlService @Inject constructor(
     }
 
     override suspend fun playbackCommand(request: PlaybackCommandRequest): PlaybackStatusDto {
-        request.executeWebControlPlaybackCommand(AndroidWebControlPlaybackCommandTarget(playbackController))
+        request.executeWebControlPlaybackCommand(androidWebControlPlaybackCommandTarget(playbackController))
         return playbackStatus()
     }
 
@@ -199,40 +199,22 @@ class WebControlService @Inject constructor(
 
 }
 
-private class AndroidWebControlPlaybackCommandTarget(
-    private val playbackController: PlaybackController,
-) : WebControlPlaybackCommandTarget {
-    override suspend fun pause() {
-        playbackController.pause()
-    }
-
-    override suspend fun resume() {
-        playbackController.resume()
-    }
-
-    override suspend fun toggle() {
-        if (playbackController.isPlaying()) {
-            playbackController.pause()
-        } else {
-            playbackController.resume()
-        }
-    }
-
-    override suspend fun stop() {
-        playbackController.stop()
-    }
-
-    override suspend fun seekTo(positionMs: Long) {
-        playbackController.seekTo(positionMs)
-    }
-
-    override suspend fun setPlaybackSpeed(speed: Float) {
-        playbackController.setPlaybackSpeed(speed)
-    }
-
-    override suspend fun currentPositionMs(): Long =
-        playbackController.getCurrentPosition()
-
-    override suspend fun durationMs(): Long =
-        playbackController.getDuration()
-}
+private fun androidWebControlPlaybackCommandTarget(
+    playbackController: PlaybackController,
+): WebControlPlaybackCommandTarget =
+    webControlPlaybackCommandTarget(
+        pause = { playbackController.pause() },
+        resume = { playbackController.resume() },
+        toggle = {
+            if (playbackController.isPlaying()) {
+                playbackController.pause()
+            } else {
+                playbackController.resume()
+            }
+        },
+        stop = { playbackController.stop() },
+        seekTo = { positionMs -> playbackController.seekTo(positionMs) },
+        setPlaybackSpeed = { speed -> playbackController.setPlaybackSpeed(speed) },
+        currentPositionMs = { playbackController.getCurrentPosition() },
+        durationMs = { playbackController.getDuration() },
+    )

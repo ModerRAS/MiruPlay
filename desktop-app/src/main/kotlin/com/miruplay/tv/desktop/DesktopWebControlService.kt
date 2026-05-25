@@ -59,6 +59,7 @@ import com.miruplay.tv.webcontrol.updateWebControlSource
 import com.miruplay.tv.webcontrol.webControlMediaSourceIdFromEpisodeId
 import com.miruplay.tv.webcontrol.webControlPlaybackStatus
 import com.miruplay.tv.webcontrol.WebControlPlaybackCommandTarget
+import com.miruplay.tv.webcontrol.webControlPlaybackCommandTarget
 import java.io.File
 
 internal class DesktopWebControlService(
@@ -292,11 +293,11 @@ internal suspend fun desktopWebControlPlaybackCommand(
 ): PlaybackStatusDto {
     val activePlayer = player ?: return idlePlaybackStatus()
     request.executeWebControlPlaybackCommand(
-        DesktopMpvWebControlPlaybackCommandTarget(
+        desktopMpvWebControlPlaybackCommandTarget(
             player = activePlayer,
             session = session,
             stopPlayback = stopPlayback,
-        ),
+        )
     )
     return desktopWebControlPlaybackStatus(
         player = activePlayer,
@@ -306,51 +307,44 @@ internal suspend fun desktopWebControlPlaybackCommand(
     )
 }
 
-private class DesktopMpvWebControlPlaybackCommandTarget(
-    private val player: com.miruplay.tv.player.mpv.MpvProcessPlayer,
-    private val session: com.miruplay.tv.model.PlaybackProgressSession?,
-    private val stopPlayback: suspend () -> Unit,
-) : WebControlPlaybackCommandTarget {
-    override suspend fun pause() {
-        player.setPaused(true)
-        session?.setPaused(true)
-    }
-
-    override suspend fun resume() {
-        player.setPaused(false)
-        session?.setPaused(false)
-    }
-
-    override suspend fun toggle() {
-        player.togglePause()
-        session?.togglePaused()
-    }
-
-    override suspend fun stop() {
-        stopPlayback()
-    }
-
-    override suspend fun seekTo(positionMs: Long) {
-        val currentMs = currentPositionMs()
-        player.seekBy((positionMs - currentMs) / MILLIS_PER_SECOND_DOUBLE)
-        session?.syncPosition(positionMs)
-    }
-
-    override suspend fun setPlaybackSpeed(speed: Float) {
-        player.setSpeed(speed.toDouble())
-    }
-
-    override suspend fun currentPositionMs(): Long {
-        val observedPositionMs = player.queryTimePositionMs().getOrNull()
-        if (observedPositionMs != null) {
-            session?.syncPosition(observedPositionMs)
-        }
-        return observedPositionMs ?: session?.currentPositionMs() ?: 0L
-    }
-
-    override suspend fun durationMs(): Long =
-        player.queryDurationMs().getOrNull() ?: 0L
-}
+private fun desktopMpvWebControlPlaybackCommandTarget(
+    player: com.miruplay.tv.player.mpv.MpvProcessPlayer,
+    session: com.miruplay.tv.model.PlaybackProgressSession?,
+    stopPlayback: suspend () -> Unit,
+): WebControlPlaybackCommandTarget =
+    webControlPlaybackCommandTarget(
+        pause = {
+            player.setPaused(true)
+            session?.setPaused(true)
+        },
+        resume = {
+            player.setPaused(false)
+            session?.setPaused(false)
+        },
+        toggle = {
+            player.togglePause()
+            session?.togglePaused()
+        },
+        stop = { stopPlayback() },
+        seekTo = { positionMs ->
+            val observedPositionMs = player.queryTimePositionMs().getOrNull()
+            if (observedPositionMs != null) {
+                session?.syncPosition(observedPositionMs)
+            }
+            val currentMs = observedPositionMs ?: session?.currentPositionMs() ?: 0L
+            player.seekBy((positionMs - currentMs) / MILLIS_PER_SECOND_DOUBLE)
+            session?.syncPosition(positionMs)
+        },
+        setPlaybackSpeed = { speed -> player.setSpeed(speed.toDouble()) },
+        currentPositionMs = {
+            val observedPositionMs = player.queryTimePositionMs().getOrNull()
+            if (observedPositionMs != null) {
+                session?.syncPosition(observedPositionMs)
+            }
+            observedPositionMs ?: session?.currentPositionMs() ?: 0L
+        },
+        durationMs = { player.queryDurationMs().getOrNull() ?: 0L },
+    )
 
 private fun idlePlaybackStatus(): PlaybackStatusDto =
     idleWebControlPlaybackStatus()

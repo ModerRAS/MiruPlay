@@ -152,6 +152,32 @@ class WebControlPlaybackCommandTest {
         )
     }
 
+    @Test
+    fun `lambda command target adapter routes operations`() = runBlocking {
+        val actions = mutableListOf<String>()
+        val seekPositions = mutableListOf<Long>()
+        val target = webControlPlaybackCommandTarget(
+            pause = { actions += "pause" },
+            resume = { actions += "resume" },
+            toggle = { actions += "toggle" },
+            stop = { actions += "stop" },
+            seekTo = { positionMs -> seekPositions += positionMs },
+            setPlaybackSpeed = { speed -> actions += "speed:$speed" },
+            currentPositionMs = { 12_000L },
+            durationMs = { 15_000L },
+        )
+
+        PlaybackCommandRequest(command = "pause").executeWebControlPlaybackCommand(target)
+        PlaybackCommandRequest(command = "resume").executeWebControlPlaybackCommand(target)
+        PlaybackCommandRequest(command = "toggle").executeWebControlPlaybackCommand(target)
+        PlaybackCommandRequest(command = "stop").executeWebControlPlaybackCommand(target)
+        PlaybackCommandRequest(command = "speed", speed = 1.25f).executeWebControlPlaybackCommand(target)
+        PlaybackCommandRequest(command = "seek", positionMs = 45_000L).executeWebControlPlaybackCommand(target)
+
+        assertEquals(listOf("pause", "resume", "toggle", "stop", "speed:1.25"), actions)
+        assertEquals(listOf(15_000L), seekPositions)
+    }
+
     private class RecordingPlaybackCommandTarget(
         private val currentPositionMs: Long,
         private val durationMs: Long = 0L,
