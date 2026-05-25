@@ -30,8 +30,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.miruplay.tv.design.MiruPlayFocusAxis
 import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.design.MiruPlayUiMetrics
+import com.miruplay.tv.design.focusIndexAfter
+import com.miruplay.tv.design.gridFocusIndexAfter
 import com.miruplay.tv.design.horizontalNavigationDelta
 import com.miruplay.tv.design.verticalNavigationDelta
 import com.miruplay.tv.model.BANGUMI_BATCH_MATCH_LIMIT
@@ -798,41 +801,40 @@ internal fun bangumiActionFocusTarget(
     batchMatchCount: Int = 0,
     candidateCount: Int = 0,
     resultCount: Int = 0,
-): BangumiActionFocusTarget? =
-    when (intent.horizontalNavigationDelta()) {
-        -1 -> bangumiActionAt(current.row, current.column - 1)?.let(BangumiActionFocusTarget::Action)
-        1 ->
-            bangumiActionAt(current.row, current.column + 1)?.let(BangumiActionFocusTarget::Action)
-                ?: firstBangumiListPosition(
-                    batchMatchCount = batchMatchCount,
-                    candidateCount = candidateCount,
-                    resultCount = resultCount,
-                )?.takeIf { current.column == 1 || current == BangumiAction.AcceptReview }?.let(BangumiActionFocusTarget::ListPosition)
-                ?: BangumiActionFocusTarget.EmptyResults.takeIf {
-                    (current.column == 1 || current == BangumiAction.AcceptReview) &&
-                        batchMatchCount == 0 &&
-                        candidateCount == 0 &&
-                        resultCount == 0
-                }
-        else -> when (intent.verticalNavigationDelta()) {
-            1 ->
-                bangumiActionAt(current.row + 1, current.column)?.let(BangumiActionFocusTarget::Action)
-                    ?: BangumiActionFocusTarget.Action(BangumiAction.AcceptReview).takeIf { current == BangumiAction.SyncProgress }
-                    ?: BangumiActionFocusTarget.NextPanel.takeIf { current.row == BangumiAction.entries.maxOf { it.row } }
-            -1 -> {
-                val target = bangumiActionAt(current.row - 1, current.column)
-                if (target == null && current.row == 0) {
-                    BangumiActionFocusTarget.PreviousPanel
-                } else {
-                    target?.let(BangumiActionFocusTarget::Action)
-                }
-            }
-            else -> null
-        }
+): BangumiActionFocusTarget? {
+    val actions = BangumiAction.entries.sortedWith(compareBy(BangumiAction::row, BangumiAction::column))
+    val currentIndex = actions.indexOf(current)
+    val targetAction = gridFocusIndexAfter(
+        currentIndex = currentIndex,
+        intent = intent,
+        columns = BANGUMI_ACTION_COLUMNS,
+        itemCount = actions.size,
+    )?.let(actions::get)
+    if (targetAction != null) {
+        return BangumiActionFocusTarget.Action(targetAction)
     }
+    return when {
+        intent.horizontalNavigationDelta() == 1 && current.exitsToBangumiList() ->
+            firstBangumiListPosition(
+                batchMatchCount = batchMatchCount,
+                candidateCount = candidateCount,
+                resultCount = resultCount,
+            )?.let(BangumiActionFocusTarget::ListPosition)
+                ?: BangumiActionFocusTarget.EmptyResults.takeIf {
+                    batchMatchCount == 0 && candidateCount == 0 && resultCount == 0
+                }
+        intent.verticalNavigationDelta() == -1 && current.row == 0 ->
+            BangumiActionFocusTarget.PreviousPanel
+        intent.verticalNavigationDelta() == 1 && current.row == BangumiAction.entries.maxOf { it.row } ->
+            BangumiActionFocusTarget.NextPanel
+        else -> null
+    }
+}
 
-private fun bangumiActionAt(row: Int, column: Int): BangumiAction? =
-    BangumiAction.entries.firstOrNull { it.row == row && it.column == column }
+private const val BANGUMI_ACTION_COLUMNS = 2
+
+private fun BangumiAction.exitsToBangumiList(): Boolean =
+    column == BANGUMI_ACTION_COLUMNS - 1 || this == BangumiAction.AcceptReview
 
 private fun firstBangumiListPosition(
     batchMatchCount: Int,
@@ -908,11 +910,12 @@ internal fun bangumiListNavigationTarget(
             }
             return null
         }
-        else -> when (intent.verticalNavigationDelta()) {
-            1 -> currentIndex + 1
-            -1 -> currentIndex - 1
-            else -> return null
-        }
+        else -> focusIndexAfter(
+            currentIndex = currentIndex,
+            intent = intent,
+            axis = MiruPlayFocusAxis.Vertical,
+            itemCount = visibleRows.size,
+        ) ?: return null
     }
     return visibleRows.getOrNull(targetIndex)
 }
