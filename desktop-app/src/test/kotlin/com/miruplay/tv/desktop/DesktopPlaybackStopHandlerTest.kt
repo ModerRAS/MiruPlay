@@ -1,73 +1,22 @@
 package com.miruplay.tv.desktop
 
 import com.miruplay.tv.core.common.Result
-import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.PlaybackProgressSession
 import com.miruplay.tv.model.PlaybackSource
-import com.miruplay.tv.model.ProgressRecord
+import com.miruplay.tv.player.mpv.MpvIpcController
+import com.miruplay.tv.player.mpv.MpvProcessPlayer
+import com.miruplay.tv.player.mpv.MpvRuntimeConfig
+import com.miruplay.tv.player.mpv.MpvSeekMode
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.ByteArrayInputStream
+import java.io.InputStream
+import java.nio.file.Files
 
 class DesktopPlaybackStopHandlerTest {
-    @Test
-    fun `desktop next playback source uses shared episode ordering and resume rules`() {
-        val episodes = listOf(
-            episode(id = "ep2", number = 2, duration = 100_000L),
-            episode(id = "ep1", number = 1, duration = 100_000L),
-        )
-
-        val target = desktopNextPlaybackSource(
-            currentEpisodeId = "ep1",
-            episodes = episodes,
-            nextProgress = ProgressRecord(
-                episodeId = "ep2",
-                positionMs = 30_000L,
-                lastWatched = 1L,
-            ),
-        )
-
-        assertEquals(
-            PlaybackSource(
-                uri = "D:/Anime/ep2.mkv",
-                mediaSourceId = "anime",
-                startPosition = 30_000L,
-                episodeId = "ep2",
-            ),
-            target,
-        )
-    }
-
-    @Test
-    fun `desktop next playback source clears start position for completed episode`() {
-        val episodes = listOf(
-            episode(id = "ep1", number = 1, duration = 100_000L),
-            episode(id = "ep2", number = 2, duration = 100_000L),
-        )
-
-        val target = desktopNextPlaybackSource(
-            currentEpisodeId = "ep1",
-            episodes = episodes,
-            nextProgress = ProgressRecord(
-                episodeId = "ep2",
-                positionMs = 95_000L,
-                lastWatched = 1L,
-                playCount = 1,
-            ),
-        )
-
-        assertEquals(
-            PlaybackSource(
-                uri = "D:/Anime/ep2.mkv",
-                mediaSourceId = "anime",
-                startPosition = 0L,
-                episodeId = "ep2",
-            ),
-            target,
-        )
-    }
-
     @Test
     fun `playback start saves resume position without incrementing play count`() = runBlocking {
         val session = PlaybackProgressSession(
@@ -192,6 +141,53 @@ class DesktopPlaybackStopHandlerTest {
         )
     }
 
+    @Test
+    fun `manual stop prefers observed mpv position over estimated session position`() = runBlocking {
+        val mpv = Files.createTempFile("miruplay-mpv", ".exe")
+        try {
+            val player = MpvProcessPlayer(
+                config = MpvRuntimeConfig(mpvExecutable = mpv, rife = null),
+                processLauncher = { AliveProcess() },
+                ipcClient = FakeMpvIpcController(positionSeconds = 42.5),
+            )
+            player.play(
+                PlaybackSource(
+                    uri = "D:/Anime/Episode 01.mkv",
+                    mediaSourceId = "desktop-playback",
+                    episodeId = "D:/Anime/Episode 01.mkv",
+                ),
+            )
+            val session = PlaybackProgressSession(
+                episodeId = "D:/Anime/Episode 01.mkv",
+                startPositionMs = 30_000L,
+                nowMillis = { 1_000L },
+            )
+            var saved: SavedProgress? = null
+
+            val result = stopDesktopPlayback(
+                player = player,
+                session = session,
+                saveProgress = { episodeId, positionMs, lastWatched, incrementPlayCount ->
+                    saved = SavedProgress(episodeId, positionMs, lastWatched, incrementPlayCount)
+                    Result.success(Unit)
+                },
+            )
+
+            assertEquals(42_500L, result.savedPositionMs)
+            assertTrue(result.stoppedPlayer)
+            assertEquals(
+                SavedProgress(
+                    episodeId = "D:/Anime/Episode 01.mkv",
+                    positionMs = 42_500L,
+                    incrementPlayCount = false,
+                ),
+                saved?.copy(lastWatched = 0L),
+            )
+        } finally {
+            Files.deleteIfExists(mpv)
+        }
+    }
+
     private data class SavedProgress(
         val episodeId: String,
         val positionMs: Long,
@@ -199,17 +195,54 @@ class DesktopPlaybackStopHandlerTest {
         val incrementPlayCount: Boolean,
     )
 
-    private fun episode(
-        id: String,
-        number: Int,
-        duration: Long,
-    ): Episode =
-        Episode(
-            id = id,
-            animeId = "anime",
-            episodeNumber = number,
-            filePath = "D:/Anime/$id.mkv",
-            fileName = "$id.mkv",
-            duration = duration,
-        )
+    private class AliveProcess : Process() {
+        override fun getOutputStream(): java.io.OutputStream = java.io.ByteArrayOutputStream()
+
+        override fun getInputStream(): InputStream = ByteArrayInputStream(ByteArray(0))
+
+        override fun getErrorStream(): InputStream = ByteArrayInputStream(ByteArray(0))
+
+        override fun waitFor(): Int = 0
+
+        override fun exitValue(): Int =
+            throw IllegalThreadStateException("still running")
+
+        override fun destroy() = Unit
+
+        override fun isAlive(): Boolean = true
+
+        override fun pid(): Long = 77L
+    }
+
+    private class FakeMpvIpcController(
+        private val positionSeconds: Double? = null,
+    ) : MpvIpcController {
+        override suspend fun cyclePause(): Result<Unit> =
+            Result.success(Unit)
+
+        override suspend fun setPaused(paused: Boolean): Result<Unit> =
+            Result.success(Unit)
+
+        override suspend fun setSpeed(speed: Double): Result<Unit> =
+            Result.success(Unit)
+
+        override suspend fun seekBy(seconds: Double, mode: MpvSeekMode): Result<Unit> =
+            Result.success(Unit)
+
+        override suspend fun quit(): Result<Unit> =
+            Result.success(Unit)
+
+        override suspend fun getTimePositionSeconds(): Result<Double?> =
+            Result.success(positionSeconds)
+
+        override suspend fun getDurationSeconds(): Result<Double?> =
+            Result.success(null)
+
+        override suspend fun getPaused(): Result<Boolean?> =
+            Result.success(false)
+
+        override suspend fun getEofReached(): Result<Boolean?> =
+            Result.success(false)
+    }
+
 }

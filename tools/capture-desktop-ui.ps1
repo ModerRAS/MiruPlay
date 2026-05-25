@@ -1,11 +1,24 @@
 [CmdletBinding()]
 param(
-    [string]$AppScript = (Join-Path $PSScriptRoot "..\desktop-app\build\install\desktop-app\bin\desktop-app.bat"),
-    [string]$OutputDir = (Join-Path $PSScriptRoot "..\build\desktop-ui-qa"),
+    [string]$AppScript = "",
+    [string]$OutputDir = "",
     [switch]$KeepOpen
 )
 
 $ErrorActionPreference = "Stop"
+$scriptRoot = if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) {
+    Split-Path -Parent $MyInvocation.MyCommand.Path
+} else {
+    $PSScriptRoot
+}
+. (Join-Path $scriptRoot "desktop-window-helper.ps1")
+. (Join-Path $scriptRoot "desktop-smoke-common.ps1")
+if ([string]::IsNullOrWhiteSpace($AppScript)) {
+    $AppScript = Join-Path $scriptRoot "..\desktop-app\build\install\desktop-app\bin\desktop-app.bat"
+}
+if ([string]::IsNullOrWhiteSpace($OutputDir)) {
+    $OutputDir = Join-Path $scriptRoot "..\build\desktop-ui-qa"
+}
 
 Add-Type -AssemblyName System.Drawing
 Add-Type -TypeDefinition @"
@@ -34,36 +47,6 @@ public static class MiruPlayWin32 {
     public static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extraInfo);
 }
 "@
-
-function Resolve-FullPath {
-    param([string]$Path)
-    if ([System.IO.Path]::IsPathRooted($Path)) {
-        return [System.IO.Path]::GetFullPath($Path)
-    }
-    return [System.IO.Path]::GetFullPath((Join-Path (Get-Location) $Path))
-}
-
-function Get-MiruPlayWindowProcess {
-    Get-Process |
-        Where-Object {
-            ($_.MainWindowTitle -like "*MiruPlay Desktop*" -or ($_.ProcessName -eq "java" -and $_.MainWindowTitle -like "*MiruPlay*")) -and
-            $_.MainWindowHandle -ne 0
-        } |
-        Select-Object -First 1
-}
-
-function Wait-MiruPlayWindow {
-    $deadline = (Get-Date).AddSeconds(30)
-    do {
-        $process = Get-MiruPlayWindowProcess
-        if ($process) {
-            return $process
-        }
-        Start-Sleep -Milliseconds 300
-    } while ((Get-Date) -lt $deadline)
-
-    throw "MiruPlay Desktop window did not appear within 30 seconds."
-}
 
 function Get-WindowRect {
     param([System.Diagnostics.Process]$Process)
@@ -182,8 +165,8 @@ function Save-WindowScreenshot {
     return $path
 }
 
-$resolvedAppScript = Resolve-FullPath $AppScript
-$resolvedOutputDir = Resolve-FullPath $OutputDir
+$resolvedAppScript = Resolve-DesktopSmokeFullPath $AppScript
+$resolvedOutputDir = Resolve-DesktopSmokeFullPath $OutputDir
 if (-not (Test-Path -LiteralPath $resolvedAppScript)) {
     throw "Desktop app launcher was not found at $resolvedAppScript. Run :desktop-app:installDist first."
 }
@@ -191,27 +174,25 @@ if (-not (Test-Path -LiteralPath $resolvedOutputDir)) {
     New-Item -ItemType Directory -Path $resolvedOutputDir -Force | Out-Null
 }
 
-$startedProcess = $null
-$windowProcess = Get-MiruPlayWindowProcess
-if (-not $windowProcess) {
-    $startedProcess = Start-Process -FilePath $resolvedAppScript -PassThru
-    $windowProcess = Wait-MiruPlayWindow
-}
+Stop-MiruPlayWindowProcesses
+$startedProcess = Start-Process -FilePath $resolvedAppScript -PassThru
+$windowProcess = Wait-MiruPlayDesktopWindowProcess
 
 $captures = @()
 $captures += Save-WindowScreenshot -Process $windowProcess -Name "library" -Directory $resolvedOutputDir
 
-Invoke-RelativeClick -Process $windowProcess -X 885 -Y 95
-$captures += Save-WindowScreenshot -Process $windowProcess -Name "details" -Directory $resolvedOutputDir
-
-Invoke-RelativeClick -Process $windowProcess -X 170 -Y 378
-$captures += Save-WindowScreenshot -Process $windowProcess -Name "player" -Directory $resolvedOutputDir
-
-Invoke-RelativeClick -Process $windowProcess -X 140 -Y 118
-Invoke-RelativeClick -Process $windowProcess -X 170 -Y 462
+Invoke-RelativeClick -Process $windowProcess -X 1165 -Y 110
 $captures += Save-WindowScreenshot -Process $windowProcess -Name "settings" -Directory $resolvedOutputDir
 
-Invoke-RelativeClick -Process $windowProcess -X 465 -Y 462
+Invoke-RelativeClick -Process $windowProcess -X 120 -Y 290
+$captures += Save-WindowScreenshot -Process $windowProcess -Name "details" -Directory $resolvedOutputDir
+
+Invoke-RelativeClick -Process $windowProcess -X 120 -Y 370
+$captures += Save-WindowScreenshot -Process $windowProcess -Name "player" -Directory $resolvedOutputDir
+
+Invoke-RelativeClick -Process $windowProcess -X 130 -Y 120
+Invoke-RelativeClick -Process $windowProcess -X 120 -Y 450
+Invoke-RelativeClick -Process $windowProcess -X 410 -Y 450
 $captures += Save-WindowScreenshot -Process $windowProcess -Name "settings-cloud" -Directory $resolvedOutputDir
 
 Assert-CapturesAreDistinct -Paths $captures
@@ -228,3 +209,4 @@ if (-not $KeepOpen) {
 }
 
 $captures | ForEach-Object { Write-Output $_ }
+

@@ -13,12 +13,12 @@ import org.junit.Test
 class DesktopChromeTest {
     @Test
     fun `window title uses TV-facing desktop copy`() {
-        assertEquals(desktopWindowTitleLabel(), desktopWindowTitle())
+        assertEquals("MiruPlay 桌面版", desktopWindowTitleLabel())
     }
 
     @Test
     fun `poster placeholder subtitle uses TV-facing runtime copy`() {
-        assertEquals(desktopPosterPlaceholderSubtitleLabel(), desktopPosterPlaceholderSubtitle())
+        assertEquals("内置播放运行时", desktopPosterPlaceholderSubtitleLabel())
     }
 
     @Test

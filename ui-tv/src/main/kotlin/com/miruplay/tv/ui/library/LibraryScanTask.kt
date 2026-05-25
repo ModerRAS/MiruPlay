@@ -2,10 +2,11 @@ package com.miruplay.tv.ui.library
 
 import android.util.Log
 import com.miruplay.tv.core.common.Result
-import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.model.ScanResult
 import com.miruplay.tv.model.libraryScanFailedMessage
 import com.miruplay.tv.repository.MediaSourceRepository
+import com.miruplay.tv.repository.ScanPreferencesRepository
+import com.miruplay.tv.repository.shouldAutoScan
 import com.miruplay.tv.scanner.ScanCoordinator
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -35,7 +36,7 @@ sealed class LibraryScanState {
 class LibraryScanTask @Inject constructor(
     private val mediaRepository: MediaSourceRepository,
     private val scanCoordinator: ScanCoordinator,
-    private val scanPreferences: ScanPreferencesManager
+    private val scanPreferences: ScanPreferencesRepository
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val _state = MutableStateFlow<LibraryScanState>(LibraryScanState.Idle)
@@ -57,9 +58,9 @@ class LibraryScanTask @Inject constructor(
 
     private fun startScan(force: Boolean) {
         if (scanJob?.isActive == true) return
-        if (!force && !scanPreferences.shouldAutoScan()) return
 
         scanJob = scope.launch {
+            if (!force && !scanPreferences.shouldAutoScan()) return@launch
             val sources = mediaRepository.getSources().getOrNull().orEmpty()
             if (sources.isEmpty()) {
                 _state.value = LibraryScanState.Idle
@@ -81,7 +82,7 @@ class LibraryScanTask @Inject constructor(
             try {
                 when (val result = scanCoordinator.scanAllSources()) {
                     is Result.Success -> {
-                        scanPreferences.lastScanAt = System.currentTimeMillis()
+                        scanPreferences.setLastScanAt(System.currentTimeMillis())
                         _state.value = LibraryScanState.Finished(result.data)
                     }
                     is Result.Error -> {

@@ -1368,7 +1368,11 @@ async function scanSource(sourceId) {
   loading.scan = true
   try {
     const result = await api(`/api/sources/${sourceId}/scan`, { method: 'POST' })
-    ElMessage.success(`扫描完成：${result.episodesFound} 个文件`)
+    if (result?.error) {
+      ElMessage.warning(`扫描失败：${result.error}`)
+    } else {
+      ElMessage.success(`扫描完成：${result.episodesFound} 个文件`)
+    }
     await loadLibrary()
   } catch (e) {
     ElMessage.error(e?.message || '扫描失败')
@@ -1382,7 +1386,17 @@ async function scanAll() {
   try {
     const results = await api('/api/sources/scan-all', { method: 'POST' })
     const count = results.reduce((sum, item) => sum + item.episodesFound, 0)
-    ElMessage.success(`扫描完成：${count} 个文件`)
+    const failedItems = results.filter(item => item?.error)
+    if (failedItems.length > 0) {
+      const failedSourceNames = failedItems
+        .map(item => item?.animeName || `源 ${item?.sourceId ?? ''}`)
+        .slice(0, 3)
+        .join('、')
+      const moreSuffix = failedItems.length > 3 ? ` 等 ${failedItems.length} 个源` : ''
+      ElMessage.warning(`扫描部分完成：${count} 个文件，${failedItems.length} 个源失败（${failedSourceNames}${moreSuffix}）`)
+    } else {
+      ElMessage.success(`扫描完成：${count} 个文件`)
+    }
     await loadLibrary()
   } catch (e) {
     ElMessage.error(e?.message || '扫描全部失败')

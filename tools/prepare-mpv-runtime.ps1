@@ -5,7 +5,7 @@ param(
 
     [string]$OverlaySource = '',
 
-    [string]$Destination = (Join-Path $PSScriptRoot '..\runtime\mpv'),
+    [string]$Destination = '',
 
     [string]$RequiredRifeBackends = 'NVIDIA,DIRECTML',
 
@@ -15,6 +15,14 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$scriptRoot = if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) {
+    Split-Path -Parent $MyInvocation.MyCommand.Path
+} else {
+    $PSScriptRoot
+}
+if ([string]::IsNullOrWhiteSpace($Destination)) {
+    $Destination = Join-Path $scriptRoot '..\runtime\mpv'
+}
 
 function Resolve-RuntimeRoot {
     param([Parameter(Mandatory = $true)][string]$Path)

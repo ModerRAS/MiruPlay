@@ -1,5 +1,9 @@
 package com.miruplay.tv.model
 
+const val DETAIL_EPISODE_PAGE_SIZE = 6
+const val RECENT_PLAYBACK_PAGE_SIZE = 6
+const val MEDIA_DETAILS_PAGE_SIZE = 6
+
 fun detailPlayActionLabel(): String = "播放"
 
 fun detailBackToLibraryActionLabel(): String = "返回海报墙"
@@ -55,11 +59,101 @@ fun detailEpisodeTitleLabel(episodeNumber: Int?, episodeTitle: String?): String 
 fun detailEpisodeCountLabel(episodeCount: Int): String =
     "全 ${episodeCount.coerceAtLeast(0)} 话"
 
+fun detailHeroStatLabels(
+    episodeCount: Int,
+    seasonNumber: Int? = null,
+    metadataSource: String? = null,
+): List<String> =
+    buildList {
+        if (episodeCount > 0) {
+            add(detailEpisodeCountLabel(episodeCount))
+        }
+        seasonNumber?.let { add(detailSeasonLabel(it)) }
+        metadataSource
+            ?.takeIf { it.isNotBlank() }
+            ?.let { add(it.trim()) }
+    }
+
 fun detailEpisodePageUnitLabel(): String = "集"
+
+fun detailEpisodePageStartForIndex(
+    index: Int,
+    itemCount: Int,
+    pageSize: Int = DETAIL_EPISODE_PAGE_SIZE,
+): Int = pagedListPageStartForIndex(index, itemCount, pageSize)
+
+fun detailEpisodeCoercedPageStart(
+    pageStart: Int,
+    itemCount: Int,
+    pageSize: Int = DETAIL_EPISODE_PAGE_SIZE,
+): Int = pagedListCoercedPageStart(pageStart, itemCount, pageSize)
+
+fun detailEpisodePageSummary(
+    pageStart: Int,
+    visibleCount: Int,
+    itemCount: Int,
+): String? =
+    pagedListPageSummary(
+        pageStart = detailEpisodeCoercedPageStart(pageStart, itemCount),
+        visibleCount = visibleCount,
+        itemCount = itemCount,
+        pageSize = DETAIL_EPISODE_PAGE_SIZE,
+        unitLabel = detailEpisodePageUnitLabel(),
+    )
 
 fun recentPlaybackPageUnitLabel(): String = "条记录"
 
+fun recentPlaybackPageStartForIndex(
+    index: Int,
+    itemCount: Int,
+    pageSize: Int = RECENT_PLAYBACK_PAGE_SIZE,
+): Int = pagedListPageStartForIndex(index, itemCount, pageSize)
+
+fun recentPlaybackCoercedPageStart(
+    pageStart: Int,
+    itemCount: Int,
+    pageSize: Int = RECENT_PLAYBACK_PAGE_SIZE,
+): Int = pagedListCoercedPageStart(pageStart, itemCount, pageSize)
+
+fun recentPlaybackPageSummary(
+    pageStart: Int,
+    visibleCount: Int,
+    itemCount: Int,
+): String? =
+    pagedListPageSummary(
+        pageStart = recentPlaybackCoercedPageStart(pageStart, itemCount),
+        visibleCount = visibleCount,
+        itemCount = itemCount,
+        pageSize = RECENT_PLAYBACK_PAGE_SIZE,
+        unitLabel = recentPlaybackPageUnitLabel(),
+    )
+
 fun mediaDetailsPageUnitLabel(): String = "条详情"
+
+fun mediaDetailsPageStartForIndex(
+    index: Int,
+    itemCount: Int,
+    pageSize: Int = MEDIA_DETAILS_PAGE_SIZE,
+): Int = pagedListPageStartForIndex(index, itemCount, pageSize)
+
+fun mediaDetailsCoercedPageStart(
+    pageStart: Int,
+    itemCount: Int,
+    pageSize: Int = MEDIA_DETAILS_PAGE_SIZE,
+): Int = pagedListCoercedPageStart(pageStart, itemCount, pageSize)
+
+fun mediaDetailsPageSummary(
+    pageStart: Int,
+    visibleCount: Int,
+    itemCount: Int,
+): String? =
+    pagedListPageSummary(
+        pageStart = mediaDetailsCoercedPageStart(pageStart, itemCount),
+        visibleCount = visibleCount,
+        itemCount = itemCount,
+        pageSize = MEDIA_DETAILS_PAGE_SIZE,
+        unitLabel = mediaDetailsPageUnitLabel(),
+    )
 
 fun detailRatingLabel(rating: Float): String =
     "评分 ${"%.1f".format(rating)}"

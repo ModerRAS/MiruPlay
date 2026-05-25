@@ -2,21 +2,24 @@ package com.miruplay.tv.ui.player
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.miruplay.tv.data.preferences.PlaybackPreferencesManager
+import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.PLAYBACK_SEEK_BACK_SECONDS
 import com.miruplay.tv.model.PLAYBACK_SEEK_FORWARD_SECONDS
+import com.miruplay.tv.model.PlaybackProgressSession
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.PlaybackState
-import com.miruplay.tv.model.nextEpisodeAfter
+import com.miruplay.tv.model.PlaybackTimingConventions
 import com.miruplay.tv.player.AudioTrack
 import com.miruplay.tv.player.PlaybackController
 import com.miruplay.tv.model.SubtitleTrack
 import com.miruplay.tv.model.toPlaybackSource
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
+import com.miruplay.tv.repository.NextPlaybackSourceResolver
+import com.miruplay.tv.repository.PlaybackPreferencesRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
-import com.miruplay.tv.repository.resolvePlayableUri
+import com.miruplay.tv.repository.savePlaybackProgressOnCompletion
 import com.miruplay.tv.repository.savePlaybackProgressSnapshot
 import com.miruplay.tv.sync.BangumiSyncEngine
 import androidx.media3.common.Player
@@ -37,7 +40,7 @@ class PlayerViewModel @Inject constructor(
     private val metadataRepository: MetadataRepository,
     private val mediaRepository: MediaSourceRepository,
     private val bangumiSyncEngine: BangumiSyncEngine,
-    private val playbackPreferences: PlaybackPreferencesManager
+    private val playbackPreferences: PlaybackPreferencesRepository
 ) : ViewModel() {
 
     val playbackState: StateFlow<PlaybackState> = playbackController.state
@@ -80,6 +83,11 @@ class PlayerViewModel @Inject constructor(
     private var finishObserverJob: Job? = null
     private var activeSource: PlaybackSource? = null
     private var pendingSeekPositionMs: Long? = null
+    private val nextPlaybackSourceResolver = NextPlaybackSourceResolver(
+        metadata = metadataRepository,
+        progress = progressRepository,
+        mediaSources = mediaRepository,
+    )
 
     fun play(source: PlaybackSource) {
         viewModelScope.launch {
@@ -202,12 +210,7 @@ class PlayerViewModel @Inject constructor(
         pendingSeekPositionMs ?: _currentPosition.value
 
     private fun coerceSeekPosition(positionMs: Long): Long {
-        val durationMs = _duration.value
-        return if (durationMs > 0L) {
-            positionMs.coerceIn(0L, durationMs)
-        } else {
-            positionMs.coerceAtLeast(0L)
-        }
+        return PlaybackTimingConventions.coercePlaybackPositionMs(positionMs, _duration.value)
     }
 
     private fun refreshTracks() {
@@ -273,14 +276,18 @@ class PlayerViewModel @Inject constructor(
     }
 
     private suspend fun handlePlaybackEnded(source: PlaybackSource) {
-        saveProgressSnapshot(
-            source = source,
-            positionMs = playbackController.getDuration().coerceAtLeast(0L),
-            incrementPlayCount = true
-        )
         val episodeId = source.episodeId ?: extractEpisodeId(source.uri)
+        savePlaybackProgressOnCompletion(
+            session = PlaybackProgressSession(
+                episodeId = episodeId,
+                startPositionMs = source.startPosition,
+            ),
+            queryDurationMs = { Result.success(playbackController.getDuration()) },
+            queryPositionMs = { Result.success(playbackController.getCurrentPosition()) },
+            saveProgress = progressRepository::saveProgress,
+        )
 
-        val nextSource = if (playbackPreferences.endAction == PlaybackEndAction.PLAY_NEXT_EPISODE) {
+        val nextSource = if (playbackPreferences.getEndAction() == PlaybackEndAction.PLAY_NEXT_EPISODE) {
             buildNextPlaybackSource(source)
         } else {
             null
@@ -298,21 +305,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     private suspend fun buildNextPlaybackSource(source: PlaybackSource): PlaybackSource? {
-        val episodeId = source.episodeId ?: return null
-        val currentEpisode = metadataRepository.getCachedEpisode(episodeId).getOrNull() ?: return null
-        val episodes = metadataRepository.getCachedEpisodes(currentEpisode.animeId).getOrNull().orEmpty()
-        val nextEpisode = episodes.nextEpisodeAfter(currentEpisode.id) ?: return null
-        val progress = progressRepository.getProgress(nextEpisode.id).getOrNull()
-        val playableUri = resolvePlayableUri(
-            path = nextEpisode.filePath,
-            episodeId = nextEpisode.id,
-            mediaRepository = mediaRepository
-        )
-
-        return nextEpisode.toPlaybackSource(
-            playableUri = playableUri,
-            progress = progress,
-        )
+        return nextPlaybackSourceResolver.build(source)
     }
 
     private fun extractEpisodeId(uri: String): String {

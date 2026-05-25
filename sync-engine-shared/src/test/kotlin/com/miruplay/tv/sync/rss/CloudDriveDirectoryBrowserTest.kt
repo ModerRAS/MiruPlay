@@ -7,8 +7,10 @@ import com.miruplay.tv.clouddrive.CloudDriveLoginResult
 import com.miruplay.tv.clouddrive.CloudDriveTokenInfo
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.model.cloudDriveRssDirectoryBrowsingStatus
 import com.miruplay.tv.model.cloudDriveRssDirectorySelectedStatus
 import com.miruplay.tv.model.cloudDriveRssLibraryDirectorySelectedLabel
+import com.miruplay.tv.model.cloudDriveTokenLoginRequiredStatus
 import java.io.File
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -17,6 +19,99 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CloudDriveDirectoryBrowserTest {
+    @Test
+    fun `coordinator open validates form and prepares browser from saved token`() = runBlocking {
+        val client = FakeCloudDriveClient(rootDir = "/CloudRoot")
+        val coordinator = CloudDriveDirectoryBrowserCoordinator(client)
+
+        val result = coordinator.open(
+            target = CloudDriveDirectoryTarget.INBOX,
+            endpointUrl = " https://cloud.test ",
+            tokenInput = "",
+            savedToken = " saved-token ",
+            initialPath = "/CloudRoot/Inbox",
+        )
+
+        val ready = result as CloudDriveDirectoryOpenResult.Ready
+        assertEquals(listOf("https://cloud.test" to "saved-token"), client.tokenInfoRequests)
+        assertEquals(CloudDriveDirectoryTarget.INBOX, ready.state.target)
+        assertEquals("https://cloud.test", ready.state.endpointUrl)
+        assertEquals("saved-token", ready.state.token)
+        assertEquals("/CloudRoot/Inbox", ready.state.path)
+        assertEquals("/CloudRoot/Inbox", ready.loadPath)
+        assertTrue(ready.state.isLoading)
+    }
+
+    @Test
+    fun `coordinator loading ignores closed browser and reports missing token`() {
+        val coordinator = CloudDriveDirectoryBrowserCoordinator(FakeCloudDriveClient())
+        val closed = CloudDriveDirectoryBrowserState(open = false)
+
+        val ignored = coordinator.loading(closed, "/CloudRoot")
+
+        assertEquals(CloudDriveDirectoryLoadResult.Ignored, ignored)
+
+        val missingToken = coordinator.loading(
+            CloudDriveDirectoryBrowserState(
+                open = true,
+                endpointUrl = "http://127.0.0.1:19798",
+                token = "",
+                rootPath = "/CloudRoot",
+                path = "/CloudRoot",
+            ),
+            "/CloudRoot",
+        ) as CloudDriveDirectoryLoadResult.Failed
+
+        assertEquals(cloudDriveTokenLoginRequiredStatus(), missingToken.status)
+        assertEquals(false, missingToken.state.isLoading)
+        assertEquals(cloudDriveTokenLoginRequiredStatus(), missingToken.state.message)
+    }
+
+    @Test
+    fun `coordinator load reports status and ignores stale directory results`() = runBlocking {
+        val client = FakeCloudDriveClient(
+            files = listOf(CloudDriveFileInfo("Season A", "/CloudRoot/Anime/Season A", isDirectory = true)),
+        )
+        val coordinator = CloudDriveDirectoryBrowserCoordinator(client)
+        val current = CloudDriveDirectoryBrowserState(
+            open = true,
+            target = CloudDriveDirectoryTarget.LIBRARY,
+            endpointUrl = "http://127.0.0.1:19798",
+            token = "api-token",
+            rootPath = "/CloudRoot",
+            path = "/CloudRoot/Other",
+        )
+        val loading = current.loadingFor("/CloudRoot/Anime")
+
+        val loaded = coordinator.load(loading) as CloudDriveDirectoryLoadResult.Loaded
+        val stale = coordinator.applyLoadedIfCurrent(current, loaded)
+        val fresh = coordinator.applyLoadedIfCurrent(loading, loaded)
+
+        assertEquals(listOf(CloudDriveEndpoint("http://127.0.0.1:19798", "api-token") to "/CloudRoot/Anime"), client.listRequests)
+        assertEquals(cloudDriveRssDirectoryBrowsingStatus("/CloudRoot/Anime"), loaded.status)
+        assertEquals(CloudDriveDirectoryLoadResult.Ignored, stale)
+        assertEquals(loaded, fresh)
+    }
+
+    @Test
+    fun `coordinator load surfaces listing errors as browser messages`() = runBlocking {
+        val failure = AppError.MediaSourceError.AuthenticationFailed("CloudDrive2")
+        val coordinator = CloudDriveDirectoryBrowserCoordinator(FakeCloudDriveClient(listFailure = failure))
+        val state = CloudDriveDirectoryBrowserState(
+            open = true,
+            endpointUrl = "http://127.0.0.1:19798",
+            token = "api-token",
+            rootPath = "/CloudRoot",
+        )
+        val loading = coordinator.loading(state, "/CloudRoot") as CloudDriveDirectoryLoadResult.Loading
+
+        val result = coordinator.load(loading.state) as CloudDriveDirectoryLoadResult.Failed
+
+        assertEquals(failure.toUserMessage(), result.status)
+        assertEquals(failure.toUserMessage(), result.state.message)
+        assertEquals(false, result.state.isLoading)
+    }
+
     @Test
     fun `prepare verifies token and scopes initial path to token root`() = runBlocking {
         val client = FakeCloudDriveClient(rootDir = "/CloudRoot")

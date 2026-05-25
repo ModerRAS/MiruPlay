@@ -1,8 +1,10 @@
 package com.miruplay.tv.desktop
 
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.mediasource.desktop.DesktopMediaSource
 import com.miruplay.tv.mediasource.desktop.desktopSourceFromInfo
+import com.miruplay.tv.mediasource.testConnectionState
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.connectionDomain
@@ -10,6 +12,8 @@ import com.miruplay.tv.model.connectionPassword
 import com.miruplay.tv.model.connectionUsername
 import com.miruplay.tv.model.localRootPath
 import com.miruplay.tv.model.remoteUrl
+import com.miruplay.tv.repository.MediaSourceActionCoordinator
+import com.miruplay.tv.repository.MediaSourceAddActionResult
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.loadedStatus
 import com.miruplay.tv.repository.readyStatus
@@ -77,22 +81,31 @@ internal fun MediaSourceInfo.desktopSourceActivationState(saved: Boolean = false
 
 internal suspend fun openDesktopSource(
     repository: MediaSourceRepository,
+    mediaSourceFactory: MediaSourceFactory,
     sourceInfo: MediaSourceInfo,
+    testConnection: suspend (MediaSourceInfo) -> Result<Boolean> = { persisted ->
+        Result.success(mediaSourceFactory.testConnectionState(persisted))
+    },
 ): Result<DesktopSourceOpenResult> =
-    when (val result = repository.addSource(sourceInfo)) {
-        is Result.Success -> {
-            val stored = sourceInfo.copy(id = result.data)
+    when (
+        val result = MediaSourceActionCoordinator(repository).addSource(
+            source = sourceInfo.copy(isConnected = false),
+            testConnection = testConnection,
+        )
+    ) {
+        is MediaSourceAddActionResult.Saved -> {
+            val stored = result.source
             Result.success(
                 DesktopSourceOpenResult(
                     sourceInfo = stored,
-                    source = desktopSourceFromInfo(stored),
+                    source = mediaSourceFactory.create(stored).getOrNull() ?: desktopSourceFromInfo(stored),
                     formState = DesktopSourceFormState().withSource(stored),
                     status = stored.readyStatus(),
                     opensRemoteRoot = stored.type != MediaSourceType.LOCAL,
                 )
             )
         }
-        is Result.Error -> result
+        is MediaSourceAddActionResult.Failed -> Result.failure(result.error)
     }
 
 private fun DesktopSourceFormState.withSource(sourceInfo: MediaSourceInfo): DesktopSourceFormState =

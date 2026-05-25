@@ -7,6 +7,7 @@ import java.util.zip.ZipFile
 import groovy.json.JsonSlurper
 import org.gradle.api.file.DuplicatesStrategy
 import org.gradle.api.tasks.Sync
+import org.gradle.api.tasks.bundling.Tar
 import org.gradle.api.tasks.bundling.Zip
 import org.gradle.jvm.tasks.Jar
 
@@ -24,6 +25,12 @@ kotlin {
 
 application {
     mainClass.set("com.miruplay.tv.desktop.MiruPlayDesktopComposeAppKt")
+}
+
+sourceSets {
+    main {
+        resources.srcDir(project(":web-control").projectDir.resolve("src/main/assets"))
+    }
 }
 
 val generatedMpvRuntimeManifest = layout.buildDirectory.file("generated/mpv-runtime/runtime-manifest.json")
@@ -229,7 +236,7 @@ fun validateRuntimeManifestFile(root: File, problems: MutableList<String>) {
 }
 
 fun hasMpvRuntimeSource(): Boolean =
-    mpvRuntimeSource.isPresent || bundledMpvRuntime.asFile.exists()
+    effectiveMpvRuntimeRoot.get().resolve("mpv.exe").isFile
 
 fun mpvRuntimeSourceHasManifest(): Boolean =
     hasMpvRuntimeSource() && effectiveMpvRuntimeRoot.get().resolve("runtime-manifest.json").isFile
@@ -423,6 +430,12 @@ val smokeMpvRuntime by tasks.registering {
 
 val distZipTask = tasks.named<Zip>("distZip")
 
+tasks.withType<Zip>().configureEach {
+    if (name == "distZip") {
+        archiveVersion.set(windowsPackageVersion)
+    }
+}
+
 val prepareJpackageAppContent by tasks.registering(Sync::class) {
     group = "distribution"
     description = "Prepare bundled runtime content for JDK jpackage app images."
@@ -464,6 +477,7 @@ val packageWindowsAppImage by tasks.registering {
     onlyIf { System.getProperty("os.name").contains("Windows", ignoreCase = true) }
     inputs.dir(jpackageInputDir)
     inputs.dir(jpackageAppContentDir).optional()
+    inputs.property("windowsPackageVersion", windowsPackageVersion)
     outputs.dir(jpackageAppImageRoot)
 
     doLast {
@@ -481,7 +495,7 @@ val packageWindowsAppImage by tasks.registering {
             "--main-class", application.mainClass.get(),
             "--dest", outputDir.absolutePath,
             "--vendor", "MiruPlay",
-            "--app-version", "0.1.0",
+            "--app-version", windowsPackageVersion.get(),
             "--description", "MiruPlay Windows desktop anime media manager",
         )
         if (appContentRuntime.isDirectory) {
@@ -1018,15 +1032,18 @@ distZipTask {
     dependsOn(generateMpvRuntimeManifest)
 }
 
-tasks.named("distTar") {
+tasks.named<Tar>("distTar") {
+    inputs.property("windowsPackageVersion", windowsPackageVersion)
     dependsOn(verifyMpvRuntimePayload)
     dependsOn(generateMpvRuntimeManifest)
+    archiveVersion.set(windowsPackageVersion)
 }
 
 dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:common"))
     implementation(project(":ui-design"))
+    implementation(project(":web-control-core"))
     implementation(project(":cloud-drive-desktop"))
     implementation(project(":media-source-desktop"))
     implementation(project(":player-mpv"))

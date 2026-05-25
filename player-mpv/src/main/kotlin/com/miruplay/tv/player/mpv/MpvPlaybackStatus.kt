@@ -1,6 +1,8 @@
 package com.miruplay.tv.player.mpv
 
+import com.miruplay.tv.model.coercePlaybackSpeed
 import com.miruplay.tv.model.formatPlaybackPosition
+import com.miruplay.tv.model.playbackSpeedValueLabel
 
 fun mpvIdleStatus(): String =
     "mpv is idle."
@@ -28,6 +30,9 @@ fun mpvSeekBackStatus(seconds: Int): String =
 
 fun mpvSeekForwardStatus(seconds: Int): String =
     "mpv seeked forward ${seconds}s."
+
+fun mpvSpeedChangedStatus(speed: Float): String =
+    "mpv speed set to ${playbackSpeedValueLabel(coercePlaybackSpeed(speed))}."
 
 fun mpvStoppedStatus(): String =
     "mpv stopped."

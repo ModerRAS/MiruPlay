@@ -22,6 +22,7 @@ android {
 }
 
 dependencies {
+    api(project(":web-control-core"))
     api(project(":core:model"))
     implementation(project(":core:common"))
     implementation(project(":repository-api"))

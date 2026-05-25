@@ -2,21 +2,37 @@ package com.miruplay.tv.desktop
 
 import androidx.compose.ui.input.key.Key
 import com.miruplay.tv.design.MiruPlayInputIntent
+import com.miruplay.tv.model.Anime
+import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.ProgressRecord
+import com.miruplay.tv.model.detailEpisodeCoercedPageStart
 import com.miruplay.tv.model.detailEpisodePageUnitLabel
+import com.miruplay.tv.model.detailEpisodePageStartForIndex
+import com.miruplay.tv.model.detailEpisodePageSummary
 import com.miruplay.tv.model.detailEpisodeShelfSubtitle
 import com.miruplay.tv.model.detailHeroEmptyTitle
 import com.miruplay.tv.model.detailHeroEmptySubtitle
+import com.miruplay.tv.model.detailHeroStatLabels
 import com.miruplay.tv.model.libraryContinueWatchingSectionTitle
+import com.miruplay.tv.model.mediaDetailsCoercedPageStart
 import com.miruplay.tv.model.mediaDetailsPageUnitLabel
+import com.miruplay.tv.model.mediaDetailsPageStartForIndex
+import com.miruplay.tv.model.mediaDetailsPageSummary
 import com.miruplay.tv.model.mediaDetailsEmptyMessage
 import com.miruplay.tv.model.mediaDetailsSectionTitle
 import com.miruplay.tv.model.pagedListPageSummary
+import com.miruplay.tv.model.playbackProgressRecordLabel
+import com.miruplay.tv.model.recentPlaybackCoercedPageStart
 import com.miruplay.tv.model.recentPlaybackClearActionLabel
 import com.miruplay.tv.model.recentPlaybackEmptyMessage
+import com.miruplay.tv.model.recentPlaybackPageStartForIndex
+import com.miruplay.tv.model.recentPlaybackPageSummary
 import com.miruplay.tv.model.recentPlaybackPageUnitLabel
 import com.miruplay.tv.model.recentPlaybackRefreshActionLabel
+import com.miruplay.tv.model.mediaDetailsLabels
+import com.miruplay.tv.model.recentPlaybackLabels
+import com.miruplay.tv.repository.LibraryContinueWatchingEpisode
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.sync.bangumiMetadataCacheId
 import com.miruplay.tv.sync.toBangumiLocalEpisode
@@ -213,6 +229,50 @@ class DesktopDetailHeroTest {
     }
 
     @Test
+    fun `recent playback item uses resolved episode display fields`() {
+        val item = LibraryContinueWatchingEpisode(
+            progress = ProgressRecord(
+                episodeId = "1:D:/Anime/Frieren/01.mkv",
+                positionMs = 12_000L,
+                lastWatched = 34L,
+                playCount = 2,
+            ),
+            episode = Episode(
+                id = "1:D:/Anime/Frieren/01.mkv",
+                animeId = "frieren",
+                episodeNumber = 1,
+                title = "旅途的开始",
+                filePath = "D:/Anime/Frieren/01.mkv",
+                fileName = "01.mkv",
+            ),
+            anime = Anime(id = "frieren", title = "Frieren"),
+        ).toDesktopRecentPlaybackItem()
+
+        assertEquals("旅途的开始", item.displayName)
+        assertEquals("D:/Anime/Frieren/01.mkv", item.pathLabel)
+        assertEquals("12", item.resumeStartSecondsText())
+        assertEquals("已载入最近播放：旅途的开始。", item.loadedPlaybackStatus())
+    }
+
+    @Test
+    fun `recent playback item selection is retained by progress id`() {
+        val selected = DesktopRecentPlaybackItem(
+            progress = ProgressRecord("episode-1", positionMs = 12_000L, lastWatched = 1L),
+            displayName = "old",
+            pathLabel = "old-path",
+        )
+        val refreshed = DesktopRecentPlaybackItem(
+            progress = ProgressRecord("episode-1", positionMs = 30_000L, lastWatched = 2L),
+            displayName = "new",
+            pathLabel = "new-path",
+        )
+
+        assertEquals(refreshed, selected.retainedSelectionInRecentPlaybackItems(listOf(refreshed)))
+        assertEquals(null, selected.retainedSelectionInRecentPlaybackItems(emptyList()))
+        assertEquals(null, null.retainedSelectionInRecentPlaybackItems(listOf(refreshed)))
+    }
+
+    @Test
     fun `recent playback page helpers keep every recent record reachable`() {
         assertEquals(0, recentPlaybackPageStartForIndex(index = 0, itemCount = 14))
         assertEquals(0, recentPlaybackPageStartForIndex(index = 5, itemCount = 14))
@@ -235,18 +295,94 @@ class DesktopDetailHeroTest {
     }
 
     @Test
-    fun `detail hero down key falls back to bangumi when recents are absent`() {
+    fun `detail panel focus chain follows visible panel order`() {
         assertEquals(
-            DesktopDetailDownTarget.EpisodeList,
-            detailHeroDownTarget(hasRelatedEpisodes = true, hasRecentPlayback = false),
+            DesktopDetailFocusPanel.EpisodeList,
+            detailPanelFocusTarget(
+                current = DesktopDetailFocusPanel.Hero,
+                direction = 1,
+                hasRelatedEpisodes = true,
+                hasRecentPlayback = true,
+            ),
         )
         assertEquals(
-            DesktopDetailDownTarget.RecentPlayback,
-            detailHeroDownTarget(hasRelatedEpisodes = false, hasRecentPlayback = true),
+            DesktopDetailFocusPanel.BangumiMetadata,
+            detailPanelFocusTarget(
+                current = DesktopDetailFocusPanel.EpisodeList,
+                direction = 1,
+                hasRelatedEpisodes = true,
+                hasRecentPlayback = true,
+            ),
         )
         assertEquals(
-            DesktopDetailDownTarget.BangumiMetadata,
-            detailHeroDownTarget(hasRelatedEpisodes = false, hasRecentPlayback = false),
+            DesktopDetailFocusPanel.RecentPlayback,
+            detailPanelFocusTarget(
+                current = DesktopDetailFocusPanel.BangumiMetadata,
+                direction = 1,
+                hasRelatedEpisodes = true,
+                hasRecentPlayback = true,
+            ),
+        )
+        assertEquals(
+            DesktopDetailFocusPanel.MediaDetails,
+            detailPanelFocusTarget(
+                current = DesktopDetailFocusPanel.RecentPlayback,
+                direction = 1,
+                hasRelatedEpisodes = true,
+                hasRecentPlayback = true,
+            ),
+        )
+        assertEquals(
+            DesktopDetailFocusPanel.RecentPlayback,
+            detailPanelFocusTarget(
+                current = DesktopDetailFocusPanel.MediaDetails,
+                direction = -1,
+                hasRelatedEpisodes = true,
+                hasRecentPlayback = true,
+            ),
+        )
+        assertEquals(null, detailPanelFocusTarget(DesktopDetailFocusPanel.Hero, -1, true, true))
+        assertEquals(null, detailPanelFocusTarget(DesktopDetailFocusPanel.MediaDetails, 1, true, true))
+        assertEquals(null, detailPanelFocusTarget(DesktopDetailFocusPanel.Hero, 0, true, true))
+    }
+
+    @Test
+    fun `detail panel focus chain skips missing episode and recent panels`() {
+        assertEquals(
+            DesktopDetailFocusPanel.BangumiMetadata,
+            detailPanelFocusTarget(
+                current = DesktopDetailFocusPanel.Hero,
+                direction = 1,
+                hasRelatedEpisodes = false,
+                hasRecentPlayback = true,
+            ),
+        )
+        assertEquals(
+            DesktopDetailFocusPanel.Hero,
+            detailPanelFocusTarget(
+                current = DesktopDetailFocusPanel.BangumiMetadata,
+                direction = -1,
+                hasRelatedEpisodes = false,
+                hasRecentPlayback = true,
+            ),
+        )
+        assertEquals(
+            DesktopDetailFocusPanel.MediaDetails,
+            detailPanelFocusTarget(
+                current = DesktopDetailFocusPanel.BangumiMetadata,
+                direction = 1,
+                hasRelatedEpisodes = true,
+                hasRecentPlayback = false,
+            ),
+        )
+        assertEquals(
+            DesktopDetailFocusPanel.BangumiMetadata,
+            detailPanelFocusTarget(
+                current = DesktopDetailFocusPanel.MediaDetails,
+                direction = -1,
+                hasRelatedEpisodes = true,
+                hasRecentPlayback = false,
+            ),
         )
     }
 
@@ -263,16 +399,27 @@ class DesktopDetailHeroTest {
 
         assertEquals(
             listOf("全 3 话", "第 1 季", "Bangumi"),
-            detailHeroStatLabels(entry, episodeCount = 3),
+            detailHeroStatLabels(
+                episodeCount = 3,
+                seasonNumber = entry.seasonNumber,
+                metadataSource = entry.metadataSource,
+            ),
         )
-        assertEquals(emptyList<String>(), detailHeroStatLabels(null, episodeCount = 3))
-        assertEquals(listOf("第 1 季", "Bangumi"), detailHeroStatLabels(entry, episodeCount = 0))
+        assertEquals(listOf("全 3 话"), detailHeroStatLabels(episodeCount = 3))
+        assertEquals(
+            listOf("第 1 季", "Bangumi"),
+            detailHeroStatLabels(
+                episodeCount = 0,
+                seasonNumber = entry.seasonNumber,
+                metadataSource = entry.metadataSource,
+            ),
+        )
     }
 
     @Test
     fun `detail panel chrome uses TV-facing Chinese labels`() {
-        val recents = desktopRecentPlaybackLabels()
-        val mediaDetails = desktopMediaDetailsLabels()
+        val recents = recentPlaybackLabels()
+        val mediaDetails = mediaDetailsLabels()
 
         assertEquals("选择一部番剧", detailHeroEmptyTitle())
         assertEquals("从媒体库海报墙选择内容后显示详情。", detailHeroEmptySubtitle())
@@ -287,7 +434,7 @@ class DesktopDetailHeroTest {
     }
 
     @Test
-    fun `detail episodes group selected anime and sort by season episode`() {
+    fun `detail episode season helpers choose active season and filter episodes`() {
         val selected = MediaIndexEntry(
             sourceId = 1,
             path = "show/Frieren - S01E02.mkv",
@@ -295,23 +442,28 @@ class DesktopDetailHeroTest {
             seasonNumber = 1,
             episodeNumber = 2,
         )
-        val entries = listOf(
-            selected,
+        val episodes = listOf(
             MediaIndexEntry(sourceId = 1, path = "show/Frieren - S01E01.mkv", animeName = "Frieren", seasonNumber = 1, episodeNumber = 1),
+            selected,
             MediaIndexEntry(sourceId = 1, path = "show/Frieren - S02E01.mkv", animeName = "Frieren", seasonNumber = 2, episodeNumber = 1),
-            MediaIndexEntry(sourceId = 1, path = "show/Bocchi - S01E01.mkv", animeName = "Bocchi", seasonNumber = 1, episodeNumber = 1),
-            MediaIndexEntry(sourceId = 2, path = "other/Frieren - S01E03.mkv", animeName = "Frieren", seasonNumber = 1, episodeNumber = 3),
         )
 
-        val episodes = detailEpisodesForSelection(entries, selected)
-
-        assertEquals(
-            listOf("show/Frieren - S01E01.mkv", "show/Frieren - S01E02.mkv", "show/Frieren - S02E01.mkv"),
-            episodes.map { it.path },
-        )
         assertEquals(listOf(1, 2), detailEpisodeSeasons(episodes))
         assertEquals(1, detailActiveEpisodeSeason(episodes, selected, requestedSeason = null))
+        assertEquals(2, detailActiveEpisodeSeason(episodes, selected, requestedSeason = 2))
         assertEquals(listOf("show/Frieren - S02E01.mkv"), detailEpisodesForSeason(episodes, 2).map { it.path })
+    }
+
+    @Test
+    fun `detail episode season helpers default missing season values to season one`() {
+        val episodes = listOf(
+            MediaIndexEntry(sourceId = 1, path = "show/Frieren - S01E02.mkv", animeName = "Frieren", episodeNumber = 2),
+            MediaIndexEntry(sourceId = 1, path = "show/Frieren - S01E01.mkv", animeName = "Frieren", episodeNumber = 1),
+        )
+
+        assertEquals(listOf(1), detailEpisodeSeasons(episodes))
+        assertEquals(1, detailActiveEpisodeSeason(episodes, selectedEntry = null, requestedSeason = null))
+        assertEquals(listOf("show/Frieren - S01E01.mkv", "show/Frieren - S01E02.mkv"), detailEpisodesForSeason(episodes, 1).map { it.path })
     }
 
     @Test
@@ -449,10 +601,10 @@ class DesktopDetailHeroTest {
 
     @Test
     fun `detail episode progress labels mirror shared progress copy`() {
-        assertEquals("未看", detailEpisodeProgressLabel(null))
+        assertEquals("未看", playbackProgressRecordLabel(null))
         assertEquals(
             "看到 02:03",
-            detailEpisodeProgressLabel(
+            playbackProgressRecordLabel(
                 ProgressRecord(
                     episodeId = "episode-1",
                     positionMs = 123_456L,

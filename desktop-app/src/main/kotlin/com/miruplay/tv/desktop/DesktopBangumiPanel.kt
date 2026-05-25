@@ -30,40 +30,31 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.miruplay.tv.design.MiruPlayFocusAxis
 import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.design.MiruPlayUiMetrics
+import com.miruplay.tv.design.focusIndexAfter
+import com.miruplay.tv.design.gridFocusIndexAfter
 import com.miruplay.tv.design.horizontalNavigationDelta
 import com.miruplay.tv.design.verticalNavigationDelta
+import com.miruplay.tv.model.BANGUMI_BATCH_MATCH_LIMIT
+import com.miruplay.tv.model.BANGUMI_CANDIDATE_LIMIT
+import com.miruplay.tv.model.BANGUMI_RESULT_LIMIT
 import com.miruplay.tv.model.ScraperResult
+import com.miruplay.tv.model.bangumiCoercedPageStart
+import com.miruplay.tv.model.bangumiPageStartForIndex
+import com.miruplay.tv.model.bangumiPageSummary
+import com.miruplay.tv.model.bangumiUiLabels
 import com.miruplay.tv.model.confidencePercentLabel
-import com.miruplay.tv.model.detailSyncProgressActionLabel
-import com.miruplay.tv.model.metadataAcceptReviewActionLabel
-import com.miruplay.tv.model.metadataApplyBatchActionLabel
-import com.miruplay.tv.model.metadataApplyMatchActionLabel
-import com.miruplay.tv.model.metadataBatchCandidatesSectionTitle
 import com.miruplay.tv.model.metadataBatchPageLabel
-import com.miruplay.tv.model.metadataBatchPreviewActionLabel
 import com.miruplay.tv.model.metadataBatchPreviewedCountLabel
 import com.miruplay.tv.model.metadataBatchStatusLabel
 import com.miruplay.tv.model.metadataBangumiLinkedLabel
 import com.miruplay.tv.model.metadataCandidatePageLabel
-import com.miruplay.tv.model.metadataClearActionLabel
-import com.miruplay.tv.model.metadataEmptyResultsMessage
-import com.miruplay.tv.model.metadataMatchesSectionTitle
 import com.miruplay.tv.model.metadataNoMatchLabel
 import com.miruplay.tv.model.metadataNoSelectedIndexMessage
-import com.miruplay.tv.model.metadataPageUnitLabel
-import com.miruplay.tv.model.metadataPanelTitleLabel
-import com.miruplay.tv.model.metadataQueryFieldLabel
-import com.miruplay.tv.model.metadataSearchActionLabel
-import com.miruplay.tv.model.metadataSearchResultsPageLabel
-import com.miruplay.tv.model.metadataSelectedIndexSectionTitle
 import com.miruplay.tv.model.metadataStatusText
-import com.miruplay.tv.model.metadataUndoBatchActionLabel
-import com.miruplay.tv.model.metadataUseSelectedEntryActionLabel
-import com.miruplay.tv.model.pagedListCoercedPageStart
-import com.miruplay.tv.model.pagedListPageStartForIndex
-import com.miruplay.tv.model.pagedListPageSummary
+import com.miruplay.tv.model.metadataSearchResultsPageLabel
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MetadataBatchMatch
 import com.miruplay.tv.repository.MetadataBatchPlan
@@ -100,7 +91,7 @@ internal fun BangumiPanel(
     onFocusNextPanel: () -> Boolean = { false },
     focusVersion: Int = 0,
 ) {
-    val labels = desktopBangumiUiLabels(isSyncingProgress = isSyncingProgress)
+    val labels = bangumiUiLabels(isSyncingProgress = isSyncingProgress)
     val actionFocusRequesters = remember {
         BangumiAction.entries.associateWith { FocusRequester() }
     }
@@ -719,7 +710,7 @@ private fun BangumiBatchMatchRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                desktopBangumiBatchStatusLabel(status),
+                metadataBatchStatusLabel(status),
                 color = if (status == "conflict") AnimeRed else TextSecondary,
                 fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
                 fontWeight = FontWeight.Bold,
@@ -737,7 +728,7 @@ private fun BangumiBatchMatchRow(
                 Text(
                     result?.let {
                         val candidateSuffix = if (match.candidates.size > 1) {
-                            " / ${match.desktopSelectedCandidateLabel()}"
+                            " / ${match.selectedCandidateLabel()}"
                         } else {
                             ""
                         }
@@ -751,54 +742,6 @@ private fun BangumiBatchMatchRow(
             }
         }
     }
-}
-
-private const val BANGUMI_BATCH_MATCH_LIMIT = 4
-private const val BANGUMI_CANDIDATE_LIMIT = 4
-private const val BANGUMI_RESULT_LIMIT = 6
-
-internal data class DesktopBangumiUiLabels(
-    val title: String,
-    val query: String,
-    val useSelected: String,
-    val search: String,
-    val applyMatch: String,
-    val clearMetadata: String,
-    val batchPreview: String,
-    val applyBatch: String,
-    val undoBatch: String,
-    val acceptReview: String,
-    val syncProgress: String,
-    val selectedIndex: String,
-    val matches: String,
-    val batchCandidates: String,
-    val emptyResults: String,
-)
-
-internal fun desktopBangumiUiLabels(isSyncingProgress: Boolean = false): DesktopBangumiUiLabels =
-    DesktopBangumiUiLabels(
-        title = metadataPanelTitleLabel(),
-        query = metadataQueryFieldLabel(),
-        useSelected = metadataUseSelectedEntryActionLabel(),
-        search = metadataSearchActionLabel(),
-        applyMatch = metadataApplyMatchActionLabel(),
-        clearMetadata = metadataClearActionLabel(),
-        batchPreview = metadataBatchPreviewActionLabel(),
-        applyBatch = metadataApplyBatchActionLabel(),
-        undoBatch = metadataUndoBatchActionLabel(),
-        acceptReview = metadataAcceptReviewActionLabel(),
-        syncProgress = detailSyncProgressActionLabel(isSyncing = isSyncingProgress),
-        selectedIndex = metadataSelectedIndexSectionTitle(),
-        matches = metadataMatchesSectionTitle(),
-        batchCandidates = metadataBatchCandidatesSectionTitle(),
-        emptyResults = metadataEmptyResultsMessage(),
-    )
-
-internal fun desktopBangumiBatchStatusLabel(status: String): String =
-    metadataBatchStatusLabel(status)
-
-internal fun MetadataBatchMatch.desktopSelectedCandidateLabel(): String {
-    return selectedCandidateLabel()
 }
 
 internal enum class BangumiListSection {
@@ -858,41 +801,40 @@ internal fun bangumiActionFocusTarget(
     batchMatchCount: Int = 0,
     candidateCount: Int = 0,
     resultCount: Int = 0,
-): BangumiActionFocusTarget? =
-    when (intent.horizontalNavigationDelta()) {
-        -1 -> bangumiActionAt(current.row, current.column - 1)?.let(BangumiActionFocusTarget::Action)
-        1 ->
-            bangumiActionAt(current.row, current.column + 1)?.let(BangumiActionFocusTarget::Action)
-                ?: firstBangumiListPosition(
-                    batchMatchCount = batchMatchCount,
-                    candidateCount = candidateCount,
-                    resultCount = resultCount,
-                )?.takeIf { current.column == 1 || current == BangumiAction.AcceptReview }?.let(BangumiActionFocusTarget::ListPosition)
-                ?: BangumiActionFocusTarget.EmptyResults.takeIf {
-                    (current.column == 1 || current == BangumiAction.AcceptReview) &&
-                        batchMatchCount == 0 &&
-                        candidateCount == 0 &&
-                        resultCount == 0
-                }
-        else -> when (intent.verticalNavigationDelta()) {
-            1 ->
-                bangumiActionAt(current.row + 1, current.column)?.let(BangumiActionFocusTarget::Action)
-                    ?: BangumiActionFocusTarget.Action(BangumiAction.AcceptReview).takeIf { current == BangumiAction.SyncProgress }
-                    ?: BangumiActionFocusTarget.NextPanel.takeIf { current.row == BangumiAction.entries.maxOf { it.row } }
-            -1 -> {
-                val target = bangumiActionAt(current.row - 1, current.column)
-                if (target == null && current.row == 0) {
-                    BangumiActionFocusTarget.PreviousPanel
-                } else {
-                    target?.let(BangumiActionFocusTarget::Action)
-                }
-            }
-            else -> null
-        }
+): BangumiActionFocusTarget? {
+    val actions = BangumiAction.entries.sortedWith(compareBy(BangumiAction::row, BangumiAction::column))
+    val currentIndex = actions.indexOf(current)
+    val targetAction = gridFocusIndexAfter(
+        currentIndex = currentIndex,
+        intent = intent,
+        columns = BANGUMI_ACTION_COLUMNS,
+        itemCount = actions.size,
+    )?.let(actions::get)
+    if (targetAction != null) {
+        return BangumiActionFocusTarget.Action(targetAction)
     }
+    return when {
+        intent.horizontalNavigationDelta() == 1 && current.exitsToBangumiList() ->
+            firstBangumiListPosition(
+                batchMatchCount = batchMatchCount,
+                candidateCount = candidateCount,
+                resultCount = resultCount,
+            )?.let(BangumiActionFocusTarget::ListPosition)
+                ?: BangumiActionFocusTarget.EmptyResults.takeIf {
+                    batchMatchCount == 0 && candidateCount == 0 && resultCount == 0
+                }
+        intent.verticalNavigationDelta() == -1 && current.row == 0 ->
+            BangumiActionFocusTarget.PreviousPanel
+        intent.verticalNavigationDelta() == 1 && current.row == BangumiAction.entries.maxOf { it.row } ->
+            BangumiActionFocusTarget.NextPanel
+        else -> null
+    }
+}
 
-private fun bangumiActionAt(row: Int, column: Int): BangumiAction? =
-    BangumiAction.entries.firstOrNull { it.row == row && it.column == column }
+private const val BANGUMI_ACTION_COLUMNS = 2
+
+private fun BangumiAction.exitsToBangumiList(): Boolean =
+    column == BANGUMI_ACTION_COLUMNS - 1 || this == BangumiAction.AcceptReview
 
 private fun firstBangumiListPosition(
     batchMatchCount: Int,
@@ -968,11 +910,12 @@ internal fun bangumiListNavigationTarget(
             }
             return null
         }
-        else -> when (intent.verticalNavigationDelta()) {
-            1 -> currentIndex + 1
-            -1 -> currentIndex - 1
-            else -> return null
-        }
+        else -> focusIndexAfter(
+            currentIndex = currentIndex,
+            intent = intent,
+            axis = MiruPlayFocusAxis.Vertical,
+            itemCount = visibleRows.size,
+        ) ?: return null
     }
     return visibleRows.getOrNull(targetIndex)
 }
@@ -1087,36 +1030,6 @@ private fun lastBangumiListPosition(
             )
         else -> null
     }
-
-internal fun bangumiPageStartForIndex(
-    index: Int,
-    itemCount: Int,
-    pageSize: Int,
-): Int = pagedListPageStartForIndex(index, itemCount, pageSize)
-
-internal fun bangumiCoercedPageStart(
-    pageStart: Int,
-    itemCount: Int,
-    pageSize: Int,
-): Int = pagedListCoercedPageStart(pageStart, itemCount, pageSize)
-
-internal fun bangumiPageSummary(
-    label: String,
-    pageStart: Int,
-    visibleCount: Int,
-    itemCount: Int,
-    pageSize: Int,
-): String? {
-    val safeStart = bangumiCoercedPageStart(pageStart, itemCount, pageSize)
-    return pagedListPageSummary(
-        pageStart = safeStart,
-        visibleCount = visibleCount,
-        itemCount = itemCount,
-        pageSize = pageSize,
-        unitLabel = metadataPageUnitLabel(),
-        prefix = label,
-    )
-}
 
 private fun Modifier.bangumiActionNavigation(
     action: BangumiAction,

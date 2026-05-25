@@ -1,6 +1,8 @@
 package com.miruplay.tv.clouddrive
 
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.core.common.redactSensitiveUrl
+import com.miruplay.tv.core.common.sensitiveUrlEvidence
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -119,8 +121,9 @@ suspend fun runCloudDriveLiveSmoke(
 }
 
 private fun printCloudDriveLiveSmokeReport(report: CloudDriveLiveSmokeReport) {
+    val endpointEvidence = sensitiveUrlEvidence(report.endpoint)
     println("CloudDrive2 live smoke passed.")
-    println("Endpoint: ${report.endpoint}")
+    println("Endpoint: ${endpointEvidence.redacted} sha256=${endpointEvidence.sha256}")
     println("Friendly name: ${report.friendlyName.ifBlank { "(none)" }}")
     println("Root dir: ${report.rootDir.ifBlank { "/" }}")
     println(
@@ -151,7 +154,10 @@ private fun writeCloudDriveLiveSmokeReport(
 internal fun buildCloudDriveLiveSmokeReportJson(report: CloudDriveLiveSmokeReport): String {
     val payload = buildJsonObject {
         put("generatedAtUtc", Instant.now().toString())
-        put("endpoint", report.endpoint)
+        put("endpoint", redactCloudDriveLiveEvidenceUrl(report.endpoint))
+        putJsonObject("endpointEvidence") {
+            putUrlEvidenceFields(report.endpoint)
+        }
         put("path", report.path)
         put("itemCount", report.itemCount)
         put("directoryCount", report.directoryCount)
@@ -183,6 +189,17 @@ internal fun buildCloudDriveLiveSmokeReportJson(report: CloudDriveLiveSmokeRepor
     }
     return payload.toString()
 }
+
+private fun kotlinx.serialization.json.JsonObjectBuilder.putUrlEvidenceFields(value: String) {
+    val evidence = sensitiveUrlEvidence(value)
+    put("redacted", evidence.redacted)
+    put("scheme", evidence.scheme)
+    put("host", evidence.host)
+    put("sha256", evidence.sha256)
+}
+
+private fun redactCloudDriveLiveEvidenceUrl(value: String): String =
+    redactSensitiveUrl(value)
 
 private fun CloudDriveTokenInfo.toSmokePermissions(): CloudDriveLiveSmokePermissions =
     CloudDriveLiveSmokePermissions(

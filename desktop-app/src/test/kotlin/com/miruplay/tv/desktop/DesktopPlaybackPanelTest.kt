@@ -7,17 +7,26 @@ import com.miruplay.tv.model.PLAYBACK_SEEK_BACK_SECONDS
 import com.miruplay.tv.model.PLAYBACK_SEEK_FORWARD_SECONDS
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.playbackChooseMediaLabel
-import com.miruplay.tv.model.playbackEndPlayNextEpisodeActionLabel
 import com.miruplay.tv.model.playbackEndReturnToDetailActionLabel
+import com.miruplay.tv.model.playbackEndActionLabel
 import com.miruplay.tv.model.playbackFullscreenToggleLabel
 import com.miruplay.tv.model.playbackKeepOpenToggleLabel
 import com.miruplay.tv.model.playbackLocalSourceLabel
 import com.miruplay.tv.model.playbackMediaPathFieldLabel
+import com.miruplay.tv.model.playbackMediaTitle
 import com.miruplay.tv.model.playbackMpvRuntimeStateLabel
+import com.miruplay.tv.model.mpvPlaybackStatusText
 import com.miruplay.tv.model.playbackRemoteStreamLabel
 import com.miruplay.tv.model.playbackRifeToggleLabel
+import com.miruplay.tv.model.playbackRuntimeStatusText
+import com.miruplay.tv.model.playbackStartPositionLabel
 import com.miruplay.tv.model.playbackStartSecondsFieldLabel
 import com.miruplay.tv.model.playbackSubtitlePathFieldLabel
+import com.miruplay.tv.model.playbackSpeedChipLabel
+import com.miruplay.tv.model.playbackSpeedMenuTitle
+import com.miruplay.tv.model.playbackSpeedOptions
+import com.miruplay.tv.model.playbackSpeedValueLabel
+import com.miruplay.tv.model.playbackUiLabels
 import com.miruplay.tv.player.mpv.RifeBackend
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -32,13 +41,13 @@ class DesktopPlaybackPanelTest {
 
     @Test
     fun `desktop player chrome derives a TV style title from media path`() {
-        assertEquals(playbackChooseMediaLabel(), desktopPlaybackTitle(""))
-        assertEquals("Frieren - S01E02", desktopPlaybackTitle("D:/Anime/Frieren - S01E02.mkv"))
+        assertEquals(playbackChooseMediaLabel(), playbackMediaTitle(""))
+        assertEquals("Frieren - S01E02", playbackMediaTitle("D:/Anime/Frieren - S01E02.mkv"))
     }
 
     @Test
     fun `desktop player controls use TV facing labels`() {
-        val labels = desktopPlaybackUiLabels()
+        val labels = playbackUiLabels()
 
         assertEquals(playbackMediaPathFieldLabel(), labels.mediaPath)
         assertEquals(playbackStartSecondsFieldLabel(), labels.startSeconds)
@@ -46,14 +55,17 @@ class DesktopPlaybackPanelTest {
         assertEquals(playbackFullscreenToggleLabel(), labels.fullscreen)
         assertEquals(playbackKeepOpenToggleLabel(), labels.keepOpen)
         assertEquals(playbackRifeToggleLabel(), labels.rife)
-        assertEquals(playbackEndReturnToDetailActionLabel(), PlaybackEndAction.RETURN_TO_DETAIL.desktopActionLabel())
-        assertEquals(playbackEndPlayNextEpisodeActionLabel(), PlaybackEndAction.PLAY_NEXT_EPISODE.desktopActionLabel())
+        assertEquals(playbackEndReturnToDetailActionLabel(), PlaybackEndAction.RETURN_TO_DETAIL.playbackEndActionLabel())
+        assertEquals("继续下一集", PlaybackEndAction.PLAY_NEXT_EPISODE.playbackEndActionLabel())
+        assertEquals("播放速度", playbackSpeedMenuTitle())
+        assertEquals("1.25x", playbackSpeedValueLabel(1.25f))
+        assertEquals("倍速 1.25x", playbackSpeedChipLabel(1.25f))
     }
 
     @Test
     fun `desktop player stage uses localized mpv chips`() {
-        assertEquals("mpv 待命", desktopPlaybackStatusChip(isPlayerActive = false))
-        assertEquals("mpv 播放中", desktopPlaybackStatusChip(isPlayerActive = true))
+        assertEquals("mpv 待命", playbackMpvRuntimeStateLabel(isPlayerActive = false))
+        assertEquals("mpv 播放中", playbackMpvRuntimeStateLabel(isPlayerActive = true))
     }
 
     @Test
@@ -409,9 +421,30 @@ class DesktopPlaybackPanelTest {
             playbackSettingNavigationTarget(PlaybackSettingFocusTarget.EndAction, Key.DirectionUp),
         )
         assertEquals(
-            PlaybackSettingFocusTarget.Fullscreen,
+            PlaybackSettingFocusTarget.Speed,
             playbackSettingNavigationTarget(PlaybackSettingFocusTarget.EndAction, Key.DirectionDown),
         )
+        assertEquals(
+            PlaybackSettingFocusTarget.EndAction,
+            playbackSettingNavigationTarget(PlaybackSettingFocusTarget.Speed, Key.DirectionUp),
+        )
+        assertEquals(
+            PlaybackSettingFocusTarget.Fullscreen,
+            playbackSettingNavigationTarget(PlaybackSettingFocusTarget.Speed, Key.DirectionDown),
+        )
+    }
+
+    @Test
+    fun `desktop playback speed picker reuses TV speed options and moves horizontally`() {
+        assertEquals(playbackSpeedOptions(), playbackSpeedPickerOptions(1.0f))
+        assertEquals(
+            listOf(0.5f, 0.75f, 1.0f, 1.1f, 1.25f, 1.5f, 2.0f),
+            playbackSpeedPickerOptions(1.1f),
+        )
+        assertEquals(1.25f, playbackSpeedNavigationTarget(1.0f, Key.DirectionRight))
+        assertEquals(0.75f, playbackSpeedNavigationTarget(1.0f, Key.DirectionLeft))
+        assertEquals(null, playbackSpeedNavigationTarget(0.5f, Key.DirectionLeft))
+        assertEquals(null, playbackSpeedNavigationTarget(1.0f, Key.DirectionDown))
     }
 
     @Test
@@ -441,7 +474,7 @@ class DesktopPlaybackPanelTest {
             playbackSettingNavigationTarget(PlaybackSettingFocusTarget.RifeBackend, Key.DirectionRight),
         )
         assertEquals(
-            PlaybackSettingFocusTarget.EndAction,
+            PlaybackSettingFocusTarget.Speed,
             playbackSettingNavigationTarget(PlaybackSettingFocusTarget.KeepOpen, Key.DirectionUp),
         )
         assertEquals(
@@ -467,10 +500,17 @@ class DesktopPlaybackPanelTest {
             ),
         )
         assertEquals(
-            PlaybackSettingFocusTarget.EndAction,
+            PlaybackSettingFocusTarget.Speed,
             playbackSettingNavigationTarget(
                 PlaybackSettingFocusTarget.KeepOpen,
                 MiruPlayInputIntent.DirectionUp,
+            ),
+        )
+        assertEquals(
+            PlaybackSettingFocusTarget.Fullscreen,
+            playbackSettingNavigationTarget(
+                PlaybackSettingFocusTarget.Speed,
+                MiruPlayInputIntent.DirectionDown,
             ),
         )
         assertEquals(
@@ -635,25 +675,26 @@ class DesktopPlaybackPanelTest {
 
     @Test
     fun `desktop player status text localizes backend statuses`() {
-        assertEquals("mpv 待命。", desktopPlaybackStatusText("mpv is idle."))
-        assertEquals("mpv 已启动：pid 1234", desktopPlaybackStatusText("mpv launched: pid 1234"))
-        assertEquals("已后退 10 秒。", desktopPlaybackStatusText("mpv seeked back 10s."))
-        assertEquals("已快进 30 秒。", desktopPlaybackStatusText("mpv seeked forward 30s."))
-        assertEquals("播放进度已同步至 02:03。", desktopPlaybackStatusText("mpv position synced at 02:03."))
-        assertEquals("custom status", desktopPlaybackStatusText("custom status"))
+        assertEquals("mpv 待命。", mpvPlaybackStatusText("mpv is idle."))
+        assertEquals("mpv 已启动：pid 1234", mpvPlaybackStatusText("mpv launched: pid 1234"))
+        assertEquals("已后退 10 秒。", mpvPlaybackStatusText("mpv seeked back 10s."))
+        assertEquals("已快进 30 秒。", mpvPlaybackStatusText("mpv seeked forward 30s."))
+        assertEquals("播放速度已设为 1.25x。", mpvPlaybackStatusText("mpv speed set to 1.25x."))
+        assertEquals("播放进度已同步至 02:03。", mpvPlaybackStatusText("mpv position synced at 02:03."))
+        assertEquals("custom status", mpvPlaybackStatusText("custom status"))
     }
 
     @Test
     fun `desktop player status text localizes actionable launch errors`() {
         assertEquals(
             "播放出错：找不到 mpv.exe：C:/MiruPlay/mpv.exe。请选择内置运行时路径、安装 mpv，或先检查运行时。",
-            desktopPlaybackStatusText(
+            mpvPlaybackStatusText(
                 "播放出错：mpv executable not found: C:/MiruPlay/mpv.exe. Choose the bundled runtime path, install mpv, or run Check runtime before launching.",
             ),
         )
         assertEquals(
             "播放出错：已开启 RIFE，但找不到脚本：C:/MiruPlay/portable_config/vs/MEMC_RIFE_DML.vpy。请选择已安装后端、准备内置运行时，或关闭 RIFE。",
-            desktopPlaybackStatusText(
+            mpvPlaybackStatusText(
                 "播放出错：RIFE is enabled but script was not found: C:/MiruPlay/portable_config/vs/MEMC_RIFE_DML.vpy. Pick an installed backend, prepare the bundled runtime, or turn RIFE off.",
             ),
         )
@@ -661,7 +702,7 @@ class DesktopPlaybackPanelTest {
 
     @Test
     fun `desktop runtime status text localizes verifier output`() {
-        val status = desktopRuntimeStatusText(
+        val status = playbackRuntimeStatusText(
             """
             Bundled mpv runtime is ready. RIFE: NVIDIA, DIRECTML. Manifest: present.
 
@@ -689,29 +730,44 @@ class DesktopPlaybackPanelTest {
     fun `desktop runtime status text localizes missing runtime guidance`() {
         assertEquals(
             "mpv 运行时可播放。缺少 RIFE 脚本；请关闭 RIFE 或准备 RIFE 后端。",
-            desktopRuntimeStatusText(
+            playbackRuntimeStatusText(
                 "mpv runtime is playable. RIFE scripts are missing; leave RIFE off or prepare a RIFE backend.",
             ),
         )
         assertEquals(
             "mpv 运行时不完整。缺少：mpv.exe, portable_config/。",
-            desktopRuntimeStatusText("mpv runtime is incomplete. Missing: mpv.exe, portable_config/."),
+            playbackRuntimeStatusText("mpv runtime is incomplete. Missing: mpv.exe, portable_config/."),
         )
         assertEquals(
             "mpv 运行时可播放，但运行时清单声明的条目缺失或无效：portable_config/vs/missing.vpy。清单：已发现。",
-            desktopRuntimeStatusText(
+            playbackRuntimeStatusText(
                 "mpv runtime is playable. Runtime manifest entries are missing or invalid: portable_config/vs/missing.vpy. Manifest: present.",
             ),
         )
         assertEquals(
             "运行时检查失败：missing path",
-            desktopRuntimeStatusText("Runtime check failed: missing path"),
+            playbackRuntimeStatusText("Runtime check failed: missing path"),
         )
     }
 
     @Test
     fun `desktop player start position formats seconds for the timeline`() {
-        assertEquals("00:00", desktopPlaybackStartPositionLabel(""))
-        assertEquals("01:30", desktopPlaybackStartPositionLabel("90"))
+        assertEquals("00:00", playbackStartPositionLabel(""))
+        assertEquals("01:30", playbackStartPositionLabel("90"))
+    }
+
+    @Test
+    fun `desktop player timeline uses live position while mpv is active`() {
+        assertEquals("01:00", desktopPlaybackTimelineStartLabel(true, 60_000L, "90"))
+        assertEquals("02:00", desktopPlaybackTimelineDurationLabel(120_000L))
+        assertEquals(0.5f, desktopPlaybackTimelineProgress(true, 60_000L, 120_000L), 0.0001f)
+        assertEquals(1f, desktopPlaybackTimelineProgress(true, 180_000L, 120_000L), 0.0001f)
+    }
+
+    @Test
+    fun `desktop player timeline preserves start label while idle`() {
+        assertEquals("01:30", desktopPlaybackTimelineStartLabel(false, 60_000L, "90"))
+        assertEquals("--:--", desktopPlaybackTimelineDurationLabel(0L))
+        assertEquals(0f, desktopPlaybackTimelineProgress(false, 60_000L, 120_000L), 0.0001f)
     }
 }

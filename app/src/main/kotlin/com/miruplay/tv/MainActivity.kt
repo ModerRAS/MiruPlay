@@ -5,6 +5,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavType
@@ -13,14 +14,12 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.miruplay.tv.core.common.logging.MiruLog
-import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.PlaybackSource
-import com.miruplay.tv.model.resumePosition
+import com.miruplay.tv.repository.EpisodePlaybackSourceResolver
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
-import com.miruplay.tv.repository.resolvePlayableUri
 import com.miruplay.tv.navigation.NavRoutes
 import com.miruplay.tv.ui.detail.AnimeDetailScreen
 import com.miruplay.tv.ui.library.LibraryScreen
@@ -89,6 +88,12 @@ fun MiruPlayNavigation(
 ) {
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
+    val episodePlaybackSourceResolver = remember(progressRepository, mediaRepository) {
+        EpisodePlaybackSourceResolver(
+            progress = progressRepository,
+            mediaSources = mediaRepository,
+        )
+    }
 
     androidx.compose.runtime.LaunchedEffect(webControlNavigator, navController) {
         webControlNavigator.commands.collect { command ->
@@ -169,20 +174,15 @@ fun MiruPlayNavigation(
                                     "episode_number" to episode.episodeNumber.toString(),
                                 )
                             )
-                            val playableUri = resolvePlayableUri(
-                                path = episode.filePath,
-                                episodeId = episode.id,
-                                mediaRepository = mediaRepository
-                            )
-                            val encodedPath = Uri.encode(playableUri)
-                            val encodedSource = Uri.encode(episode.animeId)
-                            val encodedEpisode = Uri.encode(episode.id)
-                            val startPosition = resumePositionFor(episode, progressRepository)
+                            val source = episodePlaybackSourceResolver.build(episode)
+                            val encodedPath = Uri.encode(source.uri)
+                            val encodedSource = Uri.encode(source.mediaSourceId)
+                            val encodedEpisode = Uri.encode(source.episodeId ?: "")
                             navController.navigate(
                                 NavRoutes.player(
                                     uri = encodedPath,
                                     mediaSourceId = encodedSource,
-                                    startPosition = startPosition,
+                                    startPosition = source.startPosition,
                                     episodeId = encodedEpisode,
                                 )
                             )
@@ -241,12 +241,4 @@ fun MiruPlayNavigation(
             )
         }
     }
-}
-
-private suspend fun resumePositionFor(
-    episode: Episode,
-    progressRepository: PlaybackProgressRepository
-): Long {
-    val progress = progressRepository.getProgress(episode.id).getOrNull()
-    return episode.resumePosition(progress)
 }

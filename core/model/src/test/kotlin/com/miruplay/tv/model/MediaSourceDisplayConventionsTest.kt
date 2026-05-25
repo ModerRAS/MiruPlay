@@ -87,6 +87,43 @@ class MediaSourceDisplayConventionsTest {
     }
 
     @Test
+    fun `remote source previews compact and fall back consistently`() {
+        assertEquals("填写 SMB 共享地址", remoteSourcePreview("", fallback = "填写 SMB 共享地址", maxLength = 20))
+
+        val preview = remoteSourcePreview(
+            "https://smb.example.test/shares/very/long/path/with/subdirs",
+            fallback = "填写 SMB 共享地址",
+            maxLength = 24,
+        )
+        assertEquals(24, preview.length)
+        assertEquals(true, preview.contains("..."))
+
+        assertEquals("/", remoteBrowserPathPreview("", maxLength = 20))
+
+        val browserPreview = remoteBrowserPathPreview(
+            "/mnt/media/library/very/long/season/path",
+            maxLength = 24,
+        )
+        assertEquals(24, browserPreview.length)
+        assertEquals(true, browserPreview.contains("..."))
+    }
+
+    @Test
+    fun `remote browser pagination helpers are shared by TV and desktop`() {
+        assertEquals(8, REMOTE_BROWSER_PAGE_SIZE)
+        assertEquals(0, remoteBrowserPageStartForIndex(index = 0, itemCount = 17))
+        assertEquals(0, remoteBrowserPageStartForIndex(index = 7, itemCount = 17))
+        assertEquals(8, remoteBrowserPageStartForIndex(index = 8, itemCount = 17))
+        assertEquals(16, remoteBrowserPageStartForIndex(index = 30, itemCount = 17))
+        assertEquals(8, remoteBrowserCoercedPageStart(pageStart = 12, itemCount = 17))
+        assertEquals(16, remoteBrowserCoercedPageStart(pageStart = 40, itemCount = 17))
+        assertEquals(0, remoteBrowserCoercedPageStart(pageStart = -8, itemCount = 17))
+        assertEquals("显示 9-16 / 17 个条目，按上/下继续翻页。", remoteBrowserPageSummary(8, 8, 17))
+        assertEquals("显示 17-17 / 17 个条目，按上/下继续翻页。", remoteBrowserPageSummary(16, 1, 17))
+        assertEquals(null, remoteBrowserPageSummary(0, 4, 4))
+    }
+
+    @Test
     fun `media source management labels are shared by TV and desktop`() {
         assertEquals("媒体源", mediaSourceListTitleLabel())
         assertEquals("还没有配置媒体源", mediaSourceEmptyListMessage())
@@ -132,6 +169,8 @@ class MediaSourceDisplayConventionsTest {
         assertEquals("Download", mediaSourceLocalPathDisplayName("/storage/emulated/0/Download"))
         assertEquals("Anime", mediaSourceLocalPathDisplayName("D:\\Media\\Anime\\"))
         assertEquals("本地媒体库", mediaSourceLocalPathDisplayName(" / "))
+        assertEquals("Download", mediaSourceLocalScanDisplayName("/storage/emulated/0/Download"))
+        assertEquals("Anime Library", mediaSourceLocalScanDisplayName("content://tree/primary%3AAnime%20Library"))
         assertEquals("选择文件夹", mediaSourceChooseFolderActionLabel())
         assertEquals("连接正常，可以保存并返回首页扫描。", mediaSourceConnectionSuccessMessage())
         assertEquals("正在验证连接...", mediaSourceConnectionTestingMessage())
@@ -152,6 +191,14 @@ class MediaSourceDisplayConventionsTest {
         assertEquals("本地媒体源已就绪：Library", local.mediaSourceReadyStatus())
         assertEquals("WebDAV 媒体源已就绪：Cloud", webDav.mediaSourceReadyStatus())
         assertEquals("SMB 媒体源已就绪：NAS", smb.mediaSourceReadyStatus())
+        assertEquals("Anime", local.scanResultDisplayName("D:/Media/Anime"))
+        assertEquals(
+            "Authorized Anime",
+            local.copy(connectionInfo = mapOf(MediaSourceInfoConventions.CONNECTION_DISPLAY_NAME to "Authorized Anime"))
+                .scanResultDisplayName("D:/Media/Anime"),
+        )
+        assertEquals("Cloud", webDav.scanResultDisplayName("/remote/root"))
+        assertEquals("NAS", smb.scanResultDisplayName("/remote/root"))
         assertEquals("请先填写本地媒体库路径。", mediaSourceLocalRootRequiredStatus())
         assertEquals("请先填写 WebDAV 地址。", mediaSourceWebDavUrlRequiredStatus())
         assertEquals("请先填写 SMB 地址。", mediaSourceSmbUrlRequiredStatus())

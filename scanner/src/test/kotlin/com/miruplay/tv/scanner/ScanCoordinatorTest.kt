@@ -122,6 +122,7 @@ class ScanCoordinatorTest {
             val result = coordinator.scanSource(sourceInfo.id)
 
             assertTrue("Scan should succeed", result.isSuccess())
+            assertEquals(root.name, result.getOrNull()?.animeName)
             assertEquals("异世界悠闲农家", indexRepository.entries.single().animeName)
             assertEquals(2, indexRepository.entries.single().seasonNumber)
             assertEquals(1, indexRepository.entries.single().episodeNumber)

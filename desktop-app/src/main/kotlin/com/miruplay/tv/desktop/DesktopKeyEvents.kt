@@ -7,30 +7,16 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import com.miruplay.tv.design.MiruPlayInputIntent
+import com.miruplay.tv.design.MiruPlayComposeKeyProfile
 import com.miruplay.tv.design.isActivationIntent
+import com.miruplay.tv.design.miruPlayInputIntentFromComposeKeyCode
 
 internal fun Key.toMiruPlayInputIntent(): MiruPlayInputIntent? =
-    when (this) {
-        Key.Enter,
-        Key.NumPadEnter,
-        Key.DirectionCenter,
-        Key.Spacebar,
-        -> MiruPlayInputIntent.Activate
-        Key.Escape,
-        Key.Back,
-        -> MiruPlayInputIntent.Back
-        Key.NavigatePrevious -> MiruPlayInputIntent.NavigatePrevious
-        Key.NavigateOut -> MiruPlayInputIntent.NavigateOut
-        Key.DirectionLeft -> MiruPlayInputIntent.DirectionLeft
-        Key.DirectionRight -> MiruPlayInputIntent.DirectionRight
-        Key.DirectionUp -> MiruPlayInputIntent.DirectionUp
-        Key.DirectionDown -> MiruPlayInputIntent.DirectionDown
-        Key.MediaPlayPause -> MiruPlayInputIntent.MediaPlayPause
-        Key.MediaPlay -> MiruPlayInputIntent.MediaPlay
-        Key.MediaPause -> MiruPlayInputIntent.MediaPause
-        Key.MediaStop -> MiruPlayInputIntent.MediaStop
-        else -> null
-    }
+    miruPlayInputIntentFromComposeKeyCode(
+        keyCode = keyCode,
+        profile = MiruPlayComposeKeyProfile.Desktop,
+        includeDesktopBackAliases = true,
+    )
 
 internal fun isDesktopConfirmKey(key: Key): Boolean =
     key.toMiruPlayInputIntent()?.isActivationIntent() == true

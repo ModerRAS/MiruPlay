@@ -1,5 +1,9 @@
 package com.miruplay.tv.model
 
+const val BANGUMI_BATCH_MATCH_LIMIT = 4
+const val BANGUMI_CANDIDATE_LIMIT = 4
+const val BANGUMI_RESULT_LIMIT = 6
+
 fun metadataPanelTitleLabel(): String = "Bangumi 元数据"
 
 fun metadataQueryFieldLabel(): String = "Bangumi 搜索词"
@@ -36,6 +40,34 @@ fun metadataCandidatePageLabel(): String = "候选"
 fun metadataSearchResultsPageLabel(): String = "搜索结果"
 
 fun metadataPageUnitLabel(): String = "个条目"
+
+fun bangumiPageStartForIndex(
+    index: Int,
+    itemCount: Int,
+    pageSize: Int,
+): Int = pagedListPageStartForIndex(index, itemCount, pageSize)
+
+fun bangumiCoercedPageStart(
+    pageStart: Int,
+    itemCount: Int,
+    pageSize: Int,
+): Int = pagedListCoercedPageStart(pageStart, itemCount, pageSize)
+
+fun bangumiPageSummary(
+    label: String,
+    pageStart: Int,
+    visibleCount: Int,
+    itemCount: Int,
+    pageSize: Int,
+): String? =
+    pagedListPageSummary(
+        pageStart = bangumiCoercedPageStart(pageStart, itemCount, pageSize),
+        visibleCount = visibleCount,
+        itemCount = itemCount,
+        pageSize = pageSize,
+        unitLabel = metadataPageUnitLabel(),
+        prefix = label,
+    )
 
 fun metadataNoSelectedIndexMessage(): String = "尚未选择索引视频。"
 
@@ -199,6 +231,43 @@ fun metadataBatchStatusLabel(status: String): String =
         "conflict" -> "冲突"
         else -> status
     }
+
+data class BangumiUiLabels(
+    val title: String,
+    val query: String,
+    val useSelected: String,
+    val search: String,
+    val applyMatch: String,
+    val clearMetadata: String,
+    val batchPreview: String,
+    val applyBatch: String,
+    val undoBatch: String,
+    val acceptReview: String,
+    val syncProgress: String,
+    val selectedIndex: String,
+    val matches: String,
+    val batchCandidates: String,
+    val emptyResults: String,
+)
+
+fun bangumiUiLabels(isSyncingProgress: Boolean = false): BangumiUiLabels =
+    BangumiUiLabels(
+        title = metadataPanelTitleLabel(),
+        query = metadataQueryFieldLabel(),
+        useSelected = metadataUseSelectedEntryActionLabel(),
+        search = metadataSearchActionLabel(),
+        applyMatch = metadataApplyMatchActionLabel(),
+        clearMetadata = metadataClearActionLabel(),
+        batchPreview = metadataBatchPreviewActionLabel(),
+        applyBatch = metadataApplyBatchActionLabel(),
+        undoBatch = metadataUndoBatchActionLabel(),
+        acceptReview = metadataAcceptReviewActionLabel(),
+        syncProgress = detailSyncProgressActionLabel(isSyncing = isSyncingProgress),
+        selectedIndex = metadataSelectedIndexSectionTitle(),
+        matches = metadataMatchesSectionTitle(),
+        batchCandidates = metadataBatchCandidatesSectionTitle(),
+        emptyResults = metadataEmptyResultsMessage(),
+    )
 
 private fun localizedDynamicMetadataStatusText(status: String): String? {
     if (status.isTvMetadataStatus()) {

@@ -10,12 +10,15 @@ import com.miruplay.tv.model.RssDownloadTaskInfo
 import com.miruplay.tv.model.RssProcessedItemInfo
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.repository.MediaIndexEntry
+import com.miruplay.tv.repository.ScanPreferencesSnapshot
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import java.security.SecureRandom
+import java.util.Base64
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
@@ -68,6 +71,7 @@ internal data class DesktopRepositoryState(
     val episodes: List<Episode> = emptyList(),
     val indexBatchUndo: List<MediaIndexBatchUndoState> = emptyList(),
     val playbackEndAction: PlaybackEndAction = PlaybackEndAction.RETURN_TO_DETAIL,
+    val scanPreferences: ScanPreferencesSnapshot = ScanPreferencesSnapshot(),
     val cloudDriveConfig: CloudDriveAutomationConfig = CloudDriveAutomationConfig(),
     val rssSubscriptions: List<RssSubscriptionInfo> = emptyList(),
     val rssProcessedItems: List<RssProcessedItemInfo> = emptyList(),
@@ -76,6 +80,8 @@ internal data class DesktopRepositoryState(
     val cloudDrivePassword: String? = null,
     val bangumiAccessToken: String? = null,
     val otlpAccessToken: String? = null,
+    val webControlEnabled: Boolean = false,
+    val webControlAccessToken: String? = null,
 )
 
 @Serializable
@@ -84,3 +90,13 @@ internal data class MediaIndexBatchUndoState(
     val savedAt: Long = 0L,
     val entries: List<MediaIndexEntry> = emptyList(),
 )
+
+internal fun generateDesktopWebControlAccessToken(): String {
+    val bytes = ByteArray(WEB_CONTROL_TOKEN_BYTES)
+    SecureRandom().nextBytes(bytes)
+    return Base64.getUrlEncoder()
+        .withoutPadding()
+        .encodeToString(bytes)
+}
+
+private const val WEB_CONTROL_TOKEN_BYTES = 24

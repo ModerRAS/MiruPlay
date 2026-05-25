@@ -16,6 +16,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -26,14 +27,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.ApplicationScope
 import androidx.compose.ui.window.Window
@@ -47,15 +46,14 @@ import com.miruplay.tv.design.MiruPlayRouteSurface
 import com.miruplay.tv.design.MiruPlayUiMetrics
 import com.miruplay.tv.mediasource.desktop.DesktopLocalMediaSource
 import com.miruplay.tv.mediasource.desktop.DesktopMediaSource
+import com.miruplay.tv.mediasource.desktop.DesktopMediaSourceFactory
 import com.miruplay.tv.mediasource.desktop.DesktopPlaybackBridge
 import com.miruplay.tv.mediasource.desktop.desktopSourceFromInfo
 import com.miruplay.tv.model.FileEntry
+import com.miruplay.tv.model.CloudDriveLibraryMode
 import com.miruplay.tv.model.PLAYBACK_SEEK_BACK_SECONDS
 import com.miruplay.tv.model.PLAYBACK_SEEK_FORWARD_SECONDS
-import com.miruplay.tv.model.CloudDriveApiTokenFormResult
-import com.miruplay.tv.model.CloudDriveDirectoryPickerFormResult
-import com.miruplay.tv.model.CloudDriveLoginFormResult
-import com.miruplay.tv.model.CloudDriveLibraryMode
+import com.miruplay.tv.model.PLAYBACK_SPEED_NORMAL
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaPathConventions
@@ -67,19 +65,10 @@ import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.RssSubscriptionFormResult
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.ScraperResult
-import com.miruplay.tv.model.cloudDriveCredentialsClearedStatus
-import com.miruplay.tv.model.cloudDriveCredentialsSavedStatus
 import com.miruplay.tv.model.cloudRssScheduledSyncCompleteStatus
-import com.miruplay.tv.model.cloudDriveRssDirectoryBrowsingStatus
-import com.miruplay.tv.model.cloudDriveTokenRequiredStatus
-import com.miruplay.tv.model.cloudDriveTokenValidationStartedStatus
-import com.miruplay.tv.model.cloudDriveTokenVerifiedStatus
-import com.miruplay.tv.model.cloudDriveLoginStartedStatus
-import com.miruplay.tv.model.cloudDriveLoginSucceededStatus
-import com.miruplay.tv.model.cloudRssConfigSavedStatus
 import com.miruplay.tv.model.cloudRssInitialStatus
+import com.miruplay.tv.model.cloudRssRescanStartedStatus
 import com.miruplay.tv.model.cloudRssLinkedScanSourceStatus
-import com.miruplay.tv.model.cloudRssRunStartedStatus
 import com.miruplay.tv.model.cloudRssScanSourceClearedStatus
 import com.miruplay.tv.model.cloudRssScanSourceMissingStatus
 import com.miruplay.tv.model.cloudRssScanSourceRequiredStatus
@@ -88,11 +77,10 @@ import com.miruplay.tv.model.cloudRssSchedulerStartStatus
 import com.miruplay.tv.model.cloudRssSchedulerStoppedStatus
 import com.miruplay.tv.model.cloudRssStatusText
 import com.miruplay.tv.model.completeStatus
+import com.miruplay.tv.model.coercePlaybackSpeed
 import com.miruplay.tv.model.detailBangumiSyncCompleteMessage
 import com.miruplay.tv.model.detailBangumiSyncStartedMessage
 import com.miruplay.tv.model.desktopWindowTitleLabel
-import com.miruplay.tv.model.loadedPlaybackStatus
-import com.miruplay.tv.model.metadataBangumiTokenClearedMessage
 import com.miruplay.tv.model.metadataMatchSummaryLabel
 import com.miruplay.tv.model.metadataNoSelectedEntryLabel
 import com.miruplay.tv.model.parseCloudDriveIntervalMinutes
@@ -100,32 +88,20 @@ import com.miruplay.tv.model.parseRssProxyPort
 import com.miruplay.tv.model.playbackBlankMediaMessage
 import com.miruplay.tv.model.playbackCommandPreviewErrorMessage
 import com.miruplay.tv.model.playbackRifeStateLabel
-import com.miruplay.tv.model.prepareRssSubscriptionForm
 import com.miruplay.tv.model.recentPlaybackInitialStatus
 import com.miruplay.tv.model.recentPlaybackLoadedStatus
 import com.miruplay.tv.model.recentPlaybackRequiredStatus
 import com.miruplay.tv.model.recentPlaybackShowingStatus
-import com.miruplay.tv.model.resumeStartSecondsText
-import com.miruplay.tv.model.nextEpisodeAfter
-import com.miruplay.tv.model.retainedSelectionInProgressRecords
 import com.miruplay.tv.model.retainedSelectionInRssSubscriptions
-import com.miruplay.tv.model.rssSubscriptionDeletedStatus
 import com.miruplay.tv.model.rssSubscriptionRequiredStatus
-import com.miruplay.tv.model.rssSubscriptionSavedStatus
 import com.miruplay.tv.model.rssSubscriptionSelectedStatus
 import com.miruplay.tv.model.rssSubscriptionsLoadedStatus
 import com.miruplay.tv.model.rssSubscriptionsLoadFailedStatus
 import com.miruplay.tv.model.rssSubscriptionsRefreshFailedStatus
 import com.miruplay.tv.model.rssSubscriptionsShowingStatus
-import com.miruplay.tv.model.saveBangumiTokenFormResult
 import com.miruplay.tv.model.sourcePickerTitle
 import com.miruplay.tv.model.settingsActiveSourceLabel
 import com.miruplay.tv.model.settingsLinkedSourceLabel
-import com.miruplay.tv.model.toPlaybackSource
-import com.miruplay.tv.model.validateCloudDriveApiTokenForm
-import com.miruplay.tv.model.validateCloudDriveDirectoryPickerForm
-import com.miruplay.tv.model.validateCloudDriveLoginForm
-import com.miruplay.tv.model.withAutomationFormValues
 import com.miruplay.tv.player.mpv.MpvProcessPlayer
 import com.miruplay.tv.player.mpv.MpvRuntimeDiscovery
 import com.miruplay.tv.player.mpv.RifeBackend
@@ -139,14 +115,18 @@ import com.miruplay.tv.player.mpv.mpvPositionSyncedStatus
 import com.miruplay.tv.player.mpv.mpvResumedStatus
 import com.miruplay.tv.player.mpv.mpvSeekBackStatus
 import com.miruplay.tv.player.mpv.mpvSeekForwardStatus
+import com.miruplay.tv.player.mpv.mpvSpeedChangedStatus
 import com.miruplay.tv.player.mpv.mpvStoppedStatus
 import com.miruplay.tv.repository.MediaIndexEntry
+import com.miruplay.tv.repository.LibraryEpisodeResolver
+import com.miruplay.tv.repository.MediaSourceActionCoordinator
 import com.miruplay.tv.repository.MetadataBatchMatch
-import com.miruplay.tv.repository.MetadataBatchPlanner
 import com.miruplay.tv.repository.MetadataBatchPlan
-import com.miruplay.tv.repository.appliedStatus
-import com.miruplay.tv.repository.applyMetadataBatchPlan
-import com.miruplay.tv.repository.clearExternalMetadata
+import com.miruplay.tv.repository.NextPlaybackSourceResolver
+import com.miruplay.tv.repository.ScanPreferenceActionSnapshot
+import com.miruplay.tv.repository.SettingsPreferenceActionCoordinator
+import com.miruplay.tv.repository.WebControlAccessActionCoordinator
+import com.miruplay.tv.repository.WebControlAccessSnapshot
 import com.miruplay.tv.repository.displayName
 import com.miruplay.tv.repository.desktop.DesktopRepositories
 import com.miruplay.tv.repository.indexClearedStatus
@@ -157,37 +137,21 @@ import com.miruplay.tv.repository.loadingRemoteDirectoryStatus
 import com.miruplay.tv.repository.localLibraryInitialStatus
 import com.miruplay.tv.repository.localRootRequiredStatus
 import com.miruplay.tv.repository.mediaDisplayName
+import com.miruplay.tv.repository.mediaIndexEpisodesForPosterSelection
 import com.miruplay.tv.repository.mediaFilesOnly
-import com.miruplay.tv.repository.metadataAppliedStatus
 import com.miruplay.tv.repository.metadataApplyEntryRequiredStatus
-import com.miruplay.tv.repository.metadataBatchResultRequiredStatus
-import com.miruplay.tv.repository.metadataBatchSearchingStatus
-import com.miruplay.tv.repository.metadataClearEntryRequiredStatus
-import com.miruplay.tv.repository.metadataClearedStatus
 import com.miruplay.tv.repository.metadataIndexedVideoRequiredStatus
 import com.miruplay.tv.repository.metadataInitialStatus
 import com.miruplay.tv.repository.metadataQuery
-import com.miruplay.tv.repository.metadataQueryRequiredStatus
 import com.miruplay.tv.repository.metadataQuerySetFromIndexStatus
-import com.miruplay.tv.repository.metadataReviewNoMatchStatus
-import com.miruplay.tv.repository.metadataSearchResultStatus
-import com.miruplay.tv.repository.metadataSearchSelectionRequiredStatus
-import com.miruplay.tv.repository.metadataSearchStartedStatus
-import com.miruplay.tv.repository.metadataSourceRequiredStatus
-import com.miruplay.tv.repository.noMetadataBatchEntriesStatus
-import com.miruplay.tv.repository.noMetadataBatchPreviewStatus
-import com.miruplay.tv.repository.noMetadataBatchUndoStatus
 import com.miruplay.tv.repository.openRemoteSourceBeforeBrowsingStatus
 import com.miruplay.tv.repository.openSourceBeforeClearingIndexStatus
 import com.miruplay.tv.repository.openSourceBeforeScanningStatus
 import com.miruplay.tv.repository.openSourceBeforeSearchingStatus
-import com.miruplay.tv.repository.restoreMetadataBatchUndo
-import com.miruplay.tv.repository.restoredStatus
 import com.miruplay.tv.repository.retainedSelectionInMediaIndex
-import com.miruplay.tv.repository.reviewAcceptedStatus
-import com.miruplay.tv.repository.reviewConflictStatus
+import com.miruplay.tv.repository.scanPreferencesIntervalOptionsHours
+import com.miruplay.tv.repository.shouldAutoScan
 import com.miruplay.tv.repository.scanningStatus
-import com.miruplay.tv.repository.selectedCandidateStatus
 import com.miruplay.tv.repository.selectedForPlaybackStatus
 import com.miruplay.tv.repository.selectedMetadataStatus
 import com.miruplay.tv.repository.selectedReviewStatus
@@ -203,25 +167,30 @@ import com.miruplay.tv.repository.syncObservedPlaybackProgress
 import com.miruplay.tv.repository.upsertById
 import com.miruplay.tv.repository.updatedSelectionAfterReplacingByMediaKeys
 import com.miruplay.tv.repository.webDavUrlRequiredStatus
-import com.miruplay.tv.repository.withExternalMetadata
 import com.miruplay.tv.repository.replaceByMediaKey
 import com.miruplay.tv.repository.replaceByMediaKeys
-import com.miruplay.tv.repository.replaceMatch
-import com.miruplay.tv.repository.withSelectedCandidate
-import com.miruplay.tv.scraper.searchPreferredResults
 import com.miruplay.tv.scraper.desktop.DesktopBangumiScraper
+import com.miruplay.tv.sync.BANGUMI_METADATA_SOURCE_NAME
+import com.miruplay.tv.sync.BangumiCredentialActionCoordinator
+import com.miruplay.tv.sync.BangumiIndexMetadataCoordinator
 import com.miruplay.tv.sync.BangumiMetadataRefreshCore
 import com.miruplay.tv.sync.BangumiSyncCore
-import com.miruplay.tv.sync.bangumiMetadataCacheId
+import com.miruplay.tv.sync.rss.CloudDriveActionResult
+import com.miruplay.tv.sync.rss.CloudDriveConfigActionResult
+import com.miruplay.tv.sync.rss.CloudDriveRssActionCoordinator
+import com.miruplay.tv.sync.rss.CloudDriveDirectoryBrowserCoordinator
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryBrowserState
+import com.miruplay.tv.sync.rss.CloudDriveDirectoryLoadResult
+import com.miruplay.tv.sync.rss.CloudDriveDirectoryOpenResult
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryTarget
 import com.miruplay.tv.sync.rss.DesktopCloudDriveRssAutomationEngine
 import com.miruplay.tv.sync.rss.DesktopCloudDriveRssScheduler
-import com.miruplay.tv.sync.rss.loadCloudDriveDirectory as loadSharedCloudDriveDirectory
-import com.miruplay.tv.sync.rss.loadingFor
-import com.miruplay.tv.sync.rss.prepareCloudDriveDirectoryBrowser
+import com.miruplay.tv.sync.rss.RssSubscriptionActionResult
 import com.miruplay.tv.sync.rss.schedulerStatus
 import com.miruplay.tv.sync.rss.selectCloudDriveDirectory as selectSharedCloudDriveDirectory
+import com.miruplay.tv.webcontrol.WebControlPlaybackCommandKind
+import com.miruplay.tv.webcontrol.playbackCommandKind
+import com.miruplay.tv.webcontrol.playbackSpeed
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -229,7 +198,6 @@ import java.awt.Dimension
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
-import kotlin.math.roundToLong
 
 internal val AnimeRed = Color(MiruPlayPalette.ANIME_RED_ARGB)
 internal val DarkBg = Color(MiruPlayPalette.DARK_BG_ARGB)
@@ -238,8 +206,6 @@ internal val AccentBlue = Color(MiruPlayPalette.ACCENT_BLUE_ARGB)
 internal val TextPrimary = Color(MiruPlayPalette.TEXT_PRIMARY_ARGB)
 internal val TextSecondary = Color(MiruPlayPalette.TEXT_SECONDARY_ARGB)
 internal val CardBg = Color(MiruPlayPalette.CARD_BG_ARGB)
-private const val COMPOSE_BATCH_BANGUMI_QUERY_LIMIT = 20
-private const val BANGUMI_METADATA_SOURCE_NAME = "Bangumi"
 private const val DESKTOP_PLAYBACK_MEDIA_SOURCE_ID = "desktop-compose"
 private const val PLAYBACK_EOF_POLL_INTERVAL_MS = 1_000L
 private const val PLAYBACK_PROGRESS_POLL_INTERVAL_MS = 10_000L
@@ -284,7 +250,7 @@ private fun ApplicationScope.MiruPlayDesktopWindow() {
     }
     Window(
         onCloseRequest = ::exitApplication,
-        title = desktopWindowTitle(),
+        title = desktopWindowTitleLabel(),
         state = windowState,
     ) {
         LaunchedEffect(Unit) {
@@ -331,7 +297,7 @@ internal fun desktopEntrySmokeReport(): DesktopEntrySmokeReport {
     return DesktopEntrySmokeReport(
         status = "ok",
         entryPoint = "com.miruplay.tv.desktop.MiruPlayDesktopComposeAppKt",
-        windowTitle = desktopWindowTitle(),
+        windowTitle = desktopWindowTitleLabel(),
         initialSection = desktopInitialSectionFromEnvironment().id,
         runtimeRoot = layout.rootDirectory.toString(),
         mpvExecutable = layout.executable.toString(),
@@ -377,9 +343,6 @@ private fun String.jsonValue(): String =
         append('"')
     }
 
-internal fun desktopWindowTitle(): String =
-    desktopWindowTitleLabel()
-
 internal fun shouldUseDesktopPlayerFullscreen(
     selectedSection: DesktopSection,
     fullscreen: Boolean,
@@ -424,10 +387,19 @@ internal fun MiruPlayDesktopComposeApp(
 ) {
     val scope = rememberCoroutineScope()
     val repositories = remember { DesktopRepositories.fileBacked() }
+    val desktopMediaSourceFactory = remember { DesktopMediaSourceFactory() }
+    val mediaSourceActions = remember(repositories) { MediaSourceActionCoordinator(repositories.mediaSources) }
     val playbackBridge = remember { DesktopPlaybackBridge() }
     val bangumiScraper = remember { DesktopBangumiScraper { repositories.credentials.bangumiAccessToken } }
     val bangumiMetadataRefreshCore = remember(bangumiScraper, repositories) {
         BangumiMetadataRefreshCore(
+            metadataRepository = repositories.metadata,
+            bangumiScraper = bangumiScraper,
+        )
+    }
+    val bangumiIndexMetadataCoordinator = remember(bangumiScraper, repositories) {
+        BangumiIndexMetadataCoordinator(
+            indexRepository = repositories.index,
             metadataRepository = repositories.metadata,
             bangumiScraper = bangumiScraper,
         )
@@ -439,7 +411,6 @@ internal fun MiruPlayDesktopComposeApp(
             progressRepository = repositories.progress,
         )
     }
-    val focusManager = LocalFocusManager.current
     val cloudDriveClient = remember { GrpcCloudDriveClient() }
     val cloudRssEngine = remember {
         DesktopCloudDriveRssAutomationEngine(
@@ -448,13 +419,29 @@ internal fun MiruPlayDesktopComposeApp(
             cloudDriveClient = cloudDriveClient,
         )
     }
+    val cloudRssActions = remember {
+        CloudDriveRssActionCoordinator(
+            repository = repositories.cloudDriveAutomation,
+            credentials = repositories.credentials,
+            runner = cloudRssEngine,
+        )
+    }
+    val bangumiCredentialActions = remember { BangumiCredentialActionCoordinator(repositories.credentials) }
+    val cloudDirectoryActions = remember { CloudDriveDirectoryBrowserCoordinator(cloudDriveClient) }
     val cloudRssScheduler = remember { DesktopCloudDriveRssScheduler(cloudRssEngine, scope) }
     val cloudRssSchedulerState by cloudRssScheduler.state.collectAsState()
+    val settingsPreferenceActions = remember {
+        SettingsPreferenceActionCoordinator(
+            scanPreferences = repositories.scanPreferences,
+            playbackPreferences = repositories.playbackPreferences,
+        )
+    }
     val defaultMpvLayout = remember { MpvRuntimeDiscovery.defaultLayout() }
     val playbackLauncher = remember(playbackBridge) { DesktopPlaybackLauncher(playbackBridge) }
     var selectedDesktopSection by remember { mutableStateOf(desktopInitialSectionFromEnvironment()) }
     var player by remember { mutableStateOf<MpvProcessPlayer?>(null) }
     var activePlaybackSession by remember { mutableStateOf<PlaybackProgressSession?>(null) }
+    var webControlPlaybackSource by remember { mutableStateOf<DesktopMediaSource?>(null) }
     var mpvPath by remember { mutableStateOf(defaultMpvLayout.executable.toString()) }
     var configDir by remember { mutableStateOf(defaultMpvLayout.configDirectory.toString()) }
     var libraryRoot by remember { mutableStateOf("") }
@@ -488,8 +475,15 @@ internal fun MiruPlayDesktopComposeApp(
     var bangumiTokenInput by remember { mutableStateOf("") }
     var bangumiTokenConfigured by remember { mutableStateOf(false) }
     var bangumiSyncing by remember { mutableStateOf(false) }
-    var recentProgress by remember { mutableStateOf(emptyList<ProgressRecord>()) }
-    var selectedRecentProgress by remember { mutableStateOf<ProgressRecord?>(null) }
+    var webControlEnabled by remember { mutableStateOf(false) }
+    var webControlAccessToken by remember { mutableStateOf("") }
+    var webUiUrls by remember { mutableStateOf(emptyList<String>()) }
+    var autoScanEnabled by remember { mutableStateOf(false) }
+    var autoScanIntervalHours by remember { mutableStateOf(6) }
+    var lastScanAt by remember { mutableStateOf(0L) }
+    var mergeSameAnimeEnabled by remember { mutableStateOf(false) }
+    var recentProgress by remember { mutableStateOf(emptyList<DesktopRecentPlaybackItem>()) }
+    var selectedRecentProgress by remember { mutableStateOf<DesktopRecentPlaybackItem?>(null) }
     var selectedDetailEpisodeSeason by remember { mutableStateOf<Int?>(null) }
     var detailHeroFocusVersion by remember { mutableStateOf(0) }
     var detailEpisodeFocusVersion by remember { mutableStateOf(0) }
@@ -524,10 +518,55 @@ internal fun MiruPlayDesktopComposeApp(
     var fullscreen by remember { mutableStateOf(false) }
     var keepOpen by remember { mutableStateOf(false) }
     var playbackEndAction by remember { mutableStateOf(PlaybackEndAction.RETURN_TO_DETAIL) }
+    var playbackSpeed by remember { mutableStateOf(PLAYBACK_SPEED_NORMAL) }
     var rifeEnabled by remember { mutableStateOf(DEFAULT_DESKTOP_RIFE_ENABLED) }
     var rifeBackend by remember { mutableStateOf(RifeBackend.NVIDIA) }
     var status by remember { mutableStateOf(mpvRuntimeStatusFromInputs(mpvPath, configDir)) }
     var launchStatus by remember { mutableStateOf(mpvIdleStatus()) }
+    var playbackPositionMs by remember { mutableStateOf(0L) }
+    var playbackDurationMs by remember { mutableStateOf(0L) }
+    val webControlPlaybackHandlers = remember { DesktopWebControlPlaybackHandlers() }
+    val desktopWebControlService = remember(repositories) {
+        DesktopWebControlService(
+            repositories = repositories,
+            cloudDriveClient = cloudDriveClient,
+            cloudRssEngine = cloudRssEngine,
+            playbackStatusProvider = {
+                desktopWebControlPlaybackStatus(
+                    player = player,
+                    session = activePlaybackSession,
+                    mediaPath = mediaPath,
+                    launchStatus = launchStatus,
+                )
+            },
+            playEpisodeHandler = { request, episode -> webControlPlaybackHandlers.playEpisode(request, episode) },
+            playbackCommandHandler = { command -> webControlPlaybackHandlers.playbackCommand(command) },
+        )
+    }
+    val desktopWebControlServer = remember(desktopWebControlService, repositories) {
+        DesktopWebControlServer(
+            webControlService = desktopWebControlService,
+            webControlAccess = repositories.webControlAccess,
+        )
+    }
+    val webControlActions = remember(repositories) { WebControlAccessActionCoordinator(repositories.webControlAccess) }
+    val libraryEpisodeResolver = remember(repositories) {
+        LibraryEpisodeResolver(
+            mediaSources = repositories.mediaSources,
+            metadata = repositories.metadata,
+            index = repositories.index,
+            progress = repositories.progress,
+            mergeSameAnimeEnabled = { repositories.scanPreferences.getPreferences().mergeSameAnimeEnabled },
+        )
+    }
+    val nextPlaybackSourceResolver = remember(repositories) {
+        NextPlaybackSourceResolver(
+            metadata = repositories.metadata,
+            progress = repositories.progress,
+            mediaSources = repositories.mediaSources,
+            playbackUriForEpisode = { episode -> episode.filePath },
+        )
+    }
     val commandPreview by remember(
         mpvPath,
         configDir,
@@ -556,8 +595,8 @@ internal fun MiruPlayDesktopComposeApp(
         }
     }
 
-    val detailEpisodes = remember(indexedEntries, selectedIndexEntry) {
-        detailEpisodesForSelection(indexedEntries, selectedIndexEntry)
+    val detailEpisodes = remember(indexedEntries, selectedIndexEntry, mergeSameAnimeEnabled) {
+        indexedEntries.mediaIndexEpisodesForPosterSelection(selectedIndexEntry, mergeSameAnimeEnabled)
     }
 
     LaunchedEffect(selectedIndexEntry?.sourceId, selectedIndexEntry?.path, detailEpisodes.map { it.seasonNumber }) {
@@ -568,11 +607,62 @@ internal fun MiruPlayDesktopComposeApp(
         )
     }
 
-    DisposableEffect(playbackBridge, cloudRssScheduler) {
+    DisposableEffect(playbackBridge, cloudRssScheduler, desktopWebControlServer) {
         onDispose {
+            desktopWebControlServer.stopIfRunning()
             playbackBridge.close()
             cloudRssScheduler.stop()
         }
+    }
+
+    suspend fun clearWebControlPlaybackSource() {
+        val source = webControlPlaybackSource
+        webControlPlaybackSource = null
+        if (source != null && source !== activeSource && source !== activeLocalSource) {
+            source.close()
+        }
+    }
+
+    fun resetDesktopPlaybackTimeline() {
+        playbackPositionMs = 0L
+        playbackDurationMs = 0L
+    }
+
+    fun applyDesktopPlaybackStatusToTimeline(status: com.miruplay.tv.webcontrol.PlaybackStatusDto) {
+        playbackPositionMs = status.positionMs.coerceAtLeast(0L)
+        playbackDurationMs = status.durationMs.coerceAtLeast(0L)
+    }
+
+    suspend fun applyDesktopPlaybackSpeed(speed: Float) {
+        val selectedSpeed = coercePlaybackSpeed(speed)
+        playbackSpeed = selectedSpeed
+        val activePlayer = player ?: return
+        when (val result = activePlayer.setSpeed(selectedSpeed.toDouble())) {
+            is Result.Success -> launchStatus = mpvSpeedChangedStatus(selectedSpeed)
+            is Result.Error -> launchStatus = result.error.toUserMessage()
+        }
+    }
+
+    fun syncDesktopWebControlServer() {
+        if (repositories.webControlAccess.webControlEnabled) {
+            desktopWebControlServer.startIfNeeded()
+        } else {
+            desktopWebControlServer.stopIfRunning()
+        }
+    }
+
+    fun applyWebControlSnapshot(snapshot: WebControlAccessSnapshot) {
+        webControlEnabled = snapshot.enabled
+        webControlAccessToken = snapshot.accessToken
+        webUiUrls = snapshot.urls
+        syncDesktopWebControlServer()
+    }
+
+    fun applyScanPreferenceSnapshot(snapshot: ScanPreferenceActionSnapshot) {
+        autoScanEnabled = snapshot.autoScanEnabled
+        autoScanIntervalHours = snapshot.autoScanIntervalHours
+        lastScanAt = snapshot.lastScanAt
+        mergeSameAnimeEnabled = snapshot.mergeSameAnimeEnabled
     }
 
     suspend fun loadIndexedEntries(sourceId: Long, statusWhenEmpty: String) {
@@ -665,14 +755,16 @@ internal fun MiruPlayDesktopComposeApp(
         startupSource?.let { source ->
             loadIndexedEntries(source.id, source.loadedStatus())
         }
-        when (val recents = repositories.progress.getContinueWatching(limit = 12)) {
+        when (val recents = libraryEpisodeResolver.loadContinueWatchingEpisodesResult(limit = 12)) {
             is Result.Success -> {
-                recentProgress = recents.data
-                recentStatus = recentPlaybackLoadedStatus(recents.data)
+                val items = recents.data.map { it.toDesktopRecentPlaybackItem() }
+                recentProgress = items
+                recentStatus = recentPlaybackLoadedStatus(items.map { it.progress })
             }
             is Result.Error -> recentStatus = recents.error.toUserMessage()
         }
-        playbackEndAction = repositories.playbackPreferences.getEndAction()
+        playbackEndAction = settingsPreferenceActions.currentPlaybackEndAction()
+        applyScanPreferenceSnapshot(settingsPreferenceActions.currentScanPreferences())
         when (val config = repositories.cloudDriveAutomation.getConfig()) {
             is Result.Success -> {
                 cloudEndpointUrl = config.data.endpointUrl
@@ -680,7 +772,6 @@ internal fun MiruPlayDesktopComposeApp(
                 cloudLinkedSourceId = config.data.webDavSourceId
                 cloudInboxPath = config.data.inboxPath
                 cloudLibraryPath = config.data.libraryPath
-                cloudLibraryMode = config.data.libraryMode
                 cloudIntervalMinutes = config.data.intervalMinutes.toString()
                 cloudEnabled = config.data.enabled
                 rssProxyEnabled = config.data.rssProxyEnabled
@@ -692,6 +783,7 @@ internal fun MiruPlayDesktopComposeApp(
         cloudToken = repositories.credentials.cloudDriveToken.orEmpty()
         cloudPassword = repositories.credentials.cloudDrivePassword.orEmpty()
         bangumiTokenConfigured = !repositories.credentials.bangumiAccessToken.isNullOrBlank()
+        applyWebControlSnapshot(webControlActions.current())
         runCatching {
             repositories.cloudDriveAutomation.observeSubscriptions().first()
         }.onSuccess { subscriptions ->
@@ -703,25 +795,20 @@ internal fun MiruPlayDesktopComposeApp(
     }
 
     suspend fun refreshRecentProgress() {
-        when (val recents = repositories.progress.getContinueWatching(limit = 12)) {
+        when (val recents = libraryEpisodeResolver.loadContinueWatchingEpisodesResult(limit = 12)) {
             is Result.Success -> {
-                recentProgress = recents.data
-                selectedRecentProgress = selectedRecentProgress.retainedSelectionInProgressRecords(recents.data)
-                recentStatus = recentPlaybackShowingStatus(recents.data)
+                val items = recents.data.map { it.toDesktopRecentPlaybackItem() }
+                recentProgress = items
+                selectedRecentProgress = selectedRecentProgress.retainedSelectionInRecentPlaybackItems(items)
+                recentStatus = recentPlaybackShowingStatus(items.map { it.progress })
             }
             is Result.Error -> recentStatus = recents.error.toUserMessage()
         }
     }
 
-    suspend fun updateSelectedMetadataCache(
-        entry: MediaIndexEntry,
-        match: ScraperResult,
-    ): Result<Unit> =
-        bangumiMetadataRefreshCore.cacheMatchedIndexMetadata(
-            entry = entry,
-            relatedEntries = detailEpisodes,
-            match = match,
-        ).map { Unit }
+    fun refreshDesktopWebUiUrls() {
+        applyWebControlSnapshot(webControlActions.refreshUrls())
+    }
 
     suspend fun ensureSelectedMetadataCache(entry: MediaIndexEntry): Result<String> =
         bangumiMetadataRefreshCore.ensureCachedIndexMetadata(
@@ -771,7 +858,13 @@ internal fun MiruPlayDesktopComposeApp(
             incrementPlayCount = incrementPlayCount,
         )
 
-    fun playbackLaunchRequestFor(path: String, startPositionMs: Long): DesktopPlaybackLaunchRequest =
+    fun playbackLaunchRequestFor(
+        path: String,
+        startPositionMs: Long,
+        sourceOverride: DesktopMediaSource? = null,
+        sourceIdOverride: Long? = null,
+        episodeId: String? = null,
+    ): DesktopPlaybackLaunchRequest =
         DesktopPlaybackLaunchRequest(
             mpvPath = mpvPath,
             configDir = configDir,
@@ -784,24 +877,58 @@ internal fun MiruPlayDesktopComposeApp(
             keepOpen = keepOpen,
             rifeEnabled = rifeEnabled,
             rifeBackend = rifeBackend,
-            activeSource = activeSource,
-            activeSourceId = activeSourceId,
+            activeSource = sourceOverride ?: activeSource,
+            activeSourceId = sourceIdOverride ?: activeSourceId,
             blankMediaMessage = playbackBlankMediaMessage(),
             fallbackMediaSourceId = DESKTOP_PLAYBACK_MEDIA_SOURCE_ID,
+            episodeId = episodeId,
         )
 
-    suspend fun launchDesktopPlayback(path: String = mediaPath, startPositionMs: Long? = null): Result<DesktopPlaybackLaunchResult> {
+    fun requestDetailPanelFocus(panel: DesktopDetailFocusPanel): Boolean {
+        when (panel) {
+            DesktopDetailFocusPanel.Hero -> detailHeroFocusVersion += 1
+            DesktopDetailFocusPanel.EpisodeList -> detailEpisodeFocusVersion += 1
+            DesktopDetailFocusPanel.BangumiMetadata -> bangumiFocusVersion += 1
+            DesktopDetailFocusPanel.RecentPlayback -> recentPlaybackFocusVersion += 1
+            DesktopDetailFocusPanel.MediaDetails -> mediaDetailsFocusVersion += 1
+        }
+        return true
+    }
+
+    fun moveDetailPanelFocus(current: DesktopDetailFocusPanel, direction: Int): Boolean =
+        detailPanelFocusTarget(
+            current = current,
+            direction = direction,
+            hasRelatedEpisodes = detailEpisodes.isNotEmpty(),
+            hasRecentPlayback = recentProgress.isNotEmpty(),
+        )?.let(::requestDetailPanelFocus) ?: false
+
+    suspend fun launchDesktopPlayback(
+        path: String = mediaPath,
+        startPositionMs: Long? = null,
+        sourceOverride: DesktopMediaSource? = null,
+        sourceIdOverride: Long? = null,
+        episodeId: String? = null,
+    ): Result<DesktopPlaybackLaunchResult> {
         val previousMediaPath = mediaPath
         val request = playbackLaunchRequestFor(
             path = path,
             startPositionMs = startPositionMs ?: PlaybackTimingConventions.parseSecondsToPositionMs(startSeconds),
+            sourceOverride = sourceOverride,
+            sourceIdOverride = sourceIdOverride,
+            episodeId = episodeId,
         )
         return when (val result = playbackLauncher.launch(request)) {
             is Result.Success -> {
-                val launchedEpisodeId = result.data.session.episodeId
+                val launchedMediaPath = path.trim()
+                if (sourceOverride !== webControlPlaybackSource) {
+                    clearWebControlPlaybackSource()
+                }
                 player = result.data.player
                 activePlaybackSession = result.data.session
-                mediaPath = launchedEpisodeId
+                playbackPositionMs = result.data.source.startPosition
+                playbackDurationMs = 0L
+                mediaPath = launchedMediaPath
                 startSeconds = PlaybackTimingConventions.formatMpvStartSeconds(result.data.source.startPosition)
                 if (path != previousMediaPath) {
                     subtitlePath = ""
@@ -813,14 +940,17 @@ internal fun MiruPlayDesktopComposeApp(
                         savePlaybackProgress(episodeId, positionMs, lastWatched, incrementPlayCount)
                     },
                 )
-                indexedEntries.firstOrNull { it.path == launchedEpisodeId }?.let { entry ->
+                indexedEntries.firstOrNull { it.path == launchedMediaPath }?.let { entry ->
                     selectedIndexEntry = entry
                 }
-                selectedIndexEntry?.takeIf { it.path == launchedEpisodeId }?.let { entry ->
+                selectedIndexEntry?.takeIf { it.path == launchedMediaPath }?.let { entry ->
                     ensureSelectedMetadataCache(entry)
                 }
                 refreshRecentProgress()
                 launchStatus = result.data.status
+                if (playbackSpeed != PLAYBACK_SPEED_NORMAL) {
+                    applyDesktopPlaybackSpeed(playbackSpeed)
+                }
                 result
             }
             is Result.Error -> {
@@ -830,15 +960,85 @@ internal fun MiruPlayDesktopComposeApp(
         }
     }
 
+    SideEffect {
+        webControlPlaybackHandlers.updatePlayEpisode { request, episode ->
+            val selection = desktopWebControlPlaybackSourceSelection(
+                episode = episode,
+                savedSources = savedSources,
+                activeSourceId = activeSourceId,
+                activeSource = activeSource,
+                activeLocalSource = activeLocalSource,
+                loadSourceById = { id -> repositories.mediaSources.getSourceById(id).getOrNull() },
+            )
+            val progress = repositories.progress.getProgress(episode.id).getOrNull()
+            val playbackSource = desktopWebControlPlaybackSource(request, episode, progress)
+            when (
+                val launched = launchDesktopPlayback(
+                    path = playbackSource.uri,
+                    startPositionMs = playbackSource.startPosition,
+                    sourceOverride = selection.source,
+                    sourceIdOverride = selection.sourceId,
+                    episodeId = playbackSource.episodeId,
+                )
+            ) {
+                is Result.Success -> {
+                    if (selection.ownsSource) {
+                        webControlPlaybackSource = selection.source
+                    }
+                    selectedDesktopSection = MiruPlayRouteSurface.player
+                    desktopWebControlPlaybackStatus(
+                        player = player,
+                        session = activePlaybackSession,
+                        mediaPath = mediaPath,
+                        launchStatus = launchStatus,
+                    )
+                }
+                is Result.Error -> {
+                    if (selection.ownsSource) {
+                        selection.source?.close()
+                    }
+                    throw IllegalStateException(launched.error.toUserMessage())
+                }
+            }
+        }
+        webControlPlaybackHandlers.updatePlaybackCommand { command ->
+            val statusDto = desktopWebControlPlaybackCommand(
+                request = command,
+                player = player,
+                session = activePlaybackSession,
+                mediaPath = mediaPath,
+                launchStatus = launchStatus,
+                stopPlayback = {
+                    stopDesktopPlayback(
+                        player = player,
+                        session = activePlaybackSession,
+                        saveProgress = { episodeId, positionMs, lastWatched, incrementPlayCount ->
+                            savePlaybackProgress(episodeId, positionMs, lastWatched, incrementPlayCount)
+                        },
+                    )
+                    player = null
+                    activePlaybackSession = null
+                    resetDesktopPlaybackTimeline()
+                    clearWebControlPlaybackSource()
+                    refreshRecentProgress()
+                },
+            )
+            launchStatus = webControlPlaybackCommandStatus(command)
+            if (command.playbackCommandKind() == WebControlPlaybackCommandKind.SPEED) {
+                playbackSpeed = coercePlaybackSpeed(command.playbackSpeed())
+            }
+            if (!statusDto.isPlaying && command.command.equals("stop", ignoreCase = true)) {
+                resetDesktopPlaybackTimeline()
+                selectedDesktopSection = MiruPlayRouteSurface.details
+            } else {
+                applyDesktopPlaybackStatusToTimeline(statusDto)
+            }
+            statusDto
+        }
+    }
+
     suspend fun nextDesktopPlaybackSource(currentEpisodeId: String): PlaybackSource? {
-        val currentEpisode = repositories.metadata.getCachedEpisode(currentEpisodeId).getOrNull() ?: return null
-        val episodes = repositories.metadata.getCachedEpisodes(currentEpisode.animeId).getOrNull().orEmpty()
-        val nextEpisode = episodes.nextEpisodeAfter(currentEpisode.id) ?: return null
-        val progress = repositories.progress.getProgress(nextEpisode.id).getOrNull()
-        return nextEpisode.toPlaybackSource(
-            playableUri = nextEpisode.filePath,
-            progress = progress,
-        )
+        return nextPlaybackSourceResolver.build(currentEpisodeId)
     }
 
     LaunchedEffect(player, activePlaybackSession) {
@@ -849,6 +1049,15 @@ internal fun MiruPlayDesktopComposeApp(
             delay(PLAYBACK_EOF_POLL_INTERVAL_MS)
             if (player !== activePlayer || activePlaybackSession !== session) {
                 return@LaunchedEffect
+            }
+            activePlayer.queryTimePositionMs().getOrNull()?.let { positionMs ->
+                session.syncPosition(positionMs)
+                playbackPositionMs = positionMs
+            } ?: run {
+                playbackPositionMs = session.currentPositionMs()
+            }
+            activePlayer.queryDurationMs().getOrNull()?.takeIf { it > 0L }?.let { durationMs ->
+                playbackDurationMs = durationMs
             }
             if (activePlayer.queryEofReached().getOrNull() == true) {
                 val completed = saveDesktopPlaybackCompletionProgress(
@@ -873,15 +1082,34 @@ internal fun MiruPlayDesktopComposeApp(
                             }
                         }
                         activePlayer.stop()
+                        val nextPlayback = desktopWebControlNextPlaybackSource(
+                            nextTarget = nextTarget,
+                            currentWebControlPlaybackSource = webControlPlaybackSource,
+                        )
                         player = null
                         activePlaybackSession = null
                         refreshRecentProgress()
                         if (nextTarget != null) {
-                            launchDesktopPlayback(
-                                path = nextTarget.uri,
-                                startPositionMs = nextTarget.startPosition,
-                            )
+                            when (
+                                val nextLaunch = launchDesktopPlayback(
+                                    path = nextTarget.uri,
+                                    startPositionMs = nextTarget.startPosition,
+                                    sourceOverride = nextPlayback.source,
+                                    sourceIdOverride = nextPlayback.sourceId,
+                                    episodeId = nextPlayback.episodeId,
+                                )
+                            ) {
+                                is Result.Success -> Unit
+                                is Result.Error -> {
+                                    resetDesktopPlaybackTimeline()
+                                    clearWebControlPlaybackSource()
+                                    launchStatus = nextLaunch.error.toUserMessage()
+                                    selectedDesktopSection = MiruPlayRouteSurface.details
+                                }
+                            }
                         } else {
+                            resetDesktopPlaybackTimeline()
+                            clearWebControlPlaybackSource()
                             launchStatus = mpvPlaybackCompletedStatus(completed.data)
                             selectedDesktopSection = MiruPlayRouteSurface.details
                         }
@@ -903,6 +1131,8 @@ internal fun MiruPlayDesktopComposeApp(
                 )
                 player = null
                 activePlaybackSession = null
+                resetDesktopPlaybackTimeline()
+                clearWebControlPlaybackSource()
                 refreshRecentProgress()
                 launchStatus = mpvExitedStatus()
                 return@LaunchedEffect
@@ -924,6 +1154,7 @@ internal fun MiruPlayDesktopComposeApp(
                 is Result.Success -> {
                     val positionMs = synced.data
                     if (positionMs != null) {
+                        playbackPositionMs = positionMs
                         refreshRecentProgress()
                         launchStatus = mpvPositionSyncedStatus(positionMs)
                     }
@@ -953,10 +1184,18 @@ internal fun MiruPlayDesktopComposeApp(
             return
         }
         updateStatus(source.info.scanningStatus())
-        when (val scan = scanAndIndexDesktopSource(source.info.copy(id = sourceId), repositories.index)) {
+        when (
+            val scan = scanAndIndexDesktopSource(
+                sourceInfo = source.info.copy(id = sourceId),
+                indexRepository = repositories.index,
+                metadataRepository = repositories.metadata,
+            )
+        ) {
             is Result.Success -> {
                 indexedEntries = scan.data.videoEntries
                 selectedIndexEntry = null
+                lastScanAt = System.currentTimeMillis()
+                repositories.scanPreferences.setLastScanAt(lastScanAt)
                 updateStatus(scan.data.completedStatus)
                 libraryStatus = scan.data.completedStatus
             }
@@ -964,109 +1203,113 @@ internal fun MiruPlayDesktopComposeApp(
         }
     }
 
-    suspend fun rescanLinkedCloudSource(reason: String): String? {
-        val sourceId = cloudLinkedSourceId ?: return null
-        val sourceInfo = savedSources.firstOrNull { it.id == sourceId }
-            ?: when (val sources = repositories.mediaSources.getSources()) {
-                is Result.Success -> {
-                    savedSources = sources.data
-                    sources.data.firstOrNull { it.id == sourceId }
-                }
-                is Result.Error -> {
-                    cloudRssStatus = sources.error.toUserMessage()
-                    return null
-                }
-            }
-        if (sourceInfo == null) {
-            cloudRssStatus = cloudRssScanSourceMissingStatus()
-            return null
+    LaunchedEffect(selectedDesktopSection.id, activeSourceId, autoScanEnabled, autoScanIntervalHours, lastScanAt) {
+        if (selectedDesktopSection == MiruPlayRouteSurface.library &&
+            activeSourceId != null &&
+            repositories.scanPreferences.shouldAutoScan()
+        ) {
+            scanCurrentSource { libraryStatus = it }
         }
+    }
 
-        cloudRssStatus = desktopCloudRssRescanStartedStatus(sourceInfo, reason)
-        return when (val rescan = rescanCloudRssLinkedSource(sourceInfo, reason, repositories.index)) {
-            is Result.Success -> {
-                val result = rescan.data
-                if (activeSourceId == sourceInfo.id) {
-                    indexedEntries = result.videoEntries
-                    selectedIndexEntry = null
+    suspend fun rescanLinkedCloudSource(reason: String): String? {
+        return when (
+            val rescan = resolveAndRescanCloudRssLinkedSource(
+                sourceId = cloudLinkedSourceId,
+                reason = reason,
+                savedSources = savedSources,
+                mediaSources = repositories.mediaSources,
+                indexRepository = repositories.index,
+                metadataRepository = repositories.metadata,
+                onSourcesLoaded = { loaded -> savedSources = loaded },
+                onRescanStarting = { sourceInfo ->
+                    cloudRssStatus = cloudRssRescanStartedStatus(reason, sourceInfo.sourcePickerTitle())
+                },
+            )
+        ) {
+            is Result.Success -> when (val selection = rescan.data) {
+                DesktopCloudRssLinkedSourceRescanSelection.MissingLink -> null
+                is DesktopCloudRssLinkedSourceRescanSelection.MissingSource -> {
+                    cloudRssStatus = cloudRssScanSourceMissingStatus()
+                    null
                 }
-                when (result.targetStatus) {
-                    DesktopCloudRssRescanTargetStatus.LIBRARY -> libraryStatus = result.completedStatus
-                    DesktopCloudRssRescanTargetStatus.REMOTE -> remoteStatus = result.completedStatus
+                is DesktopCloudRssLinkedSourceRescanSelection.Ready -> {
+                    val sourceInfo = selection.sourceInfo
+                    val result = selection.result
+                    if (activeSourceId == sourceInfo.id) {
+                        indexedEntries = result.videoEntries
+                        selectedIndexEntry = null
+                    }
+                    when (result.targetStatus) {
+                        DesktopCloudRssRescanTargetStatus.LIBRARY -> libraryStatus = result.completedStatus
+                        DesktopCloudRssRescanTargetStatus.REMOTE -> remoteStatus = result.completedStatus
+                    }
+                    result.completedStatus
                 }
-                result.completedStatus
             }
             is Result.Error -> {
-                val message = rescan.error.toUserMessage()
-                cloudRssStatus = message
+                cloudRssStatus = rescan.error.toUserMessage()
                 null
             }
         }
     }
 
     suspend fun loadCloudDriveDirectory(path: String) {
-        val browser = cloudDirectoryBrowser
-        if (!browser.open) return
-        if (browser.endpointUrl.isBlank() || browser.token.isBlank()) {
-            cloudRssStatus = cloudDriveTokenRequiredStatus()
-            cloudDirectoryBrowser = browser.copy(isLoading = false, message = cloudRssStatusText(cloudDriveTokenRequiredStatus()))
-            return
-        }
-        val loadingState = browser.loadingFor(path)
-        cloudDirectoryBrowser = loadingState
-        when (val loaded = loadSharedCloudDriveDirectory(cloudDriveClient, loadingState, loadingState.path)) {
-            is Result.Success -> {
-                val current = cloudDirectoryBrowser
-                val next = loaded.data
-                if (!current.open || current.endpointUrl != next.endpointUrl || current.token != next.token) return
-                cloudDirectoryBrowser = next
-                cloudRssStatus = cloudDriveRssDirectoryBrowsingStatus(next.path)
+        when (val loading = cloudDirectoryActions.loading(cloudDirectoryBrowser, path)) {
+            CloudDriveDirectoryLoadResult.Ignored -> return
+            is CloudDriveDirectoryLoadResult.Failed -> {
+                cloudDirectoryBrowser = loading.state.copy(message = cloudRssStatusText(loading.status))
+                cloudRssStatus = loading.status
             }
-            is Result.Error -> {
-                val message = loaded.error.toUserMessage()
-                cloudDirectoryBrowser = cloudDirectoryBrowser.copy(isLoading = false, message = message)
-                cloudRssStatus = message
+            is CloudDriveDirectoryLoadResult.Loading -> {
+                cloudDirectoryBrowser = loading.state
+                val loaded = cloudDirectoryActions.load(loading.state)
+                when (val result = cloudDirectoryActions.applyLoadedIfCurrent(cloudDirectoryBrowser, loaded)) {
+                    CloudDriveDirectoryLoadResult.Ignored -> Unit
+                    is CloudDriveDirectoryLoadResult.Loading -> Unit
+                    is CloudDriveDirectoryLoadResult.Loaded -> {
+                        cloudDirectoryBrowser = result.state
+                        cloudRssStatus = result.status
+                    }
+                    is CloudDriveDirectoryLoadResult.Failed -> {
+                        cloudDirectoryBrowser = result.state
+                        cloudRssStatus = result.status
+                    }
+                }
+            }
+            is CloudDriveDirectoryLoadResult.Loaded -> {
+                cloudDirectoryBrowser = loading.state
+                cloudRssStatus = loading.status
             }
         }
     }
 
     fun openCloudDriveDirectory(target: CloudDriveDirectoryTarget) {
-        val form = when (
-            val result = validateCloudDriveDirectoryPickerForm(
-                endpointUrl = cloudEndpointUrl,
-                tokenInput = cloudToken,
-                savedToken = repositories.credentials.cloudDriveToken,
-            )
-        ) {
-            is CloudDriveDirectoryPickerFormResult.Ready -> result.request
-            is CloudDriveDirectoryPickerFormResult.Invalid -> {
-                cloudRssStatus = result.status
-                return
-            }
-        }
         scope.launch {
             val initialPath = when (target) {
                 CloudDriveDirectoryTarget.INBOX -> cloudInboxPath
                 CloudDriveDirectoryTarget.LIBRARY -> cloudLibraryPath
             }
-            val prepared = when (
-                val result = prepareCloudDriveDirectoryBrowser(
-                    client = cloudDriveClient,
+            when (
+                val opened = cloudDirectoryActions.open(
                     target = target,
-                    endpointUrl = form.endpointUrl,
-                    token = form.token,
+                    endpointUrl = cloudEndpointUrl,
+                    tokenInput = cloudToken,
+                    savedToken = repositories.credentials.cloudDriveToken,
                     initialPath = initialPath,
                 )
             ) {
-                is Result.Success -> result.data
-                is Result.Error -> {
-                    val message = result.error.toUserMessage()
-                    cloudRssStatus = message
-                    return@launch
+                is CloudDriveDirectoryOpenResult.Ready -> {
+                    cloudDirectoryBrowser = opened.state
+                    loadCloudDriveDirectory(opened.loadPath)
+                }
+                is CloudDriveDirectoryOpenResult.Invalid -> {
+                    cloudRssStatus = opened.status
+                }
+                is CloudDriveDirectoryOpenResult.Failed -> {
+                    cloudRssStatus = opened.status
                 }
             }
-            cloudDirectoryBrowser = prepared
-            loadCloudDriveDirectory(prepared.path)
         }
     }
 
@@ -1191,7 +1434,13 @@ internal fun MiruPlayDesktopComposeApp(
                             rootPath = root.toString(),
                             isConnected = true,
                         )
-                        when (val result = openDesktopSource(repositories.mediaSources, sourceInfo)) {
+                        when (
+                            val result = openDesktopSource(
+                                repository = repositories.mediaSources,
+                                mediaSourceFactory = desktopMediaSourceFactory,
+                                sourceInfo = sourceInfo,
+                            )
+                        ) {
                             is Result.Success -> {
                                 activeSourceId = result.data.sourceInfo.id
                                 activeSource = result.data.source
@@ -1260,7 +1509,7 @@ internal fun MiruPlayDesktopComposeApp(
                             libraryStatus = sourceRemoveRequiredStatus()
                             return@launch
                         }
-                        when (val result = repositories.mediaSources.removeSource(sourceId)) {
+                        when (val result = mediaSourceActions.removeSource(sourceId)) {
                             is Result.Success -> {
                                 activeSourceId = null
                                 activeSource = null
@@ -1294,6 +1543,7 @@ internal fun MiruPlayDesktopComposeApp(
                         }
                     }
                 },
+                mergeSameAnimeEnabled = mergeSameAnimeEnabled,
                 onEntryFocused = { entry ->
                     selectedIndexEntry = entry
                     mediaPath = entry.path
@@ -1343,7 +1593,13 @@ internal fun MiruPlayDesktopComposeApp(
                             password = webDavPassword,
                             isConnected = true,
                         )
-                        when (val result = openDesktopSource(repositories.mediaSources, sourceInfo)) {
+                        when (
+                            val result = openDesktopSource(
+                                repository = repositories.mediaSources,
+                                mediaSourceFactory = desktopMediaSourceFactory,
+                                sourceInfo = sourceInfo,
+                            )
+                        ) {
                             is Result.Success -> {
                                 activeSourceId = result.data.sourceInfo.id
                                 activeSource = result.data.source
@@ -1374,7 +1630,13 @@ internal fun MiruPlayDesktopComposeApp(
                             password = smbPassword,
                             isConnected = true,
                         )
-                        when (val result = openDesktopSource(repositories.mediaSources, sourceInfo)) {
+                        when (
+                            val result = openDesktopSource(
+                                repository = repositories.mediaSources,
+                                mediaSourceFactory = desktopMediaSourceFactory,
+                                sourceInfo = sourceInfo,
+                            )
+                        ) {
                             is Result.Success -> {
                                 activeSourceId = result.data.sourceInfo.id
                                 activeSource = result.data.source
@@ -1434,25 +1696,7 @@ internal fun MiruPlayDesktopComposeApp(
                         episodeCount = detailEpisodes.size,
                         focusVersion = detailHeroFocusVersion,
                         onFocusRecentPlayback = {
-                            when (
-                                detailHeroDownTarget(
-                                    hasRelatedEpisodes = detailEpisodes.isNotEmpty(),
-                                    hasRecentPlayback = recentProgress.isNotEmpty(),
-                                )
-                            ) {
-                                DesktopDetailDownTarget.EpisodeList -> {
-                                    detailEpisodeFocusVersion += 1
-                                    true
-                                }
-                                DesktopDetailDownTarget.RecentPlayback -> {
-                                    recentPlaybackFocusVersion += 1
-                                    true
-                                }
-                                DesktopDetailDownTarget.BangumiMetadata -> {
-                                    bangumiFocusVersion += 1
-                                    true
-                                }
-                            }
+                            moveDetailPanelFocus(DesktopDetailFocusPanel.Hero, 1)
                         },
                         onBackToLibrary = { selectedDesktopSection = MiruPlayRouteSurface.library },
                         onPlay = {
@@ -1467,19 +1711,13 @@ internal fun MiruPlayDesktopComposeApp(
                         episodes = detailEpisodes,
                         selectedEntry = selectedIndexEntry,
                         selectedSeason = selectedDetailEpisodeSeason,
-                        recentRecords = recentProgress,
+                        recentRecords = recentProgress.map { it.progress },
                         focusVersion = detailEpisodeFocusVersion,
                         onFocusPreviousPanel = {
-                            detailHeroFocusVersion += 1
-                            true
+                            moveDetailPanelFocus(DesktopDetailFocusPanel.EpisodeList, -1)
                         },
                         onFocusNextPanel = {
-                            if (recentProgress.isNotEmpty()) {
-                                recentPlaybackFocusVersion += 1
-                            } else {
-                                bangumiFocusVersion += 1
-                            }
-                            true
+                            moveDetailPanelFocus(DesktopDetailFocusPanel.EpisodeList, 1)
                         },
                         onSeasonSelected = { season -> selectedDetailEpisodeSeason = season },
                         onEpisodeFocused = { episode ->
@@ -1516,27 +1754,16 @@ internal fun MiruPlayDesktopComposeApp(
                 },
                 onSearch = {
                     scope.launch {
-                        val query = bangumiQuery.trim().ifBlank {
-                            selectedIndexEntry?.metadataQuery().orEmpty()
-                        }
-                        if (query.isBlank()) {
-                            bangumiStatus = metadataQueryRequiredStatus(BANGUMI_METADATA_SOURCE_NAME)
-                            return@launch
-                        }
-                        bangumiQuery = query
-                        bangumiStatus = metadataSearchStartedStatus(query, BANGUMI_METADATA_SOURCE_NAME)
-                        when (val result = bangumiScraper.searchPreferredResults(
-                            query = query,
-                            candidates = listOfNotNull(
-                                selectedIndexEntry?.metadataTitle?.takeIf { it.isNotBlank() },
-                                selectedIndexEntry?.metadataQuery(),
-                                selectedIndexEntry?.metadataId?.takeIf { it.isNotBlank() },
-                            ).distinct(),
+                        when (val result = bangumiIndexMetadataCoordinator.search(
+                            query = bangumiQuery,
+                            selectedEntry = selectedIndexEntry,
+                            onSearchStarted = { bangumiStatus = it },
                         )) {
                             is Result.Success -> {
-                                bangumiResults = result.data
-                                selectedBangumiResult = result.data.firstOrNull()
-                                bangumiStatus = metadataSearchResultStatus(query, result.data.size, BANGUMI_METADATA_SOURCE_NAME)
+                                bangumiQuery = result.data.query
+                                bangumiResults = result.data.results
+                                selectedBangumiResult = result.data.selectedResult
+                                bangumiStatus = result.data.status
                             }
                             is Result.Error -> bangumiStatus = result.error.toUserMessage()
                         }
@@ -1544,95 +1771,58 @@ internal fun MiruPlayDesktopComposeApp(
                 },
                 onBatchPreview = {
                     scope.launch {
-                        val sourceId = activeSourceId
-                        if (sourceId == null) {
-                            bangumiStatus = metadataSourceRequiredStatus()
-                            return@launch
-                        }
-                        when (val entriesResult = repositories.index.queryIndex(sourceId, "")) {
+                        when (val preview = bangumiIndexMetadataCoordinator.previewBatch(
+                            sourceId = activeSourceId,
+                            onSearchStarted = { bangumiStatus = it },
+                        )) {
                             is Result.Success -> {
-                                val entries = entriesResult.data
-                                val queryCount = MetadataBatchPlanner.previewQueryCount(
-                                    entries = entries,
-                                    queryLimit = COMPOSE_BATCH_BANGUMI_QUERY_LIMIT,
-                                )
-                                if (queryCount == 0) {
-                                    bangumiBatchMatches = emptyList()
-                                    selectedBangumiBatchMatch = null
-                                    bangumiBatchPlan = null
-                                    bangumiStatus = noMetadataBatchEntriesStatus("Bangumi")
-                                    return@launch
-                                }
-
-                                bangumiStatus = metadataBatchSearchingStatus(queryCount, "Bangumi")
-                                val preview = MetadataBatchPlanner.previewFor(
-                                    entries = entries,
-                                    queryLimit = COMPOSE_BATCH_BANGUMI_QUERY_LIMIT,
-                                    searchCandidates = { query, candidates ->
-                                        bangumiScraper.searchPreferredResults(
-                                            query = query,
-                                            candidates = candidates,
-                                        ).getOrNull().orEmpty()
-                                    },
-                                )
-                                bangumiBatchMatches = preview.matches
-                                bangumiBatchPlan = preview.plan
-                                selectedBangumiBatchMatch = preview.selectedMatch
-                                bangumiStatus = preview.summaryStatus()
+                                bangumiBatchMatches = preview.data.matches
+                                bangumiBatchPlan = preview.data.plan
+                                selectedBangumiBatchMatch = preview.data.selectedMatch
+                                bangumiStatus = preview.data.status
                             }
-                            is Result.Error -> bangumiStatus = entriesResult.error.toUserMessage()
+                            is Result.Error -> bangumiStatus = preview.error.toUserMessage()
                         }
                     }
                 },
                 onBatchApply = {
                     scope.launch {
-                        val sourceId = activeSourceId
-                        if (sourceId == null) {
-                            bangumiStatus = metadataSourceRequiredStatus()
-                            return@launch
-                        }
-                        if (bangumiBatchMatches.isEmpty()) {
-                            bangumiStatus = noMetadataBatchPreviewStatus()
-                            return@launch
-                        }
-                        when (val entriesResult = repositories.index.queryIndex(sourceId, "")) {
+                        when (val apply = bangumiIndexMetadataCoordinator.applyBatch(
+                            sourceId = activeSourceId,
+                            matches = bangumiBatchMatches,
+                        )) {
                             is Result.Success -> {
-                                val entries = entriesResult.data.mediaFilesOnly()
-                                val plan = MetadataBatchPlanner.planFor(entries, bangumiBatchMatches)
-                                bangumiBatchPlan = plan
-                                if (plan.readyUpdates.isEmpty()) {
-                                    bangumiStatus = MetadataBatchPlanner.displayPlanSummary(plan)
-                                    return@launch
+                                bangumiBatchPlan = apply.data.plan
+                                if (apply.data.plan?.readyUpdates?.isNotEmpty() == true) {
+                                    bangumiBatchRollback = apply.data.write.rollbackEntries
                                 }
-                                val write = repositories.index.applyMetadataBatchPlan(sourceId, plan)
-                                bangumiBatchRollback = write.rollbackEntries
-                                indexedEntries = indexedEntries.replaceByMediaKeys(write.updatedEntries)
-                                selectedIndexEntry = selectedIndexEntry.updatedSelectionAfterReplacingByMediaKeys(write.updatedEntries)
-                                bangumiStatus = write.appliedStatus(plan.conflicts.size)
+                                indexedEntries = indexedEntries.replaceByMediaKeys(apply.data.write.updatedEntries)
+                                selectedIndexEntry = selectedIndexEntry.updatedSelectionAfterReplacingByMediaKeys(
+                                    apply.data.write.updatedEntries,
+                                )
+                                bangumiStatus = apply.data.status
                             }
-                            is Result.Error -> bangumiStatus = entriesResult.error.toUserMessage()
+                            is Result.Error -> bangumiStatus = apply.error.toUserMessage()
                         }
                     }
                 },
                 onBatchUndo = {
                     scope.launch {
-                        val sourceId = activeSourceId
-                        if (sourceId == null) {
-                            bangumiStatus = metadataSourceRequiredStatus()
-                            return@launch
-                        }
-                        when (val restore = repositories.index.restoreMetadataBatchUndo(sourceId, bangumiBatchRollback)) {
+                        when (val undo = bangumiIndexMetadataCoordinator.undoBatch(
+                            sourceId = activeSourceId,
+                            rollbackEntries = bangumiBatchRollback,
+                        )) {
                             is Result.Success -> {
-                                if (restore.data.rollbackEntries.isEmpty()) {
-                                    bangumiStatus = noMetadataBatchUndoStatus()
-                                    return@launch
+                                indexedEntries = indexedEntries.replaceByMediaKeys(undo.data.restore.rollbackEntries)
+                                selectedIndexEntry = selectedIndexEntry.updatedSelectionAfterReplacingByMediaKeys(
+                                    undo.data.restore.rollbackEntries,
+                                )
+                                if (undo.data.restore.rollbackEntries.isNotEmpty()) {
+                                    bangumiBatchRollback = emptyList()
                                 }
-                                indexedEntries = indexedEntries.replaceByMediaKeys(restore.data.rollbackEntries)
-                                selectedIndexEntry = selectedIndexEntry.updatedSelectionAfterReplacingByMediaKeys(restore.data.rollbackEntries)
-                                bangumiBatchRollback = emptyList()
-                                bangumiStatus = restore.data.restoredStatus()
+                                bangumiStatus = undo.data.status
                             }
-                            is Result.Error -> bangumiStatus = restore.error.toUserMessage()
+                            is Result.Error -> bangumiStatus = undo.error.toUserMessage()
                         }
                     }
                 },
@@ -1644,68 +1834,42 @@ internal fun MiruPlayDesktopComposeApp(
                 },
                 onBatchCandidateSelected = { match, candidate ->
                     scope.launch {
-                        var updatedMatch = match.withSelectedCandidate(candidate)
-                        var updatedMatches = bangumiBatchMatches.replaceMatch(updatedMatch)
-                        val sourceId = activeSourceId
-                        if (sourceId != null) {
-                            when (val entriesResult = repositories.index.queryIndex(sourceId, "")) {
-                                is Result.Success -> {
-                                    val selection = MetadataBatchPlanner.selectCandidate(
-                                        entries = entriesResult.data,
-                                        matches = bangumiBatchMatches,
-                                        match = match,
-                                        candidate = candidate,
-                                    )
-                                    updatedMatch = selection.updatedMatch
-                                    updatedMatches = selection.updatedMatches
-                                    bangumiBatchPlan = selection.plan
-                                }
-                                is Result.Error -> {
-                                    bangumiStatus = entriesResult.error.toUserMessage()
-                                    return@launch
-                                }
+                        when (val selection = bangumiIndexMetadataCoordinator.selectBatchCandidate(
+                            sourceId = activeSourceId,
+                            matches = bangumiBatchMatches,
+                            match = match,
+                            candidate = candidate,
+                        )) {
+                            is Result.Success -> {
+                                bangumiBatchMatches = selection.data.updatedMatches
+                                selectedBangumiBatchMatch = selection.data.updatedMatch
+                                selectedBangumiResult = selection.data.selectedResult
+                                bangumiBatchPlan = selection.data.plan
+                                bangumiQuery = match.query
+                                bangumiStatus = selection.data.status
                             }
+                            is Result.Error -> bangumiStatus = selection.error.toUserMessage()
                         }
-                        bangumiBatchMatches = updatedMatches
-                        selectedBangumiBatchMatch = updatedMatch
-                        selectedBangumiResult = candidate
-                        bangumiQuery = match.query
-                        bangumiStatus = updatedMatch.selectedCandidateStatus()
                     }
                 },
                 onBatchAcceptReview = {
                     scope.launch {
-                        val sourceId = activeSourceId
-                        val match = selectedBangumiBatchMatch
-                        val result = match?.result
-                        if (sourceId == null) {
-                            bangumiStatus = metadataSourceRequiredStatus()
-                            return@launch
-                        }
-                        if (match == null || result == null) {
-                            bangumiStatus = metadataBatchResultRequiredStatus(BANGUMI_METADATA_SOURCE_NAME)
-                            return@launch
-                        }
-                        when (val entriesResult = repositories.index.queryIndex(sourceId, "")) {
+                        when (val review = bangumiIndexMetadataCoordinator.acceptBatchReview(
+                            sourceId = activeSourceId,
+                            match = selectedBangumiBatchMatch,
+                        )) {
                             is Result.Success -> {
-                                val entries = entriesResult.data.mediaFilesOnly()
-                                val reviewed = match.copy(result = result.copy(confidence = 1f))
-                                val plan = MetadataBatchPlanner.planFor(entries, listOf(reviewed))
-                                if (plan.conflicts.isNotEmpty()) {
-                                    bangumiStatus = plan.reviewConflictStatus()
-                                    return@launch
+                                bangumiBatchPlan = review.data.plan
+                                if (review.data.plan?.readyUpdates?.isNotEmpty() == true) {
+                                    bangumiBatchRollback = review.data.write.rollbackEntries
                                 }
-                                if (plan.readyUpdates.isEmpty()) {
-                                    bangumiStatus = metadataReviewNoMatchStatus()
-                                    return@launch
-                                }
-                                val write = repositories.index.applyMetadataBatchPlan(sourceId, plan)
-                                bangumiBatchRollback = write.rollbackEntries
-                                indexedEntries = indexedEntries.replaceByMediaKeys(write.updatedEntries)
-                                selectedIndexEntry = selectedIndexEntry.updatedSelectionAfterReplacingByMediaKeys(write.updatedEntries)
-                                bangumiStatus = write.reviewAcceptedStatus()
+                                indexedEntries = indexedEntries.replaceByMediaKeys(review.data.write.updatedEntries)
+                                selectedIndexEntry = selectedIndexEntry.updatedSelectionAfterReplacingByMediaKeys(
+                                    review.data.write.updatedEntries,
+                                )
+                                bangumiStatus = review.data.status
                             }
-                            is Result.Error -> bangumiStatus = entriesResult.error.toUserMessage()
+                            is Result.Error -> bangumiStatus = review.error.toUserMessage()
                         }
                     }
                 },
@@ -1715,54 +1879,37 @@ internal fun MiruPlayDesktopComposeApp(
                 },
                 onApply = {
                     scope.launch {
-                        val sourceId = activeSourceId
-                        val entry = selectedIndexEntry
-                        val bangumi = selectedBangumiResult ?: bangumiResults.firstOrNull()
-                        if (sourceId == null) {
-                            bangumiStatus = metadataSourceRequiredStatus()
-                            return@launch
-                        }
-                        if (entry == null || entry.isDirectory) {
-                            bangumiStatus = metadataApplyEntryRequiredStatus(BANGUMI_METADATA_SOURCE_NAME)
-                            return@launch
-                        }
-                        if (bangumi == null) {
-                            bangumiStatus = metadataSearchSelectionRequiredStatus(BANGUMI_METADATA_SOURCE_NAME)
-                            return@launch
-                        }
-                        val updated = entry.withExternalMetadata(bangumi, sourceId = sourceId)
-                        when (val result = repositories.index.upsertEntry(sourceId, updated)) {
+                        when (val apply = bangumiIndexMetadataCoordinator.applyEntryMetadata(
+                            sourceId = activeSourceId,
+                            entry = selectedIndexEntry,
+                            match = selectedBangumiResult ?: bangumiResults.firstOrNull(),
+                            relatedEntries = detailEpisodes,
+                        )) {
                             is Result.Success -> {
-                                updateSelectedMetadataCache(updated, bangumi)
-                                indexedEntries = indexedEntries.replaceByMediaKey(updated)
-                                selectedIndexEntry = updated
-                                bangumiStatus = updated.metadataAppliedStatus(BANGUMI_METADATA_SOURCE_NAME)
+                                apply.data.updatedEntry?.let { updated ->
+                                    indexedEntries = indexedEntries.replaceByMediaKey(updated)
+                                    selectedIndexEntry = updated
+                                }
+                                bangumiStatus = apply.data.status
                             }
-                            is Result.Error -> bangumiStatus = result.error.toUserMessage()
+                            is Result.Error -> bangumiStatus = apply.error.toUserMessage()
                         }
                     }
                 },
                 onClear = {
                     scope.launch {
-                        val sourceId = activeSourceId
-                        val entry = selectedIndexEntry
-                        if (sourceId == null) {
-                            bangumiStatus = metadataSourceRequiredStatus()
-                            return@launch
-                        }
-                        if (entry == null || entry.isDirectory) {
-                            bangumiStatus = metadataClearEntryRequiredStatus()
-                            return@launch
-                        }
-                        val updated = entry.clearExternalMetadata(sourceId = sourceId)
-                        when (val result = repositories.index.upsertEntry(sourceId, updated)) {
+                        when (val clear = bangumiIndexMetadataCoordinator.clearEntryMetadata(
+                            sourceId = activeSourceId,
+                            entry = selectedIndexEntry,
+                        )) {
                             is Result.Success -> {
-                                repositories.metadata.invalidateCache(entry.bangumiMetadataCacheId())
-                                indexedEntries = indexedEntries.replaceByMediaKey(updated)
-                                selectedIndexEntry = updated
-                                bangumiStatus = updated.metadataClearedStatus()
+                                clear.data.updatedEntry?.let { updated ->
+                                    indexedEntries = indexedEntries.replaceByMediaKey(updated)
+                                    selectedIndexEntry = updated
+                                }
+                                bangumiStatus = clear.data.status
                             }
-                            is Result.Error -> bangumiStatus = result.error.toUserMessage()
+                            is Result.Error -> bangumiStatus = clear.error.toUserMessage()
                         }
                     }
                 },
@@ -1777,13 +1924,10 @@ internal fun MiruPlayDesktopComposeApp(
                     }
                 },
                 onFocusPreviousPanel = {
-                    detailEpisodeFocusVersion += 1
-                    focusManager.moveFocus(FocusDirection.Up)
-                    true
+                    moveDetailPanelFocus(DesktopDetailFocusPanel.BangumiMetadata, -1)
                 },
                 onFocusNextPanel = {
-                    mediaDetailsFocusVersion += 1
-                    true
+                    moveDetailPanelFocus(DesktopDetailFocusPanel.BangumiMetadata, 1)
                 },
                 focusVersion = bangumiFocusVersion,
             )
@@ -1793,12 +1937,10 @@ internal fun MiruPlayDesktopComposeApp(
                 status = recentStatus,
                 focusVersion = recentPlaybackFocusVersion,
                 onFocusPreviousPanel = {
-                    detailEpisodeFocusVersion += 1
-                    true
+                    moveDetailPanelFocus(DesktopDetailFocusPanel.RecentPlayback, -1)
                 },
                 onFocusNextPanel = {
-                    bangumiFocusVersion += 1
-                    true
+                    moveDetailPanelFocus(DesktopDetailFocusPanel.RecentPlayback, 1)
                 },
                 onRefresh = {
                     scope.launch {
@@ -1807,9 +1949,9 @@ internal fun MiruPlayDesktopComposeApp(
                 },
                 onRecordSelected = { record ->
                     selectedRecentProgress = record
-                    mediaPath = record.episodeId
+                    mediaPath = record.progress.episodeId
                     startSeconds = record.resumeStartSecondsText()
-                    launchStatus = record.loadedPlaybackStatus(record.mediaDisplayName())
+                    launchStatus = record.loadedPlaybackStatus()
                 },
                 onClearSelected = {
                     scope.launch {
@@ -1818,7 +1960,7 @@ internal fun MiruPlayDesktopComposeApp(
                             recentStatus = recentPlaybackRequiredStatus()
                             return@launch
                         }
-                        when (val result = repositories.progress.deleteProgress(selected.episodeId)) {
+                        when (val result = repositories.progress.deleteProgress(selected.progress.episodeId)) {
                             is Result.Success -> {
                                 selectedRecentProgress = null
                                 refreshRecentProgress()
@@ -1832,11 +1974,10 @@ internal fun MiruPlayDesktopComposeApp(
                 source = activeSource?.info,
                 indexEntry = selectedIndexEntry,
                 remoteEntry = selectedRemoteEntry,
-                recentRecord = selectedRecentProgress,
+                recentRecord = selectedRecentProgress?.progress,
                 focusVersion = mediaDetailsFocusVersion,
                 onFocusPreviousPanel = {
-                    bangumiFocusVersion += 1
-                    true
+                    moveDetailPanelFocus(DesktopDetailFocusPanel.MediaDetails, -1)
                 },
             )
                 }
@@ -1893,117 +2034,124 @@ internal fun MiruPlayDesktopComposeApp(
                 onBangumiTokenChange = { bangumiTokenInput = it },
                 bangumiTokenConfigured = bangumiTokenConfigured,
                 linkedSourceLabel = settingsLinkedSourceLabel(savedSources, cloudLinkedSourceId),
+                autoScanEnabled = autoScanEnabled,
+                autoScanIntervalHours = autoScanIntervalHours,
+                scanIntervalOptionsHours = scanPreferencesIntervalOptionsHours,
+                lastScanAt = lastScanAt,
+                mergeSameAnimeEnabled = mergeSameAnimeEnabled,
+                onToggleAutoScan = {
+                    val enabled = !autoScanEnabled
+                    scope.launch {
+                        applyScanPreferenceSnapshot(settingsPreferenceActions.setAutoScanEnabled(enabled))
+                    }
+                },
+                onScanIntervalSelected = { hours ->
+                    scope.launch {
+                        applyScanPreferenceSnapshot(settingsPreferenceActions.setAutoScanIntervalHours(hours))
+                    }
+                },
+                onToggleMergeSameAnime = {
+                    val enabled = !mergeSameAnimeEnabled
+                    scope.launch {
+                        applyScanPreferenceSnapshot(settingsPreferenceActions.setMergeSameAnimeEnabled(enabled))
+                    }
+                },
                 onSaveConfig = {
                     scope.launch {
                         val interval = parseCloudDriveIntervalMinutes(cloudIntervalMinutes)
                         val proxyPort = parseRssProxyPort(rssProxyPort)
-                        val currentConfig = when (val current = repositories.cloudDriveAutomation.getConfig()) {
-                            is Result.Success -> current.data
-                            is Result.Error -> {
-                                cloudRssStatus = current.error.toUserMessage()
-                                return@launch
-                            }
-                        }
-                            val config = currentConfig.withAutomationFormValues(
-                                endpointUrl = cloudEndpointUrl,
-                                username = cloudUsername,
-                                webDavSourceId = cloudLinkedSourceId,
-                                inboxPath = cloudInboxPath,
-                                libraryPath = cloudLibraryPath,
-                                libraryMode = cloudLibraryMode,
-                                intervalMinutes = interval,
-                                enabled = cloudEnabled,
-                                rssProxyEnabled = rssProxyEnabled,
-                                rssProxyHost = rssProxyHost,
+                        when (val result = cloudRssActions.saveConfig(
+                            endpointUrl = cloudEndpointUrl,
+                            username = cloudUsername,
+                            webDavSourceId = cloudLinkedSourceId,
+                            inboxPath = cloudInboxPath,
+                            libraryPath = cloudLibraryPath,
+                            intervalMinutes = interval,
+                            enabled = cloudEnabled,
+                            rssProxyEnabled = rssProxyEnabled,
+                            rssProxyHost = rssProxyHost,
                             rssProxyPort = proxyPort,
-                        )
-                        when (val result = repositories.cloudDriveAutomation.saveConfig(config)) {
-                            is Result.Success -> {
+                        )) {
+                            is CloudDriveConfigActionResult.Saved -> {
                                 cloudIntervalMinutes = interval.toString()
                                 rssProxyPort = proxyPort.toString()
-                                cloudRssStatus = cloudRssConfigSavedStatus()
+                                cloudRssStatus = result.status
                             }
-                            is Result.Error -> cloudRssStatus = result.error.toUserMessage()
+                            is CloudDriveConfigActionResult.Failed -> cloudRssStatus = result.status
                         }
                     }
                 },
                 onSaveCredentials = {
-                    repositories.credentials.cloudDriveToken = cloudToken.trim().takeIf { it.isNotBlank() }
-                    repositories.credentials.cloudDrivePassword = cloudPassword.takeIf { it.isNotBlank() }
-                    cloudRssStatus = cloudDriveCredentialsSavedStatus()
+                    val result = cloudRssActions.saveCredentials(cloudToken, cloudPassword)
+                    cloudToken = result.token.orEmpty()
+                    cloudPassword = result.password.orEmpty()
+                    cloudRssStatus = result.status
                 },
                 onLoginCloudDrive = {
                     scope.launch {
-                        val form = when (
-                            val validation = validateCloudDriveLoginForm(
+                        when (
+                            val result = cloudRssActions.loginCloudDrive(
                                 endpointUrl = cloudEndpointUrl,
                                 username = cloudUsername,
                                 password = cloudPassword,
+                                onStarted = { status -> cloudRssStatus = status },
                             )
                         ) {
-                            is CloudDriveLoginFormResult.Ready -> validation.request
-                            is CloudDriveLoginFormResult.Invalid -> {
-                                cloudRssStatus = validation.status
-                                return@launch
+                            is CloudDriveActionResult.Success -> {
+                                cloudToken = result.token.orEmpty()
+                                cloudRssStatus = result.status
                             }
-                        }
-                        cloudRssStatus = cloudDriveLoginStartedStatus()
-                        when (val result = cloudRssEngine.login(form.endpointUrl, form.username, form.password)) {
-                            is Result.Success -> {
-                                cloudToken = repositories.credentials.cloudDriveToken.orEmpty()
-                                cloudRssStatus = cloudDriveLoginSucceededStatus()
+                            is CloudDriveActionResult.Invalid -> {
+                                cloudRssStatus = result.status
                             }
-                            is Result.Error -> cloudRssStatus = result.error.toUserMessage()
+                            is CloudDriveActionResult.Failed -> {
+                                cloudRssStatus = result.status
+                            }
                         }
                     }
                 },
                 onVerifyApiToken = {
                     scope.launch {
-                        val form = when (
-                            val validation = validateCloudDriveApiTokenForm(
+                        when (
+                            val result = cloudRssActions.verifyCloudDriveApiToken(
                                 endpointUrl = cloudEndpointUrl,
                                 token = cloudToken,
-                                blankTokenStatus = cloudDriveTokenRequiredStatus(),
+                                onStarted = { status -> cloudRssStatus = status },
                             )
                         ) {
-                            is CloudDriveApiTokenFormResult.Ready -> validation.request
-                            is CloudDriveApiTokenFormResult.Invalid -> {
-                                cloudRssStatus = validation.status
-                                return@launch
+                            is CloudDriveActionResult.Success -> {
+                                cloudToken = result.token.orEmpty()
+                                cloudRssStatus = result.status
                             }
-                        }
-                        cloudRssStatus = cloudDriveTokenValidationStartedStatus()
-                        when (val result = cloudRssEngine.saveApiToken(form.endpointUrl, form.token)) {
-                            is Result.Success -> {
-                                cloudToken = form.token
-                                cloudRssStatus = cloudDriveTokenVerifiedStatus(
-                                    friendlyName = result.data.friendlyName,
-                                    rootDir = result.data.rootDir,
-                                )
+                            is CloudDriveActionResult.Invalid -> {
+                                cloudRssStatus = result.status
                             }
-                            is Result.Error -> cloudRssStatus = result.error.toUserMessage()
+                            is CloudDriveActionResult.Failed -> {
+                                cloudRssStatus = result.status
+                            }
                         }
                     }
                 },
                 onClearCredentials = {
-                    repositories.credentials.clearCloudDriveCredentials()
+                    val result = cloudRssActions.clearCredentials()
                     cloudToken = ""
                     cloudPassword = ""
-                    cloudRssStatus = cloudDriveCredentialsClearedStatus()
+                    cloudRssStatus = result.status
                 },
                 onRunSync = {
                     scope.launch {
-                        cloudRssStatus = cloudRssRunStartedStatus()
-                        when (val result = cloudRssEngine.runOnce()) {
-                            is Result.Success -> {
-                                val message = result.data.completeStatus()
-                                cloudRssStatus = message
-                                rescanLinkedCloudSource(message)?.let { scanMessage ->
-                                    cloudRssStatus = "$message $scanMessage"
+                        cloudRssActions.runCloudDriveOnceWithCallbacks(
+                            onStarted = { status -> cloudRssStatus = status },
+                            onCompleted = { completed ->
+                                cloudRssStatus = completed.status
+                                rescanLinkedCloudSource(completed.status)?.let { scanMessage ->
+                                    cloudRssStatus = "${completed.status} $scanMessage"
                                 }
-                            }
-                            is Result.Error -> cloudRssStatus = result.error.toUserMessage()
-                        }
+                            },
+                            onFailed = { failed ->
+                                cloudRssStatus = failed.status
+                            },
+                        )
                     }
                 },
                 onStartScheduler = {
@@ -2034,8 +2182,8 @@ internal fun MiruPlayDesktopComposeApp(
                 },
                 onSaveSubscription = {
                     scope.launch {
-                        val subscription = when (
-                            val result = prepareRssSubscriptionForm(
+                        when (
+                            val result = cloudRssActions.saveRssSubscription(
                                 name = rssName,
                                 url = rssUrl,
                                 filterRegex = rssFilter,
@@ -2043,18 +2191,17 @@ internal fun MiruPlayDesktopComposeApp(
                                 selectedSubscription = selectedRssSubscription,
                             )
                         ) {
-                            is RssSubscriptionFormResult.Ready -> result.subscription
-                            is RssSubscriptionFormResult.Invalid -> {
+                            is RssSubscriptionActionResult.Saved -> {
                                 cloudRssStatus = result.status
-                                return@launch
-                            }
-                        }
-                        when (val result = repositories.cloudDriveAutomation.saveSubscription(subscription)) {
-                            is Result.Success -> {
-                                cloudRssStatus = rssSubscriptionSavedStatus(subscription.name)
                                 refreshRssSubscriptions()
                             }
-                            is Result.Error -> cloudRssStatus = result.error.toUserMessage()
+                            is RssSubscriptionActionResult.Invalid -> {
+                                cloudRssStatus = result.status
+                            }
+                            is RssSubscriptionActionResult.Failed -> {
+                                cloudRssStatus = result.status
+                            }
+                            is RssSubscriptionActionResult.Deleted -> Unit
                         }
                     }
                 },
@@ -2073,48 +2220,60 @@ internal fun MiruPlayDesktopComposeApp(
                             cloudRssStatus = rssSubscriptionRequiredStatus()
                             return@launch
                         }
-                        when (val result = repositories.cloudDriveAutomation.deleteSubscription(subscription.id)) {
-                            is Result.Success -> {
+                        when (val result = cloudRssActions.deleteRssSubscription(subscription.id)) {
+                            is RssSubscriptionActionResult.Deleted -> {
                                 selectedRssSubscription = null
                                 rssName = ""
                                 rssUrl = ""
                                 rssFilter = ""
                                 rssEnabled = true
-                                cloudRssStatus = rssSubscriptionDeletedStatus()
+                                cloudRssStatus = result.status
                                 refreshRssSubscriptions()
                             }
-                            is Result.Error -> cloudRssStatus = result.error.toUserMessage()
+                            is RssSubscriptionActionResult.Failed -> {
+                                cloudRssStatus = result.status
+                            }
+                            is RssSubscriptionActionResult.Invalid -> Unit
+                            is RssSubscriptionActionResult.Saved -> Unit
                         }
                     }
                 },
                 onSaveBangumiToken = {
-                    val saveResult = saveBangumiTokenFormResult(
-                        input = bangumiTokenInput,
-                        existingToken = repositories.credentials.bangumiAccessToken,
-                    )
-                    repositories.credentials.bangumiAccessToken = saveResult.token
-                    bangumiTokenInput = ""
-                    bangumiTokenConfigured = saveResult.configured
-                    bangumiStatus = saveResult.status
+                    val result = bangumiCredentialActions.saveToken(bangumiTokenInput)
+                    if (result.shouldClearInput) {
+                        bangumiTokenInput = ""
+                    }
+                    bangumiTokenConfigured = result.configured
+                    bangumiStatus = result.status
                 },
                 onClearBangumiToken = {
-                    repositories.credentials.clearBangumiToken()
+                    val result = bangumiCredentialActions.clearToken()
                     bangumiTokenInput = ""
                     bangumiTokenConfigured = false
-                    bangumiStatus = metadataBangumiTokenClearedMessage()
+                    bangumiStatus = result.status
                 },
                 sources = savedSources,
                 activeSourceLabel = settingsActiveSourceLabel(activeSource?.info),
                 indexedItemCount = indexedEntries.size,
                 recentCount = recentProgress.size,
                 selectedMediaTitle = selectedIndexEntry?.detailTitle()
-                    ?: selectedRecentProgress?.mediaDisplayName()
+                    ?: selectedRecentProgress?.displayName
                     ?: metadataNoSelectedEntryLabel(),
                 playbackSummary = playbackRifeStateLabel(rifeEnabled, rifeBackend.name),
                 metadataSummary = selectedIndexEntry?.let { entry ->
                     metadataMatchSummaryLabel(entry.metadataTitle)
                 } ?: metadataNoSelectedEntryLabel(),
                 libraryStatus = libraryStatus,
+                webControlEnabled = webControlEnabled,
+                webUiUrls = webUiUrls,
+                webControlAccessToken = webControlAccessToken,
+                onToggleWebControl = {
+                    applyWebControlSnapshot(webControlActions.setEnabled(!webControlEnabled))
+                },
+                onRotateWebControlToken = {
+                    applyWebControlSnapshot(webControlActions.rotateAccessToken())
+                },
+                onRefreshWebUiUrls = ::refreshDesktopWebUiUrls,
                 onOpenLibrary = { selectedDesktopSection = MiruPlayRouteSurface.library },
                 onOpenPlayer = { selectedDesktopSection = MiruPlayRouteSurface.player },
                 onOpenDetails = { selectedDesktopSection = MiruPlayRouteSurface.details },
@@ -2143,12 +2302,19 @@ internal fun MiruPlayDesktopComposeApp(
                     onRifeBackendChange = { rifeBackend = it },
                     playbackEndAction = playbackEndAction,
                     onPlaybackEndActionChange = { action ->
-                        playbackEndAction = action
                         scope.launch {
-                            repositories.playbackPreferences.setEndAction(action)
+                            playbackEndAction = settingsPreferenceActions.setPlaybackEndAction(action)
+                        }
+                    },
+                    playbackSpeed = playbackSpeed,
+                    onPlaybackSpeedChange = { speed ->
+                        scope.launch {
+                            applyDesktopPlaybackSpeed(speed)
                         }
                     },
                     isPlayerActive = player != null,
+                    playbackPositionMs = playbackPositionMs,
+                    playbackDurationMs = playbackDurationMs,
                     launchStatus = launchStatus,
                     onBackToDetails = { selectedDesktopSection = MiruPlayRouteSurface.details },
                     onLaunch = {
@@ -2170,6 +2336,7 @@ internal fun MiruPlayDesktopComposeApp(
                             when (val result = activePlayer.togglePause()) {
                                 is Result.Success -> {
                                     activePlaybackSession?.togglePaused()
+                                    playbackPositionMs = activePlaybackSession?.currentPositionMs() ?: playbackPositionMs
                                     launchStatus = mpvPauseToggledStatus()
                                 }
                                 is Result.Error -> launchStatus = result.error.toUserMessage()
@@ -2186,6 +2353,7 @@ internal fun MiruPlayDesktopComposeApp(
                             when (val result = activePlayer.setPaused(false)) {
                                 is Result.Success -> {
                                     activePlaybackSession?.setPaused(false)
+                                    playbackPositionMs = activePlaybackSession?.currentPositionMs() ?: playbackPositionMs
                                     launchStatus = mpvResumedStatus()
                                 }
                                 is Result.Error -> launchStatus = result.error.toUserMessage()
@@ -2202,6 +2370,7 @@ internal fun MiruPlayDesktopComposeApp(
                             when (val result = activePlayer.setPaused(true)) {
                                 is Result.Success -> {
                                     activePlaybackSession?.setPaused(true)
+                                    playbackPositionMs = activePlaybackSession?.currentPositionMs() ?: playbackPositionMs
                                     launchStatus = mpvPausedStatus()
                                 }
                                 is Result.Error -> launchStatus = result.error.toUserMessage()
@@ -2219,6 +2388,7 @@ internal fun MiruPlayDesktopComposeApp(
                             when (val result = activePlayer.seekBy(-seekSeconds)) {
                                 is Result.Success -> {
                                     activePlaybackSession?.seekBy(-seekSeconds)
+                                    playbackPositionMs = activePlaybackSession?.currentPositionMs() ?: playbackPositionMs
                                     launchStatus = mpvSeekBackStatus(seconds = PLAYBACK_SEEK_BACK_SECONDS)
                                 }
                                 is Result.Error -> launchStatus = result.error.toUserMessage()
@@ -2236,6 +2406,7 @@ internal fun MiruPlayDesktopComposeApp(
                             when (val result = activePlayer.seekBy(seekSeconds)) {
                                 is Result.Success -> {
                                     activePlaybackSession?.seekBy(seekSeconds)
+                                    playbackPositionMs = activePlaybackSession?.currentPositionMs() ?: playbackPositionMs
                                     launchStatus = mpvSeekForwardStatus(seconds = PLAYBACK_SEEK_FORWARD_SECONDS)
                                 }
                                 is Result.Error -> launchStatus = result.error.toUserMessage()
@@ -2253,6 +2424,8 @@ internal fun MiruPlayDesktopComposeApp(
                             )
                             player = null
                             activePlaybackSession = null
+                            resetDesktopPlaybackTimeline()
+                            clearWebControlPlaybackSource()
                             refreshRecentProgress()
                             launchStatus = mpvStoppedStatus()
                         }

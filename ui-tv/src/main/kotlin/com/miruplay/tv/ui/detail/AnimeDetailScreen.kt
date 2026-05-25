@@ -41,8 +41,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
@@ -58,9 +56,9 @@ import androidx.tv.material3.Text
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.ProgressRecord
-import com.miruplay.tv.model.continueEpisodeProgress
+import com.miruplay.tv.model.continueActionLabel
+import com.miruplay.tv.model.continueEpisode
 import com.miruplay.tv.model.detailBangumiCollectionPillLabel
-import com.miruplay.tv.model.detailContinueActionLabel
 import com.miruplay.tv.model.detailEpisodeCountLabel
 import com.miruplay.tv.model.detailEpisodeSectionTitle
 import com.miruplay.tv.model.detailEpisodeTitleLabel
@@ -76,7 +74,7 @@ import com.miruplay.tv.ui.components.LoadingIndicator
 import com.miruplay.tv.ui.components.OverscanContainer
 import com.miruplay.tv.ui.components.RemoteImage
 import com.miruplay.tv.ui.components.TvButton
-import com.miruplay.tv.ui.components.isTvActivateKey
+import com.miruplay.tv.ui.components.tvActivateKeyEvent
 import com.miruplay.tv.ui.theme.AccentBlue
 import com.miruplay.tv.ui.theme.AnimeRed
 import com.miruplay.tv.ui.theme.CardBg
@@ -224,9 +222,9 @@ private fun DetailContent(
                     DetailStats(anime)
                     Spacer(Modifier.height(18.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        val continueTarget = continueEpisode(episodes)
+                        val continueTarget = episodes.continueEpisode()
                         TvButton(
-                            text = continueButtonText(episodes),
+                            text = episodes.continueActionLabel(),
                             onClick = { continueTarget?.let(onPlayEpisode) },
                             enabled = continueTarget != null,
                             modifier = Modifier
@@ -387,12 +385,7 @@ private fun EpisodeListItem(
             )
             .onFocusChanged { isFocused = it.isFocused }
             .onPreviewKeyEvent { event ->
-                if (event.type == KeyEventType.KeyDown && event.key.isTvActivateKey()) {
-                    onPlay()
-                    true
-                } else {
-                    false
-                }
+                tvActivateKeyEvent(event.key, event.type, onActivate = onPlay)
             }
             .focusable()
             .clickable(onClick = onPlay)
@@ -481,21 +474,4 @@ private fun Episode.displayPath(): String {
         ?.takeIf { it.isNotBlank() }
 
     return sourcePath ?: Uri.decode(filePath).ifBlank { fileName }
-}
-
-private fun continueButtonText(episodes: List<Pair<Episode, ProgressRecord?>>): String {
-    val next = episodes.firstOrNull { (episode, progress) -> episode.continueEpisodeProgress(progress) }
-        ?: return detailContinueActionLabel(null)
-    return detailContinueActionLabel(next.first.episodeNumber)
-}
-
-private fun continueEpisode(episodes: List<Pair<Episode, ProgressRecord?>>): Episode? {
-    val partial = episodes
-        .filter { (episode, progress) -> episode.continueEpisodeProgress(progress) }
-        .maxByOrNull { (_, progress) -> progress?.lastWatched ?: 0L }
-        ?.first
-    if (partial != null) return partial
-
-    return episodes.firstOrNull { (episode, progress) -> !episode.isCompleted(progress) }?.first
-        ?: episodes.firstOrNull()?.first
 }

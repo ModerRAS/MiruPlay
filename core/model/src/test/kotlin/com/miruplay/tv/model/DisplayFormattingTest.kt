@@ -49,5 +49,10 @@ class DisplayFormattingTest {
         assertEquals(19, formatLocalTimestamp(1_700_000_000_000L)?.length)
         assertEquals('-', formatLocalTimestamp(1_700_000_000_000L)?.get(4))
         assertEquals(':', formatLocalTimestamp(1_700_000_000_000L)?.get(13))
+
+        assertEquals(null, formatShortLocalTimestamp(0L))
+        assertEquals(11, formatShortLocalTimestamp(1_700_000_000_000L)?.length)
+        assertEquals('-', formatShortLocalTimestamp(1_700_000_000_000L)?.get(2))
+        assertEquals(':', formatShortLocalTimestamp(1_700_000_000_000L)?.get(8))
     }
 }

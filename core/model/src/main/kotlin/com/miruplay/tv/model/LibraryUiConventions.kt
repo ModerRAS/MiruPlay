@@ -105,9 +105,82 @@ fun mediaDetailsSectionTitle(): String = "媒体详情"
 
 fun mediaDetailsEmptyMessage(): String = "选择媒体后会在这里显示详细信息。"
 
+data class RecentPlaybackLabels(
+    val title: String,
+    val refreshAction: String,
+    val clearAction: String,
+    val emptyState: String,
+)
+
+fun recentPlaybackLabels(): RecentPlaybackLabels =
+    RecentPlaybackLabels(
+        title = libraryContinueWatchingSectionTitle(),
+        refreshAction = recentPlaybackRefreshActionLabel(),
+        clearAction = recentPlaybackClearActionLabel(),
+        emptyState = recentPlaybackEmptyMessage(),
+    )
+
+data class MediaDetailsLabels(
+    val title: String,
+    val emptyState: String,
+)
+
+fun mediaDetailsLabels(): MediaDetailsLabels =
+    MediaDetailsLabels(
+        title = mediaDetailsSectionTitle(),
+        emptyState = mediaDetailsEmptyMessage(),
+    )
+
 fun libraryRecentlyAddedSectionTitle(): String = "最近添加"
 
 fun libraryPosterWallSectionTitle(): String = "海报墙"
+
+data class LibrarySourceLabels(
+    val localLibraryRoot: String,
+    val indexQuery: String,
+    val openLocal: String,
+    val scan: String,
+    val search: String,
+    val clearIndex: String,
+    val removeSource: String,
+    val webDavUrl: String,
+    val webDavUser: String,
+    val webDavPassword: String,
+    val openWebDav: String,
+    val smbUrl: String,
+    val smbDomain: String,
+    val smbUser: String,
+    val smbPassword: String,
+    val openSmb: String,
+    val scanSource: String,
+    val remoteBrowser: String,
+    val up: String,
+    val remoteEmpty: String,
+)
+
+fun librarySourceLabels(): LibrarySourceLabels =
+    LibrarySourceLabels(
+        localLibraryRoot = mediaSourceLocalLibraryRootFieldLabel(),
+        indexQuery = mediaSourceIndexQueryFieldLabel(),
+        openLocal = MediaSourceType.LOCAL.openSourceActionLabel(),
+        scan = mediaSourceScanActionLabel(),
+        search = mediaSourceSearchActionLabel(),
+        clearIndex = mediaSourceClearIndexActionLabel(),
+        removeSource = mediaSourceRemoveActionLabel(),
+        webDavUrl = MediaSourceType.WEBDAV.tvLocationLabel(),
+        webDavUser = MediaSourceType.WEBDAV.sourceUsernameFieldLabel(),
+        webDavPassword = MediaSourceType.WEBDAV.sourcePasswordFieldLabel(),
+        openWebDav = MediaSourceType.WEBDAV.openSourceActionLabel(),
+        smbUrl = MediaSourceType.SMB.tvLocationLabel(),
+        smbDomain = mediaSourceSmbDomainFieldLabel(),
+        smbUser = MediaSourceType.SMB.sourceUsernameFieldLabel(),
+        smbPassword = MediaSourceType.SMB.sourcePasswordFieldLabel(),
+        openSmb = MediaSourceType.SMB.openSourceActionLabel(),
+        scanSource = mediaSourceScanSourceActionLabel(),
+        remoteBrowser = mediaSourceRemoteBrowserTitleLabel(),
+        up = mediaSourceUpActionLabel(),
+        remoteEmpty = mediaSourceRemoteBrowserEmptyMessage(),
+    )
 
 private val scanningStatusRegex = Regex("""^Scanning (.+)\.\.\.$""")
 private val scanCompleteStatusRegex = Regex("""^Scan complete: (\d+) videos, (\d+) directories\.$""")

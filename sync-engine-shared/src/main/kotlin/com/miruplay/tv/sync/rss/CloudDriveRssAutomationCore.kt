@@ -7,9 +7,7 @@ import com.miruplay.tv.clouddrive.CloudDriveTokenInfo
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.CloudDriveAutomationConfig
-import com.miruplay.tv.model.CloudDriveLibraryMode
 import com.miruplay.tv.model.CloudDriveRssRunSummary
-import com.miruplay.tv.model.MIN_CLOUD_DRIVE_INTERVAL_MINUTES
 import com.miruplay.tv.model.RssDownloadStatus
 import com.miruplay.tv.model.RssDownloadTaskInfo
 import com.miruplay.tv.model.RssProcessedItemInfo
@@ -25,12 +23,6 @@ interface CloudDriveRssAutomationEvents {
     object None : CloudDriveRssAutomationEvents
 }
 
-data class CloudDriveRssIngestionSummary(
-    val indexed: Int = 0,
-    val scraped: Int = 0,
-    val noMatch: Int = 0,
-)
-
 class CloudDriveRssAutomationCore(
     private val repository: CloudDriveAutomationRepository,
     private val credentials: CloudDriveCredentialStore,
@@ -39,8 +31,7 @@ class CloudDriveRssAutomationCore(
     private val organizer: CloudDriveLibraryOrganizer = CloudDriveLibraryOrganizer(cloudDriveClient),
     private val submissionPreparer: CloudDriveRssSubmissionPreparer = CloudDriveRssSubmissionPreparer(cloudDriveClient),
     private val events: CloudDriveRssAutomationEvents = CloudDriveRssAutomationEvents.None,
-    private val afterIngested: suspend (CloudDriveAutomationConfig, CloudDriveEndpoint, Int) -> CloudDriveRssIngestionSummary =
-        { _, _, _ -> CloudDriveRssIngestionSummary() },
+    private val afterOrganized: suspend (CloudDriveAutomationConfig, CloudDriveEndpoint, Int) -> Unit = { _, _, _ -> },
 ) {
     suspend fun login(endpointUrl: String, username: String, password: String): Result<Unit> {
         val result = cloudDriveClient.login(endpointUrl, username, password)
@@ -70,15 +61,13 @@ class CloudDriveRssAutomationCore(
         val inboxPath = CloudDrivePaths.normalizeScoped(config.inboxPath)
         val libraryPath = CloudDrivePaths.normalizeScoped(config.libraryPath)
         if (!CloudDrivePaths.isScopedDirectory(inboxPath)) {
-            return@withContext Result.failure(AppError.SyncError.WriteFailed("CloudDrive", "请设置非根目录作为下载/入库目录"))
+            return@withContext Result.failure(AppError.SyncError.WriteFailed("CloudDrive", "请设置非根目录作为下载目录 A"))
         }
-        if (config.libraryMode == CloudDriveLibraryMode.ORGANIZED_LIBRARY) {
-            if (!CloudDrivePaths.isScopedDirectory(libraryPath)) {
-                return@withContext Result.failure(AppError.SyncError.WriteFailed("CloudDrive", "请设置非根目录作为整理目录 B"))
-            }
-            if (CloudDrivePaths.isSameOrChild(libraryPath, inboxPath)) {
-                return@withContext Result.failure(AppError.SyncError.WriteFailed("CloudDrive", "整理目录 B 不能放在下载目录 A 内部"))
-            }
+        if (!CloudDrivePaths.isScopedDirectory(libraryPath)) {
+            return@withContext Result.failure(AppError.SyncError.WriteFailed("CloudDrive", "请设置非根目录作为整理目录 B"))
+        }
+        if (CloudDrivePaths.isSameOrChild(libraryPath, inboxPath)) {
+            return@withContext Result.failure(AppError.SyncError.WriteFailed("CloudDrive", "整理目录 B 不能放在下载目录 A 内部"))
         }
 
         feedFetcher.configureProxy(config.rssProxyEnabled, config.rssProxyHost, config.rssProxyPort)
@@ -192,15 +181,11 @@ class CloudDriveRssAutomationCore(
             }
         }
 
-        val organized = if (config.libraryMode == CloudDriveLibraryMode.ORGANIZED_LIBRARY) {
-            when (val organizedResult = organizer.organize(endpoint, inboxPath, libraryPath)) {
-                is Result.Error -> return@withContext organizedResult
-                is Result.Success -> organizedResult.data
-            }
-        } else {
-            0
+        val organized = when (val organizedResult = organizer.organize(endpoint, inboxPath, libraryPath)) {
+            is Result.Error -> return@withContext organizedResult
+            is Result.Success -> organizedResult.data
         }
-        val ingestion = afterIngested(config, endpoint, organized)
+        afterOrganized(config, endpoint, organized)
         when (val lastRunUpdated = repository.updateLastRunAt(System.currentTimeMillis())) {
             is Result.Error -> return@withContext lastRunUpdated
             is Result.Success -> Unit
@@ -212,9 +197,6 @@ class CloudDriveRssAutomationCore(
                 skipped = skipped,
                 failed = failed,
                 organized = organized,
-                indexed = ingestion.indexed,
-                scraped = ingestion.scraped,
-                noMatch = ingestion.noMatch,
             )
         )
     }
@@ -225,7 +207,7 @@ class CloudDriveRssAutomationCore(
             is Result.Success -> configResult.data
         }
         if (!config.enabled) return Result.success(null)
-        val intervalMs = config.intervalMinutes.coerceAtLeast(MIN_CLOUD_DRIVE_INTERVAL_MINUTES) * 60_000L
+        val intervalMs = config.intervalMinutes.coerceAtLeast(5) * 60_000L
         if (System.currentTimeMillis() - config.lastRunAt < intervalMs) {
             return Result.success(null)
         }

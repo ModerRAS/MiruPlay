@@ -34,6 +34,34 @@ fun playbackSourceFromInputs(
 fun List<Episode>.sortedForPlaybackQueue(): List<Episode> =
     sortedWith(compareBy<Episode>({ it.seasonNumber }, { it.episodeNumber }, { it.filePath }))
 
+fun List<Episode>.distinctSeasonEpisodeCount(): Int =
+    distinctBy { it.seasonNumber to it.episodeNumber }.size
+
+fun List<Episode>.toSeasons(): List<Season> =
+    groupBy { it.seasonNumber }
+        .toSortedMap()
+        .map { (seasonNumber, episodes) ->
+            Season(
+                seasonNumber = seasonNumber,
+                title = "Season $seasonNumber",
+                episodes = episodes,
+                episodeCount = episodes.size,
+            )
+        }
+
+fun List<Episode>.activeSeasonOrDefault(requestedSeason: Int?, defaultSeason: Int = 1): Int =
+    map { it.seasonNumber }
+        .distinct()
+        .let { seasons ->
+            when {
+                requestedSeason in seasons -> requestedSeason ?: defaultSeason
+                else -> seasons.minOrNull() ?: defaultSeason
+            }
+        }
+
+fun List<Pair<Episode, ProgressRecord?>>.episodesForSeason(seasonNumber: Int): List<Pair<Episode, ProgressRecord?>> =
+    filter { (episode, _) -> episode.seasonNumber == seasonNumber }
+
 fun List<Episode>.nextEpisodeAfter(currentEpisodeId: String): Episode? {
     val sortedEpisodes = sortedForPlaybackQueue()
     val currentIndex = sortedEpisodes.indexOfFirst { it.id == currentEpisodeId }

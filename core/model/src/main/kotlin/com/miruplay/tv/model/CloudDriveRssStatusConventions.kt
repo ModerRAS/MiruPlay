@@ -1,5 +1,8 @@
 package com.miruplay.tv.model
 
+const val CLOUD_DRIVE_DIRECTORY_PAGE_SIZE = 6
+const val CLOUD_RSS_SUBSCRIPTION_PAGE_SIZE = 6
+
 data class CloudDriveRssSchedulerUiState(
     val running: Boolean = false,
     val lastCheckedAt: Long = 0L,
@@ -11,7 +14,7 @@ fun cloudDriveRssTitleLabel(): String =
     "CloudDrive2"
 
 fun cloudDriveRssDescriptionLabel(): String =
-    "RSS 可整理入库或直接落到单目录，整理后或刮削完成后触发所选 WebDAV 媒体源扫描。"
+    "RSS 会提交到 CloudDrive2 离线下载目录，整理后触发所选 WebDAV 媒体源扫描。"
 
 fun cloudDriveRssScheduledChipLabel(enabled: Boolean): String =
     if (enabled) "定时已开" else "定时关闭"
@@ -115,6 +118,156 @@ fun cloudDriveRssUnconfiguredEndpointLabel(): String =
 fun cloudDriveRssSchedulerIdleLabel(): String =
     "调度器待命"
 
+private const val CLOUD_RSS_OVERVIEW_PREVIEW_LIMIT = 58
+private const val CLOUD_RSS_WIDE_PREVIEW_LIMIT = 86
+
+data class CloudDriveRssUiLabels(
+    val endpoint: String,
+    val username: String,
+    val apiToken: String,
+    val password: String,
+    val saveCredentials: String,
+    val clearCredentials: String,
+    val login: String,
+    val verify: String,
+    val inboxPath: String,
+    val libraryPath: String,
+    val intervalMinutes: String,
+    val proxyHost: String,
+    val proxyPort: String,
+    val enabledToggle: String,
+    val rssProxy: String,
+    val useActiveSource: String,
+    val clearSource: String,
+    val postSyncSource: String,
+    val saveSyncConfig: String,
+    val runSyncNow: String,
+    val rssSubscriptions: String,
+    val subscriptionName: String,
+    val subscriptionUrl: String,
+    val filterRegex: String,
+    val saveRss: String,
+    val deleteRss: String,
+    val rssEmpty: String,
+    val rssPreviewFallback: String,
+    val startScheduler: String,
+    val stopScheduler: String,
+    val endpointFallback: String,
+    val schedulerIdle: String,
+    val enabledBadge: String,
+    val disabledBadge: String,
+    val pathBadge: String,
+    val runBadge: String,
+)
+
+fun cloudDriveRssUiLabels(): CloudDriveRssUiLabels =
+    CloudDriveRssUiLabels(
+        endpoint = cloudDriveRssEndpointFieldLabel(),
+        username = cloudDriveRssUsernameFieldLabel(),
+        apiToken = cloudDriveRssApiTokenFieldLabel(),
+        password = cloudDriveRssPasswordFieldLabel(),
+        saveCredentials = cloudDriveRssSaveCredentialsActionLabel(),
+        clearCredentials = cloudDriveRssClearCredentialsActionLabel(),
+        login = cloudDriveRssLoginActionLabel(),
+        verify = cloudDriveRssVerifyApiTokenActionLabel(),
+        inboxPath = cloudDriveRssInboxPathFieldLabel(),
+        libraryPath = cloudDriveRssLibraryPathFieldLabel(),
+        intervalMinutes = cloudDriveRssIntervalMinutesFieldLabel(),
+        proxyHost = cloudDriveRssProxyHostFieldLabel(),
+        proxyPort = cloudDriveRssProxyPortFieldLabel(),
+        enabledToggle = cloudDriveRssEnabledToggleLabel(),
+        rssProxy = cloudDriveRssProxySettingLabel(),
+        useActiveSource = cloudDriveRssUseActiveSourceActionLabel(),
+        clearSource = cloudDriveRssClearScanSourceActionLabel(),
+        postSyncSource = cloudDriveRssPostSyncSourceLabel(),
+        saveSyncConfig = cloudDriveRssSaveConfigActionLabel(),
+        runSyncNow = cloudDriveRssRunNowActionLabel(),
+        rssSubscriptions = rssSubscriptionsTitleLabel(),
+        subscriptionName = rssSubscriptionNameFieldLabel(),
+        subscriptionUrl = rssSubscriptionUrlFieldLabel(),
+        filterRegex = rssSubscriptionFilterRegexFieldLabel(),
+        saveRss = rssSubscriptionSaveActionLabel(),
+        deleteRss = rssSubscriptionDeleteActionLabel(),
+        rssEmpty = rssSubscriptionEmptyMessage(),
+        rssPreviewFallback = rssSubscriptionFormPreviewFallbackLabel(),
+        startScheduler = cloudDriveRssStartSchedulerActionLabel(),
+        stopScheduler = cloudDriveRssStopSchedulerActionLabel(),
+        endpointFallback = cloudDriveRssEndpointFallbackLabel(),
+        schedulerIdle = cloudDriveRssSchedulerIdleLabel(),
+        enabledBadge = cloudDriveRssEnabledBadgeLabel(true),
+        disabledBadge = cloudDriveRssEnabledBadgeLabel(false),
+        pathBadge = cloudDriveRssPathBadgeLabel(),
+        runBadge = cloudDriveRssRunBadgeLabel(),
+    )
+
+fun cloudRssOverviewTiles(
+    endpointUrl: String,
+    subscriptions: List<RssSubscriptionInfo>,
+    enabled: Boolean,
+    linkedSourceLabel: String,
+    schedulerStatus: String,
+): List<SettingsSummaryTile> =
+    listOf(
+        SettingsSummaryTile(
+            label = cloudDriveRssTitleLabel(),
+            value = settingsCloudRssOverviewValue(enabled),
+            detail = cloudRssPreview(
+                endpointUrl,
+                fallback = cloudDriveRssUnconfiguredEndpointLabel(),
+                maxLength = CLOUD_RSS_OVERVIEW_PREVIEW_LIMIT,
+            ),
+        ),
+        SettingsSummaryTile(
+            label = rssSubscriptionsTitleLabel(),
+            value = settingsCloudRssSubscriptionsValue(subscriptions.size),
+            detail = subscriptions.firstOrNull()?.let { rssSubscriptionPreview(it, CLOUD_RSS_OVERVIEW_PREVIEW_LIMIT) }
+                ?: rssSubscriptionPreviewFallbackLabel(),
+        ),
+        SettingsSummaryTile(
+            label = cloudDriveRssPostSyncScanSummaryLabel(),
+            value = settingsCloudRssLinkedSourceValue(linkedSourceLabel),
+            detail = cloudRssPreview(
+                cloudRssStatusText(schedulerStatus),
+                fallback = cloudDriveRssSchedulerIdleLabel(),
+                maxLength = CLOUD_RSS_OVERVIEW_PREVIEW_LIMIT,
+            ),
+        ),
+    )
+
+fun cloudRssPreview(
+    value: String,
+    fallback: String,
+    maxLength: Int = CLOUD_RSS_WIDE_PREVIEW_LIMIT,
+): String =
+    value.trim()
+        .ifBlank { fallback }
+        .compactMiddleText(maxLength)
+
+fun cloudRssPathPairPreview(
+    inboxPath: String,
+    libraryPath: String,
+    maxLength: Int = CLOUD_RSS_WIDE_PREVIEW_LIMIT,
+): String {
+    val separator = cloudDriveRssPathPairSeparator()
+    val safeMaxLength = maxLength.coerceAtLeast(separator.length + 8)
+    val available = safeMaxLength - separator.length
+    val inboxLength = available / 2
+    val libraryLength = available - inboxLength
+    return cloudRssPreview(inboxPath, fallback = cloudDriveRssInboxPathFieldLabel(), maxLength = inboxLength) +
+        separator +
+        cloudRssPreview(libraryPath, fallback = cloudDriveRssLibraryPathFieldLabel(), maxLength = libraryLength)
+}
+
+fun rssSubscriptionPreview(
+    subscription: RssSubscriptionInfo,
+    maxLength: Int = CLOUD_RSS_WIDE_PREVIEW_LIMIT,
+): String {
+    val state = rssSubscriptionStateLabel(subscription.enabled)
+    val filter = subscription.filterRegex?.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty()
+    val label = subscription.name.ifBlank { rssSubscriptionFallbackTitleLabel() }
+    return "$state · $label · ${subscription.url}$filter".compactMiddleText(maxLength)
+}
+
 fun cloudDriveRssCloudDriveEnabledValue(enabled: Boolean): String =
     if (enabled) "已启用" else "未启用"
 
@@ -135,6 +288,31 @@ fun cloudDriveRssCloseActionLabel(): String =
 
 fun cloudDriveRssDirectoryPageUnitLabel(): String =
     "个目录"
+
+fun cloudDriveDirectoryPageStartForIndex(
+    index: Int,
+    itemCount: Int,
+    pageSize: Int = CLOUD_DRIVE_DIRECTORY_PAGE_SIZE,
+): Int = pagedListPageStartForIndex(index, itemCount, pageSize)
+
+fun cloudDriveDirectoryCoercedPageStart(
+    pageStart: Int,
+    itemCount: Int,
+    pageSize: Int = CLOUD_DRIVE_DIRECTORY_PAGE_SIZE,
+): Int = pagedListCoercedPageStart(pageStart, itemCount, pageSize)
+
+fun cloudDriveDirectoryPageSummary(
+    pageStart: Int,
+    visibleCount: Int,
+    itemCount: Int,
+): String? =
+    pagedListPageSummary(
+        pageStart = cloudDriveDirectoryCoercedPageStart(pageStart, itemCount),
+        visibleCount = visibleCount,
+        itemCount = itemCount,
+        pageSize = CLOUD_DRIVE_DIRECTORY_PAGE_SIZE,
+        unitLabel = cloudDriveRssDirectoryPageUnitLabel(),
+    )
 
 fun cloudDriveRssLoadingDirectoriesMessage(): String =
     directoryBrowserLoadingMessage(isLocal = false)
@@ -196,6 +374,31 @@ fun rssSubscriptionsTitleLabel(): String =
 fun rssSubscriptionPageUnitLabel(): String =
     "个订阅"
 
+fun cloudRssSubscriptionPageStartForIndex(
+    index: Int,
+    itemCount: Int,
+    pageSize: Int = CLOUD_RSS_SUBSCRIPTION_PAGE_SIZE,
+): Int = pagedListPageStartForIndex(index, itemCount, pageSize)
+
+fun cloudRssSubscriptionCoercedPageStart(
+    pageStart: Int,
+    itemCount: Int,
+    pageSize: Int = CLOUD_RSS_SUBSCRIPTION_PAGE_SIZE,
+): Int = pagedListCoercedPageStart(pageStart, itemCount, pageSize)
+
+fun cloudRssSubscriptionPageSummary(
+    pageStart: Int,
+    visibleCount: Int,
+    itemCount: Int,
+): String? =
+    pagedListPageSummary(
+        pageStart = cloudRssSubscriptionCoercedPageStart(pageStart, itemCount),
+        visibleCount = visibleCount,
+        itemCount = itemCount,
+        pageSize = CLOUD_RSS_SUBSCRIPTION_PAGE_SIZE,
+        unitLabel = rssSubscriptionPageUnitLabel(),
+    )
+
 fun rssSubscriptionNameFieldLabel(): String =
     "订阅名称"
 
@@ -237,6 +440,9 @@ fun rssSubscriptionFallbackTitleLabel(): String =
 
 fun rssSubscriptionLastCheckedLabel(timestampText: String?): String =
     timestampText?.takeIf { it.isNotBlank() }?.let { "上次检查 $it" } ?: "尚未检查"
+
+fun rssSubscriptionLastCheckedLabel(lastCheckedAt: Long): String =
+    rssSubscriptionLastCheckedLabel(formatShortLocalTimestamp(lastCheckedAt))
 
 fun CloudDriveRssSchedulerUiState.tvStatus(): String {
     val prefix = if (running) "调度器运行中" else "调度器待命"
@@ -459,9 +665,6 @@ private fun localizedDynamicCloudRssStatusText(status: String): String? {
         return "${schedulerStateLabel(match.groupValues[1])}，上次检查失败：${match.groupValues[2]}"
     }
     schedulerSummaryStatusRegex.matchEntire(status)?.let { match ->
-        val indexed = match.groupValues.getOrNull(6)?.takeIf(String::isNotBlank)?.toIntOrNull() ?: 0
-        val scraped = match.groupValues.getOrNull(7)?.takeIf(String::isNotBlank)?.toIntOrNull() ?: 0
-        val noMatch = match.groupValues.getOrNull(8)?.takeIf(String::isNotBlank)?.toIntOrNull() ?: 0
         return CloudDriveRssSchedulerUiState(
             running = match.groupValues[1] == "running",
             lastSummary = CloudDriveRssRunSummary(
@@ -469,24 +672,15 @@ private fun localizedDynamicCloudRssStatusText(status: String): String? {
                 skipped = match.groupValues[3].toInt(),
                 failed = match.groupValues[4].toInt(),
                 organized = match.groupValues[5].toInt(),
-                indexed = indexed,
-                scraped = scraped,
-                noMatch = noMatch,
             ),
         ).tvStatus()
     }
     syncCompleteStatusRegex.matchEntire(status)?.let { match ->
-        val indexed = match.groupValues.getOrNull(5)?.takeIf(String::isNotBlank)?.toIntOrNull() ?: 0
-        val scraped = match.groupValues.getOrNull(6)?.takeIf(String::isNotBlank)?.toIntOrNull() ?: 0
-        val noMatch = match.groupValues.getOrNull(7)?.takeIf(String::isNotBlank)?.toIntOrNull() ?: 0
         return CloudDriveRssRunSummary(
             submitted = match.groupValues[1].toInt(),
             skipped = match.groupValues[2].toInt(),
             failed = match.groupValues[3].toInt(),
             organized = match.groupValues[4].toInt(),
-            indexed = indexed,
-            scraped = scraped,
-            noMatch = noMatch,
         ).completeStatus()
     }
     loadedRssStatusRegex.matchEntire(status)?.let { match ->
@@ -522,9 +716,9 @@ private fun schedulerStateLabel(state: String): String =
 
 private val schedulerErrorStatusRegex = Regex("""^Scheduler (running|idle)\. Last check failed: (.+)$""")
 private val schedulerSummaryStatusRegex =
-    Regex("""^Scheduler (running|idle)\. Last run: (\d+) submitted, (\d+) skipped, (\d+) failed, (\d+) organized(?:, (\d+) indexed, (\d+) scraped, (\d+) no match)?\.$""")
+    Regex("""^Scheduler (running|idle)\. Last run: (\d+) submitted, (\d+) skipped, (\d+) failed, (\d+) organized\.$""")
 private val syncCompleteStatusRegex =
-    Regex("""^Sync complete: (\d+) submitted, (\d+) skipped, (\d+) failed, (\d+) organized(?:, (\d+) indexed, (\d+) scraped, (\d+) no match)?\.$""")
+    Regex("""^Sync complete: (\d+) submitted, (\d+) skipped, (\d+) failed, (\d+) organized\.$""")
 private val loadedRssStatusRegex = Regex("""^Loaded (\d+) RSS subscription\(s\)\.$""")
 private val showingRssStatusRegex = Regex("""^Showing (\d+) RSS subscription\(s\)\.$""")
 private val verifiedTokenStatusRegex = Regex("""^CloudDrive2 API token verified and saved: (.+)\.$""")

@@ -12,12 +12,15 @@ $scriptRoot = if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) {
 } else {
     $PSScriptRoot
 }
+. (Join-Path $scriptRoot "desktop-window-helper.ps1")
+. (Join-Path $scriptRoot "desktop-smoke-common.ps1")
 if ([string]::IsNullOrWhiteSpace($AppScript)) {
     $AppScript = Join-Path $scriptRoot "..\desktop-app\build\install\desktop-app\bin\desktop-app.bat"
 }
 if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
     $OutputRoot = Join-Path $scriptRoot "..\build\desktop-bangumi-metadata-ui"
 }
+$bangumiFixtureTitle = ([char]0x846C) + ([char]0x9001) + ([char]0x7684) + ([char]0x8299) + ([char]0x8389) + ([char]0x83B2)
 
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName System.Windows.Forms
@@ -48,36 +51,6 @@ public static class MiruPlayBangumiMetadataSmokeWin32 {
     public static extern void mouse_event(uint flags, uint dx, uint dy, int data, UIntPtr extraInfo);
 }
 "@
-}
-
-function Resolve-FullPath {
-    param([string]$Path)
-    if ([System.IO.Path]::IsPathRooted($Path)) {
-        return [System.IO.Path]::GetFullPath($Path)
-    }
-    return [System.IO.Path]::GetFullPath((Join-Path (Get-Location) $Path))
-}
-
-function Get-MiruPlayWindowProcess {
-    Get-Process |
-        Where-Object {
-            ($_.MainWindowTitle -like "*MiruPlay Desktop*" -or ($_.ProcessName -eq "java" -and $_.MainWindowTitle -like "*MiruPlay*")) -and
-            $_.MainWindowHandle -ne 0
-        } |
-        Select-Object -First 1
-}
-
-function Wait-MiruPlayWindow {
-    $deadline = (Get-Date).AddSeconds(30)
-    do {
-        $process = Get-MiruPlayWindowProcess
-        if ($process) {
-            return $process
-        }
-        Start-Sleep -Milliseconds 300
-    } while ((Get-Date) -lt $deadline)
-
-    throw "MiruPlay Desktop window did not appear within 30 seconds."
 }
 
 function Get-WindowRect {
@@ -118,34 +91,6 @@ function Send-AppKeys {
     Start-Sleep -Milliseconds 120
     [System.Windows.Forms.SendKeys]::SendWait($Keys)
     Start-Sleep -Milliseconds $DelayMilliseconds
-}
-
-function Read-StoreState {
-    param([string]$Path)
-    if (-not (Test-Path -LiteralPath $Path)) {
-        return $null
-    }
-    return Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
-}
-
-function Wait-StoreState {
-    param(
-        [string]$Path,
-        [scriptblock]$Predicate,
-        [string]$Description,
-        [int]$TimeoutSeconds = 30
-    )
-
-    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
-    do {
-        $state = Read-StoreState -Path $Path
-        if ($state -and (& $Predicate $state)) {
-            return $state
-        }
-        Start-Sleep -Milliseconds 300
-    } while ((Get-Date) -lt $deadline)
-
-    throw "Timed out waiting for $Description in $Path."
 }
 
 function Assert-ScreenshotHasContent {
@@ -244,7 +189,7 @@ function Write-InitialStore {
             @{
                 sourceId = 1
                 path = $EpisodePath
-                animeName = "葬送的芙莉莲"
+                animeName = $bangumiFixtureTitle
                 episodeTitle = "Fixture Metadata Episode"
                 plot = "Fixture plot for Bangumi metadata GUI smoke."
                 seasonNumber = 1
@@ -283,12 +228,12 @@ function Write-InitialStore {
     Set-Content -LiteralPath $Path -Value $json -Encoding UTF8
 }
 
-$resolvedAppScript = Resolve-FullPath $AppScript
-$resolvedOutputRoot = Resolve-FullPath $OutputRoot
+$resolvedAppScript = Resolve-DesktopSmokeFullPath $AppScript
+$resolvedOutputRoot = Resolve-DesktopSmokeFullPath $OutputRoot
 if (-not (Test-Path -LiteralPath $resolvedAppScript)) {
     throw "Desktop app launcher was not found at $resolvedAppScript. Run :desktop-app:installDist first."
 }
-if (Get-MiruPlayWindowProcess) {
+if (Get-MiruPlayDesktopWindowProcess) {
     throw "A MiruPlay Desktop window is already open. Close it before running this isolated smoke test."
 }
 
@@ -311,7 +256,7 @@ $startedProcess = $null
 try {
     $env:MIRUPLAY_DESKTOP_STORE = $storePath
     $startedProcess = Start-Process -FilePath $resolvedAppScript -PassThru
-    $windowProcess = Wait-MiruPlayWindow
+    $windowProcess = Wait-MiruPlayDesktopWindowProcess
 
     Send-AppKeys -Process $windowProcess -Keys "{ENTER}" -DelayMilliseconds 900
     Save-WindowScreenshot -Process $windowProcess -Path $detailsScreenshotPath
@@ -322,10 +267,10 @@ try {
     Send-AppKeys -Process $windowProcess -Keys "{ENTER}" -DelayMilliseconds 350
     Send-AppKeys -Process $windowProcess -Keys "{RIGHT}" -DelayMilliseconds 250
     Send-AppKeys -Process $windowProcess -Keys "{ENTER}" -DelayMilliseconds 3500
-    $state = Wait-StoreState -Path $storePath -Description "metadata still clear after search" -Predicate {
+    $state = Wait-DesktopSmokeStoreState -Path $storePath -Description "metadata still clear after search" -Predicate {
         param($state)
         $entry = @($state.index | Where-Object { -not $_.isDirectory })[0]
-        $entry.metadataId -eq $null -and $entry.animeName -eq "葬送的芙莉莲"
+        $entry.metadataId -eq $null -and $entry.animeName -eq $bangumiFixtureTitle
     }
     Save-WindowScreenshot -Process $windowProcess -Path $searchScreenshotPath
 
@@ -333,18 +278,18 @@ try {
     Send-AppKeys -Process $windowProcess -Keys "{RIGHT}" -DelayMilliseconds 250
     Send-AppKeys -Process $windowProcess -Keys "{LEFT}" -DelayMilliseconds 250
     Send-AppKeys -Process $windowProcess -Keys "{ENTER}" -DelayMilliseconds 900
-    $state = Wait-StoreState -Path $storePath -Description "applied Bangumi metadata" -Predicate {
+    $state = Wait-DesktopSmokeStoreState -Path $storePath -Description "applied Bangumi metadata" -Predicate {
         param($state)
         $entry = @($state.index | Where-Object { -not $_.isDirectory })[0]
         $entry.metadataSource -eq "BANGUMI" -and
             $entry.metadataId -eq "400602" -and
-            $entry.metadataTitle -eq "葬送的芙莉莲"
+            $entry.metadataTitle -eq $bangumiFixtureTitle
     } -TimeoutSeconds 20
     Save-WindowScreenshot -Process $windowProcess -Path $appliedScreenshotPath
 
     Send-AppKeys -Process $windowProcess -Keys "{RIGHT}" -DelayMilliseconds 250
     Send-AppKeys -Process $windowProcess -Keys "{ENTER}" -DelayMilliseconds 900
-    $state = Wait-StoreState -Path $storePath -Description "cleared Bangumi metadata" -Predicate {
+    $state = Wait-DesktopSmokeStoreState -Path $storePath -Description "cleared Bangumi metadata" -Predicate {
         param($state)
         $entry = @($state.index | Where-Object { -not $_.isDirectory })[0]
         $entry.metadataSource -eq $null -and
@@ -355,7 +300,7 @@ try {
 } finally {
     $env:MIRUPLAY_DESKTOP_STORE = $previousStoreEnv
     if (-not $KeepOpen) {
-        $windowProcess = Get-MiruPlayWindowProcess
+        $windowProcess = Get-MiruPlayDesktopWindowProcess
         if ($windowProcess) {
             $windowProcess.CloseMainWindow() | Out-Null
             Start-Sleep -Milliseconds 700
@@ -376,3 +321,4 @@ Write-Output "Bangumi focus screenshot: $focusBangumiScreenshotPath"
 Write-Output "Search screenshot: $searchScreenshotPath"
 Write-Output "Applied screenshot: $appliedScreenshotPath"
 Write-Output "Cleared screenshot: $clearedScreenshotPath"
+

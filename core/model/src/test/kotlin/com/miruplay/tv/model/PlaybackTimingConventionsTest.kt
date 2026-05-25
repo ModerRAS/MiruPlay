@@ -30,4 +30,21 @@ class PlaybackTimingConventionsTest {
         assertEquals(1_500L, PlaybackTimingConventions.secondsToDeltaMs(1.5))
         assertEquals(-2_500L, PlaybackTimingConventions.secondsToDeltaMs(-2.5))
     }
+
+    @Test
+    fun `coercePlaybackPositionMs clamps seek targets by known duration`() {
+        assertEquals(0L, PlaybackTimingConventions.coercePlaybackPositionMs(-1L))
+        assertEquals(90_000L, PlaybackTimingConventions.coercePlaybackPositionMs(90_000L))
+        assertEquals(0L, PlaybackTimingConventions.coercePlaybackPositionMs(-1L, durationMs = 120_000L))
+        assertEquals(45_000L, PlaybackTimingConventions.coercePlaybackPositionMs(45_000L, durationMs = 120_000L))
+        assertEquals(120_000L, PlaybackTimingConventions.coercePlaybackPositionMs(240_000L, durationMs = 120_000L))
+    }
+
+    @Test
+    fun `playbackProgressFraction clamps live timeline progress by duration`() {
+        assertEquals(0f, PlaybackTimingConventions.playbackProgressFraction(90_000L, durationMs = 0L), 0.0001f)
+        assertEquals(0f, PlaybackTimingConventions.playbackProgressFraction(-1L, durationMs = 120_000L), 0.0001f)
+        assertEquals(0.5f, PlaybackTimingConventions.playbackProgressFraction(60_000L, durationMs = 120_000L), 0.0001f)
+        assertEquals(1f, PlaybackTimingConventions.playbackProgressFraction(180_000L, durationMs = 120_000L), 0.0001f)
+    }
 }

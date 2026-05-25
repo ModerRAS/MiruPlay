@@ -11,9 +11,17 @@ import com.miruplay.tv.model.MiruPlaySettingsSection
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.desktopSettingsSectionOrder
 import com.miruplay.tv.model.libraryScanCompleteStatus
+import com.miruplay.tv.model.cloudRssOverviewTiles
+import com.miruplay.tv.model.cloudRssPathPairPreview
+import com.miruplay.tv.model.cloudRssSubscriptionCoercedPageStart
+import com.miruplay.tv.model.cloudRssSubscriptionPageStartForIndex
+import com.miruplay.tv.model.cloudRssSubscriptionPageSummary
+import com.miruplay.tv.model.cloudDriveDirectoryCoercedPageStart
 import com.miruplay.tv.model.localizedCloudRssStatusText
 import com.miruplay.tv.model.localizedLibraryScanCompleteStatus
 import com.miruplay.tv.model.cloudDriveRssApiTokenFieldLabel
+import com.miruplay.tv.model.cloudDriveDirectoryPageStartForIndex
+import com.miruplay.tv.model.cloudDriveDirectoryPageSummary
 import com.miruplay.tv.model.cloudDriveRssDirectoryPageUnitLabel
 import com.miruplay.tv.model.cloudDriveRssEndpointFieldLabel
 import com.miruplay.tv.model.cloudDriveRssEnabledToggleLabel
@@ -27,6 +35,7 @@ import com.miruplay.tv.model.cloudDriveRssSaveConfigActionLabel
 import com.miruplay.tv.model.cloudDriveRssTitleLabel
 import com.miruplay.tv.model.cloudRssStatusText
 import com.miruplay.tv.model.cloudDriveRssUsernameFieldLabel
+import com.miruplay.tv.model.cloudDriveRssUiLabels
 import com.miruplay.tv.model.metadataBangumiTokenSettingsStatus
 import com.miruplay.tv.model.metadataBangumiTokenTileDetail
 import com.miruplay.tv.model.metadataBangumiTokenTileLabel
@@ -53,10 +62,19 @@ import com.miruplay.tv.model.settingsPlaybackStatusMessage
 import com.miruplay.tv.model.settingsPosterWallIndexTileLabel
 import com.miruplay.tv.model.settingsRecordCountValue
 import com.miruplay.tv.model.settingsSavedStateValue
+import com.miruplay.tv.model.settingsWebUiDesktopValue
+import com.miruplay.tv.model.settingsWebUiNativeControlTileLabel
+import com.miruplay.tv.model.settingsWebUiTileLabel
+import com.miruplay.tv.model.webUiSettingsTiles
+import com.miruplay.tv.model.metadataSettingsTiles
+import com.miruplay.tv.model.playbackSettingsTiles
 import com.miruplay.tv.model.scopedCloudDriveDirectoryPath
+import com.miruplay.tv.model.scanSettingsTiles
 import com.miruplay.tv.model.settingsSourceTileLabel
+import com.miruplay.tv.model.sourceSettingsTiles
 import com.miruplay.tv.model.stepDesktopSettingsSection
 import com.miruplay.tv.sync.rss.cloudDriveDirectoryEntries
+import com.miruplay.tv.model.rssSubscriptionPreview
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -186,8 +204,21 @@ class DesktopSettingsPanelTest {
     }
 
     @Test
+    fun `desktop web ui settings tiles expose Windows access summary`() {
+        val tiles = webUiSettingsTiles(platformValue = settingsWebUiDesktopValue())
+
+        assertEquals(
+            listOf(settingsWebUiTileLabel(), settingsWebUiNativeControlTileLabel(), "远程自动化"),
+            tiles.map { it.label },
+        )
+        assertEquals(settingsWebUiDesktopValue(), tiles[0].value)
+        assertEquals("原生窗口", tiles[1].value)
+        assertEquals("Cloud/RSS", tiles[2].value)
+    }
+
+    @Test
     fun `desktop cloud rss labels use shared TV copy`() {
-        val labels = desktopCloudRssUiLabels()
+        val labels = cloudDriveRssUiLabels()
 
         assertEquals(cloudDriveRssEndpointFieldLabel(), labels.endpoint)
         assertEquals(cloudDriveRssUsernameFieldLabel(), labels.username)
@@ -821,18 +852,20 @@ class DesktopSettingsPanelTest {
     @Test
     fun `desktop settings categories use shared TV section contract`() {
         assertEquals(
-            listOf("媒体源", "播放", "云盘", "扫描", "日志", "元数据"),
+            listOf("WebUI", "媒体源", "播放", "云盘", "扫描", "日志", "元数据"),
             desktopSettingsSectionOrder.map { it.desktopTitle },
         )
         assertEquals(
-            listOf("本地、WebDAV、SMB", "mpv 与 RIFE", "RSS 离线下载与入库", "媒体库更新", "OpenObserve JSON", "Bangumi 匹配"),
+            listOf("访问地址与二维码", "本地、WebDAV、SMB", "mpv 与 RIFE", "RSS 离线下载与入库", "媒体库更新", "OpenObserve JSON", "Bangumi 匹配"),
             desktopSettingsSectionOrder.map { it.desktopDescription },
         )
     }
 
     @Test
     fun `settings category navigation stops at TV list edges`() {
-        assertNull(MiruPlaySettingsSection.SOURCES.stepDesktopSettingsSection(-1))
+        assertNull(MiruPlaySettingsSection.WEB_UI.stepDesktopSettingsSection(-1))
+        assertEquals(MiruPlaySettingsSection.SOURCES, MiruPlaySettingsSection.WEB_UI.stepDesktopSettingsSection(1))
+        assertEquals(MiruPlaySettingsSection.WEB_UI, MiruPlaySettingsSection.SOURCES.stepDesktopSettingsSection(-1))
         assertEquals(MiruPlaySettingsSection.PLAYBACK, MiruPlaySettingsSection.SOURCES.stepDesktopSettingsSection(1))
         assertEquals(MiruPlaySettingsSection.CLOUD_DRIVE, MiruPlaySettingsSection.PLAYBACK.stepDesktopSettingsSection(1))
         assertEquals(MiruPlaySettingsSection.PLAYBACK, MiruPlaySettingsSection.CLOUD_DRIVE.stepDesktopSettingsSection(-1))
@@ -844,9 +877,9 @@ class DesktopSettingsPanelTest {
     @Test
     fun `settings category navigation accepts shared direction intents`() {
         assertEquals(
-            MiruPlaySettingsSection.PLAYBACK,
+            MiruPlaySettingsSection.SOURCES,
             settingsSectionNavigationTarget(
-                current = MiruPlaySettingsSection.SOURCES,
+                current = MiruPlaySettingsSection.WEB_UI,
                 intent = MiruPlayInputIntent.DirectionDown,
             ),
         )
@@ -859,7 +892,7 @@ class DesktopSettingsPanelTest {
         )
         assertNull(
             settingsSectionNavigationTarget(
-                current = MiruPlaySettingsSection.SOURCES,
+                current = MiruPlaySettingsSection.WEB_UI,
                 intent = MiruPlayInputIntent.DirectionUp,
             ),
         )
@@ -979,6 +1012,68 @@ class DesktopSettingsPanelTest {
                 currentIndex = 0,
                 actionCount = 2,
                 intent = MiruPlayInputIntent.Activate,
+            ),
+        )
+    }
+
+    @Test
+    fun `settings summary extra field bridges between menu and quick actions`() {
+        assertEquals(
+            SettingsQuickActionFocusTarget.ExtraContent,
+            settingsQuickActionFocusTarget(
+                currentIndex = 0,
+                actionCount = 3,
+                key = Key.DirectionUp,
+                hasExtraFocus = true,
+            ),
+        )
+        assertEquals(
+            SettingsQuickActionFocusTarget.SectionMenu,
+            settingsSummaryExtraFocusTarget(
+                actionCount = 3,
+                key = Key.DirectionUp,
+            ),
+        )
+        assertEquals(
+            SettingsQuickActionFocusTarget.Action(0),
+            settingsSummaryExtraFocusTarget(
+                actionCount = 3,
+                key = Key.DirectionDown,
+            ),
+        )
+        assertNull(settingsSummaryExtraFocusTarget(actionCount = 3, key = Key.DirectionRight))
+    }
+
+    @Test
+    fun `settings summary extra field uses shared intents and skips disabled quick actions`() {
+        val enabledActions = listOf(false, true, true)
+
+        assertEquals(
+            SettingsQuickActionFocusTarget.ExtraContent,
+            settingsQuickActionFocusTarget(
+                currentIndex = 1,
+                intent = MiruPlayInputIntent.DirectionUp,
+                enabledActions = enabledActions,
+                hasExtraFocus = true,
+            ),
+        )
+        assertEquals(
+            SettingsQuickActionFocusTarget.Action(1),
+            settingsSummaryExtraFocusTarget(
+                intent = MiruPlayInputIntent.DirectionDown,
+                enabledActions = enabledActions,
+            ),
+        )
+        assertNull(
+            settingsSummaryExtraFocusTarget(
+                intent = MiruPlayInputIntent.DirectionDown,
+                enabledActions = listOf(false, false),
+            ),
+        )
+        assertNull(
+            settingsSummaryExtraFocusTarget(
+                intent = MiruPlayInputIntent.Activate,
+                enabledActions = enabledActions,
             ),
         )
     }

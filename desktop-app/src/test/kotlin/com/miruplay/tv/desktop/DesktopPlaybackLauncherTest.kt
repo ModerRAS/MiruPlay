@@ -117,6 +117,26 @@ class DesktopPlaybackLauncherTest {
     }
 
     @Test
+    fun `prepare preserves explicit episode id for WebUI playback progress`() {
+        val launcher = DesktopPlaybackLauncher(
+            bridge = RecordingBridge(),
+            runtimeValidator = { Result.success(null) },
+        )
+
+        val prepared = launcher.prepare(
+            request(
+                mediaPath = "D:/Anime/Frieren - 01.mkv",
+                episodeId = "7:D:/Anime/Frieren - 01.mkv",
+            )
+        )
+
+        assertTrue(prepared is Result.Success)
+        val data = (prepared as Result.Success).data
+        assertEquals("7:D:/Anime/Frieren - 01.mkv", data.source.episodeId)
+        assertEquals("7:D:/Anime/Frieren - 01.mkv", data.session.episodeId)
+    }
+
+    @Test
     fun `launch returns player session and launch status`() = runBlocking {
         val mpv = Files.createTempFile("miruplay-launcher-test", ".exe")
         val process = FakeProcess(pidValue = 1234L)
@@ -151,6 +171,7 @@ class DesktopPlaybackLauncherTest {
         activeSource: DesktopMediaSource? = null,
         activeSourceId: Long? = null,
         startSeconds: String = "",
+        episodeId: String? = null,
     ): DesktopPlaybackLaunchRequest =
         DesktopPlaybackLaunchRequest(
             mpvPath = "C:/MiruPlay/mpv/mpv.exe",
@@ -166,6 +187,7 @@ class DesktopPlaybackLauncherTest {
             activeSourceId = activeSourceId,
             blankMediaMessage = "Choose media first.",
             fallbackMediaSourceId = "desktop-compose",
+            episodeId = episodeId,
         )
 
     private class RecordingBridge : DesktopPlaybackUriBridge {

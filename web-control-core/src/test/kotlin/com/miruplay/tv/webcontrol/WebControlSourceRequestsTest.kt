@@ -1,0 +1,528 @@
+package com.miruplay.tv.webcontrol
+
+import com.miruplay.tv.core.common.AppError
+import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.mediasource.MediaSourceConnectionTestResult
+import com.miruplay.tv.model.MediaSourceInfo
+import com.miruplay.tv.model.MediaSourceInfoConventions
+import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.ScanResult
+import com.miruplay.tv.repository.MediaSourceRepository
+import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class WebControlSourceRequestsTest {
+    @Test
+    fun `source request builds local source with shared connection keys`() {
+        val source = SourceRequest(
+            id = 7L,
+            name = "  ",
+            type = " local ",
+            location = " D:/Anime ",
+            displayName = " Anime Drive ",
+        ).toMediaSourceInfo(isConnected = true, lastScanned = 123L)
+
+        assertEquals(7L, source.id)
+        assertEquals("本地媒体库", source.name)
+        assertEquals(MediaSourceType.LOCAL, source.type)
+        assertEquals(true, source.isConnected)
+        assertEquals(123L, source.lastScanned)
+        assertEquals("D:/Anime", source.connectionInfo[MediaSourceInfoConventions.CONNECTION_URL])
+        assertEquals("D:/Anime", source.connectionInfo[MediaSourceInfoConventions.CONNECTION_PATH])
+        assertEquals("Anime Drive", source.connectionInfo[MediaSourceInfoConventions.CONNECTION_DISPLAY_NAME])
+    }
+
+    @Test
+    fun `source request preserves fallback password when password is blank`() {
+        val source = SourceRequest(
+            name = "Remote",
+            type = "WEBDAV",
+            location = " https://dav.example.test/root ",
+            username = " miru ",
+            password = " ",
+        ).toMediaSourceInfo(fallbackPassword = "old-secret")
+
+        assertEquals("https://dav.example.test/root", source.connectionInfo[MediaSourceInfoConventions.CONNECTION_URL])
+        assertEquals("miru", source.connectionInfo[MediaSourceInfoConventions.CONNECTION_USERNAME])
+        assertEquals("old-secret", source.connectionInfo[MediaSourceInfoConventions.CONNECTION_PASSWORD])
+    }
+
+    @Test
+    fun `source request uses new password and default remote names`() {
+        val webDav = SourceRequest(
+            name = "",
+            type = "webdav",
+            location = "https://dav.example.test",
+            password = "new-secret",
+        ).toMediaSourceInfo(fallbackPassword = "old-secret")
+        val smb = SourceRequest(
+            name = "",
+            type = "smb",
+            location = "\\\\NAS\\Anime",
+        ).toMediaSourceInfo()
+
+        assertEquals("WebDAV 媒体库", webDav.name)
+        assertEquals("new-secret", webDav.connectionInfo[MediaSourceInfoConventions.CONNECTION_PASSWORD])
+        assertEquals("SMB 共享", smb.name)
+        assertEquals("smb://NAS/Anime", smb.connectionInfo[MediaSourceInfoConventions.CONNECTION_URL])
+    }
+
+    @Test
+    fun `source test request builds sanitized connection info`() {
+        val source = SourceTestRequest(
+            type = "local",
+            location = " content://tree/anime ",
+            displayName = "Tree",
+        ).toMediaSourceInfo()
+
+        assertEquals("content://tree/anime", source.connectionInfo[MediaSourceInfoConventions.CONNECTION_URL])
+        assertEquals("content://tree/anime", source.connectionInfo[MediaSourceInfoConventions.CONNECTION_URI])
+        assertEquals("Tree", source.connectionInfo[MediaSourceInfoConventions.CONNECTION_DISPLAY_NAME])
+    }
+
+    @Test
+    fun `repository add WebUI source tests persisted source and redacts response`() = runBlocking {
+        val repository = FakeMediaSourceRepository(addResult = Result.success(42L))
+        val testedSources = mutableListOf<MediaSourceInfo>()
+
+        val response = repository.addWebControlSource(
+            request = SourceRequest(
+                name = " Remote ",
+                type = "webdav",
+                location = " https://dav.example.test/root ",
+                username = " miru ",
+                password = "secret",
+            ),
+            testConnection = { source ->
+                testedSources += source
+                SourceTestResponse(connected = true, message = "连接正常")
+            },
+        )
+
+        val tested = testedSources.single()
+        val saved = requireNotNull(repository.updatedSource)
+        assertEquals(42L, tested.id)
+        assertEquals("Remote", tested.name)
+        assertEquals("secret", tested.connectionInfo[MediaSourceInfoConventions.CONNECTION_PASSWORD])
+        assertEquals(false, tested.isConnected)
+        assertEquals(42L, saved.id)
+        assertEquals(true, saved.isConnected)
+        assertEquals("secret", saved.connectionInfo[MediaSourceInfoConventions.CONNECTION_PASSWORD])
+        assertEquals(42L, response.id)
+        assertEquals(true, response.isConnected)
+        assertEquals(null, response.connectionInfo[MediaSourceInfoConventions.CONNECTION_PASSWORD])
+    }
+
+    @Test
+    fun `repository add WebUI source persists disconnected test result`() = runBlocking {
+        val repository = FakeMediaSourceRepository(addResult = Result.success(43L))
+
+        val response = repository.addWebControlSource(
+            request = SourceRequest(name = "Local", type = "local", location = "D:/Anime"),
+            testConnection = { SourceTestResponse(connected = false, message = "无法连接到服务器") },
+        )
+
+        assertEquals(false, requireNotNull(repository.updatedSource).isConnected)
+        assertEquals(false, response.isConnected)
+    }
+
+    @Test
+    fun `repository add WebUI source maps add failures`() = runBlocking {
+        val repository = FakeMediaSourceRepository(
+            addResult = Result.failure(AppError.MediaSourceError.PermissionDenied("D:/Anime")),
+        )
+
+        val failure = runCatching {
+            repository.addWebControlSource(
+                request = SourceRequest(name = "Local", type = "local", location = "D:/Anime"),
+                testConnection = { SourceTestResponse(connected = true, message = "连接正常") },
+            )
+        }.exceptionOrNull()
+
+        assertTrue(failure is IllegalStateException)
+        assertEquals("添加媒体源失败: 无权限访问：D:/Anime", failure?.message)
+        assertEquals(null, repository.updatedSource)
+    }
+
+    @Test
+    fun `repository add WebUI source maps connected-state update failures`() = runBlocking {
+        val repository = FakeMediaSourceRepository(
+            addResult = Result.success(42L),
+            updateResult = Result.failure(AppError.MediaSourceError.PermissionDenied("42")),
+        )
+
+        val failure = runCatching {
+            repository.addWebControlSource(
+                request = SourceRequest(name = "Local", type = "local", location = "D:/Anime"),
+                testConnection = { SourceTestResponse(connected = true, message = "连接正常") },
+            )
+        }.exceptionOrNull()
+
+        assertTrue(failure is IllegalStateException)
+        assertEquals("更新媒体源失败: 无权限访问：42", failure?.message)
+    }
+
+    @Test
+    fun `repository update WebUI source preserves existing password and state and redacts response`() = runBlocking {
+        val existing = MediaSourceInfoConventions.webDav(
+            name = "Old",
+            url = "https://old.example.test/dav",
+            username = "old-user",
+            password = "old-secret",
+            isConnected = true,
+        ).copy(id = 7L, lastScanned = 123L)
+        val repository = FakeMediaSourceRepository(existing = existing)
+
+        val response = repository.updateWebControlSource(
+            sourceId = 7L,
+            request = SourceRequest(
+                name = " New ",
+                type = "webdav",
+                location = " https://new.example.test/dav ",
+                username = " new-user ",
+                password = " ",
+            ),
+        )
+
+        val saved = requireNotNull(repository.updatedSource)
+        assertEquals(7L, saved.id)
+        assertEquals("New", saved.name)
+        assertEquals(true, saved.isConnected)
+        assertEquals(123L, saved.lastScanned)
+        assertEquals("new-user", saved.connectionInfo[MediaSourceInfoConventions.CONNECTION_USERNAME])
+        assertEquals("old-secret", saved.connectionInfo[MediaSourceInfoConventions.CONNECTION_PASSWORD])
+        assertEquals(null, response.connectionInfo[MediaSourceInfoConventions.CONNECTION_PASSWORD])
+    }
+
+    @Test
+    fun `repository update WebUI source maps missing source`() = runBlocking {
+        val repository = FakeMediaSourceRepository(
+            getResult = Result.failure(AppError.MediaSourceError.NotFound("7")),
+        )
+
+        val failure = runCatching {
+            repository.updateWebControlSource(
+                sourceId = 7L,
+                request = SourceRequest(name = "New", type = "local", location = "D:/Anime"),
+            )
+        }.exceptionOrNull()
+
+        assertTrue(failure is IllegalStateException)
+        assertEquals("媒体源不存在: 找不到文件或目录：7", failure?.message)
+    }
+
+    @Test
+    fun `repository remove WebUI source maps repository errors`() = runBlocking {
+        val repository = FakeMediaSourceRepository(
+            removeResult = Result.failure(AppError.MediaSourceError.PermissionDenied("7")),
+        )
+
+        val failure = runCatching {
+            repository.removeWebControlSource(7L)
+        }.exceptionOrNull()
+
+        assertTrue(failure is IllegalStateException)
+        assertEquals("删除媒体源失败: 无权限访问：7", failure?.message)
+    }
+
+    @Test
+    fun `repository list WebUI sources redacts secrets`() = runBlocking {
+        val repository = FakeMediaSourceRepository(
+            sources = listOf(
+                MediaSourceInfoConventions.webDav(
+                    name = "Remote",
+                    url = "https://dav.example.test",
+                    username = "miru",
+                    password = "secret",
+                ).copy(id = 7L),
+            ),
+        )
+
+        val sources = repository.listWebControlSources()
+
+        assertEquals(1, sources.size)
+        assertEquals(7L, sources.single().id)
+        assertFalse(MediaSourceInfoConventions.CONNECTION_PASSWORD in sources.single().connectionInfo)
+    }
+
+    @Test
+    fun `repository list WebUI sources returns empty list on repository error`() = runBlocking {
+        val repository = FakeMediaSourceRepository(
+            sourcesResult = Result.failure(AppError.MediaSourceError.NotFound("sources")),
+        )
+
+        assertEquals(emptyList<MediaSourceInfo>(), repository.listWebControlSources())
+    }
+
+    @Test
+    fun `repository scan all WebUI sources preserves failed scan results`() = runBlocking {
+        val local = MediaSourceInfoConventions.local(name = "Local", rootPath = "D:/Anime").copy(id = 7L)
+        val remote = MediaSourceInfoConventions.webDav(name = "Remote", url = "https://dav.example.test").copy(id = 8L)
+        val repository = FakeMediaSourceRepository(sources = listOf(local, remote))
+        val scannedSourceIds = mutableListOf<Long>()
+
+        val responses = repository.scanAllWebControlSources { source ->
+            scannedSourceIds += source.id
+            if (source.id == local.id) {
+                Result.success(
+                    toWebControlSourceScanResponse(
+                        sourceId = source.id,
+                        animeName = source.name,
+                        episodesFound = 2,
+                        newEpisodes = 1,
+                        updatedEpisodes = 0,
+                    ),
+                )
+            } else {
+                Result.failure(AppError.MediaSourceError.ConnectionLost(source.name))
+            }
+        }
+
+        assertEquals(listOf(7L, 8L), scannedSourceIds)
+        assertEquals(2, responses.size)
+        assertEquals(7L, responses[0].sourceId)
+        assertEquals("Local", responses[0].animeName)
+        assertEquals(null, responses[0].error)
+        assertEquals(8L, responses[1].sourceId)
+        assertEquals("Remote", responses[1].animeName)
+        assertEquals("与 Remote 的连接已断开", responses[1].error)
+    }
+
+    @Test
+    fun `repository scan all WebUI sources returns empty list on repository error`() = runBlocking {
+        val repository = FakeMediaSourceRepository(
+            sourcesResult = Result.failure(AppError.MediaSourceError.NotFound("sources")),
+        )
+
+        val responses = repository.scanAllWebControlSources {
+            Result.success(
+                toWebControlSourceScanResponse(
+                    sourceId = it.id,
+                    animeName = it.name,
+                    episodesFound = 1,
+                    newEpisodes = 1,
+                    updatedEpisodes = 0,
+                ),
+            )
+        }
+
+        assertEquals(emptyList<SourceScanResponse>(), responses)
+    }
+
+    @Test
+    fun `repository scan single WebUI source preserves scan failure as payload`() = runBlocking {
+        val source = MediaSourceInfoConventions.local(name = "Local", rootPath = "D:/Anime").copy(id = 7L)
+        val repository = FakeMediaSourceRepository(existing = source)
+
+        val response = repository.scanWebControlSource(source.id) {
+            Result.failure(AppError.MediaSourceError.ConnectionLost("Local"))
+        }
+
+        assertEquals(7L, response.sourceId)
+        assertEquals("Local", response.animeName)
+        assertEquals(0, response.episodesFound)
+        assertEquals("与 Local 的连接已断开", response.error)
+    }
+
+    @Test
+    fun `repository scan all WebUI sources from scan result helper preserves per source failures`() = runBlocking {
+        val local = MediaSourceInfoConventions.local(name = "Local", rootPath = "D:/Anime").copy(id = 7L)
+        val remote = MediaSourceInfoConventions.webDav(name = "Remote", url = "https://dav.example.test").copy(id = 8L)
+        val repository = FakeMediaSourceRepository(sources = listOf(local, remote))
+
+        val responses = repository.scanAllWebControlSourcesFromScanResult { source ->
+            if (source.id == local.id) {
+                Result.success(
+                    ScanResult(
+                        animeName = "Frieren",
+                        episodesFound = 3,
+                        newEpisodes = 2,
+                        updatedEpisodes = 1,
+                    )
+                )
+            } else {
+                Result.failure(AppError.MediaSourceError.ConnectionLost(source.name))
+            }
+        }
+
+        assertEquals(2, responses.size)
+        assertEquals(7L, responses[0].sourceId)
+        assertEquals("Frieren", responses[0].animeName)
+        assertEquals(null, responses[0].error)
+        assertEquals(8L, responses[1].sourceId)
+        assertEquals("Remote", responses[1].animeName)
+        assertEquals("与 Remote 的连接已断开", responses[1].error)
+    }
+
+    @Test
+    fun `repository scan single WebUI source from scan result helper preserves failure payload`() = runBlocking {
+        val source = MediaSourceInfoConventions.local(name = "Local", rootPath = "D:/Anime").copy(id = 7L)
+        val repository = FakeMediaSourceRepository(existing = source)
+
+        val response = repository.scanWebControlSourceFromScanResult(source.id) {
+            Result.failure(AppError.MediaSourceError.ConnectionLost("Local"))
+        }
+
+        assertEquals(7L, response.sourceId)
+        assertEquals("Local", response.animeName)
+        assertEquals("与 Local 的连接已断开", response.error)
+    }
+
+    @Test
+    fun `safe api source removes connection password case insensitively`() {
+        val source = SourceRequest(
+            name = "Remote",
+            type = "webdav",
+            location = "https://dav.example.test",
+            password = "secret",
+        ).toMediaSourceInfo()
+
+        val safe = source.copy(
+            connectionInfo = source.connectionInfo + ("Password" to "other-secret"),
+        ).safeForApi()
+
+        assertFalse(MediaSourceInfoConventions.CONNECTION_PASSWORD in safe.connectionInfo)
+        assertFalse("Password" in safe.connectionInfo)
+    }
+
+    @Test
+    fun `source test result maps success and disconnected messages`() {
+        val connected = Result.success(true).toWebControlSourceTestResponse()
+        val disconnected = Result.success(false).toWebControlSourceTestResponse()
+
+        assertEquals(true, connected.connected)
+        assertEquals("连接正常", connected.message)
+        assertEquals(false, disconnected.connected)
+        assertEquals("无法连接到服务器", disconnected.message)
+    }
+
+    @Test
+    fun `source test result maps shared media source connection results`() {
+        val connected = MediaSourceConnectionTestResult.Success.toWebControlSourceTestResponse()
+        val failed = MediaSourceConnectionTestResult.Failed("认证失败").toWebControlSourceTestResponse()
+
+        assertEquals(true, connected.connected)
+        assertEquals("连接正常", connected.message)
+        assertEquals(false, failed.connected)
+        assertEquals("认证失败", failed.message)
+    }
+
+    @Test
+    fun `source test result uses user facing error messages`() {
+        val response = Result.failure(
+            AppError.MediaSourceError.AuthenticationFailed("WebDAV"),
+        ).toWebControlSourceTestResponse()
+
+        assertEquals(false, response.connected)
+        assertEquals("WebDAV 认证失败，请检查用户名和密码", response.message)
+    }
+
+    @Test
+    fun `scan result maps to WebUI scan response`() {
+        val response = ScanResult(
+            animeName = "Frieren",
+            episodesFound = 3,
+            newEpisodes = 2,
+            updatedEpisodes = 1,
+        ).toWebControlSourceScanResponse(sourceId = 7L)
+
+        assertEquals(7L, response.sourceId)
+        assertEquals("Frieren", response.animeName)
+        assertEquals(3, response.episodesFound)
+        assertEquals(2, response.newEpisodes)
+        assertEquals(1, response.updatedEpisodes)
+    }
+
+    @Test
+    fun `scan response builder normalizes blank name and negative counts`() {
+        val response = toWebControlSourceScanResponse(
+            sourceId = 8L,
+            animeName = "",
+            episodesFound = -1,
+            newEpisodes = -2,
+            updatedEpisodes = -3,
+        )
+
+        assertEquals(8L, response.sourceId)
+        assertEquals("Unknown", response.animeName)
+        assertEquals(0, response.episodesFound)
+        assertEquals(0, response.newEpisodes)
+        assertEquals(0, response.updatedEpisodes)
+        assertEquals(null, response.error)
+    }
+
+    @Test
+    fun `scan error response maps source identity and message`() {
+        val source = MediaSourceInfoConventions.smb(
+            name = "",
+            url = "smb://server/share",
+        ).copy(id = 9L)
+
+        val response = source.toWebControlSourceScanErrorResponse("扫描失败")
+
+        assertEquals(9L, response.sourceId)
+        assertEquals("SMB 共享", response.animeName)
+        assertEquals(0, response.episodesFound)
+        assertEquals(0, response.newEpisodes)
+        assertEquals(0, response.updatedEpisodes)
+        assertEquals("扫描失败", response.error)
+    }
+
+    @Test
+    fun `source scan helper maps scan success and failure to payload`() = runBlocking {
+        val source = MediaSourceInfoConventions.local(name = "Local", rootPath = "D:/Anime").copy(id = 11L)
+
+        val success = source.scanWebControlSourceWith {
+            Result.success(
+                ScanResult(
+                    animeName = "Frieren",
+                    episodesFound = 3,
+                    newEpisodes = 2,
+                    updatedEpisodes = 1,
+                )
+            )
+        }
+        assertEquals(11L, success.sourceId)
+        assertEquals("Frieren", success.animeName)
+        assertEquals(null, success.error)
+
+        val failure = source.scanWebControlSourceWith {
+            Result.failure(AppError.MediaSourceError.ConnectionLost("Local"))
+        }
+        assertEquals(11L, failure.sourceId)
+        assertEquals("Local", failure.animeName)
+        assertEquals("与 Local 的连接已断开", failure.error)
+    }
+
+    private class FakeMediaSourceRepository(
+        existing: MediaSourceInfo = MediaSourceInfoConventions.local(name = "Local", rootPath = "D:/Anime"),
+        sources: List<MediaSourceInfo> = emptyList(),
+        private val addResult: Result<Long> = Result.success(1L),
+        private val getResult: Result<MediaSourceInfo> = Result.success(existing),
+        private val sourcesResult: Result<List<MediaSourceInfo>> = Result.success(sources),
+        private val removeResult: Result<Unit> = Result.success(Unit),
+        private val updateResult: Result<Unit> = Result.success(Unit),
+    ) : MediaSourceRepository {
+        var updatedSource: MediaSourceInfo? = null
+
+        override suspend fun addSource(source: MediaSourceInfo): Result<Long> =
+            addResult
+
+        override suspend fun removeSource(sourceId: Long): Result<Unit> =
+            removeResult
+
+        override suspend fun getSources(): Result<List<MediaSourceInfo>> =
+            sourcesResult
+
+        override suspend fun updateSource(source: MediaSourceInfo): Result<Unit> {
+            updatedSource = source
+            return updateResult
+        }
+
+        override suspend fun getSourceById(sourceId: Long): Result<MediaSourceInfo> =
+            getResult
+    }
+}
