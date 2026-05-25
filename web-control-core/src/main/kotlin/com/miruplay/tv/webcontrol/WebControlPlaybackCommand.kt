@@ -58,6 +58,9 @@ fun PlaybackCommandRequest.seekTargetPositionMs(currentPositionMs: Long, duratio
 fun PlaybackCommandRequest.playbackSpeed(): Float =
     speed ?: 1.0f
 
+fun PlaybackCommandRequest.shouldReturnIdlePlaybackStatus(): Boolean =
+    playbackCommandKind() == WebControlPlaybackCommandKind.STOP
+
 suspend fun PlaybackCommandRequest.executeWebControlPlaybackCommand(
     target: WebControlPlaybackCommandTarget,
 ) {

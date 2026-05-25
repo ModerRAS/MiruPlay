@@ -20,6 +20,8 @@ import com.miruplay.tv.scanner.ScanCoordinator
 import com.miruplay.tv.sync.rss.CloudDriveRssActionCoordinator
 import com.miruplay.tv.sync.rss.CloudDriveRssAutomationEngine
 import com.miruplay.tv.sync.rss.CloudDriveRssScheduler
+import com.miruplay.tv.webcontrol.idleWebControlPlaybackStatus
+import com.miruplay.tv.webcontrol.shouldReturnIdlePlaybackStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -101,6 +103,9 @@ class WebControlService @Inject constructor(
                 },
             )
         )
+        if (request.shouldReturnIdlePlaybackStatus()) {
+            return idleWebControlPlaybackStatus()
+        }
         return playbackStatusResolved()
     }
 
