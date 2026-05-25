@@ -101,6 +101,29 @@ fun settingsScanMenuSummary(
 fun settingsMetadataTokenMenuSummary(hasToken: Boolean): String =
     if (hasToken) "Token 已设置" else "未设置"
 
+data class SettingsSectionMenuSummaryInput(
+    val webUiAddressCount: Int = 0,
+    val sourceCount: Int = 0,
+    val playbackSummary: String = "",
+    val cloudDriveEnabled: Boolean = false,
+    val rssCount: Int = 0,
+    val autoScanEnabled: Boolean = false,
+    val mergeSameAnimeEnabled: Boolean = false,
+    val metadataSummary: String = "",
+)
+
+fun MiruPlaySettingsSection.settingsMenuSummary(
+    input: SettingsSectionMenuSummaryInput,
+): String =
+    when (this) {
+        MiruPlaySettingsSection.WEB_UI -> settingsWebUiMenuSummary(input.webUiAddressCount)
+        MiruPlaySettingsSection.SOURCES -> settingsSourcesMenuSummary(input.sourceCount)
+        MiruPlaySettingsSection.PLAYBACK -> input.playbackSummary
+        MiruPlaySettingsSection.CLOUD_DRIVE -> settingsCloudDriveMenuSummary(input.cloudDriveEnabled, input.rssCount)
+        MiruPlaySettingsSection.SCAN -> settingsScanMenuSummary(input.autoScanEnabled, input.mergeSameAnimeEnabled)
+        MiruPlaySettingsSection.METADATA -> input.metadataSummary
+    }
+
 fun settingsDesktopScanMenuSummary(): String =
     "媒体库更新"
 

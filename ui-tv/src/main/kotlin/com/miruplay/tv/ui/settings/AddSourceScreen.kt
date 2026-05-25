@@ -161,24 +161,22 @@ import com.miruplay.tv.model.metadataBangumiTokenOptionalHint
 import com.miruplay.tv.model.metadataBangumiTokenSavedStatus
 import com.miruplay.tv.model.settingsAutoScanToggleLabel
 import com.miruplay.tv.model.settingsBackActionLabel
-import com.miruplay.tv.model.settingsCloudDriveMenuSummary
 import com.miruplay.tv.model.settingsCurrentScanIntervalStatus
 import com.miruplay.tv.model.settingsLibraryDisplayTitleLabel
+import com.miruplay.tv.model.SettingsSectionMenuSummaryInput
 import com.miruplay.tv.model.settingsMergeSameAnimeStatus
 import com.miruplay.tv.model.settingsMergeSameAnimeToggleLabel
 import com.miruplay.tv.model.settingsMetadataTokenMenuSummary
+import com.miruplay.tv.model.settingsMenuSummary
 import com.miruplay.tv.model.settingsScanIntervalOptionLabel
-import com.miruplay.tv.model.settingsScanMenuSummary
 import com.miruplay.tv.model.settingsScanPanelDescription
 import com.miruplay.tv.model.settingsScanPanelTitleLabel
 import com.miruplay.tv.model.settingsClearTokenActionLabel
 import com.miruplay.tv.model.settingsSaveTokenActionLabel
-import com.miruplay.tv.model.settingsSourcesMenuSummary
 import com.miruplay.tv.model.settingsWebUiAccessTokenLabel
 import com.miruplay.tv.model.settingsWebUiAddressLabel
 import com.miruplay.tv.model.settingsWebUiAvailableAddressesLabel
 import com.miruplay.tv.model.settingsWebUiDisabledStatus
-import com.miruplay.tv.model.settingsWebUiMenuSummary
 import com.miruplay.tv.model.settingsWebUiNoLanAddressStatus
 import com.miruplay.tv.model.settingsWebUiPanelDescription
 import com.miruplay.tv.model.settingsWebUiPanelTitleLabel
@@ -662,6 +660,16 @@ private fun SettingsMenuPanel(
     onSectionSelected: (MiruPlaySettingsSection) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val menuSummaryInput = SettingsSectionMenuSummaryInput(
+        webUiAddressCount = webUiAddressCount,
+        sourceCount = sourcesCount,
+        playbackSummary = playbackEndAction.menuSummary(),
+        cloudDriveEnabled = cloudDriveEnabled,
+        rssCount = rssCount,
+        autoScanEnabled = autoScanEnabled,
+        mergeSameAnimeEnabled = mergeSameAnimeEnabled,
+        metadataSummary = settingsMetadataTokenMenuSummary(hasToken),
+    )
     SettingsPanel(modifier = modifier) {
         Text(
             text = "设置菜单",
@@ -683,17 +691,9 @@ private fun SettingsMenuPanel(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             itemsIndexed(androidTvSettingsSectionOrder) { index, section ->
-                val summary = when (section) {
-                    MiruPlaySettingsSection.WEB_UI -> settingsWebUiMenuSummary(webUiAddressCount)
-                    MiruPlaySettingsSection.SOURCES -> settingsSourcesMenuSummary(sourcesCount)
-                    MiruPlaySettingsSection.PLAYBACK -> playbackEndAction.menuSummary()
-                    MiruPlaySettingsSection.CLOUD_DRIVE -> settingsCloudDriveMenuSummary(cloudDriveEnabled, rssCount)
-                    MiruPlaySettingsSection.SCAN -> settingsScanMenuSummary(autoScanEnabled, mergeSameAnimeEnabled)
-                    MiruPlaySettingsSection.METADATA -> settingsMetadataTokenMenuSummary(hasToken)
-                }
                 SettingsMenuItem(
                     section = section,
-                    summary = summary,
+                    summary = section.settingsMenuSummary(menuSummaryInput),
                     selected = section == selectedSection,
                     onClick = { onSectionSelected(section) },
                     modifier = Modifier.focusRequester(menuFocusRequesters.getValue(section))

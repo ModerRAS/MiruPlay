@@ -51,6 +51,23 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("访问地址", settingsDesktopWebUiMenuSummary())
         assertEquals("等待网络", settingsDesktopWebUiMenuSummary(addressCount = 0))
         assertEquals("2 个地址", settingsDesktopWebUiMenuSummary(addressCount = 2))
+
+        val androidInput = SettingsSectionMenuSummaryInput(
+            webUiAddressCount = 2,
+            sourceCount = 3,
+            playbackSummary = "播完动作",
+            cloudDriveEnabled = true,
+            rssCount = 4,
+            autoScanEnabled = true,
+            mergeSameAnimeEnabled = true,
+            metadataSummary = "Token 已设置",
+        )
+        assertEquals("2 个地址", MiruPlaySettingsSection.WEB_UI.settingsMenuSummary(androidInput))
+        assertEquals("3 个源", MiruPlaySettingsSection.SOURCES.settingsMenuSummary(androidInput))
+        assertEquals("播完动作", MiruPlaySettingsSection.PLAYBACK.settingsMenuSummary(androidInput))
+        assertEquals("4 个订阅", MiruPlaySettingsSection.CLOUD_DRIVE.settingsMenuSummary(androidInput))
+        assertEquals("定时 · 合并", MiruPlaySettingsSection.SCAN.settingsMenuSummary(androidInput))
+        assertEquals("Token 已设置", MiruPlaySettingsSection.METADATA.settingsMenuSummary(androidInput))
     }
 
     @Test

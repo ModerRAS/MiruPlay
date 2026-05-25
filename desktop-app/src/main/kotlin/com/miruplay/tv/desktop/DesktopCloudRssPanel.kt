@@ -58,6 +58,7 @@ import com.miruplay.tv.model.CLOUD_RSS_SUBSCRIPTION_PAGE_SIZE
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MiruPlaySettingsSection
 import com.miruplay.tv.model.RssSubscriptionInfo
+import com.miruplay.tv.model.SettingsSectionMenuSummaryInput
 import com.miruplay.tv.model.SettingsSummaryTile
 import com.miruplay.tv.model.cloudDriveDirectoryCoercedPageStart
 import com.miruplay.tv.model.cloudDriveDirectoryPageStartForIndex
@@ -88,15 +89,14 @@ import com.miruplay.tv.model.metadataBangumiTokenTileLabel
 import com.miruplay.tv.model.metadataSettingsTiles
 import com.miruplay.tv.model.mediaSourceStatusText
 import com.miruplay.tv.model.playbackSettingsTiles
-import com.miruplay.tv.model.settingsCloudDriveMenuSummary
 import com.miruplay.tv.model.settingsClearTokenActionLabel
 import com.miruplay.tv.model.settingsDesktopScanStatusMessage
-import com.miruplay.tv.model.settingsDesktopWebUiMenuSummary
 import com.miruplay.tv.model.settingsDesktopWebUiStatusMessage
 import com.miruplay.tv.model.settingsAutoScanToggleLabel
 import com.miruplay.tv.model.settingsCurrentScanIntervalStatus
 import com.miruplay.tv.model.settingsLibraryDisplayTitleLabel
 import com.miruplay.tv.model.settingsMenuPanelDescription
+import com.miruplay.tv.model.settingsMenuSummary
 import com.miruplay.tv.model.settingsMenuPanelTitle
 import com.miruplay.tv.model.settingsMergeSameAnimeStatus
 import com.miruplay.tv.model.settingsMergeSameAnimeToggleLabel
@@ -109,8 +109,6 @@ import com.miruplay.tv.model.settingsScanActiveSourceActionLabel
 import com.miruplay.tv.model.settingsScanIntervalOptionLabel
 import com.miruplay.tv.model.settingsScanPanelDescription
 import com.miruplay.tv.model.settingsScanPanelTitleLabel
-import com.miruplay.tv.model.settingsScanMenuSummary
-import com.miruplay.tv.model.settingsSourcesMenuSummary
 import com.miruplay.tv.model.settingsWebUiAccessTokenLabel
 import com.miruplay.tv.model.settingsWebUiAddressLabel
 import com.miruplay.tv.model.settingsWebUiAvailableAddressesLabel
@@ -1889,6 +1887,16 @@ private fun SettingsSectionMenu(
     LaunchedEffect(selectedSection) {
         sectionFocusRequesters[selectedSection]?.requestFocus()
     }
+    val menuSummaryInput = SettingsSectionMenuSummaryInput(
+        webUiAddressCount = webUiAddressCount,
+        sourceCount = sourcesCount,
+        playbackSummary = playbackSummary,
+        cloudDriveEnabled = cloudEnabled,
+        rssCount = rssCount,
+        autoScanEnabled = autoScanEnabled,
+        mergeSameAnimeEnabled = mergeSameAnimeEnabled,
+        metadataSummary = metadataSummary,
+    )
 
     TvPanel(
         modifier
@@ -1905,16 +1913,7 @@ private fun SettingsSectionMenu(
         desktopSettingsSectionOrder.forEach { section ->
             SettingsSectionMenuRow(
                 section = section,
-                summary = section.menuSummary(
-                    sourcesCount = sourcesCount,
-                    rssCount = rssCount,
-                    cloudEnabled = cloudEnabled,
-                    webUiAddressCount = webUiAddressCount,
-                    autoScanEnabled = autoScanEnabled,
-                    mergeSameAnimeEnabled = mergeSameAnimeEnabled,
-                    metadataSummary = metadataSummary,
-                    playbackSummary = playbackSummary,
-                ),
+                summary = section.settingsMenuSummary(menuSummaryInput),
                 selected = section == selectedSection,
                 onClick = { onSectionSelected(section) },
                 modifier = Modifier.focusRequester(sectionFocusRequesters.getValue(section)),
@@ -2238,24 +2237,6 @@ private fun SettingsSummaryCard(
             overflow = TextOverflow.Ellipsis,
         )
     }
-}
-
-private fun MiruPlaySettingsSection.menuSummary(
-    sourcesCount: Int,
-    rssCount: Int,
-    cloudEnabled: Boolean,
-    webUiAddressCount: Int,
-    autoScanEnabled: Boolean,
-    mergeSameAnimeEnabled: Boolean,
-    metadataSummary: String,
-    playbackSummary: String,
-): String = when (this) {
-    MiruPlaySettingsSection.SOURCES -> settingsSourcesMenuSummary(sourcesCount)
-    MiruPlaySettingsSection.PLAYBACK -> playbackSummary
-    MiruPlaySettingsSection.CLOUD_DRIVE -> settingsCloudDriveMenuSummary(cloudEnabled, rssCount)
-    MiruPlaySettingsSection.SCAN -> settingsScanMenuSummary(autoScanEnabled, mergeSameAnimeEnabled)
-    MiruPlaySettingsSection.METADATA -> metadataSummary
-    MiruPlaySettingsSection.WEB_UI -> settingsDesktopWebUiMenuSummary(webUiAddressCount)
 }
 
 @Composable
