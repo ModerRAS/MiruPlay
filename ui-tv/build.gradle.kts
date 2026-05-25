@@ -52,5 +52,8 @@ dependencies {
     ksp(libs.dagger.hilt.compiler)
     
     testImplementation(libs.junit)
+    testImplementation(libs.mockk)
+    testImplementation(libs.kotlinx.coroutines.core)
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
     testImplementation(libs.androidx.testing.compose)
 }

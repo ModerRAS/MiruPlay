@@ -165,9 +165,7 @@ import com.miruplay.tv.model.metadataBangumiTokenOptionalHint
 import com.miruplay.tv.model.metadataBangumiTokenSavedStatus
 import com.miruplay.tv.model.settingsAutoScanToggleLabel
 import com.miruplay.tv.model.settingsBackActionLabel
-import com.miruplay.tv.model.settingsAndroidTvLogUploadHintMessage
 import com.miruplay.tv.model.settingsAndroidTvLogUploadMenuSummary
-import com.miruplay.tv.model.settingsAndroidTvLogUploadStatusMessage
 import com.miruplay.tv.model.settingsCurrentScanIntervalStatus
 import com.miruplay.tv.model.settingsLibraryDisplayTitleLabel
 import com.miruplay.tv.model.settingsMenuPanelDescriptionAndroidTv
@@ -176,10 +174,18 @@ import com.miruplay.tv.model.settingsMergeSameAnimeStatus
 import com.miruplay.tv.model.settingsMergeSameAnimeToggleLabel
 import com.miruplay.tv.model.settingsMetadataTokenMenuSummary
 import com.miruplay.tv.model.settingsMenuSummary
+import com.miruplay.tv.model.logUploadSettingsTiles
 import com.miruplay.tv.model.settingsScanIntervalOptionLabel
 import com.miruplay.tv.model.settingsScanPanelDescription
 import com.miruplay.tv.model.settingsScanPanelTitleLabel
 import com.miruplay.tv.model.settingsClearTokenActionLabel
+import com.miruplay.tv.model.settingsLogUploadAutoToggleLabel
+import com.miruplay.tv.model.settingsLogUploadEndpointFieldLabel
+import com.miruplay.tv.model.settingsLogUploadRunNowActionLabel
+import com.miruplay.tv.model.settingsLogUploadSaveConfigActionLabel
+import com.miruplay.tv.model.settingsLogUploadStreamFieldLabel
+import com.miruplay.tv.model.settingsLogUploadTokenConfiguredStatus
+import com.miruplay.tv.model.settingsLogUploadTokenFieldLabel
 import com.miruplay.tv.model.settingsSaveTokenActionLabel
 import com.miruplay.tv.model.settingsScreenSubtitleLabel
 import com.miruplay.tv.model.settingsScreenTitleLabel
@@ -278,6 +284,8 @@ fun AddSourceScreen(
     val cloudDriveActionMessage by viewModel.cloudDriveActionMessage.collectAsStateWithLifecycle()
     val cloudDriveDirectoryBrowser by viewModel.cloudDriveDirectoryBrowser.collectAsStateWithLifecycle()
     val localDirectoryBrowser by viewModel.localDirectoryBrowser.collectAsStateWithLifecycle()
+    val logUploadSnapshot by viewModel.logUploadSnapshot.collectAsStateWithLifecycle()
+    val logUploadStatusMessage by viewModel.logUploadStatusMessage.collectAsStateWithLifecycle()
 
     var selectedSection by remember { mutableStateOf(MiruPlaySettingsSection.WEB_UI) }
     var editingSourceId by remember { mutableStateOf<Long?>(null) }
@@ -307,6 +315,7 @@ fun AddSourceScreen(
     var rssUrl by remember { mutableStateOf("") }
     var rssFilterRegex by remember { mutableStateOf("") }
     var rssEnabled by remember { mutableStateOf(true) }
+    var logUploadTokenInput by remember { mutableStateOf("") }
     var pendingDeletedSourceId by remember { mutableStateOf<Long?>(null) }
 
     val menuFocusRequesters = remember {
@@ -420,6 +429,9 @@ fun AddSourceScreen(
                     playbackEndAction = playbackEndAction,
                     cloudDriveEnabled = cloudEnabled,
                     rssCount = rssSubscriptions.size,
+                    logUploadEnabled = logUploadSnapshot.enabled,
+                    logUploadTokenConfigured = logUploadSnapshot.tokenConfigured,
+                    logUploadUploading = logUploadSnapshot.isUploading,
                     hasToken = savedToken.isNotBlank() || tokenSaved,
                     menuFocusRequesters = menuFocusRequesters,
                     onSectionSelected = { selectedSection = it },
@@ -604,6 +616,33 @@ fun AddSourceScreen(
                     },
                     onToggleRssSubscription = viewModel::setRssSubscriptionEnabled,
                     onDeleteRssSubscription = viewModel::deleteRssSubscription,
+                    logUploadEnabled = logUploadSnapshot.enabled,
+                    onLogUploadEnabledChange = viewModel::setLogUploadEnabled,
+                    logUploadEndpoint = logUploadSnapshot.endpoint,
+                    onLogUploadEndpointChange = viewModel::setLogUploadEndpoint,
+                    logUploadStreamName = logUploadSnapshot.streamName,
+                    onLogUploadStreamNameChange = viewModel::setLogUploadStreamName,
+                    logUploadToken = logUploadTokenInput,
+                    onLogUploadTokenChange = { logUploadTokenInput = it },
+                    logUploadTokenConfigured = logUploadSnapshot.tokenConfigured,
+                    logUploadStatusMessage = logUploadStatusMessage,
+                    onSaveLogUploadConfig = viewModel::saveLogUploadConfig,
+                    onSaveLogUploadToken = {
+                        viewModel.saveLogUploadToken(logUploadTokenInput)
+                        logUploadTokenInput = ""
+                    },
+                    onClearLogUploadToken = {
+                        viewModel.clearLogUploadToken()
+                        logUploadTokenInput = ""
+                    },
+                    onRunLogUploadNow = {
+                        viewModel.runLogUploadNow(logUploadTokenInput)
+                        logUploadTokenInput = ""
+                    },
+                    canRunLogUploadNow = logUploadSnapshot.enabled &&
+                        logUploadSnapshot.endpoint.isNotBlank() &&
+                        !logUploadSnapshot.isUploading &&
+                        (logUploadSnapshot.tokenConfigured || logUploadTokenInput.isNotBlank()),
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
@@ -679,6 +718,9 @@ private fun SettingsMenuPanel(
     playbackEndAction: PlaybackEndAction,
     cloudDriveEnabled: Boolean,
     rssCount: Int,
+    logUploadEnabled: Boolean,
+    logUploadTokenConfigured: Boolean,
+    logUploadUploading: Boolean,
     hasToken: Boolean,
     menuFocusRequesters: Map<MiruPlaySettingsSection, FocusRequester>,
     onSectionSelected: (MiruPlaySettingsSection) -> Unit,
@@ -693,7 +735,11 @@ private fun SettingsMenuPanel(
         autoScanEnabled = autoScanEnabled,
         mergeSameAnimeEnabled = mergeSameAnimeEnabled,
         metadataSummary = settingsMetadataTokenMenuSummary(hasToken),
-        logUploadSummary = settingsAndroidTvLogUploadMenuSummary(),
+        logUploadSummary = settingsAndroidTvLogUploadMenuSummary(
+            enabled = logUploadEnabled,
+            tokenConfigured = logUploadTokenConfigured,
+            isUploading = logUploadUploading,
+        ),
     )
 
     SettingsPanel(modifier = modifier) {
@@ -889,6 +935,21 @@ private fun SettingsContent(
     onAddRssSubscription: () -> Unit,
     onToggleRssSubscription: (RssSubscriptionInfo, Boolean) -> Unit,
     onDeleteRssSubscription: (Long) -> Unit,
+    logUploadEnabled: Boolean,
+    onLogUploadEnabledChange: (Boolean) -> Unit,
+    logUploadEndpoint: String,
+    onLogUploadEndpointChange: (String) -> Unit,
+    logUploadStreamName: String,
+    onLogUploadStreamNameChange: (String) -> Unit,
+    logUploadToken: String,
+    onLogUploadTokenChange: (String) -> Unit,
+    logUploadTokenConfigured: Boolean,
+    logUploadStatusMessage: String,
+    onSaveLogUploadConfig: () -> Unit,
+    onSaveLogUploadToken: () -> Unit,
+    onClearLogUploadToken: () -> Unit,
+    onRunLogUploadNow: () -> Unit,
+    canRunLogUploadNow: Boolean,
     modifier: Modifier = Modifier
 ) {
     when (selectedSection) {
@@ -1051,18 +1112,23 @@ private fun SettingsContent(
             section = selectedSection,
             modifier = modifier
         ) {
-            SettingsPanel {
-                Text(
-                    text = settingsAndroidTvLogUploadStatusMessage(),
-                    style = TvTypography.body,
-                    color = TextSecondary
-                )
-                Text(
-                    text = settingsAndroidTvLogUploadHintMessage(),
-                    style = TvTypography.caption,
-                    color = TextSecondary
-                )
-            }
+            LogUploadPanel(
+                enabled = logUploadEnabled,
+                onEnabledChange = onLogUploadEnabledChange,
+                endpoint = logUploadEndpoint,
+                onEndpointChange = onLogUploadEndpointChange,
+                streamName = logUploadStreamName,
+                onStreamNameChange = onLogUploadStreamNameChange,
+                tokenInput = logUploadToken,
+                onTokenInputChange = onLogUploadTokenChange,
+                tokenConfigured = logUploadTokenConfigured,
+                statusMessage = logUploadStatusMessage,
+                onSaveConfig = onSaveLogUploadConfig,
+                onSaveToken = onSaveLogUploadToken,
+                onClearToken = onClearLogUploadToken,
+                onRunNow = onRunLogUploadNow,
+                canRunNow = canRunLogUploadNow,
+            )
         }
 
         MiruPlaySettingsSection.METADATA -> SettingsSingleSectionPage(
@@ -2776,6 +2842,135 @@ private fun MetadataPanel(
 }
 
 @Composable
+private fun LogUploadPanel(
+    enabled: Boolean,
+    onEnabledChange: (Boolean) -> Unit,
+    endpoint: String,
+    onEndpointChange: (String) -> Unit,
+    streamName: String,
+    onStreamNameChange: (String) -> Unit,
+    tokenInput: String,
+    onTokenInputChange: (String) -> Unit,
+    tokenConfigured: Boolean,
+    statusMessage: String,
+    onSaveConfig: () -> Unit,
+    onSaveToken: () -> Unit,
+    onClearToken: () -> Unit,
+    onRunNow: () -> Unit,
+    canRunNow: Boolean,
+) {
+    val tiles = logUploadSettingsTiles()
+    SettingsPanel {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Filled.Upload,
+                contentDescription = null,
+                tint = TextPrimary,
+                modifier = Modifier.size(26.dp)
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(text = MiruPlaySettingsSection.LOG_UPLOAD.androidTvTitle, style = TvTypography.subtitle, color = TextPrimary)
+        }
+
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = MiruPlaySettingsSection.LOG_UPLOAD.androidTvDescription,
+            style = TvTypography.body,
+            color = TextSecondary
+        )
+
+        Spacer(Modifier.height(16.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ScanOptionChip(
+                text = settingsLogUploadAutoToggleLabel(),
+                icon = Icons.Filled.Refresh,
+                selected = enabled,
+                enabled = true,
+                onClick = { onEnabledChange(!enabled) },
+                modifier = Modifier.width(170.dp)
+            )
+            ScanOptionChip(
+                text = settingsLogUploadTokenConfiguredStatus(tokenConfigured),
+                icon = Icons.Filled.CheckCircle,
+                selected = tokenConfigured,
+                enabled = false,
+                onClick = {},
+                modifier = Modifier.width(170.dp)
+            )
+        }
+
+        Spacer(Modifier.height(14.dp))
+        TvTextField(
+            value = endpoint,
+            onValueChange = onEndpointChange,
+            label = settingsLogUploadEndpointFieldLabel(),
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(Modifier.height(12.dp))
+        TvTextField(
+            value = streamName,
+            onValueChange = onStreamNameChange,
+            label = settingsLogUploadStreamFieldLabel(),
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(Modifier.height(12.dp))
+        TvTextField(
+            value = tokenInput,
+            onValueChange = onTokenInputChange,
+            label = settingsLogUploadTokenFieldLabel(),
+            isPassword = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(Modifier.height(14.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            TvButton(
+                text = settingsLogUploadSaveConfigActionLabel(),
+                icon = Icons.Filled.Save,
+                enabled = endpoint.isNotBlank(),
+                onClick = onSaveConfig
+            )
+            TvButton(
+                text = settingsSaveTokenActionLabel(),
+                icon = Icons.Filled.Key,
+                enabled = tokenInput.isNotBlank(),
+                onClick = onSaveToken
+            )
+            TvButton(
+                text = settingsClearTokenActionLabel(),
+                icon = Icons.Filled.Delete,
+                enabled = tokenConfigured,
+                onClick = onClearToken
+            )
+            TvButton(
+                text = settingsLogUploadRunNowActionLabel(),
+                icon = Icons.Filled.Upload,
+                enabled = canRunNow,
+                onClick = onRunNow
+            )
+        }
+
+        StatusMessage(
+            icon = if (tokenConfigured) Icons.Filled.CheckCircle else Icons.Filled.Key,
+            text = settingsLogUploadTokenConfiguredStatus(tokenConfigured),
+            color = if (tokenConfigured) ProgressGreen else TextSecondary
+        )
+        StatusMessage(
+            icon = if ("失败" in statusMessage) Icons.Filled.Close else Icons.Filled.Upload,
+            text = statusMessage,
+            color = if ("失败" in statusMessage) WarningYellow else ProgressGreen
+        )
+        StatusMessage(
+            icon = Icons.Filled.Dns,
+            text = tiles.firstOrNull()?.detail.orEmpty(),
+            color = TextSecondary
+        )
+    }
+}
+
+@Composable
 private fun StatusMessage(
     icon: ImageVector,
     text: String,
@@ -2818,6 +3013,17 @@ private fun SettingsPanel(
 
 private fun sourceNameOrDefault(name: String, type: MediaSourceType): String =
     name.ifBlank { type.defaultSourceName() }
+
+internal fun settingsSourceListMenuBridgeIntent(
+    intent: MiruPlayInputIntent,
+    type: KeyEventType,
+    onFocusMenu: () -> Unit,
+): Boolean {
+    if (type != KeyEventType.KeyDown) return false
+    if (intent != MiruPlayInputIntent.DirectionLeft) return false
+    onFocusMenu()
+    return true
+}
 
 private fun createQrCodeMatrix(content: String): BitMatrix? {
     if (content.isBlank()) return null
