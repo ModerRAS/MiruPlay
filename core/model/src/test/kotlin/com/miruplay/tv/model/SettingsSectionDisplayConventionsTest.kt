@@ -255,6 +255,10 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals(3, logUploadTiles.size)
         assertEquals("OpenObserve", logUploadTiles[0].label)
         assertEquals("JSON", logUploadTiles[0].value)
+        assertEquals(
+            "API 地址、Stream 和访问令牌可在桌面设置页或 Web 控制端保存。",
+            logUploadTiles[0].detail,
+        )
     }
 
     @Test

@@ -661,7 +661,7 @@ fun logUploadSettingsTiles(): List<SettingsSummaryTile> =
         SettingsSummaryTile(
             label = "OpenObserve",
             value = "JSON",
-            detail = "API 地址、Stream 和访问令牌由 Android TV 设置页保存。",
+            detail = "API 地址、Stream 和访问令牌可在桌面设置页或 Web 控制端保存。",
         ),
         SettingsSummaryTile(
             label = "本地日志",
