@@ -1,6 +1,7 @@
 package com.miruplay.tv.desktop
 
 import com.miruplay.tv.core.common.LocalDirectoryBrowser
+import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.clouddrive.CloudDriveClient
 import com.miruplay.tv.clouddrive.GrpcCloudDriveClient
 import com.miruplay.tv.mediasource.MediaSourceFactory
@@ -244,8 +245,20 @@ internal class DesktopWebControlService(
 
     private suspend fun rescanLinkedCloudDriveSource(reason: String) {
         val config = repositories.cloudDriveAutomation.getConfig().getOrNull() ?: return
-        val sourceId = config.webDavSourceId?.takeIf { it > 0L } ?: return
-        val source = repositories.mediaSources.getSourceById(sourceId).getOrNull() ?: return
+        val source = when (
+            val selected = resolveCloudRssLinkedSource(
+                sourceId = config.webDavSourceId,
+                savedSources = emptyList(),
+                mediaSources = repositories.mediaSources,
+            )
+        ) {
+            is Result.Success -> when (val selection = selected.data) {
+                DesktopCloudRssLinkedSourceSelection.MissingLink -> return
+                is DesktopCloudRssLinkedSourceSelection.MissingSource -> return
+                is DesktopCloudRssLinkedSourceSelection.Ready -> selection.sourceInfo
+            }
+            is Result.Error -> return
+        }
         rescanCloudRssLinkedSource(source, reason, repositories.index, repositories.metadata)
     }
 

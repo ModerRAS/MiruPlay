@@ -110,4 +110,60 @@ class DesktopScanIndexIntegrationTest {
             storePath.parent.toFile().deleteRecursively()
         }
     }
+
+    @Test
+    fun `cloud rss linked source resolver reports missing link and missing source`() = runBlocking {
+        val storePath = Files.createTempDirectory("miruplay-desktop-store").resolve("store.json")
+        try {
+            val repositories = DesktopRepositories.fileBacked(storePath)
+
+            val missingLink = resolveCloudRssLinkedSource(
+                sourceId = null,
+                savedSources = emptyList(),
+                mediaSources = repositories.mediaSources,
+            ) as Result.Success
+            assertEquals(DesktopCloudRssLinkedSourceSelection.MissingLink, missingLink.data)
+
+            val missingSource = resolveCloudRssLinkedSource(
+                sourceId = 123L,
+                savedSources = emptyList(),
+                mediaSources = repositories.mediaSources,
+            ) as Result.Success
+            assertEquals(
+                DesktopCloudRssLinkedSourceSelection.MissingSource(123L),
+                missingSource.data,
+            )
+        } finally {
+            storePath.parent.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `cloud rss linked source resolver loads repository sources when not cached`() = runBlocking {
+        val storePath = Files.createTempDirectory("miruplay-desktop-store").resolve("store.json")
+        try {
+            val repositories = DesktopRepositories.fileBacked(storePath)
+            val source = MediaSourceInfoConventions.local(
+                name = "Cloud RSS Local",
+                rootPath = "D:/Anime",
+                isConnected = true,
+            )
+            val sourceId = (repositories.mediaSources.addSource(source) as Result.Success).data
+            var loadedSources = emptyList<com.miruplay.tv.model.MediaSourceInfo>()
+
+            val result = resolveCloudRssLinkedSource(
+                sourceId = sourceId,
+                savedSources = emptyList(),
+                mediaSources = repositories.mediaSources,
+                onSourcesLoaded = { loaded -> loadedSources = loaded },
+            ) as Result.Success
+
+            assertTrue(loadedSources.any { it.id == sourceId })
+            val selected = result.data as DesktopCloudRssLinkedSourceSelection.Ready
+            assertEquals(sourceId, selected.sourceInfo.id)
+            assertEquals("Cloud RSS Local", selected.sourceInfo.name)
+        } finally {
+            storePath.parent.toFile().deleteRecursively()
+        }
+    }
 }

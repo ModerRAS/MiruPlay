@@ -1211,21 +1211,26 @@ internal fun MiruPlayDesktopComposeApp(
     }
 
     suspend fun rescanLinkedCloudSource(reason: String): String? {
-        val sourceId = cloudLinkedSourceId ?: return null
-        val sourceInfo = savedSources.firstOrNull { it.id == sourceId }
-            ?: when (val sources = repositories.mediaSources.getSources()) {
-                is Result.Success -> {
-                    savedSources = sources.data
-                    sources.data.firstOrNull { it.id == sourceId }
-                }
-                is Result.Error -> {
-                    cloudRssStatus = sources.error.toUserMessage()
+        val sourceInfo = when (
+            val selected = resolveCloudRssLinkedSource(
+                sourceId = cloudLinkedSourceId,
+                savedSources = savedSources,
+                mediaSources = repositories.mediaSources,
+                onSourcesLoaded = { loaded -> savedSources = loaded },
+            )
+        ) {
+            is Result.Success -> when (val selection = selected.data) {
+                DesktopCloudRssLinkedSourceSelection.MissingLink -> return null
+                is DesktopCloudRssLinkedSourceSelection.MissingSource -> {
+                    cloudRssStatus = cloudRssScanSourceMissingStatus()
                     return null
                 }
+                is DesktopCloudRssLinkedSourceSelection.Ready -> selection.sourceInfo
             }
-        if (sourceInfo == null) {
-            cloudRssStatus = cloudRssScanSourceMissingStatus()
-            return null
+            is Result.Error -> {
+                cloudRssStatus = selected.error.toUserMessage()
+                return null
+            }
         }
 
         cloudRssStatus = cloudRssRescanStartedStatus(reason, sourceInfo.sourcePickerTitle())
