@@ -29,6 +29,7 @@ import com.miruplay.tv.webcontrol.relativeSeekDeltaMs
 import com.miruplay.tv.webcontrol.skipBackwardDeltaMs
 import com.miruplay.tv.webcontrol.skipForwardDeltaMs
 import com.miruplay.tv.webcontrol.toWebControlPlaybackSource
+import com.miruplay.tv.webcontrol.webControlMediaSourceIdFromEpisodeId
 import kotlin.math.absoluteValue
 
 internal class DesktopWebControlPlaybackHandlers {
@@ -141,4 +142,4 @@ private fun Episode.sourceIdFromEpisodeId(): Long? =
     id.sourceIdFromEpisodeId()
 
 private fun String.sourceIdFromEpisodeId(): Long? =
-    substringBefore(':', "").toLongOrNull()
+    webControlMediaSourceIdFromEpisodeId()?.toLongOrNull()
