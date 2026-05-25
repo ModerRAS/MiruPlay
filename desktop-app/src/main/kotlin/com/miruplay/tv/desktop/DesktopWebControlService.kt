@@ -51,6 +51,8 @@ internal class DesktopWebControlService(
     mediaSourceFactory = mediaSourceFactory,
     cloudDriveRepository = repositories.cloudDriveAutomation,
     credentials = repositories.credentials,
+    securePreferences = repositories.credentials,
+    logUploadRepository = repositories.logUpload,
     cloudDriveClient = cloudDriveClient,
     cloudDriveActions = CloudDriveRssActionCoordinator(
         repository = repositories.cloudDriveAutomation,

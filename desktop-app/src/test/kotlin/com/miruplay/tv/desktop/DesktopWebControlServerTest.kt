@@ -732,6 +732,78 @@ class DesktopWebControlServerTest {
     }
 
     @Test
+    fun `desktop web control exposes log upload and metadata endpoints through shared core`() = runBlocking {
+        val storePath = Files.createTempDirectory("miruplay-web-control-store").resolve("store.json")
+        val port = freePort()
+        try {
+            val repositories = DesktopRepositories.fileBacked(storePath)
+            repositories.webControlAccess.webControlEnabled = true
+            val token = repositories.webControlAccess.accessToken
+            val service = DesktopWebControlService(repositories, deviceName = "Windows Test")
+            val server = DesktopWebControlServer(
+                webControlService = service,
+                webControlAccess = repositories.webControlAccess,
+                port = port,
+            )
+            server.startIfNeeded()
+            try {
+                val initialLog = request("http://127.0.0.1:$port/api/log-upload?token=$token")
+                assertEquals(200, initialLog.code)
+                assertTrue(initialLog.body.contains("\"tokenConfigured\":false"))
+
+                val savedConfig = request(
+                    url = "http://127.0.0.1:$port/api/log-upload/config?token=$token",
+                    method = "PUT",
+                    body = """{"enabled":true,"endpoint":"https://openobserve.example.com/api/default","streamName":"miruplay"}""",
+                )
+                assertEquals(200, savedConfig.code)
+                assertTrue(savedConfig.body.contains("\"enabled\":true"))
+                assertTrue(savedConfig.body.contains("openobserve.example.com"))
+
+                val savedToken = request(
+                    url = "http://127.0.0.1:$port/api/log-upload/token?token=$token",
+                    method = "POST",
+                    body = """{"token":"desktop-token"}""",
+                )
+                assertEquals(200, savedToken.code)
+                assertTrue(savedToken.body.contains("\"tokenConfigured\":true"))
+
+                val runUpload = request(
+                    url = "http://127.0.0.1:$port/api/log-upload/run?token=$token",
+                    method = "POST",
+                )
+                assertEquals(200, runUpload.code)
+                assertTrue(runUpload.body.contains("\"lastUploadStatus\":"))
+
+                val metadataInitial = request(
+                    "http://127.0.0.1:$port/api/metadata?token=$token",
+                )
+                assertEquals(200, metadataInitial.code)
+                assertTrue(metadataInitial.body.contains("\"bangumiTokenConfigured\":false"))
+
+                val saveBangumi = request(
+                    url = "http://127.0.0.1:$port/api/metadata/bangumi-token?token=$token",
+                    method = "POST",
+                    body = """{"token":"bgm-token"}""",
+                )
+                assertEquals(200, saveBangumi.code)
+                assertTrue(saveBangumi.body.contains("\"bangumiTokenConfigured\":true"))
+
+                val clearBangumi = request(
+                    url = "http://127.0.0.1:$port/api/metadata/bangumi-token?token=$token",
+                    method = "DELETE",
+                )
+                assertEquals(200, clearBangumi.code)
+                assertTrue(clearBangumi.body.contains("\"bangumiTokenConfigured\":false"))
+            } finally {
+                server.stopIfRunning()
+            }
+        } finally {
+            storePath.parent.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
     fun `desktop web control stops serving api when disabled`() {
         val storePath = Files.createTempDirectory("miruplay-web-control-store").resolve("store.json")
         val port = freePort()

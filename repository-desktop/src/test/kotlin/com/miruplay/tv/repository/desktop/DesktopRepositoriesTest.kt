@@ -11,6 +11,7 @@ import com.miruplay.tv.model.RssDownloadStatus
 import com.miruplay.tv.model.RssDownloadTaskInfo
 import com.miruplay.tv.model.RssProcessedItemInfo
 import com.miruplay.tv.model.RssSubscriptionInfo
+import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.repository.BangumiCollectionService
 import com.miruplay.tv.repository.BangumiEpisodeCollection
 import com.miruplay.tv.repository.BangumiEpisodeCollectionType
@@ -20,6 +21,8 @@ import com.miruplay.tv.repository.BangumiUser
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.SCAN_PREFERENCES_MIN_INTERVAL_MS
 import com.miruplay.tv.sync.BangumiSyncCore
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -537,6 +540,48 @@ class DesktopRepositoriesTest {
             assertEquals(null, cleared.credentials.otlpAccessToken)
         } finally {
             deleteTempStore(storePath)
+        }
+    }
+
+    @Test
+    fun `desktop log upload config status and token persist with queue counts`() = runBlocking {
+        val storePath = tempStorePath()
+        try {
+            val repositories = DesktopRepositories.fileBacked(storePath)
+            repositories.logUpload.saveConfig(
+                enabled = true,
+                endpoint = "https://openobserve.example.com/api/default",
+                streamName = "miruplay",
+            )
+            repositories.logUpload.saveToken("test-token")
+            MiruLog.i("DesktopRepositoriesTest", "queued-1")
+            MiruLog.w("DesktopRepositoriesTest", "queued-2")
+            delay(100)
+
+            val statusBefore = repositories.logUpload.status.first()
+            assertTrue(statusBefore.pendingCount >= 2)
+            assertEquals(true, statusBefore.tokenConfigured)
+
+            val uploadResult = repositories.logUpload.uploadPendingLogs()
+            assertTrue(uploadResult.lastUploadStatus?.isNotBlank() == true)
+            assertEquals(true, uploadResult.tokenConfigured)
+
+            val reopened = DesktopRepositories.fileBacked(storePath)
+            val config = reopened.logUpload.getConfig()
+            assertEquals(true, config.enabled)
+            assertEquals("https://openobserve.example.com/api/default", config.endpoint)
+            assertEquals("miruplay", config.streamName)
+            assertEquals("test-token", reopened.credentials.otlpAccessToken)
+            assertTrue(config.lastUploadAt > 0L)
+            assertTrue(config.lastUploadStatus?.isNotBlank() == true)
+
+            reopened.logUpload.clearToken()
+            val cleared = DesktopRepositories.fileBacked(storePath)
+            assertEquals(false, cleared.logUpload.isTokenConfigured())
+            assertEquals(null, cleared.credentials.otlpAccessToken)
+        } finally {
+            deleteTempStore(storePath)
+            MiruLog.setSink(null)
         }
     }
 

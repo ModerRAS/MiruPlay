@@ -57,6 +57,8 @@ internal class DesktopRepositoryStore(
         Files.writeString(tempPath, json.encodeToString(state))
         Files.move(tempPath, storePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
     }
+
+    fun path(): Path = storePath
 }
 
 @Serializable
@@ -80,6 +82,11 @@ internal data class DesktopRepositoryState(
     val cloudDrivePassword: String? = null,
     val bangumiAccessToken: String? = null,
     val otlpAccessToken: String? = null,
+    val otlpEnabled: Boolean = false,
+    val otlpEndpoint: String = "",
+    val otlpStreamName: String = "miruplay",
+    val otlpLastUploadAt: Long = 0L,
+    val otlpLastUploadStatus: String? = null,
     val webControlEnabled: Boolean = false,
     val webControlAccessToken: String? = null,
 )

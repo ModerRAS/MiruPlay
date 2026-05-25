@@ -145,6 +145,33 @@ open class NanoHttpWebControlServer(
                 webControlService.deleteRssSubscription(rssId)
                 jsonResponse(Unit.serializer(), Unit)
             }
+            session.method == Method.GET && route == "/api/log-upload" -> {
+                jsonResponse(LogUploadDto.serializer(), webControlService.getLogUpload())
+            }
+            session.method == Method.PUT && route == "/api/log-upload/config" -> {
+                val request = parseBody(session, LogUploadConfigRequest.serializer())
+                jsonResponse(LogUploadDto.serializer(), webControlService.saveLogUploadConfig(request))
+            }
+            session.method == Method.POST && route == "/api/log-upload/token" -> {
+                val request = parseBody(session, LogUploadTokenRequest.serializer())
+                jsonResponse(LogUploadDto.serializer(), webControlService.saveLogUploadToken(request))
+            }
+            session.method == Method.DELETE && route == "/api/log-upload/token" -> {
+                jsonResponse(LogUploadDto.serializer(), webControlService.clearLogUploadToken())
+            }
+            session.method == Method.POST && route == "/api/log-upload/run" -> {
+                jsonResponse(LogUploadDto.serializer(), webControlService.uploadPendingLogs())
+            }
+            session.method == Method.GET && route == "/api/metadata" -> {
+                jsonResponse(MetadataSettingsDto.serializer(), webControlService.getMetadataSettings())
+            }
+            session.method == Method.POST && route == "/api/metadata/bangumi-token" -> {
+                val request = parseBody(session, BangumiTokenRequest.serializer())
+                jsonResponse(MetadataSettingsDto.serializer(), webControlService.saveBangumiToken(request))
+            }
+            session.method == Method.DELETE && route == "/api/metadata/bangumi-token" -> {
+                jsonResponse(MetadataSettingsDto.serializer(), webControlService.clearBangumiToken())
+            }
             session.method == Method.GET && route == "/api/library" -> {
                 val query = session.utf8QueryParameter("query")
                 jsonResponse(LibraryDto.serializer(), webControlService.searchLibrary(query))
