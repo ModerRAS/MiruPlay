@@ -154,12 +154,7 @@ MiruPlay-Windows/
 5. 从 `desktop-app/build/install/desktop-app/bin/desktop-app.bat` 启动，点击 `Check runtime` 验证发行包内运行时。
 6. 运行 `.\tools\smoke-mpv-rife.ps1 -RuntimeRoot .\runtime\mpv -Backend DIRECTML -ReportPath .\build\mpv-smoke\rife-directml-report.json` 做真实 RIFE filter 烟测并保留 JSON 证据；在合适的 NVIDIA 驱动机器上再跑 `-Backend NVIDIA -ReportPath ...`。
 
-开发机注意：当前 Android Gradle Plugin/Gradle 组合应使用 JDK 21；如果系统 `java` 已切到 JDK 25，可在命令前临时设置：
-
-```powershell
-$env:JAVA_HOME='C:\Users\adqew\scoop\apps\temurin21-jdk\current'
-$env:Path="$env:JAVA_HOME\bin;$env:Path"
-```
+开发机注意：当前 Android Gradle Plugin/Gradle 组合应使用 JDK 21。仓库内 `gradlew`/`gradlew.bat` 现在会优先尝试 `JAVA21_HOME`、`JDK21_HOME`，以及常见的 Scoop `temurin21-jdk/openjdk21` 路径；只有这些都不可用时才回退到当前 `JAVA_HOME`/`PATH`。如需关闭该自动选择，可设置 `MIRUPLAY_SKIP_JDK21_AUTO=true`。
 
 ## 风险和注意
 

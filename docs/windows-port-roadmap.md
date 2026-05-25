@@ -19,6 +19,12 @@ The port is complete only when all of these are proven by current evidence:
 | Cloud/RSS | Windows can configure CloudDrive2/RSS, dry-run safely, and run confirmed live submit/organize flows. | `:cloud-drive-desktop:test`, `:sync-engine-desktop:test`, dry-run report, explicit live QA report. |
 | Release | CI and local release gates cover Android build, desktop tests, runtime checks, and screenshot QA. | CI green, local verification command log, packaged artifact smoke. |
 
+## Local Environment Guardrails
+
+- MiruPlay verification commands require JDK 21.
+- The repository `gradlew` / `gradlew.bat` wrappers now prefer `JAVA21_HOME`, then `JDK21_HOME`, then common Scoop JDK 21 paths (`temurin21-jdk`, `openjdk21`) before falling back to the current Java environment.
+- Set `MIRUPLAY_SKIP_JDK21_AUTO=true` only if you intentionally need to bypass the wrapper's JDK 21 preference.
+
 ## Current Status
 
 | Area | Status | Notes |
