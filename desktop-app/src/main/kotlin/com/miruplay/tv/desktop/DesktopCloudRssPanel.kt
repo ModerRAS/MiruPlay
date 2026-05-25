@@ -95,6 +95,7 @@ import com.miruplay.tv.model.mediaSourceStatusText
 import com.miruplay.tv.model.playbackSettingsTiles
 import com.miruplay.tv.model.settingsClearTokenActionLabel
 import com.miruplay.tv.model.settingsDesktopScanStatusMessage
+import com.miruplay.tv.model.settingsDesktopLogUploadStatusMessage
 import com.miruplay.tv.model.settingsDesktopWebUiStatusMessage
 import com.miruplay.tv.model.settingsAutoScanToggleLabel
 import com.miruplay.tv.model.settingsCurrentScanIntervalStatus
@@ -123,6 +124,7 @@ import com.miruplay.tv.model.settingsWebUiToggleActionLabel
 import com.miruplay.tv.model.stepDesktopSettingsSection
 import com.miruplay.tv.model.rssSubscriptionPreview
 import com.miruplay.tv.model.rssSubscriptionsTitleLabel
+import com.miruplay.tv.model.logUploadSettingsTiles
 import com.miruplay.tv.model.scanSettingsTiles
 import com.miruplay.tv.model.sourceSettingsTiles
 import com.miruplay.tv.model.webUiSettingsTiles
@@ -363,8 +365,8 @@ internal fun CloudRssPanel(
             )
             MiruPlaySettingsSection.LOG_UPLOAD -> SettingsSummaryContent(
                 section = selectedSection,
-                tiles = desktopLogUploadSettingsTiles(),
-                status = "日志上报配置在 Android TV 设置页生效；本地日志会按 OpenObserve JSON 配置写入上报队列。",
+                tiles = logUploadSettingsTiles(),
+                status = settingsDesktopLogUploadStatusMessage(),
                 actions = listOf(SettingsQuickAction(settingsOpenLibraryActionLabel(), onOpenLibrary)),
                 onFocusSectionMenu = { focusSelectedSectionMenu() },
                 modifier = Modifier.weight(1f),
@@ -2390,21 +2392,3 @@ internal fun cloudRssSyncPathPreview(
         )
     }
 
-private fun desktopLogUploadSettingsTiles(): List<SettingsSummaryTile> =
-    listOf(
-        SettingsSummaryTile(
-            label = "OpenObserve",
-            value = "JSON",
-            detail = "API 地址、Stream 和访问令牌由 Android TV 设置页保存。",
-        ),
-        SettingsSummaryTile(
-            label = "本地日志",
-            value = "自动上报",
-            detail = "应用日志进入本地队列后按配置批量发送。",
-        ),
-        SettingsSummaryTile(
-            label = "凭据",
-            value = "安全存储",
-            detail = "令牌只保存配置状态，清理后会停止上报。",
-        ),
-    )

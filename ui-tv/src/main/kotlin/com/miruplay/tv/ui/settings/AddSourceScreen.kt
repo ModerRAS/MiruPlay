@@ -152,12 +152,11 @@ import com.miruplay.tv.model.mediaSourceTestConnectionActionLabel
 import com.miruplay.tv.model.mediaSourceUsernameOptionalFieldLabel
 import com.miruplay.tv.model.playbackEndPlayNextEpisodeActionLabel
 import com.miruplay.tv.model.playbackEndPlayNextEpisodeDetail
-import com.miruplay.tv.model.playbackEndPlayNextEpisodeSummary
 import com.miruplay.tv.model.playbackEndReturnToDetailActionLabel
 import com.miruplay.tv.model.playbackEndReturnToDetailDetail
-import com.miruplay.tv.model.playbackEndReturnToDetailSummary
 import com.miruplay.tv.model.playbackEndSettingsDescriptionLabel
 import com.miruplay.tv.model.playbackEndSettingsTitleLabel
+import com.miruplay.tv.model.playbackEndMenuSummary
 import com.miruplay.tv.model.metadataPanelTitleLabel
 import com.miruplay.tv.model.metadataBangumiTokenFieldLabel
 import com.miruplay.tv.model.metadataBangumiTokenMissingStatus
@@ -165,9 +164,14 @@ import com.miruplay.tv.model.metadataBangumiTokenOptionalHint
 import com.miruplay.tv.model.metadataBangumiTokenSavedStatus
 import com.miruplay.tv.model.settingsAutoScanToggleLabel
 import com.miruplay.tv.model.settingsBackActionLabel
+import com.miruplay.tv.model.settingsAndroidTvLogUploadHintMessage
+import com.miruplay.tv.model.settingsAndroidTvLogUploadMenuSummary
+import com.miruplay.tv.model.settingsAndroidTvLogUploadStatusMessage
 import com.miruplay.tv.model.settingsCloudDriveMenuSummary
 import com.miruplay.tv.model.settingsCurrentScanIntervalStatus
 import com.miruplay.tv.model.settingsLibraryDisplayTitleLabel
+import com.miruplay.tv.model.settingsMenuPanelDescriptionAndroidTv
+import com.miruplay.tv.model.settingsMenuPanelTitle
 import com.miruplay.tv.model.settingsMergeSameAnimeStatus
 import com.miruplay.tv.model.settingsMergeSameAnimeToggleLabel
 import com.miruplay.tv.model.settingsMetadataTokenMenuSummary
@@ -682,13 +686,13 @@ private fun SettingsMenuPanel(
 ) {
     SettingsPanel(modifier = modifier) {
         Text(
-            text = "设置菜单",
+            text = settingsMenuPanelTitle(),
             style = TvTypography.subtitle,
             color = TextPrimary
         )
         Spacer(Modifier.height(6.dp))
         Text(
-            text = "按上下切换分类，向右进入当前设置。",
+            text = settingsMenuPanelDescriptionAndroidTv(),
             style = TvTypography.caption,
             color = TextSecondary
         )
@@ -704,10 +708,10 @@ private fun SettingsMenuPanel(
                 val summary = when (section) {
                     MiruPlaySettingsSection.WEB_UI -> settingsWebUiMenuSummary(webUiAddressCount)
                     MiruPlaySettingsSection.SOURCES -> settingsSourcesMenuSummary(sourcesCount)
-                    MiruPlaySettingsSection.PLAYBACK -> playbackEndAction.menuSummary()
+                    MiruPlaySettingsSection.PLAYBACK -> playbackEndAction.playbackEndMenuSummary()
                     MiruPlaySettingsSection.CLOUD_DRIVE -> settingsCloudDriveMenuSummary(cloudDriveEnabled, rssCount)
                     MiruPlaySettingsSection.SCAN -> settingsScanMenuSummary(autoScanEnabled, mergeSameAnimeEnabled)
-                    MiruPlaySettingsSection.LOG_UPLOAD -> "在桌面端配置"
+                    MiruPlaySettingsSection.LOG_UPLOAD -> settingsAndroidTvLogUploadMenuSummary()
                     MiruPlaySettingsSection.METADATA -> settingsMetadataTokenMenuSummary(hasToken)
                 }
                 SettingsMenuItem(
@@ -1046,12 +1050,12 @@ private fun SettingsContent(
         ) {
             SettingsPanel {
                 Text(
-                    text = "Android TV 端暂不提供日志上报配置。",
+                    text = settingsAndroidTvLogUploadStatusMessage(),
                     style = TvTypography.body,
                     color = TextSecondary
                 )
                 Text(
-                    text = "请在桌面端设置页或 Web 控制端配置 OpenObserve。",
+                    text = settingsAndroidTvLogUploadHintMessage(),
                     style = TvTypography.caption,
                     color = TextSecondary
                 )
@@ -2704,11 +2708,6 @@ private fun ScanOptionChip(
             maxLines = 1
         )
     }
-}
-
-private fun PlaybackEndAction.menuSummary(): String = when (this) {
-    PlaybackEndAction.RETURN_TO_DETAIL -> playbackEndReturnToDetailSummary()
-    PlaybackEndAction.PLAY_NEXT_EPISODE -> playbackEndPlayNextEpisodeSummary()
 }
 
 @Composable

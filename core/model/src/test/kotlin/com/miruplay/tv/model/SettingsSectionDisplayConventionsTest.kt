@@ -45,6 +45,8 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("定时已开", settingsScanMenuSummary(autoScanEnabled = true, mergeSameAnimeEnabled = false))
         assertEquals("同番合并", settingsScanMenuSummary(autoScanEnabled = false, mergeSameAnimeEnabled = true))
         assertEquals("定时关闭", settingsScanMenuSummary(autoScanEnabled = false, mergeSameAnimeEnabled = false))
+        assertEquals("OpenObserve", settingsLogUploadMenuSummary())
+        assertEquals("在桌面端配置", settingsAndroidTvLogUploadMenuSummary())
         assertEquals("Token 已设置", settingsMetadataTokenMenuSummary(hasToken = true))
         assertEquals("未设置", settingsMetadataTokenMenuSummary(hasToken = false))
         assertEquals("媒体库更新", settingsDesktopScanMenuSummary())
@@ -67,7 +69,14 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("播完动作", MiruPlaySettingsSection.PLAYBACK.settingsMenuSummary(androidInput))
         assertEquals("4 个订阅", MiruPlaySettingsSection.CLOUD_DRIVE.settingsMenuSummary(androidInput))
         assertEquals("定时 · 合并", MiruPlaySettingsSection.SCAN.settingsMenuSummary(androidInput))
+        assertEquals("OpenObserve", MiruPlaySettingsSection.LOG_UPLOAD.settingsMenuSummary(androidInput))
         assertEquals("Token 已设置", MiruPlaySettingsSection.METADATA.settingsMenuSummary(androidInput))
+
+        val androidLogUploadInput = androidInput.copy(logUploadSummary = settingsAndroidTvLogUploadMenuSummary())
+        assertEquals(
+            "在桌面端配置",
+            MiruPlaySettingsSection.LOG_UPLOAD.settingsMenuSummary(androidLogUploadInput),
+        )
     }
 
     @Test
@@ -86,6 +95,12 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("保存 Token", settingsSaveTokenActionLabel())
         assertEquals("清除 Token", settingsClearTokenActionLabel())
         assertEquals("扫描入口保留在媒体库海报墙和 CloudDrive 同步流程中。", settingsDesktopScanStatusMessage())
+        assertEquals("Android TV 端暂不提供日志上报配置。", settingsAndroidTvLogUploadStatusMessage())
+        assertEquals("请在桌面端设置页或 Web 控制端配置 OpenObserve。", settingsAndroidTvLogUploadHintMessage())
+        assertEquals(
+            "日志上报配置在 Android TV 设置页生效；本地日志会按 OpenObserve JSON 配置写入上报队列。",
+            settingsDesktopLogUploadStatusMessage(),
+        )
         assertEquals(
             "WebUI 当前未启用；Windows 已复用同一套访问令牌和地址生成规则。",
             settingsDesktopWebUiStatusMessage(enabled = false, addressCount = 2),
@@ -212,6 +227,10 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("未启用", settingsCloudRssOverviewValue(false))
         assertEquals("2 个", settingsCloudRssSubscriptionsValue(2))
         assertEquals("Cloud WebDAV · WebDAV", settingsCloudRssLinkedSourceValue("Cloud WebDAV · WebDAV"))
+        val logUploadTiles = logUploadSettingsTiles()
+        assertEquals(3, logUploadTiles.size)
+        assertEquals("OpenObserve", logUploadTiles[0].label)
+        assertEquals("JSON", logUploadTiles[0].value)
     }
 
     @Test
