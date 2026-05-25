@@ -88,6 +88,7 @@ data class SourceScanResponse(
     val episodesFound: Int,
     val newEpisodes: Int,
     val updatedEpisodes: Int,
+    val error: String? = null,
 )
 
 @Serializable

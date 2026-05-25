@@ -100,8 +100,11 @@ suspend fun MediaSourceRepository.listWebControlSources(): List<MediaSourceInfo>
 suspend fun MediaSourceRepository.scanAllWebControlSources(
     scanSource: suspend (MediaSourceInfo) -> Result<SourceScanResponse>,
 ): List<SourceScanResponse> =
-    getSources().getOrNull().orEmpty().mapNotNull { source ->
-        scanSource(source).getOrNull()
+    getSources().getOrNull().orEmpty().map { source ->
+        when (val result = scanSource(source)) {
+            is Result.Success -> result.data
+            is Result.Error -> source.toWebControlSourceScanErrorResponse(result.error.toUserMessage())
+        }
     }
 
 fun parseWebControlSourceType(type: String): MediaSourceType =
@@ -161,6 +164,16 @@ fun toWebControlSourceScanResponse(
         episodesFound = episodesFound.coerceAtLeast(0),
         newEpisodes = newEpisodes.coerceAtLeast(0),
         updatedEpisodes = updatedEpisodes.coerceAtLeast(0),
+    )
+
+fun MediaSourceInfo.toWebControlSourceScanErrorResponse(message: String): SourceScanResponse =
+    SourceScanResponse(
+        sourceId = id,
+        animeName = name.ifBlank { type.webControlDefaultSourceName() },
+        episodesFound = 0,
+        newEpisodes = 0,
+        updatedEpisodes = 0,
+        error = message.takeIf { it.isNotBlank() } ?: "扫描媒体源失败",
     )
 
 private fun MediaSourceType.webControlSourceLocation(location: String): String =

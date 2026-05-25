@@ -258,7 +258,7 @@ class WebControlSourceRequestsTest {
     }
 
     @Test
-    fun `repository scan all WebUI sources skips failed scans`() = runBlocking {
+    fun `repository scan all WebUI sources preserves failed scan results`() = runBlocking {
         val local = MediaSourceInfoConventions.local(name = "Local", rootPath = "D:/Anime").copy(id = 7L)
         val remote = MediaSourceInfoConventions.webDav(name = "Remote", url = "https://dav.example.test").copy(id = 8L)
         val repository = FakeMediaSourceRepository(sources = listOf(local, remote))
@@ -282,9 +282,13 @@ class WebControlSourceRequestsTest {
         }
 
         assertEquals(listOf(7L, 8L), scannedSourceIds)
-        assertEquals(1, responses.size)
-        assertEquals(7L, responses.single().sourceId)
-        assertEquals("Local", responses.single().animeName)
+        assertEquals(2, responses.size)
+        assertEquals(7L, responses[0].sourceId)
+        assertEquals("Local", responses[0].animeName)
+        assertEquals(null, responses[0].error)
+        assertEquals(8L, responses[1].sourceId)
+        assertEquals("Remote", responses[1].animeName)
+        assertEquals("与 Remote 的连接已断开", responses[1].error)
     }
 
     @Test
@@ -388,6 +392,24 @@ class WebControlSourceRequestsTest {
         assertEquals(0, response.episodesFound)
         assertEquals(0, response.newEpisodes)
         assertEquals(0, response.updatedEpisodes)
+        assertEquals(null, response.error)
+    }
+
+    @Test
+    fun `scan error response maps source identity and message`() {
+        val source = MediaSourceInfoConventions.smb(
+            name = "",
+            url = "smb://server/share",
+        ).copy(id = 9L)
+
+        val response = source.toWebControlSourceScanErrorResponse("扫描失败")
+
+        assertEquals(9L, response.sourceId)
+        assertEquals("SMB 共享", response.animeName)
+        assertEquals(0, response.episodesFound)
+        assertEquals(0, response.newEpisodes)
+        assertEquals(0, response.updatedEpisodes)
+        assertEquals("扫描失败", response.error)
     }
 
     private class FakeMediaSourceRepository(
