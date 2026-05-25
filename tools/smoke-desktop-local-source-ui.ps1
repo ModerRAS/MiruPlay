@@ -190,45 +190,8 @@ function Get-FocusedTextWithRetry {
 
 function Assert-ScreenshotHasContent {
     param([string]$Path)
-    $file = Get-Item -LiteralPath $Path
-    if ($file.Length -lt 20000) {
-        throw "Screenshot file is unexpectedly small: $Path ($($file.Length) bytes)"
-    }
 
-    $bitmap = [System.Drawing.Bitmap]::FromFile($Path)
-    try {
-        $colors = New-Object 'System.Collections.Generic.HashSet[int]'
-        $redAccentPixels = 0
-        $brightTextPixels = 0
-        $xStep = [Math]::Max(1, [int]($bitmap.Width / 96))
-        $yStep = [Math]::Max(1, [int]($bitmap.Height / 64))
-        for ($x = 0; $x -lt $bitmap.Width; $x += $xStep) {
-            for ($y = 0; $y -lt $bitmap.Height; $y += $yStep) {
-                $pixel = $bitmap.GetPixel($x, $y)
-                [void]$colors.Add($pixel.ToArgb())
-                $r = [int]$pixel.R
-                $g = [int]$pixel.G
-                $b = [int]$pixel.B
-                if ($r -ge 150 -and $g -ge 35 -and $g -le 125 -and $b -ge 45 -and $b -le 155 -and ($r - $g) -ge 55) {
-                    $redAccentPixels++
-                }
-                if ($r -ge 140 -and $g -ge 140 -and $b -ge 140) {
-                    $brightTextPixels++
-                }
-            }
-        }
-        if ($colors.Count -lt 28) {
-            throw "Screenshot appears blank or nearly blank: $Path"
-        }
-        if ($redAccentPixels -lt 8) {
-            throw "Screenshot is missing the expected MiruPlay red accent: $Path"
-        }
-        if ($brightTextPixels -lt 8) {
-            throw "Screenshot has too little readable light text: $Path"
-        }
-    } finally {
-        $bitmap.Dispose()
-    }
+    Assert-DesktopSmokeScreenshotQuality -Path $Path
 }
 
 function Save-WindowScreenshot {
