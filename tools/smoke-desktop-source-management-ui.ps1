@@ -12,6 +12,7 @@ $scriptRoot = if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) {
 } else {
     $PSScriptRoot
 }
+. (Join-Path $scriptRoot "desktop-window-helper.ps1")
 if ([string]::IsNullOrWhiteSpace($AppScript)) {
     $AppScript = Join-Path $scriptRoot "..\desktop-app\build\install\desktop-app\bin\desktop-app.bat"
 }
@@ -63,28 +64,6 @@ function Resolve-FullPath {
         return [System.IO.Path]::GetFullPath($Path)
     }
     return [System.IO.Path]::GetFullPath((Join-Path (Get-Location) $Path))
-}
-
-function Get-MiruPlayWindowProcess {
-    Get-Process |
-        Where-Object {
-            ($_.MainWindowTitle -like "*MiruPlay Desktop*" -or $_.MainWindowTitle -like "*MiruPlay 桌面版*" -or ($_.ProcessName -eq "java" -and $_.MainWindowTitle -like "*MiruPlay*")) -and
-            $_.MainWindowHandle -ne 0
-        } |
-        Select-Object -First 1
-}
-
-function Wait-MiruPlayWindow {
-    $deadline = (Get-Date).AddSeconds(30)
-    do {
-        $process = Get-MiruPlayWindowProcess
-        if ($process) {
-            return $process
-        }
-        Start-Sleep -Milliseconds 300
-    } while ((Get-Date) -lt $deadline)
-
-    throw "MiruPlay Desktop window did not appear within 30 seconds."
 }
 
 function Get-WindowRect {
@@ -265,7 +244,7 @@ $resolvedOutputRoot = Resolve-FullPath $OutputRoot
 if (-not (Test-Path -LiteralPath $resolvedAppScript)) {
     throw "Desktop app launcher was not found at $resolvedAppScript. Run :desktop-app:installDist first."
 }
-if (Get-MiruPlayWindowProcess) {
+if (Get-MiruPlayDesktopWindowProcess) {
     throw "A MiruPlay Desktop window is already open. Close it before running this isolated smoke test."
 }
 
@@ -369,7 +348,7 @@ $env:MIRUPLAY_DESKTOP_STORE = $storePath
 $startedProcess = $null
 try {
     $startedProcess = Start-Process -FilePath $resolvedAppScript -PassThru
-    $windowProcess = Wait-MiruPlayWindow
+    $windowProcess = Wait-MiruPlayDesktopWindowProcess
 
     $state = Wait-StoreState -Path $storePath -Description "preloaded local sources" -Predicate {
         param($state)
@@ -445,7 +424,7 @@ try {
 } finally {
     $env:MIRUPLAY_DESKTOP_STORE = $previousStoreEnv
     if (-not $KeepOpen) {
-        $windowProcess = Get-MiruPlayWindowProcess
+        $windowProcess = Get-MiruPlayDesktopWindowProcess
         if ($windowProcess) {
             $windowProcess.CloseMainWindow() | Out-Null
             Start-Sleep -Milliseconds 700
@@ -473,3 +452,4 @@ Write-Output "Saved-source keyboard screenshot: $sourceSwitchScreenshotPath"
 Write-Output "Cleared screenshot: $clearedScreenshotPath"
 Write-Output "Remove ready screenshot: $removeReadyScreenshotPath"
 Write-Output "Removed screenshot: $removedScreenshotPath"
+

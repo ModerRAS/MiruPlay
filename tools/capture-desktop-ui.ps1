@@ -11,6 +11,7 @@ $scriptRoot = if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) {
 } else {
     $PSScriptRoot
 }
+. (Join-Path $scriptRoot "desktop-window-helper.ps1")
 if ([string]::IsNullOrWhiteSpace($AppScript)) {
     $AppScript = Join-Path $scriptRoot "..\desktop-app\build\install\desktop-app\bin\desktop-app.bat"
 }
@@ -52,53 +53,6 @@ function Resolve-FullPath {
         return [System.IO.Path]::GetFullPath($Path)
     }
     return [System.IO.Path]::GetFullPath((Join-Path (Get-Location) $Path))
-}
-
-function Get-MiruPlayWindowProcess {
-    Get-Process |
-        Where-Object {
-            ($_.MainWindowTitle -like "*MiruPlay Desktop*" -or $_.MainWindowTitle -like "*MiruPlay 桌面版*" -or ($_.ProcessName -eq "java" -and $_.MainWindowTitle -like "*MiruPlay*")) -and
-            $_.MainWindowHandle -ne 0
-        } |
-        Select-Object -First 1
-}
-
-function Get-MiruPlayWindowProcesses {
-    Get-Process |
-        Where-Object {
-            ($_.MainWindowTitle -like "*MiruPlay Desktop*" -or $_.MainWindowTitle -like "*MiruPlay 桌面版*" -or ($_.ProcessName -eq "java" -and $_.MainWindowTitle -like "*MiruPlay*")) -and
-            $_.MainWindowHandle -ne 0
-        }
-}
-
-function Stop-MiruPlayWindowProcesses {
-    $processes = @(Get-MiruPlayWindowProcesses)
-    foreach ($process in $processes) {
-        try {
-            $process.CloseMainWindow() | Out-Null
-            Start-Sleep -Milliseconds 400
-            if (-not $process.HasExited) {
-                Stop-Process -Id $process.Id -Force
-            }
-        } catch {
-            if (-not $process.HasExited) {
-                Stop-Process -Id $process.Id -Force
-            }
-        }
-    }
-}
-
-function Wait-MiruPlayWindow {
-    $deadline = (Get-Date).AddSeconds(30)
-    do {
-        $process = Get-MiruPlayWindowProcess
-        if ($process) {
-            return $process
-        }
-        Start-Sleep -Milliseconds 300
-    } while ((Get-Date) -lt $deadline)
-
-    throw "MiruPlay Desktop window did not appear within 30 seconds."
 }
 
 function Get-WindowRect {
@@ -229,7 +183,7 @@ if (-not (Test-Path -LiteralPath $resolvedOutputDir)) {
 
 Stop-MiruPlayWindowProcesses
 $startedProcess = Start-Process -FilePath $resolvedAppScript -PassThru
-$windowProcess = Wait-MiruPlayWindow
+$windowProcess = Wait-MiruPlayDesktopWindowProcess
 
 $captures = @()
 $captures += Save-WindowScreenshot -Process $windowProcess -Name "library" -Directory $resolvedOutputDir
@@ -262,3 +216,4 @@ if (-not $KeepOpen) {
 }
 
 $captures | ForEach-Object { Write-Output $_ }
+
