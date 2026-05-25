@@ -23,6 +23,9 @@ interface AnimeDao {
     @Query("SELECT $ANIME_COLUMNS FROM anime WHERE id = :id")
     suspend fun getById(id: String): AnimeEntity?
 
+    @Query("SELECT $ANIME_COLUMNS FROM anime WHERE id IN (:ids)")
+    suspend fun getByIds(ids: List<String>): List<AnimeEntity>
+
     @Query("SELECT $ANIME_COLUMNS FROM anime ORDER BY title COLLATE NOCASE ASC")
     suspend fun getAll(): List<AnimeEntity>
 

@@ -494,19 +494,23 @@ class DesktopRepositoriesTest {
             repositories.credentials.cloudDriveToken = "cloud-token"
             repositories.credentials.cloudDrivePassword = "cloud-password"
             repositories.credentials.bangumiAccessToken = "bangumi-token"
+            repositories.credentials.otlpAccessToken = "otlp-token"
 
             val reopened = DesktopRepositories.fileBacked(storePath)
             assertEquals("cloud-token", reopened.credentials.cloudDriveToken)
             assertEquals("cloud-password", reopened.credentials.cloudDrivePassword)
             assertEquals("bangumi-token", reopened.credentials.bangumiAccessToken)
+            assertEquals("otlp-token", reopened.credentials.otlpAccessToken)
 
             reopened.credentials.clearCloudDriveCredentials()
             reopened.credentials.clearBangumiToken()
+            reopened.credentials.clearOtlpAccessToken()
 
             val cleared = DesktopRepositories.fileBacked(storePath)
             assertEquals(null, cleared.credentials.cloudDriveToken)
             assertEquals(null, cleared.credentials.cloudDrivePassword)
             assertEquals(null, cleared.credentials.bangumiAccessToken)
+            assertEquals(null, cleared.credentials.otlpAccessToken)
         } finally {
             deleteTempStore(storePath)
         }

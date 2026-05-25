@@ -821,11 +821,11 @@ class DesktopSettingsPanelTest {
     @Test
     fun `desktop settings categories use shared TV section contract`() {
         assertEquals(
-            listOf("媒体源", "播放", "云盘", "扫描", "元数据"),
+            listOf("媒体源", "播放", "云盘", "扫描", "日志", "元数据"),
             desktopSettingsSectionOrder.map { it.desktopTitle },
         )
         assertEquals(
-            listOf("本地、WebDAV、SMB", "mpv 与 RIFE", "RSS 离线下载与入库", "媒体库更新", "Bangumi 匹配"),
+            listOf("本地、WebDAV、SMB", "mpv 与 RIFE", "RSS 离线下载与入库", "媒体库更新", "OpenObserve JSON", "Bangumi 匹配"),
             desktopSettingsSectionOrder.map { it.desktopDescription },
         )
     }
@@ -836,7 +836,8 @@ class DesktopSettingsPanelTest {
         assertEquals(MiruPlaySettingsSection.PLAYBACK, MiruPlaySettingsSection.SOURCES.stepDesktopSettingsSection(1))
         assertEquals(MiruPlaySettingsSection.CLOUD_DRIVE, MiruPlaySettingsSection.PLAYBACK.stepDesktopSettingsSection(1))
         assertEquals(MiruPlaySettingsSection.PLAYBACK, MiruPlaySettingsSection.CLOUD_DRIVE.stepDesktopSettingsSection(-1))
-        assertEquals(MiruPlaySettingsSection.METADATA, MiruPlaySettingsSection.SCAN.stepDesktopSettingsSection(1))
+        assertEquals(MiruPlaySettingsSection.LOG_UPLOAD, MiruPlaySettingsSection.SCAN.stepDesktopSettingsSection(1))
+        assertEquals(MiruPlaySettingsSection.METADATA, MiruPlaySettingsSection.LOG_UPLOAD.stepDesktopSettingsSection(1))
         assertNull(MiruPlaySettingsSection.METADATA.stepDesktopSettingsSection(1))
     }
 

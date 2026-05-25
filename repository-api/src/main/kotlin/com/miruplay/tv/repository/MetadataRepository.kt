@@ -7,6 +7,7 @@ import com.miruplay.tv.model.Episode
 interface MetadataRepository {
     suspend fun cacheMetadata(anime: Anime): Result<Unit>
     suspend fun getCachedMetadata(animeId: String): Result<Anime?>
+    suspend fun getCachedMetadata(animeIds: Collection<String>): Result<List<Anime>>
     suspend fun getCachedEpisode(episodeId: String): Result<Episode?>
     suspend fun getCachedEpisodes(animeId: String): Result<List<Episode>>
     suspend fun cacheEpisodes(animeId: String, episodes: List<Episode>): Result<Unit>

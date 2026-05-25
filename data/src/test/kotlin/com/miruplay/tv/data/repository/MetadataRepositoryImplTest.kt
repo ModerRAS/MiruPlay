@@ -237,6 +237,34 @@ class MetadataRepositoryImplTest {
         assertEquals(11111, cached.tmdbId)
     }
 
+    @Test
+    fun `getCachedMetadata collection should return cached anime with episodes`() = runBlocking {
+        repository.cacheMetadata(createTestAnime(id = "anime-a", title = "Anime A"))
+        repository.cacheMetadata(createTestAnime(id = "anime-b", title = "Anime B"))
+        insertEpisodeEntities("anime-a", count = 2)
+        insertEpisodeEntities("anime-b", count = 1)
+
+        val cached = repository.getCachedMetadata(listOf("anime-a", "anime-b", "missing")).getOrNull()!!
+
+        assertEquals(2, cached.size)
+        assertEquals(2, cached.first { it.id == "anime-a" }.episodeCount)
+        assertEquals(1, cached.first { it.id == "anime-b" }.episodeCount)
+    }
+
+    @Test
+    fun `getCachedMetadata collection should skip expired anime`() = runBlocking {
+        repository.cacheMetadata(createTestAnime(id = "fresh-anime"))
+        repository.cacheMetadata(createTestAnime(id = "expired-anime"))
+        val expiredEntity = animeDao.getById("expired-anime")!!.copy(
+            lastUpdated = System.currentTimeMillis() - 25 * 60 * 60 * 1000L
+        )
+        animeDao.insert(expiredEntity)
+
+        val cached = repository.getCachedMetadata(listOf("fresh-anime", "expired-anime")).getOrNull()!!
+
+        assertEquals(listOf("fresh-anime"), cached.map { it.id })
+    }
+
     // ── getCachedEpisodes ────────────────────────────────────────
 
     @Test

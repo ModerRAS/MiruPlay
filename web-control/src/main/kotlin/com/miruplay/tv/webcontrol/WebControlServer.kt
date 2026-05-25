@@ -1,6 +1,7 @@
 package com.miruplay.tv.webcontrol
 
 import android.content.Context
+import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.core.common.WebControlConfig
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.repository.WebControlAccessManager
@@ -37,12 +38,14 @@ class WebControlServer @Inject constructor(
         webControlPreferences.accessToken
         start(SOCKET_READ_TIMEOUT, false)
         running = true
+        MiruLog.i("WebControlServer", "Web control server started", mapOf("port" to DEFAULT_PORT.toString()))
     }
 
     fun stopIfRunning() {
         if (!running) return
         stop()
         running = false
+        MiruLog.i("WebControlServer", "Web control server stopped")
     }
 
     override fun serve(session: IHTTPSession): Response {
@@ -64,8 +67,26 @@ class WebControlServer @Inject constructor(
                 serveStatic(session)
             }
         } catch (e: IllegalArgumentException) {
+            MiruLog.w(
+                "WebControlServer",
+                "Web API bad request",
+                e,
+                mapOf(
+                    "method" to session.method.name,
+                    "uri" to session.uri
+                )
+            )
             errorResponse(Response.Status.BAD_REQUEST, e.message ?: "请求参数不正确")
         } catch (e: Exception) {
+            MiruLog.e(
+                "WebControlServer",
+                "Web API internal error",
+                e,
+                mapOf(
+                    "method" to session.method.name,
+                    "uri" to session.uri
+                )
+            )
             errorResponse(Response.Status.INTERNAL_ERROR, e.message ?: "服务器内部错误")
         }
     }
@@ -146,6 +167,33 @@ class WebControlServer @Inject constructor(
                 val rssId = segments[3].toLongOrNull() ?: throw IllegalArgumentException("RSS 订阅 ID 不正确")
                 webControlService.deleteRssSubscription(rssId)
                 jsonResponse(Unit.serializer(), Unit)
+            }
+            session.method == Method.GET && route == "/api/log-upload" -> {
+                jsonResponse(LogUploadDto.serializer(), webControlService.getLogUpload())
+            }
+            session.method == Method.PUT && route == "/api/log-upload/config" -> {
+                val request = parseBody(session, LogUploadConfigRequest.serializer())
+                jsonResponse(LogUploadDto.serializer(), webControlService.saveLogUploadConfig(request))
+            }
+            session.method == Method.POST && route == "/api/log-upload/token" -> {
+                val request = parseBody(session, LogUploadTokenRequest.serializer())
+                jsonResponse(LogUploadDto.serializer(), webControlService.saveLogUploadToken(request))
+            }
+            session.method == Method.DELETE && route == "/api/log-upload/token" -> {
+                jsonResponse(LogUploadDto.serializer(), webControlService.clearLogUploadToken())
+            }
+            session.method == Method.POST && route == "/api/log-upload/run" -> {
+                jsonResponse(LogUploadDto.serializer(), webControlService.uploadPendingLogs())
+            }
+            session.method == Method.GET && route == "/api/metadata" -> {
+                jsonResponse(MetadataSettingsDto.serializer(), webControlService.getMetadataSettings())
+            }
+            session.method == Method.POST && route == "/api/metadata/bangumi-token" -> {
+                val request = parseBody(session, BangumiTokenRequest.serializer())
+                jsonResponse(MetadataSettingsDto.serializer(), webControlService.saveBangumiToken(request))
+            }
+            session.method == Method.DELETE && route == "/api/metadata/bangumi-token" -> {
+                jsonResponse(MetadataSettingsDto.serializer(), webControlService.clearBangumiToken())
             }
             session.method == Method.GET && route == "/api/library" -> {
                 val query = session.utf8QueryParameter("query")

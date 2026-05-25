@@ -16,6 +16,9 @@ interface EpisodeDao {
     @Query("SELECT $EPISODE_COLUMNS FROM episode WHERE anime_id = :animeId ORDER BY season_number ASC, episode_number ASC")
     suspend fun getByAnimeId(animeId: String): List<EpisodeEntity>
 
+    @Query("SELECT $EPISODE_COLUMNS FROM episode WHERE anime_id IN (:animeIds) ORDER BY anime_id ASC, season_number ASC, episode_number ASC")
+    suspend fun getByAnimeIds(animeIds: List<String>): List<EpisodeEntity>
+
     @Query("SELECT $EPISODE_COLUMNS FROM episode WHERE file_path = :path LIMIT 1")
     suspend fun getByPath(path: String): EpisodeEntity?
 
