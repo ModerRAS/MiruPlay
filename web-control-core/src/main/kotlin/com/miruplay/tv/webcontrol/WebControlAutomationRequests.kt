@@ -78,12 +78,18 @@ suspend fun CloudDriveRssActionCoordinator.deleteWebControlRssSubscription(id: L
 suspend fun CloudDriveAutomationRepository.getWebControlCloudDriveAutomation(
     credentials: CloudDriveCredentialStore,
 ): CloudDriveAutomationDto {
-    val config = requireWebControlSuccess(getConfig(), "读取 CloudDrive 设置失败")
+    val config = loadWebControlCloudDriveConfig()
     return config.toWebControlAutomationDto(
         subscriptions = observeSubscriptions().first(),
         tokenConfigured = !credentials.cloudDriveToken.isNullOrBlank(),
     )
 }
+
+suspend fun CloudDriveAutomationRepository.loadWebControlCloudDriveConfig(): CloudDriveAutomationConfig =
+    requireWebControlSuccess(getConfig(), "读取 CloudDrive 设置失败")
+
+suspend fun CloudDriveAutomationRepository.resolveWebControlCloudDriveEndpoint(): String =
+    loadWebControlCloudDriveConfig().endpointUrl
 
 suspend fun CloudDriveRssActionCoordinator.saveWebControlCloudDriveConfig(
     request: CloudDriveConfigRequest,

@@ -45,6 +45,7 @@ import com.miruplay.tv.webcontrol.idleWebControlPlaybackStatus
 import com.miruplay.tv.webcontrol.loginWebControlCloudDrive
 import com.miruplay.tv.webcontrol.listWebControlSources
 import com.miruplay.tv.webcontrol.removeWebControlSource
+import com.miruplay.tv.webcontrol.resolveWebControlCloudDriveEndpoint
 import com.miruplay.tv.webcontrol.requireWebControlSuccess
 import com.miruplay.tv.webcontrol.runWebControlCloudDriveAutomationNow
 import com.miruplay.tv.webcontrol.saveWebControlCloudDriveConfig
@@ -116,7 +117,7 @@ internal class DesktopWebControlService(
                 client = cloudDriveClient,
                 endpointUrl = endpointUrl,
                 fallbackEndpointUrl = {
-                    repositories.cloudDriveAutomation.getConfig().getOrNull()?.endpointUrl.orEmpty()
+                    repositories.cloudDriveAutomation.resolveWebControlCloudDriveEndpoint()
                 },
                 token = repositories.credentials.cloudDriveToken,
                 path = path,

@@ -184,6 +184,31 @@ class WebControlAutomationRequestsTest {
     }
 
     @Test
+    fun `repository endpoint helper returns configured endpoint`() = runBlocking {
+        val repository = FakeCloudDriveAutomationRepository(
+            config = CloudDriveAutomationConfig(endpointUrl = " https://cloud.example.test "),
+        )
+
+        val endpoint = repository.resolveWebControlCloudDriveEndpoint()
+
+        assertEquals(" https://cloud.example.test ", endpoint)
+    }
+
+    @Test
+    fun `repository endpoint helper maps config read failures`() = runBlocking {
+        val repository = FakeCloudDriveAutomationRepository(
+            configResult = Result.failure(AppError.NetworkError.ServerUnreachable("cloud")),
+        )
+
+        val failure = runCatching {
+            repository.resolveWebControlCloudDriveEndpoint()
+        }.exceptionOrNull()
+
+        assertTrue(failure is IllegalStateException)
+        assertEquals("读取 CloudDrive 设置失败: 无法连接服务器：cloud", failure?.message)
+    }
+
+    @Test
     fun `coordinator saves WebUI CloudDrive config and returns refreshed automation dto`() = runBlocking {
         val repository = FakeCloudDriveAutomationRepository(
             config = CloudDriveAutomationConfig(lastRunAt = 77L),

@@ -188,7 +188,7 @@ class WebControlService @Inject constructor(
                 client = cloudDriveClient,
                 endpointUrl = endpointUrl,
                 fallbackEndpointUrl = {
-                    requireWebControlSuccess(cloudDriveRepository.getConfig(), "读取 CloudDrive 设置失败").endpointUrl
+                    cloudDriveRepository.resolveWebControlCloudDriveEndpoint()
                 },
                 token = securePreferences.cloudDriveToken,
                 path = path,
