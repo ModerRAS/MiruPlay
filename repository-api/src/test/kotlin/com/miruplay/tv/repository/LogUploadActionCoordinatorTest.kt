@@ -70,6 +70,46 @@ class LogUploadActionCoordinatorTest {
     }
 
     @Test
+    fun `to config helper keeps editable fields and upload summary`() {
+        val snapshot = OtlpLogUploadActionSnapshot(
+            enabled = true,
+            endpoint = "https://oo.example/api/default",
+            streamName = "miruplay",
+            pendingCount = 10,
+            isUploading = true,
+            lastUploadAt = 123L,
+            lastUploadStatus = "上传中",
+            tokenConfigured = true,
+        )
+
+        val config = snapshot.toConfig()
+
+        assertEquals(true, config.enabled)
+        assertEquals("https://oo.example/api/default", config.endpoint)
+        assertEquals("miruplay", config.streamName)
+        assertEquals(123L, config.lastUploadAt)
+        assertEquals("上传中", config.lastUploadStatus)
+    }
+
+    @Test
+    fun `can run now helper accepts saved or typed token`() {
+        val base = OtlpLogUploadActionSnapshot(
+            enabled = true,
+            endpoint = "https://oo.example/api/default",
+            streamName = "miruplay",
+            isUploading = false,
+            tokenConfigured = false,
+        )
+
+        assertFalse(base.canRunNow(""))
+        assertTrue(base.canRunNow("typed-token"))
+        assertTrue(base.copy(tokenConfigured = true).canRunNow(""))
+        assertFalse(base.copy(isUploading = true).canRunNow("typed-token"))
+        assertFalse(base.copy(endpoint = "").canRunNow("typed-token"))
+        assertFalse(base.copy(enabled = false).canRunNow("typed-token"))
+    }
+
+    @Test
     fun `current snapshot merges config status and token state`() = runBlocking {
         val repository = FakeLogUploadRepository(
             currentConfig = OtlpLogUploadConfig(enabled = true, endpoint = "https://oo.example/api/default", streamName = "miruplay"),
