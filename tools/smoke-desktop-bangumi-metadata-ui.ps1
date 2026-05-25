@@ -13,6 +13,7 @@ $scriptRoot = if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) {
     $PSScriptRoot
 }
 . (Join-Path $scriptRoot "desktop-window-helper.ps1")
+. (Join-Path $scriptRoot "desktop-smoke-common.ps1")
 if ([string]::IsNullOrWhiteSpace($AppScript)) {
     $AppScript = Join-Path $scriptRoot "..\desktop-app\build\install\desktop-app\bin\desktop-app.bat"
 }
@@ -50,14 +51,6 @@ public static class MiruPlayBangumiMetadataSmokeWin32 {
     public static extern void mouse_event(uint flags, uint dx, uint dy, int data, UIntPtr extraInfo);
 }
 "@
-}
-
-function Resolve-FullPath {
-    param([string]$Path)
-    if ([System.IO.Path]::IsPathRooted($Path)) {
-        return [System.IO.Path]::GetFullPath($Path)
-    }
-    return [System.IO.Path]::GetFullPath((Join-Path (Get-Location) $Path))
 }
 
 function Get-WindowRect {
@@ -98,34 +91,6 @@ function Send-AppKeys {
     Start-Sleep -Milliseconds 120
     [System.Windows.Forms.SendKeys]::SendWait($Keys)
     Start-Sleep -Milliseconds $DelayMilliseconds
-}
-
-function Read-StoreState {
-    param([string]$Path)
-    if (-not (Test-Path -LiteralPath $Path)) {
-        return $null
-    }
-    return Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
-}
-
-function Wait-StoreState {
-    param(
-        [string]$Path,
-        [scriptblock]$Predicate,
-        [string]$Description,
-        [int]$TimeoutSeconds = 30
-    )
-
-    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
-    do {
-        $state = Read-StoreState -Path $Path
-        if ($state -and (& $Predicate $state)) {
-            return $state
-        }
-        Start-Sleep -Milliseconds 300
-    } while ((Get-Date) -lt $deadline)
-
-    throw "Timed out waiting for $Description in $Path."
 }
 
 function Assert-ScreenshotHasContent {
@@ -263,8 +228,8 @@ function Write-InitialStore {
     Set-Content -LiteralPath $Path -Value $json -Encoding UTF8
 }
 
-$resolvedAppScript = Resolve-FullPath $AppScript
-$resolvedOutputRoot = Resolve-FullPath $OutputRoot
+$resolvedAppScript = Resolve-DesktopSmokeFullPath $AppScript
+$resolvedOutputRoot = Resolve-DesktopSmokeFullPath $OutputRoot
 if (-not (Test-Path -LiteralPath $resolvedAppScript)) {
     throw "Desktop app launcher was not found at $resolvedAppScript. Run :desktop-app:installDist first."
 }
@@ -302,7 +267,7 @@ try {
     Send-AppKeys -Process $windowProcess -Keys "{ENTER}" -DelayMilliseconds 350
     Send-AppKeys -Process $windowProcess -Keys "{RIGHT}" -DelayMilliseconds 250
     Send-AppKeys -Process $windowProcess -Keys "{ENTER}" -DelayMilliseconds 3500
-    $state = Wait-StoreState -Path $storePath -Description "metadata still clear after search" -Predicate {
+    $state = Wait-DesktopSmokeStoreState -Path $storePath -Description "metadata still clear after search" -Predicate {
         param($state)
         $entry = @($state.index | Where-Object { -not $_.isDirectory })[0]
         $entry.metadataId -eq $null -and $entry.animeName -eq $bangumiFixtureTitle
@@ -313,7 +278,7 @@ try {
     Send-AppKeys -Process $windowProcess -Keys "{RIGHT}" -DelayMilliseconds 250
     Send-AppKeys -Process $windowProcess -Keys "{LEFT}" -DelayMilliseconds 250
     Send-AppKeys -Process $windowProcess -Keys "{ENTER}" -DelayMilliseconds 900
-    $state = Wait-StoreState -Path $storePath -Description "applied Bangumi metadata" -Predicate {
+    $state = Wait-DesktopSmokeStoreState -Path $storePath -Description "applied Bangumi metadata" -Predicate {
         param($state)
         $entry = @($state.index | Where-Object { -not $_.isDirectory })[0]
         $entry.metadataSource -eq "BANGUMI" -and
@@ -324,7 +289,7 @@ try {
 
     Send-AppKeys -Process $windowProcess -Keys "{RIGHT}" -DelayMilliseconds 250
     Send-AppKeys -Process $windowProcess -Keys "{ENTER}" -DelayMilliseconds 900
-    $state = Wait-StoreState -Path $storePath -Description "cleared Bangumi metadata" -Predicate {
+    $state = Wait-DesktopSmokeStoreState -Path $storePath -Description "cleared Bangumi metadata" -Predicate {
         param($state)
         $entry = @($state.index | Where-Object { -not $_.isDirectory })[0]
         $entry.metadataSource -eq $null -and

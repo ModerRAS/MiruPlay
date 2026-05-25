@@ -14,6 +14,7 @@ $scriptRoot = if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) {
     $PSScriptRoot
 }
 . (Join-Path $scriptRoot "desktop-window-helper.ps1")
+. (Join-Path $scriptRoot "desktop-smoke-common.ps1")
 if ([string]::IsNullOrWhiteSpace($AppScript)) {
     $AppScript = Join-Path $scriptRoot "..\desktop-app\build\install\desktop-app\bin\desktop-app.bat"
 }
@@ -55,14 +56,6 @@ public static class MiruPlayMpvLaunchSmokeWin32 {
     public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 }
 "@
-
-function Resolve-FullPath {
-    param([string]$Path)
-    if ([System.IO.Path]::IsPathRooted($Path)) {
-        return [System.IO.Path]::GetFullPath($Path)
-    }
-    return [System.IO.Path]::GetFullPath((Join-Path (Get-Location) $Path))
-}
 
 function Get-WindowRect {
     param([System.Diagnostics.Process]$Process)
@@ -427,36 +420,8 @@ function Invoke-StopAndWait {
     throw "mpv.exe process $MpvProcessId was still running after GUI Stop."
 }
 
-function Read-StoreState {
-    param([string]$Path)
-    if (-not (Test-Path -LiteralPath $Path)) {
-        return $null
-    }
-    return Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
-}
-
-function Wait-StoreState {
-    param(
-        [string]$Path,
-        [scriptblock]$Predicate,
-        [string]$Description,
-        [int]$TimeoutSeconds = 20
-    )
-
-    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
-    do {
-        $state = Read-StoreState -Path $Path
-        if ($state -and (& $Predicate $state)) {
-            return $state
-        }
-        Start-Sleep -Milliseconds 300
-    } while ((Get-Date) -lt $deadline)
-
-    throw "Timed out waiting for $Description in $Path."
-}
-
-$resolvedAppScript = Resolve-FullPath $AppScript
-$resolvedOutputRoot = Resolve-FullPath $OutputRoot
+$resolvedAppScript = Resolve-DesktopSmokeFullPath $AppScript
+$resolvedOutputRoot = Resolve-DesktopSmokeFullPath $OutputRoot
 if (-not (Test-Path -LiteralPath $resolvedAppScript)) {
     throw "Desktop app launcher was not found at $resolvedAppScript. Run :desktop-app:installDist first."
 }
@@ -468,7 +433,7 @@ $runName = "run-{0}" -f (Get-Date -Format "yyyyMMdd-HHmmss")
 $runDir = Join-Path $resolvedOutputRoot $runName
 $storePath = Join-Path $runDir "store\desktop-store.json"
 $sample = if ($SamplePath.Trim()) {
-    Resolve-FullPath $SamplePath
+    Resolve-DesktopSmokeFullPath $SamplePath
 } else {
     Join-Path $runDir "media\miruplay-mpv-smoke.y4m"
 }
@@ -515,7 +480,7 @@ try {
 
     Invoke-RelativeClick -Process $windowProcess -X 596 -Y 166 -DelayMilliseconds 900
     $mpvProcess = Wait-MpvChildProcess -ParentProcessId $windowProcess.Id -ExpectedSamplePath $sample
-    Wait-StoreState -Path $storePath -Description "initial playback progress record" -Predicate {
+    Wait-DesktopSmokeStoreState -Path $storePath -Description "initial playback progress record" -Predicate {
         param($state)
         $records = @($state.progress | Where-Object { $_.episodeId -eq $sample })
         $records.Count -eq 1 -and $records[0].playCount -eq 0
@@ -532,7 +497,7 @@ try {
     Send-AppKeys -Process $windowProcess -Keys "{RIGHT}" -DelayMilliseconds 300
     Send-AppKeys -Process $windowProcess -Keys "{ENTER}" -DelayMilliseconds 1200
     Wait-MpvProcessGone -ProcessId $mpvProcess.ProcessId
-    $finalState = Wait-StoreState -Path $storePath -Description "stopped playback progress update" -Predicate {
+    $finalState = Wait-DesktopSmokeStoreState -Path $storePath -Description "stopped playback progress update" -Predicate {
         param($state)
         $records = @($state.progress | Where-Object { $_.episodeId -eq $sample })
         $records.Count -eq 1 -and $records[0].playCount -eq 0 -and $records[0].positionMs -ge 20000
@@ -545,7 +510,7 @@ try {
     Send-AppKeys -Process $windowProcess -Keys "{DOWN}" -DelayMilliseconds 500
     Send-AppKeys -Process $windowProcess -Keys "{ENTER}" -DelayMilliseconds 500
     Save-WindowScreenshot -Process $windowProcess -Path $recentKeyboardScreenshotPath
-    Wait-StoreState -Path $storePath -Description "recent playback keyboard selection preserved sample progress" -Predicate {
+    Wait-DesktopSmokeStoreState -Path $storePath -Description "recent playback keyboard selection preserved sample progress" -Predicate {
         param($state)
         $records = @($state.progress | Where-Object { $_.episodeId -eq $sample })
         $records.Count -eq 1 -and $records[0].playCount -eq 0 -and $records[0].positionMs -ge 20000

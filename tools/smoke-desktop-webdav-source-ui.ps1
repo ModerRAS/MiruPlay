@@ -12,6 +12,7 @@ $scriptRoot = if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) {
     $PSScriptRoot
 }
 . (Join-Path $scriptRoot "desktop-window-helper.ps1")
+. (Join-Path $scriptRoot "desktop-smoke-common.ps1")
 if ([string]::IsNullOrWhiteSpace($AppScript)) {
     $AppScript = Join-Path $scriptRoot "..\desktop-app\build\install\desktop-app\bin\desktop-app.bat"
 }
@@ -48,14 +49,6 @@ public static class MiruPlayWebDavSourceSmokeWin32 {
     public static extern void mouse_event(uint flags, uint dx, uint dy, int data, UIntPtr extraInfo);
 }
 "@
-}
-
-function Resolve-FullPath {
-    param([string]$Path)
-    if ([System.IO.Path]::IsPathRooted($Path)) {
-        return [System.IO.Path]::GetFullPath($Path)
-    }
-    return [System.IO.Path]::GetFullPath((Join-Path (Get-Location) $Path))
 }
 
 function Get-WindowRect {
@@ -216,38 +209,6 @@ function Set-TextByRelativeClick {
     }
 
     throw "Unable to set $Description to '$Text'."
-}
-
-function Read-StoreState {
-    param([string]$Path)
-    if (-not (Test-Path -LiteralPath $Path)) {
-        return $null
-    }
-    try {
-        return Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
-    } catch {
-        return $null
-    }
-}
-
-function Wait-StoreState {
-    param(
-        [string]$Path,
-        [scriptblock]$Predicate,
-        [string]$Description,
-        [int]$TimeoutSeconds = 20
-    )
-
-    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
-    do {
-        $state = Read-StoreState -Path $Path
-        if ($state -and (& $Predicate $state)) {
-            return $state
-        }
-        Start-Sleep -Milliseconds 300
-    } while ((Get-Date) -lt $deadline)
-
-    throw "Timed out waiting for $Description in $Path."
 }
 
 function Wait-FileText {
@@ -653,8 +614,8 @@ function Wait-WebDavServerReady {
     throw "Timed out waiting for WebDAV fixture server. $output"
 }
 
-$resolvedAppScript = Resolve-FullPath $AppScript
-$resolvedOutputRoot = Resolve-FullPath $OutputRoot
+$resolvedAppScript = Resolve-DesktopSmokeFullPath $AppScript
+$resolvedOutputRoot = Resolve-DesktopSmokeFullPath $OutputRoot
 if (-not (Test-Path -LiteralPath $resolvedAppScript)) {
     throw "Desktop app launcher was not found at $resolvedAppScript. Run :desktop-app:installDist first."
 }
@@ -702,7 +663,7 @@ try {
     Set-TextByRelativeClick -Process $windowProcess -X 420 -Y 290 -Text $webDavPassword -Description "WebDAV password" -SkipReadback
     Invoke-RelativeClick -Process $windowProcess -X 145 -Y 358
 
-    $state = Wait-StoreState -Path $storePath -Description "saved WebDAV source" -Predicate {
+    $state = Wait-DesktopSmokeStoreState -Path $storePath -Description "saved WebDAV source" -IgnoreParseErrors -Predicate {
         param($state)
         @($state.mediaSources | Where-Object { $_.type -eq "WEBDAV" }).Count -eq 1
     }
@@ -736,7 +697,7 @@ try {
     Save-WindowScreenshot -Process $windowProcess -Path $keyboardSelectScreenshotPath
 
     Invoke-RelativeClick -Process $windowProcess -X 295 -Y 681
-    $state = Wait-StoreState -Path $storePath -Description "scanned WebDAV index entry" -Predicate {
+    $state = Wait-DesktopSmokeStoreState -Path $storePath -Description "scanned WebDAV index entry" -IgnoreParseErrors -Predicate {
         param($state)
         @($state.index | Where-Object { -not $_.isDirectory }).Count -ge 1
     } -TimeoutSeconds 90

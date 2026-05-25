@@ -13,6 +13,7 @@ $scriptRoot = if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) {
     $PSScriptRoot
 }
 . (Join-Path $scriptRoot "desktop-window-helper.ps1")
+. (Join-Path $scriptRoot "desktop-smoke-common.ps1")
 if ([string]::IsNullOrWhiteSpace($AppScript)) {
     $AppScript = Join-Path $scriptRoot "..\desktop-app\build\install\desktop-app\bin\desktop-app.bat"
 }
@@ -48,14 +49,6 @@ public static class MiruPlayLocalSourceSmokeWin32 {
     public static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extraInfo);
 }
 "@
-
-function Resolve-FullPath {
-    param([string]$Path)
-    if ([System.IO.Path]::IsPathRooted($Path)) {
-        return [System.IO.Path]::GetFullPath($Path)
-    }
-    return [System.IO.Path]::GetFullPath((Join-Path (Get-Location) $Path))
-}
 
 function Get-WindowRect {
     param([System.Diagnostics.Process]$Process)
@@ -195,34 +188,6 @@ function Get-FocusedTextWithRetry {
     return ""
 }
 
-function Read-StoreState {
-    param([string]$Path)
-    if (-not (Test-Path -LiteralPath $Path)) {
-        return $null
-    }
-    return Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
-}
-
-function Wait-StoreState {
-    param(
-        [string]$Path,
-        [scriptblock]$Predicate,
-        [string]$Description,
-        [int]$TimeoutSeconds = 20
-    )
-
-    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
-    do {
-        $state = Read-StoreState -Path $Path
-        if ($state -and (& $Predicate $state)) {
-            return $state
-        }
-        Start-Sleep -Milliseconds 300
-    } while ((Get-Date) -lt $deadline)
-
-    throw "Timed out waiting for $Description in $Path."
-}
-
 function Assert-ScreenshotHasContent {
     param([string]$Path)
     $file = Get-Item -LiteralPath $Path
@@ -342,8 +307,8 @@ function Get-EntryFilenameStem {
     throw "Unable to derive a non-empty search query for indexed entry $($Entry.path)."
 }
 
-$resolvedAppScript = Resolve-FullPath $AppScript
-$resolvedOutputRoot = Resolve-FullPath $OutputRoot
+$resolvedAppScript = Resolve-DesktopSmokeFullPath $AppScript
+$resolvedOutputRoot = Resolve-DesktopSmokeFullPath $OutputRoot
 if (-not (Test-Path -LiteralPath $resolvedAppScript)) {
     throw "Desktop app launcher was not found at $resolvedAppScript. Run :desktop-app:installDist first."
 }
@@ -368,7 +333,7 @@ $playerScreenshotPath = Join-Path $runDir "local-source-player.png"
 New-Item -ItemType Directory -Path (Split-Path -Parent $storePath) -Force | Out-Null
 
 if ($LibraryRoot.Trim()) {
-    $resolvedLibraryRoot = Resolve-FullPath $LibraryRoot
+    $resolvedLibraryRoot = Resolve-DesktopSmokeFullPath $LibraryRoot
     if (-not (Test-Path -LiteralPath $resolvedLibraryRoot -PathType Container)) {
         throw "LibraryRoot does not exist or is not a directory: $resolvedLibraryRoot"
     }
@@ -425,13 +390,13 @@ try {
 
     Set-TextByRelativeClick -Process $windowProcess -X 240 -Y 268 -Text $resolvedLibraryRoot -Description "local library root" -SkipReadback
     Invoke-RelativeClick -Process $windowProcess -X 500 -Y 337
-    Wait-StoreState -Path $storePath -Description "saved local source" -Predicate {
+    Wait-DesktopSmokeStoreState -Path $storePath -Description "saved local source" -Predicate {
         param($state)
         @($state.mediaSources).Count -ge 1
     } | Out-Null
 
     Invoke-RelativeClick -Process $windowProcess -X 664 -Y 337
-    $state = Wait-StoreState -Path $storePath -Description "scanned local index entry" -Predicate {
+    $state = Wait-DesktopSmokeStoreState -Path $storePath -Description "scanned local index entry" -Predicate {
         param($state)
         @($state.index | Where-Object { -not $_.isDirectory }).Count -ge 1
     } -TimeoutSeconds 90

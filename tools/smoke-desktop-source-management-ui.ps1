@@ -13,6 +13,7 @@ $scriptRoot = if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) {
     $PSScriptRoot
 }
 . (Join-Path $scriptRoot "desktop-window-helper.ps1")
+. (Join-Path $scriptRoot "desktop-smoke-common.ps1")
 if ([string]::IsNullOrWhiteSpace($AppScript)) {
     $AppScript = Join-Path $scriptRoot "..\desktop-app\build\install\desktop-app\bin\desktop-app.bat"
 }
@@ -56,14 +57,6 @@ public static class MiruPlaySourceManagementSmokeWin32 {
 
 }
 "@
-}
-
-function Resolve-FullPath {
-    param([string]$Path)
-    if ([System.IO.Path]::IsPathRooted($Path)) {
-        return [System.IO.Path]::GetFullPath($Path)
-    }
-    return [System.IO.Path]::GetFullPath((Join-Path (Get-Location) $Path))
 }
 
 function Get-WindowRect {
@@ -143,34 +136,6 @@ function Send-AppKeys {
     Start-Sleep -Milliseconds $DelayMilliseconds
 }
 
-function Read-StoreState {
-    param([string]$Path)
-    if (-not (Test-Path -LiteralPath $Path)) {
-        return $null
-    }
-    return Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
-}
-
-function Wait-StoreState {
-    param(
-        [string]$Path,
-        [scriptblock]$Predicate,
-        [string]$Description,
-        [int]$TimeoutSeconds = 20
-    )
-
-    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
-    do {
-        $state = Read-StoreState -Path $Path
-        if ($state -and (& $Predicate $state)) {
-            return $state
-        }
-        Start-Sleep -Milliseconds 300
-    } while ((Get-Date) -lt $deadline)
-
-    throw "Timed out waiting for $Description in $Path."
-}
-
 function Assert-ScreenshotHasContent {
     param([string]$Path)
     $file = Get-Item -LiteralPath $Path
@@ -239,8 +204,8 @@ function Save-WindowScreenshot {
     Assert-ScreenshotHasContent -Path $Path
 }
 
-$resolvedAppScript = Resolve-FullPath $AppScript
-$resolvedOutputRoot = Resolve-FullPath $OutputRoot
+$resolvedAppScript = Resolve-DesktopSmokeFullPath $AppScript
+$resolvedOutputRoot = Resolve-DesktopSmokeFullPath $OutputRoot
 if (-not (Test-Path -LiteralPath $resolvedAppScript)) {
     throw "Desktop app launcher was not found at $resolvedAppScript. Run :desktop-app:installDist first."
 }
@@ -350,7 +315,7 @@ try {
     $startedProcess = Start-Process -FilePath $resolvedAppScript -PassThru
     $windowProcess = Wait-MiruPlayDesktopWindowProcess
 
-    $state = Wait-StoreState -Path $storePath -Description "preloaded local sources" -Predicate {
+    $state = Wait-DesktopSmokeStoreState -Path $storePath -Description "preloaded local sources" -Predicate {
         param($state)
         @($state.mediaSources).Count -eq 2
     }
@@ -376,7 +341,7 @@ try {
     Save-WindowScreenshot -Process $windowProcess -Path $sourceSwitchScreenshotPath
 
     Invoke-RelativeClick -Process $windowProcess -X 664 -Y 337
-    $state = Wait-StoreState -Path $storePath -Description "scanned local index entry" -Predicate {
+    $state = Wait-DesktopSmokeStoreState -Path $storePath -Description "scanned local index entry" -Predicate {
         param($state)
         @($state.index | Where-Object { -not $_.isDirectory }).Count -eq 1
     } -TimeoutSeconds 90
@@ -396,7 +361,7 @@ try {
     Save-WindowScreenshot -Process $windowProcess -Path $controlsScreenshotPath
 
     Invoke-RelativeClick -Process $windowProcess -X 1112 -Y 356
-    $state = Wait-StoreState -Path $storePath -Description "cleared source index" -Predicate {
+    $state = Wait-DesktopSmokeStoreState -Path $storePath -Description "cleared source index" -Predicate {
         param($state)
         @($state.mediaSources).Count -eq 2 -and @($state.index).Count -eq 0 -and @($state.indexBatchUndo).Count -eq 0
     }
@@ -412,7 +377,7 @@ try {
     Start-Sleep -Milliseconds 400
     Save-WindowScreenshot -Process $windowProcess -Path $removeReadyScreenshotPath
     Invoke-RelativeClick -Process $windowProcess -X 1112 -Y 327
-    $state = Wait-StoreState -Path $storePath -Description "removed source and associated index state" -Predicate {
+    $state = Wait-DesktopSmokeStoreState -Path $storePath -Description "removed source and associated index state" -Predicate {
         param($state)
         @($state.mediaSources).Count -eq 1 -and @($state.index).Count -eq 0 -and @($state.indexBatchUndo).Count -eq 0
     }
