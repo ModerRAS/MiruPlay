@@ -1,6 +1,7 @@
 package com.miruplay.tv.scraper
 
 import android.icu.text.Transliterator
+import android.os.Build
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.Anime
@@ -96,10 +97,20 @@ private fun String.toSimplifiedChinese(): String =
     ChineseTransliterator.toSimplified(this)
 
 private object ChineseTransliterator {
-    private val traditionalToSimplified = runCatching {
-        Transliterator.getInstance("Traditional-Simplified")
-    }.getOrNull()
-
     fun toSimplified(text: String): String =
-        traditionalToSimplified?.transliterate(text) ?: text
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            Api29Transliterator.toSimplified(text)
+        } else {
+            text
+        }
+
+    @android.annotation.TargetApi(Build.VERSION_CODES.Q)
+    private object Api29Transliterator {
+        private val traditionalToSimplified = runCatching {
+            Transliterator.getInstance("Traditional-Simplified")
+        }.getOrNull()
+
+        fun toSimplified(text: String): String =
+            traditionalToSimplified?.transliterate(text) ?: text
+    }
 }
