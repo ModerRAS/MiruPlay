@@ -959,7 +959,7 @@ internal fun MiruPlayDesktopComposeApp(
     }
 
     SideEffect {
-        webControlPlaybackHandlers.playEpisode = { request, episode ->
+        webControlPlaybackHandlers.updatePlayEpisode { request, episode ->
             val selection = desktopWebControlPlaybackSourceSelection(
                 episode = episode,
                 savedSources = savedSources,
@@ -999,7 +999,7 @@ internal fun MiruPlayDesktopComposeApp(
                 }
             }
         }
-        webControlPlaybackHandlers.playbackCommand = { command ->
+        webControlPlaybackHandlers.updatePlaybackCommand { command ->
             val statusDto = desktopWebControlPlaybackCommand(
                 request = command,
                 player = player,

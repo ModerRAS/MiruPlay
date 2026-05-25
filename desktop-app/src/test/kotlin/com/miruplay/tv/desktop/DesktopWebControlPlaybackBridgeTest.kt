@@ -45,6 +45,28 @@ class DesktopWebControlPlaybackBridgeTest {
     }
 
     @Test
+    fun `updated WebUI playback handlers are invoked`() = runBlocking {
+        val handlers = DesktopWebControlPlaybackHandlers()
+        val expectedEpisode = episode()
+        handlers.updatePlayEpisode { _, episode ->
+            assertEquals(expectedEpisode.id, episode.id)
+            com.miruplay.tv.webcontrol.PlaybackStatusDto(state = "Playing", isPlaying = true)
+        }
+        handlers.updatePlaybackCommand { command ->
+            assertEquals("pause", command.command)
+            com.miruplay.tv.webcontrol.PlaybackStatusDto(state = "Paused", isPlaying = false)
+        }
+
+        val play = handlers.playEpisode(PlayEpisodeRequest(episodeId = expectedEpisode.id), expectedEpisode)
+        val command = handlers.playbackCommand(PlaybackCommandRequest(command = "pause"))
+
+        assertEquals("Playing", play.state)
+        assertTrue(play.isPlaying)
+        assertEquals("Paused", command.state)
+        assertFalse(command.isPlaying)
+    }
+
+    @Test
     fun `command status maps WebUI playback commands to shared mpv status text`() {
         assertEquals(
             "mpv seeked back 4s.",

@@ -32,8 +32,29 @@ import com.miruplay.tv.webcontrol.toWebControlPlaybackSource
 import kotlin.math.absoluteValue
 
 internal class DesktopWebControlPlaybackHandlers {
-    var playEpisode: suspend (PlayEpisodeRequest, Episode) -> PlaybackStatusDto = { _, _ -> idleWebControlPlaybackStatus() }
-    var playbackCommand: suspend (PlaybackCommandRequest) -> PlaybackStatusDto = { idleWebControlPlaybackStatus() }
+    @Volatile
+    private var playEpisodeHandler: suspend (PlayEpisodeRequest, Episode) -> PlaybackStatusDto = { _, _ ->
+        idleWebControlPlaybackStatus()
+    }
+
+    @Volatile
+    private var playbackCommandHandler: suspend (PlaybackCommandRequest) -> PlaybackStatusDto = {
+        idleWebControlPlaybackStatus()
+    }
+
+    fun updatePlayEpisode(handler: suspend (PlayEpisodeRequest, Episode) -> PlaybackStatusDto) {
+        playEpisodeHandler = handler
+    }
+
+    fun updatePlaybackCommand(handler: suspend (PlaybackCommandRequest) -> PlaybackStatusDto) {
+        playbackCommandHandler = handler
+    }
+
+    suspend fun playEpisode(request: PlayEpisodeRequest, episode: Episode): PlaybackStatusDto =
+        playEpisodeHandler(request, episode)
+
+    suspend fun playbackCommand(command: PlaybackCommandRequest): PlaybackStatusDto =
+        playbackCommandHandler(command)
 }
 
 internal data class DesktopWebControlPlaybackSourceSelection(
