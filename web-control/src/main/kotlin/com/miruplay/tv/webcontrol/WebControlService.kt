@@ -1,22 +1,13 @@
 package com.miruplay.tv.webcontrol
 
-import com.miruplay.tv.clouddrive.CloudDriveClient
-import com.miruplay.tv.clouddrive.CloudDriveEndpoint
 import android.os.Build
-import com.miruplay.tv.core.common.LocalDirectoryBrowser
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.MIN_CLOUD_DRIVE_INTERVAL_MINUTES
-import com.miruplay.tv.model.CloudDriveDirectoryItem
 import com.miruplay.tv.model.MediaSourceInfo
-import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.RssSubscriptionInfo
-import com.miruplay.tv.model.cloudDriveDirectoryDisplayPath
-import com.miruplay.tv.model.cloudDriveDirectoryItems
-import com.miruplay.tv.model.cloudDriveDirectoryParentPath
-import com.miruplay.tv.model.normalizeCloudDriveDirectoryPath
-import com.miruplay.tv.model.scopedCloudDriveDirectoryPath
+import com.miruplay.tv.clouddrive.CloudDriveClient
 import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.LogUploadRepository
@@ -32,8 +23,6 @@ import com.miruplay.tv.sync.rss.CloudDriveRssScheduler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
-import java.net.Inet4Address
-import java.net.NetworkInterface
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -65,12 +54,10 @@ class WebControlService @Inject constructor(
     )
 
     override suspend fun getServerInfo(port: Int): ServerInfoDto = withContext(Dispatchers.IO) {
-        ServerInfoDto(
-            appName = "MiruPlay",
+        buildWebControlServerInfo(
             deviceName = Build.MODEL ?: "Android TV",
             port = port,
-            localIps = findLocalIps(),
-            startedAt = startedAt
+            startedAt = startedAt,
         )
     }
 
@@ -82,19 +69,7 @@ class WebControlService @Inject constructor(
     }
 
     override suspend fun browseLocalDirectories(path: String): LocalDirectoryDto = withContext(Dispatchers.IO) {
-        val listing = LocalDirectoryBrowser.browse(path)
-        LocalDirectoryDto(
-            path = listing.path,
-            displayPath = listing.displayPath,
-            parentPath = listing.parentPath,
-            entries = listing.entries.map {
-                LocalDirectoryEntryDto(
-                    name = it.name,
-                    path = it.path,
-                    canRead = it.canRead
-                )
-            }
-        )
+        com.miruplay.tv.core.common.LocalDirectoryBrowser.browse(path).toWebControlDirectoryDto()
     }
 
     override suspend fun addSource(request: SourceRequest): MediaSourceInfo {
@@ -345,118 +320,16 @@ class WebControlService @Inject constructor(
     }
 
     override suspend fun browseCloudDriveDirectories(endpointUrl: String, path: String): CloudDriveDirectoryDto = withContext(Dispatchers.IO) {
-        val resolvedEndpoint = endpointUrl.trim().takeIf { it.isNotBlank() }
-            ?: requireSuccess(cloudDriveRepository.getConfig(), "读取 CloudDrive 设置失败").endpointUrl
-        if (resolvedEndpoint.isBlank()) {
-            throw IllegalArgumentException("请先填写 CloudDrive2 地址")
-        }
-
-        val token = securePreferences.cloudDriveToken?.takeIf { it.isNotBlank() }
-            ?: throw IllegalArgumentException("请先登录 CloudDrive2 或保存 API Token")
-        val endpoint = CloudDriveEndpoint(resolvedEndpoint, token)
-        val tokenInfo = cloudDriveClient.getApiTokenInfo(resolvedEndpoint, token).getOrNull()
-        val rootPath = normalizeCloudDriveDirectoryPath(tokenInfo?.rootDir ?: "")
-        val currentPath = scopedCloudDriveDirectoryPath(path.ifBlank { rootPath }, rootPath)
-
-        val listing = requireSuccess(
-            cloudDriveClient.listFolder(endpoint, currentPath, forceRefresh = false),
-            "读取 CloudDrive 目录失败"
+        requireSuccess(
+            browseWebControlCloudDriveDirectory(
+                client = cloudDriveClient,
+                endpointUrl = endpointUrl,
+                fallbackEndpointUrl = { requireSuccess(cloudDriveRepository.getConfig(), "读取 CloudDrive 设置失败").endpointUrl },
+                token = securePreferences.cloudDriveToken,
+                path = path,
+            ),
+            "读取 CloudDrive 目录失败",
         )
-        val entries = cloudDriveDirectoryItems(
-            listing.filter { it.isDirectory }
-                .map {
-                    CloudDriveDirectoryItem(
-                        name = it.name,
-                        path = it.path
-                    )
-                }
-        )
-            .map {
-                CloudDriveDirectoryEntryDto(
-                    name = it.name,
-                    path = it.path,
-                    canRead = true
-                )
-            }
-
-        CloudDriveDirectoryDto(
-            path = currentPath,
-            displayPath = cloudDriveDirectoryDisplayPath(currentPath),
-            parentPath = cloudDriveDirectoryParentPath(currentPath, rootPath),
-            entries = entries
-        )
-    }
-
-    private fun SourceRequest.toMediaSourceInfo(
-        sourceId: Long = id,
-        fallbackPassword: String? = null
-    ): MediaSourceInfo {
-        val sourceType = parseSourceType(type)
-        val trimmedLocation = location.trim()
-        return MediaSourceInfo(
-            id = sourceId,
-            name = name.trim().ifBlank { sourceType.defaultName() },
-            type = sourceType,
-            connectionInfo = buildMap {
-                put("url", trimmedLocation)
-                if (sourceType == MediaSourceType.LOCAL) {
-                    put("path", trimmedLocation)
-                    requestDisplayName()?.let { put("displayName", it) }
-                }
-                username?.trim()?.takeIf { it.isNotBlank() }?.let { put("username", it) }
-                val newPassword = password?.takeIf { it.isNotBlank() }
-                when {
-                    newPassword != null -> put("password", newPassword)
-                    fallbackPassword != null -> put("password", fallbackPassword)
-                }
-            }
-        )
-    }
-
-    private fun SourceTestRequest.toMediaSourceInfo(): MediaSourceInfo {
-        val sourceType = parseSourceType(type)
-        val trimmedLocation = location.trim()
-        return MediaSourceInfo(
-            name = "test",
-            type = sourceType,
-            connectionInfo = buildMap {
-                put("url", trimmedLocation)
-                if (sourceType == MediaSourceType.LOCAL) {
-                    put("path", trimmedLocation)
-                    requestDisplayName()?.let { put("displayName", it) }
-                }
-                username?.trim()?.takeIf { it.isNotBlank() }?.let { put("username", it) }
-                password?.takeIf { it.isNotBlank() }?.let { put("password", it) }
-            }
-        )
-    }
-
-    private fun parseSourceType(type: String): MediaSourceType {
-        return runCatching { MediaSourceType.valueOf(type.uppercase()) }
-            .getOrElse { throw IllegalArgumentException("不支持的媒体源类型: $type") }
-    }
-
-    private fun MediaSourceType.defaultName(): String = when (this) {
-        MediaSourceType.LOCAL -> "本地媒体库"
-        MediaSourceType.WEBDAV -> "WebDAV 媒体库"
-        MediaSourceType.SMB -> "SMB 共享"
-    }
-
-    private fun SourceRequest.requestDisplayName(): String? =
-        displayName?.trim()?.takeIf { it.isNotBlank() }
-
-    private fun SourceTestRequest.requestDisplayName(): String? =
-        displayName?.trim()?.takeIf { it.isNotBlank() }
-
-    private fun findLocalIps(): List<String> {
-        return NetworkInterface.getNetworkInterfaces().toList()
-            .filter { it.isUp && !it.isLoopback }
-            .flatMap { it.inetAddresses.toList() }
-            .filterIsInstance<Inet4Address>()
-            .filterNot { it.isLoopbackAddress }
-            .map { it.hostAddress ?: "" }
-            .filter { it.isNotBlank() }
-            .distinct()
     }
 
     private fun <T> requireSuccess(result: Result<T>, message: String): T {
