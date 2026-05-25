@@ -381,6 +381,14 @@ internal fun CloudRssPanel(
                 onFocusSectionMenu = { focusSelectedSectionMenu() },
                 modifier = Modifier.weight(1f),
             )
+            MiruPlaySettingsSection.LOG_UPLOAD -> SettingsSummaryContent(
+                section = selectedSection,
+                tiles = desktopLogUploadSettingsTiles(),
+                status = "日志上报配置在 Android TV 设置页生效；本地日志会按 OpenObserve JSON 配置写入上报队列。",
+                actions = listOf(SettingsQuickAction(settingsOpenLibraryActionLabel(), onOpenLibrary)),
+                onFocusSectionMenu = { focusSelectedSectionMenu() },
+                modifier = Modifier.weight(1f),
+            )
             MiruPlaySettingsSection.METADATA -> SettingsSummaryContent(
                 section = selectedSection,
                 tiles = metadataSettingsTiles(
@@ -2476,6 +2484,25 @@ private fun desktopWebUiSettingsTiles(): List<SettingsSummaryTile> =
         ),
     )
 
+private fun desktopLogUploadSettingsTiles(): List<SettingsSummaryTile> =
+    listOf(
+        SettingsSummaryTile(
+            label = "OpenObserve",
+            value = "JSON",
+            detail = "API 地址、Stream 和访问令牌由 Android TV 设置页保存。",
+        ),
+        SettingsSummaryTile(
+            label = "本地日志",
+            value = "自动上报",
+            detail = "应用日志进入本地队列后按配置批量发送。",
+        ),
+        SettingsSummaryTile(
+            label = "凭据",
+            value = "安全存储",
+            detail = "令牌只保存配置状态，清理后会停止上报。",
+        ),
+    )
+
 private fun MiruPlaySettingsSection.menuSummary(
     sourcesCount: Int,
     rssCount: Int,
@@ -2487,6 +2514,7 @@ private fun MiruPlaySettingsSection.menuSummary(
     MiruPlaySettingsSection.PLAYBACK -> playbackSummary
     MiruPlaySettingsSection.CLOUD_DRIVE -> settingsCloudDriveMenuSummary(cloudEnabled, rssCount)
     MiruPlaySettingsSection.SCAN -> settingsDesktopScanMenuSummary()
+    MiruPlaySettingsSection.LOG_UPLOAD -> "OpenObserve"
     MiruPlaySettingsSection.METADATA -> metadataSummary
     MiruPlaySettingsSection.WEB_UI -> settingsDesktopWebUiMenuSummary()
 }

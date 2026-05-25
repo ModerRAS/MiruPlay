@@ -43,8 +43,8 @@ object SyncEngineModule {
     @Singleton
     fun provideCloudDriveLibraryOrganizer(
         cloudDriveClient: CloudDriveClient,
-        classifier: CloudDriveVideoClassifier
+        filenameMetadataParser: FilenameMetadataParser
     ): CloudDriveLibraryOrganizer =
-        CloudDriveLibraryOrganizer(cloudDriveClient, classifier)
+        CloudDriveLibraryOrganizer(cloudDriveClient, filenameMetadataParser)
 }
 
