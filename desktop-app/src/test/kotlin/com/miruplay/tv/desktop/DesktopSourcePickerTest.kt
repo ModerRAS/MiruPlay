@@ -14,6 +14,7 @@ import com.miruplay.tv.model.localizedLibraryRescanCompleteStatus
 import com.miruplay.tv.model.localizedLibraryScanCompleteStatus
 import com.miruplay.tv.model.localizedLibraryScanningStatus
 import com.miruplay.tv.model.localizedMediaSourceStatusText
+import com.miruplay.tv.model.librarySourceLabels
 import com.miruplay.tv.model.mediaSourceStatusText
 import com.miruplay.tv.model.mediaSourceClearIndexActionLabel
 import com.miruplay.tv.model.mediaSourceIndexQueryFieldLabel
@@ -29,6 +30,11 @@ import com.miruplay.tv.model.mediaSourceSearchActionLabel
 import com.miruplay.tv.model.mediaSourceSmbDomainFieldLabel
 import com.miruplay.tv.model.mediaSourceUpActionLabel
 import com.miruplay.tv.model.openSourceActionLabel
+import com.miruplay.tv.model.remoteBrowserCoercedPageStart
+import com.miruplay.tv.model.remoteBrowserPathPreview
+import com.miruplay.tv.model.remoteBrowserPageStartForIndex
+import com.miruplay.tv.model.remoteBrowserPageSummary
+import com.miruplay.tv.model.remoteSourcePreview
 import com.miruplay.tv.model.sourcePasswordFieldLabel
 import com.miruplay.tv.model.sourcePickerSubtitle
 import com.miruplay.tv.model.sourcePickerTitle
@@ -74,7 +80,7 @@ class DesktopSourcePickerTest {
 
     @Test
     fun `source management controls use TV facing labels`() {
-        val labels = desktopLibrarySourceLabels()
+        val labels = librarySourceLabels()
 
         assertEquals(mediaSourceLocalLibraryRootFieldLabel(), labels.localLibraryRoot)
         assertEquals(mediaSourceIndexQueryFieldLabel(), labels.indexQuery)
@@ -698,10 +704,10 @@ class DesktopSourcePickerTest {
 
     @Test
     fun `remote source editor chrome uses shared source type labels`() {
-        assertEquals(MediaSourceType.WEBDAV.tvLabel(), MediaSourceType.WEBDAV.remoteSourceEditorTitle())
-        assertEquals(MediaSourceType.WEBDAV.tvBadgeLabel(), MediaSourceType.WEBDAV.remoteSourceEditorBadge())
-        assertEquals(MediaSourceType.SMB.tvLabel(), MediaSourceType.SMB.remoteSourceEditorTitle())
-        assertEquals(MediaSourceType.SMB.tvBadgeLabel(), MediaSourceType.SMB.remoteSourceEditorBadge())
+        assertEquals("WebDAV", MediaSourceType.WEBDAV.tvLabel())
+        assertEquals("DAV", MediaSourceType.WEBDAV.tvBadgeLabel())
+        assertEquals("SMB", MediaSourceType.SMB.tvLabel())
+        assertEquals("SMB", MediaSourceType.SMB.tvBadgeLabel())
     }
 
     @Test

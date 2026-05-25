@@ -1,6 +1,12 @@
 package com.miruplay.tv.data.preferences
 
 import android.content.Context
+import com.miruplay.tv.repository.SCAN_PREFERENCES_DEFAULT_INTERVAL_MS
+import com.miruplay.tv.repository.SCAN_PREFERENCES_MIN_INTERVAL_MS
+import com.miruplay.tv.repository.ScanPreferencesRepository
+import com.miruplay.tv.repository.ScanPreferencesSnapshot
+import com.miruplay.tv.repository.scanPreferencesIntervalOptionsHours
+import com.miruplay.tv.repository.shouldAutoScan
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -8,7 +14,7 @@ import javax.inject.Singleton
 @Singleton
 class ScanPreferencesManager @Inject constructor(
     @ApplicationContext context: Context
-) {
+) : ScanPreferencesRepository {
     private val prefs = context.getSharedPreferences("miruplay_scan_prefs", Context.MODE_PRIVATE)
 
     var autoScanEnabled: Boolean
@@ -18,9 +24,9 @@ class ScanPreferencesManager @Inject constructor(
         }
 
     var autoScanIntervalMs: Long
-        get() = prefs.getLong(KEY_AUTO_SCAN_INTERVAL_MS, DEFAULT_INTERVAL_MS)
+        get() = prefs.getLong(KEY_AUTO_SCAN_INTERVAL_MS, SCAN_PREFERENCES_DEFAULT_INTERVAL_MS)
         set(value) {
-            prefs.edit().putLong(KEY_AUTO_SCAN_INTERVAL_MS, value.coerceAtLeast(MIN_INTERVAL_MS)).apply()
+            prefs.edit().putLong(KEY_AUTO_SCAN_INTERVAL_MS, value.coerceAtLeast(SCAN_PREFERENCES_MIN_INTERVAL_MS)).apply()
         }
 
     var lastScanAt: Long
@@ -35,11 +41,32 @@ class ScanPreferencesManager @Inject constructor(
             prefs.edit().putBoolean(KEY_MERGE_SAME_ANIME_ENABLED, value).apply()
         }
 
-    fun shouldAutoScan(now: Long = System.currentTimeMillis()): Boolean {
-        if (!autoScanEnabled) return false
-        val last = lastScanAt
-        return last <= 0L || now - last >= autoScanIntervalMs
+    override suspend fun getPreferences(): ScanPreferencesSnapshot =
+        ScanPreferencesSnapshot(
+            autoScanEnabled = autoScanEnabled,
+            autoScanIntervalMs = autoScanIntervalMs,
+            lastScanAt = lastScanAt,
+            mergeSameAnimeEnabled = mergeSameAnimeEnabled,
+        )
+
+    override suspend fun setAutoScanEnabled(enabled: Boolean) {
+        autoScanEnabled = enabled
     }
+
+    override suspend fun setAutoScanIntervalMs(intervalMs: Long) {
+        autoScanIntervalMs = intervalMs
+    }
+
+    override suspend fun setLastScanAt(timestampMs: Long) {
+        lastScanAt = timestampMs
+    }
+
+    override suspend fun setMergeSameAnimeEnabled(enabled: Boolean) {
+        mergeSameAnimeEnabled = enabled
+    }
+
+    suspend fun shouldAutoScan(now: Long = System.currentTimeMillis()): Boolean =
+        (this as ScanPreferencesRepository).shouldAutoScan(now)
 
     companion object {
         private const val KEY_AUTO_SCAN_ENABLED = "auto_scan_enabled"
@@ -47,9 +74,8 @@ class ScanPreferencesManager @Inject constructor(
         private const val KEY_LAST_SCAN_AT = "last_scan_at"
         private const val KEY_MERGE_SAME_ANIME_ENABLED = "merge_same_anime_enabled"
 
-        private const val MIN_INTERVAL_MS = 30 * 60 * 1000L
-        const val DEFAULT_INTERVAL_MS = 6 * 60 * 60 * 1000L
+        const val DEFAULT_INTERVAL_MS = SCAN_PREFERENCES_DEFAULT_INTERVAL_MS
 
-        val INTERVAL_OPTIONS_HOURS = listOf(1, 6, 12, 24)
+        val INTERVAL_OPTIONS_HOURS = scanPreferencesIntervalOptionsHours
     }
 }

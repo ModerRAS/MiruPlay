@@ -2,11 +2,11 @@ package com.miruplay.tv.webcontrol
 
 import java.net.URLDecoder
 
-internal object HttpRequestEncoding {
+object HttpRequestEncoding {
     fun queryParameter(
         rawQuery: String?,
         parsedParameters: Map<String, List<String>>,
-        name: String
+        name: String,
     ): String =
         rawQuery
             ?.split('&')
@@ -57,6 +57,6 @@ internal object HttpRequestEncoding {
         }
 
     private val mojibakeMarkerChars = setOf(
-        'Ã', 'Â', 'ä', 'å', 'æ', 'ç', 'è', 'é', 'ê', 'ë', 'ì', 'í', 'î', 'ï'
+        'Ã', 'Â', 'ä', 'å', 'æ', 'ç', 'è', 'é', 'ê', 'ë', 'ì', 'í', 'î', 'ï',
     )
 }

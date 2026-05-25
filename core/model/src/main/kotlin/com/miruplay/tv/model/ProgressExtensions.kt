@@ -5,7 +5,7 @@ private const val COMPLETION_RATIO = 0.90f
 fun Episode.isCompleted(progress: ProgressRecord?): Boolean {
     if (bangumiCollectionType == 2) return true
     val record = progress ?: return false
-    val position = record.positionMs.coerceAtLeast(0L)
+    val position = coercePlaybackPosition(record.positionMs)
     if (duration > 0L) {
         return position >= completionThreshold(duration)
     }
@@ -13,27 +13,40 @@ fun Episode.isCompleted(progress: ProgressRecord?): Boolean {
 }
 
 fun Episode.resumePosition(progress: ProgressRecord?): Long {
-    val position = progress?.positionMs?.coerceAtLeast(0L) ?: return 0L
+    val position = progress?.let { coercePlaybackPosition(it.positionMs) } ?: return 0L
     return if (isCompleted(progress)) 0L else position
 }
 
 fun Episode.progressFraction(progress: ProgressRecord?): Float {
     val record = progress ?: return 0f
-    val total = duration.takeIf { it > 0L } ?: return 0f
-    return (record.positionMs.coerceAtLeast(0L).toFloat() / total.toFloat()).coerceIn(0f, 1f)
+    return PlaybackTimingConventions.playbackProgressFraction(record.positionMs, duration)
 }
 
 fun Episode.progressLabel(progress: ProgressRecord?): String {
     if (isCompleted(progress)) return "已看"
-    val position = progress?.positionMs?.coerceAtLeast(0L) ?: return "未看"
+    val position = progress?.let { coercePlaybackPosition(it.positionMs) } ?: return "未看"
     if (position <= 0L) return "未看"
     return playbackProgressPositionLabel(position)
 }
 
 fun Episode.continueEpisodeProgress(progress: ProgressRecord?): Boolean {
-    val position = progress?.positionMs?.coerceAtLeast(0L) ?: return false
+    val position = progress?.let { coercePlaybackPosition(it.positionMs) } ?: return false
     return position > 0L && !isCompleted(progress)
 }
+
+fun Episode.coercePlaybackPosition(positionMs: Long): Long =
+    PlaybackTimingConventions.coercePlaybackPositionMs(positionMs, duration)
+
+fun List<Pair<Episode, ProgressRecord?>>.continueEpisode(): Episode? {
+    val partial = continueProgressEpisode()
+    if (partial != null) return partial
+
+    return firstOrNull { (episode, progress) -> !episode.isCompleted(progress) }?.first
+        ?: firstOrNull()?.first
+}
+
+fun List<Pair<Episode, ProgressRecord?>>.continueActionLabel(): String =
+    detailContinueActionLabel(continueProgressEpisode()?.episodeNumber)
 
 fun playbackProgressPositionLabel(positionMs: Long): String =
     "看到 ${formatPlaybackPosition(positionMs.coerceAtLeast(0L))}"
@@ -78,3 +91,8 @@ fun ProgressRecord.loadedPlaybackStatus(displayName: String): String =
 
 private fun completionThreshold(duration: Long): Long =
     (duration * COMPLETION_RATIO).toLong().coerceAtLeast(1L)
+
+private fun List<Pair<Episode, ProgressRecord?>>.continueProgressEpisode(): Episode? =
+    filter { (episode, progress) -> episode.continueEpisodeProgress(progress) }
+        .maxByOrNull { (_, progress) -> progress?.lastWatched ?: 0L }
+        ?.first

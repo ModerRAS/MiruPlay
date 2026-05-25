@@ -12,6 +12,8 @@ $scriptRoot = if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) {
 } else {
     $PSScriptRoot
 }
+. (Join-Path $scriptRoot "desktop-window-helper.ps1")
+. (Join-Path $scriptRoot "desktop-smoke-common.ps1")
 if ([string]::IsNullOrWhiteSpace($AppScript)) {
     $AppScript = Join-Path $scriptRoot "..\desktop-app\build\install\desktop-app\bin\desktop-app.bat"
 }
@@ -55,36 +57,6 @@ public static class MiruPlaySourceManagementSmokeWin32 {
 
 }
 "@
-}
-
-function Resolve-FullPath {
-    param([string]$Path)
-    if ([System.IO.Path]::IsPathRooted($Path)) {
-        return [System.IO.Path]::GetFullPath($Path)
-    }
-    return [System.IO.Path]::GetFullPath((Join-Path (Get-Location) $Path))
-}
-
-function Get-MiruPlayWindowProcess {
-    Get-Process |
-        Where-Object {
-            ($_.MainWindowTitle -like "*MiruPlay Desktop*" -or ($_.ProcessName -eq "java" -and $_.MainWindowTitle -like "*MiruPlay*")) -and
-            $_.MainWindowHandle -ne 0
-        } |
-        Select-Object -First 1
-}
-
-function Wait-MiruPlayWindow {
-    $deadline = (Get-Date).AddSeconds(30)
-    do {
-        $process = Get-MiruPlayWindowProcess
-        if ($process) {
-            return $process
-        }
-        Start-Sleep -Milliseconds 300
-    } while ((Get-Date) -lt $deadline)
-
-    throw "MiruPlay Desktop window did not appear within 30 seconds."
 }
 
 function Get-WindowRect {
@@ -164,34 +136,6 @@ function Send-AppKeys {
     Start-Sleep -Milliseconds $DelayMilliseconds
 }
 
-function Read-StoreState {
-    param([string]$Path)
-    if (-not (Test-Path -LiteralPath $Path)) {
-        return $null
-    }
-    return Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
-}
-
-function Wait-StoreState {
-    param(
-        [string]$Path,
-        [scriptblock]$Predicate,
-        [string]$Description,
-        [int]$TimeoutSeconds = 20
-    )
-
-    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
-    do {
-        $state = Read-StoreState -Path $Path
-        if ($state -and (& $Predicate $state)) {
-            return $state
-        }
-        Start-Sleep -Milliseconds 300
-    } while ((Get-Date) -lt $deadline)
-
-    throw "Timed out waiting for $Description in $Path."
-}
-
 function Assert-ScreenshotHasContent {
     param([string]$Path)
     $file = Get-Item -LiteralPath $Path
@@ -260,12 +204,12 @@ function Save-WindowScreenshot {
     Assert-ScreenshotHasContent -Path $Path
 }
 
-$resolvedAppScript = Resolve-FullPath $AppScript
-$resolvedOutputRoot = Resolve-FullPath $OutputRoot
+$resolvedAppScript = Resolve-DesktopSmokeFullPath $AppScript
+$resolvedOutputRoot = Resolve-DesktopSmokeFullPath $OutputRoot
 if (-not (Test-Path -LiteralPath $resolvedAppScript)) {
     throw "Desktop app launcher was not found at $resolvedAppScript. Run :desktop-app:installDist first."
 }
-if (Get-MiruPlayWindowProcess) {
+if (Get-MiruPlayDesktopWindowProcess) {
     throw "A MiruPlay Desktop window is already open. Close it before running this isolated smoke test."
 }
 
@@ -361,15 +305,17 @@ $initialStore = @{
     cloudDrivePassword = $null
     bangumiAccessToken = $null
 }
-$initialStore | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $storePath -Encoding UTF8
+$initialStoreJson = $initialStore | ConvertTo-Json -Depth 20
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+[System.IO.File]::WriteAllText($storePath, $initialStoreJson, $utf8NoBom)
 $previousStoreEnv = $env:MIRUPLAY_DESKTOP_STORE
 $env:MIRUPLAY_DESKTOP_STORE = $storePath
 $startedProcess = $null
 try {
     $startedProcess = Start-Process -FilePath $resolvedAppScript -PassThru
-    $windowProcess = Wait-MiruPlayWindow
+    $windowProcess = Wait-MiruPlayDesktopWindowProcess
 
-    $state = Wait-StoreState -Path $storePath -Description "preloaded local sources" -Predicate {
+    $state = Wait-DesktopSmokeStoreState -Path $storePath -Description "preloaded local sources" -Predicate {
         param($state)
         @($state.mediaSources).Count -eq 2
     }
@@ -395,7 +341,7 @@ try {
     Save-WindowScreenshot -Process $windowProcess -Path $sourceSwitchScreenshotPath
 
     Invoke-RelativeClick -Process $windowProcess -X 664 -Y 337
-    $state = Wait-StoreState -Path $storePath -Description "scanned local index entry" -Predicate {
+    $state = Wait-DesktopSmokeStoreState -Path $storePath -Description "scanned local index entry" -Predicate {
         param($state)
         @($state.index | Where-Object { -not $_.isDirectory }).Count -eq 1
     } -TimeoutSeconds 90
@@ -415,7 +361,7 @@ try {
     Save-WindowScreenshot -Process $windowProcess -Path $controlsScreenshotPath
 
     Invoke-RelativeClick -Process $windowProcess -X 1112 -Y 356
-    $state = Wait-StoreState -Path $storePath -Description "cleared source index" -Predicate {
+    $state = Wait-DesktopSmokeStoreState -Path $storePath -Description "cleared source index" -Predicate {
         param($state)
         @($state.mediaSources).Count -eq 2 -and @($state.index).Count -eq 0 -and @($state.indexBatchUndo).Count -eq 0
     }
@@ -431,7 +377,7 @@ try {
     Start-Sleep -Milliseconds 400
     Save-WindowScreenshot -Process $windowProcess -Path $removeReadyScreenshotPath
     Invoke-RelativeClick -Process $windowProcess -X 1112 -Y 327
-    $state = Wait-StoreState -Path $storePath -Description "removed source and associated index state" -Predicate {
+    $state = Wait-DesktopSmokeStoreState -Path $storePath -Description "removed source and associated index state" -Predicate {
         param($state)
         @($state.mediaSources).Count -eq 1 -and @($state.index).Count -eq 0 -and @($state.indexBatchUndo).Count -eq 0
     }
@@ -443,16 +389,22 @@ try {
 } finally {
     $env:MIRUPLAY_DESKTOP_STORE = $previousStoreEnv
     if (-not $KeepOpen) {
-        $windowProcess = Get-MiruPlayWindowProcess
+        $windowProcess = Get-MiruPlayDesktopWindowProcess
         if ($windowProcess) {
             $windowProcess.CloseMainWindow() | Out-Null
             Start-Sleep -Milliseconds 700
             if (-not $windowProcess.HasExited) {
-                Stop-Process -Id $windowProcess.Id -Force
+                $runningWindowProcess = Get-Process -Id $windowProcess.Id -ErrorAction SilentlyContinue
+                if ($runningWindowProcess) {
+                    Stop-Process -Id $windowProcess.Id -Force -ErrorAction SilentlyContinue
+                }
             }
         }
         if ($startedProcess -and -not $startedProcess.HasExited) {
-            Stop-Process -Id $startedProcess.Id -Force -ErrorAction SilentlyContinue
+            $runningStartedProcess = Get-Process -Id $startedProcess.Id -ErrorAction SilentlyContinue
+            if ($runningStartedProcess) {
+                Stop-Process -Id $startedProcess.Id -Force -ErrorAction SilentlyContinue
+            }
         }
     }
 }
@@ -465,3 +417,4 @@ Write-Output "Saved-source keyboard screenshot: $sourceSwitchScreenshotPath"
 Write-Output "Cleared screenshot: $clearedScreenshotPath"
 Write-Output "Remove ready screenshot: $removeReadyScreenshotPath"
 Write-Output "Removed screenshot: $removedScreenshotPath"
+

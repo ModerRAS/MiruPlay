@@ -37,44 +37,61 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.miruplay.tv.design.MiruPlayFocusAxis
+import com.miruplay.tv.design.MiruPlayFocusEdge
+import com.miruplay.tv.design.MiruPlayFocusMove
 import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.design.MiruPlayUiMetrics
+import com.miruplay.tv.design.focusIndexAfter
+import com.miruplay.tv.design.focusMoveAfter
+import com.miruplay.tv.design.focusTargetAfter
 import com.miruplay.tv.design.horizontalNavigationDelta
+import com.miruplay.tv.design.splitColumnFocusIndexAfter
+import com.miruplay.tv.design.splitColumnSecondColumnStart
 import com.miruplay.tv.design.verticalNavigationDelta
+import com.miruplay.tv.model.DETAIL_EPISODE_PAGE_SIZE
 import com.miruplay.tv.model.FileEntry
+import com.miruplay.tv.model.Episode
+import com.miruplay.tv.model.MEDIA_DETAILS_PAGE_SIZE
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.ProgressRecord
+import com.miruplay.tv.model.RECENT_PLAYBACK_PAGE_SIZE
+import com.miruplay.tv.model.activeSeasonOrDefault
 import com.miruplay.tv.model.detailBackToLibraryActionLabel
 import com.miruplay.tv.model.detailEpisodeBadge
+import com.miruplay.tv.model.detailEpisodeCoercedPageStart
 import com.miruplay.tv.model.detailEpisodeCountLabel
 import com.miruplay.tv.model.detailEpisodeEmptyMessage
-import com.miruplay.tv.model.detailEpisodePageUnitLabel
+import com.miruplay.tv.model.detailEpisodePageStartForIndex
+import com.miruplay.tv.model.detailEpisodePageSummary
 import com.miruplay.tv.model.detailEpisodeSectionTitle
 import com.miruplay.tv.model.detailEpisodeShelfSubtitle
 import com.miruplay.tv.model.detailEpisodeTitleLabel
 import com.miruplay.tv.model.detailHeroEmptyTitle
 import com.miruplay.tv.model.detailHeroEmptySubtitle
+import com.miruplay.tv.model.detailHeroStatLabels
 import com.miruplay.tv.model.detailPlayActionLabel
 import com.miruplay.tv.model.detailSeasonLabel
 import com.miruplay.tv.model.formatPlaybackPosition
-import com.miruplay.tv.model.libraryContinueWatchingSectionTitle
-import com.miruplay.tv.model.mediaDetailsEmptyMessage
-import com.miruplay.tv.model.mediaDetailsPageUnitLabel
-import com.miruplay.tv.model.mediaDetailsSectionTitle
-import com.miruplay.tv.model.pagedListCoercedPageStart
-import com.miruplay.tv.model.pagedListPageStartForIndex
-import com.miruplay.tv.model.pagedListPageSummary
+import com.miruplay.tv.model.mediaDetailsCoercedPageStart
+import com.miruplay.tv.model.mediaDetailsPageStartForIndex
+import com.miruplay.tv.model.mediaDetailsPageSummary
 import com.miruplay.tv.model.playbackProgressRecordLabel
-import com.miruplay.tv.model.recentPlaybackClearActionLabel
-import com.miruplay.tv.model.recentPlaybackEmptyMessage
-import com.miruplay.tv.model.recentPlaybackPageUnitLabel
-import com.miruplay.tv.model.recentPlaybackRefreshActionLabel
+import com.miruplay.tv.model.recentPlaybackCoercedPageStart
+import com.miruplay.tv.model.mediaDetailsLabels
+import com.miruplay.tv.model.recentPlaybackPageStartForIndex
+import com.miruplay.tv.model.recentPlaybackPageSummary
+import com.miruplay.tv.model.recentPlaybackLabels
+import com.miruplay.tv.model.loadedPlaybackStatus
+import com.miruplay.tv.model.resumeStartSecondsText
+import com.miruplay.tv.repository.LibraryContinueWatchingEpisode
 import com.miruplay.tv.repository.MediaDetailRows
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.displayName
 import com.miruplay.tv.repository.mediaFilesOnly
 import com.miruplay.tv.repository.mediaDisplayName
+import com.miruplay.tv.repository.sortedByMediaIndexEpisodeOrder
 
 @Composable
 internal fun DesktopDetailHero(
@@ -110,7 +127,15 @@ internal fun DesktopDetailHero(
         }
             ?: false
 
-    val statLabels = detailHeroStatLabels(entry, episodeCount)
+    val statLabels = entry
+        ?.let {
+            detailHeroStatLabels(
+                episodeCount = episodeCount,
+                seasonNumber = it.seasonNumber,
+                metadataSource = it.metadataSource,
+            )
+        }
+        .orEmpty()
 
     LaunchedEffect(focusVersion) {
         actionFocusRequesters.getValue(DesktopDetailHeroAction.Play).requestFocus()
@@ -265,54 +290,83 @@ internal enum class DesktopDetailHeroAction {
     BackToLibrary,
 }
 
-internal enum class DesktopDetailDownTarget {
+internal enum class DesktopDetailFocusPanel {
+    Hero,
     EpisodeList,
-    RecentPlayback,
     BangumiMetadata,
+    RecentPlayback,
+    MediaDetails,
 }
 
 internal fun moveDesktopDetailHeroAction(
     current: DesktopDetailHeroAction,
     delta: Int,
-): DesktopDetailHeroAction? {
-    val actions = DesktopDetailHeroAction.entries
-    val targetIndex = actions.indexOf(current) + delta
-    return actions.getOrNull(targetIndex)
-}
+): DesktopDetailHeroAction? =
+    DesktopDetailHeroAction.entries.focusTargetAfter(current = current, delta = delta)
 
 internal fun detailHeroActionFocusTarget(
     current: DesktopDetailHeroAction,
     intent: MiruPlayInputIntent,
 ): DesktopDetailHeroAction? =
-    intent.horizontalNavigationDelta()?.let { delta ->
-        moveDesktopDetailHeroAction(current, delta)
-    }
+    DesktopDetailHeroAction.entries.focusTargetAfter(
+        current = current,
+        intent = intent,
+        axis = MiruPlayFocusAxis.Horizontal,
+    )
 
-internal fun detailHeroDownTarget(
+internal fun detailPanelFocusTarget(
+    current: DesktopDetailFocusPanel,
+    direction: Int,
     hasRelatedEpisodes: Boolean,
     hasRecentPlayback: Boolean,
-): DesktopDetailDownTarget =
+): DesktopDetailFocusPanel? =
     when {
-        hasRelatedEpisodes -> DesktopDetailDownTarget.EpisodeList
-        hasRecentPlayback -> DesktopDetailDownTarget.RecentPlayback
-        else -> DesktopDetailDownTarget.BangumiMetadata
+        direction < 0 -> detailPreviousPanelFocusTarget(current, hasRelatedEpisodes, hasRecentPlayback)
+        direction > 0 -> detailNextPanelFocusTarget(current, hasRelatedEpisodes, hasRecentPlayback)
+        else -> null
     }
 
-internal fun detailHeroStatLabels(
-    entry: MediaIndexEntry?,
-    episodeCount: Int,
-): List<String> {
-    if (entry == null) return emptyList()
-    return buildList {
-        if (episodeCount > 0) {
-            add(detailEpisodeCountLabel(episodeCount))
+private fun detailPreviousPanelFocusTarget(
+    current: DesktopDetailFocusPanel,
+    hasRelatedEpisodes: Boolean,
+    hasRecentPlayback: Boolean,
+): DesktopDetailFocusPanel? =
+    when (current) {
+        DesktopDetailFocusPanel.Hero -> null
+        DesktopDetailFocusPanel.EpisodeList -> DesktopDetailFocusPanel.Hero
+        DesktopDetailFocusPanel.BangumiMetadata -> if (hasRelatedEpisodes) {
+            DesktopDetailFocusPanel.EpisodeList
+        } else {
+            DesktopDetailFocusPanel.Hero
         }
-        entry.seasonNumber?.let { add(detailSeasonLabel(it)) }
-        entry.metadataSource
-            ?.takeIf { it.isNotBlank() }
-            ?.let { add(it.trim()) }
+        DesktopDetailFocusPanel.RecentPlayback -> DesktopDetailFocusPanel.BangumiMetadata
+        DesktopDetailFocusPanel.MediaDetails -> if (hasRecentPlayback) {
+            DesktopDetailFocusPanel.RecentPlayback
+        } else {
+            DesktopDetailFocusPanel.BangumiMetadata
+        }
     }
-}
+
+private fun detailNextPanelFocusTarget(
+    current: DesktopDetailFocusPanel,
+    hasRelatedEpisodes: Boolean,
+    hasRecentPlayback: Boolean,
+): DesktopDetailFocusPanel? =
+    when (current) {
+        DesktopDetailFocusPanel.Hero -> if (hasRelatedEpisodes) {
+            DesktopDetailFocusPanel.EpisodeList
+        } else {
+            DesktopDetailFocusPanel.BangumiMetadata
+        }
+        DesktopDetailFocusPanel.EpisodeList -> DesktopDetailFocusPanel.BangumiMetadata
+        DesktopDetailFocusPanel.BangumiMetadata -> if (hasRecentPlayback) {
+            DesktopDetailFocusPanel.RecentPlayback
+        } else {
+            DesktopDetailFocusPanel.MediaDetails
+        }
+        DesktopDetailFocusPanel.RecentPlayback -> DesktopDetailFocusPanel.MediaDetails
+        DesktopDetailFocusPanel.MediaDetails -> null
+    }
 
 @Composable
 private fun DetailPoster(title: String) {
@@ -652,7 +706,7 @@ private fun DetailEpisodeRow(
                 )
             }
             Text(
-                detailEpisodeProgressLabel(progress),
+                playbackProgressRecordLabel(progress),
                 color = if (progress != null) AnimeRed else TextSecondary,
                 fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -664,23 +718,9 @@ private fun DetailEpisodeRow(
     }
 }
 
-internal fun detailEpisodesForSelection(
-    entries: List<MediaIndexEntry>,
-    selectedEntry: MediaIndexEntry?,
-): List<MediaIndexEntry> {
-    val selected = selectedEntry?.takeUnless { it.isDirectory } ?: return emptyList()
-    val title = selected.posterTitle()
-    return entries
-        .mediaFilesOnly()
-        .asSequence()
-        .filter { it.sourceId == selected.sourceId && it.posterTitle() == title }
-        .sortedWith(detailEpisodeComparator)
-        .toList()
-}
-
 internal fun detailEpisodeSeasons(episodes: List<MediaIndexEntry>): List<Int> =
     episodes
-        .mapNotNull { it.seasonNumber }
+        .map { it.seasonNumber ?: 1 }
         .distinct()
         .sorted()
 
@@ -689,22 +729,35 @@ internal fun detailActiveEpisodeSeason(
     selectedEntry: MediaIndexEntry?,
     requestedSeason: Int?,
 ): Int? {
-    val seasons = detailEpisodeSeasons(episodes)
-    if (seasons.isEmpty()) return null
-    return when {
-        requestedSeason in seasons -> requestedSeason
-        selectedEntry?.seasonNumber in seasons -> selectedEntry?.seasonNumber
-        else -> seasons.first()
-    }
+    if (episodes.isEmpty()) return null
+    return episodes
+        .map { it.toDetailEpisode() }
+        .activeSeasonOrDefault(
+            requestedSeason = requestedSeason ?: selectedEntry?.seasonNumber,
+        )
 }
 
 internal fun detailEpisodesForSeason(
     episodes: List<MediaIndexEntry>,
     season: Int?,
 ): List<MediaIndexEntry> =
-    if (season == null) episodes.sortedWith(detailEpisodeComparator) else episodes.filter { it.seasonNumber == season }
+    if (season == null) {
+        episodes.sortedByMediaIndexEpisodeOrder()
+    } else {
+        episodes
+            .filter { (it.seasonNumber ?: 1) == season }
+            .sortedByMediaIndexEpisodeOrder()
+    }
 
-private const val DETAIL_EPISODE_PAGE_SIZE = 6
+private fun MediaIndexEntry.toDetailEpisode(): Episode =
+    Episode(
+        id = path,
+        animeId = animeName.orEmpty(),
+        seasonNumber = seasonNumber ?: 1,
+        episodeNumber = episodeNumber ?: 1,
+        filePath = path,
+        fileName = MediaPathConventions.fileName(path),
+    )
 
 internal fun moveDetailEpisodeSelection(
     currentIndex: Int,
@@ -738,13 +791,27 @@ internal fun moveDetailEpisodeFocusTarget(
     activeSeasonIndex: Int = 0,
 ): DetailEpisodeFocusTarget? {
     if (itemCount <= 0) return null
-    val targetIndex = currentIndex + delta
-    return when {
-        targetIndex < 0 && seasonCount > 1 ->
-            DetailEpisodeFocusTarget.Season(activeSeasonIndex.coerceIn(0, seasonCount - 1))
-        targetIndex < 0 -> DetailEpisodeFocusTarget.PreviousPanel
-        targetIndex >= itemCount -> DetailEpisodeFocusTarget.NextPanel
-        else -> DetailEpisodeFocusTarget.Row(targetIndex)
+    return when (val move = focusMoveAfter(
+        currentIndex = currentIndex,
+        delta = delta,
+        itemCount = itemCount,
+    )) {
+        is MiruPlayFocusMove.Index -> DetailEpisodeFocusTarget.Row(move.index)
+        is MiruPlayFocusMove.Edge -> when (move.edge) {
+            MiruPlayFocusEdge.Before -> if (seasonCount > 1) {
+                DetailEpisodeFocusTarget.Season(activeSeasonIndex.coerceIn(0, seasonCount - 1))
+            } else {
+                DetailEpisodeFocusTarget.PreviousPanel
+            }
+            MiruPlayFocusEdge.After -> DetailEpisodeFocusTarget.NextPanel
+        }
+        null -> when {
+            delta < 0 && seasonCount > 1 ->
+                DetailEpisodeFocusTarget.Season(activeSeasonIndex.coerceIn(0, seasonCount - 1))
+            delta < 0 -> DetailEpisodeFocusTarget.PreviousPanel
+            delta > 0 -> DetailEpisodeFocusTarget.NextPanel
+            else -> null
+        }
     }
 }
 
@@ -796,11 +863,12 @@ internal fun detailEpisodeSeasonFocusTarget(
         } else {
             DetailEpisodeFocusTarget.NextPanel
         }
-        else -> when (intent.horizontalNavigationDelta()) {
-            -1 -> (currentIndex - 1).takeIf { it >= 0 }?.let(DetailEpisodeFocusTarget::Season)
-            1 -> (currentIndex + 1).takeIf { it < seasonCount }?.let(DetailEpisodeFocusTarget::Season)
-            else -> null
-        }
+        else -> focusIndexAfter(
+            currentIndex = currentIndex,
+            intent = intent,
+            axis = MiruPlayFocusAxis.Horizontal,
+            itemCount = seasonCount,
+        )?.let(DetailEpisodeFocusTarget::Season)
     }
 
 internal fun detailEpisodeEmptyFocusTarget(key: Key): DetailEpisodeFocusTarget? =
@@ -813,56 +881,50 @@ internal fun detailEpisodeEmptyFocusTarget(intent: MiruPlayInputIntent): DetailE
         else -> null
     }
 
-internal fun detailEpisodePageStartForIndex(
-    index: Int,
-    itemCount: Int,
-    pageSize: Int = DETAIL_EPISODE_PAGE_SIZE,
-): Int = pagedListPageStartForIndex(index, itemCount, pageSize)
+internal data class DesktopRecentPlaybackItem(
+    val progress: ProgressRecord,
+    val displayName: String,
+    val pathLabel: String,
+)
 
-internal fun detailEpisodeCoercedPageStart(
-    pageStart: Int,
-    itemCount: Int,
-    pageSize: Int = DETAIL_EPISODE_PAGE_SIZE,
-): Int = pagedListCoercedPageStart(pageStart, itemCount, pageSize)
-
-internal fun detailEpisodePageSummary(
-    pageStart: Int,
-    visibleCount: Int,
-    itemCount: Int,
-): String? {
-    val safeStart = detailEpisodeCoercedPageStart(pageStart, itemCount)
-    return pagedListPageSummary(
-        pageStart = safeStart,
-        visibleCount = visibleCount,
-        itemCount = itemCount,
-        pageSize = DETAIL_EPISODE_PAGE_SIZE,
-        unitLabel = detailEpisodePageUnitLabel(),
-    )
-}
-
-private val detailEpisodeComparator =
-    compareBy<MediaIndexEntry>(
-        { it.seasonNumber ?: Int.MAX_VALUE },
-        { it.episodeNumber ?: Int.MAX_VALUE },
-        { it.path.lowercase() },
+internal fun LibraryContinueWatchingEpisode.toDesktopRecentPlaybackItem(): DesktopRecentPlaybackItem =
+    DesktopRecentPlaybackItem(
+        progress = progress,
+        displayName = episode.title
+            .takeIf { it.isNotBlank() }
+            ?: episode.fileName.takeIf { it.isNotBlank() }
+            ?: anime?.titleCn?.takeIf { it.isNotBlank() }
+            ?: anime?.title?.takeIf { it.isNotBlank() }
+            ?: progress.mediaDisplayName(),
+        pathLabel = episode.filePath.ifBlank { progress.episodeId },
     )
 
-internal fun detailEpisodeProgressLabel(progress: ProgressRecord?): String =
-    playbackProgressRecordLabel(progress)
+internal fun DesktopRecentPlaybackItem.loadedPlaybackStatus(): String =
+    progress.loadedPlaybackStatus(displayName)
+
+internal fun DesktopRecentPlaybackItem.resumeStartSecondsText(): String =
+    progress.resumeStartSecondsText()
+
+internal fun DesktopRecentPlaybackItem?.retainedSelectionInRecentPlaybackItems(
+    items: List<DesktopRecentPlaybackItem>,
+): DesktopRecentPlaybackItem? =
+    this?.let { selected ->
+        items.firstOrNull { it.progress.episodeId == selected.progress.episodeId }
+    }
 
 @Composable
 internal fun RecentPlaybackPanel(
-    records: List<ProgressRecord>,
-    selectedRecord: ProgressRecord?,
+    records: List<DesktopRecentPlaybackItem>,
+    selectedRecord: DesktopRecentPlaybackItem?,
     status: String,
     focusVersion: Int,
     onFocusPreviousPanel: () -> Boolean,
     onFocusNextPanel: () -> Boolean,
     onRefresh: () -> Unit,
-    onRecordSelected: (ProgressRecord) -> Unit,
+    onRecordSelected: (DesktopRecentPlaybackItem) -> Unit,
     onClearSelected: () -> Unit,
 ) {
-    var pageStartState by remember(records.map { it.episodeId }) { mutableStateOf(0) }
+    var pageStartState by remember(records.map { it.progress.episodeId }) { mutableStateOf(0) }
     val pageStart = recentPlaybackCoercedPageStart(
         pageStart = pageStartState,
         itemCount = records.size,
@@ -873,8 +935,8 @@ internal fun RecentPlaybackPanel(
             .take(RECENT_PLAYBACK_PAGE_SIZE)
     }
     var pendingRecordFocus by remember { mutableStateOf<Int?>(null) }
-    val labels = desktopRecentPlaybackLabels()
-    val recordFocusRequesters = remember(pageStart, visibleRecords.map { it.episodeId }) {
+    val labels = recentPlaybackLabels()
+    val recordFocusRequesters = remember(pageStart, visibleRecords.map { it.progress.episodeId }) {
         List(visibleRecords.size) { FocusRequester() }
     }
     val actionFocusRequesters = remember {
@@ -929,7 +991,7 @@ internal fun RecentPlaybackPanel(
     fun moveRecentEmptyFocus(intent: MiruPlayInputIntent): Boolean =
         requestRecentFocus(recentPlaybackEmptyFocusTarget(intent))
 
-    LaunchedEffect(pageStart, visibleRecords.map { it.episodeId }, pendingRecordFocus) {
+    LaunchedEffect(pageStart, visibleRecords.map { it.progress.episodeId }, pendingRecordFocus) {
         val pendingIndex = pendingRecordFocus ?: return@LaunchedEffect
         if (pendingIndex in pageStart until pageStart + visibleRecords.size) {
             recordFocusRequesters.getOrNull(pendingIndex - pageStart)?.requestFocus()
@@ -937,7 +999,7 @@ internal fun RecentPlaybackPanel(
         }
     }
 
-    LaunchedEffect(focusVersion, records.map { it.episodeId }) {
+    LaunchedEffect(focusVersion, records.map { it.progress.episodeId }) {
         if (focusVersion > 0) {
             if (records.isNotEmpty()) {
                 requestRecentFocus(RecentPlaybackFocusTarget.Row(0))
@@ -992,7 +1054,7 @@ internal fun RecentPlaybackPanel(
                         val absoluteIndex = pageStart + index
                         RecentProgressRow(
                             record = record,
-                            selected = selectedRecord?.episodeId == record.episodeId,
+                            selected = selectedRecord?.progress?.episodeId == record.progress.episodeId,
                             onClick = {
                                 onRecordSelected(record)
                                 requestRecentFocus(RecentPlaybackFocusTarget.Row(absoluteIndex))
@@ -1047,27 +1109,9 @@ private fun RecentPlaybackEmptyState(
     }
 }
 
-internal data class DesktopRecentPlaybackLabels(
-    val title: String,
-    val refreshAction: String,
-    val clearAction: String,
-    val emptyState: String,
-)
-
-internal fun desktopRecentPlaybackLabels(): DesktopRecentPlaybackLabels =
-    DesktopRecentPlaybackLabels(
-        title = libraryContinueWatchingSectionTitle(),
-        refreshAction = recentPlaybackRefreshActionLabel(),
-        clearAction = recentPlaybackClearActionLabel(),
-        emptyState = recentPlaybackEmptyMessage(),
-    )
-
-private const val RECENT_PLAYBACK_PAGE_SIZE = 6
-private const val MEDIA_DETAILS_PAGE_SIZE = 6
-
 @Composable
 private fun RecentProgressRow(
-    record: ProgressRecord,
+    record: DesktopRecentPlaybackItem,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -1085,7 +1129,7 @@ private fun RecentProgressRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                formatPlaybackPosition(record.positionMs),
+                formatPlaybackPosition(record.progress.positionMs),
                 color = if (active) AnimeRed else TextSecondary,
                 fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
                 fontWeight = FontWeight.Bold,
@@ -1093,7 +1137,7 @@ private fun RecentProgressRow(
             )
             Column(Modifier.weight(1f)) {
                 Text(
-                    record.mediaDisplayName(),
+                    record.displayName,
                     color = TextPrimary,
                     fontSize = MiruPlayUiMetrics.ITEM_TITLE_SP.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -1101,14 +1145,14 @@ private fun RecentProgressRow(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    record.episodeId,
+                    record.pathLabel,
                     color = TextSecondary,
                     fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Text("x${record.playCount}", color = TextSecondary, fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp)
+            Text("x${record.progress.playCount}", color = TextSecondary, fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp)
         }
     }
 }
@@ -1145,11 +1189,8 @@ internal sealed interface RecentPlaybackFocusTarget {
 internal fun moveRecentPlaybackAction(
     current: RecentPlaybackAction,
     delta: Int,
-): RecentPlaybackAction? {
-    val actions = RecentPlaybackAction.entries
-    val targetIndex = current.ordinal + delta
-    return actions.getOrNull(targetIndex)
-}
+): RecentPlaybackAction? =
+    RecentPlaybackAction.entries.focusTargetAfter(current = current, delta = delta)
 
 internal fun recentPlaybackActionVerticalFocusTarget(
     direction: Int,
@@ -1198,11 +1239,14 @@ internal fun moveRecentPlaybackFocusTarget(
     delta: Int,
 ): RecentPlaybackFocusTarget? {
     if (itemCount <= 0) return null
-    val targetIndex = currentIndex + delta
-    return when {
-        targetIndex < 0 -> RecentPlaybackFocusTarget.Action(RecentPlaybackAction.Refresh)
-        targetIndex >= itemCount -> RecentPlaybackFocusTarget.NextPanel
-        else -> RecentPlaybackFocusTarget.Row(targetIndex)
+    return focusIndexAfter(
+        currentIndex = currentIndex,
+        delta = delta,
+        itemCount = itemCount,
+    )?.let(RecentPlaybackFocusTarget::Row) ?: when {
+        delta < 0 -> RecentPlaybackFocusTarget.Action(RecentPlaybackAction.Refresh)
+        delta > 0 -> RecentPlaybackFocusTarget.NextPanel
+        else -> null
     }
 }
 
@@ -1215,33 +1259,6 @@ internal fun moveRecentPlaybackFocusTarget(
         moveRecentPlaybackFocusTarget(currentIndex, itemCount, delta)
     }
 
-internal fun recentPlaybackPageStartForIndex(
-    index: Int,
-    itemCount: Int,
-    pageSize: Int = RECENT_PLAYBACK_PAGE_SIZE,
-): Int = pagedListPageStartForIndex(index, itemCount, pageSize)
-
-internal fun recentPlaybackCoercedPageStart(
-    pageStart: Int,
-    itemCount: Int,
-    pageSize: Int = RECENT_PLAYBACK_PAGE_SIZE,
-): Int = pagedListCoercedPageStart(pageStart, itemCount, pageSize)
-
-internal fun recentPlaybackPageSummary(
-    pageStart: Int,
-    visibleCount: Int,
-    itemCount: Int,
-): String? {
-    val safeStart = recentPlaybackCoercedPageStart(pageStart, itemCount)
-    return pagedListPageSummary(
-        pageStart = safeStart,
-        visibleCount = visibleCount,
-        itemCount = itemCount,
-        pageSize = RECENT_PLAYBACK_PAGE_SIZE,
-        unitLabel = recentPlaybackPageUnitLabel(),
-    )
-}
-
 @Composable
 internal fun MediaDetailsPanel(
     source: MediaSourceInfo?,
@@ -1251,7 +1268,7 @@ internal fun MediaDetailsPanel(
     focusVersion: Int = 0,
     onFocusPreviousPanel: () -> Boolean = { false },
 ) {
-    val labels = desktopMediaDetailsLabels()
+    val labels = mediaDetailsLabels()
     val rows = remember(source, indexEntry, remoteEntry, recentRecord) {
         MediaDetailRows.build(
             source = source,
@@ -1401,17 +1418,6 @@ internal fun MediaDetailsPanel(
     }
 }
 
-internal data class DesktopMediaDetailsLabels(
-    val title: String,
-    val emptyState: String,
-)
-
-internal fun desktopMediaDetailsLabels(): DesktopMediaDetailsLabels =
-    DesktopMediaDetailsLabels(
-        title = mediaDetailsSectionTitle(),
-        emptyState = mediaDetailsEmptyMessage(),
-    )
-
 internal sealed interface MediaDetailsFocusTarget {
     data class Row(val index: Int) : MediaDetailsFocusTarget
     data object EmptyState : MediaDetailsFocusTarget
@@ -1457,63 +1463,20 @@ internal fun mediaDetailsFocusTarget(
     if (rowCount <= 0) return null
     val safePageStart = mediaDetailsCoercedPageStart(pageStart, rowCount)
     val safeVisibleCount = visibleCount.coerceIn(1, rowCount - safePageStart)
-    val splitIndex = mediaDetailsSplitIndex(safePageStart, safeVisibleCount)
-    val pageEnd = safePageStart + safeVisibleCount
-    val targetIndex = when (intent.verticalNavigationDelta()) {
-        -1 -> currentIndex - 1
-        1 -> currentIndex + 1
-        else -> when (intent.horizontalNavigationDelta()) {
-            -1 -> if (currentIndex >= splitIndex && currentIndex < pageEnd) {
-                val leftIndex = safePageStart + currentIndex - splitIndex
-                leftIndex.coerceAtMost(splitIndex - 1)
-            } else {
-                return null
-            }
-            1 -> if (currentIndex in safePageStart until splitIndex && splitIndex < pageEnd) {
-                (currentIndex + splitIndex - safePageStart).takeIf { it < pageEnd } ?: pageEnd - 1
-            } else {
-                return null
-            }
-            else -> return null
+    return splitColumnFocusIndexAfter(
+        currentIndex = currentIndex,
+        intent = intent,
+        pageStart = safePageStart,
+        visibleCount = safeVisibleCount,
+        itemCount = rowCount,
+    )?.let(MediaDetailsFocusTarget::Row)
+        ?: MediaDetailsFocusTarget.PreviousPanel.takeIf {
+            currentIndex == 0 && intent.verticalNavigationDelta() == -1
         }
-    }
-    return when {
-        targetIndex < 0 -> MediaDetailsFocusTarget.PreviousPanel
-        targetIndex >= rowCount -> null
-        else -> MediaDetailsFocusTarget.Row(targetIndex)
-    }
-}
-
-internal fun mediaDetailsPageStartForIndex(
-    index: Int,
-    itemCount: Int,
-    pageSize: Int = MEDIA_DETAILS_PAGE_SIZE,
-): Int = pagedListPageStartForIndex(index, itemCount, pageSize)
-
-internal fun mediaDetailsCoercedPageStart(
-    pageStart: Int,
-    itemCount: Int,
-    pageSize: Int = MEDIA_DETAILS_PAGE_SIZE,
-): Int = pagedListCoercedPageStart(pageStart, itemCount, pageSize)
-
-internal fun mediaDetailsPageSummary(
-    pageStart: Int,
-    visibleCount: Int,
-    itemCount: Int,
-): String? {
-    val safeStart = mediaDetailsCoercedPageStart(pageStart, itemCount)
-    return pagedListPageSummary(
-        pageStart = safeStart,
-        visibleCount = visibleCount,
-        itemCount = itemCount,
-        pageSize = MEDIA_DETAILS_PAGE_SIZE,
-        unitLabel = mediaDetailsPageUnitLabel(),
-    )
 }
 
 internal fun mediaDetailsSplitIndex(pageStart: Int, visibleCount: Int): Int {
-    val safeVisibleCount = visibleCount.coerceAtLeast(0)
-    return pageStart + (safeVisibleCount + 1) / 2
+    return splitColumnSecondColumnStart(pageStart = pageStart, visibleCount = visibleCount)
 }
 
 @Composable

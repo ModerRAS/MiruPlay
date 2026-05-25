@@ -1,6 +1,7 @@
 package com.miruplay.tv.model
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CloudDriveRssStatusConventionsTest {
@@ -8,7 +9,7 @@ class CloudDriveRssStatusConventionsTest {
     fun `cloud rss form labels are shared across TV and desktop`() {
         assertEquals("CloudDrive2", cloudDriveRssTitleLabel())
         assertEquals(
-            "RSS 可整理入库或直接落到单目录，整理后或刮削完成后触发所选 WebDAV 媒体源扫描。",
+            "RSS 会提交到 CloudDrive2 离线下载目录，整理后触发所选 WebDAV 媒体源扫描。",
             cloudDriveRssDescriptionLabel(),
         )
         assertEquals("定时已开", cloudDriveRssScheduledChipLabel(true))
@@ -102,6 +103,68 @@ class CloudDriveRssStatusConventionsTest {
         assertEquals("上次检查 05-22 10:30", rssSubscriptionLastCheckedLabel("05-22 10:30"))
         assertEquals("尚未检查", rssSubscriptionLastCheckedLabel(null))
         assertEquals("尚未检查", rssSubscriptionLastCheckedLabel(""))
+        assertEquals("尚未检查", rssSubscriptionLastCheckedLabel(0L))
+        assertTrue(rssSubscriptionLastCheckedLabel(1_700_000_000_000L).startsWith("上次检查 "))
+    }
+
+    @Test
+    fun `cloud rss pagination helpers are shared by TV and desktop`() {
+        assertEquals(6, CLOUD_RSS_SUBSCRIPTION_PAGE_SIZE)
+        assertEquals(6, CLOUD_DRIVE_DIRECTORY_PAGE_SIZE)
+
+        assertEquals(12, cloudRssSubscriptionPageStartForIndex(index = 99, itemCount = 14))
+        assertEquals(6, cloudRssSubscriptionCoercedPageStart(pageStart = 10, itemCount = 14))
+        assertEquals("显示 13-14 / 14 个订阅，按上/下继续翻页。", cloudRssSubscriptionPageSummary(12, 2, 14))
+        assertEquals(null, cloudRssSubscriptionPageSummary(0, 4, 4))
+
+        assertEquals(12, cloudDriveDirectoryPageStartForIndex(index = 20, itemCount = 13))
+        assertEquals(6, cloudDriveDirectoryCoercedPageStart(pageStart = 9, itemCount = 13))
+        assertEquals("显示 13-13 / 13 个目录，按上/下继续翻页。", cloudDriveDirectoryPageSummary(12, 1, 13))
+        assertEquals(null, cloudDriveDirectoryPageSummary(0, 5, 5))
+    }
+
+    @Test
+    fun `cloud rss summary tiles and previews are shared`() {
+        val subscription = RssSubscriptionInfo(
+            id = 7L,
+            name = "Bangumi Feed",
+            url = "https://rss.example.test/feeds/very/long/path/season-one.xml",
+            filterRegex = "S01",
+            enabled = true,
+        )
+
+        val tiles = cloudRssOverviewTiles(
+            endpointUrl = "http://127.0.0.1:19798/clouddrive/very/long/endpoint",
+            subscriptions = listOf(subscription),
+            enabled = true,
+            linkedSourceLabel = "Cloud WebDAV · WebDAV",
+            schedulerStatus = "调度器运行中，上次运行：提交 3 个，跳过 2 个，失败 1 个，整理 4 个。",
+        )
+        val pathPreview = cloudRssPathPairPreview(
+            inboxPath = "/Downloads/CloudDrive2/rss/inbox/very/deep/path",
+            libraryPath = "/Library/Anime/Season One/Very Long Destination",
+            maxLength = 46,
+        )
+        val subscriptionPreview = rssSubscriptionPreview(subscription, maxLength = 42)
+
+        assertEquals(
+            listOf(cloudDriveRssTitleLabel(), rssSubscriptionsTitleLabel(), cloudDriveRssPostSyncScanSummaryLabel()),
+            tiles.map { it.label },
+        )
+        assertEquals(settingsCloudRssOverviewValue(true), tiles[0].value)
+        assertEquals(settingsCloudRssSubscriptionsValue(1), tiles[1].value)
+        assertEquals(settingsCloudRssLinkedSourceValue("Cloud WebDAV · WebDAV"), tiles[2].value)
+        assertTrue(tiles[0].detail.length <= 58)
+        assertTrue(tiles[1].detail.contains(rssSubscriptionStateLabel(true)))
+        assertTrue(tiles[1].detail.contains("Bangumi Feed"))
+        assertTrue(tiles[2].detail.contains("调度器运行中"))
+        assertTrue(tiles[2].detail.length <= 58)
+        assertTrue(pathPreview.length <= 46)
+        assertTrue(pathPreview.contains("..."))
+        assertTrue(pathPreview.contains(cloudDriveRssPathPairSeparator()))
+        assertTrue(subscriptionPreview.length <= 42)
+        assertTrue(subscriptionPreview.startsWith(rssSubscriptionStateLabel(true)))
+        assertTrue(subscriptionPreview.contains("..."))
     }
 
     @Test

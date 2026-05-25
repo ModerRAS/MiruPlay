@@ -69,5 +69,13 @@ fun formatLocalTimestamp(epochMillis: Long): String? =
         .takeIf { it > 0L }
         ?.let { LOCAL_TIMESTAMP_FORMATTER.format(Instant.ofEpochMilli(it)) }
 
+fun formatShortLocalTimestamp(epochMillis: Long): String? =
+    epochMillis
+        .takeIf { it > 0L }
+        ?.let { SHORT_LOCAL_TIMESTAMP_FORMATTER.format(Instant.ofEpochMilli(it)) }
+
 private val LOCAL_TIMESTAMP_FORMATTER: DateTimeFormatter =
     DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault())
+
+private val SHORT_LOCAL_TIMESTAMP_FORMATTER: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("MM-dd HH:mm").withZone(ZoneId.systemDefault())

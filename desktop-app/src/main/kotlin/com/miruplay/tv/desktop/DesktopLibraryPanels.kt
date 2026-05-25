@@ -46,14 +46,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.miruplay.tv.design.MiruPlayFocusAxis
 import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.design.MiruPlayUiMetrics
+import com.miruplay.tv.design.focusIndexAfter
+import com.miruplay.tv.design.focusTargetAfter
+import com.miruplay.tv.design.gridFocusIndexAfter
 import com.miruplay.tv.design.horizontalNavigationDelta
 import com.miruplay.tv.design.verticalNavigationDelta
 import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
-import com.miruplay.tv.model.MediaPathConventions
+import com.miruplay.tv.model.REMOTE_BROWSER_PAGE_SIZE
 import com.miruplay.tv.model.formatFileSize
 import com.miruplay.tv.model.libraryCollectedCountLabel
 import com.miruplay.tv.model.libraryFeaturedSectionTitle
@@ -66,41 +70,27 @@ import com.miruplay.tv.model.librarySearchActionLabel
 import com.miruplay.tv.model.librarySearchFieldLabel
 import com.miruplay.tv.model.librarySearchResultCountLabel
 import com.miruplay.tv.model.librarySettingsActionLabel
+import com.miruplay.tv.model.librarySourceLabels
 import com.miruplay.tv.model.librarySubtitleLabel
 import com.miruplay.tv.model.libraryTitleLabel
-import com.miruplay.tv.model.mediaSourceClearIndexActionLabel
-import com.miruplay.tv.model.mediaSourceIndexQueryFieldLabel
 import com.miruplay.tv.model.mediaSourceListTitleLabel
-import com.miruplay.tv.model.mediaSourceLocalLibraryRootFieldLabel
-import com.miruplay.tv.model.mediaSourceRemoteBrowserEmptyMessage
 import com.miruplay.tv.model.mediaSourceRemoteBrowserItemTypeLabel
-import com.miruplay.tv.model.mediaSourceRemoteBrowserPageUnitLabel
-import com.miruplay.tv.model.mediaSourceRemoteBrowserTitleLabel
-import com.miruplay.tv.model.mediaSourceRemoveActionLabel
-import com.miruplay.tv.model.mediaSourceScanActionLabel
-import com.miruplay.tv.model.mediaSourceScanSourceActionLabel
-import com.miruplay.tv.model.mediaSourceSearchActionLabel
-import com.miruplay.tv.model.mediaSourceSmbDomainFieldLabel
-import com.miruplay.tv.model.mediaSourceUpActionLabel
 import com.miruplay.tv.model.mediaSourceStatusText
-import com.miruplay.tv.model.openSourceActionLabel
-import com.miruplay.tv.model.pagedListCoercedPageStart
-import com.miruplay.tv.model.pagedListPageStartForIndex
-import com.miruplay.tv.model.pagedListPageSummary
+import com.miruplay.tv.model.remoteBrowserCoercedPageStart
+import com.miruplay.tv.model.remoteBrowserPathPreview
+import com.miruplay.tv.model.remoteBrowserPageStartForIndex
+import com.miruplay.tv.model.remoteBrowserPageSummary
+import com.miruplay.tv.model.remoteSourcePreview
 import com.miruplay.tv.model.sourceEndpointPlaceholderLabel
-import com.miruplay.tv.model.sourcePasswordFieldLabel
-import com.miruplay.tv.model.sourceUsernameFieldLabel
 import com.miruplay.tv.model.tvBadgeLabel
 import com.miruplay.tv.model.tvLabel
 import com.miruplay.tv.model.tvLocationLabel
 import com.miruplay.tv.repository.MediaIndexEntry
+import com.miruplay.tv.repository.MediaIndexPosterGroup
 import com.miruplay.tv.repository.displayName
-import com.miruplay.tv.repository.mediaFilesOnly
+import com.miruplay.tv.repository.toMediaIndexPosterGroups
 
 private const val POSTER_WALL_COLUMNS = 6
-private const val REMOTE_SOURCE_PREVIEW_LIMIT = 70
-private const val REMOTE_BROWSER_PATH_LIMIT = 86
-private const val REMOTE_BROWSER_PAGE_SIZE = 8
 private const val REMOTE_SOURCE_BADGE_WIDTH_DP = 74
 private const val REMOTE_SOURCE_BADGE_HEIGHT_DP = 32
 
@@ -121,12 +111,15 @@ internal fun LibraryPanel(
     onSearch: () -> Unit,
     onClearIndex: () -> Unit,
     onRemoveSource: () -> Unit,
+    mergeSameAnimeEnabled: Boolean,
     onEntryFocused: (MediaIndexEntry) -> Unit,
     onEntrySelected: (MediaIndexEntry) -> Unit,
     focusVersion: Int = 0,
     onFocusPreviousPanel: () -> Boolean = { false },
 ) {
-    val posterGroups = remember(entries) { entries.toDesktopPosterGroups() }
+    val posterGroups = remember(entries, mergeSameAnimeEnabled) {
+        entries.toMediaIndexPosterGroups(mergeSameAnimeEnabled)
+    }
     val emptyMediaFocusRequester = remember { FocusRequester() }
     var emptySourceFocusVersion by remember { mutableIntStateOf(0) }
 
@@ -555,9 +548,9 @@ private fun librarySourceHorizontalAction(
         LibrarySourceAction.Scan,
         LibrarySourceAction.Search,
         -> listOf(LibrarySourceAction.OpenLocal, LibrarySourceAction.Scan, LibrarySourceAction.Search, LibrarySourceAction.ClearIndex)
-            .let { row -> row.getOrNull(row.indexOf(current) + delta) }
+            .focusTargetAfter(current = current, delta = delta)
         LibrarySourceAction.ClearIndex -> listOf(LibrarySourceAction.Search, LibrarySourceAction.ClearIndex)
-            .let { row -> row.getOrNull(row.indexOf(current) + delta) }
+            .focusTargetAfter(current = current, delta = delta)
         LibrarySourceAction.RemoveSource -> null
     }
 
@@ -690,8 +683,7 @@ private fun remoteSourceHorizontalField(
         RemoteSourceField.SmbPassword,
         -> listOf(RemoteSourceField.SmbDomain, RemoteSourceField.SmbUsername, RemoteSourceField.SmbPassword)
     }
-    val targetIndex = row.indexOf(current) + delta
-    return row.getOrNull(targetIndex)
+    return row.focusTargetAfter(current = current, delta = delta)
 }
 
 internal fun remoteSourceActionNavigationTarget(
@@ -812,7 +804,7 @@ private fun LibraryControlBar(
     hasEmptyMedia: Boolean = false,
     onFocusEmptyMedia: () -> Boolean = { false },
 ) {
-    val labels = desktopLibrarySourceLabels()
+    val labels = librarySourceLabels()
     val sourcePickerFocusRequester = remember { FocusRequester() }
     val actionFocusRequesters = remember {
         LibrarySourceAction.entries.associateWith { FocusRequester() }
@@ -1421,27 +1413,7 @@ private fun PosterArtwork(
     }
 }
 
-internal data class DesktopPosterGroup(
-    val title: String,
-    val entries: List<MediaIndexEntry>,
-) {
-    val primaryEntry: MediaIndexEntry = entries.sortedWith(compareBy<MediaIndexEntry> { it.episodeNumber ?: Int.MAX_VALUE }.thenBy { it.path }).first()
-    val entryPaths: Set<String> = entries.map { it.path }.toSet()
-    val lastModified: Long = entries.maxOfOrNull { it.lastModified } ?: 0L
-    val subtitle: String = buildString {
-        append(entries.size)
-        append(" episode")
-        if (entries.size != 1) append('s')
-        primaryEntry.seasonNumber?.let { append(" · S").append(it) }
-        primaryEntry.metadataSource?.takeIf { it.isNotBlank() }?.let { append(" · ").append(it) }
-    }
-}
-
-internal fun List<MediaIndexEntry>.toDesktopPosterGroups(): List<DesktopPosterGroup> =
-    mediaFilesOnly()
-        .groupBy { it.posterTitle() }
-        .map { (title, groupEntries) -> DesktopPosterGroup(title = title, entries = groupEntries) }
-        .sortedBy { it.title.lowercase() }
+internal typealias DesktopPosterGroup = MediaIndexPosterGroup
 
 internal fun List<DesktopPosterGroup>.toPosterWallRows(columns: Int = POSTER_WALL_COLUMNS): List<List<DesktopPosterGroup>> =
     chunked(columns.coerceAtLeast(1))
@@ -1509,8 +1481,13 @@ internal fun List<DesktopPosterGroup>.posterShelfNavigationTarget(
     intent: MiruPlayInputIntent,
 ): DesktopPosterGroup? {
     if (currentIndex !in indices) return null
-    val targetIndex = intent.horizontalNavigationDelta()?.let { delta -> currentIndex + delta } ?: return null
-    return getOrNull(targetIndex)
+    return focusIndexAfter(
+        currentIndex = currentIndex,
+        intent = intent,
+        axis = MiruPlayFocusAxis.Horizontal,
+        itemCount = size,
+    )
+        ?.let(::get)
 }
 
 internal fun libraryMediaFocusTarget(
@@ -1592,28 +1569,21 @@ private fun posterWallMediaFocusTarget(
     if (currentIndex !in 0 until posterCount) return null
     val safeColumns = columns.coerceAtLeast(1)
     val currentColumn = currentIndex % safeColumns
-    val targetIndex = when (intent.horizontalNavigationDelta()) {
-        1 -> if (currentColumn == safeColumns - 1) null else currentIndex + 1
-        -1 -> if (currentColumn == 0) null else currentIndex - 1
-        else -> when (intent.verticalNavigationDelta()) {
-            -1 -> currentIndex - safeColumns
-            1 -> {
-                val nextRowStart = ((currentIndex / safeColumns) + 1) * safeColumns
-                if (nextRowStart in 0 until posterCount) {
-                    minOf(nextRowStart + currentColumn, posterCount - 1)
-                } else {
-                    return when {
-                        featuredCount > 0 -> LibraryMediaFocusTarget.Featured(currentColumn.coerceAtMost(featuredCount - 1))
-                        recentlyAddedCount > 0 -> LibraryMediaFocusTarget.RecentlyAdded(currentColumn.coerceAtMost(recentlyAddedCount - 1))
-                        else -> LibraryMediaFocusTarget.SearchBar
-                    }
-                }
-            }
-            else -> null
+    val targetIndex = gridFocusIndexAfter(
+        currentIndex = currentIndex,
+        intent = intent,
+        columns = columns,
+        itemCount = posterCount,
+    ) ?: return when {
+        intent.verticalNavigationDelta() == -1 -> LibraryMediaFocusTarget.PreviousPanel
+        intent.verticalNavigationDelta() == 1 -> when {
+            featuredCount > 0 -> LibraryMediaFocusTarget.Featured(currentColumn.coerceAtMost(featuredCount - 1))
+            recentlyAddedCount > 0 -> LibraryMediaFocusTarget.RecentlyAdded(currentColumn.coerceAtMost(recentlyAddedCount - 1))
+            else -> LibraryMediaFocusTarget.SearchBar
         }
-    } ?: return null
-    if (targetIndex < 0) return LibraryMediaFocusTarget.PreviousPanel
-    return LibraryMediaFocusTarget.PosterWall(targetIndex).takeIf { targetIndex in 0 until posterCount }
+        else -> null
+    }
+    return LibraryMediaFocusTarget.PosterWall(targetIndex)
 }
 
 private fun posterShelfMediaFocusTarget(
@@ -1652,33 +1622,13 @@ internal fun List<DesktopPosterGroup>.posterNavigationTarget(
     intent: MiruPlayInputIntent,
     columns: Int = POSTER_WALL_COLUMNS,
 ): DesktopPosterGroup? {
-    if (currentIndex !in indices) return null
-    val safeColumns = columns.coerceAtLeast(1)
-    val currentColumn = currentIndex % safeColumns
-    val targetIndex = when (intent.horizontalNavigationDelta()) {
-        1 -> if (currentColumn == safeColumns - 1) null else currentIndex + 1
-        -1 -> if (currentColumn == 0) null else currentIndex - 1
-        else -> when (intent.verticalNavigationDelta()) {
-            1 -> {
-                val nextRowStart = ((currentIndex / safeColumns) + 1) * safeColumns
-                if (nextRowStart !in indices) {
-                    null
-                } else {
-                    minOf(nextRowStart + currentColumn, lastIndex)
-                }
-            }
-            -1 -> currentIndex - safeColumns
-            else -> null
-        }
-    } ?: return null
-    return getOrNull(targetIndex)
+    return gridFocusIndexAfter(
+        currentIndex = currentIndex,
+        intent = intent,
+        columns = columns,
+        itemCount = size,
+    )?.let(::get)
 }
-
-internal fun MediaIndexEntry.posterTitle(): String =
-    metadataTitle?.takeIf { it.isNotBlank() }
-        ?: animeName?.takeIf { it.isNotBlank() }
-        ?: MediaPathConventions.stem(path).takeIf { it.isNotBlank() }
-        ?: path.substringAfterLast('/').substringAfterLast('\\')
 
 private fun posterBrush(title: String): Brush {
     val palettes = listOf(
@@ -1728,7 +1678,7 @@ internal fun RemoteSourcesPanel(
     onEntryFocused: (FileEntry) -> Unit,
     onEntrySelected: (FileEntry) -> Unit,
 ) {
-    val labels = desktopLibrarySourceLabels()
+    val labels = librarySourceLabels()
     val actionFocusRequesters = remember {
         RemoteSourceAction.entries.associateWith { FocusRequester() }
     }
@@ -1779,8 +1729,8 @@ internal fun RemoteSourcesPanel(
             verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
         ) {
             RemoteSourceEditorCard(
-                title = MediaSourceType.WEBDAV.remoteSourceEditorTitle(),
-                badge = MediaSourceType.WEBDAV.remoteSourceEditorBadge(),
+                title = MediaSourceType.WEBDAV.tvLabel(),
+                badge = MediaSourceType.WEBDAV.tvBadgeLabel(),
                 endpoint = remoteSourcePreview(webDavUrl, fallback = MediaSourceType.WEBDAV.sourceEndpointPlaceholderLabel()),
             ) {
                 LabeledTextField(
@@ -1828,8 +1778,8 @@ internal fun RemoteSourcesPanel(
                 )
             }
             RemoteSourceEditorCard(
-                title = MediaSourceType.SMB.remoteSourceEditorTitle(),
-                badge = MediaSourceType.SMB.remoteSourceEditorBadge(),
+                title = MediaSourceType.SMB.tvLabel(),
+                badge = MediaSourceType.SMB.tvBadgeLabel(),
                 endpoint = remoteSourcePreview(smbUrl, fallback = MediaSourceType.SMB.sourceEndpointPlaceholderLabel()),
             ) {
                 LabeledTextField(
@@ -1980,7 +1930,7 @@ private fun RemoteBrowserPanel(
     focusTarget: RemoteBrowserFocusTarget = RemoteBrowserFocusTarget.UpButton,
     onFocusPreviousPanel: () -> Boolean = { false },
 ) {
-    val labels = desktopLibrarySourceLabels()
+    val labels = librarySourceLabels()
     var remoteBrowserPageStart by remember(remotePath, entries.size) { mutableStateOf(0) }
     var pendingRemoteBrowserRowFocus by remember(remotePath, entries.size) { mutableStateOf<Int?>(null) }
     val pageStart = remoteBrowserCoercedPageStart(
@@ -2158,29 +2108,6 @@ private fun RemoteBrowserPanel(
     }
 }
 
-internal fun remoteSourcePreview(
-    value: String,
-    fallback: String,
-    maxLength: Int = REMOTE_SOURCE_PREVIEW_LIMIT,
-): String =
-    value.trim()
-        .ifBlank { fallback }
-        .compactMiddle(maxLength)
-
-internal fun remoteBrowserPathPreview(
-    path: String,
-    maxLength: Int = REMOTE_BROWSER_PATH_LIMIT,
-): String =
-    path.trim()
-        .ifBlank { "/" }
-        .compactMiddle(maxLength)
-
-internal fun MediaSourceType.remoteSourceEditorTitle(): String =
-    tvLabel()
-
-internal fun MediaSourceType.remoteSourceEditorBadge(): String =
-    tvBadgeLabel()
-
 @Composable
 private fun RemoteBrowserEmptyState(
     text: String,
@@ -2277,11 +2204,12 @@ internal fun List<FileEntry>.remoteBrowserFocusTarget(
     if (currentIndex !in indices) return null
     return when (intent.horizontalNavigationDelta()) {
         -1 -> RemoteBrowserFocusTarget.PreviousPanel
-        else -> when (intent.verticalNavigationDelta()) {
-            1 -> RemoteBrowserFocusTarget.Row(currentIndex + 1).takeIf { currentIndex + 1 in indices }
-            -1 -> RemoteBrowserFocusTarget.Row(currentIndex - 1).takeIf { currentIndex > 0 }
-            else -> null
-        }
+        else -> focusIndexAfter(
+            currentIndex = currentIndex,
+            intent = intent,
+            axis = MiruPlayFocusAxis.Vertical,
+            itemCount = size,
+        )?.let(RemoteBrowserFocusTarget::Row)
     }
 }
 
@@ -2333,77 +2261,3 @@ internal fun remoteBrowserShouldNavigateUp(
     currentIndex: Int,
     intent: MiruPlayInputIntent,
 ): Boolean = currentIndex == 0 && intent.verticalNavigationDelta() == -1
-
-internal fun remoteBrowserPageStartForIndex(
-    index: Int,
-    itemCount: Int,
-    pageSize: Int = REMOTE_BROWSER_PAGE_SIZE,
-): Int = pagedListPageStartForIndex(index, itemCount, pageSize)
-
-internal fun remoteBrowserCoercedPageStart(
-    pageStart: Int,
-    itemCount: Int,
-    pageSize: Int = REMOTE_BROWSER_PAGE_SIZE,
-): Int = pagedListCoercedPageStart(pageStart, itemCount, pageSize)
-
-internal fun remoteBrowserPageSummary(
-    pageStart: Int,
-    visibleCount: Int,
-    itemCount: Int,
-): String? {
-    val safeStart = remoteBrowserCoercedPageStart(pageStart, itemCount)
-    return pagedListPageSummary(
-        pageStart = safeStart,
-        visibleCount = visibleCount,
-        itemCount = itemCount,
-        pageSize = REMOTE_BROWSER_PAGE_SIZE,
-        unitLabel = mediaSourceRemoteBrowserPageUnitLabel(),
-    )
-}
-
-internal data class DesktopLibrarySourceLabels(
-    val localLibraryRoot: String,
-    val indexQuery: String,
-    val openLocal: String,
-    val scan: String,
-    val search: String,
-    val clearIndex: String,
-    val removeSource: String,
-    val webDavUrl: String,
-    val webDavUser: String,
-    val webDavPassword: String,
-    val openWebDav: String,
-    val smbUrl: String,
-    val smbDomain: String,
-    val smbUser: String,
-    val smbPassword: String,
-    val openSmb: String,
-    val scanSource: String,
-    val remoteBrowser: String,
-    val up: String,
-    val remoteEmpty: String,
-)
-
-internal fun desktopLibrarySourceLabels(): DesktopLibrarySourceLabels =
-    DesktopLibrarySourceLabels(
-        localLibraryRoot = mediaSourceLocalLibraryRootFieldLabel(),
-        indexQuery = mediaSourceIndexQueryFieldLabel(),
-        openLocal = MediaSourceType.LOCAL.openSourceActionLabel(),
-        scan = mediaSourceScanActionLabel(),
-        search = mediaSourceSearchActionLabel(),
-        clearIndex = mediaSourceClearIndexActionLabel(),
-        removeSource = mediaSourceRemoveActionLabel(),
-        webDavUrl = MediaSourceType.WEBDAV.tvLocationLabel(),
-        webDavUser = MediaSourceType.WEBDAV.sourceUsernameFieldLabel(),
-        webDavPassword = MediaSourceType.WEBDAV.sourcePasswordFieldLabel(),
-        openWebDav = MediaSourceType.WEBDAV.openSourceActionLabel(),
-        smbUrl = MediaSourceType.SMB.tvLocationLabel(),
-        smbDomain = mediaSourceSmbDomainFieldLabel(),
-        smbUser = MediaSourceType.SMB.sourceUsernameFieldLabel(),
-        smbPassword = MediaSourceType.SMB.sourcePasswordFieldLabel(),
-        openSmb = MediaSourceType.SMB.openSourceActionLabel(),
-        scanSource = mediaSourceScanSourceActionLabel(),
-        remoteBrowser = mediaSourceRemoteBrowserTitleLabel(),
-        up = mediaSourceUpActionLabel(),
-        remoteEmpty = mediaSourceRemoteBrowserEmptyMessage(),
-    )

@@ -27,15 +27,14 @@ class PlaybackProgressSession(
     }
 
     fun seekBy(seconds: Double) {
-        anchorPositionMs = (
-            currentPositionMs() +
-                PlaybackTimingConventions.secondsToDeltaMs(seconds)
-            ).coerceAtLeast(0L)
+        anchorPositionMs = PlaybackTimingConventions.coercePlaybackPositionMs(
+            currentPositionMs() + PlaybackTimingConventions.secondsToDeltaMs(seconds),
+        )
         anchorWallClockMs = nowMillis()
     }
 
     fun syncPosition(positionMs: Long) {
-        anchorPositionMs = positionMs.coerceAtLeast(0L)
+        anchorPositionMs = PlaybackTimingConventions.coercePlaybackPositionMs(positionMs)
         anchorWallClockMs = nowMillis()
     }
 }

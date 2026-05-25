@@ -49,8 +49,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.miruplay.tv.design.MiruPlayFocusAxis
 import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.design.MiruPlayUiMetrics
+import com.miruplay.tv.design.focusIndexAfter
 import com.miruplay.tv.design.linearNavigationDelta
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.compactMiddleText
@@ -235,13 +237,21 @@ internal fun List<MediaSourceInfo>.savedSourcePickerNavigationTarget(
 ): MediaSourceInfo? {
     if (isEmpty()) return null
     val currentIndex = indexOfFirst { it.id == activeSourceId }
-    val delta = intent.linearNavigationDelta() ?: return null
-    val targetIndex = if (currentIndex == -1) {
-        if (delta > 0) 0 else lastIndex
+    return if (currentIndex == -1) {
+        when (intent.linearNavigationDelta()) {
+            1 -> first()
+            -1 -> last()
+            else -> null
+        }
     } else {
-        currentIndex + delta
+        focusIndexAfter(
+            currentIndex = currentIndex,
+            intent = intent,
+            axis = MiruPlayFocusAxis.Linear,
+            itemCount = size,
+        )
+            ?.let(::get)
     }
-    return getOrNull(targetIndex)
 }
 
 internal fun String.compactMiddle(maxLength: Int): String =
@@ -492,7 +502,7 @@ internal fun PosterPlaceholder() {
         ) {
             Text("mpv", color = Color.White, fontSize = MiruPlayUiMetrics.HERO_TITLE_SP.sp, fontWeight = FontWeight.Bold)
             Text(
-                desktopPosterPlaceholderSubtitle(),
+                desktopPosterPlaceholderSubtitleLabel(),
                 color = TextSecondary,
                 fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
                 maxLines = 1,
@@ -501,9 +511,6 @@ internal fun PosterPlaceholder() {
         }
     }
 }
-
-internal fun desktopPosterPlaceholderSubtitle(): String =
-    desktopPosterPlaceholderSubtitleLabel()
 
 @Composable
 internal fun StatusBox(status: String) {

@@ -82,6 +82,7 @@ import com.miruplay.tv.model.PlaybackState
 import com.miruplay.tv.model.PLAYBACK_SEEK_BACK_SECONDS
 import com.miruplay.tv.model.PLAYBACK_SEEK_FORWARD_SECONDS
 import com.miruplay.tv.model.SubtitleTrack
+import com.miruplay.tv.model.PlaybackTimingConventions
 import com.miruplay.tv.model.displayTitle
 import com.miruplay.tv.model.formatPlaybackPosition
 import com.miruplay.tv.model.playbackAudioMenuTitle
@@ -97,6 +98,7 @@ import com.miruplay.tv.model.playbackSeekBackLabel
 import com.miruplay.tv.model.playbackSeekForwardLabel
 import com.miruplay.tv.model.playbackSpeedChipLabel
 import com.miruplay.tv.model.playbackSpeedMenuTitle
+import com.miruplay.tv.model.playbackSpeedOptions
 import com.miruplay.tv.model.playbackSpeedValueLabel
 import com.miruplay.tv.model.playbackSubtitleCountLabel
 import com.miruplay.tv.model.playbackSubtitleOptionLabel
@@ -104,8 +106,8 @@ import com.miruplay.tv.model.playbackSubtitlesMenuTitle
 import com.miruplay.tv.design.MiruPlayPlaybackInputAction
 import com.miruplay.tv.design.shouldRefreshTvPlaybackControls
 import com.miruplay.tv.design.tvPlaybackOverlayAction
-import com.miruplay.tv.ui.components.isTvActivateKey
 import com.miruplay.tv.ui.components.toMiruPlayInputIntent
+import com.miruplay.tv.ui.components.tvActivateKeyEvent
 import com.miruplay.tv.player.AudioTrack
 import com.miruplay.tv.ui.theme.AnimeRed
 import com.miruplay.tv.ui.theme.DarkSurface
@@ -514,11 +516,7 @@ private fun PlayerBottomBar(
         ) {
             TimeText(formatPlaybackPosition(currentPosition))
             PlaybackTimeline(
-                progress = if (duration > 0L) {
-                    currentPosition.toFloat() / duration.toFloat()
-                } else {
-                    0f
-                },
+                progress = PlaybackTimingConventions.playbackProgressFraction(currentPosition, duration),
                 modifier = Modifier
                     .weight(1f)
                     .padding(horizontal = 18.dp)
@@ -627,12 +625,12 @@ private fun PlayerIconButton(
                 onClick = onClick
             )
             .onKeyEvent { event ->
-                if (enabled && event.type == KeyEventType.KeyDown && event.key.isTvActivateKey()) {
-                    onClick()
-                    true
-                } else {
-                    false
-                }
+                tvActivateKeyEvent(
+                    key = event.key,
+                    type = event.type,
+                    enabled = enabled,
+                    onActivate = onClick,
+                )
             }
             .focusable(enabled = enabled, interactionSource = interactionSource),
         contentAlignment = Alignment.Center
@@ -700,12 +698,12 @@ private fun PlayerActionChip(
             .height(48.dp)
             .clip(RoundedCornerShape(8.dp))
             .onPreviewKeyEvent { event ->
-                if (enabled && event.type == KeyEventType.KeyDown && event.key.isTvActivateKey()) {
-                    onClick()
-                    true
-                } else {
-                    false
-                }
+                tvActivateKeyEvent(
+                    key = event.key,
+                    type = event.type,
+                    enabled = enabled,
+                    onActivate = onClick,
+                )
             }
             .border(
                 width = if (isFocused || selected) 2.dp else 1.dp,
@@ -753,7 +751,7 @@ private fun PlayerOptionsPanel(
     modifier: Modifier = Modifier
 ) {
     val firstOptionFocus = remember(menu) { FocusRequester() }
-    val speeds = remember { listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f) }
+    val speeds = remember { playbackSpeedOptions() }
 
     LaunchedEffect(menu) {
         firstOptionFocus.requestFocus()
@@ -849,12 +847,11 @@ private fun PlayerOptionButton(
             .height(48.dp)
             .clip(RoundedCornerShape(8.dp))
             .onPreviewKeyEvent { event ->
-                if (event.type == KeyEventType.KeyDown && event.key.isTvActivateKey()) {
-                    onClick()
-                    true
-                } else {
-                    false
-                }
+                tvActivateKeyEvent(
+                    key = event.key,
+                    type = event.type,
+                    onActivate = onClick,
+                )
             }
             .border(
                 width = if (isFocused || selected) 2.dp else 1.dp,

@@ -63,6 +63,7 @@ val androidTvSettingsSectionOrder: List<MiruPlaySettingsSection> =
 
 val desktopSettingsSectionOrder: List<MiruPlaySettingsSection> =
     listOf(
+        MiruPlaySettingsSection.WEB_UI,
         MiruPlaySettingsSection.SOURCES,
         MiruPlaySettingsSection.PLAYBACK,
         MiruPlaySettingsSection.CLOUD_DRIVE,
@@ -105,8 +106,35 @@ fun settingsScanMenuSummary(
         else -> "定时关闭"
     }
 
+fun settingsLogUploadMenuSummary(): String =
+    "OpenObserve"
+
 fun settingsMetadataTokenMenuSummary(hasToken: Boolean): String =
     if (hasToken) "Token 已设置" else "未设置"
+
+data class SettingsSectionMenuSummaryInput(
+    val webUiAddressCount: Int = 0,
+    val sourceCount: Int = 0,
+    val playbackSummary: String = "",
+    val cloudDriveEnabled: Boolean = false,
+    val rssCount: Int = 0,
+    val autoScanEnabled: Boolean = false,
+    val mergeSameAnimeEnabled: Boolean = false,
+    val metadataSummary: String = "",
+)
+
+fun MiruPlaySettingsSection.settingsMenuSummary(
+    input: SettingsSectionMenuSummaryInput,
+): String =
+    when (this) {
+        MiruPlaySettingsSection.WEB_UI -> settingsWebUiMenuSummary(input.webUiAddressCount)
+        MiruPlaySettingsSection.SOURCES -> settingsSourcesMenuSummary(input.sourceCount)
+        MiruPlaySettingsSection.PLAYBACK -> input.playbackSummary
+        MiruPlaySettingsSection.CLOUD_DRIVE -> settingsCloudDriveMenuSummary(input.cloudDriveEnabled, input.rssCount)
+        MiruPlaySettingsSection.SCAN -> settingsScanMenuSummary(input.autoScanEnabled, input.mergeSameAnimeEnabled)
+        MiruPlaySettingsSection.LOG_UPLOAD -> settingsLogUploadMenuSummary()
+        MiruPlaySettingsSection.METADATA -> input.metadataSummary
+    }
 
 fun settingsDesktopScanMenuSummary(): String =
     "媒体库更新"
@@ -114,11 +142,26 @@ fun settingsDesktopScanMenuSummary(): String =
 fun settingsDesktopWebUiMenuSummary(): String =
     "访问地址"
 
+fun settingsDesktopWebUiMenuSummary(addressCount: Int): String =
+    settingsWebUiMenuSummary(addressCount)
+
 fun settingsMenuPanelTitle(): String =
     "设置菜单"
 
-fun settingsMenuPanelDescription(): String =
+fun settingsScreenTitleLabel(): String =
+    "设置"
+
+fun settingsScreenSubtitleLabel(): String =
+    "管理媒体源、WebUI 和元数据服务"
+
+fun settingsMenuPanelDescriptionDesktop(): String =
     "像 TV 版一样按分类管理桌面能力。"
+
+fun settingsMenuPanelDescriptionAndroidTv(): String =
+    "按上下切换分类，向右进入当前设置。"
+
+fun settingsMenuPanelDescription(): String =
+    settingsMenuPanelDescriptionDesktop()
 
 fun settingsOpenLibraryActionLabel(): String =
     "打开海报墙"
@@ -144,8 +187,15 @@ fun settingsClearTokenActionLabel(): String =
 fun settingsDesktopScanStatusMessage(): String =
     "扫描入口保留在媒体库海报墙和 CloudDrive 同步流程中。"
 
-fun settingsDesktopWebUiStatusMessage(): String =
-    "WebUI 保留在 Android TV 端；桌面版使用原生窗口与键盘遥控。"
+fun settingsDesktopWebUiStatusMessage(
+    enabled: Boolean = false,
+    addressCount: Int = 0,
+): String =
+    when {
+        !enabled -> "WebUI 当前未启用；Windows 已复用同一套访问令牌和地址生成规则。"
+        addressCount > 0 -> "WebUI 已启用，Windows 正在监听局域网访问地址；可管理媒体源并遥控播放。"
+        else -> "WebUI 已启用，Windows 正在监听；暂未检测到可展示的局域网地址。"
+    }
 
 fun settingsWebUiPanelTitleLabel(): String =
     "WebUI 访问"
@@ -188,6 +238,9 @@ fun settingsWebUiTileLabel(): String =
 
 fun settingsWebUiAndroidTvValue(): String =
     "Android TV"
+
+fun settingsWebUiDesktopValue(): String =
+    "Windows"
 
 fun settingsActiveSourceSharedDetail(): String =
     "媒体库、远程浏览器和 Cloud/RSS 共用这个活动源。"
@@ -299,6 +352,15 @@ fun settingsCurrentScanIntervalStatus(
 ): String =
     "当前间隔 ${intervalHours.coerceAtLeast(0)} 小时 · $lastScanText"
 
+fun settingsLastScanLabel(lastScanAt: Long): String =
+    formatShortLocalTimestamp(lastScanAt)?.let { "上次扫描 $it" } ?: "还没有扫描记录"
+
+fun settingsCurrentScanIntervalStatus(
+    intervalHours: Int,
+    lastScanAt: Long,
+): String =
+    settingsCurrentScanIntervalStatus(intervalHours, settingsLastScanLabel(lastScanAt))
+
 fun settingsLibraryDisplayTitleLabel(): String =
     "媒体库显示"
 
@@ -403,8 +465,137 @@ fun settingsLinkedSourceLabel(
         ?: settingsMissingSourceValue(sourceId)
 }
 
+data class SettingsSummaryTile(
+    val label: String,
+    val value: String,
+    val detail: String,
+)
+
+fun sourceSettingsTiles(
+    sources: List<MediaSourceInfo>,
+    activeSourceLabel: String,
+    indexedItemCount: Int,
+): List<SettingsSummaryTile> =
+    listOf(
+        SettingsSummaryTile(
+            label = settingsSourceTileLabel(),
+            value = settingsCountValue(sources.size),
+            detail = settingsSourceTypeBreakdown(sources),
+        ),
+        SettingsSummaryTile(
+            label = settingsActiveSourceTileLabel(),
+            value = activeSourceLabel,
+            detail = settingsActiveSourceSharedDetail(),
+        ),
+        SettingsSummaryTile(
+            label = settingsPosterWallIndexTileLabel(),
+            value = settingsRecordCountValue(indexedItemCount),
+            detail = settingsPosterWallIndexDetail(),
+        ),
+    )
+
+fun playbackSettingsTiles(
+    playbackSummary: String,
+    recentCount: Int,
+    selectedMediaTitle: String,
+): List<SettingsSummaryTile> =
+    listOf(
+        SettingsSummaryTile(
+            label = settingsPlaybackModeTileLabel(),
+            value = playbackSummary,
+            detail = settingsPlaybackPageDetail(),
+        ),
+        SettingsSummaryTile(
+            label = settingsRecentPlaybackTileLabel(),
+            value = settingsRecordCountValue(recentCount),
+            detail = settingsRecentPlaybackDetail(),
+        ),
+        SettingsSummaryTile(
+            label = settingsSelectedMediaTileLabel(),
+            value = selectedMediaTitle,
+            detail = settingsSelectedMediaDetail(),
+        ),
+    )
+
+fun scanSettingsTiles(
+    indexedItemCount: Int,
+    linkedSourceLabel: String,
+    libraryStatus: String,
+): List<SettingsSummaryTile> =
+    listOf(
+        SettingsSummaryTile(
+            label = settingsIndexTileLabel(),
+            value = settingsRecordCountValue(indexedItemCount),
+            detail = settingsIndexSharedDetail(),
+        ),
+        SettingsSummaryTile(
+            label = settingsPostSyncSourceTileLabel(),
+            value = linkedSourceLabel,
+            detail = settingsCloudDriveRescanSourceDetail(),
+        ),
+        SettingsSummaryTile(
+            label = settingsRecentScanStatusTileLabel(),
+            value = mediaSourceStatusText(libraryStatus),
+            detail = settingsRecentScanStatusDetail(),
+        ),
+    )
+
+fun metadataSettingsTiles(
+    selectedMediaTitle: String,
+    metadataSummary: String,
+    indexedItemCount: Int,
+    bangumiTokenConfigured: Boolean = false,
+): List<SettingsSummaryTile> =
+    listOf(
+        SettingsSummaryTile(
+            label = settingsSelectedMetadataEntryTileLabel(),
+            value = selectedMediaTitle,
+            detail = settingsSelectedMetadataEntryDetail(),
+        ),
+        SettingsSummaryTile(
+            label = settingsMetadataMatchStatusTileLabel(),
+            value = metadataSummary,
+            detail = settingsMetadataMatchStatusDetail(),
+        ),
+        SettingsSummaryTile(
+            label = settingsMetadataCandidateScopeTileLabel(),
+            value = settingsIndexedCountValue(indexedItemCount),
+            detail = settingsMetadataCandidateScopeDetail(),
+        ),
+        SettingsSummaryTile(
+            label = metadataBangumiTokenTileLabel(),
+            value = settingsSavedStateValue(bangumiTokenConfigured),
+            detail = metadataBangumiTokenTileDetail(),
+        ),
+    )
+
+fun webUiSettingsTiles(
+    platformValue: String,
+    nativeControlValue: String = settingsDesktopControlTileValue(),
+    nativeControlDetail: String = settingsDesktopControlTileDetail(),
+    remoteAutomationValue: String = settingsRemoteAutomationTileValue(),
+    remoteAutomationDetail: String = settingsRemoteAutomationTileDetail(),
+): List<SettingsSummaryTile> =
+    listOf(
+        SettingsSummaryTile(
+            label = settingsWebUiTileLabel(),
+            value = platformValue,
+            detail = settingsWebUiTileDetail(),
+        ),
+        SettingsSummaryTile(
+            label = settingsWebUiNativeControlTileLabel(),
+            value = nativeControlValue,
+            detail = nativeControlDetail,
+        ),
+        SettingsSummaryTile(
+            label = settingsRemoteAutomationTileLabel(),
+            value = remoteAutomationValue,
+            detail = remoteAutomationDetail,
+        ),
+    )
+
 fun settingsWebUiTileDetail(): String =
-    "二维码和局域网令牌入口由 TV 设置页提供。"
+    "二维码和局域网令牌入口由各平台设置页提供。"
 
 fun settingsDesktopControlTileValue(): String =
     "原生窗口"

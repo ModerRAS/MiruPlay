@@ -2,6 +2,7 @@ package com.miruplay.tv.desktop
 
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.mediasource.desktop.DesktopLocalMediaSource
+import com.miruplay.tv.mediasource.desktop.DesktopMediaSourceFactory
 import com.miruplay.tv.mediasource.desktop.DesktopSmbMediaSource
 import com.miruplay.tv.mediasource.desktop.DesktopWebDavMediaSource
 import com.miruplay.tv.model.MediaSourceInfo
@@ -100,12 +101,19 @@ class DesktopSourceActivationTest {
         val repository = FakeMediaSourceRepository(nextId = 42L)
         val source = MediaSourceInfoConventions.local(name = "Library", rootPath = "D:/Anime")
 
-        val result = openDesktopSource(repository, source)
+        val result = openDesktopSource(
+            repository = repository,
+            mediaSourceFactory = DesktopMediaSourceFactory(),
+            sourceInfo = source,
+            testConnection = { Result.success(true) },
+        )
 
         assertTrue(result is Result.Success)
         val opened = (result as Result.Success).data
         assertEquals(42L, opened.sourceInfo.id)
-        assertEquals(source.copy(id = 42L), repository.addedSources.single())
+        assertEquals(source.copy(id = 42L, isConnected = false), repository.addedSources.single())
+        assertEquals(source.copy(id = 42L, isConnected = true), repository.updatedSources.single())
+        assertTrue(opened.sourceInfo.isConnected)
         assertTrue(opened.source is DesktopLocalMediaSource)
         assertEquals("D:/Anime", opened.formState.libraryRoot)
         assertEquals("本地媒体源已就绪：Library", opened.status)
@@ -115,6 +123,7 @@ class DesktopSourceActivationTest {
     @Test
     fun `open desktop source returns remote source activation model`() = runBlocking {
         val repository = FakeMediaSourceRepository(nextId = 7L)
+        val mediaSourceFactory = DesktopMediaSourceFactory()
         val webDav = MediaSourceInfoConventions.webDav(
             url = "https://dav.example.test/anime",
             username = "alice",
@@ -129,11 +138,18 @@ class DesktopSourceActivationTest {
             name = "NAS",
         )
 
-        val openedWebDav = (openDesktopSource(repository, webDav) as Result.Success).data
-        val openedSmb = (openDesktopSource(repository, smb) as Result.Success).data
+        val openedWebDav = (
+            openDesktopSource(repository, mediaSourceFactory, webDav) { Result.success(true) } as Result.Success
+        ).data
+        val openedSmb = (
+            openDesktopSource(repository, mediaSourceFactory, smb) { Result.success(true) } as Result.Success
+        ).data
 
         assertTrue(openedWebDav.source is DesktopWebDavMediaSource)
         assertEquals(7L, openedWebDav.sourceInfo.id)
+        assertTrue(openedWebDav.sourceInfo.isConnected)
+        assertEquals(webDav.copy(id = 7L, isConnected = false), repository.addedSources[0])
+        assertEquals(webDav.copy(id = 7L, isConnected = true), repository.updatedSources[0])
         assertEquals("https://dav.example.test/anime", openedWebDav.formState.webDavUrl)
         assertEquals("alice", openedWebDav.formState.webDavUsername)
         assertEquals("secret", openedWebDav.formState.webDavPassword)
@@ -142,6 +158,9 @@ class DesktopSourceActivationTest {
 
         assertTrue(openedSmb.source is DesktopSmbMediaSource)
         assertEquals(8L, openedSmb.sourceInfo.id)
+        assertTrue(openedSmb.sourceInfo.isConnected)
+        assertEquals(smb.copy(id = 8L, isConnected = false), repository.addedSources[1])
+        assertEquals(smb.copy(id = 8L, isConnected = true), repository.updatedSources[1])
         assertEquals("smb://nas/anime", openedSmb.formState.smbUrl)
         assertEquals("WORKGROUP", openedSmb.formState.smbDomain)
         assertEquals("bob", openedSmb.formState.smbUsername)
@@ -150,10 +169,37 @@ class DesktopSourceActivationTest {
         assertTrue(openedSmb.opensRemoteRoot)
     }
 
+    @Test
+    fun `open desktop source persists disconnected state when connection test fails`() = runBlocking {
+        val repository = FakeMediaSourceRepository(nextId = 9L)
+        val source = MediaSourceInfoConventions.webDav(
+            url = "https://dav.example.test/anime",
+            username = "alice",
+            password = "secret",
+            name = "Cloud",
+        )
+
+        val opened = (
+            openDesktopSource(
+                repository = repository,
+                mediaSourceFactory = DesktopMediaSourceFactory(),
+                sourceInfo = source,
+                testConnection = { Result.success(false) },
+            ) as Result.Success
+        ).data
+
+        assertEquals(9L, opened.sourceInfo.id)
+        assertFalse(opened.sourceInfo.isConnected)
+        assertEquals(false, repository.addedSources.single().isConnected)
+        assertEquals(false, repository.updatedSources.single().isConnected)
+        assertEquals("WebDAV 媒体源已就绪：Cloud", opened.status)
+    }
+
     private class FakeMediaSourceRepository(
         private var nextId: Long,
     ) : MediaSourceRepository {
         val addedSources = mutableListOf<MediaSourceInfo>()
+        val updatedSources = mutableListOf<MediaSourceInfo>()
 
         override suspend fun addSource(source: MediaSourceInfo): Result<Long> {
             addedSources += source.copy(id = nextId)
@@ -166,8 +212,10 @@ class DesktopSourceActivationTest {
         override suspend fun getSources(): Result<List<MediaSourceInfo>> =
             Result.success(emptyList())
 
-        override suspend fun updateSource(source: MediaSourceInfo): Result<Unit> =
-            Result.success(Unit)
+        override suspend fun updateSource(source: MediaSourceInfo): Result<Unit> {
+            updatedSources += source
+            return Result.success(Unit)
+        }
 
         override suspend fun getSourceById(sourceId: Long): Result<MediaSourceInfo> =
             Result.success(addedSources.first { it.id == sourceId })

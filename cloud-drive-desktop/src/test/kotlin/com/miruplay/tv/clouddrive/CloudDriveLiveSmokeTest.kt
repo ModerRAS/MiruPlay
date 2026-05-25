@@ -8,12 +8,16 @@ import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import org.junit.Assume.assumeTrue
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import java.nio.file.Files
+import java.util.concurrent.TimeUnit
+import kotlin.io.path.createTempFile
 
 class CloudDriveLiveSmokeTest {
     @Test
@@ -131,7 +135,12 @@ class CloudDriveLiveSmokeTest {
 
         assertFalse(json.contains("secret-token"))
         val root = Json.parseToJsonElement(json).jsonObject
-        assertEquals("http://127.0.0.1:19798", root.getValue("endpoint").jsonPrimitive.content)
+        assertEquals("http://127.0.0.1:19798/...", root.getValue("endpoint").jsonPrimitive.content)
+        val endpointEvidence = root.getValue("endpointEvidence").jsonObject
+        assertEquals("http://127.0.0.1:19798/...", endpointEvidence.getValue("redacted").jsonPrimitive.content)
+        assertEquals("http", endpointEvidence.getValue("scheme").jsonPrimitive.content)
+        assertEquals("127.0.0.1", endpointEvidence.getValue("host").jsonPrimitive.content)
+        assertEquals(64, endpointEvidence.getValue("sha256").jsonPrimitive.content.length)
         assertEquals("/Anime", root.getValue("path").jsonPrimitive.content)
         assertEquals(2, root.getValue("itemCount").jsonPrimitive.int)
         assertEquals(1, root.getValue("directoryCount").jsonPrimitive.int)
@@ -149,6 +158,73 @@ class CloudDriveLiveSmokeTest {
         val preview = root.getValue("previewItems").jsonArray.single().jsonObject
         assertEquals("Episode 01.mkv", preview.getValue("name").jsonPrimitive.content)
         assertEquals("/Anime/Episode 01.mkv", preview.getValue("path").jsonPrimitive.content)
+    }
+
+    @Test
+    fun `sample cloud drive report passes assertion script`() {
+        val powerShellCommand = resolvePowerShellCommand()
+        assumeTrue(
+            "PowerShell is required for assert-cloud-drive-report.ps1 smoke assertion.",
+            powerShellCommand != null
+        )
+
+        val reportStream = requireNotNull(
+            javaClass.classLoader.getResourceAsStream("cloud-drive-sample-report.json")
+        )
+        val reportFile = createTempFile(prefix = "cloud-drive-sample-", suffix = ".json").toFile()
+        reportStream.use { input ->
+            reportFile.outputStream().use { output -> input.copyTo(output) }
+        }
+        val scriptFile = File("..", "tools/assert-cloud-drive-report.ps1").canonicalFile
+        val process = ProcessBuilder(
+            powerShellCommand!!,
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            scriptFile.absolutePath,
+            "-ReportPath",
+            reportFile.absolutePath,
+            "-RequiredPath",
+            "/Downloads",
+            "-RequireOfflinePermission",
+        )
+            .directory(scriptFile.parentFile.parentFile)
+            .redirectErrorStream(true)
+            .start()
+        val output = process.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+        val exitCode = process.waitFor()
+        Files.deleteIfExists(reportFile.toPath())
+        assertEquals("assert-cloud-drive-report.ps1 should pass.\n$output", 0, exitCode)
+    }
+
+    private fun resolvePowerShellCommand(): String? {
+        val isWindows = System.getProperty("os.name").lowercase().contains("windows")
+        val candidates =
+            if (isWindows) {
+                listOf("powershell.exe", "pwsh.exe", "pwsh")
+            } else {
+                listOf("pwsh")
+            }
+
+        return candidates.firstOrNull { isCommandAvailable(it) }
+    }
+
+    private fun isCommandAvailable(command: String): Boolean {
+        val probeProcess = runCatching {
+            ProcessBuilder(command, "-NoProfile", "-Command", "exit 0")
+                .redirectErrorStream(true)
+                .start()
+        }.getOrElse {
+            return false
+        }
+
+        val finished = probeProcess.waitFor(10, TimeUnit.SECONDS)
+        if (!finished) {
+            probeProcess.destroyForcibly()
+            return false
+        }
+        return probeProcess.exitValue() == 0
     }
 
     private class FakeCloudDriveClient(

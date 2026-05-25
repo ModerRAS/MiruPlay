@@ -12,6 +12,8 @@ $scriptRoot = if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) {
 } else {
     $PSScriptRoot
 }
+. (Join-Path $scriptRoot "desktop-window-helper.ps1")
+. (Join-Path $scriptRoot "desktop-smoke-common.ps1")
 if ([string]::IsNullOrWhiteSpace($AppScript)) {
     $AppScript = Join-Path $scriptRoot "..\desktop-app\build\install\desktop-app\bin\desktop-app.bat"
 }
@@ -54,36 +56,6 @@ public static class MiruPlayKeyboardFocusSmokeWin32 {
     public static extern void mouse_event(uint flags, uint dx, uint dy, int data, UIntPtr extraInfo);
 }
 "@
-}
-
-function Resolve-FullPath {
-    param([string]$Path)
-    if ([System.IO.Path]::IsPathRooted($Path)) {
-        return [System.IO.Path]::GetFullPath($Path)
-    }
-    return [System.IO.Path]::GetFullPath((Join-Path (Get-Location) $Path))
-}
-
-function Get-MiruPlayWindowProcess {
-    Get-Process |
-        Where-Object {
-            ($_.MainWindowTitle -like "*MiruPlay Desktop*" -or ($_.ProcessName -eq "java" -and $_.MainWindowTitle -like "*MiruPlay*")) -and
-            $_.MainWindowHandle -ne 0
-        } |
-        Select-Object -First 1
-}
-
-function Wait-MiruPlayWindow {
-    $deadline = (Get-Date).AddSeconds(30)
-    do {
-        $process = Get-MiruPlayWindowProcess
-        if ($process) {
-            return $process
-        }
-        Start-Sleep -Milliseconds 300
-    } while ((Get-Date) -lt $deadline)
-
-    throw "MiruPlay Desktop window did not appear within 30 seconds."
 }
 
 function Get-WindowRect {
@@ -362,12 +334,12 @@ function Write-InitialStore {
     [System.IO.File]::WriteAllText($Path, $json, $utf8NoBom)
 }
 
-$resolvedAppScript = Resolve-FullPath $AppScript
-$resolvedOutputRoot = Resolve-FullPath $OutputRoot
+$resolvedAppScript = Resolve-DesktopSmokeFullPath $AppScript
+$resolvedOutputRoot = Resolve-DesktopSmokeFullPath $OutputRoot
 if (-not (Test-Path -LiteralPath $resolvedAppScript)) {
     throw "Desktop app launcher was not found at $resolvedAppScript. Run :desktop-app:installDist first."
 }
-if (Get-MiruPlayWindowProcess) {
+if (Get-MiruPlayDesktopWindowProcess) {
     throw "A MiruPlay Desktop window is already open. Close it before running this isolated smoke test."
 }
 
@@ -391,10 +363,10 @@ Write-InitialStore -Path $storePath
 $startedProcess = $null
 try {
     $startedProcess = Start-MiruPlayDesktopSmokeProcess -LauncherPath $resolvedAppScript -StorePath $storePath
-    $windowProcess = Wait-MiruPlayWindow
+    $windowProcess = Wait-MiruPlayDesktopWindowProcess
 
     Invoke-RelativeClick -Process $windowProcess -X 1170 -Y 109
-    Invoke-RelativeClick -Process $windowProcess -X 465 -Y 292
+    Invoke-RelativeClick -Process $windowProcess -X 465 -Y 360
     Save-WindowScreenshot -Process $windowProcess -Path $sourceScreenshotPath
 
     Send-DesktopKey -Process $windowProcess -Key "{DOWN}"
@@ -437,7 +409,7 @@ try {
     Assert-ContentRegionChanged -BeforePath $navBackDetailsScreenshotPath -AfterPath $navBackLibraryScreenshotPath
 } finally {
     if (-not $KeepOpen) {
-        $windowProcess = Get-MiruPlayWindowProcess
+        $windowProcess = Get-MiruPlayDesktopWindowProcess
         if ($windowProcess) {
             $windowProcess.CloseMainWindow() | Out-Null
             Start-Sleep -Milliseconds 700
@@ -462,3 +434,4 @@ Write-Output "Navigation details screenshot: $navDetailsScreenshotPath"
 Write-Output "Navigation player screenshot: $navPlayerScreenshotPath"
 Write-Output "Back to details screenshot: $navBackDetailsScreenshotPath"
 Write-Output "Back to library screenshot: $navBackLibraryScreenshotPath"
+

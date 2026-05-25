@@ -39,7 +39,7 @@ class DesktopSectionContractTest {
 
     @Test
     fun `desktop route rail chrome uses TV facing copy`() {
-        assertEquals(desktopRouteRailSubtitleLabel(), desktopRouteRailSubtitle())
+        assertEquals("电视式导航", desktopRouteRailSubtitleLabel())
     }
 
     @Test

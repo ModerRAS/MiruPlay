@@ -5,6 +5,9 @@ import androidx.compose.ui.input.key.KeyEventType
 import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.ScraperSource
+import com.miruplay.tv.model.bangumiCoercedPageStart
+import com.miruplay.tv.model.bangumiPageStartForIndex
+import com.miruplay.tv.model.bangumiPageSummary
 import com.miruplay.tv.model.detailSyncProgressActionLabel
 import com.miruplay.tv.model.metadataAcceptReviewActionLabel
 import com.miruplay.tv.model.metadataApplyBatchActionLabel
@@ -27,6 +30,8 @@ import com.miruplay.tv.model.metadataStatusText
 import com.miruplay.tv.model.metadataUndoBatchActionLabel
 import com.miruplay.tv.model.metadataUseSelectedEntryActionLabel
 import com.miruplay.tv.repository.MetadataBatchMatch
+import com.miruplay.tv.repository.selectedCandidateLabel
+import com.miruplay.tv.model.bangumiUiLabels
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -36,7 +41,7 @@ import org.junit.Test
 class DesktopBangumiNavigationTest {
     @Test
     fun `bangumi panel labels use TV facing Chinese text`() {
-        val labels = desktopBangumiUiLabels()
+        val labels = bangumiUiLabels()
 
         assertEquals(metadataPanelTitleLabel(), labels.title)
         assertEquals(metadataQueryFieldLabel(), labels.query)
@@ -49,7 +54,7 @@ class DesktopBangumiNavigationTest {
         assertEquals(metadataUndoBatchActionLabel(), labels.undoBatch)
         assertEquals(metadataAcceptReviewActionLabel(), labels.acceptReview)
         assertEquals(detailSyncProgressActionLabel(isSyncing = false), labels.syncProgress)
-        assertEquals(detailSyncProgressActionLabel(isSyncing = true), desktopBangumiUiLabels(isSyncingProgress = true).syncProgress)
+        assertEquals(detailSyncProgressActionLabel(isSyncing = true), bangumiUiLabels(isSyncingProgress = true).syncProgress)
         assertEquals(metadataSelectedIndexSectionTitle(), labels.selectedIndex)
         assertEquals(metadataMatchesSectionTitle(), labels.matches)
         assertEquals(metadataBatchCandidatesSectionTitle(), labels.batchCandidates)
@@ -150,11 +155,11 @@ class DesktopBangumiNavigationTest {
 
     @Test
     fun `bangumi batch status chips use TV facing Chinese labels`() {
-        assertEquals(metadataBatchStatusLabel("preview"), desktopBangumiBatchStatusLabel("preview"))
-        assertEquals(metadataBatchStatusLabel("ready"), desktopBangumiBatchStatusLabel("ready"))
-        assertEquals(metadataBatchStatusLabel("review"), desktopBangumiBatchStatusLabel("review"))
-        assertEquals(metadataBatchStatusLabel("conflict"), desktopBangumiBatchStatusLabel("conflict"))
-        assertEquals(metadataBatchStatusLabel("custom"), desktopBangumiBatchStatusLabel("custom"))
+        assertEquals("预览", metadataBatchStatusLabel("preview"))
+        assertEquals("可用", metadataBatchStatusLabel("ready"))
+        assertEquals("复核", metadataBatchStatusLabel("review"))
+        assertEquals("冲突", metadataBatchStatusLabel("conflict"))
+        assertEquals("custom", metadataBatchStatusLabel("custom"))
     }
 
     @Test
@@ -177,12 +182,12 @@ class DesktopBangumiNavigationTest {
         assertEquals(
             metadataSelectedCandidateLabel(selectedIndex = 1, count = 2),
             MetadataBatchMatch(query = "Frieren", result = second, candidates = listOf(first, second))
-                .desktopSelectedCandidateLabel(),
+                .selectedCandidateLabel(),
         )
         assertEquals(
             metadataCandidateCountLabel(2),
             MetadataBatchMatch(query = "Frieren", result = null, candidates = listOf(first, second))
-                .desktopSelectedCandidateLabel(),
+                .selectedCandidateLabel(),
         )
     }
 

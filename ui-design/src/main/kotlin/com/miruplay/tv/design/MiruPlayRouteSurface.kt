@@ -51,8 +51,7 @@ object MiruPlayRouteSurface {
     }
 
     fun desktopSectionStep(section: Section, delta: Int): Section? {
-        val nextIndex = desktopSectionOrder.indexOf(section) + delta
-        return desktopSectionOrder.getOrNull(nextIndex)
+        return desktopSectionOrder.focusTargetAfter(section, delta)
     }
 
     fun backTarget(section: Section): Section? =

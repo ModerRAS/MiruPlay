@@ -16,6 +16,8 @@ class MpvPlaybackStatusTest {
         assertEquals("mpv paused.", mpvPausedStatus())
         assertEquals("mpv seeked back 10s.", mpvSeekBackStatus(seconds = 10))
         assertEquals("mpv seeked forward 30s.", mpvSeekForwardStatus(seconds = 30))
+        assertEquals("mpv speed set to 1.25x.", mpvSpeedChangedStatus(speed = 1.25f))
+        assertEquals("mpv speed set to 3x.", mpvSpeedChangedStatus(speed = 4.0f))
         assertEquals("mpv stopped.", mpvStoppedStatus())
         assertEquals("mpv exited.", mpvExitedStatus())
         assertEquals("mpv playback completed at 02:03.", mpvPlaybackCompletedStatus(positionMs = 123_456L))

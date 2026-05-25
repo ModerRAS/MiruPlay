@@ -20,6 +20,18 @@ import java.nio.file.Files
 import java.nio.file.Paths
 import java.nio.file.StandardOpenOption
 
+interface MpvIpcController {
+    suspend fun cyclePause(): Result<Unit>
+    suspend fun setPaused(paused: Boolean): Result<Unit>
+    suspend fun setSpeed(speed: Double): Result<Unit>
+    suspend fun seekBy(seconds: Double, mode: MpvSeekMode = MpvSeekMode.RELATIVE_EXACT): Result<Unit>
+    suspend fun quit(): Result<Unit>
+    suspend fun getTimePositionSeconds(): Result<Double?>
+    suspend fun getDurationSeconds(): Result<Double?>
+    suspend fun getPaused(): Result<Boolean?>
+    suspend fun getEofReached(): Result<Boolean?>
+}
+
 class MpvIpcClient(
     private val serverPath: String,
     private val connectTimeoutMillis: Long = 1_500L,
@@ -29,30 +41,38 @@ class MpvIpcClient(
         connectTimeoutMillis = connectTimeoutMillis,
         retryDelayMillis = retryDelayMillis,
     ),
-) {
-    suspend fun cyclePause(): Result<Unit> =
+) : MpvIpcController {
+    override suspend fun cyclePause(): Result<Unit> =
         sendCommand("cycle".json, "pause".json)
 
-    suspend fun setPaused(paused: Boolean): Result<Unit> =
+    override suspend fun setPaused(paused: Boolean): Result<Unit> =
         sendCommand("set_property".json, "pause".json, JsonPrimitive(paused))
 
-    suspend fun seekBy(seconds: Double, mode: MpvSeekMode = MpvSeekMode.RELATIVE_EXACT): Result<Unit> =
+    override suspend fun setSpeed(speed: Double): Result<Unit> =
+        sendCommand("set_property".json, "speed".json, JsonPrimitive(speed))
+
+    override suspend fun seekBy(seconds: Double, mode: MpvSeekMode): Result<Unit> =
         sendCommand("seek".json, JsonPrimitive(seconds), mode.mpvValue.json)
 
-    suspend fun quit(): Result<Unit> =
+    override suspend fun quit(): Result<Unit> =
         sendCommand("quit".json)
 
-    suspend fun getTimePositionSeconds(): Result<Double?> =
+    override suspend fun getTimePositionSeconds(): Result<Double?> =
         getProperty("time-pos").map { data ->
             data?.jsonPrimitive?.doubleOrNull
         }
 
-    suspend fun getDurationSeconds(): Result<Double?> =
+    override suspend fun getDurationSeconds(): Result<Double?> =
         getProperty("duration").map { data ->
             data?.jsonPrimitive?.doubleOrNull
         }
 
-    suspend fun getEofReached(): Result<Boolean?> =
+    override suspend fun getPaused(): Result<Boolean?> =
+        getProperty("pause").map { data ->
+            data?.jsonPrimitive?.booleanOrNull
+        }
+
+    override suspend fun getEofReached(): Result<Boolean?> =
         getProperty("eof-reached").map { data ->
             data?.jsonPrimitive?.booleanOrNull
         }

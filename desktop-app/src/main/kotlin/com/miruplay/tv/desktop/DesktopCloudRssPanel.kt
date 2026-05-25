@@ -41,146 +41,97 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.miruplay.tv.design.MiruPlayFocusAxis
+import com.miruplay.tv.design.MiruPlayFocusEdge
+import com.miruplay.tv.design.MiruPlayFocusMove
 import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.design.MiruPlayUiMetrics
+import com.miruplay.tv.design.firstEnabledFocusIndex
+import com.miruplay.tv.design.focusIndexAfter
+import com.miruplay.tv.design.focusMoveAfter
+import com.miruplay.tv.design.focusTargetAfter
 import com.miruplay.tv.design.horizontalNavigationDelta
+import com.miruplay.tv.design.nextEnabledFocusIndex
 import com.miruplay.tv.design.verticalNavigationDelta
+import com.miruplay.tv.model.CLOUD_DRIVE_DIRECTORY_PAGE_SIZE
+import com.miruplay.tv.model.CLOUD_RSS_SUBSCRIPTION_PAGE_SIZE
+import com.miruplay.tv.model.CloudDriveLibraryMode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MiruPlaySettingsSection
 import com.miruplay.tv.model.RssSubscriptionInfo
-import com.miruplay.tv.model.CloudDriveLibraryMode
-import com.miruplay.tv.model.cloudDriveRssApiTokenFieldLabel
+import com.miruplay.tv.model.SettingsSectionMenuSummaryInput
+import com.miruplay.tv.model.SettingsSummaryTile
+import com.miruplay.tv.model.cloudDriveDirectoryCoercedPageStart
+import com.miruplay.tv.model.cloudDriveDirectoryPageStartForIndex
+import com.miruplay.tv.model.cloudDriveDirectoryPageSummary
 import com.miruplay.tv.model.cloudDriveRssChooseDirectoryActionLabel
-import com.miruplay.tv.model.cloudDriveRssClearCredentialsActionLabel
-import com.miruplay.tv.model.cloudDriveRssClearScanSourceActionLabel
 import com.miruplay.tv.model.cloudDriveRssCloseActionLabel
 import com.miruplay.tv.model.cloudDriveRssDirectoryBadgeLabel
-import com.miruplay.tv.model.cloudDriveRssDirectoryPageUnitLabel
 import com.miruplay.tv.model.cloudDriveRssEmptyDirectoryMessage
-import com.miruplay.tv.model.cloudDriveRssEnabledBadgeLabel
-import com.miruplay.tv.model.cloudDriveRssEnabledToggleLabel
-import com.miruplay.tv.model.cloudDriveRssEndpointFallbackLabel
-import com.miruplay.tv.model.cloudDriveRssEndpointFieldLabel
 import com.miruplay.tv.model.cloudDriveRssInboxPathFieldLabel
-import com.miruplay.tv.model.cloudDriveRssIntervalMinutesFieldLabel
-import com.miruplay.tv.model.cloudDriveRssLibraryPathFieldLabel
 import com.miruplay.tv.model.cloudDriveRssLibraryModeOrganizedLabel
 import com.miruplay.tv.model.cloudDriveRssLibraryModeSingleDirectoryLabel
 import com.miruplay.tv.model.cloudDriveRssLoadingDirectoriesMessage
-import com.miruplay.tv.model.cloudDriveRssLoginActionLabel
-import com.miruplay.tv.model.cloudDriveRssPasswordFieldLabel
 import com.miruplay.tv.model.cloudDriveRssParentDirectoryActionLabel
-import com.miruplay.tv.model.cloudDriveRssPathBadgeLabel
-import com.miruplay.tv.model.cloudDriveRssPathPairSeparator
-import com.miruplay.tv.model.cloudDriveRssPostSyncScanSummaryLabel
-import com.miruplay.tv.model.cloudDriveRssPostSyncSourceLabel
-import com.miruplay.tv.model.cloudDriveRssProxyHostFieldLabel
-import com.miruplay.tv.model.cloudDriveRssProxyPortFieldLabel
-import com.miruplay.tv.model.cloudDriveRssProxySettingLabel
-import com.miruplay.tv.model.cloudDriveRssRunBadgeLabel
-import com.miruplay.tv.model.cloudDriveRssRunNowActionLabel
 import com.miruplay.tv.model.cloudDriveRssRuntimeTitleLabel
-import com.miruplay.tv.model.cloudDriveRssSaveApiTokenActionLabel
-import com.miruplay.tv.model.cloudDriveRssSaveConfigActionLabel
-import com.miruplay.tv.model.cloudDriveRssSaveCredentialsActionLabel
-import com.miruplay.tv.model.cloudDriveRssSchedulerIdleLabel
-import com.miruplay.tv.model.cloudDriveRssStartSchedulerActionLabel
-import com.miruplay.tv.model.cloudDriveRssStopSchedulerActionLabel
 import com.miruplay.tv.model.cloudDriveRssSyncPathTitleLabel
 import com.miruplay.tv.model.cloudDriveRssTitleLabel
-import com.miruplay.tv.model.cloudDriveRssUnconfiguredEndpointLabel
-import com.miruplay.tv.model.cloudDriveRssUseActiveSourceActionLabel
+import com.miruplay.tv.model.cloudDriveRssUiLabels
 import com.miruplay.tv.model.cloudDriveRssUseCurrentDirectoryActionLabel
-import com.miruplay.tv.model.cloudDriveRssUsernameFieldLabel
-import com.miruplay.tv.model.cloudDriveRssVerifyApiTokenActionLabel
+import com.miruplay.tv.model.cloudRssOverviewTiles
+import com.miruplay.tv.model.cloudRssPathPairPreview
+import com.miruplay.tv.model.cloudRssPreview
 import com.miruplay.tv.model.cloudRssStatusText
+import com.miruplay.tv.model.cloudRssSubscriptionCoercedPageStart
+import com.miruplay.tv.model.cloudRssSubscriptionPageStartForIndex
+import com.miruplay.tv.model.cloudRssSubscriptionPageSummary
 import com.miruplay.tv.model.desktopSettingsSectionOrder
 import com.miruplay.tv.model.metadataBangumiTokenFieldLabel
 import com.miruplay.tv.model.metadataBangumiTokenSettingsStatus
 import com.miruplay.tv.model.metadataBangumiTokenTileDetail
 import com.miruplay.tv.model.metadataBangumiTokenTileLabel
+import com.miruplay.tv.model.metadataSettingsTiles
 import com.miruplay.tv.model.mediaSourceStatusText
-import com.miruplay.tv.model.pagedListCoercedPageStart
-import com.miruplay.tv.model.pagedListPageStartForIndex
-import com.miruplay.tv.model.pagedListPageSummary
-import com.miruplay.tv.model.settingsActiveSourceSharedDetail
-import com.miruplay.tv.model.settingsCloudDriveMenuSummary
-import com.miruplay.tv.model.settingsCloudDriveRescanSourceDetail
+import com.miruplay.tv.model.playbackSettingsTiles
 import com.miruplay.tv.model.settingsClearTokenActionLabel
-import com.miruplay.tv.model.settingsCountValue
-import com.miruplay.tv.model.settingsDesktopControlTileDetail
-import com.miruplay.tv.model.settingsDesktopControlTileValue
-import com.miruplay.tv.model.settingsDesktopScanMenuSummary
 import com.miruplay.tv.model.settingsDesktopScanStatusMessage
-import com.miruplay.tv.model.settingsDesktopWebUiMenuSummary
 import com.miruplay.tv.model.settingsDesktopWebUiStatusMessage
-import com.miruplay.tv.model.settingsActiveSourceTileLabel
-import com.miruplay.tv.model.settingsCloudRssLinkedSourceValue
-import com.miruplay.tv.model.settingsCloudRssOverviewValue
-import com.miruplay.tv.model.settingsCloudRssSubscriptionsValue
-import com.miruplay.tv.model.settingsIndexedCountValue
-import com.miruplay.tv.model.settingsIndexSharedDetail
-import com.miruplay.tv.model.settingsIndexTileLabel
+import com.miruplay.tv.model.settingsAutoScanToggleLabel
+import com.miruplay.tv.model.settingsCurrentScanIntervalStatus
+import com.miruplay.tv.model.settingsLibraryDisplayTitleLabel
 import com.miruplay.tv.model.settingsMenuPanelDescription
+import com.miruplay.tv.model.settingsMenuSummary
 import com.miruplay.tv.model.settingsMenuPanelTitle
-import com.miruplay.tv.model.settingsMetadataCandidateScopeDetail
-import com.miruplay.tv.model.settingsMetadataCandidateScopeTileLabel
-import com.miruplay.tv.model.settingsMetadataMatchStatusDetail
-import com.miruplay.tv.model.settingsMetadataMatchStatusTileLabel
+import com.miruplay.tv.model.settingsMergeSameAnimeStatus
+import com.miruplay.tv.model.settingsMergeSameAnimeToggleLabel
 import com.miruplay.tv.model.settingsOpenDetailsActionLabel
 import com.miruplay.tv.model.settingsOpenLibraryActionLabel
 import com.miruplay.tv.model.settingsOpenPlayerActionLabel
-import com.miruplay.tv.model.settingsPlaybackPageDetail
-import com.miruplay.tv.model.settingsPlaybackModeTileLabel
 import com.miruplay.tv.model.settingsPlaybackStatusMessage
-import com.miruplay.tv.model.settingsPosterWallIndexDetail
-import com.miruplay.tv.model.settingsPosterWallIndexTileLabel
-import com.miruplay.tv.model.settingsPostSyncSourceTileLabel
-import com.miruplay.tv.model.settingsRecentPlaybackDetail
-import com.miruplay.tv.model.settingsRecentPlaybackTileLabel
-import com.miruplay.tv.model.settingsRecentScanStatusDetail
-import com.miruplay.tv.model.settingsRecentScanStatusTileLabel
-import com.miruplay.tv.model.settingsRecordCountValue
-import com.miruplay.tv.model.settingsRemoteAutomationTileDetail
-import com.miruplay.tv.model.settingsRemoteAutomationTileLabel
-import com.miruplay.tv.model.settingsRemoteAutomationTileValue
 import com.miruplay.tv.model.settingsSaveTokenActionLabel
-import com.miruplay.tv.model.settingsSavedStateValue
 import com.miruplay.tv.model.settingsScanActiveSourceActionLabel
-import com.miruplay.tv.model.settingsSelectedMediaDetail
-import com.miruplay.tv.model.settingsSelectedMediaTileLabel
-import com.miruplay.tv.model.settingsSelectedMetadataEntryDetail
-import com.miruplay.tv.model.settingsSelectedMetadataEntryTileLabel
-import com.miruplay.tv.model.settingsSourceTileLabel
-import com.miruplay.tv.model.settingsSourceTypeBreakdown
-import com.miruplay.tv.model.settingsSourcesMenuSummary
-import com.miruplay.tv.model.settingsWebUiNativeControlTileLabel
-import com.miruplay.tv.model.settingsWebUiAndroidTvValue
-import com.miruplay.tv.model.settingsWebUiTileLabel
-import com.miruplay.tv.model.settingsWebUiTileDetail
+import com.miruplay.tv.model.settingsScanIntervalOptionLabel
+import com.miruplay.tv.model.settingsScanPanelDescription
+import com.miruplay.tv.model.settingsScanPanelTitleLabel
+import com.miruplay.tv.model.settingsWebUiAccessTokenLabel
+import com.miruplay.tv.model.settingsWebUiAddressLabel
+import com.miruplay.tv.model.settingsWebUiAvailableAddressesLabel
+import com.miruplay.tv.model.settingsWebUiDesktopValue
+import com.miruplay.tv.model.settingsWebUiRefreshAddressActionLabel
+import com.miruplay.tv.model.settingsWebUiRotateTokenActionLabel
+import com.miruplay.tv.model.settingsWebUiToggleActionLabel
 import com.miruplay.tv.model.stepDesktopSettingsSection
-import com.miruplay.tv.model.rssSubscriptionDeleteActionLabel
-import com.miruplay.tv.model.rssSubscriptionEmptyMessage
-import com.miruplay.tv.model.rssSubscriptionFallbackTitleLabel
-import com.miruplay.tv.model.rssSubscriptionFilterRegexFieldLabel
-import com.miruplay.tv.model.rssSubscriptionFormPreviewFallbackLabel
-import com.miruplay.tv.model.rssSubscriptionNameFieldLabel
-import com.miruplay.tv.model.rssSubscriptionPageUnitLabel
-import com.miruplay.tv.model.rssSubscriptionPreviewFallbackLabel
-import com.miruplay.tv.model.rssSubscriptionSaveActionLabel
-import com.miruplay.tv.model.rssSubscriptionStateLabel
-import com.miruplay.tv.model.rssSubscriptionUrlFieldLabel
+import com.miruplay.tv.model.rssSubscriptionPreview
 import com.miruplay.tv.model.rssSubscriptionsTitleLabel
+import com.miruplay.tv.model.scanSettingsTiles
+import com.miruplay.tv.model.sourceSettingsTiles
+import com.miruplay.tv.model.webUiSettingsTiles
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryBrowserState
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryEntry
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryTarget
 
-private const val CLOUD_RSS_PREVIEW_LIMIT = 58
-private const val CLOUD_RSS_WIDE_PREVIEW_LIMIT = 86
 private const val CLOUD_RSS_BADGE_WIDTH_DP = 82
 private const val CLOUD_RSS_BADGE_HEIGHT_DP = 34
-private const val CLOUD_DRIVE_DIRECTORY_PAGE_SIZE = 6
-private const val CLOUD_RSS_SUBSCRIPTION_PAGE_SIZE = 6
 
 @Composable
 internal fun CloudRssPanel(
@@ -229,6 +180,14 @@ internal fun CloudRssPanel(
     onBangumiTokenChange: (String) -> Unit,
     bangumiTokenConfigured: Boolean,
     linkedSourceLabel: String,
+    autoScanEnabled: Boolean,
+    autoScanIntervalHours: Int,
+    scanIntervalOptionsHours: List<Int>,
+    lastScanAt: Long,
+    mergeSameAnimeEnabled: Boolean,
+    onToggleAutoScan: () -> Unit,
+    onScanIntervalSelected: (Int) -> Unit,
+    onToggleMergeSameAnime: () -> Unit,
     onSaveConfig: () -> Unit,
     onSaveCredentials: () -> Unit,
     onLoginCloudDrive: () -> Unit,
@@ -252,12 +211,18 @@ internal fun CloudRssPanel(
     playbackSummary: String,
     metadataSummary: String,
     libraryStatus: String,
+    webControlEnabled: Boolean,
+    webUiUrls: List<String>,
+    webControlAccessToken: String,
+    onToggleWebControl: () -> Unit,
+    onRotateWebControlToken: () -> Unit,
+    onRefreshWebUiUrls: () -> Unit,
     onOpenLibrary: () -> Unit,
     onOpenPlayer: () -> Unit,
     onOpenDetails: () -> Unit,
     onScanActiveSource: () -> Unit,
 ) {
-    var selectedSection by remember { mutableStateOf(MiruPlaySettingsSection.SOURCES) }
+    var selectedSection by remember { mutableStateOf(MiruPlaySettingsSection.WEB_UI) }
     val sectionFocusRequesters = remember {
         desktopSettingsSectionOrder.associateWith { FocusRequester() }
     }
@@ -275,6 +240,9 @@ internal fun CloudRssPanel(
             sourcesCount = sources.size,
             rssCount = subscriptions.size,
             cloudEnabled = enabled,
+            webUiAddressCount = webUiUrls.size,
+            autoScanEnabled = autoScanEnabled,
+            mergeSameAnimeEnabled = mergeSameAnimeEnabled,
             metadataSummary = metadataSummary,
             playbackSummary = playbackSummary,
             onSectionSelected = { selectedSection = it },
@@ -379,6 +347,18 @@ internal fun CloudRssPanel(
                     SettingsQuickAction(settingsOpenLibraryActionLabel(), onOpenLibrary),
                 ),
                 onFocusSectionMenu = { focusSelectedSectionMenu() },
+                extraContent = {
+                    DesktopScanPreferencesContent(
+                        autoScanEnabled = autoScanEnabled,
+                        autoScanIntervalHours = autoScanIntervalHours,
+                        intervalOptionsHours = scanIntervalOptionsHours,
+                        lastScanAt = lastScanAt,
+                        mergeSameAnimeEnabled = mergeSameAnimeEnabled,
+                        onToggleAutoScan = onToggleAutoScan,
+                        onIntervalSelected = onScanIntervalSelected,
+                        onToggleMergeSameAnime = onToggleMergeSameAnime,
+                    )
+                },
                 modifier = Modifier.weight(1f),
             )
             MiruPlaySettingsSection.LOG_UPLOAD -> SettingsSummaryContent(
@@ -404,21 +384,36 @@ internal fun CloudRssPanel(
                     SettingsQuickAction(settingsClearTokenActionLabel(), onClearBangumiToken, enabled = bangumiTokenConfigured),
                 ),
                 onFocusSectionMenu = { focusSelectedSectionMenu() },
-                extraContent = {
+                extraContentFocusable = true,
+                extraContent = { focusModifier ->
                     LabeledTextField(
                         metadataBangumiTokenFieldLabel(),
                         bangumiToken,
                         onValueChange = onBangumiTokenChange,
+                        inputModifier = focusModifier,
                     )
                 },
                 modifier = Modifier.weight(1f),
             )
             MiruPlaySettingsSection.WEB_UI -> SettingsSummaryContent(
                 section = selectedSection,
-                tiles = desktopWebUiSettingsTiles(),
-                status = settingsDesktopWebUiStatusMessage(),
-                actions = listOf(SettingsQuickAction(settingsOpenLibraryActionLabel(), onOpenLibrary)),
+                tiles = webUiSettingsTiles(platformValue = settingsWebUiDesktopValue()),
+                status = settingsDesktopWebUiStatusMessage(
+                    enabled = webControlEnabled,
+                    addressCount = webUiUrls.size,
+                ),
+                actions = listOf(
+                    SettingsQuickAction(settingsWebUiToggleActionLabel(webControlEnabled), onToggleWebControl),
+                    SettingsQuickAction(settingsWebUiRotateTokenActionLabel(), onRotateWebControlToken),
+                    SettingsQuickAction(settingsWebUiRefreshAddressActionLabel(), onRefreshWebUiUrls),
+                ),
                 onFocusSectionMenu = { focusSelectedSectionMenu() },
+                extraContent = {
+                    DesktopWebUiAccessSummary(
+                        urls = webUiUrls,
+                        accessToken = webControlAccessToken,
+                    )
+                },
                 modifier = Modifier.weight(1f),
             )
         }
@@ -484,7 +479,7 @@ private fun CloudRssAutomationContent(
     onDeleteSubscription: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val labels = desktopCloudRssUiLabels()
+    val labels = cloudDriveRssUiLabels()
     val schedulerStatusText = cloudRssStatusText(schedulerStatus)
     val statusText = cloudRssStatusText(status)
     val subscriptionEmptyFocusRequester = remember { FocusRequester() }
@@ -1495,8 +1490,7 @@ private fun cloudRssHorizontalToggle(
         -> listOf(CloudRssToggle.SyncEnabled, CloudRssToggle.ProxyEnabled)
         CloudRssToggle.RssEnabled -> listOf(CloudRssToggle.RssEnabled)
     }
-    val targetIndex = row.indexOf(current) + delta
-    return row.getOrNull(targetIndex)
+    return row.focusTargetAfter(current = current, delta = delta)
 }
 
 internal fun cloudRssFieldFocusTarget(
@@ -1567,8 +1561,7 @@ private fun cloudRssHorizontalField(
         CloudRssField.SubscriptionUrl -> listOf(CloudRssField.SubscriptionUrl)
         CloudRssField.FilterRegex -> listOf(CloudRssField.FilterRegex)
     }
-    val targetIndex = row.indexOf(current) + delta
-    return row.getOrNull(targetIndex)
+    return row.focusTargetAfter(current = current, delta = delta)
 }
 
 internal fun cloudRssActionFocusTarget(
@@ -1608,24 +1601,26 @@ internal fun cloudRssSubscriptionFocusTarget(
     intent: MiruPlayInputIntent,
 ): CloudRssFocusTarget? {
     if (itemCount <= 0) return null
-    return when (intent.verticalNavigationDelta()) {
-        -1 -> {
-            if (currentIndex <= 0) {
-                CloudRssFocusTarget.Action(CloudRssAction.SaveRss)
-            } else {
-                CloudRssFocusTarget.Subscription(currentIndex - 1)
-            }
+    return when (val move = focusMoveAfter(
+        currentIndex = currentIndex,
+        intent = intent,
+        axis = MiruPlayFocusAxis.Vertical,
+        itemCount = itemCount,
+    )) {
+        is MiruPlayFocusMove.Index -> CloudRssFocusTarget.Subscription(move.index)
+        is MiruPlayFocusMove.Edge -> when (move.edge) {
+            MiruPlayFocusEdge.Before -> CloudRssFocusTarget.Action(CloudRssAction.SaveRss)
+            MiruPlayFocusEdge.After -> CloudRssFocusTarget.Action(CloudRssAction.StartScheduler)
         }
-        1 -> {
-            if (currentIndex < 0) {
+        null -> when (intent.verticalNavigationDelta()) {
+            -1 -> CloudRssFocusTarget.Action(CloudRssAction.SaveRss)
+            1 -> if (currentIndex < 0) {
                 CloudRssFocusTarget.Subscription(0)
-            } else if (currentIndex >= itemCount - 1) {
-                CloudRssFocusTarget.Action(CloudRssAction.StartScheduler)
             } else {
-                CloudRssFocusTarget.Subscription(currentIndex + 1)
+                CloudRssFocusTarget.Action(CloudRssAction.StartScheduler)
             }
+            else -> null
         }
-        else -> null
     }
 }
 
@@ -1638,33 +1633,6 @@ internal fun cloudRssSubscriptionEmptyFocusTarget(intent: MiruPlayInputIntent): 
         1 -> CloudRssFocusTarget.Action(CloudRssAction.StartScheduler)
         else -> null
     }
-
-internal fun cloudRssSubscriptionPageStartForIndex(
-    index: Int,
-    itemCount: Int,
-    pageSize: Int = CLOUD_RSS_SUBSCRIPTION_PAGE_SIZE,
-): Int = pagedListPageStartForIndex(index, itemCount, pageSize)
-
-internal fun cloudRssSubscriptionCoercedPageStart(
-    pageStart: Int,
-    itemCount: Int,
-    pageSize: Int = CLOUD_RSS_SUBSCRIPTION_PAGE_SIZE,
-): Int = pagedListCoercedPageStart(pageStart, itemCount, pageSize)
-
-internal fun cloudRssSubscriptionPageSummary(
-    pageStart: Int,
-    visibleCount: Int,
-    itemCount: Int,
-): String? {
-    val safeStart = cloudRssSubscriptionCoercedPageStart(pageStart, itemCount)
-    return pagedListPageSummary(
-        pageStart = safeStart,
-        visibleCount = visibleCount,
-        itemCount = itemCount,
-        pageSize = CLOUD_RSS_SUBSCRIPTION_PAGE_SIZE,
-        unitLabel = rssSubscriptionPageUnitLabel(),
-    )
-}
 
 internal enum class CloudDriveDirectoryAction {
     UseCurrent,
@@ -1741,52 +1709,26 @@ internal fun cloudDriveDirectoryRowFocusTarget(
     intent: MiruPlayInputIntent,
 ): CloudDriveDirectoryFocusTarget? {
     if (itemCount <= 0) return null
-    return when (intent.verticalNavigationDelta()) {
-        -1 -> if (currentIndex <= 0) {
-            CloudDriveDirectoryFocusTarget.Action(CloudDriveDirectoryAction.UseCurrent)
-        } else {
-            CloudDriveDirectoryFocusTarget.Row(currentIndex - 1)
-        }
-        1 -> CloudDriveDirectoryFocusTarget.Row(currentIndex + 1).takeIf { currentIndex + 1 in 0 until itemCount }
-        else -> return null
-    }
-}
-
-internal fun cloudDriveDirectoryPageStartForIndex(
-    index: Int,
-    itemCount: Int,
-    pageSize: Int = CLOUD_DRIVE_DIRECTORY_PAGE_SIZE,
-): Int = pagedListPageStartForIndex(index, itemCount, pageSize)
-
-internal fun cloudDriveDirectoryCoercedPageStart(
-    pageStart: Int,
-    itemCount: Int,
-    pageSize: Int = CLOUD_DRIVE_DIRECTORY_PAGE_SIZE,
-): Int = pagedListCoercedPageStart(pageStart, itemCount, pageSize)
-
-internal fun cloudDriveDirectoryPageSummary(
-    pageStart: Int,
-    visibleCount: Int,
-    itemCount: Int,
-): String? {
-    val safeStart = cloudDriveDirectoryCoercedPageStart(pageStart, itemCount)
-    return pagedListPageSummary(
-        pageStart = safeStart,
-        visibleCount = visibleCount,
+    return when (val move = focusMoveAfter(
+        currentIndex = currentIndex,
+        intent = intent,
+        axis = MiruPlayFocusAxis.Vertical,
         itemCount = itemCount,
-        pageSize = CLOUD_DRIVE_DIRECTORY_PAGE_SIZE,
-        unitLabel = cloudDriveRssDirectoryPageUnitLabel(),
-    )
+    )) {
+        is MiruPlayFocusMove.Index -> CloudDriveDirectoryFocusTarget.Row(move.index)
+        is MiruPlayFocusMove.Edge -> when (move.edge) {
+            MiruPlayFocusEdge.Before -> CloudDriveDirectoryFocusTarget.Action(CloudDriveDirectoryAction.UseCurrent)
+            MiruPlayFocusEdge.After -> null
+        }
+        null -> null
+    }
 }
 
 private fun cloudDriveDirectoryHorizontalAction(
     current: CloudDriveDirectoryAction,
     delta: Int,
-): CloudDriveDirectoryAction? {
-    val actions = CloudDriveDirectoryAction.entries
-    val targetIndex = actions.indexOf(current) + delta
-    return actions.getOrNull(targetIndex)
-}
+): CloudDriveDirectoryAction? =
+    CloudDriveDirectoryAction.entries.focusTargetAfter(current = current, delta = delta)
 
 private fun cloudRssHorizontalAction(
     current: CloudRssAction,
@@ -1818,8 +1760,7 @@ private fun cloudRssHorizontalAction(
         CloudRssAction.StopScheduler,
         -> listOf(CloudRssAction.StartScheduler, CloudRssAction.StopScheduler)
     }
-    val targetIndex = row.indexOf(current) + delta
-    return row.getOrNull(targetIndex)
+    return row.focusTargetAfter(current = current, delta = delta)
 }
 
 private fun cloudRssActionUpTarget(
@@ -1903,20 +1844,18 @@ internal fun settingsQuickActionNavigationTarget(
     actionCount: Int = 0,
     intent: MiruPlayInputIntent,
     enabledActions: List<Boolean> = List(actionCount) { true },
-): Int? {
-    val count = enabledActions.size.takeIf { actionCount == 0 } ?: actionCount
-    if (count <= 0 || currentIndex !in 0 until count) return null
-    val delta = intent.horizontalNavigationDelta() ?: return null
-    var target = currentIndex + delta
-    while (target in 0 until count) {
-        if (enabledActions.getOrElse(target) { true }) return target
-        target += delta
-    }
-    return null
-}
+): Int? =
+    nextEnabledFocusIndex(
+        currentIndex = currentIndex,
+        intent = intent,
+        axis = MiruPlayFocusAxis.Horizontal,
+        itemCount = enabledActions.size.takeIf { actionCount == 0 } ?: actionCount,
+        enabledItems = enabledActions,
+    )
 
 internal sealed interface SettingsQuickActionFocusTarget {
     data class Action(val index: Int) : SettingsQuickActionFocusTarget
+    data object ExtraContent : SettingsQuickActionFocusTarget
     data object SectionMenu : SettingsQuickActionFocusTarget
 }
 
@@ -1925,9 +1864,10 @@ internal fun settingsQuickActionFocusTarget(
     actionCount: Int = 0,
     key: Key,
     enabledActions: List<Boolean> = List(actionCount) { true },
+    hasExtraFocus: Boolean = false,
 ): SettingsQuickActionFocusTarget? =
     key.toMiruPlayInputIntent()?.let { intent ->
-        settingsQuickActionFocusTarget(currentIndex, actionCount, intent, enabledActions)
+        settingsQuickActionFocusTarget(currentIndex, actionCount, intent, enabledActions, hasExtraFocus)
     }
 
 internal fun settingsQuickActionFocusTarget(
@@ -1935,9 +1875,10 @@ internal fun settingsQuickActionFocusTarget(
     actionCount: Int = 0,
     intent: MiruPlayInputIntent,
     enabledActions: List<Boolean> = List(actionCount) { true },
+    hasExtraFocus: Boolean = false,
 ): SettingsQuickActionFocusTarget? =
     when (intent.verticalNavigationDelta()) {
-        -1 -> SettingsQuickActionFocusTarget.SectionMenu
+        -1 -> (if (hasExtraFocus) SettingsQuickActionFocusTarget.ExtraContent else SettingsQuickActionFocusTarget.SectionMenu)
             .takeIf {
                 val count = enabledActions.size.takeIf { actionCount == 0 } ?: actionCount
                 count > 0 &&
@@ -1952,177 +1893,35 @@ internal fun settingsQuickActionFocusTarget(
         )?.let(SettingsQuickActionFocusTarget::Action)
     }
 
-internal data class SettingsSummaryTile(
-    val label: String,
-    val value: String,
-    val detail: String,
-)
-
-internal data class DesktopCloudRssUiLabels(
-    val endpoint: String,
-    val username: String,
-    val apiToken: String,
-    val password: String,
-    val saveCredentials: String,
-    val clearCredentials: String,
-    val login: String,
-    val verify: String,
-    val inboxPath: String,
-    val libraryPath: String,
-    val intervalMinutes: String,
-    val proxyHost: String,
-    val proxyPort: String,
-    val enabledToggle: String,
-    val rssProxy: String,
-    val useActiveSource: String,
-    val clearSource: String,
-    val postSyncSource: String,
-    val saveSyncConfig: String,
-    val runSyncNow: String,
-    val rssSubscriptions: String,
-    val subscriptionName: String,
-    val subscriptionUrl: String,
-    val filterRegex: String,
-    val saveRss: String,
-    val deleteRss: String,
-    val rssEmpty: String,
-    val rssPreviewFallback: String,
-    val startScheduler: String,
-    val stopScheduler: String,
-    val endpointFallback: String,
-    val schedulerIdle: String,
-    val enabledBadge: String,
-    val disabledBadge: String,
-    val pathBadge: String,
-    val runBadge: String,
-)
-
-internal fun desktopCloudRssUiLabels(): DesktopCloudRssUiLabels =
-    DesktopCloudRssUiLabels(
-        endpoint = cloudDriveRssEndpointFieldLabel(),
-        username = cloudDriveRssUsernameFieldLabel(),
-        apiToken = cloudDriveRssApiTokenFieldLabel(),
-        password = cloudDriveRssPasswordFieldLabel(),
-        saveCredentials = cloudDriveRssSaveCredentialsActionLabel(),
-        clearCredentials = cloudDriveRssClearCredentialsActionLabel(),
-        login = cloudDriveRssLoginActionLabel(),
-        verify = cloudDriveRssVerifyApiTokenActionLabel(),
-        inboxPath = cloudDriveRssInboxPathFieldLabel(),
-        libraryPath = cloudDriveRssLibraryPathFieldLabel(),
-        intervalMinutes = cloudDriveRssIntervalMinutesFieldLabel(),
-        proxyHost = cloudDriveRssProxyHostFieldLabel(),
-        proxyPort = cloudDriveRssProxyPortFieldLabel(),
-        enabledToggle = cloudDriveRssEnabledToggleLabel(),
-        rssProxy = cloudDriveRssProxySettingLabel(),
-        useActiveSource = cloudDriveRssUseActiveSourceActionLabel(),
-        clearSource = cloudDriveRssClearScanSourceActionLabel(),
-        postSyncSource = cloudDriveRssPostSyncSourceLabel(),
-        saveSyncConfig = cloudDriveRssSaveConfigActionLabel(),
-        runSyncNow = cloudDriveRssRunNowActionLabel(),
-        rssSubscriptions = rssSubscriptionsTitleLabel(),
-        subscriptionName = rssSubscriptionNameFieldLabel(),
-        subscriptionUrl = rssSubscriptionUrlFieldLabel(),
-        filterRegex = rssSubscriptionFilterRegexFieldLabel(),
-        saveRss = rssSubscriptionSaveActionLabel(),
-        deleteRss = rssSubscriptionDeleteActionLabel(),
-        rssEmpty = rssSubscriptionEmptyMessage(),
-        rssPreviewFallback = rssSubscriptionFormPreviewFallbackLabel(),
-        startScheduler = cloudDriveRssStartSchedulerActionLabel(),
-        stopScheduler = cloudDriveRssStopSchedulerActionLabel(),
-        endpointFallback = cloudDriveRssEndpointFallbackLabel(),
-        schedulerIdle = cloudDriveRssSchedulerIdleLabel(),
-        enabledBadge = cloudDriveRssEnabledBadgeLabel(true),
-        disabledBadge = cloudDriveRssEnabledBadgeLabel(false),
-        pathBadge = cloudDriveRssPathBadgeLabel(),
-        runBadge = cloudDriveRssRunBadgeLabel(),
-    )
-
-internal fun cloudRssOverviewTiles(
-    endpointUrl: String,
-    subscriptions: List<RssSubscriptionInfo>,
-    enabled: Boolean,
-    linkedSourceLabel: String,
-    schedulerStatus: String,
-): List<SettingsSummaryTile> =
-    listOf(
-        SettingsSummaryTile(
-            label = cloudDriveRssTitleLabel(),
-            value = settingsCloudRssOverviewValue(enabled),
-            detail = cloudRssPreview(
-                endpointUrl,
-                fallback = cloudDriveRssUnconfiguredEndpointLabel(),
-                maxLength = CLOUD_RSS_PREVIEW_LIMIT,
-            ),
-        ),
-        SettingsSummaryTile(
-            label = rssSubscriptionsTitleLabel(),
-            value = settingsCloudRssSubscriptionsValue(subscriptions.size),
-            detail = subscriptions.firstOrNull()?.let { rssSubscriptionPreview(it, CLOUD_RSS_PREVIEW_LIMIT) }
-                ?: rssSubscriptionPreviewFallbackLabel(),
-        ),
-        SettingsSummaryTile(
-            label = cloudDriveRssPostSyncScanSummaryLabel(),
-            value = settingsCloudRssLinkedSourceValue(linkedSourceLabel),
-            detail = cloudRssPreview(
-                cloudRssStatusText(schedulerStatus),
-                fallback = cloudDriveRssSchedulerIdleLabel(),
-                maxLength = CLOUD_RSS_PREVIEW_LIMIT,
-            ),
-        ),
-    )
-
-internal fun cloudRssPreview(
-    value: String,
-    fallback: String,
-    maxLength: Int = CLOUD_RSS_WIDE_PREVIEW_LIMIT,
-): String =
-    value.trim()
-        .ifBlank { fallback }
-        .compactMiddle(maxLength)
-
-internal fun cloudRssSyncPathPreview(
-    libraryMode: CloudDriveLibraryMode,
-    inboxPath: String,
-    libraryPath: String,
-    maxLength: Int = CLOUD_RSS_WIDE_PREVIEW_LIMIT,
-): String =
-    when (libraryMode) {
-        CloudDriveLibraryMode.SINGLE_DIRECTORY -> cloudRssPreview(
-            inboxPath,
-            fallback = cloudDriveRssInboxPathFieldLabel(),
-            maxLength = maxLength,
-        )
-        CloudDriveLibraryMode.ORGANIZED_LIBRARY -> cloudRssPathPairPreview(
-            inboxPath = inboxPath,
-            libraryPath = libraryPath,
-            maxLength = maxLength,
-        )
+internal fun settingsSummaryExtraFocusTarget(
+    actionCount: Int = 0,
+    key: Key,
+    enabledActions: List<Boolean> = List(actionCount) { true },
+): SettingsQuickActionFocusTarget? =
+    key.toMiruPlayInputIntent()?.let { intent ->
+        settingsSummaryExtraFocusTarget(actionCount, intent, enabledActions)
     }
 
-internal fun cloudRssPathPairPreview(
-    inboxPath: String,
-    libraryPath: String,
-    maxLength: Int = CLOUD_RSS_WIDE_PREVIEW_LIMIT,
-): String {
-    val separator = cloudDriveRssPathPairSeparator()
-    val safeMaxLength = maxLength.coerceAtLeast(separator.length + 8)
-    val available = safeMaxLength - separator.length
-    val inboxLength = available / 2
-    val libraryLength = available - inboxLength
-    return cloudRssPreview(inboxPath, fallback = cloudDriveRssInboxPathFieldLabel(), maxLength = inboxLength) +
-        separator +
-        cloudRssPreview(libraryPath, fallback = cloudDriveRssLibraryPathFieldLabel(), maxLength = libraryLength)
-}
+internal fun settingsSummaryExtraFocusTarget(
+    actionCount: Int = 0,
+    intent: MiruPlayInputIntent,
+    enabledActions: List<Boolean> = List(actionCount) { true },
+): SettingsQuickActionFocusTarget? =
+    when (intent.verticalNavigationDelta()) {
+        -1 -> SettingsQuickActionFocusTarget.SectionMenu
+        1 -> firstEnabledSettingsQuickActionIndex(actionCount, enabledActions)
+            ?.let(SettingsQuickActionFocusTarget::Action)
+        else -> null
+    }
 
-internal fun rssSubscriptionPreview(
-    subscription: RssSubscriptionInfo,
-    maxLength: Int = CLOUD_RSS_WIDE_PREVIEW_LIMIT,
-): String {
-    val state = rssSubscriptionStateLabel(subscription.enabled)
-    val filter = subscription.filterRegex?.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty()
-    val label = subscription.name.ifBlank { rssSubscriptionFallbackTitleLabel() }
-    return "$state · $label · ${subscription.url}$filter".compactMiddle(maxLength)
-}
+private fun firstEnabledSettingsQuickActionIndex(
+    actionCount: Int,
+    enabledActions: List<Boolean>,
+): Int? =
+    firstEnabledFocusIndex(
+        itemCount = enabledActions.size.takeIf { actionCount == 0 } ?: actionCount,
+        enabledItems = enabledActions,
+    )
 
 @Composable
 private fun SettingsSectionMenu(
@@ -2131,6 +1930,9 @@ private fun SettingsSectionMenu(
     sourcesCount: Int,
     rssCount: Int,
     cloudEnabled: Boolean,
+    webUiAddressCount: Int,
+    autoScanEnabled: Boolean,
+    mergeSameAnimeEnabled: Boolean,
     metadataSummary: String,
     playbackSummary: String,
     onSectionSelected: (MiruPlaySettingsSection) -> Unit,
@@ -2139,6 +1941,16 @@ private fun SettingsSectionMenu(
     LaunchedEffect(selectedSection) {
         sectionFocusRequesters[selectedSection]?.requestFocus()
     }
+    val menuSummaryInput = SettingsSectionMenuSummaryInput(
+        webUiAddressCount = webUiAddressCount,
+        sourceCount = sourcesCount,
+        playbackSummary = playbackSummary,
+        cloudDriveEnabled = cloudEnabled,
+        rssCount = rssCount,
+        autoScanEnabled = autoScanEnabled,
+        mergeSameAnimeEnabled = mergeSameAnimeEnabled,
+        metadataSummary = metadataSummary,
+    )
 
     TvPanel(
         modifier
@@ -2155,13 +1967,7 @@ private fun SettingsSectionMenu(
         desktopSettingsSectionOrder.forEach { section ->
             SettingsSectionMenuRow(
                 section = section,
-                summary = section.menuSummary(
-                    sourcesCount = sourcesCount,
-                    rssCount = rssCount,
-                    cloudEnabled = cloudEnabled,
-                    metadataSummary = metadataSummary,
-                    playbackSummary = playbackSummary,
-                ),
+                summary = section.settingsMenuSummary(menuSummaryInput),
                 selected = section == selectedSection,
                 onClick = { onSectionSelected(section) },
                 modifier = Modifier.focusRequester(sectionFocusRequesters.getValue(section)),
@@ -2264,20 +2070,32 @@ private fun SettingsSummaryContent(
     actions: List<SettingsQuickAction>,
     onFocusSectionMenu: () -> Unit,
     modifier: Modifier = Modifier,
-    extraContent: @Composable ColumnScope.() -> Unit = {},
+    extraContentFocusable: Boolean = false,
+    extraContent: @Composable ColumnScope.(Modifier) -> Unit = {},
 ) {
     val actionFocusRequesters = remember(actions.size) {
         List(actions.size) { FocusRequester() }
+    }
+    val extraContentFocusRequester = remember { FocusRequester() }
+    val enabledActions = actions.map { it.enabled }
+    fun requestActionFocus(index: Int): Boolean {
+        if (index !in actions.indices || !actions[index].enabled) return false
+        actionFocusRequesters[index].requestFocus()
+        return true
     }
     fun moveActionFocus(currentIndex: Int, key: Key): Boolean {
         return when (val target = settingsQuickActionFocusTarget(
             currentIndex = currentIndex,
             actionCount = actions.size,
             key = key,
-            enabledActions = actions.map { it.enabled },
+            enabledActions = enabledActions,
+            hasExtraFocus = extraContentFocusable,
         )) {
             is SettingsQuickActionFocusTarget.Action -> {
-                actionFocusRequesters[target.index].requestFocus()
+                requestActionFocus(target.index)
+            }
+            SettingsQuickActionFocusTarget.ExtraContent -> {
+                extraContentFocusRequester.requestFocus()
                 true
             }
             SettingsQuickActionFocusTarget.SectionMenu -> {
@@ -2285,6 +2103,22 @@ private fun SettingsSummaryContent(
                 true
             }
             null -> false
+        }
+    }
+    fun moveExtraContentFocus(key: Key): Boolean {
+        return when (val target = settingsSummaryExtraFocusTarget(
+            actionCount = actions.size,
+            key = key,
+            enabledActions = enabledActions,
+        )) {
+            is SettingsQuickActionFocusTarget.Action -> requestActionFocus(target.index)
+            SettingsQuickActionFocusTarget.SectionMenu -> {
+                onFocusSectionMenu()
+                true
+            }
+            SettingsQuickActionFocusTarget.ExtraContent,
+            null,
+            -> false
         }
     }
     TvPanel(modifier.fillMaxWidth()) {
@@ -2297,7 +2131,15 @@ private fun SettingsSummaryContent(
                 SettingsSummaryTileRow(row)
             }
         }
-        extraContent()
+        extraContent(
+            if (extraContentFocusable) {
+                Modifier
+                    .focusRequester(extraContentFocusRequester)
+                    .desktopNavigationKeyHandler(::moveExtraContentFocus)
+            } else {
+                Modifier
+            },
+        )
         Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
         StatusBox(status)
         Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
@@ -2314,6 +2156,90 @@ private fun SettingsSummaryContent(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun DesktopWebUiAccessSummary(
+    urls: List<String>,
+    accessToken: String,
+) {
+    Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
+    StatusBox(settingsWebUiAccessTokenLabel(accessToken))
+    if (urls.isNotEmpty()) {
+        Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
+        Text(
+            settingsWebUiAvailableAddressesLabel(),
+            color = TextPrimary,
+            fontSize = MiruPlayUiMetrics.SECTION_SUBTITLE_SP.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Spacer(Modifier.height(6.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            urls.take(3).forEachIndexed { index, url ->
+                Text(
+                    "${settingsWebUiAddressLabel(index)}：$url",
+                    color = TextSecondary,
+                    fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DesktopScanPreferencesContent(
+    autoScanEnabled: Boolean,
+    autoScanIntervalHours: Int,
+    intervalOptionsHours: List<Int>,
+    lastScanAt: Long,
+    mergeSameAnimeEnabled: Boolean,
+    onToggleAutoScan: () -> Unit,
+    onIntervalSelected: (Int) -> Unit,
+    onToggleMergeSameAnime: () -> Unit,
+) {
+    Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
+    CloudRssCard(
+        title = settingsScanPanelTitleLabel(),
+        badge = settingsAutoScanToggleLabel(autoScanEnabled),
+        preview = settingsCurrentScanIntervalStatus(autoScanIntervalHours, lastScanAt),
+    ) {
+        Text(
+            settingsScanPanelDescription(),
+            color = TextSecondary,
+            fontSize = MiruPlayUiMetrics.PANEL_BODY_SP.sp,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
+            TvActionButton(
+                settingsAutoScanToggleLabel(autoScanEnabled),
+                onClick = onToggleAutoScan,
+                secondary = true,
+            )
+            intervalOptionsHours.forEach { hours ->
+                TvActionButton(
+                    settingsScanIntervalOptionLabel(hours),
+                    onClick = { onIntervalSelected(hours) },
+                    secondary = autoScanIntervalHours != hours,
+                    enabled = autoScanEnabled,
+                )
+            }
+        }
+        StatusBox(settingsCurrentScanIntervalStatus(autoScanIntervalHours, lastScanAt))
+    }
+    Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
+    CloudRssCard(
+        title = settingsLibraryDisplayTitleLabel(),
+        badge = settingsMergeSameAnimeToggleLabel(mergeSameAnimeEnabled),
+        preview = settingsMergeSameAnimeStatus(mergeSameAnimeEnabled),
+    ) {
+        TvActionButton(
+            settingsMergeSameAnimeToggleLabel(mergeSameAnimeEnabled),
+            onClick = onToggleMergeSameAnime,
+            secondary = true,
+        )
+        StatusBox(settingsMergeSameAnimeStatus(mergeSameAnimeEnabled))
     }
 }
 
@@ -2365,158 +2291,6 @@ private fun SettingsSummaryCard(
             overflow = TextOverflow.Ellipsis,
         )
     }
-}
-
-internal fun sourceSettingsTiles(
-    sources: List<MediaSourceInfo>,
-    activeSourceLabel: String,
-    indexedItemCount: Int,
-): List<SettingsSummaryTile> =
-    listOf(
-        SettingsSummaryTile(
-            label = settingsSourceTileLabel(),
-            value = settingsCountValue(sources.size),
-            detail = settingsSourceTypeBreakdown(sources),
-        ),
-        SettingsSummaryTile(
-            label = settingsActiveSourceTileLabel(),
-            value = activeSourceLabel,
-            detail = settingsActiveSourceSharedDetail(),
-        ),
-        SettingsSummaryTile(
-            label = settingsPosterWallIndexTileLabel(),
-            value = settingsRecordCountValue(indexedItemCount),
-            detail = settingsPosterWallIndexDetail(),
-        ),
-    )
-
-internal fun playbackSettingsTiles(
-    playbackSummary: String,
-    recentCount: Int,
-    selectedMediaTitle: String,
-): List<SettingsSummaryTile> =
-    listOf(
-        SettingsSummaryTile(
-            label = settingsPlaybackModeTileLabel(),
-            value = playbackSummary,
-            detail = settingsPlaybackPageDetail(),
-        ),
-        SettingsSummaryTile(
-            label = settingsRecentPlaybackTileLabel(),
-            value = settingsRecordCountValue(recentCount),
-            detail = settingsRecentPlaybackDetail(),
-        ),
-        SettingsSummaryTile(
-            label = settingsSelectedMediaTileLabel(),
-            value = selectedMediaTitle,
-            detail = settingsSelectedMediaDetail(),
-        ),
-    )
-
-internal fun scanSettingsTiles(
-    indexedItemCount: Int,
-    linkedSourceLabel: String,
-    libraryStatus: String,
-): List<SettingsSummaryTile> =
-    listOf(
-        SettingsSummaryTile(
-            label = settingsIndexTileLabel(),
-            value = settingsRecordCountValue(indexedItemCount),
-            detail = settingsIndexSharedDetail(),
-        ),
-        SettingsSummaryTile(
-            label = settingsPostSyncSourceTileLabel(),
-            value = linkedSourceLabel,
-            detail = settingsCloudDriveRescanSourceDetail(),
-        ),
-        SettingsSummaryTile(
-            label = settingsRecentScanStatusTileLabel(),
-            value = mediaSourceStatusText(libraryStatus),
-            detail = settingsRecentScanStatusDetail(),
-        ),
-    )
-
-internal fun metadataSettingsTiles(
-    selectedMediaTitle: String,
-    metadataSummary: String,
-    indexedItemCount: Int,
-    bangumiTokenConfigured: Boolean = false,
-): List<SettingsSummaryTile> =
-    listOf(
-        SettingsSummaryTile(
-            label = settingsSelectedMetadataEntryTileLabel(),
-            value = selectedMediaTitle,
-            detail = settingsSelectedMetadataEntryDetail(),
-        ),
-        SettingsSummaryTile(
-            label = settingsMetadataMatchStatusTileLabel(),
-            value = metadataSummary,
-            detail = settingsMetadataMatchStatusDetail(),
-        ),
-        SettingsSummaryTile(
-            label = settingsMetadataCandidateScopeTileLabel(),
-            value = settingsIndexedCountValue(indexedItemCount),
-            detail = settingsMetadataCandidateScopeDetail(),
-        ),
-        SettingsSummaryTile(
-            label = metadataBangumiTokenTileLabel(),
-            value = settingsSavedStateValue(bangumiTokenConfigured),
-            detail = metadataBangumiTokenTileDetail(),
-        ),
-    )
-
-private fun desktopWebUiSettingsTiles(): List<SettingsSummaryTile> =
-    listOf(
-        SettingsSummaryTile(
-            label = settingsWebUiTileLabel(),
-            value = settingsWebUiAndroidTvValue(),
-            detail = settingsWebUiTileDetail(),
-        ),
-        SettingsSummaryTile(
-            label = settingsWebUiNativeControlTileLabel(),
-            value = settingsDesktopControlTileValue(),
-            detail = settingsDesktopControlTileDetail(),
-        ),
-        SettingsSummaryTile(
-            label = settingsRemoteAutomationTileLabel(),
-            value = settingsRemoteAutomationTileValue(),
-            detail = settingsRemoteAutomationTileDetail(),
-        ),
-    )
-
-private fun desktopLogUploadSettingsTiles(): List<SettingsSummaryTile> =
-    listOf(
-        SettingsSummaryTile(
-            label = "OpenObserve",
-            value = "JSON",
-            detail = "API 地址、Stream 和访问令牌由 Android TV 设置页保存。",
-        ),
-        SettingsSummaryTile(
-            label = "本地日志",
-            value = "自动上报",
-            detail = "应用日志进入本地队列后按配置批量发送。",
-        ),
-        SettingsSummaryTile(
-            label = "凭据",
-            value = "安全存储",
-            detail = "令牌只保存配置状态，清理后会停止上报。",
-        ),
-    )
-
-private fun MiruPlaySettingsSection.menuSummary(
-    sourcesCount: Int,
-    rssCount: Int,
-    cloudEnabled: Boolean,
-    metadataSummary: String,
-    playbackSummary: String,
-): String = when (this) {
-    MiruPlaySettingsSection.SOURCES -> settingsSourcesMenuSummary(sourcesCount)
-    MiruPlaySettingsSection.PLAYBACK -> playbackSummary
-    MiruPlaySettingsSection.CLOUD_DRIVE -> settingsCloudDriveMenuSummary(cloudEnabled, rssCount)
-    MiruPlaySettingsSection.SCAN -> settingsDesktopScanMenuSummary()
-    MiruPlaySettingsSection.LOG_UPLOAD -> "OpenObserve"
-    MiruPlaySettingsSection.METADATA -> metadataSummary
-    MiruPlaySettingsSection.WEB_UI -> settingsDesktopWebUiMenuSummary()
 }
 
 @Composable
@@ -2583,6 +2357,54 @@ internal fun List<RssSubscriptionInfo>.rssSubscriptionNavigationTarget(
             delta < 0 -> size
             else -> return null
         }
-    val targetIndex = currentIndex + delta
-    return getOrNull(targetIndex)
+    if (currentIndex !in indices) {
+        return when (delta) {
+            1 -> first()
+            -1 -> last()
+            else -> null
+        }
+    }
+    return focusIndexAfter(
+        currentIndex = currentIndex,
+        delta = delta,
+        itemCount = size,
+    )?.let(::get)
 }
+
+internal fun cloudRssSyncPathPreview(
+    libraryMode: CloudDriveLibraryMode,
+    inboxPath: String,
+    libraryPath: String,
+    maxLength: Int = 86,
+): String =
+    when (libraryMode) {
+        CloudDriveLibraryMode.SINGLE_DIRECTORY -> cloudRssPreview(
+            inboxPath,
+            fallback = cloudDriveRssInboxPathFieldLabel(),
+            maxLength = maxLength,
+        )
+        CloudDriveLibraryMode.ORGANIZED_LIBRARY -> cloudRssPathPairPreview(
+            inboxPath = inboxPath,
+            libraryPath = libraryPath,
+            maxLength = maxLength,
+        )
+    }
+
+private fun desktopLogUploadSettingsTiles(): List<SettingsSummaryTile> =
+    listOf(
+        SettingsSummaryTile(
+            label = "OpenObserve",
+            value = "JSON",
+            detail = "API 地址、Stream 和访问令牌由 Android TV 设置页保存。",
+        ),
+        SettingsSummaryTile(
+            label = "本地日志",
+            value = "自动上报",
+            detail = "应用日志进入本地队列后按配置批量发送。",
+        ),
+        SettingsSummaryTile(
+            label = "凭据",
+            value = "安全存储",
+            detail = "令牌只保存配置状态，清理后会停止上报。",
+        ),
+    )

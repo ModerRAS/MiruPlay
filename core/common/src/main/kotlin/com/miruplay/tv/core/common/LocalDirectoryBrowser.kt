@@ -3,15 +3,20 @@ package com.miruplay.tv.core.common
 import java.io.File
 
 object LocalDirectoryBrowser {
-    fun browse(path: String): Listing {
+    fun browse(path: String): Listing =
+        browse(path) { localRootCandidates() }
+
+    internal fun browse(path: String, rootsProvider: () -> List<File>): Listing {
         val trimmedPath = path.trim()
         if (trimmedPath.isBlank()) {
-            val roots = localRootCandidates()
+            val roots = rootsProvider()
             return Listing(
                 path = "",
                 displayPath = "设备存储",
                 parentPath = null,
-                entries = roots.map { it.toEntry() }
+                entries = roots
+                    .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.absolutePath })
+                    .map { it.toEntry() }
             )
         }
 
@@ -39,38 +44,47 @@ object LocalDirectoryBrowser {
         )
     }
 
-    private fun localRootCandidates(): List<File> {
+    internal fun localRootCandidates(
+        preferredRootPaths: List<String> = preferredStorageRootPaths,
+        discoverRootPaths: List<String> = discoverableStorageRootPaths,
+        externalStorage: String? = System.getenv("EXTERNAL_STORAGE"),
+        secondaryStorage: String? = System.getenv("SECONDARY_STORAGE"),
+        systemRoots: Array<File> = File.listRoots(),
+        listDirectoryChildren: (File) -> Array<File>? = { it.listFiles() },
+    ): List<File> {
         val roots = linkedSetOf<File>()
-        listOf(
-            "/storage/emulated/0",
-            "/sdcard",
-            "/storage",
-            "/mnt/media_rw",
-            "/mnt/sdcard",
-            "/mnt/usb_storage",
-            "/storage/usb_storage"
-        ).mapTo(roots) { File(it) }
+        preferredRootPaths.mapTo(roots) { File(it) }
 
-        System.getenv("EXTERNAL_STORAGE")
+        externalStorage
             ?.takeIf { it.isNotBlank() }
-            ?.let { roots += File(it) }
+            ?.let { path -> roots += File(path) }
 
-        System.getenv("SECONDARY_STORAGE")
+        secondaryStorage
             ?.split(File.pathSeparator)
             .orEmpty()
             .filter { it.isNotBlank() }
             .forEach { roots += File(it) }
 
-        listOf("/storage", "/mnt/media_rw", "/mnt/usb_storage")
-            .flatMap { File(it).listFiles().orEmpty().asIterable() }
+        discoverRootPaths
+            .flatMap { rootPath -> listDirectoryChildren(File(rootPath)).orEmpty().asIterable() }
             .filter { it.isDirectory && !it.name.startsWith(".") }
             .filter { it.name !in hiddenDirectoryNames }
             .forEach { roots += it }
 
-        return roots
+        val discoveredRoots = roots
             .filter { it.exists() && it.isDirectory && it.canRead() }
             .distinctBy { runCatching { it.canonicalPath }.getOrDefault(it.absolutePath) }
             .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.absolutePath })
+        if (discoveredRoots.isNotEmpty()) {
+            return discoveredRoots
+        }
+
+        return systemRoots
+            .asSequence()
+            .filter { it.exists() && it.isDirectory && it.canRead() }
+            .distinctBy { runCatching { it.canonicalPath }.getOrDefault(it.absolutePath) }
+            .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.absolutePath })
+            .toList()
     }
 
     private fun File.toEntry(): Entry =
@@ -103,5 +117,21 @@ object LocalDirectoryBrowser {
         "proc", "sys", "dev", "selinux", "acct", "apex", "bin", "cache", "config",
         "d", "data_mirror", "debug_ramdisk", "etc", "linkerconfig", "postinstall",
         "system", "system_ext", "vendor", "vendor_dlkm"
+    )
+
+    private val preferredStorageRootPaths = listOf(
+        "/storage/emulated/0",
+        "/sdcard",
+        "/storage",
+        "/mnt/media_rw",
+        "/mnt/sdcard",
+        "/mnt/usb_storage",
+        "/storage/usb_storage"
+    )
+
+    private val discoverableStorageRootPaths = listOf(
+        "/storage",
+        "/mnt/media_rw",
+        "/mnt/usb_storage"
     )
 }

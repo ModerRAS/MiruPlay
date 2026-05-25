@@ -6,9 +6,6 @@ import com.miruplay.tv.model.CloudDriveRssSchedulerUiState
 import com.miruplay.tv.model.tvStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -32,10 +29,6 @@ fun DesktopCloudDriveRssSchedulerState.toUiState(): CloudDriveRssSchedulerUiStat
 fun DesktopCloudDriveRssSchedulerState.schedulerStatus(): String =
     toUiState().tvStatus()
 
-fun interface CloudDriveRssDueRunner {
-    suspend fun runIfDue(): Result<CloudDriveRssRunSummary?>
-}
-
 class DesktopCloudDriveRssScheduler(
     private val dueRunner: CloudDriveRssDueRunner,
     private val scope: CoroutineScope,
@@ -51,7 +44,7 @@ class DesktopCloudDriveRssScheduler(
         scope: CoroutineScope,
         checkIntervalMillis: Long = DEFAULT_CHECK_INTERVAL_MILLIS,
     ) : this(
-        dueRunner = CloudDriveRssDueRunner { engine.runIfDue() },
+        dueRunner = engine,
         scope = scope,
         checkIntervalMillis = checkIntervalMillis,
     )
@@ -59,27 +52,25 @@ class DesktopCloudDriveRssScheduler(
     fun start(): Boolean {
         if (job?.isActive == true) return false
         _state.update { it.copy(running = true, lastError = null) }
-        val launchedJob = scope.launch {
-            while (isActive) {
-                val result = dueRunner.runIfDue()
-                val checkedAt = System.currentTimeMillis()
-                _state.update { current ->
-                    when (result) {
-                        is Result.Success -> current.copy(
-                            running = true,
-                            lastCheckedAt = checkedAt,
-                            lastRunCompletedAt = if (result.data != null) checkedAt else current.lastRunCompletedAt,
-                            lastSummary = result.data ?: current.lastSummary,
-                            lastError = null,
-                        )
-                        is Result.Error -> current.copy(
-                            running = true,
-                            lastCheckedAt = checkedAt,
-                            lastError = result.error.toUserMessage(),
-                        )
-                    }
+        val launchedJob = scope.launchCloudDriveRssSchedulerLoop(
+            dueRunner = dueRunner,
+            checkIntervalMillis = checkIntervalMillis,
+        ) { checkedAt, result ->
+            _state.update { current ->
+                when (result) {
+                    is Result.Success -> current.copy(
+                        running = true,
+                        lastCheckedAt = checkedAt,
+                        lastRunCompletedAt = if (result.data != null) checkedAt else current.lastRunCompletedAt,
+                        lastSummary = result.data ?: current.lastSummary,
+                        lastError = null,
+                    )
+                    is Result.Error -> current.copy(
+                        running = true,
+                        lastCheckedAt = checkedAt,
+                        lastError = result.error.toUserMessage(),
+                    )
                 }
-                delay(checkIntervalMillis)
             }
         }
         job = launchedJob

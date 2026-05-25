@@ -33,7 +33,6 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
@@ -82,12 +81,7 @@ fun AnimePosterCard(
             )
             .onFocusChanged { isFocused = it.isFocused }
             .onPreviewKeyEvent { event ->
-                if (event.type == KeyEventType.KeyDown && event.key.isTvActivateKey()) {
-                    onClick()
-                    true
-                } else {
-                    false
-                }
+                tvActivateKeyEvent(event.key, event.type, onActivate = onClick)
             }
             .focusable()
             .clickable(onClick = onClick)
@@ -176,12 +170,7 @@ fun FeatureAnimeCard(
             )
             .onFocusChanged { isFocused = it.isFocused }
             .onPreviewKeyEvent { event ->
-                if (event.type == KeyEventType.KeyDown && event.key.isTvActivateKey()) {
-                    onClick()
-                    true
-                } else {
-                    false
-                }
+                tvActivateKeyEvent(event.key, event.type, onActivate = onClick)
             }
             .focusable()
             .clickable(onClick = onClick)

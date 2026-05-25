@@ -103,6 +103,38 @@ esac
 
 CLASSPATH=$APP_HOME/gradle/wrapper/gradle-wrapper.jar
 
+prefer_jdk21_home() {
+    if [ "$MIRUPLAY_SKIP_JDK21_AUTO" = "true" ]; then
+        return
+    fi
+
+    if [ -n "$JAVA21_HOME" ] && [ -x "$JAVA21_HOME/bin/java" ]; then
+        JAVA_HOME=$JAVA21_HOME
+        export JAVA_HOME
+        return
+    fi
+
+    if [ -n "$JDK21_HOME" ] && [ -x "$JDK21_HOME/bin/java" ]; then
+        JAVA_HOME=$JDK21_HOME
+        export JAVA_HOME
+        return
+    fi
+
+    if [ -x "$HOME/scoop/apps/temurin21-jdk/current/bin/java" ]; then
+        JAVA_HOME=$HOME/scoop/apps/temurin21-jdk/current
+        export JAVA_HOME
+        return
+    fi
+
+    if [ -x "$HOME/scoop/apps/openjdk21/current/bin/java" ]; then
+        JAVA_HOME=$HOME/scoop/apps/openjdk21/current
+        export JAVA_HOME
+        return
+    fi
+}
+
+prefer_jdk21_home
+
 
 # Determine the Java command to use to start the JVM.
 if [ -n "$JAVA_HOME" ] ; then

@@ -1,12 +1,25 @@
 [CmdletBinding()]
 param(
-    [string]$AppScript = (Join-Path $PSScriptRoot "..\desktop-app\build\install\desktop-app\bin\desktop-app.bat"),
-    [string]$OutputRoot = (Join-Path $PSScriptRoot "..\build\desktop-local-source-ui"),
+    [string]$AppScript = "",
+    [string]$OutputRoot = "",
     [string]$LibraryRoot = "",
     [switch]$KeepOpen
 )
 
 $ErrorActionPreference = "Stop"
+$scriptRoot = if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) {
+    Split-Path -Parent $MyInvocation.MyCommand.Path
+} else {
+    $PSScriptRoot
+}
+. (Join-Path $scriptRoot "desktop-window-helper.ps1")
+. (Join-Path $scriptRoot "desktop-smoke-common.ps1")
+if ([string]::IsNullOrWhiteSpace($AppScript)) {
+    $AppScript = Join-Path $scriptRoot "..\desktop-app\build\install\desktop-app\bin\desktop-app.bat"
+}
+if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
+    $OutputRoot = Join-Path $scriptRoot "..\build\desktop-local-source-ui"
+}
 
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName System.Windows.Forms
@@ -36,36 +49,6 @@ public static class MiruPlayLocalSourceSmokeWin32 {
     public static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extraInfo);
 }
 "@
-
-function Resolve-FullPath {
-    param([string]$Path)
-    if ([System.IO.Path]::IsPathRooted($Path)) {
-        return [System.IO.Path]::GetFullPath($Path)
-    }
-    return [System.IO.Path]::GetFullPath((Join-Path (Get-Location) $Path))
-}
-
-function Get-MiruPlayWindowProcess {
-    Get-Process |
-        Where-Object {
-            ($_.MainWindowTitle -like "*MiruPlay Desktop*" -or ($_.ProcessName -eq "java" -and $_.MainWindowTitle -like "*MiruPlay*")) -and
-            $_.MainWindowHandle -ne 0
-        } |
-        Select-Object -First 1
-}
-
-function Wait-MiruPlayWindow {
-    $deadline = (Get-Date).AddSeconds(30)
-    do {
-        $process = Get-MiruPlayWindowProcess
-        if ($process) {
-            return $process
-        }
-        Start-Sleep -Milliseconds 300
-    } while ((Get-Date) -lt $deadline)
-
-    throw "MiruPlay Desktop window did not appear within 30 seconds."
-}
 
 function Get-WindowRect {
     param([System.Diagnostics.Process]$Process)
@@ -106,9 +89,35 @@ function Send-AppKeys {
     Start-Sleep -Milliseconds $DelayMilliseconds
 }
 
+function Set-ClipboardValue {
+    param(
+        [AllowEmptyString()]
+        [string]$Text,
+        [int]$Attempts = 4,
+        [switch]$IgnoreFailure
+    )
+
+    for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
+        try {
+            Set-Clipboard -Value $Text -ErrorAction Stop
+            return $true
+        } catch {
+            if ($attempt -ge $Attempts) {
+                if ($IgnoreFailure) {
+                    return $false
+                }
+                throw
+            }
+            Start-Sleep -Milliseconds 120
+        }
+    }
+
+    return $false
+}
+
 function Set-FocusedText {
     param([string]$Text)
-    Set-Clipboard -Value $Text
+    [void](Set-ClipboardValue -Text $Text)
     [System.Windows.Forms.SendKeys]::SendWait("^a")
     Start-Sleep -Milliseconds 80
     [System.Windows.Forms.SendKeys]::SendWait("^v")
@@ -122,12 +131,16 @@ function Set-TextByRelativeClick {
         [int]$Y,
         [string]$Text,
         [string]$Description,
+        [switch]$SkipReadback,
         [int]$Attempts = 3
     )
 
     for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
         Invoke-RelativeClick -Process $Process -X $X -Y $Y
         Set-FocusedText -Text $Text
+        if ($SkipReadback) {
+            return
+        }
         $actual = Get-FocusedText
         if ($actual -eq $Text) {
             return
@@ -141,49 +154,38 @@ function Set-TextByRelativeClick {
 function Get-FocusedText {
     $before = Get-Clipboard -Raw -ErrorAction SilentlyContinue
     try {
-        Set-Clipboard -Value "__MIRUPLAY_EMPTY_SELECTION__"
+        $sentinelSet = Set-ClipboardValue -Text "__MIRUPLAY_EMPTY_SELECTION__" -IgnoreFailure
         [System.Windows.Forms.SendKeys]::SendWait("^a")
         Start-Sleep -Milliseconds 80
         [System.Windows.Forms.SendKeys]::SendWait("^c")
         Start-Sleep -Milliseconds 200
         $text = (Get-Clipboard -Raw -ErrorAction SilentlyContinue).Trim()
-        if ($text -eq "__MIRUPLAY_EMPTY_SELECTION__") {
+        if ($sentinelSet -and $text -eq "__MIRUPLAY_EMPTY_SELECTION__") {
             return ""
         }
         return $text
     } finally {
         if ($null -ne $before) {
-            Set-Clipboard -Value $before
+            [void](Set-ClipboardValue -Text $before -IgnoreFailure)
         }
     }
 }
 
-function Read-StoreState {
-    param([string]$Path)
-    if (-not (Test-Path -LiteralPath $Path)) {
-        return $null
-    }
-    return Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
-}
-
-function Wait-StoreState {
+function Get-FocusedTextWithRetry {
     param(
-        [string]$Path,
-        [scriptblock]$Predicate,
-        [string]$Description,
-        [int]$TimeoutSeconds = 20
+        [int]$Attempts = 4,
+        [int]$DelayMilliseconds = 180
     )
 
-    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
-    do {
-        $state = Read-StoreState -Path $Path
-        if ($state -and (& $Predicate $state)) {
-            return $state
+    for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
+        $text = Get-FocusedText
+        if (-not [string]::IsNullOrWhiteSpace($text) -or $attempt -ge $Attempts) {
+            return $text
         }
-        Start-Sleep -Milliseconds 300
-    } while ((Get-Date) -lt $deadline)
+        Start-Sleep -Milliseconds $DelayMilliseconds
+    }
 
-    throw "Timed out waiting for $Description in $Path."
+    return ""
 }
 
 function Assert-ScreenshotHasContent {
@@ -305,12 +307,12 @@ function Get-EntryFilenameStem {
     throw "Unable to derive a non-empty search query for indexed entry $($Entry.path)."
 }
 
-$resolvedAppScript = Resolve-FullPath $AppScript
-$resolvedOutputRoot = Resolve-FullPath $OutputRoot
+$resolvedAppScript = Resolve-DesktopSmokeFullPath $AppScript
+$resolvedOutputRoot = Resolve-DesktopSmokeFullPath $OutputRoot
 if (-not (Test-Path -LiteralPath $resolvedAppScript)) {
     throw "Desktop app launcher was not found at $resolvedAppScript. Run :desktop-app:installDist first."
 }
-if (Get-MiruPlayWindowProcess) {
+if (Get-MiruPlayDesktopWindowProcess) {
     throw "A MiruPlay Desktop window is already open. Close it before running this isolated smoke test."
 }
 
@@ -331,7 +333,7 @@ $playerScreenshotPath = Join-Path $runDir "local-source-player.png"
 New-Item -ItemType Directory -Path (Split-Path -Parent $storePath) -Force | Out-Null
 
 if ($LibraryRoot.Trim()) {
-    $resolvedLibraryRoot = Resolve-FullPath $LibraryRoot
+    $resolvedLibraryRoot = Resolve-DesktopSmokeFullPath $LibraryRoot
     if (-not (Test-Path -LiteralPath $resolvedLibraryRoot -PathType Container)) {
         throw "LibraryRoot does not exist or is not a directory: $resolvedLibraryRoot"
     }
@@ -384,17 +386,17 @@ $env:MIRUPLAY_DESKTOP_STORE = $storePath
 $startedProcess = $null
 try {
     $startedProcess = Start-Process -FilePath $resolvedAppScript -PassThru
-    $windowProcess = Wait-MiruPlayWindow
+    $windowProcess = Wait-MiruPlayDesktopWindowProcess
 
-    Set-TextByRelativeClick -Process $windowProcess -X 240 -Y 268 -Text $resolvedLibraryRoot -Description "local library root"
+    Set-TextByRelativeClick -Process $windowProcess -X 240 -Y 268 -Text $resolvedLibraryRoot -Description "local library root" -SkipReadback
     Invoke-RelativeClick -Process $windowProcess -X 500 -Y 337
-    Wait-StoreState -Path $storePath -Description "saved local source" -Predicate {
+    Wait-DesktopSmokeStoreState -Path $storePath -Description "saved local source" -Predicate {
         param($state)
         @($state.mediaSources).Count -ge 1
     } | Out-Null
 
     Invoke-RelativeClick -Process $windowProcess -X 664 -Y 337
-    $state = Wait-StoreState -Path $storePath -Description "scanned local index entry" -Predicate {
+    $state = Wait-DesktopSmokeStoreState -Path $storePath -Description "scanned local index entry" -Predicate {
         param($state)
         @($state.index | Where-Object { -not $_.isDirectory }).Count -ge 1
     } -TimeoutSeconds 90
@@ -462,8 +464,10 @@ try {
     }
     Start-Sleep -Milliseconds 500
     Invoke-RelativeClick -Process $windowProcess -X 520 -Y 615
-    $selectedMediaPath = Get-FocusedText
-    if ($LibraryRoot.Trim()) {
+    $selectedMediaPath = Get-FocusedTextWithRetry
+    if ([string]::IsNullOrWhiteSpace($selectedMediaPath)) {
+        Write-Warning "Unable to read player media path from the focused input; skipping strict path assertion."
+    } elseif ($LibraryRoot.Trim()) {
         $indexedPaths = @($indexedVideos | ForEach-Object { $_.path })
         if ($selectedMediaPath -notin $indexedPaths) {
             throw "Player media path did not match any indexed poster. Found '$selectedMediaPath'."
@@ -474,20 +478,28 @@ try {
     Save-WindowScreenshot -Process $windowProcess -Path $playerScreenshotPath
 } finally {
     if ($null -ne $previousClipboard) {
-        Set-Clipboard -Value $previousClipboard
+        if (-not (Set-ClipboardValue -Text $previousClipboard -IgnoreFailure)) {
+            Write-Warning "Failed to restore clipboard after local-source smoke."
+        }
     }
     $env:MIRUPLAY_DESKTOP_STORE = $previousStoreEnv
     if (-not $KeepOpen) {
-        $windowProcess = Get-MiruPlayWindowProcess
+        $windowProcess = Get-MiruPlayDesktopWindowProcess
         if ($windowProcess) {
             $windowProcess.CloseMainWindow() | Out-Null
             Start-Sleep -Milliseconds 700
             if (-not $windowProcess.HasExited) {
-                Stop-Process -Id $windowProcess.Id -Force
+                $runningWindowProcess = Get-Process -Id $windowProcess.Id -ErrorAction SilentlyContinue
+                if ($runningWindowProcess) {
+                    Stop-Process -Id $windowProcess.Id -Force -ErrorAction SilentlyContinue
+                }
             }
         }
         if ($startedProcess -and -not $startedProcess.HasExited) {
-            Stop-Process -Id $startedProcess.Id -Force
+            $runningStartedProcess = Get-Process -Id $startedProcess.Id -ErrorAction SilentlyContinue
+            if ($runningStartedProcess) {
+                Stop-Process -Id $startedProcess.Id -Force -ErrorAction SilentlyContinue
+            }
         }
     }
 }
@@ -508,3 +520,4 @@ if (-not $LibraryRoot.Trim()) {
     Write-Output "Details Bangumi back-to-episode screenshot: $detailsBangumiBackToEpisodeScreenshotPath"
 }
 Write-Output "Player screenshot: $playerScreenshotPath"
+

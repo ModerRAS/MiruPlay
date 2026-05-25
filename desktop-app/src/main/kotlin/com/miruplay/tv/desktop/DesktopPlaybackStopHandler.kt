@@ -23,7 +23,9 @@ internal suspend fun stopDesktopPlayback(
     val savedPosition = session?.let { activeSession ->
         savePlaybackProgressOnStop(
             session = activeSession,
-            queryPositionMs = null,
+            queryPositionMs = player?.let { activePlayer ->
+                { activePlayer.queryTimePositionMs() }
+            },
             saveProgress = saveProgress,
         ).getOrNull()
     }

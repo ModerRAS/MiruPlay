@@ -18,6 +18,7 @@ import com.miruplay.tv.repository.BangumiSubjectCollection
 import com.miruplay.tv.repository.BangumiSubjectCollectionType
 import com.miruplay.tv.repository.BangumiUser
 import com.miruplay.tv.repository.MediaIndexEntry
+import com.miruplay.tv.repository.SCAN_PREFERENCES_MIN_INTERVAL_MS
 import com.miruplay.tv.sync.BangumiSyncCore
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -137,6 +138,29 @@ class DesktopRepositoriesTest {
 
             val reopened = DesktopRepositories.fileBacked(storePath)
             assertEquals(PlaybackEndAction.PLAY_NEXT_EPISODE, reopened.playbackPreferences.getEndAction())
+        } finally {
+            deleteTempStore(storePath)
+        }
+    }
+
+    @Test
+    fun `scan preferences are persisted and normalize intervals`() = runBlocking {
+        val storePath = tempStorePath()
+        try {
+            val repositories = DesktopRepositories.fileBacked(storePath)
+
+            repositories.scanPreferences.setAutoScanEnabled(true)
+            repositories.scanPreferences.setAutoScanIntervalMs(1L)
+            repositories.scanPreferences.setLastScanAt(123L)
+            repositories.scanPreferences.setMergeSameAnimeEnabled(true)
+
+            val reopened = DesktopRepositories.fileBacked(storePath)
+            val preferences = reopened.scanPreferences.getPreferences()
+
+            assertEquals(true, preferences.autoScanEnabled)
+            assertEquals(SCAN_PREFERENCES_MIN_INTERVAL_MS, preferences.autoScanIntervalMs)
+            assertEquals(123L, preferences.lastScanAt)
+            assertEquals(true, preferences.mergeSameAnimeEnabled)
         } finally {
             deleteTempStore(storePath)
         }
@@ -511,6 +535,43 @@ class DesktopRepositoriesTest {
             assertEquals(null, cleared.credentials.cloudDrivePassword)
             assertEquals(null, cleared.credentials.bangumiAccessToken)
             assertEquals(null, cleared.credentials.otlpAccessToken)
+        } finally {
+            deleteTempStore(storePath)
+        }
+    }
+
+    @Test
+    fun `desktop web control access state persists token and notifies enabled changes`() = runBlocking {
+        val storePath = tempStorePath()
+        try {
+            val repositories = DesktopRepositories.fileBacked(storePath)
+            val enabledChanges = mutableListOf<Boolean>()
+            val listener = repositories.webControlAccess.addEnabledChangeListener { enabled ->
+                enabledChanges += enabled
+            }
+
+            assertEquals(false, repositories.webControlAccess.webControlEnabled)
+            repositories.webControlAccess.webControlEnabled = true
+            val generatedToken = repositories.webControlAccess.accessToken
+            assertTrue(generatedToken.isNotBlank())
+            assertEquals(listOf(true), enabledChanges)
+
+            val reopened = DesktopRepositories.fileBacked(storePath)
+            assertEquals(true, reopened.webControlAccess.webControlEnabled)
+            assertEquals(generatedToken, reopened.webControlAccess.accessToken)
+
+            val rotatedToken = reopened.webControlAccess.rotateAccessToken()
+            assertTrue(rotatedToken.isNotBlank())
+            assertTrue(rotatedToken != generatedToken)
+            reopened.webControlAccess.webControlEnabled = false
+
+            val disabled = DesktopRepositories.fileBacked(storePath)
+            assertEquals(false, disabled.webControlAccess.webControlEnabled)
+            assertEquals(rotatedToken, disabled.webControlAccess.accessToken)
+
+            listener.close()
+            repositories.webControlAccess.webControlEnabled = true
+            assertEquals(listOf(true), enabledChanges)
         } finally {
             deleteTempStore(storePath)
         }

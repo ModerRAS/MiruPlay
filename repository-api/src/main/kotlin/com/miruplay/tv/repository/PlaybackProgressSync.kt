@@ -96,3 +96,42 @@ suspend fun savePlaybackProgressOnStop(
         is Result.Error -> Result.failure(saved.error)
     }
 }
+
+suspend fun savePlaybackProgressOnCompletion(
+    session: PlaybackProgressSession,
+    queryDurationMs: (suspend () -> Result<Long?>)?,
+    queryPositionMs: (suspend () -> Result<Long?>)? = null,
+    saveProgress: suspend (
+        episodeId: String,
+        positionMs: Long,
+        lastWatched: Long,
+        incrementPlayCount: Boolean,
+    ) -> Result<Unit>,
+    nowMillis: () -> Long = System::currentTimeMillis,
+): Result<Long> {
+    val completedPosition = queryDurationMs?.let { query ->
+        when (val duration = query()) {
+            is Result.Success -> duration.data?.takeIf { it > 0L }
+            is Result.Error -> null
+        }
+    } ?: queryPositionMs?.let { query ->
+        when (val position = query()) {
+            is Result.Success -> position.data
+            is Result.Error -> null
+        }
+    } ?: session.currentPositionMs()
+    val normalizedPosition = completedPosition.coerceAtLeast(0L)
+
+    return when (
+        val saved = savePlaybackProgressSnapshot(
+            episodeId = session.episodeId,
+            positionMs = normalizedPosition,
+            incrementPlayCount = true,
+            saveProgress = saveProgress,
+            nowMillis = nowMillis,
+        )
+    ) {
+        is Result.Success -> Result.success(normalizedPosition)
+        is Result.Error -> Result.failure(saved.error)
+    }
+}
