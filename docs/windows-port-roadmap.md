@@ -234,7 +234,9 @@ picker, Library source action rows, remote-source field rows, Details hero and
 Continue watching action rows, Details episode/recent row movement, Cloud/RSS
 field/toggle/action rows, CloudDrive directory action/row movement, RSS
 subscription picker entry, and poster shelf row movement consume the shared
-primitive while keeping only their panel-exit targets local.
+primitive while keeping only their panel-exit targets local. `gridFocusIndexAfter`
+now also covers Library poster-wall and reusable poster-grid movement, including
+row-edge stops, Up/Down row jumps, and short last-row clamping.
 Verified with
 `:ui-design:test :ui-tv:test :desktop-app:test -PbundleMpvRuntime=false`
 and
@@ -245,7 +247,10 @@ in Gradle MCP builds `b-238` and `b-239`; the focus traversal follow-up passed
 The broader traversal reuse pass passed `:ui-design:test :desktop-app:test
 -PbundleMpvRuntime=false` in `b-243` after catching and preserving the RSS
 subscription picker's virtual-list-entry behavior, and passed the same
-Android/desktop compile/separation gate in `b-244`.
+Android/desktop compile/separation gate in `b-244`. The poster-grid traversal
+extraction passed `:ui-design:test :desktop-app:test -PbundleMpvRuntime=false`
+in `b-254` with 249 tests and the Android/desktop compile/separation gate in
+`b-255`.
 
 ## Work Plan
 

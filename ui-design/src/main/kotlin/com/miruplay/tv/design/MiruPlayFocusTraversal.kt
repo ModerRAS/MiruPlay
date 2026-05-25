@@ -54,6 +54,41 @@ fun focusIndexAfter(
         )
     }
 
+fun gridFocusIndexAfter(
+    currentIndex: Int,
+    intent: MiruPlayInputIntent,
+    columns: Int,
+    itemCount: Int,
+): Int? {
+    if (itemCount <= 0 || currentIndex !in 0 until itemCount) return null
+    val safeColumns = columns.coerceAtLeast(1)
+    val currentColumn = currentIndex % safeColumns
+    return when (intent.horizontalNavigationDelta()) {
+        1 -> if (currentColumn == safeColumns - 1) {
+            null
+        } else {
+            focusIndexAfter(currentIndex = currentIndex, delta = 1, itemCount = itemCount)
+        }
+        -1 -> if (currentColumn == 0) {
+            null
+        } else {
+            focusIndexAfter(currentIndex = currentIndex, delta = -1, itemCount = itemCount)
+        }
+        else -> when (intent.verticalNavigationDelta()) {
+            -1 -> focusIndexAfter(currentIndex = currentIndex, delta = -safeColumns, itemCount = itemCount)
+            1 -> {
+                val nextRowStart = ((currentIndex / safeColumns) + 1) * safeColumns
+                if (nextRowStart in 0 until itemCount) {
+                    minOf(nextRowStart + currentColumn, itemCount - 1)
+                } else {
+                    null
+                }
+            }
+            else -> null
+        }
+    }
+}
+
 fun nextEnabledFocusIndex(
     currentIndex: Int,
     delta: Int,

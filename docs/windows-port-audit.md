@@ -460,7 +460,10 @@ Library source action rows, remote-source field rows, Details hero/recent
 action rows, Details episode/recent rows, Cloud/RSS field/toggle/action rows,
 CloudDrive directory action/row movement, RSS subscription picker entry, and
 poster shelf row movement all consume the shared primitive while retaining only
-their panel-specific exit targets locally. Verified with
+their panel-specific exit targets locally. Poster-wall and reusable desktop
+poster-grid movement now also use `gridFocusIndexAfter`, centralizing row-edge
+stops, Up/Down row jumps, and short last-row clamping while keeping only the
+desktop-specific panel exits local. Verified with
 `:ui-design:test :ui-tv:test :desktop-app:test -PbundleMpvRuntime=false`
 and
 `checkDesktopPresenterSeparation checkDesktopComposeOnly :ui-tv:compileDebugKotlin :app:assembleDebug -PbundleMpvRuntime=false`
@@ -475,7 +478,10 @@ The shared Compose key-profile follow-up passed
 `:ui-design:test :ui-tv:compileDebugKotlin :desktop-app:test
 -PbundleMpvRuntime=false` in Gradle MCP build `b-250` with 224 tests passed,
 and passed `checkDesktopPresenterSeparation checkDesktopComposeOnly
-:app:assembleDebug -PbundleMpvRuntime=false` in build `b-251`.
+:app:assembleDebug -PbundleMpvRuntime=false` in build `b-251`. The poster-grid
+traversal extraction passed `:ui-design:test :desktop-app:test
+-PbundleMpvRuntime=false` in Gradle MCP build `b-254` with 249 tests, and the
+Android/desktop compile/separation gate passed in build `b-255`.
 
 ## Latest Verification Commands
 
