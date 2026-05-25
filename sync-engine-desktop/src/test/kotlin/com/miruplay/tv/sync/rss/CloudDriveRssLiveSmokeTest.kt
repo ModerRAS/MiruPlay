@@ -18,6 +18,8 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import java.nio.file.Files
+import kotlin.io.path.createTempFile
 
 class CloudDriveRssLiveSmokeTest {
     @Test
@@ -432,7 +434,12 @@ class CloudDriveRssLiveSmokeTest {
         assertFalse(json.contains("magnet:?xt=urn:btih:abc"))
         assertFalse(json.contains("secret-title"))
         val root = Json.parseToJsonElement(json).jsonObject
-        assertEquals("http://127.0.0.1:19798", root.getValue("endpoint").jsonPrimitive.content)
+        assertEquals("http://127.0.0.1:19798/...", root.getValue("endpoint").jsonPrimitive.content)
+        val endpointEvidence = root.getValue("endpointEvidence").jsonObject
+        assertEquals("http://127.0.0.1:19798/...", endpointEvidence.getValue("redacted").jsonPrimitive.content)
+        assertEquals("http", endpointEvidence.getValue("scheme").jsonPrimitive.content)
+        assertEquals("127.0.0.1", endpointEvidence.getValue("host").jsonPrimitive.content)
+        assertEquals(64, endpointEvidence.getValue("sha256").jsonPrimitive.content.length)
         assertEquals("https://example.test/...", root.getValue("rssUrl").jsonPrimitive.content)
         val rssUrlEvidence = root.getValue("rssUrlEvidence").jsonObject
         assertEquals("https://example.test/...", rssUrlEvidence.getValue("redacted").jsonPrimitive.content)
@@ -474,6 +481,39 @@ class CloudDriveRssLiveSmokeTest {
         assertEquals("file:///<redacted>", redactCloudDriveRssEvidenceUrl("file:///D:/feeds/private.xml"))
         assertEquals("magnet:?<redacted>", redactCloudDriveRssEvidenceUrl("magnet:?xt=urn:btih:abc&dn=secret"))
         assertEquals("ftp:<redacted>", redactCloudDriveRssEvidenceUrl("ftp://example.test/private.torrent"))
+    }
+
+    @Test
+    fun `sample rss report passes assertion script`() {
+        val reportStream = requireNotNull(
+            javaClass.classLoader.getResourceAsStream("cloud-rss-sample-report.json")
+        )
+        val reportFile = createTempFile(prefix = "cloud-rss-sample-", suffix = ".json").toFile()
+        reportStream.use { input ->
+            reportFile.outputStream().use { output -> input.copyTo(output) }
+        }
+        val scriptFile = File("..", "tools/assert-cloud-rss-report.ps1").canonicalFile
+        val process = ProcessBuilder(
+            "powershell.exe",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            scriptFile.absolutePath,
+            "-ReportPath",
+            reportFile.absolutePath,
+            "-RequireCandidates",
+            "-RequireLiveSubmit",
+            "-RequireOrganize",
+            "-RequireOfflinePermission",
+        )
+            .directory(scriptFile.parentFile.parentFile)
+            .redirectErrorStream(true)
+            .start()
+        val output = process.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+        val exitCode = process.waitFor()
+        Files.deleteIfExists(reportFile.toPath())
+        assertEquals("assert-cloud-rss-report.ps1 should pass.\n$output", 0, exitCode)
     }
 
     private class FakeFeedReader(

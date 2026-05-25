@@ -472,7 +472,10 @@ internal fun buildCloudDriveRssLiveSmokeReportJson(
 ): String {
     val payload = buildJsonObject {
         put("generatedAtUtc", Instant.now().toString())
-        put("endpoint", options.endpoint)
+        put("endpoint", redactCloudDriveRssEvidenceUrl(options.endpoint))
+        putJsonObject("endpointEvidence") {
+            putUrlEvidenceFields(options.endpoint)
+        }
         put("rssUrl", redactCloudDriveRssEvidenceUrl(options.rssUrl))
         putJsonObject("rssUrlEvidence") {
             putUrlEvidenceFields(options.rssUrl)
