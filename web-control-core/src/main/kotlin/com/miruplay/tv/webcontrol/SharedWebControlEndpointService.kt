@@ -9,14 +9,17 @@ import com.miruplay.tv.model.CloudDriveRssRunSummary
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.ScanResult
+import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.CloudDriveCredentialStore
+import com.miruplay.tv.repository.LogUploadRepository
 import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
 import com.miruplay.tv.repository.ScanPreferencesRepository
 import com.miruplay.tv.sync.rss.CloudDriveRssActionCoordinator
+import kotlinx.coroutines.flow.first
 
 abstract class SharedWebControlEndpointService(
     private val mediaSourceRepository: MediaSourceRepository,
@@ -27,6 +30,8 @@ abstract class SharedWebControlEndpointService(
     private val mediaSourceFactory: MediaSourceFactory,
     private val cloudDriveRepository: CloudDriveAutomationRepository,
     private val credentials: CloudDriveCredentialStore,
+    private val securePreferences: AppCredentialStore,
+    private val logUploadRepository: LogUploadRepository,
     private val cloudDriveClient: CloudDriveClient,
     private val cloudDriveActions: CloudDriveRssActionCoordinator,
     private val deviceNameProvider: () -> String,
@@ -154,6 +159,64 @@ abstract class SharedWebControlEndpointService(
 
     override suspend fun deleteRssSubscription(id: Long) {
         cloudDriveActions.deleteWebControlRssSubscription(id)
+    }
+
+    override suspend fun getLogUpload(): LogUploadDto {
+        val tokenConfigured = logUploadRepository.isTokenConfigured()
+        return LogUploadDto(
+            config = OtlpLogUploadConfigDto.from(logUploadRepository.getConfig()),
+            status = LogUploadStatusDto.from(logUploadRepository.status.first(), tokenConfigured),
+            tokenConfigured = tokenConfigured,
+        )
+    }
+
+    override suspend fun saveLogUploadConfig(request: LogUploadConfigRequest): LogUploadDto {
+        if (request.enabled && request.endpoint.isBlank()) {
+            throw IllegalArgumentException("请填写 OpenObserve API 地址")
+        }
+        logUploadRepository.saveConfig(
+            enabled = request.enabled,
+            endpoint = request.endpoint.trim(),
+            streamName = request.streamName.trim().ifBlank { "miruplay" },
+        )
+        return getLogUpload()
+    }
+
+    override suspend fun saveLogUploadToken(request: LogUploadTokenRequest): LogUploadDto {
+        if (request.token.isBlank()) {
+            throw IllegalArgumentException("请填写 OpenObserve Token")
+        }
+        logUploadRepository.saveToken(request.token.trim())
+        return getLogUpload()
+    }
+
+    override suspend fun clearLogUploadToken(): LogUploadDto {
+        logUploadRepository.clearToken()
+        return getLogUpload()
+    }
+
+    override suspend fun uploadPendingLogs(): LogUploadDto {
+        logUploadRepository.uploadPendingLogs()
+        return getLogUpload()
+    }
+
+    override suspend fun getMetadataSettings(): MetadataSettingsDto =
+        MetadataSettingsDto(
+            bangumiTokenConfigured = !securePreferences.bangumiAccessToken.isNullOrBlank(),
+        )
+
+    override suspend fun saveBangumiToken(request: BangumiTokenRequest): MetadataSettingsDto {
+        val token = request.token.trim()
+        if (token.isBlank()) {
+            throw IllegalArgumentException("请填写 Bangumi Token")
+        }
+        securePreferences.bangumiAccessToken = token
+        return getMetadataSettings()
+    }
+
+    override suspend fun clearBangumiToken(): MetadataSettingsDto {
+        securePreferences.clearBangumiToken()
+        return getMetadataSettings()
     }
 
     override suspend fun searchLibrary(query: String): LibraryDto =

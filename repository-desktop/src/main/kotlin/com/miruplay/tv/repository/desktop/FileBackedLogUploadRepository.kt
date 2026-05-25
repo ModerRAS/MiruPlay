@@ -1,0 +1,432 @@
+package com.miruplay.tv.repository.desktop
+
+import com.miruplay.tv.core.common.logging.MiruLog
+import com.miruplay.tv.core.common.logging.MiruLogRecord
+import com.miruplay.tv.core.common.logging.MiruLogSink
+import com.miruplay.tv.repository.LogUploadRepository
+import com.miruplay.tv.repository.LogUploadStatus
+import com.miruplay.tv.repository.OtlpLogUploadConfig
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
+import java.nio.file.StandardOpenOption
+import java.util.Base64
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
+
+internal class FileBackedLogUploadRepository(
+    private val store: DesktopRepositoryStore,
+) : LogUploadRepository {
+    private val credentials = FileBackedCredentialStore(store)
+    private val queue = DesktopLocalLogQueue(
+        baseDir = store.path().toAbsolutePath().normalize().parent
+            ?: Paths.get(System.getProperty("user.home"), ".miruplay"),
+        onChanged = ::refreshStatus,
+    )
+    private val httpClient: HttpClient = HttpClient.newHttpClient()
+    private val lock = ReentrantLock()
+    private val configFlow = MutableStateFlow(readConfig())
+
+    private val _status = MutableStateFlow(currentStatus(isUploading = false))
+    override val status: Flow<LogUploadStatus> = _status.asStateFlow()
+
+    init {
+        MiruLog.setSink(queue)
+        refreshStatus()
+    }
+
+    override fun observeConfig(): Flow<OtlpLogUploadConfig> =
+        configFlow.asStateFlow()
+
+    override fun getConfig(): OtlpLogUploadConfig =
+        configFlow.value
+
+    override fun isTokenConfigured(): Boolean =
+        !credentials.otlpAccessToken.isNullOrBlank()
+
+    override suspend fun saveConfig(enabled: Boolean, endpoint: String, streamName: String) {
+        updateBlocking { state ->
+            state.copy(
+                otlpEnabled = enabled,
+                otlpEndpoint = endpoint.trim(),
+                otlpStreamName = streamName.trim().ifBlank { DEFAULT_STREAM_NAME },
+            )
+        }
+        refreshConfig()
+        refreshStatus()
+    }
+
+    override suspend fun saveToken(token: String) {
+        credentials.otlpAccessToken = token.trim()
+        refreshStatus()
+    }
+
+    override suspend fun clearToken() {
+        credentials.clearOtlpAccessToken()
+        refreshStatus()
+    }
+
+    override suspend fun uploadPendingLogs(): LogUploadStatus {
+        if (!lock.tryLock()) {
+            return currentStatus(isUploading = true).also { _status.value = it }
+        }
+        try {
+            return uploadPendingLogsLocked()
+        } finally {
+            lock.unlock()
+            if (_status.value.isUploading) refreshStatus()
+        }
+    }
+
+    private fun uploadPendingLogsLocked(): LogUploadStatus {
+        val config = getConfig()
+        val token = credentials.otlpAccessToken.orEmpty()
+        if (!config.enabled) return currentStatus(isUploading = false)
+        if (config.endpoint.isBlank()) return updateStatus("请填写 OpenObserve API 地址")
+        if (token.isBlank()) return updateStatus("请填写 OpenObserve Token")
+
+        var uploadedCount = 0
+        var batchCount = 0
+        _status.value = currentStatus(isUploading = true)
+
+        while (true) {
+            val records = queue.readBatch(MAX_UPLOAD_BATCH)
+            if (records.isEmpty()) {
+                return updateStatus(
+                    if (uploadedCount > 0) {
+                        "已上报 $uploadedCount 条日志"
+                    } else {
+                        "没有待上报日志"
+                    }
+                )
+            }
+
+            batchCount += 1
+            when (val result = uploadBatch(config, token, records)) {
+                is DesktopOtlpUploadResult.Success -> {
+                    queue.removeUploaded(records.map { it.id }.toSet())
+                    uploadedCount += records.size
+                    _status.value = currentStatus(isUploading = true)
+                }
+                is DesktopOtlpUploadResult.Failed -> {
+                    MiruLog.withoutSinkRecording {
+                        MiruLog.w(
+                            "LogUploadRepository",
+                            "OpenObserve log upload failed",
+                            attributes = mapOf(
+                                "failure_message" to result.message,
+                                "uploaded_count" to uploadedCount.toString(),
+                                "completed_batches" to (batchCount - 1).toString(),
+                            ),
+                        )
+                    }
+                    return updateStatus(
+                        if (uploadedCount > 0) {
+                            "已上报 $uploadedCount 条日志，后续上报失败：${result.message}"
+                        } else {
+                            "上报失败：${result.message}"
+                        }
+                    )
+                }
+            }
+        }
+    }
+
+    private fun uploadBatch(
+        config: OtlpLogUploadConfig,
+        token: String,
+        records: List<MiruLogRecord>,
+    ): DesktopOtlpUploadResult {
+        if (records.isEmpty()) return DesktopOtlpUploadResult.Success(0)
+        val endpoint = DesktopOpenObserveLogEndpoint.normalize(config.endpoint, config.streamName)
+        val payload = json.encodeToString(DesktopOpenObserveJsonPayloadBuilder.build(records))
+        val request = HttpRequest.newBuilder(URI(endpoint))
+            .header("Authorization", authorizationHeader(token))
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(payload))
+            .build()
+        val response = runCatching {
+            httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+        }.getOrElse { error ->
+            return DesktopOtlpUploadResult.Failed(error.message ?: error::class.simpleName.orEmpty())
+        }
+        return if (response.statusCode() in 200..299) {
+            DesktopOtlpUploadResult.Success(records.size)
+        } else {
+            val body = response.body().orEmpty().take(240)
+            DesktopOtlpUploadResult.Failed(
+                "HTTP ${response.statusCode()}${if (body.isBlank()) "" else ": $body"}"
+            )
+        }
+    }
+
+    private fun authorizationHeader(token: String): String =
+        when {
+            token.startsWith("Basic ", ignoreCase = true) -> token
+            token.contains(':') -> {
+                val encoded = Base64.getEncoder().encodeToString(token.toByteArray(Charsets.UTF_8))
+                "Basic $encoded"
+            }
+            else -> "Basic $token"
+        }
+
+    private fun updateStatus(message: String): LogUploadStatus {
+        val now = System.currentTimeMillis()
+        updateBlocking { state ->
+            state.copy(
+                otlpLastUploadAt = now,
+                otlpLastUploadStatus = message,
+            )
+        }
+        refreshConfig()
+        return currentStatus(isUploading = false).also { _status.value = it }
+    }
+
+    private fun refreshConfig() {
+        configFlow.value = readConfig()
+    }
+
+    private fun refreshStatus() {
+        _status.value = currentStatus(isUploading = lock.isLocked)
+    }
+
+    private fun currentStatus(isUploading: Boolean): LogUploadStatus {
+        val config = getConfig()
+        return LogUploadStatus(
+            pendingCount = queue.pendingCount(),
+            isUploading = isUploading,
+            lastUploadAt = config.lastUploadAt,
+            lastUploadStatus = config.lastUploadStatus,
+            tokenConfigured = isTokenConfigured(),
+        )
+    }
+
+    private fun <T> storeBlocking(block: (DesktopRepositoryState) -> T): T =
+        kotlinx.coroutines.runBlocking { store.read(block) }
+
+    private fun updateBlocking(block: (DesktopRepositoryState) -> DesktopRepositoryState) {
+        kotlinx.coroutines.runBlocking { store.update { state -> block(state) to Unit } }
+    }
+
+    private fun readConfig(): OtlpLogUploadConfig =
+        storeBlocking {
+            OtlpLogUploadConfig(
+                enabled = it.otlpEnabled,
+                endpoint = it.otlpEndpoint,
+                streamName = it.otlpStreamName.ifBlank { DEFAULT_STREAM_NAME },
+                lastUploadAt = it.otlpLastUploadAt,
+                lastUploadStatus = it.otlpLastUploadStatus,
+            )
+        }
+
+    private companion object {
+        private val json = Json {
+            encodeDefaults = true
+            ignoreUnknownKeys = true
+        }
+        private const val MAX_UPLOAD_BATCH = 200
+        private const val DEFAULT_STREAM_NAME = "miruplay"
+    }
+}
+
+private sealed class DesktopOtlpUploadResult {
+    data class Success(val uploadedCount: Int) : DesktopOtlpUploadResult()
+    data class Failed(val message: String) : DesktopOtlpUploadResult()
+}
+
+private object DesktopOpenObserveJsonPayloadBuilder {
+    fun build(records: List<MiruLogRecord>): JsonArray = buildJsonArray {
+        records.forEach { record ->
+            add(
+                buildJsonObject {
+                    put("_timestamp", record.timestampMs)
+                    put("level", record.level.severityText.lowercase())
+                    put("severity", record.level.severityText)
+                    put("tag", record.tag)
+                    put("log", record.message)
+                    put("message", record.message)
+                    put("job", "miruplay")
+                    put("service_name", "miruplay-windows")
+                    put("service_namespace", "miruplay")
+                    put("deployment_environment", "windows")
+                    put("record_id", record.id)
+                    record.throwableClass?.let { put("exception_type", it) }
+                    record.throwableMessage?.let { put("exception_message", it) }
+                    record.stackTrace?.let { put("exception_stacktrace", it) }
+                    record.attributes.forEach { (key, value) ->
+                        put(safeFieldName(key), value)
+                    }
+                },
+            )
+        }
+    }
+
+    private fun safeFieldName(key: String): String =
+        key.trim()
+            .replace(Regex("""[^A-Za-z0-9_]+"""), "_")
+            .trim('_')
+            .ifBlank { "attribute" }
+}
+
+private object DesktopOpenObserveLogEndpoint {
+    fun normalize(endpoint: String, streamName: String): String {
+        val raw = endpoint.trim().trimEnd('/')
+        require(raw.isNotBlank()) { "OpenObserve endpoint is blank" }
+        val trimmed = if (raw.startsWith("http://") || raw.startsWith("https://")) raw else "http://$raw"
+        val uri = URI(trimmed)
+        val path = uri.path.orEmpty().trimEnd('/')
+        if (path.endsWith("/_json")) {
+            return URI(uri.scheme, uri.authority, path, null, null).toString()
+        }
+
+        val safeStream = streamName.trim().ifBlank { DEFAULT_STREAM_NAME }
+        val jsonStreamPath = when {
+            path.isBlank() -> "/api/default/$safeStream"
+            path == "/api" -> "/api/default/$safeStream"
+            path.endsWith("/v1/logs") -> appendStreamIfNeeded(path.removeSuffix("/v1/logs"), safeStream)
+            path.endsWith("/v1/log") -> appendStreamIfNeeded(path.removeSuffix("/v1/log"), safeStream)
+            path.endsWith("/v1") -> appendStreamIfNeeded(path.removeSuffix("/v1"), safeStream)
+            path.isOpenObserveStreamPath() -> path
+            path.startsWith("/api/") -> "$path/$safeStream"
+            else -> "$path/api/default/$safeStream"
+        }.trimEnd('/').ifBlank { "/api/default" }
+
+        val normalizedPath = "$jsonStreamPath/_json"
+        return URI(uri.scheme, uri.authority, normalizedPath, null, null).toString()
+    }
+
+    private fun appendStreamIfNeeded(path: String, streamName: String): String {
+        val normalized = path.trimEnd('/')
+        return when {
+            normalized.isBlank() -> "/api/default/$streamName"
+            normalized.isOpenObserveStreamPath() -> normalized
+            else -> "$normalized/$streamName"
+        }
+    }
+
+    private fun String.isOpenObserveStreamPath(): Boolean {
+        val segments = trim('/').split('/').filter { it.isNotBlank() }
+        return segments.size == 3 && segments.firstOrNull() == "api"
+    }
+
+    private const val DEFAULT_STREAM_NAME = "miruplay"
+}
+
+private class DesktopLocalLogQueue(
+    baseDir: Path,
+    private val onChanged: () -> Unit = {},
+) : MiruLogSink {
+    private val lock = ReentrantLock()
+    private val json = Json {
+        encodeDefaults = true
+        ignoreUnknownKeys = true
+    }
+    private val logDir: Path = baseDir.resolve("logs")
+    private val pendingFile: Path = logDir.resolve("miruplay-pending.jsonl")
+    private val rotatedFile: Path = logDir.resolve("miruplay-pending.old.jsonl")
+
+    init {
+        Files.createDirectories(logDir)
+    }
+
+    override fun log(record: MiruLogRecord) {
+        var changed = false
+        lock.withLock {
+            rotateIfNeeded()
+            Files.writeString(
+                pendingFile,
+                json.encodeToString(record) + "\n",
+                Charsets.UTF_8,
+                StandardOpenOption.CREATE,
+                StandardOpenOption.WRITE,
+                StandardOpenOption.APPEND,
+            )
+            changed = true
+        }
+        if (changed) {
+            onChanged()
+        }
+    }
+
+    fun pendingCount(): Int = lock.withLock {
+        queueFiles().sumOf { file ->
+            Files.newBufferedReader(file, Charsets.UTF_8).useLines { lines ->
+                lines.count { it.isNotBlank() }
+            }
+        }
+    }
+
+    fun readBatch(limit: Int): List<MiruLogRecord> = lock.withLock {
+        val records = mutableListOf<MiruLogRecord>()
+        queueFiles().forEach { file ->
+            if (records.size >= limit) return@forEach
+            Files.newBufferedReader(file, Charsets.UTF_8).useLines { lines ->
+                lines.filter { it.isNotBlank() }
+                    .take(limit - records.size)
+                    .mapNotNullTo(records, ::decodeRecord)
+            }
+        }
+        records
+    }
+
+    fun removeUploaded(uploadedIds: Set<String>) {
+        if (uploadedIds.isEmpty()) return
+        var changed = false
+        lock.withLock {
+            queueFiles().forEach { file ->
+                val remaining = Files.newBufferedReader(file, Charsets.UTF_8).useLines { lines ->
+                    lines.filter { line ->
+                        val record = decodeRecord(line)
+                        record == null || record.id !in uploadedIds
+                    }.toList()
+                }
+                if (remaining.isEmpty()) {
+                    Files.deleteIfExists(file)
+                } else {
+                    Files.writeString(
+                        file,
+                        remaining.joinToString(separator = "\n", postfix = "\n"),
+                        Charsets.UTF_8,
+                        StandardOpenOption.CREATE,
+                        StandardOpenOption.TRUNCATE_EXISTING,
+                    )
+                }
+                changed = true
+            }
+        }
+        if (changed) {
+            onChanged()
+        }
+    }
+
+    private fun rotateIfNeeded() {
+        if (!Files.exists(pendingFile)) return
+        if (Files.size(pendingFile) <= MAX_PENDING_BYTES) return
+        if (Files.exists(rotatedFile)) return
+        Files.move(pendingFile, rotatedFile)
+    }
+
+    private fun queueFiles(): List<Path> =
+        listOf(rotatedFile, pendingFile).filter(Files::exists)
+
+    private fun decodeRecord(line: String): MiruLogRecord? =
+        runCatching { json.decodeFromString<MiruLogRecord>(line) }.getOrNull()
+
+    private companion object {
+        private const val MAX_PENDING_BYTES = 2L * 1024L * 1024L
+    }
+}
