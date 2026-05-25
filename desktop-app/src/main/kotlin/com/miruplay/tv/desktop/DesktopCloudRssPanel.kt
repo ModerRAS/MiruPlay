@@ -1554,20 +1554,24 @@ internal fun cloudRssSubscriptionFocusTarget(
 ): CloudRssFocusTarget? {
     if (itemCount <= 0) return null
     return when (intent.verticalNavigationDelta()) {
-        -1 -> {
-            if (currentIndex <= 0) {
-                CloudRssFocusTarget.Action(CloudRssAction.SaveRss)
-            } else {
-                CloudRssFocusTarget.Subscription(currentIndex - 1)
-            }
-        }
+        -1 -> focusIndexAfter(
+            currentIndex = currentIndex,
+            intent = intent,
+            axis = MiruPlayFocusAxis.Vertical,
+            itemCount = itemCount,
+        )?.let(CloudRssFocusTarget::Subscription)
+            ?: CloudRssFocusTarget.Action(CloudRssAction.SaveRss)
         1 -> {
             if (currentIndex < 0) {
                 CloudRssFocusTarget.Subscription(0)
-            } else if (currentIndex >= itemCount - 1) {
-                CloudRssFocusTarget.Action(CloudRssAction.StartScheduler)
             } else {
-                CloudRssFocusTarget.Subscription(currentIndex + 1)
+                focusIndexAfter(
+                    currentIndex = currentIndex,
+                    intent = intent,
+                    axis = MiruPlayFocusAxis.Vertical,
+                    itemCount = itemCount,
+                )?.let(CloudRssFocusTarget::Subscription)
+                    ?: CloudRssFocusTarget.Action(CloudRssAction.StartScheduler)
             }
         }
         else -> null

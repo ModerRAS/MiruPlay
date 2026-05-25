@@ -2223,11 +2223,12 @@ internal fun List<FileEntry>.remoteBrowserFocusTarget(
     if (currentIndex !in indices) return null
     return when (intent.horizontalNavigationDelta()) {
         -1 -> RemoteBrowserFocusTarget.PreviousPanel
-        else -> when (intent.verticalNavigationDelta()) {
-            1 -> RemoteBrowserFocusTarget.Row(currentIndex + 1).takeIf { currentIndex + 1 in indices }
-            -1 -> RemoteBrowserFocusTarget.Row(currentIndex - 1).takeIf { currentIndex > 0 }
-            else -> null
-        }
+        else -> focusIndexAfter(
+            currentIndex = currentIndex,
+            intent = intent,
+            axis = MiruPlayFocusAxis.Vertical,
+            itemCount = size,
+        )?.let(RemoteBrowserFocusTarget::Row)
     }
 }
 

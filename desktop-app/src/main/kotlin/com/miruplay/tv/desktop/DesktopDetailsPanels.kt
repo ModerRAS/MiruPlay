@@ -846,11 +846,12 @@ internal fun detailEpisodeSeasonFocusTarget(
         } else {
             DetailEpisodeFocusTarget.NextPanel
         }
-        else -> when (intent.horizontalNavigationDelta()) {
-            -1 -> (currentIndex - 1).takeIf { it >= 0 }?.let(DetailEpisodeFocusTarget::Season)
-            1 -> (currentIndex + 1).takeIf { it < seasonCount }?.let(DetailEpisodeFocusTarget::Season)
-            else -> null
-        }
+        else -> focusIndexAfter(
+            currentIndex = currentIndex,
+            intent = intent,
+            axis = MiruPlayFocusAxis.Horizontal,
+            itemCount = seasonCount,
+        )?.let(DetailEpisodeFocusTarget::Season)
     }
 
 internal fun detailEpisodeEmptyFocusTarget(key: Key): DetailEpisodeFocusTarget? =
