@@ -44,6 +44,18 @@ class WebControlPlaybackStatusTest {
     }
 
     @Test
+    fun `playback status clamps position by known duration`() {
+        val status = webControlPlaybackStatus(
+            state = "Playing",
+            positionMs = 240_000L,
+            durationMs = 120_000L,
+        )
+
+        assertEquals(120_000L, status.positionMs)
+        assertEquals(120_000L, status.durationMs)
+    }
+
+    @Test
     fun `episode id source prefix maps to media source id`() {
         assertEquals("7", "7:/Anime/Episode.mkv".webControlMediaSourceIdFromEpisodeId())
         assertNull("standalone-episode".webControlMediaSourceIdFromEpisodeId())
@@ -64,6 +76,17 @@ class WebControlPlaybackStatusTest {
         assertEquals(120_000L, status.durationMs)
         assertTrue(status.isPlaying)
         assertNull(status.error)
+    }
+
+    @Test
+    fun `playback state status clamps embedded position by queried duration`() {
+        val source = PlaybackSource(uri = "content://episode", mediaSourceId = "anime-1")
+
+        val status = PlaybackState.Playing(source = source, position = 180_000L)
+            .toWebControlPlaybackStatus(currentPositionMs = 1_000L, durationMs = 120_000L)
+
+        assertEquals(120_000L, status.positionMs)
+        assertEquals(120_000L, status.durationMs)
     }
 
     @Test

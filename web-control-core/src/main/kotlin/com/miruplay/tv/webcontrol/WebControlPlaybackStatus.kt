@@ -2,6 +2,7 @@ package com.miruplay.tv.webcontrol
 
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.PlaybackState
+import com.miruplay.tv.model.PlaybackTimingConventions
 
 fun idleWebControlPlaybackStatus(): PlaybackStatusDto =
     webControlPlaybackStatus(state = "Idle")
@@ -14,16 +15,18 @@ fun webControlPlaybackStatus(
     durationMs: Long = 0L,
     isPlaying: Boolean = false,
     error: String? = null,
-): PlaybackStatusDto =
-    PlaybackStatusDto(
+): PlaybackStatusDto {
+    val duration = durationMs.coerceAtLeast(0L)
+    return PlaybackStatusDto(
         state = state.ifBlank { "Idle" },
         uri = uri?.takeIf { it.isNotBlank() },
         mediaSourceId = mediaSourceId?.takeIf { it.isNotBlank() },
-        positionMs = positionMs.coerceAtLeast(0L),
-        durationMs = durationMs.coerceAtLeast(0L),
+        positionMs = PlaybackTimingConventions.coercePlaybackPositionMs(positionMs, duration),
+        durationMs = duration,
         isPlaying = isPlaying,
         error = error?.takeIf { it.isNotBlank() },
     )
+}
 
 fun String.webControlMediaSourceIdFromEpisodeId(): String? =
     substringBefore(':', "")
