@@ -5,9 +5,33 @@ import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.ProgressRecord
+import com.miruplay.tv.model.mediaSourceAlreadyAtRootStatus
+import com.miruplay.tv.model.mediaSourceIndexClearedStatus
+import com.miruplay.tv.model.mediaSourceIndexedSearchStatus
+import com.miruplay.tv.model.mediaSourceLoadingRemoteDirectoryStatus
+import com.miruplay.tv.model.mediaSourceLoadedStatus
+import com.miruplay.tv.model.mediaSourceLocalLibraryInitialStatus
+import com.miruplay.tv.model.mediaSourceLocalRootRequiredStatus
+import com.miruplay.tv.model.mediaSourceOpenBeforeClearingIndexStatus
+import com.miruplay.tv.model.mediaSourceOpenBeforeScanningStatus
+import com.miruplay.tv.model.mediaSourceOpenBeforeSearchingStatus
+import com.miruplay.tv.model.mediaSourceOpenRemoteBeforeBrowsingStatus
+import com.miruplay.tv.model.mediaSourceReadyStatus
+import com.miruplay.tv.model.mediaSourceRemoteBrowserInitialStatus
+import com.miruplay.tv.model.mediaSourceRemoveRequiredStatus
+import com.miruplay.tv.model.mediaSourceRemovedStatus
+import com.miruplay.tv.model.mediaSourceSelectedForPlaybackStatus
+import com.miruplay.tv.model.mediaSourceSelectedRemoteForPlaybackStatus
+import com.miruplay.tv.model.mediaSourceShowingRemoteDirectoryStatus
+import com.miruplay.tv.model.mediaSourceSmbUrlRequiredStatus
+import com.miruplay.tv.model.mediaSourceWebDavUrlRequiredStatus
+import com.miruplay.tv.model.libraryRescanCompleteStatus
+import com.miruplay.tv.model.libraryScanCompleteStatus
+import com.miruplay.tv.model.libraryScanningStatus
+import com.miruplay.tv.model.tvDisplayLabel
 
 fun MediaSourceInfo.displayLabel(): String =
-    "$name · ${type.name}"
+    tvDisplayLabel()
 
 fun List<MediaSourceInfo>.upsertById(source: MediaSourceInfo): List<MediaSourceInfo> =
     map { if (it.id == source.id) source else it }.let { updated ->
@@ -18,84 +42,70 @@ fun ProgressRecord.mediaDisplayName(): String =
     MediaPathConventions.fileName(episodeId).ifBlank { episodeId }
 
 fun localLibraryInitialStatus(): String =
-    "Add a local library source or load an existing one."
+    mediaSourceLocalLibraryInitialStatus()
 
 fun remoteBrowserInitialStatus(): String =
-    "Open a WebDAV or SMB source to browse it."
+    mediaSourceRemoteBrowserInitialStatus()
 
-fun MediaSourceInfo.loadedStatus(saved: Boolean = false): String {
-    val prefix = if (saved) "Loaded saved" else "Loaded"
-    return when (type) {
-        MediaSourceType.LOCAL -> "$prefix local source: $name"
-        MediaSourceType.WEBDAV -> "$prefix WebDAV source: $name"
-        MediaSourceType.SMB -> "$prefix SMB source: $name"
-    }
-}
+fun MediaSourceInfo.loadedStatus(saved: Boolean = false): String =
+    mediaSourceLoadedStatus(saved)
 
 fun MediaSourceInfo.readyStatus(): String =
-    when (type) {
-        MediaSourceType.LOCAL -> "Local source ready: $name"
-        MediaSourceType.WEBDAV -> "WebDAV source ready: $name"
-        MediaSourceType.SMB -> "SMB source ready: $name"
-    }
+    mediaSourceReadyStatus()
 
 fun localRootRequiredStatus(): String =
-    "Enter a local library root first."
+    mediaSourceLocalRootRequiredStatus()
 
 fun webDavUrlRequiredStatus(): String =
-    "Enter a WebDAV URL first."
+    mediaSourceWebDavUrlRequiredStatus()
 
 fun smbUrlRequiredStatus(): String =
-    "Enter an SMB URL first."
+    mediaSourceSmbUrlRequiredStatus()
 
 fun openSourceBeforeScanningStatus(): String =
-    "Open a source before scanning."
+    mediaSourceOpenBeforeScanningStatus()
 
 fun MediaSourceInfo.scanningStatus(): String =
-    "Scanning $name..."
+    libraryScanningStatus(name)
 
 fun scanCompleteStatus(filesIndexed: Int, directoriesVisited: Int): String =
-    "Scan complete: $filesIndexed videos, $directoriesVisited directories."
+    libraryScanCompleteStatus(filesIndexed, directoriesVisited)
 
 fun rescanCompleteStatus(filesIndexed: Int, directoriesVisited: Int): String =
-    "Rescan complete: $filesIndexed videos, $directoriesVisited directories."
+    libraryRescanCompleteStatus(filesIndexed, directoriesVisited)
 
 fun openSourceBeforeSearchingStatus(): String =
-    "Open or scan a source before searching."
+    mediaSourceOpenBeforeSearchingStatus()
 
 fun openSourceBeforeClearingIndexStatus(): String =
-    "Open or scan a source before clearing its index."
+    mediaSourceOpenBeforeClearingIndexStatus()
 
 fun indexClearedStatus(sourceId: Long): String =
-    "Index cleared for source id: $sourceId."
+    mediaSourceIndexClearedStatus(sourceId)
 
 fun sourceRemoveRequiredStatus(): String =
-    "Open a source before removing it."
+    mediaSourceRemoveRequiredStatus()
 
 fun sourceRemovedStatus(): String =
-    "Source removed. Associated index entries were cleared."
+    mediaSourceRemovedStatus()
 
 fun remoteRootStatus(): String =
-    "Already at the source root."
+    mediaSourceAlreadyAtRootStatus()
 
 fun openRemoteSourceBeforeBrowsingStatus(): String =
-    "Open a remote source before browsing."
+    mediaSourceOpenRemoteBeforeBrowsingStatus()
 
 fun MediaSourceInfo.loadingRemoteDirectoryStatus(path: String): String =
-    "Loading ${type.name} ${path.ifBlank { "/" }}..."
+    mediaSourceLoadingRemoteDirectoryStatus(path)
 
 fun MediaSourceInfo.showingRemoteDirectoryStatus(entries: List<FileEntry>): String =
-    "Showing ${entries.size} item(s) from $name."
+    mediaSourceShowingRemoteDirectoryStatus(entries.size)
 
 fun MediaIndexEntry.selectedForPlaybackStatus(): String =
-    "Selected ${displayName()} for playback."
+    mediaSourceSelectedForPlaybackStatus(displayName())
 
 fun FileEntry.selectedRemoteForPlaybackStatus(): String =
-    "Selected remote media: $name. mpv will stream through the local bridge."
+    mediaSourceSelectedRemoteForPlaybackStatus(name)
 
 fun indexedSearchStatus(query: String, hasResults: Boolean, displayedResultCount: Int): String =
-    if (!hasResults) {
-        "No indexed media matched \"${query.trim()}\"."
-    } else {
-        "Showing $displayedResultCount indexed video result(s)."
-    }
+    mediaSourceIndexedSearchStatus(query, hasResults, displayedResultCount)

@@ -101,6 +101,13 @@ class MediaSourceInfoConventionsTest {
     }
 
     @Test
+    fun `default source location shares type-specific form defaults`() {
+        assertEquals("D:/Anime", MediaSourceType.LOCAL.defaultSourceLocation("D:/Anime"))
+        assertEquals("", MediaSourceType.WEBDAV.defaultSourceLocation("D:/Anime"))
+        assertEquals("smb://", MediaSourceType.SMB.defaultSourceLocation("D:/Anime"))
+    }
+
+    @Test
     fun `localRootPath reads current and legacy connection keys`() {
         val current = source(connectionInfo = mapOf("path" to "D:/Anime"))
         val legacyUri = source(connectionInfo = mapOf("uri" to "E:/Anime"))

@@ -2,7 +2,10 @@ package com.miruplay.tv.mediasource
 
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.model.FileEntry
+import com.miruplay.tv.model.FileMetadata
 import com.miruplay.tv.model.MediaCapabilities
+import com.miruplay.tv.model.MediaFileConventions
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.connectionPassword
 import com.miruplay.tv.model.connectionUsername
@@ -26,11 +29,6 @@ class SmbMediaSource @Inject constructor() : MediaSource {
 
     private var smbRoot: String = ""
     private var cifsContext: CIFSContext? = null
-
-    companion object {
-        private val HIDDEN_FILES = setOf(".DS_Store", "Thumbs.db", "@eaDir")
-        private val VIDEO_EXTENSIONS = setOf("mkv", "mp4", "avi", "mov", "wmv", "flv", "webm", "m4v")
-    }
 
     constructor(info: MediaSourceInfo) : this() {
         this.info = info
@@ -69,7 +67,7 @@ class SmbMediaSource @Inject constructor() : MediaSource {
                 ?: return@withContext Result.success(emptyList())
 
             val entries = children
-                .filter { file -> file.name !in HIDDEN_FILES }
+                .filter { file -> !MediaFileConventions.isHiddenName(file.name) }
                 .map { file ->
                     FileEntry(
                         name = file.name,
@@ -77,13 +75,10 @@ class SmbMediaSource @Inject constructor() : MediaSource {
                         isDirectory = file.isDirectory,
                         size = if (file.isFile) file.length() else 0L,
                         lastModified = file.lastModified(),
-                        mimeType = if (!file.isDirectory) {
-                            val ext = file.name.substringAfterLast('.', "").lowercase()
-                            if (ext in VIDEO_EXTENSIONS) "video/$ext" else null
-                        } else null,
+                        mimeType = if (!file.isDirectory) MediaFileConventions.mimeTypeForName(file.name) else null,
                     )
                 }
-                .sortedWith(compareBy({ !it.isDirectory }, { it.name.lowercase() }))
+                .sortedWith(mediaSourceFileEntryComparator())
 
             Result.success(entries)
         } catch (e: SmbAuthException) {
@@ -124,7 +119,7 @@ class SmbMediaSource @Inject constructor() : MediaSource {
                 lastModified = smbFile.lastModified(),
             )
 
-            Result.success(FileMetadata(entry = entry))
+            Result.success(MediaFileConventions.metadataFor(entry))
         } catch (e: Exception) {
             Result.failure(AppError.MediaSourceError.NotFound(path))
         }
@@ -156,4 +151,7 @@ class SmbMediaSource @Inject constructor() : MediaSource {
         }
         return SmbFile(fullUrl, ctx)
     }
+
+    private fun mediaSourceFileEntryComparator(): Comparator<FileEntry> =
+        MediaFileConventions.fileEntryComparator(FileEntry::isDirectory, FileEntry::name)
 }

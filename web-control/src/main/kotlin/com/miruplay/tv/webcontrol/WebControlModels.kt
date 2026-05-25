@@ -3,6 +3,7 @@ package com.miruplay.tv.webcontrol
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.CloudDriveAutomationConfig
+import com.miruplay.tv.model.CloudDriveLibraryMode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.repository.LogUploadStatus
@@ -105,6 +106,7 @@ data class CloudDriveConfigRequest(
     val webDavSourceId: Long? = null,
     val inboxPath: String,
     val libraryPath: String,
+    val libraryMode: CloudDriveLibraryMode = CloudDriveLibraryMode.ORGANIZED_LIBRARY,
     val intervalMinutes: Int = 30,
     val enabled: Boolean = false,
     val rssProxyEnabled: Boolean = false,
@@ -151,7 +153,10 @@ data class CloudDriveRunResponse(
     val submitted: Int,
     val skipped: Int,
     val failed: Int,
-    val organized: Int
+    val organized: Int,
+    val indexed: Int = 0,
+    val scraped: Int = 0,
+    val noMatch: Int = 0
 )
 
 @Serializable

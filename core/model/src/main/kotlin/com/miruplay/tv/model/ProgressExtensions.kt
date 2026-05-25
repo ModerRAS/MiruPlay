@@ -27,7 +27,7 @@ fun Episode.progressLabel(progress: ProgressRecord?): String {
     if (isCompleted(progress)) return "已看"
     val position = progress?.positionMs?.coerceAtLeast(0L) ?: return "未看"
     if (position <= 0L) return "未看"
-    return "看到 ${formatPlaybackPosition(position)}"
+    return playbackProgressPositionLabel(position)
 }
 
 fun Episode.continueEpisodeProgress(progress: ProgressRecord?): Boolean {
@@ -35,31 +35,46 @@ fun Episode.continueEpisodeProgress(progress: ProgressRecord?): Boolean {
     return position > 0L && !isCompleted(progress)
 }
 
+fun playbackProgressPositionLabel(positionMs: Long): String =
+    "看到 ${formatPlaybackPosition(positionMs.coerceAtLeast(0L))}"
+
+fun playbackProgressRecordLabel(progress: ProgressRecord?): String {
+    val position = progress?.positionMs?.coerceAtLeast(0L) ?: return "未看"
+    return if (position <= 0L) "未看" else playbackProgressPositionLabel(position)
+}
+
 fun recentPlaybackInitialStatus(): String =
-    "No recent playback loaded."
+    "尚未载入最近播放。"
 
 fun recentPlaybackLoadedStatus(records: List<ProgressRecord>): String =
     if (records.isEmpty()) {
-        "No recent playback yet."
+        "还没有最近播放记录。"
     } else {
-        "Loaded ${records.size} recent item(s)."
+        "已载入 ${records.size} 条最近播放。"
     }
 
 fun recentPlaybackShowingStatus(records: List<ProgressRecord>): String =
     if (records.isEmpty()) {
-        "No recent playback yet."
+        "还没有最近播放记录。"
     } else {
-        "Showing ${records.size} recent item(s)."
+        "正在显示 ${records.size} 条最近播放。"
     }
 
 fun recentPlaybackRequiredStatus(): String =
-    "Select a recent item first."
+    "请先选择一条最近播放记录。"
+
+fun ProgressRecord?.retainedSelectionInProgressRecords(
+    records: List<ProgressRecord>,
+): ProgressRecord? =
+    this?.let { selected ->
+        records.firstOrNull { it.episodeId == selected.episodeId }
+    }
 
 fun ProgressRecord.resumeStartSecondsText(): String =
     (positionMs.coerceAtLeast(0L) / 1_000L).toString()
 
 fun ProgressRecord.loadedPlaybackStatus(displayName: String): String =
-    "Loaded recent playback: $displayName."
+    "已载入最近播放：$displayName。"
 
 private fun completionThreshold(duration: Long): Long =
     (duration * COMPLETION_RATIO).toLong().coerceAtLeast(1L)

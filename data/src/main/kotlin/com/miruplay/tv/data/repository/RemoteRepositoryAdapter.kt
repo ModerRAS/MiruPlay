@@ -4,6 +4,7 @@ import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.mediasource.MediaSource
 import com.miruplay.tv.mediasource.MediaSourceFactory
+import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.MediaSourceInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -37,7 +38,7 @@ class RemoteRepositoryAdapter @Inject constructor(
     /**
      * List files at path for a source
      */
-    suspend fun listSourceFiles(sourceInfo: MediaSourceInfo, path: String): Result<List<com.miruplay.tv.mediasource.FileEntry>> = withContext(Dispatchers.IO) {
+    suspend fun listSourceFiles(sourceInfo: MediaSourceInfo, path: String): Result<List<FileEntry>> = withContext(Dispatchers.IO) {
         when (val result = createSource(sourceInfo)) {
             is Result.Success -> result.data.listFiles(path)
             is Result.Error -> Result.failure(result.error)

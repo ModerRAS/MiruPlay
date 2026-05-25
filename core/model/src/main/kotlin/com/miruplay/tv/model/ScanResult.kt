@@ -8,4 +8,6 @@ data class ScanResult(
     val episodesFound: Int,
     val newEpisodes: Int = 0,
     val updatedEpisodes: Int = 0,
+    val scraped: Int = 0,
+    val noMatch: Int = 0,
 )

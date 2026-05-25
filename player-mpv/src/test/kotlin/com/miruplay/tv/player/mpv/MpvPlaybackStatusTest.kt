@@ -12,9 +12,13 @@ class MpvPlaybackStatusTest {
         assertEquals("mpv failed", mpvLaunchFailedStatus(RuntimeException("mpv failed")))
         assertEquals("No mpv process is active.", mpvNoActiveProcessStatus())
         assertEquals("mpv pause toggled.", mpvPauseToggledStatus())
+        assertEquals("mpv resumed.", mpvResumedStatus())
+        assertEquals("mpv paused.", mpvPausedStatus())
         assertEquals("mpv seeked back 10s.", mpvSeekBackStatus(seconds = 10))
         assertEquals("mpv seeked forward 30s.", mpvSeekForwardStatus(seconds = 30))
         assertEquals("mpv stopped.", mpvStoppedStatus())
+        assertEquals("mpv exited.", mpvExitedStatus())
+        assertEquals("mpv playback completed at 02:03.", mpvPlaybackCompletedStatus(positionMs = 123_456L))
         assertEquals("mpv position synced at 02:03.", mpvPositionSyncedStatus(positionMs = 123_456L))
     }
 }

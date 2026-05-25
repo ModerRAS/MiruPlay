@@ -28,7 +28,7 @@ dependencies {
     api(project(":core:common"))
     implementation(project(":ui-design"))
     api(project(":player-core"))
-    api(project(":media-source"))
+    api(project(":media-source-api"))
     api(project(":scanner"))
     implementation(project(":repository-api"))
     implementation(project(":cloud-drive"))

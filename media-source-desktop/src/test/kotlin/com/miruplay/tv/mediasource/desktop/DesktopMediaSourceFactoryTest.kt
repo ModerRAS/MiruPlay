@@ -31,6 +31,21 @@ class DesktopMediaSourceFactoryTest {
     }
 
     @Test
+    fun `desktop media source factory implements shared contract`() {
+        val factory = DesktopMediaSourceFactory()
+        val local = MediaSourceInfo(
+            name = "Local",
+            type = MediaSourceType.LOCAL,
+            connectionInfo = mapOf("path" to "D:/Anime"),
+        )
+
+        assertTrue(factory.supports(MediaSourceType.LOCAL))
+        assertTrue(factory.supports(MediaSourceType.WEBDAV))
+        assertTrue(factory.supports(MediaSourceType.SMB))
+        assertTrue(factory.create(local).getOrNull() is DesktopLocalMediaSource)
+    }
+
+    @Test
     fun `typed factories preserve source info`() {
         val webDav = MediaSourceInfo(
             id = 42L,

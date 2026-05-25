@@ -2,10 +2,12 @@ package com.miruplay.tv.scanner.desktop
 
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.mediasource.MediaSource
 import com.miruplay.tv.mediasource.desktop.DesktopLocalMediaSource
-import com.miruplay.tv.mediasource.desktop.DesktopMediaSource
 import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.FileMetadata
+import com.miruplay.tv.model.FilenameMetadataParser
+import com.miruplay.tv.model.FilenameParseResult
 import com.miruplay.tv.model.MediaCapabilities
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
@@ -157,6 +159,37 @@ class DesktopMediaLibraryScannerTest {
     }
 
     @Test
+    fun `scan can combine parser results from folder and filename`() = runBlocking {
+        val root = Files.createTempDirectory("miruplay-desktop-scan")
+        try {
+            val show = Files.createDirectory(root.resolve("葬送的芙莉莲 第2季"))
+            Files.writeString(show.resolve("03 [1080P].mkv"), "video")
+
+            val source = DesktopLocalMediaSource.create("Local", root)
+            val scanner = DesktopMediaLibraryScanner(
+                filenameMetadataParser = MappingFilenameParser(
+                    mapOf(
+                        "葬送的芙莉莲 第2季" to FilenameParseResult(
+                            title = "葬送的芙莉莲",
+                            season = 2
+                        ),
+                        "03 [1080P]" to FilenameParseResult(episode = 3)
+                    )
+                )
+            )
+
+            val report = (scanner.scan(sourceId = 12L, source = source) as Result.Success).data
+
+            val video = report.entries.single { !it.isDirectory }
+            assertEquals("葬送的芙莉莲", video.animeName)
+            assertEquals(2, video.seasonNumber)
+            assertEquals(3, video.episodeNumber)
+        } finally {
+            root.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
     fun `nfo reader resolves sibling nfo paths across local and remote formats`() {
         val reader = DesktopNfoMetadataReader()
 
@@ -170,7 +203,7 @@ class DesktopMediaLibraryScannerTest {
 
     private class StubDesktopMediaSource(
         private val entriesByPath: Map<String, List<FileEntry>>,
-    ) : DesktopMediaSource {
+    ) : MediaSource {
         override val id: String = "stub"
         override val info: MediaSourceInfo = MediaSourceInfo(
             name = "Stub",
@@ -192,5 +225,12 @@ class DesktopMediaLibraryScannerTest {
             Result.success(true)
 
         override suspend fun close() = Unit
+    }
+
+    private class MappingFilenameParser(
+        private val results: Map<String, FilenameParseResult>
+    ) : FilenameMetadataParser {
+        override fun parse(filename: String, maxLength: Int): FilenameParseResult =
+            results[filename] ?: FilenameParseResult()
     }
 }

@@ -2,10 +2,40 @@ package com.miruplay.tv.desktop
 
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
+import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.libraryRescanCompleteStatus
+import com.miruplay.tv.model.libraryScanCompleteStatus
+import com.miruplay.tv.model.libraryScanningStatus
+import com.miruplay.tv.model.localizedLibraryRescanCompleteStatus
+import com.miruplay.tv.model.localizedLibraryScanCompleteStatus
+import com.miruplay.tv.model.localizedLibraryScanningStatus
+import com.miruplay.tv.model.localizedMediaSourceStatusText
+import com.miruplay.tv.model.mediaSourceStatusText
+import com.miruplay.tv.model.mediaSourceClearIndexActionLabel
+import com.miruplay.tv.model.mediaSourceIndexQueryFieldLabel
+import com.miruplay.tv.model.mediaSourceLocationMissingLabel
+import com.miruplay.tv.model.mediaSourceLocalLibraryRootFieldLabel
+import com.miruplay.tv.model.mediaSourceRemoteBrowserEmptyMessage
+import com.miruplay.tv.model.mediaSourceRemoteBrowserPageUnitLabel
+import com.miruplay.tv.model.mediaSourceRemoteBrowserTitleLabel
+import com.miruplay.tv.model.mediaSourceRemoveActionLabel
+import com.miruplay.tv.model.mediaSourceScanActionLabel
+import com.miruplay.tv.model.mediaSourceScanSourceActionLabel
+import com.miruplay.tv.model.mediaSourceSearchActionLabel
+import com.miruplay.tv.model.mediaSourceSmbDomainFieldLabel
+import com.miruplay.tv.model.mediaSourceUpActionLabel
+import com.miruplay.tv.model.openSourceActionLabel
+import com.miruplay.tv.model.sourcePasswordFieldLabel
+import com.miruplay.tv.model.sourcePickerSubtitle
+import com.miruplay.tv.model.sourcePickerTitle
+import com.miruplay.tv.model.sourceUsernameFieldLabel
+import com.miruplay.tv.model.tvBadgeLabel
+import com.miruplay.tv.model.tvLabel
+import com.miruplay.tv.model.tvLocationLabel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -46,59 +76,71 @@ class DesktopSourcePickerTest {
     fun `source management controls use TV facing labels`() {
         val labels = desktopLibrarySourceLabels()
 
-        assertEquals("本地媒体库路径", labels.localLibraryRoot)
-        assertEquals("索引搜索", labels.indexQuery)
-        assertEquals("打开本地", labels.openLocal)
-        assertEquals("扫描", labels.scan)
-        assertEquals("搜索", labels.search)
-        assertEquals("清空索引", labels.clearIndex)
-        assertEquals("移除媒体源", labels.removeSource)
-        assertEquals("WebDAV 地址", labels.webDavUrl)
-        assertEquals("WebDAV 用户名", labels.webDavUser)
-        assertEquals("WebDAV 密码", labels.webDavPassword)
-        assertEquals("打开 WebDAV", labels.openWebDav)
-        assertEquals("SMB 地址", labels.smbUrl)
-        assertEquals("SMB 域", labels.smbDomain)
-        assertEquals("SMB 用户名", labels.smbUser)
-        assertEquals("SMB 密码", labels.smbPassword)
-        assertEquals("打开 SMB", labels.openSmb)
-        assertEquals("扫描媒体源", labels.scanSource)
-        assertEquals("远程浏览", labels.remoteBrowser)
-        assertEquals("上级", labels.up)
-        assertEquals("先打开一个远程媒体源以浏览文件。", labels.remoteEmpty)
+        assertEquals(mediaSourceLocalLibraryRootFieldLabel(), labels.localLibraryRoot)
+        assertEquals(mediaSourceIndexQueryFieldLabel(), labels.indexQuery)
+        assertEquals(MediaSourceType.LOCAL.openSourceActionLabel(), labels.openLocal)
+        assertEquals(mediaSourceScanActionLabel(), labels.scan)
+        assertEquals(mediaSourceSearchActionLabel(), labels.search)
+        assertEquals(mediaSourceClearIndexActionLabel(), labels.clearIndex)
+        assertEquals(mediaSourceRemoveActionLabel(), labels.removeSource)
+        assertEquals(MediaSourceType.WEBDAV.tvLocationLabel(), labels.webDavUrl)
+        assertEquals(MediaSourceType.WEBDAV.sourceUsernameFieldLabel(), labels.webDavUser)
+        assertEquals(MediaSourceType.WEBDAV.sourcePasswordFieldLabel(), labels.webDavPassword)
+        assertEquals(MediaSourceType.WEBDAV.openSourceActionLabel(), labels.openWebDav)
+        assertEquals(MediaSourceType.SMB.tvLocationLabel(), labels.smbUrl)
+        assertEquals(mediaSourceSmbDomainFieldLabel(), labels.smbDomain)
+        assertEquals(MediaSourceType.SMB.sourceUsernameFieldLabel(), labels.smbUser)
+        assertEquals(MediaSourceType.SMB.sourcePasswordFieldLabel(), labels.smbPassword)
+        assertEquals(MediaSourceType.SMB.openSourceActionLabel(), labels.openSmb)
+        assertEquals(mediaSourceScanSourceActionLabel(), labels.scanSource)
+        assertEquals(mediaSourceRemoteBrowserTitleLabel(), labels.remoteBrowser)
+        assertEquals(mediaSourceUpActionLabel(), labels.up)
+        assertEquals(mediaSourceRemoteBrowserEmptyMessage(), labels.remoteEmpty)
     }
 
     @Test
     fun `source management statuses use TV facing text`() {
-        assertEquals("添加本地媒体源，或载入已保存的媒体源。", desktopLibraryStatusText("Add a local library source or load an existing one."))
-        assertEquals("打开 WebDAV 或 SMB 媒体源后即可浏览文件。", desktopLibraryStatusText("Open a WebDAV or SMB source to browse it."))
-        assertEquals("请先填写本地媒体库路径。", desktopLibraryStatusText("Enter a local library root first."))
-        assertEquals("请先填写 WebDAV 地址。", desktopLibraryStatusText("Enter a WebDAV URL first."))
-        assertEquals("请先填写 SMB 地址。", desktopLibraryStatusText("Enter an SMB URL first."))
-        assertEquals("请先打开媒体源，再开始扫描。", desktopLibraryStatusText("Open a source before scanning."))
-        assertEquals("已载入媒体源：Library · 本地", desktopLibraryStatusText("Loaded local source: Library"))
-        assertEquals("已载入已保存媒体源：Library · 本地", desktopLibraryStatusText("Loaded saved local source: Library"))
-        assertEquals("WebDAV 媒体源已就绪：Cloud", desktopLibraryStatusText("WebDAV source ready: Cloud"))
-        assertEquals("正在扫描：Library", desktopLibraryStatusText("Scanning Library..."))
-        assertEquals("扫描完成：12 个视频，3 个目录。", desktopLibraryStatusText("Scan complete: 12 videos, 3 directories."))
-        assertEquals("重扫完成：12 个视频，3 个目录。", desktopLibraryStatusText("Rescan complete: 12 videos, 3 directories."))
-        assertEquals("请先打开或扫描媒体源，再搜索。", desktopLibraryStatusText("Open or scan a source before searching."))
-        assertEquals("请先打开或扫描媒体源，再清空索引。", desktopLibraryStatusText("Open or scan a source before clearing its index."))
-        assertEquals("已清空媒体源 #42 的索引。", desktopLibraryStatusText("Index cleared for source id: 42."))
-        assertEquals("请先打开媒体源，再移除。", desktopLibraryStatusText("Open a source before removing it."))
-        assertEquals("媒体源已移除，关联索引已清空。", desktopLibraryStatusText("Source removed. Associated index entries were cleared."))
-        assertEquals("已经在媒体源根目录。", desktopLibraryStatusText("Already at the source root."))
-        assertEquals("请先打开远程媒体源，再浏览。", desktopLibraryStatusText("Open a remote source before browsing."))
-        assertEquals("正在载入 WebDAV：/Anime", desktopLibraryStatusText("Loading WEBDAV /Anime..."))
-        assertEquals("Cloud 中显示 1 个条目。", desktopLibraryStatusText("Showing 1 item(s) from Cloud."))
-        assertEquals("已选择播放：Frieren EP1", desktopLibraryStatusText("Selected Frieren EP1 for playback."))
         assertEquals(
-            "已选择远程媒体：Episode.mkv。mpv 将通过本地桥接串流。",
-            desktopLibraryStatusText("Selected remote media: Episode.mkv. mpv will stream through the local bridge."),
+            localizedMediaSourceStatusText("Add a local library source or load an existing one."),
+            mediaSourceStatusText("Add a local library source or load an existing one."),
         )
-        assertEquals("没有匹配 \"frieren\" 的索引媒体。", desktopLibraryStatusText("No indexed media matched \"frieren\"."))
-        assertEquals("显示 24 条索引视频结果。", desktopLibraryStatusText("Showing 24 indexed video result(s)."))
-        assertEquals("custom status", desktopLibraryStatusText("custom status"))
+        assertEquals(
+            localizedMediaSourceStatusText("Open a WebDAV or SMB source to browse it."),
+            mediaSourceStatusText("Open a WebDAV or SMB source to browse it."),
+        )
+        assertEquals(localizedMediaSourceStatusText("Enter a local library root first."), mediaSourceStatusText("Enter a local library root first."))
+        assertEquals(localizedMediaSourceStatusText("Enter a WebDAV URL first."), mediaSourceStatusText("Enter a WebDAV URL first."))
+        assertEquals(localizedMediaSourceStatusText("Enter an SMB URL first."), mediaSourceStatusText("Enter an SMB URL first."))
+        assertEquals(localizedMediaSourceStatusText("Open a source before scanning."), mediaSourceStatusText("Open a source before scanning."))
+        assertEquals(localizedMediaSourceStatusText("Loaded local source: Library"), mediaSourceStatusText("Loaded local source: Library"))
+        assertEquals(localizedMediaSourceStatusText("Loaded saved local source: Library"), mediaSourceStatusText("Loaded saved local source: Library"))
+        assertEquals(localizedMediaSourceStatusText("WebDAV source ready: Cloud"), mediaSourceStatusText("WebDAV source ready: Cloud"))
+        assertEquals(localizedLibraryScanningStatus("Library"), mediaSourceStatusText(libraryScanningStatus("Library")))
+        assertEquals(localizedLibraryScanCompleteStatus(12, 3), mediaSourceStatusText(libraryScanCompleteStatus(12, 3)))
+        assertEquals(localizedLibraryRescanCompleteStatus(12, 3), mediaSourceStatusText(libraryRescanCompleteStatus(12, 3)))
+        assertEquals(localizedMediaSourceStatusText("Open or scan a source before searching."), mediaSourceStatusText("Open or scan a source before searching."))
+        assertEquals(
+            localizedMediaSourceStatusText("Open or scan a source before clearing its index."),
+            mediaSourceStatusText("Open or scan a source before clearing its index."),
+        )
+        assertEquals(localizedMediaSourceStatusText("Index cleared for source id: 42."), mediaSourceStatusText("Index cleared for source id: 42."))
+        assertEquals(localizedMediaSourceStatusText("Open a source before removing it."), mediaSourceStatusText("Open a source before removing it."))
+        assertEquals(
+            localizedMediaSourceStatusText("Source removed. Associated index entries were cleared."),
+            mediaSourceStatusText("Source removed. Associated index entries were cleared."),
+        )
+        assertEquals(localizedMediaSourceStatusText("Already at the source root."), mediaSourceStatusText("Already at the source root."))
+        assertEquals(localizedMediaSourceStatusText("Open a remote source before browsing."), mediaSourceStatusText("Open a remote source before browsing."))
+        assertEquals(localizedMediaSourceStatusText("Loading WEBDAV /Anime..."), mediaSourceStatusText("Loading WEBDAV /Anime..."))
+        assertEquals(localizedMediaSourceStatusText("Showing 1 item(s) from Cloud."), mediaSourceStatusText("Showing 1 item(s) from Cloud."))
+        assertEquals(localizedMediaSourceStatusText("Selected Frieren EP1 for playback."), mediaSourceStatusText("Selected Frieren EP1 for playback."))
+        assertEquals(
+            localizedMediaSourceStatusText("Selected remote media: Episode.mkv. mpv will stream through the local bridge."),
+            mediaSourceStatusText("Selected remote media: Episode.mkv. mpv will stream through the local bridge."),
+        )
+        assertEquals(localizedMediaSourceStatusText("No indexed media matched \"frieren\"."), mediaSourceStatusText("No indexed media matched \"frieren\"."))
+        assertEquals(localizedMediaSourceStatusText("Showing 24 indexed video result(s)."), mediaSourceStatusText("Showing 24 indexed video result(s)."))
+        assertEquals("custom status", mediaSourceStatusText("custom status"))
     }
 
     @Test
@@ -135,7 +177,7 @@ class DesktopSourcePickerTest {
             type = MediaSourceType.LOCAL,
         )
 
-        assertEquals("未配置路径", source.sourcePickerSubtitle())
+        assertEquals(mediaSourceLocationMissingLabel(), source.sourcePickerSubtitle())
     }
 
     @Test
@@ -154,6 +196,70 @@ class DesktopSourcePickerTest {
         assertEquals(12L, sources.savedSourcePickerNavigationTarget(activeSourceId = null, key = Key.DirectionUp)?.id)
         assertNull(sources.savedSourcePickerNavigationTarget(activeSourceId = 12L, key = Key.DirectionDown))
         assertNull(sources.savedSourcePickerNavigationTarget(activeSourceId = 10L, key = Key.DirectionUp))
+    }
+
+    @Test
+    fun `source picker navigation also accepts shared direction intents`() {
+        val sources = listOf(
+            MediaSourceInfoConventions.local(name = "A", rootPath = "D:/A").copy(id = 10L),
+            MediaSourceInfoConventions.webDav(url = "https://dav.example.test/anime").copy(id = 11L),
+            MediaSourceInfoConventions.smb(url = "smb://nas.local/anime").copy(id = 12L),
+        )
+
+        assertEquals(
+            11L,
+            sources.savedSourcePickerNavigationTarget(
+                activeSourceId = 10L,
+                intent = MiruPlayInputIntent.DirectionDown,
+            )?.id,
+        )
+        assertEquals(
+            11L,
+            sources.savedSourcePickerNavigationTarget(
+                activeSourceId = 10L,
+                intent = MiruPlayInputIntent.DirectionRight,
+            )?.id,
+        )
+        assertEquals(
+            10L,
+            sources.savedSourcePickerNavigationTarget(
+                activeSourceId = 11L,
+                intent = MiruPlayInputIntent.DirectionUp,
+            )?.id,
+        )
+        assertEquals(
+            10L,
+            sources.savedSourcePickerNavigationTarget(
+                activeSourceId = 11L,
+                intent = MiruPlayInputIntent.DirectionLeft,
+            )?.id,
+        )
+        assertEquals(
+            10L,
+            sources.savedSourcePickerNavigationTarget(
+                activeSourceId = null,
+                intent = MiruPlayInputIntent.DirectionDown,
+            )?.id,
+        )
+        assertEquals(
+            12L,
+            sources.savedSourcePickerNavigationTarget(
+                activeSourceId = null,
+                intent = MiruPlayInputIntent.DirectionUp,
+            )?.id,
+        )
+        assertNull(
+            sources.savedSourcePickerNavigationTarget(
+                activeSourceId = 12L,
+                intent = MiruPlayInputIntent.DirectionDown,
+            ),
+        )
+        assertNull(
+            sources.savedSourcePickerNavigationTarget(
+                activeSourceId = 10L,
+                intent = MiruPlayInputIntent.Activate,
+            ),
+        )
     }
 
     @Test
@@ -247,6 +353,50 @@ class DesktopSourcePickerTest {
     }
 
     @Test
+    fun `source management action navigation also accepts shared direction intents`() {
+        assertEquals(
+            LibrarySourceAction.Scan,
+            librarySourceActionNavigationTarget(
+                LibrarySourceAction.OpenLocal,
+                MiruPlayInputIntent.DirectionRight,
+            ),
+        )
+        assertEquals(
+            LibrarySourceAction.Search,
+            librarySourceActionNavigationTarget(
+                LibrarySourceAction.ClearIndex,
+                MiruPlayInputIntent.DirectionLeft,
+            ),
+        )
+        assertEquals(
+            LibrarySourceAction.RemoveSource,
+            librarySourceActionNavigationTarget(
+                LibrarySourceAction.ClearIndex,
+                MiruPlayInputIntent.DirectionDown,
+            ),
+        )
+        assertEquals(
+            LibrarySourceAction.ClearIndex,
+            librarySourceActionNavigationTarget(
+                LibrarySourceAction.RemoveSource,
+                MiruPlayInputIntent.DirectionUp,
+            ),
+        )
+        assertNull(
+            librarySourceActionNavigationTarget(
+                LibrarySourceAction.OpenLocal,
+                MiruPlayInputIntent.DirectionLeft,
+            ),
+        )
+        assertNull(
+            librarySourceActionNavigationTarget(
+                LibrarySourceAction.RemoveSource,
+                MiruPlayInputIntent.Activate,
+            ),
+        )
+    }
+
+    @Test
     fun `source management fields bridge into action rows`() {
         assertEquals(
             LibrarySourceFocusTarget.Field(LibrarySourceField.IndexQuery),
@@ -275,6 +425,40 @@ class DesktopSourcePickerTest {
         assertNull(librarySourceFieldFocusTarget(LibrarySourceField.IndexQuery, Key.DirectionLeft))
         assertNull(librarySourceFieldFocusTarget(LibrarySourceField.IndexQuery, Key.DirectionDown))
         assertNull(librarySourceActionFocusTarget(LibrarySourceAction.RemoveSource, Key.DirectionDown))
+    }
+
+    @Test
+    fun `source management focus also accepts shared direction intents`() {
+        assertEquals(
+            LibrarySourceFocusTarget.Field(LibrarySourceField.IndexQuery),
+            librarySourceFieldFocusTarget(LibrarySourceField.LocalRoot, MiruPlayInputIntent.DirectionDown),
+        )
+        assertEquals(
+            LibrarySourceFocusTarget.PreviousPanel,
+            librarySourceFieldFocusTarget(LibrarySourceField.LocalRoot, MiruPlayInputIntent.DirectionUp),
+        )
+        assertEquals(
+            LibrarySourceFocusTarget.Action(LibrarySourceAction.OpenLocal),
+            librarySourceFieldFocusTarget(LibrarySourceField.IndexQuery, MiruPlayInputIntent.DirectionRight),
+        )
+        assertEquals(
+            LibrarySourceFocusTarget.Field(LibrarySourceField.IndexQuery),
+            librarySourceActionFocusTarget(LibrarySourceAction.OpenLocal, MiruPlayInputIntent.DirectionLeft),
+        )
+        assertEquals(
+            LibrarySourceFocusTarget.EmptyMedia,
+            librarySourceActionFocusTarget(
+                current = LibrarySourceAction.Search,
+                intent = MiruPlayInputIntent.DirectionDown,
+                hasEmptyMedia = true,
+            ),
+        )
+        assertEquals(
+            LibrarySourceFocusTarget.Field(LibrarySourceField.LocalRoot),
+            libraryEmptyMediaFocusTarget(MiruPlayInputIntent.DirectionUp),
+        )
+        assertNull(librarySourceFieldFocusTarget(LibrarySourceField.IndexQuery, MiruPlayInputIntent.Activate))
+        assertNull(libraryEmptyMediaFocusTarget(MiruPlayInputIntent.DirectionDown))
     }
 
     @Test
@@ -339,6 +523,50 @@ class DesktopSourcePickerTest {
         assertNull(remoteSourceActionNavigationTarget(RemoteSourceAction.OpenWebDav, Key.DirectionUp))
         assertNull(remoteSourceActionNavigationTarget(RemoteSourceAction.ScanSource, Key.DirectionDown))
         assertNull(remoteSourceActionNavigationTarget(RemoteSourceAction.OpenSmb, Key.DirectionLeft))
+    }
+
+    @Test
+    fun `remote source action navigation also accepts shared direction intents`() {
+        assertEquals(
+            RemoteSourceAction.OpenSmb,
+            remoteSourceActionNavigationTarget(
+                RemoteSourceAction.OpenWebDav,
+                MiruPlayInputIntent.DirectionDown,
+            ),
+        )
+        assertEquals(
+            RemoteSourceAction.ScanSource,
+            remoteSourceActionNavigationTarget(
+                RemoteSourceAction.OpenSmb,
+                MiruPlayInputIntent.DirectionRight,
+            ),
+        )
+        assertEquals(
+            RemoteSourceAction.OpenSmb,
+            remoteSourceActionNavigationTarget(
+                RemoteSourceAction.ScanSource,
+                MiruPlayInputIntent.DirectionLeft,
+            ),
+        )
+        assertEquals(
+            RemoteSourceAction.OpenWebDav,
+            remoteSourceActionNavigationTarget(
+                RemoteSourceAction.ScanSource,
+                MiruPlayInputIntent.DirectionUp,
+            ),
+        )
+        assertNull(
+            remoteSourceActionNavigationTarget(
+                RemoteSourceAction.OpenWebDav,
+                MiruPlayInputIntent.DirectionUp,
+            ),
+        )
+        assertNull(
+            remoteSourceActionNavigationTarget(
+                RemoteSourceAction.OpenSmb,
+                MiruPlayInputIntent.Activate,
+            ),
+        )
     }
 
     @Test
@@ -419,6 +647,40 @@ class DesktopSourcePickerTest {
     }
 
     @Test
+    fun `remote source focus also accepts shared direction intents`() {
+        assertEquals(
+            RemoteSourceFocusTarget.NextPanel,
+            remoteSourceFieldFocusTarget(RemoteSourceField.WebDavUrl, MiruPlayInputIntent.DirectionRight),
+        )
+        assertEquals(
+            RemoteSourceFocusTarget.Field(RemoteSourceField.WebDavUsername),
+            remoteSourceFieldFocusTarget(RemoteSourceField.WebDavUrl, MiruPlayInputIntent.DirectionDown),
+        )
+        assertEquals(
+            RemoteSourceFocusTarget.Field(RemoteSourceField.WebDavPassword),
+            remoteSourceFieldFocusTarget(RemoteSourceField.WebDavUsername, MiruPlayInputIntent.DirectionRight),
+        )
+        assertEquals(
+            RemoteSourceFocusTarget.Action(RemoteSourceAction.OpenWebDav),
+            remoteSourceFieldFocusTarget(RemoteSourceField.WebDavPassword, MiruPlayInputIntent.DirectionDown),
+        )
+        assertEquals(
+            RemoteSourceFocusTarget.NextPanel,
+            remoteSourceActionFocusTarget(RemoteSourceAction.ScanSource, MiruPlayInputIntent.DirectionRight),
+        )
+        assertEquals(
+            RemoteSourceFocusTarget.Field(RemoteSourceField.SmbDomain),
+            remoteSourceActionFocusTarget(RemoteSourceAction.OpenSmb, MiruPlayInputIntent.DirectionUp),
+        )
+        assertEquals(
+            RemoteSourceFocusTarget.Action(RemoteSourceAction.ScanSource),
+            remoteSourceActionFocusTarget(RemoteSourceAction.OpenSmb, MiruPlayInputIntent.DirectionRight),
+        )
+        assertNull(remoteSourceFieldFocusTarget(RemoteSourceField.WebDavUrl, MiruPlayInputIntent.Activate))
+        assertNull(remoteSourceActionFocusTarget(RemoteSourceAction.OpenSmb, MiruPlayInputIntent.DirectionLeft))
+    }
+
+    @Test
     fun `remote source preview falls back and compacts endpoints`() {
         assertEquals("填写 SMB 共享地址", remoteSourcePreview("", fallback = "填写 SMB 共享地址", maxLength = 20))
 
@@ -432,6 +694,14 @@ class DesktopSourcePickerTest {
         assertTrue("Preview should keep the endpoint host prefix: $preview", preview.startsWith("smb://smb.example."))
         assertTrue(preview.endsWith("/long/name"))
         assertTrue(preview.contains("..."))
+    }
+
+    @Test
+    fun `remote source editor chrome uses shared source type labels`() {
+        assertEquals(MediaSourceType.WEBDAV.tvLabel(), MediaSourceType.WEBDAV.remoteSourceEditorTitle())
+        assertEquals(MediaSourceType.WEBDAV.tvBadgeLabel(), MediaSourceType.WEBDAV.remoteSourceEditorBadge())
+        assertEquals(MediaSourceType.SMB.tvLabel(), MediaSourceType.SMB.remoteSourceEditorTitle())
+        assertEquals(MediaSourceType.SMB.tvBadgeLabel(), MediaSourceType.SMB.remoteSourceEditorBadge())
     }
 
     @Test
@@ -477,6 +747,22 @@ class DesktopSourcePickerTest {
     }
 
     @Test
+    fun `remote browser focus also accepts shared direction intents`() {
+        val entries = listOf(
+            FileEntry(path = "/Season 01", name = "Season 01", isDirectory = true),
+            FileEntry(path = "/Season 01/Episode 01.mkv", name = "Episode 01.mkv", isDirectory = false),
+        )
+
+        assertEquals(RemoteBrowserFocusTarget.PreviousPanel, entries.remoteBrowserFocusTarget(0, MiruPlayInputIntent.DirectionLeft))
+        assertEquals(RemoteBrowserFocusTarget.Row(1), entries.remoteBrowserFocusTarget(0, MiruPlayInputIntent.DirectionDown))
+        assertEquals(RemoteBrowserFocusTarget.Row(0), entries.remoteBrowserFocusTarget(1, MiruPlayInputIntent.DirectionUp))
+        assertNull(entries.remoteBrowserFocusTarget(0, MiruPlayInputIntent.DirectionUp))
+        assertNull(entries.remoteBrowserFocusTarget(0, MiruPlayInputIntent.Activate))
+        assertTrue(remoteBrowserShouldNavigateUp(currentIndex = 0, intent = MiruPlayInputIntent.DirectionUp))
+        assertFalse(remoteBrowserShouldNavigateUp(currentIndex = 1, intent = MiruPlayInputIntent.DirectionUp))
+    }
+
+    @Test
     fun `remote browser page helpers keep every remote item reachable`() {
         assertEquals(0, remoteBrowserPageStartForIndex(index = 0, itemCount = 17))
         assertEquals(0, remoteBrowserPageStartForIndex(index = 7, itemCount = 17))
@@ -487,11 +773,11 @@ class DesktopSourcePickerTest {
         assertEquals(16, remoteBrowserCoercedPageStart(pageStart = 40, itemCount = 17))
         assertEquals(0, remoteBrowserCoercedPageStart(pageStart = -8, itemCount = 17))
         assertEquals(
-            "显示 9-16 / 17 个条目，按上/下继续翻页。",
+            "显示 9-16 / 17 ${mediaSourceRemoteBrowserPageUnitLabel()}，按上/下继续翻页。",
             remoteBrowserPageSummary(pageStart = 8, visibleCount = 8, itemCount = 17),
         )
         assertEquals(
-            "显示 17-17 / 17 个条目，按上/下继续翻页。",
+            "显示 17-17 / 17 ${mediaSourceRemoteBrowserPageUnitLabel()}，按上/下继续翻页。",
             remoteBrowserPageSummary(pageStart = 16, visibleCount = 1, itemCount = 17),
         )
         assertNull(remoteBrowserPageSummary(pageStart = 0, visibleCount = 4, itemCount = 4))
@@ -512,6 +798,26 @@ class DesktopSourcePickerTest {
             remoteBrowserUpButtonFocusTarget(itemCount = 0, key = Key.DirectionLeft),
         )
         assertNull(remoteBrowserUpButtonFocusTarget(itemCount = 0, key = Key.DirectionUp))
+    }
+
+    @Test
+    fun `remote browser up button and empty state also accept shared direction intents`() {
+        assertEquals(
+            RemoteBrowserFocusTarget.Row(0),
+            remoteBrowserUpButtonFocusTarget(itemCount = 3, intent = MiruPlayInputIntent.DirectionDown),
+        )
+        assertEquals(
+            RemoteBrowserFocusTarget.EmptyState,
+            remoteBrowserUpButtonFocusTarget(itemCount = 0, intent = MiruPlayInputIntent.DirectionDown),
+        )
+        assertEquals(
+            RemoteBrowserFocusTarget.PreviousPanel,
+            remoteBrowserUpButtonFocusTarget(itemCount = 3, intent = MiruPlayInputIntent.DirectionLeft),
+        )
+        assertEquals(RemoteBrowserFocusTarget.UpButton, remoteBrowserEmptyFocusTarget(MiruPlayInputIntent.DirectionUp))
+        assertEquals(RemoteBrowserFocusTarget.PreviousPanel, remoteBrowserEmptyFocusTarget(MiruPlayInputIntent.DirectionLeft))
+        assertNull(remoteBrowserUpButtonFocusTarget(itemCount = 3, intent = MiruPlayInputIntent.DirectionUp))
+        assertNull(remoteBrowserEmptyFocusTarget(MiruPlayInputIntent.DirectionDown))
     }
 
     @Test

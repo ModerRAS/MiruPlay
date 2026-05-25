@@ -1,9 +1,9 @@
 package com.miruplay.tv.metadata
 
 import com.miruplay.tv.core.common.Result
-import com.miruplay.tv.data.repository.MetadataRepository
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.NfoMetadata
+import com.miruplay.tv.repository.MetadataRepository
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton

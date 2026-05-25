@@ -1,11 +1,16 @@
 package com.miruplay.tv.scanner.desktop
 
 import com.miruplay.tv.core.common.Result
-import com.miruplay.tv.mediasource.desktop.DesktopMediaSource
+import com.miruplay.tv.mediasource.MediaSource
 import com.miruplay.tv.model.FileEntry
+import com.miruplay.tv.model.FilenameMetadataParser
+import com.miruplay.tv.model.FilenameParseResult
 import com.miruplay.tv.model.MediaFileConventions
 import com.miruplay.tv.model.MediaPathConventions
+import com.miruplay.tv.model.NfoMetadata
+import com.miruplay.tv.model.TvShowNfoMetadata
 import com.miruplay.tv.model.VideoFilenameInference
+import com.miruplay.tv.model.VideoFilenameMetadata
 import com.miruplay.tv.repository.MediaIndexEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -13,10 +18,11 @@ import kotlinx.coroutines.withContext
 class DesktopMediaLibraryScanner(
     private val config: DesktopScanConfig = DesktopScanConfig(),
     private val nfoReader: DesktopNfoMetadataReader = DesktopNfoMetadataReader(),
+    private val filenameMetadataParser: FilenameMetadataParser? = null,
 ) {
     suspend fun scan(
         sourceId: Long,
-        source: DesktopMediaSource,
+        source: MediaSource,
         rootPath: String = "",
     ): Result<DesktopScanReport> = withContext(Dispatchers.IO) {
         val entries = mutableListOf<MediaIndexEntry>()
@@ -48,13 +54,13 @@ class DesktopMediaLibraryScanner(
 
     private suspend fun scanDirectory(
         sourceId: Long,
-        source: DesktopMediaSource,
+        source: MediaSource,
         path: String,
         depth: Int,
         entries: MutableList<MediaIndexEntry>,
         visitedDirectories: MutableSet<String>,
         counters: ScanCounters,
-        inheritedTvShow: DesktopTvShowNfoMetadata?,
+        inheritedTvShow: TvShowNfoMetadata?,
     ): Result<Unit> {
         val canonicalPath = canonicalPathKey(path)
         if (!visitedDirectories.add(canonicalPath)) return Result.success(Unit)
@@ -104,12 +110,11 @@ class DesktopMediaLibraryScanner(
 
     private suspend fun FileEntry.toVideoIndexEntry(
         sourceId: Long,
-        source: DesktopMediaSource,
-        tvShow: DesktopTvShowNfoMetadata?,
+        source: MediaSource,
+        tvShow: TvShowNfoMetadata?,
     ): MediaIndexEntry {
         val nfo = nfoReader.readEpisodeForVideo(source, path)
-        val parentName = MediaPathConventions.parentName(path)
-        val inferred = VideoFilenameInference.infer(name, parentName)
+        val inferred = inferVideoMetadata(name, path)
         return MediaIndexEntry(
             sourceId = sourceId,
             path = path,
@@ -120,13 +125,50 @@ class DesktopMediaLibraryScanner(
                 ?: inferred.title,
             episodeTitle = nfo?.title,
             plot = nfo?.plot,
-            seasonNumber = nfo?.seasonNumber ?: inferred.seasonNumber,
-            episodeNumber = nfo?.episodeNumber ?: inferred.episodeNumber,
+            seasonNumber = nfo?.season ?: inferred.seasonNumber,
+            episodeNumber = nfo?.episode ?: inferred.episodeNumber,
             isDirectory = false,
             fileSize = size,
             lastModified = lastModified,
         )
     }
+
+    private fun inferVideoMetadata(fileName: String, path: String): VideoFilenameMetadata {
+        val parentName = MediaPathConventions.parentName(path)
+        val fallback = VideoFilenameInference.infer(fileName, parentName)
+        val parser = filenameMetadataParser ?: return fallback
+
+        val fileParsed = parseWithModel(parser, MediaPathConventions.stem(fileName))
+        val folderParsed = pathSegments(path)
+            .dropLast(1)
+            .takeLast(maxModelContextSegments)
+            .asReversed()
+            .mapNotNull { parseWithModel(parser, it) }
+
+        val folderTitle = folderParsed.firstNotNullOfOrNull { it.title?.takeIf(String::isNotBlank) }
+        val fileTitle = fileParsed?.title?.takeIf(String::isNotBlank)
+        return VideoFilenameMetadata(
+            title = folderTitle ?: fileTitle ?: fallback.title,
+            seasonNumber = folderParsed.firstNotNullOfOrNull(FilenameParseResult::season)
+                ?: fileParsed?.season
+                ?: fallback.seasonNumber,
+            episodeNumber = fileParsed?.episode
+                ?: folderParsed.firstNotNullOfOrNull(FilenameParseResult::episode)
+                ?: fallback.episodeNumber,
+        )
+    }
+
+    private fun parseWithModel(parser: FilenameMetadataParser, text: String): FilenameParseResult? {
+        val trimmed = text.trim()
+        if (trimmed.isBlank()) return null
+        return runCatching { parser.parse(trimmed, maxModelTextLength) }.getOrNull()
+    }
+
+    private fun pathSegments(path: String): List<String> =
+        path.replace('\\', '/')
+            .split('/')
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
 
     private fun FileEntry.isVideoFile(): Boolean =
         MediaFileConventions.isVideoName(name, config.videoExtensions)
@@ -138,4 +180,9 @@ class DesktopMediaLibraryScanner(
         var filesIndexed: Int = 0,
         var directoriesVisited: Int = 0,
     )
+
+    private companion object {
+        const val maxModelTextLength = 128
+        const val maxModelContextSegments = 4
+    }
 }

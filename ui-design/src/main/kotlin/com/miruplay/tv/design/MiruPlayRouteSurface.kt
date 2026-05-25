@@ -45,6 +45,26 @@ object MiruPlayRouteSurface {
 
     val desktopSectionOrder = listOf(library, details, player, settings)
 
+    fun sectionForId(id: String?): Section? {
+        val normalized = id?.trim()?.lowercase().orEmpty()
+        return desktopSectionOrder.firstOrNull { it.id == normalized }
+    }
+
+    fun desktopSectionStep(section: Section, delta: Int): Section? {
+        val nextIndex = desktopSectionOrder.indexOf(section) + delta
+        return desktopSectionOrder.getOrNull(nextIndex)
+    }
+
+    fun backTarget(section: Section): Section? =
+        when (section.id) {
+            PLAYER_ID -> details
+            DETAILS_ID,
+            SETTINGS_ID,
+            -> library
+            LIBRARY_ID -> null
+            else -> library
+        }
+
     data class Section(
         val id: String,
         val menuLabel: String,

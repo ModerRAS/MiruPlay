@@ -10,9 +10,11 @@ kotlin {
 
 dependencies {
     api(project(":repository-api"))
-    implementation(project(":media-source-desktop"))
+    api(project(":media-source-api"))
+    api(project(":metadata-core"))
     implementation(project(":core:common"))
     implementation(libs.kotlinx.coroutines.core)
 
+    testImplementation(project(":media-source-desktop"))
     testImplementation(libs.junit)
 }

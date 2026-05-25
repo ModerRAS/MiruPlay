@@ -6,11 +6,34 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import com.miruplay.tv.design.MiruPlayInputIntent
+import com.miruplay.tv.design.isActivationIntent
+
+internal fun Key.toMiruPlayInputIntent(): MiruPlayInputIntent? =
+    when (this) {
+        Key.Enter,
+        Key.NumPadEnter,
+        Key.DirectionCenter,
+        Key.Spacebar,
+        -> MiruPlayInputIntent.Activate
+        Key.Escape,
+        Key.Back,
+        -> MiruPlayInputIntent.Back
+        Key.NavigatePrevious -> MiruPlayInputIntent.NavigatePrevious
+        Key.NavigateOut -> MiruPlayInputIntent.NavigateOut
+        Key.DirectionLeft -> MiruPlayInputIntent.DirectionLeft
+        Key.DirectionRight -> MiruPlayInputIntent.DirectionRight
+        Key.DirectionUp -> MiruPlayInputIntent.DirectionUp
+        Key.DirectionDown -> MiruPlayInputIntent.DirectionDown
+        Key.MediaPlayPause -> MiruPlayInputIntent.MediaPlayPause
+        Key.MediaPlay -> MiruPlayInputIntent.MediaPlay
+        Key.MediaPause -> MiruPlayInputIntent.MediaPause
+        Key.MediaStop -> MiruPlayInputIntent.MediaStop
+        else -> null
+    }
 
 internal fun isDesktopConfirmKey(key: Key): Boolean =
-    key == Key.Enter ||
-        key == Key.NumPadEnter ||
-        key == Key.DirectionCenter
+    key.toMiruPlayInputIntent()?.isActivationIntent() == true
 
 internal fun desktopConfirmOrNavigationKeyEvent(
     key: Key,
@@ -20,7 +43,24 @@ internal fun desktopConfirmOrNavigationKeyEvent(
     onNavigationKey: (Key) -> Boolean = { false },
 ): Boolean {
     if (type != KeyEventType.KeyDown) return false
-    if (!isDesktopConfirmKey(key)) return onNavigationKey(key)
+    val intent = key.toMiruPlayInputIntent()
+    if (intent?.isActivationIntent() != true) return onNavigationKey(key)
+    if (!enabled) return false
+
+    onClick()
+    return true
+}
+
+internal fun desktopConfirmOrNavigationIntentEvent(
+    key: Key,
+    type: KeyEventType,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+    onNavigationIntent: (MiruPlayInputIntent) -> Boolean = { false },
+): Boolean {
+    if (type != KeyEventType.KeyDown) return false
+    val intent = key.toMiruPlayInputIntent() ?: return false
+    if (!intent.isActivationIntent()) return onNavigationIntent(intent)
     if (!enabled) return false
 
     onClick()
@@ -63,6 +103,17 @@ internal fun desktopNavigationKeyEvent(
     return onNavigationKey(key)
 }
 
+internal fun desktopNavigationIntentEvent(
+    key: Key,
+    type: KeyEventType,
+    onNavigationIntent: (MiruPlayInputIntent) -> Boolean,
+): Boolean {
+    if (type != KeyEventType.KeyDown) return false
+    val intent = key.toMiruPlayInputIntent() ?: return false
+    if (intent.isActivationIntent()) return false
+    return onNavigationIntent(intent)
+}
+
 internal fun Modifier.desktopNavigationKeyHandler(
     onNavigationKey: (Key) -> Boolean,
 ): Modifier =
@@ -71,5 +122,16 @@ internal fun Modifier.desktopNavigationKeyHandler(
             key = event.key,
             type = event.type,
             onNavigationKey = onNavigationKey,
+        )
+    }
+
+internal fun Modifier.desktopNavigationIntentHandler(
+    onNavigationIntent: (MiruPlayInputIntent) -> Boolean,
+): Modifier =
+    onPreviewKeyEvent { event ->
+        desktopNavigationIntentEvent(
+            key = event.key,
+            type = event.type,
+            onNavigationIntent = onNavigationIntent,
         )
     }

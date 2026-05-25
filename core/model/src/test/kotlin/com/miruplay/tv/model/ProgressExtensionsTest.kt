@@ -52,17 +52,23 @@ class ProgressExtensionsTest {
     }
 
     @Test
-    fun `recent playback status helpers share desktop wording`() {
+    fun `recent playback status helpers share TV wording`() {
         val record = progress(positionMs = 123_456L)
 
-        assertEquals("No recent playback loaded.", recentPlaybackInitialStatus())
-        assertEquals("No recent playback yet.", recentPlaybackLoadedStatus(emptyList()))
-        assertEquals("Loaded 1 recent item(s).", recentPlaybackLoadedStatus(listOf(record)))
-        assertEquals("No recent playback yet.", recentPlaybackShowingStatus(emptyList()))
-        assertEquals("Showing 1 recent item(s).", recentPlaybackShowingStatus(listOf(record)))
-        assertEquals("Select a recent item first.", recentPlaybackRequiredStatus())
+        assertEquals("尚未载入最近播放。", recentPlaybackInitialStatus())
+        assertEquals("还没有最近播放记录。", recentPlaybackLoadedStatus(emptyList()))
+        assertEquals("已载入 1 条最近播放。", recentPlaybackLoadedStatus(listOf(record)))
+        assertEquals("还没有最近播放记录。", recentPlaybackShowingStatus(emptyList()))
+        assertEquals("正在显示 1 条最近播放。", recentPlaybackShowingStatus(listOf(record)))
+        assertEquals("请先选择一条最近播放记录。", recentPlaybackRequiredStatus())
+        assertEquals("未看", playbackProgressRecordLabel(null))
+        assertEquals("未看", playbackProgressRecordLabel(progress(positionMs = 0L)))
+        assertEquals("看到 02:03", playbackProgressRecordLabel(record))
+        assertEquals(record.copy(positionMs = 456_000L), record.retainedSelectionInProgressRecords(listOf(record.copy(positionMs = 456_000L))))
+        assertEquals(null, record.retainedSelectionInProgressRecords(listOf(progress(episodeId = "ep2", positionMs = 0L))))
+        assertEquals(null, null.retainedSelectionInProgressRecords(listOf(record)))
         assertEquals("123", record.resumeStartSecondsText())
-        assertEquals("Loaded recent playback: Episode 1.", record.loadedPlaybackStatus("Episode 1"))
+        assertEquals("已载入最近播放：Episode 1。", record.loadedPlaybackStatus("Episode 1"))
     }
 
     private fun episode(
@@ -79,10 +85,11 @@ class ProgressExtensionsTest {
     )
 
     private fun progress(
+        episodeId: String = "ep1",
         positionMs: Long,
         playCount: Int = 0
     ): ProgressRecord = ProgressRecord(
-        episodeId = "ep1",
+        episodeId = episodeId,
         positionMs = positionMs,
         lastWatched = 123L,
         playCount = playCount

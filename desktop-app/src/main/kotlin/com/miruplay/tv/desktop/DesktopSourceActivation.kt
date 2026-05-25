@@ -1,0 +1,120 @@
+package com.miruplay.tv.desktop
+
+import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.mediasource.desktop.DesktopMediaSource
+import com.miruplay.tv.mediasource.desktop.desktopSourceFromInfo
+import com.miruplay.tv.model.MediaSourceInfo
+import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.connectionDomain
+import com.miruplay.tv.model.connectionPassword
+import com.miruplay.tv.model.connectionUsername
+import com.miruplay.tv.model.localRootPath
+import com.miruplay.tv.model.remoteUrl
+import com.miruplay.tv.repository.MediaSourceRepository
+import com.miruplay.tv.repository.loadedStatus
+import com.miruplay.tv.repository.readyStatus
+
+internal data class DesktopSourceFormState(
+    val libraryRoot: String = "",
+    val webDavUrl: String = "",
+    val webDavUsername: String = "",
+    val webDavPassword: String = "",
+    val smbUrl: String = "",
+    val smbDomain: String = "",
+    val smbUsername: String = "",
+    val smbPassword: String = "",
+)
+
+internal data class DesktopSourceActivationState(
+    val sourceInfo: MediaSourceInfo,
+    val formState: DesktopSourceFormState,
+    val libraryStatus: String? = null,
+    val remoteStatus: String? = null,
+    val clearsRemoteBrowser: Boolean = false,
+    val loadsRemoteRoot: Boolean = false,
+    val indexedEmptyStatus: String,
+)
+
+internal data class DesktopSourceOpenResult(
+    val sourceInfo: MediaSourceInfo,
+    val source: DesktopMediaSource,
+    val formState: DesktopSourceFormState,
+    val status: String,
+    val opensRemoteRoot: Boolean,
+)
+
+internal fun List<MediaSourceInfo>.desktopSourceFormState(): DesktopSourceFormState =
+    DesktopSourceFormState()
+        .withFirstSourceOfType(this, MediaSourceType.LOCAL)
+        .withFirstSourceOfType(this, MediaSourceType.WEBDAV)
+        .withFirstSourceOfType(this, MediaSourceType.SMB)
+
+internal fun List<MediaSourceInfo>.preferredDesktopStartupSource(): MediaSourceInfo? =
+    firstOrNull { it.type == MediaSourceType.LOCAL }
+        ?: firstOrNull { it.type == MediaSourceType.WEBDAV }
+        ?: firstOrNull { it.type == MediaSourceType.SMB }
+
+internal fun MediaSourceInfo.desktopSourceActivationState(saved: Boolean = false): DesktopSourceActivationState {
+    val loaded = loadedStatus(saved)
+    return when (type) {
+        MediaSourceType.LOCAL -> DesktopSourceActivationState(
+            sourceInfo = this,
+            formState = DesktopSourceFormState().withSource(this),
+            libraryStatus = loaded,
+            clearsRemoteBrowser = true,
+            indexedEmptyStatus = loaded,
+        )
+        MediaSourceType.WEBDAV,
+        MediaSourceType.SMB -> DesktopSourceActivationState(
+            sourceInfo = this,
+            formState = DesktopSourceFormState().withSource(this),
+            remoteStatus = loaded,
+            loadsRemoteRoot = true,
+            indexedEmptyStatus = loaded,
+        )
+    }
+}
+
+internal suspend fun openDesktopSource(
+    repository: MediaSourceRepository,
+    sourceInfo: MediaSourceInfo,
+): Result<DesktopSourceOpenResult> =
+    when (val result = repository.addSource(sourceInfo)) {
+        is Result.Success -> {
+            val stored = sourceInfo.copy(id = result.data)
+            Result.success(
+                DesktopSourceOpenResult(
+                    sourceInfo = stored,
+                    source = desktopSourceFromInfo(stored),
+                    formState = DesktopSourceFormState().withSource(stored),
+                    status = stored.readyStatus(),
+                    opensRemoteRoot = stored.type != MediaSourceType.LOCAL,
+                )
+            )
+        }
+        is Result.Error -> result
+    }
+
+private fun DesktopSourceFormState.withSource(sourceInfo: MediaSourceInfo): DesktopSourceFormState =
+    when (sourceInfo.type) {
+        MediaSourceType.LOCAL -> copy(
+            libraryRoot = sourceInfo.localRootPath().orEmpty(),
+        )
+        MediaSourceType.WEBDAV -> copy(
+            webDavUrl = sourceInfo.remoteUrl().orEmpty(),
+            webDavUsername = sourceInfo.connectionUsername(),
+            webDavPassword = sourceInfo.connectionPassword(),
+        )
+        MediaSourceType.SMB -> copy(
+            smbUrl = sourceInfo.remoteUrl().orEmpty(),
+            smbDomain = sourceInfo.connectionDomain(),
+            smbUsername = sourceInfo.connectionUsername(),
+            smbPassword = sourceInfo.connectionPassword(),
+        )
+    }
+
+private fun DesktopSourceFormState.withFirstSourceOfType(
+    sources: List<MediaSourceInfo>,
+    type: MediaSourceType,
+): DesktopSourceFormState =
+    sources.firstOrNull { it.type == type }?.let(::withSource) ?: this

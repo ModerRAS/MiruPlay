@@ -3,11 +3,60 @@ package com.miruplay.tv.desktop
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import com.miruplay.tv.clouddrive.CloudDriveFileInfo
+import com.miruplay.tv.design.MiruPlayInputIntent
+import com.miruplay.tv.model.cloudDriveDirectoryDisplayPath
+import com.miruplay.tv.model.cloudDriveDirectoryParentPath
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MiruPlaySettingsSection
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.desktopSettingsSectionOrder
+import com.miruplay.tv.model.libraryScanCompleteStatus
+import com.miruplay.tv.model.localizedCloudRssStatusText
+import com.miruplay.tv.model.localizedLibraryScanCompleteStatus
+import com.miruplay.tv.model.cloudDriveRssApiTokenFieldLabel
+import com.miruplay.tv.model.cloudDriveRssDirectoryPageUnitLabel
+import com.miruplay.tv.model.cloudDriveRssEndpointFieldLabel
+import com.miruplay.tv.model.cloudDriveRssEnabledToggleLabel
+import com.miruplay.tv.model.cloudDriveRssInboxPathFieldLabel
+import com.miruplay.tv.model.cloudDriveRssLibraryPathFieldLabel
+import com.miruplay.tv.model.cloudDriveRssPasswordFieldLabel
+import com.miruplay.tv.model.cloudDriveRssPathPairSeparator
+import com.miruplay.tv.model.cloudDriveRssPostSyncScanSummaryLabel
+import com.miruplay.tv.model.cloudDriveRssRunNowActionLabel
+import com.miruplay.tv.model.cloudDriveRssSaveConfigActionLabel
+import com.miruplay.tv.model.cloudDriveRssTitleLabel
+import com.miruplay.tv.model.cloudRssStatusText
+import com.miruplay.tv.model.cloudDriveRssUsernameFieldLabel
+import com.miruplay.tv.model.metadataBangumiTokenSettingsStatus
+import com.miruplay.tv.model.metadataBangumiTokenTileDetail
+import com.miruplay.tv.model.metadataBangumiTokenTileLabel
+import com.miruplay.tv.model.metadataMatchedSummaryLabel
+import com.miruplay.tv.model.normalizeCloudDriveDirectoryPath
+import com.miruplay.tv.model.rssSubscriptionFilterRegexFieldLabel
+import com.miruplay.tv.model.rssSubscriptionNameFieldLabel
+import com.miruplay.tv.model.rssSubscriptionPageUnitLabel
+import com.miruplay.tv.model.rssSubscriptionStateLabel
+import com.miruplay.tv.model.rssSubscriptionUrlFieldLabel
+import com.miruplay.tv.model.rssSubscriptionsTitleLabel
+import com.miruplay.tv.model.settingsActiveSourceLabel
+import com.miruplay.tv.model.settingsActiveSourceTileLabel
+import com.miruplay.tv.model.settingsCloudRssLinkedSourceValue
+import com.miruplay.tv.model.settingsCloudRssOverviewValue
+import com.miruplay.tv.model.settingsCloudRssSubscriptionsValue
+import com.miruplay.tv.model.settingsCountValue
+import com.miruplay.tv.model.settingsIndexedCountValue
+import com.miruplay.tv.model.settingsLinkedSourceLabel
+import com.miruplay.tv.model.settingsMissingSourceValue
+import com.miruplay.tv.model.settingsNoSourceSelectedValue
+import com.miruplay.tv.model.settingsPlaybackPageDetail
+import com.miruplay.tv.model.settingsPlaybackStatusMessage
+import com.miruplay.tv.model.settingsPosterWallIndexTileLabel
+import com.miruplay.tv.model.settingsRecordCountValue
+import com.miruplay.tv.model.settingsSavedStateValue
+import com.miruplay.tv.model.scopedCloudDriveDirectoryPath
+import com.miruplay.tv.model.settingsSourceTileLabel
 import com.miruplay.tv.model.stepDesktopSettingsSection
+import com.miruplay.tv.sync.rss.cloudDriveDirectoryEntries
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -20,21 +69,21 @@ class DesktopSettingsPanelTest {
         val activeSource = MediaSourceInfoConventions.local(name = "Local Anime", rootPath = "D:/Anime")
         val tiles = sourceSettingsTiles(
             sources = listOf(
-                activeSource,
-                MediaSourceInfoConventions.webDav(url = "https://dav.example.test/anime"),
-                MediaSourceInfoConventions.smb(url = "smb://nas.local/anime"),
-            ),
-            activeSourceLabel = desktopActiveSourceLabel(activeSource),
+            activeSource,
+            MediaSourceInfoConventions.webDav(url = "https://dav.example.test/anime"),
+            MediaSourceInfoConventions.smb(url = "smb://nas.local/anime"),
+        ),
+            activeSourceLabel = settingsActiveSourceLabel(activeSource),
             indexedItemCount = 42,
         )
 
-        assertEquals(listOf("媒体源", "当前源", "海报墙索引"), tiles.map { it.label })
-        assertEquals("3 个", tiles[0].value)
+        assertEquals(listOf(settingsSourceTileLabel(), settingsActiveSourceTileLabel(), settingsPosterWallIndexTileLabel()), tiles.map { it.label })
+        assertEquals(settingsCountValue(3), tiles[0].value)
         assertTrue(tiles[0].detail.contains("本地 1"))
         assertTrue(tiles[0].detail.contains("WebDAV 1"))
         assertTrue(tiles[0].detail.contains("SMB 1"))
         assertEquals("Local Anime · 本地", tiles[1].value)
-        assertEquals("42 条", tiles[2].value)
+        assertEquals(settingsRecordCountValue(42), tiles[2].value)
     }
 
     @Test
@@ -43,9 +92,9 @@ class DesktopSettingsPanelTest {
             url = "https://dav.example.test/anime",
         ).copy(id = 42L, name = "Cloud WebDAV")
 
-        assertEquals("未选择", desktopActiveSourceLabel(null))
-        assertEquals("Cloud WebDAV · WebDAV", desktopLinkedSourceLabel(listOf(linkedSource), 42L))
-        assertEquals("缺失媒体源 #99", desktopLinkedSourceLabel(listOf(linkedSource), 99L))
+        assertEquals(settingsNoSourceSelectedValue(), settingsActiveSourceLabel(null))
+        assertEquals("Cloud WebDAV · WebDAV", settingsLinkedSourceLabel(listOf(linkedSource), 42L))
+        assertEquals(settingsMissingSourceValue(99L), settingsLinkedSourceLabel(listOf(linkedSource), 99L))
     }
 
     @Test
@@ -57,42 +106,51 @@ class DesktopSettingsPanelTest {
         )
 
         assertEquals("RIFE DIRECTML", tiles[0].value)
-        assertEquals("mpv、RIFE、字幕和起播时间在播放页调整。", tiles[0].detail)
-        assertEquals("5 条", tiles[1].value)
+        assertEquals(settingsPlaybackPageDetail(), tiles[0].detail)
+        assertEquals(settingsRecordCountValue(5), tiles[1].value)
         assertEquals("Fixture Alpha", tiles[2].value)
     }
 
     @Test
-    fun `desktop settings summary statuses use TV facing page names`() {
+    fun `shared settings summary statuses use TV facing page names`() {
         assertEquals(
             "mpv 播放设置保留在播放页，RIFE/字幕/起播秒数仍可直接调整。",
-            desktopPlaybackSettingsStatus(),
+            settingsPlaybackStatusMessage(),
         )
         assertEquals(
-            "Bangumi 搜索、批量预览、应用和撤销保留在详情页。",
-            desktopMetadataSettingsStatus(),
+            "Bangumi 搜索、批量预览、应用和撤销保留在详情页。 保存 Token 后可同步观看进度。",
+            metadataBangumiTokenSettingsStatus(configured = false),
+        )
+        assertEquals(
+            "Bangumi 搜索、批量预览、应用和撤销保留在详情页。 Bangumi Token 已保存。",
+            metadataBangumiTokenSettingsStatus(configured = true),
         )
     }
 
     @Test
     fun `scan and metadata settings tiles keep TV settings content concrete`() {
+        val metadataSummary = metadataMatchedSummaryLabel("Fixture Beta")
         val scanTiles = scanSettingsTiles(
             indexedItemCount = 11,
             linkedSourceLabel = "SMB Share · SMB",
-            libraryStatus = "Scan complete: 11 videos, 4 directories.",
+            libraryStatus = libraryScanCompleteStatus(11, 4),
         )
         val metadataTiles = metadataSettingsTiles(
             selectedMediaTitle = "Fixture Beta",
-            metadataSummary = "已匹配：Fixture Beta",
+            metadataSummary = metadataSummary,
             indexedItemCount = 11,
+            bangumiTokenConfigured = true,
         )
 
-        assertEquals("11 条", scanTiles[0].value)
+        assertEquals(settingsRecordCountValue(11), scanTiles[0].value)
         assertEquals("SMB Share · SMB", scanTiles[1].value)
-        assertEquals("扫描完成：11 个视频，4 个目录。", scanTiles[2].value)
+        assertEquals(localizedLibraryScanCompleteStatus(11, 4), scanTiles[2].value)
         assertEquals("Fixture Beta", metadataTiles[0].value)
-        assertEquals("已匹配：Fixture Beta", metadataTiles[1].value)
-        assertEquals("11 条索引", metadataTiles[2].value)
+        assertEquals(metadataSummary, metadataTiles[1].value)
+        assertEquals(settingsIndexedCountValue(11), metadataTiles[2].value)
+        assertEquals(metadataBangumiTokenTileLabel(), metadataTiles[3].label)
+        assertEquals(settingsSavedStateValue(true), metadataTiles[3].value)
+        assertEquals(metadataBangumiTokenTileDetail(), metadataTiles[3].detail)
     }
 
     @Test
@@ -113,15 +171,37 @@ class DesktopSettingsPanelTest {
             schedulerStatus = "调度器运行中，上次运行：提交 3 个，跳过 2 个，失败 1 个，整理 4 个。",
         )
 
-        assertEquals(listOf("CloudDrive2", "RSS 订阅", "同步后扫描"), tiles.map { it.label })
-        assertEquals("已启用", tiles[0].value)
-        assertEquals("1 个", tiles[1].value)
-        assertEquals("Cloud WebDAV · WebDAV", tiles[2].value)
+        assertEquals(
+            listOf(cloudDriveRssTitleLabel(), rssSubscriptionsTitleLabel(), cloudDriveRssPostSyncScanSummaryLabel()),
+            tiles.map { it.label },
+        )
+        assertEquals(settingsCloudRssOverviewValue(true), tiles[0].value)
+        assertEquals(settingsCloudRssSubscriptionsValue(1), tiles[1].value)
+        assertEquals(settingsCloudRssLinkedSourceValue("Cloud WebDAV · WebDAV"), tiles[2].value)
         assertTrue(tiles[0].detail.length <= 58)
-        assertTrue(tiles[1].detail.contains("启用"))
+        assertTrue(tiles[1].detail.contains(rssSubscriptionStateLabel(true)))
         assertTrue(tiles[1].detail.contains("Bangumi Feed"))
         assertTrue(tiles[2].detail.contains("调度器运行中"))
         assertTrue(tiles[2].detail.length <= 58)
+    }
+
+    @Test
+    fun `desktop cloud rss labels use shared TV copy`() {
+        val labels = desktopCloudRssUiLabels()
+
+        assertEquals(cloudDriveRssEndpointFieldLabel(), labels.endpoint)
+        assertEquals(cloudDriveRssUsernameFieldLabel(), labels.username)
+        assertEquals(cloudDriveRssApiTokenFieldLabel(), labels.apiToken)
+        assertEquals(cloudDriveRssPasswordFieldLabel(), labels.password)
+        assertEquals(cloudDriveRssInboxPathFieldLabel(), labels.inboxPath)
+        assertEquals(cloudDriveRssLibraryPathFieldLabel(), labels.libraryPath)
+        assertEquals(cloudDriveRssEnabledToggleLabel(), labels.enabledToggle)
+        assertEquals(cloudDriveRssSaveConfigActionLabel(), labels.saveSyncConfig)
+        assertEquals(cloudDriveRssRunNowActionLabel(), labels.runSyncNow)
+        assertEquals(rssSubscriptionsTitleLabel(), labels.rssSubscriptions)
+        assertEquals(rssSubscriptionNameFieldLabel(), labels.subscriptionName)
+        assertEquals(rssSubscriptionUrlFieldLabel(), labels.subscriptionUrl)
+        assertEquals(rssSubscriptionFilterRegexFieldLabel(), labels.filterRegex)
     }
 
     @Test
@@ -142,25 +222,35 @@ class DesktopSettingsPanelTest {
 
         assertTrue(pathPreview.length <= 46)
         assertTrue(pathPreview.contains("..."))
-        assertTrue(pathPreview.contains(" 到 "))
+        assertTrue(pathPreview.contains(cloudDriveRssPathPairSeparator()))
         assertTrue(subscriptionPreview.length <= 42)
-        assertTrue(subscriptionPreview.startsWith("停用"))
+        assertTrue(subscriptionPreview.startsWith(rssSubscriptionStateLabel(false)))
         assertTrue(subscriptionPreview.contains("..."))
     }
 
     @Test
     fun `cloud rss status text localizes scheduler credentials and subscriptions`() {
-        assertEquals("调度器待命，尚未检查。", desktopCloudRssStatusText("Scheduler idle. No checks yet."))
-        assertEquals("调度器待命，尚未检查。", desktopCloudRssStatusText("调度器待命，尚未检查。"))
         assertEquals(
-            "同步完成：提交 3 个，跳过 2 个，失败 1 个，整理 4 个。",
-            desktopCloudRssStatusText("Sync complete: 3 submitted, 2 skipped, 1 failed, 4 organized."),
+            localizedCloudRssStatusText("Scheduler idle. No checks yet."),
+            cloudRssStatusText("Scheduler idle. No checks yet."),
         )
-        assertEquals("CloudDrive 凭据已保存。", desktopCloudRssStatusText("CloudDrive credentials saved."))
         assertEquals(
-            "RSS 订阅已保存：Anime",
-            desktopCloudRssStatusText("RSS subscription saved: Anime"),
+            localizedCloudRssStatusText("调度器待命，尚未检查。"),
+            cloudRssStatusText("调度器待命，尚未检查。"),
         )
+        assertEquals(
+            localizedCloudRssStatusText("Sync complete: 3 submitted, 2 skipped, 1 failed, 4 organized."),
+            cloudRssStatusText("Sync complete: 3 submitted, 2 skipped, 1 failed, 4 organized."),
+        )
+        assertEquals(
+            localizedCloudRssStatusText("CloudDrive credentials saved."),
+            cloudRssStatusText("CloudDrive credentials saved."),
+        )
+        assertEquals(
+            localizedCloudRssStatusText("RSS subscription saved: Anime"),
+            cloudRssStatusText("RSS subscription saved: Anime"),
+        )
+        assertEquals("custom status", cloudRssStatusText("custom status"))
     }
 
     @Test
@@ -178,6 +268,22 @@ class DesktopSettingsPanelTest {
         assertNull(subscriptions.rssSubscriptionNavigationTarget(12L, Key.DirectionDown))
         assertNull(subscriptions.rssSubscriptionNavigationTarget(10L, Key.DirectionUp))
         assertNull(subscriptions.rssSubscriptionNavigationTarget(10L, Key.DirectionRight))
+    }
+
+    @Test
+    fun `rss subscription navigation also accepts shared direction intents`() {
+        val subscriptions = listOf(
+            RssSubscriptionInfo(id = 10L, name = "Season A", url = "https://rss.example.test/a.xml"),
+            RssSubscriptionInfo(id = 11L, name = "Season B", url = "https://rss.example.test/b.xml"),
+            RssSubscriptionInfo(id = 12L, name = "Season C", url = "https://rss.example.test/c.xml"),
+        )
+
+        assertEquals(11L, subscriptions.rssSubscriptionNavigationTarget(10L, MiruPlayInputIntent.DirectionDown)?.id)
+        assertEquals(10L, subscriptions.rssSubscriptionNavigationTarget(11L, MiruPlayInputIntent.DirectionUp)?.id)
+        assertEquals(10L, subscriptions.rssSubscriptionNavigationTarget(null, MiruPlayInputIntent.DirectionDown)?.id)
+        assertEquals(12L, subscriptions.rssSubscriptionNavigationTarget(null, MiruPlayInputIntent.DirectionUp)?.id)
+        assertNull(subscriptions.rssSubscriptionNavigationTarget(12L, MiruPlayInputIntent.DirectionDown))
+        assertNull(subscriptions.rssSubscriptionNavigationTarget(10L, MiruPlayInputIntent.DirectionRight))
     }
 
     @Test
@@ -199,14 +305,49 @@ class DesktopSettingsPanelTest {
             cloudRssActionFocusTarget(CloudRssAction.ClearScanSource, Key.DirectionDown, subscriptionCount = 2),
         )
         assertEquals(
-            CloudRssFocusTarget.Field(CloudRssField.InboxPath),
+            CloudRssFocusTarget.Action(CloudRssAction.VerifyApiToken),
             cloudRssActionFocusTarget(CloudRssAction.LoginCloudDrive, Key.DirectionDown, subscriptionCount = 2),
         )
         assertEquals(
-            CloudRssFocusTarget.Field(CloudRssField.LibraryPath),
+            CloudRssFocusTarget.Action(CloudRssAction.SetOrganizedMode),
             cloudRssActionFocusTarget(CloudRssAction.VerifyApiToken, Key.DirectionDown, subscriptionCount = 2),
         )
         assertNull(cloudRssActionFocusTarget(CloudRssAction.SaveCredentials, Key.DirectionLeft, subscriptionCount = 2))
+    }
+
+    @Test
+    fun `cloud rss action grid also accepts shared direction intents`() {
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.ClearCredentials),
+            cloudRssActionFocusTarget(
+                CloudRssAction.SaveCredentials,
+                MiruPlayInputIntent.DirectionRight,
+                subscriptionCount = 2,
+            ),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.LoginCloudDrive),
+            cloudRssActionFocusTarget(
+                CloudRssAction.SaveCredentials,
+                MiruPlayInputIntent.DirectionDown,
+                subscriptionCount = 2,
+            ),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.SaveCredentials),
+            cloudRssActionFocusTarget(
+                CloudRssAction.LoginCloudDrive,
+                MiruPlayInputIntent.DirectionUp,
+                subscriptionCount = 2,
+            ),
+        )
+        assertNull(
+            cloudRssActionFocusTarget(
+                CloudRssAction.SaveCredentials,
+                MiruPlayInputIntent.Activate,
+                subscriptionCount = 2,
+            ),
+        )
     }
 
     @Test
@@ -241,6 +382,24 @@ class DesktopSettingsPanelTest {
         )
         assertNull(cloudRssToggleFocusTarget(CloudRssToggle.SyncEnabled, Key.DirectionLeft))
         assertNull(cloudRssToggleFocusTarget(CloudRssToggle.RssEnabled, Key.DirectionRight))
+    }
+
+    @Test
+    fun `cloud rss toggles also accept shared direction intents`() {
+        assertEquals(
+            CloudRssFocusTarget.Toggle(CloudRssToggle.ProxyEnabled),
+            cloudRssToggleFocusTarget(CloudRssToggle.SyncEnabled, MiruPlayInputIntent.DirectionRight),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.IntervalMinutes),
+            cloudRssToggleFocusTarget(CloudRssToggle.SyncEnabled, MiruPlayInputIntent.DirectionUp),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.UseActiveSource),
+            cloudRssToggleFocusTarget(CloudRssToggle.SyncEnabled, MiruPlayInputIntent.DirectionDown),
+        )
+        assertNull(cloudRssToggleFocusTarget(CloudRssToggle.SyncEnabled, MiruPlayInputIntent.DirectionLeft))
+        assertNull(cloudRssToggleFocusTarget(CloudRssToggle.SyncEnabled, MiruPlayInputIntent.Activate))
     }
 
     @Test
@@ -298,26 +457,48 @@ class DesktopSettingsPanelTest {
             cloudRssToggleFocusTarget(CloudRssToggle.ProxyEnabled, Key.DirectionUp),
         )
         assertEquals(
-            CloudRssFocusTarget.Action(CloudRssAction.LoginCloudDrive),
+            CloudRssFocusTarget.Action(CloudRssAction.SetSingleDirectoryMode),
             cloudRssFieldFocusTarget(CloudRssField.InboxPath, Key.DirectionUp),
         )
         assertEquals(
-            CloudRssFocusTarget.Action(CloudRssAction.VerifyApiToken),
+            CloudRssFocusTarget.Action(CloudRssAction.SetSingleDirectoryMode),
             cloudRssFieldFocusTarget(CloudRssField.LibraryPath, Key.DirectionUp),
         )
         assertNull(cloudRssFieldFocusTarget(CloudRssField.ProxyPort, Key.DirectionRight))
     }
 
     @Test
+    fun `cloud rss fields also accept shared direction intents`() {
+        assertEquals(
+            CloudRssFocusTarget.Field(CloudRssField.LibraryPath),
+            cloudRssFieldFocusTarget(CloudRssField.InboxPath, MiruPlayInputIntent.DirectionRight),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.PickInboxPath),
+            cloudRssFieldFocusTarget(CloudRssField.InboxPath, MiruPlayInputIntent.DirectionDown),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Action(CloudRssAction.SetSingleDirectoryMode),
+            cloudRssFieldFocusTarget(CloudRssField.InboxPath, MiruPlayInputIntent.DirectionUp),
+        )
+        assertEquals(
+            CloudRssFocusTarget.Toggle(CloudRssToggle.SyncEnabled),
+            cloudRssFieldFocusTarget(CloudRssField.IntervalMinutes, MiruPlayInputIntent.DirectionDown),
+        )
+        assertNull(cloudRssFieldFocusTarget(CloudRssField.Endpoint, MiruPlayInputIntent.DirectionRight))
+        assertNull(cloudRssFieldFocusTarget(CloudRssField.Endpoint, MiruPlayInputIntent.Activate))
+    }
+
+    @Test
     fun `desktop CloudDrive directory browser scopes paths to token root`() {
-        assertEquals("/", normalizeDesktopCloudDrivePath(""))
-        assertEquals("/Anime/Season 1", normalizeDesktopCloudDrivePath("Anime\\Season 1\\"))
-        assertEquals("/CloudRoot", desktopCloudDriveScopedPath("/", "/CloudRoot"))
-        assertEquals("/CloudRoot", desktopCloudDriveScopedPath("/Outside/Inbox", "/CloudRoot"))
-        assertEquals("/CloudRoot/Inbox", desktopCloudDriveScopedPath("/CloudRoot/Inbox", "/CloudRoot"))
-        assertEquals("CloudDrive 根目录", desktopCloudDriveDisplayPath("/"))
-        assertEquals("/CloudRoot", desktopCloudDriveParentPath("/CloudRoot/Inbox", "/CloudRoot"))
-        assertNull(desktopCloudDriveParentPath("/CloudRoot", "/CloudRoot"))
+        assertEquals("/", normalizeCloudDriveDirectoryPath(""))
+        assertEquals("/Anime/Season 1", normalizeCloudDriveDirectoryPath("Anime\\Season 1\\"))
+        assertEquals("/CloudRoot", scopedCloudDriveDirectoryPath("/", "/CloudRoot"))
+        assertEquals("/CloudRoot", scopedCloudDriveDirectoryPath("/Outside/Inbox", "/CloudRoot"))
+        assertEquals("/CloudRoot/Inbox", scopedCloudDriveDirectoryPath("/CloudRoot/Inbox", "/CloudRoot"))
+        assertEquals("CloudDrive 根目录", cloudDriveDirectoryDisplayPath("/"))
+        assertEquals("/CloudRoot", cloudDriveDirectoryParentPath("/CloudRoot/Inbox", "/CloudRoot"))
+        assertNull(cloudDriveDirectoryParentPath("/CloudRoot", "/CloudRoot"))
     }
 
     @Test
@@ -388,6 +569,70 @@ class DesktopSettingsPanelTest {
     }
 
     @Test
+    fun `desktop CloudDrive directory rows also accept shared direction intents`() {
+        assertEquals(
+            CloudDriveDirectoryFocusTarget.Action(CloudDriveDirectoryAction.Parent),
+            cloudDriveDirectoryActionFocusTarget(
+                CloudDriveDirectoryAction.UseCurrent,
+                itemCount = 3,
+                intent = MiruPlayInputIntent.DirectionRight,
+            ),
+        )
+        assertEquals(
+            CloudDriveDirectoryFocusTarget.Row(0),
+            cloudDriveDirectoryActionFocusTarget(
+                CloudDriveDirectoryAction.Close,
+                itemCount = 3,
+                intent = MiruPlayInputIntent.DirectionDown,
+            ),
+        )
+        assertEquals(
+            CloudDriveDirectoryFocusTarget.EmptyState,
+            cloudDriveDirectoryActionFocusTarget(
+                current = CloudDriveDirectoryAction.Close,
+                itemCount = 0,
+                intent = MiruPlayInputIntent.DirectionDown,
+                hasEmptyState = true,
+            ),
+        )
+        assertEquals(
+            CloudDriveDirectoryFocusTarget.Action(CloudDriveDirectoryAction.UseCurrent),
+            cloudDriveDirectoryEmptyFocusTarget(MiruPlayInputIntent.DirectionUp),
+        )
+        assertEquals(
+            CloudDriveDirectoryFocusTarget.Row(1),
+            cloudDriveDirectoryRowFocusTarget(
+                currentIndex = 0,
+                itemCount = 3,
+                intent = MiruPlayInputIntent.DirectionDown,
+            ),
+        )
+        assertEquals(
+            CloudDriveDirectoryFocusTarget.Action(CloudDriveDirectoryAction.UseCurrent),
+            cloudDriveDirectoryRowFocusTarget(
+                currentIndex = 0,
+                itemCount = 3,
+                intent = MiruPlayInputIntent.DirectionUp,
+            ),
+        )
+        assertNull(
+            cloudDriveDirectoryActionFocusTarget(
+                CloudDriveDirectoryAction.UseCurrent,
+                itemCount = 3,
+                intent = MiruPlayInputIntent.DirectionLeft,
+            ),
+        )
+        assertNull(cloudDriveDirectoryEmptyFocusTarget(MiruPlayInputIntent.DirectionDown))
+        assertNull(
+            cloudDriveDirectoryRowFocusTarget(
+                currentIndex = 0,
+                itemCount = 3,
+                intent = MiruPlayInputIntent.DirectionRight,
+            ),
+        )
+    }
+
+    @Test
     fun `desktop CloudDrive directory page helpers keep every folder reachable`() {
         assertEquals(0, cloudDriveDirectoryPageStartForIndex(index = 0, itemCount = 13))
         assertEquals(0, cloudDriveDirectoryPageStartForIndex(index = 5, itemCount = 13))
@@ -399,11 +644,11 @@ class DesktopSettingsPanelTest {
         assertEquals(0, cloudDriveDirectoryCoercedPageStart(pageStart = -6, itemCount = 13))
 
         assertEquals(
-            "显示 7-12 / 13 个目录，按上/下继续翻页。",
+            "显示 7-12 / 13 ${cloudDriveRssDirectoryPageUnitLabel()}，按上/下继续翻页。",
             cloudDriveDirectoryPageSummary(pageStart = 6, visibleCount = 6, itemCount = 13),
         )
         assertEquals(
-            "显示 13-13 / 13 个目录，按上/下继续翻页。",
+            "显示 13-13 / 13 ${cloudDriveRssDirectoryPageUnitLabel()}，按上/下继续翻页。",
             cloudDriveDirectoryPageSummary(pageStart = 12, visibleCount = 1, itemCount = 13),
         )
         assertNull(cloudDriveDirectoryPageSummary(pageStart = 0, visibleCount = 5, itemCount = 5))
@@ -531,11 +776,11 @@ class DesktopSettingsPanelTest {
         assertEquals(0, cloudRssSubscriptionCoercedPageStart(pageStart = -6, itemCount = 14))
 
         assertEquals(
-            "显示 7-12 / 14 个订阅，按上/下继续翻页。",
+            "显示 7-12 / 14 ${rssSubscriptionPageUnitLabel()}，按上/下继续翻页。",
             cloudRssSubscriptionPageSummary(pageStart = 6, visibleCount = 6, itemCount = 14),
         )
         assertEquals(
-            "显示 13-14 / 14 个订阅，按上/下继续翻页。",
+            "显示 13-14 / 14 ${rssSubscriptionPageUnitLabel()}，按上/下继续翻页。",
             cloudRssSubscriptionPageSummary(pageStart = 12, visibleCount = 2, itemCount = 14),
         )
         assertNull(cloudRssSubscriptionPageSummary(pageStart = 0, visibleCount = 4, itemCount = 4))
@@ -597,6 +842,42 @@ class DesktopSettingsPanelTest {
     }
 
     @Test
+    fun `settings category navigation accepts shared direction intents`() {
+        assertEquals(
+            MiruPlaySettingsSection.PLAYBACK,
+            settingsSectionNavigationTarget(
+                current = MiruPlaySettingsSection.SOURCES,
+                intent = MiruPlayInputIntent.DirectionDown,
+            ),
+        )
+        assertEquals(
+            MiruPlaySettingsSection.PLAYBACK,
+            settingsSectionNavigationTarget(
+                current = MiruPlaySettingsSection.CLOUD_DRIVE,
+                intent = MiruPlayInputIntent.DirectionUp,
+            ),
+        )
+        assertNull(
+            settingsSectionNavigationTarget(
+                current = MiruPlaySettingsSection.SOURCES,
+                intent = MiruPlayInputIntent.DirectionUp,
+            ),
+        )
+        assertNull(
+            settingsSectionNavigationTarget(
+                current = MiruPlaySettingsSection.SOURCES,
+                intent = MiruPlayInputIntent.DirectionRight,
+            ),
+        )
+        assertNull(
+            settingsSectionNavigationTarget(
+                current = MiruPlaySettingsSection.SOURCES,
+                intent = MiruPlayInputIntent.Activate,
+            ),
+        )
+    }
+
+    @Test
     fun `settings category rows accept TV confirm keys`() {
         var selected = 0
 
@@ -650,5 +931,92 @@ class DesktopSettingsPanelTest {
         )
         assertNull(settingsQuickActionFocusTarget(currentIndex = 0, actionCount = 2, Key.DirectionDown))
         assertNull(settingsQuickActionFocusTarget(currentIndex = 0, actionCount = 0, Key.DirectionUp))
+    }
+
+    @Test
+    fun `settings summary quick actions also accept shared direction intents`() {
+        assertEquals(
+            1,
+            settingsQuickActionNavigationTarget(
+                currentIndex = 0,
+                actionCount = 2,
+                intent = MiruPlayInputIntent.DirectionRight,
+            ),
+        )
+        assertEquals(
+            0,
+            settingsQuickActionNavigationTarget(
+                currentIndex = 1,
+                actionCount = 2,
+                intent = MiruPlayInputIntent.DirectionLeft,
+            ),
+        )
+        assertEquals(
+            SettingsQuickActionFocusTarget.Action(1),
+            settingsQuickActionFocusTarget(
+                currentIndex = 0,
+                actionCount = 2,
+                intent = MiruPlayInputIntent.DirectionRight,
+            ),
+        )
+        assertEquals(
+            SettingsQuickActionFocusTarget.SectionMenu,
+            settingsQuickActionFocusTarget(
+                currentIndex = 0,
+                actionCount = 2,
+                intent = MiruPlayInputIntent.DirectionUp,
+            ),
+        )
+        assertNull(
+            settingsQuickActionFocusTarget(
+                currentIndex = 0,
+                actionCount = 2,
+                intent = MiruPlayInputIntent.DirectionDown,
+            ),
+        )
+        assertNull(
+            settingsQuickActionNavigationTarget(
+                currentIndex = 0,
+                actionCount = 2,
+                intent = MiruPlayInputIntent.Activate,
+            ),
+        )
+    }
+
+    @Test
+    fun `settings summary quick actions skip disabled buttons`() {
+        val enabledActions = listOf(true, false, true)
+
+        assertEquals(
+            2,
+            settingsQuickActionNavigationTarget(
+                currentIndex = 0,
+                key = Key.DirectionRight,
+                enabledActions = enabledActions,
+            ),
+        )
+        assertEquals(
+            0,
+            settingsQuickActionNavigationTarget(
+                currentIndex = 2,
+                key = Key.DirectionLeft,
+                enabledActions = enabledActions,
+            ),
+        )
+        assertEquals(
+            SettingsQuickActionFocusTarget.Action(2),
+            settingsQuickActionFocusTarget(
+                currentIndex = 0,
+                key = Key.DirectionRight,
+                enabledActions = enabledActions,
+            ),
+        )
+        assertNull(
+            settingsQuickActionFocusTarget(
+                currentIndex = 1,
+                key = Key.DirectionUp,
+                enabledActions = enabledActions,
+            ),
+        )
     }
 }

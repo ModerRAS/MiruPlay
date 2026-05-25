@@ -32,7 +32,7 @@ class CloudDriveLibraryOrganizerTest {
                 episode = 5
             )
         )
-        val organizer = CloudDriveLibraryOrganizer(cloudDriveClient, parser)
+        val organizer = CloudDriveLibraryOrganizer(cloudDriveClient, AndroidCloudDriveVideoClassifier(parser))
 
         val result = organizer.organize(
             endpoint = CloudDriveEndpoint("http://cloud.test", "token"),

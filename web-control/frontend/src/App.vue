@@ -265,6 +265,13 @@
                   <el-input v-model="cloudForm.endpointUrl" placeholder="http://host:19798" />
                 </el-form-item>
 
+                <el-form-item label="入库模式">
+                  <el-radio-group v-model="cloudForm.libraryMode">
+                    <el-radio-button label="ORGANIZED_LIBRARY">整理入库</el-radio-button>
+                    <el-radio-button label="SINGLE_DIRECTORY">单目录入库</el-radio-button>
+                  </el-radio-group>
+                </el-form-item>
+
                 <div class="form-grid">
                   <el-form-item label="用户名">
                     <el-input v-model="cloudForm.username" autocomplete="username" />
@@ -288,32 +295,30 @@
                   />
                 </el-form-item>
 
-                <div class="form-grid">
-                  <el-form-item label="下载目录 A">
-                    <el-input v-model="cloudForm.inboxPath" placeholder="/115/Downloads">
-                      <template #append>
-                        <el-button
-                          :icon="FolderOpened"
-                          :disabled="!canBrowseCloudDrive"
-                          title="选择下载目录"
-                          @click="openCloudPicker('inbox')"
-                        />
-                      </template>
-                    </el-input>
-                  </el-form-item>
-                  <el-form-item label="整理目录 B">
-                    <el-input v-model="cloudForm.libraryPath" placeholder="/115/Anime">
-                      <template #append>
-                        <el-button
-                          :icon="FolderOpened"
-                          :disabled="!canBrowseCloudDrive"
-                          title="选择整理目录"
-                          @click="openCloudPicker('library')"
-                        />
-                      </template>
-                    </el-input>
-                  </el-form-item>
-                </div>
+                <el-form-item label="下载目录 A">
+                  <el-input v-model="cloudForm.inboxPath" placeholder="/115/Downloads">
+                    <template #append>
+                      <el-button
+                        :icon="FolderOpened"
+                        :disabled="!canBrowseCloudDrive"
+                        title="选择下载目录"
+                        @click="openCloudPicker('inbox')"
+                      />
+                    </template>
+                  </el-input>
+                </el-form-item>
+                <el-form-item v-if="cloudForm.libraryMode === 'ORGANIZED_LIBRARY'" label="整理目录 B">
+                  <el-input v-model="cloudForm.libraryPath" placeholder="/115/Anime">
+                    <template #append>
+                      <el-button
+                        :icon="FolderOpened"
+                        :disabled="!canBrowseCloudDrive"
+                        title="选择整理目录"
+                        @click="openCloudPicker('library')"
+                      />
+                    </template>
+                  </el-input>
+                </el-form-item>
 
                 <div class="form-grid">
                   <el-form-item label="入库后扫描的 WebDAV 媒体源">
@@ -358,13 +363,6 @@
                     />
                   </el-form-item>
                 </div>
-
-                <el-alert
-                  type="info"
-                  :closable="false"
-                  show-icon
-                  title="执行时只会提交到下载目录 A，并且只整理下载目录 A 内部的视频文件。"
-                />
 
                 <div class="form-actions">
                   <el-button :icon="Setting" :loading="loading.automationSave" @click="saveCloudDriveConfig">
@@ -917,6 +915,7 @@ const cloudForm = reactive({
   webDavSourceId: null,
   inboxPath: '',
   libraryPath: '',
+  libraryMode: 'ORGANIZED_LIBRARY',
   intervalMinutes: 30,
   enabled: false,
   lastRunAt: 0,
@@ -1121,6 +1120,7 @@ function applyCloudDriveAutomation(data) {
     webDavSourceId: config.webDavSourceId || null,
     inboxPath: config.inboxPath || '',
     libraryPath: config.libraryPath || '',
+    libraryMode: config.libraryMode || 'ORGANIZED_LIBRARY',
     intervalMinutes: config.intervalMinutes || 30,
     enabled: Boolean(config.enabled),
     lastRunAt: config.lastRunAt || 0,
@@ -1398,6 +1398,7 @@ function cloudDriveConfigPayload() {
     webDavSourceId: cloudForm.webDavSourceId || null,
     inboxPath: cloudForm.inboxPath.trim(),
     libraryPath: cloudForm.libraryPath.trim(),
+    libraryMode: cloudForm.libraryMode,
     intervalMinutes: Number(cloudForm.intervalMinutes || 30),
     enabled: Boolean(cloudForm.enabled),
     rssProxyEnabled: Boolean(cloudForm.rssProxyEnabled),
@@ -1407,19 +1408,22 @@ function cloudDriveConfigPayload() {
 }
 
 function validateCloudDriveConfig(payload) {
-  if (!payload.endpointUrl || !payload.inboxPath || !payload.libraryPath) {
-    ElMessage.warning('请填写 CloudDrive2 地址、下载目录 A 和整理目录 B')
+  const organized = payload.libraryMode !== 'SINGLE_DIRECTORY'
+  if (!payload.endpointUrl || !payload.inboxPath || (organized && !payload.libraryPath)) {
+    ElMessage.warning('请填写 CloudDrive2 地址和下载目录 A')
     return false
   }
-  if (payload.inboxPath === '/' || payload.libraryPath === '/') {
+  if (payload.inboxPath === '/' || (organized && payload.libraryPath === '/')) {
     ElMessage.warning('下载目录和整理目录不能是根目录')
     return false
   }
-  const inbox = normalizeCloudPath(payload.inboxPath)
-  const library = normalizeCloudPath(payload.libraryPath)
-  if (library === inbox || library.startsWith(`${inbox}/`)) {
-    ElMessage.warning('整理目录 B 不能放在下载目录 A 内部')
-    return false
+  if (organized) {
+    const inbox = normalizeCloudPath(payload.inboxPath)
+    const library = normalizeCloudPath(payload.libraryPath)
+    if (library === inbox || library.startsWith(`${inbox}/`)) {
+      ElMessage.warning('整理目录 B 不能放在下载目录 A 内部')
+      return false
+    }
   }
   return true
 }
@@ -1491,8 +1495,9 @@ async function saveCloudDriveToken() {
 async function runCloudDriveNow() {
   const payload = cloudDriveConfigPayload()
   if (!validateCloudDriveConfig(payload)) return
+  const modeLabel = payload.libraryMode === 'SINGLE_DIRECTORY' ? '单目录入库' : '整理入库'
   await ElMessageBox.confirm(
-    '立即执行会提交未处理 RSS 项到下载目录 A，并只整理下载目录 A 内部的视频文件。',
+    `立即执行会提交未处理 RSS 项到下载目录 A，并按当前${modeLabel}模式处理。`,
     '立即执行 CloudDrive/RSS',
     {
       confirmButtonText: '执行',
@@ -1504,7 +1509,7 @@ async function runCloudDriveNow() {
   loading.cloudRun = true
   try {
     const result = await api('/api/cloud-drive/run', { method: 'POST' })
-    ElMessage.success(`完成：提交 ${result.submitted}，跳过 ${result.skipped}，整理 ${result.organized}，失败 ${result.failed}`)
+    ElMessage.success(`完成：提交 ${result.submitted}，跳过 ${result.skipped}，整理 ${result.organized}，索引 ${result.indexed || 0}`)
     await Promise.all([loadCloudDriveAutomation(), loadLibrary()])
   } finally {
     loading.cloudRun = false

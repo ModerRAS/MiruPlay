@@ -20,6 +20,7 @@ data class AnimeEntity(
     @ColumnInfo(name = "anilist_id") val anilistId: String? = null,
     @ColumnInfo(name = "tmdb_id") val tmdbId: String? = null,
     @ColumnInfo(name = "poster_url") val posterUrl: String? = null,
+    @ColumnInfo(name = "poster_local_path") val posterLocalPath: String? = null,
     @ColumnInfo(name = "fanart_url") val fanartUrl: String? = null,
     @ColumnInfo(name = "bangumi_collection_type") val bangumiCollectionType: Int? = null,
     @ColumnInfo(name = "bangumi_ep_status") val bangumiEpStatus: Int = 0,

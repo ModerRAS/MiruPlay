@@ -19,9 +19,9 @@ android {
 dependencies {
     api(project(":core:model"))
     api(project(":core:common"))
-    api(project(":media-source"))
+    api(project(":media-source-api"))
     api(project(":repository-api"))
-    api(project(":metadata"))
+    api(project(":metadata-core"))
     implementation(project(":scraper"))
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.dagger.hilt.android)

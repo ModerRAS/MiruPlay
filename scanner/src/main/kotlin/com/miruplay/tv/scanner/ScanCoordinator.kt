@@ -2,7 +2,6 @@ package com.miruplay.tv.scanner
 
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
-import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.mediasource.MediaSource
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.metadata.NfoWriteOptions
@@ -13,12 +12,17 @@ import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.FilenameMetadataParser
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.MediaFileConventions
+import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.NfoMetadata
+import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.ScanResult
 import com.miruplay.tv.model.TvShowNfoMetadata
 import com.miruplay.tv.model.UniqueId
+import com.miruplay.tv.model.displayTitle
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MediaIndexRepository
+import com.miruplay.tv.repository.MediaScrapeStatus
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.scraper.EpisodeMetadata
@@ -29,7 +33,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import android.util.Log
 import java.io.File
-import java.net.URLEncoder
+import java.net.URL
+import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -51,7 +56,11 @@ class ScanCoordinator @Inject constructor(
      * Full scan of a media source, updates index + metadata in one pass.
      * Cancellable via coroutineContext.
      */
-    suspend fun scanSource(sourceId: Long): Result<ScanResult> = withContext(Dispatchers.IO) {
+    suspend fun scanSource(
+        sourceId: Long,
+        filenameOnly: Boolean = false,
+        posterCacheDirectory: File? = null,
+    ): Result<ScanResult> = withContext(Dispatchers.IO) {
         val sourceResult = mediaRepository.getSourceById(sourceId)
         if (sourceResult !is Result.Success) {
             return@withContext Result.failure((sourceResult as Result.Error).error)
@@ -95,23 +104,16 @@ class ScanCoordinator @Inject constructor(
 
         // Report starting
         progressCallback?.onProgress(sourceInfo.name, 0, 0)
-        MiruLog.i(
-            "ScanCoordinator",
-            "Scanning source",
-            mapOf(
-                "source_id" to sourceId.toString(),
-                "source_name" to sourceInfo.name,
-                "source_type" to sourceInfo.type.name,
-                "root_path" to rootPath
-            )
-        )
 
         // Single recursive traversal: build index + parse NFOs
         val detector = DefaultEpisodeDetector()
-        val classifier = VideoDirectoryClassifier(detector, filenameMetadataParser)
+        val classifier = VideoDirectoryClassifier(detector, filenameMetadataParser, filenameOnly = filenameOnly)
         val indexEntities = mutableListOf<MediaIndexEntry>()
+        val titleCandidatesByAnime = mutableMapOf<String, MutableSet<String>>()
         var totalFiles = 0
         var newEpisodes = 0
+        var scrapedFiles = 0
+        var noMatchFiles = 0
 
         traverseAndProcess(
             ms = ms,
@@ -119,19 +121,22 @@ class ScanCoordinator @Inject constructor(
             sourceId = sourceId,
             classifier = classifier,
             indexEntities = indexEntities,
+            titleCandidatesByAnime = titleCandidatesByAnime,
             totalFiles = { totalFiles += 1 },
             newEpisodes = { newEpisodes += 1 },
             rootPath = realRootPath,
-            isLocalSource = isLocalSource
+            isLocalSource = isLocalSource,
+            filenameOnly = filenameOnly,
         )
 
         // Save index
         if (indexEntities.isNotEmpty()) {
-            indexRepository.rebuildIndex(sourceId, indexEntities)
+            val updatedIndexEntities = mutableListOf<MediaIndexEntry>()
+            updatedIndexEntities += indexEntities.filter { it.isDirectory }
 
             // Also cache episodes in the episode table so AnimeDetailViewModel can read them
             val episodesByAnime = indexEntities
-                .filter { !it.isDirectory && it.episodeNumber != null }
+                .filter { !it.isDirectory }
                 .groupBy { it.animeName ?: "Unknown" }
 
             for ((animeName, entries) in episodesByAnime) {
@@ -154,7 +159,37 @@ class ScanCoordinator @Inject constructor(
                             fileName = fileNameOf(entry.path)
                         )
                     }
-                val online = enrichWithOnlineMetadata(animeName, episodes)
+                val online = enrichWithOnlineMetadata(
+                    animeName = animeName,
+                    episodes = episodes,
+                    extraTitleCandidates = titleCandidatesByAnime[animeName].orEmpty(),
+                    posterCacheDirectory = posterCacheDirectory,
+                )
+                val scrapedAt = if (online.scrapeStatus == MediaScrapeStatus.SCRAPED) {
+                    System.currentTimeMillis()
+                } else {
+                    0L
+                }
+                when (online.scrapeStatus) {
+                    MediaScrapeStatus.SCRAPED -> scrapedFiles += sortedEntries.size
+                    MediaScrapeStatus.NO_MATCH -> noMatchFiles += sortedEntries.size
+                    else -> Unit
+                }
+                updatedIndexEntities += sortedEntries.map { entry ->
+                    val matchedEntry = online.match?.let { match ->
+                        entry.copy(
+                            sourceId = sourceId,
+                            metadataSource = match.source.name,
+                            metadataId = match.animeId,
+                            metadataTitle = match.displayTitle(),
+                        )
+                    } ?: entry
+                    matchedEntry.copy(
+                        scrapeStatus = online.scrapeStatus,
+                        scrapeMessage = online.scrapeMessage,
+                        scrapedAt = scrapedAt,
+                    )
+                }
                 metadataRepository.cacheEpisodes(animeName, online.episodes)
 
                 // Update or create anime metadata with episode count
@@ -182,7 +217,7 @@ class ScanCoordinator @Inject constructor(
                     }
                 }
 
-                if (isLocalSource && !isDocumentTree) {
+                if (isLocalSource && !isDocumentTree && !filenameOnly) {
                     animeForNfo?.let { anime ->
                         writeGeneratedNfoIfMissing(
                             classifier = classifier,
@@ -193,40 +228,46 @@ class ScanCoordinator @Inject constructor(
                     }
                 }
             }
+            indexRepository.rebuildIndex(sourceId, updatedIndexEntities)
         }
 
         // Report done
         Log.d("ScanCoordinator", "Scan done: ${sourceInfo.name} -> $totalFiles files, $newEpisodes new episodes")
-        MiruLog.i(
-            "ScanCoordinator",
-            "Source scan done",
-            mapOf(
-                "source_id" to sourceId.toString(),
-                "source_name" to sourceInfo.name,
-                "files" to totalFiles.toString(),
-                "new_episodes" to newEpisodes.toString()
-            )
-        )
 
         Result.success(ScanResult(
             animeName = if (isLocalSource) sourceInfo.displayNameOrPath(rootPath) else sourceInfo.name,
             episodesFound = totalFiles,
             newEpisodes = newEpisodes,
-            updatedEpisodes = 0
+            updatedEpisodes = 0,
+            scraped = scrapedFiles,
+            noMatch = noMatchFiles,
         ))
     }
 
     private data class OnlineMetadata(
         val anime: Anime?,
-        val episodes: List<Episode>
+        val episodes: List<Episode>,
+        val match: ScraperResult? = null,
+        val scrapeStatus: MediaScrapeStatus = MediaScrapeStatus.NO_MATCH,
+        val scrapeMessage: String? = null,
     )
 
-    private suspend fun enrichWithOnlineMetadata(animeName: String, episodes: List<Episode>): OnlineMetadata {
+    private suspend fun enrichWithOnlineMetadata(
+        animeName: String,
+        episodes: List<Episode>,
+        extraTitleCandidates: Collection<String> = emptyList(),
+        posterCacheDirectory: File? = null,
+    ): OnlineMetadata {
         val bangumi = metadataScrapers.firstOrNull { it.sourceName.equals("Bangumi", ignoreCase = true) }
-            ?: return OnlineMetadata(null, episodes)
+            ?: return OnlineMetadata(
+                anime = null,
+                episodes = episodes,
+                scrapeStatus = MediaScrapeStatus.PENDING,
+                scrapeMessage = "Bangumi scraper unavailable",
+            )
 
         return try {
-            val candidates = titleCandidates(animeName)
+            val candidates = titleCandidates(animeName, extraTitleCandidates)
             var match = bangumi.searchByAlias(animeName, candidates).getOrNull()
             if (match == null) {
                 for (candidate in candidates) {
@@ -235,7 +276,12 @@ class ScanCoordinator @Inject constructor(
                     if (match != null) break
                 }
             }
-            match ?: return OnlineMetadata(null, episodes)
+            match ?: return OnlineMetadata(
+                anime = null,
+                episodes = episodes,
+                scrapeStatus = MediaScrapeStatus.NO_MATCH,
+                scrapeMessage = "Bangumi no reliable match",
+            )
 
             val details = bangumi.getAnimeDetails(match.animeId).getOrNull()
             val episodeMetadata = bangumi.getEpisodes(match.animeId).getOrNull()
@@ -256,38 +302,83 @@ class ScanCoordinator @Inject constructor(
                 }
             }
 
-            val anime = details?.copy(
+            val posterLocalPath = details?.posterUrl
+                ?.takeIf { it.isNotBlank() }
+                ?.let { cachePoster(posterCacheDirectory, it) }
+            val baseAnime = details ?: Anime(
                 id = animeName,
-                title = details.title.ifBlank { animeName },
-                titleCn = details.titleCn ?: match.titleCn,
-                episodeCount = maxOf(details.episodeCount, enrichedEpisodes.size),
-                bangumiId = details.bangumiId ?: match.animeId.toIntOrNull()
+                title = match.title.ifBlank { animeName },
+                titleCn = match.titleCn,
+                bangumiId = match.animeId.toIntOrNull(),
+            )
+            val anime = baseAnime.copy(
+                id = animeName,
+                title = baseAnime.title.ifBlank { animeName },
+                titleCn = baseAnime.titleCn ?: match.titleCn,
+                episodeCount = maxOf(baseAnime.episodeCount, enrichedEpisodes.size),
+                bangumiId = baseAnime.bangumiId ?: match.animeId.toIntOrNull(),
+                posterLocalPath = posterLocalPath ?: baseAnime.posterLocalPath,
             )
 
-            OnlineMetadata(anime, enrichedEpisodes)
+            OnlineMetadata(
+                anime = anime,
+                episodes = enrichedEpisodes,
+                match = match,
+                scrapeStatus = MediaScrapeStatus.SCRAPED,
+            )
         } catch (e: Exception) {
             Log.w("ScanCoordinator", "Bangumi metadata enrichment failed for $animeName", e)
-            MiruLog.w(
-                "ScanCoordinator",
-                "Bangumi metadata enrichment failed",
-                e,
-                mapOf("anime_name" to animeName)
+            OnlineMetadata(
+                anime = null,
+                episodes = episodes,
+                scrapeStatus = MediaScrapeStatus.FAILED,
+                scrapeMessage = e.message ?: "Bangumi metadata enrichment failed",
             )
-            OnlineMetadata(null, episodes)
         }
     }
 
-    private fun titleCandidates(animeName: String): List<String> {
-        val withoutBracketGroups = animeName
-            .replace(Regex("\\[[^\\]]*]"), " ")
-            .replace(Regex("【[^】]*】"), " ")
-        val withoutSeasonSuffix = withoutBracketGroups
-            .replace(Regex("(?i)\\b(s\\d{1,2}|season\\s*\\d{1,2}|第\\s*\\d+\\s*[季期])\\b"), " ")
-        return listOf(animeName, withoutBracketGroups, withoutSeasonSuffix)
+    private fun cachePoster(cacheDirectory: File?, url: String): String? {
+        val directory = cacheDirectory ?: return null
+        val file = File(directory, sha256Hex(url))
+        return runCatching {
+            if (file.exists() && file.length() > 0L) return@runCatching file.absolutePath
+            directory.mkdirs()
+            val temp = File(directory, "${file.name}.tmp")
+            URL(url).openConnection().apply {
+                connectTimeout = 10_000
+                readTimeout = 20_000
+            }.getInputStream().use { input ->
+                temp.outputStream().use { output -> input.copyTo(output) }
+            }
+            if (!temp.renameTo(file)) {
+                temp.copyTo(file, overwrite = true)
+                temp.delete()
+            }
+            file.absolutePath
+        }.getOrNull()
+    }
+
+    private fun sha256Hex(value: String): String =
+        MessageDigest.getInstance("SHA-256")
+            .digest(value.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+
+    private fun titleCandidates(
+        animeName: String,
+        extraCandidates: Collection<String> = emptyList()
+    ): List<String> =
+        (listOf(animeName) + extraCandidates)
+            .flatMap { candidate ->
+                val withoutBracketGroups = candidate
+                    .replace(Regex("\\[[^\\]]*]"), " ")
+                    .replace(Regex("【[^】]*】"), " ")
+                val withoutSeasonSuffix = withoutBracketGroups
+                    .replace(Regex("(?i)\\b(s\\d{1,2}|season\\s*\\d{1,2}|第\\s*\\d+\\s*[季期])\\b"), " ")
+                listOf(candidate, withoutBracketGroups, withoutSeasonSuffix)
+            }
             .map { it.replace(Regex("[._]+"), " ").replace(Regex("\\s+"), " ").trim() }
             .filter { it.isNotBlank() }
             .distinct()
-    }
 
     /** Progress callback for scan operations */
     fun interface ScanProgressCallback {
@@ -312,14 +403,16 @@ class ScanCoordinator @Inject constructor(
         sourceId: Long,
         classifier: VideoDirectoryClassifier,
         indexEntities: MutableList<MediaIndexEntry>,
+        titleCandidatesByAnime: MutableMap<String, MutableSet<String>>,
         totalFiles: (Int) -> Unit,
         newEpisodes: (Int) -> Unit,
         depth: Int = 0,
         rootPath: String?,
-        isLocalSource: Boolean
+        isLocalSource: Boolean,
+        filenameOnly: Boolean,
     ) {
         // Guard: skip hidden directories
-        val pathName = path.substringAfterLast('/')
+        val pathName = MediaPathConventions.fileName(path)
         if (pathName.startsWith(".")) return
 
         // Guard: skip Android system media directories
@@ -340,11 +433,6 @@ class ScanCoordinator @Inject constructor(
                 // Belt-and-suspenders: if file.path escapes root boundary, skip it
                 if (rootPath != null && !isWithinRoot(file.path, rootPath)) {
                     Log.w("ScanCoordinator", "Path escaped root boundary: ${file.path} (root=$rootPath), skipping")
-                    MiruLog.w(
-                        "ScanCoordinator",
-                        "Path escaped root boundary",
-                        attributes = mapOf("path" to file.path, "root_path" to rootPath)
-                    )
                     continue
                 }
 
@@ -354,12 +442,23 @@ class ScanCoordinator @Inject constructor(
                     if (isLocalSource && file.name in skipDirs) continue
                     
                     // Recurse into subdirectory
-                    traverseAndProcess(ms, file.path, sourceId, classifier, indexEntities, totalFiles, newEpisodes, depth + 1, rootPath, isLocalSource)
+                    traverseAndProcess(
+                        ms = ms,
+                        path = file.path,
+                        sourceId = sourceId,
+                        classifier = classifier,
+                        indexEntities = indexEntities,
+                        titleCandidatesByAnime = titleCandidatesByAnime,
+                        totalFiles = totalFiles,
+                        newEpisodes = newEpisodes,
+                        depth = depth + 1,
+                        rootPath = rootPath,
+                        isLocalSource = isLocalSource,
+                        filenameOnly = filenameOnly,
+                    )
                 } else {
                     val fileName = file.name
-                    val ext = fileName.substringAfterLast('.', "").lowercase()
-
-                    if (ext in videoExtensions) {
+                    if (MediaFileConventions.isVideoName(fileName, videoExtensions)) {
                         totalFiles(1)
                         val match = classifier.classifyVideo(file.path, fileName)
                         indexEntities.add(MediaIndexEntry(
@@ -372,14 +471,17 @@ class ScanCoordinator @Inject constructor(
                             fileSize = file.size,
                             lastModified = file.lastModified
                         ))
+                        titleCandidatesByAnime
+                            .getOrPut(match.animeName) { linkedSetOf() }
+                            .addAll(match.titleCandidates)
                         if (match.episodeNumber != null) newEpisodes(1)
 
                         // Report progress every 5 video files
                         if (file.path.hashCode() % 5 == 0) {
                             progressCallback?.onProgress(match.animeName, 1, if (match.episodeNumber != null) 1 else 0)
                         }
-                    } else {
-                        if (ext == "nfo") {
+                    } else if (!filenameOnly) {
+                        if (MediaFileConventions.hasExtension(fileName, "nfo")) {
                             parseAndCacheRemoteNfo(ms, file.path, classifier.classifyNfo(file.path).animeName)
                         }
                     }
@@ -387,12 +489,6 @@ class ScanCoordinator @Inject constructor(
             }
         } catch (e: Exception) {
             Log.w("ScanCoordinator", "Error traversing path: $path", e)
-            MiruLog.w(
-                "ScanCoordinator",
-                "Error traversing path",
-                e,
-                mapOf("path" to path)
-            )
         }
     }
 
@@ -412,31 +508,20 @@ class ScanCoordinator @Inject constructor(
     private fun toPlayablePath(path: String, sourceRoot: String, sourceType: MediaSourceType): String =
         when (sourceType) {
             MediaSourceType.LOCAL -> path
-            MediaSourceType.WEBDAV -> joinRemoteUrl(sourceRoot, path)
+            MediaSourceType.WEBDAV -> MediaPathConventions.joinRemoteUrl(sourceRoot, path)
             MediaSourceType.SMB -> path
         }
-
-    private fun joinRemoteUrl(baseUrl: String, path: String): String {
-        val base = baseUrl.trimEnd('/')
-        val encodedPath = path
-            .trimStart('/')
-            .split('/')
-            .joinToString("/") { segment ->
-                URLEncoder.encode(segment, Charsets.UTF_8.name()).replace("+", "%20")
-            }
-        return "$base/$encodedPath"
-    }
 
     private fun nameOfPath(path: String): String =
         when {
             path.startsWith("content://") -> {
                 val tail = path.substringAfterLast(':', path).substringAfterLast('/')
-                java.net.URLDecoder.decode(tail, Charsets.UTF_8.name())
+                MediaPathConventions.decodePath(tail)
             }
-            else -> path.substringAfterLast('/')
+            else -> MediaPathConventions.fileName(path)
         }
 
-    private fun fileNameOf(path: String): String = nameOfPath(path).ifEmpty { path.substringAfterLast('/') }
+    private fun fileNameOf(path: String): String = nameOfPath(path).ifEmpty { MediaPathConventions.fileName(path) }
 
     private fun MediaSourceInfo.displayNameOrPath(path: String): String =
         connectionInfo["displayName"] ?: nameOfPath(path).ifEmpty { path }
@@ -477,12 +562,6 @@ class ScanCoordinator @Inject constructor(
             }
         } catch (e: Exception) {
             Log.w("ScanCoordinator", "Error parsing NFO: $nfoPath", e)
-            MiruLog.w(
-                "ScanCoordinator",
-                "Error parsing NFO",
-                e,
-                mapOf("nfo_path" to nfoPath)
-            )
         }
     }
 
@@ -505,14 +584,6 @@ class ScanCoordinator @Inject constructor(
                     generatedNfoWriter.writeTvShowNfo(tvshowPath.absolutePath, anime.toTvShowNfoMetadata())
                         .onError { error ->
                             Log.w("ScanCoordinator", "Failed to generate tvshow.nfo for ${anime.id}: $error")
-                            MiruLog.w(
-                                "ScanCoordinator",
-                                "Failed to generate tvshow.nfo",
-                                attributes = mapOf(
-                                    "anime_id" to anime.id,
-                                    "error" to error.toUserMessage()
-                                )
-                            )
                         }
                 }
             }
@@ -530,14 +601,6 @@ class ScanCoordinator @Inject constructor(
                 episode.toNfoMetadata(anime)
             ).onError { error ->
                 Log.w("ScanCoordinator", "Failed to generate episode NFO for ${episode.id}: $error")
-                MiruLog.w(
-                    "ScanCoordinator",
-                    "Failed to generate episode NFO",
-                    attributes = mapOf(
-                        "episode_id" to episode.id,
-                        "error" to error.toUserMessage()
-                    )
-                )
             }
         }
     }

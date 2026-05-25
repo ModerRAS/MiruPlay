@@ -30,14 +30,46 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.design.MiruPlayUiMetrics
+import com.miruplay.tv.design.horizontalNavigationDelta
+import com.miruplay.tv.design.verticalNavigationDelta
 import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.confidencePercentLabel
+import com.miruplay.tv.model.detailSyncProgressActionLabel
+import com.miruplay.tv.model.metadataAcceptReviewActionLabel
+import com.miruplay.tv.model.metadataApplyBatchActionLabel
+import com.miruplay.tv.model.metadataApplyMatchActionLabel
+import com.miruplay.tv.model.metadataBatchCandidatesSectionTitle
+import com.miruplay.tv.model.metadataBatchPageLabel
+import com.miruplay.tv.model.metadataBatchPreviewActionLabel
+import com.miruplay.tv.model.metadataBatchPreviewedCountLabel
+import com.miruplay.tv.model.metadataBatchStatusLabel
+import com.miruplay.tv.model.metadataBangumiLinkedLabel
+import com.miruplay.tv.model.metadataCandidatePageLabel
+import com.miruplay.tv.model.metadataClearActionLabel
+import com.miruplay.tv.model.metadataEmptyResultsMessage
+import com.miruplay.tv.model.metadataMatchesSectionTitle
+import com.miruplay.tv.model.metadataNoMatchLabel
+import com.miruplay.tv.model.metadataNoSelectedIndexMessage
+import com.miruplay.tv.model.metadataPageUnitLabel
+import com.miruplay.tv.model.metadataPanelTitleLabel
+import com.miruplay.tv.model.metadataQueryFieldLabel
+import com.miruplay.tv.model.metadataSearchActionLabel
+import com.miruplay.tv.model.metadataSearchResultsPageLabel
+import com.miruplay.tv.model.metadataSelectedIndexSectionTitle
+import com.miruplay.tv.model.metadataStatusText
+import com.miruplay.tv.model.metadataUndoBatchActionLabel
+import com.miruplay.tv.model.metadataUseSelectedEntryActionLabel
+import com.miruplay.tv.model.pagedListCoercedPageStart
+import com.miruplay.tv.model.pagedListPageStartForIndex
+import com.miruplay.tv.model.pagedListPageSummary
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MetadataBatchMatch
 import com.miruplay.tv.repository.MetadataBatchPlan
 import com.miruplay.tv.repository.displayName
 import com.miruplay.tv.repository.isSameCandidate
+import com.miruplay.tv.repository.selectedCandidateLabel
 import com.miruplay.tv.repository.statusFor
 
 @Composable
@@ -51,6 +83,7 @@ internal fun BangumiPanel(
     selectedBatchMatch: MetadataBatchMatch?,
     batchPlan: MetadataBatchPlan?,
     status: String,
+    isSyncingProgress: Boolean = false,
     onUseSelectedEntry: () -> Unit,
     onSearch: () -> Unit,
     onBatchPreview: () -> Unit,
@@ -62,11 +95,12 @@ internal fun BangumiPanel(
     onResultSelected: (ScraperResult) -> Unit,
     onApply: () -> Unit,
     onClear: () -> Unit,
+    onSyncProgress: () -> Unit,
     onFocusPreviousPanel: () -> Boolean = { false },
     onFocusNextPanel: () -> Boolean = { false },
     focusVersion: Int = 0,
 ) {
-    val labels = desktopBangumiUiLabels()
+    val labels = desktopBangumiUiLabels(isSyncingProgress = isSyncingProgress)
     val actionFocusRequesters = remember {
         BangumiAction.entries.associateWith { FocusRequester() }
     }
@@ -216,21 +250,21 @@ internal fun BangumiPanel(
             null -> false
         }
 
-    fun moveActionFocus(action: BangumiAction, key: Key): Boolean =
+    fun moveActionFocus(action: BangumiAction, intent: MiruPlayInputIntent): Boolean =
         requestBangumiFocus(
             bangumiActionFocusTarget(
                 current = action,
-                key = key,
+                intent = intent,
                 batchMatchCount = batchMatches.size,
                 candidateCount = batchCandidates.size,
                 resultCount = results.size,
             ),
         )
 
-    fun moveListFocus(position: BangumiListPosition, key: Key): Boolean =
+    fun moveListFocus(position: BangumiListPosition, intent: MiruPlayInputIntent): Boolean =
         bangumiListNavigationTarget(
             current = position,
-            key = key,
+            intent = intent,
             batchMatchCount = batchMatches.size,
             candidateCount = batchCandidates.size,
             resultCount = results.size,
@@ -238,17 +272,17 @@ internal fun BangumiPanel(
             ?: requestBangumiFocus(
                 bangumiListExitFocusTarget(
                     current = position,
-                    key = key,
+                    intent = intent,
                     batchMatchCount = batchMatches.size,
                     candidateCount = batchCandidates.size,
                     resultCount = results.size,
                 ),
             )
 
-    fun moveEmptyResultsFocus(key: Key): Boolean =
+    fun moveEmptyResultsFocus(intent: MiruPlayInputIntent): Boolean =
         requestBangumiFocus(
             bangumiEmptyResultsFocusTarget(
-                key = key,
+                intent = intent,
                 batchMatchCount = batchMatches.size,
                 candidateCount = batchCandidates.size,
             ),
@@ -408,19 +442,31 @@ internal fun BangumiPanel(
                             ),
                     )
                     TvActionButton(
-                        labels.acceptReview,
-                        onClick = onBatchAcceptReview,
+                        labels.syncProgress,
+                        onClick = onSyncProgress,
                         secondary = true,
                         modifier = Modifier
                             .weight(1f)
                             .bangumiActionNavigation(
-                                action = BangumiAction.AcceptReview,
-                                focusRequester = actionFocusRequesters.getValue(BangumiAction.AcceptReview),
+                                action = BangumiAction.SyncProgress,
+                                focusRequester = actionFocusRequesters.getValue(BangumiAction.SyncProgress),
                                 onMove = ::moveActionFocus,
                             ),
                     )
                 }
-                StatusBox(desktopBangumiStatusText(status))
+                TvActionButton(
+                    labels.acceptReview,
+                    onClick = onBatchAcceptReview,
+                    secondary = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .bangumiActionNavigation(
+                            action = BangumiAction.AcceptReview,
+                            focusRequester = actionFocusRequesters.getValue(BangumiAction.AcceptReview),
+                            onMove = ::moveActionFocus,
+                        ),
+                )
+                StatusBox(metadataStatusText(status))
             }
             Column(
                 modifier = Modifier.weight(0.58f),
@@ -431,7 +477,7 @@ internal fun BangumiPanel(
                 Text(labels.matches, color = TextPrimary, fontSize = MiruPlayUiMetrics.SECTION_SUBTITLE_SP.sp, fontWeight = FontWeight.SemiBold)
                 if (visibleBatchMatches.isNotEmpty()) {
                     Text(
-                        "批量：${batchMatches.size} 个查询已预览",
+                        metadataBatchPreviewedCountLabel(batchMatches.size),
                         color = TextSecondary,
                         fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
                     )
@@ -442,14 +488,14 @@ internal fun BangumiPanel(
                             selected = selectedBatchMatch?.query == match.query,
                             status = batchPlan.statusFor(match),
                             onClick = { selectAndFocus(BangumiListPosition(BangumiListSection.BatchMatches, absoluteIndex)) },
-                            onNavigationKey = { key ->
-                                moveListFocus(BangumiListPosition(BangumiListSection.BatchMatches, absoluteIndex), key)
+                            onNavigationIntent = { intent ->
+                                moveListFocus(BangumiListPosition(BangumiListSection.BatchMatches, absoluteIndex), intent)
                             },
                             modifier = Modifier.focusRequester(batchFocusRequesters[index]),
                         )
                     }
                     bangumiPageSummary(
-                        label = "批量",
+                        label = metadataBatchPageLabel(),
                         pageStart = batchPageStart,
                         visibleCount = visibleBatchMatches.size,
                         itemCount = batchMatches.size,
@@ -475,14 +521,14 @@ internal fun BangumiPanel(
                             result = candidate,
                             selected = candidate.isSameCandidate(match.result),
                             onClick = { selectAndFocus(BangumiListPosition(BangumiListSection.BatchCandidates, absoluteIndex)) },
-                            onNavigationKey = { key ->
-                                moveListFocus(BangumiListPosition(BangumiListSection.BatchCandidates, absoluteIndex), key)
+                            onNavigationIntent = { intent ->
+                                moveListFocus(BangumiListPosition(BangumiListSection.BatchCandidates, absoluteIndex), intent)
                             },
                             modifier = Modifier.focusRequester(candidateFocusRequesters[index]),
                         )
                     }
                     bangumiPageSummary(
-                        label = "候选",
+                        label = metadataCandidatePageLabel(),
                         pageStart = candidatePageStart,
                         visibleCount = visibleBatchCandidates.size,
                         itemCount = batchCandidates.size,
@@ -508,14 +554,14 @@ internal fun BangumiPanel(
                             result = result,
                             selected = selectedResult?.animeId == result.animeId,
                             onClick = { selectAndFocus(BangumiListPosition(BangumiListSection.SearchResults, absoluteIndex)) },
-                            onNavigationKey = { key ->
-                                moveListFocus(BangumiListPosition(BangumiListSection.SearchResults, absoluteIndex), key)
+                            onNavigationIntent = { intent ->
+                                moveListFocus(BangumiListPosition(BangumiListSection.SearchResults, absoluteIndex), intent)
                             },
                             modifier = Modifier.focusRequester(resultFocusRequesters[index]),
                         )
                     }
                     bangumiPageSummary(
-                        label = "搜索结果",
+                        label = metadataSearchResultsPageLabel(),
                         pageStart = resultPageStart,
                         visibleCount = visibleResults.size,
                         itemCount = results.size,
@@ -537,7 +583,7 @@ internal fun BangumiPanel(
 private fun BangumiEmptyResultsState(
     text: String,
     focusRequester: FocusRequester,
-    onMove: (Key) -> Boolean,
+    onMove: (MiruPlayInputIntent) -> Boolean,
 ) {
     DesktopSelectableRow(
         selected = false,
@@ -546,7 +592,7 @@ private fun BangumiEmptyResultsState(
             .focusRequester(focusRequester),
         heightDp = MiruPlayUiMetrics.EMPTY_STATE_HEIGHT_DP,
         inactiveAlpha = 0.48f,
-        onNavigationKey = onMove,
+        onNavigationIntent = onMove,
     ) { active ->
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -572,7 +618,7 @@ private fun SelectedIndexSummary(entry: MediaIndexEntry?) {
             .padding(MiruPlayUiMetrics.STACK_GAP_DP.dp),
     ) {
         if (entry == null) {
-            Text("尚未选择索引视频。", color = TextSecondary, fontSize = MiruPlayUiMetrics.PANEL_BODY_SP.sp)
+            Text(metadataNoSelectedIndexMessage(), color = TextSecondary, fontSize = MiruPlayUiMetrics.PANEL_BODY_SP.sp)
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.TINY_GAP_DP.dp)) {
                 Text(
@@ -584,7 +630,7 @@ private fun SelectedIndexSummary(entry: MediaIndexEntry?) {
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    entry.metadataTitle?.let { "Bangumi：$it" } ?: "Bangumi：未关联",
+                    metadataBangumiLinkedLabel(entry.metadataTitle),
                     color = TextSecondary,
                     fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
                     maxLines = 1,
@@ -607,14 +653,14 @@ private fun BangumiResultRow(
     result: ScraperResult,
     selected: Boolean,
     onClick: () -> Unit,
-    onNavigationKey: (Key) -> Boolean = { false },
+    onNavigationIntent: (MiruPlayInputIntent) -> Boolean = { false },
     modifier: Modifier = Modifier,
 ) {
     DesktopSelectableRow(
         selected = selected,
         onClick = onClick,
         modifier = modifier,
-        onNavigationKey = onNavigationKey,
+        onNavigationIntent = onNavigationIntent,
     ) { active ->
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -655,7 +701,7 @@ private fun BangumiBatchMatchRow(
     selected: Boolean,
     status: String,
     onClick: () -> Unit,
-    onNavigationKey: (Key) -> Boolean = { false },
+    onNavigationIntent: (MiruPlayInputIntent) -> Boolean = { false },
     modifier: Modifier = Modifier,
 ) {
     val result = match.result
@@ -665,7 +711,7 @@ private fun BangumiBatchMatchRow(
         modifier = modifier,
         heightDp = MiruPlayUiMetrics.LIST_ROW_COMPACT_HEIGHT_DP,
         inactiveAlpha = 0.44f,
-        onNavigationKey = onNavigationKey,
+        onNavigationIntent = onNavigationIntent,
     ) { _ ->
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -696,7 +742,7 @@ private fun BangumiBatchMatchRow(
                             ""
                         }
                         it.bangumiCandidateSummary(candidateSuffix)
-                    } ?: "无匹配",
+                    } ?: metadataNoMatchLabel(),
                     color = TextSecondary,
                     fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
                     maxLines = 1,
@@ -722,150 +768,37 @@ internal data class DesktopBangumiUiLabels(
     val applyBatch: String,
     val undoBatch: String,
     val acceptReview: String,
+    val syncProgress: String,
     val selectedIndex: String,
     val matches: String,
     val batchCandidates: String,
     val emptyResults: String,
 )
 
-internal fun desktopBangumiUiLabels(): DesktopBangumiUiLabels =
+internal fun desktopBangumiUiLabels(isSyncingProgress: Boolean = false): DesktopBangumiUiLabels =
     DesktopBangumiUiLabels(
-        title = "Bangumi 元数据",
-        query = "Bangumi 搜索词",
-        useSelected = "使用当前条目",
-        search = "搜索",
-        applyMatch = "应用匹配",
-        clearMetadata = "清除元数据",
-        batchPreview = "批量预览",
-        applyBatch = "应用批量",
-        undoBatch = "撤销批量",
-        acceptReview = "接受复核",
-        selectedIndex = "当前索引",
-        matches = "Bangumi 匹配",
-        batchCandidates = "候选条目",
-        emptyResults = "搜索后在这里显示 Bangumi 匹配。",
+        title = metadataPanelTitleLabel(),
+        query = metadataQueryFieldLabel(),
+        useSelected = metadataUseSelectedEntryActionLabel(),
+        search = metadataSearchActionLabel(),
+        applyMatch = metadataApplyMatchActionLabel(),
+        clearMetadata = metadataClearActionLabel(),
+        batchPreview = metadataBatchPreviewActionLabel(),
+        applyBatch = metadataApplyBatchActionLabel(),
+        undoBatch = metadataUndoBatchActionLabel(),
+        acceptReview = metadataAcceptReviewActionLabel(),
+        syncProgress = detailSyncProgressActionLabel(isSyncing = isSyncingProgress),
+        selectedIndex = metadataSelectedIndexSectionTitle(),
+        matches = metadataMatchesSectionTitle(),
+        batchCandidates = metadataBatchCandidatesSectionTitle(),
+        emptyResults = metadataEmptyResultsMessage(),
     )
 
-private val metadataInitialStatusRegex = Regex("""^Select an indexed video, then search (.+)\.$""")
-private val metadataQueryRequiredRegex = Regex("""^Enter a (.+) query or select an indexed video\.$""")
-private val metadataSearchStartedRegex = Regex("""^Searching (.+) for "(.*)"\.\.\.$""")
-private val metadataNoMatchRegex = Regex("""^No (.+) metadata matched "(.*)"\.$""")
-private val metadataFoundRegex = Regex("""^Found (\d+) (.+) match\(es\)\.$""")
-private val selectedBatchCandidateRegex = Regex("""^Selected batch candidate for (.+): (.*)\.$""")
-private val selectedBatchReviewRegex = Regex("""^Selected batch review: (.+)\.$""")
-private val metadataBatchResultRequiredRegex = Regex("""^Select a batch match with a (.+) result first\.$""")
-private val metadataReviewConflictRegex = Regex("""^Selected review has (\d+) metadata conflict(s?); nothing was overwritten\.$""")
-private val selectedMetadataRegex = Regex("""^Selected (.+)\.$""")
-private val metadataApplyRequiredRegex = Regex("""^Select an indexed video before applying (.+) metadata\.$""")
-private val metadataSearchSelectionRequiredRegex = Regex("""^Search (.+) and select a match first\.$""")
-private val metadataAppliedRegex = Regex("""^Applied (.+) metadata to (.+)\.$""")
-private val metadataClearedRegex = Regex("""^Cleared external metadata for (.+)\.$""")
-private val metadataBatchSearchingRegex = Regex("""^Searching (.+) for (\d+) indexed title\(s\)\.\.\.$""")
-private val noMetadataBatchEntriesRegex = Regex("""^No indexed entries are available for (.+) batch matching\.$""")
-private val metadataPlanSummaryRegex = Regex("""^(\d+) ready, (\d+) review, (\d+) conflicts$""")
-private val metadataBatchAppliedRegex = Regex("""^Applied Bangumi batch metadata to (\d+) index entr(?:y|ies); (\d+) conflict(s?) skipped\.$""")
-private val metadataReviewAcceptedRegex = Regex("""^Accepted reviewed Bangumi match for (\d+) index entr(?:y|ies)\.$""")
-private val metadataBatchRestoredRegex = Regex("""^Restored (\d+) index entr(?:y|ies) from the previous Bangumi batch\.$""")
-
-internal fun desktopBangumiStatusText(status: String): String =
-    when {
-        status == "Select an indexed video first." ->
-            "请先选择一个索引视频。"
-        status == "Query set from selected index entry." ->
-            "已从当前索引条目填入搜索词。"
-        status == "Open or scan a source first." ->
-            "请先打开或扫描媒体源。"
-        status == "Selected review has no matching indexed entries." ->
-            "当前复核项没有匹配的索引条目。"
-        status == "Select an indexed video before clearing metadata." ->
-            "请先选择索引视频，再清除元数据。"
-        status == "Run Batch preview first; no high-confidence matches are ready." ->
-            "请先运行批量预览；当前没有可直接应用的高置信匹配。"
-        status == "No batch Bangumi changes are available to undo." ->
-            "没有可撤销的 Bangumi 批量更改。"
-        else -> desktopBangumiDynamicStatusText(status) ?: status
-    }
-
-private fun desktopBangumiDynamicStatusText(status: String): String? {
-    metadataInitialStatusRegex.matchEntire(status)?.let { match ->
-        return "选择索引视频后可搜索 ${match.groupValues[1]}。"
-    }
-    metadataQueryRequiredRegex.matchEntire(status)?.let { match ->
-        return "请输入 ${match.groupValues[1]} 搜索词，或先选择索引视频。"
-    }
-    metadataSearchStartedRegex.matchEntire(status)?.let { match ->
-        return "正在搜索 ${match.groupValues[1]}：\"${match.groupValues[2]}\"..."
-    }
-    metadataNoMatchRegex.matchEntire(status)?.let { match ->
-        return "没有匹配 \"${match.groupValues[2]}\" 的 ${match.groupValues[1]} 元数据。"
-    }
-    metadataFoundRegex.matchEntire(status)?.let { match ->
-        return "找到 ${match.groupValues[1]} 个 ${match.groupValues[2]} 匹配。"
-    }
-    selectedBatchCandidateRegex.matchEntire(status)?.let { match ->
-        return "已选择批量候选：${match.groupValues[1]} -> ${match.groupValues[2]}"
-    }
-    selectedBatchReviewRegex.matchEntire(status)?.let { match ->
-        return "已选择批量复核：${match.groupValues[1]}"
-    }
-    metadataBatchResultRequiredRegex.matchEntire(status)?.let { match ->
-        return "请先选择带 ${match.groupValues[1]} 结果的批量匹配。"
-    }
-    metadataReviewConflictRegex.matchEntire(status)?.let { match ->
-        return "当前复核项有 ${match.groupValues[1]} 个元数据冲突，未覆盖任何内容。"
-    }
-    selectedMetadataRegex.matchEntire(status)?.let { match ->
-        return "已选择：${match.groupValues[1]}"
-    }
-    metadataApplyRequiredRegex.matchEntire(status)?.let { match ->
-        return "请先选择索引视频，再应用 ${match.groupValues[1]} 元数据。"
-    }
-    metadataSearchSelectionRequiredRegex.matchEntire(status)?.let { match ->
-        return "请先搜索 ${match.groupValues[1]} 并选择一个匹配。"
-    }
-    metadataBatchAppliedRegex.matchEntire(status)?.let { match ->
-        return "已将 Bangumi 批量元数据应用到 ${match.groupValues[1]} 个索引条目，跳过 ${match.groupValues[2]} 个冲突。"
-    }
-    metadataAppliedRegex.matchEntire(status)?.let { match ->
-        return "已将 ${match.groupValues[1]} 元数据应用到 ${match.groupValues[2]}。"
-    }
-    metadataClearedRegex.matchEntire(status)?.let { match ->
-        return "已清除 ${match.groupValues[1]} 的外部元数据。"
-    }
-    metadataBatchSearchingRegex.matchEntire(status)?.let { match ->
-        return "正在用 ${match.groupValues[1]} 搜索 ${match.groupValues[2]} 个索引标题..."
-    }
-    noMetadataBatchEntriesRegex.matchEntire(status)?.let { match ->
-        return "没有可用于 ${match.groupValues[1]} 批量匹配的索引条目。"
-    }
-    metadataPlanSummaryRegex.matchEntire(status)?.let { match ->
-        return "${match.groupValues[1]} 个可应用，${match.groupValues[2]} 个需复核，${match.groupValues[3]} 个冲突"
-    }
-    metadataReviewAcceptedRegex.matchEntire(status)?.let { match ->
-        return "已接受复核的 Bangumi 匹配，更新 ${match.groupValues[1]} 个索引条目。"
-    }
-    metadataBatchRestoredRegex.matchEntire(status)?.let { match ->
-        return "已从上一次 Bangumi 批量更改中恢复 ${match.groupValues[1]} 个索引条目。"
-    }
-    return null
-}
-
 internal fun desktopBangumiBatchStatusLabel(status: String): String =
-    when (status) {
-        "preview" -> "预览"
-        "ready" -> "可用"
-        "review" -> "复核"
-        "conflict" -> "冲突"
-        else -> status
-    }
+    metadataBatchStatusLabel(status)
 
 internal fun MetadataBatchMatch.desktopSelectedCandidateLabel(): String {
-    val selectedIndex = candidates.indexOfFirst { it.isSameCandidate(result) }
-    return if (selectedIndex >= 0) {
-        "候选 ${selectedIndex + 1}/${candidates.size}"
-    } else {
-        "${candidates.size} 个候选"
-    }
+    return selectedCandidateLabel()
 }
 
 internal enum class BangumiListSection {
@@ -890,7 +823,8 @@ internal enum class BangumiAction(
     BatchPreview(row = 2, column = 0),
     ApplyBatch(row = 2, column = 1),
     UndoBatch(row = 3, column = 0),
-    AcceptReview(row = 3, column = 1),
+    SyncProgress(row = 3, column = 1),
+    AcceptReview(row = 4, column = 0),
 }
 
 internal sealed interface BangumiActionFocusTarget {
@@ -908,33 +842,53 @@ internal fun bangumiActionFocusTarget(
     candidateCount: Int = 0,
     resultCount: Int = 0,
 ): BangumiActionFocusTarget? =
-    when (key) {
-        Key.DirectionLeft -> bangumiActionAt(current.row, current.column - 1)?.let(BangumiActionFocusTarget::Action)
-        Key.DirectionRight ->
+    key.toMiruPlayInputIntent()?.let { intent ->
+        bangumiActionFocusTarget(
+            current = current,
+            intent = intent,
+            batchMatchCount = batchMatchCount,
+            candidateCount = candidateCount,
+            resultCount = resultCount,
+        )
+    }
+
+internal fun bangumiActionFocusTarget(
+    current: BangumiAction,
+    intent: MiruPlayInputIntent,
+    batchMatchCount: Int = 0,
+    candidateCount: Int = 0,
+    resultCount: Int = 0,
+): BangumiActionFocusTarget? =
+    when (intent.horizontalNavigationDelta()) {
+        -1 -> bangumiActionAt(current.row, current.column - 1)?.let(BangumiActionFocusTarget::Action)
+        1 ->
             bangumiActionAt(current.row, current.column + 1)?.let(BangumiActionFocusTarget::Action)
                 ?: firstBangumiListPosition(
                     batchMatchCount = batchMatchCount,
                     candidateCount = candidateCount,
                     resultCount = resultCount,
-                )?.takeIf { current.column == 1 }?.let(BangumiActionFocusTarget::ListPosition)
+                )?.takeIf { current.column == 1 || current == BangumiAction.AcceptReview }?.let(BangumiActionFocusTarget::ListPosition)
                 ?: BangumiActionFocusTarget.EmptyResults.takeIf {
-                    current.column == 1 &&
+                    (current.column == 1 || current == BangumiAction.AcceptReview) &&
                         batchMatchCount == 0 &&
                         candidateCount == 0 &&
                         resultCount == 0
                 }
-        Key.DirectionDown ->
-            bangumiActionAt(current.row + 1, current.column)?.let(BangumiActionFocusTarget::Action)
-                ?: BangumiActionFocusTarget.NextPanel.takeIf { current.row == BangumiAction.entries.maxOf { it.row } }
-        Key.DirectionUp -> {
-            val target = bangumiActionAt(current.row - 1, current.column)
-            if (target == null && current.row == 0) {
-                BangumiActionFocusTarget.PreviousPanel
-            } else {
-                target?.let(BangumiActionFocusTarget::Action)
+        else -> when (intent.verticalNavigationDelta()) {
+            1 ->
+                bangumiActionAt(current.row + 1, current.column)?.let(BangumiActionFocusTarget::Action)
+                    ?: BangumiActionFocusTarget.Action(BangumiAction.AcceptReview).takeIf { current == BangumiAction.SyncProgress }
+                    ?: BangumiActionFocusTarget.NextPanel.takeIf { current.row == BangumiAction.entries.maxOf { it.row } }
+            -1 -> {
+                val target = bangumiActionAt(current.row - 1, current.column)
+                if (target == null && current.row == 0) {
+                    BangumiActionFocusTarget.PreviousPanel
+                } else {
+                    target?.let(BangumiActionFocusTarget::Action)
+                }
             }
+            else -> null
         }
-        else -> null
     }
 
 private fun bangumiActionAt(row: Int, column: Int): BangumiAction? =
@@ -961,6 +915,23 @@ internal fun bangumiListNavigationTarget(
     batchMatchCount: Int,
     candidateCount: Int,
     resultCount: Int,
+): BangumiListPosition? =
+    key.toMiruPlayInputIntent()?.let { intent ->
+        bangumiListNavigationTarget(
+            current = current,
+            intent = intent,
+            batchMatchCount = batchMatchCount,
+            candidateCount = candidateCount,
+            resultCount = resultCount,
+        )
+    }
+
+internal fun bangumiListNavigationTarget(
+    current: BangumiListPosition,
+    intent: MiruPlayInputIntent,
+    batchMatchCount: Int,
+    candidateCount: Int,
+    resultCount: Int,
 ): BangumiListPosition? {
     val safeBatchMatchCount = batchMatchCount.coerceAtLeast(0)
     val safeCandidateCount = candidateCount.coerceAtLeast(0)
@@ -978,8 +949,8 @@ internal fun bangumiListNavigationTarget(
     }
     val currentIndex = visibleRows.indexOf(current)
     if (currentIndex < 0) return null
-    val targetIndex = when (key) {
-        Key.DirectionRight -> {
+    val targetIndex = when (intent.horizontalNavigationDelta()) {
+        1 -> {
             if (current.section == BangumiListSection.BatchMatches && safeCandidateCount > 0) {
                 return BangumiListPosition(
                     section = BangumiListSection.BatchCandidates,
@@ -988,7 +959,7 @@ internal fun bangumiListNavigationTarget(
             }
             return null
         }
-        Key.DirectionLeft -> {
+        -1 -> {
             if (current.section == BangumiListSection.BatchCandidates && safeBatchMatchCount > 0) {
                 return BangumiListPosition(
                     section = BangumiListSection.BatchMatches,
@@ -997,9 +968,11 @@ internal fun bangumiListNavigationTarget(
             }
             return null
         }
-        Key.DirectionDown -> currentIndex + 1
-        Key.DirectionUp -> currentIndex - 1
-        else -> return null
+        else -> when (intent.verticalNavigationDelta()) {
+            1 -> currentIndex + 1
+            -1 -> currentIndex - 1
+            else -> return null
+        }
     }
     return visibleRows.getOrNull(targetIndex)
 }
@@ -1010,6 +983,12 @@ internal fun bangumiListExitActionTarget(
 ): BangumiAction? =
     (bangumiListExitFocusTarget(current, key) as? BangumiActionFocusTarget.Action)?.action
 
+internal fun bangumiListExitActionTarget(
+    current: BangumiListPosition,
+    intent: MiruPlayInputIntent,
+): BangumiAction? =
+    (bangumiListExitFocusTarget(current, intent) as? BangumiActionFocusTarget.Action)?.action
+
 internal fun bangumiListExitFocusTarget(
     current: BangumiListPosition,
     key: Key,
@@ -1017,28 +996,47 @@ internal fun bangumiListExitFocusTarget(
     candidateCount: Int = 0,
     resultCount: Int = 0,
 ): BangumiActionFocusTarget? =
-    when (key) {
-        Key.DirectionLeft -> when (current.section) {
+    key.toMiruPlayInputIntent()?.let { intent ->
+        bangumiListExitFocusTarget(
+            current = current,
+            intent = intent,
+            batchMatchCount = batchMatchCount,
+            candidateCount = candidateCount,
+            resultCount = resultCount,
+        )
+    }
+
+internal fun bangumiListExitFocusTarget(
+    current: BangumiListPosition,
+    intent: MiruPlayInputIntent,
+    batchMatchCount: Int = 0,
+    candidateCount: Int = 0,
+    resultCount: Int = 0,
+): BangumiActionFocusTarget? =
+    when (intent.horizontalNavigationDelta()) {
+        -1 -> when (current.section) {
             BangumiListSection.BatchMatches -> BangumiActionFocusTarget.Action(BangumiAction.BatchPreview)
             BangumiListSection.BatchCandidates -> null
             BangumiListSection.SearchResults -> BangumiActionFocusTarget.Action(BangumiAction.ApplyMatch)
         }
-        Key.DirectionDown -> BangumiActionFocusTarget.NextPanel.takeIf {
-            bangumiListNavigationTarget(
-                current = current,
-                key = key,
-                batchMatchCount = batchMatchCount,
-                candidateCount = candidateCount,
-                resultCount = resultCount,
-            ) == null
-        }?.let { target ->
-            if (resultCount == 0 && current.section != BangumiListSection.SearchResults) {
-                BangumiActionFocusTarget.EmptyResults
-            } else {
-                target
+        else -> when (intent.verticalNavigationDelta()) {
+            1 -> BangumiActionFocusTarget.NextPanel.takeIf {
+                bangumiListNavigationTarget(
+                    current = current,
+                    intent = intent,
+                    batchMatchCount = batchMatchCount,
+                    candidateCount = candidateCount,
+                    resultCount = resultCount,
+                ) == null
+            }?.let { target ->
+                if (resultCount == 0 && current.section != BangumiListSection.SearchResults) {
+                    BangumiActionFocusTarget.EmptyResults
+                } else {
+                    target
+                }
             }
+            else -> null
         }
-        else -> null
     }
 
 internal fun bangumiEmptyResultsFocusTarget(
@@ -1046,15 +1044,30 @@ internal fun bangumiEmptyResultsFocusTarget(
     batchMatchCount: Int = 0,
     candidateCount: Int = 0,
 ): BangumiActionFocusTarget? =
-    when (key) {
-        Key.DirectionLeft -> BangumiActionFocusTarget.Action(BangumiAction.ApplyMatch)
-        Key.DirectionUp -> lastBangumiListPosition(
+    key.toMiruPlayInputIntent()?.let { intent ->
+        bangumiEmptyResultsFocusTarget(
+            intent = intent,
             batchMatchCount = batchMatchCount,
             candidateCount = candidateCount,
-        )?.let(BangumiActionFocusTarget::ListPosition)
-            ?: BangumiActionFocusTarget.Action(BangumiAction.Search)
-        Key.DirectionDown -> BangumiActionFocusTarget.NextPanel
-        else -> null
+        )
+    }
+
+internal fun bangumiEmptyResultsFocusTarget(
+    intent: MiruPlayInputIntent,
+    batchMatchCount: Int = 0,
+    candidateCount: Int = 0,
+): BangumiActionFocusTarget? =
+    when (intent.horizontalNavigationDelta()) {
+        -1 -> BangumiActionFocusTarget.Action(BangumiAction.ApplyMatch)
+        else -> when (intent.verticalNavigationDelta()) {
+            -1 -> lastBangumiListPosition(
+                batchMatchCount = batchMatchCount,
+                candidateCount = candidateCount,
+            )?.let(BangumiActionFocusTarget::ListPosition)
+                ?: BangumiActionFocusTarget.Action(BangumiAction.Search)
+            1 -> BangumiActionFocusTarget.NextPanel
+            else -> null
+        }
     }
 
 private fun lastBangumiListPosition(
@@ -1079,28 +1092,13 @@ internal fun bangumiPageStartForIndex(
     index: Int,
     itemCount: Int,
     pageSize: Int,
-): Int {
-    if (itemCount <= 0 || pageSize <= 0) return 0
-    val safeIndex = index.coerceIn(0, itemCount - 1)
-    return (safeIndex / pageSize) * pageSize
-}
+): Int = pagedListPageStartForIndex(index, itemCount, pageSize)
 
 internal fun bangumiCoercedPageStart(
     pageStart: Int,
     itemCount: Int,
     pageSize: Int,
-): Int {
-    if (itemCount <= 0 || pageSize <= 0) return 0
-    val maxPageStart = bangumiPageStartForIndex(
-        index = itemCount - 1,
-        itemCount = itemCount,
-        pageSize = pageSize,
-    )
-    return (pageStart / pageSize)
-        .coerceAtLeast(0)
-        .times(pageSize)
-        .coerceAtMost(maxPageStart)
-}
+): Int = pagedListCoercedPageStart(pageStart, itemCount, pageSize)
 
 internal fun bangumiPageSummary(
     label: String,
@@ -1109,19 +1107,24 @@ internal fun bangumiPageSummary(
     itemCount: Int,
     pageSize: Int,
 ): String? {
-    if (itemCount <= 0 || visibleCount <= 0 || visibleCount >= itemCount) return null
     val safeStart = bangumiCoercedPageStart(pageStart, itemCount, pageSize)
-    val end = (safeStart + visibleCount).coerceAtMost(itemCount)
-    return "$label：显示 ${safeStart + 1}-$end / $itemCount 个条目，按上/下继续翻页。"
+    return pagedListPageSummary(
+        pageStart = safeStart,
+        visibleCount = visibleCount,
+        itemCount = itemCount,
+        pageSize = pageSize,
+        unitLabel = metadataPageUnitLabel(),
+        prefix = label,
+    )
 }
 
 private fun Modifier.bangumiActionNavigation(
     action: BangumiAction,
     focusRequester: FocusRequester,
-    onMove: (BangumiAction, Key) -> Boolean,
+    onMove: (BangumiAction, MiruPlayInputIntent) -> Boolean,
 ): Modifier =
     focusRequester(focusRequester)
-        .desktopNavigationKeyHandler { key -> onMove(action, key) }
+        .desktopNavigationIntentHandler { intent -> onMove(action, intent) }
 
 internal fun bangumiTopActionKeyEvent(
     key: Key,

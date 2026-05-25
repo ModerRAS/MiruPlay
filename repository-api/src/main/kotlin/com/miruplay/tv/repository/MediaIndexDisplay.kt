@@ -3,6 +3,7 @@ package com.miruplay.tv.repository
 import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.ScraperResult
+import com.miruplay.tv.model.mediaDetailIndexedKindValue
 import com.miruplay.tv.model.displayTitle
 
 fun MediaIndexEntry.displayName(): String {
@@ -15,7 +16,7 @@ fun MediaIndexEntry.displayName(): String {
 }
 
 fun MediaIndexEntry.displayLine(): String {
-    val kind = if (isDirectory) "DIR" else "VID"
+    val kind = mediaDetailIndexedKindValue(isDirectory)
     return "[$kind] ${displayName()}  $path"
 }
 
@@ -55,6 +56,9 @@ fun MediaIndexEntry.clearExternalMetadata(sourceId: Long = this.sourceId): Media
 fun MediaIndexEntry.hasSameMediaKeyAs(other: MediaIndexEntry): Boolean =
     sourceId == other.sourceId && path == other.path
 
+fun List<MediaIndexEntry>.mediaFilesOnly(): List<MediaIndexEntry> =
+    filterNot { it.isDirectory }
+
 fun List<MediaIndexEntry>.replaceByMediaKey(updated: MediaIndexEntry): List<MediaIndexEntry> =
     map { entry -> if (entry.hasSameMediaKeyAs(updated)) updated else entry }
 
@@ -63,3 +67,17 @@ fun List<MediaIndexEntry>.replaceByMediaKeys(updatedEntries: List<MediaIndexEntr
     val byKey = updatedEntries.associateBy { it.sourceId to it.path }
     return map { entry -> byKey[entry.sourceId to entry.path] ?: entry }
 }
+
+fun MediaIndexEntry?.updatedSelectionAfterReplacingByMediaKeys(
+    updatedEntries: List<MediaIndexEntry>,
+): MediaIndexEntry? =
+    this?.let { selected ->
+        updatedEntries.firstOrNull { it.hasSameMediaKeyAs(selected) } ?: selected
+    }
+
+fun MediaIndexEntry?.retainedSelectionInMediaIndex(
+    entries: List<MediaIndexEntry>,
+): MediaIndexEntry? =
+    this?.let { selected ->
+        entries.firstOrNull { it.hasSameMediaKeyAs(selected) }
+    }

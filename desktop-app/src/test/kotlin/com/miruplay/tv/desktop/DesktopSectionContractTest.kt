@@ -2,7 +2,12 @@ package com.miruplay.tv.desktop
 
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.window.WindowPlacement
+import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.design.MiruPlayRouteSurface
+import com.miruplay.tv.model.desktopRouteRailSubtitleLabel
+import com.miruplay.tv.model.desktopWindowTitleLabel
+import com.miruplay.tv.model.libraryScanActionLabel
+import com.miruplay.tv.model.librarySettingsActionLabel
 import java.nio.file.Paths
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -34,13 +39,13 @@ class DesktopSectionContractTest {
 
     @Test
     fun `desktop route rail chrome uses TV facing copy`() {
-        assertEquals("电视式导航", desktopRouteRailSubtitle())
+        assertEquals(desktopRouteRailSubtitleLabel(), desktopRouteRailSubtitle())
     }
 
     @Test
     fun `desktop library header keeps Android TV scan and settings actions only`() {
         assertEquals(
-            listOf("扫描", "设置"),
+            listOf(libraryScanActionLabel(), librarySettingsActionLabel()),
             desktopLibraryHeaderActions().map { it.label },
         )
     }
@@ -65,6 +70,43 @@ class DesktopSectionContractTest {
     }
 
     @Test
+    fun `desktop library header focus also uses shared direction intents`() {
+        assertEquals(
+            DesktopLibraryHeaderFocusTarget.Action(DesktopLibraryHeaderAction.Settings),
+            desktopLibraryHeaderFocusTarget(
+                DesktopLibraryHeaderAction.Scan,
+                MiruPlayInputIntent.DirectionRight,
+            ),
+        )
+        assertEquals(
+            DesktopLibraryHeaderFocusTarget.Action(DesktopLibraryHeaderAction.Scan),
+            desktopLibraryHeaderFocusTarget(
+                DesktopLibraryHeaderAction.Settings,
+                MiruPlayInputIntent.DirectionLeft,
+            ),
+        )
+        assertEquals(
+            DesktopLibraryHeaderFocusTarget.NextPanel,
+            desktopLibraryHeaderFocusTarget(
+                DesktopLibraryHeaderAction.Scan,
+                MiruPlayInputIntent.DirectionDown,
+            ),
+        )
+        assertNull(
+            desktopLibraryHeaderFocusTarget(
+                DesktopLibraryHeaderAction.Scan,
+                MiruPlayInputIntent.DirectionUp,
+            ),
+        )
+        assertNull(
+            desktopLibraryHeaderFocusTarget(
+                DesktopLibraryHeaderAction.Scan,
+                MiruPlayInputIntent.Activate,
+            ),
+        )
+    }
+
+    @Test
     fun `desktop escape back follows Android TV route hierarchy`() {
         assertEquals(MiruPlayRouteSurface.details, MiruPlayRouteSurface.player.desktopBackTarget())
         assertEquals(MiruPlayRouteSurface.library, MiruPlayRouteSurface.details.desktopBackTarget())
@@ -74,6 +116,10 @@ class DesktopSectionContractTest {
 
     @Test
     fun `desktop back keys accept TV and navigation remotes without swallowing text editing`() {
+        assertEquals(MiruPlayInputIntent.Back, Key.Escape.toMiruPlayInputIntent())
+        assertEquals(MiruPlayInputIntent.Back, Key.Back.toMiruPlayInputIntent())
+        assertEquals(MiruPlayInputIntent.NavigatePrevious, Key.NavigatePrevious.toMiruPlayInputIntent())
+        assertEquals(MiruPlayInputIntent.NavigateOut, Key.NavigateOut.toMiruPlayInputIntent())
         assertTrue(isDesktopBackKey(Key.Escape))
         assertTrue(isDesktopBackKey(Key.Back))
         assertTrue(isDesktopBackKey(Key.NavigatePrevious))
@@ -113,10 +159,11 @@ class DesktopSectionContractTest {
 
     @Test
     fun `desktop entry smoke report serializes launcher contract`() {
+        val windowTitle = desktopWindowTitleLabel()
         val report = DesktopEntrySmokeReport(
             status = "ok",
             entryPoint = "com.miruplay.tv.desktop.MiruPlayDesktopComposeAppKt",
-            windowTitle = "MiruPlay 桌面版",
+            windowTitle = windowTitle,
             initialSection = "library",
             runtimeRoot = "D:\\MiruPlay\\runtime\\mpv",
             mpvExecutable = "D:\\MiruPlay\\runtime\\mpv\\mpv.exe",
@@ -125,7 +172,7 @@ class DesktopSectionContractTest {
 
         assertTrue(report.contains("\"status\": \"ok\""))
         assertTrue(report.contains("\"entryPoint\": \"com.miruplay.tv.desktop.MiruPlayDesktopComposeAppKt\""))
-        assertTrue(report.contains("\"windowTitle\": \"MiruPlay 桌面版\""))
+        assertTrue(report.contains("\"windowTitle\": \"$windowTitle\""))
         assertTrue(report.contains("\"initialSection\": \"library\""))
         assertTrue(report.contains("\"runtimeRoot\": \"D:\\\\MiruPlay\\\\runtime\\\\mpv\""))
         assertTrue(report.contains("\"mpvExecutable\": \"D:\\\\MiruPlay\\\\runtime\\\\mpv\\\\mpv.exe\""))
@@ -176,5 +223,24 @@ class DesktopSectionContractTest {
         assertEquals(MiruPlayRouteSurface.details, MiruPlayRouteSurface.player.stepDesktopSection(-1))
         assertEquals(MiruPlayRouteSurface.settings, MiruPlayRouteSurface.player.stepDesktopSection(1))
         assertNull(MiruPlayRouteSurface.settings.stepDesktopSection(1))
+        assertEquals(
+            MiruPlayRouteSurface.desktopSectionStep(MiruPlayRouteSurface.player, -1),
+            MiruPlayRouteSurface.player.stepDesktopSection(-1),
+        )
+    }
+
+    @Test
+    fun `desktop route rail navigation uses shared direction intents`() {
+        assertEquals(
+            MiruPlayRouteSurface.details,
+            MiruPlayRouteSurface.library.stepDesktopSection(MiruPlayInputIntent.DirectionDown),
+        )
+        assertEquals(
+            MiruPlayRouteSurface.details,
+            MiruPlayRouteSurface.player.stepDesktopSection(MiruPlayInputIntent.DirectionUp),
+        )
+        assertNull(MiruPlayRouteSurface.library.stepDesktopSection(MiruPlayInputIntent.DirectionUp))
+        assertNull(MiruPlayRouteSurface.library.stepDesktopSection(MiruPlayInputIntent.DirectionRight))
+        assertNull(MiruPlayRouteSurface.library.stepDesktopSection(MiruPlayInputIntent.Activate))
     }
 }

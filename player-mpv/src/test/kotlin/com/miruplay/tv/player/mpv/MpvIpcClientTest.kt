@@ -52,6 +52,28 @@ class MpvIpcClientTest {
     }
 
     @Test
+    fun `getDurationSeconds requests duration and parses response`() = runBlocking {
+        val transport = RecordingTransport("""{"data":1500.25,"error":"success"}""")
+
+        val result = MpvIpcClient("pipe", transport = transport).getDurationSeconds()
+
+        assertTrue(result is Result.Success)
+        assertEquals(1500.25, (result as Result.Success).data ?: 0.0, 0.0001)
+        assertEquals("""{"command":["get_property","duration"]}""", transport.requestPayload)
+    }
+
+    @Test
+    fun `getEofReached requests eof reached and parses response`() = runBlocking {
+        val transport = RecordingTransport("""{"data":true,"error":"success"}""")
+
+        val result = MpvIpcClient("pipe", transport = transport).getEofReached()
+
+        assertTrue(result is Result.Success)
+        assertEquals(true, (result as Result.Success).data)
+        assertEquals("""{"command":["get_property","eof-reached"]}""", transport.requestPayload)
+    }
+
+    @Test
     fun `missing ipc server returns playback error`() = runBlocking {
         val directory = Files.createTempDirectory("miruplay-mpv-ipc")
         try {

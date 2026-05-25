@@ -49,11 +49,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.design.MiruPlayUiMetrics
+import com.miruplay.tv.design.linearNavigationDelta
 import com.miruplay.tv.model.MediaSourceInfo
-import com.miruplay.tv.model.genericSourceName
-import com.miruplay.tv.model.sourceLocation
-import com.miruplay.tv.model.tvDisplayLabel
+import com.miruplay.tv.model.compactMiddleText
+import com.miruplay.tv.model.desktopPosterPlaceholderSubtitleLabel
+import com.miruplay.tv.model.mediaSourceSavedPickerEmptyMessage
+import com.miruplay.tv.model.mediaSourceSavedPickerSubtitleLabel
+import com.miruplay.tv.model.mediaSourceSavedPickerTitleLabel
+import com.miruplay.tv.model.sourcePickerSubtitle
+import com.miruplay.tv.model.sourcePickerTitle
 import com.miruplay.tv.player.mpv.RifeBackend
 
 private const val SOURCE_PICKER_HEIGHT_DP = 70
@@ -138,7 +144,7 @@ internal fun SavedSourcePicker(
                 horizontalAlignment = Alignment.Start,
             ) {
                 Text(
-                    selected?.sourcePickerTitle() ?: "已保存媒体源",
+                    selected?.sourcePickerTitle() ?: mediaSourceSavedPickerTitleLabel(),
                     color = TextPrimary,
                     fontSize = MiruPlayUiMetrics.ITEM_TITLE_SP.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -147,7 +153,7 @@ internal fun SavedSourcePicker(
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    selected?.sourcePickerSubtitle() ?: "选择已配置媒体源",
+                    selected?.sourcePickerSubtitle() ?: mediaSourceSavedPickerSubtitleLabel(),
                     color = TextSecondary,
                     fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
                     maxLines = 1,
@@ -162,7 +168,7 @@ internal fun SavedSourcePicker(
         ) {
             if (sources.isEmpty()) {
                 DropdownMenuItem(
-                    text = { Text("没有已保存媒体源") },
+                    text = { Text(mediaSourceSavedPickerEmptyMessage()) },
                     onClick = { expanded = false },
                 )
             } else {
@@ -195,15 +201,6 @@ internal fun SavedSourcePicker(
     }
 }
 
-internal fun MediaSourceInfo.sourcePickerTitle(): String =
-    tvDisplayLabel(fallbackName = type.genericSourceName())
-
-internal fun MediaSourceInfo.sourcePickerSubtitle(maxLength: Int = SOURCE_PICKER_LOCATION_LIMIT): String =
-    sourceLocation()
-        .orEmpty()
-        .ifBlank { "未配置路径" }
-        .compactMiddle(maxLength)
-
 internal fun savedSourcePickerKeyEvent(
     sources: List<MediaSourceInfo>,
     activeSourceId: Long?,
@@ -212,12 +209,12 @@ internal fun savedSourcePickerKeyEvent(
     onOpen: () -> Unit,
     onSelected: (MediaSourceInfo) -> Unit,
 ): Boolean =
-    desktopConfirmOrNavigationKeyEvent(
+    desktopConfirmOrNavigationIntentEvent(
         key = key,
         type = type,
         onClick = onOpen,
-        onNavigationKey = { navigationKey ->
-            sources.savedSourcePickerNavigationTarget(activeSourceId, navigationKey)?.let { source ->
+        onNavigationIntent = { intent ->
+            sources.savedSourcePickerNavigationTarget(activeSourceId, intent)?.let { source ->
                 onSelected(source)
                 true
             } ?: false
@@ -227,31 +224,28 @@ internal fun savedSourcePickerKeyEvent(
 internal fun List<MediaSourceInfo>.savedSourcePickerNavigationTarget(
     activeSourceId: Long?,
     key: Key,
+): MediaSourceInfo? =
+    key.toMiruPlayInputIntent()?.let { intent ->
+        savedSourcePickerNavigationTarget(activeSourceId, intent)
+    }
+
+internal fun List<MediaSourceInfo>.savedSourcePickerNavigationTarget(
+    activeSourceId: Long?,
+    intent: MiruPlayInputIntent,
 ): MediaSourceInfo? {
     if (isEmpty()) return null
     val currentIndex = indexOfFirst { it.id == activeSourceId }
-    val targetIndex = when (key) {
-        Key.DirectionDown,
-        Key.DirectionRight,
-        -> if (currentIndex == -1) 0 else currentIndex + 1
-        Key.DirectionUp,
-        Key.DirectionLeft,
-        -> if (currentIndex == -1) lastIndex else currentIndex - 1
-        else -> null
-    } ?: return null
+    val delta = intent.linearNavigationDelta() ?: return null
+    val targetIndex = if (currentIndex == -1) {
+        if (delta > 0) 0 else lastIndex
+    } else {
+        currentIndex + delta
+    }
     return getOrNull(targetIndex)
 }
 
-internal fun String.compactMiddle(maxLength: Int): String {
-    val safeMaxLength = maxLength.coerceAtLeast(5)
-    if (length <= safeMaxLength) return this
-
-    val marker = "..."
-    val available = safeMaxLength - marker.length
-    val headLength = available / 2
-    val tailLength = available - headLength
-    return take(headLength) + marker + takeLast(tailLength)
-}
+internal fun String.compactMiddle(maxLength: Int): String =
+    compactMiddleText(maxLength)
 
 @Composable
 internal fun ToggleRow(
@@ -359,7 +353,9 @@ internal fun DesktopSelectableRow(
     modifier: Modifier = Modifier,
     heightDp: Int = MiruPlayUiMetrics.LIST_ROW_HEIGHT_DP,
     inactiveAlpha: Float = 0.55f,
+    fillMaxWidth: Boolean = true,
     onNavigationKey: (Key) -> Boolean = { false },
+    onNavigationIntent: (MiruPlayInputIntent) -> Boolean = { false },
     content: @Composable (active: Boolean) -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -375,7 +371,7 @@ internal fun DesktopSelectableRow(
         ),
         elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, focusedElevation = 0.dp),
         modifier = modifier
-            .fillMaxWidth()
+            .then(if (fillMaxWidth) Modifier.fillMaxWidth() else Modifier)
             .height(heightDp.dp)
             .onPreviewKeyEvent { event ->
                 desktopSelectableRowKeyEvent(
@@ -383,6 +379,7 @@ internal fun DesktopSelectableRow(
                     type = event.type,
                     onClick = onClick,
                     onNavigationKey = onNavigationKey,
+                    onNavigationIntent = onNavigationIntent,
                 )
             }
             .border(
@@ -400,12 +397,16 @@ internal fun desktopSelectableRowKeyEvent(
     type: KeyEventType,
     onClick: () -> Unit,
     onNavigationKey: (Key) -> Boolean = { false },
+    onNavigationIntent: (MiruPlayInputIntent) -> Boolean = { false },
 ): Boolean =
     desktopConfirmOrNavigationKeyEvent(
         key = key,
         type = type,
         onClick = onClick,
-        onNavigationKey = onNavigationKey,
+        onNavigationKey = { navigationKey ->
+            navigationKey.toMiruPlayInputIntent()?.let(onNavigationIntent) == true ||
+                onNavigationKey(navigationKey)
+        },
     )
 
 @Composable
@@ -413,41 +414,47 @@ internal fun TvActionButton(
     text: String,
     onClick: () -> Unit,
     secondary: Boolean = false,
+    enabled: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
     val background = when {
+        !enabled -> Color.White.copy(alpha = 0.06f)
         secondary -> Color.Transparent
         isFocused -> AnimeRed
         else -> AnimeRed.copy(alpha = 0.82f)
     }
     val border = when {
+        !enabled -> Color.White.copy(alpha = 0.08f)
         isFocused -> Color.White
         secondary -> Color.White.copy(alpha = 0.18f)
         else -> Color.Transparent
     }
     Button(
         onClick = onClick,
+        enabled = enabled,
         interactionSource = interactionSource,
         shape = RoundedCornerShape(MiruPlayUiMetrics.ACTION_BUTTON_RADIUS_DP.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = background,
             contentColor = Color.White,
+            disabledContainerColor = background,
+            disabledContentColor = TextSecondary.copy(alpha = 0.52f),
         ),
         elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, focusedElevation = 0.dp),
         modifier = modifier
             .defaultMinSize(minWidth = MiruPlayUiMetrics.ACTION_BUTTON_MIN_WIDTH_DP.dp)
             .height(MiruPlayUiMetrics.ACTION_BUTTON_HEIGHT_DP.dp)
             .onPreviewKeyEvent { event ->
-                desktopConfirmOrNavigationKeyEvent(
+                enabled && desktopConfirmOrNavigationKeyEvent(
                     key = event.key,
                     type = event.type,
                     onClick = onClick,
                 )
             }
             .border(2.dp, border, RoundedCornerShape(MiruPlayUiMetrics.ACTION_BUTTON_RADIUS_DP.dp))
-            .focusable(),
+            .focusable(enabled = enabled),
     ) {
         Text(text, fontSize = MiruPlayUiMetrics.ACTION_BUTTON_TEXT_SP.sp, fontWeight = FontWeight.Bold)
     }
@@ -496,7 +503,7 @@ internal fun PosterPlaceholder() {
 }
 
 internal fun desktopPosterPlaceholderSubtitle(): String =
-    "内置播放运行时"
+    desktopPosterPlaceholderSubtitleLabel()
 
 @Composable
 internal fun StatusBox(status: String) {

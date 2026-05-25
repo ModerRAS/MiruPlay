@@ -37,15 +37,43 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.design.MiruPlayUiMetrics
+import com.miruplay.tv.design.horizontalNavigationDelta
+import com.miruplay.tv.design.verticalNavigationDelta
 import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.ProgressRecord
+import com.miruplay.tv.model.detailBackToLibraryActionLabel
+import com.miruplay.tv.model.detailEpisodeBadge
+import com.miruplay.tv.model.detailEpisodeCountLabel
+import com.miruplay.tv.model.detailEpisodeEmptyMessage
+import com.miruplay.tv.model.detailEpisodePageUnitLabel
+import com.miruplay.tv.model.detailEpisodeSectionTitle
+import com.miruplay.tv.model.detailEpisodeShelfSubtitle
+import com.miruplay.tv.model.detailEpisodeTitleLabel
+import com.miruplay.tv.model.detailHeroEmptyTitle
+import com.miruplay.tv.model.detailHeroEmptySubtitle
+import com.miruplay.tv.model.detailPlayActionLabel
+import com.miruplay.tv.model.detailSeasonLabel
 import com.miruplay.tv.model.formatPlaybackPosition
+import com.miruplay.tv.model.libraryContinueWatchingSectionTitle
+import com.miruplay.tv.model.mediaDetailsEmptyMessage
+import com.miruplay.tv.model.mediaDetailsPageUnitLabel
+import com.miruplay.tv.model.mediaDetailsSectionTitle
+import com.miruplay.tv.model.pagedListCoercedPageStart
+import com.miruplay.tv.model.pagedListPageStartForIndex
+import com.miruplay.tv.model.pagedListPageSummary
+import com.miruplay.tv.model.playbackProgressRecordLabel
+import com.miruplay.tv.model.recentPlaybackClearActionLabel
+import com.miruplay.tv.model.recentPlaybackEmptyMessage
+import com.miruplay.tv.model.recentPlaybackPageUnitLabel
+import com.miruplay.tv.model.recentPlaybackRefreshActionLabel
 import com.miruplay.tv.repository.MediaDetailRows
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.displayName
+import com.miruplay.tv.repository.mediaFilesOnly
 import com.miruplay.tv.repository.mediaDisplayName
 
 @Composable
@@ -72,12 +100,15 @@ internal fun DesktopDetailHero(
     }
 
     fun moveFromAction(current: DesktopDetailHeroAction, key: Key): Boolean =
-        when (key) {
-            Key.DirectionLeft -> moveActionFocus(current, -1)
-            Key.DirectionRight -> moveActionFocus(current, 1)
-            Key.DirectionDown -> onFocusRecentPlayback()
-            else -> false
+        key.toMiruPlayInputIntent()?.let { intent ->
+            when (intent) {
+                MiruPlayInputIntent.DirectionDown -> onFocusRecentPlayback()
+                else -> intent.horizontalNavigationDelta()?.let { delta ->
+                    moveActionFocus(current, delta)
+                } ?: false
+            }
         }
+            ?: false
 
     val statLabels = detailHeroStatLabels(entry, episodeCount)
 
@@ -117,7 +148,7 @@ internal fun DesktopDetailHero(
                 verticalArrangement = Arrangement.Bottom,
             ) {
                 Text(
-                    entry?.detailTitle() ?: "选择一部番剧",
+                    entry?.detailTitle() ?: detailHeroEmptyTitle(),
                     color = TextPrimary,
                     fontSize = MiruPlayUiMetrics.HERO_TITLE_SP.sp,
                     fontWeight = FontWeight.Bold,
@@ -126,7 +157,7 @@ internal fun DesktopDetailHero(
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    entry?.detailSubtitle(source) ?: desktopDetailHeroEmptySubtitle(),
+                    entry?.detailSubtitle(source) ?: detailHeroEmptySubtitle(),
                     color = TextSecondary,
                     fontSize = MiruPlayUiMetrics.SECTION_SUBTITLE_SP.sp,
                     maxLines = 2,
@@ -163,7 +194,7 @@ internal fun DesktopDetailHero(
                 Spacer(Modifier.height(18.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     TvActionButton(
-                        "播放",
+                        detailPlayActionLabel(),
                         onClick = onPlay,
                         modifier = Modifier
                             .detailHeroActionNavigation(
@@ -174,7 +205,7 @@ internal fun DesktopDetailHero(
                             .width(180.dp),
                     )
                     TvActionButton(
-                        "返回海报墙",
+                        detailBackToLibraryActionLabel(),
                         onClick = onBackToLibrary,
                         secondary = true,
                         modifier = Modifier
@@ -249,6 +280,14 @@ internal fun moveDesktopDetailHeroAction(
     return actions.getOrNull(targetIndex)
 }
 
+internal fun detailHeroActionFocusTarget(
+    current: DesktopDetailHeroAction,
+    intent: MiruPlayInputIntent,
+): DesktopDetailHeroAction? =
+    intent.horizontalNavigationDelta()?.let { delta ->
+        moveDesktopDetailHeroAction(current, delta)
+    }
+
 internal fun detailHeroDownTarget(
     hasRelatedEpisodes: Boolean,
     hasRecentPlayback: Boolean,
@@ -266,9 +305,9 @@ internal fun detailHeroStatLabels(
     if (entry == null) return emptyList()
     return buildList {
         if (episodeCount > 0) {
-            add("全 $episodeCount 话")
+            add(detailEpisodeCountLabel(episodeCount))
         }
-        entry.seasonNumber?.let { add("第 $it 季") }
+        entry.seasonNumber?.let { add(detailSeasonLabel(it)) }
         entry.metadataSource
             ?.takeIf { it.isNotBlank() }
             ?.let { add(it.trim()) }
@@ -308,9 +347,6 @@ internal fun MediaIndexEntry.detailSubtitle(source: MediaSourceInfo?): String = 
     episodeTitle?.takeIf { it.isNotBlank() }?.let { append(it).append(" · ") }
     append(MediaPathConventions.stem(path))
 }.trim().trimEnd('·').trim()
-
-internal fun desktopDetailHeroEmptySubtitle(): String =
-    "从媒体库海报墙选择内容后显示详情。"
 
 private fun detailPosterBrush(title: String): Brush {
     val palettes = listOf(
@@ -414,26 +450,26 @@ internal fun DetailEpisodePanel(
         }
     }
 
-    fun moveEpisodeFocus(currentIndex: Int, delta: Int): Boolean {
+    fun moveEpisodeFocus(currentIndex: Int, intent: MiruPlayInputIntent): Boolean {
         return requestEpisodePanelFocus(
             moveDetailEpisodeFocusTarget(
                 currentIndex = currentIndex,
                 itemCount = seasonEpisodes.size,
-                delta = delta,
+                intent = intent,
                 seasonCount = seasons.size,
                 activeSeasonIndex = activeSeasonIndex,
             ),
         )
     }
 
-    fun moveSeasonFocus(currentIndex: Int, key: Key): Boolean =
+    fun moveSeasonFocus(currentIndex: Int, intent: MiruPlayInputIntent): Boolean =
         requestEpisodePanelFocus(
             detailEpisodeSeasonFocusTarget(
                 currentIndex = currentIndex,
                 seasonCount = seasons.size,
                 episodeCount = seasonEpisodes.size,
                 selectedEpisodeIndex = selectedEpisodeIndex,
-                key = key,
+                intent = intent,
             ),
         )
 
@@ -463,7 +499,12 @@ internal fun DetailEpisodePanel(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column {
-                Text("选集", color = TextPrimary, fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp, fontWeight = FontWeight.SemiBold)
+                Text(
+                    detailEpisodeSectionTitle(),
+                    color = TextPrimary,
+                    fontSize = MiruPlayUiMetrics.PANEL_TITLE_SP.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
                 Text(
                     detailEpisodeShelfSubtitle(episodes.size),
                     color = TextSecondary,
@@ -474,12 +515,12 @@ internal fun DetailEpisodePanel(
                 Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
                     seasons.forEachIndexed { index, season ->
                         TvActionButton(
-                            text = "第 $season 季",
+                            text = detailSeasonLabel(season),
                             onClick = { onSeasonSelected(season) },
                             secondary = activeSeason != season,
                             modifier = Modifier
                                 .focusRequester(seasonFocusRequesters[index])
-                                .desktopNavigationKeyHandler { key -> moveSeasonFocus(index, key) }
+                                .desktopNavigationIntentHandler { intent -> moveSeasonFocus(index, intent) }
                                 .width(132.dp),
                         )
                     }
@@ -489,7 +530,7 @@ internal fun DetailEpisodePanel(
         Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
         if (seasonEpisodes.isEmpty()) {
             DetailEpisodeEmptyState(
-                text = "扫描媒体库后会在这里显示同番选集。",
+                text = detailEpisodeEmptyMessage(),
                 focusRequester = emptyFocusRequester,
                 onMove = ::requestEpisodePanelFocus,
             )
@@ -507,13 +548,7 @@ internal fun DetailEpisodePanel(
                         },
                         modifier = Modifier
                             .focusRequester(episodeFocusRequesters[index]),
-                        onNavigationKey = { key ->
-                            when (key) {
-                                Key.DirectionUp -> moveEpisodeFocus(absoluteIndex, -1)
-                                Key.DirectionDown -> moveEpisodeFocus(absoluteIndex, 1)
-                                else -> false
-                            }
-                        },
+                        onNavigationIntent = { intent -> moveEpisodeFocus(absoluteIndex, intent) },
                     )
                 }
                 detailEpisodePageSummary(
@@ -545,8 +580,8 @@ private fun DetailEpisodeEmptyState(
             .focusRequester(focusRequester),
         heightDp = 180,
         inactiveAlpha = 0.48f,
-        onNavigationKey = { key ->
-            onMove(detailEpisodeEmptyFocusTarget(key))
+        onNavigationIntent = { intent ->
+            onMove(detailEpisodeEmptyFocusTarget(intent))
         },
     ) { active ->
         Box(
@@ -569,14 +604,14 @@ private fun DetailEpisodeRow(
     progress: ProgressRecord?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    onNavigationKey: (Key) -> Boolean = { false },
+    onNavigationIntent: (MiruPlayInputIntent) -> Boolean = { false },
 ) {
     DesktopSelectableRow(
         selected = selected,
         onClick = onClick,
         modifier = modifier,
         heightDp = 78,
-        onNavigationKey = onNavigationKey,
+        onNavigationIntent = onNavigationIntent,
     ) { active ->
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -592,7 +627,7 @@ private fun DetailEpisodeRow(
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    entry.episodeBadge(),
+                    detailEpisodeBadge(entry.episodeNumber),
                     color = TextPrimary,
                     fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp,
                     fontWeight = FontWeight.Bold,
@@ -601,7 +636,7 @@ private fun DetailEpisodeRow(
             }
             Column(Modifier.weight(1f)) {
                 Text(
-                    entry.detailEpisodeTitle(),
+                    detailEpisodeTitleLabel(entry.episodeNumber, entry.episodeTitle),
                     color = TextPrimary,
                     fontSize = MiruPlayUiMetrics.ITEM_TITLE_SP.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -636,15 +671,12 @@ internal fun detailEpisodesForSelection(
     val selected = selectedEntry?.takeUnless { it.isDirectory } ?: return emptyList()
     val title = selected.posterTitle()
     return entries
+        .mediaFilesOnly()
         .asSequence()
-        .filterNot { it.isDirectory }
         .filter { it.sourceId == selected.sourceId && it.posterTitle() == title }
         .sortedWith(detailEpisodeComparator)
         .toList()
 }
-
-internal fun detailEpisodeShelfSubtitle(episodeCount: Int): String =
-    if (episodeCount <= 0) "当前详情没有可播放索引项" else "全 $episodeCount 话 · 同番选集"
 
 internal fun detailEpisodeSeasons(episodes: List<MediaIndexEntry>): List<Int> =
     episodes
@@ -682,6 +714,14 @@ internal fun moveDetailEpisodeSelection(
     return (moveDetailEpisodeFocusTarget(currentIndex, itemCount, delta) as? DetailEpisodeFocusTarget.Row)?.index
 }
 
+internal fun moveDetailEpisodeSelection(
+    currentIndex: Int,
+    itemCount: Int,
+    intent: MiruPlayInputIntent,
+): Int? {
+    return (moveDetailEpisodeFocusTarget(currentIndex, itemCount, intent) as? DetailEpisodeFocusTarget.Row)?.index
+}
+
 internal sealed interface DetailEpisodeFocusTarget {
     data class Row(val index: Int) : DetailEpisodeFocusTarget
     data class Season(val index: Int) : DetailEpisodeFocusTarget
@@ -708,6 +748,23 @@ internal fun moveDetailEpisodeFocusTarget(
     }
 }
 
+internal fun moveDetailEpisodeFocusTarget(
+    currentIndex: Int,
+    itemCount: Int,
+    intent: MiruPlayInputIntent,
+    seasonCount: Int = 0,
+    activeSeasonIndex: Int = 0,
+): DetailEpisodeFocusTarget? =
+    intent.verticalNavigationDelta()?.let { delta ->
+        moveDetailEpisodeFocusTarget(
+            currentIndex = currentIndex,
+            itemCount = itemCount,
+            delta = delta,
+            seasonCount = seasonCount,
+            activeSeasonIndex = activeSeasonIndex,
+        )
+    }
+
 internal fun detailEpisodeSeasonFocusTarget(
     currentIndex: Int,
     seasonCount: Int,
@@ -715,22 +772,44 @@ internal fun detailEpisodeSeasonFocusTarget(
     selectedEpisodeIndex: Int,
     key: Key,
 ): DetailEpisodeFocusTarget? =
-    when (key) {
-        Key.DirectionLeft -> (currentIndex - 1).takeIf { it >= 0 }?.let(DetailEpisodeFocusTarget::Season)
-        Key.DirectionRight -> (currentIndex + 1).takeIf { it < seasonCount }?.let(DetailEpisodeFocusTarget::Season)
-        Key.DirectionUp -> DetailEpisodeFocusTarget.PreviousPanel
-        Key.DirectionDown -> if (episodeCount > 0) {
+    key.toMiruPlayInputIntent()?.let { intent ->
+        detailEpisodeSeasonFocusTarget(
+            currentIndex = currentIndex,
+            seasonCount = seasonCount,
+            episodeCount = episodeCount,
+            selectedEpisodeIndex = selectedEpisodeIndex,
+            intent = intent,
+        )
+    }
+
+internal fun detailEpisodeSeasonFocusTarget(
+    currentIndex: Int,
+    seasonCount: Int,
+    episodeCount: Int,
+    selectedEpisodeIndex: Int,
+    intent: MiruPlayInputIntent,
+): DetailEpisodeFocusTarget? =
+    when (intent.verticalNavigationDelta()) {
+        -1 -> DetailEpisodeFocusTarget.PreviousPanel
+        1 -> if (episodeCount > 0) {
             DetailEpisodeFocusTarget.Row(selectedEpisodeIndex.coerceIn(0, episodeCount - 1))
         } else {
             DetailEpisodeFocusTarget.NextPanel
         }
-        else -> null
+        else -> when (intent.horizontalNavigationDelta()) {
+            -1 -> (currentIndex - 1).takeIf { it >= 0 }?.let(DetailEpisodeFocusTarget::Season)
+            1 -> (currentIndex + 1).takeIf { it < seasonCount }?.let(DetailEpisodeFocusTarget::Season)
+            else -> null
+        }
     }
 
 internal fun detailEpisodeEmptyFocusTarget(key: Key): DetailEpisodeFocusTarget? =
-    when (key) {
-        Key.DirectionUp -> DetailEpisodeFocusTarget.PreviousPanel
-        Key.DirectionDown -> DetailEpisodeFocusTarget.NextPanel
+    key.toMiruPlayInputIntent()?.let(::detailEpisodeEmptyFocusTarget)
+
+internal fun detailEpisodeEmptyFocusTarget(intent: MiruPlayInputIntent): DetailEpisodeFocusTarget? =
+    when (intent.verticalNavigationDelta()) {
+        -1 -> DetailEpisodeFocusTarget.PreviousPanel
+        1 -> DetailEpisodeFocusTarget.NextPanel
         else -> null
     }
 
@@ -738,38 +817,27 @@ internal fun detailEpisodePageStartForIndex(
     index: Int,
     itemCount: Int,
     pageSize: Int = DETAIL_EPISODE_PAGE_SIZE,
-): Int {
-    if (itemCount <= 0 || pageSize <= 0) return 0
-    val safeIndex = index.coerceIn(0, itemCount - 1)
-    return (safeIndex / pageSize) * pageSize
-}
+): Int = pagedListPageStartForIndex(index, itemCount, pageSize)
 
 internal fun detailEpisodeCoercedPageStart(
     pageStart: Int,
     itemCount: Int,
     pageSize: Int = DETAIL_EPISODE_PAGE_SIZE,
-): Int {
-    if (itemCount <= 0 || pageSize <= 0) return 0
-    val maxPageStart = detailEpisodePageStartForIndex(
-        index = itemCount - 1,
-        itemCount = itemCount,
-        pageSize = pageSize,
-    )
-    return (pageStart / pageSize)
-        .coerceAtLeast(0)
-        .times(pageSize)
-        .coerceAtMost(maxPageStart)
-}
+): Int = pagedListCoercedPageStart(pageStart, itemCount, pageSize)
 
 internal fun detailEpisodePageSummary(
     pageStart: Int,
     visibleCount: Int,
     itemCount: Int,
 ): String? {
-    if (itemCount <= 0 || visibleCount <= 0 || visibleCount >= itemCount) return null
     val safeStart = detailEpisodeCoercedPageStart(pageStart, itemCount)
-    val end = (safeStart + visibleCount).coerceAtMost(itemCount)
-    return "显示 ${safeStart + 1}-$end / $itemCount 集，按上/下继续翻页。"
+    return pagedListPageSummary(
+        pageStart = safeStart,
+        visibleCount = visibleCount,
+        itemCount = itemCount,
+        pageSize = DETAIL_EPISODE_PAGE_SIZE,
+        unitLabel = detailEpisodePageUnitLabel(),
+    )
 }
 
 private val detailEpisodeComparator =
@@ -779,17 +847,8 @@ private val detailEpisodeComparator =
         { it.path.lowercase() },
     )
 
-private fun MediaIndexEntry.episodeBadge(): String =
-    episodeNumber?.toString()?.padStart(2, '0') ?: "--"
-
-private fun MediaIndexEntry.detailEpisodeTitle(): String {
-    val number = episodeNumber?.let { "第 $it 集" } ?: "未编号"
-    val title = episodeTitle?.takeIf { it.isNotBlank() }
-    return if (title == null) number else "$number · $title"
-}
-
-private fun detailEpisodeProgressLabel(progress: ProgressRecord?): String =
-    progress?.let { "继续 ${formatPlaybackPosition(it.positionMs)}" } ?: "未观看"
+internal fun detailEpisodeProgressLabel(progress: ProgressRecord?): String =
+    playbackProgressRecordLabel(progress)
 
 @Composable
 internal fun RecentPlaybackPanel(
@@ -861,22 +920,14 @@ internal fun RecentPlaybackPanel(
         }
     }
 
-    fun moveRecentFocus(currentIndex: Int, delta: Int): Boolean =
-        requestRecentFocus(moveRecentPlaybackFocusTarget(currentIndex, records.size, delta))
+    fun moveRecentFocus(currentIndex: Int, intent: MiruPlayInputIntent): Boolean =
+        requestRecentFocus(moveRecentPlaybackFocusTarget(currentIndex, records.size, intent))
 
-    fun moveRecentActionFocus(current: RecentPlaybackAction, key: Key): Boolean {
-        val target = when (key) {
-            Key.DirectionLeft -> moveRecentPlaybackAction(current, -1)?.let(RecentPlaybackFocusTarget::Action)
-            Key.DirectionRight -> moveRecentPlaybackAction(current, 1)?.let(RecentPlaybackFocusTarget::Action)
-            Key.DirectionUp -> recentPlaybackActionVerticalFocusTarget(direction = -1, hasRecords = records.isNotEmpty())
-            Key.DirectionDown -> recentPlaybackActionVerticalFocusTarget(direction = 1, hasRecords = records.isNotEmpty())
-            else -> null
-        }
-        return requestRecentFocus(target)
-    }
+    fun moveRecentActionFocus(current: RecentPlaybackAction, intent: MiruPlayInputIntent): Boolean =
+        requestRecentFocus(recentPlaybackActionFocusTarget(current, intent, hasRecords = records.isNotEmpty()))
 
-    fun moveRecentEmptyFocus(key: Key): Boolean =
-        requestRecentFocus(recentPlaybackEmptyFocusTarget(key))
+    fun moveRecentEmptyFocus(intent: MiruPlayInputIntent): Boolean =
+        requestRecentFocus(recentPlaybackEmptyFocusTarget(intent))
 
     LaunchedEffect(pageStart, visibleRecords.map { it.episodeId }, pendingRecordFocus) {
         val pendingIndex = pendingRecordFocus ?: return@LaunchedEffect
@@ -913,7 +964,7 @@ internal fun RecentPlaybackPanel(
                         secondary = true,
                         modifier = Modifier
                             .focusRequester(actionFocusRequesters.getValue(RecentPlaybackAction.Refresh))
-                            .desktopNavigationKeyHandler { key -> moveRecentActionFocus(RecentPlaybackAction.Refresh, key) },
+                            .desktopNavigationIntentHandler { intent -> moveRecentActionFocus(RecentPlaybackAction.Refresh, intent) },
                     )
                     TvActionButton(
                         labels.clearAction,
@@ -921,7 +972,7 @@ internal fun RecentPlaybackPanel(
                         secondary = true,
                         modifier = Modifier
                             .focusRequester(actionFocusRequesters.getValue(RecentPlaybackAction.Clear))
-                            .desktopNavigationKeyHandler { key -> moveRecentActionFocus(RecentPlaybackAction.Clear, key) },
+                            .desktopNavigationIntentHandler { intent -> moveRecentActionFocus(RecentPlaybackAction.Clear, intent) },
                     )
                 }
                 StatusBox(status)
@@ -948,13 +999,7 @@ internal fun RecentPlaybackPanel(
                             },
                             modifier = Modifier
                                 .focusRequester(recordFocusRequesters[index]),
-                            onNavigationKey = { key ->
-                                when (key) {
-                                    Key.DirectionUp -> moveRecentFocus(absoluteIndex, -1)
-                                    Key.DirectionDown -> moveRecentFocus(absoluteIndex, 1)
-                                    else -> false
-                                }
-                            },
+                            onNavigationIntent = { intent -> moveRecentFocus(absoluteIndex, intent) },
                         )
                     }
                     recentPlaybackPageSummary(
@@ -978,7 +1023,7 @@ internal fun RecentPlaybackPanel(
 private fun RecentPlaybackEmptyState(
     text: String,
     focusRequester: FocusRequester,
-    onMove: (Key) -> Boolean,
+    onMove: (MiruPlayInputIntent) -> Boolean,
 ) {
     DesktopSelectableRow(
         selected = false,
@@ -987,7 +1032,7 @@ private fun RecentPlaybackEmptyState(
             .focusRequester(focusRequester),
         heightDp = MiruPlayUiMetrics.EMPTY_STATE_HEIGHT_DP,
         inactiveAlpha = 0.48f,
-        onNavigationKey = onMove,
+        onNavigationIntent = onMove,
     ) { active ->
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -1011,10 +1056,10 @@ internal data class DesktopRecentPlaybackLabels(
 
 internal fun desktopRecentPlaybackLabels(): DesktopRecentPlaybackLabels =
     DesktopRecentPlaybackLabels(
-        title = "继续观看",
-        refreshAction = "刷新",
-        clearAction = "清除条目",
-        emptyState = "开始播放后会在这里显示最近记录。",
+        title = libraryContinueWatchingSectionTitle(),
+        refreshAction = recentPlaybackRefreshActionLabel(),
+        clearAction = recentPlaybackClearActionLabel(),
+        emptyState = recentPlaybackEmptyMessage(),
     )
 
 private const val RECENT_PLAYBACK_PAGE_SIZE = 6
@@ -1026,13 +1071,13 @@ private fun RecentProgressRow(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    onNavigationKey: (Key) -> Boolean = { false },
+    onNavigationIntent: (MiruPlayInputIntent) -> Boolean = { false },
 ) {
     DesktopSelectableRow(
         selected = selected,
         onClick = onClick,
         modifier = modifier,
-        onNavigationKey = onNavigationKey,
+        onNavigationIntent = onNavigationIntent,
     ) { active ->
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1076,6 +1121,14 @@ internal fun moveRecentPlaybackSelection(
     return (moveRecentPlaybackFocusTarget(currentIndex, itemCount, delta) as? RecentPlaybackFocusTarget.Row)?.index
 }
 
+internal fun moveRecentPlaybackSelection(
+    currentIndex: Int,
+    itemCount: Int,
+    intent: MiruPlayInputIntent,
+): Int? {
+    return (moveRecentPlaybackFocusTarget(currentIndex, itemCount, intent) as? RecentPlaybackFocusTarget.Row)?.index
+}
+
 internal enum class RecentPlaybackAction {
     Refresh,
     Clear,
@@ -1109,10 +1162,33 @@ internal fun recentPlaybackActionVerticalFocusTarget(
         else -> null
     }
 
+internal fun recentPlaybackActionFocusTarget(
+    current: RecentPlaybackAction,
+    key: Key,
+    hasRecords: Boolean,
+): RecentPlaybackFocusTarget? =
+    key.toMiruPlayInputIntent()?.let { intent ->
+        recentPlaybackActionFocusTarget(current, intent, hasRecords)
+    }
+
+internal fun recentPlaybackActionFocusTarget(
+    current: RecentPlaybackAction,
+    intent: MiruPlayInputIntent,
+    hasRecords: Boolean,
+): RecentPlaybackFocusTarget? =
+    intent.horizontalNavigationDelta()
+        ?.let { delta -> moveRecentPlaybackAction(current, delta)?.let(RecentPlaybackFocusTarget::Action) }
+        ?: intent.verticalNavigationDelta()?.let { direction ->
+            recentPlaybackActionVerticalFocusTarget(direction, hasRecords)
+        }
+
 internal fun recentPlaybackEmptyFocusTarget(key: Key): RecentPlaybackFocusTarget? =
-    when (key) {
-        Key.DirectionUp -> RecentPlaybackFocusTarget.Action(RecentPlaybackAction.Refresh)
-        Key.DirectionDown -> RecentPlaybackFocusTarget.NextPanel
+    key.toMiruPlayInputIntent()?.let(::recentPlaybackEmptyFocusTarget)
+
+internal fun recentPlaybackEmptyFocusTarget(intent: MiruPlayInputIntent): RecentPlaybackFocusTarget? =
+    when (intent.verticalNavigationDelta()) {
+        -1 -> RecentPlaybackFocusTarget.Action(RecentPlaybackAction.Refresh)
+        1 -> RecentPlaybackFocusTarget.NextPanel
         else -> null
     }
 
@@ -1130,42 +1206,40 @@ internal fun moveRecentPlaybackFocusTarget(
     }
 }
 
+internal fun moveRecentPlaybackFocusTarget(
+    currentIndex: Int,
+    itemCount: Int,
+    intent: MiruPlayInputIntent,
+): RecentPlaybackFocusTarget? =
+    intent.verticalNavigationDelta()?.let { delta ->
+        moveRecentPlaybackFocusTarget(currentIndex, itemCount, delta)
+    }
+
 internal fun recentPlaybackPageStartForIndex(
     index: Int,
     itemCount: Int,
     pageSize: Int = RECENT_PLAYBACK_PAGE_SIZE,
-): Int {
-    if (itemCount <= 0 || pageSize <= 0) return 0
-    val safeIndex = index.coerceIn(0, itemCount - 1)
-    return (safeIndex / pageSize) * pageSize
-}
+): Int = pagedListPageStartForIndex(index, itemCount, pageSize)
 
 internal fun recentPlaybackCoercedPageStart(
     pageStart: Int,
     itemCount: Int,
     pageSize: Int = RECENT_PLAYBACK_PAGE_SIZE,
-): Int {
-    if (itemCount <= 0 || pageSize <= 0) return 0
-    val maxPageStart = recentPlaybackPageStartForIndex(
-        index = itemCount - 1,
-        itemCount = itemCount,
-        pageSize = pageSize,
-    )
-    return (pageStart / pageSize)
-        .coerceAtLeast(0)
-        .times(pageSize)
-        .coerceAtMost(maxPageStart)
-}
+): Int = pagedListCoercedPageStart(pageStart, itemCount, pageSize)
 
 internal fun recentPlaybackPageSummary(
     pageStart: Int,
     visibleCount: Int,
     itemCount: Int,
 ): String? {
-    if (itemCount <= 0 || visibleCount <= 0 || visibleCount >= itemCount) return null
     val safeStart = recentPlaybackCoercedPageStart(pageStart, itemCount)
-    val end = (safeStart + visibleCount).coerceAtMost(itemCount)
-    return "显示 ${safeStart + 1}-$end / $itemCount 条记录，按上/下继续翻页。"
+    return pagedListPageSummary(
+        pageStart = safeStart,
+        visibleCount = visibleCount,
+        itemCount = itemCount,
+        pageSize = RECENT_PLAYBACK_PAGE_SIZE,
+        unitLabel = recentPlaybackPageUnitLabel(),
+    )
 }
 
 @Composable
@@ -1334,8 +1408,8 @@ internal data class DesktopMediaDetailsLabels(
 
 internal fun desktopMediaDetailsLabels(): DesktopMediaDetailsLabels =
     DesktopMediaDetailsLabels(
-        title = "媒体详情",
-        emptyState = "选择媒体后会在这里显示详细信息。",
+        title = mediaDetailsSectionTitle(),
+        emptyState = mediaDetailsEmptyMessage(),
     )
 
 internal sealed interface MediaDetailsFocusTarget {
@@ -1348,8 +1422,11 @@ internal fun mediaDetailsInitialFocusTarget(hasRows: Boolean): MediaDetailsFocus
     if (hasRows) MediaDetailsFocusTarget.Row(0) else MediaDetailsFocusTarget.EmptyState
 
 internal fun mediaDetailsEmptyFocusTarget(key: Key): MediaDetailsFocusTarget? =
-    when (key) {
-        Key.DirectionUp -> MediaDetailsFocusTarget.PreviousPanel
+    key.toMiruPlayInputIntent()?.let(::mediaDetailsEmptyFocusTarget)
+
+internal fun mediaDetailsEmptyFocusTarget(intent: MiruPlayInputIntent): MediaDetailsFocusTarget? =
+    when (intent.verticalNavigationDelta()) {
+        -1 -> MediaDetailsFocusTarget.PreviousPanel
         else -> null
     }
 
@@ -1359,27 +1436,46 @@ internal fun mediaDetailsFocusTarget(
     pageStart: Int,
     visibleCount: Int,
     key: Key,
+): MediaDetailsFocusTarget? =
+    key.toMiruPlayInputIntent()?.let { intent ->
+        mediaDetailsFocusTarget(
+            currentIndex = currentIndex,
+            rowCount = rowCount,
+            pageStart = pageStart,
+            visibleCount = visibleCount,
+            intent = intent,
+        )
+    }
+
+internal fun mediaDetailsFocusTarget(
+    currentIndex: Int,
+    rowCount: Int,
+    pageStart: Int,
+    visibleCount: Int,
+    intent: MiruPlayInputIntent,
 ): MediaDetailsFocusTarget? {
     if (rowCount <= 0) return null
     val safePageStart = mediaDetailsCoercedPageStart(pageStart, rowCount)
     val safeVisibleCount = visibleCount.coerceIn(1, rowCount - safePageStart)
     val splitIndex = mediaDetailsSplitIndex(safePageStart, safeVisibleCount)
     val pageEnd = safePageStart + safeVisibleCount
-    val targetIndex = when (key) {
-        Key.DirectionUp -> currentIndex - 1
-        Key.DirectionDown -> currentIndex + 1
-        Key.DirectionLeft -> if (currentIndex >= splitIndex && currentIndex < pageEnd) {
-            val leftIndex = safePageStart + currentIndex - splitIndex
-            leftIndex.coerceAtMost(splitIndex - 1)
-        } else {
-            return null
+    val targetIndex = when (intent.verticalNavigationDelta()) {
+        -1 -> currentIndex - 1
+        1 -> currentIndex + 1
+        else -> when (intent.horizontalNavigationDelta()) {
+            -1 -> if (currentIndex >= splitIndex && currentIndex < pageEnd) {
+                val leftIndex = safePageStart + currentIndex - splitIndex
+                leftIndex.coerceAtMost(splitIndex - 1)
+            } else {
+                return null
+            }
+            1 -> if (currentIndex in safePageStart until splitIndex && splitIndex < pageEnd) {
+                (currentIndex + splitIndex - safePageStart).takeIf { it < pageEnd } ?: pageEnd - 1
+            } else {
+                return null
+            }
+            else -> return null
         }
-        Key.DirectionRight -> if (currentIndex in safePageStart until splitIndex && splitIndex < pageEnd) {
-            (currentIndex + splitIndex - safePageStart).takeIf { it < pageEnd } ?: pageEnd - 1
-        } else {
-            return null
-        }
-        else -> return null
     }
     return when {
         targetIndex < 0 -> MediaDetailsFocusTarget.PreviousPanel
@@ -1392,38 +1488,27 @@ internal fun mediaDetailsPageStartForIndex(
     index: Int,
     itemCount: Int,
     pageSize: Int = MEDIA_DETAILS_PAGE_SIZE,
-): Int {
-    if (itemCount <= 0 || pageSize <= 0) return 0
-    val safeIndex = index.coerceIn(0, itemCount - 1)
-    return (safeIndex / pageSize) * pageSize
-}
+): Int = pagedListPageStartForIndex(index, itemCount, pageSize)
 
 internal fun mediaDetailsCoercedPageStart(
     pageStart: Int,
     itemCount: Int,
     pageSize: Int = MEDIA_DETAILS_PAGE_SIZE,
-): Int {
-    if (itemCount <= 0 || pageSize <= 0) return 0
-    val maxPageStart = mediaDetailsPageStartForIndex(
-        index = itemCount - 1,
-        itemCount = itemCount,
-        pageSize = pageSize,
-    )
-    return (pageStart / pageSize)
-        .coerceAtLeast(0)
-        .times(pageSize)
-        .coerceAtMost(maxPageStart)
-}
+): Int = pagedListCoercedPageStart(pageStart, itemCount, pageSize)
 
 internal fun mediaDetailsPageSummary(
     pageStart: Int,
     visibleCount: Int,
     itemCount: Int,
 ): String? {
-    if (itemCount <= 0 || visibleCount <= 0 || visibleCount >= itemCount) return null
     val safeStart = mediaDetailsCoercedPageStart(pageStart, itemCount)
-    val end = (safeStart + visibleCount).coerceAtMost(itemCount)
-    return "显示 ${safeStart + 1}-$end / $itemCount 条详情，按上/下继续翻页。"
+    return pagedListPageSummary(
+        pageStart = safeStart,
+        visibleCount = visibleCount,
+        itemCount = itemCount,
+        pageSize = MEDIA_DETAILS_PAGE_SIZE,
+        unitLabel = mediaDetailsPageUnitLabel(),
+    )
 }
 
 internal fun mediaDetailsSplitIndex(pageStart: Int, visibleCount: Int): Int {

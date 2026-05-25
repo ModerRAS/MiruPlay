@@ -12,8 +12,11 @@ import com.miruplay.tv.model.FilenameParseResult
  */
 class VideoDirectoryClassifier(
     private val episodeDetector: EpisodeDetector,
-    private val filenameMetadataParser: FilenameMetadataParser? = null
+    private val filenameMetadataParser: FilenameMetadataParser? = null,
+    private val filenameOnly: Boolean = false,
 ) {
+    private val parsedTextCache = mutableMapOf<String, FilenameParseResult?>()
+
     fun classifyVideo(path: String, fileName: String): VideoClassification {
         val release = ReleaseFilenameParser.parse(fileName)
         val segments = pathSegments(path)
@@ -22,65 +25,55 @@ class VideoDirectoryClassifier(
         } else {
             segments.dropLast(1).ifEmpty { segments }
         }
-        val seasonFolder = findSeasonFolder(parentSegments)
         val detectorMatch = episodeDetector.detectEpisode(fileName)
-        var parsedFilename: FilenameParseResult? = null
-
-        fun parsed(): FilenameParseResult? {
-            val parser = filenameMetadataParser ?: return null
-            if (parsedFilename == null) {
-                parsedFilename = runCatching {
-                    parser.parse(stripVideoExtension(fileName))
-                }.getOrNull()
+        val fileParsed = parseMetadata(stripVideoExtension(fileName))
+        val seasonFolder = if (filenameOnly) null else findSeasonFolder(parentSegments)
+        val showContext = if (filenameOnly) null else findShowContext(parentSegments, seasonFolder)
+        val folderContexts = if (filenameOnly) {
+            emptyList()
+        } else {
+            parentSegments
+                .takeLast(maxParsedContextSegments)
+                .asReversed()
+                .filter { it.shouldParseContextSegment() }
+                .mapIndexedNotNull { distance, rawName ->
+                    parseMetadata(rawName)?.let { parsed ->
+                        evidenceFromParsed(
+                            parsed = parsed,
+                            source = EvidenceSource.FOLDER_BERT,
+                            distance = distance
+                        )
+                    }
+                }
+        }
+        val evidence = buildList {
+            release?.let { add(evidenceFromRelease(it)) }
+            fileParsed?.let { add(evidenceFromParsed(it, EvidenceSource.FILE_BERT, 0)) }
+            folderContexts.forEach(::add)
+            seasonFolder?.let {
+                add(
+                    ClassificationEvidence(
+                        title = null,
+                        normalizedTitle = null,
+                        seasonNumber = it.seasonNumber,
+                        episodeNumber = null,
+                        score = seasonFolderScore
+                    )
+                )
             }
-            return parsedFilename
+            showContext?.let { add(evidenceFromShowContext(it)) }
+            detectorMatch?.let { add(evidenceFromDetector(it)) }
         }
 
-        if (release != null) {
-            val showContext = findShowContext(parentSegments, seasonFolder)
-            val parsed = if (
-                release.seriesName.isBlank() ||
-                release.seasonNumber == null ||
-                release.episodeNumber == null
-            ) {
-                parsed()
-            } else {
-                null
-            }
-            val season = release.seasonNumber ?: parsed?.season ?: seasonFolder?.seasonNumber ?: 1
-            return VideoClassification(
-                animeName = firstUsableName(
-                    release.seriesName,
-                    showContext?.seriesName,
-                    parsed?.title,
-                    detectorMatch?.animeName
-                ),
-                seasonNumber = season,
-                episodeNumber = release.episodeNumber ?: parsed?.episode ?: detectorMatch?.episodeNumber
-            )
-        }
-
-        if (seasonFolder != null) {
-            val showContext = findShowContext(parentSegments, seasonFolder)
-            val parsed = if (showContext == null || detectorMatch?.episodeNumber == null) parsed() else null
-            return VideoClassification(
-                animeName = firstUsableName(showContext?.seriesName, parsed?.title, detectorMatch?.animeName),
-                seasonNumber = seasonFolder.seasonNumber,
-                episodeNumber = detectorMatch?.episodeNumber ?: parsed?.episode
-            )
-        }
-
-        val parsed = parsed()
-        val showContext = findShowContext(parentSegments)
-        val fallbackName = firstUsableName(parsed?.title, showContext?.seriesName, detectorMatch?.animeName)
+        val titleSelection = chooseTitleSelection(evidence)
+        val season = chooseNumber(evidence, titleSelection.normalizedTitle) { it.seasonNumber } ?: 1
+        val episode = chooseNumber(evidence, titleSelection.normalizedTitle) { it.episodeNumber }
 
         return VideoClassification(
-            animeName = fallbackName,
-            seasonNumber = parsed?.season
-                ?: showContext?.seasonNumber
-                ?: detectorMatch?.seasonNumber
-                ?: 1,
-            episodeNumber = parsed?.episode ?: detectorMatch?.episodeNumber ?: showContext?.episodeNumber
+            animeName = titleSelection.title,
+            seasonNumber = season,
+            episodeNumber = episode,
+            titleCandidates = titleSelection.candidates
         )
     }
 
@@ -152,6 +145,70 @@ class VideoDirectoryClassifier(
     private fun firstUsableName(vararg candidates: String?): String =
         candidates.firstNotNullOfOrNull { it.usableName() } ?: "Unknown"
 
+    private fun parseMetadata(text: String): FilenameParseResult? {
+        val parser = filenameMetadataParser ?: return null
+        val normalized = text.trim()
+        if (normalized.isBlank()) return null
+        return parsedTextCache.getOrPut(normalized) {
+            runCatching { parser.parse(normalized, maxParsedTextLength) }.getOrNull()
+        }
+    }
+
+    private fun chooseTitleSelection(evidence: List<ClassificationEvidence>): TitleSelection {
+        val titleScores = linkedMapOf<String, Int>()
+        evidence.forEach { candidate ->
+            val normalized = candidate.normalizedTitle ?: return@forEach
+            titleScores[normalized] = (titleScores[normalized] ?: 0) + candidate.score
+        }
+
+        if (titleScores.isEmpty()) {
+            return TitleSelection(
+                title = "Unknown",
+                normalizedTitle = null,
+                candidates = emptyList()
+            )
+        }
+
+        val ordered = titleScores.entries
+            .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
+            .map { it.key }
+        val selectedKey = ordered.first()
+        return TitleSelection(
+            title = selectedKey,
+            normalizedTitle = selectedKey,
+            candidates = ordered.distinct()
+        )
+    }
+
+    private fun chooseNumber(
+        evidence: List<ClassificationEvidence>,
+        normalizedTitle: String?,
+        selector: (ClassificationEvidence) -> Int?
+    ): Int? {
+        fun bestFrom(candidates: List<ClassificationEvidence>): Int? =
+            candidates
+                .mapNotNull { candidate -> selector(candidate)?.let { value -> candidate to value } }
+                .maxByOrNull { it.first.score }
+                ?.second
+
+        val preferred = normalizedTitle?.let { title ->
+            evidence.filter { it.normalizedTitle == title }
+        }.orEmpty()
+        return bestFrom(preferred) ?: bestFrom(evidence)
+    }
+
+    private fun String.normalizedTitle(): String? =
+        replace(Regex("""[._]+"""), " ")
+            .replace(Regex("""\s+"""), " ")
+            .trim()
+            .takeIf { it.isNotBlank() && !it.equals("Unknown", ignoreCase = true) }
+            ?.let(::splitSeriesAndSeason)
+            ?.seriesName
+            ?.replace(Regex("""[._]+"""), " ")
+            ?.replace(Regex("""\s+"""), " ")
+            ?.trim()
+            ?.takeIf { it.isNotBlank() && !it.equals("Unknown", ignoreCase = true) && !it.isGenericContextName() }
+
     private fun String?.usableName(): String? =
         this
             ?.replace(Regex("""[._]+"""), " ")
@@ -171,6 +228,81 @@ class VideoDirectoryClassifier(
         val seasonNumber: Int?,
         val episodeNumber: Int?
     )
+
+    private fun evidenceFromRelease(release: ReleaseFileMatch): ClassificationEvidence =
+        ClassificationEvidence(
+            title = firstUsableName(release.seriesName, release.animeName).takeIf { it != "Unknown" },
+            normalizedTitle = firstUsableName(release.seriesName, release.animeName).normalizedTitle(),
+            seasonNumber = release.seasonNumber,
+            episodeNumber = release.episodeNumber,
+            score = releaseScore + release.seasonNumber.scoreBonus() + release.episodeNumber.scoreBonus()
+        )
+
+    private fun evidenceFromParsed(
+        parsed: FilenameParseResult,
+        source: EvidenceSource,
+        distance: Int,
+    ): ClassificationEvidence {
+        val title = parsed.title?.takeIf { it.isNotBlank() }
+        return ClassificationEvidence(
+            title = title,
+            normalizedTitle = title?.normalizedTitle(),
+            seasonNumber = parsed.season,
+            episodeNumber = parsed.episode,
+            score = source.baseScore - distance * source.distancePenalty +
+                parsed.season.scoreBonus() + parsed.episode.scoreBonus()
+        )
+    }
+
+    private fun evidenceFromShowContext(showContext: ShowContext): ClassificationEvidence =
+        ClassificationEvidence(
+            title = showContext.seriesName,
+            normalizedTitle = showContext.seriesName.normalizedTitle(),
+            seasonNumber = showContext.seasonNumber,
+            episodeNumber = showContext.episodeNumber,
+            score = showContextScore +
+                showContext.seasonNumber.scoreBonus() +
+                showContext.episodeNumber.scoreBonus()
+        )
+
+    private fun evidenceFromDetector(match: EpisodeMatch): ClassificationEvidence =
+        ClassificationEvidence(
+            title = match.animeName,
+            normalizedTitle = match.animeName?.normalizedTitle(),
+            seasonNumber = match.seasonNumber.takeIf { it > 0 },
+            episodeNumber = match.episodeNumber,
+            score = detectorScore +
+                match.seasonNumber.scoreBonus() +
+                match.episodeNumber.scoreBonus()
+        )
+
+    private data class ClassificationEvidence(
+        val title: String?,
+        val normalizedTitle: String?,
+        val seasonNumber: Int?,
+        val episodeNumber: Int?,
+        val score: Int,
+    )
+
+    private data class TitleSelection(
+        val title: String,
+        val normalizedTitle: String?,
+        val candidates: List<String>
+    )
+
+    private enum class EvidenceSource(
+        val baseScore: Int,
+        val distancePenalty: Int
+    ) {
+        FILE_BERT(510, 0),
+        FOLDER_BERT(640, 20)
+    }
+
+    private fun Int?.scoreBonus(): Int =
+        if (this == null) 0 else 20
+
+    private fun String.shouldParseContextSegment(): Boolean =
+        usableName() != null || numericContextPatterns.any { it.matches(normalizedContextName()) }
 
     private fun findShowContext(
         segments: List<String>,
@@ -198,15 +330,24 @@ class VideoDirectoryClassifier(
     }
 
     private fun String.isGenericContextName(): Boolean {
-        val normalized = lowercase()
-            .replace(Regex("""[._\-\[\]【】()（）]+"""), " ")
-            .replace(Regex("""\s+"""), " ")
-            .trim()
+        val normalized = normalizedContextName()
         if (normalized in genericContextNames) return true
         return genericContextPatterns.any { it.matches(normalized) }
     }
 
+    private fun String.normalizedContextName(): String =
+        lowercase()
+            .replace(Regex("""[._\-\[\]【】()（）]+"""), " ")
+            .replace(Regex("""\s+"""), " ")
+            .trim()
+
     companion object {
+        private const val maxParsedTextLength = 128
+        private const val maxParsedContextSegments = 6
+        private const val releaseScore = 520
+        private const val showContextScore = 620
+        private const val detectorScore = 120
+        private const val seasonFolderScore = 360
         private val videoExtensionRegex = Regex("""(?i)\.(mkv|mp4|avi|mov|wmv|flv|webm|m4v|mpg|mpeg|ts|m2ts)$""")
         private val seasonFolderPatterns = listOf(
             Regex("""(?i)season\s*(\d{1,2})"""),
@@ -243,6 +384,9 @@ class VideoDirectoryClassifier(
             "特典",
             "番外",
             "正片",
+            "season",
+            "seasons",
+            "series",
             "episode",
             "episodes",
             "ep",
@@ -265,13 +409,18 @@ class VideoDirectoryClassifier(
             Regex("""(?i)^(?:final|last)\s+season$"""),
             Regex("""(?i)^(?:ep|episode|part)\s*[\d一二三四五六七八九十]+(?:[a-z])?$""")
         )
+        private val numericContextPatterns = listOf(
+            Regex("""(?i)^(?:season|series|s)\s*\d{1,2}$"""),
+            Regex("""(?i)^(?:ep|episode|part)\s*[\d一二三四五六七八九十]+(?:[a-z])?$""")
+        )
     }
 }
 
 data class VideoClassification(
     val animeName: String,
     val seasonNumber: Int,
-    val episodeNumber: Int?
+    val episodeNumber: Int?,
+    val titleCandidates: List<String> = emptyList()
 )
 
 data class NfoClassification(

@@ -46,6 +46,32 @@ class WebDavPropfindParserTest {
     }
 
     @Test
+    fun `parse preserves encoded question marks in WebDAV file names`() {
+        val entries = WebDavPropfindParser.parse(
+            xml = propfindFileResponse("/dav/Episode%20%231%3F.mkv"),
+            baseUrl = "https://dav.example/dav",
+            requestedPath = "",
+            includeRequestedPath = true,
+        )
+
+        assertEquals("Episode #1?.mkv", entries.single().name)
+        assertEquals("/Episode #1?.mkv", entries.single().path)
+    }
+
+    @Test
+    fun `parse preserves encoded question marks from absolute href URLs`() {
+        val entries = WebDavPropfindParser.parse(
+            xml = propfindFileResponse("https://dav.example/dav/Episode%20%231%3F.mkv?download=1"),
+            baseUrl = "https://dav.example/dav",
+            requestedPath = "",
+            includeRequestedPath = true,
+        )
+
+        assertEquals("Episode #1?.mkv", entries.single().name)
+        assertEquals("/Episode #1?.mkv", entries.single().path)
+    }
+
+    @Test
     fun `parse rejects doctype declarations`() {
         val result = runCatching {
             WebDavPropfindParser.parse(

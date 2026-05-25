@@ -1,6 +1,23 @@
 package com.miruplay.tv.desktop
 
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import com.miruplay.tv.design.MiruPlayInputIntent
+import com.miruplay.tv.model.PLAYBACK_SEEK_BACK_SECONDS
+import com.miruplay.tv.model.PLAYBACK_SEEK_FORWARD_SECONDS
+import com.miruplay.tv.model.PlaybackEndAction
+import com.miruplay.tv.model.playbackChooseMediaLabel
+import com.miruplay.tv.model.playbackEndPlayNextEpisodeActionLabel
+import com.miruplay.tv.model.playbackEndReturnToDetailActionLabel
+import com.miruplay.tv.model.playbackFullscreenToggleLabel
+import com.miruplay.tv.model.playbackKeepOpenToggleLabel
+import com.miruplay.tv.model.playbackLocalSourceLabel
+import com.miruplay.tv.model.playbackMediaPathFieldLabel
+import com.miruplay.tv.model.playbackMpvRuntimeStateLabel
+import com.miruplay.tv.model.playbackRemoteStreamLabel
+import com.miruplay.tv.model.playbackRifeToggleLabel
+import com.miruplay.tv.model.playbackStartSecondsFieldLabel
+import com.miruplay.tv.model.playbackSubtitlePathFieldLabel
 import com.miruplay.tv.player.mpv.RifeBackend
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -15,7 +32,7 @@ class DesktopPlaybackPanelTest {
 
     @Test
     fun `desktop player chrome derives a TV style title from media path`() {
-        assertEquals("选择媒体", desktopPlaybackTitle(""))
+        assertEquals(playbackChooseMediaLabel(), desktopPlaybackTitle(""))
         assertEquals("Frieren - S01E02", desktopPlaybackTitle("D:/Anime/Frieren - S01E02.mkv"))
     }
 
@@ -23,12 +40,14 @@ class DesktopPlaybackPanelTest {
     fun `desktop player controls use TV facing labels`() {
         val labels = desktopPlaybackUiLabels()
 
-        assertEquals("媒体 URI 或文件路径", labels.mediaPath)
-        assertEquals("起播秒数", labels.startSeconds)
-        assertEquals("外挂字幕路径", labels.subtitlePath)
-        assertEquals("全屏", labels.fullscreen)
-        assertEquals("播完保留窗口", labels.keepOpen)
-        assertEquals("RIFE", labels.rife)
+        assertEquals(playbackMediaPathFieldLabel(), labels.mediaPath)
+        assertEquals(playbackStartSecondsFieldLabel(), labels.startSeconds)
+        assertEquals(playbackSubtitlePathFieldLabel(), labels.subtitlePath)
+        assertEquals(playbackFullscreenToggleLabel(), labels.fullscreen)
+        assertEquals(playbackKeepOpenToggleLabel(), labels.keepOpen)
+        assertEquals(playbackRifeToggleLabel(), labels.rife)
+        assertEquals(playbackEndReturnToDetailActionLabel(), PlaybackEndAction.RETURN_TO_DETAIL.desktopActionLabel())
+        assertEquals(playbackEndPlayNextEpisodeActionLabel(), PlaybackEndAction.PLAY_NEXT_EPISODE.desktopActionLabel())
     }
 
     @Test
@@ -46,9 +65,23 @@ class DesktopPlaybackPanelTest {
             isPlayerActive = true,
         )
 
-        assertTrue(line.contains("远程串流"))
-        assertTrue(line.contains("mpv 运行中"))
+        assertTrue(line.contains(playbackRemoteStreamLabel()))
+        assertTrue(line.contains(playbackMpvRuntimeStateLabel(true)))
         assertTrue(line.contains("RIFE DIRECTML"))
+        assertTrue(
+            desktopPlaybackSourceLine(
+                mediaPath = "D:/Anime/Frieren.mkv",
+                rifeEnabled = false,
+                rifeBackend = RifeBackend.NVIDIA,
+                isPlayerActive = false,
+            ).contains(playbackLocalSourceLabel())
+        )
+    }
+
+    @Test
+    fun `desktop player seek labels use shared playback seconds`() {
+        assertEquals(10, PLAYBACK_SEEK_BACK_SECONDS)
+        assertEquals(30, PLAYBACK_SEEK_FORWARD_SECONDS)
     }
 
     @Test
@@ -165,6 +198,183 @@ class DesktopPlaybackPanelTest {
     }
 
     @Test
+    fun `desktop player stage navigation also accepts shared direction intents`() {
+        assertEquals(
+            DesktopPlayerStageFocusTarget.Primary,
+            desktopPlayerStageNavigationTarget(
+                current = DesktopPlayerStageFocusTarget.BackToDetails,
+                intent = MiruPlayInputIntent.DirectionDown,
+                isPlayerActive = false,
+            ),
+        )
+        assertEquals(
+            DesktopPlayerStageFocusTarget.BackToDetails,
+            desktopPlayerStageNavigationTarget(
+                current = DesktopPlayerStageFocusTarget.Primary,
+                intent = MiruPlayInputIntent.DirectionUp,
+                isPlayerActive = true,
+            ),
+        )
+        assertEquals(
+            DesktopPlayerStageFocusTarget.SeekBack,
+            desktopPlayerStageNavigationTarget(
+                current = DesktopPlayerStageFocusTarget.Primary,
+                intent = MiruPlayInputIntent.DirectionLeft,
+                isPlayerActive = true,
+            ),
+        )
+        assertEquals(
+            DesktopPlayerStageFocusTarget.SeekForward,
+            desktopPlayerStageNavigationTarget(
+                current = DesktopPlayerStageFocusTarget.Primary,
+                intent = MiruPlayInputIntent.DirectionRight,
+                isPlayerActive = true,
+            ),
+        )
+        assertEquals(
+            null,
+            desktopPlayerStageNavigationTarget(
+                current = DesktopPlayerStageFocusTarget.Primary,
+                intent = MiruPlayInputIntent.DirectionRight,
+                isPlayerActive = false,
+            ),
+        )
+        assertEquals(
+            null,
+            desktopPlayerStageNavigationTarget(
+                current = DesktopPlayerStageFocusTarget.Primary,
+                intent = MiruPlayInputIntent.Activate,
+                isPlayerActive = true,
+            ),
+        )
+    }
+
+    @Test
+    fun `desktop player page keys mirror Android TV playback actions`() {
+        assertEquals(DesktopPlayerKeyAction.Launch, desktopPlayerKeyAction(Key.DirectionCenter, isPlayerActive = false))
+        assertEquals(DesktopPlayerKeyAction.Launch, desktopPlayerKeyAction(Key.Spacebar, isPlayerActive = false))
+        assertEquals(DesktopPlayerKeyAction.Launch, desktopPlayerKeyAction(Key.MediaPlay, isPlayerActive = false))
+        assertEquals(DesktopPlayerKeyAction.TogglePause, desktopPlayerKeyAction(Key.MediaPlayPause, isPlayerActive = true))
+        assertEquals(DesktopPlayerKeyAction.Resume, desktopPlayerKeyAction(Key.MediaPlay, isPlayerActive = true))
+        assertEquals(DesktopPlayerKeyAction.Pause, desktopPlayerKeyAction(Key.MediaPause, isPlayerActive = true))
+        assertEquals(DesktopPlayerKeyAction.SeekBack, desktopPlayerKeyAction(Key.DirectionLeft, isPlayerActive = true))
+        assertEquals(DesktopPlayerKeyAction.SeekForward, desktopPlayerKeyAction(Key.DirectionRight, isPlayerActive = true))
+        assertEquals(DesktopPlayerKeyAction.Stop, desktopPlayerKeyAction(Key.MediaStop, isPlayerActive = true))
+        assertEquals(null, desktopPlayerKeyAction(Key.MediaPause, isPlayerActive = false))
+        assertEquals(null, desktopPlayerKeyAction(Key.DirectionUp, isPlayerActive = true))
+    }
+
+    @Test
+    fun `desktop player key event dispatches only on key down`() {
+        val actions = mutableListOf<DesktopPlayerKeyAction>()
+
+        assertTrue(
+            desktopPlayerKeyEvent(
+                key = Key.MediaPlay,
+                type = KeyEventType.KeyDown,
+                isPlayerActive = true,
+                onLaunch = { actions += DesktopPlayerKeyAction.Launch },
+                onTogglePause = { actions += DesktopPlayerKeyAction.TogglePause },
+                onResume = { actions += DesktopPlayerKeyAction.Resume },
+                onPause = { actions += DesktopPlayerKeyAction.Pause },
+                onSeekBack = { actions += DesktopPlayerKeyAction.SeekBack },
+                onSeekForward = { actions += DesktopPlayerKeyAction.SeekForward },
+                onStop = { actions += DesktopPlayerKeyAction.Stop },
+            ),
+        )
+        assertEquals(listOf(DesktopPlayerKeyAction.Resume), actions)
+
+        assertFalse(
+            desktopPlayerKeyEvent(
+                key = Key.MediaPause,
+                type = KeyEventType.KeyUp,
+                isPlayerActive = true,
+                onLaunch = { actions += DesktopPlayerKeyAction.Launch },
+                onTogglePause = { actions += DesktopPlayerKeyAction.TogglePause },
+                onResume = { actions += DesktopPlayerKeyAction.Resume },
+                onPause = { actions += DesktopPlayerKeyAction.Pause },
+                onSeekBack = { actions += DesktopPlayerKeyAction.SeekBack },
+                onSeekForward = { actions += DesktopPlayerKeyAction.SeekForward },
+                onStop = { actions += DesktopPlayerKeyAction.Stop },
+            ),
+        )
+        assertFalse(
+            desktopPlayerKeyEvent(
+                key = Key.DirectionUp,
+                type = KeyEventType.KeyDown,
+                isPlayerActive = true,
+                onLaunch = { actions += DesktopPlayerKeyAction.Launch },
+                onTogglePause = { actions += DesktopPlayerKeyAction.TogglePause },
+                onResume = { actions += DesktopPlayerKeyAction.Resume },
+                onPause = { actions += DesktopPlayerKeyAction.Pause },
+                onSeekBack = { actions += DesktopPlayerKeyAction.SeekBack },
+                onSeekForward = { actions += DesktopPlayerKeyAction.SeekForward },
+                onStop = { actions += DesktopPlayerKeyAction.Stop },
+            ),
+        )
+        assertEquals(listOf(DesktopPlayerKeyAction.Resume), actions)
+    }
+
+    @Test
+    fun `desktop player page keys keep media controls global without stealing text navigation`() {
+        assertEquals(DesktopPlayerKeyAction.Launch, desktopPlayerPageKeyAction(Key.MediaPlay, isPlayerActive = false))
+        assertEquals(DesktopPlayerKeyAction.TogglePause, desktopPlayerPageKeyAction(Key.MediaPlayPause, isPlayerActive = true))
+        assertEquals(DesktopPlayerKeyAction.Resume, desktopPlayerPageKeyAction(Key.MediaPlay, isPlayerActive = true))
+        assertEquals(DesktopPlayerKeyAction.Pause, desktopPlayerPageKeyAction(Key.MediaPause, isPlayerActive = true))
+        assertEquals(DesktopPlayerKeyAction.Stop, desktopPlayerPageKeyAction(Key.MediaStop, isPlayerActive = true))
+        assertEquals(null, desktopPlayerPageKeyAction(Key.MediaPause, isPlayerActive = false))
+        assertEquals(null, desktopPlayerPageKeyAction(Key.DirectionLeft, isPlayerActive = true))
+        assertEquals(null, desktopPlayerPageKeyAction(Key.DirectionRight, isPlayerActive = true))
+        assertEquals(null, desktopPlayerPageKeyAction(Key.Spacebar, isPlayerActive = true))
+        assertEquals(null, desktopPlayerPageKeyAction(Key.Enter, isPlayerActive = true))
+    }
+
+    @Test
+    fun `desktop player page key event dispatches global media keys only on key down`() {
+        val actions = mutableListOf<DesktopPlayerKeyAction>()
+
+        assertTrue(
+            desktopPlayerPageKeyEvent(
+                key = Key.MediaStop,
+                type = KeyEventType.KeyDown,
+                isPlayerActive = true,
+                onLaunch = { actions += DesktopPlayerKeyAction.Launch },
+                onTogglePause = { actions += DesktopPlayerKeyAction.TogglePause },
+                onResume = { actions += DesktopPlayerKeyAction.Resume },
+                onPause = { actions += DesktopPlayerKeyAction.Pause },
+                onStop = { actions += DesktopPlayerKeyAction.Stop },
+            ),
+        )
+        assertEquals(listOf(DesktopPlayerKeyAction.Stop), actions)
+
+        assertFalse(
+            desktopPlayerPageKeyEvent(
+                key = Key.MediaPlayPause,
+                type = KeyEventType.KeyUp,
+                isPlayerActive = true,
+                onLaunch = { actions += DesktopPlayerKeyAction.Launch },
+                onTogglePause = { actions += DesktopPlayerKeyAction.TogglePause },
+                onResume = { actions += DesktopPlayerKeyAction.Resume },
+                onPause = { actions += DesktopPlayerKeyAction.Pause },
+                onStop = { actions += DesktopPlayerKeyAction.Stop },
+            ),
+        )
+        assertFalse(
+            desktopPlayerPageKeyEvent(
+                key = Key.DirectionLeft,
+                type = KeyEventType.KeyDown,
+                isPlayerActive = true,
+                onLaunch = { actions += DesktopPlayerKeyAction.Launch },
+                onTogglePause = { actions += DesktopPlayerKeyAction.TogglePause },
+                onResume = { actions += DesktopPlayerKeyAction.Resume },
+                onPause = { actions += DesktopPlayerKeyAction.Pause },
+                onStop = { actions += DesktopPlayerKeyAction.Stop },
+            ),
+        )
+        assertEquals(listOf(DesktopPlayerKeyAction.Stop), actions)
+    }
+
+    @Test
     fun `desktop player settings form moves from fields into the TV control row`() {
         assertEquals(
             PlaybackSettingFocusTarget.StartSeconds,
@@ -191,8 +401,16 @@ class DesktopPlaybackPanelTest {
             playbackSettingNavigationTarget(PlaybackSettingFocusTarget.SubtitlePath, Key.DirectionUp),
         )
         assertEquals(
-            PlaybackSettingFocusTarget.Fullscreen,
+            PlaybackSettingFocusTarget.EndAction,
             playbackSettingNavigationTarget(PlaybackSettingFocusTarget.SubtitlePath, Key.DirectionDown),
+        )
+        assertEquals(
+            PlaybackSettingFocusTarget.SubtitlePath,
+            playbackSettingNavigationTarget(PlaybackSettingFocusTarget.EndAction, Key.DirectionUp),
+        )
+        assertEquals(
+            PlaybackSettingFocusTarget.Fullscreen,
+            playbackSettingNavigationTarget(PlaybackSettingFocusTarget.EndAction, Key.DirectionDown),
         )
     }
 
@@ -223,12 +441,145 @@ class DesktopPlaybackPanelTest {
             playbackSettingNavigationTarget(PlaybackSettingFocusTarget.RifeBackend, Key.DirectionRight),
         )
         assertEquals(
-            PlaybackSettingFocusTarget.SubtitlePath,
+            PlaybackSettingFocusTarget.EndAction,
             playbackSettingNavigationTarget(PlaybackSettingFocusTarget.KeepOpen, Key.DirectionUp),
         )
         assertEquals(
             PlaybackSettingFocusTarget.NextPanel,
             playbackSettingNavigationTarget(PlaybackSettingFocusTarget.KeepOpen, Key.DirectionDown),
+        )
+    }
+
+    @Test
+    fun `desktop player settings toggles also accept shared direction intents`() {
+        assertEquals(
+            PlaybackSettingFocusTarget.KeepOpen,
+            playbackSettingNavigationTarget(
+                PlaybackSettingFocusTarget.Fullscreen,
+                MiruPlayInputIntent.DirectionRight,
+            ),
+        )
+        assertEquals(
+            PlaybackSettingFocusTarget.RifeToggle,
+            playbackSettingNavigationTarget(
+                PlaybackSettingFocusTarget.RifeBackend,
+                MiruPlayInputIntent.DirectionLeft,
+            ),
+        )
+        assertEquals(
+            PlaybackSettingFocusTarget.EndAction,
+            playbackSettingNavigationTarget(
+                PlaybackSettingFocusTarget.KeepOpen,
+                MiruPlayInputIntent.DirectionUp,
+            ),
+        )
+        assertEquals(
+            PlaybackSettingFocusTarget.NextPanel,
+            playbackSettingNavigationTarget(
+                PlaybackSettingFocusTarget.KeepOpen,
+                MiruPlayInputIntent.DirectionDown,
+            ),
+        )
+        assertEquals(
+            null,
+            playbackSettingNavigationTarget(
+                PlaybackSettingFocusTarget.RifeBackend,
+                MiruPlayInputIntent.DirectionRight,
+            ),
+        )
+    }
+
+    @Test
+    fun `desktop player settings form also accepts shared direction intents`() {
+        assertEquals(
+            PlaybackSettingFocusTarget.StartSeconds,
+            playbackSettingNavigationTarget(
+                PlaybackSettingFocusTarget.MediaPath,
+                MiruPlayInputIntent.DirectionRight,
+            ),
+        )
+        assertEquals(
+            PlaybackSettingFocusTarget.MediaPath,
+            playbackSettingNavigationTarget(
+                PlaybackSettingFocusTarget.StartSeconds,
+                MiruPlayInputIntent.DirectionLeft,
+            ),
+        )
+        assertEquals(
+            PlaybackSettingFocusTarget.SubtitlePath,
+            playbackSettingNavigationTarget(
+                PlaybackSettingFocusTarget.MediaPath,
+                MiruPlayInputIntent.DirectionDown,
+            ),
+        )
+        assertEquals(
+            PlaybackSettingFocusTarget.PreviousPanel,
+            playbackSettingNavigationTarget(
+                PlaybackSettingFocusTarget.MediaPath,
+                MiruPlayInputIntent.DirectionUp,
+            ),
+        )
+        assertEquals(
+            PlaybackSettingFocusTarget.EndAction,
+            playbackSettingNavigationTarget(
+                PlaybackSettingFocusTarget.SubtitlePath,
+                MiruPlayInputIntent.DirectionDown,
+            ),
+        )
+        assertEquals(
+            null,
+            playbackSettingNavigationTarget(
+                PlaybackSettingFocusTarget.MediaPath,
+                MiruPlayInputIntent.Activate,
+            ),
+        )
+    }
+
+    @Test
+    fun `desktop playback end action rows move left and right within the selection group`() {
+        assertEquals(
+            PlaybackEndAction.PLAY_NEXT_EPISODE,
+            playbackEndActionNavigationTarget(PlaybackEndAction.RETURN_TO_DETAIL, Key.DirectionRight),
+        )
+        assertEquals(
+            PlaybackEndAction.RETURN_TO_DETAIL,
+            playbackEndActionNavigationTarget(PlaybackEndAction.PLAY_NEXT_EPISODE, Key.DirectionLeft),
+        )
+        assertEquals(
+            null,
+            playbackEndActionNavigationTarget(PlaybackEndAction.RETURN_TO_DETAIL, Key.DirectionLeft),
+        )
+    }
+
+    @Test
+    fun `desktop playback end action rows also accept shared direction intents`() {
+        assertEquals(
+            PlaybackEndAction.PLAY_NEXT_EPISODE,
+            playbackEndActionNavigationTarget(
+                PlaybackEndAction.RETURN_TO_DETAIL,
+                MiruPlayInputIntent.DirectionRight,
+            ),
+        )
+        assertEquals(
+            PlaybackEndAction.RETURN_TO_DETAIL,
+            playbackEndActionNavigationTarget(
+                PlaybackEndAction.PLAY_NEXT_EPISODE,
+                MiruPlayInputIntent.DirectionLeft,
+            ),
+        )
+        assertEquals(
+            null,
+            playbackEndActionNavigationTarget(
+                PlaybackEndAction.RETURN_TO_DETAIL,
+                MiruPlayInputIntent.DirectionLeft,
+            ),
+        )
+        assertEquals(
+            null,
+            playbackEndActionNavigationTarget(
+                PlaybackEndAction.RETURN_TO_DETAIL,
+                MiruPlayInputIntent.Activate,
+            ),
         )
     }
 
@@ -258,6 +609,28 @@ class DesktopPlaybackPanelTest {
             null,
             runtimeNavigationTarget(RuntimeFocusTarget.ConfigDir, Key.DirectionRight),
         )
+    }
+
+    @Test
+    fun `desktop runtime controls also accept shared direction intents`() {
+        assertEquals(
+            RuntimeFocusTarget.ConfigDir,
+            runtimeNavigationTarget(RuntimeFocusTarget.MpvPath, MiruPlayInputIntent.DirectionDown),
+        )
+        assertEquals(
+            RuntimeFocusTarget.CheckRuntime,
+            runtimeNavigationTarget(RuntimeFocusTarget.ConfigDir, MiruPlayInputIntent.DirectionDown),
+        )
+        assertEquals(
+            RuntimeFocusTarget.ConfigDir,
+            runtimeNavigationTarget(RuntimeFocusTarget.CheckRuntime, MiruPlayInputIntent.DirectionUp),
+        )
+        assertEquals(
+            RuntimeFocusTarget.PreviousPanel,
+            runtimeNavigationTarget(RuntimeFocusTarget.MpvPath, MiruPlayInputIntent.DirectionUp),
+        )
+        assertEquals(null, runtimeNavigationTarget(RuntimeFocusTarget.CheckRuntime, MiruPlayInputIntent.DirectionDown))
+        assertEquals(null, runtimeNavigationTarget(RuntimeFocusTarget.ConfigDir, MiruPlayInputIntent.DirectionRight))
     }
 
     @Test
