@@ -415,18 +415,17 @@ then cleared.
 This covers the previous Details-to-Bangumi action-grid focus gap; broader
 multi-panel traversal can still be expanded separately.
 
-Latest shared-input evidence: `ui-design/src/main/kotlin/com/miruplay/tv/design/MiruPlayKeyInput.kt`
-and `MiruPlayInputIntent.kt` now own pure Kotlin key profiles plus
-cross-platform activation, Back/navigation-back, directional, and media
-playback input semantics. Android TV maps Compose `Key` values to the shared
-key profile through
-`ui-tv/src/main/kotlin/com/miruplay/tv/ui/components/TvKeyEvents.kt`, and
-Windows maps Compose `Key` values to the same profile through
+Latest shared-input evidence: `ui-design/src/main/kotlin/com/miruplay/tv/design/MiruPlayKeyInput.kt`,
+`MiruPlayInputIntent.kt`, and `MiruPlayComposeKeyProfile.kt` now own pure
+Kotlin key profiles plus cross-platform activation, Back/navigation-back,
+directional, and media playback input semantics. Android TV and Windows both
+feed Compose `Key.keyCode` values into the shared profile mapper through
+`ui-tv/src/main/kotlin/com/miruplay/tv/ui/components/TvKeyEvents.kt` and
 `desktop-app/src/main/kotlin/com/miruplay/tv/desktop/DesktopKeyEvents.kt`;
 only the desktop adapter opts into Escape/NavigatePrevious/NavigateOut back
 aliases. This keeps the two platforms on one intent contract while keeping
-platform-specific key adapters thin. The Android TV fullscreen player and
-Windows desktop playback
+platform-specific key adapters thin and free of duplicated Compose-key mapping
+tables. The Android TV fullscreen player and Windows desktop playback
 stage now both dispatch activation and media playback controls through that
 shared intent layer. The shared layer also owns direction-to-delta helpers for
 horizontal, vertical, and linear focus movement; the Windows route rail and
@@ -472,6 +471,11 @@ gate in `b-241`. The broader traversal reuse pass passed
 `:ui-design:test :desktop-app:test -PbundleMpvRuntime=false` in Gradle MCP
 build `b-243` after preserving the RSS subscription picker's virtual-list-entry
 behavior, and passed the same Android/desktop compile/separation gate in `b-244`.
+The shared Compose key-profile follow-up passed
+`:ui-design:test :ui-tv:compileDebugKotlin :desktop-app:test
+-PbundleMpvRuntime=false` in Gradle MCP build `b-250` with 224 tests passed,
+and passed `checkDesktopPresenterSeparation checkDesktopComposeOnly
+:app:assembleDebug -PbundleMpvRuntime=false` in build `b-251`.
 
 ## Latest Verification Commands
 

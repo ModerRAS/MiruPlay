@@ -187,13 +187,18 @@ checkDesktopComposeOnly -PbundleMpvRuntime=false` passed in Gradle MCP build
 `b-158` with 288 tests passed, and Android debug assemble
 `:app:assembleDebug -PbundleMpvRuntime=false` passed in `b-159`.
 
-Latest local shared-input update: `:ui-design` now owns `MiruPlayKeyInput`
-plus `MiruPlayInputIntent` for platform-neutral activation,
-Back/navigation-back, direction, and media playback intents. Android TV and
-Windows keep only thin Compose `Key`-to-`MiruPlayKeyInput` adapters, so DPAD
-Center/Enter/Space activation, TV-vs-desktop Back alias profiles, and
-play/pause/stop media keys share one pure Kotlin mapping contract instead of
-duplicating intent maps in each UI shell. The same shared intent layer now also
+Latest local shared-input update: `:ui-design` now owns `MiruPlayKeyInput`,
+`MiruPlayInputIntent`, and `MiruPlayComposeKeyProfile` for platform-neutral
+activation, Back/navigation-back, direction, and media playback intents. Android
+TV and Windows keep only thin Compose `Key.keyCode` adapters that select the
+Android or Desktop shared profile, so DPAD Center/Enter/Space activation,
+TV-vs-desktop Back alias profiles, and play/pause/stop media keys share one
+pure Kotlin mapping contract instead of duplicating Compose key maps in each UI
+shell. The focused key-profile gate `:ui-design:test :ui-tv:compileDebugKotlin
+:desktop-app:test -PbundleMpvRuntime=false` passed in Gradle MCP build `b-250`
+with 224 tests passed, and the Android/desktop structural gate
+`checkDesktopPresenterSeparation checkDesktopComposeOnly :app:assembleDebug
+-PbundleMpvRuntime=false` passed in build `b-251`. The same shared intent layer now also
 owns horizontal, vertical, and linear directional deltas;
 the desktop route rail and saved-source picker consume those deltas through
 intent-based key handlers instead of branching directly on Compose `Key`
