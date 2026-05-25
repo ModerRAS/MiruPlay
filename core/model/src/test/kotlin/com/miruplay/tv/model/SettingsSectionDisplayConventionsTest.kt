@@ -74,6 +74,8 @@ class SettingsSectionDisplayConventionsTest {
     fun `desktop settings summary detail copy is shared`() {
         assertEquals("设置菜单", settingsMenuPanelTitle())
         assertEquals("像 TV 版一样按分类管理桌面能力。", settingsMenuPanelDescription())
+        assertEquals("像 TV 版一样按分类管理桌面能力。", settingsMenuPanelDescriptionDesktop())
+        assertEquals("按上下切换分类，向右进入当前设置。", settingsMenuPanelDescriptionAndroidTv())
         assertEquals("打开海报墙", settingsOpenLibraryActionLabel())
         assertEquals("扫描当前源", settingsScanActiveSourceActionLabel())
         assertEquals("打开播放器", settingsOpenPlayerActionLabel())

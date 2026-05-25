@@ -158,5 +158,7 @@ class PlaybackUiConventionsTest {
         assertEquals("播完后会自动开始下一集，没有下一集时会回到详情页。", playbackEndPlayNextEpisodeDetail())
         assertEquals("播完返回", playbackEndReturnToDetailSummary())
         assertEquals("自动下一集", playbackEndPlayNextEpisodeSummary())
+        assertEquals("播完返回", PlaybackEndAction.RETURN_TO_DETAIL.playbackEndMenuSummary())
+        assertEquals("自动下一集", PlaybackEndAction.PLAY_NEXT_EPISODE.playbackEndMenuSummary())
     }
 }

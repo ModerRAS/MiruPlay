@@ -241,6 +241,12 @@ fun playbackEndReturnToDetailSummary(): String = "播完返回"
 
 fun playbackEndPlayNextEpisodeSummary(): String = "自动下一集"
 
+fun PlaybackEndAction.playbackEndMenuSummary(): String =
+    when (this) {
+        PlaybackEndAction.RETURN_TO_DETAIL -> playbackEndReturnToDetailSummary()
+        PlaybackEndAction.PLAY_NEXT_EPISODE -> playbackEndPlayNextEpisodeSummary()
+    }
+
 private fun playbackSpeedValue(speed: Float): String =
     if (speed % 1f == 0f) {
         speed.toInt().toString()

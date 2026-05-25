@@ -136,8 +136,14 @@ fun settingsDesktopWebUiMenuSummary(addressCount: Int): String =
 fun settingsMenuPanelTitle(): String =
     "设置菜单"
 
-fun settingsMenuPanelDescription(): String =
+fun settingsMenuPanelDescriptionDesktop(): String =
     "像 TV 版一样按分类管理桌面能力。"
+
+fun settingsMenuPanelDescriptionAndroidTv(): String =
+    "按上下切换分类，向右进入当前设置。"
+
+fun settingsMenuPanelDescription(): String =
+    settingsMenuPanelDescriptionDesktop()
 
 fun settingsOpenLibraryActionLabel(): String =
     "打开海报墙"

@@ -148,10 +148,9 @@ import com.miruplay.tv.model.mediaSourceTestConnectionActionLabel
 import com.miruplay.tv.model.mediaSourceUsernameOptionalFieldLabel
 import com.miruplay.tv.model.playbackEndPlayNextEpisodeActionLabel
 import com.miruplay.tv.model.playbackEndPlayNextEpisodeDetail
-import com.miruplay.tv.model.playbackEndPlayNextEpisodeSummary
 import com.miruplay.tv.model.playbackEndReturnToDetailActionLabel
 import com.miruplay.tv.model.playbackEndReturnToDetailDetail
-import com.miruplay.tv.model.playbackEndReturnToDetailSummary
+import com.miruplay.tv.model.playbackEndMenuSummary
 import com.miruplay.tv.model.playbackEndSettingsDescriptionLabel
 import com.miruplay.tv.model.playbackEndSettingsTitleLabel
 import com.miruplay.tv.model.metadataPanelTitleLabel
@@ -168,6 +167,8 @@ import com.miruplay.tv.model.settingsMergeSameAnimeStatus
 import com.miruplay.tv.model.settingsMergeSameAnimeToggleLabel
 import com.miruplay.tv.model.settingsMetadataTokenMenuSummary
 import com.miruplay.tv.model.settingsMenuSummary
+import com.miruplay.tv.model.settingsMenuPanelDescriptionAndroidTv
+import com.miruplay.tv.model.settingsMenuPanelTitle
 import com.miruplay.tv.model.settingsScanIntervalOptionLabel
 import com.miruplay.tv.model.settingsScanPanelDescription
 import com.miruplay.tv.model.settingsScanPanelTitleLabel
@@ -663,7 +664,7 @@ private fun SettingsMenuPanel(
     val menuSummaryInput = SettingsSectionMenuSummaryInput(
         webUiAddressCount = webUiAddressCount,
         sourceCount = sourcesCount,
-        playbackSummary = playbackEndAction.menuSummary(),
+        playbackSummary = playbackEndAction.playbackEndMenuSummary(),
         cloudDriveEnabled = cloudDriveEnabled,
         rssCount = rssCount,
         autoScanEnabled = autoScanEnabled,
@@ -672,13 +673,13 @@ private fun SettingsMenuPanel(
     )
     SettingsPanel(modifier = modifier) {
         Text(
-            text = "设置菜单",
+            text = settingsMenuPanelTitle(),
             style = TvTypography.subtitle,
             color = TextPrimary
         )
         Spacer(Modifier.height(6.dp))
         Text(
-            text = "按上下切换分类，向右进入当前设置。",
+            text = settingsMenuPanelDescriptionAndroidTv(),
             style = TvTypography.caption,
             color = TextSecondary
         )
@@ -2640,11 +2641,6 @@ private fun ScanOptionChip(
             maxLines = 1
         )
     }
-}
-
-private fun PlaybackEndAction.menuSummary(): String = when (this) {
-    PlaybackEndAction.RETURN_TO_DETAIL -> playbackEndReturnToDetailSummary()
-    PlaybackEndAction.PLAY_NEXT_EPISODE -> playbackEndPlayNextEpisodeSummary()
 }
 
 @Composable
