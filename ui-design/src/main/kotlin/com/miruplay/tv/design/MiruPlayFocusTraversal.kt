@@ -89,6 +89,46 @@ fun gridFocusIndexAfter(
     }
 }
 
+fun splitColumnFocusIndexAfter(
+    currentIndex: Int,
+    intent: MiruPlayInputIntent,
+    pageStart: Int,
+    visibleCount: Int,
+    itemCount: Int,
+): Int? {
+    if (itemCount <= 0 || currentIndex !in 0 until itemCount) return null
+    val safePageStart = pageStart.coerceIn(0, itemCount - 1)
+    val safeVisibleCount = visibleCount.coerceIn(1, itemCount - safePageStart)
+    val splitIndex = splitColumnSecondColumnStart(
+        pageStart = safePageStart,
+        visibleCount = safeVisibleCount,
+    )
+    val pageEnd = safePageStart + safeVisibleCount
+    return when (intent.verticalNavigationDelta()) {
+        -1 -> focusIndexAfter(currentIndex = currentIndex, delta = -1, itemCount = itemCount)
+        1 -> focusIndexAfter(currentIndex = currentIndex, delta = 1, itemCount = itemCount)
+        else -> when (intent.horizontalNavigationDelta()) {
+            -1 -> if (currentIndex >= splitIndex && currentIndex < pageEnd) {
+                val leftIndex = safePageStart + currentIndex - splitIndex
+                leftIndex.coerceAtMost(splitIndex - 1)
+            } else {
+                null
+            }
+            1 -> if (currentIndex in safePageStart until splitIndex && splitIndex < pageEnd) {
+                (currentIndex + splitIndex - safePageStart).takeIf { it < pageEnd } ?: pageEnd - 1
+            } else {
+                null
+            }
+            else -> null
+        }
+    }
+}
+
+fun splitColumnSecondColumnStart(pageStart: Int, visibleCount: Int): Int {
+    val safeVisibleCount = visibleCount.coerceAtLeast(0)
+    return pageStart + (safeVisibleCount + 1) / 2
+}
+
 fun nextEnabledFocusIndex(
     currentIndex: Int,
     delta: Int,

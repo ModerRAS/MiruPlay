@@ -239,7 +239,9 @@ now also covers Library poster-wall and reusable poster-grid movement, including
 row-edge stops, Up/Down row jumps, and short last-row clamping. Bangumi metadata
 action-grid movement and match-list vertical movement now also reuse
 `gridFocusIndexAfter`/`focusIndexAfter`, with only match-list exits and empty
-states staying desktop-local.
+states staying desktop-local. Details media-detail two-column page movement now
+uses shared `splitColumnFocusIndexAfter` and `splitColumnSecondColumnStart`,
+with only the desktop PreviousPanel exit staying local.
 Verified with
 `:ui-design:test :ui-tv:test :desktop-app:test -PbundleMpvRuntime=false`
 and
@@ -256,7 +258,10 @@ in `b-254` with 249 tests and the Android/desktop compile/separation gate in
 `b-255`. The Bangumi traversal reuse pass passed focused
 `DesktopBangumiNavigationTest` in `b-256`, `:ui-design:test :desktop-app:test
 -PbundleMpvRuntime=false` in `b-257`, and the Android/desktop
-compile/separation gate in `b-258`.
+compile/separation gate in `b-258`. The split-column Details extraction passed
+focused `DesktopDetailHeroTest` plus `:ui-design:test` in `b-259`, broad
+`:ui-design:test :desktop-app:test -PbundleMpvRuntime=false` in `b-260`, and
+the Android/desktop compile/separation gate in `b-261`.
 
 ## Work Plan
 

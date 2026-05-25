@@ -466,7 +466,9 @@ stops, Up/Down row jumps, and short last-row clamping while keeping only the
 desktop-specific panel exits local. Bangumi metadata action-grid movement and
 match-list vertical movement now also delegate their regular grid/list steps to
 `gridFocusIndexAfter`/`focusIndexAfter`, leaving only match-list exits and empty
-states in the desktop panel. Verified with
+states in the desktop panel. Details media-detail two-column page movement now
+uses shared `splitColumnFocusIndexAfter` and `splitColumnSecondColumnStart`,
+leaving only the desktop PreviousPanel exit local. Verified with
 `:ui-design:test :ui-tv:test :desktop-app:test -PbundleMpvRuntime=false`
 and
 `checkDesktopPresenterSeparation checkDesktopComposeOnly :ui-tv:compileDebugKotlin :app:assembleDebug -PbundleMpvRuntime=false`
@@ -487,7 +489,11 @@ traversal extraction passed `:ui-design:test :desktop-app:test
 Android/desktop compile/separation gate passed in build `b-255`. The Bangumi
 traversal reuse pass passed focused `DesktopBangumiNavigationTest` in build
 `b-256`, `:ui-design:test :desktop-app:test -PbundleMpvRuntime=false` in build
-`b-257`, and the Android/desktop compile/separation gate in build `b-258`.
+`b-257`, and the Android/desktop compile/separation gate in build `b-258`. The
+split-column Details extraction passed focused `DesktopDetailHeroTest` plus
+`:ui-design:test` in build `b-259`, broad `:ui-design:test :desktop-app:test
+-PbundleMpvRuntime=false` in build `b-260`, and the Android/desktop
+compile/separation gate in build `b-261`.
 
 ## Latest Verification Commands
 

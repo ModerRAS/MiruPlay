@@ -225,4 +225,109 @@ class MiruPlayFocusTraversalTest {
             ),
         )
     }
+
+    @Test
+    fun `split-column traversal moves across visible columns and clamps short pages`() {
+        assertEquals(
+            1,
+            splitColumnFocusIndexAfter(
+                currentIndex = 0,
+                intent = MiruPlayInputIntent.DirectionDown,
+                pageStart = 0,
+                visibleCount = 6,
+                itemCount = 7,
+            ),
+        )
+        assertEquals(
+            3,
+            splitColumnFocusIndexAfter(
+                currentIndex = 0,
+                intent = MiruPlayInputIntent.DirectionRight,
+                pageStart = 0,
+                visibleCount = 6,
+                itemCount = 7,
+            ),
+        )
+        assertEquals(
+            2,
+            splitColumnFocusIndexAfter(
+                currentIndex = 5,
+                intent = MiruPlayInputIntent.DirectionLeft,
+                pageStart = 0,
+                visibleCount = 6,
+                itemCount = 7,
+            ),
+        )
+        assertEquals(
+            5,
+            splitColumnFocusIndexAfter(
+                currentIndex = 2,
+                intent = MiruPlayInputIntent.DirectionRight,
+                pageStart = 0,
+                visibleCount = 6,
+                itemCount = 7,
+            ),
+        )
+        assertEquals(
+            12,
+            splitColumnFocusIndexAfter(
+                currentIndex = 11,
+                intent = MiruPlayInputIntent.DirectionDown,
+                pageStart = 6,
+                visibleCount = 6,
+                itemCount = 13,
+            ),
+        )
+        assertNull(
+            splitColumnFocusIndexAfter(
+                currentIndex = 12,
+                intent = MiruPlayInputIntent.DirectionRight,
+                pageStart = 12,
+                visibleCount = 1,
+                itemCount = 13,
+            ),
+        )
+    }
+
+    @Test
+    fun `split-column traversal handles invalid input defensively`() {
+        assertEquals(3, splitColumnSecondColumnStart(pageStart = 0, visibleCount = 6))
+        assertEquals(13, splitColumnSecondColumnStart(pageStart = 12, visibleCount = 1))
+        assertNull(
+            splitColumnFocusIndexAfter(
+                currentIndex = 0,
+                intent = MiruPlayInputIntent.DirectionUp,
+                pageStart = 0,
+                visibleCount = 6,
+                itemCount = 7,
+            ),
+        )
+        assertNull(
+            splitColumnFocusIndexAfter(
+                currentIndex = -1,
+                intent = MiruPlayInputIntent.DirectionDown,
+                pageStart = 0,
+                visibleCount = 6,
+                itemCount = 7,
+            ),
+        )
+        assertNull(
+            splitColumnFocusIndexAfter(
+                currentIndex = 0,
+                intent = MiruPlayInputIntent.DirectionDown,
+                pageStart = 0,
+                visibleCount = 0,
+                itemCount = 0,
+            ),
+        )
+        assertNull(
+            splitColumnFocusIndexAfter(
+                currentIndex = 0,
+                intent = MiruPlayInputIntent.Activate,
+                pageStart = 0,
+                visibleCount = 6,
+                itemCount = 7,
+            ),
+        )
+    }
 }

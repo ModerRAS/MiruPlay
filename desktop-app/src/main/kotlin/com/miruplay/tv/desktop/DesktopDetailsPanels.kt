@@ -43,6 +43,8 @@ import com.miruplay.tv.design.MiruPlayUiMetrics
 import com.miruplay.tv.design.focusIndexAfter
 import com.miruplay.tv.design.focusTargetAfter
 import com.miruplay.tv.design.horizontalNavigationDelta
+import com.miruplay.tv.design.splitColumnFocusIndexAfter
+import com.miruplay.tv.design.splitColumnSecondColumnStart
 import com.miruplay.tv.design.verticalNavigationDelta
 import com.miruplay.tv.model.DETAIL_EPISODE_PAGE_SIZE
 import com.miruplay.tv.model.FileEntry
@@ -1446,36 +1448,20 @@ internal fun mediaDetailsFocusTarget(
     if (rowCount <= 0) return null
     val safePageStart = mediaDetailsCoercedPageStart(pageStart, rowCount)
     val safeVisibleCount = visibleCount.coerceIn(1, rowCount - safePageStart)
-    val splitIndex = mediaDetailsSplitIndex(safePageStart, safeVisibleCount)
-    val pageEnd = safePageStart + safeVisibleCount
-    val targetIndex = when (intent.verticalNavigationDelta()) {
-        -1 -> currentIndex - 1
-        1 -> currentIndex + 1
-        else -> when (intent.horizontalNavigationDelta()) {
-            -1 -> if (currentIndex >= splitIndex && currentIndex < pageEnd) {
-                val leftIndex = safePageStart + currentIndex - splitIndex
-                leftIndex.coerceAtMost(splitIndex - 1)
-            } else {
-                return null
-            }
-            1 -> if (currentIndex in safePageStart until splitIndex && splitIndex < pageEnd) {
-                (currentIndex + splitIndex - safePageStart).takeIf { it < pageEnd } ?: pageEnd - 1
-            } else {
-                return null
-            }
-            else -> return null
+    return splitColumnFocusIndexAfter(
+        currentIndex = currentIndex,
+        intent = intent,
+        pageStart = safePageStart,
+        visibleCount = safeVisibleCount,
+        itemCount = rowCount,
+    )?.let(MediaDetailsFocusTarget::Row)
+        ?: MediaDetailsFocusTarget.PreviousPanel.takeIf {
+            currentIndex == 0 && intent.verticalNavigationDelta() == -1
         }
-    }
-    return when {
-        targetIndex < 0 -> MediaDetailsFocusTarget.PreviousPanel
-        targetIndex >= rowCount -> null
-        else -> MediaDetailsFocusTarget.Row(targetIndex)
-    }
 }
 
 internal fun mediaDetailsSplitIndex(pageStart: Int, visibleCount: Int): Int {
-    val safeVisibleCount = visibleCount.coerceAtLeast(0)
-    return pageStart + (safeVisibleCount + 1) / 2
+    return splitColumnSecondColumnStart(pageStart = pageStart, visibleCount = visibleCount)
 }
 
 @Composable
