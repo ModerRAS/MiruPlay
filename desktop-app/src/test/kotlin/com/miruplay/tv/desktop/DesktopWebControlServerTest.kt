@@ -354,6 +354,51 @@ class DesktopWebControlServerTest {
     }
 
     @Test
+    fun `desktop web control scan source returns error payload for broken source`() = runBlocking {
+        val storePath = Files.createTempDirectory("miruplay-web-control-store").resolve("store.json")
+        val invalidMediaRoot = Files.createTempDirectory("miruplay-web-control-media-invalid")
+        val port = freePort()
+        try {
+            val invalidRootString = invalidMediaRoot.toString()
+            invalidMediaRoot.toFile().deleteRecursively()
+
+            val repositories = DesktopRepositories.fileBacked(storePath)
+            val brokenSourceId = (repositories.mediaSources.addSource(
+                MediaSourceInfoConventions.local(
+                    name = "Broken Anime",
+                    rootPath = invalidRootString,
+                    isConnected = true,
+                )
+            ) as Result.Success).data
+            repositories.webControlAccess.webControlEnabled = true
+            val token = repositories.webControlAccess.accessToken
+            val service = DesktopWebControlService(repositories, deviceName = "Windows Test")
+            val server = DesktopWebControlServer(
+                webControlService = service,
+                webControlAccess = repositories.webControlAccess,
+                port = port,
+            )
+            server.startIfNeeded()
+            try {
+                val scan = request(
+                    url = "http://127.0.0.1:$port/api/sources/$brokenSourceId/scan?token=$token",
+                    method = "POST",
+                )
+                assertEquals(200, scan.code)
+                assertTrue(scan.body.contains("\"sourceId\":$brokenSourceId"))
+                assertTrue(scan.body.contains("\"animeName\":\"Broken Anime\""))
+                assertTrue(scan.body.contains("\"episodesFound\":0"))
+                assertTrue(scan.body.contains("\"error\":"))
+            } finally {
+                server.stopIfRunning()
+            }
+        } finally {
+            invalidMediaRoot.toFile().deleteRecursively()
+            storePath.parent.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
     fun `desktop web control scan all returns per-source failure payloads`() = runBlocking {
         val storePath = Files.createTempDirectory("miruplay-web-control-store").resolve("store.json")
         val validMediaRoot = Files.createTempDirectory("miruplay-web-control-media-valid")
