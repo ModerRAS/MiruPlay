@@ -106,8 +106,8 @@ import com.miruplay.tv.model.playbackSubtitlesMenuTitle
 import com.miruplay.tv.design.MiruPlayPlaybackInputAction
 import com.miruplay.tv.design.shouldRefreshTvPlaybackControls
 import com.miruplay.tv.design.tvPlaybackOverlayAction
-import com.miruplay.tv.ui.components.isTvActivateKey
 import com.miruplay.tv.ui.components.toMiruPlayInputIntent
+import com.miruplay.tv.ui.components.tvActivateKeyEvent
 import com.miruplay.tv.player.AudioTrack
 import com.miruplay.tv.ui.theme.AnimeRed
 import com.miruplay.tv.ui.theme.DarkSurface
@@ -625,12 +625,12 @@ private fun PlayerIconButton(
                 onClick = onClick
             )
             .onKeyEvent { event ->
-                if (enabled && event.type == KeyEventType.KeyDown && event.key.isTvActivateKey()) {
-                    onClick()
-                    true
-                } else {
-                    false
-                }
+                tvActivateKeyEvent(
+                    key = event.key,
+                    type = event.type,
+                    enabled = enabled,
+                    onActivate = onClick,
+                )
             }
             .focusable(enabled = enabled, interactionSource = interactionSource),
         contentAlignment = Alignment.Center
@@ -698,12 +698,12 @@ private fun PlayerActionChip(
             .height(48.dp)
             .clip(RoundedCornerShape(8.dp))
             .onPreviewKeyEvent { event ->
-                if (enabled && event.type == KeyEventType.KeyDown && event.key.isTvActivateKey()) {
-                    onClick()
-                    true
-                } else {
-                    false
-                }
+                tvActivateKeyEvent(
+                    key = event.key,
+                    type = event.type,
+                    enabled = enabled,
+                    onActivate = onClick,
+                )
             }
             .border(
                 width = if (isFocused || selected) 2.dp else 1.dp,
@@ -847,12 +847,11 @@ private fun PlayerOptionButton(
             .height(48.dp)
             .clip(RoundedCornerShape(8.dp))
             .onPreviewKeyEvent { event ->
-                if (event.type == KeyEventType.KeyDown && event.key.isTvActivateKey()) {
-                    onClick()
-                    true
-                } else {
-                    false
-                }
+                tvActivateKeyEvent(
+                    key = event.key,
+                    type = event.type,
+                    onActivate = onClick,
+                )
             }
             .border(
                 width = if (isFocused || selected) 2.dp else 1.dp,
