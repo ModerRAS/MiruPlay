@@ -30,6 +30,7 @@ import java.net.HttpURLConnection
 import java.net.ServerSocket
 import java.net.URI
 import java.nio.file.Files
+import java.nio.file.StandardOpenOption
 
 class DesktopWebControlServerTest {
     @Test
@@ -348,6 +349,63 @@ class DesktopWebControlServerTest {
         } finally {
             secondMediaRoot.toFile().deleteRecursively()
             mediaRoot.toFile().deleteRecursively()
+            storePath.parent.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `desktop web control scan all returns per-source failure payloads`() = runBlocking {
+        val storePath = Files.createTempDirectory("miruplay-web-control-store").resolve("store.json")
+        val validMediaRoot = Files.createTempDirectory("miruplay-web-control-media-valid")
+        val invalidMediaRoot = Files.createTempDirectory("miruplay-web-control-media-invalid")
+        val port = freePort()
+        try {
+            val validShowDir = Files.createDirectory(validMediaRoot.resolve("Bocchi"))
+            Files.writeString(validShowDir.resolve("Bocchi - 01.mkv"), "video")
+            val invalidRootString = invalidMediaRoot.toString()
+            invalidMediaRoot.toFile().deleteRecursively()
+
+            val repositories = DesktopRepositories.fileBacked(storePath)
+            val validSourceId = (repositories.mediaSources.addSource(
+                MediaSourceInfoConventions.local(
+                    name = "Valid Anime",
+                    rootPath = validMediaRoot.toString(),
+                    isConnected = true,
+                )
+            ) as Result.Success).data
+            val brokenSourceId = (repositories.mediaSources.addSource(
+                MediaSourceInfoConventions.local(
+                    name = "Broken Anime",
+                    rootPath = invalidRootString,
+                    isConnected = true,
+                )
+            ) as Result.Success).data
+            repositories.webControlAccess.webControlEnabled = true
+            val token = repositories.webControlAccess.accessToken
+            val service = DesktopWebControlService(repositories, deviceName = "Windows Test")
+            val server = DesktopWebControlServer(
+                webControlService = service,
+                webControlAccess = repositories.webControlAccess,
+                port = port,
+            )
+            server.startIfNeeded()
+            try {
+                val scanAll = request(
+                    url = "http://127.0.0.1:$port/api/sources/scan-all?token=$token",
+                    method = "POST",
+                )
+                assertEquals(200, scanAll.code)
+                assertTrue(scanAll.body.contains("\"sourceId\":$validSourceId"))
+                assertTrue(scanAll.body.contains("\"sourceId\":$brokenSourceId"))
+                assertTrue(scanAll.body.contains("\"animeName\":\"Broken Anime\""))
+                assertTrue(scanAll.body.contains("\"episodesFound\":0"))
+                assertTrue(scanAll.body.contains("\"error\":"))
+            } finally {
+                server.stopIfRunning()
+            }
+        } finally {
+            validMediaRoot.toFile().deleteRecursively()
+            invalidMediaRoot.toFile().deleteRecursively()
             storePath.parent.toFile().deleteRecursively()
         }
     }
