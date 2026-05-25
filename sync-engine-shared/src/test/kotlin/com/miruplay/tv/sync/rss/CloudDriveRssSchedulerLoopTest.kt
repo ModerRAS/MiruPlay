@@ -1,6 +1,7 @@
 package com.miruplay.tv.sync.rss
 
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.model.CloudDriveAutomationConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -59,6 +60,26 @@ class CloudDriveRssSchedulerLoopTest {
                 )
             }
             assertTrue(error.message?.contains("checkIntervalMillis") == true)
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `desktop scheduler syncPeriodicWork starts and stops based on config enabled flag`() {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        try {
+            val scheduler = DesktopCloudDriveRssScheduler(
+                dueRunner = CloudDriveRssDueRunner { Result.success(null) },
+                scope = scope,
+                checkIntervalMillis = 50L,
+            )
+
+            scheduler.syncPeriodicWork(CloudDriveAutomationConfig(enabled = true))
+            assertTrue(scheduler.state.value.running)
+
+            scheduler.syncPeriodicWork(CloudDriveAutomationConfig(enabled = false))
+            assertTrue(!scheduler.state.value.running)
         } finally {
             scope.cancel()
         }
