@@ -546,6 +546,18 @@ Verification:
   -SubmitLimit 1 `
   -Filter Episode
 
+# One-command CloudDrive + RSS evidence bundle (CloudDrive live + RSS dry-run/live-submit/organize + assertions):
+.\tools\run-cloud-parity-evidence-bundle.ps1 `
+  -Endpoint <endpoint> `
+  -Token <token> `
+  -RssUrl <rss> `
+  -Inbox <inbox> `
+  -Library <library> `
+  -CloudDrivePath <cloudDrivePath> `
+  -SubmitLimit 1 `
+  -Filter Episode `
+  -RequireCloudDriveOfflinePermission
+
 .\gradlew.bat :sync-engine-desktop:smokeCloudDriveRssScheduler `
   -PcloudDriveRssSchedulerDurationMs=2000 `
   -PcloudDriveRssSchedulerCheckIntervalMs=250 `
@@ -674,7 +686,7 @@ Verification:
 
 ## Immediate Next Actions
 
-1. Run real CloudDrive2 dry-run/live QA and record token-free evidence for sync and organize.
+1. Run real CloudDrive2 dry-run/live QA and record token-free evidence for sync and organize (preferred one-command entry: `tools/run-cloud-parity-evidence-bundle.ps1`).
 2. Run RIFE backend matrix on target Windows hardware with the packaged runtime and record the JSON report, including manifest evidence via `-RequireRuntimeManifest`.
 3. Continue narrowing deeper desktop-vs-Android-TV UI gaps beyond the first screens, especially less-traveled keyboard/DPAD focus paths outside the now-covered Android TV Settings category/page traversal, Settings summary quick-action rows, source-management local/remote fields plus actions and remote editor/browser focus bridge, Cloud/RSS credential/sync/RSS edit fields plus action/toggle/subscription rows, desktop route rail, Library header action row, Library poster wall/highest-heat/recent shelves/search row/source bridge, Details hero actions, Details hero-to-episodes/recents/Bangumi/media-details fallback plus episode-shelf season selector, remote browser list including parent navigation, Player stage/settings/runtime focus bridge, saved-source card movement, and Bangumi metadata action grid/apply-clear flow.
 4. Use `tools/verify-windows-port.ps1` as the local gate before pushes; GitHub Actions also runs the base gate plus the local Cloud/RSS scheduler smoke on `codex/**` pushes. Keep SMB, live CloudDrive/RSS, and RIFE checks opt-in so the shared SMB folder, real CloudDrive server, and low-capability local host are not touched by default.
