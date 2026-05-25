@@ -5,6 +5,7 @@ import com.miruplay.tv.scraper.BangumiScraper
 import com.miruplay.tv.scraper.MetadataScraper
 import com.miruplay.tv.scraper.filename.AnimeFilenameParser
 import com.miruplay.tv.model.FilenameMetadataParser
+import com.miruplay.tv.repository.BangumiCollectionService
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -20,6 +21,10 @@ object ScraperModule {
     @Singleton
     @IntoSet
     fun provideBangumiScraper(scraper: BangumiScraper): MetadataScraper = scraper
+
+    @Provides
+    @Singleton
+    fun provideBangumiCollectionService(scraper: BangumiScraper): BangumiCollectionService = scraper
 
     @Provides
     @Singleton

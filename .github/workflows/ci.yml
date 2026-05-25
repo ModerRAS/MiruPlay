@@ -56,8 +56,15 @@ jobs:
           checkDesktopPresenterSeparation
           checkUiPaletteDrift
           :core:model:test
+          :media-source-api:test
+          :metadata-core:test
           :repository-api:test
           :media-source-desktop:test
+          :metadata:test
+          :scraper-core:test
+          :scraper:test
+          :sync-engine:test
+          :web-control:test
           :scanner-desktop:test
           :repository-desktop:test
           :scraper-desktop:test
@@ -89,6 +96,33 @@ jobs:
         with:
           name: all-apks-${{ github.run_number }}
           path: app/build/outputs/apk/**/*.apk
+          retention-days: 7
+
+  windows-desktop:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Build Windows desktop ZIP
+        run: .\gradlew.bat :desktop-app:test :desktop-app:distZip -PbundleMpvRuntime=false --no-daemon --stacktrace
+
+      - name: Upload Windows desktop ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: miruplay-windows-desktop-${{ github.run_number }}
+          path: desktop-app/build/distributions/*.zip
           retention-days: 7
 
   build-release:
@@ -193,6 +227,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    outputs:
+      has_changes: ${{ steps.check_changes.outputs.has_changes }}
+      version_name: ${{ steps.version.outputs.version_name }}
     concurrency:
       group: nightly-${{ github.ref }}
       cancel-in-progress: true
@@ -319,7 +356,7 @@ jobs:
           ${CHANGES:-No new commits since last nightly.}
 
           ### Downloads
-          Download the APK from the artifacts below.
+          Download the Android APK and Windows desktop ZIP from the artifacts below.
           EOF
 
           echo "Release notes written to release-notes.md"
@@ -355,3 +392,46 @@ jobs:
           name: miruplay-nightly-${{ steps.version.outputs.version_name }}
           path: app/build/outputs/apk/release/*-release.apk
           retention-days: 30
+
+  nightly-windows-desktop:
+    runs-on: windows-latest
+    needs: nightly
+    permissions:
+      contents: write
+    if: needs.nightly.outputs.has_changes == 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Build nightly Windows desktop ZIP
+        run: .\gradlew.bat :desktop-app:test :desktop-app:distZip -PbundleMpvRuntime=false --no-daemon --stacktrace
+
+      - name: Upload nightly Windows desktop artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: miruplay-windows-nightly-${{ needs.nightly.outputs.version_name }}
+          path: desktop-app/build/distributions/*.zip
+          retention-days: 30
+
+      - name: Attach Windows desktop ZIP to nightly release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nightly-${{ needs.nightly.outputs.version_name }}
+          files: desktop-app/build/distributions/*.zip
+          overwrite_files: true
+          fail_on_unmatched_files: true
+          prerelease: true
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

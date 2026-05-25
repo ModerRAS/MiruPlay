@@ -46,15 +46,56 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.design.MiruPlayUiMetrics
+import com.miruplay.tv.design.horizontalNavigationDelta
+import com.miruplay.tv.design.verticalNavigationDelta
 import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.MediaSourceInfo
-import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.formatFileSize
+import com.miruplay.tv.model.libraryCollectedCountLabel
+import com.miruplay.tv.model.libraryFeaturedSectionTitle
+import com.miruplay.tv.model.libraryHasSourcesEmptyMessage
+import com.miruplay.tv.model.libraryNoSourcesMessage
+import com.miruplay.tv.model.libraryPosterWallSectionTitle
+import com.miruplay.tv.model.libraryRecentlyAddedSectionTitle
+import com.miruplay.tv.model.libraryScanActionLabel
+import com.miruplay.tv.model.librarySearchActionLabel
+import com.miruplay.tv.model.librarySearchFieldLabel
+import com.miruplay.tv.model.librarySearchResultCountLabel
+import com.miruplay.tv.model.librarySettingsActionLabel
+import com.miruplay.tv.model.librarySubtitleLabel
+import com.miruplay.tv.model.libraryTitleLabel
+import com.miruplay.tv.model.mediaSourceClearIndexActionLabel
+import com.miruplay.tv.model.mediaSourceIndexQueryFieldLabel
+import com.miruplay.tv.model.mediaSourceListTitleLabel
+import com.miruplay.tv.model.mediaSourceLocalLibraryRootFieldLabel
+import com.miruplay.tv.model.mediaSourceRemoteBrowserEmptyMessage
+import com.miruplay.tv.model.mediaSourceRemoteBrowserItemTypeLabel
+import com.miruplay.tv.model.mediaSourceRemoteBrowserPageUnitLabel
+import com.miruplay.tv.model.mediaSourceRemoteBrowserTitleLabel
+import com.miruplay.tv.model.mediaSourceRemoveActionLabel
+import com.miruplay.tv.model.mediaSourceScanActionLabel
+import com.miruplay.tv.model.mediaSourceScanSourceActionLabel
+import com.miruplay.tv.model.mediaSourceSearchActionLabel
+import com.miruplay.tv.model.mediaSourceSmbDomainFieldLabel
+import com.miruplay.tv.model.mediaSourceUpActionLabel
+import com.miruplay.tv.model.mediaSourceStatusText
+import com.miruplay.tv.model.openSourceActionLabel
+import com.miruplay.tv.model.pagedListCoercedPageStart
+import com.miruplay.tv.model.pagedListPageStartForIndex
+import com.miruplay.tv.model.pagedListPageSummary
+import com.miruplay.tv.model.sourceEndpointPlaceholderLabel
+import com.miruplay.tv.model.sourcePasswordFieldLabel
+import com.miruplay.tv.model.sourceUsernameFieldLabel
+import com.miruplay.tv.model.tvBadgeLabel
 import com.miruplay.tv.model.tvLabel
+import com.miruplay.tv.model.tvLocationLabel
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.displayName
+import com.miruplay.tv.repository.mediaFilesOnly
 
 private const val POSTER_WALL_COLUMNS = 6
 private const val REMOTE_SOURCE_PREVIEW_LIMIT = 70
@@ -131,7 +172,7 @@ internal fun LibraryPanel(
                 onFocusEmptyMedia = ::requestEmptyMediaFocus,
             )
             LibraryEmptyMediaState(
-                text = if (savedSources.isEmpty()) "添加媒体源开始使用" else "已配置媒体源\n点击扫描建立媒体库",
+                text = if (savedSources.isEmpty()) libraryNoSourcesMessage() else libraryHasSourcesEmptyMessage(),
                 focusRequester = emptyMediaFocusRequester,
                 onMove = ::requestSourceFocusFromEmpty,
                 heightDp = 300,
@@ -199,7 +240,7 @@ internal fun LibraryPanel(
                 }
             }
 
-            PosterSectionHeader(title = "海报墙", trailing = "已收录 ${posterGroups.size} 部")
+            PosterSectionHeader(title = libraryPosterWallSectionTitle(), trailing = libraryCollectedCountLabel(posterGroups.size))
             PosterWall(
                 groups = posterGroups,
                 featuredCount = featuredGroups.size,
@@ -213,7 +254,7 @@ internal fun LibraryPanel(
             )
 
             if (featuredGroups.isNotEmpty()) {
-                PosterSectionHeader(title = "最高热度")
+                PosterSectionHeader(title = libraryFeaturedSectionTitle())
                 FeaturedPosterShelf(
                     groups = featuredGroups,
                     posterCount = posterGroups.size,
@@ -227,7 +268,7 @@ internal fun LibraryPanel(
             }
 
             if (recentlyAddedGroups.isNotEmpty()) {
-                PosterSectionHeader(title = "最近添加")
+                PosterSectionHeader(title = libraryRecentlyAddedSectionTitle())
                 PosterCardShelf(
                     groups = recentlyAddedGroups,
                     posterCount = posterGroups.size,
@@ -319,9 +360,9 @@ internal fun DesktopLibraryHeader(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column {
-            Text("探索", color = TextPrimary, fontSize = 44.sp, fontWeight = FontWeight.Bold)
+            Text(libraryTitleLabel(), color = TextPrimary, fontSize = 44.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(4.dp))
-            Text("本地媒体库 · Bangumi 元数据", color = TextSecondary, fontSize = 24.sp)
+            Text(librarySubtitleLabel(), color = TextSecondary, fontSize = 24.sp)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             desktopLibraryHeaderActions().forEach { action ->
@@ -341,9 +382,15 @@ internal fun DesktopLibraryHeader(
     }
 }
 
-internal enum class DesktopLibraryHeaderAction(val label: String) {
-    Scan("扫描"),
-    Settings("设置"),
+internal enum class DesktopLibraryHeaderAction {
+    Scan,
+    Settings;
+
+    val label: String
+        get() = when (this) {
+            Scan -> libraryScanActionLabel()
+            Settings -> librarySettingsActionLabel()
+        }
 }
 
 internal fun desktopLibraryHeaderActions(): List<DesktopLibraryHeaderAction> =
@@ -358,13 +405,23 @@ internal fun desktopLibraryHeaderFocusTarget(
     current: DesktopLibraryHeaderAction,
     key: Key,
 ): DesktopLibraryHeaderFocusTarget? =
-    when (key) {
-        Key.DirectionLeft -> DesktopLibraryHeaderFocusTarget.Action(DesktopLibraryHeaderAction.Scan)
-            .takeIf { current == DesktopLibraryHeaderAction.Settings }
-        Key.DirectionRight -> DesktopLibraryHeaderFocusTarget.Action(DesktopLibraryHeaderAction.Settings)
-            .takeIf { current == DesktopLibraryHeaderAction.Scan }
-        Key.DirectionDown -> DesktopLibraryHeaderFocusTarget.NextPanel
-        else -> null
+    key.toMiruPlayInputIntent()?.let { intent ->
+        desktopLibraryHeaderFocusTarget(current, intent)
+    }
+
+internal fun desktopLibraryHeaderFocusTarget(
+    current: DesktopLibraryHeaderAction,
+    intent: MiruPlayInputIntent,
+): DesktopLibraryHeaderFocusTarget? =
+    when {
+        intent == MiruPlayInputIntent.DirectionDown -> DesktopLibraryHeaderFocusTarget.NextPanel
+        else -> when (intent.horizontalNavigationDelta()) {
+            -1 -> DesktopLibraryHeaderFocusTarget.Action(DesktopLibraryHeaderAction.Scan)
+                .takeIf { current == DesktopLibraryHeaderAction.Settings }
+            1 -> DesktopLibraryHeaderFocusTarget.Action(DesktopLibraryHeaderAction.Settings)
+                .takeIf { current == DesktopLibraryHeaderAction.Scan }
+            else -> null
+        }
     }
 
 internal enum class LibrarySourceAction {
@@ -390,31 +447,40 @@ internal sealed interface LibrarySourceFocusTarget {
 private fun Modifier.librarySourceActionNavigation(
     action: LibrarySourceAction,
     focusRequester: FocusRequester,
-    onMove: (LibrarySourceAction, Key) -> Boolean,
+    onMove: (LibrarySourceAction, MiruPlayInputIntent) -> Boolean,
 ): Modifier =
     focusRequester(focusRequester)
-        .desktopNavigationKeyHandler { key -> onMove(action, key) }
+        .desktopNavigationIntentHandler { intent -> onMove(action, intent) }
 
 private fun Modifier.librarySourceFieldNavigation(
     field: LibrarySourceField,
     focusRequester: FocusRequester,
-    onMove: (LibrarySourceField, Key) -> Boolean,
+    onMove: (LibrarySourceField, MiruPlayInputIntent) -> Boolean,
 ): Modifier =
     focusRequester(focusRequester)
-        .desktopNavigationKeyHandler { key -> onMove(field, key) }
+        .desktopNavigationIntentHandler { intent -> onMove(field, intent) }
 
 internal fun librarySourceActionFocusTarget(
     current: LibrarySourceAction,
     key: Key,
     hasEmptyMedia: Boolean = false,
 ): LibrarySourceFocusTarget? =
+    key.toMiruPlayInputIntent()?.let { intent ->
+        librarySourceActionFocusTarget(current, intent, hasEmptyMedia)
+    }
+
+internal fun librarySourceActionFocusTarget(
+    current: LibrarySourceAction,
+    intent: MiruPlayInputIntent,
+    hasEmptyMedia: Boolean = false,
+): LibrarySourceFocusTarget? =
     when {
-        current == LibrarySourceAction.OpenLocal && key == Key.DirectionLeft ->
+        current == LibrarySourceAction.OpenLocal && intent.horizontalNavigationDelta() == -1 ->
             LibrarySourceFocusTarget.Field(LibrarySourceField.IndexQuery)
-        key == Key.DirectionDown -> librarySourceActionNavigationTarget(current, key)
+        intent.verticalNavigationDelta() == 1 -> librarySourceActionNavigationTarget(current, intent)
             ?.let(LibrarySourceFocusTarget::Action)
             ?: LibrarySourceFocusTarget.EmptyMedia.takeIf { hasEmptyMedia }
-        else -> librarySourceActionNavigationTarget(current, key)?.let(LibrarySourceFocusTarget::Action)
+        else -> librarySourceActionNavigationTarget(current, intent)?.let(LibrarySourceFocusTarget::Action)
     }
 
 internal fun librarySourceFieldFocusTarget(
@@ -422,27 +488,41 @@ internal fun librarySourceFieldFocusTarget(
     key: Key,
     hasEmptyMedia: Boolean = false,
 ): LibrarySourceFocusTarget? =
-    when (key) {
-        Key.DirectionUp -> when (current) {
+    key.toMiruPlayInputIntent()?.let { intent ->
+        librarySourceFieldFocusTarget(current, intent, hasEmptyMedia)
+    }
+
+internal fun librarySourceFieldFocusTarget(
+    current: LibrarySourceField,
+    intent: MiruPlayInputIntent,
+    hasEmptyMedia: Boolean = false,
+): LibrarySourceFocusTarget? =
+    when (intent.verticalNavigationDelta()) {
+        -1 -> when (current) {
             LibrarySourceField.LocalRoot -> LibrarySourceFocusTarget.PreviousPanel
             LibrarySourceField.IndexQuery -> LibrarySourceFocusTarget.Field(LibrarySourceField.LocalRoot)
         }
-        Key.DirectionDown -> when {
+        1 -> when {
             current == LibrarySourceField.LocalRoot -> LibrarySourceFocusTarget.Field(LibrarySourceField.IndexQuery)
             hasEmptyMedia -> LibrarySourceFocusTarget.EmptyMedia
             else -> null
         }
-        Key.DirectionRight -> if (current == LibrarySourceField.IndexQuery) {
-            LibrarySourceFocusTarget.Action(LibrarySourceAction.OpenLocal)
-        } else {
-            null
+        else -> when (intent.horizontalNavigationDelta()) {
+            1 -> if (current == LibrarySourceField.IndexQuery) {
+                LibrarySourceFocusTarget.Action(LibrarySourceAction.OpenLocal)
+            } else {
+                null
+            }
+            else -> null
         }
-        else -> null
     }
 
 internal fun libraryEmptyMediaFocusTarget(key: Key): LibrarySourceFocusTarget? =
-    when (key) {
-        Key.DirectionUp -> LibrarySourceFocusTarget.Field(LibrarySourceField.LocalRoot)
+    key.toMiruPlayInputIntent()?.let(::libraryEmptyMediaFocusTarget)
+
+internal fun libraryEmptyMediaFocusTarget(intent: MiruPlayInputIntent): LibrarySourceFocusTarget? =
+    when (intent.verticalNavigationDelta()) {
+        -1 -> LibrarySourceFocusTarget.Field(LibrarySourceField.LocalRoot)
         else -> null
     }
 
@@ -450,12 +530,20 @@ internal fun librarySourceActionNavigationTarget(
     current: LibrarySourceAction,
     key: Key,
 ): LibrarySourceAction? =
-    when (key) {
-        Key.DirectionLeft -> librarySourceHorizontalAction(current, -1)
-        Key.DirectionRight -> librarySourceHorizontalAction(current, 1)
-        Key.DirectionUp -> if (current == LibrarySourceAction.RemoveSource) LibrarySourceAction.ClearIndex else null
-        Key.DirectionDown -> if (current == LibrarySourceAction.ClearIndex) LibrarySourceAction.RemoveSource else null
-        else -> null
+    key.toMiruPlayInputIntent()?.let { intent ->
+        librarySourceActionNavigationTarget(current, intent)
+    }
+
+internal fun librarySourceActionNavigationTarget(
+    current: LibrarySourceAction,
+    intent: MiruPlayInputIntent,
+): LibrarySourceAction? =
+    when (intent.verticalNavigationDelta()) {
+        -1 -> if (current == LibrarySourceAction.RemoveSource) LibrarySourceAction.ClearIndex else null
+        1 -> if (current == LibrarySourceAction.ClearIndex) LibrarySourceAction.RemoveSource else null
+        else -> intent.horizontalNavigationDelta()?.let { delta ->
+            librarySourceHorizontalAction(current, delta)
+        }
     }
 
 private fun librarySourceHorizontalAction(
@@ -498,48 +586,63 @@ internal sealed interface RemoteSourceFocusTarget {
 private fun Modifier.remoteSourceActionNavigation(
     action: RemoteSourceAction,
     focusRequester: FocusRequester,
-    onMove: (RemoteSourceAction, Key) -> Boolean,
+    onMove: (RemoteSourceAction, MiruPlayInputIntent) -> Boolean,
 ): Modifier =
     focusRequester(focusRequester)
-        .desktopNavigationKeyHandler { key -> onMove(action, key) }
+        .desktopNavigationIntentHandler { intent -> onMove(action, intent) }
 
 private fun Modifier.remoteSourceFieldNavigation(
     field: RemoteSourceField,
     focusRequester: FocusRequester,
-    onMove: (RemoteSourceField, Key) -> Boolean,
+    onMove: (RemoteSourceField, MiruPlayInputIntent) -> Boolean,
 ): Modifier =
     focusRequester(focusRequester)
-        .desktopNavigationKeyHandler { key -> onMove(field, key) }
+        .desktopNavigationIntentHandler { intent -> onMove(field, intent) }
 
 internal fun remoteSourceActionFocusTarget(
     current: RemoteSourceAction,
     key: Key,
 ): RemoteSourceFocusTarget? =
-    when (key) {
-        Key.DirectionRight -> when (current) {
+    key.toMiruPlayInputIntent()?.let { intent ->
+        remoteSourceActionFocusTarget(current, intent)
+    }
+
+internal fun remoteSourceActionFocusTarget(
+    current: RemoteSourceAction,
+    intent: MiruPlayInputIntent,
+): RemoteSourceFocusTarget? =
+    when (intent.horizontalNavigationDelta()) {
+        1 -> when (current) {
             RemoteSourceAction.OpenWebDav,
             RemoteSourceAction.ScanSource,
             -> RemoteSourceFocusTarget.NextPanel
-            RemoteSourceAction.OpenSmb -> remoteSourceActionNavigationTarget(current, key)
+            RemoteSourceAction.OpenSmb -> remoteSourceActionNavigationTarget(current, intent)
                 ?.let(RemoteSourceFocusTarget::Action)
         }
-        Key.DirectionUp -> when (current) {
-            RemoteSourceAction.OpenWebDav -> RemoteSourceFocusTarget.Field(RemoteSourceField.WebDavPassword)
-            RemoteSourceAction.OpenSmb -> RemoteSourceFocusTarget.Field(RemoteSourceField.SmbDomain)
-            RemoteSourceAction.ScanSource -> RemoteSourceFocusTarget.Field(RemoteSourceField.SmbPassword)
+        else -> when (intent.verticalNavigationDelta()) {
+            -1 -> when (current) {
+                RemoteSourceAction.OpenWebDav -> RemoteSourceFocusTarget.Field(RemoteSourceField.WebDavPassword)
+                RemoteSourceAction.OpenSmb -> RemoteSourceFocusTarget.Field(RemoteSourceField.SmbDomain)
+                RemoteSourceAction.ScanSource -> RemoteSourceFocusTarget.Field(RemoteSourceField.SmbPassword)
+            }
+            else -> remoteSourceActionNavigationTarget(current, intent)?.let(RemoteSourceFocusTarget::Action)
         }
-        else -> remoteSourceActionNavigationTarget(current, key)?.let(RemoteSourceFocusTarget::Action)
     }
 
 internal fun remoteSourceFieldFocusTarget(
     current: RemoteSourceField,
     key: Key,
 ): RemoteSourceFocusTarget? =
-    when (key) {
-        Key.DirectionLeft -> remoteSourceHorizontalField(current, -1)?.let(RemoteSourceFocusTarget::Field)
-        Key.DirectionRight -> remoteSourceHorizontalField(current, 1)?.let(RemoteSourceFocusTarget::Field)
-            ?: RemoteSourceFocusTarget.NextPanel.takeIf { current.canExitToRemoteBrowser() }
-        Key.DirectionUp -> when (current) {
+    key.toMiruPlayInputIntent()?.let { intent ->
+        remoteSourceFieldFocusTarget(current, intent)
+    }
+
+internal fun remoteSourceFieldFocusTarget(
+    current: RemoteSourceField,
+    intent: MiruPlayInputIntent,
+): RemoteSourceFocusTarget? =
+    when (intent.verticalNavigationDelta()) {
+        -1 -> when (current) {
             RemoteSourceField.WebDavUsername,
             RemoteSourceField.WebDavPassword,
             -> RemoteSourceFocusTarget.Field(RemoteSourceField.WebDavUrl)
@@ -549,7 +652,7 @@ internal fun remoteSourceFieldFocusTarget(
             -> RemoteSourceFocusTarget.Field(RemoteSourceField.SmbUrl)
             else -> null
         }
-        Key.DirectionDown -> when (current) {
+        1 -> when (current) {
             RemoteSourceField.WebDavUrl -> RemoteSourceFocusTarget.Field(RemoteSourceField.WebDavUsername)
             RemoteSourceField.WebDavUsername,
             RemoteSourceField.WebDavPassword,
@@ -560,7 +663,10 @@ internal fun remoteSourceFieldFocusTarget(
             RemoteSourceField.SmbPassword,
             -> RemoteSourceFocusTarget.Action(RemoteSourceAction.ScanSource)
         }
-        else -> null
+        else -> intent.horizontalNavigationDelta()?.let { delta ->
+            remoteSourceHorizontalField(current, delta)?.let(RemoteSourceFocusTarget::Field)
+                ?: RemoteSourceFocusTarget.NextPanel.takeIf { delta == 1 && current.canExitToRemoteBrowser() }
+        }
     }
 
 private fun RemoteSourceField.canExitToRemoteBrowser(): Boolean =
@@ -592,17 +698,27 @@ internal fun remoteSourceActionNavigationTarget(
     current: RemoteSourceAction,
     key: Key,
 ): RemoteSourceAction? =
-    when (key) {
-        Key.DirectionLeft -> if (current == RemoteSourceAction.ScanSource) RemoteSourceAction.OpenSmb else null
-        Key.DirectionRight -> if (current == RemoteSourceAction.OpenSmb) RemoteSourceAction.ScanSource else null
-        Key.DirectionUp -> when (current) {
+    key.toMiruPlayInputIntent()?.let { intent ->
+        remoteSourceActionNavigationTarget(current, intent)
+    }
+
+internal fun remoteSourceActionNavigationTarget(
+    current: RemoteSourceAction,
+    intent: MiruPlayInputIntent,
+): RemoteSourceAction? =
+    when (intent.verticalNavigationDelta()) {
+        -1 -> when (current) {
             RemoteSourceAction.OpenSmb,
             RemoteSourceAction.ScanSource,
             -> RemoteSourceAction.OpenWebDav
             RemoteSourceAction.OpenWebDav -> null
         }
-        Key.DirectionDown -> if (current == RemoteSourceAction.OpenWebDav) RemoteSourceAction.OpenSmb else null
-        else -> null
+        1 -> if (current == RemoteSourceAction.OpenWebDav) RemoteSourceAction.OpenSmb else null
+        else -> when (intent.horizontalNavigationDelta()) {
+            -1 -> if (current == RemoteSourceAction.ScanSource) RemoteSourceAction.OpenSmb else null
+            1 -> if (current == RemoteSourceAction.OpenSmb) RemoteSourceAction.ScanSource else null
+            else -> null
+        }
     }
 
 internal sealed interface RemoteBrowserFocusTarget {
@@ -650,7 +766,7 @@ private fun PosterSearchBar(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             LabeledTextField(
-                "搜索媒体库",
+                librarySearchFieldLabel(),
                 indexQuery,
                 onValueChange = onIndexQueryChange,
                 modifier = Modifier.weight(1f),
@@ -659,7 +775,7 @@ private fun PosterSearchBar(
                     .desktopNavigationKeyHandler { key -> moveSearchFocus(LibrarySearchFocusTarget.Field, key) },
             )
             TvActionButton(
-                "搜索",
+                librarySearchActionLabel(),
                 onClick = onSearch,
                 modifier = Modifier
                     .width(132.dp)
@@ -667,7 +783,7 @@ private fun PosterSearchBar(
                     .desktopNavigationKeyHandler { key -> moveSearchFocus(LibrarySearchFocusTarget.Action, key) },
             )
             Text(
-                "$resultCount 部",
+                librarySearchResultCountLabel(resultCount),
                 color = TextSecondary,
                 fontSize = MiruPlayUiMetrics.PANEL_BODY_SP.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -722,11 +838,11 @@ private fun LibraryControlBar(
             LibrarySourceFocusTarget.PreviousPanel -> onFocusPreviousPanel()
             null -> false
         }
-    fun moveLibrarySourceActionFocus(action: LibrarySourceAction, key: Key): Boolean {
-        return requestLibrarySourceFocus(librarySourceActionFocusTarget(action, key, hasEmptyMedia))
+    fun moveLibrarySourceActionFocus(action: LibrarySourceAction, intent: MiruPlayInputIntent): Boolean {
+        return requestLibrarySourceFocus(librarySourceActionFocusTarget(action, intent, hasEmptyMedia))
     }
-    fun moveLibrarySourceFieldFocus(field: LibrarySourceField, key: Key): Boolean =
-        requestLibrarySourceFocus(librarySourceFieldFocusTarget(field, key, hasEmptyMedia))
+    fun moveLibrarySourceFieldFocus(field: LibrarySourceField, intent: MiruPlayInputIntent): Boolean =
+        requestLibrarySourceFocus(librarySourceFieldFocusTarget(field, intent, hasEmptyMedia))
     LaunchedEffect(sourcePickerFocusVersion) {
         if (sourcePickerFocusVersion > 0) {
             sourcePickerFocusRequester.requestFocus()
@@ -739,7 +855,12 @@ private fun LibraryControlBar(
     }
 
     TvPanel(Modifier.fillMaxWidth()) {
-        Text("媒体源", color = TextPrimary, fontSize = MiruPlayUiMetrics.SECTION_SUBTITLE_SP.sp, fontWeight = FontWeight.SemiBold)
+        Text(
+            mediaSourceListTitleLabel(),
+            color = TextPrimary,
+            fontSize = MiruPlayUiMetrics.SECTION_SUBTITLE_SP.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
         Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
         Row(
             horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp),
@@ -858,7 +979,7 @@ private fun LibraryControlBar(
             }
         }
         Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
-        StatusBox(desktopLibraryStatusText(status))
+        StatusBox(mediaSourceStatusText(status))
     }
 }
 
@@ -876,8 +997,8 @@ private fun LibraryEmptyMediaState(
             .focusRequester(focusRequester),
         heightDp = heightDp,
         inactiveAlpha = 0.48f,
-        onNavigationKey = { key ->
-            onMove(libraryEmptyMediaFocusTarget(key))
+        onNavigationIntent = { intent ->
+            onMove(libraryEmptyMediaFocusTarget(intent))
         },
     ) { active ->
         Box(
@@ -1317,7 +1438,7 @@ internal data class DesktopPosterGroup(
 }
 
 internal fun List<MediaIndexEntry>.toDesktopPosterGroups(): List<DesktopPosterGroup> =
-    filterNot { it.isDirectory }
+    mediaFilesOnly()
         .groupBy { it.posterTitle() }
         .map { (title, groupEntries) -> DesktopPosterGroup(title = title, entries = groupEntries) }
         .sortedBy { it.title.lowercase() }
@@ -1357,24 +1478,38 @@ internal fun librarySearchFocusTarget(
     current: LibrarySearchFocusTarget,
     key: Key,
 ): LibrarySearchFocusTarget? =
-    when (key) {
-        Key.DirectionLeft -> LibrarySearchFocusTarget.Field.takeIf { current == LibrarySearchFocusTarget.Action }
-        Key.DirectionRight -> LibrarySearchFocusTarget.Action.takeIf { current == LibrarySearchFocusTarget.Field }
-        Key.DirectionUp -> LibrarySearchFocusTarget.PreviousPanel
-        Key.DirectionDown -> LibrarySearchFocusTarget.NextPanel
-        else -> null
+    key.toMiruPlayInputIntent()?.let { intent ->
+        librarySearchFocusTarget(current, intent)
+    }
+
+internal fun librarySearchFocusTarget(
+    current: LibrarySearchFocusTarget,
+    intent: MiruPlayInputIntent,
+): LibrarySearchFocusTarget? =
+    when (intent.verticalNavigationDelta()) {
+        -1 -> LibrarySearchFocusTarget.PreviousPanel
+        1 -> LibrarySearchFocusTarget.NextPanel
+        else -> when (intent.horizontalNavigationDelta()) {
+            -1 -> LibrarySearchFocusTarget.Field.takeIf { current == LibrarySearchFocusTarget.Action }
+            1 -> LibrarySearchFocusTarget.Action.takeIf { current == LibrarySearchFocusTarget.Field }
+            else -> null
+        }
     }
 
 internal fun List<DesktopPosterGroup>.posterShelfNavigationTarget(
     currentIndex: Int,
     key: Key,
+): DesktopPosterGroup? =
+    key.toMiruPlayInputIntent()?.let { intent ->
+        posterShelfNavigationTarget(currentIndex, intent)
+    }
+
+internal fun List<DesktopPosterGroup>.posterShelfNavigationTarget(
+    currentIndex: Int,
+    intent: MiruPlayInputIntent,
 ): DesktopPosterGroup? {
     if (currentIndex !in indices) return null
-    val targetIndex = when (key) {
-        Key.DirectionRight -> currentIndex + 1
-        Key.DirectionLeft -> currentIndex - 1
-        else -> null
-    } ?: return null
+    val targetIndex = intent.horizontalNavigationDelta()?.let { delta -> currentIndex + delta } ?: return null
     return getOrNull(targetIndex)
 }
 
@@ -1386,10 +1521,29 @@ internal fun libraryMediaFocusTarget(
     recentlyAddedCount: Int,
     columns: Int = POSTER_WALL_COLUMNS,
 ): LibraryMediaFocusTarget? =
+    key.toMiruPlayInputIntent()?.let { intent ->
+        libraryMediaFocusTarget(
+            current = current,
+            intent = intent,
+            posterCount = posterCount,
+            featuredCount = featuredCount,
+            recentlyAddedCount = recentlyAddedCount,
+            columns = columns,
+        )
+    }
+
+internal fun libraryMediaFocusTarget(
+    current: LibraryMediaFocusTarget,
+    intent: MiruPlayInputIntent,
+    posterCount: Int,
+    featuredCount: Int,
+    recentlyAddedCount: Int,
+    columns: Int = POSTER_WALL_COLUMNS,
+): LibraryMediaFocusTarget? =
     when (current) {
         is LibraryMediaFocusTarget.PosterWall -> posterWallMediaFocusTarget(
             currentIndex = current.index,
-            key = key,
+            intent = intent,
             posterCount = posterCount,
             featuredCount = featuredCount,
             recentlyAddedCount = recentlyAddedCount,
@@ -1397,7 +1551,7 @@ internal fun libraryMediaFocusTarget(
         )
         is LibraryMediaFocusTarget.Featured -> posterShelfMediaFocusTarget(
             currentIndex = current.index,
-            key = key,
+            intent = intent,
             shelfCount = featuredCount,
             previousCount = posterCount,
             nextCount = recentlyAddedCount.takeIf { it > 0 } ?: 1,
@@ -1411,7 +1565,7 @@ internal fun libraryMediaFocusTarget(
         )
         is LibraryMediaFocusTarget.RecentlyAdded -> posterShelfMediaFocusTarget(
             currentIndex = current.index,
-            key = key,
+            intent = intent,
             shelfCount = recentlyAddedCount,
             previousCount = featuredCount.takeIf { it > 0 } ?: posterCount,
             nextCount = 1,
@@ -1429,7 +1583,7 @@ internal fun libraryMediaFocusTarget(
 
 private fun posterWallMediaFocusTarget(
     currentIndex: Int,
-    key: Key,
+    intent: MiruPlayInputIntent,
     posterCount: Int,
     featuredCount: Int,
     recentlyAddedCount: Int,
@@ -1438,23 +1592,25 @@ private fun posterWallMediaFocusTarget(
     if (currentIndex !in 0 until posterCount) return null
     val safeColumns = columns.coerceAtLeast(1)
     val currentColumn = currentIndex % safeColumns
-    val targetIndex = when (key) {
-        Key.DirectionRight -> if (currentColumn == safeColumns - 1) null else currentIndex + 1
-        Key.DirectionLeft -> if (currentColumn == 0) null else currentIndex - 1
-        Key.DirectionUp -> currentIndex - safeColumns
-        Key.DirectionDown -> {
-            val nextRowStart = ((currentIndex / safeColumns) + 1) * safeColumns
-            if (nextRowStart in 0 until posterCount) {
-                minOf(nextRowStart + currentColumn, posterCount - 1)
-            } else {
-                return when {
-                    featuredCount > 0 -> LibraryMediaFocusTarget.Featured(currentColumn.coerceAtMost(featuredCount - 1))
-                    recentlyAddedCount > 0 -> LibraryMediaFocusTarget.RecentlyAdded(currentColumn.coerceAtMost(recentlyAddedCount - 1))
-                    else -> LibraryMediaFocusTarget.SearchBar
+    val targetIndex = when (intent.horizontalNavigationDelta()) {
+        1 -> if (currentColumn == safeColumns - 1) null else currentIndex + 1
+        -1 -> if (currentColumn == 0) null else currentIndex - 1
+        else -> when (intent.verticalNavigationDelta()) {
+            -1 -> currentIndex - safeColumns
+            1 -> {
+                val nextRowStart = ((currentIndex / safeColumns) + 1) * safeColumns
+                if (nextRowStart in 0 until posterCount) {
+                    minOf(nextRowStart + currentColumn, posterCount - 1)
+                } else {
+                    return when {
+                        featuredCount > 0 -> LibraryMediaFocusTarget.Featured(currentColumn.coerceAtMost(featuredCount - 1))
+                        recentlyAddedCount > 0 -> LibraryMediaFocusTarget.RecentlyAdded(currentColumn.coerceAtMost(recentlyAddedCount - 1))
+                        else -> LibraryMediaFocusTarget.SearchBar
+                    }
                 }
             }
+            else -> null
         }
-        else -> null
     } ?: return null
     if (targetIndex < 0) return LibraryMediaFocusTarget.PreviousPanel
     return LibraryMediaFocusTarget.PosterWall(targetIndex).takeIf { targetIndex in 0 until posterCount }
@@ -1462,7 +1618,7 @@ private fun posterWallMediaFocusTarget(
 
 private fun posterShelfMediaFocusTarget(
     currentIndex: Int,
-    key: Key,
+    intent: MiruPlayInputIntent,
     shelfCount: Int,
     previousCount: Int,
     nextCount: Int,
@@ -1471,12 +1627,14 @@ private fun posterShelfMediaFocusTarget(
     nextFactory: (Int) -> LibraryMediaFocusTarget?,
 ): LibraryMediaFocusTarget? {
     if (currentIndex !in 0 until shelfCount) return null
-    return when (key) {
-        Key.DirectionRight -> currentFactory(currentIndex + 1).takeIf { currentIndex + 1 < shelfCount }
-        Key.DirectionLeft -> currentFactory(currentIndex - 1).takeIf { currentIndex > 0 }
-        Key.DirectionUp -> previousFactory(currentIndex.coerceAtMost(previousCount - 1)).takeIf { previousCount > 0 }
-        Key.DirectionDown -> nextFactory(currentIndex.coerceAtMost(nextCount - 1)).takeIf { nextCount > 0 }
-        else -> null
+    return when (intent.horizontalNavigationDelta()) {
+        1 -> currentFactory(currentIndex + 1).takeIf { currentIndex + 1 < shelfCount }
+        -1 -> currentFactory(currentIndex - 1).takeIf { currentIndex > 0 }
+        else -> when (intent.verticalNavigationDelta()) {
+            -1 -> previousFactory(currentIndex.coerceAtMost(previousCount - 1)).takeIf { previousCount > 0 }
+            1 -> nextFactory(currentIndex.coerceAtMost(nextCount - 1)).takeIf { nextCount > 0 }
+            else -> null
+        }
     }
 }
 
@@ -1484,23 +1642,34 @@ internal fun List<DesktopPosterGroup>.posterNavigationTarget(
     currentIndex: Int,
     key: Key,
     columns: Int = POSTER_WALL_COLUMNS,
+): DesktopPosterGroup? =
+    key.toMiruPlayInputIntent()?.let { intent ->
+        posterNavigationTarget(currentIndex, intent, columns)
+    }
+
+internal fun List<DesktopPosterGroup>.posterNavigationTarget(
+    currentIndex: Int,
+    intent: MiruPlayInputIntent,
+    columns: Int = POSTER_WALL_COLUMNS,
 ): DesktopPosterGroup? {
     if (currentIndex !in indices) return null
     val safeColumns = columns.coerceAtLeast(1)
     val currentColumn = currentIndex % safeColumns
-    val targetIndex = when (key) {
-        Key.DirectionRight -> if (currentColumn == safeColumns - 1) null else currentIndex + 1
-        Key.DirectionLeft -> if (currentColumn == 0) null else currentIndex - 1
-        Key.DirectionDown -> {
-            val nextRowStart = ((currentIndex / safeColumns) + 1) * safeColumns
-            if (nextRowStart !in indices) {
-                null
-            } else {
-                minOf(nextRowStart + currentColumn, lastIndex)
+    val targetIndex = when (intent.horizontalNavigationDelta()) {
+        1 -> if (currentColumn == safeColumns - 1) null else currentIndex + 1
+        -1 -> if (currentColumn == 0) null else currentIndex - 1
+        else -> when (intent.verticalNavigationDelta()) {
+            1 -> {
+                val nextRowStart = ((currentIndex / safeColumns) + 1) * safeColumns
+                if (nextRowStart !in indices) {
+                    null
+                } else {
+                    minOf(nextRowStart + currentColumn, lastIndex)
+                }
             }
+            -1 -> currentIndex - safeColumns
+            else -> null
         }
-        Key.DirectionUp -> currentIndex - safeColumns
-        else -> null
     } ?: return null
     return getOrNull(targetIndex)
 }
@@ -1592,13 +1761,13 @@ internal fun RemoteSourcesPanel(
             RemoteSourceFocusTarget.NextPanel -> requestRemoteBrowserFocus(RemoteBrowserFocusTarget.Row(0))
             null -> false
         }
-    fun moveRemoteSourceActionFocus(action: RemoteSourceAction, key: Key): Boolean {
+    fun moveRemoteSourceActionFocus(action: RemoteSourceAction, intent: MiruPlayInputIntent): Boolean {
         previousEditorFocusTarget = RemoteSourceFocusTarget.Action(action)
-        return requestRemoteSourceFocus(remoteSourceActionFocusTarget(action, key))
+        return requestRemoteSourceFocus(remoteSourceActionFocusTarget(action, intent))
     }
-    fun moveRemoteSourceFieldFocus(field: RemoteSourceField, key: Key): Boolean {
+    fun moveRemoteSourceFieldFocus(field: RemoteSourceField, intent: MiruPlayInputIntent): Boolean {
         previousEditorFocusTarget = RemoteSourceFocusTarget.Field(field)
-        return requestRemoteSourceFocus(remoteSourceFieldFocusTarget(field, key))
+        return requestRemoteSourceFocus(remoteSourceFieldFocusTarget(field, intent))
     }
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -1610,9 +1779,9 @@ internal fun RemoteSourcesPanel(
             verticalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp),
         ) {
             RemoteSourceEditorCard(
-                title = "WebDAV",
-                badge = "DAV",
-                endpoint = remoteSourcePreview(webDavUrl, fallback = "填写 WebDAV 地址"),
+                title = MediaSourceType.WEBDAV.remoteSourceEditorTitle(),
+                badge = MediaSourceType.WEBDAV.remoteSourceEditorBadge(),
+                endpoint = remoteSourcePreview(webDavUrl, fallback = MediaSourceType.WEBDAV.sourceEndpointPlaceholderLabel()),
             ) {
                 LabeledTextField(
                     labels.webDavUrl,
@@ -1659,9 +1828,9 @@ internal fun RemoteSourcesPanel(
                 )
             }
             RemoteSourceEditorCard(
-                title = "SMB",
-                badge = "SMB",
-                endpoint = remoteSourcePreview(smbUrl, fallback = "填写 SMB 共享地址"),
+                title = MediaSourceType.SMB.remoteSourceEditorTitle(),
+                badge = MediaSourceType.SMB.remoteSourceEditorBadge(),
+                endpoint = remoteSourcePreview(smbUrl, fallback = MediaSourceType.SMB.sourceEndpointPlaceholderLabel()),
             ) {
                 LabeledTextField(
                     labels.smbUrl,
@@ -1730,7 +1899,7 @@ internal fun RemoteSourcesPanel(
                     )
                 }
             }
-            StatusBox(desktopLibraryStatusText(status))
+            StatusBox(mediaSourceStatusText(status))
         }
         RemoteBrowserPanel(
             remotePath = remotePath,
@@ -1922,8 +2091,8 @@ private fun RemoteBrowserPanel(
                 modifier = Modifier
                     .width(MiruPlayUiMetrics.CONTROL_BUTTON_WIDTH_DP.dp)
                     .focusRequester(upFocusRequester)
-                    .desktopNavigationKeyHandler { key ->
-                        when (val target = remoteBrowserUpButtonFocusTarget(entries.size, key)) {
+                    .desktopNavigationIntentHandler { intent ->
+                        when (val target = remoteBrowserUpButtonFocusTarget(entries.size, intent)) {
                             RemoteBrowserFocusTarget.PreviousPanel -> onFocusPreviousPanel()
                             is RemoteBrowserFocusTarget.Row,
                             RemoteBrowserFocusTarget.EmptyState,
@@ -1948,9 +2117,9 @@ private fun RemoteBrowserPanel(
                     entry = entry,
                     selected = selectedEntry?.path == entry.path,
                     onClick = { onEntrySelected(entry) },
-                    onNavigationKey = { key ->
+                    onNavigationIntent = { intent ->
                         val absoluteIndex = pageStart + index
-                        when (val target = entries.remoteBrowserFocusTarget(absoluteIndex, key)) {
+                        when (val target = entries.remoteBrowserFocusTarget(absoluteIndex, intent)) {
                             is RemoteBrowserFocusTarget.Row -> {
                                 val targetEntry = entries[target.index]
                                 onEntryFocused(targetEntry)
@@ -1962,7 +2131,7 @@ private fun RemoteBrowserPanel(
                             }
                             RemoteBrowserFocusTarget.EmptyState -> false
                             RemoteBrowserFocusTarget.PreviousPanel -> onFocusPreviousPanel()
-                            null -> if (remoteBrowserShouldNavigateUp(absoluteIndex, key)) {
+                            null -> if (remoteBrowserShouldNavigateUp(absoluteIndex, intent)) {
                                 onUp()
                                 true
                             } else {
@@ -2006,6 +2175,12 @@ internal fun remoteBrowserPathPreview(
         .ifBlank { "/" }
         .compactMiddle(maxLength)
 
+internal fun MediaSourceType.remoteSourceEditorTitle(): String =
+    tvLabel()
+
+internal fun MediaSourceType.remoteSourceEditorBadge(): String =
+    tvBadgeLabel()
+
 @Composable
 private fun RemoteBrowserEmptyState(
     text: String,
@@ -2019,8 +2194,8 @@ private fun RemoteBrowserEmptyState(
             .focusRequester(focusRequester),
         heightDp = MiruPlayUiMetrics.REMOTE_EMPTY_STATE_HEIGHT_DP,
         inactiveAlpha = 0.48f,
-        onNavigationKey = { key ->
-            onMove(remoteBrowserEmptyFocusTarget(key))
+        onNavigationIntent = { intent ->
+            onMove(remoteBrowserEmptyFocusTarget(intent))
         },
     ) { active ->
         Box(
@@ -2041,14 +2216,14 @@ private fun RemoteFileRow(
     entry: FileEntry,
     selected: Boolean,
     onClick: () -> Unit,
-    onNavigationKey: (Key) -> Boolean = { false },
+    onNavigationIntent: (MiruPlayInputIntent) -> Boolean = { false },
     modifier: Modifier = Modifier,
 ) {
     DesktopSelectableRow(
         selected = selected,
         onClick = onClick,
         modifier = modifier,
-        onNavigationKey = onNavigationKey,
+        onNavigationIntent = onNavigationIntent,
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -2056,7 +2231,7 @@ private fun RemoteFileRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                if (entry.isDirectory) "目录" else "视频",
+                mediaSourceRemoteBrowserItemTypeLabel(entry.isDirectory),
                 color = if (entry.isDirectory) AnimeRed else TextSecondary,
                 fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
                 fontWeight = FontWeight.Bold,
@@ -2086,29 +2261,27 @@ private fun RemoteFileRow(
     }
 }
 
-private fun List<FileEntry>.remoteBrowserNavigationTarget(
-    currentIndex: Int,
-    key: Key,
-): FileEntry? {
-    if (currentIndex !in indices) return null
-    val targetIndex = when (key) {
-        Key.DirectionDown -> currentIndex + 1
-        Key.DirectionUp -> currentIndex - 1
-        else -> null
-    } ?: return null
-    return getOrNull(targetIndex)
-}
-
 internal fun List<FileEntry>.remoteBrowserFocusTarget(
     currentIndex: Int,
     key: Key,
 ): RemoteBrowserFocusTarget? {
+    return key.toMiruPlayInputIntent()?.let { intent ->
+        remoteBrowserFocusTarget(currentIndex, intent)
+    }
+}
+
+internal fun List<FileEntry>.remoteBrowserFocusTarget(
+    currentIndex: Int,
+    intent: MiruPlayInputIntent,
+): RemoteBrowserFocusTarget? {
     if (currentIndex !in indices) return null
-    return when (key) {
-        Key.DirectionLeft -> RemoteBrowserFocusTarget.PreviousPanel
-        Key.DirectionDown -> RemoteBrowserFocusTarget.Row(currentIndex + 1).takeIf { currentIndex + 1 in indices }
-        Key.DirectionUp -> RemoteBrowserFocusTarget.Row(currentIndex - 1).takeIf { currentIndex > 0 }
-        else -> null
+    return when (intent.horizontalNavigationDelta()) {
+        -1 -> RemoteBrowserFocusTarget.PreviousPanel
+        else -> when (intent.verticalNavigationDelta()) {
+            1 -> RemoteBrowserFocusTarget.Row(currentIndex + 1).takeIf { currentIndex + 1 in indices }
+            -1 -> RemoteBrowserFocusTarget.Row(currentIndex - 1).takeIf { currentIndex > 0 }
+            else -> null
+        }
     }
 }
 
@@ -2116,64 +2289,76 @@ internal fun remoteBrowserUpButtonFocusTarget(
     itemCount: Int,
     key: Key,
 ): RemoteBrowserFocusTarget? =
-    when (key) {
-        Key.DirectionLeft -> RemoteBrowserFocusTarget.PreviousPanel
-        Key.DirectionDown -> if (itemCount > 0) {
-            RemoteBrowserFocusTarget.Row(0)
-        } else {
-            RemoteBrowserFocusTarget.EmptyState
+    key.toMiruPlayInputIntent()?.let { intent ->
+        remoteBrowserUpButtonFocusTarget(itemCount, intent)
+    }
+
+internal fun remoteBrowserUpButtonFocusTarget(
+    itemCount: Int,
+    intent: MiruPlayInputIntent,
+): RemoteBrowserFocusTarget? =
+    when (intent.horizontalNavigationDelta()) {
+        -1 -> RemoteBrowserFocusTarget.PreviousPanel
+        else -> when (intent.verticalNavigationDelta()) {
+            1 -> if (itemCount > 0) {
+                RemoteBrowserFocusTarget.Row(0)
+            } else {
+                RemoteBrowserFocusTarget.EmptyState
+            }
+            else -> null
         }
-        else -> null
     }
 
 internal fun remoteBrowserEmptyFocusTarget(key: Key): RemoteBrowserFocusTarget? =
-    when (key) {
-        Key.DirectionUp -> RemoteBrowserFocusTarget.UpButton
-        Key.DirectionLeft -> RemoteBrowserFocusTarget.PreviousPanel
-        else -> null
+    key.toMiruPlayInputIntent()?.let(::remoteBrowserEmptyFocusTarget)
+
+internal fun remoteBrowserEmptyFocusTarget(intent: MiruPlayInputIntent): RemoteBrowserFocusTarget? =
+    when (intent.horizontalNavigationDelta()) {
+        -1 -> RemoteBrowserFocusTarget.PreviousPanel
+        else -> when (intent.verticalNavigationDelta()) {
+            -1 -> RemoteBrowserFocusTarget.UpButton
+            else -> null
+        }
     }
 
 internal fun remoteBrowserShouldNavigateUp(
     currentIndex: Int,
     key: Key,
-): Boolean = currentIndex == 0 && key == Key.DirectionUp
+): Boolean =
+    key.toMiruPlayInputIntent()?.let { intent ->
+        remoteBrowserShouldNavigateUp(currentIndex, intent)
+    } == true
+
+internal fun remoteBrowserShouldNavigateUp(
+    currentIndex: Int,
+    intent: MiruPlayInputIntent,
+): Boolean = currentIndex == 0 && intent.verticalNavigationDelta() == -1
 
 internal fun remoteBrowserPageStartForIndex(
     index: Int,
     itemCount: Int,
     pageSize: Int = REMOTE_BROWSER_PAGE_SIZE,
-): Int {
-    if (itemCount <= 0 || pageSize <= 0) return 0
-    val safeIndex = index.coerceIn(0, itemCount - 1)
-    return (safeIndex / pageSize) * pageSize
-}
+): Int = pagedListPageStartForIndex(index, itemCount, pageSize)
 
 internal fun remoteBrowserCoercedPageStart(
     pageStart: Int,
     itemCount: Int,
     pageSize: Int = REMOTE_BROWSER_PAGE_SIZE,
-): Int {
-    if (itemCount <= 0 || pageSize <= 0) return 0
-    val maxPageStart = remoteBrowserPageStartForIndex(
-        index = itemCount - 1,
-        itemCount = itemCount,
-        pageSize = pageSize,
-    )
-    return (pageStart / pageSize)
-        .coerceAtLeast(0)
-        .times(pageSize)
-        .coerceAtMost(maxPageStart)
-}
+): Int = pagedListCoercedPageStart(pageStart, itemCount, pageSize)
 
 internal fun remoteBrowserPageSummary(
     pageStart: Int,
     visibleCount: Int,
     itemCount: Int,
 ): String? {
-    if (itemCount <= 0 || visibleCount <= 0 || visibleCount >= itemCount) return null
     val safeStart = remoteBrowserCoercedPageStart(pageStart, itemCount)
-    val end = (safeStart + visibleCount).coerceAtMost(itemCount)
-    return "显示 ${safeStart + 1}-$end / $itemCount 个条目，按上/下继续翻页。"
+    return pagedListPageSummary(
+        pageStart = safeStart,
+        visibleCount = visibleCount,
+        itemCount = itemCount,
+        pageSize = REMOTE_BROWSER_PAGE_SIZE,
+        unitLabel = mediaSourceRemoteBrowserPageUnitLabel(),
+    )
 }
 
 internal data class DesktopLibrarySourceLabels(
@@ -2201,120 +2386,24 @@ internal data class DesktopLibrarySourceLabels(
 
 internal fun desktopLibrarySourceLabels(): DesktopLibrarySourceLabels =
     DesktopLibrarySourceLabels(
-        localLibraryRoot = "本地媒体库路径",
-        indexQuery = "索引搜索",
-        openLocal = "打开本地",
-        scan = "扫描",
-        search = "搜索",
-        clearIndex = "清空索引",
-        removeSource = "移除媒体源",
-        webDavUrl = "WebDAV 地址",
-        webDavUser = "WebDAV 用户名",
-        webDavPassword = "WebDAV 密码",
-        openWebDav = "打开 WebDAV",
-        smbUrl = "SMB 地址",
-        smbDomain = "SMB 域",
-        smbUser = "SMB 用户名",
-        smbPassword = "SMB 密码",
-        openSmb = "打开 SMB",
-        scanSource = "扫描媒体源",
-        remoteBrowser = "远程浏览",
-        up = "上级",
-        remoteEmpty = "先打开一个远程媒体源以浏览文件。",
+        localLibraryRoot = mediaSourceLocalLibraryRootFieldLabel(),
+        indexQuery = mediaSourceIndexQueryFieldLabel(),
+        openLocal = MediaSourceType.LOCAL.openSourceActionLabel(),
+        scan = mediaSourceScanActionLabel(),
+        search = mediaSourceSearchActionLabel(),
+        clearIndex = mediaSourceClearIndexActionLabel(),
+        removeSource = mediaSourceRemoveActionLabel(),
+        webDavUrl = MediaSourceType.WEBDAV.tvLocationLabel(),
+        webDavUser = MediaSourceType.WEBDAV.sourceUsernameFieldLabel(),
+        webDavPassword = MediaSourceType.WEBDAV.sourcePasswordFieldLabel(),
+        openWebDav = MediaSourceType.WEBDAV.openSourceActionLabel(),
+        smbUrl = MediaSourceType.SMB.tvLocationLabel(),
+        smbDomain = mediaSourceSmbDomainFieldLabel(),
+        smbUser = MediaSourceType.SMB.sourceUsernameFieldLabel(),
+        smbPassword = MediaSourceType.SMB.sourcePasswordFieldLabel(),
+        openSmb = MediaSourceType.SMB.openSourceActionLabel(),
+        scanSource = mediaSourceScanSourceActionLabel(),
+        remoteBrowser = mediaSourceRemoteBrowserTitleLabel(),
+        up = mediaSourceUpActionLabel(),
+        remoteEmpty = mediaSourceRemoteBrowserEmptyMessage(),
     )
-
-private val loadedSourceStatusRegex = Regex("""^Loaded( saved)? (local|WebDAV|SMB) source: (.+)$""")
-private val readySourceStatusRegex = Regex("""^(Local|WebDAV|SMB) source ready: (.+)$""")
-private val scanCompleteStatusRegex = Regex("""^Scan complete: (\d+) videos, (\d+) directories\.$""")
-private val rescanCompleteStatusRegex = Regex("""^Rescan complete: (\d+) videos, (\d+) directories\.$""")
-private val indexClearedStatusRegex = Regex("""^Index cleared for source id: (\d+)\.$""")
-private val loadingRemoteStatusRegex = Regex("""^Loading (LOCAL|WEBDAV|SMB) (.+)\.\.\.$""")
-private val showingRemoteStatusRegex = Regex("""^Showing (\d+) item\(s\) from (.+)\.$""")
-private val remotePlaybackStatusRegex = Regex("""^Selected remote media: (.+)\. mpv will stream through the local bridge\.$""")
-private val selectedPlaybackStatusRegex = Regex("""^Selected (.+) for playback\.$""")
-private val indexedNoMatchStatusRegex = Regex("""^No indexed media matched "(.*)"\.$""")
-private val indexedResultStatusRegex = Regex("""^Showing (\d+) indexed video result\(s\)\.$""")
-
-internal fun desktopLibraryStatusText(status: String): String =
-    when {
-        status == "Add a local library source or load an existing one." ->
-            "添加本地媒体源，或载入已保存的媒体源。"
-        status == "Open a WebDAV or SMB source to browse it." ->
-            "打开 WebDAV 或 SMB 媒体源后即可浏览文件。"
-        status == "Enter a local library root first." ->
-            "请先填写本地媒体库路径。"
-        status == "Enter a WebDAV URL first." ->
-            "请先填写 WebDAV 地址。"
-        status == "Enter an SMB URL first." ->
-            "请先填写 SMB 地址。"
-        status == "Open a source before scanning." ->
-            "请先打开媒体源，再开始扫描。"
-        status == "Open or scan a source before searching." ->
-            "请先打开或扫描媒体源，再搜索。"
-        status == "Open or scan a source before clearing its index." ->
-            "请先打开或扫描媒体源，再清空索引。"
-        status == "Open a source before removing it." ->
-            "请先打开媒体源，再移除。"
-        status == "Source removed. Associated index entries were cleared." ->
-            "媒体源已移除，关联索引已清空。"
-        status == "Already at the source root." ->
-            "已经在媒体源根目录。"
-        status == "Open a remote source before browsing." ->
-            "请先打开远程媒体源，再浏览。"
-        else -> desktopLibraryDynamicStatusText(status) ?: status
-    }
-
-private fun desktopLibraryDynamicStatusText(status: String): String? {
-    loadedSourceStatusRegex.matchEntire(status)?.let { match ->
-        val saved = match.groupValues[1].isNotBlank()
-        val type = match.groupValues[2].sharedSourceTypeLabel()
-        val name = match.groupValues[3]
-        return if (saved) {
-            "已载入已保存媒体源：$name · $type"
-        } else {
-            "已载入媒体源：$name · $type"
-        }
-    }
-    readySourceStatusRegex.matchEntire(status)?.let { match ->
-        val type = match.groupValues[1].sharedSourceTypeLabel()
-        val sourceType = if (type == "本地") "${type}媒体源" else "$type 媒体源"
-        return "${sourceType}已就绪：${match.groupValues[2]}"
-    }
-    status.removePrefix("Scanning ").takeIf { it != status && it.endsWith("...") }?.let { name ->
-        return "正在扫描：${name.removeSuffix("...")}"
-    }
-    scanCompleteStatusRegex.matchEntire(status)?.let { match ->
-        return "扫描完成：${match.groupValues[1]} 个视频，${match.groupValues[2]} 个目录。"
-    }
-    rescanCompleteStatusRegex.matchEntire(status)?.let { match ->
-        return "重扫完成：${match.groupValues[1]} 个视频，${match.groupValues[2]} 个目录。"
-    }
-    indexClearedStatusRegex.matchEntire(status)?.let { match ->
-        return "已清空媒体源 #${match.groupValues[1]} 的索引。"
-    }
-    loadingRemoteStatusRegex.matchEntire(status)?.let { match ->
-        return "正在载入 ${match.groupValues[1].sharedSourceTypeLabel()}：${match.groupValues[2]}"
-    }
-    showingRemoteStatusRegex.matchEntire(status)?.let { match ->
-        return "${match.groupValues[2]} 中显示 ${match.groupValues[1]} 个条目。"
-    }
-    remotePlaybackStatusRegex.matchEntire(status)?.let { match ->
-        return "已选择远程媒体：${match.groupValues[1]}。mpv 将通过本地桥接串流。"
-    }
-    selectedPlaybackStatusRegex.matchEntire(status)?.let { match ->
-        return "已选择播放：${match.groupValues[1]}"
-    }
-    indexedNoMatchStatusRegex.matchEntire(status)?.let { match ->
-        return "没有匹配 \"${match.groupValues[1]}\" 的索引媒体。"
-    }
-    indexedResultStatusRegex.matchEntire(status)?.let { match ->
-        return "显示 ${match.groupValues[1]} 条索引视频结果。"
-    }
-    return null
-}
-
-private fun String.sharedSourceTypeLabel(): String =
-    runCatching { MediaSourceType.valueOf(uppercase()) }
-        .getOrNull()
-        ?.tvLabel()
-        ?: this

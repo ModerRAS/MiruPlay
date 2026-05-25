@@ -12,6 +12,7 @@ data class CloudDriveConfigEntity(
     @ColumnInfo(name = "webdav_source_id") val webDavSourceId: Long? = null,
     @ColumnInfo(name = "inbox_path") val inboxPath: String = "",
     @ColumnInfo(name = "library_path") val libraryPath: String = "",
+    @ColumnInfo(name = "library_mode") val libraryMode: String = "ORGANIZED_LIBRARY",
     @ColumnInfo(name = "interval_minutes") val intervalMinutes: Int = 30,
     @ColumnInfo(name = "enabled") val enabled: Boolean = false,
     @ColumnInfo(name = "last_run_at") val lastRunAt: Long = 0L,

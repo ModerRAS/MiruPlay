@@ -1,6 +1,6 @@
 package com.miruplay.tv.scanner
 
-import com.miruplay.tv.mediasource.FileEntry
+import com.miruplay.tv.model.FileEntry
 
 /**
  * Episode pattern detector interface

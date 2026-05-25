@@ -3,6 +3,7 @@ package com.miruplay.tv.sync.rss
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 import java.security.MessageDigest
 
 class RssTorrentSubmissionTest {
@@ -21,7 +22,7 @@ class RssTorrentSubmissionTest {
 
     @Test
     fun `torrent downloader builds safe staged file names`() {
-        val name = TorrentFileDownloader.buildTorrentFileName(
+        val name = CloudDriveRssNames.torrentFileName(
             title = """[ANi] Test: Show - 01 [1080P].torrent""",
             url = "https://example.test/download.torrent",
             keyPrefix = "abc123!@#"
@@ -37,8 +38,14 @@ class RssTorrentSubmissionTest {
         val expectedHash = MessageDigest.getInstance("SHA-1")
             .digest(info.toByteArray())
             .joinToString("") { "%02x".format(it) }
+        val file = File.createTempFile("miruplay-rss-test", ".torrent")
+        file.writeText(torrent)
 
-        val result = TorrentMagnetParser.parse(torrent.toByteArray())
+        val result = try {
+            TorrentMagnetParser.parse(file)
+        } finally {
+            file.delete()
+        }
 
         assertTrue(result is com.miruplay.tv.core.common.Result.Success)
         assertEquals(

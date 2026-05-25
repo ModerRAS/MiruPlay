@@ -72,6 +72,9 @@ class MpvProcessPlayer(
         }
     }
 
+    fun isActive(): Boolean =
+        process?.isAlive == true
+
     suspend fun togglePause(): Result<Unit> =
         ipcClientOrError()?.cyclePause() ?: missingIpcError()
 
@@ -85,6 +88,14 @@ class MpvProcessPlayer(
         ipcClientOrError()?.getTimePositionSeconds()?.map { seconds ->
             seconds?.let(PlaybackTimingConventions::secondsToPositionMsFloored)
         } ?: missingIpcError()
+
+    suspend fun queryDurationMs(): Result<Long?> =
+        ipcClientOrError()?.getDurationSeconds()?.map { seconds ->
+            seconds?.let(PlaybackTimingConventions::secondsToPositionMsFloored)
+        } ?: missingIpcError()
+
+    suspend fun queryEofReached(): Result<Boolean?> =
+        ipcClientOrError()?.getEofReached() ?: missingIpcError()
 
     private fun ipcClientOrError(): MpvIpcClient? =
         ipcClient

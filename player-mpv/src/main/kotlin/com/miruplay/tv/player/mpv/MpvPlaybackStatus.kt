@@ -17,6 +17,12 @@ fun mpvNoActiveProcessStatus(): String =
 fun mpvPauseToggledStatus(): String =
     "mpv pause toggled."
 
+fun mpvResumedStatus(): String =
+    "mpv resumed."
+
+fun mpvPausedStatus(): String =
+    "mpv paused."
+
 fun mpvSeekBackStatus(seconds: Int): String =
     "mpv seeked back ${seconds}s."
 
@@ -25,6 +31,12 @@ fun mpvSeekForwardStatus(seconds: Int): String =
 
 fun mpvStoppedStatus(): String =
     "mpv stopped."
+
+fun mpvExitedStatus(): String =
+    "mpv exited."
+
+fun mpvPlaybackCompletedStatus(positionMs: Long): String =
+    "mpv playback completed at ${formatPlaybackPosition(positionMs)}."
 
 fun mpvPositionSyncedStatus(positionMs: Long): String =
     "mpv position synced at ${formatPlaybackPosition(positionMs)}."

@@ -18,6 +18,23 @@ object MediaPathConventions {
             ?.let(::fileName)
             .orEmpty()
 
+    fun animeNameFromEpisodePath(path: String): String? {
+        val segments = pathSegments(path)
+        if (segments.isEmpty()) return null
+
+        val mediaRootIndex = segments.indexOfLast { it.isMediaRootSegment() }
+        if (mediaRootIndex >= 0) {
+            val segmentsAfterRoot = segments.drop(mediaRootIndex + 1)
+            if (segmentsAfterRoot.size >= 2) return segmentsAfterRoot.first()
+            return segments[mediaRootIndex]
+        }
+
+        val parent = segments.dropLast(1).lastOrNull { !it.isPathRootSegment() }
+        if (!parent.isNullOrBlank()) return parent
+
+        return segments.firstOrNull { !it.isPathRootSegment() }
+    }
+
     fun parentPath(path: String): String? {
         val trimmed = path.trimEnd('/', '\\')
         if (trimmed.isBlank()) return null
@@ -62,6 +79,10 @@ object MediaPathConventions {
             .replace('\\', '/')
             .trim('/')
 
+    fun normalizeRemoteFilePath(path: String): String =
+        path.replace('\\', '/')
+            .trim('/')
+
     fun encodePathSegment(segment: String): String =
         URLEncoder.encode(segment, Charsets.UTF_8.name()).replace("+", "%20")
 
@@ -69,7 +90,7 @@ object MediaPathConventions {
         runCatching { URLDecoder.decode(value, Charsets.UTF_8.name()) }.getOrDefault(value)
 
     fun encodeRemotePath(path: String): String =
-        normalizeRemotePath(path)
+        normalizeRemoteFilePath(path)
             .split('/')
             .filter { it.isNotEmpty() }
             .joinToString("/") { encodePathSegment(it) }
@@ -96,8 +117,43 @@ object MediaPathConventions {
     private fun usesBackslashSeparator(path: String): Boolean =
         path.contains('\\') && !path.startsWith(SMB_SCHEME, ignoreCase = true)
 
+    private fun pathSegments(path: String): List<String> =
+        path.substringBefore('?')
+            .split('/', '\\')
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+
+    private fun String.isPathRootSegment(): Boolean =
+        matches(WINDOWS_DRIVE_SEGMENT_REGEX) ||
+            equals("smb:", ignoreCase = true) ||
+            equals(SMB_SCHEME.removeSuffix("://"), ignoreCase = true) ||
+            equals("content:", ignoreCase = true)
+
+    private fun String.isMediaRootSegment(): Boolean =
+        lowercase()
+            .replace(Regex("""[._\-\[\]【】()（）]+"""), " ")
+            .replace(Regex("""\s+"""), " ")
+            .trim() in MEDIA_ROOT_SEGMENTS
+
     private fun String.removePrefixIgnoreCase(prefix: String): String =
         if (startsWith(prefix, ignoreCase = true)) substring(prefix.length) else this
 
+    private val WINDOWS_DRIVE_SEGMENT_REGEX = Regex("""^[A-Za-z]:$""")
+    private val MEDIA_ROOT_SEGMENTS = setOf(
+        "115open",
+        "ani",
+        "anime",
+        "anime library",
+        "download",
+        "downloads",
+        "library",
+        "media",
+        "movies",
+        "video",
+        "videos",
+        "动漫",
+        "下载",
+        "下載",
+    )
     private const val SMB_SCHEME = "smb://"
 }

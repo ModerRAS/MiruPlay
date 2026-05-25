@@ -9,6 +9,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.jsonObject
@@ -44,6 +45,16 @@ class MpvIpcClient(
     suspend fun getTimePositionSeconds(): Result<Double?> =
         getProperty("time-pos").map { data ->
             data?.jsonPrimitive?.doubleOrNull
+        }
+
+    suspend fun getDurationSeconds(): Result<Double?> =
+        getProperty("duration").map { data ->
+            data?.jsonPrimitive?.doubleOrNull
+        }
+
+    suspend fun getEofReached(): Result<Boolean?> =
+        getProperty("eof-reached").map { data ->
+            data?.jsonPrimitive?.booleanOrNull
         }
 
     suspend fun sendCommand(vararg command: JsonElement): Result<Unit> = withContext(Dispatchers.IO) {

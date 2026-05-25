@@ -10,6 +10,25 @@ import org.junit.Test
 
 class PlaybackProgressSyncTest {
     @Test
+    fun `savePlaybackProgressSnapshot normalizes position and saves play count intent`() = runBlocking {
+        var saved: SavedProgress? = null
+
+        val result = savePlaybackProgressSnapshot(
+            episodeId = "episode-1",
+            positionMs = -10L,
+            incrementPlayCount = true,
+            saveProgress = { episodeId, positionMs, lastWatched, incrementPlayCount ->
+                saved = SavedProgress(episodeId, positionMs, lastWatched, incrementPlayCount)
+                Result.success(Unit)
+            },
+            nowMillis = { 123L },
+        )
+
+        assertEquals(Result.success(Unit), result)
+        assertEquals(SavedProgress("episode-1", 0L, 123L, incrementPlayCount = true), saved)
+    }
+
+    @Test
     fun `syncObservedPlaybackProgress saves observed position and reanchors session`() = runBlocking {
         var now = 1_000L
         val session = PlaybackProgressSession(
@@ -23,15 +42,15 @@ class PlaybackProgressSyncTest {
         val result = syncObservedPlaybackProgress(
             session = session,
             queryPositionMs = { Result.success(42_000L) },
-            saveProgress = { episodeId, positionMs, lastWatched ->
-                saved = SavedProgress(episodeId, positionMs, lastWatched)
+            saveProgress = { episodeId, positionMs, lastWatched, incrementPlayCount ->
+                saved = SavedProgress(episodeId, positionMs, lastWatched, incrementPlayCount)
                 Result.success(Unit)
             },
             nowMillis = { 123_456L },
         )
 
         assertEquals(Result.success(42_000L), result)
-        assertEquals(SavedProgress("episode-1", 42_000L, 123_456L), saved)
+        assertEquals(SavedProgress("episode-1", 42_000L, 123_456L, incrementPlayCount = false), saved)
         assertEquals(42_000L, session.currentPositionMs())
 
         now = 4_500L
@@ -47,7 +66,7 @@ class PlaybackProgressSyncTest {
         val result = syncObservedPlaybackProgress(
             session = session,
             queryPositionMs = { Result.success(null) },
-            saveProgress = { _, _, _ ->
+            saveProgress = { _, _, _, _ ->
                 saveCount++
                 Result.success(Unit)
             },
@@ -67,7 +86,7 @@ class PlaybackProgressSyncTest {
             queryPositionMs = {
                 Result.failure(AppError.PlaybackError.StreamError("IPC unavailable"))
             },
-            saveProgress = { _, _, _ ->
+            saveProgress = { _, _, _, _ ->
                 saveCount++
                 Result.success(Unit)
             },
@@ -85,15 +104,15 @@ class PlaybackProgressSyncTest {
         val result = savePlaybackProgressOnStop(
             session = session,
             queryPositionMs = { Result.success(24_000L) },
-            saveProgress = { episodeId, positionMs, lastWatched ->
-                saved = SavedProgress(episodeId, positionMs, lastWatched)
+            saveProgress = { episodeId, positionMs, lastWatched, incrementPlayCount ->
+                saved = SavedProgress(episodeId, positionMs, lastWatched, incrementPlayCount)
                 Result.success(Unit)
             },
             nowMillis = { 7_000L },
         )
 
         assertEquals(Result.success(24_000L), result)
-        assertEquals(SavedProgress("episode-1", 24_000L, 7_000L), saved)
+        assertEquals(SavedProgress("episode-1", 24_000L, 7_000L, incrementPlayCount = false), saved)
     }
 
     @Test
@@ -110,15 +129,15 @@ class PlaybackProgressSyncTest {
         val result = savePlaybackProgressOnStop(
             session = session,
             queryPositionMs = { Result.success(null) },
-            saveProgress = { episodeId, positionMs, lastWatched ->
-                saved = SavedProgress(episodeId, positionMs, lastWatched)
+            saveProgress = { episodeId, positionMs, lastWatched, incrementPlayCount ->
+                saved = SavedProgress(episodeId, positionMs, lastWatched, incrementPlayCount)
                 Result.success(Unit)
             },
             nowMillis = { 9_000L },
         )
 
         assertEquals(Result.success(6_500L), result)
-        assertEquals(SavedProgress("episode-1", 6_500L, 9_000L), saved)
+        assertEquals(SavedProgress("episode-1", 6_500L, 9_000L, incrementPlayCount = false), saved)
     }
 
     @Test
@@ -135,15 +154,15 @@ class PlaybackProgressSyncTest {
             queryPositionMs = {
                 Result.failure(AppError.PlaybackError.StreamError("IPC unavailable"))
             },
-            saveProgress = { episodeId, positionMs, lastWatched ->
-                saved = SavedProgress(episodeId, positionMs, lastWatched)
+            saveProgress = { episodeId, positionMs, lastWatched, incrementPlayCount ->
+                saved = SavedProgress(episodeId, positionMs, lastWatched, incrementPlayCount)
                 Result.success(Unit)
             },
             nowMillis = { 9_000L },
         )
 
         assertEquals(Result.success(5_000L), result)
-        assertEquals(SavedProgress("episode-1", 5_000L, 9_000L), saved)
+        assertEquals(SavedProgress("episode-1", 5_000L, 9_000L, incrementPlayCount = false), saved)
     }
 
     @Test
@@ -158,20 +177,21 @@ class PlaybackProgressSyncTest {
         val result = savePlaybackProgressOnStop(
             session = session,
             queryPositionMs = null,
-            saveProgress = { episodeId, positionMs, lastWatched ->
-                saved = SavedProgress(episodeId, positionMs, lastWatched)
+            saveProgress = { episodeId, positionMs, lastWatched, incrementPlayCount ->
+                saved = SavedProgress(episodeId, positionMs, lastWatched, incrementPlayCount)
                 Result.success(Unit)
             },
             nowMillis = { 9_000L },
         )
 
         assertEquals(Result.success(5_000L), result)
-        assertEquals(SavedProgress("episode-1", 5_000L, 9_000L), saved)
+        assertEquals(SavedProgress("episode-1", 5_000L, 9_000L, incrementPlayCount = false), saved)
     }
 
     private data class SavedProgress(
         val episodeId: String,
         val positionMs: Long,
         val lastWatched: Long,
+        val incrementPlayCount: Boolean,
     )
 }

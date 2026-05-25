@@ -10,13 +10,13 @@
 - 下载完成后的文件先落到下载目录，再由整理器识别番剧名、季、集，并移动到动漫库目录。
 - 整理器和后续扫描都会接入 BERT/ONNX 文件名解析器；BERT 只解析视频文件名，文件夹名用于番剧目录和 Season 兜底。
 
-## 当前测试配置
+## 示例测试配置
 
 | 项目 | 值 |
 |------|----|
-| CloudDrive2 服务端 | `http://10.137.32.158:19798` |
-| API Token | 已换为新令牌并通过验证 |
-| HTTP Proxy | `http://10.137.32.158:7890` |
+| CloudDrive2 服务端 | `http://<clouddrive-host>:19798` |
+| API Token | 通过本地参数传入，不写入文档 |
+| HTTP Proxy | `http://<proxy-host>:7890` |
 | RSS | `https://api.ani.rip/ani-torrent.xml` |
 | 下载目录 | `/115open/下载/Ani` |
 | 整理目录 | `/115open/影音/动漫` |
@@ -175,7 +175,7 @@ curl.exe -s "http://<android-tv-host>:9978/api/anime/$id"
 
 ```powershell
 .\gradlew.bat :sync-engine-desktop:smokeCloudDriveRssDryRun `
-  -PcloudDriveEndpoint=http://10.137.32.158:19798 `
+  -PcloudDriveEndpoint=http://<clouddrive-host>:19798 `
   -PcloudDriveToken=<token> `
   -PcloudDriveRssUrl=https://api.ani.rip/ani-torrent.xml `
   -PcloudDriveInbox=/115open/下载/Ani `
@@ -188,7 +188,7 @@ curl.exe -s "http://<android-tv-host>:9978/api/anime/$id"
 
 ```powershell
 .\gradlew.bat :sync-engine-desktop:smokeCloudDriveRssLiveSubmit `
-  -PcloudDriveEndpoint=http://10.137.32.158:19798 `
+  -PcloudDriveEndpoint=http://<clouddrive-host>:19798 `
   -PcloudDriveToken=<token> `
   -PcloudDriveRssUrl=https://api.ani.rip/ani-torrent.xml `
   -PcloudDriveInbox=/115open/下载/Ani `
@@ -203,7 +203,7 @@ curl.exe -s "http://<android-tv-host>:9978/api/anime/$id"
 
 ```powershell
 .\gradlew.bat :sync-engine-desktop:smokeCloudDriveRssDryRun `
-  -PcloudDriveEndpoint=http://10.137.32.158:19798 `
+  -PcloudDriveEndpoint=http://<clouddrive-host>:19798 `
   -PcloudDriveToken=<token> `
   -PcloudDriveRssUrl=https://api.ani.rip/ani-torrent.xml `
   -PcloudDriveInbox=/115open/下载/Ani `

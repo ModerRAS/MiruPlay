@@ -1,6 +1,11 @@
 package com.miruplay.tv.repository
 
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.model.metadataBatchAppliedTvStatus
+import com.miruplay.tv.model.metadataBatchRestoredTvStatus
+import com.miruplay.tv.model.metadataNoBatchPreviewTvStatus
+import com.miruplay.tv.model.metadataNoBatchUndoTvStatus
+import com.miruplay.tv.model.metadataReviewAcceptedTvStatus
 
 data class MetadataBatchWriteResult(
     val updatedEntries: List<MediaIndexEntry>,
@@ -89,20 +94,16 @@ suspend fun MediaIndexRepository.restoreMetadataBatchUndo(
 }
 
 fun MetadataBatchWriteResult.appliedStatus(conflictCount: Int): String =
-    "Applied Bangumi batch metadata to ${updatedEntries.size} index entr${entrySuffix(updatedEntries.size)}; " +
-        "$conflictCount conflict${if (conflictCount == 1) "" else "s"} skipped."
+    metadataBatchAppliedTvStatus(updatedEntries.size, conflictCount)
 
 fun MetadataBatchWriteResult.reviewAcceptedStatus(): String =
-    "Accepted reviewed Bangumi match for ${updatedEntries.size} index entr${entrySuffix(updatedEntries.size)}."
+    metadataReviewAcceptedTvStatus(updatedEntries.size)
 
 fun MetadataBatchUndoResult.restoredStatus(): String =
-    "Restored $restoredCount index entr${entrySuffix(restoredCount)} from the previous Bangumi batch."
+    metadataBatchRestoredTvStatus(restoredCount)
 
 fun noMetadataBatchPreviewStatus(): String =
-    "Run Batch preview first; no high-confidence matches are ready."
+    metadataNoBatchPreviewTvStatus()
 
 fun noMetadataBatchUndoStatus(): String =
-    "No batch Bangumi changes are available to undo."
-
-private fun entrySuffix(count: Int): String =
-    if (count == 1) "y" else "ies"
+    metadataNoBatchUndoTvStatus()

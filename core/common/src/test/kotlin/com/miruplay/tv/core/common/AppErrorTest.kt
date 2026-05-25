@@ -6,6 +6,103 @@ import org.junit.Test
 class AppErrorTest {
 
     @Test
+    fun `toUserMessage formats shared media source errors`() {
+        assertEquals(
+            "找不到文件或目录：/media/show.mkv",
+            AppError.MediaSourceError.NotFound("/media/show.mkv").toUserMessage()
+        )
+        assertEquals(
+            "WebDAV 认证失败，请检查用户名和密码",
+            AppError.MediaSourceError.AuthenticationFailed("WebDAV").toUserMessage()
+        )
+        assertEquals(
+            "与 SMB 的连接已断开",
+            AppError.MediaSourceError.ConnectionLost("SMB").toUserMessage()
+        )
+        assertEquals(
+            "CloudDrive2 连接超时，请检查网络",
+            AppError.MediaSourceError.Timeout("CloudDrive2").toUserMessage()
+        )
+        assertEquals(
+            "无权限访问：/private",
+            AppError.MediaSourceError.PermissionDenied("/private").toUserMessage()
+        )
+    }
+
+    @Test
+    fun `toUserMessage formats shared network errors`() {
+        assertEquals("无网络连接", AppError.NetworkError.NoConnectivity.toUserMessage())
+        assertEquals(
+            "无法连接服务器：https://example.com/rss.xml",
+            AppError.NetworkError.ServerUnreachable("https://example.com/rss.xml").toUserMessage()
+        )
+        assertEquals(
+            "HTTP 错误 404：Not Found",
+            AppError.NetworkError.HttpError(404, "Not Found").toUserMessage()
+        )
+        assertEquals(
+            "请求过于频繁，请 30秒 后重试",
+            AppError.NetworkError.RateLimited(30).toUserMessage()
+        )
+    }
+
+    @Test
+    fun `toUserMessage formats shared parse and scraping errors`() {
+        assertEquals(
+            "NFO 文件格式错误（第 12 行）：Missing title",
+            AppError.ParseError.NfoMalformed(12, "Missing title").toUserMessage()
+        )
+        assertEquals(
+            "无法识别剧集文件名：random.mp4",
+            AppError.ParseError.InvalidEpisodePattern("random.mp4").toUserMessage()
+        )
+        assertEquals(
+            "XML 解析失败：Invalid XML",
+            AppError.ParseError.XmlParseError("Invalid XML").toUserMessage()
+        )
+        assertEquals(
+            "未找到「Naruto」的相关信息",
+            AppError.ScrapingError.NoMatchFound("Naruto").toUserMessage()
+        )
+        assertEquals(
+            "Bangumi 错误：Rate limit",
+            AppError.ScrapingError.ApiError("Bangumi", "Rate limit").toUserMessage()
+        )
+        assertEquals(
+            "Bangumi 数据解析错误：Missing field",
+            AppError.ScrapingError.ParseError("Bangumi", "Missing field").toUserMessage()
+        )
+    }
+
+    @Test
+    fun `toUserMessage formats shared playback and sync errors`() {
+        assertEquals(
+            "不支持的视频编码：hevc",
+            AppError.PlaybackError.CodecNotSupported("hevc").toUserMessage()
+        )
+        assertEquals(
+            "文件损坏：/path/to/file.mkv",
+            AppError.PlaybackError.FileCorrupted("/path/to/file.mkv").toUserMessage()
+        )
+        assertEquals(
+            "播放出错：Network timeout",
+            AppError.PlaybackError.StreamError("Network timeout").toUserMessage()
+        )
+        assertEquals(
+            "进度冲突，请手动选择保留哪边",
+            AppError.SyncError.ConflictDetected("ep1").toUserMessage()
+        )
+        assertEquals(
+            "写入失败：Permission denied",
+            AppError.SyncError.WriteFailed("/path/to.nfo", "Permission denied").toUserMessage()
+        )
+        assertEquals(
+            "媒体源为只读，无法保存进度",
+            AppError.SyncError.ReadOnlyMedia.toUserMessage()
+        )
+    }
+
+    @Test
     fun `all AppError subclasses have non-empty toUserMessage`() {
         val errors = listOf(
             AppError.MediaSourceError.NotFound("/test/path"),

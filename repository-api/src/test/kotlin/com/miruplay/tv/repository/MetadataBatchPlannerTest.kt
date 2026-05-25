@@ -55,7 +55,7 @@ class MetadataBatchPlannerTest {
         assertEquals("BANGUMI", plan.readyUpdates.single().updated.metadataSource)
         assertEquals("Other", plan.conflicts.single().query)
         assertEquals("Review", plan.reviewMatches.single().query)
-        assertTrue(MetadataBatchPlanner.displayPlanSummary(plan).contains("conflicts"))
+        assertTrue(MetadataBatchPlanner.displayPlanSummary(plan).contains("冲突"))
     }
 
     @Test
@@ -81,6 +81,26 @@ class MetadataBatchPlannerTest {
     }
 
     @Test
+    fun `metadata batch preview display uses shared TV labels`() {
+        val preview = MetadataBatchPlanner.displayPreview(
+            listOf(
+                MetadataBatchMatch(
+                    query = "Frieren",
+                    result = result(),
+                    candidates = listOf(result(), result(animeId = "2", title = "Other", titleCn = null)),
+                ),
+                MetadataBatchMatch(query = "Missing", result = null, candidates = emptyList()),
+            )
+        )
+
+        assertEquals(
+            "Frieren: Frieren / 葬送的芙莉莲 [可用] 2 个候选\n" +
+                "Missing: 无匹配 [复核]\n",
+            preview,
+        )
+    }
+
+    @Test
     fun `metadata candidate helpers use stable scraper keys`() {
         val original = result(animeId = "1", source = ScraperSource.BANGUMI)
         val duplicate = result(animeId = "1", source = ScraperSource.BANGUMI, title = "Duplicate")
@@ -95,9 +115,9 @@ class MetadataBatchPlannerTest {
         assertTrue(original.isSameCandidate(duplicate))
         assertFalse(original.isSameCandidate(other))
         assertEquals("95%", original.confidencePercentLabel())
-        assertEquals("candidate 2/2", newCandidate.selectedCandidateLabel())
+        assertEquals("候选 2/2", newCandidate.selectedCandidateLabel())
         assertEquals(
-            "1 candidates",
+            "1 个候选",
             MetadataBatchMatch(query = "Frieren", result = other, candidates = listOf(original)).selectedCandidateLabel(),
         )
         assertEquals(listOf(newCandidate), listOf(match).replaceMatch(newCandidate))
@@ -117,7 +137,7 @@ class MetadataBatchPlannerTest {
         val preview = MetadataBatchPlanner.previewFor(
             entries = entries,
             queryLimit = 2,
-            searchCandidates = { query ->
+            searchCandidates = { query, _ ->
                 searchedQueries += query
                 when (query) {
                     "Frieren" -> listOf(result(confidence = 0.95f))
@@ -133,8 +153,8 @@ class MetadataBatchPlannerTest {
         assertEquals("Other", preview.selectedMatch?.query)
         assertEquals(2, preview.plan?.readyUpdates?.size)
         assertEquals(1, preview.plan?.reviewMatches?.size)
-        assertEquals("2 ready, 1 review, 0 conflicts", preview.summaryStatus())
-        assertEquals("Searching Bangumi for 2 indexed title(s)...", metadataBatchSearchingStatus(2, "Bangumi"))
+        assertEquals("2 个可应用，1 个需复核，0 个冲突", preview.summaryStatus())
+        assertEquals("正在用 Bangumi 搜索 2 个索引标题...", metadataBatchSearchingStatus(2, "Bangumi"))
     }
 
     @Test
@@ -142,18 +162,49 @@ class MetadataBatchPlannerTest {
         val preview = MetadataBatchPlanner.previewFor(
             entries = listOf(MediaIndexEntry(sourceId = 1L, path = "", isDirectory = true)),
             queryLimit = 20,
-            searchCandidates = { error("No queries should be searched") },
+            searchCandidates = { _, _ -> error("No queries should be searched") },
         )
 
         assertEquals(emptyList<MetadataBatchMatch>(), preview.matches)
         assertEquals(null, preview.plan)
         assertEquals(null, preview.selectedMatch)
-        assertEquals("No indexed entries are available for Bangumi batch matching.", noMetadataBatchEntriesStatus("Bangumi"))
+        assertEquals("没有可用于 Bangumi 批量匹配的索引条目。", noMetadataBatchEntriesStatus("Bangumi"))
         assertEquals(noMetadataBatchEntriesStatus(), preview.summaryStatus())
     }
 
     @Test
-    fun `metadata status helpers share desktop wording`() {
+    fun `previewFor supplies stable alias candidates for each query`() = runBlocking {
+        val searchedCandidates = mutableListOf<List<String>>()
+
+        MetadataBatchPlanner.previewFor(
+            entries = listOf(
+                MediaIndexEntry(
+                    sourceId = 1L,
+                    path = "D:/Anime/Frieren/01.mkv",
+                    animeName = "Frieren",
+                    metadataTitle = "葬送的芙莉莲",
+                    metadataId = "431767",
+                ),
+                MediaIndexEntry(
+                    sourceId = 1L,
+                    path = "D:/Anime/Frieren/02.mkv",
+                    animeName = "Frieren",
+                    metadataTitle = "葬送的芙莉莲",
+                    metadataId = "431767",
+                ),
+            ),
+            queryLimit = 1,
+            searchCandidates = { _, candidates ->
+                searchedCandidates += candidates
+                emptyList()
+            },
+        )
+
+        assertEquals(listOf(listOf("Frieren", "葬送的芙莉莲", "431767")), searchedCandidates)
+    }
+
+    @Test
+    fun `metadata status helpers share TV wording`() {
         val entry = MediaIndexEntry(sourceId = 1L, path = "D:/Anime/Frieren/01.mkv")
         val match = MetadataBatchMatch(query = "Frieren", result = result())
         val conflictPlan = MetadataBatchPlan(
@@ -165,30 +216,30 @@ class MetadataBatchPlannerTest {
             ),
         )
 
-        assertEquals("Select an indexed video first.", metadataIndexedVideoRequiredStatus())
-        assertEquals("Select an indexed video, then search Bangumi.", metadataInitialStatus("Bangumi"))
-        assertEquals("Query set from selected index entry.", metadataQuerySetFromIndexStatus())
-        assertEquals("Enter a Bangumi query or select an indexed video.", metadataQueryRequiredStatus("Bangumi"))
-        assertEquals("Searching Bangumi for \"Frieren\"...", metadataSearchStartedStatus("Frieren", "Bangumi"))
-        assertEquals("No Bangumi metadata matched \"Frieren\".", metadataSearchResultStatus("Frieren", 0, "Bangumi"))
-        assertEquals("Found 2 Bangumi match(es).", metadataSearchResultStatus("Frieren", 2, "Bangumi"))
-        assertEquals("Open or scan a source first.", metadataSourceRequiredStatus())
-        assertEquals("Selected batch review: Frieren.", match.selectedReviewStatus())
-        assertEquals("Select a batch match with a Bangumi result first.", metadataBatchResultRequiredStatus("Bangumi"))
+        assertEquals("请先选择一个索引视频。", metadataIndexedVideoRequiredStatus())
+        assertEquals("选择索引视频后可搜索 Bangumi。", metadataInitialStatus("Bangumi"))
+        assertEquals("已从当前索引条目填入搜索词。", metadataQuerySetFromIndexStatus())
+        assertEquals("请输入 Bangumi 搜索词，或先选择索引视频。", metadataQueryRequiredStatus("Bangumi"))
+        assertEquals("正在搜索 Bangumi：\"Frieren\"...", metadataSearchStartedStatus("Frieren", "Bangumi"))
+        assertEquals("没有匹配 \"Frieren\" 的 Bangumi 元数据。", metadataSearchResultStatus("Frieren", 0, "Bangumi"))
+        assertEquals("找到 2 个 Bangumi 匹配。", metadataSearchResultStatus("Frieren", 2, "Bangumi"))
+        assertEquals("请先打开或扫描媒体源。", metadataSourceRequiredStatus())
+        assertEquals("已选择批量复核：Frieren", match.selectedReviewStatus())
+        assertEquals("请先选择带 Bangumi 结果的批量匹配。", metadataBatchResultRequiredStatus("Bangumi"))
         assertEquals(
-            "Selected review has 2 metadata conflicts; nothing was overwritten.",
+            "当前复核项有 2 个元数据冲突，未覆盖任何内容。",
             conflictPlan.reviewConflictStatus(),
         )
-        assertEquals("Selected review has no matching indexed entries.", metadataReviewNoMatchStatus())
-        assertEquals("Selected 葬送的芙莉莲.", result().selectedMetadataStatus())
+        assertEquals("当前复核项没有匹配的索引条目。", metadataReviewNoMatchStatus())
+        assertEquals("已选择：葬送的芙莉莲", result().selectedMetadataStatus())
         assertEquals(
-            "Select an indexed video before applying Bangumi metadata.",
+            "请先选择索引视频，再应用 Bangumi 元数据。",
             metadataApplyEntryRequiredStatus("Bangumi"),
         )
-        assertEquals("Search Bangumi and select a match first.", metadataSearchSelectionRequiredStatus("Bangumi"))
-        assertEquals("Applied Bangumi metadata to D:/Anime/Frieren/01.mkv.", entry.metadataAppliedStatus("Bangumi"))
-        assertEquals("Select an indexed video before clearing metadata.", metadataClearEntryRequiredStatus())
-        assertEquals("Cleared external metadata for D:/Anime/Frieren/01.mkv.", entry.metadataClearedStatus())
+        assertEquals("请先搜索 Bangumi 并选择一个匹配。", metadataSearchSelectionRequiredStatus("Bangumi"))
+        assertEquals("已将 Bangumi 元数据应用到 D:/Anime/Frieren/01.mkv。", entry.metadataAppliedStatus("Bangumi"))
+        assertEquals("请先选择索引视频，再清除元数据。", metadataClearEntryRequiredStatus())
+        assertEquals("已清除 D:/Anime/Frieren/01.mkv 的外部元数据。", entry.metadataClearedStatus())
     }
 
     @Test
@@ -215,7 +266,7 @@ class MetadataBatchPlannerTest {
         assertEquals(highConfidence, selection.updatedMatch.result)
         assertEquals(listOf(selection.updatedMatch), selection.updatedMatches)
         assertEquals(1, selection.plan.readyUpdates.size)
-        assertEquals("Selected batch candidate for Frieren: 葬送的芙莉莲.", selection.selectedStatus())
+        assertEquals("已选择批量候选：Frieren -> 葬送的芙莉莲", selection.selectedStatus())
     }
 
     private fun result(

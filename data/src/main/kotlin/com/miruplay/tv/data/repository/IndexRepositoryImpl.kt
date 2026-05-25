@@ -5,6 +5,7 @@ import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.data.dao.IndexDao
 import com.miruplay.tv.data.db.MiruPlayDatabase
 import com.miruplay.tv.data.entity.IndexEntryEntity
+import com.miruplay.tv.repository.MediaScrapeStatus
 import androidx.room.withTransaction
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -87,8 +88,16 @@ private fun IndexRepositoryEntity.toEntity(sourceId: Long) = IndexEntryEntity(
     sourceId = sourceId,
     path = path,
     animeName = animeName,
+    episodeTitle = episodeTitle,
+    plot = plot,
     seasonNumber = seasonNumber,
     episodeNumber = episodeNumber,
+    metadataSource = metadataSource,
+    metadataId = metadataId,
+    metadataTitle = metadataTitle,
+    scrapeStatus = scrapeStatus.toStorageValue(),
+    scrapeMessage = scrapeMessage,
+    scrapedAt = scrapedAt,
     isDirectory = isDirectory,
     fileSize = fileSize,
     lastModified = lastModified
@@ -98,9 +107,22 @@ private fun IndexEntryEntity.toDomain() = IndexRepositoryEntity(
     sourceId = sourceId,
     path = path,
     animeName = animeName,
+    episodeTitle = episodeTitle,
+    plot = plot,
     seasonNumber = seasonNumber,
     episodeNumber = episodeNumber,
+    metadataSource = metadataSource,
+    metadataId = metadataId,
+    metadataTitle = metadataTitle,
+    scrapeStatus = scrapeStatus?.toMediaScrapeStatus(),
+    scrapeMessage = scrapeMessage,
+    scrapedAt = scrapedAt,
     isDirectory = isDirectory,
     fileSize = fileSize,
     lastModified = lastModified
 )
+
+private fun MediaScrapeStatus?.toStorageValue(): String? = this?.name
+
+private fun String.toMediaScrapeStatus(): MediaScrapeStatus? =
+    runCatching { MediaScrapeStatus.valueOf(this) }.getOrNull()

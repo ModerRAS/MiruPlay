@@ -1,6 +1,7 @@
 package com.miruplay.tv.data.di
 
 import com.miruplay.tv.data.preferences.WebControlPreferencesManager
+import com.miruplay.tv.data.preferences.PlaybackPreferencesManager
 import com.miruplay.tv.data.logging.LogUploadRepositoryImpl
 import com.miruplay.tv.data.repository.CloudDriveAutomationRepositoryImpl
 import com.miruplay.tv.data.repository.IndexRepositoryImpl
@@ -12,11 +13,12 @@ import com.miruplay.tv.data.secure.SecurePreferencesManager
 import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.CloudDriveCredentialStore
-import com.miruplay.tv.repository.LogUploadRepository
 import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaSourceRepository
+import com.miruplay.tv.repository.LogUploadRepository
 import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
+import com.miruplay.tv.repository.PlaybackPreferencesRepository
 import com.miruplay.tv.repository.WebControlAccessManager
 import dagger.Binds
 import dagger.Module
@@ -56,6 +58,12 @@ abstract class RepositoryModule {
 
     @Binds
     @Singleton
+    abstract fun bindPlaybackPreferencesRepository(
+        impl: PlaybackPreferencesManager
+    ): PlaybackPreferencesRepository
+
+    @Binds
+    @Singleton
     abstract fun bindIndexRepository(impl: IndexRepositoryImpl): MediaIndexRepository
 
     @Binds
@@ -66,13 +74,13 @@ abstract class RepositoryModule {
 
     @Binds
     @Singleton
-    abstract fun bindWebControlAccessManager(
-        impl: WebControlPreferencesManager
-    ): WebControlAccessManager
-
-    @Binds
-    @Singleton
     abstract fun bindLogUploadRepository(
         impl: LogUploadRepositoryImpl
     ): LogUploadRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindWebControlAccessManager(
+        impl: WebControlPreferencesManager
+    ): WebControlAccessManager
 }

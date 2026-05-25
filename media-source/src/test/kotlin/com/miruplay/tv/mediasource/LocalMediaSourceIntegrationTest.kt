@@ -22,8 +22,11 @@ class LocalMediaSourceIntegrationTest {
         tempDir = Files.createTempDirectory("miruplay-test").toFile()
         // Create test files
         File(tempDir, "test.mkv").writeText("test video content")
+        File(tempDir, "video.m4v").writeText("m4v video content")
+        File(tempDir, "cover.webp").writeText("cover")
         File(tempDir, "subs.srt").writeText("1\n00:00:01,000 --> 00:00:02,000\nHello")
         File(tempDir, ".DS_Store").writeText("hidden")
+        File(tempDir, "\$RECYCLE.BIN").writeText("hidden")
         File(tempDir, "Subfolder").mkdir()
         File(File(tempDir, "Subfolder"), "ep01.mkv").writeText("episode")
         
@@ -48,8 +51,22 @@ class LocalMediaSourceIntegrationTest {
         assertNotNull("Files should not be null", files)
         assertTrue("Should have multiple files (excluding .DS_Store)", files!!.size >= 3)
         assertFalse("Should not include .DS_Store", files.any { it.name == ".DS_Store" })
+        assertFalse("Should not include shared hidden names", files.any { it.name == "\$RECYCLE.BIN" })
         assertTrue("Should include test.mkv", files.any { it.name == "test.mkv" })
         assertTrue("Should include Subfolder", files.any { it.name == "Subfolder" })
+    }
+
+    @Test
+    fun `listFiles uses shared media file conventions for mime types and ordering`() = runBlocking {
+        val result = mediaSource.listFiles(tempDir.absolutePath)
+        assertTrue("listFiles should succeed", result.isSuccess())
+        val files = result.getOrNull().orEmpty()
+
+        assertEquals("Subfolder", files.first().name)
+        assertEquals("image/webp", files.first { it.name == "cover.webp" }.mimeType)
+        assertEquals("application/x-subrip", files.first { it.name == "subs.srt" }.mimeType)
+        assertEquals("video/x-m4v", files.first { it.name == "video.m4v" }.mimeType)
+        assertEquals("video/x-matroska", files.first { it.name == "test.mkv" }.mimeType)
     }
     
     @Test

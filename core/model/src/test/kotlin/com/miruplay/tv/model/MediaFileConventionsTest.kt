@@ -17,6 +17,14 @@ class MediaFileConventionsTest {
     }
 
     @Test
+    fun `hasExtension ignores path separators and remote fragments`() {
+        assertTrue(MediaFileConventions.hasExtension("/Show/tvshow.nfo?download=1", "nfo"))
+        assertTrue(MediaFileConventions.hasExtension("""D:\Show\Episode 01.MKV#fragment""", ".mkv"))
+        assertTrue(MediaFileConventions.hasExtension("/Show/Episode #OVA?.mkv", "mkv"))
+        assertFalse(MediaFileConventions.hasExtension("/Show/Episode 01.mkv", "nfo"))
+    }
+
+    @Test
     fun `isHiddenName recognizes ignored media source entries`() {
         assertTrue(MediaFileConventions.isHiddenName("Thumbs.db"))
         assertTrue(MediaFileConventions.isHiddenName("@eaDir/"))
@@ -36,6 +44,25 @@ class MediaFileConventionsTest {
         )
 
         assertEquals(listOf("Season 01", "Season 02", "a.mkv", "b.mkv"), sorted.map { it.name })
+    }
+
+    @Test
+    fun `fileEntryComparator supports platform-specific entry types`() {
+        data class PlatformEntry(val title: String, val folder: Boolean)
+
+        val sorted = listOf(
+            PlatformEntry("b.mkv", folder = false),
+            PlatformEntry("Season 02", folder = true),
+            PlatformEntry("a.mkv", folder = false),
+            PlatformEntry("Season 01", folder = true),
+        ).sortedWith(
+            MediaFileConventions.fileEntryComparator(
+                isDirectory = PlatformEntry::folder,
+                name = PlatformEntry::title,
+            )
+        )
+
+        assertEquals(listOf("Season 01", "Season 02", "a.mkv", "b.mkv"), sorted.map { it.title })
     }
 
     @Test

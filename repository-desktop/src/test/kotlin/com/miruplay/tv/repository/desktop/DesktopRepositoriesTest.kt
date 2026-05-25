@@ -1,14 +1,24 @@
 package com.miruplay.tv.repository.desktop
 
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.CloudDriveAutomationConfig
+import com.miruplay.tv.model.Episode
+import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.RssDownloadStatus
 import com.miruplay.tv.model.RssDownloadTaskInfo
 import com.miruplay.tv.model.RssProcessedItemInfo
 import com.miruplay.tv.model.RssSubscriptionInfo
+import com.miruplay.tv.repository.BangumiCollectionService
+import com.miruplay.tv.repository.BangumiEpisodeCollection
+import com.miruplay.tv.repository.BangumiEpisodeCollectionType
+import com.miruplay.tv.repository.BangumiSubjectCollection
+import com.miruplay.tv.repository.BangumiSubjectCollectionType
+import com.miruplay.tv.repository.BangumiUser
 import com.miruplay.tv.repository.MediaIndexEntry
+import com.miruplay.tv.sync.BangumiSyncCore
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -110,6 +120,145 @@ class DesktopRepositoriesTest {
             assertEquals(listOf("episode-1", "episode-2"), recent.data.map { it.episodeId })
             assertEquals(3_000L, recent.data.first().positionMs)
             assertEquals(1, recent.data.first().playCount)
+        } finally {
+            deleteTempStore(storePath)
+        }
+    }
+
+    @Test
+    fun `playback end action preference is persisted`() = runBlocking {
+        val storePath = tempStorePath()
+        try {
+            val repositories = DesktopRepositories.fileBacked(storePath)
+
+            assertEquals(PlaybackEndAction.RETURN_TO_DETAIL, repositories.playbackPreferences.getEndAction())
+
+            repositories.playbackPreferences.setEndAction(PlaybackEndAction.PLAY_NEXT_EPISODE)
+
+            val reopened = DesktopRepositories.fileBacked(storePath)
+            assertEquals(PlaybackEndAction.PLAY_NEXT_EPISODE, reopened.playbackPreferences.getEndAction())
+        } finally {
+            deleteTempStore(storePath)
+        }
+    }
+
+    @Test
+    fun `metadata cache is persisted for Bangumi progress sync`() = runBlocking {
+        val storePath = tempStorePath()
+        try {
+            val repositories = DesktopRepositories.fileBacked(storePath)
+            val anime = Anime(
+                id = "431767",
+                title = "Sousou no Frieren",
+                titleCn = "葬送的芙莉莲",
+                bangumiId = 431767,
+            )
+            val episodes = listOf(
+                Episode(
+                    id = "D:/Anime/Frieren/01.mkv",
+                    animeId = anime.id,
+                    episodeNumber = 1,
+                    filePath = "D:/Anime/Frieren/01.mkv",
+                    fileName = "01.mkv",
+                    bangumiEpisodeId = 1001,
+                ),
+            )
+
+            repositories.metadata.cacheMetadata(anime)
+            repositories.metadata.cacheEpisodes(anime.id, episodes)
+
+            val reopened = DesktopRepositories.fileBacked(storePath)
+            val cachedAnime = reopened.metadata.getCachedMetadata(anime.id) as Result.Success
+            val cachedEpisodes = reopened.metadata.getCachedEpisodes(anime.id) as Result.Success
+
+            assertEquals(431767, cachedAnime.data?.bangumiId)
+            assertEquals(1, cachedAnime.data?.episodeCount)
+            assertEquals(1001, cachedEpisodes.data.single().bangumiEpisodeId)
+
+            reopened.metadata.invalidateCache(anime.id)
+            assertEquals(null, (reopened.metadata.getCachedMetadata(anime.id) as Result.Success).data)
+            assertTrue((reopened.metadata.getCachedEpisodes(anime.id) as Result.Success).data.isEmpty())
+        } finally {
+            deleteTempStore(storePath)
+        }
+    }
+
+    @Test
+    fun `shared Bangumi sync core uses desktop metadata and progress stores`() = runBlocking {
+        val storePath = tempStorePath()
+        try {
+            val repositories = DesktopRepositories.fileBacked(storePath)
+            val anime = Anime(
+                id = "431767",
+                title = "Sousou no Frieren",
+                titleCn = "葬送的芙莉莲",
+                bangumiId = 431767,
+            )
+            val episodes = listOf(
+                Episode(
+                    id = "D:/Anime/Frieren/01.mkv",
+                    animeId = anime.id,
+                    episodeNumber = 1,
+                    filePath = "D:/Anime/Frieren/01.mkv",
+                    fileName = "01.mkv",
+                    duration = 1_000L,
+                    bangumiEpisodeId = 1001,
+                ),
+                Episode(
+                    id = "D:/Anime/Frieren/02.mkv",
+                    animeId = anime.id,
+                    episodeNumber = 2,
+                    filePath = "D:/Anime/Frieren/02.mkv",
+                    fileName = "02.mkv",
+                    duration = 2_000L,
+                    bangumiEpisodeId = 1002,
+                ),
+            )
+            val bangumiService = FakeBangumiCollectionService(
+                episodeCollections = listOf(
+                    BangumiEpisodeCollection(
+                        episodeId = 1002,
+                        episodeNumber = 2,
+                        type = BangumiEpisodeCollectionType.DONE.value,
+                    ),
+                ),
+            )
+            val syncCore = BangumiSyncCore(
+                bangumiService = bangumiService,
+                metadataRepository = repositories.metadata,
+                progressRepository = repositories.progress,
+            )
+
+            repositories.metadata.cacheMetadata(anime)
+            repositories.metadata.cacheEpisodes(anime.id, episodes)
+            repositories.progress.saveProgress(
+                episodeId = episodes.first().id,
+                positionMs = 1_000L,
+                lastWatched = 10L,
+            )
+
+            val summary = syncCore.syncAnime(anime.id) as Result.Success
+
+            assertEquals(1, summary.data.pushedEpisodes)
+            assertEquals(1, summary.data.pulledEpisodes)
+            assertEquals(listOf(1001), bangumiService.pushedEpisodeIds)
+            assertEquals(listOf(BangumiEpisodeCollectionType.DONE), bangumiService.pushedEpisodeTypes)
+            assertEquals(
+                listOf(BangumiSubjectCollectionType.DOING, BangumiSubjectCollectionType.DONE),
+                bangumiService.subjectCollectionTypes,
+            )
+
+            val pulledProgress = repositories.progress.getProgress(episodes[1].id) as Result.Success
+            assertEquals(2_000L, pulledProgress.data?.positionMs)
+
+            val cachedAnime = repositories.metadata.getCachedMetadata(anime.id) as Result.Success
+            val cachedEpisodes = repositories.metadata.getCachedEpisodes(anime.id) as Result.Success
+            assertEquals(BangumiSubjectCollectionType.DONE.value, cachedAnime.data?.bangumiCollectionType)
+            assertEquals(2, cachedAnime.data?.bangumiEpStatus)
+            assertEquals(
+                listOf(BangumiEpisodeCollectionType.DONE.value, BangumiEpisodeCollectionType.DONE.value),
+                cachedEpisodes.data.map { it.bangumiCollectionType },
+            )
         } finally {
             deleteTempStore(storePath)
         }
@@ -372,5 +521,48 @@ class DesktopRepositoriesTest {
 
     private fun deleteTempStore(storePath: Path) {
         storePath.parent.toFile().deleteRecursively()
+    }
+}
+
+private class FakeBangumiCollectionService(
+    private val episodeCollections: List<BangumiEpisodeCollection>,
+    private val subjectCollection: BangumiSubjectCollection? = null,
+) : BangumiCollectionService {
+    override val hasToken: Boolean = true
+    val pushedEpisodeIds = mutableListOf<Int>()
+    val pushedEpisodeTypes = mutableListOf<BangumiEpisodeCollectionType>()
+    val subjectCollectionTypes = mutableListOf<BangumiSubjectCollectionType>()
+    val singleEpisodeUpdates = mutableListOf<Int>()
+
+    override suspend fun getCurrentUser(): Result<BangumiUser> =
+        Result.success(BangumiUser(id = 1, username = "tester", nickname = "Tester"))
+
+    override suspend fun getSubjectCollection(subjectId: Int): Result<BangumiSubjectCollection?> =
+        Result.success(subjectCollection)
+
+    override suspend fun upsertSubjectCollection(
+        subjectId: Int,
+        type: BangumiSubjectCollectionType
+    ): Result<Unit> {
+        subjectCollectionTypes += type
+        return Result.success(Unit)
+    }
+
+    override suspend fun getEpisodeCollections(subjectId: Int): Result<List<BangumiEpisodeCollection>> =
+        Result.success(episodeCollections)
+
+    override suspend fun updateEpisodeCollections(
+        subjectId: Int,
+        episodeIds: List<Int>,
+        type: BangumiEpisodeCollectionType
+    ): Result<Unit> {
+        pushedEpisodeIds += episodeIds
+        pushedEpisodeTypes += type
+        return Result.success(Unit)
+    }
+
+    override suspend fun updateEpisodeCollection(episodeId: Int, type: BangumiEpisodeCollectionType): Result<Unit> {
+        singleEpisodeUpdates += episodeId
+        return Result.success(Unit)
     }
 }

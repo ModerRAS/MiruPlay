@@ -49,7 +49,16 @@ $report = $reportText | ConvertFrom-Json
 
 Assert-Truthy -Condition (-not [string]::IsNullOrWhiteSpace([string]$report.generatedAtUtc)) -Message "Missing generatedAtUtc."
 Assert-Truthy -Condition ([string]$report.endpoint -match '^https?://') -Message "Endpoint must be an HTTP(S) URL."
-Assert-Truthy -Condition ([string]$report.rssUrl -match '^(https?|file)[:/]') -Message "rssUrl must look like a URL."
+Assert-Truthy -Condition ([string]$report.rssUrl -match '^(https?://.+/\.\.\.|file:///<redacted>)$') -Message "rssUrl must be redacted evidence, not a raw URL."
+Assert-Truthy -Condition ($null -ne $report.rssUrlEvidence) -Message "Missing rssUrlEvidence."
+if ($null -ne $report.rssUrlEvidence) {
+    Assert-Truthy -Condition ([string]$report.rssUrlEvidence.redacted -eq [string]$report.rssUrl) -Message "rssUrl must match rssUrlEvidence.redacted."
+    Assert-Truthy -Condition ([string]$report.rssUrlEvidence.scheme -in @("http", "https", "file")) -Message "rssUrlEvidence.scheme must be http, https, or file."
+    Assert-Truthy -Condition ([string]$report.rssUrlEvidence.sha256 -match '^[a-f0-9]{64}$') -Message "rssUrlEvidence.sha256 must be a SHA-256 hex digest."
+    if ([string]$report.rssUrlEvidence.scheme -in @("http", "https")) {
+        Assert-Truthy -Condition (-not [string]::IsNullOrWhiteSpace([string]$report.rssUrlEvidence.host)) -Message "HTTP(S) rssUrlEvidence must include host."
+    }
+}
 Assert-Truthy -Condition (-not [string]::IsNullOrWhiteSpace([string]$report.inboxPath)) -Message "Missing inboxPath."
 Assert-Truthy -Condition (-not [string]::IsNullOrWhiteSpace([string]$report.libraryPath)) -Message "Missing libraryPath."
 if (-not [string]::IsNullOrWhiteSpace($RequiredInbox)) {
@@ -144,9 +153,24 @@ foreach ($item in $previewItems) {
     Assert-Truthy -Condition (-not [string]::IsNullOrWhiteSpace([string]$item.title)) -Message "Preview item is missing title."
     Assert-Truthy -Condition ([string]$item.status -in @("WOULD_SUBMIT", "SKIPPED_FILTER", "MISSING_SUBMISSION")) -Message "Preview item has invalid status: $($item.status)"
     Assert-Truthy -Condition ([string]$item.submissionType -in @("MAGNET", "TORRENT", "OTHER", "NONE")) -Message "Preview item has invalid submissionType: $($item.submissionType)"
+    Assert-Truthy -Condition ($null -eq $item.guid) -Message "Preview item must not expose raw guid."
+    Assert-Truthy -Condition ($null -eq $item.submissionUrl) -Message "Preview item must not expose raw submissionUrl."
+    Assert-Truthy -Condition ($item.hasGuid -is [bool]) -Message "Preview item hasGuid must be a boolean."
+    Assert-Truthy -Condition ($item.hasSubmissionUrl -is [bool]) -Message "Preview item hasSubmissionUrl must be a boolean."
+    if ([bool]$item.hasGuid) {
+        Assert-Truthy -Condition ([string]$item.guidSha256 -match '^[a-f0-9]{64}$') -Message "Preview item guidSha256 must be a SHA-256 hex digest."
+    }
+    if ([bool]$item.hasSubmissionUrl) {
+        Assert-Truthy -Condition ($null -ne $item.submissionUrlEvidence) -Message "Preview item with a submission URL must include submissionUrlEvidence."
+        if ($null -ne $item.submissionUrlEvidence) {
+            Assert-Truthy -Condition ([string]$item.submissionUrlEvidence.redacted -match '^(https?://.+/\.\.\.|file:///<redacted>|magnet:\?<redacted>|[a-z0-9+.-]+:<redacted>)$') -Message "submissionUrlEvidence.redacted must be redacted."
+            Assert-Truthy -Condition (-not [string]::IsNullOrWhiteSpace([string]$item.submissionUrlEvidence.scheme)) -Message "submissionUrlEvidence.scheme is required."
+            Assert-Truthy -Condition ([string]$item.submissionUrlEvidence.sha256 -match '^[a-f0-9]{64}$') -Message "submissionUrlEvidence.sha256 must be a SHA-256 hex digest."
+        }
+    }
 }
 
-if ($reportText -match '(?i)cloudDriveToken|Authorization|Bearer ') {
+if ($reportText -match '(?i)cloudDriveToken|Authorization|Bearer |passkey=|token=|"submissionUrl"\s*:|"guid"\s*:') {
     Assert-Truthy -Condition $false -Message "Report appears to contain sensitive token or authorization text."
 }
 

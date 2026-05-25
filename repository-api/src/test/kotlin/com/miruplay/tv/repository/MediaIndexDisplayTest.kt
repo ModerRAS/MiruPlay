@@ -48,11 +48,23 @@ class MediaIndexDisplayTest {
         )
         val browserEntry = entry.toBrowserEntry()
 
-        assertEquals("[VID] Show EP2  smb://nas/anime/Show/02.mkv", entry.displayLine())
+        assertEquals("[视频] Show EP2  smb://nas/anime/Show/02.mkv", entry.displayLine())
         assertEquals("Show EP2", browserEntry.name)
         assertEquals(entry.path, browserEntry.path)
         assertEquals(2048L, browserEntry.size)
         assertEquals(1_700_000_000_000L, browserEntry.lastModified)
+    }
+
+    @Test
+    fun `display line uses directory label for folders`() {
+        val entry = MediaIndexEntry(
+            sourceId = 1L,
+            path = "D:/Anime/Show",
+            animeName = "Show",
+            isDirectory = true,
+        )
+
+        assertEquals("[目录] Show  D:/Anime/Show", entry.displayLine())
     }
 
     @Test
@@ -77,10 +89,18 @@ class MediaIndexDisplayTest {
         val samePathDifferentSource = MediaIndexEntry(sourceId = 2L, path = original.path)
         val other = MediaIndexEntry(sourceId = 1L, path = "D:/Anime/Show/02.mkv")
         val updated = original.copy(metadataId = "431767")
+        val directory = MediaIndexEntry(sourceId = 1L, path = "D:/Anime/Show", isDirectory = true)
 
         assertEquals(listOf(updated, samePathDifferentSource, other), listOf(original, samePathDifferentSource, other).replaceByMediaKey(updated))
         assertEquals(listOf(updated, samePathDifferentSource, other), listOf(original, samePathDifferentSource, other).replaceByMediaKeys(listOf(updated)))
         assertEquals(listOf(original, samePathDifferentSource, other), listOf(original, samePathDifferentSource, other).replaceByMediaKeys(emptyList()))
+        assertEquals(listOf(original, samePathDifferentSource, other), listOf(original, directory, samePathDifferentSource, other).mediaFilesOnly())
+        assertEquals(updated, original.updatedSelectionAfterReplacingByMediaKeys(listOf(updated)))
+        assertEquals(original, original.updatedSelectionAfterReplacingByMediaKeys(emptyList()))
+        assertEquals(null, null.updatedSelectionAfterReplacingByMediaKeys(listOf(updated)))
+        assertEquals(updated, original.retainedSelectionInMediaIndex(listOf(updated, samePathDifferentSource, other)))
+        assertEquals(null, original.retainedSelectionInMediaIndex(listOf(samePathDifferentSource, other)))
+        assertEquals(null, null.retainedSelectionInMediaIndex(listOf(updated)))
     }
 
     @Test

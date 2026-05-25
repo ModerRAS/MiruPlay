@@ -2,10 +2,10 @@ package com.miruplay.tv.scanner
 
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
-import com.miruplay.tv.mediasource.FileEntry
-import com.miruplay.tv.mediasource.FileMetadata
 import com.miruplay.tv.mediasource.MediaSource
 import com.miruplay.tv.mediasource.MediaSourceFactory
+import com.miruplay.tv.model.FileEntry
+import com.miruplay.tv.model.FileMetadata
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.FilenameMetadataParser
@@ -13,10 +13,13 @@ import com.miruplay.tv.model.FilenameParseResult
 import com.miruplay.tv.model.MediaCapabilities
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
+import com.miruplay.tv.scraper.EpisodeMetadata
+import com.miruplay.tv.scraper.MetadataScraper
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -43,6 +46,7 @@ class ScanCoordinatorTest {
                 ),
                 "/番剧" to listOf(
                     FileEntry(name = "01 [1080P].mp4", path = "/番剧/01 [1080P].mp4", isDirectory = false, size = 1234),
+                    FileEntry(name = "02 #OVA?.mkv", path = "/番剧/02 #OVA?.mkv", isDirectory = false, size = 1234),
                     FileEntry(name = "01.trickplay", path = "/番剧/01.trickplay", isDirectory = true)
                 )
             )
@@ -61,13 +65,20 @@ class ScanCoordinatorTest {
 
         assertTrue("Scan should succeed", result.isSuccess())
         assertEquals(listOf("", "/番剧"), mediaSource.listedPaths)
-        assertEquals(1, result.getOrNull()?.episodesFound)
-        assertEquals(listOf("/番剧/01 [1080P].mp4"), indexRepository.entries.map { it.path })
-        assertEquals("番剧", indexRepository.entries.single().animeName)
-        assertEquals("7:/番剧/01 [1080P].mp4", metadataRepository.episodes.single().id)
+        assertEquals(2, result.getOrNull()?.episodesFound)
+        assertEquals(
+            listOf("/番剧/01 [1080P].mp4", "/番剧/02 #OVA?.mkv"),
+            indexRepository.entries.map { it.path }
+        )
+        assertEquals(listOf("番剧", "番剧"), indexRepository.entries.map { it.animeName })
+        assertEquals("7:/番剧/01 [1080P].mp4", metadataRepository.episodes.first().id)
         assertEquals(
             "http://example.test/dav/%E7%95%AA%E5%89%A7/01%20%5B1080P%5D.mp4",
-            metadataRepository.episodes.single().filePath
+            metadataRepository.episodes.first().filePath
+        )
+        assertEquals(
+            "http://example.test/dav/%E7%95%AA%E5%89%A7/02%20%23OVA%3F.mkv",
+            metadataRepository.episodes.last().filePath
         )
     }
 
@@ -218,6 +229,59 @@ class ScanCoordinatorTest {
         assertEquals(3, metadataRepository.episodes.single().episodeNumber)
     }
 
+    @Test
+    fun `scanSource passes parser title candidates to Bangumi alias search`() = runBlocking {
+        val sourceInfo = MediaSourceInfo(
+            id = 12L,
+            name = "WebDAV",
+            type = MediaSourceType.WEBDAV,
+            connectionInfo = mapOf("url" to "http://example.test/dav")
+        )
+        val mediaSource = FakeMediaSource(
+            listings = mapOf(
+                "" to listOf(
+                    FileEntry(name = "葬送的芙莉莲 第2季", path = "/葬送的芙莉莲 第2季", isDirectory = true)
+                ),
+                "/葬送的芙莉莲 第2季" to listOf(
+                    FileEntry(
+                        name = "Frieren S2E03.mkv",
+                        path = "/葬送的芙莉莲 第2季/Frieren S2E03.mkv",
+                        isDirectory = false,
+                        size = 1234
+                    )
+                )
+            )
+        )
+        val scraper = RecordingBangumiScraper()
+        val coordinator = ScanCoordinator(
+            mediaRepository = SingleSourceRepository(sourceInfo),
+            mediaSourceFactory = SingleMediaSourceFactory(mediaSource),
+            indexRepository = RecordingIndexRepository(),
+            metadataRepository = RecordingMetadataRepository(),
+            filenameMetadataParser = MappingFilenameParser(
+                mapOf(
+                    "Frieren S2E03" to FilenameParseResult(
+                        title = "Frieren",
+                        season = 2,
+                        episode = 3
+                    ),
+                    "葬送的芙莉莲 第2季" to FilenameParseResult(
+                        title = "葬送的芙莉莲",
+                        season = 2
+                    )
+                )
+            ),
+            metadataScrapers = setOf(scraper)
+        )
+
+        val result = coordinator.scanSource(sourceInfo.id)
+
+        assertTrue("Scan should succeed", result.isSuccess())
+        assertEquals("葬送的芙莉莲", scraper.normalizedName)
+        assertTrue(scraper.aliasCandidates.contains("葬送的芙莉莲"))
+        assertTrue(scraper.aliasCandidates.contains("Frieren"))
+    }
+
     private class SingleSourceRepository(
         private val source: MediaSourceInfo
     ) : MediaSourceRepository {
@@ -312,5 +376,36 @@ class ScanCoordinatorTest {
         private val result: FilenameParseResult
     ) : FilenameMetadataParser {
         override fun parse(filename: String, maxLength: Int): FilenameParseResult = result
+    }
+
+    private class MappingFilenameParser(
+        private val results: Map<String, FilenameParseResult>
+    ) : FilenameMetadataParser {
+        override fun parse(filename: String, maxLength: Int): FilenameParseResult =
+            results[filename] ?: FilenameParseResult()
+    }
+
+    private class RecordingBangumiScraper : MetadataScraper {
+        override val sourceName: String = "Bangumi"
+        var normalizedName: String? = null
+        var aliasCandidates: List<String> = emptyList()
+
+        override suspend fun searchAnime(query: String): Result<List<ScraperResult>> =
+            Result.success(emptyList())
+
+        override suspend fun getAnimeDetails(animeId: String): Result<Anime> =
+            Result.failure(AppError.ScrapingError.NoMatchFound(animeId))
+
+        override suspend fun getEpisodes(animeId: String): Result<List<EpisodeMetadata>> =
+            Result.success(emptyList())
+
+        override suspend fun searchByAlias(
+            normalizedName: String,
+            candidates: List<String>
+        ): Result<ScraperResult?> {
+            this.normalizedName = normalizedName
+            this.aliasCandidates = candidates
+            return Result.success(null)
+        }
     }
 }

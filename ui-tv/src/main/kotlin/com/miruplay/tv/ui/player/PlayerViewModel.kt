@@ -2,19 +2,22 @@ package com.miruplay.tv.ui.player
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.miruplay.tv.data.preferences.PlaybackEndAction
 import com.miruplay.tv.data.preferences.PlaybackPreferencesManager
-import com.miruplay.tv.model.Episode
+import com.miruplay.tv.model.PlaybackEndAction
+import com.miruplay.tv.model.PLAYBACK_SEEK_BACK_SECONDS
+import com.miruplay.tv.model.PLAYBACK_SEEK_FORWARD_SECONDS
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.PlaybackState
-import com.miruplay.tv.model.resumePosition
+import com.miruplay.tv.model.nextEpisodeAfter
 import com.miruplay.tv.player.AudioTrack
 import com.miruplay.tv.player.PlaybackController
 import com.miruplay.tv.model.SubtitleTrack
+import com.miruplay.tv.model.toPlaybackSource
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
 import com.miruplay.tv.repository.resolvePlayableUri
+import com.miruplay.tv.repository.savePlaybackProgressSnapshot
 import com.miruplay.tv.sync.BangumiSyncEngine
 import androidx.media3.common.Player
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -124,11 +127,11 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun skipForward() {
-        seekFromControls(seekBasePosition() + 30_000)
+        seekFromControls(seekBasePosition() + PLAYBACK_SEEK_FORWARD_SECONDS * 1_000L)
     }
 
     fun skipBackward() {
-        seekFromControls(seekBasePosition() - 10_000)
+        seekFromControls(seekBasePosition() - PLAYBACK_SEEK_BACK_SECONDS * 1_000L)
     }
 
     fun toggleControls() {
@@ -260,12 +263,12 @@ class PlayerViewModel @Inject constructor(
     ) {
         val currentSource = source ?: return
         val episodeId = currentSource.episodeId ?: extractEpisodeId(currentSource.uri)
-        val position = (positionMs ?: playbackController.getCurrentPosition()).coerceAtLeast(0L)
-        progressRepository.saveProgress(
+        val position = positionMs ?: playbackController.getCurrentPosition()
+        savePlaybackProgressSnapshot(
             episodeId = episodeId,
             positionMs = position,
-            lastWatched = System.currentTimeMillis(),
-            incrementPlayCount = incrementPlayCount
+            incrementPlayCount = incrementPlayCount,
+            saveProgress = progressRepository::saveProgress,
         )
     }
 
@@ -298,13 +301,7 @@ class PlayerViewModel @Inject constructor(
         val episodeId = source.episodeId ?: return null
         val currentEpisode = metadataRepository.getCachedEpisode(episodeId).getOrNull() ?: return null
         val episodes = metadataRepository.getCachedEpisodes(currentEpisode.animeId).getOrNull().orEmpty()
-        val sortedEpisodes = episodes.sortedWith(
-            compareBy<Episode>({ it.seasonNumber }, { it.episodeNumber }, { it.filePath })
-        )
-        val currentIndex = sortedEpisodes.indexOfFirst { it.id == currentEpisode.id }
-        if (currentIndex < 0 || currentIndex >= sortedEpisodes.lastIndex) return null
-
-        val nextEpisode = sortedEpisodes.drop(currentIndex + 1).firstOrNull() ?: return null
+        val nextEpisode = episodes.nextEpisodeAfter(currentEpisode.id) ?: return null
         val progress = progressRepository.getProgress(nextEpisode.id).getOrNull()
         val playableUri = resolvePlayableUri(
             path = nextEpisode.filePath,
@@ -312,12 +309,9 @@ class PlayerViewModel @Inject constructor(
             mediaRepository = mediaRepository
         )
 
-        return PlaybackSource(
-            uri = playableUri,
-            mediaSourceId = nextEpisode.animeId,
-            startPosition = nextEpisode.resumePosition(progress),
-            subtitleTracks = emptyList(),
-            episodeId = nextEpisode.id
+        return nextEpisode.toPlaybackSource(
+            playableUri = playableUri,
+            progress = progress,
         )
     }
 

@@ -1,6 +1,7 @@
 package com.miruplay.tv.desktop
 
 import androidx.compose.ui.input.key.Key
+import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.repository.MediaIndexEntry
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -54,6 +55,43 @@ class DesktopPosterGroupingTest {
         assertEquals("Show 8", groups.posterNavigationTarget(currentIndex = 4, key = Key.DirectionDown)?.title)
         assertEquals("Show 8", groups.posterNavigationTarget(currentIndex = 5, key = Key.DirectionDown)?.title)
         assertNull(groups.posterNavigationTarget(currentIndex = 6, key = Key.DirectionDown))
+    }
+
+    @Test
+    fun `poster wall navigation also accepts shared direction intents`() {
+        val groups = (1..8).map { index ->
+            DesktopPosterGroup(
+                title = "Show $index",
+                entries = listOf(MediaIndexEntry(sourceId = 1, path = "show-$index.mkv")),
+            )
+        }
+
+        assertEquals(
+            "Show 7",
+            groups.posterNavigationTarget(
+                currentIndex = 0,
+                intent = MiruPlayInputIntent.DirectionDown,
+            )?.title,
+        )
+        assertEquals(
+            "Show 8",
+            groups.posterNavigationTarget(
+                currentIndex = 6,
+                intent = MiruPlayInputIntent.DirectionRight,
+            )?.title,
+        )
+        assertNull(
+            groups.posterNavigationTarget(
+                currentIndex = 6,
+                intent = MiruPlayInputIntent.DirectionLeft,
+            ),
+        )
+        assertNull(
+            groups.posterNavigationTarget(
+                currentIndex = 0,
+                intent = MiruPlayInputIntent.Activate,
+            ),
+        )
     }
 
     @Test
@@ -139,6 +177,43 @@ class DesktopPosterGroupingTest {
     }
 
     @Test
+    fun `horizontal poster shelves also accept shared direction intents`() {
+        val groups = (1..4).map { index ->
+            DesktopPosterGroup(
+                title = "Show $index",
+                entries = listOf(MediaIndexEntry(sourceId = 1, path = "show-$index.mkv")),
+            )
+        }
+
+        assertEquals(
+            "Show 2",
+            groups.posterShelfNavigationTarget(
+                currentIndex = 0,
+                intent = MiruPlayInputIntent.DirectionRight,
+            )?.title,
+        )
+        assertEquals(
+            "Show 3",
+            groups.posterShelfNavigationTarget(
+                currentIndex = 3,
+                intent = MiruPlayInputIntent.DirectionLeft,
+            )?.title,
+        )
+        assertNull(
+            groups.posterShelfNavigationTarget(
+                currentIndex = 0,
+                intent = MiruPlayInputIntent.DirectionLeft,
+            ),
+        )
+        assertNull(
+            groups.posterShelfNavigationTarget(
+                currentIndex = 1,
+                intent = MiruPlayInputIntent.DirectionDown,
+            ),
+        )
+    }
+
+    @Test
     fun `library media focus moves from poster wall into lower shelves`() {
         assertEquals(
             LibraryMediaFocusTarget.PreviousPanel,
@@ -192,6 +267,64 @@ class DesktopPosterGroupingTest {
                 posterCount = 8,
                 featuredCount = 0,
                 recentlyAddedCount = 0,
+                columns = 6,
+            ),
+        )
+    }
+
+    @Test
+    fun `library media focus also accepts shared direction intents`() {
+        assertEquals(
+            LibraryMediaFocusTarget.PreviousPanel,
+            libraryMediaFocusTarget(
+                current = LibraryMediaFocusTarget.PosterWall(0),
+                intent = MiruPlayInputIntent.DirectionUp,
+                posterCount = 8,
+                featuredCount = 2,
+                recentlyAddedCount = 4,
+                columns = 6,
+            ),
+        )
+        assertEquals(
+            LibraryMediaFocusTarget.Featured(1),
+            libraryMediaFocusTarget(
+                current = LibraryMediaFocusTarget.PosterWall(7),
+                intent = MiruPlayInputIntent.DirectionDown,
+                posterCount = 8,
+                featuredCount = 2,
+                recentlyAddedCount = 4,
+                columns = 6,
+            ),
+        )
+        assertEquals(
+            LibraryMediaFocusTarget.Featured(1),
+            libraryMediaFocusTarget(
+                current = LibraryMediaFocusTarget.Featured(0),
+                intent = MiruPlayInputIntent.DirectionRight,
+                posterCount = 8,
+                featuredCount = 2,
+                recentlyAddedCount = 4,
+                columns = 6,
+            ),
+        )
+        assertEquals(
+            LibraryMediaFocusTarget.SearchBar,
+            libraryMediaFocusTarget(
+                current = LibraryMediaFocusTarget.RecentlyAdded(3),
+                intent = MiruPlayInputIntent.DirectionDown,
+                posterCount = 8,
+                featuredCount = 2,
+                recentlyAddedCount = 4,
+                columns = 6,
+            ),
+        )
+        assertNull(
+            libraryMediaFocusTarget(
+                current = LibraryMediaFocusTarget.Featured(0),
+                intent = MiruPlayInputIntent.Activate,
+                posterCount = 8,
+                featuredCount = 2,
+                recentlyAddedCount = 4,
                 columns = 6,
             ),
         )
@@ -335,5 +468,43 @@ class DesktopPosterGroupingTest {
         )
         assertNull(librarySearchFocusTarget(LibrarySearchFocusTarget.Field, Key.DirectionLeft))
         assertNull(librarySearchFocusTarget(LibrarySearchFocusTarget.Action, Key.DirectionRight))
+    }
+
+    @Test
+    fun `library search bar focus also accepts shared direction intents`() {
+        assertEquals(
+            LibrarySearchFocusTarget.Action,
+            librarySearchFocusTarget(
+                LibrarySearchFocusTarget.Field,
+                MiruPlayInputIntent.DirectionRight,
+            ),
+        )
+        assertEquals(
+            LibrarySearchFocusTarget.Field,
+            librarySearchFocusTarget(
+                LibrarySearchFocusTarget.Action,
+                MiruPlayInputIntent.DirectionLeft,
+            ),
+        )
+        assertEquals(
+            LibrarySearchFocusTarget.PreviousPanel,
+            librarySearchFocusTarget(
+                LibrarySearchFocusTarget.Field,
+                MiruPlayInputIntent.DirectionUp,
+            ),
+        )
+        assertEquals(
+            LibrarySearchFocusTarget.NextPanel,
+            librarySearchFocusTarget(
+                LibrarySearchFocusTarget.Action,
+                MiruPlayInputIntent.DirectionDown,
+            ),
+        )
+        assertNull(
+            librarySearchFocusTarget(
+                LibrarySearchFocusTarget.Field,
+                MiruPlayInputIntent.Activate,
+            ),
+        )
     }
 }

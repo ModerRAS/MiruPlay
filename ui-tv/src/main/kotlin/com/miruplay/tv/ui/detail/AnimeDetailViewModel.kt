@@ -8,6 +8,11 @@ import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.Season
+import com.miruplay.tv.model.detailBangumiMetadataUpdatedMessage
+import com.miruplay.tv.model.detailBangumiRescrapeStartedMessage
+import com.miruplay.tv.model.detailBangumiScraperUnavailableMessage
+import com.miruplay.tv.model.detailBangumiSyncCompleteMessage
+import com.miruplay.tv.model.detailBangumiSyncStartedMessage
 import com.miruplay.tv.model.mergeAnimeGroupForDisplay
 import com.miruplay.tv.model.sameAnimeGroupFor
 import com.miruplay.tv.repository.MediaIndexRepository
@@ -15,6 +20,7 @@ import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
 import com.miruplay.tv.scraper.MetadataScraper
+import com.miruplay.tv.sync.BangumiMetadataRefreshCore
 import com.miruplay.tv.sync.BangumiSyncEngine
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -152,10 +158,10 @@ class AnimeDetailViewModel @Inject constructor(
         val current = _anime.value ?: return
         viewModelScope.launch {
             _isSyncing.value = true
-            _actionMessage.value = "正在重新匹配 Bangumi..."
+            _actionMessage.value = detailBangumiRescrapeStartedMessage()
             val bangumi = metadataScrapers.firstOrNull { it.sourceName.equals("Bangumi", ignoreCase = true) }
             if (bangumi == null) {
-                _actionMessage.value = "Bangumi 刮削器不可用"
+                _actionMessage.value = detailBangumiScraperUnavailableMessage()
                 _isSyncing.value = false
                 return@launch
             }
@@ -164,53 +170,26 @@ class AnimeDetailViewModel @Inject constructor(
                 .map { it.trim() }
                 .filter { it.isNotBlank() }
                 .distinct()
-            var match = bangumi.searchByAlias(current.id, candidates).getOrNull()
-            if (match == null) {
-                for (candidate in candidates) {
-                    match = bangumi.searchAnime(candidate).getOrNull()
-                        ?.firstOrNull { it.confidence >= 0.62f }
-                    if (match != null) break
-                }
-            }
-
-            if (match == null) {
-                _actionMessage.value = "没有找到可靠的 Bangumi 匹配"
-                _isSyncing.value = false
-                return@launch
-            }
-
-            val details = bangumi.getAnimeDetails(match.animeId).getOrNull()
-            if (details == null) {
-                _actionMessage.value = "Bangumi 详情获取失败"
-                _isSyncing.value = false
-                return@launch
-            }
-
-            val remoteEpisodes = bangumi.getEpisodes(match.animeId).getOrNull()
-                .orEmpty()
-                .associateBy { it.episodeNumber }
             val localEpisodes = metadataRepository.getCachedEpisodes(current.id).getOrNull().orEmpty()
-            val mergedEpisodes = localEpisodes.map { episode ->
-                val remote = remoteEpisodes[episode.episodeNumber]
-                if (remote == null) {
-                    episode
-                } else {
-                    episode.copy(
-                        title = remote.title ?: episode.title,
-                        duration = episode.duration.takeIf { it > 0 } ?: remote.durationMs,
-                        bangumiEpisodeId = remote.bangumiEpisodeId
-                    )
-                }
-            }
-
-            metadataRepository.cacheMetadata(
-                details.copy(
-                    id = current.id,
-                    episodeCount = maxOf(details.episodeCount, mergedEpisodes.size)
+            when (
+                val refreshed = BangumiMetadataRefreshCore(
+                    metadataRepository = metadataRepository,
+                    bangumiScraper = bangumi,
+                ).refresh(
+                    cacheAnimeId = current.id,
+                    query = current.id,
+                    candidates = candidates,
+                    localEpisodes = localEpisodes,
                 )
-            )
-            metadataRepository.cacheEpisodes(current.id, mergedEpisodes)
-            _actionMessage.value = "Bangumi 元数据已更新"
+            ) {
+                is Result.Error -> {
+                    _actionMessage.value = refreshed.error.toUserMessage()
+                    _isSyncing.value = false
+                    return@launch
+                }
+                is Result.Success -> Unit
+            }
+            _actionMessage.value = detailBangumiMetadataUpdatedMessage()
             _isSyncing.value = false
             loadAnime(current.id)
         }
@@ -220,9 +199,9 @@ class AnimeDetailViewModel @Inject constructor(
         val current = _anime.value ?: return
         viewModelScope.launch {
             _isSyncing.value = true
-            _actionMessage.value = "正在同步 Bangumi..."
+            _actionMessage.value = detailBangumiSyncStartedMessage()
             bangumiSyncEngine.syncAnime(current.id).onSuccess { summary ->
-                _actionMessage.value = "同步完成：上传 ${summary.pushedEpisodes} 集，拉取 ${summary.pulledEpisodes} 集"
+                _actionMessage.value = detailBangumiSyncCompleteMessage(summary.pushedEpisodes, summary.pulledEpisodes)
                 loadAnime(current.id)
             }.onError { error ->
                 _actionMessage.value = error.toUserMessage()

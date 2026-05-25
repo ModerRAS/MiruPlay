@@ -13,7 +13,7 @@ data class NfoMetadata(
     val rating: Float = 0f,
     val playcount: Int = 0,
     val lastplayed: String? = null,
-    val resumePosition: Long = 0L,  // seconds
+    val resumePosition: Long = 0L,  // milliseconds
     val uniqueIds: List<UniqueId> = emptyList(),
 )
 

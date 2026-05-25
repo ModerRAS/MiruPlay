@@ -13,6 +13,27 @@ class MediaPathConventionsTest {
     }
 
     @Test
+    fun `animeNameFromEpisodePath skips media roots and uses show folder`() {
+        assertEquals(
+            "Frieren",
+            MediaPathConventions.animeNameFromEpisodePath("/storage/emulated/0/Download/Frieren/Episode 01.mkv"),
+        )
+        assertEquals(
+            "Bocchi the Rock",
+            MediaPathConventions.animeNameFromEpisodePath("""D:\Anime\Bocchi the Rock\01.mkv"""),
+        )
+        assertEquals(
+            "Show",
+            MediaPathConventions.animeNameFromEpisodePath("smb://nas/share/Downloads/Show/Episode 01.mkv"),
+        )
+        assertEquals(
+            "Movies",
+            MediaPathConventions.animeNameFromEpisodePath("/Movies/Episode 01.mkv"),
+        )
+        assertNull(MediaPathConventions.animeNameFromEpisodePath("   "))
+    }
+
+    @Test
     fun `sibling and child paths preserve separator style`() {
         assertEquals(
             """D:\Anime\Show\Episode 01.nfo""",
@@ -47,6 +68,14 @@ class MediaPathConventionsTest {
             "%E5%AD%A4%E7%8B%AC%E6%91%87%E6%BB%9A/Season%2001/Episode%2001.mkv",
             MediaPathConventions.encodeRemotePath("/孤独摇滚/Season 01/Episode 01.mkv"),
         )
+        assertEquals(
+            "Season%2001/Episode%20%231%3F.mkv",
+            MediaPathConventions.encodeRemotePath("/Season 01/Episode #1?.mkv"),
+        )
+        assertEquals(
+            "Season 01/Episode #1?.mkv",
+            MediaPathConventions.normalizeRemoteFilePath("/Season 01/Episode #1?.mkv"),
+        )
         assertEquals("a b", MediaPathConventions.decodePath("a%20b"))
     }
 
@@ -62,6 +91,10 @@ class MediaPathConventionsTest {
         assertEquals(
             "https://dav.example/anime/Episode%2001.mkv",
             MediaPathConventions.joinRemoteUrl("https://dav.example/anime", "Episode 01.mkv"),
+        )
+        assertEquals(
+            "https://dav.example/anime/Season%2001/Episode%20%231%3F.mkv",
+            MediaPathConventions.joinRemoteUrl("https://dav.example/anime", "/Season 01/Episode #1?.mkv"),
         )
         assertEquals(
             "https://dav.example/anime/Episode%2001.mkv",
