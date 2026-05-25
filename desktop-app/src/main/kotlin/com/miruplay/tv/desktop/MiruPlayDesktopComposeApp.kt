@@ -1211,52 +1211,42 @@ internal fun MiruPlayDesktopComposeApp(
     }
 
     suspend fun rescanLinkedCloudSource(reason: String): String? {
-        val sourceInfo = when (
-            val selected = resolveCloudRssLinkedSource(
+        return when (
+            val rescan = resolveAndRescanCloudRssLinkedSource(
                 sourceId = cloudLinkedSourceId,
+                reason = reason,
                 savedSources = savedSources,
                 mediaSources = repositories.mediaSources,
-                onSourcesLoaded = { loaded -> savedSources = loaded },
-            )
-        ) {
-            is Result.Success -> when (val selection = selected.data) {
-                DesktopCloudRssLinkedSourceSelection.MissingLink -> return null
-                is DesktopCloudRssLinkedSourceSelection.MissingSource -> {
-                    cloudRssStatus = cloudRssScanSourceMissingStatus()
-                    return null
-                }
-                is DesktopCloudRssLinkedSourceSelection.Ready -> selection.sourceInfo
-            }
-            is Result.Error -> {
-                cloudRssStatus = selected.error.toUserMessage()
-                return null
-            }
-        }
-
-        cloudRssStatus = cloudRssRescanStartedStatus(reason, sourceInfo.sourcePickerTitle())
-        return when (
-            val rescan = rescanCloudRssLinkedSource(
-                sourceInfo = sourceInfo,
-                reason = reason,
                 indexRepository = repositories.index,
                 metadataRepository = repositories.metadata,
+                onSourcesLoaded = { loaded -> savedSources = loaded },
+                onRescanStarting = { sourceInfo ->
+                    cloudRssStatus = cloudRssRescanStartedStatus(reason, sourceInfo.sourcePickerTitle())
+                },
             )
         ) {
-            is Result.Success -> {
-                val result = rescan.data
-                if (activeSourceId == sourceInfo.id) {
-                    indexedEntries = result.videoEntries
-                    selectedIndexEntry = null
+            is Result.Success -> when (val selection = rescan.data) {
+                DesktopCloudRssLinkedSourceRescanSelection.MissingLink -> null
+                is DesktopCloudRssLinkedSourceRescanSelection.MissingSource -> {
+                    cloudRssStatus = cloudRssScanSourceMissingStatus()
+                    null
                 }
-                when (result.targetStatus) {
-                    DesktopCloudRssRescanTargetStatus.LIBRARY -> libraryStatus = result.completedStatus
-                    DesktopCloudRssRescanTargetStatus.REMOTE -> remoteStatus = result.completedStatus
+                is DesktopCloudRssLinkedSourceRescanSelection.Ready -> {
+                    val sourceInfo = selection.sourceInfo
+                    val result = selection.result
+                    if (activeSourceId == sourceInfo.id) {
+                        indexedEntries = result.videoEntries
+                        selectedIndexEntry = null
+                    }
+                    when (result.targetStatus) {
+                        DesktopCloudRssRescanTargetStatus.LIBRARY -> libraryStatus = result.completedStatus
+                        DesktopCloudRssRescanTargetStatus.REMOTE -> remoteStatus = result.completedStatus
+                    }
+                    result.completedStatus
                 }
-                result.completedStatus
             }
             is Result.Error -> {
-                val message = rescan.error.toUserMessage()
-                cloudRssStatus = message
+                cloudRssStatus = rescan.error.toUserMessage()
                 null
             }
         }

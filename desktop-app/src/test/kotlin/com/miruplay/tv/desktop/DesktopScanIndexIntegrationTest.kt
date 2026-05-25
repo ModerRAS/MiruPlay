@@ -166,4 +166,89 @@ class DesktopScanIndexIntegrationTest {
             storePath.parent.toFile().deleteRecursively()
         }
     }
+
+    @Test
+    fun `cloud rss resolve and rescan helper reports missing link and missing source`() = runBlocking {
+        val storePath = Files.createTempDirectory("miruplay-desktop-store").resolve("store.json")
+        try {
+            val repositories = DesktopRepositories.fileBacked(storePath)
+
+            val missingLink = resolveAndRescanCloudRssLinkedSource(
+                sourceId = null,
+                reason = cloudRssScheduledSyncCompleteStatus(),
+                savedSources = emptyList(),
+                mediaSources = repositories.mediaSources,
+                indexRepository = repositories.index,
+                metadataRepository = repositories.metadata,
+            ) as Result.Success
+            assertEquals(DesktopCloudRssLinkedSourceRescanSelection.MissingLink, missingLink.data)
+
+            val missingSource = resolveAndRescanCloudRssLinkedSource(
+                sourceId = 999L,
+                reason = cloudRssScheduledSyncCompleteStatus(),
+                savedSources = emptyList(),
+                mediaSources = repositories.mediaSources,
+                indexRepository = repositories.index,
+                metadataRepository = repositories.metadata,
+            ) as Result.Success
+            assertEquals(
+                DesktopCloudRssLinkedSourceRescanSelection.MissingSource(999L),
+                missingSource.data,
+            )
+        } finally {
+            storePath.parent.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `cloud rss resolve and rescan helper rescans selected source`() = runBlocking {
+        val mediaRoot = Files.createTempDirectory("miruplay-cloud-rss-rescan-helper")
+        val storePath = Files.createTempDirectory("miruplay-desktop-store").resolve("store.json")
+        try {
+            val oldShow = Files.createDirectory(mediaRoot.resolve("Old Show"))
+            Files.writeString(oldShow.resolve("Old Show - 01.mkv"), "video")
+
+            val repositories = DesktopRepositories.fileBacked(storePath)
+            val sourceInfo = MediaSourceInfoConventions.local(
+                name = "Cloud RSS Local",
+                rootPath = mediaRoot.toString(),
+                isConnected = true,
+            )
+            val sourceId = (repositories.mediaSources.addSource(sourceInfo) as Result.Success).data
+            val persistedSourceInfo = sourceInfo.copy(id = sourceId)
+
+            val initialScan = DesktopMediaLibraryScanner().scan(sourceId, DesktopLocalMediaSource(persistedSourceInfo)) as Result.Success
+            repositories.index.rebuildIndex(sourceId, initialScan.data.entries)
+
+            oldShow.toFile().deleteRecursively()
+            val newShow = Files.createDirectory(mediaRoot.resolve("New Show"))
+            Files.writeString(newShow.resolve("New Show - S01E05.mkv"), "video")
+
+            val startedSources = mutableListOf<Long>()
+            val result = resolveAndRescanCloudRssLinkedSource(
+                sourceId = sourceId,
+                reason = cloudRssScheduledSyncCompleteStatus(),
+                savedSources = emptyList(),
+                mediaSources = repositories.mediaSources,
+                indexRepository = repositories.index,
+                metadataRepository = repositories.metadata,
+                onRescanStarting = { source -> startedSources += source.id },
+            ) as Result.Success
+
+            val ready = result.data as DesktopCloudRssLinkedSourceRescanSelection.Ready
+            assertEquals(sourceId, ready.sourceInfo.id)
+            assertEquals(listOf(sourceId), startedSources)
+            assertEquals(DesktopCloudRssRescanTargetStatus.LIBRARY, ready.result.targetStatus)
+            assertEquals(libraryRescanCompleteStatus(1, 2), ready.result.completedStatus)
+            assertEquals("定时同步完成，正在重扫 Cloud RSS Local · 本地...", ready.result.startedStatus)
+
+            val all = repositories.index.queryIndex(sourceId, "") as Result.Success
+            val videos = all.data.filterNot { it.isDirectory }
+            assertEquals(listOf("New Show"), videos.map { it.animeName })
+            assertTrue(videos.none { it.path.contains("Old Show") })
+        } finally {
+            mediaRoot.toFile().deleteRecursively()
+            storePath.parent.toFile().deleteRecursively()
+        }
+    }
 }

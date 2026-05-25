@@ -250,21 +250,14 @@ internal class DesktopWebControlService(
 
     private suspend fun rescanLinkedCloudDriveSource(reason: String) {
         val config = repositories.cloudDriveAutomation.getConfig().getOrNull() ?: return
-        val source = when (
-            val selected = resolveCloudRssLinkedSource(
-                sourceId = config.webDavSourceId,
-                savedSources = emptyList(),
-                mediaSources = repositories.mediaSources,
-            )
-        ) {
-            is Result.Success -> when (val selection = selected.data) {
-                DesktopCloudRssLinkedSourceSelection.MissingLink -> return
-                is DesktopCloudRssLinkedSourceSelection.MissingSource -> return
-                is DesktopCloudRssLinkedSourceSelection.Ready -> selection.sourceInfo
-            }
-            is Result.Error -> return
-        }
-        rescanCloudRssLinkedSource(source, reason, repositories.index, repositories.metadata)
+        resolveAndRescanCloudRssLinkedSource(
+            sourceId = config.webDavSourceId,
+            reason = reason,
+            savedSources = emptyList(),
+            mediaSources = repositories.mediaSources,
+            indexRepository = repositories.index,
+            metadataRepository = repositories.metadata,
+        )
     }
 
 }

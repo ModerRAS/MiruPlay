@@ -149,3 +149,58 @@ internal suspend fun resolveCloudRssLinkedSource(
         is Result.Error -> sources
     }
 }
+
+internal sealed class DesktopCloudRssLinkedSourceRescanSelection {
+    data object MissingLink : DesktopCloudRssLinkedSourceRescanSelection()
+    data class MissingSource(val sourceId: Long) : DesktopCloudRssLinkedSourceRescanSelection()
+    data class Ready(
+        val sourceInfo: MediaSourceInfo,
+        val result: DesktopCloudRssRescanResult,
+    ) : DesktopCloudRssLinkedSourceRescanSelection()
+}
+
+internal suspend fun resolveAndRescanCloudRssLinkedSource(
+    sourceId: Long?,
+    reason: String,
+    savedSources: List<MediaSourceInfo>,
+    mediaSources: MediaSourceRepository,
+    indexRepository: MediaIndexRepository,
+    metadataRepository: MetadataRepository,
+    onSourcesLoaded: (List<MediaSourceInfo>) -> Unit = {},
+    onRescanStarting: (MediaSourceInfo) -> Unit = {},
+    scanner: DesktopMediaLibraryScanner = DesktopMediaLibraryScanner(),
+): Result<DesktopCloudRssLinkedSourceRescanSelection> {
+    return when (
+        val selected = resolveCloudRssLinkedSource(
+            sourceId = sourceId,
+            savedSources = savedSources,
+            mediaSources = mediaSources,
+            onSourcesLoaded = onSourcesLoaded,
+        )
+    ) {
+        is Result.Success -> when (val selection = selected.data) {
+            DesktopCloudRssLinkedSourceSelection.MissingLink -> {
+                Result.success(DesktopCloudRssLinkedSourceRescanSelection.MissingLink)
+            }
+            is DesktopCloudRssLinkedSourceSelection.MissingSource -> {
+                Result.success(DesktopCloudRssLinkedSourceRescanSelection.MissingSource(selection.sourceId))
+            }
+            is DesktopCloudRssLinkedSourceSelection.Ready -> {
+                onRescanStarting(selection.sourceInfo)
+                rescanCloudRssLinkedSource(
+                    sourceInfo = selection.sourceInfo,
+                    reason = reason,
+                    indexRepository = indexRepository,
+                    metadataRepository = metadataRepository,
+                    scanner = scanner,
+                ).map { rescan ->
+                    DesktopCloudRssLinkedSourceRescanSelection.Ready(
+                        sourceInfo = selection.sourceInfo,
+                        result = rescan,
+                    )
+                }
+            }
+        }
+        is Result.Error -> selected
+    }
+}
