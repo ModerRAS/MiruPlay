@@ -536,6 +536,16 @@ Verification:
 
 # -RequireOrganize requires organize.movedCount > 0, not just post-listing fields.
 
+# One-command evidence bundle (dry-run + live-submit + organize + assertions):
+.\tools\run-cloud-rss-evidence-bundle.ps1 `
+  -Endpoint <endpoint> `
+  -Token <token> `
+  -RssUrl <rss> `
+  -Inbox <inbox> `
+  -Library <library> `
+  -SubmitLimit 1 `
+  -Filter Episode
+
 .\gradlew.bat :sync-engine-desktop:smokeCloudDriveRssScheduler `
   -PcloudDriveRssSchedulerDurationMs=2000 `
   -PcloudDriveRssSchedulerCheckIntervalMs=250 `
@@ -603,6 +613,20 @@ Verification:
   -CloudRssUrl https://example.test/rss.xml `
   -CloudRssInbox /Downloads `
   -CloudRssLibrary /Library `
+  -CloudRssFilter Episode `
+  -RequireCloudRssCandidates
+.\tools\verify-windows-port.ps1 `
+  -CloudRssEvidenceBundle `
+  -CloudRssLiveSubmit `
+  -CloudRssOrganize `
+  -ConfirmCloudRssLiveSubmit `
+  -ConfirmCloudRssOrganize `
+  -CloudRssEndpoint http://127.0.0.1:19798 `
+  -CloudRssToken <token> `
+  -CloudRssUrl https://example.test/rss.xml `
+  -CloudRssInbox /Downloads `
+  -CloudRssLibrary /Library `
+  -CloudRssSubmitLimit 1 `
   -CloudRssFilter Episode `
   -RequireCloudRssCandidates
 .\tools\assert-cloud-drive-report.ps1 `
