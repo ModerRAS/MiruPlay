@@ -127,7 +127,6 @@ import com.miruplay.tv.repository.MetadataBatchMatch
 import com.miruplay.tv.repository.MetadataBatchPlan
 import com.miruplay.tv.repository.NextPlaybackSourceResolver
 import com.miruplay.tv.repository.OtlpLogUploadActionSnapshot
-import com.miruplay.tv.repository.OtlpLogUploadConfig
 import com.miruplay.tv.repository.ScanPreferenceActionSnapshot
 import com.miruplay.tv.repository.SettingsPreferenceActionCoordinator
 import com.miruplay.tv.repository.WebControlAccessActionCoordinator
@@ -173,6 +172,8 @@ import com.miruplay.tv.repository.upsertById
 import com.miruplay.tv.repository.updatedSelectionAfterReplacingByMediaKeys
 import com.miruplay.tv.repository.webDavUrlRequiredStatus
 import com.miruplay.tv.repository.withRuntimeStatus
+import com.miruplay.tv.repository.canRunNow
+import com.miruplay.tv.repository.toConfig
 import com.miruplay.tv.repository.replaceByMediaKey
 import com.miruplay.tv.repository.replaceByMediaKeys
 import com.miruplay.tv.scraper.desktop.DesktopBangumiScraper
@@ -811,15 +812,7 @@ internal fun MiruPlayDesktopComposeApp(
         cloudPassword = repositories.credentials.cloudDrivePassword.orEmpty()
         bangumiTokenConfigured = !repositories.credentials.bangumiAccessToken.isNullOrBlank()
         logUploadSnapshot = logUploadActions.current()
-        logUploadAutoScheduler.syncWithConfig(
-            OtlpLogUploadConfig(
-                enabled = logUploadSnapshot.enabled,
-                endpoint = logUploadSnapshot.endpoint,
-                streamName = logUploadSnapshot.streamName,
-                lastUploadAt = logUploadSnapshot.lastUploadAt,
-                lastUploadStatus = logUploadSnapshot.lastUploadStatus,
-            )
-        )
+        logUploadAutoScheduler.syncWithConfig(logUploadSnapshot.toConfig())
         applyWebControlSnapshot(webControlActions.current())
         runCatching {
             repositories.cloudDriveAutomation.observeSubscriptions().first()
@@ -2390,15 +2383,7 @@ internal fun MiruPlayDesktopComposeApp(
                             endpoint = logUploadSnapshot.endpoint,
                             streamName = logUploadSnapshot.streamName,
                         )
-                        logUploadAutoScheduler.syncWithConfig(
-                            OtlpLogUploadConfig(
-                                enabled = logUploadSnapshot.enabled,
-                                endpoint = logUploadSnapshot.endpoint,
-                                streamName = logUploadSnapshot.streamName,
-                                lastUploadAt = logUploadSnapshot.lastUploadAt,
-                                lastUploadStatus = logUploadSnapshot.lastUploadStatus,
-                            )
-                        )
+                        logUploadAutoScheduler.syncWithConfig(logUploadSnapshot.toConfig())
                     }
                 },
                 onSaveLogUploadToken = {
@@ -2425,10 +2410,7 @@ internal fun MiruPlayDesktopComposeApp(
                         logUploadSnapshot = logUploadActions.runNow()
                     }
                 },
-                canRunLogUploadNow = logUploadSnapshot.enabled &&
-                    logUploadSnapshot.endpoint.isNotBlank() &&
-                    !logUploadSnapshot.isUploading &&
-                    (logUploadSnapshot.tokenConfigured || logUploadTokenInput.isNotBlank()),
+                canRunLogUploadNow = logUploadSnapshot.canRunNow(logUploadTokenInput),
                 logUploadStatusMessage = settingsDesktopLogUploadStatusMessage(
                     pendingCount = logUploadSnapshot.pendingCount,
                     isUploading = logUploadSnapshot.isUploading,

@@ -39,7 +39,7 @@ import com.miruplay.tv.repository.LogUploadAutoScheduler
 import com.miruplay.tv.repository.LogUploadRepository
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.OtlpLogUploadActionSnapshot
-import com.miruplay.tv.repository.OtlpLogUploadConfig
+import com.miruplay.tv.repository.toConfig
 import com.miruplay.tv.repository.WebControlAccessManager
 import com.miruplay.tv.repository.withRuntimeStatus
 import com.miruplay.tv.sync.rss.CloudDriveRssAutomationEngine
@@ -591,15 +591,7 @@ class SettingsViewModel @Inject constructor(
                 streamName = current.streamName,
             )
             applyLogUploadSnapshot(next)
-            logUploadAutoScheduler.syncWithConfig(
-                OtlpLogUploadConfig(
-                    enabled = next.enabled,
-                    endpoint = next.endpoint,
-                    streamName = next.streamName,
-                    lastUploadAt = next.lastUploadAt,
-                    lastUploadStatus = next.lastUploadStatus,
-                ),
-            )
+            logUploadAutoScheduler.syncWithConfig(next.toConfig())
         }
     }
 
@@ -643,15 +635,7 @@ class SettingsViewModel @Inject constructor(
     private fun observeLogUploadAutomation() {
         viewModelScope.launch {
             applyLogUploadSnapshot(logUploadActions.current())
-            logUploadAutoScheduler.syncWithConfig(
-                OtlpLogUploadConfig(
-                    enabled = _logUploadSnapshot.value.enabled,
-                    endpoint = _logUploadSnapshot.value.endpoint,
-                    streamName = _logUploadSnapshot.value.streamName,
-                    lastUploadAt = _logUploadSnapshot.value.lastUploadAt,
-                    lastUploadStatus = _logUploadSnapshot.value.lastUploadStatus,
-                ),
-            )
+            logUploadAutoScheduler.syncWithConfig(_logUploadSnapshot.value.toConfig())
         }
         viewModelScope.launch {
             logUploadRepository.status.collectLatest { status ->

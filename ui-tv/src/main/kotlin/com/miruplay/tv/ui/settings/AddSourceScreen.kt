@@ -79,6 +79,7 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
 import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.design.MiruPlayInputIntent
+import com.miruplay.tv.repository.canRunNow
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.CLOUD_DRIVE_ROOT_DISPLAY_NAME
 import com.miruplay.tv.model.MediaSourceInfo
@@ -639,10 +640,7 @@ fun AddSourceScreen(
                         viewModel.runLogUploadNow(logUploadTokenInput)
                         logUploadTokenInput = ""
                     },
-                    canRunLogUploadNow = logUploadSnapshot.enabled &&
-                        logUploadSnapshot.endpoint.isNotBlank() &&
-                        !logUploadSnapshot.isUploading &&
-                        (logUploadSnapshot.tokenConfigured || logUploadTokenInput.isNotBlank()),
+                    canRunLogUploadNow = logUploadSnapshot.canRunNow(logUploadTokenInput),
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()

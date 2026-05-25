@@ -16,6 +16,19 @@ data class OtlpLogUploadActionSnapshot(
         get() = !isUploading && enabled && endpoint.isNotBlank() && tokenConfigured
 }
 
+fun OtlpLogUploadActionSnapshot.canRunNow(tokenInput: String): Boolean =
+    !isUploading && enabled && endpoint.isNotBlank() &&
+        (tokenConfigured || tokenInput.isNotBlank())
+
+fun OtlpLogUploadActionSnapshot.toConfig(): OtlpLogUploadConfig =
+    OtlpLogUploadConfig(
+        enabled = enabled,
+        endpoint = endpoint,
+        streamName = streamName,
+        lastUploadAt = lastUploadAt,
+        lastUploadStatus = lastUploadStatus,
+    )
+
 fun otlpLogUploadActionSnapshot(
     config: OtlpLogUploadConfig,
     status: LogUploadStatus,
