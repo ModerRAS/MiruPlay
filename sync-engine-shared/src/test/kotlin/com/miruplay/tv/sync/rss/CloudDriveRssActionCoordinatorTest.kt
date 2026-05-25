@@ -451,6 +451,33 @@ class CloudDriveRssActionCoordinatorTest {
         assertEquals(CloudDriveRunActionResult.Failed(error.toUserMessage()), result)
     }
 
+    @Test
+    fun `run action callbacks receive completed and failed results`() = runBlocking {
+        val expectedSummary = CloudDriveRssRunSummary(submitted = 1, skipped = 2, failed = 0, organized = 3)
+        val successRunner = FakeCloudDriveRssAutomationRunner()
+        val failureRunner = FakeCloudDriveRssAutomationRunner(
+            runResult = Result.failure(AppError.SyncError.WriteFailed("rss", "run failed")),
+        )
+        val successCoordinator = coordinator(runner = successRunner)
+        val failureCoordinator = coordinator(runner = failureRunner)
+        val completedSummaries = mutableListOf<CloudDriveRssRunSummary>()
+        val failedStatuses = mutableListOf<String>()
+
+        val successResult = successCoordinator.runCloudDriveOnceWithCallbacks(
+            onCompleted = { completedSummaries += it.summary },
+        )
+        val failureResult = failureCoordinator.runCloudDriveOnceWithCallbacks(
+            onFailed = { failedStatuses += it.status },
+        )
+
+        assertEquals(1, successRunner.runCalls)
+        assertEquals(listOf(expectedSummary), completedSummaries)
+        assertEquals(CloudDriveRunActionResult.Completed(expectedSummary, expectedSummary.completeStatus()), successResult)
+        assertEquals(1, failureRunner.runCalls)
+        assertEquals(listOf("写入失败：run failed"), failedStatuses)
+        assertEquals(CloudDriveRunActionResult.Failed("写入失败：run failed"), failureResult)
+    }
+
     private fun coordinator(
         repository: FakeCloudDriveAutomationRepository = FakeCloudDriveAutomationRepository(),
         credentials: FakeCloudDriveCredentialStore = FakeCloudDriveCredentialStore(),

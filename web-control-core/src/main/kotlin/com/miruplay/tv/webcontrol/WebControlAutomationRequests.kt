@@ -10,7 +10,6 @@ import com.miruplay.tv.repository.CloudDriveCredentialStore
 import com.miruplay.tv.sync.rss.CloudDriveActionResult
 import com.miruplay.tv.sync.rss.CloudDriveConfigActionResult
 import com.miruplay.tv.sync.rss.CloudDriveRssActionCoordinator
-import com.miruplay.tv.sync.rss.CloudDriveRunActionResult
 import com.miruplay.tv.sync.rss.RssSubscriptionActionResult
 import kotlinx.coroutines.flow.first
 
@@ -146,13 +145,17 @@ suspend fun CloudDriveRssActionCoordinator.saveWebControlCloudDriveToken(
 suspend fun CloudDriveRssActionCoordinator.runWebControlCloudDriveAutomationNow(
     afterRun: suspend (CloudDriveRssRunSummary) -> Unit = {},
 ): CloudDriveRunResponse {
-    return when (val result = runCloudDriveOnce()) {
-        is CloudDriveRunActionResult.Completed -> {
-            afterRun(result.summary)
-            result.summary.toWebControlResponse()
-        }
-        is CloudDriveRunActionResult.Failed -> throw IllegalStateException("CloudDrive/RSS 执行失败: ${result.status}")
-    }
+    var response: CloudDriveRunResponse? = null
+    runCloudDriveOnceWithCallbacks(
+        onCompleted = { completed ->
+            afterRun(completed.summary)
+            response = completed.summary.toWebControlResponse()
+        },
+        onFailed = { failed ->
+            throw IllegalStateException("CloudDrive/RSS 执行失败: ${failed.status}")
+        },
+    )
+    return checkNotNull(response)
 }
 
 fun CloudDriveAutomationConfig.toWebControlAutomationDto(

@@ -175,7 +175,6 @@ import com.miruplay.tv.sync.BangumiMetadataRefreshCore
 import com.miruplay.tv.sync.BangumiSyncCore
 import com.miruplay.tv.sync.rss.CloudDriveActionResult
 import com.miruplay.tv.sync.rss.CloudDriveConfigActionResult
-import com.miruplay.tv.sync.rss.CloudDriveRunActionResult
 import com.miruplay.tv.sync.rss.CloudDriveRssActionCoordinator
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryBrowserCoordinator
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryBrowserState
@@ -2136,21 +2135,18 @@ internal fun MiruPlayDesktopComposeApp(
                 },
                 onRunSync = {
                     scope.launch {
-                        when (
-                            val result = cloudRssActions.runCloudDriveOnce(
-                                onStarted = { status -> cloudRssStatus = status },
-                            )
-                        ) {
-                            is CloudDriveRunActionResult.Completed -> {
-                                cloudRssStatus = result.status
-                                rescanLinkedCloudSource(result.status)?.let { scanMessage ->
-                                    cloudRssStatus = "${result.status} $scanMessage"
+                        cloudRssActions.runCloudDriveOnceWithCallbacks(
+                            onStarted = { status -> cloudRssStatus = status },
+                            onCompleted = { completed ->
+                                cloudRssStatus = completed.status
+                                rescanLinkedCloudSource(completed.status)?.let { scanMessage ->
+                                    cloudRssStatus = "${completed.status} $scanMessage"
                                 }
-                            }
-                            is CloudDriveRunActionResult.Failed -> {
-                                cloudRssStatus = result.status
-                            }
-                        }
+                            },
+                            onFailed = { failed ->
+                                cloudRssStatus = failed.status
+                            },
+                        )
                     }
                 },
                 onStartScheduler = {

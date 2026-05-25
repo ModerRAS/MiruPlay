@@ -207,6 +207,23 @@ class CloudDriveRssActionCoordinator(
         }
     }
 
+    suspend fun runCloudDriveOnceWithCallbacks(
+        onStarted: (String) -> Unit = {},
+        onCompleted: suspend (CloudDriveRunActionResult.Completed) -> Unit = {},
+        onFailed: suspend (CloudDriveRunActionResult.Failed) -> Unit = {},
+    ): CloudDriveRunActionResult {
+        return when (val result = runCloudDriveOnce(onStarted = onStarted)) {
+            is CloudDriveRunActionResult.Completed -> {
+                onCompleted(result)
+                result
+            }
+            is CloudDriveRunActionResult.Failed -> {
+                onFailed(result)
+                result
+            }
+        }
+    }
+
     suspend fun saveSubscription(subscription: RssSubscriptionInfo): Result<Long> =
         when (val result = repository.saveSubscription(subscription)) {
             is Result.Success -> result
