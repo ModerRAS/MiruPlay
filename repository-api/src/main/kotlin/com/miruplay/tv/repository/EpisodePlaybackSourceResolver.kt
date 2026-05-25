@@ -3,6 +3,7 @@ package com.miruplay.tv.repository
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.ProgressRecord
+import com.miruplay.tv.model.coercePlaybackPosition
 import com.miruplay.tv.model.toPlaybackSource
 
 class EpisodePlaybackSourceResolver(
@@ -38,5 +39,5 @@ fun buildEpisodePlaybackSource(
         playableUri = playableUri,
         progress = progress,
     ).let { source ->
-        startPositionOverrideMs?.let { source.copy(startPosition = it.coerceAtLeast(0L)) } ?: source
+        startPositionOverrideMs?.let { source.copy(startPosition = episode.coercePlaybackPosition(it)) } ?: source
     }

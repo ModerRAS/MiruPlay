@@ -2,12 +2,14 @@ package com.miruplay.tv.webcontrol
 
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
+import com.miruplay.tv.model.PlaybackTimingConventions
 import com.miruplay.tv.model.ProgressRecord
+import com.miruplay.tv.model.coercePlaybackPosition
 
 fun Episode.toWebControlEpisodeWithProgress(progress: ProgressRecord?): EpisodeWithProgressDto =
     EpisodeWithProgressDto(
         episode = this,
-        progressMs = progress?.positionMs ?: 0L,
+        progressMs = progress?.let { coercePlaybackPosition(it.positionMs) } ?: 0L,
         lastWatched = progress?.lastWatched ?: 0L,
         playCount = progress?.playCount ?: 0,
     )
@@ -29,7 +31,8 @@ fun ProgressRecord.toWebControlContinueWatching(
 ): ContinueWatchingDto =
     ContinueWatchingDto(
         progressEpisodeId = episodeId,
-        positionMs = positionMs,
+        positionMs = episode?.coercePlaybackPosition(positionMs)
+            ?: PlaybackTimingConventions.coercePlaybackPositionMs(positionMs),
         lastWatched = lastWatched,
         playCount = playCount,
         episode = episode,

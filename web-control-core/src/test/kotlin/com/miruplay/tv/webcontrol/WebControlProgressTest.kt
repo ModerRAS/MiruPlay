@@ -28,6 +28,21 @@ class WebControlProgressTest {
     }
 
     @Test
+    fun `episode progress is clamped to episode duration`() {
+        val episode = episode("episode-1", duration = 120_000L)
+        val dto = episode.toWebControlEpisodeWithProgress(
+            ProgressRecord(
+                episodeId = "episode-1",
+                positionMs = 150_000L,
+                lastWatched = 34L,
+                playCount = 2,
+            ),
+        )
+
+        assertEquals(120_000L, dto.progressMs)
+    }
+
+    @Test
     fun `episode without progress maps zero progress fields`() {
         val episode = episode("episode-1")
         val dto = episode.toWebControlEpisodeWithProgress(null)
@@ -55,6 +70,32 @@ class WebControlProgressTest {
         assertEquals(3, dto.playCount)
         assertSame(episode, dto.episode)
         assertSame(anime, dto.anime)
+    }
+
+    @Test
+    fun `continue watching position is clamped to episode duration`() {
+        val episode = episode("episode-1", duration = 120_000L)
+
+        val dto = ProgressRecord(
+            episodeId = "episode-1",
+            positionMs = 150_000L,
+            lastWatched = 67L,
+            playCount = 3,
+        ).toWebControlContinueWatching(episode, anime = null)
+
+        assertEquals(120_000L, dto.positionMs)
+    }
+
+    @Test
+    fun `continue watching without episode keeps nonnegative position`() {
+        val dto = ProgressRecord(
+            episodeId = "episode-1",
+            positionMs = -1L,
+            lastWatched = 67L,
+            playCount = 3,
+        ).toWebControlContinueWatching(episode = null, anime = null)
+
+        assertEquals(0L, dto.positionMs)
     }
 
     @Test
@@ -88,12 +129,16 @@ class WebControlProgressTest {
         assertEquals(0L, dto.episodes[1].progressMs)
     }
 
-    private fun episode(id: String): Episode =
+    private fun episode(
+        id: String,
+        duration: Long = 0L,
+    ): Episode =
         Episode(
             id = id,
             animeId = "anime-1",
             episodeNumber = 1,
             filePath = "D:/Anime/$id.mkv",
             fileName = "$id.mkv",
+            duration = duration,
         )
 }

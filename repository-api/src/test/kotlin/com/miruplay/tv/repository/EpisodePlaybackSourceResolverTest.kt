@@ -55,6 +55,28 @@ class EpisodePlaybackSourceResolverTest {
     }
 
     @Test
+    fun `buildEpisodePlaybackSource clamps explicit start override to episode duration`() {
+        val episode = episode(duration = 120_000L)
+
+        assertEquals(
+            0L,
+            buildEpisodePlaybackSource(
+                episode = episode,
+                progress = null,
+                startPositionOverrideMs = -1L,
+            ).startPosition,
+        )
+        assertEquals(
+            120_000L,
+            buildEpisodePlaybackSource(
+                episode = episode,
+                progress = null,
+                startPositionOverrideMs = 150_000L,
+            ).startPosition,
+        )
+    }
+
+    @Test
     fun `buildEpisodePlaybackSource resets completed progress`() {
         val episode = episode(duration = 100_000L)
 

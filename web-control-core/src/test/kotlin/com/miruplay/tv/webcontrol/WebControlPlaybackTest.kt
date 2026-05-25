@@ -19,6 +19,22 @@ class WebControlPlaybackTest {
     }
 
     @Test
+    fun `play request clamps explicit position to episode duration`() {
+        val episode = episode(duration = 120_000L)
+
+        assertEquals(
+            0L,
+            PlayEpisodeRequest(episodeId = episode.id, startPositionMs = -1L)
+                .startPositionFor(episode, progress = null),
+        )
+        assertEquals(
+            120_000L,
+            PlayEpisodeRequest(episodeId = episode.id, startPositionMs = 150_000L)
+                .startPositionFor(episode, progress = null),
+        )
+    }
+
+    @Test
     fun `play request resumes saved partial progress`() {
         val episode = episode(duration = 120_000L)
         val progress = progress(episode.id, positionMs = 45_000L)

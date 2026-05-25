@@ -3,6 +3,7 @@ package com.miruplay.tv.webcontrol
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.ProgressRecord
+import com.miruplay.tv.model.coercePlaybackPosition
 import com.miruplay.tv.model.resumePosition
 import com.miruplay.tv.repository.buildEpisodePlaybackSource
 
@@ -10,7 +11,8 @@ fun PlayEpisodeRequest.startPositionFor(
     episode: Episode,
     progress: ProgressRecord?,
 ): Long =
-    startPositionMs ?: episode.resumePosition(progress)
+    startPositionMs?.let(episode::coercePlaybackPosition)
+        ?: episode.resumePosition(progress)
 
 fun PlayEpisodeRequest.toWebControlPlaybackSource(
     episode: Episode,

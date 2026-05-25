@@ -30,6 +30,15 @@ class ProgressExtensionsTest {
     }
 
     @Test
+    fun `playback position coercion clamps to episode duration`() {
+        val episode = episode(duration = 100_000L)
+
+        assertEquals(0L, episode.coercePlaybackPosition(-1L))
+        assertEquals(45_000L, episode.coercePlaybackPosition(45_000L))
+        assertEquals(100_000L, episode.coercePlaybackPosition(120_000L))
+    }
+
+    @Test
     fun `unknown duration only completes after a finished playback`() {
         val episode = episode(duration = 0L)
         val partial = progress(positionMs = 30_000L)
