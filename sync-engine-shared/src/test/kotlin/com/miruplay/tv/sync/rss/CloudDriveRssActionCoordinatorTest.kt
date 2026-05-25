@@ -4,6 +4,7 @@ import com.miruplay.tv.clouddrive.CloudDriveTokenInfo
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.CloudDriveAutomationConfig
+import com.miruplay.tv.model.CloudDriveLibraryMode
 import com.miruplay.tv.model.CloudDriveRssRunSummary
 import com.miruplay.tv.model.MIN_CLOUD_DRIVE_INTERVAL_MINUTES
 import com.miruplay.tv.model.RssDownloadTaskInfo
@@ -68,6 +69,53 @@ class CloudDriveRssActionCoordinatorTest {
         assertEquals("127.0.0.1", saved.rssProxyHost)
         assertEquals(65_535, saved.rssProxyPort)
         assertEquals(cloudRssConfigSavedStatus(), result.status)
+    }
+
+    @Test
+    fun `save config applies provided library mode`() = runBlocking {
+        val repository = FakeCloudDriveAutomationRepository(
+            config = CloudDriveAutomationConfig(
+                libraryMode = CloudDriveLibraryMode.ORGANIZED_LIBRARY,
+            ),
+        )
+        val coordinator = coordinator(repository = repository)
+
+        val result = coordinator.saveConfig(
+            endpointUrl = "https://cloud.example.test",
+            username = "miru",
+            webDavSourceId = null,
+            inboxPath = "/Inbox",
+            libraryPath = "/Library",
+            libraryMode = CloudDriveLibraryMode.SINGLE_DIRECTORY,
+            intervalMinutes = 30,
+            enabled = true,
+        ) as CloudDriveConfigActionResult.Saved
+
+        assertEquals(CloudDriveLibraryMode.SINGLE_DIRECTORY, result.config.libraryMode)
+        assertEquals(CloudDriveLibraryMode.SINGLE_DIRECTORY, repository.savedConfigs.single().libraryMode)
+    }
+
+    @Test
+    fun `save config keeps current library mode when not provided`() = runBlocking {
+        val repository = FakeCloudDriveAutomationRepository(
+            config = CloudDriveAutomationConfig(
+                libraryMode = CloudDriveLibraryMode.SINGLE_DIRECTORY,
+            ),
+        )
+        val coordinator = coordinator(repository = repository)
+
+        val result = coordinator.saveConfig(
+            endpointUrl = "https://cloud.example.test",
+            username = "miru",
+            webDavSourceId = null,
+            inboxPath = "/Inbox",
+            libraryPath = "/Library",
+            intervalMinutes = 30,
+            enabled = true,
+        ) as CloudDriveConfigActionResult.Saved
+
+        assertEquals(CloudDriveLibraryMode.SINGLE_DIRECTORY, result.config.libraryMode)
+        assertEquals(CloudDriveLibraryMode.SINGLE_DIRECTORY, repository.savedConfigs.single().libraryMode)
     }
 
     @Test

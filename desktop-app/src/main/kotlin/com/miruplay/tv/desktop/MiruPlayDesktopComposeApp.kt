@@ -2073,6 +2073,7 @@ internal fun MiruPlayDesktopComposeApp(
                             webDavSourceId = cloudLinkedSourceId,
                             inboxPath = cloudInboxPath,
                             libraryPath = cloudLibraryPath,
+                            libraryMode = cloudLibraryMode,
                             intervalMinutes = interval,
                             enabled = cloudEnabled,
                             rssProxyEnabled = rssProxyEnabled,
