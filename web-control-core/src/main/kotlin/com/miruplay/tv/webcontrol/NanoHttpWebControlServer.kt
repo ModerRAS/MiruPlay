@@ -28,7 +28,7 @@ open class NanoHttpWebControlServer(
     @Volatile
     private var running = false
 
-    fun startIfNeeded() {
+    open fun startIfNeeded() {
         if (!webControlAccess.webControlEnabled) return
         if (running) return
         webControlAccess.accessToken
@@ -36,11 +36,13 @@ open class NanoHttpWebControlServer(
         running = true
     }
 
-    fun stopIfRunning() {
+    open fun stopIfRunning() {
         if (!running) return
         stop()
         running = false
     }
+
+    protected fun isRunning(): Boolean = running
 
     override fun serve(session: IHTTPSession): Response {
         if (!webControlAccess.webControlEnabled) {
