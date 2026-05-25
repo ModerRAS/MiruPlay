@@ -2,9 +2,11 @@ package com.miruplay.tv.ui.player
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.PLAYBACK_SEEK_BACK_SECONDS
 import com.miruplay.tv.model.PLAYBACK_SEEK_FORWARD_SECONDS
+import com.miruplay.tv.model.PlaybackProgressSession
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.PlaybackState
 import com.miruplay.tv.model.PlaybackTimingConventions
@@ -16,6 +18,7 @@ import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.NextPlaybackSourceResolver
 import com.miruplay.tv.repository.PlaybackPreferencesRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
+import com.miruplay.tv.repository.savePlaybackProgressOnCompletion
 import com.miruplay.tv.repository.savePlaybackProgressSnapshot
 import com.miruplay.tv.sync.BangumiSyncEngine
 import androidx.media3.common.Player
@@ -272,12 +275,16 @@ class PlayerViewModel @Inject constructor(
     }
 
     private suspend fun handlePlaybackEnded(source: PlaybackSource) {
-        saveProgressSnapshot(
-            source = source,
-            positionMs = playbackController.getDuration().coerceAtLeast(0L),
-            incrementPlayCount = true
-        )
         val episodeId = source.episodeId ?: extractEpisodeId(source.uri)
+        savePlaybackProgressOnCompletion(
+            session = PlaybackProgressSession(
+                episodeId = episodeId,
+                startPositionMs = source.startPosition,
+            ),
+            queryDurationMs = { Result.success(playbackController.getDuration()) },
+            queryPositionMs = { Result.success(playbackController.getCurrentPosition()) },
+            saveProgress = progressRepository::saveProgress,
+        )
 
         val nextSource = if (playbackPreferences.getEndAction() == PlaybackEndAction.PLAY_NEXT_EPISODE) {
             buildNextPlaybackSource(source)

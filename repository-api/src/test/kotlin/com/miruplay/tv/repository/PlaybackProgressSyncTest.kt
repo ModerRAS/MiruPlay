@@ -188,6 +188,89 @@ class PlaybackProgressSyncTest {
         assertEquals(SavedProgress("episode-1", 5_000L, 9_000L, incrementPlayCount = false), saved)
     }
 
+    @Test
+    fun `savePlaybackProgressOnCompletion saves duration and increments play count`() = runBlocking {
+        val session = PlaybackProgressSession(episodeId = "episode-1", startPositionMs = 5_000L)
+        var saved: SavedProgress? = null
+
+        val result = savePlaybackProgressOnCompletion(
+            session = session,
+            queryDurationMs = { Result.success(120_000L) },
+            queryPositionMs = { Result.success(119_000L) },
+            saveProgress = { episodeId, positionMs, lastWatched, incrementPlayCount ->
+                saved = SavedProgress(episodeId, positionMs, lastWatched, incrementPlayCount)
+                Result.success(Unit)
+            },
+            nowMillis = { 7_000L },
+        )
+
+        assertEquals(Result.success(120_000L), result)
+        assertEquals(SavedProgress("episode-1", 120_000L, 7_000L, incrementPlayCount = true), saved)
+    }
+
+    @Test
+    fun `savePlaybackProgressOnCompletion falls back to observed position then session position`() = runBlocking {
+        var now = 1_000L
+        val session = PlaybackProgressSession(
+            episodeId = "episode-1",
+            startPositionMs = 5_000L,
+            nowMillis = { now },
+        )
+        now = 2_500L
+        val saved = mutableListOf<SavedProgress>()
+
+        val observed = savePlaybackProgressOnCompletion(
+            session = session,
+            queryDurationMs = { Result.success(null) },
+            queryPositionMs = { Result.success(42_000L) },
+            saveProgress = { episodeId, positionMs, lastWatched, incrementPlayCount ->
+                saved += SavedProgress(episodeId, positionMs, lastWatched, incrementPlayCount)
+                Result.success(Unit)
+            },
+            nowMillis = { 7_000L },
+        )
+        val estimated = savePlaybackProgressOnCompletion(
+            session = session,
+            queryDurationMs = { Result.failure(AppError.PlaybackError.StreamError("duration unavailable")) },
+            queryPositionMs = { Result.success(null) },
+            saveProgress = { episodeId, positionMs, lastWatched, incrementPlayCount ->
+                saved += SavedProgress(episodeId, positionMs, lastWatched, incrementPlayCount)
+                Result.success(Unit)
+            },
+            nowMillis = { 8_000L },
+        )
+
+        assertEquals(Result.success(42_000L), observed)
+        assertEquals(Result.success(6_500L), estimated)
+        assertEquals(
+            listOf(
+                SavedProgress("episode-1", 42_000L, 7_000L, incrementPlayCount = true),
+                SavedProgress("episode-1", 6_500L, 8_000L, incrementPlayCount = true),
+            ),
+            saved,
+        )
+    }
+
+    @Test
+    fun `savePlaybackProgressOnCompletion ignores nonpositive duration`() = runBlocking {
+        val session = PlaybackProgressSession(episodeId = "episode-1", startPositionMs = 5_000L)
+        var saved: SavedProgress? = null
+
+        val result = savePlaybackProgressOnCompletion(
+            session = session,
+            queryDurationMs = { Result.success(0L) },
+            queryPositionMs = { Result.success(42_000L) },
+            saveProgress = { episodeId, positionMs, lastWatched, incrementPlayCount ->
+                saved = SavedProgress(episodeId, positionMs, lastWatched, incrementPlayCount)
+                Result.success(Unit)
+            },
+            nowMillis = { 7_000L },
+        )
+
+        assertEquals(Result.success(42_000L), result)
+        assertEquals(SavedProgress("episode-1", 42_000L, 7_000L, incrementPlayCount = true), saved)
+    }
+
     private data class SavedProgress(
         val episodeId: String,
         val positionMs: Long,
