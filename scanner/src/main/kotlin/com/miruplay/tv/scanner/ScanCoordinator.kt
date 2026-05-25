@@ -19,9 +19,8 @@ import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.ScanResult
 import com.miruplay.tv.model.TvShowNfoMetadata
 import com.miruplay.tv.model.UniqueId
-import com.miruplay.tv.model.scanResultDisplayName
+import com.miruplay.tv.model.displayTitle
 import com.miruplay.tv.repository.MediaIndexEntry
-import com.miruplay.tv.repository.MediaIndexMetadataCache
 import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaScrapeStatus
 import com.miruplay.tv.repository.MediaSourceRepository
@@ -34,6 +33,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import android.util.Log
 import java.io.File
+import java.net.URL
+import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -133,59 +134,108 @@ class ScanCoordinator @Inject constructor(
             val updatedIndexEntities = mutableListOf<MediaIndexEntry>()
             updatedIndexEntities += indexEntities.filter { it.isDirectory }
 
-            val onlineMetadataByAnime = mutableMapOf<String, OnlineMetadata>()
-            suspend fun onlineMetadataFor(animeName: String, episodes: List<Episode>): OnlineMetadata {
-                onlineMetadataByAnime[animeName]?.let { return it }
-                return enrichWithOnlineMetadata(
+            // Also cache episodes in the episode table so AnimeDetailViewModel can read them
+            val episodesByAnime = indexEntities
+                .filter { !it.isDirectory }
+                .groupBy { it.animeName ?: "Unknown" }
+
+            for ((animeName, entries) in episodesByAnime) {
+                val sortedEntries = entries.sortedWith(
+                    compareBy<MediaIndexEntry>(
+                        { it.seasonNumber ?: 1 },
+                        { it.episodeNumber ?: Int.MAX_VALUE },
+                        { it.path }
+                    )
+                )
+                val episodes = sortedEntries.mapIndexed { idx, entry ->
+                    val playablePath = toPlayablePath(entry.path, rootPath, sourceInfo.type)
+                        Episode(
+                            id = "${sourceId}:${entry.path}",
+                            animeId = animeName,
+                            seasonNumber = entry.seasonNumber ?: 1,
+                            episodeNumber = entry.episodeNumber ?: (idx + 1),
+                            title = "",
+                            filePath = playablePath,
+                            fileName = fileNameOf(entry.path)
+                        )
+                    }
+                val online = enrichWithOnlineMetadata(
                     animeName = animeName,
                     episodes = episodes,
                     extraTitleCandidates = titleCandidatesByAnime[animeName].orEmpty(),
-                ).also { onlineMetadataByAnime[animeName] = it }
-            }
-
-            MediaIndexMetadataCache(metadataRepository).cache(
-                source = sourceInfo,
-                entries = indexEntities,
-                episodeTransform = { animeName, episodes ->
-                    onlineMetadataFor(animeName, episodes).episodes
-                },
-                animeTransform = { animeName, episodes ->
-                    val online = onlineMetadataFor(animeName, episodes)
-                    val anime = online.anime
-                        ?: metadataRepository.getCachedMetadata(animeName).getOrNull()?.copy(episodeCount = episodes.size)
-                        ?: Anime(
-                            id = animeName,
-                            title = animeName,
-                            titleCn = animeName,
-                            episodeCount = episodes.size,
+                    posterCacheDirectory = posterCacheDirectory,
+                )
+                val scrapedAt = if (online.scrapeStatus == MediaScrapeStatus.SCRAPED) {
+                    System.currentTimeMillis()
+                } else {
+                    0L
+                }
+                when (online.scrapeStatus) {
+                    MediaScrapeStatus.SCRAPED -> scrapedFiles += sortedEntries.size
+                    MediaScrapeStatus.NO_MATCH -> noMatchFiles += sortedEntries.size
+                    else -> Unit
+                }
+                updatedIndexEntities += sortedEntries.map { entry ->
+                    val matchedEntry = online.match?.let { match ->
+                        entry.copy(
+                            sourceId = sourceId,
+                            metadataSource = match.source.name,
+                            metadataId = match.animeId,
+                            metadataTitle = match.displayTitle(),
                         )
-                    if (isLocalSource && !isDocumentTree) {
-                        val sortedEntries = indexEntities
-                            .filter { !it.isDirectory && (it.animeName ?: "Unknown") == animeName }
-                            .sortedWith(
-                                compareBy<MediaIndexEntry>(
-                                    { it.seasonNumber ?: 1 },
-                                    { it.episodeNumber ?: Int.MAX_VALUE },
-                                    { it.path },
-                                ),
+                    } ?: entry
+                    matchedEntry.copy(
+                        scrapeStatus = online.scrapeStatus,
+                        scrapeMessage = online.scrapeMessage,
+                        scrapedAt = scrapedAt,
+                    )
+                }
+                metadataRepository.cacheEpisodes(animeName, online.episodes)
+
+                // Update or create anime metadata with episode count
+                var animeForNfo: Anime? = null
+                if (online.anime != null) {
+                    metadataRepository.cacheMetadata(online.anime)
+                    animeForNfo = online.anime
+                } else {
+                    metadataRepository.getCachedMetadata(animeName).onSuccess { cachedAnime ->
+                        if (cachedAnime != null) {
+                            val updated = cachedAnime.copy(episodeCount = episodes.size)
+                            metadataRepository.cacheMetadata(updated)
+                            animeForNfo = updated
+                        } else {
+                            // Create minimal anime metadata if none exists (no NFO was found)
+                            val minimal = Anime(
+                                id = animeName,
+                                title = animeName,
+                                titleCn = animeName,
+                                episodeCount = episodes.size
                             )
+                            metadataRepository.cacheMetadata(minimal)
+                            animeForNfo = minimal
+                        }
+                    }
+                }
+
+                if (isLocalSource && !isDocumentTree && !filenameOnly) {
+                    animeForNfo?.let { anime ->
                         writeGeneratedNfoIfMissing(
                             classifier = classifier,
                             anime = anime,
-                            episodes = episodes,
-                            entries = sortedEntries,
+                            episodes = online.episodes,
+                            entries = sortedEntries
                         )
                     }
-                    anime
-                },
-            )
+                }
+            }
+            indexRepository.rebuildIndex(sourceId, updatedIndexEntities)
         }
 
         // Report done
         Log.d("ScanCoordinator", "Scan done: ${sourceInfo.name} -> $totalFiles files, $newEpisodes new episodes")
 
         Result.success(ScanResult(
-            animeName = sourceInfo.scanResultDisplayName(rootPath),
+            animeName = if (isLocalSource) sourceInfo.displayNameOrPath(rootPath) else sourceInfo.name,
             episodesFound = totalFiles,
             newEpisodes = newEpisodes,
             updatedEpisodes = 0,
@@ -205,7 +255,8 @@ class ScanCoordinator @Inject constructor(
     private suspend fun enrichWithOnlineMetadata(
         animeName: String,
         episodes: List<Episode>,
-        extraTitleCandidates: Collection<String> = emptyList()
+        extraTitleCandidates: Collection<String> = emptyList(),
+        posterCacheDirectory: File? = null,
     ): OnlineMetadata {
         val bangumi = metadataScrapers.firstOrNull { it.sourceName.equals("Bangumi", ignoreCase = true) }
             ?: return OnlineMetadata(
@@ -285,6 +336,32 @@ class ScanCoordinator @Inject constructor(
             )
         }
     }
+
+    private fun cachePoster(cacheDirectory: File?, url: String): String? {
+        val directory = cacheDirectory ?: return null
+        val file = File(directory, sha256Hex(url))
+        return runCatching {
+            if (file.exists() && file.length() > 0L) return@runCatching file.absolutePath
+            directory.mkdirs()
+            val temp = File(directory, "${file.name}.tmp")
+            URL(url).openConnection().apply {
+                connectTimeout = 10_000
+                readTimeout = 20_000
+            }.getInputStream().use { input ->
+                temp.outputStream().use { output -> input.copyTo(output) }
+            }
+            if (!temp.renameTo(file)) {
+                temp.copyTo(file, overwrite = true)
+                temp.delete()
+            }
+            file.absolutePath
+        }.getOrNull()
+    }
+
+    private fun sha256Hex(value: String): String =
+        MessageDigest.getInstance("SHA-256")
+            .digest(value.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
 
     private fun titleCandidates(
         animeName: String,
@@ -376,7 +453,8 @@ class ScanCoordinator @Inject constructor(
                         newEpisodes = newEpisodes,
                         depth = depth + 1,
                         rootPath = rootPath,
-                        isLocalSource = isLocalSource
+                        isLocalSource = isLocalSource,
+                        filenameOnly = filenameOnly,
                     )
                 } else {
                     val fileName = file.name
@@ -402,7 +480,7 @@ class ScanCoordinator @Inject constructor(
                         if (file.path.hashCode() % 5 == 0) {
                             progressCallback?.onProgress(match.animeName, 1, if (match.episodeNumber != null) 1 else 0)
                         }
-                    } else {
+                    } else if (!filenameOnly) {
                         if (MediaFileConventions.hasExtension(fileName, "nfo")) {
                             parseAndCacheRemoteNfo(ms, file.path, classifier.classifyNfo(file.path).animeName)
                         }
@@ -426,6 +504,27 @@ class ScanCoordinator @Inject constructor(
 
     private fun normalizeLocalPath(path: String): String =
         path.replace('\\', '/').trimEnd('/')
+
+    private fun toPlayablePath(path: String, sourceRoot: String, sourceType: MediaSourceType): String =
+        when (sourceType) {
+            MediaSourceType.LOCAL -> path
+            MediaSourceType.WEBDAV -> MediaPathConventions.joinRemoteUrl(sourceRoot, path)
+            MediaSourceType.SMB -> path
+        }
+
+    private fun nameOfPath(path: String): String =
+        when {
+            path.startsWith("content://") -> {
+                val tail = path.substringAfterLast(':', path).substringAfterLast('/')
+                MediaPathConventions.decodePath(tail)
+            }
+            else -> MediaPathConventions.fileName(path)
+        }
+
+    private fun fileNameOf(path: String): String = nameOfPath(path).ifEmpty { MediaPathConventions.fileName(path) }
+
+    private fun MediaSourceInfo.displayNameOrPath(path: String): String =
+        connectionInfo["displayName"] ?: nameOfPath(path).ifEmpty { path }
 
     /**
      * Download and parse a single NFO file, cache metadata using showDirName as the cache key.

@@ -28,9 +28,7 @@ import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import javax.inject.Inject
-import javax.inject.Singleton
+import kotlinx.coroutines.launch
 
 @Singleton
 class CloudDriveRssScheduler @Inject constructor(
@@ -42,25 +40,11 @@ class CloudDriveRssScheduler @Inject constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     fun startIfNeeded() {
-        if (scope != null) return
-        val newScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-        scope = newScope
-        newScope.launchCloudDriveRssSchedulerLoop(
-            dueRunner = engine,
-            checkIntervalMillis = CHECK_INTERVAL_MILLIS,
-        ) { _, result ->
-            result
-                .onSuccess { summary ->
-                    if (summary != null) {
-                        Log.d(
-                            "CloudDriveRssScheduler",
-                            "RSS run complete: submitted=${summary.submitted}, organized=${summary.organized}"
-                        )
-                    }
-                }
-                .onError { error ->
-                    Log.w("CloudDriveRssScheduler", "RSS run failed: $error")
-                }
+        scope.launch {
+            when (val config = repository.getConfig()) {
+                is CoreResult.Success -> syncPeriodicWork(config.data)
+                is CoreResult.Error -> Log.w(TAG, "Failed to read Cloud/RSS config: ${config.error}")
+            }
         }
     }
 
@@ -110,10 +94,6 @@ class CloudDriveRssScheduler @Inject constructor(
         private const val TAG = "CloudDriveRssScheduler"
         private const val PERIODIC_WORK_NAME = "cloud-drive-rss-periodic"
         private const val RUN_NOW_WORK_NAME = "cloud-drive-rss-run-now"
-    }
-
-    companion object {
-        private const val CHECK_INTERVAL_MILLIS = 5 * 60_000L
     }
 }
 

@@ -1,46 +1,52 @@
 package com.miruplay.tv.ui.settings
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.miruplay.tv.clouddrive.CloudDriveClient
 import com.miruplay.tv.core.common.LocalDirectoryBrowser
 import com.miruplay.tv.core.common.Result
-import com.miruplay.tv.mediasource.MediaSourceFactory
-import com.miruplay.tv.mediasource.MediaSourceConnectionTestResult
-import com.miruplay.tv.mediasource.testConnection
-import com.miruplay.tv.mediasource.testConnectionState
-import com.miruplay.tv.model.CloudDriveAutomationConfig
+import com.miruplay.tv.core.common.WebControlConfig
+import com.miruplay.tv.data.preferences.ScanPreferencesManager
+import com.miruplay.tv.data.preferences.PlaybackPreferencesManager
 import com.miruplay.tv.model.PlaybackEndAction
+import com.miruplay.tv.mediasource.MediaSourceFactory
+import com.miruplay.tv.model.CloudDriveAutomationConfig
+import com.miruplay.tv.model.CloudDriveLibraryMode
 import com.miruplay.tv.model.directoryBrowserRootDisplayName
 import com.miruplay.tv.model.MediaSourceInfo
+import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.RssSubscriptionInfo
+import com.miruplay.tv.model.CloudDriveApiTokenFormResult
+import com.miruplay.tv.model.CloudDriveDirectoryPickerFormResult
+import com.miruplay.tv.model.CloudDriveLoginFormResult
+import com.miruplay.tv.model.RssSubscriptionFormResult
+import com.miruplay.tv.model.cloudDriveLoginSucceededStatus
+import com.miruplay.tv.model.cloudDriveTokenLoginRequiredStatus
+import com.miruplay.tv.model.connectionPassword
+import com.miruplay.tv.model.cloudDriveTokenVerifiedStatus
+import com.miruplay.tv.model.cloudRssConfigSavedStatus
+import com.miruplay.tv.model.completeStatus
+import com.miruplay.tv.model.prepareRssSubscriptionForm
+import com.miruplay.tv.model.saveBangumiTokenFormResult
+import com.miruplay.tv.model.withAutomationFormValues
+import com.miruplay.tv.model.validateCloudDriveDirectoryPickerForm
 import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
-import com.miruplay.tv.repository.MediaSourceActionCoordinator
-import com.miruplay.tv.repository.MediaSourceAddActionResult
-import com.miruplay.tv.repository.MediaSourceAddFailurePhase
 import com.miruplay.tv.repository.MediaSourceRepository
-import com.miruplay.tv.repository.PlaybackPreferencesRepository
-import com.miruplay.tv.repository.ScanPreferenceActionSnapshot
-import com.miruplay.tv.repository.ScanPreferencesRepository
-import com.miruplay.tv.repository.SettingsPreferenceActionCoordinator
-import com.miruplay.tv.repository.WebControlAccessActionCoordinator
-import com.miruplay.tv.repository.WebControlAccessSnapshot
 import com.miruplay.tv.repository.WebControlAccessManager
-import com.miruplay.tv.sync.BangumiCredentialActionCoordinator
-import com.miruplay.tv.sync.BangumiTokenActionResult
 import com.miruplay.tv.sync.rss.CloudDriveRssAutomationEngine
-import com.miruplay.tv.sync.rss.CloudDriveActionResult
-import com.miruplay.tv.sync.rss.CloudDriveConfigActionResult
-import com.miruplay.tv.sync.rss.CloudDriveRunActionResult
-import com.miruplay.tv.sync.rss.CloudDriveRssActionCoordinator
-import com.miruplay.tv.sync.rss.CloudDriveDirectoryBrowserCoordinator
+import com.miruplay.tv.sync.rss.CloudDriveRssScheduler
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryBrowserState
-import com.miruplay.tv.sync.rss.CloudDriveDirectoryLoadResult
-import com.miruplay.tv.sync.rss.CloudDriveDirectoryOpenResult
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryTarget
-import com.miruplay.tv.sync.rss.RssSubscriptionActionResult
+import com.miruplay.tv.sync.rss.loadCloudDriveDirectory
+import com.miruplay.tv.sync.rss.loadingFor
+import com.miruplay.tv.sync.rss.prepareCloudDriveDirectoryBrowser
+import com.miruplay.tv.model.rssSubscriptionDeletedStatus
+import com.miruplay.tv.model.rssSubscriptionSavedStatus
+import com.miruplay.tv.model.validateCloudDriveApiTokenForm
+import com.miruplay.tv.model.validateCloudDriveLoginForm
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -48,6 +54,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import java.net.Inet4Address
+import java.net.NetworkInterface
 import javax.inject.Inject
 
 @HiltViewModel
@@ -55,24 +63,14 @@ class SettingsViewModel @Inject constructor(
     private val mediaRepository: MediaSourceRepository,
     private val mediaSourceFactory: MediaSourceFactory,
     private val securePrefs: AppCredentialStore,
-    private val scanPreferences: ScanPreferencesRepository,
-    private val playbackPreferences: PlaybackPreferencesRepository,
+    private val scanPreferences: ScanPreferencesManager,
+    private val playbackPreferences: PlaybackPreferencesManager,
     private val webControlPreferences: WebControlAccessManager,
     private val cloudDriveRepository: CloudDriveAutomationRepository,
     private val cloudDriveClient: CloudDriveClient,
     private val cloudDriveEngine: CloudDriveRssAutomationEngine,
     private val cloudDriveScheduler: CloudDriveRssScheduler
 ) : ViewModel() {
-    private val cloudDriveActions = CloudDriveRssActionCoordinator(
-        repository = cloudDriveRepository,
-        credentials = securePrefs,
-        runner = cloudDriveEngine,
-    )
-    private val bangumiCredentialActions = BangumiCredentialActionCoordinator(securePrefs)
-    private val cloudDriveDirectoryActions = CloudDriveDirectoryBrowserCoordinator(cloudDriveClient)
-    private val webControlActions = WebControlAccessActionCoordinator(webControlPreferences)
-    private val settingsPreferenceActions = SettingsPreferenceActionCoordinator(scanPreferences, playbackPreferences)
-    private val mediaSourceActions = MediaSourceActionCoordinator(mediaRepository)
 
     private val _sources = MutableStateFlow<List<MediaSourceInfo>>(emptyList())
     val sources: StateFlow<List<MediaSourceInfo>> = _sources.asStateFlow()
@@ -86,19 +84,21 @@ class SettingsViewModel @Inject constructor(
     private val _bangumiToken = MutableStateFlow(securePrefs.bangumiAccessToken ?: "")
     val bangumiToken: StateFlow<String> = _bangumiToken.asStateFlow()
 
-    private val _autoScanEnabled = MutableStateFlow(false)
+    private val _autoScanEnabled = MutableStateFlow(scanPreferences.autoScanEnabled)
     val autoScanEnabled: StateFlow<Boolean> = _autoScanEnabled.asStateFlow()
 
-    private val _autoScanIntervalHours = MutableStateFlow(ScanPreferenceActionSnapshot().autoScanIntervalHours)
+    private val _autoScanIntervalHours = MutableStateFlow(
+        (scanPreferences.autoScanIntervalMs / MILLIS_PER_HOUR).toInt()
+    )
     val autoScanIntervalHours: StateFlow<Int> = _autoScanIntervalHours.asStateFlow()
 
-    private val _lastScanAt = MutableStateFlow(0L)
+    private val _lastScanAt = MutableStateFlow(scanPreferences.lastScanAt)
     val lastScanAt: StateFlow<Long> = _lastScanAt.asStateFlow()
 
-    private val _mergeSameAnimeEnabled = MutableStateFlow(false)
+    private val _mergeSameAnimeEnabled = MutableStateFlow(scanPreferences.mergeSameAnimeEnabled)
     val mergeSameAnimeEnabled: StateFlow<Boolean> = _mergeSameAnimeEnabled.asStateFlow()
 
-    private val _playbackEndAction = MutableStateFlow(PlaybackEndAction.RETURN_TO_DETAIL)
+    private val _playbackEndAction = MutableStateFlow(playbackPreferences.endAction)
     val playbackEndAction: StateFlow<PlaybackEndAction> = _playbackEndAction.asStateFlow()
 
     private val _webUiUrls = MutableStateFlow<List<String>>(emptyList())
@@ -135,22 +135,8 @@ class SettingsViewModel @Inject constructor(
 
     init {
         loadSources()
-        loadScanPreferences()
-        loadPlaybackPreferences()
         refreshWebUiUrls()
         observeCloudDriveAutomation()
-    }
-
-    private fun loadScanPreferences() {
-        viewModelScope.launch {
-            applyScanPreferenceSnapshot(settingsPreferenceActions.currentScanPreferences())
-        }
-    }
-
-    private fun loadPlaybackPreferences() {
-        viewModelScope.launch {
-            _playbackEndAction.value = settingsPreferenceActions.currentPlaybackEndAction()
-        }
     }
 
     fun loadSources() {
@@ -165,24 +151,40 @@ class SettingsViewModel @Inject constructor(
 
     fun addSource(source: MediaSourceInfo) {
         viewModelScope.launch {
-            when (
-                val result = mediaSourceActions.addSource(source) { persisted ->
-                    Result.success(mediaSourceFactory.testConnectionState(persisted))
-                }
-            ) {
-                is MediaSourceAddActionResult.Saved -> loadSources()
-                is MediaSourceAddActionResult.Failed -> {
-                    if (result.phase == MediaSourceAddFailurePhase.UpdateConnectionState) {
-                        loadSources()
+            mediaRepository.addSource(source).onSuccess { id ->
+                // Test connection after adding, then update status
+                val msResult = mediaSourceFactory.create(source)
+                msResult.onSuccess { ms ->
+                    ms.testConnection().onSuccess {
+                        mediaRepository.updateSource(source.copy(id = id, isConnected = true))
                     }
                 }
+                loadSources()
             }
         }
     }
 
     fun updateSource(source: MediaSourceInfo) {
         viewModelScope.launch {
-            mediaSourceActions.updateSource(source).onSuccess {
+            val existing = mediaRepository.getSourceById(source.id).getOrNull()
+            val mergedSource = if (
+                MediaSourceInfoConventions.CONNECTION_PASSWORD !in source.connectionInfo &&
+                existing?.connectionPassword()?.isNotBlank() == true
+            ) {
+                source.copy(
+                    connectionInfo = source.connectionInfo + (
+                        MediaSourceInfoConventions.CONNECTION_PASSWORD to existing.connectionPassword()
+                    ),
+                    isConnected = existing.isConnected,
+                    lastScanned = existing.lastScanned
+                )
+            } else {
+                source.copy(
+                    isConnected = existing?.isConnected ?: source.isConnected,
+                    lastScanned = existing?.lastScanned ?: source.lastScanned
+                )
+            }
+            mediaRepository.updateSource(mergedSource).onSuccess {
                 loadSources()
             }
         }
@@ -190,7 +192,7 @@ class SettingsViewModel @Inject constructor(
 
     fun removeSource(sourceId: Long) {
         viewModelScope.launch {
-            mediaSourceActions.removeSource(sourceId).onSuccess {
+            mediaRepository.removeSource(sourceId).onSuccess {
                 loadSources()
             }
         }
@@ -199,30 +201,42 @@ class SettingsViewModel @Inject constructor(
     fun testConnection(type: MediaSourceType, url: String, username: String = "", password: String = "") {
         viewModelScope.launch {
             _testResult.value = ConnectionTestResult.Testing
-            _testResult.value = when (
-                val result = mediaSourceFactory.testConnection(
+            val info = MediaSourceInfo(
+                name = "test",
+                type = type,
+                connectionInfo = MediaSourceInfoConventions.sourceConnectionInfo(
                     type = type,
                     location = url,
                     username = username,
                     password = password,
                 )
-            ) {
-                MediaSourceConnectionTestResult.Success -> ConnectionTestResult.Success
-                is MediaSourceConnectionTestResult.Failed -> ConnectionTestResult.Failed(result.message)
+            )
+            val sourceResult = mediaSourceFactory.create(info)
+            sourceResult.onSuccess { ms ->
+                val test = ms.testConnection()
+                test.onSuccess { connected ->
+                    _testResult.value = if (connected) ConnectionTestResult.Success else ConnectionTestResult.Failed("无法连接到服务器")
+                }.onError { error ->
+                    _testResult.value = ConnectionTestResult.Failed(error.toUserMessage())
+                }
+            }.onError { error ->
+                _testResult.value = ConnectionTestResult.Failed(error.toUserMessage())
             }
         }
     }
 
-    fun saveBangumiToken(token: String): BangumiTokenActionResult.Saved {
-        val result = bangumiCredentialActions.saveToken(token)
+    fun saveBangumiToken(token: String) {
+        val result = saveBangumiTokenFormResult(
+            input = token,
+            existingToken = securePrefs.bangumiAccessToken,
+        )
+        securePrefs.bangumiAccessToken = result.token
         _bangumiToken.value = result.token.orEmpty()
-        return result
     }
 
-    fun clearBangumiToken(): BangumiTokenActionResult.Cleared {
-        val result = bangumiCredentialActions.clearToken()
+    fun clearBangumiToken() {
+        securePrefs.clearBangumiToken()
         _bangumiToken.value = ""
-        return result
     }
 
     fun saveCloudDriveConfig(
@@ -239,140 +253,121 @@ class SettingsViewModel @Inject constructor(
         rssProxyPort: Int = 1080
     ) {
         viewModelScope.launch {
-            when (val result = cloudDriveActions.saveConfig(
-                endpointUrl = endpointUrl,
-                username = username,
+            val current = _cloudDriveConfig.value
+            val config = current.withAutomationFormValues(
+                endpointUrl = endpointUrl.trim(),
+                username = username.trim(),
                 webDavSourceId = webDavSourceId,
-                inboxPath = inboxPath,
-                libraryPath = libraryPath,
+                inboxPath = inboxPath.trim(),
+                libraryPath = libraryPath.trim(),
+                libraryMode = libraryMode,
                 intervalMinutes = intervalMinutes,
                 enabled = enabled,
                 rssProxyEnabled = rssProxyEnabled,
-                rssProxyHost = rssProxyHost,
-                rssProxyPort = rssProxyPort,
-            )) {
-                is CloudDriveConfigActionResult.Saved -> {
-                    _cloudDriveConfig.value = result.config
-                    _cloudDriveActionMessage.value = result.status
+                rssProxyHost = rssProxyHost.trim(),
+                rssProxyPort = rssProxyPort
+            )
+            cloudDriveRepository.saveConfig(config)
+                .onSuccess {
+                    cloudDriveScheduler.syncPeriodicWork(config)
+                    _cloudDriveActionMessage.value = cloudRssConfigSavedStatus()
                 }
-                is CloudDriveConfigActionResult.Failed -> {
-                    _cloudDriveActionMessage.value = result.status
-                }
-            }
+                .onError { error -> _cloudDriveActionMessage.value = error.toUserMessage() }
         }
     }
 
     fun loginCloudDrive(endpointUrl: String, username: String, password: String) {
+        val form = when (val result = validateCloudDriveLoginForm(endpointUrl, username, password)) {
+            is CloudDriveLoginFormResult.Ready -> result.request
+            is CloudDriveLoginFormResult.Invalid -> {
+                _cloudDriveActionMessage.value = result.status
+                return
+            }
+        }
         viewModelScope.launch {
             _cloudDriveBusy.value = true
-            when (val result = cloudDriveActions.loginCloudDrive(endpointUrl, username, password)) {
-                is CloudDriveActionResult.Success -> {
+            cloudDriveEngine.login(form.endpointUrl, form.username, form.password)
+                .onSuccess {
                     _cloudDriveTokenConfigured.value = true
-                    _cloudDriveActionMessage.value = result.status
+                    _cloudDriveActionMessage.value = cloudDriveLoginSucceededStatus()
                 }
-                is CloudDriveActionResult.Invalid -> {
-                    _cloudDriveActionMessage.value = result.status
+                .onError { error ->
+                    _cloudDriveActionMessage.value = error.toUserMessage()
                 }
-                is CloudDriveActionResult.Failed -> {
-                    _cloudDriveActionMessage.value = result.status
-                }
-            }
             _cloudDriveBusy.value = false
         }
     }
 
     fun saveCloudDriveApiToken(endpointUrl: String, token: String) {
+        val form = when (val result = validateCloudDriveApiTokenForm(endpointUrl, token)) {
+            is CloudDriveApiTokenFormResult.Ready -> result.request
+            is CloudDriveApiTokenFormResult.Invalid -> {
+                _cloudDriveActionMessage.value = result.status
+                return
+            }
+        }
         viewModelScope.launch {
             _cloudDriveBusy.value = true
-            when (val result = cloudDriveActions.verifyCloudDriveApiToken(endpointUrl, token)) {
-                is CloudDriveActionResult.Success -> {
+            cloudDriveEngine.saveApiToken(form.endpointUrl, form.token)
+                .onSuccess { info ->
                     _cloudDriveTokenConfigured.value = true
-                    _cloudDriveActionMessage.value = result.status
+                    _cloudDriveActionMessage.value = cloudDriveTokenVerifiedStatus(
+                        friendlyName = info.friendlyName,
+                        rootDir = info.rootDir,
+                    )
                 }
-                is CloudDriveActionResult.Invalid -> {
-                    _cloudDriveActionMessage.value = result.status
+                .onError { error ->
+                    _cloudDriveActionMessage.value = error.toUserMessage()
                 }
-                is CloudDriveActionResult.Failed -> {
-                    _cloudDriveActionMessage.value = result.status
-                }
-            }
             _cloudDriveBusy.value = false
         }
     }
 
     fun addRssSubscription(name: String, url: String, filterRegex: String, enabled: Boolean) {
-        viewModelScope.launch {
-            when (
-                val result = cloudDriveActions.saveRssSubscription(
-                    name = name,
-                    url = url,
-                    filterRegex = filterRegex,
-                    enabled = enabled,
-                )
-            ) {
-                is RssSubscriptionActionResult.Saved -> {
-                    _cloudDriveActionMessage.value = result.status
-                }
-                is RssSubscriptionActionResult.Invalid -> {
-                    _cloudDriveActionMessage.value = result.status
-                }
-                is RssSubscriptionActionResult.Failed -> {
-                    _cloudDriveActionMessage.value = result.status
-                }
-                is RssSubscriptionActionResult.Deleted -> Unit
+        val subscription = when (
+            val result = prepareRssSubscriptionForm(
+                name = name,
+                url = url,
+                filterRegex = filterRegex,
+                enabled = enabled,
+            )
+        ) {
+            is RssSubscriptionFormResult.Ready -> result.subscription
+            is RssSubscriptionFormResult.Invalid -> {
+                _cloudDriveActionMessage.value = result.status
+                return
             }
+        }
+        viewModelScope.launch {
+            cloudDriveRepository.saveSubscription(subscription)
+                .onSuccess { _cloudDriveActionMessage.value = rssSubscriptionSavedStatus(subscription.name) }
+                .onError { error -> _cloudDriveActionMessage.value = error.toUserMessage() }
         }
     }
 
     fun setRssSubscriptionEnabled(subscription: RssSubscriptionInfo, enabled: Boolean) {
         viewModelScope.launch {
-            when (
-                val result = cloudDriveActions.saveRssSubscription(
-                    name = subscription.name,
-                    url = subscription.url,
-                    filterRegex = subscription.filterRegex.orEmpty(),
-                    enabled = enabled,
-                    selectedSubscription = subscription,
-                )
-            ) {
-                is RssSubscriptionActionResult.Failed -> {
-                    _cloudDriveActionMessage.value = result.status
-                }
-                is RssSubscriptionActionResult.Invalid -> {
-                    _cloudDriveActionMessage.value = result.status
-                }
-                is RssSubscriptionActionResult.Saved -> Unit
-                is RssSubscriptionActionResult.Deleted -> Unit
-            }
+            cloudDriveRepository.saveSubscription(subscription.copy(enabled = enabled))
+                .onError { error -> _cloudDriveActionMessage.value = error.toUserMessage() }
         }
     }
 
     fun deleteRssSubscription(id: Long) {
         viewModelScope.launch {
-            when (val result = cloudDriveActions.deleteRssSubscription(id)) {
-                is RssSubscriptionActionResult.Deleted -> {
-                    _cloudDriveActionMessage.value = result.status
-                }
-                is RssSubscriptionActionResult.Failed -> {
-                    _cloudDriveActionMessage.value = result.status
-                }
-                is RssSubscriptionActionResult.Invalid -> Unit
-                is RssSubscriptionActionResult.Saved -> Unit
-            }
+            cloudDriveRepository.deleteSubscription(id)
+                .onSuccess { _cloudDriveActionMessage.value = rssSubscriptionDeletedStatus() }
+                .onError { error -> _cloudDriveActionMessage.value = error.toUserMessage() }
         }
     }
 
     fun runCloudDriveNow() {
         viewModelScope.launch {
             _cloudDriveBusy.value = true
-            when (val result = cloudDriveActions.runCloudDriveOnce()) {
-                is CloudDriveRunActionResult.Completed -> {
-                    _cloudDriveActionMessage.value = result.status
+            cloudDriveEngine.runOnce()
+                .onSuccess { summary -> _cloudDriveActionMessage.value = summary.completeStatus() }
+                .onError { error ->
+                    _cloudDriveActionMessage.value = error.toUserMessage()
                 }
-                is CloudDriveRunActionResult.Failed -> {
-                    _cloudDriveActionMessage.value = result.status
-                }
-            }
             _cloudDriveBusy.value = false
         }
     }
@@ -382,61 +377,67 @@ class SettingsViewModel @Inject constructor(
         endpointUrl: String,
         initialPath: String
     ) {
+        val form = when (
+            val result = validateCloudDriveDirectoryPickerForm(
+                endpointUrl = endpointUrl,
+                tokenInput = "",
+                savedToken = securePrefs.cloudDriveToken,
+            )
+        ) {
+            is CloudDriveDirectoryPickerFormResult.Ready -> result.request
+            is CloudDriveDirectoryPickerFormResult.Invalid -> {
+                _cloudDriveActionMessage.value = result.status
+                return
+            }
+        }
+
         viewModelScope.launch {
             when (
-                val opened = cloudDriveDirectoryActions.open(
+                val prepared = prepareCloudDriveDirectoryBrowser(
+                    client = cloudDriveClient,
                     target = target,
-                    endpointUrl = endpointUrl,
-                    tokenInput = "",
-                    savedToken = securePrefs.cloudDriveToken,
+                    endpointUrl = form.endpointUrl,
+                    token = form.token,
                     initialPath = initialPath,
                 )
             ) {
-                is CloudDriveDirectoryOpenResult.Ready -> {
-                    _cloudDriveDirectoryBrowser.value = opened.state
-                    browseCloudDriveDirectory(opened.loadPath)
+                is Result.Success -> {
+                    _cloudDriveDirectoryBrowser.value = prepared.data
+                    browseCloudDriveDirectory(prepared.data.path)
                 }
-                is CloudDriveDirectoryOpenResult.Invalid -> {
-                    _cloudDriveActionMessage.value = opened.status
-                }
-                is CloudDriveDirectoryOpenResult.Failed -> {
-                    _cloudDriveActionMessage.value = opened.status
+                is Result.Error -> {
+                    _cloudDriveActionMessage.value = prepared.error.toUserMessage()
                 }
             }
         }
     }
 
     fun browseCloudDriveDirectory(path: String) {
-        when (val loading = cloudDriveDirectoryActions.loading(_cloudDriveDirectoryBrowser.value, path)) {
-            CloudDriveDirectoryLoadResult.Ignored -> return
-            is CloudDriveDirectoryLoadResult.Failed -> {
-                _cloudDriveDirectoryBrowser.value = loading.state
-                _cloudDriveActionMessage.value = loading.status
-            }
-            is CloudDriveDirectoryLoadResult.Loading -> {
-                _cloudDriveDirectoryBrowser.value = loading.state
-                viewModelScope.launch {
-                    val loaded = cloudDriveDirectoryActions.load(loading.state)
-                    when (
-                        val result = cloudDriveDirectoryActions.applyLoadedIfCurrent(
-                            currentState = _cloudDriveDirectoryBrowser.value,
-                            result = loaded,
-                        )
-                    ) {
-                        CloudDriveDirectoryLoadResult.Ignored -> Unit
-                        is CloudDriveDirectoryLoadResult.Loaded -> {
-                            _cloudDriveDirectoryBrowser.value = result.state
-                        }
-                        is CloudDriveDirectoryLoadResult.Failed -> {
-                            _cloudDriveDirectoryBrowser.value = result.state
-                            _cloudDriveActionMessage.value = result.status
-                        }
-                        is CloudDriveDirectoryLoadResult.Loading -> Unit
-                    }
+        val state = _cloudDriveDirectoryBrowser.value
+        if (!state.open) return
+        if (state.token.isBlank()) {
+            _cloudDriveActionMessage.value = cloudDriveTokenLoginRequiredStatus()
+            return
+        }
+
+        val loadingState = state.loadingFor(path)
+        _cloudDriveDirectoryBrowser.value = loadingState
+        viewModelScope.launch {
+            when (val result = loadCloudDriveDirectory(cloudDriveClient, loadingState, loadingState.path)) {
+                is Result.Success -> {
+                    val current = _cloudDriveDirectoryBrowser.value
+                    val next = result.data
+                    if (!current.open || current.endpointUrl != next.endpointUrl || current.token != next.token) return@launch
+                    _cloudDriveDirectoryBrowser.value = next
                 }
-            }
-            is CloudDriveDirectoryLoadResult.Loaded -> {
-                _cloudDriveDirectoryBrowser.value = loading.state
+                is Result.Error -> {
+                    val current = _cloudDriveDirectoryBrowser.value
+                    if (!current.open || current.endpointUrl != loadingState.endpointUrl || current.token != loadingState.token) return@launch
+                    _cloudDriveDirectoryBrowser.value = current.copy(
+                        isLoading = false,
+                        message = result.error.toUserMessage()
+                    )
+                }
             }
         }
     }
@@ -498,64 +499,46 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun setAutoScanEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            applyScanPreferenceSnapshot(settingsPreferenceActions.setAutoScanEnabled(enabled))
-        }
+        scanPreferences.autoScanEnabled = enabled
+        _autoScanEnabled.value = enabled
     }
 
     fun setAutoScanIntervalHours(hours: Int) {
-        viewModelScope.launch {
-            applyScanPreferenceSnapshot(settingsPreferenceActions.setAutoScanIntervalHours(hours))
-        }
+        scanPreferences.autoScanIntervalMs = hours * MILLIS_PER_HOUR
+        _autoScanIntervalHours.value = hours
     }
 
     fun setMergeSameAnimeEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            applyScanPreferenceSnapshot(settingsPreferenceActions.setMergeSameAnimeEnabled(enabled))
-        }
+        scanPreferences.mergeSameAnimeEnabled = enabled
+        _mergeSameAnimeEnabled.value = enabled
     }
 
     fun setPlaybackEndAction(action: PlaybackEndAction) {
-        viewModelScope.launch {
-            _playbackEndAction.value = settingsPreferenceActions.setPlaybackEndAction(action)
-        }
+        playbackPreferences.endAction = action
+        _playbackEndAction.value = action
     }
 
     fun setWebControlEnabled(enabled: Boolean) {
-        updateWebControlSnapshot {
-            webControlActions.setEnabled(enabled)
-        }
+        webControlPreferences.webControlEnabled = enabled
+        _webControlEnabled.value = enabled
+        _webControlAccessToken.value = webControlPreferences.accessToken
+        refreshWebUiUrls()
     }
 
     fun rotateWebControlAccessToken() {
-        updateWebControlSnapshot {
-            webControlActions.rotateAccessToken()
-        }
+        _webControlAccessToken.value = webControlPreferences.rotateAccessToken()
+        refreshWebUiUrls()
     }
 
     fun refreshWebUiUrls() {
-        updateWebControlSnapshot {
-            webControlActions.refreshUrls()
-        }
-    }
-
-    private fun updateWebControlSnapshot(snapshotProvider: () -> WebControlAccessSnapshot) {
         viewModelScope.launch(Dispatchers.IO) {
-            applyWebControlSnapshot(snapshotProvider())
+            _webUiUrls.value = if (webControlPreferences.webControlEnabled) {
+                val token = Uri.encode(webControlPreferences.accessToken)
+                findLocalIps().map { ip -> "http://$ip:${WebControlConfig.DEFAULT_PORT}/?token=$token" }
+            } else {
+                emptyList()
+            }
         }
-    }
-
-    private fun applyWebControlSnapshot(snapshot: WebControlAccessSnapshot) {
-        _webControlEnabled.value = snapshot.enabled
-        _webControlAccessToken.value = snapshot.accessToken
-        _webUiUrls.value = snapshot.urls
-    }
-
-    private fun applyScanPreferenceSnapshot(snapshot: ScanPreferenceActionSnapshot) {
-        _autoScanEnabled.value = snapshot.autoScanEnabled
-        _autoScanIntervalHours.value = snapshot.autoScanIntervalHours
-        _lastScanAt.value = snapshot.lastScanAt
-        _mergeSameAnimeEnabled.value = snapshot.mergeSameAnimeEnabled
     }
 
     fun clearTestResult() {
@@ -575,6 +558,22 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    private fun findLocalIps(): List<String> {
+        return runCatching {
+            NetworkInterface.getNetworkInterfaces().toList()
+                .filter { it.isUp && !it.isLoopback }
+                .flatMap { it.inetAddresses.toList() }
+                .filterIsInstance<Inet4Address>()
+                .filterNot { it.isLoopbackAddress }
+                .mapNotNull { it.hostAddress }
+                .filter { it.isNotBlank() }
+                .distinct()
+        }.getOrDefault(emptyList())
+    }
+
+    companion object {
+        private const val MILLIS_PER_HOUR = 60 * 60 * 1000L
+    }
 }
 
 data class LocalDirectoryBrowserState(

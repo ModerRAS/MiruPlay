@@ -509,7 +509,7 @@ class DesktopSettingsPanelTest {
             cloudRssFieldFocusTarget(CloudRssField.InboxPath, MiruPlayInputIntent.DirectionDown),
         )
         assertEquals(
-            CloudRssFocusTarget.Action(CloudRssAction.LoginCloudDrive),
+            CloudRssFocusTarget.Action(CloudRssAction.SetSingleDirectoryMode),
             cloudRssFieldFocusTarget(CloudRssField.InboxPath, MiruPlayInputIntent.DirectionUp),
         )
         assertEquals(
@@ -852,11 +852,11 @@ class DesktopSettingsPanelTest {
     @Test
     fun `desktop settings categories use shared TV section contract`() {
         assertEquals(
-            listOf("WebUI", "媒体源", "播放", "云盘", "扫描", "元数据"),
+            listOf("WebUI", "媒体源", "播放", "云盘", "扫描", "日志", "元数据"),
             desktopSettingsSectionOrder.map { it.desktopTitle },
         )
         assertEquals(
-            listOf("访问地址与二维码", "本地、WebDAV、SMB", "mpv 与 RIFE", "RSS 离线下载与入库", "媒体库更新", "Bangumi 匹配"),
+            listOf("访问地址与二维码", "本地、WebDAV、SMB", "mpv 与 RIFE", "RSS 离线下载与入库", "媒体库更新", "OpenObserve JSON", "Bangumi 匹配"),
             desktopSettingsSectionOrder.map { it.desktopDescription },
         )
     }

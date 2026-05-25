@@ -97,6 +97,7 @@ class CloudDriveRssActionCoordinator(
             webDavSourceId = webDavSourceId,
             inboxPath = inboxPath,
             libraryPath = libraryPath,
+            libraryMode = current.libraryMode,
             intervalMinutes = intervalMinutes,
             enabled = enabled,
             rssProxyEnabled = rssProxyEnabled,

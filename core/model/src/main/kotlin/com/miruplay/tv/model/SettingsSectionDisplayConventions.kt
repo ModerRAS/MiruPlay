@@ -106,6 +106,9 @@ fun settingsScanMenuSummary(
         else -> "定时关闭"
     }
 
+fun settingsLogUploadMenuSummary(): String =
+    "OpenObserve"
+
 fun settingsMetadataTokenMenuSummary(hasToken: Boolean): String =
     if (hasToken) "Token 已设置" else "未设置"
 
@@ -129,6 +132,7 @@ fun MiruPlaySettingsSection.settingsMenuSummary(
         MiruPlaySettingsSection.PLAYBACK -> input.playbackSummary
         MiruPlaySettingsSection.CLOUD_DRIVE -> settingsCloudDriveMenuSummary(input.cloudDriveEnabled, input.rssCount)
         MiruPlaySettingsSection.SCAN -> settingsScanMenuSummary(input.autoScanEnabled, input.mergeSameAnimeEnabled)
+        MiruPlaySettingsSection.LOG_UPLOAD -> settingsLogUploadMenuSummary()
         MiruPlaySettingsSection.METADATA -> input.metadataSummary
     }
 

@@ -77,6 +77,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
+import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.CLOUD_DRIVE_ROOT_DISPLAY_NAME
@@ -90,7 +91,6 @@ import com.miruplay.tv.model.androidTvSettingsSectionOrder
 import com.miruplay.tv.model.connectionDisplayName
 import com.miruplay.tv.model.connectionUsername
 import com.miruplay.tv.model.cloudDriveRssApiTokenFieldLabel
-import com.miruplay.tv.repository.scanPreferencesIntervalOptionsHours
 import com.miruplay.tv.model.cloudDriveRssChooseDirectoryActionLabel
 import com.miruplay.tv.model.cloudDriveRssCloseActionLabel
 import com.miruplay.tv.model.cloudDriveRssCredentialsBadgeLabel
@@ -102,6 +102,8 @@ import com.miruplay.tv.model.cloudDriveRssInboxPathFieldLabel
 import com.miruplay.tv.model.cloudDriveRssIntervalMinutesFieldLabel
 import com.miruplay.tv.model.cloudDriveRssLibraryDirectoryPickerTitle
 import com.miruplay.tv.model.cloudDriveRssLibraryPathFieldLabel
+import com.miruplay.tv.model.cloudDriveRssLibraryModeOrganizedLabel
+import com.miruplay.tv.model.cloudDriveRssLibraryModeSingleDirectoryLabel
 import com.miruplay.tv.model.cloudDriveRssLoadingDirectoriesMessage
 import com.miruplay.tv.model.cloudDriveRssLoginActionLabel
 import com.miruplay.tv.model.cloudDriveRssNoScanSourceOptionLabel
@@ -150,9 +152,10 @@ import com.miruplay.tv.model.mediaSourceTestConnectionActionLabel
 import com.miruplay.tv.model.mediaSourceUsernameOptionalFieldLabel
 import com.miruplay.tv.model.playbackEndPlayNextEpisodeActionLabel
 import com.miruplay.tv.model.playbackEndPlayNextEpisodeDetail
+import com.miruplay.tv.model.playbackEndPlayNextEpisodeSummary
 import com.miruplay.tv.model.playbackEndReturnToDetailActionLabel
 import com.miruplay.tv.model.playbackEndReturnToDetailDetail
-import com.miruplay.tv.model.playbackEndMenuSummary
+import com.miruplay.tv.model.playbackEndReturnToDetailSummary
 import com.miruplay.tv.model.playbackEndSettingsDescriptionLabel
 import com.miruplay.tv.model.playbackEndSettingsTitleLabel
 import com.miruplay.tv.model.metadataPanelTitleLabel
@@ -162,26 +165,24 @@ import com.miruplay.tv.model.metadataBangumiTokenOptionalHint
 import com.miruplay.tv.model.metadataBangumiTokenSavedStatus
 import com.miruplay.tv.model.settingsAutoScanToggleLabel
 import com.miruplay.tv.model.settingsBackActionLabel
+import com.miruplay.tv.model.settingsCloudDriveMenuSummary
 import com.miruplay.tv.model.settingsCurrentScanIntervalStatus
 import com.miruplay.tv.model.settingsLibraryDisplayTitleLabel
-import com.miruplay.tv.model.SettingsSectionMenuSummaryInput
 import com.miruplay.tv.model.settingsMergeSameAnimeStatus
 import com.miruplay.tv.model.settingsMergeSameAnimeToggleLabel
 import com.miruplay.tv.model.settingsMetadataTokenMenuSummary
-import com.miruplay.tv.model.settingsMenuSummary
-import com.miruplay.tv.model.settingsMenuPanelDescriptionAndroidTv
-import com.miruplay.tv.model.settingsMenuPanelTitle
-import com.miruplay.tv.model.settingsScreenSubtitleLabel
-import com.miruplay.tv.model.settingsScreenTitleLabel
 import com.miruplay.tv.model.settingsScanIntervalOptionLabel
+import com.miruplay.tv.model.settingsScanMenuSummary
 import com.miruplay.tv.model.settingsScanPanelDescription
 import com.miruplay.tv.model.settingsScanPanelTitleLabel
 import com.miruplay.tv.model.settingsClearTokenActionLabel
 import com.miruplay.tv.model.settingsSaveTokenActionLabel
+import com.miruplay.tv.model.settingsSourcesMenuSummary
 import com.miruplay.tv.model.settingsWebUiAccessTokenLabel
 import com.miruplay.tv.model.settingsWebUiAddressLabel
 import com.miruplay.tv.model.settingsWebUiAvailableAddressesLabel
 import com.miruplay.tv.model.settingsWebUiDisabledStatus
+import com.miruplay.tv.model.settingsWebUiMenuSummary
 import com.miruplay.tv.model.settingsWebUiNoLanAddressStatus
 import com.miruplay.tv.model.settingsWebUiPanelDescription
 import com.miruplay.tv.model.settingsWebUiPanelTitleLabel
@@ -200,6 +201,7 @@ import com.miruplay.tv.model.rssSubscriptionStateActionLabel
 import com.miruplay.tv.model.rssSubscriptionUrlFieldLabel
 import com.miruplay.tv.model.rssSubscriptionsTitleLabel
 import com.miruplay.tv.model.prepareRssSubscriptionForm
+import com.miruplay.tv.model.saveBangumiTokenFormResult
 import com.miruplay.tv.model.shouldClearFormAfterSubmit
 import com.miruplay.tv.model.parseCloudDriveIntervalMinutes
 import com.miruplay.tv.model.parseRssProxyPort
@@ -230,6 +232,9 @@ import com.google.zxing.common.BitMatrix
 import com.google.zxing.qrcode.QRCodeWriter
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import kotlinx.coroutines.delay
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 private const val DEFAULT_LOCAL_PATH = "/storage/emulated/0/Download"
 private const val QR_CODE_MATRIX_SIZE = 96
@@ -481,11 +486,15 @@ fun AddSourceScreen(
                     tokenSaved = tokenSaved,
                     onTokenChange = { tokenInput = it },
                     onSaveToken = {
-                        val result = viewModel.saveBangumiToken(tokenInput)
-                        if (result.shouldClearInput) {
+                        val result = saveBangumiTokenFormResult(
+                            input = tokenInput,
+                            existingToken = savedToken,
+                        )
+                        if (result.shouldPersistTokenInput) {
+                            viewModel.saveBangumiToken(tokenInput)
                             tokenInput = ""
+                            tokenSaved = result.configured
                         }
-                        tokenSaved = result.configured
                     },
                     onClearToken = {
                         viewModel.clearBangumiToken()
@@ -562,6 +571,7 @@ fun AddSourceScreen(
                             webDavSourceId = cloudWebDavSourceId,
                             inboxPath = cloudInboxPath,
                             libraryPath = cloudLibraryPath,
+                            libraryMode = cloudLibraryMode,
                             intervalMinutes = parseCloudDriveIntervalMinutes(cloudIntervalMinutes),
                             enabled = cloudEnabled,
                             rssProxyEnabled = rssProxyEnabled,
@@ -640,13 +650,13 @@ private fun SettingsHeader(onNavigateBack: () -> Unit) {
     ) {
         Column {
             Text(
-                text = settingsScreenTitleLabel(),
+                text = "设置",
                 style = TvTypography.title,
                 color = TextPrimary
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = settingsScreenSubtitleLabel(),
+                text = "管理媒体源、WebUI 和元数据服务",
                 style = TvTypography.body,
                 color = TextSecondary
             )
@@ -670,25 +680,15 @@ private fun SettingsMenuPanel(
     onSectionSelected: (MiruPlaySettingsSection) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val menuSummaryInput = SettingsSectionMenuSummaryInput(
-        webUiAddressCount = webUiAddressCount,
-        sourceCount = sourcesCount,
-        playbackSummary = playbackEndAction.playbackEndMenuSummary(),
-        cloudDriveEnabled = cloudDriveEnabled,
-        rssCount = rssCount,
-        autoScanEnabled = autoScanEnabled,
-        mergeSameAnimeEnabled = mergeSameAnimeEnabled,
-        metadataSummary = settingsMetadataTokenMenuSummary(hasToken),
-    )
     SettingsPanel(modifier = modifier) {
         Text(
-            text = settingsMenuPanelTitle(),
+            text = "设置菜单",
             style = TvTypography.subtitle,
             color = TextPrimary
         )
         Spacer(Modifier.height(6.dp))
         Text(
-            text = settingsMenuPanelDescriptionAndroidTv(),
+            text = "按上下切换分类，向右进入当前设置。",
             style = TvTypography.caption,
             color = TextSecondary
         )
@@ -701,9 +701,18 @@ private fun SettingsMenuPanel(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             itemsIndexed(androidTvSettingsSectionOrder) { index, section ->
+                val summary = when (section) {
+                    MiruPlaySettingsSection.WEB_UI -> settingsWebUiMenuSummary(webUiAddressCount)
+                    MiruPlaySettingsSection.SOURCES -> settingsSourcesMenuSummary(sourcesCount)
+                    MiruPlaySettingsSection.PLAYBACK -> playbackEndAction.menuSummary()
+                    MiruPlaySettingsSection.CLOUD_DRIVE -> settingsCloudDriveMenuSummary(cloudDriveEnabled, rssCount)
+                    MiruPlaySettingsSection.SCAN -> settingsScanMenuSummary(autoScanEnabled, mergeSameAnimeEnabled)
+                    MiruPlaySettingsSection.LOG_UPLOAD -> "在桌面端配置"
+                    MiruPlaySettingsSection.METADATA -> settingsMetadataTokenMenuSummary(hasToken)
+                }
                 SettingsMenuItem(
                     section = section,
-                    summary = section.settingsMenuSummary(menuSummaryInput),
+                    summary = summary,
                     selected = section == selectedSection,
                     onClick = { onSectionSelected(section) },
                     modifier = Modifier.focusRequester(menuFocusRequesters.getValue(section))
@@ -775,28 +784,6 @@ private fun SettingsMenuItem(
             )
         }
     }
-}
-
-internal fun settingsSourceListMenuBridgeKeyEvent(
-    key: Key,
-    type: KeyEventType,
-    onFocusMenu: () -> Unit,
-): Boolean =
-    settingsSourceListMenuBridgeIntent(
-        intent = key.toMiruPlayInputIntent(),
-        type = type,
-        onFocusMenu = onFocusMenu,
-    )
-
-internal fun settingsSourceListMenuBridgeIntent(
-    intent: MiruPlayInputIntent?,
-    type: KeyEventType,
-    onFocusMenu: () -> Unit,
-): Boolean {
-    if (type != KeyEventType.KeyDown) return false
-    if (intent != MiruPlayInputIntent.DirectionLeft) return false
-    onFocusMenu()
-    return true
 }
 
 @Composable
@@ -928,11 +915,15 @@ private fun SettingsContent(
                     .fillMaxHeight()
                     .focusProperties { left = menuFocusRequester }
                     .onPreviewKeyEvent { event ->
-                        settingsSourceListMenuBridgeKeyEvent(
-                            key = event.key,
-                            type = event.type,
-                            onFocusMenu = { menuFocusRequester.requestFocus() },
-                        )
+                        if (
+                            event.type == KeyEventType.KeyDown &&
+                            event.key.toMiruPlayInputIntent() == MiruPlayInputIntent.DirectionLeft
+                        ) {
+                            menuFocusRequester.requestFocus()
+                            true
+                        } else {
+                            false
+                        }
                     }
             )
             Column(
@@ -1889,12 +1880,12 @@ private fun CloudDriveAutomationPanel(
 
         Spacer(Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            CloudDrivePathSelectorField(
-                value = inboxPath,
-                onValueChange = onInboxPathChange,
-                label = cloudDriveRssInboxPathFieldLabel(),
-                canPick = canPickCloudDriveDirectory,
-                onPick = onPickCloudInboxPath,
+            ScanOptionChip(
+                text = cloudDriveRssLibraryModeOrganizedLabel(),
+                icon = Icons.Filled.Folder,
+                selected = cloudLibraryMode == CloudDriveLibraryMode.ORGANIZED_LIBRARY,
+                enabled = true,
+                onClick = { onCloudLibraryModeChange(CloudDriveLibraryMode.ORGANIZED_LIBRARY) },
                 modifier = Modifier.weight(1f)
             )
             ScanOptionChip(
@@ -2236,7 +2227,7 @@ private fun RssSubscriptionRow(
             )
             Text(
                 text = rssSubscriptionLastCheckedLabel(
-                    subscription.lastCheckedAt
+                    subscription.lastCheckedAt.takeIf { it > 0 }?.let(::formatTimestamp)
                 ),
                 style = TvTypography.caption,
                 color = TextSecondary
@@ -2560,7 +2551,7 @@ private fun ScanPanel(
         }
         Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            scanPreferencesIntervalOptionsHours.forEach { hours ->
+            ScanPreferencesManager.INTERVAL_OPTIONS_HOURS.forEach { hours ->
                 ScanOptionChip(
                     text = settingsScanIntervalOptionLabel(hours),
                     selected = autoScanEnabled && hours == autoScanIntervalHours,
@@ -2573,7 +2564,7 @@ private fun ScanPanel(
 
         StatusMessage(
             icon = Icons.Filled.CheckCircle,
-            text = settingsCurrentScanIntervalStatus(autoScanIntervalHours, lastScanAt),
+            text = settingsCurrentScanIntervalStatus(autoScanIntervalHours, formatLastScanAt(lastScanAt)),
             color = if (autoScanEnabled) ProgressGreen else TextSecondary
         )
 
@@ -2715,6 +2706,11 @@ private fun ScanOptionChip(
     }
 }
 
+private fun PlaybackEndAction.menuSummary(): String = when (this) {
+    PlaybackEndAction.RETURN_TO_DETAIL -> playbackEndReturnToDetailSummary()
+    PlaybackEndAction.PLAY_NEXT_EPISODE -> playbackEndPlayNextEpisodeSummary()
+}
+
 @Composable
 private fun MetadataPanel(
     savedToken: String,
@@ -2837,6 +2833,14 @@ private fun createQrCodeMatrix(content: String): BitMatrix? {
         )
     }.getOrNull()
 }
+
+private fun formatLastScanAt(lastScanAt: Long): String {
+    if (lastScanAt <= 0L) return "还没有扫描记录"
+    return "上次扫描 " + SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(lastScanAt))
+}
+
+private fun formatTimestamp(timestamp: Long): String =
+    SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(timestamp))
 
 private fun MediaSourceType.sourceIcon(): ImageVector = when (this) {
     MediaSourceType.LOCAL -> Icons.Filled.Folder

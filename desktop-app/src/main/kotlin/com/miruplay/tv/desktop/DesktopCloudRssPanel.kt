@@ -55,6 +55,7 @@ import com.miruplay.tv.design.nextEnabledFocusIndex
 import com.miruplay.tv.design.verticalNavigationDelta
 import com.miruplay.tv.model.CLOUD_DRIVE_DIRECTORY_PAGE_SIZE
 import com.miruplay.tv.model.CLOUD_RSS_SUBSCRIPTION_PAGE_SIZE
+import com.miruplay.tv.model.CloudDriveLibraryMode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MiruPlaySettingsSection
 import com.miruplay.tv.model.RssSubscriptionInfo
@@ -67,6 +68,9 @@ import com.miruplay.tv.model.cloudDriveRssChooseDirectoryActionLabel
 import com.miruplay.tv.model.cloudDriveRssCloseActionLabel
 import com.miruplay.tv.model.cloudDriveRssDirectoryBadgeLabel
 import com.miruplay.tv.model.cloudDriveRssEmptyDirectoryMessage
+import com.miruplay.tv.model.cloudDriveRssInboxPathFieldLabel
+import com.miruplay.tv.model.cloudDriveRssLibraryModeOrganizedLabel
+import com.miruplay.tv.model.cloudDriveRssLibraryModeSingleDirectoryLabel
 import com.miruplay.tv.model.cloudDriveRssLoadingDirectoriesMessage
 import com.miruplay.tv.model.cloudDriveRssParentDirectoryActionLabel
 import com.miruplay.tv.model.cloudDriveRssRuntimeTitleLabel
@@ -143,6 +147,8 @@ internal fun CloudRssPanel(
     onInboxPathChange: (String) -> Unit,
     libraryPath: String,
     onLibraryPathChange: (String) -> Unit,
+    libraryMode: CloudDriveLibraryMode,
+    onLibraryModeChange: (CloudDriveLibraryMode) -> Unit,
     directoryBrowser: CloudDriveDirectoryBrowserState,
     onPickCloudDriveDirectory: (CloudDriveDirectoryTarget) -> Unit,
     onBrowseCloudDriveDirectory: (String) -> Unit,
@@ -428,6 +434,8 @@ private fun CloudRssAutomationContent(
     onInboxPathChange: (String) -> Unit,
     libraryPath: String,
     onLibraryPathChange: (String) -> Unit,
+    libraryMode: CloudDriveLibraryMode,
+    onLibraryModeChange: (CloudDriveLibraryMode) -> Unit,
     directoryBrowser: CloudDriveDirectoryBrowserState,
     onPickCloudDriveDirectory: (CloudDriveDirectoryTarget) -> Unit,
     onBrowseCloudDriveDirectory: (String) -> Unit,
@@ -2362,3 +2370,41 @@ internal fun List<RssSubscriptionInfo>.rssSubscriptionNavigationTarget(
         itemCount = size,
     )?.let(::get)
 }
+
+internal fun cloudRssSyncPathPreview(
+    libraryMode: CloudDriveLibraryMode,
+    inboxPath: String,
+    libraryPath: String,
+    maxLength: Int = 86,
+): String =
+    when (libraryMode) {
+        CloudDriveLibraryMode.SINGLE_DIRECTORY -> cloudRssPreview(
+            inboxPath,
+            fallback = cloudDriveRssInboxPathFieldLabel(),
+            maxLength = maxLength,
+        )
+        CloudDriveLibraryMode.ORGANIZED_LIBRARY -> cloudRssPathPairPreview(
+            inboxPath = inboxPath,
+            libraryPath = libraryPath,
+            maxLength = maxLength,
+        )
+    }
+
+private fun desktopLogUploadSettingsTiles(): List<SettingsSummaryTile> =
+    listOf(
+        SettingsSummaryTile(
+            label = "OpenObserve",
+            value = "JSON",
+            detail = "API 地址、Stream 和访问令牌由 Android TV 设置页保存。",
+        ),
+        SettingsSummaryTile(
+            label = "本地日志",
+            value = "自动上报",
+            detail = "应用日志进入本地队列后按配置批量发送。",
+        ),
+        SettingsSummaryTile(
+            label = "凭据",
+            value = "安全存储",
+            detail = "令牌只保存配置状态，清理后会停止上报。",
+        ),
+    )
