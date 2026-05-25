@@ -8,6 +8,7 @@ import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import org.junit.Assume.assumeTrue
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
@@ -15,6 +16,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 import java.nio.file.Files
+import java.util.concurrent.TimeUnit
 import kotlin.io.path.createTempFile
 
 class CloudDriveLiveSmokeTest {
@@ -160,6 +162,12 @@ class CloudDriveLiveSmokeTest {
 
     @Test
     fun `sample cloud drive report passes assertion script`() {
+        val powerShellCommand = resolvePowerShellCommand()
+        assumeTrue(
+            "PowerShell is required for assert-cloud-drive-report.ps1 smoke assertion.",
+            powerShellCommand != null
+        )
+
         val reportStream = requireNotNull(
             javaClass.classLoader.getResourceAsStream("cloud-drive-sample-report.json")
         )
@@ -169,7 +177,7 @@ class CloudDriveLiveSmokeTest {
         }
         val scriptFile = File("..", "tools/assert-cloud-drive-report.ps1").canonicalFile
         val process = ProcessBuilder(
-            "powershell.exe",
+            powerShellCommand!!,
             "-NoProfile",
             "-ExecutionPolicy",
             "Bypass",
@@ -188,6 +196,35 @@ class CloudDriveLiveSmokeTest {
         val exitCode = process.waitFor()
         Files.deleteIfExists(reportFile.toPath())
         assertEquals("assert-cloud-drive-report.ps1 should pass.\n$output", 0, exitCode)
+    }
+
+    private fun resolvePowerShellCommand(): String? {
+        val isWindows = System.getProperty("os.name").lowercase().contains("windows")
+        val candidates =
+            if (isWindows) {
+                listOf("powershell.exe", "pwsh.exe", "pwsh")
+            } else {
+                listOf("pwsh")
+            }
+
+        return candidates.firstOrNull { isCommandAvailable(it) }
+    }
+
+    private fun isCommandAvailable(command: String): Boolean {
+        val probeProcess = runCatching {
+            ProcessBuilder(command, "-NoProfile", "-Command", "exit 0")
+                .redirectErrorStream(true)
+                .start()
+        }.getOrElse {
+            return false
+        }
+
+        val finished = probeProcess.waitFor(10, TimeUnit.SECONDS)
+        if (!finished) {
+            probeProcess.destroyForcibly()
+            return false
+        }
+        return probeProcess.exitValue() == 0
     }
 
     private class FakeCloudDriveClient(
