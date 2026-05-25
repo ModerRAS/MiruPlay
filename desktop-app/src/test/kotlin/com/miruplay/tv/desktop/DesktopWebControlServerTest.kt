@@ -10,6 +10,7 @@ import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfoConventions
+import com.miruplay.tv.repository.OtlpLogUploadConfig
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.desktop.DesktopRepositories
@@ -795,6 +796,68 @@ class DesktopWebControlServerTest {
                 )
                 assertEquals(200, clearBangumi.code)
                 assertTrue(clearBangumi.body.contains("\"bangumiTokenConfigured\":false"))
+            } finally {
+                server.stopIfRunning()
+            }
+        } finally {
+            storePath.parent.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `desktop web control save endpoints trigger shared config hooks`() = runBlocking {
+        val storePath = Files.createTempDirectory("miruplay-web-control-store").resolve("store.json")
+        val port = freePort()
+        try {
+            val repositories = DesktopRepositories.fileBacked(storePath)
+            repositories.webControlAccess.webControlEnabled = true
+            val token = repositories.webControlAccess.accessToken
+            val savedCloudConfigs = mutableListOf<CloudDriveAutomationConfig>()
+            val savedLogUploadConfigs = mutableListOf<OtlpLogUploadConfig>()
+            val service = DesktopWebControlService(
+                repositories = repositories,
+                onCloudDriveConfigSaved = { config -> savedCloudConfigs += config },
+                onLogUploadConfigSaved = { config -> savedLogUploadConfigs += config },
+                deviceName = "Windows Test",
+            )
+            val server = DesktopWebControlServer(
+                webControlService = service,
+                webControlAccess = repositories.webControlAccess,
+                port = port,
+            )
+            server.startIfNeeded()
+            try {
+                val savedCloudConfig = request(
+                    url = "http://127.0.0.1:$port/api/cloud-drive/config?token=$token",
+                    method = "PUT",
+                    body = """
+                        {
+                          "endpointUrl":"http://cloud.test",
+                          "username":"miru",
+                          "inboxPath":"/Downloads",
+                          "libraryPath":"/Library",
+                          "libraryMode":"ORGANIZED_LIBRARY",
+                          "intervalMinutes":30,
+                          "enabled":true
+                        }
+                    """.trimIndent(),
+                )
+                assertEquals(200, savedCloudConfig.code)
+                assertEquals(1, savedCloudConfigs.size)
+                assertEquals("http://cloud.test", savedCloudConfigs.single().endpointUrl)
+                assertEquals("miru", savedCloudConfigs.single().username)
+                assertEquals(true, savedCloudConfigs.single().enabled)
+
+                val savedLogUploadConfig = request(
+                    url = "http://127.0.0.1:$port/api/log-upload/config?token=$token",
+                    method = "PUT",
+                    body = """{"enabled":true,"endpoint":" https://openobserve.example.com/api/default ","streamName":" "}""",
+                )
+                assertEquals(200, savedLogUploadConfig.code)
+                assertEquals(1, savedLogUploadConfigs.size)
+                assertEquals(true, savedLogUploadConfigs.single().enabled)
+                assertEquals("https://openobserve.example.com/api/default", savedLogUploadConfigs.single().endpoint)
+                assertEquals("miruplay", savedLogUploadConfigs.single().streamName)
             } finally {
                 server.stopIfRunning()
             }

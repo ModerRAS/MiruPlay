@@ -548,6 +548,12 @@ internal fun MiruPlayDesktopComposeApp(
             repositories = repositories,
             cloudDriveClient = cloudDriveClient,
             cloudRssEngine = cloudRssEngine,
+            onCloudDriveConfigSaved = { config ->
+                cloudRssScheduler.syncPeriodicWork(config)
+            },
+            onLogUploadConfigSaved = { config ->
+                logUploadAutoScheduler.syncWithConfig(config)
+            },
             playbackStatusProvider = {
                 desktopWebControlPlaybackStatus(
                     player = player,
@@ -830,6 +836,33 @@ internal fun MiruPlayDesktopComposeApp(
             .distinctUntilChanged()
             .collect {
                 logUploadAutoScheduler.syncWithConfig(repositories.logUpload.getConfig())
+            }
+    }
+
+    LaunchedEffect(repositories, cloudRssScheduler) {
+        repositories.cloudDriveAutomation.observeConfig()
+            .collect { config ->
+                cloudEndpointUrl = config.endpointUrl
+                cloudUsername = config.username
+                cloudLinkedSourceId = config.webDavSourceId
+                cloudInboxPath = config.inboxPath
+                cloudLibraryPath = config.libraryPath
+                cloudLibraryMode = config.libraryMode
+                cloudIntervalMinutes = config.intervalMinutes.toString()
+                cloudEnabled = config.enabled
+                rssProxyEnabled = config.rssProxyEnabled
+                rssProxyHost = config.rssProxyHost
+                rssProxyPort = config.rssProxyPort.toString()
+                cloudRssScheduler.syncPeriodicWork(config)
+            }
+    }
+
+    LaunchedEffect(repositories) {
+        repositories.cloudDriveAutomation.observeSubscriptions()
+            .collect { subscriptions ->
+                rssSubscriptions = subscriptions
+                selectedRssSubscription = selectedRssSubscription.retainedSelectionInRssSubscriptions(subscriptions)
+                cloudRssStatus = rssSubscriptionsShowingStatus(subscriptions.size)
             }
     }
 
