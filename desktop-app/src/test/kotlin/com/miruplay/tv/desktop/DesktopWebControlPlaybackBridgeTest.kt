@@ -164,6 +164,41 @@ class DesktopWebControlPlaybackBridgeTest {
     }
 
     @Test
+    fun `desktop WebUI seek command clamps to observed duration`() = runBlocking {
+        val mpv = Files.createTempFile("miruplay-mpv", ".exe")
+        try {
+            val ipc = FakeMpvIpcController(positionSeconds = 110.0, durationSeconds = 120.0)
+            val player = MpvProcessPlayer(
+                config = MpvRuntimeConfig(mpvExecutable = mpv, rife = null),
+                processLauncher = { AliveProcess() },
+                ipcClient = ipc,
+            )
+            player.play(PlaybackSource(uri = "D:/Anime/Frieren.mkv", mediaSourceId = "7"))
+            val session = PlaybackProgressSession(
+                episodeId = "7:D:/Anime/Frieren.mkv",
+                startPositionMs = 5_000L,
+                nowMillis = { 1_000L },
+            )
+
+            val status = desktopWebControlPlaybackCommand(
+                request = PlaybackCommandRequest(command = "seek", positionMs = 200_000L),
+                player = player,
+                session = session,
+                mediaPath = "D:/Anime/Frieren.mkv",
+                launchStatus = "playing",
+                stopPlayback = {},
+            )
+
+            assertEquals("Playing", status.state)
+            assertEquals(120_000L, status.positionMs)
+            assertEquals(120_000L, session.currentPositionMs())
+            assertEquals(listOf(10.0), ipc.seekBySeconds)
+        } finally {
+            Files.deleteIfExists(mpv)
+        }
+    }
+
+    @Test
     fun `source selection reuses active local source and does not own it`() = runBlocking {
         val sourceInfo = localSource(id = 7L, rootPath = "D:/Anime")
         val activeLocalSource = DesktopLocalMediaSource(sourceInfo)
@@ -404,12 +439,14 @@ class DesktopWebControlPlaybackBridgeTest {
     }
 
     private class FakeMpvIpcController(
-        private val positionSeconds: Double? = null,
+        positionSeconds: Double? = null,
         private val durationSeconds: Double? = null,
         private val paused: Boolean? = null,
     ) : MpvIpcController {
+        private var positionSeconds: Double? = positionSeconds
         val pausedValues = mutableListOf<Boolean>()
         val speedValues = mutableListOf<Double>()
+        val seekBySeconds = mutableListOf<Double>()
 
         override suspend fun cyclePause(): Result<Unit> =
             Result.success(Unit)
@@ -424,8 +461,11 @@ class DesktopWebControlPlaybackBridgeTest {
             return Result.success(Unit)
         }
 
-        override suspend fun seekBy(seconds: Double, mode: MpvSeekMode): Result<Unit> =
-            Result.success(Unit)
+        override suspend fun seekBy(seconds: Double, mode: MpvSeekMode): Result<Unit> {
+            seekBySeconds += seconds
+            positionSeconds = positionSeconds?.let { (it + seconds).coerceAtLeast(0.0) }
+            return Result.success(Unit)
+        }
 
         override suspend fun quit(): Result<Unit> =
             Result.success(Unit)

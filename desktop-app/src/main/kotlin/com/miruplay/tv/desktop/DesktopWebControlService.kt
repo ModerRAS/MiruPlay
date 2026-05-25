@@ -336,17 +336,20 @@ private class DesktopMpvWebControlPlaybackCommandTarget(
         session?.syncPosition(positionMs)
     }
 
-    override suspend fun seekBy(deltaMs: Long) {
-        player.seekBy(deltaMs / MILLIS_PER_SECOND_DOUBLE)
-        session?.seekBy(deltaMs / MILLIS_PER_SECOND_DOUBLE)
-    }
-
     override suspend fun setPlaybackSpeed(speed: Float) {
         player.setSpeed(speed.toDouble())
     }
 
-    override suspend fun currentPositionMs(): Long =
-        session?.currentPositionMs() ?: 0L
+    override suspend fun currentPositionMs(): Long {
+        val observedPositionMs = player.queryTimePositionMs().getOrNull()
+        if (observedPositionMs != null) {
+            session?.syncPosition(observedPositionMs)
+        }
+        return observedPositionMs ?: session?.currentPositionMs() ?: 0L
+    }
+
+    override suspend fun durationMs(): Long =
+        player.queryDurationMs().getOrNull() ?: 0L
 }
 
 private fun idlePlaybackStatus(): PlaybackStatusDto =

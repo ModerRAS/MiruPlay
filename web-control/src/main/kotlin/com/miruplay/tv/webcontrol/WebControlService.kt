@@ -232,4 +232,7 @@ private class AndroidWebControlPlaybackCommandTarget(
 
     override suspend fun currentPositionMs(): Long =
         playbackController.getCurrentPosition()
+
+    override suspend fun durationMs(): Long =
+        playbackController.getDuration()
 }

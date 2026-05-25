@@ -7,6 +7,7 @@ import com.miruplay.tv.model.PLAYBACK_SEEK_BACK_SECONDS
 import com.miruplay.tv.model.PLAYBACK_SEEK_FORWARD_SECONDS
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.PlaybackState
+import com.miruplay.tv.model.PlaybackTimingConventions
 import com.miruplay.tv.player.AudioTrack
 import com.miruplay.tv.player.PlaybackController
 import com.miruplay.tv.model.SubtitleTrack
@@ -205,12 +206,7 @@ class PlayerViewModel @Inject constructor(
         pendingSeekPositionMs ?: _currentPosition.value
 
     private fun coerceSeekPosition(positionMs: Long): Long {
-        val durationMs = _duration.value
-        return if (durationMs > 0L) {
-            positionMs.coerceIn(0L, durationMs)
-        } else {
-            positionMs.coerceAtLeast(0L)
-        }
+        return PlaybackTimingConventions.coercePlaybackPositionMs(positionMs, _duration.value)
     }
 
     private fun refreshTracks() {

@@ -39,6 +39,16 @@ class WebControlPlaybackCommandTest {
             PlaybackCommandRequest(command = "seek_relative", deltaMs = -20_000L)
                 .seekTargetPositionMs(currentPositionMs = 12_000L),
         )
+        assertEquals(
+            30_000L,
+            PlaybackCommandRequest(command = "seek", positionMs = 45_000L)
+                .seekTargetPositionMs(currentPositionMs = 12_000L, durationMs = 30_000L),
+        )
+        assertEquals(
+            30_000L,
+            PlaybackCommandRequest(command = "seek_relative", deltaMs = 45_000L)
+                .seekTargetPositionMs(currentPositionMs = 12_000L, durationMs = 30_000L),
+        )
     }
 
     @Test
@@ -122,8 +132,29 @@ class WebControlPlaybackCommandTest {
         )
     }
 
+    @Test
+    fun `execute seek commands clamp to target duration`() = runBlocking {
+        val target = RecordingPlaybackCommandTarget(
+            currentPositionMs = 12_000L,
+            durationMs = 15_000L,
+        )
+
+        PlaybackCommandRequest(command = "seek", positionMs = 45_000L)
+            .executeWebControlPlaybackCommand(target)
+        PlaybackCommandRequest(command = "skip_forward")
+            .executeWebControlPlaybackCommand(target)
+        PlaybackCommandRequest(command = "seek_relative", deltaMs = -20_000L)
+            .executeWebControlPlaybackCommand(target)
+
+        assertEquals(
+            listOf(15_000L, 15_000L, 0L),
+            target.seekPositions,
+        )
+    }
+
     private class RecordingPlaybackCommandTarget(
         private val currentPositionMs: Long,
+        private val durationMs: Long = 0L,
     ) : WebControlPlaybackCommandTarget {
         val actions = mutableListOf<String>()
         val seekPositions = mutableListOf<Long>()
@@ -154,5 +185,8 @@ class WebControlPlaybackCommandTest {
 
         override suspend fun currentPositionMs(): Long =
             currentPositionMs
+
+        override suspend fun durationMs(): Long =
+            durationMs
     }
 }

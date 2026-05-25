@@ -2,6 +2,7 @@ package com.miruplay.tv.webcontrol
 
 import com.miruplay.tv.model.PLAYBACK_SEEK_BACK_SECONDS
 import com.miruplay.tv.model.PLAYBACK_SEEK_FORWARD_SECONDS
+import com.miruplay.tv.model.PlaybackTimingConventions
 
 enum class WebControlPlaybackCommandKind {
     PAUSE,
@@ -30,8 +31,8 @@ fun PlaybackCommandRequest.playbackCommandKind(): WebControlPlaybackCommandKind 
         else -> WebControlPlaybackCommandKind.UNKNOWN
     }
 
-fun PlaybackCommandRequest.absoluteSeekPositionMs(): Long =
-    (positionMs ?: 0L).coerceAtLeast(0L)
+fun PlaybackCommandRequest.absoluteSeekPositionMs(durationMs: Long = 0L): Long =
+    PlaybackTimingConventions.coercePlaybackPositionMs(positionMs ?: 0L, durationMs)
 
 fun PlaybackCommandRequest.relativeSeekDeltaMs(): Long =
     deltaMs ?: 0L
@@ -42,15 +43,15 @@ fun PlaybackCommandRequest.skipForwardDeltaMs(): Long =
 fun PlaybackCommandRequest.skipBackwardDeltaMs(): Long =
     deltaMs ?: PLAYBACK_SEEK_BACK_SECONDS * MILLIS_PER_SECOND
 
-fun PlaybackCommandRequest.seekTargetPositionMs(currentPositionMs: Long): Long? =
+fun PlaybackCommandRequest.seekTargetPositionMs(currentPositionMs: Long, durationMs: Long = 0L): Long? =
     when (playbackCommandKind()) {
-        WebControlPlaybackCommandKind.SEEK -> absoluteSeekPositionMs()
+        WebControlPlaybackCommandKind.SEEK -> absoluteSeekPositionMs(durationMs)
         WebControlPlaybackCommandKind.SEEK_RELATIVE ->
-            (currentPositionMs + relativeSeekDeltaMs()).coerceAtLeast(0L)
+            PlaybackTimingConventions.coercePlaybackPositionMs(currentPositionMs + relativeSeekDeltaMs(), durationMs)
         WebControlPlaybackCommandKind.SKIP_FORWARD ->
-            (currentPositionMs + skipForwardDeltaMs()).coerceAtLeast(0L)
+            PlaybackTimingConventions.coercePlaybackPositionMs(currentPositionMs + skipForwardDeltaMs(), durationMs)
         WebControlPlaybackCommandKind.SKIP_BACKWARD ->
-            (currentPositionMs - skipBackwardDeltaMs()).coerceAtLeast(0L)
+            PlaybackTimingConventions.coercePlaybackPositionMs(currentPositionMs - skipBackwardDeltaMs(), durationMs)
         else -> null
     }
 
@@ -65,10 +66,21 @@ suspend fun PlaybackCommandRequest.executeWebControlPlaybackCommand(
         WebControlPlaybackCommandKind.RESUME -> target.resume()
         WebControlPlaybackCommandKind.TOGGLE -> target.toggle()
         WebControlPlaybackCommandKind.STOP -> target.stop()
-        WebControlPlaybackCommandKind.SEEK -> target.seekTo(absoluteSeekPositionMs())
-        WebControlPlaybackCommandKind.SEEK_RELATIVE -> target.seekBy(relativeSeekDeltaMs())
-        WebControlPlaybackCommandKind.SKIP_FORWARD -> target.seekBy(skipForwardDeltaMs())
-        WebControlPlaybackCommandKind.SKIP_BACKWARD -> target.seekBy(-skipBackwardDeltaMs())
+        WebControlPlaybackCommandKind.SEEK -> {
+            target.seekTo(absoluteSeekPositionMs(target.durationMs()))
+        }
+        WebControlPlaybackCommandKind.SEEK_RELATIVE,
+        WebControlPlaybackCommandKind.SKIP_FORWARD,
+        WebControlPlaybackCommandKind.SKIP_BACKWARD -> {
+            target.seekTo(
+                requireNotNull(
+                    seekTargetPositionMs(
+                        currentPositionMs = target.currentPositionMs(),
+                        durationMs = target.durationMs(),
+                    ),
+                ),
+            )
+        }
         WebControlPlaybackCommandKind.SPEED -> target.setPlaybackSpeed(playbackSpeed())
         WebControlPlaybackCommandKind.UNKNOWN -> throw IllegalArgumentException("未知播放命令: $command")
     }
@@ -82,9 +94,15 @@ interface WebControlPlaybackCommandTarget {
     suspend fun seekTo(positionMs: Long)
     suspend fun setPlaybackSpeed(speed: Float)
     suspend fun currentPositionMs(): Long
+    suspend fun durationMs(): Long = 0L
 
     suspend fun seekBy(deltaMs: Long) {
-        seekTo((currentPositionMs() + deltaMs).coerceAtLeast(0L))
+        seekTo(
+            PlaybackTimingConventions.coercePlaybackPositionMs(
+                currentPositionMs() + deltaMs,
+                durationMs(),
+            ),
+        )
     }
 }
 
