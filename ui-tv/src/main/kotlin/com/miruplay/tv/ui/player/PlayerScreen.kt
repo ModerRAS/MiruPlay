@@ -82,6 +82,7 @@ import com.miruplay.tv.model.PlaybackState
 import com.miruplay.tv.model.PLAYBACK_SEEK_BACK_SECONDS
 import com.miruplay.tv.model.PLAYBACK_SEEK_FORWARD_SECONDS
 import com.miruplay.tv.model.SubtitleTrack
+import com.miruplay.tv.model.PlaybackTimingConventions
 import com.miruplay.tv.model.displayTitle
 import com.miruplay.tv.model.formatPlaybackPosition
 import com.miruplay.tv.model.playbackAudioMenuTitle
@@ -514,11 +515,7 @@ private fun PlayerBottomBar(
         ) {
             TimeText(formatPlaybackPosition(currentPosition))
             PlaybackTimeline(
-                progress = if (duration > 0L) {
-                    currentPosition.toFloat() / duration.toFloat()
-                } else {
-                    0f
-                },
+                progress = PlaybackTimingConventions.playbackProgressFraction(currentPosition, duration),
                 modifier = Modifier
                     .weight(1f)
                     .padding(horizontal = 18.dp)

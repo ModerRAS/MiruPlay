@@ -19,8 +19,7 @@ fun Episode.resumePosition(progress: ProgressRecord?): Long {
 
 fun Episode.progressFraction(progress: ProgressRecord?): Float {
     val record = progress ?: return 0f
-    val total = duration.takeIf { it > 0L } ?: return 0f
-    return (coercePlaybackPosition(record.positionMs).toFloat() / total.toFloat()).coerceIn(0f, 1f)
+    return PlaybackTimingConventions.playbackProgressFraction(record.positionMs, duration)
 }
 
 fun Episode.progressLabel(progress: ProgressRecord?): String {

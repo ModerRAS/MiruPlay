@@ -719,4 +719,19 @@ class DesktopPlaybackPanelTest {
         assertEquals("00:00", playbackStartPositionLabel(""))
         assertEquals("01:30", playbackStartPositionLabel("90"))
     }
+
+    @Test
+    fun `desktop player timeline uses live position while mpv is active`() {
+        assertEquals("01:00", desktopPlaybackTimelineStartLabel(true, 60_000L, "90"))
+        assertEquals("02:00", desktopPlaybackTimelineDurationLabel(120_000L))
+        assertEquals(0.5f, desktopPlaybackTimelineProgress(true, 60_000L, 120_000L), 0.0001f)
+        assertEquals(1f, desktopPlaybackTimelineProgress(true, 180_000L, 120_000L), 0.0001f)
+    }
+
+    @Test
+    fun `desktop player timeline preserves start label while idle`() {
+        assertEquals("01:30", desktopPlaybackTimelineStartLabel(false, 60_000L, "90"))
+        assertEquals("--:--", desktopPlaybackTimelineDurationLabel(0L))
+        assertEquals(0f, desktopPlaybackTimelineProgress(false, 60_000L, 120_000L), 0.0001f)
+    }
 }

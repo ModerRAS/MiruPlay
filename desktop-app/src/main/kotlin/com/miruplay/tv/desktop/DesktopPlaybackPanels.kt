@@ -59,6 +59,8 @@ import com.miruplay.tv.design.desktopPlaybackStageAction
 import com.miruplay.tv.design.focusTargetAfter
 import com.miruplay.tv.design.horizontalNavigationDelta
 import com.miruplay.tv.design.verticalNavigationDelta
+import com.miruplay.tv.model.PlaybackTimingConventions
+import com.miruplay.tv.model.formatPlaybackPosition
 import com.miruplay.tv.model.mpvPlaybackSourceLine
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.mpvPlaybackStatusText
@@ -106,6 +108,8 @@ internal fun PlaybackPanel(
     playbackEndAction: PlaybackEndAction,
     onPlaybackEndActionChange: (PlaybackEndAction) -> Unit,
     isPlayerActive: Boolean,
+    playbackPositionMs: Long,
+    playbackDurationMs: Long,
     launchStatus: String,
     onBackToDetails: () -> Unit,
     onLaunch: () -> Unit,
@@ -156,6 +160,8 @@ internal fun PlaybackPanel(
             rifeEnabled = rifeEnabled,
             rifeBackend = rifeBackend,
             isPlayerActive = isPlayerActive,
+            playbackPositionMs = playbackPositionMs,
+            playbackDurationMs = playbackDurationMs,
             launchStatus = launchStatus,
             onBackToDetails = onBackToDetails,
             onLaunch = onLaunch,
@@ -205,6 +211,8 @@ private fun DesktopPlayerStage(
     rifeEnabled: Boolean,
     rifeBackend: RifeBackend,
     isPlayerActive: Boolean,
+    playbackPositionMs: Long,
+    playbackDurationMs: Long,
     launchStatus: String,
     onBackToDetails: () -> Unit,
     onLaunch: () -> Unit,
@@ -284,6 +292,9 @@ private fun DesktopPlayerStage(
         )
         PlayerStageBottomBar(
             startSeconds = startSeconds,
+            isPlayerActive = isPlayerActive,
+            playbackPositionMs = playbackPositionMs,
+            playbackDurationMs = playbackDurationMs,
             rifeEnabled = rifeEnabled,
             rifeBackend = rifeBackend,
             launchStatus = launchStatus,
@@ -799,6 +810,9 @@ private fun Modifier.runtimeNavigation(
 @Composable
 private fun PlayerStageBottomBar(
     startSeconds: String,
+    isPlayerActive: Boolean,
+    playbackPositionMs: Long,
+    playbackDurationMs: Long,
     rifeEnabled: Boolean,
     rifeBackend: RifeBackend,
     launchStatus: String,
@@ -811,14 +825,14 @@ private fun PlayerStageBottomBar(
             .padding(start = 36.dp, end = 36.dp, top = 18.dp, bottom = 26.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            TimeText(playbackStartPositionLabel(startSeconds))
+            TimeText(desktopPlaybackTimelineStartLabel(isPlayerActive, playbackPositionMs, startSeconds))
             PlaybackTimeline(
-                progress = 0f,
+                progress = desktopPlaybackTimelineProgress(isPlayerActive, playbackPositionMs, playbackDurationMs),
                 modifier = Modifier
                     .weight(1f)
                     .padding(horizontal = 18.dp),
             )
-            TimeText(playbackUnknownDurationLabel())
+            TimeText(desktopPlaybackTimelineDurationLabel(playbackDurationMs))
         }
         Spacer(Modifier.height(14.dp))
         Row(
@@ -839,6 +853,35 @@ private fun PlayerStageBottomBar(
         }
     }
 }
+
+internal fun desktopPlaybackTimelineStartLabel(
+    isPlayerActive: Boolean,
+    playbackPositionMs: Long,
+    startSeconds: String,
+): String =
+    if (isPlayerActive) {
+        formatPlaybackPosition(playbackPositionMs)
+    } else {
+        playbackStartPositionLabel(startSeconds)
+    }
+
+internal fun desktopPlaybackTimelineDurationLabel(playbackDurationMs: Long): String =
+    if (playbackDurationMs > 0L) {
+        formatPlaybackPosition(playbackDurationMs)
+    } else {
+        playbackUnknownDurationLabel()
+    }
+
+internal fun desktopPlaybackTimelineProgress(
+    isPlayerActive: Boolean,
+    playbackPositionMs: Long,
+    playbackDurationMs: Long,
+): Float =
+    if (isPlayerActive) {
+        PlaybackTimingConventions.playbackProgressFraction(playbackPositionMs, playbackDurationMs)
+    } else {
+        0f
+    }
 
 @Composable
 private fun PlaybackTimeline(

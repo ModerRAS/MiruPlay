@@ -514,6 +514,8 @@ internal fun MiruPlayDesktopComposeApp(
     var rifeBackend by remember { mutableStateOf(RifeBackend.NVIDIA) }
     var status by remember { mutableStateOf(mpvRuntimeStatusFromInputs(mpvPath, configDir)) }
     var launchStatus by remember { mutableStateOf(mpvIdleStatus()) }
+    var playbackPositionMs by remember { mutableStateOf(0L) }
+    var playbackDurationMs by remember { mutableStateOf(0L) }
     val webControlPlaybackHandlers = remember { DesktopWebControlPlaybackHandlers() }
     val desktopWebControlService = remember(repositories) {
         DesktopWebControlService(
@@ -610,6 +612,16 @@ internal fun MiruPlayDesktopComposeApp(
         if (source != null && source !== activeSource && source !== activeLocalSource) {
             source.close()
         }
+    }
+
+    fun resetDesktopPlaybackTimeline() {
+        playbackPositionMs = 0L
+        playbackDurationMs = 0L
+    }
+
+    fun applyDesktopPlaybackStatusToTimeline(status: com.miruplay.tv.webcontrol.PlaybackStatusDto) {
+        playbackPositionMs = status.positionMs.coerceAtLeast(0L)
+        playbackDurationMs = status.durationMs.coerceAtLeast(0L)
     }
 
     fun syncDesktopWebControlServer() {
@@ -895,6 +907,8 @@ internal fun MiruPlayDesktopComposeApp(
                 }
                 player = result.data.player
                 activePlaybackSession = result.data.session
+                playbackPositionMs = result.data.source.startPosition
+                playbackDurationMs = 0L
                 mediaPath = launchedMediaPath
                 startSeconds = PlaybackTimingConventions.formatMpvStartSeconds(result.data.source.startPosition)
                 if (path != previousMediaPath) {
@@ -982,13 +996,17 @@ internal fun MiruPlayDesktopComposeApp(
                     )
                     player = null
                     activePlaybackSession = null
+                    resetDesktopPlaybackTimeline()
                     clearWebControlPlaybackSource()
                     refreshRecentProgress()
                 },
             )
             launchStatus = webControlPlaybackCommandStatus(command)
             if (!statusDto.isPlaying && command.command.equals("stop", ignoreCase = true)) {
+                resetDesktopPlaybackTimeline()
                 selectedDesktopSection = MiruPlayRouteSurface.details
+            } else {
+                applyDesktopPlaybackStatusToTimeline(statusDto)
             }
             statusDto
         }
@@ -1006,6 +1024,15 @@ internal fun MiruPlayDesktopComposeApp(
             delay(PLAYBACK_EOF_POLL_INTERVAL_MS)
             if (player !== activePlayer || activePlaybackSession !== session) {
                 return@LaunchedEffect
+            }
+            activePlayer.queryTimePositionMs().getOrNull()?.let { positionMs ->
+                session.syncPosition(positionMs)
+                playbackPositionMs = positionMs
+            } ?: run {
+                playbackPositionMs = session.currentPositionMs()
+            }
+            activePlayer.queryDurationMs().getOrNull()?.takeIf { it > 0L }?.let { durationMs ->
+                playbackDurationMs = durationMs
             }
             if (activePlayer.queryEofReached().getOrNull() == true) {
                 val completed = saveDesktopPlaybackCompletionProgress(
@@ -1049,12 +1076,14 @@ internal fun MiruPlayDesktopComposeApp(
                             ) {
                                 is Result.Success -> Unit
                                 is Result.Error -> {
+                                    resetDesktopPlaybackTimeline()
                                     clearWebControlPlaybackSource()
                                     launchStatus = nextLaunch.error.toUserMessage()
                                     selectedDesktopSection = MiruPlayRouteSurface.details
                                 }
                             }
                         } else {
+                            resetDesktopPlaybackTimeline()
                             clearWebControlPlaybackSource()
                             launchStatus = mpvPlaybackCompletedStatus(completed.data)
                             selectedDesktopSection = MiruPlayRouteSurface.details
@@ -1077,6 +1106,7 @@ internal fun MiruPlayDesktopComposeApp(
                 )
                 player = null
                 activePlaybackSession = null
+                resetDesktopPlaybackTimeline()
                 clearWebControlPlaybackSource()
                 refreshRecentProgress()
                 launchStatus = mpvExitedStatus()
@@ -1099,6 +1129,7 @@ internal fun MiruPlayDesktopComposeApp(
                 is Result.Success -> {
                     val positionMs = synced.data
                     if (positionMs != null) {
+                        playbackPositionMs = positionMs
                         refreshRecentProgress()
                         launchStatus = mpvPositionSyncedStatus(positionMs)
                     }
@@ -2257,6 +2288,8 @@ internal fun MiruPlayDesktopComposeApp(
                         }
                     },
                     isPlayerActive = player != null,
+                    playbackPositionMs = playbackPositionMs,
+                    playbackDurationMs = playbackDurationMs,
                     launchStatus = launchStatus,
                     onBackToDetails = { selectedDesktopSection = MiruPlayRouteSurface.details },
                     onLaunch = {
@@ -2278,6 +2311,7 @@ internal fun MiruPlayDesktopComposeApp(
                             when (val result = activePlayer.togglePause()) {
                                 is Result.Success -> {
                                     activePlaybackSession?.togglePaused()
+                                    playbackPositionMs = activePlaybackSession?.currentPositionMs() ?: playbackPositionMs
                                     launchStatus = mpvPauseToggledStatus()
                                 }
                                 is Result.Error -> launchStatus = result.error.toUserMessage()
@@ -2294,6 +2328,7 @@ internal fun MiruPlayDesktopComposeApp(
                             when (val result = activePlayer.setPaused(false)) {
                                 is Result.Success -> {
                                     activePlaybackSession?.setPaused(false)
+                                    playbackPositionMs = activePlaybackSession?.currentPositionMs() ?: playbackPositionMs
                                     launchStatus = mpvResumedStatus()
                                 }
                                 is Result.Error -> launchStatus = result.error.toUserMessage()
@@ -2310,6 +2345,7 @@ internal fun MiruPlayDesktopComposeApp(
                             when (val result = activePlayer.setPaused(true)) {
                                 is Result.Success -> {
                                     activePlaybackSession?.setPaused(true)
+                                    playbackPositionMs = activePlaybackSession?.currentPositionMs() ?: playbackPositionMs
                                     launchStatus = mpvPausedStatus()
                                 }
                                 is Result.Error -> launchStatus = result.error.toUserMessage()
@@ -2327,6 +2363,7 @@ internal fun MiruPlayDesktopComposeApp(
                             when (val result = activePlayer.seekBy(-seekSeconds)) {
                                 is Result.Success -> {
                                     activePlaybackSession?.seekBy(-seekSeconds)
+                                    playbackPositionMs = activePlaybackSession?.currentPositionMs() ?: playbackPositionMs
                                     launchStatus = mpvSeekBackStatus(seconds = PLAYBACK_SEEK_BACK_SECONDS)
                                 }
                                 is Result.Error -> launchStatus = result.error.toUserMessage()
@@ -2344,6 +2381,7 @@ internal fun MiruPlayDesktopComposeApp(
                             when (val result = activePlayer.seekBy(seekSeconds)) {
                                 is Result.Success -> {
                                     activePlaybackSession?.seekBy(seekSeconds)
+                                    playbackPositionMs = activePlaybackSession?.currentPositionMs() ?: playbackPositionMs
                                     launchStatus = mpvSeekForwardStatus(seconds = PLAYBACK_SEEK_FORWARD_SECONDS)
                                 }
                                 is Result.Error -> launchStatus = result.error.toUserMessage()
@@ -2361,6 +2399,7 @@ internal fun MiruPlayDesktopComposeApp(
                             )
                             player = null
                             activePlaybackSession = null
+                            resetDesktopPlaybackTimeline()
                             clearWebControlPlaybackSource()
                             refreshRecentProgress()
                             launchStatus = mpvStoppedStatus()

@@ -27,6 +27,11 @@ object PlaybackTimingConventions {
             positionMs.coerceAtLeast(0L)
         }
 
+    fun playbackProgressFraction(positionMs: Long, durationMs: Long): Float {
+        if (durationMs <= 0L) return 0f
+        return coercePlaybackPositionMs(positionMs, durationMs).toFloat() / durationMs.toFloat()
+    }
+
     fun formatMpvStartSeconds(positionMs: Long): String {
         val normalizedPosition = positionMs.coerceAtLeast(0L)
         if (normalizedPosition % 1_000L == 0L) {
