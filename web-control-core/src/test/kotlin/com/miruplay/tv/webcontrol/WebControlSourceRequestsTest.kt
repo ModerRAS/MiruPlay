@@ -427,6 +427,32 @@ class WebControlSourceRequestsTest {
         assertEquals("扫描失败", response.error)
     }
 
+    @Test
+    fun `source scan helper maps scan success and failure to payload`() = runBlocking {
+        val source = MediaSourceInfoConventions.local(name = "Local", rootPath = "D:/Anime").copy(id = 11L)
+
+        val success = source.scanWebControlSourceWith {
+            Result.success(
+                ScanResult(
+                    animeName = "Frieren",
+                    episodesFound = 3,
+                    newEpisodes = 2,
+                    updatedEpisodes = 1,
+                )
+            )
+        }
+        assertEquals(11L, success.sourceId)
+        assertEquals("Frieren", success.animeName)
+        assertEquals(null, success.error)
+
+        val failure = source.scanWebControlSourceWith {
+            Result.failure(AppError.MediaSourceError.ConnectionLost("Local"))
+        }
+        assertEquals(11L, failure.sourceId)
+        assertEquals("Local", failure.animeName)
+        assertEquals("与 Local 的连接已断开", failure.error)
+    }
+
     private class FakeMediaSourceRepository(
         existing: MediaSourceInfo = MediaSourceInfoConventions.local(name = "Local", rootPath = "D:/Anime"),
         sources: List<MediaSourceInfo> = emptyList(),

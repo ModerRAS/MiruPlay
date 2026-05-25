@@ -52,6 +52,7 @@ import com.miruplay.tv.webcontrol.saveWebControlCloudDriveToken
 import com.miruplay.tv.webcontrol.saveWebControlRssSubscription
 import com.miruplay.tv.webcontrol.scanWebControlSource
 import com.miruplay.tv.webcontrol.scanAllWebControlSources
+import com.miruplay.tv.webcontrol.scanWebControlSourceWith
 import com.miruplay.tv.webcontrol.toMediaSourceInfo
 import com.miruplay.tv.webcontrol.toWebControlDirectoryDto
 import com.miruplay.tv.webcontrol.toWebControlSourceScanResponse
@@ -159,15 +160,23 @@ internal class DesktopWebControlService(
 
     override suspend fun scanSource(sourceId: Long): SourceScanResponse {
         return repositories.mediaSources.scanWebControlSource(sourceId) { source ->
-            scanAndIndexDesktopSource(source, repositories.index, repositories.metadata)
-                .map { it.toSourceScanResponse() }
+            Result.success(
+                source.scanWebControlSourceWith {
+                    scanAndIndexDesktopSource(it, repositories.index, repositories.metadata)
+                        .map { result -> result.scanResult }
+                }
+            )
         }
     }
 
     override suspend fun scanAllSources(): List<SourceScanResponse> {
         return repositories.mediaSources.scanAllWebControlSources { source ->
-            scanAndIndexDesktopSource(source, repositories.index, repositories.metadata)
-                .map { it.toSourceScanResponse() }
+            Result.success(
+                source.scanWebControlSourceWith {
+                    scanAndIndexDesktopSource(it, repositories.index, repositories.metadata)
+                        .map { result -> result.scanResult }
+                }
+            )
         }
     }
 
@@ -238,9 +247,6 @@ internal class DesktopWebControlService(
 
     override suspend fun playbackStatus(): PlaybackStatusDto =
         playbackStatusProvider()
-
-    private fun DesktopSourceScanResult.toSourceScanResponse(): SourceScanResponse =
-        scanResult.toWebControlSourceScanResponse(sourceId)
 
     private suspend fun rescanLinkedCloudDriveSource(reason: String) {
         val config = repositories.cloudDriveAutomation.getConfig().getOrNull() ?: return
