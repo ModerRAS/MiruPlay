@@ -2,10 +2,12 @@ package com.miruplay.tv.repository
 
 import kotlinx.coroutines.flow.Flow
 
+const val DEFAULT_OTLP_LOG_UPLOAD_STREAM_NAME = "miruplay"
+
 data class OtlpLogUploadConfig(
     val enabled: Boolean = false,
     val endpoint: String = "",
-    val streamName: String = "miruplay",
+    val streamName: String = DEFAULT_OTLP_LOG_UPLOAD_STREAM_NAME,
     val lastUploadAt: Long = 0L,
     val lastUploadStatus: String? = null
 ) {
