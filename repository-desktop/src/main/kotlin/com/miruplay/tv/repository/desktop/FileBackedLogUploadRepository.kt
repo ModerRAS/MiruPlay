@@ -8,6 +8,8 @@ import com.miruplay.tv.repository.LogUploadStatus
 import com.miruplay.tv.repository.OtlpLogUploadConfig
 import com.miruplay.tv.repository.OpenObserveLogConventions
 import com.miruplay.tv.repository.OpenObservePayloadContext
+import com.miruplay.tv.repository.DEFAULT_OTLP_LOG_UPLOAD_STREAM_NAME
+import com.miruplay.tv.repository.normalizeOtlpLogUploadConfig
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -57,11 +59,16 @@ internal class FileBackedLogUploadRepository(
         !credentials.otlpAccessToken.isNullOrBlank()
 
     override suspend fun saveConfig(enabled: Boolean, endpoint: String, streamName: String) {
+        val normalized = normalizeOtlpLogUploadConfig(
+            enabled = enabled,
+            endpoint = endpoint,
+            streamName = streamName,
+        )
         updateBlocking { state ->
             state.copy(
-                otlpEnabled = enabled,
-                otlpEndpoint = endpoint.trim(),
-                otlpStreamName = streamName.trim().ifBlank { DEFAULT_STREAM_NAME },
+                otlpEnabled = normalized.enabled,
+                otlpEndpoint = normalized.endpoint,
+                otlpStreamName = normalized.streamName,
             )
         }
         refreshConfig()
@@ -230,7 +237,7 @@ internal class FileBackedLogUploadRepository(
             OtlpLogUploadConfig(
                 enabled = it.otlpEnabled,
                 endpoint = it.otlpEndpoint,
-                streamName = it.otlpStreamName.ifBlank { DEFAULT_STREAM_NAME },
+                streamName = it.otlpStreamName.ifBlank { DEFAULT_OTLP_LOG_UPLOAD_STREAM_NAME },
                 lastUploadAt = it.otlpLastUploadAt,
                 lastUploadStatus = it.otlpLastUploadStatus,
             )
@@ -242,7 +249,6 @@ internal class FileBackedLogUploadRepository(
             ignoreUnknownKeys = true
         }
         private const val MAX_UPLOAD_BATCH = 200
-        private const val DEFAULT_STREAM_NAME = "miruplay"
         private val WINDOWS_PAYLOAD_CONTEXT = OpenObservePayloadContext(
             serviceName = "miruplay-windows",
             deploymentEnvironment = "windows",

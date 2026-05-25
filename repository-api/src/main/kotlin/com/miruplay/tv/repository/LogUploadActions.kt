@@ -5,7 +5,7 @@ import kotlinx.coroutines.flow.first
 data class OtlpLogUploadActionSnapshot(
     val enabled: Boolean = false,
     val endpoint: String = "",
-    val streamName: String = "miruplay",
+    val streamName: String = DEFAULT_OTLP_LOG_UPLOAD_STREAM_NAME,
     val pendingCount: Int = 0,
     val isUploading: Boolean = false,
     val lastUploadAt: Long = 0L,
@@ -20,11 +20,23 @@ fun OtlpLogUploadActionSnapshot.canRunNow(tokenInput: String): Boolean =
     !isUploading && enabled && endpoint.isNotBlank() &&
         (tokenConfigured || tokenInput.isNotBlank())
 
-fun OtlpLogUploadActionSnapshot.toConfig(): OtlpLogUploadConfig =
+fun normalizeOtlpLogUploadConfig(
+    enabled: Boolean,
+    endpoint: String,
+    streamName: String,
+): OtlpLogUploadConfig =
     OtlpLogUploadConfig(
+        enabled = enabled,
+        endpoint = endpoint.trim(),
+        streamName = streamName.trim().ifBlank { DEFAULT_OTLP_LOG_UPLOAD_STREAM_NAME },
+    )
+
+fun OtlpLogUploadActionSnapshot.toConfig(): OtlpLogUploadConfig =
+    normalizeOtlpLogUploadConfig(
         enabled = enabled,
         endpoint = endpoint,
         streamName = streamName,
+    ).copy(
         lastUploadAt = lastUploadAt,
         lastUploadStatus = lastUploadStatus,
     )

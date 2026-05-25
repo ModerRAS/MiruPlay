@@ -11,6 +11,19 @@ import org.junit.Test
 
 class LogUploadActionCoordinatorTest {
     @Test
+    fun `normalize otlp config trims endpoint and defaults blank stream`() {
+        val normalized = normalizeOtlpLogUploadConfig(
+            enabled = true,
+            endpoint = " https://oo.example/api/default ",
+            streamName = "  ",
+        )
+
+        assertEquals(true, normalized.enabled)
+        assertEquals("https://oo.example/api/default", normalized.endpoint)
+        assertEquals(DEFAULT_OTLP_LOG_UPLOAD_STREAM_NAME, normalized.streamName)
+    }
+
+    @Test
     fun `otlp snapshot helper merges config and status`() {
         val snapshot = otlpLogUploadActionSnapshot(
             config = OtlpLogUploadConfig(
@@ -73,8 +86,8 @@ class LogUploadActionCoordinatorTest {
     fun `to config helper keeps editable fields and upload summary`() {
         val snapshot = OtlpLogUploadActionSnapshot(
             enabled = true,
-            endpoint = "https://oo.example/api/default",
-            streamName = "miruplay",
+            endpoint = " https://oo.example/api/default ",
+            streamName = "  ",
             pendingCount = 10,
             isUploading = true,
             lastUploadAt = 123L,
@@ -86,7 +99,7 @@ class LogUploadActionCoordinatorTest {
 
         assertEquals(true, config.enabled)
         assertEquals("https://oo.example/api/default", config.endpoint)
-        assertEquals("miruplay", config.streamName)
+        assertEquals(DEFAULT_OTLP_LOG_UPLOAD_STREAM_NAME, config.streamName)
         assertEquals(123L, config.lastUploadAt)
         assertEquals("上传中", config.lastUploadStatus)
     }
