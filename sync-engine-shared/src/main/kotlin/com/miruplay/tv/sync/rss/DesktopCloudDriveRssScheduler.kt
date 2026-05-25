@@ -1,6 +1,7 @@
 package com.miruplay.tv.sync.rss
 
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.CloudDriveRssRunSummary
 import com.miruplay.tv.model.CloudDriveRssSchedulerUiState
 import com.miruplay.tv.model.tvStatus
@@ -87,6 +88,14 @@ class DesktopCloudDriveRssScheduler(
         job?.cancel()
         job = null
         _state.update { it.copy(running = false) }
+    }
+
+    fun syncPeriodicWork(config: CloudDriveAutomationConfig) {
+        if (config.enabled) {
+            start()
+        } else {
+            stop()
+        }
     }
 
     companion object {

@@ -778,11 +778,13 @@ internal fun MiruPlayDesktopComposeApp(
                 cloudLinkedSourceId = config.data.webDavSourceId
                 cloudInboxPath = config.data.inboxPath
                 cloudLibraryPath = config.data.libraryPath
+                cloudLibraryMode = config.data.libraryMode
                 cloudIntervalMinutes = config.data.intervalMinutes.toString()
                 cloudEnabled = config.data.enabled
                 rssProxyEnabled = config.data.rssProxyEnabled
                 rssProxyHost = config.data.rssProxyHost
                 rssProxyPort = config.data.rssProxyPort.toString()
+                cloudRssScheduler.syncPeriodicWork(config.data)
             }
             is Result.Error -> cloudRssStatus = config.error.toUserMessage()
         }
@@ -2083,6 +2085,7 @@ internal fun MiruPlayDesktopComposeApp(
                             is CloudDriveConfigActionResult.Saved -> {
                                 cloudIntervalMinutes = interval.toString()
                                 rssProxyPort = proxyPort.toString()
+                                cloudRssScheduler.syncPeriodicWork(result.config)
                                 cloudRssStatus = result.status
                             }
                             is CloudDriveConfigActionResult.Failed -> cloudRssStatus = result.status
