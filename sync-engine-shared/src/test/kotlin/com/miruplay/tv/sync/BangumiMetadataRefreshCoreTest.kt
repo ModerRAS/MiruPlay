@@ -266,6 +266,9 @@ class BangumiMetadataRefreshCoreTest {
         override suspend fun getCachedMetadata(animeId: String): Result<Anime?> =
             Result.success(anime)
 
+        override suspend fun getCachedMetadata(animeIds: Collection<String>): Result<List<Anime>> =
+            Result.success(anime?.let(::listOf).orEmpty())
+
         override suspend fun getCachedEpisode(episodeId: String): Result<Episode?> =
             Result.success(episodes.firstOrNull { it.id == episodeId })
 
