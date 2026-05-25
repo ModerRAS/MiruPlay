@@ -4,11 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import android.util.Log
 import com.miruplay.tv.model.Anime
-import com.miruplay.tv.model.Episode
-import com.miruplay.tv.model.MediaSourceInfo
-import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.libraryNoContentAfterScanMessage
 import com.miruplay.tv.repository.LibraryAnimeResolver
+import com.miruplay.tv.repository.LibraryContinueWatchingEpisode
 import com.miruplay.tv.repository.LibraryEpisodeResolver
 import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaSourceRepository
@@ -22,12 +20,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-
-data class ProgressWithEpisode(
-    val progress: ProgressRecord?,
-    val episode: Episode?,
-    val anime: Anime?
-)
 
 /**
  * Home screen states:
@@ -48,7 +40,7 @@ sealed class LibraryUiState {
         val newEpisodes: Int = 0
     ) : LibraryUiState()
     data class HasContent(
-        val continueWatching: List<ProgressWithEpisode>,
+        val continueWatching: List<LibraryContinueWatchingEpisode>,
         val recentlyAdded: List<Anime>,
         val allAnime: List<Anime>
     ) : LibraryUiState()
@@ -162,16 +154,9 @@ class LibraryViewModel @Inject constructor(
         return LibraryLoadSnapshot(hasSources = true, hasContent = true)
     }
 
-    private suspend fun loadContinueWatching(): List<ProgressWithEpisode> {
-        return libraryEpisodeResolver.loadContinueWatchingEpisodes().mapNotNull { item ->
-            val anime = item.anime ?: return@mapNotNull null
-            ProgressWithEpisode(
-                progress = item.progress,
-                episode = item.episode,
-                anime = anime,
-            )
-        }
-    }
+    private suspend fun loadContinueWatching(): List<LibraryContinueWatchingEpisode> =
+        libraryEpisodeResolver.loadContinueWatchingEpisodes().filter { it.anime != null }
+
     fun cancelScan() {
         libraryScanTask.cancel()
         viewModelScope.launch {

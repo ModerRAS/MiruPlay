@@ -164,12 +164,18 @@ Windows Details continue-watching panel now use the same cached-episode
 priority, indexed Local/WebDAV/SMB path lookup, completion filtering,
 progress-field attachment, same-anime merge handling, fallback-anime shaping,
 and result/error-preserving lookup instead of duplicating path/name inference in
-their UI layers. `LibraryEpisodeResolverTest` covers cached lookup priority,
+their UI layers. Android TV Library now consumes `LibraryContinueWatchingEpisode`
+directly and uses `Episode.progressFraction` for continue-watching poster
+progress, removing its local `ProgressWithEpisode` wrapper and inline
+`position / duration` calculation. `LibraryEpisodeResolverTest` covers cached lookup priority,
 WebDAV playable indexed lookup, completed-progress filtering, progress field
 attachment, indexed continue-watching fallback, and progress-error preservation;
 desktop detail tests cover the Windows recent-playback display adapter and
 selection retention; the focused repository/desktop gate passed in Gradle MCP
-build `b-180` with 296 tests passed.
+build `b-180` with 296 tests passed, and the Android TV reuse follow-up passed
+`:core:model:test --tests com.miruplay.tv.model.ProgressExtensionsTest
+:ui-tv:compileDebugKotlin :app:assembleDebug -PbundleMpvRuntime=false` in
+Gradle MCP build `b-277` with 9 tests.
 `core:model` owns the Cloud/RSS form normalization helpers used
 by both Android TV Settings and Windows Cloud/RSS Settings for config trimming,
 interval/proxy-port bounds, RSS subscription fallback names, blank URL

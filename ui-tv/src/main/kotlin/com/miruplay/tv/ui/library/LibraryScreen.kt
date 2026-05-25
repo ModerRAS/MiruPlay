@@ -41,6 +41,8 @@ import com.miruplay.tv.model.libraryScanningTitle
 import com.miruplay.tv.model.librarySettingsActionLabel
 import com.miruplay.tv.model.librarySubtitleLabel
 import com.miruplay.tv.model.libraryTitleLabel
+import com.miruplay.tv.model.progressFraction
+import com.miruplay.tv.repository.LibraryContinueWatchingEpisode
 import com.miruplay.tv.ui.components.*
 import com.miruplay.tv.ui.theme.*
 
@@ -227,7 +229,7 @@ private fun ScanningState(
 
 @Composable
 private fun LibraryContent(
-    continueWatching: List<ProgressWithEpisode>,
+    continueWatching: List<LibraryContinueWatchingEpisode>,
     recentlyAdded: List<Anime>,
     allAnime: List<Anime>,
     onNavigateToDetail: (String) -> Unit
@@ -285,14 +287,12 @@ private fun LibraryContent(
                 items(continueWatching.filter { it.anime != null }, key = { it.episode?.id ?: it.anime?.id.orEmpty() }) { item ->
                     val anime = item.anime ?: return@items
                     val animeId = anime.id
-                    val episodeNumber = item.episode?.episodeNumber
-                    val duration = item.episode?.duration?.takeIf { it > 0 } ?: 1L
+                    val episode = item.episode
+                    val episodeNumber = episode.episodeNumber
                     AnimePosterCard(
                         anime = anime,
                         subtitle = libraryContinueWatchingSubtitle(episodeNumber),
-                        progress = item.progress?.let { rec ->
-                            (rec.positionMs.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
-                        } ?: 0f,
+                        progress = episode.progressFraction(item.progress),
                         onClick = { onNavigateToDetail(animeId) }
                     )
                 }

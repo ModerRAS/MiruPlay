@@ -39,6 +39,15 @@ class ProgressExtensionsTest {
     }
 
     @Test
+    fun `progress fraction uses duration-aware position coercion`() {
+        val episode = episode(duration = 100_000L)
+
+        assertEquals(0f, episode.progressFraction(progress(positionMs = -1L)), 0.0001f)
+        assertEquals(0.45f, episode.progressFraction(progress(positionMs = 45_000L)), 0.0001f)
+        assertEquals(1f, episode.progressFraction(progress(positionMs = 120_000L)), 0.0001f)
+    }
+
+    @Test
     fun `unknown duration only completes after a finished playback`() {
         val episode = episode(duration = 0L)
         val partial = progress(positionMs = 30_000L)

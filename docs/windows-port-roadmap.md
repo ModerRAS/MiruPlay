@@ -147,13 +147,20 @@ WebUI library loading, and the Windows Details continue-watching panel reuse
 the same cached-episode, indexed Local/WebDAV/SMB path, completion-filter,
 progress-field, same-anime merge, fallback-anime, and result/error-preserving
 resolution rules instead of carrying separate path/name inference logic in UI
-or WebUI layers. `LibraryEpisodeResolverTest` covers cached lookup priority,
+or WebUI layers. Android TV Library now also consumes the shared
+`LibraryContinueWatchingEpisode` model directly and renders continue-watching
+poster progress through `Episode.progressFraction`, so it no longer keeps a
+TV-only wrapper or local progress-ratio calculation beside the shared model
+rules. `LibraryEpisodeResolverTest` covers cached lookup priority,
 WebDAV playable indexed lookup, completed-progress filtering, progress field
 attachment, indexed continue-watching fallback, and progress-error preservation;
 desktop detail tests cover the Windows recent-playback display adapter and
 selection retention; the focused `:repository-api:test :desktop-app:test
 -PbundleMpvRuntime=false` gate passed in Gradle MCP build `b-180` with
-296 tests passed.
+296 tests passed. The Android TV continue-watching reuse follow-up passed
+`:core:model:test --tests com.miruplay.tv.model.ProgressExtensionsTest
+:ui-tv:compileDebugKotlin :app:assembleDebug -PbundleMpvRuntime=false` in
+Gradle MCP build `b-277` with 9 tests.
 Latest Bangumi credential sharing update: `:sync-engine-shared` now owns
 `BangumiCredentialActionCoordinator`, so Android TV Settings and Windows
 Settings share Bangumi token persistence, blank-input handling, clear behavior,
