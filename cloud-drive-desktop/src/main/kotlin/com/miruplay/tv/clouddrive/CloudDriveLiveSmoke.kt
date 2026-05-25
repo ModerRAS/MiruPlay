@@ -1,14 +1,14 @@
 package com.miruplay.tv.clouddrive
 
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.core.common.redactSensitiveUrl
+import com.miruplay.tv.core.common.sensitiveUrlEvidence
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 import java.io.File
-import java.net.URI
-import java.security.MessageDigest
 import java.time.Instant
 
 data class CloudDriveLiveSmokeOptions(
@@ -121,8 +121,9 @@ suspend fun runCloudDriveLiveSmoke(
 }
 
 private fun printCloudDriveLiveSmokeReport(report: CloudDriveLiveSmokeReport) {
+    val endpointEvidence = sensitiveUrlEvidence(report.endpoint)
     println("CloudDrive2 live smoke passed.")
-    println("Endpoint: ${redactCloudDriveLiveEvidenceUrl(report.endpoint)} sha256=${sha256Hex(report.endpoint)}")
+    println("Endpoint: ${endpointEvidence.redacted} sha256=${endpointEvidence.sha256}")
     println("Friendly name: ${report.friendlyName.ifBlank { "(none)" }}")
     println("Root dir: ${report.rootDir.ifBlank { "/" }}")
     println(
@@ -189,54 +190,16 @@ internal fun buildCloudDriveLiveSmokeReportJson(report: CloudDriveLiveSmokeRepor
     return payload.toString()
 }
 
-private fun redactCloudDriveLiveEvidenceUrl(value: String): String {
-    val trimmed = value.trim()
-    val uri = runCatching { URI(trimmed) }.getOrNull()
-    val scheme = uri?.scheme?.lowercase()
-        ?: trimmed.substringBefore(':', missingDelimiterValue = "").lowercase().ifBlank { null }
-    return when (scheme) {
-        "http",
-        "https",
-        -> {
-            val authority = uri?.redactedAuthority().orEmpty()
-            if (authority.isBlank()) "$scheme://<redacted>/..." else "$scheme://$authority/..."
-        }
-        null -> "<redacted>"
-        else -> "$scheme:<redacted>"
-    }
-}
-
 private fun kotlinx.serialization.json.JsonObjectBuilder.putUrlEvidenceFields(value: String) {
-    val trimmed = value.trim()
-    val uri = runCatching { URI(trimmed) }.getOrNull()
-    val scheme = uri?.scheme?.lowercase()
-        ?: trimmed.substringBefore(':', missingDelimiterValue = "").lowercase()
-    put("redacted", redactCloudDriveLiveEvidenceUrl(trimmed))
-    put("scheme", scheme)
-    put("host", uri?.redactedHost().orEmpty())
-    put("sha256", sha256Hex(trimmed))
+    val evidence = sensitiveUrlEvidence(value)
+    put("redacted", evidence.redacted)
+    put("scheme", evidence.scheme)
+    put("host", evidence.host)
+    put("sha256", evidence.sha256)
 }
 
-private fun URI.redactedAuthority(): String =
-    rawAuthority
-        ?.substringAfterLast("@")
-        ?.takeIf { it.isNotBlank() }
-        ?: host?.let { host ->
-            if (port >= 0) "$host:$port" else host
-        }.orEmpty()
-
-private fun URI.redactedHost(): String =
-    host
-        ?: rawAuthority
-            ?.substringAfterLast("@")
-            ?.trim('[', ']')
-            ?.substringBefore(":")
-            .orEmpty()
-
-private fun sha256Hex(value: String): String {
-    val digest = MessageDigest.getInstance("SHA-256").digest(value.trim().toByteArray(Charsets.UTF_8))
-    return digest.joinToString(separator = "") { byte -> "%02x".format(byte.toInt() and 0xff) }
-}
+private fun redactCloudDriveLiveEvidenceUrl(value: String): String =
+    redactSensitiveUrl(value)
 
 private fun CloudDriveTokenInfo.toSmokePermissions(): CloudDriveLiveSmokePermissions =
     CloudDriveLiveSmokePermissions(
