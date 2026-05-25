@@ -36,6 +36,9 @@ for %%i in ("%APP_HOME%") do set APP_HOME=%%~fi
 @rem Add default JVM options here. You can also use JAVA_OPTS and GRADLE_OPTS to pass JVM options to this script.
 set DEFAULT_JVM_OPTS="-Xmx64m" "-Xms64m"
 
+@rem MiruPlay requires JDK 21. Prefer explicit JDK 21 homes or common local installs.
+if /I not "%MIRUPLAY_SKIP_JDK21_AUTO%"=="true" call :preferJdk21Home
+
 @rem Find java.exe
 if defined JAVA_HOME goto findJavaFromJavaHome
 
@@ -64,6 +67,25 @@ echo Please set the JAVA_HOME variable in your environment to match the
 echo location of your Java installation.
 
 goto fail
+
+:preferJdk21Home
+if defined JAVA21_HOME if exist "%JAVA21_HOME%\bin\java.exe" (
+    set "JAVA_HOME=%JAVA21_HOME%"
+    goto :eof
+)
+if defined JDK21_HOME if exist "%JDK21_HOME%\bin\java.exe" (
+    set "JAVA_HOME=%JDK21_HOME%"
+    goto :eof
+)
+if exist "%USERPROFILE%\scoop\apps\temurin21-jdk\current\bin\java.exe" (
+    set "JAVA_HOME=%USERPROFILE%\scoop\apps\temurin21-jdk\current"
+    goto :eof
+)
+if exist "%USERPROFILE%\scoop\apps\openjdk21\current\bin\java.exe" (
+    set "JAVA_HOME=%USERPROFILE%\scoop\apps\openjdk21\current"
+    goto :eof
+)
+goto :eof
 
 :execute
 @rem Get gradle wrapper jar from APP_HOME
