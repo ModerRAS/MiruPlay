@@ -16,6 +16,32 @@ data class OtlpLogUploadActionSnapshot(
         get() = !isUploading && enabled && endpoint.isNotBlank() && tokenConfigured
 }
 
+fun otlpLogUploadActionSnapshot(
+    config: OtlpLogUploadConfig,
+    status: LogUploadStatus,
+    tokenConfigured: Boolean = status.tokenConfigured,
+): OtlpLogUploadActionSnapshot =
+    OtlpLogUploadActionSnapshot(
+        enabled = config.enabled,
+        endpoint = config.endpoint,
+        streamName = config.streamName,
+    ).withRuntimeStatus(
+        status = status,
+        tokenConfigured = tokenConfigured,
+    )
+
+fun OtlpLogUploadActionSnapshot.withRuntimeStatus(
+    status: LogUploadStatus,
+    tokenConfigured: Boolean = status.tokenConfigured,
+): OtlpLogUploadActionSnapshot =
+    copy(
+        pendingCount = status.pendingCount,
+        isUploading = status.isUploading,
+        lastUploadAt = status.lastUploadAt,
+        lastUploadStatus = status.lastUploadStatus,
+        tokenConfigured = tokenConfigured,
+    )
+
 class LogUploadActionCoordinator(
     private val repository: LogUploadRepository,
 ) {
@@ -53,14 +79,9 @@ class LogUploadActionCoordinator(
     private suspend fun snapshot(): OtlpLogUploadActionSnapshot {
         val config = repository.getConfig()
         val status = repository.status.first()
-        return OtlpLogUploadActionSnapshot(
-            enabled = config.enabled,
-            endpoint = config.endpoint,
-            streamName = config.streamName,
-            pendingCount = status.pendingCount,
-            isUploading = status.isUploading,
-            lastUploadAt = status.lastUploadAt,
-            lastUploadStatus = status.lastUploadStatus,
+        return otlpLogUploadActionSnapshot(
+            config = config,
+            status = status,
             tokenConfigured = status.tokenConfigured || repository.isTokenConfigured(),
         )
     }

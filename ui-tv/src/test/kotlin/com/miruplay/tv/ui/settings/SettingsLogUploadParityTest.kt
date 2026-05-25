@@ -6,6 +6,8 @@ import com.miruplay.tv.repository.LogUploadActionCoordinator
 import com.miruplay.tv.repository.LogUploadRepository
 import com.miruplay.tv.repository.LogUploadStatus
 import com.miruplay.tv.repository.OtlpLogUploadConfig
+import com.miruplay.tv.repository.OtlpLogUploadActionSnapshot
+import com.miruplay.tv.repository.withRuntimeStatus
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -79,6 +81,33 @@ class SettingsLogUploadParityTest {
         assertTrue(status.contains("已上报 4 条日志"))
         assertTrue(snapshot.canRunNow)
         assertFalse(snapshot.isUploading)
+    }
+
+    @Test
+    fun `runtime status refresh should not overwrite local draft config`() {
+        val draft = OtlpLogUploadActionSnapshot(
+            enabled = true,
+            endpoint = "https://draft.example/api/default",
+            streamName = "draft-stream",
+        )
+        val status = LogUploadStatus(
+            pendingCount = 3,
+            isUploading = true,
+            lastUploadAt = 456L,
+            lastUploadStatus = "后台自动上报中",
+            tokenConfigured = true,
+        )
+
+        val updated = draft.withRuntimeStatus(status)
+
+        assertEquals(true, updated.enabled)
+        assertEquals("https://draft.example/api/default", updated.endpoint)
+        assertEquals("draft-stream", updated.streamName)
+        assertEquals(3, updated.pendingCount)
+        assertTrue(updated.isUploading)
+        assertEquals(456L, updated.lastUploadAt)
+        assertEquals("后台自动上报中", updated.lastUploadStatus)
+        assertTrue(updated.tokenConfigured)
     }
 
     private class FakeLogUploadRepository(

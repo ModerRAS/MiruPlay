@@ -11,6 +11,65 @@ import org.junit.Test
 
 class LogUploadActionCoordinatorTest {
     @Test
+    fun `otlp snapshot helper merges config and status`() {
+        val snapshot = otlpLogUploadActionSnapshot(
+            config = OtlpLogUploadConfig(
+                enabled = true,
+                endpoint = "https://oo.example/api/default",
+                streamName = "miruplay",
+            ),
+            status = LogUploadStatus(
+                pendingCount = 6,
+                isUploading = true,
+                lastUploadAt = 88L,
+                lastUploadStatus = "上报中",
+                tokenConfigured = false,
+            ),
+            tokenConfigured = true,
+        )
+
+        assertEquals(true, snapshot.enabled)
+        assertEquals("https://oo.example/api/default", snapshot.endpoint)
+        assertEquals("miruplay", snapshot.streamName)
+        assertEquals(6, snapshot.pendingCount)
+        assertEquals(true, snapshot.isUploading)
+        assertEquals(88L, snapshot.lastUploadAt)
+        assertEquals("上报中", snapshot.lastUploadStatus)
+        assertEquals(true, snapshot.tokenConfigured)
+    }
+
+    @Test
+    fun `with runtime status keeps draft config fields`() {
+        val draft = OtlpLogUploadActionSnapshot(
+            enabled = true,
+            endpoint = "https://draft-endpoint.example",
+            streamName = "draft-stream",
+            pendingCount = 1,
+            isUploading = false,
+            tokenConfigured = false,
+        )
+
+        val updated = draft.withRuntimeStatus(
+            status = LogUploadStatus(
+                pendingCount = 9,
+                isUploading = true,
+                lastUploadAt = 777L,
+                lastUploadStatus = "后台上报中",
+                tokenConfigured = true,
+            ),
+        )
+
+        assertEquals(true, updated.enabled)
+        assertEquals("https://draft-endpoint.example", updated.endpoint)
+        assertEquals("draft-stream", updated.streamName)
+        assertEquals(9, updated.pendingCount)
+        assertEquals(true, updated.isUploading)
+        assertEquals(777L, updated.lastUploadAt)
+        assertEquals("后台上报中", updated.lastUploadStatus)
+        assertEquals(true, updated.tokenConfigured)
+    }
+
+    @Test
     fun `current snapshot merges config status and token state`() = runBlocking {
         val repository = FakeLogUploadRepository(
             currentConfig = OtlpLogUploadConfig(enabled = true, endpoint = "https://oo.example/api/default", streamName = "miruplay"),

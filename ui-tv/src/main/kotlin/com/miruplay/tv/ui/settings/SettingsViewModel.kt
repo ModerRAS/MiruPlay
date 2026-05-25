@@ -41,6 +41,7 @@ import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.OtlpLogUploadActionSnapshot
 import com.miruplay.tv.repository.OtlpLogUploadConfig
 import com.miruplay.tv.repository.WebControlAccessManager
+import com.miruplay.tv.repository.withRuntimeStatus
 import com.miruplay.tv.sync.rss.CloudDriveRssAutomationEngine
 import com.miruplay.tv.sync.rss.CloudDriveRssScheduler
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryBrowserState
@@ -651,6 +652,15 @@ class SettingsViewModel @Inject constructor(
                     lastUploadStatus = _logUploadSnapshot.value.lastUploadStatus,
                 ),
             )
+        }
+        viewModelScope.launch {
+            logUploadRepository.status.collectLatest { status ->
+                val runtimeSnapshot = _logUploadSnapshot.value.withRuntimeStatus(
+                    status = status,
+                    tokenConfigured = status.tokenConfigured || logUploadRepository.isTokenConfigured(),
+                )
+                applyLogUploadSnapshot(runtimeSnapshot)
+            }
         }
         logUploadConfigObserverJob?.cancel()
         logUploadConfigObserverJob = viewModelScope.launch {
