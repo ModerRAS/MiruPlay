@@ -107,6 +107,17 @@ suspend fun MediaSourceRepository.scanAllWebControlSources(
         }
     }
 
+suspend fun MediaSourceRepository.scanWebControlSource(
+    sourceId: Long,
+    scanSource: suspend (MediaSourceInfo) -> Result<SourceScanResponse>,
+): SourceScanResponse {
+    val source = requireWebControlSuccess(getSourceById(sourceId), "媒体源不存在")
+    return when (val result = scanSource(source)) {
+        is Result.Success -> result.data
+        is Result.Error -> source.toWebControlSourceScanErrorResponse(result.error.toUserMessage())
+    }
+}
+
 fun parseWebControlSourceType(type: String): MediaSourceType =
     runCatching { MediaSourceType.valueOf(type.trim().uppercase()) }
         .getOrElse { throw IllegalArgumentException("不支持的媒体源类型: $type") }

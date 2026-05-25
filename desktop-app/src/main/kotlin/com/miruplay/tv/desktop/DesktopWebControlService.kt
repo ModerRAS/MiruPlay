@@ -50,6 +50,7 @@ import com.miruplay.tv.webcontrol.runWebControlCloudDriveAutomationNow
 import com.miruplay.tv.webcontrol.saveWebControlCloudDriveConfig
 import com.miruplay.tv.webcontrol.saveWebControlCloudDriveToken
 import com.miruplay.tv.webcontrol.saveWebControlRssSubscription
+import com.miruplay.tv.webcontrol.scanWebControlSource
 import com.miruplay.tv.webcontrol.scanAllWebControlSources
 import com.miruplay.tv.webcontrol.toMediaSourceInfo
 import com.miruplay.tv.webcontrol.toWebControlDirectoryDto
@@ -157,12 +158,10 @@ internal class DesktopWebControlService(
     }
 
     override suspend fun scanSource(sourceId: Long): SourceScanResponse {
-        val source = requireWebControlSuccess(repositories.mediaSources.getSourceById(sourceId), "媒体源不存在")
-        val result = requireWebControlSuccess(
-            scanAndIndexDesktopSource(source, repositories.index, repositories.metadata),
-            "扫描媒体源失败",
-        )
-        return result.toSourceScanResponse()
+        return repositories.mediaSources.scanWebControlSource(sourceId) { source ->
+            scanAndIndexDesktopSource(source, repositories.index, repositories.metadata)
+                .map { it.toSourceScanResponse() }
+        }
     }
 
     override suspend fun scanAllSources(): List<SourceScanResponse> {

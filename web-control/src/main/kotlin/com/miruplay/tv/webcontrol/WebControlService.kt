@@ -86,8 +86,10 @@ class WebControlService @Inject constructor(
     }
 
     override suspend fun scanSource(sourceId: Long): SourceScanResponse {
-        val result = requireWebControlSuccess(scanCoordinator.scanSource(sourceId), "扫描媒体源失败")
-        return result.toWebControlSourceScanResponse(sourceId)
+        return mediaRepository.scanWebControlSource(sourceId) { source ->
+            scanCoordinator.scanSource(source.id)
+                .map { it.toWebControlSourceScanResponse(source.id) }
+        }
     }
 
     override suspend fun scanAllSources(): List<SourceScanResponse> {

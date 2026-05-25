@@ -1092,7 +1092,11 @@ async function scanSource(sourceId) {
   loading.scan = true
   try {
     const result = await api(`/api/sources/${sourceId}/scan`, { method: 'POST' })
-    ElMessage.success(`扫描完成：${result.episodesFound} 个文件`)
+    if (result?.error) {
+      ElMessage.warning(`扫描失败：${result.error}`)
+    } else {
+      ElMessage.success(`扫描完成：${result.episodesFound} 个文件`)
+    }
     await loadLibrary()
   } catch (e) {
     ElMessage.error(e?.message || '扫描失败')

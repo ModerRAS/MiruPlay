@@ -313,6 +313,21 @@ class WebControlSourceRequestsTest {
     }
 
     @Test
+    fun `repository scan single WebUI source preserves scan failure as payload`() = runBlocking {
+        val source = MediaSourceInfoConventions.local(name = "Local", rootPath = "D:/Anime").copy(id = 7L)
+        val repository = FakeMediaSourceRepository(existing = source)
+
+        val response = repository.scanWebControlSource(source.id) {
+            Result.failure(AppError.MediaSourceError.ConnectionLost("Local"))
+        }
+
+        assertEquals(7L, response.sourceId)
+        assertEquals("Local", response.animeName)
+        assertEquals(0, response.episodesFound)
+        assertEquals("与 Local 的连接已断开", response.error)
+    }
+
+    @Test
     fun `safe api source removes connection password case insensitively`() {
         val source = SourceRequest(
             name = "Remote",
