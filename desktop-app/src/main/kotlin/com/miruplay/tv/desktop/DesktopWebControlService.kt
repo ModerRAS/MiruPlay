@@ -50,12 +50,10 @@ import com.miruplay.tv.webcontrol.runWebControlCloudDriveAutomationNow
 import com.miruplay.tv.webcontrol.saveWebControlCloudDriveConfig
 import com.miruplay.tv.webcontrol.saveWebControlCloudDriveToken
 import com.miruplay.tv.webcontrol.saveWebControlRssSubscription
-import com.miruplay.tv.webcontrol.scanWebControlSource
-import com.miruplay.tv.webcontrol.scanAllWebControlSources
-import com.miruplay.tv.webcontrol.scanWebControlSourceWith
+import com.miruplay.tv.webcontrol.scanAllWebControlSourcesFromScanResult
+import com.miruplay.tv.webcontrol.scanWebControlSourceFromScanResult
 import com.miruplay.tv.webcontrol.toMediaSourceInfo
 import com.miruplay.tv.webcontrol.toWebControlDirectoryDto
-import com.miruplay.tv.webcontrol.toWebControlSourceScanResponse
 import com.miruplay.tv.webcontrol.toWebControlSourceTestResponse
 import com.miruplay.tv.webcontrol.updateWebControlRssSubscription
 import com.miruplay.tv.webcontrol.updateWebControlSource
@@ -159,24 +157,16 @@ internal class DesktopWebControlService(
     }
 
     override suspend fun scanSource(sourceId: Long): SourceScanResponse {
-        return repositories.mediaSources.scanWebControlSource(sourceId) { source ->
-            Result.success(
-                source.scanWebControlSourceWith {
-                    scanAndIndexDesktopSource(it, repositories.index, repositories.metadata)
-                        .map { result -> result.scanResult }
-                }
-            )
+        return repositories.mediaSources.scanWebControlSourceFromScanResult(sourceId) { source ->
+            scanAndIndexDesktopSource(source, repositories.index, repositories.metadata)
+                .map { result -> result.scanResult }
         }
     }
 
     override suspend fun scanAllSources(): List<SourceScanResponse> {
-        return repositories.mediaSources.scanAllWebControlSources { source ->
-            Result.success(
-                source.scanWebControlSourceWith {
-                    scanAndIndexDesktopSource(it, repositories.index, repositories.metadata)
-                        .map { result -> result.scanResult }
-                }
-            )
+        return repositories.mediaSources.scanAllWebControlSourcesFromScanResult { source ->
+            scanAndIndexDesktopSource(source, repositories.index, repositories.metadata)
+                .map { result -> result.scanResult }
         }
     }
 

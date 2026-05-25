@@ -328,6 +328,50 @@ class WebControlSourceRequestsTest {
     }
 
     @Test
+    fun `repository scan all WebUI sources from scan result helper preserves per source failures`() = runBlocking {
+        val local = MediaSourceInfoConventions.local(name = "Local", rootPath = "D:/Anime").copy(id = 7L)
+        val remote = MediaSourceInfoConventions.webDav(name = "Remote", url = "https://dav.example.test").copy(id = 8L)
+        val repository = FakeMediaSourceRepository(sources = listOf(local, remote))
+
+        val responses = repository.scanAllWebControlSourcesFromScanResult { source ->
+            if (source.id == local.id) {
+                Result.success(
+                    ScanResult(
+                        animeName = "Frieren",
+                        episodesFound = 3,
+                        newEpisodes = 2,
+                        updatedEpisodes = 1,
+                    )
+                )
+            } else {
+                Result.failure(AppError.MediaSourceError.ConnectionLost(source.name))
+            }
+        }
+
+        assertEquals(2, responses.size)
+        assertEquals(7L, responses[0].sourceId)
+        assertEquals("Frieren", responses[0].animeName)
+        assertEquals(null, responses[0].error)
+        assertEquals(8L, responses[1].sourceId)
+        assertEquals("Remote", responses[1].animeName)
+        assertEquals("与 Remote 的连接已断开", responses[1].error)
+    }
+
+    @Test
+    fun `repository scan single WebUI source from scan result helper preserves failure payload`() = runBlocking {
+        val source = MediaSourceInfoConventions.local(name = "Local", rootPath = "D:/Anime").copy(id = 7L)
+        val repository = FakeMediaSourceRepository(existing = source)
+
+        val response = repository.scanWebControlSourceFromScanResult(source.id) {
+            Result.failure(AppError.MediaSourceError.ConnectionLost("Local"))
+        }
+
+        assertEquals(7L, response.sourceId)
+        assertEquals("Local", response.animeName)
+        assertEquals("与 Local 的连接已断开", response.error)
+    }
+
+    @Test
     fun `safe api source removes connection password case insensitively`() {
         val source = SourceRequest(
             name = "Remote",

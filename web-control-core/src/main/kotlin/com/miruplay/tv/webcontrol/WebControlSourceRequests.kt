@@ -118,6 +118,21 @@ suspend fun MediaSourceRepository.scanWebControlSource(
     }
 }
 
+suspend fun MediaSourceRepository.scanAllWebControlSourcesFromScanResult(
+    scanSource: suspend (MediaSourceInfo) -> Result<ScanResult>,
+): List<SourceScanResponse> =
+    scanAllWebControlSources { source ->
+        Result.success(source.scanWebControlSourceWith(scanSource))
+    }
+
+suspend fun MediaSourceRepository.scanWebControlSourceFromScanResult(
+    sourceId: Long,
+    scanSource: suspend (MediaSourceInfo) -> Result<ScanResult>,
+): SourceScanResponse =
+    scanWebControlSource(sourceId) { source ->
+        Result.success(source.scanWebControlSourceWith(scanSource))
+    }
+
 suspend fun MediaSourceInfo.scanWebControlSourceWith(
     scanSource: suspend (MediaSourceInfo) -> Result<ScanResult>,
 ): SourceScanResponse =

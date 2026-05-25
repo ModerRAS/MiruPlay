@@ -3,7 +3,6 @@ package com.miruplay.tv.webcontrol
 import com.miruplay.tv.clouddrive.CloudDriveClient
 import android.os.Build
 import com.miruplay.tv.core.common.LocalDirectoryBrowser
-import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.mediasource.testConnection
 import com.miruplay.tv.model.MediaSourceInfo
@@ -87,14 +86,14 @@ class WebControlService @Inject constructor(
     }
 
     override suspend fun scanSource(sourceId: Long): SourceScanResponse {
-        return mediaRepository.scanWebControlSource(sourceId) { source ->
-            Result.success(source.scanWebControlSourceWith { scanCoordinator.scanSource(it.id) })
+        return mediaRepository.scanWebControlSourceFromScanResult(sourceId) { source ->
+            scanCoordinator.scanSource(source.id)
         }
     }
 
     override suspend fun scanAllSources(): List<SourceScanResponse> {
-        return mediaRepository.scanAllWebControlSources { source ->
-            Result.success(source.scanWebControlSourceWith { scanCoordinator.scanSource(it.id) })
+        return mediaRepository.scanAllWebControlSourcesFromScanResult { source ->
+            scanCoordinator.scanSource(source.id)
         }
     }
 
