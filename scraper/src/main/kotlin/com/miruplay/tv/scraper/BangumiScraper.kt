@@ -1,7 +1,5 @@
 package com.miruplay.tv.scraper
 
-import android.icu.text.Transliterator
-import android.os.Build
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.Anime
@@ -16,6 +14,7 @@ import com.miruplay.tv.repository.BangumiSubjectCollectionType
 import com.miruplay.tv.repository.BangumiUser
 import com.miruplay.tv.scraper.core.BangumiApiClient
 import com.miruplay.tv.scraper.core.searchByAlias
+import com.miruplay.tv.scraper.core.toSimplifiedChineseQuery
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -29,7 +28,7 @@ class BangumiScraper @Inject constructor(
     private val api = BangumiApiClient(
         tokenProvider = { credentials.bangumiAccessToken },
         userAgent = USER_AGENT,
-        normalizeQuery = { it.toSimplifiedChinese() }
+        normalizeQuery = { it.toSimplifiedChineseQuery() }
     )
 
     companion object {
@@ -92,25 +91,3 @@ private fun BangumiEpisodeMetadata.toEpisodeMetadata(): EpisodeMetadata =
         durationMs = durationMs,
         collectionType = collectionType,
     )
-
-private fun String.toSimplifiedChinese(): String =
-    ChineseTransliterator.toSimplified(this)
-
-private object ChineseTransliterator {
-    fun toSimplified(text: String): String =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            Api29Transliterator.toSimplified(text)
-        } else {
-            text
-        }
-
-    @android.annotation.TargetApi(Build.VERSION_CODES.Q)
-    private object Api29Transliterator {
-        private val traditionalToSimplified = runCatching {
-            Transliterator.getInstance("Traditional-Simplified")
-        }.getOrNull()
-
-        fun toSimplified(text: String): String =
-            traditionalToSimplified?.transliterate(text) ?: text
-    }
-}

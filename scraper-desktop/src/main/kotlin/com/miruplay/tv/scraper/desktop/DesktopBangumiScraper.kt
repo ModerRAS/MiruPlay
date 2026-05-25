@@ -13,7 +13,7 @@ import com.miruplay.tv.repository.BangumiUser
 import com.miruplay.tv.scraper.MetadataScraper
 import com.miruplay.tv.scraper.core.BangumiApiClient
 import com.miruplay.tv.scraper.core.searchByAlias
-import com.ibm.icu.text.Transliterator
+import com.miruplay.tv.scraper.core.toSimplifiedChineseQuery
 import okhttp3.HttpUrl
 
 class DesktopBangumiScraper internal constructor(
@@ -34,7 +34,7 @@ class DesktopBangumiScraper internal constructor(
         baseUrl = baseUrl,
         tokenProvider = tokenProvider,
         userAgent = USER_AGENT,
-        normalizeQuery = { it.toSimplifiedChinese() },
+        normalizeQuery = { it.toSimplifiedChineseQuery() },
     )
 
     override val hasToken: Boolean
@@ -88,15 +88,3 @@ class DesktopBangumiScraper internal constructor(
 }
 
 typealias DesktopEpisodeMetadata = BangumiEpisodeMetadata
-
-private fun String.toSimplifiedChinese(): String =
-    DesktopChineseTransliterator.toSimplified(this)
-
-private object DesktopChineseTransliterator {
-    private val traditionalToSimplified = runCatching {
-        Transliterator.getInstance("Traditional-Simplified")
-    }.getOrNull()
-
-    fun toSimplified(text: String): String =
-        traditionalToSimplified?.transliterate(text) ?: text
-}
