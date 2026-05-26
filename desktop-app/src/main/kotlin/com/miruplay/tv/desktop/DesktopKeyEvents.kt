@@ -18,6 +18,11 @@ internal fun Key.toMiruPlayInputIntent(): MiruPlayInputIntent? =
         includeDesktopBackAliases = true,
     )
 
+internal inline fun <T> Key.resolveDesktopIntent(
+    resolver: (MiruPlayInputIntent) -> T,
+): T? =
+    toMiruPlayInputIntent()?.let(resolver)
+
 internal fun isDesktopConfirmKey(key: Key): Boolean =
     key.toMiruPlayInputIntent()?.isActivationIntent() == true
 
