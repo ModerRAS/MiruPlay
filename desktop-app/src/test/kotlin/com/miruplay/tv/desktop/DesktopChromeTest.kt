@@ -36,6 +36,28 @@ class DesktopChromeTest {
     }
 
     @Test
+    fun `shared input intents map back to compose key fallbacks`() {
+        val expectedKeys = mapOf(
+            MiruPlayInputIntent.DirectionLeft to Key.DirectionLeft,
+            MiruPlayInputIntent.DirectionRight to Key.DirectionRight,
+            MiruPlayInputIntent.DirectionUp to Key.DirectionUp,
+            MiruPlayInputIntent.DirectionDown to Key.DirectionDown,
+            MiruPlayInputIntent.Activate to Key.Enter,
+            MiruPlayInputIntent.Back to Key.Back,
+            MiruPlayInputIntent.NavigatePrevious to Key.NavigatePrevious,
+            MiruPlayInputIntent.NavigateOut to Key.NavigateOut,
+            MiruPlayInputIntent.MediaPlayPause to Key.MediaPlayPause,
+            MiruPlayInputIntent.MediaPlay to Key.MediaPlay,
+            MiruPlayInputIntent.MediaPause to Key.MediaPause,
+            MiruPlayInputIntent.MediaStop to Key.MediaStop,
+        )
+
+        expectedKeys.forEach { (intent, key) ->
+            assertEquals(key, intent.toComposeKeyFallback())
+        }
+    }
+
+    @Test
     fun `desktop confirm key event activates only on enabled key down`() {
         var clicks = 0
         var navigated = false
