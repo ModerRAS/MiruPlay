@@ -301,6 +301,35 @@ class DesktopChromeTest {
     }
 
     @Test
+    fun `desktop selectable row key event still supports unmapped key fallback`() {
+        var navigatedKey: Key? = null
+
+        assertTrue(
+            desktopSelectableRowKeyEvent(
+                key = Key.Tab,
+                type = KeyEventType.KeyDown,
+                onClick = {},
+                onNavigationIntent = { false },
+                onNavigationKey = { key ->
+                    navigatedKey = key
+                    true
+                },
+            ),
+        )
+        assertEquals(Key.Tab, navigatedKey)
+
+        assertFalse(
+            desktopSelectableRowKeyEvent(
+                key = Key.Tab,
+                type = KeyEventType.KeyUp,
+                onClick = {},
+                onNavigationIntent = { false },
+                onNavigationKey = { true },
+            ),
+        )
+    }
+
+    @Test
     fun `desktop navigation key event handles only non-confirm key down`() {
         var navigatedKey: Key? = null
 
