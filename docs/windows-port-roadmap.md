@@ -584,7 +584,7 @@ Verification:
 - [x] Add a Windows native app-image gate that builds with JDK `jpackage` and verifies the launcher, generated launcher config/classpath, bundled mpv/RIFE runtime, and generated-launcher headless desktop-entry smoke report through a structured assert script.
 - [x] Add an opt-in Windows MSI/EXE installer gate that preflights WiX, builds from the verified app image, records installer SHA256/size/version/signing-mode evidence, supports explicit signtool/PFX signing, and validates the installer report against the generated artifact.
 - [ ] Run the signed Windows installer gate with the release certificate and save installer evidence.
-- [x] Add a repeatable local Windows-port verification orchestrator with safe defaults, packaged WebUI smoke, and explicit opt-in live/device/runtime checks.
+- [x] Add a repeatable local Windows-port verification orchestrator with safe defaults, packaged WebUI smoke, and explicit opt-in behavior/live/device/runtime checks.
 - [x] Add shared media-source API, metadata-core, scraper-core, and Android-side metadata/scraper/sync/web-control tests to CI/local verification for cross-platform dependency-boundary changes.
 - [x] Keep `codex/**` branch CI as validation-only by skipping nightly/release publishing outside main/master scheduled or manual runs.
 - [x] Build and upload a lightweight Windows desktop ZIP from `windows-latest` CI, and attach the same ZIP to nightly main/master releases.
@@ -603,6 +603,8 @@ Verification:
 
 # Optional live/device/runtime gates:
 .\tools\verify-windows-port.ps1 -Gui
+.\tools\verify-windows-port.ps1 -Behavior
+.\tools\verify-windows-port.ps1 -Behavior -BehaviorTags full
 .\tools\verify-windows-port.ps1 -RealLibrary -RealLibraryRoot 'D:\Software\dufs'
 .\tools\verify-windows-port.ps1 -AndroidTv -AndroidDeviceId <android-tv-device-id>
 .\tools\assert-android-tv-smoke-report.ps1 `
@@ -704,4 +706,4 @@ Verification:
 1. Run real CloudDrive2 dry-run/live QA and record token-free evidence for sync and organize (preferred one-command entry: `tools/run-cloud-parity-evidence-bundle.ps1`).
 2. Run RIFE backend matrix on target Windows hardware with the packaged runtime and record the JSON report, including manifest evidence via `-RequireRuntimeManifest`.
 3. Continue narrowing deeper desktop-vs-Android-TV UI gaps beyond the first screens, especially less-traveled keyboard/DPAD focus paths outside the now-covered Android TV Settings category/page traversal, Settings summary quick-action rows, source-management local/remote fields plus actions and remote editor/browser focus bridge, Cloud/RSS credential/sync/RSS edit fields plus action/toggle/subscription rows, desktop route rail, Library header action row, Library poster wall/highest-heat/recent shelves/search row/source bridge, Details hero actions, Details hero-to-episodes/recents/Bangumi/media-details fallback plus episode-shelf season selector, remote browser list including parent navigation, Player stage/settings/runtime focus bridge, saved-source card movement, and Bangumi metadata action grid/apply-clear flow.
-4. Use `tools/verify-windows-port.ps1` as the local gate before pushes; GitHub Actions also runs the base gate plus asserted Cloud/RSS scheduler evidence on `codex/**` pushes, and the Windows runner runs and asserts packaged WebUI plus JSON-driven desktop behavior smoke for PR/branch/nightly evidence. Keep SMB, live CloudDrive/RSS, and RIFE checks opt-in so the shared SMB folder, real CloudDrive server, and low-capability local host are not touched by default.
+4. Use `tools/verify-windows-port.ps1` as the local gate before pushes; add `-Behavior` when you want the local gate to match the Windows CI JSON-driven behavior smoke. GitHub Actions also runs the base gate plus asserted Cloud/RSS scheduler evidence on `codex/**` pushes, and the Windows runner runs and asserts packaged WebUI plus behavior evidence for PR/branch/nightly runs. Keep SMB, live CloudDrive/RSS, and RIFE checks opt-in so the shared SMB folder, real CloudDrive server, and low-capability local host are not touched by default.

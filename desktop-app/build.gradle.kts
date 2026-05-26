@@ -668,7 +668,7 @@ val smokeWindowsInstaller by tasks.registering {
 
 val smokePackagedMpvRuntime by tasks.registering {
     group = "verification"
-    description = "Build the distribution zip, verify packaged mpv/RIFE entries, and smoke-check the runtime used for packaging."
+    description = "Build the distribution zip, verify packaged mpv/RIFE entries, and smoke-check the mpv runtime from the extracted zip."
     dependsOn(distZipTask)
     onlyIf { bundleMpvRuntime.get() && hasMpvRuntimeSource() }
     inputs.file(distZipTask.flatMap { it.archiveFile })
@@ -682,26 +682,6 @@ val smokePackagedMpvRuntime by tasks.registering {
         }
         val requestedBackends = requestedRifeBackends()
         validateRifeBackends(requestedBackends)
-
-        val runtimeRoot = effectiveMpvRuntimeRoot.get().toPath().toAbsolutePath().normalize().toFile()
-        val executable = runtimeRoot.resolve("mpv.exe")
-        if (!executable.isFile) {
-            throw GradleException("mpv executable not found for packaged runtime: $executable")
-        }
-
-        val output = ByteArrayOutputStream()
-        val result = exec {
-            commandLine(executable.absolutePath, "--version")
-            standardOutput = output
-            errorOutput = output
-            isIgnoreExitValue = true
-        }
-        val text = output.toString(Charsets.UTF_8.name()).trim()
-        if (result.exitValue != 0) {
-            throw GradleException(
-                "Packaged mpv runtime smoke check failed with exit code ${result.exitValue}.\n$text"
-            )
-        }
 
         val missingZipEntries = mutableListOf<String>()
         ZipFile(archive).use { zip ->
@@ -765,6 +745,37 @@ val smokePackagedMpvRuntime by tasks.registering {
             throw GradleException(
                 "Distribution zip is missing packaged mpv runtime entries in $archive:\n" +
                     missingZipEntries.joinToString(separator = "\n") { " - $it" }
+            )
+        }
+
+        val smokeRoot = layout.buildDirectory.dir("packaged-mpv-runtime-smoke").get().asFile
+        val unpackRoot = smokeRoot.resolve("unpacked")
+        delete(unpackRoot)
+        copy {
+            from(zipTree(archive))
+            into(unpackRoot)
+        }
+        val packagedExecutable = unpackRoot
+            .walkTopDown()
+            .firstOrNull { file ->
+                file.isFile &&
+                    file.name.equals("mpv.exe", ignoreCase = true) &&
+                    file.parentFile?.name == "mpv" &&
+                    file.parentFile?.parentFile?.name == "runtime"
+            }
+            ?: throw GradleException("Extracted distribution zip did not contain runtime/mpv/mpv.exe: $archive")
+
+        val output = ByteArrayOutputStream()
+        val result = exec {
+            commandLine(packagedExecutable.absolutePath, "--version")
+            standardOutput = output
+            errorOutput = output
+            isIgnoreExitValue = true
+        }
+        val text = output.toString(Charsets.UTF_8.name()).trim()
+        if (result.exitValue != 0) {
+            throw GradleException(
+                "Packaged mpv runtime smoke check failed with exit code ${result.exitValue}.\n$text"
             )
         }
         logger.lifecycle(

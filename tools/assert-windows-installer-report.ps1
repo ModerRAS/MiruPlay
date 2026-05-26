@@ -7,7 +7,7 @@ param(
     [string]$RequiredAppVersion = "",
     [switch]$RequireSigned,
     [switch]$RequireUnsigned,
-    [long]$MinSizeBytes = 1
+    [long]$MinSizeBytes = 1048576
 )
 
 $ErrorActionPreference = "Stop"
