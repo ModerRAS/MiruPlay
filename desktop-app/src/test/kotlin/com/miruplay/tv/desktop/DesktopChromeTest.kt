@@ -260,6 +260,47 @@ class DesktopChromeTest {
     }
 
     @Test
+    fun `desktop selectable row key event prioritizes shared intent navigation`() {
+        var intentCalls = 0
+        var keyCalls = 0
+        var lastIntent: MiruPlayInputIntent? = null
+
+        assertTrue(
+            desktopSelectableRowKeyEvent(
+                key = Key.DirectionRight,
+                type = KeyEventType.KeyDown,
+                onClick = {},
+                onNavigationIntent = { intent ->
+                    intentCalls += 1
+                    lastIntent = intent
+                    true
+                },
+                onNavigationKey = {
+                    keyCalls += 1
+                    true
+                },
+            ),
+        )
+        assertEquals(1, intentCalls)
+        assertEquals(0, keyCalls)
+        assertEquals(MiruPlayInputIntent.DirectionRight, lastIntent)
+
+        assertTrue(
+            desktopSelectableRowKeyEvent(
+                key = Key.DirectionLeft,
+                type = KeyEventType.KeyDown,
+                onClick = {},
+                onNavigationIntent = { false },
+                onNavigationKey = {
+                    keyCalls += 1
+                    true
+                },
+            ),
+        )
+        assertEquals(1, keyCalls)
+    }
+
+    @Test
     fun `desktop navigation key event handles only non-confirm key down`() {
         var navigatedKey: Key? = null
 
