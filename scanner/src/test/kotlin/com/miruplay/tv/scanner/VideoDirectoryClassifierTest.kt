@@ -137,85 +137,66 @@ class VideoDirectoryClassifierTest {
         assertEquals("葬送的芙莉莲", result.animeName)
         assertEquals(2, result.seasonNumber)
         assertEquals(3, result.episodeNumber)
-        assertEquals(listOf(128), parser.maxLengths)
+        assertEquals(listOf(128, 128), parser.maxLengths)
     }
 
     @Test
-    fun `combines folder parser title and filename parser episode`() {
-        val classifier = VideoDirectoryClassifier(
-            episodeDetector = DefaultEpisodeDetector(),
-            filenameMetadataParser = MappingFilenameParser(
-                mapOf(
-                    "03 [1080P]" to FilenameParseResult(episode = 3),
-                    "葬送的芙莉莲 第2季" to FilenameParseResult(
-                        title = "葬送的芙莉莲",
-                        season = 2
-                    )
+    fun `passes full video path to parser so folder title can classify numbered file`() {
+        val parser = MappingFilenameParser(
+            mapOf(
+                "/downloads/raw/葬送的芙莉莲 第2季/03.mkv" to FilenameParseResult(
+                    title = "葬送的芙莉莲",
+                    season = 2,
+                    episode = 3
                 )
             )
         )
+        val classifier = VideoDirectoryClassifier(
+            episodeDetector = DefaultEpisodeDetector(),
+            filenameMetadataParser = parser
+        )
 
         val result = classifier.classifyVideo(
-            path = "/downloads/葬送的芙莉莲 第2季/03 [1080P].mkv",
-            fileName = "03 [1080P].mkv"
+            path = "/downloads/raw/葬送的芙莉莲 第2季/03.mkv",
+            fileName = "03.mkv"
         )
 
         assertEquals("葬送的芙莉莲", result.animeName)
         assertEquals(2, result.seasonNumber)
         assertEquals(3, result.episodeNumber)
-        assertTrue(result.titleCandidates.contains("葬送的芙莉莲"))
+        assertTrue(parser.requests.contains("/downloads/raw/葬送的芙莉莲 第2季/03.mkv"))
+        assertEquals("/downloads/raw/葬送的芙莉莲 第2季/03.mkv", result.diagnostics.pathModelText)
+        assertEquals("葬送的芙莉莲", result.diagnostics.pathParsed?.title)
+        assertTrue(result.diagnostics.evidence.any { it.source == "PATH_BERT" })
     }
 
     @Test
-    fun `uses episode folder parser when video filename is generic`() {
-        val classifier = VideoDirectoryClassifier(
-            episodeDetector = DefaultEpisodeDetector(),
-            filenameMetadataParser = MappingFilenameParser(
-                mapOf(
-                    "葬送的芙莉莲" to FilenameParseResult(title = "葬送的芙莉莲"),
-                    "Episode 03" to FilenameParseResult(episode = 3)
+    fun `ignores zero episode from path parser and keeps numbered filename episode`() {
+        val parser = MappingFilenameParser(
+            mapOf(
+                "/sdcard/Movies/MiruPlayPathParser-20260526-090430/葬送的芙莉莲 第2季/03.mp4" to FilenameParseResult(
+                    title = "/sdcard/ /MiruPlayPathParser",
+                    episode = 0
+                ),
+                "葬送的芙莉莲 第2季" to FilenameParseResult(
+                    title = "葬送的芙莉莲",
+                    season = 2
                 )
             )
         )
+        val classifier = VideoDirectoryClassifier(
+            episodeDetector = DefaultEpisodeDetector(),
+            filenameMetadataParser = parser
+        )
 
         val result = classifier.classifyVideo(
-            path = "/media/葬送的芙莉莲/Season 2/Episode 03/video.mkv",
-            fileName = "video.mkv"
+            path = "/sdcard/Movies/MiruPlayPathParser-20260526-090430/葬送的芙莉莲 第2季/03.mp4",
+            fileName = "03.mp4"
         )
 
         assertEquals("葬送的芙莉莲", result.animeName)
         assertEquals(2, result.seasonNumber)
         assertEquals(3, result.episodeNumber)
-    }
-
-    @Test
-    fun `keeps alternate parser title candidates for metadata search`() {
-        val classifier = VideoDirectoryClassifier(
-            episodeDetector = DefaultEpisodeDetector(),
-            filenameMetadataParser = MappingFilenameParser(
-                mapOf(
-                    "Frieren S2E03" to FilenameParseResult(
-                        title = "Frieren",
-                        season = 2,
-                        episode = 3
-                    ),
-                    "葬送的芙莉莲 第2季" to FilenameParseResult(
-                        title = "葬送的芙莉莲",
-                        season = 2
-                    )
-                )
-            )
-        )
-
-        val result = classifier.classifyVideo(
-            path = "/downloads/葬送的芙莉莲 第2季/Frieren S2E03.mkv",
-            fileName = "Frieren S2E03.mkv"
-        )
-
-        assertEquals("葬送的芙莉莲", result.animeName)
-        assertEquals(2, result.seasonNumber)
-        assertEquals(3, result.episodeNumber)
-        assertTrue(result.titleCandidates.contains("Frieren"))
     }
 
     @Test
@@ -310,14 +291,11 @@ class VideoDirectoryClassifierTest {
     private class MappingFilenameParser(
         private val results: Map<String, FilenameParseResult>
     ) : FilenameMetadataParser {
-        override fun parse(filename: String, maxLength: Int): FilenameParseResult =
-            results[filename] ?: FilenameParseResult()
-    }
+        val requests = mutableListOf<String>()
 
-    private class MappingFilenameParser(
-        private val results: Map<String, FilenameParseResult>
-    ) : FilenameMetadataParser {
-        override fun parse(filename: String, maxLength: Int): FilenameParseResult =
-            results[filename] ?: FilenameParseResult()
+        override fun parse(filename: String, maxLength: Int): FilenameParseResult {
+            requests += filename
+            return results[filename] ?: FilenameParseResult()
+        }
     }
 }
