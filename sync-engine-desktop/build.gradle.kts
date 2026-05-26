@@ -30,6 +30,7 @@ val smokeCloudDriveRssDryRun by tasks.registering(JavaExec::class) {
     description = "Verify a live CloudDrive2 endpoint and RSS feed without submitting offline downloads."
     classpath = sourceSets.named("main").get().runtimeClasspath
     mainClass.set("com.miruplay.tv.sync.rss.CloudDriveRssLiveSmokeKt")
+    workingDir = rootProject.projectDir
 
     val endpoint = providers.gradleProperty("cloudDriveEndpoint")
     val token = providers.gradleProperty("cloudDriveToken")
@@ -97,6 +98,7 @@ val smokeCloudDriveRssLiveSubmit by tasks.registering(JavaExec::class) {
     description = "Submit a limited live CloudDrive2 RSS offline-download candidate after explicit confirmation."
     classpath = sourceSets.named("main").get().runtimeClasspath
     mainClass.set("com.miruplay.tv.sync.rss.CloudDriveRssLiveSmokeKt")
+    workingDir = rootProject.projectDir
 
     val endpoint = providers.gradleProperty("cloudDriveEndpoint")
     val token = providers.gradleProperty("cloudDriveToken")
@@ -179,6 +181,7 @@ val smokeCloudDriveRssScheduler by tasks.registering(JavaExec::class) {
     description = "Verify the desktop Cloud/RSS scheduler loop over real elapsed time and write token-free evidence."
     classpath = sourceSets.named("main").get().runtimeClasspath
     mainClass.set("com.miruplay.tv.sync.rss.CloudDriveRssSchedulerSmokeKt")
+    workingDir = rootProject.projectDir
 
     val durationMillis = providers.gradleProperty("cloudDriveRssSchedulerDurationMs").orElse("2000")
     val checkIntervalMillis = providers.gradleProperty("cloudDriveRssSchedulerCheckIntervalMs").orElse("250")
