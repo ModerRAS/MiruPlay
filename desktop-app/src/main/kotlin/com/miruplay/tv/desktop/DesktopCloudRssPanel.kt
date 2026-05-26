@@ -2099,7 +2099,7 @@ internal fun settingsSectionMenuRowKeyEvent(
     type: KeyEventType,
     onSelected: () -> Unit,
 ): Boolean =
-    desktopConfirmOrNavigationKeyEvent(
+    desktopConfirmOrNavigationIntentEvent(
         key = key,
         type = type,
         onClick = onSelected,
