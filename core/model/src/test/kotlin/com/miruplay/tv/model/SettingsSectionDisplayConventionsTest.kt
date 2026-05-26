@@ -149,15 +149,31 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("尚未上报", settingsLogUploadLastUploadStatus(0L))
         assertEquals("暂无上报结果", settingsLogUploadResultStatus("  "))
         assertEquals("HTTP 200", settingsLogUploadResultStatus("  HTTP 200  "))
+        val androidTvLogUploadStatus = settingsLogUploadStatusMessage(
+            pendingCount = 12,
+            isUploading = false,
+            tokenConfigured = true,
+            lastUploadAt = 0L,
+            lastUploadStatus = "已上报 12 条日志",
+        )
+        val desktopLogUploadStatus = settingsDesktopLogUploadStatusMessage(
+            pendingCount = 12,
+            isUploading = false,
+            tokenConfigured = true,
+            lastUploadAt = 0L,
+            lastUploadStatus = "已上报 12 条日志",
+        )
+        assertEquals(
+            "可在当前页面配置 OpenObserve JSON；本地日志会按同一配置写入上报队列。 · 待上报 12 条 · 待命 · Token 已保存 · 尚未上报 · 已上报 12 条日志",
+            androidTvLogUploadStatus,
+        )
         assertEquals(
             "可在当前页面或 Web 控制端配置 OpenObserve JSON；本地日志会按同一配置写入上报队列。 · 待上报 12 条 · 待命 · Token 已保存 · 尚未上报 · 已上报 12 条日志",
-            settingsDesktopLogUploadStatusMessage(
-                pendingCount = 12,
-                isUploading = false,
-                tokenConfigured = true,
-                lastUploadAt = 0L,
-                lastUploadStatus = "已上报 12 条日志",
-            ),
+            desktopLogUploadStatus,
+        )
+        assertEquals(
+            androidTvLogUploadStatus.substringAfter(" · "),
+            desktopLogUploadStatus.substringAfter(" · "),
         )
         assertEquals(
             "WebUI 当前未启用；Windows 已复用同一套访问令牌和地址生成规则。",

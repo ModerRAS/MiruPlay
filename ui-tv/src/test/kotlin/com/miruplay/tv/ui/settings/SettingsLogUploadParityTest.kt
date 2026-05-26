@@ -1,7 +1,8 @@
 package com.miruplay.tv.ui.settings
 
 import com.miruplay.tv.model.settingsAndroidTvLogUploadMenuSummary
-import com.miruplay.tv.model.settingsDesktopLogUploadStatusMessage
+import com.miruplay.tv.model.settingsAndroidTvLogUploadStatusMessage
+import com.miruplay.tv.model.settingsLogUploadStatusMessage
 import com.miruplay.tv.repository.LogUploadActionCoordinator
 import com.miruplay.tv.repository.LogUploadRepository
 import com.miruplay.tv.repository.LogUploadStatus
@@ -36,6 +37,27 @@ class SettingsLogUploadParityTest {
     }
 
     @Test
+    fun `android tv log upload status uses shared runtime behavior with tv entry copy`() {
+        val snapshot = OtlpLogUploadActionSnapshot(
+            pendingCount = 2,
+            isUploading = true,
+            tokenConfigured = false,
+            lastUploadAt = 0L,
+            lastUploadStatus = "后台自动上报中",
+        )
+
+        val status = androidTvLogUploadStatusMessage(snapshot)
+
+        assertTrue(status.startsWith(settingsAndroidTvLogUploadStatusMessage()))
+        assertFalse(status.contains("Web 控制端"))
+        assertFalse(status.contains("Windows"))
+        assertTrue(status.contains("待上报 2 条"))
+        assertTrue(status.contains("上报中"))
+        assertTrue(status.contains("未保存 Token"))
+        assertTrue(status.contains("后台自动上报中"))
+    }
+
+    @Test
     fun `shared coordinator trims and persists save config values`() = runBlocking {
         val repository = FakeLogUploadRepository()
         val coordinator = LogUploadActionCoordinator(repository)
@@ -66,7 +88,7 @@ class SettingsLogUploadParityTest {
         val coordinator = LogUploadActionCoordinator(repository)
 
         val snapshot = coordinator.runNow()
-        val status = settingsDesktopLogUploadStatusMessage(
+        val status = settingsLogUploadStatusMessage(
             pendingCount = snapshot.pendingCount,
             isUploading = snapshot.isUploading,
             tokenConfigured = snapshot.tokenConfigured,

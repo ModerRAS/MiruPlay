@@ -64,7 +64,8 @@ import com.miruplay.tv.model.settingsAppUpdateInstallPermissionStatus
 import com.miruplay.tv.model.settingsAppUpdateInstallerOpenedStatus
 import com.miruplay.tv.model.settingsAppUpdateLatestStatus
 import com.miruplay.tv.model.settingsAppUpdateReadyStatus
-import com.miruplay.tv.model.settingsDesktopLogUploadStatusMessage
+import com.miruplay.tv.model.settingsAndroidTvLogUploadStatusMessage
+import com.miruplay.tv.model.settingsLogUploadStatusMessage
 import com.miruplay.tv.model.validateCloudDriveApiTokenForm
 import com.miruplay.tv.model.validateCloudDriveLoginForm
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -168,7 +169,7 @@ class SettingsViewModel @Inject constructor(
     private val _logUploadSnapshot = MutableStateFlow(OtlpLogUploadActionSnapshot())
     val logUploadSnapshot: StateFlow<OtlpLogUploadActionSnapshot> = _logUploadSnapshot.asStateFlow()
 
-    private val _logUploadStatusMessage = MutableStateFlow(settingsDesktopLogUploadStatusMessage())
+    private val _logUploadStatusMessage = MutableStateFlow(settingsAndroidTvLogUploadStatusMessage())
     val logUploadStatusMessage: StateFlow<String> = _logUploadStatusMessage.asStateFlow()
 
     private val _appUpdateState = MutableStateFlow(AppUpdateUiState())
@@ -769,13 +770,7 @@ class SettingsViewModel @Inject constructor(
 
     private fun applyLogUploadSnapshot(snapshot: OtlpLogUploadActionSnapshot) {
         _logUploadSnapshot.value = snapshot
-        _logUploadStatusMessage.value = settingsDesktopLogUploadStatusMessage(
-            pendingCount = snapshot.pendingCount,
-            isUploading = snapshot.isUploading,
-            tokenConfigured = snapshot.tokenConfigured,
-            lastUploadAt = snapshot.lastUploadAt,
-            lastUploadStatus = snapshot.lastUploadStatus,
-        )
+        _logUploadStatusMessage.value = androidTvLogUploadStatusMessage(snapshot)
     }
 
     private fun updateDownloadProgress(progress: AppUpdateDownloadProgress) {
@@ -824,6 +819,15 @@ class SettingsViewModel @Inject constructor(
         super.onCleared()
     }
 }
+
+internal fun androidTvLogUploadStatusMessage(snapshot: OtlpLogUploadActionSnapshot): String =
+    settingsLogUploadStatusMessage(
+        pendingCount = snapshot.pendingCount,
+        isUploading = snapshot.isUploading,
+        tokenConfigured = snapshot.tokenConfigured,
+        lastUploadAt = snapshot.lastUploadAt,
+        lastUploadStatus = snapshot.lastUploadStatus,
+    )
 
 data class LocalDirectoryBrowserState(
     val open: Boolean = false,
