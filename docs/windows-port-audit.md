@@ -63,7 +63,9 @@ Windows app-image directory, verifies the native launcher, validates generated
 launcher config/classpath entries, checks the bundled `runtime/mpv` payload plus
 NVIDIA/DIRECTML scripts, and starts the generated `MiruPlay.exe` in a headless
 desktop-entry smoke mode to verify the app-image resolves its own runtime before
-installer creation. The opt-in Windows installer gate preflights WiX, builds
+installer creation; `tools/assert-desktop-entry-smoke-report.ps1` now validates
+that JSON report structurally instead of relying on string containment. The
+opt-in Windows installer gate preflights WiX, builds
 MSI/EXE artifacts from that verified app image, records SHA256/size/version and
 signing mode evidence, and can sign plus verify with explicit signtool/PFX
 inputs. `tools/assert-windows-installer-report.ps1` validates that evidence
