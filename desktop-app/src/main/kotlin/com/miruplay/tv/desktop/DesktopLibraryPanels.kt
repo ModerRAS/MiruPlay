@@ -1078,10 +1078,10 @@ private fun PosterWall(
                         group = group,
                         selected = selectedEntry?.path?.let { it in group.entryPaths } == true,
                         onClick = { onEntrySelected(group.primaryEntry) },
-                        onNavigationKey = { key ->
+                        onNavigationIntent = { intent ->
                             val target = libraryMediaFocusTarget(
                                 current = LibraryMediaFocusTarget.PosterWall(groupIndex),
-                                key = key,
+                                intent = intent,
                                 posterCount = groups.size,
                                 featuredCount = featuredCount,
                                 recentlyAddedCount = recentlyAddedCount,
@@ -1139,10 +1139,10 @@ private fun FeaturedPosterShelf(
                 group = group,
                 selected = selectedEntry?.path?.let { it in group.entryPaths } == true,
                 onClick = { onEntrySelected(group.primaryEntry) },
-                onNavigationKey = { key ->
+                onNavigationIntent = { intent ->
                     val target = libraryMediaFocusTarget(
                         current = LibraryMediaFocusTarget.Featured(index),
-                        key = key,
+                        intent = intent,
                         posterCount = posterCount,
                         featuredCount = groups.size,
                         recentlyAddedCount = recentlyAddedCount,
@@ -1199,10 +1199,10 @@ private fun PosterCardShelf(
                 group = group,
                 selected = selectedEntry?.path?.let { it in group.entryPaths } == true,
                 onClick = { onEntrySelected(group.primaryEntry) },
-                onNavigationKey = { key ->
+                onNavigationIntent = { intent ->
                     val target = libraryMediaFocusTarget(
                         current = LibraryMediaFocusTarget.RecentlyAdded(index),
-                        key = key,
+                        intent = intent,
                         posterCount = posterCount,
                         featuredCount = featuredCount,
                         recentlyAddedCount = groups.size,
@@ -1232,7 +1232,7 @@ private fun FeaturedPosterCard(
     group: DesktopPosterGroup,
     selected: Boolean,
     onClick: () -> Unit,
-    onNavigationKey: (Key) -> Boolean = { false },
+    onNavigationIntent: (MiruPlayInputIntent) -> Boolean = { false },
     modifier: Modifier = Modifier,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -1249,11 +1249,11 @@ private fun FeaturedPosterCard(
                 shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
             )
             .onPreviewKeyEvent { event ->
-                desktopConfirmOrNavigationKeyEvent(
+                desktopConfirmOrNavigationIntentEvent(
                     key = event.key,
                     type = event.type,
                     onClick = onClick,
-                    onNavigationKey = onNavigationKey,
+                    onNavigationIntent = onNavigationIntent,
                 )
             }
             .focusable(interactionSource = interactionSource)
@@ -1326,7 +1326,7 @@ private fun LibraryPosterCard(
     group: DesktopPosterGroup,
     selected: Boolean,
     onClick: () -> Unit,
-    onNavigationKey: (Key) -> Boolean = { false },
+    onNavigationIntent: (MiruPlayInputIntent) -> Boolean = { false },
     modifier: Modifier = Modifier,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -1344,11 +1344,11 @@ private fun LibraryPosterCard(
                 shape = RoundedCornerShape(MiruPlayUiMetrics.PANEL_RADIUS_DP.dp),
             )
             .onPreviewKeyEvent { event ->
-                desktopConfirmOrNavigationKeyEvent(
+                desktopConfirmOrNavigationIntentEvent(
                     key = event.key,
                     type = event.type,
                     onClick = onClick,
-                    onNavigationKey = onNavigationKey,
+                    onNavigationIntent = onNavigationIntent,
                 )
             }
             .focusable(interactionSource = interactionSource)
