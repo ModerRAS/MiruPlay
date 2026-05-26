@@ -120,6 +120,8 @@ class ScanCoordinator @Inject constructor(
             ms = ms,
             path = scanStartPath,
             sourceId = sourceId,
+            sourceName = sourceInfo.name,
+            sourceType = sourceInfo.type,
             classifier = classifier,
             indexEntities = indexEntities,
             titleCandidatesByAnime = titleCandidatesByAnime,
@@ -549,6 +551,108 @@ class ScanCoordinator @Inject constructor(
     private fun normalizeForLog(value: String, maxLength: Int): String =
         value.replace(whitespaceRegex, " ").trim().take(maxLength)
 
+    private fun buildVideoClassificationAttributes(
+        sourceId: Long,
+        sourceName: String,
+        sourceType: MediaSourceType,
+        file: com.miruplay.tv.model.FileEntry,
+        classification: VideoClassification,
+        filenameOnly: Boolean,
+    ): Map<String, String> {
+        val diagnostics = classification.diagnostics
+        val topEvidence = diagnostics.evidence.maxByOrNull { it.score }
+        return mapOf(
+            "scan_phase" to "video_classification",
+            "source_id" to sourceId.toString(),
+            "source_name" to sourceName,
+            "source_type" to sourceType.name,
+            "filename_only" to filenameOnly.toString(),
+            "file_name" to normalizeForLog(file.name, MAX_LOG_TEXT_LENGTH),
+            "file_extension" to extensionOf(file.name),
+            "file_size_bytes" to file.size.toString(),
+            "last_modified_ms" to file.lastModified.toString(),
+            "path_tail" to pathTailForLog(file.path),
+            "path_hash" to sha256Hex(file.path),
+            "parser_enabled" to diagnostics.parserEnabled.toString(),
+            "model_path_input_tail" to diagnostics.pathModelText.orEmpty().let { pathTailForLog(it) },
+            "model_path_input_hash" to diagnostics.pathModelText.orEmpty().let { if (it.isBlank()) "" else sha256Hex(it) },
+            "model_path_input_length" to diagnostics.pathModelText.orEmpty().length.toString(),
+            "model_file_input" to normalizeForLog(diagnostics.fileModelText.orEmpty(), MAX_LOG_TEXT_LENGTH),
+            "path_parser_title" to normalizeForLog(diagnostics.pathParsed?.title.orEmpty(), MAX_LOG_TEXT_LENGTH),
+            "path_parser_season" to diagnostics.pathParsed?.season?.toString().orEmpty(),
+            "path_parser_episode" to diagnostics.pathParsed?.episode?.toString().orEmpty(),
+            "file_parser_title" to normalizeForLog(diagnostics.fileParsed?.title.orEmpty(), MAX_LOG_TEXT_LENGTH),
+            "file_parser_season" to diagnostics.fileParsed?.season?.toString().orEmpty(),
+            "file_parser_episode" to diagnostics.fileParsed?.episode?.toString().orEmpty(),
+            "folder_parser_count" to diagnostics.folderParsed.size.toString(),
+            "folder_parser_sample" to folderParseSample(diagnostics.folderParsed),
+            "release_title" to normalizeForLog(diagnostics.release?.title.orEmpty(), MAX_LOG_TEXT_LENGTH),
+            "release_season" to diagnostics.release?.seasonNumber?.toString().orEmpty(),
+            "release_episode" to diagnostics.release?.episodeNumber?.toString().orEmpty(),
+            "detector_title" to normalizeForLog(diagnostics.detector?.title.orEmpty(), MAX_LOG_TEXT_LENGTH),
+            "detector_season" to diagnostics.detector?.seasonNumber?.toString().orEmpty(),
+            "detector_episode" to diagnostics.detector?.episodeNumber?.toString().orEmpty(),
+            "season_folder_number" to diagnostics.seasonFolderNumber?.toString().orEmpty(),
+            "show_context_title" to normalizeForLog(diagnostics.showContext?.title.orEmpty(), MAX_LOG_TEXT_LENGTH),
+            "show_context_season" to diagnostics.showContext?.seasonNumber?.toString().orEmpty(),
+            "show_context_episode" to diagnostics.showContext?.episodeNumber?.toString().orEmpty(),
+            "anime_name" to normalizeForLog(classification.animeName, MAX_LOG_TEXT_LENGTH),
+            "season_number" to classification.seasonNumber.toString(),
+            "episode_number" to classification.episodeNumber?.toString().orEmpty(),
+            "episode_detected" to (classification.episodeNumber != null).toString(),
+            "title_candidate_count" to classification.titleCandidates.size.toString(),
+            "title_candidate_sample" to sampleCandidates(classification.titleCandidates),
+            "top_evidence_source" to topEvidence?.source.orEmpty(),
+            "top_evidence_score" to topEvidence?.score?.toString().orEmpty(),
+            "evidence_summary" to evidenceSummary(diagnostics.evidence),
+        )
+    }
+
+    private fun folderParseSample(contexts: List<VideoClassificationParsedContext>): String =
+        contexts.asSequence()
+            .take(MAX_CLASSIFICATION_CONTEXT_SAMPLE_IN_LOG)
+            .joinToString(" | ") { context ->
+                listOfNotNull(
+                    "d=${context.distance}",
+                    "text=${normalizeForLog(context.text, MAX_LOG_TEXT_LENGTH)}",
+                    context.parsed.title?.takeIf { it.isNotBlank() }?.let { "title=${normalizeForLog(it, MAX_LOG_TEXT_LENGTH)}" },
+                    context.parsed.season?.let { "s=$it" },
+                    context.parsed.episode?.let { "e=$it" },
+                ).joinToString(",")
+            }
+
+    private fun evidenceSummary(evidence: List<VideoClassificationEvidenceSummary>): String =
+        evidence.asSequence()
+            .sortedByDescending { it.score }
+            .take(MAX_CLASSIFICATION_EVIDENCE_SAMPLE_IN_LOG)
+            .joinToString(" | ") { item ->
+                listOfNotNull(
+                    item.source,
+                    "score=${item.score}",
+                    item.title?.takeIf { it.isNotBlank() }?.let { "title=${normalizeForLog(it, MAX_LOG_TEXT_LENGTH)}" },
+                    item.seasonNumber?.let { "s=$it" },
+                    item.episodeNumber?.let { "e=$it" },
+                ).joinToString(",")
+            }
+
+    private fun pathTailForLog(path: String, maxSegments: Int = MAX_PATH_TAIL_SEGMENTS_IN_LOG): String {
+        val normalized = path.replace('\\', '/').substringBefore('?').trim('/')
+        if (normalized.isBlank()) return ""
+        return normalized
+            .split('/')
+            .filter { it.isNotBlank() }
+            .takeLast(maxSegments)
+            .joinToString("/")
+            .let { normalizeForLog(it, MAX_PATH_TAIL_LENGTH_IN_LOG) }
+    }
+
+    private fun extensionOf(name: String): String =
+        name.substringBefore('?')
+            .substringAfterLast('/', name)
+            .substringAfterLast('\\')
+            .substringAfterLast('.', "")
+            .lowercase()
+
     /** Progress callback for scan operations */
     fun interface ScanProgressCallback {
         fun onProgress(currentPath: String, filesScanned: Int, newEpisodes: Int)
@@ -570,6 +674,8 @@ class ScanCoordinator @Inject constructor(
         ms: MediaSource,
         path: String,
         sourceId: Long,
+        sourceName: String,
+        sourceType: MediaSourceType,
         classifier: VideoDirectoryClassifier,
         indexEntities: MutableList<MediaIndexEntry>,
         titleCandidatesByAnime: MutableMap<String, MutableSet<String>>,
@@ -615,6 +721,8 @@ class ScanCoordinator @Inject constructor(
                         ms = ms,
                         path = file.path,
                         sourceId = sourceId,
+                        sourceName = sourceName,
+                        sourceType = sourceType,
                         classifier = classifier,
                         indexEntities = indexEntities,
                         titleCandidatesByAnime = titleCandidatesByAnime,
@@ -630,6 +738,18 @@ class ScanCoordinator @Inject constructor(
                     if (MediaFileConventions.isVideoName(fileName, videoExtensions)) {
                         totalFiles(1)
                         val match = classifier.classifyVideo(file.path, fileName)
+                        MiruLog.i(
+                            tag = TAG,
+                            message = "Scan video classified",
+                            attributes = buildVideoClassificationAttributes(
+                                sourceId = sourceId,
+                                sourceName = sourceName,
+                                sourceType = sourceType,
+                                file = file,
+                                classification = match,
+                                filenameOnly = filenameOnly,
+                            )
+                        )
                         indexEntities.add(MediaIndexEntry(
                             sourceId = sourceId,
                             path = file.path,
@@ -816,6 +936,11 @@ class ScanCoordinator @Inject constructor(
         private const val MAX_RECOGNITION_CANDIDATES_IN_LOG = 6
         private const val MAX_RECOGNITION_ATTEMPT_SAMPLE_IN_LOG = 4
         private const val MAX_RECOGNITION_CANDIDATE_LENGTH = 80
+        private const val MAX_CLASSIFICATION_CONTEXT_SAMPLE_IN_LOG = 4
+        private const val MAX_CLASSIFICATION_EVIDENCE_SAMPLE_IN_LOG = 6
+        private const val MAX_LOG_TEXT_LENGTH = 120
+        private const val MAX_PATH_TAIL_SEGMENTS_IN_LOG = 4
+        private const val MAX_PATH_TAIL_LENGTH_IN_LOG = 240
         private val whitespaceRegex = Regex("\\s+")
         private val videoExtensions = setOf("mkv", "mp4", "avi", "mov", "wmv", "flv", "webm", "m4v")
         private val skipDirs = setOf(

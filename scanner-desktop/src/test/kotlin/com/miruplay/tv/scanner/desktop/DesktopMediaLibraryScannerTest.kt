@@ -190,6 +190,38 @@ class DesktopMediaLibraryScannerTest {
     }
 
     @Test
+    fun `scan feeds full path to parser for numbered files`() = runBlocking {
+        val root = Files.createTempDirectory("miruplay-desktop-scan")
+        try {
+            val show = Files.createDirectory(root.resolve("葬送的芙莉莲 第2季"))
+            val video = show.resolve("03.mkv")
+            Files.writeString(video, "video")
+
+            val source = DesktopLocalMediaSource.create("Local", root)
+            val parser = MappingFilenameParser(
+                mapOf(
+                    video.toString().replace('\\', '/') to FilenameParseResult(
+                        title = "葬送的芙莉莲",
+                        season = 2,
+                        episode = 3
+                    )
+                )
+            )
+            val scanner = DesktopMediaLibraryScanner(filenameMetadataParser = parser)
+
+            val report = (scanner.scan(sourceId = 13L, source = source) as Result.Success).data
+
+            val indexed = report.entries.single { !it.isDirectory }
+            assertEquals("葬送的芙莉莲", indexed.animeName)
+            assertEquals(2, indexed.seasonNumber)
+            assertEquals(3, indexed.episodeNumber)
+            assertTrue(parser.requests.contains(video.toString().replace('\\', '/')))
+        } finally {
+            root.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
     fun `nfo reader resolves sibling nfo paths across local and remote formats`() {
         val reader = DesktopNfoMetadataReader()
 
@@ -230,7 +262,11 @@ class DesktopMediaLibraryScannerTest {
     private class MappingFilenameParser(
         private val results: Map<String, FilenameParseResult>
     ) : FilenameMetadataParser {
-        override fun parse(filename: String, maxLength: Int): FilenameParseResult =
-            results[filename] ?: FilenameParseResult()
+        val requests = mutableListOf<String>()
+
+        override fun parse(filename: String, maxLength: Int): FilenameParseResult {
+            requests += filename
+            return results[filename] ?: FilenameParseResult()
+        }
     }
 }
