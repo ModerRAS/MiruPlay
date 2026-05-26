@@ -85,9 +85,21 @@ jobs:
           -PcloudDriveRssSchedulerDurationMs=2000
           -PcloudDriveRssSchedulerCheckIntervalMs=250
           -PcloudDriveRssSchedulerRunAfterChecks=2
+          -PcloudDriveRssSchedulerReportPath=build/cloud-rss-smoke/scheduler-report.json
           -PbundleMpvRuntime=false
           --no-daemon
           --stacktrace
+
+      - name: Assert Cloud/RSS scheduler evidence
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File tools/assert-cloud-rss-scheduler-report.ps1 -ReportPath build/cloud-rss-smoke/scheduler-report.json -MinRunCount 1 -MinChecksObserved 2
+
+      - name: Upload Cloud/RSS scheduler evidence
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: miruplay-cloud-rss-scheduler-${{ github.run_number }}
+          path: build/cloud-rss-smoke/**
+          retention-days: 7
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
@@ -125,6 +137,21 @@ jobs:
         env:
           DESKTOP_BEHAVIOR_TAGS: ${{ github.event_name == 'workflow_dispatch' && inputs.desktop_behavior_tags || 'smoke' }}
         run: .\gradlew.bat :desktop-app:test :desktop-app:desktopWebControlSmoke :desktop-app:desktopBehaviorTest :desktop-app:distZip "-PwindowsPackageVersion=0.1.${{ github.run_number }}" "-PdesktopBehaviorTags=$env:DESKTOP_BEHAVIOR_TAGS" -PbundleMpvRuntime=false --no-daemon --stacktrace
+
+      - name: Assert Windows desktop smoke evidence
+        env:
+          DESKTOP_BEHAVIOR_TAGS: ${{ github.event_name == 'workflow_dispatch' && inputs.desktop_behavior_tags || 'smoke' }}
+        run: |
+          $behaviorReport = (Get-Content build\desktop-behavior\latest-report.txt -Raw).Trim()
+          if ($env:DESKTOP_BEHAVIOR_TAGS -eq "full") {
+            $requiredScenarios = @("desktop-full")
+            $requiredSteps = @("source-management", "local-source", "webdav-source", "bangumi-metadata", "keyboard-focus-cloud-rss", "mpv-launch")
+          } else {
+            $requiredScenarios = @("desktop-smoke")
+            $requiredSteps = @("local-source", "keyboard-focus")
+          }
+          pwsh -NoProfile -ExecutionPolicy Bypass -File tools\assert-desktop-web-control-smoke-report.ps1 -ReportPath desktop-app\build\web-control-smoke\desktop-web-control-smoke.json
+          pwsh -NoProfile -ExecutionPolicy Bypass -File tools\assert-desktop-behavior-report.ps1 -ReportPath $behaviorReport -RequiredTags $env:DESKTOP_BEHAVIOR_TAGS -RequiredScenarios $requiredScenarios -RequiredSteps $requiredSteps
 
       - name: Upload Windows desktop behavior evidence
         uses: actions/upload-artifact@v4
@@ -433,7 +460,23 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Build nightly Windows desktop ZIP
-        run: .\gradlew.bat :desktop-app:test :desktop-app:distZip "-PwindowsPackageVersion=${{ needs.nightly.outputs.version_name }}" -PbundleMpvRuntime=false --no-daemon --stacktrace
+        run: .\gradlew.bat :desktop-app:test :desktop-app:desktopWebControlSmoke :desktop-app:desktopBehaviorTest :desktop-app:distZip "-PwindowsPackageVersion=${{ needs.nightly.outputs.version_name }}" -PdesktopBehaviorTags=smoke -PbundleMpvRuntime=false --no-daemon --stacktrace
+
+      - name: Assert nightly Windows desktop smoke evidence
+        run: |
+          $behaviorReport = (Get-Content build\desktop-behavior\latest-report.txt -Raw).Trim()
+          pwsh -NoProfile -ExecutionPolicy Bypass -File tools\assert-desktop-web-control-smoke-report.ps1 -ReportPath desktop-app\build\web-control-smoke\desktop-web-control-smoke.json
+          pwsh -NoProfile -ExecutionPolicy Bypass -File tools\assert-desktop-behavior-report.ps1 -ReportPath $behaviorReport -RequiredTags smoke -RequiredScenarios desktop-smoke -RequiredSteps local-source keyboard-focus
+
+      - name: Upload nightly Windows desktop evidence
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: miruplay-windows-nightly-evidence-${{ needs.nightly.outputs.version_name }}
+          path: |
+            build/desktop-behavior/**
+            desktop-app/build/web-control-smoke/**
+          retention-days: 30
 
       - name: Upload nightly Windows desktop artifact
         uses: actions/upload-artifact@v4
