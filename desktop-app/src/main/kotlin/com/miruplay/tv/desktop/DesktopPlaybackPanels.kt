@@ -1238,13 +1238,13 @@ private fun PlaybackSpeedPicker(
                 .background(if (isFocused) CardBg.copy(alpha = 0.55f) else Color.Transparent)
                 .focusable(interactionSource = interactionSource)
                 .onPreviewKeyEvent { event ->
-                    desktopConfirmOrNavigationKeyEvent(
+                    desktopConfirmOrNavigationIntentEvent(
                         key = event.key,
                         type = event.type,
                         onClick = { onSelected(selected) },
-                        onNavigationKey = { key ->
-                            val next = playbackSpeedNavigationTarget(selected, key)
-                                ?: return@desktopConfirmOrNavigationKeyEvent false
+                        onNavigationIntent = { intent ->
+                            val next = playbackSpeedNavigationTarget(selected, intent)
+                                ?: return@desktopConfirmOrNavigationIntentEvent false
                             onSelected(next)
                             true
                         },
@@ -1359,13 +1359,13 @@ private fun PlaybackEndActionPicker(
             .background(if (isFocused) CardBg.copy(alpha = 0.55f) else Color.Transparent)
             .focusable(interactionSource = interactionSource)
             .onPreviewKeyEvent { event ->
-                desktopConfirmOrNavigationKeyEvent(
+                desktopConfirmOrNavigationIntentEvent(
                     key = event.key,
                     type = event.type,
                     onClick = { onSelected(selected) },
-                    onNavigationKey = { key ->
-                        val next = playbackEndActionNavigationTarget(selected, key)
-                            ?: return@desktopConfirmOrNavigationKeyEvent false
+                    onNavigationIntent = { intent ->
+                        val next = playbackEndActionNavigationTarget(selected, intent)
+                            ?: return@desktopConfirmOrNavigationIntentEvent false
                         onSelected(next)
                         true
                     },
