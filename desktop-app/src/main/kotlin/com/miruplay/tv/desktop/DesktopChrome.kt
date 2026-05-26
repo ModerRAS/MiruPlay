@@ -483,7 +483,7 @@ internal fun TvActionButton(
             .defaultMinSize(minWidth = MiruPlayUiMetrics.ACTION_BUTTON_MIN_WIDTH_DP.dp)
             .height(MiruPlayUiMetrics.ACTION_BUTTON_HEIGHT_DP.dp)
             .onPreviewKeyEvent { event ->
-                enabled && desktopConfirmOrNavigationKeyEvent(
+                enabled && desktopConfirmOrNavigationIntentEvent(
                     key = event.key,
                     type = event.type,
                     onClick = onClick,
