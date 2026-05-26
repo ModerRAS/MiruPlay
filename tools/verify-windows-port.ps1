@@ -712,11 +712,17 @@ try {
         Invoke-CloudRssSmokeAndAssert -StepName "CloudDrive RSS dry-run smoke" -LiveSubmitEnabled $false -OrganizeEnabled $false -RssEndpoint $rssEndpoint -RssToken $rssToken
         Invoke-CloudRssSmokeAndAssert -StepName "CloudDrive RSS live submit smoke" -LiveSubmitEnabled $true -OrganizeEnabled $false -RssEndpoint $rssEndpoint -RssToken $rssToken
         Invoke-CloudRssSmokeAndAssert -StepName "CloudDrive RSS organize smoke" -LiveSubmitEnabled $false -OrganizeEnabled $true -RssEndpoint $rssEndpoint -RssToken $rssToken
-    } elseif ($CloudRssDryRun -or $CloudRssLiveSubmit) {
-        $cloudRssStepName = if ($CloudRssLiveSubmit) { "CloudDrive RSS live submit smoke" } else { "CloudDrive RSS dry-run smoke" }
+    } elseif ($CloudRssDryRun -or $CloudRssLiveSubmit -or $CloudRssOrganize) {
+        $cloudRssStepName = if ($CloudRssLiveSubmit) {
+            "CloudDrive RSS live submit smoke"
+        } elseif ($CloudRssOrganize) {
+            "CloudDrive RSS organize smoke"
+        } else {
+            "CloudDrive RSS dry-run smoke"
+        }
         Invoke-CloudRssSmokeAndAssert -StepName $cloudRssStepName -LiveSubmitEnabled ([bool]$CloudRssLiveSubmit) -OrganizeEnabled ([bool]$CloudRssOrganize) -RssEndpoint $rssEndpoint -RssToken $rssToken
     } else {
-        Write-Host "CloudDrive RSS dry-run/live smoke skipped. Run with -CloudRssDryRun or -CloudRssLiveSubmit and explicit endpoint/token/RSS URL."
+        Write-Host "CloudDrive RSS dry-run/live/organize smoke skipped. Run with -CloudRssDryRun, -CloudRssLiveSubmit, or -CloudRssOrganize and explicit endpoint/token/RSS URL."
     }
 
     if (-not $SkipCloudRssScheduler) {

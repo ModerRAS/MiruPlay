@@ -40,5 +40,7 @@ if (-not [string]::IsNullOrWhiteSpace($Filter)) {
     $args += @('-CloudRssFilter', $Filter)
 }
 
+Write-Warning 'This evidence bundle runs live-submit and organize smokes. It submits real CloudDrive offline downloads and can move real CloudDrive files.'
+
 & powershell.exe @args
 exit $LASTEXITCODE

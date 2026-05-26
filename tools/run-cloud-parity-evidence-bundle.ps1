@@ -58,5 +58,7 @@ if ($RequireCloudDriveOfflinePermission) {
     $args += '-RequireCloudDriveOfflinePermission'
 }
 
+Write-Warning 'This parity evidence bundle runs CloudDrive live, RSS live-submit, and organize smokes. It submits real CloudDrive offline downloads and can move real CloudDrive files.'
+
 & powershell.exe @args
 exit $LASTEXITCODE
