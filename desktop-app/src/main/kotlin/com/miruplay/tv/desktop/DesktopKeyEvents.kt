@@ -60,7 +60,7 @@ internal fun desktopToggleKeyEvent(
     enabled: Boolean = true,
     onCheckedChange: (Boolean) -> Unit,
 ): Boolean =
-    desktopConfirmOrNavigationKeyEvent(
+    desktopConfirmOrNavigationIntentEvent(
         key = key,
         type = type,
         enabled = enabled,
@@ -73,7 +73,7 @@ internal fun desktopOpenPickerKeyEvent(
     enabled: Boolean = true,
     onOpen: () -> Unit,
 ): Boolean =
-    desktopConfirmOrNavigationKeyEvent(
+    desktopConfirmOrNavigationIntentEvent(
         key = key,
         type = type,
         enabled = enabled,
