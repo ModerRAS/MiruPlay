@@ -214,7 +214,7 @@ class MpvRuntimeVerifierTest {
     }
 
     @Test
-    fun `verify ignores malformed runtime manifest`() {
+    fun `verify treats malformed runtime manifest as incomplete runtime evidence`() {
         val tempDir = Files.createTempDirectory("miruplay-runtime")
         try {
             val layout = MpvRuntimeDiscovery.layoutFor(tempDir)
@@ -225,7 +225,14 @@ class MpvRuntimeVerifierTest {
             val verification = MpvRuntimeVerifier.verify(layout)
 
             assertEquals(null, verification.manifest)
-            assertFalse(verification.message().contains("Manifest: present"))
+            assertFalse(verification.isComplete)
+            assertTrue(verification.message().contains("Runtime manifest entries are missing or invalid"))
+            assertTrue(verification.message().contains("Manifest: present"))
+            assertTrue(
+                verification.missing.any {
+                    it.startsWith("runtime-manifest: runtime-manifest.json could not be parsed")
+                },
+            )
         } finally {
             tempDir.toFile().deleteRecursively()
         }

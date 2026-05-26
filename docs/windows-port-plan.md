@@ -17,7 +17,7 @@
 
 - `:core:common` 和 `:core:model` 已改成真正的 JVM/Kotlin 模块，Windows 端可以直接依赖番剧、剧集、播放源、播放状态、进度模型；番剧标题/字幕、播放源标题、文件大小、播放时间和外挂字幕 track 解析也已下沉到 `:core:model`，避免 TV/桌面 UI 各写一套格式化逻辑。
 - 新增 `:web-control-core` 纯 JVM 模块，承接 Android WebControl 的共享 DTO、UTF-8 请求解析、NanoHTTPD 路由、访问令牌鉴权、cookie bootstrap 和静态 WebUI 服务逻辑；Android 端 `WebControlServer` 现在只是 Context assets 包装，Windows 端则复用同一 HTTP 层和同一套 WebUI assets。桌面版已能随 Settings WebUI 开关启动 JVM 监听器并服务信息、片库、详情、媒体源、CloudDrive 配置摘要、播放状态、扫描、CloudDrive 目录浏览/登录/执行，以及通过 `DesktopWebControlPlaybackBridge.kt` 和 `DesktopPlaybackLauncher` 接入的 WebUI 播放启动/控制；剩余 WebControl 真实设备端到端 QA 仍按 roadmap 作为 parity 项推进。
-- CI 的 debug build job 现在除了 Android `assembleDebug`，还会运行 `checkDesktopComposeOnly`、`checkDesktopPresenterSeparation`、`checkUiPaletteDrift`、`:core:model:test`、`:media-source-api:test`、`:metadata-core:test`、`:repository-api:test`、`:cloud-drive-api:test`、`:sync-engine-shared:test`、`:media-source-desktop:test`、`:scanner-desktop:test`、`:repository-desktop:test`、`:scraper-desktop:test`、`:player-mpv:test`、`:cloud-drive-desktop:test`、`:sync-engine-desktop:test`、`:desktop-app:test` 和轻量 `:desktop-app:installDist -PbundleMpvRuntime=false`，避免 Windows/JVM port 只在本地验证。CI 还在 `windows-latest` 上构建并上传带 `windowsPackageVersion` 的轻量 `:desktop-app:distZip -PbundleMpvRuntime=false`，nightly 主线发布会把同版号 Windows desktop ZIP 追加到 GitHub Release；完整 mpv/RIFE 自包含包和 MSI/EXE 仍走显式 runtime/installer gate。
+- CI 的 debug build job 现在除了 Android `assembleDebug`，还会运行 `checkDesktopComposeOnly`、`checkDesktopPresenterSeparation`、`checkUiPaletteDrift`、`:core:model:test`、`:media-source-api:test`、`:metadata-core:test`、`:repository-api:test`、`:cloud-drive-api:test`、`:sync-engine-shared:test`、`:media-source-desktop:test`、`:scanner-desktop:test`、`:repository-desktop:test`、`:scraper-desktop:test`、`:player-mpv:test`、`:cloud-drive-desktop:test`、`:sync-engine-desktop:test`、`:desktop-app:test` 和轻量 `:desktop-app:installDist -PbundleMpvRuntime=false`，避免 Windows/JVM port 只在本地验证。CI 还在 `windows-latest` 上构建并上传带 `windowsPackageVersion` 的轻量 `:desktop-app:distZip -PbundleMpvRuntime=false`，同时运行 `:desktop-app:desktopBehaviorTest -PdesktopBehaviorTags=smoke -PbundleMpvRuntime=false` 并上传桌面行为 `report.json` 与截图证据；nightly 主线发布会把同版号 Windows desktop ZIP 追加到 GitHub Release，但不把行为测试证据伪装成 release artifact。完整 mpv/RIFE 自包含包和 MSI/EXE 仍走显式 runtime/installer gate。
 - 新增 `:player-mpv` JVM 模块，负责构造和启动 Windows mpv 命令：
   - `--config-dir=<portable_config>` 隔离 MiruPlay 自带配置。
   - `--input-ipc-server=<pipe>` 预留 JSON IPC 控制通道。
@@ -128,7 +128,8 @@ MiruPlay-Windows/
         vs/
           MEMC_RIFE_NV.vpy
           MEMC_RIFE_DML.vpy
-          MEMC_RIFE_STD.vpy
+          # Optional only when the Standard plugin stack is packaged:
+          # MEMC_RIFE_STD.vpy
       Lib/
       vs-plugins/
         models/
@@ -139,7 +140,7 @@ MiruPlay-Windows/
 - NVIDIA 用户优先 `MEMC_RIFE_NV.vpy`。
 - 其他现代 GPU 可试 `MEMC_RIFE_DML.vpy`。
 - `MEMC_RIFE_STD.vpy` 作为显式可选后端保留；当前 `20260510` 标准 base + `vsNV` overlay 缺少它运行所需的 `rife` VapourSynth 插件，所以默认 release gate 不再要求 Standard。
-- `:desktop-app` 的 Gradle distribution 默认从仓库根目录 `runtime/mpv/` 复制到发行包中；如果传入 `-PmpvRuntimeSource=...`，则只使用该来源准备发行包运行时，避免同时复制仓库 runtime 和显式 source。UI-only 开发循环可用 `-PbundleMpvRuntime=false` 跳过大体积运行时复制。`runtime/mpv/` 在 Git 中只保留 `README.md`，实际 mpv_PlayKit、VapourSynth、模型文件由本地打包缓存、安装器或 Release asset 提供。
+- `:desktop-app` 的 Gradle distribution 会在仓库根目录 `runtime/mpv/` 已准备好 `mpv.exe` 时把它复制到发行包；如果传入 `-PmpvRuntimeSource=...`，则只使用该来源准备发行包运行时，避免同时复制仓库 runtime 和显式 source。需要强制自包含 release 时加 `-PrequireMpvRuntime=true`，占位目录不会被当成有效 runtime。UI-only 开发循环可用 `-PbundleMpvRuntime=false` 跳过大体积运行时复制。`runtime/mpv/` 在 Git 中只保留 `README.md`，实际 mpv_PlayKit、VapourSynth、模型文件由本地打包缓存、安装器或 Release asset 提供。
 - 已核对 mpv_PlayKit `20260510` / `2026FM` Release：`noVS` 小包不适合作为内置 RIFE 发行源。当前可复现路径是以标准 `mpv-lazy-20260510.exe` 为 base，再用 `mpv-lazy-20260510-vsNV.7z.001` 作为 `-OverlaySource` 合并 VapourSynth/RIFE 文件；split archive 的 `.002` 必须和 `.001` 放在同一目录。
 - `tools/prepare-mpv-runtime.ps1` 可从已解压目录、`.exe` 自解压包或 `.7z/.7z.001` 运行时包准备 `runtime/mpv`，并支持 `-OverlaySource` 叠加 RIFE/VapourSynth payload；可选校验下载资产 SHA256（含 split archive 多文件 digest 列表），校验必需 RIFE 脚本并写入 `runtime-manifest.json`，减少手工复制出错。
   - `tools/smoke-mpv-rife.ps1` 会生成一个两帧 Y4M 测试片段并用指定后端运行 mpv VapourSynth filter；当前本机通过 `-Backend DIRECTML`，`-Backend ALL -AllowFailures` 会打印 NVIDIA / DIRECTML / STANDARD 的矩阵摘要。加上 `-ReportPath` 后会输出 JSON 证据包，包含 mpv 版本、Windows/CPU/GPU 诊断、后端状态、exit code 和日志路径，便于在目标 NVIDIA/Standard 主机上补齐审计证据。NVIDIA/Standard 仍取决于目标机器驱动和插件栈。

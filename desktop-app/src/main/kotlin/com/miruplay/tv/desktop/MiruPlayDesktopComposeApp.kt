@@ -222,6 +222,7 @@ private const val PLAYBACK_PROGRESS_POLL_INTERVAL_MS = 10_000L
 internal typealias DesktopSection = MiruPlayRouteSurface.Section
 
 private const val DESKTOP_START_SECTION_ENV = "MIRUPLAY_DESKTOP_START_SECTION"
+private const val DESKTOP_INITIAL_LIBRARY_ROOT_ENV = "MIRUPLAY_DESKTOP_INITIAL_LIBRARY_ROOT"
 internal const val DESKTOP_ENTRY_SMOKE_ARG = "--miruplay-desktop-smoke"
 internal const val DESKTOP_ENTRY_SMOKE_REPORT_ARG_PREFIX = "--miruplay-desktop-smoke-report="
 
@@ -391,6 +392,12 @@ internal fun desktopInitialSection(startSectionId: String?): DesktopSection =
 internal fun desktopInitialSectionFromEnvironment(): DesktopSection =
     desktopInitialSection(System.getenv(DESKTOP_START_SECTION_ENV))
 
+internal fun desktopInitialLibraryRoot(value: String?): String =
+    value?.trim().orEmpty()
+
+internal fun desktopInitialLibraryRootFromEnvironment(): String =
+    desktopInitialLibraryRoot(System.getenv(DESKTOP_INITIAL_LIBRARY_ROOT_ENV))
+
 @Composable
 internal fun MiruPlayDesktopComposeApp(
     onPlayerFullscreenActiveChange: (Boolean) -> Unit = {},
@@ -455,13 +462,14 @@ internal fun MiruPlayDesktopComposeApp(
     }
     val defaultMpvLayout = remember { MpvRuntimeDiscovery.defaultLayout() }
     val playbackLauncher = remember(playbackBridge) { DesktopPlaybackLauncher(playbackBridge) }
+    val initialLibraryRoot = remember { desktopInitialLibraryRootFromEnvironment() }
     var selectedDesktopSection by remember { mutableStateOf(desktopInitialSectionFromEnvironment()) }
     var player by remember { mutableStateOf<MpvProcessPlayer?>(null) }
     var activePlaybackSession by remember { mutableStateOf<PlaybackProgressSession?>(null) }
     var webControlPlaybackSource by remember { mutableStateOf<DesktopMediaSource?>(null) }
     var mpvPath by remember { mutableStateOf(defaultMpvLayout.executable.toString()) }
     var configDir by remember { mutableStateOf(defaultMpvLayout.configDirectory.toString()) }
-    var libraryRoot by remember { mutableStateOf("") }
+    var libraryRoot by remember { mutableStateOf(initialLibraryRoot) }
     var savedSources by remember { mutableStateOf(emptyList<MediaSourceInfo>()) }
     var activeSourceId by remember { mutableStateOf<Long?>(null) }
     var activeSource by remember { mutableStateOf<DesktopMediaSource?>(null) }
@@ -767,7 +775,9 @@ internal fun MiruPlayDesktopComposeApp(
         when (val sources = repositories.mediaSources.getSources()) {
             is Result.Success -> {
                 savedSources = sources.data
-                applySourceFormState(sources.data.desktopSourceFormState())
+                if (sources.data.isNotEmpty() || libraryRoot.isBlank()) {
+                    applySourceFormState(sources.data.desktopSourceFormState())
+                }
                 startupSource = sources.data.preferredDesktopStartupSource()
                 startupSource?.let { source ->
                     applySourceActivationState(

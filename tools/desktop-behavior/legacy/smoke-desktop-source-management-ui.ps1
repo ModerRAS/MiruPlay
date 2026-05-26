@@ -353,23 +353,8 @@ try {
 } finally {
     $env:MIRUPLAY_DESKTOP_STORE = $previousStoreEnv
     if (-not $KeepOpen) {
-        $windowProcess = Get-MiruPlayDesktopWindowProcess
-        if ($windowProcess) {
-            $windowProcess.CloseMainWindow() | Out-Null
-            Start-Sleep -Milliseconds 700
-            if (-not $windowProcess.HasExited) {
-                $runningWindowProcess = Get-Process -Id $windowProcess.Id -ErrorAction SilentlyContinue
-                if ($runningWindowProcess) {
-                    Stop-Process -Id $windowProcess.Id -Force -ErrorAction SilentlyContinue
-                }
-            }
-        }
-        if ($startedProcess -and -not $startedProcess.HasExited) {
-            $runningStartedProcess = Get-Process -Id $startedProcess.Id -ErrorAction SilentlyContinue
-            if ($runningStartedProcess) {
-                Stop-Process -Id $startedProcess.Id -Force -ErrorAction SilentlyContinue
-            }
-        }
+        Close-MiruPlayDesktopWindowProcessIfRunning
+        Stop-MiruPlayDesktopProcessIfRunning -Process $startedProcess
     }
 }
 
