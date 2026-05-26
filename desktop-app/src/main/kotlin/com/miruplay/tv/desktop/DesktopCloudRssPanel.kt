@@ -94,6 +94,7 @@ import com.miruplay.tv.model.metadataSettingsTiles
 import com.miruplay.tv.model.mediaSourceStatusText
 import com.miruplay.tv.model.playbackSettingsTiles
 import com.miruplay.tv.model.settingsClearTokenActionLabel
+import com.miruplay.tv.model.settingsAppUpdateIdleStatus
 import com.miruplay.tv.model.settingsDesktopScanStatusMessage
 import com.miruplay.tv.model.settingsDesktopWebUiStatusMessage
 import com.miruplay.tv.model.settingsLogUploadAutoToggleLabel
@@ -410,6 +411,14 @@ internal fun CloudRssPanel(
                         inputModifier = focusModifier,
                     )
                 },
+                modifier = Modifier.weight(1f),
+            )
+            MiruPlaySettingsSection.APP_UPDATE -> SettingsSummaryContent(
+                section = selectedSection,
+                tiles = emptyList(),
+                status = settingsAppUpdateIdleStatus(),
+                actions = emptyList(),
+                onFocusSectionMenu = { focusSelectedSectionMenu() },
                 modifier = Modifier.weight(1f),
             )
             MiruPlaySettingsSection.METADATA -> SettingsSummaryContent(

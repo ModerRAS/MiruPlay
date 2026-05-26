@@ -42,6 +42,12 @@ enum class MiruPlaySettingsSection(
         desktopTitle = "日志",
         desktopDescription = "OpenObserve JSON",
     ),
+    APP_UPDATE(
+        androidTvTitle = "更新",
+        androidTvDescription = "GitHub APK",
+        desktopTitle = "更新",
+        desktopDescription = "GitHub APK",
+    ),
     METADATA(
         androidTvTitle = "元数据",
         androidTvDescription = "Bangumi Token",
@@ -58,6 +64,7 @@ val androidTvSettingsSectionOrder: List<MiruPlaySettingsSection> =
         MiruPlaySettingsSection.CLOUD_DRIVE,
         MiruPlaySettingsSection.SCAN,
         MiruPlaySettingsSection.LOG_UPLOAD,
+        MiruPlaySettingsSection.APP_UPDATE,
         MiruPlaySettingsSection.METADATA,
     )
 
@@ -134,6 +141,7 @@ data class SettingsSectionMenuSummaryInput(
     val mergeSameAnimeEnabled: Boolean = false,
     val metadataSummary: String = "",
     val logUploadSummary: String = settingsLogUploadMenuSummary(),
+    val appUpdateSummary: String = settingsAppUpdateMenuSummary(),
 )
 
 fun MiruPlaySettingsSection.settingsMenuSummary(
@@ -146,6 +154,7 @@ fun MiruPlaySettingsSection.settingsMenuSummary(
         MiruPlaySettingsSection.CLOUD_DRIVE -> settingsCloudDriveMenuSummary(input.cloudDriveEnabled, input.rssCount)
         MiruPlaySettingsSection.SCAN -> settingsScanMenuSummary(input.autoScanEnabled, input.mergeSameAnimeEnabled)
         MiruPlaySettingsSection.LOG_UPLOAD -> input.logUploadSummary
+        MiruPlaySettingsSection.APP_UPDATE -> input.appUpdateSummary
         MiruPlaySettingsSection.METADATA -> input.metadataSummary
     }
 
@@ -226,6 +235,48 @@ fun settingsLogUploadSaveConfigActionLabel(): String =
 
 fun settingsLogUploadRunNowActionLabel(): String =
     "立即上报"
+
+fun settingsAppUpdateMenuSummary(): String =
+    "GitHub"
+
+fun settingsAppUpdatePanelTitleLabel(): String =
+    "应用更新"
+
+fun settingsAppUpdatePanelDescription(): String =
+    "从 GitHub Release 获取最新 APK。"
+
+fun settingsAppUpdateCheckActionLabel(): String =
+    "检查更新"
+
+fun settingsAppUpdateInstallActionLabel(): String =
+    "下载安装"
+
+fun settingsAppUpdatePermissionActionLabel(): String =
+    "安装授权"
+
+fun settingsAppUpdateIdleStatus(): String =
+    "尚未检查更新。"
+
+fun settingsAppUpdateCheckingStatus(): String =
+    "正在检查 GitHub Release。"
+
+fun settingsAppUpdateReadyStatus(versionName: String): String =
+    "发现新版本 ${versionName.ifBlank { "未知版本" }}。"
+
+fun settingsAppUpdateLatestStatus(versionName: String): String =
+    "当前已是最新版本 ${versionName.ifBlank { "未知版本" }}。"
+
+fun settingsAppUpdateDownloadProgressStatus(percent: Int?): String =
+    percent?.let { "正在下载 APK $it%" } ?: "正在下载 APK。"
+
+fun settingsAppUpdateInstallPermissionStatus(): String =
+    "已打开安装授权页，授权后请返回重试。"
+
+fun settingsAppUpdateInstallPermissionGrantedStatus(): String =
+    "已具备安装授权。"
+
+fun settingsAppUpdateInstallerOpenedStatus(): String =
+    "已打开系统安装器。"
 
 fun settingsLogUploadPendingStatus(pendingCount: Int): String =
     "待上报 ${pendingCount.coerceAtLeast(0)} 条"
