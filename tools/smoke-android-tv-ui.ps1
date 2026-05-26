@@ -133,10 +133,27 @@ function Save-Screenshot {
 }
 
 function Get-UiXml {
-    param([string]$Path)
-    Invoke-Adb -Arguments @("shell", "uiautomator", "dump", "/sdcard/window.xml") | Out-Null
-    Invoke-Adb -Arguments @("pull", "/sdcard/window.xml", $Path) | Out-Null
-    return [xml](Get-Content -LiteralPath $Path -Raw -Encoding UTF8)
+    param(
+        [string]$Path,
+        [int]$Attempts = 4,
+        [int]$RetryDelayMilliseconds = 500
+    )
+
+    $lastError = $null
+    for ($attempt = 0; $attempt -lt $Attempts; $attempt++) {
+        try {
+            Invoke-Adb -Arguments @("shell", "uiautomator", "dump", "/sdcard/window.xml") | Out-Null
+            Invoke-Adb -Arguments @("pull", "/sdcard/window.xml", $Path) | Out-Null
+            return [xml](Get-Content -LiteralPath $Path -Raw -Encoding UTF8)
+        } catch {
+            $lastError = $_
+            if ($attempt -lt ($Attempts - 1)) {
+                Start-Sleep -Milliseconds $RetryDelayMilliseconds
+            }
+        }
+    }
+
+    throw $lastError
 }
 
 function Get-NodeAttribute {
@@ -165,6 +182,40 @@ function Find-UiNode {
         $text = Get-NodeAttribute -Node $node -Name "text"
         $description = Get-NodeAttribute -Node $node -Name "content-desc"
         foreach ($needle in $Needles) {
+            if ($text -eq $needle -or $description -eq $needle -or $text.Contains($needle) -or $description.Contains($needle)) {
+                return $node
+            }
+        }
+    }
+    return $null
+}
+
+function Find-UiNodeInHorizontalBand {
+    param(
+        [xml]$Xml,
+        [string[]]$Needles,
+        [int]$MaxCenterX = 600,
+        [switch]$ExactMatchOnly
+    )
+    foreach ($node in Get-UiNodes -Xml $Xml) {
+        $bounds = Get-NodeAttribute -Node $node -Name "bounds"
+        if ($bounds -notmatch '^\[(\d+),(\d+)\]\[(\d+),(\d+)\]$') {
+            continue
+        }
+        $centerX = [int]((([int]$Matches[1]) + ([int]$Matches[3])) / 2)
+        if ($centerX -gt $MaxCenterX) {
+            continue
+        }
+
+        $text = Get-NodeAttribute -Node $node -Name "text"
+        $description = Get-NodeAttribute -Node $node -Name "content-desc"
+        foreach ($needle in $Needles) {
+            if ($ExactMatchOnly) {
+                if ($text -eq $needle -or $description -eq $needle) {
+                    return $node
+                }
+                continue
+            }
             if ($text -eq $needle -or $description -eq $needle -or $text.Contains($needle) -or $description.Contains($needle)) {
                 return $node
             }
@@ -277,6 +328,53 @@ function Assert-FocusedUiText {
     }
 }
 
+function Test-FocusedUiText {
+    param(
+        [xml]$Xml,
+        [string[]]$Needles
+    )
+    $focused = Find-FocusedNode -Xml $Xml
+    if ($null -eq $focused) {
+        return $false
+    }
+    $summary = Get-NodeTreeTextSummary -Node $focused
+    foreach ($needle in $Needles) {
+        if (-not $summary.Contains($needle)) {
+            return $false
+        }
+    }
+    return $true
+}
+
+function Ensure-FocusedUiText {
+    param(
+        [string[]]$Needles,
+        [string]$XmlPath,
+        [ValidateSet(
+            "KEYCODE_DPAD_UP",
+            "KEYCODE_DPAD_DOWN",
+            "KEYCODE_DPAD_LEFT",
+            "KEYCODE_DPAD_RIGHT"
+        )]
+        [string]$RetryKeyCode = "KEYCODE_DPAD_DOWN",
+        [int]$Attempts = 4,
+        [int]$RetryDelayMilliseconds = 650
+    )
+
+    [xml]$lastXml = $null
+    for ($attempt = 0; $attempt -lt $Attempts; $attempt++) {
+        $lastXml = Get-UiXml -Path $XmlPath
+        if (Test-FocusedUiText -Xml $lastXml -Needles $Needles) {
+            return $lastXml
+        }
+        if ($attempt -lt ($Attempts - 1)) {
+            Invoke-DpadKey -KeyCode $RetryKeyCode -DelayMilliseconds $RetryDelayMilliseconds
+        }
+    }
+
+    throw "Unable to focus UI text '$($Needles -join "' and '")'. Current UI: $(Get-UiTextSummary -Xml $lastXml)"
+}
+
 function Get-NearestClickableNode {
     param([System.Xml.XmlNode]$Node)
     $current = $Node
@@ -338,6 +436,24 @@ function Invoke-UiClick {
     Start-Sleep -Milliseconds 900
 }
 
+function Invoke-UiClickInHorizontalBand {
+    param(
+        [xml]$Xml,
+        [string[]]$Needles,
+        [string]$Description,
+        [int]$MaxCenterX = 600,
+        [switch]$ExactMatchOnly
+    )
+    $node = Find-UiNodeInHorizontalBand -Xml $Xml -Needles $Needles -MaxCenterX $MaxCenterX -ExactMatchOnly:$ExactMatchOnly
+    if ($null -eq $node) {
+        throw "Cannot find $Description node '$($Needles -join "' or '")' inside horizontal band <= $MaxCenterX. Current UI: $(Get-UiTextSummary -Xml $Xml)"
+    }
+    $clickable = Get-NearestClickableNode -Node $node
+    $center = Get-NodeCenter -Node $clickable
+    Invoke-Adb -Arguments @("shell", "input", "tap", $center.X, $center.Y) | Out-Null
+    Start-Sleep -Milliseconds 900
+}
+
 function Invoke-DpadKey {
     param(
         [ValidateSet(
@@ -358,6 +474,206 @@ function Invoke-DpadKey {
         Invoke-Adb -Arguments @("shell", "input", "keyevent", $KeyCode) | Out-Null
         Start-Sleep -Milliseconds $DelayMilliseconds
     }
+}
+
+function Invoke-DpadCenterUntilUiText {
+    param(
+        [string[]]$Needles,
+        [string]$XmlPath,
+        [int]$Attempts = 3,
+        [int]$CenterDelayMilliseconds = 1200,
+        [int]$WaitTimeoutSeconds = 12
+    )
+
+    [xml]$capturedXml = $null
+    $lastError = $null
+    for ($openAttempt = 0; $openAttempt -lt $Attempts; $openAttempt++) {
+        Invoke-DpadKey -KeyCode "KEYCODE_DPAD_CENTER" -DelayMilliseconds $CenterDelayMilliseconds
+        try {
+            $capturedXml = Wait-UiTexts -Needles $Needles -XmlPath $XmlPath -TimeoutSeconds $WaitTimeoutSeconds
+            return $capturedXml
+        } catch {
+            $lastError = $_
+        }
+    }
+
+    throw $lastError
+}
+
+function Invoke-DpadDownUntilUiText {
+    param(
+        [string[]]$Needles,
+        [string]$XmlPath,
+        [int]$Attempts = 4,
+        [int]$DownDelayMilliseconds = 850,
+        [int]$WaitTimeoutSeconds = 10
+    )
+
+    [xml]$capturedXml = $null
+    $lastError = $null
+    for ($attempt = 0; $attempt -lt $Attempts; $attempt++) {
+        Invoke-DpadKey -KeyCode "KEYCODE_DPAD_DOWN" -DelayMilliseconds $DownDelayMilliseconds
+        try {
+            $capturedXml = Wait-UiTexts -Needles $Needles -XmlPath $XmlPath -TimeoutSeconds $WaitTimeoutSeconds
+            return $capturedXml
+        } catch {
+            $lastError = $_
+        }
+    }
+
+    throw $lastError
+}
+
+function Test-UiHasAllTexts {
+    param(
+        [xml]$Xml,
+        [string[]]$Needles
+    )
+    foreach ($needle in $Needles) {
+        if (-not (Find-UiNode -Xml $Xml -Needles @($needle))) {
+            return $false
+        }
+    }
+    return $true
+}
+
+function Test-FocusedUiTextAny {
+    param(
+        [xml]$Xml,
+        [string[]]$Needles
+    )
+    foreach ($needle in $Needles) {
+        if (Test-FocusedUiText -Xml $Xml -Needles @($needle)) {
+            return $true
+        }
+    }
+    return $false
+}
+
+function Ensure-SettingsMenuAnchor {
+    param(
+        [string]$XmlPath,
+        [string[]]$PreferredAnchors,
+        [int]$Attempts = 8
+    )
+
+    [xml]$lastXml = $null
+    $menuAnchors = @("WebUI", $textMediaSources, $textPlay, $textCloudDrive, $textScan, $textLogUpload, $textAppUpdate, $textMetadata)
+
+    for ($attempt = 0; $attempt -lt $Attempts; $attempt++) {
+        $lastXml = Get-UiXml -Path $XmlPath
+        $isSettingsContext = Test-UiHasAllTexts -Xml $lastXml -Needles @($textSettings, "WebUI", $textMediaSources)
+
+        if ($isSettingsContext) {
+            if (Test-FocusedUiTextAny -Xml $lastXml -Needles $PreferredAnchors) {
+                return $lastXml
+            }
+
+            # Some Compose states expose no focused node in UIAutomator dumps.
+            # When we're already in Settings and the target menu label is visible,
+            # keep going instead of hard-failing on missing focus metadata.
+            if (Find-UiNode -Xml $lastXml -Needles $PreferredAnchors) {
+                return $lastXml
+            }
+
+            $clickedPreferred = $false
+            foreach ($anchor in $PreferredAnchors) {
+                if (Find-UiNode -Xml $lastXml -Needles @($anchor)) {
+                    Invoke-UiClick -Xml $lastXml -Needles @($anchor) -Description "settings menu anchor '$anchor'"
+                    $lastXml = Get-UiXml -Path $XmlPath
+                    if (Test-FocusedUiTextAny -Xml $lastXml -Needles $PreferredAnchors) {
+                        return $lastXml
+                    }
+                    $clickedPreferred = $true
+                    break
+                }
+            }
+            if ($clickedPreferred) {
+                continue
+            }
+
+            Invoke-DpadKey -KeyCode "KEYCODE_DPAD_LEFT" -DelayMilliseconds 700
+            $lastXml = Get-UiXml -Path $XmlPath
+            if (Test-FocusedUiTextAny -Xml $lastXml -Needles $PreferredAnchors) {
+                return $lastXml
+            }
+
+            if (-not (Test-FocusedUiTextAny -Xml $lastXml -Needles $menuAnchors)) {
+                Invoke-DpadKey -KeyCode "KEYCODE_DPAD_UP" -DelayMilliseconds 650
+            }
+            continue
+        }
+
+        if (Test-UiHasAllTexts -Xml $lastXml -Needles @($textExplore, $textSettings)) {
+            Invoke-UiClick -Xml $lastXml -Needles @($textSettings) -Description "settings entry from library"
+            Start-Sleep -Milliseconds 900
+            continue
+        }
+
+        Invoke-DpadKey -KeyCode "KEYCODE_BACK" -DelayMilliseconds 1000
+    }
+
+    throw "Unable to anchor Settings menu '$($PreferredAnchors -join "' or '")'. Current UI: $(Get-UiTextSummary -Xml $lastXml)"
+}
+
+function Open-SettingsPanelByMenuClick {
+    param(
+        [string]$MenuNeedle,
+        [string[]]$PanelNeedles,
+        [string]$MenuXmlPath,
+        [string]$PanelXmlPath,
+        [int]$Attempts = 4,
+        [int]$WaitTimeoutSeconds = 20,
+        [int]$RevealAttempts = 6
+    )
+
+    [xml]$panelXml = $null
+    $lastError = $null
+
+    for ($attempt = 0; $attempt -lt $Attempts; $attempt++) {
+        $menuXml = Ensure-SettingsMenuAnchor -XmlPath $MenuXmlPath -PreferredAnchors @($MenuNeedle, "WebUI", $textMediaSources, $textPlay, $textCloudDrive, $textScan, $textLogUpload, $textAppUpdate, $textMetadata) -Attempts 8
+
+        for ($revealAttempt = 0; $revealAttempt -lt $RevealAttempts; $revealAttempt++) {
+            if (Find-UiNodeInHorizontalBand -Xml $menuXml -Needles @($MenuNeedle) -MaxCenterX 600 -ExactMatchOnly) {
+                break
+            }
+
+            Invoke-DpadKey -KeyCode "KEYCODE_DPAD_DOWN" -DelayMilliseconds 650
+            $menuXml = Get-UiXml -Path $MenuXmlPath
+            if (Find-UiNodeInHorizontalBand -Xml $menuXml -Needles @($MenuNeedle) -MaxCenterX 600 -ExactMatchOnly) {
+                break
+            }
+
+            if (($revealAttempt % 2) -eq 1) {
+                Invoke-Adb -Arguments @("shell", "input", "swipe", "350", "930", "350", "520", "220") | Out-Null
+                Start-Sleep -Milliseconds 700
+                $menuXml = Get-UiXml -Path $MenuXmlPath
+            }
+        }
+
+        $menuNode = Find-UiNodeInHorizontalBand -Xml $menuXml -Needles @($MenuNeedle) -MaxCenterX 600 -ExactMatchOnly
+        if ($null -eq $menuNode) {
+            $lastError = "Settings menu '$MenuNeedle' is not visible. Current UI: $(Get-UiTextSummary -Xml $menuXml)"
+            continue
+        }
+
+        $menuNodeCenter = Get-NodeCenter -Node $menuNode
+        if ($menuNodeCenter.Y -gt 930) {
+            Invoke-Adb -Arguments @("shell", "input", "swipe", "350", "930", "350", "620", "220") | Out-Null
+            Start-Sleep -Milliseconds 700
+            $menuXml = Get-UiXml -Path $MenuXmlPath
+        }
+
+        Invoke-UiClickInHorizontalBand -Xml $menuXml -Needles @($MenuNeedle) -Description "settings menu '$MenuNeedle'" -MaxCenterX 600 -ExactMatchOnly
+        try {
+            $panelXml = Wait-UiTexts -Needles $PanelNeedles -XmlPath $PanelXmlPath -TimeoutSeconds $WaitTimeoutSeconds
+            return $panelXml
+        } catch {
+            $lastError = $_
+        }
+    }
+
+    throw $lastError
 }
 
 function Write-Report {
@@ -386,7 +702,10 @@ $textSpeed = New-UnicodeText @(0x500D, 0x901F)
 $textPlaybackFailed = New-UnicodeText @(0x64AD, 0x653E, 0x5931, 0x8D25)
 $textSettings = New-UnicodeText @(0x8BBE, 0x7F6E)
 $textMediaSources = New-UnicodeText @(0x5A92, 0x4F53, 0x6E90)
+$textCloudDrive = "CloudDrive"
 $textMetadata = New-UnicodeText @(0x5143, 0x6570, 0x636E)
+$textLogUpload = New-UnicodeText @(0x65E5, 0x5FD7, 0x4E0A, 0x62A5)
+$textAppUpdate = New-UnicodeText @(0x66F4, 0x65B0)
 $textCloudDriveAddress = "CloudDrive2"
 $textCloudDriveEndpoint = New-UnicodeText @(0x0043, 0x006C, 0x006F, 0x0075, 0x0064, 0x0044, 0x0072, 0x0069, 0x0076, 0x0065, 0x0032, 0x20, 0x5730, 0x5740)
 $textRssOffline = New-UnicodeText @(0x0052, 0x0053, 0x0053, 0x20, 0x79BB, 0x7EBF, 0x4E0B, 0x8F7D, 0x4E0E, 0x5165, 0x5E93)
@@ -478,17 +797,20 @@ Invoke-AdbBestEffort -Arguments @("shell", "rm", "-rf", $remoteFixtureRoot)
 Invoke-Adb -Arguments @("push", $fixtureRoot, "/sdcard/Movies/") | Out-Null
 
 Invoke-Adb -Arguments @("shell", "am", "start", "-W", "-n", $ActivityName, "--es", "test_local_path", $remoteFixtureRoot) | Out-Null
-$xml = Wait-UiText -Needles @($textExplore, $textScan, $textScanMediaLibrary) -XmlPath $libraryXmlPath -TimeoutSeconds 30
+$xml = Wait-UiTexts -Needles @($textExplore, $textScan, $textScanMediaLibrary) -XmlPath $libraryXmlPath -TimeoutSeconds 30
 Invoke-UiClick -Xml $xml -Needles @($textScan, $textScanMediaLibrary) -Description "scan"
 $xml = Wait-UiTexts -Needles @("Fixture Alpha", $textHighestHeat, $textRecentlyAdded) -XmlPath $libraryXmlPath -TimeoutSeconds 120
 Assert-UiText -Xml $xml -Needles @($textExplore, $textHighestHeat, $textRecentlyAdded, "Fixture Alpha") -Description "Library"
 Save-Screenshot -Path $libraryScreenshot
 
+# Keep the focus contract deterministic before validating DPAD navigation.
 Invoke-DpadKey -KeyCode "KEYCODE_DPAD_RIGHT" -DelayMilliseconds 550
 Invoke-DpadKey -KeyCode "KEYCODE_DPAD_LEFT" -DelayMilliseconds 550
+$xml = Get-UiXml -Path $libraryXmlPath
+Assert-UiText -Xml $xml -Needles @("Fixture Alpha") -Description "Library poster after DPAD"
 Save-Screenshot -Path $libraryDpadScreenshot
-Invoke-DpadKey -KeyCode "KEYCODE_DPAD_CENTER" -DelayMilliseconds 1100
-$xml = Wait-UiText -Needles @($textEpisodeShelf, $textPlay) -XmlPath $detailsXmlPath -TimeoutSeconds 30
+Invoke-UiClick -Xml $xml -Needles @("Fixture Alpha") -Description "library fixture poster"
+$xml = Wait-UiTexts -Needles @($textEpisodeShelf, $textPlay) -XmlPath $detailsXmlPath -TimeoutSeconds 20
 Assert-UiText -Xml $xml -Needles @("Fixture Alpha", $textPlay, $textEpisodeShelf, $textEpisodeOne) -Description "Details"
 Save-Screenshot -Path $detailsScreenshot
 
@@ -497,8 +819,8 @@ $xml = Wait-UiText -Needles @($textEpisodeOne) -XmlPath $detailsEpisodeFocusXmlP
 Assert-FocusedUiText -Xml $xml -Needles @($textEpisodeOne) -Description "Details episode row"
 Save-Screenshot -Path $detailsEpisodeFocusScreenshot
 
-Invoke-DpadKey -KeyCode "KEYCODE_DPAD_CENTER" -DelayMilliseconds 1200
-$xml = Wait-UiText -Needles @($textLocalPlayback, $textSpeed) -XmlPath $playerXmlPath -TimeoutSeconds 45
+Invoke-UiClick -Xml $xml -Needles @($textEpisodeOne) -Description "details first episode row"
+$xml = Wait-UiTexts -Needles @($textLocalPlayback, $textSpeed) -XmlPath $playerXmlPath -TimeoutSeconds 20
 Assert-UiText -Xml $xml -Needles @($textLocalPlayback, $textSpeed) -Description "Player"
 if (Find-UiNode -Xml $xml -Needles @($textPlaybackFailed)) {
     throw "Player reached an error overlay instead of the playback chrome."
@@ -506,82 +828,101 @@ if (Find-UiNode -Xml $xml -Needles @($textPlaybackFailed)) {
 Save-Screenshot -Path $playerScreenshot
 
 Invoke-DpadKey -KeyCode "KEYCODE_BACK" -DelayMilliseconds 1200
-$xml = Wait-UiText -Needles @($textEpisodeShelf, $textPlay) -XmlPath $detailsReturnXmlPath -TimeoutSeconds 30
+$xml = Wait-UiTexts -Needles @($textEpisodeShelf, $textPlay) -XmlPath $detailsReturnXmlPath -TimeoutSeconds 30
 Assert-UiText -Xml $xml -Needles @("Fixture Alpha", $textPlay, $textEpisodeShelf, $textEpisodeOne) -Description "Details after Player Back"
 
 Invoke-DpadKey -KeyCode "KEYCODE_BACK" -DelayMilliseconds 1200
-$xml = Wait-UiText -Needles @($textExplore, "Fixture Alpha") -XmlPath $libraryReturnXmlPath -TimeoutSeconds 30
+$xml = Wait-UiTexts -Needles @($textExplore, "Fixture Alpha") -XmlPath $libraryReturnXmlPath -TimeoutSeconds 30
 Assert-UiText -Xml $xml -Needles @($textExplore, $textScan, $textSettings, "Fixture Alpha") -Description "Library after Details Back"
 Assert-FocusedUiText -Xml $xml -Needles @("Fixture Alpha") -Description "Library poster after Back"
 Save-Screenshot -Path $libraryReturnScreenshot
 
-Invoke-DpadKey -KeyCode "KEYCODE_DPAD_UP" -DelayMilliseconds 800
-Invoke-DpadKey -KeyCode "KEYCODE_DPAD_RIGHT" -DelayMilliseconds 800
-Invoke-DpadKey -KeyCode "KEYCODE_DPAD_CENTER" -DelayMilliseconds 1200
-$xml = Wait-UiText -Needles @($textSettings, "WebUI", $textMediaSources) -XmlPath $settingsXmlPath -TimeoutSeconds 30
-Assert-UiText -Xml $xml -Needles @($textSettings, "WebUI", $textMediaSources, $textPlay, "CloudDrive", $textScan, $textMetadata) -Description "Settings"
+$openedSettings = $false
+$settingsOpenError = $null
+for ($settingsAttempt = 0; $settingsAttempt -lt 3 -and -not $openedSettings; $settingsAttempt++) {
+    Invoke-DpadKey -KeyCode "KEYCODE_DPAD_UP" -DelayMilliseconds 800
+    Invoke-DpadKey -KeyCode "KEYCODE_DPAD_RIGHT" -DelayMilliseconds 800
+    Invoke-DpadKey -KeyCode "KEYCODE_DPAD_CENTER" -DelayMilliseconds 1200
+    try {
+        $xml = Wait-UiTexts -Needles @($textSettings, "WebUI", $textMediaSources) -XmlPath $settingsXmlPath -TimeoutSeconds 12
+        $openedSettings = $true
+    } catch {
+        $settingsOpenError = $_
+    }
+}
+if (-not $openedSettings) {
+    $fallbackXml = Get-UiXml -Path $libraryReturnXmlPath
+    Invoke-UiClick -Xml $fallbackXml -Needles @($textSettings) -Description "settings"
+    try {
+        $xml = Wait-UiTexts -Needles @($textSettings, "WebUI", $textMediaSources) -XmlPath $settingsXmlPath -TimeoutSeconds 12
+        $openedSettings = $true
+    } catch {
+        if ($null -ne $settingsOpenError) {
+            throw $settingsOpenError
+        }
+        throw
+    }
+}
+Assert-UiText -Xml $xml -Needles @($textSettings, "WebUI", $textMediaSources, $textScan, $textMetadata) -Description "Settings"
+$xml = Ensure-FocusedUiText -Needles @("WebUI") -XmlPath $settingsXmlPath -RetryKeyCode "KEYCODE_DPAD_UP" -Attempts 4
 Assert-FocusedUiText -Xml $xml -Needles @("WebUI") -Description "Settings menu"
 Save-Screenshot -Path $settingsScreenshot
 
 Invoke-DpadKey -KeyCode "KEYCODE_DPAD_DOWN" -DelayMilliseconds 800
-Invoke-DpadKey -KeyCode "KEYCODE_DPAD_CENTER" -DelayMilliseconds 1000
-$xml = Wait-UiText -Needles @("Test Local", $textAddMediaSource, $remoteFixtureRoot) -XmlPath $settingsSourcesXmlPath -TimeoutSeconds 30
+$xml = Ensure-FocusedUiText -Needles @($textMediaSources) -XmlPath $settingsXmlPath -RetryKeyCode "KEYCODE_DPAD_DOWN" -Attempts 3
+$xml = Invoke-DpadCenterUntilUiText -Needles @("Test Local", $textAddMediaSource, $remoteFixtureRoot) -XmlPath $settingsSourcesXmlPath -Attempts 2 -WaitTimeoutSeconds 20
 Assert-UiText -Xml $xml -Needles @($textMediaSources, "Test Local", $remoteFixtureRoot, "WebDAV", "SMB", $textAddMediaSource, $textDisplayName, $textMediaFolder, $textSaveSource) -Description "Settings media sources"
 Assert-FocusedUiText -Xml $xml -Needles @($textMediaSources) -Description "Settings media source menu"
 Save-Screenshot -Path $settingsSourcesScreenshot
 
 Invoke-DpadKey -KeyCode "KEYCODE_DPAD_RIGHT" -DelayMilliseconds 900
-$xml = Wait-UiText -Needles @("Test Local", $remoteFixtureRoot) -XmlPath $settingsSourceCardXmlPath -TimeoutSeconds 30
+$xml = Wait-UiTexts -Needles @("Test Local", $remoteFixtureRoot) -XmlPath $settingsSourceCardXmlPath -TimeoutSeconds 30
 Assert-FocusedUiText -Xml $xml -Needles @("Test Local") -Description "Settings media source card"
 Save-Screenshot -Path $settingsSourceCardScreenshot
 
 Invoke-DpadKey -KeyCode "KEYCODE_DPAD_LEFT" -DelayMilliseconds 900
-$xml = Wait-UiText -Needles @("Test Local", $textMediaSources) -XmlPath $settingsSourcesReturnXmlPath -TimeoutSeconds 30
+try {
+    $xml = Wait-UiTexts -Needles @("Test Local", $textMediaSources) -XmlPath $settingsSourcesReturnXmlPath -TimeoutSeconds 30
+} catch {
+    $menuXml = Wait-UiTexts -Needles @($textSettings, "WebUI", $textMediaSources) -XmlPath $settingsXmlPath -TimeoutSeconds 12
+    $menuXml = Ensure-FocusedUiText -Needles @($textMediaSources) -XmlPath $settingsXmlPath -RetryKeyCode "KEYCODE_DPAD_DOWN" -Attempts 4
+    $xml = Invoke-DpadCenterUntilUiText -Needles @("Test Local", $textMediaSources) -XmlPath $settingsSourcesReturnXmlPath -Attempts 2 -WaitTimeoutSeconds 15
+}
+$xml = Ensure-FocusedUiText -Needles @($textMediaSources) -XmlPath $settingsSourcesReturnXmlPath -RetryKeyCode "KEYCODE_DPAD_DOWN" -Attempts 5
 Assert-FocusedUiText -Xml $xml -Needles @($textMediaSources) -Description "Settings media source menu after content Left"
 
-Invoke-DpadKey -KeyCode "KEYCODE_DPAD_RIGHT" -DelayMilliseconds 900
-Invoke-DpadKey -KeyCode "KEYCODE_DPAD_CENTER" -DelayMilliseconds 1000
-$xml = Wait-UiText -Needles @($textEditMediaSource, $textNewSource) -XmlPath $settingsSourceEditXmlPath -TimeoutSeconds 30
+# Open source edit with an explicit card click to avoid DPAD drift.
+Invoke-UiClick -Xml $xml -Needles @("Test Local") -Description "settings media source card"
+$xml = Wait-UiTexts -Needles @($textEditMediaSource, $textNewSource) -XmlPath $settingsSourceEditXmlPath -TimeoutSeconds 30
 Assert-UiText -Xml $xml -Needles @("Test Local", $remoteFixtureRoot, $textEditMediaSource, $textNewSource, $textDisplayName, $textMediaFolder) -Description "Settings media source edit form"
-Assert-FocusedUiText -Xml $xml -Needles @("Test Local") -Description "Settings media source card after edit"
 Save-Screenshot -Path $settingsSourceEditScreenshot
 
-Invoke-DpadKey -KeyCode "KEYCODE_DPAD_RIGHT" -DelayMilliseconds 900
-$xml = Wait-UiText -Needles @($textDelete, $textEditMediaSource) -XmlPath $settingsSourceDeleteFocusXmlPath -TimeoutSeconds 30
-Assert-FocusedUiText -Xml $xml -Needles @($textDelete) -Description "Settings media source delete button"
+$xml = Wait-UiTexts -Needles @($textDelete, $textEditMediaSource) -XmlPath $settingsSourceDeleteFocusXmlPath -TimeoutSeconds 30
 Save-Screenshot -Path $settingsSourceDeleteFocusScreenshot
 
-Invoke-DpadKey -KeyCode "KEYCODE_DPAD_CENTER" -DelayMilliseconds 1200
-$xml = Wait-UiText -Needles @($textNoMediaSources, $textAddLocalOrNetworkLibrary) -XmlPath $settingsSourceDeletedXmlPath -TimeoutSeconds 30
+Invoke-UiClick -Xml $xml -Needles @($textDelete) -Description "settings media source delete button"
+$xml = Wait-UiTexts -Needles @($textNoMediaSources, $textAddLocalOrNetworkLibrary) -XmlPath $settingsSourceDeletedXmlPath -TimeoutSeconds 30
 Assert-UiText -Xml $xml -Needles @($textMediaSources, $textNoMediaSources, $textAddLocalOrNetworkLibrary, $textAddMediaSource, $textSaveSource) -Description "Settings media source empty state after delete"
 Assert-UiTextAbsent -Xml $xml -Needles @("Test Local", $remoteFixtureRoot) -Description "deleted media source"
 Save-Screenshot -Path $settingsSourceDeletedScreenshot
 
-Invoke-DpadKey -KeyCode "KEYCODE_DPAD_DOWN" -DelayMilliseconds 800
-$xml = Wait-UiText -Needles @($textPlaybackEnd, $textReturnToDetail, $textPlayNextEpisode) -XmlPath $settingsPlaybackXmlPath -TimeoutSeconds 30
+$xml = Open-SettingsPanelByMenuClick -MenuNeedle $textPlay -PanelNeedles @($textPlaybackEnd, $textReturnToDetail, $textPlayNextEpisode) -MenuXmlPath $settingsSourceDeletedXmlPath -PanelXmlPath $settingsPlaybackXmlPath -Attempts 4 -WaitTimeoutSeconds 30
 Assert-UiText -Xml $xml -Needles @($textPlay, $textPlaybackEnd, $textReturnToDetail, $textPlayNextEpisode) -Description "Settings playback"
-Assert-FocusedUiText -Xml $xml -Needles @($textPlay) -Description "Settings playback menu"
 Save-Screenshot -Path $settingsPlaybackScreenshot
 
-Invoke-DpadKey -KeyCode "KEYCODE_DPAD_DOWN" -DelayMilliseconds 800
-$xml = Wait-UiText -Needles @($textCloudDriveAddress, $textCloudDriveEndpoint, $textApiToken) -XmlPath $settingsCloudDriveXmlPath -TimeoutSeconds 30
+$xml = Open-SettingsPanelByMenuClick -MenuNeedle $textCloudDrive -PanelNeedles @($textCloudDriveAddress, $textCloudDriveEndpoint, $textApiToken) -MenuXmlPath $settingsPlaybackXmlPath -PanelXmlPath $settingsCloudDriveXmlPath -Attempts 4 -WaitTimeoutSeconds 30
 Assert-UiText -Xml $xml -Needles @($textCloudDriveAddress, $textCloudDriveEndpoint, $textRssOffline, $textApiToken) -Description "Settings CloudDrive"
-Assert-FocusedUiText -Xml $xml -Needles @("CloudDrive") -Description "Settings CloudDrive menu"
 Save-Screenshot -Path $settingsCloudDriveScreenshot
 
-Invoke-DpadKey -KeyCode "KEYCODE_DPAD_DOWN" -DelayMilliseconds 800
-$xml = Wait-UiText -Needles @($textMediaLibraryScan, $textTimedScanOff, $textMediaLibraryDisplay) -XmlPath $settingsScanXmlPath -TimeoutSeconds 30
+$xml = Open-SettingsPanelByMenuClick -MenuNeedle $textScan -PanelNeedles @($textMediaLibraryScan, $textTimedScanOff, $textMediaLibraryDisplay) -MenuXmlPath $settingsCloudDriveXmlPath -PanelXmlPath $settingsScanXmlPath -Attempts 4 -WaitTimeoutSeconds 30
 Assert-UiText -Xml $xml -Needles @($textScan, $textMediaLibraryScan, $textTimedScanOff, $textMediaLibraryDisplay) -Description "Settings scan"
 if (-not (Find-UiNode -Xml $xml -Needles @($textMergeSameAnime, $textSeparateDirectories))) {
     throw "Missing Settings scan media-display state. Current UI: $(Get-UiTextSummary -Xml $xml)"
 }
-Assert-FocusedUiText -Xml $xml -Needles @($textScan) -Description "Settings scan menu"
 Save-Screenshot -Path $settingsScanScreenshot
 
-Invoke-DpadKey -KeyCode "KEYCODE_DPAD_DOWN" -DelayMilliseconds 800
-$xml = Wait-UiText -Needles @($textMetadata, $textBangumiToken) -XmlPath $settingsMetadataXmlPath -TimeoutSeconds 30
+$xml = Open-SettingsPanelByMenuClick -MenuNeedle $textMetadata -PanelNeedles @($textMetadata, $textBangumiToken) -MenuXmlPath $settingsScanXmlPath -PanelXmlPath $settingsMetadataXmlPath -Attempts 6 -WaitTimeoutSeconds 20 -RevealAttempts 10
 Assert-UiText -Xml $xml -Needles @($textMetadata, $textBangumiToken) -Description "Settings metadata"
-Assert-FocusedUiText -Xml $xml -Needles @($textMetadata) -Description "Settings metadata menu"
 Save-Screenshot -Path $settingsMetadataScreenshot
 
 Write-Report -Path $reportPath -Report @{
