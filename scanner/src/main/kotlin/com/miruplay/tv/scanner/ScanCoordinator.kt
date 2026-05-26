@@ -2,6 +2,7 @@ package com.miruplay.tv.scanner
 
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.mediasource.MediaSource
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.metadata.NfoWriteOptions
@@ -159,11 +160,33 @@ class ScanCoordinator @Inject constructor(
                             fileName = fileNameOf(entry.path)
                         )
                     }
+                val animeTitleCandidates = titleCandidatesByAnime[animeName].orEmpty()
                 val online = enrichWithOnlineMetadata(
                     animeName = animeName,
                     episodes = episodes,
-                    extraTitleCandidates = titleCandidatesByAnime[animeName].orEmpty(),
+                    extraTitleCandidates = animeTitleCandidates,
                     posterCacheDirectory = posterCacheDirectory,
+                )
+                MiruLog.i(
+                    tag = TAG,
+                    message = "Scan recognition summary",
+                    attributes = mapOf(
+                        "scan_phase" to "recognition_summary",
+                        "source_id" to sourceId.toString(),
+                        "source_name" to sourceInfo.name,
+                        "source_type" to sourceInfo.type.name,
+                        "anime_name" to normalizeForLog(animeName, 120),
+                        "episode_count" to episodes.size.toString(),
+                        "episode_enriched_count" to online.episodes.size.toString(),
+                        "candidate_count" to animeTitleCandidates.size.toString(),
+                        "candidate_sample" to sampleCandidates(animeTitleCandidates),
+                        "scrape_status" to online.scrapeStatus.name,
+                        "scrape_message" to normalizeForLog(online.scrapeMessage.orEmpty(), 180),
+                        "metadata_source" to (online.match?.source?.name ?: ""),
+                        "metadata_id" to (online.match?.animeId ?: ""),
+                        "metadata_title" to normalizeForLog(online.match?.displayTitle().orEmpty(), 120),
+                        "metadata_confidence" to (online.match?.confidence?.toString() ?: ""),
+                    )
                 )
                 val scrapedAt = if (online.scrapeStatus == MediaScrapeStatus.SCRAPED) {
                     System.currentTimeMillis()
@@ -232,7 +255,22 @@ class ScanCoordinator @Inject constructor(
         }
 
         // Report done
-        Log.d("ScanCoordinator", "Scan done: ${sourceInfo.name} -> $totalFiles files, $newEpisodes new episodes")
+        Log.d(TAG, "Scan done: ${sourceInfo.name} -> $totalFiles files, $newEpisodes new episodes")
+        MiruLog.i(
+            tag = TAG,
+            message = "Scan source completed",
+            attributes = mapOf(
+                "scan_phase" to "scan_complete",
+                "source_id" to sourceId.toString(),
+                "source_name" to sourceInfo.name,
+                "source_type" to sourceInfo.type.name,
+                "total_video_files" to totalFiles.toString(),
+                "new_episode_count" to newEpisodes.toString(),
+                "scraped_file_count" to scrapedFiles.toString(),
+                "no_match_file_count" to noMatchFiles.toString(),
+                "filename_only" to filenameOnly.toString(),
+            )
+        )
 
         Result.success(ScanResult(
             animeName = if (isLocalSource) sourceInfo.displayNameOrPath(rootPath) else sourceInfo.name,
@@ -258,22 +296,101 @@ class ScanCoordinator @Inject constructor(
         extraTitleCandidates: Collection<String> = emptyList(),
         posterCacheDirectory: File? = null,
     ): OnlineMetadata {
+        val candidates = titleCandidates(animeName, extraTitleCandidates)
+        val recognitionBaseAttributes = buildRecognitionBaseAttributes(
+            animeName = animeName,
+            episodes = episodes,
+            candidates = candidates,
+        )
         val bangumi = metadataScrapers.firstOrNull { it.sourceName.equals("Bangumi", ignoreCase = true) }
             ?: return OnlineMetadata(
                 anime = null,
                 episodes = episodes,
                 scrapeStatus = MediaScrapeStatus.PENDING,
                 scrapeMessage = "Bangumi scraper unavailable",
-            )
+            ).also {
+                MiruLog.w(
+                    tag = TAG,
+                    message = "Recognition scraper unavailable",
+                    attributes = recognitionBaseAttributes + mapOf(
+                        "scraper" to "Bangumi",
+                        "scrape_status" to it.scrapeStatus.name,
+                        "scrape_message" to it.scrapeMessage.orEmpty(),
+                    )
+                )
+            }
 
         return try {
-            val candidates = titleCandidates(animeName, extraTitleCandidates)
+            MiruLog.i(
+                tag = TAG,
+                message = "Recognition enrichment started",
+                attributes = recognitionBaseAttributes + mapOf(
+                    "scraper" to bangumi.sourceName,
+                    "search_strategy" to "alias_then_fallback",
+                    "confidence_threshold" to RECOGNITION_CONFIDENCE_THRESHOLD.toString(),
+                )
+            )
             var match = bangumi.searchByAlias(animeName, candidates).getOrNull()
+            var matchedBy = "alias"
+            if (match != null) {
+                MiruLog.i(
+                    tag = TAG,
+                    message = "Recognition alias match found",
+                    attributes = recognitionBaseAttributes +
+                        buildMatchAttributes(match) +
+                        mapOf("search_strategy" to "alias")
+                )
+            }
             if (match == null) {
+                MiruLog.d(
+                    tag = TAG,
+                    message = "Recognition alias search missed",
+                    attributes = recognitionBaseAttributes + mapOf("search_strategy" to "alias")
+                )
+                var fallbackAttemptCount = 0
+                val fallbackAttemptSample = mutableListOf<String>()
                 for (candidate in candidates) {
+                    fallbackAttemptCount += 1
+                    if (fallbackAttemptSample.size < MAX_RECOGNITION_ATTEMPT_SAMPLE_IN_LOG) {
+                        fallbackAttemptSample += candidate
+                    }
                     match = bangumi.searchAnime(candidate).getOrNull()
-                        ?.firstOrNull { it.confidence >= 0.62f }
-                    if (match != null) break
+                        ?.firstOrNull { it.confidence >= RECOGNITION_CONFIDENCE_THRESHOLD }
+                    if (match != null) {
+                        matchedBy = "fallback_search"
+                        MiruLog.i(
+                            tag = TAG,
+                            message = "Recognition fallback match found",
+                            attributes = recognitionBaseAttributes +
+                                buildMatchAttributes(match) +
+                                mapOf(
+                                    "search_strategy" to matchedBy,
+                                    "matched_candidate" to normalizeForLog(candidate, MAX_RECOGNITION_CANDIDATE_LENGTH),
+                                    "fallback_attempt_count" to fallbackAttemptCount.toString(),
+                                    "fallback_candidate_sample" to sampleCandidates(
+                                        fallbackAttemptSample,
+                                        MAX_RECOGNITION_ATTEMPT_SAMPLE_IN_LOG
+                                    ),
+                                )
+                        )
+                        break
+                    }
+                }
+                if (match == null) {
+                    MiruLog.w(
+                        tag = TAG,
+                        message = "Recognition no reliable match",
+                        attributes = recognitionBaseAttributes + mapOf(
+                            "search_strategy" to "fallback_search",
+                            "fallback_attempt_count" to fallbackAttemptCount.toString(),
+                            "fallback_candidate_sample" to sampleCandidates(
+                                fallbackAttemptSample,
+                                MAX_RECOGNITION_ATTEMPT_SAMPLE_IN_LOG
+                            ),
+                            "confidence_threshold" to RECOGNITION_CONFIDENCE_THRESHOLD.toString(),
+                            "scrape_status" to MediaScrapeStatus.NO_MATCH.name,
+                        )
+                    )
                 }
             }
             match ?: return OnlineMetadata(
@@ -319,6 +436,19 @@ class ScanCoordinator @Inject constructor(
                 bangumiId = baseAnime.bangumiId ?: match.animeId.toIntOrNull(),
                 posterLocalPath = posterLocalPath ?: baseAnime.posterLocalPath,
             )
+            MiruLog.i(
+                tag = TAG,
+                message = "Recognition metadata enriched",
+                attributes = recognitionBaseAttributes +
+                    buildMatchAttributes(match) +
+                    mapOf(
+                        "search_strategy" to matchedBy,
+                        "details_loaded" to (details != null).toString(),
+                        "remote_episode_count" to episodeMetadata.size.toString(),
+                        "poster_cached" to (!posterLocalPath.isNullOrBlank()).toString(),
+                        "scrape_status" to MediaScrapeStatus.SCRAPED.name,
+                    )
+            )
 
             OnlineMetadata(
                 anime = anime,
@@ -327,7 +457,16 @@ class ScanCoordinator @Inject constructor(
                 scrapeStatus = MediaScrapeStatus.SCRAPED,
             )
         } catch (e: Exception) {
-            Log.w("ScanCoordinator", "Bangumi metadata enrichment failed for $animeName", e)
+            Log.w(TAG, "Bangumi metadata enrichment failed for $animeName", e)
+            MiruLog.e(
+                tag = TAG,
+                message = "Recognition metadata enrichment failed",
+                throwable = e,
+                attributes = recognitionBaseAttributes + mapOf(
+                    "scraper" to bangumi.sourceName,
+                    "scrape_status" to MediaScrapeStatus.FAILED.name,
+                )
+            )
             OnlineMetadata(
                 anime = null,
                 episodes = episodes,
@@ -379,6 +518,36 @@ class ScanCoordinator @Inject constructor(
             .map { it.replace(Regex("[._]+"), " ").replace(Regex("\\s+"), " ").trim() }
             .filter { it.isNotBlank() }
             .distinct()
+
+    private fun buildRecognitionBaseAttributes(
+        animeName: String,
+        episodes: List<Episode>,
+        candidates: List<String>,
+    ): Map<String, String> = mapOf(
+        "anime_name" to normalizeForLog(animeName, 120),
+        "episode_count" to episodes.size.toString(),
+        "candidate_count" to candidates.size.toString(),
+        "candidate_sample" to sampleCandidates(candidates),
+    )
+
+    private fun buildMatchAttributes(match: ScraperResult): Map<String, String> = mapOf(
+        "metadata_source" to match.source.name,
+        "metadata_id" to match.animeId,
+        "metadata_title" to normalizeForLog(match.displayTitle(), 120),
+        "metadata_confidence" to match.confidence.toString(),
+    )
+
+    private fun sampleCandidates(
+        candidates: Collection<String>,
+        maxItems: Int = MAX_RECOGNITION_CANDIDATES_IN_LOG,
+    ): String = candidates.asSequence()
+        .map { normalizeForLog(it, MAX_RECOGNITION_CANDIDATE_LENGTH) }
+        .filter { it.isNotBlank() }
+        .take(maxItems)
+        .joinToString(" | ")
+
+    private fun normalizeForLog(value: String, maxLength: Int): String =
+        value.replace(whitespaceRegex, " ").trim().take(maxLength)
 
     /** Progress callback for scan operations */
     fun interface ScanProgressCallback {
@@ -642,6 +811,12 @@ class ScanCoordinator @Inject constructor(
     }
 
     companion object {
+        private const val TAG = "ScanCoordinator"
+        private const val RECOGNITION_CONFIDENCE_THRESHOLD = 0.62f
+        private const val MAX_RECOGNITION_CANDIDATES_IN_LOG = 6
+        private const val MAX_RECOGNITION_ATTEMPT_SAMPLE_IN_LOG = 4
+        private const val MAX_RECOGNITION_CANDIDATE_LENGTH = 80
+        private val whitespaceRegex = Regex("\\s+")
         private val videoExtensions = setOf("mkv", "mp4", "avi", "mov", "wmv", "flv", "webm", "m4v")
         private val skipDirs = setOf(
             "proc", "sys", "dev", "selinux", "acct", "apex", "bin", "cache", "config",
