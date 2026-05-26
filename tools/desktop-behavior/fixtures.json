@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "fixtures": {
+    "localAnimeLibrary": {
+      "description": "Generated local anime library with NFO metadata used by local source and detail/player behavior scenarios.",
+      "managedBy": "legacy/smoke-desktop-local-source-ui.ps1"
+    },
+    "sourceManagementStore": {
+      "description": "Preloaded desktop-store.json with two saved local sources for source switching, clearing, and removal behavior.",
+      "managedBy": "legacy/smoke-desktop-source-management-ui.ps1"
+    },
+    "webDavLoopback": {
+      "description": "Loopback WebDAV fixture server with authenticated PROPFIND/GET behavior and request log capture.",
+      "managedBy": "legacy/smoke-desktop-webdav-source-ui.ps1"
+    },
+    "externalSmbShare": {
+      "description": "Approved SMB share fixture. Runner requires -SmbShareTestPath for scenarios tagged external-smb.",
+      "managedBy": "legacy/smoke-desktop-smb-source-ui.ps1"
+    },
+    "bangumiMetadata": {
+      "description": "Generated media index entry plus loopback Bangumi API mock for metadata search/apply/clear behavior.",
+      "managedBy": "legacy/smoke-desktop-bangumi-metadata-ui.ps1"
+    },
+    "keyboardFocusCloudRss": {
+      "description": "Preloaded store with Cloud RSS config and subscriptions used by focus/navigation and scheduler behavior.",
+      "managedBy": "legacy/smoke-desktop-keyboard-focus-ui.ps1"
+    },
+    "mpvPlayback": {
+      "description": "Generated sample file and mpv runtime interaction fixture for playback launch/stop/control behavior.",
+      "managedBy": "legacy/smoke-desktop-mpv-launch-ui.ps1"
+    }
+  }
+}

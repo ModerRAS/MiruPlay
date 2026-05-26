@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "window": {
+    "minimumWidth": 1100,
+    "minimumHeight": 700
+  },
+  "controls": {
+    "library.localRootField": { "x": 240, "y": 268 },
+    "library.openLocalSource": { "x": 500, "y": 337 },
+    "library.scanSource": { "x": 664, "y": 337 },
+    "library.firstPoster": { "x": 130, "y": 360 },
+    "navigation.library": { "x": 170, "y": 116 },
+    "navigation.details": { "x": 170, "y": 286 },
+    "navigation.settings": { "x": 1170, "y": 109 },
+    "settings.sourcePanel": { "x": 465, "y": 360 },
+    "settings.rssList": { "x": 1080, "y": 765 },
+    "player.launch": { "x": 596, "y": 166 },
+    "player.mediaPathField": { "x": 455, "y": 614 }
+  },
+  "keySequences": {
+    "activate": "{ENTER}",
+    "back": "{ESC}",
+    "down": "{DOWN}",
+    "up": "{UP}",
+    "left": "{LEFT}",
+    "right": "{RIGHT}",
+    "nextNavigationSection": "{DOWN}",
+    "previousNavigationSection": "{UP}"
+  }
+}

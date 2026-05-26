@@ -84,6 +84,11 @@ val windowsInstallerTimestampUrl = providers.gradleProperty("windowsInstallerTim
     .orElse("http://timestamp.digicert.com")
 val windowsInstallerUpgradeUuid = providers.gradleProperty("windowsInstallerUpgradeUuid")
     .orElse("8b677436-92f3-4b59-83bb-4e6ad9f8f22a")
+val desktopBehaviorTags = providers.gradleProperty("desktopBehaviorTags")
+    .orElse("smoke")
+val desktopBehaviorScenario = providers.gradleProperty("desktopBehaviorScenario")
+    .orElse("")
+val desktopBehaviorOutputRoot = rootProject.layout.buildDirectory.dir("desktop-behavior")
 
 fun requestedRifeBackends(): List<String> =
     requiredRifeBackends.get()
@@ -1022,6 +1027,47 @@ distributions {
 tasks.named("installDist") {
     dependsOn(verifyMpvRuntimePayload)
     dependsOn(generateMpvRuntimeManifest)
+}
+
+val desktopBehaviorTest by tasks.registering(Exec::class) {
+    group = "verification"
+    description = "Runs JSON-driven Windows desktop behavior tests against the installed Compose Desktop app."
+    dependsOn(tasks.named("installDist"))
+    onlyIf { System.getProperty("os.name").contains("Windows", ignoreCase = true) }
+
+    val runner = rootProject.layout.projectDirectory.file("tools/run-desktop-behavior.ps1")
+    val appScript = layout.buildDirectory.file("install/desktop-app/bin/desktop-app.bat")
+    inputs.files(
+        rootProject.layout.projectDirectory.dir("tools/desktop-behavior/scenarios"),
+        rootProject.layout.projectDirectory.dir("tools/desktop-behavior/legacy"),
+        rootProject.layout.projectDirectory.file("tools/desktop-behavior/controls.json"),
+        rootProject.layout.projectDirectory.file("tools/desktop-behavior/fixtures.json"),
+        runner,
+    )
+    inputs.property("desktopBehaviorTags", desktopBehaviorTags)
+    inputs.property("desktopBehaviorScenario", desktopBehaviorScenario)
+    outputs.dir(desktopBehaviorOutputRoot)
+    outputs.upToDateWhen { false }
+
+    doFirst {
+        val args = mutableListOf(
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            runner.asFile.absolutePath,
+            "-Tag",
+            desktopBehaviorTags.get(),
+            "-AppScript",
+            appScript.get().asFile.absolutePath,
+            "-OutputRoot",
+            desktopBehaviorOutputRoot.get().asFile.absolutePath,
+        )
+        desktopBehaviorScenario.get().takeIf { it.isNotBlank() }?.let { scenario ->
+            args += listOf("-Scenario", scenario)
+        }
+        commandLine("powershell.exe", *args.toTypedArray())
+    }
 }
 
 distZipTask {

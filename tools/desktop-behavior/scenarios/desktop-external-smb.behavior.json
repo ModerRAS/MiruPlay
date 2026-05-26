@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "name": "desktop-external-smb",
+  "title": "Approved SMB desktop behavior",
+  "tags": ["external-smb"],
+  "requires": ["windows", "desktop-app-installDist", "approved-smb-share"],
+  "given": [
+    "an approved SMB test share is provided explicitly"
+  ],
+  "when": [
+    "the user opens the SMB source, scans it, opens details, and enters playback"
+  ],
+  "then": [
+    "SMB source state, indexed entries, screenshots, and playback bridge evidence are captured"
+  ],
+  "steps": [
+    {
+      "id": "smb-source",
+      "label": "SMB open, scan, details, and player behavior",
+      "usesFixture": "externalSmbShare",
+      "runLegacyScript": "smoke-desktop-smb-source-ui.ps1",
+      "tags": ["external-smb", "smb", "remote-source"]
+    }
+  ]
+}
