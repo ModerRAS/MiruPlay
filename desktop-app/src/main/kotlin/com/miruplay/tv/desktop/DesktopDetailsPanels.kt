@@ -1318,14 +1318,14 @@ internal fun MediaDetailsPanel(
         }
     }
 
-    fun moveMediaDetailFocus(currentIndex: Int, key: Key): Boolean {
+    fun moveMediaDetailFocus(currentIndex: Int, intent: MiruPlayInputIntent): Boolean {
         return requestMediaDetailFocus(
             mediaDetailsFocusTarget(
                 currentIndex = currentIndex,
                 rowCount = rows.size,
                 pageStart = pageStart,
                 visibleCount = visibleRows.size,
-                key = key,
+                intent = intent,
             ),
         )
     }
@@ -1356,8 +1356,8 @@ internal fun MediaDetailsPanel(
                 text = labels.emptyState,
                 modifier = Modifier
                     .focusRequester(emptyFocusRequester),
-                onNavigationKey = { key ->
-                    requestMediaDetailFocus(mediaDetailsEmptyFocusTarget(key))
+                onNavigationIntent = { intent ->
+                    requestMediaDetailFocus(mediaDetailsEmptyFocusTarget(intent))
                 },
             )
             return@TvPanel
@@ -1375,8 +1375,8 @@ internal fun MediaDetailsPanel(
                         row.value,
                         modifier = Modifier
                             .focusRequester(focusRequesters[index]),
-                        onNavigationKey = { key ->
-                            moveMediaDetailFocus(rowIndex, key)
+                        onNavigationIntent = { intent ->
+                            moveMediaDetailFocus(rowIndex, intent)
                         },
                     )
                 }
@@ -1393,8 +1393,8 @@ internal fun MediaDetailsPanel(
                         row.value,
                         modifier = Modifier
                             .focusRequester(focusRequesters[visibleIndex]),
-                        onNavigationKey = { key ->
-                            moveMediaDetailFocus(rowIndex, key)
+                        onNavigationIntent = { intent ->
+                            moveMediaDetailFocus(rowIndex, intent)
                         },
                     )
                 }
@@ -1480,7 +1480,7 @@ internal fun mediaDetailsSplitIndex(pageStart: Int, visibleCount: Int): Int {
 private fun MediaDetailsEmptyState(
     text: String,
     modifier: Modifier = Modifier,
-    onNavigationKey: (Key) -> Boolean = { false },
+    onNavigationIntent: (MiruPlayInputIntent) -> Boolean = { false },
 ) {
     DesktopSelectableRow(
         selected = false,
@@ -1488,7 +1488,7 @@ private fun MediaDetailsEmptyState(
         modifier = modifier,
         heightDp = MiruPlayUiMetrics.DETAIL_PREVIEW_HEIGHT_DP,
         inactiveAlpha = 0.48f,
-        onNavigationKey = onNavigationKey,
+        onNavigationIntent = onNavigationIntent,
     ) { active ->
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -1508,7 +1508,7 @@ internal fun DetailLine(
     label: String,
     value: String,
     modifier: Modifier = Modifier,
-    onNavigationKey: (Key) -> Boolean = { false },
+    onNavigationIntent: (MiruPlayInputIntent) -> Boolean = { false },
 ) {
     DesktopSelectableRow(
         selected = false,
@@ -1516,7 +1516,7 @@ internal fun DetailLine(
         modifier = modifier,
         heightDp = 92,
         inactiveAlpha = 0.42f,
-        onNavigationKey = onNavigationKey,
+        onNavigationIntent = onNavigationIntent,
     ) { active ->
         Column(Modifier.fillMaxWidth()) {
             Text(label, color = TextSecondary, fontSize = MiruPlayUiMetrics.CAPTION_TEXT_SP.sp, fontWeight = FontWeight.SemiBold)
