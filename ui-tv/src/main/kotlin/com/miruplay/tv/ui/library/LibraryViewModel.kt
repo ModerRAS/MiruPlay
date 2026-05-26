@@ -81,7 +81,7 @@ class LibraryViewModel @Inject constructor(
         refresh()
     }
 
-    fun refresh() {
+    fun refresh(showLoading: Boolean = true) {
         if (refreshJob?.isActive == true) {
             MiruLog.d("LibraryViewModel", "Library refresh skipped because a refresh is already active")
             return
@@ -94,7 +94,7 @@ class LibraryViewModel @Inject constructor(
                 return@launch
             }
 
-            val snapshot = loadLibraryContent(showLoading = true)
+            val snapshot = loadLibraryContent(showLoading = showLoading)
             if (snapshot.hasSources) {
                 libraryScanTask.startAutoScanIfDue()
             }

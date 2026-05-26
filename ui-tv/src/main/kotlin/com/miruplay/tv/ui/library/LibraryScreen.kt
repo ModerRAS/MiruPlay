@@ -58,7 +58,7 @@ fun LibraryScreen(
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                viewModel.refresh()
+                viewModel.refresh(showLoading = false)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
