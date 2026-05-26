@@ -367,6 +367,30 @@ internal fun DesktopSelectableRow(
     onNavigationKey: (Key) -> Boolean = { false },
     onNavigationIntent: (MiruPlayInputIntent) -> Boolean = { false },
     content: @Composable (active: Boolean) -> Unit,
+) =
+    DesktopSelectableRow(
+        selected = selected,
+        onClick = onClick,
+        modifier = modifier,
+        heightDp = heightDp,
+        inactiveAlpha = inactiveAlpha,
+        fillMaxWidth = fillMaxWidth,
+        onNavigationIntent = { intent ->
+            onNavigationIntent(intent) || onNavigationKey(intent.toComposeKeyFallback())
+        },
+        content = content,
+    )
+
+@Composable
+internal fun DesktopSelectableRow(
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    heightDp: Int = MiruPlayUiMetrics.LIST_ROW_HEIGHT_DP,
+    inactiveAlpha: Float = 0.55f,
+    fillMaxWidth: Boolean = true,
+    onNavigationIntent: (MiruPlayInputIntent) -> Boolean = { false },
+    content: @Composable (active: Boolean) -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
@@ -388,7 +412,6 @@ internal fun DesktopSelectableRow(
                     key = event.key,
                     type = event.type,
                     onClick = onClick,
-                    onNavigationKey = onNavigationKey,
                     onNavigationIntent = onNavigationIntent,
                 )
             }
@@ -421,6 +444,22 @@ internal fun desktopSelectableRowKeyEvent(
     if (type != KeyEventType.KeyDown || isDesktopConfirmKey(key)) return false
     return onNavigationKey(key)
 }
+
+private fun MiruPlayInputIntent.toComposeKeyFallback(): Key =
+    when (this) {
+        MiruPlayInputIntent.DirectionLeft -> Key.DirectionLeft
+        MiruPlayInputIntent.DirectionRight -> Key.DirectionRight
+        MiruPlayInputIntent.DirectionUp -> Key.DirectionUp
+        MiruPlayInputIntent.DirectionDown -> Key.DirectionDown
+        MiruPlayInputIntent.Back -> Key.Back
+        MiruPlayInputIntent.NavigatePrevious -> Key.NavigatePrevious
+        MiruPlayInputIntent.NavigateOut -> Key.NavigateOut
+        MiruPlayInputIntent.Activate -> Key.Enter
+        MiruPlayInputIntent.MediaPlayPause -> Key.MediaPlayPause
+        MiruPlayInputIntent.MediaPlay -> Key.MediaPlay
+        MiruPlayInputIntent.MediaPause -> Key.MediaPause
+        MiruPlayInputIntent.MediaStop -> Key.MediaStop
+    }
 
 @Composable
 internal fun TvActionButton(
