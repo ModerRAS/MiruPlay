@@ -3,7 +3,6 @@ package com.miruplay.tv.ui.components
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -31,9 +30,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -78,12 +74,8 @@ fun AnimePosterCard(
                 color = if (isFocused) FocusBorder else Color.White.copy(alpha = 0.08f),
                 shape = RoundedCornerShape(8.dp)
             )
-            .onPreviewKeyEvent { event ->
-                tvActivateKeyEvent(event.key, event.type, onActivate = onClick)
-            }
-            .clickable(
+            .tvFocusableClickable(
                 interactionSource = interactionSource,
-                indication = null,
                 onClick = onClick
             )
     ) {
@@ -170,12 +162,8 @@ fun FeatureAnimeCard(
                 color = if (isFocused) FocusBorder else Color.White.copy(alpha = 0.08f),
                 shape = RoundedCornerShape(8.dp)
             )
-            .onPreviewKeyEvent { event ->
-                tvActivateKeyEvent(event.key, event.type, onActivate = onClick)
-            }
-            .clickable(
+            .tvFocusableClickable(
                 interactionSource = interactionSource,
-                indication = null,
                 onClick = onClick
             )
     ) {
