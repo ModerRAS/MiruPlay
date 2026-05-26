@@ -21,7 +21,7 @@ class DesktopBangumiScraper internal constructor(
     tokenProvider: () -> String? = { null },
 ) : MetadataScraper, BangumiCollectionService {
     constructor(tokenProvider: () -> String? = { null }) : this(
-        BangumiApiClient.DEFAULT_BASE_URL,
+        bangumiBaseUrlFromEnvironment(),
         tokenProvider
     )
 
@@ -82,8 +82,18 @@ class DesktopBangumiScraper internal constructor(
     ): Result<Unit> =
         api.updateEpisodeCollection(episodeId, type)
 
-    private companion object {
+    internal companion object {
+        const val BASE_URL_ENV = "MIRUPLAY_BANGUMI_BASE_URL"
         const val USER_AGENT = "MiruPlay/1.0 (Windows Desktop; https://github.com/hooke007/mpv_PlayKit)"
+
+        fun bangumiBaseUrlFromEnvironment(): String =
+            bangumiBaseUrlFromEnvironment(System.getenv())
+
+        fun bangumiBaseUrlFromEnvironment(environment: Map<String, String>): String =
+            environment[BASE_URL_ENV]
+                ?.trim()
+                ?.takeIf { it.isNotBlank() }
+                ?: BangumiApiClient.DEFAULT_BASE_URL
     }
 }
 

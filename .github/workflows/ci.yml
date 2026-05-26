@@ -9,6 +9,11 @@ on:
   schedule:
     - cron: '0 2 * * *'
   workflow_dispatch:
+    inputs:
+      desktop_behavior_tags:
+        description: 'Windows desktop behavior tags for manual runs: smoke or full'
+        required: false
+        default: 'smoke'
 
 env:
   JAVA_VERSION: '21'
@@ -117,7 +122,17 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Build Windows desktop ZIP
-        run: .\gradlew.bat :desktop-app:test :desktop-app:distZip "-PwindowsPackageVersion=0.1.${{ github.run_number }}" -PbundleMpvRuntime=false --no-daemon --stacktrace
+        env:
+          DESKTOP_BEHAVIOR_TAGS: ${{ github.event_name == 'workflow_dispatch' && inputs.desktop_behavior_tags || 'smoke' }}
+        run: .\gradlew.bat :desktop-app:test :desktop-app:desktopBehaviorTest :desktop-app:distZip "-PwindowsPackageVersion=0.1.${{ github.run_number }}" "-PdesktopBehaviorTags=$env:DESKTOP_BEHAVIOR_TAGS" -PbundleMpvRuntime=false --no-daemon --stacktrace
+
+      - name: Upload Windows desktop behavior evidence
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: miruplay-windows-desktop-behavior-${{ github.run_number }}
+          path: build/desktop-behavior/**
+          retention-days: 7
 
       - name: Upload Windows desktop ZIP
         uses: actions/upload-artifact@v4

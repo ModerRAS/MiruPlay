@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "name": "desktop-smoke",
+  "title": "Desktop smoke behavior",
+  "tags": ["smoke"],
+  "requires": ["windows", "desktop-app-installDist"],
+  "given": [
+    "a generated local anime library exists",
+    "a clean desktop store is isolated for the run"
+  ],
+  "when": [
+    "the user opens a local source, scans it, searches, navigates to details, and opens playback",
+    "the user navigates settings, Cloud RSS subscription focus, scheduler controls, details, and player by keyboard"
+  ],
+  "then": [
+    "the store contains saved source, indexed video, and playback progress evidence",
+    "each major surface produces nonblank TV-style screenshots"
+  ],
+  "steps": [
+    {
+      "id": "local-source",
+      "label": "local source, search, details, and player smoke",
+      "usesFixture": "localAnimeLibrary",
+      "runLegacyScript": "smoke-desktop-local-source-ui.ps1",
+      "tags": ["smoke", "local", "player"]
+    },
+    {
+      "id": "keyboard-focus",
+      "label": "keyboard navigation, Cloud RSS focus, and scheduler smoke",
+      "usesFixture": "keyboardFocusCloudRss",
+      "runLegacyScript": "smoke-desktop-keyboard-focus-ui.ps1",
+      "tags": ["smoke", "keyboard", "cloud-rss"]
+    }
+  ]
+}
