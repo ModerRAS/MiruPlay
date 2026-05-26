@@ -922,35 +922,33 @@ val smokeNativeAppImageRuntime by tasks.registering {
                 "Native app image launcher smoke did not write report: $entrySmokeReportFile\n$entrySmokeText"
             )
         }
-        val entrySmokeReport = entrySmokeReportFile.readText()
         val expectedRuntimeRoot = runtimeRoot.toPath().toAbsolutePath().normalize().toString()
         val expectedMpvExecutable = runtimeRoot.resolve("mpv.exe").toPath().toAbsolutePath().normalize().toString()
         val expectedConfigDirectory = runtimeRoot.resolve("portable_config").toPath().toAbsolutePath().normalize().toString()
         val expectedWindowTitle = "MiruPlay \u684c\u9762\u7248"
-        val missingReportFields = buildList {
-            if (!entrySmokeReport.contains("\"status\": \"ok\"")) add("status=ok")
-            if (!entrySmokeReport.contains("\"entryPoint\": ${expectedMainClass.jsonString()}")) {
-                add("entryPoint=$expectedMainClass")
-            }
-            if (!entrySmokeReport.contains("\"windowTitle\": ${expectedWindowTitle.jsonString()}")) {
-                add("windowTitle=$expectedWindowTitle")
-            }
-            if (!entrySmokeReport.contains("\"initialSection\": \"library\"")) add("initialSection=library")
-            if (!entrySmokeReport.contains("\"runtimeRoot\": ${expectedRuntimeRoot.jsonString()}")) {
-                add("runtimeRoot=$expectedRuntimeRoot")
-            }
-            if (!entrySmokeReport.contains("\"mpvExecutable\": ${expectedMpvExecutable.jsonString()}")) {
-                add("mpvExecutable=$expectedMpvExecutable")
-            }
-            if (!entrySmokeReport.contains("\"configDirectory\": ${expectedConfigDirectory.jsonString()}")) {
-                add("configDirectory=$expectedConfigDirectory")
-            }
-        }
-        if (missingReportFields.isNotEmpty()) {
-            throw GradleException(
-                "Native app image launcher smoke report is missing expected fields in $entrySmokeReportFile:\n" +
-                    missingReportFields.joinToString(separator = "\n") { " - $it" } +
-                    "\nReport:\n$entrySmokeReport"
+        val assertScript = rootProject.file("tools/assert-desktop-entry-smoke-report.ps1")
+        exec {
+            commandLine(
+                "powershell",
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                assertScript.absolutePath,
+                "-ReportPath",
+                entrySmokeReportFile.absolutePath,
+                "-ExpectedEntryPoint",
+                expectedMainClass,
+                "-ExpectedWindowTitle",
+                expectedWindowTitle,
+                "-ExpectedInitialSection",
+                "library",
+                "-ExpectedRuntimeRoot",
+                expectedRuntimeRoot,
+                "-ExpectedMpvExecutable",
+                expectedMpvExecutable,
+                "-ExpectedConfigDirectory",
+                expectedConfigDirectory,
             )
         }
 
