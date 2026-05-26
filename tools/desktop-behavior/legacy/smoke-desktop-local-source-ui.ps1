@@ -44,6 +44,12 @@ public static class MiruPlayLocalSourceSmokeWin32 {
     public static extern bool SetForegroundWindow(IntPtr hWnd);
 
     [DllImport("user32.dll")]
+    public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+    [DllImport("user32.dll")]
+    public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+    [DllImport("user32.dll")]
     public static extern bool SetCursorPos(int X, int Y);
 
     [DllImport("user32.dll")]
@@ -60,6 +66,32 @@ function Get-WindowRect {
     return $rect
 }
 
+function Set-MiruPlayWindowForeground {
+    param([System.Diagnostics.Process]$Process)
+
+    $Process.Refresh()
+    if ($Process.HasExited -or $Process.MainWindowHandle -eq 0) {
+        throw "MiruPlay Desktop window is not available for process $($Process.Id)."
+    }
+
+    $hwndTopMost = [IntPtr]::new(-1)
+    $hwndNoTopMost = [IntPtr]::new(-2)
+    $swRestore = 9
+    $swpNoSize = 0x0001
+    $swpShowWindow = 0x0040
+    $moveFlags = $swpNoSize -bor $swpShowWindow
+    $raiseFlags = $swpNoSize -bor 0x0002 -bor $swpShowWindow
+    $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+
+    [MiruPlayLocalSourceSmokeWin32]::ShowWindow($Process.MainWindowHandle, $swRestore) | Out-Null
+    [MiruPlayLocalSourceSmokeWin32]::SetWindowPos($Process.MainWindowHandle, $hwndTopMost, $bounds.Left, $bounds.Top, 0, 0, $moveFlags) | Out-Null
+    [MiruPlayLocalSourceSmokeWin32]::SetForegroundWindow($Process.MainWindowHandle) | Out-Null
+    Start-Sleep -Milliseconds 160
+    [MiruPlayLocalSourceSmokeWin32]::SetWindowPos($Process.MainWindowHandle, $hwndNoTopMost, $bounds.Left, $bounds.Top, 0, 0, $raiseFlags) | Out-Null
+    [MiruPlayLocalSourceSmokeWin32]::SetForegroundWindow($Process.MainWindowHandle) | Out-Null
+    Start-Sleep -Milliseconds 220
+}
+
 function Invoke-RelativeClick {
     param(
         [System.Diagnostics.Process]$Process,
@@ -67,8 +99,8 @@ function Invoke-RelativeClick {
         [int]$Y
     )
 
+    Set-MiruPlayWindowForeground -Process $Process
     $rect = Get-WindowRect -Process $Process
-    [MiruPlayLocalSourceSmokeWin32]::SetForegroundWindow($Process.MainWindowHandle) | Out-Null
     Start-Sleep -Milliseconds 150
     [MiruPlayLocalSourceSmokeWin32]::SetCursorPos($rect.Left + $X, $rect.Top + $Y) | Out-Null
     [MiruPlayLocalSourceSmokeWin32]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
@@ -84,7 +116,7 @@ function Send-AppKeys {
         [int]$DelayMilliseconds = 350
     )
 
-    [MiruPlayLocalSourceSmokeWin32]::SetForegroundWindow($Process.MainWindowHandle) | Out-Null
+    Set-MiruPlayWindowForeground -Process $Process
     Start-Sleep -Milliseconds 120
     [System.Windows.Forms.SendKeys]::SendWait($Keys)
     Start-Sleep -Milliseconds $DelayMilliseconds
@@ -198,26 +230,42 @@ function Assert-ScreenshotHasContent {
 function Save-WindowScreenshot {
     param(
         [System.Diagnostics.Process]$Process,
-        [string]$Path
+        [string]$Path,
+        [int]$Attempts = 5
     )
 
-    $rect = Get-WindowRect -Process $Process
-    $width = $rect.Right - $rect.Left
-    $height = $rect.Bottom - $rect.Top
-    if ($width -lt 1100 -or $height -lt 700) {
-        throw "Window is smaller than expected for TV-style QA: ${width}x$height"
+    $lastError = $null
+    for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
+        try {
+            Set-MiruPlayWindowForeground -Process $Process
+            $rect = Get-WindowRect -Process $Process
+            $width = $rect.Right - $rect.Left
+            $height = $rect.Bottom - $rect.Top
+            if ($width -lt 1100 -or $height -lt 700) {
+                throw "Window is smaller than expected for TV-style QA: ${width}x$height"
+            }
+
+            $bitmap = New-Object System.Drawing.Bitmap($width, $height)
+            $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+            try {
+                $graphics.CopyFromScreen($rect.Left, $rect.Top, 0, 0, $bitmap.Size)
+                $bitmap.Save($Path, [System.Drawing.Imaging.ImageFormat]::Png)
+            } finally {
+                $graphics.Dispose()
+                $bitmap.Dispose()
+            }
+            Assert-ScreenshotHasContent -Path $Path
+            return
+        } catch {
+            $lastError = $_
+            if ($attempt -ge $Attempts) {
+                break
+            }
+            Start-Sleep -Milliseconds (250 * $attempt)
+        }
     }
 
-    $bitmap = New-Object System.Drawing.Bitmap($width, $height)
-    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-    try {
-        $graphics.CopyFromScreen($rect.Left, $rect.Top, 0, 0, $bitmap.Size)
-        $bitmap.Save($Path, [System.Drawing.Imaging.ImageFormat]::Png)
-    } finally {
-        $graphics.Dispose()
-        $bitmap.Dispose()
-    }
-    Assert-ScreenshotHasContent -Path $Path
+    throw "Unable to capture MiruPlay Desktop screenshot after $Attempts attempts: $($lastError.Exception.Message)"
 }
 
 function Test-EntryMatchesQuery {
