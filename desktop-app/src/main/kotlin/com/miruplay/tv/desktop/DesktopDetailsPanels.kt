@@ -836,7 +836,7 @@ internal fun detailEpisodeSeasonFocusTarget(
     selectedEpisodeIndex: Int,
     key: Key,
 ): DetailEpisodeFocusTarget? =
-    key.toMiruPlayInputIntent()?.let { intent ->
+    key.resolveDesktopIntent { intent ->
         detailEpisodeSeasonFocusTarget(
             currentIndex = currentIndex,
             seasonCount = seasonCount,
@@ -869,7 +869,7 @@ internal fun detailEpisodeSeasonFocusTarget(
     }
 
 internal fun detailEpisodeEmptyFocusTarget(key: Key): DetailEpisodeFocusTarget? =
-    key.toMiruPlayInputIntent()?.let(::detailEpisodeEmptyFocusTarget)
+    key.resolveDesktopIntent(::detailEpisodeEmptyFocusTarget)
 
 internal fun detailEpisodeEmptyFocusTarget(intent: MiruPlayInputIntent): DetailEpisodeFocusTarget? =
     when (intent.verticalNavigationDelta()) {
@@ -1205,7 +1205,7 @@ internal fun recentPlaybackActionFocusTarget(
     key: Key,
     hasRecords: Boolean,
 ): RecentPlaybackFocusTarget? =
-    key.toMiruPlayInputIntent()?.let { intent ->
+    key.resolveDesktopIntent { intent ->
         recentPlaybackActionFocusTarget(current, intent, hasRecords)
     }
 
@@ -1221,7 +1221,7 @@ internal fun recentPlaybackActionFocusTarget(
         }
 
 internal fun recentPlaybackEmptyFocusTarget(key: Key): RecentPlaybackFocusTarget? =
-    key.toMiruPlayInputIntent()?.let(::recentPlaybackEmptyFocusTarget)
+    key.resolveDesktopIntent(::recentPlaybackEmptyFocusTarget)
 
 internal fun recentPlaybackEmptyFocusTarget(intent: MiruPlayInputIntent): RecentPlaybackFocusTarget? =
     when (intent.verticalNavigationDelta()) {
@@ -1425,7 +1425,7 @@ internal fun mediaDetailsInitialFocusTarget(hasRows: Boolean): MediaDetailsFocus
     if (hasRows) MediaDetailsFocusTarget.Row(0) else MediaDetailsFocusTarget.EmptyState
 
 internal fun mediaDetailsEmptyFocusTarget(key: Key): MediaDetailsFocusTarget? =
-    key.toMiruPlayInputIntent()?.let(::mediaDetailsEmptyFocusTarget)
+    key.resolveDesktopIntent(::mediaDetailsEmptyFocusTarget)
 
 internal fun mediaDetailsEmptyFocusTarget(intent: MiruPlayInputIntent): MediaDetailsFocusTarget? =
     when (intent.verticalNavigationDelta()) {
@@ -1440,7 +1440,7 @@ internal fun mediaDetailsFocusTarget(
     visibleCount: Int,
     key: Key,
 ): MediaDetailsFocusTarget? =
-    key.toMiruPlayInputIntent()?.let { intent ->
+    key.resolveDesktopIntent { intent ->
         mediaDetailsFocusTarget(
             currentIndex = currentIndex,
             rowCount = rowCount,
