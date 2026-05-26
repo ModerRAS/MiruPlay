@@ -591,28 +591,28 @@ private fun CloudRssAutomationContent(
             null -> false
         }
     }
-    fun moveCloudRssActionFocus(action: CloudRssAction, key: Key): Boolean =
+    fun moveCloudRssActionFocus(action: CloudRssAction, intent: MiruPlayInputIntent): Boolean =
         requestCloudRssFocus(
             cloudRssActionFocusTarget(
                 current = action,
-                key = key,
+                intent = intent,
                 subscriptionCount = subscriptions.size,
             ),
         )
-    fun moveCloudRssSubscriptionFocus(subscriptionId: Long, key: Key): Boolean {
+    fun moveCloudRssSubscriptionFocus(subscriptionId: Long, intent: MiruPlayInputIntent): Boolean {
         val index = subscriptions.indexOfFirst { it.id == subscriptionId }
         return requestCloudRssFocus(
             cloudRssSubscriptionFocusTarget(
                 currentIndex = index,
                 itemCount = subscriptions.size,
-                key = key,
+                intent = intent,
             ),
         )
     }
-    fun moveCloudRssToggleFocus(toggle: CloudRssToggle, key: Key): Boolean =
-        requestCloudRssFocus(cloudRssToggleFocusTarget(toggle, key))
-    fun moveCloudRssFieldFocus(field: CloudRssField, key: Key): Boolean =
-        requestCloudRssFocus(cloudRssFieldFocusTarget(field, key))
+    fun moveCloudRssToggleFocus(toggle: CloudRssToggle, intent: MiruPlayInputIntent): Boolean =
+        requestCloudRssFocus(cloudRssToggleFocusTarget(toggle, intent))
+    fun moveCloudRssFieldFocus(field: CloudRssField, intent: MiruPlayInputIntent): Boolean =
+        requestCloudRssFocus(cloudRssFieldFocusTarget(field, intent))
 
     LaunchedEffect(selectedSubscription?.id, subscriptions.map { it.id }) {
         val selectedIndex = subscriptions.indexOfFirst { it.id == selectedSubscription?.id }
@@ -1025,8 +1025,8 @@ private fun CloudRssAutomationContent(
                                 subscription = subscription,
                                 selected = selectedSubscription?.id == subscription.id,
                                 onClick = { requestCloudRssFocus(CloudRssFocusTarget.Subscription(absoluteIndex)) },
-                                onNavigate = { key ->
-                                    moveCloudRssSubscriptionFocus(subscription.id, key)
+                                onNavigate = { intent ->
+                                    moveCloudRssSubscriptionFocus(subscription.id, intent)
                                 },
                                 modifier = Modifier.focusRequester(subscriptionFocusRequesters.getValue(subscription.id)),
                             )
@@ -1098,8 +1098,8 @@ private fun CloudRssSubscriptionEmptyState(
             .focusRequester(focusRequester),
         heightDp = MiruPlayUiMetrics.RSS_EMPTY_STATE_HEIGHT_DP,
         inactiveAlpha = 0.48f,
-        onNavigationKey = { key ->
-            onMove(cloudRssSubscriptionEmptyFocusTarget(key))
+        onNavigationIntent = { intent ->
+            onMove(cloudRssSubscriptionEmptyFocusTarget(intent))
         },
     ) { active ->
         Box(
@@ -1281,12 +1281,12 @@ private fun CloudDriveDirectoryBrowserCard(
                 CloudDriveDirectoryRow(
                     entry = entry,
                     onClick = { onBrowse(entry.path) },
-                    onNavigate = { key ->
+                    onNavigate = { intent ->
                         requestDirectoryFocus(
                             cloudDriveDirectoryRowFocusTarget(
                                 currentIndex = pageStart + index,
                                 itemCount = state.entries.size,
-                                key = key,
+                                intent = intent,
                             ),
                         )
                     },
@@ -1321,8 +1321,8 @@ private fun CloudDriveDirectoryEmptyState(
             .focusRequester(focusRequester),
         heightDp = 110,
         inactiveAlpha = 0.48f,
-        onNavigationKey = { key ->
-            onMove(cloudDriveDirectoryEmptyFocusTarget(key))
+        onNavigationIntent = { intent ->
+            onMove(cloudDriveDirectoryEmptyFocusTarget(intent))
         },
     ) { active ->
         Box(
@@ -1342,15 +1342,15 @@ private fun CloudDriveDirectoryEmptyState(
 private fun CloudDriveDirectoryRow(
     entry: CloudDriveDirectoryEntry,
     onClick: () -> Unit,
-    onNavigate: (Key) -> Boolean,
+    onNavigate: (MiruPlayInputIntent) -> Boolean,
     modifier: Modifier = Modifier,
 ) {
     DesktopSelectableRow(
         selected = false,
         onClick = onClick,
         modifier = modifier,
-        onNavigationKey = { key ->
-            key.isCloudRssVerticalKey() && onNavigate(key)
+        onNavigationIntent = { intent ->
+            intent.verticalNavigationDelta() != null && onNavigate(intent)
         },
     ) {
         Column(
@@ -1474,26 +1474,26 @@ internal sealed interface CloudRssFocusTarget {
 private fun Modifier.cloudRssActionNavigation(
     action: CloudRssAction,
     focusRequester: FocusRequester,
-    onMove: (CloudRssAction, Key) -> Boolean,
+    onMove: (CloudRssAction, MiruPlayInputIntent) -> Boolean,
 ): Modifier =
     focusRequester(focusRequester)
-        .desktopNavigationKeyHandler { key -> onMove(action, key) }
+        .desktopNavigationIntentHandler { intent -> onMove(action, intent) }
 
 private fun Modifier.cloudRssToggleNavigation(
     toggle: CloudRssToggle,
     focusRequester: FocusRequester,
-    onMove: (CloudRssToggle, Key) -> Boolean,
+    onMove: (CloudRssToggle, MiruPlayInputIntent) -> Boolean,
 ): Modifier =
     focusRequester(focusRequester)
-        .desktopNavigationKeyHandler { key -> onMove(toggle, key) }
+        .desktopNavigationIntentHandler { intent -> onMove(toggle, intent) }
 
 private fun Modifier.cloudRssFieldNavigation(
     field: CloudRssField,
     focusRequester: FocusRequester,
-    onMove: (CloudRssField, Key) -> Boolean,
+    onMove: (CloudRssField, MiruPlayInputIntent) -> Boolean,
 ): Modifier =
     focusRequester(focusRequester)
-        .desktopNavigationKeyHandler { key -> onMove(field, key) }
+        .desktopNavigationIntentHandler { intent -> onMove(field, intent) }
 
 internal fun cloudRssToggleFocusTarget(
     current: CloudRssToggle,
@@ -1697,8 +1697,8 @@ private fun Modifier.cloudDriveDirectoryActionNavigation(
     onMove: (CloudDriveDirectoryFocusTarget?) -> Boolean,
 ): Modifier =
     focusRequester(focusRequester)
-        .desktopNavigationKeyHandler { key ->
-            onMove(cloudDriveDirectoryActionFocusTarget(action, itemCount, key, hasEmptyState))
+        .desktopNavigationIntentHandler { intent ->
+            onMove(cloudDriveDirectoryActionFocusTarget(action, itemCount, intent, hasEmptyState))
         }
 
 internal fun cloudDriveDirectoryActionFocusTarget(
@@ -2126,11 +2126,11 @@ private fun SettingsSummaryContent(
         actionFocusRequesters[index].requestFocus()
         return true
     }
-    fun moveActionFocus(currentIndex: Int, key: Key): Boolean {
+    fun moveActionFocus(currentIndex: Int, intent: MiruPlayInputIntent): Boolean {
         return when (val target = settingsQuickActionFocusTarget(
             currentIndex = currentIndex,
             actionCount = actions.size,
-            key = key,
+            intent = intent,
             enabledActions = enabledActions,
             hasExtraFocus = extraContentFocusable,
         )) {
@@ -2148,10 +2148,10 @@ private fun SettingsSummaryContent(
             null -> false
         }
     }
-    fun moveExtraContentFocus(key: Key): Boolean {
+    fun moveExtraContentFocus(intent: MiruPlayInputIntent): Boolean {
         return when (val target = settingsSummaryExtraFocusTarget(
             actionCount = actions.size,
-            key = key,
+            intent = intent,
             enabledActions = enabledActions,
         )) {
             is SettingsQuickActionFocusTarget.Action -> requestActionFocus(target.index)
@@ -2178,7 +2178,7 @@ private fun SettingsSummaryContent(
             if (extraContentFocusable) {
                 Modifier
                     .focusRequester(extraContentFocusRequester)
-                    .desktopNavigationKeyHandler(::moveExtraContentFocus)
+                    .desktopNavigationIntentHandler(::moveExtraContentFocus)
             } else {
                 Modifier
             },
@@ -2195,7 +2195,7 @@ private fun SettingsSummaryContent(
                     enabled = action.enabled,
                     modifier = Modifier
                         .focusRequester(actionFocusRequesters[index])
-                        .desktopNavigationKeyHandler { key -> moveActionFocus(index, key) },
+                        .desktopNavigationIntentHandler { intent -> moveActionFocus(index, intent) },
                 )
             }
         }
@@ -2385,15 +2385,15 @@ private fun RssSubscriptionRow(
     subscription: RssSubscriptionInfo,
     selected: Boolean,
     onClick: () -> Unit,
-    onNavigate: (Key) -> Boolean,
+    onNavigate: (MiruPlayInputIntent) -> Boolean,
     modifier: Modifier = Modifier,
 ) {
     DesktopSelectableRow(
         selected = selected,
         onClick = onClick,
         modifier = modifier,
-        onNavigationKey = { key ->
-            key.isCloudRssVerticalKey() && onNavigate(key)
+        onNavigationIntent = { intent ->
+            intent.verticalNavigationDelta() != null && onNavigate(intent)
         },
     ) {
         Column(
@@ -2418,9 +2418,6 @@ private fun RssSubscriptionRow(
         }
     }
 }
-
-private fun Key.isCloudRssVerticalKey(): Boolean =
-    toMiruPlayInputIntent()?.verticalNavigationDelta() != null
 
 internal fun List<RssSubscriptionInfo>.rssSubscriptionNavigationTarget(
     currentSubscriptionId: Long?,

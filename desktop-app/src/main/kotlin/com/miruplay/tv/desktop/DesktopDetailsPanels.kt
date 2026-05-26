@@ -116,16 +116,13 @@ internal fun DesktopDetailHero(
         return true
     }
 
-    fun moveFromAction(current: DesktopDetailHeroAction, key: Key): Boolean =
-        key.toMiruPlayInputIntent()?.let { intent ->
-            when (intent) {
-                MiruPlayInputIntent.DirectionDown -> onFocusRecentPlayback()
-                else -> intent.horizontalNavigationDelta()?.let { delta ->
-                    moveActionFocus(current, delta)
-                } ?: false
-            }
+    fun moveFromAction(current: DesktopDetailHeroAction, intent: MiruPlayInputIntent): Boolean =
+        when (intent) {
+            MiruPlayInputIntent.DirectionDown -> onFocusRecentPlayback()
+            else -> intent.horizontalNavigationDelta()?.let { delta ->
+                moveActionFocus(current, delta)
+            } ?: false
         }
-            ?: false
 
     val statLabels = entry
         ?.let {
@@ -280,10 +277,10 @@ private fun DetailStatPill(text: String, color: Color) {
 private fun Modifier.detailHeroActionNavigation(
     action: DesktopDetailHeroAction,
     focusRequester: FocusRequester,
-    onMove: (DesktopDetailHeroAction, Key) -> Boolean,
+    onMove: (DesktopDetailHeroAction, MiruPlayInputIntent) -> Boolean,
 ): Modifier =
     focusRequester(focusRequester)
-        .desktopNavigationKeyHandler { key -> onMove(action, key) }
+        .desktopNavigationIntentHandler { intent -> onMove(action, intent) }
 
 internal enum class DesktopDetailHeroAction {
     Play,

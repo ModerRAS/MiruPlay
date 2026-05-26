@@ -338,8 +338,14 @@ private fun PlayerStageTopBar(
             modifier = Modifier
                 .width(132.dp)
                 .focusRequester(focusRequester)
-                .desktopNavigationKeyHandler { key ->
-                    when (desktopPlayerStageNavigationTarget(DesktopPlayerStageFocusTarget.BackToDetails, key, isPlayerActive)) {
+                .desktopNavigationIntentHandler { intent ->
+                    when (
+                        desktopPlayerStageNavigationTarget(
+                            current = DesktopPlayerStageFocusTarget.BackToDetails,
+                            intent = intent,
+                            isPlayerActive = isPlayerActive,
+                        )
+                    ) {
                         DesktopPlayerStageFocusTarget.Primary -> {
                             onFocusTransport()
                             true
@@ -394,8 +400,8 @@ private fun PlayerTransportControls(
         focusRequesters.getValue(DesktopPlayerStageFocusTarget.Primary).requestFocus()
     }
 
-    fun moveFocus(current: DesktopPlayerStageFocusTarget, key: Key): Boolean {
-        val target = desktopPlayerStageNavigationTarget(current, key, isPlayerActive) ?: return false
+    fun moveFocus(current: DesktopPlayerStageFocusTarget, intent: MiruPlayInputIntent): Boolean {
+        val target = desktopPlayerStageNavigationTarget(current, intent, isPlayerActive) ?: return false
         if (target == DesktopPlayerStageFocusTarget.BackToDetails) {
             onFocusBackToDetails()
         } else if (target == DesktopPlayerStageFocusTarget.NextPanel) {
@@ -420,14 +426,14 @@ private fun PlayerTransportControls(
             onClick = onSeekBack,
             size = 64.dp,
             enabled = isPlayerActive,
-            onNavigationKey = { key -> moveFocus(DesktopPlayerStageFocusTarget.SeekBack, key) },
+            onNavigationIntent = { intent -> moveFocus(DesktopPlayerStageFocusTarget.SeekBack, intent) },
             modifier = Modifier.focusRequester(focusRequesters.getValue(DesktopPlayerStageFocusTarget.SeekBack)),
         )
         PlayerPrimaryButton(
             isPlayerActive = isPlayerActive,
             onLaunch = onLaunch,
             onTogglePause = onTogglePause,
-            onNavigationKey = { key -> moveFocus(DesktopPlayerStageFocusTarget.Primary, key) },
+            onNavigationIntent = { intent -> moveFocus(DesktopPlayerStageFocusTarget.Primary, intent) },
             modifier = Modifier.focusRequester(focusRequesters.getValue(DesktopPlayerStageFocusTarget.Primary)),
         )
         PlayerRoundButton(
@@ -435,7 +441,7 @@ private fun PlayerTransportControls(
             onClick = onSeekForward,
             size = 64.dp,
             enabled = isPlayerActive,
-            onNavigationKey = { key -> moveFocus(DesktopPlayerStageFocusTarget.SeekForward, key) },
+            onNavigationIntent = { intent -> moveFocus(DesktopPlayerStageFocusTarget.SeekForward, intent) },
             modifier = Modifier.focusRequester(focusRequesters.getValue(DesktopPlayerStageFocusTarget.SeekForward)),
         )
         PlayerRoundButton(
@@ -443,7 +449,7 @@ private fun PlayerTransportControls(
             onClick = onStop,
             size = 64.dp,
             enabled = isPlayerActive,
-            onNavigationKey = { key -> moveFocus(DesktopPlayerStageFocusTarget.Stop, key) },
+            onNavigationIntent = { intent -> moveFocus(DesktopPlayerStageFocusTarget.Stop, intent) },
             modifier = Modifier.focusRequester(focusRequesters.getValue(DesktopPlayerStageFocusTarget.Stop)),
         )
     }
@@ -454,7 +460,7 @@ private fun PlayerPrimaryButton(
     isPlayerActive: Boolean,
     onLaunch: () -> Unit,
     onTogglePause: () -> Unit,
-    onNavigationKey: (Key) -> Boolean = { false },
+    onNavigationIntent: (MiruPlayInputIntent) -> Boolean = { false },
     modifier: Modifier = Modifier,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -470,11 +476,11 @@ private fun PlayerPrimaryButton(
                 shape = CircleShape,
             )
             .onPreviewKeyEvent { event ->
-                desktopConfirmOrNavigationKeyEvent(
+                desktopConfirmOrNavigationIntentEvent(
                     key = event.key,
                     type = event.type,
                     onClick = if (isPlayerActive) onTogglePause else onLaunch,
-                    onNavigationKey = onNavigationKey,
+                    onNavigationIntent = onNavigationIntent,
                 )
             }
             .focusable(interactionSource = interactionSource)
@@ -499,7 +505,7 @@ private fun PlayerRoundButton(
     onClick: () -> Unit,
     size: Dp,
     enabled: Boolean = true,
-    onNavigationKey: (Key) -> Boolean = { false },
+    onNavigationIntent: (MiruPlayInputIntent) -> Boolean = { false },
     modifier: Modifier = Modifier,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -520,12 +526,12 @@ private fun PlayerRoundButton(
                 shape = CircleShape,
             )
             .onPreviewKeyEvent { event ->
-                desktopConfirmOrNavigationKeyEvent(
+                desktopConfirmOrNavigationIntentEvent(
                     key = event.key,
                     type = event.type,
                     enabled = enabled,
                     onClick = onClick,
-                    onNavigationKey = onNavigationKey,
+                    onNavigationIntent = onNavigationIntent,
                 )
             }
             .focusable(enabled = enabled, interactionSource = interactionSource)
@@ -777,10 +783,10 @@ internal fun playbackSettingNavigationTarget(
 private fun Modifier.playbackSettingNavigation(
     target: PlaybackSettingFocusTarget,
     focusRequester: FocusRequester,
-    onMove: (PlaybackSettingFocusTarget, Key) -> Boolean,
+    onMove: (PlaybackSettingFocusTarget, MiruPlayInputIntent) -> Boolean,
 ): Modifier =
     focusRequester(focusRequester)
-        .desktopNavigationKeyHandler { key -> onMove(target, key) }
+        .desktopNavigationIntentHandler { intent -> onMove(target, intent) }
 
 internal enum class RuntimeFocusTarget {
     MpvPath,
@@ -820,10 +826,10 @@ private fun RuntimeFocusTarget.runtimeStep(delta: Int): RuntimeFocusTarget? =
 private fun Modifier.runtimeNavigation(
     target: RuntimeFocusTarget,
     focusRequester: FocusRequester,
-    onMove: (RuntimeFocusTarget, Key) -> Boolean,
+    onMove: (RuntimeFocusTarget, MiruPlayInputIntent) -> Boolean,
 ): Modifier =
     focusRequester(focusRequester)
-        .desktopNavigationKeyHandler { key -> onMove(target, key) }
+        .desktopNavigationIntentHandler { intent -> onMove(target, intent) }
 
 @Composable
 private fun PlayerStageBottomBar(
@@ -971,8 +977,8 @@ private fun PlaybackSettingsPanel(
     val settingFocusRequesters = remember {
         playbackSettingFocusableTargets.associateWith { FocusRequester() }
     }
-    fun movePlaybackSettingFocus(target: PlaybackSettingFocusTarget, key: Key): Boolean {
-        val next = playbackSettingNavigationTarget(target, key) ?: return false
+    fun movePlaybackSettingFocus(target: PlaybackSettingFocusTarget, intent: MiruPlayInputIntent): Boolean {
+        val next = playbackSettingNavigationTarget(target, intent) ?: return false
         if (next == PlaybackSettingFocusTarget.PreviousPanel) return onFocusPreviousPanel()
         if (next == PlaybackSettingFocusTarget.NextPanel) return onFocusNextPanel()
         settingFocusRequesters.getValue(next).requestFocus()
@@ -1108,8 +1114,8 @@ internal fun RuntimePanel(
     val runtimeFocusRequesters = remember {
         runtimeFocusableTargets.associateWith { FocusRequester() }
     }
-    fun moveRuntimeFocus(target: RuntimeFocusTarget, key: Key): Boolean {
-        val next = runtimeNavigationTarget(target, key) ?: return false
+    fun moveRuntimeFocus(target: RuntimeFocusTarget, intent: MiruPlayInputIntent): Boolean {
+        val next = runtimeNavigationTarget(target, intent) ?: return false
         if (next == RuntimeFocusTarget.PreviousPanel) return onFocusPreviousPanel()
         runtimeFocusRequesters.getValue(next).requestFocus()
         return true

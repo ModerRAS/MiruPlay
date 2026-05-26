@@ -334,9 +334,9 @@ internal fun DesktopLibraryHeader(
             DesktopLibraryHeaderFocusTarget.NextPanel -> onFocusNextPanel()
             null -> false
         }
-    fun moveHeaderFocus(action: DesktopLibraryHeaderAction, key: Key): Boolean {
+    fun moveHeaderFocus(action: DesktopLibraryHeaderAction, intent: MiruPlayInputIntent): Boolean {
         activeActionIndex = action.ordinal
-        return requestHeaderFocus(desktopLibraryHeaderFocusTarget(action, key))
+        return requestHeaderFocus(desktopLibraryHeaderFocusTarget(action, intent))
     }
     LaunchedEffect(focusVersion) {
         if (focusVersion > 0) {
@@ -368,7 +368,7 @@ internal fun DesktopLibraryHeader(
                     modifier = Modifier
                         .width(132.dp)
                         .focusRequester(focusRequesters.getValue(action))
-                        .desktopNavigationKeyHandler { key -> moveHeaderFocus(action, key) },
+                        .desktopNavigationIntentHandler { intent -> moveHeaderFocus(action, intent) },
                 )
             }
         }
@@ -734,8 +734,8 @@ private fun PosterSearchBar(
     val focusRequesters = remember {
         LibrarySearchFocusTarget.entries.associateWith { FocusRequester() }
     }
-    fun moveSearchFocus(target: LibrarySearchFocusTarget, key: Key): Boolean =
-        when (val next = librarySearchFocusTarget(target, key)) {
+    fun moveSearchFocus(target: LibrarySearchFocusTarget, intent: MiruPlayInputIntent): Boolean =
+        when (val next = librarySearchFocusTarget(target, intent)) {
             LibrarySearchFocusTarget.Field,
             LibrarySearchFocusTarget.Action,
             -> {
@@ -764,7 +764,9 @@ private fun PosterSearchBar(
                 modifier = Modifier.weight(1f),
                 inputModifier = Modifier
                     .focusRequester(focusRequesters.getValue(LibrarySearchFocusTarget.Field))
-                    .desktopNavigationKeyHandler { key -> moveSearchFocus(LibrarySearchFocusTarget.Field, key) },
+                    .desktopNavigationIntentHandler { intent ->
+                        moveSearchFocus(LibrarySearchFocusTarget.Field, intent)
+                    },
             )
             TvActionButton(
                 librarySearchActionLabel(),
@@ -772,7 +774,9 @@ private fun PosterSearchBar(
                 modifier = Modifier
                     .width(132.dp)
                     .focusRequester(focusRequesters.getValue(LibrarySearchFocusTarget.Action))
-                    .desktopNavigationKeyHandler { key -> moveSearchFocus(LibrarySearchFocusTarget.Action, key) },
+                    .desktopNavigationIntentHandler { intent ->
+                        moveSearchFocus(LibrarySearchFocusTarget.Action, intent)
+                    },
             )
             Text(
                 librarySearchResultCountLabel(resultCount),
