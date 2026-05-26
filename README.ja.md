@@ -8,7 +8,7 @@
 
 - Android TV 版は引き続き主入口で、Jetpack Compose TV、Media3、Hilt を使用します。
 - Windows デスクトップ版には Compose Desktop シェル、Local/WebDAV/SMB ソース、Bangumi メタデータ、CloudDrive2/RSS 設定、WebUI、mpv 再生、任意の RIFE runtime 対応が入っています。
-- Windows 版の完了条件は [Windows port roadmap](./docs/windows-port-roadmap.md) で管理しています。実 CloudDrive2/RSS live QA、対象 GPU での RIFE matrix、署名済み installer 証跡、より広い WebUI/デバイス E2E QA は対応する外部環境での検証が必要です。
+- Windows 版の完了条件は [Windows port roadmap](./docs/windows-port-roadmap.md) で管理しています。実 CloudDrive2/RSS live QA、対象 GPU での RIFE matrix、署名済み installer 証跡、より広いデバイス E2E QA は対応する外部環境での検証が必要です。
 
 ## 特徴
 

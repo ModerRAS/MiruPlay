@@ -165,6 +165,26 @@ class DesktopSectionContractTest {
     }
 
     @Test
+    fun `desktop WebUI smoke is opt in by launcher argument`() {
+        assertTrue(shouldRunDesktopWebControlSmoke(arrayOf(DESKTOP_WEB_CONTROL_SMOKE_ARG)))
+        assertTrue(shouldRunDesktopWebControlSmoke(arrayOf("ignored", DESKTOP_WEB_CONTROL_SMOKE_ARG)))
+        assertFalse(shouldRunDesktopWebControlSmoke(emptyArray()))
+        assertFalse(shouldRunDesktopWebControlSmoke(arrayOf("$DESKTOP_WEB_CONTROL_SMOKE_ARG=false")))
+    }
+
+    @Test
+    fun `desktop WebUI smoke report path is parsed from launcher argument`() {
+        assertEquals(
+            Paths.get("D:/MiruPlay/build/desktop-web-control-smoke.json"),
+            desktopWebControlSmokeReportPath(
+                arrayOf("${DESKTOP_WEB_CONTROL_SMOKE_REPORT_ARG_PREFIX}D:/MiruPlay/build/desktop-web-control-smoke.json"),
+            ),
+        )
+        assertNull(desktopWebControlSmokeReportPath(emptyArray()))
+        assertNull(desktopWebControlSmokeReportPath(arrayOf(DESKTOP_WEB_CONTROL_SMOKE_REPORT_ARG_PREFIX)))
+    }
+
+    @Test
     fun `desktop entry smoke report serializes launcher contract`() {
         val windowTitle = desktopWindowTitleLabel()
         val report = DesktopEntrySmokeReport(
