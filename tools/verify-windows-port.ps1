@@ -404,6 +404,7 @@ $defaultGradleTasks = @(
     ":sync-engine-desktop:test",
     ":desktop-app:test",
     ":desktop-app:installDist",
+    ":desktop-app:desktopWebControlSmoke",
     "-PbundleMpvRuntime=false"
 )
 if (-not $SkipAndroidBuild) {
