@@ -293,6 +293,23 @@ fun settingsLogUploadLastUploadStatus(lastUploadAt: Long): String =
 fun settingsLogUploadResultStatus(lastUploadStatus: String?): String =
     lastUploadStatus?.trim()?.takeIf { it.isNotEmpty() } ?: "暂无上报结果"
 
+fun settingsLogUploadStatusMessage(
+    pendingCount: Int,
+    isUploading: Boolean,
+    tokenConfigured: Boolean,
+    lastUploadAt: Long,
+    lastUploadStatus: String?,
+    entryPointMessage: String = settingsAndroidTvLogUploadStatusMessage(),
+): String =
+    listOf(
+        entryPointMessage,
+        settingsLogUploadPendingStatus(pendingCount),
+        settingsLogUploadUploadStateStatus(isUploading),
+        settingsLogUploadTokenConfiguredStatus(tokenConfigured),
+        settingsLogUploadLastUploadStatus(lastUploadAt),
+        settingsLogUploadResultStatus(lastUploadStatus),
+    ).joinToString(" · ")
+
 fun settingsDesktopLogUploadStatusMessage(
     pendingCount: Int,
     isUploading: Boolean,
@@ -300,14 +317,29 @@ fun settingsDesktopLogUploadStatusMessage(
     lastUploadAt: Long,
     lastUploadStatus: String?,
 ): String =
-    listOf(
-        settingsDesktopLogUploadStatusMessage(),
-        settingsLogUploadPendingStatus(pendingCount),
-        settingsLogUploadUploadStateStatus(isUploading),
-        settingsLogUploadTokenConfiguredStatus(tokenConfigured),
-        settingsLogUploadLastUploadStatus(lastUploadAt),
-        settingsLogUploadResultStatus(lastUploadStatus),
-    ).joinToString(" · ")
+    settingsLogUploadStatusMessage(
+        pendingCount = pendingCount,
+        isUploading = isUploading,
+        tokenConfigured = tokenConfigured,
+        lastUploadAt = lastUploadAt,
+        lastUploadStatus = lastUploadStatus,
+        entryPointMessage = settingsDesktopLogUploadStatusMessage(),
+    )
+
+fun settingsAndroidTvLogUploadStatusMessage(
+    pendingCount: Int,
+    isUploading: Boolean,
+    tokenConfigured: Boolean,
+    lastUploadAt: Long,
+    lastUploadStatus: String?,
+): String =
+    settingsLogUploadStatusMessage(
+        pendingCount = pendingCount,
+        isUploading = isUploading,
+        tokenConfigured = tokenConfigured,
+        lastUploadAt = lastUploadAt,
+        lastUploadStatus = lastUploadStatus,
+    )
 
 fun settingsDesktopWebUiStatusMessage(
     enabled: Boolean = false,

@@ -56,6 +56,7 @@ import com.miruplay.tv.model.settingsCountValue
 import com.miruplay.tv.model.settingsDesktopLogUploadStatusMessage
 import com.miruplay.tv.model.settingsIndexedCountValue
 import com.miruplay.tv.model.settingsLinkedSourceLabel
+import com.miruplay.tv.model.settingsLogUploadStatusMessage
 import com.miruplay.tv.model.settingsLogUploadPendingStatus
 import com.miruplay.tv.model.settingsMissingSourceValue
 import com.miruplay.tv.model.settingsNoSourceSelectedValue
@@ -229,15 +230,27 @@ class DesktopSettingsPanelTest {
         assertEquals("Token 已保存", settingsLogUploadTokenConfiguredStatus(true))
         assertEquals("未保存 Token", settingsLogUploadTokenConfiguredStatus(false))
         assertEquals("暂无上报结果", settingsLogUploadResultStatus(null))
+        val androidTvStatus = settingsLogUploadStatusMessage(
+            pendingCount = 6,
+            isUploading = true,
+            tokenConfigured = true,
+            lastUploadAt = 0L,
+            lastUploadStatus = "HTTP 200",
+        )
+        val desktopStatus = settingsDesktopLogUploadStatusMessage(
+            pendingCount = 6,
+            isUploading = true,
+            tokenConfigured = true,
+            lastUploadAt = 0L,
+            lastUploadStatus = "HTTP 200",
+        )
         assertEquals(
             "可在当前页面或 Web 控制端配置 OpenObserve JSON；本地日志会按同一配置写入上报队列。 · 待上报 6 条 · 上报中 · Token 已保存 · 尚未上报 · HTTP 200",
-            settingsDesktopLogUploadStatusMessage(
-                pendingCount = 6,
-                isUploading = true,
-                tokenConfigured = true,
-                lastUploadAt = 0L,
-                lastUploadStatus = "HTTP 200",
-            ),
+            desktopStatus,
+        )
+        assertEquals(
+            androidTvStatus.substringAfter(" · "),
+            desktopStatus.substringAfter(" · "),
         )
     }
 
