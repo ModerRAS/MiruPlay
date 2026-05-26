@@ -227,7 +227,7 @@ internal fun List<MediaSourceInfo>.savedSourcePickerNavigationTarget(
     activeSourceId: Long?,
     key: Key,
 ): MediaSourceInfo? =
-    key.toMiruPlayInputIntent()?.let { intent ->
+    key.resolveDesktopIntent { intent ->
         savedSourcePickerNavigationTarget(activeSourceId, intent)
     }
 

@@ -1499,7 +1499,7 @@ internal fun cloudRssToggleFocusTarget(
     current: CloudRssToggle,
     key: Key,
 ): CloudRssFocusTarget? =
-    key.toMiruPlayInputIntent()?.let { intent ->
+    key.resolveDesktopIntent { intent ->
         cloudRssToggleFocusTarget(current, intent)
     }
 
@@ -1540,7 +1540,7 @@ internal fun cloudRssFieldFocusTarget(
     current: CloudRssField,
     key: Key,
 ): CloudRssFocusTarget? =
-    key.toMiruPlayInputIntent()?.let { intent ->
+    key.resolveDesktopIntent { intent ->
         cloudRssFieldFocusTarget(current, intent)
     }
 
@@ -1612,7 +1612,7 @@ internal fun cloudRssActionFocusTarget(
     key: Key,
     subscriptionCount: Int,
 ): CloudRssFocusTarget? =
-    key.toMiruPlayInputIntent()?.let { intent ->
+    key.resolveDesktopIntent { intent ->
         cloudRssActionFocusTarget(current, intent, subscriptionCount)
     }
 
@@ -1634,7 +1634,7 @@ internal fun cloudRssSubscriptionFocusTarget(
     itemCount: Int,
     key: Key,
 ): CloudRssFocusTarget? =
-    key.toMiruPlayInputIntent()?.let { intent ->
+    key.resolveDesktopIntent { intent ->
         cloudRssSubscriptionFocusTarget(currentIndex, itemCount, intent)
     }
 
@@ -1668,7 +1668,7 @@ internal fun cloudRssSubscriptionFocusTarget(
 }
 
 internal fun cloudRssSubscriptionEmptyFocusTarget(key: Key): CloudRssFocusTarget? =
-    key.toMiruPlayInputIntent()?.let(::cloudRssSubscriptionEmptyFocusTarget)
+    key.resolveDesktopIntent(::cloudRssSubscriptionEmptyFocusTarget)
 
 internal fun cloudRssSubscriptionEmptyFocusTarget(intent: MiruPlayInputIntent): CloudRssFocusTarget? =
     when (intent.verticalNavigationDelta()) {
@@ -1707,7 +1707,7 @@ internal fun cloudDriveDirectoryActionFocusTarget(
     key: Key,
     hasEmptyState: Boolean = false,
 ): CloudDriveDirectoryFocusTarget? =
-    key.toMiruPlayInputIntent()?.let { intent ->
+    key.resolveDesktopIntent { intent ->
         cloudDriveDirectoryActionFocusTarget(current, itemCount, intent, hasEmptyState)
     }
 
@@ -1729,7 +1729,7 @@ internal fun cloudDriveDirectoryActionFocusTarget(
     }
 
 internal fun cloudDriveDirectoryEmptyFocusTarget(key: Key): CloudDriveDirectoryFocusTarget? =
-    key.toMiruPlayInputIntent()?.let(::cloudDriveDirectoryEmptyFocusTarget)
+    key.resolveDesktopIntent(::cloudDriveDirectoryEmptyFocusTarget)
 
 internal fun cloudDriveDirectoryEmptyFocusTarget(intent: MiruPlayInputIntent): CloudDriveDirectoryFocusTarget? =
     when (intent.verticalNavigationDelta()) {
@@ -1742,7 +1742,7 @@ internal fun cloudDriveDirectoryRowFocusTarget(
     itemCount: Int,
     key: Key,
 ): CloudDriveDirectoryFocusTarget? =
-    key.toMiruPlayInputIntent()?.let { intent ->
+    key.resolveDesktopIntent { intent ->
         cloudDriveDirectoryRowFocusTarget(currentIndex, itemCount, intent)
     }
 
@@ -1878,7 +1878,7 @@ internal fun settingsQuickActionNavigationTarget(
     key: Key,
     enabledActions: List<Boolean> = List(actionCount) { true },
 ): Int? =
-    key.toMiruPlayInputIntent()?.let { intent ->
+    key.resolveDesktopIntent { intent ->
         settingsQuickActionNavigationTarget(currentIndex, actionCount, intent, enabledActions)
     }
 
@@ -1909,7 +1909,7 @@ internal fun settingsQuickActionFocusTarget(
     enabledActions: List<Boolean> = List(actionCount) { true },
     hasExtraFocus: Boolean = false,
 ): SettingsQuickActionFocusTarget? =
-    key.toMiruPlayInputIntent()?.let { intent ->
+    key.resolveDesktopIntent { intent ->
         settingsQuickActionFocusTarget(currentIndex, actionCount, intent, enabledActions, hasExtraFocus)
     }
 
@@ -1941,7 +1941,7 @@ internal fun settingsSummaryExtraFocusTarget(
     key: Key,
     enabledActions: List<Boolean> = List(actionCount) { true },
 ): SettingsQuickActionFocusTarget? =
-    key.toMiruPlayInputIntent()?.let { intent ->
+    key.resolveDesktopIntent { intent ->
         settingsSummaryExtraFocusTarget(actionCount, intent, enabledActions)
     }
 
@@ -2024,7 +2024,7 @@ internal fun settingsSectionNavigationTarget(
     current: MiruPlaySettingsSection,
     key: Key,
 ): MiruPlaySettingsSection? =
-    key.toMiruPlayInputIntent()?.let { intent ->
+    key.resolveDesktopIntent { intent ->
         settingsSectionNavigationTarget(current, intent)
     }
 
@@ -2423,7 +2423,7 @@ internal fun List<RssSubscriptionInfo>.rssSubscriptionNavigationTarget(
     currentSubscriptionId: Long?,
     key: Key,
 ): RssSubscriptionInfo? =
-    key.toMiruPlayInputIntent()?.let { intent ->
+    key.resolveDesktopIntent { intent ->
         rssSubscriptionNavigationTarget(currentSubscriptionId, intent)
     }
 

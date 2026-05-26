@@ -576,7 +576,7 @@ internal fun desktopPlayerStageNavigationTarget(
     key: Key,
     isPlayerActive: Boolean,
 ): DesktopPlayerStageFocusTarget? =
-    key.toMiruPlayInputIntent()?.let { intent ->
+    key.resolveDesktopIntent { intent ->
         desktopPlayerStageNavigationTarget(current, intent, isPlayerActive)
     }
 
@@ -724,7 +724,7 @@ internal fun playbackSettingNavigationTarget(
     current: PlaybackSettingFocusTarget,
     key: Key,
 ): PlaybackSettingFocusTarget? =
-    key.toMiruPlayInputIntent()?.let { intent ->
+    key.resolveDesktopIntent { intent ->
         playbackSettingNavigationTarget(current, intent)
     }
 
@@ -805,7 +805,7 @@ internal fun runtimeNavigationTarget(
     current: RuntimeFocusTarget,
     key: Key,
 ): RuntimeFocusTarget? =
-    key.toMiruPlayInputIntent()?.let { intent ->
+    key.resolveDesktopIntent { intent ->
         runtimeNavigationTarget(current, intent)
     }
 
@@ -1326,7 +1326,7 @@ internal fun playbackSpeedNavigationTarget(
     current: Float,
     key: Key,
 ): Float? =
-    key.toMiruPlayInputIntent()?.let { intent ->
+    key.resolveDesktopIntent { intent ->
         playbackSpeedNavigationTarget(current, intent)
     }
 
@@ -1441,7 +1441,7 @@ internal fun playbackEndActionNavigationTarget(
     current: PlaybackEndAction,
     key: Key,
 ): PlaybackEndAction? =
-    key.toMiruPlayInputIntent()?.let { intent ->
+    key.resolveDesktopIntent { intent ->
         playbackEndActionNavigationTarget(current, intent)
     }
 
