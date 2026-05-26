@@ -959,6 +959,15 @@ class DesktopSettingsPanelTest {
 
         assertFalse(
             settingsSectionMenuRowKeyEvent(
+                key = Key.Tab,
+                type = KeyEventType.KeyDown,
+                onSelected = { selected += 1 },
+            ),
+        )
+        assertEquals(2, selected)
+
+        assertFalse(
+            settingsSectionMenuRowKeyEvent(
                 key = Key.DirectionUp,
                 type = KeyEventType.KeyDown,
                 onSelected = { selected += 1 },
