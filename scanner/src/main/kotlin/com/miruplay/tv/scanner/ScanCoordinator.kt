@@ -89,6 +89,7 @@ class ScanCoordinator @Inject constructor(
                 sourceInfo.connectionInfo["url"] ?: sourceInfo.connectionInfo["path"] ?: "/"
         }
         val scanStartPath = if (isLocalSource) rootPath else ""
+        val disableOnlineMetadata = sourceInfo.connectionInfo["disableOnlineMetadata"]?.equals("true", ignoreCase = true) == true
 
         // Get the real root path once (resolves symlinks)
         val realRootPath = if (isLocalSource && !isDocumentTree) {
@@ -163,12 +164,21 @@ class ScanCoordinator @Inject constructor(
                         )
                     }
                 val animeTitleCandidates = titleCandidatesByAnime[animeName].orEmpty()
-                val online = enrichWithOnlineMetadata(
-                    animeName = animeName,
-                    episodes = episodes,
-                    extraTitleCandidates = animeTitleCandidates,
-                    posterCacheDirectory = posterCacheDirectory,
-                )
+                val online = if (disableOnlineMetadata) {
+                    OnlineMetadata(
+                        anime = null,
+                        episodes = episodes,
+                        scrapeStatus = MediaScrapeStatus.PENDING,
+                        scrapeMessage = "Online metadata disabled for source",
+                    )
+                } else {
+                    enrichWithOnlineMetadata(
+                        animeName = animeName,
+                        episodes = episodes,
+                        extraTitleCandidates = animeTitleCandidates,
+                        posterCacheDirectory = posterCacheDirectory,
+                    )
+                }
                 MiruLog.i(
                     tag = TAG,
                     message = "Scan recognition summary",

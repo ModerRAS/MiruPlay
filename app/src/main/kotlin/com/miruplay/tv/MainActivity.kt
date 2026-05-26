@@ -62,7 +62,11 @@ class MainActivity : ComponentActivity() {
                 val source = MediaSourceInfo(
                     name = "Test Local",
                     type = MediaSourceType.LOCAL,
-                    connectionInfo = mapOf("path" to testSourcePath, "url" to testSourcePath)
+                    connectionInfo = mapOf(
+                        "path" to testSourcePath,
+                        "url" to testSourcePath,
+                        "disableOnlineMetadata" to "true"
+                    )
                 )
                 mediaRepository.addSource(source)
             }
