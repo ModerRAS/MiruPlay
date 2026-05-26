@@ -288,6 +288,70 @@ function Get-RifeHostDiagnostics {
     }
 }
 
+function ConvertTo-WindowsCommandLineArgument {
+    param([string]$Argument)
+
+    if ($null -eq $Argument) {
+        return '""'
+    }
+    if ($Argument.Length -eq 0) {
+        return '""'
+    }
+    if ($Argument -notmatch '[\s"]') {
+        return $Argument
+    }
+
+    $builder = New-Object System.Text.StringBuilder
+    [void]$builder.Append('"')
+    $backslashCount = 0
+    foreach ($character in $Argument.ToCharArray()) {
+        if ($character -eq '\') {
+            $backslashCount += 1
+            continue
+        }
+        if ($character -eq '"') {
+            [void]$builder.Append(('\' * (($backslashCount * 2) + 1)) -join "")
+            [void]$builder.Append('"')
+            $backslashCount = 0
+            continue
+        }
+        if ($backslashCount -gt 0) {
+            [void]$builder.Append(('\' * $backslashCount) -join "")
+            $backslashCount = 0
+        }
+        [void]$builder.Append($character)
+    }
+    if ($backslashCount -gt 0) {
+        [void]$builder.Append(('\' * ($backslashCount * 2)) -join "")
+    }
+    [void]$builder.Append('"')
+    return $builder.ToString()
+}
+
+function Start-HiddenProcess {
+    param(
+        [string]$FilePath,
+        [string[]]$Arguments = @()
+    )
+
+    $processInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $processInfo.FileName = $FilePath
+    $processInfo.UseShellExecute = $false
+    $processInfo.CreateNoWindow = $true
+    $processInfo.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
+    $argumentListProperty = [System.Diagnostics.ProcessStartInfo].GetProperty("ArgumentList")
+    if ($null -ne $argumentListProperty) {
+        foreach ($argument in $Arguments) {
+            $processInfo.ArgumentList.Add($argument)
+        }
+    } else {
+        $processInfo.Arguments = (@($Arguments) | ForEach-Object {
+            ConvertTo-WindowsCommandLineArgument -Argument $_
+        }) -join " "
+    }
+    return [System.Diagnostics.Process]::Start($processInfo)
+}
+
 function Invoke-RifeSmokeBackend {
     param(
         [string]$BackendName,
@@ -332,7 +396,7 @@ function Invoke-RifeSmokeBackend {
     )
 
     Write-Host "Running $BackendName RIFE smoke with $MpvPath"
-    $process = Start-Process -FilePath $MpvPath -ArgumentList $arguments -PassThru -WindowStyle Hidden
+    $process = Start-HiddenProcess -FilePath $MpvPath -Arguments $arguments
     if (-not $process.WaitForExit(60000)) {
         Stop-Process -Id $process.Id -Force
         return [pscustomobject]@{

@@ -21,6 +21,7 @@ data class MpvRuntimeVerification(
     val missing: List<String>,
     val availableRifeBackends: Set<RifeBackend>,
     val manifest: MpvRuntimeManifest? = null,
+    val manifestPresent: Boolean = manifest != null,
 ) {
     val isPlayable: Boolean = "mpv.exe" !in missing && "portable_config/" !in missing
     val hasRife: Boolean = availableRifeBackends.isNotEmpty()
@@ -59,7 +60,7 @@ data class MpvRuntimeVerification(
             ?: "none"
 
     private fun String.withManifestMarker(): String =
-        if (manifest == null) this else "$this Manifest: present."
+        if (!manifestPresent) this else "$this Manifest: present."
 
     private val manifestMissingEntries: List<String> =
         missing.filter { it.startsWith(MANIFEST_MISSING_PREFIX) }
@@ -79,7 +80,8 @@ object MpvRuntimeVerifier {
         }
 
     fun verify(layout: MpvRuntimeLayout): MpvRuntimeVerification {
-        val manifest = readManifest(layout)
+        val manifestResult = readManifest(layout)
+        val manifest = manifestResult.manifest
         val declaredRequiredBackends = manifest
             ?.requiredRifeBackends
             ?.map { it.trim().uppercase() }
@@ -94,6 +96,7 @@ object MpvRuntimeVerifier {
 
         if (!Files.isRegularFile(layout.executable)) addMissing("mpv.exe")
         if (!Files.isDirectory(layout.configDirectory)) addMissing("portable_config/")
+        manifestResult.problems.forEach(::addMissing)
         declaredRequiredBackends
             ?.filter { parseBackend(it) == null }
             ?.forEach { addMissing("$MANIFEST_MISSING_PREFIX requiredRifeBackends=$it") }
@@ -115,18 +118,30 @@ object MpvRuntimeVerifier {
             missing = missing.toList(),
             availableRifeBackends = layout.availableRifeBackends(),
             manifest = manifest,
+            manifestPresent = manifestResult.present,
         )
     }
 
     fun verify(rootDirectory: Path): MpvRuntimeVerification =
         verify(MpvRuntimeDiscovery.layoutFor(rootDirectory))
 
-    private fun readManifest(layout: MpvRuntimeLayout): MpvRuntimeManifest? {
+    private fun readManifest(layout: MpvRuntimeLayout): ManifestReadResult {
         val manifestPath = layout.rootDirectory.resolve("runtime-manifest.json")
-        if (!Files.isRegularFile(manifestPath)) return null
+        if (!Files.isRegularFile(manifestPath)) return ManifestReadResult()
         return runCatching {
-            manifestJson.decodeFromString<MpvRuntimeManifest>(Files.readString(manifestPath))
-        }.getOrNull()
+            ManifestReadResult(
+                manifest = manifestJson.decodeFromString<MpvRuntimeManifest>(Files.readString(manifestPath)),
+                present = true,
+            )
+        }.getOrElse { error ->
+            ManifestReadResult(
+                present = true,
+                problems = listOf(
+                    "$MANIFEST_MISSING_PREFIX runtime-manifest.json could not be parsed: " +
+                        (error.message ?: error::class.simpleName.orEmpty())
+                ),
+            )
+        }
     }
 
     private fun parseBackend(value: String): RifeBackend? =
@@ -168,5 +183,11 @@ object MpvRuntimeVerifier {
     private fun hasWindowsDrivePrefix(value: String): Boolean =
         value.length >= 2 && value[1] == ':' && value[0].isLetter()
 }
+
+private data class ManifestReadResult(
+    val manifest: MpvRuntimeManifest? = null,
+    val present: Boolean = false,
+    val problems: List<String> = emptyList(),
+)
 
 private const val MANIFEST_MISSING_PREFIX = "runtime-manifest:"

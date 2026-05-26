@@ -138,6 +138,13 @@ class DesktopSectionContractTest {
     }
 
     @Test
+    fun `desktop automation initial library root trims environment value`() {
+        assertEquals("", desktopInitialLibraryRoot(null))
+        assertEquals("", desktopInitialLibraryRoot("   "))
+        assertEquals("D:/Anime", desktopInitialLibraryRoot("  D:/Anime  "))
+    }
+
+    @Test
     fun `desktop entry smoke is opt in by launcher argument`() {
         assertTrue(shouldRunDesktopEntrySmoke(arrayOf(DESKTOP_ENTRY_SMOKE_ARG)))
         assertTrue(shouldRunDesktopEntrySmoke(arrayOf("ignored", DESKTOP_ENTRY_SMOKE_ARG)))

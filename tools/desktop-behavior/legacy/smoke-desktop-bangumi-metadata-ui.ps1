@@ -524,17 +524,8 @@ try {
         $env:MIRUPLAY_BANGUMI_BASE_URL = $previousBangumiBaseUrlEnv
     }
     if (-not $KeepOpen) {
-        $windowProcess = Get-MiruPlayDesktopWindowProcess
-        if ($windowProcess) {
-            $windowProcess.CloseMainWindow() | Out-Null
-            Start-Sleep -Milliseconds 700
-            if (-not $windowProcess.HasExited) {
-                Stop-Process -Id $windowProcess.Id -Force
-            }
-        }
-        if ($startedProcess -and -not $startedProcess.HasExited) {
-            Stop-Process -Id $startedProcess.Id -Force -ErrorAction SilentlyContinue
-        }
+        Close-MiruPlayDesktopWindowProcessIfRunning
+        Stop-MiruPlayDesktopProcessIfRunning -Process $startedProcess
     }
     if ($bangumiMockJob) {
         Stop-Job -Job $bangumiMockJob -ErrorAction SilentlyContinue

@@ -14,11 +14,12 @@ mpv-runtime/
     vs/
       MEMC_RIFE_NV.vpy
       MEMC_RIFE_DML.vpy
-      MEMC_RIFE_STD.vpy
 ```
 
 `hooke007/mpv_PlayKit` is the reference layout for this payload. MiruPlay does
 not commit the large binary runtime, VapourSynth plugins, or model files.
+`MEMC_RIFE_STD.vpy` is an optional extra backend, not part of the default
+release gate; include it only with the additional Standard backend plugin stack.
 
 As of the `20260510` / `2026FM` mpv_PlayKit release, GitHub publishes a small
 `noVS` archive, a standard self-extracting `.exe`, and larger
@@ -91,7 +92,9 @@ repository root. The source directory should directly contain `mpv.exe`.
 When `mpvRuntimeSource` is present, Gradle verifies the payload before building
 the distribution and uses that prepared source as the only bundled runtime. If
 `mpvRuntimeSource` is omitted, the distribution bundles the repository-local
-`runtime/mpv` directory.
+`runtime/mpv` directory only when that directory contains `mpv.exe`; the tracked
+placeholder directory is intentionally ignored. Use `-PrequireMpvRuntime=true`
+for a release artifact that must fail when no runtime payload is available.
 
 For UI-only development loops that do not need the self-contained mpv payload,
 skip the large runtime copy:
@@ -100,8 +103,10 @@ skip the large runtime copy:
 .\gradlew.bat :desktop-app:installDist -PbundleMpvRuntime=false
 ```
 
-`bundleMpvRuntime` defaults to `true` so release artifacts remain
-self-contained unless explicitly disabled.
+`bundleMpvRuntime` defaults to `true`, but a self-contained release still needs
+an actual runtime source with `mpv.exe`. The default is meant to pick up a
+prepared local runtime automatically, not to make the placeholder directory a
+valid runtime.
 
 The resulting app is written to:
 
@@ -305,7 +310,8 @@ still carries a valid manifest. Use
 `-Backend STANDARD` only when the payload includes the extra Standard backend
 plugin stack.
 
-Validation note: the current local runtime was prepared from
+Historical validation note: the local runtime used during the 2026-05 Windows
+port audit was prepared from
 `mpv-lazy-20260510.exe` plus the `mpv-lazy-20260510-vsNV.7z.001` overlay and
 passed `:desktop-app:smokeMpvRuntime -PrequireMpvRuntime=true
 -PrequiredRifeBackends=NVIDIA,DIRECTML` with
@@ -318,6 +324,8 @@ and verified the bundled `desktop-app.zip` runtime entries.
 the `vsmlrt`/TensorRT path but failed on this machine because the CUDA driver is
 too old for the bundled CUDA runtime; Standard script presence is optional, and
 its runtime path currently requires an additional `rife` VapourSynth plugin.
+Regenerate current evidence with the commands above before claiming a new
+release build is complete.
 
 ## Overrides
 

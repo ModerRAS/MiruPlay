@@ -593,6 +593,8 @@ try {
             $reportName = if ($RifeBackend -eq "ALL") { "rife-matrix-report.json" } else { "rife-$($RifeBackend.ToLowerInvariant())-report.json" }
             $reportPath = Join-Path $repoRoot "build\mpv-smoke\$reportName"
             $rifeArgs = @(
+                "-RuntimeRoot",
+                $MpvRuntimeSource,
                 "-Backend",
                 $RifeBackend,
                 "-ReportPath",

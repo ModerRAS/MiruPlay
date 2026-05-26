@@ -59,3 +59,47 @@ function Wait-MiruPlayDesktopWindowProcess {
 
     throw $effectiveFailureMessage
 }
+
+function Stop-MiruPlayDesktopProcessIfRunning {
+    param(
+        [System.Diagnostics.Process]$Process,
+        [switch]$CloseMainWindow,
+        [int]$CloseWaitMilliseconds = 700
+    )
+
+    if ($null -eq $Process) {
+        return
+    }
+
+    try {
+        $processId = $Process.Id
+    } catch {
+        return
+    }
+
+    $runningProcess = Get-Process -Id $processId -ErrorAction SilentlyContinue
+    if (-not $runningProcess) {
+        return
+    }
+
+    if ($CloseMainWindow -and $runningProcess.MainWindowHandle -ne 0) {
+        $runningProcess.CloseMainWindow() | Out-Null
+        Start-Sleep -Milliseconds $CloseWaitMilliseconds
+        $runningProcess = Get-Process -Id $processId -ErrorAction SilentlyContinue
+        if (-not $runningProcess) {
+            return
+        }
+    }
+
+    Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
+}
+
+function Close-MiruPlayDesktopWindowProcessIfRunning {
+    param([int]$CloseWaitMilliseconds = 700)
+
+    $windowProcess = Get-MiruPlayDesktopWindowProcess
+    Stop-MiruPlayDesktopProcessIfRunning `
+        -Process $windowProcess `
+        -CloseMainWindow `
+        -CloseWaitMilliseconds $CloseWaitMilliseconds
+}
