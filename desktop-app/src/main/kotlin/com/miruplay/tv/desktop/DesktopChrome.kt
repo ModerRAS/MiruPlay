@@ -408,16 +408,19 @@ internal fun desktopSelectableRowKeyEvent(
     onClick: () -> Unit,
     onNavigationKey: (Key) -> Boolean = { false },
     onNavigationIntent: (MiruPlayInputIntent) -> Boolean = { false },
-): Boolean =
-    desktopConfirmOrNavigationKeyEvent(
-        key = key,
-        type = type,
-        onClick = onClick,
-        onNavigationKey = { navigationKey ->
-            navigationKey.toMiruPlayInputIntent()?.let(onNavigationIntent) == true ||
-                onNavigationKey(navigationKey)
-        },
-    )
+): Boolean {
+    if (desktopConfirmOrNavigationIntentEvent(
+            key = key,
+            type = type,
+            onClick = onClick,
+            onNavigationIntent = onNavigationIntent,
+        )
+    ) {
+        return true
+    }
+    if (type != KeyEventType.KeyDown || isDesktopConfirmKey(key)) return false
+    return onNavigationKey(key)
+}
 
 @Composable
 internal fun TvActionButton(
