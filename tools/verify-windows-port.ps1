@@ -384,6 +384,7 @@ $defaultGradleTasks = @(
     "checkDesktopPresenterSeparation",
     "checkUiPaletteDrift",
     ":core:model:test",
+    ":ui-tv:testDebugUnitTest",
     ":media-source-api:test",
     ":metadata-core:test",
     ":repository-api:test",
