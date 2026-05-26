@@ -9,11 +9,11 @@ class SettingsSectionDisplayConventionsTest {
     @Test
     fun `settings section copy is shared by Android TV and desktop`() {
         assertEquals(
-            listOf("WebUI", "媒体源", "播放", "CloudDrive", "扫描", "日志上报", "元数据"),
+            listOf("WebUI", "媒体源", "播放", "CloudDrive", "扫描", "日志上报", "更新", "元数据"),
             androidTvSettingsSectionOrder.map { it.androidTvTitle },
         )
         assertEquals(
-            listOf("访问地址与二维码", "本地、WebDAV、SMB", "播完动作", "RSS 离线下载与入库", "媒体库更新策略", "OpenObserve JSON", "Bangumi Token"),
+            listOf("访问地址与二维码", "本地、WebDAV、SMB", "播完动作", "RSS 离线下载与入库", "媒体库更新策略", "OpenObserve JSON", "GitHub APK", "Bangumi Token"),
             androidTvSettingsSectionOrder.map { it.androidTvDescription },
         )
         assertEquals(
@@ -46,6 +46,7 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("同番合并", settingsScanMenuSummary(autoScanEnabled = false, mergeSameAnimeEnabled = true))
         assertEquals("定时关闭", settingsScanMenuSummary(autoScanEnabled = false, mergeSameAnimeEnabled = false))
         assertEquals("OpenObserve", settingsLogUploadMenuSummary())
+        assertEquals("GitHub", settingsAppUpdateMenuSummary())
         assertEquals("未启用", settingsAndroidTvLogUploadMenuSummary())
         assertEquals(
             "自动上报",
@@ -82,6 +83,7 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("4 个订阅", MiruPlaySettingsSection.CLOUD_DRIVE.settingsMenuSummary(androidInput))
         assertEquals("定时 · 合并", MiruPlaySettingsSection.SCAN.settingsMenuSummary(androidInput))
         assertEquals("OpenObserve", MiruPlaySettingsSection.LOG_UPLOAD.settingsMenuSummary(androidInput))
+        assertEquals("GitHub", MiruPlaySettingsSection.APP_UPDATE.settingsMenuSummary(androidInput))
         assertEquals("Token 已设置", MiruPlaySettingsSection.METADATA.settingsMenuSummary(androidInput))
 
         val androidLogUploadInput = androidInput.copy(logUploadSummary = settingsAndroidTvLogUploadMenuSummary())
@@ -125,6 +127,20 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("OpenObserve Token", settingsLogUploadTokenFieldLabel())
         assertEquals("保存配置", settingsLogUploadSaveConfigActionLabel())
         assertEquals("立即上报", settingsLogUploadRunNowActionLabel())
+        assertEquals("应用更新", settingsAppUpdatePanelTitleLabel())
+        assertEquals("从 GitHub Release 获取最新 APK。", settingsAppUpdatePanelDescription())
+        assertEquals("检查更新", settingsAppUpdateCheckActionLabel())
+        assertEquals("下载安装", settingsAppUpdateInstallActionLabel())
+        assertEquals("安装授权", settingsAppUpdatePermissionActionLabel())
+        assertEquals("尚未检查更新。", settingsAppUpdateIdleStatus())
+        assertEquals("正在检查 GitHub Release。", settingsAppUpdateCheckingStatus())
+        assertEquals("发现新版本 2026.05.26。", settingsAppUpdateReadyStatus("2026.05.26"))
+        assertEquals("当前已是最新版本 2026.05.26。", settingsAppUpdateLatestStatus("2026.05.26"))
+        assertEquals("正在下载 APK 42%", settingsAppUpdateDownloadProgressStatus(42))
+        assertEquals("正在下载 APK。", settingsAppUpdateDownloadProgressStatus(null))
+        assertEquals("已打开安装授权页，授权后请返回重试。", settingsAppUpdateInstallPermissionStatus())
+        assertEquals("已具备安装授权。", settingsAppUpdateInstallPermissionGrantedStatus())
+        assertEquals("已打开系统安装器。", settingsAppUpdateInstallerOpenedStatus())
         assertEquals("待上报 0 条", settingsLogUploadPendingStatus(-8))
         assertEquals("待命", settingsLogUploadUploadStateStatus(false))
         assertEquals("上报中", settingsLogUploadUploadStateStatus(true))
@@ -361,6 +377,10 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals(
             MiruPlaySettingsSection.CLOUD_DRIVE,
             MiruPlaySettingsSection.PLAYBACK.stepAndroidTvSettingsSection(1),
+        )
+        assertEquals(
+            MiruPlaySettingsSection.APP_UPDATE,
+            MiruPlaySettingsSection.LOG_UPLOAD.stepAndroidTvSettingsSection(1),
         )
         assertNull(MiruPlaySettingsSection.METADATA.stepAndroidTvSettingsSection(1))
 

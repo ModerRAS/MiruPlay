@@ -25,7 +25,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -165,6 +164,12 @@ import com.miruplay.tv.model.metadataBangumiTokenMissingStatus
 import com.miruplay.tv.model.metadataBangumiTokenOptionalHint
 import com.miruplay.tv.model.metadataBangumiTokenSavedStatus
 import com.miruplay.tv.model.settingsAutoScanToggleLabel
+import com.miruplay.tv.model.settingsAppUpdateCheckActionLabel
+import com.miruplay.tv.model.settingsAppUpdateInstallActionLabel
+import com.miruplay.tv.model.settingsAppUpdateMenuSummary
+import com.miruplay.tv.model.settingsAppUpdatePanelDescription
+import com.miruplay.tv.model.settingsAppUpdatePanelTitleLabel
+import com.miruplay.tv.model.settingsAppUpdatePermissionActionLabel
 import com.miruplay.tv.model.settingsBackActionLabel
 import com.miruplay.tv.model.settingsAndroidTvLogUploadMenuSummary
 import com.miruplay.tv.model.settingsCurrentScanIntervalStatus
@@ -258,6 +263,7 @@ private fun MiruPlaySettingsSection.androidTvIcon(): ImageVector =
         MiruPlaySettingsSection.CLOUD_DRIVE -> Icons.Filled.Cloud
         MiruPlaySettingsSection.SCAN -> Icons.Filled.Refresh
         MiruPlaySettingsSection.LOG_UPLOAD -> Icons.Filled.Upload
+        MiruPlaySettingsSection.APP_UPDATE -> Icons.Filled.Refresh
         MiruPlaySettingsSection.METADATA -> Icons.Filled.Key
     }
 
@@ -287,6 +293,7 @@ fun AddSourceScreen(
     val localDirectoryBrowser by viewModel.localDirectoryBrowser.collectAsStateWithLifecycle()
     val logUploadSnapshot by viewModel.logUploadSnapshot.collectAsStateWithLifecycle()
     val logUploadStatusMessage by viewModel.logUploadStatusMessage.collectAsStateWithLifecycle()
+    val appUpdateState by viewModel.appUpdateState.collectAsStateWithLifecycle()
 
     var selectedSection by remember { mutableStateOf(MiruPlaySettingsSection.WEB_UI) }
     var editingSourceId by remember { mutableStateOf<Long?>(null) }
@@ -433,6 +440,8 @@ fun AddSourceScreen(
                     logUploadEnabled = logUploadSnapshot.enabled,
                     logUploadTokenConfigured = logUploadSnapshot.tokenConfigured,
                     logUploadUploading = logUploadSnapshot.isUploading,
+                    appUpdateBusy = appUpdateState.isBusy,
+                    appUpdateAvailable = appUpdateState.updateAvailable,
                     hasToken = savedToken.isNotBlank() || tokenSaved,
                     menuFocusRequesters = menuFocusRequesters,
                     onSectionSelected = { selectedSection = it },
@@ -641,6 +650,10 @@ fun AddSourceScreen(
                         logUploadTokenInput = ""
                     },
                     canRunLogUploadNow = logUploadSnapshot.canRunNow(logUploadTokenInput),
+                    appUpdateState = appUpdateState,
+                    onCheckAppUpdate = viewModel::checkAppUpdate,
+                    onDownloadAndInstallAppUpdate = viewModel::downloadAndInstallAppUpdate,
+                    onOpenAppUpdateInstallPermission = viewModel::openAppUpdateInstallPermissionSettings,
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
@@ -719,6 +732,8 @@ private fun SettingsMenuPanel(
     logUploadEnabled: Boolean,
     logUploadTokenConfigured: Boolean,
     logUploadUploading: Boolean,
+    appUpdateBusy: Boolean,
+    appUpdateAvailable: Boolean,
     hasToken: Boolean,
     menuFocusRequesters: Map<MiruPlaySettingsSection, FocusRequester>,
     onSectionSelected: (MiruPlaySettingsSection) -> Unit,
@@ -738,6 +753,11 @@ private fun SettingsMenuPanel(
             tokenConfigured = logUploadTokenConfigured,
             isUploading = logUploadUploading,
         ),
+        appUpdateSummary = when {
+            appUpdateBusy -> "处理中"
+            appUpdateAvailable -> "可更新"
+            else -> settingsAppUpdateMenuSummary()
+        },
     )
 
     SettingsPanel(modifier = modifier) {
@@ -754,13 +774,14 @@ private fun SettingsMenuPanel(
         )
         Spacer(Modifier.height(18.dp))
 
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f),
+                .weight(1f)
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            itemsIndexed(androidTvSettingsSectionOrder) { _, section ->
+            androidTvSettingsSectionOrder.forEach { section ->
                 SettingsMenuItem(
                     section = section,
                     summary = section.settingsMenuSummary(menuSummaryInput),
@@ -948,6 +969,10 @@ private fun SettingsContent(
     onClearLogUploadToken: () -> Unit,
     onRunLogUploadNow: () -> Unit,
     canRunLogUploadNow: Boolean,
+    appUpdateState: AppUpdateUiState,
+    onCheckAppUpdate: () -> Unit,
+    onDownloadAndInstallAppUpdate: () -> Unit,
+    onOpenAppUpdateInstallPermission: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     when (selectedSection) {
@@ -1126,6 +1151,18 @@ private fun SettingsContent(
                 onClearToken = onClearLogUploadToken,
                 onRunNow = onRunLogUploadNow,
                 canRunNow = canRunLogUploadNow,
+            )
+        }
+
+        MiruPlaySettingsSection.APP_UPDATE -> SettingsSingleSectionPage(
+            section = selectedSection,
+            modifier = modifier
+        ) {
+            AppUpdatePanel(
+                state = appUpdateState,
+                onCheck = onCheckAppUpdate,
+                onDownloadAndInstall = onDownloadAndInstallAppUpdate,
+                onOpenInstallPermission = onOpenAppUpdateInstallPermission
             )
         }
 
@@ -2778,6 +2815,78 @@ private fun ScanOptionChip(
 }
 
 @Composable
+private fun AppUpdatePanel(
+    state: AppUpdateUiState,
+    onCheck: () -> Unit,
+    onDownloadAndInstall: () -> Unit,
+    onOpenInstallPermission: () -> Unit,
+) {
+    SettingsPanel {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Filled.Refresh,
+                contentDescription = null,
+                tint = TextPrimary,
+                modifier = Modifier.size(26.dp)
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(text = settingsAppUpdatePanelTitleLabel(), style = TvTypography.subtitle, color = TextPrimary)
+        }
+
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = settingsAppUpdatePanelDescription(),
+            style = TvTypography.body,
+            color = TextSecondary
+        )
+
+        Spacer(Modifier.height(14.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            TvButton(
+                text = settingsAppUpdateCheckActionLabel(),
+                icon = Icons.Filled.Refresh,
+                enabled = !state.isBusy,
+                onClick = onCheck
+            )
+            TvButton(
+                text = settingsAppUpdateInstallActionLabel(),
+                icon = Icons.Filled.Save,
+                enabled = !state.isBusy && state.latest != null,
+                onClick = onDownloadAndInstall
+            )
+            TvButton(
+                text = settingsAppUpdatePermissionActionLabel(),
+                icon = Icons.Filled.Key,
+                enabled = !state.isBusy,
+                onClick = onOpenInstallPermission
+            )
+        }
+
+        val latest = state.latest
+        if (latest != null) {
+            StatusMessage(
+                icon = if (state.updateAvailable) Icons.Filled.Refresh else Icons.Filled.CheckCircle,
+                text = "${latest.releaseName} · ${latest.assetName} · ${formatByteSize(latest.assetSizeBytes)}",
+                color = if (state.updateAvailable) WarningYellow else ProgressGreen
+            )
+        }
+        StatusMessage(
+            icon = when {
+                state.isBusy -> Icons.Filled.Refresh
+                state.updateAvailable -> Icons.Filled.Refresh
+                else -> Icons.Filled.CheckCircle
+            },
+            text = state.statusMessage,
+            color = when {
+                state.statusMessage.contains("失败") || state.statusMessage.contains("无法") -> WarningYellow
+                state.updateAvailable -> WarningYellow
+                else -> ProgressGreen
+            }
+        )
+    }
+}
+
+@Composable
 private fun MetadataPanel(
     savedToken: String,
     tokenInput: String,
@@ -3011,6 +3120,12 @@ private fun SettingsPanel(
 
 private fun sourceNameOrDefault(name: String, type: MediaSourceType): String =
     name.ifBlank { type.defaultSourceName() }
+
+private fun formatByteSize(sizeBytes: Long): String {
+    if (sizeBytes <= 0L) return "未知大小"
+    val mib = sizeBytes.toDouble() / 1024.0 / 1024.0
+    return String.format(Locale.US, "%.1f MB", mib)
+}
 
 internal fun settingsSourceListMenuBridgeIntent(
     intent: MiruPlayInputIntent,

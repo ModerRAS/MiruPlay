@@ -34,6 +34,7 @@ dependencies {
     ksp(libs.androidx.room.compiler)
     
     implementation(libs.androidx.security.crypto)
+    implementation(libs.androidx.core)
     implementation(libs.okhttp)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.json)

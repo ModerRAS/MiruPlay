@@ -83,4 +83,22 @@ sealed class AppError {
             override fun toUserMessage(): String = "媒体源为只读，无法保存进度"
         }
     }
+
+    sealed class AppUpdateError : AppError() {
+        data object NoReleaseFound : AppUpdateError() {
+            override fun toUserMessage(): String = "GitHub 上暂未找到可用版本。"
+        }
+
+        data object NoInstallableApk : AppUpdateError() {
+            override fun toUserMessage(): String = "最新版本没有可安装的 APK。"
+        }
+
+        data class DownloadFailed(val cause: String) : AppUpdateError() {
+            override fun toUserMessage(): String = "下载更新失败：$cause"
+        }
+
+        data class InstallIntentFailed(val cause: String) : AppUpdateError() {
+            override fun toUserMessage(): String = "无法打开系统安装器：$cause"
+        }
+    }
 }

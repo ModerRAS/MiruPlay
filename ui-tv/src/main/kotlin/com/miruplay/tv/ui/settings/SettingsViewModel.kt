@@ -33,6 +33,11 @@ import com.miruplay.tv.model.saveBangumiTokenFormResult
 import com.miruplay.tv.model.withAutomationFormValues
 import com.miruplay.tv.model.validateCloudDriveDirectoryPickerForm
 import com.miruplay.tv.repository.AppCredentialStore
+import com.miruplay.tv.repository.AppUpdateCheck
+import com.miruplay.tv.repository.AppUpdateDownloadProgress
+import com.miruplay.tv.repository.AppUpdateInfo
+import com.miruplay.tv.repository.AppUpdateInstallLaunch
+import com.miruplay.tv.repository.AppUpdateRepository
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.LogUploadActionCoordinator
 import com.miruplay.tv.repository.LogUploadAutoScheduler
@@ -51,6 +56,14 @@ import com.miruplay.tv.sync.rss.loadingFor
 import com.miruplay.tv.sync.rss.prepareCloudDriveDirectoryBrowser
 import com.miruplay.tv.model.rssSubscriptionDeletedStatus
 import com.miruplay.tv.model.rssSubscriptionSavedStatus
+import com.miruplay.tv.model.settingsAppUpdateCheckingStatus
+import com.miruplay.tv.model.settingsAppUpdateDownloadProgressStatus
+import com.miruplay.tv.model.settingsAppUpdateIdleStatus
+import com.miruplay.tv.model.settingsAppUpdateInstallPermissionGrantedStatus
+import com.miruplay.tv.model.settingsAppUpdateInstallPermissionStatus
+import com.miruplay.tv.model.settingsAppUpdateInstallerOpenedStatus
+import com.miruplay.tv.model.settingsAppUpdateLatestStatus
+import com.miruplay.tv.model.settingsAppUpdateReadyStatus
 import com.miruplay.tv.model.settingsDesktopLogUploadStatusMessage
 import com.miruplay.tv.model.validateCloudDriveApiTokenForm
 import com.miruplay.tv.model.validateCloudDriveLoginForm
@@ -78,6 +91,7 @@ class SettingsViewModel @Inject constructor(
     private val webControlPreferences: WebControlAccessManager,
     private val cloudDriveRepository: CloudDriveAutomationRepository,
     private val logUploadRepository: LogUploadRepository,
+    private val appUpdateRepository: AppUpdateRepository,
     private val cloudDriveClient: CloudDriveClient,
     private val cloudDriveEngine: CloudDriveRssAutomationEngine,
     private val cloudDriveScheduler: CloudDriveRssScheduler
@@ -156,6 +170,9 @@ class SettingsViewModel @Inject constructor(
 
     private val _logUploadStatusMessage = MutableStateFlow(settingsDesktopLogUploadStatusMessage())
     val logUploadStatusMessage: StateFlow<String> = _logUploadStatusMessage.asStateFlow()
+
+    private val _appUpdateState = MutableStateFlow(AppUpdateUiState())
+    val appUpdateState: StateFlow<AppUpdateUiState> = _appUpdateState.asStateFlow()
 
     init {
         loadSources()
@@ -619,6 +636,98 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun checkAppUpdate() {
+        if (_appUpdateState.value.isBusy) return
+        viewModelScope.launch {
+            _appUpdateState.value = _appUpdateState.value.copy(
+                isBusy = true,
+                progressPercent = null,
+                statusMessage = settingsAppUpdateCheckingStatus(),
+            )
+            when (val result = appUpdateRepository.checkLatestUpdate()) {
+                is Result.Success -> {
+                    _appUpdateState.value = result.data.toUiState()
+                }
+                is Result.Error -> {
+                    _appUpdateState.value = _appUpdateState.value.copy(
+                        isBusy = false,
+                        progressPercent = null,
+                        statusMessage = result.error.toUserMessage(),
+                    )
+                }
+            }
+        }
+    }
+
+    fun downloadAndInstallAppUpdate() {
+        val latest = _appUpdateState.value.latest ?: return checkAppUpdate()
+        if (_appUpdateState.value.isBusy) return
+        if (!appUpdateRepository.canRequestPackageInstalls()) {
+            openAppUpdateInstallPermissionSettings()
+            return
+        }
+
+        viewModelScope.launch {
+            _appUpdateState.value = _appUpdateState.value.copy(
+                isBusy = true,
+                progressPercent = 0,
+                statusMessage = settingsAppUpdateDownloadProgressStatus(0),
+            )
+            when (
+                val result = appUpdateRepository.downloadAndLaunchInstaller(
+                    update = latest,
+                    onProgress = ::updateDownloadProgress,
+                )
+            ) {
+                is Result.Success -> {
+                    val status = when (result.data) {
+                        AppUpdateInstallLaunch.INSTALLER_OPENED -> settingsAppUpdateInstallerOpenedStatus()
+                        AppUpdateInstallLaunch.INSTALL_PERMISSION_REQUIRED -> {
+                            appUpdateRepository.openInstallPermissionSettings()
+                            settingsAppUpdateInstallPermissionStatus()
+                        }
+                    }
+                    _appUpdateState.value = _appUpdateState.value.copy(
+                        isBusy = false,
+                        progressPercent = null,
+                        statusMessage = status,
+                    )
+                }
+                is Result.Error -> {
+                    _appUpdateState.value = _appUpdateState.value.copy(
+                        isBusy = false,
+                        progressPercent = null,
+                        statusMessage = result.error.toUserMessage(),
+                    )
+                }
+            }
+        }
+    }
+
+    fun openAppUpdateInstallPermissionSettings() {
+        if (appUpdateRepository.canRequestPackageInstalls()) {
+            _appUpdateState.value = _appUpdateState.value.copy(
+                isBusy = false,
+                statusMessage = settingsAppUpdateInstallPermissionGrantedStatus(),
+            )
+            return
+        }
+        when (val result = appUpdateRepository.openInstallPermissionSettings()) {
+            is Result.Success -> {
+                _appUpdateState.value = _appUpdateState.value.copy(
+                    isBusy = false,
+                    statusMessage = settingsAppUpdateInstallPermissionStatus(),
+                )
+            }
+            is Result.Error -> {
+                _appUpdateState.value = _appUpdateState.value.copy(
+                    isBusy = false,
+                    statusMessage = result.error.toUserMessage(),
+                )
+            }
+        }
+    }
+
     private fun observeCloudDriveAutomation() {
         viewModelScope.launch {
             cloudDriveRepository.observeConfig().collectLatest { config ->
@@ -669,6 +778,29 @@ class SettingsViewModel @Inject constructor(
         )
     }
 
+    private fun updateDownloadProgress(progress: AppUpdateDownloadProgress) {
+        val percent = progress.percent
+        _appUpdateState.value = _appUpdateState.value.copy(
+            progressPercent = percent,
+            statusMessage = settingsAppUpdateDownloadProgressStatus(percent),
+        )
+    }
+
+    private fun AppUpdateCheck.toUiState(): AppUpdateUiState {
+        val latestInfo = latest
+        return AppUpdateUiState(
+            latest = latestInfo,
+            updateAvailable = updateAvailable,
+            isBusy = false,
+            progressPercent = null,
+            statusMessage = if (updateAvailable) {
+                settingsAppUpdateReadyStatus(latestInfo.versionName)
+            } else {
+                settingsAppUpdateLatestStatus(currentVersionName)
+            },
+        )
+    }
+
     private fun findLocalIps(): List<String> {
         return runCatching {
             NetworkInterface.getNetworkInterfaces().toList()
@@ -707,6 +839,14 @@ data class LocalDirectoryEntry(
     val name: String,
     val path: String,
     val canRead: Boolean
+)
+
+data class AppUpdateUiState(
+    val latest: AppUpdateInfo? = null,
+    val updateAvailable: Boolean = false,
+    val isBusy: Boolean = false,
+    val progressPercent: Int? = null,
+    val statusMessage: String = settingsAppUpdateIdleStatus(),
 )
 
 sealed class ConnectionTestResult {
