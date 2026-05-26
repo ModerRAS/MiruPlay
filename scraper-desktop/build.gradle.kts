@@ -1,3 +1,5 @@
+import java.io.File
+
 plugins {
     id("java-library")
     id("org.jetbrains.kotlin.jvm")
@@ -34,6 +36,10 @@ val smokeBangumiLive by tasks.registering(JavaExec::class) {
     val minResults = providers.gradleProperty("bangumiSmokeMinResults").orElse("1")
     val reportPath = providers.gradleProperty("bangumiSmokeReportPath")
         .orElse("build/bangumi-smoke/live-report.json")
+    val resolvedReportPath = reportPath.map { rawPath ->
+        val file = File(rawPath)
+        if (file.isAbsolute) file.absolutePath else rootProject.file(rawPath).absolutePath
+    }
 
     doFirst {
         args(
@@ -42,7 +48,7 @@ val smokeBangumiLive by tasks.registering(JavaExec::class) {
             "--min-results",
             minResults.get(),
             "--report-path",
-            reportPath.get(),
+            resolvedReportPath.get(),
         )
         if (subjectId.isPresent) {
             args("--subject-id", subjectId.get())

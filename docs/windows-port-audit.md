@@ -569,7 +569,10 @@ and the Android/desktop compile/separation gate in build `b-265`.
 Latest desktop behavior smoke passed in Gradle MCP build `b-24`; its local
 report is `build/desktop-behavior/run-20260526-142805/report.json`. Packaged
 WebUI smoke passed in Gradle MCP build `b-24`; its local report is
-`desktop-app/build/web-control-smoke/desktop-web-control-smoke.json`.
+`desktop-app/build/web-control-smoke/desktop-web-control-smoke.json`. Bangumi
+live scraper smoke passed in Gradle MCP build `b-27`; its root-relative report
+is `build/bangumi-smoke/live-report.json` and is validated by
+`tools/assert-bangumi-live-report.ps1`.
 
 ```powershell
 .\tools\verify-windows-port.ps1
@@ -627,6 +630,8 @@ WebUI smoke passed in Gradle MCP build `b-24`; its local report is
 
 .\gradlew.bat :scraper-desktop:test :scraper-desktop:smokeBangumiLive `
   -PbangumiSmokeReportPath=build\bangumi-smoke\live-report.json
+.\tools\assert-bangumi-live-report.ps1 `
+  -ReportPath .\build\bangumi-smoke\live-report.json
 
 .\gradlew.bat :sync-engine-desktop:test :repository-desktop:test :player-mpv:test :desktop-app:test :desktop-app:installDist :app:assembleDebug
 
