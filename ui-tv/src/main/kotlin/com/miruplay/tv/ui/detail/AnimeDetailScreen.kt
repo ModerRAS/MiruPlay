@@ -5,7 +5,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -39,9 +38,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -72,7 +68,7 @@ import com.miruplay.tv.ui.components.LoadingIndicator
 import com.miruplay.tv.ui.components.OverscanContainer
 import com.miruplay.tv.ui.components.RemoteImage
 import com.miruplay.tv.ui.components.TvButton
-import com.miruplay.tv.ui.components.tvActivateKeyEvent
+import com.miruplay.tv.ui.components.tvFocusableClickable
 import com.miruplay.tv.ui.theme.AccentBlue
 import com.miruplay.tv.ui.theme.AnimeRed
 import com.miruplay.tv.ui.theme.CardBg
@@ -382,12 +378,8 @@ private fun EpisodeListItem(
                 color = if (isFocused) FocusBorder else Color.White.copy(alpha = 0.08f),
                 shape = RoundedCornerShape(8.dp)
             )
-            .onPreviewKeyEvent { event ->
-                tvActivateKeyEvent(event.key, event.type, onActivate = onPlay)
-            }
-            .clickable(
+            .tvFocusableClickable(
                 interactionSource = interactionSource,
-                indication = null,
                 onClick = onPlay
             )
             .padding(horizontal = 18.dp, vertical = 14.dp),
