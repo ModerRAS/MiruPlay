@@ -4,6 +4,9 @@ param(
     [switch]$SkipGradle,
     [switch]$SkipAndroidBuild,
     [switch]$Gui,
+    [switch]$Behavior,
+    [ValidateSet("smoke", "full")]
+    [string]$BehaviorTags = "smoke",
     [switch]$RealLibrary,
     [string]$RealLibraryRoot = "D:\Software\dufs",
     [switch]$AndroidTv,
@@ -429,8 +432,51 @@ try {
         Invoke-Step -Name "Safe Gradle gate" -Action {
             Invoke-Gradle -Arguments $defaultGradleTasks
         }
+        Invoke-Step -Name "desktop WebUI smoke report assertion" -Action {
+            $webControlReportPath = Join-Path $repoRoot "desktop-app\build\web-control-smoke\desktop-web-control-smoke.json"
+            Invoke-ToolScript -ScriptName "assert-desktop-web-control-smoke-report.ps1" -Arguments @(
+                "-ReportPath",
+                $webControlReportPath
+            )
+        }
     } else {
         Write-Host "Skipping safe Gradle gate because -SkipGradle was supplied."
+    }
+
+    if ($Behavior) {
+        Invoke-Step -Name "desktop behavior smoke" -Action {
+            Invoke-Gradle -Arguments @(
+                ":desktop-app:desktopBehaviorTest",
+                "-PdesktopBehaviorTags=$BehaviorTags",
+                "-PbundleMpvRuntime=false"
+            )
+            $behaviorLatestReport = Join-Path $repoRoot "build\desktop-behavior\latest-report.txt"
+            if (-not (Test-Path -LiteralPath $behaviorLatestReport -PathType Leaf)) {
+                throw "Desktop behavior smoke did not write latest report pointer: $behaviorLatestReport"
+            }
+            $behaviorReportPath = [System.IO.File]::ReadAllText($behaviorLatestReport, [System.Text.Encoding]::UTF8).Trim()
+            if ($BehaviorTags -eq "full") {
+                $requiredScenarios = @("desktop-full")
+                $requiredSteps = @("source-management", "local-source", "webdav-source", "bangumi-metadata", "keyboard-focus-cloud-rss", "mpv-launch")
+            } else {
+                $requiredScenarios = @("desktop-smoke")
+                $requiredSteps = @("local-source", "keyboard-focus")
+            }
+            Invoke-ToolScript -ScriptName "assert-desktop-behavior-report.ps1" -Arguments (
+                @(
+                    "-ReportPath",
+                    $behaviorReportPath,
+                    "-RequiredTags",
+                    $BehaviorTags,
+                    "-RequiredScenarios",
+                    ($requiredScenarios -join ","),
+                    "-RequiredSteps",
+                    ($requiredSteps -join ",")
+                )
+            )
+        }
+    } else {
+        Write-Host "Desktop behavior smoke skipped. Run with -Behavior to match the Windows CI JSON-driven behavior gate."
     }
 
     if ($MpvRuntime) {
@@ -664,7 +710,8 @@ try {
 
     if ($CloudRssEvidenceBundle) {
         Invoke-CloudRssSmokeAndAssert -StepName "CloudDrive RSS dry-run smoke" -LiveSubmitEnabled $false -OrganizeEnabled $false -RssEndpoint $rssEndpoint -RssToken $rssToken
-        Invoke-CloudRssSmokeAndAssert -StepName "CloudDrive RSS live submit smoke" -LiveSubmitEnabled $true -OrganizeEnabled $true -RssEndpoint $rssEndpoint -RssToken $rssToken
+        Invoke-CloudRssSmokeAndAssert -StepName "CloudDrive RSS live submit smoke" -LiveSubmitEnabled $true -OrganizeEnabled $false -RssEndpoint $rssEndpoint -RssToken $rssToken
+        Invoke-CloudRssSmokeAndAssert -StepName "CloudDrive RSS organize smoke" -LiveSubmitEnabled $false -OrganizeEnabled $true -RssEndpoint $rssEndpoint -RssToken $rssToken
     } elseif ($CloudRssDryRun -or $CloudRssLiveSubmit) {
         $cloudRssStepName = if ($CloudRssLiveSubmit) { "CloudDrive RSS live submit smoke" } else { "CloudDrive RSS dry-run smoke" }
         Invoke-CloudRssSmokeAndAssert -StepName $cloudRssStepName -LiveSubmitEnabled ([bool]$CloudRssLiveSubmit) -OrganizeEnabled ([bool]$CloudRssOrganize) -RssEndpoint $rssEndpoint -RssToken $rssToken

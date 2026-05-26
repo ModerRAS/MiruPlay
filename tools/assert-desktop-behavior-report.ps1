@@ -45,6 +45,16 @@ function Get-JsonPropertyNames {
     return @($Value.PSObject.Properties | ForEach-Object { $_.Name })
 }
 
+function Expand-RequiredValues {
+    param([string[]]$Values)
+    return @(
+        $Values |
+            ForEach-Object { ([string]$_) -split '[,;]' } |
+            ForEach-Object { $_.Trim() } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    )
+}
+
 function Assert-FileExists {
     param(
         [string]$Path,
@@ -106,6 +116,9 @@ if (-not (Test-Path -LiteralPath $resolvedReportPath -PathType Leaf)) {
 $failures = New-Object 'System.Collections.Generic.List[string]'
 $reportText = [System.IO.File]::ReadAllText($resolvedReportPath, [System.Text.Encoding]::UTF8)
 $report = $reportText | ConvertFrom-Json
+$requiredTags = Expand-RequiredValues -Values $RequiredTags
+$requiredScenarios = Expand-RequiredValues -Values $RequiredScenarios
+$requiredSteps = Expand-RequiredValues -Values $RequiredSteps
 
 Assert-Truthy -Condition (($report.schemaVersion -as [int]) -eq 1) -Message "schemaVersion must be 1."
 Assert-Truthy -Condition ([string]$report.name -eq "desktop-behavior") -Message "name must be desktop-behavior."
@@ -118,14 +131,14 @@ Assert-FileExists -Path ([string]$report.controls) -Description "controls" -MinB
 Assert-FileExists -Path ([string]$report.fixtures) -Description "fixtures" -MinBytes $MinFileBytes
 
 $requestedTags = Get-JsonArray $report.requestedTags | ForEach-Object { [string]$_ }
-foreach ($requiredTag in $RequiredTags) {
+foreach ($requiredTag in $requiredTags) {
     Assert-Truthy -Condition ($requiredTag -in $requestedTags) -Message "Missing requested tag '$requiredTag'."
 }
 
 $scenarios = Get-JsonArray $report.scenarios
 $scenarioCount = $report.scenarioCount -as [int]
-Assert-Truthy -Condition ($scenarioCount -ge $RequiredScenarios.Count) -Message "scenarioCount is below the required scenario count."
-Assert-Truthy -Condition ($scenarios.Count -ge $RequiredScenarios.Count) -Message "Report includes too few scenarios."
+Assert-Truthy -Condition ($scenarioCount -ge $requiredScenarios.Count) -Message "scenarioCount is below the required scenario count."
+Assert-Truthy -Condition ($scenarios.Count -ge $requiredScenarios.Count) -Message "Report includes too few scenarios."
 
 $scenarioByName = @{}
 $stepById = @{}
@@ -151,11 +164,11 @@ foreach ($scenario in $scenarios) {
     }
 }
 
-foreach ($requiredScenario in $RequiredScenarios) {
+foreach ($requiredScenario in $requiredScenarios) {
     Assert-Truthy -Condition ($scenarioByName.ContainsKey($requiredScenario)) -Message "Missing required scenario '$requiredScenario'."
 }
 
-foreach ($requiredStep in $RequiredSteps) {
+foreach ($requiredStep in $requiredSteps) {
     Assert-Truthy -Condition ($stepById.ContainsKey($requiredStep)) -Message "Missing required step '$requiredStep'."
 }
 
@@ -169,4 +182,4 @@ if ($failures.Count -gt 0) {
 }
 
 Write-Host "Desktop behavior report validation passed: $resolvedReportPath"
-Write-Host "Scenarios: $($scenarios.Count); required steps: $($RequiredSteps -join ', ')"
+Write-Host "Scenarios: $($scenarios.Count); required steps: $($requiredSteps -join ', ')"
