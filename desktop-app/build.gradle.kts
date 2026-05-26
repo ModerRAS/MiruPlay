@@ -9,6 +9,7 @@ import org.gradle.api.file.DuplicatesStrategy
 import org.gradle.api.tasks.Sync
 import org.gradle.api.tasks.bundling.Tar
 import org.gradle.api.tasks.bundling.Zip
+import org.gradle.jvm.application.tasks.CreateStartScripts
 import org.gradle.jvm.tasks.Jar
 
 plugins {
@@ -63,8 +64,11 @@ val jpackageInstallerOutputDir = layout.buildDirectory.dir("jpackage/installer")
 val jpackageAppContentRuntimeDir = jpackageAppContentDir.map { it.dir("runtime") }
 val jpackageEntrySmokeReport = layout.buildDirectory.file("jpackage/smoke/native-entry-smoke.json")
 val jpackageInstallerSmokeReport = layout.buildDirectory.file("jpackage/smoke/windows-installer-smoke.json")
+val desktopWebControlSmokeReport = layout.buildDirectory.file("web-control-smoke/desktop-web-control-smoke.json")
 val desktopEntrySmokeArg = "--miruplay-desktop-smoke"
 val desktopEntrySmokeReportArgPrefix = "--miruplay-desktop-smoke-report="
+val desktopWebControlSmokeArg = "--miruplay-desktop-webui-smoke"
+val desktopWebControlSmokeReportArgPrefix = "--miruplay-desktop-webui-smoke-report="
 val mainJarFile = tasks.named<Jar>("jar").flatMap { it.archiveFile }
 val runtimeClasspath = configurations.named("runtimeClasspath")
 val windowsPackageVersion = providers.gradleProperty("windowsPackageVersion")
@@ -1029,6 +1033,17 @@ tasks.named("installDist") {
     dependsOn(generateMpvRuntimeManifest)
 }
 
+tasks.named<CreateStartScripts>("startScripts") {
+    doLast {
+        val script = windowsScript
+        script.writeText(
+            Regex("""set CLASSPATH=.*""").replace(script.readText()) {
+                """set CLASSPATH=%APP_HOME%\lib\*"""
+            },
+        )
+    }
+}
+
 val desktopBehaviorTest by tasks.registering(Exec::class) {
     group = "verification"
     description = "Runs JSON-driven Windows desktop behavior tests against the installed Compose Desktop app."
@@ -1067,6 +1082,26 @@ val desktopBehaviorTest by tasks.registering(Exec::class) {
             args += listOf("-Scenario", scenario)
         }
         commandLine("powershell.exe", *args.toTypedArray())
+    }
+}
+
+val desktopWebControlSmoke by tasks.registering(Exec::class) {
+    group = "verification"
+    description = "Runs a packaged Windows desktop WebUI HTTP smoke against the installed app entry."
+    dependsOn(tasks.named("installDist"))
+    onlyIf { System.getProperty("os.name").contains("Windows", ignoreCase = true) }
+
+    val appScript = layout.buildDirectory.file("install/desktop-app/bin/desktop-app.bat")
+    val reportFile = desktopWebControlSmokeReport
+    outputs.file(reportFile)
+    outputs.upToDateWhen { false }
+
+    doFirst {
+        commandLine(
+            appScript.get().asFile.absolutePath,
+            desktopWebControlSmokeArg,
+            "$desktopWebControlSmokeReportArgPrefix${reportFile.get().asFile.absolutePath}",
+        )
     }
 }
 

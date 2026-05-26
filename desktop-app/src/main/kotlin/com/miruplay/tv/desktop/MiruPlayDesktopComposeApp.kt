@@ -240,6 +240,7 @@ private val MiruPlayDesktopColorScheme = darkColorScheme(
 
 fun main(args: Array<String>) {
     if (runDesktopEntrySmoke(args)) return
+    if (runDesktopWebControlSmoke(args)) return
 
     application {
         MiruPlayDesktopWindow()

@@ -35,6 +35,30 @@ import java.nio.file.StandardOpenOption
 
 class DesktopWebControlServerTest {
     @Test
+    fun `desktop WebUI smoke launcher writes token-free report`() {
+        val reportPath = Files.createTempDirectory("miruplay-webui-smoke-report")
+            .resolve("desktop-web-control-smoke.json")
+        try {
+            assertTrue(
+                runDesktopWebControlSmoke(
+                    arrayOf(
+                        DESKTOP_WEB_CONTROL_SMOKE_ARG,
+                        "$DESKTOP_WEB_CONTROL_SMOKE_REPORT_ARG_PREFIX$reportPath",
+                    ),
+                ),
+            )
+            val report = Files.readString(reportPath)
+            assertTrue(report.contains("\"status\": \"passed\""))
+            assertTrue(report.contains("\"name\": \"desktop-web-control-smoke\""))
+            assertTrue(report.contains("\"static_shell_served\""))
+            assertTrue(report.contains("\"playback_command_api\""))
+            assertTrue(!report.contains("webui-smoke-password"))
+        } finally {
+            reportPath.parent.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
     fun `desktop web control serves static assets and requires token for api`() {
         val storePath = Files.createTempDirectory("miruplay-web-control-store").resolve("store.json")
         val mediaRoot = Files.createTempDirectory("miruplay-web-control-media")

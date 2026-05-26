@@ -8,7 +8,7 @@
 
 - Android TV remains the primary entry point, using Jetpack Compose TV, Media3, and Hilt.
 - The Windows desktop port now has a Compose Desktop shell, Local/WebDAV/SMB sources, Bangumi metadata, CloudDrive2/RSS settings, WebUI access, mpv playback, and optional RIFE runtime support.
-- Windows completion is tracked in the [Windows port roadmap](./docs/windows-port-roadmap.md). Real CloudDrive2/RSS live QA, target-hardware RIFE matrix evidence, signed installer evidence, and broader WebUI/device end-to-end QA still require the matching external environments.
+- Windows completion is tracked in the [Windows port roadmap](./docs/windows-port-roadmap.md). Real CloudDrive2/RSS live QA, target-hardware RIFE matrix evidence, signed installer evidence, and broader device end-to-end QA still require the matching external environments.
 
 ## Features
 

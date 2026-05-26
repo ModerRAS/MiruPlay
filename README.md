@@ -8,7 +8,7 @@
 
 - Android TV 版仍是主入口，使用 Jetpack Compose TV、Media3 和 Hilt。
 - Windows 桌面版已接入 Compose Desktop、Local/WebDAV/SMB 媒体源、Bangumi 元数据、CloudDrive2/RSS 配置、WebUI、mpv 播放和可选 RIFE 运行时。
-- Windows 端仍以 [Windows port roadmap](./docs/windows-port-roadmap.md) 为准收尾：真实 CloudDrive2/RSS live QA、目标硬件 RIFE 矩阵、签名安装包和更广的 WebUI/设备端到端证据需要在对应环境补齐。
+- Windows 端仍以 [Windows port roadmap](./docs/windows-port-roadmap.md) 为准收尾：真实 CloudDrive2/RSS live QA、目标硬件 RIFE 矩阵、签名安装包和更广的设备端到端证据需要在对应环境补齐。
 
 ## 特性
 
