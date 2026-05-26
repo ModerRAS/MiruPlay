@@ -66,6 +66,29 @@ class MiruPlayDatabaseMigrationTest {
             database.sql
         )
     }
+
+    @Test
+    fun `migration 4 to 5 adds library and metadata columns`() {
+        val database = RecordingSupportSQLiteDatabase()
+
+        MiruPlayDatabase.MIGRATION_4_5.migrate(database.proxy)
+
+        assertEquals(
+            listOf(
+                "ALTER TABLE cloud_drive_config ADD COLUMN library_mode TEXT NOT NULL DEFAULT 'ORGANIZED_LIBRARY'",
+                "ALTER TABLE anime ADD COLUMN poster_local_path TEXT",
+                "ALTER TABLE index_entry ADD COLUMN episode_title TEXT",
+                "ALTER TABLE index_entry ADD COLUMN plot TEXT",
+                "ALTER TABLE index_entry ADD COLUMN metadata_source TEXT",
+                "ALTER TABLE index_entry ADD COLUMN metadata_id TEXT",
+                "ALTER TABLE index_entry ADD COLUMN metadata_title TEXT",
+                "ALTER TABLE index_entry ADD COLUMN scrape_status TEXT",
+                "ALTER TABLE index_entry ADD COLUMN scrape_message TEXT",
+                "ALTER TABLE index_entry ADD COLUMN scraped_at INTEGER NOT NULL DEFAULT 0"
+            ),
+            database.sql
+        )
+    }
 }
 
 private class RecordingSupportSQLiteDatabase : InvocationHandler {
