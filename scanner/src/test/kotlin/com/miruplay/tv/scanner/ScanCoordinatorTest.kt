@@ -283,6 +283,54 @@ class ScanCoordinatorTest {
         assertTrue(scraper.aliasCandidates.contains("Frieren"))
     }
 
+    @Test
+    fun `scanSource skips online metadata when source disables it`() = runBlocking {
+        val sourceInfo = MediaSourceInfo(
+            id = 13L,
+            name = "WebDAV",
+            type = MediaSourceType.WEBDAV,
+            connectionInfo = mapOf(
+                "url" to "http://example.test/dav",
+                "disableOnlineMetadata" to "true"
+            )
+        )
+        val mediaSource = FakeMediaSource(
+            listings = mapOf(
+                "" to listOf(
+                    FileEntry(name = "Fixture Alpha", path = "/Fixture Alpha", isDirectory = true)
+                ),
+                "/Fixture Alpha" to listOf(
+                    FileEntry(
+                        name = "Fixture Alpha - S01E01.mkv",
+                        path = "/Fixture Alpha/Fixture Alpha - S01E01.mkv",
+                        isDirectory = false,
+                        size = 1234
+                    )
+                )
+            )
+        )
+        val scraper = RecordingBangumiScraper()
+        val indexRepository = RecordingIndexRepository()
+        val metadataRepository = RecordingMetadataRepository()
+        val coordinator = ScanCoordinator(
+            mediaRepository = SingleSourceRepository(sourceInfo),
+            mediaSourceFactory = SingleMediaSourceFactory(mediaSource),
+            indexRepository = indexRepository,
+            metadataRepository = metadataRepository,
+            filenameMetadataParser = EmptyFilenameMetadataParser,
+            metadataScrapers = setOf(scraper)
+        )
+
+        val result = coordinator.scanSource(sourceInfo.id)
+
+        assertTrue("Scan should succeed", result.isSuccess())
+        assertEquals(1, indexRepository.entries.size)
+        assertEquals("Fixture Alpha", indexRepository.entries.single().animeName)
+        assertEquals(1, metadataRepository.episodes.size)
+        assertTrue("Bangumi alias lookup should be skipped", scraper.normalizedName == null)
+        assertTrue("Bangumi fallback candidates should be skipped", scraper.aliasCandidates.isEmpty())
+    }
+
     private class SingleSourceRepository(
         private val source: MediaSourceInfo
     ) : MediaSourceRepository {
