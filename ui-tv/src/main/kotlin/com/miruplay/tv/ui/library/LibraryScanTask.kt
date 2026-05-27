@@ -2,6 +2,7 @@ package com.miruplay.tv.ui.library
 
 import android.util.Log
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.model.ScanResult
 import com.miruplay.tv.model.libraryScanFailedMessage
 import com.miruplay.tv.repository.MediaSourceRepository
@@ -82,7 +83,7 @@ class LibraryScanTask @Inject constructor(
             try {
                 when (val result = scanCoordinator.scanAllSources()) {
                     is Result.Success -> {
-                        scanPreferences.setLastScanAt(System.currentTimeMillis())
+                        scanPreferences.lastScanAt = System.currentTimeMillis()
                         _state.value = LibraryScanState.Finished(result.data)
                     }
                     is Result.Error -> {

@@ -96,6 +96,9 @@ class SyncEngineImplTest {
         override suspend fun getCachedMetadata(animeId: String): Result<Anime?> =
             Result.success(null)
 
+        override suspend fun getCachedMetadata(animeIds: Collection<String>): Result<List<Anime>> =
+            Result.success(emptyList())
+
         override suspend fun getCachedEpisode(episodeId: String): Result<Episode?> =
             Result.success(null)
 

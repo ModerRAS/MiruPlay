@@ -9,7 +9,7 @@ class CloudDriveRssStatusConventionsTest {
     fun `cloud rss form labels are shared across TV and desktop`() {
         assertEquals("CloudDrive2", cloudDriveRssTitleLabel())
         assertEquals(
-            "RSS 会提交到 CloudDrive2 离线下载目录，整理后触发所选 WebDAV 媒体源扫描。",
+            "RSS 可整理入库或直接落到单目录，整理后或刮削完成后触发所选 WebDAV 媒体源扫描。",
             cloudDriveRssDescriptionLabel(),
         )
         assertEquals("定时已开", cloudDriveRssScheduledChipLabel(true))

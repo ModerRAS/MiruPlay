@@ -509,7 +509,7 @@ class DesktopSettingsPanelTest {
             cloudRssFieldFocusTarget(CloudRssField.InboxPath, MiruPlayInputIntent.DirectionDown),
         )
         assertEquals(
-            CloudRssFocusTarget.Action(CloudRssAction.LoginCloudDrive),
+            CloudRssFocusTarget.Action(CloudRssAction.SetSingleDirectoryMode),
             cloudRssFieldFocusTarget(CloudRssField.InboxPath, MiruPlayInputIntent.DirectionUp),
         )
         assertEquals(

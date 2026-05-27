@@ -14,7 +14,7 @@ fun cloudDriveRssTitleLabel(): String =
     "CloudDrive2"
 
 fun cloudDriveRssDescriptionLabel(): String =
-    "RSS 会提交到 CloudDrive2 离线下载目录，整理后触发所选 WebDAV 媒体源扫描。"
+    "RSS 可整理入库或直接落到单目录，整理后或刮削完成后触发所选 WebDAV 媒体源扫描。"
 
 fun cloudDriveRssScheduledChipLabel(enabled: Boolean): String =
     if (enabled) "定时已开" else "定时关闭"
@@ -39,6 +39,15 @@ fun cloudDriveRssInboxPathFieldLabel(): String =
 
 fun cloudDriveRssLibraryPathFieldLabel(): String =
     "整理目录 B"
+
+fun cloudDriveRssLibraryModeFieldLabel(): String =
+    "入库模式"
+
+fun cloudDriveRssLibraryModeOrganizedLabel(): String =
+    "整理入库"
+
+fun cloudDriveRssLibraryModeSingleDirectoryLabel(): String =
+    "单目录入库"
 
 fun cloudDriveRssIntervalMinutesFieldLabel(): String =
     "定时间隔（分钟）"
@@ -656,6 +665,9 @@ private fun localizedDynamicCloudRssStatusText(status: String): String? {
         return "${schedulerStateLabel(match.groupValues[1])}，上次检查失败：${match.groupValues[2]}"
     }
     schedulerSummaryStatusRegex.matchEntire(status)?.let { match ->
+        val indexed = match.groupValues.getOrNull(6)?.takeIf(String::isNotBlank)?.toIntOrNull() ?: 0
+        val scraped = match.groupValues.getOrNull(7)?.takeIf(String::isNotBlank)?.toIntOrNull() ?: 0
+        val noMatch = match.groupValues.getOrNull(8)?.takeIf(String::isNotBlank)?.toIntOrNull() ?: 0
         return CloudDriveRssSchedulerUiState(
             running = match.groupValues[1] == "running",
             lastSummary = CloudDriveRssRunSummary(
@@ -663,15 +675,24 @@ private fun localizedDynamicCloudRssStatusText(status: String): String? {
                 skipped = match.groupValues[3].toInt(),
                 failed = match.groupValues[4].toInt(),
                 organized = match.groupValues[5].toInt(),
+                indexed = indexed,
+                scraped = scraped,
+                noMatch = noMatch,
             ),
         ).tvStatus()
     }
     syncCompleteStatusRegex.matchEntire(status)?.let { match ->
+        val indexed = match.groupValues.getOrNull(5)?.takeIf(String::isNotBlank)?.toIntOrNull() ?: 0
+        val scraped = match.groupValues.getOrNull(6)?.takeIf(String::isNotBlank)?.toIntOrNull() ?: 0
+        val noMatch = match.groupValues.getOrNull(7)?.takeIf(String::isNotBlank)?.toIntOrNull() ?: 0
         return CloudDriveRssRunSummary(
             submitted = match.groupValues[1].toInt(),
             skipped = match.groupValues[2].toInt(),
             failed = match.groupValues[3].toInt(),
             organized = match.groupValues[4].toInt(),
+            indexed = indexed,
+            scraped = scraped,
+            noMatch = noMatch,
         ).completeStatus()
     }
     loadedRssStatusRegex.matchEntire(status)?.let { match ->
@@ -707,9 +728,9 @@ private fun schedulerStateLabel(state: String): String =
 
 private val schedulerErrorStatusRegex = Regex("""^Scheduler (running|idle)\. Last check failed: (.+)$""")
 private val schedulerSummaryStatusRegex =
-    Regex("""^Scheduler (running|idle)\. Last run: (\d+) submitted, (\d+) skipped, (\d+) failed, (\d+) organized\.$""")
+    Regex("""^Scheduler (running|idle)\. Last run: (\d+) submitted, (\d+) skipped, (\d+) failed, (\d+) organized(?:, (\d+) indexed, (\d+) scraped, (\d+) no match)?\.$""")
 private val syncCompleteStatusRegex =
-    Regex("""^Sync complete: (\d+) submitted, (\d+) skipped, (\d+) failed, (\d+) organized\.$""")
+    Regex("""^Sync complete: (\d+) submitted, (\d+) skipped, (\d+) failed, (\d+) organized(?:, (\d+) indexed, (\d+) scraped, (\d+) no match)?\.$""")
 private val loadedRssStatusRegex = Regex("""^Loaded (\d+) RSS subscription\(s\)\.$""")
 private val showingRssStatusRegex = Regex("""^Showing (\d+) RSS subscription\(s\)\.$""")
 private val verifiedTokenStatusRegex = Regex("""^CloudDrive2 API token verified and saved: (.+)\.$""")

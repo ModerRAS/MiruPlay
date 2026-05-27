@@ -4,7 +4,11 @@ import com.miruplay.tv.clouddrive.CloudDriveClient
 import android.os.Build
 import com.miruplay.tv.core.common.LocalDirectoryBrowser
 import com.miruplay.tv.mediasource.MediaSourceFactory
-import com.miruplay.tv.mediasource.testConnection
+import com.miruplay.tv.model.Anime
+import com.miruplay.tv.model.CloudDriveAutomationConfig
+import com.miruplay.tv.model.MIN_CLOUD_DRIVE_INTERVAL_MINUTES
+import com.miruplay.tv.model.CloudDriveDirectoryItem
+import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.player.PlaybackController
@@ -36,6 +40,7 @@ class WebControlService @Inject constructor(
     private val securePreferences: AppCredentialStore,
     private val cloudDriveClient: CloudDriveClient,
     private val cloudDriveEngine: CloudDriveRssAutomationEngine,
+    private val cloudDriveScheduler: CloudDriveRssScheduler,
     private val scanCoordinator: ScanCoordinator,
     mediaSourceFactory: MediaSourceFactory,
     private val playbackController: PlaybackController,
@@ -111,16 +116,69 @@ class WebControlService @Inject constructor(
         )
     }
 
-    override suspend fun loginCloudDrive(request: CloudDriveLoginRequest): CloudDriveAutomationDto {
-        return cloudDriveActions.loginWebControlCloudDrive(
-            request = request,
-            repository = cloudDriveRepository,
-            credentials = securePreferences,
+    suspend fun saveCloudDriveConfig(request: CloudDriveConfigRequest): CloudDriveAutomationDto {
+        val current = requireSuccess(cloudDriveRepository.getConfig(), "读取 CloudDrive 设置失败")
+        val config = CloudDriveAutomationConfig(
+            endpointUrl = request.endpointUrl.trim(),
+            username = request.username.trim(),
+            webDavSourceId = request.webDavSourceId?.takeIf { it > 0L },
+            inboxPath = request.inboxPath.trim(),
+            libraryPath = request.libraryPath.trim(),
+            libraryMode = request.libraryMode,
+            intervalMinutes = request.intervalMinutes.coerceAtLeast(MIN_CLOUD_DRIVE_INTERVAL_MINUTES),
+            enabled = request.enabled,
+            lastRunAt = current.lastRunAt,
+            rssProxyEnabled = request.rssProxyEnabled,
+            rssProxyHost = request.rssProxyHost.trim(),
+            rssProxyPort = request.rssProxyPort.coerceAtLeast(1).coerceAtMost(65535)
+        )
+        requireSuccess(cloudDriveRepository.saveConfig(config), "保存 CloudDrive 设置失败")
+        cloudDriveScheduler.syncPeriodicWork(config)
+        return getCloudDriveAutomation()
+    }
+
+    suspend fun loginCloudDrive(request: CloudDriveLoginRequest): CloudDriveAutomationDto {
+        if (request.endpointUrl.isBlank() || request.username.isBlank() || request.password.isBlank()) {
+            throw IllegalArgumentException("请填写 CloudDrive2 地址、用户名和密码")
+        }
+        requireSuccess(
+            cloudDriveEngine.login(request.endpointUrl.trim(), request.username.trim(), request.password),
+            "CloudDrive2 登录失败"
+        )
+        return getCloudDriveAutomation()
+    }
+
+    suspend fun saveCloudDriveToken(request: CloudDriveTokenRequest): CloudDriveTokenResponse {
+        if (request.endpointUrl.isBlank() || request.token.isBlank()) {
+            throw IllegalArgumentException("请填写 CloudDrive2 地址和 API Token")
+        }
+        val tokenInfo = requireSuccess(
+            cloudDriveEngine.saveApiToken(request.endpointUrl.trim(), request.token.trim()),
+            "CloudDrive2 API Token 验证失败"
+        )
+        return CloudDriveTokenResponse(
+            rootDir = tokenInfo.rootDir,
+            friendlyName = tokenInfo.friendlyName,
+            allowList = tokenInfo.allowList,
+            allowCreateFolder = tokenInfo.allowCreateFolder,
+            allowCreateFile = tokenInfo.allowCreateFile,
+            allowWrite = tokenInfo.allowWrite,
+            allowMove = tokenInfo.allowMove,
+            allowAddOfflineDownload = tokenInfo.allowAddOfflineDownload
         )
     }
 
-    override suspend fun saveCloudDriveToken(request: CloudDriveTokenRequest): CloudDriveTokenResponse {
-        return cloudDriveActions.saveWebControlCloudDriveToken(request)
+    suspend fun runCloudDriveAutomationNow(): CloudDriveRunResponse {
+        val summary = requireSuccess(cloudDriveEngine.runOnce(), "CloudDrive/RSS 执行失败")
+        return CloudDriveRunResponse(
+            submitted = summary.submitted,
+            skipped = summary.skipped,
+            failed = summary.failed,
+            organized = summary.organized,
+            indexed = summary.indexed,
+            scraped = summary.scraped,
+            noMatch = summary.noMatch,
+        )
     }
 
     override suspend fun runCloudDriveAutomationNow(): CloudDriveRunResponse {

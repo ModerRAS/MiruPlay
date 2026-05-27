@@ -58,14 +58,21 @@ import com.miruplay.tv.model.CLOUD_RSS_SUBSCRIPTION_PAGE_SIZE
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MiruPlaySettingsSection
 import com.miruplay.tv.model.RssSubscriptionInfo
-import com.miruplay.tv.model.SettingsSummaryTile
-import com.miruplay.tv.model.cloudDriveDirectoryCoercedPageStart
-import com.miruplay.tv.model.cloudDriveDirectoryPageStartForIndex
-import com.miruplay.tv.model.cloudDriveDirectoryPageSummary
+import com.miruplay.tv.model.CloudDriveLibraryMode
+import com.miruplay.tv.model.cloudDriveRssApiTokenFieldLabel
 import com.miruplay.tv.model.cloudDriveRssChooseDirectoryActionLabel
 import com.miruplay.tv.model.cloudDriveRssCloseActionLabel
 import com.miruplay.tv.model.cloudDriveRssDirectoryBadgeLabel
 import com.miruplay.tv.model.cloudDriveRssEmptyDirectoryMessage
+import com.miruplay.tv.model.cloudDriveRssEnabledBadgeLabel
+import com.miruplay.tv.model.cloudDriveRssEnabledToggleLabel
+import com.miruplay.tv.model.cloudDriveRssEndpointFallbackLabel
+import com.miruplay.tv.model.cloudDriveRssEndpointFieldLabel
+import com.miruplay.tv.model.cloudDriveRssInboxPathFieldLabel
+import com.miruplay.tv.model.cloudDriveRssIntervalMinutesFieldLabel
+import com.miruplay.tv.model.cloudDriveRssLibraryPathFieldLabel
+import com.miruplay.tv.model.cloudDriveRssLibraryModeOrganizedLabel
+import com.miruplay.tv.model.cloudDriveRssLibraryModeSingleDirectoryLabel
 import com.miruplay.tv.model.cloudDriveRssLoadingDirectoriesMessage
 import com.miruplay.tv.model.cloudDriveRssParentDirectoryActionLabel
 import com.miruplay.tv.model.cloudDriveRssRuntimeTitleLabel
@@ -145,6 +152,8 @@ internal fun CloudRssPanel(
     onInboxPathChange: (String) -> Unit,
     libraryPath: String,
     onLibraryPathChange: (String) -> Unit,
+    libraryMode: CloudDriveLibraryMode,
+    onLibraryModeChange: (CloudDriveLibraryMode) -> Unit,
     directoryBrowser: CloudDriveDirectoryBrowserState,
     onPickCloudDriveDirectory: (CloudDriveDirectoryTarget) -> Unit,
     onBrowseCloudDriveDirectory: (String) -> Unit,
@@ -358,18 +367,14 @@ internal fun CloudRssPanel(
                     SettingsQuickAction(settingsOpenLibraryActionLabel(), onOpenLibrary),
                 ),
                 onFocusSectionMenu = { focusSelectedSectionMenu() },
-                extraContent = {
-                    DesktopScanPreferencesContent(
-                        autoScanEnabled = autoScanEnabled,
-                        autoScanIntervalHours = autoScanIntervalHours,
-                        intervalOptionsHours = scanIntervalOptionsHours,
-                        lastScanAt = lastScanAt,
-                        mergeSameAnimeEnabled = mergeSameAnimeEnabled,
-                        onToggleAutoScan = onToggleAutoScan,
-                        onIntervalSelected = onScanIntervalSelected,
-                        onToggleMergeSameAnime = onToggleMergeSameAnime,
-                    )
-                },
+                modifier = Modifier.weight(1f),
+            )
+            MiruPlaySettingsSection.LOG_UPLOAD -> SettingsSummaryContent(
+                section = selectedSection,
+                tiles = desktopLogUploadSettingsTiles(),
+                status = "日志上报配置在 Android TV 设置页生效；本地日志会按 OpenObserve JSON 配置写入上报队列。",
+                actions = listOf(SettingsQuickAction(settingsOpenLibraryActionLabel(), onOpenLibrary)),
+                onFocusSectionMenu = { focusSelectedSectionMenu() },
                 modifier = Modifier.weight(1f),
             )
             MiruPlaySettingsSection.METADATA -> SettingsSummaryContent(
@@ -437,6 +442,8 @@ private fun CloudRssAutomationContent(
     onInboxPathChange: (String) -> Unit,
     libraryPath: String,
     onLibraryPathChange: (String) -> Unit,
+    libraryMode: CloudDriveLibraryMode,
+    onLibraryModeChange: (CloudDriveLibraryMode) -> Unit,
     directoryBrowser: CloudDriveDirectoryBrowserState,
     onPickCloudDriveDirectory: (CloudDriveDirectoryTarget) -> Unit,
     onBrowseCloudDriveDirectory: (String) -> Unit,
@@ -1924,6 +1931,93 @@ private fun firstEnabledSettingsQuickActionIndex(
         enabledItems = enabledActions,
     )
 
+internal fun cloudRssOverviewTiles(
+    endpointUrl: String,
+    subscriptions: List<RssSubscriptionInfo>,
+    enabled: Boolean,
+    linkedSourceLabel: String,
+    schedulerStatus: String,
+): List<SettingsSummaryTile> =
+    listOf(
+        SettingsSummaryTile(
+            label = cloudDriveRssTitleLabel(),
+            value = settingsCloudRssOverviewValue(enabled),
+            detail = cloudRssPreview(
+                endpointUrl,
+                fallback = cloudDriveRssUnconfiguredEndpointLabel(),
+                maxLength = CLOUD_RSS_PREVIEW_LIMIT,
+            ),
+        ),
+        SettingsSummaryTile(
+            label = rssSubscriptionsTitleLabel(),
+            value = settingsCloudRssSubscriptionsValue(subscriptions.size),
+            detail = subscriptions.firstOrNull()?.let { rssSubscriptionPreview(it, CLOUD_RSS_PREVIEW_LIMIT) }
+                ?: rssSubscriptionPreviewFallbackLabel(),
+        ),
+        SettingsSummaryTile(
+            label = cloudDriveRssPostSyncScanSummaryLabel(),
+            value = settingsCloudRssLinkedSourceValue(linkedSourceLabel),
+            detail = cloudRssPreview(
+                cloudRssStatusText(schedulerStatus),
+                fallback = cloudDriveRssSchedulerIdleLabel(),
+                maxLength = CLOUD_RSS_PREVIEW_LIMIT,
+            ),
+        ),
+    )
+
+internal fun cloudRssPreview(
+    value: String,
+    fallback: String,
+    maxLength: Int = CLOUD_RSS_WIDE_PREVIEW_LIMIT,
+): String =
+    value.trim()
+        .ifBlank { fallback }
+        .compactMiddle(maxLength)
+
+internal fun cloudRssSyncPathPreview(
+    libraryMode: CloudDriveLibraryMode,
+    inboxPath: String,
+    libraryPath: String,
+    maxLength: Int = CLOUD_RSS_WIDE_PREVIEW_LIMIT,
+): String =
+    when (libraryMode) {
+        CloudDriveLibraryMode.SINGLE_DIRECTORY -> cloudRssPreview(
+            inboxPath,
+            fallback = cloudDriveRssInboxPathFieldLabel(),
+            maxLength = maxLength,
+        )
+        CloudDriveLibraryMode.ORGANIZED_LIBRARY -> cloudRssPathPairPreview(
+            inboxPath = inboxPath,
+            libraryPath = libraryPath,
+            maxLength = maxLength,
+        )
+    }
+
+internal fun cloudRssPathPairPreview(
+    inboxPath: String,
+    libraryPath: String,
+    maxLength: Int = CLOUD_RSS_WIDE_PREVIEW_LIMIT,
+): String {
+    val separator = cloudDriveRssPathPairSeparator()
+    val safeMaxLength = maxLength.coerceAtLeast(separator.length + 8)
+    val available = safeMaxLength - separator.length
+    val inboxLength = available / 2
+    val libraryLength = available - inboxLength
+    return cloudRssPreview(inboxPath, fallback = cloudDriveRssInboxPathFieldLabel(), maxLength = inboxLength) +
+        separator +
+        cloudRssPreview(libraryPath, fallback = cloudDriveRssLibraryPathFieldLabel(), maxLength = libraryLength)
+}
+
+internal fun rssSubscriptionPreview(
+    subscription: RssSubscriptionInfo,
+    maxLength: Int = CLOUD_RSS_WIDE_PREVIEW_LIMIT,
+): String {
+    val state = rssSubscriptionStateLabel(subscription.enabled)
+    val filter = subscription.filterRegex?.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty()
+    val label = subscription.name.ifBlank { rssSubscriptionFallbackTitleLabel() }
+    return "$state · $label · ${subscription.url}$filter".compactMiddle(maxLength)
+}
+
 @Composable
 private fun SettingsSectionMenu(
     selectedSection: MiruPlaySettingsSection,
@@ -2303,6 +2397,142 @@ private fun SettingsSummaryCard(
     }
 }
 
+internal fun sourceSettingsTiles(
+    sources: List<MediaSourceInfo>,
+    activeSourceLabel: String,
+    indexedItemCount: Int,
+): List<SettingsSummaryTile> =
+    listOf(
+        SettingsSummaryTile(
+            label = settingsSourceTileLabel(),
+            value = settingsCountValue(sources.size),
+            detail = settingsSourceTypeBreakdown(sources),
+        ),
+        SettingsSummaryTile(
+            label = settingsActiveSourceTileLabel(),
+            value = activeSourceLabel,
+            detail = settingsActiveSourceSharedDetail(),
+        ),
+        SettingsSummaryTile(
+            label = settingsPosterWallIndexTileLabel(),
+            value = settingsRecordCountValue(indexedItemCount),
+            detail = settingsPosterWallIndexDetail(),
+        ),
+    )
+
+internal fun playbackSettingsTiles(
+    playbackSummary: String,
+    recentCount: Int,
+    selectedMediaTitle: String,
+): List<SettingsSummaryTile> =
+    listOf(
+        SettingsSummaryTile(
+            label = settingsPlaybackModeTileLabel(),
+            value = playbackSummary,
+            detail = settingsPlaybackPageDetail(),
+        ),
+        SettingsSummaryTile(
+            label = settingsRecentPlaybackTileLabel(),
+            value = settingsRecordCountValue(recentCount),
+            detail = settingsRecentPlaybackDetail(),
+        ),
+        SettingsSummaryTile(
+            label = settingsSelectedMediaTileLabel(),
+            value = selectedMediaTitle,
+            detail = settingsSelectedMediaDetail(),
+        ),
+    )
+
+internal fun scanSettingsTiles(
+    indexedItemCount: Int,
+    linkedSourceLabel: String,
+    libraryStatus: String,
+): List<SettingsSummaryTile> =
+    listOf(
+        SettingsSummaryTile(
+            label = settingsIndexTileLabel(),
+            value = settingsRecordCountValue(indexedItemCount),
+            detail = settingsIndexSharedDetail(),
+        ),
+        SettingsSummaryTile(
+            label = settingsPostSyncSourceTileLabel(),
+            value = linkedSourceLabel,
+            detail = settingsCloudDriveRescanSourceDetail(),
+        ),
+        SettingsSummaryTile(
+            label = settingsRecentScanStatusTileLabel(),
+            value = mediaSourceStatusText(libraryStatus),
+            detail = settingsRecentScanStatusDetail(),
+        ),
+    )
+
+internal fun metadataSettingsTiles(
+    selectedMediaTitle: String,
+    metadataSummary: String,
+    indexedItemCount: Int,
+    bangumiTokenConfigured: Boolean = false,
+): List<SettingsSummaryTile> =
+    listOf(
+        SettingsSummaryTile(
+            label = settingsSelectedMetadataEntryTileLabel(),
+            value = selectedMediaTitle,
+            detail = settingsSelectedMetadataEntryDetail(),
+        ),
+        SettingsSummaryTile(
+            label = settingsMetadataMatchStatusTileLabel(),
+            value = metadataSummary,
+            detail = settingsMetadataMatchStatusDetail(),
+        ),
+        SettingsSummaryTile(
+            label = settingsMetadataCandidateScopeTileLabel(),
+            value = settingsIndexedCountValue(indexedItemCount),
+            detail = settingsMetadataCandidateScopeDetail(),
+        ),
+        SettingsSummaryTile(
+            label = metadataBangumiTokenTileLabel(),
+            value = settingsSavedStateValue(bangumiTokenConfigured),
+            detail = metadataBangumiTokenTileDetail(),
+        ),
+    )
+
+private fun desktopWebUiSettingsTiles(): List<SettingsSummaryTile> =
+    listOf(
+        SettingsSummaryTile(
+            label = settingsWebUiTileLabel(),
+            value = settingsWebUiAndroidTvValue(),
+            detail = settingsWebUiTileDetail(),
+        ),
+        SettingsSummaryTile(
+            label = settingsWebUiNativeControlTileLabel(),
+            value = settingsDesktopControlTileValue(),
+            detail = settingsDesktopControlTileDetail(),
+        ),
+        SettingsSummaryTile(
+            label = settingsRemoteAutomationTileLabel(),
+            value = settingsRemoteAutomationTileValue(),
+            detail = settingsRemoteAutomationTileDetail(),
+        ),
+    )
+
+private fun desktopLogUploadSettingsTiles(): List<SettingsSummaryTile> =
+    listOf(
+        SettingsSummaryTile(
+            label = "OpenObserve",
+            value = "JSON",
+            detail = "API 地址、Stream 和访问令牌由 Android TV 设置页保存。",
+        ),
+        SettingsSummaryTile(
+            label = "本地日志",
+            value = "自动上报",
+            detail = "应用日志进入本地队列后按配置批量发送。",
+        ),
+        SettingsSummaryTile(
+            label = "凭据",
+            value = "安全存储",
+            detail = "令牌只保存配置状态，清理后会停止上报。",
+        ),
+    )
+
 private fun MiruPlaySettingsSection.menuSummary(
     sourcesCount: Int,
     rssCount: Int,
@@ -2316,7 +2546,8 @@ private fun MiruPlaySettingsSection.menuSummary(
     MiruPlaySettingsSection.SOURCES -> settingsSourcesMenuSummary(sourcesCount)
     MiruPlaySettingsSection.PLAYBACK -> playbackSummary
     MiruPlaySettingsSection.CLOUD_DRIVE -> settingsCloudDriveMenuSummary(cloudEnabled, rssCount)
-    MiruPlaySettingsSection.SCAN -> settingsScanMenuSummary(autoScanEnabled, mergeSameAnimeEnabled)
+    MiruPlaySettingsSection.SCAN -> settingsDesktopScanMenuSummary()
+    MiruPlaySettingsSection.LOG_UPLOAD -> "OpenObserve"
     MiruPlaySettingsSection.METADATA -> metadataSummary
     MiruPlaySettingsSection.WEB_UI -> settingsDesktopWebUiMenuSummary(webUiAddressCount)
 }

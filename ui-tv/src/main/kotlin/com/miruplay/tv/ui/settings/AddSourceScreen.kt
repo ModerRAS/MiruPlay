@@ -102,6 +102,8 @@ import com.miruplay.tv.model.cloudDriveRssInboxPathFieldLabel
 import com.miruplay.tv.model.cloudDriveRssIntervalMinutesFieldLabel
 import com.miruplay.tv.model.cloudDriveRssLibraryDirectoryPickerTitle
 import com.miruplay.tv.model.cloudDriveRssLibraryPathFieldLabel
+import com.miruplay.tv.model.cloudDriveRssLibraryModeOrganizedLabel
+import com.miruplay.tv.model.cloudDriveRssLibraryModeSingleDirectoryLabel
 import com.miruplay.tv.model.cloudDriveRssLoadingDirectoriesMessage
 import com.miruplay.tv.model.cloudDriveRssLoginActionLabel
 import com.miruplay.tv.model.cloudDriveRssNoScanSourceOptionLabel
@@ -301,7 +303,6 @@ fun AddSourceScreen(
     var rssUrl by remember { mutableStateOf("") }
     var rssFilterRegex by remember { mutableStateOf("") }
     var rssEnabled by remember { mutableStateOf(true) }
-    var logUploadTokenInput by remember { mutableStateOf("") }
     var pendingDeletedSourceId by remember { mutableStateOf<Long?>(null) }
 
     val menuFocusRequesters = remember {
@@ -571,6 +572,7 @@ fun AddSourceScreen(
                             webDavSourceId = cloudWebDavSourceId,
                             inboxPath = cloudInboxPath,
                             libraryPath = cloudLibraryPath,
+                            libraryMode = cloudLibraryMode,
                             intervalMinutes = parseCloudDriveIntervalMinutes(cloudIntervalMinutes),
                             enabled = cloudEnabled,
                             rssProxyEnabled = rssProxyEnabled,
@@ -599,34 +601,6 @@ fun AddSourceScreen(
                     },
                     onToggleRssSubscription = viewModel::setRssSubscriptionEnabled,
                     onDeleteRssSubscription = viewModel::deleteRssSubscription,
-                    logUploadEnabled = logUploadSnapshot.enabled,
-                    onLogUploadEnabledChange = viewModel::setLogUploadEnabled,
-                    logUploadEndpoint = logUploadSnapshot.endpoint,
-                    onLogUploadEndpointChange = viewModel::setLogUploadEndpoint,
-                    logUploadStreamName = logUploadSnapshot.streamName,
-                    onLogUploadStreamNameChange = viewModel::setLogUploadStreamName,
-                    logUploadToken = logUploadTokenInput,
-                    onLogUploadTokenChange = { logUploadTokenInput = it },
-                    logUploadTokenConfigured = logUploadSnapshot.tokenConfigured,
-                    logUploadStatusMessage = logUploadStatusMessage,
-                    onSaveLogUploadConfig = viewModel::saveLogUploadConfig,
-                    onSaveLogUploadToken = {
-                        viewModel.saveLogUploadToken(logUploadTokenInput)
-                        logUploadTokenInput = ""
-                    },
-                    onClearLogUploadToken = {
-                        viewModel.clearLogUploadToken()
-                        logUploadTokenInput = ""
-                    },
-                    onRunLogUploadNow = {
-                        viewModel.runLogUploadNow(logUploadTokenInput)
-                        logUploadTokenInput = ""
-                    },
-                    canRunLogUploadNow = logUploadSnapshot.canRunNow(logUploadTokenInput),
-                    appUpdateState = appUpdateState,
-                    onCheckAppUpdate = viewModel::checkAppUpdate,
-                    onDownloadAndInstallAppUpdate = viewModel::downloadAndInstallAppUpdate,
-                    onOpenAppUpdateInstallPermission = viewModel::openAppUpdateInstallPermissionSettings,
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
@@ -761,6 +735,7 @@ private fun SettingsMenuPanel(
                     MiruPlaySettingsSection.PLAYBACK -> playbackEndAction.menuSummary()
                     MiruPlaySettingsSection.CLOUD_DRIVE -> settingsCloudDriveMenuSummary(cloudDriveEnabled, rssCount)
                     MiruPlaySettingsSection.SCAN -> settingsScanMenuSummary(autoScanEnabled, mergeSameAnimeEnabled)
+                    MiruPlaySettingsSection.LOG_UPLOAD -> "在桌面端配置"
                     MiruPlaySettingsSection.METADATA -> settingsMetadataTokenMenuSummary(hasToken)
                 }
                 SettingsMenuItem(
@@ -935,25 +910,6 @@ private fun SettingsContent(
     onAddRssSubscription: () -> Unit,
     onToggleRssSubscription: (RssSubscriptionInfo, Boolean) -> Unit,
     onDeleteRssSubscription: (Long) -> Unit,
-    logUploadEnabled: Boolean,
-    onLogUploadEnabledChange: (Boolean) -> Unit,
-    logUploadEndpoint: String,
-    onLogUploadEndpointChange: (String) -> Unit,
-    logUploadStreamName: String,
-    onLogUploadStreamNameChange: (String) -> Unit,
-    logUploadToken: String,
-    onLogUploadTokenChange: (String) -> Unit,
-    logUploadTokenConfigured: Boolean,
-    logUploadStatusMessage: String,
-    onSaveLogUploadConfig: () -> Unit,
-    onSaveLogUploadToken: () -> Unit,
-    onClearLogUploadToken: () -> Unit,
-    onRunLogUploadNow: () -> Unit,
-    canRunLogUploadNow: Boolean,
-    appUpdateState: AppUpdateUiState,
-    onCheckAppUpdate: () -> Unit,
-    onDownloadAndInstallAppUpdate: () -> Unit,
-    onOpenAppUpdateInstallPermission: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     when (selectedSection) {
@@ -1116,35 +1072,18 @@ private fun SettingsContent(
             section = selectedSection,
             modifier = modifier
         ) {
-            LogUploadPanel(
-                enabled = logUploadEnabled,
-                onEnabledChange = onLogUploadEnabledChange,
-                endpoint = logUploadEndpoint,
-                onEndpointChange = onLogUploadEndpointChange,
-                streamName = logUploadStreamName,
-                onStreamNameChange = onLogUploadStreamNameChange,
-                tokenInput = logUploadToken,
-                onTokenInputChange = onLogUploadTokenChange,
-                tokenConfigured = logUploadTokenConfigured,
-                statusMessage = logUploadStatusMessage,
-                onSaveConfig = onSaveLogUploadConfig,
-                onSaveToken = onSaveLogUploadToken,
-                onClearToken = onClearLogUploadToken,
-                onRunNow = onRunLogUploadNow,
-                canRunNow = canRunLogUploadNow,
-            )
-        }
-
-        MiruPlaySettingsSection.APP_UPDATE -> SettingsSingleSectionPage(
-            section = selectedSection,
-            modifier = modifier
-        ) {
-            AppUpdatePanel(
-                state = appUpdateState,
-                onCheck = onCheckAppUpdate,
-                onDownloadAndInstall = onDownloadAndInstallAppUpdate,
-                onOpenInstallPermission = onOpenAppUpdateInstallPermission
-            )
+            SettingsPanel {
+                Text(
+                    text = "Android TV 端暂不提供日志上报配置。",
+                    style = TvTypography.body,
+                    color = TextSecondary
+                )
+                Text(
+                    text = "请在桌面端设置页或 Web 控制端配置 OpenObserve。",
+                    style = TvTypography.caption,
+                    color = TextSecondary
+                )
+            }
         }
 
         MiruPlaySettingsSection.METADATA -> SettingsSingleSectionPage(
@@ -1969,12 +1908,12 @@ private fun CloudDriveAutomationPanel(
 
         Spacer(Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            CloudDrivePathSelectorField(
-                value = inboxPath,
-                onValueChange = onInboxPathChange,
-                label = cloudDriveRssInboxPathFieldLabel(),
-                canPick = canPickCloudDriveDirectory,
-                onPick = onPickCloudInboxPath,
+            ScanOptionChip(
+                text = cloudDriveRssLibraryModeOrganizedLabel(),
+                icon = Icons.Filled.Folder,
+                selected = cloudLibraryMode == CloudDriveLibraryMode.ORGANIZED_LIBRARY,
+                enabled = true,
+                onClick = { onCloudLibraryModeChange(CloudDriveLibraryMode.ORGANIZED_LIBRARY) },
                 modifier = Modifier.weight(1f)
             )
             ScanOptionChip(
