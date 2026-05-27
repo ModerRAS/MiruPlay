@@ -57,6 +57,8 @@ param(
     [int]$CloudRssSchedulerDurationMs = 2000,
     [int]$CloudRssSchedulerCheckIntervalMs = 250,
     [int]$CloudRssSchedulerRunAfterChecks = 2,
+    [switch]$ExternalPrereqAudit,
+    [string]$ExternalPrereqReportPath = "build\windows-port-audit\external-prereqs.json",
     [switch]$CompletionAudit,
     [switch]$AllowUnsignedCompletionInstaller,
     [string]$CompletionAuditReportPath = "build\windows-port-audit\completion-audit.json"
@@ -253,10 +255,16 @@ function Format-CommandArgumentsForLog {
 
     $secretNames = @(
         "windowsInstallerCertPassword",
+        "CloudDriveEndpoint",
         "CloudDriveToken",
+        "CloudRssEndpoint",
         "CloudRssToken",
+        "CloudRssUrl",
+        "cloudDriveEndpoint",
         "cloudDriveToken",
+        "cloudDriveRssEndpoint",
         "cloudDriveRssToken",
+        "cloudDriveRssUrl",
         "smbPassword"
     )
 
@@ -1042,6 +1050,61 @@ try {
         }
     } else {
         Write-Host "CloudDrive RSS scheduler smoke skipped because -SkipCloudRssScheduler was supplied."
+    }
+
+    if ($ExternalPrereqAudit) {
+        Invoke-Step -Name "Windows port external prerequisite audit" -Action {
+            $externalPrereqArgs = @(
+                "-MpvRuntimeSource",
+                $MpvRuntimeSource,
+                "-RequiredRifeBackends",
+                $RequiredRifeBackends,
+                "-CloudDrivePath",
+                $CloudDrivePath,
+                "-CloudRssInbox",
+                $CloudRssInbox,
+                "-CloudRssLibrary",
+                $CloudRssLibrary,
+                "-WindowsInstallerType",
+                $WindowsInstallerType,
+                "-ReportPath",
+                $ExternalPrereqReportPath
+            )
+            if (-not [string]::IsNullOrWhiteSpace($CloudDriveEndpoint)) {
+                $externalPrereqArgs += "-CloudDriveEndpoint"
+                $externalPrereqArgs += $CloudDriveEndpoint
+            }
+            if (-not [string]::IsNullOrWhiteSpace($CloudDriveToken)) {
+                $externalPrereqArgs += "-CloudDriveToken"
+                $externalPrereqArgs += $CloudDriveToken
+            }
+            if (-not [string]::IsNullOrWhiteSpace($CloudRssEndpoint)) {
+                $externalPrereqArgs += "-CloudRssEndpoint"
+                $externalPrereqArgs += $CloudRssEndpoint
+            }
+            if (-not [string]::IsNullOrWhiteSpace($CloudRssToken)) {
+                $externalPrereqArgs += "-CloudRssToken"
+                $externalPrereqArgs += $CloudRssToken
+            }
+            if (-not [string]::IsNullOrWhiteSpace($CloudRssUrl)) {
+                $externalPrereqArgs += "-CloudRssUrl"
+                $externalPrereqArgs += $CloudRssUrl
+            }
+            if (-not [string]::IsNullOrWhiteSpace($WindowsInstallerCertPath)) {
+                $externalPrereqArgs += "-WindowsInstallerCertPath"
+                $externalPrereqArgs += $WindowsInstallerCertPath
+            }
+            if (-not [string]::IsNullOrWhiteSpace($WindowsInstallerSignTool)) {
+                $externalPrereqArgs += "-WindowsInstallerSignTool"
+                $externalPrereqArgs += $WindowsInstallerSignTool
+            }
+            if ($AllowUnsignedCompletionInstaller) {
+                $externalPrereqArgs += "-AllowUnsignedInstaller"
+            }
+            Invoke-ToolScript -ScriptName "check-windows-port-external-prereqs.ps1" -Arguments $externalPrereqArgs
+        }
+    } else {
+        Write-Host "Windows port external prerequisite audit skipped. Run with -ExternalPrereqAudit to write build\windows-port-audit\external-prereqs.json."
     }
 
     if ($CompletionAudit) {
