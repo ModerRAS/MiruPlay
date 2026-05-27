@@ -670,6 +670,7 @@ function Invoke-WindowsPortCompletionAudit {
         requiredRifeBackends = $requiredRifeBackends
         mpvRuntimeSource = (Resolve-RepoRelativePath -Path $MpvRuntimeSource)
         windowsInstallerType = $WindowsInstallerType
+        windowsInstallerBackend = $WindowsInstallerBackend
         requiresSignedInstaller = $requiresSignedInstaller
         evidence = $evidenceResults
     } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $resolvedCompletionAuditReportPath -Encoding UTF8

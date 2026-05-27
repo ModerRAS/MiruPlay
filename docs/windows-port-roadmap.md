@@ -565,8 +565,7 @@ Verification:
   -Library <library> `
   -CloudDrivePath <cloudDrivePath> `
   -SubmitLimit 1 `
-  -Filter Episode `
-  -RequireCloudDriveOfflinePermission
+  -Filter Episode
 
 .\gradlew.bat :sync-engine-desktop:smokeCloudDriveRssScheduler `
   -PcloudDriveRssSchedulerDurationMs=2000 `

@@ -6,8 +6,7 @@ param(
     [string]$Library = '/Library',
     [int]$SubmitLimit = 1,
     [string]$Filter = '',
-    [string]$CloudDrivePath = '',
-    [switch]$RequireCloudDriveOfflinePermission
+    [string]$CloudDrivePath = ''
 )
 
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
@@ -49,16 +48,15 @@ $args = @(
     $Library,
     '-CloudRssSubmitLimit',
     $SubmitLimit.ToString(),
+    '-RequireCloudDriveOfflinePermission',
     '-RequireCloudRssCandidates'
 )
 if (-not [string]::IsNullOrWhiteSpace($Filter)) {
     $args += @('-CloudRssFilter', $Filter)
 }
-if ($RequireCloudDriveOfflinePermission) {
-    $args += '-RequireCloudDriveOfflinePermission'
-}
 
 Write-Warning 'This parity evidence bundle runs CloudDrive live, RSS live-submit, and organize smokes. It submits real CloudDrive offline downloads and can move real CloudDrive files.'
+Write-Warning 'It also requires the CloudDrive token to allow offline downloads, matching the strict completion audit.'
 Write-Warning 'This is Cloud/RSS parity evidence only. Run tools\verify-windows-port.ps1 -CompletionAudit after all Windows release evidence is collected.'
 
 & powershell.exe @args
