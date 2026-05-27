@@ -586,9 +586,10 @@ Verification:
 - [x] Add and previously verify the opt-in full Windows distribution gate when a real bundled runtime source is supplied.
 - [x] Add packaged-runtime smoke that runs `mpv.exe --version` and verifies packaged runtime zip entries when a real runtime payload is supplied.
 - [x] Add a Windows native app-image gate that builds with JDK `jpackage` and verifies the launcher, generated launcher config/classpath, bundled mpv/RIFE runtime, and generated-launcher headless desktop-entry smoke report through a structured assert script when a real runtime payload is supplied.
-- [x] Add an opt-in Windows MSI/EXE installer gate that preflights WiX, builds from the verified app image, records installer SHA256/size/version/signing-mode evidence, supports explicit signtool/PFX signing, and validates the installer report against the generated artifact.
-- [ ] Run the signed Windows installer gate with the release certificate and save installer evidence.
-- [ ] Decide and implement an MSIX/AppX/App Installer publishing path if the Windows release target requires it.
+- [x] Add an opt-in Windows MSI/EXE installer gate that preflights WiX, builds from the app image, records installer SHA256/size/version/signing-mode/runtime-bundling evidence, supports explicit signtool/PFX signing, and validates the installer report against the generated artifact.
+- [x] Add lightweight installer QA mode with `-PbundleMpvRuntime=false`; it produces an unsigned MSI report that must validate with `-RequireNoBundledMpvRuntime` so it cannot be mistaken for self-contained release evidence.
+- [ ] Run the signed bundled-runtime Windows installer gate with the release certificate and save installer evidence.
+- [ ] Decide and implement an MSIX/AppX/App Installer or alternate large-payload installer path if the Windows release target requires a self-contained installer; the current full `vsNV` mpv/RIFE app image is too large for the JDK jpackage/WiX MSI/EXE cabinet path.
 - [x] Add a repeatable local Windows-port verification orchestrator with safe defaults, packaged WebUI smoke, and explicit opt-in behavior/live/device/runtime checks.
 - [x] Add shared media-source API, metadata-core, scraper-core, and Android-side metadata/scraper/sync/web-control tests to CI/local verification for cross-platform dependency-boundary changes.
 - [x] Keep `codex/**` branch CI as validation-only by skipping nightly/release publishing outside main/master scheduled or manual runs.

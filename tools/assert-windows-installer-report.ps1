@@ -7,6 +7,8 @@ param(
     [string]$RequiredAppVersion = "",
     [switch]$RequireSigned,
     [switch]$RequireUnsigned,
+    [switch]$RequireBundledMpvRuntime,
+    [switch]$RequireNoBundledMpvRuntime,
     [long]$MinSizeBytes = 1048576
 )
 
@@ -49,6 +51,9 @@ function Get-FileSha256 {
 if ($RequireSigned -and $RequireUnsigned) {
     throw "-RequireSigned and -RequireUnsigned cannot both be set."
 }
+if ($RequireBundledMpvRuntime -and $RequireNoBundledMpvRuntime) {
+    throw "-RequireBundledMpvRuntime and -RequireNoBundledMpvRuntime cannot both be set."
+}
 
 $resolvedReportPath = Resolve-FullPath $ReportPath
 if (-not (Test-Path -LiteralPath $resolvedReportPath -PathType Leaf)) {
@@ -78,6 +83,21 @@ if ($RequireSigned) {
 }
 if ($RequireUnsigned) {
     Assert-Truthy -Condition ($signatureMode -eq "unsigned") -Message "Expected an unsigned installer report."
+}
+
+$hasBundledRuntimeField = $null -ne $report.PSObject.Properties["bundledMpvRuntime"]
+$bundledMpvRuntime = $false
+if ($hasBundledRuntimeField) {
+    $bundledMpvRuntime = [bool]$report.bundledMpvRuntime
+}
+if ($RequireBundledMpvRuntime) {
+    Assert-Truthy -Condition ($hasBundledRuntimeField -and $bundledMpvRuntime) -Message "Expected a bundled mpv runtime installer report."
+}
+if ($RequireNoBundledMpvRuntime) {
+    Assert-Truthy -Condition ($hasBundledRuntimeField -and -not $bundledMpvRuntime) -Message "Expected a lightweight installer report without bundled mpv runtime."
+}
+if ($bundledMpvRuntime) {
+    Assert-Truthy -Condition (-not [string]::IsNullOrWhiteSpace([string]$report.mpvRuntimeSource)) -Message "Missing mpvRuntimeSource for bundled runtime report."
 }
 
 Assert-Truthy -Condition (-not [string]::IsNullOrWhiteSpace([string]$report.installerPath)) -Message "Missing installerPath."
@@ -114,5 +134,5 @@ if ($failures.Count -gt 0) {
 
 Write-Host "Windows installer report validation passed: $resolvedReportPath"
 Write-Host "Installer: $installerPath"
-Write-Host "Type: $installerType; signing: $signatureMode; size: $sizeBytes bytes"
+Write-Host "Type: $installerType; signing: $signatureMode; bundled mpv runtime: $bundledMpvRuntime; size: $sizeBytes bytes"
 Write-Host "SHA256: $sha256"

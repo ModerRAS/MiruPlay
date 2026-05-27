@@ -56,6 +56,11 @@ val backendScripts = mapOf(
     "DIRECTML" to "MEMC_RIFE_DML.vpy",
     "STANDARD" to "MEMC_RIFE_STD.vpy",
 )
+val mpvRuntimePackageExcludes = listOf(
+    // ONNX test suites are not needed by playback and can exceed WiX path/cabinet limits.
+    "Lib/site-packages/onnx/backend/test/**",
+    "Lib/site-packages/onnx/test/**",
+)
 val jpackageAppContentDir = layout.buildDirectory.dir("jpackage/app-content")
 val jpackageInputDir = layout.buildDirectory.dir("jpackage/input")
 val jpackageOutputDir = layout.buildDirectory.dir("jpackage/output")
@@ -296,6 +301,17 @@ fun commandExistsOnPath(commandName: String): Boolean {
 fun windowsInstallerToolchainAvailable(): Boolean =
     commandExistsOnPath("candle.exe") && commandExistsOnPath("light.exe")
 
+fun windowsInstallerRuntimeInputAvailable(): Boolean =
+    !bundleMpvRuntime.get() || hasMpvRuntimeSource()
+
+fun windowsInstallerGateAvailable(): Boolean =
+    System.getProperty("os.name").contains("Windows", ignoreCase = true) &&
+        windowsInstallerRuntimeInputAvailable() &&
+        (windowsInstallerToolchainAvailable() || requireWindowsInstallerToolchain.get())
+
+fun windowsInstallerBundlesMpvRuntime(): Boolean =
+    bundleMpvRuntime.get() && hasMpvRuntimeSource()
+
 fun signtoolExecutable(): File {
     val explicit = windowsInstallerSignTool.orNull
         ?.takeIf { it.isNotBlank() }
@@ -455,6 +471,7 @@ val prepareJpackageAppContent by tasks.registering(Sync::class) {
     if (bundleMpvRuntime.get() && hasMpvRuntimeSource()) {
         from(effectiveMpvRuntimeRoot) {
             into("runtime/mpv")
+            exclude(mpvRuntimePackageExcludes)
         }
         if (!mpvRuntimeSourceHasManifest()) {
             from(generatedMpvRuntimeManifest) {
@@ -464,6 +481,9 @@ val prepareJpackageAppContent by tasks.registering(Sync::class) {
     }
 
     doFirst {
+        jpackageAppContentDir.get().asFile.mkdirs()
+    }
+    doLast {
         jpackageAppContentDir.get().asFile.mkdirs()
     }
 }
@@ -485,8 +505,12 @@ val packageWindowsAppImage by tasks.registering {
     dependsOn(prepareJpackageAppContent)
     onlyIf { System.getProperty("os.name").contains("Windows", ignoreCase = true) }
     inputs.dir(jpackageInputDir)
-    inputs.dir(jpackageAppContentDir).optional()
+    if (bundleMpvRuntime.get() && hasMpvRuntimeSource()) {
+        inputs.dir(jpackageAppContentDir)
+    }
     inputs.property("windowsPackageVersion", windowsPackageVersion)
+    inputs.property("bundleMpvRuntime", bundleMpvRuntime)
+    inputs.property("hasMpvRuntimeSource", providers.provider { hasMpvRuntimeSource() })
     outputs.dir(jpackageAppImageRoot)
 
     doLast {
@@ -518,23 +542,23 @@ val packageWindowsAppImage by tasks.registering {
 
 val packageWindowsInstaller by tasks.registering {
     group = "distribution"
-    description = "Build a Windows MSI/EXE installer from the verified jpackage app image."
+    description = "Build a Windows MSI/EXE installer from the jpackage app image."
     if (windowsInstallerToolchainAvailable() || requireWindowsInstallerToolchain.get()) {
         dependsOn(verifyWindowsInstallerToolchain)
     }
     if (windowsInstallerToolchainAvailable()) {
-        dependsOn("smokeNativeAppImageRuntime")
+        if (bundleMpvRuntime.get()) {
+            dependsOn("smokeNativeAppImageRuntime")
+        } else {
+            dependsOn(packageWindowsAppImage)
+        }
     }
-    onlyIf {
-        System.getProperty("os.name").contains("Windows", ignoreCase = true) &&
-            bundleMpvRuntime.get() &&
-            hasMpvRuntimeSource() &&
-            (windowsInstallerToolchainAvailable() || requireWindowsInstallerToolchain.get())
-    }
+    onlyIf { windowsInstallerGateAvailable() }
     inputs.dir(jpackageAppImageRoot).optional()
     inputs.property("windowsPackageVersion", windowsPackageVersion)
     inputs.property("windowsInstallerType", windowsInstallerType)
     inputs.property("windowsInstallerUpgradeUuid", windowsInstallerUpgradeUuid)
+    inputs.property("bundleMpvRuntime", bundleMpvRuntime)
     outputs.dir(jpackageInstallerOutputDir)
 
     doFirst {
@@ -581,17 +605,13 @@ val smokeWindowsInstaller by tasks.registering {
     group = "verification"
     description = "Build the Windows installer and verify installer artifact metadata."
     dependsOn(packageWindowsInstaller)
-    onlyIf {
-        System.getProperty("os.name").contains("Windows", ignoreCase = true) &&
-            bundleMpvRuntime.get() &&
-            hasMpvRuntimeSource() &&
-            (windowsInstallerToolchainAvailable() || requireWindowsInstallerToolchain.get())
-    }
+    onlyIf { windowsInstallerGateAvailable() }
     inputs.dir(jpackageInstallerOutputDir).optional()
     inputs.property("windowsInstallerType", windowsInstallerType)
     inputs.property("windowsPackageVersion", windowsPackageVersion)
     inputs.property("windowsInstallerUpgradeUuid", windowsInstallerUpgradeUuid)
     inputs.property("signWindowsInstaller", signWindowsInstaller)
+    inputs.property("bundleMpvRuntime", bundleMpvRuntime)
     outputs.file(jpackageInstallerSmokeReport)
     outputs.upToDateWhen { false }
 
@@ -644,12 +664,20 @@ val smokeWindowsInstaller by tasks.registering {
             }
         }
 
+        val bundledRuntime = windowsInstallerBundlesMpvRuntime()
+        val runtimeSource = if (bundledRuntime) {
+            effectiveMpvRuntimeRoot.get().toPath().toAbsolutePath().normalize().toString().jsonString()
+        } else {
+            "null"
+        }
         val report = """
             {
               "status": "ok",
               "installerType": ${installerType.jsonString()},
               "appVersion": ${windowsPackageVersion.get().jsonString()},
               "signatureMode": ${signatureMode.jsonString()},
+              "bundledMpvRuntime": $bundledRuntime,
+              "mpvRuntimeSource": $runtimeSource,
               "installerPath": ${installer.toPath().toAbsolutePath().normalize().toString().jsonString()},
               "sizeBytes": ${installer.length()},
               "sha256": ${sha256(installer).jsonString()}
@@ -1026,6 +1054,7 @@ distributions {
             if (bundleMpvRuntime.get() && hasMpvRuntimeSource()) {
                 from(effectiveMpvRuntimeRoot) {
                     into("runtime/mpv")
+                    exclude(mpvRuntimePackageExcludes)
                 }
                 if (!mpvRuntimeSourceHasManifest()) {
                     from(generatedMpvRuntimeManifest) {
