@@ -77,9 +77,10 @@ requirements. Lightweight installer QA now runs with `-PbundleMpvRuntime=false`
 and produces a report that must validate with `-RequireNoBundledMpvRuntime`; it
 cannot be mistaken for self-contained release installer evidence. The local
 full `vsNV` mpv/RIFE app image is too large for the JDK jpackage/WiX MSI/EXE
-cabinet path, so a self-contained installer still needs a different
-large-payload installer strategy or a smaller runtime payload. The unified
-verifier now passes Windows installer signing options through to that gate, runs
+cabinet path, so bundled-runtime EXE packaging now has an explicit 7-Zip SFX
+backend that packages the verified app image and produces bundled-runtime
+installer evidence. The unified verifier now passes Windows installer signing
+options through to that gate, runs
 the installer-report assertion after packaging, and redacts token/password-like
 arguments when native commands fail, so signed installer QA can use the same
 release checklist without leaking credentials in error text.
@@ -622,7 +623,7 @@ and scans its own JSON output for obvious credential material before returning.
 | CloudDrive RSS dry-run | `build/cloud-rss-smoke/dry-run-report.json` | Missing current real-service evidence |
 | CloudDrive RSS live-submit | `build/cloud-rss-smoke/live-submit-report.json` | Missing current real-service evidence |
 | CloudDrive RSS organize | `build/cloud-rss-smoke/organize-report.json` | Missing current real-service evidence |
-| Signed Windows installer | `desktop-app/build/jpackage/smoke/windows-installer-smoke.json` | Lightweight unsigned MSI report can be generated locally; signed bundled-runtime release evidence is still missing |
+| Signed Windows installer | `desktop-app/build/jpackage/smoke/windows-installer-smoke.json` | Unsigned bundled-runtime SFX EXE report can be generated locally; signed bundled-runtime release evidence is still missing |
 
 ```powershell
 .\tools\verify-windows-port.ps1

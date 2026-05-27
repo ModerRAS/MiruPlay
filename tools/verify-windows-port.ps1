@@ -19,6 +19,8 @@ param(
     [switch]$WindowsInstaller,
     [ValidateSet("msi", "exe")]
     [string]$WindowsInstallerType = "msi",
+    [ValidateSet("jpackage", "sfx")]
+    [string]$WindowsInstallerBackend = "jpackage",
     [switch]$LightweightWindowsInstaller,
     [switch]$SignWindowsInstaller,
     [string]$WindowsInstallerCertPath = "",
@@ -820,6 +822,7 @@ try {
                 ":desktop-app:smokeWindowsInstaller",
                 "-PrequiredRifeBackends=$RequiredRifeBackends",
                 "-PwindowsInstallerType=$WindowsInstallerType",
+                "-PwindowsInstallerBackend=$WindowsInstallerBackend",
                 "-PrequireWindowsInstallerToolchain=true"
             )
             if ($LightweightWindowsInstaller) {
