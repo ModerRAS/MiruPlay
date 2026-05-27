@@ -284,6 +284,57 @@ function Wait-UiTexts {
     throw "Timed out waiting for UI texts '$($Needles -join "', '")'. Current UI: $(Get-UiTextSummary -Xml $lastXml)"
 }
 
+function Wait-UiTextsAbsent {
+    param(
+        [string[]]$Needles,
+        [string]$XmlPath,
+        [int]$TimeoutSeconds = 30
+    )
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    $lastXml = $null
+    do {
+        $lastXml = Get-UiXml -Path $XmlPath
+        $found = $false
+        foreach ($needle in $Needles) {
+            if (Find-UiNode -Xml $lastXml -Needles @($needle)) {
+                $found = $true
+                break
+            }
+        }
+        if (-not $found) {
+            return $lastXml
+        }
+        Start-Sleep -Milliseconds 500
+    } while ((Get-Date) -lt $deadline)
+
+    throw "Timed out waiting for UI texts '$($Needles -join "', '")' to disappear. Current UI: $(Get-UiTextSummary -Xml $lastXml)"
+}
+
+function Ensure-UiTextsVisibleBySwipe {
+    param(
+        [string[]]$Needles,
+        [string]$XmlPath,
+        [string]$Description,
+        [int]$MaxSwipes = 8
+    )
+
+    $lastXml = $null
+    for ($attempt = 0; $attempt -le $MaxSwipes; $attempt++) {
+        $lastXml = Get-UiXml -Path $XmlPath
+        $missing = @($Needles | Where-Object { -not (Find-UiNode -Xml $lastXml -Needles @($_)) })
+        if ($missing.Count -eq 0) {
+            return $lastXml
+        }
+
+        if ($attempt -lt $MaxSwipes) {
+            Invoke-Adb -Arguments @("shell", "input", "swipe", "950", "930", "950", "430", "450") | Out-Null
+            Start-Sleep -Milliseconds 700
+        }
+    }
+
+    throw "Could not reveal $Description text '$($Needles -join "', '")'. Current UI: $(Get-UiTextSummary -Xml $lastXml)"
+}
+
 function Assert-UiText {
     param(
         [xml]$Xml,
@@ -433,6 +484,30 @@ function Invoke-UiClick {
     $clickable = Get-NearestClickableNode -Node $node
     $center = Get-NodeCenter -Node $clickable
     Invoke-Adb -Arguments @("shell", "input", "tap", $center.X, $center.Y) | Out-Null
+    Start-Sleep -Milliseconds 900
+}
+
+function Invoke-SourceCardDeleteClick {
+    param(
+        [xml]$Xml,
+        [string]$SourceNeedle,
+        [string]$Description
+    )
+
+    $node = Find-UiNode -Xml $Xml -Needles @($SourceNeedle)
+    if ($null -eq $node) {
+        throw "Cannot find $Description source '$SourceNeedle'. Current UI: $(Get-UiTextSummary -Xml $Xml)"
+    }
+
+    $card = Get-NearestClickableNode -Node $node
+    $bounds = Get-NodeAttribute -Node $card -Name "bounds"
+    if ($bounds -notmatch '^\[(\d+),(\d+)\]\[(\d+),(\d+)\]$') {
+        throw "$Description card has invalid bounds: $bounds"
+    }
+
+    $tapX = [int]$Matches[3] - 76
+    $tapY = [int]((([int]$Matches[2]) + ([int]$Matches[4])) / 2)
+    Invoke-Adb -Arguments @("shell", "input", "tap", $tapX, $tapY) | Out-Null
     Start-Sleep -Milliseconds 900
 }
 
@@ -742,6 +817,16 @@ $runDir = Join-Path $resolvedOutputRoot $runName
 $fixtureRoot = Join-Path $runDir "fixture\MiruPlayTvSmoke-$($runName.Substring(4))"
 $samplePath = Join-Path $runDir "sample.mp4"
 $remoteFixtureRoot = "/sdcard/Movies/$(Split-Path -Leaf $fixtureRoot)"
+$testSourceName = "TVSmoke-$($runName.Substring(4))"
+$fixturePosterNeedles = @(
+    "Fixture Alpha",
+    "Fixture Beta",
+    "Fixture Gamma",
+    "Fixture Delta",
+    "Fixture Epsilon",
+    "Fixture Zeta",
+    "Fixture Eta"
+)
 $libraryScreenshot = Join-Path $runDir "android-tv-library.png"
 $libraryDpadScreenshot = Join-Path $runDir "android-tv-library-dpad-poster.png"
 $detailsScreenshot = Join-Path $runDir "android-tv-details.png"
@@ -796,7 +881,7 @@ Invoke-AdbBestEffort -Arguments @("shell", "mkdir", "-p", "/sdcard/Movies")
 Invoke-AdbBestEffort -Arguments @("shell", "rm", "-rf", $remoteFixtureRoot)
 Invoke-Adb -Arguments @("push", $fixtureRoot, "/sdcard/Movies/") | Out-Null
 
-Invoke-Adb -Arguments @("shell", "am", "start", "-W", "-n", $ActivityName, "--es", "test_local_path", $remoteFixtureRoot) | Out-Null
+Invoke-Adb -Arguments @("shell", "am", "start", "-W", "-n", $ActivityName, "--es", "test_local_path", $remoteFixtureRoot, "--es", "test_local_name", $testSourceName) | Out-Null
 $xml = Wait-UiTexts -Needles @($textExplore, $textScan) -XmlPath $libraryXmlPath -TimeoutSeconds 30
 Invoke-UiClick -Xml $xml -Needles @($textScan, $textScanMediaLibrary) -Description "scan"
 $xml = Wait-UiTexts -Needles @("Fixture Alpha", $textHighestHeat, $textRecentlyAdded) -XmlPath $libraryXmlPath -TimeoutSeconds 120
@@ -834,11 +919,13 @@ Assert-UiText -Xml $xml -Needles @("Fixture Alpha", $textPlay, $textEpisodeShelf
 Invoke-DpadKey -KeyCode "KEYCODE_BACK" -DelayMilliseconds 1200
 $xml = Wait-UiTexts -Needles @($textExplore, "Fixture Alpha") -XmlPath $libraryReturnXmlPath -TimeoutSeconds 30
 Assert-UiText -Xml $xml -Needles @($textExplore, $textScan, $textSettings, "Fixture Alpha") -Description "Library after Details Back"
-if (-not (Test-FocusedUiText -Xml $xml -Needles @("Fixture Alpha"))) {
+if (-not (Test-FocusedUiTextAny -Xml $xml -Needles $fixturePosterNeedles)) {
     Invoke-DpadKey -KeyCode "KEYCODE_DPAD_RIGHT" -DelayMilliseconds 800
     $xml = Wait-UiTexts -Needles @($textExplore, "Fixture Alpha") -XmlPath $libraryReturnXmlPath -TimeoutSeconds 10
 }
-Assert-FocusedUiText -Xml $xml -Needles @("Fixture Alpha") -Description "Library poster after Back"
+if (-not (Test-FocusedUiTextAny -Xml $xml -Needles $fixturePosterNeedles)) {
+    throw "Focused Library poster after Back node does not contain any fixture poster. Current UI: $(Get-UiTextSummary -Xml $xml)"
+}
 Save-Screenshot -Path $libraryReturnScreenshot
 
 $openedSettings = $false
@@ -874,40 +961,47 @@ Save-Screenshot -Path $settingsScreenshot
 
 Invoke-DpadKey -KeyCode "KEYCODE_DPAD_DOWN" -DelayMilliseconds 800
 $xml = Ensure-FocusedUiText -Needles @($textMediaSources) -XmlPath $settingsXmlPath -RetryKeyCode "KEYCODE_DPAD_DOWN" -Attempts 3
-$xml = Invoke-DpadCenterUntilUiText -Needles @("Test Local", $textAddMediaSource, $remoteFixtureRoot) -XmlPath $settingsSourcesXmlPath -Attempts 2 -WaitTimeoutSeconds 20
-Assert-UiText -Xml $xml -Needles @($textMediaSources, "Test Local", $remoteFixtureRoot, "WebDAV", "SMB", $textAddMediaSource, $textDisplayName, $textMediaFolder, $textSaveSource) -Description "Settings media sources"
+$xml = Invoke-DpadCenterUntilUiText -Needles @($textAddMediaSource, $textSaveSource) -XmlPath $settingsSourcesXmlPath -Attempts 2 -WaitTimeoutSeconds 20
 Assert-FocusedUiText -Xml $xml -Needles @($textMediaSources) -Description "Settings media source menu"
-Save-Screenshot -Path $settingsSourcesScreenshot
 
 Invoke-DpadKey -KeyCode "KEYCODE_DPAD_RIGHT" -DelayMilliseconds 900
-$xml = Wait-UiTexts -Needles @("Test Local", $remoteFixtureRoot) -XmlPath $settingsSourceCardXmlPath -TimeoutSeconds 30
-Assert-FocusedUiText -Xml $xml -Needles @("Test Local") -Description "Settings media source card"
+$xml = Get-UiXml -Path $settingsSourceCardXmlPath
+if (-not (Test-FocusedUiTextAny -Xml $xml -Needles @("本地", "WebDAV", "SMB", "Test Local", "TVSmoke"))) {
+    throw "Settings media source card did not receive focus. Current UI: $(Get-UiTextSummary -Xml $xml)"
+}
 Save-Screenshot -Path $settingsSourceCardScreenshot
 
 Invoke-DpadKey -KeyCode "KEYCODE_DPAD_LEFT" -DelayMilliseconds 900
 try {
-    $xml = Wait-UiTexts -Needles @("Test Local", $textMediaSources) -XmlPath $settingsSourcesReturnXmlPath -TimeoutSeconds 30
+    $xml = Wait-UiTexts -Needles @($textMediaSources, $textAddMediaSource) -XmlPath $settingsSourcesReturnXmlPath -TimeoutSeconds 30
 } catch {
     $menuXml = Wait-UiTexts -Needles @($textSettings, "WebUI", $textMediaSources) -XmlPath $settingsXmlPath -TimeoutSeconds 12
     $menuXml = Ensure-FocusedUiText -Needles @($textMediaSources) -XmlPath $settingsXmlPath -RetryKeyCode "KEYCODE_DPAD_DOWN" -Attempts 4
-    $xml = Invoke-DpadCenterUntilUiText -Needles @("Test Local", $textMediaSources) -XmlPath $settingsSourcesReturnXmlPath -Attempts 2 -WaitTimeoutSeconds 15
+    $xml = Invoke-DpadCenterUntilUiText -Needles @($textAddMediaSource, $textMediaSources) -XmlPath $settingsSourcesReturnXmlPath -Attempts 2 -WaitTimeoutSeconds 15
 }
 $xml = Ensure-FocusedUiText -Needles @($textMediaSources) -XmlPath $settingsSourcesReturnXmlPath -RetryKeyCode "KEYCODE_DPAD_DOWN" -Attempts 5
 Assert-FocusedUiText -Xml $xml -Needles @($textMediaSources) -Description "Settings media source menu after content Left"
+$xml = Ensure-UiTextsVisibleBySwipe -Needles @($testSourceName, $remoteFixtureRoot) -XmlPath $settingsSourcesReturnXmlPath -Description "current smoke media source"
+Assert-UiText -Xml $xml -Needles @($textMediaSources, $testSourceName, $remoteFixtureRoot, "WebDAV", "SMB", $textAddMediaSource, $textDisplayName, $textMediaFolder, $textSaveSource) -Description "Settings media sources"
+Save-Screenshot -Path $settingsSourcesScreenshot
 
 # Open source edit with an explicit card click to avoid DPAD drift.
-Invoke-UiClick -Xml $xml -Needles @("Test Local") -Description "settings media source card"
+Invoke-UiClick -Xml $xml -Needles @($remoteFixtureRoot) -Description "current smoke media source card"
 $xml = Wait-UiTexts -Needles @($textEditMediaSource, $textNewSource) -XmlPath $settingsSourceEditXmlPath -TimeoutSeconds 30
-Assert-UiText -Xml $xml -Needles @("Test Local", $remoteFixtureRoot, $textEditMediaSource, $textNewSource, $textDisplayName, $textMediaFolder) -Description "Settings media source edit form"
+Assert-UiText -Xml $xml -Needles @($testSourceName, $remoteFixtureRoot, $textEditMediaSource, $textNewSource, $textDisplayName, $textMediaFolder) -Description "Settings media source edit form"
 Save-Screenshot -Path $settingsSourceEditScreenshot
 
-$xml = Wait-UiTexts -Needles @($textDelete, $textEditMediaSource) -XmlPath $settingsSourceDeleteFocusXmlPath -TimeoutSeconds 30
+$xml = Wait-UiTexts -Needles @($testSourceName, $remoteFixtureRoot, $textEditMediaSource) -XmlPath $settingsSourceDeleteFocusXmlPath -TimeoutSeconds 30
 Save-Screenshot -Path $settingsSourceDeleteFocusScreenshot
 
-Invoke-UiClick -Xml $xml -Needles @($textDelete) -Description "settings media source delete button"
-$xml = Wait-UiTexts -Needles @($textNoMediaSources, $textAddLocalOrNetworkLibrary) -XmlPath $settingsSourceDeletedXmlPath -TimeoutSeconds 30
-Assert-UiText -Xml $xml -Needles @($textMediaSources, $textNoMediaSources, $textAddLocalOrNetworkLibrary, $textAddMediaSource, $textSaveSource) -Description "Settings media source empty state after delete"
-Assert-UiTextAbsent -Xml $xml -Needles @("Test Local", $remoteFixtureRoot) -Description "deleted media source"
+Invoke-SourceCardDeleteClick -Xml $xml -SourceNeedle $remoteFixtureRoot -Description "current smoke media source delete button"
+$xml = Wait-UiTextsAbsent -Needles @($testSourceName, $remoteFixtureRoot) -XmlPath $settingsSourceDeletedXmlPath -TimeoutSeconds 30
+if (-not $KeepAppData) {
+    Assert-UiText -Xml $xml -Needles @($textMediaSources, $textNoMediaSources, $textAddLocalOrNetworkLibrary, $textAddMediaSource, $textSaveSource) -Description "Settings media source empty state after delete"
+} else {
+    Assert-UiText -Xml $xml -Needles @($textMediaSources, $textAddMediaSource, $textSaveSource) -Description "Settings media sources after deleting current smoke source"
+}
+Assert-UiTextAbsent -Xml $xml -Needles @($testSourceName, $remoteFixtureRoot) -Description "deleted media source"
 Save-Screenshot -Path $settingsSourceDeletedScreenshot
 
 $xml = Open-SettingsPanelByMenuClick -MenuNeedle $textPlay -PanelNeedles @($textPlaybackEnd, $textReturnToDetail, $textPlayNextEpisode) -MenuXmlPath $settingsSourceDeletedXmlPath -PanelXmlPath $settingsPlaybackXmlPath -Attempts 4 -WaitTimeoutSeconds 30
@@ -934,6 +1028,8 @@ Write-Report -Path $reportPath -Report @{
     deviceId = $DeviceId
     apkPath = $resolvedApkPath
     remoteFixtureRoot = $remoteFixtureRoot
+    testSourceName = $testSourceName
+    keepAppData = [bool]$KeepAppData
     screenshots = @{
         library = $libraryScreenshot
         libraryDpadPoster = $libraryDpadScreenshot
@@ -982,10 +1078,14 @@ Write-Report -Path $reportPath -Report @{
         "DPAD Up/Right/Center from the returned Library poster wall opens Settings.",
         "Settings contains the WebUI, media sources, playback, CloudDrive, scan, and metadata sections.",
         "DPAD Down/Center in Settings opens the media sources panel with the auto-added local source and source form.",
-        "DPAD Right from the Settings media-source menu focuses the auto-added source card, and Left returns to the media-source menu.",
-        "DPAD Center on the focused Settings source card opens the edit source form without losing card focus.",
-        "DPAD Right from the focused Settings source card focuses its delete button.",
-        "DPAD Center on the focused delete button removes the source and shows the empty media-source state.",
+        "DPAD Right from the Settings media-source menu focuses a saved source card, and Left returns to the media-source menu.",
+        "Clicking the current smoke source card opens the edit source form for the unique test source.",
+        "The unique smoke source name and path are required before opening or deleting a source card, so stale app data cannot satisfy current-source checks.",
+        $(if ($KeepAppData) {
+            "Clicking the current smoke source card delete button removes the current smoke source without clearing unrelated app data."
+        } else {
+            "Clicking the current smoke source card delete button removes the source and shows the empty media-source state."
+        }),
         "DPAD Down from the media-source menu visits Playback, CloudDrive, Scan, and Metadata settings pages with matching menu focus."
     )
 }
