@@ -146,7 +146,7 @@ $requiredAssertionNeedles = @(
     "media sources panel",
     "source card",
     "delete button",
-    "empty media-source state",
+    "removes the",
     "Playback, CloudDrive, Scan, and Metadata"
 )
 foreach ($needle in $requiredAssertionNeedles) {

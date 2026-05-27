@@ -53,14 +53,17 @@ class MainActivity : ComponentActivity() {
             )
         )
 
-        // Test hook: automatically add a Local source when launched with extra
+        // Test hook: automatically add a Local source when launched with extra.
         val testSourcePath = intent.getStringExtra("test_local_path")
+        val testSourceName = intent.getStringExtra("test_local_name")
+            ?.takeIf { it.isNotBlank() }
+            ?: "Test Local"
 
         if (testSourcePath != null) {
             lifecycleScope.launch {
                 MiruLog.i("MainActivity", "Adding test local source from launch extra")
                 val source = MediaSourceInfo(
-                    name = "Test Local",
+                    name = testSourceName,
                     type = MediaSourceType.LOCAL,
                     connectionInfo = mapOf(
                         "path" to testSourcePath,
