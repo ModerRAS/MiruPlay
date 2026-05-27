@@ -37,6 +37,193 @@ class BangumiJsonMapperTest {
     }
 
     @Test
+    fun `parseSearchResults does not promote short parent titles above specific matches`() {
+        val root = json.parseToJsonElement(
+            """
+            {
+              "data": [
+                {
+                  "id": 501796,
+                  "name": "魔法の姉妹ルルットリリィ",
+                  "name_cn": "魔法姐妹露露特莉莉",
+                  "rating": { "score": 6.5 },
+                  "infobox": [
+                    { "key": "别名", "value": [ { "v": "魔法姊妹露露特莉莉" } ] }
+                  ]
+                },
+                {
+                  "id": 331725,
+                  "name": "魔法 (Official Video)",
+                  "name_cn": "魔法",
+                  "rating": { "score": 5.6 }
+                }
+              ]
+            }
+            """.trimIndent()
+        ).jsonObject
+
+        val result = BangumiJsonMapper.parseSearchResults(root, "魔法姐妹露露莉莉 Mahou no Shimai Rurutto Riryi")
+
+        assertEquals("501796", result.first().animeId)
+        assertTrue(result.first().confidence > result.last().confidence)
+        assertTrue("Short parent title should not be a reliable match", result.last().confidence < 0.62f)
+    }
+
+    @Test
+    fun `parseSearchResults keeps sequel title above short series parent`() {
+        val root = json.parseToJsonElement(
+            """
+            {
+              "data": [
+                {
+                  "id": 408897,
+                  "name": "龙族Ⅱ 悼亡者之瞳",
+                  "rating": { "score": 4.3 },
+                  "infobox": [
+                    { "key": "别名", "value": [ { "v": "龙族 第2季" } ] }
+                  ]
+                },
+                {
+                  "id": 312297,
+                  "name": "龙族",
+                  "rating": { "score": 5.2 }
+                }
+              ]
+            }
+            """.trimIndent()
+        ).jsonObject
+
+        val result = BangumiJsonMapper.parseSearchResults(root, "龙族II 悼亡者之瞳")
+
+        assertEquals("408897", result.first().animeId)
+        assertTrue(result.first().confidence > result.last().confidence)
+        assertTrue("Short series title should not be a reliable match", result.last().confidence < 0.62f)
+    }
+
+    @Test
+    fun `parseSearchResults does not accept one shared franchise token as reliable`() {
+        val root = json.parseToJsonElement(
+            """
+            {
+              "data": [
+                {
+                  "id": 120791,
+                  "name": "銀魂°",
+                  "name_cn": "银魂°",
+                  "rating": { "score": 8.2 },
+                  "infobox": [
+                    { "key": "别名", "value": [ { "v": "银魂 第3期" } ] }
+                  ]
+                }
+              ]
+            }
+            """.trimIndent()
+        ).jsonObject
+
+        val result = BangumiJsonMapper.parseSearchResults(root, "银魂 3 年 Z 班银八老师")
+
+        assertTrue("One shared franchise token should not pass the scrape threshold", result.single().confidence < 0.62f)
+    }
+
+    @Test
+    fun `parseSearchResults ignores generic numeric token overlap`() {
+        val root = json.parseToJsonElement(
+            """
+            {
+              "data": [
+                {
+                  "id": 53773,
+                  "name": "アタックNo.1",
+                  "name_cn": "排球甜心",
+                  "rating": { "score": 6.4 },
+                  "infobox": [
+                    { "key": "别名", "value": [ { "v": "Attack No.1" } ] }
+                  ]
+                }
+              ]
+            }
+            """.trimIndent()
+        ).jsonObject
+
+        val result = BangumiJsonMapper.parseSearchResults(root, "No 1 Sentai Gozyuger")
+
+        assertTrue("Generic no/1 overlap should not pass the scrape threshold", result.single().confidence < 0.62f)
+    }
+
+    @Test
+    fun `parseSearchResults rejects shared prefix tokens with unrelated suffixes`() {
+        val root = json.parseToJsonElement(
+            """
+            {
+              "data": [
+                {
+                  "id": 48352,
+                  "name": "仮面ライダーSD 怪奇!?クモ男",
+                  "name_cn": "假面骑士SD",
+                  "rating": { "score": 6.0 },
+                  "infobox": [
+                    { "key": "别名", "value": [ { "v": "Kamen Rider SD" } ] }
+                  ]
+                }
+              ]
+            }
+            """.trimIndent()
+        ).jsonObject
+
+        val result = BangumiJsonMapper.parseSearchResults(root, "Kamen Rider Zeztz")
+
+        assertTrue("Shared franchise prefix should not pass without the subtitle", result.single().confidence < 0.62f)
+    }
+
+    @Test
+    fun `parseSearchResults keeps related romanized tokens reliable`() {
+        val root = json.parseToJsonElement(
+            """
+            {
+              "data": [
+                {
+                  "id": 501796,
+                  "name": "魔法の姉妹ルルットリリィ",
+                  "name_cn": "魔法姐妹露露特莉莉",
+                  "rating": { "score": 6.5 },
+                  "infobox": [
+                    { "key": "别名", "value": [ { "v": "Magical Sisters Lulutto Lilly" } ] }
+                  ]
+                }
+              ]
+            }
+            """.trimIndent()
+        ).jsonObject
+
+        val result = BangumiJsonMapper.parseSearchResults(root, "Magical Sisters LuluttoLilly")
+
+        assertTrue(result.single().confidence >= 0.62f)
+    }
+
+    @Test
+    fun `parseSearchResults normalizes full width slash in romanized titles`() {
+        val root = json.parseToJsonElement(
+            """
+            {
+              "data": [
+                {
+                  "id": 443831,
+                  "name": "Fate/strange Fake",
+                  "name_cn": "Fate/strange Fake",
+                  "rating": { "score": 7.3 }
+                }
+              ]
+            }
+            """.trimIndent()
+        ).jsonObject
+
+        val result = BangumiJsonMapper.parseSearchResults(root, "Fate／strange Fake")
+
+        assertEquals("443831", result.single().animeId)
+        assertTrue(result.single().confidence > 0.9f)
+    }
+
+    @Test
     fun `parseSubject maps Bangumi subject metadata`() {
         val subject = json.parseToJsonElement(
             """
