@@ -29,38 +29,30 @@ class LogUploadScheduler @Inject constructor(
 
     init {
         MiruLog.setSink(localLogStore)
-        configObserverJob = scope.launch {
-            repository.observeConfig()
-                .map { it.enabled }
-                .distinctUntilChanged()
-                .collect { enabled ->
-                    val synced = scheduler.syncWithConfig(repository.getConfig())
-                    MiruLog.i(
-                        "LogUploadScheduler",
-                        if (enabled) {
-                            if (synced) "Log upload scheduler started from config"
-                            else "Log upload scheduler already running from config"
-                        } else {
-                            "Log upload scheduler stopped from config"
-                        },
-                        mapOf("log_upload_enabled" to enabled.toString()),
-                    )
-                }
-        }
     }
 
     fun startIfNeeded() {
-        val started = scheduler.syncWithConfig(repository.getConfig())
+        if (job?.isActive == true) {
+            MiruLog.d("LogUploadScheduler", "Log upload scheduler already running")
+            return
+        }
         MiruLog.i(
             "LogUploadScheduler",
-            if (repository.getConfig().enabled) {
-                if (started) "Log upload scheduler started"
-                else "Log upload scheduler already running"
-            } else {
-                "Log upload scheduler remains stopped (disabled in config)"
-            },
-            mapOf("upload_interval_ms" to LogUploadAutoScheduler.DEFAULT_INTERVAL_MILLIS.toString()),
+            "Log upload scheduler started",
+            mapOf("upload_interval_ms" to UPLOAD_INTERVAL_MS.toString())
         )
+        job = scope.launch {
+            while (isActive) {
+                repository.uploadPendingLogs()
+                delay(UPLOAD_INTERVAL_MS)
+            }
+        }
+    }
+
+    override fun close() {
+        MiruLog.i("LogUploadScheduler", "Log upload scheduler stopped")
+        job?.cancel()
+        job = null
     }
 
     override fun close() {
