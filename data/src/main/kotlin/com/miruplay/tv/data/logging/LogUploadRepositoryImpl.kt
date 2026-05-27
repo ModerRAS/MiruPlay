@@ -79,37 +79,59 @@ class LogUploadRepositoryImpl @Inject constructor(
     private fun uploadPendingLogsLocked(): LogUploadStatus {
         val config = preferences.getConfig()
         val token = credentials.otlpAccessToken.orEmpty()
-        if (!config.enabled) return@withContext currentStatus(isUploading = false)
-        if (config.endpoint.isBlank()) return@withContext updateStatus("请填写 OpenObserve API 地址")
-        if (token.isBlank()) return@withContext updateStatus("请填写 OpenObserve Token")
+        if (!config.enabled) return currentStatus(isUploading = false)
+        if (config.endpoint.isBlank()) return updateStatus("请填写 OpenObserve API 地址")
+        if (token.isBlank()) return updateStatus("请填写 OpenObserve Token")
 
         var uploadedCount = 0
         var batchCount = 0
 
         _status.value = currentStatus(isUploading = true)
-        val result = runCatching {
-            uploader.upload(config.endpoint, token, config.streamName, records)
-        }.getOrElse { error ->
-            OtlpLogUploader.UploadResult.Failed(error.message ?: error::class.simpleName.orEmpty())
-        }
-
-        when (result) {
-            is OtlpLogUploader.UploadResult.Success -> {
-                localLogStore.removeUploaded(records.map { it.id }.toSet())
-                MiruLog.i(
-                    "LogUploadRepository",
-                    "OpenObserve log upload succeeded",
-                    mapOf("uploaded_count" to result.uploadedCount.toString())
+        while (true) {
+            val records = localLogStore.readBatch(MAX_UPLOAD_BATCH)
+            if (records.isEmpty()) {
+                return updateStatus(
+                    if (uploadedCount > 0) {
+                        "已上报 $uploadedCount 条日志"
+                    } else {
+                        "没有待上报日志"
+                    }
                 )
-                updateStatus("已上报 ${result.uploadedCount} 条日志")
             }
-            is OtlpLogUploader.UploadResult.Failed -> {
-                MiruLog.w(
-                    "LogUploadRepository",
-                    "OpenObserve log upload failed",
-                    attributes = mapOf("failure_message" to result.message)
-                )
-                updateStatus("上报失败：${result.message}")
+
+            batchCount += 1
+            val result = runCatching {
+                uploader.upload(config.endpoint, token, config.streamName, records)
+            }.getOrElse { error ->
+                OtlpLogUploader.UploadResult.Failed(error.message ?: error::class.simpleName.orEmpty())
+            }
+
+            when (result) {
+                is OtlpLogUploader.UploadResult.Success -> {
+                    localLogStore.removeUploaded(records.map { it.id }.toSet())
+                    uploadedCount += records.size
+                    _status.value = currentStatus(isUploading = true)
+                }
+                is OtlpLogUploader.UploadResult.Failed -> {
+                    MiruLog.withoutSinkRecording {
+                        MiruLog.w(
+                            "LogUploadRepository",
+                            "OpenObserve log upload failed",
+                            attributes = mapOf(
+                                "failure_message" to result.message,
+                                "uploaded_count" to uploadedCount.toString(),
+                                "completed_batches" to (batchCount - 1).toString()
+                            )
+                        )
+                    }
+                    return updateStatus(
+                        if (uploadedCount > 0) {
+                            "已上报 $uploadedCount 条日志，后续上报失败：${result.message}"
+                        } else {
+                            "上报失败：${result.message}"
+                        }
+                    )
+                }
             }
         }
     }
