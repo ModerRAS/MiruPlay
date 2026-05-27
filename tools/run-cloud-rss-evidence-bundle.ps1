@@ -41,6 +41,7 @@ if (-not [string]::IsNullOrWhiteSpace($Filter)) {
 }
 
 Write-Warning 'This evidence bundle runs live-submit and organize smokes. It submits real CloudDrive offline downloads and can move real CloudDrive files.'
+Write-Warning 'This is Cloud/RSS evidence only. Run tools\verify-windows-port.ps1 -CompletionAudit after all Windows release evidence is collected.'
 
 & powershell.exe @args
 exit $LASTEXITCODE

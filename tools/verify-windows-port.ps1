@@ -55,7 +55,10 @@ param(
     [switch]$SkipCloudRssScheduler,
     [int]$CloudRssSchedulerDurationMs = 2000,
     [int]$CloudRssSchedulerCheckIntervalMs = 250,
-    [int]$CloudRssSchedulerRunAfterChecks = 2
+    [int]$CloudRssSchedulerRunAfterChecks = 2,
+    [switch]$CompletionAudit,
+    [switch]$AllowUnsignedCompletionInstaller,
+    [string]$CompletionAuditReportPath = "build\windows-port-audit\completion-audit.json"
 )
 
 $ErrorActionPreference = "Stop"
@@ -307,6 +310,41 @@ function Invoke-ToolScript {
     ) + $Arguments)
 }
 
+function Invoke-CompletionToolScript {
+    param(
+        [string]$ScriptName,
+        [string[]]$Arguments = @()
+    )
+
+    $scriptPath = Join-Path $toolsRoot $ScriptName
+    if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf)) {
+        throw "Tool script not found: $scriptPath"
+    }
+    $argumentSplat = @{}
+    for ($index = 0; $index -lt $Arguments.Count; $index++) {
+        $argumentName = $Arguments[$index]
+        if (-not $argumentName.StartsWith("-")) {
+            throw "Completion assertion argument must be named: $argumentName"
+        }
+        $key = $argumentName.TrimStart("-")
+        if (($index + 1) -lt $Arguments.Count -and -not $Arguments[$index + 1].StartsWith("-")) {
+            $argumentSplat[$key] = $Arguments[$index + 1]
+            $index++
+        } else {
+            $argumentSplat[$key] = $true
+        }
+    }
+    try {
+        & $scriptPath @argumentSplat
+    } catch {
+        $details = $_.Exception.Message
+        if ([string]::IsNullOrWhiteSpace($details)) {
+            $details = [string]$_
+        }
+        throw "$ScriptName failed.`n$details"
+    }
+}
+
 function Invoke-CloudRssSmokeAndAssert {
     param(
         [string]$StepName,
@@ -380,6 +418,259 @@ function Invoke-CloudRssSmokeAndAssert {
         }
         Invoke-ToolScript -ScriptName "assert-cloud-rss-report.ps1" -Arguments $assertArgs
     }
+}
+
+function Resolve-RepoRelativePath {
+    param([string]$Path)
+
+    if ([System.IO.Path]::IsPathRooted($Path)) {
+        return [System.IO.Path]::GetFullPath($Path)
+    }
+    return [System.IO.Path]::GetFullPath((Join-Path $repoRoot $Path))
+}
+
+function Get-CompletionLatestReportPath {
+    param(
+        [string]$PointerPath,
+        [string]$EvidenceName
+    )
+
+    $resolvedPointerPath = Resolve-RepoRelativePath -Path $PointerPath
+    if (-not (Test-Path -LiteralPath $resolvedPointerPath -PathType Leaf)) {
+        throw "$EvidenceName latest-report pointer was not found: $resolvedPointerPath"
+    }
+    $reportPath = [System.IO.File]::ReadAllText($resolvedPointerPath, [System.Text.Encoding]::UTF8).Trim()
+    if ([string]::IsNullOrWhiteSpace($reportPath)) {
+        throw "$EvidenceName latest-report pointer is empty: $resolvedPointerPath"
+    }
+    return Resolve-RepoRelativePath -Path $reportPath
+}
+
+function Add-CompletionProblem {
+    param(
+        [System.Collections.Generic.List[object]]$Problems,
+        [string]$Name,
+        [string]$Message,
+        [string]$Guidance
+    )
+
+    $Problems.Add([pscustomobject]@{
+        Name = $Name
+        Message = $Message
+        Guidance = $Guidance
+    }) | Out-Null
+}
+
+function Invoke-CompletionEvidenceCheck {
+    param(
+        [System.Collections.Generic.List[object]]$Problems,
+        [System.Collections.Generic.List[object]]$Results,
+        [string]$Name,
+        [string]$Guidance,
+        [scriptblock]$Action
+    )
+
+    try {
+        & $Action
+        $Results.Add([pscustomobject]@{
+            Name = $Name
+            Status = "PASS"
+            Message = ""
+            Guidance = $Guidance
+        }) | Out-Null
+        Write-Host "Completion evidence present: $Name"
+    } catch {
+        $message = $_.Exception.Message
+        $Results.Add([pscustomobject]@{
+            Name = $Name
+            Status = "FAIL"
+            Message = $message
+            Guidance = $Guidance
+        }) | Out-Null
+        Add-CompletionProblem -Problems $Problems -Name $Name -Message $message -Guidance $Guidance
+    }
+}
+
+function Invoke-WindowsPortCompletionAudit {
+    $problems = New-Object 'System.Collections.Generic.List[object]'
+    $results = New-Object 'System.Collections.Generic.List[object]'
+    $requiredRifeBackends = if ([string]::IsNullOrWhiteSpace($RequiredRifeReportBackends)) {
+        $RequiredRifeBackends
+    } else {
+        $RequiredRifeReportBackends
+    }
+
+    Invoke-CompletionEvidenceCheck -Problems $problems -Results $results -Name "Packaged WebUI smoke report" -Guidance "Run .\tools\verify-windows-port.ps1 without -SkipGradle, then keep desktop-app\build\web-control-smoke\desktop-web-control-smoke.json with the release evidence." -Action {
+        Invoke-CompletionToolScript -ScriptName "assert-desktop-web-control-smoke-report.ps1" -Arguments @(
+            "-ReportPath",
+            (Join-Path $repoRoot "desktop-app\build\web-control-smoke\desktop-web-control-smoke.json")
+        )
+    }
+
+    Invoke-CompletionEvidenceCheck -Problems $problems -Results $results -Name "Bangumi live scraper report" -Guidance "Run .\gradlew.bat :scraper-desktop:test :scraper-desktop:smokeBangumiLive -PbangumiSmokeReportPath=build\bangumi-smoke\live-report.json, then assert it with tools\assert-bangumi-live-report.ps1." -Action {
+        Invoke-CompletionToolScript -ScriptName "assert-bangumi-live-report.ps1" -Arguments @(
+            "-ReportPath",
+            (Join-Path $repoRoot "build\bangumi-smoke\live-report.json")
+        )
+    }
+
+    Invoke-CompletionEvidenceCheck -Problems $problems -Results $results -Name "Full desktop behavior report" -Guidance "Run .\tools\verify-windows-port.ps1 -Behavior -BehaviorTags full on Windows and keep build\desktop-behavior\latest-report.txt plus the referenced report/screenshots." -Action {
+        $behaviorReportPath = Get-CompletionLatestReportPath -PointerPath "build\desktop-behavior\latest-report.txt" -EvidenceName "Desktop behavior"
+        Invoke-CompletionToolScript -ScriptName "assert-desktop-behavior-report.ps1" -Arguments @(
+            "-ReportPath",
+            $behaviorReportPath,
+            "-RequiredTags",
+            "full",
+            "-RequiredScenarios",
+            "desktop-full",
+            "-RequiredSteps",
+            "source-management,local-source,webdav-source,bangumi-metadata,keyboard-focus-cloud-rss,mpv-launch"
+        )
+    }
+
+    Invoke-CompletionEvidenceCheck -Problems $problems -Results $results -Name "Android TV device smoke report" -Guidance "Run .\tools\verify-windows-port.ps1 -AndroidTv -AndroidDeviceId <android-tv-device-id> against the TV target and keep build\android-tv-qa\latest-report.txt plus screenshots/XML." -Action {
+        $androidTvReportPath = Get-CompletionLatestReportPath -PointerPath "build\android-tv-qa\latest-report.txt" -EvidenceName "Android TV"
+        Invoke-CompletionToolScript -ScriptName "assert-android-tv-smoke-report.ps1" -Arguments @(
+            "-ReportPath",
+            $androidTvReportPath
+        )
+    }
+
+    Invoke-CompletionEvidenceCheck -Problems $problems -Results $results -Name "Prepared mpv/RIFE runtime payload" -Guidance "Prepare runtime\mpv with tools\prepare-mpv-runtime.ps1 or supply -MpvRuntimeSource, then run -MpvRuntime -PackagedMpvRuntime -NativeAppImage." -Action {
+        $runtimeRoot = Resolve-RepoRelativePath -Path $MpvRuntimeSource
+        foreach ($entry in @(
+            @((Join-Path $runtimeRoot "mpv.exe"), "Leaf"),
+            @((Join-Path $runtimeRoot "portable_config"), "Container"),
+            @((Join-Path $runtimeRoot "runtime-manifest.json"), "Leaf")
+        )) {
+            $path = [string]$entry[0]
+            $pathType = [string]$entry[1]
+            if (-not (Test-Path -LiteralPath $path -PathType $pathType)) {
+                throw "Missing runtime evidence: $path"
+            }
+        }
+    }
+
+    Invoke-CompletionEvidenceCheck -Problems $problems -Results $results -Name "Target-host RIFE matrix report" -Guidance "Run .\tools\verify-windows-port.ps1 -Rife -RifeBackend ALL -RequiredRifeReportBackends $requiredRifeBackends on target Windows hardware with a prepared runtime." -Action {
+        Invoke-CompletionToolScript -ScriptName "assert-mpv-rife-report.ps1" -Arguments @(
+            "-ReportPath",
+            (Join-Path $repoRoot "build\mpv-smoke\rife-matrix-report.json"),
+            "-RequiredBackends",
+            $requiredRifeBackends,
+            "-RequireRuntimeManifest"
+        )
+    }
+
+    Invoke-CompletionEvidenceCheck -Problems $problems -Results $results -Name "CloudDrive2 live report" -Guidance "Run .\tools\verify-windows-port.ps1 -CloudDrive -CloudDriveEndpoint <url> -CloudDriveToken <token> -CloudDrivePath $CloudDrivePath -RequireCloudDriveOfflinePermission against a real test server." -Action {
+        Invoke-CompletionToolScript -ScriptName "assert-cloud-drive-report.ps1" -Arguments @(
+            "-ReportPath",
+            (Join-Path $repoRoot "build\cloud-drive-smoke\cloud-drive-report.json"),
+            "-RequiredPath",
+            $CloudDrivePath,
+            "-RequireOfflinePermission"
+        )
+    }
+
+    Invoke-CompletionEvidenceCheck -Problems $problems -Results $results -Name "CloudDrive RSS dry-run report" -Guidance "Run .\tools\verify-windows-port.ps1 -CloudRssDryRun with endpoint/token/RSS URL/inbox/library and -RequireCloudRssCandidates." -Action {
+        Invoke-CompletionToolScript -ScriptName "assert-cloud-rss-report.ps1" -Arguments @(
+            "-ReportPath",
+            (Join-Path $repoRoot "build\cloud-rss-smoke\dry-run-report.json"),
+            "-RequiredInbox",
+            $CloudRssInbox,
+            "-RequiredLibrary",
+            $CloudRssLibrary,
+            "-RequireCandidates",
+            "-RequireOfflinePermission"
+        )
+    }
+
+    Invoke-CompletionEvidenceCheck -Problems $problems -Results $results -Name "CloudDrive RSS live-submit report" -Guidance "Run .\tools\verify-windows-port.ps1 -CloudRssLiveSubmit -ConfirmCloudRssLiveSubmit with endpoint/token/RSS URL/inbox/library." -Action {
+        Invoke-CompletionToolScript -ScriptName "assert-cloud-rss-report.ps1" -Arguments @(
+            "-ReportPath",
+            (Join-Path $repoRoot "build\cloud-rss-smoke\live-submit-report.json"),
+            "-RequiredInbox",
+            $CloudRssInbox,
+            "-RequiredLibrary",
+            $CloudRssLibrary,
+            "-RequireCandidates",
+            "-RequireLiveSubmit",
+            "-RequireOfflinePermission"
+        )
+    }
+
+    Invoke-CompletionEvidenceCheck -Problems $problems -Results $results -Name "CloudDrive RSS organize report" -Guidance "Run .\tools\verify-windows-port.ps1 -CloudRssOrganize -ConfirmCloudRssOrganize with endpoint/token/RSS URL/inbox/library after live-submit evidence exists." -Action {
+        Invoke-CompletionToolScript -ScriptName "assert-cloud-rss-report.ps1" -Arguments @(
+            "-ReportPath",
+            (Join-Path $repoRoot "build\cloud-rss-smoke\organize-report.json"),
+            "-RequiredInbox",
+            $CloudRssInbox,
+            "-RequiredLibrary",
+            $CloudRssLibrary,
+            "-RequireOrganize",
+            "-RequireOfflinePermission"
+        )
+    }
+
+    Invoke-CompletionEvidenceCheck -Problems $problems -Results $results -Name "CloudDrive RSS scheduler report" -Guidance "Run .\tools\verify-windows-port.ps1 without -SkipCloudRssScheduler and keep build\cloud-rss-smoke\scheduler-report.json." -Action {
+        Invoke-CompletionToolScript -ScriptName "assert-cloud-rss-scheduler-report.ps1" -Arguments @(
+            "-ReportPath",
+            (Join-Path $repoRoot "build\cloud-rss-smoke\scheduler-report.json"),
+            "-MinRunCount",
+            "1",
+            "-MinChecksObserved",
+            "$CloudRssSchedulerRunAfterChecks"
+        )
+    }
+
+    Invoke-CompletionEvidenceCheck -Problems $problems -Results $results -Name "Windows installer report" -Guidance "Run .\tools\verify-windows-port.ps1 -WindowsInstaller -SignWindowsInstaller with WiX, signtool, and release signing inputs. Use -AllowUnsignedCompletionInstaller only for local QA audits." -Action {
+        $assertArgs = @(
+            "-ReportPath",
+            (Join-Path $repoRoot "desktop-app\build\jpackage\smoke\windows-installer-smoke.json"),
+            "-RequiredInstallerType",
+            $WindowsInstallerType
+        )
+        if (-not [string]::IsNullOrWhiteSpace($WindowsPackageVersion)) {
+            $assertArgs += "-RequiredAppVersion"
+            $assertArgs += $WindowsPackageVersion
+        }
+        if ($AllowUnsignedCompletionInstaller) {
+            $assertArgs += "-RequireUnsigned"
+        } else {
+            $assertArgs += "-RequireSigned"
+        }
+        Invoke-CompletionToolScript -ScriptName "assert-windows-installer-report.ps1" -Arguments $assertArgs
+    }
+
+    $auditStatus = if ($problems.Count -gt 0) { "failed" } else { "passed" }
+    $resolvedCompletionAuditReportPath = Resolve-RepoRelativePath -Path $CompletionAuditReportPath
+    $completionAuditReportDirectory = Split-Path -Parent $resolvedCompletionAuditReportPath
+    if (-not (Test-Path -LiteralPath $completionAuditReportDirectory -PathType Container)) {
+        New-Item -ItemType Directory -Path $completionAuditReportDirectory -Force | Out-Null
+    }
+    $evidenceResults = @($results.ToArray())
+    $requiresSignedInstaller = -not [bool]$AllowUnsignedCompletionInstaller
+    [pscustomobject]@{
+        generatedAtUtc = [DateTime]::UtcNow.ToString("o")
+        status = $auditStatus
+        requiredRifeBackends = $requiredRifeBackends
+        mpvRuntimeSource = (Resolve-RepoRelativePath -Path $MpvRuntimeSource)
+        windowsInstallerType = $WindowsInstallerType
+        requiresSignedInstaller = $requiresSignedInstaller
+        evidence = $evidenceResults
+    } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $resolvedCompletionAuditReportPath -Encoding UTF8
+    Write-Host "Wrote completion audit report: $resolvedCompletionAuditReportPath"
+
+    if ($problems.Count -gt 0) {
+        Write-Host ""
+        Write-Host "Windows port completion audit failed. Missing or invalid evidence:"
+        foreach ($problem in $problems) {
+            Write-Host (" - {0}: {1}" -f $problem.Name, $problem.Message)
+            Write-Host ("   Next: {0}" -f $problem.Guidance)
+        }
+        throw "Windows port completion audit failed: $($problems.Count) required evidence item(s) are missing or invalid."
+    }
+
+    Write-Host "Windows port completion audit passed."
 }
 
 $defaultGradleTasks = @(
@@ -746,6 +1037,14 @@ try {
         }
     } else {
         Write-Host "CloudDrive RSS scheduler smoke skipped because -SkipCloudRssScheduler was supplied."
+    }
+
+    if ($CompletionAudit) {
+        Invoke-Step -Name "Windows port completion evidence audit" -Action {
+            Invoke-WindowsPortCompletionAudit
+        }
+    } else {
+        Write-Host "Windows port completion evidence audit skipped. Run with -CompletionAudit to prove the full release evidence set is present."
     }
 } finally {
     Pop-Location

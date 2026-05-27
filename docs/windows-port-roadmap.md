@@ -544,6 +544,7 @@ Verification:
 
 # One-command evidence bundle (dry-run + live-submit + organize + assertions).
 # This submits real offline downloads and can move real CloudDrive files:
+# This is Cloud/RSS evidence only; it does not replace the strict completion audit.
 .\tools\run-cloud-rss-evidence-bundle.ps1 `
   -Endpoint <endpoint> `
   -Token <token> `
@@ -555,6 +556,7 @@ Verification:
 
 # One-command CloudDrive + RSS evidence bundle (CloudDrive live + RSS dry-run/live-submit/organize + assertions).
 # This submits real offline downloads and can move real CloudDrive files:
+# This is Cloud/RSS parity evidence only; it does not replace the strict completion audit.
 .\tools\run-cloud-parity-evidence-bundle.ps1 `
   -Endpoint <endpoint> `
   -Token <token> `
@@ -594,6 +596,7 @@ Verification:
 - [x] Add JSON-driven desktop behavior smoke to the Windows CI/nightly gate, assert its `report.json`/screenshot evidence, and upload that evidence separately from release ZIP artifacts.
 - [x] Add packaged Windows WebUI HTTP smoke to the Windows CI/nightly gate, assert its token-free JSON evidence, and upload the report.
 - [x] Write, assert, and upload Cloud/RSS scheduler JSON evidence in the shared JVM CI gate.
+- [x] Add a strict local completion evidence audit that writes `build/windows-port-audit/completion-audit.json` and fails instead of letting the safe default verifier be mistaken for full Windows completion.
 - [ ] Run RIFE matrix on target hardware; DirectML is target-host validation, NVIDIA depends on CUDA/TensorRT driver compatibility, Standard requires a plugin decision.
 - [x] Keep CI green for Android and desktop/shared JVM gates on the active Windows port branch.
 
@@ -683,6 +686,13 @@ Verification:
   -RequireRuntimeManifest `
   -AllowFailures
 
+# Strict read-only completion audit. This writes
+# build/windows-port-audit/completion-audit.json and fails until the full
+# evidence set above exists and passes the matching assertion scripts. It does
+# not run live hardware/service actions. Use -AllowUnsignedCompletionInstaller
+# only for local QA, not for release completion.
+.\tools\verify-windows-port.ps1 -CompletionAudit
+
 .\gradlew.bat :app:assembleDebug
 .\gradlew.bat checkDesktopComposeOnly checkDesktopPresenterSeparation checkUiPaletteDrift `
   :core:model:test :media-source-api:test :metadata-core:test :repository-api:test :cloud-drive-api:test :sync-engine-shared:test `
@@ -719,4 +729,4 @@ Verification:
 1. Run real CloudDrive2 dry-run/live QA and record token-free evidence for sync and organize (preferred one-command entry: `tools/run-cloud-parity-evidence-bundle.ps1`).
 2. Run RIFE backend matrix on target Windows hardware with the packaged runtime and record the JSON report, including manifest evidence via `-RequireRuntimeManifest`.
 3. Continue narrowing deeper desktop-vs-Android-TV UI gaps beyond the first screens, especially less-traveled keyboard/DPAD focus paths outside the now-covered Android TV Settings category/page traversal, Settings summary quick-action rows, source-management local/remote fields plus actions and remote editor/browser focus bridge, Cloud/RSS credential/sync/RSS edit fields plus action/toggle/subscription rows, desktop route rail, Library header action row, Library poster wall/highest-heat/recent shelves/search row/source bridge, Details hero actions, Details hero-to-episodes/recents/Bangumi/media-details fallback plus episode-shelf season selector, remote browser list including parent navigation, Player stage/settings/runtime focus bridge, saved-source card movement, and Bangumi metadata action grid/apply-clear flow.
-4. Use `tools/verify-windows-port.ps1` as the local gate before pushes; add `-Behavior` when you want the local gate to match the Windows CI JSON-driven behavior smoke. GitHub Actions also runs the base gate plus asserted Cloud/RSS scheduler evidence on `codex/**` pushes, and the Windows runner runs and asserts packaged WebUI plus behavior evidence for PR/branch/nightly runs. Keep SMB, live CloudDrive/RSS, and RIFE checks opt-in so the shared SMB folder, real CloudDrive server, and low-capability local host are not touched by default.
+4. Use `tools/verify-windows-port.ps1` as the local gate before pushes; add `-Behavior` when you want the local gate to match the Windows CI JSON-driven behavior smoke, and add `-CompletionAudit` only when you are checking whether the release evidence set is actually complete. GitHub Actions also runs the base gate plus asserted Cloud/RSS scheduler evidence on `codex/**` pushes, and the Windows runner runs and asserts packaged WebUI plus behavior evidence for PR/branch/nightly runs. Keep SMB, live CloudDrive/RSS, and RIFE checks opt-in so the shared SMB folder, real CloudDrive server, and low-capability local host are not touched by default.
