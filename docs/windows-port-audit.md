@@ -286,13 +286,13 @@ carrying them inside Compose panels.
 
 ## Prompt-to-Artifact Completion Matrix
 
-Current Android TV device evidence is `build/android-tv-qa/run-20260527-122117`;
+Current Android TV device evidence is `build/android-tv-qa/run-20260527-122708`;
 older `build/android-tv-qa/run-20260520-190519` paths in the narrative below
 are historical references only.
 
 | Objective deliverable | Concrete artifacts inspected | Verification evidence | Remaining gap |
 |---|---|---|---|
-| Keep the original Android TV app working | `app/src/main/kotlin/com/miruplay/tv/MainActivity.kt`, `ui-tv/`, Android Gradle modules, `tools/smoke-android-tv-ui.ps1` | `.\gradlew.bat :app:assembleDebug -PbundleMpvRuntime=false` passed in the latest preservation check. `tools/smoke-android-tv-ui.ps1 -KeepAppData` installed the debug APK on device `<android-tv-device-id>`, generated seven playable MP4/NFO fixture shows, pushed them under `/sdcard/Movies`, launched with `test_local_path` and a unique `test_local_name`, scanned the fixture, verified Library -> Details -> Player -> Library Back behavior, entered Settings, opened the media-source panel, proved source-card focus/edit behavior, removed only the current smoke source without clearing unrelated app data, then visited Playback, CloudDrive, Scan, and Metadata settings with matching menu focus. The current evidence is `build/android-tv-qa/run-20260527-122117/android-tv-smoke-report.json` with 16 screenshots and 17 XML dumps. | Broader TV-device regression still needs manual coverage for less-traveled focus paths. |
+| Keep the original Android TV app working | `app/src/main/kotlin/com/miruplay/tv/MainActivity.kt`, `ui-tv/`, Android Gradle modules, `tools/smoke-android-tv-ui.ps1` | `.\gradlew.bat :app:assembleDebug -PbundleMpvRuntime=false` passed in the latest preservation check. `tools/smoke-android-tv-ui.ps1 -KeepAppData` installed the debug APK on device `<android-tv-device-id>`, generated seven playable MP4/NFO fixture shows, pushed them under `/sdcard/Movies`, launched with `test_local_path` and a unique `test_local_name`, scanned the fixture, verified Library -> Details -> Player -> Library Back behavior, entered Settings, opened the media-source panel, proved source-card focus/edit behavior, removed only the current smoke source without clearing unrelated app data, then visited Playback, CloudDrive, Scan, and Metadata settings with matching menu focus. The current evidence is `build/android-tv-qa/run-20260527-122708/android-tv-smoke-report.json` with 16 screenshots and 17 XML dumps. | Broader TV-device regression still needs manual coverage for less-traveled focus paths. |
 | Add a Windows desktop entry | `desktop-app/build.gradle.kts`, `MiruPlayDesktopComposeApp.kt`, `.github/workflows/ci.yml` | `mainClass` points to `com.miruplay.tv.desktop.MiruPlayDesktopComposeAppKt`; the native window title now uses the TV-facing `MiruPlay 桌面版` copy; the app-image gate launches `MiruPlay.exe --miruplay-desktop-smoke` and validates a JSON report for entry point, window title, start section, and bundled runtime paths; the new installer gate can build MSI/EXE artifacts from that verified app image when WiX is available and records SHA256/size/signing evidence, with `tools/assert-windows-installer-report.ps1` checking that report against the generated artifact; CI now uploads a versioned lightweight Windows desktop ZIP from `windows-latest`, runs `:desktop-app:desktopWebControlSmoke -PbundleMpvRuntime=false` plus `:desktop-app:desktopBehaviorTest -PdesktopBehaviorTags=smoke -PbundleMpvRuntime=false`, and uploads WebUI smoke evidence plus behavior report/screenshots; nightly main/master releases attach the same-version ZIP alongside the Android APK; `:desktop-app:test`, lightweight `:desktop-app:installDist -PbundleMpvRuntime=false`, lightweight `:desktop-app:distZip -PwindowsPackageVersion=2026.05.24 -PbundleMpvRuntime=false`, packaged WebUI smoke `:desktop-app:desktopWebControlSmoke -PbundleMpvRuntime=false` with report `desktop-app/build/web-control-smoke/desktop-web-control-smoke.json`, latest local full behavior smoke `:desktop-app:desktopBehaviorTest -PdesktopBehaviorTags=full -PbundleMpvRuntime=false` with report `build/desktop-behavior/run-20260527-111726/report.json`, full `:desktop-app:smokePackagedMpvRuntime -PmpvRuntimeSource=runtime\mpv -PrequireMpvRuntime=true -PrequiredRifeBackends=NVIDIA,DIRECTML`, and native `:desktop-app:smokeNativeAppImageRuntime -PmpvRuntimeSource=runtime\mpv -PrequireMpvRuntime=true -PrequiredRifeBackends=NVIDIA,DIRECTML` pass when a prepared runtime source is supplied. | Signed release installer still needs release signing inputs and toolchain evidence. |
 | Use Compose-family UI on both targets | Android remains Compose/Compose TV; desktop default entry is Compose Multiplatform Desktop | `desktop-app` applies Compose plugins, `application.mainClass` points at `MiruPlayDesktopComposeAppKt`, screenshot QA launches the Compose entry, the old Swing shell has been removed from production sources, and root `checkDesktopComposeOnly` fails if Swing UI imports/classes or `coroutines-swing` return. | Covered structurally; full Android-TV-vs-desktop screen parity is tracked separately. |
 | Preserve media management capabilities on desktop | `media-source-desktop`, `scanner-desktop`, `repository-api`, `repository-desktop`, `scraper-desktop`, `sync-engine-desktop`, `cloud-drive-desktop`, Compose Library/Details/Settings panels | Unit and integration coverage now includes shared display/subtitle/index/batch planning helpers, desktop details rows, playback progress, RSS scheduler, CloudDrive gRPC client, RSS offline submission through real `GrpcCloudDriveClient`, and remote playback command security that keeps WebDAV/SMB hosts and credentials out of mpv command lines. | Real CloudDrive2 server live QA remains open for token validation, offline submission, torrent staging, and organization. |
@@ -318,7 +318,7 @@ a live CloudDrive2 environment.
 
 | Requirement | Current evidence | Status |
 |---|---|---|
-| Android TV remains buildable | `.\gradlew.bat :app:assembleDebug -PbundleMpvRuntime=false` passed in the latest preservation check after the desktop port work. `.\tools\smoke-android-tv-ui.ps1 -KeepAppData` also installed and launched the debug APK on device `<android-tv-device-id>`, recording `build/android-tv-qa/run-20260527-122117`. | Covered for debug build and current device smoke |
+| Android TV remains buildable | `.\gradlew.bat :app:assembleDebug -PbundleMpvRuntime=false` passed in the latest preservation check after the desktop port work. `.\tools\smoke-android-tv-ui.ps1 -KeepAppData` also installed and launched the debug APK on device `<android-tv-device-id>`, recording `build/android-tv-qa/run-20260527-122708`. | Covered for debug build and current device smoke |
 | Android TV uses Compose TV | Existing Android app remains `MainActivity` + Compose navigation and `ui-tv` Compose/TV screens. | Covered structurally |
 | Windows desktop entry exists | `:desktop-app` JVM application now points `mainClass` at `com.miruplay.tv.desktop.MiruPlayDesktopComposeAppKt`; `MiruPlayDesktopComposeApp.kt` is a Compose Desktop window. | Covered structurally |
 | Windows UI uses Compose Desktop | `desktop-app` applies `org.jetbrains.compose` and `org.jetbrains.kotlin.plugin.compose`; the default entry renders local library source/scan/search, WebDAV/SMB open/browse/scan, single-item Bangumi search/apply/clear, batch Bangumi preview/apply/undo, continue-watching recents, mpv runtime, RIFE, command preview, Launch/Stop controls, and CloudDrive2/RSS automation with Compose Material 3. | Covered for core desktop workflow |
@@ -603,7 +603,7 @@ release evidence set is present.
 | Cloud/RSS scheduler | `build/cloud-rss-smoke/scheduler-report.json` | Present in current checkout |
 | Bangumi live scraper | `build/bangumi-smoke/live-report.json` | Present in current checkout |
 | Older standalone GUI screenshot directories cited below | `build/desktop-*-ui/run-20260520-*`, `build/desktop-ui-qa`, `build/android-tv-qa/run-20260520-190519` | Historical references; not present in this clean checkout and should not be treated as current proof |
-| Android TV device smoke latest pointer | `build/android-tv-qa/latest-report.txt` | Present; points to `build/android-tv-qa/run-20260527-122117/android-tv-smoke-report.json` with 16 screenshots and 17 XML dumps |
+| Android TV device smoke latest pointer | `build/android-tv-qa/latest-report.txt` | Present; points to `build/android-tv-qa/run-20260527-122708/android-tv-smoke-report.json` with 16 screenshots and 17 XML dumps |
 | Prepared mpv/RIFE runtime payload | `runtime/mpv/mpv.exe`, `runtime/mpv/runtime-manifest.json` | Missing; tracked directory is only a placeholder |
 | Target-host RIFE matrix | `build/mpv-smoke/rife-matrix-report.json` | Missing current target-host evidence |
 | CloudDrive2 live/RSS dry-run/live-submit/organize | `build/cloud-drive-smoke/cloud-drive-report.json`, `build/cloud-rss-smoke/{dry-run,live-submit,organize}-report.json` | Missing current real-service evidence |
@@ -619,7 +619,7 @@ release evidence set is present.
 .\tools\verify-windows-port.ps1 -Behavior
 .\tools\verify-windows-port.ps1 -Behavior -BehaviorTags full
 .\tools\verify-windows-port.ps1 -RealLibrary -RealLibraryRoot 'D:\Software\dufs'
-.\tools\verify-windows-port.ps1 -AndroidTv -AndroidDeviceId <android-tv-device-id>
+.\tools\verify-windows-port.ps1 -AndroidTv -AndroidDeviceId <android-tv-device-id> -KeepAndroidAppData
 .\tools\verify-windows-port.ps1 -Smb
 .\tools\verify-windows-port.ps1 -MpvRuntime -PackagedMpvRuntime -NativeAppImage
 .\tools\verify-windows-port.ps1 -Rife -RifeBackend ALL -AllowRifeFailures
@@ -809,7 +809,7 @@ release evidence set is present.
 .\tools\smoke-android-tv-ui.ps1 -DeviceId <android-tv-device-id>
 
 .\tools\assert-android-tv-smoke-report.ps1 `
-  -ReportPath .\build\android-tv-qa\run-20260527-122117\android-tv-smoke-report.json `
+  -ReportPath .\build\android-tv-qa\run-20260527-122708\android-tv-smoke-report.json `
   -RequiredDeviceId <android-tv-device-id>
 
 .\gradlew.bat checkDesktopComposeOnly

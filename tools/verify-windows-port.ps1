@@ -11,6 +11,7 @@ param(
     [string]$RealLibraryRoot = "D:\Software\dufs",
     [switch]$AndroidTv,
     [string]$AndroidDeviceId = "",
+    [switch]$KeepAndroidAppData,
     [switch]$Smb,
     [switch]$MpvRuntime,
     [switch]$PackagedMpvRuntime,
@@ -528,7 +529,7 @@ function Invoke-WindowsPortCompletionAudit {
         )
     }
 
-    Invoke-CompletionEvidenceCheck -Problems $problems -Results $results -Name "Android TV device smoke report" -Guidance "Run .\tools\verify-windows-port.ps1 -AndroidTv -AndroidDeviceId <android-tv-device-id> against the TV target and keep build\android-tv-qa\latest-report.txt plus screenshots/XML." -Action {
+    Invoke-CompletionEvidenceCheck -Problems $problems -Results $results -Name "Android TV device smoke report" -Guidance "Run .\tools\verify-windows-port.ps1 -AndroidTv -AndroidDeviceId <android-tv-device-id> against the TV target and keep build\android-tv-qa\latest-report.txt plus screenshots/XML. Add -KeepAndroidAppData when the target already contains data that must not be cleared." -Action {
         $androidTvReportPath = Get-CompletionLatestReportPath -PointerPath "build\android-tv-qa\latest-report.txt" -EvidenceName "Android TV"
         Invoke-CompletionToolScript -ScriptName "assert-android-tv-smoke-report.ps1" -Arguments @(
             "-ReportPath",
@@ -908,10 +909,14 @@ try {
         }
         Invoke-Step -Name "Android TV emulator smoke" -Action {
             Invoke-Native -FilePath "adb" -Arguments @("connect", $AndroidDeviceId)
-            Invoke-ToolScript -ScriptName "smoke-android-tv-ui.ps1" -Arguments @(
+            $androidTvSmokeArgs = @(
                 "-DeviceId",
                 $AndroidDeviceId
             )
+            if ($KeepAndroidAppData) {
+                $androidTvSmokeArgs += "-KeepAppData"
+            }
+            Invoke-ToolScript -ScriptName "smoke-android-tv-ui.ps1" -Arguments $androidTvSmokeArgs
             $androidTvLatestReport = Join-Path $repoRoot "build\android-tv-qa\latest-report.txt"
             if (-not (Test-Path -LiteralPath $androidTvLatestReport -PathType Leaf)) {
                 throw "Android TV smoke did not write latest report pointer: $androidTvLatestReport"
