@@ -586,18 +586,21 @@ and the Android/desktop compile/separation gate in build `b-265`.
 Latest local safe Windows-port verifier passed on 2026-05-27 with
 `.\tools\verify-windows-port.ps1 -SkipGradle -SkipCloudRssScheduler -Behavior -BehaviorTags full`;
 it covered the JSON-driven full desktop behavior smoke and produced
-`build/desktop-behavior/run-20260527-111726/report.json`. The latest local
-unsigned completion audit also passed packaged WebUI, Bangumi live scraper,
-full desktop behavior, Android TV device smoke, prepared mpv/RIFE runtime,
-Cloud/RSS scheduler evidence, and the bundled-runtime SFX EXE installer report,
-then failed as expected on the 5 remaining target/live-service evidence items
-listed below. Strict release completion still also requires signed installer
-evidence instead of the local unsigned SFX report. Separately,
-`.\gradlew.bat :app:assembleDebug -PbundleMpvRuntime=false` passed. Packaged
-WebUI smoke passed in Gradle MCP build `b-24`; its local report is
-`desktop-app/build/web-control-smoke/desktop-web-control-smoke.json`. Bangumi
-live scraper smoke passed in Gradle MCP build `b-27`; its root-relative report
-is `build/bangumi-smoke/live-report.json` and is validated by
+`build/desktop-behavior/run-20260527-111726/report.json`. The latest
+master-safe local Gradle gate passed on `master` in Gradle MCP build `b-1`
+with 264 tests passed, 0 failed, `:desktop-app:desktopWebControlSmoke` passed,
+and 493 actionable tasks completed in 3m 2s; that command covered
+`:app:assembleDebug`, the desktop Compose/presenter/palette checks, shared
+JVM module tests, desktop module tests, `:desktop-app:installDist`, and packaged
+WebUI smoke with `-PbundleMpvRuntime=false`. The latest local unsigned
+completion audit also passed packaged WebUI, Bangumi live scraper, full desktop
+behavior, Android TV device smoke, prepared mpv/RIFE runtime, Cloud/RSS
+scheduler evidence, and the bundled-runtime SFX EXE installer report, then
+failed as expected on the 5 remaining target/live-service evidence items listed
+below. Strict release completion still also requires signed installer evidence
+instead of the local unsigned SFX report. Bangumi live scraper smoke passed in
+Gradle MCP build `b-27`; its root-relative report is
+`build/bangumi-smoke/live-report.json` and is validated by
 `tools/assert-bangumi-live-report.ps1`.
 
 ### Current Evidence Manifest
@@ -615,6 +618,7 @@ and scans its own JSON output for obvious credential material before returning.
 
 | Evidence item | Current path | Current state |
 |---|---|---|
+| Master-safe local Gradle gate | Gradle MCP build `b-1` | Passed on `master`; 264 tests passed, 0 failed, `:desktop-app:desktopWebControlSmoke` passed, 493 actionable tasks, 3m 2s |
 | Packaged WebUI smoke | `desktop-app/build/web-control-smoke/desktop-web-control-smoke.json` | Present in current checkout |
 | Desktop behavior smoke | `build/desktop-behavior/run-20260527-111726/report.json` | Present for `full`; validates source-management, local, WebDAV, Bangumi, keyboard/Cloud-RSS, and mpv-launch steps |
 | Cloud/RSS scheduler | `build/cloud-rss-smoke/scheduler-report.json` | Present in current checkout |
