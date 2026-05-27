@@ -58,7 +58,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
@@ -204,19 +203,41 @@ fun PlayerScreen(
             .focusable()
             .onPreviewKeyEvent { event ->
                 handlePlayerKey(
-                    event = event,
+                    key = event.key,
+                    type = event.type,
                     controlsVisible = controlsVisible,
                     hasOpenMenu = openMenu != null,
-                    viewModel = viewModel,
-                    onCloseMenu = {
-                        openMenu = null
-                        viewModel.showControls()
-                    },
-                    onHideControls = {
-                        openMenu = null
-                        viewModel.hideControls()
-                    },
-                    onNavigateBack = navigateBack
+                    actions = PlayerKeyActions(
+                        skipBackward = {
+                            viewModel.skipBackward()
+                            viewModel.showControls()
+                        },
+                        skipForward = {
+                            viewModel.skipForward()
+                            viewModel.showControls()
+                        },
+                        togglePlayback = {
+                            viewModel.togglePlayback()
+                        },
+                        resume = {
+                            viewModel.resume()
+                        },
+                        pause = {
+                            viewModel.pause()
+                        },
+                        showControls = {
+                            viewModel.showControls()
+                        },
+                        hideControls = {
+                            openMenu = null
+                            viewModel.hideControls()
+                        },
+                        closeMenu = {
+                            openMenu = null
+                            viewModel.showControls()
+                        },
+                        navigateBack = navigateBack
+                    )
                 )
             }
             .pointerInput(Unit) {
@@ -939,64 +960,10 @@ private enum class PlayerMenu {
     Audio
 }
 
-private fun handlePlayerKey(
-    event: KeyEvent,
-    controlsVisible: Boolean,
-    hasOpenMenu: Boolean,
-    viewModel: PlayerViewModel,
-    onCloseMenu: () -> Unit,
-    onHideControls: () -> Unit,
-    onNavigateBack: () -> Unit
-): Boolean {
-    if (event.type != KeyEventType.KeyDown) return false
+private fun trimSpeed(speed: Float): String =
+    if (speed % 1f == 0f) speed.toInt().toString() else "%.2f".format(speed).trimEnd('0')
 
-    val action = event.key.toMiruPlayInputIntent()
-        ?.tvPlaybackOverlayAction(
-            controlsVisible = controlsVisible,
-            hasOpenMenu = hasOpenMenu,
-        )
-        ?: return false
-
-    if (action.shouldRefreshTvPlaybackControls(controlsVisible)) {
-        viewModel.showControls()
-    }
-
-    return when (action) {
-        MiruPlayPlaybackInputAction.SeekBack -> {
-            viewModel.skipBackward()
-            true
-        }
-        MiruPlayPlaybackInputAction.SeekForward -> {
-            viewModel.skipForward()
-            true
-        }
-        MiruPlayPlaybackInputAction.ShowControls -> true
-        MiruPlayPlaybackInputAction.TogglePause -> {
-            viewModel.togglePlayback()
-            true
-        }
-        MiruPlayPlaybackInputAction.Resume -> {
-            viewModel.resume()
-            true
-        }
-        MiruPlayPlaybackInputAction.Pause -> {
-            viewModel.pause()
-            true
-        }
-        MiruPlayPlaybackInputAction.HideControls -> {
-            onHideControls()
-            true
-        }
-        MiruPlayPlaybackInputAction.CloseMenu -> {
-            onCloseMenu()
-            true
-        }
-        MiruPlayPlaybackInputAction.NavigateBack -> {
-            onNavigateBack()
-            true
-        }
-        MiruPlayPlaybackInputAction.Launch,
-        MiruPlayPlaybackInputAction.Stop,
-        -> false
-    }
-}
+private fun Key.isActivateKey(): Boolean = this == Key.DirectionCenter ||
+    this == Key.Enter ||
+    this == Key.NumPadEnter ||
+    this == Key.Spacebar
