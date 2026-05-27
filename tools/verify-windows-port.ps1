@@ -639,7 +639,9 @@ function Invoke-WindowsPortCompletionAudit {
             "-ReportPath",
             (Join-Path $repoRoot "desktop-app\build\jpackage\smoke\windows-installer-smoke.json"),
             "-RequiredInstallerType",
-            $WindowsInstallerType
+            $WindowsInstallerType,
+            "-RequiredInstallerBackend",
+            $WindowsInstallerBackend
         )
         if (-not [string]::IsNullOrWhiteSpace($WindowsPackageVersion)) {
             $assertArgs += "-RequiredAppVersion"
@@ -859,7 +861,9 @@ try {
                 "-ReportPath",
                 $installerReportPath,
                 "-RequiredInstallerType",
-                $WindowsInstallerType
+                $WindowsInstallerType,
+                "-RequiredInstallerBackend",
+                $WindowsInstallerBackend
             )
             if (-not [string]::IsNullOrWhiteSpace($WindowsPackageVersion)) {
                 $assertArgs += "-RequiredAppVersion"
@@ -1081,6 +1085,8 @@ try {
                 $CloudRssLibrary,
                 "-WindowsInstallerType",
                 $WindowsInstallerType,
+                "-WindowsInstallerBackend",
+                $WindowsInstallerBackend,
                 "-ReportPath",
                 $ExternalPrereqReportPath
             )
