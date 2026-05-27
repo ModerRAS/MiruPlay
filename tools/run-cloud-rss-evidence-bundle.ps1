@@ -34,6 +34,7 @@ $args = @(
     $Library,
     '-CloudRssSubmitLimit',
     $SubmitLimit.ToString(),
+    '-RequireCloudDriveOfflinePermission',
     '-RequireCloudRssCandidates'
 )
 if (-not [string]::IsNullOrWhiteSpace($Filter)) {
@@ -41,6 +42,7 @@ if (-not [string]::IsNullOrWhiteSpace($Filter)) {
 }
 
 Write-Warning 'This evidence bundle runs live-submit and organize smokes. It submits real CloudDrive offline downloads and can move real CloudDrive files.'
+Write-Warning 'It also requires the CloudDrive token to allow offline downloads, matching the strict completion audit.'
 Write-Warning 'This is Cloud/RSS evidence only. Run tools\verify-windows-port.ps1 -CompletionAudit after all Windows release evidence is collected.'
 
 & powershell.exe @args
