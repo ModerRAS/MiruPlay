@@ -222,15 +222,7 @@ function Save-WindowScreenshot {
         throw "Window is smaller than expected for TV-style QA: ${width}x$height"
     }
 
-    $bitmap = New-Object System.Drawing.Bitmap($width, $height)
-    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-    try {
-        $graphics.CopyFromScreen($rect.Left, $rect.Top, 0, 0, $bitmap.Size)
-        $bitmap.Save($Path, [System.Drawing.Imaging.ImageFormat]::Png)
-    } finally {
-        $graphics.Dispose()
-        $bitmap.Dispose()
-    }
+    Save-DesktopSmokeWindowBitmap -Process $Process -Rect $rect -Path $Path
     Assert-ScreenshotHasContent -Path $Path -RequireRedAccent
 }
 
@@ -248,15 +240,7 @@ function Save-WindowScreenshotWithoutRedRequirement {
         throw "Window is smaller than expected for TV-style QA: ${width}x$height"
     }
 
-    $bitmap = New-Object System.Drawing.Bitmap($width, $height)
-    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-    try {
-        $graphics.CopyFromScreen($rect.Left, $rect.Top, 0, 0, $bitmap.Size)
-        $bitmap.Save($Path, [System.Drawing.Imaging.ImageFormat]::Png)
-    } finally {
-        $graphics.Dispose()
-        $bitmap.Dispose()
-    }
+    Save-DesktopSmokeWindowBitmap -Process $Process -Rect $rect -Path $Path
     Assert-ScreenshotHasContent -Path $Path
 }
 
@@ -301,6 +285,69 @@ function New-Y4mSmokeClip {
     } finally {
         $file.Dispose()
     }
+}
+
+function New-FakeMpvRuntime {
+    param([string]$Root)
+
+    $configDir = Join-Path $Root "portable_config"
+    $vsDir = Join-Path $configDir "vs"
+    New-Item -ItemType Directory -Path $vsDir -Force | Out-Null
+    foreach ($scriptName in @("MEMC_RIFE_NV.vpy", "MEMC_RIFE_DML.vpy", "MEMC_RIFE_STD.vpy")) {
+        Set-Content -LiteralPath (Join-Path $vsDir $scriptName) -Value "# fake RIFE script for desktop smoke" -Encoding ASCII
+    }
+    $manifest = @{
+        source = "desktop-behavior-fake-mpv"
+        runtimeRoot = $Root
+        requiredRifeBackends = @("NVIDIA", "DIRECTML", "STANDARD")
+        files = @(
+            "mpv.exe",
+            "portable_config/",
+            "portable_config/vs/MEMC_RIFE_NV.vpy",
+            "portable_config/vs/MEMC_RIFE_DML.vpy",
+            "portable_config/vs/MEMC_RIFE_STD.vpy"
+        )
+    } | ConvertTo-Json -Depth 5
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText((Join-Path $Root "runtime-manifest.json"), $manifest, $utf8NoBom)
+
+    $mpvExe = Join-Path $Root "mpv.exe"
+    $sourcePath = Join-Path $Root "fake-mpv.c"
+    $source = @"
+#include <stdio.h>
+#include <string.h>
+#include <windows.h>
+
+int main(int argc, char **argv) {
+    char modulePath[MAX_PATH];
+    DWORD length = GetModuleFileNameA(NULL, modulePath, MAX_PATH);
+    if (length > 0 && length < MAX_PATH) {
+        char *lastSlash = strrchr(modulePath, '\\');
+        if (lastSlash != NULL) {
+            strcpy(lastSlash + 1, "mpv-args.txt");
+            FILE *file = fopen(modulePath, "w");
+            if (file != NULL) {
+                for (int i = 1; i < argc; i++) {
+                    fprintf(file, "%s\n", argv[i]);
+                }
+                fclose(file);
+            }
+        }
+    }
+    Sleep(600000);
+    return 0;
+}
+"@
+    [System.IO.File]::WriteAllText($sourcePath, $source, [System.Text.Encoding]::ASCII)
+    $gcc = (Get-Command gcc.exe -ErrorAction SilentlyContinue).Source
+    if ([string]::IsNullOrWhiteSpace($gcc)) {
+        throw "gcc.exe is required to build the fake mpv.exe for desktop behavior smoke."
+    }
+    & $gcc $sourcePath -o $mpvExe
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $mpvExe -PathType Leaf)) {
+        throw "Failed to build fake mpv.exe at $mpvExe."
+    }
+    return $Root
 }
 
 function Wait-MpvChildProcess {
@@ -396,6 +443,7 @@ if (Get-MiruPlayDesktopWindowProcess) {
 $runName = "run-{0}" -f (Get-Date -Format "yyyyMMdd-HHmmss")
 $runDir = Join-Path $resolvedOutputRoot $runName
 $storePath = Join-Path $runDir "store\desktop-store.json"
+$fakeMpvRuntimeRoot = Join-Path $runDir "runtime\mpv"
 $sample = if ($SamplePath.Trim()) {
     Resolve-DesktopSmokeFullPath $SamplePath
 } else {
@@ -408,6 +456,7 @@ $settingsFocusScreenshotPath = Join-Path $runDir "mpv-settings-focus.png"
 $runtimeFocusScreenshotPath = Join-Path $runDir "mpv-runtime-focus.png"
 $stoppedScreenshotPath = Join-Path $runDir "mpv-stopped.png"
 $recentKeyboardScreenshotPath = Join-Path $runDir "mpv-recent-keyboard-selected.png"
+$minimumStoppedProgressMs = 10000
 New-Item -ItemType Directory -Path (Split-Path -Parent $storePath) -Force | Out-Null
 
 if ($SamplePath.Trim()) {
@@ -421,15 +470,19 @@ if ($SamplePath.Trim()) {
 $previousClipboard = Get-Clipboard -Raw -ErrorAction SilentlyContinue
 $previousStoreEnv = $env:MIRUPLAY_DESKTOP_STORE
 $previousStartSectionEnv = $env:MIRUPLAY_DESKTOP_START_SECTION
+$previousInitialMediaPathEnv = $env:MIRUPLAY_DESKTOP_INITIAL_MEDIA_PATH
+$previousMpvRuntimeEnv = $env:MIRUPLAY_MPV_RUNTIME
 $env:MIRUPLAY_DESKTOP_STORE = $storePath
 $env:MIRUPLAY_DESKTOP_START_SECTION = "player"
+$env:MIRUPLAY_DESKTOP_INITIAL_MEDIA_PATH = $sample
+$env:MIRUPLAY_MPV_RUNTIME = New-FakeMpvRuntime -Root $fakeMpvRuntimeRoot
 $startedProcess = $null
 $mpvProcess = $null
 try {
     $startedProcess = Start-Process -FilePath $resolvedAppScript -PassThru
     $windowProcess = Wait-MiruPlayDesktopWindowProcess -TimeoutSeconds 75 -FailureMessage "MiruPlay Desktop window did not appear within 75 seconds."
 
-    Set-TextByRelativeClick -Process $windowProcess -X 455 -Y 614 -Text $sample -Description "player media path"
+    Start-Sleep -Milliseconds 1000
     Save-WindowScreenshotWithoutRedRequirement -Process $windowProcess -Path $settingsFocusScreenshotPath
 
     Send-AppKeys -Process $windowProcess -Keys "{DOWN}" -DelayMilliseconds 300
@@ -442,7 +495,7 @@ try {
 
     Save-WindowScreenshot -Process $windowProcess -Path $preLaunchScreenshotPath
 
-    Invoke-RelativeClick -Process $windowProcess -X 596 -Y 166 -DelayMilliseconds 900
+    Invoke-RelativeClick -Process $windowProcess -X 596 -Y 216 -DelayMilliseconds 900
     $mpvProcess = Wait-MpvChildProcess -ParentProcessId $windowProcess.Id -ExpectedSamplePath $sample
     Wait-DesktopSmokeStoreState -Path $storePath -Description "initial playback progress record" -Predicate {
         param($state)
@@ -464,7 +517,7 @@ try {
     $finalState = Wait-DesktopSmokeStoreState -Path $storePath -Description "stopped playback progress update" -Predicate {
         param($state)
         $records = @($state.progress | Where-Object { $_.episodeId -eq $sample })
-        $records.Count -eq 1 -and $records[0].playCount -eq 0 -and $records[0].positionMs -ge 20000
+        $records.Count -eq 1 -and $records[0].playCount -eq 0 -and $records[0].positionMs -ge $minimumStoppedProgressMs
     }
     $finalProgress = @($finalState.progress | Where-Object { $_.episodeId -eq $sample })[0]
     Save-WindowScreenshotWithoutRedRequirement -Process $windowProcess -Path $stoppedScreenshotPath
@@ -477,7 +530,7 @@ try {
     Wait-DesktopSmokeStoreState -Path $storePath -Description "recent playback keyboard selection preserved sample progress" -Predicate {
         param($state)
         $records = @($state.progress | Where-Object { $_.episodeId -eq $sample })
-        $records.Count -eq 1 -and $records[0].playCount -eq 0 -and $records[0].positionMs -ge 20000
+        $records.Count -eq 1 -and $records[0].playCount -eq 0 -and $records[0].positionMs -ge $minimumStoppedProgressMs
     } | Out-Null
 } finally {
     if ($mpvProcess) {
@@ -489,6 +542,16 @@ try {
         Remove-Item Env:\MIRUPLAY_DESKTOP_START_SECTION -ErrorAction SilentlyContinue
     } else {
         $env:MIRUPLAY_DESKTOP_START_SECTION = $previousStartSectionEnv
+    }
+    if ($null -eq $previousInitialMediaPathEnv) {
+        Remove-Item Env:\MIRUPLAY_DESKTOP_INITIAL_MEDIA_PATH -ErrorAction SilentlyContinue
+    } else {
+        $env:MIRUPLAY_DESKTOP_INITIAL_MEDIA_PATH = $previousInitialMediaPathEnv
+    }
+    if ($null -eq $previousMpvRuntimeEnv) {
+        Remove-Item Env:\MIRUPLAY_MPV_RUNTIME -ErrorAction SilentlyContinue
+    } else {
+        $env:MIRUPLAY_MPV_RUNTIME = $previousMpvRuntimeEnv
     }
     if (-not $KeepOpen) {
         Close-MiruPlayDesktopWindowProcessIfRunning

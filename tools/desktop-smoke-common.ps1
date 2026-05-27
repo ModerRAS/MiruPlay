@@ -1,5 +1,17 @@
 $script:DesktopSmokeDefaultPollMilliseconds = 300
 
+if (-not ("MiruPlayDesktopSmokeCaptureWin32" -as [type])) {
+    Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class MiruPlayDesktopSmokeCaptureWin32 {
+    [DllImport("user32.dll")]
+    public static extern bool PrintWindow(IntPtr hWnd, IntPtr hdcBlt, uint nFlags);
+}
+"@
+}
+
 function Resolve-DesktopSmokeFullPath {
     param([string]$Path)
 
@@ -20,7 +32,7 @@ function Read-DesktopSmokeStoreState {
     }
 
     try {
-        return Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
+        return Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
     } catch {
         if ($IgnoreParseErrors) {
             return $null
@@ -49,6 +61,52 @@ function Wait-DesktopSmokeStoreState {
     } while ((Get-Date) -lt $deadline)
 
     throw "Timed out waiting for $Description in $Path."
+}
+
+function Test-DesktopSmokeBitmapEncodedSize {
+    param(
+        [System.Drawing.Bitmap]$Bitmap,
+        [int]$MinimumFileSizeBytes = 20000
+    )
+
+    $stream = New-Object System.IO.MemoryStream
+    try {
+        $Bitmap.Save($stream, [System.Drawing.Imaging.ImageFormat]::Png)
+        return $stream.Length -ge $MinimumFileSizeBytes
+    } finally {
+        $stream.Dispose()
+    }
+}
+
+function Save-DesktopSmokeWindowBitmap {
+    param(
+        [System.Diagnostics.Process]$Process,
+        [object]$Rect,
+        [string]$Path
+    )
+
+    $width = $Rect.Right - $Rect.Left
+    $height = $Rect.Bottom - $Rect.Top
+    $bitmap = New-Object System.Drawing.Bitmap($width, $height)
+    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+    try {
+        $hdc = $graphics.GetHdc()
+        try {
+            $printed = [MiruPlayDesktopSmokeCaptureWin32]::PrintWindow($Process.MainWindowHandle, $hdc, 2)
+        } finally {
+            $graphics.ReleaseHdc($hdc)
+        }
+        if ($printed -and -not (Test-DesktopSmokeBitmapEncodedSize -Bitmap $bitmap)) {
+            $printed = $false
+        }
+        if (-not $printed) {
+            $graphics.CopyFromScreen($Rect.Left, $Rect.Top, 0, 0, $bitmap.Size)
+        }
+        $bitmap.Save($Path, [System.Drawing.Imaging.ImageFormat]::Png)
+    } finally {
+        $graphics.Dispose()
+        $bitmap.Dispose()
+    }
 }
 
 function Assert-DesktopSmokeScreenshotQuality {

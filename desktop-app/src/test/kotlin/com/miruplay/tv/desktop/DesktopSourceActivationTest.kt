@@ -58,6 +58,36 @@ class DesktopSourceActivationTest {
     }
 
     @Test
+    fun `initial source form state trims locations but preserves passwords`() {
+        val state = desktopSourceFormStateFromInitialValues(
+            libraryRoot = "  D:/Anime  ",
+            webDavUrl = "  https://dav.example.test/anime  ",
+            webDavUsername = "  alice  ",
+            webDavPassword = "  secret  ",
+            smbUrl = "  smb://nas/anime  ",
+            smbDomain = "  WORKGROUP  ",
+            smbUsername = "  bob  ",
+            smbPassword = "  hidden  ",
+        )
+
+        assertEquals("D:/Anime", state.libraryRoot)
+        assertEquals("https://dav.example.test/anime", state.webDavUrl)
+        assertEquals("alice", state.webDavUsername)
+        assertEquals("  secret  ", state.webDavPassword)
+        assertEquals("smb://nas/anime", state.smbUrl)
+        assertEquals("WORKGROUP", state.smbDomain)
+        assertEquals("bob", state.smbUsername)
+        assertEquals("  hidden  ", state.smbPassword)
+    }
+
+    @Test
+    fun `initial source form state detects seeded values`() {
+        assertFalse(DesktopSourceFormState().hasAnyValue())
+        assertTrue(desktopSourceFormStateFromInitialValues(webDavUrl = "  https://dav.example.test/anime  ").hasAnyValue())
+        assertTrue(desktopSourceFormStateFromInitialValues(webDavPassword = "secret").hasAnyValue())
+    }
+
+    @Test
     fun `local activation updates library and clears remote browser`() {
         val source = MediaSourceInfoConventions.local(name = "Library", rootPath = "D:/Anime").copy(id = 1L)
 

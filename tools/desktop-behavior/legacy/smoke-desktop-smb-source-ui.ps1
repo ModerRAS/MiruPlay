@@ -50,6 +50,12 @@ public static class MiruPlaySmbSourceSmokeWin32 {
     public static extern bool SetForegroundWindow(IntPtr hWnd);
 
     [DllImport("user32.dll")]
+    public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+    [DllImport("user32.dll")]
+    public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+    [DllImport("user32.dll")]
     public static extern bool SetCursorPos(int X, int Y);
 
     [DllImport("user32.dll")]
@@ -67,6 +73,26 @@ function Get-WindowRect {
     return $rect
 }
 
+function Set-MiruPlayWindowForeground {
+    param([System.Diagnostics.Process]$Process)
+
+    $hwndTopMost = [IntPtr]::new(-1)
+    $hwndNoTopMost = [IntPtr]::new(-2)
+    $swRestore = 9
+    $swpNoSize = 0x0001
+    $swpNoMove = 0x0002
+    $swpShowWindow = 0x0040
+    $flags = $swpNoSize -bor $swpNoMove -bor $swpShowWindow
+
+    [MiruPlaySmbSourceSmokeWin32]::ShowWindow($Process.MainWindowHandle, $swRestore) | Out-Null
+    [MiruPlaySmbSourceSmokeWin32]::SetWindowPos($Process.MainWindowHandle, $hwndTopMost, 0, 0, 0, 0, $flags) | Out-Null
+    [MiruPlaySmbSourceSmokeWin32]::SetForegroundWindow($Process.MainWindowHandle) | Out-Null
+    Start-Sleep -Milliseconds 120
+    [MiruPlaySmbSourceSmokeWin32]::SetWindowPos($Process.MainWindowHandle, $hwndNoTopMost, 0, 0, 0, 0, $flags) | Out-Null
+    [MiruPlaySmbSourceSmokeWin32]::SetForegroundWindow($Process.MainWindowHandle) | Out-Null
+    Start-Sleep -Milliseconds 180
+}
+
 function Invoke-RelativeClick {
     param(
         [System.Diagnostics.Process]$Process,
@@ -75,8 +101,7 @@ function Invoke-RelativeClick {
     )
 
     $rect = Get-WindowRect -Process $Process
-    [MiruPlaySmbSourceSmokeWin32]::SetForegroundWindow($Process.MainWindowHandle) | Out-Null
-    Start-Sleep -Milliseconds 150
+    Set-MiruPlayWindowForeground -Process $Process
     [MiruPlaySmbSourceSmokeWin32]::SetCursorPos($rect.Left + $X, $rect.Top + $Y) | Out-Null
     [MiruPlaySmbSourceSmokeWin32]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
     Start-Sleep -Milliseconds 80
@@ -94,9 +119,8 @@ function Invoke-RelativeMouseWheel {
     )
 
     $rect = Get-WindowRect -Process $Process
-    [MiruPlaySmbSourceSmokeWin32]::SetForegroundWindow($Process.MainWindowHandle) | Out-Null
+    Set-MiruPlayWindowForeground -Process $Process
     [MiruPlaySmbSourceSmokeWin32]::SetCursorPos($rect.Left + $X, $rect.Top + $Y) | Out-Null
-    Start-Sleep -Milliseconds 150
     $direction = if ($Notches -lt 0) { -1 } else { 1 }
     for ($i = 0; $i -lt [Math]::Abs($Notches); $i++) {
         [MiruPlaySmbSourceSmokeWin32]::mouse_event(0x0800, 0, 0, $direction * $DeltaPerNotch, [UIntPtr]::Zero)
@@ -232,6 +256,7 @@ function Save-WindowScreenshot {
         [string]$Path
     )
 
+    Set-MiruPlayWindowForeground -Process $Process
     $rect = Get-WindowRect -Process $Process
     $width = $rect.Right - $rect.Left
     $height = $rect.Bottom - $rect.Top
@@ -239,15 +264,7 @@ function Save-WindowScreenshot {
         throw "Window is smaller than expected for TV-style QA: ${width}x$height"
     }
 
-    $bitmap = New-Object System.Drawing.Bitmap($width, $height)
-    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-    try {
-        $graphics.CopyFromScreen($rect.Left, $rect.Top, 0, 0, $bitmap.Size)
-        $bitmap.Save($Path, [System.Drawing.Imaging.ImageFormat]::Png)
-    } finally {
-        $graphics.Dispose()
-        $bitmap.Dispose()
-    }
+    Save-DesktopSmokeWindowBitmap -Process $Process -Rect $rect -Path $Path
     Assert-ScreenshotHasContent -Path $Path
 }
 
@@ -320,8 +337,20 @@ if ([string]::IsNullOrWhiteSpace($ShareTestPath)) {
 if ([string]::IsNullOrWhiteSpace($SmbBaseUrl)) {
     $SmbBaseUrl = Convert-UncPathToSmbUrl -Path $ShareTestPath
 }
-if ($ShareTestPath.Trim() -notmatch "\\临时文件\\测试$") {
-    throw "Refusing to write SMB smoke fixture outside the approved 临时文件\\测试 directory: $ShareTestPath"
+$temporaryFilesSegment = -join @(
+    [char]0x4E34,
+    [char]0x65F6,
+    [char]0x6587,
+    [char]0x4EF6
+)
+$testSegment = -join @(
+    [char]0x6D4B,
+    [char]0x8BD5
+)
+$approvedSmbPathPattern = "\\$temporaryFilesSegment\\$testSegment$"
+$approvedSmbPathLabel = "$temporaryFilesSegment\$testSegment"
+if ($ShareTestPath.Trim() -notmatch $approvedSmbPathPattern) {
+    throw "Refusing to write SMB smoke fixture outside the approved $approvedSmbPathLabel directory: $ShareTestPath"
 }
 if (-not (Test-Path -LiteralPath $ShareTestPath -PathType Container)) {
     throw "SMB smoke test directory does not exist or is not accessible: $ShareTestPath"

@@ -145,6 +145,13 @@ class DesktopSectionContractTest {
     }
 
     @Test
+    fun `desktop automation initial media path trims environment value`() {
+        assertEquals("", desktopInitialMediaPath(null))
+        assertEquals("", desktopInitialMediaPath("   "))
+        assertEquals("D:/Anime/Episode.mkv", desktopInitialMediaPath("  D:/Anime/Episode.mkv  "))
+    }
+
+    @Test
     fun `desktop entry smoke is opt in by launcher argument`() {
         assertTrue(shouldRunDesktopEntrySmoke(arrayOf(DESKTOP_ENTRY_SMOKE_ARG)))
         assertTrue(shouldRunDesktopEntrySmoke(arrayOf("ignored", DESKTOP_ENTRY_SMOKE_ARG)))

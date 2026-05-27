@@ -245,15 +245,7 @@ function Save-WindowScreenshot {
                 throw "Window is smaller than expected for TV-style QA: ${width}x$height"
             }
 
-            $bitmap = New-Object System.Drawing.Bitmap($width, $height)
-            $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-            try {
-                $graphics.CopyFromScreen($rect.Left, $rect.Top, 0, 0, $bitmap.Size)
-                $bitmap.Save($Path, [System.Drawing.Imaging.ImageFormat]::Png)
-            } finally {
-                $graphics.Dispose()
-                $bitmap.Dispose()
-            }
+            Save-DesktopSmokeWindowBitmap -Process $Process -Rect $rect -Path $Path
             Assert-ScreenshotHasContent -Path $Path
             return
         } catch {
