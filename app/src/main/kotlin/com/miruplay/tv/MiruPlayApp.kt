@@ -2,6 +2,7 @@ package com.miruplay.tv
 
 import android.app.Application
 import com.miruplay.tv.core.common.logging.MiruLog
+import com.miruplay.tv.data.logging.AppCrashDiagnostics
 import com.miruplay.tv.data.logging.LogUploadScheduler
 import com.miruplay.tv.repository.WebControlAccessManager
 import com.miruplay.tv.sync.rss.CloudDriveRssScheduler
@@ -17,6 +18,7 @@ class MiruPlayApp : Application() {
     @Inject lateinit var webControlPreferences: WebControlAccessManager
     @Inject lateinit var cloudDriveRssScheduler: CloudDriveRssScheduler
     @Inject lateinit var logUploadScheduler: LogUploadScheduler
+    @Inject lateinit var crashDiagnostics: AppCrashDiagnostics
 
     private var webControlPreferenceListener: Closeable? = null
 
@@ -40,14 +42,15 @@ class MiruPlayApp : Application() {
         syncWebControlServer()
         crashDiagnostics.markStartupCheckpoint("cloud_drive_scheduler_start")
         cloudDriveRssScheduler.startIfNeeded()
+        crashDiagnostics.markStartupCheckpoint("log_upload_scheduler_start")
         logUploadScheduler.startIfNeeded()
-        MiruLog.i("MiruPlayApp", "Application started")
+        MiruLog.i("MiruPlayApp", "Application started", crashDiagnostics.sessionAttributes())
     }
 
     override fun onTerminate() {
         webControlPreferenceListener?.close()
         webControlPreferenceListener = null
-        MiruLog.i("MiruPlayApp", "Application terminating")
+        MiruLog.i("MiruPlayApp", "Application terminating", crashDiagnostics.sessionAttributes())
         logUploadScheduler.close()
         cloudDriveRssScheduler.stop()
         webControlServer.stopIfRunning()
