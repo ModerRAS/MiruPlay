@@ -38,9 +38,9 @@ enum class MiruPlaySettingsSection(
     ),
     LOG_UPLOAD(
         androidTvTitle = "日志上报",
-        androidTvDescription = "OpenObserve JSON",
+        androidTvDescription = "OTLP / OpenObserve",
         desktopTitle = "日志",
-        desktopDescription = "OpenObserve JSON",
+        desktopDescription = "OTLP / OpenObserve",
     ),
     METADATA(
         androidTvTitle = "元数据",
@@ -58,7 +58,6 @@ val androidTvSettingsSectionOrder: List<MiruPlaySettingsSection> =
         MiruPlaySettingsSection.CLOUD_DRIVE,
         MiruPlaySettingsSection.SCAN,
         MiruPlaySettingsSection.LOG_UPLOAD,
-        MiruPlaySettingsSection.APP_UPDATE,
         MiruPlaySettingsSection.METADATA,
     )
 

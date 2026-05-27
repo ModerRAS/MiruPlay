@@ -2,8 +2,6 @@ package com.miruplay.tv.data.logging
 
 import android.content.Context
 import com.miruplay.tv.repository.OtlpLogUploadConfig
-import com.miruplay.tv.repository.DEFAULT_OTLP_LOG_UPLOAD_STREAM_NAME
-import com.miruplay.tv.repository.normalizeOtlpLogUploadConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -22,11 +20,10 @@ class LogUploadPreferencesManager @Inject constructor(
     fun getConfig(): OtlpLogUploadConfig = _config.value
 
     fun save(enabled: Boolean, endpoint: String, streamName: String) {
-        val normalized = normalizeOtlpLogUploadConfig(enabled, endpoint, streamName)
         val config = _config.value.copy(
-            enabled = normalized.enabled,
-            endpoint = normalized.endpoint,
-            streamName = normalized.streamName,
+            enabled = enabled,
+            endpoint = endpoint.trim(),
+            streamName = streamName.trim().ifBlank { DEFAULT_STREAM_NAME }
         )
         prefs.edit()
             .putBoolean(KEY_ENABLED, config.enabled)
@@ -51,8 +48,7 @@ class LogUploadPreferencesManager @Inject constructor(
     private fun load(): OtlpLogUploadConfig = OtlpLogUploadConfig(
         enabled = prefs.getBoolean(KEY_ENABLED, false),
         endpoint = prefs.getString(KEY_ENDPOINT, "").orEmpty(),
-        streamName = prefs.getString(KEY_STREAM_NAME, DEFAULT_OTLP_LOG_UPLOAD_STREAM_NAME).orEmpty()
-            .ifBlank { DEFAULT_OTLP_LOG_UPLOAD_STREAM_NAME },
+        streamName = prefs.getString(KEY_STREAM_NAME, DEFAULT_STREAM_NAME).orEmpty().ifBlank { DEFAULT_STREAM_NAME },
         lastUploadAt = prefs.getLong(KEY_LAST_UPLOAD_AT, 0L),
         lastUploadStatus = prefs.getString(KEY_LAST_UPLOAD_STATUS, null)
     )
@@ -63,5 +59,6 @@ class LogUploadPreferencesManager @Inject constructor(
         private const val KEY_STREAM_NAME = "stream_name"
         private const val KEY_LAST_UPLOAD_AT = "last_upload_at"
         private const val KEY_LAST_UPLOAD_STATUS = "last_upload_status"
+        private const val DEFAULT_STREAM_NAME = "miruplay"
     }
 }

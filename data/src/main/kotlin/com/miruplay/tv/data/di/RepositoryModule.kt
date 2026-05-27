@@ -1,7 +1,6 @@
 package com.miruplay.tv.data.di
 
 import com.miruplay.tv.data.preferences.WebControlPreferencesManager
-import com.miruplay.tv.data.preferences.PlaybackPreferencesManager
 import com.miruplay.tv.data.logging.LogUploadRepositoryImpl
 import com.miruplay.tv.data.repository.CloudDriveAutomationRepositoryImpl
 import com.miruplay.tv.data.repository.IndexRepositoryImpl
@@ -14,6 +13,7 @@ import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.AppUpdateRepository
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.CloudDriveCredentialStore
+import com.miruplay.tv.repository.LogUploadRepository
 import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.LogUploadRepository
@@ -91,4 +91,10 @@ abstract class RepositoryModule {
     abstract fun bindWebControlAccessManager(
         impl: WebControlPreferencesManager
     ): WebControlAccessManager
+
+    @Binds
+    @Singleton
+    abstract fun bindLogUploadRepository(
+        impl: LogUploadRepositoryImpl
+    ): LogUploadRepository
 }

@@ -34,27 +34,12 @@ fun interface MiruLogSink {
 
 object MiruLog {
     private val sequence = AtomicLong()
-    private val sinkSuppressionDepth = ThreadLocal.withInitial { 0 }
 
     @Volatile
     private var sink: MiruLogSink? = null
 
     fun setSink(sink: MiruLogSink?) {
         this.sink = sink
-    }
-
-    fun <T> withoutSinkRecording(block: () -> T): T {
-        sinkSuppressionDepth.set(sinkSuppressionDepth.get() + 1)
-        return try {
-            block()
-        } finally {
-            val nextDepth = sinkSuppressionDepth.get() - 1
-            if (nextDepth <= 0) {
-                sinkSuppressionDepth.remove()
-            } else {
-                sinkSuppressionDepth.set(nextDepth)
-            }
-        }
     }
 
     fun d(tag: String, message: String, attributes: Map<String, String> = emptyMap()) {
@@ -90,7 +75,6 @@ object MiruLog {
         throwable: Throwable? = null,
         attributes: Map<String, String> = emptyMap()
     ) {
-        if (sinkSuppressionDepth.get() > 0) return
         val now = System.currentTimeMillis()
         val record = MiruLogRecord(
             id = "$now-${sequence.incrementAndGet()}",

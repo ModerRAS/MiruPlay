@@ -1,7 +1,6 @@
 package com.miruplay.tv.data.logging
 
 import com.miruplay.tv.core.common.logging.MiruLog
-import com.miruplay.tv.repository.LogUploadAutoScheduler
 import com.miruplay.tv.repository.LogUploadRepository
 import java.io.Closeable
 import javax.inject.Inject
@@ -10,37 +9,24 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 @Singleton
 class LogUploadScheduler @Inject constructor(
     private val repository: LogUploadRepository,
-    localLogStore: LocalLogStore,
+    localLogStore: LocalLogStore
 ) : Closeable {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val scheduler = LogUploadAutoScheduler(
-        repository = repository,
-        scope = scope,
-    )
-    private val configObserverJob: Job
+    private var job: Job? = null
 
     init {
         MiruLog.setSink(localLogStore)
     }
 
     fun startIfNeeded() {
-        if (job?.isActive == true) {
-            MiruLog.d("LogUploadScheduler", "Log upload scheduler already running")
-            return
-        }
-        MiruLog.i(
-            "LogUploadScheduler",
-            "Log upload scheduler started",
-            mapOf("upload_interval_ms" to UPLOAD_INTERVAL_MS.toString())
-        )
+        if (job?.isActive == true) return
         job = scope.launch {
             while (isActive) {
                 repository.uploadPendingLogs()
@@ -50,14 +36,11 @@ class LogUploadScheduler @Inject constructor(
     }
 
     override fun close() {
-        MiruLog.i("LogUploadScheduler", "Log upload scheduler stopped")
         job?.cancel()
         job = null
     }
 
-    override fun close() {
-        MiruLog.i("LogUploadScheduler", "Log upload scheduler stopped")
-        configObserverJob.cancel()
-        scheduler.stop()
+    companion object {
+        private const val UPLOAD_INTERVAL_MS = 5 * 60 * 1000L
     }
 }

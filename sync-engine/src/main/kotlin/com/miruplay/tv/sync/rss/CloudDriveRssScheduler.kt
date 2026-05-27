@@ -2,29 +2,7 @@ package com.miruplay.tv.sync.rss
 
 import android.content.Context
 import android.util.Log
-import androidx.work.BackoffPolicy
-import androidx.work.Constraints
-import androidx.work.CoroutineWorker
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.ExistingWorkPolicy
-import androidx.work.NetworkType
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
-import androidx.work.WorkerParameters
-import androidx.work.workDataOf
-import com.miruplay.tv.core.common.Result as CoreResult
-import com.miruplay.tv.model.CloudDriveAutomationConfig
-import com.miruplay.tv.model.MIN_CLOUD_DRIVE_INTERVAL_MINUTES
-import com.miruplay.tv.repository.CloudDriveAutomationRepository
-import dagger.hilt.EntryPoint
-import dagger.hilt.InstallIn
-import dagger.hilt.android.EntryPointAccessors
-import dagger.hilt.android.qualifiers.ApplicationContext
-import dagger.hilt.components.SingletonComponent
-import java.util.concurrent.TimeUnit
-import javax.inject.Inject
-import javax.inject.Singleton
+import com.miruplay.tv.core.common.logging.MiruLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -40,10 +18,42 @@ class CloudDriveRssScheduler @Inject constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     fun startIfNeeded() {
-        scope.launch {
-            when (val config = repository.getConfig()) {
-                is CoreResult.Success -> syncPeriodicWork(config.data)
-                is CoreResult.Error -> Log.w(TAG, "Failed to read Cloud/RSS config: ${config.error}")
+        if (scope != null) return
+        val newScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        scope = newScope
+        newScope.launch {
+            while (isActive) {
+                engine.runIfDue()
+                    .onSuccess { summary ->
+                        if (summary != null) {
+                            Log.d(
+                                "CloudDriveRssScheduler",
+                                "RSS run complete: submitted=${summary.submitted}, organized=${summary.organized}"
+                            )
+                            MiruLog.i(
+                                "CloudDriveRssScheduler",
+                                "RSS run complete",
+                                mapOf(
+                                    "submitted" to summary.submitted.toString(),
+                                    "organized" to summary.organized.toString(),
+                                    "skipped" to summary.skipped.toString(),
+                                    "failed" to summary.failed.toString()
+                                )
+                            )
+                        }
+                    }
+                    .onError { error ->
+                        Log.w("CloudDriveRssScheduler", "RSS run failed: $error")
+                        MiruLog.w(
+                            "CloudDriveRssScheduler",
+                            "RSS run failed",
+                            attributes = mapOf(
+                                "error_type" to error::class.simpleName.orEmpty(),
+                                "error_message" to error.toUserMessage()
+                            )
+                        )
+                    }
+                delay(5 * 60_000L)
             }
         }
     }

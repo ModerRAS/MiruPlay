@@ -81,8 +81,7 @@ internal data class DesktopRepositoryState(
     val cloudDriveToken: String? = null,
     val cloudDrivePassword: String? = null,
     val bangumiAccessToken: String? = null,
-    val webControlEnabled: Boolean = false,
-    val webControlAccessToken: String? = null,
+    val otlpAccessToken: String? = null,
 )
 
 @Serializable

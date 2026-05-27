@@ -9,19 +9,19 @@ class SettingsSectionDisplayConventionsTest {
     @Test
     fun `settings section copy is shared by Android TV and desktop`() {
         assertEquals(
-            listOf("WebUI", "媒体源", "播放", "CloudDrive", "扫描", "日志上报", "更新", "元数据"),
+            listOf("WebUI", "媒体源", "播放", "CloudDrive", "扫描", "日志上报", "元数据"),
             androidTvSettingsSectionOrder.map { it.androidTvTitle },
         )
         assertEquals(
-            listOf("访问地址与二维码", "本地、WebDAV、SMB", "播完动作", "RSS 离线下载与入库", "媒体库更新策略", "OpenObserve JSON", "Bangumi Token"),
+            listOf("访问地址与二维码", "本地、WebDAV、SMB", "播完动作", "RSS 离线下载与入库", "媒体库更新策略", "OTLP / OpenObserve", "Bangumi Token"),
             androidTvSettingsSectionOrder.map { it.androidTvDescription },
         )
         assertEquals(
-            listOf("WebUI", "媒体源", "播放", "云盘", "扫描", "元数据"),
+            listOf("媒体源", "播放", "云盘", "扫描", "日志", "元数据"),
             desktopSettingsSectionOrder.map { it.desktopTitle },
         )
         assertEquals(
-            listOf("本地、WebDAV、SMB", "mpv 与 RIFE", "RSS 离线下载与入库", "媒体库更新", "OpenObserve JSON", "Bangumi 匹配"),
+            listOf("本地、WebDAV、SMB", "mpv 与 RIFE", "RSS 离线下载与入库", "媒体库更新", "OTLP / OpenObserve", "Bangumi 匹配"),
             desktopSettingsSectionOrder.map { it.desktopDescription },
         )
     }

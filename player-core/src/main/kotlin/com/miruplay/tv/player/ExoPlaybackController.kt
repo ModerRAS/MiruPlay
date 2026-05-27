@@ -232,6 +232,16 @@ class ExoPlaybackController @Inject constructor(
 
     override suspend fun stop() {
         withContext(Dispatchers.Main) {
+            currentSource?.let { source ->
+                MiruLog.i(
+                    "ExoPlaybackController",
+                    "Playback stopped",
+                    mapOf(
+                        "source_uri" to source.uri,
+                        "position_ms" to exoPlayer.currentPosition.toString()
+                    )
+                )
+            }
             exoPlayer.playWhenReady = false
             exoPlayer.stop()
             currentSource = null
