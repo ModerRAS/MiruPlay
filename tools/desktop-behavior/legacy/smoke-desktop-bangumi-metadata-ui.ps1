@@ -46,6 +46,12 @@ public static class MiruPlayBangumiMetadataSmokeWin32 {
     public static extern bool SetForegroundWindow(IntPtr hWnd);
 
     [DllImport("user32.dll")]
+    public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+    [DllImport("user32.dll")]
+    public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+    [DllImport("user32.dll")]
     public static extern bool SetCursorPos(int X, int Y);
 
     [DllImport("user32.dll")]
@@ -63,6 +69,26 @@ function Get-WindowRect {
     return $rect
 }
 
+function Set-MiruPlayWindowForeground {
+    param([System.Diagnostics.Process]$Process)
+
+    $hwndTopMost = [IntPtr]::new(-1)
+    $hwndNoTopMost = [IntPtr]::new(-2)
+    $swRestore = 9
+    $swpNoSize = 0x0001
+    $swpNoMove = 0x0002
+    $swpShowWindow = 0x0040
+    $flags = $swpNoSize -bor $swpNoMove -bor $swpShowWindow
+
+    [MiruPlayBangumiMetadataSmokeWin32]::ShowWindow($Process.MainWindowHandle, $swRestore) | Out-Null
+    [MiruPlayBangumiMetadataSmokeWin32]::SetWindowPos($Process.MainWindowHandle, $hwndTopMost, 0, 0, 0, 0, $flags) | Out-Null
+    [MiruPlayBangumiMetadataSmokeWin32]::SetForegroundWindow($Process.MainWindowHandle) | Out-Null
+    Start-Sleep -Milliseconds 120
+    [MiruPlayBangumiMetadataSmokeWin32]::SetWindowPos($Process.MainWindowHandle, $hwndNoTopMost, 0, 0, 0, 0, $flags) | Out-Null
+    [MiruPlayBangumiMetadataSmokeWin32]::SetForegroundWindow($Process.MainWindowHandle) | Out-Null
+    Start-Sleep -Milliseconds 180
+}
+
 function Invoke-RelativeClick {
     param(
         [System.Diagnostics.Process]$Process,
@@ -72,8 +98,7 @@ function Invoke-RelativeClick {
     )
 
     $rect = Get-WindowRect -Process $Process
-    [MiruPlayBangumiMetadataSmokeWin32]::SetForegroundWindow($Process.MainWindowHandle) | Out-Null
-    Start-Sleep -Milliseconds 150
+    Set-MiruPlayWindowForeground -Process $Process
     [MiruPlayBangumiMetadataSmokeWin32]::SetCursorPos($rect.Left + $X, $rect.Top + $Y) | Out-Null
     [MiruPlayBangumiMetadataSmokeWin32]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
     Start-Sleep -Milliseconds 80
@@ -88,8 +113,7 @@ function Send-AppKeys {
         [int]$DelayMilliseconds = 350
     )
 
-    [MiruPlayBangumiMetadataSmokeWin32]::SetForegroundWindow($Process.MainWindowHandle) | Out-Null
-    Start-Sleep -Milliseconds 120
+    Set-MiruPlayWindowForeground -Process $Process
     [System.Windows.Forms.SendKeys]::SendWait($Keys)
     Start-Sleep -Milliseconds $DelayMilliseconds
 }
@@ -106,6 +130,7 @@ function Save-WindowScreenshot {
         [string]$Path
     )
 
+    Set-MiruPlayWindowForeground -Process $Process
     $rect = Get-WindowRect -Process $Process
     $width = $rect.Right - $rect.Left
     $height = $rect.Bottom - $rect.Top
@@ -113,15 +138,7 @@ function Save-WindowScreenshot {
         throw "Window is smaller than expected for TV-style QA: ${width}x$height"
     }
 
-    $bitmap = New-Object System.Drawing.Bitmap($width, $height)
-    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-    try {
-        $graphics.CopyFromScreen($rect.Left, $rect.Top, 0, 0, $bitmap.Size)
-        $bitmap.Save($Path, [System.Drawing.Imaging.ImageFormat]::Png)
-    } finally {
-        $graphics.Dispose()
-        $bitmap.Dispose()
-    }
+    Save-DesktopSmokeWindowBitmap -Process $Process -Rect $rect -Path $Path
     Assert-ScreenshotHasContent -Path $Path
 }
 
@@ -152,6 +169,7 @@ function Start-BangumiFixtureServer {
         $ErrorActionPreference = "Stop"
         $titleCn = ([char]0x846C) + ([char]0x9001) + ([char]0x7684) + ([char]0x8299) + ([char]0x8389) + ([char]0x83B2)
         $titleJa = ([char]0x846C) + ([char]0x9001) + ([char]0x306E) + ([char]0x30D5) + ([char]0x30EA) + ([char]0x30FC) + ([char]0x30EC) + ([char]0x30F3)
+        $infoboxChineseTitleKey = ([char]0x4E2D) + ([char]0x6587) + ([char]0x540D)
 
         function New-JsonBytes {
             param([object]$Payload)
@@ -162,14 +180,14 @@ function Start-BangumiFixtureServer {
 
         function New-SearchResponseBytes {
             New-JsonBytes -Payload @{
-                data = @(
+                "data" = @(
                     @{
-                        id = 400602
-                        name = $titleJa
-                        name_cn = $titleCn
-                        rating = @{ score = 8.8 }
-                        infobox = @(
-                            @{ key = "中文名"; value = $titleCn }
+                        "id" = 400602;
+                        "name" = $titleJa;
+                        "name_cn" = $titleCn;
+                        "rating" = @{ "score" = 8.8 };
+                        "infobox" = @(
+                            @{ "key" = $infoboxChineseTitleKey; "value" = $titleCn }
                         )
                     }
                 )
@@ -178,40 +196,40 @@ function Start-BangumiFixtureServer {
 
         function New-SubjectResponseBytes {
             New-JsonBytes -Payload @{
-                id = 400602
-                name = $titleJa
-                name_cn = $titleCn
-                summary = "Fixture Bangumi subject used by Windows desktop behavior tests."
-                eps = 28
-                total_episodes = 28
-                date = "2023-09-29"
-                rating = @{ score = 8.8 }
-                images = @{
-                    large = "http://127.0.0.1:$Port/assets/frieren-large.jpg"
-                    common = "http://127.0.0.1:$Port/assets/frieren-common.jpg"
-                }
-                collection = @{ doing = 0 }
-                tags = @(
-                    @{ name = "Fantasy" },
-                    @{ name = "Adventure" }
+                "id" = 400602;
+                "name" = $titleJa;
+                "name_cn" = $titleCn;
+                "summary" = "Fixture Bangumi subject used by Windows desktop behavior tests.";
+                "eps" = 28;
+                "total_episodes" = 28;
+                "date" = "2023-09-29";
+                "rating" = @{ "score" = 8.8 };
+                "images" = @{
+                    "large" = "http://127.0.0.1:$Port/assets/frieren-large.jpg";
+                    "common" = "http://127.0.0.1:$Port/assets/frieren-common.jpg";
+                };
+                "collection" = @{ "doing" = 0 };
+                "tags" = @(
+                    @{ "name" = "Fantasy" },
+                    @{ "name" = "Adventure" }
                 )
             }
         }
 
         function New-EpisodesResponseBytes {
             New-JsonBytes -Payload @{
-                total = 1
-                data = @(
+                "total" = 1;
+                "data" = @(
                     @{
-                        id = 40060201
-                        type = 0
-                        ep = 1
-                        sort = 1
-                        name = "Fixture Metadata Episode"
-                        name_cn = "Fixture Metadata Episode"
-                        airdate = "2023-09-29"
-                        desc = "Fixture episode returned by the local Bangumi mock."
-                        duration_seconds = 1440
+                        "id" = 40060201;
+                        "type" = 0;
+                        "ep" = 1;
+                        "sort" = 1;
+                        "name" = "Fixture Metadata Episode";
+                        "name_cn" = "Fixture Metadata Episode";
+                        "airdate" = "2023-09-29";
+                        "desc" = "Fixture episode returned by the local Bangumi mock.";
+                        "duration_seconds" = 1440;
                     }
                 )
             }
@@ -435,7 +453,8 @@ function Write-InitialStore {
     } | ConvertTo-Json -Depth 12
 
     New-Item -ItemType Directory -Path (Split-Path -Parent $Path) -Force | Out-Null
-    Set-Content -LiteralPath $Path -Value $json -Encoding UTF8
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($Path, $json, $utf8NoBom)
 }
 
 $resolvedAppScript = Resolve-DesktopSmokeFullPath $AppScript

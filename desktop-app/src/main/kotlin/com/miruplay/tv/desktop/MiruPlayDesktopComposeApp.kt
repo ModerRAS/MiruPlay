@@ -223,6 +223,14 @@ internal typealias DesktopSection = MiruPlayRouteSurface.Section
 
 private const val DESKTOP_START_SECTION_ENV = "MIRUPLAY_DESKTOP_START_SECTION"
 private const val DESKTOP_INITIAL_LIBRARY_ROOT_ENV = "MIRUPLAY_DESKTOP_INITIAL_LIBRARY_ROOT"
+private const val DESKTOP_INITIAL_MEDIA_PATH_ENV = "MIRUPLAY_DESKTOP_INITIAL_MEDIA_PATH"
+private const val DESKTOP_INITIAL_WEBDAV_URL_ENV = "MIRUPLAY_DESKTOP_INITIAL_WEBDAV_URL"
+private const val DESKTOP_INITIAL_WEBDAV_USERNAME_ENV = "MIRUPLAY_DESKTOP_INITIAL_WEBDAV_USERNAME"
+private const val DESKTOP_INITIAL_WEBDAV_PASSWORD_ENV = "MIRUPLAY_DESKTOP_INITIAL_WEBDAV_PASSWORD"
+private const val DESKTOP_INITIAL_SMB_URL_ENV = "MIRUPLAY_DESKTOP_INITIAL_SMB_URL"
+private const val DESKTOP_INITIAL_SMB_DOMAIN_ENV = "MIRUPLAY_DESKTOP_INITIAL_SMB_DOMAIN"
+private const val DESKTOP_INITIAL_SMB_USERNAME_ENV = "MIRUPLAY_DESKTOP_INITIAL_SMB_USERNAME"
+private const val DESKTOP_INITIAL_SMB_PASSWORD_ENV = "MIRUPLAY_DESKTOP_INITIAL_SMB_PASSWORD"
 internal const val DESKTOP_ENTRY_SMOKE_ARG = "--miruplay-desktop-smoke"
 internal const val DESKTOP_ENTRY_SMOKE_REPORT_ARG_PREFIX = "--miruplay-desktop-smoke-report="
 
@@ -399,6 +407,24 @@ internal fun desktopInitialLibraryRoot(value: String?): String =
 internal fun desktopInitialLibraryRootFromEnvironment(): String =
     desktopInitialLibraryRoot(System.getenv(DESKTOP_INITIAL_LIBRARY_ROOT_ENV))
 
+internal fun desktopInitialMediaPath(value: String?): String =
+    value?.trim().orEmpty()
+
+internal fun desktopInitialMediaPathFromEnvironment(): String =
+    desktopInitialMediaPath(System.getenv(DESKTOP_INITIAL_MEDIA_PATH_ENV))
+
+internal fun desktopInitialSourceFormStateFromEnvironment(): DesktopSourceFormState =
+    desktopSourceFormStateFromInitialValues(
+        libraryRoot = System.getenv(DESKTOP_INITIAL_LIBRARY_ROOT_ENV),
+        webDavUrl = System.getenv(DESKTOP_INITIAL_WEBDAV_URL_ENV),
+        webDavUsername = System.getenv(DESKTOP_INITIAL_WEBDAV_USERNAME_ENV),
+        webDavPassword = System.getenv(DESKTOP_INITIAL_WEBDAV_PASSWORD_ENV),
+        smbUrl = System.getenv(DESKTOP_INITIAL_SMB_URL_ENV),
+        smbDomain = System.getenv(DESKTOP_INITIAL_SMB_DOMAIN_ENV),
+        smbUsername = System.getenv(DESKTOP_INITIAL_SMB_USERNAME_ENV),
+        smbPassword = System.getenv(DESKTOP_INITIAL_SMB_PASSWORD_ENV),
+    )
+
 @Composable
 internal fun MiruPlayDesktopComposeApp(
     onPlayerFullscreenActiveChange: (Boolean) -> Unit = {},
@@ -463,14 +489,14 @@ internal fun MiruPlayDesktopComposeApp(
     }
     val defaultMpvLayout = remember { MpvRuntimeDiscovery.defaultLayout() }
     val playbackLauncher = remember(playbackBridge) { DesktopPlaybackLauncher(playbackBridge) }
-    val initialLibraryRoot = remember { desktopInitialLibraryRootFromEnvironment() }
+    val initialSourceFormState = remember { desktopInitialSourceFormStateFromEnvironment() }
     var selectedDesktopSection by remember { mutableStateOf(desktopInitialSectionFromEnvironment()) }
     var player by remember { mutableStateOf<MpvProcessPlayer?>(null) }
     var activePlaybackSession by remember { mutableStateOf<PlaybackProgressSession?>(null) }
     var webControlPlaybackSource by remember { mutableStateOf<DesktopMediaSource?>(null) }
     var mpvPath by remember { mutableStateOf(defaultMpvLayout.executable.toString()) }
     var configDir by remember { mutableStateOf(defaultMpvLayout.configDirectory.toString()) }
-    var libraryRoot by remember { mutableStateOf(initialLibraryRoot) }
+    var libraryRoot by remember { mutableStateOf(initialSourceFormState.libraryRoot) }
     var savedSources by remember { mutableStateOf(emptyList<MediaSourceInfo>()) }
     var activeSourceId by remember { mutableStateOf<Long?>(null) }
     var activeSource by remember { mutableStateOf<DesktopMediaSource?>(null) }
@@ -479,13 +505,13 @@ internal fun MiruPlayDesktopComposeApp(
     var indexedEntries by remember { mutableStateOf(emptyList<MediaIndexEntry>()) }
     var selectedIndexEntry by remember { mutableStateOf<MediaIndexEntry?>(null) }
     var libraryStatus by remember { mutableStateOf(localLibraryInitialStatus()) }
-    var webDavUrl by remember { mutableStateOf("") }
-    var webDavUsername by remember { mutableStateOf("") }
-    var webDavPassword by remember { mutableStateOf("") }
-    var smbUrl by remember { mutableStateOf("") }
-    var smbDomain by remember { mutableStateOf("") }
-    var smbUsername by remember { mutableStateOf("") }
-    var smbPassword by remember { mutableStateOf("") }
+    var webDavUrl by remember { mutableStateOf(initialSourceFormState.webDavUrl) }
+    var webDavUsername by remember { mutableStateOf(initialSourceFormState.webDavUsername) }
+    var webDavPassword by remember { mutableStateOf(initialSourceFormState.webDavPassword) }
+    var smbUrl by remember { mutableStateOf(initialSourceFormState.smbUrl) }
+    var smbDomain by remember { mutableStateOf(initialSourceFormState.smbDomain) }
+    var smbUsername by remember { mutableStateOf(initialSourceFormState.smbUsername) }
+    var smbPassword by remember { mutableStateOf(initialSourceFormState.smbPassword) }
     var remotePath by remember { mutableStateOf("") }
     var remoteEntries by remember { mutableStateOf(emptyList<FileEntry>()) }
     var selectedRemoteEntry by remember { mutableStateOf<FileEntry?>(null) }
@@ -540,7 +566,7 @@ internal fun MiruPlayDesktopComposeApp(
     var cloudDirectoryBrowser by remember { mutableStateOf(CloudDriveDirectoryBrowserState()) }
     var logUploadSnapshot by remember { mutableStateOf(OtlpLogUploadActionSnapshot()) }
     var logUploadTokenInput by remember { mutableStateOf("") }
-    var mediaPath by remember { mutableStateOf("") }
+    var mediaPath by remember { mutableStateOf(desktopInitialMediaPathFromEnvironment()) }
     var subtitlePath by remember { mutableStateOf("") }
     var startSeconds by remember { mutableStateOf("0") }
     var fullscreen by remember { mutableStateOf(false) }
@@ -776,7 +802,7 @@ internal fun MiruPlayDesktopComposeApp(
         when (val sources = repositories.mediaSources.getSources()) {
             is Result.Success -> {
                 savedSources = sources.data
-                if (sources.data.isNotEmpty() || libraryRoot.isBlank()) {
+                if (sources.data.isNotEmpty() || !initialSourceFormState.hasAnyValue()) {
                     applySourceFormState(sources.data.desktopSourceFormState())
                 }
                 startupSource = sources.data.preferredDesktopStartupSource()

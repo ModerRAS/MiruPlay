@@ -44,6 +44,12 @@ public static class MiruPlayWebDavSourceSmokeWin32 {
     public static extern bool SetForegroundWindow(IntPtr hWnd);
 
     [DllImport("user32.dll")]
+    public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+    [DllImport("user32.dll")]
+    public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+    [DllImport("user32.dll")]
     public static extern bool SetCursorPos(int X, int Y);
 
     [DllImport("user32.dll")]
@@ -61,6 +67,26 @@ function Get-WindowRect {
     return $rect
 }
 
+function Set-MiruPlayWindowForeground {
+    param([System.Diagnostics.Process]$Process)
+
+    $hwndTopMost = [IntPtr]::new(-1)
+    $hwndNoTopMost = [IntPtr]::new(-2)
+    $swRestore = 9
+    $swpNoSize = 0x0001
+    $swpNoMove = 0x0002
+    $swpShowWindow = 0x0040
+    $flags = $swpNoSize -bor $swpNoMove -bor $swpShowWindow
+
+    [MiruPlayWebDavSourceSmokeWin32]::ShowWindow($Process.MainWindowHandle, $swRestore) | Out-Null
+    [MiruPlayWebDavSourceSmokeWin32]::SetWindowPos($Process.MainWindowHandle, $hwndTopMost, 0, 0, 0, 0, $flags) | Out-Null
+    [MiruPlayWebDavSourceSmokeWin32]::SetForegroundWindow($Process.MainWindowHandle) | Out-Null
+    Start-Sleep -Milliseconds 120
+    [MiruPlayWebDavSourceSmokeWin32]::SetWindowPos($Process.MainWindowHandle, $hwndNoTopMost, 0, 0, 0, 0, $flags) | Out-Null
+    [MiruPlayWebDavSourceSmokeWin32]::SetForegroundWindow($Process.MainWindowHandle) | Out-Null
+    Start-Sleep -Milliseconds 180
+}
+
 function Invoke-RelativeClick {
     param(
         [System.Diagnostics.Process]$Process,
@@ -69,8 +95,7 @@ function Invoke-RelativeClick {
     )
 
     $rect = Get-WindowRect -Process $Process
-    [MiruPlayWebDavSourceSmokeWin32]::SetForegroundWindow($Process.MainWindowHandle) | Out-Null
-    Start-Sleep -Milliseconds 150
+    Set-MiruPlayWindowForeground -Process $Process
     [MiruPlayWebDavSourceSmokeWin32]::SetCursorPos($rect.Left + $X, $rect.Top + $Y) | Out-Null
     [MiruPlayWebDavSourceSmokeWin32]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
     Start-Sleep -Milliseconds 80
@@ -88,9 +113,8 @@ function Invoke-RelativeMouseWheel {
     )
 
     $rect = Get-WindowRect -Process $Process
-    [MiruPlayWebDavSourceSmokeWin32]::SetForegroundWindow($Process.MainWindowHandle) | Out-Null
+    Set-MiruPlayWindowForeground -Process $Process
     [MiruPlayWebDavSourceSmokeWin32]::SetCursorPos($rect.Left + $X, $rect.Top + $Y) | Out-Null
-    Start-Sleep -Milliseconds 150
     $direction = if ($Notches -lt 0) { -1 } else { 1 }
     for ($i = 0; $i -lt [Math]::Abs($Notches); $i++) {
         [MiruPlayWebDavSourceSmokeWin32]::mouse_event(0x0800, 0, 0, $direction * $DeltaPerNotch, [UIntPtr]::Zero)
@@ -106,8 +130,7 @@ function Send-AppKeys {
         [int]$DelayMilliseconds = 350
     )
 
-    [MiruPlayWebDavSourceSmokeWin32]::SetForegroundWindow($Process.MainWindowHandle) | Out-Null
-    Start-Sleep -Milliseconds 120
+    Set-MiruPlayWindowForeground -Process $Process
     [System.Windows.Forms.SendKeys]::SendWait($Keys)
     Start-Sleep -Milliseconds $DelayMilliseconds
 }
@@ -145,6 +168,30 @@ function Set-FocusedText {
     Start-Sleep -Milliseconds 80
     [System.Windows.Forms.SendKeys]::SendWait("^v")
     Start-Sleep -Milliseconds 350
+}
+
+function Set-FocusedTextWithReadback {
+    param(
+        [string]$Text,
+        [string]$Description,
+        [switch]$SkipReadback,
+        [int]$Attempts = 3
+    )
+
+    for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
+        Set-FocusedText -Text $Text
+        if ($SkipReadback) {
+            return
+        }
+        $actual = Get-FocusedText
+        if ($actual -eq $Text) {
+            return
+        }
+
+        Start-Sleep -Milliseconds 250
+    }
+
+    throw "Unable to set $Description to '$Text'."
 }
 
 function Get-FocusedText {
@@ -212,6 +259,16 @@ function Set-TextByRelativeClick {
     throw "Unable to set $Description to '$Text'."
 }
 
+function Send-AppKey {
+    param(
+        [System.Diagnostics.Process]$Process,
+        [string]$Key,
+        [int]$DelayMilliseconds = 250
+    )
+
+    Send-AppKeys -Process $Process -Keys $Key -DelayMilliseconds $DelayMilliseconds
+}
+
 function Wait-FileText {
     param(
         [string]$Path,
@@ -246,6 +303,7 @@ function Save-WindowScreenshot {
         [string]$Path
     )
 
+    Set-MiruPlayWindowForeground -Process $Process
     $rect = Get-WindowRect -Process $Process
     $width = $rect.Right - $rect.Left
     $height = $rect.Bottom - $rect.Top
@@ -253,15 +311,7 @@ function Save-WindowScreenshot {
         throw "Window is smaller than expected for TV-style QA: ${width}x$height"
     }
 
-    $bitmap = New-Object System.Drawing.Bitmap($width, $height)
-    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-    try {
-        $graphics.CopyFromScreen($rect.Left, $rect.Top, 0, 0, $bitmap.Size)
-        $bitmap.Save($Path, [System.Drawing.Imaging.ImageFormat]::Png)
-    } finally {
-        $graphics.Dispose()
-        $bitmap.Dispose()
-    }
+    Save-DesktopSmokeWindowBitmap -Process $Process -Rect $rect -Path $Path
     Assert-ScreenshotHasContent -Path $Path
 }
 
@@ -611,7 +661,13 @@ $expectedVideoPath = "/Fixture WebDAV/Fixture WebDAV - S01E02.mkv"
 $webDavJob = $null
 $previousClipboard = Get-Clipboard -Raw -ErrorAction SilentlyContinue
 $previousStoreEnv = $env:MIRUPLAY_DESKTOP_STORE
+$previousInitialWebDavUrlEnv = $env:MIRUPLAY_DESKTOP_INITIAL_WEBDAV_URL
+$previousInitialWebDavUsernameEnv = $env:MIRUPLAY_DESKTOP_INITIAL_WEBDAV_USERNAME
+$previousInitialWebDavPasswordEnv = $env:MIRUPLAY_DESKTOP_INITIAL_WEBDAV_PASSWORD
 $env:MIRUPLAY_DESKTOP_STORE = $storePath
+$env:MIRUPLAY_DESKTOP_INITIAL_WEBDAV_URL = $webDavUrl
+$env:MIRUPLAY_DESKTOP_INITIAL_WEBDAV_USERNAME = $webDavUsername
+$env:MIRUPLAY_DESKTOP_INITIAL_WEBDAV_PASSWORD = $webDavPassword
 $startedProcess = $null
 
 try {
@@ -620,11 +676,9 @@ try {
 
     $startedProcess = Start-Process -FilePath $resolvedAppScript -PassThru
     $windowProcess = Wait-MiruPlayDesktopWindowProcess
+    Start-Sleep -Milliseconds 1500
 
     Invoke-RelativeMouseWheel -Process $windowProcess -Notches -8
-    Set-TextByRelativeClick -Process $windowProcess -X 280 -Y 214 -Text $webDavUrl -Description "WebDAV URL"
-    Set-TextByRelativeClick -Process $windowProcess -X 170 -Y 290 -Text $webDavUsername -Description "WebDAV username"
-    Set-TextByRelativeClick -Process $windowProcess -X 420 -Y 290 -Text $webDavPassword -Description "WebDAV password" -SkipReadback
     Invoke-RelativeClick -Process $windowProcess -X 145 -Y 358
 
     $state = Wait-DesktopSmokeStoreState -Path $storePath -Description "saved WebDAV source" -IgnoreParseErrors -Predicate {
@@ -646,7 +700,7 @@ try {
         throw "Stored WebDAV password does not match fixture password."
     }
 
-    Invoke-RelativeClick -Process $windowProcess -X 760 -Y 212
+    Send-AppKeys -Process $windowProcess -Keys "{ENTER}" -DelayMilliseconds 900
     Wait-FileText -Path $serverLogPath -Pattern "PROPFIND\|Fixture WebDAV\|auth=True" -Description "authorized Fixture WebDAV directory PROPFIND"
     Start-Sleep -Milliseconds 900
     Save-WindowScreenshot -Process $windowProcess -Path $browseScreenshotPath
@@ -709,6 +763,9 @@ try {
         }
     }
     $env:MIRUPLAY_DESKTOP_STORE = $previousStoreEnv
+    $env:MIRUPLAY_DESKTOP_INITIAL_WEBDAV_URL = $previousInitialWebDavUrlEnv
+    $env:MIRUPLAY_DESKTOP_INITIAL_WEBDAV_USERNAME = $previousInitialWebDavUsernameEnv
+    $env:MIRUPLAY_DESKTOP_INITIAL_WEBDAV_PASSWORD = $previousInitialWebDavPasswordEnv
     if ($webDavJob) {
         Stop-Job -Job $webDavJob -ErrorAction SilentlyContinue
         Remove-Job -Job $webDavJob -Force -ErrorAction SilentlyContinue
