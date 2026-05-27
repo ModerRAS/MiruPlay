@@ -221,6 +221,9 @@ class NextPlaybackSourceResolverTest {
         override suspend fun getCachedMetadata(animeId: String): Result<com.miruplay.tv.model.Anime?> =
             Result.success(null)
 
+        override suspend fun getCachedMetadata(animeIds: Collection<String>): Result<List<com.miruplay.tv.model.Anime>> =
+            Result.success(emptyList())
+
         override suspend fun getCachedEpisode(episodeId: String): Result<Episode?> =
             Result.success(episodesByAnime.values.flatten().firstOrNull { it.id == episodeId })
 
