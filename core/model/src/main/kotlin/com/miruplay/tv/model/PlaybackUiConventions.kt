@@ -6,6 +6,24 @@ const val PLAYBACK_SEEK_BACK_SECONDS = 10
 
 const val PLAYBACK_SEEK_FORWARD_SECONDS = 30
 
+const val PLAYBACK_SPEED_MIN = 0.25f
+
+const val PLAYBACK_SPEED_NORMAL = 1.0f
+
+const val PLAYBACK_SPEED_MAX = 3.0f
+
+private val playbackSpeedOptionValues: List<Float> = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
+
+fun playbackSpeedOptions(): List<Float> =
+    playbackSpeedOptionValues
+
+fun coercePlaybackSpeed(speed: Float): Float =
+    if (speed.isFinite()) {
+        speed.coerceIn(PLAYBACK_SPEED_MIN, PLAYBACK_SPEED_MAX)
+    } else {
+        PLAYBACK_SPEED_NORMAL
+    }
+
 fun playbackBackLabel(): String = "返回"
 
 fun playbackBackToDetailsLabel(): String = "返回详情"
