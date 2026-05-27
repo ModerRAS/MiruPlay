@@ -398,7 +398,7 @@ internal fun desktopLibraryHeaderFocusTarget(
     current: DesktopLibraryHeaderAction,
     key: Key,
 ): DesktopLibraryHeaderFocusTarget? =
-    key.resolveDesktopIntent { intent ->
+    key.toMiruPlayInputIntent()?.let { intent ->
         desktopLibraryHeaderFocusTarget(current, intent)
     }
 
@@ -458,7 +458,7 @@ internal fun librarySourceActionFocusTarget(
     key: Key,
     hasEmptyMedia: Boolean = false,
 ): LibrarySourceFocusTarget? =
-    key.resolveDesktopIntent { intent ->
+    key.toMiruPlayInputIntent()?.let { intent ->
         librarySourceActionFocusTarget(current, intent, hasEmptyMedia)
     }
 
@@ -481,7 +481,7 @@ internal fun librarySourceFieldFocusTarget(
     key: Key,
     hasEmptyMedia: Boolean = false,
 ): LibrarySourceFocusTarget? =
-    key.resolveDesktopIntent { intent ->
+    key.toMiruPlayInputIntent()?.let { intent ->
         librarySourceFieldFocusTarget(current, intent, hasEmptyMedia)
     }
 
@@ -511,7 +511,7 @@ internal fun librarySourceFieldFocusTarget(
     }
 
 internal fun libraryEmptyMediaFocusTarget(key: Key): LibrarySourceFocusTarget? =
-    key.resolveDesktopIntent(::libraryEmptyMediaFocusTarget)
+    key.toMiruPlayInputIntent()?.let(::libraryEmptyMediaFocusTarget)
 
 internal fun libraryEmptyMediaFocusTarget(intent: MiruPlayInputIntent): LibrarySourceFocusTarget? =
     when (intent.verticalNavigationDelta()) {
@@ -523,7 +523,7 @@ internal fun librarySourceActionNavigationTarget(
     current: LibrarySourceAction,
     key: Key,
 ): LibrarySourceAction? =
-    key.resolveDesktopIntent { intent ->
+    key.toMiruPlayInputIntent()?.let { intent ->
         librarySourceActionNavigationTarget(current, intent)
     }
 
@@ -596,7 +596,7 @@ internal fun remoteSourceActionFocusTarget(
     current: RemoteSourceAction,
     key: Key,
 ): RemoteSourceFocusTarget? =
-    key.resolveDesktopIntent { intent ->
+    key.toMiruPlayInputIntent()?.let { intent ->
         remoteSourceActionFocusTarget(current, intent)
     }
 
@@ -626,7 +626,7 @@ internal fun remoteSourceFieldFocusTarget(
     current: RemoteSourceField,
     key: Key,
 ): RemoteSourceFocusTarget? =
-    key.resolveDesktopIntent { intent ->
+    key.toMiruPlayInputIntent()?.let { intent ->
         remoteSourceFieldFocusTarget(current, intent)
     }
 
@@ -690,7 +690,7 @@ internal fun remoteSourceActionNavigationTarget(
     current: RemoteSourceAction,
     key: Key,
 ): RemoteSourceAction? =
-    key.resolveDesktopIntent { intent ->
+    key.toMiruPlayInputIntent()?.let { intent ->
         remoteSourceActionNavigationTarget(current, intent)
     }
 
@@ -1454,7 +1454,7 @@ internal fun librarySearchFocusTarget(
     current: LibrarySearchFocusTarget,
     key: Key,
 ): LibrarySearchFocusTarget? =
-    key.resolveDesktopIntent { intent ->
+    key.toMiruPlayInputIntent()?.let { intent ->
         librarySearchFocusTarget(current, intent)
     }
 
@@ -1476,7 +1476,7 @@ internal fun List<DesktopPosterGroup>.posterShelfNavigationTarget(
     currentIndex: Int,
     key: Key,
 ): DesktopPosterGroup? =
-    key.resolveDesktopIntent { intent ->
+    key.toMiruPlayInputIntent()?.let { intent ->
         posterShelfNavigationTarget(currentIndex, intent)
     }
 
@@ -1502,7 +1502,7 @@ internal fun libraryMediaFocusTarget(
     recentlyAddedCount: Int,
     columns: Int = POSTER_WALL_COLUMNS,
 ): LibraryMediaFocusTarget? =
-    key.resolveDesktopIntent { intent ->
+    key.toMiruPlayInputIntent()?.let { intent ->
         libraryMediaFocusTarget(
             current = current,
             intent = intent,
@@ -1617,7 +1617,7 @@ internal fun List<DesktopPosterGroup>.posterNavigationTarget(
     key: Key,
     columns: Int = POSTER_WALL_COLUMNS,
 ): DesktopPosterGroup? =
-    key.resolveDesktopIntent { intent ->
+    key.toMiruPlayInputIntent()?.let { intent ->
         posterNavigationTarget(currentIndex, intent, columns)
     }
 
@@ -2196,7 +2196,7 @@ internal fun List<FileEntry>.remoteBrowserFocusTarget(
     currentIndex: Int,
     key: Key,
 ): RemoteBrowserFocusTarget? {
-    return key.resolveDesktopIntent { intent ->
+    return key.toMiruPlayInputIntent()?.let { intent ->
         remoteBrowserFocusTarget(currentIndex, intent)
     }
 }
@@ -2221,7 +2221,7 @@ internal fun remoteBrowserUpButtonFocusTarget(
     itemCount: Int,
     key: Key,
 ): RemoteBrowserFocusTarget? =
-    key.resolveDesktopIntent { intent ->
+    key.toMiruPlayInputIntent()?.let { intent ->
         remoteBrowserUpButtonFocusTarget(itemCount, intent)
     }
 
@@ -2242,7 +2242,7 @@ internal fun remoteBrowserUpButtonFocusTarget(
     }
 
 internal fun remoteBrowserEmptyFocusTarget(key: Key): RemoteBrowserFocusTarget? =
-    key.resolveDesktopIntent(::remoteBrowserEmptyFocusTarget)
+    key.toMiruPlayInputIntent()?.let(::remoteBrowserEmptyFocusTarget)
 
 internal fun remoteBrowserEmptyFocusTarget(intent: MiruPlayInputIntent): RemoteBrowserFocusTarget? =
     when (intent.horizontalNavigationDelta()) {
@@ -2257,7 +2257,7 @@ internal fun remoteBrowserShouldNavigateUp(
     currentIndex: Int,
     key: Key,
 ): Boolean =
-    key.resolveDesktopIntent { intent ->
+    key.toMiruPlayInputIntent()?.let { intent ->
         remoteBrowserShouldNavigateUp(currentIndex, intent)
     } == true
 

@@ -277,12 +277,6 @@ class BangumiSyncCoreTest {
             return Result.success(anime?.takeIf { it.id == animeId })
         }
 
-        override suspend fun getCachedMetadata(animeIds: Collection<String>): Result<List<Anime>> {
-            metadataError?.let { return Result.failure(it) }
-            val item = anime?.takeIf { animeIds.contains(it.id) } ?: return Result.success(emptyList())
-            return Result.success(listOf(item))
-        }
-
         override suspend fun getCachedEpisode(episodeId: String): Result<Episode?> {
             metadataError?.let { return Result.failure(it) }
             return Result.success(episodes.values.flatten().firstOrNull { it.id == episodeId })

@@ -55,11 +55,9 @@ import com.miruplay.tv.design.nextEnabledFocusIndex
 import com.miruplay.tv.design.verticalNavigationDelta
 import com.miruplay.tv.model.CLOUD_DRIVE_DIRECTORY_PAGE_SIZE
 import com.miruplay.tv.model.CLOUD_RSS_SUBSCRIPTION_PAGE_SIZE
-import com.miruplay.tv.model.CloudDriveLibraryMode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MiruPlaySettingsSection
 import com.miruplay.tv.model.RssSubscriptionInfo
-import com.miruplay.tv.model.SettingsSectionMenuSummaryInput
 import com.miruplay.tv.model.SettingsSummaryTile
 import com.miruplay.tv.model.cloudDriveDirectoryCoercedPageStart
 import com.miruplay.tv.model.cloudDriveDirectoryPageStartForIndex
@@ -68,9 +66,6 @@ import com.miruplay.tv.model.cloudDriveRssChooseDirectoryActionLabel
 import com.miruplay.tv.model.cloudDriveRssCloseActionLabel
 import com.miruplay.tv.model.cloudDriveRssDirectoryBadgeLabel
 import com.miruplay.tv.model.cloudDriveRssEmptyDirectoryMessage
-import com.miruplay.tv.model.cloudDriveRssInboxPathFieldLabel
-import com.miruplay.tv.model.cloudDriveRssLibraryModeOrganizedLabel
-import com.miruplay.tv.model.cloudDriveRssLibraryModeSingleDirectoryLabel
 import com.miruplay.tv.model.cloudDriveRssLoadingDirectoriesMessage
 import com.miruplay.tv.model.cloudDriveRssParentDirectoryActionLabel
 import com.miruplay.tv.model.cloudDriveRssRuntimeTitleLabel
@@ -93,22 +88,15 @@ import com.miruplay.tv.model.metadataBangumiTokenTileLabel
 import com.miruplay.tv.model.metadataSettingsTiles
 import com.miruplay.tv.model.mediaSourceStatusText
 import com.miruplay.tv.model.playbackSettingsTiles
+import com.miruplay.tv.model.settingsCloudDriveMenuSummary
 import com.miruplay.tv.model.settingsClearTokenActionLabel
-import com.miruplay.tv.model.settingsAppUpdateIdleStatus
 import com.miruplay.tv.model.settingsDesktopScanStatusMessage
+import com.miruplay.tv.model.settingsDesktopWebUiMenuSummary
 import com.miruplay.tv.model.settingsDesktopWebUiStatusMessage
-import com.miruplay.tv.model.settingsLogUploadAutoToggleLabel
-import com.miruplay.tv.model.settingsLogUploadEndpointFieldLabel
-import com.miruplay.tv.model.settingsLogUploadRunNowActionLabel
-import com.miruplay.tv.model.settingsLogUploadSaveConfigActionLabel
-import com.miruplay.tv.model.settingsLogUploadStreamFieldLabel
-import com.miruplay.tv.model.settingsLogUploadTokenFieldLabel
-import com.miruplay.tv.model.settingsLogUploadTokenConfiguredStatus
 import com.miruplay.tv.model.settingsAutoScanToggleLabel
 import com.miruplay.tv.model.settingsCurrentScanIntervalStatus
 import com.miruplay.tv.model.settingsLibraryDisplayTitleLabel
 import com.miruplay.tv.model.settingsMenuPanelDescription
-import com.miruplay.tv.model.settingsMenuSummary
 import com.miruplay.tv.model.settingsMenuPanelTitle
 import com.miruplay.tv.model.settingsMergeSameAnimeStatus
 import com.miruplay.tv.model.settingsMergeSameAnimeToggleLabel
@@ -121,6 +109,8 @@ import com.miruplay.tv.model.settingsScanActiveSourceActionLabel
 import com.miruplay.tv.model.settingsScanIntervalOptionLabel
 import com.miruplay.tv.model.settingsScanPanelDescription
 import com.miruplay.tv.model.settingsScanPanelTitleLabel
+import com.miruplay.tv.model.settingsScanMenuSummary
+import com.miruplay.tv.model.settingsSourcesMenuSummary
 import com.miruplay.tv.model.settingsWebUiAccessTokenLabel
 import com.miruplay.tv.model.settingsWebUiAddressLabel
 import com.miruplay.tv.model.settingsWebUiAvailableAddressesLabel
@@ -131,7 +121,6 @@ import com.miruplay.tv.model.settingsWebUiToggleActionLabel
 import com.miruplay.tv.model.stepDesktopSettingsSection
 import com.miruplay.tv.model.rssSubscriptionPreview
 import com.miruplay.tv.model.rssSubscriptionsTitleLabel
-import com.miruplay.tv.model.logUploadSettingsTiles
 import com.miruplay.tv.model.scanSettingsTiles
 import com.miruplay.tv.model.sourceSettingsTiles
 import com.miruplay.tv.model.webUiSettingsTiles
@@ -156,8 +145,6 @@ internal fun CloudRssPanel(
     onInboxPathChange: (String) -> Unit,
     libraryPath: String,
     onLibraryPathChange: (String) -> Unit,
-    libraryMode: CloudDriveLibraryMode,
-    onLibraryModeChange: (CloudDriveLibraryMode) -> Unit,
     directoryBrowser: CloudDriveDirectoryBrowserState,
     onPickCloudDriveDirectory: (CloudDriveDirectoryTarget) -> Unit,
     onBrowseCloudDriveDirectory: (String) -> Unit,
@@ -385,42 +372,6 @@ internal fun CloudRssPanel(
                 },
                 modifier = Modifier.weight(1f),
             )
-            MiruPlaySettingsSection.LOG_UPLOAD -> SettingsSummaryContent(
-                section = selectedSection,
-                tiles = logUploadSettingsTiles(),
-                status = logUploadStatusMessage,
-                actions = listOf(
-                    SettingsQuickAction(settingsLogUploadSaveConfigActionLabel(), onSaveLogUploadConfig),
-                    SettingsQuickAction(settingsSaveTokenActionLabel(), onSaveLogUploadToken, enabled = logUploadToken.isNotBlank()),
-                    SettingsQuickAction(settingsClearTokenActionLabel(), onClearLogUploadToken, enabled = logUploadTokenConfigured),
-                    SettingsQuickAction(settingsLogUploadRunNowActionLabel(), onRunLogUploadNow, enabled = canRunLogUploadNow),
-                ),
-                onFocusSectionMenu = { focusSelectedSectionMenu() },
-                extraContentFocusable = true,
-                extraContent = { focusModifier ->
-                    DesktopLogUploadContent(
-                        enabled = logUploadEnabled,
-                        onEnabledChange = onLogUploadEnabledChange,
-                        endpoint = logUploadEndpoint,
-                        onEndpointChange = onLogUploadEndpointChange,
-                        streamName = logUploadStreamName,
-                        onStreamNameChange = onLogUploadStreamNameChange,
-                        token = logUploadToken,
-                        onTokenChange = onLogUploadTokenChange,
-                        tokenConfigured = logUploadTokenConfigured,
-                        inputModifier = focusModifier,
-                    )
-                },
-                modifier = Modifier.weight(1f),
-            )
-            MiruPlaySettingsSection.APP_UPDATE -> SettingsSummaryContent(
-                section = selectedSection,
-                tiles = emptyList(),
-                status = settingsAppUpdateIdleStatus(),
-                actions = emptyList(),
-                onFocusSectionMenu = { focusSelectedSectionMenu() },
-                modifier = Modifier.weight(1f),
-            )
             MiruPlaySettingsSection.METADATA -> SettingsSummaryContent(
                 section = selectedSection,
                 tiles = metadataSettingsTiles(
@@ -486,8 +437,6 @@ private fun CloudRssAutomationContent(
     onInboxPathChange: (String) -> Unit,
     libraryPath: String,
     onLibraryPathChange: (String) -> Unit,
-    libraryMode: CloudDriveLibraryMode,
-    onLibraryModeChange: (CloudDriveLibraryMode) -> Unit,
     directoryBrowser: CloudDriveDirectoryBrowserState,
     onPickCloudDriveDirectory: (CloudDriveDirectoryTarget) -> Unit,
     onBrowseCloudDriveDirectory: (String) -> Unit,
@@ -1508,7 +1457,7 @@ internal fun cloudRssToggleFocusTarget(
     current: CloudRssToggle,
     key: Key,
 ): CloudRssFocusTarget? =
-    key.resolveDesktopIntent { intent ->
+    key.toMiruPlayInputIntent()?.let { intent ->
         cloudRssToggleFocusTarget(current, intent)
     }
 
@@ -1549,7 +1498,7 @@ internal fun cloudRssFieldFocusTarget(
     current: CloudRssField,
     key: Key,
 ): CloudRssFocusTarget? =
-    key.resolveDesktopIntent { intent ->
+    key.toMiruPlayInputIntent()?.let { intent ->
         cloudRssFieldFocusTarget(current, intent)
     }
 
@@ -1621,7 +1570,7 @@ internal fun cloudRssActionFocusTarget(
     key: Key,
     subscriptionCount: Int,
 ): CloudRssFocusTarget? =
-    key.resolveDesktopIntent { intent ->
+    key.toMiruPlayInputIntent()?.let { intent ->
         cloudRssActionFocusTarget(current, intent, subscriptionCount)
     }
 
@@ -1643,7 +1592,7 @@ internal fun cloudRssSubscriptionFocusTarget(
     itemCount: Int,
     key: Key,
 ): CloudRssFocusTarget? =
-    key.resolveDesktopIntent { intent ->
+    key.toMiruPlayInputIntent()?.let { intent ->
         cloudRssSubscriptionFocusTarget(currentIndex, itemCount, intent)
     }
 
@@ -1677,7 +1626,7 @@ internal fun cloudRssSubscriptionFocusTarget(
 }
 
 internal fun cloudRssSubscriptionEmptyFocusTarget(key: Key): CloudRssFocusTarget? =
-    key.resolveDesktopIntent(::cloudRssSubscriptionEmptyFocusTarget)
+    key.toMiruPlayInputIntent()?.let(::cloudRssSubscriptionEmptyFocusTarget)
 
 internal fun cloudRssSubscriptionEmptyFocusTarget(intent: MiruPlayInputIntent): CloudRssFocusTarget? =
     when (intent.verticalNavigationDelta()) {
@@ -1716,7 +1665,7 @@ internal fun cloudDriveDirectoryActionFocusTarget(
     key: Key,
     hasEmptyState: Boolean = false,
 ): CloudDriveDirectoryFocusTarget? =
-    key.resolveDesktopIntent { intent ->
+    key.toMiruPlayInputIntent()?.let { intent ->
         cloudDriveDirectoryActionFocusTarget(current, itemCount, intent, hasEmptyState)
     }
 
@@ -1738,7 +1687,7 @@ internal fun cloudDriveDirectoryActionFocusTarget(
     }
 
 internal fun cloudDriveDirectoryEmptyFocusTarget(key: Key): CloudDriveDirectoryFocusTarget? =
-    key.resolveDesktopIntent(::cloudDriveDirectoryEmptyFocusTarget)
+    key.toMiruPlayInputIntent()?.let(::cloudDriveDirectoryEmptyFocusTarget)
 
 internal fun cloudDriveDirectoryEmptyFocusTarget(intent: MiruPlayInputIntent): CloudDriveDirectoryFocusTarget? =
     when (intent.verticalNavigationDelta()) {
@@ -1751,7 +1700,7 @@ internal fun cloudDriveDirectoryRowFocusTarget(
     itemCount: Int,
     key: Key,
 ): CloudDriveDirectoryFocusTarget? =
-    key.resolveDesktopIntent { intent ->
+    key.toMiruPlayInputIntent()?.let { intent ->
         cloudDriveDirectoryRowFocusTarget(currentIndex, itemCount, intent)
     }
 
@@ -1887,7 +1836,7 @@ internal fun settingsQuickActionNavigationTarget(
     key: Key,
     enabledActions: List<Boolean> = List(actionCount) { true },
 ): Int? =
-    key.resolveDesktopIntent { intent ->
+    key.toMiruPlayInputIntent()?.let { intent ->
         settingsQuickActionNavigationTarget(currentIndex, actionCount, intent, enabledActions)
     }
 
@@ -1918,7 +1867,7 @@ internal fun settingsQuickActionFocusTarget(
     enabledActions: List<Boolean> = List(actionCount) { true },
     hasExtraFocus: Boolean = false,
 ): SettingsQuickActionFocusTarget? =
-    key.resolveDesktopIntent { intent ->
+    key.toMiruPlayInputIntent()?.let { intent ->
         settingsQuickActionFocusTarget(currentIndex, actionCount, intent, enabledActions, hasExtraFocus)
     }
 
@@ -1950,7 +1899,7 @@ internal fun settingsSummaryExtraFocusTarget(
     key: Key,
     enabledActions: List<Boolean> = List(actionCount) { true },
 ): SettingsQuickActionFocusTarget? =
-    key.resolveDesktopIntent { intent ->
+    key.toMiruPlayInputIntent()?.let { intent ->
         settingsSummaryExtraFocusTarget(actionCount, intent, enabledActions)
     }
 
@@ -2019,7 +1968,16 @@ private fun SettingsSectionMenu(
         desktopSettingsSectionOrder.forEach { section ->
             SettingsSectionMenuRow(
                 section = section,
-                summary = section.settingsMenuSummary(menuSummaryInput),
+                summary = section.menuSummary(
+                    sourcesCount = sourcesCount,
+                    rssCount = rssCount,
+                    cloudEnabled = cloudEnabled,
+                    webUiAddressCount = webUiAddressCount,
+                    autoScanEnabled = autoScanEnabled,
+                    mergeSameAnimeEnabled = mergeSameAnimeEnabled,
+                    metadataSummary = metadataSummary,
+                    playbackSummary = playbackSummary,
+                ),
                 selected = section == selectedSection,
                 onClick = { onSectionSelected(section) },
                 modifier = Modifier.focusRequester(sectionFocusRequesters.getValue(section)),
@@ -2033,7 +1991,7 @@ internal fun settingsSectionNavigationTarget(
     current: MiruPlaySettingsSection,
     key: Key,
 ): MiruPlaySettingsSection? =
-    key.resolveDesktopIntent { intent ->
+    key.toMiruPlayInputIntent()?.let { intent ->
         settingsSectionNavigationTarget(current, intent)
     }
 
@@ -2135,11 +2093,11 @@ private fun SettingsSummaryContent(
         actionFocusRequesters[index].requestFocus()
         return true
     }
-    fun moveActionFocus(currentIndex: Int, intent: MiruPlayInputIntent): Boolean {
+    fun moveActionFocus(currentIndex: Int, key: Key): Boolean {
         return when (val target = settingsQuickActionFocusTarget(
             currentIndex = currentIndex,
             actionCount = actions.size,
-            intent = intent,
+            key = key,
             enabledActions = enabledActions,
             hasExtraFocus = extraContentFocusable,
         )) {
@@ -2157,10 +2115,10 @@ private fun SettingsSummaryContent(
             null -> false
         }
     }
-    fun moveExtraContentFocus(intent: MiruPlayInputIntent): Boolean {
+    fun moveExtraContentFocus(key: Key): Boolean {
         return when (val target = settingsSummaryExtraFocusTarget(
             actionCount = actions.size,
-            intent = intent,
+            key = key,
             enabledActions = enabledActions,
         )) {
             is SettingsQuickActionFocusTarget.Action -> requestActionFocus(target.index)
@@ -2187,7 +2145,7 @@ private fun SettingsSummaryContent(
             if (extraContentFocusable) {
                 Modifier
                     .focusRequester(extraContentFocusRequester)
-                    .desktopNavigationIntentHandler(::moveExtraContentFocus)
+                    .desktopNavigationKeyHandler(::moveExtraContentFocus)
             } else {
                 Modifier
             },
@@ -2296,50 +2254,6 @@ private fun DesktopScanPreferencesContent(
 }
 
 @Composable
-private fun DesktopLogUploadContent(
-    enabled: Boolean,
-    onEnabledChange: (Boolean) -> Unit,
-    endpoint: String,
-    onEndpointChange: (String) -> Unit,
-    streamName: String,
-    onStreamNameChange: (String) -> Unit,
-    token: String,
-    onTokenChange: (String) -> Unit,
-    tokenConfigured: Boolean,
-    inputModifier: Modifier,
-) {
-    Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
-    ToggleRow(
-        label = settingsLogUploadAutoToggleLabel(),
-        checked = enabled,
-        onCheckedChange = onEnabledChange,
-    )
-    Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
-    LabeledTextField(
-        label = settingsLogUploadEndpointFieldLabel(),
-        value = endpoint,
-        onValueChange = onEndpointChange,
-        inputModifier = inputModifier,
-    )
-    Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
-    LabeledTextField(
-        label = settingsLogUploadStreamFieldLabel(),
-        value = streamName,
-        onValueChange = onStreamNameChange,
-    )
-    Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
-    LabeledTextField(
-        label = settingsLogUploadTokenFieldLabel(),
-        value = token,
-        onValueChange = onTokenChange,
-    )
-    Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
-    StatusBox(
-        settingsLogUploadTokenConfiguredStatus(tokenConfigured),
-    )
-}
-
-@Composable
 private fun SettingsSummaryTileRow(tiles: List<SettingsSummaryTile>) {
     Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.SECTION_GAP_DP.dp)) {
         tiles.forEach { tile ->
@@ -2389,6 +2303,24 @@ private fun SettingsSummaryCard(
     }
 }
 
+private fun MiruPlaySettingsSection.menuSummary(
+    sourcesCount: Int,
+    rssCount: Int,
+    cloudEnabled: Boolean,
+    webUiAddressCount: Int,
+    autoScanEnabled: Boolean,
+    mergeSameAnimeEnabled: Boolean,
+    metadataSummary: String,
+    playbackSummary: String,
+): String = when (this) {
+    MiruPlaySettingsSection.SOURCES -> settingsSourcesMenuSummary(sourcesCount)
+    MiruPlaySettingsSection.PLAYBACK -> playbackSummary
+    MiruPlaySettingsSection.CLOUD_DRIVE -> settingsCloudDriveMenuSummary(cloudEnabled, rssCount)
+    MiruPlaySettingsSection.SCAN -> settingsScanMenuSummary(autoScanEnabled, mergeSameAnimeEnabled)
+    MiruPlaySettingsSection.METADATA -> metadataSummary
+    MiruPlaySettingsSection.WEB_UI -> settingsDesktopWebUiMenuSummary(webUiAddressCount)
+}
+
 @Composable
 private fun RssSubscriptionRow(
     subscription: RssSubscriptionInfo,
@@ -2428,11 +2360,14 @@ private fun RssSubscriptionRow(
     }
 }
 
+private fun Key.isCloudRssVerticalKey(): Boolean =
+    toMiruPlayInputIntent()?.verticalNavigationDelta() != null
+
 internal fun List<RssSubscriptionInfo>.rssSubscriptionNavigationTarget(
     currentSubscriptionId: Long?,
     key: Key,
 ): RssSubscriptionInfo? =
-    key.resolveDesktopIntent { intent ->
+    key.toMiruPlayInputIntent()?.let { intent ->
         rssSubscriptionNavigationTarget(currentSubscriptionId, intent)
     }
 

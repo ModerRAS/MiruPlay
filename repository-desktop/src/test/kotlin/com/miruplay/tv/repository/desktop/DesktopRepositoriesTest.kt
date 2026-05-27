@@ -11,7 +11,6 @@ import com.miruplay.tv.model.RssDownloadStatus
 import com.miruplay.tv.model.RssDownloadTaskInfo
 import com.miruplay.tv.model.RssProcessedItemInfo
 import com.miruplay.tv.model.RssSubscriptionInfo
-import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.repository.BangumiCollectionService
 import com.miruplay.tv.repository.BangumiEpisodeCollection
 import com.miruplay.tv.repository.BangumiEpisodeCollectionType
@@ -21,8 +20,6 @@ import com.miruplay.tv.repository.BangumiUser
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.SCAN_PREFERENCES_MIN_INTERVAL_MS
 import com.miruplay.tv.sync.BangumiSyncCore
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -582,6 +579,43 @@ class DesktopRepositoriesTest {
         } finally {
             deleteTempStore(storePath)
             MiruLog.setSink(null)
+        }
+    }
+
+    @Test
+    fun `desktop web control access state persists token and notifies enabled changes`() = runBlocking {
+        val storePath = tempStorePath()
+        try {
+            val repositories = DesktopRepositories.fileBacked(storePath)
+            val enabledChanges = mutableListOf<Boolean>()
+            val listener = repositories.webControlAccess.addEnabledChangeListener { enabled ->
+                enabledChanges += enabled
+            }
+
+            assertEquals(false, repositories.webControlAccess.webControlEnabled)
+            repositories.webControlAccess.webControlEnabled = true
+            val generatedToken = repositories.webControlAccess.accessToken
+            assertTrue(generatedToken.isNotBlank())
+            assertEquals(listOf(true), enabledChanges)
+
+            val reopened = DesktopRepositories.fileBacked(storePath)
+            assertEquals(true, reopened.webControlAccess.webControlEnabled)
+            assertEquals(generatedToken, reopened.webControlAccess.accessToken)
+
+            val rotatedToken = reopened.webControlAccess.rotateAccessToken()
+            assertTrue(rotatedToken.isNotBlank())
+            assertTrue(rotatedToken != generatedToken)
+            reopened.webControlAccess.webControlEnabled = false
+
+            val disabled = DesktopRepositories.fileBacked(storePath)
+            assertEquals(false, disabled.webControlAccess.webControlEnabled)
+            assertEquals(rotatedToken, disabled.webControlAccess.accessToken)
+
+            listener.close()
+            repositories.webControlAccess.webControlEnabled = true
+            assertEquals(listOf(true), enabledChanges)
+        } finally {
+            deleteTempStore(storePath)
         }
     }
 

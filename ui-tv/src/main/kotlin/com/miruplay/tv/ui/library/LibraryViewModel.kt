@@ -4,20 +4,17 @@ import android.os.SystemClock
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.miruplay.tv.core.common.logging.MiruLog
-import com.miruplay.tv.data.preferences.ScanPreferencesManager
+import android.util.Log
 import com.miruplay.tv.model.Anime
-import com.miruplay.tv.model.Episode
-import com.miruplay.tv.model.MediaSourceInfo
-import com.miruplay.tv.model.MediaPathConventions
-import com.miruplay.tv.model.ProgressRecord
-import com.miruplay.tv.model.isCompleted
 import com.miruplay.tv.model.libraryNoContentAfterScanMessage
-import com.miruplay.tv.model.mergeSameAnimeForDisplay
+import com.miruplay.tv.repository.LibraryAnimeResolver
+import com.miruplay.tv.repository.LibraryContinueWatchingEpisode
+import com.miruplay.tv.repository.LibraryEpisodeResolver
 import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
+import com.miruplay.tv.repository.ScanPreferencesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -29,12 +26,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.cancellation.CancellationException
 import javax.inject.Inject
-
-data class ProgressWithEpisode(
-    val progress: ProgressRecord?,
-    val episode: Episode?,
-    val anime: Anime?
-)
 
 /**
  * Home screen states:
@@ -55,7 +46,7 @@ sealed class LibraryUiState {
         val newEpisodes: Int = 0
     ) : LibraryUiState()
     data class HasContent(
-        val continueWatching: List<ProgressWithEpisode>,
+        val continueWatching: List<LibraryContinueWatchingEpisode>,
         val recentlyAdded: List<Anime>,
         val allAnime: List<Anime>
     ) : LibraryUiState()
@@ -69,8 +60,21 @@ class LibraryViewModel @Inject constructor(
     private val indexRepository: MediaIndexRepository,
     private val progressRepository: PlaybackProgressRepository,
     private val libraryScanTask: LibraryScanTask,
-    private val scanPreferences: ScanPreferencesManager
+    private val scanPreferences: ScanPreferencesRepository
 ) : ViewModel() {
+    private val libraryEpisodeResolver = LibraryEpisodeResolver(
+        mediaSources = mediaRepository,
+        metadata = metadataRepository,
+        index = indexRepository,
+        progress = progressRepository,
+        mergeSameAnimeEnabled = { scanPreferences.getPreferences().mergeSameAnimeEnabled },
+    )
+    private val libraryAnimeResolver = LibraryAnimeResolver(
+        mediaSources = mediaRepository,
+        metadata = metadataRepository,
+        index = indexRepository,
+        mergeSameAnimeEnabled = { scanPreferences.getPreferences().mergeSameAnimeEnabled },
+    )
 
     private val _state = MutableStateFlow<LibraryUiState>(LibraryUiState.Loading)
     val state: StateFlow<LibraryUiState> = _state.asStateFlow()
@@ -159,15 +163,8 @@ class LibraryViewModel @Inject constructor(
                 return LibraryLoadSnapshot(hasSources = false, hasContent = false)
             }
 
-            val continueWatching = loadContinueWatching()
-            val allAnimeList = loadCachedAnime(sources)
-            val displayAnime = withContext(Dispatchers.Default) {
-                if (scanPreferences.mergeSameAnimeEnabled) {
-                    allAnimeList.mergeSameAnimeForDisplay()
-                } else {
-                    allAnimeList.distinctBy { it.id }
-                }
-            }
+        val continueWatching = loadContinueWatching()
+        val displayAnime = libraryAnimeResolver.loadDisplayAnime()
 
             if (displayAnime.isEmpty() && continueWatching.isEmpty()) {
                 _state.value = LibraryUiState.HasSources
@@ -203,76 +200,8 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
-    private suspend fun loadContinueWatching(): List<ProgressWithEpisode> {
-        val progressRecords = progressRepository.getContinueWatching().getOrNull() ?: emptyList()
-        return progressRecords.mapNotNull { record ->
-            val cachedEpisode = metadataRepository.getCachedEpisode(record.episodeId).getOrNull()
-            if (cachedEpisode != null) {
-                if (cachedEpisode.isCompleted(record)) return@mapNotNull null
-                val anime = metadataRepository.getCachedMetadata(cachedEpisode.animeId).getOrNull()
-                    ?: return@mapNotNull null
-                return@mapNotNull ProgressWithEpisode(
-                    progress = record,
-                    episode = cachedEpisode.copy(
-                        watchedPosition = record.positionMs,
-                        lastWatchedTimestamp = record.lastWatched,
-                        playCount = record.playCount
-                    ),
-                    anime = anime
-                )
-            }
-
-            val pathParts = record.episodeId.split(":", limit = 2)
-            val episodePath = pathParts.getOrNull(1) ?: record.episodeId
-            val sourceId = pathParts.getOrNull(0)?.toLongOrNull()
-            val animeName = MediaPathConventions.animeNameFromEpisodePath(episodePath)
-            if (animeName == null || sourceId == null) return@mapNotNull null
-
-            val anime = metadataRepository.getCachedMetadata(animeName).getOrNull()
-                ?: return@mapNotNull null
-
-            val matchedEntry = indexRepository.queryIndex(sourceId, animeName)
-                .getOrNull()
-                .orEmpty()
-                .find { it.path == episodePath }
-                ?: return@mapNotNull null
-
-            val episode = Episode(
-                id = record.episodeId,
-                animeId = animeName,
-                seasonNumber = matchedEntry.seasonNumber ?: 1,
-                episodeNumber = matchedEntry.episodeNumber ?: 1,
-                title = "",
-                filePath = episodePath,
-                fileName = episodePath.substringAfterLast("/"),
-                duration = 0L,
-                watchedPosition = record.positionMs,
-                lastWatchedTimestamp = record.lastWatched,
-                playCount = record.playCount,
-                thumbnailPath = null
-            )
-
-            if (episode.isCompleted(record)) return@mapNotNull null
-
-            ProgressWithEpisode(progress = record, episode = episode, anime = anime)
-        }
-    }
-
-    private suspend fun loadCachedAnime(sources: List<MediaSourceInfo>): List<Anime> {
-        val sourceAnimeNames = sources.flatMap { source ->
-            indexRepository.getAnimeInIndex(source.id).getOrNull().orEmpty()
-        }
-        MiruLog.d(
-            "LibraryViewModel",
-            "Cached anime names loaded",
-            mapOf("name_count" to sourceAnimeNames.size.toString())
-        )
-        return metadataRepository.getCachedMetadata(sourceAnimeNames).getOrNull().orEmpty()
-    }
-
-    private fun libraryLoadErrorMessage(): String {
-        return "加载媒体库失败，请稍后重试"
-    }
+    private suspend fun loadContinueWatching(): List<LibraryContinueWatchingEpisode> =
+        libraryEpisodeResolver.loadContinueWatchingEpisodes().filter { it.anime != null }
 
     fun cancelScan() {
         libraryScanTask.cancel()

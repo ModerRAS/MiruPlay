@@ -583,12 +583,8 @@ val packageWindowsAppImage by tasks.registering {
     dependsOn(prepareJpackageAppContent)
     onlyIf { System.getProperty("os.name").contains("Windows", ignoreCase = true) }
     inputs.dir(jpackageInputDir)
-    if (bundleMpvRuntime.get() && hasMpvRuntimeSource()) {
-        inputs.dir(jpackageAppContentDir)
-    }
+    inputs.dir(jpackageAppContentDir).optional()
     inputs.property("windowsPackageVersion", windowsPackageVersion)
-    inputs.property("bundleMpvRuntime", bundleMpvRuntime)
-    inputs.property("hasMpvRuntimeSource", providers.provider { hasMpvRuntimeSource() })
     outputs.dir(jpackageAppImageRoot)
 
     doLast {

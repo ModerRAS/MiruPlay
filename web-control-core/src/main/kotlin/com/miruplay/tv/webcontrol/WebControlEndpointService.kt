@@ -22,14 +22,6 @@ interface WebControlEndpointService {
     suspend fun saveRssSubscription(request: RssSubscriptionRequest): RssSubscriptionInfo
     suspend fun updateRssSubscription(id: Long, request: RssSubscriptionRequest): RssSubscriptionInfo
     suspend fun deleteRssSubscription(id: Long)
-    suspend fun getLogUpload(): LogUploadDto
-    suspend fun saveLogUploadConfig(request: LogUploadConfigRequest): LogUploadDto
-    suspend fun saveLogUploadToken(request: LogUploadTokenRequest): LogUploadDto
-    suspend fun clearLogUploadToken(): LogUploadDto
-    suspend fun uploadPendingLogs(): LogUploadDto
-    suspend fun getMetadataSettings(): MetadataSettingsDto
-    suspend fun saveBangumiToken(request: BangumiTokenRequest): MetadataSettingsDto
-    suspend fun clearBangumiToken(): MetadataSettingsDto
     suspend fun searchLibrary(query: String): LibraryDto
     suspend fun getAnimeDetail(animeId: String): AnimeDetailDto
     suspend fun playEpisode(request: PlayEpisodeRequest): PlaybackStatusDto

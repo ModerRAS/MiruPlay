@@ -29,37 +29,6 @@ internal data class DesktopSourceFormState(
     val smbPassword: String = "",
 )
 
-internal fun desktopSourceFormStateFromInitialValues(
-    libraryRoot: String? = null,
-    webDavUrl: String? = null,
-    webDavUsername: String? = null,
-    webDavPassword: String? = null,
-    smbUrl: String? = null,
-    smbDomain: String? = null,
-    smbUsername: String? = null,
-    smbPassword: String? = null,
-): DesktopSourceFormState =
-    DesktopSourceFormState(
-        libraryRoot = libraryRoot?.trim().orEmpty(),
-        webDavUrl = webDavUrl?.trim().orEmpty(),
-        webDavUsername = webDavUsername?.trim().orEmpty(),
-        webDavPassword = webDavPassword.orEmpty(),
-        smbUrl = smbUrl?.trim().orEmpty(),
-        smbDomain = smbDomain?.trim().orEmpty(),
-        smbUsername = smbUsername?.trim().orEmpty(),
-        smbPassword = smbPassword.orEmpty(),
-    )
-
-internal fun DesktopSourceFormState.hasAnyValue(): Boolean =
-    libraryRoot.isNotBlank() ||
-        webDavUrl.isNotBlank() ||
-        webDavUsername.isNotBlank() ||
-        webDavPassword.isNotBlank() ||
-        smbUrl.isNotBlank() ||
-        smbDomain.isNotBlank() ||
-        smbUsername.isNotBlank() ||
-        smbPassword.isNotBlank()
-
 internal data class DesktopSourceActivationState(
     val sourceInfo: MediaSourceInfo,
     val formState: DesktopSourceFormState,

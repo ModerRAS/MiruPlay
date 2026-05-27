@@ -2,7 +2,6 @@ package com.miruplay.tv.webcontrol
 
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.CloudDriveAutomationConfig
-import com.miruplay.tv.model.CloudDriveLibraryMode
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
@@ -91,7 +90,6 @@ data class SourceScanResponse(
     val episodesFound: Int,
     val newEpisodes: Int,
     val updatedEpisodes: Int,
-    val error: String? = null,
 )
 
 @Serializable
@@ -156,78 +154,6 @@ data class CloudDriveRunResponse(
     val skipped: Int,
     val failed: Int,
     val organized: Int,
-    val indexed: Int = 0,
-    val scraped: Int = 0,
-    val noMatch: Int = 0,
-)
-
-@Serializable
-data class LogUploadDto(
-    val config: OtlpLogUploadConfigDto,
-    val status: LogUploadStatusDto,
-    val tokenConfigured: Boolean,
-)
-
-@Serializable
-data class OtlpLogUploadConfigDto(
-    val enabled: Boolean,
-    val endpoint: String,
-    val streamName: String,
-    val lastUploadAt: Long,
-    val lastUploadStatus: String?,
-) {
-    companion object {
-        fun from(config: OtlpLogUploadConfig): OtlpLogUploadConfigDto =
-            OtlpLogUploadConfigDto(
-                enabled = config.enabled,
-                endpoint = config.endpoint,
-                streamName = config.streamName,
-                lastUploadAt = config.lastUploadAt,
-                lastUploadStatus = config.lastUploadStatus,
-            )
-    }
-}
-
-@Serializable
-data class LogUploadStatusDto(
-    val pendingCount: Int,
-    val isUploading: Boolean,
-    val lastUploadAt: Long,
-    val lastUploadStatus: String?,
-    val tokenConfigured: Boolean,
-) {
-    companion object {
-        fun from(status: LogUploadStatus, tokenConfigured: Boolean = status.tokenConfigured): LogUploadStatusDto =
-            LogUploadStatusDto(
-                pendingCount = status.pendingCount,
-                isUploading = status.isUploading,
-                lastUploadAt = status.lastUploadAt,
-                lastUploadStatus = status.lastUploadStatus,
-                tokenConfigured = tokenConfigured,
-            )
-    }
-}
-
-@Serializable
-data class LogUploadConfigRequest(
-    val enabled: Boolean = false,
-    val endpoint: String = "",
-    val streamName: String = "miruplay",
-)
-
-@Serializable
-data class LogUploadTokenRequest(
-    val token: String,
-)
-
-@Serializable
-data class MetadataSettingsDto(
-    val bangumiTokenConfigured: Boolean,
-)
-
-@Serializable
-data class BangumiTokenRequest(
-    val token: String,
 )
 
 @Serializable

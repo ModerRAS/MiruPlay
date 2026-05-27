@@ -14,7 +14,6 @@ dependencies {
     api(project(":core:model"))
     api(project(":core:common"))
     api(project(":repository-api"))
-    implementation(libs.icu4j)
     implementation(libs.okhttp)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.json)

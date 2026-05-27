@@ -40,15 +40,6 @@ fun cloudDriveRssInboxPathFieldLabel(): String =
 fun cloudDriveRssLibraryPathFieldLabel(): String =
     "整理目录 B"
 
-fun cloudDriveRssLibraryModeFieldLabel(): String =
-    "入库模式"
-
-fun cloudDriveRssLibraryModeOrganizedLabel(): String =
-    "整理入库"
-
-fun cloudDriveRssLibraryModeSingleDirectoryLabel(): String =
-    "单目录入库"
-
 fun cloudDriveRssIntervalMinutesFieldLabel(): String =
     "定时间隔（分钟）"
 

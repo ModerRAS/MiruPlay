@@ -1,12 +1,12 @@
 package com.miruplay.tv.webcontrol
 
-import android.os.Build
-import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.clouddrive.CloudDriveClient
+import android.os.Build
+import com.miruplay.tv.core.common.LocalDirectoryBrowser
 import com.miruplay.tv.mediasource.MediaSourceFactory
-import com.miruplay.tv.model.Episode
+import com.miruplay.tv.mediasource.testConnection
 import com.miruplay.tv.model.MediaSourceInfo
-import com.miruplay.tv.model.ScanResult
+import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.player.PlaybackController
 import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
@@ -31,86 +31,209 @@ class WebControlService @Inject constructor(
     metadataRepository: MetadataRepository,
     indexRepository: MediaIndexRepository,
     private val progressRepository: PlaybackProgressRepository,
-    scanPreferencesRepository: ScanPreferencesRepository,
-    cloudDriveRepository: CloudDriveAutomationRepository,
-    logUploadRepository: LogUploadRepository,
-    securePreferences: AppCredentialStore,
-    cloudDriveClient: CloudDriveClient,
-    cloudDriveEngine: CloudDriveRssAutomationEngine,
-    private val cloudDriveScheduler: CloudDriveRssScheduler,
+    private val scanPreferences: ScanPreferencesRepository,
+    private val cloudDriveRepository: CloudDriveAutomationRepository,
+    private val securePreferences: AppCredentialStore,
+    private val cloudDriveClient: CloudDriveClient,
+    private val cloudDriveEngine: CloudDriveRssAutomationEngine,
     private val scanCoordinator: ScanCoordinator,
     mediaSourceFactory: MediaSourceFactory,
     private val playbackController: PlaybackController,
-    private val navigator: WebControlNavigator,
-) : SharedWebControlEndpointService(
-    mediaSourceRepository = mediaRepository,
-    metadataRepository = metadataRepository,
-    indexRepository = indexRepository,
-    progressRepository = progressRepository,
-    scanPreferencesRepository = scanPreferencesRepository,
-    mediaSourceFactory = mediaSourceFactory,
-    cloudDriveRepository = cloudDriveRepository,
-    credentials = securePreferences,
-    securePreferences = securePreferences,
-    logUploadRepository = logUploadRepository,
-    cloudDriveClient = cloudDriveClient,
-    cloudDriveActions = CloudDriveRssActionCoordinator(
+    private val navigator: WebControlNavigator
+) : WebControlEndpointService {
+    private val startedAt = System.currentTimeMillis()
+    private val cloudDriveActions = CloudDriveRssActionCoordinator(
         repository = cloudDriveRepository,
         credentials = securePreferences,
         runner = cloudDriveEngine,
-    ),
-    deviceNameProvider = { Build.MODEL ?: "Android TV" },
-) {
-    override suspend fun <T> runOnIo(block: suspend () -> T): T =
-        withContext(Dispatchers.IO) { block() }
+    )
+    private val libraryLoader = WebControlLibraryLoader(
+        mediaSources = mediaRepository,
+        metadata = metadataRepository,
+        index = indexRepository,
+        progress = progressRepository,
+        mergeSameAnimeEnabled = { scanPreferences.getPreferences().mergeSameAnimeEnabled },
+    )
 
-    override suspend fun scanSourceResultFor(source: MediaSourceInfo): Result<ScanResult> =
-        scanCoordinator.scanSource(source.id)
-
-    override suspend fun afterCloudDriveConfigSaved(config: com.miruplay.tv.model.CloudDriveAutomationConfig) {
-        cloudDriveScheduler.syncPeriodicWork(config)
+    override suspend fun getServerInfo(port: Int): ServerInfoDto = withContext(Dispatchers.IO) {
+        buildWebControlServerInfo(
+            deviceName = Build.MODEL ?: "Android TV",
+            port = port,
+            startedAt = startedAt,
+        )
     }
 
-    override suspend fun playEpisodeResolved(
-        request: PlayEpisodeRequest,
-        episode: Episode,
-    ): PlaybackStatusDto {
+    override suspend fun listSources(): List<MediaSourceInfo> =
+        mediaRepository.listWebControlSources()
+
+    override suspend fun browseLocalDirectories(path: String): LocalDirectoryDto = withContext(Dispatchers.IO) {
+        val listing = LocalDirectoryBrowser.browse(path)
+        listing.toWebControlDirectoryDto()
+    }
+
+    override suspend fun addSource(request: SourceRequest): MediaSourceInfo {
+        return mediaRepository.addWebControlSource(request) { source -> testSource(source) }
+    }
+
+    override suspend fun updateSource(sourceId: Long, request: SourceRequest): MediaSourceInfo {
+        return mediaRepository.updateWebControlSource(sourceId, request)
+    }
+
+    override suspend fun removeSource(sourceId: Long) {
+        mediaRepository.removeWebControlSource(sourceId)
+    }
+
+    override suspend fun testSource(request: SourceTestRequest): SourceTestResponse {
+        return testSource(request.toMediaSourceInfo())
+    }
+
+    override suspend fun scanSource(sourceId: Long): SourceScanResponse {
+        val result = requireWebControlSuccess(scanCoordinator.scanSource(sourceId), "扫描媒体源失败")
+        return result.toWebControlSourceScanResponse(sourceId)
+    }
+
+    override suspend fun scanAllSources(): List<SourceScanResponse> {
+        return mediaRepository.scanAllWebControlSources { source ->
+            scanCoordinator.scanSource(source.id)
+                .map { it.toWebControlSourceScanResponse(source.id) }
+        }
+    }
+
+    override suspend fun getCloudDriveAutomation(): CloudDriveAutomationDto {
+        return cloudDriveRepository.getWebControlCloudDriveAutomation(securePreferences)
+    }
+
+    override suspend fun saveCloudDriveConfig(request: CloudDriveConfigRequest): CloudDriveAutomationDto {
+        return cloudDriveActions.saveWebControlCloudDriveConfig(
+            request = request,
+            repository = cloudDriveRepository,
+            credentials = securePreferences,
+        )
+    }
+
+    override suspend fun loginCloudDrive(request: CloudDriveLoginRequest): CloudDriveAutomationDto {
+        return cloudDriveActions.loginWebControlCloudDrive(
+            request = request,
+            repository = cloudDriveRepository,
+            credentials = securePreferences,
+        )
+    }
+
+    override suspend fun saveCloudDriveToken(request: CloudDriveTokenRequest): CloudDriveTokenResponse {
+        return cloudDriveActions.saveWebControlCloudDriveToken(request)
+    }
+
+    override suspend fun runCloudDriveAutomationNow(): CloudDriveRunResponse {
+        return cloudDriveActions.runWebControlCloudDriveAutomationNow()
+    }
+
+    override suspend fun saveRssSubscription(request: RssSubscriptionRequest): RssSubscriptionInfo {
+        return cloudDriveActions.saveWebControlRssSubscription(request)
+    }
+
+    override suspend fun updateRssSubscription(id: Long, request: RssSubscriptionRequest): RssSubscriptionInfo =
+        cloudDriveActions.updateWebControlRssSubscription(
+            id = id,
+            request = request,
+            repository = cloudDriveRepository,
+        )
+
+    override suspend fun deleteRssSubscription(id: Long) {
+        cloudDriveActions.deleteWebControlRssSubscription(id)
+    }
+
+    suspend fun getLibrary(): LibraryDto {
+        return libraryLoader.loadLibrary()
+    }
+
+    override suspend fun searchLibrary(query: String): LibraryDto {
+        return libraryLoader.searchLibrary(query)
+    }
+
+    override suspend fun getAnimeDetail(animeId: String): AnimeDetailDto {
+        return libraryLoader.loadAnimeDetail(animeId)
+    }
+
+    override suspend fun playEpisode(request: PlayEpisodeRequest): PlaybackStatusDto {
+        val episode = libraryLoader.findEpisodeById(request.episodeId)
+            ?: throw IllegalArgumentException("剧集不存在")
         val progress = progressRepository.getProgress(episode.id).getOrNull()
-        navigator.openPlayer(
-            request.toWebControlPlaybackSource(episode, progress).toWebPlaybackSource()
-        )
-        return playbackStatusResolved()
+        val source = request.toWebControlPlaybackSource(episode, progress)
+        navigator.openPlayer(source.toWebPlaybackSource())
+        return playbackStatus()
     }
 
-    override suspend fun playbackCommandResolved(request: PlaybackCommandRequest): PlaybackStatusDto {
-        request.executeWebControlPlaybackCommand(
-            webControlPlaybackCommandTarget(
-                pause = { playbackController.pause() },
-                resume = { playbackController.resume() },
-                toggle = {
-                    if (playbackController.isPlaying()) playbackController.pause() else playbackController.resume()
-                },
-                stop = { playbackController.stop() },
-                seekTo = { positionMs -> playbackController.seekTo(positionMs) },
-                setPlaybackSpeed = { speed -> playbackController.setPlaybackSpeed(speed) },
-                currentPositionMs = {
-                    runCatching { playbackController.getCurrentPosition() }.getOrDefault(0L)
-                },
-                durationMs = {
-                    runCatching { playbackController.getDuration() }.getOrDefault(0L)
-                },
-            )
-        )
-        return playbackStatusResolved()
+    override suspend fun playbackCommand(request: PlaybackCommandRequest): PlaybackStatusDto {
+        request.executeWebControlPlaybackCommand(AndroidWebControlPlaybackCommandTarget(playbackController))
+        return playbackStatus()
     }
 
-    override suspend fun playbackStatusResolved(): PlaybackStatusDto {
+    override suspend fun playbackStatus(): PlaybackStatusDto {
         val state = playbackController.state.value
         val currentPosition = runCatching { playbackController.getCurrentPosition() }.getOrDefault(0L)
         val duration = runCatching { playbackController.getDuration() }.getOrDefault(0L)
+            .coerceAtLeast(0L)
         return state.toWebControlPlaybackStatus(
             currentPositionMs = currentPosition,
             durationMs = duration,
         )
     }
+
+    private suspend fun testSource(source: MediaSourceInfo): SourceTestResponse {
+        return mediaSourceFactory.testConnection(source).toWebControlSourceTestResponse()
+    }
+
+    override suspend fun browseCloudDriveDirectories(endpointUrl: String, path: String): CloudDriveDirectoryDto = withContext(Dispatchers.IO) {
+        requireWebControlSuccess(
+            browseWebControlCloudDriveDirectory(
+                client = cloudDriveClient,
+                endpointUrl = endpointUrl,
+                fallbackEndpointUrl = {
+                    requireWebControlSuccess(cloudDriveRepository.getConfig(), "读取 CloudDrive 设置失败").endpointUrl
+                },
+                token = securePreferences.cloudDriveToken,
+                path = path,
+            ),
+            "读取 CloudDrive 目录失败",
+        )
+    }
+
+}
+
+private class AndroidWebControlPlaybackCommandTarget(
+    private val playbackController: PlaybackController,
+) : WebControlPlaybackCommandTarget {
+    override suspend fun pause() {
+        playbackController.pause()
+    }
+
+    override suspend fun resume() {
+        playbackController.resume()
+    }
+
+    override suspend fun toggle() {
+        if (playbackController.isPlaying()) {
+            playbackController.pause()
+        } else {
+            playbackController.resume()
+        }
+    }
+
+    override suspend fun stop() {
+        playbackController.stop()
+    }
+
+    override suspend fun seekTo(positionMs: Long) {
+        playbackController.seekTo(positionMs)
+    }
+
+    override suspend fun setPlaybackSpeed(speed: Float) {
+        playbackController.setPlaybackSpeed(speed)
+    }
+
+    override suspend fun currentPositionMs(): Long =
+        playbackController.getCurrentPosition()
+
+    override suspend fun durationMs(): Long =
+        playbackController.getDuration()
 }

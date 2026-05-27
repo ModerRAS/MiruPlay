@@ -30,6 +30,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -74,10 +78,17 @@ fun AnimePosterCard(
                 color = if (isFocused) FocusBorder else Color.White.copy(alpha = 0.08f),
                 shape = RoundedCornerShape(8.dp)
             )
-            .tvFocusableClickable(
-                interactionSource = interactionSource,
-                onClick = onClick
-            )
+            .onFocusChanged { isFocused = it.isFocused }
+            .onPreviewKeyEvent { event ->
+                if (event.type == KeyEventType.KeyDown && event.key.isTvActivateKey()) {
+                    onClick()
+                    true
+                } else {
+                    false
+                }
+            }
+            .focusable()
+            .clickable(onClick = onClick)
     ) {
         RemoteImage(
             url = anime.posterUrl,
@@ -162,10 +173,17 @@ fun FeatureAnimeCard(
                 color = if (isFocused) FocusBorder else Color.White.copy(alpha = 0.08f),
                 shape = RoundedCornerShape(8.dp)
             )
-            .tvFocusableClickable(
-                interactionSource = interactionSource,
-                onClick = onClick
-            )
+            .onFocusChanged { isFocused = it.isFocused }
+            .onPreviewKeyEvent { event ->
+                if (event.type == KeyEventType.KeyDown && event.key.isTvActivateKey()) {
+                    onClick()
+                    true
+                } else {
+                    false
+                }
+            }
+            .focusable()
+            .clickable(onClick = onClick)
     ) {
         RemoteImage(
             url = anime.fanartUrl ?: anime.posterUrl,

@@ -14,7 +14,6 @@ import com.miruplay.tv.repository.BangumiSubjectCollectionType
 import com.miruplay.tv.repository.BangumiUser
 import com.miruplay.tv.scraper.core.BangumiApiClient
 import com.miruplay.tv.scraper.core.searchByAlias
-import com.miruplay.tv.scraper.core.toSimplifiedChineseQuery
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -28,7 +27,7 @@ class BangumiScraper @Inject constructor(
     private val api = BangumiApiClient(
         tokenProvider = { credentials.bangumiAccessToken },
         userAgent = USER_AGENT,
-        normalizeQuery = { it.toSimplifiedChineseQuery() }
+        normalizeQuery = { it.toSimplifiedChinese() }
     )
 
     companion object {
@@ -91,3 +90,15 @@ private fun BangumiEpisodeMetadata.toEpisodeMetadata(): EpisodeMetadata =
         durationMs = durationMs,
         collectionType = collectionType,
     )
+
+private fun String.toSimplifiedChinese(): String =
+    ChineseTransliterator.toSimplified(this)
+
+private object ChineseTransliterator {
+    private val traditionalToSimplified = runCatching {
+        Transliterator.getInstance("Traditional-Simplified")
+    }.getOrNull()
+
+    fun toSimplified(text: String): String =
+        traditionalToSimplified?.transliterate(text) ?: text
+}

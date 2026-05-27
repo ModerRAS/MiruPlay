@@ -10,6 +10,7 @@ import com.miruplay.tv.repository.CloudDriveCredentialStore
 import com.miruplay.tv.sync.rss.CloudDriveActionResult
 import com.miruplay.tv.sync.rss.CloudDriveConfigActionResult
 import com.miruplay.tv.sync.rss.CloudDriveRssActionCoordinator
+import com.miruplay.tv.sync.rss.CloudDriveRunActionResult
 import com.miruplay.tv.sync.rss.RssSubscriptionActionResult
 import kotlinx.coroutines.flow.first
 
@@ -78,18 +79,12 @@ suspend fun CloudDriveRssActionCoordinator.deleteWebControlRssSubscription(id: L
 suspend fun CloudDriveAutomationRepository.getWebControlCloudDriveAutomation(
     credentials: CloudDriveCredentialStore,
 ): CloudDriveAutomationDto {
-    val config = loadWebControlCloudDriveConfig()
+    val config = requireWebControlSuccess(getConfig(), "读取 CloudDrive 设置失败")
     return config.toWebControlAutomationDto(
         subscriptions = observeSubscriptions().first(),
         tokenConfigured = !credentials.cloudDriveToken.isNullOrBlank(),
     )
 }
-
-suspend fun CloudDriveAutomationRepository.loadWebControlCloudDriveConfig(): CloudDriveAutomationConfig =
-    requireWebControlSuccess(getConfig(), "读取 CloudDrive 设置失败")
-
-suspend fun CloudDriveAutomationRepository.resolveWebControlCloudDriveEndpoint(): String =
-    loadWebControlCloudDriveConfig().endpointUrl
 
 suspend fun CloudDriveRssActionCoordinator.saveWebControlCloudDriveConfig(
     request: CloudDriveConfigRequest,
@@ -103,7 +98,6 @@ suspend fun CloudDriveRssActionCoordinator.saveWebControlCloudDriveConfig(
             webDavSourceId = request.webDavSourceId?.takeIf { it > 0L },
             inboxPath = request.inboxPath,
             libraryPath = request.libraryPath,
-            libraryMode = request.libraryMode,
             intervalMinutes = request.intervalMinutes,
             enabled = request.enabled,
             rssProxyEnabled = request.rssProxyEnabled,
@@ -152,17 +146,13 @@ suspend fun CloudDriveRssActionCoordinator.saveWebControlCloudDriveToken(
 suspend fun CloudDriveRssActionCoordinator.runWebControlCloudDriveAutomationNow(
     afterRun: suspend (CloudDriveRssRunSummary) -> Unit = {},
 ): CloudDriveRunResponse {
-    var response: CloudDriveRunResponse? = null
-    runCloudDriveOnceWithCallbacks(
-        onCompleted = { completed ->
-            afterRun(completed.summary)
-            response = completed.summary.toWebControlResponse()
-        },
-        onFailed = { failed ->
-            throw IllegalStateException("CloudDrive/RSS 执行失败: ${failed.status}")
-        },
-    )
-    return checkNotNull(response)
+    return when (val result = runCloudDriveOnce()) {
+        is CloudDriveRunActionResult.Completed -> {
+            afterRun(result.summary)
+            result.summary.toWebControlResponse()
+        }
+        is CloudDriveRunActionResult.Failed -> throw IllegalStateException("CloudDrive/RSS 执行失败: ${result.status}")
+    }
 }
 
 fun CloudDriveAutomationConfig.toWebControlAutomationDto(
@@ -193,7 +183,4 @@ fun CloudDriveRssRunSummary.toWebControlResponse(): CloudDriveRunResponse =
         skipped = skipped,
         failed = failed,
         organized = organized,
-        indexed = indexed,
-        scraped = scraped,
-        noMatch = noMatch,
     )

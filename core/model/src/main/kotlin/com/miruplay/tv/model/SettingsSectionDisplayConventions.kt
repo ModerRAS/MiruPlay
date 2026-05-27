@@ -113,50 +113,8 @@ fun settingsScanMenuSummary(
         else -> "定时关闭"
     }
 
-fun settingsLogUploadMenuSummary(): String =
-    "OpenObserve"
-
-fun settingsAndroidTvLogUploadMenuSummary(
-    enabled: Boolean = false,
-    tokenConfigured: Boolean = false,
-    isUploading: Boolean = false,
-): String =
-    when {
-        enabled && isUploading -> "上报中"
-        enabled && tokenConfigured -> "自动上报"
-        enabled -> "等待 Token"
-        else -> "未启用"
-    }
-
 fun settingsMetadataTokenMenuSummary(hasToken: Boolean): String =
     if (hasToken) "Token 已设置" else "未设置"
-
-data class SettingsSectionMenuSummaryInput(
-    val webUiAddressCount: Int = 0,
-    val sourceCount: Int = 0,
-    val playbackSummary: String = "",
-    val cloudDriveEnabled: Boolean = false,
-    val rssCount: Int = 0,
-    val autoScanEnabled: Boolean = false,
-    val mergeSameAnimeEnabled: Boolean = false,
-    val metadataSummary: String = "",
-    val logUploadSummary: String = settingsLogUploadMenuSummary(),
-    val appUpdateSummary: String = settingsAppUpdateMenuSummary(),
-)
-
-fun MiruPlaySettingsSection.settingsMenuSummary(
-    input: SettingsSectionMenuSummaryInput,
-): String =
-    when (this) {
-        MiruPlaySettingsSection.WEB_UI -> settingsWebUiMenuSummary(input.webUiAddressCount)
-        MiruPlaySettingsSection.SOURCES -> settingsSourcesMenuSummary(input.sourceCount)
-        MiruPlaySettingsSection.PLAYBACK -> input.playbackSummary
-        MiruPlaySettingsSection.CLOUD_DRIVE -> settingsCloudDriveMenuSummary(input.cloudDriveEnabled, input.rssCount)
-        MiruPlaySettingsSection.SCAN -> settingsScanMenuSummary(input.autoScanEnabled, input.mergeSameAnimeEnabled)
-        MiruPlaySettingsSection.LOG_UPLOAD -> input.logUploadSummary
-        MiruPlaySettingsSection.APP_UPDATE -> input.appUpdateSummary
-        MiruPlaySettingsSection.METADATA -> input.metadataSummary
-    }
 
 fun settingsDesktopScanMenuSummary(): String =
     "媒体库更新"
@@ -170,20 +128,8 @@ fun settingsDesktopWebUiMenuSummary(addressCount: Int): String =
 fun settingsMenuPanelTitle(): String =
     "设置菜单"
 
-fun settingsScreenTitleLabel(): String =
-    "设置"
-
-fun settingsScreenSubtitleLabel(): String =
-    "管理媒体源、WebUI 和元数据服务"
-
-fun settingsMenuPanelDescriptionDesktop(): String =
-    "像 TV 版一样按分类管理桌面能力。"
-
-fun settingsMenuPanelDescriptionAndroidTv(): String =
-    "按上下切换分类，向右进入当前设置。"
-
 fun settingsMenuPanelDescription(): String =
-    settingsMenuPanelDescriptionDesktop()
+    "像 TV 版一样按分类管理桌面能力。"
 
 fun settingsOpenLibraryActionLabel(): String =
     "打开海报墙"
@@ -208,138 +154,6 @@ fun settingsClearTokenActionLabel(): String =
 
 fun settingsDesktopScanStatusMessage(): String =
     "扫描入口保留在媒体库海报墙和 CloudDrive 同步流程中。"
-
-fun settingsAndroidTvLogUploadStatusMessage(): String =
-    "可在当前页面配置 OpenObserve JSON；本地日志会按同一配置写入上报队列。"
-
-fun settingsAndroidTvLogUploadHintMessage(): String =
-    "建议先保存配置，再保存 Token；开启自动上报后会定时上传待处理日志。"
-
-fun settingsDesktopLogUploadStatusMessage(): String =
-    "可在当前页面或 Web 控制端配置 OpenObserve JSON；本地日志会按同一配置写入上报队列。"
-
-fun settingsLogUploadAutoToggleLabel(): String =
-    "自动上报"
-
-fun settingsLogUploadEndpointFieldLabel(): String =
-    "OpenObserve API 地址"
-
-fun settingsLogUploadStreamFieldLabel(): String =
-    "Stream"
-
-fun settingsLogUploadTokenFieldLabel(): String =
-    "OpenObserve Token"
-
-fun settingsLogUploadSaveConfigActionLabel(): String =
-    "保存配置"
-
-fun settingsLogUploadRunNowActionLabel(): String =
-    "立即上报"
-
-fun settingsAppUpdateMenuSummary(): String =
-    "GitHub"
-
-fun settingsAppUpdatePanelTitleLabel(): String =
-    "应用更新"
-
-fun settingsAppUpdatePanelDescription(): String =
-    "从 GitHub Release 获取最新 APK。"
-
-fun settingsAppUpdateCheckActionLabel(): String =
-    "检查更新"
-
-fun settingsAppUpdateInstallActionLabel(): String =
-    "下载安装"
-
-fun settingsAppUpdatePermissionActionLabel(): String =
-    "安装授权"
-
-fun settingsAppUpdateIdleStatus(): String =
-    "尚未检查更新。"
-
-fun settingsAppUpdateCheckingStatus(): String =
-    "正在检查 GitHub Release。"
-
-fun settingsAppUpdateReadyStatus(versionName: String): String =
-    "发现新版本 ${versionName.ifBlank { "未知版本" }}。"
-
-fun settingsAppUpdateLatestStatus(versionName: String): String =
-    "当前已是最新版本 ${versionName.ifBlank { "未知版本" }}。"
-
-fun settingsAppUpdateDownloadProgressStatus(percent: Int?): String =
-    percent?.let { "正在下载 APK $it%" } ?: "正在下载 APK。"
-
-fun settingsAppUpdateInstallPermissionStatus(): String =
-    "已打开安装授权页，授权后请返回重试。"
-
-fun settingsAppUpdateInstallPermissionGrantedStatus(): String =
-    "已具备安装授权。"
-
-fun settingsAppUpdateInstallerOpenedStatus(): String =
-    "已打开系统安装器。"
-
-fun settingsLogUploadPendingStatus(pendingCount: Int): String =
-    "待上报 ${pendingCount.coerceAtLeast(0)} 条"
-
-fun settingsLogUploadUploadStateStatus(isUploading: Boolean): String =
-    if (isUploading) "上报中" else "待命"
-
-fun settingsLogUploadTokenConfiguredStatus(configured: Boolean): String =
-    if (configured) "Token 已保存" else "未保存 Token"
-
-fun settingsLogUploadLastUploadStatus(lastUploadAt: Long): String =
-    formatShortLocalTimestamp(lastUploadAt)?.let { "上次上报 $it" } ?: "尚未上报"
-
-fun settingsLogUploadResultStatus(lastUploadStatus: String?): String =
-    lastUploadStatus?.trim()?.takeIf { it.isNotEmpty() } ?: "暂无上报结果"
-
-fun settingsLogUploadStatusMessage(
-    pendingCount: Int,
-    isUploading: Boolean,
-    tokenConfigured: Boolean,
-    lastUploadAt: Long,
-    lastUploadStatus: String?,
-    entryPointMessage: String = settingsAndroidTvLogUploadStatusMessage(),
-): String =
-    listOf(
-        entryPointMessage,
-        settingsLogUploadPendingStatus(pendingCount),
-        settingsLogUploadUploadStateStatus(isUploading),
-        settingsLogUploadTokenConfiguredStatus(tokenConfigured),
-        settingsLogUploadLastUploadStatus(lastUploadAt),
-        settingsLogUploadResultStatus(lastUploadStatus),
-    ).joinToString(" · ")
-
-fun settingsDesktopLogUploadStatusMessage(
-    pendingCount: Int,
-    isUploading: Boolean,
-    tokenConfigured: Boolean,
-    lastUploadAt: Long,
-    lastUploadStatus: String?,
-): String =
-    settingsLogUploadStatusMessage(
-        pendingCount = pendingCount,
-        isUploading = isUploading,
-        tokenConfigured = tokenConfigured,
-        lastUploadAt = lastUploadAt,
-        lastUploadStatus = lastUploadStatus,
-        entryPointMessage = settingsDesktopLogUploadStatusMessage(),
-    )
-
-fun settingsAndroidTvLogUploadStatusMessage(
-    pendingCount: Int,
-    isUploading: Boolean,
-    tokenConfigured: Boolean,
-    lastUploadAt: Long,
-    lastUploadStatus: String?,
-): String =
-    settingsLogUploadStatusMessage(
-        pendingCount = pendingCount,
-        isUploading = isUploading,
-        tokenConfigured = tokenConfigured,
-        lastUploadAt = lastUploadAt,
-        lastUploadStatus = lastUploadStatus,
-    )
 
 fun settingsDesktopWebUiStatusMessage(
     enabled: Boolean = false,
@@ -745,25 +559,6 @@ fun webUiSettingsTiles(
             label = settingsRemoteAutomationTileLabel(),
             value = remoteAutomationValue,
             detail = remoteAutomationDetail,
-        ),
-    )
-
-fun logUploadSettingsTiles(): List<SettingsSummaryTile> =
-    listOf(
-        SettingsSummaryTile(
-            label = "OpenObserve",
-            value = "JSON",
-            detail = "API 地址、Stream 和访问令牌可在设置页或 Web 控制端保存。",
-        ),
-        SettingsSummaryTile(
-            label = "本地日志",
-            value = "自动上报",
-            detail = "应用日志进入本地队列后按配置批量发送。",
-        ),
-        SettingsSummaryTile(
-            label = "凭据",
-            value = "安全存储",
-            detail = "令牌只保存配置状态，清理后会停止上报。",
         ),
     )
 

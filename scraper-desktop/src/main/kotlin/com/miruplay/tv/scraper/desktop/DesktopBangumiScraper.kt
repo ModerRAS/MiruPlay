@@ -13,7 +13,7 @@ import com.miruplay.tv.repository.BangumiUser
 import com.miruplay.tv.scraper.MetadataScraper
 import com.miruplay.tv.scraper.core.BangumiApiClient
 import com.miruplay.tv.scraper.core.searchByAlias
-import com.miruplay.tv.scraper.core.toSimplifiedChineseQuery
+import com.ibm.icu.text.Transliterator
 import okhttp3.HttpUrl
 
 class DesktopBangumiScraper internal constructor(
@@ -21,7 +21,7 @@ class DesktopBangumiScraper internal constructor(
     tokenProvider: () -> String? = { null },
 ) : MetadataScraper, BangumiCollectionService {
     constructor(tokenProvider: () -> String? = { null }) : this(
-        bangumiBaseUrlFromEnvironment(),
+        BangumiApiClient.DEFAULT_BASE_URL,
         tokenProvider
     )
 
@@ -34,7 +34,7 @@ class DesktopBangumiScraper internal constructor(
         baseUrl = baseUrl,
         tokenProvider = tokenProvider,
         userAgent = USER_AGENT,
-        normalizeQuery = { it.toSimplifiedChineseQuery() },
+        normalizeQuery = { it.toSimplifiedChinese() },
     )
 
     override val hasToken: Boolean
@@ -82,19 +82,21 @@ class DesktopBangumiScraper internal constructor(
     ): Result<Unit> =
         api.updateEpisodeCollection(episodeId, type)
 
-    internal companion object {
-        const val BASE_URL_ENV = "MIRUPLAY_BANGUMI_BASE_URL"
+    private companion object {
         const val USER_AGENT = "MiruPlay/1.0 (Windows Desktop; https://github.com/hooke007/mpv_PlayKit)"
-
-        fun bangumiBaseUrlFromEnvironment(): String =
-            bangumiBaseUrlFromEnvironment(System.getenv())
-
-        fun bangumiBaseUrlFromEnvironment(environment: Map<String, String>): String =
-            environment[BASE_URL_ENV]
-                ?.trim()
-                ?.takeIf { it.isNotBlank() }
-                ?: BangumiApiClient.DEFAULT_BASE_URL
     }
 }
 
 typealias DesktopEpisodeMetadata = BangumiEpisodeMetadata
+
+private fun String.toSimplifiedChinese(): String =
+    DesktopChineseTransliterator.toSimplified(this)
+
+private object DesktopChineseTransliterator {
+    private val traditionalToSimplified = runCatching {
+        Transliterator.getInstance("Traditional-Simplified")
+    }.getOrNull()
+
+    fun toSimplified(text: String): String =
+        traditionalToSimplified?.transliterate(text) ?: text
+}

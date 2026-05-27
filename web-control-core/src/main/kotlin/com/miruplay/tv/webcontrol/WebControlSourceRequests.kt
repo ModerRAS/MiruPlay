@@ -100,45 +100,8 @@ suspend fun MediaSourceRepository.listWebControlSources(): List<MediaSourceInfo>
 suspend fun MediaSourceRepository.scanAllWebControlSources(
     scanSource: suspend (MediaSourceInfo) -> Result<SourceScanResponse>,
 ): List<SourceScanResponse> =
-    getSources().getOrNull().orEmpty().map { source ->
-        when (val result = scanSource(source)) {
-            is Result.Success -> result.data
-            is Result.Error -> source.toWebControlSourceScanErrorResponse(result.error.toUserMessage())
-        }
-    }
-
-suspend fun MediaSourceRepository.scanWebControlSource(
-    sourceId: Long,
-    scanSource: suspend (MediaSourceInfo) -> Result<SourceScanResponse>,
-): SourceScanResponse {
-    val source = requireWebControlSuccess(getSourceById(sourceId), "媒体源不存在")
-    return when (val result = scanSource(source)) {
-        is Result.Success -> result.data
-        is Result.Error -> source.toWebControlSourceScanErrorResponse(result.error.toUserMessage())
-    }
-}
-
-suspend fun MediaSourceRepository.scanAllWebControlSourcesFromScanResult(
-    scanSource: suspend (MediaSourceInfo) -> Result<ScanResult>,
-): List<SourceScanResponse> =
-    scanAllWebControlSources { source ->
-        Result.success(source.scanWebControlSourceWith(scanSource))
-    }
-
-suspend fun MediaSourceRepository.scanWebControlSourceFromScanResult(
-    sourceId: Long,
-    scanSource: suspend (MediaSourceInfo) -> Result<ScanResult>,
-): SourceScanResponse =
-    scanWebControlSource(sourceId) { source ->
-        Result.success(source.scanWebControlSourceWith(scanSource))
-    }
-
-suspend fun MediaSourceInfo.scanWebControlSourceWith(
-    scanSource: suspend (MediaSourceInfo) -> Result<ScanResult>,
-): SourceScanResponse =
-    when (val result = scanSource(this)) {
-        is Result.Success -> result.data.toWebControlSourceScanResponse(id)
-        is Result.Error -> toWebControlSourceScanErrorResponse(result.error.toUserMessage())
+    getSources().getOrNull().orEmpty().mapNotNull { source ->
+        scanSource(source).getOrNull()
     }
 
 fun parseWebControlSourceType(type: String): MediaSourceType =
@@ -198,16 +161,6 @@ fun toWebControlSourceScanResponse(
         episodesFound = episodesFound.coerceAtLeast(0),
         newEpisodes = newEpisodes.coerceAtLeast(0),
         updatedEpisodes = updatedEpisodes.coerceAtLeast(0),
-    )
-
-fun MediaSourceInfo.toWebControlSourceScanErrorResponse(message: String): SourceScanResponse =
-    SourceScanResponse(
-        sourceId = id,
-        animeName = name.ifBlank { type.webControlDefaultSourceName() },
-        episodesFound = 0,
-        newEpisodes = 0,
-        updatedEpisodes = 0,
-        error = message.takeIf { it.isNotBlank() } ?: "扫描媒体源失败",
     )
 
 private fun MediaSourceType.webControlSourceLocation(location: String): String =

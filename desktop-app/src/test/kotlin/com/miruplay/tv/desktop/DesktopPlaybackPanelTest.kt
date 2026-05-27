@@ -22,10 +22,6 @@ import com.miruplay.tv.model.playbackRuntimeStatusText
 import com.miruplay.tv.model.playbackStartPositionLabel
 import com.miruplay.tv.model.playbackStartSecondsFieldLabel
 import com.miruplay.tv.model.playbackSubtitlePathFieldLabel
-import com.miruplay.tv.model.playbackSpeedChipLabel
-import com.miruplay.tv.model.playbackSpeedMenuTitle
-import com.miruplay.tv.model.playbackSpeedOptions
-import com.miruplay.tv.model.playbackSpeedValueLabel
 import com.miruplay.tv.model.playbackUiLabels
 import com.miruplay.tv.player.mpv.RifeBackend
 import org.junit.Assert.assertEquals
@@ -57,9 +53,6 @@ class DesktopPlaybackPanelTest {
         assertEquals(playbackRifeToggleLabel(), labels.rife)
         assertEquals(playbackEndReturnToDetailActionLabel(), PlaybackEndAction.RETURN_TO_DETAIL.playbackEndActionLabel())
         assertEquals("继续下一集", PlaybackEndAction.PLAY_NEXT_EPISODE.playbackEndActionLabel())
-        assertEquals("播放速度", playbackSpeedMenuTitle())
-        assertEquals("1.25x", playbackSpeedValueLabel(1.25f))
-        assertEquals("倍速 1.25x", playbackSpeedChipLabel(1.25f))
     }
 
     @Test
@@ -421,30 +414,9 @@ class DesktopPlaybackPanelTest {
             playbackSettingNavigationTarget(PlaybackSettingFocusTarget.EndAction, Key.DirectionUp),
         )
         assertEquals(
-            PlaybackSettingFocusTarget.Speed,
+            PlaybackSettingFocusTarget.Fullscreen,
             playbackSettingNavigationTarget(PlaybackSettingFocusTarget.EndAction, Key.DirectionDown),
         )
-        assertEquals(
-            PlaybackSettingFocusTarget.EndAction,
-            playbackSettingNavigationTarget(PlaybackSettingFocusTarget.Speed, Key.DirectionUp),
-        )
-        assertEquals(
-            PlaybackSettingFocusTarget.Fullscreen,
-            playbackSettingNavigationTarget(PlaybackSettingFocusTarget.Speed, Key.DirectionDown),
-        )
-    }
-
-    @Test
-    fun `desktop playback speed picker reuses TV speed options and moves horizontally`() {
-        assertEquals(playbackSpeedOptions(), playbackSpeedPickerOptions(1.0f))
-        assertEquals(
-            listOf(0.5f, 0.75f, 1.0f, 1.1f, 1.25f, 1.5f, 2.0f),
-            playbackSpeedPickerOptions(1.1f),
-        )
-        assertEquals(1.25f, playbackSpeedNavigationTarget(1.0f, Key.DirectionRight))
-        assertEquals(0.75f, playbackSpeedNavigationTarget(1.0f, Key.DirectionLeft))
-        assertEquals(null, playbackSpeedNavigationTarget(0.5f, Key.DirectionLeft))
-        assertEquals(null, playbackSpeedNavigationTarget(1.0f, Key.DirectionDown))
     }
 
     @Test
@@ -474,7 +446,7 @@ class DesktopPlaybackPanelTest {
             playbackSettingNavigationTarget(PlaybackSettingFocusTarget.RifeBackend, Key.DirectionRight),
         )
         assertEquals(
-            PlaybackSettingFocusTarget.Speed,
+            PlaybackSettingFocusTarget.EndAction,
             playbackSettingNavigationTarget(PlaybackSettingFocusTarget.KeepOpen, Key.DirectionUp),
         )
         assertEquals(
@@ -500,17 +472,10 @@ class DesktopPlaybackPanelTest {
             ),
         )
         assertEquals(
-            PlaybackSettingFocusTarget.Speed,
+            PlaybackSettingFocusTarget.EndAction,
             playbackSettingNavigationTarget(
                 PlaybackSettingFocusTarget.KeepOpen,
                 MiruPlayInputIntent.DirectionUp,
-            ),
-        )
-        assertEquals(
-            PlaybackSettingFocusTarget.Fullscreen,
-            playbackSettingNavigationTarget(
-                PlaybackSettingFocusTarget.Speed,
-                MiruPlayInputIntent.DirectionDown,
             ),
         )
         assertEquals(
@@ -679,7 +644,6 @@ class DesktopPlaybackPanelTest {
         assertEquals("mpv 已启动：pid 1234", mpvPlaybackStatusText("mpv launched: pid 1234"))
         assertEquals("已后退 10 秒。", mpvPlaybackStatusText("mpv seeked back 10s."))
         assertEquals("已快进 30 秒。", mpvPlaybackStatusText("mpv seeked forward 30s."))
-        assertEquals("播放速度已设为 1.25x。", mpvPlaybackStatusText("mpv speed set to 1.25x."))
         assertEquals("播放进度已同步至 02:03。", mpvPlaybackStatusText("mpv position synced at 02:03."))
         assertEquals("custom status", mpvPlaybackStatusText("custom status"))
     }

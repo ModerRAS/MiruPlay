@@ -68,7 +68,7 @@ import com.miruplay.tv.ui.components.LoadingIndicator
 import com.miruplay.tv.ui.components.OverscanContainer
 import com.miruplay.tv.ui.components.RemoteImage
 import com.miruplay.tv.ui.components.TvButton
-import com.miruplay.tv.ui.components.tvFocusableClickable
+import com.miruplay.tv.ui.components.isTvActivateKey
 import com.miruplay.tv.ui.theme.AccentBlue
 import com.miruplay.tv.ui.theme.AnimeRed
 import com.miruplay.tv.ui.theme.CardBg
@@ -378,10 +378,17 @@ private fun EpisodeListItem(
                 color = if (isFocused) FocusBorder else Color.White.copy(alpha = 0.08f),
                 shape = RoundedCornerShape(8.dp)
             )
-            .tvFocusableClickable(
-                interactionSource = interactionSource,
-                onClick = onPlay
-            )
+            .onFocusChanged { isFocused = it.isFocused }
+            .onPreviewKeyEvent { event ->
+                if (event.type == KeyEventType.KeyDown && event.key.isTvActivateKey()) {
+                    onPlay()
+                    true
+                } else {
+                    false
+                }
+            }
+            .focusable()
+            .clickable(onClick = onPlay)
             .padding(horizontal = 18.dp, vertical = 14.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically

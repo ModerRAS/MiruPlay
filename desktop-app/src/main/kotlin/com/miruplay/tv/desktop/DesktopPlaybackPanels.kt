@@ -84,10 +84,6 @@ import com.miruplay.tv.model.playbackSeekBackCompactLabel
 import com.miruplay.tv.model.playbackSeekForwardCompactLabel
 import com.miruplay.tv.model.playbackSettingsTitleLabel
 import com.miruplay.tv.model.playbackStartPositionLabel
-import com.miruplay.tv.model.playbackSpeedChipLabel
-import com.miruplay.tv.model.playbackSpeedMenuTitle
-import com.miruplay.tv.model.playbackSpeedOptions
-import com.miruplay.tv.model.playbackSpeedValueLabel
 import com.miruplay.tv.model.playbackUiLabels
 import com.miruplay.tv.model.playbackStopLabel
 import com.miruplay.tv.model.playbackUnknownDurationLabel
@@ -111,8 +107,6 @@ internal fun PlaybackPanel(
     onRifeBackendChange: (RifeBackend) -> Unit,
     playbackEndAction: PlaybackEndAction,
     onPlaybackEndActionChange: (PlaybackEndAction) -> Unit,
-    playbackSpeed: Float,
-    onPlaybackSpeedChange: (Float) -> Unit,
     isPlayerActive: Boolean,
     playbackPositionMs: Long,
     playbackDurationMs: Long,
@@ -168,7 +162,6 @@ internal fun PlaybackPanel(
             isPlayerActive = isPlayerActive,
             playbackPositionMs = playbackPositionMs,
             playbackDurationMs = playbackDurationMs,
-            playbackSpeed = playbackSpeed,
             launchStatus = launchStatus,
             onBackToDetails = onBackToDetails,
             onLaunch = onLaunch,
@@ -200,8 +193,6 @@ internal fun PlaybackPanel(
             onRifeBackendChange = onRifeBackendChange,
             playbackEndAction = playbackEndAction,
             onPlaybackEndActionChange = onPlaybackEndActionChange,
-            playbackSpeed = playbackSpeed,
-            onPlaybackSpeedChange = onPlaybackSpeedChange,
             focusVersion = settingsFocusVersion,
             focusTarget = settingsFocusTarget,
             onFocusPreviousPanel = {
@@ -222,7 +213,6 @@ private fun DesktopPlayerStage(
     isPlayerActive: Boolean,
     playbackPositionMs: Long,
     playbackDurationMs: Long,
-    playbackSpeed: Float,
     launchStatus: String,
     onBackToDetails: () -> Unit,
     onLaunch: () -> Unit,
@@ -305,7 +295,6 @@ private fun DesktopPlayerStage(
             isPlayerActive = isPlayerActive,
             playbackPositionMs = playbackPositionMs,
             playbackDurationMs = playbackDurationMs,
-            playbackSpeed = playbackSpeed,
             rifeEnabled = rifeEnabled,
             rifeBackend = rifeBackend,
             launchStatus = launchStatus,
@@ -576,7 +565,7 @@ internal fun desktopPlayerStageNavigationTarget(
     key: Key,
     isPlayerActive: Boolean,
 ): DesktopPlayerStageFocusTarget? =
-    key.resolveDesktopIntent { intent ->
+    key.toMiruPlayInputIntent()?.let { intent ->
         desktopPlayerStageNavigationTarget(current, intent, isPlayerActive)
     }
 
@@ -692,7 +681,6 @@ internal enum class PlaybackSettingFocusTarget {
     StartSeconds,
     SubtitlePath,
     EndAction,
-    Speed,
     Fullscreen,
     KeepOpen,
     RifeToggle,
@@ -706,7 +694,6 @@ private val playbackSettingFocusableTargets = listOf(
     PlaybackSettingFocusTarget.StartSeconds,
     PlaybackSettingFocusTarget.SubtitlePath,
     PlaybackSettingFocusTarget.EndAction,
-    PlaybackSettingFocusTarget.Speed,
     PlaybackSettingFocusTarget.Fullscreen,
     PlaybackSettingFocusTarget.KeepOpen,
     PlaybackSettingFocusTarget.RifeToggle,
@@ -724,7 +711,7 @@ internal fun playbackSettingNavigationTarget(
     current: PlaybackSettingFocusTarget,
     key: Key,
 ): PlaybackSettingFocusTarget? =
-    key.resolveDesktopIntent { intent ->
+    key.toMiruPlayInputIntent()?.let { intent ->
         playbackSettingNavigationTarget(current, intent)
     }
 
@@ -754,11 +741,6 @@ internal fun playbackSettingNavigationTarget(
         }
         PlaybackSettingFocusTarget.EndAction -> when (intent.verticalNavigationDelta()) {
             -1 -> PlaybackSettingFocusTarget.SubtitlePath
-            1 -> PlaybackSettingFocusTarget.Speed
-            else -> null
-        }
-        PlaybackSettingFocusTarget.Speed -> when (intent.verticalNavigationDelta()) {
-            -1 -> PlaybackSettingFocusTarget.EndAction
             1 -> PlaybackSettingFocusTarget.Fullscreen
             else -> null
         }
@@ -767,7 +749,7 @@ internal fun playbackSettingNavigationTarget(
         PlaybackSettingFocusTarget.RifeToggle,
         PlaybackSettingFocusTarget.RifeBackend,
         -> when (intent.verticalNavigationDelta()) {
-            -1 -> PlaybackSettingFocusTarget.Speed
+            -1 -> PlaybackSettingFocusTarget.EndAction
             1 -> PlaybackSettingFocusTarget.NextPanel
             else -> playbackSettingToggleTargets.focusTargetAfter(
                 current = current,
@@ -805,7 +787,7 @@ internal fun runtimeNavigationTarget(
     current: RuntimeFocusTarget,
     key: Key,
 ): RuntimeFocusTarget? =
-    key.resolveDesktopIntent { intent ->
+    key.toMiruPlayInputIntent()?.let { intent ->
         runtimeNavigationTarget(current, intent)
     }
 
@@ -837,7 +819,6 @@ private fun PlayerStageBottomBar(
     isPlayerActive: Boolean,
     playbackPositionMs: Long,
     playbackDurationMs: Long,
-    playbackSpeed: Float,
     rifeEnabled: Boolean,
     rifeBackend: RifeBackend,
     launchStatus: String,
@@ -865,7 +846,6 @@ private fun PlayerStageBottomBar(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            PlayerInfoChip(playbackSpeedChipLabel(playbackSpeed))
             PlayerInfoChip(playbackRifeStateLabel(rifeEnabled, rifeBackend.name))
             PlayerInfoChip(playbackExternalSubtitleLabel())
             Text(
@@ -966,8 +946,6 @@ private fun PlaybackSettingsPanel(
     onRifeBackendChange: (RifeBackend) -> Unit,
     playbackEndAction: PlaybackEndAction,
     onPlaybackEndActionChange: (PlaybackEndAction) -> Unit,
-    playbackSpeed: Float,
-    onPlaybackSpeedChange: (Float) -> Unit,
     focusVersion: Int = 0,
     focusTarget: PlaybackSettingFocusTarget = PlaybackSettingFocusTarget.MediaPath,
     onFocusPreviousPanel: () -> Boolean = { false },
@@ -1038,16 +1016,6 @@ private fun PlaybackSettingsPanel(
             modifier = Modifier.playbackSettingNavigation(
                 target = PlaybackSettingFocusTarget.EndAction,
                 focusRequester = settingFocusRequesters.getValue(PlaybackSettingFocusTarget.EndAction),
-                onMove = ::movePlaybackSettingFocus,
-            ),
-        )
-        Spacer(Modifier.height(MiruPlayUiMetrics.SMALL_GAP_DP.dp))
-        PlaybackSpeedPicker(
-            selected = playbackSpeed,
-            onSelected = onPlaybackSpeedChange,
-            modifier = Modifier.playbackSettingNavigation(
-                target = PlaybackSettingFocusTarget.Speed,
-                focusRequester = settingFocusRequesters.getValue(PlaybackSettingFocusTarget.Speed),
                 onMove = ::movePlaybackSettingFocus,
             ),
         )
@@ -1211,136 +1179,6 @@ internal fun desktopPlaybackSourceLine(
 }
 
 @Composable
-private fun PlaybackSpeedPicker(
-    selected: Float,
-    onSelected: (Float) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isFocused by interactionSource.collectIsFocusedAsState()
-    val speedOptions = remember(selected) { playbackSpeedPickerOptions(selected) }
-    Column {
-        Text(
-            playbackSpeedMenuTitle(),
-            color = TextSecondary,
-            fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Spacer(Modifier.height(6.dp))
-        Row(
-            modifier = modifier
-                .clip(RoundedCornerShape(8.dp))
-                .border(
-                    width = if (isFocused) 2.dp else 1.dp,
-                    color = if (isFocused) AnimeRed else Color.White.copy(alpha = 0.18f),
-                    shape = RoundedCornerShape(8.dp),
-                )
-                .background(if (isFocused) CardBg.copy(alpha = 0.55f) else Color.Transparent)
-                .focusable(interactionSource = interactionSource)
-                .onPreviewKeyEvent { event ->
-                    desktopConfirmOrNavigationIntentEvent(
-                        key = event.key,
-                        type = event.type,
-                        onClick = { onSelected(selected) },
-                        onNavigationIntent = { intent ->
-                            val next = playbackSpeedNavigationTarget(selected, intent)
-                                ?: return@desktopConfirmOrNavigationIntentEvent false
-                            onSelected(next)
-                            true
-                        },
-                    )
-                }
-                .padding(2.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            speedOptions.forEach { speed ->
-                PlaybackSpeedChoiceChip(
-                    text = playbackSpeedValueLabel(speed),
-                    selected = speed == selected,
-                    onClick = { onSelected(speed) },
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun PlaybackSpeedChoiceChip(
-    text: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isFocused by interactionSource.collectIsFocusedAsState()
-    val borderColor = when {
-        isFocused -> Color.White
-        selected -> AnimeRed
-        else -> Color.White.copy(alpha = 0.18f)
-    }
-    val background = when {
-        selected -> AnimeRed.copy(alpha = 0.28f)
-        isFocused -> AccentBlue
-        else -> DarkSurface
-    }
-    Box(
-        modifier = Modifier
-            .width(74.dp)
-            .height(40.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(background)
-            .border(
-                width = if (selected || isFocused) 2.dp else 1.dp,
-                color = borderColor,
-                shape = RoundedCornerShape(8.dp),
-            )
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick,
-            )
-            .padding(horizontal = 8.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = text,
-            color = TextPrimary,
-            fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-internal fun playbackSpeedPickerOptions(selected: Float): List<Float> {
-    val options = playbackSpeedOptions()
-    return if (selected in options) {
-        options
-    } else {
-        (options + selected).distinct().sorted()
-    }
-}
-
-internal fun playbackSpeedNavigationTarget(
-    current: Float,
-    key: Key,
-): Float? =
-    key.resolveDesktopIntent { intent ->
-        playbackSpeedNavigationTarget(current, intent)
-    }
-
-internal fun playbackSpeedNavigationTarget(
-    current: Float,
-    intent: MiruPlayInputIntent,
-): Float? =
-    playbackSpeedPickerOptions(current).focusTargetAfter(
-        current = current,
-        intent = intent,
-        axis = MiruPlayFocusAxis.Horizontal,
-    )
-
-@Composable
 private fun PlaybackEndActionPicker(
     selected: PlaybackEndAction,
     onSelected: (PlaybackEndAction) -> Unit,
@@ -1359,13 +1197,13 @@ private fun PlaybackEndActionPicker(
             .background(if (isFocused) CardBg.copy(alpha = 0.55f) else Color.Transparent)
             .focusable(interactionSource = interactionSource)
             .onPreviewKeyEvent { event ->
-                desktopConfirmOrNavigationIntentEvent(
+                desktopConfirmOrNavigationKeyEvent(
                     key = event.key,
                     type = event.type,
                     onClick = { onSelected(selected) },
-                    onNavigationIntent = { intent ->
-                        val next = playbackEndActionNavigationTarget(selected, intent)
-                            ?: return@desktopConfirmOrNavigationIntentEvent false
+                    onNavigationKey = { key ->
+                        val next = playbackEndActionNavigationTarget(selected, key)
+                            ?: return@desktopConfirmOrNavigationKeyEvent false
                         onSelected(next)
                         true
                     },
@@ -1441,7 +1279,7 @@ internal fun playbackEndActionNavigationTarget(
     current: PlaybackEndAction,
     key: Key,
 ): PlaybackEndAction? =
-    key.resolveDesktopIntent { intent ->
+    key.toMiruPlayInputIntent()?.let { intent ->
         playbackEndActionNavigationTarget(current, intent)
     }
 

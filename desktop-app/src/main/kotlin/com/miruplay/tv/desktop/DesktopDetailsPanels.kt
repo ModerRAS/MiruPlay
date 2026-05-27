@@ -116,13 +116,16 @@ internal fun DesktopDetailHero(
         return true
     }
 
-    fun moveFromAction(current: DesktopDetailHeroAction, intent: MiruPlayInputIntent): Boolean =
-        when (intent) {
-            MiruPlayInputIntent.DirectionDown -> onFocusRecentPlayback()
-            else -> intent.horizontalNavigationDelta()?.let { delta ->
-                moveActionFocus(current, delta)
-            } ?: false
+    fun moveFromAction(current: DesktopDetailHeroAction, key: Key): Boolean =
+        key.toMiruPlayInputIntent()?.let { intent ->
+            when (intent) {
+                MiruPlayInputIntent.DirectionDown -> onFocusRecentPlayback()
+                else -> intent.horizontalNavigationDelta()?.let { delta ->
+                    moveActionFocus(current, delta)
+                } ?: false
+            }
         }
+            ?: false
 
     val statLabels = entry
         ?.let {
@@ -836,7 +839,7 @@ internal fun detailEpisodeSeasonFocusTarget(
     selectedEpisodeIndex: Int,
     key: Key,
 ): DetailEpisodeFocusTarget? =
-    key.resolveDesktopIntent { intent ->
+    key.toMiruPlayInputIntent()?.let { intent ->
         detailEpisodeSeasonFocusTarget(
             currentIndex = currentIndex,
             seasonCount = seasonCount,
@@ -869,7 +872,7 @@ internal fun detailEpisodeSeasonFocusTarget(
     }
 
 internal fun detailEpisodeEmptyFocusTarget(key: Key): DetailEpisodeFocusTarget? =
-    key.resolveDesktopIntent(::detailEpisodeEmptyFocusTarget)
+    key.toMiruPlayInputIntent()?.let(::detailEpisodeEmptyFocusTarget)
 
 internal fun detailEpisodeEmptyFocusTarget(intent: MiruPlayInputIntent): DetailEpisodeFocusTarget? =
     when (intent.verticalNavigationDelta()) {
@@ -1205,7 +1208,7 @@ internal fun recentPlaybackActionFocusTarget(
     key: Key,
     hasRecords: Boolean,
 ): RecentPlaybackFocusTarget? =
-    key.resolveDesktopIntent { intent ->
+    key.toMiruPlayInputIntent()?.let { intent ->
         recentPlaybackActionFocusTarget(current, intent, hasRecords)
     }
 
@@ -1221,7 +1224,7 @@ internal fun recentPlaybackActionFocusTarget(
         }
 
 internal fun recentPlaybackEmptyFocusTarget(key: Key): RecentPlaybackFocusTarget? =
-    key.resolveDesktopIntent(::recentPlaybackEmptyFocusTarget)
+    key.toMiruPlayInputIntent()?.let(::recentPlaybackEmptyFocusTarget)
 
 internal fun recentPlaybackEmptyFocusTarget(intent: MiruPlayInputIntent): RecentPlaybackFocusTarget? =
     when (intent.verticalNavigationDelta()) {
@@ -1425,7 +1428,7 @@ internal fun mediaDetailsInitialFocusTarget(hasRows: Boolean): MediaDetailsFocus
     if (hasRows) MediaDetailsFocusTarget.Row(0) else MediaDetailsFocusTarget.EmptyState
 
 internal fun mediaDetailsEmptyFocusTarget(key: Key): MediaDetailsFocusTarget? =
-    key.resolveDesktopIntent(::mediaDetailsEmptyFocusTarget)
+    key.toMiruPlayInputIntent()?.let(::mediaDetailsEmptyFocusTarget)
 
 internal fun mediaDetailsEmptyFocusTarget(intent: MiruPlayInputIntent): MediaDetailsFocusTarget? =
     when (intent.verticalNavigationDelta()) {
@@ -1440,7 +1443,7 @@ internal fun mediaDetailsFocusTarget(
     visibleCount: Int,
     key: Key,
 ): MediaDetailsFocusTarget? =
-    key.resolveDesktopIntent { intent ->
+    key.toMiruPlayInputIntent()?.let { intent ->
         mediaDetailsFocusTarget(
             currentIndex = currentIndex,
             rowCount = rowCount,

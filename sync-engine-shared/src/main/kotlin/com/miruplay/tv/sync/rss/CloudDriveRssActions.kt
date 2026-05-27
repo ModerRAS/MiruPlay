@@ -4,7 +4,6 @@ import com.miruplay.tv.clouddrive.CloudDriveTokenInfo
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.CloudDriveApiTokenFormResult
-import com.miruplay.tv.model.CloudDriveLibraryMode
 import com.miruplay.tv.model.CloudDriveLoginFormResult
 import com.miruplay.tv.model.CloudDriveRssRunSummary
 import com.miruplay.tv.model.RssSubscriptionInfo
@@ -82,7 +81,6 @@ class CloudDriveRssActionCoordinator(
         webDavSourceId: Long?,
         inboxPath: String,
         libraryPath: String,
-        libraryMode: CloudDriveLibraryMode? = null,
         intervalMinutes: Int,
         enabled: Boolean,
         rssProxyEnabled: Boolean = false,
@@ -99,7 +97,6 @@ class CloudDriveRssActionCoordinator(
             webDavSourceId = webDavSourceId,
             inboxPath = inboxPath,
             libraryPath = libraryPath,
-            libraryMode = libraryMode ?: current.libraryMode,
             intervalMinutes = intervalMinutes,
             enabled = enabled,
             rssProxyEnabled = rssProxyEnabled,
@@ -207,23 +204,6 @@ class CloudDriveRssActionCoordinator(
                 status = result.data.completeStatus(),
             )
             is Result.Error -> CloudDriveRunActionResult.Failed(result.error.toUserMessage())
-        }
-    }
-
-    suspend fun runCloudDriveOnceWithCallbacks(
-        onStarted: (String) -> Unit = {},
-        onCompleted: suspend (CloudDriveRunActionResult.Completed) -> Unit = {},
-        onFailed: suspend (CloudDriveRunActionResult.Failed) -> Unit = {},
-    ): CloudDriveRunActionResult {
-        return when (val result = runCloudDriveOnce(onStarted = onStarted)) {
-            is CloudDriveRunActionResult.Completed -> {
-                onCompleted(result)
-                result
-            }
-            is CloudDriveRunActionResult.Failed -> {
-                onFailed(result)
-                result
-            }
         }
     }
 

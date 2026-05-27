@@ -20,7 +20,6 @@ android {
 }
 
 dependencies {
-    api(project(":cloud-drive-core"))
     api(project(":cloud-drive-api"))
     api(project(":core:model"))
     api(project(":core:common"))
