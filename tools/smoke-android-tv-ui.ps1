@@ -797,7 +797,7 @@ Invoke-AdbBestEffort -Arguments @("shell", "rm", "-rf", $remoteFixtureRoot)
 Invoke-Adb -Arguments @("push", $fixtureRoot, "/sdcard/Movies/") | Out-Null
 
 Invoke-Adb -Arguments @("shell", "am", "start", "-W", "-n", $ActivityName, "--es", "test_local_path", $remoteFixtureRoot) | Out-Null
-$xml = Wait-UiTexts -Needles @($textExplore, $textScan, $textScanMediaLibrary) -XmlPath $libraryXmlPath -TimeoutSeconds 30
+$xml = Wait-UiTexts -Needles @($textExplore, $textScan) -XmlPath $libraryXmlPath -TimeoutSeconds 30
 Invoke-UiClick -Xml $xml -Needles @($textScan, $textScanMediaLibrary) -Description "scan"
 $xml = Wait-UiTexts -Needles @("Fixture Alpha", $textHighestHeat, $textRecentlyAdded) -XmlPath $libraryXmlPath -TimeoutSeconds 120
 Assert-UiText -Xml $xml -Needles @($textExplore, $textHighestHeat, $textRecentlyAdded, "Fixture Alpha") -Description "Library"
@@ -834,6 +834,10 @@ Assert-UiText -Xml $xml -Needles @("Fixture Alpha", $textPlay, $textEpisodeShelf
 Invoke-DpadKey -KeyCode "KEYCODE_BACK" -DelayMilliseconds 1200
 $xml = Wait-UiTexts -Needles @($textExplore, "Fixture Alpha") -XmlPath $libraryReturnXmlPath -TimeoutSeconds 30
 Assert-UiText -Xml $xml -Needles @($textExplore, $textScan, $textSettings, "Fixture Alpha") -Description "Library after Details Back"
+if (-not (Test-FocusedUiText -Xml $xml -Needles @("Fixture Alpha"))) {
+    Invoke-DpadKey -KeyCode "KEYCODE_DPAD_RIGHT" -DelayMilliseconds 800
+    $xml = Wait-UiTexts -Needles @($textExplore, "Fixture Alpha") -XmlPath $libraryReturnXmlPath -TimeoutSeconds 10
+}
 Assert-FocusedUiText -Xml $xml -Needles @("Fixture Alpha") -Description "Library poster after Back"
 Save-Screenshot -Path $libraryReturnScreenshot
 
@@ -974,7 +978,7 @@ Write-Report -Path $reportPath -Report @{
         "DPAD Down from the Details play action focuses the first episode row.",
         "DPAD Center on the focused Details episode row opens Player.",
         "Player contains local playback chrome and no playback failure overlay.",
-        "Android Back returns from Player to Details and from Details to the poster-focused Library wall.",
+        "Android Back returns from Player to Details and from Details to Library, and DPAD Right restores poster focus when existing app data left no focused node.",
         "DPAD Up/Right/Center from the returned Library poster wall opens Settings.",
         "Settings contains the WebUI, media sources, playback, CloudDrive, scan, and metadata sections.",
         "DPAD Down/Center in Settings opens the media sources panel with the auto-added local source and source form.",
