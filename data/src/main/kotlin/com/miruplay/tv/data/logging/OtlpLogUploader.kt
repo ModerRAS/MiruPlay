@@ -25,16 +25,11 @@ class OtlpLogUploader @Inject constructor(
     fun upload(endpoint: String, token: String, streamName: String, records: List<MiruLogRecord>): UploadResult {
         if (records.isEmpty()) return UploadResult.Success(0)
         val request = Request.Builder()
-            .url(OpenObserveLogConventions.normalizeEndpoint(endpoint, streamName))
+            .url(OpenObserveLogEndpoint.normalize(endpoint, streamName))
             .addHeader("Authorization", authorizationHeader(token))
             .addHeader("Content-Type", JSON_MEDIA_TYPE)
             .post(
-                json.encodeToString(
-                    OpenObserveLogConventions.buildJsonPayload(
-                        records = records,
-                        context = ANDROID_PAYLOAD_CONTEXT,
-                    )
-                )
+                json.encodeToString(OpenObserveJsonPayloadBuilder.build(records))
                     .toRequestBody(JSON_MEDIA_TYPE.toMediaType())
             )
             .build()
@@ -68,9 +63,46 @@ class OtlpLogUploader @Inject constructor(
 
     companion object {
         private const val JSON_MEDIA_TYPE = "application/json"
-        private val ANDROID_PAYLOAD_CONTEXT = OpenObservePayloadContext(
-            serviceName = "miruplay-android-tv",
-            deploymentEnvironment = "android-tv",
-        )
     }
+}
+
+internal object OpenObserveLogEndpoint {
+    fun normalize(endpoint: String, streamName: String): String {
+        val raw = endpoint.trim().trimEnd('/')
+        require(raw.isNotBlank()) { "OpenObserve endpoint is blank" }
+        val trimmed = if (raw.startsWith("http://") || raw.startsWith("https://")) raw else "http://$raw"
+        val uri = URI(trimmed)
+        val path = uri.path.orEmpty().trimEnd('/')
+        if (path.endsWith("/_json")) return URI(uri.scheme, uri.authority, path, null, null).toString()
+
+        val safeStream = streamName.trim().ifBlank { DEFAULT_STREAM_NAME }
+        val jsonStreamPath = when {
+            path.isBlank() -> "/api/default/$safeStream"
+            path == "/api" -> "/api/default/$safeStream"
+            path.endsWith("/v1/logs") -> path.removeSuffix("/v1/logs").appendStreamIfNeeded(safeStream)
+            path.endsWith("/v1/log") -> path.removeSuffix("/v1/log").appendStreamIfNeeded(safeStream)
+            path.endsWith("/v1") -> path.removeSuffix("/v1").appendStreamIfNeeded(safeStream)
+            path.isOpenObserveStreamPath() -> path
+            path.startsWith("/api/") -> "$path/$safeStream"
+            else -> "$path/api/default/$safeStream"
+        }.trimEnd('/').ifBlank { "/api/default" }
+        val normalizedPath = "$jsonStreamPath/_json"
+        return URI(uri.scheme, uri.authority, normalizedPath, null, null).toString()
+    }
+
+    private fun String.appendStreamIfNeeded(streamName: String): String {
+        val normalized = trimEnd('/')
+        return when {
+            normalized.isBlank() -> "/api/default/$streamName"
+            normalized.isOpenObserveStreamPath() -> normalized
+            else -> "$normalized/$streamName"
+        }
+    }
+
+    private fun String.isOpenObserveStreamPath(): Boolean {
+        val segments = trim('/').split('/').filter { it.isNotBlank() }
+        return segments.size == 3 && segments.firstOrNull() == "api"
+    }
+
+    private const val DEFAULT_STREAM_NAME = "miruplay"
 }

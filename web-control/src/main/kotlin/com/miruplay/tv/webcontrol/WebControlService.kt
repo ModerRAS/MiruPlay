@@ -189,11 +189,48 @@ class WebControlService @Inject constructor(
         return cloudDriveActions.saveWebControlRssSubscription(request)
     }
 
-    override suspend fun updateRssSubscription(id: Long, request: RssSubscriptionRequest): RssSubscriptionInfo =
-        cloudDriveActions.updateWebControlRssSubscription(
-            id = id,
-            request = request,
-            repository = cloudDriveRepository,
+    suspend fun getLogUpload(): LogUploadDto {
+        val tokenConfigured = logUploadRepository.isTokenConfigured()
+        return LogUploadDto(
+            config = OtlpLogUploadConfigDto.from(logUploadRepository.getConfig()),
+            status = LogUploadStatusDto.from(logUploadRepository.status.first(), tokenConfigured),
+            tokenConfigured = tokenConfigured
+        )
+    }
+
+    suspend fun saveLogUploadConfig(request: LogUploadConfigRequest): LogUploadDto {
+        if (request.enabled && request.endpoint.isBlank()) {
+            throw IllegalArgumentException("请填写 OpenObserve API 地址")
+        }
+        logUploadRepository.saveConfig(
+            enabled = request.enabled,
+            endpoint = request.endpoint.trim(),
+            streamName = request.streamName.trim().ifBlank { "miruplay" }
+        )
+        return getLogUpload()
+    }
+
+    suspend fun saveLogUploadToken(request: LogUploadTokenRequest): LogUploadDto {
+        if (request.token.isBlank()) {
+            throw IllegalArgumentException("请填写 OpenObserve Token")
+        }
+        logUploadRepository.saveToken(request.token.trim())
+        return getLogUpload()
+    }
+
+    suspend fun clearLogUploadToken(): LogUploadDto {
+        logUploadRepository.clearToken()
+        return getLogUpload()
+    }
+
+    suspend fun uploadPendingLogs(): LogUploadDto {
+        logUploadRepository.uploadPendingLogs()
+        return getLogUpload()
+    }
+
+    fun getMetadataSettings(): MetadataSettingsDto =
+        MetadataSettingsDto(
+            bangumiTokenConfigured = !securePreferences.bangumiAccessToken.isNullOrBlank()
         )
 
     override suspend fun deleteRssSubscription(id: Long) {

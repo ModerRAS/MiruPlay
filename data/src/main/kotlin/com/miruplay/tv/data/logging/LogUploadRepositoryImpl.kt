@@ -79,9 +79,9 @@ class LogUploadRepositoryImpl @Inject constructor(
     private fun uploadPendingLogsLocked(): LogUploadStatus {
         val config = preferences.getConfig()
         val token = credentials.otlpAccessToken.orEmpty()
-        if (!config.enabled) return currentStatus(isUploading = false)
-        if (config.endpoint.isBlank()) return updateStatus("请填写 OpenObserve API 地址")
-        if (token.isBlank()) return updateStatus("请填写 OpenObserve Token")
+        if (!config.enabled) return@withContext currentStatus(isUploading = false)
+        if (config.endpoint.isBlank()) return@withContext updateStatus("请填写 OpenObserve API 地址")
+        if (token.isBlank()) return@withContext updateStatus("请填写 OpenObserve Token")
 
         var uploadedCount = 0
         var batchCount = 0

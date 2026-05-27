@@ -518,6 +518,42 @@ class SettingsViewModel @Inject constructor(
         refreshWebUiUrls()
     }
 
+    fun saveLogUploadConfig(endpoint: String, token: String, streamName: String, enabled: Boolean) {
+        viewModelScope.launch {
+            logUploadRepository.saveConfig(
+                enabled = enabled,
+                endpoint = endpoint.trim(),
+                streamName = streamName.trim()
+            )
+            val normalizedToken = token.trim()
+            if (normalizedToken.isNotBlank()) {
+                logUploadRepository.saveToken(normalizedToken)
+            }
+            MiruLog.i(
+                "SettingsViewModel",
+                "OpenObserve log upload config saved",
+                mapOf("enabled" to enabled.toString(), "stream_name" to streamName.trim().ifBlank { "miruplay" })
+            )
+            if (enabled) {
+                logUploadRepository.uploadPendingLogs()
+            }
+        }
+    }
+
+    fun clearLogUploadToken() {
+        viewModelScope.launch {
+            logUploadRepository.clearToken()
+            MiruLog.i("SettingsViewModel", "OpenObserve log upload token cleared")
+        }
+    }
+
+    fun uploadLogsNow() {
+        viewModelScope.launch {
+            MiruLog.i("SettingsViewModel", "Manual OpenObserve log upload requested")
+            logUploadRepository.uploadPendingLogs()
+        }
+    }
+
     fun refreshWebUiUrls() {
         viewModelScope.launch(Dispatchers.IO) {
             _webUiUrls.value = if (webControlPreferences.webControlEnabled) {

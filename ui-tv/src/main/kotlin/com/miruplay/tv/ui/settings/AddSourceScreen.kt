@@ -2735,8 +2735,111 @@ private fun ScanOptionChip(
 }
 
 private fun PlaybackEndAction.menuSummary(): String = when (this) {
-    PlaybackEndAction.RETURN_TO_DETAIL -> playbackEndReturnToDetailSummary()
-    PlaybackEndAction.PLAY_NEXT_EPISODE -> playbackEndPlayNextEpisodeSummary()
+    PlaybackEndAction.RETURN_TO_DETAIL -> "播完返回"
+    PlaybackEndAction.PLAY_NEXT_EPISODE -> "自动下一集"
+}
+
+@Composable
+private fun LogUploadPanel(
+    config: OtlpLogUploadConfig,
+    status: LogUploadStatus,
+    endpoint: String,
+    onEndpointChange: (String) -> Unit,
+    token: String,
+    onTokenChange: (String) -> Unit,
+    streamName: String,
+    onStreamNameChange: (String) -> Unit,
+    enabled: Boolean,
+    onToggleEnabled: () -> Unit,
+    onSave: () -> Unit,
+    onClearToken: () -> Unit,
+    onUploadNow: () -> Unit
+) {
+    SettingsPanel {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Filled.Upload,
+                contentDescription = null,
+                tint = TextPrimary,
+                modifier = Modifier.size(26.dp)
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(text = "OpenObserve JSON", style = TvTypography.subtitle, color = TextPrimary)
+        }
+
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = "本地日志会先写入设备文件，再按配置自动上报到 OpenObserve JSON 日志入口。",
+            style = TvTypography.body,
+            color = TextSecondary
+        )
+
+        Spacer(Modifier.height(14.dp))
+        TvTextField(
+            value = endpoint,
+            onValueChange = onEndpointChange,
+            label = "OpenObserve API 地址（例如 /api/{org}）",
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(Modifier.height(12.dp))
+        TvTextField(
+            value = token,
+            onValueChange = onTokenChange,
+            label = if (status.tokenConfigured) "Token（留空则保留）" else "Token",
+            isPassword = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(Modifier.height(12.dp))
+        TvTextField(
+            value = streamName,
+            onValueChange = onStreamNameChange,
+            label = "Stream 名称",
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(Modifier.height(14.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ScanOptionChip(
+                text = if (enabled) "自动上报" else "暂停上报",
+                icon = Icons.Filled.Upload,
+                selected = enabled,
+                enabled = true,
+                onClick = onToggleEnabled,
+                modifier = Modifier.width(150.dp)
+            )
+            TvButton(
+                text = "保存",
+                icon = Icons.Filled.Save,
+                enabled = endpoint.isNotBlank(),
+                onClick = onSave
+            )
+            TvButton(
+                text = if (status.isUploading) "上报中" else "立即上报",
+                icon = Icons.Filled.Upload,
+                enabled = !status.isUploading && config.endpoint.isNotBlank() && status.tokenConfigured,
+                onClick = onUploadNow
+            )
+            TvButton(
+                text = "清除 Token",
+                icon = Icons.Filled.Delete,
+                enabled = status.tokenConfigured,
+                onClick = onClearToken
+            )
+        }
+
+        val message = buildString {
+            append("待上报 ${status.pendingCount} 条")
+            if (config.streamName.isNotBlank()) append(" · stream=${config.streamName}")
+            if (status.lastUploadAt > 0L) append(" · ${formatTimestamp(status.lastUploadAt)}")
+        }
+        StatusMessage(
+            icon = if (config.enabled && status.tokenConfigured) Icons.Filled.CheckCircle else Icons.Filled.Upload,
+            text = status.lastUploadStatus ?: message,
+            color = if (config.enabled && status.tokenConfigured) ProgressGreen else TextSecondary
+        )
+    }
 }
 
 @Composable

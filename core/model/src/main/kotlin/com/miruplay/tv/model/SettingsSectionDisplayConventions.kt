@@ -42,12 +42,6 @@ enum class MiruPlaySettingsSection(
         desktopTitle = "日志",
         desktopDescription = "OpenObserve JSON",
     ),
-    APP_UPDATE(
-        androidTvTitle = "更新",
-        androidTvDescription = "GitHub APK",
-        desktopTitle = "更新",
-        desktopDescription = "GitHub APK",
-    ),
     METADATA(
         androidTvTitle = "元数据",
         androidTvDescription = "Bangumi Token",

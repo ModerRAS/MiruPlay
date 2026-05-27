@@ -373,7 +373,7 @@ internal fun CloudRssPanel(
                 section = selectedSection,
                 tiles = desktopLogUploadSettingsTiles(),
                 status = "日志上报配置在 Android TV 设置页生效；本地日志会按 OpenObserve JSON 配置写入上报队列。",
-                actions = listOf(SettingsQuickAction(settingsOpenLibraryActionLabel(), onOpenLibrary)),
+                actions = listOf(SettingsQuickAction("打开海报墙", onOpenLibrary)),
                 onFocusSectionMenu = { focusSelectedSectionMenu() },
                 modifier = Modifier.weight(1f),
             )
@@ -2545,8 +2545,8 @@ private fun MiruPlaySettingsSection.menuSummary(
 ): String = when (this) {
     MiruPlaySettingsSection.SOURCES -> settingsSourcesMenuSummary(sourcesCount)
     MiruPlaySettingsSection.PLAYBACK -> playbackSummary
-    MiruPlaySettingsSection.CLOUD_DRIVE -> settingsCloudDriveMenuSummary(cloudEnabled, rssCount)
-    MiruPlaySettingsSection.SCAN -> settingsDesktopScanMenuSummary()
+    MiruPlaySettingsSection.CLOUD_DRIVE -> if (cloudEnabled) "$rssCount 个订阅" else "未启用"
+    MiruPlaySettingsSection.SCAN -> "媒体库更新"
     MiruPlaySettingsSection.LOG_UPLOAD -> "OpenObserve"
     MiruPlaySettingsSection.METADATA -> metadataSummary
     MiruPlaySettingsSection.WEB_UI -> settingsDesktopWebUiMenuSummary(webUiAddressCount)
