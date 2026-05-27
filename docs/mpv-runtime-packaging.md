@@ -197,9 +197,10 @@ This task uses the JDK `jpackage --type app-image` tool and intentionally stops
 at an unpacked app image. To continue from the verified app image into a Windows
 installer, use the opt-in installer gate. It requires a Windows installer
 toolchain such as WiX `candle.exe`/`light.exe` on `PATH`, reuses the native
-app-image smoke, then creates an MSI by default and writes
-`build/jpackage/smoke/windows-installer-smoke.json` with the installer path,
-size, SHA256, version, and signing mode:
+app-image smoke when a runtime is bundled, then creates an MSI by default and
+writes `build/jpackage/smoke/windows-installer-smoke.json` with the installer
+path, size, SHA256, version, signing mode, and whether mpv/RIFE runtime content
+was bundled:
 
 ```powershell
 .\gradlew.bat :desktop-app:smokeWindowsInstaller `
@@ -228,7 +229,45 @@ with `signtool`; `-PwindowsInstallerCertPassword=...` and
 `-PwindowsInstallerTimestampUrl=...` are optional release inputs.
 `tools/assert-windows-installer-report.ps1` validates that the smoke report
 points at an existing MSI/EXE, that the file size and SHA256 match the report,
-and that the signing mode matches the release gate expectation.
+that the installer type/backend and signing mode match the release gate
+expectation, and, when requested, that the report either did or did not bundle
+the mpv/RIFE runtime.
+
+The current `20260510` full `vsNV` runtime is large enough that JDK
+`jpackage`/WiX can fail while creating the installer cabinet. The Gradle
+packaging copy excludes ONNX backend test suites because they are not needed at
+runtime and can trigger WiX long-path file lookup failures. For a bundled
+runtime installer, use the explicit 7-Zip SFX backend with an EXE installer:
+
+```powershell
+.\gradlew.bat :desktop-app:smokeWindowsInstaller `
+  -PmpvRuntimeSource=runtime\mpv `
+  -PrequireMpvRuntime=true `
+  -PrequiredRifeBackends=NVIDIA,DIRECTML `
+  -PrequireWindowsInstallerToolchain=true `
+  -PwindowsInstallerType=exe `
+  -PwindowsInstallerBackend=sfx
+```
+
+The SFX backend requires `7z.exe` and `7z.sfx`; pass
+`-PwindowsInstallerSfxModule=C:\path\7z.sfx` if `7z.sfx` is not in a standard
+7-Zip install location. Use the full `distZip` and native app-image runtime
+gates beside this installer gate for bundled runtime evidence. Use a lightweight
+installer smoke for local Windows installer QA:
+
+```powershell
+.\gradlew.bat :desktop-app:smokeWindowsInstaller `
+  -PbundleMpvRuntime=false `
+  -PrequireWindowsInstallerToolchain=true
+```
+
+The lightweight report should validate with `-RequireNoBundledMpvRuntime`.
+Strict release evidence for a self-contained installer must validate with
+`-RequireBundledMpvRuntime` and still needs a release signing certificate.
+The unified verifier can run the same lightweight path with
+`.\tools\verify-windows-port.ps1 -WindowsInstaller -LightweightWindowsInstaller`.
+For the bundled SFX path, use
+`.\tools\verify-windows-port.ps1 -WindowsInstaller -WindowsInstallerType exe -WindowsInstallerBackend sfx`.
 
 The same signed installer path can run through the unified port verifier so
 installer evidence is produced beside the rest of the release gate output:
@@ -237,7 +276,8 @@ installer evidence is produced beside the rest of the release gate output:
 .\tools\verify-windows-port.ps1 `
   -WindowsInstaller `
   -SignWindowsInstaller `
-  -WindowsInstallerType msi `
+  -WindowsInstallerType exe `
+  -WindowsInstallerBackend sfx `
   -MpvRuntimeSource runtime\mpv `
   -RequiredRifeBackends NVIDIA,DIRECTML `
   -WindowsInstallerCertPath C:\path\MiruPlay-release.pfx `
@@ -281,11 +321,11 @@ Validate a generated target-host report before attaching it to release QA:
 
 Before spending time on the opt-in release gates, the external preflight can
 summarize whether this checkout has the runtime payload, target-host RIFE
-report, live CloudDrive/RSS evidence, WiX/signing tools, and installer report
-needed for strict completion:
+report, live CloudDrive/RSS evidence, the selected installer backend toolchain,
+signing inputs, and installer report needed for strict completion:
 
 ```powershell
-.\tools\check-windows-port-external-prereqs.ps1
+.\tools\check-windows-port-external-prereqs.ps1 -WindowsInstallerType exe -WindowsInstallerBackend sfx
 ```
 
 It writes `build/windows-port-audit/external-prereqs.json` and is expected to

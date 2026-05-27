@@ -56,6 +56,11 @@ val backendScripts = mapOf(
     "DIRECTML" to "MEMC_RIFE_DML.vpy",
     "STANDARD" to "MEMC_RIFE_STD.vpy",
 )
+val mpvRuntimePackageExcludes = listOf(
+    // ONNX test suites are not needed by playback and can exceed WiX path/cabinet limits.
+    "Lib/site-packages/onnx/backend/test/**",
+    "Lib/site-packages/onnx/test/**",
+)
 val jpackageAppContentDir = layout.buildDirectory.dir("jpackage/app-content")
 val jpackageInputDir = layout.buildDirectory.dir("jpackage/input")
 val jpackageOutputDir = layout.buildDirectory.dir("jpackage/output")
@@ -75,6 +80,9 @@ val windowsPackageVersion = providers.gradleProperty("windowsPackageVersion")
     .orElse("0.1.0")
 val windowsInstallerType = providers.gradleProperty("windowsInstallerType")
     .orElse("msi")
+val windowsInstallerBackend = providers.gradleProperty("windowsInstallerBackend")
+    .orElse("jpackage")
+val windowsInstallerSfxModule = providers.gradleProperty("windowsInstallerSfxModule")
 val requireWindowsInstallerToolchain = providers.gradleProperty("requireWindowsInstallerToolchain")
     .map { it.equals("true", ignoreCase = true) }
     .orElse(false)
@@ -274,6 +282,13 @@ fun normalizeWindowsInstallerType(value: String): String =
         }
     }
 
+fun normalizeWindowsInstallerBackend(value: String): String =
+    value.trim().lowercase().also { normalized ->
+        if (normalized !in setOf("jpackage", "sfx")) {
+            throw GradleException("windowsInstallerBackend must be jpackage or sfx, but was: $value")
+        }
+    }
+
 fun commandExistsOnPath(commandName: String): Boolean {
     val path = System.getenv("PATH").orEmpty()
     val pathExt = System.getenv("PATHEXT")
@@ -294,7 +309,22 @@ fun commandExistsOnPath(commandName: String): Boolean {
 }
 
 fun windowsInstallerToolchainAvailable(): Boolean =
-    commandExistsOnPath("candle.exe") && commandExistsOnPath("light.exe")
+    when (normalizeWindowsInstallerBackend(windowsInstallerBackend.get())) {
+        "jpackage" -> commandExistsOnPath("candle.exe") && commandExistsOnPath("light.exe")
+        "sfx" -> commandExistsOnPath("7z.exe") && sevenZipSfxModuleOrNull() != null
+        else -> false
+    }
+
+fun windowsInstallerRuntimeInputAvailable(): Boolean =
+    !bundleMpvRuntime.get() || hasMpvRuntimeSource()
+
+fun windowsInstallerGateAvailable(): Boolean =
+    System.getProperty("os.name").contains("Windows", ignoreCase = true) &&
+        windowsInstallerRuntimeInputAvailable() &&
+        (windowsInstallerToolchainAvailable() || requireWindowsInstallerToolchain.get())
+
+fun windowsInstallerBundlesMpvRuntime(): Boolean =
+    bundleMpvRuntime.get() && hasMpvRuntimeSource()
 
 fun signtoolExecutable(): File {
     val explicit = windowsInstallerSignTool.orNull
@@ -314,6 +344,56 @@ fun signtoolExecutable(): File {
         )
 }
 
+fun sevenZipExecutable(): File =
+    commandFileOnPath("7z.exe")
+        ?: throw GradleException("7z.exe was not found. Install 7-Zip or set PATH before running the SFX installer backend.")
+
+fun commandFileOnPath(commandName: String): File? {
+    val path = System.getenv("PATH").orEmpty()
+    val pathExt = System.getenv("PATHEXT")
+        ?.split(';')
+        ?.filter { it.isNotBlank() }
+        ?: listOf(".exe", ".cmd", ".bat")
+    return path.split(File.pathSeparatorChar)
+        .filter { it.isNotBlank() }
+        .flatMap { directory ->
+            val root = File(directory)
+            if (commandName.contains('.')) {
+                listOf(root.resolve(commandName))
+            } else {
+                pathExt.map { extension -> root.resolve("$commandName$extension") }
+            }
+        }
+        .firstOrNull { it.isFile }
+}
+
+fun sevenZipSfxModuleOrNull(): File? {
+    windowsInstallerSfxModule.orNull
+        ?.takeIf { it.isNotBlank() }
+        ?.let { File(it) }
+        ?.let { explicit ->
+            if (explicit.isFile) return explicit
+            throw GradleException("windowsInstallerSfxModule does not point to a file: $explicit")
+        }
+
+    val userHome = System.getProperty("user.home").orEmpty()
+    val candidates = buildList {
+        commandFileOnPath("7z.exe")?.parentFile?.let { add(it.resolve("7z.sfx")) }
+        if (userHome.isNotBlank()) {
+            add(File(userHome, "scoop/apps/7zip/current/7z.sfx"))
+        }
+        add(File("C:/Program Files/7-Zip/7z.sfx"))
+        add(File("C:/Program Files (x86)/7-Zip/7z.sfx"))
+    }
+    return candidates.firstOrNull { it.isFile }
+}
+
+fun sevenZipSfxModule(): File =
+    sevenZipSfxModuleOrNull()
+        ?: throw GradleException(
+            "7z.sfx was not found. Set -PwindowsInstallerSfxModule=<path> or install a 7-Zip package that includes 7z.sfx."
+        )
+
 fun sha256(file: File): String {
     val digest = MessageDigest.getInstance("SHA-256")
     file.inputStream().use { input ->
@@ -332,17 +412,31 @@ val verifyWindowsInstallerToolchain by tasks.registering {
     description = "Verify WiX and optional signing inputs for Windows installer packaging."
     onlyIf { System.getProperty("os.name").contains("Windows", ignoreCase = true) }
     inputs.property("windowsInstallerType", windowsInstallerType)
+    inputs.property("windowsInstallerBackend", windowsInstallerBackend)
+    inputs.property("windowsInstallerSfxModule", windowsInstallerSfxModule.orElse(""))
     inputs.property("signWindowsInstaller", signWindowsInstaller)
     inputs.property("windowsInstallerSignTool", windowsInstallerSignTool.orElse(""))
     inputs.property("windowsInstallerCertPath", windowsInstallerCertPath.orElse(""))
 
     doLast {
         val installerType = normalizeWindowsInstallerType(windowsInstallerType.get())
-        if (!windowsInstallerToolchainAvailable()) {
-            throw GradleException(
-                "Windows installer toolchain was not found for $installerType packaging. " +
-                    "Install WiX Toolset and ensure candle.exe and light.exe are on PATH."
-            )
+        val installerBackend = normalizeWindowsInstallerBackend(windowsInstallerBackend.get())
+        when (installerBackend) {
+            "jpackage" -> {
+                if (!windowsInstallerToolchainAvailable()) {
+                    throw GradleException(
+                        "Windows installer toolchain was not found for $installerType jpackage packaging. " +
+                            "Install WiX Toolset and ensure candle.exe and light.exe are on PATH."
+                    )
+                }
+            }
+            "sfx" -> {
+                if (installerType != "exe") {
+                    throw GradleException("windowsInstallerBackend=sfx requires -PwindowsInstallerType=exe.")
+                }
+                sevenZipExecutable()
+                sevenZipSfxModule()
+            }
         }
         if (signWindowsInstaller.get()) {
             signtoolExecutable()
@@ -355,7 +449,7 @@ val verifyWindowsInstallerToolchain by tasks.registering {
             }
         }
         logger.lifecycle(
-            "Windows installer toolchain verified for $installerType packaging" +
+            "Windows installer toolchain verified for $installerType $installerBackend packaging" +
                 if (signWindowsInstaller.get()) " with signing enabled." else " without signing."
         )
     }
@@ -455,6 +549,7 @@ val prepareJpackageAppContent by tasks.registering(Sync::class) {
     if (bundleMpvRuntime.get() && hasMpvRuntimeSource()) {
         from(effectiveMpvRuntimeRoot) {
             into("runtime/mpv")
+            exclude(mpvRuntimePackageExcludes)
         }
         if (!mpvRuntimeSourceHasManifest()) {
             from(generatedMpvRuntimeManifest) {
@@ -464,6 +559,9 @@ val prepareJpackageAppContent by tasks.registering(Sync::class) {
     }
 
     doFirst {
+        jpackageAppContentDir.get().asFile.mkdirs()
+    }
+    doLast {
         jpackageAppContentDir.get().asFile.mkdirs()
     }
 }
@@ -485,8 +583,12 @@ val packageWindowsAppImage by tasks.registering {
     dependsOn(prepareJpackageAppContent)
     onlyIf { System.getProperty("os.name").contains("Windows", ignoreCase = true) }
     inputs.dir(jpackageInputDir)
-    inputs.dir(jpackageAppContentDir).optional()
+    if (bundleMpvRuntime.get() && hasMpvRuntimeSource()) {
+        inputs.dir(jpackageAppContentDir)
+    }
     inputs.property("windowsPackageVersion", windowsPackageVersion)
+    inputs.property("bundleMpvRuntime", bundleMpvRuntime)
+    inputs.property("hasMpvRuntimeSource", providers.provider { hasMpvRuntimeSource() })
     outputs.dir(jpackageAppImageRoot)
 
     doLast {
@@ -518,23 +620,25 @@ val packageWindowsAppImage by tasks.registering {
 
 val packageWindowsInstaller by tasks.registering {
     group = "distribution"
-    description = "Build a Windows MSI/EXE installer from the verified jpackage app image."
+    description = "Build a Windows MSI/EXE installer from the jpackage app image."
     if (windowsInstallerToolchainAvailable() || requireWindowsInstallerToolchain.get()) {
         dependsOn(verifyWindowsInstallerToolchain)
     }
     if (windowsInstallerToolchainAvailable()) {
-        dependsOn("smokeNativeAppImageRuntime")
+        if (bundleMpvRuntime.get()) {
+            dependsOn("smokeNativeAppImageRuntime")
+        } else {
+            dependsOn(packageWindowsAppImage)
+        }
     }
-    onlyIf {
-        System.getProperty("os.name").contains("Windows", ignoreCase = true) &&
-            bundleMpvRuntime.get() &&
-            hasMpvRuntimeSource() &&
-            (windowsInstallerToolchainAvailable() || requireWindowsInstallerToolchain.get())
-    }
+    onlyIf { windowsInstallerGateAvailable() }
     inputs.dir(jpackageAppImageRoot).optional()
     inputs.property("windowsPackageVersion", windowsPackageVersion)
     inputs.property("windowsInstallerType", windowsInstallerType)
+    inputs.property("windowsInstallerBackend", windowsInstallerBackend)
+    inputs.property("windowsInstallerSfxModule", windowsInstallerSfxModule.orElse(""))
     inputs.property("windowsInstallerUpgradeUuid", windowsInstallerUpgradeUuid)
+    inputs.property("bundleMpvRuntime", bundleMpvRuntime)
     outputs.dir(jpackageInstallerOutputDir)
 
     doFirst {
@@ -548,6 +652,7 @@ val packageWindowsInstaller by tasks.registering {
 
     doLast {
         val installerType = normalizeWindowsInstallerType(windowsInstallerType.get())
+        val installerBackend = normalizeWindowsInstallerBackend(windowsInstallerBackend.get())
         val appImageRoot = jpackageAppImageRoot.get()
         if (!appImageRoot.isDirectory) {
             throw GradleException("Verified app image was not found: $appImageRoot")
@@ -557,22 +662,64 @@ val packageWindowsInstaller by tasks.registering {
         delete(outputDir)
         outputDir.mkdirs()
 
-        val command = mutableListOf(
-            jpackageExecutable().absolutePath,
-            "--type", installerType,
-            "--name", "MiruPlay",
-            "--app-image", appImageRoot.absolutePath,
-            "--dest", outputDir.absolutePath,
-            "--vendor", "MiruPlay",
-            "--app-version", windowsPackageVersion.get(),
-            "--description", "MiruPlay Windows desktop anime media manager",
-            "--win-menu",
-            "--win-shortcut",
-            "--win-dir-chooser",
-            "--win-upgrade-uuid", windowsInstallerUpgradeUuid.get(),
-        )
-        exec {
-            commandLine(command)
+        when (installerBackend) {
+            "jpackage" -> {
+                val command = mutableListOf(
+                    jpackageExecutable().absolutePath,
+                    "--type", installerType,
+                    "--name", "MiruPlay",
+                    "--app-image", appImageRoot.absolutePath,
+                    "--dest", outputDir.absolutePath,
+                    "--vendor", "MiruPlay",
+                    "--app-version", windowsPackageVersion.get(),
+                    "--description", "MiruPlay Windows desktop anime media manager",
+                    "--win-menu",
+                    "--win-shortcut",
+                    "--win-dir-chooser",
+                    "--win-upgrade-uuid", windowsInstallerUpgradeUuid.get(),
+                )
+                exec {
+                    commandLine(command)
+                }
+            }
+            "sfx" -> {
+                if (installerType != "exe") {
+                    throw GradleException("windowsInstallerBackend=sfx requires -PwindowsInstallerType=exe.")
+                }
+                val archiveFile = outputDir.resolve("MiruPlay-${windowsPackageVersion.get()}.7z")
+                val configFile = outputDir.resolve("MiruPlay-${windowsPackageVersion.get()}.sfx-config.txt")
+                val installerFile = outputDir.resolve("MiruPlay-${windowsPackageVersion.get()}.exe")
+                val sevenZip = sevenZipExecutable()
+                val sfxModule = sevenZipSfxModule()
+
+                configFile.writeText(
+                    """
+                    ;!@Install@!UTF-8!
+                    Title="MiruPlay ${windowsPackageVersion.get()}"
+                    BeginPrompt="Extract MiruPlay ${windowsPackageVersion.get()}?"
+                    RunProgram="MiruPlay\\MiruPlay.exe"
+                    ;!@InstallEnd@!
+                    """.trimIndent(),
+                )
+                exec {
+                    workingDir = appImageRoot.parentFile
+                    commandLine(
+                        sevenZip.absolutePath,
+                        "a",
+                        "-t7z",
+                        "-mx=1",
+                        archiveFile.absolutePath,
+                        appImageRoot.name,
+                    )
+                }
+                installerFile.outputStream().use { output ->
+                    sfxModule.inputStream().use { it.copyTo(output) }
+                    configFile.inputStream().use { it.copyTo(output) }
+                    archiveFile.inputStream().use { it.copyTo(output) }
+                }
+                delete(archiveFile, configFile)
+                logger.lifecycle("Windows SFX installer created: ${installerFile.toPath().toAbsolutePath().normalize()}")
+            }
         }
     }
 }
@@ -581,22 +728,20 @@ val smokeWindowsInstaller by tasks.registering {
     group = "verification"
     description = "Build the Windows installer and verify installer artifact metadata."
     dependsOn(packageWindowsInstaller)
-    onlyIf {
-        System.getProperty("os.name").contains("Windows", ignoreCase = true) &&
-            bundleMpvRuntime.get() &&
-            hasMpvRuntimeSource() &&
-            (windowsInstallerToolchainAvailable() || requireWindowsInstallerToolchain.get())
-    }
+    onlyIf { windowsInstallerGateAvailable() }
     inputs.dir(jpackageInstallerOutputDir).optional()
     inputs.property("windowsInstallerType", windowsInstallerType)
+    inputs.property("windowsInstallerBackend", windowsInstallerBackend)
     inputs.property("windowsPackageVersion", windowsPackageVersion)
     inputs.property("windowsInstallerUpgradeUuid", windowsInstallerUpgradeUuid)
     inputs.property("signWindowsInstaller", signWindowsInstaller)
+    inputs.property("bundleMpvRuntime", bundleMpvRuntime)
     outputs.file(jpackageInstallerSmokeReport)
     outputs.upToDateWhen { false }
 
     doLast {
         val installerType = normalizeWindowsInstallerType(windowsInstallerType.get())
+        val installerBackend = normalizeWindowsInstallerBackend(windowsInstallerBackend.get())
         val outputDir = jpackageInstallerOutputDir.get().asFile
         if (!outputDir.isDirectory) {
             throw GradleException("Windows installer output directory was not created: $outputDir")
@@ -644,12 +789,21 @@ val smokeWindowsInstaller by tasks.registering {
             }
         }
 
+        val bundledRuntime = windowsInstallerBundlesMpvRuntime()
+        val runtimeSource = if (bundledRuntime) {
+            effectiveMpvRuntimeRoot.get().toPath().toAbsolutePath().normalize().toString().jsonString()
+        } else {
+            "null"
+        }
         val report = """
             {
               "status": "ok",
               "installerType": ${installerType.jsonString()},
+              "installerBackend": ${installerBackend.jsonString()},
               "appVersion": ${windowsPackageVersion.get().jsonString()},
               "signatureMode": ${signatureMode.jsonString()},
+              "bundledMpvRuntime": $bundledRuntime,
+              "mpvRuntimeSource": $runtimeSource,
               "installerPath": ${installer.toPath().toAbsolutePath().normalize().toString().jsonString()},
               "sizeBytes": ${installer.length()},
               "sha256": ${sha256(installer).jsonString()}
@@ -1026,6 +1180,7 @@ distributions {
             if (bundleMpvRuntime.get() && hasMpvRuntimeSource()) {
                 from(effectiveMpvRuntimeRoot) {
                     into("runtime/mpv")
+                    exclude(mpvRuntimePackageExcludes)
                 }
                 if (!mpvRuntimeSourceHasManifest()) {
                     from(generatedMpvRuntimeManifest) {
