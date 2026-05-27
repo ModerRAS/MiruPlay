@@ -67,12 +67,13 @@ NVIDIA/DIRECTML scripts, and starts the generated `MiruPlay.exe` in a headless
 desktop-entry smoke mode to verify the app-image resolves its own runtime before
 installer creation; `tools/assert-desktop-entry-smoke-report.ps1` now validates
 that JSON report structurally instead of relying on string containment. The
-opt-in Windows installer gate preflights WiX, builds MSI/EXE artifacts from the
-app image, records SHA256/size/version, signing mode, and whether mpv/RIFE
-runtime content was bundled, and can sign plus verify with explicit
+opt-in Windows installer gate preflights the selected jpackage/WiX or SFX
+backend, builds MSI/EXE artifacts from the app image, records
+SHA256/size/version/backend, signing mode, and whether mpv/RIFE runtime
+content was bundled, and can sign plus verify with explicit
 signtool/PFX inputs. `tools/assert-windows-installer-report.ps1` validates that
 evidence against the generated installer path, file size, SHA256, installer
-type, app version, expected signing mode, and optional runtime-bundling
+type/backend, app version, expected signing mode, and optional runtime-bundling
 requirements. Lightweight installer QA now runs with `-PbundleMpvRuntime=false`
 and produces a report that must validate with `-RequireNoBundledMpvRuntime`; it
 cannot be mistaken for self-contained release installer evidence. The local
@@ -301,7 +302,7 @@ are historical references only.
 | Objective deliverable | Concrete artifacts inspected | Verification evidence | Remaining gap |
 |---|---|---|---|
 | Keep the original Android TV app working | `app/src/main/kotlin/com/miruplay/tv/MainActivity.kt`, `ui-tv/`, Android Gradle modules, `tools/smoke-android-tv-ui.ps1` | `.\gradlew.bat :app:assembleDebug -PbundleMpvRuntime=false` passed in the latest preservation check. `tools/smoke-android-tv-ui.ps1 -KeepAppData` installed the debug APK on device `<android-tv-device-id>`, generated seven playable MP4/NFO fixture shows, pushed them under `/sdcard/Movies`, launched with `test_local_path` and a unique `test_local_name`, scanned the fixture, verified Library -> Details -> Player -> Library Back behavior, entered Settings, opened the media-source panel, proved source-card focus/edit behavior, removed only the current smoke source without clearing unrelated app data, then visited Playback, CloudDrive, Scan, and Metadata settings with matching menu focus. The current evidence is `build/android-tv-qa/run-20260527-122708/android-tv-smoke-report.json` with 16 screenshots and 17 XML dumps. | Broader TV-device regression still needs manual coverage for less-traveled focus paths. |
-| Add a Windows desktop entry | `desktop-app/build.gradle.kts`, `MiruPlayDesktopComposeApp.kt`, `.github/workflows/ci.yml` | `mainClass` points to `com.miruplay.tv.desktop.MiruPlayDesktopComposeAppKt`; the native window title now uses the TV-facing `MiruPlay 桌面版` copy; the app-image gate launches `MiruPlay.exe --miruplay-desktop-smoke` and validates a JSON report for entry point, window title, start section, and bundled runtime paths; the new installer gate can build MSI/EXE artifacts from that verified app image when WiX is available and records SHA256/size/signing evidence, with `tools/assert-windows-installer-report.ps1` checking that report against the generated artifact; CI now uploads a versioned lightweight Windows desktop ZIP from `windows-latest`, runs `:desktop-app:desktopWebControlSmoke -PbundleMpvRuntime=false` plus `:desktop-app:desktopBehaviorTest -PdesktopBehaviorTags=smoke -PbundleMpvRuntime=false`, and uploads WebUI smoke evidence plus behavior report/screenshots; nightly main/master releases attach the same-version ZIP alongside the Android APK; `:desktop-app:test`, lightweight `:desktop-app:installDist -PbundleMpvRuntime=false`, lightweight `:desktop-app:distZip -PwindowsPackageVersion=2026.05.24 -PbundleMpvRuntime=false`, packaged WebUI smoke `:desktop-app:desktopWebControlSmoke -PbundleMpvRuntime=false` with report `desktop-app/build/web-control-smoke/desktop-web-control-smoke.json`, latest local full behavior smoke `:desktop-app:desktopBehaviorTest -PdesktopBehaviorTags=full -PbundleMpvRuntime=false` with report `build/desktop-behavior/run-20260527-111726/report.json`, full `:desktop-app:smokePackagedMpvRuntime -PmpvRuntimeSource=runtime\mpv -PrequireMpvRuntime=true -PrequiredRifeBackends=NVIDIA,DIRECTML`, and native `:desktop-app:smokeNativeAppImageRuntime -PmpvRuntimeSource=runtime\mpv -PrequireMpvRuntime=true -PrequiredRifeBackends=NVIDIA,DIRECTML` pass when a prepared runtime source is supplied. | Signed release installer still needs release signing inputs and toolchain evidence. |
+| Add a Windows desktop entry | `desktop-app/build.gradle.kts`, `MiruPlayDesktopComposeApp.kt`, `.github/workflows/ci.yml` | `mainClass` points to `com.miruplay.tv.desktop.MiruPlayDesktopComposeAppKt`; the native window title now uses the TV-facing `MiruPlay 桌面版` copy; the app-image gate launches `MiruPlay.exe --miruplay-desktop-smoke` and validates a JSON report for entry point, window title, start section, and bundled runtime paths; the new installer gate can build MSI/EXE artifacts from that verified app image through the selected jpackage/WiX or SFX backend and records SHA256/size/backend/signing evidence, with `tools/assert-windows-installer-report.ps1` checking that report against the generated artifact; CI now uploads a versioned lightweight Windows desktop ZIP from `windows-latest`, runs `:desktop-app:desktopWebControlSmoke -PbundleMpvRuntime=false` plus `:desktop-app:desktopBehaviorTest -PdesktopBehaviorTags=smoke -PbundleMpvRuntime=false`, and uploads WebUI smoke evidence plus behavior report/screenshots; nightly main/master releases attach the same-version ZIP alongside the Android APK; `:desktop-app:test`, lightweight `:desktop-app:installDist -PbundleMpvRuntime=false`, lightweight `:desktop-app:distZip -PwindowsPackageVersion=2026.05.24 -PbundleMpvRuntime=false`, packaged WebUI smoke `:desktop-app:desktopWebControlSmoke -PbundleMpvRuntime=false` with report `desktop-app/build/web-control-smoke/desktop-web-control-smoke.json`, latest local full behavior smoke `:desktop-app:desktopBehaviorTest -PdesktopBehaviorTags=full -PbundleMpvRuntime=false` with report `build/desktop-behavior/run-20260527-111726/report.json`, full `:desktop-app:smokePackagedMpvRuntime -PmpvRuntimeSource=runtime\mpv -PrequireMpvRuntime=true -PrequiredRifeBackends=NVIDIA,DIRECTML`, and native `:desktop-app:smokeNativeAppImageRuntime -PmpvRuntimeSource=runtime\mpv -PrequireMpvRuntime=true -PrequiredRifeBackends=NVIDIA,DIRECTML` pass when a prepared runtime source is supplied. | Signed release installer still needs release signing inputs and toolchain evidence. |
 | Use Compose-family UI on both targets | Android remains Compose/Compose TV; desktop default entry is Compose Multiplatform Desktop | `desktop-app` applies Compose plugins, `application.mainClass` points at `MiruPlayDesktopComposeAppKt`, screenshot QA launches the Compose entry, the old Swing shell has been removed from production sources, and root `checkDesktopComposeOnly` fails if Swing UI imports/classes or `coroutines-swing` return. | Covered structurally; full Android-TV-vs-desktop screen parity is tracked separately. |
 | Preserve media management capabilities on desktop | `media-source-desktop`, `scanner-desktop`, `repository-api`, `repository-desktop`, `scraper-desktop`, `sync-engine-desktop`, `cloud-drive-desktop`, Compose Library/Details/Settings panels | Unit and integration coverage now includes shared display/subtitle/index/batch planning helpers, desktop details rows, playback progress, RSS scheduler, CloudDrive gRPC client, RSS offline submission through real `GrpcCloudDriveClient`, and remote playback command security that keeps WebDAV/SMB hosts and credentials out of mpv command lines. | Real CloudDrive2 server live QA remains open for token validation, offline submission, torrent staging, and organization. |
 | Use mpv as Windows playback backend | `player-mpv`, `MpvProcessPlayer`, `MpvIpcClient`, Compose Player panel, `tools/smoke-desktop-mpv-launch-ui.ps1` | `:player-mpv:test` passes; desktop app launches `MpvProcessPlayer`; progress sync polls mpv `time-pos` while playing; RIFE is opt-in by default on desktop so low-capability hosts can launch plain mpv first; missing mpv/RIFE launch failures now render TV-facing Chinese guidance for checking the runtime, preparing a backend, or turning RIFE off, and the `Check runtime` verifier output localizes runtime readiness, manifest, source, required backend, and missing-file details. The Player `全屏` toggle still feeds mpv `--fs`, and now also drives Compose Desktop's native `WindowPlacement.Fullscreen` only while the Player route is active, restoring the previous floating/maximized placement when leaving Player or disabling fullscreen; `DesktopSectionContractTest` covers the route-gated decision. The GUI mpv launch smoke generates a local Y4M sample, fills it into the Windows Player, disables RIFE for host-safe playback, clicks Play, confirms an `mpv.exe` child process containing the sample path, exercises Pause, -10s, +30s, and Stop through keyboard focus, verifies a persisted progress record, and captures settings-focus/runtime-focus/launched/keyboard-control/stopped Player screenshots. `MpvProcessPlayer.stop()` escalates from IPC quit to destroy and force-destroy, including descendant process cleanup when available. | External-process mpv mode is covered; embedded libmpv is intentionally deferred. |
@@ -585,10 +586,13 @@ and the Android/desktop compile/separation gate in build `b-265`.
 Latest local safe Windows-port verifier passed on 2026-05-27 with
 `.\tools\verify-windows-port.ps1 -SkipGradle -SkipCloudRssScheduler -Behavior -BehaviorTags full`;
 it covered the JSON-driven full desktop behavior smoke and produced
-`build/desktop-behavior/run-20260527-111726/report.json`. The latest completion
-audit passed packaged WebUI, Bangumi live scraper, full desktop behavior, and
-Cloud/RSS scheduler evidence, then failed as expected on the 7 remaining
-external evidence items listed below. Separately,
+`build/desktop-behavior/run-20260527-111726/report.json`. The latest local
+unsigned completion audit also passed packaged WebUI, Bangumi live scraper,
+full desktop behavior, Android TV device smoke, prepared mpv/RIFE runtime,
+Cloud/RSS scheduler evidence, and the bundled-runtime SFX EXE installer report,
+then failed as expected on the 5 remaining target/live-service evidence items
+listed below. Strict release completion still also requires signed installer
+evidence instead of the local unsigned SFX report. Separately,
 `.\gradlew.bat :app:assembleDebug -PbundleMpvRuntime=false` passed. Packaged
 WebUI smoke passed in Gradle MCP build `b-24`; its local report is
 `desktop-app/build/web-control-smoke/desktop-web-control-smoke.json`. Bangumi
@@ -617,8 +621,8 @@ and scans its own JSON output for obvious credential material before returning.
 | Bangumi live scraper | `build/bangumi-smoke/live-report.json` | Present in current checkout |
 | Older standalone GUI screenshot directories cited below | `build/desktop-*-ui/run-20260520-*`, `build/desktop-ui-qa`, `build/android-tv-qa/run-20260520-190519` | Historical references; not present in this clean checkout and should not be treated as current proof |
 | Android TV device smoke latest pointer | `build/android-tv-qa/latest-report.txt` | Present; points to `build/android-tv-qa/run-20260527-122708/android-tv-smoke-report.json` with 16 screenshots and 17 XML dumps |
-| Prepared mpv/RIFE runtime payload | `runtime/mpv/mpv.exe`, `runtime/mpv/runtime-manifest.json` | Missing; tracked directory is only a placeholder |
-| Target-host RIFE matrix | `build/mpv-smoke/rife-matrix-report.json` | Missing current target-host evidence |
+| Prepared mpv/RIFE runtime payload | `runtime/mpv/mpv.exe`, `runtime/mpv/runtime-manifest.json` | Present locally as an ignored external payload; not committed to Git |
+| Target-host RIFE matrix | `build/mpv-smoke/rife-matrix-report.json` | Present but invalid for strict completion because NVIDIA did not PASS on this Intel/virtual-display host |
 | CloudDrive2 live | `build/cloud-drive-smoke/cloud-drive-report.json` | Missing current real-service evidence |
 | CloudDrive RSS dry-run | `build/cloud-rss-smoke/dry-run-report.json` | Missing current real-service evidence |
 | CloudDrive RSS live-submit | `build/cloud-rss-smoke/live-submit-report.json` | Missing current real-service evidence |
@@ -639,16 +643,18 @@ and scans its own JSON output for obvious credential material before returning.
 .\tools\verify-windows-port.ps1 -Smb
 .\tools\verify-windows-port.ps1 -MpvRuntime -PackagedMpvRuntime -NativeAppImage
 .\tools\verify-windows-port.ps1 -Rife -RifeBackend ALL -AllowRifeFailures
-.\tools\check-windows-port-external-prereqs.ps1
-.\tools\verify-windows-port.ps1 -ExternalPrereqAudit
-.\tools\verify-windows-port.ps1 -CompletionAudit
+.\tools\check-windows-port-external-prereqs.ps1 -WindowsInstallerType exe -WindowsInstallerBackend sfx
+.\tools\verify-windows-port.ps1 -ExternalPrereqAudit -WindowsInstallerType exe -WindowsInstallerBackend sfx
+.\tools\verify-windows-port.ps1 -CompletionAudit -WindowsInstallerType exe -WindowsInstallerBackend sfx
 
 # -CompletionAudit does not run live/device/runtime actions, writes
 # build/windows-port-audit/completion-audit.json, and intentionally fails until
 # the full evidence set exists: Bangumi live scraper, full desktop behavior,
 # Android TV device smoke, prepared runtime, target-host RIFE, CloudDrive2/RSS
-# dry-run/live-submit/organize, scheduler, and signed Windows installer reports. Use
-# -AllowUnsignedCompletionInstaller only for local QA, not for release completion.
+# dry-run/live-submit/organize, scheduler, and signed Windows installer reports.
+# For the current bundled SFX path, include -WindowsInstallerType exe
+# -WindowsInstallerBackend sfx. Use -AllowUnsignedCompletionInstaller only for
+# local QA, not for release completion.
 
 # The -Smb switch is restricted to \\smb.example.test\share\临时文件\测试.
 # Do not scan or modify unrelated files in that SMB share.

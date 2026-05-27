@@ -12,6 +12,8 @@ param(
     [string]$CloudRssLibrary = "/Library",
     [ValidateSet("msi", "exe")]
     [string]$WindowsInstallerType = "msi",
+    [ValidateSet("jpackage", "sfx")]
+    [string]$WindowsInstallerBackend = "jpackage",
     [string]$WindowsInstallerCertPath = "",
     [string]$WindowsInstallerSignTool = "",
     [switch]$AllowUnsignedInstaller,
@@ -125,9 +127,29 @@ function Invoke-AssertScript {
         return "Assert script was not found: $scriptPath"
     }
 
-    $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $scriptPath @Arguments 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        return ($output | Out-String).Trim()
+    $argumentSplat = @{}
+    for ($index = 0; $index -lt $Arguments.Count; $index++) {
+        $argumentName = $Arguments[$index]
+        if (-not $argumentName.StartsWith("-")) {
+            return "Assert script argument must be named: $argumentName"
+        }
+        $key = $argumentName.TrimStart("-")
+        if (($index + 1) -lt $Arguments.Count -and -not $Arguments[$index + 1].StartsWith("-")) {
+            $argumentSplat[$key] = $Arguments[$index + 1]
+            $index++
+        } else {
+            $argumentSplat[$key] = $true
+        }
+    }
+
+    try {
+        & $scriptPath @argumentSplat *> $null
+    } catch {
+        $details = $_.Exception.Message
+        if ([string]::IsNullOrWhiteSpace($details)) {
+            $details = [string]$_
+        }
+        return $details.Trim()
     }
     return ""
 }
@@ -193,6 +215,26 @@ function Test-CommandAvailable {
     param([string]$CommandName)
 
     return $null -ne (Get-Command $CommandName -ErrorAction SilentlyContinue)
+}
+
+function Find-SevenZipSfxModule {
+    $candidates = New-Object 'System.Collections.Generic.List[string]'
+    $sevenZip = Get-Command "7z.exe" -ErrorAction SilentlyContinue
+    if ($null -ne $sevenZip -and -not [string]::IsNullOrWhiteSpace($sevenZip.Source)) {
+        $candidates.Add((Join-Path (Split-Path -Parent $sevenZip.Source) "7z.sfx")) | Out-Null
+    }
+    if (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
+        $candidates.Add((Join-Path $env:USERPROFILE "scoop\apps\7zip\current\7z.sfx")) | Out-Null
+    }
+    $candidates.Add("C:\Program Files\7-Zip\7z.sfx") | Out-Null
+    $candidates.Add("C:\Program Files (x86)\7-Zip\7z.sfx") | Out-Null
+
+    foreach ($candidate in ($candidates | Select-Object -Unique)) {
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+            return $candidate
+        }
+    }
+    return ""
 }
 
 function Find-SignTool {
@@ -451,19 +493,41 @@ foreach ($report in $cloudRssReports) {
         ) + [string[]]$report.args)
 }
 
-$wixCandleAvailable = Test-CommandAvailable -CommandName "candle.exe"
-$wixLightAvailable = Test-CommandAvailable -CommandName "light.exe"
-Add-Check `
-    -Name "WiX installer toolchain" `
-    -Category "windows-installer" `
-    -Passed ($wixCandleAvailable -and $wixLightAvailable) `
-    -Message $(if ($wixCandleAvailable -and $wixLightAvailable) { "" } else { "candle.exe and light.exe must both be available on PATH." }) `
-    -Guidance "Install WiX Toolset and ensure candle.exe/light.exe are on PATH before running -WindowsInstaller." `
-    -Evidence @{
-        installerType = $WindowsInstallerType
-        candleOnPath = $wixCandleAvailable
-        lightOnPath = $wixLightAvailable
-    }
+$installerType = $WindowsInstallerType.ToLowerInvariant()
+$installerBackend = $WindowsInstallerBackend.ToLowerInvariant()
+if ($installerBackend -eq "sfx") {
+    $sevenZipAvailable = Test-CommandAvailable -CommandName "7z.exe"
+    $sevenZipSfxModule = Find-SevenZipSfxModule
+    $sfxTypeValid = $installerType -eq "exe"
+    Add-Check `
+        -Name "7-Zip SFX installer toolchain" `
+        -Category "windows-installer" `
+        -Passed ($sevenZipAvailable -and -not [string]::IsNullOrWhiteSpace($sevenZipSfxModule) -and $sfxTypeValid) `
+        -Message $(if ($sevenZipAvailable -and -not [string]::IsNullOrWhiteSpace($sevenZipSfxModule) -and $sfxTypeValid) { "" } else { "SFX installer evidence requires 7z.exe, 7z.sfx, and WindowsInstallerType exe." }) `
+        -Guidance "Install 7-Zip with 7z.sfx available, use -WindowsInstallerType exe, or pass a jpackage backend when WiX MSI/EXE packaging is intended." `
+        -Evidence @{
+            installerType = $WindowsInstallerType
+            installerBackend = $WindowsInstallerBackend
+            sevenZipOnPath = $sevenZipAvailable
+            sfxModuleAvailable = -not [string]::IsNullOrWhiteSpace($sevenZipSfxModule)
+            installerTypeValid = $sfxTypeValid
+        }
+} else {
+    $wixCandleAvailable = Test-CommandAvailable -CommandName "candle.exe"
+    $wixLightAvailable = Test-CommandAvailable -CommandName "light.exe"
+    Add-Check `
+        -Name "WiX installer toolchain" `
+        -Category "windows-installer" `
+        -Passed ($wixCandleAvailable -and $wixLightAvailable) `
+        -Message $(if ($wixCandleAvailable -and $wixLightAvailable) { "" } else { "candle.exe and light.exe must both be available on PATH." }) `
+        -Guidance "Install WiX Toolset and ensure candle.exe/light.exe are on PATH before running -WindowsInstaller with the jpackage backend." `
+        -Evidence @{
+            installerType = $WindowsInstallerType
+            installerBackend = $WindowsInstallerBackend
+            candleOnPath = $wixCandleAvailable
+            lightOnPath = $wixLightAvailable
+        }
+}
 
 if (-not $AllowUnsignedInstaller) {
     $signTool = Find-SignTool -ExplicitPath $WindowsInstallerSignTool
@@ -491,7 +555,9 @@ $installerAssertArguments = @(
     "-ReportPath",
     $installerReportPath,
     "-RequiredInstallerType",
-    $WindowsInstallerType
+    $WindowsInstallerType,
+    "-RequiredInstallerBackend",
+    $WindowsInstallerBackend
 )
 if ($AllowUnsignedInstaller) {
     $installerAssertArguments += "-RequireUnsigned"
@@ -523,6 +589,7 @@ $report = [pscustomobject]@{
     requiredRifeBackends = $requiredBackends
     mpvRuntimeSource = $runtimeRoot
     windowsInstallerType = $WindowsInstallerType
+    windowsInstallerBackend = $WindowsInstallerBackend
     requiresSignedInstaller = -not [bool]$AllowUnsignedInstaller
     summary = [pscustomobject]@{
         passCount = $passCount
