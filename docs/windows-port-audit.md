@@ -910,8 +910,8 @@ adb -s <android-tv-device-id> exec-out screencap -p > build\android-tv-qa\librar
 
 1. Continue narrowing TV parity gaps in less-traveled keyboard/DPAD focus paths outside the now-covered Android TV Settings category/page traversal, Settings summary quick-action rows, source-management local/remote fields plus actions and remote editor/browser focus bridge, Cloud/RSS credential/sync/RSS edit fields plus path picker/action/toggle/subscription/scheduler rows, desktop route rail, Library header action row, Library poster wall/highest-heat/recent shelves/search row/source bridge, Details hero actions, Details hero-to-episodes/recents/Bangumi/media-details fallback plus episode-shelf season selector, remote browser list including parent navigation, Player stage/settings/runtime focus bridge, saved-source card movement, and Bangumi metadata action grid/apply-clear flow.
 2. Validate RIFE on target Windows hardware that is expected to support
-   interpolation, and decide whether the optional Standard backend should ship
-   an additional `rife` plugin.
+   interpolation for the current NVIDIA/DIRECTML release gate. Standard remains
+   an optional future plugin stack, not part of the current completion gate.
 3. Run live CloudDrive2 end-to-end QA for real offline submission, torrent
    staging, and organization.
    Token/path/RSS parsing can now be checked first with the dry-run smoke task.

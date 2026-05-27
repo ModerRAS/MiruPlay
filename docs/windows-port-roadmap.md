@@ -599,7 +599,7 @@ Verification:
 - [x] Add packaged Windows WebUI HTTP smoke to the Windows CI/nightly gate, assert its token-free JSON evidence, and upload the report.
 - [x] Write, assert, and upload Cloud/RSS scheduler JSON evidence in the shared JVM CI gate.
 - [x] Add a strict local completion evidence audit that writes `build/windows-port-audit/completion-audit.json` and fails instead of letting the safe default verifier be mistaken for full Windows completion.
-- [ ] Run RIFE matrix on target hardware; DirectML is target-host validation, NVIDIA depends on CUDA/TensorRT driver compatibility, Standard requires a plugin decision.
+- [ ] Run RIFE matrix on target hardware for the current NVIDIA/DIRECTML release gate; DirectML is target-host validation, NVIDIA depends on CUDA/TensorRT driver compatibility, and Standard remains an optional future plugin stack.
 - [x] Keep CI green for Android and desktop/shared JVM gates on the active Windows port branch.
 
 Verification:
