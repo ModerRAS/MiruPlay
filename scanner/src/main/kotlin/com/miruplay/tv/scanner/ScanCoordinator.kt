@@ -525,11 +525,34 @@ class ScanCoordinator @Inject constructor(
                     .replace(Regex("【[^】]*】"), " ")
                 val withoutSeasonSuffix = withoutBracketGroups
                     .replace(Regex("(?i)\\b(s\\d{1,2}|season\\s*\\d{1,2}|第\\s*\\d+\\s*[季期])\\b"), " ")
-                listOf(candidate, withoutBracketGroups, withoutSeasonSuffix)
+                val baseForms = listOf(candidate, withoutBracketGroups, withoutSeasonSuffix)
+                baseForms + baseForms.mapNotNull(::leadingTokenSuffixCandidate)
             }
-            .map { it.replace(Regex("[._]+"), " ").replace(Regex("\\s+"), " ").trim() }
+            .map(::normalizeTitleCandidate)
             .filter { it.isNotBlank() }
             .distinct()
+
+    private fun leadingTokenSuffixCandidate(candidate: String): String? {
+        val tokens = normalizeTitleCandidate(candidate)
+            .split(' ')
+            .filter { it.isNotBlank() }
+        if (tokens.size < 2) return null
+
+        val suffix = tokens.drop(1).joinToString(" ").trim()
+        return suffix.takeIf(::isUsefulTitleSuffix)
+    }
+
+    private fun normalizeTitleCandidate(candidate: String): String =
+        candidate.replace(Regex("[._]+"), " ").replace(whitespaceRegex, " ").trim()
+
+    private fun isUsefulTitleSuffix(candidate: String): Boolean {
+        val compact = candidate.replace(whitespaceRegex, "")
+        if (compact.isBlank() || seasonOnlyRegex.matches(compact)) return false
+
+        val cjkCount = compact.count { it in '\u4e00'..'\u9fff' }
+        val alphaNumericCount = compact.count { it.isLetterOrDigit() }
+        return cjkCount >= 2 || alphaNumericCount >= 5
+    }
 
     private fun buildRecognitionBaseAttributes(
         animeName: String,
@@ -952,6 +975,7 @@ class ScanCoordinator @Inject constructor(
         private const val MAX_PATH_TAIL_SEGMENTS_IN_LOG = 4
         private const val MAX_PATH_TAIL_LENGTH_IN_LOG = 240
         private val whitespaceRegex = Regex("\\s+")
+        private val seasonOnlyRegex = Regex("(?i)^(s\\d{1,2}|season\\s*\\d{1,2}|第\\s*\\d+\\s*[季期])$")
         private val videoExtensions = setOf("mkv", "mp4", "avi", "mov", "wmv", "flv", "webm", "m4v")
         private val skipDirs = setOf(
             "proc", "sys", "dev", "selinux", "acct", "apex", "bin", "cache", "config",

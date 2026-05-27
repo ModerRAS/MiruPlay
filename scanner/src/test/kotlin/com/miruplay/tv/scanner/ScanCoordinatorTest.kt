@@ -284,9 +284,51 @@ class ScanCoordinatorTest {
     }
 
     @Test
-    fun `scanSource skips online metadata when source disables it`() = runBlocking {
+    fun `scanSource includes leading token suffix in Bangumi alias candidates`() = runBlocking {
         val sourceInfo = MediaSourceInfo(
             id = 13L,
+            name = "WebDAV",
+            type = MediaSourceType.WEBDAV,
+            connectionInfo = mapOf("url" to "http://example.test/dav")
+        )
+        val mediaSource = FakeMediaSource(
+            listings = mapOf(
+                "" to listOf(
+                    FileEntry(
+                        name = "銀魂 3 年 Z 班銀八老師 05.mkv",
+                        path = "/銀魂 3 年 Z 班銀八老師 05.mkv",
+                        isDirectory = false,
+                        size = 1234
+                    )
+                )
+            )
+        )
+        val scraper = RecordingBangumiScraper()
+        val coordinator = ScanCoordinator(
+            mediaRepository = SingleSourceRepository(sourceInfo),
+            mediaSourceFactory = SingleMediaSourceFactory(mediaSource),
+            indexRepository = RecordingIndexRepository(),
+            metadataRepository = RecordingMetadataRepository(),
+            filenameMetadataParser = StaticFilenameParser(
+                FilenameParseResult(
+                    title = "銀魂 3 年 Z 班銀八老師",
+                    episode = 5
+                )
+            ),
+            metadataScrapers = setOf(scraper)
+        )
+
+        val result = coordinator.scanSource(sourceInfo.id)
+
+        assertTrue("Scan should succeed", result.isSuccess())
+        assertEquals("銀魂 3 年 Z 班銀八老師", scraper.normalizedName)
+        assertTrue(scraper.aliasCandidates.contains("3 年 Z 班銀八老師"))
+    }
+
+    @Test
+    fun `scanSource skips online metadata when source disables it`() = runBlocking {
+        val sourceInfo = MediaSourceInfo(
+            id = 14L,
             name = "WebDAV",
             type = MediaSourceType.WEBDAV,
             connectionInfo = mapOf(
