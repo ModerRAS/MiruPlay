@@ -583,6 +583,27 @@ live scraper smoke passed in Gradle MCP build `b-27`; its root-relative report
 is `build/bangumi-smoke/live-report.json` and is validated by
 `tools/assert-bangumi-live-report.ps1`.
 
+### Current Evidence Manifest
+
+Current checkout evidence should be read from fresh reports, not from older
+historical screenshot paths cited in the long-form audit narrative below.
+`tools/verify-windows-port.ps1 -CompletionAudit` writes the same judgement to
+`build/windows-port-audit/completion-audit.json` and fails until the strict
+release evidence set is present.
+
+| Evidence item | Current path | Current state |
+|---|---|---|
+| Packaged WebUI smoke | `desktop-app/build/web-control-smoke/desktop-web-control-smoke.json` | Present in current checkout |
+| Desktop behavior smoke | `build/desktop-behavior/run-20260527-072916/report.json` | Present for `smoke`; strict completion still requires a `full` behavior report |
+| Cloud/RSS scheduler | `build/cloud-rss-smoke/scheduler-report.json` | Present in current checkout |
+| Bangumi live scraper | `build/bangumi-smoke/live-report.json` | Present in current checkout |
+| Older standalone GUI screenshot directories cited below | `build/desktop-*-ui/run-20260520-*`, `build/desktop-ui-qa`, `build/android-tv-qa/run-20260520-190519` | Historical references; not present in this clean checkout and should not be treated as current proof |
+| Android TV device smoke latest pointer | `build/android-tv-qa/latest-report.txt` | Missing from current checkout |
+| Prepared mpv/RIFE runtime payload | `runtime/mpv/mpv.exe`, `runtime/mpv/runtime-manifest.json` | Missing; tracked directory is only a placeholder |
+| Target-host RIFE matrix | `build/mpv-smoke/rife-matrix-report.json` | Missing current target-host evidence |
+| CloudDrive2 live/RSS dry-run/live-submit/organize | `build/cloud-drive-smoke/cloud-drive-report.json`, `build/cloud-rss-smoke/{dry-run,live-submit,organize}-report.json` | Missing current real-service evidence |
+| Signed Windows installer | `desktop-app/build/jpackage/smoke/windows-installer-smoke.json` | Missing signed release evidence |
+
 ```powershell
 .\tools\verify-windows-port.ps1
 
@@ -597,6 +618,14 @@ is `build/bangumi-smoke/live-report.json` and is validated by
 .\tools\verify-windows-port.ps1 -Smb
 .\tools\verify-windows-port.ps1 -MpvRuntime -PackagedMpvRuntime -NativeAppImage
 .\tools\verify-windows-port.ps1 -Rife -RifeBackend ALL -AllowRifeFailures
+.\tools\verify-windows-port.ps1 -CompletionAudit
+
+# -CompletionAudit is read-only, writes
+# build/windows-port-audit/completion-audit.json, and intentionally fails until
+# the full evidence set exists: Bangumi live scraper, full desktop behavior,
+# Android TV device smoke, prepared runtime, target-host RIFE, CloudDrive2/RSS
+# dry-run/live-submit/organize, scheduler, and signed Windows installer reports. Use
+# -AllowUnsignedCompletionInstaller only for local QA, not for release completion.
 
 # The -Smb switch is restricted to \\smb.ynz.local\share\临时文件\测试.
 # Do not scan or modify unrelated files in that SMB share.
