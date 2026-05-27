@@ -229,8 +229,9 @@ with `signtool`; `-PwindowsInstallerCertPassword=...` and
 `-PwindowsInstallerTimestampUrl=...` are optional release inputs.
 `tools/assert-windows-installer-report.ps1` validates that the smoke report
 points at an existing MSI/EXE, that the file size and SHA256 match the report,
-that the signing mode matches the release gate expectation, and, when requested,
-that the report either did or did not bundle the mpv/RIFE runtime.
+that the installer type/backend and signing mode match the release gate
+expectation, and, when requested, that the report either did or did not bundle
+the mpv/RIFE runtime.
 
 The current `20260510` full `vsNV` runtime is large enough that JDK
 `jpackage`/WiX can fail while creating the installer cabinet. The Gradle
@@ -320,11 +321,11 @@ Validate a generated target-host report before attaching it to release QA:
 
 Before spending time on the opt-in release gates, the external preflight can
 summarize whether this checkout has the runtime payload, target-host RIFE
-report, live CloudDrive/RSS evidence, WiX/signing tools, and installer report
-needed for strict completion:
+report, live CloudDrive/RSS evidence, the selected installer backend toolchain,
+signing inputs, and installer report needed for strict completion:
 
 ```powershell
-.\tools\check-windows-port-external-prereqs.ps1
+.\tools\check-windows-port-external-prereqs.ps1 -WindowsInstallerType exe -WindowsInstallerBackend sfx
 ```
 
 It writes `build/windows-port-audit/external-prereqs.json` and is expected to

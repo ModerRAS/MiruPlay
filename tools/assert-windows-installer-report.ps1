@@ -4,6 +4,8 @@ param(
     [string]$ReportPath,
     [ValidateSet("msi", "exe", "")]
     [string]$RequiredInstallerType = "",
+    [ValidateSet("jpackage", "sfx", "")]
+    [string]$RequiredInstallerBackend = "",
     [string]$RequiredAppVersion = "",
     [switch]$RequireSigned,
     [switch]$RequireUnsigned,
@@ -71,6 +73,17 @@ if (-not [string]::IsNullOrWhiteSpace($RequiredInstallerType)) {
     Assert-Truthy -Condition ($installerType -eq $RequiredInstallerType.ToLowerInvariant()) -Message "installerType '$installerType' did not match required type '$RequiredInstallerType'."
 }
 
+$hasInstallerBackendField = $null -ne $report.PSObject.Properties["installerBackend"]
+$installerBackend = if ($hasInstallerBackendField) { ([string]$report.installerBackend).ToLowerInvariant() } else { "" }
+if ($hasInstallerBackendField) {
+    Assert-Truthy -Condition ($installerBackend -in @("jpackage", "sfx")) -Message "installerBackend must be jpackage or sfx."
+    Assert-Truthy -Condition ($installerBackend -ne "sfx" -or $installerType -eq "exe") -Message "installerBackend sfx requires installerType exe."
+}
+if (-not [string]::IsNullOrWhiteSpace($RequiredInstallerBackend)) {
+    Assert-Truthy -Condition $hasInstallerBackendField -Message "Missing installerBackend."
+    Assert-Truthy -Condition ($installerBackend -eq $RequiredInstallerBackend.ToLowerInvariant()) -Message "installerBackend '$installerBackend' did not match required backend '$RequiredInstallerBackend'."
+}
+
 Assert-Truthy -Condition (-not [string]::IsNullOrWhiteSpace([string]$report.appVersion)) -Message "Missing appVersion."
 if (-not [string]::IsNullOrWhiteSpace($RequiredAppVersion)) {
     Assert-Truthy -Condition ([string]$report.appVersion -eq $RequiredAppVersion) -Message "appVersion '$($report.appVersion)' did not match required version '$RequiredAppVersion'."
@@ -134,5 +147,5 @@ if ($failures.Count -gt 0) {
 
 Write-Host "Windows installer report validation passed: $resolvedReportPath"
 Write-Host "Installer: $installerPath"
-Write-Host "Type: $installerType; signing: $signatureMode; bundled mpv runtime: $bundledMpvRuntime; size: $sizeBytes bytes"
+Write-Host "Type: $installerType; backend: $(if ($hasInstallerBackendField) { $installerBackend } else { '(not recorded)' }); signing: $signatureMode; bundled mpv runtime: $bundledMpvRuntime; size: $sizeBytes bytes"
 Write-Host "SHA256: $sha256"
