@@ -498,11 +498,12 @@ if ($AllowUnsignedInstaller) {
 } else {
     $installerAssertArguments += "-RequireSigned"
 }
+$installerAssertArguments += "-RequireBundledMpvRuntime"
 Add-ReportCheck `
     -Name "Windows installer report" `
     -Category "windows-installer" `
     -Path $installerReportPath `
-    -Guidance "Run tools\verify-windows-port.ps1 -WindowsInstaller -SignWindowsInstaller with WiX, signtool, and release signing inputs." `
+    -Guidance "Run tools\verify-windows-port.ps1 -WindowsInstaller -SignWindowsInstaller with WiX, signtool, release signing inputs, and a bundled-runtime installer strategy." `
     -AssertScript "assert-windows-installer-report.ps1" `
     -AssertArguments $installerAssertArguments
 
