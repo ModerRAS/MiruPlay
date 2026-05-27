@@ -588,8 +588,9 @@ Verification:
 - [x] Add a Windows native app-image gate that builds with JDK `jpackage` and verifies the launcher, generated launcher config/classpath, bundled mpv/RIFE runtime, and generated-launcher headless desktop-entry smoke report through a structured assert script when a real runtime payload is supplied.
 - [x] Add an opt-in Windows MSI/EXE installer gate that preflights WiX, builds from the app image, records installer SHA256/size/version/signing-mode/runtime-bundling evidence, supports explicit signtool/PFX signing, and validates the installer report against the generated artifact.
 - [x] Add lightweight installer QA mode with `-PbundleMpvRuntime=false`; it produces an unsigned MSI report that must validate with `-RequireNoBundledMpvRuntime` so it cannot be mistaken for self-contained release evidence.
+- [x] Add a 7-Zip SFX EXE backend for large bundled-runtime installers; it packages the verified app image without the JDK jpackage/WiX cabinet limit and writes a bundled-runtime installer report.
 - [ ] Run the signed bundled-runtime Windows installer gate with the release certificate and save installer evidence.
-- [ ] Decide and implement an MSIX/AppX/App Installer or alternate large-payload installer path if the Windows release target requires a self-contained installer; the current full `vsNV` mpv/RIFE app image is too large for the JDK jpackage/WiX MSI/EXE cabinet path.
+- [ ] Decide and implement an MSIX/AppX/App Installer publishing path if the Windows release target requires it.
 - [x] Add a repeatable local Windows-port verification orchestrator with safe defaults, packaged WebUI smoke, and explicit opt-in behavior/live/device/runtime checks.
 - [x] Add shared media-source API, metadata-core, scraper-core, and Android-side metadata/scraper/sync/web-control tests to CI/local verification for cross-platform dependency-boundary changes.
 - [x] Keep `codex/**` branch CI as validation-only by skipping nightly/release publishing outside main/master scheduled or manual runs.
@@ -622,7 +623,8 @@ Verification:
 .\tools\verify-windows-port.ps1 `
   -WindowsInstaller `
   -SignWindowsInstaller `
-  -WindowsInstallerType msi `
+  -WindowsInstallerType exe `
+  -WindowsInstallerBackend sfx `
   -MpvRuntimeSource runtime\mpv `
   -RequiredRifeBackends NVIDIA,DIRECTML `
   -WindowsInstallerCertPath C:\path\MiruPlay-release.pfx `
