@@ -76,7 +76,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
+import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.design.MiruPlayInputIntent
+import com.miruplay.tv.repository.canRunNow
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.CLOUD_DRIVE_ROOT_DISPLAY_NAME
 import com.miruplay.tv.model.MediaSourceInfo
@@ -90,7 +92,6 @@ import com.miruplay.tv.model.androidTvSettingsSectionOrder
 import com.miruplay.tv.model.connectionDisplayName
 import com.miruplay.tv.model.connectionUsername
 import com.miruplay.tv.model.cloudDriveRssApiTokenFieldLabel
-import com.miruplay.tv.repository.scanPreferencesIntervalOptionsHours
 import com.miruplay.tv.model.cloudDriveRssChooseDirectoryActionLabel
 import com.miruplay.tv.model.cloudDriveRssCloseActionLabel
 import com.miruplay.tv.model.cloudDriveRssCredentialsBadgeLabel
@@ -152,37 +153,52 @@ import com.miruplay.tv.model.mediaSourceTestConnectionActionLabel
 import com.miruplay.tv.model.mediaSourceUsernameOptionalFieldLabel
 import com.miruplay.tv.model.playbackEndPlayNextEpisodeActionLabel
 import com.miruplay.tv.model.playbackEndPlayNextEpisodeDetail
-import com.miruplay.tv.model.playbackEndPlayNextEpisodeSummary
 import com.miruplay.tv.model.playbackEndReturnToDetailActionLabel
 import com.miruplay.tv.model.playbackEndReturnToDetailDetail
-import com.miruplay.tv.model.playbackEndReturnToDetailSummary
 import com.miruplay.tv.model.playbackEndSettingsDescriptionLabel
 import com.miruplay.tv.model.playbackEndSettingsTitleLabel
+import com.miruplay.tv.model.playbackEndMenuSummary
 import com.miruplay.tv.model.metadataPanelTitleLabel
 import com.miruplay.tv.model.metadataBangumiTokenFieldLabel
 import com.miruplay.tv.model.metadataBangumiTokenMissingStatus
 import com.miruplay.tv.model.metadataBangumiTokenOptionalHint
 import com.miruplay.tv.model.metadataBangumiTokenSavedStatus
 import com.miruplay.tv.model.settingsAutoScanToggleLabel
+import com.miruplay.tv.model.settingsAppUpdateCheckActionLabel
+import com.miruplay.tv.model.settingsAppUpdateInstallActionLabel
+import com.miruplay.tv.model.settingsAppUpdateMenuSummary
+import com.miruplay.tv.model.settingsAppUpdatePanelDescription
+import com.miruplay.tv.model.settingsAppUpdatePanelTitleLabel
+import com.miruplay.tv.model.settingsAppUpdatePermissionActionLabel
 import com.miruplay.tv.model.settingsBackActionLabel
-import com.miruplay.tv.model.settingsCloudDriveMenuSummary
+import com.miruplay.tv.model.settingsAndroidTvLogUploadMenuSummary
 import com.miruplay.tv.model.settingsCurrentScanIntervalStatus
 import com.miruplay.tv.model.settingsLibraryDisplayTitleLabel
+import com.miruplay.tv.model.settingsMenuPanelDescriptionAndroidTv
+import com.miruplay.tv.model.settingsMenuPanelTitle
 import com.miruplay.tv.model.settingsMergeSameAnimeStatus
 import com.miruplay.tv.model.settingsMergeSameAnimeToggleLabel
 import com.miruplay.tv.model.settingsMetadataTokenMenuSummary
+import com.miruplay.tv.model.settingsMenuSummary
+import com.miruplay.tv.model.logUploadSettingsTiles
 import com.miruplay.tv.model.settingsScanIntervalOptionLabel
-import com.miruplay.tv.model.settingsScanMenuSummary
 import com.miruplay.tv.model.settingsScanPanelDescription
 import com.miruplay.tv.model.settingsScanPanelTitleLabel
 import com.miruplay.tv.model.settingsClearTokenActionLabel
+import com.miruplay.tv.model.settingsLogUploadAutoToggleLabel
+import com.miruplay.tv.model.settingsLogUploadEndpointFieldLabel
+import com.miruplay.tv.model.settingsLogUploadRunNowActionLabel
+import com.miruplay.tv.model.settingsLogUploadSaveConfigActionLabel
+import com.miruplay.tv.model.settingsLogUploadStreamFieldLabel
+import com.miruplay.tv.model.settingsLogUploadTokenConfiguredStatus
+import com.miruplay.tv.model.settingsLogUploadTokenFieldLabel
 import com.miruplay.tv.model.settingsSaveTokenActionLabel
-import com.miruplay.tv.model.settingsSourcesMenuSummary
+import com.miruplay.tv.model.settingsScreenSubtitleLabel
+import com.miruplay.tv.model.settingsScreenTitleLabel
 import com.miruplay.tv.model.settingsWebUiAccessTokenLabel
 import com.miruplay.tv.model.settingsWebUiAddressLabel
 import com.miruplay.tv.model.settingsWebUiAvailableAddressesLabel
 import com.miruplay.tv.model.settingsWebUiDisabledStatus
-import com.miruplay.tv.model.settingsWebUiMenuSummary
 import com.miruplay.tv.model.settingsWebUiNoLanAddressStatus
 import com.miruplay.tv.model.settingsWebUiPanelDescription
 import com.miruplay.tv.model.settingsWebUiPanelTitleLabel
@@ -201,6 +217,7 @@ import com.miruplay.tv.model.rssSubscriptionStateActionLabel
 import com.miruplay.tv.model.rssSubscriptionUrlFieldLabel
 import com.miruplay.tv.model.rssSubscriptionsTitleLabel
 import com.miruplay.tv.model.prepareRssSubscriptionForm
+import com.miruplay.tv.model.saveBangumiTokenFormResult
 import com.miruplay.tv.model.shouldClearFormAfterSubmit
 import com.miruplay.tv.model.parseCloudDriveIntervalMinutes
 import com.miruplay.tv.model.parseRssProxyPort
@@ -209,8 +226,6 @@ import com.miruplay.tv.model.tvDisplayStatusLabel
 import com.miruplay.tv.model.tvLabel
 import com.miruplay.tv.model.tvLocationLabel
 import com.miruplay.tv.model.tvSourceHint
-import com.miruplay.tv.repository.LogUploadStatus
-import com.miruplay.tv.repository.OtlpLogUploadConfig
 import com.miruplay.tv.ui.components.OverscanContainer
 import com.miruplay.tv.ui.components.TvButton
 import com.miruplay.tv.ui.components.TvTextField
@@ -233,6 +248,9 @@ import com.google.zxing.common.BitMatrix
 import com.google.zxing.qrcode.QRCodeWriter
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import kotlinx.coroutines.delay
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 private const val DEFAULT_LOCAL_PATH = "/storage/emulated/0/Download"
 private const val QR_CODE_MATRIX_SIZE = 96
@@ -245,6 +263,7 @@ private fun MiruPlaySettingsSection.androidTvIcon(): ImageVector =
         MiruPlaySettingsSection.CLOUD_DRIVE -> Icons.Filled.Cloud
         MiruPlaySettingsSection.SCAN -> Icons.Filled.Refresh
         MiruPlaySettingsSection.LOG_UPLOAD -> Icons.Filled.Upload
+        MiruPlaySettingsSection.APP_UPDATE -> Icons.Filled.Refresh
         MiruPlaySettingsSection.METADATA -> Icons.Filled.Key
     }
 
@@ -270,8 +289,6 @@ fun AddSourceScreen(
     val cloudDriveTokenConfigured by viewModel.cloudDriveTokenConfigured.collectAsStateWithLifecycle()
     val cloudDriveBusy by viewModel.cloudDriveBusy.collectAsStateWithLifecycle()
     val cloudDriveActionMessage by viewModel.cloudDriveActionMessage.collectAsStateWithLifecycle()
-    val logUploadConfig by viewModel.logUploadConfig.collectAsStateWithLifecycle()
-    val logUploadStatus by viewModel.logUploadStatus.collectAsStateWithLifecycle()
     val cloudDriveDirectoryBrowser by viewModel.cloudDriveDirectoryBrowser.collectAsStateWithLifecycle()
     val localDirectoryBrowser by viewModel.localDirectoryBrowser.collectAsStateWithLifecycle()
     val logUploadSnapshot by viewModel.logUploadSnapshot.collectAsStateWithLifecycle()
@@ -306,10 +323,7 @@ fun AddSourceScreen(
     var rssUrl by remember { mutableStateOf("") }
     var rssFilterRegex by remember { mutableStateOf("") }
     var rssEnabled by remember { mutableStateOf(true) }
-    var otlpEndpoint by remember { mutableStateOf("") }
-    var otlpToken by remember { mutableStateOf("") }
-    var otlpStreamName by remember { mutableStateOf("miruplay") }
-    var otlpEnabled by remember { mutableStateOf(false) }
+    var logUploadTokenInput by remember { mutableStateOf("") }
     var pendingDeletedSourceId by remember { mutableStateOf<Long?>(null) }
 
     val menuFocusRequesters = remember {
@@ -346,12 +360,6 @@ fun AddSourceScreen(
         rssProxyEnabled = cloudDriveConfig.rssProxyEnabled
         rssProxyHost = cloudDriveConfig.rssProxyHost
         rssProxyPort = cloudDriveConfig.rssProxyPort.toString()
-    }
-
-    LaunchedEffect(logUploadConfig) {
-        otlpEndpoint = logUploadConfig.endpoint
-        otlpStreamName = logUploadConfig.streamName
-        otlpEnabled = logUploadConfig.enabled
     }
 
     fun resetSourceForm(type: MediaSourceType = selectedType) {
@@ -426,8 +434,6 @@ fun AddSourceScreen(
                     webUiAddressCount = webUiUrls.size,
                     autoScanEnabled = autoScanEnabled,
                     mergeSameAnimeEnabled = mergeSameAnimeEnabled,
-                    logUploadEnabled = logUploadConfig.enabled,
-                    logUploadPendingCount = logUploadStatus.pendingCount,
                     playbackEndAction = playbackEndAction,
                     cloudDriveEnabled = cloudEnabled,
                     rssCount = rssSubscriptions.size,
@@ -506,11 +512,15 @@ fun AddSourceScreen(
                     tokenSaved = tokenSaved,
                     onTokenChange = { tokenInput = it },
                     onSaveToken = {
-                        val result = viewModel.saveBangumiToken(tokenInput)
-                        if (result.shouldClearInput) {
+                        val result = saveBangumiTokenFormResult(
+                            input = tokenInput,
+                            existingToken = savedToken,
+                        )
+                        if (result.shouldPersistTokenInput) {
+                            viewModel.saveBangumiToken(tokenInput)
                             tokenInput = ""
+                            tokenSaved = result.configured
                         }
-                        tokenSaved = result.configured
                     },
                     onClearToken = {
                         viewModel.clearBangumiToken()
@@ -616,27 +626,34 @@ fun AddSourceScreen(
                     },
                     onToggleRssSubscription = viewModel::setRssSubscriptionEnabled,
                     onDeleteRssSubscription = viewModel::deleteRssSubscription,
-                    logUploadConfig = logUploadConfig,
-                    logUploadStatus = logUploadStatus,
-                    otlpEndpoint = otlpEndpoint,
-                    onOtlpEndpointChange = { otlpEndpoint = it },
-                    otlpToken = otlpToken,
-                    onOtlpTokenChange = { otlpToken = it },
-                    otlpStreamName = otlpStreamName,
-                    onOtlpStreamNameChange = { otlpStreamName = it },
-                    otlpEnabled = otlpEnabled,
-                    onToggleOtlpEnabled = { otlpEnabled = !otlpEnabled },
-                    onSaveLogUpload = {
-                        viewModel.saveLogUploadConfig(
-                            endpoint = otlpEndpoint,
-                            token = otlpToken,
-                            streamName = otlpStreamName,
-                            enabled = otlpEnabled
-                        )
-                        otlpToken = ""
+                    logUploadEnabled = logUploadSnapshot.enabled,
+                    onLogUploadEnabledChange = viewModel::setLogUploadEnabled,
+                    logUploadEndpoint = logUploadSnapshot.endpoint,
+                    onLogUploadEndpointChange = viewModel::setLogUploadEndpoint,
+                    logUploadStreamName = logUploadSnapshot.streamName,
+                    onLogUploadStreamNameChange = viewModel::setLogUploadStreamName,
+                    logUploadToken = logUploadTokenInput,
+                    onLogUploadTokenChange = { logUploadTokenInput = it },
+                    logUploadTokenConfigured = logUploadSnapshot.tokenConfigured,
+                    logUploadStatusMessage = logUploadStatusMessage,
+                    onSaveLogUploadConfig = viewModel::saveLogUploadConfig,
+                    onSaveLogUploadToken = {
+                        viewModel.saveLogUploadToken(logUploadTokenInput)
+                        logUploadTokenInput = ""
                     },
-                    onClearLogUploadToken = viewModel::clearLogUploadToken,
-                    onUploadLogsNow = viewModel::uploadLogsNow,
+                    onClearLogUploadToken = {
+                        viewModel.clearLogUploadToken()
+                        logUploadTokenInput = ""
+                    },
+                    onRunLogUploadNow = {
+                        viewModel.runLogUploadNow(logUploadTokenInput)
+                        logUploadTokenInput = ""
+                    },
+                    canRunLogUploadNow = logUploadSnapshot.canRunNow(logUploadTokenInput),
+                    appUpdateState = appUpdateState,
+                    onCheckAppUpdate = viewModel::checkAppUpdate,
+                    onDownloadAndInstallAppUpdate = viewModel::downloadAndInstallAppUpdate,
+                    onOpenAppUpdateInstallPermission = viewModel::openAppUpdateInstallPermissionSettings,
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
@@ -709,8 +726,6 @@ private fun SettingsMenuPanel(
     webUiAddressCount: Int,
     autoScanEnabled: Boolean,
     mergeSameAnimeEnabled: Boolean,
-    logUploadEnabled: Boolean,
-    logUploadPendingCount: Int,
     playbackEndAction: PlaybackEndAction,
     cloudDriveEnabled: Boolean,
     rssCount: Int,
@@ -766,25 +781,7 @@ private fun SettingsMenuPanel(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            itemsIndexed(androidTvSettingsSectionOrder) { index, section ->
-                val summary = when (section) {
-                    MiruPlaySettingsSection.WEB_UI -> settingsWebUiMenuSummary(webUiAddressCount)
-                    MiruPlaySettingsSection.SOURCES -> settingsSourcesMenuSummary(sourcesCount)
-                    MiruPlaySettingsSection.PLAYBACK -> playbackEndAction.menuSummary()
-                    MiruPlaySettingsSection.CLOUD_DRIVE -> if (cloudDriveEnabled) "${rssCount} 个订阅" else "未启用"
-                    MiruPlaySettingsSection.LOG_UPLOAD -> when {
-                        logUploadEnabled && logUploadPendingCount > 0 -> "待传 $logUploadPendingCount 条"
-                        logUploadEnabled -> "自动上报"
-                        else -> "未启用"
-                    }
-                    MiruPlaySettingsSection.SCAN -> when {
-                        autoScanEnabled && mergeSameAnimeEnabled -> "定时 · 合并"
-                        autoScanEnabled -> "定时已开"
-                        mergeSameAnimeEnabled -> "同番合并"
-                        else -> "定时关闭"
-                    }
-                    MiruPlaySettingsSection.METADATA -> if (hasToken) "Token 已设置" else "未设置"
-                }
+            androidTvSettingsSectionOrder.forEach { section ->
                 SettingsMenuItem(
                     section = section,
                     summary = section.settingsMenuSummary(menuSummaryInput),
@@ -957,19 +954,25 @@ private fun SettingsContent(
     onAddRssSubscription: () -> Unit,
     onToggleRssSubscription: (RssSubscriptionInfo, Boolean) -> Unit,
     onDeleteRssSubscription: (Long) -> Unit,
-    logUploadConfig: OtlpLogUploadConfig,
-    logUploadStatus: LogUploadStatus,
-    otlpEndpoint: String,
-    onOtlpEndpointChange: (String) -> Unit,
-    otlpToken: String,
-    onOtlpTokenChange: (String) -> Unit,
-    otlpStreamName: String,
-    onOtlpStreamNameChange: (String) -> Unit,
-    otlpEnabled: Boolean,
-    onToggleOtlpEnabled: () -> Unit,
-    onSaveLogUpload: () -> Unit,
+    logUploadEnabled: Boolean,
+    onLogUploadEnabledChange: (Boolean) -> Unit,
+    logUploadEndpoint: String,
+    onLogUploadEndpointChange: (String) -> Unit,
+    logUploadStreamName: String,
+    onLogUploadStreamNameChange: (String) -> Unit,
+    logUploadToken: String,
+    onLogUploadTokenChange: (String) -> Unit,
+    logUploadTokenConfigured: Boolean,
+    logUploadStatusMessage: String,
+    onSaveLogUploadConfig: () -> Unit,
+    onSaveLogUploadToken: () -> Unit,
     onClearLogUploadToken: () -> Unit,
-    onUploadLogsNow: () -> Unit,
+    onRunLogUploadNow: () -> Unit,
+    canRunLogUploadNow: Boolean,
+    appUpdateState: AppUpdateUiState,
+    onCheckAppUpdate: () -> Unit,
+    onDownloadAndInstallAppUpdate: () -> Unit,
+    onOpenAppUpdateInstallPermission: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     when (selectedSection) {
@@ -1133,19 +1136,33 @@ private fun SettingsContent(
             modifier = modifier
         ) {
             LogUploadPanel(
-                config = logUploadConfig,
-                status = logUploadStatus,
-                endpoint = otlpEndpoint,
-                onEndpointChange = onOtlpEndpointChange,
-                token = otlpToken,
-                onTokenChange = onOtlpTokenChange,
-                streamName = otlpStreamName,
-                onStreamNameChange = onOtlpStreamNameChange,
-                enabled = otlpEnabled,
-                onToggleEnabled = onToggleOtlpEnabled,
-                onSave = onSaveLogUpload,
+                enabled = logUploadEnabled,
+                onEnabledChange = onLogUploadEnabledChange,
+                endpoint = logUploadEndpoint,
+                onEndpointChange = onLogUploadEndpointChange,
+                streamName = logUploadStreamName,
+                onStreamNameChange = onLogUploadStreamNameChange,
+                tokenInput = logUploadToken,
+                onTokenInputChange = onLogUploadTokenChange,
+                tokenConfigured = logUploadTokenConfigured,
+                statusMessage = logUploadStatusMessage,
+                onSaveConfig = onSaveLogUploadConfig,
+                onSaveToken = onSaveLogUploadToken,
                 onClearToken = onClearLogUploadToken,
-                onUploadNow = onUploadLogsNow
+                onRunNow = onRunLogUploadNow,
+                canRunNow = canRunLogUploadNow,
+            )
+        }
+
+        MiruPlaySettingsSection.APP_UPDATE -> SettingsSingleSectionPage(
+            section = selectedSection,
+            modifier = modifier
+        ) {
+            AppUpdatePanel(
+                state = appUpdateState,
+                onCheck = onCheckAppUpdate,
+                onDownloadAndInstall = onDownloadAndInstallAppUpdate,
+                onOpenInstallPermission = onOpenAppUpdateInstallPermission
             )
         }
 
@@ -2318,7 +2335,7 @@ private fun RssSubscriptionRow(
             )
             Text(
                 text = rssSubscriptionLastCheckedLabel(
-                    subscription.lastCheckedAt
+                    subscription.lastCheckedAt.takeIf { it > 0 }?.let(::formatTimestamp)
                 ),
                 style = TvTypography.caption,
                 color = TextSecondary
@@ -2642,7 +2659,7 @@ private fun ScanPanel(
         }
         Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            scanPreferencesIntervalOptionsHours.forEach { hours ->
+            ScanPreferencesManager.INTERVAL_OPTIONS_HOURS.forEach { hours ->
                 ScanOptionChip(
                     text = settingsScanIntervalOptionLabel(hours),
                     selected = autoScanEnabled && hours == autoScanIntervalHours,
@@ -2655,7 +2672,7 @@ private fun ScanPanel(
 
         StatusMessage(
             icon = Icons.Filled.CheckCircle,
-            text = settingsCurrentScanIntervalStatus(autoScanIntervalHours, lastScanAt),
+            text = settingsCurrentScanIntervalStatus(autoScanIntervalHours, formatLastScanAt(lastScanAt)),
             color = if (autoScanEnabled) ProgressGreen else TextSecondary
         )
 
@@ -2797,110 +2814,74 @@ private fun ScanOptionChip(
     }
 }
 
-private fun PlaybackEndAction.menuSummary(): String = when (this) {
-    PlaybackEndAction.RETURN_TO_DETAIL -> "播完返回"
-    PlaybackEndAction.PLAY_NEXT_EPISODE -> "自动下一集"
-}
-
 @Composable
-private fun LogUploadPanel(
-    config: OtlpLogUploadConfig,
-    status: LogUploadStatus,
-    endpoint: String,
-    onEndpointChange: (String) -> Unit,
-    token: String,
-    onTokenChange: (String) -> Unit,
-    streamName: String,
-    onStreamNameChange: (String) -> Unit,
-    enabled: Boolean,
-    onToggleEnabled: () -> Unit,
-    onSave: () -> Unit,
-    onClearToken: () -> Unit,
-    onUploadNow: () -> Unit
+private fun AppUpdatePanel(
+    state: AppUpdateUiState,
+    onCheck: () -> Unit,
+    onDownloadAndInstall: () -> Unit,
+    onOpenInstallPermission: () -> Unit,
 ) {
     SettingsPanel {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
-                imageVector = Icons.Filled.Upload,
+                imageVector = Icons.Filled.Refresh,
                 contentDescription = null,
                 tint = TextPrimary,
                 modifier = Modifier.size(26.dp)
             )
             Spacer(Modifier.width(10.dp))
-            Text(text = "OTLP / OpenObserve", style = TvTypography.subtitle, color = TextPrimary)
+            Text(text = settingsAppUpdatePanelTitleLabel(), style = TvTypography.subtitle, color = TextPrimary)
         }
 
         Spacer(Modifier.height(6.dp))
         Text(
-            text = "本地日志会先写入设备文件，再按配置自动上报到 OpenObserve OTLP 日志入口。",
+            text = settingsAppUpdatePanelDescription(),
             style = TvTypography.body,
             color = TextSecondary
         )
 
         Spacer(Modifier.height(14.dp))
-        TvTextField(
-            value = endpoint,
-            onValueChange = onEndpointChange,
-            label = "服务器地址或 /api/{org}/v1/logs",
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(Modifier.height(12.dp))
-        TvTextField(
-            value = token,
-            onValueChange = onTokenChange,
-            label = if (status.tokenConfigured) "Token（留空则保留）" else "Token",
-            isPassword = true,
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(Modifier.height(12.dp))
-        TvTextField(
-            value = streamName,
-            onValueChange = onStreamNameChange,
-            label = "Stream 名称",
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(Modifier.height(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            ScanOptionChip(
-                text = if (enabled) "自动上报" else "暂停上报",
-                icon = Icons.Filled.Upload,
-                selected = enabled,
-                enabled = true,
-                onClick = onToggleEnabled,
-                modifier = Modifier.width(150.dp)
+            TvButton(
+                text = settingsAppUpdateCheckActionLabel(),
+                icon = Icons.Filled.Refresh,
+                enabled = !state.isBusy,
+                onClick = onCheck
             )
             TvButton(
-                text = "保存",
+                text = settingsAppUpdateInstallActionLabel(),
                 icon = Icons.Filled.Save,
-                enabled = endpoint.isNotBlank(),
-                onClick = onSave
+                enabled = !state.isBusy && state.latest != null,
+                onClick = onDownloadAndInstall
             )
             TvButton(
-                text = if (status.isUploading) "上报中" else "立即上报",
-                icon = Icons.Filled.Upload,
-                enabled = !status.isUploading && config.endpoint.isNotBlank() && status.tokenConfigured,
-                onClick = onUploadNow
-            )
-            TvButton(
-                text = "清除 Token",
-                icon = Icons.Filled.Delete,
-                enabled = status.tokenConfigured,
-                onClick = onClearToken
+                text = settingsAppUpdatePermissionActionLabel(),
+                icon = Icons.Filled.Key,
+                enabled = !state.isBusy,
+                onClick = onOpenInstallPermission
             )
         }
 
-        val message = buildString {
-            append("待上报 ${status.pendingCount} 条")
-            if (config.streamName.isNotBlank()) append(" · stream=${config.streamName}")
-            if (status.lastUploadAt > 0L) append(" · ${formatTimestamp(status.lastUploadAt)}")
+        val latest = state.latest
+        if (latest != null) {
+            StatusMessage(
+                icon = if (state.updateAvailable) Icons.Filled.Refresh else Icons.Filled.CheckCircle,
+                text = "${latest.releaseName} · ${latest.assetName} · ${formatByteSize(latest.assetSizeBytes)}",
+                color = if (state.updateAvailable) WarningYellow else ProgressGreen
+            )
         }
         StatusMessage(
-            icon = if (config.enabled && status.tokenConfigured) Icons.Filled.CheckCircle else Icons.Filled.Upload,
-            text = status.lastUploadStatus ?: message,
-            color = if (config.enabled && status.tokenConfigured) ProgressGreen else TextSecondary
+            icon = when {
+                state.isBusy -> Icons.Filled.Refresh
+                state.updateAvailable -> Icons.Filled.Refresh
+                else -> Icons.Filled.CheckCircle
+            },
+            text = state.statusMessage,
+            color = when {
+                state.statusMessage.contains("失败") || state.statusMessage.contains("无法") -> WarningYellow
+                state.updateAvailable -> WarningYellow
+                else -> ProgressGreen
+            }
         )
     }
 }
@@ -3140,6 +3121,23 @@ private fun SettingsPanel(
 private fun sourceNameOrDefault(name: String, type: MediaSourceType): String =
     name.ifBlank { type.defaultSourceName() }
 
+private fun formatByteSize(sizeBytes: Long): String {
+    if (sizeBytes <= 0L) return "未知大小"
+    val mib = sizeBytes.toDouble() / 1024.0 / 1024.0
+    return String.format(Locale.US, "%.1f MB", mib)
+}
+
+internal fun settingsSourceListMenuBridgeIntent(
+    intent: MiruPlayInputIntent,
+    type: KeyEventType,
+    onFocusMenu: () -> Unit,
+): Boolean {
+    if (type != KeyEventType.KeyDown) return false
+    if (intent != MiruPlayInputIntent.DirectionLeft) return false
+    onFocusMenu()
+    return true
+}
+
 private fun createQrCodeMatrix(content: String): BitMatrix? {
     if (content.isBlank()) return null
     return runCatching {
@@ -3156,6 +3154,14 @@ private fun createQrCodeMatrix(content: String): BitMatrix? {
         )
     }.getOrNull()
 }
+
+private fun formatLastScanAt(lastScanAt: Long): String {
+    if (lastScanAt <= 0L) return "还没有扫描记录"
+    return "上次扫描 " + SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(lastScanAt))
+}
+
+private fun formatTimestamp(timestamp: Long): String =
+    SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(timestamp))
 
 private fun MediaSourceType.sourceIcon(): ImageVector = when (this) {
     MediaSourceType.LOCAL -> Icons.Filled.Folder

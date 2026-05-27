@@ -58,6 +58,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
@@ -97,6 +98,7 @@ import com.miruplay.tv.model.playbackSeekBackLabel
 import com.miruplay.tv.model.playbackSeekForwardLabel
 import com.miruplay.tv.model.playbackSpeedChipLabel
 import com.miruplay.tv.model.playbackSpeedMenuTitle
+import com.miruplay.tv.model.playbackSpeedOptions
 import com.miruplay.tv.model.playbackSpeedValueLabel
 import com.miruplay.tv.model.playbackSubtitleCountLabel
 import com.miruplay.tv.model.playbackSubtitleOptionLabel
@@ -104,8 +106,8 @@ import com.miruplay.tv.model.playbackSubtitlesMenuTitle
 import com.miruplay.tv.design.MiruPlayPlaybackInputAction
 import com.miruplay.tv.design.shouldRefreshTvPlaybackControls
 import com.miruplay.tv.design.tvPlaybackOverlayAction
-import com.miruplay.tv.ui.components.isTvActivateKey
 import com.miruplay.tv.ui.components.toMiruPlayInputIntent
+import com.miruplay.tv.ui.components.tvActivateKeyEvent
 import com.miruplay.tv.player.AudioTrack
 import com.miruplay.tv.ui.theme.AnimeRed
 import com.miruplay.tv.ui.theme.DarkSurface
@@ -203,41 +205,19 @@ fun PlayerScreen(
             .focusable()
             .onPreviewKeyEvent { event ->
                 handlePlayerKey(
-                    key = event.key,
-                    type = event.type,
+                    event = event,
                     controlsVisible = controlsVisible,
                     hasOpenMenu = openMenu != null,
-                    actions = PlayerKeyActions(
-                        skipBackward = {
-                            viewModel.skipBackward()
-                            viewModel.showControls()
-                        },
-                        skipForward = {
-                            viewModel.skipForward()
-                            viewModel.showControls()
-                        },
-                        togglePlayback = {
-                            viewModel.togglePlayback()
-                        },
-                        resume = {
-                            viewModel.resume()
-                        },
-                        pause = {
-                            viewModel.pause()
-                        },
-                        showControls = {
-                            viewModel.showControls()
-                        },
-                        hideControls = {
-                            openMenu = null
-                            viewModel.hideControls()
-                        },
-                        closeMenu = {
-                            openMenu = null
-                            viewModel.showControls()
-                        },
-                        navigateBack = navigateBack
-                    )
+                    viewModel = viewModel,
+                    onCloseMenu = {
+                        openMenu = null
+                        viewModel.showControls()
+                    },
+                    onHideControls = {
+                        openMenu = null
+                        viewModel.hideControls()
+                    },
+                    onNavigateBack = navigateBack
                 )
             }
             .pointerInput(Unit) {
@@ -645,12 +625,12 @@ private fun PlayerIconButton(
                 onClick = onClick
             )
             .onKeyEvent { event ->
-                if (enabled && event.type == KeyEventType.KeyDown && event.key.isTvActivateKey()) {
-                    onClick()
-                    true
-                } else {
-                    false
-                }
+                tvActivateKeyEvent(
+                    key = event.key,
+                    type = event.type,
+                    enabled = enabled,
+                    onActivate = onClick,
+                )
             }
             .focusable(enabled = enabled, interactionSource = interactionSource),
         contentAlignment = Alignment.Center
@@ -718,12 +698,12 @@ private fun PlayerActionChip(
             .height(48.dp)
             .clip(RoundedCornerShape(8.dp))
             .onPreviewKeyEvent { event ->
-                if (enabled && event.type == KeyEventType.KeyDown && event.key.isTvActivateKey()) {
-                    onClick()
-                    true
-                } else {
-                    false
-                }
+                tvActivateKeyEvent(
+                    key = event.key,
+                    type = event.type,
+                    enabled = enabled,
+                    onActivate = onClick,
+                )
             }
             .border(
                 width = if (isFocused || selected) 2.dp else 1.dp,
@@ -867,12 +847,11 @@ private fun PlayerOptionButton(
             .height(48.dp)
             .clip(RoundedCornerShape(8.dp))
             .onPreviewKeyEvent { event ->
-                if (event.type == KeyEventType.KeyDown && event.key.isTvActivateKey()) {
-                    onClick()
-                    true
-                } else {
-                    false
-                }
+                tvActivateKeyEvent(
+                    key = event.key,
+                    type = event.type,
+                    onActivate = onClick,
+                )
             }
             .border(
                 width = if (isFocused || selected) 2.dp else 1.dp,
@@ -971,93 +950,53 @@ private fun handlePlayerKey(
 ): Boolean {
     if (event.type != KeyEventType.KeyDown) return false
 
-    if (controlsVisible) {
-        return when (event.key) {
-            Key.DirectionLeft -> {
-                viewModel.skipBackward()
-                viewModel.showControls()
-                true
-            }
-            Key.DirectionRight -> {
-                viewModel.skipForward()
-                viewModel.showControls()
-                true
-            }
-            Key.MediaPlayPause -> {
-                viewModel.togglePlayback()
-                true
-            }
-            Key.MediaPlay -> {
-                viewModel.resume()
-                true
-            }
-            Key.MediaPause -> {
-                viewModel.pause()
-                true
-            }
-            Key.Back -> {
-                if (hasOpenMenu) {
-                    onCloseMenu()
-                } else {
-                    onHideControls()
-                }
-                true
-            }
-            else -> false
-        }
+    val action = event.key.toMiruPlayInputIntent()
+        ?.tvPlaybackOverlayAction(
+            controlsVisible = controlsVisible,
+            hasOpenMenu = hasOpenMenu,
+        )
+        ?: return false
+
+    if (action.shouldRefreshTvPlaybackControls(controlsVisible)) {
+        viewModel.showControls()
     }
 
-    return when (event.key) {
-        Key.DirectionLeft -> {
-            viewModel.showControls()
+    return when (action) {
+        MiruPlayPlaybackInputAction.SeekBack -> {
             viewModel.skipBackward()
             true
         }
-        Key.DirectionRight -> {
-            viewModel.showControls()
+        MiruPlayPlaybackInputAction.SeekForward -> {
             viewModel.skipForward()
             true
         }
-        Key.DirectionUp,
-        Key.DirectionDown -> {
-            viewModel.showControls()
-            true
-        }
-        Key.DirectionCenter,
-        Key.Enter,
-        Key.NumPadEnter,
-        Key.Spacebar,
-        Key.MediaPlayPause -> {
-            viewModel.showControls()
+        MiruPlayPlaybackInputAction.ShowControls -> true
+        MiruPlayPlaybackInputAction.TogglePause -> {
             viewModel.togglePlayback()
             true
         }
-        Key.MediaPlay -> {
-            viewModel.showControls()
+        MiruPlayPlaybackInputAction.Resume -> {
             viewModel.resume()
             true
         }
-        Key.MediaPause -> {
-            viewModel.showControls()
+        MiruPlayPlaybackInputAction.Pause -> {
             viewModel.pause()
             true
         }
-        Key.Back -> {
-            if (controlsVisible) {
-                viewModel.hideControls()
-            } else {
-                onNavigateBack()
-            }
+        MiruPlayPlaybackInputAction.HideControls -> {
+            onHideControls()
             true
         }
-        else -> false
+        MiruPlayPlaybackInputAction.CloseMenu -> {
+            onCloseMenu()
+            true
+        }
+        MiruPlayPlaybackInputAction.NavigateBack -> {
+            onNavigateBack()
+            true
+        }
+        MiruPlayPlaybackInputAction.Launch,
+        MiruPlayPlaybackInputAction.Stop,
+        -> false
     }
 }
-
-private fun trimSpeed(speed: Float): String =
-    if (speed % 1f == 0f) speed.toInt().toString() else "%.2f".format(speed).trimEnd('0')
-
-private fun Key.isActivateKey(): Boolean = this == Key.DirectionCenter ||
-    this == Key.Enter ||
-    this == Key.NumPadEnter ||
-    this == Key.Spacebar

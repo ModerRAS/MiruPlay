@@ -83,6 +83,11 @@ class PlayerViewModel @Inject constructor(
     private var finishObserverJob: Job? = null
     private var activeSource: PlaybackSource? = null
     private var pendingSeekPositionMs: Long? = null
+    private val nextPlaybackSourceResolver = NextPlaybackSourceResolver(
+        metadata = metadataRepository,
+        progress = progressRepository,
+        mediaSources = mediaRepository,
+    )
 
     fun play(source: PlaybackSource) {
         viewModelScope.launch {
@@ -130,11 +135,11 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun skipForward() {
-        seekFromControls(seekBasePosition() + 30_000)
+        seekFromControls(seekBasePosition() + PLAYBACK_SEEK_FORWARD_SECONDS * 1_000L)
     }
 
     fun skipBackward() {
-        seekFromControls(seekBasePosition() - 10_000)
+        seekFromControls(seekBasePosition() - PLAYBACK_SEEK_BACK_SECONDS * 1_000L)
     }
 
     fun toggleControls() {
@@ -205,12 +210,7 @@ class PlayerViewModel @Inject constructor(
         pendingSeekPositionMs ?: _currentPosition.value
 
     private fun coerceSeekPosition(positionMs: Long): Long {
-        val durationMs = _duration.value
-        return if (durationMs > 0L) {
-            positionMs.coerceIn(0L, durationMs)
-        } else {
-            positionMs.coerceAtLeast(0L)
-        }
+        return PlaybackTimingConventions.coercePlaybackPositionMs(positionMs, _duration.value)
     }
 
     private fun refreshTracks() {
