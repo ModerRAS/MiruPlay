@@ -279,6 +279,21 @@ Validate a generated target-host report before attaching it to release QA:
   -RequireRuntimeManifest
 ```
 
+Before spending time on the opt-in release gates, the external preflight can
+summarize whether this checkout has the runtime payload, target-host RIFE
+report, live CloudDrive/RSS evidence, WiX/signing tools, and installer report
+needed for strict completion:
+
+```powershell
+.\tools\check-windows-port-external-prereqs.ps1
+```
+
+It writes `build/windows-port-audit/external-prereqs.json` and is expected to
+report `blocked` when the repository only contains the tracked
+`runtime/mpv/README.MD` placeholder or when live-service/signing evidence has
+not been captured yet. The report records whether sensitive inputs were present,
+but it does not write token/password values.
+
 For a matrix report that intentionally allows unsupported backends to fail, pass
 the same allowance while still checking the report schema, host diagnostics, mpv
 version, and selected backend entries:

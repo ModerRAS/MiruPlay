@@ -579,7 +579,7 @@ Latest local safe Windows-port verifier passed on 2026-05-27 with
 it covered the JSON-driven full desktop behavior smoke and produced
 `build/desktop-behavior/run-20260527-111726/report.json`. The latest completion
 audit passed packaged WebUI, Bangumi live scraper, full desktop behavior, and
-Cloud/RSS scheduler evidence, then failed as expected on the 8 remaining
+Cloud/RSS scheduler evidence, then failed as expected on the 7 remaining
 external evidence items listed below. Separately,
 `.\gradlew.bat :app:assembleDebug -PbundleMpvRuntime=false` passed. Packaged
 WebUI smoke passed in Gradle MCP build `b-24`; its local report is
@@ -595,6 +595,11 @@ historical screenshot paths cited in the long-form audit narrative below.
 `tools/verify-windows-port.ps1 -CompletionAudit` writes the same judgement to
 `build/windows-port-audit/completion-audit.json` and fails until the strict
 release evidence set is present.
+`tools/check-windows-port-external-prereqs.ps1` writes
+`build/windows-port-audit/external-prereqs.json` as a non-live preflight report
+for the external runtime, target-host, CloudDrive/RSS, and installer inputs; it
+is expected to report `blocked` until the same external materials are available,
+and scans its own JSON output for obvious credential material before returning.
 
 | Evidence item | Current path | Current state |
 |---|---|---|
@@ -606,7 +611,10 @@ release evidence set is present.
 | Android TV device smoke latest pointer | `build/android-tv-qa/latest-report.txt` | Present; points to `build/android-tv-qa/run-20260527-122708/android-tv-smoke-report.json` with 16 screenshots and 17 XML dumps |
 | Prepared mpv/RIFE runtime payload | `runtime/mpv/mpv.exe`, `runtime/mpv/runtime-manifest.json` | Missing; tracked directory is only a placeholder |
 | Target-host RIFE matrix | `build/mpv-smoke/rife-matrix-report.json` | Missing current target-host evidence |
-| CloudDrive2 live/RSS dry-run/live-submit/organize | `build/cloud-drive-smoke/cloud-drive-report.json`, `build/cloud-rss-smoke/{dry-run,live-submit,organize}-report.json` | Missing current real-service evidence |
+| CloudDrive2 live | `build/cloud-drive-smoke/cloud-drive-report.json` | Missing current real-service evidence |
+| CloudDrive RSS dry-run | `build/cloud-rss-smoke/dry-run-report.json` | Missing current real-service evidence |
+| CloudDrive RSS live-submit | `build/cloud-rss-smoke/live-submit-report.json` | Missing current real-service evidence |
+| CloudDrive RSS organize | `build/cloud-rss-smoke/organize-report.json` | Missing current real-service evidence |
 | Signed Windows installer | `desktop-app/build/jpackage/smoke/windows-installer-smoke.json` | Missing signed release evidence |
 
 ```powershell
@@ -623,6 +631,8 @@ release evidence set is present.
 .\tools\verify-windows-port.ps1 -Smb
 .\tools\verify-windows-port.ps1 -MpvRuntime -PackagedMpvRuntime -NativeAppImage
 .\tools\verify-windows-port.ps1 -Rife -RifeBackend ALL -AllowRifeFailures
+.\tools\check-windows-port-external-prereqs.ps1
+.\tools\verify-windows-port.ps1 -ExternalPrereqAudit
 .\tools\verify-windows-port.ps1 -CompletionAudit
 
 # -CompletionAudit does not run live/device/runtime actions, writes
