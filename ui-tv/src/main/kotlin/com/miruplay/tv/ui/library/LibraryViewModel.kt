@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import android.util.Log
+import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.libraryNoContentAfterScanMessage
 import com.miruplay.tv.repository.LibraryAnimeResolver
@@ -14,10 +15,7 @@ import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
-import com.miruplay.tv.repository.ScanPreferencesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -60,7 +58,7 @@ class LibraryViewModel @Inject constructor(
     private val indexRepository: MediaIndexRepository,
     private val progressRepository: PlaybackProgressRepository,
     private val libraryScanTask: LibraryScanTask,
-    private val scanPreferences: ScanPreferencesRepository
+    private val scanPreferences: ScanPreferencesManager
 ) : ViewModel() {
     private val libraryEpisodeResolver = LibraryEpisodeResolver(
         mediaSources = mediaRepository,
@@ -78,27 +76,21 @@ class LibraryViewModel @Inject constructor(
 
     private val _state = MutableStateFlow<LibraryUiState>(LibraryUiState.Loading)
     val state: StateFlow<LibraryUiState> = _state.asStateFlow()
-    private var refreshJob: Job? = null
 
     init {
         observeScanTask()
         refresh()
     }
 
-    fun refresh(showLoading: Boolean = true) {
-        if (refreshJob?.isActive == true) {
-            MiruLog.d("LibraryViewModel", "Library refresh skipped because a refresh is already active")
-            return
-        }
-
-        refreshJob = viewModelScope.launch {
+    fun refresh() {
+        viewModelScope.launch {
             val scanState = libraryScanTask.state.value
             if (scanState is LibraryScanState.Scanning) {
                 _state.value = scanState.toUiState()
                 return@launch
             }
 
-            val snapshot = loadLibraryContent(showLoading = showLoading)
+            val snapshot = loadLibraryContent(showLoading = true)
             if (snapshot.hasSources) {
                 libraryScanTask.startAutoScanIfDue()
             }
@@ -119,22 +111,12 @@ class LibraryViewModel @Inject constructor(
                     }
                     is LibraryScanState.Finished -> {
                         Log.d("LibraryViewModel", "scan finished: results=${scanState.results.size}")
-                        MiruLog.i(
-                            "LibraryViewModel",
-                            "Scan task state finished",
-                            mapOf("result_count" to scanState.results.size.toString())
-                        )
                         val snapshot = loadLibraryContent(showLoading = false)
                         if (snapshot.hasSources && !snapshot.hasContent) {
-                            _state.value = LibraryUiState.ScanError(libraryNoContentAfterScanMessage())
+                            _state.value = LibraryUiState.ScanError("未找到番剧内容，请检查媒体源路径")
                         }
                     }
                     is LibraryScanState.Failed -> {
-                        MiruLog.w(
-                            "LibraryViewModel",
-                            "Scan task state failed",
-                            attributes = mapOf("message" to scanState.message)
-                        )
                         val snapshot = loadLibraryContent(showLoading = false)
                         if (snapshot.hasSources && !snapshot.hasContent) {
                             _state.value = LibraryUiState.ScanError(scanState.message)
@@ -222,3 +204,13 @@ private fun LibraryScanState.Scanning.toUiState(): LibraryUiState.Scanning =
         filesScanned = filesScanned,
         newEpisodes = newEpisodes
     )
+
+private fun String.extractAnimeNameFromPath(): String? {
+    val parts = split("/", "\\").filter { it.isNotBlank() }
+    val downloadIndex = parts.indexOfLast { it.equals("Download", ignoreCase = true) }
+    return if (downloadIndex >= 0 && downloadIndex < parts.lastIndex) {
+        parts[downloadIndex + 1]
+    } else {
+        parts.firstOrNull()
+    }
+}
