@@ -80,6 +80,7 @@ class BangumiCredentialActionCoordinatorTest {
     private class FakeAppCredentialStore(
         private var cloudToken: String? = null,
         private var cloudPassword: String? = null,
+        private var otlpToken: String? = null,
         bangumiToken: String? = null,
     ) : AppCredentialStore {
         override var cloudDriveToken: String?
@@ -96,6 +97,12 @@ class BangumiCredentialActionCoordinatorTest {
 
         override var bangumiAccessToken: String? = bangumiToken
 
+        override var otlpAccessToken: String?
+            get() = otlpToken
+            set(value) {
+                otlpToken = value
+            }
+
         override fun clearCloudDriveCredentials() {
             cloudToken = null
             cloudPassword = null
@@ -103,6 +110,10 @@ class BangumiCredentialActionCoordinatorTest {
 
         override fun clearBangumiToken() {
             bangumiAccessToken = null
+        }
+
+        override fun clearOtlpAccessToken() {
+            otlpToken = null
         }
     }
 }
