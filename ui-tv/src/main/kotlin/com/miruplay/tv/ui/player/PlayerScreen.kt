@@ -960,6 +960,100 @@ private enum class PlayerMenu {
     Audio
 }
 
+private fun handlePlayerKey(
+    event: KeyEvent,
+    controlsVisible: Boolean,
+    hasOpenMenu: Boolean,
+    viewModel: PlayerViewModel,
+    onCloseMenu: () -> Unit,
+    onHideControls: () -> Unit,
+    onNavigateBack: () -> Unit
+): Boolean {
+    if (event.type != KeyEventType.KeyDown) return false
+
+    if (controlsVisible) {
+        return when (event.key) {
+            Key.DirectionLeft -> {
+                viewModel.skipBackward()
+                viewModel.showControls()
+                true
+            }
+            Key.DirectionRight -> {
+                viewModel.skipForward()
+                viewModel.showControls()
+                true
+            }
+            Key.MediaPlayPause -> {
+                viewModel.togglePlayback()
+                true
+            }
+            Key.MediaPlay -> {
+                viewModel.resume()
+                true
+            }
+            Key.MediaPause -> {
+                viewModel.pause()
+                true
+            }
+            Key.Back -> {
+                if (hasOpenMenu) {
+                    onCloseMenu()
+                } else {
+                    onHideControls()
+                }
+                true
+            }
+            else -> false
+        }
+    }
+
+    return when (event.key) {
+        Key.DirectionLeft -> {
+            viewModel.showControls()
+            viewModel.skipBackward()
+            true
+        }
+        Key.DirectionRight -> {
+            viewModel.showControls()
+            viewModel.skipForward()
+            true
+        }
+        Key.DirectionUp,
+        Key.DirectionDown -> {
+            viewModel.showControls()
+            true
+        }
+        Key.DirectionCenter,
+        Key.Enter,
+        Key.NumPadEnter,
+        Key.Spacebar,
+        Key.MediaPlayPause -> {
+            viewModel.showControls()
+            viewModel.togglePlayback()
+            true
+        }
+        Key.MediaPlay -> {
+            viewModel.showControls()
+            viewModel.resume()
+            true
+        }
+        Key.MediaPause -> {
+            viewModel.showControls()
+            viewModel.pause()
+            true
+        }
+        Key.Back -> {
+            if (controlsVisible) {
+                viewModel.hideControls()
+            } else {
+                onNavigateBack()
+            }
+            true
+        }
+        else -> false
+    }
+}
+
 private fun trimSpeed(speed: Float): String =
     if (speed % 1f == 0f) speed.toInt().toString() else "%.2f".format(speed).trimEnd('0')
 
