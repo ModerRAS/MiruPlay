@@ -67,16 +67,23 @@ NVIDIA/DIRECTML scripts, and starts the generated `MiruPlay.exe` in a headless
 desktop-entry smoke mode to verify the app-image resolves its own runtime before
 installer creation; `tools/assert-desktop-entry-smoke-report.ps1` now validates
 that JSON report structurally instead of relying on string containment. The
-opt-in Windows installer gate preflights WiX, builds
-MSI/EXE artifacts from that verified app image, records SHA256/size/version and
-signing mode evidence, and can sign plus verify with explicit signtool/PFX
-inputs. `tools/assert-windows-installer-report.ps1` validates that evidence
-against the generated installer path, file size, SHA256, installer type, app
-version, and expected signing mode. The unified verifier now passes Windows
-installer signing options through to that gate, runs the installer-report
-assertion after packaging, and redacts token/password-like arguments when native
-commands fail, so signed installer QA can use the same release checklist
-without leaking credentials in error text. `tools/verify-windows-port.ps1` now wraps the local port gate with
+opt-in Windows installer gate preflights WiX, builds MSI/EXE artifacts from the
+app image, records SHA256/size/version, signing mode, and whether mpv/RIFE
+runtime content was bundled, and can sign plus verify with explicit
+signtool/PFX inputs. `tools/assert-windows-installer-report.ps1` validates that
+evidence against the generated installer path, file size, SHA256, installer
+type, app version, expected signing mode, and optional runtime-bundling
+requirements. Lightweight installer QA now runs with `-PbundleMpvRuntime=false`
+and produces a report that must validate with `-RequireNoBundledMpvRuntime`; it
+cannot be mistaken for self-contained release installer evidence. The local
+full `vsNV` mpv/RIFE app image is too large for the JDK jpackage/WiX MSI/EXE
+cabinet path, so a self-contained installer still needs a different
+large-payload installer strategy or a smaller runtime payload. The unified
+verifier now passes Windows installer signing options through to that gate, runs
+the installer-report assertion after packaging, and redacts token/password-like
+arguments when native commands fail, so signed installer QA can use the same
+release checklist without leaking credentials in error text.
+`tools/verify-windows-port.ps1` now wraps the local port gate with
 safe defaults: it selects JDK 21 when available, Gradle/JVM/desktop install,
 packaged WebUI HTTP smoke plus JSON assertion, Cloud/RSS scheduler elapsed-time smoke, and Android debug build run by default,
 while JSON-driven behavior smoke, GUI smokes, the real `D:\Software\dufs` library, Android TV emulator
@@ -615,7 +622,7 @@ and scans its own JSON output for obvious credential material before returning.
 | CloudDrive RSS dry-run | `build/cloud-rss-smoke/dry-run-report.json` | Missing current real-service evidence |
 | CloudDrive RSS live-submit | `build/cloud-rss-smoke/live-submit-report.json` | Missing current real-service evidence |
 | CloudDrive RSS organize | `build/cloud-rss-smoke/organize-report.json` | Missing current real-service evidence |
-| Signed Windows installer | `desktop-app/build/jpackage/smoke/windows-installer-smoke.json` | Missing signed release evidence |
+| Signed Windows installer | `desktop-app/build/jpackage/smoke/windows-installer-smoke.json` | Lightweight unsigned MSI report can be generated locally; signed bundled-runtime release evidence is still missing |
 
 ```powershell
 .\tools\verify-windows-port.ps1

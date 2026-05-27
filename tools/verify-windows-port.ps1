@@ -19,6 +19,7 @@ param(
     [switch]$WindowsInstaller,
     [ValidateSet("msi", "exe")]
     [string]$WindowsInstallerType = "msi",
+    [switch]$LightweightWindowsInstaller,
     [switch]$SignWindowsInstaller,
     [string]$WindowsInstallerCertPath = "",
     [string]$WindowsInstallerCertPassword = "",
@@ -631,7 +632,7 @@ function Invoke-WindowsPortCompletionAudit {
         )
     }
 
-    Invoke-CompletionEvidenceCheck -Problems $problems -Results $results -Name "Windows installer report" -Guidance "Run .\tools\verify-windows-port.ps1 -WindowsInstaller -SignWindowsInstaller with WiX, signtool, and release signing inputs. Use -AllowUnsignedCompletionInstaller only for local QA audits." -Action {
+    Invoke-CompletionEvidenceCheck -Problems $problems -Results $results -Name "Windows installer report" -Guidance "Run .\tools\verify-windows-port.ps1 -WindowsInstaller -SignWindowsInstaller with WiX, signtool, release signing inputs, and a bundled-runtime installer strategy. Use -AllowUnsignedCompletionInstaller only for local QA audits." -Action {
         $assertArgs = @(
             "-ReportPath",
             (Join-Path $repoRoot "desktop-app\build\jpackage\smoke\windows-installer-smoke.json"),
@@ -647,6 +648,7 @@ function Invoke-WindowsPortCompletionAudit {
         } else {
             $assertArgs += "-RequireSigned"
         }
+        $assertArgs += "-RequireBundledMpvRuntime"
         Invoke-CompletionToolScript -ScriptName "assert-windows-installer-report.ps1" -Arguments $assertArgs
     }
 
@@ -816,12 +818,16 @@ try {
         Invoke-Step -Name "Windows installer smoke" -Action {
             $installerArgs = @(
                 ":desktop-app:smokeWindowsInstaller",
-                "-PmpvRuntimeSource=$MpvRuntimeSource",
-                "-PrequireMpvRuntime=true",
                 "-PrequiredRifeBackends=$RequiredRifeBackends",
                 "-PwindowsInstallerType=$WindowsInstallerType",
                 "-PrequireWindowsInstallerToolchain=true"
             )
+            if ($LightweightWindowsInstaller) {
+                $installerArgs += "-PbundleMpvRuntime=false"
+            } else {
+                $installerArgs += "-PmpvRuntimeSource=$MpvRuntimeSource"
+                $installerArgs += "-PrequireMpvRuntime=true"
+            }
             if ($SignWindowsInstaller) {
                 $installerArgs += "-PsignWindowsInstaller=true"
             }
@@ -860,6 +866,11 @@ try {
                 $assertArgs += "-RequireSigned"
             } else {
                 $assertArgs += "-RequireUnsigned"
+            }
+            if ($LightweightWindowsInstaller) {
+                $assertArgs += "-RequireNoBundledMpvRuntime"
+            } else {
+                $assertArgs += "-RequireBundledMpvRuntime"
             }
             Invoke-ToolScript -ScriptName "assert-windows-installer-report.ps1" -Arguments $assertArgs
         }
