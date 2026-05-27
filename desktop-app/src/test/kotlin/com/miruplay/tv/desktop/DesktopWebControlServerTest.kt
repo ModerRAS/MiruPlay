@@ -10,6 +10,7 @@ import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfoConventions
+import com.miruplay.tv.repository.OtlpLogUploadConfig
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.desktop.DesktopRepositories
@@ -30,8 +31,33 @@ import java.net.HttpURLConnection
 import java.net.ServerSocket
 import java.net.URI
 import java.nio.file.Files
+import java.nio.file.StandardOpenOption
 
 class DesktopWebControlServerTest {
+    @Test
+    fun `desktop WebUI smoke launcher writes token-free report`() {
+        val reportPath = Files.createTempDirectory("miruplay-webui-smoke-report")
+            .resolve("desktop-web-control-smoke.json")
+        try {
+            assertTrue(
+                runDesktopWebControlSmoke(
+                    arrayOf(
+                        DESKTOP_WEB_CONTROL_SMOKE_ARG,
+                        "$DESKTOP_WEB_CONTROL_SMOKE_REPORT_ARG_PREFIX$reportPath",
+                    ),
+                ),
+            )
+            val report = Files.readString(reportPath)
+            assertTrue(report.contains("\"status\": \"passed\""))
+            assertTrue(report.contains("\"name\": \"desktop-web-control-smoke\""))
+            assertTrue(report.contains("\"static_shell_served\""))
+            assertTrue(report.contains("\"playback_command_api\""))
+            assertTrue(!report.contains("webui-smoke-password"))
+        } finally {
+            reportPath.parent.toFile().deleteRecursively()
+        }
+    }
+
     @Test
     fun `desktop web control serves static assets and requires token for api`() {
         val storePath = Files.createTempDirectory("miruplay-web-control-store").resolve("store.json")
@@ -353,6 +379,108 @@ class DesktopWebControlServerTest {
     }
 
     @Test
+    fun `desktop web control scan source returns error payload for broken source`() = runBlocking {
+        val storePath = Files.createTempDirectory("miruplay-web-control-store").resolve("store.json")
+        val invalidMediaRoot = Files.createTempDirectory("miruplay-web-control-media-invalid")
+        val port = freePort()
+        try {
+            val invalidRootString = invalidMediaRoot.toString()
+            invalidMediaRoot.toFile().deleteRecursively()
+
+            val repositories = DesktopRepositories.fileBacked(storePath)
+            val brokenSourceId = (repositories.mediaSources.addSource(
+                MediaSourceInfoConventions.local(
+                    name = "Broken Anime",
+                    rootPath = invalidRootString,
+                    isConnected = true,
+                )
+            ) as Result.Success).data
+            repositories.webControlAccess.webControlEnabled = true
+            val token = repositories.webControlAccess.accessToken
+            val service = DesktopWebControlService(repositories, deviceName = "Windows Test")
+            val server = DesktopWebControlServer(
+                webControlService = service,
+                webControlAccess = repositories.webControlAccess,
+                port = port,
+            )
+            server.startIfNeeded()
+            try {
+                val scan = request(
+                    url = "http://127.0.0.1:$port/api/sources/$brokenSourceId/scan?token=$token",
+                    method = "POST",
+                )
+                assertEquals(200, scan.code)
+                assertTrue(scan.body.contains("\"sourceId\":$brokenSourceId"))
+                assertTrue(scan.body.contains("\"animeName\":\"Broken Anime\""))
+                assertTrue(scan.body.contains("\"episodesFound\":0"))
+                assertTrue(scan.body.contains("\"error\":"))
+            } finally {
+                server.stopIfRunning()
+            }
+        } finally {
+            invalidMediaRoot.toFile().deleteRecursively()
+            storePath.parent.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `desktop web control scan all returns per-source failure payloads`() = runBlocking {
+        val storePath = Files.createTempDirectory("miruplay-web-control-store").resolve("store.json")
+        val validMediaRoot = Files.createTempDirectory("miruplay-web-control-media-valid")
+        val invalidMediaRoot = Files.createTempDirectory("miruplay-web-control-media-invalid")
+        val port = freePort()
+        try {
+            val validShowDir = Files.createDirectory(validMediaRoot.resolve("Bocchi"))
+            Files.writeString(validShowDir.resolve("Bocchi - 01.mkv"), "video")
+            val invalidRootString = invalidMediaRoot.toString()
+            invalidMediaRoot.toFile().deleteRecursively()
+
+            val repositories = DesktopRepositories.fileBacked(storePath)
+            val validSourceId = (repositories.mediaSources.addSource(
+                MediaSourceInfoConventions.local(
+                    name = "Valid Anime",
+                    rootPath = validMediaRoot.toString(),
+                    isConnected = true,
+                )
+            ) as Result.Success).data
+            val brokenSourceId = (repositories.mediaSources.addSource(
+                MediaSourceInfoConventions.local(
+                    name = "Broken Anime",
+                    rootPath = invalidRootString,
+                    isConnected = true,
+                )
+            ) as Result.Success).data
+            repositories.webControlAccess.webControlEnabled = true
+            val token = repositories.webControlAccess.accessToken
+            val service = DesktopWebControlService(repositories, deviceName = "Windows Test")
+            val server = DesktopWebControlServer(
+                webControlService = service,
+                webControlAccess = repositories.webControlAccess,
+                port = port,
+            )
+            server.startIfNeeded()
+            try {
+                val scanAll = request(
+                    url = "http://127.0.0.1:$port/api/sources/scan-all?token=$token",
+                    method = "POST",
+                )
+                assertEquals(200, scanAll.code)
+                assertTrue(scanAll.body.contains("\"sourceId\":$validSourceId"))
+                assertTrue(scanAll.body.contains("\"sourceId\":$brokenSourceId"))
+                assertTrue(scanAll.body.contains("\"animeName\":\"Broken Anime\""))
+                assertTrue(scanAll.body.contains("\"episodesFound\":0"))
+                assertTrue(scanAll.body.contains("\"error\":"))
+            } finally {
+                server.stopIfRunning()
+            }
+        } finally {
+            validMediaRoot.toFile().deleteRecursively()
+            invalidMediaRoot.toFile().deleteRecursively()
+            storePath.parent.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
     fun `desktop web control routes playback requests through injected desktop handlers`() = runBlocking {
         val storePath = Files.createTempDirectory("miruplay-web-control-store").resolve("store.json")
         val mediaRoot = Files.createTempDirectory("miruplay-web-control-media")
@@ -620,6 +748,140 @@ class DesktopWebControlServerTest {
                 assertTrue(run.body.contains("\"organized\":0"))
                 assertEquals(listOf("magnet:?xt=urn:btih:abc"), cloudDrive.offlineUrls)
                 assertEquals("/Downloads", cloudDrive.offlineTargetFolder)
+            } finally {
+                server.stopIfRunning()
+            }
+        } finally {
+            storePath.parent.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `desktop web control exposes log upload and metadata endpoints through shared core`() = runBlocking {
+        val storePath = Files.createTempDirectory("miruplay-web-control-store").resolve("store.json")
+        val port = freePort()
+        try {
+            val repositories = DesktopRepositories.fileBacked(storePath)
+            repositories.webControlAccess.webControlEnabled = true
+            val token = repositories.webControlAccess.accessToken
+            val service = DesktopWebControlService(repositories, deviceName = "Windows Test")
+            val server = DesktopWebControlServer(
+                webControlService = service,
+                webControlAccess = repositories.webControlAccess,
+                port = port,
+            )
+            server.startIfNeeded()
+            try {
+                val initialLog = request("http://127.0.0.1:$port/api/log-upload?token=$token")
+                assertEquals(200, initialLog.code)
+                assertTrue(initialLog.body.contains("\"tokenConfigured\":false"))
+
+                val savedConfig = request(
+                    url = "http://127.0.0.1:$port/api/log-upload/config?token=$token",
+                    method = "PUT",
+                    body = """{"enabled":true,"endpoint":"https://openobserve.example.com/api/default","streamName":"miruplay"}""",
+                )
+                assertEquals(200, savedConfig.code)
+                assertTrue(savedConfig.body.contains("\"enabled\":true"))
+                assertTrue(savedConfig.body.contains("openobserve.example.com"))
+
+                val savedToken = request(
+                    url = "http://127.0.0.1:$port/api/log-upload/token?token=$token",
+                    method = "POST",
+                    body = """{"token":"desktop-token"}""",
+                )
+                assertEquals(200, savedToken.code)
+                assertTrue(savedToken.body.contains("\"tokenConfigured\":true"))
+
+                val runUpload = request(
+                    url = "http://127.0.0.1:$port/api/log-upload/run?token=$token",
+                    method = "POST",
+                )
+                assertEquals(200, runUpload.code)
+                assertTrue(runUpload.body.contains("\"lastUploadStatus\":"))
+
+                val metadataInitial = request(
+                    "http://127.0.0.1:$port/api/metadata?token=$token",
+                )
+                assertEquals(200, metadataInitial.code)
+                assertTrue(metadataInitial.body.contains("\"bangumiTokenConfigured\":false"))
+
+                val saveBangumi = request(
+                    url = "http://127.0.0.1:$port/api/metadata/bangumi-token?token=$token",
+                    method = "POST",
+                    body = """{"token":"bgm-token"}""",
+                )
+                assertEquals(200, saveBangumi.code)
+                assertTrue(saveBangumi.body.contains("\"bangumiTokenConfigured\":true"))
+
+                val clearBangumi = request(
+                    url = "http://127.0.0.1:$port/api/metadata/bangumi-token?token=$token",
+                    method = "DELETE",
+                )
+                assertEquals(200, clearBangumi.code)
+                assertTrue(clearBangumi.body.contains("\"bangumiTokenConfigured\":false"))
+            } finally {
+                server.stopIfRunning()
+            }
+        } finally {
+            storePath.parent.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `desktop web control save endpoints trigger shared config hooks`() = runBlocking {
+        val storePath = Files.createTempDirectory("miruplay-web-control-store").resolve("store.json")
+        val port = freePort()
+        try {
+            val repositories = DesktopRepositories.fileBacked(storePath)
+            repositories.webControlAccess.webControlEnabled = true
+            val token = repositories.webControlAccess.accessToken
+            val savedCloudConfigs = mutableListOf<CloudDriveAutomationConfig>()
+            val savedLogUploadConfigs = mutableListOf<OtlpLogUploadConfig>()
+            val service = DesktopWebControlService(
+                repositories = repositories,
+                onCloudDriveConfigSaved = { config -> savedCloudConfigs += config },
+                onLogUploadConfigSaved = { config -> savedLogUploadConfigs += config },
+                deviceName = "Windows Test",
+            )
+            val server = DesktopWebControlServer(
+                webControlService = service,
+                webControlAccess = repositories.webControlAccess,
+                port = port,
+            )
+            server.startIfNeeded()
+            try {
+                val savedCloudConfig = request(
+                    url = "http://127.0.0.1:$port/api/cloud-drive/config?token=$token",
+                    method = "PUT",
+                    body = """
+                        {
+                          "endpointUrl":"http://cloud.test",
+                          "username":"miru",
+                          "inboxPath":"/Downloads",
+                          "libraryPath":"/Library",
+                          "libraryMode":"ORGANIZED_LIBRARY",
+                          "intervalMinutes":30,
+                          "enabled":true
+                        }
+                    """.trimIndent(),
+                )
+                assertEquals(200, savedCloudConfig.code)
+                assertEquals(1, savedCloudConfigs.size)
+                assertEquals("http://cloud.test", savedCloudConfigs.single().endpointUrl)
+                assertEquals("miru", savedCloudConfigs.single().username)
+                assertEquals(true, savedCloudConfigs.single().enabled)
+
+                val savedLogUploadConfig = request(
+                    url = "http://127.0.0.1:$port/api/log-upload/config?token=$token",
+                    method = "PUT",
+                    body = """{"enabled":true,"endpoint":" https://openobserve.example.com/api/default ","streamName":" "}""",
+                )
+                assertEquals(200, savedLogUploadConfig.code)
+                assertEquals(1, savedLogUploadConfigs.size)
+                assertEquals(true, savedLogUploadConfigs.single().enabled)
+                assertEquals("https://openobserve.example.com/api/default", savedLogUploadConfigs.single().endpoint)
+                assertEquals("miruplay", savedLogUploadConfigs.single().streamName)
             } finally {
                 server.stopIfRunning()
             }

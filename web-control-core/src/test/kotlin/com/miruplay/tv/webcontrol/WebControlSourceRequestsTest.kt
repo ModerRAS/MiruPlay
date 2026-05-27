@@ -258,7 +258,7 @@ class WebControlSourceRequestsTest {
     }
 
     @Test
-    fun `repository scan all WebUI sources skips failed scans`() = runBlocking {
+    fun `repository scan all WebUI sources preserves failed scan results`() = runBlocking {
         val local = MediaSourceInfoConventions.local(name = "Local", rootPath = "D:/Anime").copy(id = 7L)
         val remote = MediaSourceInfoConventions.webDav(name = "Remote", url = "https://dav.example.test").copy(id = 8L)
         val repository = FakeMediaSourceRepository(sources = listOf(local, remote))
@@ -282,9 +282,13 @@ class WebControlSourceRequestsTest {
         }
 
         assertEquals(listOf(7L, 8L), scannedSourceIds)
-        assertEquals(1, responses.size)
-        assertEquals(7L, responses.single().sourceId)
-        assertEquals("Local", responses.single().animeName)
+        assertEquals(2, responses.size)
+        assertEquals(7L, responses[0].sourceId)
+        assertEquals("Local", responses[0].animeName)
+        assertEquals(null, responses[0].error)
+        assertEquals(8L, responses[1].sourceId)
+        assertEquals("Remote", responses[1].animeName)
+        assertEquals("与 Remote 的连接已断开", responses[1].error)
     }
 
     @Test
@@ -306,6 +310,65 @@ class WebControlSourceRequestsTest {
         }
 
         assertEquals(emptyList<SourceScanResponse>(), responses)
+    }
+
+    @Test
+    fun `repository scan single WebUI source preserves scan failure as payload`() = runBlocking {
+        val source = MediaSourceInfoConventions.local(name = "Local", rootPath = "D:/Anime").copy(id = 7L)
+        val repository = FakeMediaSourceRepository(existing = source)
+
+        val response = repository.scanWebControlSource(source.id) {
+            Result.failure(AppError.MediaSourceError.ConnectionLost("Local"))
+        }
+
+        assertEquals(7L, response.sourceId)
+        assertEquals("Local", response.animeName)
+        assertEquals(0, response.episodesFound)
+        assertEquals("与 Local 的连接已断开", response.error)
+    }
+
+    @Test
+    fun `repository scan all WebUI sources from scan result helper preserves per source failures`() = runBlocking {
+        val local = MediaSourceInfoConventions.local(name = "Local", rootPath = "D:/Anime").copy(id = 7L)
+        val remote = MediaSourceInfoConventions.webDav(name = "Remote", url = "https://dav.example.test").copy(id = 8L)
+        val repository = FakeMediaSourceRepository(sources = listOf(local, remote))
+
+        val responses = repository.scanAllWebControlSourcesFromScanResult { source ->
+            if (source.id == local.id) {
+                Result.success(
+                    ScanResult(
+                        animeName = "Frieren",
+                        episodesFound = 3,
+                        newEpisodes = 2,
+                        updatedEpisodes = 1,
+                    )
+                )
+            } else {
+                Result.failure(AppError.MediaSourceError.ConnectionLost(source.name))
+            }
+        }
+
+        assertEquals(2, responses.size)
+        assertEquals(7L, responses[0].sourceId)
+        assertEquals("Frieren", responses[0].animeName)
+        assertEquals(null, responses[0].error)
+        assertEquals(8L, responses[1].sourceId)
+        assertEquals("Remote", responses[1].animeName)
+        assertEquals("与 Remote 的连接已断开", responses[1].error)
+    }
+
+    @Test
+    fun `repository scan single WebUI source from scan result helper preserves failure payload`() = runBlocking {
+        val source = MediaSourceInfoConventions.local(name = "Local", rootPath = "D:/Anime").copy(id = 7L)
+        val repository = FakeMediaSourceRepository(existing = source)
+
+        val response = repository.scanWebControlSourceFromScanResult(source.id) {
+            Result.failure(AppError.MediaSourceError.ConnectionLost("Local"))
+        }
+
+        assertEquals(7L, response.sourceId)
+        assertEquals("Local", response.animeName)
+        assertEquals("与 Local 的连接已断开", response.error)
     }
 
     @Test
@@ -388,6 +451,50 @@ class WebControlSourceRequestsTest {
         assertEquals(0, response.episodesFound)
         assertEquals(0, response.newEpisodes)
         assertEquals(0, response.updatedEpisodes)
+        assertEquals(null, response.error)
+    }
+
+    @Test
+    fun `scan error response maps source identity and message`() {
+        val source = MediaSourceInfoConventions.smb(
+            name = "",
+            url = "smb://server/share",
+        ).copy(id = 9L)
+
+        val response = source.toWebControlSourceScanErrorResponse("扫描失败")
+
+        assertEquals(9L, response.sourceId)
+        assertEquals("SMB 共享", response.animeName)
+        assertEquals(0, response.episodesFound)
+        assertEquals(0, response.newEpisodes)
+        assertEquals(0, response.updatedEpisodes)
+        assertEquals("扫描失败", response.error)
+    }
+
+    @Test
+    fun `source scan helper maps scan success and failure to payload`() = runBlocking {
+        val source = MediaSourceInfoConventions.local(name = "Local", rootPath = "D:/Anime").copy(id = 11L)
+
+        val success = source.scanWebControlSourceWith {
+            Result.success(
+                ScanResult(
+                    animeName = "Frieren",
+                    episodesFound = 3,
+                    newEpisodes = 2,
+                    updatedEpisodes = 1,
+                )
+            )
+        }
+        assertEquals(11L, success.sourceId)
+        assertEquals("Frieren", success.animeName)
+        assertEquals(null, success.error)
+
+        val failure = source.scanWebControlSourceWith {
+            Result.failure(AppError.MediaSourceError.ConnectionLost("Local"))
+        }
+        assertEquals(11L, failure.sourceId)
+        assertEquals("Local", failure.animeName)
+        assertEquals("与 Local 的连接已断开", failure.error)
     }
 
     private class FakeMediaSourceRepository(

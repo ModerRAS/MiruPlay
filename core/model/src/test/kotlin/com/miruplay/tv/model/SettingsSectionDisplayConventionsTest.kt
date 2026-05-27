@@ -9,19 +9,19 @@ class SettingsSectionDisplayConventionsTest {
     @Test
     fun `settings section copy is shared by Android TV and desktop`() {
         assertEquals(
-            listOf("WebUI", "媒体源", "播放", "CloudDrive", "扫描", "日志上报", "元数据"),
+            listOf("WebUI", "媒体源", "播放", "CloudDrive", "扫描", "日志上报", "更新", "元数据"),
             androidTvSettingsSectionOrder.map { it.androidTvTitle },
         )
         assertEquals(
-            listOf("访问地址与二维码", "本地、WebDAV、SMB", "播完动作", "RSS 离线下载与入库", "媒体库更新策略", "OTLP / OpenObserve", "Bangumi Token"),
+            listOf("访问地址与二维码", "本地、WebDAV、SMB", "播完动作", "RSS 离线下载与入库", "媒体库更新策略", "OpenObserve JSON", "GitHub APK", "Bangumi Token"),
             androidTvSettingsSectionOrder.map { it.androidTvDescription },
         )
         assertEquals(
-            listOf("媒体源", "播放", "云盘", "扫描", "日志", "元数据"),
+            listOf("WebUI", "媒体源", "播放", "云盘", "扫描", "日志", "元数据"),
             desktopSettingsSectionOrder.map { it.desktopTitle },
         )
         assertEquals(
-            listOf("本地、WebDAV、SMB", "mpv 与 RIFE", "RSS 离线下载与入库", "媒体库更新", "OTLP / OpenObserve", "Bangumi 匹配"),
+            listOf("访问地址与二维码", "本地、WebDAV、SMB", "mpv 与 RIFE", "RSS 离线下载与入库", "媒体库更新", "OpenObserve JSON", "Bangumi 匹配"),
             desktopSettingsSectionOrder.map { it.desktopDescription },
         )
     }
@@ -45,18 +45,62 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("定时已开", settingsScanMenuSummary(autoScanEnabled = true, mergeSameAnimeEnabled = false))
         assertEquals("同番合并", settingsScanMenuSummary(autoScanEnabled = false, mergeSameAnimeEnabled = true))
         assertEquals("定时关闭", settingsScanMenuSummary(autoScanEnabled = false, mergeSameAnimeEnabled = false))
+        assertEquals("OpenObserve", settingsLogUploadMenuSummary())
+        assertEquals("GitHub", settingsAppUpdateMenuSummary())
+        assertEquals("未启用", settingsAndroidTvLogUploadMenuSummary())
+        assertEquals(
+            "自动上报",
+            settingsAndroidTvLogUploadMenuSummary(enabled = true, tokenConfigured = true, isUploading = false),
+        )
+        assertEquals(
+            "上报中",
+            settingsAndroidTvLogUploadMenuSummary(enabled = true, tokenConfigured = true, isUploading = true),
+        )
+        assertEquals(
+            "等待 Token",
+            settingsAndroidTvLogUploadMenuSummary(enabled = true, tokenConfigured = false, isUploading = false),
+        )
         assertEquals("Token 已设置", settingsMetadataTokenMenuSummary(hasToken = true))
         assertEquals("未设置", settingsMetadataTokenMenuSummary(hasToken = false))
         assertEquals("媒体库更新", settingsDesktopScanMenuSummary())
         assertEquals("访问地址", settingsDesktopWebUiMenuSummary())
         assertEquals("等待网络", settingsDesktopWebUiMenuSummary(addressCount = 0))
         assertEquals("2 个地址", settingsDesktopWebUiMenuSummary(addressCount = 2))
+
+        val androidInput = SettingsSectionMenuSummaryInput(
+            webUiAddressCount = 2,
+            sourceCount = 3,
+            playbackSummary = "播完动作",
+            cloudDriveEnabled = true,
+            rssCount = 4,
+            autoScanEnabled = true,
+            mergeSameAnimeEnabled = true,
+            metadataSummary = "Token 已设置",
+        )
+        assertEquals("2 个地址", MiruPlaySettingsSection.WEB_UI.settingsMenuSummary(androidInput))
+        assertEquals("3 个源", MiruPlaySettingsSection.SOURCES.settingsMenuSummary(androidInput))
+        assertEquals("播完动作", MiruPlaySettingsSection.PLAYBACK.settingsMenuSummary(androidInput))
+        assertEquals("4 个订阅", MiruPlaySettingsSection.CLOUD_DRIVE.settingsMenuSummary(androidInput))
+        assertEquals("定时 · 合并", MiruPlaySettingsSection.SCAN.settingsMenuSummary(androidInput))
+        assertEquals("OpenObserve", MiruPlaySettingsSection.LOG_UPLOAD.settingsMenuSummary(androidInput))
+        assertEquals("GitHub", MiruPlaySettingsSection.APP_UPDATE.settingsMenuSummary(androidInput))
+        assertEquals("Token 已设置", MiruPlaySettingsSection.METADATA.settingsMenuSummary(androidInput))
+
+        val androidLogUploadInput = androidInput.copy(logUploadSummary = settingsAndroidTvLogUploadMenuSummary())
+        assertEquals(
+            "未启用",
+            MiruPlaySettingsSection.LOG_UPLOAD.settingsMenuSummary(androidLogUploadInput),
+        )
     }
 
     @Test
     fun `desktop settings summary detail copy is shared`() {
+        assertEquals("设置", settingsScreenTitleLabel())
+        assertEquals("管理媒体源、WebUI 和元数据服务", settingsScreenSubtitleLabel())
         assertEquals("设置菜单", settingsMenuPanelTitle())
         assertEquals("像 TV 版一样按分类管理桌面能力。", settingsMenuPanelDescription())
+        assertEquals("像 TV 版一样按分类管理桌面能力。", settingsMenuPanelDescriptionDesktop())
+        assertEquals("按上下切换分类，向右进入当前设置。", settingsMenuPanelDescriptionAndroidTv())
         assertEquals("打开海报墙", settingsOpenLibraryActionLabel())
         assertEquals("扫描当前源", settingsScanActiveSourceActionLabel())
         assertEquals("打开播放器", settingsOpenPlayerActionLabel())
@@ -65,6 +109,72 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("保存 Token", settingsSaveTokenActionLabel())
         assertEquals("清除 Token", settingsClearTokenActionLabel())
         assertEquals("扫描入口保留在媒体库海报墙和 CloudDrive 同步流程中。", settingsDesktopScanStatusMessage())
+        assertEquals(
+            "可在当前页面配置 OpenObserve JSON；本地日志会按同一配置写入上报队列。",
+            settingsAndroidTvLogUploadStatusMessage(),
+        )
+        assertEquals(
+            "建议先保存配置，再保存 Token；开启自动上报后会定时上传待处理日志。",
+            settingsAndroidTvLogUploadHintMessage(),
+        )
+        assertEquals(
+            "可在当前页面或 Web 控制端配置 OpenObserve JSON；本地日志会按同一配置写入上报队列。",
+            settingsDesktopLogUploadStatusMessage(),
+        )
+        assertEquals("自动上报", settingsLogUploadAutoToggleLabel())
+        assertEquals("OpenObserve API 地址", settingsLogUploadEndpointFieldLabel())
+        assertEquals("Stream", settingsLogUploadStreamFieldLabel())
+        assertEquals("OpenObserve Token", settingsLogUploadTokenFieldLabel())
+        assertEquals("保存配置", settingsLogUploadSaveConfigActionLabel())
+        assertEquals("立即上报", settingsLogUploadRunNowActionLabel())
+        assertEquals("应用更新", settingsAppUpdatePanelTitleLabel())
+        assertEquals("从 GitHub Release 获取最新 APK。", settingsAppUpdatePanelDescription())
+        assertEquals("检查更新", settingsAppUpdateCheckActionLabel())
+        assertEquals("下载安装", settingsAppUpdateInstallActionLabel())
+        assertEquals("安装授权", settingsAppUpdatePermissionActionLabel())
+        assertEquals("尚未检查更新。", settingsAppUpdateIdleStatus())
+        assertEquals("正在检查 GitHub Release。", settingsAppUpdateCheckingStatus())
+        assertEquals("发现新版本 2026.05.26。", settingsAppUpdateReadyStatus("2026.05.26"))
+        assertEquals("当前已是最新版本 2026.05.26。", settingsAppUpdateLatestStatus("2026.05.26"))
+        assertEquals("正在下载 APK 42%", settingsAppUpdateDownloadProgressStatus(42))
+        assertEquals("正在下载 APK。", settingsAppUpdateDownloadProgressStatus(null))
+        assertEquals("已打开安装授权页，授权后请返回重试。", settingsAppUpdateInstallPermissionStatus())
+        assertEquals("已具备安装授权。", settingsAppUpdateInstallPermissionGrantedStatus())
+        assertEquals("已打开系统安装器。", settingsAppUpdateInstallerOpenedStatus())
+        assertEquals("待上报 0 条", settingsLogUploadPendingStatus(-8))
+        assertEquals("待命", settingsLogUploadUploadStateStatus(false))
+        assertEquals("上报中", settingsLogUploadUploadStateStatus(true))
+        assertEquals("Token 已保存", settingsLogUploadTokenConfiguredStatus(true))
+        assertEquals("未保存 Token", settingsLogUploadTokenConfiguredStatus(false))
+        assertEquals("尚未上报", settingsLogUploadLastUploadStatus(0L))
+        assertEquals("暂无上报结果", settingsLogUploadResultStatus("  "))
+        assertEquals("HTTP 200", settingsLogUploadResultStatus("  HTTP 200  "))
+        val androidTvLogUploadStatus = settingsLogUploadStatusMessage(
+            pendingCount = 12,
+            isUploading = false,
+            tokenConfigured = true,
+            lastUploadAt = 0L,
+            lastUploadStatus = "已上报 12 条日志",
+        )
+        val desktopLogUploadStatus = settingsDesktopLogUploadStatusMessage(
+            pendingCount = 12,
+            isUploading = false,
+            tokenConfigured = true,
+            lastUploadAt = 0L,
+            lastUploadStatus = "已上报 12 条日志",
+        )
+        assertEquals(
+            "可在当前页面配置 OpenObserve JSON；本地日志会按同一配置写入上报队列。 · 待上报 12 条 · 待命 · Token 已保存 · 尚未上报 · 已上报 12 条日志",
+            androidTvLogUploadStatus,
+        )
+        assertEquals(
+            "可在当前页面或 Web 控制端配置 OpenObserve JSON；本地日志会按同一配置写入上报队列。 · 待上报 12 条 · 待命 · Token 已保存 · 尚未上报 · 已上报 12 条日志",
+            desktopLogUploadStatus,
+        )
+        assertEquals(
+            androidTvLogUploadStatus.substringAfter(" · "),
+            desktopLogUploadStatus.substringAfter(" · "),
+        )
         assertEquals(
             "WebUI 当前未启用；Windows 已复用同一套访问令牌和地址生成规则。",
             settingsDesktopWebUiStatusMessage(enabled = false, addressCount = 2),
@@ -191,6 +301,14 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("未启用", settingsCloudRssOverviewValue(false))
         assertEquals("2 个", settingsCloudRssSubscriptionsValue(2))
         assertEquals("Cloud WebDAV · WebDAV", settingsCloudRssLinkedSourceValue("Cloud WebDAV · WebDAV"))
+        val logUploadTiles = logUploadSettingsTiles()
+        assertEquals(3, logUploadTiles.size)
+        assertEquals("OpenObserve", logUploadTiles[0].label)
+        assertEquals("JSON", logUploadTiles[0].value)
+        assertEquals(
+            "API 地址、Stream 和访问令牌可在设置页或 Web 控制端保存。",
+            logUploadTiles[0].detail,
+        )
     }
 
     @Test

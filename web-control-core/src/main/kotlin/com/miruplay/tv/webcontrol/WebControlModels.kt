@@ -3,6 +3,7 @@ package com.miruplay.tv.webcontrol
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.CloudDriveLibraryMode
+import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.RssSubscriptionInfo
@@ -90,6 +91,7 @@ data class SourceScanResponse(
     val episodesFound: Int,
     val newEpisodes: Int,
     val updatedEpisodes: Int,
+    val error: String? = null,
 )
 
 @Serializable
@@ -156,14 +158,14 @@ data class CloudDriveRunResponse(
     val organized: Int,
     val indexed: Int = 0,
     val scraped: Int = 0,
-    val noMatch: Int = 0
+    val noMatch: Int = 0,
 )
 
 @Serializable
 data class LogUploadDto(
     val config: OtlpLogUploadConfigDto,
     val status: LogUploadStatusDto,
-    val tokenConfigured: Boolean
+    val tokenConfigured: Boolean,
 )
 
 @Serializable
@@ -172,7 +174,7 @@ data class OtlpLogUploadConfigDto(
     val endpoint: String,
     val streamName: String,
     val lastUploadAt: Long,
-    val lastUploadStatus: String?
+    val lastUploadStatus: String?,
 ) {
     companion object {
         fun from(config: OtlpLogUploadConfig): OtlpLogUploadConfigDto =
@@ -181,7 +183,7 @@ data class OtlpLogUploadConfigDto(
                 endpoint = config.endpoint,
                 streamName = config.streamName,
                 lastUploadAt = config.lastUploadAt,
-                lastUploadStatus = config.lastUploadStatus
+                lastUploadStatus = config.lastUploadStatus,
             )
     }
 }
@@ -192,7 +194,7 @@ data class LogUploadStatusDto(
     val isUploading: Boolean,
     val lastUploadAt: Long,
     val lastUploadStatus: String?,
-    val tokenConfigured: Boolean
+    val tokenConfigured: Boolean,
 ) {
     companion object {
         fun from(status: LogUploadStatus, tokenConfigured: Boolean = status.tokenConfigured): LogUploadStatusDto =
@@ -201,7 +203,7 @@ data class LogUploadStatusDto(
                 isUploading = status.isUploading,
                 lastUploadAt = status.lastUploadAt,
                 lastUploadStatus = status.lastUploadStatus,
-                tokenConfigured = tokenConfigured
+                tokenConfigured = tokenConfigured,
             )
     }
 }
@@ -210,22 +212,22 @@ data class LogUploadStatusDto(
 data class LogUploadConfigRequest(
     val enabled: Boolean = false,
     val endpoint: String = "",
-    val streamName: String = "miruplay"
+    val streamName: String = "miruplay",
 )
 
 @Serializable
 data class LogUploadTokenRequest(
-    val token: String
+    val token: String,
 )
 
 @Serializable
 data class MetadataSettingsDto(
-    val bangumiTokenConfigured: Boolean
+    val bangumiTokenConfigured: Boolean,
 )
 
 @Serializable
 data class BangumiTokenRequest(
-    val token: String
+    val token: String,
 )
 
 @Serializable

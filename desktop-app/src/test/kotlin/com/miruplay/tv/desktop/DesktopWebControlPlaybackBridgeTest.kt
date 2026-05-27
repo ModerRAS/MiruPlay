@@ -45,6 +45,28 @@ class DesktopWebControlPlaybackBridgeTest {
     }
 
     @Test
+    fun `updated WebUI playback handlers are invoked`() = runBlocking {
+        val handlers = DesktopWebControlPlaybackHandlers()
+        val expectedEpisode = episode()
+        handlers.updatePlayEpisode { _, episode ->
+            assertEquals(expectedEpisode.id, episode.id)
+            com.miruplay.tv.webcontrol.PlaybackStatusDto(state = "Playing", isPlaying = true)
+        }
+        handlers.updatePlaybackCommand { command ->
+            assertEquals("pause", command.command)
+            com.miruplay.tv.webcontrol.PlaybackStatusDto(state = "Paused", isPlaying = false)
+        }
+
+        val play = handlers.playEpisode(PlayEpisodeRequest(episodeId = expectedEpisode.id), expectedEpisode)
+        val command = handlers.playbackCommand(PlaybackCommandRequest(command = "pause"))
+
+        assertEquals("Playing", play.state)
+        assertTrue(play.isPlaying)
+        assertEquals("Paused", command.state)
+        assertFalse(command.isPlaying)
+    }
+
+    @Test
     fun `command status maps WebUI playback commands to shared mpv status text`() {
         assertEquals(
             "mpv seeked back 4s.",
@@ -65,6 +87,10 @@ class DesktopWebControlPlaybackBridgeTest {
         assertEquals(
             "mpv position synced at 00:45.",
             webControlPlaybackCommandStatus(PlaybackCommandRequest(command = "seek", positionMs = 45_000L)),
+        )
+        assertEquals(
+            "mpv speed set to 1.25x.",
+            webControlPlaybackCommandStatus(PlaybackCommandRequest(command = "speed", speed = 1.25f)),
         )
     }
 
@@ -158,6 +184,41 @@ class DesktopWebControlPlaybackBridgeTest {
             assertEquals(11_000L, status.positionMs)
             assertEquals(120_000L, status.durationMs)
             assertEquals(listOf(true), ipc.pausedValues)
+        } finally {
+            Files.deleteIfExists(mpv)
+        }
+    }
+
+    @Test
+    fun `desktop WebUI stop command returns idle status and executes stop callback`() = runBlocking {
+        val mpv = Files.createTempFile("miruplay-mpv", ".exe")
+        try {
+            val ipc = FakeMpvIpcController(positionSeconds = 11.0, durationSeconds = 120.0, paused = false)
+            val player = MpvProcessPlayer(
+                config = MpvRuntimeConfig(mpvExecutable = mpv, rife = null),
+                processLauncher = { AliveProcess() },
+                ipcClient = ipc,
+            )
+            player.play(PlaybackSource(uri = "D:/Anime/Frieren.mkv", mediaSourceId = "7"))
+            val session = PlaybackProgressSession(episodeId = "7:D:/Anime/Frieren.mkv", startPositionMs = 5_000L)
+            var stopped = false
+
+            val status = desktopWebControlPlaybackCommand(
+                request = PlaybackCommandRequest(command = "stop"),
+                player = player,
+                session = session,
+                mediaPath = "D:/Anime/Frieren.mkv",
+                launchStatus = "playing",
+                stopPlayback = { stopped = true },
+            )
+
+            assertTrue(stopped)
+            assertEquals("Idle", status.state)
+            assertFalse(status.isPlaying)
+            assertNull(status.uri)
+            assertNull(status.mediaSourceId)
+            assertEquals(0L, status.positionMs)
+            assertEquals(0L, status.durationMs)
         } finally {
             Files.deleteIfExists(mpv)
         }

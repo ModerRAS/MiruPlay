@@ -15,6 +15,7 @@ import com.miruplay.tv.player.mpv.mpvPositionSyncedStatus
 import com.miruplay.tv.player.mpv.mpvResumedStatus
 import com.miruplay.tv.player.mpv.mpvSeekBackStatus
 import com.miruplay.tv.player.mpv.mpvSeekForwardStatus
+import com.miruplay.tv.player.mpv.mpvSpeedChangedStatus
 import com.miruplay.tv.player.mpv.mpvStoppedStatus
 import com.miruplay.tv.webcontrol.PlayEpisodeRequest
 import com.miruplay.tv.webcontrol.PlaybackCommandRequest
@@ -23,15 +24,38 @@ import com.miruplay.tv.webcontrol.WebControlPlaybackCommandKind
 import com.miruplay.tv.webcontrol.absoluteSeekPositionMs
 import com.miruplay.tv.webcontrol.idleWebControlPlaybackStatus
 import com.miruplay.tv.webcontrol.playbackCommandKind
+import com.miruplay.tv.webcontrol.playbackSpeed
 import com.miruplay.tv.webcontrol.relativeSeekDeltaMs
 import com.miruplay.tv.webcontrol.skipBackwardDeltaMs
 import com.miruplay.tv.webcontrol.skipForwardDeltaMs
 import com.miruplay.tv.webcontrol.toWebControlPlaybackSource
+import com.miruplay.tv.webcontrol.webControlMediaSourceIdFromEpisodeId
 import kotlin.math.absoluteValue
 
 internal class DesktopWebControlPlaybackHandlers {
-    var playEpisode: suspend (PlayEpisodeRequest, Episode) -> PlaybackStatusDto = { _, _ -> idleWebControlPlaybackStatus() }
-    var playbackCommand: suspend (PlaybackCommandRequest) -> PlaybackStatusDto = { idleWebControlPlaybackStatus() }
+    @Volatile
+    private var playEpisodeHandler: suspend (PlayEpisodeRequest, Episode) -> PlaybackStatusDto = { _, _ ->
+        idleWebControlPlaybackStatus()
+    }
+
+    @Volatile
+    private var playbackCommandHandler: suspend (PlaybackCommandRequest) -> PlaybackStatusDto = {
+        idleWebControlPlaybackStatus()
+    }
+
+    fun updatePlayEpisode(handler: suspend (PlayEpisodeRequest, Episode) -> PlaybackStatusDto) {
+        playEpisodeHandler = handler
+    }
+
+    fun updatePlaybackCommand(handler: suspend (PlaybackCommandRequest) -> PlaybackStatusDto) {
+        playbackCommandHandler = handler
+    }
+
+    suspend fun playEpisode(request: PlayEpisodeRequest, episode: Episode): PlaybackStatusDto =
+        playEpisodeHandler(request, episode)
+
+    suspend fun playbackCommand(command: PlaybackCommandRequest): PlaybackStatusDto =
+        playbackCommandHandler(command)
 }
 
 internal data class DesktopWebControlPlaybackSourceSelection(
@@ -67,7 +91,7 @@ internal fun webControlPlaybackCommandStatus(command: PlaybackCommandRequest): S
         WebControlPlaybackCommandKind.SKIP_BACKWARD -> mpvSeekBackStatus(
             seconds = (command.skipBackwardDeltaMs() / 1000L).toInt(),
         )
-        WebControlPlaybackCommandKind.SPEED,
+        WebControlPlaybackCommandKind.SPEED -> mpvSpeedChangedStatus(command.playbackSpeed())
         WebControlPlaybackCommandKind.UNKNOWN -> mpvIdleStatus()
     }
 
@@ -118,4 +142,4 @@ private fun Episode.sourceIdFromEpisodeId(): Long? =
     id.sourceIdFromEpisodeId()
 
 private fun String.sourceIdFromEpisodeId(): Long? =
-    substringBefore(':', "").toLongOrNull()
+    webControlMediaSourceIdFromEpisodeId()?.toLongOrNull()

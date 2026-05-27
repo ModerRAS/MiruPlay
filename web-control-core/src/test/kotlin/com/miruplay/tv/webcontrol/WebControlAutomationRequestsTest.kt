@@ -4,6 +4,7 @@ import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.clouddrive.CloudDriveTokenInfo
 import com.miruplay.tv.model.CloudDriveAutomationConfig
+import com.miruplay.tv.model.CloudDriveLibraryMode
 import com.miruplay.tv.model.CloudDriveRssRunSummary
 import com.miruplay.tv.model.RssDownloadTaskInfo
 import com.miruplay.tv.model.RssProcessedItemInfo
@@ -184,6 +185,31 @@ class WebControlAutomationRequestsTest {
     }
 
     @Test
+    fun `repository endpoint helper returns configured endpoint`() = runBlocking {
+        val repository = FakeCloudDriveAutomationRepository(
+            config = CloudDriveAutomationConfig(endpointUrl = " https://cloud.example.test "),
+        )
+
+        val endpoint = repository.resolveWebControlCloudDriveEndpoint()
+
+        assertEquals(" https://cloud.example.test ", endpoint)
+    }
+
+    @Test
+    fun `repository endpoint helper maps config read failures`() = runBlocking {
+        val repository = FakeCloudDriveAutomationRepository(
+            configResult = Result.failure(AppError.NetworkError.ServerUnreachable("cloud")),
+        )
+
+        val failure = runCatching {
+            repository.resolveWebControlCloudDriveEndpoint()
+        }.exceptionOrNull()
+
+        assertTrue(failure is IllegalStateException)
+        assertEquals("读取 CloudDrive 设置失败: 无法连接服务器：cloud", failure?.message)
+    }
+
+    @Test
     fun `coordinator saves WebUI CloudDrive config and returns refreshed automation dto`() = runBlocking {
         val repository = FakeCloudDriveAutomationRepository(
             config = CloudDriveAutomationConfig(lastRunAt = 77L),
@@ -198,6 +224,7 @@ class WebControlAutomationRequestsTest {
                 webDavSourceId = 9L,
                 inboxPath = " /Inbox ",
                 libraryPath = " /Library ",
+                libraryMode = CloudDriveLibraryMode.SINGLE_DIRECTORY,
                 intervalMinutes = 15,
                 enabled = true,
             ),
@@ -210,6 +237,7 @@ class WebControlAutomationRequestsTest {
         assertEquals(9L, repository.savedConfigs.single().webDavSourceId)
         assertEquals("/Inbox", repository.savedConfigs.single().inboxPath)
         assertEquals("/Library", repository.savedConfigs.single().libraryPath)
+        assertEquals(CloudDriveLibraryMode.SINGLE_DIRECTORY, repository.savedConfigs.single().libraryMode)
         assertEquals(77L, repository.savedConfigs.single().lastRunAt)
         assertEquals(repository.savedConfigs.single(), dto.config)
         assertEquals(false, dto.tokenConfigured)
@@ -293,7 +321,15 @@ class WebControlAutomationRequestsTest {
 
     @Test
     fun `coordinator WebUI run maps summary and invokes after-run hook`() = runBlocking {
-        val summary = CloudDriveRssRunSummary(submitted = 3, skipped = 2, failed = 1, organized = 4)
+        val summary = CloudDriveRssRunSummary(
+            submitted = 3,
+            skipped = 2,
+            failed = 1,
+            organized = 4,
+            indexed = 5,
+            scraped = 6,
+            noMatch = 7,
+        )
         val runner = FakeWebControlCloudDriveAutomationRunner(runResult = Result.success(summary))
         val coordinator = coordinator(runner = runner)
         val hookSummaries = mutableListOf<CloudDriveRssRunSummary>()
@@ -306,6 +342,9 @@ class WebControlAutomationRequestsTest {
         assertEquals(2, response.skipped)
         assertEquals(1, response.failed)
         assertEquals(4, response.organized)
+        assertEquals(5, response.indexed)
+        assertEquals(6, response.scraped)
+        assertEquals(7, response.noMatch)
     }
 
     @Test
@@ -379,12 +418,18 @@ class WebControlAutomationRequestsTest {
             skipped = 2,
             failed = 1,
             organized = 4,
+            indexed = 5,
+            scraped = 6,
+            noMatch = 7,
         ).toWebControlResponse()
 
         assertEquals(3, response.submitted)
         assertEquals(2, response.skipped)
         assertEquals(1, response.failed)
         assertEquals(4, response.organized)
+        assertEquals(5, response.indexed)
+        assertEquals(6, response.scraped)
+        assertEquals(7, response.noMatch)
     }
 
     private fun coordinator(

@@ -18,6 +18,11 @@ internal fun Key.toMiruPlayInputIntent(): MiruPlayInputIntent? =
         includeDesktopBackAliases = true,
     )
 
+internal inline fun <T> Key.resolveDesktopIntent(
+    resolver: (MiruPlayInputIntent) -> T,
+): T? =
+    toMiruPlayInputIntent()?.let(resolver)
+
 internal fun isDesktopConfirmKey(key: Key): Boolean =
     key.toMiruPlayInputIntent()?.isActivationIntent() == true
 
@@ -120,4 +125,20 @@ internal fun Modifier.desktopNavigationIntentHandler(
             type = event.type,
             onNavigationIntent = onNavigationIntent,
         )
+    }
+
+internal fun MiruPlayInputIntent.toComposeKeyFallback(): Key =
+    when (this) {
+        MiruPlayInputIntent.DirectionLeft -> Key.DirectionLeft
+        MiruPlayInputIntent.DirectionRight -> Key.DirectionRight
+        MiruPlayInputIntent.DirectionUp -> Key.DirectionUp
+        MiruPlayInputIntent.DirectionDown -> Key.DirectionDown
+        MiruPlayInputIntent.Back -> Key.Back
+        MiruPlayInputIntent.NavigatePrevious -> Key.NavigatePrevious
+        MiruPlayInputIntent.NavigateOut -> Key.NavigateOut
+        MiruPlayInputIntent.Activate -> Key.Enter
+        MiruPlayInputIntent.MediaPlayPause -> Key.MediaPlayPause
+        MiruPlayInputIntent.MediaPlay -> Key.MediaPlay
+        MiruPlayInputIntent.MediaPause -> Key.MediaPause
+        MiruPlayInputIntent.MediaStop -> Key.MediaStop
     }

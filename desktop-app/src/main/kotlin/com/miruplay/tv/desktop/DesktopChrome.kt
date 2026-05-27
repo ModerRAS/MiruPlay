@@ -227,7 +227,7 @@ internal fun List<MediaSourceInfo>.savedSourcePickerNavigationTarget(
     activeSourceId: Long?,
     key: Key,
 ): MediaSourceInfo? =
-    key.toMiruPlayInputIntent()?.let { intent ->
+    key.resolveDesktopIntent { intent ->
         savedSourcePickerNavigationTarget(activeSourceId, intent)
     }
 
@@ -367,6 +367,30 @@ internal fun DesktopSelectableRow(
     onNavigationKey: (Key) -> Boolean = { false },
     onNavigationIntent: (MiruPlayInputIntent) -> Boolean = { false },
     content: @Composable (active: Boolean) -> Unit,
+) =
+    DesktopSelectableRow(
+        selected = selected,
+        onClick = onClick,
+        modifier = modifier,
+        heightDp = heightDp,
+        inactiveAlpha = inactiveAlpha,
+        fillMaxWidth = fillMaxWidth,
+        onNavigationIntent = { intent ->
+            onNavigationIntent(intent) || onNavigationKey(intent.toComposeKeyFallback())
+        },
+        content = content,
+    )
+
+@Composable
+internal fun DesktopSelectableRow(
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    heightDp: Int = MiruPlayUiMetrics.LIST_ROW_HEIGHT_DP,
+    inactiveAlpha: Float = 0.55f,
+    fillMaxWidth: Boolean = true,
+    onNavigationIntent: (MiruPlayInputIntent) -> Boolean = { false },
+    content: @Composable (active: Boolean) -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
@@ -388,7 +412,6 @@ internal fun DesktopSelectableRow(
                     key = event.key,
                     type = event.type,
                     onClick = onClick,
-                    onNavigationKey = onNavigationKey,
                     onNavigationIntent = onNavigationIntent,
                 )
             }
@@ -408,16 +431,19 @@ internal fun desktopSelectableRowKeyEvent(
     onClick: () -> Unit,
     onNavigationKey: (Key) -> Boolean = { false },
     onNavigationIntent: (MiruPlayInputIntent) -> Boolean = { false },
-): Boolean =
-    desktopConfirmOrNavigationKeyEvent(
-        key = key,
-        type = type,
-        onClick = onClick,
-        onNavigationKey = { navigationKey ->
-            navigationKey.toMiruPlayInputIntent()?.let(onNavigationIntent) == true ||
-                onNavigationKey(navigationKey)
-        },
-    )
+): Boolean {
+    if (desktopConfirmOrNavigationIntentEvent(
+            key = key,
+            type = type,
+            onClick = onClick,
+            onNavigationIntent = onNavigationIntent,
+        )
+    ) {
+        return true
+    }
+    if (type != KeyEventType.KeyDown || isDesktopConfirmKey(key)) return false
+    return onNavigationKey(key)
+}
 
 @Composable
 internal fun TvActionButton(
@@ -457,7 +483,7 @@ internal fun TvActionButton(
             .defaultMinSize(minWidth = MiruPlayUiMetrics.ACTION_BUTTON_MIN_WIDTH_DP.dp)
             .height(MiruPlayUiMetrics.ACTION_BUTTON_HEIGHT_DP.dp)
             .onPreviewKeyEvent { event ->
-                enabled && desktopConfirmOrNavigationKeyEvent(
+                enabled && desktopConfirmOrNavigationIntentEvent(
                     key = event.key,
                     type = event.type,
                     onClick = onClick,

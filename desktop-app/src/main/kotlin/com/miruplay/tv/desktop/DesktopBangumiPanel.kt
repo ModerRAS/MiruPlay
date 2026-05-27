@@ -785,7 +785,7 @@ internal fun bangumiActionFocusTarget(
     candidateCount: Int = 0,
     resultCount: Int = 0,
 ): BangumiActionFocusTarget? =
-    key.toMiruPlayInputIntent()?.let { intent ->
+    key.resolveDesktopIntent { intent ->
         bangumiActionFocusTarget(
             current = current,
             intent = intent,
@@ -858,7 +858,7 @@ internal fun bangumiListNavigationTarget(
     candidateCount: Int,
     resultCount: Int,
 ): BangumiListPosition? =
-    key.toMiruPlayInputIntent()?.let { intent ->
+    key.resolveDesktopIntent { intent ->
         bangumiListNavigationTarget(
             current = current,
             intent = intent,
@@ -939,7 +939,7 @@ internal fun bangumiListExitFocusTarget(
     candidateCount: Int = 0,
     resultCount: Int = 0,
 ): BangumiActionFocusTarget? =
-    key.toMiruPlayInputIntent()?.let { intent ->
+    key.resolveDesktopIntent { intent ->
         bangumiListExitFocusTarget(
             current = current,
             intent = intent,
@@ -987,7 +987,7 @@ internal fun bangumiEmptyResultsFocusTarget(
     batchMatchCount: Int = 0,
     candidateCount: Int = 0,
 ): BangumiActionFocusTarget? =
-    key.toMiruPlayInputIntent()?.let { intent ->
+    key.resolveDesktopIntent { intent ->
         bangumiEmptyResultsFocusTarget(
             intent = intent,
             batchMatchCount = batchMatchCount,

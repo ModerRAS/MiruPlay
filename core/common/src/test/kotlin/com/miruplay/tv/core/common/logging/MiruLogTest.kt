@@ -1,5 +1,6 @@
 package com.miruplay.tv.core.common.logging
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -23,6 +24,19 @@ class MiruLogTest {
         assertFalse(record.throwableMessage.orEmpty().contains("abcdef"))
         assertFalse(record.attributes.getValue("url").contains("secret-key"))
         assertTrue(record.message.contains("<redacted>"))
+        MiruLog.setSink(null)
+    }
+
+    @Test
+    fun `sink recording can be suppressed for internal logs`() {
+        var captured: MiruLogRecord? = null
+        MiruLog.setSink { record -> captured = record }
+
+        MiruLog.withoutSinkRecording {
+            MiruLog.i("Test", "Should not be captured")
+        }
+
+        assertEquals(null, captured)
         MiruLog.setSink(null)
     }
 }

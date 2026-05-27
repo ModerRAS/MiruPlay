@@ -277,6 +277,9 @@ class WebControlLibraryLoaderTest {
         override suspend fun getCachedMetadata(animeId: String): Result<Anime?> =
             Result.success(cachedAnime[animeId])
 
+        override suspend fun getCachedMetadata(animeIds: Collection<String>): Result<List<Anime>> =
+            Result.success(animeIds.mapNotNull(cachedAnime::get))
+
         override suspend fun getCachedEpisode(episodeId: String): Result<Episode?> =
             Result.success(cachedEpisodes.values.flatten().firstOrNull { it.id == episodeId })
 
