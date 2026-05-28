@@ -11,10 +11,17 @@ suspend fun BangumiApiClient.searchByAlias(
     candidates: List<String>,
     confidenceThreshold: Float = BANGUMI_ALIAS_CONFIDENCE_THRESHOLD,
 ): Result<ScraperResult?> {
-    val uniqueCandidates = (listOf(normalizedName) + candidates)
+    val seasonSpecificCandidates = candidates
+        .map { it.trim() }
+        .filter { it.isNotBlank() && it.hasSeasonQualifier() }
+        .sortedByDescending { it.length }
+
+    val fallbackCandidates = (listOf(normalizedName) + candidates)
         .map { it.trim() }
         .filter { it.isNotBlank() }
-        .distinct()
+        .filterNot { it.hasSeasonQualifier() }
+
+    val uniqueCandidates = (seasonSpecificCandidates + fallbackCandidates).distinct()
 
     for (candidate in uniqueCandidates) {
         val result = searchAnime(candidate).getOrNull()?.firstOrNull()
@@ -24,3 +31,10 @@ suspend fun BangumiApiClient.searchByAlias(
     }
     return Result.success(null)
 }
+
+private fun String.hasSeasonQualifier(): Boolean =
+    seasonQualifierRegex.containsMatchIn(this)
+
+private val seasonQualifierRegex = Regex(
+    pattern = """(?i)(\bs\d{1,2}\b|\bseason\s*\d{1,2}\b|\b\d{1,2}(st|nd|rd|th)?\s+season\b|第\s*[0-9一二三四五六七八九十百]+\s*[季期])"""
+)

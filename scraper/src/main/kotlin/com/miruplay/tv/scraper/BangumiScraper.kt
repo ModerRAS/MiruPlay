@@ -12,9 +12,11 @@ import com.miruplay.tv.repository.BangumiEpisodeCollectionType
 import com.miruplay.tv.repository.BangumiSubjectCollection
 import com.miruplay.tv.repository.BangumiSubjectCollectionType
 import com.miruplay.tv.repository.BangumiUser
+import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.scraper.core.BangumiApiClient
 import com.miruplay.tv.scraper.core.BangumiArchiveSubjectSearch
 import com.miruplay.tv.scraper.core.searchByAlias
+import com.miruplay.tv.scraper.core.toBangumiHttpProxyConfig
 import com.miruplay.tv.scraper.core.toSimplifiedChineseQuery
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -22,6 +24,7 @@ import javax.inject.Singleton
 @Singleton
 class BangumiScraper @Inject constructor(
     private val credentials: AppCredentialStore,
+    private val cloudDriveRepository: CloudDriveAutomationRepository,
     archiveSearch: BangumiArchiveSubjectSearch,
 ) : MetadataScraper, BangumiCollectionService {
 
@@ -42,44 +45,51 @@ class BangumiScraper @Inject constructor(
         get() = api.hasToken
 
     override suspend fun searchAnime(query: String): Result<List<ScraperResult>> =
-        api.searchAnime(query)
+        withConfiguredProxy { api.searchAnime(query) }
 
     override suspend fun getAnimeDetails(animeId: String): Result<Anime> =
-        api.getAnimeDetails(animeId)
+        withConfiguredProxy { api.getAnimeDetails(animeId) }
 
     override suspend fun getEpisodes(animeId: String): Result<List<EpisodeMetadata>> =
-        api.getEpisodes(animeId).map { episodes -> episodes.map { it.toEpisodeMetadata() } }
+        withConfiguredProxy { api.getEpisodes(animeId).map { episodes -> episodes.map { it.toEpisodeMetadata() } } }
 
     override suspend fun searchByAlias(normalizedName: String, candidates: List<String>): Result<ScraperResult?> =
-        api.searchByAlias(normalizedName, candidates)
+        withConfiguredProxy { api.searchByAlias(normalizedName, candidates) }
 
     override suspend fun getCurrentUser(): Result<BangumiUser> =
-        api.getCurrentUser()
+        withConfiguredProxy { api.getCurrentUser() }
 
     override suspend fun getSubjectCollection(subjectId: Int): Result<BangumiSubjectCollection?> =
-        api.getSubjectCollection(subjectId)
+        withConfiguredProxy { api.getSubjectCollection(subjectId) }
 
     override suspend fun upsertSubjectCollection(
         subjectId: Int,
         type: BangumiSubjectCollectionType
     ): Result<Unit> =
-        api.upsertSubjectCollection(subjectId, type)
+        withConfiguredProxy { api.upsertSubjectCollection(subjectId, type) }
 
     override suspend fun getEpisodeCollections(subjectId: Int): Result<List<BangumiEpisodeCollection>> =
-        api.getEpisodeCollections(subjectId)
+        withConfiguredProxy { api.getEpisodeCollections(subjectId) }
 
     override suspend fun updateEpisodeCollections(
         subjectId: Int,
         episodeIds: List<Int>,
         type: BangumiEpisodeCollectionType
     ): Result<Unit> =
-        api.updateEpisodeCollections(subjectId, episodeIds, type)
+        withConfiguredProxy { api.updateEpisodeCollections(subjectId, episodeIds, type) }
 
     override suspend fun updateEpisodeCollection(
         episodeId: Int,
         type: BangumiEpisodeCollectionType
     ): Result<Unit> =
-        api.updateEpisodeCollection(episodeId, type)
+        withConfiguredProxy { api.updateEpisodeCollection(episodeId, type) }
+
+    private suspend fun <T> withConfiguredProxy(block: suspend () -> Result<T>): Result<T> {
+        cloudDriveRepository.getConfig().getOrNull()?.let { config ->
+            api.configureProxy(config.toBangumiHttpProxyConfig())
+        }
+        return block()
+    }
 }
 
 private fun BangumiEpisodeMetadata.toEpisodeMetadata(): EpisodeMetadata =

@@ -15,6 +15,40 @@ import kotlin.io.path.createTempDirectory
 
 class BangumiApiClientTest {
     @Test
+    fun `searchAnime uses configured HTTP proxy`() = runBlocking {
+        MockWebServer().use { proxy ->
+            proxy.enqueue(
+                MockResponse().setBody(
+                    """
+                    {
+                      "data": [
+                        {
+                          "id": 440650,
+                          "name": "Dr.STONE SCIENCE FUTURE",
+                          "name_cn": "Dr.STONE 新石纪 第四季",
+                          "rating": { "score": 8.0 }
+                        }
+                      ]
+                    }
+                    """.trimIndent()
+                )
+            )
+            val client = BangumiApiClient(baseUrl = "http://api.bgm.tv")
+            client.configureProxy(
+                BangumiHttpProxyConfig(enabled = true, host = proxy.hostName, port = proxy.port)
+            )
+
+            val result = client.searchAnime("Dr.STONE 新石纪 第四季")
+
+            assertTrue(result is Result.Success)
+            assertEquals("440650", (result as Result.Success).data.single().animeId)
+            val request = proxy.takeRequest()
+            assertEquals("api.bgm.tv", request.headers["Host"])
+            assertTrue(request.requestLine.contains("/v0/search/subjects"))
+        }
+    }
+
+    @Test
     fun `searchAnime posts Bangumi query and maps ranked results`() = runBlocking {
         MockWebServer().use { server ->
             server.enqueue(
@@ -157,6 +191,45 @@ class BangumiApiClientTest {
             assertTrue(firstRequest.body.readUtf8().contains("候选甲"))
             val secondRequest = server.takeRequest()
             assertTrue(secondRequest.body.readUtf8().contains("候选二"))
+        }
+    }
+
+    @Test
+    fun `searchByAlias tries season-specific candidates before generic title`() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(
+                MockResponse().setBody(
+                    """
+                    {
+                      "data": [
+                        {
+                          "id": 471578,
+                          "name": "Dr.STONE SCIENCE FUTURE",
+                          "name_cn": "石纪元 科学与未来",
+                          "rating": { "score": 7.2 },
+                          "infobox": [
+                            { "key": "别名", "value": [ { "v": "新石纪 第四季" } ] }
+                          ]
+                        }
+                      ]
+                    }
+                    """.trimIndent()
+                )
+            )
+            val client = BangumiApiClient(baseUrl = server.url("/").toString())
+
+            val result = client.searchByAlias(
+                normalizedName = "Dr STONE 新石紀",
+                candidates = listOf(
+                    "Dr STONE 新石紀",
+                    "[P][Baha][WEB-DL][AAC AVC][CHT]",
+                    "Dr STONE 新石紀 第四季",
+                ),
+            )
+
+            assertTrue(result is Result.Success)
+            assertEquals("471578", (result as Result.Success).data?.animeId)
+            assertTrue(server.takeRequest().body.readUtf8().contains("Dr STONE 新石紀 第四季"))
         }
     }
 

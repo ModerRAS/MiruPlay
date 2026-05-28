@@ -18,6 +18,50 @@ import kotlin.io.path.createTempDirectory
 
 class BangumiArchiveTest {
     @Test
+    fun `downloadLatest uses configured HTTP proxy for latest and zip requests`() = runBlocking {
+        val archiveZip = zipOf(
+            "subject.jsonlines" to """{"id":440650,"type":2,"name":"Dr.STONE SCIENCE FUTURE","name_cn":"Dr.STONE 新石纪 第四季"}""",
+        )
+
+        MockWebServer().use { proxy ->
+            proxy.enqueue(
+                MockResponse().setBody(
+                    """
+                    {
+                      "browser_download_url": "http://github.com/bangumi/Archive/releases/download/test/dump.zip",
+                      "content_type": "application/zip",
+                      "digest": "sha256:${archiveZip.sha256()}",
+                      "name": "dump-test.zip",
+                      "size": ${archiveZip.size}
+                    }
+                    """.trimIndent()
+                )
+            )
+            proxy.enqueue(MockResponse().setBody(Buffer().write(archiveZip)))
+
+            val tempDir = createTempDirectory(prefix = "bangumi-archive-proxy-test-").toFile()
+            val store = BangumiArchiveStore(
+                directory = tempDir,
+                client = BangumiArchiveClient(
+                    latestUrl = "http://raw.githubusercontent.com/bangumi/Archive/master/aux/latest.json"
+                ),
+            )
+            store.configureProxy(
+                BangumiHttpProxyConfig(enabled = true, host = proxy.hostName, port = proxy.port)
+            )
+
+            val result = store.downloadLatest()
+
+            assertTrue(result is Result.Success)
+            assertTrue(store.subjectFile.readText().contains("Dr.STONE 新石纪 第四季"))
+            assertEquals("raw.githubusercontent.com", proxy.takeRequest().headers["Host"])
+            assertEquals("github.com", proxy.takeRequest().headers["Host"])
+            tempDir.deleteRecursively()
+            Unit
+        }
+    }
+
+    @Test
     fun `downloadLatest reads latest json validates zip and extracts subject jsonlines`() = runBlocking {
         val archiveZip = zipOf(
             "subject.jsonlines" to """
