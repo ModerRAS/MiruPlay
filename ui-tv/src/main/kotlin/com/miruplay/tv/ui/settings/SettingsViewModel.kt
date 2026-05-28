@@ -66,9 +66,13 @@ import com.miruplay.tv.model.settingsAppUpdateLatestStatus
 import com.miruplay.tv.model.settingsAppUpdateReadyStatus
 import com.miruplay.tv.model.settingsAndroidTvLogUploadStatusMessage
 import com.miruplay.tv.model.settingsLogUploadStatusMessage
+import com.miruplay.tv.model.settingsProxySavedStatus
 import com.miruplay.tv.model.validateCloudDriveApiTokenForm
 import com.miruplay.tv.model.validateCloudDriveLoginForm
 import dagger.hilt.android.lifecycle.HiltViewModel
+import com.miruplay.tv.scraper.core.BangumiArchiveSnapshot
+import com.miruplay.tv.scraper.core.BangumiArchiveStore
+import com.miruplay.tv.scraper.core.toBangumiHttpProxyConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -95,7 +99,8 @@ class SettingsViewModel @Inject constructor(
     private val appUpdateRepository: AppUpdateRepository,
     private val cloudDriveClient: CloudDriveClient,
     private val cloudDriveEngine: CloudDriveRssAutomationEngine,
-    private val cloudDriveScheduler: CloudDriveRssScheduler
+    private val cloudDriveScheduler: CloudDriveRssScheduler,
+    private val bangumiArchiveStore: BangumiArchiveStore,
 ) : ViewModel() {
 
     private val logUploadActions = LogUploadActionCoordinator(logUploadRepository)
@@ -175,11 +180,18 @@ class SettingsViewModel @Inject constructor(
     private val _appUpdateState = MutableStateFlow(AppUpdateUiState())
     val appUpdateState: StateFlow<AppUpdateUiState> = _appUpdateState.asStateFlow()
 
+    private val _bangumiArchiveState = MutableStateFlow(BangumiArchiveUiState())
+    val bangumiArchiveState: StateFlow<BangumiArchiveUiState> = _bangumiArchiveState.asStateFlow()
+
+    private val _proxyStatusMessage = MutableStateFlow(settingsProxySavedStatus())
+    val proxyStatusMessage: StateFlow<String> = _proxyStatusMessage.asStateFlow()
+
     init {
         loadSources()
         refreshWebUiUrls()
         observeCloudDriveAutomation()
         observeLogUploadAutomation()
+        refreshBangumiArchive()
     }
 
     fun loadSources() {
@@ -316,6 +328,70 @@ class SettingsViewModel @Inject constructor(
                     _cloudDriveActionMessage.value = cloudRssConfigSavedStatus()
                 }
                 .onError { error -> _cloudDriveActionMessage.value = error.toUserMessage() }
+        }
+    }
+
+    fun saveProxyConfig(
+        enabled: Boolean,
+        host: String,
+        port: Int,
+    ) {
+        viewModelScope.launch {
+            val config = _cloudDriveConfig.value.copy(
+                rssProxyEnabled = enabled,
+                rssProxyHost = host.trim(),
+                rssProxyPort = port,
+            )
+            cloudDriveRepository.saveConfig(config)
+                .onSuccess {
+                    bangumiArchiveStore.configureProxy(config.toBangumiHttpProxyConfig())
+                    _proxyStatusMessage.value = settingsProxySavedStatus()
+                }
+                .onError { error -> _proxyStatusMessage.value = error.toUserMessage() }
+        }
+    }
+
+    fun refreshBangumiArchive() {
+        viewModelScope.launch(Dispatchers.IO) {
+            _bangumiArchiveState.value = bangumiArchiveStore.snapshot().toBangumiArchiveUiState(
+                statusMessage = _bangumiArchiveState.value.statusMessage,
+            )
+        }
+    }
+
+    fun downloadBangumiArchive() {
+        if (_bangumiArchiveState.value.isDownloading) return
+        viewModelScope.launch(Dispatchers.IO) {
+            val proxyConfig = _cloudDriveConfig.value.toBangumiHttpProxyConfig()
+            bangumiArchiveStore.configureProxy(proxyConfig)
+            _bangumiArchiveState.value = _bangumiArchiveState.value.copy(
+                isDownloading = true,
+                downloadedBytes = 0L,
+                totalBytes = 0L,
+                lastError = null,
+                statusMessage = "Bangumi Archive 正在下载。",
+            )
+            when (
+                val result = bangumiArchiveStore.downloadLatest { bytesRead, totalBytes ->
+                    _bangumiArchiveState.value = _bangumiArchiveState.value.copy(
+                        isDownloading = true,
+                        downloadedBytes = bytesRead.coerceAtLeast(0L),
+                        totalBytes = totalBytes.coerceAtLeast(0L),
+                    )
+                }
+            ) {
+                is Result.Success -> {
+                    _bangumiArchiveState.value = result.data.toBangumiArchiveUiState(
+                        statusMessage = "Bangumi Archive 已更新。",
+                    )
+                }
+                is Result.Error -> {
+                    _bangumiArchiveState.value = bangumiArchiveStore.snapshot().toBangumiArchiveUiState(
+                        lastError = result.error.toUserMessage(),
+                        statusMessage = "Bangumi Archive 下载失败。",
+                    )
+                }
+            }
         }
     }
 
@@ -844,6 +920,37 @@ data class LocalDirectoryEntry(
     val path: String,
     val canRead: Boolean
 )
+
+data class BangumiArchiveUiState(
+    val available: Boolean = true,
+    val hasSubjectData: Boolean = false,
+    val latestName: String? = null,
+    val latestCreatedAt: String? = null,
+    val latestUpdatedAt: String? = null,
+    val subjectFileSizeBytes: Long = 0L,
+    val autoUpdateEnabled: Boolean = true,
+    val autoUpdateIntervalDays: Int = 7,
+    val isDownloading: Boolean = false,
+    val downloadedBytes: Long = 0L,
+    val totalBytes: Long = 0L,
+    val lastError: String? = null,
+    val statusMessage: String = "Bangumi Archive 每周自动更新；也可以手动下载或更新。",
+)
+
+private fun BangumiArchiveSnapshot.toBangumiArchiveUiState(
+    lastError: String? = null,
+    statusMessage: String = "Bangumi Archive 每周自动更新；也可以手动下载或更新。",
+): BangumiArchiveUiState =
+    BangumiArchiveUiState(
+        available = true,
+        hasSubjectData = hasSubjectData,
+        latestName = latest?.name,
+        latestCreatedAt = latest?.createdAt,
+        latestUpdatedAt = latest?.updatedAt,
+        subjectFileSizeBytes = subjectFileSizeBytes,
+        lastError = lastError,
+        statusMessage = statusMessage,
+    )
 
 data class AppUpdateUiState(
     val latest: AppUpdateInfo? = null,

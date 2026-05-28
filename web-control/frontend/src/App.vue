@@ -27,6 +27,10 @@
             <el-icon><Cloudy /></el-icon>
             <span>自动化</span>
           </el-menu-item>
+          <el-menu-item index="proxy">
+            <el-icon><Setting /></el-icon>
+            <span>代理配置</span>
+          </el-menu-item>
           <el-menu-item index="metadata">
             <el-icon><Key /></el-icon>
             <span>元数据</span>
@@ -340,30 +344,6 @@
                     />
                   </el-form-item>
                 </div>
-
-                <el-divider />
-
-                <div class="switch-row">
-                  <el-switch
-                    v-model="cloudForm.rssProxyEnabled"
-                    active-text="出站代理已启用"
-                    inactive-text="出站代理关闭"
-                  />
-                </div>
-                <div v-if="cloudForm.rssProxyEnabled" class="form-grid">
-                  <el-form-item label="代理地址">
-                    <el-input v-model="cloudForm.rssProxyHost" placeholder="127.0.0.1" />
-                  </el-form-item>
-                  <el-form-item label="代理端口">
-                    <el-input-number
-                      v-model="cloudForm.rssProxyPort"
-                      :min="1"
-                      :max="65535"
-                      controls-position="right"
-                    />
-                  </el-form-item>
-                </div>
-
                 <div class="form-actions">
                   <el-button :icon="Setting" :loading="loading.automationSave" @click="saveCloudDriveConfig">
                     保存设置
@@ -441,6 +421,87 @@
                     </el-button>
                   </div>
                 </el-card>
+              </div>
+            </el-card>
+          </section>
+
+          <section v-show="activeView === 'proxy'" class="proxy-layout">
+            <el-card shadow="never" class="panel-card">
+              <template #header>
+                <div class="card-header">
+                  <strong>出站代理</strong>
+                  <el-tag :type="proxyStatusType">
+                    {{ proxyForm.enabled ? '已启用' : '未启用' }}
+                  </el-tag>
+                </div>
+              </template>
+
+              <el-skeleton v-if="loading.proxy" animated :rows="4" />
+              <el-form v-else label-position="top" class="proxy-form" @submit.prevent>
+                <div class="switch-row">
+                  <el-switch
+                    v-model="proxyForm.enabled"
+                    active-text="代理已启用"
+                    inactive-text="代理关闭"
+                  />
+                  <span class="muted">Bangumi API、Archive 下载和 RSS 请求共用此 HTTP 代理。</span>
+                </div>
+
+                <div class="form-grid">
+                  <el-form-item label="代理地址">
+                    <el-input v-model="proxyForm.host" placeholder="10.137.32.158" />
+                  </el-form-item>
+                  <el-form-item label="代理端口">
+                    <el-input-number
+                      v-model="proxyForm.port"
+                      :min="1"
+                      :max="65535"
+                      controls-position="right"
+                    />
+                  </el-form-item>
+                </div>
+
+                <div class="form-actions">
+                  <el-button
+                    type="primary"
+                    :icon="Setting"
+                    :loading="loading.proxySave"
+                    :disabled="proxyForm.enabled && !proxyForm.host.trim()"
+                    @click="saveProxyConfig"
+                  >
+                    保存代理
+                  </el-button>
+                  <el-button :icon="Refresh" :loading="loading.proxy" @click="loadProxyConfig">
+                    刷新
+                  </el-button>
+                </div>
+              </el-form>
+            </el-card>
+
+            <el-card shadow="never" class="panel-card">
+              <template #header>
+                <div class="card-header">
+                  <strong>当前状态</strong>
+                  <el-tag>{{ proxySummary }}</el-tag>
+                </div>
+              </template>
+              <div class="log-status-grid">
+                <div class="status-tile">
+                  <span>代理</span>
+                  <strong>{{ proxyForm.enabled ? '启用' : '关闭' }}</strong>
+                </div>
+                <div class="status-tile">
+                  <span>地址</span>
+                  <strong>{{ proxyForm.host || '未填写' }}</strong>
+                </div>
+                <div class="status-tile">
+                  <span>端口</span>
+                  <strong>{{ proxyForm.port || 1080 }}</strong>
+                </div>
+                <div class="status-tile">
+                  <span>作用范围</span>
+                  <strong>Bangumi / Archive / RSS</strong>
+                </div>
               </div>
             </el-card>
           </section>
@@ -550,6 +611,10 @@
                   <div class="status-tile">
                     <span>更新时间</span>
                     <strong>{{ formatIsoDateTime(bangumiArchive.latestUpdatedAt || bangumiArchive.latestCreatedAt) || '未知' }}</strong>
+                  </div>
+                  <div class="status-tile">
+                    <span>自动更新</span>
+                    <strong>{{ bangumiArchiveAutoUpdateText }}</strong>
                   </div>
                 </div>
 
@@ -944,6 +1009,8 @@ const bangumiArchive = reactive({
   latestCreatedAt: '',
   latestUpdatedAt: '',
   subjectFileSizeBytes: 0,
+  autoUpdateEnabled: true,
+  autoUpdateIntervalDays: 7,
   isDownloading: false,
   downloadedBytes: 0,
   totalBytes: 0,
@@ -978,7 +1045,9 @@ const loading = reactive({
   logUploadRun: false,
   metadata: false,
   bangumiToken: false,
-  bangumiArchive: false
+  bangumiArchive: false,
+  proxy: false,
+  proxySave: false
 })
 const sourceForm = reactive({
   id: 0,
@@ -1004,6 +1073,11 @@ const cloudForm = reactive({
   rssProxyEnabled: false,
   rssProxyHost: '',
   rssProxyPort: 1080
+})
+const proxyForm = reactive({
+  enabled: false,
+  host: '',
+  port: 1080
 })
 const rssForm = reactive({
   name: '',
@@ -1055,6 +1129,7 @@ const viewMeta = computed(() => ({
   library: ['片库', '浏览番剧、选择剧集并投到电视端播放。'],
   sources: ['媒体源', '用电脑或手机键盘添加、编辑和扫描媒体源。'],
   automation: ['自动化', '管理 RSS 订阅、CloudDrive2 离线下载和整理入库。'],
+  proxy: ['代理配置', '设置 Bangumi、Archive 下载和 RSS 请求共用的出站 HTTP 代理。'],
   metadata: ['元数据', '配置 Bangumi Token，让收藏和观看进度同步不必在电视上输入。'],
   logs: ['日志上报', '配置 OpenObserve JSON，把本地日志从电视端发送出去。'],
   remote: ['遥控器', '播放控制、快进快退和进度拖动。']
@@ -1102,6 +1177,18 @@ const bangumiArchiveProgressText = computed(() => {
   const total = formatBytes(bangumiArchive.totalBytes)
   return bangumiArchive.totalBytes > 0 ? `${downloaded} / ${total}` : downloaded
 })
+const bangumiArchiveAutoUpdateText = computed(() =>
+  bangumiArchive.autoUpdateEnabled ? `每 ${bangumiArchive.autoUpdateIntervalDays || 7} 天` : '未启用'
+)
+const proxyStatusType = computed(() => {
+  if (proxyForm.enabled && !proxyForm.host.trim()) return 'warning'
+  return proxyForm.enabled ? 'success' : 'info'
+})
+const proxySummary = computed(() => {
+  if (!proxyForm.enabled) return '未启用'
+  const host = proxyForm.host.trim()
+  return host ? `${host}:${Number(proxyForm.port || 1080)}` : '待填写'
+})
 
 const accessUrl = computed(() => {
   if (!serverInfo.value) return '读取中...'
@@ -1136,13 +1223,14 @@ watch(activeView, (view) => {
     loadSources()
     loadCloudDriveAutomation()
   }
+  if (view === 'proxy') loadProxyConfig()
   if (view === 'metadata') loadMetadataSettings()
   if (view === 'logs') loadLogUpload()
   if (view === 'remote') loadPlaybackStatus()
 })
 
 onMounted(async () => {
-  await Promise.all([loadInfo(), loadLibrary(), loadSources(), loadCloudDriveAutomation(), loadMetadataSettings(), loadLogUpload(), loadPlaybackStatus()])
+  await Promise.all([loadInfo(), loadLibrary(), loadSources(), loadCloudDriveAutomation(), loadProxyConfig(), loadMetadataSettings(), loadLogUpload(), loadPlaybackStatus()])
   statusTimer = window.setInterval(loadPlaybackStatus, 2000)
   archiveTimer = window.setInterval(() => {
     if (activeView.value === 'metadata' && bangumiArchive.isDownloading) {
@@ -1194,6 +1282,15 @@ async function loadCloudDriveAutomation() {
     applyCloudDriveAutomation(await api('/api/cloud-drive'))
   } finally {
     loading.automation = false
+  }
+}
+
+async function loadProxyConfig() {
+  loading.proxy = true
+  try {
+    applyProxyConfig(await api('/api/proxy'))
+  } finally {
+    loading.proxy = false
   }
 }
 
@@ -1250,6 +1347,25 @@ function applyCloudDriveAutomation(data) {
     rssProxyHost: config.rssProxyHost || '',
     rssProxyPort: config.rssProxyPort || 1080
   })
+  applyProxyConfig({
+    enabled: Boolean(config.rssProxyEnabled),
+    host: config.rssProxyHost || '',
+    port: config.rssProxyPort || 1080
+  })
+}
+
+function applyProxyConfig(data) {
+  const next = data || {}
+  Object.assign(proxyForm, {
+    enabled: Boolean(next.enabled),
+    host: next.host || '',
+    port: next.port || 1080
+  })
+  Object.assign(cloudForm, {
+    rssProxyEnabled: Boolean(next.enabled),
+    rssProxyHost: next.host || '',
+    rssProxyPort: next.port || 1080
+  })
 }
 
 function applyLogUpload(data) {
@@ -1276,6 +1392,8 @@ function applyBangumiArchive(data) {
     latestCreatedAt: data?.latestCreatedAt || '',
     latestUpdatedAt: data?.latestUpdatedAt || '',
     subjectFileSizeBytes: Number(data?.subjectFileSizeBytes || 0),
+    autoUpdateEnabled: data?.autoUpdateEnabled !== false,
+    autoUpdateIntervalDays: Number(data?.autoUpdateIntervalDays || 7),
     isDownloading: Boolean(data?.isDownloading),
     downloadedBytes: Number(data?.downloadedBytes || 0),
     totalBytes: Number(data?.totalBytes || 0),
@@ -1292,6 +1410,7 @@ async function refreshCurrent() {
   if (activeView.value === 'library') await loadLibrary()
   if (activeView.value === 'sources') await loadSources()
   if (activeView.value === 'automation') await Promise.all([loadSources(), loadCloudDriveAutomation()])
+  if (activeView.value === 'proxy') await loadProxyConfig()
   if (activeView.value === 'metadata') await loadMetadataSettings()
   if (activeView.value === 'logs') await loadLogUpload()
   if (activeView.value === 'remote') await loadPlaybackStatus()
@@ -1552,9 +1671,9 @@ function cloudDriveConfigPayload() {
     libraryMode: cloudForm.libraryMode,
     intervalMinutes: Number(cloudForm.intervalMinutes || 30),
     enabled: Boolean(cloudForm.enabled),
-    rssProxyEnabled: Boolean(cloudForm.rssProxyEnabled),
-    rssProxyHost: cloudForm.rssProxyHost.trim(),
-    rssProxyPort: Number(cloudForm.rssProxyPort || 1080)
+    rssProxyEnabled: Boolean(proxyForm.enabled),
+    rssProxyHost: proxyForm.host.trim(),
+    rssProxyPort: Number(proxyForm.port || 1080)
   }
 }
 
@@ -1888,6 +2007,38 @@ async function clearBangumiToken() {
     ElMessage.success('Bangumi Token 已清除')
   } finally {
     loading.bangumiToken = false
+  }
+}
+
+function proxyConfigPayload() {
+  return {
+    enabled: Boolean(proxyForm.enabled),
+    host: proxyForm.host.trim(),
+    port: Number(proxyForm.port || 1080)
+  }
+}
+
+function validateProxyConfig(payload) {
+  if (payload.enabled && !payload.host) {
+    ElMessage.warning('请填写代理地址')
+    return false
+  }
+  return true
+}
+
+async function saveProxyConfig() {
+  const payload = proxyConfigPayload()
+  if (!validateProxyConfig(payload)) return
+
+  loading.proxySave = true
+  try {
+    applyProxyConfig(await api('/api/proxy', {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    }))
+    ElMessage.success('代理配置已保存')
+  } finally {
+    loading.proxySave = false
   }
 }
 

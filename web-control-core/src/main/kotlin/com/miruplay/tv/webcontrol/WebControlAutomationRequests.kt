@@ -3,6 +3,8 @@ package com.miruplay.tv.webcontrol
 import com.miruplay.tv.clouddrive.CloudDriveTokenInfo
 import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.CloudDriveRssRunSummary
+import com.miruplay.tv.model.MAX_RSS_PROXY_PORT
+import com.miruplay.tv.model.MIN_RSS_PROXY_PORT
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.buildRssSubscriptionFromForm
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
@@ -90,6 +92,29 @@ suspend fun CloudDriveAutomationRepository.loadWebControlCloudDriveConfig(): Clo
 
 suspend fun CloudDriveAutomationRepository.resolveWebControlCloudDriveEndpoint(): String =
     loadWebControlCloudDriveConfig().endpointUrl
+
+suspend fun CloudDriveAutomationRepository.getWebControlNetworkProxy(): NetworkProxyDto =
+    loadWebControlCloudDriveConfig().toWebControlNetworkProxyDto()
+
+suspend fun CloudDriveAutomationRepository.saveWebControlNetworkProxy(
+    request: NetworkProxyRequest,
+): Pair<CloudDriveAutomationConfig, NetworkProxyDto> {
+    val current = loadWebControlCloudDriveConfig()
+    val config = current.copy(
+        rssProxyEnabled = request.enabled,
+        rssProxyHost = request.host.trim(),
+        rssProxyPort = request.port.coerceIn(MIN_RSS_PROXY_PORT, MAX_RSS_PROXY_PORT),
+    )
+    requireWebControlSuccess(saveConfig(config), "保存代理设置失败")
+    return config to config.toWebControlNetworkProxyDto()
+}
+
+fun CloudDriveAutomationConfig.toWebControlNetworkProxyDto(): NetworkProxyDto =
+    NetworkProxyDto(
+        enabled = rssProxyEnabled,
+        host = rssProxyHost,
+        port = rssProxyPort.coerceIn(MIN_RSS_PROXY_PORT, MAX_RSS_PROXY_PORT),
+    )
 
 suspend fun CloudDriveRssActionCoordinator.saveWebControlCloudDriveConfig(
     request: CloudDriveConfigRequest,

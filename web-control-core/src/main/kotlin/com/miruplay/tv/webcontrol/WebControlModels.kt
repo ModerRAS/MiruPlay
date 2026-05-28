@@ -117,6 +117,20 @@ data class CloudDriveConfigRequest(
 )
 
 @Serializable
+data class NetworkProxyDto(
+    val enabled: Boolean = false,
+    val host: String = "",
+    val port: Int = 1080,
+)
+
+@Serializable
+data class NetworkProxyRequest(
+    val enabled: Boolean = false,
+    val host: String = "",
+    val port: Int = 1080,
+)
+
+@Serializable
 data class CloudDriveLoginRequest(
     val endpointUrl: String,
     val username: String,
@@ -233,6 +247,8 @@ data class BangumiArchiveDto(
     val latestCreatedAt: String? = null,
     val latestUpdatedAt: String? = null,
     val subjectFileSizeBytes: Long = 0L,
+    val autoUpdateEnabled: Boolean = true,
+    val autoUpdateIntervalDays: Int = 7,
     val isDownloading: Boolean = false,
     val downloadedBytes: Long = 0L,
     val totalBytes: Long = 0L,

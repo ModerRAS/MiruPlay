@@ -22,6 +22,9 @@ interface WebControlEndpointService {
     suspend fun saveRssSubscription(request: RssSubscriptionRequest): RssSubscriptionInfo
     suspend fun updateRssSubscription(id: Long, request: RssSubscriptionRequest): RssSubscriptionInfo
     suspend fun deleteRssSubscription(id: Long)
+    suspend fun getNetworkProxy(): NetworkProxyDto = NetworkProxyDto()
+    suspend fun saveNetworkProxy(request: NetworkProxyRequest): NetworkProxyDto =
+        NetworkProxyDto(enabled = request.enabled, host = request.host.trim(), port = request.port.coerceIn(1, 65_535))
     suspend fun getLogUpload(): LogUploadDto
     suspend fun saveLogUploadConfig(request: LogUploadConfigRequest): LogUploadDto
     suspend fun saveLogUploadToken(request: LogUploadTokenRequest): LogUploadDto
