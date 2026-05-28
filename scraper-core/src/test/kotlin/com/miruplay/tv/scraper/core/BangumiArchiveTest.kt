@@ -6,6 +6,7 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okio.Buffer
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.ByteArrayOutputStream
@@ -107,6 +108,87 @@ class BangumiArchiveTest {
             assertEquals(archiveZip.size.toLong(), progress.last().second)
             assertEquals("/latest.json", server.takeRequest().path)
             assertEquals("/dump.zip", server.takeRequest().path)
+            tempDir.deleteRecursively()
+            Unit
+        }
+    }
+
+    @Test
+    fun `downloadLatest skips zip when local archive is current`() = runBlocking {
+        val latestJson = """
+            {
+              "browser_download_url": "http://example.test/dump.zip",
+              "content_type": "application/zip",
+              "created_at": "2026-05-26T21:04:58Z",
+              "digest": "sha256:current",
+              "name": "dump-2026-05-26.210457Z.zip",
+              "size": 123
+            }
+        """.trimIndent()
+
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setBody(latestJson))
+
+            val tempDir = createTempDirectory(prefix = "bangumi-archive-current-test-").toFile()
+            File(tempDir, "latest.json").writeText(latestJson)
+            File(tempDir, BangumiArchiveStore.SUBJECT_FILE_NAME).writeText(
+                """{"id":431767,"type":2,"name":"葬送のフリーレン"}"""
+            )
+            val staleDownload = File(tempDir, "stale.download").apply { writeText("stale") }
+            val store = BangumiArchiveStore(
+                directory = tempDir,
+                client = BangumiArchiveClient(latestUrl = server.url("/latest.json").toString()),
+            )
+            val progress = mutableListOf<Pair<Long, Long>>()
+
+            val result = store.downloadLatest { bytesRead, totalBytes ->
+                progress += bytesRead to totalBytes
+            }
+
+            assertTrue(result is Result.Success)
+            assertTrue(store.subjectFile.readText().contains("葬送のフリーレン"))
+            assertTrue(progress.isEmpty())
+            assertFalse(staleDownload.exists())
+            assertEquals(1, server.requestCount)
+            assertEquals("/latest.json", server.takeRequest().path)
+            tempDir.deleteRecursively()
+            Unit
+        }
+    }
+
+    @Test
+    fun `downloadLatest removes temporary files after failed update`() = runBlocking {
+        val archiveZip = zipOf(
+            "episode.jsonlines" to """{"id":1,"subject_id":431767}""",
+        )
+
+        MockWebServer().use { server ->
+            server.enqueue(
+                MockResponse().setBody(
+                    """
+                    {
+                      "browser_download_url": "${server.url("/dump.zip")}",
+                      "content_type": "application/zip",
+                      "digest": "sha256:${archiveZip.sha256()}",
+                      "name": "dump-broken.zip",
+                      "size": ${archiveZip.size}
+                    }
+                    """.trimIndent()
+                )
+            )
+            server.enqueue(MockResponse().setBody(Buffer().write(archiveZip)))
+
+            val tempDir = createTempDirectory(prefix = "bangumi-archive-failure-test-").toFile()
+            val store = BangumiArchiveStore(
+                directory = tempDir,
+                client = BangumiArchiveClient(latestUrl = server.url("/latest.json").toString()),
+            )
+
+            val result = store.downloadLatest()
+
+            assertTrue(result is Result.Error)
+            assertFalse(File(tempDir, "dump-broken.zip.download").exists())
+            assertFalse(File(tempDir, "${BangumiArchiveStore.SUBJECT_FILE_NAME}.download").exists())
             tempDir.deleteRecursively()
             Unit
         }
