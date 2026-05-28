@@ -2,6 +2,7 @@ package com.miruplay.tv.scraper.core
 
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.ScraperSource
 import com.miruplay.tv.repository.BangumiMatchContext
@@ -22,8 +23,10 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import java.io.BufferedInputStream
+import java.io.FilterInputStream
 import java.io.File
+import java.io.InputStream
+import java.io.OutputStream
 import java.security.MessageDigest
 import java.util.Locale
 import java.util.concurrent.TimeUnit
@@ -113,11 +116,62 @@ class BangumiArchiveClient(
                 }
             }
 
-            latest.digest?.removePrefix("sha256:")?.takeIf { it.isNotBlank() }?.let { expected ->
-                val actual = digest.digest().toHex()
-                if (!actual.equals(expected, ignoreCase = true)) {
-                    throw IllegalStateException("Bangumi Archive digest mismatch")
+            validateDigest(latest, digest)
+        }
+    }
+
+    fun downloadSubjectJsonlines(
+        latest: BangumiArchiveLatest,
+        destination: File,
+        subjectFileName: String,
+        onProgress: (bytesRead: Long, totalBytes: Long) -> Unit = { _, _ -> },
+    ) {
+        val request = Request.Builder()
+            .url(latest.browserDownloadUrl)
+            .addHeader("User-Agent", userAgent)
+            .get()
+            .build()
+
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                val body = response.body?.string().orEmpty()
+                throw IllegalStateException("HTTP ${response.code}: ${body.ifBlank { response.message }}")
+            }
+            val body = response.body ?: throw IllegalStateException("Empty Bangumi Archive download")
+            val digest = MessageDigest.getInstance("SHA-256")
+            val totalBytes = latest.size.takeIf { it > 0L } ?: body.contentLength()
+            val input = ProgressDigestInputStream(
+                delegate = body.byteStream(),
+                digest = digest,
+                totalBytes = totalBytes,
+                onProgress = onProgress,
+            )
+
+            var found = false
+            ZipInputStream(input).use { zip ->
+                while (true) {
+                    val entry = zip.nextEntry ?: break
+                    if (!entry.isDirectory && entry.name.substringAfterLast('/') == subjectFileName) {
+                        destination.parentFile?.mkdirs()
+                        destination.outputStream().use { output -> zip.copyTo(output) }
+                        found = true
+                    } else {
+                        zip.copyTo(DiscardOutputStream)
+                    }
+                    zip.closeEntry()
                 }
+                input.drainRemaining()
+            }
+            if (!found) throw IllegalStateException("$subjectFileName not found in Bangumi Archive zip")
+            validateDigest(latest, digest)
+        }
+    }
+
+    private fun validateDigest(latest: BangumiArchiveLatest, digest: MessageDigest) {
+        latest.digest?.removePrefix("sha256:")?.takeIf { it.isNotBlank() }?.let { expected ->
+            val actual = digest.digest().toHex()
+            if (!actual.equals(expected, ignoreCase = true)) {
+                throw IllegalStateException("Bangumi Archive digest mismatch")
             }
         }
     }
@@ -130,6 +184,50 @@ class BangumiArchiveClient(
                 .connectTimeout(30, TimeUnit.SECONDS)
                 .readTimeout(5, TimeUnit.MINUTES)
                 .build()
+    }
+
+    private class ProgressDigestInputStream(
+        delegate: InputStream,
+        private val digest: MessageDigest,
+        private val totalBytes: Long,
+        private val onProgress: (bytesRead: Long, totalBytes: Long) -> Unit,
+    ) : FilterInputStream(delegate) {
+        private var bytesRead = 0L
+
+        override fun read(): Int {
+            val value = super.read()
+            if (value >= 0) {
+                digest.update(value.toByte())
+                reportProgress(1)
+            }
+            return value
+        }
+
+        override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+            val read = super.read(buffer, offset, length)
+            if (read > 0) {
+                digest.update(buffer, offset, read)
+                reportProgress(read)
+            }
+            return read
+        }
+
+        private fun reportProgress(read: Int) {
+            bytesRead += read
+            onProgress(bytesRead, totalBytes)
+        }
+
+        fun drainRemaining() {
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            while (read(buffer) >= 0) {
+                // Keep draining so the SHA-256 check covers the whole zip, including the central directory.
+            }
+        }
+    }
+
+    private object DiscardOutputStream : OutputStream() {
+        override fun write(b: Int) = Unit
+        override fun write(buffer: ByteArray, offset: Int, length: Int) = Unit
     }
 }
 
@@ -156,7 +254,6 @@ class BangumiArchiveStore(
     suspend fun downloadLatest(
         onProgress: (bytesRead: Long, totalBytes: Long) -> Unit = { _, _ -> },
     ): Result<BangumiArchiveSnapshot> = withContext(Dispatchers.IO) {
-        var zipFile: File? = null
         var extractedFile: File? = null
         try {
             directory.mkdirs()
@@ -166,11 +263,9 @@ class BangumiArchiveStore(
                 return@withContext Result.success(snapshot())
             }
 
-            zipFile = File(directory, "${latest.name}.download")
             extractedFile = File(directory, "$SUBJECT_FILE_NAME.download")
 
-            client.downloadZip(latest, zipFile, onProgress)
-            extractSubjectJsonlines(zipFile, extractedFile)
+            client.downloadSubjectJsonlines(latest, extractedFile, SUBJECT_FILE_NAME, onProgress)
             if (subjectFile.exists() && !subjectFile.delete()) {
                 throw IllegalStateException("Unable to replace existing $SUBJECT_FILE_NAME")
             }
@@ -178,10 +273,8 @@ class BangumiArchiveStore(
                 throw IllegalStateException("Unable to move downloaded $SUBJECT_FILE_NAME into place")
             }
             latestFile.writeText(json.encodeToString(BangumiArchiveLatest.serializer(), latest))
-            zipFile.delete()
             Result.success(snapshot())
         } catch (error: Exception) {
-            zipFile?.delete()
             extractedFile?.delete()
             Result.failure(AppError.ScrapingError.ApiError("Bangumi Archive", error.message ?: "Download failed"))
         }
@@ -201,22 +294,6 @@ class BangumiArchiveStore(
         runCatching {
             json.decodeFromString(BangumiArchiveLatest.serializer(), latestFile.readText())
         }.getOrNull()
-
-    private fun extractSubjectJsonlines(zipFile: File, destination: File) {
-        var found = false
-        ZipInputStream(BufferedInputStream(zipFile.inputStream())).use { zip ->
-            while (true) {
-                val entry = zip.nextEntry ?: break
-                if (!entry.isDirectory && entry.name.substringAfterLast('/') == SUBJECT_FILE_NAME) {
-                    destination.parentFile?.mkdirs()
-                    destination.outputStream().use { output -> zip.copyTo(output) }
-                    found = true
-                    break
-                }
-            }
-        }
-        if (!found) throw IllegalStateException("$SUBJECT_FILE_NAME not found in Bangumi Archive zip")
-    }
 
     companion object {
         const val SUBJECT_FILE_NAME = "subject.jsonlines"
@@ -276,8 +353,14 @@ class BangumiArchiveSubjectSearch(
                     matchedTitle = match.candidate.titleCn ?: match.candidate.title,
                     confidence = match.confidence,
                     source = ScraperSource.BANGUMI,
+                    fromLocalArchive = true,
                 )
             }
+    }
+
+    fun findById(animeId: String): BangumiArchiveSubject? {
+        val id = animeId.toIntOrNull() ?: return null
+        return loadSubjects(subjectFileProvider()).firstOrNull { it.id == id }
     }
 
     private fun loadSubjects(file: File): List<BangumiArchiveSubject> {
@@ -319,9 +402,11 @@ class BangumiArchiveSubjectSearch(
             id = record.id,
             name = record.name,
             nameCn = record.nameCn?.ifBlank { null },
+            summary = record.summary?.ifBlank { null },
             aliases = aliases,
             platform = record.platform,
             date = record.date,
+            episodeCount = record.eps ?: record.totalEpisodes ?: 0,
             score = record.score,
             rank = record.rank,
         )
@@ -336,12 +421,26 @@ data class BangumiArchiveSubject(
     val id: Int,
     val name: String,
     val nameCn: String?,
+    val summary: String? = null,
     val aliases: List<String>,
     val platform: String?,
     val date: String?,
+    val episodeCount: Int = 0,
     val score: Float?,
     val rank: Int?,
 )
+
+fun BangumiArchiveSubject.toAnime(): Anime =
+    Anime(
+        id = id.toString(),
+        title = name,
+        titleCn = nameCn,
+        summary = summary.orEmpty(),
+        episodeCount = episodeCount,
+        airDate = date,
+        rating = score ?: 0f,
+        bangumiId = id,
+    )
 
 @Serializable
 private data class BangumiArchiveSubjectRecord(
@@ -349,9 +448,12 @@ private data class BangumiArchiveSubjectRecord(
     val type: Int,
     val name: String,
     @SerialName("name_cn") val nameCn: String? = null,
+    val summary: String? = null,
     val infobox: JsonElement? = null,
     val platform: String? = null,
     val date: String? = null,
+    val eps: Int? = null,
+    @SerialName("total_episodes") val totalEpisodes: Int? = null,
     val score: Float? = null,
     val rank: Int? = null,
     @SerialName("meta_tags") val metaTags: List<String> = emptyList(),

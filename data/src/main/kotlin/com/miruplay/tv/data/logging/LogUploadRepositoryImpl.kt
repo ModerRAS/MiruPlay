@@ -69,25 +69,40 @@ class LogUploadRepositoryImpl @Inject constructor(
         if (config.endpoint.isBlank()) return@withContext updateStatus("请填写 OTLP 服务器地址")
         if (token.isBlank()) return@withContext updateStatus("请填写 OTLP Token")
 
-        val records = localLogStore.readBatch(MAX_UPLOAD_BATCH)
-        if (records.isEmpty()) return@withContext updateStatus("没有待上报日志")
-
         _status.value = currentStatus(isUploading = true)
-        val result = runCatching {
-            uploader.upload(config.endpoint, token, config.streamName, records)
-        }.getOrElse { error ->
-            OtlpLogUploader.UploadResult.Failed(error.message ?: error::class.simpleName.orEmpty())
-        }
+        var uploadedCount = 0
+        while (true) {
+            val records = localLogStore.readBatch(MAX_UPLOAD_BATCH)
+            if (records.isEmpty()) {
+                return@withContext if (uploadedCount == 0) {
+                    updateStatus("没有待上报日志")
+                } else {
+                    updateStatus("已上报 $uploadedCount 条日志")
+                }
+            }
 
-        when (result) {
-            is OtlpLogUploader.UploadResult.Success -> {
-                localLogStore.removeUploaded(records.map { it.id }.toSet())
-                updateStatus("已上报 ${result.uploadedCount} 条日志")
+            val result = runCatching {
+                uploader.upload(config.endpoint, token, config.streamName, records)
+            }.getOrElse { error ->
+                OtlpLogUploader.UploadResult.Failed(error.message ?: error::class.simpleName.orEmpty())
             }
-            is OtlpLogUploader.UploadResult.Failed -> {
-                updateStatus("上报失败：${result.message}")
+
+            when (result) {
+                is OtlpLogUploader.UploadResult.Success -> {
+                    localLogStore.removeUploaded(records.map { it.id }.toSet())
+                    uploadedCount += result.uploadedCount
+                }
+                is OtlpLogUploader.UploadResult.Failed -> {
+                    val message = if (uploadedCount > 0) {
+                        "已上报 $uploadedCount 条日志，后续上报失败：${result.message}"
+                    } else {
+                        "上报失败：${result.message}"
+                    }
+                    return@withContext updateStatus(message)
+                }
             }
         }
+        currentStatus(isUploading = false)
     }
 
     private fun updateStatus(message: String): LogUploadStatus {

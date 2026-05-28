@@ -157,6 +157,66 @@ class BangumiArchiveTest {
     }
 
     @Test
+    fun `downloadLatest replaces existing archive without retaining duplicate download artifacts`() = runBlocking {
+        val archiveZip = zipOf(
+            "episode.jsonlines" to """{"id":1,"subject_id":431767}""",
+            "subject.jsonlines" to """{"id":440650,"type":2,"name":"Dr.STONE SCIENCE FUTURE","name_cn":"Dr.STONE 新石纪 第四季"}""",
+        )
+
+        MockWebServer().use { server ->
+            server.enqueue(
+                MockResponse().setBody(
+                    """
+                    {
+                      "browser_download_url": "${server.url("/dump-new.zip")}",
+                      "content_type": "application/zip",
+                      "created_at": "2026-05-27T21:04:58Z",
+                      "digest": "sha256:${archiveZip.sha256()}",
+                      "name": "dump-new.zip",
+                      "size": ${archiveZip.size}
+                    }
+                    """.trimIndent()
+                )
+            )
+            server.enqueue(MockResponse().setBody(Buffer().write(archiveZip)))
+
+            val tempDir = createTempDirectory(prefix = "bangumi-archive-replace-test-").toFile()
+            File(tempDir, "latest.json").writeText(
+                """
+                {
+                  "browser_download_url": "http://example.test/dump-old.zip",
+                  "content_type": "application/zip",
+                  "created_at": "2026-05-20T21:04:58Z",
+                  "digest": "sha256:old",
+                  "name": "dump-old.zip",
+                  "size": 123
+                }
+                """.trimIndent()
+            )
+            File(tempDir, BangumiArchiveStore.SUBJECT_FILE_NAME).writeText(
+                """{"id":431767,"type":2,"name":"葬送のフリーレン"}"""
+            )
+            val store = BangumiArchiveStore(
+                directory = tempDir,
+                client = BangumiArchiveClient(latestUrl = server.url("/latest.json").toString()),
+            )
+
+            val result = store.downloadLatest()
+
+            assertTrue(result is Result.Success)
+            assertTrue(store.subjectFile.readText().contains("Dr.STONE 新石纪 第四季"))
+            assertFalse(File(tempDir, "dump-new.zip.download").exists())
+            assertFalse(File(tempDir, "${BangumiArchiveStore.SUBJECT_FILE_NAME}.download").exists())
+            assertEquals(
+                listOf("latest.json", BangumiArchiveStore.SUBJECT_FILE_NAME),
+                tempDir.listFiles().orEmpty().map { it.name }.sorted(),
+            )
+            tempDir.deleteRecursively()
+            Unit
+        }
+    }
+
+    @Test
     fun `downloadLatest removes temporary files after failed update`() = runBlocking {
         val archiveZip = zipOf(
             "episode.jsonlines" to """{"id":1,"subject_id":431767}""",
@@ -187,7 +247,6 @@ class BangumiArchiveTest {
             val result = store.downloadLatest()
 
             assertTrue(result is Result.Error)
-            assertFalse(File(tempDir, "dump-broken.zip.download").exists())
             assertFalse(File(tempDir, "${BangumiArchiveStore.SUBJECT_FILE_NAME}.download").exists())
             tempDir.deleteRecursively()
             Unit

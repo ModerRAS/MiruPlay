@@ -135,7 +135,38 @@ class BangumiApiClientTest {
             val result = client.searchAnime("葬送的芙莉莲")
 
             assertTrue(result is Result.Success)
-            assertEquals("431767", (result as Result.Success).data.single().animeId)
+            val match = (result as Result.Success).data.single()
+            assertEquals("431767", match.animeId)
+            assertTrue(match.fromLocalArchive)
+            assertEquals(0, server.requestCount)
+            tempDir.deleteRecursively()
+            Unit
+        }
+    }
+
+    @Test
+    fun `getAnimeDetails returns archive subject without calling Bangumi api`() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setBody("""{"id":431767,"name":"should-not-load"}"""))
+            val tempDir = createTempDirectory(prefix = "bangumi-api-archive-detail-test-").toFile()
+            val subjectFile = File(tempDir, BangumiArchiveStore.SUBJECT_FILE_NAME)
+            subjectFile.writeText(
+                """{"id":431767,"type":2,"name":"葬送のフリーレン","name_cn":"葬送的芙莉莲","summary":"旅行仍在继续。","eps":28,"date":"2023-09-29","score":8.8}"""
+            )
+            val client = BangumiApiClient(
+                baseUrl = server.url("/").toString(),
+                archiveSearch = BangumiArchiveSubjectSearch(subjectFile),
+            )
+
+            val result = client.getAnimeDetails("431767")
+
+            assertTrue(result is Result.Success)
+            val anime = (result as Result.Success).data
+            assertEquals("431767", anime.id)
+            assertEquals("葬送的芙莉莲", anime.titleCn)
+            assertEquals("旅行仍在继续。", anime.summary)
+            assertEquals(28, anime.episodeCount)
+            assertEquals(431767, anime.bangumiId)
             assertEquals(0, server.requestCount)
             tempDir.deleteRecursively()
             Unit

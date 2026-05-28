@@ -15,6 +15,7 @@ import com.miruplay.tv.repository.AppUpdateDownloadProgress
 import com.miruplay.tv.repository.AppUpdateInfo
 import com.miruplay.tv.repository.AppUpdateInstallLaunch
 import com.miruplay.tv.repository.AppUpdateRepository
+import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -28,22 +29,33 @@ import kotlinx.serialization.json.contentOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
+import java.net.InetSocketAddress
+import java.net.Proxy
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class AppUpdateRepositoryImpl @Inject constructor(
+class AppUpdateRepositoryImpl internal constructor(
     @ApplicationContext private val context: Context,
     private val okHttpClient: OkHttpClient,
+    private val cloudDriveRepository: CloudDriveAutomationRepository,
+    private val latestReleaseApiUrl: String,
 ) : AppUpdateRepository {
 
     private val json = Json { ignoreUnknownKeys = true }
-    private val downloadClient = okHttpClient.newBuilder()
-        .connectTimeout(APK_DOWNLOAD_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .readTimeout(APK_DOWNLOAD_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .callTimeout(APK_DOWNLOAD_CALL_TIMEOUT_MINUTES, TimeUnit.MINUTES)
-        .build()
+
+    @Inject
+    constructor(
+        @ApplicationContext context: Context,
+        okHttpClient: OkHttpClient,
+        cloudDriveRepository: CloudDriveAutomationRepository,
+    ) : this(
+        context = context,
+        okHttpClient = okHttpClient,
+        cloudDriveRepository = cloudDriveRepository,
+        latestReleaseApiUrl = LATEST_RELEASE_API_URL,
+    )
 
     override suspend fun checkLatestUpdate(): Result<AppUpdateCheck> = withContext(Dispatchers.IO) {
         val currentVersionName = currentVersionName()
@@ -54,19 +66,19 @@ class AppUpdateRepositoryImpl @Inject constructor(
             mapOf(
                 "current_version_name" to currentVersionName,
                 "current_version_code" to currentVersionCode.toString(),
-                "release_api_url" to LATEST_RELEASE_API_URL,
+                "release_api_url" to latestReleaseApiUrl,
             )
         )
 
         val request = Request.Builder()
-            .url(LATEST_RELEASE_API_URL)
+            .url(latestReleaseApiUrl)
             .header("Accept", "application/vnd.github+json")
             .header("X-GitHub-Api-Version", "2022-11-28")
             .header("User-Agent", "MiruPlay/$currentVersionName")
             .build()
 
         try {
-            okHttpClient.newCall(request).execute().use { response ->
+            githubApiClient().newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
                     MiruLog.w(
                         TAG,
@@ -113,7 +125,7 @@ class AppUpdateRepositoryImpl @Inject constructor(
             }
         } catch (error: Exception) {
             MiruLog.w(TAG, "GitHub app update check threw", error)
-            Result.failure(AppError.NetworkError.ServerUnreachable(LATEST_RELEASE_API_URL))
+            Result.failure(AppError.NetworkError.ServerUnreachable(latestReleaseApiUrl))
         }
     }
 
@@ -225,7 +237,7 @@ class AppUpdateRepositoryImpl @Inject constructor(
             }
     }
 
-    private fun downloadApk(
+    private suspend fun downloadApk(
         update: AppUpdateInfo,
         onProgress: (AppUpdateDownloadProgress) -> Unit,
     ): File {
@@ -242,7 +254,7 @@ class AppUpdateRepositoryImpl @Inject constructor(
         val partial = File(updateDir, "${target.name}.part")
         if (partial.exists()) partial.delete()
 
-        downloadClient.newCall(request).execute().use { response ->
+        githubDownloadClient().newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
                 throw IllegalStateException("HTTP ${response.code} ${response.message}")
             }
@@ -267,6 +279,31 @@ class AppUpdateRepositoryImpl @Inject constructor(
         if (target.exists()) target.delete()
         check(partial.renameTo(target)) { "cannot finalize APK download" }
         return target
+    }
+
+    private suspend fun githubApiClient(): OkHttpClient =
+        okHttpClient.newBuilder()
+            .proxy(currentProxy())
+            .build()
+
+    private suspend fun githubDownloadClient(): OkHttpClient =
+        okHttpClient.newBuilder()
+            .connectTimeout(APK_DOWNLOAD_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .readTimeout(APK_DOWNLOAD_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .callTimeout(APK_DOWNLOAD_CALL_TIMEOUT_MINUTES, TimeUnit.MINUTES)
+            .proxy(currentProxy())
+            .build()
+
+    private suspend fun currentProxy(): Proxy {
+        val config = cloudDriveRepository.getConfig().getOrNull() ?: return Proxy.NO_PROXY
+        if (!config.rssProxyEnabled || config.rssProxyHost.isBlank()) return Proxy.NO_PROXY
+        return Proxy(
+            Proxy.Type.HTTP,
+            InetSocketAddress(
+                config.rssProxyHost.trim(),
+                config.rssProxyPort.coerceIn(1, 65_535),
+            )
+        )
     }
 
     private fun currentVersionName(): String =
