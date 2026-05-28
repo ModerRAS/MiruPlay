@@ -210,6 +210,53 @@ class WebControlAutomationRequestsTest {
     }
 
     @Test
+    fun `repository proxy helper reads shared proxy config`() = runBlocking {
+        val repository = FakeCloudDriveAutomationRepository(
+            config = CloudDriveAutomationConfig(
+                rssProxyEnabled = true,
+                rssProxyHost = "203.0.113.20",
+                rssProxyPort = 7890,
+            ),
+        )
+
+        val proxy = repository.getWebControlNetworkProxy()
+
+        assertEquals(true, proxy.enabled)
+        assertEquals("203.0.113.20", proxy.host)
+        assertEquals(7890, proxy.port)
+    }
+
+    @Test
+    fun `repository proxy helper saves shared proxy without changing CloudDrive fields`() = runBlocking {
+        val repository = FakeCloudDriveAutomationRepository(
+            config = CloudDriveAutomationConfig(
+                endpointUrl = "http://cloud.example.test",
+                inboxPath = "/Inbox",
+                libraryPath = "/Library",
+                intervalMinutes = 30,
+                enabled = true,
+            ),
+        )
+
+        val (config, proxy) = repository.saveWebControlNetworkProxy(
+            NetworkProxyRequest(
+                enabled = true,
+                host = " 203.0.113.20 ",
+                port = 70_000,
+            ),
+        )
+
+        assertEquals("http://cloud.example.test", config.endpointUrl)
+        assertEquals("/Inbox", config.inboxPath)
+        assertEquals(true, config.enabled)
+        assertEquals(true, config.rssProxyEnabled)
+        assertEquals("203.0.113.20", config.rssProxyHost)
+        assertEquals(65_535, config.rssProxyPort)
+        assertEquals(NetworkProxyDto(enabled = true, host = "203.0.113.20", port = 65_535), proxy)
+        assertEquals(config, repository.savedConfigs.single())
+    }
+
+    @Test
     fun `coordinator saves WebUI CloudDrive config and returns refreshed automation dto`() = runBlocking {
         val repository = FakeCloudDriveAutomationRepository(
             config = CloudDriveAutomationConfig(lastRunAt = 77L),

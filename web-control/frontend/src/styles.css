@@ -272,6 +272,7 @@ body {
 
 .source-layout,
 .automation-layout,
+.proxy-layout,
 .metadata-layout,
 .log-layout,
 .remote-layout {
@@ -300,6 +301,7 @@ body {
 }
 
 .automation-form,
+.proxy-form,
 .metadata-form,
 .log-form,
 .rss-form,
@@ -646,6 +648,7 @@ body {
   .header-actions,
   .source-layout,
   .automation-layout,
+  .proxy-layout,
   .metadata-layout,
   .log-layout,
   .remote-layout,

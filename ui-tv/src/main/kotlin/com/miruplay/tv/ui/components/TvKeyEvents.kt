@@ -18,10 +18,25 @@ internal fun Key.isTvActivateKey(): Boolean =
     isTvActivateIntent(toMiruPlayInputIntent())
 
 internal fun Key.toMiruPlayInputIntent(): MiruPlayInputIntent? =
-    miruPlayInputIntentFromComposeKeyCode(
-        keyCode = keyCode,
-        profile = MiruPlayComposeKeyProfile.Android,
-    )
+    toAndroidComposeKeyIntent()
+        ?: miruPlayInputIntentFromComposeKeyCode(
+            keyCode = keyCode,
+            profile = MiruPlayComposeKeyProfile.Android,
+        )
+
+private fun Key.toAndroidComposeKeyIntent(): MiruPlayInputIntent? =
+    when (this) {
+        Key.DirectionCenter,
+        Key.Enter,
+        Key.NumPadEnter,
+        Key.Spacebar -> MiruPlayInputIntent.Activate
+        Key.Back -> MiruPlayInputIntent.Back
+        Key.DirectionLeft -> MiruPlayInputIntent.DirectionLeft
+        Key.DirectionRight -> MiruPlayInputIntent.DirectionRight
+        Key.DirectionUp -> MiruPlayInputIntent.DirectionUp
+        Key.DirectionDown -> MiruPlayInputIntent.DirectionDown
+        else -> null
+    }
 
 internal fun isTvActivateIntent(intent: MiruPlayInputIntent?): Boolean =
     intent?.isActivationIntent() == true

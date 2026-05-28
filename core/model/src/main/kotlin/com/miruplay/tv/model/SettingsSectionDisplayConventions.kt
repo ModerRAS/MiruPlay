@@ -30,6 +30,12 @@ enum class MiruPlaySettingsSection(
         desktopTitle = "云盘",
         desktopDescription = "RSS 离线下载与入库",
     ),
+    PROXY(
+        androidTvTitle = "代理配置",
+        androidTvDescription = "Bangumi、Archive 与 RSS 出站代理",
+        desktopTitle = "代理",
+        desktopDescription = "Bangumi、Archive 与 RSS 出站代理",
+    ),
     SCAN(
         androidTvTitle = "扫描",
         androidTvDescription = "媒体库更新策略",
@@ -62,6 +68,7 @@ val androidTvSettingsSectionOrder: List<MiruPlaySettingsSection> =
         MiruPlaySettingsSection.SOURCES,
         MiruPlaySettingsSection.PLAYBACK,
         MiruPlaySettingsSection.CLOUD_DRIVE,
+        MiruPlaySettingsSection.PROXY,
         MiruPlaySettingsSection.SCAN,
         MiruPlaySettingsSection.LOG_UPLOAD,
         MiruPlaySettingsSection.APP_UPDATE,
@@ -102,6 +109,17 @@ fun settingsSourcesMenuSummary(sourceCount: Int): String =
 fun settingsCloudDriveMenuSummary(enabled: Boolean, rssCount: Int): String =
     if (enabled) "$rssCount 个订阅" else "未启用"
 
+fun settingsProxyMenuSummary(
+    enabled: Boolean,
+    host: String = "",
+    port: Int = DEFAULT_RSS_PROXY_PORT,
+): String =
+    when {
+        !enabled -> "未启用"
+        host.isBlank() -> "待填写"
+        else -> "${host.trim()}:${port.coerceIn(MIN_RSS_PROXY_PORT, MAX_RSS_PROXY_PORT)}"
+    }
+
 fun settingsScanMenuSummary(
     autoScanEnabled: Boolean,
     mergeSameAnimeEnabled: Boolean,
@@ -137,6 +155,9 @@ data class SettingsSectionMenuSummaryInput(
     val playbackSummary: String = "",
     val cloudDriveEnabled: Boolean = false,
     val rssCount: Int = 0,
+    val proxyEnabled: Boolean = false,
+    val proxyHost: String = "",
+    val proxyPort: Int = DEFAULT_RSS_PROXY_PORT,
     val autoScanEnabled: Boolean = false,
     val mergeSameAnimeEnabled: Boolean = false,
     val metadataSummary: String = "",
@@ -152,6 +173,7 @@ fun MiruPlaySettingsSection.settingsMenuSummary(
         MiruPlaySettingsSection.SOURCES -> settingsSourcesMenuSummary(input.sourceCount)
         MiruPlaySettingsSection.PLAYBACK -> input.playbackSummary
         MiruPlaySettingsSection.CLOUD_DRIVE -> settingsCloudDriveMenuSummary(input.cloudDriveEnabled, input.rssCount)
+        MiruPlaySettingsSection.PROXY -> settingsProxyMenuSummary(input.proxyEnabled, input.proxyHost, input.proxyPort)
         MiruPlaySettingsSection.SCAN -> settingsScanMenuSummary(input.autoScanEnabled, input.mergeSameAnimeEnabled)
         MiruPlaySettingsSection.LOG_UPLOAD -> input.logUploadSummary
         MiruPlaySettingsSection.APP_UPDATE -> input.appUpdateSummary
@@ -235,6 +257,39 @@ fun settingsLogUploadSaveConfigActionLabel(): String =
 
 fun settingsLogUploadRunNowActionLabel(): String =
     "立即上报"
+
+fun settingsProxyPanelTitleLabel(): String =
+    "出站代理"
+
+fun settingsProxyPanelDescription(): String =
+    "Bangumi API、Bangumi Archive 下载和 RSS 请求会共用这个 HTTP 代理。"
+
+fun settingsProxyToggleLabel(enabled: Boolean): String =
+    if (enabled) "代理已启用" else "代理关闭"
+
+fun settingsProxyHostFieldLabel(): String =
+    "代理地址"
+
+fun settingsProxyPortFieldLabel(): String =
+    "代理端口"
+
+fun settingsProxySaveActionLabel(): String =
+    "保存代理"
+
+fun settingsProxySavedStatus(): String =
+    "代理配置已保存。"
+
+fun settingsProxyCurrentStatus(
+    enabled: Boolean,
+    host: String,
+    port: Int,
+): String =
+    if (enabled) {
+        val summary = settingsProxyMenuSummary(enabled = true, host = host, port = port)
+        if (summary == "待填写") "代理已启用，请填写代理地址。" else "当前代理：$summary"
+    } else {
+        "当前未启用代理。"
+    }
 
 fun settingsAppUpdateMenuSummary(): String =
     "GitHub"

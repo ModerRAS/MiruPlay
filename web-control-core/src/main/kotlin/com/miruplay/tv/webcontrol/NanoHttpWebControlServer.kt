@@ -147,6 +147,13 @@ open class NanoHttpWebControlServer(
                 webControlService.deleteRssSubscription(rssId)
                 jsonResponse(Unit.serializer(), Unit)
             }
+            session.method == Method.GET && route == "/api/proxy" -> {
+                jsonResponse(NetworkProxyDto.serializer(), webControlService.getNetworkProxy())
+            }
+            session.method == Method.PUT && route == "/api/proxy" -> {
+                val request = parseBody(session, NetworkProxyRequest.serializer())
+                jsonResponse(NetworkProxyDto.serializer(), webControlService.saveNetworkProxy(request))
+            }
             session.method == Method.GET && route == "/api/log-upload" -> {
                 jsonResponse(LogUploadDto.serializer(), webControlService.getLogUpload())
             }

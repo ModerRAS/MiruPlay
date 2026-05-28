@@ -53,6 +53,8 @@ abstract class SharedWebControlEndpointService(
 
     protected open suspend fun afterCloudDriveConfigSaved(config: com.miruplay.tv.model.CloudDriveAutomationConfig) = Unit
 
+    protected open suspend fun afterProxyConfigSaved(config: com.miruplay.tv.model.CloudDriveAutomationConfig) = Unit
+
     protected open suspend fun afterCloudDriveAutomationRun(summary: CloudDriveRssRunSummary) = Unit
 
     protected open suspend fun afterLogUploadConfigSaved(config: OtlpLogUploadConfig) = Unit
@@ -165,6 +167,16 @@ abstract class SharedWebControlEndpointService(
 
     override suspend fun deleteRssSubscription(id: Long) {
         cloudDriveActions.deleteWebControlRssSubscription(id)
+    }
+
+    override suspend fun getNetworkProxy(): NetworkProxyDto = runOnIo {
+        cloudDriveRepository.getWebControlNetworkProxy()
+    }
+
+    override suspend fun saveNetworkProxy(request: NetworkProxyRequest): NetworkProxyDto = runOnIo {
+        val (config, dto) = cloudDriveRepository.saveWebControlNetworkProxy(request)
+        afterProxyConfigSaved(config)
+        dto
     }
 
     override suspend fun getLogUpload(): LogUploadDto {

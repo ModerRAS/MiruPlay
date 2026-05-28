@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Folder
@@ -111,9 +112,6 @@ import com.miruplay.tv.model.cloudDriveRssNoScanSourceOptionLabel
 import com.miruplay.tv.model.cloudDriveRssNoWebDavSourceMessage
 import com.miruplay.tv.model.cloudDriveRssParentDirectoryActionLabel
 import com.miruplay.tv.model.cloudDriveRssPasswordFieldLabel
-import com.miruplay.tv.model.cloudDriveRssProxyHostFieldLabel
-import com.miruplay.tv.model.cloudDriveRssProxyPortFieldLabel
-import com.miruplay.tv.model.cloudDriveRssProxyToggleLabel
 import com.miruplay.tv.model.cloudDriveRssRunNowActionLabel
 import com.miruplay.tv.model.cloudDriveRssSaveApiTokenActionLabel
 import com.miruplay.tv.model.cloudDriveRssSaveConfigActionLabel
@@ -192,6 +190,13 @@ import com.miruplay.tv.model.settingsLogUploadSaveConfigActionLabel
 import com.miruplay.tv.model.settingsLogUploadStreamFieldLabel
 import com.miruplay.tv.model.settingsLogUploadTokenConfiguredStatus
 import com.miruplay.tv.model.settingsLogUploadTokenFieldLabel
+import com.miruplay.tv.model.settingsProxyCurrentStatus
+import com.miruplay.tv.model.settingsProxyHostFieldLabel
+import com.miruplay.tv.model.settingsProxyPanelDescription
+import com.miruplay.tv.model.settingsProxyPanelTitleLabel
+import com.miruplay.tv.model.settingsProxyPortFieldLabel
+import com.miruplay.tv.model.settingsProxySaveActionLabel
+import com.miruplay.tv.model.settingsProxyToggleLabel
 import com.miruplay.tv.model.settingsSaveTokenActionLabel
 import com.miruplay.tv.model.settingsScreenSubtitleLabel
 import com.miruplay.tv.model.settingsScreenTitleLabel
@@ -261,6 +266,7 @@ private fun MiruPlaySettingsSection.androidTvIcon(): ImageVector =
         MiruPlaySettingsSection.SOURCES -> Icons.Filled.Storage
         MiruPlaySettingsSection.PLAYBACK -> Icons.Filled.PlayArrow
         MiruPlaySettingsSection.CLOUD_DRIVE -> Icons.Filled.Cloud
+        MiruPlaySettingsSection.PROXY -> Icons.Filled.Dns
         MiruPlaySettingsSection.SCAN -> Icons.Filled.Refresh
         MiruPlaySettingsSection.LOG_UPLOAD -> Icons.Filled.Upload
         MiruPlaySettingsSection.APP_UPDATE -> Icons.Filled.Refresh
@@ -294,6 +300,8 @@ fun AddSourceScreen(
     val logUploadSnapshot by viewModel.logUploadSnapshot.collectAsStateWithLifecycle()
     val logUploadStatusMessage by viewModel.logUploadStatusMessage.collectAsStateWithLifecycle()
     val appUpdateState by viewModel.appUpdateState.collectAsStateWithLifecycle()
+    val bangumiArchiveState by viewModel.bangumiArchiveState.collectAsStateWithLifecycle()
+    val proxyStatusMessage by viewModel.proxyStatusMessage.collectAsStateWithLifecycle()
 
     var selectedSection by remember { mutableStateOf(MiruPlaySettingsSection.WEB_UI) }
     var editingSourceId by remember { mutableStateOf<Long?>(null) }
@@ -437,6 +445,9 @@ fun AddSourceScreen(
                     playbackEndAction = playbackEndAction,
                     cloudDriveEnabled = cloudEnabled,
                     rssCount = rssSubscriptions.size,
+                    proxyEnabled = rssProxyEnabled,
+                    proxyHost = rssProxyHost,
+                    proxyPort = parseRssProxyPort(rssProxyPort),
                     logUploadEnabled = logUploadSnapshot.enabled,
                     logUploadTokenConfigured = logUploadSnapshot.tokenConfigured,
                     logUploadUploading = logUploadSnapshot.isUploading,
@@ -581,6 +592,7 @@ fun AddSourceScreen(
                     onRssProxyHostChange = { rssProxyHost = it },
                     rssProxyPort = rssProxyPort,
                     onRssProxyPortChange = { rssProxyPort = it.filter(Char::isDigit).take(5) },
+                    proxyStatusMessage = proxyStatusMessage,
                     rssSubscriptions = rssSubscriptions,
                     rssName = rssName,
                     onRssNameChange = { rssName = it },
@@ -603,6 +615,13 @@ fun AddSourceScreen(
                             rssProxyEnabled = rssProxyEnabled,
                             rssProxyHost = rssProxyHost,
                             rssProxyPort = parseRssProxyPort(rssProxyPort)
+                        )
+                    },
+                    onSaveProxyConfig = {
+                        viewModel.saveProxyConfig(
+                            enabled = rssProxyEnabled,
+                            host = rssProxyHost,
+                            port = parseRssProxyPort(rssProxyPort)
                         )
                     },
                     onLoginCloudDrive = {
@@ -654,6 +673,9 @@ fun AddSourceScreen(
                     onCheckAppUpdate = viewModel::checkAppUpdate,
                     onDownloadAndInstallAppUpdate = viewModel::downloadAndInstallAppUpdate,
                     onOpenAppUpdateInstallPermission = viewModel::openAppUpdateInstallPermissionSettings,
+                    bangumiArchiveState = bangumiArchiveState,
+                    onRefreshBangumiArchive = viewModel::refreshBangumiArchive,
+                    onDownloadBangumiArchive = viewModel::downloadBangumiArchive,
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
@@ -729,6 +751,9 @@ private fun SettingsMenuPanel(
     playbackEndAction: PlaybackEndAction,
     cloudDriveEnabled: Boolean,
     rssCount: Int,
+    proxyEnabled: Boolean,
+    proxyHost: String,
+    proxyPort: Int,
     logUploadEnabled: Boolean,
     logUploadTokenConfigured: Boolean,
     logUploadUploading: Boolean,
@@ -745,6 +770,9 @@ private fun SettingsMenuPanel(
         playbackSummary = playbackEndAction.playbackEndMenuSummary(),
         cloudDriveEnabled = cloudDriveEnabled,
         rssCount = rssCount,
+        proxyEnabled = proxyEnabled,
+        proxyHost = proxyHost,
+        proxyPort = proxyPort,
         autoScanEnabled = autoScanEnabled,
         mergeSameAnimeEnabled = mergeSameAnimeEnabled,
         metadataSummary = settingsMetadataTokenMenuSummary(hasToken),
@@ -938,6 +966,7 @@ private fun SettingsContent(
     onRssProxyHostChange: (String) -> Unit,
     rssProxyPort: String,
     onRssProxyPortChange: (String) -> Unit,
+    proxyStatusMessage: String,
     rssSubscriptions: List<RssSubscriptionInfo>,
     rssName: String,
     onRssNameChange: (String) -> Unit,
@@ -948,6 +977,7 @@ private fun SettingsContent(
     rssEnabled: Boolean,
     onToggleRssEnabled: () -> Unit,
     onSaveCloudConfig: () -> Unit,
+    onSaveProxyConfig: () -> Unit,
     onLoginCloudDrive: () -> Unit,
     onSaveCloudDriveApiToken: () -> Unit,
     onRunCloudDriveNow: () -> Unit,
@@ -973,6 +1003,9 @@ private fun SettingsContent(
     onCheckAppUpdate: () -> Unit,
     onDownloadAndInstallAppUpdate: () -> Unit,
     onOpenAppUpdateInstallPermission: () -> Unit,
+    bangumiArchiveState: BangumiArchiveUiState,
+    onRefreshBangumiArchive: () -> Unit,
+    onDownloadBangumiArchive: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     when (selectedSection) {
@@ -1079,12 +1112,6 @@ private fun SettingsContent(
                 canPickCloudDriveDirectory = canPickCloudDriveDirectory,
                 onPickCloudInboxPath = onPickCloudInboxPath,
                 onPickCloudLibraryPath = onPickCloudLibraryPath,
-                rssProxyEnabled = rssProxyEnabled,
-                onRssProxyEnabledChange = onRssProxyEnabledChange,
-                rssProxyHost = rssProxyHost,
-                onRssProxyHostChange = onRssProxyHostChange,
-                rssProxyPort = rssProxyPort,
-                onRssProxyPortChange = onRssProxyPortChange,
                 onSave = onSaveCloudConfig,
                 onLogin = onLoginCloudDrive,
                 onSaveApiToken = onSaveCloudDriveApiToken,
@@ -1103,6 +1130,22 @@ private fun SettingsContent(
                 onAdd = onAddRssSubscription,
                 onToggleSubscription = onToggleRssSubscription,
                 onDelete = onDeleteRssSubscription
+            )
+        }
+
+        MiruPlaySettingsSection.PROXY -> SettingsSingleSectionPage(
+            section = selectedSection,
+            modifier = modifier
+        ) {
+            ProxySettingsPanel(
+                enabled = rssProxyEnabled,
+                onEnabledChange = onRssProxyEnabledChange,
+                host = rssProxyHost,
+                onHostChange = onRssProxyHostChange,
+                port = rssProxyPort,
+                onPortChange = onRssProxyPortChange,
+                statusMessage = proxyStatusMessage,
+                onSave = onSaveProxyConfig,
             )
         }
 
@@ -1176,7 +1219,10 @@ private fun SettingsContent(
                 tokenSaved = tokenSaved,
                 onTokenChange = onTokenChange,
                 onSaveToken = onSaveToken,
-                onClearToken = onClearToken
+                onClearToken = onClearToken,
+                archiveState = bangumiArchiveState,
+                onRefreshArchive = onRefreshBangumiArchive,
+                onDownloadArchive = onDownloadBangumiArchive,
             )
         }
     }
@@ -1900,12 +1946,6 @@ private fun CloudDriveAutomationPanel(
     canPickCloudDriveDirectory: Boolean,
     onPickCloudInboxPath: () -> Unit,
     onPickCloudLibraryPath: () -> Unit,
-    rssProxyEnabled: Boolean,
-    onRssProxyEnabledChange: (Boolean) -> Unit,
-    rssProxyHost: String,
-    onRssProxyHostChange: (String) -> Unit,
-    rssProxyPort: String,
-    onRssProxyPortChange: (String) -> Unit,
     onSave: () -> Unit,
     onLogin: () -> Unit,
     onSaveApiToken: () -> Unit,
@@ -2034,35 +2074,6 @@ private fun CloudDriveAutomationPanel(
             label = cloudDriveRssIntervalMinutesFieldLabel(),
             modifier = Modifier.width(220.dp)
         )
-
-        Spacer(Modifier.height(14.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            ScanOptionChip(
-                text = cloudDriveRssProxyToggleLabel(rssProxyEnabled),
-                icon = Icons.Filled.Dns,
-                selected = rssProxyEnabled,
-                enabled = true,
-                onClick = { onRssProxyEnabledChange(!rssProxyEnabled) },
-                modifier = Modifier.width(160.dp)
-            )
-        }
-        if (rssProxyEnabled) {
-            Spacer(Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                TvTextField(
-                    value = rssProxyHost,
-                    onValueChange = onRssProxyHostChange,
-                    label = cloudDriveRssProxyHostFieldLabel(),
-                    modifier = Modifier.weight(1f)
-                )
-                TvTextField(
-                    value = rssProxyPort,
-                    onValueChange = onRssProxyPortChange,
-                    label = cloudDriveRssProxyPortFieldLabel(),
-                    modifier = Modifier.width(160.dp)
-                )
-            }
-        }
 
         Spacer(Modifier.height(16.dp))
         CloudDriveWebDavSourceSelector(
@@ -2887,13 +2898,93 @@ private fun AppUpdatePanel(
 }
 
 @Composable
+private fun ProxySettingsPanel(
+    enabled: Boolean,
+    onEnabledChange: (Boolean) -> Unit,
+    host: String,
+    onHostChange: (String) -> Unit,
+    port: String,
+    onPortChange: (String) -> Unit,
+    statusMessage: String,
+    onSave: () -> Unit,
+) {
+    SettingsPanel {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Filled.Dns,
+                contentDescription = null,
+                tint = TextPrimary,
+                modifier = Modifier.size(26.dp)
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(text = settingsProxyPanelTitleLabel(), style = TvTypography.subtitle, color = TextPrimary)
+        }
+
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = settingsProxyPanelDescription(),
+            style = TvTypography.body,
+            color = TextSecondary
+        )
+
+        Spacer(Modifier.height(16.dp))
+        ScanOptionChip(
+            text = settingsProxyToggleLabel(enabled),
+            icon = Icons.Filled.Dns,
+            selected = enabled,
+            enabled = true,
+            onClick = { onEnabledChange(!enabled) },
+            modifier = Modifier.width(180.dp)
+        )
+
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            TvTextField(
+                value = host,
+                onValueChange = onHostChange,
+                label = settingsProxyHostFieldLabel(),
+                modifier = Modifier.weight(1f)
+            )
+            TvTextField(
+                value = port,
+                onValueChange = onPortChange,
+                label = settingsProxyPortFieldLabel(),
+                modifier = Modifier.width(160.dp)
+            )
+        }
+
+        Spacer(Modifier.height(16.dp))
+        TvButton(
+            text = settingsProxySaveActionLabel(),
+            icon = Icons.Filled.Save,
+            enabled = !enabled || host.isNotBlank(),
+            onClick = onSave
+        )
+
+        StatusMessage(
+            icon = if (enabled) Icons.Filled.CheckCircle else Icons.Filled.Dns,
+            text = settingsProxyCurrentStatus(enabled, host, parseRssProxyPort(port)),
+            color = if (enabled && host.isBlank()) WarningYellow else TextSecondary
+        )
+        StatusMessage(
+            icon = Icons.Filled.Refresh,
+            text = statusMessage,
+            color = if ("失败" in statusMessage || "请" in statusMessage) WarningYellow else ProgressGreen
+        )
+    }
+}
+
+@Composable
 private fun MetadataPanel(
     savedToken: String,
     tokenInput: String,
     tokenSaved: Boolean,
     onTokenChange: (String) -> Unit,
     onSaveToken: () -> Unit,
-    onClearToken: () -> Unit
+    onClearToken: () -> Unit,
+    archiveState: BangumiArchiveUiState,
+    onRefreshArchive: () -> Unit,
+    onDownloadArchive: () -> Unit,
 ) {
     SettingsPanel {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -2945,6 +3036,101 @@ private fun MetadataPanel(
             text = if (hasToken) metadataBangumiTokenSavedStatus() else metadataBangumiTokenMissingStatus(),
             color = if (hasToken) ProgressGreen else TextSecondary
         )
+    }
+
+    BangumiArchivePanel(
+        state = archiveState,
+        onRefresh = onRefreshArchive,
+        onDownload = onDownloadArchive,
+    )
+}
+
+@Composable
+private fun BangumiArchivePanel(
+    state: BangumiArchiveUiState,
+    onRefresh: () -> Unit,
+    onDownload: () -> Unit,
+) {
+    SettingsPanel {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Filled.Download,
+                contentDescription = null,
+                tint = TextPrimary,
+                modifier = Modifier.size(26.dp)
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(text = "Bangumi Archive", style = TvTypography.subtitle, color = TextPrimary)
+        }
+
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = "离线索引用于本地快速搜索 Bangumi 条目；系统会每 ${state.autoUpdateIntervalDays} 天自动更新一次。",
+            style = TvTypography.body,
+            color = TextSecondary
+        )
+
+        Spacer(Modifier.height(14.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ScanOptionChip(
+                text = if (state.hasSubjectData) "离线搜索可用" else "未下载",
+                icon = Icons.Filled.CheckCircle,
+                selected = state.hasSubjectData,
+                enabled = false,
+                onClick = {},
+                modifier = Modifier.width(170.dp)
+            )
+            ScanOptionChip(
+                text = if (state.autoUpdateEnabled) "每周自动更新" else "自动更新关闭",
+                icon = Icons.Filled.Refresh,
+                selected = state.autoUpdateEnabled,
+                enabled = false,
+                onClick = {},
+                modifier = Modifier.width(180.dp)
+            )
+        }
+
+        Spacer(Modifier.height(12.dp))
+        StatusMessage(
+            icon = Icons.Filled.Storage,
+            text = "版本 ${state.latestName ?: "未知"} · ${formatByteSize(state.subjectFileSizeBytes)} · ${formatArchiveTimestamp(state.latestUpdatedAt ?: state.latestCreatedAt)}",
+            color = TextSecondary
+        )
+        if (state.isDownloading) {
+            StatusMessage(
+                icon = Icons.Filled.Refresh,
+                text = archiveProgressLabel(state),
+                color = TextSecondary
+            )
+        }
+        if (!state.lastError.isNullOrBlank()) {
+            StatusMessage(
+                icon = Icons.Filled.Close,
+                text = state.lastError,
+                color = WarningYellow
+            )
+        }
+        StatusMessage(
+            icon = Icons.Filled.CheckCircle,
+            text = state.statusMessage,
+            color = if (state.statusMessage.contains("失败")) WarningYellow else ProgressGreen
+        )
+
+        Spacer(Modifier.height(16.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            TvButton(
+                text = if (state.isDownloading) "下载中" else if (state.hasSubjectData) "更新 Archive" else "下载 Archive",
+                icon = Icons.Filled.Download,
+                enabled = state.available && !state.isDownloading,
+                onClick = onDownload
+            )
+            TvButton(
+                text = "刷新状态",
+                icon = Icons.Filled.Refresh,
+                enabled = !state.isDownloading,
+                onClick = onRefresh
+            )
+        }
     }
 }
 
@@ -3125,6 +3311,18 @@ private fun formatByteSize(sizeBytes: Long): String {
     if (sizeBytes <= 0L) return "未知大小"
     val mib = sizeBytes.toDouble() / 1024.0 / 1024.0
     return String.format(Locale.US, "%.1f MB", mib)
+}
+
+private fun formatArchiveTimestamp(value: String?): String =
+    value?.takeIf { it.isNotBlank() }
+        ?.take(16)
+        ?.replace('T', ' ')
+        ?: "未知时间"
+
+private fun archiveProgressLabel(state: BangumiArchiveUiState): String {
+    val downloaded = formatByteSize(state.downloadedBytes)
+    val total = state.totalBytes.takeIf { it > 0L }?.let(::formatByteSize)
+    return if (total == null) "正在下载：$downloaded" else "正在下载：$downloaded / $total"
 }
 
 internal fun settingsSourceListMenuBridgeIntent(

@@ -85,6 +85,10 @@ class WebControlService @Inject constructor(
         cloudDriveScheduler.syncPeriodicWork(config)
     }
 
+    override suspend fun afterProxyConfigSaved(config: com.miruplay.tv.model.CloudDriveAutomationConfig) {
+        bangumiArchiveStore.configureProxy(config.toBangumiHttpProxyConfig())
+    }
+
     override suspend fun getBangumiArchive(): BangumiArchiveDto = runOnIo {
         bangumiArchiveStore.snapshot().toWebControlBangumiArchive(bangumiArchiveDownload)
     }

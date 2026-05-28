@@ -9,11 +9,21 @@ class SettingsSectionDisplayConventionsTest {
     @Test
     fun `settings section copy is shared by Android TV and desktop`() {
         assertEquals(
-            listOf("WebUI", "媒体源", "播放", "CloudDrive", "扫描", "日志上报", "更新", "元数据"),
+            listOf("WebUI", "媒体源", "播放", "CloudDrive", "代理配置", "扫描", "日志上报", "更新", "元数据"),
             androidTvSettingsSectionOrder.map { it.androidTvTitle },
         )
         assertEquals(
-            listOf("访问地址与二维码", "本地、WebDAV、SMB", "播完动作", "RSS 离线下载与入库", "媒体库更新策略", "OpenObserve JSON", "GitHub APK", "Bangumi Token"),
+            listOf(
+                "访问地址与二维码",
+                "本地、WebDAV、SMB",
+                "播完动作",
+                "RSS 离线下载与入库",
+                "Bangumi、Archive 与 RSS 出站代理",
+                "媒体库更新策略",
+                "OpenObserve JSON",
+                "GitHub APK",
+                "Bangumi Token",
+            ),
             androidTvSettingsSectionOrder.map { it.androidTvDescription },
         )
         assertEquals(
@@ -41,6 +51,9 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("3 个源", settingsSourcesMenuSummary(sourceCount = 3))
         assertEquals("未启用", settingsCloudDriveMenuSummary(enabled = false, rssCount = 4))
         assertEquals("4 个订阅", settingsCloudDriveMenuSummary(enabled = true, rssCount = 4))
+        assertEquals("未启用", settingsProxyMenuSummary(enabled = false))
+        assertEquals("待填写", settingsProxyMenuSummary(enabled = true, host = ""))
+        assertEquals("203.0.113.20:7890", settingsProxyMenuSummary(enabled = true, host = " 203.0.113.20 ", port = 7890))
         assertEquals("定时 · 合并", settingsScanMenuSummary(autoScanEnabled = true, mergeSameAnimeEnabled = true))
         assertEquals("定时已开", settingsScanMenuSummary(autoScanEnabled = true, mergeSameAnimeEnabled = false))
         assertEquals("同番合并", settingsScanMenuSummary(autoScanEnabled = false, mergeSameAnimeEnabled = true))
@@ -73,6 +86,9 @@ class SettingsSectionDisplayConventionsTest {
             playbackSummary = "播完动作",
             cloudDriveEnabled = true,
             rssCount = 4,
+            proxyEnabled = true,
+            proxyHost = "203.0.113.20",
+            proxyPort = 7890,
             autoScanEnabled = true,
             mergeSameAnimeEnabled = true,
             metadataSummary = "Token 已设置",
@@ -81,6 +97,7 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("3 个源", MiruPlaySettingsSection.SOURCES.settingsMenuSummary(androidInput))
         assertEquals("播完动作", MiruPlaySettingsSection.PLAYBACK.settingsMenuSummary(androidInput))
         assertEquals("4 个订阅", MiruPlaySettingsSection.CLOUD_DRIVE.settingsMenuSummary(androidInput))
+        assertEquals("203.0.113.20:7890", MiruPlaySettingsSection.PROXY.settingsMenuSummary(androidInput))
         assertEquals("定时 · 合并", MiruPlaySettingsSection.SCAN.settingsMenuSummary(androidInput))
         assertEquals("OpenObserve", MiruPlaySettingsSection.LOG_UPLOAD.settingsMenuSummary(androidInput))
         assertEquals("GitHub", MiruPlaySettingsSection.APP_UPDATE.settingsMenuSummary(androidInput))
