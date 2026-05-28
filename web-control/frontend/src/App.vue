@@ -271,8 +271,8 @@
 
                 <el-form-item label="入库模式">
                   <el-radio-group v-model="cloudForm.libraryMode">
-                    <el-radio-button label="ORGANIZED_LIBRARY">整理入库</el-radio-button>
-                    <el-radio-button label="SINGLE_DIRECTORY">单目录入库</el-radio-button>
+                    <el-radio-button value="ORGANIZED_LIBRARY">整理入库</el-radio-button>
+                    <el-radio-button value="SINGLE_DIRECTORY">单目录入库</el-radio-button>
                   </el-radio-group>
                 </el-form-item>
 
