@@ -510,6 +510,15 @@ body {
   margin-top: 1rem;
 }
 
+.archive-progress {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.archive-progress span {
+  color: var(--muted);
+}
+
 .now-playing {
   display: grid;
   gap: 0.75rem;

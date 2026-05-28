@@ -13,6 +13,7 @@ import com.miruplay.tv.repository.BangumiSubjectCollection
 import com.miruplay.tv.repository.BangumiSubjectCollectionType
 import com.miruplay.tv.repository.BangumiUser
 import com.miruplay.tv.scraper.core.BangumiApiClient
+import com.miruplay.tv.scraper.core.BangumiArchiveSubjectSearch
 import com.miruplay.tv.scraper.core.searchByAlias
 import com.miruplay.tv.scraper.core.toSimplifiedChineseQuery
 import javax.inject.Inject
@@ -20,7 +21,8 @@ import javax.inject.Singleton
 
 @Singleton
 class BangumiScraper @Inject constructor(
-    private val credentials: AppCredentialStore
+    private val credentials: AppCredentialStore,
+    archiveSearch: BangumiArchiveSubjectSearch,
 ) : MetadataScraper, BangumiCollectionService {
 
     override val sourceName: String = "Bangumi"
@@ -28,7 +30,8 @@ class BangumiScraper @Inject constructor(
     private val api = BangumiApiClient(
         tokenProvider = { credentials.bangumiAccessToken },
         userAgent = USER_AGENT,
-        normalizeQuery = { it.toSimplifiedChineseQuery() }
+        normalizeQuery = { it.toSimplifiedChineseQuery() },
+        archiveSearch = archiveSearch,
     )
 
     companion object {

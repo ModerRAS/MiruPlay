@@ -113,12 +113,20 @@ object WebDavPropfindParser {
             setSafeFeature("http://xml.org/sax/features/external-general-entities", false)
             setSafeFeature("http://xml.org/sax/features/external-parameter-entities", false)
             setSafeFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
-            isXIncludeAware = false
-            isExpandEntityReferences = false
+            setXIncludeAwareSafely(false)
+            setExpandEntityReferencesSafely(false)
         }
 
     private fun DocumentBuilderFactory.setSafeFeature(name: String, enabled: Boolean) {
         runCatching { setFeature(name, enabled) }
+    }
+
+    private fun DocumentBuilderFactory.setXIncludeAwareSafely(enabled: Boolean) {
+        runCatching { isXIncludeAware = enabled }
+    }
+
+    private fun DocumentBuilderFactory.setExpandEntityReferencesSafely(enabled: Boolean) {
+        runCatching { isExpandEntityReferences = enabled }
     }
 
     private const val NS_DAV = "DAV:"

@@ -28,6 +28,10 @@ interface WebControlEndpointService {
     suspend fun clearLogUploadToken(): LogUploadDto
     suspend fun uploadPendingLogs(): LogUploadDto
     suspend fun getMetadataSettings(): MetadataSettingsDto
+    suspend fun getBangumiArchive(): BangumiArchiveDto =
+        BangumiArchiveDto(available = false, hasSubjectData = false, lastError = "Bangumi Archive 下载在当前运行环境不可用")
+    suspend fun downloadBangumiArchive(): BangumiArchiveDto =
+        getBangumiArchive()
     suspend fun saveBangumiToken(request: BangumiTokenRequest): MetadataSettingsDto
     suspend fun clearBangumiToken(): MetadataSettingsDto
     suspend fun searchLibrary(query: String): LibraryDto

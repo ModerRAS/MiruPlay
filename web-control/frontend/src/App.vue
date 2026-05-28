@@ -512,8 +512,76 @@
                   <strong>可用</strong>
                 </div>
                 <div class="status-tile">
+                  <span>离线搜索</span>
+                  <strong>{{ bangumiArchive.hasSubjectData ? '可用' : '未下载' }}</strong>
+                </div>
+                <div class="status-tile">
                   <span>收藏同步</span>
                   <strong>{{ metadataSettings.bangumiTokenConfigured ? '可用' : '待配置' }}</strong>
+                </div>
+              </div>
+            </el-card>
+
+            <el-card shadow="never" class="panel-card">
+              <template #header>
+                <div class="card-header">
+                  <strong>Bangumi Archive</strong>
+                  <el-tag :type="bangumiArchiveStatusType">
+                    {{ bangumiArchiveStatusLabel }}
+                  </el-tag>
+                </div>
+              </template>
+
+              <el-skeleton v-if="loading.metadata" animated :rows="3" />
+              <div v-else class="metadata-form">
+                <div class="log-status-grid">
+                  <div class="status-tile">
+                    <span>索引文件</span>
+                    <strong>{{ bangumiArchive.hasSubjectData ? '已下载' : '未下载' }}</strong>
+                  </div>
+                  <div class="status-tile">
+                    <span>文件大小</span>
+                    <strong>{{ formatBytes(bangumiArchive.subjectFileSizeBytes) }}</strong>
+                  </div>
+                  <div class="status-tile">
+                    <span>版本</span>
+                    <strong>{{ bangumiArchive.latestName || '未知' }}</strong>
+                  </div>
+                  <div class="status-tile">
+                    <span>更新时间</span>
+                    <strong>{{ formatIsoDateTime(bangumiArchive.latestUpdatedAt || bangumiArchive.latestCreatedAt) || '未知' }}</strong>
+                  </div>
+                </div>
+
+                <div v-if="bangumiArchive.isDownloading" class="archive-progress">
+                  <el-progress
+                    :percentage="bangumiArchiveProgress"
+                    :indeterminate="bangumiArchiveProgress === 0"
+                  />
+                  <span>{{ bangumiArchiveProgressText }}</span>
+                </div>
+
+                <el-alert
+                  v-if="bangumiArchive.lastError"
+                  type="warning"
+                  :closable="false"
+                  show-icon
+                  :title="bangumiArchive.lastError"
+                />
+
+                <div class="form-actions">
+                  <el-button
+                    :icon="Download"
+                    type="primary"
+                    :disabled="!bangumiArchive.available || bangumiArchive.isDownloading"
+                    :loading="loading.bangumiArchive || bangumiArchive.isDownloading"
+                    @click="downloadBangumiArchive"
+                  >
+                    {{ bangumiArchive.isDownloading ? '下载中' : (bangumiArchive.hasSubjectData ? '更新 Archive' : '下载 Archive') }}
+                  </el-button>
+                  <el-button :icon="Refresh" :loading="loading.bangumiArchive" @click="loadBangumiArchiveStatus">
+                    刷新状态
+                  </el-button>
                 </div>
               </div>
             </el-card>
@@ -831,6 +899,7 @@ import {
   Cloudy,
   DArrowLeft,
   DArrowRight,
+  Download,
   Film,
   FolderOpened,
   Key,
@@ -868,6 +937,18 @@ const logUpload = reactive({
 const metadataSettings = reactive({
   bangumiTokenConfigured: false
 })
+const bangumiArchive = reactive({
+  available: false,
+  hasSubjectData: false,
+  latestName: '',
+  latestCreatedAt: '',
+  latestUpdatedAt: '',
+  subjectFileSizeBytes: 0,
+  isDownloading: false,
+  downloadedBytes: 0,
+  totalBytes: 0,
+  lastError: ''
+})
 const playback = reactive({
   state: 'Idle',
   uri: '',
@@ -896,7 +977,8 @@ const loading = reactive({
   logUploadToken: false,
   logUploadRun: false,
   metadata: false,
-  bangumiToken: false
+  bangumiToken: false,
+  bangumiArchive: false
 })
 const sourceForm = reactive({
   id: 0,
@@ -967,6 +1049,7 @@ const speedOptions = [
 
 let searchTimer = 0
 let statusTimer = 0
+let archiveTimer = 0
 
 const viewMeta = computed(() => ({
   library: ['片库', '浏览番剧、选择剧集并投到电视端播放。'],
@@ -1000,6 +1083,25 @@ const normalizedLogEndpoint = computed(() => normalizeOpenObserveEndpoint(logFor
 const canRunLogUpload = computed(() =>
   Boolean(logForm.enabled && logForm.endpoint.trim() && (logUpload.tokenConfigured || logForm.token.trim()) && !logUpload.status.isUploading)
 )
+const bangumiArchiveStatusType = computed(() => {
+  if (!bangumiArchive.available || bangumiArchive.lastError) return 'warning'
+  if (bangumiArchive.isDownloading) return 'info'
+  return bangumiArchive.hasSubjectData ? 'success' : 'info'
+})
+const bangumiArchiveStatusLabel = computed(() => {
+  if (!bangumiArchive.available) return '不可用'
+  if (bangumiArchive.isDownloading) return '下载中'
+  return bangumiArchive.hasSubjectData ? '离线搜索可用' : '未下载'
+})
+const bangumiArchiveProgress = computed(() => {
+  if (!bangumiArchive.totalBytes || bangumiArchive.totalBytes <= 0) return 0
+  return Math.max(0, Math.min(100, Math.round((bangumiArchive.downloadedBytes / bangumiArchive.totalBytes) * 100)))
+})
+const bangumiArchiveProgressText = computed(() => {
+  const downloaded = formatBytes(bangumiArchive.downloadedBytes)
+  const total = formatBytes(bangumiArchive.totalBytes)
+  return bangumiArchive.totalBytes > 0 ? `${downloaded} / ${total}` : downloaded
+})
 
 const accessUrl = computed(() => {
   if (!serverInfo.value) return '读取中...'
@@ -1042,10 +1144,16 @@ watch(activeView, (view) => {
 onMounted(async () => {
   await Promise.all([loadInfo(), loadLibrary(), loadSources(), loadCloudDriveAutomation(), loadMetadataSettings(), loadLogUpload(), loadPlaybackStatus()])
   statusTimer = window.setInterval(loadPlaybackStatus, 2000)
+  archiveTimer = window.setInterval(() => {
+    if (activeView.value === 'metadata' && bangumiArchive.isDownloading) {
+      loadBangumiArchiveStatus(false)
+    }
+  }, 2000)
 })
 
 onBeforeUnmount(() => {
   window.clearInterval(statusTimer)
+  window.clearInterval(archiveTimer)
   window.clearTimeout(searchTimer)
 })
 
@@ -1101,9 +1209,23 @@ async function loadLogUpload() {
 async function loadMetadataSettings() {
   loading.metadata = true
   try {
-    applyMetadataSettings(await api('/api/metadata'))
+    const [settings, archive] = await Promise.all([
+      api('/api/metadata'),
+      api('/api/metadata/bangumi-archive')
+    ])
+    applyMetadataSettings(settings)
+    applyBangumiArchive(archive)
   } finally {
     loading.metadata = false
+  }
+}
+
+async function loadBangumiArchiveStatus(showLoading = true) {
+  if (showLoading) loading.bangumiArchive = true
+  try {
+    applyBangumiArchive(await api('/api/metadata/bangumi-archive'))
+  } finally {
+    if (showLoading) loading.bangumiArchive = false
   }
 }
 
@@ -1144,6 +1266,21 @@ function applyLogUpload(data) {
 
 function applyMetadataSettings(data) {
   metadataSettings.bangumiTokenConfigured = Boolean(data.bangumiTokenConfigured)
+}
+
+function applyBangumiArchive(data) {
+  Object.assign(bangumiArchive, {
+    available: Boolean(data?.available),
+    hasSubjectData: Boolean(data?.hasSubjectData),
+    latestName: data?.latestName || '',
+    latestCreatedAt: data?.latestCreatedAt || '',
+    latestUpdatedAt: data?.latestUpdatedAt || '',
+    subjectFileSizeBytes: Number(data?.subjectFileSizeBytes || 0),
+    isDownloading: Boolean(data?.isDownloading),
+    downloadedBytes: Number(data?.downloadedBytes || 0),
+    totalBytes: Number(data?.totalBytes || 0),
+    lastError: data?.lastError || ''
+  })
 }
 
 async function loadPlaybackStatus() {
@@ -1754,6 +1891,16 @@ async function clearBangumiToken() {
   }
 }
 
+async function downloadBangumiArchive() {
+  loading.bangumiArchive = true
+  try {
+    applyBangumiArchive(await api('/api/metadata/bangumi-archive/download', { method: 'POST' }))
+    ElMessage.success(bangumiArchive.isDownloading ? 'Bangumi Archive 下载已开始' : 'Bangumi Archive 已更新')
+  } finally {
+    loading.bangumiArchive = false
+  }
+}
+
 async function deleteSource(sourceId) {
   try {
     await ElMessageBox.confirm('确定删除这个媒体源？', '删除媒体源', {
@@ -1807,6 +1954,31 @@ function formatDateTime(timestamp) {
     hour: '2-digit',
     minute: '2-digit'
   })
+}
+
+function formatIsoDateTime(value) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+function formatBytes(bytes) {
+  const value = Number(bytes || 0)
+  if (!Number.isFinite(value) || value <= 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB']
+  let size = value
+  let unit = 0
+  while (size >= 1024 && unit < units.length - 1) {
+    size /= 1024
+    unit += 1
+  }
+  return `${size >= 10 || unit === 0 ? size.toFixed(0) : size.toFixed(1)} ${units[unit]}`
 }
 
 function episodeLabel(episode) {

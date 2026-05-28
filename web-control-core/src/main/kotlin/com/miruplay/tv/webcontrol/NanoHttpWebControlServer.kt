@@ -167,6 +167,12 @@ open class NanoHttpWebControlServer(
             session.method == Method.GET && route == "/api/metadata" -> {
                 jsonResponse(MetadataSettingsDto.serializer(), webControlService.getMetadataSettings())
             }
+            session.method == Method.GET && route == "/api/metadata/bangumi-archive" -> {
+                jsonResponse(BangumiArchiveDto.serializer(), webControlService.getBangumiArchive())
+            }
+            session.method == Method.POST && route == "/api/metadata/bangumi-archive/download" -> {
+                jsonResponse(BangumiArchiveDto.serializer(), webControlService.downloadBangumiArchive())
+            }
             session.method == Method.POST && route == "/api/metadata/bangumi-token" -> {
                 val request = parseBody(session, BangumiTokenRequest.serializer())
                 jsonResponse(MetadataSettingsDto.serializer(), webControlService.saveBangumiToken(request))
