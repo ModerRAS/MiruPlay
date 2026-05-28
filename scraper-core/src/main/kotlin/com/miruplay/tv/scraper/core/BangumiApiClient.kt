@@ -39,12 +39,16 @@ class BangumiApiClient(
     private val archiveSearch: BangumiArchiveSubjectSearch? = null,
 ) : BangumiCollectionService {
     private val baseHttpUrl: HttpUrl = baseUrl.toHttpUrl()
-    private val client: OkHttpClient = defaultClient()
+    private val client = BangumiProxyAwareOkHttpClient(defaultClient())
     private val json = Json { ignoreUnknownKeys = true }
     private val mediaType = "application/json; charset=utf-8".toMediaType()
 
     override val hasToken: Boolean
         get() = !tokenProvider().isNullOrBlank()
+
+    fun configureProxy(proxyConfig: BangumiHttpProxyConfig) {
+        client.configureProxy(proxyConfig)
+    }
 
     suspend fun searchAnime(query: String): Result<List<ScraperResult>> = withContext(Dispatchers.IO) {
         try {

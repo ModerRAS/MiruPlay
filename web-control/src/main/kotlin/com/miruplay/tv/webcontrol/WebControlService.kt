@@ -19,6 +19,7 @@ import com.miruplay.tv.repository.ScanPreferencesRepository
 import com.miruplay.tv.scanner.ScanCoordinator
 import com.miruplay.tv.scraper.core.BangumiArchiveSnapshot
 import com.miruplay.tv.scraper.core.BangumiArchiveStore
+import com.miruplay.tv.scraper.core.toBangumiHttpProxyConfig
 import com.miruplay.tv.sync.rss.CloudDriveRssActionCoordinator
 import com.miruplay.tv.sync.rss.CloudDriveRssAutomationEngine
 import com.miruplay.tv.sync.rss.CloudDriveRssScheduler
@@ -37,7 +38,7 @@ class WebControlService @Inject constructor(
     indexRepository: MediaIndexRepository,
     private val progressRepository: PlaybackProgressRepository,
     scanPreferencesRepository: ScanPreferencesRepository,
-    cloudDriveRepository: CloudDriveAutomationRepository,
+    private val cloudDriveRepository: CloudDriveAutomationRepository,
     logUploadRepository: LogUploadRepository,
     securePreferences: AppCredentialStore,
     cloudDriveClient: CloudDriveClient,
@@ -80,6 +81,7 @@ class WebControlService @Inject constructor(
         scanCoordinator.scanSource(source.id)
 
     override suspend fun afterCloudDriveConfigSaved(config: com.miruplay.tv.model.CloudDriveAutomationConfig) {
+        bangumiArchiveStore.configureProxy(config.toBangumiHttpProxyConfig())
         cloudDriveScheduler.syncPeriodicWork(config)
     }
 
@@ -100,7 +102,9 @@ class WebControlService @Inject constructor(
             return getBangumiArchive()
         }
 
+        val proxyConfig = cloudDriveRepository.getConfig().getOrNull()?.toBangumiHttpProxyConfig()
         bangumiArchiveDownloadScope.launch {
+            proxyConfig?.let { bangumiArchiveStore.configureProxy(it) }
             val result = bangumiArchiveStore.downloadLatest { bytesRead, totalBytes ->
                 synchronized(bangumiArchiveDownloadLock) {
                     bangumiArchiveDownload = BangumiArchiveDownloadState(

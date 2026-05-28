@@ -48,9 +48,14 @@ data class BangumiArchiveSnapshot(
 class BangumiArchiveClient(
     private val latestUrl: String = DEFAULT_LATEST_URL,
     private val userAgent: String = BangumiApiClient.DEFAULT_USER_AGENT,
-    private val client: OkHttpClient = defaultClient(),
+    client: OkHttpClient = defaultClient(),
 ) {
+    private val client = BangumiProxyAwareOkHttpClient(client)
     private val json = Json { ignoreUnknownKeys = true }
+
+    fun configureProxy(proxyConfig: BangumiHttpProxyConfig) {
+        client.configureProxy(proxyConfig)
+    }
 
     fun fetchLatest(): BangumiArchiveLatest {
         val request = Request.Builder()
@@ -133,6 +138,10 @@ class BangumiArchiveStore(
 
     private val latestFile: File = File(directory, LATEST_FILE_NAME)
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = true }
+
+    fun configureProxy(proxyConfig: BangumiHttpProxyConfig) {
+        client.configureProxy(proxyConfig)
+    }
 
     fun snapshot(): BangumiArchiveSnapshot =
         BangumiArchiveSnapshot(

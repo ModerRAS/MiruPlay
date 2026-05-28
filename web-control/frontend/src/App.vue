@@ -346,8 +346,8 @@
                 <div class="switch-row">
                   <el-switch
                     v-model="cloudForm.rssProxyEnabled"
-                    active-text="RSS 代理已启用"
-                    inactive-text="RSS 代理关闭"
+                    active-text="出站代理已启用"
+                    inactive-text="出站代理关闭"
                   />
                 </div>
                 <div v-if="cloudForm.rssProxyEnabled" class="form-grid">
