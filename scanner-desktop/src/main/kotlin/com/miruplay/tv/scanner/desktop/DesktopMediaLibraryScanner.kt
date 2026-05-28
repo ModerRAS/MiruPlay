@@ -138,7 +138,6 @@ class DesktopMediaLibraryScanner(
         val fallback = VideoFilenameInference.infer(fileName, parentName)
         val parser = filenameMetadataParser ?: return fallback
 
-        val pathParsed = parseWithModel(parser, modelPathText(path, fileName))
         val fileParsed = parseWithModel(parser, MediaPathConventions.stem(fileName))
         val folderParsed = pathSegments(path)
             .dropLast(1)
@@ -149,16 +148,11 @@ class DesktopMediaLibraryScanner(
         val folderTitle = folderParsed.firstNotNullOfOrNull { it.title?.takeIf(String::isNotBlank) }
         val fileTitle = fileParsed?.title?.takeIf(String::isNotBlank)
         return VideoFilenameMetadata(
-            title = pathParsed?.title?.takeIf(String::isNotBlank)
-                ?: folderTitle
-                ?: fileTitle
-                ?: fallback.title,
-            seasonNumber = pathParsed?.season
-                ?: folderParsed.firstNotNullOfOrNull(FilenameParseResult::season)
+            title = folderTitle ?: fileTitle ?: fallback.title,
+            seasonNumber = folderParsed.firstNotNullOfOrNull(FilenameParseResult::season)
                 ?: fileParsed?.season
                 ?: fallback.seasonNumber,
-            episodeNumber = pathParsed?.episode
-                ?: fileParsed?.episode
+            episodeNumber = fileParsed?.episode
                 ?: folderParsed.firstNotNullOfOrNull(FilenameParseResult::episode)
                 ?: fallback.episodeNumber,
         )
@@ -175,20 +169,6 @@ class DesktopMediaLibraryScanner(
             .split('/')
             .map { it.trim() }
             .filter { it.isNotBlank() }
-
-    private fun modelPathText(path: String, fileName: String): String {
-        val normalized = path.replace('\\', '/').trim()
-        if (normalized.isBlank()) return fileName
-        if (normalized.length <= maxModelTextLength) return normalized
-
-        val tail = pathSegments(normalized)
-            .takeLast(maxModelContextSegments + 1)
-            .joinToString("/")
-        return tail
-            .takeIf { it.isNotBlank() }
-            ?.takeLast(maxModelTextLength)
-            ?: normalized.takeLast(maxModelTextLength)
-    }
 
     private fun FileEntry.isVideoFile(): Boolean =
         MediaFileConventions.isVideoName(name, config.videoExtensions)

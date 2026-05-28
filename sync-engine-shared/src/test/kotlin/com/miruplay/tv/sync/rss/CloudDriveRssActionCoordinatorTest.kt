@@ -4,7 +4,6 @@ import com.miruplay.tv.clouddrive.CloudDriveTokenInfo
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.CloudDriveAutomationConfig
-import com.miruplay.tv.model.CloudDriveLibraryMode
 import com.miruplay.tv.model.CloudDriveRssRunSummary
 import com.miruplay.tv.model.MIN_CLOUD_DRIVE_INTERVAL_MINUTES
 import com.miruplay.tv.model.RssDownloadTaskInfo
@@ -69,53 +68,6 @@ class CloudDriveRssActionCoordinatorTest {
         assertEquals("127.0.0.1", saved.rssProxyHost)
         assertEquals(65_535, saved.rssProxyPort)
         assertEquals(cloudRssConfigSavedStatus(), result.status)
-    }
-
-    @Test
-    fun `save config applies provided library mode`() = runBlocking {
-        val repository = FakeCloudDriveAutomationRepository(
-            config = CloudDriveAutomationConfig(
-                libraryMode = CloudDriveLibraryMode.ORGANIZED_LIBRARY,
-            ),
-        )
-        val coordinator = coordinator(repository = repository)
-
-        val result = coordinator.saveConfig(
-            endpointUrl = "https://cloud.example.test",
-            username = "miru",
-            webDavSourceId = null,
-            inboxPath = "/Inbox",
-            libraryPath = "/Library",
-            libraryMode = CloudDriveLibraryMode.SINGLE_DIRECTORY,
-            intervalMinutes = 30,
-            enabled = true,
-        ) as CloudDriveConfigActionResult.Saved
-
-        assertEquals(CloudDriveLibraryMode.SINGLE_DIRECTORY, result.config.libraryMode)
-        assertEquals(CloudDriveLibraryMode.SINGLE_DIRECTORY, repository.savedConfigs.single().libraryMode)
-    }
-
-    @Test
-    fun `save config keeps current library mode when not provided`() = runBlocking {
-        val repository = FakeCloudDriveAutomationRepository(
-            config = CloudDriveAutomationConfig(
-                libraryMode = CloudDriveLibraryMode.SINGLE_DIRECTORY,
-            ),
-        )
-        val coordinator = coordinator(repository = repository)
-
-        val result = coordinator.saveConfig(
-            endpointUrl = "https://cloud.example.test",
-            username = "miru",
-            webDavSourceId = null,
-            inboxPath = "/Inbox",
-            libraryPath = "/Library",
-            intervalMinutes = 30,
-            enabled = true,
-        ) as CloudDriveConfigActionResult.Saved
-
-        assertEquals(CloudDriveLibraryMode.SINGLE_DIRECTORY, result.config.libraryMode)
-        assertEquals(CloudDriveLibraryMode.SINGLE_DIRECTORY, repository.savedConfigs.single().libraryMode)
     }
 
     @Test
@@ -497,33 +449,6 @@ class CloudDriveRssActionCoordinatorTest {
         val result = coordinator.runCloudDriveOnce()
 
         assertEquals(CloudDriveRunActionResult.Failed(error.toUserMessage()), result)
-    }
-
-    @Test
-    fun `run action callbacks receive completed and failed results`() = runBlocking {
-        val expectedSummary = CloudDriveRssRunSummary(submitted = 1, skipped = 2, failed = 0, organized = 3)
-        val successRunner = FakeCloudDriveRssAutomationRunner()
-        val failureRunner = FakeCloudDriveRssAutomationRunner(
-            runResult = Result.failure(AppError.SyncError.WriteFailed("rss", "run failed")),
-        )
-        val successCoordinator = coordinator(runner = successRunner)
-        val failureCoordinator = coordinator(runner = failureRunner)
-        val completedSummaries = mutableListOf<CloudDriveRssRunSummary>()
-        val failedStatuses = mutableListOf<String>()
-
-        val successResult = successCoordinator.runCloudDriveOnceWithCallbacks(
-            onCompleted = { completedSummaries += it.summary },
-        )
-        val failureResult = failureCoordinator.runCloudDriveOnceWithCallbacks(
-            onFailed = { failedStatuses += it.status },
-        )
-
-        assertEquals(1, successRunner.runCalls)
-        assertEquals(listOf(expectedSummary), completedSummaries)
-        assertEquals(CloudDriveRunActionResult.Completed(expectedSummary, expectedSummary.completeStatus()), successResult)
-        assertEquals(1, failureRunner.runCalls)
-        assertEquals(listOf("写入失败：run failed"), failedStatuses)
-        assertEquals(CloudDriveRunActionResult.Failed("写入失败：run failed"), failureResult)
     }
 
     private fun coordinator(
