@@ -1,6 +1,5 @@
 package com.miruplay.tv.scanner
 
-import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.mediasource.MediaSource
@@ -29,6 +28,7 @@ import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.scraper.EpisodeMetadata
 import com.miruplay.tv.scraper.MetadataImageBackfillScraper
 import com.miruplay.tv.scraper.MetadataScraper
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -96,6 +96,8 @@ class ScanCoordinator @Inject constructor(
         val scanStartPath = if (isLocalSource) rootPath else ""
         val remoteRootContext = if (isLocalSource) null else remoteRootContextName(rootPath)
         val disableOnlineMetadata = sourceInfo.connectionInfo["disableOnlineMetadata"]?.equals("true", ignoreCase = true) == true
+        val scanStartedAtMs = System.currentTimeMillis()
+        val scanSessionId = "$sourceId-$scanStartedAtMs"
 
         // Get the real root path once (resolves symlinks)
         val realRootPath = if (isLocalSource && !isDocumentTree) {
@@ -109,6 +111,27 @@ class ScanCoordinator @Inject constructor(
         } else {
             null
         }
+        MiruLog.i(
+            tag = TAG,
+            message = "Scan source started",
+            attributes = mapOf(
+                "scan_phase" to "source_start",
+                "scan_session_id" to scanSessionId,
+                "source_id" to sourceId.toString(),
+                "source_name" to sourceInfo.name,
+                "source_type" to sourceInfo.type.name,
+                "root_path_tail" to pathTailForLog(rootPath),
+                "root_path_hash" to hashForLog(rootPath),
+                "scan_start_path_tail" to pathTailForLog(scanStartPath),
+                "scan_start_path_hash" to hashForLog(scanStartPath),
+                "real_root_path_tail" to realRootPath.orEmpty().let(::pathTailForLog),
+                "is_local_source" to isLocalSource.toString(),
+                "is_document_tree" to isDocumentTree.toString(),
+                "filename_only" to filenameOnly.toString(),
+                "disable_online_metadata" to disableOnlineMetadata.toString(),
+                "remote_root_context" to normalizeForLog(remoteRootContext.orEmpty(), MAX_LOG_TEXT_LENGTH),
+            )
+        )
 
         // Report starting
         progressCallback?.onProgress(sourceInfo.name, 0, 0)
@@ -122,6 +145,7 @@ class ScanCoordinator @Inject constructor(
         var newEpisodes = 0
         var scrapedFiles = 0
         var noMatchFiles = 0
+        val traversalDiagnostics = ScanTraversalDiagnostics(scanSessionId = scanSessionId)
 
         traverseAndProcess(
             ms = ms,
@@ -138,6 +162,25 @@ class ScanCoordinator @Inject constructor(
             isLocalSource = isLocalSource,
             filenameOnly = filenameOnly,
             remoteRootContext = remoteRootContext,
+            scanSessionId = scanSessionId,
+            diagnostics = traversalDiagnostics,
+        )
+        flushPendingProgress(traversalDiagnostics)
+        MiruLog.i(
+            tag = TAG,
+            message = "Scan traversal completed",
+            attributes = buildTraversalAttributes(
+                scanSessionId = scanSessionId,
+                sourceId = sourceId,
+                sourceName = sourceInfo.name,
+                sourceType = sourceInfo.type,
+                path = scanStartPath,
+                depth = 0,
+                diagnostics = traversalDiagnostics,
+            ) + mapOf(
+                "scan_phase" to "traversal_complete",
+                "traversal_duration_ms" to (System.currentTimeMillis() - scanStartedAtMs).toString(),
+            )
         )
 
         // Save index
@@ -283,11 +326,18 @@ class ScanCoordinator @Inject constructor(
                 "source_id" to sourceId.toString(),
                 "source_name" to sourceInfo.name,
                 "source_type" to sourceInfo.type.name,
+                "scan_session_id" to scanSessionId,
                 "total_video_files" to totalFiles.toString(),
                 "new_episode_count" to newEpisodes.toString(),
                 "scraped_file_count" to scrapedFiles.toString(),
                 "no_match_file_count" to noMatchFiles.toString(),
                 "filename_only" to filenameOnly.toString(),
+                "scan_duration_ms" to (System.currentTimeMillis() - scanStartedAtMs).toString(),
+                "directory_count" to traversalDiagnostics.directoriesVisited.toString(),
+                "entry_count" to traversalDiagnostics.entriesSeen.toString(),
+                "nfo_count" to traversalDiagnostics.nfoFilesSeen.toString(),
+                "skipped_directory_count" to traversalDiagnostics.skippedDirectories.toString(),
+                "skipped_escaped_path_count" to traversalDiagnostics.skippedEscapedPaths.toString(),
             )
         )
 
@@ -648,25 +698,125 @@ class ScanCoordinator @Inject constructor(
         .take(maxItems)
         .joinToString(" | ")
 
+    private data class ScanTraversalDiagnostics(
+        val scanSessionId: String,
+        var directoriesVisited: Int = 0,
+        var entriesSeen: Int = 0,
+        var videoFilesSeen: Int = 0,
+        var nfoFilesSeen: Int = 0,
+        var skippedDirectories: Int = 0,
+        var skippedEscapedPaths: Int = 0,
+        var lastDirectoryTail: String = "",
+        var lastEntryTail: String = "",
+        var lastVideoTail: String = "",
+        var pendingProgressPath: String = "",
+        var pendingProgressFiles: Int = 0,
+        var pendingProgressNewEpisodes: Int = 0,
+    )
+
+    private fun flushPendingProgress(diagnostics: ScanTraversalDiagnostics) {
+        if (diagnostics.pendingProgressFiles <= 0) return
+        progressCallback?.onProgress(
+            diagnostics.pendingProgressPath,
+            diagnostics.pendingProgressFiles,
+            diagnostics.pendingProgressNewEpisodes,
+        )
+        diagnostics.pendingProgressPath = ""
+        diagnostics.pendingProgressFiles = 0
+        diagnostics.pendingProgressNewEpisodes = 0
+    }
+
+    private fun shouldLogScanCheckpoint(videoOrdinal: Int): Boolean =
+        videoOrdinal <= SCAN_INITIAL_VIDEO_CHECKPOINTS ||
+            videoOrdinal % SCAN_VIDEO_CHECKPOINT_INTERVAL == 0 ||
+            videoOrdinal in SCAN_DEBUG_FOCUS_VIDEO_RANGE
+
+    private fun buildTraversalAttributes(
+        scanSessionId: String,
+        sourceId: Long,
+        sourceName: String,
+        sourceType: MediaSourceType,
+        path: String,
+        depth: Int,
+        diagnostics: ScanTraversalDiagnostics,
+    ): Map<String, String> = mapOf(
+        "scan_session_id" to scanSessionId,
+        "source_id" to sourceId.toString(),
+        "source_name" to sourceName,
+        "source_type" to sourceType.name,
+        "depth" to depth.toString(),
+        "path_tail" to pathTailForLog(path),
+        "path_hash" to hashForLog(path),
+        "directory_count" to diagnostics.directoriesVisited.toString(),
+        "entry_count" to diagnostics.entriesSeen.toString(),
+        "video_count" to diagnostics.videoFilesSeen.toString(),
+        "nfo_count" to diagnostics.nfoFilesSeen.toString(),
+        "skipped_directory_count" to diagnostics.skippedDirectories.toString(),
+        "skipped_escaped_path_count" to diagnostics.skippedEscapedPaths.toString(),
+        "last_directory_tail" to diagnostics.lastDirectoryTail,
+        "last_entry_tail" to diagnostics.lastEntryTail,
+        "last_video_tail" to diagnostics.lastVideoTail,
+    )
+
+    private fun buildScanEntryAttributes(
+        scanSessionId: String,
+        sourceId: Long,
+        sourceName: String,
+        sourceType: MediaSourceType,
+        file: com.miruplay.tv.model.FileEntry,
+        depth: Int,
+        diagnostics: ScanTraversalDiagnostics,
+    ): Map<String, String> =
+        buildTraversalAttributes(
+            scanSessionId = scanSessionId,
+            sourceId = sourceId,
+            sourceName = sourceName,
+            sourceType = sourceType,
+            path = file.path,
+            depth = depth,
+            diagnostics = diagnostics,
+        ) + mapOf(
+            "entry_ordinal" to diagnostics.entriesSeen.toString(),
+            "entry_name" to normalizeForLog(file.name, MAX_LOG_TEXT_LENGTH),
+            "entry_is_directory" to file.isDirectory.toString(),
+            "file_extension" to extensionOf(file.name),
+            "file_size_bytes" to file.size.toString(),
+            "last_modified_ms" to file.lastModified.toString(),
+            "mime_type" to file.mimeType.orEmpty(),
+        )
+
     private fun normalizeForLog(value: String, maxLength: Int): String =
         value.replace(whitespaceRegex, " ").trim().take(maxLength)
 
+    private fun hashForLog(value: String): String =
+        value.takeIf { it.isNotBlank() }?.let(::sha256Hex).orEmpty()
+
     private fun buildVideoClassificationAttributes(
+        scanSessionId: String,
         sourceId: Long,
         sourceName: String,
         sourceType: MediaSourceType,
         file: com.miruplay.tv.model.FileEntry,
         classification: VideoClassification,
         filenameOnly: Boolean,
+        videoOrdinal: Int,
+        entryOrdinal: Int,
+        depth: Int,
+        classificationDurationMs: Long,
     ): Map<String, String> {
         val diagnostics = classification.diagnostics
         val topEvidence = diagnostics.evidence.maxByOrNull { it.score }
         return mapOf(
             "scan_phase" to "video_classification",
+            "scan_session_id" to scanSessionId,
             "source_id" to sourceId.toString(),
             "source_name" to sourceName,
             "source_type" to sourceType.name,
             "filename_only" to filenameOnly.toString(),
+            "video_ordinal" to videoOrdinal.toString(),
+            "entry_ordinal" to entryOrdinal.toString(),
+            "depth" to depth.toString(),
+            "classification_duration_ms" to classificationDurationMs.toString(),
             "file_name" to normalizeForLog(file.name, MAX_LOG_TEXT_LENGTH),
             "file_extension" to extensionOf(file.name),
             "file_size_bytes" to file.size.toString(),
@@ -786,36 +936,227 @@ class ScanCoordinator @Inject constructor(
         isLocalSource: Boolean,
         filenameOnly: Boolean,
         remoteRootContext: String? = null,
+        scanSessionId: String,
+        diagnostics: ScanTraversalDiagnostics,
     ) {
         // Guard: skip hidden directories
         val pathName = MediaPathConventions.fileName(path)
-        if (pathName.startsWith(".")) return
+        if (pathName.startsWith(".")) {
+            diagnostics.skippedDirectories += 1
+            MiruLog.d(
+                tag = TAG,
+                message = "Scan directory skipped",
+                attributes = buildTraversalAttributes(
+                    scanSessionId = scanSessionId,
+                    sourceId = sourceId,
+                    sourceName = sourceName,
+                    sourceType = sourceType,
+                    path = path,
+                    depth = depth,
+                    diagnostics = diagnostics,
+                ) + mapOf(
+                    "scan_phase" to "directory_skip",
+                    "skip_reason" to "hidden_directory",
+                )
+            )
+            return
+        }
 
         // Guard: skip Android system media directories
-        if (isLocalSource && pathName in skipDirs) return
+        if (isLocalSource && pathName in skipDirs) {
+            diagnostics.skippedDirectories += 1
+            MiruLog.d(
+                tag = TAG,
+                message = "Scan directory skipped",
+                attributes = buildTraversalAttributes(
+                    scanSessionId = scanSessionId,
+                    sourceId = sourceId,
+                    sourceName = sourceName,
+                    sourceType = sourceType,
+                    path = path,
+                    depth = depth,
+                    diagnostics = diagnostics,
+                ) + mapOf(
+                    "scan_phase" to "directory_skip",
+                    "skip_reason" to "system_directory",
+                )
+            )
+            return
+        }
 
         // Guard: skip /mnt directory entirely
-        if (isLocalSource && path.startsWith("/mnt/")) return
+        if (isLocalSource && path.startsWith("/mnt/")) {
+            diagnostics.skippedDirectories += 1
+            MiruLog.d(
+                tag = TAG,
+                message = "Scan directory skipped",
+                attributes = buildTraversalAttributes(
+                    scanSessionId = scanSessionId,
+                    sourceId = sourceId,
+                    sourceName = sourceName,
+                    sourceType = sourceType,
+                    path = path,
+                    depth = depth,
+                    diagnostics = diagnostics,
+                ) + mapOf(
+                    "scan_phase" to "directory_skip",
+                    "skip_reason" to "mnt_guard",
+                )
+            )
+            return
+        }
 
         // Check for cancellation
         if (!currentCoroutineContext().isActive) return
 
         try {
-            val files = ms.listFiles(path).getOrNull() ?: return
+            diagnostics.directoriesVisited += 1
+            diagnostics.lastDirectoryTail = pathTailForLog(path)
+            val directoryOrdinal = diagnostics.directoriesVisited
+            val listStartedAtMs = System.currentTimeMillis()
+            MiruLog.d(
+                tag = TAG,
+                message = "Scan directory listing started",
+                attributes = buildTraversalAttributes(
+                    scanSessionId = scanSessionId,
+                    sourceId = sourceId,
+                    sourceName = sourceName,
+                    sourceType = sourceType,
+                    path = path,
+                    depth = depth,
+                    diagnostics = diagnostics,
+                ) + mapOf(
+                    "scan_phase" to "directory_list_start",
+                    "directory_ordinal" to directoryOrdinal.toString(),
+                )
+            )
+            val listResult = ms.listFiles(path)
+            val listDurationMs = System.currentTimeMillis() - listStartedAtMs
+            val files = when (listResult) {
+                is Result.Success -> listResult.data
+                is Result.Error -> {
+                    MiruLog.w(
+                        tag = TAG,
+                        message = "Scan directory listing failed",
+                        attributes = buildTraversalAttributes(
+                            scanSessionId = scanSessionId,
+                            sourceId = sourceId,
+                            sourceName = sourceName,
+                            sourceType = sourceType,
+                            path = path,
+                            depth = depth,
+                            diagnostics = diagnostics,
+                        ) + mapOf(
+                            "scan_phase" to "directory_list_failed",
+                            "directory_ordinal" to directoryOrdinal.toString(),
+                            "duration_ms" to listDurationMs.toString(),
+                            "error_type" to listResult.error::class.java.simpleName,
+                            "error_message" to normalizeForLog(listResult.error.toString(), 240),
+                        )
+                    )
+                    return
+                }
+            }
+            val listAttributes = buildTraversalAttributes(
+                scanSessionId = scanSessionId,
+                sourceId = sourceId,
+                sourceName = sourceName,
+                sourceType = sourceType,
+                path = path,
+                depth = depth,
+                diagnostics = diagnostics,
+            ) + mapOf(
+                "scan_phase" to "directory_list_complete",
+                "directory_ordinal" to directoryOrdinal.toString(),
+                "directory_entry_count" to files.size.toString(),
+                "duration_ms" to listDurationMs.toString(),
+            )
+            if (listDurationMs >= SLOW_DIRECTORY_LISTING_MS) {
+                MiruLog.w(
+                    tag = TAG,
+                    message = "Scan directory listing slow",
+                    attributes = listAttributes,
+                )
+            } else {
+                MiruLog.d(
+                    tag = TAG,
+                    message = "Scan directory listed",
+                    attributes = listAttributes,
+                )
+            }
 
             for (file in files) {
                 if (!currentCoroutineContext().isActive) return
+                diagnostics.entriesSeen += 1
+                diagnostics.lastEntryTail = pathTailForLog(file.path)
 
                 // Belt-and-suspenders: if file.path escapes root boundary, skip it
                 if (rootPath != null && !isWithinRoot(file.path, rootPath)) {
                     Log.w("ScanCoordinator", "Path escaped root boundary: ${file.path} (root=$rootPath), skipping")
+                    diagnostics.skippedEscapedPaths += 1
+                    MiruLog.w(
+                        tag = TAG,
+                        message = "Scan path escaped root boundary",
+                        attributes = buildScanEntryAttributes(
+                            scanSessionId = scanSessionId,
+                            sourceId = sourceId,
+                            sourceName = sourceName,
+                            sourceType = sourceType,
+                            file = file,
+                            depth = depth,
+                            diagnostics = diagnostics,
+                        ) + mapOf(
+                            "scan_phase" to "entry_skip",
+                            "skip_reason" to "escaped_root_boundary",
+                            "root_path_tail" to pathTailForLog(rootPath),
+                            "root_path_hash" to hashForLog(rootPath),
+                        )
+                    )
                     continue
                 }
 
                 if (file.isDirectory) {
                     // Skip trickplay, hidden, and system directories
-                    if (file.name.endsWith(".trickplay") || file.name.startsWith(".")) continue
-                    if (isLocalSource && file.name in skipDirs) continue
+                    if (file.name.endsWith(".trickplay") || file.name.startsWith(".")) {
+                        diagnostics.skippedDirectories += 1
+                        MiruLog.d(
+                            tag = TAG,
+                            message = "Scan child directory skipped",
+                            attributes = buildScanEntryAttributes(
+                                scanSessionId = scanSessionId,
+                                sourceId = sourceId,
+                                sourceName = sourceName,
+                                sourceType = sourceType,
+                                file = file,
+                                depth = depth,
+                                diagnostics = diagnostics,
+                            ) + mapOf(
+                                "scan_phase" to "directory_skip",
+                                "skip_reason" to "hidden_or_trickplay",
+                            )
+                        )
+                        continue
+                    }
+                    if (isLocalSource && file.name in skipDirs) {
+                        diagnostics.skippedDirectories += 1
+                        MiruLog.d(
+                            tag = TAG,
+                            message = "Scan child directory skipped",
+                            attributes = buildScanEntryAttributes(
+                                scanSessionId = scanSessionId,
+                                sourceId = sourceId,
+                                sourceName = sourceName,
+                                sourceType = sourceType,
+                                file = file,
+                                depth = depth,
+                                diagnostics = diagnostics,
+                            ) + mapOf(
+                                "scan_phase" to "directory_skip",
+                                "skip_reason" to "system_directory",
+                            )
+                        )
+                        continue
+                    }
                     
                     // Recurse into subdirectory
                     traverseAndProcess(
@@ -834,27 +1175,80 @@ class ScanCoordinator @Inject constructor(
                         isLocalSource = isLocalSource,
                         filenameOnly = filenameOnly,
                         remoteRootContext = remoteRootContext,
+                        scanSessionId = scanSessionId,
+                        diagnostics = diagnostics,
                     )
                 } else {
                     val fileName = file.name
                     if (MediaFileConventions.isVideoName(fileName, videoExtensions)) {
                         totalFiles(1)
+                        diagnostics.videoFilesSeen += 1
+                        diagnostics.lastVideoTail = pathTailForLog(file.path)
+                        val videoOrdinal = diagnostics.videoFilesSeen
                         val classificationPath = classificationPathWithRemoteRoot(file.path, remoteRootContext)
+                        if (shouldLogScanCheckpoint(videoOrdinal)) {
+                            MiruLog.i(
+                                tag = TAG,
+                                message = "Scan video processing started",
+                                attributes = buildScanEntryAttributes(
+                                    scanSessionId = scanSessionId,
+                                    sourceId = sourceId,
+                                    sourceName = sourceName,
+                                    sourceType = sourceType,
+                                    file = file,
+                                    depth = depth,
+                                    diagnostics = diagnostics,
+                                ) + mapOf(
+                                    "scan_phase" to "video_start",
+                                    "video_ordinal" to videoOrdinal.toString(),
+                                    "classification_path_tail" to pathTailForLog(classificationPath),
+                                    "classification_path_hash" to hashForLog(classificationPath),
+                                )
+                            )
+                        }
+                        val classificationStartedAtMs = System.currentTimeMillis()
                         val match = classifier.classifyVideo(
                             path = classificationPath,
                             fileName = fileName,
                             rootContext = remoteRootContext,
                         )
+                        val classificationDurationMs = System.currentTimeMillis() - classificationStartedAtMs
+                        if (classificationDurationMs >= SLOW_VIDEO_CLASSIFICATION_MS) {
+                            MiruLog.w(
+                                tag = TAG,
+                                message = "Scan video classification slow",
+                                attributes = buildScanEntryAttributes(
+                                    scanSessionId = scanSessionId,
+                                    sourceId = sourceId,
+                                    sourceName = sourceName,
+                                    sourceType = sourceType,
+                                    file = file,
+                                    depth = depth,
+                                    diagnostics = diagnostics,
+                                ) + mapOf(
+                                    "scan_phase" to "video_classification_slow",
+                                    "video_ordinal" to videoOrdinal.toString(),
+                                    "duration_ms" to classificationDurationMs.toString(),
+                                    "anime_name" to normalizeForLog(match.animeName, MAX_LOG_TEXT_LENGTH),
+                                    "episode_number" to match.episodeNumber?.toString().orEmpty(),
+                                )
+                            )
+                        }
                         MiruLog.i(
                             tag = TAG,
                             message = "Scan video classified",
                             attributes = buildVideoClassificationAttributes(
+                                scanSessionId = scanSessionId,
                                 sourceId = sourceId,
                                 sourceName = sourceName,
                                 sourceType = sourceType,
                                 file = file,
                                 classification = match,
                                 filenameOnly = filenameOnly,
+                                videoOrdinal = videoOrdinal,
+                                entryOrdinal = diagnostics.entriesSeen,
+                                depth = depth,
+                                classificationDurationMs = classificationDurationMs,
                             )
                         )
                         indexEntities.add(MediaIndexEntry(
@@ -872,24 +1266,107 @@ class ScanCoordinator @Inject constructor(
                             .addAll(match.titleCandidates)
                         if (match.episodeNumber != null) newEpisodes(1)
 
-                        // Report progress every 5 video files
-                        if (file.path.hashCode() % 5 == 0) {
-                            progressCallback?.onProgress(match.animeName, 1, if (match.episodeNumber != null) 1 else 0)
+                        diagnostics.pendingProgressPath = match.animeName
+                        diagnostics.pendingProgressFiles += 1
+                        if (match.episodeNumber != null) {
+                            diagnostics.pendingProgressNewEpisodes += 1
+                        }
+                        if (diagnostics.pendingProgressFiles >= SCAN_PROGRESS_INTERVAL_VIDEO_FILES) {
+                            flushPendingProgress(diagnostics)
                         }
                     } else if (!filenameOnly) {
                         if (MediaFileConventions.hasExtension(fileName, "nfo")) {
+                            diagnostics.nfoFilesSeen += 1
+                            val nfoOrdinal = diagnostics.nfoFilesSeen
                             val classificationPath = classificationPathWithRemoteRoot(file.path, remoteRootContext)
+                            val nfoAnimeName = classifier.classifyNfo(classificationPath, remoteRootContext).animeName
+                            val nfoStartedAtMs = System.currentTimeMillis()
+                            MiruLog.d(
+                                tag = TAG,
+                                message = "Scan NFO parsing started",
+                                attributes = buildScanEntryAttributes(
+                                    scanSessionId = scanSessionId,
+                                    sourceId = sourceId,
+                                    sourceName = sourceName,
+                                    sourceType = sourceType,
+                                    file = file,
+                                    depth = depth,
+                                    diagnostics = diagnostics,
+                                ) + mapOf(
+                                    "scan_phase" to "nfo_start",
+                                    "nfo_ordinal" to nfoOrdinal.toString(),
+                                    "anime_name" to normalizeForLog(nfoAnimeName, MAX_LOG_TEXT_LENGTH),
+                                )
+                            )
                             parseAndCacheRemoteNfo(
                                 ms,
                                 file.path,
-                                classifier.classifyNfo(classificationPath, remoteRootContext).animeName,
+                                nfoAnimeName,
+                                scanSessionId,
                             )
+                            val nfoDurationMs = System.currentTimeMillis() - nfoStartedAtMs
+                            val nfoAttributes = buildScanEntryAttributes(
+                                scanSessionId = scanSessionId,
+                                sourceId = sourceId,
+                                sourceName = sourceName,
+                                sourceType = sourceType,
+                                file = file,
+                                depth = depth,
+                                diagnostics = diagnostics,
+                            ) + mapOf(
+                                "scan_phase" to "nfo_complete",
+                                "nfo_ordinal" to nfoOrdinal.toString(),
+                                "duration_ms" to nfoDurationMs.toString(),
+                                "anime_name" to normalizeForLog(nfoAnimeName, MAX_LOG_TEXT_LENGTH),
+                            )
+                            if (nfoDurationMs >= SLOW_NFO_PARSE_MS) {
+                                MiruLog.w(
+                                    tag = TAG,
+                                    message = "Scan NFO parsing slow",
+                                    attributes = nfoAttributes,
+                                )
+                            } else {
+                                MiruLog.d(
+                                    tag = TAG,
+                                    message = "Scan NFO parsed",
+                                    attributes = nfoAttributes,
+                                )
+                            }
                         }
                     }
                 }
             }
+        } catch (e: CancellationException) {
+            MiruLog.i(
+                tag = TAG,
+                message = "Scan traversal cancelled",
+                attributes = buildTraversalAttributes(
+                    scanSessionId = scanSessionId,
+                    sourceId = sourceId,
+                    sourceName = sourceName,
+                    sourceType = sourceType,
+                    path = path,
+                    depth = depth,
+                    diagnostics = diagnostics,
+                ) + mapOf("scan_phase" to "traversal_cancelled")
+            )
+            throw e
         } catch (e: Exception) {
             Log.w("ScanCoordinator", "Error traversing path: $path", e)
+            MiruLog.e(
+                tag = TAG,
+                message = "Scan traversal failed",
+                throwable = e,
+                attributes = buildTraversalAttributes(
+                    scanSessionId = scanSessionId,
+                    sourceId = sourceId,
+                    sourceName = sourceName,
+                    sourceType = sourceType,
+                    path = path,
+                    depth = depth,
+                    diagnostics = diagnostics,
+                ) + mapOf("scan_phase" to "traversal_failed")
+            )
         }
     }
 
@@ -952,7 +1429,12 @@ class ScanCoordinator @Inject constructor(
      * Download and parse a single NFO file, cache metadata using showDirName as the cache key.
      * This ensures the cache key matches the animeName stored in the index.
      */
-    private suspend fun parseAndCacheRemoteNfo(ms: MediaSource, nfoPath: String, showDirName: String) {
+    private suspend fun parseAndCacheRemoteNfo(
+        ms: MediaSource,
+        nfoPath: String,
+        showDirName: String,
+        scanSessionId: String,
+    ) {
         try {
             val stream = ms.openStream(nfoPath).getOrNull() ?: return
             val xml = stream.bufferedReader().use { it.readText() }
@@ -982,8 +1464,22 @@ class ScanCoordinator @Inject constructor(
                     }
                 }
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.w("ScanCoordinator", "Error parsing NFO: $nfoPath", e)
+            MiruLog.e(
+                tag = TAG,
+                message = "Scan NFO parsing failed",
+                throwable = e,
+                attributes = mapOf(
+                    "scan_phase" to "nfo_failed",
+                    "scan_session_id" to scanSessionId,
+                    "path_tail" to pathTailForLog(nfoPath),
+                    "path_hash" to hashForLog(nfoPath),
+                    "anime_name" to normalizeForLog(showDirName, MAX_LOG_TEXT_LENGTH),
+                )
+            )
         }
     }
 
@@ -1074,6 +1570,13 @@ class ScanCoordinator @Inject constructor(
         private const val MAX_LOG_TEXT_LENGTH = 120
         private const val MAX_PATH_TAIL_SEGMENTS_IN_LOG = 4
         private const val MAX_PATH_TAIL_LENGTH_IN_LOG = 240
+        private const val SCAN_PROGRESS_INTERVAL_VIDEO_FILES = 5
+        private const val SCAN_INITIAL_VIDEO_CHECKPOINTS = 5
+        private const val SCAN_VIDEO_CHECKPOINT_INTERVAL = 25
+        private const val SLOW_DIRECTORY_LISTING_MS = 5_000L
+        private const val SLOW_VIDEO_CLASSIFICATION_MS = 2_000L
+        private const val SLOW_NFO_PARSE_MS = 2_000L
+        private val SCAN_DEBUG_FOCUS_VIDEO_RANGE = 275..310
         private val whitespaceRegex = Regex("\\s+")
         private val seasonOnlyRegex = Regex("(?i)^(s\\d{1,2}|season\\s*\\d{1,2}|第\\s*\\d+\\s*[季期])$")
         private val videoExtensions = setOf("mkv", "mp4", "avi", "mov", "wmv", "flv", "webm", "m4v")
