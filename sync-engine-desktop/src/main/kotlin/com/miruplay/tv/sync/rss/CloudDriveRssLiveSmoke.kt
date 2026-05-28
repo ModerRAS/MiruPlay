@@ -8,9 +8,6 @@ import com.miruplay.tv.clouddrive.CloudDriveTokenInfo
 import com.miruplay.tv.clouddrive.GrpcCloudDriveClient
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
-import com.miruplay.tv.core.common.redactSensitiveUrl
-import com.miruplay.tv.core.common.sensitiveUrlEvidence
-import com.miruplay.tv.core.common.sha256Hex
 import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -479,10 +476,7 @@ internal fun buildCloudDriveRssLiveSmokeReportJson(
 ): String {
     val payload = buildJsonObject {
         put("generatedAtUtc", Instant.now().toString())
-        put("endpoint", redactCloudDriveRssEvidenceUrl(options.endpoint))
-        putJsonObject("endpointEvidence") {
-            putUrlEvidenceFields(options.endpoint)
-        }
+        put("endpoint", options.endpoint)
         put("rssUrl", redactCloudDriveRssEvidenceUrl(options.rssUrl))
         putJsonObject("rssUrlEvidence") {
             putUrlEvidenceFields(options.rssUrl)
@@ -547,21 +541,54 @@ internal fun buildCloudDriveRssLiveSmokeReportJson(
 }
 
 internal fun redactCloudDriveRssEvidenceUrl(value: String): String {
-    return redactSensitiveUrl(
-        value = value,
-        schemeRedactions = RSS_URL_SCHEME_REDACTIONS,
-    )
+    val trimmed = value.trim()
+    val uri = runCatching { URI(trimmed) }.getOrNull()
+    val scheme = uri?.scheme?.lowercase()
+        ?: trimmed.substringBefore(':', missingDelimiterValue = "").lowercase().ifBlank { null }
+    return when (scheme) {
+        "http",
+        "https",
+        -> {
+            val authority = uri?.redactedAuthority().orEmpty()
+            if (authority.isBlank()) "$scheme://<redacted>/..." else "$scheme://$authority/..."
+        }
+        "file" -> "file:///<redacted>"
+        "magnet" -> "magnet:?<redacted>"
+        null -> "<redacted>"
+        else -> "$scheme:<redacted>"
+    }
 }
 
 private fun JsonObjectBuilder.putUrlEvidenceFields(value: String) {
-    val evidence = sensitiveUrlEvidence(
-        value = value,
-        schemeRedactions = RSS_URL_SCHEME_REDACTIONS,
-    )
-    put("redacted", evidence.redacted)
-    put("scheme", evidence.scheme)
-    put("host", evidence.host)
-    put("sha256", evidence.sha256)
+    val trimmed = value.trim()
+    val uri = runCatching { URI(trimmed) }.getOrNull()
+    val scheme = uri?.scheme?.lowercase()
+        ?: trimmed.substringBefore(':', missingDelimiterValue = "").lowercase()
+    put("redacted", redactCloudDriveRssEvidenceUrl(trimmed))
+    put("scheme", scheme)
+    put("host", uri?.redactedHost().orEmpty())
+    put("sha256", sha256Hex(trimmed))
+}
+
+private fun URI.redactedAuthority(): String =
+    rawAuthority
+        ?.substringAfterLast("@")
+        ?.takeIf { it.isNotBlank() }
+        ?: host?.let { host ->
+            if (port >= 0) "$host:$port" else host
+        }.orEmpty()
+
+private fun URI.redactedHost(): String =
+    host
+        ?: rawAuthority
+            ?.substringAfterLast("@")
+            ?.trim('[', ']')
+            ?.substringBefore(":")
+            .orEmpty()
+
+private fun sha256Hex(value: String): String {
+    val digest = MessageDigest.getInstance("SHA-256").digest(value.trim().toByteArray(Charsets.UTF_8))
+    return digest.joinToString(separator = "") { byte -> "%02x".format(byte.toInt() and 0xff) }
 }
 
 private fun Map<String, String>.required(key: String): String =

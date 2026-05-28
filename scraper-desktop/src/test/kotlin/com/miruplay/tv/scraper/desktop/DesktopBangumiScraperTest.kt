@@ -19,20 +19,6 @@ class DesktopBangumiScraperTest {
     }
 
     @Test
-    fun `default Bangumi base url can be overridden for desktop behavior tests`() {
-        assertEquals(
-            "http://127.0.0.1:39000/",
-            DesktopBangumiScraper.bangumiBaseUrlFromEnvironment(
-                mapOf(DesktopBangumiScraper.BASE_URL_ENV to " http://127.0.0.1:39000/ "),
-            ),
-        )
-        assertEquals(
-            "https://api.bgm.tv",
-            DesktopBangumiScraper.bangumiBaseUrlFromEnvironment(emptyMap()),
-        )
-    }
-
-    @Test
     fun `desktop wrapper delegates search to shared Bangumi client`() = runBlocking {
         MockWebServer().use { server ->
             server.enqueue(

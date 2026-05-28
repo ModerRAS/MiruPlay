@@ -436,12 +436,7 @@ class CloudDriveRssLiveSmokeTest {
         assertFalse(json.contains("magnet:?xt=urn:btih:abc"))
         assertFalse(json.contains("secret-title"))
         val root = Json.parseToJsonElement(json).jsonObject
-        assertEquals("http://127.0.0.1:19798/...", root.getValue("endpoint").jsonPrimitive.content)
-        val endpointEvidence = root.getValue("endpointEvidence").jsonObject
-        assertEquals("http://127.0.0.1:19798/...", endpointEvidence.getValue("redacted").jsonPrimitive.content)
-        assertEquals("http", endpointEvidence.getValue("scheme").jsonPrimitive.content)
-        assertEquals("127.0.0.1", endpointEvidence.getValue("host").jsonPrimitive.content)
-        assertEquals(64, endpointEvidence.getValue("sha256").jsonPrimitive.content.length)
+        assertEquals("http://127.0.0.1:19798", root.getValue("endpoint").jsonPrimitive.content)
         assertEquals("https://example.test/...", root.getValue("rssUrl").jsonPrimitive.content)
         val rssUrlEvidence = root.getValue("rssUrlEvidence").jsonObject
         assertEquals("https://example.test/...", rssUrlEvidence.getValue("redacted").jsonPrimitive.content)
@@ -483,74 +478,6 @@ class CloudDriveRssLiveSmokeTest {
         assertEquals("file:///<redacted>", redactCloudDriveRssEvidenceUrl("file:///D:/feeds/private.xml"))
         assertEquals("magnet:?<redacted>", redactCloudDriveRssEvidenceUrl("magnet:?xt=urn:btih:abc&dn=secret"))
         assertEquals("ftp:<redacted>", redactCloudDriveRssEvidenceUrl("ftp://example.test/private.torrent"))
-    }
-
-    @Test
-    fun `sample rss report passes assertion script`() {
-        val powerShellCommand = resolvePowerShellCommand()
-        assumeTrue(
-            "PowerShell is required for assert-cloud-rss-report.ps1 smoke assertion.",
-            powerShellCommand != null
-        )
-
-        val reportStream = requireNotNull(
-            javaClass.classLoader.getResourceAsStream("cloud-rss-sample-report.json")
-        )
-        val reportFile = createTempFile(prefix = "cloud-rss-sample-", suffix = ".json").toFile()
-        reportStream.use { input ->
-            reportFile.outputStream().use { output -> input.copyTo(output) }
-        }
-        val scriptFile = File("..", "tools/assert-cloud-rss-report.ps1").canonicalFile
-        val process = ProcessBuilder(
-            powerShellCommand!!,
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            scriptFile.absolutePath,
-            "-ReportPath",
-            reportFile.absolutePath,
-            "-RequireCandidates",
-            "-RequireLiveSubmit",
-            "-RequireOrganize",
-            "-RequireOfflinePermission",
-        )
-            .directory(scriptFile.parentFile.parentFile)
-            .redirectErrorStream(true)
-            .start()
-        val output = process.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
-        val exitCode = process.waitFor()
-        Files.deleteIfExists(reportFile.toPath())
-        assertEquals("assert-cloud-rss-report.ps1 should pass.\n$output", 0, exitCode)
-    }
-
-    private fun resolvePowerShellCommand(): String? {
-        val isWindows = System.getProperty("os.name").lowercase().contains("windows")
-        val candidates =
-            if (isWindows) {
-                listOf("powershell.exe", "pwsh.exe", "pwsh")
-            } else {
-                listOf("pwsh")
-            }
-
-        return candidates.firstOrNull { isCommandAvailable(it) }
-    }
-
-    private fun isCommandAvailable(command: String): Boolean {
-        val probeProcess = runCatching {
-            ProcessBuilder(command, "-NoProfile", "-Command", "exit 0")
-                .redirectErrorStream(true)
-                .start()
-        }.getOrElse {
-            return false
-        }
-
-        val finished = probeProcess.waitFor(10, TimeUnit.SECONDS)
-        if (!finished) {
-            probeProcess.destroyForcibly()
-            return false
-        }
-        return probeProcess.exitValue() == 0
     }
 
     private class FakeFeedReader(

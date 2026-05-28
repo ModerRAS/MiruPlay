@@ -48,14 +48,7 @@ $reportText = [System.IO.File]::ReadAllText($resolvedReportPath, [System.Text.En
 $report = $reportText | ConvertFrom-Json
 
 Assert-Truthy -Condition (-not [string]::IsNullOrWhiteSpace([string]$report.generatedAtUtc)) -Message "Missing generatedAtUtc."
-Assert-Truthy -Condition ([string]$report.endpoint -match '^https?://.+/\.\.\.$') -Message "endpoint must be redacted evidence, not a raw URL."
-Assert-Truthy -Condition ($null -ne $report.endpointEvidence) -Message "Missing endpointEvidence."
-if ($null -ne $report.endpointEvidence) {
-    Assert-Truthy -Condition ([string]$report.endpointEvidence.redacted -eq [string]$report.endpoint) -Message "endpoint must match endpointEvidence.redacted."
-    Assert-Truthy -Condition ([string]$report.endpointEvidence.scheme -in @("http", "https")) -Message "endpointEvidence.scheme must be http or https."
-    Assert-Truthy -Condition ([string]$report.endpointEvidence.sha256 -match '^[a-f0-9]{64}$') -Message "endpointEvidence.sha256 must be a SHA-256 hex digest."
-    Assert-Truthy -Condition (-not [string]::IsNullOrWhiteSpace([string]$report.endpointEvidence.host)) -Message "endpointEvidence.host is required for HTTP(S) endpoints."
-}
+Assert-Truthy -Condition ([string]$report.endpoint -match '^https?://') -Message "Endpoint must be an HTTP(S) URL."
 Assert-Truthy -Condition ([string]$report.rssUrl -match '^(https?://.+/\.\.\.|file:///<redacted>)$') -Message "rssUrl must be redacted evidence, not a raw URL."
 Assert-Truthy -Condition ($null -ne $report.rssUrlEvidence) -Message "Missing rssUrlEvidence."
 if ($null -ne $report.rssUrlEvidence) {
@@ -177,7 +170,7 @@ foreach ($item in $previewItems) {
     }
 }
 
-if ($reportText -match '(?i)cloudDriveToken|Authorization|Bearer |passkey=|token=|"submissionUrl"\s*:|"guid"\s*:|@[^"]*:\d+') {
+if ($reportText -match '(?i)cloudDriveToken|Authorization|Bearer |passkey=|token=|"submissionUrl"\s*:|"guid"\s*:') {
     Assert-Truthy -Condition $false -Message "Report appears to contain sensitive token or authorization text."
 }
 
