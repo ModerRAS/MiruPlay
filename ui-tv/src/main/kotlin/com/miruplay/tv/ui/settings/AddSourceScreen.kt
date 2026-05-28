@@ -426,6 +426,14 @@ fun AddSourceScreen(
         resetSourceForm()
     }
 
+    fun saveProxyDraft(enabled: Boolean = rssProxyEnabled) {
+        viewModel.saveProxyConfig(
+            enabled = enabled,
+            host = rssProxyHost,
+            port = parseRssProxyPort(rssProxyPort)
+        )
+    }
+
     OverscanContainer {
         Column(modifier = Modifier.fillMaxSize()) {
             SettingsHeader(onNavigateBack = onNavigateBack)
@@ -587,7 +595,10 @@ fun AddSourceScreen(
                         )
                     },
                     rssProxyEnabled = rssProxyEnabled,
-                    onRssProxyEnabledChange = { rssProxyEnabled = it },
+                    onRssProxyEnabledChange = { enabled ->
+                        rssProxyEnabled = enabled
+                        saveProxyDraft(enabled)
+                    },
                     rssProxyHost = rssProxyHost,
                     onRssProxyHostChange = { rssProxyHost = it },
                     rssProxyPort = rssProxyPort,
@@ -617,13 +628,7 @@ fun AddSourceScreen(
                             rssProxyPort = parseRssProxyPort(rssProxyPort)
                         )
                     },
-                    onSaveProxyConfig = {
-                        viewModel.saveProxyConfig(
-                            enabled = rssProxyEnabled,
-                            host = rssProxyHost,
-                            port = parseRssProxyPort(rssProxyPort)
-                        )
-                    },
+                    onSaveProxyConfig = { saveProxyDraft() },
                     onLoginCloudDrive = {
                         viewModel.loginCloudDrive(cloudEndpoint, cloudUsername, cloudPassword)
                         cloudPassword = ""

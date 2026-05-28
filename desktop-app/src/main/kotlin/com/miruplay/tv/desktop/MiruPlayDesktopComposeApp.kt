@@ -1288,6 +1288,37 @@ internal fun MiruPlayDesktopComposeApp(
         }
     }
 
+    suspend fun saveCloudRssConfig(
+        enabledOverride: Boolean = cloudEnabled,
+        proxyEnabledOverride: Boolean = rssProxyEnabled,
+        proxyHostOverride: String = rssProxyHost,
+        proxyPortOverride: String = rssProxyPort,
+    ) {
+        val interval = parseCloudDriveIntervalMinutes(cloudIntervalMinutes)
+        val proxyPort = parseRssProxyPort(proxyPortOverride)
+        when (val result = cloudRssActions.saveConfig(
+            endpointUrl = cloudEndpointUrl,
+            username = cloudUsername,
+            webDavSourceId = cloudLinkedSourceId,
+            inboxPath = cloudInboxPath,
+            libraryPath = cloudLibraryPath,
+            libraryMode = cloudLibraryMode,
+            intervalMinutes = interval,
+            enabled = enabledOverride,
+            rssProxyEnabled = proxyEnabledOverride,
+            rssProxyHost = proxyHostOverride,
+            rssProxyPort = proxyPort,
+        )) {
+            is CloudDriveConfigActionResult.Saved -> {
+                cloudIntervalMinutes = interval.toString()
+                rssProxyPort = proxyPort.toString()
+                cloudRssScheduler.syncPeriodicWork(result.config)
+                cloudRssStatus = result.status
+            }
+            is CloudDriveConfigActionResult.Failed -> cloudRssStatus = result.status
+        }
+    }
+
     suspend fun scanCurrentSource(updateStatus: (String) -> Unit) {
         val sourceId = activeSourceId
         val source = activeSource ?: activeLocalSource
@@ -2125,7 +2156,12 @@ internal fun MiruPlayDesktopComposeApp(
                 enabled = cloudEnabled,
                 onEnabledChange = { cloudEnabled = it },
                 proxyEnabled = rssProxyEnabled,
-                onProxyEnabledChange = { rssProxyEnabled = it },
+                onProxyEnabledChange = { enabled ->
+                    rssProxyEnabled = enabled
+                    scope.launch {
+                        saveCloudRssConfig(proxyEnabledOverride = enabled)
+                    }
+                },
                 proxyHost = rssProxyHost,
                 onProxyHostChange = { rssProxyHost = it },
                 proxyPort = rssProxyPort,
@@ -2170,29 +2206,7 @@ internal fun MiruPlayDesktopComposeApp(
                 },
                 onSaveConfig = {
                     scope.launch {
-                        val interval = parseCloudDriveIntervalMinutes(cloudIntervalMinutes)
-                        val proxyPort = parseRssProxyPort(rssProxyPort)
-                        when (val result = cloudRssActions.saveConfig(
-                            endpointUrl = cloudEndpointUrl,
-                            username = cloudUsername,
-                            webDavSourceId = cloudLinkedSourceId,
-                            inboxPath = cloudInboxPath,
-                            libraryPath = cloudLibraryPath,
-                            libraryMode = cloudLibraryMode,
-                            intervalMinutes = interval,
-                            enabled = cloudEnabled,
-                            rssProxyEnabled = rssProxyEnabled,
-                            rssProxyHost = rssProxyHost,
-                            rssProxyPort = proxyPort,
-                        )) {
-                            is CloudDriveConfigActionResult.Saved -> {
-                                cloudIntervalMinutes = interval.toString()
-                                rssProxyPort = proxyPort.toString()
-                                cloudRssScheduler.syncPeriodicWork(result.config)
-                                cloudRssStatus = result.status
-                            }
-                            is CloudDriveConfigActionResult.Failed -> cloudRssStatus = result.status
-                        }
+                        saveCloudRssConfig()
                     }
                 },
                 onSaveCredentials = {
