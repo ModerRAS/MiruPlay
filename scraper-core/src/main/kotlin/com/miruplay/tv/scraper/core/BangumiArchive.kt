@@ -4,6 +4,9 @@ import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.ScraperSource
+import com.miruplay.tv.repository.BangumiMatchContext
+import com.miruplay.tv.repository.BangumiSubjectMatchCandidate
+import com.miruplay.tv.repository.BangumiSubjectMatcher
 import com.miruplay.tv.repository.BangumiJsonMapper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -227,29 +230,35 @@ class BangumiArchiveSubjectSearch(
         if (subjects.isEmpty()) return emptyList()
 
         val normalizedQuery = normalizeQuery(trimmedQuery)
-        return subjects.mapNotNull { subject ->
-            val normalizedAliases = subject.aliases.map(normalizeQuery)
-            val confidence = BangumiJsonMapper.calculateConfidence(
-                query = normalizedQuery,
-                candidates = normalizedAliases,
-                score = subject.score ?: 0f,
-                serverIndex = 1,
-            )
-            if (confidence < minimumConfidence) return@mapNotNull null
-            ScraperResult(
-                animeId = subject.id.toString(),
-                title = subject.name,
-                titleCn = subject.nameCn,
-                matchedTitle = subject.nameCn ?: subject.name,
-                confidence = confidence,
-                source = ScraperSource.BANGUMI,
-            ) to subject
-        }.sortedWith(
-            compareByDescending<Pair<ScraperResult, BangumiArchiveSubject>> { it.first.confidence }
-                .thenBy { it.second.rank ?: Int.MAX_VALUE }
-                .thenByDescending { it.second.score ?: 0f }
-                .thenByDescending { it.second.date.orEmpty() }
-        ).take(limit).map { it.first }
+        val context = BangumiMatchContext.fromQueries(listOf(normalizedQuery))
+        val ranked = BangumiSubjectMatcher.rank(
+            context = context,
+            candidates = subjects.map { subject ->
+                BangumiSubjectMatchCandidate(
+                    id = subject.id.toString(),
+                    title = subject.name,
+                    titleCn = subject.nameCn,
+                    aliases = subject.aliases.map(normalizeQuery),
+                    score = subject.score ?: 0f,
+                    serverIndex = 1,
+                    rank = subject.rank,
+                    date = subject.date,
+                )
+            }
+        )
+        return ranked
+            .filter { it.confidence >= minimumConfidence }
+            .take(limit)
+            .map { match ->
+                ScraperResult(
+                    animeId = match.candidate.id,
+                    title = match.candidate.title,
+                    titleCn = match.candidate.titleCn,
+                    matchedTitle = match.candidate.titleCn ?: match.candidate.title,
+                    confidence = match.confidence,
+                    source = ScraperSource.BANGUMI,
+                )
+            }
     }
 
     private fun loadSubjects(file: File): List<BangumiArchiveSubject> {

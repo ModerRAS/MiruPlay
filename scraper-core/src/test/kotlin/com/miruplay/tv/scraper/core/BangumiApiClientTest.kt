@@ -143,7 +143,7 @@ class BangumiApiClientTest {
     }
 
     @Test
-    fun `searchByAlias stops on the first confident candidate`() = runBlocking {
+    fun `searchByAlias chooses strongest confident candidate`() = runBlocking {
         MockWebServer().use { server ->
             server.enqueue(
                 MockResponse().setBody(
@@ -191,6 +191,61 @@ class BangumiApiClientTest {
             assertTrue(firstRequest.body.readUtf8().contains("候选甲"))
             val secondRequest = server.takeRequest()
             assertTrue(secondRequest.body.readUtf8().contains("候选二"))
+        }
+    }
+
+    @Test
+    fun `searchByAlias keeps evaluating after generic confident candidate when season candidate is stronger`() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(
+                MockResponse().setBody(
+                    """
+                    {
+                      "data": [
+                        {
+                          "id": 266794,
+                          "name": "Dr.STONE",
+                          "name_cn": "石纪元",
+                          "rating": { "score": 7.5 },
+                          "infobox": [
+                            { "key": "别名", "value": [ { "v": "Dr STONE 新石纪" } ] }
+                          ]
+                        }
+                      ]
+                    }
+                    """.trimIndent()
+                )
+            )
+            server.enqueue(
+                MockResponse().setBody(
+                    """
+                    {
+                      "data": [
+                        {
+                          "id": 471578,
+                          "name": "Dr.STONE SCIENCE FUTURE",
+                          "name_cn": "石纪元 科学与未来",
+                          "rating": { "score": 7.2 },
+                          "infobox": [
+                            { "key": "别名", "value": [ { "v": "Dr STONE 新石纪 第四季" } ] }
+                          ]
+                        }
+                      ]
+                    }
+                    """.trimIndent()
+                )
+            )
+            val client = BangumiApiClient(baseUrl = server.url("/").toString())
+
+            val result = client.searchByAlias(
+                normalizedName = "Dr STONE 新石纪",
+                candidates = listOf("Dr STONE 新石纪", "Dr STONE 新石纪 第四季"),
+            )
+
+            assertTrue(result is Result.Success)
+            assertEquals("471578", (result as Result.Success).data?.animeId)
+            assertTrue(server.takeRequest().body.readUtf8().contains("Dr STONE 新石纪 第四季"))
+            assertTrue(server.takeRequest().body.readUtf8().contains("Dr STONE 新石纪"))
         }
     }
 

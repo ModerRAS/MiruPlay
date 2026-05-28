@@ -126,6 +126,48 @@ class ScanCoordinatorTest {
     }
 
     @Test
+    fun `scanSource keeps webdav root context when media source returns relative child paths`() = runBlocking {
+        val sourceInfo = MediaSourceInfo(
+            id = 18L,
+            name = "DrStone WebDAV",
+            type = MediaSourceType.WEBDAV,
+            connectionInfo = mapOf(
+                "url" to "http://example.test/dav/115open/%E5%BD%B1%E9%9F%B3/%E5%8A%A8%E6%BC%AB/Dr.STONE%20%E6%96%B0%E7%9F%B3%E7%B4%80%20%E7%AC%AC%E5%9B%9B%E5%AD%A3"
+            )
+        )
+        val mediaSource = FakeMediaSource(
+            listings = mapOf(
+                "" to listOf(
+                    FileEntry(
+                        name = "25 [1080P][Baha][WEB-DL][AAC AVC][CHT].mp4",
+                        path = "/25 [1080P][Baha][WEB-DL][AAC AVC][CHT].mp4",
+                        isDirectory = false,
+                        size = 1234
+                    )
+                )
+            )
+        )
+        val indexRepository = RecordingIndexRepository()
+        val scraper = RecordingBangumiScraper()
+        val coordinator = ScanCoordinator(
+            mediaRepository = SingleSourceRepository(sourceInfo),
+            mediaSourceFactory = SingleMediaSourceFactory(mediaSource),
+            indexRepository = indexRepository,
+            metadataRepository = RecordingMetadataRepository(),
+            filenameMetadataParser = EmptyFilenameMetadataParser,
+            metadataScrapers = setOf(scraper)
+        )
+
+        val result = coordinator.scanSource(sourceInfo.id)
+
+        assertTrue("Scan should succeed", result.isSuccess())
+        assertEquals("Dr STONE 新石紀", indexRepository.entries.single().animeName)
+        assertEquals(4, indexRepository.entries.single().seasonNumber)
+        assertEquals(25, indexRepository.entries.single().episodeNumber)
+        assertTrue("Season-aware root should be offered to Bangumi", scraper.aliasCandidates.contains("Dr STONE 新石紀 第四季"))
+    }
+
+    @Test
     fun `scanSource recognizes flat show season folder and generates local nfo files`() = runBlocking {
         val root = Files.createTempDirectory("miruplay-scan").toFile().canonicalFile
         try {

@@ -32,22 +32,32 @@ object BangumiJsonMapper {
     ): List<ScraperResult> {
         val searchQuery = normalizeQuery(query)
         val items = root["data"]?.jsonArray ?: return emptyList()
-        return items.mapIndexedNotNull { index, item ->
+        val candidates = items.mapIndexedNotNull { index, item ->
             val obj = item.jsonObject
             val id = obj.int("id") ?: return@mapIndexedNotNull null
             val title = obj.string("name").orEmpty()
             val titleCn = obj.string("name_cn")
             val score = obj.float("score") ?: obj.obj("rating")?.float("score") ?: 0f
             val aliases = obj.extractSubjectAliases().map(normalizeQuery)
-            ScraperResult(
-                animeId = id.toString(),
+            BangumiSubjectMatchCandidate(
+                id = id.toString(),
                 title = title,
                 titleCn = titleCn?.ifBlank { null },
-                matchedTitle = titleCn?.ifBlank { title } ?: title,
-                confidence = calculateConfidence(searchQuery, aliases, score, index),
+                aliases = aliases,
+                score = score,
+                serverIndex = index,
+            )
+        }
+        return BangumiSubjectMatcher.rank(searchQuery, candidates).map { match ->
+            ScraperResult(
+                animeId = match.candidate.id,
+                title = match.candidate.title,
+                titleCn = match.candidate.titleCn,
+                matchedTitle = match.candidate.titleCn ?: match.candidate.title,
+                confidence = match.confidence,
                 source = ScraperSource.BANGUMI,
             )
-        }.sortedByDescending { it.confidence }
+        }
     }
 
     fun parseSubject(obj: JsonObject, id: Int): Anime {
@@ -117,20 +127,7 @@ object BangumiJsonMapper {
     }
 
     fun calculateConfidence(query: String, candidates: List<String>, score: Float, serverIndex: Int): Float {
-        val normalizedQuery = query.normalizedTitle()
-        val normalizedCandidates = candidates.map { it.normalizedTitle() }.filter { it.isNotBlank() }
-        val base = when {
-            normalizedCandidates.any { it == normalizedQuery } -> 1.0f
-            normalizedCandidates.any { it.contains(normalizedQuery) } -> 0.9f
-            normalizedCandidates.any { normalizedQuery.contains(it) && it.coverageOf(normalizedQuery) >= 0.72f } -> 0.9f
-            normalizedCandidates.any { it.cjkSimilarity(normalizedQuery) >= 0.72f } -> 0.82f
-            normalizedCandidates.any { it.tokenOverlap(normalizedQuery) >= 0.5f } -> 0.7f
-            normalizedCandidates.any { it.cjkSimilarity(normalizedQuery) >= 0.56f } -> 0.66f
-            else -> 0.2f
-        }
-        val scoreBoost = if (base >= 0.62f) (score / 200f).coerceAtMost(0.04f) else 0f
-        val serverOrderBoost = if (serverIndex == 0 && base >= 0.62f) 0.03f else 0f
-        return (base + scoreBoost + serverOrderBoost).coerceIn(0f, 1f)
+        return BangumiSubjectMatcher.calculateConfidence(query, candidates, score, serverIndex)
     }
 }
 
@@ -165,99 +162,3 @@ private fun MutableList<String>.addInfoboxValue(value: JsonElement?) {
         else -> value.jsonPrimitive.contentOrNull?.takeIf { it.isNotBlank() }?.let(::add)
     }
 }
-
-private fun String.normalizedTitle(): String =
-    lowercase()
-        .replace(Regex("\\[[^\\]]*]"), " ")
-        .replace(Regex("[_\\-:：/／\\\\()（）【】「」『』.,，!！?？~～＊*]"), " ")
-        .replace(Regex("\\s+"), " ")
-        .trim()
-
-private fun String.tokenOverlap(other: String): Float {
-    val left = titleTokens()
-    val right = other.titleTokens()
-    if (left.isEmpty() || right.isEmpty()) return 0f
-    val overlap = left.intersect(right).size
-    if (overlap < 2 && left != right) return 0f
-    if (overlap == 2 && left.size > overlap && right.size > overlap) {
-        val leftOnly = left - right
-        val rightOnly = right - left
-        if (!leftOnly.hasRelatedToken(rightOnly)) return 0f
-    }
-    return overlap.toFloat() / minOf(left.size, right.size).toFloat()
-}
-
-private fun String.titleTokens(): Set<String> =
-    split(' ')
-        .map { it.trim() }
-        .filter { it.length > 1 }
-        .filterNot { it.all(Char::isDigit) }
-        .filterNot { it in tokenOverlapStopTokens }
-        .toSet()
-
-private fun Set<String>.hasRelatedToken(other: Set<String>): Boolean {
-    val leftJoined = joinToString("")
-    val rightJoined = other.joinToString("")
-    if (leftJoined.length >= 4 && rightJoined.length >= 4) {
-        if (leftJoined.contains(rightJoined) || rightJoined.contains(leftJoined)) return true
-    }
-    return any { left ->
-        other.any { right ->
-            left.length >= 4 &&
-                right.length >= 4 &&
-                (left.contains(right) || right.contains(left))
-        }
-    }
-}
-
-private fun String.cjkSimilarity(other: String): Float {
-    val left = cjkChars()
-    val right = other.cjkChars()
-    if (left.isEmpty() || right.isEmpty()) return 0f
-    return left.intersect(right).size.toFloat() / maxOf(left.size, right.size).toFloat()
-}
-
-private fun String.cjkChars(): Set<Char> =
-    filter { it in '\u4e00'..'\u9fff' }.toSet()
-
-private val tokenOverlapStopTokens = setOf(
-    "a",
-    "an",
-    "and",
-    "ep",
-    "episode",
-    "for",
-    "from",
-    "in",
-    "movie",
-    "no",
-    "of",
-    "on",
-    "ona",
-    "or",
-    "ova",
-    "part",
-    "season",
-    "series",
-    "special",
-    "the",
-    "to",
-    "tv",
-    "with",
-)
-
-private fun String.coverageOf(other: String): Float {
-    val leftCjk = cjkChars()
-    val rightCjk = other.cjkChars()
-    if (leftCjk.isNotEmpty() && rightCjk.isNotEmpty()) {
-        return leftCjk.intersect(rightCjk).size.toFloat() / rightCjk.size.toFloat()
-    }
-
-    val leftLength = comparableLength()
-    val rightLength = other.comparableLength()
-    if (leftLength == 0 || rightLength == 0) return 0f
-    return leftLength.toFloat() / rightLength.toFloat()
-}
-
-private fun String.comparableLength(): Int =
-    count { it.isLetterOrDigit() }

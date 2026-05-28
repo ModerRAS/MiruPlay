@@ -23,13 +23,18 @@ suspend fun BangumiApiClient.searchByAlias(
 
     val uniqueCandidates = (seasonSpecificCandidates + fallbackCandidates).distinct()
 
+    val matches = linkedMapOf<String, ScraperResult>()
     for (candidate in uniqueCandidates) {
-        val result = searchAnime(candidate).getOrNull()?.firstOrNull()
-        if (result != null && result.confidence >= confidenceThreshold) {
-            return Result.success(result)
+        val result = searchAnime(candidate).getOrNull().orEmpty()
+            .firstOrNull { it.confidence >= confidenceThreshold }
+        if (result != null) {
+            val existing = matches[result.animeId]
+            if (existing == null || result.confidence > existing.confidence) {
+                matches[result.animeId] = result
+            }
         }
     }
-    return Result.success(null)
+    return Result.success(matches.values.maxByOrNull { it.confidence })
 }
 
 private fun String.hasSeasonQualifier(): Boolean =
