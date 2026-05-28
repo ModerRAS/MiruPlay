@@ -132,8 +132,16 @@ import com.miruplay.tv.model.stepDesktopSettingsSection
 import com.miruplay.tv.model.rssSubscriptionPreview
 import com.miruplay.tv.model.rssSubscriptionsTitleLabel
 import com.miruplay.tv.model.logUploadSettingsTiles
+import com.miruplay.tv.model.parseRssProxyPort
 import com.miruplay.tv.model.scanSettingsTiles
 import com.miruplay.tv.model.sourceSettingsTiles
+import com.miruplay.tv.model.settingsProxyCurrentStatus
+import com.miruplay.tv.model.settingsProxyHostFieldLabel
+import com.miruplay.tv.model.settingsProxyPanelDescription
+import com.miruplay.tv.model.settingsProxyPanelTitleLabel
+import com.miruplay.tv.model.settingsProxyPortFieldLabel
+import com.miruplay.tv.model.settingsProxySaveActionLabel
+import com.miruplay.tv.model.settingsProxyToggleLabel
 import com.miruplay.tv.model.webUiSettingsTiles
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryBrowserState
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryEntry
@@ -267,6 +275,9 @@ internal fun CloudRssPanel(
             webUiAddressCount = webUiUrls.size,
             autoScanEnabled = autoScanEnabled,
             mergeSameAnimeEnabled = mergeSameAnimeEnabled,
+            proxyEnabled = proxyEnabled,
+            proxyHost = proxyHost,
+            proxyPort = proxyPort,
             metadataSummary = metadataSummary,
             playbackSummary = playbackSummary,
             onSectionSelected = { selectedSection = it },
@@ -356,6 +367,34 @@ internal fun CloudRssPanel(
                 status = settingsPlaybackStatusMessage(),
                 actions = listOf(SettingsQuickAction(settingsOpenPlayerActionLabel(), onOpenPlayer)),
                 onFocusSectionMenu = { focusSelectedSectionMenu() },
+                modifier = Modifier.weight(1f),
+            )
+            MiruPlaySettingsSection.PROXY -> SettingsSummaryContent(
+                section = selectedSection,
+                tiles = proxySettingsTiles(
+                    enabled = proxyEnabled,
+                    host = proxyHost,
+                    portText = proxyPort,
+                ),
+                status = settingsProxyCurrentStatus(
+                    enabled = proxyEnabled,
+                    host = proxyHost,
+                    port = parseRssProxyPort(proxyPort),
+                ),
+                actions = listOf(SettingsQuickAction(settingsProxySaveActionLabel(), onSaveConfig)),
+                onFocusSectionMenu = { focusSelectedSectionMenu() },
+                extraContentFocusable = true,
+                extraContent = { focusModifier ->
+                    DesktopProxySettingsContent(
+                        enabled = proxyEnabled,
+                        onEnabledChange = onProxyEnabledChange,
+                        host = proxyHost,
+                        onHostChange = onProxyHostChange,
+                        port = proxyPort,
+                        onPortChange = onProxyPortChange,
+                        inputModifier = focusModifier,
+                    )
+                },
                 modifier = Modifier.weight(1f),
             )
             MiruPlaySettingsSection.SCAN -> SettingsSummaryContent(
@@ -1985,6 +2024,9 @@ private fun SettingsSectionMenu(
     webUiAddressCount: Int,
     autoScanEnabled: Boolean,
     mergeSameAnimeEnabled: Boolean,
+    proxyEnabled: Boolean,
+    proxyHost: String,
+    proxyPort: String,
     metadataSummary: String,
     playbackSummary: String,
     onSectionSelected: (MiruPlaySettingsSection) -> Unit,
@@ -1999,6 +2041,9 @@ private fun SettingsSectionMenu(
         playbackSummary = playbackSummary,
         cloudDriveEnabled = cloudEnabled,
         rssCount = rssCount,
+        proxyEnabled = proxyEnabled,
+        proxyHost = proxyHost,
+        proxyPort = parseRssProxyPort(proxyPort),
         autoScanEnabled = autoScanEnabled,
         mergeSameAnimeEnabled = mergeSameAnimeEnabled,
         metadataSummary = metadataSummary,
@@ -2292,6 +2337,75 @@ private fun DesktopScanPreferencesContent(
             secondary = true,
         )
         StatusBox(settingsMergeSameAnimeStatus(mergeSameAnimeEnabled))
+    }
+}
+
+private fun proxySettingsTiles(
+    enabled: Boolean,
+    host: String,
+    portText: String,
+): List<SettingsSummaryTile> {
+    val port = parseRssProxyPort(portText)
+    return listOf(
+        SettingsSummaryTile(
+            label = "状态",
+            value = if (enabled) "已启用" else "未启用",
+            detail = settingsProxyCurrentStatus(enabled, host, port),
+        ),
+        SettingsSummaryTile(
+            label = settingsProxyHostFieldLabel(),
+            value = host.ifBlank { "未填写" },
+            detail = settingsProxyPanelDescription(),
+        ),
+        SettingsSummaryTile(
+            label = settingsProxyPortFieldLabel(),
+            value = port.toString(),
+            detail = "HTTP 代理端口",
+        ),
+    )
+}
+
+@Composable
+private fun DesktopProxySettingsContent(
+    enabled: Boolean,
+    onEnabledChange: (Boolean) -> Unit,
+    host: String,
+    onHostChange: (String) -> Unit,
+    port: String,
+    onPortChange: (String) -> Unit,
+    inputModifier: Modifier,
+) {
+    Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
+    CloudRssCard(
+        title = settingsProxyPanelTitleLabel(),
+        badge = settingsProxyToggleLabel(enabled),
+        preview = settingsProxyCurrentStatus(enabled, host, parseRssProxyPort(port)),
+    ) {
+        Text(
+            settingsProxyPanelDescription(),
+            color = TextSecondary,
+            fontSize = MiruPlayUiMetrics.PANEL_BODY_SP.sp,
+        )
+        ToggleRow(
+            label = settingsProxyToggleLabel(enabled),
+            checked = enabled,
+            onCheckedChange = onEnabledChange,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
+            LabeledTextField(
+                label = settingsProxyHostFieldLabel(),
+                value = host,
+                onValueChange = onHostChange,
+                modifier = Modifier.weight(1f),
+                inputModifier = inputModifier,
+            )
+            LabeledTextField(
+                label = settingsProxyPortFieldLabel(),
+                value = port,
+                onValueChange = onPortChange,
+                modifier = Modifier.weight(1f),
+            )
+        }
     }
 }
 

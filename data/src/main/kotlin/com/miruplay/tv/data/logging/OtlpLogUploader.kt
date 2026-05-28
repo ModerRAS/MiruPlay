@@ -2,7 +2,8 @@ package com.miruplay.tv.data.logging
 
 import android.util.Base64
 import com.miruplay.tv.core.common.logging.MiruLogRecord
-import java.net.URI
+import com.miruplay.tv.repository.OpenObserveLogConventions
+import com.miruplay.tv.repository.OpenObservePayloadContext
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.serialization.encodeToString
@@ -24,11 +25,17 @@ class OtlpLogUploader @Inject constructor(
     fun upload(endpoint: String, token: String, streamName: String, records: List<MiruLogRecord>): UploadResult {
         if (records.isEmpty()) return UploadResult.Success(0)
         val request = Request.Builder()
-            .url(OtlpLogEndpoint.normalize(endpoint))
+            .url(OpenObserveLogConventions.normalizeEndpoint(endpoint, streamName))
             .addHeader("Authorization", authorizationHeader(token))
-            .addHeader("Content-Type", OTLP_JSON_MEDIA_TYPE)
-            .addHeader("stream-name", streamName.ifBlank { DEFAULT_STREAM_NAME })
-            .post(json.encodeToString(OtlpLogPayloadBuilder.build(records)).toRequestBody(OTLP_JSON_MEDIA_TYPE.toMediaType()))
+            .addHeader("Content-Type", JSON_MEDIA_TYPE)
+            .post(
+                json.encodeToString(
+                    OpenObserveLogConventions.buildJsonPayload(
+                        records = records,
+                        context = ANDROID_PAYLOAD_CONTEXT,
+                    )
+                ).toRequestBody(JSON_MEDIA_TYPE.toMediaType())
+            )
             .build()
 
         okHttpClient.newCall(request).execute().use { response ->
@@ -59,26 +66,10 @@ class OtlpLogUploader @Inject constructor(
     }
 
     companion object {
-        private const val OTLP_JSON_MEDIA_TYPE = "application/json"
-        private const val DEFAULT_STREAM_NAME = "miruplay"
-    }
-}
-
-internal object OtlpLogEndpoint {
-    fun normalize(endpoint: String): String {
-        val raw = endpoint.trim().trimEnd('/')
-        require(raw.isNotBlank()) { "OTLP endpoint is blank" }
-        val trimmed = if (raw.startsWith("http://") || raw.startsWith("https://")) raw else "http://$raw"
-        if (trimmed.endsWith("/v1/logs")) return trimmed
-        val uri = URI(trimmed)
-        val path = uri.path.orEmpty().trimEnd('/')
-        val normalizedPath = when {
-            path.isBlank() -> "/api/default/v1/logs"
-            path == "/api" -> "/api/default/v1/logs"
-            path.endsWith("/v1") -> "$path/logs"
-            path.startsWith("/api/") -> "$path/v1/logs"
-            else -> "$path/api/default/v1/logs"
-        }
-        return URI(uri.scheme, uri.authority, normalizedPath, null, null).toString()
+        private const val JSON_MEDIA_TYPE = "application/json"
+        private val ANDROID_PAYLOAD_CONTEXT = OpenObservePayloadContext(
+            serviceName = "miruplay-android-tv",
+            deploymentEnvironment = "android-tv",
+        )
     }
 }

@@ -27,10 +27,14 @@ import com.miruplay.tv.repository.MediaScrapeStatus
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.scraper.EpisodeMetadata
+import com.miruplay.tv.scraper.MetadataImageBackfillScraper
 import com.miruplay.tv.scraper.MetadataScraper
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import android.util.Log
 import java.io.File
@@ -52,6 +56,7 @@ class ScanCoordinator @Inject constructor(
     private val metadataScrapers: Set<@JvmSuppressWildcards MetadataScraper> = emptySet()
 ) {
     private val generatedNfoWriter = XmlNfoWriter(NfoWriteOptions(createBackup = false))
+    private val imageBackfillScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /**
      * Full scan of a media source, updates index + metadata in one pass.
@@ -414,10 +419,15 @@ class ScanCoordinator @Inject constructor(
                 scrapeMessage = "Bangumi no reliable match",
             )
 
+            val matchedFromArchive = match.fromLocalArchive
             val details = bangumi.getAnimeDetails(match.animeId).getOrNull()
-            val episodeMetadata = bangumi.getEpisodes(match.animeId).getOrNull()
-                .orEmpty()
-                .associateBy { it.episodeNumber }
+            val episodeMetadata = if (matchedFromArchive) {
+                emptyMap()
+            } else {
+                bangumi.getEpisodes(match.animeId).getOrNull()
+                    .orEmpty()
+                    .associateBy { it.episodeNumber }
+            }
 
             val enrichedEpisodes = episodes.map { episode ->
                 val remote = episodeMetadata[episode.episodeNumber]
@@ -433,9 +443,13 @@ class ScanCoordinator @Inject constructor(
                 }
             }
 
-            val posterLocalPath = details?.posterUrl
-                ?.takeIf { it.isNotBlank() }
-                ?.let { cachePoster(posterCacheDirectory, it) }
+            val posterLocalPath = if (matchedFromArchive) {
+                null
+            } else {
+                details?.posterUrl
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { cachePoster(posterCacheDirectory, it) }
+            }
             val baseAnime = details ?: Anime(
                 id = animeName,
                 title = match.title.ifBlank { animeName },
@@ -458,11 +472,22 @@ class ScanCoordinator @Inject constructor(
                     mapOf(
                         "search_strategy" to matchedBy,
                         "details_loaded" to (details != null).toString(),
+                        "details_from_archive" to matchedFromArchive.toString(),
                         "remote_episode_count" to episodeMetadata.size.toString(),
                         "poster_cached" to (!posterLocalPath.isNullOrBlank()).toString(),
                         "scrape_status" to MediaScrapeStatus.SCRAPED.name,
                     )
             )
+
+            if (matchedFromArchive) {
+                scheduleImageBackfill(
+                    scraper = bangumi,
+                    anime = anime,
+                    animeId = match.animeId,
+                    posterCacheDirectory = posterCacheDirectory,
+                    logAttributes = recognitionBaseAttributes + buildMatchAttributes(match),
+                )
+            }
 
             OnlineMetadata(
                 anime = anime,
@@ -487,6 +512,46 @@ class ScanCoordinator @Inject constructor(
                 scrapeStatus = MediaScrapeStatus.FAILED,
                 scrapeMessage = e.message ?: "Bangumi metadata enrichment failed",
             )
+        }
+    }
+
+    private fun scheduleImageBackfill(
+        scraper: MetadataScraper,
+        anime: Anime,
+        animeId: String,
+        posterCacheDirectory: File?,
+        logAttributes: Map<String, String>,
+    ) {
+        val imageScraper = scraper as? MetadataImageBackfillScraper ?: return
+        imageBackfillScope.launch {
+            try {
+                val details = imageScraper.getImageDetails(animeId).getOrNull() ?: return@launch
+                val posterUrl = details.posterUrl?.takeIf { it.isNotBlank() } ?: return@launch
+                val posterLocalPath = cachePoster(posterCacheDirectory, posterUrl)
+                val currentAnime = metadataRepository.getCachedMetadata(anime.id).getOrNull() ?: anime
+                metadataRepository.cacheMetadata(
+                    currentAnime.copy(
+                        posterUrl = posterUrl,
+                        posterLocalPath = posterLocalPath ?: currentAnime.posterLocalPath,
+                        fanartUrl = details.fanartUrl ?: currentAnime.fanartUrl,
+                    )
+                )
+                MiruLog.i(
+                    tag = TAG,
+                    message = "Recognition image backfill completed",
+                    attributes = logAttributes + mapOf(
+                        "image_backfill" to "completed",
+                        "poster_cached" to (!posterLocalPath.isNullOrBlank()).toString(),
+                    )
+                )
+            } catch (error: Exception) {
+                MiruLog.w(
+                    tag = TAG,
+                    message = "Recognition image backfill failed",
+                    throwable = error,
+                    attributes = logAttributes + mapOf("image_backfill" to "failed"),
+                )
+            }
         }
     }
 

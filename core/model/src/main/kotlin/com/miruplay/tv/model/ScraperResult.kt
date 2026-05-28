@@ -14,6 +14,7 @@ data class ScraperResult(
     val matchedTitle: String,
     val confidence: Float,  // 0-1
     val source: ScraperSource,
+    val fromLocalArchive: Boolean = false,
 )
 
 fun ScraperResult.confidencePercentLabel(): String =

@@ -38,6 +38,10 @@ interface MetadataScraper {
     ): Result<ScraperResult?>
 }
 
+interface MetadataImageBackfillScraper {
+    suspend fun getImageDetails(animeId: String): Result<Anime>
+}
+
 /**
  * Episode metadata from scraper.
  */

@@ -81,6 +81,7 @@ val desktopSettingsSectionOrder: List<MiruPlaySettingsSection> =
         MiruPlaySettingsSection.SOURCES,
         MiruPlaySettingsSection.PLAYBACK,
         MiruPlaySettingsSection.CLOUD_DRIVE,
+        MiruPlaySettingsSection.PROXY,
         MiruPlaySettingsSection.SCAN,
         MiruPlaySettingsSection.LOG_UPLOAD,
         MiruPlaySettingsSection.METADATA,

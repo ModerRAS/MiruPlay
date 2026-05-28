@@ -72,6 +72,13 @@ class BangumiApiClient(
     }
 
     suspend fun getAnimeDetails(animeId: String): Result<Anime> = withContext(Dispatchers.IO) {
+        archiveSearch?.findById(animeId)?.let { archived ->
+            return@withContext Result.success(archived.toAnime())
+        }
+        getOnlineAnimeDetails(animeId)
+    }
+
+    suspend fun getOnlineAnimeDetails(animeId: String): Result<Anime> = withContext(Dispatchers.IO) {
         try {
             val id = animeId.toInt()
             val request = buildRequest(apiUrl("/v0/subjects/$animeId").build()).get().build()
