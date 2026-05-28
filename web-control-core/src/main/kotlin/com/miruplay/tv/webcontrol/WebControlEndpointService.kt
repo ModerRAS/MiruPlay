@@ -2,6 +2,7 @@ package com.miruplay.tv.webcontrol
 
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.RssSubscriptionInfo
+import com.miruplay.tv.repository.DEFAULT_LOCAL_LOG_READ_LIMIT
 
 interface WebControlEndpointService {
     suspend fun getServerInfo(port: Int): ServerInfoDto
@@ -30,6 +31,14 @@ interface WebControlEndpointService {
     suspend fun saveLogUploadToken(request: LogUploadTokenRequest): LogUploadDto
     suspend fun clearLogUploadToken(): LogUploadDto
     suspend fun uploadPendingLogs(): LogUploadDto
+    suspend fun getLocalLogs(limit: Int = DEFAULT_LOCAL_LOG_READ_LIMIT): LocalLogsDto =
+        LocalLogsDto(totalCount = 0, returnedCount = 0, truncatedCount = 0, records = emptyList())
+    suspend fun downloadLocalLogs(sinceTimestampMs: Long? = null): LocalLogDownload =
+        LocalLogDownload(
+            fileName = "miruplay-logs.jsonl",
+            contentType = "application/x-ndjson; charset=utf-8",
+            content = ByteArray(0),
+        )
     suspend fun getMetadataSettings(): MetadataSettingsDto
     suspend fun getBangumiArchive(): BangumiArchiveDto =
         BangumiArchiveDto(available = false, hasSubjectData = false, lastError = "Bangumi Archive 下载在当前运行环境不可用")

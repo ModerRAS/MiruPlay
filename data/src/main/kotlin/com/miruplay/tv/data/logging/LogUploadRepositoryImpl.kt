@@ -1,6 +1,7 @@
 package com.miruplay.tv.data.logging
 
 import com.miruplay.tv.core.common.logging.MiruLog
+import com.miruplay.tv.repository.LocalLogSnapshot
 import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.LogUploadRepository
 import com.miruplay.tv.repository.LogUploadStatus
@@ -103,6 +104,14 @@ class LogUploadRepositoryImpl @Inject constructor(
             }
         }
         currentStatus(isUploading = false)
+    }
+
+    override suspend fun readLocalLogs(limit: Int): LocalLogSnapshot = withContext(Dispatchers.IO) {
+        localLogStore.readRecent(limit)
+    }
+
+    override suspend fun exportLocalLogs(sinceTimestampMs: Long?): String = withContext(Dispatchers.IO) {
+        localLogStore.exportJsonLines(sinceTimestampMs)
     }
 
     private fun updateStatus(message: String): LogUploadStatus {

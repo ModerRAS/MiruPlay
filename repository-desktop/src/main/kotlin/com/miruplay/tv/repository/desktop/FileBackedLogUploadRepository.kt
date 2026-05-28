@@ -3,8 +3,10 @@ package com.miruplay.tv.repository.desktop
 import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.core.common.logging.MiruLogRecord
 import com.miruplay.tv.core.common.logging.MiruLogSink
+import com.miruplay.tv.repository.LocalLogSnapshot
 import com.miruplay.tv.repository.LogUploadRepository
 import com.miruplay.tv.repository.LogUploadStatus
+import com.miruplay.tv.repository.MAX_LOCAL_LOG_READ_LIMIT
 import com.miruplay.tv.repository.OtlpLogUploadConfig
 import com.miruplay.tv.repository.OpenObserveLogConventions
 import com.miruplay.tv.repository.OpenObservePayloadContext
@@ -96,6 +98,12 @@ internal class FileBackedLogUploadRepository(
             if (_status.value.isUploading) refreshStatus()
         }
     }
+
+    override suspend fun readLocalLogs(limit: Int): LocalLogSnapshot =
+        queue.readRecent(limit)
+
+    override suspend fun exportLocalLogs(sinceTimestampMs: Long?): String =
+        queue.exportJsonLines(sinceTimestampMs)
 
     private fun uploadPendingLogsLocked(): LogUploadStatus {
         val config = getConfig()
@@ -273,23 +281,35 @@ private class DesktopLocalLogQueue(
     private val logDir: Path = baseDir.resolve("logs")
     private val pendingFile: Path = logDir.resolve("miruplay-pending.jsonl")
     private val rotatedFile: Path = logDir.resolve("miruplay-pending.old.jsonl")
+    private val recentFile: Path = logDir.resolve("miruplay-recent.jsonl")
 
     init {
         Files.createDirectories(logDir)
+        seedRecentFileIfMissing()
     }
 
     override fun log(record: MiruLogRecord) {
         var changed = false
         lock.withLock {
             rotateIfNeeded()
+            val line = json.encodeToString(record) + "\n"
             Files.writeString(
                 pendingFile,
-                json.encodeToString(record) + "\n",
+                line,
                 Charsets.UTF_8,
                 StandardOpenOption.CREATE,
                 StandardOpenOption.WRITE,
                 StandardOpenOption.APPEND,
             )
+            Files.writeString(
+                recentFile,
+                line,
+                Charsets.UTF_8,
+                StandardOpenOption.CREATE,
+                StandardOpenOption.WRITE,
+                StandardOpenOption.APPEND,
+            )
+            trimRecentIfNeeded()
             changed = true
         }
         if (changed) {
@@ -316,6 +336,33 @@ private class DesktopLocalLogQueue(
             }
         }
         records
+    }
+
+    fun readRecent(limit: Int = MAX_LOCAL_LOG_READ_LIMIT): LocalLogSnapshot = lock.withLock {
+        val safeLimit = limit.coerceIn(1, MAX_LOCAL_LOG_READ_LIMIT)
+        val records = localLogFiles()
+            .flatMap { file -> readRecords(file) }
+        LocalLogSnapshot(
+            totalCount = records.size,
+            records = records.takeLast(safeLimit),
+        )
+    }
+
+    fun exportJsonLines(sinceTimestampMs: Long? = null): String = lock.withLock {
+        if (sinceTimestampMs == null) {
+            return@withLock localLogFiles()
+                .joinToString(separator = "") { file ->
+                    val content = Files.readString(file, Charsets.UTF_8)
+                    if (content.isBlank() || content.endsWith("\n")) content else "$content\n"
+                }
+        }
+        val records = localLogFiles()
+            .flatMap { file -> readRecords(file) }
+            .filter { record -> record.timestampMs >= sinceTimestampMs }
+        if (records.isEmpty()) return@withLock ""
+        records.joinToString(separator = "\n", postfix = "\n") { record ->
+            json.encodeToString(record)
+        }
     }
 
     fun removeUploaded(uploadedIds: Set<String>) {
@@ -358,10 +405,64 @@ private class DesktopLocalLogQueue(
     private fun queueFiles(): List<Path> =
         listOf(rotatedFile, pendingFile).filter(Files::exists)
 
+    private fun localLogFiles(): List<Path> =
+        if (Files.exists(recentFile)) {
+            listOf(recentFile)
+        } else {
+            queueFiles()
+        }
+
+    private fun seedRecentFileIfMissing() {
+        lock.withLock {
+            if (Files.exists(recentFile)) return
+            val seeded = queueFiles()
+                .joinToString(separator = "") { file ->
+                    val content = Files.readString(file, Charsets.UTF_8)
+                    if (content.isBlank() || content.endsWith("\n")) content else "$content\n"
+                }
+            if (seeded.isNotBlank()) {
+                Files.writeString(
+                    recentFile,
+                    seeded,
+                    Charsets.UTF_8,
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.TRUNCATE_EXISTING,
+                )
+                trimRecentIfNeeded()
+            }
+        }
+    }
+
+    private fun trimRecentIfNeeded() {
+        if (!Files.exists(recentFile)) return
+        if (Files.size(recentFile) <= MAX_RECENT_BYTES) return
+        val retained = Files.newBufferedReader(recentFile, Charsets.UTF_8).useLines { lines ->
+            lines.filter { it.isNotBlank() }.toList().takeLast(MAX_RECENT_RECORDS)
+        }
+        Files.writeString(
+            recentFile,
+            retained.joinToString(separator = "\n", postfix = if (retained.isEmpty()) "" else "\n"),
+            Charsets.UTF_8,
+            StandardOpenOption.CREATE,
+            StandardOpenOption.TRUNCATE_EXISTING,
+        )
+    }
+
+    private fun readRecords(file: Path): List<MiruLogRecord> {
+        if (!Files.exists(file)) return emptyList()
+        return Files.newBufferedReader(file, Charsets.UTF_8).useLines { lines ->
+            lines.filter { it.isNotBlank() }
+                .mapNotNull(::decodeRecord)
+                .toList()
+        }
+    }
+
     private fun decodeRecord(line: String): MiruLogRecord? =
         runCatching { json.decodeFromString<MiruLogRecord>(line) }.getOrNull()
 
     private companion object {
         private const val MAX_PENDING_BYTES = 2L * 1024L * 1024L
+        private const val MAX_RECENT_BYTES = 4L * 1024L * 1024L
+        private const val MAX_RECENT_RECORDS = 1_000
     }
 }

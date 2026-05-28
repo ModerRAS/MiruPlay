@@ -1,5 +1,6 @@
 package com.miruplay.tv.webcontrol
 
+import com.miruplay.tv.core.common.logging.MiruLogRecord
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.CloudDriveLibraryMode
@@ -7,6 +8,7 @@ import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.RssSubscriptionInfo
+import com.miruplay.tv.repository.LocalLogSnapshot
 import com.miruplay.tv.repository.LogUploadStatus
 import com.miruplay.tv.repository.OtlpLogUploadConfig
 import kotlinx.serialization.Serializable
@@ -232,6 +234,30 @@ data class LogUploadConfigRequest(
 @Serializable
 data class LogUploadTokenRequest(
     val token: String,
+)
+
+@Serializable
+data class LocalLogsDto(
+    val totalCount: Int,
+    val returnedCount: Int,
+    val truncatedCount: Int,
+    val records: List<MiruLogRecord>,
+) {
+    companion object {
+        fun from(snapshot: LocalLogSnapshot): LocalLogsDto =
+            LocalLogsDto(
+                totalCount = snapshot.totalCount,
+                returnedCount = snapshot.returnedCount,
+                truncatedCount = snapshot.truncatedCount,
+                records = snapshot.records,
+            )
+    }
+}
+
+data class LocalLogDownload(
+    val fileName: String,
+    val contentType: String,
+    val content: ByteArray,
 )
 
 @Serializable

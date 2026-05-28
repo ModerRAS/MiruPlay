@@ -209,6 +209,14 @@ abstract class SharedWebControlEndpointService(
         return logUploadRepository.runWebControlLogUploadNow()
     }
 
+    override suspend fun getLocalLogs(limit: Int): LocalLogsDto = runOnIo {
+        logUploadRepository.getWebControlLocalLogs(limit)
+    }
+
+    override suspend fun downloadLocalLogs(sinceTimestampMs: Long?): LocalLogDownload = runOnIo {
+        logUploadRepository.downloadWebControlLocalLogs(sinceTimestampMs)
+    }
+
     override suspend fun getMetadataSettings(): MetadataSettingsDto =
         MetadataSettingsDto(
             bangumiTokenConfigured = !securePreferences.bangumiAccessToken.isNullOrBlank(),

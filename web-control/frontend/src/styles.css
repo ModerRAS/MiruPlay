@@ -512,6 +512,94 @@ body {
   margin-top: 1rem;
 }
 
+.log-view-card {
+  grid-column: 1 / -1;
+}
+
+.log-view-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.85rem;
+}
+
+.compact-actions {
+  margin-top: 0;
+}
+
+.log-range-select {
+  width: 10rem;
+}
+
+.log-record-scroll {
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: #0d1016;
+}
+
+.log-record-list {
+  display: grid;
+  gap: 0;
+}
+
+.log-record {
+  min-width: 0;
+  padding: 0.85rem;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 0.55rem;
+}
+
+.log-record:last-child {
+  border-bottom: 0;
+}
+
+.log-record-header {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.log-record-meta {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.log-record-meta strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.log-message,
+.log-detail pre {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+
+.log-message {
+  color: var(--text);
+}
+
+.log-detail {
+  color: var(--muted);
+}
+
+.log-detail summary {
+  cursor: pointer;
+  margin-bottom: 0.45rem;
+}
+
 .archive-progress {
   display: grid;
   gap: 0.4rem;

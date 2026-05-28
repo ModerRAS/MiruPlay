@@ -1,5 +1,7 @@
 package com.miruplay.tv.webcontrol
 
+import com.miruplay.tv.repository.DEFAULT_LOCAL_LOG_READ_LIMIT
+import com.miruplay.tv.repository.MAX_LOCAL_LOG_READ_LIMIT
 import com.miruplay.tv.repository.LogUploadRepository
 import kotlinx.coroutines.flow.first
 
@@ -46,4 +48,20 @@ suspend fun LogUploadRepository.clearWebControlLogUploadToken(): LogUploadDto {
 suspend fun LogUploadRepository.runWebControlLogUploadNow(): LogUploadDto {
     uploadPendingLogs()
     return getWebControlLogUpload()
+}
+
+suspend fun LogUploadRepository.getWebControlLocalLogs(limit: Int = DEFAULT_LOCAL_LOG_READ_LIMIT): LocalLogsDto =
+    LocalLogsDto.from(readLocalLogs(limit.coerceIn(1, MAX_LOCAL_LOG_READ_LIMIT)))
+
+suspend fun LogUploadRepository.downloadWebControlLocalLogs(
+    sinceTimestampMs: Long? = null,
+    clock: () -> Long = System::currentTimeMillis,
+): LocalLogDownload {
+    val content = exportLocalLogs(sinceTimestampMs)
+    val range = sinceTimestampMs?.let { "since-$it" } ?: "all"
+    return LocalLogDownload(
+        fileName = "miruplay-logs-$range-${clock()}.jsonl",
+        contentType = "application/x-ndjson; charset=utf-8",
+        content = content.toByteArray(Charsets.UTF_8),
+    )
 }

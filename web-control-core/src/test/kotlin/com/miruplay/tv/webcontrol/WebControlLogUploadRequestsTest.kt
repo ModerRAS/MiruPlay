@@ -1,5 +1,8 @@
 package com.miruplay.tv.webcontrol
 
+import com.miruplay.tv.core.common.logging.MiruLogLevel
+import com.miruplay.tv.core.common.logging.MiruLogRecord
+import com.miruplay.tv.repository.LocalLogSnapshot
 import com.miruplay.tv.repository.LogUploadRepository
 import com.miruplay.tv.repository.LogUploadStatus
 import com.miruplay.tv.repository.OtlpLogUploadConfig
@@ -113,10 +116,34 @@ class WebControlLogUploadRequestsTest {
         assertEquals(0, ran.status.pendingCount)
     }
 
+    @Test
+    fun `local logs can be viewed and exported for WebControl`() = runBlocking {
+        val repository = FakeLogUploadRepository(
+            localLogs = listOf(
+                logRecord("1", "first"),
+                logRecord("2", "second"),
+                logRecord("3", "third"),
+            ),
+        )
+
+        val logs = repository.getWebControlLocalLogs(limit = 2)
+        val download = repository.downloadWebControlLocalLogs(sinceTimestampMs = 2L, clock = { 123L })
+
+        assertEquals(3, logs.totalCount)
+        assertEquals(2, logs.returnedCount)
+        assertEquals(1, logs.truncatedCount)
+        assertEquals(listOf("second", "third"), logs.records.map { it.message })
+        assertEquals("miruplay-logs-since-2-123.jsonl", download.fileName)
+        assertFalse(download.content.decodeToString().contains("first"))
+        assertTrue(download.content.decodeToString().contains("second"))
+        assertTrue(download.contentType.contains("ndjson"))
+    }
+
     private class FakeLogUploadRepository(
         config: OtlpLogUploadConfig = OtlpLogUploadConfig(),
         status: LogUploadStatus = LogUploadStatus(pendingCount = 2),
         private var tokenConfigured: Boolean = false,
+        private val localLogs: List<MiruLogRecord> = emptyList(),
     ) : LogUploadRepository {
         private var currentConfig = config
         private val statusState = MutableStateFlow(status)
@@ -174,5 +201,25 @@ class WebControlLogUploadRequestsTest {
             statusState.value = next
             return next
         }
+
+        override suspend fun readLocalLogs(limit: Int): LocalLogSnapshot =
+            LocalLogSnapshot(
+                totalCount = localLogs.size,
+                records = localLogs.takeLast(limit),
+            )
+
+        override suspend fun exportLocalLogs(sinceTimestampMs: Long?): String =
+            localLogs
+                .filter { record -> sinceTimestampMs == null || record.timestampMs >= sinceTimestampMs }
+                .joinToString(separator = "\n", postfix = "\n") { it.message }
     }
+
+    private fun logRecord(id: String, message: String): MiruLogRecord =
+        MiruLogRecord(
+            id = id,
+            timestampMs = id.toLong(),
+            level = MiruLogLevel.INFO,
+            tag = "Test",
+            message = message,
+        )
 }

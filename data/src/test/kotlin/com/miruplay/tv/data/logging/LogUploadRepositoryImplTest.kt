@@ -78,6 +78,24 @@ class LogUploadRepositoryImplTest {
     }
 
     @Test
+    fun `local logs remain viewable after upload drains pending queue`() = runBlocking {
+        repeat(3) { index -> localLogStore.log(logRecord(index)) }
+        server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
+        repository.saveConfig(enabled = true, endpoint = server.url("/api/acme").toString(), streamName = "default")
+        repository.saveToken("user:password")
+
+        repository.uploadPendingLogs()
+
+        val logs = repository.readLocalLogs(limit = 2)
+        val exported = repository.exportLocalLogs(sinceTimestampMs = 1_700_000_000_001L)
+        assertEquals(0, localLogStore.pendingCount())
+        assertEquals(3, logs.totalCount)
+        assertEquals(listOf("message 1", "message 2"), logs.records.map { it.message })
+        assertTrue(!exported.contains("message 0"))
+        assertTrue(exported.contains("message 1"))
+    }
+
+    @Test
     fun `upload pending logs keeps failed batch and remaining records queued`() = runBlocking {
         repeat(450) { index -> localLogStore.log(logRecord(index)) }
         server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
