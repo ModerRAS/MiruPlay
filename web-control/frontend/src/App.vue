@@ -37,7 +37,7 @@
           </el-menu-item>
           <el-menu-item index="logs">
             <el-icon><Upload /></el-icon>
-            <span>日志上报</span>
+            <span>日志</span>
           </el-menu-item>
           <el-menu-item index="remote">
             <el-icon><SwitchButton /></el-icon>
@@ -763,6 +763,87 @@
                 :title="logUpload.status.lastUploadStatus || '暂无上报结果'"
               />
             </el-card>
+
+            <el-card shadow="never" class="panel-card log-view-card">
+              <template #header>
+                <div class="card-header">
+                  <strong>本地日志</strong>
+                  <el-tag type="info">{{ localLogs.totalCount || 0 }} 条</el-tag>
+                </div>
+              </template>
+
+              <div class="log-view-toolbar">
+                <el-segmented
+                  v-model="localLogs.limit"
+                  :options="logLimitOptions"
+                  @change="loadLocalLogs"
+                />
+                <div class="form-actions compact-actions">
+                  <el-select
+                    v-model="logDownloadRange"
+                    class="log-range-select"
+                    placeholder="下载范围"
+                  >
+                    <el-option
+                      v-for="option in logDownloadRangeOptions"
+                      :key="option.value"
+                      :label="option.label"
+                      :value="option.value"
+                    />
+                  </el-select>
+                  <el-button :icon="Refresh" :loading="loading.localLogs" @click="loadLocalLogs">
+                    刷新
+                  </el-button>
+                  <el-button
+                    type="primary"
+                    :icon="Download"
+                    :loading="loading.logDownload"
+                    :disabled="!localLogs.totalCount"
+                    @click="downloadLocalLogs"
+                  >
+                    下载
+                  </el-button>
+                </div>
+              </div>
+
+              <el-alert
+                v-if="localLogs.truncatedCount > 0"
+                class="status-alert"
+                type="info"
+                :closable="false"
+                show-icon
+                :title="`当前显示最近 ${localLogs.returnedCount} 条，另有 ${localLogs.truncatedCount} 条较早记录可下载查看。`"
+              />
+
+              <el-skeleton v-if="loading.localLogs" animated :rows="6" />
+              <el-empty v-else-if="!localLogs.records.length" description="暂无本地日志" />
+              <el-scrollbar v-else class="log-record-scroll" max-height="34rem">
+                <div class="log-record-list">
+                  <article
+                    v-for="(record, index) in localLogs.records"
+                    :key="record.id || `${record.timestampMs}-${index}`"
+                    class="log-record"
+                  >
+                    <div class="log-record-header">
+                      <div class="log-record-meta">
+                        <el-tag size="small" :type="logLevelTagType(record.level)">
+                          {{ record.level || 'INFO' }}
+                        </el-tag>
+                        <strong>{{ record.tag || 'MiruPlay' }}</strong>
+                      </div>
+                      <span class="muted">{{ formatLogDateTime(record.timestampMs) }}</span>
+                    </div>
+                    <pre class="log-message">{{ record.message }}</pre>
+                    <details v-if="hasLogDetails(record)" class="log-detail">
+                      <summary>详情</summary>
+                      <pre v-if="record.throwableClass || record.throwableMessage">{{ formatThrowable(record) }}</pre>
+                      <pre v-if="record.stackTrace">{{ record.stackTrace }}</pre>
+                      <pre v-if="Object.keys(record.attributes || {}).length">{{ formatLogAttributes(record.attributes) }}</pre>
+                    </details>
+                  </article>
+                </div>
+              </el-scrollbar>
+            </el-card>
           </section>
 
           <section v-show="activeView === 'remote'" class="remote-layout">
@@ -999,6 +1080,13 @@ const logUpload = reactive({
   },
   tokenConfigured: false
 })
+const localLogs = reactive({
+  totalCount: 0,
+  returnedCount: 0,
+  truncatedCount: 0,
+  records: [],
+  limit: 200
+})
 const metadataSettings = reactive({
   bangumiTokenConfigured: false
 })
@@ -1043,6 +1131,8 @@ const loading = reactive({
   logUploadSave: false,
   logUploadToken: false,
   logUploadRun: false,
+  localLogs: false,
+  logDownload: false,
   metadata: false,
   bangumiToken: false,
   bangumiArchive: false,
@@ -1113,12 +1203,25 @@ const selectedAnime = reactive({ anime: null, episodes: [] })
 const detailOpen = ref(false)
 const speed = ref(1)
 const seekValue = ref(0)
+const logDownloadRange = ref('1h')
 const speedOptions = [
   { label: '0.75x', value: 0.75 },
   { label: '1x', value: 1 },
   { label: '1.25x', value: 1.25 },
   { label: '1.5x', value: 1.5 },
   { label: '2x', value: 2 }
+]
+const logLimitOptions = [
+  { label: '100', value: 100 },
+  { label: '200', value: 200 },
+  { label: '500', value: 500 },
+  { label: '1000', value: 1000 }
+]
+const logDownloadRangeOptions = [
+  { label: '最近 15 分钟', value: '15m', millis: 15 * 60 * 1000 },
+  { label: '最近 1 小时', value: '1h', millis: 60 * 60 * 1000 },
+  { label: '最近 24 小时', value: '24h', millis: 24 * 60 * 60 * 1000 },
+  { label: '全部', value: 'all', millis: 0 }
 ]
 
 let searchTimer = 0
@@ -1131,7 +1234,7 @@ const viewMeta = computed(() => ({
   automation: ['自动化', '管理 RSS 订阅、CloudDrive2 离线下载和整理入库。'],
   proxy: ['代理配置', '设置 Bangumi、Archive 下载和 RSS 请求共用的出站 HTTP 代理。'],
   metadata: ['元数据', '配置 Bangumi Token，让收藏和观看进度同步不必在电视上输入。'],
-  logs: ['日志上报', '配置 OpenObserve JSON，把本地日志从电视端发送出去。'],
+  logs: ['日志', '查看、下载本地日志，也可以配置 OpenObserve JSON 上报。'],
   remote: ['遥控器', '播放控制、快进快退和进度拖动。']
 }[activeView.value]).reduce((meta, value, index) => {
   if (index === 0) meta.title = value
@@ -1225,12 +1328,15 @@ watch(activeView, (view) => {
   }
   if (view === 'proxy') loadProxyConfig()
   if (view === 'metadata') loadMetadataSettings()
-  if (view === 'logs') loadLogUpload()
+  if (view === 'logs') {
+    loadLogUpload()
+    loadLocalLogs()
+  }
   if (view === 'remote') loadPlaybackStatus()
 })
 
 onMounted(async () => {
-  await Promise.all([loadInfo(), loadLibrary(), loadSources(), loadCloudDriveAutomation(), loadProxyConfig(), loadMetadataSettings(), loadLogUpload(), loadPlaybackStatus()])
+  await Promise.all([loadInfo(), loadLibrary(), loadSources(), loadCloudDriveAutomation(), loadProxyConfig(), loadMetadataSettings(), loadLogUpload(), loadLocalLogs(), loadPlaybackStatus()])
   statusTimer = window.setInterval(loadPlaybackStatus, 2000)
   archiveTimer = window.setInterval(() => {
     if (activeView.value === 'metadata' && bangumiArchive.isDownloading) {
@@ -1300,6 +1406,16 @@ async function loadLogUpload() {
     applyLogUpload(await api('/api/log-upload'))
   } finally {
     loading.logUpload = false
+  }
+}
+
+async function loadLocalLogs() {
+  loading.localLogs = true
+  try {
+    const data = await api(`/api/logs?limit=${encodeURIComponent(localLogs.limit)}`)
+    applyLocalLogs(data)
+  } finally {
+    loading.localLogs = false
   }
 }
 
@@ -1380,6 +1496,15 @@ function applyLogUpload(data) {
   })
 }
 
+function applyLocalLogs(data) {
+  Object.assign(localLogs, {
+    totalCount: Number(data?.totalCount || 0),
+    returnedCount: Number(data?.returnedCount || 0),
+    truncatedCount: Number(data?.truncatedCount || 0),
+    records: Array.isArray(data?.records) ? data.records : []
+  })
+}
+
 function applyMetadataSettings(data) {
   metadataSettings.bangumiTokenConfigured = Boolean(data.bangumiTokenConfigured)
 }
@@ -1412,7 +1537,7 @@ async function refreshCurrent() {
   if (activeView.value === 'automation') await Promise.all([loadSources(), loadCloudDriveAutomation()])
   if (activeView.value === 'proxy') await loadProxyConfig()
   if (activeView.value === 'metadata') await loadMetadataSettings()
-  if (activeView.value === 'logs') await loadLogUpload()
+  if (activeView.value === 'logs') await Promise.all([loadLogUpload(), loadLocalLogs()])
   if (activeView.value === 'remote') await loadPlaybackStatus()
 }
 
@@ -1968,9 +2093,44 @@ async function runLogUploadNow() {
   loading.logUploadRun = true
   try {
     applyLogUpload(await api('/api/log-upload/run', { method: 'POST' }))
+    await loadLocalLogs()
     ElMessage.success(logUpload.status.lastUploadStatus || '日志上报已执行')
   } finally {
     loading.logUploadRun = false
+  }
+}
+
+async function downloadLocalLogs() {
+  loading.logDownload = true
+  try {
+    const rangeMs = selectedLogDownloadRangeMs()
+    const downloadUrl = rangeMs ? `/api/logs/download?rangeMs=${encodeURIComponent(rangeMs)}` : '/api/logs/download'
+    const response = await fetch(downloadUrl)
+    if (!response.ok) {
+      let message = `HTTP ${response.status}`
+      try {
+        const envelope = await response.json()
+        message = envelope.error || message
+      } catch {
+        // Keep the HTTP status fallback.
+      }
+      throw new Error(message)
+    }
+    const blob = await response.blob()
+    const filename = downloadFilename(response.headers.get('Content-Disposition')) || 'miruplay-logs.jsonl'
+    const objectUrl = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = objectUrl
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(objectUrl)
+    ElMessage.success('日志已下载')
+  } catch (error) {
+    ElMessage.error(error?.message || '下载日志失败')
+  } finally {
+    loading.logDownload = false
   }
 }
 
@@ -2107,6 +2267,17 @@ function formatDateTime(timestamp) {
   })
 }
 
+function formatLogDateTime(timestamp) {
+  if (!timestamp) return ''
+  return new Date(timestamp).toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  })
+}
+
 function formatIsoDateTime(value) {
   if (!value) return ''
   const date = new Date(value)
@@ -2130,6 +2301,51 @@ function formatBytes(bytes) {
     unit += 1
   }
   return `${size >= 10 || unit === 0 ? size.toFixed(0) : size.toFixed(1)} ${units[unit]}`
+}
+
+function logLevelTagType(level) {
+  const normalized = String(level || '').toUpperCase()
+  if (normalized === 'ERROR') return 'danger'
+  if (normalized === 'WARN') return 'warning'
+  if (normalized === 'DEBUG') return 'info'
+  return 'success'
+}
+
+function hasLogDetails(record) {
+  return Boolean(
+    record?.throwableClass ||
+      record?.throwableMessage ||
+      record?.stackTrace ||
+      Object.keys(record?.attributes || {}).length
+  )
+}
+
+function formatThrowable(record) {
+  return [record.throwableClass, record.throwableMessage]
+    .filter(Boolean)
+    .join(': ')
+}
+
+function formatLogAttributes(attributes) {
+  return JSON.stringify(attributes || {}, null, 2)
+}
+
+function downloadFilename(contentDisposition) {
+  const value = String(contentDisposition || '')
+  const encoded = /filename\*=UTF-8''([^;]+)/i.exec(value)
+  if (encoded) {
+    try {
+      return decodeURIComponent(encoded[1])
+    } catch {
+      return encoded[1]
+    }
+  }
+  return /filename="([^"]+)"/i.exec(value)?.[1] || ''
+}
+
+function selectedLogDownloadRangeMs() {
+  const option = logDownloadRangeOptions.find((item) => item.value === logDownloadRange.value)
+  return option?.millis || 0
 }
 
 function episodeLabel(episode) {

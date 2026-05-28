@@ -1,8 +1,11 @@
 package com.miruplay.tv.repository
 
+import com.miruplay.tv.core.common.logging.MiruLogRecord
 import kotlinx.coroutines.flow.Flow
 
 const val DEFAULT_OTLP_LOG_UPLOAD_STREAM_NAME = "miruplay"
+const val DEFAULT_LOCAL_LOG_READ_LIMIT = 200
+const val MAX_LOCAL_LOG_READ_LIMIT = 1_000
 
 data class OtlpLogUploadConfig(
     val enabled: Boolean = false,
@@ -23,6 +26,17 @@ data class LogUploadStatus(
     val tokenConfigured: Boolean = false
 )
 
+data class LocalLogSnapshot(
+    val totalCount: Int = 0,
+    val records: List<MiruLogRecord> = emptyList(),
+) {
+    val returnedCount: Int
+        get() = records.size
+
+    val truncatedCount: Int
+        get() = (totalCount - returnedCount).coerceAtLeast(0)
+}
+
 interface LogUploadRepository {
     val status: Flow<LogUploadStatus>
     fun observeConfig(): Flow<OtlpLogUploadConfig>
@@ -32,4 +46,7 @@ interface LogUploadRepository {
     suspend fun saveToken(token: String)
     suspend fun clearToken()
     suspend fun uploadPendingLogs(): LogUploadStatus
+    suspend fun readLocalLogs(limit: Int = DEFAULT_LOCAL_LOG_READ_LIMIT): LocalLogSnapshot =
+        LocalLogSnapshot()
+    suspend fun exportLocalLogs(sinceTimestampMs: Long? = null): String = ""
 }

@@ -6,6 +6,7 @@ import com.miruplay.tv.clouddrive.CloudDriveFileInfo
 import com.miruplay.tv.clouddrive.CloudDriveLoginResult
 import com.miruplay.tv.clouddrive.CloudDriveTokenInfo
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.Episode
@@ -752,6 +753,7 @@ class DesktopWebControlServerTest {
                 server.stopIfRunning()
             }
         } finally {
+            MiruLog.setSink(null)
             storePath.parent.toFile().deleteRecursively()
         }
     }
@@ -800,6 +802,17 @@ class DesktopWebControlServerTest {
                 assertEquals(200, runUpload.code)
                 assertTrue(runUpload.body.contains("\"lastUploadStatus\":"))
 
+                MiruLog.i("DesktopWebControlServerTest", "web control local log")
+                val localLogs = request("http://127.0.0.1:$port/api/logs?limit=20&token=$token")
+                assertEquals(200, localLogs.code)
+                assertTrue(localLogs.body.contains("web control local log"))
+                assertTrue(localLogs.body.contains("\"returnedCount\":"))
+
+                val downloadedLogs = request("http://127.0.0.1:$port/api/logs/download?token=$token")
+                assertEquals(200, downloadedLogs.code)
+                assertTrue(downloadedLogs.header("Content-Disposition").orEmpty().contains("miruplay-logs"))
+                assertTrue(downloadedLogs.body.contains("web control local log"))
+
                 val metadataInitial = request(
                     "http://127.0.0.1:$port/api/metadata?token=$token",
                 )
@@ -824,6 +837,7 @@ class DesktopWebControlServerTest {
                 server.stopIfRunning()
             }
         } finally {
+            MiruLog.setSink(null)
             storePath.parent.toFile().deleteRecursively()
         }
     }

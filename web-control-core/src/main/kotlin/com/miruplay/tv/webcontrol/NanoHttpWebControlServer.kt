@@ -3,6 +3,7 @@ package com.miruplay.tv.webcontrol
 import com.miruplay.tv.core.common.WebControlConfig
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.RssSubscriptionInfo
+import com.miruplay.tv.repository.DEFAULT_LOCAL_LOG_READ_LIMIT
 import com.miruplay.tv.repository.WebControlAccessManager
 import fi.iki.elonen.NanoHTTPD
 import kotlinx.coroutines.runBlocking
@@ -171,6 +172,23 @@ open class NanoHttpWebControlServer(
             session.method == Method.POST && route == "/api/log-upload/run" -> {
                 jsonResponse(LogUploadDto.serializer(), webControlService.uploadPendingLogs())
             }
+            session.method == Method.GET && route == "/api/logs" -> {
+                val limit = session.parameters["limit"]?.firstOrNull()?.toIntOrNull()
+                    ?: DEFAULT_LOCAL_LOG_READ_LIMIT
+                jsonResponse(LocalLogsDto.serializer(), webControlService.getLocalLogs(limit))
+            }
+            session.method == Method.GET && route == "/api/logs/download" -> {
+                val rangeMs = session.parameters["rangeMs"]
+                    ?.firstOrNull()
+                    ?.toLongOrNull()
+                    ?.takeIf { it > 0L }
+                val sinceTimestampMs = rangeMs?.let { System.currentTimeMillis() - it }
+                    ?: session.parameters["sinceMs"]
+                        ?.firstOrNull()
+                        ?.toLongOrNull()
+                        ?.takeIf { it > 0L }
+                localLogDownloadResponse(webControlService.downloadLocalLogs(sinceTimestampMs))
+            }
             session.method == Method.GET && route == "/api/metadata" -> {
                 jsonResponse(MetadataSettingsDto.serializer(), webControlService.getMetadataSettings())
             }
@@ -249,6 +267,17 @@ open class NanoHttpWebControlServer(
             ApiEnvelope<Unit>(ok = false, error = message)
         )
         return addCommonHeaders(newFixedLengthResponse(status, "application/json; charset=utf-8", body))
+    }
+
+    private fun localLogDownloadResponse(download: LocalLogDownload): Response {
+        val response = newFixedLengthResponse(
+            Response.Status.OK,
+            download.contentType,
+            download.content.inputStream(),
+            download.content.size.toLong(),
+        )
+        response.addHeader("Content-Disposition", "attachment; filename=\"${download.fileName}\"")
+        return addCommonHeaders(response)
     }
 
     private fun serviceDisabledResponse(): Response =
