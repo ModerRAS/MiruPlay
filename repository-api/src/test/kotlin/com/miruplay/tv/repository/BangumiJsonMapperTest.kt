@@ -101,6 +101,42 @@ class BangumiJsonMapperTest {
     }
 
     @Test
+    fun `parseSearchResults prefers requested Dr Stone season over generic first season`() {
+        val root = json.parseToJsonElement(
+            """
+            {
+              "data": [
+                {
+                  "id": 266794,
+                  "name": "Dr.STONE",
+                  "name_cn": "石纪元",
+                  "rating": { "score": 7.5 },
+                  "infobox": [
+                    { "key": "别名", "value": [ { "v": "Dr STONE 新石纪" } ] }
+                  ]
+                },
+                {
+                  "id": 471578,
+                  "name": "Dr.STONE SCIENCE FUTURE",
+                  "name_cn": "石纪元 科学与未来",
+                  "rating": { "score": 7.2 },
+                  "infobox": [
+                    { "key": "别名", "value": [ { "v": "Dr STONE 新石纪 第四季" } ] }
+                  ]
+                }
+              ]
+            }
+            """.trimIndent()
+        ).jsonObject
+
+        val result = BangumiJsonMapper.parseSearchResults(root, "Dr STONE 新石纪 第四季")
+
+        assertEquals("471578", result.first().animeId)
+        assertTrue(result.first().confidence > result.last().confidence)
+        assertTrue(result.last().confidence < 0.62f)
+    }
+
+    @Test
     fun `parseSearchResults does not accept one shared franchise token as reliable`() {
         val root = json.parseToJsonElement(
             """

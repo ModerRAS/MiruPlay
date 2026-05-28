@@ -155,6 +155,27 @@ class BangumiArchiveTest {
     }
 
     @Test
+    fun `subject search prefers requested season over generic series title`() {
+        val tempDir = createTempDirectory(prefix = "bangumi-archive-season-test-").toFile()
+        val subjectFile = File(tempDir, BangumiArchiveStore.SUBJECT_FILE_NAME)
+        subjectFile.writeText(
+            """
+            {"id":266794,"type":2,"name":"Dr.STONE","name_cn":"石纪元","infobox":[{"key":"别名","value":[{"v":"Dr STONE 新石纪"}]}],"score":7.5,"rank":10}
+            {"id":471578,"type":2,"name":"Dr.STONE SCIENCE FUTURE","name_cn":"石纪元 科学与未来","infobox":[{"key":"别名","value":[{"v":"Dr STONE 新石纪 第四季"}]}],"score":7.2,"rank":20}
+            """.trimIndent()
+        )
+
+        val search = BangumiArchiveSubjectSearch(subjectFile)
+
+        val result = search.search("Dr STONE 新石纪 第四季")
+
+        assertEquals("471578", result.single().animeId)
+        assertTrue(result.single().confidence >= 0.62f)
+        tempDir.deleteRecursively()
+    }
+
+
+    @Test
     fun `subject search normalizes queries before matching`() {
         val tempDir = createTempDirectory(prefix = "bangumi-archive-normalized-test-").toFile()
         val subjectFile = File(tempDir, BangumiArchiveStore.SUBJECT_FILE_NAME)

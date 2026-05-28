@@ -775,7 +775,11 @@ class ScanCoordinator @Inject constructor(
                     if (MediaFileConventions.isVideoName(fileName, videoExtensions)) {
                         totalFiles(1)
                         val classificationPath = classificationPathWithRemoteRoot(file.path, remoteRootContext)
-                        val match = classifier.classifyVideo(classificationPath, fileName)
+                        val match = classifier.classifyVideo(
+                            path = classificationPath,
+                            fileName = fileName,
+                            rootContext = remoteRootContext,
+                        )
                         MiruLog.i(
                             tag = TAG,
                             message = "Scan video classified",
@@ -810,7 +814,11 @@ class ScanCoordinator @Inject constructor(
                     } else if (!filenameOnly) {
                         if (MediaFileConventions.hasExtension(fileName, "nfo")) {
                             val classificationPath = classificationPathWithRemoteRoot(file.path, remoteRootContext)
-                            parseAndCacheRemoteNfo(ms, file.path, classifier.classifyNfo(classificationPath).animeName)
+                            parseAndCacheRemoteNfo(
+                                ms,
+                                file.path,
+                                classifier.classifyNfo(classificationPath, remoteRootContext).animeName,
+                            )
                         }
                     }
                 }

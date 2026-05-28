@@ -17,16 +17,17 @@ class VideoDirectoryClassifier(
 ) {
     private val parsedTextCache = mutableMapOf<String, FilenameParseResult?>()
 
-    fun classifyVideo(path: String, fileName: String): VideoClassification {
+    fun classifyVideo(path: String, fileName: String, rootContext: String? = null): VideoClassification {
         val release = ReleaseFilenameParser.parse(fileName)
-        val segments = pathSegments(path)
+        val classificationPath = path.withRootContext(rootContext)
+        val segments = pathSegments(classificationPath)
         val parentSegments = if (segments.lastOrNull() == fileName) {
             segments.dropLast(1)
         } else {
             segments.dropLast(1).ifEmpty { segments }
         }
         val detectorMatch = episodeDetector.detectEpisode(fileName)
-        val pathModelText = if (filenameOnly) null else modelPathText(path, fileName)
+        val pathModelText = if (filenameOnly) null else modelPathText(classificationPath, fileName)
         val pathParsed = pathModelText?.let(::parseMetadata)
         val fileModelText = stripVideoExtension(fileName)
         val fileParsed = parseMetadata(fileModelText)
@@ -110,8 +111,8 @@ class VideoDirectoryClassifier(
         )
     }
 
-    fun classifyNfo(path: String): NfoClassification {
-        val segments = pathSegments(path)
+    fun classifyNfo(path: String, rootContext: String? = null): NfoClassification {
+        val segments = pathSegments(path.withRootContext(rootContext))
         val parentSegments = segments.dropLast(1)
         val seasonFolder = findSeasonFolder(parentSegments)
         val showContext = findShowContext(parentSegments, seasonFolder)
@@ -174,6 +175,16 @@ class VideoDirectoryClassifier(
             .split('/')
             .map { it.trim() }
             .filter { it.isNotBlank() }
+
+    private fun String.withRootContext(rootContext: String?): String {
+        val context = rootContext.usableName() ?: return this
+        val contextKey = context.normalizedContextName()
+        val segments = pathSegments(this)
+        if (segments.any { it.normalizedContextName() == contextKey }) return this
+
+        val child = replace('\\', '/').trimStart('/')
+        return if (child.isBlank()) context else "$context/$child"
+    }
 
     private fun firstUsableName(vararg candidates: String?): String =
         candidates.firstNotNullOfOrNull { it.usableName() } ?: "Unknown"
