@@ -89,6 +89,7 @@ class ScanCoordinator @Inject constructor(
                 sourceInfo.connectionInfo["url"] ?: sourceInfo.connectionInfo["path"] ?: "/"
         }
         val scanStartPath = if (isLocalSource) rootPath else ""
+        val remoteRootContext = if (isLocalSource) null else remoteRootContextName(rootPath)
         val disableOnlineMetadata = sourceInfo.connectionInfo["disableOnlineMetadata"]?.equals("true", ignoreCase = true) == true
 
         // Get the real root path once (resolves symlinks)
@@ -131,6 +132,7 @@ class ScanCoordinator @Inject constructor(
             rootPath = realRootPath,
             isLocalSource = isLocalSource,
             filenameOnly = filenameOnly,
+            remoteRootContext = remoteRootContext,
         )
 
         // Save index
@@ -718,6 +720,7 @@ class ScanCoordinator @Inject constructor(
         rootPath: String?,
         isLocalSource: Boolean,
         filenameOnly: Boolean,
+        remoteRootContext: String? = null,
     ) {
         // Guard: skip hidden directories
         val pathName = MediaPathConventions.fileName(path)
@@ -765,12 +768,14 @@ class ScanCoordinator @Inject constructor(
                         rootPath = rootPath,
                         isLocalSource = isLocalSource,
                         filenameOnly = filenameOnly,
+                        remoteRootContext = remoteRootContext,
                     )
                 } else {
                     val fileName = file.name
                     if (MediaFileConventions.isVideoName(fileName, videoExtensions)) {
                         totalFiles(1)
-                        val match = classifier.classifyVideo(file.path, fileName)
+                        val classificationPath = classificationPathWithRemoteRoot(file.path, remoteRootContext)
+                        val match = classifier.classifyVideo(classificationPath, fileName)
                         MiruLog.i(
                             tag = TAG,
                             message = "Scan video classified",
@@ -804,7 +809,8 @@ class ScanCoordinator @Inject constructor(
                         }
                     } else if (!filenameOnly) {
                         if (MediaFileConventions.hasExtension(fileName, "nfo")) {
-                            parseAndCacheRemoteNfo(ms, file.path, classifier.classifyNfo(file.path).animeName)
+                            val classificationPath = classificationPathWithRemoteRoot(file.path, remoteRootContext)
+                            parseAndCacheRemoteNfo(ms, file.path, classifier.classifyNfo(classificationPath).animeName)
                         }
                     }
                 }
@@ -847,6 +853,27 @@ class ScanCoordinator @Inject constructor(
 
     private fun MediaSourceInfo.displayNameOrPath(path: String): String =
         connectionInfo["displayName"] ?: nameOfPath(path).ifEmpty { path }
+
+    private fun remoteRootContextName(rootPath: String): String? =
+        MediaPathConventions.decodePath(MediaPathConventions.fileName(rootPath.substringBefore('?')))
+            .trim()
+            .takeIf { it.isNotBlank() && !it.isRemoteRootContainerName() }
+
+    private fun classificationPathWithRemoteRoot(path: String, remoteRootContext: String?): String {
+        val context = remoteRootContext?.trim('/', '\\')?.takeIf { it.isNotBlank() } ?: return path
+        val normalizedPath = path.replace('\\', '/')
+        val pathSegments = normalizedPath.trim('/').split('/').filter { it.isNotBlank() }
+        if (pathSegments.firstOrNull() == context) return path
+
+        val child = normalizedPath.trimStart('/')
+        return if (child.isBlank()) context else "$context/$child"
+    }
+
+    private fun String.isRemoteRootContainerName(): Boolean =
+        lowercase()
+            .replace(Regex("""[._\-\[\]【】()（）]+"""), " ")
+            .replace(whitespaceRegex, " ")
+            .trim() in remoteRootContainerNames
 
     /**
      * Download and parse a single NFO file, cache metadata using showDirName as the cache key.
@@ -977,6 +1004,28 @@ class ScanCoordinator @Inject constructor(
         private val whitespaceRegex = Regex("\\s+")
         private val seasonOnlyRegex = Regex("(?i)^(s\\d{1,2}|season\\s*\\d{1,2}|第\\s*\\d+\\s*[季期])$")
         private val videoExtensions = setOf("mkv", "mp4", "avi", "mov", "wmv", "flv", "webm", "m4v")
+        private val remoteRootContainerNames = setOf(
+            "dav",
+            "webdav",
+            "root",
+            "115open",
+            "anime",
+            "animation",
+            "download",
+            "downloads",
+            "library",
+            "media",
+            "movie",
+            "movies",
+            "video",
+            "videos",
+            "影视",
+            "影音",
+            "动漫",
+            "動畫",
+            "下载",
+            "下載",
+        )
         private val skipDirs = setOf(
             "proc", "sys", "dev", "selinux", "acct", "apex", "bin", "cache", "config",
             "d", "data", "data_mirror", "debug_ramdisk", "etc", "init", "lib",

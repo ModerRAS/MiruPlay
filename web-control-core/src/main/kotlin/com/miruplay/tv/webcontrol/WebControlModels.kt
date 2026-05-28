@@ -226,6 +226,20 @@ data class MetadataSettingsDto(
 )
 
 @Serializable
+data class BangumiArchiveDto(
+    val available: Boolean,
+    val hasSubjectData: Boolean,
+    val latestName: String? = null,
+    val latestCreatedAt: String? = null,
+    val latestUpdatedAt: String? = null,
+    val subjectFileSizeBytes: Long = 0L,
+    val isDownloading: Boolean = false,
+    val downloadedBytes: Long = 0L,
+    val totalBytes: Long = 0L,
+    val lastError: String? = null,
+)
+
+@Serializable
 data class BangumiTokenRequest(
     val token: String,
 )

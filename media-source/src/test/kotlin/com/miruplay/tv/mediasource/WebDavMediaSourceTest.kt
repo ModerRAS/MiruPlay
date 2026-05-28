@@ -141,4 +141,54 @@ class WebDavMediaSourceTest {
         assertEquals(2048L, entries.last().size)
         assertEquals("video/x-matroska", entries.last().mimeType)
     }
+
+    @Test
+    fun `parsePropfindResponse handles mixed namespace propstats from CloudDrive`() {
+        val source = WebDavMediaSource(
+            MediaSourceInfo(
+                name = "WebDAV",
+                type = MediaSourceType.WEBDAV,
+                connectionInfo = mapOf(
+                    "url" to "http://nas.local/dav/115open/%E5%BD%B1%E9%9F%B3/%E5%8A%A8%E6%BC%AB"
+                )
+            )
+        )
+
+        val entries = source.parsePropfindResponse(
+            xml = """
+                <?xml version="1.0" encoding="utf-8"?>
+                <D:multistatus xmlns:D="DAV:">
+                    <D:response>
+                        <D:href>/dav/115open/%E5%BD%B1%E9%9F%B3/%E5%8A%A8%E6%BC%AB/</D:href>
+                        <D:propstat>
+                            <D:prop>
+                                <D:getcontenttype>httpd/unix-directory</D:getcontenttype>
+                                <d:resourcetype xmlns:d="DAV:"><D:collection></D:collection></d:resourcetype>
+                            </D:prop>
+                            <D:status>HTTP/1.1 200 OK</D:status>
+                        </D:propstat>
+                        <D:propstat>
+                            <D:prop><D:displayname></D:displayname><D:getcontentlength></D:getcontentlength></D:prop>
+                            <D:status>HTTP/1.1 404 Not Found</D:status>
+                        </D:propstat>
+                    </D:response>
+                    <D:response>
+                        <D:href>/dav/115open/%E5%BD%B1%E9%9F%B3/%E5%8A%A8%E6%BC%AB/Dr.STONE%20%E6%96%B0%E7%9F%B3%E7%B4%80%20%E7%AC%AC%E5%9B%9B%E5%AD%A3/</D:href>
+                        <D:propstat>
+                            <D:prop>
+                                <D:getcontenttype>httpd/unix-directory</D:getcontenttype>
+                                <d:resourcetype xmlns:d="DAV:"><D:collection></D:collection></d:resourcetype>
+                            </D:prop>
+                            <D:status>HTTP/1.1 200 OK</D:status>
+                        </D:propstat>
+                    </D:response>
+                </D:multistatus>
+            """.trimIndent(),
+            requestedPath = ""
+        )
+
+        assertEquals("/Dr.STONE 新石紀 第四季", entries.single().path)
+        assertEquals("Dr.STONE 新石紀 第四季", entries.single().name)
+        assertTrue(entries.single().isDirectory)
+    }
 }

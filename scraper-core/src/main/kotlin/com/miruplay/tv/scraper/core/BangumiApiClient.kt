@@ -36,6 +36,7 @@ class BangumiApiClient(
     private val tokenProvider: () -> String? = { null },
     private val userAgent: String = DEFAULT_USER_AGENT,
     private val normalizeQuery: (String) -> String = { it },
+    private val archiveSearch: BangumiArchiveSubjectSearch? = null,
 ) : BangumiCollectionService {
     private val baseHttpUrl: HttpUrl = baseUrl.toHttpUrl()
     private val client: OkHttpClient = defaultClient()
@@ -47,6 +48,10 @@ class BangumiApiClient(
 
     suspend fun searchAnime(query: String): Result<List<ScraperResult>> = withContext(Dispatchers.IO) {
         try {
+            archiveSearch?.search(query)?.takeIf { it.isNotEmpty() }?.let { localResults ->
+                return@withContext Result.success(localResults)
+            }
+
             val searchKeyword = normalizeQuery(query.trim())
             val request = buildRequest(
                 apiUrl("/v0/search/subjects")

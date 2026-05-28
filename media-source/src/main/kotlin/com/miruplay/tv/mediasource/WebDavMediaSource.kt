@@ -1,5 +1,6 @@
 package com.miruplay.tv.mediasource
 
+import android.util.Log
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.FileEntry
@@ -36,11 +37,6 @@ class WebDavMediaSource @Inject constructor() : MediaSource {
         .build()
 
     private val xmlMedia = "application/xml".toMediaType()
-
-    companion object {
-        private const val PROPFIND = "PROPFIND"
-        private const val DEPTH_1 = "1"
-    }
 
     constructor(info: MediaSourceInfo) : this() {
         this.info = info
@@ -84,7 +80,9 @@ class WebDavMediaSource @Inject constructor() : MediaSource {
             val entries = parsePropfindResponse(body, path)
             Result.success(entries)
         } catch (e: Exception) {
-            Result.failure(AppError.NetworkError.ServerUnreachable(path))
+            val url = normalizeUrl(path)
+            Log.w(TAG, "WebDAV PROPFIND failed for $url", e)
+            Result.failure(AppError.NetworkError.ServerUnreachable(urlWithCause(url, e)))
         }
     }
 
@@ -113,7 +111,9 @@ class WebDavMediaSource @Inject constructor() : MediaSource {
 
             Result.success(stream)
         } catch (e: Exception) {
-            Result.failure(AppError.MediaSourceError.NotFound(path))
+            val url = normalizeUrl(path)
+            Log.w(TAG, "WebDAV GET failed for $url", e)
+            Result.failure(AppError.MediaSourceError.NotFound(urlWithCause(path.ifBlank { url }, e)))
         }
     }
 
@@ -144,7 +144,9 @@ class WebDavMediaSource @Inject constructor() : MediaSource {
 
             Result.success(MediaFileConventions.metadataFor(entry))
         } catch (e: Exception) {
-            Result.failure(AppError.MediaSourceError.NotFound(path))
+            val url = normalizeUrl(path)
+            Log.w(TAG, "WebDAV metadata PROPFIND failed for $url", e)
+            Result.failure(AppError.MediaSourceError.NotFound(urlWithCause(path.ifBlank { url }, e)))
         }
     }
 
@@ -180,6 +182,11 @@ class WebDavMediaSource @Inject constructor() : MediaSource {
         return "Basic $encoded"
     }
 
+    private fun urlWithCause(url: String, error: Exception): String {
+        val message = error.message?.takeIf { it.isNotBlank() }
+        return if (message == null) url else "$url ($message)"
+    }
+
     private fun propfindXml(): String = """<?xml version="1.0" encoding="utf-8"?>
 <d:propfind xmlns:d="DAV:">
     <d:prop>
@@ -202,4 +209,10 @@ class WebDavMediaSource @Inject constructor() : MediaSource {
             requestedPath = requestedPath,
             includeRequestedPath = includeRequestedPath,
         )
+
+    private companion object {
+        private const val TAG = "WebDavMediaSource"
+        private const val PROPFIND = "PROPFIND"
+        private const val DEPTH_1 = "1"
+    }
 }

@@ -17,10 +17,15 @@ import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
 import com.miruplay.tv.repository.ScanPreferencesRepository
 import com.miruplay.tv.scanner.ScanCoordinator
+import com.miruplay.tv.scraper.core.BangumiArchiveSnapshot
+import com.miruplay.tv.scraper.core.BangumiArchiveStore
 import com.miruplay.tv.sync.rss.CloudDriveRssActionCoordinator
 import com.miruplay.tv.sync.rss.CloudDriveRssAutomationEngine
 import com.miruplay.tv.sync.rss.CloudDriveRssScheduler
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -42,6 +47,7 @@ class WebControlService @Inject constructor(
     mediaSourceFactory: MediaSourceFactory,
     private val playbackController: PlaybackController,
     private val navigator: WebControlNavigator,
+    private val bangumiArchiveStore: BangumiArchiveStore,
 ) : SharedWebControlEndpointService(
     mediaSourceRepository = mediaRepository,
     metadataRepository = metadataRepository,
@@ -61,6 +67,12 @@ class WebControlService @Inject constructor(
     ),
     deviceNameProvider = { Build.MODEL ?: "Android TV" },
 ) {
+    private val bangumiArchiveDownloadLock = Any()
+    private val bangumiArchiveDownloadScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    @Volatile
+    private var bangumiArchiveDownload: BangumiArchiveDownloadState = BangumiArchiveDownloadState()
+
     override suspend fun <T> runOnIo(block: suspend () -> T): T =
         withContext(Dispatchers.IO) { block() }
 
@@ -69,6 +81,51 @@ class WebControlService @Inject constructor(
 
     override suspend fun afterCloudDriveConfigSaved(config: com.miruplay.tv.model.CloudDriveAutomationConfig) {
         cloudDriveScheduler.syncPeriodicWork(config)
+    }
+
+    override suspend fun getBangumiArchive(): BangumiArchiveDto = runOnIo {
+        bangumiArchiveStore.snapshot().toWebControlBangumiArchive(bangumiArchiveDownload)
+    }
+
+    override suspend fun downloadBangumiArchive(): BangumiArchiveDto {
+        val shouldStart = synchronized(bangumiArchiveDownloadLock) {
+            if (bangumiArchiveDownload.isDownloading) {
+                false
+            } else {
+                bangumiArchiveDownload = BangumiArchiveDownloadState(isDownloading = true)
+                true
+            }
+        }
+        if (!shouldStart) {
+            return getBangumiArchive()
+        }
+
+        bangumiArchiveDownloadScope.launch {
+            val result = bangumiArchiveStore.downloadLatest { bytesRead, totalBytes ->
+                synchronized(bangumiArchiveDownloadLock) {
+                    bangumiArchiveDownload = BangumiArchiveDownloadState(
+                        isDownloading = true,
+                        downloadedBytes = bytesRead.coerceAtLeast(0L),
+                        totalBytes = totalBytes.coerceAtLeast(0L),
+                    )
+                }
+            }
+
+            when (result) {
+                is Result.Success -> {
+                    synchronized(bangumiArchiveDownloadLock) {
+                        bangumiArchiveDownload = BangumiArchiveDownloadState()
+                    }
+                }
+                is Result.Error -> {
+                    val message = result.error.toUserMessage()
+                    synchronized(bangumiArchiveDownloadLock) {
+                        bangumiArchiveDownload = BangumiArchiveDownloadState(lastError = message)
+                    }
+                }
+            }
+        }
+        return getBangumiArchive()
     }
 
     override suspend fun playEpisodeResolved(
@@ -114,3 +171,26 @@ class WebControlService @Inject constructor(
         )
     }
 }
+
+private data class BangumiArchiveDownloadState(
+    val isDownloading: Boolean = false,
+    val downloadedBytes: Long = 0L,
+    val totalBytes: Long = 0L,
+    val lastError: String? = null,
+)
+
+private fun BangumiArchiveSnapshot.toWebControlBangumiArchive(
+    state: BangumiArchiveDownloadState = BangumiArchiveDownloadState(),
+): BangumiArchiveDto =
+    BangumiArchiveDto(
+        available = true,
+        hasSubjectData = hasSubjectData,
+        latestName = latest?.name,
+        latestCreatedAt = latest?.createdAt,
+        latestUpdatedAt = latest?.updatedAt,
+        subjectFileSizeBytes = subjectFileSizeBytes,
+        isDownloading = state.isDownloading,
+        downloadedBytes = state.downloadedBytes,
+        totalBytes = state.totalBytes,
+        lastError = state.lastError,
+    )

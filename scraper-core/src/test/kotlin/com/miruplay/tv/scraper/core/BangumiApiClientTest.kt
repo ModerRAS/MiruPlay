@@ -10,6 +10,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
+import kotlin.io.path.createTempDirectory
 
 class BangumiApiClientTest {
     @Test
@@ -79,6 +81,30 @@ class BangumiApiClientTest {
             assertTrue(result is Result.Success)
             assertEquals(1.0f, (result as Result.Success).data.single().confidence)
             assertTrue(server.takeRequest().body.readUtf8().contains("简体标题"))
+        }
+    }
+
+    @Test
+    fun `searchAnime returns archive results before calling Bangumi api`() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setBody("""{"data":[]}"""))
+            val tempDir = createTempDirectory(prefix = "bangumi-api-archive-test-").toFile()
+            val subjectFile = File(tempDir, BangumiArchiveStore.SUBJECT_FILE_NAME)
+            subjectFile.writeText(
+                """{"id":431767,"type":2,"name":"葬送のフリーレン","name_cn":"葬送的芙莉莲","score":8.8}"""
+            )
+            val client = BangumiApiClient(
+                baseUrl = server.url("/").toString(),
+                archiveSearch = BangumiArchiveSubjectSearch(subjectFile),
+            )
+
+            val result = client.searchAnime("葬送的芙莉莲")
+
+            assertTrue(result is Result.Success)
+            assertEquals("431767", (result as Result.Success).data.single().animeId)
+            assertEquals(0, server.requestCount)
+            tempDir.deleteRecursively()
+            Unit
         }
     }
 

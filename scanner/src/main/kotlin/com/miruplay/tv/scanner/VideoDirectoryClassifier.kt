@@ -85,7 +85,14 @@ class VideoDirectoryClassifier(
             animeName = titleSelection.title,
             seasonNumber = season,
             episodeNumber = episode,
-            titleCandidates = titleSelection.candidates,
+            titleCandidates = titleCandidates(
+                titleSelection = titleSelection,
+                release = release,
+                pathParsed = pathParsed,
+                fileParsed = fileParsed,
+                folderParseDiagnostics = folderParseDiagnostics,
+                showContext = showContext,
+            ),
             diagnostics = VideoClassificationDiagnostics(
                 parserEnabled = filenameMetadataParser != null,
                 filenameOnly = filenameOnly,
@@ -355,6 +362,30 @@ class VideoDirectoryClassifier(
         val normalizedTitle: String?,
         val candidates: List<String>
     )
+
+    private fun titleCandidates(
+        titleSelection: TitleSelection,
+        release: ReleaseFileMatch?,
+        pathParsed: FilenameParseResult?,
+        fileParsed: FilenameParseResult?,
+        folderParseDiagnostics: List<VideoClassificationParsedContext>,
+        showContext: ShowContext?,
+    ): List<String> =
+        (
+            titleSelection.candidates +
+                listOfNotNull(
+                    release?.animeName,
+                    release?.seriesName,
+                    pathParsed?.title,
+                    fileParsed?.title,
+                    showContext?.rawName,
+                    showContext?.seriesName,
+                ) +
+                folderParseDiagnostics.mapNotNull { it.parsed.title }
+            )
+            .map { it.replace(Regex("""\s+"""), " ").trim() }
+            .filter { it.isNotBlank() && !it.equals("Unknown", ignoreCase = true) }
+            .distinct()
 
     private enum class EvidenceSource(
         val baseScore: Int,
