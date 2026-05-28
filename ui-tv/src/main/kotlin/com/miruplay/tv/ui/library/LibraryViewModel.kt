@@ -21,6 +21,7 @@ import com.miruplay.tv.repository.PlaybackProgressRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -41,7 +42,6 @@ data class ProgressWithEpisode(
  * - Loading: initial load
  * - NoSources: no sources configured
  * - HasSources: sources configured but nothing scanned yet
- * - Scanning: actively scanning with progress
  * - HasContent: anime data loaded -> show library
  * - ScanError: scan failed or produced no content
  */
@@ -49,11 +49,6 @@ sealed class LibraryUiState {
     data object Loading : LibraryUiState()
     data object NoSources : LibraryUiState()
     data object HasSources : LibraryUiState()
-    data class Scanning(
-        val currentPath: String = "",
-        val filesScanned: Int = 0,
-        val newEpisodes: Int = 0
-    ) : LibraryUiState()
     data class HasContent(
         val continueWatching: List<ProgressWithEpisode>,
         val recentlyAdded: List<Anime>,
@@ -74,7 +69,11 @@ class LibraryViewModel @Inject constructor(
 
     private val _state = MutableStateFlow<LibraryUiState>(LibraryUiState.Loading)
     val state: StateFlow<LibraryUiState> = _state.asStateFlow()
+    val scanState: StateFlow<LibraryScanState> = libraryScanTask.state
     private var refreshJob: Job? = null
+    private var scanContentRefreshJob: Job? = null
+    private var queuedScanContentVersion = -1
+    private var scanRefreshSessionActive = false
 
     init {
         observeScanTask()
@@ -89,13 +88,9 @@ class LibraryViewModel @Inject constructor(
 
         refreshJob = viewModelScope.launch {
             val scanState = libraryScanTask.state.value
-            if (scanState is LibraryScanState.Scanning) {
-                _state.value = scanState.toUiState()
-                return@launch
-            }
-
-            val snapshot = loadLibraryContent(showLoading = showLoading)
-            if (snapshot.hasSources) {
+            val scanInProgress = scanState is LibraryScanState.Scanning
+            val snapshot = loadLibraryContent(showLoading = showLoading && !scanInProgress)
+            if (snapshot.hasSources && !scanInProgress) {
                 libraryScanTask.startAutoScanIfDue()
             }
         }
@@ -111,9 +106,14 @@ class LibraryViewModel @Inject constructor(
                 when (scanState) {
                     is LibraryScanState.Idle -> Unit
                     is LibraryScanState.Scanning -> {
-                        _state.value = scanState.toUiState()
+                        if (!scanRefreshSessionActive) {
+                            scanRefreshSessionActive = true
+                            queuedScanContentVersion = -1
+                        }
+                        scheduleContentRefreshDuringScan(scanState)
                     }
                     is LibraryScanState.Finished -> {
+                        scanRefreshSessionActive = false
                         Log.d("LibraryViewModel", "scan finished: results=${scanState.results.size}")
                         MiruLog.i(
                             "LibraryViewModel",
@@ -126,6 +126,7 @@ class LibraryViewModel @Inject constructor(
                         }
                     }
                     is LibraryScanState.Failed -> {
+                        scanRefreshSessionActive = false
                         MiruLog.w(
                             "LibraryViewModel",
                             "Scan task state failed",
@@ -137,10 +138,27 @@ class LibraryViewModel @Inject constructor(
                         }
                     }
                     is LibraryScanState.Cancelled -> {
+                        scanRefreshSessionActive = false
                         loadLibraryContent(showLoading = false)
                     }
                 }
             }
+        }
+    }
+
+    private fun scheduleContentRefreshDuringScan(scanState: LibraryScanState.Scanning) {
+        val currentState = _state.value
+        val shouldRefresh =
+            currentState is LibraryUiState.Loading ||
+                scanState.contentVersion > queuedScanContentVersion
+        if (!shouldRefresh) return
+
+        queuedScanContentVersion = scanState.contentVersion
+        if (scanContentRefreshJob?.isActive == true) return
+
+        scanContentRefreshJob = viewModelScope.launch {
+            delay(SCAN_CONTENT_REFRESH_DELAY_MS)
+            loadLibraryContent(showLoading = false)
         }
     }
 
@@ -287,9 +305,4 @@ private data class LibraryLoadSnapshot(
     val hasContent: Boolean
 )
 
-private fun LibraryScanState.Scanning.toUiState(): LibraryUiState.Scanning =
-    LibraryUiState.Scanning(
-        currentPath = currentPath,
-        filesScanned = filesScanned,
-        newEpisodes = newEpisodes
-    )
+private const val SCAN_CONTENT_REFRESH_DELAY_MS = 500L

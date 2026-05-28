@@ -1,17 +1,21 @@
 package com.miruplay.tv.ui.library
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
@@ -53,6 +57,8 @@ fun LibraryScreen(
     viewModel: LibraryViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.state.collectAsStateWithLifecycle()
+    val scanState by viewModel.scanState.collectAsStateWithLifecycle()
+    val activeScan = scanState as? LibraryScanState.Scanning
     val lifecycleOwner = LocalLifecycleOwner.current
 
     DisposableEffect(lifecycleOwner) {
@@ -71,39 +77,12 @@ fun LibraryScreen(
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
-            // Header
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = libraryTitleLabel(),
-                        style = TvTypography.title,
-                        color = TextPrimary
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = librarySubtitleLabel(),
-                        style = TvTypography.body,
-                        color = TextSecondary
-                    )
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    TvButton(
-                        text = libraryScanActionLabel(),
-                        icon = Icons.Filled.Refresh,
-                        onClick = { viewModel.scanNow() },
-                        modifier = Modifier.width(132.dp)
-                    )
-                    TvButton(
-                        text = librarySettingsActionLabel(),
-                        onClick = onNavigateToSettings,
-                        modifier = Modifier.width(132.dp)
-                    )
-                }
-            }
+            LibraryHeader(
+                activeScan = activeScan,
+                onScan = { viewModel.scanNow() },
+                onCancelScan = { viewModel.cancelScan() },
+                onNavigateToSettings = onNavigateToSettings
+            )
             
             when (val state = uiState) {
                 is LibraryUiState.Loading -> {
@@ -125,14 +104,6 @@ fun LibraryScreen(
                         onClick = { viewModel.scanNow() }
                     )
                 }
-                
-                is LibraryUiState.Scanning -> {
-                    ScanningState(
-                        state = state,
-                        onCancel = { viewModel.cancelScan() }
-                    )
-                }
-                
                 is LibraryUiState.ScanError -> {
                     EmptyState(
                         message = state.message,
@@ -150,6 +121,64 @@ fun LibraryScreen(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun LibraryHeader(
+    activeScan: LibraryScanState.Scanning?,
+    onScan: () -> Unit,
+    onCancelScan: () -> Unit,
+    onNavigateToSettings: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
+        horizontalArrangement = Arrangement.spacedBy(18.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(
+            modifier = Modifier.widthIn(min = 188.dp)
+        ) {
+            Text(
+                text = libraryTitleLabel(),
+                style = TvTypography.title,
+                color = TextPrimary
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = librarySubtitleLabel(),
+                style = TvTypography.body,
+                color = TextSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        if (activeScan != null) {
+            ScanProgressBanner(
+                state = activeScan,
+                onCancel = onCancelScan,
+                modifier = Modifier.weight(1f)
+            )
+        } else {
+            Spacer(Modifier.weight(1f))
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (activeScan == null) {
+                TvButton(
+                    text = libraryScanActionLabel(),
+                    icon = Icons.Filled.Refresh,
+                    onClick = onScan,
+                    modifier = Modifier.width(132.dp)
+                )
+            }
+            TvButton(
+                text = librarySettingsActionLabel(),
+                onClick = onNavigateToSettings,
+                modifier = Modifier.width(132.dp)
+            )
         }
     }
 }
@@ -176,54 +205,59 @@ private fun EmptyState(
     }
 }
 
-@OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-private fun ScanningState(
-    state: LibraryUiState.Scanning,
+private fun ScanProgressBanner(
+    state: LibraryScanState.Scanning,
+    modifier: Modifier = Modifier,
     onCancel: () -> Unit
 ) {
-    var focusRequester = remember { FocusRequester() }
-    
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+    Row(
+        modifier = modifier
+            .heightIn(min = 64.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(DarkSurface)
+            .border(1.dp, AnimeRed.copy(alpha = 0.42f), RoundedCornerShape(8.dp))
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         LoadingIndicator(
-            modifier = Modifier.size(48.dp),
+            modifier = Modifier.size(34.dp),
             color = AnimeRed
         )
-        Spacer(Modifier.height(24.dp))
-        Text(
-            text = libraryScanningTitle(),
-            color = TextPrimary,
-            style = TvTypography.subtitle
-        )
-        Spacer(Modifier.height(12.dp))
-        Text(
-            text = libraryFilesScannedLabel(state.filesScanned),
-            color = TextSecondary,
-            style = TvTypography.body
-        )
-        if (state.currentPath.isNotEmpty()) {
-            Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.width(12.dp))
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
             Text(
-                text = state.currentPath,
+                text = libraryScanningTitle(),
+                color = TextPrimary,
+                style = TvTypography.body,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = scanProgressDetail(state),
                 color = TextSecondary,
-                style = TvTypography.caption
+                style = TvTypography.caption,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
-        Spacer(Modifier.height(32.dp))
+        Spacer(Modifier.width(12.dp))
         TvButton(
             text = libraryCancelScanActionLabel(),
             onClick = onCancel,
-            modifier = Modifier.focusRequester(focusRequester)
+            modifier = Modifier.width(132.dp),
+            secondary = true
         )
-        
-        LaunchedEffect(Unit) {
-            focusRequester.requestFocus()
-        }
     }
+}
+
+private fun scanProgressDetail(state: LibraryScanState.Scanning): String {
+    val files = libraryFilesScannedLabel(state.filesScanned)
+    val path = state.currentPath.trim()
+    return if (path.isBlank()) files else "$files · $path"
 }
 
 @Composable

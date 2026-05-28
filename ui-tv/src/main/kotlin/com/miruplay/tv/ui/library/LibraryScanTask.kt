@@ -25,7 +25,8 @@ sealed class LibraryScanState {
     data class Scanning(
         val currentPath: String = "",
         val filesScanned: Int = 0,
-        val newEpisodes: Int = 0
+        val newEpisodes: Int = 0,
+        val contentVersion: Int = 0
     ) : LibraryScanState()
     data class Finished(val results: List<ScanResult>) : LibraryScanState()
     data class Failed(val message: String) : LibraryScanState()
@@ -80,15 +81,30 @@ class LibraryScanTask @Inject constructor(
 
             _state.value = LibraryScanState.Scanning()
             try {
-                when (val result = scanCoordinator.scanAllSources()) {
-                    is Result.Success -> {
-                        scanPreferences.setLastScanAt(System.currentTimeMillis())
-                        _state.value = LibraryScanState.Finished(result.data)
-                    }
-                    is Result.Error -> {
-                        _state.value = LibraryScanState.Failed(libraryScanFailedMessage(result.error::class.simpleName))
+                val results = mutableListOf<ScanResult>()
+                for (source in sources) {
+                    when (val result = scanCoordinator.scanSource(source.id)) {
+                        is Result.Success -> {
+                            results.add(result.data)
+                            val completedFiles = results.sumOf { it.episodesFound }
+                            val completedNewEpisodes = results.sumOf { it.newEpisodes }
+                            _state.update { current ->
+                                val scanning = current as? LibraryScanState.Scanning ?: LibraryScanState.Scanning()
+                                scanning.copy(
+                                    currentPath = result.data.animeName,
+                                    filesScanned = maxOf(scanning.filesScanned, completedFiles),
+                                    newEpisodes = maxOf(scanning.newEpisodes, completedNewEpisodes),
+                                    contentVersion = scanning.contentVersion + 1
+                                )
+                            }
+                        }
+                        is Result.Error -> {
+                            Log.w("LibraryScanTask", "Skipping failed source ${source.id}: ${result.error}")
+                        }
                     }
                 }
+                scanPreferences.setLastScanAt(System.currentTimeMillis())
+                _state.value = LibraryScanState.Finished(results)
             } catch (e: CancellationException) {
                 _state.value = LibraryScanState.Cancelled
                 throw e
