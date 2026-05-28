@@ -108,7 +108,11 @@ class DesktopWebControlPlaybackBridgeTest {
                 ipcClient = ipc,
             )
             player.play(PlaybackSource(uri = "D:/Anime/Frieren.mkv", mediaSourceId = "7"))
-            val session = PlaybackProgressSession(episodeId = "7:D:/Anime/Frieren.mkv", startPositionMs = 12_000L)
+            val session = PlaybackProgressSession(
+                episodeId = "7:D:/Anime/Frieren.mkv",
+                startPositionMs = 12_000L,
+                nowMillis = { 1_000L },
+            )
 
             val status = desktopWebControlPlaybackCommand(
                 request = PlaybackCommandRequest(command = "speed", speed = 1.25f),
@@ -136,7 +140,11 @@ class DesktopWebControlPlaybackBridgeTest {
                 ipcClient = ipc,
             )
             player.play(PlaybackSource(uri = "D:/Anime/Frieren.mkv", mediaSourceId = "7"))
-            val session = PlaybackProgressSession(episodeId = "7:D:/Anime/Frieren.mkv", startPositionMs = 12_000L)
+            val session = PlaybackProgressSession(
+                episodeId = "7:D:/Anime/Frieren.mkv",
+                startPositionMs = 12_000L,
+                nowMillis = { 1_000L },
+            )
 
             val status = desktopWebControlPlaybackStatus(
                 player = player,
