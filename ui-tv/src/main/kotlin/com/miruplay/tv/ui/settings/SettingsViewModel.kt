@@ -337,7 +337,14 @@ class SettingsViewModel @Inject constructor(
         port: Int,
     ) {
         viewModelScope.launch {
-            val config = _cloudDriveConfig.value.copy(
+            val current = when (val result = cloudDriveRepository.getConfig()) {
+                is Result.Success -> result.data
+                is Result.Error -> {
+                    _proxyStatusMessage.value = result.error.toUserMessage()
+                    return@launch
+                }
+            }
+            val config = current.copy(
                 rssProxyEnabled = enabled,
                 rssProxyHost = host.trim(),
                 rssProxyPort = port,
