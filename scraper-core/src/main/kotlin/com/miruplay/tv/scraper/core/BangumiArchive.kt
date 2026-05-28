@@ -156,11 +156,18 @@ class BangumiArchiveStore(
     suspend fun downloadLatest(
         onProgress: (bytesRead: Long, totalBytes: Long) -> Unit = { _, _ -> },
     ): Result<BangumiArchiveSnapshot> = withContext(Dispatchers.IO) {
+        var zipFile: File? = null
+        var extractedFile: File? = null
         try {
             directory.mkdirs()
+            deleteDownloadArtifacts()
             val latest = client.fetchLatest()
-            val zipFile = File(directory, "${latest.name}.download")
-            val extractedFile = File(directory, "$SUBJECT_FILE_NAME.download")
+            if (isCurrent(latest)) {
+                return@withContext Result.success(snapshot())
+            }
+
+            zipFile = File(directory, "${latest.name}.download")
+            extractedFile = File(directory, "$SUBJECT_FILE_NAME.download")
 
             client.downloadZip(latest, zipFile, onProgress)
             extractSubjectJsonlines(zipFile, extractedFile)
@@ -174,8 +181,20 @@ class BangumiArchiveStore(
             zipFile.delete()
             Result.success(snapshot())
         } catch (error: Exception) {
+            zipFile?.delete()
+            extractedFile?.delete()
             Result.failure(AppError.ScrapingError.ApiError("Bangumi Archive", error.message ?: "Download failed"))
         }
+    }
+
+    private fun isCurrent(latest: BangumiArchiveLatest): Boolean =
+        subjectFile.isFile && readLatestOrNull() == latest
+
+    private fun deleteDownloadArtifacts() {
+        directory
+            .listFiles { file -> file.isFile && file.name.endsWith(".download") }
+            .orEmpty()
+            .forEach { it.delete() }
     }
 
     private fun readLatestOrNull(): BangumiArchiveLatest? =
