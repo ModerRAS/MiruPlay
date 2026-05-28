@@ -244,6 +244,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    outputs:
+      has_changes: ${{ steps.check_changes.outputs.has_changes }}
+      version_name: ${{ steps.version.outputs.version_name }}
     concurrency:
       group: nightly-${{ github.ref }}
       cancel-in-progress: true
