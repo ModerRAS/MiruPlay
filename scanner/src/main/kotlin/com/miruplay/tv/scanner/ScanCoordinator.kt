@@ -316,6 +316,22 @@ class ScanCoordinator @Inject constructor(
             indexRepository.rebuildIndex(sourceId, updatedIndexEntities)
         }
 
+        val scanCompletedAtMs = System.currentTimeMillis()
+        when (val sourceUpdated = mediaRepository.updateSource(sourceInfo.copy(isConnected = true, lastScanned = scanCompletedAtMs))) {
+            is Result.Success -> Unit
+            is Result.Error -> MiruLog.w(
+                tag = TAG,
+                message = "Scan source timestamp update failed",
+                attributes = mapOf(
+                    "scan_phase" to "source_timestamp_update_failed",
+                    "source_id" to sourceId.toString(),
+                    "source_name" to sourceInfo.name,
+                    "source_type" to sourceInfo.type.name,
+                    "error" to sourceUpdated.error.toUserMessage(),
+                )
+            )
+        }
+
         // Report done
         Log.d(TAG, "Scan done: ${sourceInfo.name} -> $totalFiles files, $newEpisodes new episodes")
         MiruLog.i(
@@ -332,7 +348,7 @@ class ScanCoordinator @Inject constructor(
                 "scraped_file_count" to scrapedFiles.toString(),
                 "no_match_file_count" to noMatchFiles.toString(),
                 "filename_only" to filenameOnly.toString(),
-                "scan_duration_ms" to (System.currentTimeMillis() - scanStartedAtMs).toString(),
+                "scan_duration_ms" to (scanCompletedAtMs - scanStartedAtMs).toString(),
                 "directory_count" to traversalDiagnostics.directoriesVisited.toString(),
                 "entry_count" to traversalDiagnostics.entriesSeen.toString(),
                 "nfo_count" to traversalDiagnostics.nfoFilesSeen.toString(),

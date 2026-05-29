@@ -141,11 +141,32 @@ class CloudDriveRssAutomationCoreTest {
         assertEquals(emptyList<RssDownloadTaskInfo>(), repository.tasks)
     }
 
+    @Test
+    fun `runOnce records last run before post sync ingestion`() = runBlocking {
+        val repository = FakeAutomationRepository()
+        var lastRunAtDuringIngestion = 0L
+        val core = core(
+            repository = repository,
+            afterIngested = { _, _, _ ->
+                lastRunAtDuringIngestion = repository.lastRunAt
+                CloudDriveRssIngestionSummary(indexed = 2, scraped = 1, noMatch = 0)
+            },
+        )
+
+        val result = core.runOnce()
+
+        assertTrue(result is Result.Success)
+        assertTrue(lastRunAtDuringIngestion > 0L)
+        assertEquals(lastRunAtDuringIngestion, repository.lastRunAt)
+    }
+
     private fun core(
         repository: FakeAutomationRepository = FakeAutomationRepository(),
         credentials: FakeCredentials = FakeCredentials(token = "token"),
         feedReader: FakeFeedReader = FakeFeedReader(),
         cloudDrive: FakeCloudDriveClient = FakeCloudDriveClient(),
+        afterIngested: suspend (CloudDriveAutomationConfig, CloudDriveEndpoint, Int) -> CloudDriveRssIngestionSummary =
+            { _, _, _ -> CloudDriveRssIngestionSummary() },
     ): CloudDriveRssAutomationCore =
         CloudDriveRssAutomationCore(
             repository = repository,
@@ -153,6 +174,7 @@ class CloudDriveRssAutomationCoreTest {
             cloudDriveClient = cloudDrive,
             feedFetcher = feedReader,
             organizer = CloudDriveLibraryOrganizer(cloudDrive),
+            afterIngested = afterIngested,
         )
 
     private fun subscription(): RssSubscriptionInfo =

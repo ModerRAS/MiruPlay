@@ -20,6 +20,14 @@ interface WebControlEndpointService {
     suspend fun loginCloudDrive(request: CloudDriveLoginRequest): CloudDriveAutomationDto
     suspend fun saveCloudDriveToken(request: CloudDriveTokenRequest): CloudDriveTokenResponse
     suspend fun runCloudDriveAutomationNow(): CloudDriveRunResponse
+    suspend fun startCloudDriveAutomationRun(): CloudDriveRunStatusDto =
+        CloudDriveRunStatusDto(
+            status = CloudDriveRunStatusDto.SUCCEEDED,
+            running = false,
+            summary = runCloudDriveAutomationNow(),
+        )
+    suspend fun getCloudDriveAutomationRunStatus(): CloudDriveRunStatusDto =
+        CloudDriveRunStatusDto.idle()
     suspend fun saveRssSubscription(request: RssSubscriptionRequest): RssSubscriptionInfo
     suspend fun updateRssSubscription(id: Long, request: RssSubscriptionRequest): RssSubscriptionInfo
     suspend fun deleteRssSubscription(id: Long)

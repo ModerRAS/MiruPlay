@@ -20,6 +20,10 @@ import com.miruplay.tv.repository.OtlpLogUploadConfig
 import com.miruplay.tv.repository.PlaybackProgressRepository
 import com.miruplay.tv.repository.ScanPreferencesRepository
 import com.miruplay.tv.sync.rss.CloudDriveRssActionCoordinator
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 abstract class SharedWebControlEndpointService(
     private val mediaSourceRepository: MediaSourceRepository,
@@ -35,9 +39,14 @@ abstract class SharedWebControlEndpointService(
     private val cloudDriveClient: CloudDriveClient,
     private val cloudDriveActions: CloudDriveRssActionCoordinator,
     private val deviceNameProvider: () -> String,
-    clock: () -> Long = System::currentTimeMillis,
+    private val clock: () -> Long = System::currentTimeMillis,
 ) : WebControlEndpointService {
     private val startedAt = clock()
+    private val cloudDriveRunScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val cloudDriveRunLock = Any()
+
+    @Volatile
+    private var cloudDriveRunStatus: CloudDriveRunStatusDto = CloudDriveRunStatusDto.idle()
 
     protected val libraryLoader = WebControlLibraryLoader(
         mediaSources = mediaSourceRepository,
@@ -151,6 +160,48 @@ abstract class SharedWebControlEndpointService(
 
     override suspend fun runCloudDriveAutomationNow(): CloudDriveRunResponse =
         cloudDriveActions.runWebControlCloudDriveAutomationNow(::afterCloudDriveAutomationRun)
+
+    override suspend fun startCloudDriveAutomationRun(): CloudDriveRunStatusDto {
+        val startedStatus = synchronized(cloudDriveRunLock) {
+            if (cloudDriveRunStatus.running) {
+                return cloudDriveRunStatus
+            }
+            CloudDriveRunStatusDto(
+                status = CloudDriveRunStatusDto.RUNNING,
+                running = true,
+                startedAt = clock(),
+            ).also { cloudDriveRunStatus = it }
+        }
+
+        cloudDriveRunScope.launch {
+            val finishedStatus = try {
+                val summary = runCloudDriveAutomationNow()
+                CloudDriveRunStatusDto(
+                    status = CloudDriveRunStatusDto.SUCCEEDED,
+                    running = false,
+                    startedAt = startedStatus.startedAt,
+                    finishedAt = clock(),
+                    summary = summary,
+                )
+            } catch (e: Exception) {
+                CloudDriveRunStatusDto(
+                    status = CloudDriveRunStatusDto.FAILED,
+                    running = false,
+                    startedAt = startedStatus.startedAt,
+                    finishedAt = clock(),
+                    error = e.message ?: "CloudDrive/RSS 执行失败",
+                )
+            }
+            synchronized(cloudDriveRunLock) {
+                cloudDriveRunStatus = finishedStatus
+            }
+        }
+
+        return startedStatus
+    }
+
+    override suspend fun getCloudDriveAutomationRunStatus(): CloudDriveRunStatusDto =
+        synchronized(cloudDriveRunLock) { cloudDriveRunStatus }
 
     override suspend fun saveRssSubscription(request: RssSubscriptionRequest): com.miruplay.tv.model.RssSubscriptionInfo =
         cloudDriveActions.saveWebControlRssSubscription(request)
