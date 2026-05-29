@@ -3,6 +3,7 @@ package com.miruplay.tv.model
 const val DETAIL_EPISODE_PAGE_SIZE = 6
 const val RECENT_PLAYBACK_PAGE_SIZE = 6
 const val MEDIA_DETAILS_PAGE_SIZE = 6
+const val DETAIL_BANGUMI_MANUAL_CANDIDATE_LIMIT = 6
 
 fun detailPlayActionLabel(): String = "播放"
 
@@ -22,6 +23,25 @@ fun detailBangumiNoReliableMatchMessage(): String = "没有找到可靠的 Bangu
 fun detailBangumiDetailsFailedMessage(): String = "Bangumi 详情获取失败"
 
 fun detailBangumiMetadataUpdatedMessage(): String = "Bangumi 元数据已更新"
+
+fun detailBangumiManualMatchTitleLabel(): String = "选择 Bangumi 条目"
+
+fun detailBangumiManualCloseActionLabel(): String = "关闭"
+
+fun detailBangumiCandidateTermsSectionTitle(): String = "候选词"
+
+fun detailBangumiManualSearchRequiredMessage(): String = "请选择候选词或输入 Bangumi 搜索词"
+
+fun detailBangumiManualSelectionRequiredMessage(): String = "请选择一个 Bangumi 条目"
+
+fun detailBangumiManualSearchStartedMessage(queryCount: Int): String =
+    "正在搜索 ${queryCount.coerceAtLeast(0)} 个 Bangumi 搜索词..."
+
+fun detailBangumiManualSearchResultMessage(resultCount: Int): String =
+    if (resultCount <= 0) "没有可显示的 Bangumi 搜索结果" else "找到 ${resultCount.coerceAtLeast(0)} 个 Bangumi 匹配"
+
+fun detailBangumiManualApplyStartedMessage(title: String): String =
+    "正在应用：$title"
 
 fun detailBangumiSyncStartedMessage(): String = "正在同步 Bangumi..."
 
@@ -190,6 +210,29 @@ fun detailBangumiCollectionLabel(type: Int): String =
 fun detailBangumiCollectionPillLabel(type: Int): String =
     "Bangumi ${detailBangumiCollectionLabel(type)}"
 
+fun detailBangumiManualCandidateTerms(
+    anime: Anime,
+    episodes: List<Episode>,
+    limit: Int = DETAIL_BANGUMI_MANUAL_CANDIDATE_LIMIT,
+): List<String> =
+    buildList {
+        add(anime.titleCn)
+        add(anime.title)
+        add(anime.id)
+        anime.bangumiId?.toString()?.let(::add)
+        episodes.take(4).forEach { episode ->
+            episode.detailBangumiSearchPaths().forEach { path ->
+                add(MediaPathConventions.animeNameFromEpisodePath(path))
+                add(MediaPathConventions.parentName(path))
+                add(MediaPathConventions.stem(path))
+            }
+        }
+    }
+        .mapNotNull { it?.detailBangumiNormalizedCandidate() }
+        .filter { it.isNotBlank() }
+        .distinctBy { it.lowercase() }
+        .take(limit.coerceAtLeast(1))
+
 fun mediaDetailSourceLabel(): String = "媒体源"
 
 fun mediaDetailSourceEmptyValue(): String = "无"
@@ -248,3 +291,30 @@ fun mediaDetailFileValue(): String = "文件"
 
 fun mediaDetailIndexedKindValue(isDirectory: Boolean): String =
     if (isDirectory) mediaDetailDirectoryValue() else mediaDetailVideoValue()
+
+private fun Episode.detailBangumiSearchPaths(): List<String> =
+    listOf(filePath, id, fileName)
+        .map { path -> path.trim().withoutSourcePrefix() }
+        .filter { it.isNotBlank() }
+
+private fun String.withoutSourcePrefix(): String {
+    val prefix = substringBefore(':')
+    return if (prefix.toLongOrNull() != null) substringAfter(':') else this
+}
+
+private fun String.detailBangumiNormalizedCandidate(): String? {
+    val normalized = MediaPathConventions.decodePath(this)
+        .replace(Regex("""\[[^\]]*]"""), " ")
+        .replace(Regex("""【[^】]*】"""), " ")
+        .replace(Regex("""\([^)]*\)"""), " ")
+        .replace(Regex("""(?i)\b(1080p|2160p|720p|bdrip|web[- ]?dl|x264|x265|hevc|aac|flac)\b"""), " ")
+        .replace(Regex("""(?i)\b(mkv|mp4|avi|mov|wmv|flv|m4v)\b"""), " ")
+        .replace(Regex("""(?i)\b(s\d{1,2}e\d{1,3}|episode\s*\d{1,3}|ep\s*\d{1,3}|e\d{1,3})\b"""), " ")
+        .replace(Regex("""(?i)\b(season\s*\d{1,2}|s\d{1,2})\b"""), " ")
+        .replace(Regex("""第\s*\d+\s*[季期集话話]"""), " ")
+        .replace(Regex("""[._]+"""), " ")
+        .replace(Regex("""\s*-\s*\d{1,3}\s*$"""), " ")
+        .replace(Regex("""\s+"""), " ")
+        .trim(' ', '-', '_', '.', '·')
+    return normalized.takeIf { it.length >= 2 }
+}

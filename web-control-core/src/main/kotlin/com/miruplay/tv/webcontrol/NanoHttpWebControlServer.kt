@@ -13,6 +13,7 @@ import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.nio.charset.Charset
 import java.security.MessageDigest
 
 open class NanoHttpWebControlServer(
@@ -287,22 +288,7 @@ open class NanoHttpWebControlServer(
         errorResponse(Response.Status.UNAUTHORIZED, "WebUI 访问令牌无效")
 
     private fun <T> parseBody(session: IHTTPSession, serializer: KSerializer<T>): T {
-        val files = mutableMapOf<String, String>()
-        try {
-            session.parseBody(files)
-        } catch (e: Exception) {
-            throw IllegalArgumentException("请求体读取失败: ${e.message}")
-        }
-
-        val body: String = when {
-            files["postData"]?.isNotBlank() == true -> files.getValue("postData")
-            files.containsKey("content") -> {
-                val path = files.getValue("content")
-                val tempFile = File(path)
-                if (tempFile.exists()) tempFile.readText(Charsets.UTF_8) else ""
-            }
-            else -> ""
-        }
+        val body = readTextBody(session) ?: parseBodyWithNanoHttpd(session)
 
         if (body.isBlank()) {
             throw IllegalArgumentException("请求体不能为空")
@@ -316,6 +302,63 @@ open class NanoHttpWebControlServer(
             }
         }
         throw IllegalArgumentException("JSON 格式不正确")
+    }
+
+    private fun readTextBody(session: IHTTPSession): String? {
+        val contentLength = headerValue(session, "content-length")?.toLongOrNull() ?: return null
+        if (contentLength > Int.MAX_VALUE) {
+            throw IllegalArgumentException("请求体过大")
+        }
+        if (contentLength <= 0L) return ""
+
+        val bytes = ByteArray(contentLength.toInt())
+        var offset = 0
+        try {
+            while (offset < bytes.size) {
+                val read = session.inputStream.read(bytes, offset, bytes.size - offset)
+                if (read < 0) break
+                offset += read
+            }
+        } catch (e: Exception) {
+            throw IllegalArgumentException("请求体读取失败: ${e.message}")
+        }
+        return bytes.copyOf(offset).toString(charsetForRequestBody(session)).trim()
+    }
+
+    private fun charsetForRequestBody(session: IHTTPSession): Charset {
+        val charsetName = headerValue(session, "content-type")
+            ?.split(';')
+            .orEmpty()
+            .asSequence()
+            .map { it.trim() }
+            .firstOrNull { it.startsWith("charset=", ignoreCase = true) }
+            ?.substringAfter('=')
+            ?.trim()
+            ?.trim('"', '\'')
+            ?.takeIf { it.isNotBlank() }
+
+        return charsetName
+            ?.let { runCatching { Charset.forName(it) }.getOrNull() }
+            ?: Charsets.UTF_8
+    }
+
+    private fun parseBodyWithNanoHttpd(session: IHTTPSession): String {
+        val files = mutableMapOf<String, String>()
+        try {
+            session.parseBody(files)
+        } catch (e: Exception) {
+            throw IllegalArgumentException("请求体读取失败: ${e.message}")
+        }
+
+        return when {
+            files["postData"]?.isNotBlank() == true -> files.getValue("postData")
+            files.containsKey("content") -> {
+                val path = files.getValue("content")
+                val tempFile = File(path)
+                if (tempFile.exists()) tempFile.readText(Charsets.UTF_8) else ""
+            }
+            else -> ""
+        }
     }
 
     private fun addCommonHeaders(response: Response): Response {
