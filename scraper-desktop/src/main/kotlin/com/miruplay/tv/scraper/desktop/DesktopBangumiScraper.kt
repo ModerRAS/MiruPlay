@@ -83,7 +83,7 @@ class DesktopBangumiScraper internal constructor(
         api.updateEpisodeCollection(episodeId, type)
 
     private companion object {
-        const val USER_AGENT = "MiruPlay/1.0 (Windows Desktop; https://github.com/hooke007/mpv_PlayKit)"
+        const val USER_AGENT = "ModerRAS/MiruPlay/0.1.0 (Desktop) (https://github.com/ModerRAS/MiruPlay)"
     }
 }
 

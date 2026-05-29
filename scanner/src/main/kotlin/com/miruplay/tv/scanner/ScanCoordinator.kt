@@ -20,6 +20,7 @@ import com.miruplay.tv.model.ScanResult
 import com.miruplay.tv.model.TvShowNfoMetadata
 import com.miruplay.tv.model.UniqueId
 import com.miruplay.tv.model.displayTitle
+import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaScrapeStatus
@@ -38,6 +39,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import android.util.Log
 import java.io.File
+import java.net.InetSocketAddress
+import java.net.Proxy
 import java.net.URL
 import java.security.MessageDigest
 import javax.inject.Inject
@@ -53,7 +56,8 @@ class ScanCoordinator @Inject constructor(
     private val indexRepository: MediaIndexRepository,
     private val metadataRepository: MetadataRepository,
     private val filenameMetadataParser: FilenameMetadataParser,
-    private val metadataScrapers: Set<@JvmSuppressWildcards MetadataScraper> = emptySet()
+    private val metadataScrapers: Set<@JvmSuppressWildcards MetadataScraper> = emptySet(),
+    private val cloudDriveRepository: CloudDriveAutomationRepository? = null,
 ) {
     private val generatedNfoWriter = XmlNfoWriter(NfoWriteOptions(createBackup = false))
     private val imageBackfillScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -621,14 +625,15 @@ class ScanCoordinator @Inject constructor(
         }
     }
 
-    private fun cachePoster(cacheDirectory: File?, url: String): String? {
+    private suspend fun cachePoster(cacheDirectory: File?, url: String): String? {
         val directory = cacheDirectory ?: return null
         val file = File(directory, sha256Hex(url))
+        val proxy = currentImageProxy()
         return runCatching {
             if (file.exists() && file.length() > 0L) return@runCatching file.absolutePath
             directory.mkdirs()
             val temp = File(directory, "${file.name}.tmp")
-            URL(url).openConnection().apply {
+            URL(url).openConnection(proxy).apply {
                 connectTimeout = 10_000
                 readTimeout = 20_000
             }.getInputStream().use { input ->
@@ -640,6 +645,14 @@ class ScanCoordinator @Inject constructor(
             }
             file.absolutePath
         }.getOrNull()
+    }
+
+    private suspend fun currentImageProxy(): Proxy {
+        val config = runCatching { cloudDriveRepository?.getConfig()?.getOrNull() }.getOrNull()
+            ?: return Proxy.NO_PROXY
+        if (!config.rssProxyEnabled || config.rssProxyHost.isBlank()) return Proxy.NO_PROXY
+        val address = InetSocketAddress(config.rssProxyHost.trim(), config.rssProxyPort.coerceIn(1, 65_535))
+        return Proxy(Proxy.Type.HTTP, address)
     }
 
     private fun sha256Hex(value: String): String =

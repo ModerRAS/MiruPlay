@@ -4,6 +4,7 @@ import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.mediasource.MediaSource
 import com.miruplay.tv.mediasource.MediaSourceFactory
+import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.FileMetadata
 import com.miruplay.tv.model.Anime
@@ -13,14 +14,23 @@ import com.miruplay.tv.model.FilenameParseResult
 import com.miruplay.tv.model.MediaCapabilities
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.RssDownloadTaskInfo
+import com.miruplay.tv.model.RssProcessedItemInfo
+import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.ScraperResult
+import com.miruplay.tv.model.ScraperSource
+import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.scraper.EpisodeMetadata
 import com.miruplay.tv.scraper.MetadataScraper
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -461,6 +471,57 @@ class ScanCoordinatorTest {
         assertTrue("Bangumi fallback candidates should be skipped", scraper.aliasCandidates.isEmpty())
     }
 
+    @Test
+    fun `scanSource downloads Bangumi poster through configured proxy`() = runBlocking {
+        MockWebServer().use { proxy ->
+            proxy.enqueue(MockResponse().setBody("poster-bytes"))
+            val sourceInfo = MediaSourceInfo(
+                id = 44L,
+                name = "Poster Proxy",
+                type = MediaSourceType.WEBDAV,
+                connectionInfo = mapOf("url" to "http://example.test/dav")
+            )
+            val mediaSource = FakeMediaSource(
+                listings = mapOf(
+                    "" to listOf(
+                        FileEntry(name = "01.mkv", path = "/01.mkv", isDirectory = false, size = 1234)
+                    )
+                )
+            )
+            val metadataRepository = RecordingMetadataRepository()
+            val posterCacheDirectory = Files.createTempDirectory("miruplay-poster-proxy-test-").toFile()
+            try {
+                val coordinator = ScanCoordinator(
+                    mediaRepository = SingleSourceRepository(sourceInfo),
+                    mediaSourceFactory = SingleMediaSourceFactory(mediaSource),
+                    indexRepository = RecordingIndexRepository(),
+                    metadataRepository = metadataRepository,
+                    filenameMetadataParser = EmptyFilenameMetadataParser,
+                    metadataScrapers = setOf(PosterBangumiScraper("http://image.example/poster.jpg")),
+                    cloudDriveRepository = StaticCloudDriveAutomationRepository(
+                        CloudDriveAutomationConfig(
+                            rssProxyEnabled = true,
+                            rssProxyHost = proxy.hostName,
+                            rssProxyPort = proxy.port,
+                        )
+                    ),
+                )
+
+                val result = coordinator.scanSource(sourceInfo.id, posterCacheDirectory = posterCacheDirectory)
+
+                assertTrue("Scan should succeed", result.isSuccess())
+                val imageRequest = proxy.takeRequest()
+                assertEquals("image.example", imageRequest.headers["Host"])
+                assertTrue(imageRequest.requestLine.contains("http://image.example/poster.jpg"))
+                val cachedPoster = metadataRepository.anime.single().posterLocalPath
+                assertTrue(!cachedPoster.isNullOrBlank())
+                assertEquals("poster-bytes", File(cachedPoster!!).readText())
+            } finally {
+                posterCacheDirectory.deleteRecursively()
+            }
+        }
+    }
+
     private class SingleSourceRepository(
         private val source: MediaSourceInfo
     ) : MediaSourceRepository {
@@ -591,5 +652,59 @@ class ScanCoordinatorTest {
             this.aliasCandidates = candidates
             return Result.success(null)
         }
+    }
+
+    private class PosterBangumiScraper(
+        private val posterUrl: String
+    ) : MetadataScraper {
+        override val sourceName: String = "Bangumi"
+
+        override suspend fun searchAnime(query: String): Result<List<ScraperResult>> =
+            Result.success(listOf(match()))
+
+        override suspend fun getAnimeDetails(animeId: String): Result<Anime> =
+            Result.success(
+                Anime(
+                    id = animeId,
+                    title = "Poster Proxy",
+                    posterUrl = posterUrl,
+                    bangumiId = animeId.toIntOrNull(),
+                )
+            )
+
+        override suspend fun getEpisodes(animeId: String): Result<List<EpisodeMetadata>> =
+            Result.success(emptyList())
+
+        override suspend fun searchByAlias(
+            normalizedName: String,
+            candidates: List<String>
+        ): Result<ScraperResult?> = Result.success(match())
+
+        private fun match(): ScraperResult =
+            ScraperResult(
+                animeId = "431767",
+                title = "Poster Proxy",
+                titleCn = "Poster Proxy",
+                matchedTitle = "Poster Proxy",
+                confidence = 1f,
+                source = ScraperSource.BANGUMI,
+            )
+    }
+
+    private class StaticCloudDriveAutomationRepository(
+        private val config: CloudDriveAutomationConfig
+    ) : CloudDriveAutomationRepository {
+        override fun observeConfig(): Flow<CloudDriveAutomationConfig> = flowOf(config)
+        override suspend fun getConfig(): Result<CloudDriveAutomationConfig> = Result.success(config)
+        override suspend fun saveConfig(config: CloudDriveAutomationConfig): Result<Unit> = Result.success(Unit)
+        override suspend fun updateLastRunAt(timestamp: Long): Result<Unit> = Result.success(Unit)
+        override fun observeSubscriptions(): Flow<List<RssSubscriptionInfo>> = flowOf(emptyList())
+        override suspend fun listEnabledSubscriptions(): Result<List<RssSubscriptionInfo>> = Result.success(emptyList())
+        override suspend fun saveSubscription(subscription: RssSubscriptionInfo): Result<Long> = Result.success(0L)
+        override suspend fun deleteSubscription(id: Long): Result<Unit> = Result.success(Unit)
+        override suspend fun markSubscriptionChecked(id: Long, timestamp: Long): Result<Unit> = Result.success(Unit)
+        override suspend fun isItemProcessed(subscriptionId: Long, itemKey: String): Result<Boolean> = Result.success(false)
+        override suspend fun markItemProcessed(item: RssProcessedItemInfo): Result<Unit> = Result.success(Unit)
+        override suspend fun saveDownloadTask(task: RssDownloadTaskInfo): Result<Long> = Result.success(0L)
     }
 }

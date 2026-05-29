@@ -18,6 +18,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
@@ -41,7 +42,7 @@ class BangumiApiClient(
     private val baseHttpUrl: HttpUrl = baseUrl.toHttpUrl()
     private val client = BangumiProxyAwareOkHttpClient(defaultClient())
     private val json = Json { ignoreUnknownKeys = true }
-    private val mediaType = "application/json; charset=utf-8".toMediaType()
+    private val mediaType = "application/json".toMediaType()
 
     override val hasToken: Boolean
         get() = !tokenProvider().isNullOrBlank()
@@ -62,7 +63,7 @@ class BangumiApiClient(
                     .addQueryParameter("limit", "10")
                     .addQueryParameter("offset", "0")
                     .build()
-            ).post(BangumiApiPayloads.searchSubjects(searchKeyword, SUBJECT_TYPE_ANIME).toString().toRequestBody(mediaType)).build()
+            ).post(BangumiApiPayloads.searchSubjects(searchKeyword, SUBJECT_TYPE_ANIME).toRequestBody()).build()
 
             val root = executeJson(request).jsonObject
             Result.success(BangumiJsonMapper.parseSearchResults(root, query, normalizeQuery))
@@ -158,7 +159,7 @@ class BangumiApiClient(
         try {
             requireToken()
             val request = buildRequest(apiUrl("/v0/users/-/collections/$subjectId").build())
-                .post(BangumiApiPayloads.subjectCollection(type).toString().toRequestBody(mediaType))
+                .post(BangumiApiPayloads.subjectCollection(type).toRequestBody())
                 .build()
             executeNoContent(request)
             Result.success(Unit)
@@ -203,7 +204,7 @@ class BangumiApiClient(
             requireToken()
             if (episodeIds.isEmpty()) return@withContext Result.success(Unit)
             val request = buildRequest(apiUrl("/v0/users/-/collections/$subjectId/episodes").build())
-                .patch(BangumiApiPayloads.episodeCollections(episodeIds, type).toString().toRequestBody(mediaType))
+                .patch(BangumiApiPayloads.episodeCollections(episodeIds, type).toRequestBody())
                 .build()
             executeNoContent(request)
             Result.success(Unit)
@@ -219,7 +220,7 @@ class BangumiApiClient(
         try {
             requireToken()
             val request = buildRequest(apiUrl("/v0/users/-/collections/-/episodes/$episodeId").build())
-                .put(BangumiApiPayloads.episodeCollection(type).toString().toRequestBody(mediaType))
+                .put(BangumiApiPayloads.episodeCollection(type).toRequestBody())
                 .build()
             executeNoContent(request)
             Result.success(Unit)
@@ -269,9 +270,12 @@ class BangumiApiClient(
         }
     }
 
+    private fun JsonObject.toRequestBody() =
+        toString().toByteArray(Charsets.UTF_8).toRequestBody(mediaType)
+
     companion object {
         const val DEFAULT_BASE_URL = "https://api.bgm.tv"
-        const val DEFAULT_USER_AGENT = "MiruPlay/1.0"
+        const val DEFAULT_USER_AGENT = "ModerRAS/MiruPlay/0.1.0 (https://github.com/ModerRAS/MiruPlay)"
         const val SOURCE_NAME = "Bangumi"
 
         private const val SUBJECT_TYPE_ANIME = 2
