@@ -38,7 +38,7 @@ class BangumiScraper @Inject constructor(
     )
 
     companion object {
-        private const val USER_AGENT = "MiruPlay/1.0 (Android TV; https://github.com/open-ani/animeko-inspired-local-client)"
+        private const val USER_AGENT = "ModerRAS/MiruPlay/0.1.0 (Android TV) (https://github.com/ModerRAS/MiruPlay)"
     }
 
     override val hasToken: Boolean

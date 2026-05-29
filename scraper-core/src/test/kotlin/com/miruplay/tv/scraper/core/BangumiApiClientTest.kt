@@ -82,6 +82,9 @@ class BangumiApiClientTest {
 
             val request = server.takeRequest()
             assertEquals("/v0/search/subjects?limit=10&offset=0", request.path)
+            assertEquals(BangumiApiClient.DEFAULT_USER_AGENT, request.getHeader("User-Agent"))
+            assertEquals("application/json", request.getHeader("Accept"))
+            assertEquals("application/json", request.getHeader("Content-Type"))
             assertTrue(request.body.readUtf8().contains("葬送的芙莉莲"))
         }
     }
@@ -479,11 +482,15 @@ class BangumiApiClientTest {
             val subjectRequest = server.takeRequest()
             assertEquals("POST", subjectRequest.method)
             assertEquals("/v0/users/-/collections/431767", subjectRequest.path)
+            assertEquals("application/json", subjectRequest.getHeader("Content-Type"))
             assertTrue(subjectRequest.body.readUtf8().contains(""""type":3"""))
 
             val episodeBatchRequest = server.takeRequest()
             assertEquals("PATCH", episodeBatchRequest.method)
             assertEquals("/v0/users/-/collections/431767/episodes", episodeBatchRequest.path)
+            assertEquals(BangumiApiClient.DEFAULT_USER_AGENT, episodeBatchRequest.getHeader("User-Agent"))
+            assertEquals("application/json", episodeBatchRequest.getHeader("Accept"))
+            assertEquals("application/json", episodeBatchRequest.getHeader("Content-Type"))
             val batchBody = episodeBatchRequest.body.readUtf8()
             assertTrue(batchBody.contains(""""episode_id":[10,20]"""))
             assertTrue(batchBody.contains(""""type":2"""))
@@ -491,6 +498,7 @@ class BangumiApiClientTest {
             val episodeRequest = server.takeRequest()
             assertEquals("PUT", episodeRequest.method)
             assertEquals("/v0/users/-/collections/-/episodes/30", episodeRequest.path)
+            assertEquals("application/json", episodeRequest.getHeader("Content-Type"))
             assertTrue(episodeRequest.body.readUtf8().contains(""""type":2"""))
         }
     }
