@@ -108,6 +108,17 @@ MiruPlay/
 ### Nightly CI Versioning
 CI generates date-based versions (`YYYY.mm.dd`) for nightly builds. Version properties passed via `-PVERSION_NAME` / `-PVERSION_CODE` Gradle project properties.
 
+### Release Build 自动创建 Tag
+`build-release` 任务 push 到 main/master 时会自动构建 release APK。
+版本号从 `app/build.gradle.kts` 中 `appVersionName` 的默认值提取 major.minor，patch 用 CI `run_number`。
+例如 `appVersionName = "0.1.0"` → 实际版本 `0.1.<run_number>`。
+发新版流程：
+1. 修改 `app/build.gradle.kts` 中的 `appVersionName` 默认值（如 `0.2.0`）
+2. 提交并 push 到 main/master
+3. CI 自动构建、打 tag、创建 Release
+
+tag 格式为 `v<major>.<minor>.<run_number>`（如 `v0.2.123`），不会 push 到 origin。
+
 ## COMMANDS
 ```bash
 # Build
