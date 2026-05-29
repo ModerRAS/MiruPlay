@@ -57,8 +57,9 @@ fun TvButton(
         enabled = enabled,
         interactionSource = interactionSource,
         modifier = modifier
-            .width(240.dp)
+            .defaultMinSize(minWidth = 240.dp)
             .height(56.dp)
+            .focusable(enabled = true)
             .clip(RoundedCornerShape(12.dp))
             .border(
                 width = 2.dp,
