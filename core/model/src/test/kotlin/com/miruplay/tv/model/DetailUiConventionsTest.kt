@@ -16,6 +16,15 @@ class DetailUiConventionsTest {
         assertEquals("没有找到可靠的 Bangumi 匹配", detailBangumiNoReliableMatchMessage())
         assertEquals("Bangumi 详情获取失败", detailBangumiDetailsFailedMessage())
         assertEquals("Bangumi 元数据已更新", detailBangumiMetadataUpdatedMessage())
+        assertEquals("选择 Bangumi 条目", detailBangumiManualMatchTitleLabel())
+        assertEquals("关闭", detailBangumiManualCloseActionLabel())
+        assertEquals("候选词", detailBangumiCandidateTermsSectionTitle())
+        assertEquals("请选择候选词或输入 Bangumi 搜索词", detailBangumiManualSearchRequiredMessage())
+        assertEquals("请选择一个 Bangumi 条目", detailBangumiManualSelectionRequiredMessage())
+        assertEquals("正在搜索 2 个 Bangumi 搜索词...", detailBangumiManualSearchStartedMessage(2))
+        assertEquals("没有可显示的 Bangumi 搜索结果", detailBangumiManualSearchResultMessage(0))
+        assertEquals("找到 3 个 Bangumi 匹配", detailBangumiManualSearchResultMessage(3))
+        assertEquals("正在应用：葬送的芙莉莲", detailBangumiManualApplyStartedMessage("葬送的芙莉莲"))
         assertEquals("正在同步 Bangumi...", detailBangumiSyncStartedMessage())
         assertEquals("同步完成：上传 0 集，拉取 3 集", detailBangumiSyncCompleteMessage(-1, 3))
         assertEquals("选集", detailEpisodeSectionTitle())
@@ -42,6 +51,32 @@ class DetailUiConventionsTest {
         assertEquals("评分 8.6", detailRatingLabel(8.55f))
         assertEquals("播放", detailContinueActionLabel(null))
         assertEquals("继续观看 7", detailContinueActionLabel(7))
+    }
+
+    @Test
+    fun `manual Bangumi candidate terms include metadata and cleaned local paths`() {
+        val anime = Anime(
+            id = "local-frieren",
+            title = "葬送のフリーレン",
+            titleCn = "葬送的芙莉莲",
+            bangumiId = 431767,
+        )
+        val episodes = listOf(
+            Episode(
+                id = "1:/storage/emulated/0/Download/Frieren/%5BSubs%5D%20Frieren%20-%2001%20%5B1080p%5D.mkv",
+                animeId = "local-frieren",
+                seasonNumber = 1,
+                episodeNumber = 1,
+                title = "",
+                filePath = "/storage/emulated/0/Download/Frieren/[Subs] Frieren - 01 [1080p].mkv",
+                fileName = "[Subs] Frieren - 01 [1080p].mkv",
+            )
+        )
+
+        assertEquals(
+            listOf("葬送的芙莉莲", "葬送のフリーレン", "local-frieren", "431767", "Frieren"),
+            detailBangumiManualCandidateTerms(anime, episodes),
+        )
     }
 
     @Test

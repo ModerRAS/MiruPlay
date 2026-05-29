@@ -8,7 +8,7 @@ export default defineConfig({
   plugins: [vue()],
   base: '/',
   build: {
-    outDir: resolve(__dirname, '../src/main/assets/web'),
+    outDir: resolve(__dirname, '../build/generated/web-control-assets/web'),
     emptyOutDir: true,
     sourcemap: false
   },

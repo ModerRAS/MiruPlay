@@ -45,6 +45,7 @@ adb-artifacts/
 # Frontend dependencies
 node_modules/
 web-control/frontend/dist/
+web-control/src/main/assets/web/
 
 # Windows mpv/RIFE runtime payloads are packaged from local or release assets.
 runtime/mpv/*

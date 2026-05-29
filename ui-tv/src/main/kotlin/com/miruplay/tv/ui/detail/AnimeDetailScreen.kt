@@ -15,17 +15,24 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -43,6 +50,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.ExperimentalTvMaterial3Api
@@ -50,9 +58,15 @@ import androidx.tv.material3.Text
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.ProgressRecord
+import com.miruplay.tv.model.ScraperResult
+import com.miruplay.tv.model.confidencePercentLabel
 import com.miruplay.tv.model.continueActionLabel
 import com.miruplay.tv.model.continueEpisode
 import com.miruplay.tv.model.detailBangumiCollectionPillLabel
+import com.miruplay.tv.model.detailBangumiCandidateTermsSectionTitle
+import com.miruplay.tv.model.detailBangumiManualCloseActionLabel
+import com.miruplay.tv.model.detailBangumiManualMatchTitleLabel
+import com.miruplay.tv.model.detailBangumiManualSearchRequiredMessage
 import com.miruplay.tv.model.detailEpisodeCountLabel
 import com.miruplay.tv.model.detailEpisodeSectionTitle
 import com.miruplay.tv.model.detailEpisodeTitleLabel
@@ -61,6 +75,11 @@ import com.miruplay.tv.model.detailRescrapeActionLabel
 import com.miruplay.tv.model.detailSeasonLabel
 import com.miruplay.tv.model.detailSyncProgressActionLabel
 import com.miruplay.tv.model.displayTitle
+import com.miruplay.tv.model.metadataApplyMatchActionLabel
+import com.miruplay.tv.model.metadataEmptyResultsMessage
+import com.miruplay.tv.model.metadataQueryFieldLabel
+import com.miruplay.tv.model.metadataSearchActionLabel
+import com.miruplay.tv.model.metadataSearchResultsPageLabel
 import com.miruplay.tv.model.isCompleted
 import com.miruplay.tv.model.progressFraction
 import com.miruplay.tv.model.progressLabel
@@ -68,6 +87,7 @@ import com.miruplay.tv.ui.components.LoadingIndicator
 import com.miruplay.tv.ui.components.OverscanContainer
 import com.miruplay.tv.ui.components.RemoteImage
 import com.miruplay.tv.ui.components.TvButton
+import com.miruplay.tv.ui.components.TvTextField
 import com.miruplay.tv.ui.components.tvFocusableClickable
 import com.miruplay.tv.ui.theme.AccentBlue
 import com.miruplay.tv.ui.theme.AnimeRed
@@ -96,30 +116,46 @@ fun AnimeDetailScreen(
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val actionMessage by viewModel.actionMessage.collectAsStateWithLifecycle()
     val isSyncing by viewModel.isSyncing.collectAsStateWithLifecycle()
+    val manualMatch by viewModel.manualMatch.collectAsStateWithLifecycle()
 
     LaunchedEffect(animeId) {
         viewModel.loadAnime(animeId)
     }
-    BackHandler(onBack = onNavigateBack)
+    BackHandler(enabled = manualMatch.isOpen, onBack = viewModel::closeRescrapeMatcher)
+    BackHandler(enabled = !manualMatch.isOpen, onBack = onNavigateBack)
 
-    OverscanContainer {
-        if (isLoading) {
-            LoadingIndicator()
-        } else {
-            anime?.let { animeData ->
-                DetailContent(
-                    anime = animeData,
-                    seasons = seasons.map { it.seasonNumber },
-                    selectedSeason = selectedSeason,
-                    episodes = episodes,
-                    actionMessage = actionMessage,
-                    isSyncing = isSyncing,
-                    onPlayEpisode = onPlayEpisode,
-                    onSelectSeason = viewModel::selectSeason,
-                    onRescrape = viewModel::rescrapeMetadata,
-                    onSyncBangumi = viewModel::syncBangumi
-                )
+    Box(modifier = Modifier.fillMaxSize()) {
+        OverscanContainer {
+            if (isLoading) {
+                LoadingIndicator()
+            } else {
+                anime?.let { animeData ->
+                    DetailContent(
+                        anime = animeData,
+                        seasons = seasons.map { it.seasonNumber },
+                        selectedSeason = selectedSeason,
+                        episodes = episodes,
+                        actionMessage = actionMessage,
+                        isSyncing = isSyncing,
+                        onPlayEpisode = onPlayEpisode,
+                        onSelectSeason = viewModel::selectSeason,
+                        onRescrape = viewModel::openRescrapeMatcher,
+                        onSyncBangumi = viewModel::syncBangumi
+                    )
+                }
             }
+        }
+
+        if (manualMatch.isOpen) {
+            BangumiManualMatchDialog(
+                state = manualMatch,
+                onDismiss = viewModel::closeRescrapeMatcher,
+                onQueryChange = viewModel::updateManualMatchQuery,
+                onToggleCandidate = viewModel::toggleManualMatchCandidate,
+                onSearch = viewModel::searchManualMatches,
+                onSelectResult = viewModel::selectManualMatchResult,
+                onApply = viewModel::applyManualMatch,
+            )
         }
     }
 }
@@ -301,6 +337,289 @@ private fun DetailContent(
             )
         }
         Spacer(Modifier.height(28.dp))
+    }
+}
+
+@Composable
+private fun BangumiManualMatchDialog(
+    state: BangumiManualMatchUiState,
+    onDismiss: () -> Unit,
+    onQueryChange: (String) -> Unit,
+    onToggleCandidate: (String) -> Unit,
+    onSearch: () -> Unit,
+    onSelectResult: (ScraperResult) -> Unit,
+    onApply: () -> Unit,
+) {
+    val busy = state.isSearching || state.isApplying
+
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(0.9f)
+                .widthIn(max = 840.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(DarkSurface)
+                .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(8.dp))
+                .padding(22.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Filled.Search,
+                    contentDescription = null,
+                    tint = TextPrimary,
+                    modifier = Modifier.size(26.dp)
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    text = detailBangumiManualMatchTitleLabel(),
+                    style = TvTypography.subtitle,
+                    color = TextPrimary
+                )
+                Spacer(Modifier.weight(1f))
+                TvButton(
+                    text = detailBangumiManualCloseActionLabel(),
+                    icon = Icons.Filled.Close,
+                    enabled = !busy,
+                    onClick = onDismiss,
+                    modifier = Modifier.width(140.dp),
+                    secondary = true
+                )
+            }
+
+            Text(
+                text = detailBangumiCandidateTermsSectionTitle(),
+                style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
+                color = TextPrimary
+            )
+            if (state.candidateTerms.isEmpty()) {
+                Text(
+                    text = detailBangumiManualSearchRequiredMessage(),
+                    style = TvTypography.body,
+                    color = TextSecondary
+                )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    state.candidateTerms.chunked(3).forEach { row ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                            row.forEach { candidate ->
+                                ManualCandidateChip(
+                                    text = candidate,
+                                    selected = candidate in state.selectedCandidateTerms,
+                                    enabled = !busy,
+                                    onClick = { onToggleCandidate(candidate) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            repeat(3 - row.size) {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Bottom) {
+                TvTextField(
+                    value = state.query,
+                    onValueChange = onQueryChange,
+                    label = metadataQueryFieldLabel(),
+                    modifier = Modifier.weight(1f)
+                )
+                TvButton(
+                    text = metadataSearchActionLabel(),
+                    icon = Icons.Filled.Search,
+                    enabled = !busy && (state.query.isNotBlank() || state.selectedCandidateTerms.isNotEmpty()),
+                    onClick = onSearch,
+                    modifier = Modifier.width(150.dp)
+                )
+            }
+
+            Text(
+                text = metadataSearchResultsPageLabel(),
+                style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
+                color = TextPrimary
+            )
+            if (state.results.isEmpty()) {
+                Text(
+                    text = metadataEmptyResultsMessage(),
+                    style = TvTypography.body,
+                    color = TextSecondary
+                )
+            } else {
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.heightIn(max = 310.dp)
+                ) {
+                    items(state.results, key = { "${it.source.name}:${it.animeId}" }) { result ->
+                        ManualResultItem(
+                            result = result,
+                            selected = state.selectedResult?.animeId == result.animeId &&
+                                state.selectedResult?.source == result.source,
+                            enabled = !busy,
+                            onClick = { onSelectResult(result) }
+                        )
+                    }
+                }
+            }
+
+            if (!state.statusMessage.isNullOrBlank()) {
+                Text(
+                    text = state.statusMessage,
+                    style = TvTypography.body,
+                    color = if (state.statusMessage.contains("找到") ||
+                        state.statusMessage.contains("已选择") ||
+                        state.statusMessage.contains("已更新")
+                    ) {
+                        ProgressGreen
+                    } else {
+                        WarningYellow
+                    },
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TvButton(
+                    text = metadataApplyMatchActionLabel(),
+                    icon = Icons.Filled.CheckCircle,
+                    enabled = !busy && state.selectedResult != null,
+                    onClick = onApply,
+                    modifier = Modifier.width(180.dp)
+                )
+                TvButton(
+                    text = detailBangumiManualCloseActionLabel(),
+                    icon = Icons.Filled.Close,
+                    enabled = !busy,
+                    onClick = onDismiss,
+                    modifier = Modifier.width(140.dp),
+                    secondary = true
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ManualCandidateChip(
+    text: String,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val background = when {
+        !enabled -> DarkSurface
+        selected -> AnimeRed.copy(alpha = 0.28f)
+        isFocused -> AccentBlue.copy(alpha = 0.74f)
+        else -> CardBg
+    }
+    val borderColor = when {
+        isFocused -> FocusBorder
+        selected -> AnimeRed
+        else -> Color.White.copy(alpha = 0.12f)
+    }
+
+    Row(
+        modifier = modifier
+            .height(48.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(background)
+            .border(if (selected || isFocused) 2.dp else 1.dp, borderColor, RoundedCornerShape(8.dp))
+            .tvFocusableClickable(
+                interactionSource = interactionSource,
+                enabled = enabled,
+                onClick = onClick
+            )
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = text,
+            style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
+            color = if (enabled) TextPrimary else TextSecondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun ManualResultItem(
+    result: ScraperResult,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val background = when {
+        selected -> AnimeRed.copy(alpha = 0.24f)
+        isFocused -> AccentBlue.copy(alpha = 0.68f)
+        else -> CardBg
+    }
+    val borderColor = when {
+        isFocused -> FocusBorder
+        selected -> AnimeRed
+        else -> Color.White.copy(alpha = 0.1f)
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(82.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(background)
+            .border(if (selected || isFocused) 2.dp else 1.dp, borderColor, RoundedCornerShape(8.dp))
+            .tvFocusableClickable(
+                interactionSource = interactionSource,
+                enabled = enabled,
+                onClick = onClick
+            )
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = result.displayTitle(),
+                style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
+                color = TextPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = listOf(result.title, result.matchedTitle)
+                    .filter { it.isNotBlank() && it != result.displayTitle() }
+                    .distinct()
+                    .joinToString(" · ")
+                    .ifBlank { result.animeId },
+                style = TvTypography.caption,
+                color = TextSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Spacer(Modifier.width(14.dp))
+        Column(horizontalAlignment = Alignment.End, modifier = Modifier.width(120.dp)) {
+            Text(
+                text = result.confidencePercentLabel(),
+                style = TvTypography.body.copy(fontWeight = FontWeight.Bold),
+                color = if (selected) ProgressGreen else TextSecondary,
+                maxLines = 1
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = result.animeId,
+                style = TvTypography.caption,
+                color = TextSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
