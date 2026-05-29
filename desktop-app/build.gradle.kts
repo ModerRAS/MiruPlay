@@ -29,9 +29,14 @@ application {
 }
 
 sourceSets {
+    val webControlFrontendAssetsRoot = project(":web-control").layout.buildDirectory.dir("generated/web-control-assets")
     main {
-        resources.srcDir(project(":web-control").projectDir.resolve("src/main/assets"))
+        resources.srcDir(webControlFrontendAssetsRoot)
     }
+}
+
+tasks.named("processResources") {
+    dependsOn(project(":web-control").tasks.named("buildWebControlFrontend"))
 }
 
 val generatedMpvRuntimeManifest = layout.buildDirectory.file("generated/mpv-runtime/runtime-manifest.json")
