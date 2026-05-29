@@ -22,6 +22,7 @@ import com.miruplay.tv.sync.rss.RssFeedReader
 import com.miruplay.tv.webcontrol.PlayEpisodeRequest
 import com.miruplay.tv.webcontrol.PlaybackCommandRequest
 import com.miruplay.tv.webcontrol.PlaybackStatusDto
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -745,8 +746,18 @@ class DesktopWebControlServerTest {
                     method = "POST",
                 )
                 assertEquals(200, run.code)
-                assertTrue(run.body.contains("\"submitted\":1"))
-                assertTrue(run.body.contains("\"organized\":0"))
+                assertTrue(run.body.contains("\"status\":\"RUNNING\""))
+                assertTrue(run.body.contains("\"running\":true"))
+
+                val completedRun = waitForCloudDriveRun(port, token)
+                assertEquals(200, completedRun.code)
+                assertTrue(
+                    "CloudDrive run did not finish: ${completedRun.body}",
+                    completedRun.body.contains("\"running\":false"),
+                )
+                assertTrue(completedRun.body.contains("\"status\":\"SUCCEEDED\""))
+                assertTrue(completedRun.body.contains("\"submitted\":1"))
+                assertTrue(completedRun.body.contains("\"organized\":0"))
                 assertEquals(listOf("magnet:?xt=urn:btih:abc"), cloudDrive.offlineUrls)
                 assertEquals("/Downloads", cloudDrive.offlineTargetFolder)
             } finally {
@@ -958,6 +969,18 @@ class DesktopWebControlServerTest {
             body = body,
             headers = connection.headerFields.mapKeys { it.key.orEmpty() },
         )
+    }
+
+    private suspend fun waitForCloudDriveRun(port: Int, token: String): HttpResult {
+        var status = request("http://127.0.0.1:$port/api/cloud-drive/run?token=$token")
+        repeat(50) {
+            if (!status.body.contains("\"running\":true")) {
+                return status
+            }
+            delay(100)
+            status = request("http://127.0.0.1:$port/api/cloud-drive/run?token=$token")
+        }
+        return status
     }
 
     private data class HttpResult(
