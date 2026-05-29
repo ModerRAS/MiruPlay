@@ -104,6 +104,10 @@ body {
   color: var(--muted);
 }
 
+.danger-text {
+  color: #f87171;
+}
+
 .nav-menu {
   border-right: 0;
   background: transparent;

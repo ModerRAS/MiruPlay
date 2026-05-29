@@ -263,6 +263,15 @@
                   <span class="muted">
                     上次执行：{{ formatDateTime(cloudForm.lastRunAt) || '尚未执行' }}
                   </span>
+                  <span v-if="cloudRunStatus.running" class="muted">
+                    正在执行：{{ formatDateTime(cloudRunStatus.startedAt) }}
+                  </span>
+                  <span v-else-if="cloudRunStatus.status === 'SUCCEEDED' && cloudRunStatus.summary" class="muted">
+                    上次结果：{{ cloudRunSummaryText(cloudRunStatus.summary) }}
+                  </span>
+                  <span v-else-if="cloudRunStatus.status === 'FAILED'" class="danger-text">
+                    执行失败：{{ cloudRunStatus.error || '未知错误' }}
+                  </span>
                 </div>
 
                 <el-form-item label="CloudDrive2 地址">
@@ -1164,6 +1173,14 @@ const cloudForm = reactive({
   rssProxyHost: '',
   rssProxyPort: 1080
 })
+const cloudRunStatus = reactive({
+  status: 'IDLE',
+  running: false,
+  startedAt: 0,
+  finishedAt: 0,
+  summary: null,
+  error: null
+})
 const proxyForm = reactive({
   enabled: false,
   host: '',
@@ -1227,6 +1244,7 @@ const logDownloadRangeOptions = [
 let searchTimer = 0
 let statusTimer = 0
 let archiveTimer = 0
+let cloudRunTimer = 0
 
 const viewMeta = computed(() => ({
   library: ['片库', '浏览番剧、选择剧集并投到电视端播放。'],
@@ -1325,6 +1343,7 @@ watch(activeView, (view) => {
   if (view === 'automation') {
     loadSources()
     loadCloudDriveAutomation()
+    loadCloudDriveRunStatus()
   }
   if (view === 'proxy') loadProxyConfig()
   if (view === 'metadata') loadMetadataSettings()
@@ -1336,7 +1355,7 @@ watch(activeView, (view) => {
 })
 
 onMounted(async () => {
-  await Promise.all([loadInfo(), loadLibrary(), loadSources(), loadCloudDriveAutomation(), loadProxyConfig(), loadMetadataSettings(), loadLogUpload(), loadLocalLogs(), loadPlaybackStatus()])
+  await Promise.all([loadInfo(), loadLibrary(), loadSources(), loadCloudDriveAutomation(), loadCloudDriveRunStatus(), loadProxyConfig(), loadMetadataSettings(), loadLogUpload(), loadLocalLogs(), loadPlaybackStatus()])
   statusTimer = window.setInterval(loadPlaybackStatus, 2000)
   archiveTimer = window.setInterval(() => {
     if (activeView.value === 'metadata' && bangumiArchive.isDownloading) {
@@ -1349,6 +1368,7 @@ onBeforeUnmount(() => {
   window.clearInterval(statusTimer)
   window.clearInterval(archiveTimer)
   window.clearTimeout(searchTimer)
+  window.clearTimeout(cloudRunTimer)
 })
 
 async function loadInfo() {
@@ -1388,6 +1408,15 @@ async function loadCloudDriveAutomation() {
     applyCloudDriveAutomation(await api('/api/cloud-drive'))
   } finally {
     loading.automation = false
+  }
+}
+
+async function loadCloudDriveRunStatus(options = {}) {
+  try {
+    const status = await api('/api/cloud-drive/run')
+    applyCloudDriveRunStatus(status, options)
+  } catch {
+    loading.cloudRun = false
   }
 }
 
@@ -1468,6 +1497,47 @@ function applyCloudDriveAutomation(data) {
     host: config.rssProxyHost || '',
     port: config.rssProxyPort || 1080
   })
+}
+
+function applyCloudDriveRunStatus(data, options = {}) {
+  const next = data || {}
+  const wasRunning = cloudRunStatus.running
+  Object.assign(cloudRunStatus, {
+    status: next.status || 'IDLE',
+    running: Boolean(next.running),
+    startedAt: next.startedAt || 0,
+    finishedAt: next.finishedAt || 0,
+    summary: next.summary || null,
+    error: next.error || null
+  })
+  loading.cloudRun = cloudRunStatus.running
+
+  if (cloudRunStatus.running) {
+    scheduleCloudDriveRunPoll()
+    return
+  }
+
+  window.clearTimeout(cloudRunTimer)
+  if (options.notify && wasRunning) {
+    if (cloudRunStatus.status === 'SUCCEEDED') {
+      ElMessage.success(`完成：${cloudRunSummaryText(cloudRunStatus.summary)}`)
+      void Promise.all([loadCloudDriveAutomation(), loadLibrary(), loadSources()])
+    } else if (cloudRunStatus.status === 'FAILED') {
+      ElMessage.error(cloudRunStatus.error || 'CloudDrive/RSS 执行失败')
+    }
+  }
+}
+
+function scheduleCloudDriveRunPoll() {
+  window.clearTimeout(cloudRunTimer)
+  cloudRunTimer = window.setTimeout(() => {
+    loadCloudDriveRunStatus({ notify: true })
+  }, 3000)
+}
+
+function cloudRunSummaryText(summary) {
+  const data = summary || {}
+  return `提交 ${data.submitted || 0}，跳过 ${data.skipped || 0}，失败 ${data.failed || 0}，整理 ${data.organized || 0}，索引 ${data.indexed || 0}`
 }
 
 function applyProxyConfig(data) {
@@ -1903,11 +1973,19 @@ async function runCloudDriveNow() {
 
   loading.cloudRun = true
   try {
-    const result = await api('/api/cloud-drive/run', { method: 'POST' })
-    ElMessage.success(`完成：提交 ${result.submitted}，跳过 ${result.skipped}，整理 ${result.organized}，索引 ${result.indexed || 0}`)
-    await Promise.all([loadCloudDriveAutomation(), loadLibrary()])
-  } finally {
+    const status = await api('/api/cloud-drive/run', { method: 'POST' })
+    applyCloudDriveRunStatus(status)
+    if (status.running) {
+      ElMessage.success('CloudDrive/RSS 已开始执行')
+    } else if (status.status === 'SUCCEEDED') {
+      ElMessage.success(`完成：${cloudRunSummaryText(status.summary)}`)
+      await Promise.all([loadCloudDriveAutomation(), loadLibrary(), loadSources()])
+    } else if (status.status === 'FAILED') {
+      ElMessage.error(status.error || 'CloudDrive/RSS 执行失败')
+    }
+  } catch (error) {
     loading.cloudRun = false
+    throw error
   }
 }
 

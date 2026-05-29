@@ -53,8 +53,9 @@ class ScanCoordinatorTest {
         )
         val indexRepository = RecordingIndexRepository()
         val metadataRepository = RecordingMetadataRepository()
+        val mediaRepository = SingleSourceRepository(sourceInfo)
         val coordinator = ScanCoordinator(
-            mediaRepository = SingleSourceRepository(sourceInfo),
+            mediaRepository = mediaRepository,
             mediaSourceFactory = SingleMediaSourceFactory(mediaSource),
             indexRepository = indexRepository,
             metadataRepository = metadataRepository,
@@ -80,6 +81,8 @@ class ScanCoordinatorTest {
             "http://example.test/dav/%E7%95%AA%E5%89%A7/02%20%23OVA%3F.mkv",
             metadataRepository.episodes.last().filePath
         )
+        assertTrue("Scan should update source lastScanned", mediaRepository.updatedSource?.lastScanned ?: 0L > 0L)
+        assertEquals(true, mediaRepository.updatedSource?.isConnected)
     }
 
     @Test
@@ -461,10 +464,15 @@ class ScanCoordinatorTest {
     private class SingleSourceRepository(
         private val source: MediaSourceInfo
     ) : MediaSourceRepository {
+        var updatedSource: MediaSourceInfo? = null
+
         override suspend fun addSource(source: MediaSourceInfo): Result<Long> = Result.success(source.id)
         override suspend fun removeSource(sourceId: Long): Result<Unit> = Result.success(Unit)
         override suspend fun getSources(): Result<List<MediaSourceInfo>> = Result.success(listOf(source))
-        override suspend fun updateSource(source: MediaSourceInfo): Result<Unit> = Result.success(Unit)
+        override suspend fun updateSource(source: MediaSourceInfo): Result<Unit> {
+            updatedSource = source
+            return Result.success(Unit)
+        }
         override suspend fun getSourceById(sourceId: Long): Result<MediaSourceInfo> =
             if (sourceId == source.id) Result.success(source) else Result.failure(AppError.MediaSourceError.NotFound(sourceId.toString()))
     }

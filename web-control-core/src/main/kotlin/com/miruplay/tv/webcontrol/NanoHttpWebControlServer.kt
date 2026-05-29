@@ -132,8 +132,11 @@ open class NanoHttpWebControlServer(
                 val request = parseBody(session, CloudDriveTokenRequest.serializer())
                 jsonResponse(CloudDriveTokenResponse.serializer(), webControlService.saveCloudDriveToken(request))
             }
+            session.method == Method.GET && route == "/api/cloud-drive/run" -> {
+                jsonResponse(CloudDriveRunStatusDto.serializer(), webControlService.getCloudDriveAutomationRunStatus())
+            }
             session.method == Method.POST && route == "/api/cloud-drive/run" -> {
-                jsonResponse(CloudDriveRunResponse.serializer(), webControlService.runCloudDriveAutomationNow())
+                jsonResponse(CloudDriveRunStatusDto.serializer(), webControlService.startCloudDriveAutomationRun())
             }
             session.method == Method.POST && route == "/api/cloud-drive/rss" -> {
                 val request = parseBody(session, RssSubscriptionRequest.serializer())

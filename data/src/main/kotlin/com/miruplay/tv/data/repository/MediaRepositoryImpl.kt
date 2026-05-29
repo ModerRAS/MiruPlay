@@ -85,7 +85,8 @@ class MediaRepositoryImpl @Inject constructor(
                 username = source.connectionUsername().ifBlank { null },
                 password = null,
                 extraConfig = source.extraConnectionInfoJson(),
-                isConnected = source.isConnected
+                isConnected = source.isConnected,
+                lastScanned = source.lastScanned
             )
             Result.success(Unit)
         } catch (e: Exception) {

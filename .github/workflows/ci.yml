@@ -288,6 +288,11 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
+      - name: Setup Bun ${{ env.BUN_VERSION }}
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
@@ -448,6 +453,11 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: 'temurin'
           cache: 'gradle'
+
+      - name: Setup Bun ${{ env.BUN_VERSION }}
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3

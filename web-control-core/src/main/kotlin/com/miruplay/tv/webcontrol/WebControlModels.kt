@@ -178,6 +178,26 @@ data class CloudDriveRunResponse(
 )
 
 @Serializable
+data class CloudDriveRunStatusDto(
+    val status: String,
+    val running: Boolean,
+    val startedAt: Long = 0L,
+    val finishedAt: Long = 0L,
+    val summary: CloudDriveRunResponse? = null,
+    val error: String? = null,
+) {
+    companion object {
+        const val IDLE = "IDLE"
+        const val RUNNING = "RUNNING"
+        const val SUCCEEDED = "SUCCEEDED"
+        const val FAILED = "FAILED"
+
+        fun idle(): CloudDriveRunStatusDto =
+            CloudDriveRunStatusDto(status = IDLE, running = false)
+    }
+}
+
+@Serializable
 data class LogUploadDto(
     val config: OtlpLogUploadConfigDto,
     val status: LogUploadStatusDto,

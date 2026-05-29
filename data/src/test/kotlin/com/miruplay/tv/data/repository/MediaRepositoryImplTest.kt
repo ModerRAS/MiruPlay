@@ -152,6 +152,22 @@ class MediaRepositoryImplTest {
         assertNotNull("Should retrieve updated source", retrieved)
         assertTrue("IsConnected should be true", retrieved!!.isConnected)
     }
+
+    @Test
+    fun `updateSource should persist last scanned timestamp`() = runBlocking {
+        val source = MediaSourceInfo(
+            name = "Scan Time Test",
+            type = MediaSourceType.WEBDAV,
+            connectionInfo = mapOf("url" to "https://nas.local/dav")
+        )
+
+        val id = repository.addSource(source).getOrNull()!!
+        repository.updateSource(source.copy(id = id, lastScanned = 123_456L))
+
+        val retrieved = repository.getSourceById(id).getOrNull()
+        assertNotNull("Should retrieve updated source", retrieved)
+        assertEquals(123_456L, retrieved!!.lastScanned)
+    }
 }
 
 private class InMemoryMediaSourceSecretStore : MediaSourceSecretStore {

@@ -200,11 +200,11 @@ class CloudDriveRssAutomationCore(
         } else {
             0
         }
-        val ingestion = afterIngested(config, endpoint, organized)
         when (val lastRunUpdated = repository.updateLastRunAt(System.currentTimeMillis())) {
             is Result.Error -> return@withContext lastRunUpdated
             is Result.Success -> Unit
         }
+        val ingestion = afterIngested(config, endpoint, organized)
 
         Result.success(
             CloudDriveRssRunSummary(
