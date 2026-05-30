@@ -163,6 +163,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Java ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
@@ -249,12 +251,12 @@ jobs:
 
           # 取 tag 前缀（去掉最后一段数字），找上一个 release
           TAG_PREFIX=$(echo "$TAG_NAME" | sed 's/\.[0-9]*$//')
-          PREV_TAG=$(git tag --list "${TAG_PREFIX}.*" --sort=-version:refname | head -1)
+          PREV_TAG=$(git tag --list "${TAG_PREFIX}.*" --sort=-version:refname | grep -v "^${TAG_NAME}$" | head -1)
 
-          if [ -n "$PREV_TAG" ] && [ "$PREV_TAG" != "$TAG_NAME" ]; then
-            CHANGES=$(git log "$PREV_TAG"..HEAD --oneline --no-decorate)
+          if [ -n "$PREV_TAG" ]; then
+            CHANGES=$(git log "$PREV_TAG"..HEAD --pretty=format:'- `%h` %s')
           else
-            CHANGES=$(git log --oneline --no-decorate -20)
+            CHANGES=$(git log --pretty=format:'- `%h` %s' -20)
           fi
 
           {
@@ -262,7 +264,7 @@ jobs:
             echo ""
             echo "### Changes"
             echo ""
-            echo "$CHANGES"
+            echo "${CHANGES:-No commit changes found.}"
           } > release-notes.md
 
           echo "Release notes:"
@@ -442,10 +444,10 @@ jobs:
           # refreshed after another master push, keep the notes complete for the day.
           PREV_TAG=$(git tag --list 'nightly-*' --sort=-version:refname | grep -v "^${TAG_NAME}$" | head -1)
           if [ -n "$PREV_TAG" ]; then
-            CHANGES=$(git log "$PREV_TAG"..HEAD --oneline --no-decorate)
+            CHANGES=$(git log "$PREV_TAG"..HEAD --pretty=format:'- `%h` %s')
           else
             SINCE_DATE=$(date -d '24 hours ago' '+%Y-%m-%dT%H:%M:%S')
-            CHANGES=$(git log --since="$SINCE_DATE" --oneline --no-decorate)
+            CHANGES=$(git log --since="$SINCE_DATE" --pretty=format:'- `%h` %s')
           fi
 
           # Build release notes file
