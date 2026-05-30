@@ -1,7 +1,6 @@
 package com.miruplay.tv.ui.components
 
 import androidx.compose.foundation.border
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.*
@@ -59,7 +58,6 @@ fun TvButton(
         modifier = modifier
             .defaultMinSize(minWidth = 240.dp)
             .height(56.dp)
-            .focusable(enabled = true)
             .clip(RoundedCornerShape(12.dp))
             .border(
                 width = 2.dp,
