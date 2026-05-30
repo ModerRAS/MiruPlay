@@ -29,6 +29,8 @@ import javax.inject.Singleton
 class ExoPlaybackController @Inject constructor(
     @ApplicationContext private val context: Context,
     private val exoPlayer: ExoPlayer,
+    private val dataSourceFactory: PlaybackDataSourceFactory,
+    private val httpRequestResolver: PlaybackHttpRequestResolver,
     private val config: PlaybackConfig = PlaybackConfig()
 ) : PlaybackController {
 
@@ -139,8 +141,10 @@ class ExoPlaybackController @Inject constructor(
     }
 
     override suspend fun play(source: PlaybackSource) {
+        val httpConfig = httpRequestResolver.configFor(source)
         withContext(Dispatchers.Main) {
             currentSource = source
+            dataSourceFactory.setHttpConfig(httpConfig)
             _state.value = PlaybackState.Loading(source)
             MiruLog.i(
                 "ExoPlaybackController",
@@ -244,6 +248,7 @@ class ExoPlaybackController @Inject constructor(
             }
             exoPlayer.playWhenReady = false
             exoPlayer.stop()
+            dataSourceFactory.clearHttpConfig()
             currentSource = null
             autoResumeSeekCalled = false
             availableSubtitles.clear()
@@ -286,6 +291,7 @@ class ExoPlaybackController @Inject constructor(
 
     fun release() {
         exoPlayer.removeListener(listener)
+        dataSourceFactory.clearHttpConfig()
         exoPlayer.release()
     }
 

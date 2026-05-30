@@ -12,10 +12,18 @@ import javax.inject.Singleton
 @Singleton
 class PlayerFactoryImpl @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val exoPlayerProvider: Provider<ExoPlayer>
+    private val exoPlayerProvider: Provider<ExoPlayer>,
+    private val dataSourceFactory: PlaybackDataSourceFactory,
+    private val httpRequestResolver: PlaybackHttpRequestResolver,
 ) : PlayerFactory {
     override fun create(config: PlaybackConfig): PlaybackController {
         val player = exoPlayerProvider.get()
-        return ExoPlaybackController(context, player, config)
+        return ExoPlaybackController(
+            context = context,
+            exoPlayer = player,
+            dataSourceFactory = dataSourceFactory,
+            httpRequestResolver = httpRequestResolver,
+            config = config,
+        )
     }
 }

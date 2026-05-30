@@ -3,6 +3,7 @@ package com.miruplay.tv.player
 import android.content.Context
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -16,8 +17,13 @@ import javax.inject.Singleton
 object PlayerModule {
     @Provides
     @Singleton
-    fun provideExoPlayer(@ApplicationContext context: Context): ExoPlayer {
-        return ExoPlayer.Builder(context).build()
+    fun provideExoPlayer(
+        @ApplicationContext context: Context,
+        dataSourceFactory: PlaybackDataSourceFactory,
+    ): ExoPlayer {
+        return ExoPlayer.Builder(context)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
+            .build()
     }
 
     @Provides
@@ -29,8 +35,16 @@ object PlayerModule {
     fun providePlaybackController(
         @ApplicationContext context: Context,
         player: ExoPlayer,
+        dataSourceFactory: PlaybackDataSourceFactory,
+        httpRequestResolver: PlaybackHttpRequestResolver,
         config: PlaybackConfig
     ): PlaybackController {
-        return ExoPlaybackController(context, player, config)
+        return ExoPlaybackController(
+            context = context,
+            exoPlayer = player,
+            dataSourceFactory = dataSourceFactory,
+            httpRequestResolver = httpRequestResolver,
+            config = config,
+        )
     }
 }
