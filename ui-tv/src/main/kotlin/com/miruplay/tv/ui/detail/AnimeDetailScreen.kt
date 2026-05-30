@@ -174,6 +174,8 @@ private fun DetailContent(
     onSyncBangumi: () -> Unit
 ) {
     val playButtonFocusRequester = remember { FocusRequester() }
+    val backdropUrl = anime.fanartUrl ?: anime.posterUrl
+    val backdropLocalPath = if (anime.fanartUrl.isNullOrBlank()) anime.posterLocalPath else null
 
     LaunchedEffect(anime.id, episodes.isNotEmpty()) {
         if (episodes.isNotEmpty()) {
@@ -194,8 +196,9 @@ private fun DetailContent(
                 .background(DarkSurface)
         ) {
             RemoteImage(
-                url = anime.fanartUrl ?: anime.posterUrl,
+                url = backdropUrl,
                 contentDescription = anime.displayTitle(),
+                localPath = backdropLocalPath,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
             )
@@ -221,6 +224,7 @@ private fun DetailContent(
                 RemoteImage(
                     url = anime.posterUrl,
                     contentDescription = anime.displayTitle(),
+                    localPath = anime.posterLocalPath,
                     modifier = Modifier
                         .width(205.dp)
                         .height(302.dp)
@@ -399,22 +403,20 @@ private fun BangumiManualMatchDialog(
                     color = TextSecondary
                 )
             } else {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    state.candidateTerms.chunked(3).forEach { row ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                            row.forEach { candidate ->
-                                ManualCandidateChip(
-                                    text = candidate,
-                                    selected = candidate in state.selectedCandidateTerms,
-                                    enabled = !busy,
-                                    onClick = { onToggleCandidate(candidate) },
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                            repeat(3 - row.size) {
-                                Spacer(modifier = Modifier.weight(1f))
-                            }
-                        }
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 220.dp)
+                ) {
+                    items(state.candidateTerms, key = { it }) { candidate ->
+                        ManualCandidateChip(
+                            text = candidate,
+                            selected = candidate in state.selectedCandidateTerms,
+                            enabled = !busy,
+                            onClick = { onToggleCandidate(candidate) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
                 }
             }
@@ -525,7 +527,7 @@ private fun ManualCandidateChip(
 
     Row(
         modifier = modifier
-            .height(48.dp)
+            .heightIn(min = 54.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(background)
             .border(if (selected || isFocused) 2.dp else 1.dp, borderColor, RoundedCornerShape(8.dp))
@@ -534,15 +536,14 @@ private fun ManualCandidateChip(
                 enabled = enabled,
                 onClick = onClick
             )
-            .padding(horizontal = 12.dp),
+            .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = text,
             style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
             color = if (enabled) TextPrimary else TextSecondary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            modifier = Modifier.fillMaxWidth()
         )
     }
 }

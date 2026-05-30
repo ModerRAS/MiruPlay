@@ -16,6 +16,7 @@ import com.miruplay.tv.model.MediaFileConventions
 import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.NfoMetadata
 import com.miruplay.tv.model.ScraperResult
+import com.miruplay.tv.model.ScraperSource
 import com.miruplay.tv.model.ScanResult
 import com.miruplay.tv.model.TvShowNfoMetadata
 import com.miruplay.tv.model.UniqueId
@@ -226,7 +227,11 @@ class ScanCoordinator @Inject constructor(
                         scrapeMessage = "Online metadata disabled for source",
                     )
                 } else {
-                    enrichWithOnlineMetadata(
+                    reusableCachedMetadata(
+                        animeName = animeName,
+                        episodes = episodes,
+                        posterCacheDirectory = posterCacheDirectory,
+                    ) ?: enrichWithOnlineMetadata(
                         animeName = animeName,
                         episodes = episodes,
                         extraTitleCandidates = animeTitleCandidates,
@@ -378,6 +383,80 @@ class ScanCoordinator @Inject constructor(
         val scrapeStatus: MediaScrapeStatus = MediaScrapeStatus.NO_MATCH,
         val scrapeMessage: String? = null,
     )
+
+    private suspend fun reusableCachedMetadata(
+        animeName: String,
+        episodes: List<Episode>,
+        posterCacheDirectory: File?,
+    ): OnlineMetadata? {
+        val cachedByName = metadataRepository.getCachedMetadata(animeName).getOrNull()
+        val cachedAnime = cachedByName?.takeIf { it.hasReusablePosterMetadata() }
+            ?: cachedByName?.bangumiId
+                ?.let { metadataRepository.getCachedMetadataByBangumiId(it).getOrNull() }
+                ?.takeIf { it.hasReusablePosterMetadata() }
+            ?: return null
+        val cachedEpisodes = metadataRepository.getCachedEpisodes(animeName).getOrNull().orEmpty()
+            .ifEmpty {
+                if (cachedAnime.id == animeName) {
+                    emptyList()
+                } else {
+                    metadataRepository.getCachedEpisodes(cachedAnime.id).getOrNull().orEmpty()
+                }
+            }
+        val cachedEpisodesByNumber = cachedEpisodes.associateBy { it.episodeNumber }
+        val mergedEpisodes = episodes.map { episode ->
+            val cached = cachedEpisodesByNumber[episode.episodeNumber] ?: return@map episode
+            episode.copy(
+                title = cached.title.takeIf { it.isNotBlank() } ?: episode.title,
+                duration = episode.duration.takeIf { it > 0 } ?: cached.duration,
+                thumbnailPath = cached.thumbnailPath ?: episode.thumbnailPath,
+                bangumiEpisodeId = cached.bangumiEpisodeId ?: episode.bangumiEpisodeId,
+                bangumiCollectionType = cached.bangumiCollectionType ?: episode.bangumiCollectionType,
+            )
+        }
+        val posterLocalPath = cachedAnime.posterUrl
+            ?.takeIf { it.isNotBlank() }
+            ?.let { cachePoster(posterCacheDirectory, it) }
+            ?: cachedAnime.posterLocalPath
+        val anime = cachedAnime.copy(
+            id = animeName,
+            episodeCount = maxOf(cachedAnime.episodeCount, mergedEpisodes.size),
+            posterLocalPath = posterLocalPath ?: cachedAnime.posterLocalPath,
+        )
+        MiruLog.i(
+            tag = TAG,
+            message = "Recognition cached metadata reused",
+            attributes = mapOf(
+                "anime_name" to normalizeForLog(animeName, 120),
+                "episode_count" to episodes.size.toString(),
+                "cached_episode_count" to cachedEpisodes.size.toString(),
+                "poster_cached" to (!posterLocalPath.isNullOrBlank()).toString(),
+                "scrape_status" to MediaScrapeStatus.SCRAPED.name,
+            )
+        )
+        return OnlineMetadata(
+            anime = anime,
+            episodes = mergedEpisodes,
+            match = anime.toCachedBangumiMatch(),
+            scrapeStatus = MediaScrapeStatus.SCRAPED,
+            scrapeMessage = "Cached metadata reused",
+        )
+    }
+
+    private fun Anime.hasReusablePosterMetadata(): Boolean =
+        !posterUrl.isNullOrBlank() || !posterLocalPath.isNullOrBlank()
+
+    private fun Anime.toCachedBangumiMatch(): ScraperResult? {
+        val id = bangumiId ?: return null
+        return ScraperResult(
+            animeId = id.toString(),
+            title = title,
+            titleCn = titleCn,
+            matchedTitle = displayTitle(),
+            confidence = 1f,
+            source = ScraperSource.BANGUMI,
+        )
+    }
 
     private suspend fun enrichWithOnlineMetadata(
         animeName: String,

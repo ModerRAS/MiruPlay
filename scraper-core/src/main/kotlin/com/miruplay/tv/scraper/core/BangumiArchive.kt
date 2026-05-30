@@ -319,7 +319,11 @@ class BangumiArchiveSubjectSearch(
     private var cachedLength: Long = -1L
     private var cachedSubjects: List<BangumiArchiveSubject> = emptyList()
 
-    fun search(query: String, limit: Int = 10): List<ScraperResult> {
+    fun search(
+        query: String,
+        limit: Int = 10,
+        minimumConfidence: Float = this.minimumConfidence,
+    ): List<ScraperResult> {
         val trimmedQuery = query.trim()
         if (trimmedQuery.isBlank()) return emptyList()
         val subjects = loadSubjects(subjectFileProvider())
@@ -350,7 +354,7 @@ class BangumiArchiveSubjectSearch(
                     animeId = match.candidate.id,
                     title = match.candidate.title,
                     titleCn = match.candidate.titleCn,
-                    matchedTitle = match.candidate.titleCn ?: match.candidate.title,
+                    matchedTitle = match.matchedTitle,
                     confidence = match.confidence,
                     source = ScraperSource.BANGUMI,
                     fromLocalArchive = true,

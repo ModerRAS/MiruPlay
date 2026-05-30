@@ -218,7 +218,7 @@ fun detailBangumiManualCandidateTerms(
     buildList {
         add(anime.titleCn)
         add(anime.title)
-        add(anime.id)
+        add(anime.id.takeIf { it.toIntOrNull() != null })
         anime.bangumiId?.toString()?.let(::add)
         episodes.take(4).forEach { episode ->
             episode.detailBangumiSearchPaths().forEach { path ->
@@ -310,8 +310,7 @@ private fun String.detailBangumiNormalizedCandidate(): String? {
         .replace(Regex("""(?i)\b(1080p|2160p|720p|bdrip|web[- ]?dl|x264|x265|hevc|aac|flac)\b"""), " ")
         .replace(Regex("""(?i)\b(mkv|mp4|avi|mov|wmv|flv|m4v)\b"""), " ")
         .replace(Regex("""(?i)\b(s\d{1,2}e\d{1,3}|episode\s*\d{1,3}|ep\s*\d{1,3}|e\d{1,3})\b"""), " ")
-        .replace(Regex("""(?i)\b(season\s*\d{1,2}|s\d{1,2})\b"""), " ")
-        .replace(Regex("""第\s*\d+\s*[季期集话話]"""), " ")
+        .replace(Regex("""第\s*\d+\s*[集话話]"""), " ")
         .replace(Regex("""[._]+"""), " ")
         .replace(Regex("""\s*-\s*\d{1,3}\s*$"""), " ")
         .replace(Regex("""\s+"""), " ")

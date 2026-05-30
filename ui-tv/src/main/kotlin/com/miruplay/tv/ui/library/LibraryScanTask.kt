@@ -1,5 +1,6 @@
 package com.miruplay.tv.ui.library
 
+import android.content.Context
 import android.util.Log
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.core.common.logging.MiruLog
@@ -9,6 +10,8 @@ import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.ScanPreferencesRepository
 import com.miruplay.tv.repository.shouldAutoScan
 import com.miruplay.tv.scanner.ScanCoordinator
+import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
@@ -36,6 +39,7 @@ sealed class LibraryScanState {
 
 @Singleton
 class LibraryScanTask @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val mediaRepository: MediaSourceRepository,
     private val scanCoordinator: ScanCoordinator,
     private val scanPreferences: ScanPreferencesRepository
@@ -122,7 +126,12 @@ class LibraryScanTask @Inject constructor(
                             "source_type" to source.type.name,
                         )
                     )
-                    when (val result = scanCoordinator.scanSource(source.id)) {
+                    when (
+                        val result = scanCoordinator.scanSource(
+                            source.id,
+                            posterCacheDirectory = posterCacheDirectory()
+                        )
+                    ) {
                         is Result.Success -> {
                             results.add(result.data)
                             MiruLog.i(
@@ -201,6 +210,9 @@ class LibraryScanTask @Inject constructor(
             }
         }
     }
+
+    private fun posterCacheDirectory(): File =
+        File(context.cacheDir, "miruplay_image_cache")
 
     private companion object {
         private const val TAG = "LibraryScanTask"

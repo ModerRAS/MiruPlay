@@ -38,6 +38,7 @@ import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.InputStream
 import java.nio.file.Files
+import java.security.MessageDigest
 
 class ScanCoordinatorTest {
 
@@ -522,6 +523,178 @@ class ScanCoordinatorTest {
         }
     }
 
+    @Test
+    fun `scanSource reuses cached Bangumi poster without redownloading`() = runBlocking {
+        MockWebServer().use { imageServer ->
+            val posterUrl = imageServer.url("/poster.jpg").toString()
+            val sourceInfo = MediaSourceInfo(
+                id = 45L,
+                name = "Poster Cache",
+                type = MediaSourceType.WEBDAV,
+                connectionInfo = mapOf("url" to "http://example.test/dav")
+            )
+            val mediaSource = FakeMediaSource(
+                listings = mapOf(
+                    "" to listOf(
+                        FileEntry(name = "01.mkv", path = "/01.mkv", isDirectory = false, size = 1234)
+                    )
+                )
+            )
+            val metadataRepository = RecordingMetadataRepository()
+            val posterCacheDirectory = Files.createTempDirectory("miruplay-poster-cache-test-").toFile()
+            try {
+                posterCacheDirectory.mkdirs()
+                val cachedPoster = File(posterCacheDirectory, sha256Hex(posterUrl))
+                cachedPoster.writeText("cached-poster")
+                val coordinator = ScanCoordinator(
+                    mediaRepository = SingleSourceRepository(sourceInfo),
+                    mediaSourceFactory = SingleMediaSourceFactory(mediaSource),
+                    indexRepository = RecordingIndexRepository(),
+                    metadataRepository = metadataRepository,
+                    filenameMetadataParser = EmptyFilenameMetadataParser,
+                    metadataScrapers = setOf(PosterBangumiScraper(posterUrl)),
+                )
+
+                val result = coordinator.scanSource(sourceInfo.id, posterCacheDirectory = posterCacheDirectory)
+
+                assertTrue("Scan should succeed", result.isSuccess())
+                assertEquals(0, imageServer.requestCount)
+                assertEquals(cachedPoster.absolutePath, metadataRepository.anime.single().posterLocalPath)
+                assertEquals("cached-poster", cachedPoster.readText())
+            } finally {
+                posterCacheDirectory.deleteRecursively()
+            }
+        }
+    }
+
+    @Test
+    fun `scanSource reuses cached Bangumi poster metadata without API lookup`() = runBlocking {
+        MockWebServer().use { imageServer ->
+            val posterUrl = imageServer.url("/poster.jpg").toString()
+            val sourceInfo = MediaSourceInfo(
+                id = 46L,
+                name = "Cached Metadata",
+                type = MediaSourceType.WEBDAV,
+                connectionInfo = mapOf("url" to "http://example.test/dav")
+            )
+            val mediaSource = FakeMediaSource(
+                listings = mapOf(
+                    "" to listOf(
+                        FileEntry(name = "Cached Show", path = "/Cached Show", isDirectory = true)
+                    ),
+                    "/Cached Show" to listOf(
+                        FileEntry(name = "Cached Show - 01.mkv", path = "/Cached Show/Cached Show - 01.mkv", isDirectory = false, size = 1234)
+                    )
+                )
+            )
+            val posterCacheDirectory = Files.createTempDirectory("miruplay-poster-metadata-test-").toFile()
+            try {
+                posterCacheDirectory.mkdirs()
+                val cachedPoster = File(posterCacheDirectory, sha256Hex(posterUrl))
+                cachedPoster.writeText("cached-poster")
+                val scraper = RecordingBangumiScraper()
+                val metadataRepository = RecordingMetadataRepository(
+                    cachedAnime = mutableMapOf(
+                        "Cached Show" to Anime(
+                            id = "Cached Show",
+                            title = "Cached Show",
+                            posterUrl = posterUrl,
+                            posterLocalPath = cachedPoster.absolutePath,
+                            bangumiId = 431767,
+                        )
+                    )
+                )
+                val indexRepository = RecordingIndexRepository()
+                val coordinator = ScanCoordinator(
+                    mediaRepository = SingleSourceRepository(sourceInfo),
+                    mediaSourceFactory = SingleMediaSourceFactory(mediaSource),
+                    indexRepository = indexRepository,
+                    metadataRepository = metadataRepository,
+                    filenameMetadataParser = EmptyFilenameMetadataParser,
+                    metadataScrapers = setOf(scraper),
+                )
+
+                val result = coordinator.scanSource(sourceInfo.id, posterCacheDirectory = posterCacheDirectory)
+
+                assertTrue("Scan should succeed", result.isSuccess())
+                assertTrue("Bangumi alias lookup should be skipped", scraper.normalizedName == null)
+                assertTrue("Bangumi fallback candidates should be skipped", scraper.aliasCandidates.isEmpty())
+                assertEquals(0, imageServer.requestCount)
+                assertEquals("431767", indexRepository.entries.single { !it.isDirectory }.metadataId)
+                assertEquals(cachedPoster.absolutePath, metadataRepository.anime.last().posterLocalPath)
+            } finally {
+                posterCacheDirectory.deleteRecursively()
+            }
+        }
+    }
+
+    @Test
+    fun `scanSource reuses poster metadata bound to cached Bangumi id`() = runBlocking {
+        MockWebServer().use { imageServer ->
+            val posterUrl = imageServer.url("/poster.jpg").toString()
+            val sourceInfo = MediaSourceInfo(
+                id = 47L,
+                name = "Cached Bangumi Binding",
+                type = MediaSourceType.WEBDAV,
+                connectionInfo = mapOf("url" to "http://example.test/dav")
+            )
+            val mediaSource = FakeMediaSource(
+                listings = mapOf(
+                    "" to listOf(
+                        FileEntry(name = "Cached Show", path = "/Cached Show", isDirectory = true)
+                    ),
+                    "/Cached Show" to listOf(
+                        FileEntry(name = "Cached Show - 01.mkv", path = "/Cached Show/Cached Show - 01.mkv", isDirectory = false, size = 1234)
+                    )
+                )
+            )
+            val posterCacheDirectory = Files.createTempDirectory("miruplay-poster-binding-test-").toFile()
+            try {
+                posterCacheDirectory.mkdirs()
+                val cachedPoster = File(posterCacheDirectory, sha256Hex(posterUrl))
+                cachedPoster.writeText("cached-poster")
+                val scraper = RecordingBangumiScraper()
+                val metadataRepository = RecordingMetadataRepository(
+                    cachedAnime = mutableMapOf(
+                        "Cached Show" to Anime(
+                            id = "Cached Show",
+                            title = "Cached Show",
+                            bangumiId = 431767,
+                        ),
+                        "bangumi:431767" to Anime(
+                            id = "bangumi:431767",
+                            title = "Cached Show",
+                            posterUrl = posterUrl,
+                            posterLocalPath = cachedPoster.absolutePath,
+                            bangumiId = 431767,
+                        )
+                    )
+                )
+                val coordinator = ScanCoordinator(
+                    mediaRepository = SingleSourceRepository(sourceInfo),
+                    mediaSourceFactory = SingleMediaSourceFactory(mediaSource),
+                    indexRepository = RecordingIndexRepository(),
+                    metadataRepository = metadataRepository,
+                    filenameMetadataParser = EmptyFilenameMetadataParser,
+                    metadataScrapers = setOf(scraper),
+                )
+
+                val result = coordinator.scanSource(sourceInfo.id, posterCacheDirectory = posterCacheDirectory)
+
+                assertTrue("Scan should succeed", result.isSuccess())
+                assertTrue("Bangumi alias lookup should be skipped", scraper.normalizedName == null)
+                assertEquals(0, imageServer.requestCount)
+                val cached = metadataRepository.anime.last()
+                assertEquals("Cached Show", cached.id)
+                assertEquals(431767, cached.bangumiId)
+                assertEquals(posterUrl, cached.posterUrl)
+                assertEquals(cachedPoster.absolutePath, cached.posterLocalPath)
+            } finally {
+                posterCacheDirectory.deleteRecursively()
+            }
+        }
+    }
+
     private class SingleSourceRepository(
         private val source: MediaSourceInfo
     ) : MediaSourceRepository {
@@ -570,21 +743,34 @@ class ScanCoordinatorTest {
         override suspend fun clearLastBatchUndo(sourceId: Long): Result<Unit> = Result.success(Unit)
     }
 
-    private class RecordingMetadataRepository : MetadataRepository {
+    private class RecordingMetadataRepository(
+        private val cachedAnime: MutableMap<String, Anime> = mutableMapOf(),
+        private val cachedEpisodes: MutableMap<String, List<Episode>> = mutableMapOf(),
+    ) : MetadataRepository {
         val anime = mutableListOf<Anime>()
         val episodes = mutableListOf<Episode>()
 
         override suspend fun cacheMetadata(anime: Anime): Result<Unit> {
             this.anime.add(anime)
+            cachedAnime[anime.id] = anime
             return Result.success(Unit)
         }
-        override suspend fun getCachedMetadata(animeId: String): Result<Anime?> = Result.success(null)
-        override suspend fun getCachedMetadata(animeIds: Collection<String>): Result<List<Anime>> = Result.success(emptyList())
+        override suspend fun getCachedMetadata(animeId: String): Result<Anime?> = Result.success(cachedAnime[animeId])
+        override suspend fun getCachedMetadataByBangumiId(bangumiId: Int): Result<Anime?> =
+            Result.success(
+                cachedAnime.values.firstOrNull {
+                    it.bangumiId == bangumiId && (!it.posterUrl.isNullOrBlank() || !it.posterLocalPath.isNullOrBlank())
+                } ?: cachedAnime.values.firstOrNull { it.bangumiId == bangumiId }
+            )
+        override suspend fun getCachedMetadata(animeIds: Collection<String>): Result<List<Anime>> =
+            Result.success(animeIds.mapNotNull(cachedAnime::get))
         override suspend fun getCachedEpisode(episodeId: String): Result<Episode?> = Result.success(episodes.firstOrNull { it.id == episodeId })
-        override suspend fun getCachedEpisodes(animeId: String): Result<List<Episode>> = Result.success(episodes)
+        override suspend fun getCachedEpisodes(animeId: String): Result<List<Episode>> =
+            Result.success(cachedEpisodes[animeId] ?: episodes)
         override suspend fun cacheEpisodes(animeId: String, episodes: List<Episode>): Result<Unit> {
             this.episodes.clear()
             this.episodes.addAll(episodes)
+            cachedEpisodes[animeId] = episodes
             return Result.success(Unit)
         }
         override suspend fun invalidateCache(animeId: String): Result<Unit> = Result.success(Unit)
@@ -706,5 +892,12 @@ class ScanCoordinatorTest {
         override suspend fun isItemProcessed(subscriptionId: Long, itemKey: String): Result<Boolean> = Result.success(false)
         override suspend fun markItemProcessed(item: RssProcessedItemInfo): Result<Unit> = Result.success(Unit)
         override suspend fun saveDownloadTask(task: RssDownloadTaskInfo): Result<Long> = Result.success(0L)
+    }
+
+    private companion object {
+        fun sha256Hex(value: String): String =
+            MessageDigest.getInstance("SHA-256")
+                .digest(value.toByteArray(Charsets.UTF_8))
+                .joinToString("") { "%02x".format(it) }
     }
 }

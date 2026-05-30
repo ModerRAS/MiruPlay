@@ -270,7 +270,7 @@ class BangumiArchiveTest {
         val result = search.search("Frieren")
 
         assertEquals("431767", result.single().animeId)
-        assertEquals("葬送的芙莉莲", result.single().matchedTitle)
+        assertEquals("Frieren", result.single().matchedTitle)
         assertTrue(result.single().confidence >= 0.62f)
         tempDir.deleteRecursively()
     }
@@ -291,7 +291,7 @@ class BangumiArchiveTest {
         val result = search.search("Sousou no Frieren")
 
         assertEquals("431767", result.single().animeId)
-        assertEquals("葬送的芙莉莲", result.single().matchedTitle)
+        assertEquals("Sousou no Frieren", result.single().matchedTitle)
         tempDir.deleteRecursively()
     }
 

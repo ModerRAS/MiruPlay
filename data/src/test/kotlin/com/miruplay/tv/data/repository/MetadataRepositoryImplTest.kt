@@ -49,7 +49,9 @@ class MetadataRepositoryImplTest {
     private fun createTestAnime(
         id: String = "test-anime-1",
         title: String = "Test Anime",
-        genres: List<String> = listOf("Action", "Comedy")
+        genres: List<String> = listOf("Action", "Comedy"),
+        posterUrl: String = "https://example.com/poster.jpg",
+        posterLocalPath: String? = null,
     ): Anime = Anime(
         id = id,
         title = title,
@@ -64,7 +66,8 @@ class MetadataRepositoryImplTest {
         bangumiId = 12345,
         anilistId = 67890,
         tmdbId = 11111,
-        posterUrl = "https://example.com/poster.jpg",
+        posterUrl = posterUrl,
+        posterLocalPath = posterLocalPath,
         fanartUrl = "https://example.com/fanart.jpg"
     )
 
@@ -199,11 +202,10 @@ class MetadataRepositoryImplTest {
     }
 
     @Test
-    fun `getCachedMetadata should return null for expired cache`() = runBlocking {
+    fun `getCachedMetadata should return stale cached anime`() = runBlocking {
         val anime = createTestAnime()
         repository.cacheMetadata(anime)
 
-        // Manually set lastUpdated to 25 hours ago
         runBlocking {
             val oldEntity = animeDao.getById(anime.id)!!.copy(
                 lastUpdated = System.currentTimeMillis() - 25 * 60 * 60 * 1000L
@@ -213,7 +215,8 @@ class MetadataRepositoryImplTest {
 
         val result = repository.getCachedMetadata(anime.id)
         assertTrue("Expected Success", result.isSuccess())
-        assertNull("Should return null for expired cache", result.getOrNull())
+        assertEquals(anime.id, result.getOrNull()?.id)
+        assertEquals(anime.posterUrl, result.getOrNull()?.posterUrl)
     }
 
     @Test
@@ -238,6 +241,45 @@ class MetadataRepositoryImplTest {
     }
 
     @Test
+    fun `getCachedMetadataByBangumiId should return poster binding`() = runBlocking {
+        val anime = createTestAnime(
+            id = "local-cache-key",
+            posterUrl = "https://example.com/bangumi-poster.jpg",
+            posterLocalPath = "/cache/poster"
+        )
+        repository.cacheMetadata(anime)
+
+        val cached = repository.getCachedMetadataByBangumiId(12345).getOrNull()
+
+        assertEquals("local-cache-key", cached?.id)
+        assertEquals("https://example.com/bangumi-poster.jpg", cached?.posterUrl)
+        assertEquals("/cache/poster", cached?.posterLocalPath)
+    }
+
+    @Test
+    fun `getCachedMetadataByBangumiId should prefer binding with poster`() = runBlocking {
+        repository.cacheMetadata(
+            createTestAnime(
+                id = "with-poster",
+                posterUrl = "https://example.com/bangumi-poster.jpg",
+                posterLocalPath = "/cache/poster"
+            )
+        )
+        repository.cacheMetadata(
+            createTestAnime(
+                id = "without-poster",
+                posterUrl = "",
+                posterLocalPath = null
+            )
+        )
+
+        val cached = repository.getCachedMetadataByBangumiId(12345).getOrNull()
+
+        assertEquals("with-poster", cached?.id)
+        assertEquals("https://example.com/bangumi-poster.jpg", cached?.posterUrl)
+    }
+
+    @Test
     fun `getCachedMetadata collection should return cached anime with episodes`() = runBlocking {
         repository.cacheMetadata(createTestAnime(id = "anime-a", title = "Anime A"))
         repository.cacheMetadata(createTestAnime(id = "anime-b", title = "Anime B"))
@@ -252,7 +294,7 @@ class MetadataRepositoryImplTest {
     }
 
     @Test
-    fun `getCachedMetadata collection should skip expired anime`() = runBlocking {
+    fun `getCachedMetadata collection should keep stale anime`() = runBlocking {
         repository.cacheMetadata(createTestAnime(id = "fresh-anime"))
         repository.cacheMetadata(createTestAnime(id = "expired-anime"))
         val expiredEntity = animeDao.getById("expired-anime")!!.copy(
@@ -262,7 +304,7 @@ class MetadataRepositoryImplTest {
 
         val cached = repository.getCachedMetadata(listOf("fresh-anime", "expired-anime")).getOrNull()!!
 
-        assertEquals(listOf("fresh-anime"), cached.map { it.id })
+        assertEquals(setOf("fresh-anime", "expired-anime"), cached.map { it.id }.toSet())
     }
 
     // ── getCachedEpisodes ────────────────────────────────────────
