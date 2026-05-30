@@ -1,6 +1,7 @@
 package com.miruplay.tv.data.repository
 
 import androidx.test.core.app.ApplicationProvider
+import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.RssDownloadTaskInfo
@@ -153,6 +154,38 @@ class AppUpdateRepositoryImplTest {
     }
 
     @Test
+    fun `checkLatestUpdate returns response body when GitHub rejects request`() = runBlocking {
+        MockWebServer().use { proxy ->
+            proxy.enqueue(
+                MockResponse()
+                    .setResponseCode(403)
+                    .setBody(
+                        """
+                        {
+                          "message": "API rate limit exceeded for 203.0.113.10.",
+                          "documentation_url": "https://docs.github.com/rest/overview/resources-in-the-rest-api#rate-limiting"
+                        }
+                        """.trimIndent()
+                    )
+            )
+            val repository = appUpdateRepository(
+                latestReleaseApiUrl = "http://api.github.example/repos/ModerRAS/MiruPlay/releases/latest",
+                proxy = proxy,
+            )
+
+            val result = repository.checkLatestUpdate()
+
+            assertTrue(result is Result.Error)
+            val error = (result as Result.Error).error
+            assertTrue(error is AppError.NetworkError.HttpError)
+            val httpError = error as AppError.NetworkError.HttpError
+            assertEquals(403, httpError.code)
+            assertTrue(httpError.message.contains("API rate limit exceeded"))
+            assertTrue(httpError.message.contains("documentation_url"))
+        }
+    }
+
+    @Test
     fun `downloadAndLaunchInstaller uses configured proxy for APK download`() = runBlocking {
         MockWebServer().use { proxy ->
             proxy.enqueue(MockResponse().setBody("apk-bytes"))
@@ -175,6 +208,38 @@ class AppUpdateRepositoryImplTest {
 
             val request = proxy.takeRequest()
             assertEquals("github.example", request.headers["Host"])
+        }
+    }
+
+    @Test
+    fun `downloadAndLaunchInstaller includes response body when APK download fails`() = runBlocking {
+        MockWebServer().use { proxy ->
+            proxy.enqueue(
+                MockResponse()
+                    .setResponseCode(403)
+                    .setBody("release asset blocked by proxy")
+            )
+            val repository = appUpdateRepository(proxy = proxy)
+            val update = AppUpdateInfo(
+                versionName = "2026.05.26",
+                versionCode = 20260526L,
+                releaseName = "Nightly",
+                tagName = "nightly-2026.05.26",
+                publishedAt = "",
+                releaseUrl = "http://github.example/release",
+                assetName = "app-release.apk",
+                assetSizeBytes = 9,
+                downloadUrl = "http://github.example/app-release.apk",
+            )
+
+            val result = repository.downloadAndLaunchInstaller(update) { }
+
+            assertTrue(result is Result.Error)
+            val error = (result as Result.Error).error
+            assertTrue(error is AppError.AppUpdateError.DownloadFailed)
+            val updateError = error as AppError.AppUpdateError.DownloadFailed
+            assertTrue(updateError.cause.contains("HTTP 403"))
+            assertTrue(updateError.cause.contains("release asset blocked by proxy"))
         }
     }
 

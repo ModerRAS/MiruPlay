@@ -28,6 +28,7 @@ import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.contentOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
 import java.io.File
 import java.net.InetSocketAddress
 import java.net.Proxy
@@ -80,16 +81,18 @@ class AppUpdateRepositoryImpl internal constructor(
         try {
             githubApiClient().newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
+                    val failureDetail = response.failureDetail()
                     MiruLog.w(
                         TAG,
                         "GitHub app update check failed",
                         attributes = mapOf(
                             "http_code" to response.code.toString(),
                             "http_message" to response.message,
+                            "http_failure_detail" to failureDetail,
                         )
                     )
                     return@withContext Result.failure(
-                        AppError.NetworkError.HttpError(response.code, response.message)
+                        AppError.NetworkError.HttpError(response.code, failureDetail)
                     )
                 }
                 val responseBody = response.body?.string().orEmpty()
@@ -256,7 +259,7 @@ class AppUpdateRepositoryImpl internal constructor(
 
         githubDownloadClient().newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
-                throw IllegalStateException("HTTP ${response.code} ${response.message}")
+                throw IllegalStateException("HTTP ${response.code}: ${response.failureDetail()}")
             }
             val body = response.body ?: throw IllegalStateException("empty response body")
             val total = body.contentLength().takeIf { it > 0L } ?: update.assetSizeBytes.takeIf { it > 0L }
@@ -318,6 +321,15 @@ class AppUpdateRepositoryImpl internal constructor(
 
     private fun Long?.orEmptyString(): String = this?.toString().orEmpty()
 
+    private fun Response.failureDetail(): String {
+        val bodyText = runCatching { body?.string().orEmpty() }
+            .getOrDefault("")
+            .trim()
+        val detail = bodyText.ifBlank { message.ifBlank { "HTTP $code" } }
+        return detail.take(MAX_HTTP_ERROR_BODY_CHARS)
+            .let { if (detail.length > MAX_HTTP_ERROR_BODY_CHARS) "$it..." else it }
+    }
+
     companion object {
         private const val TAG = "AppUpdateRepository"
         private const val LATEST_RELEASE_API_URL = "https://api.github.com/repos/ModerRAS/MiruPlay/releases/latest"
@@ -325,6 +337,7 @@ class AppUpdateRepositoryImpl internal constructor(
         private const val APK_DOWNLOAD_CONNECT_TIMEOUT_SECONDS = 120L
         private const val APK_DOWNLOAD_READ_TIMEOUT_SECONDS = 120L
         private const val APK_DOWNLOAD_CALL_TIMEOUT_MINUTES = 10L
+        private const val MAX_HTTP_ERROR_BODY_CHARS = 4_096
     }
 }
 
