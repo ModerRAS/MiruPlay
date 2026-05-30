@@ -102,6 +102,9 @@ import com.miruplay.tv.model.rssSubscriptionsLoadFailedStatus
 import com.miruplay.tv.model.rssSubscriptionsRefreshFailedStatus
 import com.miruplay.tv.model.rssSubscriptionsShowingStatus
 import com.miruplay.tv.model.settingsDesktopLogUploadStatusMessage
+import com.miruplay.tv.model.settingsDesktopAppUpdateReleaseOpenedStatus
+import com.miruplay.tv.model.settingsDesktopAppUpdateReleaseOpenFailedStatus
+import com.miruplay.tv.model.settingsDesktopAppUpdateStatusMessage
 import com.miruplay.tv.model.sourcePickerTitle
 import com.miruplay.tv.model.settingsActiveSourceLabel
 import com.miruplay.tv.model.settingsLinkedSourceLabel
@@ -206,7 +209,9 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import java.awt.Desktop
 import java.awt.Dimension
+import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -595,6 +600,7 @@ internal fun MiruPlayDesktopComposeApp(
     var selectedRssSubscription by remember { mutableStateOf<RssSubscriptionInfo?>(null) }
     var cloudRssStatus by remember { mutableStateOf(cloudRssInitialStatus()) }
     var cloudDirectoryBrowser by remember { mutableStateOf(CloudDriveDirectoryBrowserState()) }
+    var appUpdateStatus by remember { mutableStateOf(settingsDesktopAppUpdateStatusMessage()) }
     var logUploadSnapshot by remember { mutableStateOf(OtlpLogUploadActionSnapshot()) }
     var logUploadTokenInput by remember { mutableStateOf("") }
     var mediaPath by remember { mutableStateOf(desktopInitialMediaPathFromEnvironment()) }
@@ -1334,10 +1340,10 @@ internal fun MiruPlayDesktopComposeApp(
         proxyEnabledOverride: Boolean = rssProxyEnabled,
         proxyHostOverride: String = rssProxyHost,
         proxyPortOverride: String = rssProxyPort,
-    ) {
+    ): CloudDriveConfigActionResult {
         val interval = parseCloudDriveIntervalMinutes(cloudIntervalMinutes)
         val proxyPort = parseRssProxyPort(proxyPortOverride)
-        when (val result = cloudRssActions.saveConfig(
+        return when (val result = cloudRssActions.saveConfig(
             endpointUrl = cloudEndpointUrl,
             username = cloudUsername,
             webDavSourceId = cloudLinkedSourceId,
@@ -1355,9 +1361,25 @@ internal fun MiruPlayDesktopComposeApp(
                 rssProxyPort = proxyPort.toString()
                 cloudRssScheduler.syncPeriodicWork(result.config)
                 cloudRssStatus = result.status
+                result
             }
-            is CloudDriveConfigActionResult.Failed -> cloudRssStatus = result.status
+            is CloudDriveConfigActionResult.Failed -> {
+                cloudRssStatus = result.status
+                result
+            }
         }
+    }
+
+    fun openDesktopAppUpdateRelease() {
+        appUpdateStatus = runCatching {
+            check(Desktop.isDesktopSupported()) { "Desktop API unavailable" }
+            val desktop = Desktop.getDesktop()
+            check(desktop.isSupported(Desktop.Action.BROWSE)) { "Browse action unavailable" }
+            desktop.browse(URI(DESKTOP_APP_UPDATE_RELEASE_URL))
+        }.fold(
+            onSuccess = { settingsDesktopAppUpdateReleaseOpenedStatus() },
+            onFailure = { error -> settingsDesktopAppUpdateReleaseOpenFailedStatus(error.message) },
+        )
     }
 
     suspend fun scanCurrentSource(updateStatus: (String) -> Unit) {
@@ -1436,6 +1458,45 @@ internal fun MiruPlayDesktopComposeApp(
                 null
             }
         }
+    }
+
+    suspend fun saveAndRunCloudRssNow() {
+        val interval = parseCloudDriveIntervalMinutes(cloudIntervalMinutes)
+        val proxyPort = parseRssProxyPort(rssProxyPort)
+        cloudRssActions.saveConfigAndRunCloudDriveOnceWithCallbacks(
+            endpointUrl = cloudEndpointUrl,
+            username = cloudUsername,
+            password = cloudPassword,
+            webDavSourceId = cloudLinkedSourceId,
+            inboxPath = cloudInboxPath,
+            libraryPath = cloudLibraryPath,
+            libraryMode = cloudLibraryMode,
+            intervalMinutes = interval,
+            enabled = cloudEnabled,
+            rssProxyEnabled = rssProxyEnabled,
+            rssProxyHost = rssProxyHost,
+            rssProxyPort = proxyPort,
+            onConfigSaved = { saved ->
+                cloudIntervalMinutes = interval.toString()
+                rssProxyPort = proxyPort.toString()
+                cloudRssScheduler.syncPeriodicWork(saved.config)
+                cloudRssStatus = saved.status
+            },
+            onStarted = { status -> cloudRssStatus = status },
+            onCompleted = { completed ->
+                cloudToken = repositories.credentials.cloudDriveToken.orEmpty()
+                cloudPassword = repositories.credentials.cloudDrivePassword.orEmpty()
+                cloudRssStatus = completed.status
+                rescanLinkedCloudSource(completed.status)?.let { scanMessage ->
+                    cloudRssStatus = "${completed.status} $scanMessage"
+                }
+            },
+            onFailed = { failed ->
+                cloudToken = repositories.credentials.cloudDriveToken.orEmpty()
+                cloudPassword = repositories.credentials.cloudDrivePassword.orEmpty()
+                cloudRssStatus = failed.status
+            },
+        )
     }
 
     suspend fun loadCloudDriveDirectory(path: String) {
@@ -2317,18 +2378,7 @@ internal fun MiruPlayDesktopComposeApp(
                 },
                 onRunSync = {
                     scope.launch {
-                        cloudRssActions.runCloudDriveOnceWithCallbacks(
-                            onStarted = { status -> cloudRssStatus = status },
-                            onCompleted = { completed ->
-                                cloudRssStatus = completed.status
-                                rescanLinkedCloudSource(completed.status)?.let { scanMessage ->
-                                    cloudRssStatus = "${completed.status} $scanMessage"
-                                }
-                            },
-                            onFailed = { failed ->
-                                cloudRssStatus = failed.status
-                            },
-                        )
+                        saveAndRunCloudRssNow()
                     }
                 },
                 onStartScheduler = {
@@ -2429,6 +2479,8 @@ internal fun MiruPlayDesktopComposeApp(
                     bangumiTokenConfigured = false
                     bangumiStatus = result.status
                 },
+                appUpdateStatus = appUpdateStatus,
+                onOpenAppUpdateRelease = ::openDesktopAppUpdateRelease,
                 sources = savedSources,
                 activeSourceLabel = settingsActiveSourceLabel(activeSource?.info),
                 indexedItemCount = indexedEntries.size,

@@ -16,6 +16,7 @@ import com.miruplay.tv.model.cloudDriveLoginStartedStatus
 import com.miruplay.tv.model.cloudDriveLoginSucceededStatus
 import com.miruplay.tv.model.cloudDriveTokenValidationStartedStatus
 import com.miruplay.tv.model.cloudDriveTokenVerifiedStatus
+import com.miruplay.tv.model.cloudDriveTokenLoginRequiredStatus
 import com.miruplay.tv.model.cloudDriveCredentialsClearedStatus
 import com.miruplay.tv.model.cloudDriveCredentialsSavedStatus
 import com.miruplay.tv.model.cloudRssConfigSavedStatus
@@ -31,6 +32,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CloudDriveRssActionCoordinatorTest {
@@ -449,6 +451,89 @@ class CloudDriveRssActionCoordinatorTest {
         val result = coordinator.runCloudDriveOnce()
 
         assertEquals(CloudDriveRunActionResult.Failed(error.toUserMessage()), result)
+    }
+
+    @Test
+    fun `save config and run persists current form before executing`() = runBlocking {
+        val repository = FakeCloudDriveAutomationRepository()
+        val credentials = FakeCloudDriveCredentialStore(token = "api-token")
+        val runner = FakeCloudDriveRssAutomationRunner()
+        val coordinator = coordinator(
+            repository = repository,
+            credentials = credentials,
+            runner = runner,
+        )
+        var savedConfig: CloudDriveAutomationConfig? = null
+        var startedStatus = ""
+
+        val result = coordinator.saveConfigAndRunCloudDriveOnceWithCallbacks(
+            endpointUrl = " https://cloud.example.test ",
+            username = " miru ",
+            password = "",
+            webDavSourceId = 9L,
+            inboxPath = " /Inbox ",
+            libraryPath = " /Library ",
+            intervalMinutes = 30,
+            enabled = true,
+            onConfigSaved = { saved -> savedConfig = saved.config },
+            onStarted = { status -> startedStatus = status },
+        ) as CloudDriveRunActionResult.Completed
+
+        assertEquals("https://cloud.example.test", savedConfig?.endpointUrl)
+        assertEquals("/Inbox", repository.savedConfigs.single().inboxPath)
+        assertEquals(cloudRssRunStartedStatus(), startedStatus)
+        assertEquals(CloudDriveRssRunSummary(submitted = 1, skipped = 2, failed = 0, organized = 3), result.summary)
+        assertEquals(1, runner.runCalls)
+        assertEquals(emptyList<String>(), runner.loginCalls)
+    }
+
+    @Test
+    fun `save config and run logs in with form password before executing`() = runBlocking {
+        val repository = FakeCloudDriveAutomationRepository()
+        val credentials = FakeCloudDriveCredentialStore()
+        val runner = FakeCloudDriveRssAutomationRunner()
+        val coordinator = coordinator(
+            repository = repository,
+            credentials = credentials,
+            runner = runner,
+        )
+
+        val result = coordinator.saveConfigAndRunCloudDriveOnceWithCallbacks(
+            endpointUrl = "https://cloud.example.test",
+            username = "miru",
+            password = "secret",
+            webDavSourceId = null,
+            inboxPath = "/Inbox",
+            libraryPath = "/Library",
+            intervalMinutes = 30,
+            enabled = true,
+        )
+
+        assertTrue(result is CloudDriveRunActionResult.Completed)
+        assertEquals(listOf("https://cloud.example.test|miru|secret"), runner.loginCalls)
+        assertEquals(1, runner.runCalls)
+    }
+
+    @Test
+    fun `save config and run requires saved token or password`() = runBlocking {
+        val repository = FakeCloudDriveAutomationRepository()
+        val runner = FakeCloudDriveRssAutomationRunner()
+        val coordinator = coordinator(repository = repository, runner = runner)
+
+        val result = coordinator.saveConfigAndRunCloudDriveOnceWithCallbacks(
+            endpointUrl = "https://cloud.example.test",
+            username = "miru",
+            password = "",
+            webDavSourceId = null,
+            inboxPath = "/Inbox",
+            libraryPath = "/Library",
+            intervalMinutes = 30,
+            enabled = true,
+        )
+
+        assertEquals(CloudDriveRunActionResult.Failed(cloudDriveTokenLoginRequiredStatus()), result)
+        assertEquals(1, repository.savedConfigs.size)
+        assertEquals(0, runner.runCalls)
     }
 
     private fun coordinator(

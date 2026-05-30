@@ -88,6 +88,7 @@ import com.miruplay.tv.model.cloudRssSubscriptionCoercedPageStart
 import com.miruplay.tv.model.cloudRssSubscriptionPageStartForIndex
 import com.miruplay.tv.model.cloudRssSubscriptionPageSummary
 import com.miruplay.tv.model.desktopSettingsSectionOrder
+import com.miruplay.tv.model.desktopAppUpdateSettingsTiles
 import com.miruplay.tv.model.metadataBangumiTokenFieldLabel
 import com.miruplay.tv.model.metadataBangumiTokenSettingsStatus
 import com.miruplay.tv.model.metadataBangumiTokenTileDetail
@@ -96,8 +97,8 @@ import com.miruplay.tv.model.metadataSettingsTiles
 import com.miruplay.tv.model.mediaSourceStatusText
 import com.miruplay.tv.model.playbackSettingsTiles
 import com.miruplay.tv.model.settingsClearTokenActionLabel
-import com.miruplay.tv.model.settingsAppUpdateIdleStatus
 import com.miruplay.tv.model.settingsAboutStatusMessage
+import com.miruplay.tv.model.settingsDesktopAppUpdateOpenReleaseActionLabel
 import com.miruplay.tv.model.settingsDesktopScanStatusMessage
 import com.miruplay.tv.model.settingsDesktopWebUiStatusMessage
 import com.miruplay.tv.model.settingsLogUploadAutoToggleLabel
@@ -155,6 +156,7 @@ import com.miruplay.tv.sync.rss.CloudDriveDirectoryTarget
 
 private const val CLOUD_RSS_BADGE_WIDTH_DP = 82
 private const val CLOUD_RSS_BADGE_HEIGHT_DP = 34
+internal const val DESKTOP_APP_UPDATE_RELEASE_URL = "https://github.com/ModerRAS/MiruPlay/releases/latest"
 
 private fun desktopAppVersionName(): String =
     MiruPlaySettingsSection::class.java.getPackage()?.implementationVersion.orEmpty()
@@ -231,6 +233,8 @@ internal fun CloudRssPanel(
     onDeleteSubscription: () -> Unit,
     onSaveBangumiToken: () -> Unit,
     onClearBangumiToken: () -> Unit,
+    appUpdateStatus: String,
+    onOpenAppUpdateRelease: () -> Unit,
     sources: List<MediaSourceInfo>,
     activeSourceLabel: String,
     indexedItemCount: Int,
@@ -288,6 +292,7 @@ internal fun CloudRssPanel(
             autoScanEnabled = autoScanEnabled,
             mergeSameAnimeEnabled = mergeSameAnimeEnabled,
             posterWallArrangement = posterWallArrangement,
+            appVersionName = desktopVersionName,
             proxyEnabled = proxyEnabled,
             proxyHost = proxyHost,
             proxyPort = proxyPort,
@@ -469,9 +474,11 @@ internal fun CloudRssPanel(
             )
             MiruPlaySettingsSection.APP_UPDATE -> SettingsSummaryContent(
                 section = selectedSection,
-                tiles = emptyList(),
-                status = settingsAppUpdateIdleStatus(),
-                actions = emptyList(),
+                tiles = desktopAppUpdateSettingsTiles(desktopVersionName),
+                status = appUpdateStatus,
+                actions = listOf(
+                    SettingsQuickAction(settingsDesktopAppUpdateOpenReleaseActionLabel(), onOpenAppUpdateRelease),
+                ),
                 onFocusSectionMenu = { focusSelectedSectionMenu() },
                 modifier = Modifier.weight(1f),
             )
@@ -2053,6 +2060,7 @@ private fun SettingsSectionMenu(
     autoScanEnabled: Boolean,
     mergeSameAnimeEnabled: Boolean,
     posterWallArrangement: PosterWallArrangement,
+    appVersionName: String,
     proxyEnabled: Boolean,
     proxyHost: String,
     proxyPort: String,
@@ -2076,6 +2084,7 @@ private fun SettingsSectionMenu(
         autoScanEnabled = autoScanEnabled,
         mergeSameAnimeEnabled = mergeSameAnimeEnabled,
         posterWallArrangement = posterWallArrangement,
+        appVersionName = appVersionName,
         metadataSummary = metadataSummary,
     )
 

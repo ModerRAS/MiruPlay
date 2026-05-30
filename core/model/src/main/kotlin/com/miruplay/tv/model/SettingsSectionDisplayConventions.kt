@@ -52,7 +52,7 @@ enum class MiruPlaySettingsSection(
         androidTvTitle = "更新",
         androidTvDescription = "GitHub APK",
         desktopTitle = "更新",
-        desktopDescription = "GitHub APK",
+        desktopDescription = "GitHub Release",
     ),
     METADATA(
         androidTvTitle = "元数据",
@@ -91,7 +91,9 @@ val desktopSettingsSectionOrder: List<MiruPlaySettingsSection> =
         MiruPlaySettingsSection.PROXY,
         MiruPlaySettingsSection.SCAN,
         MiruPlaySettingsSection.LOG_UPLOAD,
+        MiruPlaySettingsSection.APP_UPDATE,
         MiruPlaySettingsSection.METADATA,
+        MiruPlaySettingsSection.ABOUT,
     )
 
 fun MiruPlaySettingsSection.stepInSettingsOrder(
@@ -350,6 +352,21 @@ fun settingsAppUpdateInstallPermissionGrantedStatus(): String =
 
 fun settingsAppUpdateInstallerOpenedStatus(): String =
     "已打开系统安装器。"
+
+fun settingsDesktopAppUpdatePanelDescription(): String =
+    "从 GitHub Release 获取最新 Windows 桌面包。"
+
+fun settingsDesktopAppUpdateStatusMessage(): String =
+    "Windows 版更新请从 GitHub Release 下载最新桌面 ZIP 或安装包。"
+
+fun settingsDesktopAppUpdateOpenReleaseActionLabel(): String =
+    "打开 Release"
+
+fun settingsDesktopAppUpdateReleaseOpenedStatus(): String =
+    "已打开 GitHub Release 页面。"
+
+fun settingsDesktopAppUpdateReleaseOpenFailedStatus(reason: String?): String =
+    "无法打开 GitHub Release 页面：${reason?.takeIf { it.isNotBlank() } ?: "当前系统不支持打开浏览器"}。"
 
 fun settingsAboutPanelTitleLabel(): String =
     "关于 MiruPlay"
@@ -870,6 +887,27 @@ fun logUploadSettingsTiles(): List<SettingsSummaryTile> =
             label = "凭据",
             value = "安全存储",
             detail = "令牌只保存配置状态，清理后会停止上报。",
+        ),
+    )
+
+fun desktopAppUpdateSettingsTiles(
+    versionName: String,
+): List<SettingsSummaryTile> =
+    listOf(
+        SettingsSummaryTile(
+            label = settingsAboutVersionNameLabel(),
+            value = settingsVersionNameValue(versionName),
+            detail = settingsDesktopAppUpdatePanelDescription(),
+        ),
+        SettingsSummaryTile(
+            label = "Release",
+            value = settingsAppUpdateMenuSummary(),
+            detail = "Windows 版发行包随 nightly 和正式 Release 一起发布。",
+        ),
+        SettingsSummaryTile(
+            label = "安装包",
+            value = "ZIP / EXE",
+            detail = "桌面版使用 Windows 包，不走 Android APK 安装流程。",
         ),
     )
 

@@ -14,6 +14,7 @@ import com.miruplay.tv.model.cloudDriveCredentialsClearedStatus
 import com.miruplay.tv.model.cloudDriveCredentialsSavedStatus
 import com.miruplay.tv.model.cloudDriveLoginStartedStatus
 import com.miruplay.tv.model.cloudDriveLoginSucceededStatus
+import com.miruplay.tv.model.cloudDriveTokenLoginRequiredStatus
 import com.miruplay.tv.model.cloudDriveTokenValidationStartedStatus
 import com.miruplay.tv.model.cloudDriveTokenVerifiedStatus
 import com.miruplay.tv.model.cloudRssConfigSavedStatus
@@ -225,6 +226,80 @@ class CloudDriveRssActionCoordinator(
                 result
             }
         }
+    }
+
+    suspend fun saveConfigAndRunCloudDriveOnceWithCallbacks(
+        endpointUrl: String,
+        username: String,
+        password: String,
+        webDavSourceId: Long?,
+        inboxPath: String,
+        libraryPath: String,
+        libraryMode: CloudDriveLibraryMode? = null,
+        intervalMinutes: Int,
+        enabled: Boolean,
+        rssProxyEnabled: Boolean = false,
+        rssProxyHost: String = "",
+        rssProxyPort: Int = 1080,
+        onConfigSaved: suspend (CloudDriveConfigActionResult.Saved) -> Unit = {},
+        onStarted: (String) -> Unit = {},
+        onCompleted: suspend (CloudDriveRunActionResult.Completed) -> Unit = {},
+        onFailed: suspend (CloudDriveRunActionResult.Failed) -> Unit = {},
+    ): CloudDriveRunActionResult {
+        when (
+            val saved = saveConfig(
+                endpointUrl = endpointUrl,
+                username = username,
+                webDavSourceId = webDavSourceId,
+                inboxPath = inboxPath,
+                libraryPath = libraryPath,
+                libraryMode = libraryMode,
+                intervalMinutes = intervalMinutes,
+                enabled = enabled,
+                rssProxyEnabled = rssProxyEnabled,
+                rssProxyHost = rssProxyHost,
+                rssProxyPort = rssProxyPort,
+            )
+        ) {
+            is CloudDriveConfigActionResult.Saved -> onConfigSaved(saved)
+            is CloudDriveConfigActionResult.Failed -> {
+                val failed = CloudDriveRunActionResult.Failed(saved.status)
+                onFailed(failed)
+                return failed
+            }
+        }
+
+        val loggedInForThisRun = password.isNotBlank()
+        if (loggedInForThisRun) {
+            when (val login = loginCloudDrive(endpointUrl, username, password)) {
+                is CloudDriveActionResult.Success -> Unit
+                is CloudDriveActionResult.Invalid -> {
+                    val failed = CloudDriveRunActionResult.Failed(login.status)
+                    onFailed(failed)
+                    return failed
+                }
+                is CloudDriveActionResult.Failed -> {
+                    val failed = CloudDriveRunActionResult.Failed(login.status)
+                    onFailed(failed)
+                    return failed
+                }
+            }
+        }
+
+        if (!loggedInForThisRun &&
+            credentials.cloudDriveToken.isNullOrBlank() &&
+            credentials.cloudDrivePassword.isNullOrBlank()
+        ) {
+            val failed = CloudDriveRunActionResult.Failed(cloudDriveTokenLoginRequiredStatus())
+            onFailed(failed)
+            return failed
+        }
+
+        return runCloudDriveOnceWithCallbacks(
+            onStarted = onStarted,
+            onCompleted = onCompleted,
+            onFailed = onFailed,
+        )
     }
 
     suspend fun saveSubscription(subscription: RssSubscriptionInfo): Result<Long> =
