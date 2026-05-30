@@ -46,6 +46,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -355,12 +356,14 @@ private fun BangumiManualMatchDialog(
     onApply: () -> Unit,
 ) {
     val busy = state.isSearching || state.isApplying
+    val dialogMaxHeight = (LocalConfiguration.current.screenHeightDp.dp * 0.9f).coerceAtLeast(420.dp)
 
     Dialog(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
                 .fillMaxWidth(0.9f)
                 .widthIn(max = 840.dp)
+                .heightIn(max = dialogMaxHeight)
                 .clip(RoundedCornerShape(8.dp))
                 .background(DarkSurface)
                 .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(8.dp))
@@ -391,24 +394,28 @@ private fun BangumiManualMatchDialog(
                 )
             }
 
-            Text(
-                text = detailBangumiCandidateTermsSectionTitle(),
-                style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
-                color = TextPrimary
-            )
-            if (state.candidateTerms.isEmpty()) {
-                Text(
-                    text = detailBangumiManualSearchRequiredMessage(),
-                    style = TvTypography.body,
-                    color = TextSecondary
-                )
-            } else {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 220.dp)
-                ) {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f, fill = false)
+            ) {
+                item(key = "candidate-title") {
+                    Text(
+                        text = detailBangumiCandidateTermsSectionTitle(),
+                        style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
+                        color = TextPrimary
+                    )
+                }
+                if (state.candidateTerms.isEmpty()) {
+                    item(key = "candidate-empty") {
+                        Text(
+                            text = detailBangumiManualSearchRequiredMessage(),
+                            style = TvTypography.body,
+                            color = TextSecondary
+                        )
+                    }
+                } else {
                     items(state.candidateTerms, key = { it }) { candidate ->
                         ManualCandidateChip(
                             text = candidate,
@@ -419,40 +426,45 @@ private fun BangumiManualMatchDialog(
                         )
                     }
                 }
-            }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Bottom) {
-                TvTextField(
-                    value = state.query,
-                    onValueChange = onQueryChange,
-                    label = metadataQueryFieldLabel(),
-                    modifier = Modifier.weight(1f)
-                )
-                TvButton(
-                    text = metadataSearchActionLabel(),
-                    icon = Icons.Filled.Search,
-                    enabled = !busy && (state.query.isNotBlank() || state.selectedCandidateTerms.isNotEmpty()),
-                    onClick = onSearch,
-                    modifier = Modifier.width(150.dp)
-                )
-            }
+                item(key = "query-row") {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.Bottom,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        TvTextField(
+                            value = state.query,
+                            onValueChange = onQueryChange,
+                            label = metadataQueryFieldLabel(),
+                            modifier = Modifier.weight(1f)
+                        )
+                        TvButton(
+                            text = metadataSearchActionLabel(),
+                            icon = Icons.Filled.Search,
+                            enabled = !busy && (state.query.isNotBlank() || state.selectedCandidateTerms.isNotEmpty()),
+                            onClick = onSearch,
+                            modifier = Modifier.width(150.dp)
+                        )
+                    }
+                }
 
-            Text(
-                text = metadataSearchResultsPageLabel(),
-                style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
-                color = TextPrimary
-            )
-            if (state.results.isEmpty()) {
-                Text(
-                    text = metadataEmptyResultsMessage(),
-                    style = TvTypography.body,
-                    color = TextSecondary
-                )
-            } else {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.heightIn(max = 310.dp)
-                ) {
+                item(key = "results-title") {
+                    Text(
+                        text = metadataSearchResultsPageLabel(),
+                        style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
+                        color = TextPrimary
+                    )
+                }
+                if (state.results.isEmpty()) {
+                    item(key = "results-empty") {
+                        Text(
+                            text = metadataEmptyResultsMessage(),
+                            style = TvTypography.body,
+                            color = TextSecondary
+                        )
+                    }
+                } else {
                     items(state.results, key = { "${it.source.name}:${it.animeId}" }) { result ->
                         ManualResultItem(
                             result = result,
@@ -463,23 +475,25 @@ private fun BangumiManualMatchDialog(
                         )
                     }
                 }
-            }
 
-            if (!state.statusMessage.isNullOrBlank()) {
-                Text(
-                    text = state.statusMessage,
-                    style = TvTypography.body,
-                    color = if (state.statusMessage.contains("找到") ||
-                        state.statusMessage.contains("已选择") ||
-                        state.statusMessage.contains("已更新")
-                    ) {
-                        ProgressGreen
-                    } else {
-                        WarningYellow
-                    },
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
+                if (!state.statusMessage.isNullOrBlank()) {
+                    item(key = "status-message") {
+                        Text(
+                            text = state.statusMessage,
+                            style = TvTypography.body,
+                            color = if (state.statusMessage.contains("找到") ||
+                                state.statusMessage.contains("已选择") ||
+                                state.statusMessage.contains("已更新")
+                            ) {
+                                ProgressGreen
+                            } else {
+                                WarningYellow
+                            },
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
