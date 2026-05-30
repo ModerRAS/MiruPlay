@@ -241,14 +241,40 @@ jobs:
           path: app/build/outputs/apk/release/*-release.apk
           retention-days: 30
 
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          VERSION_NAME="${{ steps.version.outputs.version_name }}"
+          TAG_NAME="${{ steps.version.outputs.tag_name }}"
+
+          # 取 tag 前缀（去掉最后一段数字），找上一个 release
+          TAG_PREFIX=$(echo "$TAG_NAME" | sed 's/\.[0-9]*$//')
+          PREV_TAG=$(git tag --list "${TAG_PREFIX}.*" --sort=-version:refname | head -1)
+
+          if [ -n "$PREV_TAG" ] && [ "$PREV_TAG" != "$TAG_NAME" ]; then
+            CHANGES=$(git log "$PREV_TAG"..HEAD --oneline --no-decorate)
+          else
+            CHANGES=$(git log --oneline --no-decorate -20)
+          fi
+
+          {
+            echo "## v$VERSION_NAME"
+            echo ""
+            echo "### Changes"
+            echo ""
+            echo "$CHANGES"
+          } > release-notes.md
+
+          echo "Release notes:"
+          cat release-notes.md
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag_name }}
           target_commitish: ${{ github.sha }}
           name: v${{ steps.version.outputs.version_name }}
-          body: |
-            自动构建 Release v${{ steps.version.outputs.version_name }}
+          body_path: release-notes.md
           files: app/build/outputs/apk/release/*-release.apk
           fail_on_unmatched_files: true
           prerelease: false
