@@ -22,7 +22,6 @@ class MetadataRepositoryImpl @Inject constructor(
 ) : MetadataRepository {
 
     companion object {
-        private const val CACHE_DURATION_MS = 24 * 60 * 60 * 1000L  // 24 hours
         private const val SQLITE_BIND_PARAMETER_BATCH_SIZE = 900
     }
 
@@ -38,12 +37,18 @@ class MetadataRepositoryImpl @Inject constructor(
     override suspend fun getCachedMetadata(animeId: String): Result<Anime?> = withContext(Dispatchers.IO) {
         try {
             val entity = animeDao.getById(animeId) ?: return@withContext Result.success(null)
-            // Check if cache is expired
-            if (System.currentTimeMillis() - entity.lastUpdated > CACHE_DURATION_MS) {
-                return@withContext Result.success(null)
-            }
             // Return cached data with current episode count
             val episodes = episodeDao.getByAnimeId(animeId)
+            Result.success(entity.toDomain(episodes))
+        } catch (e: Exception) {
+            Result.success(null)
+        }
+    }
+
+    override suspend fun getCachedMetadataByBangumiId(bangumiId: Int): Result<Anime?> = withContext(Dispatchers.IO) {
+        try {
+            val entity = animeDao.getByBangumiId(bangumiId.toString()) ?: return@withContext Result.success(null)
+            val episodes = episodeDao.getByAnimeId(entity.id)
             Result.success(entity.toDomain(episodes))
         } catch (e: Exception) {
             Result.success(null)
@@ -57,10 +62,8 @@ class MetadataRepositoryImpl @Inject constructor(
                 return@withContext Result.success(emptyList())
             }
 
-            val now = System.currentTimeMillis()
             val entities = ids.chunked(SQLITE_BIND_PARAMETER_BATCH_SIZE)
                 .flatMap { batch -> animeDao.getByIds(batch) }
-                .filter { now - it.lastUpdated <= CACHE_DURATION_MS }
             val episodesByAnime = entities.map { it.id }
                 .chunked(SQLITE_BIND_PARAMETER_BATCH_SIZE)
                 .flatMap { batch -> episodeDao.getByAnimeIds(batch) }

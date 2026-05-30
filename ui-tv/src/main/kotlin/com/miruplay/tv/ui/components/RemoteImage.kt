@@ -15,7 +15,6 @@ import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -50,33 +49,45 @@ private object RemoteImageCache {
     private val loadSemaphore = Semaphore(MAX_PARALLEL_IMAGE_LOADS)
     private val loggedFailureKeys = Collections.synchronizedSet(mutableSetOf<String>())
 
-    fun get(url: String): ImageBitmap? = cache.get(url)
+    fun get(localPath: String?, url: String?): ImageBitmap? =
+        localPath?.takeIf { it.isNotBlank() }?.let { cache.get(localCacheKey(it)) }
+            ?: url?.takeIf { it.isNotBlank() }?.let { cache.get(remoteCacheKey(it)) }
 
-    private fun put(url: String, bitmap: ImageBitmap) {
-        cache.put(url, bitmap)
-        loggedFailureKeys.remove(cacheKey(url))
+    private fun put(key: String, bitmap: ImageBitmap) {
+        cache.put(key, bitmap)
     }
 
-    suspend fun load(context: Context, url: String): ImageBitmap? = loadSemaphore.withPermit {
+    suspend fun load(context: Context, localPath: String?, url: String?): ImageBitmap? = loadSemaphore.withPermit {
         withContext(Dispatchers.IO) {
-            loadBlocking(context, url)
+            loadBlocking(context, localPath, url)
         }
     }
 
-    private fun loadBlocking(context: Context, url: String): ImageBitmap? {
-        get(url)?.let { return it }
+    private fun loadBlocking(context: Context, localPath: String?, url: String?): ImageBitmap? {
+        get(localPath, url)?.let { return it }
 
-        val file = cacheFile(context, url)
+        localPath?.takeIf { it.isNotBlank() }?.let { path ->
+            val key = localCacheKey(path)
+            decode(File(path))?.let { bitmap ->
+                put(key, bitmap)
+                return bitmap
+            }
+        }
+
+        val remoteUrl = url?.takeIf { it.isNotBlank() } ?: return null
+        val remoteKey = remoteCacheKey(remoteUrl)
+
+        val file = cacheFile(context, remoteUrl)
         decode(file)?.let { bitmap ->
-            put(url, bitmap)
+            put(remoteKey, bitmap)
             return bitmap
         }
 
-        val key = cacheKey(url)
+        val failureKey = cacheKey(remoteUrl)
         return runCatching {
             file.parentFile?.mkdirs()
             val temp = File.createTempFile(file.name, ".tmp", file.parentFile)
-            val connection = URL(url).openConnection().apply {
+            val connection = URL(remoteUrl).openConnection().apply {
                 connectTimeout = 10_000
                 readTimeout = 20_000
             }
@@ -100,15 +111,18 @@ private object RemoteImageCache {
             }
             decode(file)
         }.onFailure { error ->
-            if (loggedFailureKeys.add(key)) {
+            if (loggedFailureKeys.add(failureKey)) {
                 MiruLog.w(
                     "RemoteImage",
                     "Remote image load failed",
                     error,
-                    attributes = mapOf("url_hash" to key)
+                    attributes = mapOf("url_hash" to failureKey)
                 )
             }
-        }.getOrNull()?.also { put(url, it) }
+        }.getOrNull()?.also {
+            put(remoteKey, it)
+            loggedFailureKeys.remove(failureKey)
+        }
     }
 
     private fun decode(file: File): ImageBitmap? {
@@ -136,6 +150,10 @@ private object RemoteImageCache {
         return File(File(context.cacheDir, "miruplay_image_cache"), cacheKey(url))
     }
 
+    private fun localCacheKey(path: String): String = "local:$path"
+
+    private fun remoteCacheKey(url: String): String = "remote:$url"
+
     private fun cacheKey(url: String): String {
         return MessageDigest.getInstance("SHA-256")
             .digest(url.toByteArray(Charsets.UTF_8))
@@ -147,14 +165,18 @@ private object RemoteImageCache {
 fun RemoteImage(
     url: String?,
     contentDescription: String?,
+    localPath: String? = null,
     modifier: Modifier = Modifier,
     contentScale: ContentScale = ContentScale.Crop,
     placeholder: @Composable () -> Unit = { ImagePlaceholder() }
 ) {
     val context = LocalContext.current.applicationContext
-    val bitmapState = produceState<ImageBitmap?>(initialValue = null, key1 = url) {
-        val target = url?.takeIf { it.isNotBlank() } ?: return@produceState
-        value = RemoteImageCache.get(target) ?: RemoteImageCache.load(context, target)
+    val bitmapState = produceState<ImageBitmap?>(initialValue = null, key1 = localPath, key2 = url) {
+        val localTarget = localPath?.takeIf { it.isNotBlank() }
+        val remoteTarget = url?.takeIf { it.isNotBlank() }
+        if (localTarget == null && remoteTarget == null) return@produceState
+        value = RemoteImageCache.get(localTarget, remoteTarget)
+            ?: RemoteImageCache.load(context, localTarget, remoteTarget)
     }
 
     val bitmap = bitmapState.value

@@ -82,6 +82,7 @@ fun AnimePosterCard(
         RemoteImage(
             url = anime.posterUrl,
             contentDescription = anime.displayTitle(),
+            localPath = anime.posterLocalPath,
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize()
         )
@@ -149,6 +150,8 @@ fun FeatureAnimeCard(
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
     val scale by animateFloatAsState(if (isFocused) 1.03f else 1f, label = "featureScale")
+    val backdropUrl = anime.fanartUrl ?: anime.posterUrl
+    val backdropLocalPath = if (anime.fanartUrl.isNullOrBlank()) anime.posterLocalPath else null
 
     Box(
         modifier = modifier
@@ -168,8 +171,9 @@ fun FeatureAnimeCard(
             )
     ) {
         RemoteImage(
-            url = anime.fanartUrl ?: anime.posterUrl,
+            url = backdropUrl,
             contentDescription = anime.displayTitle(),
+            localPath = backdropLocalPath,
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop
         )
@@ -191,6 +195,7 @@ fun FeatureAnimeCard(
             RemoteImage(
                 url = anime.posterUrl,
                 contentDescription = anime.displayTitle(),
+                localPath = anime.posterLocalPath,
                 modifier = Modifier
                     .width(118.dp)
                     .height(170.dp)
