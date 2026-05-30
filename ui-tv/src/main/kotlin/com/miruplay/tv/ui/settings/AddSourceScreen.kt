@@ -2906,24 +2906,30 @@ private fun AppUpdatePanel(
         )
 
         Spacer(Modifier.height(14.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
             TvButton(
                 text = settingsAppUpdateCheckActionLabel(),
                 icon = Icons.Filled.Refresh,
                 enabled = !state.isBusy,
-                onClick = onCheck
+                onClick = onCheck,
+                modifier = Modifier.fillMaxWidth()
             )
             TvButton(
                 text = settingsAppUpdateInstallActionLabel(),
                 icon = Icons.Filled.Save,
                 enabled = !state.isBusy && state.latest != null,
-                onClick = onDownloadAndInstall
+                onClick = onDownloadAndInstall,
+                modifier = Modifier.fillMaxWidth()
             )
             TvButton(
                 text = settingsAppUpdatePermissionActionLabel(),
                 icon = Icons.Filled.Key,
                 enabled = !state.isBusy,
-                onClick = onOpenInstallPermission
+                onClick = onOpenInstallPermission,
+                modifier = Modifier.fillMaxWidth()
             )
         }
 
