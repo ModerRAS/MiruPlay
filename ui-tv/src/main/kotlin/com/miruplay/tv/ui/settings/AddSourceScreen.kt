@@ -5,7 +5,6 @@ import android.provider.DocumentsContract
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -242,6 +241,7 @@ import com.miruplay.tv.model.tvSourceHint
 import com.miruplay.tv.ui.components.OverscanContainer
 import com.miruplay.tv.ui.components.TvButton
 import com.miruplay.tv.ui.components.TvTextField
+import com.miruplay.tv.ui.components.tvFocusableClickable
 import com.miruplay.tv.ui.components.toMiruPlayInputIntent
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryBrowserState
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryTarget
@@ -905,9 +905,8 @@ private fun SettingsMenuItem(
             .onFocusChanged { state ->
                 if (state.isFocused) onClick()
             }
-            .clickable(
+            .tvFocusableClickable(
                 interactionSource = interactionSource,
-                indication = null,
                 onClick = onClick
             )
             .padding(horizontal = 14.dp),
@@ -1444,9 +1443,8 @@ private fun SourceListItem(
                 color = borderColor,
                 shape = RoundedCornerShape(8.dp)
             )
-            .clickable(
+            .tvFocusableClickable(
                 interactionSource = interactionSource,
-                indication = null,
                 onClick = onSelect
             )
             .padding(14.dp),
@@ -1510,9 +1508,8 @@ private fun SourceDeleteButton(
                 color = if (isFocused) FocusBorder else Color.White.copy(alpha = 0.18f),
                 shape = RoundedCornerShape(8.dp)
             )
-            .clickable(
+            .tvFocusableClickable(
                 interactionSource = interactionSource,
-                indication = null,
                 onClick = onClick
             ),
         contentAlignment = Alignment.Center
@@ -1677,9 +1674,8 @@ private fun WebUiMenuItem(
             .clip(RoundedCornerShape(8.dp))
             .background(background)
             .border(if (selected || isFocused) 2.dp else 1.dp, borderColor, RoundedCornerShape(8.dp))
-            .clickable(
+            .tvFocusableClickable(
                 interactionSource = interactionSource,
-                indication = null,
                 onClick = onClick
             )
             .padding(horizontal = 14.dp),
@@ -2633,9 +2629,8 @@ private fun SourceTypeChip(
             .clip(RoundedCornerShape(8.dp))
             .background(if (selected) AnimeRed.copy(alpha = 0.18f) else DarkSurface)
             .border(if (selected || isFocused) 2.dp else 1.dp, borderColor, RoundedCornerShape(8.dp))
-            .clickable(
+            .tvFocusableClickable(
                 interactionSource = interactionSource,
-                indication = null,
                 onClick = onClick
             )
             .padding(horizontal = 10.dp),
@@ -2857,9 +2852,8 @@ private fun ScanOptionChip(
             .clip(RoundedCornerShape(8.dp))
             .background(background)
             .border(if (selected || isFocused) 2.dp else 1.dp, borderColor, RoundedCornerShape(8.dp))
-            .clickable(
+            .tvFocusableClickable(
                 interactionSource = interactionSource,
-                indication = null,
                 enabled = enabled,
                 onClick = onClick
             )
