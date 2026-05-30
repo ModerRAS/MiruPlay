@@ -11,6 +11,7 @@ import com.miruplay.tv.model.NfoMetadata
 import com.miruplay.tv.model.TvShowNfoMetadata
 import com.miruplay.tv.model.VideoFilenameInference
 import com.miruplay.tv.model.VideoFilenameMetadata
+import com.miruplay.tv.model.sanitizeRecognizedText
 import com.miruplay.tv.repository.MediaIndexEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -161,7 +162,7 @@ class DesktopMediaLibraryScanner(
     private fun parseWithModel(parser: FilenameMetadataParser, text: String): FilenameParseResult? {
         val trimmed = text.trim()
         if (trimmed.isBlank()) return null
-        return runCatching { parser.parse(trimmed, maxModelTextLength) }.getOrNull()
+        return runCatching { parser.parse(trimmed, maxModelTextLength).sanitizeRecognizedText() }.getOrNull()
     }
 
     private fun pathSegments(path: String): List<String> =

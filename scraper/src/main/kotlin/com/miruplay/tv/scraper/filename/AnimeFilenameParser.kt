@@ -7,6 +7,7 @@ import ai.onnxruntime.OrtSession
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.miruplay.tv.model.FilenameMetadataParser
 import com.miruplay.tv.model.FilenameParseResult
+import com.miruplay.tv.model.sanitizeRecognizedText
 import java.nio.LongBuffer
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -204,7 +205,7 @@ class AnimeFilenameParser @Inject constructor(
             resolution = resolution,
             source = chooseThinSource(sourceCandidates),
             special = special,
-        )
+        ).sanitizeRecognizedText()
     }
 
     private fun extractNumber(text: String): Int? {
@@ -244,7 +245,7 @@ class AnimeFilenameParser @Inject constructor(
         trim().trim('[', ']', '(', ')', '【', '】', '《', '》', '（', '）')
 
     private fun String.normalizeFieldText(): String =
-        trimDecorations().trim(' ', '\t', '-', '_', '.')
+        trimDecorations().trim(' ', '\t', '-', '_', '.', '/', '\\')
 
     private fun chooseThinSource(sources: List<String>): String? {
         val cleaned = sources

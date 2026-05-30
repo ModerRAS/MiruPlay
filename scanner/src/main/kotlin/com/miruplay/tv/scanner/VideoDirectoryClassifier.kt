@@ -2,6 +2,7 @@ package com.miruplay.tv.scanner
 
 import com.miruplay.tv.model.FilenameMetadataParser
 import com.miruplay.tv.model.FilenameParseResult
+import com.miruplay.tv.model.sanitizeRecognizedText
 
 /**
  * Classifies video paths into a stable show id/title, season number, and episode number.
@@ -194,7 +195,7 @@ class VideoDirectoryClassifier(
         val normalized = text.trim()
         if (normalized.isBlank()) return null
         return parsedTextCache.getOrPut(normalized) {
-            runCatching { parser.parse(normalized, maxParsedTextLength) }.getOrNull()
+            runCatching { parser.parse(normalized, maxParsedTextLength).sanitizeRecognizedText() }.getOrNull()
         }
     }
 

@@ -197,6 +197,8 @@ class VideoDirectoryClassifierTest {
         assertEquals("葬送的芙莉莲", result.animeName)
         assertEquals(2, result.seasonNumber)
         assertEquals(3, result.episodeNumber)
+        assertNull(result.diagnostics.pathParsed?.title)
+        assertTrue(result.titleCandidates.none { it.startsWith("/") || it.contains("sdcard") })
     }
 
     @Test
