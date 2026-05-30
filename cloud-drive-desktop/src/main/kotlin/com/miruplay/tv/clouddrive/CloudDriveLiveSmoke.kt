@@ -76,16 +76,18 @@ fun parseCloudDriveLiveSmokeOptions(args: Array<String>): CloudDriveLiveSmokeOpt
     )
 }
 
-fun main(args: Array<String>) = runBlocking {
-    val options = parseCloudDriveLiveSmokeOptions(args)
-    when (val result = runCloudDriveLiveSmoke(options)) {
-        is Result.Success -> {
-            printCloudDriveLiveSmokeReport(result.data)
-            options.reportPath?.let { reportPath ->
-                writeCloudDriveLiveSmokeReport(reportPath, result.data)
+fun main(args: Array<String>) {
+    runBlocking {
+        val options = parseCloudDriveLiveSmokeOptions(args)
+        when (val result = runCloudDriveLiveSmoke(options)) {
+            is Result.Success -> {
+                printCloudDriveLiveSmokeReport(result.data)
+                options.reportPath?.let { reportPath ->
+                    writeCloudDriveLiveSmokeReport(reportPath, result.data)
+                }
             }
+            is Result.Error -> error("CloudDrive2 live smoke failed: ${result.error.toUserMessage()}")
         }
-        is Result.Error -> error("CloudDrive2 live smoke failed: ${result.error.toUserMessage()}")
     }
 }
 

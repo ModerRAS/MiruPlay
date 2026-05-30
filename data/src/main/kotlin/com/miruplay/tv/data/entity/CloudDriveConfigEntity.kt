@@ -3,11 +3,12 @@ package com.miruplay.tv.data.entity
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import com.miruplay.tv.model.DEFAULT_CLOUD_DRIVE_ENDPOINT_URL
 
 @Entity(tableName = "cloud_drive_config")
 data class CloudDriveConfigEntity(
     @PrimaryKey val id: Int = 1,
-    @ColumnInfo(name = "endpoint_url") val endpointUrl: String = "",
+    @ColumnInfo(name = "endpoint_url") val endpointUrl: String = DEFAULT_CLOUD_DRIVE_ENDPOINT_URL,
     @ColumnInfo(name = "username") val username: String = "",
     @ColumnInfo(name = "webdav_source_id") val webDavSourceId: Long? = null,
     @ColumnInfo(name = "inbox_path") val inboxPath: String = "",

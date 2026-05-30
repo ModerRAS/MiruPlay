@@ -84,9 +84,10 @@ class CloudDriveRssAutomationCore(
         feedFetcher.configureProxy(config.rssProxyEnabled, config.rssProxyHost, config.rssProxyPort)
         submissionPreparer.configureProxy(config.rssProxyEnabled, config.rssProxyHost, config.rssProxyPort)
 
-        val token = credentials.cloudDriveToken
-            ?: return@withContext Result.failure(AppError.MediaSourceError.AuthenticationFailed("CloudDrive2"))
-        val endpoint = CloudDriveEndpoint(config.endpointUrl, token)
+        var endpoint = when (val endpointResult = resolveAuthenticatedEndpoint(config)) {
+            is Result.Success -> endpointResult.data
+            is Result.Error -> return@withContext endpointResult
+        }
         val subscriptions = when (val subscriptionResult = repository.listEnabledSubscriptions()) {
             is Result.Error -> return@withContext subscriptionResult
             is Result.Success -> subscriptionResult.data
@@ -142,10 +143,12 @@ class CloudDriveRssAutomationCore(
 
                 val now = System.currentTimeMillis()
                 when (
-                    val submittedToCloudDrive = cloudDriveClient.addOfflineFiles(
-                        endpoint,
-                        listOf((preparedSubmission as Result.Success).data.submissionUrl),
-                        inboxPath
+                    val submittedToCloudDrive = submitOfflineFilesWithRelogin(
+                        config = config,
+                        currentEndpoint = endpoint,
+                        urls = listOf((preparedSubmission as Result.Success).data.submissionUrl),
+                        targetFolder = inboxPath,
+                        onEndpointRefreshed = { endpoint = it },
                     )
                 ) {
                     is Result.Error -> {
@@ -230,5 +233,55 @@ class CloudDriveRssAutomationCore(
             return Result.success(null)
         }
         return runOnce().map { it }
+    }
+
+    private suspend fun resolveAuthenticatedEndpoint(config: CloudDriveAutomationConfig): Result<CloudDriveEndpoint> {
+        val token = credentials.cloudDriveToken?.trim()?.takeIf { it.isNotBlank() }
+        if (token != null) {
+            return Result.success(CloudDriveEndpoint(config.endpointUrl, token))
+        }
+        return loginWithSavedCredentials(config)
+    }
+
+    private suspend fun submitOfflineFilesWithRelogin(
+        config: CloudDriveAutomationConfig,
+        currentEndpoint: CloudDriveEndpoint,
+        urls: List<String>,
+        targetFolder: String,
+        onEndpointRefreshed: (CloudDriveEndpoint) -> Unit,
+    ): Result<Unit> {
+        val first = cloudDriveClient.addOfflineFiles(currentEndpoint, urls, targetFolder)
+        if (first !is Result.Error || !first.error.isCloudDriveAuthenticationFailure()) return first
+
+        val refreshed = when (val relogin = loginWithSavedCredentials(config)) {
+            is Result.Success -> relogin.data
+            is Result.Error -> return relogin
+        }
+        onEndpointRefreshed(refreshed)
+        return cloudDriveClient.addOfflineFiles(refreshed, urls, targetFolder)
+    }
+
+    private suspend fun loginWithSavedCredentials(config: CloudDriveAutomationConfig): Result<CloudDriveEndpoint> {
+        val username = config.username.trim()
+        val password = credentials.cloudDrivePassword?.takeIf { it.isNotBlank() }
+        if (username.isBlank() || password.isNullOrBlank()) {
+            return Result.failure(AppError.MediaSourceError.AuthenticationFailed("CloudDrive2"))
+        }
+        return cloudDriveClient.login(config.endpointUrl, username, password).map { login ->
+            credentials.cloudDriveToken = login.token
+            CloudDriveEndpoint(config.endpointUrl, login.token)
+        }
+    }
+
+    private fun AppError.isCloudDriveAuthenticationFailure(): Boolean {
+        val detail = when (this) {
+            is AppError.MediaSourceError.AuthenticationFailed -> return true
+            is AppError.NetworkError.ServerUnreachable -> url
+            is AppError.SyncError.WriteFailed -> cause
+            else -> toUserMessage()
+        }
+        return detail.contains("UNAUTHENTICATED", ignoreCase = true) ||
+            detail.contains("Invalid auth token", ignoreCase = true) ||
+            detail.contains("认证失败", ignoreCase = true)
     }
 }

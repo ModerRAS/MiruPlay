@@ -8,9 +8,11 @@ enum class CloudDriveLibraryMode {
     SINGLE_DIRECTORY
 }
 
+const val DEFAULT_CLOUD_DRIVE_ENDPOINT_URL = "http://localhost:19798"
+
 @Serializable
 data class CloudDriveAutomationConfig(
-    val endpointUrl: String = "",
+    val endpointUrl: String = DEFAULT_CLOUD_DRIVE_ENDPOINT_URL,
     val username: String = "",
     val webDavSourceId: Long? = null,
     val inboxPath: String = "",

@@ -9,6 +9,7 @@ import com.miruplay.tv.data.entity.RssProcessedItemEntity
 import com.miruplay.tv.data.entity.RssSubscriptionEntity
 import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.CloudDriveLibraryMode
+import com.miruplay.tv.model.DEFAULT_CLOUD_DRIVE_ENDPOINT_URL
 import com.miruplay.tv.model.RssDownloadTaskInfo
 import com.miruplay.tv.model.RssProcessedItemInfo
 import com.miruplay.tv.model.RssSubscriptionInfo
@@ -86,7 +87,7 @@ class CloudDriveAutomationRepositoryImpl @Inject constructor(
 
 private fun CloudDriveConfigEntity.toDomain(): CloudDriveAutomationConfig =
     CloudDriveAutomationConfig(
-        endpointUrl = endpointUrl,
+        endpointUrl = endpointUrl.ifBlank { DEFAULT_CLOUD_DRIVE_ENDPOINT_URL },
         username = username,
         webDavSourceId = webDavSourceId,
         inboxPath = inboxPath,

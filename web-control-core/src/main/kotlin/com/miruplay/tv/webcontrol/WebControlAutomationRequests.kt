@@ -84,6 +84,7 @@ suspend fun CloudDriveAutomationRepository.getWebControlCloudDriveAutomation(
     return config.toWebControlAutomationDto(
         subscriptions = observeSubscriptions().first(),
         tokenConfigured = !credentials.cloudDriveToken.isNullOrBlank(),
+        passwordConfigured = !credentials.cloudDrivePassword.isNullOrBlank(),
     )
 }
 
@@ -193,11 +194,13 @@ suspend fun CloudDriveRssActionCoordinator.runWebControlCloudDriveAutomationNow(
 fun CloudDriveAutomationConfig.toWebControlAutomationDto(
     subscriptions: List<RssSubscriptionInfo>,
     tokenConfigured: Boolean,
+    passwordConfigured: Boolean = false,
 ): CloudDriveAutomationDto =
     CloudDriveAutomationDto(
         config = this,
         subscriptions = subscriptions,
         tokenConfigured = tokenConfigured,
+        passwordConfigured = passwordConfigured,
     )
 
 fun CloudDriveTokenInfo.toWebControlResponse(): CloudDriveTokenResponse =

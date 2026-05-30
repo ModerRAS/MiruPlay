@@ -1,5 +1,7 @@
 package com.miruplay.tv.model
 
+import java.net.URI
+
 const val DEFAULT_CLOUD_DRIVE_INTERVAL_MINUTES = 30
 const val MIN_CLOUD_DRIVE_INTERVAL_MINUTES = 15
 const val DEFAULT_RSS_PROXY_PORT = 1080
@@ -137,6 +139,9 @@ fun validateCloudDriveLoginForm(
     if (endpoint.isBlank() || user.isBlank() || password.isBlank()) {
         return CloudDriveLoginFormResult.Invalid(cloudDriveLoginRequiredStatus())
     }
+    validateCloudDriveEndpoint(endpoint)?.let { status ->
+        return CloudDriveLoginFormResult.Invalid(status)
+    }
     return CloudDriveLoginFormResult.Ready(
         CloudDriveLoginFormRequest(
             endpointUrl = endpoint,
@@ -153,9 +158,11 @@ fun validateCloudDriveApiTokenForm(
 ): CloudDriveApiTokenFormResult {
     val endpoint = endpointUrl.trim()
     val apiToken = token.trim()
+    val invalidEndpointStatus = validateCloudDriveEndpoint(endpoint)
     return when {
         endpoint.isBlank() && apiToken.isBlank() -> CloudDriveApiTokenFormResult.Invalid(cloudDriveTokenRequiredStatus())
         endpoint.isBlank() -> CloudDriveApiTokenFormResult.Invalid(cloudDriveEndpointRequiredStatus())
+        invalidEndpointStatus != null -> CloudDriveApiTokenFormResult.Invalid(invalidEndpointStatus)
         apiToken.isBlank() -> CloudDriveApiTokenFormResult.Invalid(blankTokenStatus)
         else -> CloudDriveApiTokenFormResult.Ready(
             CloudDriveApiTokenFormRequest(
@@ -175,6 +182,9 @@ fun validateCloudDriveDirectoryPickerForm(
     if (endpoint.isBlank()) {
         return CloudDriveDirectoryPickerFormResult.Invalid(cloudDriveEndpointRequiredStatus())
     }
+    validateCloudDriveEndpoint(endpoint)?.let { status ->
+        return CloudDriveDirectoryPickerFormResult.Invalid(status)
+    }
     val token = tokenInput.trim().ifBlank { savedToken.orEmpty() }.trim()
     if (token.isBlank()) {
         return CloudDriveDirectoryPickerFormResult.Invalid(cloudDriveTokenLoginRequiredStatus())
@@ -185,4 +195,16 @@ fun validateCloudDriveDirectoryPickerForm(
             token = token,
         ),
     )
+}
+
+private fun validateCloudDriveEndpoint(endpointUrl: String): String? {
+    val uri = runCatching { URI(endpointUrl) }.getOrNull() ?: return cloudDriveEndpointInvalidStatus()
+    val scheme = uri.scheme?.lowercase().orEmpty()
+    if (scheme != "http" && scheme != "https") return cloudDriveEndpointInvalidStatus()
+    if (uri.host.isNullOrBlank()) return cloudDriveEndpointInvalidStatus()
+    val path = uri.rawPath.orEmpty()
+    if ((path.isNotBlank() && path != "/") || !uri.rawQuery.isNullOrBlank() || !uri.rawFragment.isNullOrBlank()) {
+        return cloudDriveEndpointInvalidStatus()
+    }
+    return null
 }

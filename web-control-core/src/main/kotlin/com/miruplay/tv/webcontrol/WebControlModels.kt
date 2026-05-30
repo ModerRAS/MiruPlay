@@ -101,6 +101,7 @@ data class CloudDriveAutomationDto(
     val config: CloudDriveAutomationConfig,
     val subscriptions: List<RssSubscriptionInfo>,
     val tokenConfigured: Boolean,
+    val passwordConfigured: Boolean = false,
 )
 
 @Serializable

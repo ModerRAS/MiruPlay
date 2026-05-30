@@ -6,6 +6,11 @@ import org.junit.Test
 
 class CloudDriveAutomationFormsTest {
     @Test
+    fun `cloud drive config defaults to localhost service endpoint`() {
+        assertEquals(DEFAULT_CLOUD_DRIVE_ENDPOINT_URL, CloudDriveAutomationConfig().endpointUrl)
+    }
+
+    @Test
     fun `cloud drive form values trim text clamp numeric fields and preserve existing fields`() {
         val current = CloudDriveAutomationConfig(
             endpointUrl = "old",
@@ -208,6 +213,14 @@ class CloudDriveAutomationFormsTest {
             CloudDriveLoginFormResult.Invalid(cloudDriveLoginRequiredStatus()),
             validateCloudDriveLoginForm(endpointUrl = "http://cloud.test", username = "miru", password = ""),
         )
+        assertEquals(
+            CloudDriveLoginFormResult.Invalid(cloudDriveEndpointInvalidStatus()),
+            validateCloudDriveLoginForm(
+                endpointUrl = "http://192.168.63.158:9978/?token=abc",
+                username = "miru",
+                password = "secret",
+            ),
+        )
     }
 
     @Test
@@ -232,6 +245,13 @@ class CloudDriveAutomationFormsTest {
                 blankTokenStatus = cloudDriveTokenRequiredStatus(),
             ),
         )
+        assertEquals(
+            CloudDriveApiTokenFormResult.Invalid(cloudDriveEndpointInvalidStatus()),
+            validateCloudDriveApiTokenForm(
+                endpointUrl = "http://192.168.63.158:9978/?token=abc",
+                token = "api-token",
+            ),
+        )
     }
 
     @Test
@@ -253,6 +273,22 @@ class CloudDriveAutomationFormsTest {
     }
 
     @Test
+    fun `cloud drive endpoint validation allows custom service ports without page query`() {
+        assertEquals(
+            CloudDriveApiTokenFormResult.Ready(
+                CloudDriveApiTokenFormRequest(
+                    endpointUrl = "http://192.168.63.158:9978",
+                    token = "api-token",
+                ),
+            ),
+            validateCloudDriveApiTokenForm(
+                endpointUrl = "http://192.168.63.158:9978",
+                token = "api-token",
+            ),
+        )
+    }
+
+    @Test
     fun `cloud drive directory picker form distinguishes endpoint and token errors`() {
         assertEquals(
             CloudDriveDirectoryPickerFormResult.Invalid(cloudDriveEndpointRequiredStatus()),
@@ -268,6 +304,14 @@ class CloudDriveAutomationFormsTest {
                 endpointUrl = "http://cloud.test",
                 tokenInput = " ",
                 savedToken = "",
+            ),
+        )
+        assertEquals(
+            CloudDriveDirectoryPickerFormResult.Invalid(cloudDriveEndpointInvalidStatus()),
+            validateCloudDriveDirectoryPickerForm(
+                endpointUrl = "http://192.168.63.158:9978/?token=abc",
+                tokenInput = "token",
+                savedToken = null,
             ),
         )
     }

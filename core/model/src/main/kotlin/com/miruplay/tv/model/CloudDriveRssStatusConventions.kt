@@ -19,8 +19,19 @@ fun cloudDriveRssDescriptionLabel(): String =
 fun cloudDriveRssScheduledChipLabel(enabled: Boolean): String =
     if (enabled) "定时已开" else "定时关闭"
 
-fun cloudDriveRssCredentialsBadgeLabel(configured: Boolean): String =
-    if (configured) "已登录" else "未登录"
+fun cloudDriveRssCredentialsBadgeLabel(tokenConfigured: Boolean, passwordConfigured: Boolean = false): String =
+    when {
+        tokenConfigured && passwordConfigured -> "Key 与密码已保存"
+        tokenConfigured -> "Key 已保存"
+        passwordConfigured -> "密码已保存"
+        else -> "未授权"
+    }
+
+fun cloudDriveRssPasswordCredentialLabel(configured: Boolean): String =
+    if (configured) "用户名密码已保存" else "用户名密码未保存"
+
+fun cloudDriveRssApiTokenCredentialLabel(configured: Boolean): String =
+    if (configured) "Key 已保存" else "Key 未保存"
 
 fun cloudDriveRssEndpointFieldLabel(): String =
     "CloudDrive2 地址"
@@ -29,10 +40,10 @@ fun cloudDriveRssUsernameFieldLabel(): String =
     "CloudDrive2 用户名"
 
 fun cloudDriveRssPasswordFieldLabel(): String =
-    "密码"
+    "密码（登录后保存）"
 
 fun cloudDriveRssApiTokenFieldLabel(): String =
-    "API Token / Key"
+    "API Token / Key（可替代密码登录）"
 
 fun cloudDriveRssInboxPathFieldLabel(): String =
     "下载目录 A"
@@ -77,10 +88,10 @@ fun cloudDriveRssClearCredentialsActionLabel(): String =
     "清空凭据"
 
 fun cloudDriveRssLoginActionLabel(busy: Boolean = false): String =
-    if (busy) "处理中" else "登录"
+    if (busy) "处理中" else "登录并保存密码"
 
 fun cloudDriveRssSaveApiTokenActionLabel(): String =
-    "保存 Key"
+    "验证并保存 Key"
 
 fun cloudDriveRssVerifyApiTokenActionLabel(): String =
     "验证令牌"
@@ -88,8 +99,16 @@ fun cloudDriveRssVerifyApiTokenActionLabel(): String =
 fun cloudDriveRssRunNowActionLabel(busy: Boolean = false): String =
     if (busy) "执行中" else "立即执行"
 
-fun cloudDriveRssTokenStatusMessage(configured: Boolean): String =
-    if (configured) "CloudDrive2 令牌已保存在加密存储中。" else "登录后才能提交离线下载任务。"
+fun cloudDriveRssSaveAndRunNowActionLabel(busy: Boolean = false): String =
+    if (busy) "执行中" else "保存并立即执行"
+
+fun cloudDriveRssTokenStatusMessage(tokenConfigured: Boolean, passwordConfigured: Boolean = false): String =
+    when {
+        tokenConfigured && passwordConfigured -> "CloudDrive2 Key 和用户名密码已保存在加密存储中。"
+        tokenConfigured -> "CloudDrive2 Key 已保存在加密存储中。"
+        passwordConfigured -> "CloudDrive2 密码已保存，执行时会自动登录刷新 Key。"
+        else -> "请先登录并保存密码，或验证并保存 Key。"
+    }
 
 fun cloudDriveRssSyncPathTitleLabel(): String =
     "同步路径"
@@ -486,6 +505,9 @@ fun cloudDriveLoginSucceededStatus(): String =
 fun cloudDriveEndpointRequiredStatus(): String =
     "请先填写 CloudDrive2 地址。"
 
+fun cloudDriveEndpointInvalidStatus(): String =
+    "CloudDrive2 地址格式不正确，请填写服务端地址（例如 http://<host>:19798），不要粘贴带 token 或查询参数的页面链接。"
+
 fun cloudDriveApiTokenRequiredStatus(): String =
     "请填写 CloudDrive2 API Token 或 Key。"
 
@@ -493,7 +515,7 @@ fun cloudDriveTokenRequiredStatus(): String =
     "请先填写 CloudDrive2 地址和 API 令牌。"
 
 fun cloudDriveTokenLoginRequiredStatus(): String =
-    "请先登录 CloudDrive2 或保存 API Token。"
+    "请先登录并保存密码，或验证并保存 Key。"
 
 fun cloudDriveTokenValidationStartedStatus(): String =
     "正在验证 CloudDrive2 API 令牌..."

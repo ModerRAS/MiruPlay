@@ -246,14 +246,29 @@
               <template #header>
                 <div class="card-header">
                   <strong>CloudDrive2</strong>
-                  <el-tag :type="automation.tokenConfigured ? 'success' : 'info'">
-                    {{ automation.tokenConfigured ? '已授权' : '未授权' }}
+                  <el-tag :type="cloudCredentialStatusType">
+                    {{ cloudCredentialStatusLabel }}
                   </el-tag>
                 </div>
               </template>
 
               <el-skeleton v-if="loading.automation" animated :rows="6" />
               <el-form v-else label-position="top" class="automation-form" @submit.prevent>
+                <div class="auth-flow">
+                  <el-tag effect="plain" type="info">设置</el-tag>
+                  <el-icon><DArrowRight /></el-icon>
+                  <el-tag :type="cloudCredentialStatusType" effect="plain">授权</el-tag>
+                  <el-icon><DArrowRight /></el-icon>
+                  <el-tag effect="plain" type="info">执行</el-tag>
+                </div>
+                <div class="credential-status">
+                  <el-tag :type="automation.passwordConfigured ? 'success' : 'info'" effect="light">
+                    {{ automation.passwordConfigured ? '用户名密码已保存' : '用户名密码未保存' }}
+                  </el-tag>
+                  <el-tag :type="automation.tokenConfigured ? 'success' : 'info'" effect="light">
+                    {{ automation.tokenConfigured ? 'Key 已保存' : 'Key 未保存' }}
+                  </el-tag>
+                </div>
                 <div class="switch-row">
                   <el-switch
                     v-model="cloudForm.enabled"
@@ -275,7 +290,7 @@
                 </div>
 
                 <el-form-item label="CloudDrive2 地址">
-                  <el-input v-model="cloudForm.endpointUrl" placeholder="http://host:19798" />
+                  <el-input v-model="cloudForm.endpointUrl" :placeholder="DEFAULT_CLOUD_DRIVE_ENDPOINT_URL" />
                 </el-form-item>
 
                 <el-form-item label="入库模式">
@@ -289,7 +304,7 @@
                   <el-form-item label="用户名">
                     <el-input v-model="cloudForm.username" autocomplete="username" />
                   </el-form-item>
-                  <el-form-item label="密码">
+                  <el-form-item label="密码（登录后保存）">
                     <el-input
                       v-model="cloudForm.password"
                       type="password"
@@ -299,7 +314,7 @@
                   </el-form-item>
                 </div>
 
-                <el-form-item label="API Token / Key">
+                <el-form-item label="API Token / Key（可替代密码登录）">
                   <el-input
                     v-model="cloudForm.apiToken"
                     type="password"
@@ -358,13 +373,13 @@
                     保存设置
                   </el-button>
                   <el-button :icon="Key" :loading="loading.cloudLogin" @click="loginCloudDrive">
-                    用户名登录
+                    登录并保存密码
                   </el-button>
                   <el-button :icon="Link" :loading="loading.cloudToken" @click="saveCloudDriveToken">
-                    保存 Key
+                    验证并保存 Key
                   </el-button>
                   <el-button type="primary" :icon="Refresh" :loading="loading.cloudRun" @click="runCloudDriveNow">
-                    立即执行
+                    保存并立即执行
                   </el-button>
                 </div>
               </el-form>
@@ -1076,7 +1091,8 @@ const sources = ref([])
 const automation = reactive({
   config: null,
   subscriptions: [],
-  tokenConfigured: false
+  tokenConfigured: false,
+  passwordConfigured: false
 })
 const logUpload = reactive({
   config: null,
@@ -1157,8 +1173,9 @@ const sourceForm = reactive({
   username: '',
   password: ''
 })
+const DEFAULT_CLOUD_DRIVE_ENDPOINT_URL = 'http://localhost:19798'
 const cloudForm = reactive({
-  endpointUrl: '',
+  endpointUrl: DEFAULT_CLOUD_DRIVE_ENDPOINT_URL,
   username: '',
   password: '',
   apiToken: '',
@@ -1268,6 +1285,15 @@ const webDavSources = computed(() => sources.value.filter((source) => source.typ
 const canBrowseCloudDrive = computed(() =>
   Boolean(cloudForm.endpointUrl.trim()) && automation.tokenConfigured
 )
+const cloudCredentialStatusLabel = computed(() => {
+  if (automation.tokenConfigured && automation.passwordConfigured) return 'Key 与密码已保存'
+  if (automation.tokenConfigured) return 'Key 已保存'
+  if (automation.passwordConfigured) return '密码已保存'
+  return '未授权'
+})
+const cloudCredentialStatusType = computed(() => (
+  automation.tokenConfigured || automation.passwordConfigured ? 'success' : 'info'
+))
 const logUploadStatusType = computed(() => {
   const status = logUpload.status.lastUploadStatus || ''
   if (status.includes('失败')) return 'error'
@@ -1475,9 +1501,10 @@ function applyCloudDriveAutomation(data) {
   automation.config = data.config || null
   automation.subscriptions = data.subscriptions || []
   automation.tokenConfigured = Boolean(data.tokenConfigured)
+  automation.passwordConfigured = Boolean(data.passwordConfigured)
   const config = data.config || {}
   Object.assign(cloudForm, {
-    endpointUrl: config.endpointUrl || '',
+    endpointUrl: config.endpointUrl || DEFAULT_CLOUD_DRIVE_ENDPOINT_URL,
     username: config.username || '',
     password: '',
     apiToken: '',
@@ -1899,15 +1926,20 @@ async function saveCloudDriveConfig() {
 
   loading.automationSave = true
   try {
-    const data = await api('/api/cloud-drive/config', {
-      method: 'PUT',
-      body: JSON.stringify(payload)
-    })
-    applyCloudDriveAutomation(data)
+    await persistCloudDriveConfig(payload)
     ElMessage.success('CloudDrive 设置已保存')
   } finally {
     loading.automationSave = false
   }
+}
+
+async function persistCloudDriveConfig(payload) {
+  const data = await api('/api/cloud-drive/config', {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  })
+  applyCloudDriveAutomation(data)
+  return data
 }
 
 async function loginCloudDrive() {
@@ -1960,10 +1992,19 @@ async function saveCloudDriveToken() {
 async function runCloudDriveNow() {
   const payload = cloudDriveConfigPayload()
   if (!validateCloudDriveConfig(payload)) return
+  const passwordForLogin = cloudForm.password
+  if (passwordForLogin && !payload.username) {
+    ElMessage.warning('请先填写 CloudDrive2 用户名')
+    return
+  }
+  if (!automation.tokenConfigured && !automation.passwordConfigured && !passwordForLogin) {
+    ElMessage.warning('请先登录并保存密码，或验证并保存 Key')
+    return
+  }
   const modeLabel = payload.libraryMode === 'SINGLE_DIRECTORY' ? '单目录入库' : '整理入库'
   await ElMessageBox.confirm(
-    `立即执行会提交未处理 RSS 项到下载目录 A，并按当前${modeLabel}模式处理。`,
-    '立即执行 CloudDrive/RSS',
+    `将先保存当前设置，再提交未处理 RSS 项到下载目录 A，并按当前${modeLabel}模式处理。`,
+    '保存并立即执行 CloudDrive/RSS',
     {
       confirmButtonText: '执行',
       cancelButtonText: '取消',
@@ -1973,6 +2014,18 @@ async function runCloudDriveNow() {
 
   loading.cloudRun = true
   try {
+    await persistCloudDriveConfig(payload)
+    if (passwordForLogin) {
+      const data = await api('/api/cloud-drive/login', {
+        method: 'POST',
+        body: JSON.stringify({
+          endpointUrl: payload.endpointUrl,
+          username: payload.username,
+          password: passwordForLogin
+        })
+      })
+      applyCloudDriveAutomation(data)
+    }
     const status = await api('/api/cloud-drive/run', { method: 'POST' })
     applyCloudDriveRunStatus(status)
     if (status.running) {

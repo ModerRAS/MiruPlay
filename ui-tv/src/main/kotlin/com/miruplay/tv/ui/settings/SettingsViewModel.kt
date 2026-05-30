@@ -161,6 +161,9 @@ class SettingsViewModel @Inject constructor(
     private val _cloudDriveTokenConfigured = MutableStateFlow(!securePrefs.cloudDriveToken.isNullOrBlank())
     val cloudDriveTokenConfigured: StateFlow<Boolean> = _cloudDriveTokenConfigured.asStateFlow()
 
+    private val _cloudDrivePasswordConfigured = MutableStateFlow(!securePrefs.cloudDrivePassword.isNullOrBlank())
+    val cloudDrivePasswordConfigured: StateFlow<Boolean> = _cloudDrivePasswordConfigured.asStateFlow()
+
     private val _cloudDriveBusy = MutableStateFlow(false)
     val cloudDriveBusy: StateFlow<Boolean> = _cloudDriveBusy.asStateFlow()
 
@@ -312,22 +315,20 @@ class SettingsViewModel @Inject constructor(
         rssProxyPort: Int = 1080
     ) {
         viewModelScope.launch {
-            val current = _cloudDriveConfig.value
-            val config = current.withAutomationFormValues(
-                endpointUrl = endpointUrl.trim(),
-                username = username.trim(),
+            persistCloudDriveConfig(
+                endpointUrl = endpointUrl,
+                username = username,
                 webDavSourceId = webDavSourceId,
-                inboxPath = inboxPath.trim(),
-                libraryPath = libraryPath.trim(),
+                inboxPath = inboxPath,
+                libraryPath = libraryPath,
                 libraryMode = libraryMode,
                 intervalMinutes = intervalMinutes,
                 enabled = enabled,
                 rssProxyEnabled = rssProxyEnabled,
-                rssProxyHost = rssProxyHost.trim(),
-                rssProxyPort = rssProxyPort
+                rssProxyHost = rssProxyHost,
+                rssProxyPort = rssProxyPort,
             )
-            cloudDriveRepository.saveConfig(config)
-                .onSuccess {
+                .onSuccess { config ->
                     cloudDriveScheduler.syncPeriodicWork(config)
                     _cloudDriveActionMessage.value = cloudRssConfigSavedStatus()
                 }
@@ -436,7 +437,7 @@ class SettingsViewModel @Inject constructor(
             _cloudDriveBusy.value = true
             cloudDriveEngine.login(form.endpointUrl, form.username, form.password)
                 .onSuccess {
-                    _cloudDriveTokenConfigured.value = true
+                    refreshCloudDriveCredentialState()
                     _cloudDriveActionMessage.value = cloudDriveLoginSucceededStatus()
                 }
                 .onError { error ->
@@ -458,7 +459,7 @@ class SettingsViewModel @Inject constructor(
             _cloudDriveBusy.value = true
             cloudDriveEngine.saveApiToken(form.endpointUrl, form.token)
                 .onSuccess { info ->
-                    _cloudDriveTokenConfigured.value = true
+                    refreshCloudDriveCredentialState()
                     _cloudDriveActionMessage.value = cloudDriveTokenVerifiedStatus(
                         friendlyName = info.friendlyName,
                         rootDir = info.rootDir,
@@ -519,8 +520,97 @@ class SettingsViewModel @Inject constructor(
             )
             try {
                 cloudDriveEngine.runOnce()
-                    .onSuccess { summary -> _cloudDriveActionMessage.value = summary.completeStatus() }
+                    .onSuccess { summary ->
+                        refreshCloudDriveCredentialState()
+                        _cloudDriveActionMessage.value = summary.completeStatus()
+                    }
                     .onError { error ->
+                        refreshCloudDriveCredentialState()
+                        _cloudDriveActionMessage.value = error.toUserMessage()
+                    }
+            } finally {
+                _cloudDriveBusy.value = false
+                backgroundTasks.finish(BackgroundTaskIds.CLOUD_DRIVE_RSS)
+            }
+        }
+    }
+
+    fun saveAndRunCloudDriveNow(
+        endpointUrl: String,
+        username: String,
+        password: String,
+        webDavSourceId: Long?,
+        inboxPath: String,
+        libraryPath: String,
+        libraryMode: CloudDriveLibraryMode,
+        intervalMinutes: Int,
+        enabled: Boolean,
+        rssProxyEnabled: Boolean = false,
+        rssProxyHost: String = "",
+        rssProxyPort: Int = 1080
+    ) {
+        viewModelScope.launch {
+            _cloudDriveBusy.value = true
+            try {
+                val config = when (
+                    val saved = persistCloudDriveConfig(
+                        endpointUrl = endpointUrl,
+                        username = username,
+                        webDavSourceId = webDavSourceId,
+                        inboxPath = inboxPath,
+                        libraryPath = libraryPath,
+                        libraryMode = libraryMode,
+                        intervalMinutes = intervalMinutes,
+                        enabled = enabled,
+                        rssProxyEnabled = rssProxyEnabled,
+                        rssProxyHost = rssProxyHost,
+                        rssProxyPort = rssProxyPort,
+                    )
+                ) {
+                    is Result.Success -> saved.data
+                    is Result.Error -> {
+                        _cloudDriveActionMessage.value = saved.error.toUserMessage()
+                        return@launch
+                    }
+                }
+                cloudDriveScheduler.syncPeriodicWork(config)
+
+                if (password.isNotBlank()) {
+                    val form = when (val result = validateCloudDriveLoginForm(endpointUrl, username, password)) {
+                        is CloudDriveLoginFormResult.Ready -> result.request
+                        is CloudDriveLoginFormResult.Invalid -> {
+                            _cloudDriveActionMessage.value = result.status
+                            return@launch
+                        }
+                    }
+                    when (val login = cloudDriveEngine.login(form.endpointUrl, form.username, form.password)) {
+                        is Result.Success -> refreshCloudDriveCredentialState()
+                        is Result.Error -> {
+                            refreshCloudDriveCredentialState()
+                            _cloudDriveActionMessage.value = login.error.toUserMessage()
+                            return@launch
+                        }
+                    }
+                }
+
+                if (securePrefs.cloudDriveToken.isNullOrBlank() && securePrefs.cloudDrivePassword.isNullOrBlank()) {
+                    _cloudDriveActionMessage.value = cloudDriveTokenLoginRequiredStatus()
+                    return@launch
+                }
+
+                backgroundTasks.start(
+                    taskId = BackgroundTaskIds.CLOUD_DRIVE_RSS,
+                    title = "CloudDrive/RSS 同步",
+                    text = "正在下载、整理并扫描订阅内容",
+                    progress = BackgroundTaskProgress.indeterminate(),
+                )
+                cloudDriveEngine.runOnce()
+                    .onSuccess { summary ->
+                        refreshCloudDriveCredentialState()
+                        _cloudDriveActionMessage.value = summary.completeStatus()
+                    }
+                    .onError { error ->
+                        refreshCloudDriveCredentialState()
                         _cloudDriveActionMessage.value = error.toUserMessage()
                     }
             } finally {
@@ -852,6 +942,41 @@ class SettingsViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    private suspend fun persistCloudDriveConfig(
+        endpointUrl: String,
+        username: String,
+        webDavSourceId: Long?,
+        inboxPath: String,
+        libraryPath: String,
+        libraryMode: CloudDriveLibraryMode,
+        intervalMinutes: Int,
+        enabled: Boolean,
+        rssProxyEnabled: Boolean = false,
+        rssProxyHost: String = "",
+        rssProxyPort: Int = 1080
+    ): Result<CloudDriveAutomationConfig> {
+        val current = _cloudDriveConfig.value
+        val config = current.withAutomationFormValues(
+            endpointUrl = endpointUrl.trim(),
+            username = username.trim(),
+            webDavSourceId = webDavSourceId,
+            inboxPath = inboxPath.trim(),
+            libraryPath = libraryPath.trim(),
+            libraryMode = libraryMode,
+            intervalMinutes = intervalMinutes,
+            enabled = enabled,
+            rssProxyEnabled = rssProxyEnabled,
+            rssProxyHost = rssProxyHost.trim(),
+            rssProxyPort = rssProxyPort,
+        )
+        return cloudDriveRepository.saveConfig(config).map { config }
+    }
+
+    private fun refreshCloudDriveCredentialState() {
+        _cloudDriveTokenConfigured.value = !securePrefs.cloudDriveToken.isNullOrBlank()
+        _cloudDrivePasswordConfigured.value = !securePrefs.cloudDrivePassword.isNullOrBlank()
     }
 
     private fun observeCloudDriveAutomation() {

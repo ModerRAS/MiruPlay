@@ -161,13 +161,14 @@ class WebControlAutomationRequestsTest {
             config = config,
             subscriptions = mutableListOf(subscription),
         )
-        val credentials = FakeCloudDriveCredentialStore(token = "token")
+        val credentials = FakeCloudDriveCredentialStore(token = "token", password = "secret")
 
         val dto = repository.getWebControlCloudDriveAutomation(credentials)
 
         assertEquals(config, dto.config)
         assertEquals(listOf(subscription), dto.subscriptions)
         assertEquals(true, dto.tokenConfigured)
+        assertEquals(true, dto.passwordConfigured)
     }
 
     @Test
@@ -288,6 +289,7 @@ class WebControlAutomationRequestsTest {
         assertEquals(77L, repository.savedConfigs.single().lastRunAt)
         assertEquals(repository.savedConfigs.single(), dto.config)
         assertEquals(false, dto.tokenConfigured)
+        assertEquals(false, dto.passwordConfigured)
     }
 
     @Test
@@ -312,6 +314,7 @@ class WebControlAutomationRequestsTest {
         assertEquals(listOf("https://cloud.example.test|miru| secret "), runner.loginCalls)
         assertEquals("miru", dto.config.username)
         assertEquals(true, dto.tokenConfigured)
+        assertEquals(false, dto.passwordConfigured)
     }
 
     @Test
@@ -428,11 +431,13 @@ class WebControlAutomationRequestsTest {
         val dto = config.toWebControlAutomationDto(
             subscriptions = subscriptions,
             tokenConfigured = true,
+            passwordConfigured = true,
         )
 
         assertEquals(config, dto.config)
         assertEquals(subscriptions, dto.subscriptions)
         assertEquals(true, dto.tokenConfigured)
+        assertEquals(true, dto.passwordConfigured)
     }
 
     @Test

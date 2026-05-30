@@ -14,12 +14,21 @@ class CloudDriveRssStatusConventionsTest {
         )
         assertEquals("定时已开", cloudDriveRssScheduledChipLabel(true))
         assertEquals("定时关闭", cloudDriveRssScheduledChipLabel(false))
-        assertEquals("已登录", cloudDriveRssCredentialsBadgeLabel(true))
-        assertEquals("未登录", cloudDriveRssCredentialsBadgeLabel(false))
+        assertEquals("Key 已保存", cloudDriveRssCredentialsBadgeLabel(true))
+        assertEquals("密码已保存", cloudDriveRssCredentialsBadgeLabel(tokenConfigured = false, passwordConfigured = true))
+        assertEquals(
+            "Key 与密码已保存",
+            cloudDriveRssCredentialsBadgeLabel(tokenConfigured = true, passwordConfigured = true),
+        )
+        assertEquals("未授权", cloudDriveRssCredentialsBadgeLabel(false))
+        assertEquals("用户名密码已保存", cloudDriveRssPasswordCredentialLabel(true))
+        assertEquals("用户名密码未保存", cloudDriveRssPasswordCredentialLabel(false))
+        assertEquals("Key 已保存", cloudDriveRssApiTokenCredentialLabel(true))
+        assertEquals("Key 未保存", cloudDriveRssApiTokenCredentialLabel(false))
         assertEquals("CloudDrive2 地址", cloudDriveRssEndpointFieldLabel())
         assertEquals("CloudDrive2 用户名", cloudDriveRssUsernameFieldLabel())
-        assertEquals("密码", cloudDriveRssPasswordFieldLabel())
-        assertEquals("API Token / Key", cloudDriveRssApiTokenFieldLabel())
+        assertEquals("密码（登录后保存）", cloudDriveRssPasswordFieldLabel())
+        assertEquals("API Token / Key（可替代密码登录）", cloudDriveRssApiTokenFieldLabel())
         assertEquals("下载目录 A", cloudDriveRssInboxPathFieldLabel())
         assertEquals("整理目录 B", cloudDriveRssLibraryPathFieldLabel())
         assertEquals("定时间隔（分钟）", cloudDriveRssIntervalMinutesFieldLabel())
@@ -35,14 +44,24 @@ class CloudDriveRssStatusConventionsTest {
         assertEquals("保存", cloudDriveRssSaveConfigActionLabel())
         assertEquals("保存凭据", cloudDriveRssSaveCredentialsActionLabel())
         assertEquals("清空凭据", cloudDriveRssClearCredentialsActionLabel())
-        assertEquals("登录", cloudDriveRssLoginActionLabel())
+        assertEquals("登录并保存密码", cloudDriveRssLoginActionLabel())
         assertEquals("处理中", cloudDriveRssLoginActionLabel(busy = true))
-        assertEquals("保存 Key", cloudDriveRssSaveApiTokenActionLabel())
+        assertEquals("验证并保存 Key", cloudDriveRssSaveApiTokenActionLabel())
         assertEquals("验证令牌", cloudDriveRssVerifyApiTokenActionLabel())
         assertEquals("立即执行", cloudDriveRssRunNowActionLabel())
         assertEquals("执行中", cloudDriveRssRunNowActionLabel(busy = true))
-        assertEquals("CloudDrive2 令牌已保存在加密存储中。", cloudDriveRssTokenStatusMessage(true))
-        assertEquals("登录后才能提交离线下载任务。", cloudDriveRssTokenStatusMessage(false))
+        assertEquals("保存并立即执行", cloudDriveRssSaveAndRunNowActionLabel())
+        assertEquals("执行中", cloudDriveRssSaveAndRunNowActionLabel(busy = true))
+        assertEquals("CloudDrive2 Key 已保存在加密存储中。", cloudDriveRssTokenStatusMessage(true))
+        assertEquals(
+            "CloudDrive2 密码已保存，执行时会自动登录刷新 Key。",
+            cloudDriveRssTokenStatusMessage(tokenConfigured = false, passwordConfigured = true),
+        )
+        assertEquals(
+            "CloudDrive2 Key 和用户名密码已保存在加密存储中。",
+            cloudDriveRssTokenStatusMessage(tokenConfigured = true, passwordConfigured = true),
+        )
+        assertEquals("请先登录并保存密码，或验证并保存 Key。", cloudDriveRssTokenStatusMessage(false))
         assertEquals("同步路径", cloudDriveRssSyncPathTitleLabel())
         assertEquals("运行状态", cloudDriveRssRuntimeTitleLabel())
         assertEquals("目录", cloudDriveRssDirectoryBadgeLabel())
@@ -197,7 +216,7 @@ class CloudDriveRssStatusConventionsTest {
         assertEquals("请先填写 CloudDrive2 地址。", cloudDriveEndpointRequiredStatus())
         assertEquals("请填写 CloudDrive2 API Token 或 Key。", cloudDriveApiTokenRequiredStatus())
         assertEquals("请先填写 CloudDrive2 地址和 API 令牌。", cloudDriveTokenRequiredStatus())
-        assertEquals("请先登录 CloudDrive2 或保存 API Token。", cloudDriveTokenLoginRequiredStatus())
+        assertEquals("请先登录并保存密码，或验证并保存 Key。", cloudDriveTokenLoginRequiredStatus())
         assertEquals("正在验证 CloudDrive2 API 令牌...", cloudDriveTokenValidationStartedStatus())
         assertEquals(
             "CloudDrive2 API 令牌已验证并保存：MiruPlay。",

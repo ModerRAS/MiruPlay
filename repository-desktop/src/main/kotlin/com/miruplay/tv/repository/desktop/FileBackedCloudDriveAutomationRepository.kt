@@ -3,6 +3,7 @@ package com.miruplay.tv.repository.desktop
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.CloudDriveAutomationConfig
+import com.miruplay.tv.model.DEFAULT_CLOUD_DRIVE_ENDPOINT_URL
 import com.miruplay.tv.model.RssDownloadTaskInfo
 import com.miruplay.tv.model.RssProcessedItemInfo
 import com.miruplay.tv.model.RssSubscriptionInfo
@@ -21,7 +22,7 @@ internal class FileBackedCloudDriveAutomationRepository(
         configFlow.asStateFlow()
 
     override suspend fun getConfig(): Result<CloudDriveAutomationConfig> = runCatching {
-        store.read { it.cloudDriveConfig }
+        store.read { it.cloudDriveConfig.withDefaultEndpoint() }
     }.fold(
         onSuccess = {
             configFlow.value = it
@@ -170,7 +171,7 @@ internal class FileBackedCloudDriveAutomationRepository(
 
     private fun readConfigState(): CloudDriveAutomationConfig =
         kotlinx.coroutines.runBlocking {
-            runCatching { store.read { it.cloudDriveConfig } }.getOrDefault(CloudDriveAutomationConfig())
+            runCatching { store.read { it.cloudDriveConfig.withDefaultEndpoint() } }.getOrDefault(CloudDriveAutomationConfig())
         }
 
     private fun readSubscriptionsState(): List<RssSubscriptionInfo> =
@@ -181,7 +182,7 @@ internal class FileBackedCloudDriveAutomationRepository(
         }
 
     private suspend fun refreshConfigState() {
-        runCatching { store.read { it.cloudDriveConfig } }
+        runCatching { store.read { it.cloudDriveConfig.withDefaultEndpoint() } }
             .onSuccess { configFlow.value = it }
     }
 
@@ -190,3 +191,6 @@ internal class FileBackedCloudDriveAutomationRepository(
             .onSuccess { subscriptionsFlow.value = it }
     }
 }
+
+private fun CloudDriveAutomationConfig.withDefaultEndpoint(): CloudDriveAutomationConfig =
+    if (endpointUrl.isBlank()) copy(endpointUrl = DEFAULT_CLOUD_DRIVE_ENDPOINT_URL) else this

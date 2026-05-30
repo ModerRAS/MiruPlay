@@ -94,6 +94,7 @@ import com.miruplay.tv.model.aboutSettingsTiles
 import com.miruplay.tv.model.androidTvSettingsSectionOrder
 import com.miruplay.tv.model.connectionDisplayName
 import com.miruplay.tv.model.connectionUsername
+import com.miruplay.tv.model.cloudDriveRssApiTokenCredentialLabel
 import com.miruplay.tv.model.cloudDriveRssApiTokenFieldLabel
 import com.miruplay.tv.model.cloudDriveRssChooseDirectoryActionLabel
 import com.miruplay.tv.model.cloudDriveRssCloseActionLabel
@@ -113,8 +114,9 @@ import com.miruplay.tv.model.cloudDriveRssLoginActionLabel
 import com.miruplay.tv.model.cloudDriveRssNoScanSourceOptionLabel
 import com.miruplay.tv.model.cloudDriveRssNoWebDavSourceMessage
 import com.miruplay.tv.model.cloudDriveRssParentDirectoryActionLabel
+import com.miruplay.tv.model.cloudDriveRssPasswordCredentialLabel
 import com.miruplay.tv.model.cloudDriveRssPasswordFieldLabel
-import com.miruplay.tv.model.cloudDriveRssRunNowActionLabel
+import com.miruplay.tv.model.cloudDriveRssSaveAndRunNowActionLabel
 import com.miruplay.tv.model.cloudDriveRssSaveApiTokenActionLabel
 import com.miruplay.tv.model.cloudDriveRssSaveConfigActionLabel
 import com.miruplay.tv.model.cloudDriveRssScanSourceTitleLabel
@@ -330,6 +332,7 @@ fun AddSourceScreen(
     val cloudDriveConfig by viewModel.cloudDriveConfig.collectAsStateWithLifecycle()
     val rssSubscriptions by viewModel.rssSubscriptions.collectAsStateWithLifecycle()
     val cloudDriveTokenConfigured by viewModel.cloudDriveTokenConfigured.collectAsStateWithLifecycle()
+    val cloudDrivePasswordConfigured by viewModel.cloudDrivePasswordConfigured.collectAsStateWithLifecycle()
     val cloudDriveBusy by viewModel.cloudDriveBusy.collectAsStateWithLifecycle()
     val cloudDriveActionMessage by viewModel.cloudDriveActionMessage.collectAsStateWithLifecycle()
     val cloudDriveDirectoryBrowser by viewModel.cloudDriveDirectoryBrowser.collectAsStateWithLifecycle()
@@ -616,6 +619,7 @@ fun AddSourceScreen(
                     cloudWebDavSourceId = cloudWebDavSourceId,
                     onCloudWebDavSourceSelected = { cloudWebDavSourceId = it },
                     cloudDriveTokenConfigured = cloudDriveTokenConfigured,
+                    cloudDrivePasswordConfigured = cloudDrivePasswordConfigured,
                     cloudDriveBusy = cloudDriveBusy,
                     cloudDriveActionMessage = cloudDriveActionMessage,
                     canPickCloudDriveDirectory = cloudEndpoint.isNotBlank() && cloudDriveTokenConfigured,
@@ -676,7 +680,23 @@ fun AddSourceScreen(
                         viewModel.saveCloudDriveApiToken(cloudEndpoint, cloudApiToken)
                         cloudApiToken = ""
                     },
-                    onRunCloudDriveNow = viewModel::runCloudDriveNow,
+                    onRunCloudDriveNow = {
+                        viewModel.saveAndRunCloudDriveNow(
+                            endpointUrl = cloudEndpoint,
+                            username = cloudUsername,
+                            password = cloudPassword,
+                            webDavSourceId = cloudWebDavSourceId,
+                            inboxPath = cloudInboxPath,
+                            libraryPath = cloudLibraryPath,
+                            libraryMode = cloudLibraryMode,
+                            intervalMinutes = parseCloudDriveIntervalMinutes(cloudIntervalMinutes),
+                            enabled = cloudEnabled,
+                            rssProxyEnabled = rssProxyEnabled,
+                            rssProxyHost = rssProxyHost,
+                            rssProxyPort = parseRssProxyPort(rssProxyPort)
+                        )
+                        cloudPassword = ""
+                    },
                     onAddRssSubscription = {
                         val formResult = prepareRssSubscriptionForm(rssName, rssUrl, rssFilterRegex, rssEnabled)
                         viewModel.addRssSubscription(rssName, rssUrl, rssFilterRegex, rssEnabled)
@@ -1006,6 +1026,7 @@ private fun SettingsContent(
     cloudWebDavSourceId: Long?,
     onCloudWebDavSourceSelected: (Long?) -> Unit,
     cloudDriveTokenConfigured: Boolean,
+    cloudDrivePasswordConfigured: Boolean,
     cloudDriveBusy: Boolean,
     cloudDriveActionMessage: String?,
     canPickCloudDriveDirectory: Boolean,
@@ -1159,6 +1180,7 @@ private fun SettingsContent(
                 selectedWebDavSourceId = cloudWebDavSourceId,
                 onWebDavSourceSelected = onCloudWebDavSourceSelected,
                 tokenConfigured = cloudDriveTokenConfigured,
+                passwordConfigured = cloudDrivePasswordConfigured,
                 busy = cloudDriveBusy,
                 actionMessage = cloudDriveActionMessage,
                 canPickCloudDriveDirectory = canPickCloudDriveDirectory,
@@ -1997,6 +2019,7 @@ private fun CloudDriveAutomationPanel(
     selectedWebDavSourceId: Long?,
     onWebDavSourceSelected: (Long?) -> Unit,
     tokenConfigured: Boolean,
+    passwordConfigured: Boolean,
     busy: Boolean,
     actionMessage: String?,
     canPickCloudDriveDirectory: Boolean,
@@ -2008,6 +2031,8 @@ private fun CloudDriveAutomationPanel(
     onRunNow: () -> Unit
 ) {
     val webDavSources = sources.filter { it.type == MediaSourceType.WEBDAV }
+    val credentialConfigured = tokenConfigured || passwordConfigured
+    val runnableCredentials = credentialConfigured || (username.isNotBlank() && password.isNotBlank())
 
     SettingsPanel {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -2039,12 +2064,32 @@ private fun CloudDriveAutomationPanel(
                 modifier = Modifier.width(150.dp)
             )
             ScanOptionChip(
-                text = cloudDriveRssCredentialsBadgeLabel(tokenConfigured),
+                text = cloudDriveRssCredentialsBadgeLabel(tokenConfigured, passwordConfigured),
                 icon = Icons.Filled.CheckCircle,
+                selected = credentialConfigured,
+                enabled = false,
+                onClick = {},
+                modifier = Modifier.width(190.dp)
+            )
+        }
+
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ScanOptionChip(
+                text = cloudDriveRssPasswordCredentialLabel(passwordConfigured),
+                icon = Icons.Filled.Key,
+                selected = passwordConfigured,
+                enabled = false,
+                onClick = {},
+                modifier = Modifier.weight(1f)
+            )
+            ScanOptionChip(
+                text = cloudDriveRssApiTokenCredentialLabel(tokenConfigured),
+                icon = Icons.Filled.Key,
                 selected = tokenConfigured,
                 enabled = false,
                 onClick = {},
-                modifier = Modifier.width(130.dp)
+                modifier = Modifier.weight(1f)
             )
         }
 
@@ -2159,17 +2204,17 @@ private fun CloudDriveAutomationPanel(
                 onClick = onSaveApiToken
             )
             TvButton(
-                text = cloudDriveRssRunNowActionLabel(busy),
+                text = cloudDriveRssSaveAndRunNowActionLabel(busy),
                 icon = Icons.Filled.Refresh,
-                enabled = !busy && tokenConfigured,
+                enabled = !busy && endpoint.isNotBlank() && runnableCredentials,
                 onClick = onRunNow
             )
         }
 
         StatusMessage(
-            icon = if (tokenConfigured) Icons.Filled.CheckCircle else Icons.Filled.Cloud,
-            text = cloudDriveRssTokenStatusMessage(tokenConfigured),
-            color = if (tokenConfigured) ProgressGreen else TextSecondary
+            icon = if (credentialConfigured) Icons.Filled.CheckCircle else Icons.Filled.Cloud,
+            text = cloudDriveRssTokenStatusMessage(tokenConfigured, passwordConfigured),
+            color = if (credentialConfigured) ProgressGreen else TextSecondary
         )
         if (!actionMessage.isNullOrBlank()) {
             StatusMessage(

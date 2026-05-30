@@ -2,6 +2,7 @@ package com.miruplay.tv.webcontrol
 
 import com.miruplay.tv.clouddrive.CloudDriveClient
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.model.cloudDriveTokenLoginRequiredStatus
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryBrowserState
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryEntry
 import com.miruplay.tv.sync.rss.CloudDriveDirectoryTarget
@@ -21,7 +22,7 @@ suspend fun browseWebControlCloudDriveDirectory(
         throw IllegalArgumentException("请先填写 CloudDrive2 地址")
     }
     val apiToken = token?.trim().takeUnless { it.isNullOrBlank() }
-        ?: throw IllegalArgumentException("请先登录 CloudDrive2 或保存 API Token")
+        ?: throw IllegalArgumentException(cloudDriveTokenLoginRequiredStatus())
 
     return prepareCloudDriveDirectoryBrowser(
         client = client,

@@ -88,7 +88,7 @@ class WebControlCloudDriveDirectoriesTest {
             }.exceptionOrNull()?.message,
         )
         assertEquals(
-            "请先登录 CloudDrive2 或保存 API Token",
+            "请先登录并保存密码，或验证并保存 Key。",
             runCatching {
                 browseWebControlCloudDriveDirectory(
                     client = client,

@@ -314,6 +314,25 @@ body {
   gap: 0.75rem;
 }
 
+.auth-flow,
+.credential-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.auth-flow {
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: #10131a;
+}
+
+.auth-flow .el-icon {
+  color: var(--muted);
+}
+
 .switch-row {
   display: flex;
   flex-wrap: wrap;

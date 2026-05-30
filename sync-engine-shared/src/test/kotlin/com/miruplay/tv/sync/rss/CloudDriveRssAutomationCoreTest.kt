@@ -142,6 +142,71 @@ class CloudDriveRssAutomationCoreTest {
     }
 
     @Test
+    fun `runOnce logs in with saved password when token is missing`() = runBlocking {
+        val repository = FakeAutomationRepository(
+            config = CloudDriveAutomationConfig(
+                endpointUrl = "http://127.0.0.1:19798",
+                username = "miru",
+                inboxPath = "/Downloads",
+                libraryPath = "/Library",
+            ),
+            subscriptions = listOf(subscription()),
+        )
+        val credentials = FakeCredentials(token = null, password = "secret")
+        val cloudDrive = FakeCloudDriveClient(loginToken = "fresh-token")
+        val core = core(
+            repository = repository,
+            credentials = credentials,
+            feedReader = FakeFeedReader(
+                feeds = mapOf("https://example.test/rss.xml" to listOf(feedItem()))
+            ),
+            cloudDrive = cloudDrive,
+        )
+
+        val result = core.runOnce()
+
+        assertTrue(result is Result.Success)
+        assertEquals(listOf("http://127.0.0.1:19798|miru|secret"), cloudDrive.loginCalls)
+        assertEquals("fresh-token", credentials.cloudDriveToken)
+        assertEquals(listOf("fresh-token"), cloudDrive.offlineTokens)
+    }
+
+    @Test
+    fun `runOnce refreshes saved password login and retries expired token submissions`() = runBlocking {
+        val repository = FakeAutomationRepository(
+            config = CloudDriveAutomationConfig(
+                endpointUrl = "http://127.0.0.1:19798",
+                username = "miru",
+                inboxPath = "/Downloads",
+                libraryPath = "/Library",
+            ),
+            subscriptions = listOf(subscription()),
+        )
+        val credentials = FakeCredentials(token = "expired-token", password = "secret")
+        val cloudDrive = FakeCloudDriveClient(
+            loginToken = "fresh-token",
+            addOfflineFailuresBeforeSuccess = listOf(
+                AppError.NetworkError.ServerUnreachable("UNAUTHENTICATED: Invalid auth token")
+            ),
+        )
+        val core = core(
+            repository = repository,
+            credentials = credentials,
+            feedReader = FakeFeedReader(
+                feeds = mapOf("https://example.test/rss.xml" to listOf(feedItem()))
+            ),
+            cloudDrive = cloudDrive,
+        )
+
+        val result = core.runOnce()
+
+        assertTrue(result is Result.Success)
+        assertEquals(listOf("http://127.0.0.1:19798|miru|secret"), cloudDrive.loginCalls)
+        assertEquals("fresh-token", credentials.cloudDriveToken)
+        assertEquals(listOf("expired-token", "fresh-token"), cloudDrive.offlineTokens)
+    }
+
+    @Test
     fun `runOnce records last run before post sync ingestion`() = runBlocking {
         val repository = FakeAutomationRepository()
         var lastRunAtDuringIngestion = 0L
@@ -269,9 +334,12 @@ class CloudDriveRssAutomationCoreTest {
         }
     }
 
-    private class FakeCredentials(token: String?) : CloudDriveCredentialStore {
+    private class FakeCredentials(
+        token: String?,
+        password: String? = null,
+    ) : CloudDriveCredentialStore {
         override var cloudDriveToken: String? = token
-        override var cloudDrivePassword: String? = null
+        override var cloudDrivePassword: String? = password
 
         override fun clearCloudDriveCredentials() {
             cloudDriveToken = null
@@ -296,11 +364,18 @@ class CloudDriveRssAutomationCoreTest {
 
     private class FakeCloudDriveClient(
         private val listFolderFailure: AppError? = null,
+        private val loginToken: String = "token",
+        private val addOfflineFailuresBeforeSuccess: List<AppError> = emptyList(),
     ) : CloudDriveClient {
         val offlineUrls = mutableListOf<String>()
+        val offlineTokens = mutableListOf<String?>()
+        val loginCalls = mutableListOf<String>()
+        private var addOfflineCalls = 0
 
-        override suspend fun login(endpointUrl: String, username: String, password: String): Result<CloudDriveLoginResult> =
-            Result.success(CloudDriveLoginResult("token"))
+        override suspend fun login(endpointUrl: String, username: String, password: String): Result<CloudDriveLoginResult> {
+            loginCalls += "$endpointUrl|$username|$password"
+            return Result.success(CloudDriveLoginResult(loginToken))
+        }
 
         override suspend fun getApiTokenInfo(endpointUrl: String, token: String): Result<CloudDriveTokenInfo> =
             Result.success(
@@ -321,6 +396,10 @@ class CloudDriveRssAutomationCoreTest {
             urls: List<String>,
             targetFolder: String,
         ): Result<Unit> {
+            val failure = addOfflineFailuresBeforeSuccess.getOrNull(addOfflineCalls)
+            addOfflineCalls += 1
+            offlineTokens += endpoint.token
+            if (failure != null) return Result.failure(failure)
             offlineUrls += urls
             return Result.success(Unit)
         }
