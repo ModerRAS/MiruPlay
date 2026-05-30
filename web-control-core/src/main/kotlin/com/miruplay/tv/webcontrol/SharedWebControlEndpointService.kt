@@ -64,7 +64,11 @@ abstract class SharedWebControlEndpointService(
 
     protected open suspend fun afterProxyConfigSaved(config: com.miruplay.tv.model.CloudDriveAutomationConfig) = Unit
 
+    protected open suspend fun beforeCloudDriveAutomationRun() = Unit
+
     protected open suspend fun afterCloudDriveAutomationRun(summary: CloudDriveRssRunSummary) = Unit
+
+    protected open suspend fun afterCloudDriveAutomationRunFinished() = Unit
 
     protected open suspend fun afterLogUploadConfigSaved(config: OtlpLogUploadConfig) = Unit
 
@@ -158,8 +162,14 @@ abstract class SharedWebControlEndpointService(
     override suspend fun saveCloudDriveToken(request: CloudDriveTokenRequest): CloudDriveTokenResponse =
         cloudDriveActions.saveWebControlCloudDriveToken(request)
 
-    override suspend fun runCloudDriveAutomationNow(): CloudDriveRunResponse =
-        cloudDriveActions.runWebControlCloudDriveAutomationNow(::afterCloudDriveAutomationRun)
+    override suspend fun runCloudDriveAutomationNow(): CloudDriveRunResponse {
+        beforeCloudDriveAutomationRun()
+        return try {
+            cloudDriveActions.runWebControlCloudDriveAutomationNow(::afterCloudDriveAutomationRun)
+        } finally {
+            afterCloudDriveAutomationRunFinished()
+        }
+    }
 
     override suspend fun startCloudDriveAutomationRun(): CloudDriveRunStatusDto {
         val startedStatus = synchronized(cloudDriveRunLock) {

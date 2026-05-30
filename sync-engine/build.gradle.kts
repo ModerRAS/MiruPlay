@@ -21,6 +21,7 @@ android {
 
 dependencies {
     api(project(":core:model"))
+    implementation(project(":background-task"))
     api(project(":repository-api"))
     api(project(":metadata"))
     api(project(":sync-engine-shared"))

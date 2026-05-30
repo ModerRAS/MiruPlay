@@ -14,6 +14,7 @@ import com.miruplay.tv.core.common.Result as CoreResult
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.scraper.core.BangumiArchiveStore
 import com.miruplay.tv.scraper.core.toBangumiHttpProxyConfig
+import com.miruplay.tv.sync.bangumiArchiveForegroundInfo
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -65,6 +66,12 @@ class BangumiArchiveWorker(
     params: WorkerParameters,
 ) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result {
+        setForeground(
+            bangumiArchiveForegroundInfo(
+                context = applicationContext,
+                text = "正在下载最新离线刮削数据",
+            )
+        )
         val entryPoint = EntryPointAccessors.fromApplication(
             applicationContext,
             BangumiArchiveWorkerEntryPoint::class.java,

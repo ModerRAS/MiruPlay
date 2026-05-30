@@ -31,6 +31,7 @@ android {
 dependencies {
     api(project(":core:model"))
     api(project(":core:common"))
+    implementation(project(":background-task"))
     implementation(project(":ui-design"))
     api(project(":player-core"))
     api(project(":media-source-api"))

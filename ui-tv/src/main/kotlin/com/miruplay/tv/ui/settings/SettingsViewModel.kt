@@ -3,6 +3,9 @@ package com.miruplay.tv.ui.settings
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.miruplay.tv.background.BackgroundTaskForegroundController
+import com.miruplay.tv.background.BackgroundTaskIds
+import com.miruplay.tv.background.BackgroundTaskProgress
 import com.miruplay.tv.clouddrive.CloudDriveClient
 import com.miruplay.tv.core.common.LocalDirectoryBrowser
 import com.miruplay.tv.core.common.Result
@@ -101,6 +104,7 @@ class SettingsViewModel @Inject constructor(
     private val cloudDriveEngine: CloudDriveRssAutomationEngine,
     private val cloudDriveScheduler: CloudDriveRssScheduler,
     private val bangumiArchiveStore: BangumiArchiveStore,
+    private val backgroundTasks: BackgroundTaskForegroundController,
 ) : ViewModel() {
 
     private val logUploadActions = LogUploadActionCoordinator(logUploadRepository)
@@ -369,6 +373,12 @@ class SettingsViewModel @Inject constructor(
     fun downloadBangumiArchive() {
         if (_bangumiArchiveState.value.isDownloading) return
         viewModelScope.launch(Dispatchers.IO) {
+            backgroundTasks.start(
+                taskId = BackgroundTaskIds.BANGUMI_ARCHIVE,
+                title = "Bangumi Archive 下载",
+                text = "正在准备下载 Archive",
+                progress = BackgroundTaskProgress.indeterminate(),
+            )
             val proxyConfig = _cloudDriveConfig.value.toBangumiHttpProxyConfig()
             bangumiArchiveStore.configureProxy(proxyConfig)
             _bangumiArchiveState.value = _bangumiArchiveState.value.copy(
@@ -378,26 +388,38 @@ class SettingsViewModel @Inject constructor(
                 lastError = null,
                 statusMessage = "Bangumi Archive 正在下载。",
             )
-            when (
-                val result = bangumiArchiveStore.downloadLatest { bytesRead, totalBytes ->
-                    _bangumiArchiveState.value = _bangumiArchiveState.value.copy(
-                        isDownloading = true,
-                        downloadedBytes = bytesRead.coerceAtLeast(0L),
-                        totalBytes = totalBytes.coerceAtLeast(0L),
-                    )
+            try {
+                when (
+                    val result = bangumiArchiveStore.downloadLatest { bytesRead, totalBytes ->
+                        val downloadedBytes = bytesRead.coerceAtLeast(0L)
+                        val safeTotalBytes = totalBytes.coerceAtLeast(0L)
+                        _bangumiArchiveState.value = _bangumiArchiveState.value.copy(
+                            isDownloading = true,
+                            downloadedBytes = downloadedBytes,
+                            totalBytes = safeTotalBytes,
+                        )
+                        backgroundTasks.update(
+                            taskId = BackgroundTaskIds.BANGUMI_ARCHIVE,
+                            title = "Bangumi Archive 下载",
+                            text = downloadProgressText(downloadedBytes, safeTotalBytes),
+                            progress = byteProgress(downloadedBytes, safeTotalBytes),
+                        )
+                    }
+                ) {
+                    is Result.Success -> {
+                        _bangumiArchiveState.value = result.data.toBangumiArchiveUiState(
+                            statusMessage = "Bangumi Archive 已更新。",
+                        )
+                    }
+                    is Result.Error -> {
+                        _bangumiArchiveState.value = bangumiArchiveStore.snapshot().toBangumiArchiveUiState(
+                            lastError = result.error.toUserMessage(),
+                            statusMessage = "Bangumi Archive 下载失败。",
+                        )
+                    }
                 }
-            ) {
-                is Result.Success -> {
-                    _bangumiArchiveState.value = result.data.toBangumiArchiveUiState(
-                        statusMessage = "Bangumi Archive 已更新。",
-                    )
-                }
-                is Result.Error -> {
-                    _bangumiArchiveState.value = bangumiArchiveStore.snapshot().toBangumiArchiveUiState(
-                        lastError = result.error.toUserMessage(),
-                        statusMessage = "Bangumi Archive 下载失败。",
-                    )
-                }
+            } finally {
+                backgroundTasks.finish(BackgroundTaskIds.BANGUMI_ARCHIVE)
             }
         }
     }
@@ -489,12 +511,22 @@ class SettingsViewModel @Inject constructor(
     fun runCloudDriveNow() {
         viewModelScope.launch {
             _cloudDriveBusy.value = true
-            cloudDriveEngine.runOnce()
-                .onSuccess { summary -> _cloudDriveActionMessage.value = summary.completeStatus() }
-                .onError { error ->
-                    _cloudDriveActionMessage.value = error.toUserMessage()
-                }
-            _cloudDriveBusy.value = false
+            backgroundTasks.start(
+                taskId = BackgroundTaskIds.CLOUD_DRIVE_RSS,
+                title = "CloudDrive/RSS 同步",
+                text = "正在下载、整理并扫描订阅内容",
+                progress = BackgroundTaskProgress.indeterminate(),
+            )
+            try {
+                cloudDriveEngine.runOnce()
+                    .onSuccess { summary -> _cloudDriveActionMessage.value = summary.completeStatus() }
+                    .onError { error ->
+                        _cloudDriveActionMessage.value = error.toUserMessage()
+                    }
+            } finally {
+                _cloudDriveBusy.value = false
+                backgroundTasks.finish(BackgroundTaskIds.CLOUD_DRIVE_RSS)
+            }
         }
     }
 
@@ -757,33 +789,43 @@ class SettingsViewModel @Inject constructor(
                 progressPercent = 0,
                 statusMessage = settingsAppUpdateDownloadProgressStatus(0),
             )
-            when (
-                val result = appUpdateRepository.downloadAndLaunchInstaller(
-                    update = latest,
-                    onProgress = ::updateDownloadProgress,
-                )
-            ) {
-                is Result.Success -> {
-                    val status = when (result.data) {
-                        AppUpdateInstallLaunch.INSTALLER_OPENED -> settingsAppUpdateInstallerOpenedStatus()
-                        AppUpdateInstallLaunch.INSTALL_PERMISSION_REQUIRED -> {
-                            appUpdateRepository.openInstallPermissionSettings()
-                            settingsAppUpdateInstallPermissionStatus()
+            backgroundTasks.start(
+                taskId = BackgroundTaskIds.APP_UPDATE,
+                title = "应用更新下载",
+                text = settingsAppUpdateDownloadProgressStatus(0),
+                progress = BackgroundTaskProgress.determinate(current = 0, max = 100),
+            )
+            try {
+                when (
+                    val result = appUpdateRepository.downloadAndLaunchInstaller(
+                        update = latest,
+                        onProgress = ::updateDownloadProgress,
+                    )
+                ) {
+                    is Result.Success -> {
+                        val status = when (result.data) {
+                            AppUpdateInstallLaunch.INSTALLER_OPENED -> settingsAppUpdateInstallerOpenedStatus()
+                            AppUpdateInstallLaunch.INSTALL_PERMISSION_REQUIRED -> {
+                                appUpdateRepository.openInstallPermissionSettings()
+                                settingsAppUpdateInstallPermissionStatus()
+                            }
                         }
+                        _appUpdateState.value = _appUpdateState.value.copy(
+                            isBusy = false,
+                            progressPercent = null,
+                            statusMessage = status,
+                        )
                     }
-                    _appUpdateState.value = _appUpdateState.value.copy(
-                        isBusy = false,
-                        progressPercent = null,
-                        statusMessage = status,
-                    )
+                    is Result.Error -> {
+                        _appUpdateState.value = _appUpdateState.value.copy(
+                            isBusy = false,
+                            progressPercent = null,
+                            statusMessage = result.error.toUserMessage(),
+                        )
+                    }
                 }
-                is Result.Error -> {
-                    _appUpdateState.value = _appUpdateState.value.copy(
-                        isBusy = false,
-                        progressPercent = null,
-                        statusMessage = result.error.toUserMessage(),
-                    )
-                }
+            } finally {
+                backgroundTasks.finish(BackgroundTaskIds.APP_UPDATE)
             }
         }
     }
@@ -862,6 +904,42 @@ class SettingsViewModel @Inject constructor(
             progressPercent = percent,
             statusMessage = settingsAppUpdateDownloadProgressStatus(percent),
         )
+        backgroundTasks.update(
+            taskId = BackgroundTaskIds.APP_UPDATE,
+            title = "应用更新下载",
+            text = settingsAppUpdateDownloadProgressStatus(percent),
+            progress = percent?.let { BackgroundTaskProgress.determinate(it, 100) }
+                ?: BackgroundTaskProgress.indeterminate(),
+        )
+    }
+
+    private fun downloadProgressText(downloadedBytes: Long, totalBytes: Long): String {
+        val percent = progressPercent(downloadedBytes, totalBytes)
+        return if (percent == null) {
+            "已下载 ${formatBytes(downloadedBytes)}"
+        } else {
+            "已下载 ${formatBytes(downloadedBytes)} / ${formatBytes(totalBytes)} ($percent%)"
+        }
+    }
+
+    private fun byteProgress(downloadedBytes: Long, totalBytes: Long): BackgroundTaskProgress =
+        progressPercent(downloadedBytes, totalBytes)?.let {
+            BackgroundTaskProgress.determinate(current = it, max = 100)
+        } ?: BackgroundTaskProgress.indeterminate()
+
+    private fun progressPercent(downloadedBytes: Long, totalBytes: Long): Int? =
+        totalBytes.takeIf { it > 0L }?.let {
+            ((downloadedBytes.coerceAtLeast(0L) * 100) / it).toInt().coerceIn(0, 100)
+        }
+
+    private fun formatBytes(bytes: Long): String {
+        val safeBytes = bytes.coerceAtLeast(0L)
+        val mib = 1024L * 1024L
+        return if (safeBytes >= mib) {
+            "${safeBytes / mib} MB"
+        } else {
+            "${safeBytes / 1024L} KB"
+        }
     }
 
     private fun AppUpdateCheck.toUiState(): AppUpdateUiState {

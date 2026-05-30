@@ -17,6 +17,7 @@ import com.miruplay.tv.core.common.Result as CoreResult
 import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.MIN_CLOUD_DRIVE_INTERVAL_MINUTES
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
+import com.miruplay.tv.sync.cloudDriveRssForegroundInfo
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -102,12 +103,18 @@ class CloudDriveRssWorker(
     params: WorkerParameters,
 ) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result {
+        val forceRun = inputData.getBoolean(KEY_FORCE_RUN, false)
+        setForeground(
+            cloudDriveRssForegroundInfo(
+                context = applicationContext,
+                text = if (forceRun) "正在手动同步订阅内容" else "正在按计划同步订阅内容",
+            )
+        )
         val entryPoint = EntryPointAccessors.fromApplication(
             applicationContext,
             CloudDriveRssWorkerEntryPoint::class.java,
         )
         val engine = entryPoint.cloudDriveRssAutomationEngine()
-        val forceRun = inputData.getBoolean(KEY_FORCE_RUN, false)
         return when (val result = if (forceRun) engine.runOnce() else engine.runIfDue()) {
             is CoreResult.Success -> Result.success()
             is CoreResult.Error -> {

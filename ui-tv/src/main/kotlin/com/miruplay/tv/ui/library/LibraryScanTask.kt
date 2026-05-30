@@ -2,6 +2,9 @@ package com.miruplay.tv.ui.library
 
 import android.content.Context
 import android.util.Log
+import com.miruplay.tv.background.BackgroundTaskForegroundController
+import com.miruplay.tv.background.BackgroundTaskIds
+import com.miruplay.tv.background.BackgroundTaskProgress
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.model.ScanResult
@@ -42,7 +45,8 @@ class LibraryScanTask @Inject constructor(
     @ApplicationContext private val context: Context,
     private val mediaRepository: MediaSourceRepository,
     private val scanCoordinator: ScanCoordinator,
-    private val scanPreferences: ScanPreferencesRepository
+    private val scanPreferences: ScanPreferencesRepository,
+    private val backgroundTasks: BackgroundTaskForegroundController,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val _state = MutableStateFlow<LibraryScanState>(LibraryScanState.Idle)
@@ -100,14 +104,31 @@ class LibraryScanTask @Inject constructor(
                     "source_count" to sources.size.toString(),
                 )
             )
+            var foregroundStarted = false
+            backgroundTasks.start(
+                taskId = BackgroundTaskIds.LIBRARY_SCAN,
+                title = "媒体库扫描",
+                text = "正在准备扫描 ${sources.size} 个媒体源",
+                progress = BackgroundTaskProgress.indeterminate(),
+            )
+            foregroundStarted = true
 
             scanCoordinator.setProgressCallback(ScanCoordinator.ScanProgressCallback { path, files, newEps ->
+                var nextScanState: LibraryScanState.Scanning? = null
                 _state.update { current ->
                     val scanning = current as? LibraryScanState.Scanning ?: LibraryScanState.Scanning()
                     scanning.copy(
                         currentPath = path,
                         filesScanned = scanning.filesScanned + files,
                         newEpisodes = scanning.newEpisodes + newEps
+                    ).also { nextScanState = it }
+                }
+                nextScanState?.let { scanning ->
+                    backgroundTasks.update(
+                        taskId = BackgroundTaskIds.LIBRARY_SCAN,
+                        title = "媒体库扫描",
+                        text = scanProgressText(scanning),
+                        progress = BackgroundTaskProgress.indeterminate(),
                     )
                 }
             })
@@ -148,6 +169,7 @@ class LibraryScanTask @Inject constructor(
                             )
                             val completedFiles = results.sumOf { it.episodesFound }
                             val completedNewEpisodes = results.sumOf { it.newEpisodes }
+                            var nextScanState: LibraryScanState.Scanning? = null
                             _state.update { current ->
                                 val scanning = current as? LibraryScanState.Scanning ?: LibraryScanState.Scanning()
                                 scanning.copy(
@@ -155,6 +177,14 @@ class LibraryScanTask @Inject constructor(
                                     filesScanned = maxOf(scanning.filesScanned, completedFiles),
                                     newEpisodes = maxOf(scanning.newEpisodes, completedNewEpisodes),
                                     contentVersion = scanning.contentVersion + 1
+                                ).also { nextScanState = it }
+                            }
+                            nextScanState?.let { scanning ->
+                                backgroundTasks.update(
+                                    taskId = BackgroundTaskIds.LIBRARY_SCAN,
+                                    title = "媒体库扫描",
+                                    text = scanProgressText(scanning),
+                                    progress = BackgroundTaskProgress.indeterminate(),
                                 )
                             }
                         }
@@ -207,12 +237,20 @@ class LibraryScanTask @Inject constructor(
                 _state.value = LibraryScanState.Failed(libraryScanFailedMessage(e::class.simpleName))
             } finally {
                 scanCoordinator.setProgressCallback(null)
+                if (foregroundStarted) {
+                    backgroundTasks.finish(BackgroundTaskIds.LIBRARY_SCAN)
+                }
             }
         }
     }
 
     private fun posterCacheDirectory(): File =
         File(context.cacheDir, "miruplay_image_cache")
+
+    private fun scanProgressText(scanState: LibraryScanState.Scanning): String {
+        val currentPath = scanState.currentPath.ifBlank { "媒体源" }
+        return "正在处理：$currentPath，已发现 ${scanState.filesScanned} 个条目，新剧集 ${scanState.newEpisodes} 个"
+    }
 
     private companion object {
         private const val TAG = "LibraryScanTask"

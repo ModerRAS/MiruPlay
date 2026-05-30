@@ -18,6 +18,7 @@ rootProject.name = "MiruPlay"
 
 include(":app")
 include(":desktop-app")
+include(":background-task")
 include(":core:model")
 include(":core:common")
 include(":ui-design")

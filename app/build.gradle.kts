@@ -95,6 +95,7 @@ android {
 
 dependencies {
     implementation(project(":ui-design"))
+    implementation(project(":background-task"))
     implementation(project(":ui-tv"))
     implementation(project(":repository-api"))
     implementation(project(":media-source"))

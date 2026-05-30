@@ -1,6 +1,9 @@
 package com.miruplay.tv.webcontrol
 
 import android.os.Build
+import com.miruplay.tv.background.BackgroundTaskForegroundController
+import com.miruplay.tv.background.BackgroundTaskIds
+import com.miruplay.tv.background.BackgroundTaskProgress
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.clouddrive.CloudDriveClient
 import com.miruplay.tv.mediasource.MediaSourceFactory
@@ -49,6 +52,7 @@ class WebControlService @Inject constructor(
     private val playbackController: PlaybackController,
     private val navigator: WebControlNavigator,
     private val bangumiArchiveStore: BangumiArchiveStore,
+    private val backgroundTasks: BackgroundTaskForegroundController,
 ) : SharedWebControlEndpointService(
     mediaSourceRepository = mediaRepository,
     metadataRepository = metadataRepository,
@@ -78,7 +82,9 @@ class WebControlService @Inject constructor(
         withContext(Dispatchers.IO) { block() }
 
     override suspend fun scanSourceResultFor(source: MediaSourceInfo): Result<ScanResult> =
-        scanCoordinator.scanSource(source.id)
+        withForegroundScan(source) {
+            scanCoordinator.scanSource(source.id)
+        }
 
     override suspend fun afterCloudDriveConfigSaved(config: com.miruplay.tv.model.CloudDriveAutomationConfig) {
         bangumiArchiveStore.configureProxy(config.toBangumiHttpProxyConfig())
@@ -87,6 +93,19 @@ class WebControlService @Inject constructor(
 
     override suspend fun afterProxyConfigSaved(config: com.miruplay.tv.model.CloudDriveAutomationConfig) {
         bangumiArchiveStore.configureProxy(config.toBangumiHttpProxyConfig())
+    }
+
+    override suspend fun beforeCloudDriveAutomationRun() {
+        backgroundTasks.start(
+            taskId = WEB_CLOUD_DRIVE_TASK_ID,
+            title = "CloudDrive/RSS 同步",
+            text = "正在下载、整理并扫描订阅内容",
+            progress = BackgroundTaskProgress.indeterminate(),
+        )
+    }
+
+    override suspend fun afterCloudDriveAutomationRunFinished() {
+        backgroundTasks.finish(WEB_CLOUD_DRIVE_TASK_ID)
     }
 
     override suspend fun getBangumiArchive(): BangumiArchiveDto = runOnIo {
@@ -108,29 +127,47 @@ class WebControlService @Inject constructor(
 
         val proxyConfig = cloudDriveRepository.getConfig().getOrNull()?.toBangumiHttpProxyConfig()
         bangumiArchiveDownloadScope.launch {
-            proxyConfig?.let { bangumiArchiveStore.configureProxy(it) }
-            val result = bangumiArchiveStore.downloadLatest { bytesRead, totalBytes ->
-                synchronized(bangumiArchiveDownloadLock) {
-                    bangumiArchiveDownload = BangumiArchiveDownloadState(
-                        isDownloading = true,
-                        downloadedBytes = bytesRead.coerceAtLeast(0L),
-                        totalBytes = totalBytes.coerceAtLeast(0L),
+            backgroundTasks.start(
+                taskId = BackgroundTaskIds.BANGUMI_ARCHIVE,
+                title = "Bangumi Archive 下载",
+                text = "正在准备下载 Archive",
+                progress = BackgroundTaskProgress.indeterminate(),
+            )
+            try {
+                proxyConfig?.let { bangumiArchiveStore.configureProxy(it) }
+                val result = bangumiArchiveStore.downloadLatest { bytesRead, totalBytes ->
+                    val downloadedBytes = bytesRead.coerceAtLeast(0L)
+                    val safeTotalBytes = totalBytes.coerceAtLeast(0L)
+                    synchronized(bangumiArchiveDownloadLock) {
+                        bangumiArchiveDownload = BangumiArchiveDownloadState(
+                            isDownloading = true,
+                            downloadedBytes = downloadedBytes,
+                            totalBytes = safeTotalBytes,
+                        )
+                    }
+                    backgroundTasks.update(
+                        taskId = BackgroundTaskIds.BANGUMI_ARCHIVE,
+                        title = "Bangumi Archive 下载",
+                        text = downloadProgressText(downloadedBytes, safeTotalBytes),
+                        progress = byteProgress(downloadedBytes, safeTotalBytes),
                     )
                 }
-            }
 
-            when (result) {
-                is Result.Success -> {
-                    synchronized(bangumiArchiveDownloadLock) {
-                        bangumiArchiveDownload = BangumiArchiveDownloadState()
+                when (result) {
+                    is Result.Success -> {
+                        synchronized(bangumiArchiveDownloadLock) {
+                            bangumiArchiveDownload = BangumiArchiveDownloadState()
+                        }
+                    }
+                    is Result.Error -> {
+                        val message = result.error.toUserMessage()
+                        synchronized(bangumiArchiveDownloadLock) {
+                            bangumiArchiveDownload = BangumiArchiveDownloadState(lastError = message)
+                        }
                     }
                 }
-                is Result.Error -> {
-                    val message = result.error.toUserMessage()
-                    synchronized(bangumiArchiveDownloadLock) {
-                        bangumiArchiveDownload = BangumiArchiveDownloadState(lastError = message)
-                    }
-                }
+            } finally {
+                backgroundTasks.finish(BackgroundTaskIds.BANGUMI_ARCHIVE)
             }
         }
         return getBangumiArchive()
@@ -178,6 +215,24 @@ class WebControlService @Inject constructor(
             durationMs = duration,
         )
     }
+
+    private suspend fun withForegroundScan(
+        source: MediaSourceInfo,
+        block: suspend () -> Result<ScanResult>,
+    ): Result<ScanResult> {
+        val taskId = "${BackgroundTaskIds.LIBRARY_SCAN}-web-${source.id}"
+        backgroundTasks.start(
+            taskId = taskId,
+            title = "媒体库扫描",
+            text = "正在扫描 ${source.name}",
+            progress = BackgroundTaskProgress.indeterminate(),
+        )
+        return try {
+            block()
+        } finally {
+            backgroundTasks.finish(taskId)
+        }
+    }
 }
 
 private data class BangumiArchiveDownloadState(
@@ -202,3 +257,34 @@ private fun BangumiArchiveSnapshot.toWebControlBangumiArchive(
         totalBytes = state.totalBytes,
         lastError = state.lastError,
     )
+
+private fun downloadProgressText(downloadedBytes: Long, totalBytes: Long): String {
+    val percent = progressPercent(downloadedBytes, totalBytes)
+    return if (percent == null) {
+        "已下载 ${formatBytes(downloadedBytes)}"
+    } else {
+        "已下载 ${formatBytes(downloadedBytes)} / ${formatBytes(totalBytes)} ($percent%)"
+    }
+}
+
+private fun byteProgress(downloadedBytes: Long, totalBytes: Long): BackgroundTaskProgress =
+    progressPercent(downloadedBytes, totalBytes)?.let {
+        BackgroundTaskProgress.determinate(current = it, max = 100)
+    } ?: BackgroundTaskProgress.indeterminate()
+
+private fun progressPercent(downloadedBytes: Long, totalBytes: Long): Int? =
+    totalBytes.takeIf { it > 0L }?.let {
+        ((downloadedBytes.coerceAtLeast(0L) * 100) / it).toInt().coerceIn(0, 100)
+    }
+
+private fun formatBytes(bytes: Long): String {
+    val safeBytes = bytes.coerceAtLeast(0L)
+    val mib = 1024L * 1024L
+    return if (safeBytes >= mib) {
+        "${safeBytes / mib} MB"
+    } else {
+        "${safeBytes / 1024L} KB"
+    }
+}
+
+private const val WEB_CLOUD_DRIVE_TASK_ID = "cloud-drive-rss-web"
