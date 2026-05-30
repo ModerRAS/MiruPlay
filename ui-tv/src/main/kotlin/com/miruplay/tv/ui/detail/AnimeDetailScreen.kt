@@ -174,6 +174,8 @@ private fun DetailContent(
     onSyncBangumi: () -> Unit
 ) {
     val playButtonFocusRequester = remember { FocusRequester() }
+    val backdropUrl = anime.fanartUrl ?: anime.posterUrl
+    val backdropLocalPath = if (anime.fanartUrl.isNullOrBlank()) anime.posterLocalPath else null
 
     LaunchedEffect(anime.id, episodes.isNotEmpty()) {
         if (episodes.isNotEmpty()) {
@@ -194,8 +196,9 @@ private fun DetailContent(
                 .background(DarkSurface)
         ) {
             RemoteImage(
-                url = anime.fanartUrl ?: anime.posterUrl,
+                url = backdropUrl,
                 contentDescription = anime.displayTitle(),
+                localPath = backdropLocalPath,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
             )
@@ -221,6 +224,7 @@ private fun DetailContent(
                 RemoteImage(
                     url = anime.posterUrl,
                     contentDescription = anime.displayTitle(),
+                    localPath = anime.posterLocalPath,
                     modifier = Modifier
                         .width(205.dp)
                         .height(302.dp)

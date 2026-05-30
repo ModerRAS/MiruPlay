@@ -26,6 +26,14 @@ interface AnimeDao {
     @Query("SELECT $ANIME_COLUMNS FROM anime WHERE id IN (:ids)")
     suspend fun getByIds(ids: List<String>): List<AnimeEntity>
 
+    @Query(
+        "SELECT $ANIME_COLUMNS FROM anime WHERE bangumi_id = :bangumiId " +
+            "ORDER BY CASE " +
+            "WHEN NULLIF(TRIM(poster_url), '') IS NOT NULL OR NULLIF(TRIM(poster_local_path), '') IS NOT NULL THEN 0 " +
+            "ELSE 1 END, last_updated DESC LIMIT 1"
+    )
+    suspend fun getByBangumiId(bangumiId: String): AnimeEntity?
+
     @Query("SELECT $ANIME_COLUMNS FROM anime ORDER BY title COLLATE NOCASE ASC")
     suspend fun getAll(): List<AnimeEntity>
 
