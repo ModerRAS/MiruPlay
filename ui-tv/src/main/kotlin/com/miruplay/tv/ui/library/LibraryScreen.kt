@@ -26,6 +26,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.*
 import com.miruplay.tv.model.Anime
+import com.miruplay.tv.model.PosterWallArrangement
 import com.miruplay.tv.model.displayTitle
 import com.miruplay.tv.model.libraryAddSourceActionLabel
 import com.miruplay.tv.model.libraryCancelScanActionLabel
@@ -46,6 +47,7 @@ import com.miruplay.tv.model.librarySettingsActionLabel
 import com.miruplay.tv.model.librarySubtitleLabel
 import com.miruplay.tv.model.libraryTitleLabel
 import com.miruplay.tv.model.progressFraction
+import com.miruplay.tv.model.posterWallSections
 import com.miruplay.tv.ui.components.*
 import com.miruplay.tv.ui.theme.*
 
@@ -117,6 +119,7 @@ fun LibraryScreen(
                         continueWatching = state.continueWatching,
                         recentlyAdded = state.recentlyAdded,
                         allAnime = state.allAnime,
+                        posterWallArrangement = state.posterWallArrangement,
                         onNavigateToDetail = onNavigateToDetail
                     )
                 }
@@ -265,9 +268,15 @@ private fun LibraryContent(
     continueWatching: List<ProgressWithEpisode>,
     recentlyAdded: List<Anime>,
     allAnime: List<Anime>,
+    posterWallArrangement: PosterWallArrangement,
     onNavigateToDetail: (String) -> Unit
 ) {
     val library = remember(allAnime) { allAnime.distinctBy { it.id }.sortedBy { it.displayTitle() } }
+    val posterWallSections = remember(allAnime, posterWallArrangement) {
+        allAnime
+            .distinctBy { it.id }
+            .posterWallSections(posterWallArrangement)
+    }
     val featured = remember(library) {
         library.sortedWith(
             compareByDescending<Anime> { it.rating }
@@ -348,21 +357,32 @@ private fun LibraryContent(
             }
         }
 
-        if (library.isNotEmpty()) {
+        if (posterWallSections.isNotEmpty()) {
             SectionHeader(title = libraryPosterWallSectionTitle())
-            Column(
-                verticalArrangement = Arrangement.spacedBy(18.dp),
-                modifier = Modifier.fillMaxWidth().padding(bottom = 28.dp)
-            ) {
-                library.filter { it.id.isNotBlank() }.chunked(6).forEach { row ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        row.forEach { anime ->
-                            AnimePosterCard(
-                                anime = anime,
-                                width = 170.dp,
-                                height = 254.dp,
-                                onClick = { onNavigateToDetail(anime.id) }
-                            )
+            posterWallSections.forEach { section ->
+                val sectionTitle = section.title
+                if (!sectionTitle.isNullOrBlank()) {
+                    Text(
+                        text = sectionTitle,
+                        style = TvTypography.body,
+                        color = TextSecondary,
+                        modifier = Modifier.padding(bottom = 10.dp)
+                    )
+                }
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(18.dp),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 28.dp)
+                ) {
+                    section.anime.filter { it.id.isNotBlank() }.chunked(6).forEach { row ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                            row.forEach { anime ->
+                                AnimePosterCard(
+                                    anime = anime,
+                                    width = 170.dp,
+                                    height = 254.dp,
+                                    onClick = { onNavigateToDetail(anime.id) }
+                                )
+                            }
                         }
                     }
                 }

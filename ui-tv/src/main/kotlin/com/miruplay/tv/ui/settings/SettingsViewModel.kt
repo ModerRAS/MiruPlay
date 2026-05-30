@@ -13,6 +13,7 @@ import com.miruplay.tv.core.common.WebControlConfig
 import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.data.preferences.PlaybackPreferencesManager
 import com.miruplay.tv.model.PlaybackEndAction
+import com.miruplay.tv.model.PosterWallArrangement
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.CloudDriveLibraryMode
@@ -139,6 +140,9 @@ class SettingsViewModel @Inject constructor(
 
     private val _mergeSameAnimeEnabled = MutableStateFlow(scanPreferences.mergeSameAnimeEnabled)
     val mergeSameAnimeEnabled: StateFlow<Boolean> = _mergeSameAnimeEnabled.asStateFlow()
+
+    private val _posterWallArrangement = MutableStateFlow(scanPreferences.posterWallArrangement)
+    val posterWallArrangement: StateFlow<PosterWallArrangement> = _posterWallArrangement.asStateFlow()
 
     private val _playbackEndAction = MutableStateFlow(playbackPreferences.endAction)
     val playbackEndAction: StateFlow<PlaybackEndAction> = _playbackEndAction.asStateFlow()
@@ -759,6 +763,11 @@ class SettingsViewModel @Inject constructor(
     fun setMergeSameAnimeEnabled(enabled: Boolean) {
         scanPreferences.mergeSameAnimeEnabled = enabled
         _mergeSameAnimeEnabled.value = enabled
+    }
+
+    fun setPosterWallArrangement(arrangement: PosterWallArrangement) {
+        scanPreferences.posterWallArrangement = arrangement
+        _posterWallArrangement.value = arrangement
     }
 
     fun setPlaybackEndAction(action: PlaybackEndAction) {

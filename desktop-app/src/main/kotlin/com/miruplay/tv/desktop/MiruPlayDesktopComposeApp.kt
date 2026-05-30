@@ -49,6 +49,7 @@ import com.miruplay.tv.mediasource.desktop.DesktopMediaSource
 import com.miruplay.tv.mediasource.desktop.DesktopMediaSourceFactory
 import com.miruplay.tv.mediasource.desktop.DesktopPlaybackBridge
 import com.miruplay.tv.mediasource.desktop.desktopSourceFromInfo
+import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.CloudDriveLibraryMode
 import com.miruplay.tv.model.PLAYBACK_SEEK_BACK_SECONDS
@@ -61,6 +62,7 @@ import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.PlaybackProgressSession
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.PlaybackTimingConventions
+import com.miruplay.tv.model.PosterWallArrangement
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.RssSubscriptionFormResult
 import com.miruplay.tv.model.RssSubscriptionInfo
@@ -425,6 +427,33 @@ internal fun desktopInitialSourceFormStateFromEnvironment(): DesktopSourceFormSt
         smbPassword = System.getenv(DESKTOP_INITIAL_SMB_PASSWORD_ENV),
     )
 
+private fun List<MediaIndexEntry>.posterWallMetadataLookupKeys(): List<String> =
+    asSequence()
+        .flatMap { entry ->
+            sequenceOf(
+                entry.metadataId,
+                entry.animeName,
+                entry.metadataTitle,
+            )
+        }
+        .mapNotNull { it?.takeIf(String::isNotBlank) }
+        .distinct()
+        .toList()
+
+private fun Anime.posterWallReleaseSeasonEntries(): List<Pair<String, String>> {
+    val date = airDate?.takeIf { it.isNotBlank() } ?: return emptyList()
+    return buildList {
+        add(id to date)
+        add("metadata:$id" to date)
+        title.takeIf { it.isNotBlank() }?.let { add("title:${it.lowercase()}" to date) }
+        titleCn?.takeIf { it.isNotBlank() }?.let { add("title:${it.lowercase()}" to date) }
+        bangumiId?.takeIf { it > 0 }?.let { id ->
+            add(id.toString() to date)
+            add("metadata:$id" to date)
+        }
+    }
+}
+
 @Composable
 internal fun MiruPlayDesktopComposeApp(
     onPlayerFullscreenActiveChange: (Boolean) -> Unit = {},
@@ -534,6 +563,8 @@ internal fun MiruPlayDesktopComposeApp(
     var autoScanIntervalHours by remember { mutableStateOf(6) }
     var lastScanAt by remember { mutableStateOf(0L) }
     var mergeSameAnimeEnabled by remember { mutableStateOf(false) }
+    var posterWallArrangement by remember { mutableStateOf(PosterWallArrangement.TITLE) }
+    var posterWallReleaseSeasons by remember { mutableStateOf(emptyMap<String, String>()) }
     var recentProgress by remember { mutableStateOf(emptyList<DesktopRecentPlaybackItem>()) }
     var selectedRecentProgress by remember { mutableStateOf<DesktopRecentPlaybackItem?>(null) }
     var selectedDetailEpisodeSeason by remember { mutableStateOf<Int?>(null) }
@@ -667,6 +698,15 @@ internal fun MiruPlayDesktopComposeApp(
         )
     }
 
+    LaunchedEffect(repositories, indexedEntries) {
+        val keys = indexedEntries.posterWallMetadataLookupKeys()
+        posterWallReleaseSeasons = repositories.metadata.getCachedMetadata(keys)
+            .getOrNull()
+            .orEmpty()
+            .flatMap { it.posterWallReleaseSeasonEntries() }
+            .toMap()
+    }
+
     DisposableEffect(playbackBridge, cloudRssScheduler, desktopWebControlServer) {
         onDispose {
             desktopWebControlServer.stopIfRunning()
@@ -724,6 +764,7 @@ internal fun MiruPlayDesktopComposeApp(
         autoScanIntervalHours = snapshot.autoScanIntervalHours
         lastScanAt = snapshot.lastScanAt
         mergeSameAnimeEnabled = snapshot.mergeSameAnimeEnabled
+        posterWallArrangement = snapshot.posterWallArrangement
     }
 
     suspend fun loadIndexedEntries(sourceId: Long, statusWhenEmpty: String) {
@@ -1687,6 +1728,8 @@ internal fun MiruPlayDesktopComposeApp(
                     }
                 },
                 mergeSameAnimeEnabled = mergeSameAnimeEnabled,
+                posterWallArrangement = posterWallArrangement,
+                posterWallReleaseSeasons = posterWallReleaseSeasons,
                 onEntryFocused = { entry ->
                     selectedIndexEntry = entry
                     mediaPath = entry.path
@@ -2187,6 +2230,7 @@ internal fun MiruPlayDesktopComposeApp(
                 scanIntervalOptionsHours = scanPreferencesIntervalOptionsHours,
                 lastScanAt = lastScanAt,
                 mergeSameAnimeEnabled = mergeSameAnimeEnabled,
+                posterWallArrangement = posterWallArrangement,
                 onToggleAutoScan = {
                     val enabled = !autoScanEnabled
                     scope.launch {
@@ -2202,6 +2246,11 @@ internal fun MiruPlayDesktopComposeApp(
                     val enabled = !mergeSameAnimeEnabled
                     scope.launch {
                         applyScanPreferenceSnapshot(settingsPreferenceActions.setMergeSameAnimeEnabled(enabled))
+                    }
+                },
+                onPosterWallArrangementSelected = { arrangement ->
+                    scope.launch {
+                        applyScanPreferenceSnapshot(settingsPreferenceActions.setPosterWallArrangement(arrangement))
                     }
                 },
                 onSaveConfig = {

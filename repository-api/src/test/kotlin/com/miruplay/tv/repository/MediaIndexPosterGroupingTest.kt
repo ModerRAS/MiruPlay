@@ -1,5 +1,6 @@
 package com.miruplay.tv.repository
 
+import com.miruplay.tv.model.PosterWallArrangement
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -81,6 +82,43 @@ class MediaIndexPosterGroupingTest {
             listOf("431767"),
             entries.toMediaIndexPosterGroups(mergeSameAnimeEnabled = true).map { it.animeId },
         )
+    }
+
+    @Test
+    fun `poster groups can sort by release season lookup`() {
+        val entries = listOf(
+            MediaIndexEntry(
+                sourceId = 1,
+                path = "Spring/01.mkv",
+                animeName = "Spring",
+                metadataId = "spring-id",
+                metadataTitle = "Spring",
+            ),
+            MediaIndexEntry(
+                sourceId = 1,
+                path = "Autumn/01.mkv",
+                animeName = "Autumn",
+                metadataId = "autumn-id",
+                metadataTitle = "Autumn",
+            ),
+            MediaIndexEntry(
+                sourceId = 1,
+                path = "Unknown/01.mkv",
+                animeName = "Unknown",
+            ),
+        )
+
+        val groups = entries
+            .toMediaIndexPosterGroups()
+            .sortedForPosterWall(
+                arrangement = PosterWallArrangement.RELEASE_SEASON,
+                releaseSeasonsByAnimeId = mapOf(
+                    "metadata:spring-id" to "2024-04-01",
+                    "metadata:autumn-id" to "2024-09-29",
+                ),
+            )
+
+        assertEquals(listOf("Autumn", "Spring", "Unknown"), groups.map { it.title })
     }
 
     @Test

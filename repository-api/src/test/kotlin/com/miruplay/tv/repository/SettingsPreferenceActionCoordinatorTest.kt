@@ -1,6 +1,7 @@
 package com.miruplay.tv.repository
 
 import com.miruplay.tv.model.PlaybackEndAction
+import com.miruplay.tv.model.PosterWallArrangement
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -14,6 +15,7 @@ class SettingsPreferenceActionCoordinatorTest {
                 autoScanIntervalMs = 6.toScanIntervalMillis(),
                 lastScanAt = 42L,
                 mergeSameAnimeEnabled = true,
+                posterWallArrangement = PosterWallArrangement.RELEASE_SEASON,
             ),
         )
         val coordinator = coordinator(scanPreferences)
@@ -24,6 +26,7 @@ class SettingsPreferenceActionCoordinatorTest {
                 autoScanIntervalHours = 6,
                 lastScanAt = 42L,
                 mergeSameAnimeEnabled = true,
+                posterWallArrangement = PosterWallArrangement.RELEASE_SEASON,
             ),
             coordinator.currentScanPreferences(),
         )
@@ -37,13 +40,16 @@ class SettingsPreferenceActionCoordinatorTest {
         val enabled = coordinator.setAutoScanEnabled(true)
         val interval = coordinator.setAutoScanIntervalHours(12)
         val merged = coordinator.setMergeSameAnimeEnabled(true)
+        val arrangement = coordinator.setPosterWallArrangement(PosterWallArrangement.RELEASE_SEASON)
 
         assertEquals(true, scanPreferences.snapshot.autoScanEnabled)
         assertEquals(12.toScanIntervalMillis(), scanPreferences.snapshot.autoScanIntervalMs)
         assertEquals(true, scanPreferences.snapshot.mergeSameAnimeEnabled)
+        assertEquals(PosterWallArrangement.RELEASE_SEASON, scanPreferences.snapshot.posterWallArrangement)
         assertEquals(true, enabled.autoScanEnabled)
         assertEquals(12, interval.autoScanIntervalHours)
         assertEquals(true, merged.mergeSameAnimeEnabled)
+        assertEquals(PosterWallArrangement.RELEASE_SEASON, arrangement.posterWallArrangement)
     }
 
     @Test
@@ -88,6 +94,10 @@ class SettingsPreferenceActionCoordinatorTest {
 
         override suspend fun setMergeSameAnimeEnabled(enabled: Boolean) {
             snapshot = snapshot.copy(mergeSameAnimeEnabled = enabled)
+        }
+
+        override suspend fun setPosterWallArrangement(arrangement: PosterWallArrangement) {
+            snapshot = snapshot.copy(posterWallArrangement = arrangement)
         }
     }
 

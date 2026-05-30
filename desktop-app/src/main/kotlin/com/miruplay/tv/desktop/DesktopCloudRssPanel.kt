@@ -58,6 +58,7 @@ import com.miruplay.tv.model.CLOUD_RSS_SUBSCRIPTION_PAGE_SIZE
 import com.miruplay.tv.model.CloudDriveLibraryMode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MiruPlaySettingsSection
+import com.miruplay.tv.model.PosterWallArrangement
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.SettingsSectionMenuSummaryInput
 import com.miruplay.tv.model.SettingsSummaryTile
@@ -114,6 +115,7 @@ import com.miruplay.tv.model.settingsMenuSummary
 import com.miruplay.tv.model.settingsMenuPanelTitle
 import com.miruplay.tv.model.settingsMergeSameAnimeStatus
 import com.miruplay.tv.model.settingsMergeSameAnimeToggleLabel
+import com.miruplay.tv.model.settingsPosterWallArrangementTitleLabel
 import com.miruplay.tv.model.settingsOpenDetailsActionLabel
 import com.miruplay.tv.model.settingsOpenLibraryActionLabel
 import com.miruplay.tv.model.settingsOpenPlayerActionLabel
@@ -135,6 +137,8 @@ import com.miruplay.tv.model.rssSubscriptionPreview
 import com.miruplay.tv.model.rssSubscriptionsTitleLabel
 import com.miruplay.tv.model.logUploadSettingsTiles
 import com.miruplay.tv.model.parseRssProxyPort
+import com.miruplay.tv.model.posterWallArrangementLabel
+import com.miruplay.tv.model.posterWallArrangementStatus
 import com.miruplay.tv.model.scanSettingsTiles
 import com.miruplay.tv.model.sourceSettingsTiles
 import com.miruplay.tv.model.settingsProxyCurrentStatus
@@ -207,9 +211,11 @@ internal fun CloudRssPanel(
     scanIntervalOptionsHours: List<Int>,
     lastScanAt: Long,
     mergeSameAnimeEnabled: Boolean,
+    posterWallArrangement: PosterWallArrangement,
     onToggleAutoScan: () -> Unit,
     onScanIntervalSelected: (Int) -> Unit,
     onToggleMergeSameAnime: () -> Unit,
+    onPosterWallArrangementSelected: (PosterWallArrangement) -> Unit,
     onSaveConfig: () -> Unit,
     onSaveCredentials: () -> Unit,
     onLoginCloudDrive: () -> Unit,
@@ -281,6 +287,7 @@ internal fun CloudRssPanel(
             webUiAddressCount = webUiUrls.size,
             autoScanEnabled = autoScanEnabled,
             mergeSameAnimeEnabled = mergeSameAnimeEnabled,
+            posterWallArrangement = posterWallArrangement,
             proxyEnabled = proxyEnabled,
             proxyHost = proxyHost,
             proxyPort = proxyPort,
@@ -423,9 +430,11 @@ internal fun CloudRssPanel(
                         intervalOptionsHours = scanIntervalOptionsHours,
                         lastScanAt = lastScanAt,
                         mergeSameAnimeEnabled = mergeSameAnimeEnabled,
+                        posterWallArrangement = posterWallArrangement,
                         onToggleAutoScan = onToggleAutoScan,
                         onIntervalSelected = onScanIntervalSelected,
                         onToggleMergeSameAnime = onToggleMergeSameAnime,
+                        onPosterWallArrangementSelected = onPosterWallArrangementSelected,
                     )
                 },
                 modifier = Modifier.weight(1f),
@@ -2043,6 +2052,7 @@ private fun SettingsSectionMenu(
     webUiAddressCount: Int,
     autoScanEnabled: Boolean,
     mergeSameAnimeEnabled: Boolean,
+    posterWallArrangement: PosterWallArrangement,
     proxyEnabled: Boolean,
     proxyHost: String,
     proxyPort: String,
@@ -2065,6 +2075,7 @@ private fun SettingsSectionMenu(
         proxyPort = parseRssProxyPort(proxyPort),
         autoScanEnabled = autoScanEnabled,
         mergeSameAnimeEnabled = mergeSameAnimeEnabled,
+        posterWallArrangement = posterWallArrangement,
         metadataSummary = metadataSummary,
     )
 
@@ -2312,9 +2323,11 @@ private fun DesktopScanPreferencesContent(
     intervalOptionsHours: List<Int>,
     lastScanAt: Long,
     mergeSameAnimeEnabled: Boolean,
+    posterWallArrangement: PosterWallArrangement,
     onToggleAutoScan: () -> Unit,
     onIntervalSelected: (Int) -> Unit,
     onToggleMergeSameAnime: () -> Unit,
+    onPosterWallArrangementSelected: (PosterWallArrangement) -> Unit,
 ) {
     Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
     CloudRssCard(
@@ -2347,9 +2360,24 @@ private fun DesktopScanPreferencesContent(
     Spacer(Modifier.height(MiruPlayUiMetrics.STACK_GAP_DP.dp))
     CloudRssCard(
         title = settingsLibraryDisplayTitleLabel(),
-        badge = settingsMergeSameAnimeToggleLabel(mergeSameAnimeEnabled),
-        preview = settingsMergeSameAnimeStatus(mergeSameAnimeEnabled),
+        badge = posterWallArrangementLabel(posterWallArrangement),
+        preview = posterWallArrangementStatus(posterWallArrangement),
     ) {
+        Text(
+            settingsPosterWallArrangementTitleLabel(),
+            color = TextSecondary,
+            fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(MiruPlayUiMetrics.STACK_GAP_DP.dp)) {
+            PosterWallArrangement.entries.forEach { arrangement ->
+                TvActionButton(
+                    posterWallArrangementLabel(arrangement),
+                    onClick = { onPosterWallArrangementSelected(arrangement) },
+                    secondary = posterWallArrangement != arrangement,
+                )
+            }
+        }
+        StatusBox(posterWallArrangementStatus(posterWallArrangement))
         TvActionButton(
             settingsMergeSameAnimeToggleLabel(mergeSameAnimeEnabled),
             onClick = onToggleMergeSameAnime,

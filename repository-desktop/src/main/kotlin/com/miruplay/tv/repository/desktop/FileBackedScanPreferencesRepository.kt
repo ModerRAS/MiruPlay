@@ -1,5 +1,6 @@
 package com.miruplay.tv.repository.desktop
 
+import com.miruplay.tv.model.PosterWallArrangement
 import com.miruplay.tv.repository.ScanPreferencesRepository
 import com.miruplay.tv.repository.ScanPreferencesSnapshot
 
@@ -33,6 +34,13 @@ internal class FileBackedScanPreferencesRepository(
     override suspend fun setMergeSameAnimeEnabled(enabled: Boolean) {
         store.update { state ->
             val preferences = state.scanPreferences.normalized().copy(mergeSameAnimeEnabled = enabled)
+            state.copy(scanPreferences = preferences) to Unit
+        }
+    }
+
+    override suspend fun setPosterWallArrangement(arrangement: PosterWallArrangement) {
+        store.update { state ->
+            val preferences = state.scanPreferences.normalized().copy(posterWallArrangement = arrangement)
             state.copy(scanPreferences = preferences) to Unit
         }
     }

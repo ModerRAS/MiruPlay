@@ -2,6 +2,8 @@ package com.miruplay.tv.repository
 
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.MediaPathConventions
+import com.miruplay.tv.model.PosterWallArrangement
+import com.miruplay.tv.model.toAnimeReleaseSeason
 
 data class MediaIndexPosterGroup(
     val title: String,
@@ -14,6 +16,11 @@ data class MediaIndexPosterGroup(
             .first()
     val entryPaths: Set<String> = entries.map { it.path }.toSet()
     val lastModified: Long = entries.maxOfOrNull { it.lastModified } ?: 0L
+    val releaseSeasonKey: String? = entries.firstNotNullOfOrNull { entry ->
+        entry.metadataId?.takeIf { it.isNotBlank() }?.let { "metadata:$it" }
+            ?: entry.metadataTitle?.takeIf { it.isNotBlank() }?.let { "title:${it.lowercase()}" }
+            ?: entry.animeName?.takeIf { it.isNotBlank() }?.let { "title:${it.lowercase()}" }
+    }
     val subtitle: String = buildString {
         append(entries.size)
         append(" episode")
@@ -36,6 +43,20 @@ fun List<MediaIndexEntry>.toMediaIndexPosterGroups(
             )
         }
         .sortedBy { it.title.lowercase() }
+
+fun List<MediaIndexPosterGroup>.sortedForPosterWall(
+    arrangement: PosterWallArrangement = PosterWallArrangement.TITLE,
+    releaseSeasonsByAnimeId: Map<String, String> = emptyMap(),
+): List<MediaIndexPosterGroup> =
+    when (arrangement) {
+        PosterWallArrangement.TITLE -> sortedBy { it.title.lowercase() }
+        PosterWallArrangement.RELEASE_SEASON -> sortedWith(
+            compareBy<MediaIndexPosterGroup> { if (it.releaseSeason(releaseSeasonsByAnimeId) == null) 1 else 0 }
+                .thenByDescending { it.releaseSeason(releaseSeasonsByAnimeId)?.year ?: Int.MIN_VALUE }
+                .thenByDescending { it.releaseSeason(releaseSeasonsByAnimeId)?.startMonth ?: Int.MIN_VALUE }
+                .thenBy { it.title.lowercase() },
+        )
+    }
 
 fun MediaIndexPosterGroup.toIndexedAnime(): Anime =
     Anime(
@@ -114,3 +135,13 @@ private val mediaIndexEpisodeComparator =
         { it.episodeNumber ?: Int.MAX_VALUE },
         { it.path.lowercase() },
     )
+
+private fun MediaIndexPosterGroup.releaseSeason(releaseSeasonsByAnimeId: Map<String, String>) =
+    sequenceOf(
+        animeId,
+        "metadata:$animeId",
+        "title:${title.lowercase()}",
+        releaseSeasonKey,
+    )
+        .filterNotNull()
+        .firstNotNullOfOrNull { key -> releaseSeasonsByAnimeId[key]?.toAnimeReleaseSeason() }

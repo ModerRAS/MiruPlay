@@ -56,9 +56,17 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("待填写", settingsProxyMenuSummary(enabled = true, host = ""))
         assertEquals("203.0.113.20:7890", settingsProxyMenuSummary(enabled = true, host = " 203.0.113.20 ", port = 7890))
         assertEquals("定时 · 合并", settingsScanMenuSummary(autoScanEnabled = true, mergeSameAnimeEnabled = true))
-        assertEquals("定时已开", settingsScanMenuSummary(autoScanEnabled = true, mergeSameAnimeEnabled = false))
-        assertEquals("同番合并", settingsScanMenuSummary(autoScanEnabled = false, mergeSameAnimeEnabled = true))
+        assertEquals("定时", settingsScanMenuSummary(autoScanEnabled = true, mergeSameAnimeEnabled = false))
+        assertEquals("合并", settingsScanMenuSummary(autoScanEnabled = false, mergeSameAnimeEnabled = true))
         assertEquals("定时关闭", settingsScanMenuSummary(autoScanEnabled = false, mergeSameAnimeEnabled = false))
+        assertEquals(
+            "新番季",
+            settingsScanMenuSummary(
+                autoScanEnabled = false,
+                mergeSameAnimeEnabled = false,
+                posterWallArrangement = PosterWallArrangement.RELEASE_SEASON,
+            ),
+        )
         assertEquals("OpenObserve", settingsLogUploadMenuSummary())
         assertEquals("GitHub", settingsAppUpdateMenuSummary())
         assertEquals("未启用", settingsAndroidTvLogUploadMenuSummary())
@@ -94,6 +102,7 @@ class SettingsSectionDisplayConventionsTest {
             proxyPort = 7890,
             autoScanEnabled = true,
             mergeSameAnimeEnabled = true,
+            posterWallArrangement = PosterWallArrangement.RELEASE_SEASON,
             metadataSummary = "Token 已设置",
             appVersionName = "0.1.0",
         )
@@ -102,7 +111,7 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("播完动作", MiruPlaySettingsSection.PLAYBACK.settingsMenuSummary(androidInput))
         assertEquals("4 个订阅", MiruPlaySettingsSection.CLOUD_DRIVE.settingsMenuSummary(androidInput))
         assertEquals("203.0.113.20:7890", MiruPlaySettingsSection.PROXY.settingsMenuSummary(androidInput))
-        assertEquals("定时 · 合并", MiruPlaySettingsSection.SCAN.settingsMenuSummary(androidInput))
+        assertEquals("定时 · 合并 · 新番季", MiruPlaySettingsSection.SCAN.settingsMenuSummary(androidInput))
         assertEquals("OpenObserve", MiruPlaySettingsSection.LOG_UPLOAD.settingsMenuSummary(androidInput))
         assertEquals("GitHub", MiruPlaySettingsSection.APP_UPDATE.settingsMenuSummary(androidInput))
         assertEquals("Token 已设置", MiruPlaySettingsSection.METADATA.settingsMenuSummary(androidInput))
@@ -298,6 +307,7 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("还没有扫描记录", settingsLastScanLabel(0L))
         assertTrue(settingsCurrentScanIntervalStatus(6, 1_700_000_000_000L).startsWith("当前间隔 6 小时 · 上次扫描 "))
         assertEquals("媒体库显示", settingsLibraryDisplayTitleLabel())
+        assertEquals("海报墙排列", settingsPosterWallArrangementTitleLabel())
         assertEquals("同番合并", settingsMergeSameAnimeToggleLabel(enabled = true))
         assertEquals("目录分开", settingsMergeSameAnimeToggleLabel(enabled = false))
         assertEquals("首页和详情会按 Bangumi ID 或标题合并同一番。", settingsMergeSameAnimeStatus(enabled = true))

@@ -1,12 +1,14 @@
 package com.miruplay.tv.repository
 
 import com.miruplay.tv.model.PlaybackEndAction
+import com.miruplay.tv.model.PosterWallArrangement
 
 data class ScanPreferenceActionSnapshot(
     val autoScanEnabled: Boolean = false,
     val autoScanIntervalHours: Int = SCAN_PREFERENCES_DEFAULT_INTERVAL_MS.toScanIntervalHours(),
     val lastScanAt: Long = 0L,
     val mergeSameAnimeEnabled: Boolean = false,
+    val posterWallArrangement: PosterWallArrangement = PosterWallArrangement.TITLE,
 )
 
 class SettingsPreferenceActionCoordinator(
@@ -31,6 +33,11 @@ class SettingsPreferenceActionCoordinator(
         return currentScanPreferences()
     }
 
+    suspend fun setPosterWallArrangement(arrangement: PosterWallArrangement): ScanPreferenceActionSnapshot {
+        scanPreferences.setPosterWallArrangement(arrangement)
+        return currentScanPreferences()
+    }
+
     suspend fun currentPlaybackEndAction(): PlaybackEndAction =
         playbackPreferences.getEndAction()
 
@@ -47,5 +54,6 @@ fun ScanPreferencesSnapshot.toScanPreferenceActionSnapshot(): ScanPreferenceActi
         autoScanIntervalHours = normalized.autoScanIntervalMs.toScanIntervalHours(),
         lastScanAt = normalized.lastScanAt,
         mergeSameAnimeEnabled = normalized.mergeSameAnimeEnabled,
+        posterWallArrangement = normalized.posterWallArrangement,
     )
 }

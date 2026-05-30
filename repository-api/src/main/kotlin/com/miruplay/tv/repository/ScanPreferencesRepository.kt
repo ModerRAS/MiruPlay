@@ -1,5 +1,6 @@
 package com.miruplay.tv.repository
 
+import com.miruplay.tv.model.PosterWallArrangement
 import kotlinx.serialization.Serializable
 
 const val SCAN_PREFERENCES_MIN_INTERVAL_MS: Long = 30 * 60 * 1000L
@@ -14,6 +15,7 @@ data class ScanPreferencesSnapshot(
     val autoScanIntervalMs: Long = SCAN_PREFERENCES_DEFAULT_INTERVAL_MS,
     val lastScanAt: Long = 0L,
     val mergeSameAnimeEnabled: Boolean = false,
+    val posterWallArrangement: PosterWallArrangement = PosterWallArrangement.TITLE,
 ) {
     fun normalized(): ScanPreferencesSnapshot =
         copy(autoScanIntervalMs = autoScanIntervalMs.coerceAtLeast(SCAN_PREFERENCES_MIN_INTERVAL_MS))
@@ -25,6 +27,7 @@ interface ScanPreferencesRepository {
     suspend fun setAutoScanIntervalMs(intervalMs: Long)
     suspend fun setLastScanAt(timestampMs: Long)
     suspend fun setMergeSameAnimeEnabled(enabled: Boolean)
+    suspend fun setPosterWallArrangement(arrangement: PosterWallArrangement)
 }
 
 suspend fun ScanPreferencesRepository.shouldAutoScan(now: Long = System.currentTimeMillis()): Boolean {

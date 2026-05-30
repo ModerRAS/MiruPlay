@@ -131,13 +131,13 @@ fun settingsProxyMenuSummary(
 fun settingsScanMenuSummary(
     autoScanEnabled: Boolean,
     mergeSameAnimeEnabled: Boolean,
+    posterWallArrangement: PosterWallArrangement = PosterWallArrangement.TITLE,
 ): String =
-    when {
-        autoScanEnabled && mergeSameAnimeEnabled -> "定时 · 合并"
-        autoScanEnabled -> "定时已开"
-        mergeSameAnimeEnabled -> "同番合并"
-        else -> "定时关闭"
-    }
+    buildList {
+        if (autoScanEnabled) add("定时")
+        if (mergeSameAnimeEnabled) add("合并")
+        if (posterWallArrangement == PosterWallArrangement.RELEASE_SEASON) add("新番季")
+    }.joinToString(" · ").ifBlank { "定时关闭" }
 
 fun settingsLogUploadMenuSummary(): String =
     "OpenObserve"
@@ -171,6 +171,7 @@ data class SettingsSectionMenuSummaryInput(
     val proxyPort: Int = DEFAULT_RSS_PROXY_PORT,
     val autoScanEnabled: Boolean = false,
     val mergeSameAnimeEnabled: Boolean = false,
+    val posterWallArrangement: PosterWallArrangement = PosterWallArrangement.TITLE,
     val metadataSummary: String = "",
     val logUploadSummary: String = settingsLogUploadMenuSummary(),
     val appUpdateSummary: String = settingsAppUpdateMenuSummary(),
@@ -186,7 +187,11 @@ fun MiruPlaySettingsSection.settingsMenuSummary(
         MiruPlaySettingsSection.PLAYBACK -> input.playbackSummary
         MiruPlaySettingsSection.CLOUD_DRIVE -> settingsCloudDriveMenuSummary(input.cloudDriveEnabled, input.rssCount)
         MiruPlaySettingsSection.PROXY -> settingsProxyMenuSummary(input.proxyEnabled, input.proxyHost, input.proxyPort)
-        MiruPlaySettingsSection.SCAN -> settingsScanMenuSummary(input.autoScanEnabled, input.mergeSameAnimeEnabled)
+        MiruPlaySettingsSection.SCAN -> settingsScanMenuSummary(
+            input.autoScanEnabled,
+            input.mergeSameAnimeEnabled,
+            input.posterWallArrangement,
+        )
         MiruPlaySettingsSection.LOG_UPLOAD -> input.logUploadSummary
         MiruPlaySettingsSection.APP_UPDATE -> input.appUpdateSummary
         MiruPlaySettingsSection.METADATA -> input.metadataSummary
@@ -615,6 +620,9 @@ fun settingsCurrentScanIntervalStatus(
 
 fun settingsLibraryDisplayTitleLabel(): String =
     "媒体库显示"
+
+fun settingsPosterWallArrangementTitleLabel(): String =
+    "海报墙排列"
 
 fun settingsMergeSameAnimeToggleLabel(enabled: Boolean): String =
     if (enabled) "同番合并" else "目录分开"

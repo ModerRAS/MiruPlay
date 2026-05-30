@@ -10,6 +10,7 @@ import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaPathConventions
+import com.miruplay.tv.model.PosterWallArrangement
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.isCompleted
 import com.miruplay.tv.model.libraryNoContentAfterScanMessage
@@ -52,7 +53,8 @@ sealed class LibraryUiState {
     data class HasContent(
         val continueWatching: List<ProgressWithEpisode>,
         val recentlyAdded: List<Anime>,
-        val allAnime: List<Anime>
+        val allAnime: List<Anime>,
+        val posterWallArrangement: PosterWallArrangement,
     ) : LibraryUiState()
     data class ScanError(val message: String) : LibraryUiState()
 }
@@ -195,7 +197,8 @@ class LibraryViewModel @Inject constructor(
             _state.value = LibraryUiState.HasContent(
                 continueWatching = continueWatching,
                 recentlyAdded = displayAnime.takeLast(10),
-                allAnime = displayAnime
+                allAnime = displayAnime,
+                posterWallArrangement = scanPreferences.posterWallArrangement,
             )
             MiruLog.i(
                 "LibraryViewModel",

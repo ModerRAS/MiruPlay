@@ -57,6 +57,7 @@ import com.miruplay.tv.design.verticalNavigationDelta
 import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.PosterWallArrangement
 import com.miruplay.tv.model.REMOTE_BROWSER_PAGE_SIZE
 import com.miruplay.tv.model.formatFileSize
 import com.miruplay.tv.model.libraryCollectedCountLabel
@@ -88,6 +89,7 @@ import com.miruplay.tv.model.tvLocationLabel
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MediaIndexPosterGroup
 import com.miruplay.tv.repository.displayName
+import com.miruplay.tv.repository.sortedForPosterWall
 import com.miruplay.tv.repository.toMediaIndexPosterGroups
 
 private const val POSTER_WALL_COLUMNS = 6
@@ -112,13 +114,20 @@ internal fun LibraryPanel(
     onClearIndex: () -> Unit,
     onRemoveSource: () -> Unit,
     mergeSameAnimeEnabled: Boolean,
+    posterWallArrangement: PosterWallArrangement,
+    posterWallReleaseSeasons: Map<String, String>,
     onEntryFocused: (MediaIndexEntry) -> Unit,
     onEntrySelected: (MediaIndexEntry) -> Unit,
     focusVersion: Int = 0,
     onFocusPreviousPanel: () -> Boolean = { false },
 ) {
-    val posterGroups = remember(entries, mergeSameAnimeEnabled) {
-        entries.toMediaIndexPosterGroups(mergeSameAnimeEnabled)
+    val posterGroups = remember(entries, mergeSameAnimeEnabled, posterWallArrangement, posterWallReleaseSeasons) {
+        entries
+            .toMediaIndexPosterGroups(mergeSameAnimeEnabled)
+            .sortedForPosterWall(
+                arrangement = posterWallArrangement,
+                releaseSeasonsByAnimeId = posterWallReleaseSeasons,
+            )
     }
     val emptyMediaFocusRequester = remember { FocusRequester() }
     var emptySourceFocusVersion by remember { mutableIntStateOf(0) }

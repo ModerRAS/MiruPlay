@@ -82,6 +82,7 @@ import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.repository.canRunNow
 import com.miruplay.tv.model.PlaybackEndAction
+import com.miruplay.tv.model.PosterWallArrangement
 import com.miruplay.tv.model.CLOUD_DRIVE_ROOT_DISPLAY_NAME
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
@@ -187,6 +188,9 @@ import com.miruplay.tv.model.settingsMergeSameAnimeStatus
 import com.miruplay.tv.model.settingsMergeSameAnimeToggleLabel
 import com.miruplay.tv.model.settingsMetadataTokenMenuSummary
 import com.miruplay.tv.model.settingsMenuSummary
+import com.miruplay.tv.model.settingsPosterWallArrangementTitleLabel
+import com.miruplay.tv.model.posterWallArrangementLabel
+import com.miruplay.tv.model.posterWallArrangementStatus
 import com.miruplay.tv.model.logUploadSettingsTiles
 import com.miruplay.tv.model.settingsScanIntervalOptionLabel
 import com.miruplay.tv.model.settingsScanPanelDescription
@@ -325,6 +329,7 @@ fun AddSourceScreen(
     val autoScanIntervalHours by viewModel.autoScanIntervalHours.collectAsStateWithLifecycle()
     val lastScanAt by viewModel.lastScanAt.collectAsStateWithLifecycle()
     val mergeSameAnimeEnabled by viewModel.mergeSameAnimeEnabled.collectAsStateWithLifecycle()
+    val posterWallArrangement by viewModel.posterWallArrangement.collectAsStateWithLifecycle()
     val playbackEndAction by viewModel.playbackEndAction.collectAsStateWithLifecycle()
     val webUiUrls by viewModel.webUiUrls.collectAsStateWithLifecycle()
     val webControlEnabled by viewModel.webControlEnabled.collectAsStateWithLifecycle()
@@ -491,6 +496,7 @@ fun AddSourceScreen(
                     webUiAddressCount = webUiUrls.size,
                     autoScanEnabled = autoScanEnabled,
                     mergeSameAnimeEnabled = mergeSameAnimeEnabled,
+                    posterWallArrangement = posterWallArrangement,
                     playbackEndAction = playbackEndAction,
                     cloudDriveEnabled = cloudEnabled,
                     rssCount = rssSubscriptions.size,
@@ -566,6 +572,8 @@ fun AddSourceScreen(
                     onToggleMergeSameAnime = {
                         viewModel.setMergeSameAnimeEnabled(!mergeSameAnimeEnabled)
                     },
+                    posterWallArrangement = posterWallArrangement,
+                    onPosterWallArrangementSelected = viewModel::setPosterWallArrangement,
                     playbackEndAction = playbackEndAction,
                     onPlaybackEndActionSelected = viewModel::setPlaybackEndAction,
                     savedToken = savedToken,
@@ -818,6 +826,7 @@ private fun SettingsMenuPanel(
     webUiAddressCount: Int,
     autoScanEnabled: Boolean,
     mergeSameAnimeEnabled: Boolean,
+    posterWallArrangement: PosterWallArrangement,
     playbackEndAction: PlaybackEndAction,
     cloudDriveEnabled: Boolean,
     rssCount: Int,
@@ -846,6 +855,7 @@ private fun SettingsMenuPanel(
         proxyPort = proxyPort,
         autoScanEnabled = autoScanEnabled,
         mergeSameAnimeEnabled = mergeSameAnimeEnabled,
+        posterWallArrangement = posterWallArrangement,
         metadataSummary = settingsMetadataTokenMenuSummary(hasToken),
         appVersionName = appVersionName,
         logUploadSummary = settingsAndroidTvLogUploadMenuSummary(
@@ -989,6 +999,8 @@ private fun SettingsContent(
     onIntervalSelected: (Int) -> Unit,
     mergeSameAnimeEnabled: Boolean,
     onToggleMergeSameAnime: () -> Unit,
+    posterWallArrangement: PosterWallArrangement,
+    onPosterWallArrangementSelected: (PosterWallArrangement) -> Unit,
     playbackEndAction: PlaybackEndAction,
     onPlaybackEndActionSelected: (PlaybackEndAction) -> Unit,
     savedToken: String,
@@ -1234,7 +1246,9 @@ private fun SettingsContent(
                 onToggleAutoScan = onToggleAutoScan,
                 onIntervalSelected = onIntervalSelected,
                 mergeSameAnimeEnabled = mergeSameAnimeEnabled,
-                onToggleMergeSameAnime = onToggleMergeSameAnime
+                onToggleMergeSameAnime = onToggleMergeSameAnime,
+                posterWallArrangement = posterWallArrangement,
+                onPosterWallArrangementSelected = onPosterWallArrangementSelected
             )
         }
 
@@ -2736,7 +2750,9 @@ private fun ScanPanel(
     onToggleAutoScan: () -> Unit,
     onIntervalSelected: (Int) -> Unit,
     mergeSameAnimeEnabled: Boolean,
-    onToggleMergeSameAnime: () -> Unit
+    onToggleMergeSameAnime: () -> Unit,
+    posterWallArrangement: PosterWallArrangement,
+    onPosterWallArrangementSelected: (PosterWallArrangement) -> Unit
 ) {
     SettingsPanel {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -2794,6 +2810,31 @@ private fun ScanPanel(
             color = TextPrimary
         )
         Spacer(Modifier.height(10.dp))
+        Text(
+            text = settingsPosterWallArrangementTitleLabel(),
+            style = TvTypography.caption,
+            color = TextSecondary
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            PosterWallArrangement.entries.forEach { arrangement ->
+                ScanOptionChip(
+                    text = posterWallArrangementLabel(arrangement),
+                    icon = Icons.Filled.Storage,
+                    selected = posterWallArrangement == arrangement,
+                    enabled = true,
+                    onClick = { onPosterWallArrangementSelected(arrangement) },
+                    modifier = Modifier.width(150.dp)
+                )
+            }
+        }
+        StatusMessage(
+            icon = Icons.Filled.CheckCircle,
+            text = posterWallArrangementStatus(posterWallArrangement),
+            color = if (posterWallArrangement == PosterWallArrangement.RELEASE_SEASON) ProgressGreen else TextSecondary
+        )
+
+        Spacer(Modifier.height(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ScanOptionChip(
                 text = settingsMergeSameAnimeToggleLabel(mergeSameAnimeEnabled),
