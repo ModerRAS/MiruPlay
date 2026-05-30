@@ -322,16 +322,12 @@ jobs:
           path: app/build/reports/lint-results-*.html
           retention-days: 7
 
-  nightly:
+  nightly-meta:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     outputs:
       has_changes: ${{ steps.check_changes.outputs.has_changes }}
       version_name: ${{ steps.version.outputs.version_name }}
-    concurrency:
-      group: nightly-${{ github.ref }}
-      cancel-in-progress: true
+      version_code: ${{ steps.version.outputs.version_code }}
     if: >
       (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
@@ -341,6 +337,50 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Check for code changes
+        id: check_changes
+        run: |
+          # Publish only when HEAD moved since the latest nightly tag.
+          # This keeps at most one nightly release per day without empty refreshes.
+          LATEST_TAG=$(git tag --list 'nightly-*' --sort=-version:refname | head -1)
+          if [ -n "$LATEST_TAG" ]; then
+            LATEST_NIGHTLY_SHA=$(git rev-list -n 1 "$LATEST_TAG")
+          else
+            LATEST_NIGHTLY_SHA=""
+          fi
+
+          echo "Event: ${{ github.event_name }}"
+          echo "HEAD: $GITHUB_SHA"
+          echo "Latest nightly tag: ${LATEST_TAG:-none}"
+          echo "Latest nightly SHA: ${LATEST_NIGHTLY_SHA:-none}"
+
+          if [ "$LATEST_NIGHTLY_SHA" != "$GITHUB_SHA" ]; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set nightly version
+        id: version
+        run: |
+          # 生成日期格式版本号: YYYYMMDD
+          VERSION_NAME=$(date +'%Y.%m.%d')
+          echo "version_name=$VERSION_NAME" >> $GITHUB_OUTPUT
+          echo "version_code=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
+          echo "Nightly version: $VERSION_NAME"
+
+  nightly:
+    runs-on: ubuntu-latest
+    needs: nightly-meta
+    concurrency:
+      group: nightly-android-${{ github.ref }}
+      cancel-in-progress: true
+    if: needs.nightly-meta.outputs.has_changes == 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Setup Java ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
@@ -367,43 +407,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Check for code changes
-        id: check_changes
-        run: |
-          # Publish only when HEAD moved since the latest nightly tag.
-          # This keeps at most one nightly release per day without empty refreshes.
-          LATEST_TAG=$(git tag --list 'nightly-*' --sort=-version:refname | head -1)
-          if [ -n "$LATEST_TAG" ]; then
-            LATEST_NIGHTLY_SHA=$(git rev-list -n 1 "$LATEST_TAG")
-          else
-            LATEST_NIGHTLY_SHA=""
-          fi
-
-          echo "Event: ${{ github.event_name }}"
-          echo "HEAD: $GITHUB_SHA"
-          echo "Latest nightly tag: ${LATEST_TAG:-none}"
-          echo "Latest nightly SHA: ${LATEST_NIGHTLY_SHA:-none}"
-
-          if [ "$LATEST_NIGHTLY_SHA" != "$GITHUB_SHA" ]; then
-            echo "has_changes=true" >> $GITHUB_OUTPUT
-          else
-            echo "has_changes=false" >> $GITHUB_OUTPUT
-          fi
-
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Set nightly version
-        id: version
-        run: |
-          # 生成日期格式版本号: YYYYMMDD
-          VERSION_NAME=$(date +'%Y.%m.%d')
-          echo "version_name=$VERSION_NAME" >> $GITHUB_OUTPUT
-          echo "version_code=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
-          echo "Nightly version: $VERSION_NAME"
-
       - name: Prepare release keystore
-        if: steps.check_changes.outputs.has_changes == 'true'
         run: |
           test -n "$KEYSTORE_BASE64"
           test -n "$KEY_ALIAS"
@@ -421,11 +428,10 @@ jobs:
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
 
       - name: Build nightly APK
-        if: steps.check_changes.outputs.has_changes == 'true'
         run: |
           ./gradlew assembleRelease \
-            -PVERSION_NAME=${{ steps.version.outputs.version_name }} \
-            -PVERSION_CODE=${{ steps.version.outputs.version_code }} \
+            -PVERSION_NAME=${{ needs.nightly-meta.outputs.version_name }} \
+            -PVERSION_CODE=${{ needs.nightly-meta.outputs.version_code }} \
             --no-daemon --stacktrace
         env:
           RELEASE_STORE_FILE: ${{ runner.temp }}/miruplay-release.jks
@@ -433,12 +439,78 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
 
+      - name: Upload nightly APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: miruplay-nightly-${{ needs.nightly-meta.outputs.version_name }}
+          path: app/build/outputs/apk/release/*-release.apk
+          retention-days: 30
+
+  nightly-windows-desktop:
+    runs-on: windows-latest
+    needs: nightly-meta
+    concurrency:
+      group: nightly-windows-desktop-${{ github.ref }}
+      cancel-in-progress: true
+    if: needs.nightly-meta.outputs.has_changes == 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Setup Bun ${{ env.BUN_VERSION }}
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Build nightly Windows desktop ZIP
+        run: .\gradlew.bat :desktop-app:test :desktop-app:distZip "-PwindowsPackageVersion=${{ needs.nightly-meta.outputs.version_name }}" -PbundleMpvRuntime=false --no-daemon --stacktrace
+
+      - name: Upload nightly Windows desktop artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: miruplay-windows-nightly-${{ needs.nightly-meta.outputs.version_name }}
+          path: desktop-app/build/distributions/*.zip
+          retention-days: 30
+
+  nightly-publish:
+    runs-on: ubuntu-latest
+    needs:
+      - nightly-meta
+      - nightly
+    permissions:
+      contents: write
+    concurrency:
+      group: nightly-publish-${{ github.ref }}
+      cancel-in-progress: true
+    if: needs.nightly-meta.outputs.has_changes == 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download nightly APK
+        uses: actions/download-artifact@v4
+        with:
+          name: miruplay-nightly-${{ needs.nightly-meta.outputs.version_name }}
+          path: release-assets/android
+
       - name: Generate release notes
-        id: release_notes
-        if: steps.check_changes.outputs.has_changes == 'true'
         run: |
           BUILD_DATE="$(date +'%Y-%m-%d')"
-          TAG_NAME="nightly-${{ steps.version.outputs.version_name }}"
+          TAG_NAME="nightly-${{ needs.nightly-meta.outputs.version_name }}"
 
           # Get commits since the previous nightly day. When today's release is
           # refreshed after another master push, keep the notes complete for the day.
@@ -467,21 +539,19 @@ jobs:
           cat release-notes.md
 
       - name: Update nightly tag
-        if: steps.check_changes.outputs.has_changes == 'true'
         run: |
-          TAG_NAME="nightly-${{ steps.version.outputs.version_name }}"
+          TAG_NAME="nightly-${{ needs.nightly-meta.outputs.version_name }}"
           git tag -f "$TAG_NAME" "$GITHUB_SHA"
           git push --force origin "refs/tags/$TAG_NAME"
 
       - name: Create GitHub Release
-        if: steps.check_changes.outputs.has_changes == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: nightly-${{ steps.version.outputs.version_name }}
+          tag_name: nightly-${{ needs.nightly-meta.outputs.version_name }}
           target_commitish: ${{ github.sha }}
-          name: Nightly ${{ steps.version.outputs.version_name }}
+          name: Nightly ${{ needs.nightly-meta.outputs.version_name }}
           body_path: release-notes.md
-          files: app/build/outputs/apk/release/*-release.apk
+          files: release-assets/android/**/*.apk
           overwrite_files: true
           fail_on_unmatched_files: true
           prerelease: true
@@ -489,55 +559,31 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload nightly APK
-        if: steps.check_changes.outputs.has_changes == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: miruplay-nightly-${{ steps.version.outputs.version_name }}
-          path: app/build/outputs/apk/release/*-release.apk
-          retention-days: 30
-
-  nightly-windows-desktop:
-    runs-on: windows-latest
-    needs: nightly
+  nightly-windows-publish:
+    runs-on: ubuntu-latest
+    needs:
+      - nightly-meta
+      - nightly-publish
+      - nightly-windows-desktop
     permissions:
       contents: write
-    if: needs.nightly.outputs.has_changes == 'true'
+    concurrency:
+      group: nightly-windows-publish-${{ github.ref }}
+      cancel-in-progress: true
+    if: needs.nightly-meta.outputs.has_changes == 'true'
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Java ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
+      - name: Download nightly Windows desktop ZIP
+        uses: actions/download-artifact@v4
         with:
-          java-version: ${{ env.JAVA_VERSION }}
-          distribution: 'temurin'
-          cache: 'gradle'
-
-      - name: Setup Bun ${{ env.BUN_VERSION }}
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: ${{ env.BUN_VERSION }}
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Build nightly Windows desktop ZIP
-        run: .\gradlew.bat :desktop-app:test :desktop-app:distZip "-PwindowsPackageVersion=${{ needs.nightly.outputs.version_name }}" -PbundleMpvRuntime=false --no-daemon --stacktrace
-
-      - name: Upload nightly Windows desktop artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: miruplay-windows-nightly-${{ needs.nightly.outputs.version_name }}
-          path: desktop-app/build/distributions/*.zip
-          retention-days: 30
+          name: miruplay-windows-nightly-${{ needs.nightly-meta.outputs.version_name }}
+          path: release-assets/windows
 
       - name: Attach Windows desktop ZIP to nightly release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: nightly-${{ needs.nightly.outputs.version_name }}
-          files: desktop-app/build/distributions/*.zip
+          tag_name: nightly-${{ needs.nightly-meta.outputs.version_name }}
+          files: release-assets/windows/**/*.zip
           overwrite_files: true
           fail_on_unmatched_files: true
           prerelease: true
