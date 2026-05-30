@@ -61,6 +61,7 @@ import com.miruplay.tv.model.MiruPlaySettingsSection
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.SettingsSectionMenuSummaryInput
 import com.miruplay.tv.model.SettingsSummaryTile
+import com.miruplay.tv.model.aboutSettingsTiles
 import com.miruplay.tv.model.cloudDriveDirectoryCoercedPageStart
 import com.miruplay.tv.model.cloudDriveDirectoryPageStartForIndex
 import com.miruplay.tv.model.cloudDriveDirectoryPageSummary
@@ -95,6 +96,7 @@ import com.miruplay.tv.model.mediaSourceStatusText
 import com.miruplay.tv.model.playbackSettingsTiles
 import com.miruplay.tv.model.settingsClearTokenActionLabel
 import com.miruplay.tv.model.settingsAppUpdateIdleStatus
+import com.miruplay.tv.model.settingsAboutStatusMessage
 import com.miruplay.tv.model.settingsDesktopScanStatusMessage
 import com.miruplay.tv.model.settingsDesktopWebUiStatusMessage
 import com.miruplay.tv.model.settingsLogUploadAutoToggleLabel
@@ -149,6 +151,9 @@ import com.miruplay.tv.sync.rss.CloudDriveDirectoryTarget
 
 private const val CLOUD_RSS_BADGE_WIDTH_DP = 82
 private const val CLOUD_RSS_BADGE_HEIGHT_DP = 34
+
+private fun desktopAppVersionName(): String =
+    MiruPlaySettingsSection::class.java.getPackage()?.implementationVersion.orEmpty()
 
 @Composable
 internal fun CloudRssPanel(
@@ -255,6 +260,7 @@ internal fun CloudRssPanel(
     logUploadStatusMessage: String,
 ) {
     var selectedSection by remember { mutableStateOf(MiruPlaySettingsSection.WEB_UI) }
+    val desktopVersionName = remember { desktopAppVersionName() }
     val sectionFocusRequesters = remember {
         desktopSettingsSectionOrder.associateWith { FocusRequester() }
     }
@@ -484,6 +490,19 @@ internal fun CloudRssPanel(
                         inputModifier = focusModifier,
                     )
                 },
+                modifier = Modifier.weight(1f),
+            )
+            MiruPlaySettingsSection.ABOUT -> SettingsSummaryContent(
+                section = selectedSection,
+                tiles = aboutSettingsTiles(
+                    appName = "MiruPlay 桌面版",
+                    versionName = desktopVersionName,
+                    versionCode = 0L,
+                    packageName = "com.miruplay.tv.desktop",
+                ),
+                status = settingsAboutStatusMessage(desktopVersionName, versionCode = 0L),
+                actions = emptyList(),
+                onFocusSectionMenu = { focusSelectedSectionMenu() },
                 modifier = Modifier.weight(1f),
             )
             MiruPlaySettingsSection.WEB_UI -> SettingsSummaryContent(

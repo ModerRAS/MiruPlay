@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
@@ -69,6 +70,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -89,6 +91,7 @@ import com.miruplay.tv.model.CloudDriveLibraryMode
 import com.miruplay.tv.model.MiruPlaySettingsSection
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.SettingsSectionMenuSummaryInput
+import com.miruplay.tv.model.aboutSettingsTiles
 import com.miruplay.tv.model.androidTvSettingsSectionOrder
 import com.miruplay.tv.model.connectionDisplayName
 import com.miruplay.tv.model.connectionUsername
@@ -168,6 +171,11 @@ import com.miruplay.tv.model.settingsAppUpdateMenuSummary
 import com.miruplay.tv.model.settingsAppUpdatePanelDescription
 import com.miruplay.tv.model.settingsAppUpdatePanelTitleLabel
 import com.miruplay.tv.model.settingsAppUpdatePermissionActionLabel
+import com.miruplay.tv.model.settingsAboutPanelDescription
+import com.miruplay.tv.model.settingsAboutPanelTitleLabel
+import com.miruplay.tv.model.settingsAboutPackageNameLabel
+import com.miruplay.tv.model.settingsAboutStatusMessage
+import com.miruplay.tv.model.settingsAboutUnknownValue
 import com.miruplay.tv.model.settingsBackActionLabel
 import com.miruplay.tv.model.settingsAndroidTvLogUploadMenuSummary
 import com.miruplay.tv.model.settingsCurrentScanIntervalStatus
@@ -260,6 +268,34 @@ import java.util.Locale
 private const val DEFAULT_LOCAL_PATH = "/storage/emulated/0/Download"
 private const val QR_CODE_MATRIX_SIZE = 96
 
+private data class AppAboutInfo(
+    val appName: String,
+    val versionName: String,
+    val versionCode: Long,
+    val packageName: String,
+)
+
+@Composable
+private fun rememberAppAboutInfo(): AppAboutInfo {
+    val context = LocalContext.current
+    return remember(context) {
+        val packageName = context.packageName
+        val packageInfo = runCatching {
+            context.packageManager.getPackageInfo(packageName, 0)
+        }.getOrNull()
+        val appName = runCatching {
+            context.applicationInfo.loadLabel(context.packageManager).toString()
+        }.getOrDefault("MiruPlay")
+
+        AppAboutInfo(
+            appName = appName.ifBlank { "MiruPlay" },
+            versionName = packageInfo?.versionName.orEmpty(),
+            versionCode = packageInfo?.longVersionCode ?: 0L,
+            packageName = packageName,
+        )
+    }
+}
+
 private fun MiruPlaySettingsSection.androidTvIcon(): ImageVector =
     when (this) {
         MiruPlaySettingsSection.WEB_UI -> Icons.Filled.WifiTethering
@@ -271,6 +307,7 @@ private fun MiruPlaySettingsSection.androidTvIcon(): ImageVector =
         MiruPlaySettingsSection.LOG_UPLOAD -> Icons.Filled.Upload
         MiruPlaySettingsSection.APP_UPDATE -> Icons.Filled.Refresh
         MiruPlaySettingsSection.METADATA -> Icons.Filled.Key
+        MiruPlaySettingsSection.ABOUT -> Icons.Filled.Info
     }
 
 @OptIn(ExperimentalTvMaterial3Api::class)
@@ -302,6 +339,7 @@ fun AddSourceScreen(
     val appUpdateState by viewModel.appUpdateState.collectAsStateWithLifecycle()
     val bangumiArchiveState by viewModel.bangumiArchiveState.collectAsStateWithLifecycle()
     val proxyStatusMessage by viewModel.proxyStatusMessage.collectAsStateWithLifecycle()
+    val appAboutInfo = rememberAppAboutInfo()
 
     var selectedSection by remember { mutableStateOf(MiruPlaySettingsSection.WEB_UI) }
     var editingSourceId by remember { mutableStateOf<Long?>(null) }
@@ -462,6 +500,7 @@ fun AddSourceScreen(
                     appUpdateBusy = appUpdateState.isBusy,
                     appUpdateAvailable = appUpdateState.updateAvailable,
                     hasToken = savedToken.isNotBlank() || tokenSaved,
+                    appVersionName = appAboutInfo.versionName,
                     menuFocusRequesters = menuFocusRequesters,
                     onSectionSelected = { selectedSection = it },
                     modifier = Modifier
@@ -681,6 +720,7 @@ fun AddSourceScreen(
                     bangumiArchiveState = bangumiArchiveState,
                     onRefreshBangumiArchive = viewModel::refreshBangumiArchive,
                     onDownloadBangumiArchive = viewModel::downloadBangumiArchive,
+                    appAboutInfo = appAboutInfo,
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
@@ -770,6 +810,7 @@ private fun SettingsMenuPanel(
     appUpdateBusy: Boolean,
     appUpdateAvailable: Boolean,
     hasToken: Boolean,
+    appVersionName: String,
     menuFocusRequesters: Map<MiruPlaySettingsSection, FocusRequester>,
     onSectionSelected: (MiruPlaySettingsSection) -> Unit,
     modifier: Modifier = Modifier
@@ -786,6 +827,7 @@ private fun SettingsMenuPanel(
         autoScanEnabled = autoScanEnabled,
         mergeSameAnimeEnabled = mergeSameAnimeEnabled,
         metadataSummary = settingsMetadataTokenMenuSummary(hasToken),
+        appVersionName = appVersionName,
         logUploadSummary = settingsAndroidTvLogUploadMenuSummary(
             enabled = logUploadEnabled,
             tokenConfigured = logUploadTokenConfigured,
@@ -1016,6 +1058,7 @@ private fun SettingsContent(
     bangumiArchiveState: BangumiArchiveUiState,
     onRefreshBangumiArchive: () -> Unit,
     onDownloadBangumiArchive: () -> Unit,
+    appAboutInfo: AppAboutInfo,
     modifier: Modifier = Modifier
 ) {
     when (selectedSection) {
@@ -1234,6 +1277,13 @@ private fun SettingsContent(
                 onRefreshArchive = onRefreshBangumiArchive,
                 onDownloadArchive = onDownloadBangumiArchive,
             )
+        }
+
+        MiruPlaySettingsSection.ABOUT -> SettingsSingleSectionPage(
+            section = selectedSection,
+            modifier = modifier
+        ) {
+            AboutPanel(info = appAboutInfo)
         }
     }
 }
@@ -2903,6 +2953,83 @@ private fun AppUpdatePanel(
                 state.updateAvailable -> WarningYellow
                 else -> ProgressGreen
             }
+        )
+    }
+}
+
+@Composable
+private fun AboutPanel(info: AppAboutInfo) {
+    val tiles = aboutSettingsTiles(
+        appName = info.appName,
+        versionName = info.versionName,
+        versionCode = info.versionCode,
+        packageName = info.packageName,
+    )
+
+    SettingsPanel {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Filled.Info,
+                contentDescription = null,
+                tint = TextPrimary,
+                modifier = Modifier.size(26.dp)
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(text = settingsAboutPanelTitleLabel(), style = TvTypography.subtitle, color = TextPrimary)
+        }
+
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = settingsAboutPanelDescription(),
+            style = TvTypography.body,
+            color = TextSecondary
+        )
+
+        Spacer(Modifier.height(16.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            tiles.forEach { tile ->
+                AboutInfoRow(label = tile.label, value = tile.value)
+            }
+            AboutInfoRow(
+                label = settingsAboutPackageNameLabel(),
+                value = info.packageName.ifBlank { settingsAboutUnknownValue() },
+            )
+        }
+
+        StatusMessage(
+            icon = Icons.Filled.CheckCircle,
+            text = settingsAboutStatusMessage(info.versionName, info.versionCode),
+            color = ProgressGreen
+        )
+    }
+}
+
+@Composable
+private fun AboutInfoRow(
+    label: String,
+    value: String,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 44.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            style = TvTypography.caption,
+            color = TextSecondary,
+            modifier = Modifier.width(112.dp),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            text = value.ifBlank { settingsAboutUnknownValue() },
+            style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
+            color = TextPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
         )
     }
 }

@@ -7,9 +7,36 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
-// 支持通过 -PVERSION_NAME 和 -PVERSION_CODE 传入版本信息
-val appVersionName = if (project.hasProperty("VERSION_NAME")) project.property("VERSION_NAME") as String else "0.1.0"
-val appVersionCode = if (project.hasProperty("VERSION_CODE")) (project.property("VERSION_CODE") as String).toInt() else 1
+// 支持通过 -PVERSION_NAME / -PVERSION_CODE 显式传入版本信息。
+// 未显式传入 VERSION_NAME 时，默认把最后一段 patch 替换为 BUILD_NUMBER。
+val baseAppVersionName = "0.1.0"
+
+fun String?.nonBlankOrNull(): String? =
+    this?.trim()?.takeIf { it.isNotBlank() }
+
+fun String?.numericBuildNumberOrNull(): String? =
+    nonBlankOrNull()?.takeIf { it.all(Char::isDigit) }
+
+fun versionNameWithBuildNumber(baseVersionName: String, buildNumber: String): String {
+    val parts = baseVersionName.trim().ifBlank { "0.1.0" }.split(".")
+    val normalizedParts = if (parts.size >= 3) parts.dropLast(1) else parts
+    return (normalizedParts + buildNumber).joinToString(".")
+}
+
+val appBuildNumber = providers.gradleProperty("BUILD_NUMBER").orNull.numericBuildNumberOrNull()
+    ?: providers.environmentVariable("BUILD_NUMBER").orNull.numericBuildNumberOrNull()
+    ?: providers.environmentVariable("GITHUB_RUN_NUMBER").orNull.numericBuildNumberOrNull()
+    ?: "0"
+val appVersionName = providers.gradleProperty("VERSION_NAME").orNull.nonBlankOrNull()
+    ?: providers.environmentVariable("VERSION_NAME").orNull.nonBlankOrNull()
+    ?: versionNameWithBuildNumber(baseAppVersionName, appBuildNumber)
+val appVersionCode = (
+    providers.gradleProperty("VERSION_CODE").orNull.numericBuildNumberOrNull()
+        ?: providers.environmentVariable("VERSION_CODE").orNull.numericBuildNumberOrNull()
+        ?: appBuildNumber
+    ).toIntOrNull()
+    ?.takeIf { it > 0 }
+    ?: 1
 val releaseStoreFile = providers.environmentVariable("RELEASE_STORE_FILE")
 val releaseStorePassword = providers.environmentVariable("STORE_PASSWORD")
 val releaseKeyAlias = providers.environmentVariable("KEY_ALIAS")

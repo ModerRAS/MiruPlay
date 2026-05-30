@@ -60,6 +60,12 @@ enum class MiruPlaySettingsSection(
         desktopTitle = "元数据",
         desktopDescription = "Bangumi 匹配",
     ),
+    ABOUT(
+        androidTvTitle = "关于",
+        androidTvDescription = "版本与应用信息",
+        desktopTitle = "关于",
+        desktopDescription = "版本与应用信息",
+    ),
 }
 
 val androidTvSettingsSectionOrder: List<MiruPlaySettingsSection> =
@@ -73,6 +79,7 @@ val androidTvSettingsSectionOrder: List<MiruPlaySettingsSection> =
         MiruPlaySettingsSection.LOG_UPLOAD,
         MiruPlaySettingsSection.APP_UPDATE,
         MiruPlaySettingsSection.METADATA,
+        MiruPlaySettingsSection.ABOUT,
     )
 
 val desktopSettingsSectionOrder: List<MiruPlaySettingsSection> =
@@ -150,6 +157,9 @@ fun settingsAndroidTvLogUploadMenuSummary(
 fun settingsMetadataTokenMenuSummary(hasToken: Boolean): String =
     if (hasToken) "Token 已设置" else "未设置"
 
+fun settingsAboutMenuSummary(versionName: String): String =
+    "版本 ${settingsVersionNameValue(versionName)}"
+
 data class SettingsSectionMenuSummaryInput(
     val webUiAddressCount: Int = 0,
     val sourceCount: Int = 0,
@@ -164,6 +174,7 @@ data class SettingsSectionMenuSummaryInput(
     val metadataSummary: String = "",
     val logUploadSummary: String = settingsLogUploadMenuSummary(),
     val appUpdateSummary: String = settingsAppUpdateMenuSummary(),
+    val appVersionName: String = "",
 )
 
 fun MiruPlaySettingsSection.settingsMenuSummary(
@@ -179,6 +190,7 @@ fun MiruPlaySettingsSection.settingsMenuSummary(
         MiruPlaySettingsSection.LOG_UPLOAD -> input.logUploadSummary
         MiruPlaySettingsSection.APP_UPDATE -> input.appUpdateSummary
         MiruPlaySettingsSection.METADATA -> input.metadataSummary
+        MiruPlaySettingsSection.ABOUT -> settingsAboutMenuSummary(input.appVersionName)
     }
 
 fun settingsDesktopScanMenuSummary(): String =
@@ -333,6 +345,36 @@ fun settingsAppUpdateInstallPermissionGrantedStatus(): String =
 
 fun settingsAppUpdateInstallerOpenedStatus(): String =
     "已打开系统安装器。"
+
+fun settingsAboutPanelTitleLabel(): String =
+    "关于 MiruPlay"
+
+fun settingsAboutPanelDescription(): String =
+    "当前安装包与版本信息。"
+
+fun settingsAboutAppNameLabel(): String =
+    "应用"
+
+fun settingsAboutVersionNameLabel(): String =
+    "版本"
+
+fun settingsAboutVersionCodeLabel(): String =
+    "版本号"
+
+fun settingsAboutPackageNameLabel(): String =
+    "包名"
+
+fun settingsAboutUnknownValue(): String =
+    "未知"
+
+fun settingsVersionNameValue(versionName: String): String =
+    versionName.ifBlank { settingsAboutUnknownValue() }
+
+fun settingsVersionCodeValue(versionCode: Long): String =
+    versionCode.takeIf { it > 0L }?.toString() ?: settingsAboutUnknownValue()
+
+fun settingsAboutStatusMessage(versionName: String, versionCode: Long): String =
+    "当前版本 ${settingsVersionNameValue(versionName)} · 版本号 ${settingsVersionCodeValue(versionCode)}"
 
 fun settingsLogUploadPendingStatus(pendingCount: Int): String =
     "待上报 ${pendingCount.coerceAtLeast(0)} 条"
@@ -820,6 +862,30 @@ fun logUploadSettingsTiles(): List<SettingsSummaryTile> =
             label = "凭据",
             value = "安全存储",
             detail = "令牌只保存配置状态，清理后会停止上报。",
+        ),
+    )
+
+fun aboutSettingsTiles(
+    appName: String,
+    versionName: String,
+    versionCode: Long,
+    packageName: String,
+): List<SettingsSummaryTile> =
+    listOf(
+        SettingsSummaryTile(
+            label = settingsAboutAppNameLabel(),
+            value = appName.ifBlank { "MiruPlay" },
+            detail = settingsAboutPanelDescription(),
+        ),
+        SettingsSummaryTile(
+            label = settingsAboutVersionNameLabel(),
+            value = settingsVersionNameValue(versionName),
+            detail = "Release 与 nightly 构建都会显示这里的安装版本。",
+        ),
+        SettingsSummaryTile(
+            label = settingsAboutVersionCodeLabel(),
+            value = settingsVersionCodeValue(versionCode),
+            detail = settingsAboutPackageNameLabel() + "：" + packageName.ifBlank { settingsAboutUnknownValue() },
         ),
     )
 

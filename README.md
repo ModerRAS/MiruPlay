@@ -42,6 +42,9 @@
 # Debug 构建
 ./gradlew assembleDebug
 
+# Debug 构建并写入构建号（版本名会显示为 0.1.<BUILD_NUMBER>）
+./gradlew assembleDebug -PBUILD_NUMBER=123
+
 # Release 构建（需签名）
 ./gradlew assembleRelease -PVERSION_NAME=1.0.0 -PVERSION_CODE=100
 

@@ -9,7 +9,7 @@ class SettingsSectionDisplayConventionsTest {
     @Test
     fun `settings section copy is shared by Android TV and desktop`() {
         assertEquals(
-            listOf("WebUI", "媒体源", "播放", "CloudDrive", "代理配置", "扫描", "日志上报", "更新", "元数据"),
+            listOf("WebUI", "媒体源", "播放", "CloudDrive", "代理配置", "扫描", "日志上报", "更新", "元数据", "关于"),
             androidTvSettingsSectionOrder.map { it.androidTvTitle },
         )
         assertEquals(
@@ -23,6 +23,7 @@ class SettingsSectionDisplayConventionsTest {
                 "OpenObserve JSON",
                 "GitHub APK",
                 "Bangumi Token",
+                "版本与应用信息",
             ),
             androidTvSettingsSectionOrder.map { it.androidTvDescription },
         )
@@ -40,7 +41,7 @@ class SettingsSectionDisplayConventionsTest {
     fun `settings section orders keep platform entry points explicit`() {
         assertEquals(MiruPlaySettingsSection.WEB_UI, androidTvSettingsSectionOrder.first())
         assertEquals(MiruPlaySettingsSection.WEB_UI, desktopSettingsSectionOrder.first())
-        assertEquals(MiruPlaySettingsSection.METADATA, androidTvSettingsSectionOrder.last())
+        assertEquals(MiruPlaySettingsSection.ABOUT, androidTvSettingsSectionOrder.last())
         assertEquals(MiruPlaySettingsSection.METADATA, desktopSettingsSectionOrder.last())
     }
 
@@ -75,6 +76,8 @@ class SettingsSectionDisplayConventionsTest {
         )
         assertEquals("Token 已设置", settingsMetadataTokenMenuSummary(hasToken = true))
         assertEquals("未设置", settingsMetadataTokenMenuSummary(hasToken = false))
+        assertEquals("版本 0.1.0", settingsAboutMenuSummary("0.1.0"))
+        assertEquals("版本 未知", settingsAboutMenuSummary(""))
         assertEquals("媒体库更新", settingsDesktopScanMenuSummary())
         assertEquals("访问地址", settingsDesktopWebUiMenuSummary())
         assertEquals("等待网络", settingsDesktopWebUiMenuSummary(addressCount = 0))
@@ -92,6 +95,7 @@ class SettingsSectionDisplayConventionsTest {
             autoScanEnabled = true,
             mergeSameAnimeEnabled = true,
             metadataSummary = "Token 已设置",
+            appVersionName = "0.1.0",
         )
         assertEquals("2 个地址", MiruPlaySettingsSection.WEB_UI.settingsMenuSummary(androidInput))
         assertEquals("3 个源", MiruPlaySettingsSection.SOURCES.settingsMenuSummary(androidInput))
@@ -102,6 +106,7 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("OpenObserve", MiruPlaySettingsSection.LOG_UPLOAD.settingsMenuSummary(androidInput))
         assertEquals("GitHub", MiruPlaySettingsSection.APP_UPDATE.settingsMenuSummary(androidInput))
         assertEquals("Token 已设置", MiruPlaySettingsSection.METADATA.settingsMenuSummary(androidInput))
+        assertEquals("版本 0.1.0", MiruPlaySettingsSection.ABOUT.settingsMenuSummary(androidInput))
 
         val androidLogUploadInput = androidInput.copy(logUploadSummary = settingsAndroidTvLogUploadMenuSummary())
         assertEquals(
@@ -158,6 +163,18 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("已打开安装授权页，授权后请返回重试。", settingsAppUpdateInstallPermissionStatus())
         assertEquals("已具备安装授权。", settingsAppUpdateInstallPermissionGrantedStatus())
         assertEquals("已打开系统安装器。", settingsAppUpdateInstallerOpenedStatus())
+        assertEquals("关于 MiruPlay", settingsAboutPanelTitleLabel())
+        assertEquals("当前安装包与版本信息。", settingsAboutPanelDescription())
+        assertEquals("应用", settingsAboutAppNameLabel())
+        assertEquals("版本", settingsAboutVersionNameLabel())
+        assertEquals("版本号", settingsAboutVersionCodeLabel())
+        assertEquals("包名", settingsAboutPackageNameLabel())
+        assertEquals("未知", settingsAboutUnknownValue())
+        assertEquals("0.1.0", settingsVersionNameValue("0.1.0"))
+        assertEquals("未知", settingsVersionNameValue(""))
+        assertEquals("42", settingsVersionCodeValue(42L))
+        assertEquals("未知", settingsVersionCodeValue(0L))
+        assertEquals("当前版本 0.1.0 · 版本号 42", settingsAboutStatusMessage("0.1.0", 42L))
         assertEquals("待上报 0 条", settingsLogUploadPendingStatus(-8))
         assertEquals("待命", settingsLogUploadUploadStateStatus(false))
         assertEquals("上报中", settingsLogUploadUploadStateStatus(true))
@@ -326,6 +343,15 @@ class SettingsSectionDisplayConventionsTest {
             "API 地址、Stream 和访问令牌可在设置页或 Web 控制端保存。",
             logUploadTiles[0].detail,
         )
+        val aboutTiles = aboutSettingsTiles(
+            appName = "MiruPlay",
+            versionName = "0.1.0",
+            versionCode = 42L,
+            packageName = "com.miruplay.tv",
+        )
+        assertEquals(listOf("应用", "版本", "版本号"), aboutTiles.map { it.label })
+        assertEquals(listOf("MiruPlay", "0.1.0", "42"), aboutTiles.map { it.value })
+        assertEquals("包名：com.miruplay.tv", aboutTiles[2].detail)
     }
 
     @Test
@@ -415,7 +441,15 @@ class SettingsSectionDisplayConventionsTest {
             MiruPlaySettingsSection.APP_UPDATE,
             MiruPlaySettingsSection.LOG_UPLOAD.stepAndroidTvSettingsSection(1),
         )
-        assertNull(MiruPlaySettingsSection.METADATA.stepAndroidTvSettingsSection(1))
+        assertEquals(
+            MiruPlaySettingsSection.METADATA,
+            MiruPlaySettingsSection.APP_UPDATE.stepAndroidTvSettingsSection(1),
+        )
+        assertEquals(
+            MiruPlaySettingsSection.ABOUT,
+            MiruPlaySettingsSection.METADATA.stepAndroidTvSettingsSection(1),
+        )
+        assertNull(MiruPlaySettingsSection.ABOUT.stepAndroidTvSettingsSection(1))
 
         assertNull(MiruPlaySettingsSection.WEB_UI.stepDesktopSettingsSection(-1))
         assertEquals(
@@ -441,6 +475,14 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals(
             MiruPlaySettingsSection.SCAN,
             MiruPlaySettingsSection.PROXY.stepDesktopSettingsSection(1),
+        )
+        assertEquals(
+            MiruPlaySettingsSection.LOG_UPLOAD,
+            MiruPlaySettingsSection.SCAN.stepDesktopSettingsSection(1),
+        )
+        assertEquals(
+            MiruPlaySettingsSection.METADATA,
+            MiruPlaySettingsSection.LOG_UPLOAD.stepDesktopSettingsSection(1),
         )
         assertNull(MiruPlaySettingsSection.METADATA.stepDesktopSettingsSection(1))
     }

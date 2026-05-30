@@ -59,7 +59,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build debug APK
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+        run: ./gradlew assembleDebug -PBUILD_NUMBER=${{ github.run_number }} --no-daemon --stacktrace
 
       - name: Run desktop and shared JVM checks
         run: >
@@ -198,7 +198,7 @@ jobs:
         id: version
         run: |
           # 从 build.gradle.kts 读取 major.minor（如 0.1.0 → 0.1），patch 用 run_number
-          FULL_VERSION=$(grep 'val appVersionName' app/build.gradle.kts | sed 's/.*"\(.*\)".*/\1/')
+          FULL_VERSION=$(grep 'val baseAppVersionName' app/build.gradle.kts | sed 's/.*"\(.*\)".*/\1/')
           MAJOR_MINOR=$(echo "$FULL_VERSION" | sed 's/\.[^.]*$//')
           VERSION_NAME="${MAJOR_MINOR}.${{ github.run_number }}"
           VERSION_CODE=${{ github.run_number }}
