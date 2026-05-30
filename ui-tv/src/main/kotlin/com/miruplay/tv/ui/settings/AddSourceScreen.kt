@@ -742,7 +742,12 @@ private fun SettingsHeader(onNavigateBack: () -> Unit) {
                 color = TextSecondary
             )
         }
-        TvButton(text = settingsBackActionLabel(), onClick = onNavigateBack)
+        TvButton(
+            text = settingsBackActionLabel(),
+            icon = Icons.AutoMirrored.Filled.ArrowBack,
+            onClick = onNavigateBack,
+            modifier = Modifier.width(180.dp)
+        )
     }
 }
 
@@ -3223,31 +3228,39 @@ private fun LogUploadPanel(
         )
 
         Spacer(Modifier.height(14.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            TvButton(
-                text = settingsLogUploadSaveConfigActionLabel(),
-                icon = Icons.Filled.Save,
-                enabled = endpoint.isNotBlank(),
-                onClick = onSaveConfig
-            )
-            TvButton(
-                text = settingsSaveTokenActionLabel(),
-                icon = Icons.Filled.Key,
-                enabled = tokenInput.isNotBlank(),
-                onClick = onSaveToken
-            )
-            TvButton(
-                text = settingsClearTokenActionLabel(),
-                icon = Icons.Filled.Delete,
-                enabled = tokenConfigured,
-                onClick = onClearToken
-            )
-            TvButton(
-                text = settingsLogUploadRunNowActionLabel(),
-                icon = Icons.Filled.Upload,
-                enabled = canRunNow,
-                onClick = onRunNow
-            )
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                TvButton(
+                    text = settingsLogUploadSaveConfigActionLabel(),
+                    icon = Icons.Filled.Save,
+                    enabled = endpoint.isNotBlank(),
+                    onClick = onSaveConfig,
+                    modifier = Modifier.weight(1f)
+                )
+                TvButton(
+                    text = settingsLogUploadRunNowActionLabel(),
+                    icon = Icons.Filled.Upload,
+                    enabled = canRunNow,
+                    onClick = onRunNow,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                TvButton(
+                    text = settingsSaveTokenActionLabel(),
+                    icon = Icons.Filled.Key,
+                    enabled = tokenInput.isNotBlank(),
+                    onClick = onSaveToken,
+                    modifier = Modifier.weight(1f)
+                )
+                TvButton(
+                    text = settingsClearTokenActionLabel(),
+                    icon = Icons.Filled.Delete,
+                    enabled = tokenConfigured,
+                    onClick = onClearToken,
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
 
         StatusMessage(
