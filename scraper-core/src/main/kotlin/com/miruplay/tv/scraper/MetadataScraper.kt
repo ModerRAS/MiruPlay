@@ -38,6 +38,10 @@ interface MetadataScraper {
     ): Result<ScraperResult?>
 }
 
+interface ManualMetadataSearchScraper {
+    suspend fun searchManualAnime(query: String): Result<List<ScraperResult>>
+}
+
 interface MetadataImageBackfillScraper {
     suspend fun getImageDetails(animeId: String): Result<Anime>
 }
