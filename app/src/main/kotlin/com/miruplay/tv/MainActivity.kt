@@ -141,7 +141,6 @@ fun MiruPlayNavigation(
             }
         }
     }
-    
     NavHost(
         navController = navController,
         startDestination = NavRoutes.LIBRARY
@@ -150,7 +149,16 @@ fun MiruPlayNavigation(
             LibraryScreen(
                 onNavigateToSettings = { navController.navigate(NavRoutes.SETTINGS) },
                 onNavigateToDetail = { animeId ->
-                    navController.navigate(NavRoutes.animeDetail(animeId))
+                    runCatching {
+                        navController.navigate(NavRoutes.animeDetail(animeId))
+                    }.onFailure { error ->
+                        MiruLog.e(
+                            "MiruPlayNavigation",
+                            "Failed to open anime detail",
+                            error,
+                            mapOf("anime_id" to animeId)
+                        )
+                    }
                 }
             )
         }
@@ -165,7 +173,9 @@ fun MiruPlayNavigation(
             route = NavRoutes.ANIME_DETAIL,
             arguments = listOf(navArgument("animeId") { type = NavType.StringType })
         ) { backStackEntry ->
-            val animeId = backStackEntry.arguments?.getString("animeId") ?: return@composable
+            val animeId = backStackEntry.arguments?.getString("animeId")
+                ?.takeIf { it.isNotBlank() }
+                ?: return@composable
             AnimeDetailScreen(
                 animeId = animeId,
                 onNavigateBack = { navController.popBackStack() },

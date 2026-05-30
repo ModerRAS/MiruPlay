@@ -1,6 +1,7 @@
 package com.miruplay.tv.navigation
 
 import com.miruplay.tv.design.MiruPlayRouteSurface
+import com.miruplay.tv.model.MediaPathConventions
 
 /**
  * Navigation route constants
@@ -12,7 +13,8 @@ object NavRoutes {
     const val PLAYER = "${MiruPlayRouteSurface.PLAYER_ROUTE_PREFIX}/{uri}"
     const val PLAYER_WITH_OPTIONS = "$PLAYER?mediaSourceId={mediaSourceId}&startPosition={startPosition}&episodeId={episodeId}"
     
-    fun animeDetail(animeId: String) = "${MiruPlayRouteSurface.ANIME_ROUTE_PREFIX}/$animeId"
+    fun animeDetail(animeId: String) =
+        "${MiruPlayRouteSurface.ANIME_ROUTE_PREFIX}/${MediaPathConventions.encodePathSegment(animeId)}"
 
     fun player(
         uri: String,
