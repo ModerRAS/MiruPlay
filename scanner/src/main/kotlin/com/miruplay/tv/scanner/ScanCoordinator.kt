@@ -2,6 +2,7 @@ package com.miruplay.tv.scanner
 
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.core.common.logging.MiruLog
+import com.miruplay.tv.core.common.logging.PerformanceLog
 import com.miruplay.tv.mediasource.MediaSource
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.metadata.NfoWriteOptions
@@ -71,8 +72,16 @@ class ScanCoordinator @Inject constructor(
         sourceId: Long,
         filenameOnly: Boolean = false,
         posterCacheDirectory: File? = null,
-    ): Result<ScanResult> = withContext(Dispatchers.IO) {
-        val sourceResult = mediaRepository.getSourceById(sourceId)
+    ): Result<ScanResult> = PerformanceLog.measureSuspendResult(
+        tag = TAG,
+        operation = "scan.source",
+        attributes = mapOf(
+            "source_id" to sourceId.toString(),
+            "filename_only" to filenameOnly.toString(),
+        ),
+    ) {
+        withContext(Dispatchers.IO) {
+            val sourceResult = mediaRepository.getSourceById(sourceId)
         if (sourceResult !is Result.Success) {
             return@withContext Result.failure((sourceResult as Result.Error).error)
         }
@@ -366,14 +375,15 @@ class ScanCoordinator @Inject constructor(
             )
         )
 
-        Result.success(ScanResult(
-            animeName = if (isLocalSource) sourceInfo.displayNameOrPath(rootPath) else sourceInfo.name,
-            episodesFound = totalFiles,
-            newEpisodes = newEpisodes,
-            updatedEpisodes = 0,
-            scraped = scrapedFiles,
-            noMatch = noMatchFiles,
-        ))
+            Result.success(ScanResult(
+                animeName = if (isLocalSource) sourceInfo.displayNameOrPath(rootPath) else sourceInfo.name,
+                episodesFound = totalFiles,
+                newEpisodes = newEpisodes,
+                updatedEpisodes = 0,
+                scraped = scrapedFiles,
+                noMatch = noMatchFiles,
+            ))
+        }
     }
 
     private data class OnlineMetadata(
@@ -463,7 +473,23 @@ class ScanCoordinator @Inject constructor(
         episodes: List<Episode>,
         extraTitleCandidates: Collection<String> = emptyList(),
         posterCacheDirectory: File? = null,
-    ): OnlineMetadata {
+    ): OnlineMetadata = PerformanceLog.measureSuspend(
+        tag = TAG,
+        operation = "scan.recognition.enrich",
+        attributes = mapOf(
+            "anime_name_hash" to hashForLog(animeName),
+            "episode_count" to episodes.size.toString(),
+            "extra_candidate_count" to extraTitleCandidates.size.toString(),
+        ),
+        resultAttributes = { result ->
+            mapOf(
+                "scrape_status" to result.scrapeStatus.name,
+                "matched" to (result.match != null).toString(),
+                "metadata_source" to (result.match?.source?.name ?: ""),
+                "episode_enriched_count" to result.episodes.size.toString(),
+            )
+        },
+    ) {
         val candidates = titleCandidates(animeName, extraTitleCandidates)
         val recognitionBaseAttributes = buildRecognitionBaseAttributes(
             animeName = animeName,
@@ -471,7 +497,7 @@ class ScanCoordinator @Inject constructor(
             candidates = candidates,
         )
         val bangumi = metadataScrapers.firstOrNull { it.sourceName.equals("Bangumi", ignoreCase = true) }
-            ?: return OnlineMetadata(
+            ?: return@measureSuspend OnlineMetadata(
                 anime = null,
                 episodes = episodes,
                 scrapeStatus = MediaScrapeStatus.PENDING,
@@ -488,7 +514,7 @@ class ScanCoordinator @Inject constructor(
                 )
             }
 
-        return try {
+        try {
             MiruLog.i(
                 tag = TAG,
                 message = "Recognition enrichment started",
@@ -561,7 +587,7 @@ class ScanCoordinator @Inject constructor(
                     )
                 }
             }
-            match ?: return OnlineMetadata(
+            match ?: return@measureSuspend OnlineMetadata(
                 anime = null,
                 episodes = episodes,
                 scrapeStatus = MediaScrapeStatus.NO_MATCH,
@@ -708,22 +734,32 @@ class ScanCoordinator @Inject constructor(
         val directory = cacheDirectory ?: return null
         val file = File(directory, sha256Hex(url))
         val proxy = currentImageProxy()
-        return runCatching {
-            if (file.exists() && file.length() > 0L) return@runCatching file.absolutePath
-            directory.mkdirs()
-            val temp = File(directory, "${file.name}.tmp")
-            URL(url).openConnection(proxy).apply {
-                connectTimeout = 10_000
-                readTimeout = 20_000
-            }.getInputStream().use { input ->
-                temp.outputStream().use { output -> input.copyTo(output) }
-            }
-            if (!temp.renameTo(file)) {
-                temp.copyTo(file, overwrite = true)
-                temp.delete()
-            }
-            file.absolutePath
-        }.getOrNull()
+        return PerformanceLog.measureSuspend(
+            tag = TAG,
+            operation = "scan.poster_cache",
+            attributes = mapOf(
+                "url_hash" to hashForLog(url),
+                "cache_hit_before" to (file.exists() && file.length() > 0L).toString(),
+            ),
+            resultAttributes = { result -> mapOf("poster_cached" to (!result.isNullOrBlank()).toString()) },
+        ) {
+            runCatching {
+                if (file.exists() && file.length() > 0L) return@runCatching file.absolutePath
+                directory.mkdirs()
+                val temp = File(directory, "${file.name}.tmp")
+                URL(url).openConnection(proxy).apply {
+                    connectTimeout = 10_000
+                    readTimeout = 20_000
+                }.getInputStream().use { input ->
+                    temp.outputStream().use { output -> input.copyTo(output) }
+                }
+                if (!temp.renameTo(file)) {
+                    temp.copyTo(file, overwrite = true)
+                    temp.delete()
+                }
+                file.absolutePath
+            }.getOrNull()
+        }
     }
 
     private suspend fun currentImageProxy(): Proxy {

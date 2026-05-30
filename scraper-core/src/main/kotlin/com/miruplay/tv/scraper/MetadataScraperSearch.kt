@@ -1,6 +1,7 @@
 package com.miruplay.tv.scraper
 
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.core.common.logging.PerformanceLog
 import com.miruplay.tv.model.ScraperResult
 
 const val METADATA_ALIAS_CONFIDENCE_THRESHOLD = 0.62f
@@ -9,23 +10,37 @@ suspend fun MetadataScraper.searchPreferredResults(
     query: String,
     candidates: List<String>,
     confidenceThreshold: Float = METADATA_ALIAS_CONFIDENCE_THRESHOLD,
-): Result<List<ScraperResult>> =
+): Result<List<ScraperResult>> = PerformanceLog.measureSuspendResult(
+    tag = "MetadataPerformance",
+    operation = "metadata.search_preferred",
+    attributes = mapOf(
+        "source" to sourceName,
+        "query_length" to query.length.toString(),
+        "query_hash" to Integer.toHexString(query.hashCode()),
+        "candidate_count" to candidates.size.toString(),
+        "confidence_threshold" to confidenceThreshold.toString(),
+    ),
+) {
     when (val directResults = searchAnime(query)) {
         is Result.Error -> directResults
-        is Result.Success -> Result.success(
-            preferredMetadataResults(
-                directResults = directResults.data,
-                aliasMatch = if ((directResults.data.firstOrNull()?.confidence ?: 0f) < confidenceThreshold) {
-                    searchByAlias(
-                        normalizedName = "",
-                        candidates = candidates.excludingQuery(query),
-                    ).getOrNull()?.takeIf { it.confidence >= confidenceThreshold }
-                } else {
-                    null
-                },
+        is Result.Success -> {
+            val aliasMatch = if ((directResults.data.firstOrNull()?.confidence ?: 0f) < confidenceThreshold) {
+                searchByAlias(
+                    normalizedName = "",
+                    candidates = candidates.excludingQuery(query),
+                ).getOrNull()?.takeIf { it.confidence >= confidenceThreshold }
+            } else {
+                null
+            }
+            Result.success(
+                preferredMetadataResults(
+                    directResults = directResults.data,
+                    aliasMatch = aliasMatch,
+                )
             )
-        )
+        }
     }
+}
 
 private fun preferredMetadataResults(
     directResults: List<ScraperResult>,

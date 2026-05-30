@@ -2,6 +2,7 @@ package com.miruplay.tv.scraper.core
 
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.core.common.logging.PerformanceLog
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.ScraperSource
@@ -76,37 +77,52 @@ class BangumiApiClient(
         includeOnlineWhenArchiveMatches: Boolean,
         includeDirectIdResult: Boolean,
         onlineLimit: Int,
-    ): Result<List<ScraperResult>> = withContext(Dispatchers.IO) {
-        try {
-            val merged = linkedMapOf<String, ScraperResult>()
-            if (includeDirectIdResult) {
-                directIdSearchResult(query)?.let { merged.addBest(it) }
-            }
-
-            val localResults = archiveSearch?.search(
-                query = query,
-                limit = onlineLimit,
-                minimumConfidence = archiveMinimumConfidence,
-            ).orEmpty()
-            localResults.forEach { merged.addBest(it) }
-            if (localResults.isNotEmpty() && !includeOnlineWhenArchiveMatches) {
-                return@withContext Result.success(localResults)
-            }
-
+    ): Result<List<ScraperResult>> = PerformanceLog.measureSuspendResult(
+        tag = PERFORMANCE_TAG,
+        operation = "bangumi.search",
+        attributes = bangumiQueryAttributes(query) + mapOf(
+            "mode" to if (includeOnlineWhenArchiveMatches) "manual" else "auto",
+            "online_limit" to onlineLimit.toString(),
+            "include_direct_id_result" to includeDirectIdResult.toString(),
+            "archive_minimum_confidence" to archiveMinimumConfidence.toString(),
+        ),
+    ) {
+        withContext(Dispatchers.IO) {
             try {
-                searchOnlineAnime(query, onlineLimit).forEach { merged.addBest(it) }
-            } catch (onlineError: Exception) {
-                if (merged.isEmpty()) throw onlineError
+                val merged = linkedMapOf<String, ScraperResult>()
+                if (includeDirectIdResult) {
+                    directIdSearchResult(query)?.let { merged.addBest(it) }
+                }
+
+                val localResults = archiveSearch?.search(
+                    query = query,
+                    limit = onlineLimit,
+                    minimumConfidence = archiveMinimumConfidence,
+                ).orEmpty()
+                localResults.forEach { merged.addBest(it) }
+                if (localResults.isNotEmpty() && !includeOnlineWhenArchiveMatches) {
+                    return@withContext Result.success(localResults)
+                }
+
+                try {
+                    searchOnlineAnime(query, onlineLimit).forEach { merged.addBest(it) }
+                } catch (onlineError: Exception) {
+                    if (merged.isEmpty()) throw onlineError
+                }
+                Result.success(merged.values.sortedByDescending { it.confidence })
+            } catch (error: Exception) {
+                Result.failure(AppError.ScrapingError.ApiError(SOURCE_NAME, error.message ?: "Unknown error"))
             }
-            Result.success(merged.values.sortedByDescending { it.confidence })
-        } catch (error: Exception) {
-            Result.failure(AppError.ScrapingError.ApiError(SOURCE_NAME, error.message ?: "Unknown error"))
         }
     }
 
-    private fun searchOnlineAnime(query: String, limit: Int): List<ScraperResult> {
+    private fun searchOnlineAnime(query: String, limit: Int): List<ScraperResult> = PerformanceLog.measure(
+        tag = PERFORMANCE_TAG,
+        operation = "bangumi.online_search",
+        attributes = bangumiQueryAttributes(query) + mapOf("limit" to limit.toString()),
+    ) {
         val trimmed = query.trim()
-        if (trimmed.isBlank()) return emptyList()
+        if (trimmed.isBlank()) return@measure emptyList()
 
         val searchKeyword = normalizeQuery(trimmed)
         val request = buildRequest(
@@ -117,7 +133,7 @@ class BangumiApiClient(
         ).post(BangumiApiPayloads.searchSubjects(searchKeyword, SUBJECT_TYPE_ANIME).toRequestBody()).build()
 
         val root = executeJson(request).jsonObject
-        return BangumiJsonMapper.parseSearchResults(root, query, normalizeQuery)
+        BangumiJsonMapper.parseSearchResults(root, query, normalizeQuery)
     }
 
     private suspend fun directIdSearchResult(query: String): ScraperResult? {
@@ -136,49 +152,67 @@ class BangumiApiClient(
         }
     }
 
-    suspend fun getAnimeDetails(animeId: String): Result<Anime> = withContext(Dispatchers.IO) {
-        archiveSearch?.findById(animeId)?.let { archived ->
-            return@withContext Result.success(archived.toAnime())
-        }
-        getOnlineAnimeDetails(animeId)
-    }
-
-    suspend fun getOnlineAnimeDetails(animeId: String): Result<Anime> = withContext(Dispatchers.IO) {
-        try {
-            val id = animeId.toInt()
-            val request = buildRequest(apiUrl("/v0/subjects/$animeId").build()).get().build()
-            Result.success(BangumiJsonMapper.parseSubject(executeJson(request).jsonObject, id))
-        } catch (error: NumberFormatException) {
-            Result.failure(AppError.ScrapingError.NoMatchFound(animeId))
-        } catch (error: Exception) {
-            Result.failure(AppError.ScrapingError.ApiError(SOURCE_NAME, error.message ?: "Unknown error"))
+    suspend fun getAnimeDetails(animeId: String): Result<Anime> = PerformanceLog.measureSuspendResult(
+        tag = PERFORMANCE_TAG,
+        operation = "bangumi.details",
+        attributes = mapOf("anime_id" to animeId),
+    ) {
+        withContext(Dispatchers.IO) {
+            archiveSearch?.findById(animeId)?.let { archived ->
+                return@withContext Result.success(archived.toAnime())
+            }
+            getOnlineAnimeDetails(animeId)
         }
     }
 
-    suspend fun getEpisodes(animeId: String): Result<List<BangumiEpisodeMetadata>> = withContext(Dispatchers.IO) {
-        try {
-            val result = mutableListOf<BangumiEpisodeMetadata>()
-            var offset = 0
-            var total = 0
-            do {
-                val request = buildRequest(
-                    apiUrl("/v0/episodes")
-                        .addQueryParameter("subject_id", animeId)
-                        .addQueryParameter("type", "0")
-                        .addQueryParameter("limit", "200")
-                        .addQueryParameter("offset", offset.toString())
-                        .build()
-                ).get().build()
-                val root = executeJson(request).jsonObject
-                val page = root["data"]?.jsonArray ?: JsonArray(emptyList())
-                result += page.mapNotNull { BangumiJsonMapper.parseEpisodeMetadata(it.jsonObject) }
-                offset += page.size
-                total = root.jsonInt("total") ?: result.size
-            } while (offset < total && page.isNotEmpty())
+    suspend fun getOnlineAnimeDetails(animeId: String): Result<Anime> = PerformanceLog.measureSuspendResult(
+        tag = PERFORMANCE_TAG,
+        operation = "bangumi.online_details",
+        attributes = mapOf("anime_id" to animeId),
+    ) {
+        withContext(Dispatchers.IO) {
+            try {
+                val id = animeId.toInt()
+                val request = buildRequest(apiUrl("/v0/subjects/$animeId").build()).get().build()
+                Result.success(BangumiJsonMapper.parseSubject(executeJson(request).jsonObject, id))
+            } catch (error: NumberFormatException) {
+                Result.failure(AppError.ScrapingError.NoMatchFound(animeId))
+            } catch (error: Exception) {
+                Result.failure(AppError.ScrapingError.ApiError(SOURCE_NAME, error.message ?: "Unknown error"))
+            }
+        }
+    }
 
-            Result.success(result.sortedBy { it.episodeNumber })
-        } catch (error: Exception) {
-            Result.failure(AppError.ScrapingError.ApiError(SOURCE_NAME, error.message ?: "Unknown error"))
+    suspend fun getEpisodes(animeId: String): Result<List<BangumiEpisodeMetadata>> = PerformanceLog.measureSuspendResult(
+        tag = PERFORMANCE_TAG,
+        operation = "bangumi.episodes",
+        attributes = mapOf("anime_id" to animeId),
+    ) {
+        withContext(Dispatchers.IO) {
+            try {
+                val result = mutableListOf<BangumiEpisodeMetadata>()
+                var offset = 0
+                var total = 0
+                do {
+                    val request = buildRequest(
+                        apiUrl("/v0/episodes")
+                            .addQueryParameter("subject_id", animeId)
+                            .addQueryParameter("type", "0")
+                            .addQueryParameter("limit", "200")
+                            .addQueryParameter("offset", offset.toString())
+                            .build()
+                    ).get().build()
+                    val root = executeJson(request).jsonObject
+                    val page = root["data"]?.jsonArray ?: JsonArray(emptyList())
+                    result += page.mapNotNull { BangumiJsonMapper.parseEpisodeMetadata(it.jsonObject) }
+                    offset += page.size
+                    total = root.jsonInt("total") ?: result.size
+                } while (offset < total && page.isNotEmpty())
+
+                Result.success(result.sortedBy { it.episodeNumber })
+            } catch (error: Exception) {
+                Result.failure(AppError.ScrapingError.ApiError(SOURCE_NAME, error.message ?: "Unknown error"))
+            }
         }
     }
 
@@ -308,18 +342,26 @@ class BangumiApiClient(
                 }
             }
 
-    private fun executeJson(request: Request): JsonElement {
+    private fun executeJson(request: Request): JsonElement = PerformanceLog.measure(
+        tag = PERFORMANCE_TAG,
+        operation = "bangumi.http_json",
+        attributes = request.performanceAttributes(),
+    ) {
         client.newCall(request).execute().use { response ->
             val body = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
                 throw IllegalStateException("HTTP ${response.code}: ${body.ifBlank { response.message }}")
             }
             if (body.isBlank()) throw IllegalStateException("Empty response")
-            return json.parseToJsonElement(body)
+            json.parseToJsonElement(body)
         }
     }
 
-    private fun executeNoContent(request: Request) {
+    private fun executeNoContent(request: Request) = PerformanceLog.measure(
+        tag = PERFORMANCE_TAG,
+        operation = "bangumi.http_no_content",
+        attributes = request.performanceAttributes(),
+    ) {
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
                 val body = response.body?.string().orEmpty()
@@ -353,6 +395,24 @@ class BangumiApiClient(
                 .build()
     }
 }
+
+private const val PERFORMANCE_TAG = "BangumiPerformance"
+
+private fun bangumiQueryAttributes(query: String): Map<String, String> =
+    mapOf(
+        "query_length" to query.length.toString(),
+        "query_hash" to Integer.toHexString(query.hashCode()),
+    )
+
+private fun Request.performanceAttributes(): Map<String, String> =
+    mapOf(
+        "method" to method,
+        "host" to url.host,
+        "path" to url.encodedPath,
+        "subject_id" to url.queryParameter("subject_id").orEmpty(),
+        "offset" to url.queryParameter("offset").orEmpty(),
+        "limit" to url.queryParameter("limit").orEmpty(),
+    ).filterValues { it.isNotBlank() }
 
 private fun Anime.toSearchResult(
     confidence: Float,

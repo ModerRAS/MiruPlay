@@ -1,6 +1,7 @@
 package com.miruplay.tv.scraper.core
 
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.core.common.logging.PerformanceLog
 import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.scraper.METADATA_ALIAS_CONFIDENCE_THRESHOLD
 
@@ -10,7 +11,15 @@ suspend fun BangumiApiClient.searchByAlias(
     normalizedName: String,
     candidates: List<String>,
     confidenceThreshold: Float = BANGUMI_ALIAS_CONFIDENCE_THRESHOLD,
-): Result<ScraperResult?> {
+): Result<ScraperResult?> = PerformanceLog.measureSuspendResult(
+    tag = "BangumiPerformance",
+    operation = "bangumi.alias_search",
+    attributes = mapOf(
+        "normalized_query_length" to normalizedName.length.toString(),
+        "candidate_count" to candidates.size.toString(),
+        "confidence_threshold" to confidenceThreshold.toString(),
+    ),
+) {
     val seasonSpecificCandidates = candidates
         .map { it.trim() }
         .filter { it.isNotBlank() && it.hasSeasonQualifier() }
@@ -34,7 +43,7 @@ suspend fun BangumiApiClient.searchByAlias(
             }
         }
     }
-    return Result.success(matches.values.maxByOrNull { it.confidence })
+    Result.success(matches.values.maxByOrNull { it.confidence })
 }
 
 private fun String.hasSeasonQualifier(): Boolean =

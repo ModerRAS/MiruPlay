@@ -3,6 +3,7 @@ package com.miruplay.tv.ui.detail
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.core.common.logging.PerformanceLog
 import com.miruplay.tv.model.BANGUMI_RESULT_LIMIT
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
@@ -88,7 +89,19 @@ class AnimeDetailViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
 
-            val detail = libraryAnimeResolver.loadAnimeDetail(animeId)
+            val detail = PerformanceLog.measureSuspend(
+                tag = DETAIL_PERFORMANCE_TAG,
+                operation = "detail.load_anime",
+                attributes = mapOf("anime_id" to animeId),
+                resultAttributes = { result ->
+                    mapOf(
+                        "found" to (result != null).toString(),
+                        "episode_count" to result?.episodes.orEmpty().size.toString(),
+                    )
+                },
+            ) {
+                libraryAnimeResolver.loadAnimeDetail(animeId)
+            }
             _anime.value = detail?.anime
             updateEpisodes(detail?.episodes.orEmpty())
             _isLoading.value = false
@@ -156,7 +169,17 @@ class AnimeDetailViewModel @Inject constructor(
             var lastErrorMessage: String? = null
             val manualSearch = bangumi as? ManualMetadataSearchScraper
             for (query in queries) {
-                val result = manualSearch?.searchManualAnime(query) ?: bangumi.searchAnime(query)
+                val result = PerformanceLog.measureSuspendResult(
+                    tag = DETAIL_PERFORMANCE_TAG,
+                    operation = "detail.bangumi.manual_search_query",
+                    attributes = mapOf(
+                        "query_length" to query.length.toString(),
+                        "query_hash" to Integer.toHexString(query.hashCode()),
+                        "manual_search" to (manualSearch != null).toString(),
+                    ),
+                ) {
+                    manualSearch?.searchManualAnime(query) ?: bangumi.searchAnime(query)
+                }
                 when (result) {
                     is Result.Error -> lastErrorMessage = result.error.toUserMessage()
                     is Result.Success -> matches += result.data
@@ -211,14 +234,24 @@ class AnimeDetailViewModel @Inject constructor(
                 ?.takeIf { it.isNotEmpty() }
                 ?: allEpisodesWithProgress.map { it.first }
             when (
-                val refreshed = BangumiMetadataRefreshCore(
-                    metadataRepository = metadataRepository,
-                    bangumiScraper = bangumi,
-                ).cacheMatchedMetadata(
-                    cacheAnimeId = current.id,
-                    match = match,
-                    localEpisodes = localEpisodes,
-                )
+                val refreshed = PerformanceLog.measureSuspendResult(
+                    tag = DETAIL_PERFORMANCE_TAG,
+                    operation = "detail.bangumi.apply_manual_match",
+                    attributes = mapOf(
+                        "cache_anime_id" to current.id,
+                        "match_anime_id" to match.animeId,
+                        "local_episode_count" to localEpisodes.size.toString(),
+                    ),
+                ) {
+                    BangumiMetadataRefreshCore(
+                        metadataRepository = metadataRepository,
+                        bangumiScraper = bangumi,
+                    ).cacheMatchedMetadata(
+                        cacheAnimeId = current.id,
+                        match = match,
+                        localEpisodes = localEpisodes,
+                    )
+                }
             ) {
                 is Result.Error -> {
                     _manualMatch.value = _manualMatch.value.copy(
@@ -257,7 +290,13 @@ class AnimeDetailViewModel @Inject constructor(
         viewModelScope.launch {
             _isSyncing.value = true
             _actionMessage.value = detailBangumiSyncStartedMessage()
-            bangumiSyncEngine.syncAnime(current.id).onSuccess { summary ->
+            PerformanceLog.measureSuspendResult(
+                tag = DETAIL_PERFORMANCE_TAG,
+                operation = "detail.bangumi.sync",
+                attributes = mapOf("anime_id" to current.id),
+            ) {
+                bangumiSyncEngine.syncAnime(current.id)
+            }.onSuccess { summary ->
                 _actionMessage.value = detailBangumiSyncCompleteMessage(summary.pushedEpisodes, summary.pulledEpisodes)
                 loadAnime(current.id)
             }.onError { error ->
@@ -276,6 +315,8 @@ class AnimeDetailViewModel @Inject constructor(
             .filter { it.isNotBlank() }
             .distinct()
 }
+
+private const val DETAIL_PERFORMANCE_TAG = "DetailPerformance"
 
 data class BangumiManualMatchUiState(
     val isOpen: Boolean = false,

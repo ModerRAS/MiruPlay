@@ -2,6 +2,7 @@ package com.miruplay.tv.sync
 
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.core.common.logging.PerformanceLog
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaPathConventions
@@ -57,9 +58,17 @@ class BangumiMetadataRefreshCore(
         entry: MediaIndexEntry,
         relatedEntries: List<MediaIndexEntry>,
         match: ScraperResult,
-    ): Result<BangumiMetadataRefreshResult> {
+    ): Result<BangumiMetadataRefreshResult> = PerformanceLog.measureSuspendResult(
+        tag = PERFORMANCE_TAG,
+        operation = "bangumi.metadata.cache_matched_index",
+        attributes = mapOf(
+            "related_entry_count" to relatedEntries.size.toString(),
+            "match_anime_id" to match.animeId,
+            "match_source" to match.source.name,
+        ),
+    ) {
         val animeId = entry.bangumiMetadataCacheId()
-        return cacheMatchedMetadata(
+        cacheMatchedMetadata(
             cacheAnimeId = animeId,
             match = match,
             localEpisodes = relatedEntries.localBangumiEpisodes(entry, animeId),
@@ -69,19 +78,23 @@ class BangumiMetadataRefreshCore(
     suspend fun ensureCachedIndexMetadata(
         entry: MediaIndexEntry,
         relatedEntries: List<MediaIndexEntry>,
-    ): Result<String> {
+    ): Result<String> = PerformanceLog.measureSuspendResult(
+        tag = PERFORMANCE_TAG,
+        operation = "bangumi.metadata.ensure_index_cache",
+        attributes = mapOf("related_entry_count" to relatedEntries.size.toString()),
+    ) {
         val animeId = entry.bangumiMetadataCacheId()
         val cached = metadataRepository.getCachedMetadata(animeId).getOrNull()
         val cachedEpisodes = metadataRepository.getCachedEpisodes(animeId).getOrNull()
         if (cached?.bangumiId != null && cachedEpisodes.orEmpty().any { it.bangumiEpisodeId != null }) {
-            return Result.success(animeId)
+            return@measureSuspendResult Result.success(animeId)
         }
 
         val metadataId = entry.metadataId?.takeIf { it.isNotBlank() }
-            ?: return Result.failure(
+            ?: return@measureSuspendResult Result.failure(
                 AppError.ScrapingError.ApiError("Bangumi", metadataApplyBangumiRequiredMessage())
             )
-        return cacheBangumiMetadata(
+        cacheBangumiMetadata(
             cacheAnimeId = animeId,
             bangumiAnimeId = metadataId,
             localEpisodes = relatedEntries.localBangumiEpisodes(entry, animeId),
@@ -94,54 +107,88 @@ class BangumiMetadataRefreshCore(
         candidates: List<String>,
         localEpisodes: List<Episode>,
         minimumConfidence: Float = METADATA_ALIAS_CONFIDENCE_THRESHOLD,
-    ): Result<BangumiMetadataRefreshResult> = withContext(Dispatchers.IO) {
-        val normalizedCandidates = candidates.normalizedCandidates(query)
-        val match = bangumiScraper.searchPreferredResults(
-            query = query,
-            candidates = normalizedCandidates,
-            confidenceThreshold = minimumConfidence,
-        ).getOrNull()
-            ?.firstOrNull { it.confidence >= minimumConfidence }
-            ?: return@withContext Result.failure(
-                AppError.ScrapingError.ApiError("Bangumi", detailBangumiNoReliableMatchMessage())
-            )
+    ): Result<BangumiMetadataRefreshResult> = PerformanceLog.measureSuspendResult(
+        tag = PERFORMANCE_TAG,
+        operation = "bangumi.metadata.refresh",
+        attributes = mapOf(
+            "cache_anime_id" to cacheAnimeId,
+            "query_length" to query.length.toString(),
+            "query_hash" to Integer.toHexString(query.hashCode()),
+            "candidate_count" to candidates.size.toString(),
+            "local_episode_count" to localEpisodes.size.toString(),
+            "minimum_confidence" to minimumConfidence.toString(),
+        ),
+    ) {
+        withContext(Dispatchers.IO) {
+            val normalizedCandidates = candidates.normalizedCandidates(query)
+            val match = bangumiScraper.searchPreferredResults(
+                query = query,
+                candidates = normalizedCandidates,
+                confidenceThreshold = minimumConfidence,
+            ).getOrNull()
+                ?.firstOrNull { it.confidence >= minimumConfidence }
+                ?: return@withContext Result.failure(
+                    AppError.ScrapingError.ApiError("Bangumi", detailBangumiNoReliableMatchMessage())
+                )
 
-        cacheMatchedMetadata(
-            cacheAnimeId = cacheAnimeId,
-            match = match,
-            localEpisodes = localEpisodes,
-            detailsFailureMessage = detailBangumiDetailsFailedMessage(),
-        )
+            cacheMatchedMetadata(
+                cacheAnimeId = cacheAnimeId,
+                match = match,
+                localEpisodes = localEpisodes,
+                detailsFailureMessage = detailBangumiDetailsFailedMessage(),
+            )
+        }
     }
 
     suspend fun cacheMatchedMetadata(
         cacheAnimeId: String,
         match: ScraperResult,
         localEpisodes: List<Episode>,
-    ): Result<BangumiMetadataRefreshResult> = withContext(Dispatchers.IO) {
-        cacheMatchedMetadata(
-            cacheAnimeId = cacheAnimeId,
-            match = match,
-            localEpisodes = localEpisodes,
-            detailsFailureMessage = null,
-        )
+    ): Result<BangumiMetadataRefreshResult> = PerformanceLog.measureSuspendResult(
+        tag = PERFORMANCE_TAG,
+        operation = "bangumi.metadata.cache_matched",
+        attributes = mapOf(
+            "cache_anime_id" to cacheAnimeId,
+            "match_anime_id" to match.animeId,
+            "match_source" to match.source.name,
+            "local_episode_count" to localEpisodes.size.toString(),
+        ),
+    ) {
+        withContext(Dispatchers.IO) {
+            cacheMatchedMetadata(
+                cacheAnimeId = cacheAnimeId,
+                match = match,
+                localEpisodes = localEpisodes,
+                detailsFailureMessage = null,
+            )
+        }
     }
 
     suspend fun cacheBangumiMetadata(
         cacheAnimeId: String,
         bangumiAnimeId: String,
         localEpisodes: List<Episode>,
-    ): Result<List<Episode>> = withContext(Dispatchers.IO) {
-        val remote = when (val result = fetchRemoteMetadata(bangumiAnimeId, detailsFailureMessage = null)) {
-            is Result.Error -> return@withContext result
-            is Result.Success -> result.data
+    ): Result<List<Episode>> = PerformanceLog.measureSuspendResult(
+        tag = PERFORMANCE_TAG,
+        operation = "bangumi.metadata.cache_by_id",
+        attributes = mapOf(
+            "cache_anime_id" to cacheAnimeId,
+            "bangumi_anime_id" to bangumiAnimeId,
+            "local_episode_count" to localEpisodes.size.toString(),
+        ),
+    ) {
+        withContext(Dispatchers.IO) {
+            val remote = when (val result = fetchRemoteMetadata(bangumiAnimeId, detailsFailureMessage = null)) {
+                is Result.Error -> return@withContext result
+                is Result.Success -> result.data
+            }
+            cacheResolvedMetadata(
+                cacheAnimeId = cacheAnimeId,
+                details = remote.details,
+                localEpisodes = localEpisodes,
+                remoteEpisodes = remote.episodes,
+            )
         }
-        cacheResolvedMetadata(
-            cacheAnimeId = cacheAnimeId,
-            details = remote.details,
-            localEpisodes = localEpisodes,
-            remoteEpisodes = remote.episodes,
-        )
     }
 
     suspend fun cacheResolvedMetadata(
@@ -149,26 +196,37 @@ class BangumiMetadataRefreshCore(
         details: Anime,
         localEpisodes: List<Episode>,
         remoteEpisodes: List<EpisodeMetadata>,
-    ): Result<List<Episode>> = withContext(Dispatchers.IO) {
-        val episodes = mergeEpisodes(
-            cacheAnimeId = cacheAnimeId,
-            localEpisodes = localEpisodes,
-            remoteEpisodes = remoteEpisodes,
-        )
-        when (
-            val cachedMetadata = metadataRepository.cacheMetadata(
-                details.copy(
-                    id = cacheAnimeId,
-                    episodeCount = maxOf(details.episodeCount, episodes.size.coerceAtLeast(1)),
-                )
+    ): Result<List<Episode>> = PerformanceLog.measureSuspendResult(
+        tag = PERFORMANCE_TAG,
+        operation = "bangumi.metadata.cache_resolved",
+        attributes = mapOf(
+            "cache_anime_id" to cacheAnimeId,
+            "details_anime_id" to details.id,
+            "local_episode_count" to localEpisodes.size.toString(),
+            "remote_episode_count" to remoteEpisodes.size.toString(),
+        ),
+    ) {
+        withContext(Dispatchers.IO) {
+            val episodes = mergeEpisodes(
+                cacheAnimeId = cacheAnimeId,
+                localEpisodes = localEpisodes,
+                remoteEpisodes = remoteEpisodes,
             )
-        ) {
-            is Result.Error -> return@withContext cachedMetadata
-            is Result.Success -> Unit
-        }
-        when (val cachedEpisodes = metadataRepository.cacheEpisodes(cacheAnimeId, episodes)) {
-            is Result.Error -> cachedEpisodes
-            is Result.Success -> Result.success(episodes)
+            when (
+                val cachedMetadata = metadataRepository.cacheMetadata(
+                    details.copy(
+                        id = cacheAnimeId,
+                        episodeCount = maxOf(details.episodeCount, episodes.size.coerceAtLeast(1)),
+                    )
+                )
+            ) {
+                is Result.Error -> return@withContext cachedMetadata
+                is Result.Success -> Unit
+            }
+            when (val cachedEpisodes = metadataRepository.cacheEpisodes(cacheAnimeId, episodes)) {
+                is Result.Error -> cachedEpisodes
+                is Result.Success -> Result.success(episodes)
+            }
         }
     }
 
@@ -195,12 +253,20 @@ class BangumiMetadataRefreshCore(
         match: ScraperResult,
         localEpisodes: List<Episode>,
         detailsFailureMessage: String?,
-    ): Result<BangumiMetadataRefreshResult> {
+    ): Result<BangumiMetadataRefreshResult> = PerformanceLog.measureSuspendResult(
+        tag = PERFORMANCE_TAG,
+        operation = "bangumi.metadata.cache_match_details",
+        attributes = mapOf(
+            "cache_anime_id" to cacheAnimeId,
+            "match_anime_id" to match.animeId,
+            "local_episode_count" to localEpisodes.size.toString(),
+        ),
+    ) {
         val remote = when (val result = fetchRemoteMetadata(match.animeId, detailsFailureMessage)) {
-            is Result.Error -> return result
+            is Result.Error -> return@measureSuspendResult result
             is Result.Success -> result.data
         }
-        return cacheResolvedMetadata(
+        cacheResolvedMetadata(
             cacheAnimeId = cacheAnimeId,
             details = remote.details,
             localEpisodes = localEpisodes,
@@ -221,17 +287,23 @@ class BangumiMetadataRefreshCore(
     private suspend fun fetchRemoteMetadata(
         bangumiAnimeId: String,
         detailsFailureMessage: String?,
-    ): Result<RemoteBangumiMetadata> {
+    ): Result<RemoteBangumiMetadata> = PerformanceLog.measureSuspendResult(
+        tag = PERFORMANCE_TAG,
+        operation = "bangumi.metadata.fetch_remote",
+        attributes = mapOf("bangumi_anime_id" to bangumiAnimeId),
+    ) {
         val details = when (val detailsResult = bangumiScraper.getAnimeDetails(bangumiAnimeId)) {
             is Result.Success -> detailsResult.data
-            is Result.Error -> return detailsFailureMessage?.let { message ->
+            is Result.Error -> return@measureSuspendResult detailsFailureMessage?.let { message ->
                 Result.failure(AppError.ScrapingError.ApiError("Bangumi", message))
             } ?: detailsResult
         }
         val remoteEpisodes = bangumiScraper.getEpisodes(bangumiAnimeId).getOrNull().orEmpty()
-        return Result.success(RemoteBangumiMetadata(details = details, episodes = remoteEpisodes))
+        Result.success(RemoteBangumiMetadata(details = details, episodes = remoteEpisodes))
     }
 }
+
+private const val PERFORMANCE_TAG = "BangumiMetadataPerformance"
 
 private fun List<String>.normalizedCandidates(query: String): List<String> =
     (listOf(query) + this)

@@ -2,6 +2,7 @@ package com.miruplay.tv.scraper.core
 
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.core.common.logging.PerformanceLog
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.ScraperSource
@@ -323,30 +324,43 @@ class BangumiArchiveSubjectSearch(
         query: String,
         limit: Int = 10,
         minimumConfidence: Float = this.minimumConfidence,
-    ): List<ScraperResult> {
+    ): List<ScraperResult> = PerformanceLog.measure(
+        tag = ARCHIVE_PERFORMANCE_TAG,
+        operation = "bangumi.archive.search",
+        attributes = archiveQueryAttributes(query) + mapOf(
+            "limit" to limit.toString(),
+            "minimum_confidence" to minimumConfidence.toString(),
+        ),
+    ) {
         val trimmedQuery = query.trim()
-        if (trimmedQuery.isBlank()) return emptyList()
+        if (trimmedQuery.isBlank()) return@measure emptyList()
         val subjects = loadSubjects(subjectFileProvider())
-        if (subjects.isEmpty()) return emptyList()
+        if (subjects.isEmpty()) return@measure emptyList()
 
         val normalizedQuery = normalizeQuery(trimmedQuery)
         val context = BangumiMatchContext.fromQueries(listOf(normalizedQuery))
-        val ranked = BangumiSubjectMatcher.rank(
-            context = context,
-            candidates = subjects.map { subject ->
-                BangumiSubjectMatchCandidate(
-                    id = subject.id.toString(),
-                    title = subject.name,
-                    titleCn = subject.nameCn,
-                    aliases = subject.aliases.map(normalizeQuery),
-                    score = subject.score ?: 0f,
-                    serverIndex = 1,
-                    rank = subject.rank,
-                    date = subject.date,
-                )
-            }
-        )
-        return ranked
+        val ranked = PerformanceLog.measure(
+            tag = ARCHIVE_PERFORMANCE_TAG,
+            operation = "bangumi.archive.rank",
+            attributes = archiveQueryAttributes(query) + mapOf("subject_count" to subjects.size.toString()),
+        ) {
+            BangumiSubjectMatcher.rank(
+                context = context,
+                candidates = subjects.map { subject ->
+                    BangumiSubjectMatchCandidate(
+                        id = subject.id.toString(),
+                        title = subject.name,
+                        titleCn = subject.nameCn,
+                        aliases = subject.aliases.map(normalizeQuery),
+                        score = subject.score ?: 0f,
+                        serverIndex = 1,
+                        rank = subject.rank,
+                        date = subject.date,
+                    )
+                }
+            )
+        }
+        ranked
             .filter { it.confidence >= minimumConfidence }
             .take(limit)
             .map { match ->
@@ -362,9 +376,13 @@ class BangumiArchiveSubjectSearch(
             }
     }
 
-    fun findById(animeId: String): BangumiArchiveSubject? {
-        val id = animeId.toIntOrNull() ?: return null
-        return loadSubjects(subjectFileProvider()).firstOrNull { it.id == id }
+    fun findById(animeId: String): BangumiArchiveSubject? = PerformanceLog.measure(
+        tag = ARCHIVE_PERFORMANCE_TAG,
+        operation = "bangumi.archive.find_by_id",
+        attributes = mapOf("anime_id" to animeId),
+    ) {
+        val id = animeId.toIntOrNull() ?: return@measure null
+        loadSubjects(subjectFileProvider()).firstOrNull { it.id == id }
     }
 
     private fun loadSubjects(file: File): List<BangumiArchiveSubject> {
@@ -375,10 +393,19 @@ class BangumiArchiveSubjectSearch(
             if (cachedFile == file && cachedModifiedAt == modifiedAt && cachedLength == length) {
                 return cachedSubjects
             }
-            val subjects = file.useLines { lines ->
-                lines.mapNotNull { line ->
-                    parseSubject(line)
-                }.toList()
+            val subjects = PerformanceLog.measure(
+                tag = ARCHIVE_PERFORMANCE_TAG,
+                operation = "bangumi.archive.load_subjects",
+                attributes = mapOf(
+                    "file_size_bytes" to length.toString(),
+                    "file_modified_at" to modifiedAt.toString(),
+                ),
+            ) {
+                file.useLines { lines ->
+                    lines.mapNotNull { line ->
+                        parseSubject(line)
+                    }.toList()
+                }
             }
             cachedFile = file
             cachedModifiedAt = modifiedAt
@@ -420,6 +447,14 @@ class BangumiArchiveSubjectSearch(
         private const val SUBJECT_TYPE_ANIME = 2
     }
 }
+
+private const val ARCHIVE_PERFORMANCE_TAG = "BangumiPerformance"
+
+private fun archiveQueryAttributes(query: String): Map<String, String> =
+    mapOf(
+        "query_length" to query.length.toString(),
+        "query_hash" to Integer.toHexString(query.hashCode()),
+    )
 
 data class BangumiArchiveSubject(
     val id: Int,
