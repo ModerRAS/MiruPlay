@@ -4,6 +4,7 @@ import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.ScraperResult
+import com.miruplay.tv.model.ScraperSource
 import com.miruplay.tv.repository.BangumiApiPayloads
 import com.miruplay.tv.repository.BangumiCollectionService
 import com.miruplay.tv.repository.BangumiEpisodeCollection
@@ -51,24 +52,87 @@ class BangumiApiClient(
         client.configureProxy(proxyConfig)
     }
 
-    suspend fun searchAnime(query: String): Result<List<ScraperResult>> = withContext(Dispatchers.IO) {
+    suspend fun searchAnime(query: String): Result<List<ScraperResult>> =
+        searchAnime(
+            query = query,
+            archiveMinimumConfidence = ARCHIVE_AUTO_MINIMUM_CONFIDENCE,
+            includeOnlineWhenArchiveMatches = false,
+            includeDirectIdResult = false,
+            onlineLimit = 10,
+        )
+
+    suspend fun searchAnimeForManualMatch(query: String): Result<List<ScraperResult>> =
+        searchAnime(
+            query = query,
+            archiveMinimumConfidence = ARCHIVE_MANUAL_MINIMUM_CONFIDENCE,
+            includeOnlineWhenArchiveMatches = true,
+            includeDirectIdResult = true,
+            onlineLimit = 20,
+        )
+
+    private suspend fun searchAnime(
+        query: String,
+        archiveMinimumConfidence: Float,
+        includeOnlineWhenArchiveMatches: Boolean,
+        includeDirectIdResult: Boolean,
+        onlineLimit: Int,
+    ): Result<List<ScraperResult>> = withContext(Dispatchers.IO) {
         try {
-            archiveSearch?.search(query)?.takeIf { it.isNotEmpty() }?.let { localResults ->
+            val merged = linkedMapOf<String, ScraperResult>()
+            if (includeDirectIdResult) {
+                directIdSearchResult(query)?.let { merged.addBest(it) }
+            }
+
+            val localResults = archiveSearch?.search(
+                query = query,
+                limit = onlineLimit,
+                minimumConfidence = archiveMinimumConfidence,
+            ).orEmpty()
+            localResults.forEach { merged.addBest(it) }
+            if (localResults.isNotEmpty() && !includeOnlineWhenArchiveMatches) {
                 return@withContext Result.success(localResults)
             }
 
-            val searchKeyword = normalizeQuery(query.trim())
-            val request = buildRequest(
-                apiUrl("/v0/search/subjects")
-                    .addQueryParameter("limit", "10")
-                    .addQueryParameter("offset", "0")
-                    .build()
-            ).post(BangumiApiPayloads.searchSubjects(searchKeyword, SUBJECT_TYPE_ANIME).toRequestBody()).build()
-
-            val root = executeJson(request).jsonObject
-            Result.success(BangumiJsonMapper.parseSearchResults(root, query, normalizeQuery))
+            try {
+                searchOnlineAnime(query, onlineLimit).forEach { merged.addBest(it) }
+            } catch (onlineError: Exception) {
+                if (merged.isEmpty()) throw onlineError
+            }
+            Result.success(merged.values.sortedByDescending { it.confidence })
         } catch (error: Exception) {
             Result.failure(AppError.ScrapingError.ApiError(SOURCE_NAME, error.message ?: "Unknown error"))
+        }
+    }
+
+    private fun searchOnlineAnime(query: String, limit: Int): List<ScraperResult> {
+        val trimmed = query.trim()
+        if (trimmed.isBlank()) return emptyList()
+
+        val searchKeyword = normalizeQuery(trimmed)
+        val request = buildRequest(
+            apiUrl("/v0/search/subjects")
+                .addQueryParameter("limit", limit.coerceAtLeast(1).toString())
+                .addQueryParameter("offset", "0")
+                .build()
+        ).post(BangumiApiPayloads.searchSubjects(searchKeyword, SUBJECT_TYPE_ANIME).toRequestBody()).build()
+
+        val root = executeJson(request).jsonObject
+        return BangumiJsonMapper.parseSearchResults(root, query, normalizeQuery)
+    }
+
+    private suspend fun directIdSearchResult(query: String): ScraperResult? {
+        val animeId = query.trim().takeIf { it.isNotBlank() && it.all(Char::isDigit) } ?: return null
+        archiveSearch?.findById(animeId)?.let { archived ->
+            return archived.toSearchResult(confidence = 1f, fromLocalArchive = true)
+        }
+
+        return getOnlineAnimeDetails(animeId).getOrNull()?.toSearchResult(confidence = 1f)
+    }
+
+    private fun LinkedHashMap<String, ScraperResult>.addBest(result: ScraperResult) {
+        val existing = this[result.animeId]
+        if (existing == null || result.confidence > existing.confidence) {
+            this[result.animeId] = result
         }
     }
 
@@ -279,6 +343,8 @@ class BangumiApiClient(
         const val SOURCE_NAME = "Bangumi"
 
         private const val SUBJECT_TYPE_ANIME = 2
+        private const val ARCHIVE_AUTO_MINIMUM_CONFIDENCE = 0.62f
+        private const val ARCHIVE_MANUAL_MINIMUM_CONFIDENCE = 0.5f
 
         private fun defaultClient(): OkHttpClient =
             OkHttpClient.Builder()
@@ -287,6 +353,34 @@ class BangumiApiClient(
                 .build()
     }
 }
+
+private fun Anime.toSearchResult(
+    confidence: Float,
+    fromLocalArchive: Boolean = false,
+): ScraperResult =
+    ScraperResult(
+        animeId = bangumiId?.toString() ?: id,
+        title = title,
+        titleCn = titleCn,
+        matchedTitle = titleCn ?: title,
+        confidence = confidence,
+        source = ScraperSource.BANGUMI,
+        fromLocalArchive = fromLocalArchive,
+    )
+
+private fun BangumiArchiveSubject.toSearchResult(
+    confidence: Float,
+    fromLocalArchive: Boolean = true,
+): ScraperResult =
+    ScraperResult(
+        animeId = id.toString(),
+        title = name,
+        titleCn = nameCn,
+        matchedTitle = nameCn ?: name,
+        confidence = confidence,
+        source = ScraperSource.BANGUMI,
+        fromLocalArchive = fromLocalArchive,
+    )
 
 private fun kotlinx.serialization.json.JsonObject.jsonString(key: String): String? =
     this[key]?.jsonPrimitive?.contentOrNull

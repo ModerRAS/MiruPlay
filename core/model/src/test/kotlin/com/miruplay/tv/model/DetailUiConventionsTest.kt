@@ -74,7 +74,28 @@ class DetailUiConventionsTest {
         )
 
         assertEquals(
-            listOf("葬送的芙莉莲", "葬送のフリーレン", "local-frieren", "431767", "Frieren"),
+            listOf("葬送的芙莉莲", "葬送のフリーレン", "431767", "Frieren"),
+            detailBangumiManualCandidateTerms(anime, episodes),
+        )
+    }
+
+    @Test
+    fun `manual Bangumi candidate terms keep season qualifiers for matching`() {
+        val anime = Anime(id = "local-dr-stone", title = "", titleCn = null)
+        val episodes = listOf(
+            Episode(
+                id = "1:/storage/emulated/0/Download/Dr.STONE 新石纪 第四季/Dr.STONE 新石纪 第四季 - 01.mkv",
+                animeId = "local-dr-stone",
+                seasonNumber = 4,
+                episodeNumber = 1,
+                title = "",
+                filePath = "/storage/emulated/0/Download/Dr.STONE 新石纪 第四季/Dr.STONE 新石纪 第四季 - 01.mkv",
+                fileName = "Dr.STONE 新石纪 第四季 - 01.mkv",
+            )
+        )
+
+        assertEquals(
+            listOf("Dr STONE 新石纪 第四季"),
             detailBangumiManualCandidateTerms(anime, episodes),
         )
     }

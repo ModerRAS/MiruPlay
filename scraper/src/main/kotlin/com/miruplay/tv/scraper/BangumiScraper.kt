@@ -26,7 +26,7 @@ class BangumiScraper @Inject constructor(
     private val credentials: AppCredentialStore,
     private val cloudDriveRepository: CloudDriveAutomationRepository,
     archiveSearch: BangumiArchiveSubjectSearch,
-) : MetadataScraper, MetadataImageBackfillScraper, BangumiCollectionService {
+) : MetadataScraper, MetadataImageBackfillScraper, ManualMetadataSearchScraper, BangumiCollectionService {
 
     override val sourceName: String = "Bangumi"
 
@@ -46,6 +46,9 @@ class BangumiScraper @Inject constructor(
 
     override suspend fun searchAnime(query: String): Result<List<ScraperResult>> =
         withConfiguredProxy { api.searchAnime(query) }
+
+    override suspend fun searchManualAnime(query: String): Result<List<ScraperResult>> =
+        withConfiguredProxy { api.searchAnimeForManualMatch(query) }
 
     override suspend fun getAnimeDetails(animeId: String): Result<Anime> =
         withConfiguredProxy { api.getAnimeDetails(animeId) }

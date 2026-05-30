@@ -53,7 +53,7 @@ object BangumiJsonMapper {
                 animeId = match.candidate.id,
                 title = match.candidate.title,
                 titleCn = match.candidate.titleCn,
-                matchedTitle = match.candidate.titleCn ?: match.candidate.title,
+                matchedTitle = match.matchedTitle,
                 confidence = match.confidence,
                 source = ScraperSource.BANGUMI,
             )

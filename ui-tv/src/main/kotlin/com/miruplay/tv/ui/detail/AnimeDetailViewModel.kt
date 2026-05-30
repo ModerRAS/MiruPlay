@@ -30,6 +30,7 @@ import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
 import com.miruplay.tv.repository.ScanPreferencesRepository
+import com.miruplay.tv.scraper.ManualMetadataSearchScraper
 import com.miruplay.tv.scraper.MetadataScraper
 import com.miruplay.tv.sync.BangumiMetadataRefreshCore
 import com.miruplay.tv.sync.BangumiSyncEngine
@@ -153,8 +154,10 @@ class AnimeDetailViewModel @Inject constructor(
 
             val matches = mutableListOf<ScraperResult>()
             var lastErrorMessage: String? = null
+            val manualSearch = bangumi as? ManualMetadataSearchScraper
             for (query in queries) {
-                when (val result = bangumi.searchAnime(query)) {
+                val result = manualSearch?.searchManualAnime(query) ?: bangumi.searchAnime(query)
+                when (result) {
                     is Result.Error -> lastErrorMessage = result.error.toUserMessage()
                     is Result.Success -> matches += result.data
                 }

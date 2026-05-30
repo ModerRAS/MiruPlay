@@ -148,6 +148,73 @@ class BangumiApiClientTest {
     }
 
     @Test
+    fun `manual search merges archive and online candidates`() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(
+                MockResponse().setBody(
+                    """
+                    {
+                      "data": [
+                        {
+                          "id": 500000,
+                          "name": "Sousou no Frieren Special",
+                          "name_cn": "葬送的芙莉莲 特别篇",
+                          "rating": { "score": 8.0 }
+                        }
+                      ]
+                    }
+                    """.trimIndent()
+                )
+            )
+            val tempDir = createTempDirectory(prefix = "bangumi-api-manual-merge-test-").toFile()
+            val subjectFile = File(tempDir, BangumiArchiveStore.SUBJECT_FILE_NAME)
+            subjectFile.writeText(
+                """{"id":431767,"type":2,"name":"葬送のフリーレン","name_cn":"葬送的芙莉莲","score":8.8}"""
+            )
+            val client = BangumiApiClient(
+                baseUrl = server.url("/").toString(),
+                archiveSearch = BangumiArchiveSubjectSearch(subjectFile),
+            )
+
+            val result = client.searchAnimeForManualMatch("葬送的芙莉莲")
+
+            assertTrue(result is Result.Success)
+            val matches = (result as Result.Success).data
+            assertEquals(listOf("431767", "500000"), matches.map { it.animeId })
+            assertTrue(matches.first().fromLocalArchive)
+            assertEquals("/v0/search/subjects?limit=20&offset=0", server.takeRequest().path)
+            tempDir.deleteRecursively()
+            Unit
+        }
+    }
+
+    @Test
+    fun `manual search treats numeric query as Bangumi subject id`() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setBody("""{"data":[]}"""))
+            val tempDir = createTempDirectory(prefix = "bangumi-api-manual-id-test-").toFile()
+            val subjectFile = File(tempDir, BangumiArchiveStore.SUBJECT_FILE_NAME)
+            subjectFile.writeText(
+                """{"id":431767,"type":2,"name":"葬送のフリーレン","name_cn":"葬送的芙莉莲","score":8.8}"""
+            )
+            val client = BangumiApiClient(
+                baseUrl = server.url("/").toString(),
+                archiveSearch = BangumiArchiveSubjectSearch(subjectFile),
+            )
+
+            val result = client.searchAnimeForManualMatch("431767")
+
+            assertTrue(result is Result.Success)
+            val match = (result as Result.Success).data.first()
+            assertEquals("431767", match.animeId)
+            assertEquals(1f, match.confidence)
+            assertTrue(match.fromLocalArchive)
+            tempDir.deleteRecursively()
+            Unit
+        }
+    }
+
+    @Test
     fun `getAnimeDetails returns archive subject without calling Bangumi api`() = runBlocking {
         MockWebServer().use { server ->
             server.enqueue(MockResponse().setBody("""{"id":431767,"name":"should-not-load"}"""))
