@@ -119,6 +119,18 @@ CI generates date-based versions (`YYYY.mm.dd`) for nightly builds. Version prop
 
 tag 格式为 `v<major>.<minor>.<run_number>`（如 `v0.2.123`），不会 push 到 origin。
 
+### Agent-managed Version Bump
+当用户要求推送到 GitHub（例如要求 `push`、`推 master`、`推到 origin/main`）且本轮改动会进入 `main/master` release 流程时，Codex 需要自行判断是否更新 `app/build.gradle.kts` 中的 `baseAppVersionName`。仅要求本地提交时不要自动改版本号，除非用户明确要求发版或改版本。
+
+决策前必须查询线上已发布版本，不能只依赖本地 tag；优先使用 `gh release list --limit 20`，也可以用 `git ls-remote --tags origin 'refs/tags/v*'` 交叉确认。只参考稳定 release/tag（`v<major>.<minor>.<patch>`），忽略 nightly、pre-release 和非 semver tag。以线上最高稳定版本作为基准。
+
+版本递增规则：
+- **Patch 级**：bug fix、性能优化、日志/测试/文档、小型 UI 调整、兼容性内部改动，不修改 `baseAppVersionName` 的 major/minor；CI 会用下一次 `run_number` 生成新的 patch。
+- **Minor 级**：用户可见的新功能、主要工作流变化、新设置项、新外部接口或较明显的体验改进，将 `baseAppVersionName` 升到线上最高稳定版本的下一个 minor，并把 patch 写成 `0`（例如线上最高 `v0.1.426`，新功能设为 `"0.2.0"`）。
+- **Major 级**：不兼容的数据/配置/API 变化、需要用户手动迁移或可能破坏既有安装行为的改动，将 `baseAppVersionName` 升到下一个 major，并把 minor/patch 写成 `0.0`。
+
+如果线上最高稳定版本的 major/minor 已经高于本地 `baseAppVersionName`，即使只是 patch 级改动，也要先把本地 base 对齐到线上 major/minor，避免发布出较低版本线。不要手工创建 release tag；push 到 `main/master` 后由 CI 负责 tag 和 GitHub Release。提交或推送前，在最终回复里说明本次选择的版本级别和依据。
+
 ## COMMANDS
 ```bash
 # Build
