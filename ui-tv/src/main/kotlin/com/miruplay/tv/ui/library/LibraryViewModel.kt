@@ -19,6 +19,7 @@ import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
+import com.miruplay.tv.scanner.LibraryScanState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job

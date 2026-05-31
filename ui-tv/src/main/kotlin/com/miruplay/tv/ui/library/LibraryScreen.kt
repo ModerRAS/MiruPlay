@@ -48,6 +48,7 @@ import com.miruplay.tv.model.librarySubtitleLabel
 import com.miruplay.tv.model.libraryTitleLabel
 import com.miruplay.tv.model.progressFraction
 import com.miruplay.tv.model.posterWallSections
+import com.miruplay.tv.scanner.LibraryScanState
 import com.miruplay.tv.ui.components.*
 import com.miruplay.tv.ui.theme.*
 
@@ -247,13 +248,15 @@ private fun ScanProgressBanner(
                 overflow = TextOverflow.Ellipsis
             )
         }
-        Spacer(Modifier.width(12.dp))
-        TvButton(
-            text = libraryCancelScanActionLabel(),
-            onClick = onCancel,
-            modifier = Modifier.width(132.dp),
-            secondary = true
-        )
+        if (state.canCancel) {
+            Spacer(Modifier.width(12.dp))
+            TvButton(
+                text = libraryCancelScanActionLabel(),
+                onClick = onCancel,
+                modifier = Modifier.width(132.dp),
+                secondary = true
+            )
+        }
     }
 }
 

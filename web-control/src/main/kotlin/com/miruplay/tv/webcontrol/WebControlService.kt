@@ -19,6 +19,8 @@ import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
 import com.miruplay.tv.repository.ScanPreferencesRepository
+import com.miruplay.tv.scanner.LibraryScanState
+import com.miruplay.tv.scanner.LibraryScanStatus
 import com.miruplay.tv.scanner.ScanCoordinator
 import com.miruplay.tv.scraper.core.BangumiArchiveSnapshot
 import com.miruplay.tv.scraper.core.BangumiArchiveStore
@@ -26,6 +28,7 @@ import com.miruplay.tv.scraper.core.toBangumiHttpProxyConfig
 import com.miruplay.tv.sync.rss.CloudDriveRssActionCoordinator
 import com.miruplay.tv.sync.rss.CloudDriveRssAutomationEngine
 import com.miruplay.tv.sync.rss.CloudDriveRssScheduler
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -40,7 +43,7 @@ class WebControlService @Inject constructor(
     metadataRepository: MetadataRepository,
     indexRepository: MediaIndexRepository,
     private val progressRepository: PlaybackProgressRepository,
-    scanPreferencesRepository: ScanPreferencesRepository,
+    private val scanPreferencesRepository: ScanPreferencesRepository,
     private val cloudDriveRepository: CloudDriveAutomationRepository,
     logUploadRepository: LogUploadRepository,
     securePreferences: AppCredentialStore,
@@ -53,6 +56,7 @@ class WebControlService @Inject constructor(
     private val navigator: WebControlNavigator,
     private val bangumiArchiveStore: BangumiArchiveStore,
     private val backgroundTasks: BackgroundTaskForegroundController,
+    private val scanStatus: LibraryScanStatus,
 ) : SharedWebControlEndpointService(
     mediaSourceRepository = mediaRepository,
     metadataRepository = metadataRepository,
@@ -82,9 +86,7 @@ class WebControlService @Inject constructor(
         withContext(Dispatchers.IO) { block() }
 
     override suspend fun scanSourceResultFor(source: MediaSourceInfo): Result<ScanResult> =
-        withForegroundScan(source) {
-            scanCoordinator.scanSource(source.id)
-        }
+        scanSourceWithSharedStatus(source)
 
     override suspend fun afterCloudDriveConfigSaved(config: com.miruplay.tv.model.CloudDriveAutomationConfig) {
         bangumiArchiveStore.configureProxy(config.toBangumiHttpProxyConfig())
@@ -216,21 +218,57 @@ class WebControlService @Inject constructor(
         )
     }
 
-    private suspend fun withForegroundScan(
+    private suspend fun scanSourceWithSharedStatus(
         source: MediaSourceInfo,
-        block: suspend () -> Result<ScanResult>,
     ): Result<ScanResult> {
-        val taskId = "${BackgroundTaskIds.LIBRARY_SCAN}-web-${source.id}"
+        if (!scanStatus.tryStart(currentPath = source.name, canCancel = false)) {
+            throw IllegalStateException("媒体库正在扫描，请稍后再试")
+        }
+
         backgroundTasks.start(
-            taskId = taskId,
+            taskId = BackgroundTaskIds.LIBRARY_SCAN,
             title = "媒体库扫描",
             text = "正在扫描 ${source.name}",
             progress = BackgroundTaskProgress.indeterminate(),
         )
+        scanCoordinator.setProgressCallback(ScanCoordinator.ScanProgressCallback { path, files, newEps ->
+            val scanning = scanStatus.reportProgress(path, files, newEps)
+            backgroundTasks.update(
+                taskId = BackgroundTaskIds.LIBRARY_SCAN,
+                title = "媒体库扫描",
+                text = scanProgressText(scanning),
+                progress = BackgroundTaskProgress.indeterminate(),
+            )
+        })
+
         return try {
-            block()
+            when (val result = scanCoordinator.scanSource(source.id)) {
+                is Result.Success -> {
+                    val scanning = scanStatus.completeSource(result.data)
+                    backgroundTasks.update(
+                        taskId = BackgroundTaskIds.LIBRARY_SCAN,
+                        title = "媒体库扫描",
+                        text = scanProgressText(scanning),
+                        progress = BackgroundTaskProgress.indeterminate(),
+                    )
+                    scanPreferencesRepository.setLastScanAt(System.currentTimeMillis())
+                    scanStatus.finish(listOf(result.data))
+                    result
+                }
+                is Result.Error -> {
+                    scanStatus.fail(result.error.toUserMessage())
+                    result
+                }
+            }
+        } catch (e: CancellationException) {
+            scanStatus.cancel()
+            throw e
+        } catch (e: Exception) {
+            scanStatus.fail(e.message ?: "扫描媒体源失败")
+            throw e
         } finally {
-            backgroundTasks.finish(taskId)
+            scanCoordinator.setProgressCallback(null)
+            backgroundTasks.finish(BackgroundTaskIds.LIBRARY_SCAN)
         }
     }
 }
@@ -285,6 +323,11 @@ private fun formatBytes(bytes: Long): String {
     } else {
         "${safeBytes / 1024L} KB"
     }
+}
+
+private fun scanProgressText(scanState: LibraryScanState.Scanning): String {
+    val currentPath = scanState.currentPath.ifBlank { "媒体源" }
+    return "正在处理：$currentPath，已发现 ${scanState.filesScanned} 个条目，新剧集 ${scanState.newEpisodes} 个"
 }
 
 private const val WEB_CLOUD_DRIVE_TASK_ID = "cloud-drive-rss-web"
