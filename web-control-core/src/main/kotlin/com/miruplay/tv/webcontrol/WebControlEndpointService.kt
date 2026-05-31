@@ -3,6 +3,7 @@ package com.miruplay.tv.webcontrol
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.repository.DEFAULT_LOCAL_LOG_READ_LIMIT
+import java.io.InputStream
 
 interface WebControlEndpointService {
     suspend fun getServerInfo(port: Int): ServerInfoDto
@@ -51,6 +52,12 @@ interface WebControlEndpointService {
     suspend fun getBangumiArchive(): BangumiArchiveDto =
         BangumiArchiveDto(available = false, hasSubjectData = false, lastError = "Bangumi Archive 下载在当前运行环境不可用")
     suspend fun downloadBangumiArchive(): BangumiArchiveDto =
+        getBangumiArchive()
+    suspend fun uploadBangumiArchive(
+        input: InputStream,
+        originalName: String,
+        contentLength: Long,
+    ): BangumiArchiveDto =
         getBangumiArchive()
     suspend fun saveBangumiToken(request: BangumiTokenRequest): MetadataSettingsDto
     suspend fun clearBangumiToken(): MetadataSettingsDto

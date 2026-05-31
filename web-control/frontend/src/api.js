@@ -1,10 +1,12 @@
 export async function api(path, options = {}) {
+  const isBlobBody = typeof Blob !== 'undefined' && options.body instanceof Blob
+  const headers = {
+    ...(isBlobBody ? {} : { 'Content-Type': 'application/json; charset=utf-8' }),
+    ...(options.headers || {})
+  }
   const response = await fetch(path, {
-    headers: {
-      'Content-Type': 'application/json; charset=utf-8',
-      ...(options.headers || {})
-    },
-    ...options
+    ...options,
+    headers
   })
   const envelope = await response.json()
   if (!response.ok || !envelope.ok) {

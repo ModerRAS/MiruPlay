@@ -29,7 +29,10 @@ import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
 import java.security.MessageDigest
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 import java.util.concurrent.TimeUnit
 import java.util.zip.ZipInputStream
 
@@ -281,8 +284,120 @@ class BangumiArchiveStore(
         }
     }
 
+    suspend fun importLocalArchive(
+        source: File,
+        originalName: String = source.name,
+    ): Result<BangumiArchiveSnapshot> = withContext(Dispatchers.IO) {
+        importLocalArchiveFile(source, originalName)
+    }
+
+    suspend fun importArchiveStream(
+        input: InputStream,
+        originalName: String,
+        contentLength: Long,
+        maxBytes: Long = MAX_ARCHIVE_IMPORT_BYTES,
+    ): Result<BangumiArchiveSnapshot> = withContext(Dispatchers.IO) {
+        var uploadedFile: File? = null
+        try {
+            if (contentLength <= 0L) {
+                throw IllegalStateException("上传文件为空")
+            }
+            if (contentLength > maxBytes) {
+                throw IllegalStateException("上传文件过大，最大支持 ${maxBytes / 1024L / 1024L} MB")
+            }
+
+            directory.mkdirs()
+            deleteDownloadArtifacts()
+            uploadedFile = File(directory, "$SUBJECT_FILE_NAME.raw-upload")
+            copyUploadToFile(input, uploadedFile, contentLength)
+
+            importLocalArchiveFile(uploadedFile, originalName)
+        } catch (error: Exception) {
+            Result.failure(AppError.ScrapingError.ApiError("Bangumi Archive", error.message ?: "Import failed"))
+        } finally {
+            uploadedFile?.delete()
+        }
+    }
+
+    private fun importLocalArchiveFile(
+        source: File,
+        originalName: String,
+    ): Result<BangumiArchiveSnapshot> {
+        var importedFile: File? = null
+        return try {
+            if (!source.isFile || source.length() <= 0L) {
+                throw IllegalStateException("上传文件为空")
+            }
+
+            directory.mkdirs()
+            deleteDownloadArtifacts()
+            importedFile = File(directory, "$SUBJECT_FILE_NAME.upload")
+            val isZip = source.hasZipHeader()
+            if (isZip) {
+                source.inputStream().use { input ->
+                    extractSubjectJsonlinesFromZip(input, importedFile, SUBJECT_FILE_NAME)
+                }
+            } else {
+                source.copyTo(importedFile, overwrite = true)
+            }
+
+            validateSubjectJsonlines(importedFile)
+            replaceSubjectFile(importedFile)
+
+            val importedAt = utcNowIsoString()
+            latestFile.writeText(
+                json.encodeToString(
+                    BangumiArchiveLatest.serializer(),
+                    BangumiArchiveLatest(
+                        browserDownloadUrl = "manual://${originalName.ifBlank { "archive" }}",
+                        contentType = if (isZip) "application/zip" else "application/x-jsonlines",
+                        createdAt = importedAt,
+                        updatedAt = importedAt,
+                        name = originalName.ifBlank { "manual-upload" },
+                        size = source.length(),
+                    )
+                )
+            )
+            Result.success(snapshot())
+        } catch (error: Exception) {
+            importedFile?.delete()
+            Result.failure(AppError.ScrapingError.ApiError("Bangumi Archive", error.message ?: "Import failed"))
+        }
+    }
+
     private fun isCurrent(latest: BangumiArchiveLatest): Boolean =
         subjectFile.isFile && readLatestOrNull() == latest
+
+    private fun replaceSubjectFile(replacement: File) {
+        if (subjectFile.exists() && !subjectFile.delete()) {
+            throw IllegalStateException("Unable to replace existing $SUBJECT_FILE_NAME")
+        }
+        if (!replacement.renameTo(subjectFile)) {
+            throw IllegalStateException("Unable to move imported $SUBJECT_FILE_NAME into place")
+        }
+    }
+
+    private fun validateSubjectJsonlines(file: File) {
+        var checkedLines = 0
+        file.useLines { lines ->
+            lines.forEachIndexed { index, line ->
+                val trimmed = line.trim()
+                if (trimmed.isBlank()) return@forEachIndexed
+                val record = runCatching { json.parseToJsonElement(trimmed).jsonObject }.getOrNull()
+                    ?: throw IllegalStateException("subject.jsonlines 第 ${index + 1} 行不是有效 JSON")
+                val id = record["id"]?.jsonPrimitive?.contentOrNull?.toIntOrNull()
+                val type = record["type"]?.jsonPrimitive?.contentOrNull?.toIntOrNull()
+                if (id == null || type == null) {
+                    throw IllegalStateException("subject.jsonlines 第 ${index + 1} 行缺少 Bangumi subject 字段")
+                }
+                checkedLines += 1
+                if (checkedLines >= SUBJECT_VALIDATE_LINE_LIMIT) return@useLines
+            }
+        }
+        if (checkedLines == 0) {
+            throw IllegalStateException("subject.jsonlines 没有可用数据")
+        }
+    }
 
     private fun deleteDownloadArtifacts() {
         directory
@@ -298,7 +413,9 @@ class BangumiArchiveStore(
 
     companion object {
         const val SUBJECT_FILE_NAME = "subject.jsonlines"
+        const val MAX_ARCHIVE_IMPORT_BYTES = 2L * 1024L * 1024L * 1024L
         private const val LATEST_FILE_NAME = "latest.json"
+        private const val SUBJECT_VALIDATE_LINE_LIMIT = 50
     }
 }
 
@@ -447,6 +564,62 @@ class BangumiArchiveSubjectSearch(
         private const val SUBJECT_TYPE_ANIME = 2
     }
 }
+
+private fun File.hasZipHeader(): Boolean =
+    inputStream().use { input ->
+        val header = ByteArray(4)
+        input.read(header) == header.size &&
+            header[0] == 0x50.toByte() &&
+            header[1] == 0x4b.toByte() &&
+            header[2] == 0x03.toByte() &&
+            header[3] == 0x04.toByte()
+    }
+
+private fun extractSubjectJsonlinesFromZip(
+    input: InputStream,
+    destination: File,
+    subjectFileName: String,
+) {
+    var found = false
+    ZipInputStream(input).use { zip ->
+        while (true) {
+            val entry = zip.nextEntry ?: break
+            if (!entry.isDirectory && entry.name.substringAfterLast('/') == subjectFileName) {
+                destination.parentFile?.mkdirs()
+                destination.outputStream().use { output -> zip.copyTo(output) }
+                found = true
+            }
+            zip.closeEntry()
+        }
+    }
+    if (!found) throw IllegalStateException("$subjectFileName not found in Bangumi Archive zip")
+}
+
+private fun copyUploadToFile(
+    input: InputStream,
+    destination: File,
+    contentLength: Long,
+) {
+    destination.parentFile?.mkdirs()
+    var copied = 0L
+    destination.outputStream().use { output ->
+        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+        while (copied < contentLength) {
+            val read = input.read(buffer, 0, minOf(buffer.size.toLong(), contentLength - copied).toInt())
+            if (read < 0) break
+            output.write(buffer, 0, read)
+            copied += read
+        }
+    }
+    if (copied != contentLength) {
+        throw IllegalStateException("上传文件读取不完整")
+    }
+}
+
+private fun utcNowIsoString(): String =
+    SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
+        .apply { timeZone = TimeZone.getTimeZone("UTC") }
+        .format(Date())
 
 private const val ARCHIVE_PERFORMANCE_TAG = "BangumiPerformance"
 

@@ -9,8 +9,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.InputStream
 import java.security.MessageDigest
 import java.util.Locale
 import java.util.zip.ZipEntry
@@ -251,6 +253,51 @@ class BangumiArchiveTest {
             tempDir.deleteRecursively()
             Unit
         }
+    }
+
+    @Test
+    fun `importArchiveStream reads upload stream and extracts subject jsonlines`() = runBlocking {
+        val archiveZip = zipOf(
+            "archive/subject.jsonlines" to """{"id":431767,"type":2,"name":"葬送のフリーレン","name_cn":"葬送的芙莉莲"}""",
+            "episode.jsonlines" to """{"id":1,"subject_id":431767}""",
+        )
+        val tempDir = createTempDirectory(prefix = "bangumi-archive-upload-stream-test-").toFile()
+        val store = BangumiArchiveStore(directory = tempDir)
+
+        val result = store.importArchiveStream(
+            input = ByteArrayInputStream(archiveZip),
+            originalName = "manual-dump.zip",
+            contentLength = archiveZip.size.toLong(),
+        )
+
+        assertTrue(result is Result.Success)
+        val snapshot = (result as Result.Success).data
+        assertTrue(snapshot.hasSubjectData)
+        assertEquals("manual-dump.zip", snapshot.latest?.name)
+        assertTrue(store.subjectFile.readText().contains("葬送的芙莉莲"))
+        assertFalse(File(tempDir, "${BangumiArchiveStore.SUBJECT_FILE_NAME}.raw-upload").exists())
+        tempDir.deleteRecursively()
+        Unit
+    }
+
+    @Test
+    fun `importArchiveStream rejects oversized upload without reading request body`() = runBlocking {
+        val tempDir = createTempDirectory(prefix = "bangumi-archive-upload-limit-test-").toFile()
+        val store = BangumiArchiveStore(directory = tempDir)
+        val unreadableInput = object : InputStream() {
+            override fun read(): Int = error("oversized upload should be rejected before reading")
+        }
+
+        val result = store.importArchiveStream(
+            input = unreadableInput,
+            originalName = "too-large.zip",
+            contentLength = BangumiArchiveStore.MAX_ARCHIVE_IMPORT_BYTES + 1L,
+        )
+
+        assertTrue(result is Result.Error)
+        assertFalse(store.subjectFile.exists())
+        tempDir.deleteRecursively()
+        Unit
     }
 
     @Test

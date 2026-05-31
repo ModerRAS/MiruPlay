@@ -650,6 +650,14 @@
                   <span>{{ bangumiArchiveProgressText }}</span>
                 </div>
 
+                <div v-if="loading.bangumiArchiveUpload" class="archive-progress">
+                  <el-progress
+                    :percentage="bangumiArchiveUploadProgress"
+                    :indeterminate="bangumiArchiveUploadProgress === 0"
+                  />
+                  <span>{{ bangumiArchiveUploadProgressText }}</span>
+                </div>
+
                 <el-alert
                   v-if="bangumiArchive.lastError"
                   type="warning"
@@ -658,11 +666,34 @@
                   :title="bangumiArchive.lastError"
                 />
 
+                <div class="archive-upload-row">
+                  <input
+                    ref="bangumiArchiveFileInput"
+                    class="hidden-file-input"
+                    type="file"
+                    accept=".zip,.jsonlines,.jsonl,application/zip,application/x-zip-compressed,application/json"
+                    @change="onBangumiArchiveFileSelected"
+                  />
+                  <div class="archive-upload-copy">
+                    <strong>{{ bangumiArchiveUploadName || '手动上传 Archive' }}</strong>
+                    <span class="muted">
+                      {{ bangumiArchiveUploadSize ? formatBytes(bangumiArchiveUploadSize) : '支持 dump zip 或 subject.jsonlines' }}
+                    </span>
+                  </div>
+                  <el-button
+                    :icon="FolderOpened"
+                    :disabled="bangumiArchive.isDownloading || loading.bangumiArchiveUpload"
+                    @click="chooseBangumiArchiveFile"
+                  >
+                    选择文件
+                  </el-button>
+                </div>
+
                 <div class="form-actions">
                   <el-button
                     :icon="Download"
                     type="primary"
-                    :disabled="!bangumiArchive.available || bangumiArchive.isDownloading"
+                    :disabled="!bangumiArchive.available || bangumiArchive.isDownloading || loading.bangumiArchiveUpload"
                     :loading="loading.bangumiArchive || bangumiArchive.isDownloading"
                     @click="downloadBangumiArchive"
                   >
@@ -670,6 +701,14 @@
                   </el-button>
                   <el-button :icon="Refresh" :loading="loading.bangumiArchive" @click="loadBangumiArchiveStatus">
                     刷新状态
+                  </el-button>
+                  <el-button
+                    :icon="Upload"
+                    :disabled="!bangumiArchive.available || !bangumiArchiveUploadFile || bangumiArchive.isDownloading || loading.bangumiArchiveUpload"
+                    :loading="loading.bangumiArchiveUpload"
+                    @click="uploadBangumiArchive"
+                  >
+                    上传 Archive
                   </el-button>
                 </div>
               </div>
@@ -1129,6 +1168,9 @@ const bangumiArchive = reactive({
   totalBytes: 0,
   lastError: ''
 })
+const bangumiArchiveFileInput = ref(null)
+const bangumiArchiveUploadFile = ref(null)
+const bangumiArchiveUploadBytes = ref(0)
 const playback = reactive({
   state: 'Idle',
   uri: '',
@@ -1161,6 +1203,7 @@ const loading = reactive({
   metadata: false,
   bangumiToken: false,
   bangumiArchive: false,
+  bangumiArchiveUpload: false,
   proxy: false,
   proxySave: false
 })
@@ -1174,6 +1217,7 @@ const sourceForm = reactive({
   password: ''
 })
 const DEFAULT_CLOUD_DRIVE_ENDPOINT_URL = 'http://localhost:19798'
+const MAX_BANGUMI_ARCHIVE_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024
 const cloudForm = reactive({
   endpointUrl: DEFAULT_CLOUD_DRIVE_ENDPOINT_URL,
   username: '',
@@ -1307,11 +1351,13 @@ const canRunLogUpload = computed(() =>
 )
 const bangumiArchiveStatusType = computed(() => {
   if (!bangumiArchive.available || bangumiArchive.lastError) return 'warning'
+  if (loading.bangumiArchiveUpload) return 'info'
   if (bangumiArchive.isDownloading) return 'info'
   return bangumiArchive.hasSubjectData ? 'success' : 'info'
 })
 const bangumiArchiveStatusLabel = computed(() => {
   if (!bangumiArchive.available) return '不可用'
+  if (loading.bangumiArchiveUpload) return '上传中'
   if (bangumiArchive.isDownloading) return '下载中'
   return bangumiArchive.hasSubjectData ? '离线搜索可用' : '未下载'
 })
@@ -1327,6 +1373,18 @@ const bangumiArchiveProgressText = computed(() => {
 const bangumiArchiveAutoUpdateText = computed(() =>
   bangumiArchive.autoUpdateEnabled ? `每 ${bangumiArchive.autoUpdateIntervalDays || 7} 天` : '未启用'
 )
+const bangumiArchiveUploadName = computed(() => bangumiArchiveUploadFile.value?.name || '')
+const bangumiArchiveUploadSize = computed(() => Number(bangumiArchiveUploadFile.value?.size || 0))
+const bangumiArchiveUploadProgress = computed(() => {
+  const total = bangumiArchiveUploadSize.value
+  if (!total || total <= 0) return 0
+  return Math.max(0, Math.min(100, Math.round((bangumiArchiveUploadBytes.value / total) * 100)))
+})
+const bangumiArchiveUploadProgressText = computed(() => {
+  const uploaded = formatBytes(bangumiArchiveUploadBytes.value)
+  const total = formatBytes(bangumiArchiveUploadSize.value)
+  return bangumiArchiveUploadSize.value > 0 ? `${uploaded} / ${total}` : uploaded
+})
 const proxyStatusType = computed(() => {
   if (proxyForm.enabled && !proxyForm.host.trim()) return 'warning'
   return proxyForm.enabled ? 'success' : 'info'
@@ -2340,6 +2398,83 @@ async function downloadBangumiArchive() {
     ElMessage.success(bangumiArchive.isDownloading ? 'Bangumi Archive 下载已开始' : 'Bangumi Archive 已更新')
   } finally {
     loading.bangumiArchive = false
+  }
+}
+
+function chooseBangumiArchiveFile() {
+  bangumiArchiveFileInput.value?.click()
+}
+
+function onBangumiArchiveFileSelected(event) {
+  const file = event?.target?.files?.[0] || null
+  bangumiArchiveUploadFile.value = file
+  bangumiArchiveUploadBytes.value = 0
+}
+
+async function uploadBangumiArchive() {
+  const file = bangumiArchiveUploadFile.value
+  if (!file) {
+    ElMessage.warning('请选择 Bangumi Archive 文件')
+    return
+  }
+  if (file.size <= 0) {
+    ElMessage.warning('上传文件为空')
+    return
+  }
+  if (file.size > MAX_BANGUMI_ARCHIVE_UPLOAD_BYTES) {
+    ElMessage.warning(`上传文件过大，最大支持 ${formatBytes(MAX_BANGUMI_ARCHIVE_UPLOAD_BYTES)}`)
+    return
+  }
+
+  loading.bangumiArchiveUpload = true
+  bangumiArchiveUploadBytes.value = 0
+  try {
+    const data = await uploadBangumiArchiveRequest(file)
+    applyBangumiArchive(data)
+    bangumiArchiveUploadFile.value = null
+    if (bangumiArchiveFileInput.value) bangumiArchiveFileInput.value.value = ''
+    if (bangumiArchive.lastError) {
+      ElMessage.warning(bangumiArchive.lastError)
+    } else {
+      ElMessage.success('Bangumi Archive 已导入')
+    }
+  } catch (error) {
+    ElMessage.error(error?.message || '上传失败')
+  } finally {
+    loading.bangumiArchiveUpload = false
+  }
+}
+
+function uploadBangumiArchiveRequest(file) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    const filename = encodeURIComponent(file.name || 'bangumi-archive')
+    xhr.open('POST', `/api/metadata/bangumi-archive/upload?filename=${filename}`)
+    xhr.responseType = 'json'
+    xhr.setRequestHeader('Content-Type', 'application/octet-stream')
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        bangumiArchiveUploadBytes.value = event.loaded
+      }
+    }
+    xhr.onload = () => {
+      const envelope = xhr.response || safeJsonParse(xhr.responseText)
+      if (xhr.status < 200 || xhr.status >= 300 || !envelope?.ok) {
+        reject(new Error(envelope?.error || `HTTP ${xhr.status}`))
+        return
+      }
+      resolve(envelope.data)
+    }
+    xhr.onerror = () => reject(new Error('上传失败'))
+    xhr.send(file)
+  })
+}
+
+function safeJsonParse(text) {
+  try {
+    return JSON.parse(text || '{}')
+  } catch {
+    return null
   }
 }
 

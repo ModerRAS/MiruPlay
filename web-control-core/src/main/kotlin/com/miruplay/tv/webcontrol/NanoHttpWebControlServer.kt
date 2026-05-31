@@ -202,6 +202,18 @@ open class NanoHttpWebControlServer(
             session.method == Method.POST && route == "/api/metadata/bangumi-archive/download" -> {
                 jsonResponse(BangumiArchiveDto.serializer(), webControlService.downloadBangumiArchive())
             }
+            session.method == Method.POST && route == "/api/metadata/bangumi-archive/upload" -> {
+                val originalName = uploadFileName(session.utf8QueryParameter("filename"))
+                val contentLength = requiredContentLength(session)
+                jsonResponse(
+                    BangumiArchiveDto.serializer(),
+                    webControlService.uploadBangumiArchive(
+                        input = session.inputStream,
+                        originalName = originalName,
+                        contentLength = contentLength,
+                    )
+                )
+            }
             session.method == Method.POST && route == "/api/metadata/bangumi-token" -> {
                 val request = parseBody(session, BangumiTokenRequest.serializer())
                 jsonResponse(MetadataSettingsDto.serializer(), webControlService.saveBangumiToken(request))
@@ -327,6 +339,18 @@ open class NanoHttpWebControlServer(
         }
         return bytes.copyOf(offset).toString(charsetForRequestBody(session)).trim()
     }
+
+    private fun requiredContentLength(session: IHTTPSession): Long =
+        headerValue(session, "content-length")?.toLongOrNull()
+            ?: throw IllegalArgumentException("请求体缺少 Content-Length")
+
+    private fun uploadFileName(value: String): String =
+        value
+            .replace('\\', '/')
+            .substringAfterLast('/')
+            .trim()
+            .ifBlank { "manual-upload" }
+            .take(160)
 
     private fun charsetForRequestBody(session: IHTTPSession): Charset {
         val charsetName = headerValue(session, "content-type")

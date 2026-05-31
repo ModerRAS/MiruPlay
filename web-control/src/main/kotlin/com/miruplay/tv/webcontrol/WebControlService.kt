@@ -36,6 +36,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.InputStream
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -212,6 +213,26 @@ class WebControlService @Inject constructor(
             }
         }
         return getBangumiArchive()
+    }
+
+    override suspend fun uploadBangumiArchive(
+        input: InputStream,
+        originalName: String,
+        contentLength: Long,
+    ): BangumiArchiveDto = runOnIo {
+        val result = bangumiArchiveStore.importArchiveStream(
+            input = input,
+            originalName = originalName,
+            contentLength = contentLength,
+        )
+        val uploadState = when (result) {
+            is Result.Success -> BangumiArchiveDownloadState()
+            is Result.Error -> BangumiArchiveDownloadState(lastError = result.error.toUserMessage())
+        }
+        synchronized(bangumiArchiveDownloadLock) {
+            bangumiArchiveDownload = uploadState
+        }
+        bangumiArchiveStore.snapshot().toWebControlBangumiArchive(uploadState)
     }
 
     override suspend fun playEpisodeResolved(
