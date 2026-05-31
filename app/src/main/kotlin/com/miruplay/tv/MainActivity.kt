@@ -2,6 +2,7 @@ package com.miruplay.tv
 
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.Composable
@@ -61,20 +62,59 @@ class MainActivity : ComponentActivity() {
 
         if (testSourcePath != null) {
             lifecycleScope.launch {
-                MiruLog.i("MainActivity", "Adding test local source from launch extra")
-                val source = MediaSourceInfo(
+                addLaunchTestSource(
+                    path = testSourcePath,
                     name = testSourceName,
-                    type = MediaSourceType.LOCAL,
-                    connectionInfo = mapOf(
-                        "path" to testSourcePath,
-                        "url" to testSourcePath,
-                        "disableOnlineMetadata" to "true"
+                )
+                renderContent()
+            }
+        } else {
+            renderContent()
+        }
+    }
+
+    private suspend fun addLaunchTestSource(path: String, name: String) {
+        MiruLog.i(
+            "MainActivity",
+            "Adding test local source from launch extra",
+            mapOf("source_name" to name)
+        )
+        Log.i("MainActivity", "Adding test local source from launch extra")
+        val source = MediaSourceInfo(
+            name = name,
+            type = MediaSourceType.LOCAL,
+            connectionInfo = mapOf(
+                "path" to path,
+                "url" to path,
+                "disableOnlineMetadata" to "true"
+            )
+        )
+        mediaRepository.addSource(source)
+            .onSuccess { id ->
+                MiruLog.i(
+                    "MainActivity",
+                    "Test local source added",
+                    mapOf(
+                        "source_id" to id.toString(),
+                        "source_name" to name,
                     )
                 )
-                mediaRepository.addSource(source)
+                Log.i("MainActivity", "Test local source added")
             }
-        }
+            .onError { error ->
+                MiruLog.w(
+                    "MainActivity",
+                    "Test local source add failed",
+                    attributes = mapOf(
+                        "source_name" to name,
+                        "error" to error.toUserMessage(),
+                    )
+                )
+                Log.w("MainActivity", "Test local source add failed: ${error.toUserMessage()}")
+            }
+    }
 
+    private fun renderContent() {
         setContent {
             MiruPlayTheme {
                 MiruPlayNavigation(

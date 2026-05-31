@@ -268,6 +268,8 @@ function Format-CommandArgumentsForLog {
         "cloudDriveRssEndpoint",
         "cloudDriveRssToken",
         "cloudDriveRssUrl",
+        "AndroidDeviceId",
+        "DeviceId",
         "smbPassword"
     )
 
@@ -540,11 +542,17 @@ function Invoke-WindowsPortCompletionAudit {
         )
     }
 
-    Invoke-CompletionEvidenceCheck -Problems $problems -Results $results -Name "Android TV device smoke report" -Guidance "Run .\tools\verify-windows-port.ps1 -AndroidTv -AndroidDeviceId <android-tv-device-id> against the TV target and keep build\android-tv-qa\latest-report.txt plus screenshots/XML. Add -KeepAndroidAppData when the target already contains data that must not be cleared." -Action {
-        $androidTvReportPath = Get-CompletionLatestReportPath -PointerPath "build\android-tv-qa\latest-report.txt" -EvidenceName "Android TV"
-        Invoke-CompletionToolScript -ScriptName "assert-android-tv-smoke-report.ps1" -Arguments @(
+    Invoke-CompletionEvidenceCheck -Problems $problems -Results $results -Name "Android TV behavior report" -Guidance "Run .\tools\verify-windows-port.ps1 -AndroidTv -AndroidDeviceId <android-tv-device-id> against the TV target and keep build\android-tv-behavior\latest-report.txt plus screenshots/XML. Add -KeepAndroidAppData when the target already contains data that must not be cleared." -Action {
+        $androidTvReportPath = Get-CompletionLatestReportPath -PointerPath "build\android-tv-behavior\latest-report.txt" -EvidenceName "Android TV behavior"
+        Invoke-CompletionToolScript -ScriptName "assert-android-tv-behavior-report.ps1" -Arguments @(
             "-ReportPath",
-            $androidTvReportPath
+            $androidTvReportPath,
+            "-RequiredTags",
+            "full",
+            "-RequiredScenarios",
+            "android-tv-core",
+            "-RequiredSteps",
+            "library-scan,detail-player-back,settings-source,settings-panels"
         )
     }
 
@@ -933,26 +941,31 @@ try {
         if ([string]::IsNullOrWhiteSpace($AndroidDeviceId)) {
             throw "Pass -AndroidDeviceId or set MIRUPLAY_ANDROID_TV_DEVICE_ID before running -AndroidTv."
         }
-        Invoke-Step -Name "Android TV emulator smoke" -Action {
-            Invoke-Native -FilePath "adb" -Arguments @("connect", $AndroidDeviceId)
-            $androidTvSmokeArgs = @(
+        Invoke-Step -Name "Android TV behavior suite" -Action {
+            $androidTvBehaviorArgs = @(
                 "-DeviceId",
-                $AndroidDeviceId
+                $AndroidDeviceId,
+                "-Tag",
+                "full"
             )
             if ($KeepAndroidAppData) {
-                $androidTvSmokeArgs += "-KeepAppData"
+                $androidTvBehaviorArgs += "-KeepAppData"
             }
-            Invoke-ToolScript -ScriptName "smoke-android-tv-ui.ps1" -Arguments $androidTvSmokeArgs
-            $androidTvLatestReport = Join-Path $repoRoot "build\android-tv-qa\latest-report.txt"
+            Invoke-ToolScript -ScriptName "run-android-tv-behavior.ps1" -Arguments $androidTvBehaviorArgs
+            $androidTvLatestReport = Join-Path $repoRoot "build\android-tv-behavior\latest-report.txt"
             if (-not (Test-Path -LiteralPath $androidTvLatestReport -PathType Leaf)) {
-                throw "Android TV smoke did not write latest report pointer: $androidTvLatestReport"
+                throw "Android TV behavior did not write latest report pointer: $androidTvLatestReport"
             }
             $androidTvReportPath = [System.IO.File]::ReadAllText($androidTvLatestReport, [System.Text.Encoding]::UTF8).Trim()
-            Invoke-ToolScript -ScriptName "assert-android-tv-smoke-report.ps1" -Arguments @(
+            Invoke-ToolScript -ScriptName "assert-android-tv-behavior-report.ps1" -Arguments @(
                 "-ReportPath",
                 $androidTvReportPath,
-                "-RequiredDeviceId",
-                $AndroidDeviceId
+                "-RequiredTags",
+                "full",
+                "-RequiredScenarios",
+                "android-tv-core",
+                "-RequiredSteps",
+                "library-scan,detail-player-back,settings-source,settings-panels"
             )
         }
     }

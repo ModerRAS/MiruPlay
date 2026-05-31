@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "name": "android-tv-core",
+  "title": "Android TV core user behavior",
+  "tags": ["smoke", "full"],
+  "requires": ["adb", "android-tv-device", "debug-apk"],
+  "given": [
+    "a generated local TV media fixture is pushed to the device",
+    "the app is launched through the test_local_path hook with a unique generated source name"
+  ],
+  "when": [
+    "the user scans the fixture source from Library",
+    "the user opens a poster, navigates Details, starts an episode, returns from Player, opens Settings, edits and deletes the current source, and visits the main Settings panels"
+  ],
+  "then": [
+    "Library, Details, Player, Back navigation, Settings focus, media-source editing/deletion, and Playback/CloudDrive/Scan/Metadata panels stay behaviorally stable",
+    "privacy-safe screenshots and sanitized UIAutomator XML are captured for contracted surfaces"
+  ],
+  "steps": [
+    {
+      "id": "library-scan",
+      "label": "Library source scan and poster surface behavior",
+      "usesFixture": "generatedLocalTvLibrary",
+      "driver": "smoke-android-tv-ui.ps1",
+      "assertions": [
+        "Library shows Explore, Scan, highest-heat, and generated fixture poster text; isolated mode also requires recently-added on the first screen.",
+        "The scan action indexes generated NFO-backed fixture episodes.",
+        "In isolated app data, DPAD Right/Left keeps navigation on the poster surface before opening Details; in KeepAppData mode, the generated poster is revealed without clearing existing content before activation."
+      ]
+    },
+    {
+      "id": "detail-player-back",
+      "label": "Details episode focus, playback launch, and Back navigation behavior",
+      "usesFixture": "generatedLocalTvLibrary",
+      "driver": "smoke-android-tv-ui.ps1",
+      "assertions": [
+        "Poster activation opens Details with title, Play action, episode shelf, and first episode row.",
+        "DPAD Down from Details play focuses the first episode row.",
+        "Episode activation opens Player chrome with local playback controls and no failure overlay.",
+        "Back returns from Player to Details, then from Details to Library; isolated mode requires poster focus recovery and KeepAppData mode requires the generated poster to be revealable again."
+      ]
+    },
+    {
+      "id": "settings-source",
+      "label": "Settings media-source focus, edit, and deletion behavior",
+      "usesFixture": "generatedLocalTvLibrary",
+      "driver": "smoke-android-tv-ui.ps1",
+      "assertions": [
+        "Library DPAD navigation opens Settings.",
+        "Settings exposes WebUI, media sources, playback, CloudDrive, scan, and metadata sections.",
+        "DPAD Down/Center opens the media-source panel and DPAD Right focuses a saved source card.",
+        "Opening the current generated source card shows the edit form for the same generated source name and path.",
+        "Deleting the current generated source removes only that source and proves stale app data cannot satisfy the check."
+      ]
+    },
+    {
+      "id": "settings-panels",
+      "label": "Settings panel traversal behavior",
+      "usesFixture": "generatedLocalTvLibrary",
+      "driver": "smoke-android-tv-ui.ps1",
+      "assertions": [
+        "Playback settings show playback-end choices.",
+        "CloudDrive settings show endpoint and RSS offline controls without exposing real credentials.",
+        "Scan settings show scan scheduling and media-library display controls.",
+        "Metadata settings show Bangumi token controls."
+      ]
+    }
+  ]
+}

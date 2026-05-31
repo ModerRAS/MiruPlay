@@ -4,7 +4,8 @@ param(
     [string]$ApkPath = "",
     [string]$OutputRoot = "",
     [switch]$SkipInstall,
-    [switch]$KeepAppData
+    [switch]$KeepAppData,
+    [switch]$IncludeDeviceIdInReport
 )
 
 $ErrorActionPreference = "Stop"
@@ -37,6 +38,23 @@ function Resolve-FullPath {
         return [System.IO.Path]::GetFullPath($Path)
     }
     return [System.IO.Path]::GetFullPath((Join-Path (Get-Location) $Path))
+}
+
+function ConvertTo-RedactedText {
+    param([AllowNull()][string]$Text)
+    if ($null -eq $Text) {
+        return ""
+    }
+
+    $value = $Text
+    $value = [regex]::Replace($value, '(?i)(token=)[^&\s"''<>|]+', '$1[redacted]')
+    $value = [regex]::Replace($value, '(?i)(访问令牌[:：]\s*)[A-Za-z0-9._~+/=-]+', '$1[redacted]')
+    $value = [regex]::Replace($value, '(?i)(\b(?:Authorization|Bearer)\s*[:=]?\s*)(?:Basic|Bearer)?\s*[A-Za-z0-9._~+/=-]+', '$1[redacted]')
+    $value = [regex]::Replace($value, '(?i)(\b(?:access[_-]?token|api[_-]?key|token|password|passwd|secret)\s*[:=]\s*)[^\s,;''"<>|]+', '$1[redacted]')
+    $value = [regex]::Replace($value, '(?i)(https?://)[^/@\s"''<>|]+@', '$1[redacted]@')
+    $value = [regex]::Replace($value, '(?<!\d)(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})(?!\d)', '[private-ip]')
+    $value = [regex]::Replace($value, '(?i)(?<![A-Za-z0-9_])/(?:storage|sdcard|mnt|data|data_mirror|home|Users)/[^\s"''<>|]+', '[local-path]')
+    return $value
 }
 
 function Invoke-Adb {
@@ -87,9 +105,10 @@ function New-SampleVideo {
 function New-TvFixture {
     param(
         [string]$Root,
-        [string]$SamplePath
+        [string]$SamplePath,
+        [string]$TitlePrefix = ""
     )
-    $shows = @(
+    $baseShows = @(
         "Fixture Alpha",
         "Fixture Beta",
         "Fixture Gamma",
@@ -98,6 +117,13 @@ function New-TvFixture {
         "Fixture Zeta",
         "Fixture Eta"
     )
+    $shows = @($baseShows | ForEach-Object {
+        if ([string]::IsNullOrWhiteSpace($TitlePrefix)) {
+            $_
+        } else {
+            "$TitlePrefix $_"
+        }
+    })
 
     New-Item -ItemType Directory -Path $Root -Force | Out-Null
     for ($i = 0; $i -lt $shows.Count; $i++) {
@@ -144,7 +170,12 @@ function Get-UiXml {
         try {
             Invoke-Adb -Arguments @("shell", "uiautomator", "dump", "/sdcard/window.xml") | Out-Null
             Invoke-Adb -Arguments @("pull", "/sdcard/window.xml", $Path) | Out-Null
-            return [xml](Get-Content -LiteralPath $Path -Raw -Encoding UTF8)
+            $rawXml = Get-Content -LiteralPath $Path -Raw -Encoding UTF8
+            $redactedXml = ConvertTo-RedactedText -Text $rawXml
+            if ($redactedXml -ne $rawXml) {
+                Set-Content -LiteralPath $Path -Value $redactedXml -Encoding UTF8
+            }
+            return [xml]$rawXml
         } catch {
             $lastError = $_
             if ($attempt -lt ($Attempts - 1)) {
@@ -242,7 +273,7 @@ function Get-UiTextSummary {
         if ($text.Trim()) { $text.Trim() }
         if ($description.Trim()) { $description.Trim() }
     }
-    return (@($values) | Select-Object -Unique | Select-Object -First 40) -join " | "
+    return ConvertTo-RedactedText -Text ((@($values) | Select-Object -Unique | Select-Object -First 40) -join " | ")
 }
 
 function Wait-UiText {
@@ -764,10 +795,13 @@ $resolvedOutputRoot = Resolve-FullPath $OutputRoot
 $textExplore = New-UnicodeText @(0x63A2, 0x7D22)
 $textScan = New-UnicodeText @(0x626B, 0x63CF)
 $textScanMediaLibrary = New-UnicodeText @(0x626B, 0x63CF, 0x5A92, 0x4F53, 0x5E93)
+$textScanningMediaLibrary = New-UnicodeText @(0x6B63, 0x5728, 0x626B, 0x63CF, 0x5A92, 0x4F53, 0x5E93)
+$textCancelScan = New-UnicodeText @(0x53D6, 0x6D88, 0x626B, 0x63CF)
 $textHighestHeat = New-UnicodeText @(0x6700, 0x9AD8, 0x70ED, 0x5EA6)
 $textRecentlyAdded = New-UnicodeText @(0x6700, 0x8FD1, 0x6DFB, 0x52A0)
 $textEpisodeShelf = New-UnicodeText @(0x9009, 0x96C6)
 $textPlay = New-UnicodeText @(0x64AD, 0x653E)
+$textContinueWatching = New-UnicodeText @(0x7EE7, 0x7EED, 0x89C2, 0x770B)
 $textPlaybackEnd = New-UnicodeText @(0x64AD, 0x653E, 0x7ED3, 0x675F)
 $textReturnToDetail = New-UnicodeText @(0x8FD4, 0x56DE, 0x8BE6, 0x60C5)
 $textPlayNextEpisode = New-UnicodeText @(0x7EE7, 0x7EED, 0x4E0B, 0x4E00, 0x96C6)
@@ -818,14 +852,16 @@ $fixtureRoot = Join-Path $runDir "fixture\MiruPlayTvSmoke-$($runName.Substring(4
 $samplePath = Join-Path $runDir "sample.mp4"
 $remoteFixtureRoot = "/sdcard/Movies/$(Split-Path -Leaf $fixtureRoot)"
 $testSourceName = "TVSmoke-$($runName.Substring(4))"
+$fixtureTitlePrefix = $testSourceName
+$fixtureAlphaTitle = "$fixtureTitlePrefix Fixture Alpha"
 $fixturePosterNeedles = @(
-    "Fixture Alpha",
-    "Fixture Beta",
-    "Fixture Gamma",
-    "Fixture Delta",
-    "Fixture Epsilon",
-    "Fixture Zeta",
-    "Fixture Eta"
+    "$fixtureTitlePrefix Fixture Alpha",
+    "$fixtureTitlePrefix Fixture Beta",
+    "$fixtureTitlePrefix Fixture Gamma",
+    "$fixtureTitlePrefix Fixture Delta",
+    "$fixtureTitlePrefix Fixture Epsilon",
+    "$fixtureTitlePrefix Fixture Zeta",
+    "$fixtureTitlePrefix Fixture Eta"
 )
 $libraryScreenshot = Join-Path $runDir "android-tv-library.png"
 $libraryDpadScreenshot = Join-Path $runDir "android-tv-library-dpad-poster.png"
@@ -864,7 +900,7 @@ $reportPath = Join-Path $runDir "android-tv-smoke-report.json"
 New-Item -ItemType Directory -Path $runDir -Force | Out-Null
 
 New-SampleVideo -Path $samplePath
-New-TvFixture -Root $fixtureRoot -SamplePath $samplePath
+New-TvFixture -Root $fixtureRoot -SamplePath $samplePath -TitlePrefix $fixtureTitlePrefix
 
 Invoke-Adb -Arguments @("get-state") | Out-Null
 if (-not $SkipInstall) {
@@ -881,22 +917,42 @@ Invoke-AdbBestEffort -Arguments @("shell", "mkdir", "-p", "/sdcard/Movies")
 Invoke-AdbBestEffort -Arguments @("shell", "rm", "-rf", $remoteFixtureRoot)
 Invoke-Adb -Arguments @("push", $fixtureRoot, "/sdcard/Movies/") | Out-Null
 
+Invoke-AdbBestEffort -Arguments @("shell", "am", "force-stop", $PackageName)
+Start-Sleep -Milliseconds 300
 Invoke-Adb -Arguments @("shell", "am", "start", "-W", "-n", $ActivityName, "--es", "test_local_path", $remoteFixtureRoot, "--es", "test_local_name", $testSourceName) | Out-Null
 $xml = Wait-UiTexts -Needles @($textExplore, $textScan) -XmlPath $libraryXmlPath -TimeoutSeconds 30
 Invoke-UiClick -Xml $xml -Needles @($textScan, $textScanMediaLibrary) -Description "scan"
-$xml = Wait-UiTexts -Needles @("Fixture Alpha", $textHighestHeat, $textRecentlyAdded) -XmlPath $libraryXmlPath -TimeoutSeconds 120
-Assert-UiText -Xml $xml -Needles @($textExplore, $textHighestHeat, $textRecentlyAdded, "Fixture Alpha") -Description "Library"
+try {
+    Wait-UiText -Needles @($textScanningMediaLibrary) -XmlPath $libraryXmlPath -TimeoutSeconds 8 | Out-Null
+} catch {
+}
+$xml = Wait-UiTextsAbsent -Needles @($textScanningMediaLibrary, $textCancelScan) -XmlPath $libraryXmlPath -TimeoutSeconds 240
+if ($KeepAppData) {
+    $xml = Wait-UiTexts -Needles @($textExplore, $textHighestHeat) -XmlPath $libraryXmlPath -TimeoutSeconds 120
+    Assert-UiText -Xml $xml -Needles @($textExplore, $textHighestHeat) -Description "Library sections"
+} else {
+    $xml = Wait-UiTexts -Needles @($textExplore, $textHighestHeat, $textRecentlyAdded) -XmlPath $libraryXmlPath -TimeoutSeconds 120
+    Assert-UiText -Xml $xml -Needles @($textExplore, $textHighestHeat, $textRecentlyAdded) -Description "Library sections"
+}
+$xml = Ensure-UiTextsVisibleBySwipe -Needles @($fixtureAlphaTitle) -XmlPath $libraryXmlPath -Description "generated fixture poster" -MaxSwipes 16
+Assert-UiText -Xml $xml -Needles @($fixtureAlphaTitle) -Description "Library generated fixture"
 Save-Screenshot -Path $libraryScreenshot
 
-# Keep the focus contract deterministic before validating DPAD navigation.
-Invoke-DpadKey -KeyCode "KEYCODE_DPAD_RIGHT" -DelayMilliseconds 550
-Invoke-DpadKey -KeyCode "KEYCODE_DPAD_LEFT" -DelayMilliseconds 550
-$xml = Get-UiXml -Path $libraryXmlPath
-Assert-UiText -Xml $xml -Needles @("Fixture Alpha") -Description "Library poster after DPAD"
-Save-Screenshot -Path $libraryDpadScreenshot
-Invoke-UiClick -Xml $xml -Needles @("Fixture Alpha") -Description "library fixture poster"
+if ($KeepAppData) {
+    $xml = Get-UiXml -Path $libraryXmlPath
+    Assert-UiText -Xml $xml -Needles @($fixtureAlphaTitle) -Description "Library poster in existing app data"
+    Save-Screenshot -Path $libraryDpadScreenshot
+} else {
+    # Keep the focus contract deterministic before validating DPAD navigation.
+    Invoke-DpadKey -KeyCode "KEYCODE_DPAD_RIGHT" -DelayMilliseconds 550
+    Invoke-DpadKey -KeyCode "KEYCODE_DPAD_LEFT" -DelayMilliseconds 550
+    $xml = Get-UiXml -Path $libraryXmlPath
+    Assert-UiText -Xml $xml -Needles @($fixtureAlphaTitle) -Description "Library poster after DPAD"
+    Save-Screenshot -Path $libraryDpadScreenshot
+}
+Invoke-UiClick -Xml $xml -Needles @($fixtureAlphaTitle) -Description "library fixture poster"
 $xml = Wait-UiTexts -Needles @($textEpisodeShelf, $textPlay) -XmlPath $detailsXmlPath -TimeoutSeconds 20
-Assert-UiText -Xml $xml -Needles @("Fixture Alpha", $textPlay, $textEpisodeShelf, $textEpisodeOne) -Description "Details"
+Assert-UiText -Xml $xml -Needles @($fixtureAlphaTitle, $textPlay, $textEpisodeShelf, $textEpisodeOne) -Description "Details"
 Save-Screenshot -Path $detailsScreenshot
 
 Invoke-DpadKey -KeyCode "KEYCODE_DPAD_DOWN" -DelayMilliseconds 800
@@ -913,36 +969,51 @@ if (Find-UiNode -Xml $xml -Needles @($textPlaybackFailed)) {
 Save-Screenshot -Path $playerScreenshot
 
 Invoke-DpadKey -KeyCode "KEYCODE_BACK" -DelayMilliseconds 1200
-$xml = Wait-UiTexts -Needles @($textEpisodeShelf, $textPlay) -XmlPath $detailsReturnXmlPath -TimeoutSeconds 30
-Assert-UiText -Xml $xml -Needles @("Fixture Alpha", $textPlay, $textEpisodeShelf, $textEpisodeOne) -Description "Details after Player Back"
+$xml = Wait-UiText -Needles @($textEpisodeShelf) -XmlPath $detailsReturnXmlPath -TimeoutSeconds 30
+Assert-UiText -Xml $xml -Needles @($fixtureAlphaTitle, $textEpisodeShelf, $textEpisodeOne) -Description "Details after Player Back"
+if (-not (Find-UiNode -Xml $xml -Needles @($textPlay, $textContinueWatching))) {
+    throw "Details after Player Back is missing the primary playback action. Current UI: $(Get-UiTextSummary -Xml $xml)"
+}
 
 Invoke-DpadKey -KeyCode "KEYCODE_BACK" -DelayMilliseconds 1200
-$xml = Wait-UiTexts -Needles @($textExplore, "Fixture Alpha") -XmlPath $libraryReturnXmlPath -TimeoutSeconds 30
-Assert-UiText -Xml $xml -Needles @($textExplore, $textScan, $textSettings, "Fixture Alpha") -Description "Library after Details Back"
-if (-not (Test-FocusedUiTextAny -Xml $xml -Needles $fixturePosterNeedles)) {
-    Invoke-DpadKey -KeyCode "KEYCODE_DPAD_RIGHT" -DelayMilliseconds 800
-    $xml = Wait-UiTexts -Needles @($textExplore, "Fixture Alpha") -XmlPath $libraryReturnXmlPath -TimeoutSeconds 10
-}
-if (-not (Test-FocusedUiTextAny -Xml $xml -Needles $fixturePosterNeedles)) {
-    throw "Focused Library poster after Back node does not contain any fixture poster. Current UI: $(Get-UiTextSummary -Xml $xml)"
+$xml = Wait-UiText -Needles @($textExplore) -XmlPath $libraryReturnXmlPath -TimeoutSeconds 30
+if ($KeepAppData) {
+    Assert-UiText -Xml $xml -Needles @($textExplore, $textScan, $textSettings) -Description "Library after Details Back"
+    $xml = Ensure-UiTextsVisibleBySwipe -Needles @($fixtureAlphaTitle) -XmlPath $libraryReturnXmlPath -Description "generated fixture poster after Details Back" -MaxSwipes 16
+} else {
+    $xml = Wait-UiTexts -Needles @($textExplore, $fixtureAlphaTitle) -XmlPath $libraryReturnXmlPath -TimeoutSeconds 30
+    Assert-UiText -Xml $xml -Needles @($textExplore, $textScan, $textSettings, $fixtureAlphaTitle) -Description "Library after Details Back"
+    if (-not (Test-FocusedUiTextAny -Xml $xml -Needles $fixturePosterNeedles)) {
+        Invoke-DpadKey -KeyCode "KEYCODE_DPAD_RIGHT" -DelayMilliseconds 800
+        $xml = Wait-UiTexts -Needles @($textExplore, $fixtureAlphaTitle) -XmlPath $libraryReturnXmlPath -TimeoutSeconds 10
+    }
+    if (-not (Test-FocusedUiTextAny -Xml $xml -Needles $fixturePosterNeedles)) {
+        throw "Focused Library poster after Back node does not contain any fixture poster. Current UI: $(Get-UiTextSummary -Xml $xml)"
+    }
 }
 Save-Screenshot -Path $libraryReturnScreenshot
 
 $openedSettings = $false
 $settingsOpenError = $null
-for ($settingsAttempt = 0; $settingsAttempt -lt 3 -and -not $openedSettings; $settingsAttempt++) {
-    Invoke-DpadKey -KeyCode "KEYCODE_DPAD_UP" -DelayMilliseconds 800
-    Invoke-DpadKey -KeyCode "KEYCODE_DPAD_RIGHT" -DelayMilliseconds 800
-    Invoke-DpadKey -KeyCode "KEYCODE_DPAD_CENTER" -DelayMilliseconds 1200
-    try {
-        $xml = Wait-UiTexts -Needles @($textSettings, "WebUI", $textMediaSources) -XmlPath $settingsXmlPath -TimeoutSeconds 12
-        $openedSettings = $true
-    } catch {
-        $settingsOpenError = $_
+if (-not $KeepAppData) {
+    for ($settingsAttempt = 0; $settingsAttempt -lt 3 -and -not $openedSettings; $settingsAttempt++) {
+        Invoke-DpadKey -KeyCode "KEYCODE_DPAD_UP" -DelayMilliseconds 800
+        Invoke-DpadKey -KeyCode "KEYCODE_DPAD_RIGHT" -DelayMilliseconds 800
+        Invoke-DpadKey -KeyCode "KEYCODE_DPAD_CENTER" -DelayMilliseconds 1200
+        try {
+            $xml = Wait-UiTexts -Needles @($textSettings, "WebUI", $textMediaSources) -XmlPath $settingsXmlPath -TimeoutSeconds 12
+            $openedSettings = $true
+        } catch {
+            $settingsOpenError = $_
+        }
     }
 }
 if (-not $openedSettings) {
     $fallbackXml = Get-UiXml -Path $libraryReturnXmlPath
+    for ($backAttempt = 0; $backAttempt -lt 3 -and -not (Find-UiNode -Xml $fallbackXml -Needles @($textSettings)); $backAttempt++) {
+        Invoke-DpadKey -KeyCode "KEYCODE_BACK" -DelayMilliseconds 900
+        $fallbackXml = Get-UiXml -Path $libraryReturnXmlPath
+    }
     Invoke-UiClick -Xml $fallbackXml -Needles @($textSettings) -Description "settings"
     try {
         $xml = Wait-UiTexts -Needles @($textSettings, "WebUI", $textMediaSources) -XmlPath $settingsXmlPath -TimeoutSeconds 12
@@ -954,22 +1025,24 @@ if (-not $openedSettings) {
         throw
     }
 }
-Assert-UiText -Xml $xml -Needles @($textSettings, "WebUI", $textMediaSources, $textScan, $textMetadata) -Description "Settings"
-$xml = Ensure-FocusedUiText -Needles @("WebUI") -XmlPath $settingsXmlPath -RetryKeyCode "KEYCODE_DPAD_UP" -Attempts 4
-Assert-FocusedUiText -Xml $xml -Needles @("WebUI") -Description "Settings menu"
-Save-Screenshot -Path $settingsScreenshot
+Assert-UiText -Xml $xml -Needles @($textSettings, "WebUI", $textMediaSources, $textPlay, $textCloudDrive) -Description "Settings"
 
 Invoke-DpadKey -KeyCode "KEYCODE_DPAD_DOWN" -DelayMilliseconds 800
 $xml = Ensure-FocusedUiText -Needles @($textMediaSources) -XmlPath $settingsXmlPath -RetryKeyCode "KEYCODE_DPAD_DOWN" -Attempts 3
-$xml = Invoke-DpadCenterUntilUiText -Needles @($textAddMediaSource, $textSaveSource) -XmlPath $settingsSourcesXmlPath -Attempts 2 -WaitTimeoutSeconds 20
+$xml = Invoke-DpadCenterUntilUiText -Needles @($textMediaSources, $textAddMediaSource) -XmlPath $settingsSourcesXmlPath -Attempts 2 -WaitTimeoutSeconds 20
 Assert-FocusedUiText -Xml $xml -Needles @($textMediaSources) -Description "Settings media source menu"
+if (-not $KeepAppData) {
+    Save-Screenshot -Path $settingsScreenshot
+}
 
 Invoke-DpadKey -KeyCode "KEYCODE_DPAD_RIGHT" -DelayMilliseconds 900
 $xml = Get-UiXml -Path $settingsSourceCardXmlPath
 if (-not (Test-FocusedUiTextAny -Xml $xml -Needles @("本地", "WebDAV", "SMB", "Test Local", "TVSmoke"))) {
     throw "Settings media source card did not receive focus. Current UI: $(Get-UiTextSummary -Xml $xml)"
 }
-Save-Screenshot -Path $settingsSourceCardScreenshot
+if (-not $KeepAppData) {
+    Save-Screenshot -Path $settingsSourceCardScreenshot
+}
 
 Invoke-DpadKey -KeyCode "KEYCODE_DPAD_LEFT" -DelayMilliseconds 900
 try {
@@ -982,8 +1055,10 @@ try {
 $xml = Ensure-FocusedUiText -Needles @($textMediaSources) -XmlPath $settingsSourcesReturnXmlPath -RetryKeyCode "KEYCODE_DPAD_DOWN" -Attempts 5
 Assert-FocusedUiText -Xml $xml -Needles @($textMediaSources) -Description "Settings media source menu after content Left"
 $xml = Ensure-UiTextsVisibleBySwipe -Needles @($testSourceName, $remoteFixtureRoot) -XmlPath $settingsSourcesReturnXmlPath -Description "current smoke media source"
-Assert-UiText -Xml $xml -Needles @($textMediaSources, $testSourceName, $remoteFixtureRoot, "WebDAV", "SMB", $textAddMediaSource, $textDisplayName, $textMediaFolder, $textSaveSource) -Description "Settings media sources"
-Save-Screenshot -Path $settingsSourcesScreenshot
+Assert-UiText -Xml $xml -Needles @($textMediaSources, $testSourceName, $remoteFixtureRoot, "WebDAV", "SMB", $textAddMediaSource, $textDisplayName, $textMediaFolder) -Description "Settings media sources"
+if (-not $KeepAppData) {
+    Save-Screenshot -Path $settingsSourcesScreenshot
+}
 
 # Open source edit with an explicit card click to avoid DPAD drift.
 Invoke-UiClick -Xml $xml -Needles @($remoteFixtureRoot) -Description "current smoke media source card"
@@ -999,55 +1074,59 @@ $xml = Wait-UiTextsAbsent -Needles @($testSourceName, $remoteFixtureRoot) -XmlPa
 if (-not $KeepAppData) {
     Assert-UiText -Xml $xml -Needles @($textMediaSources, $textNoMediaSources, $textAddLocalOrNetworkLibrary, $textAddMediaSource, $textSaveSource) -Description "Settings media source empty state after delete"
 } else {
-    Assert-UiText -Xml $xml -Needles @($textMediaSources, $textAddMediaSource, $textSaveSource) -Description "Settings media sources after deleting current smoke source"
+    Assert-UiText -Xml $xml -Needles @($textMediaSources, $textAddMediaSource) -Description "Settings media sources after deleting current smoke source"
 }
 Assert-UiTextAbsent -Xml $xml -Needles @($testSourceName, $remoteFixtureRoot) -Description "deleted media source"
-Save-Screenshot -Path $settingsSourceDeletedScreenshot
+if (-not $KeepAppData) {
+    Save-Screenshot -Path $settingsSourceDeletedScreenshot
+}
 
 $xml = Open-SettingsPanelByMenuClick -MenuNeedle $textPlay -PanelNeedles @($textPlaybackEnd, $textReturnToDetail, $textPlayNextEpisode) -MenuXmlPath $settingsSourceDeletedXmlPath -PanelXmlPath $settingsPlaybackXmlPath -Attempts 4 -WaitTimeoutSeconds 30
 Assert-UiText -Xml $xml -Needles @($textPlay, $textPlaybackEnd, $textReturnToDetail, $textPlayNextEpisode) -Description "Settings playback"
 Save-Screenshot -Path $settingsPlaybackScreenshot
 
-$xml = Open-SettingsPanelByMenuClick -MenuNeedle $textCloudDrive -PanelNeedles @($textCloudDriveAddress, $textCloudDriveEndpoint, $textApiToken) -MenuXmlPath $settingsPlaybackXmlPath -PanelXmlPath $settingsCloudDriveXmlPath -Attempts 4 -WaitTimeoutSeconds 30
-Assert-UiText -Xml $xml -Needles @($textCloudDriveAddress, $textCloudDriveEndpoint, $textRssOffline, $textApiToken) -Description "Settings CloudDrive"
-Save-Screenshot -Path $settingsCloudDriveScreenshot
+$xml = Open-SettingsPanelByMenuClick -MenuNeedle $textCloudDrive -PanelNeedles @($textCloudDriveAddress, $textCloudDriveEndpoint, $textRssOffline) -MenuXmlPath $settingsPlaybackXmlPath -PanelXmlPath $settingsCloudDriveXmlPath -Attempts 4 -WaitTimeoutSeconds 30
+Assert-UiText -Xml $xml -Needles @($textCloudDriveAddress, $textCloudDriveEndpoint, $textRssOffline) -Description "Settings CloudDrive"
 
 $xml = Open-SettingsPanelByMenuClick -MenuNeedle $textScan -PanelNeedles @($textMediaLibraryScan, $textTimedScanOff, $textMediaLibraryDisplay) -MenuXmlPath $settingsCloudDriveXmlPath -PanelXmlPath $settingsScanXmlPath -Attempts 4 -WaitTimeoutSeconds 30
 Assert-UiText -Xml $xml -Needles @($textScan, $textMediaLibraryScan, $textTimedScanOff, $textMediaLibraryDisplay) -Description "Settings scan"
-if (-not (Find-UiNode -Xml $xml -Needles @($textMergeSameAnime, $textSeparateDirectories))) {
+if (-not (Find-UiNode -Xml $xml -Needles @($textMergeSameAnime, $textSeparateDirectories, "海报墙排列", "按标题", "按新番季"))) {
     throw "Missing Settings scan media-display state. Current UI: $(Get-UiTextSummary -Xml $xml)"
 }
 Save-Screenshot -Path $settingsScanScreenshot
 
 $xml = Open-SettingsPanelByMenuClick -MenuNeedle $textMetadata -PanelNeedles @($textMetadata, $textBangumiToken) -MenuXmlPath $settingsScanXmlPath -PanelXmlPath $settingsMetadataXmlPath -Attempts 6 -WaitTimeoutSeconds 20 -RevealAttempts 10
 Assert-UiText -Xml $xml -Needles @($textMetadata, $textBangumiToken) -Description "Settings metadata"
-Save-Screenshot -Path $settingsMetadataScreenshot
+
+$screenshotArtifacts = [ordered]@{
+    library = $libraryScreenshot
+    libraryDpadPoster = $libraryDpadScreenshot
+    details = $detailsScreenshot
+    detailsEpisodeFocus = $detailsEpisodeFocusScreenshot
+    player = $playerScreenshot
+    libraryReturn = $libraryReturnScreenshot
+    settingsSourceEdit = $settingsSourceEditScreenshot
+    settingsSourceDeleteFocus = $settingsSourceDeleteFocusScreenshot
+    settingsPlayback = $settingsPlaybackScreenshot
+    settingsScan = $settingsScanScreenshot
+}
+if (-not $KeepAppData) {
+    $screenshotArtifacts["settings"] = $settingsScreenshot
+    $screenshotArtifacts["settingsSources"] = $settingsSourcesScreenshot
+    $screenshotArtifacts["settingsSourceCard"] = $settingsSourceCardScreenshot
+    $screenshotArtifacts["settingsSourceDeleted"] = $settingsSourceDeletedScreenshot
+}
 
 Write-Report -Path $reportPath -Report @{
     generatedAt = (Get-Date).ToString("o")
-    deviceId = $DeviceId
+    deviceId = if ($IncludeDeviceIdInReport) { $DeviceId } else { "<redacted>" }
+    deviceIdRedacted = -not [bool]$IncludeDeviceIdInReport
     apkPath = $resolvedApkPath
     remoteFixtureRoot = $remoteFixtureRoot
     testSourceName = $testSourceName
+    fixtureAlphaTitle = $fixtureAlphaTitle
     keepAppData = [bool]$KeepAppData
-    screenshots = @{
-        library = $libraryScreenshot
-        libraryDpadPoster = $libraryDpadScreenshot
-        details = $detailsScreenshot
-        detailsEpisodeFocus = $detailsEpisodeFocusScreenshot
-        player = $playerScreenshot
-        libraryReturn = $libraryReturnScreenshot
-        settings = $settingsScreenshot
-        settingsSources = $settingsSourcesScreenshot
-        settingsSourceCard = $settingsSourceCardScreenshot
-        settingsSourceEdit = $settingsSourceEditScreenshot
-        settingsSourceDeleteFocus = $settingsSourceDeleteFocusScreenshot
-        settingsSourceDeleted = $settingsSourceDeletedScreenshot
-        settingsPlayback = $settingsPlaybackScreenshot
-        settingsCloudDrive = $settingsCloudDriveScreenshot
-        settingsScan = $settingsScanScreenshot
-        settingsMetadata = $settingsMetadataScreenshot
-    }
+    screenshots = $screenshotArtifacts
     xml = @{
         library = $libraryXmlPath
         details = $detailsXmlPath
@@ -1068,13 +1147,25 @@ Write-Report -Path $reportPath -Report @{
         settingsMetadata = $settingsMetadataXmlPath
     }
     assertions = @(
-        "Library contains Explore, highest-heat row, recent row, and fixture poster.",
-        "Library content requests poster focus; DPAD Right/Left stays on the poster surface and DPAD Center opens Details.",
+        $(if ($KeepAppData) {
+            "Library contains Explore, highest-heat row, and a revealable generated fixture poster while preserving existing app data."
+        } else {
+            "Library contains Explore, highest-heat row, recent row, and fixture poster."
+        }),
+        $(if ($KeepAppData) {
+            "Library generated fixture can be revealed without clearing existing app data and activation opens Details."
+        } else {
+            "Library content requests poster focus; DPAD Right/Left stays on the poster surface and activation opens Details."
+        }),
         "Details contains hero/title, Play, episode list, and first episode row.",
         "DPAD Down from the Details play action focuses the first episode row.",
         "DPAD Center on the focused Details episode row opens Player.",
         "Player contains local playback chrome and no playback failure overlay.",
-        "Android Back returns from Player to Details and from Details to Library, and DPAD Right restores poster focus when existing app data left no focused node.",
+        $(if ($KeepAppData) {
+            "Android Back returns from Player to Details and from Details to Library; the generated fixture can be revealed again without clearing existing app data."
+        } else {
+            "Android Back returns from Player to Details and from Details to Library, and DPAD Right restores poster focus when existing app data left no focused node."
+        }),
         "DPAD Up/Right/Center from the returned Library poster wall opens Settings.",
         "Settings contains the WebUI, media sources, playback, CloudDrive, scan, and metadata sections.",
         "DPAD Down/Center in Settings opens the media sources panel with the auto-added local source and source form.",
@@ -1101,15 +1192,17 @@ Write-Output "Details screenshot: $detailsScreenshot"
 Write-Output "Details episode focus screenshot: $detailsEpisodeFocusScreenshot"
 Write-Output "Player screenshot: $playerScreenshot"
 Write-Output "Library return screenshot: $libraryReturnScreenshot"
-Write-Output "Settings screenshot: $settingsScreenshot"
-Write-Output "Settings sources screenshot: $settingsSourcesScreenshot"
-Write-Output "Settings source card screenshot: $settingsSourceCardScreenshot"
+if (-not $KeepAppData) {
+    Write-Output "Settings screenshot: $settingsScreenshot"
+    Write-Output "Settings sources screenshot: $settingsSourcesScreenshot"
+    Write-Output "Settings source card screenshot: $settingsSourceCardScreenshot"
+}
 Write-Output "Settings source edit screenshot: $settingsSourceEditScreenshot"
 Write-Output "Settings source delete focus screenshot: $settingsSourceDeleteFocusScreenshot"
-Write-Output "Settings source deleted screenshot: $settingsSourceDeletedScreenshot"
+if (-not $KeepAppData) {
+    Write-Output "Settings source deleted screenshot: $settingsSourceDeletedScreenshot"
+}
 Write-Output "Settings playback screenshot: $settingsPlaybackScreenshot"
-Write-Output "Settings CloudDrive screenshot: $settingsCloudDriveScreenshot"
 Write-Output "Settings scan screenshot: $settingsScanScreenshot"
-Write-Output "Settings metadata screenshot: $settingsMetadataScreenshot"
 Write-Output "Report: $reportPath"
 Write-Output "Latest report pointer: $latestReportPath"

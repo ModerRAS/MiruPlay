@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "fixtures": {
+    "generatedLocalTvLibrary": {
+      "description": "Generated MP4/NFO Android TV library copied to /sdcard/Movies for source, scan, detail, player, and settings behavior.",
+      "managedBy": "../smoke-android-tv-ui.ps1",
+      "privacy": "Fixture data is generated. Device identifiers and real user media paths are provided outside the repository."
+    }
+  }
+}

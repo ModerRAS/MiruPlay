@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "input": {
+    "device": {
+      "argument": "-DeviceId",
+      "environment": "MIRUPLAY_ANDROID_TV_DEVICE_ID",
+      "privacy": "Do not commit real device ids, IP addresses, or adb targets. Keep them in the global Codex skill or local shell environment."
+    },
+    "apk": {
+      "argument": "-ApkPath",
+      "default": "app/build/outputs/apk/debug/app-debug.apk"
+    }
+  },
+  "remoteKeys": {
+    "activate": "KEYCODE_DPAD_CENTER",
+    "back": "KEYCODE_BACK",
+    "up": "KEYCODE_DPAD_UP",
+    "down": "KEYCODE_DPAD_DOWN",
+    "left": "KEYCODE_DPAD_LEFT",
+    "right": "KEYCODE_DPAD_RIGHT"
+  },
+  "assertionDriver": {
+    "uiautomatorDump": "/sdcard/window.xml",
+    "screenshots": "adb exec-out screencap -p",
+    "privacy": "Behavior reports redact the device id by default and must not include credentials, tokens, or local private paths."
+  }
+}
