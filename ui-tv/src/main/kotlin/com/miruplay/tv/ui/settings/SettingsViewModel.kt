@@ -854,24 +854,17 @@ class SettingsViewModel @Inject constructor(
         _logUploadSnapshot.value = _logUploadSnapshot.value.copy(streamName = streamName)
     }
 
-    fun saveLogUploadConfig() {
+    fun saveLogUploadSettings(token: String) {
         viewModelScope.launch {
             val current = _logUploadSnapshot.value
-            val next = logUploadActions.saveConfig(
+            val next = logUploadActions.saveSettings(
                 enabled = current.enabled,
                 endpoint = current.endpoint,
                 streamName = current.streamName,
+                token = token,
             )
             applyLogUploadSnapshot(next)
             logUploadAutoScheduler.syncWithConfig(next.toConfig())
-        }
-    }
-
-    fun saveLogUploadToken(token: String) {
-        viewModelScope.launch {
-            val trimmed = token.trim()
-            if (trimmed.isEmpty()) return@launch
-            applyLogUploadSnapshot(logUploadActions.saveToken(trimmed))
         }
     }
 

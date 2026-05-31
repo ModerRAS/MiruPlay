@@ -104,7 +104,7 @@ import com.miruplay.tv.model.settingsDesktopWebUiStatusMessage
 import com.miruplay.tv.model.settingsLogUploadAutoToggleLabel
 import com.miruplay.tv.model.settingsLogUploadEndpointFieldLabel
 import com.miruplay.tv.model.settingsLogUploadRunNowActionLabel
-import com.miruplay.tv.model.settingsLogUploadSaveConfigActionLabel
+import com.miruplay.tv.model.settingsLogUploadSaveSettingsActionLabel
 import com.miruplay.tv.model.settingsLogUploadStreamFieldLabel
 import com.miruplay.tv.model.settingsLogUploadTokenFieldLabel
 import com.miruplay.tv.model.settingsLogUploadTokenConfiguredStatus
@@ -262,8 +262,7 @@ internal fun CloudRssPanel(
     logUploadToken: String,
     onLogUploadTokenChange: (String) -> Unit,
     logUploadTokenConfigured: Boolean,
-    onSaveLogUploadConfig: () -> Unit,
-    onSaveLogUploadToken: () -> Unit,
+    onSaveLogUploadSettings: () -> Unit,
     onClearLogUploadToken: () -> Unit,
     onRunLogUploadNow: () -> Unit,
     canRunLogUploadNow: Boolean,
@@ -449,8 +448,7 @@ internal fun CloudRssPanel(
                 tiles = logUploadSettingsTiles(),
                 status = logUploadStatusMessage,
                 actions = listOf(
-                    SettingsQuickAction(settingsLogUploadSaveConfigActionLabel(), onSaveLogUploadConfig),
-                    SettingsQuickAction(settingsSaveTokenActionLabel(), onSaveLogUploadToken, enabled = logUploadToken.isNotBlank()),
+                    SettingsQuickAction(settingsLogUploadSaveSettingsActionLabel(), onSaveLogUploadSettings),
                     SettingsQuickAction(settingsClearTokenActionLabel(), onClearLogUploadToken, enabled = logUploadTokenConfigured),
                     SettingsQuickAction(settingsLogUploadRunNowActionLabel(), onRunLogUploadNow, enabled = canRunLogUploadNow),
                 ),

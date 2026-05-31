@@ -765,11 +765,8 @@
                 </div>
 
                 <div class="form-actions">
-                  <el-button :icon="Setting" :loading="loading.logUploadSave" @click="saveLogUploadConfig">
-                    保存配置
-                  </el-button>
-                  <el-button :icon="Key" :loading="loading.logUploadToken" @click="saveLogUploadToken">
-                    保存 Token
+                  <el-button :icon="Setting" :loading="loading.logUploadSave || loading.logUploadToken" @click="saveLogUploadSettings">
+                    保存设置
                   </el-button>
                   <el-button
                     type="danger"
@@ -2210,9 +2207,9 @@ function isOpenObserveStreamPath(path) {
   return segments.length === 3 && segments[0] === 'api'
 }
 
-async function saveLogUploadConfig() {
+async function saveLogUploadConfig(showSuccess = true) {
   const payload = logUploadConfigPayload()
-  if (!validateLogUploadConfig(payload)) return
+  if (!validateLogUploadConfig(payload)) return false
 
   loading.logUploadSave = true
   try {
@@ -2220,16 +2217,19 @@ async function saveLogUploadConfig() {
       method: 'PUT',
       body: JSON.stringify(payload)
     }))
-    ElMessage.success('日志上报配置已保存')
+    if (showSuccess) {
+      ElMessage.success('日志上报配置已保存')
+    }
+    return true
   } finally {
     loading.logUploadSave = false
   }
 }
 
-async function saveLogUploadToken() {
+async function saveLogUploadToken(showSuccess = true) {
   if (!logForm.token.trim()) {
     ElMessage.warning('请填写 OpenObserve Token')
-    return
+    return false
   }
 
   loading.logUploadToken = true
@@ -2239,10 +2239,23 @@ async function saveLogUploadToken() {
       body: JSON.stringify({ token: logForm.token.trim() })
     }))
     logForm.token = ''
-    ElMessage.success('OpenObserve Token 已保存')
+    if (showSuccess) {
+      ElMessage.success('OpenObserve Token 已保存')
+    }
+    return true
   } finally {
     loading.logUploadToken = false
   }
+}
+
+async function saveLogUploadSettings(showSuccess = true) {
+  const hasTokenInput = Boolean(logForm.token.trim())
+  if (!(await saveLogUploadConfig(false))) return false
+  if (hasTokenInput && !(await saveLogUploadToken(false))) return false
+  if (showSuccess) {
+    ElMessage.success(hasTokenInput ? '日志上报设置和 Token 已保存' : '日志上报设置已保存')
+  }
+  return true
 }
 
 async function clearLogUploadToken() {
@@ -2269,14 +2282,11 @@ async function runLogUploadNow() {
     return
   }
   if (!logUpload.tokenConfigured && !logForm.token.trim()) {
-    ElMessage.warning('请先保存 OpenObserve Token')
+    ElMessage.warning('请先填写 OpenObserve Token')
     return
   }
-  if (!logUpload.config || payload.endpoint !== logUpload.config.endpoint || payload.streamName !== logUpload.config.streamName || payload.enabled !== logUpload.config.enabled) {
-    await saveLogUploadConfig()
-  }
-  if (logForm.token.trim()) {
-    await saveLogUploadToken()
+  if (!logUpload.config || payload.endpoint !== logUpload.config.endpoint || payload.streamName !== logUpload.config.streamName || payload.enabled !== logUpload.config.enabled || logForm.token.trim()) {
+    if (!(await saveLogUploadSettings(false))) return
   }
 
   loading.logUploadRun = true

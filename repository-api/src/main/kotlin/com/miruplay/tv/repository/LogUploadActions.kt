@@ -86,6 +86,24 @@ class LogUploadActionCoordinator(
         return snapshot()
     }
 
+    suspend fun saveSettings(
+        enabled: Boolean,
+        endpoint: String,
+        streamName: String,
+        token: String,
+    ): OtlpLogUploadActionSnapshot {
+        repository.saveConfig(
+            enabled = enabled,
+            endpoint = endpoint,
+            streamName = streamName,
+        )
+        val trimmedToken = token.trim()
+        if (trimmedToken.isNotEmpty()) {
+            repository.saveToken(trimmedToken)
+        }
+        return snapshot()
+    }
+
     suspend fun saveToken(token: String): OtlpLogUploadActionSnapshot {
         repository.saveToken(token)
         return snapshot()

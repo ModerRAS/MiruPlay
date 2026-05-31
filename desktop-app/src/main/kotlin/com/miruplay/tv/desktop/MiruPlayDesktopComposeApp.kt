@@ -2528,23 +2528,16 @@ internal fun MiruPlayDesktopComposeApp(
                     logUploadTokenInput = token
                 },
                 logUploadTokenConfigured = logUploadSnapshot.tokenConfigured,
-                onSaveLogUploadConfig = {
+                onSaveLogUploadSettings = {
                     scope.launch {
-                        logUploadSnapshot = logUploadActions.saveConfig(
+                        logUploadSnapshot = logUploadActions.saveSettings(
                             enabled = logUploadSnapshot.enabled,
                             endpoint = logUploadSnapshot.endpoint,
                             streamName = logUploadSnapshot.streamName,
+                            token = logUploadTokenInput,
                         )
+                        logUploadTokenInput = ""
                         logUploadAutoScheduler.syncWithConfig(logUploadSnapshot.toConfig())
-                    }
-                },
-                onSaveLogUploadToken = {
-                    scope.launch {
-                        val token = logUploadTokenInput.trim()
-                        if (token.isNotEmpty()) {
-                            logUploadSnapshot = logUploadActions.saveToken(token)
-                            logUploadTokenInput = ""
-                        }
                     }
                 },
                 onClearLogUploadToken = {

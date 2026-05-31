@@ -255,7 +255,7 @@ fun settingsAndroidTvLogUploadStatusMessage(): String =
     "可在当前页面配置 OpenObserve JSON；本地日志会按同一配置写入上报队列。"
 
 fun settingsAndroidTvLogUploadHintMessage(): String =
-    "建议先保存配置，再保存 Token；开启自动上报后会定时上传待处理日志。"
+    "保存设置会同时保存配置和当前 Token；开启自动上报后会定时上传待处理日志。"
 
 fun settingsDesktopLogUploadStatusMessage(): String =
     "可在当前页面或 Web 控制端配置 OpenObserve JSON；本地日志会按同一配置写入上报队列。"
@@ -272,8 +272,8 @@ fun settingsLogUploadStreamFieldLabel(): String =
 fun settingsLogUploadTokenFieldLabel(): String =
     "OpenObserve Token"
 
-fun settingsLogUploadSaveConfigActionLabel(): String =
-    "保存配置"
+fun settingsLogUploadSaveSettingsActionLabel(): String =
+    "保存设置"
 
 fun settingsLogUploadRunNowActionLabel(): String =
     "立即上报"

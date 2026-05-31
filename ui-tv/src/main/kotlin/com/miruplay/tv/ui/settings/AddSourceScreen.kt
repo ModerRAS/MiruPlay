@@ -199,7 +199,7 @@ import com.miruplay.tv.model.settingsClearTokenActionLabel
 import com.miruplay.tv.model.settingsLogUploadAutoToggleLabel
 import com.miruplay.tv.model.settingsLogUploadEndpointFieldLabel
 import com.miruplay.tv.model.settingsLogUploadRunNowActionLabel
-import com.miruplay.tv.model.settingsLogUploadSaveConfigActionLabel
+import com.miruplay.tv.model.settingsLogUploadSaveSettingsActionLabel
 import com.miruplay.tv.model.settingsLogUploadStreamFieldLabel
 import com.miruplay.tv.model.settingsLogUploadTokenConfiguredStatus
 import com.miruplay.tv.model.settingsLogUploadTokenFieldLabel
@@ -727,9 +727,8 @@ fun AddSourceScreen(
                     onLogUploadTokenChange = { logUploadTokenInput = it },
                     logUploadTokenConfigured = logUploadSnapshot.tokenConfigured,
                     logUploadStatusMessage = logUploadStatusMessage,
-                    onSaveLogUploadConfig = viewModel::saveLogUploadConfig,
-                    onSaveLogUploadToken = {
-                        viewModel.saveLogUploadToken(logUploadTokenInput)
+                    onSaveLogUploadSettings = {
+                        viewModel.saveLogUploadSettings(logUploadTokenInput)
                         logUploadTokenInput = ""
                     },
                     onClearLogUploadToken = {
@@ -1078,8 +1077,7 @@ private fun SettingsContent(
     onLogUploadTokenChange: (String) -> Unit,
     logUploadTokenConfigured: Boolean,
     logUploadStatusMessage: String,
-    onSaveLogUploadConfig: () -> Unit,
-    onSaveLogUploadToken: () -> Unit,
+    onSaveLogUploadSettings: () -> Unit,
     onClearLogUploadToken: () -> Unit,
     onRunLogUploadNow: () -> Unit,
     canRunLogUploadNow: Boolean,
@@ -1277,8 +1275,7 @@ private fun SettingsContent(
                 onTokenInputChange = onLogUploadTokenChange,
                 tokenConfigured = logUploadTokenConfigured,
                 statusMessage = logUploadStatusMessage,
-                onSaveConfig = onSaveLogUploadConfig,
-                onSaveToken = onSaveLogUploadToken,
+                onSaveSettings = onSaveLogUploadSettings,
                 onClearToken = onClearLogUploadToken,
                 onRunNow = onRunLogUploadNow,
                 canRunNow = canRunLogUploadNow,
@@ -3369,8 +3366,7 @@ private fun LogUploadPanel(
     onTokenInputChange: (String) -> Unit,
     tokenConfigured: Boolean,
     statusMessage: String,
-    onSaveConfig: () -> Unit,
-    onSaveToken: () -> Unit,
+    onSaveSettings: () -> Unit,
     onClearToken: () -> Unit,
     onRunNow: () -> Unit,
     canRunNow: Boolean,
@@ -3444,10 +3440,10 @@ private fun LogUploadPanel(
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
                 TvButton(
-                    text = settingsLogUploadSaveConfigActionLabel(),
+                    text = settingsLogUploadSaveSettingsActionLabel(),
                     icon = Icons.Filled.Save,
                     enabled = endpoint.isNotBlank(),
-                    onClick = onSaveConfig,
+                    onClick = onSaveSettings,
                     modifier = Modifier.weight(1f)
                 )
                 TvButton(
@@ -3459,13 +3455,6 @@ private fun LogUploadPanel(
                 )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                TvButton(
-                    text = settingsSaveTokenActionLabel(),
-                    icon = Icons.Filled.Key,
-                    enabled = tokenInput.isNotBlank(),
-                    onClick = onSaveToken,
-                    modifier = Modifier.weight(1f)
-                )
                 TvButton(
                     text = settingsClearTokenActionLabel(),
                     icon = Icons.Filled.Delete,

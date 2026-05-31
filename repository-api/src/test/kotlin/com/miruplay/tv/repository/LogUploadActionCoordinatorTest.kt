@@ -175,6 +175,47 @@ class LogUploadActionCoordinatorTest {
     }
 
     @Test
+    fun `save settings persists config and non blank token together`() = runBlocking {
+        val repository = FakeLogUploadRepository()
+        val coordinator = LogUploadActionCoordinator(repository)
+
+        val snapshot = coordinator.saveSettings(
+            enabled = true,
+            endpoint = " https://openobserve.example.com/api/default ",
+            streamName = " anime ",
+            token = " token ",
+        )
+
+        assertEquals(
+            OtlpLogUploadConfig(
+                enabled = true,
+                endpoint = " https://openobserve.example.com/api/default ",
+                streamName = " anime ",
+            ),
+            repository.currentConfig,
+        )
+        assertEquals("token", repository.savedToken)
+        assertTrue(snapshot.enabled)
+        assertTrue(snapshot.tokenConfigured)
+    }
+
+    @Test
+    fun `save settings leaves existing token untouched when token input is blank`() = runBlocking {
+        val repository = FakeLogUploadRepository(tokenConfigured = true)
+        val coordinator = LogUploadActionCoordinator(repository)
+
+        val snapshot = coordinator.saveSettings(
+            enabled = true,
+            endpoint = "https://openobserve.example.com/api/default",
+            streamName = "miruplay",
+            token = " ",
+        )
+
+        assertEquals(null, repository.savedToken)
+        assertTrue(snapshot.tokenConfigured)
+    }
+
+    @Test
     fun `save and clear token refresh token configured state`() = runBlocking {
         val repository = FakeLogUploadRepository()
         val coordinator = LogUploadActionCoordinator(repository)

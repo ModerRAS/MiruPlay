@@ -156,7 +156,7 @@ class SettingsSectionDisplayConventionsTest {
             settingsAndroidTvLogUploadStatusMessage(),
         )
         assertEquals(
-            "建议先保存配置，再保存 Token；开启自动上报后会定时上传待处理日志。",
+            "保存设置会同时保存配置和当前 Token；开启自动上报后会定时上传待处理日志。",
             settingsAndroidTvLogUploadHintMessage(),
         )
         assertEquals(
@@ -167,7 +167,7 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("OpenObserve API 地址", settingsLogUploadEndpointFieldLabel())
         assertEquals("Stream", settingsLogUploadStreamFieldLabel())
         assertEquals("OpenObserve Token", settingsLogUploadTokenFieldLabel())
-        assertEquals("保存配置", settingsLogUploadSaveConfigActionLabel())
+        assertEquals("保存设置", settingsLogUploadSaveSettingsActionLabel())
         assertEquals("立即上报", settingsLogUploadRunNowActionLabel())
         assertEquals("应用更新", settingsAppUpdatePanelTitleLabel())
         assertEquals("从 GitHub Release 获取最新 APK。", settingsAppUpdatePanelDescription())
