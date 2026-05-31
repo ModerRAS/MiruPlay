@@ -14,4 +14,6 @@ android {
 
 dependencies {
     implementation(libs.dagger.hilt.android)
+
+    testImplementation(libs.junit)
 }

@@ -4,8 +4,10 @@ import android.os.Build
 import com.miruplay.tv.background.BackgroundTaskForegroundController
 import com.miruplay.tv.background.BackgroundTaskIds
 import com.miruplay.tv.background.BackgroundTaskProgress
+import com.miruplay.tv.background.ProgressUpdateThrottler
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.clouddrive.CloudDriveClient
+import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
@@ -129,40 +131,77 @@ class WebControlService @Inject constructor(
 
         val proxyConfig = cloudDriveRepository.getConfig().getOrNull()?.toBangumiHttpProxyConfig()
         bangumiArchiveDownloadScope.launch {
+            val progressThrottler = ProgressUpdateThrottler()
+            var rawProgressCallbacks = 0L
+            var emittedProgressUpdates = 0L
             backgroundTasks.start(
                 taskId = BackgroundTaskIds.BANGUMI_ARCHIVE,
                 title = "Bangumi Archive 下载",
                 text = "正在准备下载 Archive",
                 progress = BackgroundTaskProgress.indeterminate(),
             )
+            MiruLog.i(
+                tag = BANGUMI_ARCHIVE_LOG_TAG,
+                message = "Bangumi Archive download started",
+                attributes = mapOf(
+                    "entrypoint" to "web_control",
+                    "proxy_enabled" to (proxyConfig?.enabled == true).toString(),
+                    "proxy_host_configured" to (proxyConfig?.host?.isNotBlank() == true).toString(),
+                )
+            )
             try {
                 proxyConfig?.let { bangumiArchiveStore.configureProxy(it) }
                 val result = bangumiArchiveStore.downloadLatest { bytesRead, totalBytes ->
+                    rawProgressCallbacks += 1
                     val downloadedBytes = bytesRead.coerceAtLeast(0L)
                     val safeTotalBytes = totalBytes.coerceAtLeast(0L)
-                    synchronized(bangumiArchiveDownloadLock) {
-                        bangumiArchiveDownload = BangumiArchiveDownloadState(
-                            isDownloading = true,
-                            downloadedBytes = downloadedBytes,
-                            totalBytes = safeTotalBytes,
+                    if (progressThrottler.shouldUpdate(downloadedBytes, safeTotalBytes)) {
+                        emittedProgressUpdates += 1
+                        synchronized(bangumiArchiveDownloadLock) {
+                            bangumiArchiveDownload = BangumiArchiveDownloadState(
+                                isDownloading = true,
+                                downloadedBytes = downloadedBytes,
+                                totalBytes = safeTotalBytes,
+                            )
+                        }
+                        backgroundTasks.update(
+                            taskId = BackgroundTaskIds.BANGUMI_ARCHIVE,
+                            title = "Bangumi Archive 下载",
+                            text = downloadProgressText(downloadedBytes, safeTotalBytes),
+                            progress = byteProgress(downloadedBytes, safeTotalBytes),
                         )
                     }
-                    backgroundTasks.update(
-                        taskId = BackgroundTaskIds.BANGUMI_ARCHIVE,
-                        title = "Bangumi Archive 下载",
-                        text = downloadProgressText(downloadedBytes, safeTotalBytes),
-                        progress = byteProgress(downloadedBytes, safeTotalBytes),
-                    )
                 }
 
                 when (result) {
                     is Result.Success -> {
+                        MiruLog.i(
+                            tag = BANGUMI_ARCHIVE_LOG_TAG,
+                            message = "Bangumi Archive download finished",
+                            attributes = mapOf(
+                                "entrypoint" to "web_control",
+                                "subject_file_size_bytes" to result.data.subjectFileSizeBytes.toString(),
+                                "latest_name" to result.data.latest?.name.orEmpty(),
+                                "raw_progress_callbacks" to rawProgressCallbacks.toString(),
+                                "emitted_progress_updates" to emittedProgressUpdates.toString(),
+                            )
+                        )
                         synchronized(bangumiArchiveDownloadLock) {
                             bangumiArchiveDownload = BangumiArchiveDownloadState()
                         }
                     }
                     is Result.Error -> {
                         val message = result.error.toUserMessage()
+                        MiruLog.w(
+                            tag = BANGUMI_ARCHIVE_LOG_TAG,
+                            message = "Bangumi Archive download failed",
+                            attributes = mapOf(
+                                "entrypoint" to "web_control",
+                                "error" to message,
+                                "raw_progress_callbacks" to rawProgressCallbacks.toString(),
+                                "emitted_progress_updates" to emittedProgressUpdates.toString(),
+                            )
+                        )
                         synchronized(bangumiArchiveDownloadLock) {
                             bangumiArchiveDownload = BangumiArchiveDownloadState(lastError = message)
                         }
@@ -331,3 +370,4 @@ private fun scanProgressText(scanState: LibraryScanState.Scanning): String {
 }
 
 private const val WEB_CLOUD_DRIVE_TASK_ID = "cloud-drive-rss-web"
+private const val BANGUMI_ARCHIVE_LOG_TAG = "BangumiArchiveDownload"

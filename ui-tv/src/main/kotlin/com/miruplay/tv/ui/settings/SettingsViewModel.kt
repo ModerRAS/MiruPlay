@@ -6,10 +6,12 @@ import androidx.lifecycle.viewModelScope
 import com.miruplay.tv.background.BackgroundTaskForegroundController
 import com.miruplay.tv.background.BackgroundTaskIds
 import com.miruplay.tv.background.BackgroundTaskProgress
+import com.miruplay.tv.background.ProgressUpdateThrottler
 import com.miruplay.tv.clouddrive.CloudDriveClient
 import com.miruplay.tv.core.common.LocalDirectoryBrowser
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.core.common.WebControlConfig
+import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.data.preferences.PlaybackPreferencesManager
 import com.miruplay.tv.model.PlaybackEndAction
@@ -386,6 +388,18 @@ class SettingsViewModel @Inject constructor(
             )
             val proxyConfig = _cloudDriveConfig.value.toBangumiHttpProxyConfig()
             bangumiArchiveStore.configureProxy(proxyConfig)
+            val progressThrottler = ProgressUpdateThrottler()
+            var rawProgressCallbacks = 0L
+            var emittedProgressUpdates = 0L
+            MiruLog.i(
+                tag = BANGUMI_ARCHIVE_LOG_TAG,
+                message = "Bangumi Archive download started",
+                attributes = mapOf(
+                    "entrypoint" to "settings",
+                    "proxy_enabled" to proxyConfig.enabled.toString(),
+                    "proxy_host_configured" to proxyConfig.host.isNotBlank().toString(),
+                )
+            )
             _bangumiArchiveState.value = _bangumiArchiveState.value.copy(
                 isDownloading = true,
                 downloadedBytes = 0L,
@@ -396,29 +410,55 @@ class SettingsViewModel @Inject constructor(
             try {
                 when (
                     val result = bangumiArchiveStore.downloadLatest { bytesRead, totalBytes ->
+                        rawProgressCallbacks += 1
                         val downloadedBytes = bytesRead.coerceAtLeast(0L)
                         val safeTotalBytes = totalBytes.coerceAtLeast(0L)
-                        _bangumiArchiveState.value = _bangumiArchiveState.value.copy(
-                            isDownloading = true,
-                            downloadedBytes = downloadedBytes,
-                            totalBytes = safeTotalBytes,
-                        )
-                        backgroundTasks.update(
-                            taskId = BackgroundTaskIds.BANGUMI_ARCHIVE,
-                            title = "Bangumi Archive 下载",
-                            text = downloadProgressText(downloadedBytes, safeTotalBytes),
-                            progress = byteProgress(downloadedBytes, safeTotalBytes),
-                        )
+                        if (progressThrottler.shouldUpdate(downloadedBytes, safeTotalBytes)) {
+                            emittedProgressUpdates += 1
+                            _bangumiArchiveState.value = _bangumiArchiveState.value.copy(
+                                isDownloading = true,
+                                downloadedBytes = downloadedBytes,
+                                totalBytes = safeTotalBytes,
+                            )
+                            backgroundTasks.update(
+                                taskId = BackgroundTaskIds.BANGUMI_ARCHIVE,
+                                title = "Bangumi Archive 下载",
+                                text = downloadProgressText(downloadedBytes, safeTotalBytes),
+                                progress = byteProgress(downloadedBytes, safeTotalBytes),
+                            )
+                        }
                     }
                 ) {
                     is Result.Success -> {
+                        MiruLog.i(
+                            tag = BANGUMI_ARCHIVE_LOG_TAG,
+                            message = "Bangumi Archive download finished",
+                            attributes = mapOf(
+                                "entrypoint" to "settings",
+                                "subject_file_size_bytes" to result.data.subjectFileSizeBytes.toString(),
+                                "latest_name" to result.data.latest?.name.orEmpty(),
+                                "raw_progress_callbacks" to rawProgressCallbacks.toString(),
+                                "emitted_progress_updates" to emittedProgressUpdates.toString(),
+                            )
+                        )
                         _bangumiArchiveState.value = result.data.toBangumiArchiveUiState(
                             statusMessage = "Bangumi Archive 已更新。",
                         )
                     }
                     is Result.Error -> {
+                        val errorMessage = result.error.toUserMessage()
+                        MiruLog.w(
+                            tag = BANGUMI_ARCHIVE_LOG_TAG,
+                            message = "Bangumi Archive download failed",
+                            attributes = mapOf(
+                                "entrypoint" to "settings",
+                                "error" to errorMessage,
+                                "raw_progress_callbacks" to rawProgressCallbacks.toString(),
+                                "emitted_progress_updates" to emittedProgressUpdates.toString(),
+                            )
+                        )
                         _bangumiArchiveState.value = bangumiArchiveStore.snapshot().toBangumiArchiveUiState(
-                            lastError = result.error.toUserMessage(),
+                            lastError = errorMessage,
                             statusMessage = "Bangumi Archive 下载失败。",
                         )
                     }
@@ -1106,6 +1146,7 @@ class SettingsViewModel @Inject constructor(
 
     companion object {
         private const val MILLIS_PER_HOUR = 60 * 60 * 1000L
+        private const val BANGUMI_ARCHIVE_LOG_TAG = "BangumiArchiveDownload"
     }
 
     override fun onCleared() {
