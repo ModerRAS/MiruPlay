@@ -24,6 +24,18 @@ internal class FileBackedCredentialStore(
             updateBlocking { state -> state.copy(bangumiAccessToken = value) }
         }
 
+    override var tmdbAccessToken: String?
+        get() = storeBlocking { it.tmdbAccessToken }
+        set(value) {
+            updateBlocking { state -> state.copy(tmdbAccessToken = value) }
+        }
+
+    override var tmdbApiBaseUrlOverride: String?
+        get() = storeBlocking { it.tmdbApiBaseUrlOverride }
+        set(value) {
+            updateBlocking { state -> state.copy(tmdbApiBaseUrlOverride = value) }
+        }
+
     override var otlpAccessToken: String?
         get() = storeBlocking { it.otlpAccessToken }
         set(value) {
@@ -41,6 +53,15 @@ internal class FileBackedCredentialStore(
 
     override fun clearBangumiToken() {
         updateBlocking { state -> state.copy(bangumiAccessToken = null) }
+    }
+
+    override fun clearTmdbToken() {
+        updateBlocking { state ->
+            state.copy(
+                tmdbAccessToken = null,
+                tmdbApiBaseUrlOverride = null,
+            )
+        }
     }
 
     override fun clearOtlpAccessToken() {

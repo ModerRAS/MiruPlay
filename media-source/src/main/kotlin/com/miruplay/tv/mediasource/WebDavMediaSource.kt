@@ -18,7 +18,9 @@ import kotlinx.coroutines.withContext
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.FilterInputStream
 import java.io.InputStream
+import java.util.Base64
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
@@ -55,16 +57,17 @@ class WebDavMediaSource @Inject constructor() : MediaSource {
     override suspend fun listFiles(path: String): Result<List<FileEntry>> = withContext(Dispatchers.IO) {
         try {
             val url = normalizeUrl(path)
-            val request = Request.Builder()
-                .url(url)
-                .method(PROPFIND, propfindXml().toRequestBody(xmlMedia))
-                .header("Depth", DEPTH_1)
-                .apply { if (username.isNotBlank()) header("Authorization", credentials()) }
-                .build()
-
-            val response = client.newCall(request).execute()
+            val response = executeWithAnonymousFallback { authorization ->
+                Request.Builder()
+                    .url(url)
+                    .method(PROPFIND, propfindXml().toRequestBody(xmlMedia))
+                    .header("Depth", DEPTH_1)
+                    .applyAuthorizationHeader(authorization)
+                    .build()
+            }
             if (!response.isSuccessful) {
                 val responseBody = response.body?.string()?.takeIf { it.isNotBlank() }
+                response.close()
                 return@withContext Result.failure(
                     AppError.NetworkError.HttpError(
                         response.code,
@@ -73,9 +76,11 @@ class WebDavMediaSource @Inject constructor() : MediaSource {
                 )
             }
 
-            val body = response.body?.string() ?: return@withContext Result.failure(
-                AppError.NetworkError.ServerUnreachable(url)
-            )
+            val body = response.body?.string()
+            response.close()
+            if (body == null) {
+                return@withContext Result.failure(AppError.NetworkError.ServerUnreachable(url))
+            }
 
             val entries = parsePropfindResponse(body, path)
             Result.success(entries)
@@ -89,15 +94,16 @@ class WebDavMediaSource @Inject constructor() : MediaSource {
     override suspend fun openStream(path: String): Result<InputStream> = withContext(Dispatchers.IO) {
         try {
             val url = normalizeUrl(path)
-            val request = Request.Builder()
-                .url(url)
-                .get()
-                .apply { if (username.isNotBlank()) header("Authorization", credentials()) }
-                .build()
-
-            val response = client.newCall(request).execute()
+            val response = executeWithAnonymousFallback { authorization ->
+                Request.Builder()
+                    .url(url)
+                    .get()
+                    .applyAuthorizationHeader(authorization)
+                    .build()
+            }
             if (!response.isSuccessful) {
                 val responseBody = response.body?.string()?.takeIf { it.isNotBlank() }
+                response.close()
                 return@withContext Result.failure(
                     AppError.NetworkError.HttpError(
                         response.code,
@@ -107,9 +113,22 @@ class WebDavMediaSource @Inject constructor() : MediaSource {
             }
 
             val stream = response.body?.byteStream()
-                ?: return@withContext Result.failure(AppError.MediaSourceError.NotFound(path))
+                ?: run {
+                    response.close()
+                    return@withContext Result.failure(AppError.MediaSourceError.NotFound(path))
+                }
 
-            Result.success(stream)
+            Result.success(
+                object : FilterInputStream(stream) {
+                    override fun close() {
+                        try {
+                            super.close()
+                        } finally {
+                            response.close()
+                        }
+                    }
+                }
+            )
         } catch (e: Exception) {
             val url = normalizeUrl(path)
             Log.w(TAG, "WebDAV GET failed for $url", e)
@@ -120,23 +139,26 @@ class WebDavMediaSource @Inject constructor() : MediaSource {
     override suspend fun getMetadata(path: String): Result<FileMetadata> = withContext(Dispatchers.IO) {
         try {
             val url = normalizeUrl(path)
-            val request = Request.Builder()
-                .url(url)
-                .method(PROPFIND, propfindXml().toRequestBody(xmlMedia))
-                .header("Depth", "0")
-                .apply { if (username.isNotBlank()) header("Authorization", credentials()) }
-                .build()
-
-            val response = client.newCall(request).execute()
+            val response = executeWithAnonymousFallback { authorization ->
+                Request.Builder()
+                    .url(url)
+                    .method(PROPFIND, propfindXml().toRequestBody(xmlMedia))
+                    .header("Depth", "0")
+                    .applyAuthorizationHeader(authorization)
+                    .build()
+            }
             if (!response.isSuccessful) {
+                response.close()
                 return@withContext Result.failure(
                     AppError.NetworkError.HttpError(response.code, response.message)
                 )
             }
 
-            val body = response.body?.string() ?: return@withContext Result.failure(
-                AppError.NetworkError.ServerUnreachable(url)
-            )
+            val body = response.body?.string()
+            response.close()
+            if (body == null) {
+                return@withContext Result.failure(AppError.NetworkError.ServerUnreachable(url))
+            }
 
             val entries = parsePropfindResponse(body, path, includeRequestedPath = true)
             val entry = entries.firstOrNull { !it.isDirectory }
@@ -175,12 +197,36 @@ class WebDavMediaSource @Inject constructor() : MediaSource {
     }
 
     private fun credentials(): String {
-        val encoded = android.util.Base64.encodeToString(
-            "$username:$password".toByteArray(),
-            android.util.Base64.NO_WRAP
-        )
+        val encoded = Base64.getEncoder().encodeToString("$username:$password".toByteArray())
         return "Basic $encoded"
     }
+
+    private fun anonymousCredentials(): String {
+        val encoded = Base64.getEncoder().encodeToString("anonymous:".toByteArray())
+        return "Basic $encoded"
+    }
+
+    private fun Request.Builder.applyAuthorizationHeader(authorization: String?): Request.Builder =
+        apply {
+            authorization?.let { header("Authorization", it) }
+        }
+
+    private fun executeWithAnonymousFallback(
+        buildRequest: (String?) -> Request,
+    ): Response {
+        val primaryResponse = client.newCall(buildRequest(primaryAuthorization())).execute()
+        if (!shouldRetryWithAnonymous(primaryResponse)) {
+            return primaryResponse
+        }
+        primaryResponse.close()
+        return client.newCall(buildRequest(anonymousCredentials())).execute()
+    }
+
+    private fun primaryAuthorization(): String? =
+        username.takeIf { it.isNotBlank() }?.let { credentials() }
+
+    private fun shouldRetryWithAnonymous(response: Response): Boolean =
+        response.code == 401 && username.isBlank()
 
     private fun urlWithCause(url: String, error: Exception): String {
         val message = error.message?.takeIf { it.isNotBlank() }

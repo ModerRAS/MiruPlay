@@ -4,9 +4,11 @@ import android.content.Context
 import com.miruplay.tv.scraper.AniListScraper
 import com.miruplay.tv.scraper.BangumiScraper
 import com.miruplay.tv.scraper.MetadataScraper
+import com.miruplay.tv.scraper.TmdbDramaMetadataRepository
 import com.miruplay.tv.scraper.filename.AnimeFilenameParser
 import com.miruplay.tv.model.FilenameMetadataParser
 import com.miruplay.tv.repository.BangumiCollectionService
+import com.miruplay.tv.repository.DramaMetadataRepository
 import com.miruplay.tv.scraper.core.BangumiArchiveStore
 import com.miruplay.tv.scraper.core.BangumiArchiveSubjectSearch
 import com.miruplay.tv.scraper.core.toSimplifiedChineseQuery
@@ -47,6 +49,12 @@ object ScraperModule {
     @Provides
     @Singleton
     fun provideBangumiCollectionService(scraper: BangumiScraper): BangumiCollectionService = scraper
+
+    @Provides
+    @Singleton
+    fun provideDramaMetadataRepository(
+        repository: TmdbDramaMetadataRepository,
+    ): DramaMetadataRepository = repository
 
     @Provides
     @Singleton

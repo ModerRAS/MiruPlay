@@ -34,21 +34,21 @@ class LibraryScanTask @Inject constructor(
     private val scanPreferences: ScanPreferencesRepository,
     private val backgroundTasks: BackgroundTaskForegroundController,
     private val scanStatus: LibraryScanStatus,
-) {
+) : LibraryScanController {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    val state: StateFlow<LibraryScanState> = scanStatus.state
+    override val state: StateFlow<LibraryScanState> = scanStatus.state
 
     private var scanJob: kotlinx.coroutines.Job? = null
 
-    fun startManualScan() {
+    override fun startManualScan() {
         startScan(force = true)
     }
 
-    fun startAutoScanIfDue() {
+    override fun startAutoScanIfDue() {
         startScan(force = false)
     }
 
-    fun cancel() {
+    override fun cancel() {
         scanJob?.cancel()
     }
 

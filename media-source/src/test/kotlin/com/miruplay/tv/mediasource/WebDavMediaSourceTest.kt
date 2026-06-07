@@ -1,13 +1,73 @@
 package com.miruplay.tv.mediasource
 
+import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlinx.coroutines.runBlocking
 
 class WebDavMediaSourceTest {
+
+    @Test
+    fun `listFiles retries with anonymous auth after initial 401`() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setResponseCode(401).setBody("Unauthorized"))
+            server.enqueue(
+                MockResponse()
+                    .setResponseCode(207)
+                    .setHeader("Content-Type", "application/xml")
+                    .setBody(
+                        """
+                        <?xml version="1.0" encoding="utf-8" ?>
+                        <D:multistatus xmlns:D="DAV:">
+                            <D:response>
+                                <D:href>/dav/%E5%BD%B1%E9%9F%B3/%E7%94%B5%E8%A7%86%E5%89%A7/</D:href>
+                                <D:propstat>
+                                    <D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop>
+                                </D:propstat>
+                            </D:response>
+                            <D:response>
+                                <D:href>/dav/%E5%BD%B1%E9%9F%B3/%E7%94%B5%E8%A7%86%E5%89%A7/01.mkv</D:href>
+                                <D:propstat>
+                                    <D:prop>
+                                        <D:getcontentlength>456</D:getcontentlength>
+                                        <D:resourcetype></D:resourcetype>
+                                    </D:prop>
+                                </D:propstat>
+                            </D:response>
+                        </D:multistatus>
+                        """.trimIndent()
+                    )
+            )
+            val source = WebDavMediaSource(
+                MediaSourceInfo(
+                    name = "WebDAV",
+                    type = MediaSourceType.WEBDAV,
+                    connectionInfo = mapOf("url" to server.url("/dav/影音/电视剧").toString().trimEnd('/'))
+                )
+            )
+
+            val result = source.listFiles("")
+
+            assertTrue(result is Result.Success)
+            val entries = result.getOrNull()
+            assertNotNull(entries)
+            assertEquals(1, entries!!.size)
+            assertEquals("/01.mkv", entries.single().path)
+
+            val firstRequest = server.takeRequest()
+            val secondRequest = server.takeRequest()
+            assertNull(firstRequest.getHeader("Authorization"))
+            assertEquals("Basic YW5vbnltb3VzOg==", secondRequest.getHeader("Authorization"))
+        }
+    }
 
     @Test
     fun `parsePropfindResponse skips current directory and preserves child names`() {

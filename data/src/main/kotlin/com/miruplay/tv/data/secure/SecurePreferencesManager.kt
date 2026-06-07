@@ -39,6 +39,18 @@ class SecurePreferencesManager @Inject constructor(
             securePrefs.edit().putString(KEY_BANGUMI_TOKEN, value).apply()
         }
 
+    override var tmdbAccessToken: String?
+        get() = securePrefs.getString(KEY_TMDB_TOKEN, null)
+        set(value) {
+            securePrefs.edit().putString(KEY_TMDB_TOKEN, value).apply()
+        }
+
+    override var tmdbApiBaseUrlOverride: String?
+        get() = securePrefs.getString(KEY_TMDB_API_BASE_URL_OVERRIDE, null)
+        set(value) {
+            securePrefs.edit().putString(KEY_TMDB_API_BASE_URL_OVERRIDE, value).apply()
+        }
+
     override var cloudDriveToken: String?
         get() = securePrefs.getString(KEY_CLOUD_DRIVE_TOKEN, null)
         set(value) {
@@ -101,6 +113,13 @@ class SecurePreferencesManager @Inject constructor(
         securePrefs.edit().remove(KEY_BANGUMI_TOKEN).apply()
     }
 
+    override fun clearTmdbToken() {
+        securePrefs.edit()
+            .remove(KEY_TMDB_TOKEN)
+            .remove(KEY_TMDB_API_BASE_URL_OVERRIDE)
+            .apply()
+    }
+
     override fun clearOtlpAccessToken() {
         securePrefs.edit().remove(KEY_OTLP_ACCESS_TOKEN).apply()
     }
@@ -117,6 +136,8 @@ class SecurePreferencesManager @Inject constructor(
 
     companion object {
         private const val KEY_BANGUMI_TOKEN = "bangumi_access_token"
+        private const val KEY_TMDB_TOKEN = "tmdb_access_token"
+        private const val KEY_TMDB_API_BASE_URL_OVERRIDE = "tmdb_api_base_url_override"
         private const val KEY_CLOUD_DRIVE_TOKEN = "cloud_drive_token"
         private const val KEY_CLOUD_DRIVE_PASSWORD = "cloud_drive_password"
         private const val KEY_OTLP_ACCESS_TOKEN = "otlp_access_token"

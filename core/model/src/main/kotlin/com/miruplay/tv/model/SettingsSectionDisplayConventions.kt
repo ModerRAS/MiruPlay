@@ -56,9 +56,9 @@ enum class MiruPlaySettingsSection(
     ),
     METADATA(
         androidTvTitle = "元数据",
-        androidTvDescription = "Bangumi Token",
+        androidTvDescription = "Bangumi / TMDB Token",
         desktopTitle = "元数据",
-        desktopDescription = "Bangumi 匹配",
+        desktopDescription = "Bangumi / TMDB 匹配",
     ),
     ABOUT(
         androidTvTitle = "关于",
@@ -134,12 +134,14 @@ fun settingsScanMenuSummary(
     autoScanEnabled: Boolean,
     mergeSameAnimeEnabled: Boolean,
     posterWallArrangement: PosterWallArrangement = PosterWallArrangement.TITLE,
+    appMode: String = "anime",
 ): String =
     buildList {
+        add(settingsAppModeLabel(appMode))
         if (autoScanEnabled) add("定时")
         if (mergeSameAnimeEnabled) add("合并")
         if (posterWallArrangement == PosterWallArrangement.RELEASE_SEASON) add("新番季")
-    }.joinToString(" · ").ifBlank { "定时关闭" }
+    }.joinToString(" · ").ifBlank { settingsAppModeLabel(appMode) }
 
 fun settingsLogUploadMenuSummary(): String =
     "OpenObserve"
@@ -156,8 +158,17 @@ fun settingsAndroidTvLogUploadMenuSummary(
         else -> "未启用"
     }
 
-fun settingsMetadataTokenMenuSummary(hasToken: Boolean): String =
-    if (hasToken) "Token 已设置" else "未设置"
+fun settingsMetadataTokenMenuSummary(
+    hasBangumiToken: Boolean = false,
+    hasTmdbToken: Boolean = false,
+): String {
+    val configuredCount = listOf(hasBangumiToken, hasTmdbToken).count { it }
+    return when (configuredCount) {
+        0 -> "未设置"
+        1 -> "已设置 1 项"
+        else -> "已设置 2 项"
+    }
+}
 
 fun settingsAboutMenuSummary(versionName: String): String =
     "版本 ${settingsVersionNameValue(versionName)}"
@@ -174,6 +185,7 @@ data class SettingsSectionMenuSummaryInput(
     val autoScanEnabled: Boolean = false,
     val mergeSameAnimeEnabled: Boolean = false,
     val posterWallArrangement: PosterWallArrangement = PosterWallArrangement.TITLE,
+    val appMode: String = "anime",
     val metadataSummary: String = "",
     val logUploadSummary: String = settingsLogUploadMenuSummary(),
     val appUpdateSummary: String = settingsAppUpdateMenuSummary(),
@@ -193,6 +205,7 @@ fun MiruPlaySettingsSection.settingsMenuSummary(
             input.autoScanEnabled,
             input.mergeSameAnimeEnabled,
             input.posterWallArrangement,
+            input.appMode,
         )
         MiruPlaySettingsSection.LOG_UPLOAD -> input.logUploadSummary
         MiruPlaySettingsSection.APP_UPDATE -> input.appUpdateSummary
@@ -540,14 +553,26 @@ fun settingsMetadataStatusMessage(): String =
 fun metadataBangumiTokenFieldLabel(): String =
     "Bangumi Access Token"
 
+fun metadataTmdbTokenFieldLabel(): String =
+    "TMDB Read Access Token"
+
 fun metadataBangumiTokenOptionalHint(): String =
     "Bangumi Token 是可选项，用于 Bangumi 收藏与观看进度同步；元数据搜索不需要 Token。"
+
+fun metadataTmdbTokenOptionalHint(): String =
+    "TMDB Token 是可选项，用于电视剧详情补充海报、简介和首播日期；不填也能正常本地浏览和播放。"
 
 fun metadataBangumiTokenSavedStatus(): String =
     "Token 已保存在加密存储中。"
 
+fun metadataTmdbTokenSavedStatus(): String =
+    "TMDB Token 已保存在加密存储中。"
+
 fun metadataBangumiTokenMissingStatus(): String =
     "当前未设置 Token。"
+
+fun metadataTmdbTokenMissingStatus(): String =
+    "当前未设置 TMDB Token。"
 
 fun metadataBangumiTokenTileLabel(): String =
     "Bangumi Token"
@@ -563,6 +588,43 @@ fun metadataBangumiTokenEmptyMessage(): String =
 
 fun metadataBangumiTokenClearedMessage(): String =
     "Bangumi Access Token 已清除。"
+
+fun metadataTmdbTokenSavedMessage(): String =
+    "TMDB Token 已保存。"
+
+fun metadataTmdbTokenEmptyMessage(): String =
+    "TMDB Read Access Token 为空，未保存。"
+
+fun metadataTmdbTokenClearedMessage(): String =
+    "TMDB Read Access Token 已清除。"
+
+data class TmdbTokenSaveResult(
+    val token: String?,
+    val configured: Boolean,
+    val status: String,
+    val shouldPersistTokenInput: Boolean,
+)
+
+fun saveTmdbTokenFormResult(
+    input: String,
+    existingToken: String?,
+): TmdbTokenSaveResult {
+    val normalized = input.trim()
+    if (normalized.isBlank()) {
+        return TmdbTokenSaveResult(
+            token = existingToken,
+            configured = !existingToken.isNullOrBlank(),
+            status = metadataTmdbTokenEmptyMessage(),
+            shouldPersistTokenInput = false,
+        )
+    }
+    return TmdbTokenSaveResult(
+        token = normalized,
+        configured = true,
+        status = metadataTmdbTokenSavedMessage(),
+        shouldPersistTokenInput = true,
+    )
+}
 
 data class BangumiTokenSaveResult(
     val token: String?,
@@ -613,6 +675,36 @@ fun settingsScanPanelTitleLabel(): String =
 
 fun settingsScanPanelDescription(): String =
     "首页的扫描按钮会立即执行；定时扫描只会在到达间隔后回到首页时触发。"
+
+fun settingsAppModeTitleLabel(): String =
+    "首页模式"
+
+fun settingsAppModeOptionLabel(mode: String): String =
+    if (mode.equals("drama", ignoreCase = true)) "电视剧" else "动漫"
+
+fun settingsAppModeLabel(mode: String): String =
+    settingsAppModeOptionLabel(mode)
+
+fun settingsAppModeStatus(mode: String): String =
+    "下次启动会进入${settingsAppModeOptionLabel(mode)}首页。"
+
+fun settingsAppModeHint(): String =
+    "这里只决定应用下次启动先进动漫首页还是电视剧首页，不会立刻切换当前界面。"
+
+fun mediaSourceContentModeTitleLabel(): String =
+    "内容类型"
+
+fun mediaSourceContentModeLabel(mode: MediaContentMode): String =
+    when (mode) {
+        MediaContentMode.ANIME -> "动漫"
+        MediaContentMode.DRAMA -> "电视剧"
+    }
+
+fun mediaSourceContentModeHint(mode: MediaContentMode): String =
+    when (mode) {
+        MediaContentMode.ANIME -> "这个源会出现在动漫首页。"
+        MediaContentMode.DRAMA -> "这个源会留给电视剧首页使用。"
+    }
 
 fun settingsAutoScanToggleLabel(enabled: Boolean): String =
     if (enabled) "定时已开" else "定时关闭"

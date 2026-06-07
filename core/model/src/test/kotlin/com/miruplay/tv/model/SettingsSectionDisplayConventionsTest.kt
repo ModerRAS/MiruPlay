@@ -22,7 +22,7 @@ class SettingsSectionDisplayConventionsTest {
                 "媒体库更新策略",
                 "OpenObserve JSON",
                 "GitHub APK",
-                "Bangumi Token",
+                "Bangumi / TMDB Token",
                 "版本与应用信息",
             ),
             androidTvSettingsSectionOrder.map { it.androidTvDescription },
@@ -41,7 +41,7 @@ class SettingsSectionDisplayConventionsTest {
                 "媒体库更新",
                 "OpenObserve JSON",
                 "GitHub Release",
-                "Bangumi 匹配",
+                "Bangumi / TMDB 匹配",
                 "版本与应用信息",
             ),
             desktopSettingsSectionOrder.map { it.desktopDescription },
@@ -66,12 +66,12 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("未启用", settingsProxyMenuSummary(enabled = false))
         assertEquals("待填写", settingsProxyMenuSummary(enabled = true, host = ""))
         assertEquals("203.0.113.20:7890", settingsProxyMenuSummary(enabled = true, host = " 203.0.113.20 ", port = 7890))
-        assertEquals("定时 · 合并", settingsScanMenuSummary(autoScanEnabled = true, mergeSameAnimeEnabled = true))
-        assertEquals("定时", settingsScanMenuSummary(autoScanEnabled = true, mergeSameAnimeEnabled = false))
-        assertEquals("合并", settingsScanMenuSummary(autoScanEnabled = false, mergeSameAnimeEnabled = true))
-        assertEquals("定时关闭", settingsScanMenuSummary(autoScanEnabled = false, mergeSameAnimeEnabled = false))
+        assertEquals("动漫 · 定时 · 合并", settingsScanMenuSummary(autoScanEnabled = true, mergeSameAnimeEnabled = true))
+        assertEquals("动漫 · 定时", settingsScanMenuSummary(autoScanEnabled = true, mergeSameAnimeEnabled = false))
+        assertEquals("动漫 · 合并", settingsScanMenuSummary(autoScanEnabled = false, mergeSameAnimeEnabled = true))
+        assertEquals("动漫", settingsScanMenuSummary(autoScanEnabled = false, mergeSameAnimeEnabled = false))
         assertEquals(
-            "新番季",
+            "动漫 · 新番季",
             settingsScanMenuSummary(
                 autoScanEnabled = false,
                 mergeSameAnimeEnabled = false,
@@ -93,8 +93,13 @@ class SettingsSectionDisplayConventionsTest {
             "等待 Token",
             settingsAndroidTvLogUploadMenuSummary(enabled = true, tokenConfigured = false, isUploading = false),
         )
-        assertEquals("Token 已设置", settingsMetadataTokenMenuSummary(hasToken = true))
-        assertEquals("未设置", settingsMetadataTokenMenuSummary(hasToken = false))
+        assertEquals("未设置", settingsMetadataTokenMenuSummary())
+        assertEquals("已设置 1 项", settingsMetadataTokenMenuSummary(hasBangumiToken = true))
+        assertEquals("已设置 1 项", settingsMetadataTokenMenuSummary(hasTmdbToken = true))
+        assertEquals(
+            "已设置 2 项",
+            settingsMetadataTokenMenuSummary(hasBangumiToken = true, hasTmdbToken = true),
+        )
         assertEquals("版本 0.1.0", settingsAboutMenuSummary("0.1.0"))
         assertEquals("版本 未知", settingsAboutMenuSummary(""))
         assertEquals("媒体库更新", settingsDesktopScanMenuSummary())
@@ -114,6 +119,7 @@ class SettingsSectionDisplayConventionsTest {
             autoScanEnabled = true,
             mergeSameAnimeEnabled = true,
             posterWallArrangement = PosterWallArrangement.RELEASE_SEASON,
+            appMode = "drama",
             metadataSummary = "Token 已设置",
             appVersionName = "0.1.0",
         )
@@ -122,7 +128,7 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("播完动作", MiruPlaySettingsSection.PLAYBACK.settingsMenuSummary(androidInput))
         assertEquals("4 个订阅", MiruPlaySettingsSection.CLOUD_DRIVE.settingsMenuSummary(androidInput))
         assertEquals("203.0.113.20:7890", MiruPlaySettingsSection.PROXY.settingsMenuSummary(androidInput))
-        assertEquals("定时 · 合并 · 新番季", MiruPlaySettingsSection.SCAN.settingsMenuSummary(androidInput))
+        assertEquals("电视剧 · 定时 · 合并 · 新番季", MiruPlaySettingsSection.SCAN.settingsMenuSummary(androidInput))
         assertEquals("OpenObserve", MiruPlaySettingsSection.LOG_UPLOAD.settingsMenuSummary(androidInput))
         assertEquals("GitHub", MiruPlaySettingsSection.APP_UPDATE.settingsMenuSummary(androidInput))
         assertEquals("Token 已设置", MiruPlaySettingsSection.METADATA.settingsMenuSummary(androidInput))
@@ -281,6 +287,16 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("Bangumi Token 已保存。", metadataBangumiTokenSavedMessage())
         assertEquals("Bangumi Access Token 为空，未保存。", metadataBangumiTokenEmptyMessage())
         assertEquals("Bangumi Access Token 已清除。", metadataBangumiTokenClearedMessage())
+        assertEquals("TMDB Read Access Token", metadataTmdbTokenFieldLabel())
+        assertEquals(
+            "TMDB Token 是可选项，用于电视剧详情补充海报、简介和首播日期；不填也能正常本地浏览和播放。",
+            metadataTmdbTokenOptionalHint(),
+        )
+        assertEquals("TMDB Token 已保存在加密存储中。", metadataTmdbTokenSavedStatus())
+        assertEquals("当前未设置 TMDB Token。", metadataTmdbTokenMissingStatus())
+        assertEquals("TMDB Token 已保存。", metadataTmdbTokenSavedMessage())
+        assertEquals("TMDB Read Access Token 为空，未保存。", metadataTmdbTokenEmptyMessage())
+        assertEquals("TMDB Read Access Token 已清除。", metadataTmdbTokenClearedMessage())
         val emptyTokenResult = saveBangumiTokenFormResult(
             input = "   ",
             existingToken = "existing-token",
@@ -297,6 +313,22 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals(true, savedTokenResult.configured)
         assertEquals(metadataBangumiTokenSavedMessage(), savedTokenResult.status)
         assertEquals(true, savedTokenResult.shouldPersistTokenInput)
+        val emptyTmdbTokenResult = saveTmdbTokenFormResult(
+            input = "   ",
+            existingToken = "existing-token",
+        )
+        assertEquals("existing-token", emptyTmdbTokenResult.token)
+        assertEquals(true, emptyTmdbTokenResult.configured)
+        assertEquals(metadataTmdbTokenEmptyMessage(), emptyTmdbTokenResult.status)
+        assertEquals(false, emptyTmdbTokenResult.shouldPersistTokenInput)
+        val savedTmdbTokenResult = saveTmdbTokenFormResult(
+            input = "  tmdb-token  ",
+            existingToken = "existing-token",
+        )
+        assertEquals("tmdb-token", savedTmdbTokenResult.token)
+        assertEquals(true, savedTmdbTokenResult.configured)
+        assertEquals(metadataTmdbTokenSavedMessage(), savedTmdbTokenResult.status)
+        assertEquals(true, savedTmdbTokenResult.shouldPersistTokenInput)
         assertEquals(
             "Bangumi 搜索、批量预览、应用和撤销保留在详情页。 保存 Token 后可同步观看进度。",
             metadataBangumiTokenSettingsStatus(configured = false),
@@ -310,6 +342,12 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("扫描入口也保留在媒体库顶部。", settingsRecentScanStatusDetail())
         assertEquals("媒体库扫描", settingsScanPanelTitleLabel())
         assertEquals("首页的扫描按钮会立即执行；定时扫描只会在到达间隔后回到首页时触发。", settingsScanPanelDescription())
+        assertEquals("首页模式", settingsAppModeTitleLabel())
+        assertEquals("动漫", settingsAppModeOptionLabel("anime"))
+        assertEquals("电视剧", settingsAppModeOptionLabel("drama"))
+        assertEquals("下次启动会进入动漫首页。", settingsAppModeStatus("anime"))
+        assertEquals("下次启动会进入电视剧首页。", settingsAppModeStatus("drama"))
+        assertEquals("这里只决定应用下次启动先进动漫首页还是电视剧首页，不会立刻切换当前界面。", settingsAppModeHint())
         assertEquals("定时已开", settingsAutoScanToggleLabel(enabled = true))
         assertEquals("定时关闭", settingsAutoScanToggleLabel(enabled = false))
         assertEquals("2小时", settingsScanIntervalOptionLabel(2))
@@ -323,6 +361,11 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("目录分开", settingsMergeSameAnimeToggleLabel(enabled = false))
         assertEquals("首页和详情会按 Bangumi ID 或标题合并同一番。", settingsMergeSameAnimeStatus(enabled = true))
         assertEquals("首页按扫描出的目录条目分别显示。", settingsMergeSameAnimeStatus(enabled = false))
+        assertEquals("内容类型", mediaSourceContentModeTitleLabel())
+        assertEquals("动漫", mediaSourceContentModeLabel(MediaContentMode.ANIME))
+        assertEquals("电视剧", mediaSourceContentModeLabel(MediaContentMode.DRAMA))
+        assertEquals("这个源会出现在动漫首页。", mediaSourceContentModeHint(MediaContentMode.ANIME))
+        assertEquals("这个源会留给电视剧首页使用。", mediaSourceContentModeHint(MediaContentMode.DRAMA))
         assertEquals("详情页会显示可应用的 Bangumi 匹配。", settingsSelectedMetadataEntryDetail())
         assertEquals("支持单条应用、批量预览、应用和撤销。", settingsMetadataMatchStatusDetail())
         assertEquals("批量匹配会跳过已有冲突元数据。", settingsMetadataCandidateScopeDetail())

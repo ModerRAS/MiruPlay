@@ -81,6 +81,8 @@ internal data class DesktopRepositoryState(
     val cloudDriveToken: String? = null,
     val cloudDrivePassword: String? = null,
     val bangumiAccessToken: String? = null,
+    val tmdbAccessToken: String? = null,
+    val tmdbApiBaseUrlOverride: String? = null,
     val otlpAccessToken: String? = null,
     val otlpEnabled: Boolean = false,
     val otlpEndpoint: String = "",

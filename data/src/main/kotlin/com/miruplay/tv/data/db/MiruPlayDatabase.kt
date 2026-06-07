@@ -9,7 +9,7 @@ import com.miruplay.tv.data.entity.*
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    version = 5,
+    version = 6,
     exportSchema = true,
     entities = [
         AnimeEntity::class,
@@ -33,6 +33,12 @@ abstract class MiruPlayDatabase : RoomDatabase() {
     abstract fun cloudDriveAutomationDao(): CloudDriveAutomationDao
 
     companion object {
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE media_source ADD COLUMN content_mode TEXT NOT NULL DEFAULT 'ANIME'")
+            }
+        }
+
         val MIGRATION_4_5 = object : Migration(4, 5) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE cloud_drive_config ADD COLUMN library_mode TEXT NOT NULL DEFAULT 'ORGANIZED_LIBRARY'")

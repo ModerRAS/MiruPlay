@@ -81,9 +81,12 @@ import androidx.tv.material3.Text
 import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.repository.canRunNow
+import com.miruplay.tv.repository.AppMode
+import com.miruplay.tv.repository.toMediaContentMode
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.PosterWallArrangement
 import com.miruplay.tv.model.CLOUD_DRIVE_ROOT_DISPLAY_NAME
+import com.miruplay.tv.model.MediaContentMode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
@@ -140,6 +143,9 @@ import com.miruplay.tv.model.mediaSourceChooseFolderActionLabel
 import com.miruplay.tv.model.mediaSourceConfiguredCountLabel
 import com.miruplay.tv.model.mediaSourceConnectionSuccessMessage
 import com.miruplay.tv.model.mediaSourceConnectionTestingMessage
+import com.miruplay.tv.model.mediaSourceContentModeHint
+import com.miruplay.tv.model.mediaSourceContentModeLabel
+import com.miruplay.tv.model.mediaSourceContentModeTitleLabel
 import com.miruplay.tv.model.mediaSourceDisplayNameFieldLabel
 import com.miruplay.tv.model.mediaSourceEmptyListMessage
 import com.miruplay.tv.model.mediaSourceFormDescriptionLabel
@@ -166,7 +172,15 @@ import com.miruplay.tv.model.metadataBangumiTokenFieldLabel
 import com.miruplay.tv.model.metadataBangumiTokenMissingStatus
 import com.miruplay.tv.model.metadataBangumiTokenOptionalHint
 import com.miruplay.tv.model.metadataBangumiTokenSavedStatus
+import com.miruplay.tv.model.metadataTmdbTokenFieldLabel
+import com.miruplay.tv.model.metadataTmdbTokenMissingStatus
+import com.miruplay.tv.model.metadataTmdbTokenOptionalHint
+import com.miruplay.tv.model.metadataTmdbTokenSavedStatus
 import com.miruplay.tv.model.settingsAutoScanToggleLabel
+import com.miruplay.tv.model.settingsAppModeHint
+import com.miruplay.tv.model.settingsAppModeOptionLabel
+import com.miruplay.tv.model.settingsAppModeStatus
+import com.miruplay.tv.model.settingsAppModeTitleLabel
 import com.miruplay.tv.model.settingsAppUpdateCheckActionLabel
 import com.miruplay.tv.model.settingsAppUpdateInstallActionLabel
 import com.miruplay.tv.model.settingsAppUpdateMenuSummary
@@ -236,6 +250,7 @@ import com.miruplay.tv.model.rssSubscriptionUrlFieldLabel
 import com.miruplay.tv.model.rssSubscriptionsTitleLabel
 import com.miruplay.tv.model.prepareRssSubscriptionForm
 import com.miruplay.tv.model.saveBangumiTokenFormResult
+import com.miruplay.tv.model.saveTmdbTokenFormResult
 import com.miruplay.tv.model.shouldClearFormAfterSubmit
 import com.miruplay.tv.model.parseCloudDriveIntervalMinutes
 import com.miruplay.tv.model.parseRssProxyPort
@@ -330,7 +345,9 @@ fun AddSourceScreen(
     val lastScanAt by viewModel.lastScanAt.collectAsStateWithLifecycle()
     val mergeSameAnimeEnabled by viewModel.mergeSameAnimeEnabled.collectAsStateWithLifecycle()
     val posterWallArrangement by viewModel.posterWallArrangement.collectAsStateWithLifecycle()
+    val currentAppMode by viewModel.currentAppMode.collectAsStateWithLifecycle()
     val playbackEndAction by viewModel.playbackEndAction.collectAsStateWithLifecycle()
+    val savedTmdbToken by viewModel.tmdbToken.collectAsStateWithLifecycle()
     val webUiUrls by viewModel.webUiUrls.collectAsStateWithLifecycle()
     val webControlEnabled by viewModel.webControlEnabled.collectAsStateWithLifecycle()
     val webControlAccessToken by viewModel.webControlAccessToken.collectAsStateWithLifecycle()
@@ -352,6 +369,7 @@ fun AddSourceScreen(
     var selectedSection by remember { mutableStateOf(MiruPlaySettingsSection.WEB_UI) }
     var editingSourceId by remember { mutableStateOf<Long?>(null) }
     var selectedType by remember { mutableStateOf(MediaSourceType.LOCAL) }
+    var selectedContentMode by remember { mutableStateOf(MediaContentMode.ANIME) }
     var name by remember { mutableStateOf(sourceNameOrDefault("", MediaSourceType.LOCAL)) }
     var location by remember { mutableStateOf(DEFAULT_LOCAL_PATH) }
     var locationDisplayName by remember { mutableStateOf(mediaSourceLocalPathDisplayName(DEFAULT_LOCAL_PATH)) }
@@ -359,6 +377,8 @@ fun AddSourceScreen(
     var password by remember { mutableStateOf("") }
     var tokenInput by remember { mutableStateOf("") }
     var tokenSaved by remember { mutableStateOf(false) }
+    var tmdbTokenInput by remember { mutableStateOf("") }
+    var tmdbTokenSaved by remember { mutableStateOf(false) }
     var selectedWebUiUrl by remember { mutableStateOf("") }
     var cloudEndpoint by remember { mutableStateOf("") }
     var cloudUsername by remember { mutableStateOf("") }
@@ -396,6 +416,13 @@ fun AddSourceScreen(
         }
     }
 
+    LaunchedEffect(tmdbTokenSaved) {
+        if (tmdbTokenSaved) {
+            delay(1800)
+            tmdbTokenSaved = false
+        }
+    }
+
     LaunchedEffect(webUiUrls) {
         if (selectedWebUiUrl !in webUiUrls) {
             selectedWebUiUrl = webUiUrls.firstOrNull().orEmpty()
@@ -419,6 +446,7 @@ fun AddSourceScreen(
     fun resetSourceForm(type: MediaSourceType = selectedType) {
         editingSourceId = null
         selectedType = type
+        selectedContentMode = currentAppMode.toMediaContentMode()
         name = sourceNameOrDefault("", type)
         location = type.defaultSourceLocation(DEFAULT_LOCAL_PATH)
         locationDisplayName = if (type == MediaSourceType.LOCAL) mediaSourceLocalPathDisplayName(location) else ""
@@ -441,6 +469,7 @@ fun AddSourceScreen(
         editingSourceId = source.id
         selectedSection = MiruPlaySettingsSection.SOURCES
         selectedType = source.type
+        selectedContentMode = source.contentMode
         name = source.name.ifBlank { sourceNameOrDefault("", source.type) }
         location = source.sourceLocation().orEmpty()
         locationDisplayName = source.connectionDisplayName().ifBlank {
@@ -456,6 +485,7 @@ fun AddSourceScreen(
             id = editingSourceId ?: 0L,
             name = sourceNameOrDefault(name, selectedType),
             type = selectedType,
+            contentMode = selectedContentMode,
             connectionInfo = MediaSourceInfoConventions.sourceConnectionInfo(
                 type = selectedType,
                 location = location,
@@ -508,8 +538,10 @@ fun AddSourceScreen(
                     logUploadUploading = logUploadSnapshot.isUploading,
                     appUpdateBusy = appUpdateState.isBusy,
                     appUpdateAvailable = appUpdateState.updateAvailable,
-                    hasToken = savedToken.isNotBlank() || tokenSaved,
+                    hasBangumiToken = savedToken.isNotBlank() || tokenSaved,
+                    hasTmdbToken = savedTmdbToken.isNotBlank() || tmdbTokenSaved,
                     appVersionName = appAboutInfo.versionName,
+                    appMode = currentAppMode.storageValue,
                     menuFocusRequesters = menuFocusRequesters,
                     onSectionSelected = { selectedSection = it },
                     modifier = Modifier
@@ -536,6 +568,7 @@ fun AddSourceScreen(
                         if (type != selectedType) {
                             editingSourceId = null
                             selectedType = type
+                            selectedContentMode = currentAppMode.toMediaContentMode()
                             name = sourceNameOrDefault("", type)
                             location = type.defaultSourceLocation(DEFAULT_LOCAL_PATH)
                             locationDisplayName = if (type == MediaSourceType.LOCAL) mediaSourceLocalPathDisplayName(location) else ""
@@ -546,6 +579,8 @@ fun AddSourceScreen(
                     },
                     name = name,
                     onNameChange = { name = it },
+                    selectedContentMode = selectedContentMode,
+                    onContentModeSelected = { selectedContentMode = it },
                     location = location,
                     onLocationChange = { location = it },
                     locationDisplayName = locationDisplayName,
@@ -574,6 +609,8 @@ fun AddSourceScreen(
                     },
                     posterWallArrangement = posterWallArrangement,
                     onPosterWallArrangementSelected = viewModel::setPosterWallArrangement,
+                    currentAppMode = currentAppMode,
+                    onAppModeSelected = viewModel::setCurrentAppMode,
                     playbackEndAction = playbackEndAction,
                     onPlaybackEndActionSelected = viewModel::setPlaybackEndAction,
                     savedToken = savedToken,
@@ -595,6 +632,26 @@ fun AddSourceScreen(
                         viewModel.clearBangumiToken()
                         tokenInput = ""
                         tokenSaved = false
+                    },
+                    savedTmdbToken = savedTmdbToken,
+                    tmdbTokenInput = tmdbTokenInput,
+                    tmdbTokenSaved = tmdbTokenSaved,
+                    onTmdbTokenChange = { tmdbTokenInput = it },
+                    onSaveTmdbToken = {
+                        val result = saveTmdbTokenFormResult(
+                            input = tmdbTokenInput,
+                            existingToken = savedTmdbToken,
+                        )
+                        if (result.shouldPersistTokenInput) {
+                            viewModel.saveTmdbToken(tmdbTokenInput)
+                            tmdbTokenInput = ""
+                            tmdbTokenSaved = result.configured
+                        }
+                    },
+                    onClearTmdbToken = {
+                        viewModel.clearTmdbToken()
+                        tmdbTokenInput = ""
+                        tmdbTokenSaved = false
                     },
                     webUiUrls = webUiUrls,
                     webControlEnabled = webControlEnabled,
@@ -837,8 +894,10 @@ private fun SettingsMenuPanel(
     logUploadUploading: Boolean,
     appUpdateBusy: Boolean,
     appUpdateAvailable: Boolean,
-    hasToken: Boolean,
+    hasBangumiToken: Boolean,
+    hasTmdbToken: Boolean,
     appVersionName: String,
+    appMode: String,
     menuFocusRequesters: Map<MiruPlaySettingsSection, FocusRequester>,
     onSectionSelected: (MiruPlaySettingsSection) -> Unit,
     modifier: Modifier = Modifier
@@ -855,7 +914,11 @@ private fun SettingsMenuPanel(
         autoScanEnabled = autoScanEnabled,
         mergeSameAnimeEnabled = mergeSameAnimeEnabled,
         posterWallArrangement = posterWallArrangement,
-        metadataSummary = settingsMetadataTokenMenuSummary(hasToken),
+        appMode = appMode,
+        metadataSummary = settingsMetadataTokenMenuSummary(
+            hasBangumiToken = hasBangumiToken,
+            hasTmdbToken = hasTmdbToken,
+        ),
         appVersionName = appVersionName,
         logUploadSummary = settingsAndroidTvLogUploadMenuSummary(
             enabled = logUploadEnabled,
@@ -978,6 +1041,8 @@ private fun SettingsContent(
     onTypeSelected: (MediaSourceType) -> Unit,
     name: String,
     onNameChange: (String) -> Unit,
+    selectedContentMode: MediaContentMode,
+    onContentModeSelected: (MediaContentMode) -> Unit,
     location: String,
     onLocationChange: (String) -> Unit,
     locationDisplayName: String,
@@ -1000,6 +1065,8 @@ private fun SettingsContent(
     onToggleMergeSameAnime: () -> Unit,
     posterWallArrangement: PosterWallArrangement,
     onPosterWallArrangementSelected: (PosterWallArrangement) -> Unit,
+    currentAppMode: AppMode,
+    onAppModeSelected: (AppMode) -> Unit,
     playbackEndAction: PlaybackEndAction,
     onPlaybackEndActionSelected: (PlaybackEndAction) -> Unit,
     savedToken: String,
@@ -1008,6 +1075,12 @@ private fun SettingsContent(
     onTokenChange: (String) -> Unit,
     onSaveToken: () -> Unit,
     onClearToken: () -> Unit,
+    savedTmdbToken: String,
+    tmdbTokenInput: String,
+    tmdbTokenSaved: Boolean,
+    onTmdbTokenChange: (String) -> Unit,
+    onSaveTmdbToken: () -> Unit,
+    onClearTmdbToken: () -> Unit,
     webUiUrls: List<String>,
     webControlEnabled: Boolean,
     webControlAccessToken: String,
@@ -1146,6 +1219,8 @@ private fun SettingsContent(
                     onTypeSelected = onTypeSelected,
                     name = name,
                     onNameChange = onNameChange,
+                    selectedContentMode = selectedContentMode,
+                    onContentModeSelected = onContentModeSelected,
                     location = location,
                     onLocationChange = onLocationChange,
                     locationDisplayName = locationDisplayName,
@@ -1246,7 +1321,9 @@ private fun SettingsContent(
                 mergeSameAnimeEnabled = mergeSameAnimeEnabled,
                 onToggleMergeSameAnime = onToggleMergeSameAnime,
                 posterWallArrangement = posterWallArrangement,
-                onPosterWallArrangementSelected = onPosterWallArrangementSelected
+                onPosterWallArrangementSelected = onPosterWallArrangementSelected,
+                currentAppMode = currentAppMode,
+                onAppModeSelected = onAppModeSelected,
             )
         }
 
@@ -1305,6 +1382,12 @@ private fun SettingsContent(
                 onTokenChange = onTokenChange,
                 onSaveToken = onSaveToken,
                 onClearToken = onClearToken,
+                savedTmdbToken = savedTmdbToken,
+                tmdbTokenInput = tmdbTokenInput,
+                tmdbTokenSaved = tmdbTokenSaved,
+                onTmdbTokenChange = onTmdbTokenChange,
+                onSaveTmdbToken = onSaveTmdbToken,
+                onClearTmdbToken = onClearTmdbToken,
                 archiveState = bangumiArchiveState,
                 onRefreshArchive = onRefreshBangumiArchive,
                 onDownloadArchive = onDownloadBangumiArchive,
@@ -2480,6 +2563,8 @@ private fun SourceFormPanel(
     onTypeSelected: (MediaSourceType) -> Unit,
     name: String,
     onNameChange: (String) -> Unit,
+    selectedContentMode: MediaContentMode,
+    onContentModeSelected: (MediaContentMode) -> Unit,
     location: String,
     onLocationChange: (String) -> Unit,
     locationDisplayName: String,
@@ -2544,6 +2629,32 @@ private fun SourceFormPanel(
             onValueChange = onNameChange,
             label = mediaSourceDisplayNameFieldLabel(),
             modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(Modifier.height(12.dp))
+
+        Text(
+            text = mediaSourceContentModeTitleLabel(),
+            style = TvTypography.caption,
+            color = TextSecondary
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            MediaContentMode.entries.forEach { mode ->
+                ScanOptionChip(
+                    text = mediaSourceContentModeLabel(mode),
+                    icon = Icons.Filled.Storage,
+                    selected = selectedContentMode == mode,
+                    enabled = true,
+                    onClick = { onContentModeSelected(mode) },
+                    modifier = Modifier.width(150.dp)
+                )
+            }
+        }
+        StatusMessage(
+            icon = Icons.Filled.CheckCircle,
+            text = mediaSourceContentModeHint(selectedContentMode),
+            color = ProgressGreen
         )
 
         Spacer(Modifier.height(12.dp))
@@ -2749,7 +2860,9 @@ private fun ScanPanel(
     mergeSameAnimeEnabled: Boolean,
     onToggleMergeSameAnime: () -> Unit,
     posterWallArrangement: PosterWallArrangement,
-    onPosterWallArrangementSelected: (PosterWallArrangement) -> Unit
+    onPosterWallArrangementSelected: (PosterWallArrangement) -> Unit,
+    currentAppMode: AppMode,
+    onAppModeSelected: (AppMode) -> Unit,
 ) {
     SettingsPanel {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -2771,6 +2884,36 @@ private fun ScanPanel(
         )
 
         Spacer(Modifier.height(16.dp))
+        Text(
+            text = settingsAppModeTitleLabel(),
+            style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
+            color = TextPrimary
+        )
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            AppMode.entries.forEach { mode ->
+                ScanOptionChip(
+                    text = settingsAppModeOptionLabel(mode.storageValue),
+                    icon = Icons.Filled.Storage,
+                    selected = currentAppMode == mode,
+                    enabled = true,
+                    onClick = { onAppModeSelected(mode) },
+                    modifier = Modifier.width(150.dp)
+                )
+            }
+        }
+        StatusMessage(
+            icon = Icons.Filled.CheckCircle,
+            text = settingsAppModeStatus(currentAppMode.storageValue),
+            color = ProgressGreen
+        )
+        StatusMessage(
+            icon = Icons.Filled.Info,
+            text = settingsAppModeHint(),
+            color = TextSecondary
+        )
+
+        Spacer(Modifier.height(18.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ScanOptionChip(
                 text = settingsAutoScanToggleLabel(autoScanEnabled),
@@ -3202,6 +3345,12 @@ private fun MetadataPanel(
     onTokenChange: (String) -> Unit,
     onSaveToken: () -> Unit,
     onClearToken: () -> Unit,
+    savedTmdbToken: String,
+    tmdbTokenInput: String,
+    tmdbTokenSaved: Boolean,
+    onTmdbTokenChange: (String) -> Unit,
+    onSaveTmdbToken: () -> Unit,
+    onClearTmdbToken: () -> Unit,
     archiveState: BangumiArchiveUiState,
     onRefreshArchive: () -> Unit,
     onDownloadArchive: () -> Unit,
@@ -3255,6 +3404,45 @@ private fun MetadataPanel(
             icon = if (hasToken) Icons.Filled.CheckCircle else Icons.Filled.Key,
             text = if (hasToken) metadataBangumiTokenSavedStatus() else metadataBangumiTokenMissingStatus(),
             color = if (hasToken) ProgressGreen else TextSecondary
+        )
+
+        Spacer(Modifier.height(24.dp))
+        Text(
+            text = metadataTmdbTokenOptionalHint(),
+            style = TvTypography.body,
+            color = TextSecondary
+        )
+
+        Spacer(Modifier.height(14.dp))
+        TvTextField(
+            value = tmdbTokenInput,
+            onValueChange = onTmdbTokenChange,
+            label = metadataTmdbTokenFieldLabel(),
+            isPassword = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(Modifier.height(14.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            TvButton(
+                text = settingsSaveTokenActionLabel(),
+                icon = Icons.Filled.Save,
+                enabled = tmdbTokenInput.isNotBlank(),
+                onClick = onSaveTmdbToken
+            )
+            TvButton(
+                text = settingsClearTokenActionLabel(),
+                icon = Icons.Filled.Delete,
+                enabled = savedTmdbToken.isNotBlank(),
+                onClick = onClearTmdbToken
+            )
+        }
+
+        val hasTmdbToken = savedTmdbToken.isNotBlank() || tmdbTokenSaved
+        StatusMessage(
+            icon = if (hasTmdbToken) Icons.Filled.CheckCircle else Icons.Filled.Key,
+            text = if (hasTmdbToken) metadataTmdbTokenSavedStatus() else metadataTmdbTokenMissingStatus(),
+            color = if (hasTmdbToken) ProgressGreen else TextSecondary
         )
     }
 

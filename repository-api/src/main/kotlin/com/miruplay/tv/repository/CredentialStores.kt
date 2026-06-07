@@ -8,7 +8,10 @@ interface CloudDriveCredentialStore {
 
 interface AppCredentialStore : CloudDriveCredentialStore {
     var bangumiAccessToken: String?
+    var tmdbAccessToken: String?
+    var tmdbApiBaseUrlOverride: String?
     var otlpAccessToken: String?
     fun clearBangumiToken()
+    fun clearTmdbToken()
     fun clearOtlpAccessToken()
 }

@@ -2,6 +2,7 @@ package com.miruplay.tv.di
 
 import android.content.Context
 import androidx.room.Room
+import androidx.room.migration.Migration
 import com.miruplay.tv.data.db.MiruPlayDatabase
 import dagger.Module
 import dagger.Provides
@@ -39,12 +40,16 @@ object AppModule {
             MiruPlayDatabase::class.java,
             "miruplay.db"
         )
-            .addMigrations(
-                MiruPlayDatabase.MIGRATION_1_2,
-                MiruPlayDatabase.MIGRATION_2_3,
-                MiruPlayDatabase.MIGRATION_3_4,
-                MiruPlayDatabase.MIGRATION_4_5,
-            )
+            .addMigrations(*miruPlayDatabaseMigrations())
             .build()
     }
 }
+
+internal fun miruPlayDatabaseMigrations(): Array<Migration> =
+    arrayOf(
+        MiruPlayDatabase.MIGRATION_1_2,
+        MiruPlayDatabase.MIGRATION_2_3,
+        MiruPlayDatabase.MIGRATION_3_4,
+        MiruPlayDatabase.MIGRATION_4_5,
+        MiruPlayDatabase.MIGRATION_5_6,
+    )

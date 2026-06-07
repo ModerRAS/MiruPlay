@@ -10,6 +10,7 @@ import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaPathConventions
+import com.miruplay.tv.model.MediaContentMode
 import com.miruplay.tv.model.PosterWallArrangement
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.isCompleted
@@ -66,7 +67,7 @@ class LibraryViewModel @Inject constructor(
     private val metadataRepository: MetadataRepository,
     private val indexRepository: MediaIndexRepository,
     private val progressRepository: PlaybackProgressRepository,
-    private val libraryScanTask: LibraryScanTask,
+    private val libraryScanTask: LibraryScanController,
     private val scanPreferences: ScanPreferencesManager
 ) : ViewModel() {
 
@@ -172,7 +173,10 @@ class LibraryViewModel @Inject constructor(
         }
 
         try {
-            val sources = mediaRepository.getSources().getOrNull() ?: emptyList()
+            val sources = mediaRepository.getSources()
+                .getOrNull()
+                .orEmpty()
+                .filter { it.contentMode == MediaContentMode.ANIME }
             Log.d("LibraryViewModel", "loadLibraryContent: sources=${sources.size}")
             MiruLog.d("LibraryViewModel", "Library content loading", mapOf("source_count" to sources.size.toString()))
             if (sources.isEmpty()) {

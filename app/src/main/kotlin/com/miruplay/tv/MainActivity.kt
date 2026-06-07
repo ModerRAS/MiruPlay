@@ -6,8 +6,11 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -15,15 +18,26 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.miruplay.tv.core.common.logging.MiruLog
+import com.miruplay.tv.data.preferences.AppModePreferencesManager
+import com.miruplay.tv.model.MediaContentMode
 import com.miruplay.tv.model.MediaSourceInfo
+import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.PlaybackSource
+import com.miruplay.tv.model.persistenceLocation
+import com.miruplay.tv.repository.AppMode
+import com.miruplay.tv.repository.AppModeSelectionState
+import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.EpisodePlaybackSourceResolver
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
+import com.miruplay.tv.scanner.ScanCoordinator
 import com.miruplay.tv.navigation.NavRoutes
 import com.miruplay.tv.ui.detail.AnimeDetailScreen
+import com.miruplay.tv.ui.detail.DramaDetailScreen
 import com.miruplay.tv.ui.library.LibraryScreen
+import com.miruplay.tv.ui.mode.AppModeSelectionScreen
+import com.miruplay.tv.ui.mode.DramaLibraryScreen
 import com.miruplay.tv.ui.player.PlayerScreen
 import com.miruplay.tv.ui.settings.AddSourceScreen
 import com.miruplay.tv.ui.theme.MiruPlayTheme
@@ -40,7 +54,10 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var mediaRepository: MediaSourceRepository
     @Inject lateinit var progressRepository: PlaybackProgressRepository
+    @Inject lateinit var appModePreferencesManager: AppModePreferencesManager
+    @Inject lateinit var appCredentials: AppCredentialStore
     @Inject lateinit var webControlNavigator: WebControlNavigator
+    @Inject lateinit var scanCoordinator: ScanCoordinator
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -50,74 +67,177 @@ class MainActivity : ComponentActivity() {
             mapOf(
                 "has_saved_state" to (savedInstanceState != null).toString(),
                 "intent_action" to intent?.action.orEmpty(),
-                "has_test_source" to (intent.getStringExtra("test_local_path") != null).toString(),
+                "has_test_source" to hasLaunchTestSourceIntent(
+                    legacyLocalPath = intent.getStringExtra("test_local_path"),
+                    sourceLocation = intent.getStringExtra("test_source_location"),
+                ).toString(),
             )
         )
-
-        // Test hook: automatically add a Local source when launched with extra.
-        val testSourcePath = intent.getStringExtra("test_local_path")
-        val testSourceName = intent.getStringExtra("test_local_name")
-            ?.takeIf { it.isNotBlank() }
-            ?: "Test Local"
-
-        if (testSourcePath != null) {
-            lifecycleScope.launch {
-                addLaunchTestSource(
-                    path = testSourcePath,
-                    name = testSourceName,
-                )
-                renderContent()
+        lifecycleScope.launch {
+            val selectionState = appModePreferencesManager.getSelectionState()
+            applyLaunchTestTmdbOverrides(
+                token = normalizeLaunchTmdbToken(intent.getStringExtra("test_tmdb_token")),
+                baseUrlOverride = normalizeLaunchTmdbOverride(intent.getStringExtra("test_tmdb_base_url")),
+            )
+            resolveLaunchTestSourceRequest(
+                legacyLocalPath = intent.getStringExtra("test_local_path"),
+                legacyLocalName = intent.getStringExtra("test_local_name"),
+                rawType = intent.getStringExtra("test_source_type"),
+                rawLocation = intent.getStringExtra("test_source_location"),
+                rawName = intent.getStringExtra("test_source_name"),
+                rawDisplayName = intent.getStringExtra("test_source_display_name"),
+                rawUsername = intent.getStringExtra("test_source_username"),
+                rawPassword = intent.getStringExtra("test_source_password"),
+                rawContentMode = intent.getStringExtra("test_content_mode"),
+                disableOnlineMetadata = intent.getBooleanExtra("test_disable_online_metadata", false),
+                scanAfterAdd = intent.getBooleanExtra("test_scan_after_add", false),
+                fallbackMode = selectionState.currentAppMode,
+            )?.let { request ->
+                addLaunchTestSource(request)
             }
-        } else {
-            renderContent()
+            renderContent(selectionState)
         }
     }
 
-    private suspend fun addLaunchTestSource(path: String, name: String) {
+    private fun applyLaunchTestTmdbOverrides(
+        token: String?,
+        baseUrlOverride: String?,
+    ) {
+        if (!BuildConfig.DEBUG) return
+        token?.let { appCredentials.tmdbAccessToken = it }
+        baseUrlOverride?.let { appCredentials.tmdbApiBaseUrlOverride = it }
+    }
+
+    private suspend fun addLaunchTestSource(
+        request: LaunchTestSourceRequest,
+    ) {
+        val normalizedLocation = normalizeLaunchTestSourceLocation(request.type, request.location)
         MiruLog.i(
             "MainActivity",
-            "Adding test local source from launch extra",
-            mapOf("source_name" to name)
-        )
-        Log.i("MainActivity", "Adding test local source from launch extra")
-        val source = MediaSourceInfo(
-            name = name,
-            type = MediaSourceType.LOCAL,
-            connectionInfo = mapOf(
-                "path" to path,
-                "url" to path,
-                "disableOnlineMetadata" to "true"
+            "Adding test source from launch extra",
+            mapOf(
+                "source_name" to request.name,
+                "source_type" to request.type.name,
+                "content_mode" to request.contentMode.name,
+                "scan_after_add" to request.scanAfterAdd.toString(),
             )
         )
-        mediaRepository.addSource(source)
-            .onSuccess { id ->
+        Log.i("MainActivity", "Adding test source from launch extra")
+        val source = MediaSourceInfo(
+            name = request.name,
+            type = request.type,
+            contentMode = request.contentMode,
+            connectionInfo = MediaSourceInfoConventions.sourceConnectionInfo(
+                type = request.type,
+                location = normalizedLocation,
+                displayName = request.displayName,
+                username = request.username,
+                password = request.password,
+            ).let { connectionInfo ->
+                if (request.disableOnlineMetadata) {
+                    connectionInfo + ("disableOnlineMetadata" to "true")
+                } else {
+                    connectionInfo
+                }
+            },
+        )
+        val existingSource = mediaRepository.getSources()
+            .getOrNull()
+            .orEmpty()
+            .firstOrNull { existing ->
+                existing.type == request.type &&
+                    existing.persistenceLocation() == normalizedLocation
+            }
+        val persistedSourceId = if (existingSource != null) {
+            val updateResult = mediaRepository.updateSource(
+                source.copy(
+                    id = existingSource.id,
+                    isConnected = existingSource.isConnected,
+                    lastScanned = existingSource.lastScanned,
+                )
+            )
+            updateResult.onSuccess {
                 MiruLog.i(
                     "MainActivity",
-                    "Test local source added",
+                    "Test source updated",
                     mapOf(
-                        "source_id" to id.toString(),
-                        "source_name" to name,
+                        "source_id" to existingSource.id.toString(),
+                        "source_name" to request.name,
                     )
                 )
-                Log.i("MainActivity", "Test local source added")
-            }
-            .onError { error ->
+                Log.i("MainActivity", "Test source updated")
+            }.onError { error ->
                 MiruLog.w(
                     "MainActivity",
-                    "Test local source add failed",
+                    "Test source update failed",
                     attributes = mapOf(
-                        "source_name" to name,
+                        "source_name" to request.name,
                         "error" to error.toUserMessage(),
                     )
                 )
-                Log.w("MainActivity", "Test local source add failed: ${error.toUserMessage()}")
+                Log.w("MainActivity", "Test source update failed: ${error.toUserMessage()}")
             }
+            updateResult.getOrNull()?.let { existingSource.id }
+        } else {
+            val addResult = mediaRepository.addSource(source)
+            addResult.onSuccess { id ->
+                MiruLog.i(
+                    "MainActivity",
+                    "Test source added",
+                    mapOf(
+                        "source_id" to id.toString(),
+                        "source_name" to request.name,
+                    )
+                )
+                Log.i("MainActivity", "Test source added")
+            }.onError { error ->
+                MiruLog.w(
+                    "MainActivity",
+                    "Test source add failed",
+                    attributes = mapOf(
+                        "source_name" to request.name,
+                        "error" to error.toUserMessage(),
+                    )
+                )
+                Log.w("MainActivity", "Test source add failed: ${error.toUserMessage()}")
+            }
+            addResult.getOrNull()
+        }
+
+        if (request.scanAfterAdd && persistedSourceId != null) {
+            scanCoordinator.scanSource(persistedSourceId)
+                .onSuccess { result ->
+                    MiruLog.i(
+                        "MainActivity",
+                        "Test source scan completed",
+                        mapOf(
+                            "source_id" to persistedSourceId.toString(),
+                            "episodes_found" to result.episodesFound.toString(),
+                            "new_episodes" to result.newEpisodes.toString(),
+                        )
+                    )
+                    Log.i("MainActivity", "Test source scan completed")
+                }
+                .onError { error ->
+                    MiruLog.w(
+                        "MainActivity",
+                        "Test source scan failed",
+                        attributes = mapOf(
+                            "source_id" to persistedSourceId.toString(),
+                            "error" to error.toUserMessage(),
+                        )
+                    )
+                    Log.w("MainActivity", "Test source scan failed: ${error.toUserMessage()}")
+                }
+        }
     }
 
-    private fun renderContent() {
+    private fun renderContent(initialAppModeSelectionState: AppModeSelectionState) {
         setContent {
             MiruPlayTheme {
                 MiruPlayNavigation(
+                    initialAppModeSelectionState = initialAppModeSelectionState,
+                    appModePreferencesManager = appModePreferencesManager,
                     mediaRepository = mediaRepository,
                     progressRepository = progressRepository,
                     webControlNavigator = webControlNavigator
@@ -127,14 +247,135 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+internal data class LaunchTestSourceRequest(
+    val name: String,
+    val type: MediaSourceType,
+    val location: String,
+    val displayName: String = "",
+    val username: String = "",
+    val password: String = "",
+    val contentMode: MediaContentMode,
+    val disableOnlineMetadata: Boolean,
+    val scanAfterAdd: Boolean,
+)
+
+internal fun resolveLaunchTestSourceContentMode(
+    rawValue: String?,
+    fallbackMode: AppMode?,
+): MediaContentMode {
+    val normalized = rawValue?.trim()?.uppercase()
+    return when (normalized) {
+        MediaContentMode.DRAMA.name -> MediaContentMode.DRAMA
+        MediaContentMode.ANIME.name -> MediaContentMode.ANIME
+        else -> when (fallbackMode) {
+            AppMode.DRAMA -> MediaContentMode.DRAMA
+            else -> MediaContentMode.ANIME
+        }
+    }
+}
+
+internal fun normalizeLaunchTmdbOverride(rawValue: String?): String? =
+    rawValue?.trim()?.takeIf { it.isNotBlank() }
+
+internal fun normalizeLaunchTmdbToken(rawValue: String?): String? =
+    rawValue?.trim()?.takeIf { it.isNotBlank() }
+
+internal fun hasLaunchTestSourceIntent(
+    legacyLocalPath: String?,
+    sourceLocation: String?,
+): Boolean =
+    !legacyLocalPath.isNullOrBlank() || !sourceLocation.isNullOrBlank()
+
+internal fun resolveLaunchTestSourceType(
+    rawValue: String?,
+    location: String?,
+): MediaSourceType {
+    val normalized = rawValue?.trim()?.uppercase()
+    return when (normalized) {
+        MediaSourceType.LOCAL.name -> MediaSourceType.LOCAL
+        MediaSourceType.WEBDAV.name -> MediaSourceType.WEBDAV
+        MediaSourceType.SMB.name -> MediaSourceType.SMB
+        else -> {
+            val normalizedLocation = location?.trim().orEmpty()
+            when {
+                normalizedLocation.startsWith("http://", ignoreCase = true) ||
+                    normalizedLocation.startsWith("https://", ignoreCase = true) -> MediaSourceType.WEBDAV
+                normalizedLocation.startsWith("smb://", ignoreCase = true) ||
+                    normalizedLocation.startsWith("\\\\") -> MediaSourceType.SMB
+                else -> MediaSourceType.LOCAL
+            }
+        }
+    }
+}
+
+internal fun normalizeLaunchTestSourceLocation(
+    type: MediaSourceType,
+    location: String,
+): String =
+    when (type) {
+        MediaSourceType.SMB -> MediaSourceInfoConventions.normalizeSmbRoot(location)
+        MediaSourceType.LOCAL,
+        MediaSourceType.WEBDAV -> location.trim()
+    }
+
+internal fun resolveLaunchTestSourceRequest(
+    legacyLocalPath: String?,
+    legacyLocalName: String?,
+    rawType: String?,
+    rawLocation: String?,
+    rawName: String?,
+    rawDisplayName: String?,
+    rawUsername: String?,
+    rawPassword: String?,
+    rawContentMode: String?,
+    disableOnlineMetadata: Boolean,
+    scanAfterAdd: Boolean,
+    fallbackMode: AppMode?,
+): LaunchTestSourceRequest? {
+    val legacyPath = legacyLocalPath?.trim()?.takeIf { it.isNotBlank() }
+    if (legacyPath != null) {
+        return LaunchTestSourceRequest(
+            name = legacyLocalName?.trim()?.takeIf { it.isNotBlank() } ?: "Test Local",
+            type = MediaSourceType.LOCAL,
+            location = legacyPath,
+            contentMode = resolveLaunchTestSourceContentMode(rawContentMode, fallbackMode),
+            disableOnlineMetadata = true,
+            scanAfterAdd = scanAfterAdd,
+        )
+    }
+
+    val location = rawLocation?.trim()?.takeIf { it.isNotBlank() } ?: return null
+    val sourceType = resolveLaunchTestSourceType(rawType, location)
+    return LaunchTestSourceRequest(
+        name = rawName?.trim()?.takeIf { it.isNotBlank() } ?: when (sourceType) {
+            MediaSourceType.LOCAL -> "ADB Test Local"
+            MediaSourceType.WEBDAV -> "ADB Test WebDAV"
+            MediaSourceType.SMB -> "ADB Test SMB"
+        },
+        type = sourceType,
+        location = location,
+        displayName = rawDisplayName?.trim().orEmpty(),
+        username = rawUsername?.trim().orEmpty(),
+        password = rawPassword.orEmpty(),
+        contentMode = resolveLaunchTestSourceContentMode(rawContentMode, fallbackMode),
+        disableOnlineMetadata = disableOnlineMetadata,
+        scanAfterAdd = scanAfterAdd,
+    )
+}
+
 @Composable
 fun MiruPlayNavigation(
+    initialAppModeSelectionState: AppModeSelectionState,
+    appModePreferencesManager: AppModePreferencesManager,
     mediaRepository: MediaSourceRepository,
     progressRepository: PlaybackProgressRepository,
     webControlNavigator: WebControlNavigator
 ) {
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
+    var appModeSelectionState by remember {
+        mutableStateOf(initialAppModeSelectionState)
+    }
     val episodePlaybackSourceResolver = remember(progressRepository, mediaRepository) {
         EpisodePlaybackSourceResolver(
             progress = progressRepository,
@@ -183,8 +424,27 @@ fun MiruPlayNavigation(
     }
     NavHost(
         navController = navController,
-        startDestination = NavRoutes.LIBRARY
+        startDestination = NavRoutes.launchDestinationFor(appModeSelectionState)
     ) {
+        composable(NavRoutes.MODE_SELECTION) {
+            AppModeSelectionScreen(
+                onSelectMode = { mode ->
+                    scope.launch {
+                        appModePreferencesManager.completeModeSelection(mode)
+                        appModeSelectionState = AppModeSelectionState(
+                            currentAppMode = mode,
+                            hasCompletedModeSelection = true,
+                        )
+                        navController.navigate(NavRoutes.homeFor(mode)) {
+                            popUpTo(NavRoutes.MODE_SELECTION) {
+                                inclusive = true
+                            }
+                        }
+                    }
+                }
+            )
+        }
+
         composable(NavRoutes.LIBRARY) {
             LibraryScreen(
                 onNavigateToSettings = { navController.navigate(NavRoutes.SETTINGS) },
@@ -198,6 +458,66 @@ fun MiruPlayNavigation(
                             error,
                             mapOf("anime_id" to animeId)
                         )
+                    }
+                }
+            )
+        }
+
+        composable(NavRoutes.DRAMA_HOME) {
+            DramaLibraryScreen(
+                onNavigateToSettings = { navController.navigate(NavRoutes.SETTINGS) },
+                onNavigateToDetail = { seriesId ->
+                    navController.navigate(NavRoutes.dramaDetail(seriesId))
+                }
+            )
+        }
+
+        composable(
+            route = NavRoutes.DRAMA_DETAIL,
+            arguments = listOf(navArgument("seriesId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val seriesId = backStackEntry.arguments?.getString("seriesId")
+                ?.takeIf { it.isNotBlank() }
+                ?: return@composable
+            DramaDetailScreen(
+                seriesId = seriesId,
+                onNavigateBack = { navController.popBackStack() },
+                onPlayEpisode = { episode ->
+                    scope.launch {
+                        runCatching {
+                            val playbackEpisode = com.miruplay.tv.model.Episode(
+                                id = episode.id,
+                                animeId = episode.seriesId,
+                                seasonNumber = episode.seasonNumber,
+                                episodeNumber = episode.episodeNumber,
+                                title = episode.title,
+                                filePath = episode.filePath,
+                                fileName = episode.fileName,
+                            )
+                            val source = episodePlaybackSourceResolver.build(playbackEpisode)
+                            val encodedPath = Uri.encode(source.uri)
+                            val encodedSource = Uri.encode(source.mediaSourceId)
+                            val encodedEpisode = Uri.encode(source.episodeId ?: "")
+                            navController.navigate(
+                                NavRoutes.player(
+                                    uri = encodedPath,
+                                    mediaSourceId = encodedSource,
+                                    startPosition = source.startPosition,
+                                    episodeId = encodedEpisode,
+                                )
+                            )
+                        }.onFailure { error ->
+                            MiruLog.e(
+                                "MiruPlayNavigation",
+                                "Failed to open drama episode playback",
+                                error,
+                                mapOf(
+                                    "episode_id" to episode.id,
+                                    "series_id" to episode.seriesId,
+                                    "episode_number" to episode.episodeNumber.toString(),
+                                )
+                            )
+                        }
                     }
                 }
             )

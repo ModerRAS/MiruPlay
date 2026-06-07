@@ -8,6 +8,7 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.ResolvingDataSource
 import com.miruplay.tv.model.MediaPathConventions
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.net.URI
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -43,6 +44,7 @@ data class PlaybackHttpRequestConfig(
 ) {
     private val normalizedBaseUrl = baseUrl.trimEnd('/')
     private val decodedBaseUrl = MediaPathConventions.decodePath(normalizedBaseUrl)
+    private val baseOrigin = normalizedBaseUrl.originOrNull()
 
     fun applyTo(dataSpec: DataSpec): DataSpec =
         headersFor(dataSpec.uri.toString()).let { requestHeaders ->
@@ -50,11 +52,31 @@ data class PlaybackHttpRequestConfig(
         }
 
     internal fun headersFor(uri: String): Map<String, String> =
-        if (headers.isNotEmpty() && uri.isWithinBaseUrl()) headers else emptyMap()
+        if (
+            headers.isNotEmpty() &&
+            (uri.isWithinBaseUrl() || uri.isSameOriginAsBaseUrl())
+        ) {
+            headers
+        } else {
+            emptyMap()
+        }
 
     private fun String.isWithinBaseUrl(): Boolean =
         isAtOrBelow(normalizedBaseUrl) ||
             MediaPathConventions.decodePath(this).isAtOrBelow(decodedBaseUrl)
+
+    private fun String.isSameOriginAsBaseUrl(): Boolean =
+        baseOrigin != null && originOrNull() == baseOrigin
+
+    private fun String.originOrNull(): String? =
+        runCatching {
+            URI(MediaPathConventions.decodePath(this.trim())).let { parsed ->
+                val scheme = parsed.scheme?.lowercase() ?: return@runCatching null
+                val host = parsed.host?.lowercase() ?: return@runCatching null
+                val port = if (parsed.port >= 0) parsed.port else parsed.toURL().defaultPort
+                "$scheme://$host:$port"
+            }
+        }.getOrNull()
 
     private fun String.isAtOrBelow(base: String): Boolean =
         base.isNotBlank() &&

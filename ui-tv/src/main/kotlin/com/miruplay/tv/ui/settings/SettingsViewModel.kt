@@ -22,6 +22,7 @@ import com.miruplay.tv.model.CloudDriveLibraryMode
 import com.miruplay.tv.model.directoryBrowserRootDisplayName
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
+import com.miruplay.tv.model.MediaContentMode
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.CloudDriveApiTokenFormResult
@@ -36,14 +37,17 @@ import com.miruplay.tv.model.cloudRssConfigSavedStatus
 import com.miruplay.tv.model.completeStatus
 import com.miruplay.tv.model.prepareRssSubscriptionForm
 import com.miruplay.tv.model.saveBangumiTokenFormResult
+import com.miruplay.tv.model.saveTmdbTokenFormResult
 import com.miruplay.tv.model.withAutomationFormValues
 import com.miruplay.tv.model.validateCloudDriveDirectoryPickerForm
 import com.miruplay.tv.repository.AppCredentialStore
+import com.miruplay.tv.repository.AppMode
 import com.miruplay.tv.repository.AppUpdateCheck
 import com.miruplay.tv.repository.AppUpdateDownloadProgress
 import com.miruplay.tv.repository.AppUpdateInfo
 import com.miruplay.tv.repository.AppUpdateInstallLaunch
 import com.miruplay.tv.repository.AppUpdateRepository
+import com.miruplay.tv.repository.AppModePreferencesRepository
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.LogUploadActionCoordinator
 import com.miruplay.tv.repository.LogUploadAutoScheduler
@@ -97,6 +101,7 @@ class SettingsViewModel @Inject constructor(
     private val mediaRepository: MediaSourceRepository,
     private val mediaSourceFactory: MediaSourceFactory,
     private val securePrefs: AppCredentialStore,
+    private val appModePreferences: AppModePreferencesRepository,
     private val scanPreferences: ScanPreferencesManager,
     private val playbackPreferences: PlaybackPreferencesManager,
     private val webControlPreferences: WebControlAccessManager,
@@ -129,6 +134,9 @@ class SettingsViewModel @Inject constructor(
     private val _bangumiToken = MutableStateFlow(securePrefs.bangumiAccessToken ?: "")
     val bangumiToken: StateFlow<String> = _bangumiToken.asStateFlow()
 
+    private val _tmdbToken = MutableStateFlow(securePrefs.tmdbAccessToken ?: "")
+    val tmdbToken: StateFlow<String> = _tmdbToken.asStateFlow()
+
     private val _autoScanEnabled = MutableStateFlow(scanPreferences.autoScanEnabled)
     val autoScanEnabled: StateFlow<Boolean> = _autoScanEnabled.asStateFlow()
 
@@ -145,6 +153,9 @@ class SettingsViewModel @Inject constructor(
 
     private val _posterWallArrangement = MutableStateFlow(scanPreferences.posterWallArrangement)
     val posterWallArrangement: StateFlow<PosterWallArrangement> = _posterWallArrangement.asStateFlow()
+
+    private val _currentAppMode = MutableStateFlow(AppMode.ANIME)
+    val currentAppMode: StateFlow<AppMode> = _currentAppMode.asStateFlow()
 
     private val _playbackEndAction = MutableStateFlow(playbackPreferences.endAction)
     val playbackEndAction: StateFlow<PlaybackEndAction> = _playbackEndAction.asStateFlow()
@@ -201,6 +212,7 @@ class SettingsViewModel @Inject constructor(
 
     init {
         loadSources()
+        loadAppMode()
         refreshWebUiUrls()
         observeCloudDriveAutomation()
         observeLogUploadAutomation()
@@ -272,6 +284,7 @@ class SettingsViewModel @Inject constructor(
             val info = MediaSourceInfo(
                 name = "test",
                 type = type,
+                contentMode = MediaContentMode.ANIME,
                 connectionInfo = MediaSourceInfoConventions.sourceConnectionInfo(
                     type = type,
                     location = url,
@@ -305,6 +318,20 @@ class SettingsViewModel @Inject constructor(
     fun clearBangumiToken() {
         securePrefs.clearBangumiToken()
         _bangumiToken.value = ""
+    }
+
+    fun saveTmdbToken(token: String) {
+        val result = saveTmdbTokenFormResult(
+            input = token,
+            existingToken = securePrefs.tmdbAccessToken,
+        )
+        securePrefs.tmdbAccessToken = result.token
+        _tmdbToken.value = result.token.orEmpty()
+    }
+
+    fun clearTmdbToken() {
+        securePrefs.clearTmdbToken()
+        _tmdbToken.value = ""
     }
 
     fun saveCloudDriveConfig(
@@ -810,6 +837,13 @@ class SettingsViewModel @Inject constructor(
         _posterWallArrangement.value = arrangement
     }
 
+    fun setCurrentAppMode(mode: AppMode) {
+        viewModelScope.launch {
+            appModePreferences.setCurrentAppMode(mode)
+            _currentAppMode.value = mode
+        }
+    }
+
     fun setPlaybackEndAction(action: PlaybackEndAction) {
         playbackPreferences.endAction = action
         _playbackEndAction.value = action
@@ -1019,6 +1053,13 @@ class SettingsViewModel @Inject constructor(
     private fun refreshCloudDriveCredentialState() {
         _cloudDriveTokenConfigured.value = !securePrefs.cloudDriveToken.isNullOrBlank()
         _cloudDrivePasswordConfigured.value = !securePrefs.cloudDrivePassword.isNullOrBlank()
+    }
+
+    private fun loadAppMode() {
+        viewModelScope.launch {
+            val selectionState = appModePreferences.getSelectionState()
+            _currentAppMode.value = selectionState.currentAppMode ?: AppMode.ANIME
+        }
     }
 
     private fun observeCloudDriveAutomation() {

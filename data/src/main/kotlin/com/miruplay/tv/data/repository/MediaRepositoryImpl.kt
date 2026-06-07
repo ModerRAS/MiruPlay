@@ -7,6 +7,7 @@ import com.miruplay.tv.data.dao.IndexDao
 import com.miruplay.tv.data.dao.MediaSourceDao
 import com.miruplay.tv.data.entity.MediaSourceEntity
 import com.miruplay.tv.data.secure.MediaSourceSecretStore
+import com.miruplay.tv.model.MediaContentMode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
@@ -81,6 +82,7 @@ class MediaRepositoryImpl @Inject constructor(
             mediaSourceDao.update(
                 id = source.id,
                 name = source.name,
+                contentMode = source.contentMode.name,
                 url = source.persistenceLocation(),
                 username = source.connectionUsername().ifBlank { null },
                 password = null,
@@ -109,6 +111,7 @@ class MediaRepositoryImpl @Inject constructor(
     private fun MediaSourceInfo.toEntity(): MediaSourceEntity = MediaSourceEntity(
         name = name,
         type = type.name,
+        contentMode = contentMode.name,
         url = persistenceLocation(),
         username = connectionUsername().ifBlank { null },
         password = null,
@@ -122,11 +125,17 @@ class MediaRepositoryImpl @Inject constructor(
         val securedPassword = secretStore.getMediaSourcePassword(id)
             ?: decodedLegacyPassword?.also { secretStore.setMediaSourcePassword(id, it) }
         val sourceType = try { MediaSourceType.valueOf(type) } catch (e: Exception) { MediaSourceType.LOCAL }
+        val resolvedContentMode = try {
+            MediaContentMode.valueOf(contentMode)
+        } catch (e: Exception) {
+            MediaContentMode.ANIME
+        }
 
         return MediaSourceInfo(
             id = id,
             name = name,
             type = sourceType,
+            contentMode = resolvedContentMode,
             connectionInfo = MediaSourceInfoConventions.sourceConnectionInfoFromPersistence(
                 type = sourceType,
                 location = url,

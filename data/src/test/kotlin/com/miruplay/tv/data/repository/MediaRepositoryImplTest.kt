@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.miruplay.tv.data.db.MiruPlayDatabase
 import com.miruplay.tv.data.entity.IndexEntryEntity
 import com.miruplay.tv.data.secure.MediaSourceSecretStore
+import com.miruplay.tv.model.MediaContentMode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
 import kotlinx.coroutines.runBlocking
@@ -154,6 +155,22 @@ class MediaRepositoryImplTest {
     }
 
     @Test
+    fun `addSource should persist content mode`() = runBlocking {
+        val source = MediaSourceInfo(
+            name = "Drama NAS",
+            type = MediaSourceType.WEBDAV,
+            connectionInfo = mapOf("url" to "https://nas.local/drama"),
+            contentMode = MediaContentMode.DRAMA
+        )
+
+        val id = repository.addSource(source).getOrNull()!!
+        val retrieved = repository.getSourceById(id).getOrNull()
+
+        assertNotNull("Should retrieve persisted source", retrieved)
+        assertEquals(MediaContentMode.DRAMA, retrieved!!.contentMode)
+    }
+
+    @Test
     fun `updateSource should persist last scanned timestamp`() = runBlocking {
         val source = MediaSourceInfo(
             name = "Scan Time Test",
@@ -167,6 +184,48 @@ class MediaRepositoryImplTest {
         val retrieved = repository.getSourceById(id).getOrNull()
         assertNotNull("Should retrieve updated source", retrieved)
         assertEquals(123_456L, retrieved!!.lastScanned)
+    }
+
+    @Test
+    fun `updateSource should persist content mode changes`() = runBlocking {
+        val source = MediaSourceInfo(
+            name = "Mode Update Test",
+            type = MediaSourceType.LOCAL,
+            connectionInfo = mapOf("path" to "/storage/emulated/0/Drama"),
+            contentMode = MediaContentMode.ANIME
+        )
+
+        val id = repository.addSource(source).getOrNull()!!
+        repository.updateSource(source.copy(id = id, contentMode = MediaContentMode.DRAMA))
+
+        val retrieved = repository.getSourceById(id).getOrNull()
+        assertNotNull("Should retrieve updated source", retrieved)
+        assertEquals(MediaContentMode.DRAMA, retrieved!!.contentMode)
+    }
+
+    @Test
+    fun `getSourceById should default missing persisted content mode to anime`() = runBlocking {
+        database.openHelper.writableDatabase.execSQL(
+            """
+            INSERT INTO media_source (
+                name,
+                type,
+                url,
+                username,
+                password,
+                extra_config,
+                is_connected,
+                last_scanned
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """.trimIndent(),
+            arrayOf("Legacy Source", "WEBDAV", "https://legacy.local/dav", null, null, null, 0, 0L)
+        )
+
+        val sourceId = database.mediaSourceDao().getAll().single().id
+        val retrieved = repository.getSourceById(sourceId).getOrNull()
+
+        assertNotNull("Should retrieve legacy source", retrieved)
+        assertEquals(MediaContentMode.ANIME, retrieved!!.contentMode)
     }
 }
 

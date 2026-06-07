@@ -89,6 +89,20 @@ class MiruPlayDatabaseMigrationTest {
             database.sql
         )
     }
+
+    @Test
+    fun `migration 5 to 6 adds media source content mode with anime default`() {
+        val database = RecordingSupportSQLiteDatabase()
+
+        MiruPlayDatabase.MIGRATION_5_6.migrate(database.proxy)
+
+        assertEquals(
+            listOf(
+                "ALTER TABLE media_source ADD COLUMN content_mode TEXT NOT NULL DEFAULT 'ANIME'"
+            ),
+            database.sql
+        )
+    }
 }
 
 private class RecordingSupportSQLiteDatabase : InvocationHandler {

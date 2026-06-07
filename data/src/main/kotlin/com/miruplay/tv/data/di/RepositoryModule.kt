@@ -1,5 +1,6 @@
 package com.miruplay.tv.data.di
 
+import com.miruplay.tv.data.preferences.AppModePreferencesManager
 import com.miruplay.tv.data.preferences.WebControlPreferencesManager
 import com.miruplay.tv.data.preferences.PlaybackPreferencesManager
 import com.miruplay.tv.data.preferences.ScanPreferencesManager
@@ -13,6 +14,7 @@ import com.miruplay.tv.data.repository.ProgressRepositoryImpl
 import com.miruplay.tv.data.secure.MediaSourceSecretStore
 import com.miruplay.tv.data.secure.SecurePreferencesManager
 import com.miruplay.tv.repository.AppCredentialStore
+import com.miruplay.tv.repository.AppModePreferencesRepository
 import com.miruplay.tv.repository.AppUpdateRepository
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.CloudDriveCredentialStore
@@ -65,6 +67,12 @@ abstract class RepositoryModule {
     abstract fun bindPlaybackPreferencesRepository(
         impl: PlaybackPreferencesManager
     ): PlaybackPreferencesRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindAppModePreferencesRepository(
+        impl: AppModePreferencesManager
+    ): AppModePreferencesRepository
 
     @Binds
     @Singleton

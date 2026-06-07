@@ -6,10 +6,14 @@ import kotlinx.serialization.Serializable
 enum class MediaSourceType { LOCAL, WEBDAV, SMB }
 
 @Serializable
+enum class MediaContentMode { ANIME, DRAMA }
+
+@Serializable
 data class MediaSourceInfo(
     val id: Long = 0,
     val name: String,
     val type: MediaSourceType,
+    val contentMode: MediaContentMode = MediaContentMode.ANIME,
     val connectionInfo: Map<String, String> = emptyMap(),
     val isConnected: Boolean = false,
     val lastScanned: Long = 0L,  // epoch ms

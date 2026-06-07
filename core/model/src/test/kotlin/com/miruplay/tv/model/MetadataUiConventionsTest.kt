@@ -7,7 +7,7 @@ import org.junit.Test
 class MetadataUiConventionsTest {
     @Test
     fun `metadata panel labels are shared`() {
-        assertEquals("Bangumi 元数据", metadataPanelTitleLabel())
+        assertEquals("Bangumi / TMDB 元数据", metadataPanelTitleLabel())
         assertEquals("Bangumi 搜索词", metadataQueryFieldLabel())
         assertEquals("使用当前条目", metadataUseSelectedEntryActionLabel())
         assertEquals("搜索", metadataSearchActionLabel())
