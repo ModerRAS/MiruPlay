@@ -1,5 +1,13 @@
 package com.miruplay.tv.repository
 
+import com.miruplay.tv.model.AggregatedMetadataCandidate
+import com.miruplay.tv.model.AggregatedMetadataSearchResult
+import com.miruplay.tv.model.MatchRecommendation
+import com.miruplay.tv.model.MediaContentMode
+import com.miruplay.tv.model.MetadataProviderRef
+import com.miruplay.tv.model.MetadataQueryPlan
+import com.miruplay.tv.model.MetadataSearchContext
+import com.miruplay.tv.model.MetadataSearchProviderCandidate
 import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.ScraperSource
 import com.miruplay.tv.model.confidencePercentLabel
@@ -182,6 +190,7 @@ class MetadataBatchPlannerTest {
                     sourceId = 1L,
                     path = "D:/Anime/Frieren/01.mkv",
                     animeName = "Frieren",
+                    metadataSource = "Bangumi",
                     metadataTitle = "葬送的芙莉莲",
                     metadataId = "431767",
                 ),
@@ -189,6 +198,7 @@ class MetadataBatchPlannerTest {
                     sourceId = 1L,
                     path = "D:/Anime/Frieren/02.mkv",
                     animeName = "Frieren",
+                    metadataSource = "Bangumi",
                     metadataTitle = "葬送的芙莉莲",
                     metadataId = "431767",
                 ),
@@ -200,7 +210,7 @@ class MetadataBatchPlannerTest {
             },
         )
 
-        assertEquals(listOf(listOf("Frieren", "葬送的芙莉莲", "431767")), searchedCandidates)
+        assertEquals(listOf(listOf("Frieren", "葬送的芙莉莲", "Bangumi:431767", "431767")), searchedCandidates)
     }
 
     @Test
@@ -240,6 +250,51 @@ class MetadataBatchPlannerTest {
         assertEquals("已将 Bangumi 元数据应用到 D:/Anime/Frieren/01.mkv。", entry.metadataAppliedStatus("Bangumi"))
         assertEquals("请先选择索引视频，再清除元数据。", metadataClearEntryRequiredStatus())
         assertEquals("已清除 D:/Anime/Frieren/01.mkv 的外部元数据。", entry.metadataClearedStatus())
+    }
+
+    @Test
+    fun `aggregated search candidates prefer Bangumi detail candidate inside merged result`() = runBlocking {
+        val aggregator = object : AnimeMetadataSearchAggregator {
+            override suspend fun search(context: MetadataSearchContext): AggregatedMetadataSearchResult =
+                AggregatedMetadataSearchResult(
+                    plan = MetadataQueryPlan(emptyList()),
+                    candidates = listOf(
+                        AggregatedMetadataCandidate(
+                            contentMode = MediaContentMode.ANIME,
+                            title = "Sousou no Frieren",
+                            localizedTitle = "葬送的芙莉莲",
+                            providerCandidates = listOf(
+                                MetadataSearchProviderCandidate(
+                                    providerRef = MetadataProviderRef(source = "AniList", id = "154587"),
+                                    title = "Frieren: Beyond Journey's End",
+                                    originalTitle = "Sousou no Frieren",
+                                    providerScore = 0.82f,
+                                    providerRank = 1,
+                                ),
+                                MetadataSearchProviderCandidate(
+                                    providerRef = MetadataProviderRef(source = "Bangumi", id = "431767"),
+                                    title = "Sousou no Frieren",
+                                    localizedTitle = "葬送的芙莉莲",
+                                    providerScore = 0.95f,
+                                    providerRank = 0,
+                                    fromLocalCache = true,
+                                ),
+                            ),
+                            rerankScore = 0.97f,
+                            recommendation = MatchRecommendation.AUTO_ACCEPT,
+                        ),
+                    ),
+                )
+        }
+
+        val results = MetadataBatchPlanner.aggregatedSearchCandidates(aggregator)(
+            "Frieren",
+            listOf("Frieren", "葬送的芙莉莲"),
+        )
+
+        assertEquals(1, results.size)
+        assertEquals("431767", results.single().animeId)
+        assertEquals(ScraperSource.BANGUMI, results.single().source)
     }
 
     @Test

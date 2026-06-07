@@ -56,6 +56,8 @@ import androidx.tv.material3.Text
 import com.miruplay.tv.model.DramaEpisode
 import com.miruplay.tv.model.DramaMetadataSearchResult
 import com.miruplay.tv.model.ProgressRecord
+import com.miruplay.tv.model.aggregatedSourceLabel
+import com.miruplay.tv.model.boundMetadataProviderRef
 import com.miruplay.tv.model.detailEpisodeSectionTitle
 import com.miruplay.tv.model.detailEpisodeTitleLabel
 import com.miruplay.tv.model.detailSeasonLabel
@@ -65,6 +67,8 @@ import com.miruplay.tv.model.dramaRefreshActionLabel
 import com.miruplay.tv.model.dramaSeasonCountLabel
 import com.miruplay.tv.model.displayTitle
 import com.miruplay.tv.model.progressLabel
+import com.miruplay.tv.model.providerDisplayLabel
+import com.miruplay.tv.model.providerStableKey
 import com.miruplay.tv.ui.drama.DramaBackdropArtworkPlaceholder
 import com.miruplay.tv.ui.drama.DramaPosterArtworkPlaceholder
 import com.miruplay.tv.ui.drama.dramaEpisodeProgressIndicatorFraction
@@ -102,6 +106,7 @@ fun DramaDetailScreen(
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val isRefreshingMetadata by viewModel.isRefreshingMetadata.collectAsStateWithLifecycle()
     val hasTmdbTokenConfigured by viewModel.hasTmdbTokenConfigured.collectAsStateWithLifecycle()
+    val canRefreshBoundMetadata by viewModel.canRefreshBoundMetadata.collectAsStateWithLifecycle()
     val primaryActionEpisode by viewModel.primaryActionEpisode.collectAsStateWithLifecycle()
     val hasPlayableEpisodes by viewModel.hasPlayableEpisodes.collectAsStateWithLifecycle()
     val primaryActionLabel by viewModel.primaryActionLabel.collectAsStateWithLifecycle()
@@ -131,6 +136,7 @@ fun DramaDetailScreen(
                     episodes = episodes,
                     isRefreshingMetadata = isRefreshingMetadata,
                     hasTmdbTokenConfigured = hasTmdbTokenConfigured,
+                    canRefreshBoundMetadata = canRefreshBoundMetadata,
                     primaryActionLabel = primaryActionLabel,
                     actionMessage = actionMessage,
                     primaryActionEpisode = primaryActionEpisode,
@@ -194,6 +200,7 @@ private fun DramaDetailContent(
     episodes: List<Pair<DramaEpisode, ProgressRecord?>>,
     isRefreshingMetadata: Boolean,
     hasTmdbTokenConfigured: Boolean,
+    canRefreshBoundMetadata: Boolean,
     primaryActionLabel: String,
     actionMessage: String?,
     primaryActionEpisode: DramaEpisode?,
@@ -328,19 +335,21 @@ private fun DramaDetailContent(
 
         DramaMetadataHintCard(
             message = dramaMetadataStatusMessage(
-                hasTmdbMatch = series.tmdbId != null,
+                hasBoundMetadata = series.boundMetadataProviderRef() != null,
                 hasTmdbToken = hasTmdbTokenConfigured,
                 isRefreshing = isRefreshingMetadata,
+                boundProviderLabel = series.boundMetadataProviderRef()?.source,
+                canRefreshBoundMetadata = canRefreshBoundMetadata,
             ),
             highlightColor = when {
                 isRefreshingMetadata -> AccentBlue
-                series.tmdbId != null -> ProgressGreen
+                series.boundMetadataProviderRef() != null -> ProgressGreen
                 hasTmdbTokenConfigured -> TextSecondary
                 else -> WarningYellow
             },
             iconColor = when {
                 isRefreshingMetadata -> AccentBlue
-                series.tmdbId != null -> ProgressGreen
+                series.boundMetadataProviderRef() != null -> ProgressGreen
                 hasTmdbTokenConfigured -> TextSecondary
                 else -> WarningYellow
             },
@@ -433,7 +442,7 @@ private fun DramaManualMatchDialog(
                 )
                 Spacer(Modifier.width(10.dp))
                 Text(
-                    text = "TMDB 手动匹配",
+                    text = "在线手动匹配",
                     style = TvTypography.subtitle,
                     color = TextPrimary,
                 )
@@ -513,16 +522,16 @@ private fun DramaManualMatchDialog(
                 if (state.results.isEmpty()) {
                     item(key = "results-empty") {
                         Text(
-                            text = "还没有 TMDB 结果，先点搜索。",
+                            text = "还没有在线结果，先点搜索。",
                             style = TvTypography.body,
                             color = TextSecondary,
                         )
                     }
                 } else {
-                    items(state.results, key = { it.tmdbId }) { result ->
+                    items(state.results, key = { it.providerStableKey() }) { result ->
                         DramaManualMatchResultItem(
                             result = result,
-                            selected = state.selectedResult?.tmdbId == result.tmdbId,
+                            selected = state.selectedResult?.providerStableKey() == result.providerStableKey(),
                             enabled = !busy,
                             onClick = { onSelectResult(result) },
                         )
@@ -692,7 +701,12 @@ private fun DramaManualMatchResultItem(
                 result.firstAirDate?.takeIf { it.isNotBlank() }?.let { airDate ->
                     DramaStatPill(airDate, WarningYellow)
                 }
-                DramaStatPill("TMDB #${result.tmdbId}", TextSecondary)
+                if (result.sourceLabels.size > 1) {
+                    DramaStatPill("聚合 ${result.aggregatedSourceLabel()}", TextSecondary)
+                    DramaStatPill("应用 ${result.providerDisplayLabel()} #${result.providerRef.id}", TextSecondary)
+                } else {
+                    DramaStatPill("${result.providerDisplayLabel()} #${result.providerRef.id}", TextSecondary)
+                }
             }
             Spacer(Modifier.height(8.dp))
             Text(
@@ -773,8 +787,8 @@ private fun DramaDetailStats(
         series.firstAirDate?.takeIf { it.isNotBlank() }?.let {
             DramaStatPill(it, WarningYellow)
         }
-        series.tmdbId?.let {
-            DramaStatPill("TMDB", AnimeRed)
+        series.boundMetadataProviderRef()?.let { providerRef ->
+            DramaStatPill(providerRef.source, AnimeRed)
         }
     }
 }

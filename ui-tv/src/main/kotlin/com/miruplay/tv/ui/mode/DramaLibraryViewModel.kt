@@ -322,7 +322,6 @@ private fun DramaSeries.toPosterWallAnimeProxy() =
         summary = summary,
         episodeCount = episodeCount,
         airDate = firstAirDate,
-        tmdbId = tmdbId,
         posterUrl = posterUrl,
         fanartUrl = fanartUrl,
     )

@@ -7,6 +7,10 @@ import com.miruplay.tv.core.common.logging.PerformanceLog
 import com.miruplay.tv.model.BANGUMI_RESULT_LIMIT
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
+import com.miruplay.tv.model.MediaContentMode
+import com.miruplay.tv.model.MetadataProviderRef
+import com.miruplay.tv.model.MetadataSearchContext
+import com.miruplay.tv.model.MetadataSearchIntent
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.Season
@@ -24,14 +28,15 @@ import com.miruplay.tv.model.detailBangumiSyncStartedMessage
 import com.miruplay.tv.model.displayTitle
 import com.miruplay.tv.model.episodesForSeason
 import com.miruplay.tv.model.metadataSelectedResultTvStatus
+import com.miruplay.tv.model.toPreferredScraperResult
 import com.miruplay.tv.model.toSeasons
+import com.miruplay.tv.repository.AnimeMetadataSearchAggregator
 import com.miruplay.tv.repository.LibraryAnimeResolver
 import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
 import com.miruplay.tv.repository.ScanPreferencesRepository
-import com.miruplay.tv.scraper.ManualMetadataSearchScraper
 import com.miruplay.tv.scraper.MetadataScraper
 import com.miruplay.tv.sync.BangumiMetadataRefreshCore
 import com.miruplay.tv.sync.BangumiSyncEngine
@@ -50,6 +55,7 @@ class AnimeDetailViewModel @Inject constructor(
     private val progressRepository: PlaybackProgressRepository,
     private val bangumiSyncEngine: BangumiSyncEngine,
     private val scanPreferences: ScanPreferencesRepository,
+    private val animeSearchAggregator: AnimeMetadataSearchAggregator,
     private val metadataScrapers: Set<@JvmSuppressWildcards MetadataScraper>
 ) : ViewModel() {
     private val libraryAnimeResolver = LibraryAnimeResolver(
@@ -153,50 +159,54 @@ class AnimeDetailViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            val bangumi = bangumiScraper()
-            if (bangumi == null) {
-                _manualMatch.value = _manualMatch.value.copy(statusMessage = detailBangumiScraperUnavailableMessage())
-                return@launch
-            }
-
             _isSyncing.value = true
             _manualMatch.value = _manualMatch.value.copy(
                 isSearching = true,
                 statusMessage = detailBangumiManualSearchStartedMessage(queries.size),
             )
 
-            val matches = mutableListOf<ScraperResult>()
-            var lastErrorMessage: String? = null
-            val manualSearch = bangumi as? ManualMetadataSearchScraper
-            for (query in queries) {
-                val result = PerformanceLog.measureSuspendResult(
-                    tag = DETAIL_PERFORMANCE_TAG,
-                    operation = "detail.bangumi.manual_search_query",
-                    attributes = mapOf(
-                        "query_length" to query.length.toString(),
-                        "query_hash" to Integer.toHexString(query.hashCode()),
-                        "manual_search" to (manualSearch != null).toString(),
+            val currentAnime = _anime.value
+            val localEpisodes = allEpisodesWithProgress.map { it.first }
+            val aggregated = PerformanceLog.measureSuspend(
+                tag = DETAIL_PERFORMANCE_TAG,
+                operation = "detail.metadata.aggregate_manual_search",
+                attributes = mapOf(
+                    "query_count" to queries.size.toString(),
+                    "local_episode_count" to localEpisodes.size.toString(),
+                ),
+                resultAttributes = { result ->
+                    mapOf("candidate_count" to result.candidates.size.toString())
+                },
+            ) {
+                animeSearchAggregator.search(
+                    MetadataSearchContext(
+                        contentMode = MediaContentMode.ANIME,
+                        intent = MetadataSearchIntent.MANUAL_MATCH,
+                        title = currentAnime?.title.orEmpty(),
+                        localizedTitle = currentAnime?.titleCn.orEmpty(),
+                        aliases = currentState.selectedCandidateTerms.toList(),
+                        filePathSamples = localEpisodes.map(Episode::filePath),
+                        manualQuery = currentState.query,
+                        metadataTitle = currentAnime?.displayTitle(),
+                        boundProviderRef = currentAnime.boundProviderRef(),
+                        seasonHint = _selectedSeason.value.takeIf { it > 1 },
+                        episodeCountHint = localEpisodes.size.takeIf { it > 0 },
                     ),
-                ) {
-                    manualSearch?.searchManualAnime(query) ?: bangumi.searchAnime(query)
-                }
-                when (result) {
-                    is Result.Error -> lastErrorMessage = result.error.toUserMessage()
-                    is Result.Success -> matches += result.data
-                }
+                )
             }
 
-            val distinctMatches = matches
+            val distinctMatches = aggregated.candidates
+                .mapNotNull { it.toPreferredScraperResult(preferredSources = listOf("Bangumi", "AniList")) }
                 .distinctBy { "${it.source.name}:${it.animeId}" }
                 .take(BANGUMI_RESULT_LIMIT)
             _manualMatch.value = _manualMatch.value.copy(
                 results = distinctMatches,
                 selectedResult = distinctMatches.firstOrNull(),
                 isSearching = false,
-                statusMessage = if (distinctMatches.isEmpty() && lastErrorMessage != null) {
-                    lastErrorMessage
+                statusMessage = if (distinctMatches.isEmpty()) {
+                    "没有找到更合适的聚合候选。"
                 } else {
-                    detailBangumiManualSearchResultMessage(distinctMatches.size)
+                    "找到 ${distinctMatches.size} 个聚合候选。"
                 },
             )
             _isSyncing.value = false
@@ -219,9 +229,9 @@ class AnimeDetailViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            val bangumi = bangumiScraper()
-            if (bangumi == null) {
-                _manualMatch.value = _manualMatch.value.copy(statusMessage = detailBangumiScraperUnavailableMessage())
+            val scraper = scraperFor(match)
+            if (scraper == null) {
+                _manualMatch.value = _manualMatch.value.copy(statusMessage = "${match.source.name} 刮削器不可用")
                 return@launch
             }
 
@@ -245,7 +255,7 @@ class AnimeDetailViewModel @Inject constructor(
                 ) {
                     BangumiMetadataRefreshCore(
                         metadataRepository = metadataRepository,
-                        bangumiScraper = bangumi,
+                        bangumiScraper = scraper,
                     ).cacheMatchedMetadata(
                         cacheAnimeId = current.id,
                         match = match,
@@ -309,6 +319,9 @@ class AnimeDetailViewModel @Inject constructor(
     private fun bangumiScraper(): MetadataScraper? =
         metadataScrapers.firstOrNull { it.sourceName.equals("Bangumi", ignoreCase = true) }
 
+    private fun scraperFor(result: ScraperResult): MetadataScraper? =
+        metadataScrapers.firstOrNull { it.sourceName.equals(result.source.name, ignoreCase = true) }
+
     private fun manualMatchQueries(state: BangumiManualMatchUiState): List<String> =
         (state.selectedCandidateTerms.toList() + state.query)
             .map { it.trim() }
@@ -317,6 +330,13 @@ class AnimeDetailViewModel @Inject constructor(
 }
 
 private const val DETAIL_PERFORMANCE_TAG = "DetailPerformance"
+
+private fun Anime?.boundProviderRef(): MetadataProviderRef? =
+    when {
+        this?.bangumiId != null -> MetadataProviderRef(source = "Bangumi", id = bangumiId.toString())
+        this?.anilistId != null -> MetadataProviderRef(source = "AniList", id = anilistId.toString())
+        else -> null
+    }
 
 data class BangumiManualMatchUiState(
     val isOpen: Boolean = false,

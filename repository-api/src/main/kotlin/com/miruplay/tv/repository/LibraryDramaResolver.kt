@@ -2,7 +2,6 @@ package com.miruplay.tv.repository
 
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.FilenameParseResult
-import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.DramaEpisode
 import com.miruplay.tv.model.DramaEpisodeMetadata
 import com.miruplay.tv.model.DramaSeason
@@ -11,7 +10,11 @@ import com.miruplay.tv.model.DramaSeriesMetadata
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaContentMode
 import com.miruplay.tv.model.MediaSourceInfo
+import com.miruplay.tv.model.MetadataProviderRef
+import com.miruplay.tv.model.normalizedMetadataBinding
 import com.miruplay.tv.model.sanitizeRecognizedText
+import com.miruplay.tv.model.tmdbCompatibilityId
+import com.miruplay.tv.model.withoutMetadataBinding
 
 data class LibraryIndexedDramaGroup(
     val source: MediaSourceInfo,
@@ -61,8 +64,8 @@ class LibraryDramaResolver(
         val seasonNumbers = episodes.map { it.seasonNumber }.distinct().sorted()
         val metadataBinding = group.entries.preferredStoredDramaMetadataBinding(localTitle)
         val metadataResult = when {
-            metadataBinding != null -> metadata.fetchSeriesMetadataById(
-                tmdbId = metadataBinding.tmdbId,
+            metadataBinding != null -> metadata.fetchSeriesMetadataByProviderRef(
+                providerRef = metadataBinding.providerRef,
                 seasonNumbers = seasonNumbers,
             )
             else -> metadata.fetchSeriesMetadata(
@@ -75,7 +78,7 @@ class LibraryDramaResolver(
         val metadataBundle = rawMetadataBundle?.takeIf { group.acceptsResolvedMetadata(it.series) }
         val metadataMessage = when {
             rawMetadataBundle != null && metadataBundle == null ->
-                "TMDB 返回结果和本地剧名差太大，已忽略这次自动匹配。"
+                "在线元数据返回结果和本地剧名差太大，已忽略这次自动匹配。"
             else -> (metadataResult as? Result.Error)?.error?.toUserMessage()
         }
         return group.toDramaDetail(
@@ -111,7 +114,15 @@ class LibraryDramaResolver(
         metadataCache?.cacheDramaSeries(seriesId, series) ?: Result.success(Unit)
 
     private suspend fun LibraryIndexedDramaGroup.cachedSeriesMetadata(): DramaSeries? =
-        getCachedSeriesMetadata(seriesId)?.takeIf { isReasonableDramaMetadataMatch(localTitle(), it) }
+        getCachedSeriesMetadata(seriesId)
+            ?.takeIf { isReasonableDramaMetadataMatch(localTitle(), it) }
+            ?.let { cachedSeries ->
+                if (entries.preferredStoredDramaMetadataBinding(localTitle()) != null) {
+                    cachedSeries.withoutMetadataBinding()
+                } else {
+                    cachedSeries.normalizedMetadataBinding()
+                }
+            }
 
     private fun LibraryIndexedDramaGroup.localTitle(): String =
         entries.preferredLocalDramaTitle().ifBlank { group.title }
@@ -152,7 +163,7 @@ private fun LibraryIndexedDramaGroup.toDramaDetail(
 }
 
 fun DramaSeries.merge(other: DramaSeries?): DramaSeries {
-    if (other == null) return this
+    if (other == null) return normalizedMetadataBinding()
     return copy(
         title = other.title.ifBlank { title },
         originalTitle = other.originalTitle.ifBlank { originalTitle },
@@ -161,7 +172,8 @@ fun DramaSeries.merge(other: DramaSeries?): DramaSeries {
         fanartUrl = other.fanartUrl ?: fanartUrl,
         firstAirDate = other.firstAirDate ?: firstAirDate,
         tmdbId = other.tmdbId ?: tmdbId,
-    )
+        metadataProviderRef = other.metadataProviderRef ?: metadataProviderRef,
+    ).normalizedMetadataBinding()
 }
 
 fun List<DramaEpisode>.merge(metadata: DramaSeriesMetadata?): List<DramaEpisode> {
@@ -212,9 +224,12 @@ fun List<DramaEpisode>.toDramaSeasons(): List<DramaSeason> =
         }
 
 private data class StoredDramaMetadataBinding(
-    val tmdbId: Int,
+    val providerRef: MetadataProviderRef,
     val title: String,
-)
+) {
+    val tmdbId: Int?
+        get() = providerRef.tmdbCompatibilityId()
+}
 
 private fun List<MediaIndexEntry>.toDramaSeries(
     seriesId: String,
@@ -236,6 +251,7 @@ private fun List<MediaIndexEntry>.toDramaSeries(
         episodeCount = size,
         seasonCount = mapNotNull { it.seasonNumber }.distinct().ifEmpty { listOf(1) }.size,
         tmdbId = metadataBinding?.tmdbId,
+        metadataProviderRef = metadataBinding?.providerRef,
     )
 }
 
@@ -255,17 +271,15 @@ private fun List<MediaIndexEntry>.preferredStoredDramaMetadataBinding(
 ): StoredDramaMetadataBinding? {
     val bindingById = asSequence()
         .mapNotNull { entry ->
-            val tmdbId = entry.metadataId
-                ?.takeIf { entry.metadataSource.equals("TMDB", ignoreCase = true) }
-                ?.toIntOrNull()
-                ?: return@mapNotNull null
+            val source = entry.metadataSource?.trim()?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            val metadataId = entry.metadataId?.trim()?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
             val metadataTitle = sanitizeDramaTitleCandidate(entry.metadataTitle) ?: return@mapNotNull null
             StoredDramaMetadataBinding(
-                tmdbId = tmdbId,
+                providerRef = MetadataProviderRef(source = source, id = metadataId),
                 title = metadataTitle,
             )
         }
-        .groupBy(StoredDramaMetadataBinding::tmdbId)
+        .groupBy { it.providerRef.source.lowercase() to it.providerRef.id }
         .maxByOrNull { it.value.size }
         ?.value
         .orEmpty()
@@ -276,7 +290,7 @@ private fun List<MediaIndexEntry>.preferredStoredDramaMetadataBinding(
         ?.key
         ?.let { title ->
             StoredDramaMetadataBinding(
-                tmdbId = bindingById.first().tmdbId,
+                providerRef = bindingById.first().providerRef,
                 title = title,
             )
         }
@@ -285,7 +299,7 @@ private fun List<MediaIndexEntry>.preferredStoredDramaMetadataBinding(
 }
 
 private fun MediaIndexEntry.hasStoredDramaMetadata(): Boolean =
-    metadataSource.equals("TMDB", ignoreCase = true) &&
+    metadataSource?.isNotBlank() == true &&
         metadataId?.isNotBlank() == true
 
 private fun sanitizeDramaTitleCandidate(title: String?): String? =
@@ -359,42 +373,3 @@ private val dramaWatermarkPhraseRegex = Regex("""更多(?:电视剧集|剧集)(?
 private val dramaSeasonSuffixRegex = Regex("""(?i)(?:第\s*\d+\s*季|season\s*\d+|s\s*\d+)$""")
 private val dramaComparableNoiseRegex = Regex("""[\s\p{Punct}·_]+""")
 private val multiWhitespaceRegex = Regex("""\s+""")
-
-fun dramaSeriesCacheKey(seriesId: String): String =
-    "drama-series:$seriesId"
-
-fun DramaSeries.toCachedDramaMetadata(cacheKey: String = dramaSeriesCacheKey(id)): Anime =
-    Anime(
-        id = cacheKey,
-        title = title,
-        titleCn = originalTitle.ifBlank { null },
-        summary = summary,
-        episodeCount = episodeCount,
-        airDate = firstAirDate,
-        tmdbId = tmdbId,
-        posterUrl = posterUrl,
-        fanartUrl = fanartUrl,
-    )
-
-fun Anime.toCachedDramaSeries(seriesId: String): DramaSeries =
-    DramaSeries(
-        id = seriesId,
-        title = title,
-        originalTitle = titleCn.orEmpty(),
-        summary = summary,
-        episodeCount = episodeCount,
-        firstAirDate = airDate,
-        tmdbId = tmdbId,
-        posterUrl = posterUrl,
-        fanartUrl = fanartUrl,
-    )
-
-suspend fun MetadataRepository.getCachedDramaSeries(seriesId: String): Result<DramaSeries?> =
-    getCachedMetadata(dramaSeriesCacheKey(seriesId))
-        .map { cached -> cached?.toCachedDramaSeries(seriesId) }
-
-suspend fun MetadataRepository.cacheDramaSeries(
-    seriesId: String,
-    series: DramaSeries,
-): Result<Unit> =
-    cacheMetadata(series.toCachedDramaMetadata(dramaSeriesCacheKey(seriesId)))

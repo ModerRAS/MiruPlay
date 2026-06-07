@@ -2,6 +2,7 @@ package com.miruplay.tv.data.di
 
 import com.miruplay.tv.data.dao.AnimeDao
 import com.miruplay.tv.data.dao.CloudDriveAutomationDao
+import com.miruplay.tv.data.dao.DramaSeriesCacheDao
 import com.miruplay.tv.data.dao.EpisodeDao
 import com.miruplay.tv.data.dao.IndexDao
 import com.miruplay.tv.data.dao.MediaSourceDao
@@ -36,6 +37,11 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideIndexDao(database: MiruPlayDatabase): IndexDao = database.indexDao()
+
+    @Provides
+    @Singleton
+    fun provideDramaSeriesCacheDao(database: MiruPlayDatabase): DramaSeriesCacheDao =
+        database.dramaSeriesCacheDao()
 
     @Provides
     @Singleton

@@ -3,12 +3,16 @@ package com.miruplay.tv.data.repository
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.miruplay.tv.data.dao.AnimeDao
+import com.miruplay.tv.data.dao.DramaSeriesCacheDao
 import com.miruplay.tv.data.dao.EpisodeDao
 import com.miruplay.tv.data.db.MiruPlayDatabase
 import com.miruplay.tv.data.entity.AnimeEntity
 import com.miruplay.tv.data.entity.EpisodeEntity
 import com.miruplay.tv.model.Anime
+import com.miruplay.tv.model.DramaSeries
 import com.miruplay.tv.model.Episode
+import com.miruplay.tv.model.MetadataProviderRef
+import com.miruplay.tv.repository.dramaSeriesCacheKey
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.*
@@ -26,6 +30,7 @@ class MetadataRepositoryImplTest {
     private lateinit var repository: MetadataRepositoryImpl
     private lateinit var animeDao: AnimeDao
     private lateinit var episodeDao: EpisodeDao
+    private lateinit var dramaSeriesCacheDao: DramaSeriesCacheDao
 
     @Before
     fun setup() {
@@ -35,9 +40,11 @@ class MetadataRepositoryImplTest {
         ).build()
         animeDao = database.animeDao()
         episodeDao = database.episodeDao()
+        dramaSeriesCacheDao = database.dramaSeriesCacheDao()
         repository = MetadataRepositoryImpl(
             animeDao = animeDao,
-            episodeDao = episodeDao
+            episodeDao = episodeDao,
+            dramaSeriesCacheDao = dramaSeriesCacheDao,
         )
     }
 
@@ -364,6 +371,76 @@ class MetadataRepositoryImplTest {
         assertEquals("Special Episode", ep.title)
         assertEquals(1_800_000L, ep.duration)
         assertEquals("/thumbnails/ep5.jpg", ep.thumbnailPath)
+    }
+
+    @Test
+    fun `cacheDramaSeries should persist provider neutral binding in dedicated cache`() = runBlocking {
+        val series = DramaSeries(
+            id = "qing-yu-nian",
+            title = "庆余年 第一季",
+            originalTitle = "Joy of Life",
+            summary = "缓存简介",
+            seasonCount = 1,
+            episodeCount = 46,
+            posterUrl = "poster-url",
+            fanartUrl = "fanart-url",
+            firstAirDate = "2024-01-01",
+            metadataProviderRef = MetadataProviderRef(source = "TVMaze", id = "maze-321"),
+        )
+
+        val result = repository.cacheDramaSeries(series.id, series)
+
+        assertTrue("Expected Success", result.isSuccess())
+        val cached = repository.getCachedDramaSeries(series.id).getOrNull()
+        assertEquals("TVMaze", cached?.metadataProviderRef?.source)
+        assertEquals("maze-321", cached?.metadataProviderRef?.id)
+        assertNull(cached?.tmdbId)
+        assertEquals("缓存简介", cached?.summary)
+        val legacy = animeDao.getById(dramaSeriesCacheKey(series.id))
+        assertNotNull(legacy)
+        assertNull(legacy?.tmdbId)
+    }
+
+    @Test
+    fun `getCachedDramaSeries should fall back to legacy anime cache when dedicated cache is missing`() = runBlocking {
+        animeDao.insert(
+            AnimeEntity(
+                id = dramaSeriesCacheKey("qing-yu-nian"),
+                title = "庆余年 第一季",
+                titleCn = "Joy of Life",
+                summary = "旧缓存简介",
+                episodeCount = 46,
+                airDate = "2024-01-01",
+                tmdbId = "321",
+                posterUrl = "poster-url",
+                fanartUrl = "fanart-url",
+            ),
+        )
+
+        val cached = repository.getCachedDramaSeries("qing-yu-nian").getOrNull()
+
+        assertEquals("庆余年 第一季", cached?.title)
+        assertEquals("TMDB", cached?.metadataProviderRef?.source)
+        assertEquals("321", cached?.metadataProviderRef?.id)
+        assertEquals(321, cached?.tmdbId)
+    }
+
+    @Test
+    fun `invalidateDramaSeriesCache should delete dedicated and legacy drama cache`() = runBlocking {
+        repository.cacheDramaSeries(
+            "qing-yu-nian",
+            DramaSeries(
+                id = "qing-yu-nian",
+                title = "庆余年 第一季",
+                metadataProviderRef = MetadataProviderRef(source = "TVMaze", id = "maze-321"),
+            ),
+        )
+
+        val result = repository.invalidateDramaSeriesCache("qing-yu-nian")
+
+        assertTrue("Invalidate should succeed", result.isSuccess())
+        assertNull(dramaSeriesCacheDao.getBySeriesId("qing-yu-nian"))
+        assertNull(animeDao.getById(dramaSeriesCacheKey("qing-yu-nian")))
     }
 
     // ── invalidateCache ──────────────────────────────────────────

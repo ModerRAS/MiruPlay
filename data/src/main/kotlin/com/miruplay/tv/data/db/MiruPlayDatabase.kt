@@ -9,7 +9,7 @@ import com.miruplay.tv.data.entity.*
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    version = 6,
+    version = 7,
     exportSchema = true,
     entities = [
         AnimeEntity::class,
@@ -17,6 +17,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         MediaSourceEntity::class,
         ProgressEntity::class,
         IndexEntryEntity::class,
+        DramaSeriesCacheEntity::class,
         CloudDriveConfigEntity::class,
         RssSubscriptionEntity::class,
         RssProcessedItemEntity::class,
@@ -30,9 +31,69 @@ abstract class MiruPlayDatabase : RoomDatabase() {
     abstract fun mediaSourceDao(): MediaSourceDao
     abstract fun progressDao(): ProgressDao
     abstract fun indexDao(): IndexDao
+    abstract fun dramaSeriesCacheDao(): DramaSeriesCacheDao
     abstract fun cloudDriveAutomationDao(): CloudDriveAutomationDao
 
     companion object {
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS drama_series_cache (
+                        series_id TEXT NOT NULL PRIMARY KEY,
+                        title TEXT NOT NULL,
+                        original_title TEXT NOT NULL,
+                        summary TEXT NOT NULL,
+                        season_count INTEGER NOT NULL,
+                        episode_count INTEGER NOT NULL,
+                        poster_url TEXT,
+                        fanart_url TEXT,
+                        first_air_date TEXT,
+                        metadata_source TEXT,
+                        metadata_id TEXT,
+                        last_updated INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                database.execSQL(
+                    """
+                    INSERT OR REPLACE INTO drama_series_cache (
+                        series_id,
+                        title,
+                        original_title,
+                        summary,
+                        season_count,
+                        episode_count,
+                        poster_url,
+                        fanart_url,
+                        first_air_date,
+                        metadata_source,
+                        metadata_id,
+                        last_updated
+                    )
+                    SELECT
+                        substr(id, 14),
+                        title,
+                        COALESCE(title_cn, ''),
+                        COALESCE(summary, ''),
+                        0,
+                        episode_count,
+                        poster_url,
+                        fanart_url,
+                        air_date,
+                        CASE
+                            WHEN tmdb_id IS NOT NULL AND TRIM(tmdb_id) <> '' THEN 'TMDB'
+                            ELSE NULL
+                        END,
+                        tmdb_id,
+                        last_updated
+                    FROM anime
+                    WHERE id LIKE 'drama-series:%'
+                    """.trimIndent()
+                )
+            }
+        }
+
         val MIGRATION_5_6 = object : Migration(5, 6) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE media_source ADD COLUMN content_mode TEXT NOT NULL DEFAULT 'ANIME'")

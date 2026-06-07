@@ -3,11 +3,19 @@ package com.miruplay.tv.data.repository
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.data.dao.AnimeDao
+import com.miruplay.tv.data.dao.DramaSeriesCacheDao
 import com.miruplay.tv.data.dao.EpisodeDao
 import com.miruplay.tv.data.entity.AnimeEntity
+import com.miruplay.tv.data.entity.DramaSeriesCacheEntity
 import com.miruplay.tv.data.entity.EpisodeEntity
 import com.miruplay.tv.model.Anime
+import com.miruplay.tv.model.DramaSeries
 import com.miruplay.tv.model.Episode
+import com.miruplay.tv.model.MetadataProviderRef
+import com.miruplay.tv.model.normalizedMetadataBinding
+import com.miruplay.tv.repository.dramaSeriesCacheKey
+import com.miruplay.tv.repository.toLegacyCachedDramaMetadata
+import com.miruplay.tv.repository.toLegacyCachedDramaSeries
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
@@ -18,7 +26,8 @@ import javax.inject.Singleton
 @Singleton
 class MetadataRepositoryImpl @Inject constructor(
     private val animeDao: AnimeDao,
-    private val episodeDao: EpisodeDao
+    private val episodeDao: EpisodeDao,
+    private val dramaSeriesCacheDao: DramaSeriesCacheDao,
 ) : MetadataRepository {
 
     companion object {
@@ -108,6 +117,41 @@ class MetadataRepositoryImpl @Inject constructor(
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(AppError.SyncError.WriteFailed("cache_episodes_$animeId", e.message ?: "Unknown"))
+        }
+    }
+
+    override suspend fun cacheDramaSeries(seriesId: String, series: DramaSeries): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val normalized = series.normalizedMetadataBinding()
+            dramaSeriesCacheDao.insert(normalized.toEntity(seriesId))
+            animeDao.insert(normalized.toLegacyCachedDramaMetadata(dramaSeriesCacheKey(seriesId)).toEntity())
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(AppError.SyncError.WriteFailed("cache_drama_series_$seriesId", e.message ?: "Unknown"))
+        }
+    }
+
+    override suspend fun getCachedDramaSeries(seriesId: String): Result<DramaSeries?> = withContext(Dispatchers.IO) {
+        try {
+            val cached = dramaSeriesCacheDao.getBySeriesId(seriesId)?.toDomain()
+            if (cached != null) {
+                Result.success(cached)
+            } else {
+                val legacy = animeDao.getById(dramaSeriesCacheKey(seriesId))?.toDomain(emptyList())
+                Result.success(legacy?.toLegacyCachedDramaSeries(seriesId))
+            }
+        } catch (e: Exception) {
+            Result.success(null)
+        }
+    }
+
+    override suspend fun invalidateDramaSeriesCache(seriesId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            dramaSeriesCacheDao.deleteBySeriesId(seriesId)
+            animeDao.deleteById(dramaSeriesCacheKey(seriesId))
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(AppError.SyncError.WriteFailed("cache-invalidate-drama", e.message ?: "Unknown"))
         }
     }
 
@@ -203,3 +247,40 @@ private fun EpisodeEntity.toDomain(): Episode = Episode(
     bangumiEpisodeId = bangumiEpisodeId,
     bangumiCollectionType = bangumiCollectionType
 )
+
+private fun DramaSeries.toEntity(seriesId: String): DramaSeriesCacheEntity {
+    val normalized = normalizedMetadataBinding()
+    return DramaSeriesCacheEntity(
+        seriesId = seriesId,
+        title = normalized.title,
+        originalTitle = normalized.originalTitle,
+        summary = normalized.summary,
+        seasonCount = normalized.seasonCount,
+        episodeCount = normalized.episodeCount,
+        posterUrl = normalized.posterUrl,
+        fanartUrl = normalized.fanartUrl,
+        firstAirDate = normalized.firstAirDate,
+        metadataSource = normalized.metadataProviderRef?.source,
+        metadataId = normalized.metadataProviderRef?.id,
+    )
+}
+
+private fun DramaSeriesCacheEntity.toDomain(): DramaSeries =
+    DramaSeries(
+        id = seriesId,
+        title = title,
+        originalTitle = originalTitle,
+        summary = summary,
+        seasonCount = seasonCount,
+        episodeCount = episodeCount,
+        posterUrl = posterUrl,
+        fanartUrl = fanartUrl,
+        firstAirDate = firstAirDate,
+        metadataProviderRef = metadataSource
+            ?.takeIf { it.isNotBlank() }
+            ?.let { source ->
+                metadataId
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { id -> MetadataProviderRef(source = source, id = id) }
+            },
+    ).normalizedMetadataBinding()

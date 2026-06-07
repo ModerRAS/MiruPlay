@@ -170,7 +170,7 @@ private fun DramaLibraryHeader(
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "电视剧媒体库 · TMDB 元数据",
+                text = "电视剧媒体库 · 在线元数据",
                 style = TvTypography.body,
                 color = TextSecondary,
                 maxLines = 1,
@@ -494,7 +494,6 @@ private fun com.miruplay.tv.model.DramaSeries.toAnimeProxy() =
         summary = summary,
         episodeCount = episodeCount,
         airDate = firstAirDate,
-        tmdbId = tmdbId,
         posterUrl = posterUrl,
         fanartUrl = fanartUrl,
     )

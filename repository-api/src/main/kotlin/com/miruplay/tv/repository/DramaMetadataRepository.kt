@@ -3,6 +3,7 @@ package com.miruplay.tv.repository
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.DramaMetadataSearchResult
 import com.miruplay.tv.model.DramaSeriesMetadata
+import com.miruplay.tv.model.MetadataProviderRef
 
 interface DramaMetadataRepository {
     suspend fun fetchSeriesMetadata(
@@ -11,8 +12,14 @@ interface DramaMetadataRepository {
         seasonNumbers: List<Int> = emptyList(),
     ): Result<DramaSeriesMetadata?>
 
-    suspend fun fetchSeriesMetadataById(
-        tmdbId: Int,
+    fun canFetchSeriesMetadataByTitle(): Boolean = false
+
+    fun canFetchMetadataByProviderRef(
+        providerRef: MetadataProviderRef,
+    ): Boolean = false
+
+    suspend fun fetchSeriesMetadataByProviderRef(
+        providerRef: MetadataProviderRef,
         seasonNumbers: List<Int> = emptyList(),
     ): Result<DramaSeriesMetadata?> = Result.success(null)
 

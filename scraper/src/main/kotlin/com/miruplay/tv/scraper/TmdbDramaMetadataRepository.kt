@@ -31,6 +31,16 @@ class TmdbDramaMetadataRepository @Inject constructor(
 ) : DramaMetadataRepository {
     private val json = Json { ignoreUnknownKeys = true }
 
+    override fun canFetchSeriesMetadataByTitle(): Boolean =
+        credentials.tmdbAccessToken?.trim().isNullOrBlank().not()
+
+    override fun canFetchMetadataByProviderRef(
+        providerRef: com.miruplay.tv.model.MetadataProviderRef,
+    ): Boolean =
+        providerRef.source.equals(SOURCE_NAME, ignoreCase = true) &&
+            providerRef.id.toIntOrNull() != null &&
+            canFetchSeriesMetadataByTitle()
+
     override suspend fun fetchSeriesMetadata(
         title: String,
         seasonHint: Int?,
@@ -80,7 +90,21 @@ class TmdbDramaMetadataRepository @Inject constructor(
         }
     }
 
-    override suspend fun fetchSeriesMetadataById(
+    override suspend fun fetchSeriesMetadataByProviderRef(
+        providerRef: com.miruplay.tv.model.MetadataProviderRef,
+        seasonNumbers: List<Int>,
+    ): Result<DramaSeriesMetadata?> {
+        if (!providerRef.source.equals(SOURCE_NAME, ignoreCase = true)) {
+            return Result.success(null)
+        }
+        val tmdbId = providerRef.id.toIntOrNull() ?: return Result.success(null)
+        return fetchSeriesMetadataById(
+            tmdbId = tmdbId,
+            seasonNumbers = seasonNumbers,
+        )
+    }
+
+    suspend fun fetchSeriesMetadataById(
         tmdbId: Int,
         seasonNumbers: List<Int>,
     ): Result<DramaSeriesMetadata?> = withContext(Dispatchers.IO) {

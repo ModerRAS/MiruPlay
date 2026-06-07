@@ -1,7 +1,11 @@
 package com.miruplay.tv.repository
 
+import com.miruplay.tv.model.MediaContentMode
+import com.miruplay.tv.model.MetadataSearchContext
+import com.miruplay.tv.model.MetadataSearchIntent
 import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.displayTitle
+import com.miruplay.tv.model.toPreferredScraperResult
 import com.miruplay.tv.model.metadataApplyEntryRequiredTvStatus
 import com.miruplay.tv.model.metadataAppliedTvStatus
 import com.miruplay.tv.model.metadataBatchResultRequiredTvStatus
@@ -26,6 +30,7 @@ import com.miruplay.tv.model.metadataSelectedBatchCandidateTvStatus
 import com.miruplay.tv.model.metadataSelectedCandidateLabel
 import com.miruplay.tv.model.metadataSelectedBatchReviewTvStatus
 import com.miruplay.tv.model.metadataSelectedResultTvStatus
+import com.miruplay.tv.model.MetadataProviderRef
 import com.miruplay.tv.model.metadataSourceRequiredTvStatus
 
 data class MetadataBatchMatch(
@@ -187,6 +192,22 @@ object MetadataBatchPlanner {
     ): Int =
         previewQueriesFor(entries, queryLimit).size
 
+    fun aggregatedSearchCandidates(
+        aggregator: AnimeMetadataSearchAggregator,
+    ): suspend (String, List<String>) -> List<ScraperResult> = { query, candidates ->
+        aggregator.search(
+            MetadataSearchContext(
+                contentMode = MediaContentMode.ANIME,
+                intent = MetadataSearchIntent.BATCH_PREVIEW,
+                title = query,
+                aliases = candidates,
+                manualQuery = query,
+            ),
+        ).candidates.mapNotNull { candidate ->
+            candidate.toPreferredScraperResult(preferredSources = listOf("Bangumi", "AniList"))
+        }
+    }
+
     suspend fun previewFor(
         entries: List<MediaIndexEntry>,
         queryLimit: Int,
@@ -250,6 +271,13 @@ object MetadataBatchPlanner {
                 listOfNotNull(
                     entry.animeName,
                     entry.metadataTitle,
+                    entry.metadataSource
+                        ?.takeIf { it.isNotBlank() }
+                        ?.let { source ->
+                            entry.metadataId
+                                ?.takeIf { it.isNotBlank() }
+                                ?.let { id -> metadataProviderRefHintText(MetadataProviderRef(source = source, id = id)) }
+                        },
                     entry.metadataId,
                 )
             }

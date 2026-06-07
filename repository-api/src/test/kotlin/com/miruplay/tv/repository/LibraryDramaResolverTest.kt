@@ -8,9 +8,11 @@ import com.miruplay.tv.model.DramaSeasonMetadata
 import com.miruplay.tv.model.DramaSeries
 import com.miruplay.tv.model.DramaSeriesMetadata
 import com.miruplay.tv.model.Episode
+import com.miruplay.tv.model.boundMetadataProviderRef
 import com.miruplay.tv.model.MediaContentMode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
+import com.miruplay.tv.model.MetadataProviderRef
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -260,6 +262,7 @@ class LibraryDramaResolverTest {
 
         val detail = resolver.loadSeriesDetail("庆余年")
 
+        assertEquals(listOf(MetadataProviderRef(source = "TMDB", id = "321")), metadataRepository.requestedProviderRefs)
         assertEquals(listOf(321), metadataRepository.requestedIds)
         assertTrue(metadataRepository.requestedTitles.isEmpty())
         assertEquals("庆余年 第一季", detail?.series?.title)
@@ -347,6 +350,92 @@ class LibraryDramaResolverTest {
     }
 
     @Test
+    fun `loadSeriesDetail accepts non tmdb stored provider bindings`() = runBlocking {
+        val dramaSource = MediaSourceInfoConventions.local(
+            rootPath = "D:/Drama",
+            name = "Drama",
+        ).copy(id = 1L, contentMode = MediaContentMode.DRAMA)
+        val metadataRepository = TrackingDramaMetadataRepository(
+            seriesTitle = "庆余年 第一季",
+            seriesOriginalTitle = "Joy of Life",
+        )
+        val resolver = LibraryDramaResolver(
+            mediaSources = FakeMediaSourceRepository(listOf(dramaSource)),
+            index = FakeMediaIndexRepository(
+                listOf(
+                    MediaIndexEntry(
+                        sourceId = 1L,
+                        path = "D:/Drama/庆余年/S01E01.mkv",
+                        animeName = "庆余年",
+                        seasonNumber = 1,
+                        episodeNumber = 1,
+                        metadataSource = "TVMaze",
+                        metadataId = "maze-321",
+                        metadataTitle = "庆余年 第一季",
+                    ),
+                ),
+            ),
+            metadata = metadataRepository,
+        )
+
+        val detail = resolver.loadSeriesDetail("庆余年")
+
+        assertEquals(listOf(MetadataProviderRef(source = "TVMaze", id = "maze-321")), metadataRepository.requestedProviderRefs)
+        assertTrue(metadataRepository.requestedIds.isEmpty())
+        assertTrue(metadataRepository.requestedTitles.isEmpty())
+        assertEquals("TVMaze", detail?.series?.metadataProviderRef?.source)
+        assertEquals("maze-321", detail?.series?.metadataProviderRef?.id)
+    }
+
+    @Test
+    fun `loadLocalSeriesDetails keeps stored provider binding over stale cached tmdb id`() = runBlocking {
+        val dramaSource = MediaSourceInfoConventions.local(
+            rootPath = "D:/Drama",
+            name = "Drama",
+        ).copy(id = 1L, contentMode = MediaContentMode.DRAMA)
+        val resolver = LibraryDramaResolver(
+            mediaSources = FakeMediaSourceRepository(listOf(dramaSource)),
+            index = FakeMediaIndexRepository(
+                listOf(
+                    MediaIndexEntry(
+                        sourceId = 1L,
+                        path = "D:/Drama/庆余年/S01E01.mkv",
+                        animeName = "庆余年",
+                        seasonNumber = 1,
+                        episodeNumber = 1,
+                        metadataSource = "TVMaze",
+                        metadataId = "maze-321",
+                        metadataTitle = "庆余年 第一季",
+                    ),
+                ),
+            ),
+            metadataCache = FakeMetadataRepository(
+                metadataById = mapOf(
+                    dramaSeriesCacheKey("庆余年") to Anime(
+                        id = dramaSeriesCacheKey("庆余年"),
+                        title = "庆余年 第一季",
+                        titleCn = "Joy of Life",
+                        summary = "缓存简介",
+                        posterUrl = "poster-url",
+                        fanartUrl = "fanart-url",
+                        airDate = "2024-01-01",
+                        tmdbId = 88,
+                    ),
+                ),
+            ),
+        )
+
+        val detail = resolver.loadLocalSeriesDetails().single()
+
+        assertEquals("TVMaze", detail.series.boundMetadataProviderRef()?.source)
+        assertEquals("maze-321", detail.series.boundMetadataProviderRef()?.id)
+        assertNull(detail.series.tmdbId)
+        assertEquals("缓存简介", detail.series.summary)
+        assertEquals("poster-url", detail.series.posterUrl)
+        assertEquals("fanart-url", detail.series.fanartUrl)
+    }
+
+    @Test
     fun `loadSeriesDetail ignores unreasonable online metadata result`() = runBlocking {
         val dramaSource = MediaSourceInfoConventions.local(
             rootPath = "D:/Drama",
@@ -388,7 +477,7 @@ class LibraryDramaResolverTest {
         assertEquals("金庸武侠世界", detail?.series?.title)
         assertNull(detail?.series?.tmdbId)
         assertEquals(
-            "TMDB 返回结果和本地剧名差太大，已忽略这次自动匹配。",
+            "在线元数据返回结果和本地剧名差太大，已忽略这次自动匹配。",
             detail?.metadataMessage,
         )
     }
@@ -472,6 +561,7 @@ class LibraryDramaResolverTest {
         private var seriesOriginalTitle: String = ""
         val requestedIds = mutableListOf<Int>()
         val requestedTitles = mutableListOf<String>()
+        val requestedProviderRefs = mutableListOf<MetadataProviderRef>()
 
         override suspend fun fetchSeriesMetadata(
             title: String,
@@ -482,7 +572,29 @@ class LibraryDramaResolverTest {
             return Result.success(null)
         }
 
-        override suspend fun fetchSeriesMetadataById(
+        override suspend fun fetchSeriesMetadataByProviderRef(
+            providerRef: MetadataProviderRef,
+            seasonNumbers: List<Int>,
+        ): Result<DramaSeriesMetadata?> {
+            requestedProviderRefs += providerRef
+            val tmdbId = providerRef.id.toIntOrNull()
+                ?.takeIf { providerRef.source.equals("TMDB", ignoreCase = true) }
+            if (tmdbId != null) {
+                return fetchSeriesMetadataById(tmdbId, seasonNumbers)
+            }
+            return Result.success(
+                DramaSeriesMetadata(
+                    series = DramaSeries(
+                        id = "${providerRef.source.lowercase()}:${providerRef.id}",
+                        title = seriesTitle,
+                        originalTitle = seriesOriginalTitle,
+                        metadataProviderRef = providerRef,
+                    ),
+                ),
+            )
+        }
+
+        suspend fun fetchSeriesMetadataById(
             tmdbId: Int,
             seasonNumbers: List<Int>,
         ): Result<DramaSeriesMetadata?> {
@@ -494,6 +606,7 @@ class LibraryDramaResolverTest {
                         title = seriesTitle,
                         originalTitle = seriesOriginalTitle,
                         tmdbId = tmdbId,
+                        metadataProviderRef = MetadataProviderRef(source = "TMDB", id = tmdbId.toString()),
                     ),
                 ),
             )

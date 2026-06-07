@@ -8,15 +8,24 @@ import com.miruplay.tv.model.DramaMetadataSearchResult
 import com.miruplay.tv.model.DramaSeason
 import com.miruplay.tv.model.DramaSeries
 import com.miruplay.tv.model.DramaSeriesMetadata
+import com.miruplay.tv.model.MediaContentMode
+import com.miruplay.tv.model.MetadataProviderRef
+import com.miruplay.tv.model.MetadataSearchContext
+import com.miruplay.tv.model.MetadataSearchIntent
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.activeSeasonOrDefault
+import com.miruplay.tv.model.boundMetadataProviderRef
 import com.miruplay.tv.model.continueActionLabel
 import com.miruplay.tv.model.continueEpisodeProgress
 import com.miruplay.tv.model.displayTitle
+import com.miruplay.tv.model.providerDisplayLabel
+import com.miruplay.tv.model.providerStableKey
+import com.miruplay.tv.model.toDramaSearchResult
 import com.miruplay.tv.repository.LibraryDramaDetail
 import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.DramaMetadataRepository
+import com.miruplay.tv.repository.DramaMetadataSearchAggregator
 import com.miruplay.tv.repository.LibraryDramaResolver
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MediaIndexRepository
@@ -40,6 +49,7 @@ class DramaDetailViewModel @Inject constructor(
     metadataRepository: MetadataRepository,
     private val progressRepository: PlaybackProgressRepository,
     private val credentials: AppCredentialStore,
+    private val dramaSearchAggregator: DramaMetadataSearchAggregator,
 ) : ViewModel() {
     private val resolver = LibraryDramaResolver(
         mediaSources = mediaSources,
@@ -83,6 +93,9 @@ class DramaDetailViewModel @Inject constructor(
     private val _hasTmdbTokenConfigured = MutableStateFlow(false)
     val hasTmdbTokenConfigured: StateFlow<Boolean> = _hasTmdbTokenConfigured.asStateFlow()
 
+    private val _canRefreshBoundMetadata = MutableStateFlow(false)
+    val canRefreshBoundMetadata: StateFlow<Boolean> = _canRefreshBoundMetadata.asStateFlow()
+
     private val _manualMatch = MutableStateFlow(DramaManualMatchUiState())
     val manualMatch: StateFlow<DramaManualMatchUiState> = _manualMatch.asStateFlow()
 
@@ -107,7 +120,7 @@ class DramaDetailViewModel @Inject constructor(
                     includeOnlineMetadata = false,
                     surfacePassiveMetadataFailure = true,
                 )
-                if (currentSeriesId != seriesId || !isTmdbConfigured() || _series.value == null) {
+                if (currentSeriesId != seriesId || !canRefreshMetadataOnline(currentDetail) || _series.value == null) {
                     return@launch
                 }
                 _isRefreshingMetadata.value = true
@@ -191,12 +204,6 @@ class DramaDetailViewModel @Inject constructor(
 
     fun searchManualMatches() {
         val currentState = _manualMatch.value
-        if (!isTmdbConfigured()) {
-            _manualMatch.value = currentState.copy(
-                statusMessage = "还没配置 TMDB 令牌，暂时不能手动匹配。",
-            )
-            return
-        }
         val queries = manualMatchQueries(currentState)
         if (queries.isEmpty()) {
             _manualMatch.value = currentState.copy(
@@ -208,28 +215,39 @@ class DramaDetailViewModel @Inject constructor(
         viewModelScope.launch {
             _manualMatch.value = currentState.copy(
                 isSearching = true,
-                statusMessage = "正在搜索 TMDB，共 ${queries.size} 个关键词。",
+                statusMessage = "正在搜索在线候选，共 ${queries.size} 个关键词。",
             )
-            val seasonHint = _selectedSeason.value.takeIf { it > 0 }
-            val results = mutableListOf<DramaMetadataSearchResult>()
-            var lastErrorMessage: String? = null
-            for (query in queries) {
-                when (val result = dramaMetadataRepository.searchSeriesCandidates(query, seasonHint = seasonHint)) {
-                    is Result.Error -> lastErrorMessage = result.error.toUserMessage()
-                    is Result.Success -> results += result.data
-                }
-            }
-            val distinctResults = results
-                .distinctBy { it.tmdbId }
+            val currentSeries = _series.value
+            val currentEpisodes = currentDetail?.episodes.orEmpty()
+            val aggregated = dramaSearchAggregator.search(
+                MetadataSearchContext(
+                    contentMode = MediaContentMode.DRAMA,
+                    intent = MetadataSearchIntent.MANUAL_MATCH,
+                    title = currentSeries?.title.orEmpty(),
+                    localizedTitle = currentSeries?.displayTitle().orEmpty(),
+                    originalTitle = currentSeries?.originalTitle.orEmpty(),
+                    aliases = currentState.selectedCandidateTerms.toList(),
+                    filePathSamples = currentEpisodes.map(DramaEpisode::filePath),
+                    manualQuery = currentState.query,
+                    metadataTitle = currentSeries?.displayTitle(),
+                    boundProviderRef = currentSeries?.boundMetadataProviderRef(),
+                    seasonHint = _selectedSeason.value.takeIf { it > 0 },
+                    episodeCountHint = currentEpisodes.size.takeIf { it > 0 },
+                    seasonCountHint = _seasons.value.size.takeIf { it > 0 },
+                ),
+            )
+            val distinctResults = aggregated.candidates
+                .mapNotNull { it.toDramaSearchResult() }
+                .distinctBy(DramaMetadataSearchResult::providerStableKey)
                 .take(DRAMA_MANUAL_MATCH_RESULT_LIMIT)
             _manualMatch.value = _manualMatch.value.copy(
                 results = distinctResults,
                 selectedResult = distinctResults.firstOrNull(),
                 isSearching = false,
                 statusMessage = when {
-                    distinctResults.isNotEmpty() -> "找到 ${distinctResults.size} 个 TMDB 结果。"
-                    !lastErrorMessage.isNullOrBlank() -> lastErrorMessage
-                    else -> "没有找到更合适的 TMDB 结果。"
+                    distinctResults.isNotEmpty() -> "找到 ${distinctResults.size} 个聚合候选。"
+                    !canRefreshMetadataOnline(currentDetail) -> "没有找到更合适的在线候选；当前也没有可直接刷新的在线详情源。如果还没绑定在线来源，也可以配置 TMDB Token 来启用按标题直接刷新。"
+                    else -> "没有找到更合适的在线候选。"
                 },
             )
         }
@@ -240,7 +258,7 @@ class DramaDetailViewModel @Inject constructor(
         val selectedResult = _manualMatch.value.selectedResult
         if (selectedResult == null) {
             _manualMatch.value = _manualMatch.value.copy(
-                statusMessage = "先选中一个 TMDB 结果，再应用。",
+                statusMessage = "先选中一个在线结果，再应用。",
             )
             return
         }
@@ -256,8 +274,8 @@ class DramaDetailViewModel @Inject constructor(
             try {
                 val seasonNumbers = _seasons.value.map { it.seasonNumber }
                 when (
-                    val metadataResult = dramaMetadataRepository.fetchSeriesMetadataById(
-                        tmdbId = selectedResult.tmdbId,
+                    val metadataResult = dramaMetadataRepository.fetchSeriesMetadataByProviderRef(
+                        providerRef = selectedResult.providerRef,
                         seasonNumbers = seasonNumbers,
                     )
                 ) {
@@ -273,11 +291,12 @@ class DramaDetailViewModel @Inject constructor(
                     is Result.Success -> {
                         val metadata = metadataResult.data
                         if (metadata == null) {
+                            val message = "${selectedResult.providerDisplayLabel()} 当前没有返回可应用的详情，暂时不能应用。"
                             _manualMatch.value = _manualMatch.value.copy(
                                 isApplying = false,
-                                statusMessage = "TMDB 没返回详情，暂时不能应用。",
+                                statusMessage = message,
                             )
-                            _actionMessage.value = "TMDB 没返回详情，暂时不能应用。"
+                            _actionMessage.value = message
                             return@launch
                         }
                         val baseDetail = currentDetail ?: resolver.loadSeriesDetail(
@@ -302,7 +321,8 @@ class DramaDetailViewModel @Inject constructor(
                             detail = resolvedDetail,
                             showRefreshFeedback = true,
                             surfacePassiveMetadataFailure = false,
-                            tmdbConfigured = true,
+                            tmdbConfigured = isTmdbConfigured(),
+                            canRefreshMetadataOnline = canRefreshMetadataOnline(resolvedDetail),
                             persistMessage = persistMessage,
                             successMessageOverride = "已应用手动匹配，电视剧信息已更新。",
                         )
@@ -350,7 +370,8 @@ class DramaDetailViewModel @Inject constructor(
             seriesId = seriesId,
             includeOnlineMetadata = includeOnlineMetadata,
         )
-        val tmdbConfigured = credentials.tmdbAccessToken?.trim().isNullOrBlank().not()
+        val tmdbConfigured = isTmdbConfigured()
+        val canRefreshMetadataOnline = canRefreshMetadataOnline(detail)
         val persistMessage = persistResolvedMetadata(
             detail = detail,
             persistIndexEntries = showRefreshFeedback,
@@ -360,6 +381,7 @@ class DramaDetailViewModel @Inject constructor(
             showRefreshFeedback = showRefreshFeedback,
             surfacePassiveMetadataFailure = surfacePassiveMetadataFailure,
             tmdbConfigured = tmdbConfigured,
+            canRefreshMetadataOnline = canRefreshMetadataOnline,
             persistMessage = persistMessage,
         )
         _isLoading.value = false
@@ -379,11 +401,11 @@ class DramaDetailViewModel @Inject constructor(
         if (!persistIndexEntries) {
             return null
         }
-        val tmdbId = resolvedMetadata.series.tmdbId ?: return null
+        val providerRef = resolvedMetadata.series.boundMetadataProviderRef() ?: return null
         val updatedEntries = detail.indexEntries.map { entry ->
             entry.withResolvedDramaMetadata(
                 metadata = resolvedMetadata,
-                tmdbId = tmdbId,
+                providerRef = providerRef,
             )
         }
         for (entry in updatedEntries) {
@@ -400,6 +422,7 @@ class DramaDetailViewModel @Inject constructor(
         showRefreshFeedback: Boolean,
         surfacePassiveMetadataFailure: Boolean,
         tmdbConfigured: Boolean,
+        canRefreshMetadataOnline: Boolean,
         persistMessage: String?,
         successMessageOverride: String? = null,
     ) {
@@ -429,18 +452,31 @@ class DramaDetailViewModel @Inject constructor(
         val episodesForSeason = allEpisodesWithProgress.filter { it.first.seasonNumber == defaultSeason }
         _episodesWithProgress.value = episodesForSeason
         _hasTmdbTokenConfigured.value = tmdbConfigured
+        _canRefreshBoundMetadata.value = detail?.series
+            ?.boundMetadataProviderRef()
+            ?.let(dramaMetadataRepository::canFetchMetadataByProviderRef)
+            ?: false
         _actionMessage.value = when {
-            showRefreshFeedback && !tmdbConfigured ->
-                "还没配置 TMDB 令牌，暂时只能显示本地信息。"
             showRefreshFeedback && !metadataMessage.isNullOrBlank() -> "刷新电视剧信息失败：$metadataMessage"
+            showRefreshFeedback && !canRefreshMetadataOnline ->
+                "当前没有可直接刷新的在线详情源；在线手动匹配仍可继续使用。如果还没绑定在线来源，也可以配置 TMDB Token 来启用按标题直接刷新。"
             showRefreshFeedback && !persistMessage.isNullOrBlank() -> persistMessage
             showRefreshFeedback && !successMessageOverride.isNullOrBlank() -> successMessageOverride
-            showRefreshFeedback && detail?.series?.tmdbId != null -> "电视剧信息已刷新。"
+            showRefreshFeedback && detail?.resolvedMetadata != null -> "电视剧信息已刷新。"
             showRefreshFeedback -> "未获取到电视剧在线信息。"
             detail == null -> null
             episodesForSeason.isEmpty() -> "当前详情还没有可播放剧集。"
             surfacePassiveMetadataFailure && !metadataMessage.isNullOrBlank() -> metadataMessage
             else -> null
+        }
+    }
+
+    private fun canRefreshMetadataOnline(detail: LibraryDramaDetail?): Boolean {
+        val boundProviderRef = detail?.series?.boundMetadataProviderRef()
+        return when {
+            boundProviderRef != null && dramaMetadataRepository.canFetchMetadataByProviderRef(boundProviderRef) -> true
+            dramaMetadataRepository.canFetchSeriesMetadataByTitle() -> true
+            else -> false
         }
     }
 
@@ -502,7 +538,7 @@ private fun LibraryDramaDetail.withResolvedMetadata(
 
 private fun MediaIndexEntry.withResolvedDramaMetadata(
     metadata: com.miruplay.tv.model.DramaSeriesMetadata,
-    tmdbId: Int,
+    providerRef: MetadataProviderRef,
 ): MediaIndexEntry {
     val metadataEpisode = metadata.seasons
         .firstOrNull { it.seasonNumber == (seasonNumber ?: 1) }
@@ -511,8 +547,8 @@ private fun MediaIndexEntry.withResolvedDramaMetadata(
     return copy(
         episodeTitle = metadataEpisode?.title?.takeIf { it.isNotBlank() } ?: episodeTitle,
         plot = metadata.series.summary.takeIf { it.isNotBlank() } ?: plot,
-        metadataSource = "TMDB",
-        metadataId = tmdbId.toString(),
+        metadataSource = providerRef.source,
+        metadataId = providerRef.id,
         metadataTitle = metadata.series.displayTitle().ifBlank { metadataTitle },
         scrapeStatus = com.miruplay.tv.repository.MediaScrapeStatus.SCRAPED,
         scrapeMessage = null,

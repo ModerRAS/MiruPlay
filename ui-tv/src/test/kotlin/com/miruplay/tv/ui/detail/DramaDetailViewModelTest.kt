@@ -2,18 +2,27 @@ package com.miruplay.tv.ui.detail
 
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.model.AggregatedMetadataSearchResult
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.DramaEpisodeMetadata
 import com.miruplay.tv.model.DramaMetadataSearchResult
 import com.miruplay.tv.model.DramaSeries
+import com.miruplay.tv.model.boundMetadataProviderRef
 import com.miruplay.tv.model.DramaSeriesMetadata
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaContentMode
+import com.miruplay.tv.model.MetadataProviderRef
+import com.miruplay.tv.model.MetadataSearchContext
+import com.miruplay.tv.model.MetadataSearchProviderCandidate
+import com.miruplay.tv.model.MetadataSearchIntent
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.DramaMetadataRepository
+import com.miruplay.tv.repository.DramaMetadataSearchAggregator
+import com.miruplay.tv.repository.MetadataQueryPlanner
+import com.miruplay.tv.repository.MetadataSearchAggregationSupport
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MetadataRepository
@@ -82,6 +91,7 @@ class DramaDetailViewModelTest {
                 ),
             ),
             credentials = DetailFakeCredentialStore(),
+            dramaSearchAggregator = noOpDramaSearchAggregator,
         )
 
         viewModel.loadSeries("示例剧")
@@ -141,6 +151,7 @@ class DramaDetailViewModelTest {
             metadataRepository = DetailFakeMetadataRepository(),
             progressRepository = DetailFakePlaybackProgressRepository(),
             credentials = DetailFakeCredentialStore(tmdbAccessToken = "token-123"),
+            dramaSearchAggregator = noOpDramaSearchAggregator,
         )
 
         viewModel.loadSeries("示例剧")
@@ -185,6 +196,7 @@ class DramaDetailViewModelTest {
             metadataRepository = DetailFakeMetadataRepository(),
             progressRepository = DetailFakePlaybackProgressRepository(),
             credentials = DetailFakeCredentialStore(),
+            dramaSearchAggregator = noOpDramaSearchAggregator,
         )
 
         viewModel.loadSeries("示例剧")
@@ -217,6 +229,7 @@ class DramaDetailViewModelTest {
             metadataRepository = DetailFakeMetadataRepository(),
             progressRepository = DetailFakePlaybackProgressRepository(),
             credentials = DetailFakeCredentialStore(),
+            dramaSearchAggregator = noOpDramaSearchAggregator,
         )
 
         viewModel.loadSeries("示例剧")
@@ -237,6 +250,7 @@ class DramaDetailViewModelTest {
             metadataRepository = DetailFakeMetadataRepository(),
             progressRepository = DetailFakePlaybackProgressRepository(),
             credentials = DetailFakeCredentialStore(),
+            dramaSearchAggregator = noOpDramaSearchAggregator,
         )
 
         viewModel.loadSeries("missing")
@@ -307,6 +321,7 @@ class DramaDetailViewModelTest {
             metadataRepository = DetailFakeMetadataRepository(),
             progressRepository = DetailFakePlaybackProgressRepository(),
             credentials = DetailFakeCredentialStore(tmdbAccessToken = "token-123"),
+            dramaSearchAggregator = noOpDramaSearchAggregator,
         )
 
         viewModel.loadSeries("示例剧")
@@ -372,6 +387,7 @@ class DramaDetailViewModelTest {
             metadataRepository = cacheRepository,
             progressRepository = DetailFakePlaybackProgressRepository(),
             credentials = DetailFakeCredentialStore(tmdbAccessToken = "token-123"),
+            dramaSearchAggregator = noOpDramaSearchAggregator,
         )
 
         viewModel.loadSeries("庆余年")
@@ -411,6 +427,7 @@ class DramaDetailViewModelTest {
             metadataRepository = DetailFakeMetadataRepository(),
             progressRepository = DetailFakePlaybackProgressRepository(),
             credentials = DetailFakeCredentialStore(tmdbAccessToken = "token-123"),
+            dramaSearchAggregator = noOpDramaSearchAggregator,
         )
 
         viewModel.loadSeries("示例剧")
@@ -449,6 +466,7 @@ class DramaDetailViewModelTest {
             metadataRepository = DetailFakeMetadataRepository(),
             progressRepository = DetailFakePlaybackProgressRepository(),
             credentials = DetailFakeCredentialStore(),
+            dramaSearchAggregator = noOpDramaSearchAggregator,
         )
 
         viewModel.loadSeries("示例剧")
@@ -461,7 +479,7 @@ class DramaDetailViewModelTest {
     }
 
     @Test
-    fun `refreshSeries shows tmdb token guidance when token is missing`() = runTest {
+    fun `refreshSeries shows provider neutral guidance when no direct refresh source is available`() = runTest {
         val viewModel = DramaDetailViewModel(
             mediaSources = DetailFakeMediaSourceRepository(),
             mediaIndexRepository = DetailFakeMediaIndexRepository(
@@ -479,6 +497,7 @@ class DramaDetailViewModelTest {
             metadataRepository = DetailFakeMetadataRepository(),
             progressRepository = DetailFakePlaybackProgressRepository(),
             credentials = DetailFakeCredentialStore(tmdbAccessToken = null),
+            dramaSearchAggregator = noOpDramaSearchAggregator,
         )
 
         viewModel.loadSeries("示例剧")
@@ -486,7 +505,69 @@ class DramaDetailViewModelTest {
         viewModel.refreshSeries()
         advanceUntilIdle()
 
-        assertEquals("还没配置 TMDB 令牌，暂时只能显示本地信息。", viewModel.actionMessage.value)
+        assertEquals(
+            "当前没有可直接刷新的在线详情源；在线手动匹配仍可继续使用。如果还没绑定在线来源，也可以配置 TMDB Token 来启用按标题直接刷新。",
+            viewModel.actionMessage.value,
+        )
+    }
+
+    @Test
+    fun `loadSeries auto refreshes bound tvmaze metadata without tmdb token`() = runTest {
+        val providerRef = MetadataProviderRef(source = "TVMaze", id = "maze-321")
+        val metadataRepository = SearchableDramaMetadataRepository(
+            metadataByProviderRef = mapOf(
+                providerRef to Result.success(
+                    DramaSeriesMetadata(
+                        series = DramaSeries(
+                            id = "tvmaze:maze-321",
+                            title = "示例剧",
+                            summary = "TVMaze 在线简介",
+                            metadataProviderRef = providerRef,
+                        ),
+                        seasons = listOf(
+                            dramaSeasonMetadata(
+                                seasonNumber = 1,
+                                episodeTitles = listOf("TVMaze 在线标题"),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        val viewModel = DramaDetailViewModel(
+            mediaSources = DetailFakeMediaSourceRepository(),
+            mediaIndexRepository = DetailFakeMediaIndexRepository(
+                entries = listOf(
+                    MediaIndexEntry(
+                        sourceId = 9L,
+                        path = "/drama/series-1/s01e01.mkv",
+                        animeName = "示例剧",
+                        episodeTitle = "本地标题",
+                        plot = "本地简介",
+                        seasonNumber = 1,
+                        episodeNumber = 1,
+                        metadataSource = "TVMaze",
+                        metadataId = "maze-321",
+                        metadataTitle = "示例剧",
+                    ),
+                ),
+            ),
+            dramaMetadataRepository = metadataRepository,
+            metadataRepository = DetailFakeMetadataRepository(),
+            progressRepository = DetailFakePlaybackProgressRepository(),
+            credentials = DetailFakeCredentialStore(tmdbAccessToken = null),
+            dramaSearchAggregator = noOpDramaSearchAggregator,
+        )
+
+        viewModel.loadSeries("示例剧")
+        advanceUntilIdle()
+
+        assertEquals(listOf(providerRef), metadataRepository.requestedProviderRefs)
+        assertFalse(viewModel.hasTmdbTokenConfigured.value)
+        assertTrue(viewModel.canRefreshBoundMetadata.value)
+        assertEquals("TVMaze 在线简介", viewModel.series.value?.summary)
+        assertEquals("TVMaze 在线标题", viewModel.episodesWithProgress.value.single().first.title)
+        assertNull(viewModel.actionMessage.value)
     }
 
     @Test
@@ -523,6 +604,7 @@ class DramaDetailViewModelTest {
             metadataRepository = DetailFakeMetadataRepository(),
             progressRepository = DetailFakePlaybackProgressRepository(),
             credentials = DetailFakeCredentialStore(tmdbAccessToken = "token-123"),
+            dramaSearchAggregator = RepositoryBackedDramaSearchAggregator(metadataRepository),
         )
 
         viewModel.loadSeries("金庸武侠世界")
@@ -531,11 +613,117 @@ class DramaDetailViewModelTest {
         viewModel.searchManualMatches()
         advanceUntilIdle()
 
-        assertEquals(listOf("金庸武侠世界"), metadataRepository.requestedQueries)
+        assertTrue(metadataRepository.requestedQueries.contains("金庸武侠世界"))
         assertTrue(viewModel.manualMatch.value.isOpen)
         assertEquals(1, viewModel.manualMatch.value.results.size)
         assertEquals("金庸武侠世界", viewModel.manualMatch.value.selectedResult?.title)
-        assertEquals("找到 1 个 TMDB 结果。", viewModel.manualMatch.value.statusMessage)
+        assertEquals("找到 1 个聚合候选。", viewModel.manualMatch.value.statusMessage)
+    }
+
+    @Test
+    fun `manual match search still shows provider neutral results without tmdb token`() = runTest {
+        val metadataRepository = SearchableDramaMetadataRepository(
+            searchResultsByQuery = mapOf(
+                "金庸武侠世界" to Result.success(
+                    listOf(
+                        providerNeutralDramaMetadataSearchResult(
+                            source = "TVMaze",
+                            id = "maze-321",
+                            title = "金庸武侠世界",
+                            originalTitle = "The Legend of Heroes",
+                            summary = "在线简介",
+                        ),
+                    ),
+                ),
+            ),
+        )
+        val viewModel = DramaDetailViewModel(
+            mediaSources = DetailFakeMediaSourceRepository(),
+            mediaIndexRepository = DetailFakeMediaIndexRepository(
+                entries = listOf(
+                    detailEntry(
+                        animeName = "金庸武侠世界",
+                        seasonNumber = 1,
+                        episodeNumber = 1,
+                        filePath = "/drama/series-1/s01e01.mkv",
+                        fileName = "s01e01.mkv",
+                    ),
+                ),
+            ),
+            dramaMetadataRepository = metadataRepository,
+            metadataRepository = DetailFakeMetadataRepository(),
+            progressRepository = DetailFakePlaybackProgressRepository(),
+            credentials = DetailFakeCredentialStore(tmdbAccessToken = null),
+            dramaSearchAggregator = RepositoryBackedDramaSearchAggregator(metadataRepository),
+        )
+
+        viewModel.loadSeries("金庸武侠世界")
+        advanceUntilIdle()
+        viewModel.openManualMatch()
+        viewModel.searchManualMatches()
+        advanceUntilIdle()
+
+        assertTrue(metadataRepository.requestedQueries.contains("金庸武侠世界"))
+        assertEquals(1, viewModel.manualMatch.value.results.size)
+        assertEquals("TVMaze", viewModel.manualMatch.value.selectedResult?.providerRef?.source)
+        assertEquals(listOf("TVMaze"), viewModel.manualMatch.value.selectedResult?.sourceLabels)
+        assertEquals("找到 1 个聚合候选。", viewModel.manualMatch.value.statusMessage)
+    }
+
+    @Test
+    fun `manual match aggregated drama result does not hard prefer tmdb representative`() = runTest {
+        val metadataRepository = SearchableDramaMetadataRepository(
+            searchResultsByQuery = mapOf(
+                "金庸武侠世界" to Result.success(
+                    listOf(
+                        providerNeutralDramaMetadataSearchResult(
+                            source = "TMDB",
+                            id = "321",
+                            title = "The Legend of Heroes",
+                            originalTitle = "金庸武侠世界",
+                        ),
+                        providerNeutralDramaMetadataSearchResult(
+                            source = "TVMaze",
+                            id = "maze-321",
+                            title = "金庸武侠世界",
+                            originalTitle = "The Legend of Heroes",
+                            summary = "在线简介",
+                        ),
+                    ),
+                ),
+            ),
+        )
+        val viewModel = DramaDetailViewModel(
+            mediaSources = DetailFakeMediaSourceRepository(),
+            mediaIndexRepository = DetailFakeMediaIndexRepository(
+                entries = listOf(
+                    detailEntry(
+                        animeName = "金庸武侠世界",
+                        seasonNumber = 1,
+                        episodeNumber = 1,
+                        filePath = "/drama/series-1/s01e01.mkv",
+                        fileName = "s01e01.mkv",
+                    ),
+                ),
+            ),
+            dramaMetadataRepository = metadataRepository,
+            metadataRepository = DetailFakeMetadataRepository(),
+            progressRepository = DetailFakePlaybackProgressRepository(),
+            credentials = DetailFakeCredentialStore(tmdbAccessToken = null),
+            dramaSearchAggregator = RepositoryBackedDramaSearchAggregator(metadataRepository),
+        )
+
+        viewModel.loadSeries("金庸武侠世界")
+        advanceUntilIdle()
+        viewModel.openManualMatch()
+        viewModel.searchManualMatches()
+        advanceUntilIdle()
+
+        val selectedResult = viewModel.manualMatch.value.selectedResult
+        assertEquals(1, viewModel.manualMatch.value.results.size)
+        assertEquals("TVMaze", selectedResult?.providerRef?.source)
+        assertEquals(listOf("TMDB", "TVMaze"), selectedResult?.sourceLabels)
+        assertEquals("金庸武侠世界", selectedResult?.title)
     }
 
     @Test
@@ -553,6 +741,7 @@ class DramaDetailViewModelTest {
                             fanartUrl = "fanart-url",
                             firstAirDate = "2024-06-17",
                             tmdbId = 321,
+                            metadataProviderRef = MetadataProviderRef(source = "TMDB", id = "321"),
                         ),
                         seasons = listOf(
                             dramaSeasonMetadata(
@@ -583,6 +772,7 @@ class DramaDetailViewModelTest {
             metadataRepository = cacheRepository,
             progressRepository = DetailFakePlaybackProgressRepository(),
             credentials = DetailFakeCredentialStore(tmdbAccessToken = "token-123"),
+            dramaSearchAggregator = noOpDramaSearchAggregator,
         )
 
         viewModel.loadSeries("金庸武侠世界")
@@ -611,6 +801,93 @@ class DramaDetailViewModelTest {
         assertEquals("已应用手动匹配，电视剧信息已更新。", viewModel.actionMessage.value)
         assertEquals(321, viewModel.series.value?.tmdbId)
         assertFalse(viewModel.manualMatch.value.isOpen)
+    }
+
+    @Test
+    fun `applyManualMatch persists provider neutral metadata binding`() = runTest {
+        val providerRef = MetadataProviderRef(source = "TVMaze", id = "maze-321")
+        val metadataRepository = SearchableDramaMetadataRepository(
+            metadataByProviderRef = mapOf(
+                providerRef to Result.success(
+                    DramaSeriesMetadata(
+                        series = DramaSeries(
+                            id = "tvmaze:maze-321",
+                            title = "金庸武侠世界",
+                            originalTitle = "The Legend of Heroes",
+                            summary = "在线简介",
+                            posterUrl = "poster-url",
+                            fanartUrl = "fanart-url",
+                            firstAirDate = "2024-06-17",
+                            metadataProviderRef = providerRef,
+                        ),
+                        seasons = listOf(
+                            dramaSeasonMetadata(
+                                seasonNumber = 1,
+                                episodeTitles = listOf("在线标题"),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        val indexRepository = DetailFakeMediaIndexRepository(
+            entries = listOf(
+                detailEntry(
+                    animeName = "金庸武侠世界",
+                    seasonNumber = 1,
+                    episodeNumber = 1,
+                    filePath = "/drama/series-1/s01e01.mkv",
+                    fileName = "s01e01.mkv",
+                ),
+            ),
+        )
+        val cacheRepository = DetailFakeMetadataRepository(
+            initialMetadata = mapOf(
+                dramaSeriesCacheKey("金庸武侠世界") to Anime(
+                    id = dramaSeriesCacheKey("金庸武侠世界"),
+                    title = "旧缓存标题",
+                    titleCn = "Old Cached Title",
+                    summary = "旧缓存简介",
+                    tmdbId = 9,
+                ),
+            ),
+        )
+        val viewModel = DramaDetailViewModel(
+            mediaSources = DetailFakeMediaSourceRepository(),
+            mediaIndexRepository = indexRepository,
+            dramaMetadataRepository = metadataRepository,
+            metadataRepository = cacheRepository,
+            progressRepository = DetailFakePlaybackProgressRepository(),
+            credentials = DetailFakeCredentialStore(tmdbAccessToken = "token-123"),
+            dramaSearchAggregator = noOpDramaSearchAggregator,
+        )
+
+        viewModel.loadSeries("金庸武侠世界")
+        advanceUntilIdle()
+        viewModel.openManualMatch()
+        viewModel.selectManualMatchResult(
+            providerNeutralDramaMetadataSearchResult(
+                source = "TVMaze",
+                id = "maze-321",
+                title = "金庸武侠世界",
+                originalTitle = "The Legend of Heroes",
+            ),
+        )
+        viewModel.applyManualMatch()
+        advanceUntilIdle()
+
+        val cached = cacheRepository.storedMetadata[dramaSeriesCacheKey("金庸武侠世界")]
+        assertEquals(listOf(providerRef), metadataRepository.requestedProviderRefs)
+        assertEquals(1, indexRepository.upsertedEntries.size)
+        assertEquals("TVMaze", indexRepository.upsertedEntries.single().metadataSource)
+        assertEquals("maze-321", indexRepository.upsertedEntries.single().metadataId)
+        assertEquals("金庸武侠世界", indexRepository.upsertedEntries.single().metadataTitle)
+        assertEquals("在线标题", indexRepository.upsertedEntries.single().episodeTitle)
+        assertEquals("TVMaze", viewModel.series.value?.boundMetadataProviderRef()?.source)
+        assertEquals("maze-321", viewModel.series.value?.boundMetadataProviderRef()?.id)
+        assertNull(viewModel.series.value?.tmdbId)
+        assertNull(cached?.tmdbId)
+        assertEquals("已应用手动匹配，电视剧信息已更新。", viewModel.actionMessage.value)
     }
 
     @Test
@@ -668,6 +945,7 @@ class DramaDetailViewModelTest {
             metadataRepository = DetailFakeMetadataRepository(),
             progressRepository = DetailFakePlaybackProgressRepository(),
             credentials = DetailFakeCredentialStore(tmdbAccessToken = "token-123"),
+            dramaSearchAggregator = noOpDramaSearchAggregator,
         )
 
         viewModel.loadSeries("示例剧")
@@ -813,6 +1091,73 @@ private class DetailFakePlaybackProgressRepository(
     override suspend fun getContinueWatching(limit: Int): Result<List<ProgressRecord>> = Result.success(emptyList())
 }
 
+private val noOpDramaSearchAggregator = object : DramaMetadataSearchAggregator {
+    override suspend fun search(context: MetadataSearchContext): AggregatedMetadataSearchResult =
+        AggregatedMetadataSearchResult(
+            plan = MetadataQueryPlanner.plan(context),
+            candidates = emptyList(),
+        )
+}
+
+private class RepositoryBackedDramaSearchAggregator(
+    private val repository: SearchableDramaMetadataRepository,
+) : DramaMetadataSearchAggregator {
+    override suspend fun search(context: MetadataSearchContext): AggregatedMetadataSearchResult {
+        val plan = MetadataQueryPlanner.plan(context)
+        val rawCandidates = buildList {
+            plan.queryTexts.forEach { query ->
+                when (val result = repository.searchSeriesCandidates(query, seasonHint = plan.seasonHint)) {
+                    is Result.Error -> Unit
+                    is Result.Success -> {
+                        result.data.forEachIndexed { index, item ->
+                            add(
+                                MetadataSearchProviderCandidate(
+                                    providerRef = item.providerRef,
+                                    title = item.title,
+                                    localizedTitle = item.title,
+                                    originalTitle = item.originalTitle,
+                                    aliases = listOfNotNull(item.title, item.originalTitle.takeIf { it.isNotBlank() }).distinct(),
+                                    matchedQuery = query,
+                                    providerRank = index,
+                                    summary = item.summary,
+                                    posterUrl = item.posterUrl,
+                                    fanartUrl = item.fanartUrl,
+                                    firstAirDate = item.firstAirDate,
+                                ),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        return MetadataSearchAggregationSupport.aggregate(
+            context = context,
+            plan = plan,
+            candidates = rawCandidates,
+            providerPriorities = rawCandidates
+                .map { it.providerRef.source.lowercase() }
+                .distinct()
+                .associateWith { source -> if (source == "tmdb") 1.02f else 1.0f },
+        )
+    }
+}
+
+@OptIn(ExperimentalCoroutinesApi::class)
+private fun providerNeutralDramaMetadataSearchResult(
+    source: String,
+    id: String,
+    title: String,
+    originalTitle: String = "",
+    summary: String = "",
+): DramaMetadataSearchResult =
+    DramaMetadataSearchResult(
+        tmdbId = id.toIntOrNull()?.takeIf { source.equals("TMDB", ignoreCase = true) },
+        title = title,
+        originalTitle = originalTitle,
+        summary = summary,
+        providerRef = MetadataProviderRef(source = source, id = id),
+    )
+
 private class EmptyDramaMetadataRepository : DramaMetadataRepository {
     override suspend fun fetchSeriesMetadata(
         title: String,
@@ -824,6 +1169,8 @@ private class EmptyDramaMetadataRepository : DramaMetadataRepository {
 private class MutableDramaMetadataRepository(
     private val responses: MutableList<Result<DramaSeriesMetadata?>>,
 ) : DramaMetadataRepository {
+    override fun canFetchSeriesMetadataByTitle(): Boolean = true
+
     override suspend fun fetchSeriesMetadata(
         title: String,
         seasonHint: Int?,
@@ -838,6 +1185,8 @@ private class BlockingDramaMetadataRepository(
     private val refreshResponse: Result<DramaSeriesMetadata?>,
 ) : DramaMetadataRepository {
     private var requestCount = 0
+
+    override fun canFetchSeriesMetadataByTitle(): Boolean = true
 
     override suspend fun fetchSeriesMetadata(
         title: String,
@@ -857,6 +1206,8 @@ private class DeferredInitialDramaMetadataRepository(
     private val gate: CompletableDeferred<Unit>,
     private val response: Result<DramaSeriesMetadata?>,
 ) : DramaMetadataRepository {
+    override fun canFetchSeriesMetadataByTitle(): Boolean = true
+
     override suspend fun fetchSeriesMetadata(
         title: String,
         seasonHint: Int?,
@@ -870,9 +1221,18 @@ private class DeferredInitialDramaMetadataRepository(
 private class SearchableDramaMetadataRepository(
     private val searchResultsByQuery: Map<String, Result<List<DramaMetadataSearchResult>>> = emptyMap(),
     private val metadataById: Map<Int, Result<DramaSeriesMetadata?>> = emptyMap(),
+    private val metadataByProviderRef: Map<MetadataProviderRef, Result<DramaSeriesMetadata?>> = emptyMap(),
 ) : DramaMetadataRepository {
     val requestedQueries = mutableListOf<String>()
     val requestedIds = mutableListOf<Int>()
+    val requestedProviderRefs = mutableListOf<MetadataProviderRef>()
+
+    override fun canFetchMetadataByProviderRef(
+        providerRef: MetadataProviderRef,
+    ): Boolean = when {
+        providerRef.source.equals("TMDB", ignoreCase = true) -> providerRef.id.toIntOrNull() in metadataById
+        else -> metadataByProviderRef.containsKey(providerRef)
+    }
 
     override suspend fun fetchSeriesMetadata(
         title: String,
@@ -880,7 +1240,21 @@ private class SearchableDramaMetadataRepository(
         seasonNumbers: List<Int>,
     ): Result<DramaSeriesMetadata?> = Result.success(null)
 
-    override suspend fun fetchSeriesMetadataById(
+    override suspend fun fetchSeriesMetadataByProviderRef(
+        providerRef: MetadataProviderRef,
+        seasonNumbers: List<Int>,
+    ): Result<DramaSeriesMetadata?> {
+        requestedProviderRefs += providerRef
+        if (providerRef.source.equals("TMDB", ignoreCase = true)) {
+            val tmdbId = providerRef.id.toIntOrNull()
+            if (tmdbId != null) {
+                return fetchSeriesMetadataById(tmdbId, seasonNumbers)
+            }
+        }
+        return metadataByProviderRef[providerRef] ?: Result.success(null)
+    }
+
+    suspend fun fetchSeriesMetadataById(
         tmdbId: Int,
         seasonNumbers: List<Int>,
     ): Result<DramaSeriesMetadata?> {

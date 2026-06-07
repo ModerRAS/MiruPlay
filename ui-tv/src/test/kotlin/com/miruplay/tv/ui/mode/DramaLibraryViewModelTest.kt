@@ -7,6 +7,7 @@ import com.miruplay.tv.model.DramaEpisodeMetadata
 import com.miruplay.tv.model.DramaSeries
 import com.miruplay.tv.model.DramaSeriesMetadata
 import com.miruplay.tv.model.Episode
+import com.miruplay.tv.model.boundMetadataProviderRef
 import com.miruplay.tv.model.MediaContentMode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
@@ -35,6 +36,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -332,6 +334,68 @@ class DramaLibraryViewModelTest {
         assertEquals("fanart-url", series.fanartUrl)
         assertEquals("2024-01-01", series.firstAirDate)
         assertEquals(202, series.tmdbId)
+    }
+
+    @Test
+    fun `refresh keeps explicit tvmaze binding over stale cached tmdb id`() = runTest {
+        val viewModel = DramaLibraryViewModel(
+            mediaSources = FakeMediaSourceRepository(
+                sources = listOf(
+                    MediaSourceInfo(
+                        id = 9L,
+                        name = "Drama Source",
+                        type = MediaSourceType.LOCAL,
+                        contentMode = MediaContentMode.DRAMA,
+                        connectionInfo = mapOf("path" to "/drama"),
+                    ),
+                ),
+            ),
+            mediaIndexRepository = FakeMediaIndexRepository(
+                entriesBySourceId = mapOf(
+                    9L to listOf(
+                        mediaIndexEntry(
+                            sourceId = 9L,
+                            animeName = "庆余年",
+                            episodeNumber = 1,
+                            seasonNumber = 1,
+                            filePath = "/drama/demo/s01e01.mkv",
+                            fileName = "demo-s01e01.mkv",
+                            metadataSource = "TVMaze",
+                            metadataId = "maze-321",
+                            metadataTitle = "庆余年 第一季",
+                        ),
+                    ),
+                ),
+            ),
+            dramaMetadataRepository = TrackingDramaMetadataRepository(),
+            metadataRepository = FakeMetadataRepository(
+                initialMetadata = mapOf(
+                    dramaSeriesCacheKey("庆余年") to Anime(
+                        id = dramaSeriesCacheKey("庆余年"),
+                        title = "庆余年 第一季",
+                        titleCn = "Joy of Life",
+                        summary = "缓存后的简介",
+                        posterUrl = "poster-url",
+                        fanartUrl = "fanart-url",
+                        airDate = "2024-01-01",
+                        tmdbId = 202,
+                    ),
+                ),
+            ),
+            progressRepository = FakePlaybackProgressRepository(),
+            libraryScanController = FakeLibraryScanController(),
+            scanPreferences = FakeScanPreferencesRepository(),
+        )
+        advanceUntilIdle()
+
+        val state = viewModel.state.value as DramaLibraryUiState.Ready
+        val series = state.series.single()
+        assertEquals("TVMaze", series.boundMetadataProviderRef()?.source)
+        assertEquals("maze-321", series.boundMetadataProviderRef()?.id)
+        assertNull(series.tmdbId)
+        assertEquals("缓存后的简介", series.summary)
+        assertEquals("poster-url", series.posterUrl)
+        assertEquals("fanart-url", series.fanartUrl)
     }
 
     @Test
@@ -808,7 +872,7 @@ private class TrackingDramaMetadataRepository(
         return metadataByTitle[title] ?: Result.success(null)
     }
 
-    override suspend fun fetchSeriesMetadataById(
+    suspend fun fetchSeriesMetadataById(
         tmdbId: Int,
         seasonNumbers: List<Int>,
     ): Result<DramaSeriesMetadata?> {

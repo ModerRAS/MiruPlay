@@ -14,6 +14,9 @@ data class DramaSeries(
     val fanartUrl: String? = null,
     val firstAirDate: String? = null,
     val tmdbId: Int? = null,
+    val metadataProviderRef: MetadataProviderRef? = tmdbId?.let {
+        MetadataProviderRef(source = "TMDB", id = it.toString())
+    },
 )
 
 @Serializable
@@ -24,14 +27,25 @@ data class DramaSeriesMetadata(
 
 @Serializable
 data class DramaMetadataSearchResult(
-    val tmdbId: Int,
+    val tmdbId: Int? = null,
     val title: String,
     val originalTitle: String = "",
     val summary: String = "",
     val firstAirDate: String? = null,
     val posterUrl: String? = null,
     val fanartUrl: String? = null,
-)
+    val providerRef: MetadataProviderRef = MetadataProviderRef(
+        source = "TMDB",
+        id = tmdbId?.toString().orEmpty(),
+    ),
+    val sourceLabels: List<String> = listOf(providerRef.source).filter { it.isNotBlank() }.distinct(),
+) {
+    init {
+        require(providerRef.id.isNotBlank() || tmdbId != null) {
+            "DramaMetadataSearchResult requires either providerRef.id or tmdbId"
+        }
+    }
+}
 
 @Serializable
 data class DramaSeason(
@@ -69,8 +83,55 @@ data class DramaEpisodeMetadata(
 fun DramaSeries.displayTitle(): String =
     title.ifBlank { originalTitle }.ifBlank { id }
 
+fun MetadataProviderRef.tmdbCompatibilityId(): Int? =
+    id.toIntOrNull()?.takeIf { source.equals("TMDB", ignoreCase = true) }
+
+fun DramaSeries.tmdbCompatibilityId(): Int? =
+    metadataProviderRef?.tmdbCompatibilityId()
+        ?: tmdbId?.takeIf { metadataProviderRef?.id.isNullOrBlank() }
+
+fun DramaSeries.withoutMetadataBinding(): DramaSeries =
+    copy(
+        tmdbId = null,
+        metadataProviderRef = null,
+    )
+
+fun DramaSeries.normalizedMetadataBinding(): DramaSeries {
+    val normalizedProviderRef = metadataProviderRef
+        ?.takeIf { it.id.isNotBlank() }
+        ?: tmdbCompatibilityId()?.let { MetadataProviderRef(source = "TMDB", id = it.toString()) }
+    val normalizedTmdbId = normalizedProviderRef?.tmdbCompatibilityId()
+        ?: tmdbId?.takeIf { normalizedProviderRef == null }
+    return if (normalizedProviderRef == metadataProviderRef && normalizedTmdbId == tmdbId) {
+        this
+    } else {
+        copy(
+            tmdbId = normalizedTmdbId,
+            metadataProviderRef = normalizedProviderRef,
+        )
+    }
+}
+
+fun DramaSeries.boundMetadataProviderRef(): MetadataProviderRef? =
+    metadataProviderRef?.takeIf { it.id.isNotBlank() }
+        ?: tmdbCompatibilityId()?.let { MetadataProviderRef(source = "TMDB", id = it.toString()) }
+
 fun DramaMetadataSearchResult.displayTitle(): String =
-    title.ifBlank { originalTitle }.ifBlank { tmdbId.toString() }
+    title.ifBlank { originalTitle }.ifBlank { providerRef.id }
+
+fun DramaMetadataSearchResult.providerStableKey(): String =
+    "${providerRef.source.lowercase()}:${providerRef.id}"
+
+fun DramaMetadataSearchResult.providerDisplayLabel(): String =
+    providerRef.source.ifBlank { "Metadata" }
+
+fun DramaMetadataSearchResult.aggregatedSourceLabel(): String =
+    sourceLabels
+        .map(String::trim)
+        .filter(String::isNotBlank)
+        .distinct()
+        .joinToString(" / ")
+        .ifBlank { providerDisplayLabel() }
 
 fun DramaSeries.dramaPosterSubtitle(): String =
     buildList {
@@ -94,13 +155,22 @@ fun dramaRefreshActionLabel(isRefreshing: Boolean): String =
     if (isRefreshing) "刷新中" else "刷新信息"
 
 fun dramaMetadataStatusMessage(
-    hasTmdbMatch: Boolean,
+    hasBoundMetadata: Boolean,
     hasTmdbToken: Boolean,
     isRefreshing: Boolean,
+    boundProviderLabel: String? = null,
+    canRefreshBoundMetadata: Boolean = false,
 ): String =
     when {
         isRefreshing -> "正在刷新在线信息，当前页面会继续保留本地剧集列表。"
-        hasTmdbMatch -> "已记住 TMDB 条目，后续刷新会优先按已保存编号更新。"
-        hasTmdbToken -> "当前先显示本地索引结果，点“刷新信息”可补全海报、简介和单集标题。"
-        else -> "当前只显示本地索引结果。先在设置里填 TMDB 令牌，再点“刷新信息”补全海报、简介和单集标题。"
+        hasBoundMetadata -> {
+            val providerLabel = boundProviderLabel?.takeIf { it.isNotBlank() } ?: "在线"
+            if (canRefreshBoundMetadata || boundProviderLabel.equals("TMDB", ignoreCase = true)) {
+                "已记住 $providerLabel 元数据条目，后续刷新会优先按已保存来源更新。"
+            } else {
+                "已记住 $providerLabel 元数据条目；当前自动详情补全仍优先使用已支持的详情源。"
+            }
+        }
+        hasTmdbToken -> "当前先显示本地索引结果。若还没绑定在线来源，可用“刷新信息”按标题走 TMDB 补全海报、简介和单集标题。"
+        else -> "当前只显示本地索引结果。现在可以先用“在线手动匹配”搜索多源候选；如果还没绑定可直刷的在线来源，也可以在设置里配置 TMDB Token 来启用按标题直接刷新。"
     }

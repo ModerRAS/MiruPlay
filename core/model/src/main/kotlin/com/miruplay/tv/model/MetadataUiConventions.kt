@@ -4,7 +4,7 @@ const val BANGUMI_BATCH_MATCH_LIMIT = 4
 const val BANGUMI_CANDIDATE_LIMIT = 4
 const val BANGUMI_RESULT_LIMIT = 6
 
-fun metadataPanelTitleLabel(): String = "Bangumi / TMDB 元数据"
+fun metadataPanelTitleLabel(): String = "外部元数据"
 
 fun metadataQueryFieldLabel(): String = "Bangumi 搜索词"
 

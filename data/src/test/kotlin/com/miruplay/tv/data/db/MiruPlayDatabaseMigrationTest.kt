@@ -103,6 +103,18 @@ class MiruPlayDatabaseMigrationTest {
             database.sql
         )
     }
+
+    @Test
+    fun `migration 6 to 7 creates drama series cache and backfills legacy drama rows`() {
+        val database = RecordingSupportSQLiteDatabase()
+
+        MiruPlayDatabase.MIGRATION_6_7.migrate(database.proxy)
+
+        val normalizedSql = database.sql.map { it.replace(Regex("\\s+"), " ").trim() }
+        assertTrue(normalizedSql.any { it.startsWith("CREATE TABLE IF NOT EXISTS drama_series_cache") })
+        assertTrue(normalizedSql.any { it.contains("INSERT OR REPLACE INTO drama_series_cache") })
+        assertTrue(normalizedSql.any { it.contains("FROM anime") && it.contains("WHERE id LIKE 'drama-series:%'") })
+    }
 }
 
 private class RecordingSupportSQLiteDatabase : InvocationHandler {
