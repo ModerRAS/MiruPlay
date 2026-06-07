@@ -70,6 +70,52 @@ class WebDavMediaSourceTest {
     }
 
     @Test
+    fun `listFiles encodes raw unicode webdav root before issuing propfind`() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(
+                MockResponse()
+                    .setResponseCode(207)
+                    .setHeader("Content-Type", "application/xml")
+                    .setBody(
+                        """
+                        <?xml version="1.0" encoding="utf-8" ?>
+                        <D:multistatus xmlns:D="DAV:">
+                            <D:response>
+                                <D:href>/dav/%E5%BD%B1%E9%9F%B3/%E7%94%B5%E8%A7%86%E5%89%A7/</D:href>
+                                <D:propstat>
+                                    <D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop>
+                                </D:propstat>
+                            </D:response>
+                            <D:response>
+                                <D:href>/dav/%E5%BD%B1%E9%9F%B3/%E7%94%B5%E8%A7%86%E5%89%A7/%E5%8C%BB%E9%A6%86%E7%AC%91%E4%BC%A0/</D:href>
+                                <D:propstat>
+                                    <D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop>
+                                </D:propstat>
+                            </D:response>
+                        </D:multistatus>
+                        """.trimIndent()
+                    )
+            )
+            val rootUrl = server.url("/").toString().trimEnd('/') + "/dav/影音/电视剧"
+            val source = WebDavMediaSource(
+                MediaSourceInfo(
+                    name = "WebDAV",
+                    type = MediaSourceType.WEBDAV,
+                    connectionInfo = mapOf("url" to rootUrl)
+                )
+            )
+
+            val result = source.listFiles("")
+
+            assertTrue(result is Result.Success)
+            val request = server.takeRequest()
+            assertEquals("PROPFIND", request.method)
+            assertEquals("/dav/%E5%BD%B1%E9%9F%B3/%E7%94%B5%E8%A7%86%E5%89%A7/", request.path)
+            assertEquals("/医馆笑传", result.getOrNull()!!.single().path)
+        }
+    }
+
+    @Test
     fun `parsePropfindResponse skips current directory and preserves child names`() {
         val source = WebDavMediaSource(
             MediaSourceInfo(

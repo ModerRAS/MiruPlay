@@ -84,6 +84,47 @@ class LaunchTestSourceContentModeTest {
     }
 
     @Test
+    fun `tmdb override snapshot keeps presence flags for blank extras`() {
+        val overrides = resolveLaunchTestTmdbOverrides(
+            rawToken = "   ",
+            rawBaseUrlOverride = null,
+            hasTokenExtra = true,
+            hasBaseUrlExtra = false,
+        )
+
+        assertTrue(overrides.hasTokenExtra)
+        assertFalse(overrides.hasBaseUrlExtra)
+        assertNull(overrides.token)
+        assertNull(overrides.baseUrlOverride)
+    }
+
+    @Test
+    fun `launch intent snapshot detects tmdb-only test data`() {
+        val snapshot = LaunchIntentSnapshot(
+            legacyLocalPath = null,
+            legacyLocalName = null,
+            rawType = null,
+            rawLocation = null,
+            rawName = null,
+            rawDisplayName = null,
+            rawUsername = null,
+            rawPassword = null,
+            rawContentMode = null,
+            disableOnlineMetadata = false,
+            scanAfterAdd = false,
+            tmdbOverrides = LaunchTestTmdbOverrides(
+                token = "token-123",
+                baseUrlOverride = null,
+                hasTokenExtra = true,
+                hasBaseUrlExtra = false,
+            ),
+        )
+
+        assertFalse(snapshot.hasTestSourceIntent())
+        assertTrue(snapshot.hasAnyLaunchTestData())
+    }
+
+    @Test
     fun `launch test source intent detects legacy local path`() {
         assertTrue(hasLaunchTestSourceIntent("/sdcard/Shows", null))
     }

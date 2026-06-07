@@ -10,6 +10,8 @@ import com.miruplay.tv.model.PlaybackProgressSession
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.PlaybackState
 import com.miruplay.tv.model.PlaybackTimingConventions
+import com.miruplay.tv.model.displayTitle
+import com.miruplay.tv.model.playbackDisplayTitle
 import com.miruplay.tv.player.AudioTrack
 import com.miruplay.tv.player.PlaybackController
 import com.miruplay.tv.model.SubtitleTrack
@@ -72,6 +74,12 @@ class PlayerViewModel @Inject constructor(
     private val _activePlaybackSource = MutableStateFlow<PlaybackSource?>(null)
     val activePlaybackSource: StateFlow<PlaybackSource?> = _activePlaybackSource.asStateFlow()
 
+    private val _displayTitle = MutableStateFlow("")
+    val displayTitle: StateFlow<String> = _displayTitle.asStateFlow()
+
+    private val _displaySubtitle = MutableStateFlow("")
+    val displaySubtitle: StateFlow<String> = _displaySubtitle.asStateFlow()
+
     private val _finishEvents = MutableSharedFlow<PlaybackFinishEvent>(extraBufferCapacity = 1)
     val finishEvents: SharedFlow<PlaybackFinishEvent> = _finishEvents.asSharedFlow()
 
@@ -81,6 +89,7 @@ class PlayerViewModel @Inject constructor(
     private var progressSaveJob: Job? = null
     private var positionPollJob: Job? = null
     private var finishObserverJob: Job? = null
+    private var presentationJob: Job? = null
     private var activeSource: PlaybackSource? = null
     private var pendingSeekPositionMs: Long? = null
     private val nextPlaybackSourceResolver = NextPlaybackSourceResolver(
@@ -96,6 +105,7 @@ class PlayerViewModel @Inject constructor(
             _currentPosition.value = source.startPosition.coerceAtLeast(0L)
             activeSource = source
             _activePlaybackSource.value = source
+            startPresentationResolution(source)
             playbackController.play(source).also {
                 _duration.value = playbackController.getDuration()
                 refreshTracks()
@@ -308,6 +318,24 @@ class PlayerViewModel @Inject constructor(
         return nextPlaybackSourceResolver.build(source)
     }
 
+    private fun startPresentationResolution(source: PlaybackSource) {
+        presentationJob?.cancel()
+        _displayTitle.value = source.displayTitle()
+        _displaySubtitle.value = source.mediaSourceId
+        presentationJob = viewModelScope.launch {
+            val episodeId = source.episodeId ?: return@launch
+            val episode = metadataRepository.getCachedEpisode(episodeId).getOrNull() ?: return@launch
+            if (activeSource != source) return@launch
+
+            _displayTitle.value = episode.playbackDisplayTitle()
+            _displaySubtitle.value = metadataRepository.getCachedMetadata(episode.animeId)
+                .getOrNull()
+                ?.displayTitle()
+                ?.takeIf { it.isNotBlank() }
+                ?: source.mediaSourceId.ifBlank { episode.animeId }
+        }
+    }
+
     private fun extractEpisodeId(uri: String): String {
         return uri.substringAfterLast("/").substringBeforeLast(".")
     }
@@ -316,10 +344,13 @@ class PlayerViewModel @Inject constructor(
         positionPollJob?.cancel()
         progressSaveJob?.cancel()
         finishObserverJob?.cancel()
+        presentationJob?.cancel()
         pendingSeekPositionMs = null
         playbackController.stop()
         activeSource = null
         _activePlaybackSource.value = null
+        _displayTitle.value = ""
+        _displaySubtitle.value = ""
         _currentPosition.value = 0L
         _duration.value = 0L
         _availableSubtitles.value = emptyList()
@@ -330,6 +361,7 @@ class PlayerViewModel @Inject constructor(
         positionPollJob?.cancel()
         progressSaveJob?.cancel()
         finishObserverJob?.cancel()
+        presentationJob?.cancel()
         val controller = playbackController
         CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate).launch {
             controller.stop()

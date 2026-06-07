@@ -68,6 +68,13 @@ class VideoDirectoryClassifierTest {
     }
 
     @Test
+    fun `should extract season from dotted s folder suffix`() {
+        val result = splitSeriesAndSeason("医馆笑传.S01")
+        assertEquals("医馆笑传", result.seriesName)
+        assertEquals(1, result.seasonNumber)
+    }
+
+    @Test
     fun `should not false-match 第二 that is not a season marker`() {
         val result = splitSeriesAndSeason("我和班上第二可愛的女生成為朋友")
         assertNull(result.seasonNumber)
@@ -202,6 +209,32 @@ class VideoDirectoryClassifierTest {
     }
 
     @Test
+    fun `keeps release episode when path parser mistakes dotted season folder for episode one`() {
+        val classifier = VideoDirectoryClassifier(
+            episodeDetector = DefaultEpisodeDetector(),
+            filenameMetadataParser = MappingFilenameParser(
+                mapOf(
+                    "/医馆笑传/医馆笑传.S01/医馆笑传.S01E02.mp4" to FilenameParseResult(
+                        title = "医馆笑传.S01",
+                        episode = 1
+                    )
+                )
+            )
+        )
+
+        val result = classifier.classifyVideo(
+            path = "/医馆笑传/医馆笑传.S01/医馆笑传.S01E02.mp4",
+            fileName = "医馆笑传.S01E02.mp4",
+            rootContext = "医馆笑传"
+        )
+
+        assertEquals("医馆笑传", result.animeName)
+        assertEquals(1, result.seasonNumber)
+        assertEquals(2, result.episodeNumber)
+        assertEquals("医馆笑传.S01", result.diagnostics.pathParsed?.title)
+    }
+
+    @Test
     fun `combines folder parser title and filename parser episode`() {
         val classifier = VideoDirectoryClassifier(
             episodeDetector = DefaultEpisodeDetector(),
@@ -277,6 +310,52 @@ class VideoDirectoryClassifierTest {
         assertEquals(2, result.seasonNumber)
         assertEquals(3, result.episodeNumber)
         assertTrue(result.titleCandidates.contains("Frieren"))
+    }
+
+    @Test
+    fun `ignores drama root and promo folders when path parser leaks full remote path`() {
+        val classifier = VideoDirectoryClassifier(
+            episodeDetector = DefaultEpisodeDetector(),
+            filenameMetadataParser = StaticFilenameParser(
+                FilenameParseResult(
+                    title = "/dav/115open/影音/电视剧/白日提灯/[片头尾]/片头《初醒》",
+                )
+            )
+        )
+
+        val result = classifier.classifyVideo(
+            path = "/白日提灯/[片头尾]/片头《初醒》.mp4",
+            fileName = "片头《初醒》.mp4",
+            rootContext = "电视剧"
+        )
+
+        assertEquals("白日提灯", result.animeName)
+        assertEquals("白日提灯", result.diagnostics.pathParsed?.title)
+    }
+
+    @Test
+    fun `collapses simple drama root prefix from path parser before final title selection`() {
+        val classifier = VideoDirectoryClassifier(
+            episodeDetector = DefaultEpisodeDetector(),
+            filenameMetadataParser = MappingFilenameParser(
+                mapOf(
+                    "电视剧/逐玉/06.mkv" to FilenameParseResult(
+                        title = "电视剧/逐玉",
+                        episode = 6,
+                    )
+                )
+            )
+        )
+
+        val result = classifier.classifyVideo(
+            path = "/逐玉/06.mkv",
+            fileName = "06.mkv",
+            rootContext = "电视剧",
+        )
+
+        assertEquals("逐玉", result.animeName)
+        assertTrue(result.titleCandidates.contains("逐玉"))
+        assertTrue(result.titleCandidates.none { it.contains("电视剧/逐玉") })
     }
 
     private class StaticFilenameParser(

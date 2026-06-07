@@ -95,7 +95,7 @@ class PlaybackHttpRequestResolverTest {
     }
 
     @Test
-    fun `configFor leaves public WebDAV source without authorization`() = runBlocking {
+    fun `configFor uses anonymous WebDAV authorization when username is blank`() = runBlocking {
         val resolver = PlaybackHttpRequestResolver(
             FakeMediaSourceRepository(
                 listOf(
@@ -114,7 +114,10 @@ class PlaybackHttpRequestResolverTest {
             ),
         )
 
-        assertFalse("Authorization" in config.headersFor("http://127.0.0.1:19798/dav/Show/Episode%2001.mkv"))
+        assertEquals(
+            "Basic YW5vbnltb3VzOg==",
+            config.headersFor("http://127.0.0.1:19798/dav/Show/Episode%2001.mkv")["Authorization"],
+        )
     }
 
     private class FakeMediaSourceRepository(

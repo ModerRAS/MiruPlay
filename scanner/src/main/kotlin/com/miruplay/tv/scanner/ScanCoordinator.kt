@@ -1,5 +1,6 @@
 package com.miruplay.tv.scanner
 
+import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.core.common.logging.PerformanceLog
@@ -11,6 +12,7 @@ import com.miruplay.tv.metadata.XmlNfoParser
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.FilenameMetadataParser
+import com.miruplay.tv.model.MediaContentMode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.MediaFileConventions
@@ -110,6 +112,7 @@ class ScanCoordinator @Inject constructor(
         val scanStartPath = if (isLocalSource) rootPath else ""
         val remoteRootContext = if (isLocalSource) null else remoteRootContextName(rootPath)
         val disableOnlineMetadata = sourceInfo.connectionInfo["disableOnlineMetadata"]?.equals("true", ignoreCase = true) == true
+        val isDramaSource = sourceInfo.contentMode == MediaContentMode.DRAMA
         val scanStartedAtMs = System.currentTimeMillis()
         val scanSessionId = "$sourceId-$scanStartedAtMs"
 
@@ -134,6 +137,7 @@ class ScanCoordinator @Inject constructor(
                 "source_id" to sourceId.toString(),
                 "source_name" to sourceInfo.name,
                 "source_type" to sourceInfo.type.name,
+                "content_mode" to sourceInfo.contentMode.name,
                 "root_path_tail" to pathTailForLog(rootPath),
                 "root_path_hash" to hashForLog(rootPath),
                 "scan_start_path_tail" to pathTailForLog(scanStartPath),
@@ -161,7 +165,7 @@ class ScanCoordinator @Inject constructor(
         var noMatchFiles = 0
         val traversalDiagnostics = ScanTraversalDiagnostics(scanSessionId = scanSessionId)
 
-        traverseAndProcess(
+        val rootTraversalError = traverseAndProcess(
             ms = ms,
             path = scanStartPath,
             sourceId = sourceId,
@@ -179,6 +183,10 @@ class ScanCoordinator @Inject constructor(
             scanSessionId = scanSessionId,
             diagnostics = traversalDiagnostics,
         )
+        if (rootTraversalError != null) {
+            flushPendingProgress(traversalDiagnostics)
+            return@withContext Result.failure(rootTraversalError)
+        }
         flushPendingProgress(traversalDiagnostics)
         MiruLog.i(
             tag = TAG,
@@ -202,7 +210,7 @@ class ScanCoordinator @Inject constructor(
             val updatedIndexEntities = mutableListOf<MediaIndexEntry>()
             updatedIndexEntities += indexEntities.filter { it.isDirectory }
 
-            // Also cache episodes in the episode table so AnimeDetailViewModel can read them
+            // Cache episodes for playback/detail flows after the index rebuild completes.
             val episodesByAnime = indexEntities
                 .filter { !it.isDirectory }
                 .groupBy { it.animeName ?: "Unknown" }
@@ -235,6 +243,8 @@ class ScanCoordinator @Inject constructor(
                         scrapeStatus = MediaScrapeStatus.PENDING,
                         scrapeMessage = "Online metadata disabled for source",
                     )
+                } else if (isDramaSource) {
+                    deferredDramaMetadata(episodes)
                 } else {
                     reusableCachedMetadata(
                         animeName = animeName,
@@ -255,6 +265,7 @@ class ScanCoordinator @Inject constructor(
                         "source_id" to sourceId.toString(),
                         "source_name" to sourceInfo.name,
                         "source_type" to sourceInfo.type.name,
+                        "content_mode" to sourceInfo.contentMode.name,
                         "anime_name" to normalizeForLog(animeName, 120),
                         "episode_count" to episodes.size.toString(),
                         "episode_enriched_count" to online.episodes.size.toString(),
@@ -295,9 +306,13 @@ class ScanCoordinator @Inject constructor(
                 }
                 metadataRepository.cacheEpisodes(animeName, online.episodes)
 
-                // Update or create anime metadata with episode count
                 var animeForNfo: Anime? = null
-                if (online.anime != null) {
+                if (isDramaSource) {
+                    animeForNfo = createGeneratedLocalMetadata(
+                        title = animeName,
+                        episodeCount = episodes.size,
+                    )
+                } else if (online.anime != null) {
                     metadataRepository.cacheMetadata(online.anime)
                     animeForNfo = online.anime
                 } else {
@@ -307,12 +322,9 @@ class ScanCoordinator @Inject constructor(
                             metadataRepository.cacheMetadata(updated)
                             animeForNfo = updated
                         } else {
-                            // Create minimal anime metadata if none exists (no NFO was found)
-                            val minimal = Anime(
-                                id = animeName,
+                            val minimal = createGeneratedLocalMetadata(
                                 title = animeName,
-                                titleCn = animeName,
-                                episodeCount = episodes.size
+                                episodeCount = episodes.size,
                             )
                             metadataRepository.cacheMetadata(minimal)
                             animeForNfo = minimal
@@ -467,6 +479,25 @@ class ScanCoordinator @Inject constructor(
             source = ScraperSource.BANGUMI,
         )
     }
+
+    private fun deferredDramaMetadata(
+        episodes: List<Episode>,
+    ): OnlineMetadata = OnlineMetadata(
+        anime = null,
+        episodes = episodes,
+        scrapeStatus = MediaScrapeStatus.PENDING,
+        scrapeMessage = "Drama metadata is resolved from TMDB detail flow",
+    )
+
+    private fun createGeneratedLocalMetadata(
+        title: String,
+        episodeCount: Int,
+    ): Anime = Anime(
+        id = title,
+        title = title,
+        titleCn = title,
+        episodeCount = episodeCount,
+    )
 
     private suspend fun enrichWithOnlineMetadata(
         animeName: String,
@@ -1082,7 +1113,7 @@ class ScanCoordinator @Inject constructor(
         remoteRootContext: String? = null,
         scanSessionId: String,
         diagnostics: ScanTraversalDiagnostics,
-    ) {
+    ): AppError? {
         // Guard: skip hidden directories
         val pathName = MediaPathConventions.fileName(path)
         if (pathName.startsWith(".")) {
@@ -1103,7 +1134,7 @@ class ScanCoordinator @Inject constructor(
                     "skip_reason" to "hidden_directory",
                 )
             )
-            return
+            return null
         }
 
         // Guard: skip Android system media directories
@@ -1125,7 +1156,7 @@ class ScanCoordinator @Inject constructor(
                     "skip_reason" to "system_directory",
                 )
             )
-            return
+            return null
         }
 
         // Guard: skip /mnt directory entirely
@@ -1147,11 +1178,11 @@ class ScanCoordinator @Inject constructor(
                     "skip_reason" to "mnt_guard",
                 )
             )
-            return
+            return null
         }
 
         // Check for cancellation
-        if (!currentCoroutineContext().isActive) return
+        if (!currentCoroutineContext().isActive) return null
 
         try {
             diagnostics.directoriesVisited += 1
@@ -1198,7 +1229,7 @@ class ScanCoordinator @Inject constructor(
                             "error_message" to normalizeForLog(listResult.error.toString(), 240),
                         )
                     )
-                    return
+                    return if (depth == 0) listResult.error else null
                 }
             }
             val listAttributes = buildTraversalAttributes(
@@ -1230,7 +1261,7 @@ class ScanCoordinator @Inject constructor(
             }
 
             for (file in files) {
-                if (!currentCoroutineContext().isActive) return
+                if (!currentCoroutineContext().isActive) return null
                 diagnostics.entriesSeen += 1
                 diagnostics.lastEntryTail = pathTailForLog(file.path)
 
@@ -1303,7 +1334,7 @@ class ScanCoordinator @Inject constructor(
                     }
                     
                     // Recurse into subdirectory
-                    traverseAndProcess(
+                    val childTraversalError = traverseAndProcess(
                         ms = ms,
                         path = file.path,
                         sourceId = sourceId,
@@ -1322,6 +1353,9 @@ class ScanCoordinator @Inject constructor(
                         scanSessionId = scanSessionId,
                         diagnostics = diagnostics,
                     )
+                    if (childTraversalError != null) {
+                        return childTraversalError
+                    }
                 } else {
                     val fileName = file.name
                     if (MediaFileConventions.isVideoName(fileName, videoExtensions)) {
@@ -1480,6 +1514,7 @@ class ScanCoordinator @Inject constructor(
                     }
                 }
             }
+            return null
         } catch (e: CancellationException) {
             MiruLog.i(
                 tag = TAG,
@@ -1511,6 +1546,11 @@ class ScanCoordinator @Inject constructor(
                     diagnostics = diagnostics,
                 ) + mapOf("scan_phase" to "traversal_failed")
             )
+            return if (depth == 0) {
+                AppError.NetworkError.ServerUnreachable(path.ifBlank { sourceName })
+            } else {
+                null
+            }
         }
     }
 
@@ -1741,6 +1781,8 @@ class ScanCoordinator @Inject constructor(
             "videos",
             "影视",
             "影音",
+            "电视剧",
+            "劇集",
             "动漫",
             "動畫",
             "下载",

@@ -56,7 +56,8 @@ fun AnimePosterCard(
     width: Dp = 180.dp,
     height: Dp = 270.dp,
     subtitle: String? = null,
-    progress: Float? = null
+    progress: Float? = null,
+    imagePlaceholder: @Composable () -> Unit = { ImagePlaceholder() },
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
@@ -84,7 +85,8 @@ fun AnimePosterCard(
             contentDescription = anime.displayTitle(),
             localPath = anime.posterLocalPath,
             contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize(),
+            placeholder = imagePlaceholder,
         )
         Box(
             modifier = Modifier
@@ -145,7 +147,10 @@ fun AnimePosterCard(
 fun FeatureAnimeCard(
     anime: Anime,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    subtitle: String? = null,
+    backdropPlaceholder: @Composable () -> Unit = { ImagePlaceholder() },
+    posterPlaceholder: @Composable () -> Unit = { ImagePlaceholder() },
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
@@ -175,7 +180,8 @@ fun FeatureAnimeCard(
             contentDescription = anime.displayTitle(),
             localPath = backdropLocalPath,
             modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop
+            contentScale = ContentScale.Crop,
+            placeholder = backdropPlaceholder,
         )
         Box(
             modifier = Modifier
@@ -200,7 +206,8 @@ fun FeatureAnimeCard(
                     .width(118.dp)
                     .height(170.dp)
                     .clip(RoundedCornerShape(8.dp)),
-                contentScale = ContentScale.Crop
+                contentScale = ContentScale.Crop,
+                placeholder = posterPlaceholder,
             )
             Spacer(Modifier.width(18.dp))
             Column(
@@ -217,7 +224,7 @@ fun FeatureAnimeCard(
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    text = anime.featureSubtitle(),
+                    text = subtitle ?: anime.featureSubtitle(),
                     color = TextSecondary,
                     fontSize = 15.sp,
                     maxLines = 1,

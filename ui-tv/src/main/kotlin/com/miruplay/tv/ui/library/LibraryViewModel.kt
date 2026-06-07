@@ -126,7 +126,9 @@ class LibraryViewModel @Inject constructor(
                         )
                         val snapshot = loadLibraryContent(showLoading = false)
                         if (snapshot.hasSources && !snapshot.hasContent) {
-                            _state.value = LibraryUiState.ScanError(libraryNoContentAfterScanMessage())
+                            _state.value = LibraryUiState.ScanError(
+                                scanState.sourceFailures.firstOrNull() ?: libraryNoContentAfterScanMessage()
+                            )
                         }
                     }
                     is LibraryScanState.Failed -> {

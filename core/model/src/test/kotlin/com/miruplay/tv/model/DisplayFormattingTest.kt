@@ -22,6 +22,22 @@ class DisplayFormattingTest {
     }
 
     @Test
+    fun `episode playback title uses episode wording and optional title`() {
+        val untitledEpisode = Episode(
+            id = "ep-3",
+            animeId = "series-1",
+            episodeNumber = 3,
+            title = "",
+            filePath = "/shows/series-1/s01e03.mkv",
+            fileName = "s01e03.mkv",
+        )
+        val titledEpisode = untitledEpisode.copy(title = "First Light")
+
+        assertEquals("第 3 集", untitledEpisode.playbackDisplayTitle())
+        assertEquals("第 3 集 · First Light", titledEpisode.playbackDisplayTitle())
+    }
+
+    @Test
     fun `shared size and playback position formatting match UI expectations`() {
         assertEquals("512 B", formatFileSize(512))
         assertEquals("2.0 MB", formatFileSize(2_097_152))

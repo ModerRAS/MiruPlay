@@ -41,8 +41,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -89,6 +87,7 @@ import com.miruplay.tv.ui.components.OverscanContainer
 import com.miruplay.tv.ui.components.RemoteImage
 import com.miruplay.tv.ui.components.TvButton
 import com.miruplay.tv.ui.components.TvTextField
+import com.miruplay.tv.ui.components.rememberInitialFocusHandle
 import com.miruplay.tv.ui.components.tvFocusableClickable
 import com.miruplay.tv.ui.theme.AccentBlue
 import com.miruplay.tv.ui.theme.AnimeRed
@@ -174,15 +173,12 @@ private fun DetailContent(
     onRescrape: () -> Unit,
     onSyncBangumi: () -> Unit
 ) {
-    val playButtonFocusRequester = remember { FocusRequester() }
+    val primaryActionFocus = rememberInitialFocusHandle(
+        key = anime.id,
+        enabled = episodes.isNotEmpty(),
+    )
     val backdropUrl = anime.fanartUrl ?: anime.posterUrl
     val backdropLocalPath = if (anime.fanartUrl.isNullOrBlank()) anime.posterLocalPath else null
-
-    LaunchedEffect(anime.id, episodes.isNotEmpty()) {
-        if (episodes.isNotEmpty()) {
-            playButtonFocusRequester.requestFocus()
-        }
-    }
 
     Column(
         modifier = Modifier
@@ -264,7 +260,7 @@ private fun DetailContent(
                             enabled = continueTarget != null,
                             modifier = Modifier
                                 .width(230.dp)
-                                .focusRequester(playButtonFocusRequester)
+                                .then(primaryActionFocus.modifier())
                         )
                         TvButton(
                             text = detailRescrapeActionLabel(),

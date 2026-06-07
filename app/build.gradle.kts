@@ -81,6 +81,8 @@ android {
         }
     }
     buildTypes {
+        debug {
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true

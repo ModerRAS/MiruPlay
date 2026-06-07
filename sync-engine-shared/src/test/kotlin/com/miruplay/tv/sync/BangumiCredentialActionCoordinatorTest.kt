@@ -96,6 +96,8 @@ class BangumiCredentialActionCoordinatorTest {
             }
 
         override var bangumiAccessToken: String? = bangumiToken
+        override var tmdbAccessToken: String? = null
+        override var tmdbApiBaseUrlOverride: String? = null
 
         override var otlpAccessToken: String?
             get() = otlpToken
@@ -110,6 +112,11 @@ class BangumiCredentialActionCoordinatorTest {
 
         override fun clearBangumiToken() {
             bangumiAccessToken = null
+        }
+
+        override fun clearTmdbToken() {
+            tmdbAccessToken = null
+            tmdbApiBaseUrlOverride = null
         }
 
         override fun clearOtlpAccessToken() {

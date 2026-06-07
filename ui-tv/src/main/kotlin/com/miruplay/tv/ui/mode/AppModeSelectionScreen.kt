@@ -20,6 +20,7 @@ import androidx.tv.material3.Text
 import com.miruplay.tv.repository.AppMode
 import com.miruplay.tv.ui.components.OverscanContainer
 import com.miruplay.tv.ui.components.TvButton
+import com.miruplay.tv.ui.components.rememberInitialFocusHandle
 import com.miruplay.tv.ui.theme.DarkSurface
 import com.miruplay.tv.ui.theme.TextPrimary
 import com.miruplay.tv.ui.theme.TextSecondary
@@ -30,6 +31,10 @@ import com.miruplay.tv.ui.theme.TvTypography
 fun AppModeSelectionScreen(
     onSelectMode: (AppMode) -> Unit,
 ) {
+    val primaryFocus = rememberInitialFocusHandle(
+        key = AppMode.ANIME,
+    )
+
     OverscanContainer(
         modifier = Modifier
             .fillMaxSize()
@@ -62,7 +67,9 @@ fun AppModeSelectionScreen(
                 TvButton(
                     text = "动漫",
                     onClick = { onSelectMode(AppMode.ANIME) },
-                    modifier = Modifier.width(220.dp)
+                    modifier = Modifier
+                        .width(220.dp)
+                        .then(primaryFocus.modifier())
                 )
                 Spacer(Modifier.width(20.dp))
                 TvButton(

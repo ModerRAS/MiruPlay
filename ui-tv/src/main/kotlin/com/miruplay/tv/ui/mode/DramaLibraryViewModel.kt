@@ -2,17 +2,22 @@ package com.miruplay.tv.ui.mode
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.miruplay.tv.core.common.logging.MiruLog
+import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.DramaEpisode
 import com.miruplay.tv.model.DramaSeries
 import com.miruplay.tv.model.MediaContentMode
+import com.miruplay.tv.model.posterWallSections
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.displayTitle
 import com.miruplay.tv.model.isCompleted
+import com.miruplay.tv.repository.DramaMetadataRepository
 import com.miruplay.tv.repository.LibraryDramaDetail
 import com.miruplay.tv.repository.LibraryDramaResolver
 import com.miruplay.tv.repository.MediaIndexRepository
+import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
+import com.miruplay.tv.repository.ScanPreferencesRepository
 import com.miruplay.tv.scanner.LibraryScanState
 import com.miruplay.tv.ui.library.LibraryScanController
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -49,6 +54,7 @@ sealed class DramaLibraryUiState {
         val browseSections: List<DramaBrowseSection>,
         val series: List<DramaSeries>,
         val totalSeriesCount: Int,
+        val scanNotice: String? = null,
     ) : DramaLibraryUiState()
 }
 
@@ -56,12 +62,17 @@ sealed class DramaLibraryUiState {
 class DramaLibraryViewModel @Inject constructor(
     private val mediaSources: MediaSourceRepository,
     mediaIndexRepository: MediaIndexRepository,
+    dramaMetadataRepository: DramaMetadataRepository,
+    metadataRepository: MetadataRepository,
     private val progressRepository: PlaybackProgressRepository,
     private val libraryScanController: LibraryScanController,
+    private val scanPreferences: ScanPreferencesRepository,
 ) : ViewModel() {
     private val resolver = LibraryDramaResolver(
         mediaSources = mediaSources,
         index = mediaIndexRepository,
+        metadata = dramaMetadataRepository,
+        metadataCache = metadataRepository,
     )
 
     private val _state = MutableStateFlow<DramaLibraryUiState>(DramaLibraryUiState.Loading)
@@ -120,8 +131,18 @@ class DramaLibraryViewModel @Inject constructor(
                     is LibraryScanState.Finished -> {
                         scanRefreshSessionActive = false
                         val snapshot = loadLibraryContent(showLoading = false)
+                        val sourceFailureMessage = currentScanState.sourceFailures.firstOrNull()
                         if (snapshot.hasSources && !snapshot.hasContent) {
-                            _state.value = DramaLibraryUiState.ScanError("未找到电视剧内容，请检查媒体源路径")
+                            _state.value = DramaLibraryUiState.ScanError(
+                                sourceFailureMessage ?: "未找到电视剧内容，请检查媒体源路径"
+                            )
+                        } else if (!sourceFailureMessage.isNullOrBlank()) {
+                            applyScanNotice(
+                                buildScanNotice(
+                                    firstFailure = sourceFailureMessage,
+                                    failedSourceCount = currentScanState.sourceFailures.size,
+                                ),
+                            )
                         }
                     }
                     is LibraryScanState.Failed -> {
@@ -172,14 +193,12 @@ class DramaLibraryViewModel @Inject constructor(
                 return LibraryLoadSnapshot(hasSources = false, hasContent = false)
             }
 
-            val indexedSeries = resolver.loadSeries().distinctBy { it.id }
-            val detailBySeriesId = indexedSeries.associate { series ->
-                series.id to resolver.loadSeriesDetail(series.id)
-            }
-            val resolvedSeries = indexedSeries.map { series ->
-                detailBySeriesId[series.id]?.series ?: series
-            }
-            val continueWatching = loadContinueWatching(detailBySeriesId)
+            val localDetails = resolver.loadLocalSeriesDetails()
+            val resolvedSeries = localDetails
+                .map { it.series }
+                .distinctBy { it.id }
+            val detailBySeriesId = localDetails.associateBy { it.series.id }
+            val continueWatching = loadContinueWatching(localDetails)
 
             if (resolvedSeries.isEmpty() && continueWatching.isEmpty()) {
                 _state.value = DramaLibraryUiState.HasSources
@@ -201,13 +220,15 @@ class DramaLibraryViewModel @Inject constructor(
                 )
                 .take(10)
             val sortedSeries = resolvedSeries.sortedBy { it.displayTitle() }
+            val seriesById = sortedSeries.associateBy { it.id }
+            val posterWallArrangement = scanPreferences.getPreferences().posterWallArrangement
             val browseSections = sortedSeries
-                .groupBy { series -> series.displayTitle().trim().firstOrNull()?.uppercase() ?: "#" }
-                .toSortedMap()
-                .map { (title, series) ->
+                .map(DramaSeries::toPosterWallAnimeProxy)
+                .posterWallSections(posterWallArrangement)
+                .map { section ->
                     DramaBrowseSection(
-                        title = title,
-                        series = series,
+                        title = section.title,
+                        series = section.anime.mapNotNull { proxy -> seriesById[proxy.id] },
                     )
                 }
 
@@ -218,6 +239,7 @@ class DramaLibraryViewModel @Inject constructor(
                 browseSections = browseSections,
                 series = sortedSeries,
                 totalSeriesCount = resolvedSeries.size,
+                scanNotice = null,
             )
             MiruLog.i(
                 "DramaLibraryViewModel",
@@ -244,27 +266,31 @@ class DramaLibraryViewModel @Inject constructor(
     }
 
     private suspend fun loadContinueWatching(
-        detailBySeriesId: Map<String, LibraryDramaDetail?>,
+        details: List<LibraryDramaDetail>,
     ): List<DramaProgressItem> {
         val progressByEpisodeId = progressRepository.getContinueWatching()
             .getOrNull()
             .orEmpty()
             .associateBy { it.episodeId }
 
-        return detailBySeriesId.values
+        return details
             .mapNotNull { detail ->
-                val resolvedDetail = detail ?: return@mapNotNull null
-                resolvedDetail.episodes
+                detail.episodes
                     .mapNotNull { episode ->
                         val progress = progressByEpisodeId[episode.id]
                             ?.takeIf { it.positionMs > 0L }
                             ?.takeUnless { episode.toPlaybackEpisode().isCompleted(it) }
                             ?: return@mapNotNull null
-                        DramaProgressItem(resolvedDetail.series, episode, progress)
+                        DramaProgressItem(detail.series, episode, progress)
                     }
                     .maxByOrNull { it.progress?.lastWatched ?: 0L }
             }
             .sortedByDescending { it.progress?.lastWatched ?: 0L }
+    }
+
+    private fun applyScanNotice(message: String) {
+        val currentReadyState = _state.value as? DramaLibraryUiState.Ready ?: return
+        _state.value = currentReadyState.copy(scanNotice = message)
     }
 
     private fun LibraryDramaDetail?.latestEpisodeSortKey(): String =
@@ -289,7 +315,29 @@ private fun DramaEpisode.toPlaybackEpisode() =
         fileName = fileName,
     )
 
+private fun DramaSeries.toPosterWallAnimeProxy() =
+    Anime(
+        id = id,
+        title = displayTitle(),
+        summary = summary,
+        episodeCount = episodeCount,
+        airDate = firstAirDate,
+        tmdbId = tmdbId,
+        posterUrl = posterUrl,
+        fanartUrl = fanartUrl,
+    )
+
 private const val SCAN_CONTENT_REFRESH_DELAY_MS = 500L
 
 private fun monotonicNowMs(): Long =
     System.nanoTime() / 1_000_000L
+
+private fun buildScanNotice(
+    firstFailure: String,
+    failedSourceCount: Int,
+): String =
+    if (failedSourceCount <= 1) {
+        "有 1 个电视剧源扫描失败：$firstFailure"
+    } else {
+        "有 $failedSourceCount 个电视剧源扫描失败，先检查这个：$firstFailure"
+    }

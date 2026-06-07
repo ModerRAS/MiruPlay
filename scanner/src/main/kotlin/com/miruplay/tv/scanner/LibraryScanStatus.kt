@@ -17,7 +17,10 @@ sealed class LibraryScanState {
         val contentVersion: Int = 0,
         val canCancel: Boolean = true,
     ) : LibraryScanState()
-    data class Finished(val results: List<ScanResult>) : LibraryScanState()
+    data class Finished(
+        val results: List<ScanResult>,
+        val sourceFailures: List<String> = emptyList(),
+    ) : LibraryScanState()
     data class Failed(val message: String) : LibraryScanState()
     data object Cancelled : LibraryScanState()
 }
@@ -92,8 +95,14 @@ class LibraryScanStatus @Inject constructor() {
         return nextState
     }
 
-    fun finish(results: List<ScanResult>) {
-        _state.value = LibraryScanState.Finished(results)
+    fun finish(
+        results: List<ScanResult>,
+        sourceFailures: List<String> = emptyList(),
+    ) {
+        _state.value = LibraryScanState.Finished(
+            results = results,
+            sourceFailures = sourceFailures,
+        )
     }
 
     fun fail(message: String) {

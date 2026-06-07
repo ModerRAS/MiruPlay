@@ -34,10 +34,36 @@ private fun String?.cleanRecognizedTitle(): String? {
     if (!hasPathContext) return cleaned
 
     val meaningful = segments.filterNot { it.isRecognizedPathContextSegment() }
-    return meaningful
+    val collapsed = meaningful
+        .collapseRepeatedRecognizedSegments()
+        .dropLastWhile { it.isRecognizedSupplementSegment() }
+        .ifEmpty { meaningful }
+    return collapsed
         .joinToString("/")
         .cleanRecognizedField()
 }
+
+private fun List<String>.collapseRepeatedRecognizedSegments(): List<String> =
+    fold(mutableListOf<String>()) { acc, segment ->
+        val previous = acc.lastOrNull()
+        if (previous != null && previous.sameRecognizedSegment(segment)) {
+            acc
+        } else {
+            acc += segment
+            acc
+        }
+    }
+
+private fun String.sameRecognizedSegment(other: String): Boolean =
+    normalizeRecognizedSegment() == other.normalizeRecognizedSegment()
+
+private fun String.normalizeRecognizedSegment(): String =
+    cleanRecognizedField()
+        ?.lowercase()
+        ?.replace(Regex("""[._\-\[\]【】()（）《》]+"""), " ")
+        ?.replace(whitespaceRegex, " ")
+        ?.trim()
+        .orEmpty()
 
 private fun String?.cleanRecognizedField(): String? =
     this
@@ -60,6 +86,15 @@ private fun String.isRecognizedPathContextSegment(): Boolean {
         .trim()
     if (normalized in recognizedPathContextNames) return true
     return recognizedPathContextPatterns.any { it.matches(normalized) }
+}
+
+private fun String.isRecognizedSupplementSegment(): Boolean {
+    val normalized = lowercase()
+        .replace(Regex("""[._\-\[\]【】()（）《》]+"""), " ")
+        .replace(whitespaceRegex, " ")
+        .trim()
+    if (normalized in recognizedSupplementNames) return true
+    return recognizedSupplementPatterns.any { it.matches(normalized) }
 }
 
 private val recognizedBoundaryChars = charArrayOf(' ', '\t', '\r', '\n', '-', '_', '.', '/', '\\')
@@ -98,6 +133,9 @@ private val recognizedPathContextNames = setOf(
     "動畫",
     "影视",
     "影音",
+    "电视剧",
+    "劇集",
+    "片头尾",
 )
 private val recognizedPathContextPatterns = listOf(
     Regex("""^[a-z]:$"""),
@@ -105,4 +143,22 @@ private val recognizedPathContextPatterns = listOf(
     Regex("""^(?:season|series|s)\s*\d{1,2}$"""),
     Regex("""^(?:ep|episode|part)\s*[\d一二三四五六七八九十]+(?:[a-z])?$"""),
     Regex("""^\d{1,4}\s+(?:mkv|mp4|avi|mov|wmv|flv|webm|m4v|mpg|mpeg|ts|m2ts)$"""),
+)
+private val recognizedSupplementNames = setOf(
+    "片头",
+    "片尾",
+    "片头尾",
+    "预告",
+    "预告片",
+    "花絮",
+    "opening",
+    "ending",
+    "trailer",
+    "preview",
+    "op",
+    "ed",
+)
+private val recognizedSupplementPatterns = listOf(
+    Regex("""^(?:片头|片尾|预告(?:片)?|花絮)(?:\s+.*)?$"""),
+    Regex("""(?i)^(?:opening|ending|trailer|preview|op|ed)(?:\s+.*)?$"""),
 )

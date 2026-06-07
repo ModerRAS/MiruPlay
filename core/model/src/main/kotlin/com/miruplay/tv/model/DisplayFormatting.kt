@@ -37,6 +37,9 @@ fun PlaybackSource.displayTitle(): String {
     }.getOrDefault(name).ifBlank { mediaSourceId }
 }
 
+fun Episode.playbackDisplayTitle(): String =
+    detailEpisodeTitleLabel(episodeNumber, title)
+
 fun ScraperResult.displayTitle(): String =
     titleCn?.takeIf { it.isNotBlank() } ?: title
 

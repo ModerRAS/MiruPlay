@@ -2,6 +2,7 @@ package com.miruplay.tv.scraper
 
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.model.DramaMetadataSearchResult
 import com.miruplay.tv.model.DramaSeriesMetadata
 import com.miruplay.tv.repository.AppCredentialStore
 import kotlinx.coroutines.runBlocking
@@ -206,6 +207,111 @@ class TmdbDramaMetadataRepositoryTest {
     }
 
     @Test
+    fun `fetchSeriesMetadataById maps detail without search request`() = runBlocking {
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                {
+                  "id": 321,
+                  "name": "Show CN",
+                  "original_name": "Show Original",
+                  "overview": "Online plot",
+                  "number_of_seasons": 3,
+                  "number_of_episodes": 24,
+                  "poster_path": "/poster.jpg",
+                  "backdrop_path": "/backdrop.jpg",
+                  "first_air_date": "2024-01-01"
+                }
+                """.trimIndent(),
+            ),
+        )
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                {
+                  "season_number": 1,
+                  "name": "Season 1",
+                  "episodes": []
+                }
+                """.trimIndent(),
+            ),
+        )
+        val repository = createRepository(token = "token-123")
+
+        val result = repository.fetchSeriesMetadataById(
+            tmdbId = 321,
+            seasonNumbers = listOf(1),
+        )
+
+        val data = (result as Result.Success).data
+        requireNotNull(data)
+        assertSeries(data)
+        assertEquals(2, server.requestCount)
+        server.takeRequest().also { request ->
+            assertEquals("/3/tv/321?language=zh-CN", request.path)
+        }
+        server.takeRequest().also { request ->
+            assertEquals("/3/tv/321/season/1?language=zh-CN", request.path)
+        }
+        Unit
+    }
+
+    @Test
+    fun `searchSeriesCandidates ranks and maps tmdb search response`() = runBlocking {
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                {
+                  "results": [
+                    {
+                      "id": 100,
+                      "name": "Show Low",
+                      "original_name": "Show Low Original",
+                      "overview": "",
+                      "poster_path": null,
+                      "backdrop_path": null,
+                      "first_air_date": ""
+                    },
+                    {
+                      "id": 321,
+                      "name": "Show CN",
+                      "original_name": "Show Original",
+                      "overview": "Has overview",
+                      "poster_path": "/poster.jpg",
+                      "backdrop_path": "/backdrop.jpg",
+                      "first_air_date": "2024-01-01"
+                    }
+                  ]
+                }
+                """.trimIndent(),
+            ),
+        )
+        val repository = createRepository(token = "token-123")
+
+        val result = repository.searchSeriesCandidates(query = "Show", maxResults = 5)
+
+        val data = (result as Result.Success).data
+        assertEquals(2, data.size)
+        assertSearchResult(
+            expected = DramaMetadataSearchResult(
+                tmdbId = 321,
+                title = "Show CN",
+                originalTitle = "Show Original",
+                summary = "Has overview",
+                firstAirDate = "2024-01-01",
+                posterUrl = "https://image.tmdb.org/t/p/w780/poster.jpg",
+                fanartUrl = "https://image.tmdb.org/t/p/w780/backdrop.jpg",
+            ),
+            actual = data.first(),
+        )
+        server.takeRequest().also { request ->
+            assertEquals("/3/search/tv?query=Show&language=zh-CN", request.path)
+            assertEquals("Bearer token-123", request.getHeader("Authorization"))
+        }
+        Unit
+    }
+
+    @Test
     fun `fetchSeriesMetadata uses overridden tmdb base url when configured`() {
         runBlocking {
         server.enqueue(
@@ -334,5 +440,18 @@ class TmdbDramaMetadataRepositoryTest {
         assertEquals("https://image.tmdb.org/t/p/w780/backdrop.jpg", data.series.fanartUrl)
         assertEquals("2024-01-01", data.series.firstAirDate)
         assertEquals(321, data.series.tmdbId)
+    }
+
+    private fun assertSearchResult(
+        expected: DramaMetadataSearchResult,
+        actual: DramaMetadataSearchResult,
+    ) {
+        assertEquals(expected.tmdbId, actual.tmdbId)
+        assertEquals(expected.title, actual.title)
+        assertEquals(expected.originalTitle, actual.originalTitle)
+        assertEquals(expected.summary, actual.summary)
+        assertEquals(expected.firstAirDate, actual.firstAirDate)
+        assertEquals(expected.posterUrl, actual.posterUrl)
+        assertEquals(expected.fanartUrl, actual.fanartUrl)
     }
 }

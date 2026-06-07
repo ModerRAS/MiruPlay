@@ -5,6 +5,7 @@ import android.util.Log
 import com.miruplay.tv.background.BackgroundTaskForegroundController
 import com.miruplay.tv.background.BackgroundTaskIds
 import com.miruplay.tv.background.BackgroundTaskProgress
+import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.model.ScanResult
@@ -113,6 +114,7 @@ class LibraryScanTask @Inject constructor(
             scanStatus.start()
             try {
                 val results = mutableListOf<ScanResult>()
+                val sourceFailures = mutableListOf<String>()
                 for (source in sources) {
                     MiruLog.i(
                         tag = TAG,
@@ -159,6 +161,11 @@ class LibraryScanTask @Inject constructor(
                             )
                         }
                         is Result.Error -> {
+                            sourceFailures += formatSourceFailureMessage(
+                                sourceName = source.name,
+                                sourceCount = sources.size,
+                                error = result.error,
+                            )
                             Log.w("LibraryScanTask", "Skipping failed source ${source.id}: ${result.error}")
                             MiruLog.w(
                                 tag = TAG,
@@ -175,8 +182,13 @@ class LibraryScanTask @Inject constructor(
                         }
                     }
                 }
-                scanPreferences.setLastScanAt(System.currentTimeMillis())
-                scanStatus.finish(results)
+                if (results.isNotEmpty()) {
+                    scanPreferences.setLastScanAt(System.currentTimeMillis())
+                }
+                scanStatus.finish(
+                    results = results,
+                    sourceFailures = sourceFailures,
+                )
                 MiruLog.i(
                     tag = TAG,
                     message = "Library scan completed",
@@ -184,6 +196,7 @@ class LibraryScanTask @Inject constructor(
                         "scan_task_phase" to "completed",
                         "source_count" to sources.size.toString(),
                         "completed_source_count" to results.size.toString(),
+                        "failed_source_count" to sourceFailures.size.toString(),
                         "episodes_found" to results.sumOf { it.episodesFound }.toString(),
                         "new_episodes" to results.sumOf { it.newEpisodes }.toString(),
                     )
@@ -216,6 +229,19 @@ class LibraryScanTask @Inject constructor(
 
     private fun posterCacheDirectory(): File =
         File(context.cacheDir, "miruplay_image_cache")
+
+    private fun formatSourceFailureMessage(
+        sourceName: String,
+        sourceCount: Int,
+        error: AppError,
+    ): String {
+        val userMessage = error.toUserMessage()
+        return if (sourceCount > 1) {
+            "${sourceName.ifBlank { "媒体源" }}：$userMessage"
+        } else {
+            userMessage
+        }
+    }
 
     private fun scanProgressText(scanState: LibraryScanState.Scanning): String {
         val currentPath = scanState.currentPath.ifBlank { "媒体源" }

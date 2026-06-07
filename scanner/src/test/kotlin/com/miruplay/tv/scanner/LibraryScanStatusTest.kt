@@ -39,7 +39,13 @@ class LibraryScanStatusTest {
         assertFalse(completed.canCancel)
 
         status.finish(listOf(result))
-        assertEquals(LibraryScanState.Finished(listOf(result)), status.state.value)
+        assertEquals(
+            LibraryScanState.Finished(
+                results = listOf(result),
+                sourceFailures = emptyList(),
+            ),
+            status.state.value,
+        )
     }
 
     @Test
@@ -48,5 +54,24 @@ class LibraryScanStatusTest {
 
         assertTrue(status.tryStart("Library"))
         assertFalse(status.tryStart("WebDAV"))
+    }
+
+    @Test
+    fun `finish keeps source failure messages`() {
+        val status = LibraryScanStatus()
+
+        status.start()
+        status.finish(
+            results = emptyList(),
+            sourceFailures = listOf("HTTP 错误 404：Not Found"),
+        )
+
+        assertEquals(
+            LibraryScanState.Finished(
+                results = emptyList(),
+                sourceFailures = listOf("HTTP 错误 404：Not Found"),
+            ),
+            status.state.value,
+        )
     }
 }

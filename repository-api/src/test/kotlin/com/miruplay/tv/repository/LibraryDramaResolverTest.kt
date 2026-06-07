@@ -2,16 +2,19 @@ package com.miruplay.tv.repository
 
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.DramaEpisodeMetadata
 import com.miruplay.tv.model.DramaSeasonMetadata
 import com.miruplay.tv.model.DramaSeries
 import com.miruplay.tv.model.DramaSeriesMetadata
+import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaContentMode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LibraryDramaResolverTest {
@@ -226,6 +229,170 @@ class LibraryDramaResolverTest {
         assertEquals("Pilot Online", detail?.episodes?.single()?.title)
     }
 
+    @Test
+    fun `loadSeriesDetail prefers stored tmdb metadata id over title lookup`() = runBlocking {
+        val dramaSource = MediaSourceInfoConventions.local(
+            rootPath = "D:/Drama",
+            name = "Drama",
+        ).copy(id = 1L, contentMode = MediaContentMode.DRAMA)
+        val metadataRepository = TrackingDramaMetadataRepository(
+            seriesTitle = "庆余年 第一季",
+            seriesOriginalTitle = "庆余年",
+        )
+        val resolver = LibraryDramaResolver(
+            mediaSources = FakeMediaSourceRepository(listOf(dramaSource)),
+            index = FakeMediaIndexRepository(
+                listOf(
+                    MediaIndexEntry(
+                        sourceId = 1L,
+                        path = "D:/Drama/庆余年/S01E01.mkv",
+                        animeName = "庆余年",
+                        seasonNumber = 1,
+                        episodeNumber = 1,
+                        metadataSource = "TMDB",
+                        metadataId = "321",
+                        metadataTitle = "庆余年 第一季",
+                    ),
+                ),
+            ),
+            metadata = metadataRepository,
+        )
+
+        val detail = resolver.loadSeriesDetail("庆余年")
+
+        assertEquals(listOf(321), metadataRepository.requestedIds)
+        assertTrue(metadataRepository.requestedTitles.isEmpty())
+        assertEquals("庆余年 第一季", detail?.series?.title)
+        assertEquals(321, detail?.series?.tmdbId)
+    }
+
+    @Test
+    fun `loadLocalSeriesDetails merges cached drama series metadata`() = runBlocking {
+        val dramaSource = MediaSourceInfoConventions.local(
+            rootPath = "D:/Drama",
+            name = "Drama",
+        ).copy(id = 1L, contentMode = MediaContentMode.DRAMA)
+        val resolver = LibraryDramaResolver(
+            mediaSources = FakeMediaSourceRepository(listOf(dramaSource)),
+            index = FakeMediaIndexRepository(
+                listOf(
+                    MediaIndexEntry(
+                        sourceId = 1L,
+                        path = "D:/Drama/庆余年/S01E01.mkv",
+                        animeName = "庆余年",
+                        seasonNumber = 1,
+                        episodeNumber = 1,
+                    ),
+                ),
+            ),
+            metadataCache = FakeMetadataRepository(
+                metadataById = mapOf(
+                    dramaSeriesCacheKey("庆余年") to Anime(
+                        id = dramaSeriesCacheKey("庆余年"),
+                        title = "庆余年 第一季",
+                        titleCn = "Joy of Life",
+                        summary = "缓存简介",
+                        posterUrl = "poster-url",
+                        fanartUrl = "fanart-url",
+                        airDate = "2024-01-01",
+                        tmdbId = 88,
+                    ),
+                ),
+            ),
+        )
+
+        val detail = resolver.loadLocalSeriesDetails().single()
+
+        assertEquals("庆余年 第一季", detail.series.title)
+        assertEquals("Joy of Life", detail.series.originalTitle)
+        assertEquals("缓存简介", detail.series.summary)
+        assertEquals("poster-url", detail.series.posterUrl)
+        assertEquals("fanart-url", detail.series.fanartUrl)
+        assertEquals("2024-01-01", detail.series.firstAirDate)
+        assertEquals(88, detail.series.tmdbId)
+    }
+
+    @Test
+    fun `loadSeriesDetail ignores unreasonable stored tmdb binding and falls back to local title lookup`() = runBlocking {
+        val dramaSource = MediaSourceInfoConventions.local(
+            rootPath = "D:/Drama",
+            name = "Drama",
+        ).copy(id = 1L, contentMode = MediaContentMode.DRAMA)
+        val metadataRepository = TrackingDramaMetadataRepository()
+        val resolver = LibraryDramaResolver(
+            mediaSources = FakeMediaSourceRepository(listOf(dramaSource)),
+            index = FakeMediaIndexRepository(
+                listOf(
+                    MediaIndexEntry(
+                        sourceId = 1L,
+                        path = "D:/Drama/金庸武侠世界/S01E01.mkv",
+                        animeName = "金庸武侠世界",
+                        seasonNumber = 1,
+                        episodeNumber = 1,
+                        metadataSource = "TMDB",
+                        metadataId = "176599",
+                        metadataTitle = "WWW.迷糊餐厅",
+                    ),
+                ),
+            ),
+            metadata = metadataRepository,
+        )
+
+        val detail = resolver.loadSeriesDetail("金庸武侠世界")
+
+        assertTrue(metadataRepository.requestedIds.isEmpty())
+        assertEquals(listOf("金庸武侠世界"), metadataRepository.requestedTitles)
+        assertEquals("金庸武侠世界", detail?.series?.title)
+        assertNull(detail?.series?.tmdbId)
+    }
+
+    @Test
+    fun `loadSeriesDetail ignores unreasonable online metadata result`() = runBlocking {
+        val dramaSource = MediaSourceInfoConventions.local(
+            rootPath = "D:/Drama",
+            name = "Drama",
+        ).copy(id = 1L, contentMode = MediaContentMode.DRAMA)
+        val resolver = LibraryDramaResolver(
+            mediaSources = FakeMediaSourceRepository(listOf(dramaSource)),
+            index = FakeMediaIndexRepository(
+                listOf(
+                    MediaIndexEntry(
+                        sourceId = 1L,
+                        path = "D:/Drama/金庸武侠世界/S01E01.mkv",
+                        animeName = "金庸武侠世界",
+                        seasonNumber = 1,
+                        episodeNumber = 1,
+                    ),
+                ),
+            ),
+            metadata = object : DramaMetadataRepository {
+                override suspend fun fetchSeriesMetadata(
+                    title: String,
+                    seasonHint: Int?,
+                    seasonNumbers: List<Int>,
+                ): Result<DramaSeriesMetadata?> =
+                    Result.success(
+                        DramaSeriesMetadata(
+                            series = DramaSeries(
+                                id = "tmdb:176599",
+                                title = "WWW.迷糊餐厅",
+                                tmdbId = 176599,
+                            ),
+                        ),
+                    )
+            },
+        )
+
+        val detail = resolver.loadSeriesDetail("金庸武侠世界")
+
+        assertEquals("金庸武侠世界", detail?.series?.title)
+        assertNull(detail?.series?.tmdbId)
+        assertEquals(
+            "TMDB 返回结果和本地剧名差太大，已忽略这次自动匹配。",
+            detail?.metadataMessage,
+        )
+    }
+
     private fun resolver(
         sources: List<MediaSourceInfo> = emptyList(),
         entries: List<MediaIndexEntry> = emptyList(),
@@ -290,5 +457,77 @@ class LibraryDramaResolverTest {
 
         override suspend fun clearLastBatchUndo(sourceId: Long): Result<Unit> =
             Result.success(Unit)
+    }
+
+    private class TrackingDramaMetadataRepository : DramaMetadataRepository {
+        constructor(
+            seriesTitle: String = "示例电视剧",
+            seriesOriginalTitle: String = "",
+        ) {
+            this.seriesTitle = seriesTitle
+            this.seriesOriginalTitle = seriesOriginalTitle
+        }
+
+        private var seriesTitle: String = "示例电视剧"
+        private var seriesOriginalTitle: String = ""
+        val requestedIds = mutableListOf<Int>()
+        val requestedTitles = mutableListOf<String>()
+
+        override suspend fun fetchSeriesMetadata(
+            title: String,
+            seasonHint: Int?,
+            seasonNumbers: List<Int>,
+        ): Result<DramaSeriesMetadata?> {
+            requestedTitles += title
+            return Result.success(null)
+        }
+
+        override suspend fun fetchSeriesMetadataById(
+            tmdbId: Int,
+            seasonNumbers: List<Int>,
+        ): Result<DramaSeriesMetadata?> {
+            requestedIds += tmdbId
+            return Result.success(
+                DramaSeriesMetadata(
+                    series = DramaSeries(
+                        id = "tmdb:$tmdbId",
+                        title = seriesTitle,
+                        originalTitle = seriesOriginalTitle,
+                        tmdbId = tmdbId,
+                    ),
+                ),
+            )
+        }
+    }
+
+    private class FakeMetadataRepository(
+        metadataById: Map<String, Anime> = emptyMap(),
+    ) : MetadataRepository {
+        private val storedMetadata = metadataById.toMutableMap()
+
+        override suspend fun cacheMetadata(anime: Anime): Result<Unit> =
+            Result.success(Unit).also {
+                storedMetadata[anime.id] = anime
+            }
+
+        override suspend fun getCachedMetadata(animeId: String): Result<Anime?> =
+            Result.success(storedMetadata[animeId])
+
+        override suspend fun getCachedMetadata(animeIds: Collection<String>): Result<List<Anime>> =
+            Result.success(animeIds.mapNotNull(storedMetadata::get))
+
+        override suspend fun getCachedEpisode(episodeId: String): Result<Episode?> =
+            Result.success(null)
+
+        override suspend fun getCachedEpisodes(animeId: String): Result<List<Episode>> =
+            Result.success(emptyList())
+
+        override suspend fun cacheEpisodes(animeId: String, episodes: List<Episode>): Result<Unit> =
+            Result.success(Unit)
+
+        override suspend fun invalidateCache(animeId: String): Result<Unit> =
+            Result.success(Unit).also {
+                storedMetadata.remove(animeId)
+            }
     }
 }

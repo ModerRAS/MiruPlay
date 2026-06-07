@@ -172,14 +172,25 @@ class AnimeFilenameParser @Inject constructor(
         }
         flush()
 
-        val title = entities
-            .filter { it.first == "TITLE" }
-            .map { it.second.normalizeFieldText() }
-            .filter { it.isNotBlank() }
-            .joinToString(separator = " ")
-            .ifBlank { null }
+        val fileTitleSpans = entities.mapIndexedNotNull { index, (type, text) ->
+            text.normalizeFieldText()
+                .takeIf { it.isNotBlank() && isFileTitleEntity(type) }
+                ?.let { TitleSpan(type = type, text = it, index = index) }
+        }
+        val pathTitleSpans = entities.mapIndexedNotNull { index, (type, text) ->
+            text.normalizeFieldText()
+                .takeIf { it.isNotBlank() && isPathTitleEntity(type) }
+                ?.let { TitleSpan(type = type, text = it, index = index) }
+        }
+
+        val title = when {
+            fileTitleSpans.isNotEmpty() && fileTitleSpans.all { it.type == "TITLE" } ->
+                fileTitleSpans.joinToString(separator = " ") { it.text }.ifBlank { null }
+            else -> chooseTitleSpan(fileTitleSpans) ?: chooseTitleSpan(pathTitleSpans)
+        }
 
         var season: Int? = null
+        var pathSeason: Int? = null
         var episode: Int? = null
         var group: String? = null
         var resolution: String? = null
@@ -188,7 +199,8 @@ class AnimeFilenameParser @Inject constructor(
 
         entities.forEach { (type, text) ->
             when (type) {
-                "SEASON" -> extractNumber(text)?.let { season = it }
+                "SEASON" -> if (season == null) season = extractNumber(text)
+                "PATH_SEASON" -> if (pathSeason == null) pathSeason = extractNumber(text)
                 "EPISODE" -> if (episode == null) episode = extractNumber(text)
                 "GROUP" -> if (group == null) group = text.normalizeFieldText().ifBlank { null }
                 "RESOLUTION" -> resolution = text.trimDecorations().ifBlank { null }
@@ -199,7 +211,7 @@ class AnimeFilenameParser @Inject constructor(
 
         return ParsedAnimeFilename(
             title = title,
-            season = season,
+            season = season ?: pathSeason,
             episode = episode,
             group = group,
             resolution = resolution,
@@ -275,6 +287,33 @@ class AnimeFilenameParser @Inject constructor(
             .replace("_", "-")
     }
 
+    private fun chooseTitleSpan(spans: List<TitleSpan>): String? =
+        spans.minWithOrNull(
+            compareBy<TitleSpan> { titleSourcePriority(it.type) }
+                .thenBy { titleLanguagePriority(it.type) }
+                .thenBy { it.index }
+        )?.text
+
+    private fun isFileTitleEntity(entity: String): Boolean =
+        entity == "TITLE" || entity in fileTitleEntities
+
+    private fun isPathTitleEntity(entity: String): Boolean =
+        entity in pathTitleEntities
+
+    private fun titleSourcePriority(entity: String): Int =
+        if (isPathTitleEntity(entity)) 1 else 0
+
+    private fun titleLanguagePriority(entity: String): Int {
+        val language = when {
+            entity == "TITLE" -> "MIXED"
+            entity.startsWith("PATH_TITLE_") -> entity.removePrefix("PATH_TITLE_")
+            entity.startsWith("TITLE_") -> entity.removePrefix("TITLE_")
+            else -> "MIXED"
+        }
+        val index = titlePriority.indexOf(language)
+        return if (index >= 0) index else titlePriority.size
+    }
+
     private class AnimeFilenameTokenizer(private val vocab: Map<String, Int>) {
         val padTokenId: Int = vocab.getValue("[PAD]")
         val unkTokenId: Int = vocab.getValue("[UNK]")
@@ -288,6 +327,12 @@ class AnimeFilenameParser @Inject constructor(
 
         fun tokenToId(token: String): Int = vocab[token] ?: unkTokenId
     }
+
+    private data class TitleSpan(
+        val type: String,
+        val text: String,
+        val index: Int,
+    )
 
     private companion object {
         private const val MAX_LENGTH = 128
@@ -325,6 +370,21 @@ class AnimeFilenameParser @Inject constructor(
             13 to "B-SOURCE",
             14 to "I-SOURCE",
         )
+        private val fileTitleEntities = setOf(
+            "TITLE_CHS",
+            "TITLE_CHT",
+            "TITLE_JPN",
+            "TITLE_LATIN",
+            "TITLE_MIXED",
+        )
+        private val pathTitleEntities = setOf(
+            "PATH_TITLE_CHS",
+            "PATH_TITLE_CHT",
+            "PATH_TITLE_JPN",
+            "PATH_TITLE_LATIN",
+            "PATH_TITLE_MIXED",
+        )
+        private val titlePriority = listOf("CHS", "CHT", "JPN", "MIXED", "LATIN")
 
         private val highPrioritySources = setOf(
             "nf",

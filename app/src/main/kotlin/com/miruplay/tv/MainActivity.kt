@@ -1,5 +1,6 @@
 package com.miruplay.tv
 
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
@@ -59,38 +60,36 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var webControlNavigator: WebControlNavigator
     @Inject lateinit var scanCoordinator: ScanCoordinator
 
+    private var restoreLaunchTmdbOverrides: (() -> Unit)? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val launchIntentSnapshot = captureLaunchIntentSnapshot(intent)
         MiruLog.i(
             "MainActivity",
             "Main activity created",
             mapOf(
                 "has_saved_state" to (savedInstanceState != null).toString(),
                 "intent_action" to intent?.action.orEmpty(),
-                "has_test_source" to hasLaunchTestSourceIntent(
-                    legacyLocalPath = intent.getStringExtra("test_local_path"),
-                    sourceLocation = intent.getStringExtra("test_source_location"),
-                ).toString(),
+                "has_test_source" to launchIntentSnapshot.hasTestSourceIntent().toString(),
             )
         )
+        logLaunchIntentSummary(launchIntentSnapshot)
         lifecycleScope.launch {
             val selectionState = appModePreferencesManager.getSelectionState()
-            applyLaunchTestTmdbOverrides(
-                token = normalizeLaunchTmdbToken(intent.getStringExtra("test_tmdb_token")),
-                baseUrlOverride = normalizeLaunchTmdbOverride(intent.getStringExtra("test_tmdb_base_url")),
-            )
+            applyLaunchTestTmdbOverrides(launchIntentSnapshot.tmdbOverrides)
             resolveLaunchTestSourceRequest(
-                legacyLocalPath = intent.getStringExtra("test_local_path"),
-                legacyLocalName = intent.getStringExtra("test_local_name"),
-                rawType = intent.getStringExtra("test_source_type"),
-                rawLocation = intent.getStringExtra("test_source_location"),
-                rawName = intent.getStringExtra("test_source_name"),
-                rawDisplayName = intent.getStringExtra("test_source_display_name"),
-                rawUsername = intent.getStringExtra("test_source_username"),
-                rawPassword = intent.getStringExtra("test_source_password"),
-                rawContentMode = intent.getStringExtra("test_content_mode"),
-                disableOnlineMetadata = intent.getBooleanExtra("test_disable_online_metadata", false),
-                scanAfterAdd = intent.getBooleanExtra("test_scan_after_add", false),
+                legacyLocalPath = launchIntentSnapshot.legacyLocalPath,
+                legacyLocalName = launchIntentSnapshot.legacyLocalName,
+                rawType = launchIntentSnapshot.rawType,
+                rawLocation = launchIntentSnapshot.rawLocation,
+                rawName = launchIntentSnapshot.rawName,
+                rawDisplayName = launchIntentSnapshot.rawDisplayName,
+                rawUsername = launchIntentSnapshot.rawUsername,
+                rawPassword = launchIntentSnapshot.rawPassword,
+                rawContentMode = launchIntentSnapshot.rawContentMode,
+                disableOnlineMetadata = launchIntentSnapshot.disableOnlineMetadata,
+                scanAfterAdd = launchIntentSnapshot.scanAfterAdd,
                 fallbackMode = selectionState.currentAppMode,
             )?.let { request ->
                 addLaunchTestSource(request)
@@ -99,13 +98,72 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val launchIntentSnapshot = captureLaunchIntentSnapshot(intent)
+        logLaunchIntentSummary(launchIntentSnapshot)
+        lifecycleScope.launch {
+            val selectionState = appModePreferencesManager.getSelectionState()
+            applyLaunchTestTmdbOverrides(launchIntentSnapshot.tmdbOverrides)
+            resolveLaunchTestSourceRequest(
+                legacyLocalPath = launchIntentSnapshot.legacyLocalPath,
+                legacyLocalName = launchIntentSnapshot.legacyLocalName,
+                rawType = launchIntentSnapshot.rawType,
+                rawLocation = launchIntentSnapshot.rawLocation,
+                rawName = launchIntentSnapshot.rawName,
+                rawDisplayName = launchIntentSnapshot.rawDisplayName,
+                rawUsername = launchIntentSnapshot.rawUsername,
+                rawPassword = launchIntentSnapshot.rawPassword,
+                rawContentMode = launchIntentSnapshot.rawContentMode,
+                disableOnlineMetadata = launchIntentSnapshot.disableOnlineMetadata,
+                scanAfterAdd = launchIntentSnapshot.scanAfterAdd,
+                fallbackMode = selectionState.currentAppMode,
+            )?.let { request ->
+                addLaunchTestSource(request)
+            }
+        }
+    }
+
     private fun applyLaunchTestTmdbOverrides(
-        token: String?,
-        baseUrlOverride: String?,
+        overrides: LaunchTestTmdbOverrides,
     ) {
+        restoreLaunchTmdbOverrides?.invoke()
+        restoreLaunchTmdbOverrides = null
         if (!BuildConfig.DEBUG) return
+        val token = overrides.token
+        val baseUrlOverride = overrides.baseUrlOverride
+        if (token == null && baseUrlOverride == null) return
+        MiruLog.i(
+            "MainActivity",
+            "Applying launch TMDB overrides",
+            mapOf(
+                "has_token_override" to (token != null).toString(),
+                "has_base_url_override" to (baseUrlOverride != null).toString(),
+            ),
+        )
+        Log.i(
+            "MainActivity",
+            "Applying launch TMDB overrides (token=${token != null}, baseUrl=${baseUrlOverride != null})",
+        )
+        val previousToken = appCredentials.tmdbAccessToken
+        val previousBaseUrlOverride = appCredentials.tmdbApiBaseUrlOverride
+        restoreLaunchTmdbOverrides = {
+            appCredentials.tmdbAccessToken = previousToken
+            appCredentials.tmdbApiBaseUrlOverride = previousBaseUrlOverride
+        }
         token?.let { appCredentials.tmdbAccessToken = it }
         baseUrlOverride?.let { appCredentials.tmdbApiBaseUrlOverride = it }
+    }
+
+    override fun onDestroy() {
+        if (restoreLaunchTmdbOverrides != null) {
+            MiruLog.i("MainActivity", "Restoring launch TMDB overrides")
+            Log.i("MainActivity", "Restoring launch TMDB overrides")
+        }
+        restoreLaunchTmdbOverrides?.invoke()
+        restoreLaunchTmdbOverrides = null
+        super.onDestroy()
     }
 
     private suspend fun addLaunchTestSource(
@@ -245,6 +303,27 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    private fun logLaunchIntentSummary(snapshot: LaunchIntentSnapshot) {
+        if (!BuildConfig.DEBUG) return
+        if (!snapshot.hasAnyLaunchTestData()) return
+        MiruLog.i(
+            "MainActivity",
+            "Launch test extras captured",
+            mapOf(
+                "has_test_source" to snapshot.hasTestSourceIntent().toString(),
+                "has_tmdb_token_extra" to snapshot.tmdbOverrides.hasTokenExtra.toString(),
+                "has_tmdb_token_value" to (snapshot.tmdbOverrides.token != null).toString(),
+                "has_tmdb_base_url_extra" to snapshot.tmdbOverrides.hasBaseUrlExtra.toString(),
+                "has_tmdb_base_url_value" to (snapshot.tmdbOverrides.baseUrlOverride != null).toString(),
+                "scan_after_add" to snapshot.scanAfterAdd.toString(),
+            ),
+        )
+        Log.i(
+            "MainActivity",
+            "Launch extras summary (testSource=${snapshot.hasTestSourceIntent()}, tmdbTokenExtra=${snapshot.tmdbOverrides.hasTokenExtra}, tmdbTokenValue=${snapshot.tmdbOverrides.token != null}, tmdbBaseUrlExtra=${snapshot.tmdbOverrides.hasBaseUrlExtra}, tmdbBaseUrlValue=${snapshot.tmdbOverrides.baseUrlOverride != null}, scanAfterAdd=${snapshot.scanAfterAdd})",
+        )
+    }
 }
 
 internal data class LaunchTestSourceRequest(
@@ -258,6 +337,78 @@ internal data class LaunchTestSourceRequest(
     val disableOnlineMetadata: Boolean,
     val scanAfterAdd: Boolean,
 )
+
+internal data class LaunchIntentSnapshot(
+    val legacyLocalPath: String?,
+    val legacyLocalName: String?,
+    val rawType: String?,
+    val rawLocation: String?,
+    val rawName: String?,
+    val rawDisplayName: String?,
+    val rawUsername: String?,
+    val rawPassword: String?,
+    val rawContentMode: String?,
+    val disableOnlineMetadata: Boolean,
+    val scanAfterAdd: Boolean,
+    val tmdbOverrides: LaunchTestTmdbOverrides,
+)
+
+internal data class LaunchTestTmdbOverrides(
+    val token: String?,
+    val baseUrlOverride: String?,
+    val hasTokenExtra: Boolean,
+    val hasBaseUrlExtra: Boolean,
+)
+
+internal fun captureLaunchIntentSnapshot(intent: Intent?): LaunchIntentSnapshot {
+    val extras = intent?.extras
+    return LaunchIntentSnapshot(
+        legacyLocalPath = intent?.getStringExtra("test_local_path"),
+        legacyLocalName = intent?.getStringExtra("test_local_name"),
+        rawType = intent?.getStringExtra("test_source_type"),
+        rawLocation = intent?.getStringExtra("test_source_location"),
+        rawName = intent?.getStringExtra("test_source_name"),
+        rawDisplayName = intent?.getStringExtra("test_source_display_name"),
+        rawUsername = intent?.getStringExtra("test_source_username"),
+        rawPassword = intent?.getStringExtra("test_source_password"),
+        rawContentMode = intent?.getStringExtra("test_content_mode"),
+        disableOnlineMetadata = intent?.getBooleanExtra("test_disable_online_metadata", false) == true,
+        scanAfterAdd = intent?.getBooleanExtra("test_scan_after_add", false) == true,
+        tmdbOverrides = resolveLaunchTestTmdbOverrides(
+            rawToken = intent?.getStringExtra("test_tmdb_token"),
+            rawBaseUrlOverride = intent?.getStringExtra("test_tmdb_base_url"),
+            hasTokenExtra = extras?.containsKey("test_tmdb_token") == true,
+            hasBaseUrlExtra = extras?.containsKey("test_tmdb_base_url") == true,
+        ),
+    )
+}
+
+internal fun resolveLaunchTestTmdbOverrides(
+    rawToken: String?,
+    rawBaseUrlOverride: String?,
+    hasTokenExtra: Boolean,
+    hasBaseUrlExtra: Boolean,
+): LaunchTestTmdbOverrides =
+    LaunchTestTmdbOverrides(
+        token = normalizeLaunchTmdbToken(rawToken),
+        baseUrlOverride = normalizeLaunchTmdbOverride(rawBaseUrlOverride),
+        hasTokenExtra = hasTokenExtra,
+        hasBaseUrlExtra = hasBaseUrlExtra,
+    )
+
+internal fun LaunchIntentSnapshot.hasTestSourceIntent(): Boolean =
+    hasLaunchTestSourceIntent(
+        legacyLocalPath = legacyLocalPath,
+        sourceLocation = rawLocation,
+    )
+
+internal fun LaunchIntentSnapshot.hasAnyLaunchTestData(): Boolean =
+    hasTestSourceIntent() ||
+        rawContentMode?.isNotBlank() == true ||
+        disableOnlineMetadata ||
+        scanAfterAdd ||
+        tmdbOverrides.hasTokenExtra ||
+        tmdbOverrides.hasBaseUrlExtra
 
 internal fun resolveLaunchTestSourceContentMode(
     rawValue: String?,

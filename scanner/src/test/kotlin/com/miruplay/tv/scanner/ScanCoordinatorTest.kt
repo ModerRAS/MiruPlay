@@ -12,6 +12,7 @@ import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.FilenameMetadataParser
 import com.miruplay.tv.model.FilenameParseResult
 import com.miruplay.tv.model.MediaCapabilities
+import com.miruplay.tv.model.MediaContentMode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.RssDownloadTaskInfo
@@ -22,6 +23,7 @@ import com.miruplay.tv.model.ScraperSource
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MediaIndexRepository
+import com.miruplay.tv.repository.MediaScrapeStatus
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.scraper.EpisodeMetadata
@@ -182,6 +184,57 @@ class ScanCoordinatorTest {
     }
 
     @Test
+    fun `scanSource keeps filename episode when path parser misreads dotted season folder`() = runBlocking {
+        val sourceInfo = MediaSourceInfo(
+            id = 19L,
+            name = "Drama WebDAV",
+            type = MediaSourceType.WEBDAV,
+            connectionInfo = mapOf(
+                "url" to "http://example.test/dav/%E5%BD%B1%E9%9F%B3/%E7%94%B5%E8%A7%86%E5%89%A7/%E5%8C%BB%E9%A6%86%E7%AC%91%E4%BC%A0"
+            )
+        )
+        val mediaSource = FakeMediaSource(
+            listings = mapOf(
+                "" to listOf(
+                    FileEntry(name = "医馆笑传.S01", path = "/医馆笑传.S01", isDirectory = true)
+                ),
+                "/医馆笑传.S01" to listOf(
+                    FileEntry(
+                        name = "医馆笑传.S01E02.mp4",
+                        path = "/医馆笑传.S01/医馆笑传.S01E02.mp4",
+                        isDirectory = false,
+                        size = 1234
+                    )
+                )
+            )
+        )
+        val indexRepository = RecordingIndexRepository()
+        val metadataRepository = RecordingMetadataRepository()
+        val coordinator = ScanCoordinator(
+            mediaRepository = SingleSourceRepository(sourceInfo),
+            mediaSourceFactory = SingleMediaSourceFactory(mediaSource),
+            indexRepository = indexRepository,
+            metadataRepository = metadataRepository,
+            filenameMetadataParser = MappingFilenameParser(
+                mapOf(
+                    "医馆笑传/医馆笑传.S01/医馆笑传.S01E02.mp4" to FilenameParseResult(
+                        title = "医馆笑传.S01",
+                        episode = 1
+                    )
+                )
+            )
+        )
+
+        val result = coordinator.scanSource(sourceInfo.id)
+
+        assertTrue("Scan should succeed", result.isSuccess())
+        assertEquals("医馆笑传", indexRepository.entries.single().animeName)
+        assertEquals(1, indexRepository.entries.single().seasonNumber)
+        assertEquals(2, indexRepository.entries.single().episodeNumber)
+        assertEquals(2, metadataRepository.episodes.single().episodeNumber)
+    }
+
+    @Test
     fun `scanSource recognizes flat show season folder and generates local nfo files`() = runBlocking {
         val root = Files.createTempDirectory("miruplay-scan").toFile().canonicalFile
         try {
@@ -330,6 +383,34 @@ class ScanCoordinatorTest {
     }
 
     @Test
+    fun `scanSource returns error when root directory listing fails`() = runBlocking {
+        val sourceInfo = MediaSourceInfo(
+            id = 45L,
+            name = "Broken WebDAV",
+            type = MediaSourceType.WEBDAV,
+            connectionInfo = mapOf("url" to "http://example.test/dav")
+        )
+        val expectedError = AppError.NetworkError.HttpError(401, "Unauthorized")
+        val mediaSource = FakeMediaSource(
+            listings = emptyMap(),
+            listErrors = mapOf("" to expectedError),
+        )
+        val coordinator = ScanCoordinator(
+            mediaRepository = SingleSourceRepository(sourceInfo),
+            mediaSourceFactory = SingleMediaSourceFactory(mediaSource),
+            indexRepository = RecordingIndexRepository(),
+            metadataRepository = RecordingMetadataRepository(),
+            filenameMetadataParser = EmptyFilenameMetadataParser,
+        )
+
+        val result = coordinator.scanSource(sourceInfo.id)
+
+        assertTrue(result is Result.Error)
+        assertEquals(expectedError, (result as Result.Error).error)
+        assertEquals(listOf(""), mediaSource.listedPaths)
+    }
+
+    @Test
     fun `scanSource passes parser title candidates to Bangumi alias search`() = runBlocking {
         val sourceInfo = MediaSourceInfo(
             id = 12L,
@@ -470,6 +551,82 @@ class ScanCoordinatorTest {
         assertEquals(1, metadataRepository.episodes.size)
         assertTrue("Bangumi alias lookup should be skipped", scraper.normalizedName == null)
         assertTrue("Bangumi fallback candidates should be skipped", scraper.aliasCandidates.isEmpty())
+    }
+
+    @Test
+    fun `scanSource skips Bangumi cache reuse and lookup for drama sources`() = runBlocking {
+        val sourceInfo = MediaSourceInfo(
+            id = 48L,
+            name = "Drama WebDAV",
+            type = MediaSourceType.WEBDAV,
+            contentMode = MediaContentMode.DRAMA,
+            connectionInfo = mapOf("url" to "http://example.test/dav")
+        )
+        val mediaSource = FakeMediaSource(
+            listings = mapOf(
+                "" to listOf(
+                    FileEntry(name = "医馆笑传", path = "/医馆笑传", isDirectory = true)
+                ),
+                "/医馆笑传" to listOf(
+                    FileEntry(
+                        name = "医馆笑传.S01E01.mkv",
+                        path = "/医馆笑传/医馆笑传.S01E01.mkv",
+                        isDirectory = false,
+                        size = 1234
+                    )
+                )
+            )
+        )
+        val scraper = RecordingBangumiScraper()
+        val metadataRepository = RecordingMetadataRepository(
+            cachedAnime = mutableMapOf(
+                "医馆笑传" to Anime(
+                    id = "医馆笑传",
+                    title = "错误动漫标题",
+                    titleCn = "错误动漫标题",
+                    bangumiId = 431767,
+                    posterUrl = "http://example.test/poster.jpg",
+                )
+            ),
+            cachedEpisodes = mutableMapOf(
+                "医馆笑传" to listOf(
+                    Episode(
+                        id = "cached-1",
+                        animeId = "医馆笑传",
+                        seasonNumber = 1,
+                        episodeNumber = 1,
+                        title = "错误动漫分集标题",
+                        filePath = "cached",
+                        fileName = "cached.mkv",
+                        bangumiEpisodeId = 99,
+                    )
+                )
+            )
+        )
+        val indexRepository = RecordingIndexRepository()
+        val coordinator = ScanCoordinator(
+            mediaRepository = SingleSourceRepository(sourceInfo),
+            mediaSourceFactory = SingleMediaSourceFactory(mediaSource),
+            indexRepository = indexRepository,
+            metadataRepository = metadataRepository,
+            filenameMetadataParser = EmptyFilenameMetadataParser,
+            metadataScrapers = setOf(scraper)
+        )
+
+        val result = coordinator.scanSource(sourceInfo.id)
+
+        assertTrue("Scan should succeed", result.isSuccess())
+        assertTrue("Bangumi alias lookup should be skipped for drama", scraper.normalizedName == null)
+        assertTrue("Bangumi fallback candidates should be skipped for drama", scraper.aliasCandidates.isEmpty())
+        val entry = indexRepository.entries.single()
+        assertEquals(null, entry.metadataSource)
+        assertEquals(null, entry.metadataId)
+        assertEquals(null, entry.metadataTitle)
+        assertEquals(MediaScrapeStatus.PENDING, entry.scrapeStatus)
+        assertEquals("Drama metadata is resolved from TMDB detail flow", entry.scrapeMessage)
+        assertEquals("", metadataRepository.episodes.single().title)
+        assertEquals(null, metadataRepository.episodes.single().bangumiEpisodeId)
+        assertTrue("Drama scan should not cache anime metadata rows", metadataRepository.anime.isEmpty())
     }
 
     @Test
@@ -777,7 +934,8 @@ class ScanCoordinatorTest {
     }
 
     private class FakeMediaSource(
-        private val listings: Map<String, List<FileEntry>>
+        private val listings: Map<String, List<FileEntry>>,
+        private val listErrors: Map<String, AppError> = emptyMap(),
     ) : MediaSource {
         override val id: String = "fake"
         override lateinit var info: MediaSourceInfo
@@ -786,6 +944,7 @@ class ScanCoordinatorTest {
 
         override suspend fun listFiles(path: String): Result<List<FileEntry>> {
             listedPaths.add(path)
+            listErrors[path]?.let { return Result.failure(it) }
             return Result.success(listings[path].orEmpty())
         }
 

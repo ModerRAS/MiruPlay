@@ -84,7 +84,8 @@ class VideoDirectoryClassifier(
         val episode = chooseEpisode(evidence, titleSelection.normalizedTitle)
 
         return VideoClassification(
-            animeName = titleSelection.title,
+            animeName = titleSelection.title.sanitizedClassifierTitle()
+                ?: titleSelection.title,
             seasonNumber = season,
             episodeNumber = episode,
             titleCandidates = titleCandidates(
@@ -256,17 +257,22 @@ class VideoDirectoryClassifier(
             evidence.filter { it.normalizedTitle == title }
         }.orEmpty()
         val filenameEvidence = evidence.filter { it.source in filenameEpisodeEvidenceSources }
+        val matchingTitleFilenameEvidence = matchingTitle.filter { it.source in filenameEpisodeEvidenceSources }
         val titlelessEvidence = evidence.filter { it.normalizedTitle == null }
-        return bestFrom(matchingTitle)
+        val titlelessFilenameEvidence = titlelessEvidence.filter { it.source in filenameEpisodeEvidenceSources }
+        return bestFrom(matchingTitleFilenameEvidence)
+            ?: bestFrom(titlelessFilenameEvidence)
             ?: bestFrom(filenameEvidence)
+            ?: bestFrom(matchingTitle)
             ?: bestFrom(titlelessEvidence)
     }
 
     private fun String.normalizedTitle(): String? =
-        replace(Regex("""[._]+"""), " ")
-            .replace(Regex("""\s+"""), " ")
-            .trim()
-            .takeIf { it.isNotBlank() && !it.equals("Unknown", ignoreCase = true) }
+        sanitizedClassifierTitle()
+            ?.replace(Regex("""[._]+"""), " ")
+            ?.replace(Regex("""\s+"""), " ")
+            ?.trim()
+            ?.takeIf { it.isNotBlank() && !it.equals("Unknown", ignoreCase = true) }
             ?.let(::splitSeriesAndSeason)
             ?.seriesName
             ?.replace(Regex("""[._]+"""), " ")
@@ -395,8 +401,11 @@ class VideoDirectoryClassifier(
                 ) +
                 folderParseDiagnostics.mapNotNull { it.parsed.title }
             )
-            .map { it.replace(Regex("""\s+"""), " ").trim() }
-            .filter { it.isNotBlank() && !it.equals("Unknown", ignoreCase = true) }
+            .mapNotNull { candidate ->
+                candidate.sanitizedClassifierTitle()
+                    ?: candidate.replace(Regex("""\s+"""), " ").trim().takeIf { it.isNotBlank() }
+            }
+            .filter { !it.equals("Unknown", ignoreCase = true) }
             .distinct()
 
     private enum class EvidenceSource(
@@ -488,6 +497,14 @@ class VideoDirectoryClassifier(
             .replace(Regex("""\s+"""), " ")
             .trim()
 
+    private fun String.sanitizedClassifierTitle(): String? =
+        FilenameParseResult(title = this)
+            .sanitizeRecognizedText()
+            .title
+            ?.replace(Regex("""\s+"""), " ")
+            ?.trim()
+            ?.takeIf { it.isNotBlank() && !it.equals("Unknown", ignoreCase = true) }
+
     companion object {
         private const val maxParsedTextLength = 128
         private const val maxParsedContextSegments = 6
@@ -521,8 +538,11 @@ class VideoDirectoryClassifier(
             "video library",
             "影视",
             "影音",
+            "电视剧",
+            "劇集",
             "动漫",
             "動畫",
+            "片头尾",
             "下载",
             "下載",
             "单集",
@@ -784,7 +804,7 @@ fun splitSeriesAndSeason(name: String): SeriesSeason {
 
 private val seasonSuffixPatterns = listOf(
     Regex("""(?i)^(?<title>.+?)\s+season\s*(?<num>\d{1,2})$"""),
-    Regex("""(?i)^(?<title>.+?)\s+s(?<num>\d{1,2})$"""),
+    Regex("""(?i)^(?<title>.+?)(?:\s+|[._-]+)s(?<num>\d{1,2})$"""),
     Regex("""(?i)^(?<title>.+?)\s+(?<num>\d{1,2})(?:st|nd|rd|th)\s+season$"""),
     // NEW: Parenthesized Chinese season, e.g., "一拳超人(第三季)", "某某番（第二季）"
     Regex("""^(?<title>.+?)\s*[（(]\s*第(?<num>\d{1,2}|[一二三四五六七八九十]+)\s*[季期]\s*[)）]"""),

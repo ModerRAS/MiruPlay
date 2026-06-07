@@ -1,5 +1,6 @@
 package com.miruplay.tv.model
 
+import java.net.URI
 import java.net.URLDecoder
 import java.net.URLEncoder
 import java.nio.file.Paths
@@ -95,8 +96,37 @@ object MediaPathConventions {
             .filter { it.isNotEmpty() }
             .joinToString("/") { encodePathSegment(it) }
 
+    fun canonicalizeRemoteUrl(url: String): String {
+        val trimmed = url.trim()
+        if (trimmed.isBlank() || "://" !in trimmed) return trimmed
+        return runCatching {
+            canonicalizeRemoteUri(URI(trimmed))
+        }.getOrElse {
+            REMOTE_URL_REGEX.matchEntire(trimmed)
+                ?.let { match ->
+                    runCatching {
+                        URI(
+                            match.groupValues[1],
+                            match.groupValues[2],
+                            match.groupValues[3].ifBlank { null },
+                            match.groupValues[4].removePrefix("?").ifBlank { null },
+                            match.groupValues[5].removePrefix("#").ifBlank { null },
+                        ).toASCIIString()
+                    }.getOrDefault(trimmed)
+                }
+                ?: trimmed
+        }
+    }
+
     fun joinRemoteUrl(baseUrl: String, path: String): String {
-        val base = baseUrl.trimEnd('/')
+        val trimmedPath = path.trim()
+        if (trimmedPath.startsWith(HTTP_SCHEME, ignoreCase = true) ||
+            trimmedPath.startsWith(HTTPS_SCHEME, ignoreCase = true)
+        ) {
+            return canonicalizeRemoteUrl(trimmedPath)
+        }
+
+        val base = canonicalizeRemoteUrl(baseUrl).trimEnd('/')
         if (base.isBlank()) return path
         if (path.startsWith(base)) return path
         val encodedPath = encodeRemotePath(path)
@@ -138,6 +168,20 @@ object MediaPathConventions {
     private fun String.removePrefixIgnoreCase(prefix: String): String =
         if (startsWith(prefix, ignoreCase = true)) substring(prefix.length) else this
 
+    private fun canonicalizeRemoteUri(uri: URI): String {
+        if (uri.scheme.isNullOrBlank() || uri.authority.isNullOrBlank()) {
+            return uri.toString()
+        }
+        return URI(
+            uri.scheme,
+            uri.authority,
+            uri.path,
+            uri.query,
+            uri.fragment,
+        ).toASCIIString()
+    }
+
+    private val REMOTE_URL_REGEX = Regex("""^([A-Za-z][A-Za-z0-9+.\-]*):\/\/([^\/?#]+)([^?#]*)(\?[^#]*)?(#.*)?$""")
     private val WINDOWS_DRIVE_SEGMENT_REGEX = Regex("""^[A-Za-z]:$""")
     private val MEDIA_ROOT_SEGMENTS = setOf(
         "115open",
@@ -156,4 +200,6 @@ object MediaPathConventions {
         "下載",
     )
     private const val SMB_SCHEME = "smb://"
+    private const val HTTP_SCHEME = "http://"
+    private const val HTTPS_SCHEME = "https://"
 }

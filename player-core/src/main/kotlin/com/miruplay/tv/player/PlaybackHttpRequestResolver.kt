@@ -20,15 +20,12 @@ class PlaybackHttpRequestResolver @Inject constructor(
         val mediaSource = findMediaSource(source) ?: return PlaybackHttpRequestConfig.Empty
         if (mediaSource.type != MediaSourceType.WEBDAV) return PlaybackHttpRequestConfig.Empty
 
-        val username = mediaSource.connectionUsername()
-        if (username.isBlank()) return PlaybackHttpRequestConfig.Empty
-
         val remoteUrl = mediaSource.remoteUrl().orEmpty()
         if (remoteUrl.isBlank()) return PlaybackHttpRequestConfig.Empty
 
         return PlaybackHttpRequestConfig(
             baseUrl = remoteUrl,
-            headers = mapOf(AUTHORIZATION_HEADER to mediaSource.basicAuthorizationHeader(username)),
+            headers = mapOf(AUTHORIZATION_HEADER to mediaSource.playbackAuthorizationHeader()),
         )
     }
 
@@ -64,9 +61,26 @@ class PlaybackHttpRequestResolver @Inject constructor(
             startsWith("$base?") ||
             startsWith("$base#")
 
-    private fun MediaSourceInfo.basicAuthorizationHeader(username: String): String {
+    private fun MediaSourceInfo.playbackAuthorizationHeader(): String {
+        val username = connectionUsername()
+        if (username.isBlank()) {
+            return anonymousAuthorizationHeader()
+        }
+        return basicAuthorizationHeader(
+            username = username,
+            password = connectionPassword(),
+        )
+    }
+
+    private fun basicAuthorizationHeader(username: String, password: String): String {
         val token = Base64.getEncoder()
-            .encodeToString("$username:${connectionPassword()}".toByteArray(Charsets.UTF_8))
+            .encodeToString("$username:$password".toByteArray(Charsets.UTF_8))
+        return "Basic $token"
+    }
+
+    private fun anonymousAuthorizationHeader(): String {
+        val token = Base64.getEncoder()
+            .encodeToString("anonymous:".toByteArray(Charsets.UTF_8))
         return "Basic $token"
     }
 

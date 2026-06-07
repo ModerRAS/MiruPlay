@@ -2,6 +2,7 @@ package com.miruplay.tv.scraper
 
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.model.DramaMetadataSearchResult
 import com.miruplay.tv.model.DramaEpisodeMetadata
 import com.miruplay.tv.model.DramaSeasonMetadata
 import com.miruplay.tv.model.DramaSeries
@@ -35,66 +36,119 @@ class TmdbDramaMetadataRepository @Inject constructor(
         seasonHint: Int?,
         seasonNumbers: List<Int>,
     ): Result<DramaSeriesMetadata?> = withContext(Dispatchers.IO) {
-        val token = credentials.tmdbAccessToken?.trim().orEmpty()
-        if (token.isBlank()) {
-            return@withContext Result.success(null)
-        }
-
-        runCatching {
-            val apiBaseUrl = credentials.tmdbApiBaseUrlOverride
-                ?.trim()
-                ?.takeIf { it.isNotBlank() }
-                ?: API_BASE
-            val searchUrl = apiBaseUrl.toHttpUrl().newBuilder()
+        withTmdbResult(onMissingToken = { null }) {
+            val searchUrl = apiBaseUrl().toHttpUrl().newBuilder()
                 .addPathSegments("3/search/tv")
                 .addQueryParameter("query", title)
                 .addQueryParameter("language", "zh-CN")
                 .build()
-            val searchRoot = executeJson(searchUrl.toString(), token).jsonObject
+            val searchRoot = executeJson(searchUrl.toString(), it).jsonObject
             val firstResult = searchRoot["results"]
                 ?.jsonArray
                 ?.firstUsefulTvResult(seasonHint)
-                ?: return@runCatching null
-
+                ?: return@withTmdbResult null
             val tmdbId = firstResult["id"]?.jsonPrimitive?.content?.toIntOrNull()
-                ?: return@runCatching null
-            val detailUrl = apiBaseUrl.toHttpUrl().newBuilder()
-                .addPathSegments("3/tv/$tmdbId")
+                ?: return@withTmdbResult null
+            fetchSeriesMetadataInternal(
+                token = it,
+                tmdbId = tmdbId,
+                seasonHint = seasonHint,
+                seasonNumbers = seasonNumbers,
+                fallbackSearchResult = firstResult,
+            )
+        }
+    }
+
+    override suspend fun searchSeriesCandidates(
+        query: String,
+        seasonHint: Int?,
+        maxResults: Int,
+    ): Result<List<DramaMetadataSearchResult>> = withContext(Dispatchers.IO) {
+        withTmdbResult(onMissingToken = { emptyList() }) {
+            val searchUrl = apiBaseUrl().toHttpUrl().newBuilder()
+                .addPathSegments("3/search/tv")
+                .addQueryParameter("query", query)
                 .addQueryParameter("language", "zh-CN")
                 .build()
-            val detail = executeJson(detailUrl.toString(), token).jsonObject
-            val requestedSeasonNumbers = seasonNumbers
-                .filter { it > 0 }
-                .distinct()
-                .sorted()
-                .ifEmpty {
-                    listOfNotNull(seasonHint?.takeIf { it > 0 })
-                }
-            val seasonMetadata = requestedSeasonNumbers.mapNotNull { seasonNumber ->
-                val seasonDetailUrl = apiBaseUrl.toHttpUrl().newBuilder()
-                    .addPathSegments("3/tv/$tmdbId/season/$seasonNumber")
-                    .addQueryParameter("language", "zh-CN")
-                    .build()
-                val seasonDetail = executeJson(seasonDetailUrl.toString(), token).jsonObject
-                seasonDetail.toDramaSeasonMetadata()
-            }
+            val searchRoot = executeJson(searchUrl.toString(), it).jsonObject
+            searchRoot["results"]
+                ?.jsonArray
+                ?.rankedTvResults(seasonHint)
+                ?.take(maxResults.coerceAtLeast(1))
+                ?.mapNotNull { result -> result.toDramaSearchResult() }
+                .orEmpty()
+        }
+    }
 
-            DramaSeriesMetadata(
-                series = DramaSeries(
-                    id = "tmdb:$tmdbId",
-                    title = detail.string("name").ifBlank { firstResult.string("name") },
-                    originalTitle = detail.string("original_name"),
-                    summary = detail.string("overview"),
-                    seasonCount = detail.int("number_of_seasons") ?: 0,
-                    episodeCount = detail.int("number_of_episodes") ?: 0,
-                    posterUrl = detail.imageUrl("poster_path"),
-                    fanartUrl = detail.imageUrl("backdrop_path"),
-                    firstAirDate = detail.string("first_air_date").ifBlank { null }.orEmpty(),
-                    tmdbId = tmdbId,
-                ),
-                seasons = seasonMetadata,
+    override suspend fun fetchSeriesMetadataById(
+        tmdbId: Int,
+        seasonNumbers: List<Int>,
+    ): Result<DramaSeriesMetadata?> = withContext(Dispatchers.IO) {
+        withTmdbResult(onMissingToken = { null }) {
+            fetchSeriesMetadataInternal(
+                token = it,
+                tmdbId = tmdbId,
+                seasonHint = seasonNumbers.minOrNull(),
+                seasonNumbers = seasonNumbers,
+                fallbackSearchResult = null,
             )
-        }.fold(
+        }
+    }
+
+    private fun fetchSeriesMetadataInternal(
+        token: String,
+        tmdbId: Int,
+        seasonHint: Int?,
+        seasonNumbers: List<Int>,
+        fallbackSearchResult: JsonObject?,
+    ): DramaSeriesMetadata {
+        val detailUrl = apiBaseUrl().toHttpUrl().newBuilder()
+            .addPathSegments("3/tv/$tmdbId")
+            .addQueryParameter("language", "zh-CN")
+            .build()
+        val detail = executeJson(detailUrl.toString(), token).jsonObject
+        val requestedSeasonNumbers = seasonNumbers
+            .filter { it > 0 }
+            .distinct()
+            .sorted()
+            .ifEmpty {
+                listOfNotNull(seasonHint?.takeIf { it > 0 })
+            }
+        val seasonMetadata = requestedSeasonNumbers.mapNotNull { seasonNumber ->
+            val seasonDetailUrl = apiBaseUrl().toHttpUrl().newBuilder()
+                .addPathSegments("3/tv/$tmdbId/season/$seasonNumber")
+                .addQueryParameter("language", "zh-CN")
+                .build()
+            val seasonDetail = executeJson(seasonDetailUrl.toString(), token).jsonObject
+            seasonDetail.toDramaSeasonMetadata()
+        }
+
+        return DramaSeriesMetadata(
+            series = DramaSeries(
+                id = "tmdb:$tmdbId",
+                title = detail.string("name").ifBlank { fallbackSearchResult?.string("name").orEmpty() },
+                originalTitle = detail.string("original_name"),
+                summary = detail.string("overview"),
+                seasonCount = detail.int("number_of_seasons") ?: 0,
+                episodeCount = detail.int("number_of_episodes") ?: 0,
+                posterUrl = detail.imageUrl("poster_path"),
+                fanartUrl = detail.imageUrl("backdrop_path"),
+                firstAirDate = detail.string("first_air_date").ifBlank { null }.orEmpty(),
+                tmdbId = tmdbId,
+            ),
+            seasons = seasonMetadata,
+        )
+    }
+
+    private inline fun <T> withTmdbResult(
+        onMissingToken: () -> T,
+        block: (token: String) -> T,
+    ): Result<T> {
+        val token = credentials.tmdbAccessToken?.trim().orEmpty()
+        if (token.isBlank()) {
+            return Result.success(onMissingToken())
+        }
+        return runCatching { block(token) }.fold(
             onSuccess = { Result.success(it) },
             onFailure = {
                 Result.failure(
@@ -106,6 +160,12 @@ class TmdbDramaMetadataRepository @Inject constructor(
             },
         )
     }
+
+    private fun apiBaseUrl(): String =
+        credentials.tmdbApiBaseUrlOverride
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?: API_BASE
 
     private fun executeJson(url: String, token: String): JsonElement {
         val request = Request.Builder()
@@ -126,9 +186,11 @@ class TmdbDramaMetadataRepository @Inject constructor(
     }
 
     private fun JsonArray.firstUsefulTvResult(seasonHint: Int?): JsonObject? =
+        rankedTvResults(seasonHint).firstOrNull()
+
+    private fun JsonArray.rankedTvResults(seasonHint: Int?): List<JsonObject> =
         mapNotNull { it as? JsonObject }
             .sortedByDescending { candidateScore(it, seasonHint) }
-            .firstOrNull()
 
     private fun candidateScore(item: JsonObject, seasonHint: Int?): Int {
         var score = 0
@@ -149,6 +211,19 @@ class TmdbDramaMetadataRepository @Inject constructor(
 
     private fun JsonObject.imageUrl(key: String): String? =
         string(key).takeIf { it.isNotBlank() }?.let { "$IMAGE_BASE$it" }
+
+    private fun JsonObject.toDramaSearchResult(): DramaMetadataSearchResult? {
+        val tmdbId = int("id") ?: return null
+        return DramaMetadataSearchResult(
+            tmdbId = tmdbId,
+            title = string("name"),
+            originalTitle = string("original_name"),
+            summary = string("overview"),
+            firstAirDate = string("first_air_date").ifBlank { null }.orEmpty(),
+            posterUrl = imageUrl("poster_path"),
+            fanartUrl = imageUrl("backdrop_path"),
+        )
+    }
 
     private fun JsonObject.toDramaSeasonMetadata(): DramaSeasonMetadata? {
         val seasonNumber = int("season_number") ?: return null

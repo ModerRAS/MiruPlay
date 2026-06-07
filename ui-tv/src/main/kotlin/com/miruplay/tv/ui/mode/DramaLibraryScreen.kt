@@ -24,13 +24,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -42,6 +38,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
 import com.miruplay.tv.model.Anime
+import com.miruplay.tv.model.ProgressRecord
+import com.miruplay.tv.model.dramaFeatureSubtitle
+import com.miruplay.tv.model.dramaPosterSubtitle
 import com.miruplay.tv.model.displayTitle
 import com.miruplay.tv.model.libraryHasSourcesEmptyMessage
 import com.miruplay.tv.model.libraryCancelScanActionLabel
@@ -58,17 +57,23 @@ import com.miruplay.tv.model.libraryScanActionLabel
 import com.miruplay.tv.model.libraryScanNowActionLabel
 import com.miruplay.tv.model.libraryScanningTitle
 import com.miruplay.tv.model.librarySettingsActionLabel
+import com.miruplay.tv.model.playbackProgressRecordLabel
 import com.miruplay.tv.scanner.LibraryScanState
 import com.miruplay.tv.ui.components.AnimePosterCard
 import com.miruplay.tv.ui.components.FeatureAnimeCard
 import com.miruplay.tv.ui.components.LoadingIndicator
 import com.miruplay.tv.ui.components.OverscanContainer
 import com.miruplay.tv.ui.components.TvButton
+import com.miruplay.tv.ui.components.rememberInitialFocusHandle
+import com.miruplay.tv.ui.drama.DramaBackdropArtworkPlaceholder
+import com.miruplay.tv.ui.drama.DramaPosterArtworkPlaceholder
+import com.miruplay.tv.ui.drama.dramaEpisodeProgressIndicatorFraction
 import com.miruplay.tv.ui.theme.AnimeRed
 import com.miruplay.tv.ui.theme.DarkSurface
 import com.miruplay.tv.ui.theme.TextPrimary
 import com.miruplay.tv.ui.theme.TextSecondary
 import com.miruplay.tv.ui.theme.TvTypography
+import com.miruplay.tv.ui.theme.WarningYellow
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -144,6 +149,10 @@ private fun DramaLibraryHeader(
     onCancelScan: () -> Unit,
     onNavigateToSettings: () -> Unit,
 ) {
+    val headerInitialFocus = rememberInitialFocusHandle(
+        key = activeScan == null,
+    )
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -185,13 +194,23 @@ private fun DramaLibraryHeader(
                     text = libraryScanActionLabel(),
                     icon = Icons.Filled.Refresh,
                     onClick = onScan,
-                    modifier = Modifier.width(132.dp),
+                    modifier = Modifier
+                        .width(132.dp)
+                        .then(headerInitialFocus.modifier()),
                 )
             }
             TvButton(
                 text = librarySettingsActionLabel(),
                 onClick = onNavigateToSettings,
-                modifier = Modifier.width(132.dp),
+                modifier = Modifier
+                    .width(132.dp)
+                    .then(
+                        if (activeScan != null) {
+                            headerInitialFocus.modifier()
+                        } else {
+                            Modifier
+                        }
+                    ),
             )
         }
     }
@@ -274,20 +293,16 @@ private fun DramaLibraryContent(
     state: DramaLibraryUiState.Ready,
     onNavigateToDetail: (String) -> Unit,
 ) {
-    val firstFeaturedId = state.featuredSeries.firstOrNull()?.id
-    val firstContentFocusRequester = remember { FocusRequester() }
-
-    LaunchedEffect(firstFeaturedId) {
-        if (firstFeaturedId != null) {
-            firstContentFocusRequester.requestFocus()
-        }
-    }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState()),
     ) {
+        state.scanNotice?.takeIf { it.isNotBlank() }?.let { notice ->
+            DramaLibraryNoticeBanner(notice)
+            Spacer(Modifier.height(18.dp))
+        }
+
         if (state.featuredSeries.isNotEmpty()) {
             DramaSectionHeader(
                 title = libraryFeaturedSectionTitle(),
@@ -303,11 +318,9 @@ private fun DramaLibraryContent(
                 items(state.featuredSeries, key = { it.id }) { series ->
                     FeatureAnimeCard(
                         anime = series.toAnimeProxy(),
-                        modifier = if (series.id == firstFeaturedId) {
-                            Modifier.focusRequester(firstContentFocusRequester)
-                        } else {
-                            Modifier
-                        },
+                        subtitle = series.dramaFeatureSubtitle(),
+                        backdropPlaceholder = { DramaBackdropArtworkPlaceholder(title = series.displayTitle()) },
+                        posterPlaceholder = { DramaPosterArtworkPlaceholder(title = series.displayTitle()) },
                         onClick = { onNavigateToDetail(series.id) },
                     )
                 }
@@ -326,7 +339,9 @@ private fun DramaLibraryContent(
                 items(state.continueWatching, key = { it.episode.id }) { item ->
                     AnimePosterCard(
                         anime = item.series.toAnimeProxy(),
-                        subtitle = libraryContinueWatchingSubtitle(item.episode.episodeNumber),
+                        subtitle = dramaContinueWatchingSubtitle(item.episode.episodeNumber, item.progress),
+                        progress = dramaEpisodeProgressIndicatorFraction(item.episode, item.progress),
+                        imagePlaceholder = { DramaPosterArtworkPlaceholder(title = item.series.displayTitle()) },
                         onClick = { onNavigateToDetail(item.series.id) },
                     )
                 }
@@ -345,7 +360,8 @@ private fun DramaLibraryContent(
                 items(state.recentlyAdded, key = { it.id }) { series ->
                     AnimePosterCard(
                         anime = series.toAnimeProxy(),
-                        subtitle = "${series.seasonCount} 季 · ${series.episodeCount} 集",
+                        subtitle = series.dramaPosterSubtitle(),
+                        imagePlaceholder = { DramaPosterArtworkPlaceholder(title = series.displayTitle()) },
                         onClick = { onNavigateToDetail(series.id) },
                     )
                 }
@@ -382,9 +398,10 @@ private fun DramaLibraryContent(
                             row.forEach { item ->
                                 AnimePosterCard(
                                     anime = item.toAnimeProxy(),
-                                    subtitle = "${item.seasonCount} 季 · ${item.episodeCount} 集",
+                                    subtitle = item.dramaPosterSubtitle(),
                                     width = 170.dp,
                                     height = 254.dp,
+                                    imagePlaceholder = { DramaPosterArtworkPlaceholder(title = item.displayTitle()) },
                                     onClick = { onNavigateToDetail(item.id) },
                                 )
                             }
@@ -404,13 +421,42 @@ private fun DramaLibraryContent(
                     items(state.series, key = { it.id }) { item ->
                         AnimePosterCard(
                             anime = item.toAnimeProxy(),
-                            subtitle = "${item.seasonCount} 季 · ${item.episodeCount} 集",
+                            subtitle = item.dramaPosterSubtitle(),
+                            imagePlaceholder = { DramaPosterArtworkPlaceholder(title = item.displayTitle()) },
                             onClick = { onNavigateToDetail(item.id) },
                         )
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun DramaLibraryNoticeBanner(
+    message: String,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                WarningYellow.copy(alpha = 0.12f),
+                androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+            )
+            .border(
+                1.dp,
+                WarningYellow.copy(alpha = 0.36f),
+                androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+            )
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Text(
+            text = message,
+            style = TvTypography.body,
+            color = TextPrimary,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -453,3 +499,13 @@ private fun com.miruplay.tv.model.DramaSeries.toAnimeProxy() =
         fanartUrl = fanartUrl,
     )
 
+internal fun dramaContinueWatchingSubtitle(
+    episodeNumber: Int?,
+    progress: ProgressRecord?,
+): String {
+    val baseSubtitle = libraryContinueWatchingSubtitle(episodeNumber)
+    val progressSubtitle = playbackProgressRecordLabel(progress)
+        .takeUnless { it == "未看" }
+        ?: return baseSubtitle
+    return "$baseSubtitle · $progressSubtitle"
+}

@@ -15,16 +15,22 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -34,32 +40,40 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
 import com.miruplay.tv.model.DramaEpisode
+import com.miruplay.tv.model.DramaMetadataSearchResult
 import com.miruplay.tv.model.ProgressRecord
-import com.miruplay.tv.model.detailEpisodeCountLabel
 import com.miruplay.tv.model.detailEpisodeSectionTitle
 import com.miruplay.tv.model.detailEpisodeTitleLabel
 import com.miruplay.tv.model.detailSeasonLabel
+import com.miruplay.tv.model.dramaEpisodeCountLabel
+import com.miruplay.tv.model.dramaMetadataStatusMessage
+import com.miruplay.tv.model.dramaRefreshActionLabel
+import com.miruplay.tv.model.dramaSeasonCountLabel
 import com.miruplay.tv.model.displayTitle
-import com.miruplay.tv.model.progressFraction
 import com.miruplay.tv.model.progressLabel
+import com.miruplay.tv.ui.drama.DramaBackdropArtworkPlaceholder
+import com.miruplay.tv.ui.drama.DramaPosterArtworkPlaceholder
+import com.miruplay.tv.ui.drama.dramaEpisodeProgressIndicatorFraction
 import com.miruplay.tv.ui.components.LoadingIndicator
 import com.miruplay.tv.ui.components.OverscanContainer
 import com.miruplay.tv.ui.components.RemoteImage
 import com.miruplay.tv.ui.components.TvButton
+import com.miruplay.tv.ui.components.TvTextField
+import com.miruplay.tv.ui.components.rememberInitialFocusHandle
 import com.miruplay.tv.ui.components.tvFocusableClickable
 import com.miruplay.tv.ui.theme.AccentBlue
 import com.miruplay.tv.ui.theme.AnimeRed
@@ -86,38 +100,59 @@ fun DramaDetailScreen(
     val selectedSeason by viewModel.selectedSeason.collectAsStateWithLifecycle()
     val episodes by viewModel.episodesWithProgress.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val isRefreshingMetadata by viewModel.isRefreshingMetadata.collectAsStateWithLifecycle()
+    val hasTmdbTokenConfigured by viewModel.hasTmdbTokenConfigured.collectAsStateWithLifecycle()
     val primaryActionEpisode by viewModel.primaryActionEpisode.collectAsStateWithLifecycle()
     val hasPlayableEpisodes by viewModel.hasPlayableEpisodes.collectAsStateWithLifecycle()
     val primaryActionLabel by viewModel.primaryActionLabel.collectAsStateWithLifecycle()
     val actionMessage by viewModel.actionMessage.collectAsStateWithLifecycle()
+    val manualMatch by viewModel.manualMatch.collectAsStateWithLifecycle()
 
     LaunchedEffect(seriesId) {
         viewModel.loadSeries(seriesId)
     }
-    BackHandler(onBack = onNavigateBack)
+    BackHandler(enabled = manualMatch.isOpen, onBack = viewModel::closeManualMatch)
+    BackHandler(enabled = !manualMatch.isOpen, onBack = onNavigateBack)
 
-    OverscanContainer {
-        if (isLoading) {
-            LoadingIndicator()
-        } else {
-            val currentSeries = series
-            if (currentSeries == null) {
-                DramaDetailMissingState(onNavigateBack = onNavigateBack)
-                return@OverscanContainer
+    Box(modifier = Modifier.fillMaxSize()) {
+        OverscanContainer {
+            if (isLoading) {
+                LoadingIndicator()
+            } else {
+                val currentSeries = series
+                if (currentSeries == null) {
+                    DramaDetailMissingState(onNavigateBack = onNavigateBack)
+                    return@OverscanContainer
+                }
+                DramaDetailContent(
+                    series = currentSeries,
+                    seasons = seasons.map { it.seasonNumber },
+                    selectedSeason = selectedSeason,
+                    episodes = episodes,
+                    isRefreshingMetadata = isRefreshingMetadata,
+                    hasTmdbTokenConfigured = hasTmdbTokenConfigured,
+                    primaryActionLabel = primaryActionLabel,
+                    actionMessage = actionMessage,
+                    primaryActionEpisode = primaryActionEpisode,
+                    hasPlayableEpisodes = hasPlayableEpisodes,
+                    onNavigateBack = onNavigateBack,
+                    onPlayEpisode = onPlayEpisode,
+                    onSelectSeason = viewModel::selectSeason,
+                    onRefreshMetadata = viewModel::refreshSeries,
+                    onOpenManualMatch = viewModel::openManualMatch,
+                )
             }
-            DramaDetailContent(
-                series = currentSeries,
-                seasons = seasons.map { it.seasonNumber },
-                selectedSeason = selectedSeason,
-                episodes = episodes,
-                primaryActionLabel = primaryActionLabel,
-                actionMessage = actionMessage,
-                primaryActionEpisode = primaryActionEpisode,
-                hasPlayableEpisodes = hasPlayableEpisodes,
-                onNavigateBack = onNavigateBack,
-                onPlayEpisode = onPlayEpisode,
-                onSelectSeason = viewModel::selectSeason,
-                onRefreshMetadata = viewModel::refreshSeries,
+        }
+
+        if (manualMatch.isOpen) {
+            DramaManualMatchDialog(
+                state = manualMatch,
+                onDismiss = viewModel::closeManualMatch,
+                onQueryChange = viewModel::updateManualMatchQuery,
+                onToggleCandidate = viewModel::toggleManualMatchCandidate,
+                onSearch = viewModel::searchManualMatches,
+                onSelectResult = viewModel::selectManualMatchResult,
+                onApply = viewModel::applyManualMatch,
             )
         }
     }
@@ -157,6 +192,8 @@ private fun DramaDetailContent(
     seasons: List<Int>,
     selectedSeason: Int,
     episodes: List<Pair<DramaEpisode, ProgressRecord?>>,
+    isRefreshingMetadata: Boolean,
+    hasTmdbTokenConfigured: Boolean,
     primaryActionLabel: String,
     actionMessage: String?,
     primaryActionEpisode: DramaEpisode?,
@@ -165,14 +202,12 @@ private fun DramaDetailContent(
     onPlayEpisode: (DramaEpisode) -> Unit,
     onSelectSeason: (Int) -> Unit,
     onRefreshMetadata: () -> Unit,
+    onOpenManualMatch: () -> Unit,
 ) {
-    val playButtonFocusRequester = remember { FocusRequester() }
-
-    LaunchedEffect(series.id, primaryActionEpisode?.id, hasPlayableEpisodes) {
-        if (hasPlayableEpisodes) {
-            playButtonFocusRequester.requestFocus()
-        }
-    }
+    val primaryActionFocus = rememberInitialFocusHandle(
+        key = series.id,
+        enabled = hasPlayableEpisodes,
+    )
 
     Column(
         modifier = Modifier
@@ -191,6 +226,7 @@ private fun DramaDetailContent(
                 contentDescription = series.displayTitle(),
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,
+                placeholder = { DramaBackdropArtworkPlaceholder(title = series.displayTitle()) },
             )
             Box(
                 modifier = Modifier
@@ -220,6 +256,7 @@ private fun DramaDetailContent(
                         .clip(RoundedCornerShape(8.dp))
                         .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(8.dp)),
                     contentScale = ContentScale.Crop,
+                    placeholder = { DramaPosterArtworkPlaceholder(title = series.displayTitle()) },
                 )
                 Spacer(Modifier.width(26.dp))
                 Column(modifier = Modifier.weight(1f)) {
@@ -253,19 +290,21 @@ private fun DramaDetailContent(
                             enabled = primaryActionEpisode != null,
                             modifier = Modifier
                                 .width(230.dp)
-                                .focusRequester(playButtonFocusRequester),
+                                .then(primaryActionFocus.modifier()),
                         )
                         TvButton(
-                            text = "刷新信息",
+                            text = dramaRefreshActionLabel(isRefreshingMetadata),
                             icon = Icons.Filled.Refresh,
                             onClick = onRefreshMetadata,
+                            enabled = !isRefreshingMetadata,
                             modifier = Modifier.width(180.dp),
                         )
                         TvButton(
-                            text = "返回",
-                            onClick = onNavigateBack,
-                            modifier = Modifier.width(160.dp),
-                            secondary = true,
+                            text = "手动匹配",
+                            icon = Icons.Filled.Search,
+                            onClick = onOpenManualMatch,
+                            enabled = !isRefreshingMetadata,
+                            modifier = Modifier.width(170.dp),
                         )
                     }
                     if (!actionMessage.isNullOrBlank()) {
@@ -286,6 +325,28 @@ private fun DramaDetailContent(
         }
 
         Spacer(Modifier.height(22.dp))
+
+        DramaMetadataHintCard(
+            message = dramaMetadataStatusMessage(
+                hasTmdbMatch = series.tmdbId != null,
+                hasTmdbToken = hasTmdbTokenConfigured,
+                isRefreshing = isRefreshingMetadata,
+            ),
+            highlightColor = when {
+                isRefreshingMetadata -> AccentBlue
+                series.tmdbId != null -> ProgressGreen
+                hasTmdbTokenConfigured -> TextSecondary
+                else -> WarningYellow
+            },
+            iconColor = when {
+                isRefreshingMetadata -> AccentBlue
+                series.tmdbId != null -> ProgressGreen
+                hasTmdbTokenConfigured -> TextSecondary
+                else -> WarningYellow
+            },
+        )
+
+        Spacer(Modifier.height(18.dp))
 
         if (series.summary.isNotBlank()) {
             Text(
@@ -327,7 +388,7 @@ private fun DramaDetailContent(
             episodes.forEach { (episode, progress) ->
                 DramaEpisodeListItem(
                     episode = episode,
-                    progress = episode.toPlaybackEpisode().progressFraction(progress),
+                    progress = dramaEpisodeProgressIndicatorFraction(episode, progress),
                     progressText = episode.toPlaybackEpisode().progressLabel(progress),
                     isWatched = episode.toPlaybackEpisode().progressLabel(progress) == "已看",
                     onPlay = { onPlayEpisode(episode) },
@@ -335,6 +396,345 @@ private fun DramaDetailContent(
             }
         }
         Spacer(Modifier.height(28.dp))
+    }
+}
+
+@Composable
+private fun DramaManualMatchDialog(
+    state: DramaManualMatchUiState,
+    onDismiss: () -> Unit,
+    onQueryChange: (String) -> Unit,
+    onToggleCandidate: (String) -> Unit,
+    onSearch: () -> Unit,
+    onSelectResult: (DramaMetadataSearchResult) -> Unit,
+    onApply: () -> Unit,
+) {
+    val busy = state.isSearching || state.isApplying
+    val dialogMaxHeight = (LocalConfiguration.current.screenHeightDp.dp * 0.9f).coerceAtLeast(420.dp)
+
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(0.9f)
+                .widthIn(max = 860.dp)
+                .heightIn(max = dialogMaxHeight)
+                .clip(RoundedCornerShape(8.dp))
+                .background(DarkSurface)
+                .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(8.dp))
+                .padding(22.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Filled.Search,
+                    contentDescription = null,
+                    tint = TextPrimary,
+                    modifier = Modifier.size(26.dp),
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    text = "TMDB 手动匹配",
+                    style = TvTypography.subtitle,
+                    color = TextPrimary,
+                )
+                Spacer(Modifier.weight(1f))
+                TvButton(
+                    text = "关闭",
+                    icon = Icons.Filled.Close,
+                    enabled = !busy,
+                    onClick = onDismiss,
+                    modifier = Modifier.width(140.dp),
+                    secondary = true,
+                )
+            }
+
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f, fill = false),
+            ) {
+                item(key = "candidate-title") {
+                    Text(
+                        text = "候选标题",
+                        style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
+                        color = TextPrimary,
+                    )
+                }
+                if (state.candidateTerms.isEmpty()) {
+                    item(key = "candidate-empty") {
+                        Text(
+                            text = "当前没有可用的本地候选标题，请直接输入搜索词。",
+                            style = TvTypography.body,
+                            color = TextSecondary,
+                        )
+                    }
+                } else {
+                    items(state.candidateTerms, key = { it }) { candidate ->
+                        DramaManualCandidateChip(
+                            text = candidate,
+                            selected = candidate in state.selectedCandidateTerms,
+                            enabled = !busy,
+                            onClick = { onToggleCandidate(candidate) },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+
+                item(key = "query-row") {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.Bottom,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        TvTextField(
+                            value = state.query,
+                            onValueChange = onQueryChange,
+                            label = "搜索词",
+                            modifier = Modifier.weight(1f),
+                        )
+                        TvButton(
+                            text = "搜索",
+                            icon = Icons.Filled.Search,
+                            enabled = !busy && (state.query.isNotBlank() || state.selectedCandidateTerms.isNotEmpty()),
+                            onClick = onSearch,
+                            modifier = Modifier.width(150.dp),
+                        )
+                    }
+                }
+
+                item(key = "results-title") {
+                    Text(
+                        text = "搜索结果",
+                        style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
+                        color = TextPrimary,
+                    )
+                }
+                if (state.results.isEmpty()) {
+                    item(key = "results-empty") {
+                        Text(
+                            text = "还没有 TMDB 结果，先点搜索。",
+                            style = TvTypography.body,
+                            color = TextSecondary,
+                        )
+                    }
+                } else {
+                    items(state.results, key = { it.tmdbId }) { result ->
+                        DramaManualMatchResultItem(
+                            result = result,
+                            selected = state.selectedResult?.tmdbId == result.tmdbId,
+                            enabled = !busy,
+                            onClick = { onSelectResult(result) },
+                        )
+                    }
+                }
+
+                if (!state.statusMessage.isNullOrBlank()) {
+                    item(key = "status-message") {
+                        Text(
+                            text = state.statusMessage,
+                            style = TvTypography.body,
+                            color = if (
+                                state.statusMessage.contains("找到") ||
+                                state.statusMessage.contains("已选择") ||
+                                state.statusMessage.contains("已应用")
+                            ) {
+                                ProgressGreen
+                            } else {
+                                WarningYellow
+                            },
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TvButton(
+                    text = "应用匹配",
+                    icon = Icons.Filled.CheckCircle,
+                    enabled = !busy && state.selectedResult != null,
+                    onClick = onApply,
+                    modifier = Modifier.width(180.dp),
+                )
+                TvButton(
+                    text = "关闭",
+                    icon = Icons.Filled.Close,
+                    enabled = !busy,
+                    onClick = onDismiss,
+                    modifier = Modifier.width(140.dp),
+                    secondary = true,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DramaManualCandidateChip(
+    text: String,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(
+                when {
+                    selected -> AnimeRed.copy(alpha = 0.76f)
+                    isFocused -> AccentBlue.copy(alpha = 0.72f)
+                    else -> CardBg
+                },
+            )
+            .border(
+                width = if (isFocused) 2.dp else 1.dp,
+                color = if (isFocused) FocusBorder else Color.White.copy(alpha = 0.08f),
+                shape = RoundedCornerShape(8.dp),
+            )
+            .tvFocusableClickable(
+                interactionSource = interactionSource,
+                enabled = enabled,
+                onClick = onClick,
+            )
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = if (selected) Icons.Filled.CheckCircle else Icons.Filled.Search,
+            contentDescription = null,
+            tint = TextPrimary,
+            modifier = Modifier.size(20.dp),
+        )
+        Spacer(Modifier.width(12.dp))
+        Text(
+            text = text,
+            color = TextPrimary,
+            style = TvTypography.body,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun DramaManualMatchResultItem(
+    result: DramaMetadataSearchResult,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val borderColor = when {
+        selected -> AnimeRed
+        isFocused -> FocusBorder
+        else -> Color.White.copy(alpha = 0.08f)
+    }
+    val backgroundColor = when {
+        selected -> AnimeRed.copy(alpha = 0.16f)
+        isFocused -> AccentBlue.copy(alpha = 0.7f)
+        else -> CardBg
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(backgroundColor)
+            .border(if (isFocused || selected) 2.dp else 1.dp, borderColor, RoundedCornerShape(8.dp))
+            .tvFocusableClickable(
+                interactionSource = interactionSource,
+                enabled = enabled,
+                onClick = onClick,
+            )
+            .padding(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RemoteImage(
+            url = result.posterUrl,
+            contentDescription = result.displayTitle(),
+            modifier = Modifier
+                .width(90.dp)
+                .height(132.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(8.dp)),
+            contentScale = ContentScale.Crop,
+            placeholder = { DramaPosterArtworkPlaceholder(title = result.displayTitle()) },
+        )
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = result.displayTitle(),
+                color = TextPrimary,
+                style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            result.originalTitle.takeIf { it.isNotBlank() && it != result.displayTitle() }?.let { originalTitle ->
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = originalTitle,
+                    color = TextSecondary,
+                    style = TvTypography.caption,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                result.firstAirDate?.takeIf { it.isNotBlank() }?.let { airDate ->
+                    DramaStatPill(airDate, WarningYellow)
+                }
+                DramaStatPill("TMDB #${result.tmdbId}", TextSecondary)
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = result.summary.ifBlank { "这条结果还没有简介。" },
+                color = TextSecondary,
+                fontSize = 12.sp,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
+private fun DramaMetadataHintCard(
+    message: String,
+    highlightColor: Color,
+    iconColor: Color,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(highlightColor.copy(alpha = 0.12f))
+            .border(1.dp, highlightColor.copy(alpha = 0.28f), RoundedCornerShape(10.dp))
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = if (highlightColor == ProgressGreen) Icons.Filled.CheckCircle else Icons.Filled.Refresh,
+            contentDescription = null,
+            tint = iconColor,
+            modifier = Modifier.size(22.dp),
+        )
+        Text(
+            text = message,
+            color = TextPrimary,
+            style = TvTypography.body,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -368,8 +768,8 @@ private fun DramaDetailStats(
     series: com.miruplay.tv.model.DramaSeries,
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-        DramaStatPill(detailEpisodeCountLabel(series.episodeCount), TextSecondary)
-        DramaStatPill("共 ${series.seasonCount} 季", TextSecondary)
+        DramaStatPill(dramaEpisodeCountLabel(series.episodeCount), TextSecondary)
+        DramaStatPill(dramaSeasonCountLabel(series.seasonCount), TextSecondary)
         series.firstAirDate?.takeIf { it.isNotBlank() }?.let {
             DramaStatPill(it, WarningYellow)
         }

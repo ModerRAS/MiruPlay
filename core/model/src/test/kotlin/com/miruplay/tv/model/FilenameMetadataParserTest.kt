@@ -46,4 +46,40 @@ class FilenameMetadataParserTest {
 
         assertEquals("Fate/Grand Order", result.title)
     }
+
+    @Test
+    fun `sanitizeRecognizedText strips drama root folders from title`() {
+        val result = FilenameParseResult(
+            title = "/dav/115open/影音/电视剧/你好/",
+        ).sanitizeRecognizedText()
+
+        assertEquals("你好", result.title)
+    }
+
+    @Test
+    fun `sanitizeRecognizedText strips simple drama root prefix`() {
+        val result = FilenameParseResult(
+            title = "电视剧/逐玉",
+        ).sanitizeRecognizedText()
+
+        assertEquals("逐玉", result.title)
+    }
+
+    @Test
+    fun `sanitizeRecognizedText collapses repeated drama path segments`() {
+        val result = FilenameParseResult(
+            title = "电视剧/偏偏遇见你/偏偏遇见你",
+        ).sanitizeRecognizedText()
+
+        assertEquals("偏偏遇见你", result.title)
+    }
+
+    @Test
+    fun `sanitizeRecognizedText collapses promo clip path back to series title`() {
+        val result = FilenameParseResult(
+            title = "/dav/115open/影音/电视剧/白日提灯/[片头尾]/片头《初醒》",
+        ).sanitizeRecognizedText()
+
+        assertEquals("白日提灯", result.title)
+    }
 }

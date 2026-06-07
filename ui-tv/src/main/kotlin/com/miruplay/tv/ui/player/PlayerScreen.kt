@@ -83,7 +83,6 @@ import com.miruplay.tv.model.PLAYBACK_SEEK_BACK_SECONDS
 import com.miruplay.tv.model.PLAYBACK_SEEK_FORWARD_SECONDS
 import com.miruplay.tv.model.SubtitleTrack
 import com.miruplay.tv.model.PlaybackTimingConventions
-import com.miruplay.tv.model.displayTitle
 import com.miruplay.tv.model.formatPlaybackPosition
 import com.miruplay.tv.model.playbackAudioMenuTitle
 import com.miruplay.tv.model.playbackAudioOptionLabel
@@ -134,11 +133,12 @@ fun PlayerScreen(
     val availableAudioTracks by viewModel.availableAudioTracks.collectAsStateWithLifecycle()
     val playbackSpeed by viewModel.playbackSpeed.collectAsStateWithLifecycle()
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
+    val displayTitle by viewModel.displayTitle.collectAsStateWithLifecycle()
+    val displaySubtitle by viewModel.displaySubtitle.collectAsStateWithLifecycle()
     val keepScreenOn = playbackState.keepsScreenOn()
     val view = LocalView.current
     val playerFocusRequester = remember { FocusRequester() }
     val currentPlaybackSource = activePlaybackSource ?: playbackSource
-    val title = remember(currentPlaybackSource) { currentPlaybackSource.displayTitle() }
     var openMenu by remember { mutableStateOf<PlayerMenu?>(null) }
     val navigateBack = remember(onNavigateBack) {
         {
@@ -276,8 +276,8 @@ fun PlayerScreen(
             exit = fadeOut()
         ) {
             PlayerChrome(
-                title = title,
-                sourceLabel = currentPlaybackSource.mediaSourceId,
+                title = displayTitle.ifBlank { currentPlaybackSource.mediaSourceId },
+                sourceLabel = displaySubtitle.ifBlank { currentPlaybackSource.mediaSourceId },
                 playbackState = playbackState,
                 currentPosition = currentPosition,
                 duration = duration,

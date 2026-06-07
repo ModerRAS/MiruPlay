@@ -12,8 +12,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -136,6 +134,10 @@ private fun LibraryHeader(
     onCancelScan: () -> Unit,
     onNavigateToSettings: () -> Unit
 ) {
+    val headerInitialFocus = rememberInitialFocusHandle(
+        key = activeScan == null,
+    )
+
     Row(
         modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
         horizontalArrangement = Arrangement.spacedBy(18.dp),
@@ -175,13 +177,23 @@ private fun LibraryHeader(
                     text = libraryScanActionLabel(),
                     icon = Icons.Filled.Refresh,
                     onClick = onScan,
-                    modifier = Modifier.width(132.dp)
+                    modifier = Modifier
+                        .width(132.dp)
+                        .then(headerInitialFocus.modifier())
                 )
             }
             TvButton(
                 text = librarySettingsActionLabel(),
                 onClick = onNavigateToSettings,
-                modifier = Modifier.width(132.dp)
+                modifier = Modifier
+                    .width(132.dp)
+                    .then(
+                        if (activeScan != null) {
+                            headerInitialFocus.modifier()
+                        } else {
+                            Modifier
+                        }
+                    )
             )
         }
     }
@@ -287,15 +299,6 @@ private fun LibraryContent(
                 .thenBy { it.displayTitle() }
         ).take(8)
     }
-    val firstFeaturedId = featured.firstOrNull()?.id
-    val firstContentFocusRequester = remember { FocusRequester() }
-
-    LaunchedEffect(firstFeaturedId) {
-        if (firstFeaturedId != null) {
-            firstContentFocusRequester.requestFocus()
-        }
-    }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -311,11 +314,6 @@ private fun LibraryContent(
                 items(featured, key = { it.id }) { anime ->
                     FeatureAnimeCard(
                         anime = anime,
-                        modifier = if (anime.id == firstFeaturedId) {
-                            Modifier.focusRequester(firstContentFocusRequester)
-                        } else {
-                            Modifier
-                        },
                         onClick = { onNavigateToDetail(anime.id) }
                     )
                 }

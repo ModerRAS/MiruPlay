@@ -17,7 +17,7 @@
 | 训练工程 | `tools/anime_parser/` | Git submodule，指向 `https://huggingface.co/ModerRAS/AniFileBERT` |
 | 数据集 | `tools/anime_parser/datasets/AnimeName/` | nested Git submodule，指向 `https://huggingface.co/datasets/ModerRAS/AnimeName` |
 | PyTorch 最终模型 | `tools/anime_parser/` 根目录 | HuggingFace/PyTorch 模型文件：`model.safetensors`、`config.json`、`vocab.json` |
-| ONNX 导出脚本 | `tools/anime_parser/export_onnx.py` | 把 PyTorch 模型导出为 Android 可用 ONNX |
+| ONNX 导出脚本 | `tools/anime_parser/tools/export_onnx.py` | 把 PyTorch 模型导出为 Android 可用 ONNX |
 | ONNX 导出产物 | `tools/anime_parser/exports/anime_filename_parser.onnx` | 本地留存的导出模型 |
 | Android assets | `scraper/src/main/assets/anime_parser/` | APK 打包时读取的模型、词表、配置 |
 | Android 运行时 | `scraper/src/main/kotlin/com/miruplay/tv/scraper/filename/AnimeFilenameParser.kt` | ONNX Runtime 推理、分词、BIO 后处理 |
@@ -199,7 +199,7 @@ python train.py \
 
 ```bash
 cd tools/anime_parser
-python export_onnx.py --model-dir checkpoints/dmhy-finetune/final --android-assets-dir ../../scraper/src/main/assets/anime_parser
+python -m tools.export_onnx --model-dir . --max-length 128 --android-assets-dir ../../scraper/src/main/assets/anime_parser
 ```
 
 导出后会更新：
@@ -215,10 +215,12 @@ scraper/src/main/assets/anime_parser/config.json
 当前 ONNX 输入输出形状：
 
 ```text
-input_ids: int64[1,64]
-attention_mask: int64[1,64]
-logits: float32[1,64,15]
+input_ids: int64[1,128]
+attention_mask: int64[1,128]
+logits: float32[1,128,37]
 ```
+
+当前 Android assets 对应 `label_schema_version=2`、`tokenizer_variant=char`、`vocab_size=6199`。运行时会把 `TITLE_CHS`、`TITLE_CHT`、`TITLE_JPN`、`TITLE_LATIN`、`TITLE_MIXED` 和 `PATH_TITLE_*` 归并为公共接口里的 `title`，并用文件级 `SEASON` 优先、`PATH_SEASON` 兜底。
 
 ## Android 运行时
 

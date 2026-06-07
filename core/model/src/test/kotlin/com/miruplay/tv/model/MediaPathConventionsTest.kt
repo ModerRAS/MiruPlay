@@ -104,6 +104,27 @@ class MediaPathConventionsTest {
             ),
         )
         assertEquals("/Episode 01.mkv", MediaPathConventions.joinRemoteUrl("", "/Episode 01.mkv"))
+        assertEquals(
+            "https://dav.example/%E5%BD%B1%E9%9F%B3/%E7%94%B5%E8%A7%86%E5%89%A7/",
+            MediaPathConventions.joinRemoteUrl(
+                "https://dav.example/影音/电视剧",
+                "",
+            ),
+        )
+        assertEquals(
+            "https://dav.example/%E5%BD%B1%E9%9F%B3/%E7%94%B5%E8%A7%86%E5%89%A7/%E5%8C%BB%E9%A6%86%E7%AC%91%E4%BC%A0/Season%2001/Episode%2001.mp4",
+            MediaPathConventions.joinRemoteUrl(
+                "https://dav.example/影音/电视剧",
+                "/医馆笑传/Season 01/Episode 01.mp4",
+            ),
+        )
+        assertEquals(
+            "https://dav.example/%E5%BD%B1%E9%9F%B3/%E7%94%B5%E8%A7%86%E5%89%A7/Episode%2001.mkv",
+            MediaPathConventions.joinRemoteUrl(
+                "https://dav.example/影音/电视剧/Episode 01.mkv",
+                "https://dav.example/影音/电视剧/Episode 01.mkv",
+            ),
+        )
     }
 
     @Test
