@@ -382,6 +382,92 @@ class BangumiArchiveTest {
         assertEquals(1.0f, result.single().confidence)
         tempDir.deleteRecursively()
     }
+
+    @Test
+    fun `subject search supports exact numeric Bangumi subject id queries`() {
+        val tempDir = createTempDirectory(prefix = "bangumi-archive-id-search-test-").toFile()
+        val subjectFile = File(tempDir, BangumiArchiveStore.SUBJECT_FILE_NAME)
+        subjectFile.writeText(
+            """
+            {"id":431767,"type":2,"name":"葬送のフリーレン","name_cn":"葬送的芙莉莲","score":8.8}
+            {"id":999999,"type":2,"name":"Completely Different","name_cn":"完全不同","score":7.0}
+            """.trimIndent()
+        )
+
+        val search = BangumiArchiveSubjectSearch(subjectFile)
+
+        val result = search.search("431767")
+
+        assertEquals(1, result.size)
+        assertEquals("431767", result.single().animeId)
+        assertEquals(1.0f, result.single().confidence)
+        tempDir.deleteRecursively()
+    }
+
+    @Test
+    fun `subject search creates lucene sidecar index directory`() {
+        val tempDir = createTempDirectory(prefix = "bangumi-archive-lucene-sidecar-test-").toFile()
+        val subjectFile = File(tempDir, BangumiArchiveStore.SUBJECT_FILE_NAME)
+        subjectFile.writeText(
+            """{"id":431767,"type":2,"name":"葬送のフリーレン","name_cn":"葬送的芙莉莲","score":8.8}"""
+        )
+        val luceneDirectory = File(tempDir, "lucene-v1")
+
+        val search = BangumiArchiveSubjectSearch(subjectFile)
+
+        val result = search.search("葬送的芙莉莲")
+
+        assertEquals("431767", result.single().animeId)
+        assertTrue("Lucene sidecar index directory should exist after searching", luceneDirectory.isDirectory)
+        assertTrue(
+            "Lucene sidecar index directory should contain index files",
+            luceneDirectory.listFiles().orEmpty().isNotEmpty(),
+        )
+        tempDir.deleteRecursively()
+    }
+
+    @Test
+    fun `subject search recovers when lucene sidecar path is invalid`() {
+        val tempDir = createTempDirectory(prefix = "bangumi-archive-lucene-recovery-test-").toFile()
+        val subjectFile = File(tempDir, BangumiArchiveStore.SUBJECT_FILE_NAME)
+        subjectFile.writeText(
+            """{"id":431767,"type":2,"name":"葬送のフリーレン","name_cn":"葬送的芙莉莲","score":8.8}"""
+        )
+        val luceneDirectory = File(tempDir, "lucene-v1")
+        luceneDirectory.writeText("not-a-directory")
+
+        val search = BangumiArchiveSubjectSearch(subjectFile)
+
+        val result = search.search("葬送的芙莉莲")
+
+        assertEquals("431767", result.single().animeId)
+        assertTrue("Invalid Lucene sidecar path should be replaced by an index directory", luceneDirectory.isDirectory)
+        assertTrue(
+            "Recovered Lucene sidecar index directory should contain index files",
+            luceneDirectory.listFiles().orEmpty().isNotEmpty(),
+        )
+        tempDir.deleteRecursively()
+    }
+
+    @Test
+    fun `subject search normalizes punctuation in english and mixed titles`() {
+        val tempDir = createTempDirectory(prefix = "bangumi-archive-punctuation-test-").toFile()
+        val subjectFile = File(tempDir, BangumiArchiveStore.SUBJECT_FILE_NAME)
+        subjectFile.writeText(
+            """
+            {"id":1,"type":2,"name":"Re:ZERO kara Hajimeru Isekai Seikatsu","name_cn":"Re:从零开始的异世界生活","score":8.4}
+            {"id":2,"type":2,"name":"Fate/stay night","name_cn":"命运之夜","score":8.1}
+            {"id":3,"type":2,"name":"Dr.STONE SCIENCE FUTURE","name_cn":"Dr.STONE 新石纪 第四季","score":8.0}
+            """.trimIndent()
+        )
+
+        val search = BangumiArchiveSubjectSearch(subjectFile)
+
+        assertEquals("1", search.search("Re ZERO").single().animeId)
+        assertEquals("2", search.search("Fate stay night").single().animeId)
+        assertEquals("3", search.search("Dr STONE 新石纪 第四季").single().animeId)
+        tempDir.deleteRecursively()
+    }
 }
 
 private fun zipOf(vararg entries: Pair<String, String>): ByteArray {
