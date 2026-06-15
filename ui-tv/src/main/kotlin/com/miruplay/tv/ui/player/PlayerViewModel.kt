@@ -1,18 +1,29 @@
 package com.miruplay.tv.ui.player
 
+import android.util.Log
+import android.view.View
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.PlaybackEndAction
+import com.miruplay.tv.model.PlaybackRenderBackend
 import com.miruplay.tv.model.PLAYBACK_SEEK_BACK_SECONDS
 import com.miruplay.tv.model.PLAYBACK_SEEK_FORWARD_SECONDS
 import com.miruplay.tv.model.PlaybackProgressSession
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.PlaybackState
 import com.miruplay.tv.model.PlaybackTimingConventions
+import com.miruplay.tv.model.ToneMappingProfilePreset
+import com.miruplay.tv.model.ToneMappingRuleSet
+import com.miruplay.tv.model.VideoRenderRuleKey
+import com.miruplay.tv.model.VideoSignalDescriptor
+import com.miruplay.tv.model.buildToneMappingPreset
 import com.miruplay.tv.model.displayTitle
 import com.miruplay.tv.model.playbackDisplayTitle
+import com.miruplay.tv.model.toApproximatePreset
 import com.miruplay.tv.player.AudioTrack
+import com.miruplay.tv.player.LibVlcVoutMode
 import com.miruplay.tv.player.PlaybackController
 import com.miruplay.tv.model.SubtitleTrack
 import com.miruplay.tv.model.toPlaybackSource
@@ -25,6 +36,7 @@ import com.miruplay.tv.repository.savePlaybackProgressOnCompletion
 import com.miruplay.tv.repository.savePlaybackProgressSnapshot
 import com.miruplay.tv.sync.BangumiSyncEngine
 import androidx.media3.common.Player
+import dagger.Lazy
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CoroutineScope
@@ -39,13 +51,19 @@ import javax.inject.Inject
 class PlayerViewModel @Inject constructor(
     private val playbackController: PlaybackController,
     private val progressRepository: PlaybackProgressRepository,
-    private val metadataRepository: MetadataRepository,
-    private val mediaRepository: MediaSourceRepository,
-    private val bangumiSyncEngine: BangumiSyncEngine,
+    private val metadataRepository: Lazy<MetadataRepository>,
+    private val mediaRepository: Lazy<MediaSourceRepository>,
+    private val bangumiSyncEngine: Lazy<BangumiSyncEngine>,
     private val playbackPreferences: PlaybackPreferencesRepository
 ) : ViewModel() {
-
     val playbackState: StateFlow<PlaybackState> = playbackController.state
+    val currentVideoSignalDescriptor: StateFlow<VideoSignalDescriptor?> = playbackController.currentVideoSignalDescriptor
+    val currentRenderRuleKey: StateFlow<VideoRenderRuleKey> = playbackController.currentRenderRuleKey
+    val currentToneMappingRuleSet: StateFlow<ToneMappingRuleSet> = playbackController.currentToneMappingRuleSet
+    val currentRequestedBackend: StateFlow<PlaybackRenderBackend> = playbackController.requestedRenderBackend
+    val currentActiveBackend: StateFlow<PlaybackRenderBackend> = playbackController.activeRenderBackend
+    val fallbackReason: StateFlow<String?> = playbackController.fallbackReason
+    val sessionRuleOverrides: StateFlow<Map<VideoRenderRuleKey, ToneMappingRuleSet>> = playbackController.sessionRuleOverrides
 
     private val _currentPosition = MutableStateFlow(0L)
     val currentPosition: StateFlow<Long> = _currentPosition.asStateFlow()
@@ -82,9 +100,33 @@ class PlayerViewModel @Inject constructor(
 
     private val _finishEvents = MutableSharedFlow<PlaybackFinishEvent>(extraBufferCapacity = 1)
     val finishEvents: SharedFlow<PlaybackFinishEvent> = _finishEvents.asSharedFlow()
+    private val _formatAwarePreferences = MutableStateFlow(FormatAwareToneMappingPreferences())
+    val formatAwarePreferences: StateFlow<FormatAwareToneMappingPreferences> = _formatAwarePreferences.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            refreshFormatAwarePreferences()
+        }
+    }
 
     /** Expose Media3 Player for PlayerView rendering */
     fun getPlayer(): Player? = playbackController.getPlayer()
+
+    fun bindVlcVideoHost(hostView: View) {
+        Log.i(
+            "PlayerViewModel",
+            "bindVlcVideoHost host=${hostView.javaClass.simpleName} controller=${playbackController.javaClass.simpleName}",
+        )
+        playbackController.bindVlcVideoHost(hostView)
+    }
+
+    fun unbindVlcVideoHost() {
+        Log.i(
+            "PlayerViewModel",
+            "unbindVlcVideoHost controller=${playbackController.javaClass.simpleName}",
+        )
+        playbackController.unbindVlcVideoHost()
+    }
 
     private var progressSaveJob: Job? = null
     private var positionPollJob: Job? = null
@@ -92,11 +134,13 @@ class PlayerViewModel @Inject constructor(
     private var presentationJob: Job? = null
     private var activeSource: PlaybackSource? = null
     private var pendingSeekPositionMs: Long? = null
-    private val nextPlaybackSourceResolver = NextPlaybackSourceResolver(
-        metadata = metadataRepository,
-        progress = progressRepository,
-        mediaSources = mediaRepository,
-    )
+    private val nextPlaybackSourceResolver by lazy {
+        NextPlaybackSourceResolver(
+            metadata = metadataRepository.get(),
+            progress = progressRepository,
+            mediaSources = mediaRepository.get(),
+        )
+    }
 
     fun play(source: PlaybackSource) {
         viewModelScope.launch {
@@ -106,6 +150,7 @@ class PlayerViewModel @Inject constructor(
             activeSource = source
             _activePlaybackSource.value = source
             startPresentationResolution(source)
+            refreshFormatAwarePreferences()
             playbackController.play(source).also {
                 _duration.value = playbackController.getDuration()
                 refreshTracks()
@@ -186,6 +231,87 @@ class PlayerViewModel @Inject constructor(
             playbackController.setPlaybackSpeed(speed)
             _playbackSpeed.value = speed
         }
+    }
+
+    fun setToneMappingBackendForSession(backend: PlaybackRenderBackend?) {
+        viewModelScope.launch {
+            playbackController.setRequestedRenderBackend(backend)
+        }
+    }
+
+    fun applyToneMappingPresetForCurrentFormat(preset: ToneMappingProfilePreset) {
+        viewModelScope.launch {
+            val ruleKey = currentRenderRuleKey.value
+            playbackController.setSessionRuleOverride(
+                ruleKey = ruleKey,
+                ruleSet = buildToneMappingPreset(ruleKey, preset),
+            )
+        }
+    }
+
+    fun clearToneMappingSessionOverride() {
+        viewModelScope.launch {
+            playbackController.clearSessionRuleOverrides()
+        }
+    }
+
+    fun saveCurrentToneMappingRuleAsDefault() {
+        viewModelScope.launch {
+            val ruleKey = currentRenderRuleKey.value
+            val updated = _formatAwarePreferences.value.normalized().copy(
+                rules = _formatAwarePreferences.value.normalized().rules + (
+                    ruleKey to currentToneMappingRuleSet.value
+                )
+            )
+            playbackPreferences.setFormatAwareToneMappingPreferences(updated)
+            _formatAwarePreferences.value = updated.normalized()
+        }
+    }
+
+    fun setDefaultToneMappingPreset(ruleKey: VideoRenderRuleKey, preset: ToneMappingProfilePreset) {
+        viewModelScope.launch {
+            val updated = _formatAwarePreferences.value.normalized().copy(
+                rules = _formatAwarePreferences.value.normalized().rules + (
+                    ruleKey to buildToneMappingPreset(ruleKey, preset)
+                )
+            )
+            playbackPreferences.setFormatAwareToneMappingPreferences(updated)
+            _formatAwarePreferences.value = updated.normalized()
+        }
+    }
+
+    fun setDefaultRenderBackend(backend: PlaybackRenderBackend) {
+        viewModelScope.launch {
+            val updated = _formatAwarePreferences.value.normalized().copy(
+                defaultBackend = backend
+            )
+            playbackPreferences.setFormatAwareToneMappingPreferences(updated)
+            _formatAwarePreferences.value = updated.normalized()
+        }
+    }
+
+    fun currentToneMappingPreset(): ToneMappingProfilePreset =
+        currentToneMappingRuleSet.value.toApproximatePreset()
+
+    fun pendingGlFrameCaptureLabel(): String? =
+        playbackController.pendingGlFrameCaptureLabel()
+
+    fun pendingLibVlcNativeSnapshotLabel(): String? =
+        playbackController.pendingLibVlcNativeSnapshotLabel()
+
+    fun requestLibVlcNativeSnapshot(label: String) {
+        playbackController.requestLibVlcNativeSnapshot(label)
+    }
+
+    fun currentLibVlcVoutMode(): LibVlcVoutMode? =
+        playbackController.currentLibVlcVoutMode()
+
+    fun clearPendingGlFrameCaptureLabel(label: String) {
+        playbackController.clearPendingGlFrameCaptureLabel(label)
+    }
+
+    fun clearPendingLibVlcNativeSnapshotLabel(label: String) {
+        playbackController.clearPendingLibVlcNativeSnapshotLabel(label)
     }
 
     private fun startPositionPolling() {
@@ -306,10 +432,10 @@ class PlayerViewModel @Inject constructor(
         if (nextSource != null) {
             play(nextSource)
             viewModelScope.launch {
-                bangumiSyncEngine.markEpisodeWatched(episodeId)
+                bangumiSyncEngine.get().markEpisodeWatched(episodeId)
             }
         } else {
-            bangumiSyncEngine.markEpisodeWatched(episodeId)
+            bangumiSyncEngine.get().markEpisodeWatched(episodeId)
             _finishEvents.emit(PlaybackFinishEvent.NavigateBack)
         }
     }
@@ -324,16 +450,23 @@ class PlayerViewModel @Inject constructor(
         _displaySubtitle.value = source.mediaSourceId
         presentationJob = viewModelScope.launch {
             val episodeId = source.episodeId ?: return@launch
-            val episode = metadataRepository.getCachedEpisode(episodeId).getOrNull() ?: return@launch
+            val metadata = metadataRepository.get()
+            val episode = metadata.getCachedEpisode(episodeId).getOrNull() ?: return@launch
             if (activeSource != source) return@launch
 
             _displayTitle.value = episode.playbackDisplayTitle()
-            _displaySubtitle.value = metadataRepository.getCachedMetadata(episode.animeId)
+            _displaySubtitle.value = metadata.getCachedMetadata(episode.animeId)
                 .getOrNull()
                 ?.displayTitle()
                 ?.takeIf { it.isNotBlank() }
                 ?: source.mediaSourceId.ifBlank { episode.animeId }
         }
+    }
+
+    private suspend fun refreshFormatAwarePreferences() {
+        _formatAwarePreferences.value = playbackPreferences
+            .getFormatAwareToneMappingPreferences()
+            .normalized()
     }
 
     private fun extractEpisodeId(uri: String): String {

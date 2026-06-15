@@ -903,7 +903,7 @@ class DesktopSettingsPanelTest {
                 "媒体库更新",
                 "OpenObserve JSON",
                 "GitHub Release",
-                "Bangumi 匹配",
+                "Bangumi / TMDB 匹配",
                 "版本与应用信息",
             ),
             desktopSettingsSectionOrder.map { it.desktopDescription },

@@ -221,6 +221,37 @@ fun playbackEndSettingsTitleLabel(): String = "播放结束"
 fun playbackEndSettingsDescriptionLabel(): String =
     "选定剧集播完后，可以直接回到详情页，也可以自动切到下一集。"
 
+fun pictureSettingsTitleLabel(): String =
+    "画面 / Tone Mapping"
+
+fun pictureSettingsDescriptionLabel(): String =
+    "按 SDR、HDR10、HDR10+ 和 Dolby Vision 分别配置默认画面规则。"
+
+fun pictureOsdMenuTitleLabel(): String =
+    "Picture"
+
+fun pictureSaveDefaultForFormatLabel(): String =
+    "保存为该格式默认"
+
+fun pictureSessionOverrideLabel(): String =
+    "仅本次播放"
+
+fun playbackBackendLabel(backend: PlaybackRenderBackend): String =
+    when (backend) {
+        PlaybackRenderBackend.STANDARD_EXO -> "标准 Exo"
+        PlaybackRenderBackend.EXPERIMENTAL_GL -> "旧实验 GL"
+        PlaybackRenderBackend.EXPERIMENTAL_LIBVLC -> "实验 VLC"
+    }
+
+fun videoRenderRuleLabel(ruleKey: VideoRenderRuleKey): String =
+    when (ruleKey) {
+        VideoRenderRuleKey.SDR -> "SDR"
+        VideoRenderRuleKey.HDR10 -> "HDR10"
+        VideoRenderRuleKey.HDR10_PLUS -> "HDR10+"
+        VideoRenderRuleKey.DOLBY_VISION -> "Dolby Vision"
+        VideoRenderRuleKey.UNKNOWN_HDR -> "Unknown HDR"
+    }
+
 fun playbackEndReturnToDetailActionLabel(): String = playbackBackToDetailsLabel()
 
 fun playbackEndPlayNextEpisodeActionLabel(): String = "继续下一集"

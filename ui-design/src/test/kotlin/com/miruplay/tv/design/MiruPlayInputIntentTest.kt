@@ -126,6 +126,34 @@ class MiruPlayInputIntentTest {
     }
 
     @Test
+    fun `TV playback overlay action leaves directional keys to focused menu controls when a menu is open`() {
+        assertNull(
+            MiruPlayInputIntent.DirectionLeft.tvPlaybackOverlayAction(
+                controlsVisible = true,
+                hasOpenMenu = true,
+            )
+        )
+        assertNull(
+            MiruPlayInputIntent.DirectionRight.tvPlaybackOverlayAction(
+                controlsVisible = true,
+                hasOpenMenu = true,
+            )
+        )
+        assertNull(
+            MiruPlayInputIntent.DirectionUp.tvPlaybackOverlayAction(
+                controlsVisible = true,
+                hasOpenMenu = true,
+            )
+        )
+        assertNull(
+            MiruPlayInputIntent.DirectionDown.tvPlaybackOverlayAction(
+                controlsVisible = true,
+                hasOpenMenu = true,
+            )
+        )
+    }
+
+    @Test
     fun `TV playback actions identify when controls should be refreshed`() {
         assertTrue(MiruPlayPlaybackInputAction.SeekBack.shouldRefreshTvPlaybackControls(controlsVisible = true))
         assertTrue(MiruPlayPlaybackInputAction.SeekForward.shouldRefreshTvPlaybackControls(controlsVisible = false))

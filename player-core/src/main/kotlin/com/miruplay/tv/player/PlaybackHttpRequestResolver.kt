@@ -31,7 +31,13 @@ class PlaybackHttpRequestResolver @Inject constructor(
 
     private suspend fun findMediaSource(source: PlaybackSource): MediaSourceInfo? {
         source.sourceIdHint()?.let { sourceId ->
-            mediaSources.getSourceById(sourceId).getOrNull()?.let { return it }
+            mediaSources.getSourceById(sourceId)
+                .getOrNull()
+                ?.takeIf { candidate ->
+                    candidate.type == MediaSourceType.WEBDAV &&
+                        source.uri.isAtOrBelowRemoteUrl(candidate.remoteUrl().orEmpty())
+                }
+                ?.let { return it }
         }
 
         return mediaSources.getSources()

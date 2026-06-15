@@ -2,7 +2,14 @@ package com.miruplay.tv
 
 import com.miruplay.tv.model.MediaContentMode
 import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.PlaybackRenderBackend
+import com.miruplay.tv.model.ToneMappingProfilePreset
+import com.miruplay.tv.model.VideoRenderRuleKey
+import com.miruplay.tv.model.VideoSignalKind
+import com.miruplay.tv.player.LibVlcHardwareAccelerationMode
+import com.miruplay.tv.player.LibVlcVoutMode
 import com.miruplay.tv.repository.AppMode
+import com.miruplay.tv.repository.AppModeSelectionState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -118,10 +125,72 @@ class LaunchTestSourceContentModeTest {
                 hasTokenExtra = true,
                 hasBaseUrlExtra = false,
             ),
+            playbackOverrides = LaunchPlaybackOverrides(
+                backend = null,
+                ruleKey = null,
+                preset = null,
+            ),
+            playbackDebugOverrides = LaunchPlaybackDebugOverrides(
+                forcedSignalKind = null,
+                captureGlFrameLabel = null,
+                libVlcHardwareMode = null,
+                libVlcVoutMode = null,
+                libVlcDisplayChroma = null,
+            ),
+            directPlaybackRequest = null,
         )
 
         assertFalse(snapshot.hasTestSourceIntent())
         assertTrue(snapshot.hasAnyLaunchTestData())
+    }
+
+    @Test
+    fun `launch intent snapshot detects direct playback only test data`() {
+        val snapshot = LaunchIntentSnapshot(
+            legacyLocalPath = null,
+            legacyLocalName = null,
+            rawType = null,
+            rawLocation = null,
+            rawName = null,
+            rawDisplayName = null,
+            rawUsername = null,
+            rawPassword = null,
+            rawContentMode = null,
+            disableOnlineMetadata = false,
+            scanAfterAdd = false,
+            tmdbOverrides = LaunchTestTmdbOverrides(
+                token = null,
+                baseUrlOverride = null,
+                hasTokenExtra = false,
+                hasBaseUrlExtra = false,
+            ),
+            playbackOverrides = LaunchPlaybackOverrides(
+                backend = null,
+                ruleKey = null,
+                preset = null,
+            ),
+            playbackDebugOverrides = LaunchPlaybackDebugOverrides(
+                forcedSignalKind = null,
+                captureGlFrameLabel = null,
+                libVlcHardwareMode = null,
+                libVlcVoutMode = null,
+                libVlcDisplayChroma = null,
+            ),
+            directPlaybackRequest = LaunchDirectPlaybackRequest(
+                uri = "/sdcard/Movies/HdrTest.mp4",
+                mediaSourceId = "HdrTest",
+                startPositionMs = 0L,
+                episodeId = null,
+            ),
+        )
+
+        assertFalse(snapshot.hasTestSourceIntent())
+        assertTrue(snapshot.hasAnyLaunchTestData())
+    }
+
+    @Test
+    fun `direct playback bootstrap should switch to compose immediately without waiting for a pre draw`() {
+        assertTrue(shouldSwitchDirectPlaybackPlaceholderToComposeImmediately())
     }
 
     @Test
@@ -274,5 +343,207 @@ class LaunchTestSourceContentModeTest {
                 fallbackMode = null,
             )
         )
+    }
+
+    @Test
+    fun `playback override parser resolves backend rule and preset`() {
+        val overrides = resolveLaunchPlaybackOverrides(
+            rawBackend = "experimental_gl",
+            rawRuleKey = "hdr10_plus",
+            rawPreset = "punchy",
+        )
+
+        assertEquals(PlaybackRenderBackend.EXPERIMENTAL_GL, overrides.backend)
+        assertEquals(VideoRenderRuleKey.HDR10_PLUS, overrides.ruleKey)
+        assertEquals(ToneMappingProfilePreset.PUNCHY, overrides.preset)
+    }
+
+    @Test
+    fun `playback debug override parser resolves forced signal kind`() {
+        val overrides = resolveLaunchPlaybackDebugOverrides(
+            rawForcedSignalKind = "hdr10",
+            rawCaptureGlFrameLabel = null,
+            rawLibVlcHardwareMode = "decoding_only",
+            rawLibVlcVoutMode = "android_display",
+            rawLibVlcDisplayChroma = null,
+        )
+
+        assertEquals(VideoSignalKind.HDR10, overrides.forcedSignalKind)
+        assertEquals(LibVlcHardwareAccelerationMode.DECODING_ONLY, overrides.libVlcHardwareMode)
+        assertEquals(LibVlcVoutMode.ANDROID_DISPLAY, overrides.libVlcVoutMode)
+    }
+
+    @Test
+    fun `direct playback request trims values and derives media source id by default`() {
+        val request = resolveLaunchDirectPlaybackRequest(
+            rawUri = "  /sdcard/Movies/MiruPlayHdrTest/S02E01_10min_1080p_hdr30.mp4  ",
+            rawMediaSourceId = " ",
+            rawStartPositionMs = "1500",
+            rawEpisodeId = " ",
+        )
+
+        assertNotNull(request)
+        assertEquals(
+            "/sdcard/Movies/MiruPlayHdrTest/S02E01_10min_1080p_hdr30.mp4",
+            request!!.uri,
+        )
+        assertEquals("S02E01_10min_1080p_hdr30", request.mediaSourceId)
+        assertEquals(1500L, request.startPositionMs)
+        assertNull(request.episodeId)
+    }
+
+    @Test
+    fun `direct playback request keeps explicit metadata and clamps invalid start position`() {
+        val request = resolveLaunchDirectPlaybackRequest(
+            rawUri = "file:///sdcard/Movies/sample.mp4",
+            rawMediaSourceId = " HDR Sample ",
+            rawStartPositionMs = "-20",
+            rawEpisodeId = " episode-1 ",
+        )
+
+        assertNotNull(request)
+        assertEquals("HDR Sample", request!!.mediaSourceId)
+        assertEquals(0L, request.startPositionMs)
+        assertEquals("episode-1", request.episodeId)
+    }
+
+    @Test
+    fun `direct playback request returns null when uri is blank`() {
+        assertNull(
+            resolveLaunchDirectPlaybackRequest(
+                rawUri = " ",
+                rawMediaSourceId = "HdrTest",
+                rawStartPositionMs = "0",
+                rawEpisodeId = null,
+            )
+        )
+    }
+
+    @Test
+    fun `launch bootstrap plan keeps direct playback immediate while source setup stays deferred`() {
+        val directPlaybackRequest = LaunchDirectPlaybackRequest(
+            uri = "file:///sdcard/Movies/sample_hdr.mp4",
+            mediaSourceId = "sample_hdr",
+            startPositionMs = 2500L,
+            episodeId = null,
+        )
+        val snapshot = LaunchIntentSnapshot(
+            legacyLocalPath = null,
+            legacyLocalName = null,
+            rawType = "webdav",
+            rawLocation = " https://dav.example.test/hdr ",
+            rawName = " HDR DAV ",
+            rawDisplayName = "HDR DAV",
+            rawUsername = "anonymous",
+            rawPassword = "",
+            rawContentMode = "drama",
+            disableOnlineMetadata = true,
+            scanAfterAdd = true,
+            tmdbOverrides = LaunchTestTmdbOverrides(
+                token = null,
+                baseUrlOverride = null,
+                hasTokenExtra = false,
+                hasBaseUrlExtra = false,
+            ),
+            playbackOverrides = LaunchPlaybackOverrides(
+                backend = PlaybackRenderBackend.EXPERIMENTAL_GL,
+                ruleKey = null,
+                preset = null,
+            ),
+            playbackDebugOverrides = LaunchPlaybackDebugOverrides(
+                forcedSignalKind = VideoSignalKind.HDR10,
+                captureGlFrameLabel = "exo_gl_bootstrap",
+                libVlcHardwareMode = null,
+                libVlcVoutMode = null,
+                libVlcDisplayChroma = null,
+            ),
+            directPlaybackRequest = directPlaybackRequest,
+        )
+
+        val plan = buildLaunchBootstrapPlan(
+            snapshot = snapshot,
+            selectionState = AppModeSelectionState(
+                currentAppMode = AppMode.DRAMA,
+                hasCompletedModeSelection = true,
+            ),
+            debugBuild = true,
+        )
+
+        assertEquals(directPlaybackRequest, plan.directPlaybackRequest)
+        assertNotNull(plan.deferredSourceRequest)
+        assertEquals(MediaSourceType.WEBDAV, plan.deferredSourceRequest!!.type)
+        assertEquals("https://dav.example.test/hdr", plan.deferredSourceRequest!!.location)
+        assertEquals(AppMode.DRAMA, plan.initialSelectionState.currentAppMode)
+    }
+
+    @Test
+    fun `launch bootstrap plan omits direct playback outside debug builds`() {
+        val snapshot = LaunchIntentSnapshot(
+            legacyLocalPath = null,
+            legacyLocalName = null,
+            rawType = null,
+            rawLocation = null,
+            rawName = null,
+            rawDisplayName = null,
+            rawUsername = null,
+            rawPassword = null,
+            rawContentMode = null,
+            disableOnlineMetadata = false,
+            scanAfterAdd = false,
+            tmdbOverrides = LaunchTestTmdbOverrides(
+                token = null,
+                baseUrlOverride = null,
+                hasTokenExtra = false,
+                hasBaseUrlExtra = false,
+            ),
+            playbackOverrides = LaunchPlaybackOverrides(
+                backend = PlaybackRenderBackend.EXPERIMENTAL_GL,
+                ruleKey = null,
+                preset = null,
+            ),
+            playbackDebugOverrides = LaunchPlaybackDebugOverrides(
+                forcedSignalKind = null,
+                captureGlFrameLabel = null,
+                libVlcHardwareMode = null,
+                libVlcVoutMode = null,
+                libVlcDisplayChroma = null,
+            ),
+            directPlaybackRequest = LaunchDirectPlaybackRequest(
+                uri = "file:///sdcard/Movies/sample_hdr.mp4",
+                mediaSourceId = "sample_hdr",
+                startPositionMs = 0L,
+                episodeId = null,
+            ),
+        )
+
+        val plan = buildLaunchBootstrapPlan(
+            snapshot = snapshot,
+            selectionState = AppModeSelectionState(
+                currentAppMode = AppMode.ANIME,
+                hasCompletedModeSelection = true,
+            ),
+            debugBuild = false,
+        )
+
+        assertNull(plan.directPlaybackRequest)
+        assertNull(plan.deferredSourceRequest)
+    }
+
+    @Test
+    fun `direct playback source mirrors launch request for player fast path`() {
+        val request = LaunchDirectPlaybackRequest(
+            uri = "file:///sdcard/Movies/sample_hdr.mp4",
+            mediaSourceId = "sample_hdr",
+            startPositionMs = 2048L,
+            episodeId = "episode-7",
+        )
+
+        val source = directPlaybackSourceFor(request)
+
+        assertEquals(request.uri, source.uri)
+        assertEquals(request.mediaSourceId, source.mediaSourceId)
+        assertEquals(request.startPositionMs, source.startPosition)
+        assertEquals(request.episodeId, source.episodeId)
+        assertTrue(source.subtitleTracks.isEmpty())
     }
 }

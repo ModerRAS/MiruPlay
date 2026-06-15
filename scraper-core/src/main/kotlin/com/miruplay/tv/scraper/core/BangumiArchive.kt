@@ -5,21 +5,12 @@ import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.core.common.logging.PerformanceLog
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.ScraperResult
-import com.miruplay.tv.model.ScraperSource
-import com.miruplay.tv.repository.BangumiMatchContext
-import com.miruplay.tv.repository.BangumiSubjectMatchCandidate
-import com.miruplay.tv.repository.BangumiSubjectMatcher
-import com.miruplay.tv.repository.BangumiJsonMapper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.OkHttpClient
@@ -430,12 +421,7 @@ class BangumiArchiveSubjectSearch(
         minimumConfidence: Float = 0.62f,
     ) : this({ subjectFile }, normalizeQuery, minimumConfidence)
 
-    private val json = Json { ignoreUnknownKeys = true }
-    private val lock = Any()
-    private var cachedFile: File? = null
-    private var cachedModifiedAt: Long = -1L
-    private var cachedLength: Long = -1L
-    private var cachedSubjects: List<BangumiArchiveSubject> = emptyList()
+    private val luceneSearch = BangumiArchiveLuceneSearch(subjectFileProvider, normalizeQuery)
 
     fun search(
         query: String,
@@ -451,43 +437,16 @@ class BangumiArchiveSubjectSearch(
     ) {
         val trimmedQuery = query.trim()
         if (trimmedQuery.isBlank()) return@measure emptyList()
-        val subjects = loadSubjects(subjectFileProvider())
-        if (subjects.isEmpty()) return@measure emptyList()
-
-        val normalizedQuery = normalizeQuery(trimmedQuery)
-        val context = BangumiMatchContext.fromQueries(listOf(normalizedQuery))
-        val ranked = PerformanceLog.measure(
-            tag = ARCHIVE_PERFORMANCE_TAG,
-            operation = "bangumi.archive.rank",
-            attributes = archiveQueryAttributes(query) + mapOf("subject_count" to subjects.size.toString()),
-        ) {
-            BangumiSubjectMatcher.rank(
-                context = context,
-                candidates = subjects.map { subject ->
-                    BangumiSubjectMatchCandidate(
-                        id = subject.id.toString(),
-                        title = subject.name,
-                        titleCn = subject.nameCn,
-                        aliases = subject.aliases.map(normalizeQuery),
-                        score = subject.score ?: 0f,
-                        serverIndex = 1,
-                        rank = subject.rank,
-                        date = subject.date,
-                    )
-                }
-            )
-        }
-        ranked
+        luceneSearch.search(trimmedQuery, limit)
             .filter { it.confidence >= minimumConfidence }
-            .take(limit)
-            .map { match ->
+            .map { hit ->
                 ScraperResult(
-                    animeId = match.candidate.id,
-                    title = match.candidate.title,
-                    titleCn = match.candidate.titleCn,
-                    matchedTitle = match.matchedTitle,
-                    confidence = match.confidence,
-                    source = ScraperSource.BANGUMI,
+                    animeId = hit.subject.id.toString(),
+                    title = hit.subject.name,
+                    titleCn = hit.subject.nameCn,
+                    matchedTitle = hit.matchedTitle,
+                    confidence = hit.confidence,
+                    source = com.miruplay.tv.model.ScraperSource.BANGUMI,
                     fromLocalArchive = true,
                 )
             }
@@ -498,70 +457,7 @@ class BangumiArchiveSubjectSearch(
         operation = "bangumi.archive.find_by_id",
         attributes = mapOf("anime_id" to animeId),
     ) {
-        val id = animeId.toIntOrNull() ?: return@measure null
-        loadSubjects(subjectFileProvider()).firstOrNull { it.id == id }
-    }
-
-    private fun loadSubjects(file: File): List<BangumiArchiveSubject> {
-        if (!file.isFile) return emptyList()
-        val modifiedAt = file.lastModified()
-        val length = file.length()
-        synchronized(lock) {
-            if (cachedFile == file && cachedModifiedAt == modifiedAt && cachedLength == length) {
-                return cachedSubjects
-            }
-            val subjects = PerformanceLog.measure(
-                tag = ARCHIVE_PERFORMANCE_TAG,
-                operation = "bangumi.archive.load_subjects",
-                attributes = mapOf(
-                    "file_size_bytes" to length.toString(),
-                    "file_modified_at" to modifiedAt.toString(),
-                ),
-            ) {
-                file.useLines { lines ->
-                    lines.mapNotNull { line ->
-                        parseSubject(line)
-                    }.toList()
-                }
-            }
-            cachedFile = file
-            cachedModifiedAt = modifiedAt
-            cachedLength = length
-            cachedSubjects = subjects
-            return subjects
-        }
-    }
-
-    private fun parseSubject(line: String): BangumiArchiveSubject? {
-        if (line.isBlank()) return null
-        val record = runCatching {
-            json.decodeFromString(BangumiArchiveSubjectRecord.serializer(), line)
-        }.getOrNull() ?: return null
-        if (record.type != SUBJECT_TYPE_ANIME || record.name.isBlank()) return null
-
-        val aliases = buildList {
-            add(record.name)
-            record.nameCn?.takeIf { it.isNotBlank() }?.let(::add)
-            addAll(record.infobox.extractInfoboxAliases())
-            addAll(record.metaTags)
-        }.map { it.trim() }.filter { it.isNotBlank() }.distinct()
-
-        return BangumiArchiveSubject(
-            id = record.id,
-            name = record.name,
-            nameCn = record.nameCn?.ifBlank { null },
-            summary = record.summary?.ifBlank { null },
-            aliases = aliases,
-            platform = record.platform,
-            date = record.date,
-            episodeCount = record.eps ?: record.totalEpisodes ?: 0,
-            score = record.score,
-            rank = record.rank,
-        )
-    }
-
-    companion object {
-        private const val SUBJECT_TYPE_ANIME = 2
+        luceneSearch.findById(animeId)
     }
 }
 
@@ -654,90 +550,5 @@ fun BangumiArchiveSubject.toAnime(): Anime =
         bangumiId = id,
     )
 
-@Serializable
-private data class BangumiArchiveSubjectRecord(
-    val id: Int,
-    val type: Int,
-    val name: String,
-    @SerialName("name_cn") val nameCn: String? = null,
-    val summary: String? = null,
-    val infobox: JsonElement? = null,
-    val platform: String? = null,
-    val date: String? = null,
-    val eps: Int? = null,
-    @SerialName("total_episodes") val totalEpisodes: Int? = null,
-    val score: Float? = null,
-    val rank: Int? = null,
-    @SerialName("meta_tags") val metaTags: List<String> = emptyList(),
-)
-
-private fun JsonElement?.extractInfoboxAliases(): List<String> =
-    when (this) {
-        null -> emptyList()
-        is JsonArray -> jsonArray.flatMap { it.extractInfoboxAliases() }
-        is JsonObject -> extractStructuredInfoboxAliases()
-        else -> jsonPrimitive.contentOrNull?.extractWikiAliases().orEmpty()
-    }
-
-private fun JsonObject.extractStructuredInfoboxAliases(): List<String> {
-    val itemKey = stringValue("key")
-    val itemValue = jsonObject["value"]
-    if (itemKey != null && itemValue != null) {
-        return if (itemKey in infoboxAliasKeys) itemValue.extractInfoboxValueAliases() else emptyList()
-    }
-
-    return jsonObject.flatMap { (key, value) ->
-        if (key in infoboxAliasKeys) {
-            value.extractInfoboxValueAliases()
-        } else {
-            value.extractInfoboxAliases()
-        }
-    }
-}
-
-private fun JsonElement?.extractInfoboxValueAliases(): List<String> =
-    when (this) {
-        null -> emptyList()
-        is JsonArray -> jsonArray.flatMap { it.extractInfoboxValueAliases() }
-        is JsonObject -> stringValue("v")?.extractStructuredAliases()
-            ?: jsonObject.values.flatMap { it.extractInfoboxValueAliases() }
-        else -> jsonPrimitive.contentOrNull?.extractStructuredAliases().orEmpty()
-    }
-
-private fun JsonObject.stringValue(key: String): String? =
-    jsonObject[key]?.jsonPrimitive?.contentOrNull?.trim()?.takeIf { it.isNotBlank() }
-
-private fun String.extractWikiAliases(): List<String> =
-    lines().flatMap { line ->
-        val trimmed = line.trim().trimStart('|').trim()
-        val key = trimmed.substringBefore('=', "").trim()
-        if (key !in infoboxAliasKeys) return@flatMap emptyList()
-        trimmed.substringAfter('=', "")
-            .replace(Regex("""\{\{[^{}]*}}"""), " ")
-            .replace(Regex("""\[\[([^]|]+)(?:\|[^]]+)?]]"""), "$1")
-            .split('\n', ';', '；', '、')
-            .map { it.trimWikiValue() }
-            .filter { it.isNotBlank() }
-    }
-
-private fun String.extractStructuredAliases(): List<String> =
-    split('\n', ';', '；', '、')
-        .map { it.trimWikiValue() }
-        .filter { it.isNotBlank() }
-
-private fun String.trimWikiValue(): String =
-    replace(Regex("""<[^>]*>"""), " ")
-        .replace(Regex("""'{2,}"""), "")
-        .replace(Regex("""\s+"""), " ")
-        .trim(' ', '"', '\'', '[', ']', '{', '}')
-
 private fun ByteArray.toHex(): String =
     joinToString(separator = "") { "%02x".format(Locale.US, it.toInt() and 0xff) }
-
-private val infoboxAliasKeys = setOf(
-    "中文名",
-    "别名",
-    "其他名称",
-    "英文名",
-    "日文名",
-)

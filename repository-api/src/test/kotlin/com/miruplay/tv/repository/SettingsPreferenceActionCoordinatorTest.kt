@@ -1,5 +1,6 @@
 package com.miruplay.tv.repository
 
+import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.PosterWallArrangement
 import kotlinx.coroutines.runBlocking
@@ -104,11 +105,21 @@ class SettingsPreferenceActionCoordinatorTest {
     private class FakePlaybackPreferencesRepository(
         private var action: PlaybackEndAction = PlaybackEndAction.RETURN_TO_DETAIL,
     ) : PlaybackPreferencesRepository {
+        private var formatAwareToneMappingPreferences: FormatAwareToneMappingPreferences =
+            FormatAwareToneMappingPreferences()
+
         override suspend fun getEndAction(): PlaybackEndAction =
             action
 
         override suspend fun setEndAction(action: PlaybackEndAction) {
             this.action = action
+        }
+
+        override suspend fun getFormatAwareToneMappingPreferences(): FormatAwareToneMappingPreferences =
+            formatAwareToneMappingPreferences
+
+        override suspend fun setFormatAwareToneMappingPreferences(preferences: FormatAwareToneMappingPreferences) {
+            formatAwareToneMappingPreferences = preferences
         }
     }
 }

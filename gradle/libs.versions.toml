@@ -28,6 +28,8 @@ protobuf = "3.25.9"
 protobuf-plugin = "0.9.6"
 onnxruntime = "1.25.1"
 icu4j = "78.3"
+lucene = "9.12.3"
+libvlc = "4.0.0-eap26"
 
 [libraries]
 # === Compose ===
@@ -44,6 +46,7 @@ androidx-tv-foundation = { group = "androidx.tv", name = "tv-foundation", versio
 
 # === Media3 ===
 androidx-media3-exoplayer = { group = "androidx.media3", name = "media3-exoplayer", version.ref = "media3" }
+androidx-media3-effect = { group = "androidx.media3", name = "media3-effect", version.ref = "media3" }
 androidx-media3-session = { group = "androidx.media3", name = "media3-session", version.ref = "media3" }
 androidx-media3-ui = { group = "androidx.media3", name = "media3-ui", version.ref = "media3" }
 androidx-media3-common = { group = "androidx.media3", name = "media3-common", version.ref = "media3" }
@@ -76,6 +79,9 @@ androidx-security-crypto = { group = "androidx.security", name = "security-crypt
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
 kotlinx-serialization-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-core", version.ref = "kotlinx-serialization" }
 icu4j = { group = "com.ibm.icu", name = "icu4j", version.ref = "icu4j" }
+lucene-core = { group = "org.apache.lucene", name = "lucene-core", version.ref = "lucene" }
+lucene-analysis-common = { group = "org.apache.lucene", name = "lucene-analysis-common", version.ref = "lucene" }
+lucene-analysis-icu = { group = "org.apache.lucene", name = "lucene-analysis-icu", version.ref = "lucene" }
 
 # === Coroutines ===
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }
@@ -108,6 +114,7 @@ jcifs-ng = { group = "eu.agno3.jcifs", name = "jcifs-ng", version.ref = "jcifs-n
 # === QR Code ===
 zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
 onnxruntime-android = { group = "com.microsoft.onnxruntime", name = "onnxruntime-android", version.ref = "onnxruntime" }
+videolan-libvlc-all = { group = "org.videolan.android", name = "libvlc-all", version.ref = "libvlc" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

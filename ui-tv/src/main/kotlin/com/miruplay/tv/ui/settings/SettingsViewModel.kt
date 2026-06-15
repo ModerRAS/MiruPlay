@@ -14,8 +14,13 @@ import com.miruplay.tv.core.common.WebControlConfig
 import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.data.preferences.PlaybackPreferencesManager
+import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.PlaybackEndAction
+import com.miruplay.tv.model.PlaybackRenderBackend
 import com.miruplay.tv.model.PosterWallArrangement
+import com.miruplay.tv.model.ToneMappingProfilePreset
+import com.miruplay.tv.model.VideoRenderRuleKey
+import com.miruplay.tv.model.buildToneMappingPreset
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.CloudDriveLibraryMode
@@ -159,6 +164,11 @@ class SettingsViewModel @Inject constructor(
 
     private val _playbackEndAction = MutableStateFlow(playbackPreferences.endAction)
     val playbackEndAction: StateFlow<PlaybackEndAction> = _playbackEndAction.asStateFlow()
+    private val _formatAwareToneMappingPreferences = MutableStateFlow(
+        playbackPreferences.formatAwareToneMappingPreferences.normalized()
+    )
+    val formatAwareToneMappingPreferences: StateFlow<FormatAwareToneMappingPreferences> =
+        _formatAwareToneMappingPreferences.asStateFlow()
 
     private val _webUiUrls = MutableStateFlow<List<String>>(emptyList())
     val webUiUrls: StateFlow<List<String>> = _webUiUrls.asStateFlow()
@@ -847,6 +857,24 @@ class SettingsViewModel @Inject constructor(
     fun setPlaybackEndAction(action: PlaybackEndAction) {
         playbackPreferences.endAction = action
         _playbackEndAction.value = action
+    }
+
+    fun setDefaultPlaybackBackend(backend: PlaybackRenderBackend) {
+        val updated = _formatAwareToneMappingPreferences.value.normalized().copy(
+            defaultBackend = backend
+        )
+        playbackPreferences.formatAwareToneMappingPreferences = updated
+        _formatAwareToneMappingPreferences.value = updated.normalized()
+    }
+
+    fun setToneMappingPreset(ruleKey: VideoRenderRuleKey, preset: ToneMappingProfilePreset) {
+        val updated = _formatAwareToneMappingPreferences.value.normalized().copy(
+            rules = _formatAwareToneMappingPreferences.value.normalized().rules + (
+                ruleKey to buildToneMappingPreset(ruleKey, preset)
+            )
+        )
+        playbackPreferences.formatAwareToneMappingPreferences = updated
+        _formatAwareToneMappingPreferences.value = updated.normalized()
     }
 
     fun setWebControlEnabled(enabled: Boolean) {

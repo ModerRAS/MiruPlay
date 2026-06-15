@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.PhotoFilter
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Storage
@@ -84,8 +85,10 @@ import com.miruplay.tv.repository.canRunNow
 import com.miruplay.tv.repository.AppMode
 import com.miruplay.tv.repository.toMediaContentMode
 import com.miruplay.tv.model.PlaybackEndAction
+import com.miruplay.tv.model.PlaybackRenderBackend
 import com.miruplay.tv.model.PosterWallArrangement
 import com.miruplay.tv.model.CLOUD_DRIVE_ROOT_DISPLAY_NAME
+import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.MediaContentMode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
@@ -167,6 +170,9 @@ import com.miruplay.tv.model.playbackEndReturnToDetailDetail
 import com.miruplay.tv.model.playbackEndSettingsDescriptionLabel
 import com.miruplay.tv.model.playbackEndSettingsTitleLabel
 import com.miruplay.tv.model.playbackEndMenuSummary
+import com.miruplay.tv.model.pictureSettingsDescriptionLabel
+import com.miruplay.tv.model.pictureSettingsTitleLabel
+import com.miruplay.tv.model.playbackBackendLabel
 import com.miruplay.tv.model.metadataPanelTitleLabel
 import com.miruplay.tv.model.metadataBangumiTokenFieldLabel
 import com.miruplay.tv.model.metadataBangumiTokenMissingStatus
@@ -239,6 +245,8 @@ import com.miruplay.tv.model.settingsWebUiRefreshAddressActionLabel
 import com.miruplay.tv.model.settingsWebUiRotateTokenActionLabel
 import com.miruplay.tv.model.settingsWebUiToggleActionLabel
 import com.miruplay.tv.model.sourceLocation
+import com.miruplay.tv.model.toneMappingPresetLabel
+import com.miruplay.tv.model.toneMappingPresetOptions
 import com.miruplay.tv.model.rssSubscriptionAddActionLabel
 import com.miruplay.tv.model.rssSubscriptionEmptyMessage
 import com.miruplay.tv.model.rssSubscriptionFilterRegexFieldLabel
@@ -258,6 +266,10 @@ import com.miruplay.tv.model.tvDisplayName
 import com.miruplay.tv.model.tvDisplayStatusLabel
 import com.miruplay.tv.model.tvLabel
 import com.miruplay.tv.model.tvLocationLabel
+import com.miruplay.tv.model.VideoRenderRuleKey
+import com.miruplay.tv.model.ToneMappingProfilePreset
+import com.miruplay.tv.model.videoRenderRuleLabel
+import com.miruplay.tv.model.toApproximatePreset
 import com.miruplay.tv.model.tvSourceHint
 import com.miruplay.tv.ui.components.OverscanContainer
 import com.miruplay.tv.ui.components.TvButton
@@ -347,6 +359,7 @@ fun AddSourceScreen(
     val posterWallArrangement by viewModel.posterWallArrangement.collectAsStateWithLifecycle()
     val currentAppMode by viewModel.currentAppMode.collectAsStateWithLifecycle()
     val playbackEndAction by viewModel.playbackEndAction.collectAsStateWithLifecycle()
+    val formatAwareToneMappingPreferences by viewModel.formatAwareToneMappingPreferences.collectAsStateWithLifecycle()
     val savedTmdbToken by viewModel.tmdbToken.collectAsStateWithLifecycle()
     val webUiUrls by viewModel.webUiUrls.collectAsStateWithLifecycle()
     val webControlEnabled by viewModel.webControlEnabled.collectAsStateWithLifecycle()
@@ -528,6 +541,7 @@ fun AddSourceScreen(
                     mergeSameAnimeEnabled = mergeSameAnimeEnabled,
                     posterWallArrangement = posterWallArrangement,
                     playbackEndAction = playbackEndAction,
+                    formatAwareToneMappingPreferences = formatAwareToneMappingPreferences,
                     cloudDriveEnabled = cloudEnabled,
                     rssCount = rssSubscriptions.size,
                     proxyEnabled = rssProxyEnabled,
@@ -613,6 +627,9 @@ fun AddSourceScreen(
                     onAppModeSelected = viewModel::setCurrentAppMode,
                     playbackEndAction = playbackEndAction,
                     onPlaybackEndActionSelected = viewModel::setPlaybackEndAction,
+                    formatAwareToneMappingPreferences = formatAwareToneMappingPreferences,
+                    onPlaybackBackendSelected = viewModel::setDefaultPlaybackBackend,
+                    onToneMappingPresetSelected = viewModel::setToneMappingPreset,
                     savedToken = savedToken,
                     tokenInput = tokenInput,
                     tokenSaved = tokenSaved,
@@ -884,6 +901,7 @@ private fun SettingsMenuPanel(
     mergeSameAnimeEnabled: Boolean,
     posterWallArrangement: PosterWallArrangement,
     playbackEndAction: PlaybackEndAction,
+    formatAwareToneMappingPreferences: FormatAwareToneMappingPreferences,
     cloudDriveEnabled: Boolean,
     rssCount: Int,
     proxyEnabled: Boolean,
@@ -905,7 +923,7 @@ private fun SettingsMenuPanel(
     val menuSummaryInput = SettingsSectionMenuSummaryInput(
         webUiAddressCount = webUiAddressCount,
         sourceCount = sourcesCount,
-        playbackSummary = playbackEndAction.playbackEndMenuSummary(),
+        playbackSummary = "${playbackEndAction.playbackEndMenuSummary()} · ${playbackBackendLabel(formatAwareToneMappingPreferences.defaultBackend)}",
         cloudDriveEnabled = cloudDriveEnabled,
         rssCount = rssCount,
         proxyEnabled = proxyEnabled,
@@ -1069,6 +1087,9 @@ private fun SettingsContent(
     onAppModeSelected: (AppMode) -> Unit,
     playbackEndAction: PlaybackEndAction,
     onPlaybackEndActionSelected: (PlaybackEndAction) -> Unit,
+    formatAwareToneMappingPreferences: FormatAwareToneMappingPreferences,
+    onPlaybackBackendSelected: (PlaybackRenderBackend) -> Unit,
+    onToneMappingPresetSelected: (VideoRenderRuleKey, ToneMappingProfilePreset) -> Unit,
     savedToken: String,
     tokenInput: String,
     tokenSaved: Boolean,
@@ -1333,7 +1354,10 @@ private fun SettingsContent(
         ) {
             PlaybackPanel(
                 endAction = playbackEndAction,
-                onEndActionSelected = onPlaybackEndActionSelected
+                onEndActionSelected = onPlaybackEndActionSelected,
+                formatAwareToneMappingPreferences = formatAwareToneMappingPreferences,
+                onPlaybackBackendSelected = onPlaybackBackendSelected,
+                onToneMappingPresetSelected = onToneMappingPresetSelected,
             )
         }
 
@@ -2996,7 +3020,10 @@ private fun ScanPanel(
 @Composable
 private fun PlaybackPanel(
     endAction: PlaybackEndAction,
-    onEndActionSelected: (PlaybackEndAction) -> Unit
+    onEndActionSelected: (PlaybackEndAction) -> Unit,
+    formatAwareToneMappingPreferences: FormatAwareToneMappingPreferences,
+    onPlaybackBackendSelected: (PlaybackRenderBackend) -> Unit,
+    onToneMappingPresetSelected: (VideoRenderRuleKey, ToneMappingProfilePreset) -> Unit,
 ) {
     SettingsPanel {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -3045,6 +3072,74 @@ private fun PlaybackPanel(
             },
             color = if (endAction == PlaybackEndAction.PLAY_NEXT_EPISODE) ProgressGreen else TextSecondary
         )
+
+        Spacer(Modifier.height(24.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Filled.PhotoFilter,
+                contentDescription = null,
+                tint = TextPrimary,
+                modifier = Modifier.size(26.dp)
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(text = pictureSettingsTitleLabel(), style = TvTypography.subtitle, color = TextPrimary)
+        }
+
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = pictureSettingsDescriptionLabel(),
+            style = TvTypography.body,
+            color = TextSecondary
+        )
+
+        Spacer(Modifier.height(16.dp))
+        Text(
+            text = "默认后端",
+            style = TvTypography.caption.copy(fontWeight = FontWeight.SemiBold),
+            color = TextSecondary
+        )
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            PlaybackRenderBackend.entries.forEach { backend ->
+                ScanOptionChip(
+                    text = playbackBackendLabel(backend),
+                    icon = if (backend == PlaybackRenderBackend.EXPERIMENTAL_GL) Icons.Filled.PhotoFilter else Icons.Filled.PlayArrow,
+                    selected = formatAwareToneMappingPreferences.defaultBackend == backend,
+                    enabled = true,
+                    onClick = { onPlaybackBackendSelected(backend) },
+                    modifier = Modifier.width(170.dp)
+                )
+            }
+        }
+
+        Spacer(Modifier.height(18.dp))
+        VideoRenderRuleKey.entries.forEach { ruleKey ->
+            val ruleSet = formatAwareToneMappingPreferences.rules.getValue(ruleKey)
+            Text(
+                text = videoRenderRuleLabel(ruleKey),
+                style = TvTypography.caption.copy(fontWeight = FontWeight.SemiBold),
+                color = TextSecondary
+            )
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                toneMappingPresetOptions().forEach { preset ->
+                    ScanOptionChip(
+                        text = toneMappingPresetLabel(preset),
+                        selected = ruleSet.toApproximatePreset() == preset,
+                        enabled = true,
+                        onClick = { onToneMappingPresetSelected(ruleKey, preset) },
+                        modifier = Modifier.width(120.dp)
+                    )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            StatusMessage(
+                icon = Icons.Filled.CheckCircle,
+                text = ruleSet.summaryLabel(),
+                color = if (ruleSet.enabled) ProgressGreen else TextSecondary
+            )
+            Spacer(Modifier.height(14.dp))
+        }
     }
 }
 

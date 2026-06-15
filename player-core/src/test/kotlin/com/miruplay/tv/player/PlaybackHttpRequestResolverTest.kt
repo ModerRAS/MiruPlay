@@ -120,6 +120,38 @@ class PlaybackHttpRequestResolverTest {
         )
     }
 
+    @Test
+    fun `configFor falls back to uri matching when direct playback mediaSourceId collides with non-webdav source id`() = runBlocking {
+        val resolver = PlaybackHttpRequestResolver(
+            FakeMediaSourceRepository(
+                listOf(
+                    MediaSourceInfoConventions.local(
+                        name = "Test Local",
+                        rootPath = "/sdcard/Movies/MiruPlayHdrTest",
+                    ).copy(id = 1),
+                    MediaSourceInfoConventions.webDav(
+                        url = "http://127.0.0.1:19798/dav/library",
+                        username = "alice",
+                        password = "secret",
+                    ).copy(id = 2),
+                ),
+            ),
+        )
+
+        val config = resolver.configFor(
+            PlaybackSource(
+                uri = "http://127.0.0.1:19798/dav/library/1.mp4",
+                mediaSourceId = "1",
+                episodeId = null,
+            ),
+        )
+
+        assertEquals(
+            "Basic YWxpY2U6c2VjcmV0",
+            config.headersFor("http://127.0.0.1:19798/dav/library/1.mp4")["Authorization"],
+        )
+    }
+
     private class FakeMediaSourceRepository(
         private val sources: List<MediaSourceInfo>,
     ) : MediaSourceRepository {

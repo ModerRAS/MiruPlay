@@ -12,7 +12,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalView
-import kotlinx.coroutines.delay
 
 @Stable
 class InitialFocusHandle internal constructor(
@@ -34,29 +33,28 @@ fun rememberInitialFocusHandle(
     key: Any? = Unit,
     enabled: Boolean = true,
     initialDelayMillis: Long = 120,
-    retryDelayMillis: Long = 180,
-    maxAttempts: Int = 12,
 ): InitialFocusHandle {
     val composeView = LocalView.current
     val focusRequester = remember(key) { FocusRequester() }
     var targetPlaced by remember(key) { mutableStateOf(false) }
     var targetFocused by remember(key) { mutableStateOf(false) }
+    var initialFocusConsumed by remember { mutableStateOf(false) }
 
-    androidx.compose.runtime.LaunchedEffect(key, enabled, targetPlaced, targetFocused) {
-        if (!enabled || !targetPlaced || targetFocused) return@LaunchedEffect
+    // TV UIs should never keep pulling focus back after the user or the system
+    // has already moved it elsewhere. This helper is only a first-frame fallback
+    // for the initial target when the screen appears with no focused child.
+    androidx.compose.runtime.LaunchedEffect(key, enabled, targetPlaced, targetFocused, initialFocusConsumed) {
+        if (!enabled || !targetPlaced || targetFocused || initialFocusConsumed) return@LaunchedEffect
 
-        repeat(maxAttempts) { attempt ->
-            if (targetFocused) return@LaunchedEffect
+        kotlinx.coroutines.delay(initialDelayMillis)
 
-            delay(if (attempt == 0) initialDelayMillis else retryDelayMillis)
+        if (targetFocused || initialFocusConsumed || !composeView.hasWindowFocus()) return@LaunchedEffect
 
-            if (targetFocused || !composeView.hasWindowFocus()) return@repeat
-
-            composeView.post {
-                if (!targetFocused) {
-                    composeView.requestFocus()
-                    focusRequester.requestFocus()
-                }
+        initialFocusConsumed = true
+        composeView.post {
+            if (!targetFocused) {
+                composeView.requestFocus()
+                focusRequester.requestFocus()
             }
         }
     }

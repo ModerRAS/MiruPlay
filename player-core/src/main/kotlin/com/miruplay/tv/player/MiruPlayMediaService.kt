@@ -13,15 +13,18 @@ import androidx.media3.session.MediaSessionService
 import com.miruplay.tv.core.common.logging.MiruLog
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
+import javax.inject.Provider
 
 @UnstableApi
 @AndroidEntryPoint
 class MiruPlayMediaService : MediaSessionService() {
 
     @Inject
-    lateinit var exoPlayer: ExoPlayer
+    @StandardPlaybackPlayer
+    lateinit var exoPlayerProvider: Provider<ExoPlayer>
 
     private var mediaSession: MediaSession? = null
+    private var exoPlayer: ExoPlayer? = null
     private val playerListener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
             MiruLog.d(
@@ -47,25 +50,10 @@ class MiruPlayMediaService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         MiruLog.i("MiruPlayMediaService", "Media service created")
-        
-        // Configure audio attributes for TV/media playback
-        exoPlayer.setAudioAttributes(
-            AudioAttributes.Builder()
-                .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
-                .setUsage(C.USAGE_MEDIA)
-                .build(),
-            true
-        )
-        exoPlayer.addListener(playerListener)
-
-        // Build MediaSession
-        mediaSession = MediaSession.Builder(this, exoPlayer)
-            .setSessionActivity(createSessionActivityPendingIntent())
-            .build()
-        MiruLog.i("MiruPlayMediaService", "Media session created")
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
+        ensureMediaSession()
         return mediaSession
     }
 
@@ -87,13 +75,35 @@ class MiruPlayMediaService : MediaSessionService() {
 
     override fun onDestroy() {
         MiruLog.i("MiruPlayMediaService", "Media service destroying")
-        exoPlayer.removeListener(playerListener)
         mediaSession?.run {
             player.release()
             release()
             mediaSession = null
         }
+        exoPlayer = null
         super.onDestroy()
+    }
+
+    private fun ensureMediaSession() {
+        if (mediaSession != null) {
+            return
+        }
+        val player = exoPlayer ?: exoPlayerProvider.get().also { createdPlayer ->
+            createdPlayer.setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+                    .setUsage(C.USAGE_MEDIA)
+                    .build(),
+                true,
+            )
+            createdPlayer.addListener(playerListener)
+            exoPlayer = createdPlayer
+            MiruLog.i("MiruPlayMediaService", "Standard Exo player created for media session")
+        }
+        mediaSession = MediaSession.Builder(this, player)
+            .setSessionActivity(createSessionActivityPendingIntent())
+            .build()
+        MiruLog.i("MiruPlayMediaService", "Media session created")
     }
 
     private fun Int.label(): String = when (this) {

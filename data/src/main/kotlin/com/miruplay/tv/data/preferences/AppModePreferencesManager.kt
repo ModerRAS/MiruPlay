@@ -14,11 +14,14 @@ class AppModePreferencesManager @Inject constructor(
 ) : AppModePreferencesRepository {
     private val prefs = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
 
-    override suspend fun getSelectionState(): AppModeSelectionState =
+    fun getSelectionStateSync(): AppModeSelectionState =
         AppModeSelectionState(
             currentAppMode = AppMode.fromStorageValue(prefs.getString(KEY_CURRENT_APP_MODE, null)),
             hasCompletedModeSelection = prefs.getBoolean(KEY_HAS_COMPLETED_MODE_SELECTION, false),
         )
+
+    override suspend fun getSelectionState(): AppModeSelectionState =
+        getSelectionStateSync()
 
     override suspend fun completeModeSelection(mode: AppMode) {
         prefs.edit()
