@@ -150,7 +150,8 @@ private fun DramaLibraryHeader(
     onNavigateToSettings: () -> Unit,
 ) {
     val headerInitialFocus = rememberInitialFocusHandle(
-        key = activeScan == null,
+        key = Unit,
+        enabled = activeScan == null,
     )
 
     Row(
@@ -199,18 +200,13 @@ private fun DramaLibraryHeader(
                         .then(headerInitialFocus.modifier()),
                 )
             }
+            // Keep Settings out of any "initial focus" logic. On TV, reclaiming
+            // focus into the top-right actions after the user starts navigating
+            // feels like focus theft and breaks D-pad flow.
             TvButton(
                 text = librarySettingsActionLabel(),
                 onClick = onNavigateToSettings,
-                modifier = Modifier
-                    .width(132.dp)
-                    .then(
-                        if (activeScan != null) {
-                            headerInitialFocus.modifier()
-                        } else {
-                            Modifier
-                        }
-                    ),
+                modifier = Modifier.width(132.dp),
             )
         }
     }
