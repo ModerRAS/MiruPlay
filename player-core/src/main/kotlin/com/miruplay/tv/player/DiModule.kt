@@ -1,9 +1,12 @@
 package com.miruplay.tv.player
 
 import android.content.Context
+import androidx.media3.common.PreviewingVideoGraph
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import com.miruplay.tv.repository.PlaybackPreferencesRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -17,14 +20,48 @@ import javax.inject.Singleton
 object PlayerModule {
     @Provides
     @Singleton
-    fun provideExoPlayer(
+    @StandardPlaybackPlayer
+    fun provideStandardExoPlayer(
         @ApplicationContext context: Context,
         dataSourceFactory: PlaybackDataSourceFactory,
     ): ExoPlayer {
-        return ExoPlayer.Builder(context)
+        val renderersFactory = DefaultRenderersFactory(context)
+            .forceDisableMediaCodecAsynchronousQueueing()
+            .setEnableDecoderFallback(true)
+            .setMediaCodecSelector(PlaybackMediaCodecSelector)
+
+        return ExoPlayer.Builder(context, renderersFactory)
             .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
             .build()
     }
+
+    @Provides
+    @Singleton
+    @ExperimentalPlaybackPlayer
+    fun provideExperimentalExoPlayer(
+        @ApplicationContext context: Context,
+        dataSourceFactory: PlaybackDataSourceFactory,
+        experimentalPreviewingVideoGraphFactory: PreviewingVideoGraph.Factory,
+    ): ExoPlayer {
+        val renderersFactory = ExperimentalRenderersFactory(
+            context = context,
+            previewingVideoGraphFactory = experimentalPreviewingVideoGraphFactory,
+        )
+            // The experimental HDR backend relies on stable HEVC surface attachment across
+            // vendor codecs, so we bias toward compatibility over async throughput here.
+            .forceDisableMediaCodecAsynchronousQueueing()
+            .setEnableDecoderFallback(true)
+            .setMediaCodecSelector(PlaybackMediaCodecSelector)
+
+        return ExoPlayer.Builder(context, renderersFactory)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
+            .build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideExperimentalPreviewingVideoGraphFactory(): PreviewingVideoGraph.Factory =
+        ExperimentalHdrSdrPreviewingVideoGraphFactory()
 
     @Provides
     @Singleton
@@ -32,19 +69,61 @@ object PlayerModule {
 
     @Provides
     @Singleton
-    fun providePlaybackController(
+    fun provideExoPlaybackController(
         @ApplicationContext context: Context,
-        player: ExoPlayer,
+        @StandardPlaybackPlayer
+        standardPlayerProvider: javax.inject.Provider<ExoPlayer>,
+        @ExperimentalPlaybackPlayer
+        experimentalPlayerProvider: javax.inject.Provider<ExoPlayer>,
         dataSourceFactory: PlaybackDataSourceFactory,
         httpRequestResolver: PlaybackHttpRequestResolver,
-        config: PlaybackConfig
-    ): PlaybackController {
+        playbackPreferencesRepository: PlaybackPreferencesRepository,
+        playbackDebugOverrides: PlaybackDebugOverrides,
+        config: PlaybackConfig,
+    ): ExoPlaybackController {
         return ExoPlaybackController(
             context = context,
-            exoPlayer = player,
+            standardExoPlayerProvider = standardPlayerProvider,
+            experimentalExoPlayerProvider = experimentalPlayerProvider,
             dataSourceFactory = dataSourceFactory,
             httpRequestResolver = httpRequestResolver,
+            playbackPreferencesRepository = playbackPreferencesRepository,
+            playbackDebugOverrides = playbackDebugOverrides,
             config = config,
         )
+    }
+
+    @Provides
+    @Singleton
+    fun providePlaybackController(
+        @ApplicationContext context: Context,
+        exoController: ExoPlaybackController,
+        playbackPreferencesRepository: PlaybackPreferencesRepository,
+        playbackDebugOverrides: PlaybackDebugOverrides,
+        httpRequestResolver: PlaybackHttpRequestResolver,
+        libVlcSnapshotBridge: LibVlcSnapshotBridge,
+        libVlcFrameProbeBridge: LibVlcFrameProbeBridge,
+        libVlcOutputCallbacksBridge: LibVlcOutputCallbacksBridge,
+        libVlcVmemStreamBridge: LibVlcVmemStreamBridge,
+    ): PlaybackController {
+        return HybridPlaybackController(
+            context = context,
+            exoController = exoController,
+            playbackPreferencesRepository = playbackPreferencesRepository,
+            playbackDebugOverrides = playbackDebugOverrides,
+            httpRequestResolver = httpRequestResolver,
+            libVlcSnapshotBridge = libVlcSnapshotBridge,
+            libVlcFrameProbeBridge = libVlcFrameProbeBridge,
+            libVlcOutputCallbacksBridge = libVlcOutputCallbacksBridge,
+            libVlcVmemStreamBridge = libVlcVmemStreamBridge,
+        )
+    }
+
+    @Provides
+    @Singleton
+    fun providePlayerFactory(
+        playerFactoryImpl: PlayerFactoryImpl,
+    ): PlayerFactory {
+        return playerFactoryImpl
     }
 }

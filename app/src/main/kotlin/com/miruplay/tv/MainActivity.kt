@@ -1,11 +1,16 @@
 package com.miruplay.tv
 
 import android.content.Intent
+import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
+import android.os.SystemClock
 import android.util.Log
+import android.view.ViewGroup
+import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.core.view.OneShotPreDrawListener
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -20,11 +25,17 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.data.preferences.AppModePreferencesManager
+import com.miruplay.tv.data.preferences.PlaybackPreferencesManager
 import com.miruplay.tv.model.MediaContentMode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.PlaybackRenderBackend
 import com.miruplay.tv.model.PlaybackSource
+import com.miruplay.tv.model.ToneMappingProfilePreset
+import com.miruplay.tv.model.VideoRenderRuleKey
+import com.miruplay.tv.model.VideoSignalKind
+import com.miruplay.tv.model.buildToneMappingPreset
 import com.miruplay.tv.model.persistenceLocation
 import com.miruplay.tv.repository.AppMode
 import com.miruplay.tv.repository.AppModeSelectionState
@@ -44,6 +55,12 @@ import com.miruplay.tv.ui.settings.AddSourceScreen
 import com.miruplay.tv.ui.theme.MiruPlayTheme
 import com.miruplay.tv.webcontrol.WebControlNavigator
 import com.miruplay.tv.webcontrol.WebPlaybackSource
+import com.miruplay.tv.player.PlaybackDebugOverrides
+import com.miruplay.tv.player.LibVlcDebugConfig
+import com.miruplay.tv.player.LibVlcHardwareAccelerationMode
+import com.miruplay.tv.player.LibVlcVoutMode
+import com.miruplay.tv.player.forcedVideoSignalDescriptorFor
+import dagger.Lazy
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
@@ -53,18 +70,49 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
-    @Inject lateinit var mediaRepository: MediaSourceRepository
-    @Inject lateinit var progressRepository: PlaybackProgressRepository
+    @Inject lateinit var mediaRepository: Lazy<MediaSourceRepository>
+    @Inject lateinit var progressRepository: Lazy<PlaybackProgressRepository>
     @Inject lateinit var appModePreferencesManager: AppModePreferencesManager
-    @Inject lateinit var appCredentials: AppCredentialStore
-    @Inject lateinit var webControlNavigator: WebControlNavigator
-    @Inject lateinit var scanCoordinator: ScanCoordinator
+    @Inject lateinit var playbackPreferencesManager: PlaybackPreferencesManager
+    @Inject lateinit var appCredentials: Lazy<AppCredentialStore>
+    @Inject lateinit var webControlNavigator: Lazy<WebControlNavigator>
+    @Inject lateinit var scanCoordinator: Lazy<ScanCoordinator>
+    @Inject lateinit var playbackDebugOverrides: PlaybackDebugOverrides
 
     private var restoreLaunchTmdbOverrides: (() -> Unit)? = null
+    private var launchDirectPlaybackRequest: LaunchDirectPlaybackRequest? by mutableStateOf(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        val onCreateStartUptimeMs = SystemClock.uptimeMillis()
+        logStartupTrace(
+            stage = "onCreate_enter",
+            startUptimeMs = onCreateStartUptimeMs,
+            attributes = mapOf("has_saved_state" to (savedInstanceState != null).toString()),
+        )
         super.onCreate(savedInstanceState)
+        logStartupTrace("onCreate_after_super", onCreateStartUptimeMs)
         val launchIntentSnapshot = captureLaunchIntentSnapshot(intent)
+        logStartupTrace("onCreate_after_snapshot", onCreateStartUptimeMs)
+        val initialSelectionState = appModePreferencesManager.getSelectionStateSync()
+        logStartupTrace(
+            stage = "onCreate_after_selection_state",
+            startUptimeMs = onCreateStartUptimeMs,
+            attributes = mapOf(
+                "app_mode_selected" to initialSelectionState.hasCompletedModeSelection.toString(),
+            ),
+        )
+        val launchBootstrapPlan = buildLaunchBootstrapPlan(
+            snapshot = launchIntentSnapshot,
+            selectionState = initialSelectionState,
+            debugBuild = BuildConfig.DEBUG,
+        )
+        logStartupTrace(
+            stage = "onCreate_after_bootstrap",
+            startUptimeMs = onCreateStartUptimeMs,
+            attributes = mapOf(
+                "has_direct_playback" to (launchBootstrapPlan.directPlaybackRequest != null).toString(),
+            ),
+        )
         MiruLog.i(
             "MainActivity",
             "Main activity created",
@@ -75,51 +123,67 @@ class MainActivity : ComponentActivity() {
             )
         )
         logLaunchIntentSummary(launchIntentSnapshot)
+        applyLaunchPlaybackOverrides(launchBootstrapPlan.playbackOverrides)
+        applyLaunchPlaybackDebugOverrides(launchBootstrapPlan.playbackDebugOverrides)
+        launchDirectPlaybackRequest = launchBootstrapPlan.directPlaybackRequest
+        logStartupTrace(
+            stage = "onCreate_before_render",
+            startUptimeMs = onCreateStartUptimeMs,
+            attributes = mapOf(
+                "has_direct_playback" to (launchDirectPlaybackRequest != null).toString(),
+            ),
+        )
+        if (launchBootstrapPlan.directPlaybackRequest != null) {
+            renderDirectPlaybackBootstrapPlaceholder(
+                initialAppModeSelectionState = launchBootstrapPlan.initialSelectionState,
+                startUptimeMs = onCreateStartUptimeMs,
+            )
+        } else {
+            renderContent(launchBootstrapPlan.initialSelectionState)
+        }
+        logStartupTrace("onCreate_after_render", onCreateStartUptimeMs)
         lifecycleScope.launch {
-            val selectionState = appModePreferencesManager.getSelectionState()
-            applyLaunchTestTmdbOverrides(launchIntentSnapshot.tmdbOverrides)
-            resolveLaunchTestSourceRequest(
-                legacyLocalPath = launchIntentSnapshot.legacyLocalPath,
-                legacyLocalName = launchIntentSnapshot.legacyLocalName,
-                rawType = launchIntentSnapshot.rawType,
-                rawLocation = launchIntentSnapshot.rawLocation,
-                rawName = launchIntentSnapshot.rawName,
-                rawDisplayName = launchIntentSnapshot.rawDisplayName,
-                rawUsername = launchIntentSnapshot.rawUsername,
-                rawPassword = launchIntentSnapshot.rawPassword,
-                rawContentMode = launchIntentSnapshot.rawContentMode,
-                disableOnlineMetadata = launchIntentSnapshot.disableOnlineMetadata,
-                scanAfterAdd = launchIntentSnapshot.scanAfterAdd,
-                fallbackMode = selectionState.currentAppMode,
-            )?.let { request ->
+            applyLaunchTestTmdbOverrides(launchBootstrapPlan.tmdbOverrides)
+            launchBootstrapPlan.deferredSourceRequest?.let { request ->
                 addLaunchTestSource(request)
             }
-            renderContent(selectionState)
         }
     }
 
     override fun onNewIntent(intent: Intent) {
+        val onNewIntentStartUptimeMs = SystemClock.uptimeMillis()
+        logStartupTrace("onNewIntent_enter", onNewIntentStartUptimeMs)
         super.onNewIntent(intent)
         setIntent(intent)
+        logStartupTrace("onNewIntent_after_setIntent", onNewIntentStartUptimeMs)
         val launchIntentSnapshot = captureLaunchIntentSnapshot(intent)
+        logStartupTrace("onNewIntent_after_snapshot", onNewIntentStartUptimeMs)
+        val launchBootstrapPlan = buildLaunchBootstrapPlan(
+            snapshot = launchIntentSnapshot,
+            selectionState = appModePreferencesManager.getSelectionStateSync(),
+            debugBuild = BuildConfig.DEBUG,
+        )
+        logStartupTrace(
+            stage = "onNewIntent_after_bootstrap",
+            startUptimeMs = onNewIntentStartUptimeMs,
+            attributes = mapOf(
+                "has_direct_playback" to (launchBootstrapPlan.directPlaybackRequest != null).toString(),
+            ),
+        )
         logLaunchIntentSummary(launchIntentSnapshot)
+        applyLaunchPlaybackOverrides(launchBootstrapPlan.playbackOverrides)
+        applyLaunchPlaybackDebugOverrides(launchBootstrapPlan.playbackDebugOverrides)
+        launchDirectPlaybackRequest = launchBootstrapPlan.directPlaybackRequest
+        logStartupTrace(
+            stage = "onNewIntent_after_state_update",
+            startUptimeMs = onNewIntentStartUptimeMs,
+            attributes = mapOf(
+                "has_direct_playback" to (launchDirectPlaybackRequest != null).toString(),
+            ),
+        )
         lifecycleScope.launch {
-            val selectionState = appModePreferencesManager.getSelectionState()
-            applyLaunchTestTmdbOverrides(launchIntentSnapshot.tmdbOverrides)
-            resolveLaunchTestSourceRequest(
-                legacyLocalPath = launchIntentSnapshot.legacyLocalPath,
-                legacyLocalName = launchIntentSnapshot.legacyLocalName,
-                rawType = launchIntentSnapshot.rawType,
-                rawLocation = launchIntentSnapshot.rawLocation,
-                rawName = launchIntentSnapshot.rawName,
-                rawDisplayName = launchIntentSnapshot.rawDisplayName,
-                rawUsername = launchIntentSnapshot.rawUsername,
-                rawPassword = launchIntentSnapshot.rawPassword,
-                rawContentMode = launchIntentSnapshot.rawContentMode,
-                disableOnlineMetadata = launchIntentSnapshot.disableOnlineMetadata,
-                scanAfterAdd = launchIntentSnapshot.scanAfterAdd,
-                fallbackMode = selectionState.currentAppMode,
-            )?.let { request ->
+            applyLaunchTestTmdbOverrides(launchBootstrapPlan.tmdbOverrides)
+            launchBootstrapPlan.deferredSourceRequest?.let { request ->
                 addLaunchTestSource(request)
             }
         }
@@ -146,14 +210,79 @@ class MainActivity : ComponentActivity() {
             "MainActivity",
             "Applying launch TMDB overrides (token=${token != null}, baseUrl=${baseUrlOverride != null})",
         )
-        val previousToken = appCredentials.tmdbAccessToken
-        val previousBaseUrlOverride = appCredentials.tmdbApiBaseUrlOverride
+        val credentials = appCredentials.get()
+        val previousToken = credentials.tmdbAccessToken
+        val previousBaseUrlOverride = credentials.tmdbApiBaseUrlOverride
         restoreLaunchTmdbOverrides = {
-            appCredentials.tmdbAccessToken = previousToken
-            appCredentials.tmdbApiBaseUrlOverride = previousBaseUrlOverride
+            credentials.tmdbAccessToken = previousToken
+            credentials.tmdbApiBaseUrlOverride = previousBaseUrlOverride
         }
-        token?.let { appCredentials.tmdbAccessToken = it }
-        baseUrlOverride?.let { appCredentials.tmdbApiBaseUrlOverride = it }
+        token?.let { credentials.tmdbAccessToken = it }
+        baseUrlOverride?.let { credentials.tmdbApiBaseUrlOverride = it }
+    }
+
+    private fun applyLaunchPlaybackOverrides(
+        overrides: LaunchPlaybackOverrides,
+    ) {
+        if (!BuildConfig.DEBUG) return
+        if (
+            overrides.backend == null &&
+            overrides.ruleKey == null &&
+            overrides.preset == null
+        ) {
+            return
+        }
+        val current = playbackPreferencesManager.formatAwareToneMappingPreferences.normalized()
+        val updated = current.copy(
+            defaultBackend = overrides.backend ?: current.defaultBackend,
+            rules = if (overrides.ruleKey != null && overrides.preset != null) {
+                current.rules + (
+                    overrides.ruleKey to buildToneMappingPreset(overrides.ruleKey, overrides.preset)
+                )
+            } else {
+                current.rules
+            }
+        )
+        playbackPreferencesManager.formatAwareToneMappingPreferences = updated
+        MiruLog.i(
+            "MainActivity",
+            "Applied playback launch overrides",
+            mapOf(
+                "backend" to (overrides.backend?.name ?: "default"),
+                "rule_key" to (overrides.ruleKey?.name ?: "none"),
+                "preset" to (overrides.preset?.name ?: "none"),
+            )
+        )
+    }
+
+    private fun applyLaunchPlaybackDebugOverrides(
+        overrides: LaunchPlaybackDebugOverrides,
+    ) {
+        if (BuildConfig.DEBUG) {
+            playbackDebugOverrides.forcedVideoSignalDescriptor =
+                forcedVideoSignalDescriptorFor(overrides.forcedSignalKind)
+            val captureLabel = overrides.captureGlFrameLabel?.trim()?.takeIf { it.isNotBlank() }
+            playbackDebugOverrides.pendingGlFrameCaptureLabel = captureLabel
+            val initialNativeSnapshotLabel = initialPendingLibVlcNativeSnapshotLabelFor(overrides)
+            playbackDebugOverrides.pendingLibVlcNativeSnapshotLabel = initialNativeSnapshotLabel
+            playbackDebugOverrides.libVlcDebugConfig = LibVlcDebugConfig(
+                hwMode = overrides.libVlcHardwareMode ?: LibVlcHardwareAccelerationMode.FULL,
+                voutMode = overrides.libVlcVoutMode ?: LibVlcVoutMode.DEFAULT,
+                displayChroma = overrides.libVlcDisplayChroma,
+            )
+            Log.i(
+                "MainActivity",
+                "applyLaunchPlaybackDebugOverrides " +
+                    "captureLabel=${captureLabel.orEmpty()} " +
+                    "voutMode=${playbackDebugOverrides.libVlcDebugConfig.voutMode} " +
+                    "initialNativeSnapshotLabel=${initialNativeSnapshotLabel.orEmpty()}",
+            )
+        } else {
+            playbackDebugOverrides.forcedVideoSignalDescriptor = null
+            playbackDebugOverrides.pendingGlFrameCaptureLabel = null
+            playbackDebugOverrides.pendingLibVlcNativeSnapshotLabel = null
+            playbackDebugOverrides.libVlcDebugConfig = LibVlcDebugConfig()
+        }
     }
 
     override fun onDestroy() {
@@ -199,7 +328,8 @@ class MainActivity : ComponentActivity() {
                 }
             },
         )
-        val existingSource = mediaRepository.getSources()
+        val mediaRepo = mediaRepository.get()
+        val existingSource = mediaRepo.getSources()
             .getOrNull()
             .orEmpty()
             .firstOrNull { existing ->
@@ -207,7 +337,7 @@ class MainActivity : ComponentActivity() {
                     existing.persistenceLocation() == normalizedLocation
             }
         val persistedSourceId = if (existingSource != null) {
-            val updateResult = mediaRepository.updateSource(
+            val updateResult = mediaRepo.updateSource(
                 source.copy(
                     id = existingSource.id,
                     isConnected = existingSource.isConnected,
@@ -237,7 +367,7 @@ class MainActivity : ComponentActivity() {
             }
             updateResult.getOrNull()?.let { existingSource.id }
         } else {
-            val addResult = mediaRepository.addSource(source)
+            val addResult = mediaRepo.addSource(source)
             addResult.onSuccess { id ->
                 MiruLog.i(
                     "MainActivity",
@@ -263,7 +393,7 @@ class MainActivity : ComponentActivity() {
         }
 
         if (request.scanAfterAdd && persistedSourceId != null) {
-            scanCoordinator.scanSource(persistedSourceId)
+            scanCoordinator.get().scanSource(persistedSourceId)
                 .onSuccess { result ->
                     MiruLog.i(
                         "MainActivity",
@@ -293,15 +423,81 @@ class MainActivity : ComponentActivity() {
     private fun renderContent(initialAppModeSelectionState: AppModeSelectionState) {
         setContent {
             MiruPlayTheme {
-                MiruPlayNavigation(
-                    initialAppModeSelectionState = initialAppModeSelectionState,
-                    appModePreferencesManager = appModePreferencesManager,
-                    mediaRepository = mediaRepository,
-                    progressRepository = progressRepository,
-                    webControlNavigator = webControlNavigator
-                )
+                val directPlaybackRequest = launchDirectPlaybackRequest
+                if (directPlaybackRequest != null) {
+                    DirectPlaybackEntry(
+                        request = directPlaybackRequest,
+                        onNavigateBack = { launchDirectPlaybackRequest = null },
+                    )
+                } else {
+                    val resolvedMediaRepository = remember { mediaRepository.get() }
+                    val resolvedProgressRepository = remember { progressRepository.get() }
+                    val resolvedWebControlNavigator = remember { webControlNavigator.get() }
+                    MiruPlayNavigation(
+                        initialAppModeSelectionState = initialAppModeSelectionState,
+                        appModePreferencesManager = appModePreferencesManager,
+                        mediaRepository = resolvedMediaRepository,
+                        progressRepository = resolvedProgressRepository,
+                        webControlNavigator = resolvedWebControlNavigator,
+                        launchDirectPlaybackRequest = launchDirectPlaybackRequest,
+                        onDirectPlaybackRequestConsumed = { consumed ->
+                            if (launchDirectPlaybackRequest == consumed) {
+                                launchDirectPlaybackRequest = null
+                            }
+                        },
+                    )
+                }
             }
         }
+    }
+
+    private fun renderDirectPlaybackBootstrapPlaceholder(
+        initialAppModeSelectionState: AppModeSelectionState,
+        startUptimeMs: Long,
+    ) {
+        val placeholderView = FrameLayout(this).apply {
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            )
+            setBackgroundColor(Color.BLACK)
+        }
+        setContentView(placeholderView)
+        logStartupTrace("direct_placeholder_attached", startUptimeMs)
+        if (shouldSwitchDirectPlaybackPlaceholderToComposeImmediately()) {
+            if (isDestroyed || isFinishing) return
+            logStartupTrace("direct_placeholder_switch_to_compose_immediate", startUptimeMs)
+            renderContent(initialAppModeSelectionState)
+            return
+        }
+        OneShotPreDrawListener.add(placeholderView) {
+            logStartupTrace("direct_placeholder_predraw", startUptimeMs)
+            placeholderView.post {
+                if (isDestroyed || isFinishing) return@post
+                logStartupTrace("direct_placeholder_switch_to_compose", startUptimeMs)
+                renderContent(initialAppModeSelectionState)
+            }
+        }
+    }
+
+    private fun logStartupTrace(
+        stage: String,
+        startUptimeMs: Long,
+        attributes: Map<String, String> = emptyMap(),
+    ) {
+        val elapsedMs = (SystemClock.uptimeMillis() - startUptimeMs).coerceAtLeast(0L)
+        val message = "Startup trace: $stage"
+        val payload = linkedMapOf(
+            "stage" to stage,
+            "elapsed_ms" to elapsedMs.toString(),
+            "has_direct_playback" to (launchDirectPlaybackRequest != null).toString(),
+        )
+        payload.putAll(attributes)
+        MiruLog.i("MainActivity", message, payload)
+        Log.i(
+            "MainActivity",
+            "$message elapsedMs=$elapsedMs hasDirectPlayback=${launchDirectPlaybackRequest != null} attributes=$attributes",
+        )
     }
 
     private fun logLaunchIntentSummary(snapshot: LaunchIntentSnapshot) {
@@ -317,11 +513,12 @@ class MainActivity : ComponentActivity() {
                 "has_tmdb_base_url_extra" to snapshot.tmdbOverrides.hasBaseUrlExtra.toString(),
                 "has_tmdb_base_url_value" to (snapshot.tmdbOverrides.baseUrlOverride != null).toString(),
                 "scan_after_add" to snapshot.scanAfterAdd.toString(),
+                "has_direct_playback" to (snapshot.directPlaybackRequest != null).toString(),
             ),
         )
         Log.i(
             "MainActivity",
-            "Launch extras summary (testSource=${snapshot.hasTestSourceIntent()}, tmdbTokenExtra=${snapshot.tmdbOverrides.hasTokenExtra}, tmdbTokenValue=${snapshot.tmdbOverrides.token != null}, tmdbBaseUrlExtra=${snapshot.tmdbOverrides.hasBaseUrlExtra}, tmdbBaseUrlValue=${snapshot.tmdbOverrides.baseUrlOverride != null}, scanAfterAdd=${snapshot.scanAfterAdd})",
+            "Launch extras summary (testSource=${snapshot.hasTestSourceIntent()}, tmdbTokenExtra=${snapshot.tmdbOverrides.hasTokenExtra}, tmdbTokenValue=${snapshot.tmdbOverrides.token != null}, tmdbBaseUrlExtra=${snapshot.tmdbOverrides.hasBaseUrlExtra}, tmdbBaseUrlValue=${snapshot.tmdbOverrides.baseUrlOverride != null}, scanAfterAdd=${snapshot.scanAfterAdd}, directPlayback=${snapshot.directPlaybackRequest != null})",
         )
     }
 }
@@ -351,6 +548,9 @@ internal data class LaunchIntentSnapshot(
     val disableOnlineMetadata: Boolean,
     val scanAfterAdd: Boolean,
     val tmdbOverrides: LaunchTestTmdbOverrides,
+    val playbackOverrides: LaunchPlaybackOverrides,
+    val playbackDebugOverrides: LaunchPlaybackDebugOverrides,
+    val directPlaybackRequest: LaunchDirectPlaybackRequest?,
 )
 
 internal data class LaunchTestTmdbOverrides(
@@ -359,6 +559,75 @@ internal data class LaunchTestTmdbOverrides(
     val hasTokenExtra: Boolean,
     val hasBaseUrlExtra: Boolean,
 )
+
+internal data class LaunchPlaybackOverrides(
+    val backend: PlaybackRenderBackend?,
+    val ruleKey: VideoRenderRuleKey?,
+    val preset: ToneMappingProfilePreset?,
+)
+
+internal data class LaunchPlaybackDebugOverrides(
+    val forcedSignalKind: VideoSignalKind?,
+    val captureGlFrameLabel: String?,
+    val libVlcHardwareMode: LibVlcHardwareAccelerationMode?,
+    val libVlcVoutMode: LibVlcVoutMode?,
+    val libVlcDisplayChroma: String?,
+)
+
+internal data class LaunchDirectPlaybackRequest(
+    val uri: String,
+    val mediaSourceId: String,
+    val startPositionMs: Long,
+    val episodeId: String?,
+)
+
+internal fun directPlaybackSourceFor(
+    request: LaunchDirectPlaybackRequest,
+): PlaybackSource =
+    PlaybackSource(
+        uri = request.uri,
+        mediaSourceId = request.mediaSourceId,
+        startPosition = request.startPositionMs,
+        subtitleTracks = emptyList(),
+        episodeId = request.episodeId,
+    )
+
+internal data class LaunchBootstrapPlan(
+    val initialSelectionState: AppModeSelectionState,
+    val tmdbOverrides: LaunchTestTmdbOverrides,
+    val playbackOverrides: LaunchPlaybackOverrides,
+    val playbackDebugOverrides: LaunchPlaybackDebugOverrides,
+    val directPlaybackRequest: LaunchDirectPlaybackRequest?,
+    val deferredSourceRequest: LaunchTestSourceRequest?,
+)
+
+internal fun buildLaunchBootstrapPlan(
+    snapshot: LaunchIntentSnapshot,
+    selectionState: AppModeSelectionState,
+    debugBuild: Boolean,
+): LaunchBootstrapPlan =
+    LaunchBootstrapPlan(
+        initialSelectionState = selectionState,
+        tmdbOverrides = snapshot.tmdbOverrides,
+        playbackOverrides = snapshot.playbackOverrides,
+        playbackDebugOverrides = snapshot.playbackDebugOverrides,
+        directPlaybackRequest = snapshot.directPlaybackRequest
+            ?.takeIf { debugBuild },
+        deferredSourceRequest = resolveLaunchTestSourceRequest(
+            legacyLocalPath = snapshot.legacyLocalPath,
+            legacyLocalName = snapshot.legacyLocalName,
+            rawType = snapshot.rawType,
+            rawLocation = snapshot.rawLocation,
+            rawName = snapshot.rawName,
+            rawDisplayName = snapshot.rawDisplayName,
+            rawUsername = snapshot.rawUsername,
+            rawPassword = snapshot.rawPassword,
+            rawContentMode = snapshot.rawContentMode,
+            disableOnlineMetadata = snapshot.disableOnlineMetadata,
+            scanAfterAdd = snapshot.scanAfterAdd,
+            fallbackMode = selectionState.currentAppMode,
+        ),
+    )
 
 internal fun captureLaunchIntentSnapshot(intent: Intent?): LaunchIntentSnapshot {
     val extras = intent?.extras
@@ -380,6 +649,24 @@ internal fun captureLaunchIntentSnapshot(intent: Intent?): LaunchIntentSnapshot 
             hasTokenExtra = extras?.containsKey("test_tmdb_token") == true,
             hasBaseUrlExtra = extras?.containsKey("test_tmdb_base_url") == true,
         ),
+        playbackOverrides = resolveLaunchPlaybackOverrides(
+            rawBackend = intent?.getStringExtra("test_playback_backend"),
+            rawRuleKey = intent?.getStringExtra("test_tone_mapping_rule"),
+            rawPreset = intent?.getStringExtra("test_tone_mapping_preset"),
+        ),
+        playbackDebugOverrides = resolveLaunchPlaybackDebugOverrides(
+            rawForcedSignalKind = intent?.getStringExtra("test_force_signal_kind"),
+            rawCaptureGlFrameLabel = intent?.getStringExtra("test_capture_gl_frame"),
+            rawLibVlcHardwareMode = intent?.getStringExtra("test_libvlc_hw_mode"),
+            rawLibVlcVoutMode = intent?.getStringExtra("test_libvlc_vout_mode"),
+            rawLibVlcDisplayChroma = intent?.getStringExtra("test_libvlc_display_chroma"),
+        ),
+        directPlaybackRequest = resolveLaunchDirectPlaybackRequest(
+            rawUri = intent?.getStringExtra("test_playback_uri"),
+            rawMediaSourceId = intent?.getStringExtra("test_playback_media_source_id"),
+            rawStartPositionMs = intent?.getStringExtra("test_playback_start_position_ms"),
+            rawEpisodeId = intent?.getStringExtra("test_playback_episode_id"),
+        ),
     )
 }
 
@@ -396,6 +683,86 @@ internal fun resolveLaunchTestTmdbOverrides(
         hasBaseUrlExtra = hasBaseUrlExtra,
     )
 
+internal fun resolveLaunchPlaybackOverrides(
+    rawBackend: String?,
+    rawRuleKey: String?,
+    rawPreset: String?,
+): LaunchPlaybackOverrides =
+    LaunchPlaybackOverrides(
+        backend = PlaybackRenderBackend.entries.firstOrNull {
+            it.name.equals(rawBackend?.trim(), ignoreCase = true)
+        },
+        ruleKey = VideoRenderRuleKey.entries.firstOrNull {
+            it.name.equals(rawRuleKey?.trim(), ignoreCase = true)
+        },
+        preset = ToneMappingProfilePreset.entries.firstOrNull {
+            it.name.equals(rawPreset?.trim(), ignoreCase = true)
+        },
+    )
+
+internal fun resolveLaunchPlaybackDebugOverrides(
+    rawForcedSignalKind: String?,
+    rawCaptureGlFrameLabel: String?,
+    rawLibVlcHardwareMode: String?,
+    rawLibVlcVoutMode: String?,
+    rawLibVlcDisplayChroma: String?,
+): LaunchPlaybackDebugOverrides =
+    LaunchPlaybackDebugOverrides(
+        forcedSignalKind = VideoSignalKind.entries.firstOrNull {
+            it.name.equals(rawForcedSignalKind?.trim(), ignoreCase = true)
+        },
+        captureGlFrameLabel = rawCaptureGlFrameLabel?.trim()?.takeIf { it.isNotBlank() },
+        libVlcHardwareMode = LibVlcHardwareAccelerationMode.entries.firstOrNull {
+            it.name.equals(rawLibVlcHardwareMode?.trim(), ignoreCase = true)
+        },
+        libVlcVoutMode = LibVlcVoutMode.entries.firstOrNull {
+            it.name.equals(rawLibVlcVoutMode?.trim(), ignoreCase = true)
+        },
+        libVlcDisplayChroma = normalizeLaunchLibVlcDisplayChroma(rawLibVlcDisplayChroma),
+    )
+
+internal fun normalizeLaunchLibVlcDisplayChroma(rawValue: String?): String? =
+    rawValue
+        ?.trim()
+        ?.uppercase()
+        ?.takeIf { it.matches(Regex("[A-Z0-9]{4}")) }
+
+internal fun initialPendingLibVlcNativeSnapshotLabelFor(
+    overrides: LaunchPlaybackDebugOverrides,
+): String? =
+    overrides.captureGlFrameLabel
+        ?.takeIf { overrides.libVlcVoutMode != LibVlcVoutMode.VMEM_STREAM }
+
+internal fun shouldSwitchDirectPlaybackPlaceholderToComposeImmediately(): Boolean = true
+
+internal fun resolveLaunchDirectPlaybackRequest(
+    rawUri: String?,
+    rawMediaSourceId: String?,
+    rawStartPositionMs: String?,
+    rawEpisodeId: String?,
+): LaunchDirectPlaybackRequest? {
+    val uri = rawUri?.trim()?.takeIf { it.isNotBlank() } ?: return null
+    val startPositionMs = rawStartPositionMs
+        ?.trim()
+        ?.toLongOrNull()
+        ?.coerceAtLeast(0L)
+        ?: 0L
+    val mediaSourceId = rawMediaSourceId?.trim()?.takeIf { it.isNotBlank() }
+        ?: uri
+            .substringBefore('?')
+            .substringAfterLast('/')
+            .substringAfterLast('\\')
+            .substringBeforeLast('.', missingDelimiterValue = uri.substringBefore('?').substringAfterLast('/').substringAfterLast('\\'))
+            .takeIf { it.isNotBlank() }
+        ?: "media"
+    return LaunchDirectPlaybackRequest(
+        uri = uri,
+        mediaSourceId = mediaSourceId,
+        startPositionMs = startPositionMs,
+        episodeId = rawEpisodeId?.trim()?.takeIf { it.isNotBlank() },
+    )
+}
+
 internal fun LaunchIntentSnapshot.hasTestSourceIntent(): Boolean =
     hasLaunchTestSourceIntent(
         legacyLocalPath = legacyLocalPath,
@@ -408,7 +775,13 @@ internal fun LaunchIntentSnapshot.hasAnyLaunchTestData(): Boolean =
         disableOnlineMetadata ||
         scanAfterAdd ||
         tmdbOverrides.hasTokenExtra ||
-        tmdbOverrides.hasBaseUrlExtra
+        tmdbOverrides.hasBaseUrlExtra ||
+        playbackOverrides.backend != null ||
+        playbackOverrides.ruleKey != null ||
+        playbackOverrides.preset != null ||
+        playbackDebugOverrides.forcedSignalKind != null ||
+        playbackDebugOverrides.captureGlFrameLabel != null ||
+        directPlaybackRequest != null
 
 internal fun resolveLaunchTestSourceContentMode(
     rawValue: String?,
@@ -515,12 +888,14 @@ internal fun resolveLaunchTestSourceRequest(
 }
 
 @Composable
-fun MiruPlayNavigation(
+private fun MiruPlayNavigation(
     initialAppModeSelectionState: AppModeSelectionState,
     appModePreferencesManager: AppModePreferencesManager,
     mediaRepository: MediaSourceRepository,
     progressRepository: PlaybackProgressRepository,
-    webControlNavigator: WebControlNavigator
+    webControlNavigator: WebControlNavigator,
+    launchDirectPlaybackRequest: LaunchDirectPlaybackRequest?,
+    onDirectPlaybackRequestConsumed: (LaunchDirectPlaybackRequest) -> Unit,
 ) {
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
@@ -572,6 +947,32 @@ fun MiruPlayNavigation(
                 }
             }
         }
+    }
+    androidx.compose.runtime.LaunchedEffect(launchDirectPlaybackRequest, navController) {
+        val request = launchDirectPlaybackRequest ?: return@LaunchedEffect
+        MiruLog.i(
+            "MiruPlayNavigation",
+            "Launch extras requested direct player navigation",
+            mapOf(
+                "media_source_id" to request.mediaSourceId,
+                "has_episode_id" to (!request.episodeId.isNullOrBlank()).toString(),
+                "start_position_ms" to request.startPositionMs.toString(),
+            )
+        )
+        val encodedPath = Uri.encode(request.uri)
+        val encodedSource = Uri.encode(request.mediaSourceId)
+        val encodedEpisode = Uri.encode(request.episodeId ?: "")
+        navController.navigate(
+            NavRoutes.player(
+                uri = encodedPath,
+                mediaSourceId = encodedSource,
+                startPosition = request.startPositionMs,
+                episodeId = encodedEpisode,
+            )
+        ) {
+            launchSingleTop = true
+        }
+        onDirectPlaybackRequestConsumed(request)
     }
     NavHost(
         navController = navController,
@@ -769,4 +1170,25 @@ fun MiruPlayNavigation(
             )
         }
     }
+}
+
+@Composable
+private fun DirectPlaybackEntry(
+    request: LaunchDirectPlaybackRequest,
+    onNavigateBack: () -> Unit,
+) {
+    remember(request) {
+        Log.i(
+            "MainActivity",
+            "Startup trace: direct_playback_entry mediaSourceId=${request.mediaSourceId} uri=${request.uri}",
+        )
+        true
+    }
+    val playbackSource = remember(request) {
+        directPlaybackSourceFor(request)
+    }
+    PlayerScreen(
+        playbackSource = playbackSource,
+        onNavigateBack = onNavigateBack,
+    )
 }

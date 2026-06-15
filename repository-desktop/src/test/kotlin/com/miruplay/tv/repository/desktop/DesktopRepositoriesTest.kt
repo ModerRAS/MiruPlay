@@ -4,13 +4,18 @@ import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.Episode
+import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.PlaybackEndAction
+import com.miruplay.tv.model.PlaybackRenderBackend
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.RssDownloadStatus
 import com.miruplay.tv.model.RssDownloadTaskInfo
 import com.miruplay.tv.model.RssProcessedItemInfo
 import com.miruplay.tv.model.RssSubscriptionInfo
+import com.miruplay.tv.model.ToneMappingProfilePreset
+import com.miruplay.tv.model.VideoRenderRuleKey
+import com.miruplay.tv.model.buildToneMappingPreset
 import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.repository.BangumiCollectionService
 import com.miruplay.tv.repository.BangumiEpisodeCollection
@@ -141,6 +146,36 @@ class DesktopRepositoriesTest {
 
             val reopened = DesktopRepositories.fileBacked(storePath)
             assertEquals(PlaybackEndAction.PLAY_NEXT_EPISODE, reopened.playbackPreferences.getEndAction())
+        } finally {
+            deleteTempStore(storePath)
+        }
+    }
+
+    @Test
+    fun `format aware tone mapping preferences are persisted`() = runBlocking {
+        val storePath = tempStorePath()
+        try {
+            val repositories = DesktopRepositories.fileBacked(storePath)
+
+            assertEquals(
+                FormatAwareToneMappingPreferences(),
+                repositories.playbackPreferences.getFormatAwareToneMappingPreferences(),
+            )
+
+            val updated = FormatAwareToneMappingPreferences(
+                defaultBackend = PlaybackRenderBackend.EXPERIMENTAL_LIBVLC,
+                rules = FormatAwareToneMappingPreferences().rules + (
+                    VideoRenderRuleKey.HDR10 to buildToneMappingPreset(
+                        VideoRenderRuleKey.HDR10,
+                        ToneMappingProfilePreset.SOFT,
+                    )
+                ),
+            )
+
+            repositories.playbackPreferences.setFormatAwareToneMappingPreferences(updated)
+
+            val reopened = DesktopRepositories.fileBacked(storePath)
+            assertEquals(updated.normalized(), reopened.playbackPreferences.getFormatAwareToneMappingPreferences())
         } finally {
             deleteTempStore(storePath)
         }

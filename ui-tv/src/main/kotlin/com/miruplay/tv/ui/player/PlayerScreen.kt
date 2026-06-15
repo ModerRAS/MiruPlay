@@ -3,13 +3,18 @@ package com.miruplay.tv.ui.player
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import android.util.Log
+import android.view.LayoutInflater
 import android.view.WindowManager
+import java.io.File
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -24,9 +29,12 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -36,6 +44,7 @@ import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PhotoFilter
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Subtitles
@@ -46,6 +55,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -74,16 +84,24 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import androidx.annotation.LayoutRes
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.PlaybackState
 import com.miruplay.tv.model.PLAYBACK_SEEK_BACK_SECONDS
 import com.miruplay.tv.model.PLAYBACK_SEEK_FORWARD_SECONDS
+import com.miruplay.tv.model.PlaybackRenderBackend
 import com.miruplay.tv.model.SubtitleTrack
+import com.miruplay.tv.model.ToneMappingProfilePreset
 import com.miruplay.tv.model.PlaybackTimingConventions
 import com.miruplay.tv.model.formatPlaybackPosition
+import com.miruplay.tv.model.pictureOsdMenuTitleLabel
+import com.miruplay.tv.model.pictureSaveDefaultForFormatLabel
+import com.miruplay.tv.model.pictureSessionOverrideLabel
+import com.miruplay.tv.model.playbackBackendLabel
 import com.miruplay.tv.model.playbackAudioMenuTitle
 import com.miruplay.tv.model.playbackAudioOptionLabel
 import com.miruplay.tv.model.playbackAudioTrackCountLabel
@@ -102,12 +120,19 @@ import com.miruplay.tv.model.playbackSpeedValueLabel
 import com.miruplay.tv.model.playbackSubtitleCountLabel
 import com.miruplay.tv.model.playbackSubtitleOptionLabel
 import com.miruplay.tv.model.playbackSubtitlesMenuTitle
+import com.miruplay.tv.model.toneMappingPresetLabel
+import com.miruplay.tv.model.toneMappingPresetOptions
 import com.miruplay.tv.design.MiruPlayPlaybackInputAction
 import com.miruplay.tv.design.shouldRefreshTvPlaybackControls
 import com.miruplay.tv.design.tvPlaybackOverlayAction
+import com.miruplay.tv.ui.components.rememberInitialFocusHandle
+import com.miruplay.tv.ui.tv.R
 import com.miruplay.tv.ui.components.toMiruPlayInputIntent
 import com.miruplay.tv.ui.components.tvActivateKeyEvent
 import com.miruplay.tv.player.AudioTrack
+import com.miruplay.tv.player.LibVlcVoutMode
+import com.miruplay.tv.player.resolveDeviceGlEsMajorVersion
+import com.miruplay.tv.player.shouldUseDedicatedExperimentalGlSurface
 import com.miruplay.tv.ui.theme.AnimeRed
 import com.miruplay.tv.ui.theme.DarkSurface
 import com.miruplay.tv.ui.theme.FocusBorder
@@ -116,12 +141,48 @@ import com.miruplay.tv.ui.theme.TextSecondary
 import com.miruplay.tv.ui.theme.TvTypography
 import kotlinx.coroutines.delay
 
-@OptIn(ExperimentalTvMaterial3Api::class)
+private const val LIBVLC_DEBUG_CAPTURE_MIN_POSITION_MS = 1_000L
+private const val STANDARD_DEBUG_CAPTURE_MIN_POSITION_MS = 5_000L
+private const val LIBVLC_DEBUG_CAPTURE_RETRY_INTERVAL_MS = 1_500L
+private const val LIBVLC_NATIVE_SNAPSHOT_GRACE_PERIOD_MS = 2_500L
+
+private fun sanitizeDebugCaptureLabel(label: String): String =
+    label.replace(Regex("[^A-Za-z0-9._-]"), "_")
+
+@OptIn(ExperimentalTvMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun PlayerScreen(
     playbackSource: PlaybackSource,
     onNavigateBack: () -> Unit,
-    viewModel: PlayerViewModel = hiltViewModel()
+) {
+    remember(playbackSource) {
+        Log.i(
+            "PlayerScreen",
+            "Startup trace: composable_enter source=${playbackSource.mediaSourceId} uri=${playbackSource.uri}",
+        )
+        true
+    }
+    val viewModel: PlayerViewModel = hiltViewModel()
+    remember(playbackSource, viewModel) {
+        Log.i(
+            "PlayerScreen",
+            "Startup trace: viewModel_resolved source=${playbackSource.mediaSourceId} viewModel=${viewModel::class.java.simpleName}",
+        )
+        true
+    }
+    PlayerScreenContent(
+        playbackSource = playbackSource,
+        onNavigateBack = onNavigateBack,
+        viewModel = viewModel,
+    )
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+private fun PlayerScreenContent(
+    playbackSource: PlaybackSource,
+    onNavigateBack: () -> Unit,
+    viewModel: PlayerViewModel,
 ) {
     val playbackState by viewModel.playbackState.collectAsStateWithLifecycle()
     val activePlaybackSource by viewModel.activePlaybackSource.collectAsStateWithLifecycle()
@@ -135,19 +196,119 @@ fun PlayerScreen(
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
     val displayTitle by viewModel.displayTitle.collectAsStateWithLifecycle()
     val displaySubtitle by viewModel.displaySubtitle.collectAsStateWithLifecycle()
+    val currentVideoSignalDescriptor by viewModel.currentVideoSignalDescriptor.collectAsStateWithLifecycle()
+    val currentRenderRuleKey by viewModel.currentRenderRuleKey.collectAsStateWithLifecycle()
+    val currentToneMappingRuleSet by viewModel.currentToneMappingRuleSet.collectAsStateWithLifecycle()
+    val currentRequestedBackend by viewModel.currentRequestedBackend.collectAsStateWithLifecycle()
+    val currentActiveBackend by viewModel.currentActiveBackend.collectAsStateWithLifecycle()
+    val currentLibVlcVoutMode = viewModel.currentLibVlcVoutMode()
+    val fallbackReason by viewModel.fallbackReason.collectAsStateWithLifecycle()
+    val formatAwarePreferences by viewModel.formatAwarePreferences.collectAsStateWithLifecycle()
     val keepScreenOn = playbackState.keepsScreenOn()
     val view = LocalView.current
+    val deviceGlEsMajorVersion = remember(view.context) {
+        resolveDeviceGlEsMajorVersion(view.context)
+    }
     val playerFocusRequester = remember { FocusRequester() }
     val currentPlaybackSource = activePlaybackSource ?: playbackSource
+    val pendingDebugCaptureLabel = viewModel.pendingGlFrameCaptureLabel()
+    var preferCapturableTextureView by remember(playbackSource) {
+        mutableStateOf(!pendingDebugCaptureLabel.isNullOrBlank())
+    }
+    LaunchedEffect(pendingDebugCaptureLabel) {
+        preferCapturableTextureView = latchCapturableTextureViewForPlaybackSession(
+            wasAlreadyLatched = preferCapturableTextureView,
+            pendingLabel = pendingDebugCaptureLabel,
+        )
+    }
+    var hasStartedPlayback by remember(playbackSource) { mutableStateOf(false) }
+    var preferDedicatedExperimentalSurface by remember(playbackSource) {
+        mutableStateOf(
+            latchDedicatedExperimentalSurfaceForPlaybackSession(
+                wasAlreadyLatched = false,
+                deviceGlEsMajorVersion = deviceGlEsMajorVersion,
+                activeBackend = currentActiveBackend,
+                requestedBackend = currentRequestedBackend,
+                defaultBackend = formatAwarePreferences.defaultBackend,
+            ),
+        )
+    }
+    LaunchedEffect(
+        currentActiveBackend,
+        currentRequestedBackend,
+        formatAwarePreferences.defaultBackend,
+    ) {
+        preferDedicatedExperimentalSurface = latchDedicatedExperimentalSurfaceForPlaybackSession(
+            wasAlreadyLatched = preferDedicatedExperimentalSurface,
+            deviceGlEsMajorVersion = deviceGlEsMajorVersion,
+            activeBackend = currentActiveBackend,
+            requestedBackend = currentRequestedBackend,
+            defaultBackend = formatAwarePreferences.defaultBackend,
+        )
+    }
+    val playerViewHost = remember(
+        currentActiveBackend,
+        currentRequestedBackend,
+        hasStartedPlayback,
+        formatAwarePreferences.defaultBackend,
+        preferCapturableTextureView,
+        preferDedicatedExperimentalSurface,
+    ) {
+        resolvePlayerViewHost(
+            activeBackend = currentActiveBackend,
+            requestedBackend = currentRequestedBackend,
+            hasStartedPlayback = hasStartedPlayback,
+            defaultBackend = formatAwarePreferences.defaultBackend,
+            preferCapturableTextureView = preferCapturableTextureView,
+            preferDedicatedGlSurface = preferDedicatedExperimentalSurface,
+        )
+    }
     var openMenu by remember { mutableStateOf<PlayerMenu?>(null) }
+    var vlcVideoHostRef by remember { mutableStateOf<LibVlcTextureVideoHostView?>(null) }
+    var playerViewRef by remember { mutableStateOf<PlayerView?>(null) }
+    var lastVlcDebugCaptureAttempt by remember(playbackSource) {
+        mutableStateOf<LibVlcDebugCaptureAttempt?>(null)
+    }
+    var lastStandardDebugCaptureAttempt by remember(playbackSource) {
+        mutableStateOf<StandardDebugCaptureAttempt?>(null)
+    }
+    var nativeSnapshotWaitState by remember(playbackSource) {
+        mutableStateOf<LibVlcNativeSnapshotWaitState?>(null)
+    }
+    val onLibVlcFrameCaptured: (String) -> Unit = { label ->
+        if (
+            shouldRequestLibVlcNativeSnapshotAfterGlCapture(
+                backend = currentActiveBackend,
+                voutMode = currentLibVlcVoutMode,
+            )
+        ) {
+            viewModel.requestLibVlcNativeSnapshot(label)
+        }
+        viewModel.clearPendingGlFrameCaptureLabel(label)
+    }
+    val shouldShowExperimentalSurface = playerViewHost == PlayerViewHost.DedicatedGlSurface
+    val shouldShowVlcVideoLayout = shouldShowLibVlcVideoLayout(
+        activeBackend = currentActiveBackend,
+        requestedBackend = currentRequestedBackend,
+        hasStartedPlayback = hasStartedPlayback,
+        defaultBackend = formatAwarePreferences.defaultBackend,
+    )
+    val shouldCaptureStandardDebugFrame = shouldScheduleStandardDebugCapture(
+        pendingLabel = viewModel.pendingGlFrameCaptureLabel(),
+        playbackState = playbackState,
+        currentPosition = currentPosition,
+    )
     val navigateBack = remember(onNavigateBack) {
         {
             viewModel.saveCurrentProgressAndNavigate(onNavigateBack)
         }
     }
 
-    LaunchedEffect(playbackSource) {
-        viewModel.play(playbackSource)
+    LaunchedEffect(playbackSource, hasStartedPlayback) {
+        if (!hasStartedPlayback) {
+            hasStartedPlayback = true
+            viewModel.play(playbackSource)
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -176,6 +337,181 @@ fun PlayerScreen(
         }
     }
 
+    LaunchedEffect(shouldShowVlcVideoLayout, currentActiveBackend, playbackState, currentPosition, vlcVideoHostRef) {
+        val pendingLabel = viewModel.pendingGlFrameCaptureLabel()
+        val decision = resolveLibVlcDebugCaptureDecision(
+            shouldShowVlcVideoLayout = shouldShowVlcVideoLayout,
+            currentActiveBackend = currentActiveBackend,
+            playbackState = playbackState,
+            currentPosition = currentPosition,
+            pendingLabel = pendingLabel,
+            hostAvailable = vlcVideoHostRef != null,
+            lastAttempt = lastVlcDebugCaptureAttempt,
+        )
+        when (decision) {
+            LibVlcDebugCaptureDecision.CAPTURE -> {
+                val label = pendingLabel ?: return@LaunchedEffect
+                val host = vlcVideoHostRef ?: return@LaunchedEffect
+                val pendingNativeLabel = viewModel.pendingLibVlcNativeSnapshotLabel()
+                if (currentActiveBackend == PlaybackRenderBackend.EXPERIMENTAL_LIBVLC && pendingNativeLabel == label) {
+                    val nowMs = System.currentTimeMillis()
+                    val waitState = nativeSnapshotWaitState
+                    if (waitState?.label != label) {
+                        nativeSnapshotWaitState = LibVlcNativeSnapshotWaitState(
+                            label = label,
+                            startedAtMs = nowMs,
+                        )
+                        return@LaunchedEffect
+                    }
+                    if (nowMs - waitState.startedAtMs < LIBVLC_NATIVE_SNAPSHOT_GRACE_PERIOD_MS) {
+                        return@LaunchedEffect
+                    }
+                }
+                nativeSnapshotWaitState = null
+                lastVlcDebugCaptureAttempt = LibVlcDebugCaptureAttempt(
+                    label = label,
+                    positionMs = maxOf(
+                        currentPosition,
+                        (playbackState as? PlaybackState.Playing)?.position ?: 0L,
+                    ),
+                )
+                Log.i(
+                    "PlayerScreen",
+                    "Scheduling libVLC debug capture label=$label positionMs=$currentPosition",
+                )
+                // Dispatch immediately here because this effect is keyed by live playback state and
+                // position updates. Delaying inside the effect can cancel the capture before it
+                // reaches the host on actively playing libVLC sessions.
+                val latestPendingLabel = viewModel.pendingGlFrameCaptureLabel()
+                if (latestPendingLabel == label) {
+                    val captureStarted = host.captureCurrentFrame(label)
+                    Log.i(
+                        "PlayerScreen",
+                        "Dispatched libVLC debug capture label=$label positionMs=$currentPosition started=$captureStarted",
+                    )
+                } else {
+                    Log.i(
+                        "PlayerScreen",
+                        "Skipping libVLC debug capture label=$label because pending label changed to $latestPendingLabel before dispatch",
+                    )
+                }
+            }
+            LibVlcDebugCaptureDecision.WAIT_FOR_PROGRESS -> {
+                if (pendingLabel != null && lastVlcDebugCaptureAttempt?.label != pendingLabel) {
+                    Log.i(
+                        "PlayerScreen",
+                        "Deferring libVLC debug capture label=$pendingLabel until playback passes ${LIBVLC_DEBUG_CAPTURE_MIN_POSITION_MS}ms; current=$currentPosition",
+                    )
+                }
+            }
+            LibVlcDebugCaptureDecision.NO_PENDING_LABEL,
+            LibVlcDebugCaptureDecision.SKIP_BACKEND,
+            LibVlcDebugCaptureDecision.WAIT_FOR_HOST,
+            LibVlcDebugCaptureDecision.WAIT_FOR_PLAYING,
+            LibVlcDebugCaptureDecision.THROTTLED,
+            -> Unit
+        }
+    }
+
+    LaunchedEffect(
+        shouldShowVlcVideoLayout,
+        currentActiveBackend,
+        playbackState,
+        currentPosition,
+        pendingDebugCaptureLabel,
+    ) {
+        if (!shouldShowVlcVideoLayout || currentActiveBackend != PlaybackRenderBackend.EXPERIMENTAL_LIBVLC) {
+            nativeSnapshotWaitState = null
+            return@LaunchedEffect
+        }
+        val pendingNativeLabel = viewModel.pendingLibVlcNativeSnapshotLabel() ?: return@LaunchedEffect
+        val playingState = playbackState as? PlaybackState.Playing ?: return@LaunchedEffect
+        val effectivePosition = maxOf(currentPosition, playingState.position)
+        if (effectivePosition < LIBVLC_DEBUG_CAPTURE_MIN_POSITION_MS) {
+            return@LaunchedEffect
+        }
+        val nativeCaptureFile = File(
+            view.context.filesDir,
+            "MiruPlayLibVlcCaptures/${sanitizeDebugCaptureLabel(pendingNativeLabel)}_native.png",
+        )
+        repeat(10) {
+            val shouldKeepWaiting = if (
+                shouldRequirePendingGlLabelDuringLibVlcNativeSnapshotWait(
+                    backend = currentActiveBackend,
+                    voutMode = currentLibVlcVoutMode,
+                )
+            ) {
+                viewModel.pendingGlFrameCaptureLabel() == pendingNativeLabel
+            } else {
+                viewModel.pendingLibVlcNativeSnapshotLabel() == pendingNativeLabel
+            }
+            if (!shouldKeepWaiting) {
+                return@LaunchedEffect
+            }
+            if (nativeCaptureFile.isFile && nativeCaptureFile.length() > 0L) {
+                if (
+                    shouldClearPendingGlCaptureAfterNativeSnapshot(
+                        backend = currentActiveBackend,
+                        voutMode = currentLibVlcVoutMode,
+                    )
+                ) {
+                    viewModel.clearPendingGlFrameCaptureLabel(pendingNativeLabel)
+                }
+                nativeSnapshotWaitState = null
+                return@LaunchedEffect
+            }
+            delay(250L)
+        }
+        if (viewModel.pendingLibVlcNativeSnapshotLabel() == pendingNativeLabel) {
+            viewModel.clearPendingLibVlcNativeSnapshotLabel(pendingNativeLabel)
+            nativeSnapshotWaitState = LibVlcNativeSnapshotWaitState(
+                label = pendingNativeLabel,
+                startedAtMs = 0L,
+            )
+        }
+    }
+
+    LaunchedEffect(
+        shouldShowVlcVideoLayout,
+        shouldShowExperimentalSurface,
+        playbackState,
+        currentPosition,
+        playerViewRef,
+    ) {
+        if (shouldShowVlcVideoLayout || shouldShowExperimentalSurface) {
+            playerViewRef = null
+            return@LaunchedEffect
+        }
+        val pendingLabel = viewModel.pendingGlFrameCaptureLabel() ?: return@LaunchedEffect
+        if (!shouldCaptureStandardDebugFrame) {
+            return@LaunchedEffect
+        }
+        val host = playerViewRef ?: return@LaunchedEffect
+        val previousAttempt = lastStandardDebugCaptureAttempt
+        if (
+            previousAttempt?.label == pendingLabel &&
+            currentPosition - previousAttempt.positionMs < LIBVLC_DEBUG_CAPTURE_RETRY_INTERVAL_MS
+        ) {
+            return@LaunchedEffect
+        }
+        lastStandardDebugCaptureAttempt = StandardDebugCaptureAttempt(
+            label = pendingLabel,
+            positionMs = currentPosition,
+        )
+        Log.i(
+            "PlayerScreen",
+            "Scheduling PlayerView debug capture label=$pendingLabel positionMs=$currentPosition host=${host.javaClass.simpleName}",
+        )
+        delay(250)
+        if (viewModel.pendingGlFrameCaptureLabel() == pendingLabel) {
+            host.post {
+                host.captureCurrentFrame(pendingLabel) { capturedLabel ->
+                    viewModel.clearPendingGlFrameCaptureLabel(capturedLabel)
+                }
+            }
+        }
+    }
+
     DisposableEffect(view, keepScreenOn) {
         val window = view.context.findActivity()?.window
         if (keepScreenOn) {
@@ -193,8 +529,30 @@ fun PlayerScreen(
 
     DisposableEffect(Unit) {
         onDispose {
+            viewModel.unbindVlcVideoHost()
             viewModel.stopPlaybackWhenLeaving()
         }
+    }
+
+    DisposableEffect(shouldShowVlcVideoLayout) {
+        onDispose {
+            if (shouldShowVlcVideoLayout) {
+                viewModel.unbindVlcVideoHost()
+            }
+        }
+    }
+
+    LaunchedEffect(
+        playerViewHost,
+        currentActiveBackend,
+        currentRequestedBackend,
+        shouldShowExperimentalSurface,
+        shouldShowVlcVideoLayout,
+    ) {
+        Log.i(
+            "PlayerScreen",
+            "Resolved video host host=$playerViewHost active=$currentActiveBackend requested=$currentRequestedBackend experimental=$shouldShowExperimentalSurface vlc=$shouldShowVlcVideoLayout",
+        )
     }
 
     Box(
@@ -226,26 +584,116 @@ fun PlayerScreen(
                 }
             }
     ) {
-        val player = viewModel.getPlayer()
-        if (player != null) {
+        val player = if (shouldResolveMedia3Player(shouldShowVlcVideoLayout)) {
+            viewModel.getPlayer()
+        } else {
+            null
+        }
+        if (shouldShowVlcVideoLayout) {
             AndroidView(
                 factory = { context ->
-                    PlayerView(context).apply {
-                        this.player = player
-                        useController = false
-                        resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    LibVlcTextureVideoHostView(context).apply {
+                        vlcVideoHostRef = this
                         isClickable = true
                         isFocusable = false
                         isFocusableInTouchMode = false
                         setOnClickListener { viewModel.showControls() }
+                        setOnFrameCaptured(onLibVlcFrameCaptured)
+                        bindToneMappingState(
+                            ruleSet = currentToneMappingRuleSet,
+                            signalDescriptor = currentVideoSignalDescriptor,
+                        )
+                        viewModel.bindVlcVideoHost(this)
                     }
                 },
-                update = { view ->
-                    view.player = player
-                    view.setOnClickListener { viewModel.showControls() }
+                update = { host ->
+                    vlcVideoHostRef = host
+                    host.setOnClickListener { viewModel.showControls() }
+                    host.setOnFrameCaptured(onLibVlcFrameCaptured)
+                    host.bindToneMappingState(
+                        ruleSet = currentToneMappingRuleSet,
+                        signalDescriptor = currentVideoSignalDescriptor,
+                    )
                 },
                 modifier = Modifier.fillMaxSize()
             )
+        } else if (shouldShowExperimentalSurface) {
+            AndroidView(
+                factory = { context ->
+                    Log.i(
+                        "PlayerScreen",
+                        "Creating GLVideoSurfaceView host active=$currentActiveBackend requested=$currentRequestedBackend hasPlayer=${player != null}",
+                    )
+                    GLVideoSurfaceView(context).apply {
+                        isClickable = true
+                        isFocusable = false
+                        isFocusableInTouchMode = false
+                        setOnClickListener { viewModel.showControls() }
+                        setOnFrameCaptured { label ->
+                            viewModel.clearPendingGlFrameCaptureLabel(label)
+                        }
+                        bind(
+                            player = player,
+                            ruleSet = currentToneMappingRuleSet,
+                            signalDescriptor = currentVideoSignalDescriptor,
+                        )
+                        if (shouldCaptureStandardDebugFrame) {
+                            viewModel.pendingGlFrameCaptureLabel()?.let { label ->
+                                post { captureNextRenderedFrame(label) }
+                            }
+                        }
+                    }
+                },
+                update = { glView ->
+                    Log.i(
+                        "PlayerScreen",
+                        "Updating GLVideoSurfaceView host active=$currentActiveBackend requested=$currentRequestedBackend hasPlayer=${player != null}",
+                    )
+                    glView.setOnClickListener { viewModel.showControls() }
+                    glView.setOnFrameCaptured { label ->
+                        viewModel.clearPendingGlFrameCaptureLabel(label)
+                    }
+                    glView.bind(
+                        player = player,
+                        ruleSet = currentToneMappingRuleSet,
+                        signalDescriptor = currentVideoSignalDescriptor,
+                    )
+                    if (shouldCaptureStandardDebugFrame) {
+                        viewModel.pendingGlFrameCaptureLabel()?.let { label ->
+                            glView.post { glView.captureNextRenderedFrame(label) }
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else if (player != null) {
+            key(playerViewHost) {
+                AndroidView(
+                     factory = { context ->
+                         (LayoutInflater.from(context).inflate(
+                             playerViewHost.layoutResId,
+                             /* root = */ null as android.view.ViewGroup?,
+                             false
+                         ) as PlayerView).apply {
+                             playerViewRef = this
+                             this.player = player
+                             useController = false
+                             resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                             setShutterBackgroundColor(android.graphics.Color.TRANSPARENT)
+                             isClickable = true
+                             isFocusable = false
+                             isFocusableInTouchMode = false
+                             setOnClickListener { viewModel.showControls() }
+                         }
+                     },
+                     update = { view ->
+                         playerViewRef = view
+                         view.player = player
+                         view.setOnClickListener { viewModel.showControls() }
+                     },
+                     modifier = Modifier.fillMaxSize()
+                 )
+             }
         } else {
             Box(
                 modifier = Modifier.fillMaxSize().background(Color.Black),
@@ -284,6 +732,11 @@ fun PlayerScreen(
                 subtitles = availableSubtitles,
                 audioTracks = availableAudioTracks,
                 playbackSpeed = playbackSpeed,
+                signalFormatLabel = currentVideoSignalDescriptor?.displayLabel().orEmpty(),
+                activeBackend = currentActiveBackend,
+                requestedBackend = currentRequestedBackend,
+                fallbackReason = fallbackReason,
+                currentPicturePreset = viewModel.currentToneMappingPreset(),
                 onBack = navigateBack,
                 onTogglePlayback = {
                     viewModel.togglePlayback()
@@ -309,6 +762,18 @@ fun PlayerScreen(
                     viewModel.setPlaybackSpeed(speed)
                     viewModel.showControls()
                 },
+                onSelectPicturePreset = { preset ->
+                    viewModel.applyToneMappingPresetForCurrentFormat(preset)
+                    viewModel.showControls()
+                },
+                onSavePictureDefault = {
+                    viewModel.saveCurrentToneMappingRuleAsDefault()
+                    viewModel.showControls()
+                },
+                onSelectBackend = { backend ->
+                    viewModel.setToneMappingBackendForSession(backend)
+                    viewModel.showControls()
+                },
                 openMenu = openMenu,
                 onOpenMenuChange = { openMenu = it }
             )
@@ -320,6 +785,197 @@ private fun PlaybackState.keepsScreenOn(): Boolean =
     this is PlaybackState.Loading ||
         this is PlaybackState.Playing ||
         this is PlaybackState.Buffering
+
+internal data class LibVlcDebugCaptureAttempt(
+    val label: String,
+    val positionMs: Long,
+)
+
+internal data class StandardDebugCaptureAttempt(
+    val label: String,
+    val positionMs: Long,
+)
+
+internal data class LibVlcNativeSnapshotWaitState(
+    val label: String,
+    val startedAtMs: Long,
+)
+
+internal fun shouldClearPendingGlCaptureAfterNativeSnapshot(
+    backend: PlaybackRenderBackend,
+    voutMode: LibVlcVoutMode?,
+): Boolean {
+    if (backend != PlaybackRenderBackend.EXPERIMENTAL_LIBVLC) {
+        return true
+    }
+    return voutMode != LibVlcVoutMode.VMEM_STREAM
+}
+
+internal fun shouldRequestLibVlcNativeSnapshotAfterGlCapture(
+    backend: PlaybackRenderBackend,
+    voutMode: LibVlcVoutMode?,
+): Boolean =
+    backend == PlaybackRenderBackend.EXPERIMENTAL_LIBVLC &&
+        voutMode == LibVlcVoutMode.VMEM_STREAM
+
+internal fun shouldRequirePendingGlLabelDuringLibVlcNativeSnapshotWait(
+    backend: PlaybackRenderBackend,
+    voutMode: LibVlcVoutMode?,
+): Boolean =
+    !shouldRequestLibVlcNativeSnapshotAfterGlCapture(
+        backend = backend,
+        voutMode = voutMode,
+    )
+
+internal enum class LibVlcDebugCaptureDecision {
+    SKIP_BACKEND,
+    WAIT_FOR_PLAYING,
+    WAIT_FOR_PROGRESS,
+    WAIT_FOR_HOST,
+    NO_PENDING_LABEL,
+    THROTTLED,
+    CAPTURE,
+}
+
+internal fun shouldShowLibVlcVideoLayout(
+    activeBackend: PlaybackRenderBackend,
+    requestedBackend: PlaybackRenderBackend,
+    hasStartedPlayback: Boolean,
+    defaultBackend: PlaybackRenderBackend,
+): Boolean {
+    if (
+        shouldPreferLibVlcHostDuringStartup(
+            hasStartedPlayback = hasStartedPlayback,
+            requestedBackend = requestedBackend,
+            activeBackend = activeBackend,
+            defaultBackend = defaultBackend,
+        )
+    ) {
+        return true
+    }
+    if (activeBackend == PlaybackRenderBackend.EXPERIMENTAL_LIBVLC) {
+        return true
+    }
+    if (requestedBackend == PlaybackRenderBackend.EXPERIMENTAL_LIBVLC) {
+        return true
+    }
+    return !hasStartedPlayback && defaultBackend == PlaybackRenderBackend.EXPERIMENTAL_LIBVLC
+}
+
+internal fun shouldPreferLibVlcHostDuringStartup(
+    hasStartedPlayback: Boolean,
+    requestedBackend: PlaybackRenderBackend,
+    activeBackend: PlaybackRenderBackend,
+    defaultBackend: PlaybackRenderBackend,
+): Boolean =
+    hasStartedPlayback &&
+        defaultBackend == PlaybackRenderBackend.EXPERIMENTAL_LIBVLC &&
+        requestedBackend == PlaybackRenderBackend.STANDARD_EXO &&
+        activeBackend == PlaybackRenderBackend.STANDARD_EXO
+
+internal fun resolveLibVlcDebugCaptureDecision(
+    shouldShowVlcVideoLayout: Boolean,
+    currentActiveBackend: PlaybackRenderBackend,
+    playbackState: PlaybackState,
+    currentPosition: Long,
+    pendingLabel: String?,
+    hostAvailable: Boolean,
+    lastAttempt: LibVlcDebugCaptureAttempt?,
+): LibVlcDebugCaptureDecision {
+    if (!shouldShowVlcVideoLayout || currentActiveBackend != PlaybackRenderBackend.EXPERIMENTAL_LIBVLC) {
+        return LibVlcDebugCaptureDecision.SKIP_BACKEND
+    }
+    if (pendingLabel.isNullOrBlank()) {
+        return LibVlcDebugCaptureDecision.NO_PENDING_LABEL
+    }
+    if (playbackState !is PlaybackState.Playing) {
+        return LibVlcDebugCaptureDecision.WAIT_FOR_PLAYING
+    }
+    if (!hostAvailable) {
+        return LibVlcDebugCaptureDecision.WAIT_FOR_HOST
+    }
+    val effectivePosition = maxOf(currentPosition, playbackState.position)
+    if (effectivePosition < LIBVLC_DEBUG_CAPTURE_MIN_POSITION_MS) {
+        return LibVlcDebugCaptureDecision.WAIT_FOR_PROGRESS
+    }
+    if (
+        lastAttempt?.label == pendingLabel &&
+        effectivePosition - lastAttempt.positionMs < LIBVLC_DEBUG_CAPTURE_RETRY_INTERVAL_MS
+    ) {
+        return LibVlcDebugCaptureDecision.THROTTLED
+    }
+    return LibVlcDebugCaptureDecision.CAPTURE
+}
+
+internal fun shouldScheduleStandardDebugCapture(
+    pendingLabel: String?,
+    playbackState: PlaybackState,
+    currentPosition: Long,
+): Boolean {
+    if (pendingLabel.isNullOrBlank()) {
+        return false
+    }
+    if (playbackState !is PlaybackState.Playing && playbackState !is PlaybackState.Paused) {
+        return false
+    }
+    return currentPosition >= STANDARD_DEBUG_CAPTURE_MIN_POSITION_MS
+}
+
+internal fun shouldResolveMedia3Player(
+    shouldShowVlcVideoLayout: Boolean,
+): Boolean = !shouldShowVlcVideoLayout
+
+internal enum class PlayerViewHost(@LayoutRes val layoutResId: Int) {
+    SurfaceView(R.layout.player_view_surface),
+    SurfaceTextureView(R.layout.player_view_texture),
+    DedicatedGlSurface(0),
+}
+
+internal fun resolvePlayerViewHost(
+    activeBackend: PlaybackRenderBackend,
+    requestedBackend: PlaybackRenderBackend,
+    hasStartedPlayback: Boolean = true,
+    defaultBackend: PlaybackRenderBackend = PlaybackRenderBackend.STANDARD_EXO,
+    preferCapturableTextureView: Boolean = false,
+    preferDedicatedGlSurface: Boolean = false,
+): PlayerViewHost =
+    if (preferDedicatedGlSurface) {
+        PlayerViewHost.DedicatedGlSurface
+    } else if (
+        !hasStartedPlayback &&
+        defaultBackend == PlaybackRenderBackend.EXPERIMENTAL_GL
+    ) {
+        PlayerViewHost.DedicatedGlSurface
+    } else if (
+        preferCapturableTextureView ||
+        activeBackend == PlaybackRenderBackend.EXPERIMENTAL_GL ||
+        requestedBackend == PlaybackRenderBackend.EXPERIMENTAL_GL
+    ) {
+        PlayerViewHost.SurfaceTextureView
+    } else {
+        PlayerViewHost.SurfaceView
+    }
+
+internal fun latchCapturableTextureViewForPlaybackSession(
+    wasAlreadyLatched: Boolean,
+    pendingLabel: String?,
+): Boolean = wasAlreadyLatched || !pendingLabel.isNullOrBlank()
+
+internal fun latchDedicatedExperimentalSurfaceForPlaybackSession(
+    wasAlreadyLatched: Boolean,
+    deviceGlEsMajorVersion: Int,
+    activeBackend: PlaybackRenderBackend,
+    requestedBackend: PlaybackRenderBackend,
+    defaultBackend: PlaybackRenderBackend,
+): Boolean =
+    wasAlreadyLatched || (
+        shouldUseDedicatedExperimentalGlSurface(deviceGlEsMajorVersion) &&
+            (
+                activeBackend == PlaybackRenderBackend.EXPERIMENTAL_GL ||
+                    requestedBackend == PlaybackRenderBackend.EXPERIMENTAL_GL ||
+                    defaultBackend == PlaybackRenderBackend.EXPERIMENTAL_GL
+                )
+        )
 
 private tailrec fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
@@ -337,6 +993,11 @@ private fun PlayerChrome(
     subtitles: List<SubtitleTrack>,
     audioTracks: List<AudioTrack>,
     playbackSpeed: Float,
+    signalFormatLabel: String,
+    activeBackend: PlaybackRenderBackend,
+    requestedBackend: PlaybackRenderBackend,
+    fallbackReason: String?,
+    currentPicturePreset: ToneMappingProfilePreset,
     onBack: () -> Unit,
     onTogglePlayback: () -> Unit,
     onSkipBackward: () -> Unit,
@@ -344,6 +1005,9 @@ private fun PlayerChrome(
     onSelectSubtitle: (Int) -> Unit,
     onSelectAudioTrack: (Int) -> Unit,
     onSelectSpeed: (Float) -> Unit,
+    onSelectPicturePreset: (ToneMappingProfilePreset) -> Unit,
+    onSavePictureDefault: () -> Unit,
+    onSelectBackend: (PlaybackRenderBackend?) -> Unit,
     openMenu: PlayerMenu?,
     onOpenMenuChange: (PlayerMenu?) -> Unit
 ) {
@@ -382,9 +1046,17 @@ private fun PlayerChrome(
                 subtitles = subtitles,
                 audioTracks = audioTracks,
                 playbackSpeed = playbackSpeed,
+                signalFormatLabel = signalFormatLabel,
+                activeBackend = activeBackend,
+                requestedBackend = requestedBackend,
+                fallbackReason = fallbackReason,
+                currentPicturePreset = currentPicturePreset,
                 onSelectSubtitle = onSelectSubtitle,
                 onSelectAudioTrack = onSelectAudioTrack,
                 onSelectSpeed = onSelectSpeed,
+                onSelectPicturePreset = onSelectPicturePreset,
+                onSavePictureDefault = onSavePictureDefault,
+                onSelectBackend = onSelectBackend,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(start = 52.dp, end = 52.dp, bottom = 164.dp)
@@ -397,6 +1069,7 @@ private fun PlayerChrome(
             subtitles = subtitles,
             audioTracks = audioTracks,
             playbackSpeed = playbackSpeed,
+            signalFormatLabel = signalFormatLabel,
             openMenu = openMenu,
             onOpenMenu = { menu ->
                 onOpenMenuChange(if (openMenu == menu) null else menu)
@@ -493,6 +1166,7 @@ private fun TransportControls(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PlayerBottomBar(
     currentPosition: Long,
@@ -500,6 +1174,7 @@ private fun PlayerBottomBar(
     subtitles: List<SubtitleTrack>,
     audioTracks: List<AudioTrack>,
     playbackSpeed: Float,
+    signalFormatLabel: String,
     openMenu: PlayerMenu?,
     onOpenMenu: (PlayerMenu) -> Unit,
     modifier: Modifier = Modifier
@@ -525,14 +1200,22 @@ private fun PlayerBottomBar(
         }
 
         Spacer(Modifier.height(18.dp))
-        Row(
+        FlowRow(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            itemVerticalAlignment = Alignment.CenterVertically,
+            maxItemsInEachRow = 5,
         ) {
             PlayerInfoChip(
                 icon = Icons.Filled.GraphicEq,
-                text = playbackLocalSourceLabel()
+                text = signalFormatLabel.ifBlank { playbackLocalSourceLabel() }
+            )
+            PlayerActionChip(
+                icon = Icons.Filled.PhotoFilter,
+                text = pictureOsdMenuTitleLabel(),
+                selected = openMenu == PlayerMenu.Picture,
+                onClick = { onOpenMenu(PlayerMenu.Picture) }
             )
             PlayerActionChip(
                 icon = Icons.Filled.Speed,
@@ -739,72 +1422,95 @@ private fun PlayerActionChip(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun PlayerOptionsPanel(
+internal fun PlayerOptionsPanel(
     menu: PlayerMenu,
     subtitles: List<SubtitleTrack>,
     audioTracks: List<AudioTrack>,
     playbackSpeed: Float,
+    signalFormatLabel: String,
+    activeBackend: PlaybackRenderBackend,
+    requestedBackend: PlaybackRenderBackend,
+    fallbackReason: String?,
+    currentPicturePreset: ToneMappingProfilePreset,
     onSelectSubtitle: (Int) -> Unit,
     onSelectAudioTrack: (Int) -> Unit,
     onSelectSpeed: (Float) -> Unit,
+    onSelectPicturePreset: (ToneMappingProfilePreset) -> Unit,
+    onSavePictureDefault: () -> Unit,
+    onSelectBackend: (PlaybackRenderBackend?) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val firstOptionFocus = remember(menu) { FocusRequester() }
+    val initialFocusHandle = rememberInitialFocusHandle(key = menu)
     val speeds = remember { playbackSpeedOptions() }
-
-    LaunchedEffect(menu) {
-        firstOptionFocus.requestFocus()
-    }
+    val picturePresets = remember { toneMappingPresetOptions() }
+    val scrollState = rememberScrollState()
 
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .heightIn(max = 420.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(Color.Black.copy(alpha = 0.72f))
             .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(8.dp))
             .padding(18.dp)
+            .verticalScroll(scrollState)
     ) {
         Text(
             text = when (menu) {
                 PlayerMenu.Speed -> playbackSpeedMenuTitle()
                 PlayerMenu.Subtitles -> playbackSubtitlesMenuTitle()
                 PlayerMenu.Audio -> playbackAudioMenuTitle()
+                PlayerMenu.Picture -> pictureOsdMenuTitleLabel()
             },
             style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
             color = TextPrimary
         )
         Spacer(Modifier.height(12.dp))
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            when (menu) {
-                PlayerMenu.Speed -> speeds.forEachIndexed { index, speed ->
+        when (menu) {
+            PlayerMenu.Speed -> FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                itemVerticalAlignment = Alignment.CenterVertically,
+            ) {
+                speeds.forEachIndexed { index, speed ->
                     PlayerOptionButton(
                         text = playbackSpeedValueLabel(speed),
                         selected = speed == playbackSpeed,
                         onClick = { onSelectSpeed(speed) },
                         modifier = if (index == 0) {
-                            Modifier.focusRequester(firstOptionFocus)
+                            Modifier.then(initialFocusHandle.modifier())
                         } else {
                             Modifier
                         }
                     )
                 }
-                PlayerMenu.Subtitles -> subtitles.forEachIndexed { index, track ->
+            }
+            PlayerMenu.Subtitles -> FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                itemVerticalAlignment = Alignment.CenterVertically,
+            ) {
+                subtitles.forEachIndexed { index, track ->
                     PlayerOptionButton(
                         text = playbackSubtitleOptionLabel(track, index),
                         selected = false,
                         onClick = { onSelectSubtitle(index) },
                         modifier = if (index == 0) {
-                            Modifier.focusRequester(firstOptionFocus)
+                            Modifier.then(initialFocusHandle.modifier())
                         } else {
                             Modifier
                         }
                     )
                 }
-                PlayerMenu.Audio -> audioTracks.forEachIndexed { index, track ->
+            }
+            PlayerMenu.Audio -> FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                itemVerticalAlignment = Alignment.CenterVertically,
+            ) {
+                audioTracks.forEachIndexed { index, track ->
                     PlayerOptionButton(
                         text = playbackAudioOptionLabel(
                             title = track.title,
@@ -814,11 +1520,90 @@ private fun PlayerOptionsPanel(
                         selected = false,
                         onClick = { onSelectAudioTrack(index) },
                         modifier = if (index == 0) {
-                            Modifier.focusRequester(firstOptionFocus)
+                            Modifier.then(initialFocusHandle.modifier())
                         } else {
                             Modifier
                         }
                     )
+                }
+            }
+            PlayerMenu.Picture -> {
+                val infoItems = buildList {
+                    add(signalFormatLabel.ifBlank { "Auto" })
+                    add(playbackBackendLabel(activeBackend))
+                    if (fallbackReason != null) {
+                        add(fallbackReason)
+                    } else if (requestedBackend != activeBackend) {
+                        add("Requested ${playbackBackendLabel(requestedBackend)}")
+                    }
+                }
+
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        itemVerticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        infoItems.forEach { label ->
+                            PlayerOptionButton(
+                                text = label,
+                                selected = false,
+                                onClick = {},
+                                enabled = false,
+                            )
+                        }
+                    }
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        itemVerticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        picturePresets.forEachIndexed { index, preset ->
+                            PlayerOptionButton(
+                                text = "${pictureSessionOverrideLabel()} ${toneMappingPresetLabel(preset)}",
+                                selected = preset == currentPicturePreset,
+                                onClick = { onSelectPicturePreset(preset) },
+                                modifier = if (index == 0) {
+                                    Modifier.then(initialFocusHandle.modifier())
+                                } else {
+                                    Modifier
+                                }
+                            )
+                        }
+                    }
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        itemVerticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        PlayerOptionButton(
+                            text = pictureSaveDefaultForFormatLabel(),
+                            selected = false,
+                            onClick = onSavePictureDefault,
+                        )
+                        PlayerOptionButton(
+                            text = "标准 Exo",
+                            selected = activeBackend == PlaybackRenderBackend.STANDARD_EXO,
+                            onClick = { onSelectBackend(PlaybackRenderBackend.STANDARD_EXO) },
+                        )
+                        PlayerOptionButton(
+                            text = "实验 VLC",
+                            selected = requestedBackend == PlaybackRenderBackend.EXPERIMENTAL_LIBVLC,
+                            onClick = { onSelectBackend(PlaybackRenderBackend.EXPERIMENTAL_LIBVLC) },
+                        )
+                        PlayerOptionButton(
+                            text = "旧实验 GL",
+                            selected = requestedBackend == PlaybackRenderBackend.EXPERIMENTAL_GL,
+                            onClick = { onSelectBackend(PlaybackRenderBackend.EXPERIMENTAL_GL) },
+                        )
+                        PlayerOptionButton(
+                            text = "跟随默认",
+                            selected = false,
+                            onClick = { onSelectBackend(null) },
+                        )
+                    }
                 }
             }
         }
@@ -830,11 +1615,13 @@ private fun PlayerOptionButton(
     text: String,
     selected: Boolean,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
     val background = when {
+        !enabled -> Color.White.copy(alpha = 0.08f)
         selected -> AnimeRed
         isFocused -> AnimeRed.copy(alpha = 0.78f)
         else -> Color.White.copy(alpha = 0.12f)
@@ -842,9 +1629,10 @@ private fun PlayerOptionButton(
 
     Button(
         onClick = onClick,
+        enabled = enabled,
         interactionSource = interactionSource,
         modifier = modifier
-            .height(48.dp)
+            .heightIn(min = 48.dp)
             .clip(RoundedCornerShape(8.dp))
             .onPreviewKeyEvent { event ->
                 tvActivateKeyEvent(
@@ -861,7 +1649,9 @@ private fun PlayerOptionButton(
         shape = RoundedCornerShape(8.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = background,
-            contentColor = TextPrimary
+            contentColor = TextPrimary,
+            disabledContainerColor = background,
+            disabledContentColor = TextSecondary.copy(alpha = 0.7f),
         ),
         contentPadding = PaddingValues(horizontal = 18.dp)
     ) {
@@ -869,7 +1659,8 @@ private fun PlayerOptionButton(
             text = text,
             color = TextPrimary,
             style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
-            maxLines = 1
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -933,7 +1724,8 @@ private fun ErrorOverlay(
     }
 }
 
-private enum class PlayerMenu {
+internal enum class PlayerMenu {
+    Picture,
     Speed,
     Subtitles,
     Audio

@@ -1,9 +1,14 @@
 package com.miruplay.tv.player
 
+import android.view.View
 import androidx.media3.common.Player
+import com.miruplay.tv.model.PlaybackRenderBackend
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.PlaybackState
 import com.miruplay.tv.model.SubtitleTrack
+import com.miruplay.tv.model.ToneMappingRuleSet
+import com.miruplay.tv.model.VideoRenderRuleKey
+import com.miruplay.tv.model.VideoSignalDescriptor
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -85,6 +90,103 @@ interface PlaybackController {
      * Get the underlying Media3 Player for UI integration (PlayerView)
      */
     fun getPlayer(): Player?
+
+    /**
+     * True when the current active backend expects a VLC render host instead of PlayerView.
+     */
+    fun usesVlcVideoLayout(): Boolean
+
+    /**
+     * Bind the backend to a VLC render host when active.
+     */
+    fun bindVlcVideoHost(hostView: View)
+
+    /**
+     * Release the currently bound VLC render host, if any.
+     */
+    fun unbindVlcVideoHost()
+
+    /**
+     * Active backend after runtime fallback handling.
+     */
+    val activeRenderBackend: StateFlow<PlaybackRenderBackend>
+
+    /**
+     * Requested backend before runtime fallback handling.
+     */
+    val requestedRenderBackend: StateFlow<PlaybackRenderBackend>
+
+    /**
+     * Current detected video signal descriptor.
+     */
+    val currentVideoSignalDescriptor: StateFlow<VideoSignalDescriptor?>
+
+    /**
+     * Current applied render rule key.
+     */
+    val currentRenderRuleKey: StateFlow<VideoRenderRuleKey>
+
+    /**
+     * Current applied rule set, including session overrides if present.
+     */
+    val currentToneMappingRuleSet: StateFlow<ToneMappingRuleSet>
+
+    /**
+     * Session-only rule overrides keyed by signal family.
+     */
+    val sessionRuleOverrides: StateFlow<Map<VideoRenderRuleKey, ToneMappingRuleSet>>
+
+    /**
+     * Human-readable fallback reason when the requested backend cannot stay active.
+     */
+    val fallbackReason: StateFlow<String?>
+
+    /**
+     * Update the requested backend for the current session.
+     */
+    suspend fun setRequestedRenderBackend(backend: PlaybackRenderBackend?)
+
+    /**
+     * Update or clear the current session rule override for a format family.
+     */
+    suspend fun setSessionRuleOverride(ruleKey: VideoRenderRuleKey, ruleSet: ToneMappingRuleSet?)
+
+    /**
+     * Clear all session-only rule overrides.
+     */
+    suspend fun clearSessionRuleOverrides()
+
+    /**
+     * Peek a pending debug GL frame capture label, if any.
+     */
+    fun pendingGlFrameCaptureLabel(): String?
+
+    /**
+     * Clear the pending debug GL frame capture label after a successful capture.
+     */
+    fun clearPendingGlFrameCaptureLabel(label: String)
+
+    /**
+     * Peek a pending libVLC native snapshot label, if any.
+     */
+    fun pendingLibVlcNativeSnapshotLabel(): String?
+
+    /**
+     * Request a libVLC native snapshot for the provided label.
+     */
+    fun requestLibVlcNativeSnapshot(label: String)
+
+    /**
+     * Returns the active libVLC debug vout mode when the current backend uses libVLC.
+     */
+    fun currentLibVlcVoutMode(): LibVlcVoutMode?
+
+    /**
+     * Clear the pending libVLC native snapshot label after success or when callers need to unblock
+     * alternative verification paths.
+     */
+    fun clearPendingLibVlcNativeSnapshotLabel(label: String)
+
 }
 
 /**

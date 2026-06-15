@@ -7,6 +7,7 @@ import com.miruplay.tv.data.preferences.PlaybackPreferencesManager
 import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.model.CloudDriveAutomationConfig
+import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.PosterWallArrangement
 import com.miruplay.tv.repository.AppCredentialStore
@@ -87,6 +88,7 @@ class SettingsViewModelTokenTest {
         every { scanPreferences.posterWallArrangement } returns PosterWallArrangement.TITLE
 
         every { playbackPreferences.endAction } returns PlaybackEndAction.RETURN_TO_DETAIL
+        every { playbackPreferences.formatAwareToneMappingPreferences } returns FormatAwareToneMappingPreferences()
 
         every { webControlPreferences.webControlEnabled } returns false
         every { webControlPreferences.accessToken } returns "test-token"

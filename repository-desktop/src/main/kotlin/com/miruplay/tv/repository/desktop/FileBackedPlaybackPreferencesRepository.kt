@@ -1,5 +1,6 @@
 package com.miruplay.tv.repository.desktop
 
+import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.repository.PlaybackPreferencesRepository
 
@@ -11,5 +12,16 @@ internal class FileBackedPlaybackPreferencesRepository(
 
     override suspend fun setEndAction(action: PlaybackEndAction) {
         store.update { state -> state.copy(playbackEndAction = action) to Unit }
+    }
+
+    override suspend fun getFormatAwareToneMappingPreferences(): FormatAwareToneMappingPreferences =
+        store.read { state -> state.formatAwareToneMappingPreferences.normalized() }
+
+    override suspend fun setFormatAwareToneMappingPreferences(preferences: FormatAwareToneMappingPreferences) {
+        store.update { state ->
+            state.copy(
+                formatAwareToneMappingPreferences = preferences.normalized(),
+            ) to Unit
+        }
     }
 }

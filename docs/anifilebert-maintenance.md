@@ -21,9 +21,11 @@ MiruPlay
 当前指针：
 
 ```text
-tools/anime_parser                 3197202251457e85c9e71ed4207a57d2e0843316
-tools/anime_parser/datasets/AnimeName 92f15169153a9c01bcd10ea8f919e1fb6ee53b73
+tools/anime_parser                 b7f546570cca5d34fa7f42839a8732ce53cfecec
+tools/anime_parser/datasets/AnimeName 081fd450aafd59992f2df794c5b0110dc3cdd42b
 ```
+
+注意：截至 2026-06-03，AniFileBERT 最新提交记录的 nested AnimeName 指针 `081fd450aafd59992f2df794c5b0110dc3cdd42b` 无法从 `ModerRAS/AnimeName` 远端直接 fetch；本地 nested submodule 可能停在远端 `main` 的 `255d53ecf84d339b87618c34a593c7f2f3a0040b`，因此 `tools/anime_parser` 会显示 modified content。更新 MiruPlay Android assets 不依赖这个数据集 checkout。
 
 ## 首次拉取
 
@@ -215,9 +217,9 @@ git push origin main
 
 ```bash
 cd tools/anime_parser
-python export_onnx.py \
-  --model-dir checkpoints/dmhy-finetune/final \
-  --output exports/anime_filename_parser.onnx \
+python -m tools.export_onnx \
+  --model-dir . \
+  --max-length 128 \
   --android-assets-dir ../../scraper/src/main/assets/anime_parser
 ```
 
@@ -281,7 +283,7 @@ SHA256SUMS.txt
 ```bash
 git status --short
 git submodule status --recursive
-python -m py_compile data_generator.py dataset.py dmhy_dataset.py export_onnx.py inference.py mix_datasets.py tokenizer.py train.py
+python -m compileall anifilebert tools
 ```
 
 更新 Android assets 后检查：
