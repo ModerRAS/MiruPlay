@@ -37,6 +37,11 @@
 -keep class androidx.media3.** { *; }
 -dontwarn androidx.media3.**
 
+# Lucene vectorization touches JDK module APIs that do not exist on Android.
+-dontwarn java.lang.Module
+-dontwarn java.lang.ModuleLayer
+-dontwarn java.lang.Runtime$Version
+
 # SLF4J - jcifs-ng pulls slf4j-api without a binding implementation
 -dontwarn org.slf4j.impl.**
 
