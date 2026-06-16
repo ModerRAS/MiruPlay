@@ -17,6 +17,30 @@
     kotlinx.serialization.KSerializer serializer(...);
 }
 
+-keep,includedescriptorclasses class com.miruplay.tv.core.common.**$$serializer { *; }
+-keepclassmembers class com.miruplay.tv.core.common.** {
+    *** Companion;
+}
+-keepclasseswithmembers class com.miruplay.tv.core.common.** {
+    kotlinx.serialization.KSerializer serializer(...);
+}
+
+-keep,includedescriptorclasses class com.miruplay.tv.repository.**$$serializer { *; }
+-keepclassmembers class com.miruplay.tv.repository.** {
+    *** Companion;
+}
+-keepclasseswithmembers class com.miruplay.tv.repository.** {
+    kotlinx.serialization.KSerializer serializer(...);
+}
+
+-keep,includedescriptorclasses class com.miruplay.tv.scraper.core.**$$serializer { *; }
+-keepclassmembers class com.miruplay.tv.scraper.core.** {
+    *** Companion;
+}
+-keepclasseswithmembers class com.miruplay.tv.scraper.core.** {
+    kotlinx.serialization.KSerializer serializer(...);
+}
+
 # Room
 -keep class * extends androidx.room.RoomDatabase
 -keep @androidx.room.Entity class *

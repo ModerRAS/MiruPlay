@@ -16,6 +16,7 @@ import com.miruplay.tv.repository.shouldAutoScan
 import com.miruplay.tv.scanner.LibraryScanState
 import com.miruplay.tv.scanner.LibraryScanStatus
 import com.miruplay.tv.scanner.ScanCoordinator
+import dagger.Lazy
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import javax.inject.Inject
@@ -31,7 +32,7 @@ import kotlinx.coroutines.launch
 class LibraryScanTask @Inject constructor(
     @ApplicationContext private val context: Context,
     private val mediaRepository: MediaSourceRepository,
-    private val scanCoordinator: ScanCoordinator,
+    private val scanCoordinator: Lazy<ScanCoordinator>,
     private val scanPreferences: ScanPreferencesRepository,
     private val backgroundTasks: BackgroundTaskForegroundController,
     private val scanStatus: LibraryScanStatus,
@@ -83,6 +84,7 @@ class LibraryScanTask @Inject constructor(
                 scanStatus.idle()
                 return@launch
             }
+            val coordinator = scanCoordinator.get()
             MiruLog.i(
                 tag = TAG,
                 message = "Library scan started",
@@ -101,7 +103,7 @@ class LibraryScanTask @Inject constructor(
             )
             foregroundStarted = true
 
-            scanCoordinator.setProgressCallback(ScanCoordinator.ScanProgressCallback { path, files, newEps ->
+            coordinator.setProgressCallback(ScanCoordinator.ScanProgressCallback { path, files, newEps ->
                 val scanning = scanStatus.reportProgress(path, files, newEps)
                 backgroundTasks.update(
                     taskId = BackgroundTaskIds.LIBRARY_SCAN,
@@ -127,7 +129,7 @@ class LibraryScanTask @Inject constructor(
                         )
                     )
                     when (
-                        val result = scanCoordinator.scanSource(
+                        val result = coordinator.scanSource(
                             source.id,
                             posterCacheDirectory = posterCacheDirectory()
                         )
@@ -219,7 +221,7 @@ class LibraryScanTask @Inject constructor(
                 )
                 scanStatus.fail(libraryScanFailedMessage(e::class.simpleName))
             } finally {
-                scanCoordinator.setProgressCallback(null)
+                coordinator.setProgressCallback(null)
                 if (foregroundStarted) {
                     backgroundTasks.finish(BackgroundTaskIds.LIBRARY_SCAN)
                 }
