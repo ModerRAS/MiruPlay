@@ -32,6 +32,11 @@ class MiruPlayApp : Application() {
     @Inject lateinit var crashDiagnostics: AppCrashDiagnostics
 
     private var webControlPreferenceListener: Closeable? = null
+    private val deferredWebControlServer = DeferredWebControlServerController(
+        resolveServer = { webControlServer.get() },
+        startServer = { server -> server.startIfNeeded() },
+        stopServer = { server -> server.stopIfRunning() },
+    )
     private val deferredStartupScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val deferredStartupStarted = AtomicBoolean(false)
     private val deferredStartupLifecycleCallbacks = object : Application.ActivityLifecycleCallbacks {
@@ -68,7 +73,7 @@ class MiruPlayApp : Application() {
             logUploadScheduler.get().close()
             bangumiArchiveScheduler.get().stop()
             cloudDriveRssScheduler.get().stop()
-            webControlServer.get().stopIfRunning()
+            deferredWebControlServer.stopIfResolved()
         }
         deferredStartupScope.cancel()
         unregisterActivityLifecycleCallbacks(deferredStartupLifecycleCallbacks)
@@ -113,12 +118,28 @@ class MiruPlayApp : Application() {
     private fun syncWebControlServer(
         preferences: WebControlAccessManager = webControlPreferences.get(),
     ) {
-        val server = webControlServer.get()
-        if (preferences.webControlEnabled) {
-            server.startIfNeeded()
+        deferredWebControlServer.sync(preferences.webControlEnabled)
+    }
+}
+
+internal class DeferredWebControlServerController<T : Any>(
+    private val resolveServer: () -> T,
+    private val startServer: (T) -> Unit,
+    private val stopServer: (T) -> Unit,
+) {
+    private var resolvedServer: T? = null
+
+    fun sync(webControlEnabled: Boolean) {
+        if (webControlEnabled) {
+            val server = resolvedServer ?: resolveServer().also { resolvedServer = it }
+            startServer(server)
         } else {
-            server.stopIfRunning()
+            stopIfResolved()
         }
+    }
+
+    fun stopIfResolved() {
+        resolvedServer?.let(stopServer)
     }
 }
 

@@ -3,6 +3,7 @@ package com.miruplay.tv
 import com.miruplay.tv.repository.WebControlAccessManager
 import java.io.Closeable
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -114,6 +115,40 @@ class DeferredAppStartupCoordinatorTest {
         )
         assertTrue("scheduler failure should not abort remaining startup tasks", "start_log_upload" in events)
     }
+
+    @Test
+    fun `web control server remains unresolved when web control is disabled`() {
+        val server = FakeDeferredWebControlServer()
+        var resolvedServer = false
+        val controller = DeferredWebControlServerController(
+            resolveServer = {
+                resolvedServer = true
+                server
+            },
+            startServer = { it.start() },
+            stopServer = { it.stop() },
+        )
+
+        controller.sync(webControlEnabled = false)
+
+        assertFalse("disabled web control should not resolve the server graph", resolvedServer)
+        assertEquals(emptyList<String>(), server.events)
+    }
+
+    @Test
+    fun `web control server stops only after it was previously resolved`() {
+        val server = FakeDeferredWebControlServer()
+        val controller = DeferredWebControlServerController(
+            resolveServer = { server },
+            startServer = { it.start() },
+            stopServer = { it.stop() },
+        )
+
+        controller.sync(webControlEnabled = true)
+        controller.sync(webControlEnabled = false)
+
+        assertEquals(listOf("start", "stop"), server.events)
+    }
 }
 
 private class FakeWebControlAccessManager(
@@ -141,5 +176,17 @@ private class FakeWebControlAccessManager(
 
     fun fireEnabledChange() {
         listener?.invoke(enabled)
+    }
+}
+
+private class FakeDeferredWebControlServer {
+    val events = mutableListOf<String>()
+
+    fun start() {
+        events += "start"
+    }
+
+    fun stop() {
+        events += "stop"
     }
 }
