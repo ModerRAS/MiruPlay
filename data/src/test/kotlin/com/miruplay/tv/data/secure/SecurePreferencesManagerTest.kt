@@ -2,6 +2,7 @@ package com.miruplay.tv.data.secure
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import java.io.IOException
 import java.security.GeneralSecurityException
 import javax.crypto.AEADBadTagException
 import org.junit.After
@@ -77,6 +78,56 @@ class SecurePreferencesManagerTest {
             createPreferences = {
                 createCalls += 1
                 throw GeneralSecurityException("keystore unavailable")
+            },
+            openFallbackPreferences = {
+                compatibilityPrefs
+            },
+        ).open()
+
+        assertEquals(2, createCalls)
+        assertEquals("value", prefs.getString("legacy", null))
+    }
+
+    @Test
+    fun `factory falls back when encrypted prefs fail with io errors`() {
+        val compatibilityPrefs = context.getSharedPreferences("miruplay_secure_prefs_compat", Context.MODE_PRIVATE)
+        compatibilityPrefs.edit()
+            .putString("legacy", "value")
+            .commit()
+        var createCalls = 0
+
+        val prefs = RecoverableSecurePreferencesFactory(
+            context = context,
+            preferencesName = "miruplay_secure_prefs",
+            fallbackPreferencesName = "miruplay_secure_prefs_compat",
+            createPreferences = {
+                createCalls += 1
+                throw IOException("invalid encrypted preferences keyset")
+            },
+            openFallbackPreferences = {
+                compatibilityPrefs
+            },
+        ).open()
+
+        assertEquals(2, createCalls)
+        assertEquals("value", prefs.getString("legacy", null))
+    }
+
+    @Test
+    fun `factory falls back when encrypted prefs fail with security runtime errors`() {
+        val compatibilityPrefs = context.getSharedPreferences("miruplay_secure_prefs_compat", Context.MODE_PRIVATE)
+        compatibilityPrefs.edit()
+            .putString("legacy", "value")
+            .commit()
+        var createCalls = 0
+
+        val prefs = RecoverableSecurePreferencesFactory(
+            context = context,
+            preferencesName = "miruplay_secure_prefs",
+            fallbackPreferencesName = "miruplay_secure_prefs_compat",
+            createPreferences = {
+                createCalls += 1
+                throw RuntimeException("EncryptedSharedPreferences failed during AndroidKeyStore init")
             },
             openFallbackPreferences = {
                 compatibilityPrefs

@@ -8,6 +8,7 @@ import androidx.security.crypto.MasterKey
 import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.repository.AppCredentialStore
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.IOException
 import java.security.GeneralSecurityException
 import java.security.SecureRandom
 import javax.crypto.AEADBadTagException
@@ -200,12 +201,15 @@ internal class RecoverableSecurePreferencesFactory(
 private fun Throwable.isRecoverableSecurePreferencesFailure(): Boolean {
     if (this is AEADBadTagException) return true
     if (this is GeneralSecurityException) return true
+    if (this is IOException) return true
     val message = message.orEmpty()
     if (
-        this is IllegalStateException &&
+        (this is IllegalStateException || this is RuntimeException) &&
         (
             message.contains("keystore", ignoreCase = true) ||
-                message.contains("encryptedsharedpreferences", ignoreCase = true)
+                message.contains("encryptedsharedpreferences", ignoreCase = true) ||
+                message.contains("keyset", ignoreCase = true) ||
+                message.contains("masterkey", ignoreCase = true)
             )
     ) {
         return true
