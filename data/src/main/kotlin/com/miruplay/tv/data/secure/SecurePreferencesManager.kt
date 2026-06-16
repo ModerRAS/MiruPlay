@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.util.Base64
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.repository.AppCredentialStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.security.GeneralSecurityException
@@ -23,14 +24,14 @@ interface MediaSourceSecretStore {
 class SecurePreferencesManager @Inject constructor(
     @ApplicationContext private val context: Context
 ) : MediaSourceSecretStore, AppCredentialStore {
-    private val masterKey = MasterKey.Builder(context)
-        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-        .build()
-
     private val securePrefs: SharedPreferences = RecoverableSecurePreferencesFactory(
         context = context,
         preferencesName = SECURE_PREFERENCES_NAME,
+        fallbackPreferencesName = COMPATIBILITY_PREFERENCES_NAME,
         createPreferences = {
+            val masterKey = MasterKey.Builder(context)
+                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                .build()
             EncryptedSharedPreferences.create(
                 context,
                 SECURE_PREFERENCES_NAME,
@@ -38,6 +39,14 @@ class SecurePreferencesManager @Inject constructor(
                 EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
                 EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
             )
+        },
+        openFallbackPreferences = {
+            MiruLog.w(
+                TAG,
+                "Falling back to compatibility secure preferences storage",
+                attributes = mapOf("fallback_preferences" to COMPATIBILITY_PREFERENCES_NAME),
+            )
+            context.getSharedPreferences(COMPATIBILITY_PREFERENCES_NAME, Context.MODE_PRIVATE)
         },
     ).open()
 
@@ -143,7 +152,9 @@ class SecurePreferencesManager @Inject constructor(
         "$KEY_MEDIA_SOURCE_PASSWORD_PREFIX$sourceId"
 
     companion object {
+        private const val TAG = "SecurePreferences"
         private const val SECURE_PREFERENCES_NAME = "miruplay_secure_prefs"
+        private const val COMPATIBILITY_PREFERENCES_NAME = "miruplay_secure_prefs_compat"
         private const val KEY_BANGUMI_TOKEN = "bangumi_access_token"
         private const val KEY_TMDB_TOKEN = "tmdb_access_token"
         private const val KEY_TMDB_API_BASE_URL_OVERRIDE = "tmdb_api_base_url_override"
@@ -159,7 +170,9 @@ class SecurePreferencesManager @Inject constructor(
 internal class RecoverableSecurePreferencesFactory(
     private val context: Context,
     private val preferencesName: String,
+    private val fallbackPreferencesName: String,
     private val createPreferences: () -> SharedPreferences,
+    private val openFallbackPreferences: () -> SharedPreferences,
 ) {
     fun open(): SharedPreferences =
         try {
@@ -167,7 +180,12 @@ internal class RecoverableSecurePreferencesFactory(
         } catch (error: Throwable) {
             if (!error.isRecoverableSecurePreferencesFailure()) throw error
             deleteSecurePreferencesArtifacts()
-            createPreferences()
+            runCatching {
+                createPreferences()
+            }.getOrElse { retryError ->
+                if (!retryError.isRecoverableSecurePreferencesFailure()) throw retryError
+                openFallbackPreferences()
+            }
         }
 
     private fun deleteSecurePreferencesArtifacts() {
