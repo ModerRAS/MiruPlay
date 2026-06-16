@@ -421,7 +421,7 @@ class BangumiArchiveSubjectSearch(
         minimumConfidence: Float = 0.62f,
     ) : this({ subjectFile }, normalizeQuery, minimumConfidence)
 
-    private val luceneSearch = BangumiArchiveLuceneSearch(subjectFileProvider, normalizeQuery)
+    private val mapper = BangumiArchiveDocumentMapper(normalizeQuery)
 
     fun search(
         query: String,
@@ -437,19 +437,36 @@ class BangumiArchiveSubjectSearch(
     ) {
         val trimmedQuery = query.trim()
         if (trimmedQuery.isBlank()) return@measure emptyList()
-        luceneSearch.search(trimmedQuery, limit)
-            .filter { it.confidence >= minimumConfidence }
-            .map { hit ->
-                ScraperResult(
-                    animeId = hit.subject.id.toString(),
-                    title = hit.subject.name,
-                    titleCn = hit.subject.nameCn,
-                    matchedTitle = hit.matchedTitle,
-                    confidence = hit.confidence,
-                    source = com.miruplay.tv.model.ScraperSource.BANGUMI,
-                    fromLocalArchive = true,
+        val subjectId = trimmedQuery.takeIf { it.all(Char::isDigit) }?.toIntOrNull()
+        if (subjectId != null) {
+            return@measure findById(trimmedQuery)?.let { subject ->
+                listOf(subject.toArchiveHit(trimmedQuery, confidence = 1.0f).toScraperResult())
+            }.orEmpty()
+        }
+
+        val requestedSeason = extractArchiveSeasonNumber(trimmedQuery)
+            ?: extractArchiveSeasonNumber(normalizeArchiveIndexedText(trimmedQuery, normalizeQuery))
+        readSubjects()
+            .asSequence()
+            .map { subject ->
+                val match = mapper.matchSubject(subject, trimmedQuery)
+                ArchiveHit(
+                    subject = subject,
+                    matchedTitle = match.title,
+                    confidence = match.confidence,
                 )
             }
+            .adjustSeasonalConfidence(requestedSeason)
+            .filter { it.confidence >= minimumConfidence }
+            .sortedWith(
+                compareByDescending<ArchiveHit> { it.confidence }
+                    .thenBy { it.subject.rank ?: Int.MAX_VALUE }
+                    .thenByDescending { it.subject.score ?: 0f }
+                    .thenByDescending { it.subject.date.orEmpty() }
+            )
+            .take(limit.coerceAtLeast(1))
+            .map(ArchiveHit::toScraperResult)
+            .toList()
     }
 
     fun findById(animeId: String): BangumiArchiveSubject? = PerformanceLog.measure(
@@ -457,9 +474,75 @@ class BangumiArchiveSubjectSearch(
         operation = "bangumi.archive.find_by_id",
         attributes = mapOf("anime_id" to animeId),
     ) {
-        luceneSearch.findById(animeId)
+        val subjectId = animeId.toIntOrNull() ?: return@measure null
+        readSubjects().firstOrNull { it.id == subjectId }
+    }
+
+    private fun readSubjects(): List<BangumiArchiveSubject> {
+        val subjectFile = subjectFileProvider()
+        if (!subjectFile.isFile) return emptyList()
+        return subjectFile.useLines { lines ->
+            lines.mapNotNull(mapper::parseSubject).toList()
+        }
+    }
+
+    private fun BangumiArchiveSubject.toArchiveHit(
+        query: String,
+        confidence: Float,
+    ): ArchiveHit =
+        ArchiveHit(
+            subject = this,
+            matchedTitle = mapper.matchedTitle(this, query),
+            confidence = confidence,
+        )
+}
+
+private data class ArchiveHit(
+    val subject: BangumiArchiveSubject,
+    val matchedTitle: String,
+    val confidence: Float,
+)
+
+private fun ArchiveHit.toScraperResult(): ScraperResult =
+    ScraperResult(
+        animeId = subject.id.toString(),
+        title = subject.name,
+        titleCn = subject.nameCn,
+        matchedTitle = matchedTitle,
+        confidence = confidence,
+        source = com.miruplay.tv.model.ScraperSource.BANGUMI,
+        fromLocalArchive = true,
+    )
+
+private fun Sequence<ArchiveHit>.adjustSeasonalConfidence(requestedSeason: Int?): Sequence<ArchiveHit> {
+    val season = requestedSeason ?: return this
+    val hits = toList()
+    val hasExplicitSeasonHit = hits.any { hit ->
+        hit.subject.hasSeason(season) && hit.confidence >= 0.9f
+    }
+    if (!hasExplicitSeasonHit) return hits.asSequence()
+
+    return hits.asSequence().map { hit ->
+        when {
+            hit.subject.hasSeason(season) -> hit
+            hit.subject.hasAnySeason() -> hit.copy(confidence = minOf(hit.confidence, 0.48f))
+            else -> hit.copy(confidence = minOf(hit.confidence, 0.58f))
+        }
     }
 }
+
+private fun BangumiArchiveSubject.hasSeason(season: Int): Boolean =
+    archiveTitleVariants().any { extractArchiveSeasonNumber(it) == season }
+
+private fun BangumiArchiveSubject.hasAnySeason(): Boolean =
+    archiveTitleVariants().any { extractArchiveSeasonNumber(it) != null }
+
+private fun BangumiArchiveSubject.archiveTitleVariants(): List<String> =
+    buildList {
+        add(name)
+        nameCn?.takeIf { it.isNotBlank() }?.let(::add)
+        addAll(aliases)
+    }.map(String::trim).filter(String::isNotBlank).distinct()
 
 private fun File.hasZipHeader(): Boolean =
     inputStream().use { input ->

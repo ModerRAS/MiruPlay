@@ -405,8 +405,8 @@ class BangumiArchiveTest {
     }
 
     @Test
-    fun `subject search creates lucene sidecar index directory`() {
-        val tempDir = createTempDirectory(prefix = "bangumi-archive-lucene-sidecar-test-").toFile()
+    fun `subject search does not require lucene sidecar index directory`() {
+        val tempDir = createTempDirectory(prefix = "bangumi-archive-no-sidecar-test-").toFile()
         val subjectFile = File(tempDir, BangumiArchiveStore.SUBJECT_FILE_NAME)
         subjectFile.writeText(
             """{"id":431767,"type":2,"name":"葬送のフリーレン","name_cn":"葬送的芙莉莲","score":8.8}"""
@@ -418,17 +418,13 @@ class BangumiArchiveTest {
         val result = search.search("葬送的芙莉莲")
 
         assertEquals("431767", result.single().animeId)
-        assertTrue("Lucene sidecar index directory should exist after searching", luceneDirectory.isDirectory)
-        assertTrue(
-            "Lucene sidecar index directory should contain index files",
-            luceneDirectory.listFiles().orEmpty().isNotEmpty(),
-        )
+        assertFalse("Android-compatible archive search should not create Lucene sidecar files", luceneDirectory.exists())
         tempDir.deleteRecursively()
     }
 
     @Test
-    fun `subject search recovers when lucene sidecar path is invalid`() {
-        val tempDir = createTempDirectory(prefix = "bangumi-archive-lucene-recovery-test-").toFile()
+    fun `subject search ignores invalid legacy lucene sidecar path`() {
+        val tempDir = createTempDirectory(prefix = "bangumi-archive-legacy-sidecar-test-").toFile()
         val subjectFile = File(tempDir, BangumiArchiveStore.SUBJECT_FILE_NAME)
         subjectFile.writeText(
             """{"id":431767,"type":2,"name":"葬送のフリーレン","name_cn":"葬送的芙莉莲","score":8.8}"""
@@ -441,11 +437,7 @@ class BangumiArchiveTest {
         val result = search.search("葬送的芙莉莲")
 
         assertEquals("431767", result.single().animeId)
-        assertTrue("Invalid Lucene sidecar path should be replaced by an index directory", luceneDirectory.isDirectory)
-        assertTrue(
-            "Recovered Lucene sidecar index directory should contain index files",
-            luceneDirectory.listFiles().orEmpty().isNotEmpty(),
-        )
+        assertTrue("Legacy Lucene sidecar file should not be touched by Android-compatible search", luceneDirectory.isFile)
         tempDir.deleteRecursively()
     }
 

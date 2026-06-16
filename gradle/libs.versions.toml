@@ -28,7 +28,6 @@ protobuf = "3.25.9"
 protobuf-plugin = "0.9.6"
 onnxruntime = "1.25.1"
 icu4j = "78.3"
-lucene = "9.12.3"
 libvlc = "4.0.0-eap26"
 
 [libraries]
@@ -79,9 +78,6 @@ androidx-security-crypto = { group = "androidx.security", name = "security-crypt
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
 kotlinx-serialization-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-core", version.ref = "kotlinx-serialization" }
 icu4j = { group = "com.ibm.icu", name = "icu4j", version.ref = "icu4j" }
-lucene-core = { group = "org.apache.lucene", name = "lucene-core", version.ref = "lucene" }
-lucene-analysis-common = { group = "org.apache.lucene", name = "lucene-analysis-common", version.ref = "lucene" }
-lucene-analysis-icu = { group = "org.apache.lucene", name = "lucene-analysis-icu", version.ref = "lucene" }
 
 # === Coroutines ===
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }

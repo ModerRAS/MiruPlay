@@ -10,11 +10,6 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import org.apache.lucene.document.Document
-import org.apache.lucene.document.StoredField
-import org.apache.lucene.document.StringField
-import org.apache.lucene.document.TextField
-import org.apache.lucene.document.Field.Store
 
 internal class BangumiArchiveDocumentMapper(
     private val normalizeText: (String) -> String,
@@ -51,60 +46,6 @@ internal class BangumiArchiveDocumentMapper(
         )
     }
 
-    fun toDocument(subject: BangumiArchiveSubject): Document =
-        Document().apply {
-            add(StringField(BangumiArchiveLuceneFields.ID, subject.id.toString(), Store.NO))
-            add(StoredField(BangumiArchiveLuceneFields.STORED_ID, subject.id))
-            add(StoredField(BangumiArchiveLuceneFields.STORED_TITLE, subject.name))
-            subject.nameCn?.let { add(StoredField(BangumiArchiveLuceneFields.STORED_TITLE_CN, it)) }
-            subject.summary?.let { add(StoredField(BangumiArchiveLuceneFields.STORED_SUMMARY, it)) }
-            subject.aliases.forEach { add(StoredField(BangumiArchiveLuceneFields.STORED_ALIAS, it)) }
-            subject.platform?.let { add(StoredField(BangumiArchiveLuceneFields.STORED_PLATFORM, it)) }
-            add(StoredField(BangumiArchiveLuceneFields.STORED_EPISODE_COUNT, subject.episodeCount))
-            subject.rank?.let { add(StoredField(BangumiArchiveLuceneFields.STORED_RANK, it)) }
-            subject.score?.let { add(StoredField(BangumiArchiveLuceneFields.STORED_SCORE, it)) }
-            subject.date?.takeIf { it.isNotBlank() }?.let {
-                add(StoredField(BangumiArchiveLuceneFields.STORED_DATE, it))
-            }
-
-            indexTextField(this, BangumiArchiveLuceneFields.TITLE, subject.name)
-            subject.nameCn?.let { indexTextField(this, BangumiArchiveLuceneFields.TITLE_CN, it) }
-
-            subject.aliases
-                .asSequence()
-                .filterNot { it == subject.name || it == subject.nameCn }
-                .distinct()
-                .forEach { alias ->
-                    indexTextField(this, BangumiArchiveLuceneFields.ALIASES, alias)
-                }
-
-            titleVariants(subject).forEach { title ->
-                val normalized = normalizeArchiveIndexedText(title, normalizeText)
-                if (normalized.isBlank()) return@forEach
-                add(TextField(BangumiArchiveLuceneFields.ALL_TITLES, normalized, Store.NO))
-                add(StringField(BangumiArchiveLuceneFields.ALL_TITLES_EXACT, normalized, Store.NO))
-
-                val seasonless = normalized.toSeasonlessArchiveText()
-                if (seasonless.isNotBlank()) {
-                    add(StringField(BangumiArchiveLuceneFields.ALL_TITLES_SEASONLESS, seasonless, Store.NO))
-                }
-            }
-        }
-
-    fun toSubject(document: Document): BangumiArchiveSubject =
-        BangumiArchiveSubject(
-            id = document.getField(BangumiArchiveLuceneFields.STORED_ID).numericValue().toInt(),
-            name = document.get(BangumiArchiveLuceneFields.STORED_TITLE),
-            nameCn = document.get(BangumiArchiveLuceneFields.STORED_TITLE_CN),
-            summary = document.get(BangumiArchiveLuceneFields.STORED_SUMMARY),
-            aliases = document.getValues(BangumiArchiveLuceneFields.STORED_ALIAS).toList().distinct(),
-            platform = document.get(BangumiArchiveLuceneFields.STORED_PLATFORM),
-            date = document.get(BangumiArchiveLuceneFields.STORED_DATE),
-            episodeCount = document.getField(BangumiArchiveLuceneFields.STORED_EPISODE_COUNT)?.numericValue()?.toInt() ?: 0,
-            score = document.getField(BangumiArchiveLuceneFields.STORED_SCORE)?.numericValue()?.toFloat(),
-            rank = document.getField(BangumiArchiveLuceneFields.STORED_RANK)?.numericValue()?.toInt(),
-        )
-
     fun matchSubject(subject: BangumiArchiveSubject, query: String): BangumiArchiveTitleMatch {
         val normalizedQuery = normalizeArchiveIndexedText(query, normalizeText)
         if (normalizedQuery.isBlank()) {
@@ -137,12 +78,6 @@ internal class BangumiArchiveDocumentMapper(
     fun matchedTitle(subject: BangumiArchiveSubject, query: String): String =
         matchSubject(subject, query).title
 
-    private fun indexTextField(document: Document, fieldName: String, value: String) {
-        val normalized = normalizeArchiveIndexedText(value, normalizeText)
-        if (normalized.isBlank()) return
-        document.add(TextField(fieldName, normalized, Store.NO))
-    }
-
     private fun titleVariants(subject: BangumiArchiveSubject): List<String> =
         buildList {
             add(subject.name)
@@ -159,26 +94,6 @@ internal data class BangumiArchiveTitleMatch(
     val title: String,
     val confidence: Float,
 )
-
-internal object BangumiArchiveLuceneFields {
-    const val ID = "id"
-    const val TITLE = "title"
-    const val TITLE_CN = "titleCn"
-    const val ALIASES = "aliases"
-    const val ALL_TITLES = "allTitles"
-    const val ALL_TITLES_EXACT = "allTitlesExact"
-    const val ALL_TITLES_SEASONLESS = "allTitlesSeasonless"
-    const val STORED_ID = "storedId"
-    const val STORED_TITLE = "storedTitle"
-    const val STORED_TITLE_CN = "storedTitleCn"
-    const val STORED_SUMMARY = "storedSummary"
-    const val STORED_ALIAS = "storedAlias"
-    const val STORED_PLATFORM = "storedPlatform"
-    const val STORED_EPISODE_COUNT = "storedEpisodeCount"
-    const val STORED_RANK = "storedRank"
-    const val STORED_SCORE = "storedScore"
-    const val STORED_DATE = "storedDate"
-}
 
 internal fun normalizeArchiveIndexedText(
     text: String,
