@@ -112,6 +112,29 @@ class LogUploadRepositoryImplTest {
         assertRequestPayloadSizes(200, 200)
     }
 
+    @Test
+    fun `repository tolerates legacy invalid log upload preference types during startup`() = runBlocking {
+        context.getSharedPreferences("miruplay_log_upload_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .putString("enabled", "true")
+            .putString("last_upload_at", "123456")
+            .commit()
+
+        val recreatedPreferences = LogUploadPreferencesManager(context)
+        val recreatedRepository = LogUploadRepositoryImpl(
+            preferences = recreatedPreferences,
+            credentials = credentials,
+            localLogStore = localLogStore,
+            uploader = OtlpLogUploader(OkHttpClient())
+        )
+
+        val config = recreatedRepository.getConfig()
+
+        assertEquals(false, config.enabled)
+        assertEquals(0L, config.lastUploadAt)
+        assertEquals("miruplay", config.streamName)
+    }
+
     private fun assertRequestPayloadSizes(vararg sizes: Int) {
         sizes.forEach { expectedSize ->
             val request = server.takeRequest(1, TimeUnit.SECONDS)

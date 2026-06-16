@@ -1,6 +1,7 @@
 package com.miruplay.tv.data.logging
 
 import android.content.Context
+import com.miruplay.tv.repository.DEFAULT_OTLP_LOG_UPLOAD_STREAM_NAME
 import com.miruplay.tv.repository.OtlpLogUploadConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -46,12 +47,24 @@ class LogUploadPreferencesManager @Inject constructor(
     }
 
     private fun load(): OtlpLogUploadConfig = OtlpLogUploadConfig(
-        enabled = prefs.getBoolean(KEY_ENABLED, false),
-        endpoint = prefs.getString(KEY_ENDPOINT, "").orEmpty(),
-        streamName = prefs.getString(KEY_STREAM_NAME, DEFAULT_STREAM_NAME).orEmpty().ifBlank { DEFAULT_STREAM_NAME },
-        lastUploadAt = prefs.getLong(KEY_LAST_UPLOAD_AT, 0L),
-        lastUploadStatus = prefs.getString(KEY_LAST_UPLOAD_STATUS, null)
+        enabled = readBoolean(KEY_ENABLED, false),
+        endpoint = readString(KEY_ENDPOINT).orEmpty(),
+        streamName = readString(KEY_STREAM_NAME).orEmpty().ifBlank { DEFAULT_STREAM_NAME },
+        lastUploadAt = readLong(KEY_LAST_UPLOAD_AT, 0L),
+        lastUploadStatus = readString(KEY_LAST_UPLOAD_STATUS)
     )
+
+    private fun readBoolean(key: String, defaultValue: Boolean): Boolean =
+        runCatching { prefs.getBoolean(key, defaultValue) }
+            .getOrElse { defaultValue }
+
+    private fun readLong(key: String, defaultValue: Long): Long =
+        runCatching { prefs.getLong(key, defaultValue) }
+            .getOrElse { defaultValue }
+
+    private fun readString(key: String): String? =
+        runCatching { prefs.getString(key, null) }
+            .getOrNull()
 
     companion object {
         private const val KEY_ENABLED = "enabled"
@@ -59,6 +72,6 @@ class LogUploadPreferencesManager @Inject constructor(
         private const val KEY_STREAM_NAME = "stream_name"
         private const val KEY_LAST_UPLOAD_AT = "last_upload_at"
         private const val KEY_LAST_UPLOAD_STATUS = "last_upload_status"
-        private const val DEFAULT_STREAM_NAME = "miruplay"
+        private const val DEFAULT_STREAM_NAME = DEFAULT_OTLP_LOG_UPLOAD_STREAM_NAME
     }
 }
