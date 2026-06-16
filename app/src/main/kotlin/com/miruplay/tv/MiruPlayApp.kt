@@ -95,6 +95,14 @@ class MiruPlayApp : Application() {
                     mapOf("web_control_enabled" to enabled.toString()),
                 )
             },
+            onDeferredStartupFailure = { step, error ->
+                MiruLog.e(
+                    "MiruPlayApp",
+                    "Deferred startup step failed",
+                    error,
+                    crashDiagnostics.sessionAttributes() + mapOf("startup_step" to step),
+                )
+            },
         ).start()
         synchronized(this) {
             webControlPreferenceListener?.close()
@@ -122,23 +130,43 @@ internal class DeferredAppStartupCoordinator(
     private val startLogUploadScheduler: () -> Unit,
     private val markStartupCheckpoint: (String, Map<String, String>) -> Unit,
     private val onWebControlPreferenceChanged: (Boolean) -> Unit,
+    private val onDeferredStartupFailure: (String, Throwable) -> Unit = { _, _ -> },
 ) {
     fun start(): Closeable {
         val listener = webControlAccessManager.addEnabledChangeListener { enabled ->
             onWebControlPreferenceChanged(enabled)
-            syncWebControlServer()
+            runStartupStep("web_control_preference_change") {
+                syncWebControlServer()
+            }
         }
         markStartupCheckpoint(
             "web_control_sync",
             mapOf("web_control_enabled" to webControlAccessManager.webControlEnabled.toString()),
         )
-        syncWebControlServer()
+        runStartupStep("web_control_sync") {
+            syncWebControlServer()
+        }
         markStartupCheckpoint("cloud_drive_scheduler_start", emptyMap())
-        startCloudDriveRssScheduler()
+        runStartupStep("cloud_drive_scheduler_start") {
+            startCloudDriveRssScheduler()
+        }
         markStartupCheckpoint("bangumi_archive_scheduler_start", emptyMap())
-        startBangumiArchiveScheduler()
+        runStartupStep("bangumi_archive_scheduler_start") {
+            startBangumiArchiveScheduler()
+        }
         markStartupCheckpoint("log_upload_scheduler_start", emptyMap())
-        startLogUploadScheduler()
+        runStartupStep("log_upload_scheduler_start") {
+            startLogUploadScheduler()
+        }
         return listener
+    }
+
+    private fun runStartupStep(
+        step: String,
+        action: () -> Unit,
+    ) {
+        runCatching(action).onFailure { error ->
+            onDeferredStartupFailure(step, error)
+        }
     }
 }

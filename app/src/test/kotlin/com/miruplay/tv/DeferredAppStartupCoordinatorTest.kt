@@ -3,6 +3,7 @@ package com.miruplay.tv
 import com.miruplay.tv.repository.WebControlAccessManager
 import java.io.Closeable
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DeferredAppStartupCoordinatorTest {
@@ -75,6 +76,43 @@ class DeferredAppStartupCoordinatorTest {
             ),
             events,
         )
+    }
+
+    @Test
+    fun `deferred startup isolates scheduler failures and continues remaining startup tasks`() {
+        val events = mutableListOf<String>()
+        val webControlAccess = FakeWebControlAccessManager(enabled = true)
+        val coordinator = DeferredAppStartupCoordinator(
+            webControlAccessManager = webControlAccess,
+            syncWebControlServer = { events += "sync_web_control" },
+            startCloudDriveRssScheduler = {
+                events += "start_cloud_drive_rss"
+                error("cloud drive scheduler boom")
+            },
+            startBangumiArchiveScheduler = { events += "start_bangumi_archive" },
+            startLogUploadScheduler = { events += "start_log_upload" },
+            markStartupCheckpoint = { checkpoint, _ ->
+                events += "checkpoint:$checkpoint"
+            },
+            onWebControlPreferenceChanged = {},
+        )
+
+        coordinator.start()
+
+        assertEquals(
+            listOf(
+                "checkpoint:web_control_sync",
+                "sync_web_control",
+                "checkpoint:cloud_drive_scheduler_start",
+                "start_cloud_drive_rss",
+                "checkpoint:bangumi_archive_scheduler_start",
+                "start_bangumi_archive",
+                "checkpoint:log_upload_scheduler_start",
+                "start_log_upload",
+            ),
+            events,
+        )
+        assertTrue("scheduler failure should not abort remaining startup tasks", "start_log_upload" in events)
     }
 }
 
