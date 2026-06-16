@@ -82,6 +82,12 @@
                 android:resource="@xml/app_update_paths" />
         </provider>
 
+        <provider
+            android:name=".StartupProbeProvider"
+            android:authorities="${applicationId}.startup_probe"
+            android:exported="false"
+            android:initOrder="100" />
+
     </application>
 
 </manifest>
