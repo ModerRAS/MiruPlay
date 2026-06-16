@@ -14,11 +14,26 @@ class AppModePreferencesManager @Inject constructor(
 ) : AppModePreferencesRepository {
     private val prefs = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
 
-    fun getSelectionStateSync(): AppModeSelectionState =
-        AppModeSelectionState(
-            currentAppMode = AppMode.fromStorageValue(prefs.getString(KEY_CURRENT_APP_MODE, null)),
-            hasCompletedModeSelection = prefs.getBoolean(KEY_HAS_COMPLETED_MODE_SELECTION, false),
+    fun getSelectionStateSync(): AppModeSelectionState {
+        val storedMode = AppMode.fromStorageValue(prefs.getString(KEY_CURRENT_APP_MODE, null))
+        val hasCompletedSelection = prefs.getBoolean(KEY_HAS_COMPLETED_MODE_SELECTION, false)
+        if (hasCompletedSelection && storedMode != null) {
+            return AppModeSelectionState(
+                currentAppMode = storedMode,
+                hasCompletedModeSelection = true,
+            )
+        }
+
+        val migratedMode = storedMode ?: DEFAULT_APP_MODE
+        prefs.edit()
+            .putString(KEY_CURRENT_APP_MODE, migratedMode.storageValue)
+            .putBoolean(KEY_HAS_COMPLETED_MODE_SELECTION, true)
+            .apply()
+        return AppModeSelectionState(
+            currentAppMode = migratedMode,
+            hasCompletedModeSelection = true,
         )
+    }
 
     override suspend fun getSelectionState(): AppModeSelectionState =
         getSelectionStateSync()
@@ -38,6 +53,7 @@ class AppModePreferencesManager @Inject constructor(
     }
 
     companion object {
+        private val DEFAULT_APP_MODE = AppMode.ANIME
         private const val PREFERENCES_NAME = "miruplay_app_mode_prefs"
         private const val KEY_CURRENT_APP_MODE = "current_app_mode"
         private const val KEY_HAS_COMPLETED_MODE_SELECTION = "has_completed_mode_selection"

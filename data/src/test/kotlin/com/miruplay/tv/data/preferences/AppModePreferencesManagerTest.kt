@@ -13,13 +13,14 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+@Config(sdk = [30])
 class AppModePreferencesManagerTest {
+    private lateinit var context: android.content.Context
     private lateinit var manager: AppModePreferencesManager
 
     @Before
     fun setUp() {
-        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        context = ApplicationProvider.getApplicationContext()
         context.getSharedPreferences("miruplay_app_mode_prefs", android.content.Context.MODE_PRIVATE)
             .edit()
             .clear()
@@ -28,11 +29,28 @@ class AppModePreferencesManagerTest {
     }
 
     @Test
-    fun `getSelectionState returns unselected defaults before onboarding`() = runBlocking {
+    fun `getSelectionState auto migrates missing onboarding state to anime`() = runBlocking {
         val state = manager.getSelectionState()
 
-        assertEquals(null, state.currentAppMode)
-        assertFalse(state.hasCompletedModeSelection)
+        assertEquals(AppMode.ANIME, state.currentAppMode)
+        assertTrue(state.hasCompletedModeSelection)
+        val prefs = context.getSharedPreferences("miruplay_app_mode_prefs", android.content.Context.MODE_PRIVATE)
+        assertEquals(AppMode.ANIME.storageValue, prefs.getString("current_app_mode", null))
+        assertTrue(prefs.getBoolean("has_completed_mode_selection", false))
+    }
+
+    @Test
+    fun `getSelectionState preserves stored mode while upgrading incomplete onboarding state`() = runBlocking {
+        context.getSharedPreferences("miruplay_app_mode_prefs", android.content.Context.MODE_PRIVATE)
+            .edit()
+            .putString("current_app_mode", AppMode.DRAMA.storageValue)
+            .putBoolean("has_completed_mode_selection", false)
+            .commit()
+
+        val state = manager.getSelectionState()
+
+        assertEquals(AppMode.DRAMA, state.currentAppMode)
+        assertTrue(state.hasCompletedModeSelection)
     }
 
     @Test

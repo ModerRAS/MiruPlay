@@ -54,9 +54,13 @@ class NavRoutesTest {
     }
 
     @Test
-    fun `launch destination falls back to mode selection until onboarding is complete`() {
+    fun `launch destination falls back to the stored home route when onboarding state is incomplete`() {
         val incompleteAnimeState = AppModeSelectionState(
             currentAppMode = AppMode.ANIME,
+            hasCompletedModeSelection = false,
+        )
+        val incompleteDramaState = AppModeSelectionState(
+            currentAppMode = AppMode.DRAMA,
             hasCompletedModeSelection = false,
         )
         val missingModeState = AppModeSelectionState(
@@ -64,8 +68,9 @@ class NavRoutesTest {
             hasCompletedModeSelection = false,
         )
 
-        assertEquals(NavRoutes.MODE_SELECTION, NavRoutes.launchDestinationFor(incompleteAnimeState))
-        assertEquals(NavRoutes.MODE_SELECTION, NavRoutes.launchDestinationFor(missingModeState))
+        assertEquals(NavRoutes.LIBRARY, NavRoutes.launchDestinationFor(incompleteAnimeState))
+        assertEquals(NavRoutes.DRAMA_HOME, NavRoutes.launchDestinationFor(incompleteDramaState))
+        assertEquals(NavRoutes.LIBRARY, NavRoutes.launchDestinationFor(missingModeState))
     }
 
     @Test

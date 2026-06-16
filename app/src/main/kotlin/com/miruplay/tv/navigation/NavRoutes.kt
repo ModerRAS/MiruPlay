@@ -39,10 +39,7 @@ object NavRoutes {
         }
 
     fun launchDestinationFor(selectionState: AppModeSelectionState): String {
-        val selectedMode = selectionState.currentAppMode
-        if (!selectionState.hasCompletedModeSelection || selectedMode == null) {
-            return MODE_SELECTION
-        }
+        val selectedMode = selectionState.currentAppMode ?: AppMode.ANIME
         return homeFor(selectedMode)
     }
 }
