@@ -7,7 +7,9 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.miruplay.tv.repository.AppCredentialStore
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.security.GeneralSecurityException
 import java.security.SecureRandom
+import javax.crypto.AEADBadTagException
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -25,13 +27,19 @@ class SecurePreferencesManager @Inject constructor(
         .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
         .build()
 
-    private val securePrefs: SharedPreferences = EncryptedSharedPreferences.create(
-        context,
-        "miruplay_secure_prefs",
-        masterKey,
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-    )
+    private val securePrefs: SharedPreferences = RecoverableSecurePreferencesFactory(
+        context = context,
+        preferencesName = SECURE_PREFERENCES_NAME,
+        createPreferences = {
+            EncryptedSharedPreferences.create(
+                context,
+                SECURE_PREFERENCES_NAME,
+                masterKey,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+            )
+        },
+    ).open()
 
     override var bangumiAccessToken: String?
         get() = securePrefs.getString(KEY_BANGUMI_TOKEN, null)
@@ -135,6 +143,7 @@ class SecurePreferencesManager @Inject constructor(
         "$KEY_MEDIA_SOURCE_PASSWORD_PREFIX$sourceId"
 
     companion object {
+        private const val SECURE_PREFERENCES_NAME = "miruplay_secure_prefs"
         private const val KEY_BANGUMI_TOKEN = "bangumi_access_token"
         private const val KEY_TMDB_TOKEN = "tmdb_access_token"
         private const val KEY_TMDB_API_BASE_URL_OVERRIDE = "tmdb_api_base_url_override"
@@ -145,4 +154,43 @@ class SecurePreferencesManager @Inject constructor(
         private const val KEY_MEDIA_SOURCE_PASSWORD_PREFIX = "media_source_password_"
         private const val WEB_CONTROL_TOKEN_BYTES = 24
     }
+}
+
+internal class RecoverableSecurePreferencesFactory(
+    private val context: Context,
+    private val preferencesName: String,
+    private val createPreferences: () -> SharedPreferences,
+) {
+    fun open(): SharedPreferences =
+        try {
+            createPreferences()
+        } catch (error: Throwable) {
+            if (!error.isRecoverableSecurePreferencesFailure()) throw error
+            deleteSecurePreferencesArtifacts()
+            createPreferences()
+        }
+
+    private fun deleteSecurePreferencesArtifacts() {
+        context.deleteSharedPreferences(preferencesName)
+        context.deleteFile("$preferencesName.xml")
+        context.applicationInfo.dataDir?.let { dataDir ->
+            java.io.File(dataDir, "shared_prefs/$preferencesName.xml").delete()
+        }
+    }
+}
+
+private fun Throwable.isRecoverableSecurePreferencesFailure(): Boolean {
+    if (this is AEADBadTagException) return true
+    if (this is GeneralSecurityException) return true
+    val message = message.orEmpty()
+    if (
+        this is IllegalStateException &&
+        (
+            message.contains("keystore", ignoreCase = true) ||
+                message.contains("encryptedsharedpreferences", ignoreCase = true)
+            )
+    ) {
+        return true
+    }
+    return cause?.isRecoverableSecurePreferencesFailure() == true
 }
