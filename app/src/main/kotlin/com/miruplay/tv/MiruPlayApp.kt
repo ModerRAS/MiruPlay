@@ -5,6 +5,7 @@ import android.app.Application
 import android.os.Bundle
 import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.data.logging.AppCrashDiagnostics
+import com.miruplay.tv.data.logging.EarlyStartupDiagnosticsRecorder
 import com.miruplay.tv.data.logging.LogUploadScheduler
 import com.miruplay.tv.repository.WebControlAccessManager
 import com.miruplay.tv.sync.archive.BangumiArchiveScheduler
@@ -57,12 +58,24 @@ class MiruPlayApp : Application() {
     }
 
     override fun onCreate() {
-        super.onCreate()
-        crashDiagnostics.install()
-        registerActivityLifecycleCallbacks(crashDiagnostics.activityLifecycleCallbacks)
-        registerActivityLifecycleCallbacks(deferredStartupLifecycleCallbacks)
-        crashDiagnostics.markStartupCheckpoint("app_on_create")
-        MiruLog.i("MiruPlayApp", "Application started", crashDiagnostics.sessionAttributes())
+        val earlyDiagnostics = EarlyStartupDiagnosticsRecorder(this)
+        earlyDiagnostics.checkpoint("application_on_create_before_super")
+        try {
+            super.onCreate()
+            earlyDiagnostics.checkpoint("application_on_create_after_super")
+            crashDiagnostics.install()
+            registerActivityLifecycleCallbacks(crashDiagnostics.activityLifecycleCallbacks)
+            registerActivityLifecycleCallbacks(deferredStartupLifecycleCallbacks)
+            crashDiagnostics.markStartupCheckpoint("app_on_create")
+            earlyDiagnostics.checkpoint("application_on_create_complete")
+            MiruLog.i("MiruPlayApp", "Application started", crashDiagnostics.sessionAttributes())
+        } catch (error: Throwable) {
+            earlyDiagnostics.fatal(
+                checkpoint = "application_on_create_failed",
+                throwable = error,
+            )
+            throw error
+        }
     }
 
     override fun onTerminate() {

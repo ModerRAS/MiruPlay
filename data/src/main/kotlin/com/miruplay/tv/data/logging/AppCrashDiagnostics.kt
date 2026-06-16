@@ -20,15 +20,32 @@ import kotlin.system.exitProcess
 @Singleton
 class AppCrashDiagnostics @Inject constructor(
     @ApplicationContext context: Context,
-    private val localLogStore: LocalLogStore
+    private val localLogStore: LocalLogStore,
 ) {
     private val appContext = context.applicationContext
+    private var startupDiagnosticsWriter: StartupDiagnosticsWriter? = null
+    private val startupDiagnostics: EarlyStartupDiagnosticsRecorder by lazy {
+        startupDiagnosticsWriter?.let { writer ->
+            EarlyStartupDiagnosticsRecorder(
+                context = appContext,
+                writer = writer,
+            )
+        } ?: EarlyStartupDiagnosticsRecorder(appContext)
+    }
     private val preferences = appContext.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
     private val installed = AtomicBoolean(false)
     private val handlingCrash = AtomicBoolean(false)
     private var previousExceptionHandler: Thread.UncaughtExceptionHandler? = null
     private var startedActivityCount = 0
     private var resumedActivityCount = 0
+
+    internal constructor(
+        @ApplicationContext context: Context,
+        localLogStore: LocalLogStore,
+        startupDiagnosticsWriter: StartupDiagnosticsWriter,
+    ) : this(context, localLogStore) {
+        this.startupDiagnosticsWriter = startupDiagnosticsWriter
+    }
 
     val activityLifecycleCallbacks: Application.ActivityLifecycleCallbacks =
         object : Application.ActivityLifecycleCallbacks {
@@ -113,6 +130,7 @@ class AppCrashDiagnostics @Inject constructor(
     }
 
     fun markStartupCheckpoint(checkpoint: String, attributes: Map<String, String> = emptyMap()) {
+        startupDiagnostics.checkpoint(checkpoint, attributes)
         recordState(
             state = checkpoint,
             message = "Startup checkpoint: $checkpoint",
@@ -215,13 +233,24 @@ class AppCrashDiagnostics @Inject constructor(
                         "is_main_thread" to (thread.name == "main").toString(),
                     )
                 )
+                startupDiagnostics.fatal(
+                    checkpoint = "uncaught_exception",
+                    throwable = throwable,
+                    attributes = sessionAttributes() + runtimeAttributes() + mapOf(
+                        "thread_name" to thread.name,
+                        "thread_id" to thread.id.toString(),
+                        "thread_state" to thread.state.name,
+                        "thread_priority" to thread.priority.toString(),
+                        "is_main_thread" to (thread.name == "main").toString(),
+                    ),
+                )
             }
         }
         previousExceptionHandler?.uncaughtException(thread, throwable)
             ?: run {
                 Process.killProcess(Process.myPid())
-                exitProcess(10)
-            }
+            exitProcess(10)
+        }
     }
 
     private fun recordActivityLifecycle(

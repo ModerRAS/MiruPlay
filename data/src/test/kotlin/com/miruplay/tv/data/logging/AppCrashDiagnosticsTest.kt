@@ -17,6 +17,7 @@ import java.io.File
 class AppCrashDiagnosticsTest {
     private lateinit var localLogStore: LocalLogStore
     private lateinit var diagnostics: AppCrashDiagnostics
+    private lateinit var startupDiagnosticsWriter: CapturingStartupDiagnosticsWriter
     private var previousHandlerCalled = false
     private var originalHandler: Thread.UncaughtExceptionHandler? = null
 
@@ -30,7 +31,12 @@ class AppCrashDiagnosticsTest {
             .clear()
             .commit()
         localLogStore = LocalLogStore(context)
-        diagnostics = AppCrashDiagnostics(context, localLogStore)
+        startupDiagnosticsWriter = CapturingStartupDiagnosticsWriter()
+        diagnostics = AppCrashDiagnostics(
+            context,
+            localLogStore,
+            startupDiagnosticsWriter,
+        )
         MiruLog.setSink(null)
     }
 
@@ -56,6 +62,9 @@ class AppCrashDiagnosticsTest {
                 record.throwableClass == IllegalStateException::class.java.name &&
                 record.stackTrace.orEmpty().contains("boom")
         })
+        assertTrue(startupDiagnosticsWriter.content().contains("\"event\":\"fatal\""))
+        assertTrue(startupDiagnosticsWriter.content().contains("uncaught_exception"))
+        assertTrue(startupDiagnosticsWriter.content().contains(IllegalStateException::class.java.name))
     }
 
     @Test
@@ -65,12 +74,38 @@ class AppCrashDiagnosticsTest {
 
         val secondDiagnostics = AppCrashDiagnostics(
             ApplicationProvider.getApplicationContext(),
-            localLogStore
+            localLogStore,
+            startupDiagnosticsWriter,
         )
         secondDiagnostics.install { _, _ -> }
 
         val warning = localLogStore.readBatch(20)
             .firstOrNull { it.message == "Previous app session ended without a clean shutdown callback" }
         assertEquals("test_checkpoint", warning?.attributes?.get("previous_last_state"))
+    }
+
+    @Test
+    fun `startup checkpoints are mirrored to public startup diagnostics`() {
+        diagnostics.install { _, _ -> previousHandlerCalled = true }
+
+        diagnostics.markStartupCheckpoint(
+            checkpoint = "activity_created",
+            attributes = mapOf("activity" to "MainActivity"),
+        )
+
+        val content = startupDiagnosticsWriter.content()
+        assertTrue(content.contains("\"event\":\"checkpoint\""))
+        assertTrue(content.contains("activity_created"))
+        assertTrue(content.contains("MainActivity"))
+    }
+
+    private class CapturingStartupDiagnosticsWriter : StartupDiagnosticsWriter {
+        private val lines = mutableListOf<String>()
+
+        override fun append(line: String) {
+            lines += line
+        }
+
+        fun content(): String = lines.joinToString(separator = "")
     }
 }
