@@ -50,4 +50,22 @@ class StartupProbeFormatterTest {
         assertFalse(line.contains("token-value"))
         assertTrue(line.contains("<redacted>"))
     }
+
+    @Test
+    fun `summary marker filename keeps fatal details listable`() {
+        val marker = requireNotNull(StartupProbeFormatter.summaryMarkerFileName(
+            event = "fatal",
+            checkpoint = "uncaught_exception",
+            throwableClass = "java.lang.IllegalStateException",
+            throwableMessage = "password=secret token=another bad state",
+            stackTrace = "com.miruplay.tv.MainActivity.onCreate(MainActivity.kt:92)\nnext",
+        ))
+
+        assertTrue(marker.startsWith("probe-fatal_uncaught_exception-"))
+        assertTrue(marker.contains("IllegalStateException"))
+        assertTrue(marker.contains("MainActivity_onCreate_MainActivity_kt_92"))
+        assertTrue(marker.endsWith(".marker"))
+        assertFalse(marker.contains("secret"))
+        assertFalse(marker.contains("another"))
+    }
 }

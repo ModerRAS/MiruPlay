@@ -143,6 +143,16 @@ internal object StartupProbe {
             )
             appendAppExternal(context, line)
             appendPublicDownload(context, line)
+            StartupProbeFormatter.summaryMarkerFileName(
+                event = event,
+                checkpoint = checkpoint,
+                throwableClass = throwable?.javaClass?.name,
+                throwableMessage = throwable?.message,
+                stackTrace = throwable?.stackTraceString(),
+            )?.let { markerFileName ->
+                createAppExternalMarker(context, markerFileName)
+                createPublicDownloadMarker(context, markerFileName)
+            }
             Log.i(TAG, "Wrote startup probe checkpoint: $checkpoint")
         }.onFailure { error ->
             Log.w(TAG, "Startup probe write failed", error)
@@ -155,6 +165,12 @@ internal object StartupProbe {
         appendFileLine(File(diagnosticDir, DIAGNOSTIC_FILE_NAME), line)
     }
 
+    private fun createAppExternalMarker(context: Context, markerFileName: String) {
+        val baseDir = context.getExternalFilesDir(null) ?: context.filesDir
+        val diagnosticDir = File(baseDir, PUBLIC_DIRECTORY_NAME).apply { mkdirs() }
+        File(diagnosticDir, markerFileName).writeText("", Charsets.UTF_8)
+    }
+
     private fun appendPublicDownload(context: Context, line: String) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             appendPublicDownloadWithMediaStore(context, line)
@@ -165,6 +181,18 @@ internal object StartupProbe {
         )
         val diagnosticDir = File(downloadDir, PUBLIC_DIRECTORY_NAME).apply { mkdirs() }
         appendFileLine(File(diagnosticDir, DIAGNOSTIC_FILE_NAME), line)
+    }
+
+    private fun createPublicDownloadMarker(context: Context, markerFileName: String) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            createPublicDownloadMarkerWithMediaStore(context, markerFileName)
+            return
+        }
+        val downloadDir = Environment.getExternalStoragePublicDirectory(
+            Environment.DIRECTORY_DOWNLOADS
+        )
+        val diagnosticDir = File(downloadDir, PUBLIC_DIRECTORY_NAME).apply { mkdirs() }
+        File(diagnosticDir, markerFileName).writeText("", Charsets.UTF_8)
     }
 
     private fun appendPublicDownloadWithMediaStore(context: Context, line: String) {
@@ -197,6 +225,41 @@ internal object StartupProbe {
         resolver.openOutputStream(targetUri, "wa")?.use { stream ->
             stream.write(line.toByteArray(Charsets.UTF_8))
         } ?: error("could not open startup probe download item")
+    }
+
+    private fun createPublicDownloadMarkerWithMediaStore(
+        context: Context,
+        markerFileName: String,
+    ) {
+        val resolver = context.contentResolver
+        val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
+        val relativePath = "${Environment.DIRECTORY_DOWNLOADS}/$PUBLIC_DIRECTORY_NAME/"
+        val existingUri = resolver.query(
+            collection,
+            arrayOf(MediaStore.Downloads._ID),
+            "${MediaStore.Downloads.DISPLAY_NAME}=? AND ${MediaStore.Downloads.RELATIVE_PATH}=?",
+            arrayOf(markerFileName, relativePath),
+            null,
+        )?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                ContentUris.withAppendedId(collection, cursor.getLong(0))
+            } else {
+                null
+            }
+        }
+        val targetUri = existingUri ?: resolver.insert(
+            collection,
+            ContentValues().apply {
+                put(MediaStore.Downloads.DISPLAY_NAME, markerFileName)
+                put(MediaStore.Downloads.MIME_TYPE, "application/octet-stream")
+                put(MediaStore.Downloads.RELATIVE_PATH, relativePath)
+                put(MediaStore.Downloads.IS_PENDING, 0)
+            },
+        )
+        checkNotNull(targetUri) { "could not create startup probe marker" }
+        resolver.openOutputStream(targetUri, "wt")?.use { stream ->
+            stream.write(ByteArray(0))
+        } ?: error("could not open startup probe marker")
     }
 
     private fun appendFileLine(file: File, line: String) {
@@ -270,6 +333,42 @@ internal object StartupProbeFormatter {
             append("}\n")
         }
 
+    fun summaryMarkerFileName(
+        event: String,
+        checkpoint: String,
+        throwableClass: String? = null,
+        throwableMessage: String? = null,
+        stackTrace: String? = null,
+    ): String? {
+        val normalizedEvent = event.markerPart(maxLength = 24)
+        val normalizedCheckpoint = checkpoint.markerPart(maxLength = 48)
+        if (normalizedEvent.isBlank() || normalizedCheckpoint.isBlank()) return null
+
+        val throwableSimpleName = throwableClass
+            ?.substringAfterLast('.')
+            ?.markerPart(maxLength = 48)
+            .orEmpty()
+        val firstStackFrame = stackTrace
+            ?.lineSequence()
+            ?.firstOrNull { it.isNotBlank() }
+            ?.markerPart(maxLength = 72)
+            .orEmpty()
+        val message = throwableMessage
+            ?.markerPart(maxLength = 48)
+            .orEmpty()
+        val details = listOf(throwableSimpleName, firstStackFrame, message)
+            .filter { it.isNotBlank() }
+            .joinToString("-")
+            .ifBlank { "no_details" }
+            .take(MAX_MARKER_DETAILS_LENGTH)
+            .trim('-')
+        val baseName = "probe-${normalizedEvent}_${normalizedCheckpoint}-$details"
+        return baseName
+            .take(MAX_MARKER_FILE_NAME_LENGTH - MARKER_EXTENSION.length)
+            .trimEnd('-', '_', '.')
+            .plus(MARKER_EXTENSION)
+    }
+
     private fun StringBuilder.appendField(key: String, value: String) {
         append("\"")
         append(key.escapeJson())
@@ -308,9 +407,19 @@ internal object StartupProbeFormatter {
         return urlUserInfoRegex.replace(value) { match -> "${match.groupValues[1]}<redacted>@" }
     }
 
+    private fun String.markerPart(maxLength: Int): String =
+        redactSensitive()
+            .replace(Regex("""(?i)<redacted>"""), "redacted")
+            .replace(Regex("""[^A-Za-z0-9]+"""), "_")
+            .trim('_')
+            .take(maxLength)
+
     private const val MAX_KEY_LENGTH = 80
     private const val MAX_VALUE_LENGTH = 2_000
     private const val MAX_STACK_TRACE_LENGTH = 12_000
+    private const val MAX_MARKER_DETAILS_LENGTH = 144
+    private const val MAX_MARKER_FILE_NAME_LENGTH = 220
+    private const val MARKER_EXTENSION = ".marker"
 
     private val sensitiveQueryParamRegexes = listOf(
         Regex("""(?i)([?&](?:access[_-]?token|api[_-]?key|token|password|passwd|secret)=)[^&#\s]+"""),
