@@ -66,6 +66,9 @@ interface WebControlEndpointService {
     suspend fun playEpisode(request: PlayEpisodeRequest): PlaybackStatusDto
     suspend fun playbackCommand(request: PlaybackCommandRequest): PlaybackStatusDto
     suspend fun playbackStatus(): PlaybackStatusDto
+    suspend fun getPlaybackDebugConfig(): PlaybackDebugConfigDto = PlaybackDebugConfigDto()
+    suspend fun savePlaybackDebugConfig(request: PlaybackDebugConfigRequest): PlaybackDebugConfigDto =
+        getPlaybackDebugConfig()
 }
 
 fun interface WebControlStaticAssets {

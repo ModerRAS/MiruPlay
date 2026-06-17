@@ -11,8 +11,14 @@ import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
+import com.miruplay.tv.model.PlaybackRenderBackend
 import com.miruplay.tv.model.ScanResult
 import com.miruplay.tv.player.PlaybackController
+import com.miruplay.tv.player.PlaybackDebugOverrides
+import com.miruplay.tv.player.LibVlcDebugConfig
+import com.miruplay.tv.player.LibVlcHardwareAccelerationMode
+import com.miruplay.tv.player.LibVlcVoutMode
+import com.miruplay.tv.player.forcedVideoSignalDescriptorFor
 import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.LogUploadRepository
@@ -20,6 +26,7 @@ import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
+import com.miruplay.tv.repository.PlaybackPreferencesRepository
 import com.miruplay.tv.repository.ScanPreferencesRepository
 import com.miruplay.tv.scanner.LibraryScanState
 import com.miruplay.tv.scanner.LibraryScanStatus
@@ -46,6 +53,7 @@ class WebControlService @Inject constructor(
     metadataRepository: MetadataRepository,
     indexRepository: MediaIndexRepository,
     private val progressRepository: PlaybackProgressRepository,
+    private val playbackPreferencesRepository: PlaybackPreferencesRepository,
     private val scanPreferencesRepository: ScanPreferencesRepository,
     private val cloudDriveRepository: CloudDriveAutomationRepository,
     logUploadRepository: LogUploadRepository,
@@ -56,6 +64,7 @@ class WebControlService @Inject constructor(
     private val scanCoordinator: ScanCoordinator,
     mediaSourceFactory: MediaSourceFactory,
     private val playbackController: PlaybackController,
+    private val playbackDebugOverrides: PlaybackDebugOverrides,
     private val navigator: WebControlNavigator,
     private val bangumiArchiveStore: BangumiArchiveStore,
     private val backgroundTasks: BackgroundTaskForegroundController,
@@ -278,6 +287,77 @@ class WebControlService @Inject constructor(
         )
     }
 
+    override suspend fun getPlaybackDebugConfig(): PlaybackDebugConfigDto =
+        playbackDebugConfigSnapshot(
+            playbackPreferencesRepository = playbackPreferencesRepository,
+            playbackController = playbackController,
+            playbackDebugOverrides = playbackDebugOverrides,
+        )
+
+    override suspend fun savePlaybackDebugConfig(request: PlaybackDebugConfigRequest): PlaybackDebugConfigDto {
+        val requestedDefaultBackend = requestedDefaultBackend(request.defaultBackend)
+        if (requestedDefaultBackend != null) {
+            val current = playbackPreferencesRepository.getFormatAwareToneMappingPreferences().normalized()
+            playbackPreferencesRepository.setFormatAwareToneMappingPreferences(
+                current.copy(defaultBackend = requestedDefaultBackend)
+            )
+        }
+
+        if (request.requestedBackend != null) {
+            val requestedBackend = if (isDebugClearValue(request.requestedBackend)) {
+                null
+            } else {
+                playbackRenderBackendFromDebugValue(request.requestedBackend)
+            }
+            playbackController.setRequestedRenderBackend(requestedBackend)
+        }
+
+        if (request.forcedSignalKind != null) {
+            if (isDebugClearValue(request.forcedSignalKind)) {
+                playbackDebugOverrides.forcedVideoSignalDescriptor = null
+            } else {
+                videoSignalKindFromDebugValue(request.forcedSignalKind)
+                    ?.let { kind -> playbackDebugOverrides.forcedVideoSignalDescriptor = forcedVideoSignalDescriptorFor(kind) }
+            }
+        }
+
+        playbackDebugOverrides.libVlcDebugConfig =
+            updatedLibVlcDebugConfig(
+                current = playbackDebugOverrides.libVlcDebugConfig,
+                request = request,
+            )
+
+        if (request.glFrameCaptureLabel != null) {
+            playbackDebugOverrides.pendingGlFrameCaptureLabel = debugLabelValue(request.glFrameCaptureLabel)
+        }
+        if (request.libVlcNativeSnapshotLabel != null) {
+            val label = debugLabelValue(request.libVlcNativeSnapshotLabel)
+            if (label == null) {
+                playbackDebugOverrides.pendingLibVlcNativeSnapshotLabel = null
+            } else {
+                playbackDebugOverrides.requestPendingLibVlcNativeSnapshotLabel(label)
+            }
+        }
+
+        MiruLog.i(
+            "WebControlService",
+            "Applied playback debug config",
+            mapOf(
+                "default_backend" to (requestedDefaultBackend?.name ?: "unchanged"),
+                "requested_backend" to (request.requestedBackend ?: "unchanged"),
+                "forced_signal" to (request.forcedSignalKind ?: "unchanged"),
+                "libvlc_hw_mode" to playbackDebugOverrides.libVlcDebugConfig.hwMode.name,
+                "libvlc_vout_mode" to playbackDebugOverrides.libVlcDebugConfig.voutMode.name,
+                "display_chroma_configured" to (playbackDebugOverrides.libVlcDebugConfig.displayChroma != null).toString(),
+            ),
+        )
+        return playbackDebugConfigSnapshot(
+            playbackPreferencesRepository = playbackPreferencesRepository,
+            playbackController = playbackController,
+            playbackDebugOverrides = playbackDebugOverrides,
+        )
+    }
+
     private suspend fun scanSourceWithSharedStatus(
         source: MediaSourceInfo,
     ): Result<ScanResult> {
@@ -388,6 +468,65 @@ private fun formatBytes(bytes: Long): String {
 private fun scanProgressText(scanState: LibraryScanState.Scanning): String {
     val currentPath = scanState.currentPath.ifBlank { "媒体源" }
     return "正在处理：$currentPath，已发现 ${scanState.filesScanned} 个条目，新剧集 ${scanState.newEpisodes} 个"
+}
+
+private suspend fun playbackDebugConfigSnapshot(
+    playbackPreferencesRepository: PlaybackPreferencesRepository,
+    playbackController: PlaybackController,
+    playbackDebugOverrides: PlaybackDebugOverrides,
+): PlaybackDebugConfigDto {
+    val preferences = playbackPreferencesRepository.getFormatAwareToneMappingPreferences().normalized()
+    val debugConfig = playbackDebugOverrides.libVlcDebugConfig
+    val forcedSignal = playbackDebugOverrides.forcedVideoSignalDescriptor
+    val currentSignal = playbackController.currentVideoSignalDescriptor.value
+    return PlaybackDebugConfigDto(
+        defaultBackend = preferences.defaultBackend.name,
+        requestedBackend = playbackController.requestedRenderBackend.value.name,
+        activeBackend = playbackController.activeRenderBackend.value.name,
+        forcedSignalKind = forcedSignal?.signalKind?.name,
+        currentSignalKind = currentSignal?.signalKind?.name,
+        currentSignalLabel = currentSignal?.displayLabel().orEmpty(),
+        currentRuleKey = playbackController.currentRenderRuleKey.value.name,
+        fallbackReason = playbackController.fallbackReason.value,
+        libVlcHardwareMode = debugConfig.hwMode.name,
+        libVlcVoutMode = debugConfig.voutMode.name,
+        libVlcDisplayChroma = debugConfig.displayChroma,
+        pendingGlFrameCaptureLabel = playbackDebugOverrides.peekPendingGlFrameCaptureLabel(),
+        pendingLibVlcNativeSnapshotLabel = playbackDebugOverrides.peekPendingLibVlcNativeSnapshotLabel(),
+    )
+}
+
+private fun requestedDefaultBackend(value: String?): PlaybackRenderBackend? =
+    when {
+        value == null -> null
+        isDebugClearValue(value) -> PlaybackRenderBackend.STANDARD_EXO
+        else -> playbackRenderBackendFromDebugValue(value)
+    }
+
+private fun updatedLibVlcDebugConfig(
+    current: LibVlcDebugConfig,
+    request: PlaybackDebugConfigRequest,
+): LibVlcDebugConfig {
+    val hwMode = when {
+        request.libVlcHardwareMode == null -> current.hwMode
+        isDebugClearValue(request.libVlcHardwareMode) -> LibVlcHardwareAccelerationMode.FULL
+        else -> libVlcHardwareModeFromDebugValue(request.libVlcHardwareMode) ?: current.hwMode
+    }
+    val voutMode = when {
+        request.libVlcVoutMode == null -> current.voutMode
+        isDebugClearValue(request.libVlcVoutMode) -> LibVlcVoutMode.DEFAULT
+        else -> libVlcVoutModeFromDebugValue(request.libVlcVoutMode) ?: current.voutMode
+    }
+    val displayChroma = when {
+        request.libVlcDisplayChroma == null -> current.displayChroma
+        isDebugClearValue(request.libVlcDisplayChroma) -> null
+        else -> libVlcDisplayChromaFromDebugValue(request.libVlcDisplayChroma) ?: current.displayChroma
+    }
+    return current.copy(
+        hwMode = hwMode,
+        voutMode = voutMode,
+        displayChroma = displayChroma,
+    )
 }
 
 private const val WEB_CLOUD_DRIVE_TASK_ID = "cloud-drive-rss-web"

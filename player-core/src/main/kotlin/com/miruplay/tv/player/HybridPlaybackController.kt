@@ -298,11 +298,29 @@ class HybridPlaybackController @Inject constructor(
         playbackPreferences = playbackPreferencesRepository
             .getFormatAwareToneMappingPreferences()
             .normalized()
+        MiruLog.i(
+            "HybridPlaybackController",
+            "Loaded playback preferences",
+            mapOf(
+                "default_backend" to playbackPreferences.defaultBackend.name,
+                "forced_signal" to (playbackDebugOverrides.forcedVideoSignalDescriptor?.signalKind?.name ?: "none"),
+                "libvlc_hw_mode" to playbackDebugOverrides.libVlcDebugConfig.hwMode.name,
+                "libvlc_vout_mode" to playbackDebugOverrides.libVlcDebugConfig.voutMode.name,
+            ),
+        )
         currentSource = source
         _requestedRenderBackend.value = sessionState.effectiveRequestedBackend(playbackPreferences.defaultBackend)
         _sessionRuleOverrides.value = sessionState.ruleOverrides
         currentHttpConfig = httpRequestResolver.configFor(source)
         signalProbeCompletionJob?.cancel()
+        MiruLog.i(
+            "HybridPlaybackController",
+            "Starting initial video signal probe",
+            mapOf(
+                "source_uri" to source.uri,
+                "requested_backend" to _requestedRenderBackend.value.name,
+            ),
+        )
         val initialProbeResult = withContext(Dispatchers.IO) {
             runInitialSignalProbe(
                 containerTimeoutMs = INITIAL_CONTAINER_SIGNAL_PROBE_TIMEOUT_MS,
@@ -325,6 +343,16 @@ class HybridPlaybackController @Inject constructor(
         }
         containerSignalDescriptor = initialProbeResult.containerValue
         runtimeSignalDescriptor = initialProbeResult.runtimeValue
+        MiruLog.i(
+            "HybridPlaybackController",
+            "Finished initial video signal probe",
+            mapOf(
+                "container_completed_within_budget" to initialProbeResult.containerCompletedWithinBudget.toString(),
+                "runtime_completed_within_budget" to initialProbeResult.runtimeCompletedWithinBudget.toString(),
+                "container_signal" to (containerSignalDescriptor?.displayLabel().orEmpty()),
+                "runtime_signal" to (runtimeSignalDescriptor?.displayLabel().orEmpty()),
+            ),
+        )
         val mergedDescriptor = mergeVideoSignalDescriptor(
             runtimeDescriptor = runtimeSignalDescriptor ?: VideoSignalDescriptor(),
             containerHint = containerSignalDescriptor,
@@ -341,6 +369,17 @@ class HybridPlaybackController @Inject constructor(
             probeResult = initialProbeResult,
         )
         val resolvedBackend = _activeRenderBackend.value
+        MiruLog.i(
+            "HybridPlaybackController",
+            "Resolved playback runtime config",
+            mapOf(
+                "requested_backend" to _requestedRenderBackend.value.name,
+                "active_backend" to resolvedBackend.name,
+                "signal_label" to _currentVideoSignalDescriptor.value?.displayLabel().orEmpty(),
+                "rule_key" to _currentRenderRuleKey.value.name,
+                "fallback_reason" to _fallbackReason.value.orEmpty(),
+            ),
+        )
         usingVlcBackend = resolvedBackend == PlaybackRenderBackend.EXPERIMENTAL_LIBVLC
         when (resolvedBackend) {
             PlaybackRenderBackend.STANDARD_EXO -> playWithExo(source)
@@ -357,6 +396,17 @@ class HybridPlaybackController @Inject constructor(
 
     private suspend fun playWithLibVlc(source: PlaybackSource) {
         usingVlcBackend = true
+        MiruLog.i(
+            "HybridPlaybackController",
+            "Entering libVLC playback path",
+            mapOf(
+                "source_uri" to source.uri,
+                "signal_label" to _currentVideoSignalDescriptor.value?.displayLabel().orEmpty(),
+                "rule_key" to _currentRenderRuleKey.value.name,
+                "vout_mode" to playbackDebugOverrides.libVlcDebugConfig.voutMode.name,
+                "hw_mode" to playbackDebugOverrides.libVlcDebugConfig.hwMode.name,
+            ),
+        )
         hasLoggedVlcDisplayedFrames = false
         hasLoggedVlcDecodedWithoutDisplay = false
         pendingVlcPlaybackStart = false
@@ -380,8 +430,31 @@ class HybridPlaybackController @Inject constructor(
                 )
             val effectiveOptions = requestedOptions.toMutableList()
             runCatching {
+                MiruLog.i(
+                    "HybridPlaybackController",
+                    "Creating libVLC instance",
+                    mapOf(
+                        "vlc_effective_options" to effectiveOptions.joinToString(" "),
+                    ),
+                )
                 libVlc = LibVLC(context, effectiveOptions)
+                MiruLog.i(
+                    "HybridPlaybackController",
+                    "Created libVLC instance",
+                    mapOf(
+                        "vlc_instance_present" to (libVlc != null).toString(),
+                    ),
+                )
+                MiruLog.i("HybridPlaybackController", "Creating libVLC MediaPlayer")
                 vlcMediaPlayer = MediaPlayer(libVlc).also { player ->
+                    MiruLog.i(
+                        "HybridPlaybackController",
+                        "Created libVLC MediaPlayer",
+                        mapOf(
+                            "player_present" to "true",
+                            "host_present" to (vlcVideoHost != null).toString(),
+                        ),
+                    )
                     player.getVLCVout().addCallback(vlcVoutCallback)
                     player.setEventListener(vlcEventListener)
                     bindExistingVlcHost(player)
@@ -389,6 +462,14 @@ class HybridPlaybackController @Inject constructor(
                     val playbackUri = currentHttpConfig.libVlcUriFor(source.uri)
                     val mediaTarget = resolveLibVlcMediaTarget(playbackUri)
                     val appliedMediaOptions = mutableListOf<String>()
+                    MiruLog.i(
+                        "HybridPlaybackController",
+                        "Creating libVLC media",
+                        mapOf(
+                            "resolved_vlc_uri" to playbackUri,
+                            "media_target" to mediaTarget.javaClass.simpleName,
+                        ),
+                    )
                     val media = when (mediaTarget) {
                         is LibVlcMediaTarget.LocalPath -> Media(libVlc, mediaTarget.path)
                         is LibVlcMediaTarget.Location -> Media(libVlc, Uri.parse(mediaTarget.uri))
@@ -410,6 +491,14 @@ class HybridPlaybackController @Inject constructor(
                             )
                         }
                     }
+                    MiruLog.i(
+                        "HybridPlaybackController",
+                        "Setting libVLC media",
+                        mapOf(
+                            "vlc_media_options" to appliedMediaOptions.joinToString(" "),
+                            "subtitle_count" to source.subtitleTracks.size.toString(),
+                        ),
+                    )
                     player.setMedia(media)
                     media.release()
                     if (source.startPosition > 0L) {
@@ -440,7 +529,15 @@ class HybridPlaybackController @Inject constructor(
                             playbackStartAttributes,
                         )
                     } else {
+                        MiruLog.i(
+                            "HybridPlaybackController",
+                            "Calling libVLC player.play",
+                            mapOf(
+                                "views_attached" to runCatching { player.getVLCVout().areViewsAttached() }.getOrDefault(false).toString(),
+                            ),
+                        )
                         player.play()
+                        MiruLog.i("HybridPlaybackController", "Returned from libVLC player.play")
                     }
                     MiruLog.i(
                         "HybridPlaybackController",

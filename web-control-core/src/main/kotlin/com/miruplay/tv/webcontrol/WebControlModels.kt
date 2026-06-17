@@ -364,6 +364,35 @@ data class PlaybackStatusDto(
 )
 
 @Serializable
+data class PlaybackDebugConfigRequest(
+    val defaultBackend: String? = null,
+    val requestedBackend: String? = null,
+    val forcedSignalKind: String? = null,
+    val libVlcHardwareMode: String? = null,
+    val libVlcVoutMode: String? = null,
+    val libVlcDisplayChroma: String? = null,
+    val glFrameCaptureLabel: String? = null,
+    val libVlcNativeSnapshotLabel: String? = null,
+)
+
+@Serializable
+data class PlaybackDebugConfigDto(
+    val defaultBackend: String = "",
+    val requestedBackend: String = "",
+    val activeBackend: String = "",
+    val forcedSignalKind: String? = null,
+    val currentSignalKind: String? = null,
+    val currentSignalLabel: String = "",
+    val currentRuleKey: String = "",
+    val fallbackReason: String? = null,
+    val libVlcHardwareMode: String = "",
+    val libVlcVoutMode: String = "",
+    val libVlcDisplayChroma: String? = null,
+    val pendingGlFrameCaptureLabel: String? = null,
+    val pendingLibVlcNativeSnapshotLabel: String? = null,
+)
+
+@Serializable
 data class NavigationCommand(
     val type: String,
     val payload: JsonElement? = null,

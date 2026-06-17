@@ -240,6 +240,13 @@ open class NanoHttpWebControlServer(
             session.method == Method.GET && route == "/api/playback/status" -> {
                 jsonResponse(PlaybackStatusDto.serializer(), webControlService.playbackStatus())
             }
+            session.method == Method.GET && route == "/api/playback/debug-config" -> {
+                jsonResponse(PlaybackDebugConfigDto.serializer(), webControlService.getPlaybackDebugConfig())
+            }
+            session.method == Method.PUT && route == "/api/playback/debug-config" -> {
+                val request = parseBody(session, PlaybackDebugConfigRequest.serializer())
+                jsonResponse(PlaybackDebugConfigDto.serializer(), webControlService.savePlaybackDebugConfig(request))
+            }
             else -> errorResponse(Response.Status.NOT_FOUND, "接口不存在")
         }
     }
