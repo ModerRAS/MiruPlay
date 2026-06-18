@@ -110,7 +110,7 @@ import com.miruplay.tv.model.playbackErrorTitle
 import com.miruplay.tv.model.playbackLocalSourceLabel
 import com.miruplay.tv.model.playbackPauseLabel
 import com.miruplay.tv.model.playbackPlayLabel
-import com.miruplay.tv.model.playbackRetryLabel
+import com.miruplay.tv.model.playbackConfirmExitLabel
 import com.miruplay.tv.model.playbackSeekBackLabel
 import com.miruplay.tv.model.playbackSeekForwardLabel
 import com.miruplay.tv.model.playbackSpeedChipLabel
@@ -711,10 +711,7 @@ private fun PlayerScreenContent(
         if (errorMessage != null) {
             ErrorOverlay(
                 message = errorMessage!!,
-                onRetry = {
-                    viewModel.showControls()
-                    viewModel.play(currentPlaybackSource)
-                }
+                onExit = onNavigateBack
             )
         }
 
@@ -1668,7 +1665,7 @@ private fun PlayerOptionButton(
 @Composable
 private fun ErrorOverlay(
     message: String,
-    onRetry: () -> Unit
+    onExit: () -> Unit
 ) {
     Box(
         modifier = Modifier
@@ -1703,19 +1700,19 @@ private fun ErrorOverlay(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
                     .background(AnimeRed)
-                    .clickable(onClick = onRetry)
+                    .clickable(onClick = onExit)
                     .padding(horizontal = 28.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = Icons.Filled.PlayArrow,
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = null,
                     tint = Color.White,
                     modifier = Modifier.size(24.dp)
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = playbackRetryLabel(),
+                    text = playbackConfirmExitLabel(),
                     color = Color.White,
                     style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold)
                 )

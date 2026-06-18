@@ -118,4 +118,6 @@ dependencies {
     ksp(libs.dagger.hilt.compiler)
     
     testImplementation(libs.junit)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.robolectric)
 }

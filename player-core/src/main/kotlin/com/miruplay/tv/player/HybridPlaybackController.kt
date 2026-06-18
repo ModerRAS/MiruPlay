@@ -60,6 +60,7 @@ class HybridPlaybackController @Inject constructor(
     private val playbackPreferencesRepository: PlaybackPreferencesRepository,
     private val playbackDebugOverrides: PlaybackDebugOverrides,
     private val httpRequestResolver: PlaybackHttpRequestResolver,
+    private val libVlcStartupProbe: LibVlcStartupProbe,
     private val libVlcSnapshotBridge: LibVlcSnapshotBridge,
     private val libVlcFrameProbeBridge: LibVlcFrameProbeBridge,
     private val libVlcOutputCallbacksBridge: LibVlcOutputCallbacksBridge,
@@ -117,6 +118,34 @@ class HybridPlaybackController @Inject constructor(
     private var usingHiddenCarrierAttach = false
     private var vlcSurfaceHostReadyListener: ((Boolean) -> Unit)? = null
     private var vlcOutputCallbackHostReadyListener: ((Boolean) -> Unit)? = null
+
+    private object NoopLibVlcStartupProbe : LibVlcStartupProbe {
+        override fun canStartLibVlc(options: List<String>): LibVlcStartupProbeResult =
+            LibVlcStartupProbeResult(canStart = true)
+    }
+
+    constructor(
+        context: Context,
+        exoController: ExoPlaybackController,
+        playbackPreferencesRepository: PlaybackPreferencesRepository,
+        playbackDebugOverrides: PlaybackDebugOverrides,
+        httpRequestResolver: PlaybackHttpRequestResolver,
+        libVlcSnapshotBridge: LibVlcSnapshotBridge,
+        libVlcFrameProbeBridge: LibVlcFrameProbeBridge,
+        libVlcOutputCallbacksBridge: LibVlcOutputCallbacksBridge,
+        libVlcVmemStreamBridge: LibVlcVmemStreamBridge,
+    ) : this(
+        context = context,
+        exoController = exoController,
+        playbackPreferencesRepository = playbackPreferencesRepository,
+        playbackDebugOverrides = playbackDebugOverrides,
+        httpRequestResolver = httpRequestResolver,
+        libVlcStartupProbe = NoopLibVlcStartupProbe,
+        libVlcSnapshotBridge = libVlcSnapshotBridge,
+        libVlcFrameProbeBridge = libVlcFrameProbeBridge,
+        libVlcOutputCallbacksBridge = libVlcOutputCallbacksBridge,
+        libVlcVmemStreamBridge = libVlcVmemStreamBridge,
+    )
 
     init {
         exoController.state.onEach {
@@ -410,6 +439,31 @@ class HybridPlaybackController @Inject constructor(
         hasLoggedVlcDisplayedFrames = false
         hasLoggedVlcDecodedWithoutDisplay = false
         pendingVlcPlaybackStart = false
+        val requestedOptions =
+            buildLibVlcOptions(
+                _currentToneMappingRuleSet.value,
+                _currentVideoSignalDescriptor.value,
+                playbackDebugOverrides.libVlcDebugConfig,
+            )
+        val startupProbeResult = withContext(Dispatchers.IO) {
+            libVlcStartupProbe.canStartLibVlc(requestedOptions)
+        }
+        if (!startupProbeResult.canStart) {
+            usingVlcBackend = false
+            releaseVlcPlayer()
+            val reason = startupProbeResult.errorMessage.orEmpty().ifBlank { "unknown" }
+            MiruLog.w(
+                "HybridPlaybackController",
+                "libVLC startup probe failed",
+                attributes = mapOf(
+                    "source_uri" to source.uri,
+                    "reason" to reason,
+                    "vlc_requested_options" to requestedOptions.joinToString(" "),
+                ),
+            )
+            _state.value = PlaybackState.Error(source, "libVLC 启动探测失败: $reason")
+            return
+        }
         pendingLibVlcNativeSnapshotJob?.cancel()
         pendingLibVlcNativeSnapshotJob = null
         pendingLibVlcNativeSnapshotKickJob?.cancel()
@@ -422,12 +476,6 @@ class HybridPlaybackController @Inject constructor(
         activeLibVlcVmemStreamSession = null
         withContext(Dispatchers.Main) {
             releaseVlcPlayer()
-            val requestedOptions =
-                buildLibVlcOptions(
-                    _currentToneMappingRuleSet.value,
-                    _currentVideoSignalDescriptor.value,
-                    playbackDebugOverrides.libVlcDebugConfig,
-                )
             val effectiveOptions = requestedOptions.toMutableList()
             runCatching {
                 MiruLog.i(

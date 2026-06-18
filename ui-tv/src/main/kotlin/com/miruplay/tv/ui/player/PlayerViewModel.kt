@@ -107,6 +107,11 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             refreshFormatAwarePreferences()
         }
+        viewModelScope.launch {
+            playbackState.collect { state ->
+                _errorMessage.value = (state as? PlaybackState.Error)?.error
+            }
+        }
     }
 
     /** Expose Media3 Player for PlayerView rendering */

@@ -34,6 +34,8 @@ fun playbackPauseLabel(): String = "暂停"
 
 fun playbackRetryLabel(): String = "重试"
 
+fun playbackConfirmExitLabel(): String = "确定退出"
+
 fun playbackStopLabel(): String = "停止"
 
 fun playbackErrorTitle(): String = "播放失败"

@@ -1,14 +1,18 @@
 package com.miruplay.tv.player
 
 import android.content.Context
+import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.PlaybackRenderBackend
+import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.PlaybackState
 import com.miruplay.tv.model.VideoRenderRuleKey
 import com.miruplay.tv.model.defaultToneMappingRuleSet
 import com.miruplay.tv.repository.PlaybackPreferencesRepository
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -22,6 +26,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class HybridPlaybackControllerDebugCaptureTest {
     @Before
     fun setUp() {
@@ -110,13 +115,13 @@ class HybridPlaybackControllerDebugCaptureTest {
         exoRequestedBackend.value = PlaybackRenderBackend.STANDARD_EXO
         exoActiveBackend.value = PlaybackRenderBackend.STANDARD_EXO
         exoState.value = PlaybackState.Loading(
-            source = com.miruplay.tv.model.PlaybackSource(
+            source = PlaybackSource(
                 uri = "file:///tmp.mp4",
                 mediaSourceId = "tmp",
                 startPosition = 0L,
                 subtitleTracks = emptyList(),
                 episodeId = null,
-            )
+            ),
         )
 
         assertEquals(
@@ -128,6 +133,63 @@ class HybridPlaybackControllerDebugCaptureTest {
             controller.activeRenderBackend.value,
         )
         assertEquals(PlaybackState.Idle, controller.state.value)
+    }
+
+    @Test
+    fun `libvlc probe failure enters error state before native construction`() = runBlocking {
+        val probe = mockk<LibVlcStartupProbe>()
+        every { probe.canStartLibVlc(any()) } returns LibVlcStartupProbeResult(
+            canStart = false,
+            errorMessage = "probe failed",
+        )
+        val preferencesRepository = mockk<PlaybackPreferencesRepository>(relaxed = true).also { repository ->
+            coEvery { repository.getFormatAwareToneMappingPreferences() } returns
+                FormatAwareToneMappingPreferences()
+        }
+
+        val exoState = MutableStateFlow<PlaybackState>(PlaybackState.Idle)
+        val exoRequestedBackend = MutableStateFlow(PlaybackRenderBackend.STANDARD_EXO)
+        val exoActiveBackend = MutableStateFlow(PlaybackRenderBackend.STANDARD_EXO)
+        val exoController = mockk<ExoPlaybackController>(relaxed = true).also { controller ->
+            every { controller.state } returns exoState
+            every { controller.requestedRenderBackend } returns exoRequestedBackend
+            every { controller.activeRenderBackend } returns exoActiveBackend
+            every { controller.currentVideoSignalDescriptor } returns MutableStateFlow(null)
+            every { controller.currentRenderRuleKey } returns MutableStateFlow(VideoRenderRuleKey.SDR)
+            every { controller.currentToneMappingRuleSet } returns
+                MutableStateFlow(defaultToneMappingRuleSet(VideoRenderRuleKey.SDR))
+            every { controller.sessionRuleOverrides } returns MutableStateFlow(emptyMap())
+            every { controller.fallbackReason } returns MutableStateFlow(null)
+        }
+        val controller = HybridPlaybackController(
+            context = mockk<Context>(relaxed = true),
+            exoController = exoController,
+            playbackPreferencesRepository = preferencesRepository,
+            playbackDebugOverrides = PlaybackDebugOverrides(),
+            httpRequestResolver = mockk<PlaybackHttpRequestResolver>(relaxed = true),
+            libVlcStartupProbe = probe,
+            libVlcSnapshotBridge = mockk<LibVlcSnapshotBridge>(relaxed = true),
+            libVlcFrameProbeBridge = mockk<LibVlcFrameProbeBridge>(relaxed = true),
+            libVlcOutputCallbacksBridge = mockk<LibVlcOutputCallbacksBridge>(relaxed = true),
+            libVlcVmemStreamBridge = mockk<LibVlcVmemStreamBridge>(relaxed = true),
+        )
+        runBlocking {
+            controller.setRequestedRenderBackend(PlaybackRenderBackend.EXPERIMENTAL_LIBVLC)
+        }
+
+        val source = PlaybackSource(
+            uri = "file:///tmp/video.mp4",
+            mediaSourceId = "tmp",
+            startPosition = 0L,
+            subtitleTracks = emptyList(),
+            episodeId = null,
+        )
+        controller.play(source)
+
+        assertEquals(
+            PlaybackState.Error(source, "libVLC 启动探测失败: probe failed"),
+            controller.state.value,
+        )
     }
 
     @Test
