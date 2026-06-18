@@ -28,6 +28,7 @@ internal open class EmptyWebControlEndpointService : WebControlEndpointService {
     override suspend fun saveLogUploadToken(request: LogUploadTokenRequest): LogUploadDto = unused()
     override suspend fun clearLogUploadToken(): LogUploadDto = unused()
     override suspend fun uploadPendingLogs(): LogUploadDto = unused()
+    override suspend fun downloadStartupDiagnostics(name: String): LocalLogDownload = unused()
     override suspend fun getMetadataSettings(): MetadataSettingsDto = unused()
     override suspend fun uploadBangumiArchive(
         input: InputStream,

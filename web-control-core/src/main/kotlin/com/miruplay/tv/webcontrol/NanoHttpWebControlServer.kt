@@ -193,6 +193,13 @@ open class NanoHttpWebControlServer(
                         ?.takeIf { it > 0L }
                 localLogDownloadResponse(webControlService.downloadLocalLogs(sinceTimestampMs))
             }
+            session.method == Method.GET && route == "/api/startup-diagnostics/download" -> {
+                val name = session.parameters["name"]?.firstOrNull()?.trim().orEmpty()
+                if (name.isBlank()) {
+                    throw IllegalArgumentException("startup 文件名不能为空")
+                }
+                localLogDownloadResponse(webControlService.downloadStartupDiagnostics(name))
+            }
             session.method == Method.GET && route == "/api/metadata" -> {
                 jsonResponse(MetadataSettingsDto.serializer(), webControlService.getMetadataSettings())
             }

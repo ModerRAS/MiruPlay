@@ -113,6 +113,7 @@ class NanoHttpWebControlServerRequestBodyTest {
         override suspend fun saveLogUploadToken(request: LogUploadTokenRequest): LogUploadDto = error("unused")
         override suspend fun clearLogUploadToken(): LogUploadDto = error("unused")
         override suspend fun uploadPendingLogs(): LogUploadDto = error("unused")
+        override suspend fun downloadStartupDiagnostics(name: String): LocalLogDownload = error("unused")
         override suspend fun getMetadataSettings(): MetadataSettingsDto = error("unused")
         override suspend fun saveBangumiToken(request: BangumiTokenRequest): MetadataSettingsDto = error("unused")
         override suspend fun clearBangumiToken(): MetadataSettingsDto = error("unused")

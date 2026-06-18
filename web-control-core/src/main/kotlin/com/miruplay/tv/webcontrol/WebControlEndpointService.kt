@@ -48,6 +48,12 @@ interface WebControlEndpointService {
             contentType = "application/x-ndjson; charset=utf-8",
             content = ByteArray(0),
         )
+    suspend fun downloadStartupDiagnostics(name: String): LocalLogDownload =
+        LocalLogDownload(
+            fileName = "miruplay-startup-$name.jsonl",
+            contentType = "application/x-ndjson; charset=utf-8",
+            content = ByteArray(0),
+        )
     suspend fun getMetadataSettings(): MetadataSettingsDto
     suspend fun getBangumiArchive(): BangumiArchiveDto =
         BangumiArchiveDto(available = false, hasSubjectData = false, lastError = "Bangumi Archive 下载在当前运行环境不可用")

@@ -85,6 +85,16 @@ class WebControlPlaybackDebugConfigRouteTest {
         body: String = "",
     ) : NanoHTTPD.IHTTPSession {
         private val bodyBytes = body.toByteArray(Charsets.UTF_8)
+        private val queryParameterString = uri.substringAfter('?', "").ifBlank { null }
+        private val cleanUri = uri.substringBefore('?')
+        private val parameters = queryParameterString
+            ?.split('&')
+            ?.filter { it.isNotBlank() }
+            ?.groupBy(
+                keySelector = { it.substringBefore('=').trim() },
+                valueTransform = { java.net.URLDecoder.decode(it.substringAfter('=', ""), Charsets.UTF_8.name()) }
+            )
+            ?: emptyMap()
         private val headers = buildMap {
             put("x-miruplay-token", "token")
             if (bodyBytes.isNotEmpty()) {
@@ -101,9 +111,9 @@ class WebControlPlaybackDebugConfigRouteTest {
         override fun getMethod(): NanoHTTPD.Method = method
         @Suppress("OVERRIDE_DEPRECATION")
         override fun getParms(): Map<String, String> = emptyMap()
-        override fun getParameters(): Map<String, List<String>> = emptyMap()
-        override fun getQueryParameterString(): String? = null
-        override fun getUri(): String = uri
+        override fun getParameters(): Map<String, List<String>> = parameters
+        override fun getQueryParameterString(): String? = queryParameterString
+        override fun getUri(): String = cleanUri
         @Suppress("OVERRIDE_DEPRECATION")
         override fun parseBody(files: MutableMap<String, String>) {
             files["postData"] = bodyBytes.toString(Charsets.UTF_8)
@@ -112,9 +122,32 @@ class WebControlPlaybackDebugConfigRouteTest {
         override fun getRemoteHostName(): String = "localhost"
     }
 
+    @Test
+    fun `GET startup diagnostics download returns named startup file`() {
+        val service = CapturingPlaybackDebugConfigService()
+        val server = NanoHttpWebControlServer(
+            webControlService = service,
+            webControlAccess = EnabledWebControlAccess,
+            staticAssets = WebControlStaticAssets { null },
+        )
+
+        val response = server.serve(
+            FakeSession(
+                method = NanoHTTPD.Method.GET,
+                uri = "/api/startup-diagnostics/download?name=probe",
+            )
+        )
+
+        assertEquals(NanoHTTPD.Response.Status.OK, response.status)
+        assertEquals(1, service.downloadStartupDiagnosticsCalls)
+        assertEquals("probe", service.capturedStartupDiagnosticsName)
+    }
+
     private class CapturingPlaybackDebugConfigService : EmptyWebControlEndpointService() {
         var getCalls = 0
         var capturedSaveRequest: PlaybackDebugConfigRequest? = null
+        var downloadStartupDiagnosticsCalls = 0
+        var capturedStartupDiagnosticsName: String? = null
 
         override suspend fun getPlaybackDebugConfig(): PlaybackDebugConfigDto {
             getCalls += 1
@@ -132,6 +165,16 @@ class WebControlPlaybackDebugConfigRouteTest {
                 libVlcDisplayChroma = request.libVlcDisplayChroma,
                 pendingGlFrameCaptureLabel = request.glFrameCaptureLabel,
                 pendingLibVlcNativeSnapshotLabel = request.libVlcNativeSnapshotLabel,
+            )
+        }
+
+        override suspend fun downloadStartupDiagnostics(name: String): LocalLogDownload {
+            downloadStartupDiagnosticsCalls += 1
+            capturedStartupDiagnosticsName = name
+            return LocalLogDownload(
+                fileName = "miruplay-startup-$name.jsonl",
+                contentType = "application/x-ndjson; charset=utf-8",
+                content = "probe-line\n".toByteArray(),
             )
         }
     }

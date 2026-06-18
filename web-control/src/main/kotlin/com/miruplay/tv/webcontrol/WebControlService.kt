@@ -1,5 +1,6 @@
 package com.miruplay.tv.webcontrol
 
+import android.content.Context
 import android.os.Build
 import com.miruplay.tv.background.BackgroundTaskForegroundController
 import com.miruplay.tv.background.BackgroundTaskIds
@@ -49,6 +50,7 @@ import javax.inject.Singleton
 
 @Singleton
 class WebControlService @Inject constructor(
+    @dagger.hilt.android.qualifiers.ApplicationContext private val appContext: Context,
     mediaRepository: MediaSourceRepository,
     metadataRepository: MetadataRepository,
     indexRepository: MediaIndexRepository,
@@ -96,6 +98,25 @@ class WebControlService @Inject constructor(
 
     override suspend fun <T> runOnIo(block: suspend () -> T): T =
         withContext(Dispatchers.IO) { block() }
+
+    override suspend fun downloadStartupDiagnostics(name: String): LocalLogDownload = runOnIo {
+        val normalized = name.trim().lowercase()
+        val fileName = when (normalized) {
+            "probe" -> STARTUP_PROBE_FILE_NAME
+            "diagnostics" -> STARTUP_DIAGNOSTICS_FILE_NAME
+            else -> throw IllegalArgumentException("未知 startup 文件: $name")
+        }
+        val baseDir = appContext.getExternalFilesDir(null) ?: appContext.filesDir
+        val target = java.io.File(java.io.File(baseDir, STARTUP_DIRECTORY_NAME), fileName)
+        if (!target.exists()) {
+            throw IllegalArgumentException("startup 文件不存在: $fileName")
+        }
+        LocalLogDownload(
+            fileName = fileName,
+            contentType = "application/x-ndjson; charset=utf-8",
+            content = target.readBytes(),
+        )
+    }
 
     override suspend fun scanSourceResultFor(source: MediaSourceInfo): Result<ScanResult> =
         scanSourceWithSharedStatus(source)
@@ -531,3 +552,6 @@ private fun updatedLibVlcDebugConfig(
 
 private const val WEB_CLOUD_DRIVE_TASK_ID = "cloud-drive-rss-web"
 private const val BANGUMI_ARCHIVE_LOG_TAG = "BangumiArchiveDownload"
+private const val STARTUP_DIRECTORY_NAME = "MiruPlay"
+private const val STARTUP_PROBE_FILE_NAME = "miruplay-startup-probe.jsonl"
+private const val STARTUP_DIAGNOSTICS_FILE_NAME = "miruplay-startup-diagnostics.jsonl"
