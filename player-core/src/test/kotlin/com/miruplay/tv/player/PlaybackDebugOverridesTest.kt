@@ -40,4 +40,14 @@ class PlaybackDebugOverridesTest {
         overrides.skipLibVlcStartupProbe = true
         assertEquals(true, overrides.skipLibVlcStartupProbe)
     }
+
+    @Test
+    fun `skip libvlc startup options defaults to false and can be toggled`() {
+        val overrides = PlaybackDebugOverrides()
+
+        assertEquals(false, overrides.skipLibVlcStartupOptions)
+
+        overrides.skipLibVlcStartupOptions = true
+        assertEquals(true, overrides.skipLibVlcStartupOptions)
+    }
 }

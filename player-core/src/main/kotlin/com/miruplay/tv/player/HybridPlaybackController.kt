@@ -445,11 +445,16 @@ class HybridPlaybackController @Inject constructor(
                 _currentVideoSignalDescriptor.value,
                 playbackDebugOverrides.libVlcDebugConfig,
             )
+        val effectiveRequestedOptions = if (playbackDebugOverrides.skipLibVlcStartupOptions) {
+            emptyList()
+        } else {
+            requestedOptions
+        }
         val startupProbeResult = if (playbackDebugOverrides.skipLibVlcStartupProbe) {
             LibVlcStartupProbeResult(canStart = true)
         } else {
             withContext(Dispatchers.IO) {
-                libVlcStartupProbe.canStartLibVlc(requestedOptions)
+                libVlcStartupProbe.canStartLibVlc(effectiveRequestedOptions)
             }
         }
         if (!startupProbeResult.canStart) {
@@ -462,7 +467,7 @@ class HybridPlaybackController @Inject constructor(
                 attributes = mapOf(
                     "source_uri" to source.uri,
                     "reason" to reason,
-                    "vlc_requested_options" to requestedOptions.joinToString(" "),
+                    "vlc_requested_options" to effectiveRequestedOptions.joinToString(" "),
                 ),
             )
             _state.value = PlaybackState.Error(source, "libVLC 启动探测失败: $reason")
@@ -480,7 +485,7 @@ class HybridPlaybackController @Inject constructor(
         activeLibVlcVmemStreamSession = null
         withContext(Dispatchers.Main) {
             releaseVlcPlayer()
-            val effectiveOptions = requestedOptions.toMutableList()
+            val effectiveOptions = effectiveRequestedOptions.toMutableList()
             runCatching {
                 MiruLog.i(
                     "HybridPlaybackController",

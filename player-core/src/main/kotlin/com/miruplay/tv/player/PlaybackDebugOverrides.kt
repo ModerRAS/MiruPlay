@@ -25,6 +25,9 @@ class PlaybackDebugOverrides @Inject constructor() {
     @Volatile
     var skipLibVlcStartupProbe: Boolean = false
 
+    @Volatile
+    var skipLibVlcStartupOptions: Boolean = false
+
     @Synchronized
     fun consumePendingGlFrameCaptureLabel(): String? {
         val label = pendingGlFrameCaptureLabel

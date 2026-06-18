@@ -363,6 +363,9 @@ class WebControlService @Inject constructor(
         if (request.skipLibVlcStartupProbe != null) {
             playbackDebugOverrides.skipLibVlcStartupProbe = request.skipLibVlcStartupProbe == true
         }
+        if (request.skipLibVlcStartupOptions != null) {
+            playbackDebugOverrides.skipLibVlcStartupOptions = request.skipLibVlcStartupOptions == true
+        }
 
         MiruLog.i(
             "WebControlService",
@@ -375,6 +378,7 @@ class WebControlService @Inject constructor(
                 "libvlc_vout_mode" to playbackDebugOverrides.libVlcDebugConfig.voutMode.name,
                 "display_chroma_configured" to (playbackDebugOverrides.libVlcDebugConfig.displayChroma != null).toString(),
                 "skip_startup_probe" to playbackDebugOverrides.skipLibVlcStartupProbe.toString(),
+                "skip_startup_options" to playbackDebugOverrides.skipLibVlcStartupOptions.toString(),
             ),
         )
         return playbackDebugConfigSnapshot(
@@ -520,6 +524,7 @@ private suspend fun playbackDebugConfigSnapshot(
         pendingGlFrameCaptureLabel = playbackDebugOverrides.peekPendingGlFrameCaptureLabel(),
         pendingLibVlcNativeSnapshotLabel = playbackDebugOverrides.peekPendingLibVlcNativeSnapshotLabel(),
         skipLibVlcStartupProbe = playbackDebugOverrides.skipLibVlcStartupProbe,
+        skipLibVlcStartupOptions = playbackDebugOverrides.skipLibVlcStartupOptions,
     )
 }
 

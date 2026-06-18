@@ -86,7 +86,8 @@ class WebControlPlaybackDebugConfigRouteTest {
                 uri = "/api/playback/debug-config",
                 body = """
                     {
-                      "skipLibVlcStartupProbe": true
+                      "skipLibVlcStartupProbe": true,
+                      "skipLibVlcStartupOptions": true
                     }
                 """.trimIndent(),
             )
@@ -94,6 +95,7 @@ class WebControlPlaybackDebugConfigRouteTest {
 
         assertEquals(NanoHTTPD.Response.Status.OK, response.status)
         assertEquals(true, service.capturedSaveRequest?.skipLibVlcStartupProbe)
+        assertEquals(true, service.capturedSaveRequest?.skipLibVlcStartupOptions)
     }
 
     private object EnabledWebControlAccess : WebControlAccessManager {
