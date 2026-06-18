@@ -49,6 +49,7 @@ import org.videolan.libvlc.RendererItem
 import org.videolan.libvlc.interfaces.IMedia
 import org.videolan.libvlc.interfaces.IVLCVout
 import org.videolan.libvlc.util.DisplayManager
+import org.videolan.libvlc.util.VLCUtil
 import org.videolan.libvlc.util.VLCVideoLayout
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -471,6 +472,23 @@ class HybridPlaybackController @Inject constructor(
                 ),
             )
             _state.value = PlaybackState.Error(source, "libVLC 启动探测失败: $reason")
+            return
+        }
+        val compatibleCpu = withContext(Dispatchers.IO) { VLCUtil.hasCompatibleCPU(context) }
+        if (!compatibleCpu) {
+            usingVlcBackend = false
+            releaseVlcPlayer()
+            val reason = VLCUtil.getErrorMsg().orEmpty().ifBlank { "libVLC CPU/ABI incompatible" }
+            MiruLog.w(
+                "HybridPlaybackController",
+                "libVLC compatibility check failed",
+                attributes = mapOf(
+                    "source_uri" to source.uri,
+                    "reason" to reason,
+                    "vlc_requested_options" to effectiveRequestedOptions.joinToString(" "),
+                ),
+            )
+            _state.value = PlaybackState.Error(source, "libVLC 兼容性检查失败: $reason")
             return
         }
         pendingLibVlcNativeSnapshotJob?.cancel()

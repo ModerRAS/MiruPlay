@@ -8,6 +8,7 @@ import android.os.Bundle
 import com.miruplay.tv.player.LibVlcStartupProbeContract
 import org.videolan.libvlc.LibVLC
 import org.videolan.libvlc.MediaPlayer
+import org.videolan.libvlc.util.VLCUtil
 
 class LibVlcStartupProbeProvider : ContentProvider() {
     override fun onCreate(): Boolean = true
@@ -108,6 +109,10 @@ internal object LibVlcStartupProbeRuntime {
         var mediaPlayer: MediaPlayer? = null
         try {
             checkpointWriter?.invoke("before_libvlc_ctor")
+            check(VLCUtil.hasCompatibleCPU(context)) {
+                VLCUtil.getErrorMsg().orEmpty().ifBlank { "libVLC CPU/ABI incompatible" }
+            }
+            checkpointWriter?.invoke("after_compat_cpu_check")
             libVlc = libVlcFactory(context, options)
             checkpointWriter?.invoke("after_libvlc_ctor")
             checkpointWriter?.invoke("before_media_player_ctor")
