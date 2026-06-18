@@ -91,6 +91,9 @@ internal object LibVlcStartupProbeRuntime {
         context: android.content.Context,
         options: List<String>,
         checkpointWriter: ((String) -> Unit)? = null,
+        loadLibraries: () -> Unit = {
+            LibVLC.loadLibraries()
+        },
         libVlcFactory: (android.content.Context, List<String>) -> LibVLC = { factoryContext, factoryOptions ->
             LibVLC(factoryContext, factoryOptions)
         },
@@ -113,6 +116,9 @@ internal object LibVlcStartupProbeRuntime {
                 VLCUtil.getErrorMsg().orEmpty().ifBlank { "libVLC CPU/ABI incompatible" }
             }
             checkpointWriter?.invoke("after_compat_cpu_check")
+            checkpointWriter?.invoke("before_load_libraries")
+            loadLibraries()
+            checkpointWriter?.invoke("after_load_libraries")
             libVlc = libVlcFactory(context, options)
             checkpointWriter?.invoke("after_libvlc_ctor")
             checkpointWriter?.invoke("before_media_player_ctor")

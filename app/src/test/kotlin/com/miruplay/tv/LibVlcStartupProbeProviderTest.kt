@@ -64,12 +64,16 @@ class LibVlcStartupProbeProviderTest {
             context = requireNotNull(provider.context),
             options = emptyList(),
             checkpointWriter = { checkpoints += it },
+            loadLibraries = { },
             libVlcFactory = { _, _ -> fakeLibVlc },
             mediaPlayerFactory = { fakeMediaPlayer },
         )
 
         assertTrue(checkpoints.contains("call_enter"))
         assertTrue(checkpoints.contains("before_libvlc_ctor"))
+        assertTrue(checkpoints.contains("after_compat_cpu_check"))
+        assertTrue(checkpoints.contains("before_load_libraries"))
+        assertTrue(checkpoints.contains("after_load_libraries"))
         assertTrue(checkpoints.contains("after_libvlc_ctor"))
         assertTrue(checkpoints.contains("before_media_player_ctor"))
         assertTrue(checkpoints.contains("after_media_player_ctor"))
