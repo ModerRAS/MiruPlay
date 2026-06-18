@@ -8,9 +8,12 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import io.mockk.mockk
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.videolan.libvlc.LibVLC
+import org.videolan.libvlc.MediaPlayer
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -46,6 +49,31 @@ class LibVlcStartupProbeProviderTest {
             listOf("--verbose=2", "--vout=android_display,none"),
             capturedOptions,
         )
+    }
+
+    @Test
+    fun `runtime emits constructor checkpoints around libvlc initialization`() {
+        val checkpoints = mutableListOf<String>()
+        val fakeLibVlc = mockk<LibVLC>(relaxed = true)
+        val fakeMediaPlayer = mockk<MediaPlayer>(relaxed = true)
+        val provider = Robolectric.buildContentProvider(LibVlcStartupProbeProvider::class.java)
+            .create()
+            .get()
+
+        LibVlcStartupProbeRuntime.run(
+            context = requireNotNull(provider.context),
+            options = emptyList(),
+            checkpointWriter = { checkpoints += it },
+            libVlcFactory = { _, _ -> fakeLibVlc },
+            mediaPlayerFactory = { fakeMediaPlayer },
+        )
+
+        assertTrue(checkpoints.contains("call_enter"))
+        assertTrue(checkpoints.contains("before_libvlc_ctor"))
+        assertTrue(checkpoints.contains("after_libvlc_ctor"))
+        assertTrue(checkpoints.contains("before_media_player_ctor"))
+        assertTrue(checkpoints.contains("after_media_player_ctor"))
+        assertTrue(checkpoints.contains("call_exit_success"))
     }
 
     @Test

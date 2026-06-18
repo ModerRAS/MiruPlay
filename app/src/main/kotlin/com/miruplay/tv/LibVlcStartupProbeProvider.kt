@@ -16,15 +16,28 @@ class LibVlcStartupProbeProvider : ContentProvider() {
         return Bundle().apply {
             when (method) {
                 LibVlcStartupProbeContract.METHOD_CAN_START_LIBVLC -> {
+                    val providerContext = requireNotNull(context) { "provider context missing" }
+                    StartupProbe.writeCheckpoint(providerContext, "libvlc_probe_call_enter")
                     val canStart = runCatching {
-                        val providerContext = requireNotNull(context) { "provider context missing" }
                         val options = extras
                             ?.getStringArrayList(LibVlcStartupProbeContract.EXTRA_LIBVLC_OPTIONS)
                             ?.toList()
                             .orEmpty()
-                        LibVlcStartupProbeRuntime.run(providerContext, options)
+                        LibVlcStartupProbeRuntime.run(
+                            context = providerContext,
+                            options = options,
+                            checkpointWriter = { stage ->
+                                StartupProbe.writeCheckpoint(providerContext, "libvlc_probe_$stage")
+                            },
+                        )
+                        StartupProbe.writeCheckpoint(providerContext, "libvlc_probe_call_success")
                         true
                     }.getOrElse { error ->
+                        StartupProbe.writeFatal(
+                            context = providerContext,
+                            checkpoint = "libvlc_probe_call_failed",
+                            throwable = error,
+                        )
                         putBoolean(LibVlcStartupProbeContract.EXTRA_CAN_START, false)
                         putString(
                             LibVlcStartupProbeContract.EXTRA_ERROR_MESSAGE,
@@ -73,16 +86,34 @@ internal object LibVlcStartupProbeRuntime {
     @Volatile
     var testOverride: ((android.content.Context, List<String>) -> Unit)? = null
 
-    fun run(context: android.content.Context, options: List<String>) {
+    fun run(
+        context: android.content.Context,
+        options: List<String>,
+        checkpointWriter: ((String) -> Unit)? = null,
+        libVlcFactory: (android.content.Context, List<String>) -> LibVLC = { factoryContext, factoryOptions ->
+            LibVLC(factoryContext, factoryOptions)
+        },
+        mediaPlayerFactory: (LibVLC) -> MediaPlayer = { factoryLibVlc ->
+            MediaPlayer(factoryLibVlc)
+        },
+    ) {
+        checkpointWriter?.invoke("call_enter")
         testOverride?.let { override ->
+            checkpointWriter?.invoke("test_override_enter")
             override(context, options)
+            checkpointWriter?.invoke("test_override_exit")
             return
         }
         var libVlc: LibVLC? = null
         var mediaPlayer: MediaPlayer? = null
         try {
-            libVlc = LibVLC(context, options)
-            mediaPlayer = MediaPlayer(libVlc)
+            checkpointWriter?.invoke("before_libvlc_ctor")
+            libVlc = libVlcFactory(context, options)
+            checkpointWriter?.invoke("after_libvlc_ctor")
+            checkpointWriter?.invoke("before_media_player_ctor")
+            mediaPlayer = mediaPlayerFactory(libVlc)
+            checkpointWriter?.invoke("after_media_player_ctor")
+            checkpointWriter?.invoke("call_exit_success")
         } finally {
             runCatching { mediaPlayer?.release() }
             runCatching { libVlc?.release() }
