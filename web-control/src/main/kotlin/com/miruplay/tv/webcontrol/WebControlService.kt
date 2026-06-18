@@ -361,7 +361,7 @@ class WebControlService @Inject constructor(
         }
 
         if (request.skipLibVlcStartupProbe != null) {
-            playbackDebugOverrides.skipLibVlcStartupProbe = request.skipLibVlcStartupProbe
+            playbackDebugOverrides.skipLibVlcStartupProbe = request.skipLibVlcStartupProbe == true
         }
 
         MiruLog.i(
