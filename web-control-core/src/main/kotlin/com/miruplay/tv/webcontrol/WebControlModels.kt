@@ -373,6 +373,7 @@ data class PlaybackDebugConfigRequest(
     val libVlcDisplayChroma: String? = null,
     val glFrameCaptureLabel: String? = null,
     val libVlcNativeSnapshotLabel: String? = null,
+    val skipLibVlcStartupProbe: Boolean? = null,
 )
 
 @Serializable
@@ -390,6 +391,7 @@ data class PlaybackDebugConfigDto(
     val libVlcDisplayChroma: String? = null,
     val pendingGlFrameCaptureLabel: String? = null,
     val pendingLibVlcNativeSnapshotLabel: String? = null,
+    val skipLibVlcStartupProbe: Boolean = false,
 )
 
 @Serializable

@@ -46,6 +46,13 @@ internal fun libVlcVoutModeFromDebugValue(value: String?): LibVlcVoutMode? =
 internal fun isDebugClearValue(value: String?): Boolean =
     value.debugKey() in setOf("clear", "reset", "null", "none", "default")
 
+internal fun debugBooleanValue(value: String?): Boolean? =
+    when (value.debugKey()) {
+        "true", "yes", "1", "on", "enable", "enabled", "skip", "bypass" -> true
+        "false", "no", "0", "off", "disable", "disabled" -> false
+        else -> null
+    }
+
 internal fun debugLabelValue(value: String?): String? =
     value
         ?.trim()

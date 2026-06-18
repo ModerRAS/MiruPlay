@@ -71,6 +71,31 @@ class WebControlPlaybackDebugConfigRouteTest {
         assertEquals("hdr10-native", request?.libVlcNativeSnapshotLabel)
     }
 
+    @Test
+    fun `PUT playback debug config can bypass libvlc startup probe`() {
+        val service = CapturingPlaybackDebugConfigService()
+        val server = NanoHttpWebControlServer(
+            webControlService = service,
+            webControlAccess = EnabledWebControlAccess,
+            staticAssets = WebControlStaticAssets { null },
+        )
+
+        val response = server.serve(
+            FakeSession(
+                method = NanoHTTPD.Method.PUT,
+                uri = "/api/playback/debug-config",
+                body = """
+                    {
+                      "skipLibVlcStartupProbe": true
+                    }
+                """.trimIndent(),
+            )
+        )
+
+        assertEquals(NanoHTTPD.Response.Status.OK, response.status)
+        assertEquals(true, service.capturedSaveRequest?.skipLibVlcStartupProbe)
+    }
+
     private object EnabledWebControlAccess : WebControlAccessManager {
         override var webControlEnabled: Boolean = true
         override val accessToken: String = "token"

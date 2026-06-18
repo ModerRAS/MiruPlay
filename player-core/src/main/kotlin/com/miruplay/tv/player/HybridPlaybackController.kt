@@ -445,8 +445,12 @@ class HybridPlaybackController @Inject constructor(
                 _currentVideoSignalDescriptor.value,
                 playbackDebugOverrides.libVlcDebugConfig,
             )
-        val startupProbeResult = withContext(Dispatchers.IO) {
-            libVlcStartupProbe.canStartLibVlc(requestedOptions)
+        val startupProbeResult = if (playbackDebugOverrides.skipLibVlcStartupProbe) {
+            LibVlcStartupProbeResult(canStart = true)
+        } else {
+            withContext(Dispatchers.IO) {
+                libVlcStartupProbe.canStartLibVlc(requestedOptions)
+            }
         }
         if (!startupProbeResult.canStart) {
             usingVlcBackend = false

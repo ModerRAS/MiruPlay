@@ -30,4 +30,14 @@ class PlaybackDebugOverridesTest {
         overrides.clearPendingLibVlcNativeSnapshotLabel("expected")
         assertNull(overrides.peekPendingLibVlcNativeSnapshotLabel())
     }
+
+    @Test
+    fun `skip libvlc startup probe defaults to false and can be toggled`() {
+        val overrides = PlaybackDebugOverrides()
+
+        assertEquals(false, overrides.skipLibVlcStartupProbe)
+
+        overrides.skipLibVlcStartupProbe = true
+        assertEquals(true, overrides.skipLibVlcStartupProbe)
+    }
 }
