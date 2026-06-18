@@ -474,21 +474,27 @@ class HybridPlaybackController @Inject constructor(
             _state.value = PlaybackState.Error(source, "libVLC 启动探测失败: $reason")
             return
         }
-        val compatibleCpu = withContext(Dispatchers.IO) { VLCUtil.hasCompatibleCPU(context) }
-        if (!compatibleCpu) {
+        val compatibilityError = withContext(Dispatchers.IO) {
+            runCatching {
+                LibVlcLibraryBootstrap.ensureCompatibleCpu(context)
+                null
+            }.getOrElse { error ->
+                error.message.orEmpty().ifBlank { "libVLC CPU/ABI incompatible" }
+            }
+        }
+        if (compatibilityError != null) {
             usingVlcBackend = false
             releaseVlcPlayer()
-            val reason = VLCUtil.getErrorMsg().orEmpty().ifBlank { "libVLC CPU/ABI incompatible" }
             MiruLog.w(
                 "HybridPlaybackController",
                 "libVLC compatibility check failed",
                 attributes = mapOf(
                     "source_uri" to source.uri,
-                    "reason" to reason,
+                    "reason" to compatibilityError,
                     "vlc_requested_options" to effectiveRequestedOptions.joinToString(" "),
                 ),
             )
-            _state.value = PlaybackState.Error(source, "libVLC 兼容性检查失败: $reason")
+            _state.value = PlaybackState.Error(source, "libVLC 兼容性检查失败: $compatibilityError")
             return
         }
         pendingLibVlcNativeSnapshotJob?.cancel()
@@ -512,6 +518,7 @@ class HybridPlaybackController @Inject constructor(
                         "vlc_effective_options" to effectiveOptions.joinToString(" "),
                     ),
                 )
+                LibVlcLibraryBootstrap.ensureLibrariesLoaded()
                 libVlc = LibVLC(context, effectiveOptions)
                 MiruLog.i(
                     "HybridPlaybackController",

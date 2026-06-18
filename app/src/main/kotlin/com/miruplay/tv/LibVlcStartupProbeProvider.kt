@@ -5,10 +5,10 @@ import android.content.ContentValues
 import android.database.Cursor
 import android.net.Uri
 import android.os.Bundle
+import com.miruplay.tv.player.LibVlcLibraryBootstrap
 import com.miruplay.tv.player.LibVlcStartupProbeContract
 import org.videolan.libvlc.LibVLC
 import org.videolan.libvlc.MediaPlayer
-import org.videolan.libvlc.util.VLCUtil
 
 class LibVlcStartupProbeProvider : ContentProvider() {
     override fun onCreate(): Boolean = true
@@ -91,8 +91,8 @@ internal object LibVlcStartupProbeRuntime {
         context: android.content.Context,
         options: List<String>,
         checkpointWriter: ((String) -> Unit)? = null,
-        loadLibraries: () -> Unit = {
-            LibVLC.loadLibraries()
+        loadLibraries: (checkpointWriter: ((String) -> Unit)?) -> Unit = { writer ->
+            LibVlcLibraryBootstrap.ensureLibrariesLoaded(checkpointWriter = writer)
         },
         libVlcFactory: (android.content.Context, List<String>) -> LibVLC = { factoryContext, factoryOptions ->
             LibVLC(factoryContext, factoryOptions)
@@ -112,12 +112,12 @@ internal object LibVlcStartupProbeRuntime {
         var mediaPlayer: MediaPlayer? = null
         try {
             checkpointWriter?.invoke("before_libvlc_ctor")
-            check(VLCUtil.hasCompatibleCPU(context)) {
-                VLCUtil.getErrorMsg().orEmpty().ifBlank { "libVLC CPU/ABI incompatible" }
-            }
-            checkpointWriter?.invoke("after_compat_cpu_check")
+            LibVlcLibraryBootstrap.ensureCompatibleCpu(
+                context = context,
+                checkpointWriter = checkpointWriter,
+            )
             checkpointWriter?.invoke("before_load_libraries")
-            loadLibraries()
+            loadLibraries(checkpointWriter)
             checkpointWriter?.invoke("after_load_libraries")
             libVlc = libVlcFactory(context, options)
             checkpointWriter?.invoke("after_libvlc_ctor")
