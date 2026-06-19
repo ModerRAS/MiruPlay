@@ -92,8 +92,7 @@
             android:name=".LibVlcStartupProbeProvider"
             android:authorities="${applicationId}.libvlc_probe"
             android:exported="false"
-            android:initOrder="90"
-            android:process=":libvlc_probe" />
+            android:initOrder="90" />
 
     </application>
 

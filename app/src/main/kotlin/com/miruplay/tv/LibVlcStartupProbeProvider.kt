@@ -17,7 +17,7 @@ class LibVlcStartupProbeProvider : ContentProvider() {
         return Bundle().apply {
             when (method) {
                 LibVlcStartupProbeContract.METHOD_CAN_START_LIBVLC -> {
-                    val providerContext = requireNotNull(context) { "provider context missing" }
+                    val providerContext = requireNotNull(context?.applicationContext) { "provider context missing" }
                     StartupProbe.writeCheckpoint(providerContext, "libvlc_probe_call_enter")
                     val canStart = runCatching {
                         val options = extras
