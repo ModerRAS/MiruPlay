@@ -28,7 +28,7 @@ protobuf = "3.25.9"
 protobuf-plugin = "0.9.6"
 onnxruntime = "1.25.1"
 icu4j = "78.3"
-libvlc = "4.0.0-eap25"
+libvlc = "3.7.4"
 
 [libraries]
 # === Compose ===
