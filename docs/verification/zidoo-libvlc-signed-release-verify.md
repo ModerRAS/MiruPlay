@@ -23,10 +23,12 @@ Repository tags fetched locally include:
 - `v0.4.492`
 - `v0.4.493`
 - `v0.4.494`
+- `v0.4.497`
 
-Install proof for the final signed verification run is recorded at:
+Install proof for signed verification runs is recorded at:
 
 - `docs/verification/evidence/v0494-install-proof.json`
+- `docs/verification/evidence/v0497-install-proof.json`
 
 ## Device-side outcomes
 
@@ -73,6 +75,9 @@ Evidence:
 - `docs/verification/evidence/v0494-dolby-vision-status.json`
 - `docs/verification/evidence/v0494-dolby-vision-library.json`
 - `docs/verification/evidence/v0494-dolby-vision-playback.png`
+- `docs/verification/evidence/v0497-dolby-vision-debug-config.json`
+- `docs/verification/evidence/v0497-dolby-vision-status.json`
+- `docs/verification/evidence/v0497-dolby-vision-logs.ndjson`
 
 ## SDR mapping basis
 
