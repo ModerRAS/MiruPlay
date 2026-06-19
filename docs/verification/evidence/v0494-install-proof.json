@@ -1,0 +1,10 @@
+{
+  "label": "MiruPlay",
+  "packageName": "com.miruplay.tv",
+  "versionName": "0.4.494",
+  "versionCode": 494,
+  "firstInstallTime": 1781869490903,
+  "isCanOpen": true,
+  "isSystemApp": false,
+  "isCanUninstall": true
+}

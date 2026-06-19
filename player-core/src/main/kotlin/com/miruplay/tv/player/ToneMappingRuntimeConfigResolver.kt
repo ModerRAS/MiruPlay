@@ -52,7 +52,7 @@ private fun backendStatusMessage(
         requestedBackend == PlaybackRenderBackend.EXPERIMENTAL_LIBVLC &&
             (ruleKey == VideoRenderRuleKey.DOLBY_VISION ||
                 signalDescriptor.signalKind == com.miruplay.tv.model.VideoSignalKind.DOLBY_VISION) -> {
-            "Dolby Vision 已走 VLC 新后端；当前版本优先保证可播，动态映射细化仍在完善。"
+            "Dolby Vision 正在使用 VLC 新后端播放。"
         }
         else -> null
     }

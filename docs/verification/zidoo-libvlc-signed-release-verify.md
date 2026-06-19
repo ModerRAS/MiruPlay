@@ -24,6 +24,10 @@ Repository tags fetched locally include:
 - `v0.4.493`
 - `v0.4.494`
 
+Install proof for the final signed verification run is recorded at:
+
+- `docs/verification/evidence/v0494-install-proof.json`
+
 ## Device-side outcomes
 
 ### `OUTPUT_CALLBACKS` finding
