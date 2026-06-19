@@ -2,6 +2,7 @@ package com.miruplay.tv.player
 
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.PlaybackRenderBackend
+import com.miruplay.tv.model.normalizeSupportedBackend
 import com.miruplay.tv.model.ToneMappingRuleSet
 import com.miruplay.tv.model.VideoRenderRuleKey
 import com.miruplay.tv.model.VideoSignalDescriptor
@@ -24,7 +25,8 @@ fun resolveToneMappingRuntimeConfig(
     val ruleKey = signalDescriptor.toRenderRuleKey()
     val appliedRuleSet = sessionRuleOverrides[ruleKey]
         ?: normalizedPreferences.rules.getValue(ruleKey)
-    val requestedBackend = requestedBackendOverride ?: normalizedPreferences.defaultBackend
+    val requestedBackend =
+        (requestedBackendOverride ?: normalizedPreferences.defaultBackend).normalizeSupportedBackend()
     val fallbackReason = backendStatusMessage(
         requestedBackend = requestedBackend,
         ruleKey = ruleKey,
@@ -48,12 +50,5 @@ private fun backendStatusMessage(
     if (requestedBackend == PlaybackRenderBackend.STANDARD_EXO) {
         return null
     }
-    return when {
-        requestedBackend == PlaybackRenderBackend.EXPERIMENTAL_LIBVLC &&
-            (ruleKey == VideoRenderRuleKey.DOLBY_VISION ||
-                signalDescriptor.signalKind == com.miruplay.tv.model.VideoSignalKind.DOLBY_VISION) -> {
-            "Dolby Vision 正在使用 VLC 新后端播放。"
-        }
-        else -> null
-    }
+    return null
 }

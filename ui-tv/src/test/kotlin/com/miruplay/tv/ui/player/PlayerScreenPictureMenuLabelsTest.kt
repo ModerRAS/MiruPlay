@@ -7,7 +7,7 @@ import org.junit.Test
 
 class PlayerScreenPictureMenuLabelsTest {
     @Test
-    fun `libvlc backend label is shown in picture menu`() {
-        assertEquals("实验 VLC", playbackBackendLabel(PlaybackRenderBackend.EXPERIMENTAL_LIBVLC))
+    fun `legacy libvlc backend label falls back to standard exo`() {
+        assertEquals("标准 Exo", playbackBackendLabel(PlaybackRenderBackend.EXPERIMENTAL_LIBVLC))
     }
 }

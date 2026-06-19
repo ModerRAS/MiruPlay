@@ -26,8 +26,8 @@ class ToneMappingRuntimeConfigResolverTest {
         )
 
         assertEquals(VideoRenderRuleKey.HDR10, config.ruleKey)
-        assertEquals(PlaybackRenderBackend.EXPERIMENTAL_LIBVLC, config.activeBackend)
-        assertEquals(PlaybackRenderBackend.EXPERIMENTAL_LIBVLC, config.requestedBackend)
+        assertEquals(PlaybackRenderBackend.STANDARD_EXO, config.activeBackend)
+        assertEquals(PlaybackRenderBackend.STANDARD_EXO, config.requestedBackend)
         assertEquals(
             preferences.rules.getValue(VideoRenderRuleKey.HDR10),
             config.appliedRuleSet,
@@ -53,7 +53,7 @@ class ToneMappingRuntimeConfigResolverTest {
     }
 
     @Test
-    fun `resolver keeps libvlc backend active for dolby vision and only reports status`() {
+    fun `resolver normalizes removed libvlc backend to standard exo for dolby vision`() {
         val preferences = FormatAwareToneMappingPreferences(
             defaultBackend = PlaybackRenderBackend.EXPERIMENTAL_LIBVLC,
             rules = FormatAwareToneMappingPreferences().rules + (
@@ -71,9 +71,9 @@ class ToneMappingRuntimeConfigResolverTest {
             requestedBackendOverride = null,
         )
 
-        assertEquals(PlaybackRenderBackend.EXPERIMENTAL_LIBVLC, config.requestedBackend)
-        assertEquals(PlaybackRenderBackend.EXPERIMENTAL_LIBVLC, config.activeBackend)
-        assertEquals("Dolby Vision 正在使用 VLC 新后端播放。", config.fallbackReason)
+        assertEquals(PlaybackRenderBackend.STANDARD_EXO, config.requestedBackend)
+        assertEquals(PlaybackRenderBackend.STANDARD_EXO, config.activeBackend)
+        assertNull(config.fallbackReason)
     }
 
     @Test
@@ -89,8 +89,8 @@ class ToneMappingRuntimeConfigResolverTest {
             requestedBackendOverride = PlaybackRenderBackend.EXPERIMENTAL_LIBVLC,
         )
 
-        assertEquals(PlaybackRenderBackend.EXPERIMENTAL_LIBVLC, config.requestedBackend)
-        assertEquals(PlaybackRenderBackend.EXPERIMENTAL_LIBVLC, config.activeBackend)
+        assertEquals(PlaybackRenderBackend.STANDARD_EXO, config.requestedBackend)
+        assertEquals(PlaybackRenderBackend.STANDARD_EXO, config.activeBackend)
         assertEquals(VideoRenderRuleKey.HDR10_PLUS, config.ruleKey)
     }
 }

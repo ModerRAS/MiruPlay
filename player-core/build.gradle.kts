@@ -9,27 +9,12 @@ plugins {
 android {
     namespace = "com.miruplay.tv.player.core"
     compileSdk = 35
-    ndkVersion = "27.2.12479018"
     defaultConfig {
         minSdk = 28
-        ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
-        }
-        externalNativeBuild {
-            cmake {
-                cppFlags += listOf("-std=c++20")
-                arguments += listOf("-DANDROID_STL=c++_static")
-            }
-        }
     }
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
-        }
-    }
-    externalNativeBuild {
-        cmake {
-            path = file("src/main/cpp/CMakeLists.txt")
         }
     }
 }
@@ -43,7 +28,6 @@ dependencies {
     implementation(libs.androidx.media3.effect)
     api(libs.androidx.media3.ui)
     api(libs.androidx.media3.session)
-    api(libs.videolan.libvlc.all)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.dagger.hilt.android)
     ksp(libs.dagger.hilt.compiler)

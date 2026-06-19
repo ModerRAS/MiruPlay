@@ -4,9 +4,6 @@ import android.content.Context
 import androidx.room.Room
 import androidx.room.migration.Migration
 import com.miruplay.tv.data.db.MiruPlayDatabase
-import com.miruplay.tv.player.ContentResolverLibVlcStartupProbe
-import com.miruplay.tv.player.LibVlcStartupProbe
-import com.miruplay.tv.player.LibVlcStartupProbeContract
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -46,14 +43,6 @@ object AppModule {
             .addMigrations(*miruPlayDatabaseMigrations())
             .build()
     }
-
-    @Provides
-    @Singleton
-    fun provideLibVlcStartupProbe(@ApplicationContext context: Context): LibVlcStartupProbe =
-        ContentResolverLibVlcStartupProbe(
-            contentResolver = context.contentResolver,
-            authority = "${context.packageName}${LibVlcStartupProbeContract.AUTHORITY_SUFFIX}",
-        )
 }
 
 internal fun miruPlayDatabaseMigrations(): Array<Migration> =

@@ -239,10 +239,10 @@ fun pictureSessionOverrideLabel(): String =
     "仅本次播放"
 
 fun playbackBackendLabel(backend: PlaybackRenderBackend): String =
-    when (backend) {
+    when (backend.normalizeSupportedBackend()) {
         PlaybackRenderBackend.STANDARD_EXO -> "标准 Exo"
         PlaybackRenderBackend.EXPERIMENTAL_GL -> "旧实验 GL"
-        PlaybackRenderBackend.EXPERIMENTAL_LIBVLC -> "实验 VLC"
+        PlaybackRenderBackend.EXPERIMENTAL_LIBVLC -> "标准 Exo"
     }
 
 fun videoRenderRuleLabel(ruleKey: VideoRenderRuleKey): String =

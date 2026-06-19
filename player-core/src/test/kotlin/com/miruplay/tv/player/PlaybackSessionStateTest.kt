@@ -19,7 +19,7 @@ class PlaybackSessionStateTest {
             .withRuleOverride(VideoRenderRuleKey.HDR10, hdr10Override)
 
         assertEquals(
-            PlaybackRenderBackend.EXPERIMENTAL_LIBVLC,
+            PlaybackRenderBackend.STANDARD_EXO,
             sessionState.effectiveRequestedBackend(PlaybackRenderBackend.STANDARD_EXO),
         )
         assertEquals(
@@ -39,7 +39,7 @@ class PlaybackSessionStateTest {
             .clearRuleOverrides()
 
         assertEquals(
-            PlaybackRenderBackend.EXPERIMENTAL_LIBVLC,
+            PlaybackRenderBackend.STANDARD_EXO,
             sessionState.effectiveRequestedBackend(PlaybackRenderBackend.STANDARD_EXO),
         )
         assertEquals(emptyMap<VideoRenderRuleKey, Nothing>(), sessionState.ruleOverrides)
@@ -75,7 +75,7 @@ class PlaybackSessionStateTest {
             .afterPlaybackReset(clearSessionState = false)
 
         assertEquals(
-            PlaybackRenderBackend.EXPERIMENTAL_LIBVLC,
+            PlaybackRenderBackend.STANDARD_EXO,
             sessionState.effectiveRequestedBackend(PlaybackRenderBackend.STANDARD_EXO),
         )
         assertEquals(hdr10Override, sessionState.ruleOverrides[VideoRenderRuleKey.HDR10])

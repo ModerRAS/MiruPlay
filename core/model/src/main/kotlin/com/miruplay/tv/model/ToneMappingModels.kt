@@ -9,6 +9,19 @@ enum class PlaybackRenderBackend {
     EXPERIMENTAL_LIBVLC,
 }
 
+fun PlaybackRenderBackend.normalizeSupportedBackend(): PlaybackRenderBackend =
+    when (this) {
+        PlaybackRenderBackend.STANDARD_EXO -> PlaybackRenderBackend.STANDARD_EXO
+        PlaybackRenderBackend.EXPERIMENTAL_GL -> PlaybackRenderBackend.EXPERIMENTAL_GL
+        PlaybackRenderBackend.EXPERIMENTAL_LIBVLC -> PlaybackRenderBackend.STANDARD_EXO
+    }
+
+fun supportedPlaybackRenderBackends(): List<PlaybackRenderBackend> =
+    listOf(
+        PlaybackRenderBackend.STANDARD_EXO,
+        PlaybackRenderBackend.EXPERIMENTAL_GL,
+    )
+
 @Serializable
 enum class VideoSignalKind {
     SDR,
@@ -191,6 +204,7 @@ data class FormatAwareToneMappingPreferences(
     fun normalized(): FormatAwareToneMappingPreferences {
         val mergedRules = defaultToneMappingRuleTable() + rules
         return copy(
+            defaultBackend = defaultBackend.normalizeSupportedBackend(),
             rules = VideoRenderRuleKey.entries.associateWith { key ->
                 val candidate = mergedRules[key] ?: defaultToneMappingRuleSet(key)
                 if (candidate.ruleKey == key) candidate else candidate.copy(ruleKey = key)

@@ -1,6 +1,7 @@
 package com.miruplay.tv.player
 
 import com.miruplay.tv.model.PlaybackRenderBackend
+import com.miruplay.tv.model.normalizeSupportedBackend
 import com.miruplay.tv.model.ToneMappingRuleSet
 import com.miruplay.tv.model.VideoRenderRuleKey
 
@@ -9,10 +10,10 @@ internal data class PlaybackSessionState(
     val ruleOverrides: Map<VideoRenderRuleKey, ToneMappingRuleSet> = emptyMap(),
 ) {
     fun effectiveRequestedBackend(defaultBackend: PlaybackRenderBackend): PlaybackRenderBackend =
-        requestedBackendOverride ?: defaultBackend
+        (requestedBackendOverride ?: defaultBackend).normalizeSupportedBackend()
 
     fun withRequestedBackendOverride(backend: PlaybackRenderBackend?): PlaybackSessionState =
-        copy(requestedBackendOverride = backend)
+        copy(requestedBackendOverride = backend?.normalizeSupportedBackend())
 
     fun withRuleOverride(
         ruleKey: VideoRenderRuleKey,

@@ -96,30 +96,8 @@ object PlayerModule {
     @Provides
     @Singleton
     fun providePlaybackController(
-        @ApplicationContext context: Context,
         exoController: ExoPlaybackController,
-        playbackPreferencesRepository: PlaybackPreferencesRepository,
-        playbackDebugOverrides: PlaybackDebugOverrides,
-        httpRequestResolver: PlaybackHttpRequestResolver,
-        libVlcStartupProbe: LibVlcStartupProbe,
-        libVlcSnapshotBridge: LibVlcSnapshotBridge,
-        libVlcFrameProbeBridge: LibVlcFrameProbeBridge,
-        libVlcOutputCallbacksBridge: LibVlcOutputCallbacksBridge,
-        libVlcVmemStreamBridge: LibVlcVmemStreamBridge,
-    ): PlaybackController {
-        return HybridPlaybackController(
-            context = context,
-            exoController = exoController,
-            playbackPreferencesRepository = playbackPreferencesRepository,
-            playbackDebugOverrides = playbackDebugOverrides,
-            httpRequestResolver = httpRequestResolver,
-            libVlcStartupProbe = libVlcStartupProbe,
-            libVlcSnapshotBridge = libVlcSnapshotBridge,
-            libVlcFrameProbeBridge = libVlcFrameProbeBridge,
-            libVlcOutputCallbacksBridge = libVlcOutputCallbacksBridge,
-            libVlcVmemStreamBridge = libVlcVmemStreamBridge,
-        )
-    }
+    ): PlaybackController = exoController
 
     @Provides
     @Singleton

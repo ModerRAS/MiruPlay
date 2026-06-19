@@ -6,7 +6,6 @@ import android.content.ContextWrapper
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.WindowManager
-import java.io.File
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -130,7 +129,6 @@ import com.miruplay.tv.ui.tv.R
 import com.miruplay.tv.ui.components.toMiruPlayInputIntent
 import com.miruplay.tv.ui.components.tvActivateKeyEvent
 import com.miruplay.tv.player.AudioTrack
-import com.miruplay.tv.player.LibVlcVoutMode
 import com.miruplay.tv.player.resolveDeviceGlEsMajorVersion
 import com.miruplay.tv.player.shouldUseDedicatedExperimentalGlSurface
 import com.miruplay.tv.ui.theme.AnimeRed
@@ -141,13 +139,8 @@ import com.miruplay.tv.ui.theme.TextSecondary
 import com.miruplay.tv.ui.theme.TvTypography
 import kotlinx.coroutines.delay
 
-private const val LIBVLC_DEBUG_CAPTURE_MIN_POSITION_MS = 1_000L
 private const val STANDARD_DEBUG_CAPTURE_MIN_POSITION_MS = 5_000L
-private const val LIBVLC_DEBUG_CAPTURE_RETRY_INTERVAL_MS = 1_500L
-private const val LIBVLC_NATIVE_SNAPSHOT_GRACE_PERIOD_MS = 2_500L
-
-private fun sanitizeDebugCaptureLabel(label: String): String =
-    label.replace(Regex("[^A-Za-z0-9._-]"), "_")
+private const val STANDARD_DEBUG_CAPTURE_RETRY_INTERVAL_MS = 1_500L
 
 @OptIn(ExperimentalTvMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -201,7 +194,6 @@ private fun PlayerScreenContent(
     val currentToneMappingRuleSet by viewModel.currentToneMappingRuleSet.collectAsStateWithLifecycle()
     val currentRequestedBackend by viewModel.currentRequestedBackend.collectAsStateWithLifecycle()
     val currentActiveBackend by viewModel.currentActiveBackend.collectAsStateWithLifecycle()
-    val currentLibVlcVoutMode = viewModel.currentLibVlcVoutMode()
     val fallbackReason by viewModel.fallbackReason.collectAsStateWithLifecycle()
     val formatAwarePreferences by viewModel.formatAwarePreferences.collectAsStateWithLifecycle()
     val keepScreenOn = playbackState.keepsScreenOn()
@@ -264,35 +256,11 @@ private fun PlayerScreenContent(
         )
     }
     var openMenu by remember { mutableStateOf<PlayerMenu?>(null) }
-    var vlcVideoHostRef by remember { mutableStateOf<LibVlcTextureVideoHostView?>(null) }
     var playerViewRef by remember { mutableStateOf<PlayerView?>(null) }
-    var lastVlcDebugCaptureAttempt by remember(playbackSource) {
-        mutableStateOf<LibVlcDebugCaptureAttempt?>(null)
-    }
     var lastStandardDebugCaptureAttempt by remember(playbackSource) {
         mutableStateOf<StandardDebugCaptureAttempt?>(null)
     }
-    var nativeSnapshotWaitState by remember(playbackSource) {
-        mutableStateOf<LibVlcNativeSnapshotWaitState?>(null)
-    }
-    val onLibVlcFrameCaptured: (String) -> Unit = { label ->
-        if (
-            shouldRequestLibVlcNativeSnapshotAfterGlCapture(
-                backend = currentActiveBackend,
-                voutMode = currentLibVlcVoutMode,
-            )
-        ) {
-            viewModel.requestLibVlcNativeSnapshot(label)
-        }
-        viewModel.clearPendingGlFrameCaptureLabel(label)
-    }
     val shouldShowExperimentalSurface = playerViewHost == PlayerViewHost.DedicatedGlSurface
-    val shouldShowVlcVideoLayout = shouldShowLibVlcVideoLayout(
-        activeBackend = currentActiveBackend,
-        requestedBackend = currentRequestedBackend,
-        hasStartedPlayback = hasStartedPlayback,
-        defaultBackend = formatAwarePreferences.defaultBackend,
-    )
     val shouldCaptureStandardDebugFrame = shouldScheduleStandardDebugCapture(
         pendingLabel = viewModel.pendingGlFrameCaptureLabel(),
         playbackState = playbackState,
@@ -337,148 +305,13 @@ private fun PlayerScreenContent(
         }
     }
 
-    LaunchedEffect(shouldShowVlcVideoLayout, currentActiveBackend, playbackState, currentPosition, vlcVideoHostRef) {
-        val pendingLabel = viewModel.pendingGlFrameCaptureLabel()
-        val decision = resolveLibVlcDebugCaptureDecision(
-            shouldShowVlcVideoLayout = shouldShowVlcVideoLayout,
-            currentActiveBackend = currentActiveBackend,
-            playbackState = playbackState,
-            currentPosition = currentPosition,
-            pendingLabel = pendingLabel,
-            hostAvailable = vlcVideoHostRef != null,
-            lastAttempt = lastVlcDebugCaptureAttempt,
-        )
-        when (decision) {
-            LibVlcDebugCaptureDecision.CAPTURE -> {
-                val label = pendingLabel ?: return@LaunchedEffect
-                val host = vlcVideoHostRef ?: return@LaunchedEffect
-                val pendingNativeLabel = viewModel.pendingLibVlcNativeSnapshotLabel()
-                if (currentActiveBackend == PlaybackRenderBackend.EXPERIMENTAL_LIBVLC && pendingNativeLabel == label) {
-                    val nowMs = System.currentTimeMillis()
-                    val waitState = nativeSnapshotWaitState
-                    if (waitState?.label != label) {
-                        nativeSnapshotWaitState = LibVlcNativeSnapshotWaitState(
-                            label = label,
-                            startedAtMs = nowMs,
-                        )
-                        return@LaunchedEffect
-                    }
-                    if (nowMs - waitState.startedAtMs < LIBVLC_NATIVE_SNAPSHOT_GRACE_PERIOD_MS) {
-                        return@LaunchedEffect
-                    }
-                }
-                nativeSnapshotWaitState = null
-                lastVlcDebugCaptureAttempt = LibVlcDebugCaptureAttempt(
-                    label = label,
-                    positionMs = maxOf(
-                        currentPosition,
-                        (playbackState as? PlaybackState.Playing)?.position ?: 0L,
-                    ),
-                )
-                Log.i(
-                    "PlayerScreen",
-                    "Scheduling libVLC debug capture label=$label positionMs=$currentPosition",
-                )
-                // Dispatch immediately here because this effect is keyed by live playback state and
-                // position updates. Delaying inside the effect can cancel the capture before it
-                // reaches the host on actively playing libVLC sessions.
-                val latestPendingLabel = viewModel.pendingGlFrameCaptureLabel()
-                if (latestPendingLabel == label) {
-                    val captureStarted = host.captureCurrentFrame(label)
-                    Log.i(
-                        "PlayerScreen",
-                        "Dispatched libVLC debug capture label=$label positionMs=$currentPosition started=$captureStarted",
-                    )
-                } else {
-                    Log.i(
-                        "PlayerScreen",
-                        "Skipping libVLC debug capture label=$label because pending label changed to $latestPendingLabel before dispatch",
-                    )
-                }
-            }
-            LibVlcDebugCaptureDecision.WAIT_FOR_PROGRESS -> {
-                if (pendingLabel != null && lastVlcDebugCaptureAttempt?.label != pendingLabel) {
-                    Log.i(
-                        "PlayerScreen",
-                        "Deferring libVLC debug capture label=$pendingLabel until playback passes ${LIBVLC_DEBUG_CAPTURE_MIN_POSITION_MS}ms; current=$currentPosition",
-                    )
-                }
-            }
-            LibVlcDebugCaptureDecision.NO_PENDING_LABEL,
-            LibVlcDebugCaptureDecision.SKIP_BACKEND,
-            LibVlcDebugCaptureDecision.WAIT_FOR_HOST,
-            LibVlcDebugCaptureDecision.WAIT_FOR_PLAYING,
-            LibVlcDebugCaptureDecision.THROTTLED,
-            -> Unit
-        }
-    }
-
     LaunchedEffect(
-        shouldShowVlcVideoLayout,
-        currentActiveBackend,
-        playbackState,
-        currentPosition,
-        pendingDebugCaptureLabel,
-    ) {
-        if (!shouldShowVlcVideoLayout || currentActiveBackend != PlaybackRenderBackend.EXPERIMENTAL_LIBVLC) {
-            nativeSnapshotWaitState = null
-            return@LaunchedEffect
-        }
-        val pendingNativeLabel = viewModel.pendingLibVlcNativeSnapshotLabel() ?: return@LaunchedEffect
-        val playingState = playbackState as? PlaybackState.Playing ?: return@LaunchedEffect
-        val effectivePosition = maxOf(currentPosition, playingState.position)
-        if (effectivePosition < LIBVLC_DEBUG_CAPTURE_MIN_POSITION_MS) {
-            return@LaunchedEffect
-        }
-        val nativeCaptureFile = File(
-            view.context.filesDir,
-            "MiruPlayLibVlcCaptures/${sanitizeDebugCaptureLabel(pendingNativeLabel)}_native.png",
-        )
-        repeat(10) {
-            val shouldKeepWaiting = if (
-                shouldRequirePendingGlLabelDuringLibVlcNativeSnapshotWait(
-                    backend = currentActiveBackend,
-                    voutMode = currentLibVlcVoutMode,
-                )
-            ) {
-                viewModel.pendingGlFrameCaptureLabel() == pendingNativeLabel
-            } else {
-                viewModel.pendingLibVlcNativeSnapshotLabel() == pendingNativeLabel
-            }
-            if (!shouldKeepWaiting) {
-                return@LaunchedEffect
-            }
-            if (nativeCaptureFile.isFile && nativeCaptureFile.length() > 0L) {
-                if (
-                    shouldClearPendingGlCaptureAfterNativeSnapshot(
-                        backend = currentActiveBackend,
-                        voutMode = currentLibVlcVoutMode,
-                    )
-                ) {
-                    viewModel.clearPendingGlFrameCaptureLabel(pendingNativeLabel)
-                }
-                nativeSnapshotWaitState = null
-                return@LaunchedEffect
-            }
-            delay(250L)
-        }
-        if (viewModel.pendingLibVlcNativeSnapshotLabel() == pendingNativeLabel) {
-            viewModel.clearPendingLibVlcNativeSnapshotLabel(pendingNativeLabel)
-            nativeSnapshotWaitState = LibVlcNativeSnapshotWaitState(
-                label = pendingNativeLabel,
-                startedAtMs = 0L,
-            )
-        }
-    }
-
-    LaunchedEffect(
-        shouldShowVlcVideoLayout,
         shouldShowExperimentalSurface,
         playbackState,
         currentPosition,
         playerViewRef,
     ) {
-        if (shouldShowVlcVideoLayout || shouldShowExperimentalSurface) {
+        if (shouldShowExperimentalSurface) {
             playerViewRef = null
             return@LaunchedEffect
         }
@@ -490,7 +323,7 @@ private fun PlayerScreenContent(
         val previousAttempt = lastStandardDebugCaptureAttempt
         if (
             previousAttempt?.label == pendingLabel &&
-            currentPosition - previousAttempt.positionMs < LIBVLC_DEBUG_CAPTURE_RETRY_INTERVAL_MS
+            currentPosition - previousAttempt.positionMs < STANDARD_DEBUG_CAPTURE_RETRY_INTERVAL_MS
         ) {
             return@LaunchedEffect
         }
@@ -534,24 +367,15 @@ private fun PlayerScreenContent(
         }
     }
 
-    DisposableEffect(shouldShowVlcVideoLayout) {
-        onDispose {
-            if (shouldShowVlcVideoLayout) {
-                viewModel.unbindVlcVideoHost()
-            }
-        }
-    }
-
     LaunchedEffect(
         playerViewHost,
         currentActiveBackend,
         currentRequestedBackend,
         shouldShowExperimentalSurface,
-        shouldShowVlcVideoLayout,
     ) {
         Log.i(
             "PlayerScreen",
-            "Resolved video host host=$playerViewHost active=$currentActiveBackend requested=$currentRequestedBackend experimental=$shouldShowExperimentalSurface vlc=$shouldShowVlcVideoLayout",
+            "Resolved video host host=$playerViewHost active=$currentActiveBackend requested=$currentRequestedBackend experimental=$shouldShowExperimentalSurface",
         )
     }
 
@@ -584,40 +408,8 @@ private fun PlayerScreenContent(
                 }
             }
     ) {
-        val player = if (shouldResolveMedia3Player(shouldShowVlcVideoLayout)) {
-            viewModel.getPlayer()
-        } else {
-            null
-        }
-        if (shouldShowVlcVideoLayout) {
-            AndroidView(
-                factory = { context ->
-                    LibVlcTextureVideoHostView(context).apply {
-                        vlcVideoHostRef = this
-                        isClickable = true
-                        isFocusable = false
-                        isFocusableInTouchMode = false
-                        setOnClickListener { viewModel.showControls() }
-                        setOnFrameCaptured(onLibVlcFrameCaptured)
-                        bindToneMappingState(
-                            ruleSet = currentToneMappingRuleSet,
-                            signalDescriptor = currentVideoSignalDescriptor,
-                        )
-                        viewModel.bindVlcVideoHost(this)
-                    }
-                },
-                update = { host ->
-                    vlcVideoHostRef = host
-                    host.setOnClickListener { viewModel.showControls() }
-                    host.setOnFrameCaptured(onLibVlcFrameCaptured)
-                    host.bindToneMappingState(
-                        ruleSet = currentToneMappingRuleSet,
-                        signalDescriptor = currentVideoSignalDescriptor,
-                    )
-                },
-                modifier = Modifier.fillMaxSize()
-            )
-        } else if (shouldShowExperimentalSurface) {
+        val player = viewModel.getPlayer()
+        if (shouldShowExperimentalSurface) {
             AndroidView(
                 factory = { context ->
                     Log.i(
@@ -783,126 +575,10 @@ private fun PlaybackState.keepsScreenOn(): Boolean =
         this is PlaybackState.Playing ||
         this is PlaybackState.Buffering
 
-internal data class LibVlcDebugCaptureAttempt(
-    val label: String,
-    val positionMs: Long,
-)
-
 internal data class StandardDebugCaptureAttempt(
     val label: String,
     val positionMs: Long,
 )
-
-internal data class LibVlcNativeSnapshotWaitState(
-    val label: String,
-    val startedAtMs: Long,
-)
-
-internal fun shouldClearPendingGlCaptureAfterNativeSnapshot(
-    backend: PlaybackRenderBackend,
-    voutMode: LibVlcVoutMode?,
-): Boolean {
-    if (backend != PlaybackRenderBackend.EXPERIMENTAL_LIBVLC) {
-        return true
-    }
-    return voutMode != LibVlcVoutMode.VMEM_STREAM
-}
-
-internal fun shouldRequestLibVlcNativeSnapshotAfterGlCapture(
-    backend: PlaybackRenderBackend,
-    voutMode: LibVlcVoutMode?,
-): Boolean =
-    backend == PlaybackRenderBackend.EXPERIMENTAL_LIBVLC &&
-        voutMode == LibVlcVoutMode.VMEM_STREAM
-
-internal fun shouldRequirePendingGlLabelDuringLibVlcNativeSnapshotWait(
-    backend: PlaybackRenderBackend,
-    voutMode: LibVlcVoutMode?,
-): Boolean =
-    !shouldRequestLibVlcNativeSnapshotAfterGlCapture(
-        backend = backend,
-        voutMode = voutMode,
-    )
-
-internal enum class LibVlcDebugCaptureDecision {
-    SKIP_BACKEND,
-    WAIT_FOR_PLAYING,
-    WAIT_FOR_PROGRESS,
-    WAIT_FOR_HOST,
-    NO_PENDING_LABEL,
-    THROTTLED,
-    CAPTURE,
-}
-
-internal fun shouldShowLibVlcVideoLayout(
-    activeBackend: PlaybackRenderBackend,
-    requestedBackend: PlaybackRenderBackend,
-    hasStartedPlayback: Boolean,
-    defaultBackend: PlaybackRenderBackend,
-): Boolean {
-    if (
-        shouldPreferLibVlcHostDuringStartup(
-            hasStartedPlayback = hasStartedPlayback,
-            requestedBackend = requestedBackend,
-            activeBackend = activeBackend,
-            defaultBackend = defaultBackend,
-        )
-    ) {
-        return true
-    }
-    if (activeBackend == PlaybackRenderBackend.EXPERIMENTAL_LIBVLC) {
-        return true
-    }
-    if (requestedBackend == PlaybackRenderBackend.EXPERIMENTAL_LIBVLC) {
-        return true
-    }
-    return !hasStartedPlayback && defaultBackend == PlaybackRenderBackend.EXPERIMENTAL_LIBVLC
-}
-
-internal fun shouldPreferLibVlcHostDuringStartup(
-    hasStartedPlayback: Boolean,
-    requestedBackend: PlaybackRenderBackend,
-    activeBackend: PlaybackRenderBackend,
-    defaultBackend: PlaybackRenderBackend,
-): Boolean =
-    hasStartedPlayback &&
-        defaultBackend == PlaybackRenderBackend.EXPERIMENTAL_LIBVLC &&
-        requestedBackend == PlaybackRenderBackend.STANDARD_EXO &&
-        activeBackend == PlaybackRenderBackend.STANDARD_EXO
-
-internal fun resolveLibVlcDebugCaptureDecision(
-    shouldShowVlcVideoLayout: Boolean,
-    currentActiveBackend: PlaybackRenderBackend,
-    playbackState: PlaybackState,
-    currentPosition: Long,
-    pendingLabel: String?,
-    hostAvailable: Boolean,
-    lastAttempt: LibVlcDebugCaptureAttempt?,
-): LibVlcDebugCaptureDecision {
-    if (!shouldShowVlcVideoLayout || currentActiveBackend != PlaybackRenderBackend.EXPERIMENTAL_LIBVLC) {
-        return LibVlcDebugCaptureDecision.SKIP_BACKEND
-    }
-    if (pendingLabel.isNullOrBlank()) {
-        return LibVlcDebugCaptureDecision.NO_PENDING_LABEL
-    }
-    if (playbackState !is PlaybackState.Playing) {
-        return LibVlcDebugCaptureDecision.WAIT_FOR_PLAYING
-    }
-    if (!hostAvailable) {
-        return LibVlcDebugCaptureDecision.WAIT_FOR_HOST
-    }
-    val effectivePosition = maxOf(currentPosition, playbackState.position)
-    if (effectivePosition < LIBVLC_DEBUG_CAPTURE_MIN_POSITION_MS) {
-        return LibVlcDebugCaptureDecision.WAIT_FOR_PROGRESS
-    }
-    if (
-        lastAttempt?.label == pendingLabel &&
-        effectivePosition - lastAttempt.positionMs < LIBVLC_DEBUG_CAPTURE_RETRY_INTERVAL_MS
-    ) {
-        return LibVlcDebugCaptureDecision.THROTTLED
-    }
-    return LibVlcDebugCaptureDecision.CAPTURE
-}
 
 internal fun shouldScheduleStandardDebugCapture(
     pendingLabel: String?,
@@ -917,10 +593,6 @@ internal fun shouldScheduleStandardDebugCapture(
     }
     return currentPosition >= STANDARD_DEBUG_CAPTURE_MIN_POSITION_MS
 }
-
-internal fun shouldResolveMedia3Player(
-    shouldShowVlcVideoLayout: Boolean,
-): Boolean = !shouldShowVlcVideoLayout
 
 internal enum class PlayerViewHost(@LayoutRes val layoutResId: Int) {
     SurfaceView(R.layout.player_view_surface),
@@ -1584,11 +1256,6 @@ internal fun PlayerOptionsPanel(
                             text = "标准 Exo",
                             selected = activeBackend == PlaybackRenderBackend.STANDARD_EXO,
                             onClick = { onSelectBackend(PlaybackRenderBackend.STANDARD_EXO) },
-                        )
-                        PlayerOptionButton(
-                            text = "实验 VLC",
-                            selected = requestedBackend == PlaybackRenderBackend.EXPERIMENTAL_LIBVLC,
-                            onClick = { onSelectBackend(PlaybackRenderBackend.EXPERIMENTAL_LIBVLC) },
                         )
                         PlayerOptionButton(
                             text = "旧实验 GL",

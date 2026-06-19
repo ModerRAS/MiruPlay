@@ -86,6 +86,8 @@ import com.miruplay.tv.repository.AppMode
 import com.miruplay.tv.repository.toMediaContentMode
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.PlaybackRenderBackend
+import com.miruplay.tv.model.normalizeSupportedBackend
+import com.miruplay.tv.model.supportedPlaybackRenderBackends
 import com.miruplay.tv.model.PosterWallArrangement
 import com.miruplay.tv.model.CLOUD_DRIVE_ROOT_DISPLAY_NAME
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
@@ -3100,11 +3102,11 @@ private fun PlaybackPanel(
         )
         Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            PlaybackRenderBackend.entries.forEach { backend ->
+            supportedPlaybackRenderBackends().forEach { backend ->
                 ScanOptionChip(
                     text = playbackBackendLabel(backend),
                     icon = if (backend == PlaybackRenderBackend.EXPERIMENTAL_GL) Icons.Filled.PhotoFilter else Icons.Filled.PlayArrow,
-                    selected = formatAwareToneMappingPreferences.defaultBackend == backend,
+                    selected = formatAwareToneMappingPreferences.defaultBackend.normalizeSupportedBackend() == backend,
                     enabled = true,
                     onClick = { onPlaybackBackendSelected(backend) },
                     modifier = Modifier.width(170.dp)

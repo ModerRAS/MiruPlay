@@ -4,6 +4,7 @@ import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.PlaybackEndAction
+import com.miruplay.tv.model.PlaybackRenderBackend
 import com.miruplay.tv.repository.PlaybackPreferencesRepository
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -32,6 +33,7 @@ class PlaybackPreferencesManager @Inject constructor(
             return runCatching {
                 stored
                     ?.takeIf { it.isNotBlank() }
+                    ?.let(::normalizeLegacyBackendPayload)
                     ?.let { json.decodeFromString<FormatAwareToneMappingPreferences>(it) }
                     ?.normalized()
                     ?: FormatAwareToneMappingPreferences()
@@ -63,3 +65,12 @@ class PlaybackPreferencesManager @Inject constructor(
         private const val KEY_FORMAT_AWARE_TONE_MAPPING_PREFERENCES = "format_aware_tone_mapping_preferences"
     }
 }
+
+private fun normalizeLegacyBackendPayload(raw: String): String =
+    raw.replace(
+        "\"defaultBackend\":\"EXPERIMENTAL_LIBVLC\"",
+        "\"defaultBackend\":\"${PlaybackRenderBackend.STANDARD_EXO.name}\"",
+    ).replace(
+        "\"requestedBackendOverride\":\"EXPERIMENTAL_LIBVLC\"",
+        "\"requestedBackendOverride\":\"${PlaybackRenderBackend.STANDARD_EXO.name}\"",
+    )

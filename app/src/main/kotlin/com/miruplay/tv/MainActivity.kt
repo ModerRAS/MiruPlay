@@ -31,6 +31,7 @@ import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.PlaybackRenderBackend
+import com.miruplay.tv.model.normalizeSupportedBackend
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.ToneMappingProfilePreset
 import com.miruplay.tv.model.VideoRenderRuleKey
@@ -234,7 +235,7 @@ class MainActivity : ComponentActivity() {
         }
         val current = playbackPreferencesManager.formatAwareToneMappingPreferences.normalized()
         val updated = current.copy(
-            defaultBackend = overrides.backend ?: current.defaultBackend,
+            defaultBackend = (overrides.backend ?: current.defaultBackend).normalizeSupportedBackend(),
             rules = if (overrides.ruleKey != null && overrides.preset != null) {
                 current.rules + (
                     overrides.ruleKey to buildToneMappingPreset(overrides.ruleKey, overrides.preset)
@@ -694,7 +695,7 @@ internal fun resolveLaunchPlaybackOverrides(
     LaunchPlaybackOverrides(
         backend = PlaybackRenderBackend.entries.firstOrNull {
             it.name.equals(rawBackend?.trim(), ignoreCase = true)
-        },
+        }?.normalizeSupportedBackend(),
         ruleKey = VideoRenderRuleKey.entries.firstOrNull {
             it.name.equals(rawRuleKey?.trim(), ignoreCase = true)
         },
