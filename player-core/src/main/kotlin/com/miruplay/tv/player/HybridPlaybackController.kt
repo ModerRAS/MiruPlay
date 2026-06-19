@@ -553,7 +553,7 @@ class HybridPlaybackController @Inject constructor(
                         ),
                     )
                     val media = when (mediaTarget) {
-                        is LibVlcMediaTarget.LocalPath -> Media(libVlc, mediaTarget.path)
+                        is LibVlcMediaTarget.LocalPath -> Media(libVlc, Uri.parse("file://${mediaTarget.path}"))
                         is LibVlcMediaTarget.Location -> Media(libVlc, Uri.parse(mediaTarget.uri))
                     }.apply {
                         setDefaultMediaPlayerOptions()
