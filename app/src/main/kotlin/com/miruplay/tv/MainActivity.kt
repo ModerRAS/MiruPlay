@@ -281,7 +281,9 @@ class MainActivity : ComponentActivity() {
             playbackDebugOverrides.forcedVideoSignalDescriptor = null
             playbackDebugOverrides.pendingGlFrameCaptureLabel = null
             playbackDebugOverrides.pendingLibVlcNativeSnapshotLabel = null
-            playbackDebugOverrides.libVlcDebugConfig = LibVlcDebugConfig()
+            playbackDebugOverrides.libVlcDebugConfig = LibVlcDebugConfig(
+                voutMode = LibVlcVoutMode.OUTPUT_CALLBACKS,
+            )
         }
     }
 
