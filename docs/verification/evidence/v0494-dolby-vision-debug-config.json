@@ -1,0 +1,17 @@
+{
+  "defaultBackend": "EXPERIMENTAL_LIBVLC",
+  "requestedBackend": "EXPERIMENTAL_LIBVLC",
+  "activeBackend": "EXPERIMENTAL_LIBVLC",
+  "forcedSignalKind": null,
+  "currentSignalKind": "DOLBY_VISION",
+  "currentSignalLabel": "Dolby Vision",
+  "currentRuleKey": "DOLBY_VISION",
+  "fallbackReason": "Dolby Vision 已走 VLC 新后端；当前版本优先保证可播，动态映射细化仍在完善。",
+  "libVlcHardwareMode": "FULL",
+  "libVlcVoutMode": "GL_SURFACE",
+  "libVlcDisplayChroma": null,
+  "pendingGlFrameCaptureLabel": null,
+  "pendingLibVlcNativeSnapshotLabel": null,
+  "skipLibVlcStartupProbe": true,
+  "skipLibVlcStartupOptions": false
+}
