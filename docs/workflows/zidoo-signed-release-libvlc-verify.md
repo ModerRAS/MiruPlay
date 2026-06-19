@@ -44,7 +44,7 @@ For current Zidoo signed-release validation, prefer:
 - vout: `GL_SURFACE`
 - `skipLibVlcStartupProbe=true`
 
-Avoid `OUTPUT_CALLBACKS` on this device; libVLC rejects the native output-callback bridge attach.
+Avoid relying on `OUTPUT_CALLBACKS` on this device; libVLC can reject the native output-callback bridge attach. Current player code now falls back to `GL_SURFACE` if that attach returns an empty handle, but `GL_SURFACE` remains the known-good target path.
 
 ## Verification checklist
 

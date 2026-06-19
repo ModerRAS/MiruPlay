@@ -641,6 +641,76 @@ class LibVlcVideoHostBindingTest {
     }
 
     @Test
+    fun `output callbacks attach failure falls back to gl surface host`() {
+        val player = mockk<MediaPlayer>(relaxed = true)
+        val vout = RecordingVlcVout()
+        val dedicatedOutputSurface = mockk<Surface>(relaxed = true)
+        val dedicatedSurfaceTexture = mockk<SurfaceTexture>(relaxed = true)
+        val outputBridge = mockk<LibVlcOutputCallbacksBridge>(relaxed = true)
+        val host = mockkClass(
+            VLCVideoLayout::class,
+            relaxed = true,
+            moreInterfaces = arrayOf(LibVlcOutputCallbackVideoHost::class, LibVlcSurfaceVideoHost::class),
+        )
+        val outputHost = host as LibVlcOutputCallbackVideoHost
+        val surfaceHost = host as LibVlcSurfaceVideoHost
+        val controller = HybridPlaybackController(
+            context = mockk<Context>(relaxed = true),
+            exoController = mockExoController(),
+            playbackPreferencesRepository = mockk<PlaybackPreferencesRepository>(relaxed = true),
+            playbackDebugOverrides = PlaybackDebugOverrides().apply {
+                libVlcDebugConfig = LibVlcDebugConfig(voutMode = LibVlcVoutMode.OUTPUT_CALLBACKS)
+            },
+            httpRequestResolver = mockk<PlaybackHttpRequestResolver>(relaxed = true),
+            libVlcSnapshotBridge = mockk<LibVlcSnapshotBridge>(relaxed = true),
+            libVlcFrameProbeBridge = mockk<LibVlcFrameProbeBridge>(relaxed = true),
+            libVlcOutputCallbacksBridge = outputBridge,
+            libVlcVmemStreamBridge = mockk<LibVlcVmemStreamBridge>(relaxed = true),
+        )
+
+        player.setPrivateField("mInstance", 55L)
+        every { player.getVLCVout() } returns vout
+        every { player.videoScale } returns MediaPlayer.ScaleType.SURFACE_BEST_FIT
+        every { host.width } returns 1920
+        every { host.height } returns 1080
+        every { host.isAttachedToWindow } returns true
+        every { host.isLaidOut } returns true
+        every { dedicatedOutputSurface.isValid } returns true
+        every { outputHost.libVlcOutputCallbackSurface() } returns dedicatedOutputSurface
+        every { outputHost.libVlcOutputCallbackWidth() } returns 1920
+        every { outputHost.libVlcOutputCallbackHeight() } returns 1080
+        every { surfaceHost.libVlcVideoSurface() } returns null
+        every { surfaceHost.libVlcVideoSurfaceTexture() } returns dedicatedSurfaceTexture
+        every { surfaceHost.libVlcVideoSurfaceWidth() } returns 1920
+        every { surfaceHost.libVlcVideoSurfaceHeight() } returns 1080
+        every {
+            outputBridge.attachOutput(
+                playerInstance = 55L,
+                surface = dedicatedOutputSurface,
+                width = 1920,
+                height = 1080,
+            )
+        } returns LibVlcOutputCallbacksAttachResult(
+            success = false,
+            resultCode = LibVlcOutputCallbacksBridge.ATTACH_FAILED,
+        )
+
+        controller.setPrivateField("vlcMediaPlayer", player)
+
+        controller.bindVlcVideoHost(host)
+
+        verify(exactly = 1) { outputHost.setLibVlcOutputCallbackEnabled(true) }
+        verify(atLeast = 1) { outputHost.setLibVlcOutputCallbackEnabled(false) }
+        verify(atLeast = 1) { surfaceHost.setLibVlcVideoSurfaceEnabled(true) }
+        assertTrue(vout.windowSizes.contains(1920 to 1080))
+        assertSame(dedicatedSurfaceTexture, vout.videoSurfaceTexture)
+        assertEquals(LibVlcVoutMode.GL_SURFACE, controller.currentLibVlcVoutMode())
+        assertEquals(false, controller.getPrivateField("usingOutputCallbackAttach"))
+        assertEquals(true, controller.getPrivateField("usingSurfaceVideoHostAttach"))
+        verify(exactly = 0) { player.attachViews(any(), any(), any(), any()) }
+    }
+
+    @Test
     fun `output callbacks ready listener should bind dedicated surface with the active player even before the field is populated`() {
         val player = mockk<MediaPlayer>(relaxed = true)
         val vout = mockk<IVLCVout>(relaxed = true)

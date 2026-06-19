@@ -117,6 +117,7 @@ class HybridPlaybackController @Inject constructor(
     private var usingSurfaceVideoHostAttach = false
     private var usingOutputCallbackAttach = false
     private var usingHiddenCarrierAttach = false
+    private var resolvedLibVlcVoutMode: LibVlcVoutMode? = null
     private var vlcSurfaceHostReadyListener: ((Boolean) -> Unit)? = null
     private var vlcOutputCallbackHostReadyListener: ((Boolean) -> Unit)? = null
 
@@ -879,7 +880,7 @@ class HybridPlaybackController @Inject constructor(
     }
 
     override fun currentLibVlcVoutMode(): LibVlcVoutMode? =
-        playbackDebugOverrides.libVlcDebugConfig.voutMode
+        resolvedLibVlcVoutMode ?: playbackDebugOverrides.libVlcDebugConfig.voutMode
 
     override fun clearPendingGlFrameCaptureLabel(label: String) {
         playbackDebugOverrides.clearPendingGlFrameCaptureLabel(label)
@@ -985,6 +986,7 @@ class HybridPlaybackController @Inject constructor(
             ),
         )
         ensureVlcHostLayoutListener(host, player)
+        resolvedLibVlcVoutMode = null
         val directTextureEnabled = shouldUseTextureViewAttach() || shouldUseHiddenTextureCarrier()
         val surfaceVideoHostEnabled = shouldUseSurfaceVideoHostAttach()
         val outputCallbackEnabled = shouldUseOutputCallbackAttach()
@@ -1136,6 +1138,7 @@ class HybridPlaybackController @Inject constructor(
                 "Attaching libVLC output callbacks host",
                 buildVlcHostStateAttributes(host, reason = "output_callbacks_attach"),
             )
+            var outputCallbacksAttachError: Throwable? = null
             val attachSucceeded = runCatching {
                 player.setVideoTrackEnabled(true)
                 val surface = outputCallbackHost.libVlcOutputCallbackSurface()
@@ -1188,8 +1191,10 @@ class HybridPlaybackController @Inject constructor(
                 usingSurfaceVideoHostAttach = false
                 usingDirectTextureAttach = false
                 usingHiddenCarrierAttach = false
+                resolvedLibVlcVoutMode = LibVlcVoutMode.OUTPUT_CALLBACKS
                 player.getVLCVout().setWindowSize(width, height)
             }.onFailure { error ->
+                outputCallbacksAttachError = error
                 activeLibVlcOutputCallbackSession?.let { session ->
                     libVlcOutputCallbacksBridge.releaseOutput(session)
                 }
@@ -1198,6 +1203,7 @@ class HybridPlaybackController @Inject constructor(
                 usingSurfaceVideoHostAttach = false
                 usingDirectTextureAttach = false
                 usingHiddenCarrierAttach = false
+                resolvedLibVlcVoutMode = null
                 MiruLog.w(
                     "HybridPlaybackController",
                     "Failed to attach libVLC output callbacks host",
@@ -1206,75 +1212,23 @@ class HybridPlaybackController @Inject constructor(
                 )
             }.isSuccess
             if (!attachSucceeded) {
-                return
+                val fallbackToGlSurface = (host as? LibVlcSurfaceVideoHost)?.let { fallbackSurfaceHost ->
+                    MiruLog.w(
+                        "HybridPlaybackController",
+                        "libVLC output callbacks attach failed; retrying with GL surface host",
+                        outputCallbacksAttachError,
+                        buildVlcHostStateAttributes(host, reason = "output_callbacks_attach_gl_surface_fallback"),
+                    )
+                    (host as? LibVlcOutputCallbackVideoHost)?.setLibVlcOutputCallbackEnabled(false)
+                    fallbackSurfaceHost.setLibVlcVideoSurfaceEnabled(true)
+                    attachLibVlcGlSurfaceHost(player, host, fallbackSurfaceHost)
+                } ?: false
+                if (!fallbackToGlSurface) {
+                    return
+                }
             }
         } else if (surfaceVideoHostEnabled && surfaceVideoHost != null) {
-            val vout = player.getVLCVout()
-            val surface = surfaceVideoHost.libVlcVideoSurface()
-            MiruLog.i(
-                "HybridPlaybackController",
-                "Attaching libVLC GL surface host",
-                buildVlcHostStateAttributes(host, reason = "surface_host_attach"),
-            )
-            emitHybridPlaybackLogInfo(
-                "Attaching libVLC GL surface host " +
-                    "surfacePresent=${surface != null} " +
-                    "surfaceValid=${runCatching { surface?.isValid }.getOrNull()} " +
-                    "surfaceHash=${surface?.hashCode()} " +
-                    "surfaceSize=${surfaceVideoHost.libVlcVideoSurfaceWidth()}x${surfaceVideoHost.libVlcVideoSurfaceHeight()} " +
-                    "viewsAttachedBefore=${runCatching { vout.areViewsAttached() }.getOrDefault(false)}",
-            )
-            runCatching {
-                player.setVideoTrackEnabled(true)
-                val boundSurfaceTexture = surfaceVideoHost.libVlcVideoSurfaceTexture()
-                if (boundSurfaceTexture != null) {
-                    vout.setVideoSurface(boundSurfaceTexture)
-                } else {
-                    val boundSurface = surface
-                        ?: error("GL surface host did not expose a Surface while GL surface mode is enabled")
-                    vout.setVideoSurface(boundSurface, null)
-                }
-                vout.attachViews(vlcOnNewVideoLayoutListener)
-                val width = surfaceVideoHost.libVlcVideoSurfaceWidth().takeIf { it > 0 } ?: host.width
-                val height = surfaceVideoHost.libVlcVideoSurfaceHeight().takeIf { it > 0 } ?: host.height
-                if (width > 0 && height > 0) {
-                    vout.setWindowSize(width, height)
-                }
-                emitHybridPlaybackLogInfo(
-                    "Attached libVLC GL surface host " +
-                        "surfaceHash=${runCatching { surface?.hashCode() }.getOrNull()} " +
-                        "surfaceTextureHash=${runCatching { boundSurfaceTexture?.hashCode() }.getOrNull()} " +
-                        "windowSize=${width}x${height} " +
-                        "viewsAttachedAfter=${runCatching { vout.areViewsAttached() }.getOrDefault(false)}",
-                )
-                usingSurfaceVideoHostAttach = true
-                usingDirectTextureAttach = false
-                usingHiddenCarrierAttach = false
-            }.onFailure { error ->
-                emitHybridPlaybackLogError(
-                    "Failed to attach libVLC GL surface host " +
-                        buildVlcHostStateAttributes(host, reason = "surface_host_attach_failed_logcat")
-                            .entries
-                            .joinToString(" ") { "${it.key}=${it.value}" },
-                    error = error,
-                )
-                usingSurfaceVideoHostAttach = false
-                usingDirectTextureAttach = false
-                usingHiddenCarrierAttach = false
-                MiruLog.w(
-                    "HybridPlaybackController",
-                    "Failed to attach libVLC GL surface host; falling back to layout attach",
-                    error,
-                    buildVlcHostStateAttributes(host, reason = "surface_host_attach_failed"),
-                )
-                (host as? LibVlcSurfaceVideoHost)?.setLibVlcVideoSurfaceEnabled(false)
-                player.attachViews(
-                    host,
-                    resolveVlcDisplayManager(host),
-                    shouldEnableSubtitleSurface(),
-                    shouldUseTextureViewAttach(),
-                )
-            }
+            attachLibVlcGlSurfaceHost(player, host, surfaceVideoHost)
         } else {
             usingDirectTextureAttach = false
             usingSurfaceVideoHostAttach = false
@@ -1294,6 +1248,85 @@ class HybridPlaybackController @Inject constructor(
         }
         logVlcVideoOutputState(player, reason = "attach_views")
         maybeStartPendingVlcPlayback(player, reason = "attach_views")
+    }
+
+    private fun attachLibVlcGlSurfaceHost(
+        player: MediaPlayer,
+        host: VLCVideoLayout,
+        surfaceVideoHost: LibVlcSurfaceVideoHost,
+    ): Boolean {
+        val vout = player.getVLCVout()
+        val surface = surfaceVideoHost.libVlcVideoSurface()
+        MiruLog.i(
+            "HybridPlaybackController",
+            "Attaching libVLC GL surface host",
+            buildVlcHostStateAttributes(host, reason = "surface_host_attach"),
+        )
+        emitHybridPlaybackLogInfo(
+            "Attaching libVLC GL surface host " +
+                "surfacePresent=${surface != null} " +
+                "surfaceValid=${runCatching { surface?.isValid }.getOrNull()} " +
+                "surfaceHash=${surface?.hashCode()} " +
+                "surfaceSize=${surfaceVideoHost.libVlcVideoSurfaceWidth()}x${surfaceVideoHost.libVlcVideoSurfaceHeight()} " +
+                "viewsAttachedBefore=${runCatching { vout.areViewsAttached() }.getOrDefault(false)}",
+        )
+        return runCatching {
+            player.setVideoTrackEnabled(true)
+            val boundSurfaceTexture = surfaceVideoHost.libVlcVideoSurfaceTexture()
+            if (boundSurfaceTexture != null) {
+                vout.setVideoSurface(boundSurfaceTexture)
+            } else {
+                val boundSurface = surface
+                    ?: error("GL surface host did not expose a Surface while GL surface mode is enabled")
+                vout.setVideoSurface(boundSurface, null)
+            }
+            vout.attachViews(vlcOnNewVideoLayoutListener)
+            val width = surfaceVideoHost.libVlcVideoSurfaceWidth().takeIf { it > 0 } ?: host.width
+            val height = surfaceVideoHost.libVlcVideoSurfaceHeight().takeIf { it > 0 } ?: host.height
+            if (width > 0 && height > 0) {
+                vout.setWindowSize(width, height)
+            }
+            emitHybridPlaybackLogInfo(
+                "Attached libVLC GL surface host " +
+                    "surfaceHash=${runCatching { surface?.hashCode() }.getOrNull()} " +
+                    "surfaceTextureHash=${runCatching { boundSurfaceTexture?.hashCode() }.getOrNull()} " +
+                    "windowSize=${width}x${height} " +
+                    "viewsAttachedAfter=${runCatching { vout.areViewsAttached() }.getOrDefault(false)}",
+            )
+            usingOutputCallbackAttach = false
+            usingSurfaceVideoHostAttach = true
+            usingDirectTextureAttach = false
+            usingHiddenCarrierAttach = false
+            resolvedLibVlcVoutMode = LibVlcVoutMode.GL_SURFACE
+            true
+        }.getOrElse { error ->
+            emitHybridPlaybackLogError(
+                "Failed to attach libVLC GL surface host " +
+                    buildVlcHostStateAttributes(host, reason = "surface_host_attach_failed_logcat")
+                        .entries
+                        .joinToString(" ") { "${it.key}=${it.value}" },
+                error = error,
+            )
+            usingOutputCallbackAttach = false
+            usingSurfaceVideoHostAttach = false
+            usingDirectTextureAttach = false
+            usingHiddenCarrierAttach = false
+            resolvedLibVlcVoutMode = null
+            MiruLog.w(
+                "HybridPlaybackController",
+                "Failed to attach libVLC GL surface host; falling back to layout attach",
+                error,
+                buildVlcHostStateAttributes(host, reason = "surface_host_attach_failed"),
+            )
+            surfaceVideoHost.setLibVlcVideoSurfaceEnabled(false)
+            player.attachViews(
+                host,
+                resolveVlcDisplayManager(host),
+                shouldEnableSubtitleSurface(),
+                shouldUseTextureViewAttach(),
+            )
+            false
+        }
     }
 
     private fun shouldUseHiddenTextureCarrier(): Boolean =

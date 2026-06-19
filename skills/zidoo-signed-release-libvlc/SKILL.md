@@ -36,7 +36,7 @@ when_to_use: Use when reproducing or validating signed-release playback on the Z
 ## Known Findings
 
 - `GL_SURFACE` is the verified working signed-release libVLC path on Zidoo.
-- `OUTPUT_CALLBACKS` is not viable on this device; the native output-callback bridge attach returns an empty handle and can cause repeated host rebind loops.
+- `OUTPUT_CALLBACKS` is still not a primary Zidoo path; the native output-callback bridge can return an empty handle. Player code now falls back to `GL_SURFACE` when that happens, but validation should still treat `GL_SURFACE` as the intended steady state.
 - If WebUI source creation drops `contentMode` or `disableOnlineMetadata`, drama/DV sources may fall back to `ANIME` and stall in Bangumi enrichment before playback validation.
 
 ## Verification
