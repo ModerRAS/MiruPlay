@@ -5,6 +5,7 @@ import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.CloudDriveLibraryMode
 import com.miruplay.tv.model.Episode
+import com.miruplay.tv.model.MediaContentMode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.RssSubscriptionInfo
@@ -39,6 +40,8 @@ data class SourceRequest(
     val displayName: String? = null,
     val username: String? = null,
     val password: String? = null,
+    val contentMode: MediaContentMode = MediaContentMode.ANIME,
+    val disableOnlineMetadata: Boolean = false,
 )
 
 @Serializable
@@ -48,6 +51,8 @@ data class SourceTestRequest(
     val displayName: String? = null,
     val username: String? = null,
     val password: String? = null,
+    val contentMode: MediaContentMode = MediaContentMode.ANIME,
+    val disableOnlineMetadata: Boolean = false,
 )
 
 @Serializable

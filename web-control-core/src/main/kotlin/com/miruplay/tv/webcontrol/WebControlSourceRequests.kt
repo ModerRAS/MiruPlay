@@ -2,6 +2,7 @@ package com.miruplay.tv.webcontrol
 
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.mediasource.MediaSourceConnectionTestResult
+import com.miruplay.tv.model.MediaContentMode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
@@ -20,17 +21,21 @@ fun SourceRequest.toMediaSourceInfo(
 ): MediaSourceInfo {
     val sourceType = parseWebControlSourceType(type)
     val sourceLocation = sourceType.webControlSourceLocation(location)
+    val connectionInfo = MediaSourceInfoConventions.sourceConnectionInfo(
+        type = sourceType,
+        location = sourceLocation,
+        displayName = displayName.orEmpty(),
+        username = username.orEmpty(),
+        password = password?.takeIf { it.isNotBlank() } ?: fallbackPassword.orEmpty(),
+    ).let { info ->
+        if (disableOnlineMetadata) info + (DISABLE_ONLINE_METADATA_KEY to true.toString()) else info
+    }
     return MediaSourceInfo(
         id = sourceId,
         name = name.trim().ifBlank { sourceType.webControlDefaultSourceName() },
         type = sourceType,
-        connectionInfo = MediaSourceInfoConventions.sourceConnectionInfo(
-            type = sourceType,
-            location = sourceLocation,
-            displayName = displayName.orEmpty(),
-            username = username.orEmpty(),
-            password = password?.takeIf { it.isNotBlank() } ?: fallbackPassword.orEmpty(),
-        ),
+        contentMode = contentMode,
+        connectionInfo = connectionInfo,
         isConnected = isConnected,
         lastScanned = lastScanned,
     )
@@ -39,16 +44,20 @@ fun SourceRequest.toMediaSourceInfo(
 fun SourceTestRequest.toMediaSourceInfo(): MediaSourceInfo {
     val sourceType = parseWebControlSourceType(type)
     val sourceLocation = sourceType.webControlSourceLocation(location)
+    val connectionInfo = MediaSourceInfoConventions.sourceConnectionInfo(
+        type = sourceType,
+        location = sourceLocation,
+        displayName = displayName.orEmpty(),
+        username = username.orEmpty(),
+        password = password.orEmpty(),
+    ).let { info ->
+        if (disableOnlineMetadata) info + (DISABLE_ONLINE_METADATA_KEY to true.toString()) else info
+    }
     return MediaSourceInfo(
         name = "test",
         type = sourceType,
-        connectionInfo = MediaSourceInfoConventions.sourceConnectionInfo(
-            type = sourceType,
-            location = sourceLocation,
-            displayName = displayName.orEmpty(),
-            username = username.orEmpty(),
-            password = password.orEmpty(),
-        ),
+        contentMode = contentMode,
+        connectionInfo = connectionInfo,
     )
 }
 
@@ -215,3 +224,5 @@ private fun MediaSourceType.webControlSourceLocation(location: String): String =
         MediaSourceType.SMB -> MediaSourceInfoConventions.normalizeSmbRoot(location)
         MediaSourceType.LOCAL, MediaSourceType.WEBDAV -> location
     }
+
+private const val DISABLE_ONLINE_METADATA_KEY = "disableOnlineMetadata"

@@ -3,6 +3,7 @@ package com.miruplay.tv.webcontrol
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.mediasource.MediaSourceConnectionTestResult
+import com.miruplay.tv.model.MediaContentMode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
@@ -23,16 +24,20 @@ class WebControlSourceRequestsTest {
             type = " local ",
             location = " D:/Anime ",
             displayName = " Anime Drive ",
+            contentMode = MediaContentMode.DRAMA,
+            disableOnlineMetadata = true,
         ).toMediaSourceInfo(isConnected = true, lastScanned = 123L)
 
         assertEquals(7L, source.id)
         assertEquals("本地媒体库", source.name)
         assertEquals(MediaSourceType.LOCAL, source.type)
+        assertEquals(MediaContentMode.DRAMA, source.contentMode)
         assertEquals(true, source.isConnected)
         assertEquals(123L, source.lastScanned)
         assertEquals("D:/Anime", source.connectionInfo[MediaSourceInfoConventions.CONNECTION_URL])
         assertEquals("D:/Anime", source.connectionInfo[MediaSourceInfoConventions.CONNECTION_PATH])
         assertEquals("Anime Drive", source.connectionInfo[MediaSourceInfoConventions.CONNECTION_DISPLAY_NAME])
+        assertEquals("true", source.connectionInfo["disableOnlineMetadata"])
     }
 
     @Test
@@ -76,11 +81,15 @@ class WebControlSourceRequestsTest {
             type = "local",
             location = " content://tree/anime ",
             displayName = "Tree",
+            contentMode = MediaContentMode.DRAMA,
+            disableOnlineMetadata = true,
         ).toMediaSourceInfo()
 
+        assertEquals(MediaContentMode.DRAMA, source.contentMode)
         assertEquals("content://tree/anime", source.connectionInfo[MediaSourceInfoConventions.CONNECTION_URL])
         assertEquals("content://tree/anime", source.connectionInfo[MediaSourceInfoConventions.CONNECTION_URI])
         assertEquals("Tree", source.connectionInfo[MediaSourceInfoConventions.CONNECTION_DISPLAY_NAME])
+        assertEquals("true", source.connectionInfo["disableOnlineMetadata"])
     }
 
     @Test

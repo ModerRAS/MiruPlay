@@ -1,5 +1,6 @@
 package com.miruplay.tv.webcontrol
 
+import com.miruplay.tv.model.MediaContentMode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.RssSubscriptionInfo
@@ -25,7 +26,7 @@ class NanoHttpWebControlServerRequestBodyTest {
             method = NanoHTTPD.Method.POST,
             uri = "/api/sources",
             contentType = "application/json",
-            body = """{"name":"ADB WebDAV 中文","type":"WEBDAV","location":"http://dav.test"}""",
+            body = """{"name":"ADB WebDAV 中文","type":"WEBDAV","location":"http://dav.test","contentMode":"DRAMA","disableOnlineMetadata":true}""",
         )
 
         val response = server.serve(session)
@@ -33,6 +34,8 @@ class NanoHttpWebControlServerRequestBodyTest {
         assertEquals(NanoHTTPD.Response.Status.OK, response.status)
         assertNotNull(service.capturedSourceRequest)
         assertEquals("ADB WebDAV 中文", service.capturedSourceRequest?.name)
+        assertEquals(MediaContentMode.DRAMA, service.capturedSourceRequest?.contentMode)
+        assertEquals(true, service.capturedSourceRequest?.disableOnlineMetadata)
     }
 
     private object EnabledWebControlAccess : WebControlAccessManager {
