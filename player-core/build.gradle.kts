@@ -42,9 +42,7 @@ dependencies {
     implementation(libs.androidx.media3.effect)
     api(libs.androidx.media3.ui)
     api(libs.androidx.media3.session)
-    api(libs.videolan.libvlc.all) {
-        exclude(group = "org.jetbrains.kotlin", module = "kotlin-stdlib")
-    }
+    api(libs.videolan.libvlc.all)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.dagger.hilt.android)
     ksp(libs.dagger.hilt.compiler)
