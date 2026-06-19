@@ -1815,6 +1815,7 @@ class HybridPlaybackController @Inject constructor(
             val height = outputCallbackHost.libVlcOutputCallbackHeight()
             return isLibVlcOutputCallbackAttachReadyForHost(
                 surfacePresent = surface != null,
+                surfaceValid = surface?.isValid == true,
                 hostWidth = width,
                 hostHeight = height,
             )
@@ -1884,6 +1885,7 @@ class HybridPlaybackController @Inject constructor(
                 outputCallbackHost?.let {
                     isLibVlcOutputCallbackAttachReadyForHost(
                         surfacePresent = it.libVlcOutputCallbackSurface() != null,
+                        surfaceValid = it.libVlcOutputCallbackSurface()?.isValid == true,
                         hostWidth = it.libVlcOutputCallbackWidth(),
                         hostHeight = it.libVlcOutputCallbackHeight(),
                     ).toString()
@@ -1930,9 +1932,10 @@ class HybridPlaybackController @Inject constructor(
 
     private fun isLibVlcOutputCallbackAttachReadyForHost(
         surfacePresent: Boolean,
+        surfaceValid: Boolean,
         hostWidth: Int,
         hostHeight: Int,
-    ): Boolean = surfacePresent && hostWidth >= 4 && hostHeight >= 4
+    ): Boolean = surfacePresent && surfaceValid && hostWidth >= 4 && hostHeight >= 4
 
     private fun findVlcSurfaceView(host: VLCVideoLayout): SurfaceView? =
         inspectVlcHostViews(host).primarySurfaceView

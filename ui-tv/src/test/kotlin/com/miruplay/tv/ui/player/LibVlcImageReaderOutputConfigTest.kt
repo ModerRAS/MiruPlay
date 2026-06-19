@@ -57,6 +57,7 @@ class LibVlcImageReaderOutputConfigTest {
         assertTrue(
             isLibVlcOutputCallbackAttachReady(
                 surfacePresent = true,
+                surfaceValid = true,
                 hostWidth = 1920,
                 hostHeight = 1080,
             ),
@@ -64,6 +65,15 @@ class LibVlcImageReaderOutputConfigTest {
         assertFalse(
             isLibVlcOutputCallbackAttachReady(
                 surfacePresent = true,
+                surfaceValid = false,
+                hostWidth = 1920,
+                hostHeight = 1080,
+            ),
+        )
+        assertFalse(
+            isLibVlcOutputCallbackAttachReady(
+                surfacePresent = true,
+                surfaceValid = true,
                 hostWidth = 0,
                 hostHeight = 1080,
             ),
@@ -71,6 +81,7 @@ class LibVlcImageReaderOutputConfigTest {
         assertFalse(
             isLibVlcOutputCallbackAttachReady(
                 surfacePresent = false,
+                surfaceValid = false,
                 hostWidth = 1920,
                 hostHeight = 1080,
             ),

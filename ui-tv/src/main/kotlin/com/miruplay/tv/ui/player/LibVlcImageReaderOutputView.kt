@@ -447,6 +447,7 @@ class LibVlcImageReaderOutputView(
     private fun isOutputSurfaceReady(): Boolean =
         isLibVlcOutputCallbackAttachReady(
             surfacePresent = imageReaderSurface != null,
+            surfaceValid = imageReaderSurface?.isValid == true,
             hostWidth = width,
             hostHeight = height,
         )
@@ -933,9 +934,14 @@ internal fun resolveLibVlcImageReaderSurfaceSize(
 
 internal fun isLibVlcOutputCallbackAttachReady(
     surfacePresent: Boolean,
+    surfaceValid: Boolean,
     hostWidth: Int,
     hostHeight: Int,
-): Boolean = surfacePresent && hostWidth >= MIN_DECODER_SURFACE_SIZE && hostHeight >= MIN_DECODER_SURFACE_SIZE
+): Boolean =
+    surfacePresent &&
+        surfaceValid &&
+        hostWidth >= MIN_DECODER_SURFACE_SIZE &&
+        hostHeight >= MIN_DECODER_SURFACE_SIZE
 
 private inline fun <T : AutoCloseable?, R> T.use(block: (T) -> R): R {
     return try {

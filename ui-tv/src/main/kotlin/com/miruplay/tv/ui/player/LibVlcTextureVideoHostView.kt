@@ -140,9 +140,11 @@ class LibVlcTextureVideoHostView @JvmOverloads constructor(
 
     override fun setOnLibVlcOutputCallbackReadyChanged(listener: ((Boolean) -> Unit)?) {
         onOutputCallbackReadyChanged = listener
+        val surface = outputCallbackSurfaceView.outputSurface()
         listener?.invoke(
             isLibVlcOutputCallbackAttachReady(
-                surfacePresent = outputCallbackSurfaceView.outputSurface() != null,
+                surfacePresent = surface != null,
+                surfaceValid = surface?.isValid == true,
                 hostWidth = libVlcOutputCallbackWidth(),
                 hostHeight = libVlcOutputCallbackHeight(),
             ),
