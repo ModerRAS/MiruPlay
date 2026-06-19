@@ -284,6 +284,7 @@ class MainActivity : ComponentActivity() {
             playbackDebugOverrides.libVlcDebugConfig = LibVlcDebugConfig(
                 voutMode = LibVlcVoutMode.OUTPUT_CALLBACKS,
             )
+            playbackDebugOverrides.skipLibVlcStartupProbe = true
         }
     }
 
