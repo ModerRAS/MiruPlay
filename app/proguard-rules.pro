@@ -69,6 +69,10 @@
 # SLF4J - jcifs-ng pulls slf4j-api without a binding implementation
 -dontwarn org.slf4j.impl.**
 
+# libVLC / VideoLAN
+-keep class org.videolan.libvlc.** { *; }
+-dontwarn org.videolan.libvlc.**
+
 # ONNX Runtime Android
 -keep class ai.onnxruntime.** { *; }
 -dontwarn ai.onnxruntime.**
