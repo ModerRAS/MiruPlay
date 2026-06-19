@@ -282,7 +282,7 @@ class MainActivity : ComponentActivity() {
             playbackDebugOverrides.pendingGlFrameCaptureLabel = null
             playbackDebugOverrides.pendingLibVlcNativeSnapshotLabel = null
             playbackDebugOverrides.libVlcDebugConfig = LibVlcDebugConfig(
-                voutMode = LibVlcVoutMode.OUTPUT_CALLBACKS,
+                voutMode = LibVlcVoutMode.GL_SURFACE,
             )
             playbackDebugOverrides.skipLibVlcStartupProbe = true
         }
