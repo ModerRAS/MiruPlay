@@ -78,3 +78,7 @@ The active libVLC path is not just detecting HDR/DV; it applies the HDR/DV rule 
 - libVLC option mapping requests BT.709 primaries and BT.1886 transfer when tone mapping is applied in `player-core/src/main/kotlin/com/miruplay/tv/player/HybridPlaybackController.kt`
 
 The device-side evidence above confirms those HDR10/DV rule keys are active during successful signed-release playback on Zidoo.
+
+## Reusable skill
+
+A repository-local skill for repeating this signed-release validation now lives at `skills/zidoo-signed-release-libvlc/SKILL.md`.
