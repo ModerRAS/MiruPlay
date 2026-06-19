@@ -1263,6 +1263,11 @@ internal fun PlayerOptionsPanel(
                             onClick = { onSelectBackend(PlaybackRenderBackend.EXPERIMENTAL_GL) },
                         )
                         PlayerOptionButton(
+                            text = "实验 mpv",
+                            selected = requestedBackend == PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID,
+                            onClick = { onSelectBackend(PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID) },
+                        )
+                        PlayerOptionButton(
                             text = "跟随默认",
                             selected = false,
                             onClick = { onSelectBackend(null) },

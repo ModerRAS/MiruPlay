@@ -242,6 +242,7 @@ fun playbackBackendLabel(backend: PlaybackRenderBackend): String =
     when (backend.normalizeSupportedBackend()) {
         PlaybackRenderBackend.STANDARD_EXO -> "标准 Exo"
         PlaybackRenderBackend.EXPERIMENTAL_GL -> "旧实验 GL"
+        PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID -> "实验 mpv"
         PlaybackRenderBackend.EXPERIMENTAL_LIBVLC -> "标准 Exo"
     }
 

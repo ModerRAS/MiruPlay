@@ -9,6 +9,7 @@ internal fun playbackRenderBackendFromDebugValue(value: String?): PlaybackRender
     when (value.debugKey()) {
         "standardexo", "standard", "exo", "media3" -> PlaybackRenderBackend.STANDARD_EXO
         "experimentalgl", "gl" -> PlaybackRenderBackend.EXPERIMENTAL_GL
+        "experimentalmpvandroid", "mpvandroid", "mpv" -> PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID
         "experimentallibvlc", "libvlc", "vlc" -> PlaybackRenderBackend.EXPERIMENTAL_LIBVLC
         else -> null
     }

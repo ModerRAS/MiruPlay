@@ -21,6 +21,7 @@ class PlayerFactoryImpl @Inject constructor(
     private val httpRequestResolver: PlaybackHttpRequestResolver,
     private val playbackPreferencesRepository: PlaybackPreferencesRepository,
     private val playbackDebugOverrides: PlaybackDebugOverrides,
+    private val externalMpvLauncher: AndroidExternalMpvLauncher,
 ) : PlayerFactory {
     override fun create(config: PlaybackConfig): PlaybackController {
         return ExoPlaybackController(
@@ -31,6 +32,7 @@ class PlayerFactoryImpl @Inject constructor(
             httpRequestResolver = httpRequestResolver,
             playbackPreferencesRepository = playbackPreferencesRepository,
             playbackDebugOverrides = playbackDebugOverrides,
+            externalMpvLauncher = externalMpvLauncher,
             config = config,
         )
     }

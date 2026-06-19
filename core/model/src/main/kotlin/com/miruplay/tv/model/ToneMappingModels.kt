@@ -6,6 +6,7 @@ import kotlinx.serialization.Serializable
 enum class PlaybackRenderBackend {
     STANDARD_EXO,
     EXPERIMENTAL_GL,
+    EXPERIMENTAL_MPV_ANDROID,
     EXPERIMENTAL_LIBVLC,
 }
 
@@ -13,6 +14,7 @@ fun PlaybackRenderBackend.normalizeSupportedBackend(): PlaybackRenderBackend =
     when (this) {
         PlaybackRenderBackend.STANDARD_EXO -> PlaybackRenderBackend.STANDARD_EXO
         PlaybackRenderBackend.EXPERIMENTAL_GL -> PlaybackRenderBackend.EXPERIMENTAL_GL
+        PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID -> PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID
         PlaybackRenderBackend.EXPERIMENTAL_LIBVLC -> PlaybackRenderBackend.STANDARD_EXO
     }
 
@@ -20,6 +22,7 @@ fun supportedPlaybackRenderBackends(): List<PlaybackRenderBackend> =
     listOf(
         PlaybackRenderBackend.STANDARD_EXO,
         PlaybackRenderBackend.EXPERIMENTAL_GL,
+        PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID,
     )
 
 @Serializable

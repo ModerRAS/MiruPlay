@@ -104,6 +104,7 @@ class ExoPlaybackControllerLazyInitTest {
             httpRequestResolver = mockk<PlaybackHttpRequestResolver>(relaxed = true),
             playbackPreferencesRepository = mockk<PlaybackPreferencesRepository>(relaxed = true),
             playbackDebugOverrides = PlaybackDebugOverrides(),
+            externalMpvLauncher = mockk<AndroidExternalMpvLauncher>(relaxed = true),
             config = PlaybackConfig(),
         )
     }

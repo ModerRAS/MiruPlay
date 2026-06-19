@@ -15,6 +15,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
+import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.PlaybackRenderBackend
@@ -27,6 +28,7 @@ import com.miruplay.tv.model.VideoRenderRuleKey
 import com.miruplay.tv.model.VideoSignalDescriptor
 import com.miruplay.tv.model.VideoSignalKind
 import com.miruplay.tv.model.defaultToneMappingRuleSet
+import com.miruplay.tv.model.normalizeSupportedBackend
 import com.miruplay.tv.repository.PlaybackPreferencesRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Provider
@@ -55,6 +57,7 @@ class ExoPlaybackController @Inject constructor(
     private val httpRequestResolver: PlaybackHttpRequestResolver,
     private val playbackPreferencesRepository: PlaybackPreferencesRepository,
     private val playbackDebugOverrides: PlaybackDebugOverrides,
+    private val externalMpvLauncher: AndroidExternalMpvLauncher,
     private val config: PlaybackConfig = PlaybackConfig(),
 ) : PlaybackController {
     private val controllerScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -85,6 +88,9 @@ class ExoPlaybackController @Inject constructor(
     private var sessionState = PlaybackSessionState()
     private val deviceGlEsMajorVersion = resolveDeviceGlEsMajorVersion(context)
     private var signalProbeCompletionJob: Job? = null
+    private var externalMpvPlaying: Boolean = false
+    private var externalMpvPositionMs: Long = 0L
+    private var externalMpvSource: PlaybackSource? = null
 
     private var standardExoPlayer: ExoPlayer? = null
     private var experimentalExoPlayer: ExoPlayer? = null
@@ -107,6 +113,11 @@ class ExoPlaybackController @Inject constructor(
             .normalized()
         _requestedRenderBackend.value = sessionState.effectiveRequestedBackend(playbackPreferences.defaultBackend)
         _sessionRuleOverrides.value = sessionState.ruleOverrides
+        refreshRuntimeConfig(null)
+        if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID) {
+            playWithExternalMpv(source)
+            return
+        }
         val httpConfig = httpRequestResolver.configFor(source)
         signalProbeCompletionJob?.cancel()
         val initialProbeResult = withContext(Dispatchers.IO) {
@@ -193,18 +204,46 @@ class ExoPlaybackController @Inject constructor(
 
     override suspend fun pause() {
         withContext(Dispatchers.Main) {
+            if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID) {
+                externalMpvPlaying = false
+                val source = externalMpvSource
+                if (source != null) {
+                    _state.value = PlaybackState.Paused(source, externalMpvPositionMs)
+                }
+                return@withContext
+            }
             activeExoPlayer().playWhenReady = false
         }
     }
 
     override suspend fun resume() {
         withContext(Dispatchers.Main) {
+            if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID) {
+                externalMpvPlaying = true
+                val source = externalMpvSource
+                if (source != null) {
+                    _state.value = PlaybackState.Playing(source, externalMpvPositionMs)
+                }
+                return@withContext
+            }
             activeExoPlayer().playWhenReady = true
         }
     }
 
     override suspend fun seekTo(positionMs: Long) {
         withContext(Dispatchers.Main) {
+            if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID) {
+                externalMpvPositionMs = positionMs.coerceAtLeast(0L)
+                val source = externalMpvSource
+                if (source != null) {
+                    _state.value = if (externalMpvPlaying) {
+                        PlaybackState.Playing(source, externalMpvPositionMs)
+                    } else {
+                        PlaybackState.Paused(source, externalMpvPositionMs)
+                    }
+                }
+                return@withContext
+            }
             activeExoPlayer().seekTo(positionMs)
             val source = currentSource
             if (source != null) {
@@ -225,18 +264,27 @@ class ExoPlaybackController @Inject constructor(
 
     suspend fun stop(clearSessionState: Boolean) {
         withContext(Dispatchers.Main) {
-            val player = activeExoPlayer()
+            val currentBackend = _activeRenderBackend.value
+            val player = activeExoPlayerOrNull()
+            val stopPositionMs = if (currentBackend == PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID) {
+                externalMpvPositionMs
+            } else {
+                player?.currentPosition ?: 0L
+            }
             currentSource?.let { source ->
                 MiruLog.i(
                     "ExoPlaybackController",
                     "Playback stopped",
                     mapOf(
                         "source_uri" to source.uri,
-                        "position_ms" to player.currentPosition.toString(),
+                        "position_ms" to stopPositionMs.toString(),
                     ),
                 )
             }
             stopAllPlayers()
+            externalMpvPlaying = false
+            externalMpvPositionMs = 0L
+            externalMpvSource = null
             dataSourceFactory.clearHttpConfig()
             currentSource = null
             autoResumeSeekCalled = false
@@ -246,7 +294,7 @@ class ExoPlaybackController @Inject constructor(
             _currentVideoSignalDescriptor.value = null
             PlaybackCodecSelectionState.decoderPreference = PlaybackDecoderPreference.DEFAULT
             sessionState = sessionState.afterPlaybackReset(clearSessionState)
-            _requestedRenderBackend.value = playbackPreferences.defaultBackend
+            _requestedRenderBackend.value = playbackPreferences.defaultBackend.normalizeSupportedBackend()
             _sessionRuleOverrides.value = sessionState.ruleOverrides
             signalProbeCompletionJob?.cancel()
             signalProbeCompletionJob = null
@@ -257,6 +305,9 @@ class ExoPlaybackController @Inject constructor(
 
     override suspend fun setPlaybackSpeed(speed: Float) {
         withContext(Dispatchers.Main) {
+            if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID) {
+                return@withContext
+            }
             activeExoPlayer().setPlaybackSpeed(speed.coerceIn(0.25f, 3.0f))
         }
     }
@@ -274,16 +325,30 @@ class ExoPlaybackController @Inject constructor(
     override fun getAvailableAudioTracks(): List<AudioTrack> = availableAudioTracks.toList()
 
     override suspend fun getCurrentPosition(): Long = withContext(Dispatchers.Main) {
-        activeExoPlayer().currentPosition
+        if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID) {
+            externalMpvPositionMs
+        } else {
+            activeExoPlayer().currentPosition
+        }
     }
 
     override suspend fun getDuration(): Long = withContext(Dispatchers.Main) {
-        activeExoPlayer().duration
+        if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID) {
+            0L
+        } else {
+            activeExoPlayer().duration
+        }
     }
 
-    override fun isPlaying(): Boolean = activeExoPlayer().isPlaying
+    override fun isPlaying(): Boolean =
+        if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID) {
+            externalMpvPlaying
+        } else {
+            activeExoPlayer().isPlaying
+        }
 
-    override fun getPlayer(): Player? = activeExoPlayer()
+    override fun getPlayer(): Player? =
+        if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID) null else activeExoPlayer()
 
     override fun usesVlcVideoLayout(): Boolean = false
 
@@ -713,11 +778,37 @@ class ExoPlaybackController @Inject constructor(
         }
     }
 
+    private suspend fun playWithExternalMpv(source: PlaybackSource) {
+        withContext(Dispatchers.Main) {
+            currentSource = source
+            externalMpvSource = source
+            externalMpvPositionMs = source.startPosition.coerceAtLeast(0L)
+            _state.value = PlaybackState.Loading(source)
+            when (val launchResult = externalMpvLauncher.launch(source)) {
+                is Result.Success -> {
+                    externalMpvPlaying = true
+                    _state.value = PlaybackState.Playing(source, externalMpvPositionMs)
+                }
+                is Result.Error -> {
+                    externalMpvPlaying = false
+                    _state.value = PlaybackState.Error(source, launchResult.error.toUserMessage())
+                }
+            }
+        }
+    }
+
     private fun activeExoPlayer(): ExoPlayer =
         if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_GL) {
             experimentalExoPlayer()
         } else {
             standardExoPlayer()
+        }
+
+    private fun activeExoPlayerOrNull(): ExoPlayer? =
+        if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_GL) {
+            experimentalPlayerOrNull()
+        } else {
+            standardPlayerOrNull()
         }
 
     private fun isCurrentPlayer(player: ExoPlayer): Boolean = player === activeExoPlayer()

@@ -79,6 +79,7 @@ object PlayerModule {
         httpRequestResolver: PlaybackHttpRequestResolver,
         playbackPreferencesRepository: PlaybackPreferencesRepository,
         playbackDebugOverrides: PlaybackDebugOverrides,
+        externalMpvLauncher: AndroidExternalMpvLauncher,
         config: PlaybackConfig,
     ): ExoPlaybackController {
         return ExoPlaybackController(
@@ -89,6 +90,7 @@ object PlayerModule {
             httpRequestResolver = httpRequestResolver,
             playbackPreferencesRepository = playbackPreferencesRepository,
             playbackDebugOverrides = playbackDebugOverrides,
+            externalMpvLauncher = externalMpvLauncher,
             config = config,
         )
     }
