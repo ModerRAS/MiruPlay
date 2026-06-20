@@ -85,6 +85,10 @@ MiruPlay/
 - Room DAOs return `Flow<List<T>>` for reactive observation
 - ViewModels use `StateFlow` for UI state
 
+### Agent Docs
+- **Agent-doc index**: Agent-only checklists, guardrails, and recurring workflow notes live under `docs/agents/`. Start from `docs/agents/README.md` to find the right file.
+- **Keep AGENTS short**: Put long agent-facing instructions in `docs/agents/` and reference them from `AGENTS.md` instead of inlining large checklists here.
+
 ### Web Control Parity
 - **Settings/menu parity is required across exposed surfaces**: If a settings-related menu item, toggle, form field, or config field changes in TV settings, WebAPI, or WebUI, update the other affected surfaces in the same change unless the user explicitly wants a surface-specific feature.
 - **Follow checklist**: Use `docs/agents/settings-web-control-parity-checklist.md` for affected layers, reverse-direction parity checks, verification, and file pointers.
