@@ -23,6 +23,7 @@ dependencies {
     api(project(":core:model"))
     implementation(project(":core:common"))
     implementation(project(":repository-api"))
+    implementation(project(":player-mpv-android"))
     api(project(":media-source"))
     api(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.effect)

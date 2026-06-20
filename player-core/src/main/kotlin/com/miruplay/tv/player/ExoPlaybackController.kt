@@ -5,6 +5,8 @@ import android.content.Intent
 import android.net.Uri
 import android.util.Log
 import android.view.View
+import android.view.ViewGroup
+import android.widget.FrameLayout
 import androidx.media3.common.C
 import androidx.media3.common.Effect
 import androidx.media3.common.Format
@@ -30,7 +32,9 @@ import com.miruplay.tv.model.VideoSignalKind
 import com.miruplay.tv.model.defaultToneMappingRuleSet
 import com.miruplay.tv.model.normalizeSupportedBackend
 import com.miruplay.tv.repository.PlaybackPreferencesRepository
+import `is`.xyz.mpv.MiruMpvSurfaceView
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.File
 import javax.inject.Provider
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -91,6 +95,12 @@ class ExoPlaybackController @Inject constructor(
     private var externalMpvPlaying: Boolean = false
     private var externalMpvPositionMs: Long = 0L
     private var externalMpvSource: PlaybackSource? = null
+    private var embeddedMpvPlaying: Boolean = false
+    private var embeddedMpvPositionMs: Long = 0L
+    private var embeddedMpvDurationMs: Long = 0L
+    private var embeddedMpvSource: PlaybackSource? = null
+    private var embeddedMpvHostView: ViewGroup? = null
+    private var embeddedMpvView: MiruMpvSurfaceView? = null
 
     private var standardExoPlayer: ExoPlayer? = null
     private var experimentalExoPlayer: ExoPlayer? = null
@@ -159,6 +169,10 @@ class ExoPlaybackController @Inject constructor(
             try {
                 ensureMediaSessionService()
                 applyVideoEffectsForCurrentConfig()
+                if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED) {
+                    playWithEmbeddedMpv(source)
+                    return@withContext
+                }
                 val player = activeExoPlayer()
                 stopInactivePlayers(player)
                 preparePlayerForPlayback(player)
@@ -212,6 +226,15 @@ class ExoPlaybackController @Inject constructor(
                 }
                 return@withContext
             }
+            if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED) {
+                embeddedMpvPlaying = false
+                embeddedMpvView?.pausePlayback()
+                val source = embeddedMpvSource
+                if (source != null) {
+                    _state.value = PlaybackState.Paused(source, embeddedMpvPositionMs)
+                }
+                return@withContext
+            }
             activeExoPlayer().playWhenReady = false
         }
     }
@@ -223,6 +246,15 @@ class ExoPlaybackController @Inject constructor(
                 val source = externalMpvSource
                 if (source != null) {
                     _state.value = PlaybackState.Playing(source, externalMpvPositionMs)
+                }
+                return@withContext
+            }
+            if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED) {
+                embeddedMpvPlaying = true
+                embeddedMpvView?.resumePlayback()
+                val source = embeddedMpvSource
+                if (source != null) {
+                    _state.value = PlaybackState.Playing(source, embeddedMpvPositionMs)
                 }
                 return@withContext
             }
@@ -240,6 +272,19 @@ class ExoPlaybackController @Inject constructor(
                         PlaybackState.Playing(source, externalMpvPositionMs)
                     } else {
                         PlaybackState.Paused(source, externalMpvPositionMs)
+                    }
+                }
+                return@withContext
+            }
+            if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED) {
+                embeddedMpvPositionMs = positionMs.coerceAtLeast(0L)
+                embeddedMpvView?.seekTo(embeddedMpvPositionMs)
+                val source = embeddedMpvSource
+                if (source != null) {
+                    _state.value = if (embeddedMpvPlaying) {
+                        PlaybackState.Playing(source, embeddedMpvPositionMs)
+                    } else {
+                        PlaybackState.Paused(source, embeddedMpvPositionMs)
                     }
                 }
                 return@withContext
@@ -266,10 +311,10 @@ class ExoPlaybackController @Inject constructor(
         withContext(Dispatchers.Main) {
             val currentBackend = _activeRenderBackend.value
             val player = activeExoPlayerOrNull()
-            val stopPositionMs = if (currentBackend == PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID) {
-                externalMpvPositionMs
-            } else {
-                player?.currentPosition ?: 0L
+            val stopPositionMs = when (currentBackend) {
+                PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID -> externalMpvPositionMs
+                PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED -> embeddedMpvPositionMs
+                else -> player?.currentPosition ?: 0L
             }
             currentSource?.let { source ->
                 MiruLog.i(
@@ -285,6 +330,11 @@ class ExoPlaybackController @Inject constructor(
             externalMpvPlaying = false
             externalMpvPositionMs = 0L
             externalMpvSource = null
+            embeddedMpvView?.stopPlayback()
+            embeddedMpvPlaying = false
+            embeddedMpvPositionMs = 0L
+            embeddedMpvDurationMs = 0L
+            embeddedMpvSource = null
             dataSourceFactory.clearHttpConfig()
             currentSource = null
             autoResumeSeekCalled = false
@@ -308,6 +358,10 @@ class ExoPlaybackController @Inject constructor(
             if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID) {
                 return@withContext
             }
+            if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED) {
+                embeddedMpvView?.let { it.applySessionOptions(embeddedSessionOptions(speed = speed.coerceIn(0.25f, 3.0f))) }
+                return@withContext
+            }
             activeExoPlayer().setPlaybackSpeed(speed.coerceIn(0.25f, 3.0f))
         }
     }
@@ -325,36 +379,57 @@ class ExoPlaybackController @Inject constructor(
     override fun getAvailableAudioTracks(): List<AudioTrack> = availableAudioTracks.toList()
 
     override suspend fun getCurrentPosition(): Long = withContext(Dispatchers.Main) {
-        if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID) {
-            externalMpvPositionMs
-        } else {
-            activeExoPlayer().currentPosition
+        when (_activeRenderBackend.value) {
+            PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID -> externalMpvPositionMs
+            PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED -> embeddedMpvPositionMs
+            else -> activeExoPlayer().currentPosition
         }
     }
 
     override suspend fun getDuration(): Long = withContext(Dispatchers.Main) {
-        if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID) {
-            0L
-        } else {
-            activeExoPlayer().duration
+        when (_activeRenderBackend.value) {
+            PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID -> 0L
+            PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED -> embeddedMpvDurationMs
+            else -> activeExoPlayer().duration
         }
     }
 
     override fun isPlaying(): Boolean =
-        if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID) {
-            externalMpvPlaying
-        } else {
-            activeExoPlayer().isPlaying
+        when (_activeRenderBackend.value) {
+            PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID -> externalMpvPlaying
+            PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED -> embeddedMpvPlaying
+            else -> activeExoPlayer().isPlaying
         }
 
     override fun getPlayer(): Player? =
-        if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID) null else activeExoPlayer()
+        when (_activeRenderBackend.value) {
+            PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID,
+            PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED -> null
+            else -> activeExoPlayer()
+        }
 
-    override fun usesVlcVideoLayout(): Boolean = false
+    override fun usesVlcVideoLayout(): Boolean =
+        _activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED ||
+            _requestedRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED
 
-    override fun bindVlcVideoHost(hostView: View) = Unit
+    override fun bindVlcVideoHost(hostView: View) {
+        val container = hostView as? ViewGroup ?: return
+        embeddedMpvHostView = container
+        val mpvView = ensureEmbeddedMpvView(container)
+        if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED) {
+            applyEmbeddedMpvSessionOptions(mpvView)
+            embeddedMpvSource?.let { source ->
+                mpvView.loadMedia(source.uri, source.startPosition)
+            }
+        }
+    }
 
-    override fun unbindVlcVideoHost() = Unit
+    override fun unbindVlcVideoHost() {
+        embeddedMpvView?.let { view ->
+            (view.parent as? ViewGroup)?.removeView(view)
+        }
+        embeddedMpvHostView = null
+    }
 
     override suspend fun setRequestedRenderBackend(backend: PlaybackRenderBackend?) {
         sessionState = sessionState.withRequestedBackendOverride(backend)
@@ -391,6 +466,9 @@ class ExoPlaybackController @Inject constructor(
     }
 
     fun release() {
+        embeddedMpvView?.releaseMpv()
+        embeddedMpvView = null
+        embeddedMpvHostView = null
         standardExoPlayer?.let { player ->
             standardListener?.let(player::removeListener)
             standardAnalyticsListener?.let(player::removeAnalyticsListener)
@@ -795,6 +873,130 @@ class ExoPlaybackController @Inject constructor(
                 }
             }
         }
+    }
+
+    private fun playWithEmbeddedMpv(source: PlaybackSource) {
+        currentSource = source
+        embeddedMpvSource = source
+        embeddedMpvPositionMs = source.startPosition.coerceAtLeast(0L)
+        embeddedMpvDurationMs = 0L
+        embeddedMpvPlaying = true
+        val host = embeddedMpvHostView
+        if (host == null) {
+            _state.value = PlaybackState.Loading(source)
+            return
+        }
+        val mpvView = ensureEmbeddedMpvView(host)
+        applyEmbeddedMpvSessionOptions(mpvView)
+        mpvView.loadMedia(source.uri, source.startPosition)
+        _state.value = PlaybackState.Playing(source, embeddedMpvPositionMs)
+    }
+
+    private fun ensureEmbeddedMpvView(container: ViewGroup): MiruMpvSurfaceView {
+        embeddedMpvView?.let { existing ->
+            if (existing.parent !== container) {
+                (existing.parent as? ViewGroup)?.removeView(existing)
+                container.removeAllViews()
+                container.addView(
+                    existing,
+                    FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                    ),
+                )
+            }
+            return existing
+        }
+        val created = MiruMpvSurfaceView(container.context).apply {
+            onStateChanged = { snapshot ->
+                embeddedMpvPositionMs = snapshot.positionMs
+                embeddedMpvDurationMs = snapshot.durationMs
+                embeddedMpvPlaying = !snapshot.paused && !snapshot.eofReached
+                embeddedMpvSource?.let { source ->
+                    _state.value = when {
+                        snapshot.eofReached -> PlaybackState.Ended(source)
+                        snapshot.paused -> PlaybackState.Paused(source, snapshot.positionMs)
+                        else -> PlaybackState.Playing(source, snapshot.positionMs)
+                    }
+                }
+            }
+            onFileLoaded = {
+                embeddedMpvSource?.let { source ->
+                    _state.value = PlaybackState.Playing(source, embeddedMpvPositionMs)
+                }
+            }
+            onPlaybackRestart = {
+                embeddedMpvSource?.let { source ->
+                    _state.value = PlaybackState.Playing(source, embeddedMpvPositionMs)
+                }
+            }
+            onLogMessage = { prefix, level, text ->
+                MiruLog.i(
+                    "EmbeddedMpv",
+                    text,
+                    mapOf(
+                        "prefix" to prefix,
+                        "level" to level.toString(),
+                    ),
+                )
+            }
+            ensureInitialized()
+        }
+        container.removeAllViews()
+        container.addView(
+            created,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            ),
+        )
+        embeddedMpvView = created
+        return created
+    }
+
+    private fun applyEmbeddedMpvSessionOptions(mpvView: MiruMpvSurfaceView) {
+        mpvView.applySessionOptions(embeddedSessionOptions())
+    }
+
+    private fun embeddedSessionOptions(speed: Float = 1.0f): MiruMpvSurfaceView.SessionOptions {
+        val ruleSet = _currentToneMappingRuleSet.value
+        val shaderDir = File(context.getExternalFilesDir(null), "mpv/shaders/active")
+        val shaderPaths = shaderDir
+            .takeIf { it.isDirectory }
+            ?.listFiles()
+            ?.filter { it.isFile && (it.extension.equals("glsl", true) || it.extension.equals("hook", true)) }
+            ?.sortedBy { it.name }
+            ?.map { it.absolutePath }
+            .orEmpty()
+        val toneMapping = when {
+            !ruleSet.enabled || ruleSet.curvePreset == com.miruplay.tv.model.ToneMappingCurvePreset.PASSTHROUGH -> null
+            ruleSet.curvePreset == com.miruplay.tv.model.ToneMappingCurvePreset.MOBIUS -> "mobius"
+            ruleSet.curvePreset == com.miruplay.tv.model.ToneMappingCurvePreset.REINHARD -> "reinhard"
+            else -> null
+        }
+        val hdrComputePeak = when (ruleSet.peakDetectionStrategy) {
+            com.miruplay.tv.model.PeakDetectionStrategy.DYNAMIC,
+            com.miruplay.tv.model.PeakDetectionStrategy.DYNAMIC_AGGRESSIVE -> true
+            else -> false
+        }
+        return MiruMpvSurfaceView.SessionOptions(
+            vo = "gpu-next",
+            hwdec = "mediacodec-copy",
+            profile = "fast",
+            targetPrim = if (ruleSet.enabled) "bt.709" else null,
+            targetTrc = if (ruleSet.enabled) "bt.1886" else null,
+            targetPeak = if (ruleSet.enabled) ruleSet.targetSdrNits else null,
+            toneMapping = toneMapping,
+            hdrComputePeak = if (ruleSet.enabled) hdrComputePeak else null,
+            deband = ruleSet.enabled,
+            shaderPaths = shaderPaths,
+            extraOptions = mapOf(
+                "speed" to speed.toString(),
+                "keep-open" to "yes",
+                "osc" to "no",
+                "input-default-bindings" to "yes",
+            ),
+        )
     }
 
     private fun activeExoPlayer(): ExoPlayer =

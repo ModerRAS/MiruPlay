@@ -6,6 +6,7 @@ import android.content.ContextWrapper
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.WindowManager
+import android.widget.FrameLayout
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -409,6 +410,7 @@ private fun PlayerScreenContent(
             }
     ) {
         val player = viewModel.getPlayer()
+        val usesNativeVideoHost = viewModel.usesVlcVideoLayout()
         if (shouldShowExperimentalSurface) {
             AndroidView(
                 factory = { context ->
@@ -455,6 +457,23 @@ private fun PlayerScreenContent(
                             glView.post { glView.captureNextRenderedFrame(label) }
                         }
                     }
+                },
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else if (usesNativeVideoHost) {
+            AndroidView(
+                factory = { context ->
+                    FrameLayout(context).apply {
+                        isClickable = true
+                        isFocusable = false
+                        isFocusableInTouchMode = false
+                        setOnClickListener { viewModel.showControls() }
+                        viewModel.bindVlcVideoHost(this)
+                    }
+                },
+                update = { host ->
+                    host.setOnClickListener { viewModel.showControls() }
+                    viewModel.bindVlcVideoHost(host)
                 },
                 modifier = Modifier.fillMaxSize(),
             )
@@ -1263,9 +1282,14 @@ internal fun PlayerOptionsPanel(
                             onClick = { onSelectBackend(PlaybackRenderBackend.EXPERIMENTAL_GL) },
                         )
                         PlayerOptionButton(
-                            text = "实验 mpv",
+                            text = "实验 mpv 外部",
                             selected = requestedBackend == PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID,
                             onClick = { onSelectBackend(PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID) },
+                        )
+                        PlayerOptionButton(
+                            text = "实验 mpv 内嵌",
+                            selected = requestedBackend == PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED,
+                            onClick = { onSelectBackend(PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED) },
                         )
                         PlayerOptionButton(
                             text = "跟随默认",

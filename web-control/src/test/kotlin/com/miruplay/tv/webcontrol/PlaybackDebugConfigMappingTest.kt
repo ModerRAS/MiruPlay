@@ -15,6 +15,8 @@ class PlaybackDebugConfigMappingTest {
         assertEquals(PlaybackRenderBackend.STANDARD_EXO, playbackRenderBackendFromDebugValue("exo"))
         assertEquals(PlaybackRenderBackend.EXPERIMENTAL_LIBVLC, playbackRenderBackendFromDebugValue("lib-vlc"))
         assertEquals(PlaybackRenderBackend.EXPERIMENTAL_GL, playbackRenderBackendFromDebugValue("experimental_gl"))
+        assertEquals(PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED, playbackRenderBackendFromDebugValue("libmpv"))
+        assertEquals(PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED, playbackRenderBackendFromDebugValue("mpv"))
         assertNull(playbackRenderBackendFromDebugValue("unknown"))
     }
 

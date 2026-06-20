@@ -117,6 +117,8 @@ class PlayerViewModel @Inject constructor(
     /** Expose Media3 Player for PlayerView rendering */
     fun getPlayer(): Player? = playbackController.getPlayer()
 
+    fun usesVlcVideoLayout(): Boolean = playbackController.usesVlcVideoLayout()
+
     fun bindVlcVideoHost(hostView: View) {
         Log.i(
             "PlayerViewModel",
