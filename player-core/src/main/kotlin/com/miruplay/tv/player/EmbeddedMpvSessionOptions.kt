@@ -17,6 +17,7 @@ internal fun buildEmbeddedMpvSessionOptions(
         profile = "fast",
         targetPrim = if (ruleSet.enabled) "bt.709" else null,
         targetTrc = if (ruleSet.enabled) "bt.1886" else null,
+        targetPeak = if (ruleSet.enabled) ruleSet.targetSdrNits else null,
         hdrReferenceWhite = if (ruleSet.enabled) ruleSet.targetSdrNits.coerceIn(80, 203) else null,
         toneMapping = resolveEmbeddedMpvToneMapping(ruleSet),
         toneMappingParam = if (ruleSet.enabled) resolveEmbeddedMpvToneMappingParam(ruleSet) else null,

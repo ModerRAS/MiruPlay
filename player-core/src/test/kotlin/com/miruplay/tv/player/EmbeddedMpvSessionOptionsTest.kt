@@ -44,6 +44,7 @@ class EmbeddedMpvSessionOptionsTest {
 
         assertEquals("bt.709", options.targetPrim)
         assertEquals("bt.1886", options.targetTrc)
+        assertEquals(120, options.targetPeak)
         assertEquals(120, options.hdrReferenceWhite)
         assertEquals("mobius", options.toneMapping)
         assertTrue((options.toneMappingParam ?: 0f) > 0.2f)
