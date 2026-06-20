@@ -164,6 +164,7 @@
                     </el-tag>
                     <div>
                       <strong>{{ source.name }}</strong>
+                      <span class="muted">{{ sourceContentModeLabel(source.contentMode) }}</span>
                       <span class="muted break-text">{{ displayPath(sourceLocation(source)) }}</span>
                     </div>
                   </div>
@@ -196,8 +197,14 @@
                     <el-option label="SMB" value="SMB" />
                   </el-select>
                 </el-form-item>
+                <el-form-item label="内容类型">
+                  <el-select v-model="sourceForm.contentMode">
+                    <el-option label="动漫" value="ANIME" />
+                    <el-option label="电视剧" value="DRAMA" />
+                  </el-select>
+                </el-form-item>
                 <el-form-item label="显示名称">
-                  <el-input v-model="sourceForm.name" placeholder="例如：NAS 动画库" />
+                  <el-input v-model="sourceForm.name" placeholder="例如：NAS 媒体库" />
                 </el-form-item>
                 <el-form-item :label="locationLabel">
                   <template v-if="sourceForm.type === 'LOCAL'">
@@ -1207,6 +1214,7 @@ const loading = reactive({
 const sourceForm = reactive({
   id: 0,
   type: 'LOCAL',
+  contentMode: 'ANIME',
   name: '',
   location: '/storage/emulated/0/Download',
   displayName: 'Download',
@@ -1734,6 +1742,7 @@ function resetSourceForm() {
   Object.assign(sourceForm, {
     id: 0,
     type: 'LOCAL',
+    contentMode: 'ANIME',
     name: '',
     location: '/storage/emulated/0/Download',
     displayName: 'Download',
@@ -1746,6 +1755,7 @@ function editSource(source) {
   Object.assign(sourceForm, {
     id: source.id,
     type: source.type,
+    contentMode: source.contentMode || 'ANIME',
     name: source.name,
     location: sourceLocation(source),
     displayName: source.connectionInfo?.displayName || folderName(sourceLocation(source)),
@@ -1770,6 +1780,7 @@ function sourcePayload() {
   return {
     id: Number(sourceForm.id || 0),
     type: sourceForm.type,
+    contentMode: sourceForm.contentMode || 'ANIME',
     name: sourceForm.name.trim(),
     location: sourceForm.location.trim(),
     displayName: sourceForm.displayName.trim() || folderName(sourceForm.location),
@@ -2511,6 +2522,10 @@ function sourceLocation(source) {
 
 function displayPath(path) {
   return safeDecodePath(path)
+}
+
+function sourceContentModeLabel(contentMode) {
+  return contentMode === 'DRAMA' ? '电视剧' : '动漫'
 }
 
 function folderName(path) {
