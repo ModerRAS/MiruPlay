@@ -45,6 +45,7 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
 
     private var initialized = false
     private var sessionOptions = SessionOptions()
+    private var appliedSessionOptions: SessionOptions? = null
     private var lastState = StateSnapshot()
 
     fun ensureInitialized() {
@@ -67,12 +68,13 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
         MPVLib.removeLogObserver(this)
         releasePlayer()
         initialized = false
+        appliedSessionOptions = null
         lastState = StateSnapshot()
     }
 
     fun applySessionOptions(options: SessionOptions) {
         sessionOptions = options
-        if (!initialized) {
+        if (!initialized || appliedSessionOptions == options) {
             return
         }
         applyRuntimeOptions(options)
@@ -80,7 +82,9 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
 
     fun loadMedia(path: String, startPositionMs: Long = 0L) {
         ensureInitialized()
-        applyRuntimeOptions(sessionOptions)
+        if (appliedSessionOptions != sessionOptions) {
+            applyRuntimeOptions(sessionOptions)
+        }
         if (startPositionMs > 0L) {
             MPVLib.setPropertyDouble("time-pos", startPositionMs / 1000.0)
         }
@@ -129,6 +133,7 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
         sessionOptions.extraOptions.forEach { (name, value) ->
             MPVLib.setOptionString(name, value)
         }
+        appliedSessionOptions = sessionOptions
     }
 
     override fun postInitOptions() = Unit
@@ -184,6 +189,7 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
         options.extraOptions.forEach { (name, value) ->
             MPVLib.setOptionString(name, value)
         }
+        appliedSessionOptions = options
     }
 
     private fun applyColorPipelineOptions(options: SessionOptions) {
