@@ -86,10 +86,9 @@ MiruPlay/
 - ViewModels use `StateFlow` for UI state
 
 ### Web Control Parity
-- **Settings/menu changes must sync WebAPI + WebUI**: When adding, removing, or changing settings-related entries, menu items, toggles, forms, or configuration fields in the TV app/settings flow, update the matching Web Control API contract and the WebUI presentation in the same change.
-- **Touch all three layers when needed**: Check TV settings UI/state (`ui-tv`), Web API models/routes/service wiring (`web-control-core` / `web-control`), and WebUI display/form submission (`web-control/frontend/src/App.vue` or related frontend files).
-- **No silent defaults for new fields**: If a new setting/menu field exists in app-side state, do not rely on server/client defaults to "probably match". Plumb it explicitly through request/response models and make it visible/editable in WebUI when that setting should be remotely inspectable or configurable.
-- **Verification expectation**: For settings/menu changes, verify at least one API path and one WebUI path still round-trip the new field correctly.
+- **Settings/menu parity is required across exposed surfaces**: If a settings-related menu item, toggle, form field, or config field changes in TV settings, WebAPI, or WebUI, update the other affected surfaces in the same change unless the user explicitly wants a surface-specific feature.
+- **Follow checklist**: Use `docs/agents/settings-web-control-parity-checklist.md` for affected layers, reverse-direction parity checks, verification, and file pointers.
+- **Subagent follow-through is allowed**: After the main settings/menu change, a focused subagent may be used to audit and finish parity work across app-side settings, WebAPI, and WebUI before finalizing.
 
 ### Testing
 - **JUnit 4 + MockK + Turbine** for Flow testing
