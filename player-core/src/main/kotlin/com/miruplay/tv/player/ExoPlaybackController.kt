@@ -899,8 +899,19 @@ class ExoPlaybackController @Inject constructor(
         embeddedMpvDurationMs = 0L
         embeddedMpvPlaying = true
         embeddedMpvPendingLoad = true
-        val host = embeddedMpvHostView
+        val boundHost = embeddedMpvHostView
+        val host = boundHost?.takeIf(::isEmbeddedMpvHostReady)
         if (host == null) {
+            MiruLog.i(
+                "EmbeddedMpv",
+                "Deferring embedded mpv load until host is ready",
+                mapOf(
+                    "has_host" to (boundHost != null).toString(),
+                    "host_attached" to (boundHost?.isAttachedToWindow == true).toString(),
+                    "host_width" to (boundHost?.width ?: 0).toString(),
+                    "host_height" to (boundHost?.height ?: 0).toString(),
+                ),
+            )
             _state.value = PlaybackState.Loading(source)
             return
         }
@@ -1099,5 +1110,8 @@ class ExoPlaybackController @Inject constructor(
 
     private fun experimentalPlayerOrNull(): ExoPlayer? = experimentalExoPlayer
 }
+
+internal fun isEmbeddedMpvHostReady(hostView: ViewGroup?): Boolean =
+    hostView?.isAttachedToWindow == true && hostView.width > 0 && hostView.height > 0
 
 typealias Tracks = androidx.media3.common.Tracks
