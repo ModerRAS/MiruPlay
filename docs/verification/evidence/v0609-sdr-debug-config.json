@@ -1,0 +1,17 @@
+{
+  "defaultBackend": "EXPERIMENTAL_MPV_EMBEDDED",
+  "requestedBackend": "EXPERIMENTAL_MPV_EMBEDDED",
+  "activeBackend": "EXPERIMENTAL_MPV_EMBEDDED",
+  "forcedSignalKind": "SDR",
+  "currentSignalKind": "SDR",
+  "currentSignalLabel": "SDR",
+  "currentRuleKey": "SDR",
+  "fallbackReason": null,
+  "libVlcHardwareMode": "FULL",
+  "libVlcVoutMode": "GL_SURFACE",
+  "libVlcDisplayChroma": null,
+  "pendingGlFrameCaptureLabel": null,
+  "pendingLibVlcNativeSnapshotLabel": null,
+  "skipLibVlcStartupProbe": true,
+  "skipLibVlcStartupOptions": false
+}
