@@ -1282,13 +1282,10 @@ internal fun PlayerOptionsPanel(
                             onClick = { onSelectBackend(PlaybackRenderBackend.EXPERIMENTAL_GL) },
                         )
                         PlayerOptionButton(
-                            text = "实验 mpv 外部",
-                            selected = requestedBackend == PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID,
-                            onClick = { onSelectBackend(PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID) },
-                        )
-                        PlayerOptionButton(
                             text = "实验 mpv 内嵌",
-                            selected = requestedBackend == PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED,
+                            selected =
+                                requestedBackend == PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED ||
+                                    requestedBackend == PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID,
                             onClick = { onSelectBackend(PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED) },
                         )
                         PlayerOptionButton(

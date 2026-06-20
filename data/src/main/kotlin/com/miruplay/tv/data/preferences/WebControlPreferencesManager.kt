@@ -17,7 +17,7 @@ class WebControlPreferencesManager @Inject constructor(
     private val prefs = context.getSharedPreferences("miruplay_web_control_prefs", Context.MODE_PRIVATE)
 
     override var webControlEnabled: Boolean
-        get() = prefs.getBoolean(KEY_WEB_CONTROL_ENABLED, false)
+        get() = prefs.getBoolean(KEY_WEB_CONTROL_ENABLED, true)
         set(value) {
             if (value) securePreferences.ensureWebControlAccessToken()
             prefs.edit().putBoolean(KEY_WEB_CONTROL_ENABLED, value).apply()

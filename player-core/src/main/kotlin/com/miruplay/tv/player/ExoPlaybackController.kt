@@ -101,6 +101,7 @@ class ExoPlaybackController @Inject constructor(
     private var embeddedMpvSource: PlaybackSource? = null
     private var embeddedMpvHostView: ViewGroup? = null
     private var embeddedMpvView: MiruMpvSurfaceView? = null
+    private var embeddedMpvPendingLoad: Boolean = false
 
     private var standardExoPlayer: ExoPlayer? = null
     private var experimentalExoPlayer: ExoPlayer? = null
@@ -330,11 +331,13 @@ class ExoPlaybackController @Inject constructor(
             externalMpvPlaying = false
             externalMpvPositionMs = 0L
             externalMpvSource = null
-            embeddedMpvView?.stopPlayback()
+            embeddedMpvView?.releaseMpv()
+            embeddedMpvView = null
             embeddedMpvPlaying = false
             embeddedMpvPositionMs = 0L
             embeddedMpvDurationMs = 0L
             embeddedMpvSource = null
+            embeddedMpvPendingLoad = false
             dataSourceFactory.clearHttpConfig()
             currentSource = null
             autoResumeSeekCalled = false
@@ -418,8 +421,11 @@ class ExoPlaybackController @Inject constructor(
         val mpvView = ensureEmbeddedMpvView(container)
         if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED) {
             applyEmbeddedMpvSessionOptions(mpvView)
-            embeddedMpvSource?.let { source ->
-                mpvView.loadMedia(source.uri, source.startPosition)
+            if (embeddedMpvPendingLoad) {
+                embeddedMpvSource?.let { source ->
+                    mpvView.loadMedia(source.uri, embeddedMpvPositionMs)
+                    embeddedMpvPendingLoad = false
+                }
             }
         }
     }
@@ -429,6 +435,7 @@ class ExoPlaybackController @Inject constructor(
             (view.parent as? ViewGroup)?.removeView(view)
         }
         embeddedMpvHostView = null
+        embeddedMpvPendingLoad = embeddedMpvSource != null
     }
 
     override suspend fun setRequestedRenderBackend(backend: PlaybackRenderBackend?) {
@@ -695,7 +702,9 @@ class ExoPlaybackController @Inject constructor(
     }
 
     private fun refreshRuntimeConfig(signalDescriptor: VideoSignalDescriptor?) {
-        val descriptor = signalDescriptor ?: VideoSignalDescriptor()
+        val descriptor = signalDescriptor
+            ?: playbackDebugOverrides.forcedVideoSignalDescriptor
+            ?: VideoSignalDescriptor()
         val config = resolveToneMappingRuntimeConfig(
             preferences = playbackPreferences.normalized(),
             sessionRuleOverrides = _sessionRuleOverrides.value,
@@ -881,14 +890,21 @@ class ExoPlaybackController @Inject constructor(
         embeddedMpvPositionMs = source.startPosition.coerceAtLeast(0L)
         embeddedMpvDurationMs = 0L
         embeddedMpvPlaying = true
+        embeddedMpvPendingLoad = true
         val host = embeddedMpvHostView
         if (host == null) {
             _state.value = PlaybackState.Loading(source)
             return
         }
+        embeddedMpvView?.releaseMpv()
+        embeddedMpvView?.let { existing ->
+            (existing.parent as? ViewGroup)?.removeView(existing)
+        }
+        embeddedMpvView = null
         val mpvView = ensureEmbeddedMpvView(host)
         applyEmbeddedMpvSessionOptions(mpvView)
-        mpvView.loadMedia(source.uri, source.startPosition)
+        mpvView.loadMedia(source.uri, embeddedMpvPositionMs)
+        embeddedMpvPendingLoad = false
         _state.value = PlaybackState.Playing(source, embeddedMpvPositionMs)
     }
 
@@ -955,7 +971,25 @@ class ExoPlaybackController @Inject constructor(
     }
 
     private fun applyEmbeddedMpvSessionOptions(mpvView: MiruMpvSurfaceView) {
-        mpvView.applySessionOptions(embeddedSessionOptions())
+        val options = embeddedSessionOptions()
+        MiruLog.i(
+            "EmbeddedMpv",
+            "Applying embedded mpv session options",
+            mapOf(
+                "vo" to options.vo,
+                "hwdec" to options.hwdec,
+                "profile" to options.profile,
+                "target_prim" to options.targetPrim.orEmpty(),
+                "target_trc" to options.targetTrc.orEmpty(),
+                "target_peak" to options.targetPeak?.toString().orEmpty(),
+                "tone_mapping" to options.toneMapping.orEmpty(),
+                "hdr_compute_peak" to options.hdrComputePeak?.toString().orEmpty(),
+                "deband" to options.deband.toString(),
+                "shader_count" to options.shaderPaths.size.toString(),
+                "shader_names" to options.shaderPaths.joinToString("|") { java.io.File(it).name },
+            ),
+        )
+        mpvView.applySessionOptions(options)
     }
 
     private fun embeddedSessionOptions(speed: Float = 1.0f): MiruMpvSurfaceView.SessionOptions {
