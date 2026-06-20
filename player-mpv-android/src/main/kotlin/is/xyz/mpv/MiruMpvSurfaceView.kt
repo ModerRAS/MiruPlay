@@ -15,8 +15,17 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
         val targetPrim: String? = null,
         val targetTrc: String? = null,
         val targetPeak: Int? = null,
+        val hdrReferenceWhite: Int? = null,
         val toneMapping: String? = null,
+        val toneMappingParam: Float? = null,
         val hdrComputePeak: Boolean? = null,
+        val hdrPeakPercentile: Float? = null,
+        val hdrPeakDecayRate: Float? = null,
+        val hdrSceneThresholdLow: Float? = null,
+        val hdrSceneThresholdHigh: Float? = null,
+        val hdrContrastRecovery: Float? = null,
+        val saturation: Float? = null,
+        val gamutMappingMode: String? = null,
         val deband: Boolean = false,
         val shaderPaths: List<String> = emptyList(),
         val extraOptions: Map<String, String> = emptyMap(),
@@ -115,16 +124,7 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
         MPVLib.setOptionString("hwdec", sessionOptions.hwdec)
         MPVLib.setOptionString("vo", sessionOptions.vo)
         MPVLib.setOptionString("save-position-on-quit", "no")
-        sessionOptions.targetPrim?.let { MPVLib.setOptionString("target-prim", it) }
-        sessionOptions.targetTrc?.let { MPVLib.setOptionString("target-trc", it) }
-        sessionOptions.targetPeak?.let { MPVLib.setOptionString("target-peak", it.toString()) }
-        sessionOptions.toneMapping?.let { MPVLib.setOptionString("tone-mapping", it) }
-        sessionOptions.hdrComputePeak?.let {
-            MPVLib.setOptionString("hdr-compute-peak", if (it) "yes" else "no")
-        }
-        if (sessionOptions.deband) {
-            MPVLib.setOptionString("deband", "yes")
-        }
+        applyColorPipelineOptions(sessionOptions)
         applyShaderOptions(sessionOptions.shaderPaths)
         sessionOptions.extraOptions.forEach { (name, value) ->
             MPVLib.setOptionString(name, value)
@@ -179,18 +179,36 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
     private fun applyRuntimeOptions(options: SessionOptions) {
         MPVLib.setOptionString("vo", options.vo)
         MPVLib.setOptionString("hwdec", options.hwdec)
-        options.targetPrim?.let { MPVLib.setOptionString("target-prim", it) }
-        options.targetTrc?.let { MPVLib.setOptionString("target-trc", it) }
-        options.targetPeak?.let { MPVLib.setOptionString("target-peak", it.toString()) }
-        options.toneMapping?.let { MPVLib.setOptionString("tone-mapping", it) }
-        options.hdrComputePeak?.let {
-            MPVLib.setOptionString("hdr-compute-peak", if (it) "yes" else "no")
-        }
-        MPVLib.setOptionString("deband", if (options.deband) "yes" else "no")
+        applyColorPipelineOptions(options)
         applyShaderOptions(options.shaderPaths)
         options.extraOptions.forEach { (name, value) ->
             MPVLib.setOptionString(name, value)
         }
+    }
+
+    private fun applyColorPipelineOptions(options: SessionOptions) {
+        MPVLib.setOptionString("target-prim", options.targetPrim ?: "auto")
+        MPVLib.setOptionString("target-trc", options.targetTrc ?: "auto")
+        MPVLib.setOptionString("target-peak", options.targetPeak?.toString() ?: "auto")
+        MPVLib.setOptionString("hdr-reference-white", options.hdrReferenceWhite?.toString() ?: "203")
+        MPVLib.setOptionString("tone-mapping", options.toneMapping ?: "auto")
+        MPVLib.setOptionString("tone-mapping-param", options.toneMappingParam?.toString() ?: "default")
+        MPVLib.setOptionString(
+            "hdr-compute-peak",
+            when (options.hdrComputePeak) {
+                true -> "yes"
+                false -> "no"
+                null -> "auto"
+            },
+        )
+        MPVLib.setOptionString("hdr-peak-percentile", options.hdrPeakPercentile?.toString() ?: "100")
+        MPVLib.setOptionString("hdr-peak-decay-rate", options.hdrPeakDecayRate?.toString() ?: "20")
+        MPVLib.setOptionString("hdr-scene-threshold-low", options.hdrSceneThresholdLow?.toString() ?: "1")
+        MPVLib.setOptionString("hdr-scene-threshold-high", options.hdrSceneThresholdHigh?.toString() ?: "3")
+        MPVLib.setOptionString("hdr-contrast-recovery", options.hdrContrastRecovery?.toString() ?: "0")
+        MPVLib.setOptionString("saturation", options.saturation?.toString() ?: "0")
+        MPVLib.setOptionString("gamut-mapping-mode", options.gamutMappingMode ?: "auto")
+        MPVLib.setOptionString("deband", if (options.deband) "yes" else "no")
     }
 
     private fun applyShaderOptions(shaderPaths: List<String>) {

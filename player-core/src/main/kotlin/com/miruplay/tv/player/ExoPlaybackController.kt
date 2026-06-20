@@ -102,6 +102,7 @@ class ExoPlaybackController @Inject constructor(
     private var embeddedMpvHostView: ViewGroup? = null
     private var embeddedMpvView: MiruMpvSurfaceView? = null
     private var embeddedMpvPendingLoad: Boolean = false
+    private var embeddedMpvPlaybackSpeed: Float = 1.0f
 
     private var standardExoPlayer: ExoPlayer? = null
     private var experimentalExoPlayer: ExoPlayer? = null
@@ -338,6 +339,7 @@ class ExoPlaybackController @Inject constructor(
             embeddedMpvDurationMs = 0L
             embeddedMpvSource = null
             embeddedMpvPendingLoad = false
+            embeddedMpvPlaybackSpeed = 1.0f
             dataSourceFactory.clearHttpConfig()
             currentSource = null
             autoResumeSeekCalled = false
@@ -362,7 +364,8 @@ class ExoPlaybackController @Inject constructor(
                 return@withContext
             }
             if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED) {
-                embeddedMpvView?.let { it.applySessionOptions(embeddedSessionOptions(speed = speed.coerceIn(0.25f, 3.0f))) }
+                embeddedMpvPlaybackSpeed = speed.coerceIn(0.25f, 3.0f)
+                embeddedMpvView?.let { it.applySessionOptions(embeddedSessionOptions(speed = embeddedMpvPlaybackSpeed)) }
                 return@withContext
             }
             activeExoPlayer().setPlaybackSpeed(speed.coerceIn(0.25f, 3.0f))
@@ -420,7 +423,7 @@ class ExoPlaybackController @Inject constructor(
         embeddedMpvHostView = container
         val mpvView = ensureEmbeddedMpvView(container)
         if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED) {
-            applyEmbeddedMpvSessionOptions(mpvView)
+            applyEmbeddedMpvSessionOptions(mpvView, speed = embeddedMpvPlaybackSpeed)
             if (embeddedMpvPendingLoad) {
                 embeddedMpvSource?.let { source ->
                     mpvView.loadMedia(source.uri, embeddedMpvPositionMs)
@@ -735,6 +738,11 @@ class ExoPlaybackController @Inject constructor(
         _currentToneMappingRuleSet.value = config.appliedRuleSet
         _activeRenderBackend.value = config.activeBackend
         _fallbackReason.value = config.fallbackReason
+        if (config.activeBackend == PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED) {
+            embeddedMpvView?.let { view ->
+                applyEmbeddedMpvSessionOptions(view, speed = embeddedMpvPlaybackSpeed)
+            }
+        }
         MiruLog.i(
             "ExoPlaybackController",
             "Tone mapping runtime config refreshed",
@@ -902,7 +910,7 @@ class ExoPlaybackController @Inject constructor(
         }
         embeddedMpvView = null
         val mpvView = ensureEmbeddedMpvView(host)
-        applyEmbeddedMpvSessionOptions(mpvView)
+        applyEmbeddedMpvSessionOptions(mpvView, speed = embeddedMpvPlaybackSpeed)
         mpvView.loadMedia(source.uri, embeddedMpvPositionMs)
         embeddedMpvPendingLoad = false
         _state.value = PlaybackState.Playing(source, embeddedMpvPositionMs)
@@ -970,8 +978,11 @@ class ExoPlaybackController @Inject constructor(
         return created
     }
 
-    private fun applyEmbeddedMpvSessionOptions(mpvView: MiruMpvSurfaceView) {
-        val options = embeddedSessionOptions()
+    private fun applyEmbeddedMpvSessionOptions(
+        mpvView: MiruMpvSurfaceView,
+        speed: Float = embeddedMpvPlaybackSpeed,
+    ) {
+        val options = embeddedSessionOptions(speed = speed)
         MiruLog.i(
             "EmbeddedMpv",
             "Applying embedded mpv session options",
@@ -982,8 +993,17 @@ class ExoPlaybackController @Inject constructor(
                 "target_prim" to options.targetPrim.orEmpty(),
                 "target_trc" to options.targetTrc.orEmpty(),
                 "target_peak" to options.targetPeak?.toString().orEmpty(),
+                "hdr_reference_white" to options.hdrReferenceWhite?.toString().orEmpty(),
                 "tone_mapping" to options.toneMapping.orEmpty(),
+                "tone_mapping_param" to options.toneMappingParam?.toString().orEmpty(),
                 "hdr_compute_peak" to options.hdrComputePeak?.toString().orEmpty(),
+                "hdr_peak_percentile" to options.hdrPeakPercentile?.toString().orEmpty(),
+                "hdr_peak_decay_rate" to options.hdrPeakDecayRate?.toString().orEmpty(),
+                "hdr_scene_threshold_low" to options.hdrSceneThresholdLow?.toString().orEmpty(),
+                "hdr_scene_threshold_high" to options.hdrSceneThresholdHigh?.toString().orEmpty(),
+                "hdr_contrast_recovery" to options.hdrContrastRecovery?.toString().orEmpty(),
+                "saturation" to options.saturation?.toString().orEmpty(),
+                "gamut_mapping_mode" to options.gamutMappingMode.orEmpty(),
                 "deband" to options.deband.toString(),
                 "shader_count" to options.shaderPaths.size.toString(),
                 "shader_names" to options.shaderPaths.joinToString("|") { java.io.File(it).name },
@@ -992,7 +1012,7 @@ class ExoPlaybackController @Inject constructor(
         mpvView.applySessionOptions(options)
     }
 
-    private fun embeddedSessionOptions(speed: Float = 1.0f): MiruMpvSurfaceView.SessionOptions {
+    private fun embeddedSessionOptions(speed: Float = embeddedMpvPlaybackSpeed): MiruMpvSurfaceView.SessionOptions {
         val ruleSet = _currentToneMappingRuleSet.value
         val shaderDir = File(context.getExternalFilesDir(null), "mpv/shaders/active")
         val shaderPaths = shaderDir
@@ -1002,34 +1022,10 @@ class ExoPlaybackController @Inject constructor(
             ?.sortedBy { it.name }
             ?.map { it.absolutePath }
             .orEmpty()
-        val toneMapping = when {
-            !ruleSet.enabled || ruleSet.curvePreset == com.miruplay.tv.model.ToneMappingCurvePreset.PASSTHROUGH -> null
-            ruleSet.curvePreset == com.miruplay.tv.model.ToneMappingCurvePreset.MOBIUS -> "mobius"
-            ruleSet.curvePreset == com.miruplay.tv.model.ToneMappingCurvePreset.REINHARD -> "reinhard"
-            else -> null
-        }
-        val hdrComputePeak = when (ruleSet.peakDetectionStrategy) {
-            com.miruplay.tv.model.PeakDetectionStrategy.DYNAMIC,
-            com.miruplay.tv.model.PeakDetectionStrategy.DYNAMIC_AGGRESSIVE -> true
-            else -> false
-        }
-        return MiruMpvSurfaceView.SessionOptions(
-            vo = "gpu-next",
-            hwdec = "mediacodec-copy",
-            profile = "fast",
-            targetPrim = if (ruleSet.enabled) "bt.709" else null,
-            targetTrc = if (ruleSet.enabled) "bt.1886" else null,
-            targetPeak = if (ruleSet.enabled) ruleSet.targetSdrNits else null,
-            toneMapping = toneMapping,
-            hdrComputePeak = if (ruleSet.enabled) hdrComputePeak else null,
-            deband = ruleSet.enabled,
+        return buildEmbeddedMpvSessionOptions(
+            ruleSet = ruleSet,
             shaderPaths = shaderPaths,
-            extraOptions = mapOf(
-                "speed" to speed.toString(),
-                "keep-open" to "yes",
-                "osc" to "no",
-                "input-default-bindings" to "yes",
-            ),
+            speed = speed,
         )
     }
 
