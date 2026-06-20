@@ -10,6 +10,7 @@ abstract class BaseMPVView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
 ) : SurfaceView(context, attrs), SurfaceHolder.Callback {
+    private var surfaceAttached = false
     fun initialize(configDir: String, cacheDir: String) {
         MPVLib.create(context)
         MPVLib.setOptionString("config", "yes")
@@ -47,12 +48,15 @@ abstract class BaseMPVView @JvmOverloads constructor(
         MPVLib.setOptionString("vo", vo)
     }
 
+    protected fun isPlaybackSurfaceAttached(): Boolean = surfaceAttached
+
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
         MPVLib.setPropertyString("android-surface-size", "${width}x$height")
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
         Log.w(TAG, "attaching surface")
+        surfaceAttached = true
         MPVLib.attachSurface(holder.surface)
         MPVLib.setOptionString("force-window", "yes")
         val pendingFile = filePath
@@ -66,6 +70,7 @@ abstract class BaseMPVView @JvmOverloads constructor(
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         Log.w(TAG, "detaching surface")
+        surfaceAttached = false
         MPVLib.setPropertyString("vo", "null")
         MPVLib.setPropertyString("force-window", "no")
         MPVLib.detachSurface()
@@ -75,3 +80,5 @@ abstract class BaseMPVView @JvmOverloads constructor(
         private const val TAG = "mpv"
     }
 }
+
+internal fun shouldLoadMpvFileImmediately(surfaceAttached: Boolean): Boolean = surfaceAttached

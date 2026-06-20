@@ -88,7 +88,7 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
         if (startPositionMs > 0L) {
             MPVLib.setPropertyDouble("time-pos", startPositionMs / 1000.0)
         }
-        if (holder.surface?.isValid == true) {
+        if (shouldLoadMpvFileImmediately(isPlaybackSurfaceAttached())) {
             MPVLib.command(arrayOf("loadfile", path))
         } else {
             playFile(path)
