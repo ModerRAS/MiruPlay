@@ -20,3 +20,4 @@ This directory is for agent-oriented project guidance that should not be inlined
 
 ## Current docs
 - `settings-web-control-parity-checklist.md`: parity checklist for settings/menu changes across TV settings, WebAPI, and WebUI.
+- `wiki-memory-checklist.md`: when to save durable findings into the project wiki or persistent memory.
