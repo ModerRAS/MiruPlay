@@ -1,7 +1,31 @@
+const TOKEN_KEY = 'miruplay_web_token'
+
+export function getWebControlToken() {
+  try {
+    return localStorage.getItem(TOKEN_KEY) || ''
+  } catch {
+    return ''
+  }
+}
+
+export function setWebControlToken(token) {
+  try {
+    if (token) {
+      localStorage.setItem(TOKEN_KEY, token)
+    } else {
+      localStorage.removeItem(TOKEN_KEY)
+    }
+  } catch {
+    // localStorage 不可用时降级为仅 cookie 认证
+  }
+}
+
 export async function api(path, options = {}) {
   const isBlobBody = typeof Blob !== 'undefined' && options.body instanceof Blob
+  const token = getWebControlToken()
   const headers = {
     ...(isBlobBody ? {} : { 'Content-Type': 'application/json; charset=utf-8' }),
+    ...(token ? { 'X-MiruPlay-Token': token } : {}),
     ...(options.headers || {})
   }
   const response = await fetch(path, {

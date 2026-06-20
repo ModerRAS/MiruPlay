@@ -7,11 +7,13 @@ import com.miruplay.tv.background.BackgroundTaskIds
 import com.miruplay.tv.background.BackgroundTaskProgress
 import com.miruplay.tv.background.ProgressUpdateThrottler
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.core.common.buildWebControlAccessUrls
 import com.miruplay.tv.clouddrive.CloudDriveClient
 import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
+import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.PlaybackRenderBackend
 import com.miruplay.tv.model.ScanResult
 import com.miruplay.tv.player.PlaybackController
@@ -21,6 +23,9 @@ import com.miruplay.tv.player.LibVlcHardwareAccelerationMode
 import com.miruplay.tv.player.LibVlcVoutMode
 import com.miruplay.tv.player.forcedVideoSignalDescriptorFor
 import com.miruplay.tv.repository.AppCredentialStore
+import com.miruplay.tv.repository.AppModePreferencesRepository
+import com.miruplay.tv.repository.AppUpdateInstallLaunch
+import com.miruplay.tv.repository.AppUpdateRepository
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.LogUploadRepository
 import com.miruplay.tv.repository.MediaIndexRepository
@@ -29,6 +34,7 @@ import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
 import com.miruplay.tv.repository.PlaybackPreferencesRepository
 import com.miruplay.tv.repository.ScanPreferencesRepository
+import com.miruplay.tv.repository.WebControlAccessManager
 import com.miruplay.tv.scanner.LibraryScanState
 import com.miruplay.tv.scanner.LibraryScanStatus
 import com.miruplay.tv.scanner.ScanCoordinator
@@ -57,6 +63,7 @@ class WebControlService @Inject constructor(
     private val progressRepository: PlaybackProgressRepository,
     private val playbackPreferencesRepository: PlaybackPreferencesRepository,
     private val scanPreferencesRepository: ScanPreferencesRepository,
+    appModePreferences: AppModePreferencesRepository,
     private val cloudDriveRepository: CloudDriveAutomationRepository,
     logUploadRepository: LogUploadRepository,
     securePreferences: AppCredentialStore,
@@ -71,12 +78,15 @@ class WebControlService @Inject constructor(
     private val bangumiArchiveStore: BangumiArchiveStore,
     private val backgroundTasks: BackgroundTaskForegroundController,
     private val scanStatus: LibraryScanStatus,
+    private val webControlAccessManager: WebControlAccessManager,
+    private val appUpdateRepository: AppUpdateRepository,
 ) : SharedWebControlEndpointService(
     mediaSourceRepository = mediaRepository,
     metadataRepository = metadataRepository,
     indexRepository = indexRepository,
     progressRepository = progressRepository,
     scanPreferencesRepository = scanPreferencesRepository,
+    appModePreferences = appModePreferences,
     mediaSourceFactory = mediaSourceFactory,
     cloudDriveRepository = cloudDriveRepository,
     credentials = securePreferences,
@@ -388,6 +398,156 @@ class WebControlService @Inject constructor(
         )
     }
 
+    override suspend fun getServerInfo(port: Int): ServerInfoDto {
+        val base = super.getServerInfo(port)
+        return base.copy(
+            versionName = currentVersionName(),
+            versionCode = currentVersionCode(),
+            packageName = appContext.packageName,
+        )
+    }
+
+    override suspend fun getPlaybackSettings(): PlaybackSettingsDto = runOnIo {
+        val endAction = playbackPreferencesRepository.getEndAction()
+        val toneMapping = playbackPreferencesRepository.getFormatAwareToneMappingPreferences().normalized()
+        PlaybackSettingsDto(
+            endAction = endAction.storageValue,
+            formatAwareToneMapping = toneMapping,
+        )
+    }
+
+    override suspend fun savePlaybackSettings(request: PlaybackSettingsRequest): PlaybackSettingsDto = runOnIo {
+        request.endAction?.let { value ->
+            playbackPreferencesRepository.setEndAction(PlaybackEndAction.fromStorageValue(value))
+        }
+        request.formatAwareToneMapping?.let { prefs ->
+            playbackPreferencesRepository.setFormatAwareToneMappingPreferences(prefs.normalized())
+        }
+        getPlaybackSettings()
+    }
+
+    override suspend fun getWebControlAccess(): WebControlAccessDto = runOnIo {
+        webControlAccessSnapshot()
+    }
+
+    override suspend fun saveWebControlAccess(request: WebControlAccessRequest): WebControlAccessDto = runOnIo {
+        request.enabled?.let { webControlAccessManager.webControlEnabled = it }
+        webControlAccessSnapshot()
+    }
+
+    override suspend fun rotateWebControlAccessToken(): WebControlAccessDto = runOnIo {
+        webControlAccessManager.rotateAccessToken()
+        webControlAccessSnapshot()
+    }
+
+    private fun webControlAccessSnapshot(): WebControlAccessDto {
+        val enabled = webControlAccessManager.webControlEnabled
+        val token = webControlAccessManager.accessToken
+        return WebControlAccessDto(
+            enabled = enabled,
+            accessToken = token,
+            urls = if (enabled) buildWebControlAccessUrls(token) else emptyList(),
+        )
+    }
+
+    override suspend fun getAppUpdate(): AppUpdateDto = runOnIo {
+        lastUpdateCheck ?: baseAppUpdateDto()
+    }
+
+    override suspend fun checkAppUpdate(): AppUpdateDto = runOnIo {
+        val base = baseAppUpdateDto()
+        when (val result = appUpdateRepository.checkLatestUpdate()) {
+            is Result.Success -> {
+                val check = result.data
+                AppUpdateDto(
+                    currentVersionName = check.currentVersionName,
+                    currentVersionCode = check.currentVersionCode,
+                    latest = check.latest.toDto(),
+                    updateAvailable = check.updateAvailable,
+                    lastCheckedAt = System.currentTimeMillis(),
+                    lastError = null,
+                    canRequestPackageInstalls = appUpdateRepository.canRequestPackageInstalls(),
+                )
+            }
+            is Result.Error -> base.copy(
+                lastCheckedAt = System.currentTimeMillis(),
+                lastError = result.error.toUserMessage(),
+            )
+        }.also { lastUpdateCheck = it }
+    }
+
+    override suspend fun downloadAppUpdate(): AppUpdateDownloadResponse = runOnIo {
+        val latest = (lastUpdateCheck ?: checkAppUpdate()).latest
+            ?: return@runOnIo AppUpdateDownloadResponse(
+                installLaunch = AppUpdateInstallLaunch.INSTALL_PERMISSION_REQUIRED.name,
+                error = "未获取到可用更新，请先检查更新",
+            )
+        when (val result = appUpdateRepository.downloadAndLaunchInstaller(latest.toInfo()) { }) {
+            is Result.Success -> AppUpdateDownloadResponse(installLaunch = result.data.name)
+            is Result.Error -> AppUpdateDownloadResponse(
+                installLaunch = AppUpdateInstallLaunch.INSTALL_PERMISSION_REQUIRED.name,
+                error = result.error.toUserMessage(),
+            )
+        }
+    }
+
+    override suspend fun openInstallPermissionSettings(): AppUpdateDto = runOnIo {
+        appUpdateRepository.openInstallPermissionSettings()
+        lastUpdateCheck = (lastUpdateCheck ?: baseAppUpdateDto()).copy(
+            canRequestPackageInstalls = appUpdateRepository.canRequestPackageInstalls(),
+        )
+        lastUpdateCheck!!
+    }
+
+    @Volatile
+    private var lastUpdateCheck: AppUpdateDto? = null
+
+    private fun baseAppUpdateDto(): AppUpdateDto =
+        AppUpdateDto(
+            currentVersionName = currentVersionName(),
+            currentVersionCode = currentVersionCode(),
+            canRequestPackageInstalls = appUpdateRepository.canRequestPackageInstalls(),
+        )
+
+    private fun currentVersionName(): String =
+        runCatching { packageInfo().versionName.orEmpty() }.getOrDefault("")
+
+    private fun currentVersionCode(): Long =
+        runCatching {
+            val info = packageInfo()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) info.longVersionCode
+            else @Suppress("DEPRECATION") info.versionCode.toLong()
+        }.getOrDefault(0L)
+
+    private fun packageInfo(): android.content.pm.PackageInfo =
+        appContext.packageManager.getPackageInfo(appContext.packageName, 0)
+
+    private fun com.miruplay.tv.repository.AppUpdateInfo.toDto(): AppUpdateInfoDto =
+        AppUpdateInfoDto(
+            versionName = versionName,
+            versionCode = versionCode,
+            releaseName = releaseName,
+            tagName = tagName,
+            publishedAt = publishedAt,
+            releaseUrl = releaseUrl,
+            assetName = assetName,
+            assetSizeBytes = assetSizeBytes,
+            downloadUrl = downloadUrl,
+        )
+
+    private fun AppUpdateInfoDto.toInfo(): com.miruplay.tv.repository.AppUpdateInfo =
+        com.miruplay.tv.repository.AppUpdateInfo(
+            versionName = versionName,
+            versionCode = versionCode,
+            releaseName = releaseName,
+            tagName = tagName,
+            publishedAt = publishedAt,
+            releaseUrl = releaseUrl,
+            assetName = assetName,
+            assetSizeBytes = assetSizeBytes,
+            downloadUrl = downloadUrl,
+        )
+
     private suspend fun scanSourceWithSharedStatus(
         source: MediaSourceInfo,
     ): Result<ScanResult> {
@@ -509,6 +669,7 @@ private suspend fun playbackDebugConfigSnapshot(
     val debugConfig = playbackDebugOverrides.libVlcDebugConfig
     val forcedSignal = playbackDebugOverrides.forcedVideoSignalDescriptor
     val currentSignal = playbackController.currentVideoSignalDescriptor.value
+    val currentToneMapping = playbackController.currentToneMappingRuleSet.value
     return PlaybackDebugConfigDto(
         defaultBackend = preferences.defaultBackend.name,
         requestedBackend = playbackController.requestedRenderBackend.value.name,
@@ -517,6 +678,14 @@ private suspend fun playbackDebugConfigSnapshot(
         currentSignalKind = currentSignal?.signalKind?.name,
         currentSignalLabel = currentSignal?.displayLabel().orEmpty(),
         currentRuleKey = playbackController.currentRenderRuleKey.value.name,
+        currentToneMapping = PlaybackDebugCurrentToneMappingDto(
+            enabled = currentToneMapping.enabled,
+            curvePreset = currentToneMapping.curvePreset.name,
+            targetSdrNits = currentToneMapping.targetSdrNits,
+            contrastRecovery = currentToneMapping.contrastRecovery,
+            saturationRecovery = currentToneMapping.saturationRecovery,
+            highlightCompression = currentToneMapping.highlightCompression,
+        ),
         fallbackReason = playbackController.fallbackReason.value,
         libVlcHardwareMode = debugConfig.hwMode.name,
         libVlcVoutMode = debugConfig.voutMode.name,

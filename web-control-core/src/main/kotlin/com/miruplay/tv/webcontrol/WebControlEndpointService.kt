@@ -67,6 +67,32 @@ interface WebControlEndpointService {
         getBangumiArchive()
     suspend fun saveBangumiToken(request: BangumiTokenRequest): MetadataSettingsDto
     suspend fun clearBangumiToken(): MetadataSettingsDto
+    suspend fun saveTmdbToken(request: TmdbTokenRequest): MetadataSettingsDto =
+        throw UnsupportedOperationException("TMDB token not supported")
+    suspend fun clearTmdbToken(): MetadataSettingsDto =
+        throw UnsupportedOperationException("TMDB token not supported")
+    suspend fun getScanSettings(): ScanSettingsDto =
+        throw UnsupportedOperationException("扫描设置 not supported")
+    suspend fun saveScanSettings(request: ScanSettingsRequest): ScanSettingsDto =
+        throw UnsupportedOperationException("扫描设置 not supported")
+    suspend fun getPlaybackSettings(): PlaybackSettingsDto =
+        throw UnsupportedOperationException("播放设置 not supported")
+    suspend fun savePlaybackSettings(request: PlaybackSettingsRequest): PlaybackSettingsDto =
+        throw UnsupportedOperationException("播放设置 not supported")
+    suspend fun getWebControlAccess(): WebControlAccessDto =
+        throw UnsupportedOperationException("WebUI 访问设置 not supported")
+    suspend fun saveWebControlAccess(request: WebControlAccessRequest): WebControlAccessDto =
+        throw UnsupportedOperationException("WebUI 访问设置 not supported")
+    suspend fun rotateWebControlAccessToken(): WebControlAccessDto =
+        throw UnsupportedOperationException("WebUI 访问设置 not supported")
+    suspend fun getAppUpdate(): AppUpdateDto =
+        throw UnsupportedOperationException("应用更新 not supported")
+    suspend fun checkAppUpdate(): AppUpdateDto =
+        throw UnsupportedOperationException("应用更新 not supported")
+    suspend fun downloadAppUpdate(): AppUpdateDownloadResponse =
+        throw UnsupportedOperationException("应用更新 not supported")
+    suspend fun openInstallPermissionSettings(): AppUpdateDto =
+        throw UnsupportedOperationException("应用更新 not supported")
     suspend fun searchLibrary(query: String): LibraryDto
     suspend fun getAnimeDetail(animeId: String): AnimeDetailDto
     suspend fun playEpisode(request: PlayEpisodeRequest): PlaybackStatusDto

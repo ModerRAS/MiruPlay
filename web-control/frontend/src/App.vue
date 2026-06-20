@@ -35,6 +35,26 @@
             <el-icon><Key /></el-icon>
             <span>元数据</span>
           </el-menu-item>
+          <el-menu-item index="scan">
+            <el-icon><Refresh /></el-icon>
+            <span>扫描设置</span>
+          </el-menu-item>
+          <el-menu-item index="playback">
+            <el-icon><VideoPlay /></el-icon>
+            <span>播放设置</span>
+          </el-menu-item>
+          <el-menu-item index="webui">
+            <el-icon><Monitor /></el-icon>
+            <span>WebUI 访问</span>
+          </el-menu-item>
+          <el-menu-item index="app-update">
+            <el-icon><Download /></el-icon>
+            <span>应用更新</span>
+          </el-menu-item>
+          <el-menu-item index="about">
+            <el-icon><InfoFilled /></el-icon>
+            <span>关于</span>
+          </el-menu-item>
           <el-menu-item index="logs">
             <el-icon><Upload /></el-icon>
             <span>日志</span>
@@ -587,9 +607,55 @@
             <el-card shadow="never" class="panel-card">
               <template #header>
                 <div class="card-header">
+                  <strong>TMDB</strong>
+                  <el-tag :type="metadataSettings.tmdbTokenConfigured ? 'success' : 'info'">
+                    {{ metadataSettings.tmdbTokenConfigured ? 'Token 已保存' : '未保存 Token' }}
+                  </el-tag>
+                </div>
+              </template>
+
+              <el-skeleton v-if="loading.tmdbToken" animated :rows="4" />
+              <el-form v-else label-position="top" class="metadata-form" @submit.prevent>
+                <el-form-item label="TMDB API Token">
+                  <el-input
+                    v-model="metadataForm.tmdbToken"
+                    type="password"
+                    show-password
+                    autocomplete="new-password"
+                    placeholder="用于 TMDB 元数据补充（剧集模式）"
+                  />
+                </el-form-item>
+
+                <el-alert
+                  type="info"
+                  :closable="false"
+                  show-icon
+                  title="Token 只保存到电视端加密凭据，WebUI 不回显明文。"
+                />
+
+                <div class="form-actions">
+                  <el-button :icon="Key" type="primary" :loading="loading.tmdbToken" @click="saveTmdbToken">
+                    保存 Token
+                  </el-button>
+                  <el-button
+                    type="danger"
+                    plain
+                    :disabled="!metadataSettings.tmdbTokenConfigured"
+                    :loading="loading.tmdbToken"
+                    @click="clearTmdbToken"
+                  >
+                    清除 Token
+                  </el-button>
+                </div>
+              </el-form>
+            </el-card>
+
+            <el-card shadow="never" class="panel-card">
+              <template #header>
+                <div class="card-header">
                   <strong>元数据状态</strong>
-                  <el-tag :type="metadataSettings.bangumiTokenConfigured ? 'success' : 'warning'">
-                    {{ metadataSettings.bangumiTokenConfigured ? '可同步' : '仅公开数据' }}
+                  <el-tag :type="metadataSettings.bangumiTokenConfigured || metadataSettings.tmdbTokenConfigured ? 'success' : 'warning'">
+                    {{ metadataSettings.bangumiTokenConfigured || metadataSettings.tmdbTokenConfigured ? '已配置凭据' : '仅公开数据' }}
                   </el-tag>
                 </div>
               </template>
@@ -598,6 +664,10 @@
                 <div class="status-tile">
                   <span>Bangumi Token</span>
                   <strong>{{ metadataSettings.bangumiTokenConfigured ? '已配置' : '未配置' }}</strong>
+                </div>
+                <div class="status-tile">
+                  <span>TMDB Token</span>
+                  <strong>{{ metadataSettings.tmdbTokenConfigured ? '已配置' : '未配置' }}</strong>
                 </div>
                 <div class="status-tile">
                   <span>元数据匹配</span>
@@ -913,6 +983,220 @@
             </el-card>
           </section>
 
+          <section v-show="activeView === 'scan'" class="view-stack">
+            <el-card shadow="never" class="panel-card">
+              <template #header>
+                <div class="card-header">
+                  <strong>扫描设置</strong>
+                  <el-tag type="info">{{ formatDateTime(scanSettings.lastScanAt) || '未扫描' }}</el-tag>
+                </div>
+              </template>
+
+              <el-skeleton v-if="loading.scanSettings" animated :rows="6" />
+              <el-form v-else label-position="top" @submit.prevent>
+                <el-form-item label="内容模式">
+                  <el-segmented
+                    v-model="scanForm.currentAppMode"
+                    :options="scanSettings.appModeOptions.map((value) => ({ value, label: appModeLabels[value] || value }))"
+                  />
+                </el-form-item>
+                <el-form-item label="自动扫描">
+                  <el-switch v-model="scanForm.autoScanEnabled" />
+                </el-form-item>
+                <el-form-item label="自动扫描间隔（小时）">
+                  <el-select v-model="scanForm.autoScanIntervalHours">
+                    <el-option
+                      v-for="hours in scanSettings.autoScanIntervalOptionsHours"
+                      :key="hours"
+                      :label="`${hours} 小时`"
+                      :value="hours"
+                    />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="海报墙排列">
+                  <el-select v-model="scanForm.posterWallArrangement">
+                    <el-option
+                      v-for="value in scanSettings.posterWallArrangementOptions"
+                      :key="value"
+                      :label="posterWallArrangementLabels[value] || value"
+                      :value="value"
+                    />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="同番剧自动合并">
+                  <el-switch v-model="scanForm.mergeSameAnimeEnabled" />
+                </el-form-item>
+                <div class="form-actions">
+                  <el-button type="primary" :loading="loading.scanSave" @click="saveScanSettings">保存设置</el-button>
+                </div>
+              </el-form>
+            </el-card>
+          </section>
+
+          <section v-show="activeView === 'playback'" class="view-stack">
+            <el-card shadow="never" class="panel-card">
+              <template #header>
+                <div class="card-header">
+                  <strong>播放设置</strong>
+                  <el-tag type="info">{{ endActionLabels[playbackForm.endAction] || playbackForm.endAction }}</el-tag>
+                </div>
+              </template>
+
+              <el-skeleton v-if="loading.playbackSettings" animated :rows="5" />
+              <el-form v-else label-position="top" @submit.prevent>
+                <el-form-item label="播放结束后">
+                  <el-segmented
+                    v-model="playbackForm.endAction"
+                    :options="playbackSettings.endActionOptions.map((value) => ({ value, label: endActionLabels[value] || value }))"
+                  />
+                </el-form-item>
+                <el-form-item label="默认播放后端">
+                  <el-select v-model="playbackForm.defaultBackend">
+                    <el-option
+                      v-for="value in playbackBackendOptions"
+                      :key="value"
+                      :label="playbackBackendLabels[value] || value"
+                      :value="value"
+                    />
+                  </el-select>
+                </el-form-item>
+                <el-alert
+                  type="info"
+                  :closable="false"
+                  show-icon
+                  title="WebUI 仅提供默认后端与结束动作；更细的色调映射规则继续沿用电视端当前设置。"
+                />
+                <div class="form-actions">
+                  <el-button type="primary" :loading="loading.playbackSave" @click="savePlaybackSettings">保存设置</el-button>
+                </div>
+              </el-form>
+            </el-card>
+          </section>
+
+          <section v-show="activeView === 'webui'" class="view-stack">
+            <el-card shadow="never" class="panel-card">
+              <template #header>
+                <div class="card-header">
+                  <strong>WebUI 访问</strong>
+                  <el-tag :type="webControlAccess.enabled ? 'success' : 'warning'">
+                    {{ webControlAccess.enabled ? '已启用' : '已关闭' }}
+                  </el-tag>
+                </div>
+              </template>
+
+              <el-skeleton v-if="loading.webControlAccess" animated :rows="5" />
+              <el-form v-else label-position="top" @submit.prevent>
+                <el-form-item label="启用 WebUI">
+                  <el-switch v-model="webControlAccessForm.enabled" />
+                </el-form-item>
+                <el-alert
+                  type="warning"
+                  :closable="false"
+                  show-icon
+                  title="关闭 WebUI 后，当前页面刷新后将无法继续访问，只能在电视端重新开启。"
+                />
+                <el-form-item label="当前访问令牌">
+                  <el-input :model-value="webControlAccess.accessToken" readonly />
+                </el-form-item>
+                <el-form-item label="访问地址">
+                  <el-space direction="vertical" alignment="stretch" style="width: 100%">
+                    <el-input v-for="url in webControlAccess.urls" :key="url" :model-value="url" readonly />
+                  </el-space>
+                </el-form-item>
+                <div class="form-actions">
+                  <el-button type="primary" :loading="loading.webControlSave" @click="saveWebControlAccess">保存设置</el-button>
+                  <el-button plain :loading="loading.webControlSave" @click="rotateWebControlToken">轮换令牌</el-button>
+                </div>
+              </el-form>
+            </el-card>
+          </section>
+
+          <section v-show="activeView === 'app-update'" class="view-stack">
+            <el-card shadow="never" class="panel-card">
+              <template #header>
+                <div class="card-header">
+                  <strong>应用更新</strong>
+                  <el-tag :type="appUpdate.updateAvailable ? 'warning' : 'success'">
+                    {{ appUpdate.updateAvailable ? '有新版本' : '已是最新版本' }}
+                  </el-tag>
+                </div>
+              </template>
+
+              <el-skeleton v-if="loading.appUpdate" animated :rows="5" />
+              <div v-else class="log-status-grid">
+                <div class="status-tile">
+                  <span>当前版本</span>
+                  <strong>{{ appUpdate.currentVersionName || '-' }} ({{ appUpdate.currentVersionCode || 0 }})</strong>
+                </div>
+                <div class="status-tile">
+                  <span>最新版本</span>
+                  <strong>{{ appUpdate.latest?.versionName || '-' }}</strong>
+                </div>
+                <div class="status-tile">
+                  <span>上次检查</span>
+                  <strong>{{ formatDateTime(appUpdate.lastCheckedAt) || '未检查' }}</strong>
+                </div>
+                <div class="status-tile">
+                  <span>安装未知来源</span>
+                  <strong>{{ appUpdate.canRequestPackageInstalls ? '已允许' : '未允许' }}</strong>
+                </div>
+              </div>
+
+              <el-alert
+                v-if="appUpdate.lastError"
+                type="warning"
+                :closable="false"
+                show-icon
+                :title="appUpdate.lastError"
+                style="margin-top: 1rem"
+              />
+
+              <div class="form-actions" style="margin-top: 1rem">
+                <el-button type="primary" :loading="loading.appUpdate" @click="checkAppUpdate">检查更新</el-button>
+                <el-button :disabled="!appUpdate.updateAvailable" :loading="loading.appUpdateDownload" @click="downloadAppUpdate">下载并安装</el-button>
+                <el-button v-if="!appUpdate.canRequestPackageInstalls" plain @click="openInstallPermission">打开安装权限</el-button>
+              </div>
+            </el-card>
+          </section>
+
+          <section v-show="activeView === 'about'" class="view-stack">
+            <el-card shadow="never" class="panel-card">
+              <template #header>
+                <div class="card-header">
+                  <strong>关于</strong>
+                  <el-tag type="info">{{ serverInfo?.deviceName || 'MiruPlay' }}</el-tag>
+                </div>
+              </template>
+
+              <div class="log-status-grid">
+                <div class="status-tile">
+                  <span>应用</span>
+                  <strong>{{ serverInfo?.appName || 'MiruPlay' }}</strong>
+                </div>
+                <div class="status-tile">
+                  <span>版本</span>
+                  <strong>{{ serverInfo?.versionName || '-' }} ({{ serverInfo?.versionCode || 0 }})</strong>
+                </div>
+                <div class="status-tile">
+                  <span>包名</span>
+                  <strong>{{ serverInfo?.packageName || '-' }}</strong>
+                </div>
+                <div class="status-tile">
+                  <span>端口</span>
+                  <strong>{{ serverInfo?.port || '-' }}</strong>
+                </div>
+                <div class="status-tile">
+                  <span>局域网地址</span>
+                  <strong>{{ (serverInfo?.localIps || []).join(', ') || '-' }}</strong>
+                </div>
+                <div class="status-tile">
+                  <span>服务启动时间</span>
+                  <strong>{{ formatDateTime(serverInfo?.startedAt) || '-' }}</strong>
+                </div>
+              </div>
+            </el-card>
+          </section>
+
           <section v-show="activeView === 'remote'" class="remote-layout">
             <el-card shadow="never" class="panel-card">
               <template #header>
@@ -1115,8 +1399,10 @@ import {
   Download,
   Film,
   FolderOpened,
+  InfoFilled,
   Key,
   Link,
+  Monitor,
   Refresh,
   Search,
   Setting,
@@ -1124,7 +1410,7 @@ import {
   Upload,
   VideoPlay
 } from '@element-plus/icons-vue'
-import { api, formatTime, originalTitleOf, titleOf } from './api'
+import { api, formatTime, originalTitleOf, setWebControlToken, titleOf } from './api'
 
 const activeView = ref('library')
 const query = ref('')
@@ -1156,7 +1442,8 @@ const localLogs = reactive({
   limit: 200
 })
 const metadataSettings = reactive({
-  bangumiTokenConfigured: false
+  bangumiTokenConfigured: false,
+  tmdbTokenConfigured: false
 })
 const bangumiArchive = reactive({
   available: false,
@@ -1209,7 +1496,16 @@ const loading = reactive({
   bangumiArchive: false,
   bangumiArchiveUpload: false,
   proxy: false,
-  proxySave: false
+  proxySave: false,
+  scanSettings: false,
+  scanSave: false,
+  playbackSettings: false,
+  playbackSave: false,
+  webControlAccess: false,
+  webControlSave: false,
+  appUpdate: false,
+  appUpdateDownload: false,
+  tmdbToken: false
 })
 const sourceForm = reactive({
   id: 0,
@@ -1265,7 +1561,52 @@ const logForm = reactive({
   token: ''
 })
 const metadataForm = reactive({
-  bangumiToken: ''
+  bangumiToken: '',
+  tmdbToken: ''
+})
+const scanSettings = reactive({
+  autoScanEnabled: false,
+  autoScanIntervalHours: 6,
+  lastScanAt: 0,
+  mergeSameAnimeEnabled: false,
+  posterWallArrangement: 'TITLE',
+  currentAppMode: 'anime',
+  appModeOptions: ['anime', 'drama'],
+  posterWallArrangementOptions: ['TITLE', 'RELEASE_SEASON'],
+  autoScanIntervalOptionsHours: [1, 6, 12, 24]
+})
+const scanForm = reactive({
+  autoScanEnabled: false,
+  autoScanIntervalHours: 6,
+  mergeSameAnimeEnabled: false,
+  posterWallArrangement: 'TITLE',
+  currentAppMode: 'anime'
+})
+const playbackSettings = reactive({
+  endAction: 'return_to_detail',
+  formatAwareToneMapping: null,
+  endActionOptions: ['return_to_detail', 'play_next_episode']
+})
+const playbackForm = reactive({
+  endAction: 'return_to_detail',
+  defaultBackend: ''
+})
+const webControlAccess = reactive({
+  enabled: false,
+  accessToken: '',
+  urls: []
+})
+const webControlAccessForm = reactive({
+  enabled: false
+})
+const appUpdate = reactive({
+  currentVersionName: '',
+  currentVersionCode: 0,
+  latest: null,
+  updateAvailable: false,
+  lastCheckedAt: 0,
+  lastError: '',
+  canRequestPackageInstalls: false
 })
 const localPicker = reactive({ open: false })
 const localBrowser = reactive({
@@ -1312,12 +1653,27 @@ let statusTimer = 0
 let archiveTimer = 0
 let cloudRunTimer = 0
 
+const appModeLabels = { anime: '动画', drama: '剧集' }
+const posterWallArrangementLabels = { TITLE: '按标题', RELEASE_SEASON: '按新番季' }
+const endActionLabels = { return_to_detail: '返回详情页', play_next_episode: '播放下一集' }
+const playbackBackendOptions = ['STANDARD_EXO', 'EXPERIMENTAL_MPV_EMBEDDED', 'EXPERIMENTAL_LIBVLC']
+const playbackBackendLabels = {
+  STANDARD_EXO: 'ExoPlayer（标准）',
+  EXPERIMENTAL_MPV_EMBEDDED: '实验 mpv 内嵌',
+  EXPERIMENTAL_LIBVLC: '实验 libVLC'
+}
+
 const viewMeta = computed(() => ({
   library: ['片库', '浏览番剧、选择剧集并投到电视端播放。'],
   sources: ['媒体源', '用电脑或手机键盘添加、编辑和扫描媒体源。'],
   automation: ['自动化', '管理 RSS 订阅、CloudDrive2 离线下载和整理入库。'],
   proxy: ['代理配置', '设置 Bangumi、Archive 下载和 RSS 请求共用的出站 HTTP 代理。'],
-  metadata: ['元数据', '配置 Bangumi Token，让收藏和观看进度同步不必在电视上输入。'],
+  metadata: ['元数据', '配置 Bangumi/TMDB Token，让收藏和观看进度同步不必在电视上输入。'],
+  scan: ['扫描设置', '自动扫描、入库归并、海报墙排列与应用内容模式。'],
+  playback: ['播放设置', '默认播放结束动作与色调映射后端。'],
+  webui: ['WebUI 访问', '启用 WebUI、轮换访问令牌、查看访问地址。'],
+  'app-update': ['应用更新', '检查、下载并安装 MiruPlay 最新版本。'],
+  about: ['关于', '查看应用版本、包名与设备信息。'],
   logs: ['日志', '查看、下载本地日志，也可以配置 OpenObserve JSON 上报。'],
   remote: ['遥控器', '播放控制、快进快退和进度拖动。']
 }[activeView.value]).reduce((meta, value, index) => {
@@ -1436,6 +1792,10 @@ watch(activeView, (view) => {
   }
   if (view === 'proxy') loadProxyConfig()
   if (view === 'metadata') loadMetadataSettings()
+  if (view === 'scan') loadScanSettings()
+  if (view === 'playback') loadPlaybackSettings()
+  if (view === 'webui') loadWebControlAccess()
+  if (view === 'app-update') loadAppUpdate()
   if (view === 'logs') {
     loadLogUpload()
     loadLocalLogs()
@@ -1444,7 +1804,7 @@ watch(activeView, (view) => {
 })
 
 onMounted(async () => {
-  await Promise.all([loadInfo(), loadLibrary(), loadSources(), loadCloudDriveAutomation(), loadCloudDriveRunStatus(), loadProxyConfig(), loadMetadataSettings(), loadLogUpload(), loadLocalLogs(), loadPlaybackStatus()])
+  await Promise.all([loadInfo(), loadLibrary(), loadSources(), loadCloudDriveAutomation(), loadCloudDriveRunStatus(), loadProxyConfig(), loadMetadataSettings(), loadLogUpload(), loadLocalLogs(), loadPlaybackStatus(), loadScanSettings(), loadPlaybackSettings(), loadWebControlAccess(), loadAppUpdate()])
   statusTimer = window.setInterval(loadPlaybackStatus, 2000)
   archiveTimer = window.setInterval(() => {
     if (activeView.value === 'metadata' && bangumiArchive.isDownloading) {
@@ -1667,6 +2027,7 @@ function applyLocalLogs(data) {
 
 function applyMetadataSettings(data) {
   metadataSettings.bangumiTokenConfigured = Boolean(data.bangumiTokenConfigured)
+  metadataSettings.tmdbTokenConfigured = Boolean(data.tmdbTokenConfigured)
 }
 
 function applyBangumiArchive(data) {
@@ -1697,6 +2058,11 @@ async function refreshCurrent() {
   if (activeView.value === 'automation') await Promise.all([loadSources(), loadCloudDriveAutomation()])
   if (activeView.value === 'proxy') await loadProxyConfig()
   if (activeView.value === 'metadata') await loadMetadataSettings()
+  if (activeView.value === 'scan') await loadScanSettings()
+  if (activeView.value === 'playback') await loadPlaybackSettings()
+  if (activeView.value === 'webui') await loadWebControlAccess()
+  if (activeView.value === 'app-update') await loadAppUpdate()
+  if (activeView.value === 'about') await loadInfo()
   if (activeView.value === 'logs') await Promise.all([loadLogUpload(), loadLocalLogs()])
   if (activeView.value === 'remote') await loadPlaybackStatus()
 }
@@ -2377,6 +2743,227 @@ async function clearBangumiToken() {
     ElMessage.success('Bangumi Token 已清除')
   } finally {
     loading.bangumiToken = false
+  }
+}
+
+async function saveTmdbToken() {
+  if (!metadataForm.tmdbToken.trim()) {
+    ElMessage.warning('请填写 TMDB Token')
+    return
+  }
+  loading.tmdbToken = true
+  try {
+    applyMetadataSettings(await api('/api/metadata/tmdb-token', {
+      method: 'POST',
+      body: JSON.stringify({ token: metadataForm.tmdbToken.trim() })
+    }))
+    metadataForm.tmdbToken = ''
+    ElMessage.success('TMDB Token 已保存')
+  } finally {
+    loading.tmdbToken = false
+  }
+}
+
+async function clearTmdbToken() {
+  await ElMessageBox.confirm('确定清除 TMDB Token？', '清除 Token', {
+    confirmButtonText: '清除',
+    cancelButtonText: '取消',
+    type: 'warning'
+  })
+  loading.tmdbToken = true
+  try {
+    applyMetadataSettings(await api('/api/metadata/tmdb-token', { method: 'DELETE' }))
+    metadataForm.tmdbToken = ''
+    ElMessage.success('TMDB Token 已清除')
+  } finally {
+    loading.tmdbToken = false
+  }
+}
+
+function applyScanSettings(data) {
+  Object.assign(scanSettings, {
+    autoScanEnabled: Boolean(data.autoScanEnabled),
+    autoScanIntervalHours: Number(data.autoScanIntervalHours || 6),
+    lastScanAt: Number(data.lastScanAt || 0),
+    mergeSameAnimeEnabled: Boolean(data.mergeSameAnimeEnabled),
+    posterWallArrangement: data.posterWallArrangement || 'TITLE',
+    currentAppMode: data.currentAppMode || 'anime',
+    appModeOptions: data.appModeOptions || ['anime', 'drama'],
+    posterWallArrangementOptions: data.posterWallArrangementOptions || ['TITLE', 'RELEASE_SEASON'],
+    autoScanIntervalOptionsHours: data.autoScanIntervalOptionsHours || [1, 6, 12, 24]
+  })
+  scanForm.autoScanEnabled = scanSettings.autoScanEnabled
+  scanForm.autoScanIntervalHours = scanSettings.autoScanIntervalHours
+  scanForm.mergeSameAnimeEnabled = scanSettings.mergeSameAnimeEnabled
+  scanForm.posterWallArrangement = scanSettings.posterWallArrangement
+  scanForm.currentAppMode = scanSettings.currentAppMode || 'anime'
+}
+
+async function loadScanSettings() {
+  loading.scanSettings = true
+  try {
+    applyScanSettings(await api('/api/settings/scan'))
+  } finally {
+    loading.scanSettings = false
+  }
+}
+
+async function saveScanSettings() {
+  loading.scanSave = true
+  try {
+    applyScanSettings(await api('/api/settings/scan', {
+      method: 'PUT',
+      body: JSON.stringify({ ...scanForm })
+    }))
+    ElMessage.success('扫描设置已保存')
+  } catch (e) {
+    ElMessage.error(e.message || '保存扫描设置失败')
+  } finally {
+    loading.scanSave = false
+  }
+}
+
+function applyPlaybackSettings(data) {
+  playbackSettings.endAction = data.endAction || 'return_to_detail'
+  playbackSettings.formatAwareToneMapping = data.formatAwareToneMapping || null
+  playbackSettings.endActionOptions = data.endActionOptions || ['return_to_detail', 'play_next_episode']
+  playbackForm.endAction = playbackSettings.endAction
+  playbackForm.defaultBackend = playbackSettings.formatAwareToneMapping?.defaultBackend || ''
+}
+
+async function loadPlaybackSettings() {
+  loading.playbackSettings = true
+  try {
+    applyPlaybackSettings(await api('/api/settings/playback'))
+  } finally {
+    loading.playbackSettings = false
+  }
+}
+
+async function savePlaybackSettings() {
+  loading.playbackSave = true
+  try {
+    const existing = playbackSettings.formatAwareToneMapping || {}
+    const payload = {
+      endAction: playbackForm.endAction,
+      formatAwareToneMapping: { ...existing, defaultBackend: playbackForm.defaultBackend }
+    }
+    applyPlaybackSettings(await api('/api/settings/playback', {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    }))
+    ElMessage.success('播放设置已保存')
+  } catch (e) {
+    ElMessage.error(e.message || '保存播放设置失败')
+  } finally {
+    loading.playbackSave = false
+  }
+}
+
+function applyWebControlAccess(data) {
+  webControlAccess.enabled = Boolean(data.enabled)
+  webControlAccess.accessToken = data.accessToken || ''
+  webControlAccess.urls = Array.isArray(data.urls) ? data.urls : []
+  webControlAccessForm.enabled = webControlAccess.enabled
+}
+
+async function loadWebControlAccess() {
+  loading.webControlAccess = true
+  try {
+    applyWebControlAccess(await api('/api/web-control/access'))
+  } finally {
+    loading.webControlAccess = false
+  }
+}
+
+async function saveWebControlAccess() {
+  loading.webControlSave = true
+  try {
+    applyWebControlAccess(await api('/api/web-control/access', {
+      method: 'PUT',
+      body: JSON.stringify({ enabled: webControlAccessForm.enabled })
+    }))
+    ElMessage.success(webControlAccess.enabled ? 'WebUI 已启用' : 'WebUI 已关闭')
+  } catch (e) {
+    ElMessage.error(e.message || '保存 WebUI 访问设置失败')
+  } finally {
+    loading.webControlSave = false
+  }
+}
+
+async function rotateWebControlToken() {
+  await ElMessageBox.confirm('轮换后旧令牌将立即失效，当前页面会自动使用新令牌。确定轮换？', '轮换访问令牌', {
+    confirmButtonText: '轮换',
+    cancelButtonText: '取消',
+    type: 'warning'
+  })
+  loading.webControlSave = true
+  try {
+    const data = await api('/api/web-control/access/rotate-token', { method: 'POST' })
+    if (data.accessToken) setWebControlToken(data.accessToken)
+    applyWebControlAccess(data)
+    ElMessage.success('访问令牌已轮换')
+  } catch (e) {
+    ElMessage.error(e.message || '轮换令牌失败')
+  } finally {
+    loading.webControlSave = false
+  }
+}
+
+function applyAppUpdate(data) {
+  appUpdate.currentVersionName = data.currentVersionName || ''
+  appUpdate.currentVersionCode = Number(data.currentVersionCode || 0)
+  appUpdate.latest = data.latest || null
+  appUpdate.updateAvailable = Boolean(data.updateAvailable)
+  appUpdate.lastCheckedAt = Number(data.lastCheckedAt || 0)
+  appUpdate.lastError = data.lastError || ''
+  appUpdate.canRequestPackageInstalls = Boolean(data.canRequestPackageInstalls)
+}
+
+async function loadAppUpdate() {
+  loading.appUpdate = true
+  try {
+    applyAppUpdate(await api('/api/app-update'))
+  } finally {
+    loading.appUpdate = false
+  }
+}
+
+async function checkAppUpdate() {
+  loading.appUpdate = true
+  try {
+    applyAppUpdate(await api('/api/app-update/check', { method: 'POST' }))
+    ElMessage.success(appUpdate.updateAvailable ? '发现新版本' : '已是最新版本')
+  } catch (e) {
+    ElMessage.error(e.message || '检查更新失败')
+  } finally {
+    loading.appUpdate = false
+  }
+}
+
+async function downloadAppUpdate() {
+  loading.appUpdateDownload = true
+  try {
+    const data = await api('/api/app-update/download', { method: 'POST' })
+    if (data.error) {
+      ElMessage.error(data.error)
+    } else {
+      ElMessage.success('已发起安装，请在电视端确认')
+    }
+    await loadAppUpdate()
+  } catch (e) {
+    ElMessage.error(e.message || '下载更新失败')
+  } finally {
+    loading.appUpdateDownload = false
+  }
+}
+
+async function openInstallPermission() {
+  try {
+    applyAppUpdate(await api('/api/app-update/install-permission', { method: 'POST' }))
+    ElMessage.success('已打开安装权限设置')
+  } catch (e) {
+    ElMessage.error(e.message || '打开安装权限失败')
   }
 }
 

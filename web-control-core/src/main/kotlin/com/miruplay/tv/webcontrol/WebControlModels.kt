@@ -5,9 +5,11 @@ import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.CloudDriveLibraryMode
 import com.miruplay.tv.model.Episode
+import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.MediaContentMode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
+import com.miruplay.tv.model.PosterWallArrangement
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.repository.LocalLogSnapshot
 import com.miruplay.tv.repository.LogUploadStatus
@@ -29,6 +31,9 @@ data class ServerInfoDto(
     val port: Int,
     val localIps: List<String>,
     val startedAt: Long,
+    val versionName: String = "",
+    val versionCode: Long = 0L,
+    val packageName: String = "",
 )
 
 @Serializable
@@ -289,6 +294,89 @@ data class LocalLogDownload(
 @Serializable
 data class MetadataSettingsDto(
     val bangumiTokenConfigured: Boolean,
+    val tmdbTokenConfigured: Boolean = false,
+)
+
+@Serializable
+data class TmdbTokenRequest(
+    val token: String,
+)
+
+@Serializable
+data class ScanSettingsDto(
+    val autoScanEnabled: Boolean,
+    val autoScanIntervalHours: Int,
+    val lastScanAt: Long,
+    val mergeSameAnimeEnabled: Boolean,
+    val posterWallArrangement: PosterWallArrangement,
+    val currentAppMode: String?,
+    val appModeOptions: List<String> = listOf("anime", "drama"),
+    val posterWallArrangementOptions: List<PosterWallArrangement> = PosterWallArrangement.entries,
+    val autoScanIntervalOptionsHours: List<Int> = listOf(1, 6, 12, 24),
+)
+
+@Serializable
+data class ScanSettingsRequest(
+    val autoScanEnabled: Boolean? = null,
+    val autoScanIntervalHours: Int? = null,
+    val mergeSameAnimeEnabled: Boolean? = null,
+    val posterWallArrangement: PosterWallArrangement? = null,
+    val currentAppMode: String? = null,
+)
+
+@Serializable
+data class PlaybackSettingsDto(
+    val endAction: String,
+    val formatAwareToneMapping: FormatAwareToneMappingPreferences,
+    val endActionOptions: List<String> = listOf("return_to_detail", "play_next_episode"),
+)
+
+@Serializable
+data class PlaybackSettingsRequest(
+    val endAction: String? = null,
+    val formatAwareToneMapping: FormatAwareToneMappingPreferences? = null,
+)
+
+@Serializable
+data class WebControlAccessDto(
+    val enabled: Boolean,
+    val accessToken: String,
+    val urls: List<String>,
+)
+
+@Serializable
+data class WebControlAccessRequest(
+    val enabled: Boolean? = null,
+)
+
+@Serializable
+data class AppUpdateInfoDto(
+    val versionName: String,
+    val versionCode: Long?,
+    val releaseName: String,
+    val tagName: String,
+    val publishedAt: String,
+    val releaseUrl: String,
+    val assetName: String,
+    val assetSizeBytes: Long,
+    val downloadUrl: String,
+)
+
+@Serializable
+data class AppUpdateDto(
+    val currentVersionName: String,
+    val currentVersionCode: Long,
+    val latest: AppUpdateInfoDto? = null,
+    val updateAvailable: Boolean = false,
+    val lastCheckedAt: Long = 0L,
+    val lastError: String? = null,
+    val canRequestPackageInstalls: Boolean = false,
+)
+
+@Serializable
+data class AppUpdateDownloadResponse(
+    val installLaunch: String,
+    val error: String? = null,
 )
 
 @Serializable
@@ -383,6 +471,16 @@ data class PlaybackDebugConfigRequest(
 )
 
 @Serializable
+data class PlaybackDebugCurrentToneMappingDto(
+    val enabled: Boolean = false,
+    val curvePreset: String = "",
+    val targetSdrNits: Int = 0,
+    val contrastRecovery: Int = 0,
+    val saturationRecovery: Int = 0,
+    val highlightCompression: Int = 0,
+)
+
+@Serializable
 data class PlaybackDebugConfigDto(
     val defaultBackend: String = "",
     val requestedBackend: String = "",
@@ -391,6 +489,7 @@ data class PlaybackDebugConfigDto(
     val currentSignalKind: String? = null,
     val currentSignalLabel: String = "",
     val currentRuleKey: String = "",
+    val currentToneMapping: PlaybackDebugCurrentToneMappingDto = PlaybackDebugCurrentToneMappingDto(),
     val fallbackReason: String? = null,
     val libVlcHardwareMode: String = "",
     val libVlcVoutMode: String = "",

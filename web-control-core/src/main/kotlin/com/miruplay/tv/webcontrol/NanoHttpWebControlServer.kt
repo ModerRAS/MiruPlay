@@ -228,6 +228,49 @@ open class NanoHttpWebControlServer(
             session.method == Method.DELETE && route == "/api/metadata/bangumi-token" -> {
                 jsonResponse(MetadataSettingsDto.serializer(), webControlService.clearBangumiToken())
             }
+            session.method == Method.POST && route == "/api/metadata/tmdb-token" -> {
+                val request = parseBody(session, TmdbTokenRequest.serializer())
+                jsonResponse(MetadataSettingsDto.serializer(), webControlService.saveTmdbToken(request))
+            }
+            session.method == Method.DELETE && route == "/api/metadata/tmdb-token" -> {
+                jsonResponse(MetadataSettingsDto.serializer(), webControlService.clearTmdbToken())
+            }
+            session.method == Method.GET && route == "/api/settings/scan" -> {
+                jsonResponse(ScanSettingsDto.serializer(), webControlService.getScanSettings())
+            }
+            session.method == Method.PUT && route == "/api/settings/scan" -> {
+                val request = parseBody(session, ScanSettingsRequest.serializer())
+                jsonResponse(ScanSettingsDto.serializer(), webControlService.saveScanSettings(request))
+            }
+            session.method == Method.GET && route == "/api/settings/playback" -> {
+                jsonResponse(PlaybackSettingsDto.serializer(), webControlService.getPlaybackSettings())
+            }
+            session.method == Method.PUT && route == "/api/settings/playback" -> {
+                val request = parseBody(session, PlaybackSettingsRequest.serializer())
+                jsonResponse(PlaybackSettingsDto.serializer(), webControlService.savePlaybackSettings(request))
+            }
+            session.method == Method.GET && route == "/api/web-control/access" -> {
+                jsonResponse(WebControlAccessDto.serializer(), webControlService.getWebControlAccess())
+            }
+            session.method == Method.PUT && route == "/api/web-control/access" -> {
+                val request = parseBody(session, WebControlAccessRequest.serializer())
+                jsonResponse(WebControlAccessDto.serializer(), webControlService.saveWebControlAccess(request))
+            }
+            session.method == Method.POST && route == "/api/web-control/access/rotate-token" -> {
+                jsonResponse(WebControlAccessDto.serializer(), webControlService.rotateWebControlAccessToken())
+            }
+            session.method == Method.GET && route == "/api/app-update" -> {
+                jsonResponse(AppUpdateDto.serializer(), webControlService.getAppUpdate())
+            }
+            session.method == Method.POST && route == "/api/app-update/check" -> {
+                jsonResponse(AppUpdateDto.serializer(), webControlService.checkAppUpdate())
+            }
+            session.method == Method.POST && route == "/api/app-update/download" -> {
+                jsonResponse(AppUpdateDownloadResponse.serializer(), webControlService.downloadAppUpdate())
+            }
+            session.method == Method.POST && route == "/api/app-update/install-permission" -> {
+                jsonResponse(AppUpdateDto.serializer(), webControlService.openInstallPermissionSettings())
+            }
             session.method == Method.GET && route == "/api/library" -> {
                 val query = session.utf8QueryParameter("query")
                 jsonResponse(LibraryDto.serializer(), webControlService.searchLibrary(query))

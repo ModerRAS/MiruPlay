@@ -10,6 +10,8 @@ import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.ScanResult
 import com.miruplay.tv.repository.AppCredentialStore
+import com.miruplay.tv.repository.AppMode
+import com.miruplay.tv.repository.AppModePreferencesRepository
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.CloudDriveCredentialStore
 import com.miruplay.tv.repository.LogUploadRepository
@@ -18,7 +20,10 @@ import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.OtlpLogUploadConfig
 import com.miruplay.tv.repository.PlaybackProgressRepository
+import com.miruplay.tv.repository.SCAN_PREFERENCES_MILLIS_PER_HOUR
 import com.miruplay.tv.repository.ScanPreferencesRepository
+import com.miruplay.tv.repository.toScanIntervalMillis
+import com.miruplay.tv.repository.toScanIntervalHours
 import com.miruplay.tv.sync.rss.CloudDriveRssActionCoordinator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -30,7 +35,8 @@ abstract class SharedWebControlEndpointService(
     metadataRepository: MetadataRepository,
     indexRepository: MediaIndexRepository,
     progressRepository: PlaybackProgressRepository,
-    scanPreferencesRepository: ScanPreferencesRepository,
+    private val scanPreferencesRepository: ScanPreferencesRepository,
+    private val appModePreferences: AppModePreferencesRepository,
     private val mediaSourceFactory: MediaSourceFactory,
     private val cloudDriveRepository: CloudDriveAutomationRepository,
     private val credentials: CloudDriveCredentialStore,
@@ -281,6 +287,7 @@ abstract class SharedWebControlEndpointService(
     override suspend fun getMetadataSettings(): MetadataSettingsDto =
         MetadataSettingsDto(
             bangumiTokenConfigured = !securePreferences.bangumiAccessToken.isNullOrBlank(),
+            tmdbTokenConfigured = !securePreferences.tmdbAccessToken.isNullOrBlank(),
         )
 
     override suspend fun saveBangumiToken(request: BangumiTokenRequest): MetadataSettingsDto {
@@ -295,6 +302,46 @@ abstract class SharedWebControlEndpointService(
     override suspend fun clearBangumiToken(): MetadataSettingsDto {
         securePreferences.clearBangumiToken()
         return getMetadataSettings()
+    }
+
+    override suspend fun saveTmdbToken(request: TmdbTokenRequest): MetadataSettingsDto {
+        val token = request.token.trim()
+        if (token.isBlank()) {
+            throw IllegalArgumentException("请填写 TMDB Token")
+        }
+        securePreferences.tmdbAccessToken = token
+        return getMetadataSettings()
+    }
+
+    override suspend fun clearTmdbToken(): MetadataSettingsDto {
+        securePreferences.clearTmdbToken()
+        return getMetadataSettings()
+    }
+
+    override suspend fun getScanSettings(): ScanSettingsDto = runOnIo {
+        val prefs = scanPreferencesRepository.getPreferences().normalized()
+        val appMode = appModePreferences.getSelectionState().currentAppMode
+        ScanSettingsDto(
+            autoScanEnabled = prefs.autoScanEnabled,
+            autoScanIntervalHours = prefs.autoScanIntervalMs.toScanIntervalHours(),
+            lastScanAt = prefs.lastScanAt,
+            mergeSameAnimeEnabled = prefs.mergeSameAnimeEnabled,
+            posterWallArrangement = prefs.posterWallArrangement,
+            currentAppMode = appMode?.storageValue,
+        )
+    }
+
+    override suspend fun saveScanSettings(request: ScanSettingsRequest): ScanSettingsDto = runOnIo {
+        request.autoScanEnabled?.let { scanPreferencesRepository.setAutoScanEnabled(it) }
+        request.autoScanIntervalHours?.let {
+            scanPreferencesRepository.setAutoScanIntervalMs(it.coerceAtLeast(1).toScanIntervalMillis())
+        }
+        request.mergeSameAnimeEnabled?.let { scanPreferencesRepository.setMergeSameAnimeEnabled(it) }
+        request.posterWallArrangement?.let { scanPreferencesRepository.setPosterWallArrangement(it) }
+        request.currentAppMode?.let { modeValue ->
+            AppMode.fromStorageValue(modeValue)?.let { appModePreferences.setCurrentAppMode(it) }
+        }
+        getScanSettings()
     }
 
     override suspend fun searchLibrary(query: String): LibraryDto =
