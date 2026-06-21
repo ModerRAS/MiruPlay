@@ -215,6 +215,7 @@ private fun PlayerScreenContent(
             pendingLabel = pendingDebugCaptureLabel,
         )
     }
+    val screenOwnerToken = remember(playbackSource) { Any() }
     var hasStartedPlayback by remember(playbackSource) { mutableStateOf(false) }
     var preferDedicatedExperimentalSurface by remember(playbackSource) {
         mutableStateOf(
@@ -268,16 +269,16 @@ private fun PlayerScreenContent(
         playbackState = playbackState,
         currentPosition = currentPosition,
     )
-    val navigateBack = remember(onNavigateBack) {
+    val navigateBack = remember(onNavigateBack, screenOwnerToken) {
         {
-            viewModel.saveCurrentProgressAndNavigate(onNavigateBack)
+            viewModel.saveCurrentProgressAndNavigate(screenOwnerToken, onNavigateBack)
         }
     }
 
-    LaunchedEffect(playbackSource, hasStartedPlayback) {
+    LaunchedEffect(playbackSource, hasStartedPlayback, screenOwnerToken) {
         if (!hasStartedPlayback) {
             hasStartedPlayback = true
-            viewModel.play(playbackSource)
+            viewModel.play(playbackSource, screenOwnerToken)
         }
     }
 
@@ -362,10 +363,10 @@ private fun PlayerScreenContent(
         }
     }
 
-    DisposableEffect(Unit) {
+    DisposableEffect(screenOwnerToken) {
         onDispose {
-            viewModel.unbindVlcVideoHost()
-            viewModel.stopPlaybackWhenLeaving()
+            viewModel.unbindVlcVideoHost(screenOwnerToken)
+            viewModel.stopPlaybackWhenLeaving(screenOwnerToken)
         }
     }
 

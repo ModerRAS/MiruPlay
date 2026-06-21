@@ -23,6 +23,9 @@ class PlaybackDebugOverrides @Inject constructor() {
     var libVlcDebugConfig: LibVlcDebugConfig = LibVlcDebugConfig()
 
     @Volatile
+    var embeddedMpvDebugConfig: EmbeddedMpvDebugConfig = EmbeddedMpvDebugConfig()
+
+    @Volatile
     var skipLibVlcStartupProbe: Boolean = false
 
     @Volatile
@@ -114,6 +117,11 @@ data class LibVlcDebugConfig(
     val hwMode: LibVlcHardwareAccelerationMode = LibVlcHardwareAccelerationMode.FULL,
     val voutMode: LibVlcVoutMode = LibVlcVoutMode.DEFAULT,
     val displayChroma: String? = null,
+)
+
+data class EmbeddedMpvDebugConfig(
+    val vo: String? = null,
+    val hwdec: String? = null,
 )
 
 enum class LibVlcHardwareAccelerationMode {

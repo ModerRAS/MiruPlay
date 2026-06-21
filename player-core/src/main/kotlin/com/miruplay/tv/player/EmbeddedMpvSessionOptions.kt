@@ -7,11 +7,12 @@ import com.miruplay.tv.model.ToneMappingCurvePreset
 import com.miruplay.tv.model.ToneMappingRuleSet
 import `is`.xyz.mpv.MiruMpvSurfaceView
 
-internal fun buildEmbeddedMpvSessionOptions(
+fun buildEmbeddedMpvSessionOptions(
     ruleSet: ToneMappingRuleSet,
     shaderPaths: List<String>,
     speed: Float = 1.0f,
     runtimeAbiIs32Bit: Boolean = isEmbeddedMpvRuntime32Bit(),
+    debugConfig: EmbeddedMpvDebugConfig = EmbeddedMpvDebugConfig(),
 ): MiruMpvSurfaceView.SessionOptions {
     val peakDetection = resolveEmbeddedMpvPeakDetection(
         strategy = effectiveEmbeddedMpvPeakDetectionStrategy(
@@ -21,8 +22,11 @@ internal fun buildEmbeddedMpvSessionOptions(
     )
     val toneMappingEnabled = ruleSet.enabled
     return MiruMpvSurfaceView.SessionOptions(
-        vo = "gpu-next",
-        hwdec = "mediacodec-copy",
+        vo = effectiveEmbeddedMpvVideoOutput(
+            runtimeAbiIs32Bit = runtimeAbiIs32Bit,
+            debugConfig = debugConfig,
+        ),
+        hwdec = effectiveEmbeddedMpvHwdec(debugConfig),
         profile = "fast",
         targetPrim = if (toneMappingEnabled) "bt.709" else null,
         targetTrc = if (toneMappingEnabled) "bt.1886" else null,
@@ -120,6 +124,15 @@ private fun resolveEmbeddedMpvPeakDetection(strategy: PeakDetectionStrategy): Em
             sceneThresholdHigh = 2f,
         )
     }
+
+fun effectiveEmbeddedMpvVideoOutput(
+    runtimeAbiIs32Bit: Boolean = isEmbeddedMpvRuntime32Bit(),
+    debugConfig: EmbeddedMpvDebugConfig = EmbeddedMpvDebugConfig(),
+): String = debugConfig.vo ?: if (runtimeAbiIs32Bit) "gpu-hq" else "gpu-next"
+
+fun effectiveEmbeddedMpvHwdec(
+    debugConfig: EmbeddedMpvDebugConfig = EmbeddedMpvDebugConfig(),
+): String = debugConfig.hwdec ?: "mediacodec-copy"
 
 private data class EmbeddedMpvPeakDetection(
     val enabled: Boolean,

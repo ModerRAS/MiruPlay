@@ -1,9 +1,12 @@
 package com.miruplay.tv
 
+import android.app.AlarmManager
+import android.app.PendingIntent
 import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
+import android.os.Process
 import android.os.SystemClock
 import android.util.Log
 import android.view.ViewGroup
@@ -63,10 +66,15 @@ import com.miruplay.tv.player.LibVlcVoutMode
 import com.miruplay.tv.player.forcedVideoSignalDescriptorFor
 import dagger.Lazy
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromJsonElement
 import javax.inject.Inject
+import kotlin.system.exitProcess
+
+internal const val APP_RESTART_LAUNCH_DELAY_MS = 2500L
+internal const val APP_SHUTDOWN_DELAY_MS = 750L
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -297,6 +305,59 @@ class MainActivity : ComponentActivity() {
         restoreLaunchTmdbOverrides?.invoke()
         restoreLaunchTmdbOverrides = null
         super.onDestroy()
+    }
+
+    private fun scheduleAppRestart() {
+        val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+            ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+            ?: return
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            2001,
+            launchIntent,
+            PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val alarmManager = getSystemService(AlarmManager::class.java)
+        val triggerAtMillis = SystemClock.elapsedRealtime() + APP_RESTART_LAUNCH_DELAY_MS
+        MiruLog.i(
+            "MainActivity",
+            "App restart scheduled",
+            mapOf(
+                "launch_delay_ms" to APP_RESTART_LAUNCH_DELAY_MS.toString(),
+                "alarm_type" to "ELAPSED_REALTIME_WAKEUP",
+            )
+        )
+        Log.i("MainActivity", "App restart scheduled")
+        alarmManager?.setExactAndAllowWhileIdle(
+            AlarmManager.ELAPSED_REALTIME_WAKEUP,
+            triggerAtMillis,
+            pendingIntent,
+        )
+    }
+
+    internal fun requestAppShutdown(restart: Boolean) {
+        if (restart) {
+            MiruLog.i(
+                "MainActivity",
+                "App restart requested",
+                mapOf(
+                    "shutdown_delay_ms" to APP_SHUTDOWN_DELAY_MS.toString(),
+                    "launch_delay_ms" to APP_RESTART_LAUNCH_DELAY_MS.toString(),
+                )
+            )
+            Log.i("MainActivity", "App restart requested")
+            scheduleAppRestart()
+        } else {
+            MiruLog.i("MainActivity", "App exit requested")
+            Log.i("MainActivity", "App exit requested")
+        }
+        lifecycleScope.launch {
+            delay(APP_SHUTDOWN_DELAY_MS)
+            finishAffinity()
+            finishAndRemoveTask()
+            Process.killProcess(Process.myPid())
+            exitProcess(if (restart) 0 else 11)
+        }
     }
 
     private suspend fun addLaunchTestSource(
@@ -916,39 +977,49 @@ private fun MiruPlayNavigation(
     androidx.compose.runtime.LaunchedEffect(webControlNavigator, navController) {
         webControlNavigator.commands.collect { command ->
             val payload = command.payload
-            if (command.type == WebControlNavigator.TYPE_OPEN_PLAYER && payload != null) {
-                runCatching {
-                    val source = Json.decodeFromJsonElement<WebPlaybackSource>(payload)
-                    MiruLog.i(
-                        "MiruPlayNavigation",
-                        "Web control requested player navigation",
-                        mapOf(
-                            "media_source_id" to source.mediaSourceId,
-                            "has_episode_id" to (!source.episodeId.isNullOrBlank()).toString(),
-                            "start_position_ms" to source.startPositionMs.toString(),
+            runCatching {
+                when (command.type) {
+                    WebControlNavigator.TYPE_OPEN_PLAYER -> {
+                        val source = payload?.let { Json.decodeFromJsonElement<WebPlaybackSource>(it) }
+                            ?: return@runCatching
+                        MiruLog.i(
+                            "MiruPlayNavigation",
+                            "Web control requested player navigation",
+                            mapOf(
+                                "media_source_id" to source.mediaSourceId,
+                                "has_episode_id" to (!source.episodeId.isNullOrBlank()).toString(),
+                                "start_position_ms" to source.startPositionMs.toString(),
+                            )
                         )
-                    )
-                    val encodedPath = Uri.encode(source.uri)
-                    val encodedSource = Uri.encode(source.mediaSourceId)
-                    val encodedEpisode = Uri.encode(source.episodeId ?: "")
-                    navController.navigate(
-                        NavRoutes.player(
-                            uri = encodedPath,
-                            mediaSourceId = encodedSource,
-                            startPosition = source.startPositionMs,
-                            episodeId = encodedEpisode,
+                        val encodedPath = Uri.encode(source.uri)
+                        val encodedSource = Uri.encode(source.mediaSourceId)
+                        val encodedEpisode = Uri.encode(source.episodeId ?: "")
+                        navigateToPlayerRoute(
+                            navController = navController,
+                            route = NavRoutes.player(
+                                uri = encodedPath,
+                                mediaSourceId = encodedSource,
+                                startPosition = source.startPositionMs,
+                                episodeId = encodedEpisode,
+                            ),
                         )
-                    ) {
-                        launchSingleTop = true
                     }
-                }.onFailure { error ->
-                    MiruLog.e(
-                        "MiruPlayNavigation",
-                        "Failed to handle web control navigation command",
-                        error,
-                        mapOf("command_type" to command.type)
-                    )
+                    WebControlNavigator.TYPE_APP_RESTART -> {
+                        MiruLog.i("MiruPlayNavigation", "Web control requested app restart")
+                        (navController.context as? MainActivity)?.requestAppShutdown(restart = true)
+                    }
+                    WebControlNavigator.TYPE_APP_EXIT -> {
+                        MiruLog.i("MiruPlayNavigation", "Web control requested app exit")
+                        (navController.context as? MainActivity)?.requestAppShutdown(restart = false)
+                    }
                 }
+            }.onFailure { error ->
+                MiruLog.e(
+                    "MiruPlayNavigation",
+                    "Failed to handle web control navigation command",
+                    error,
+                    mapOf("command_type" to command.type)
+                )
             }
         }
     }
@@ -966,16 +1037,15 @@ private fun MiruPlayNavigation(
         val encodedPath = Uri.encode(request.uri)
         val encodedSource = Uri.encode(request.mediaSourceId)
         val encodedEpisode = Uri.encode(request.episodeId ?: "")
-        navController.navigate(
-            NavRoutes.player(
+        navigateToPlayerRoute(
+            navController = navController,
+            route = NavRoutes.player(
                 uri = encodedPath,
                 mediaSourceId = encodedSource,
                 startPosition = request.startPositionMs,
                 episodeId = encodedEpisode,
-            )
-        ) {
-            launchSingleTop = true
-        }
+            ),
+        )
         onDirectPlaybackRequestConsumed(request)
     }
     NavHost(
@@ -1081,7 +1151,9 @@ private fun MiruPlayNavigation(
 
         composable(NavRoutes.SETTINGS) {
             AddSourceScreen(
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = { navController.popBackStack() },
+                onRestartApp = { (navController.context as? MainActivity)?.requestAppShutdown(restart = true) },
+                onExitApp = { (navController.context as? MainActivity)?.requestAppShutdown(restart = false) },
             )
         }
 
@@ -1175,6 +1247,21 @@ private fun MiruPlayNavigation(
         }
     }
 }
+
+internal fun navigateToPlayerRoute(
+    navController: androidx.navigation.NavHostController,
+    route: String,
+) {
+    if (shouldReplaceExistingPlayerRoute(navController.currentDestination?.route)) {
+        navController.popBackStack()
+    }
+    navController.navigate(route) {
+        launchSingleTop = true
+    }
+}
+
+internal fun shouldReplaceExistingPlayerRoute(currentRoute: String?): Boolean =
+    currentRoute == NavRoutes.PLAYER_WITH_OPTIONS
 
 @Composable
 private fun DirectPlaybackEntry(

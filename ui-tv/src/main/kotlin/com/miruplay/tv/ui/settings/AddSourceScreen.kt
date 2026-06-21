@@ -29,6 +29,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Cloud
@@ -349,6 +350,8 @@ private fun MiruPlaySettingsSection.androidTvIcon(): ImageVector =
 @Composable
 fun AddSourceScreen(
     onNavigateBack: () -> Unit,
+    onRestartApp: () -> Unit = {},
+    onExitApp: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val sources by viewModel.sources.collectAsStateWithLifecycle()
@@ -824,6 +827,8 @@ fun AddSourceScreen(
                     onRefreshBangumiArchive = viewModel::refreshBangumiArchive,
                     onDownloadBangumiArchive = viewModel::downloadBangumiArchive,
                     appAboutInfo = appAboutInfo,
+                    onRestartApp = onRestartApp,
+                    onExitApp = onExitApp,
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
@@ -1185,6 +1190,8 @@ private fun SettingsContent(
     onRefreshBangumiArchive: () -> Unit,
     onDownloadBangumiArchive: () -> Unit,
     appAboutInfo: AppAboutInfo,
+    onRestartApp: () -> Unit,
+    onExitApp: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     when (selectedSection) {
@@ -1424,7 +1431,11 @@ private fun SettingsContent(
             section = selectedSection,
             modifier = modifier
         ) {
-            AboutPanel(info = appAboutInfo)
+            AboutPanel(
+                info = appAboutInfo,
+                onRestartApp = onRestartApp,
+                onExitApp = onExitApp,
+            )
         }
     }
 }
@@ -3281,7 +3292,11 @@ private fun AppUpdatePanel(
 }
 
 @Composable
-private fun AboutPanel(info: AppAboutInfo) {
+private fun AboutPanel(
+    info: AppAboutInfo,
+    onRestartApp: () -> Unit,
+    onExitApp: () -> Unit,
+) {
     val tiles = aboutSettingsTiles(
         appName = info.appName,
         versionName = info.versionName,
@@ -3316,6 +3331,25 @@ private fun AboutPanel(info: AppAboutInfo) {
             AboutInfoRow(
                 label = settingsAboutPackageNameLabel(),
                 value = info.packageName.ifBlank { settingsAboutUnknownValue() },
+            )
+        }
+
+        Spacer(Modifier.height(14.dp))
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            TvButton(
+                text = "重启应用",
+                icon = Icons.Filled.Refresh,
+                onClick = onRestartApp,
+                modifier = Modifier.fillMaxWidth()
+            )
+            TvButton(
+                text = "退出应用",
+                icon = Icons.AutoMirrored.Filled.ExitToApp,
+                onClick = onExitApp,
+                modifier = Modifier.fillMaxWidth()
             )
         }
 

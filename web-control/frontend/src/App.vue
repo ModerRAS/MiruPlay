@@ -1194,6 +1194,11 @@
                   <strong>{{ formatDateTime(serverInfo?.startedAt) || '-' }}</strong>
                 </div>
               </div>
+
+              <div class="form-actions" style="margin-top: 1rem">
+                <el-button plain :loading="loading.appControl" @click="restartApp">重启应用</el-button>
+                <el-button plain type="danger" :loading="loading.appControl" @click="exitApp">退出应用</el-button>
+              </div>
             </el-card>
           </section>
 
@@ -1505,6 +1510,7 @@ const loading = reactive({
   webControlSave: false,
   appUpdate: false,
   appUpdateDownload: false,
+  appControl: false,
   tmdbToken: false
 })
 const sourceForm = reactive({
@@ -2965,6 +2971,40 @@ async function openInstallPermission() {
   } catch (e) {
     ElMessage.error(e.message || '打开安装权限失败')
   }
+}
+
+async function callAppControl(action) {
+  loading.appControl = true
+  try {
+    const data = await api('/api/app-control', {
+      method: 'POST',
+      body: JSON.stringify({ action })
+    })
+    if (!data.accepted) {
+      ElMessage.error(data.message || '应用控制请求未被接受')
+      return false
+    }
+    ElMessage.success(data.message || '应用控制请求已发送')
+    return true
+  } catch (e) {
+    ElMessage.error(e.message || '应用控制失败')
+    return false
+  } finally {
+    loading.appControl = false
+  }
+}
+
+async function restartApp() {
+  await callAppControl('restart')
+}
+
+async function exitApp() {
+  await ElMessageBox.confirm('退出后需要重新启动 MiruPlay 才能继续访问 WebUI。', '退出应用', {
+    confirmButtonText: '退出应用',
+    cancelButtonText: '取消',
+    type: 'warning'
+  })
+  await callAppControl('exit')
 }
 
 function proxyConfigPayload() {

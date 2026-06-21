@@ -93,12 +93,15 @@ interface WebControlEndpointService {
         throw UnsupportedOperationException("应用更新 not supported")
     suspend fun openInstallPermissionSettings(): AppUpdateDto =
         throw UnsupportedOperationException("应用更新 not supported")
+    suspend fun appControl(request: AppControlRequest): AppControlDto =
+        throw UnsupportedOperationException("应用控制 not supported")
     suspend fun searchLibrary(query: String): LibraryDto
     suspend fun getAnimeDetail(animeId: String): AnimeDetailDto
     suspend fun playEpisode(request: PlayEpisodeRequest): PlaybackStatusDto
     suspend fun playbackCommand(request: PlaybackCommandRequest): PlaybackStatusDto
     suspend fun playbackStatus(): PlaybackStatusDto
     suspend fun getPlaybackClockSamples(limit: Int = 120): PlaybackClockSamplesDto = PlaybackClockSamplesDto()
+    suspend fun capturePlaybackProfile(request: PlaybackProfileRequest): PlaybackProfileReportDto = PlaybackProfileReportDto()
     suspend fun getPlaybackDebugConfig(): PlaybackDebugConfigDto = PlaybackDebugConfigDto()
     suspend fun savePlaybackDebugConfig(request: PlaybackDebugConfigRequest): PlaybackDebugConfigDto =
         getPlaybackDebugConfig()

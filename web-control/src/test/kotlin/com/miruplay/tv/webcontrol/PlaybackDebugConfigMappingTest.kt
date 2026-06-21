@@ -58,8 +58,15 @@ class PlaybackDebugConfigMappingTest {
         assertEquals(PeakDetectionStrategy.DYNAMIC_AGGRESSIVE, peakDetectionStrategyFromDebugValue("aggressive"))
         assertEquals("clip", gamutMappingModeFromDebugValue("clip"))
         assertEquals("relative", gamutMappingModeFromDebugValue("relative"))
+        assertEquals("gpu-next", embeddedMpvVoFromDebugValue("gpu-next"))
+        assertEquals("gpu-hq", embeddedMpvVoFromDebugValue("gpu_hq"))
+        assertEquals("mediacodec-copy", embeddedMpvHwdecFromDebugValue("copy"))
+        assertEquals("mediacodec", embeddedMpvHwdecFromDebugValue("mediacodec"))
+        assertEquals("no", embeddedMpvHwdecFromDebugValue("off"))
         assertNull(toneMappingPresetFromDebugValue("unknown"))
         assertNull(peakDetectionStrategyFromDebugValue("weird"))
         assertNull(gamutMappingModeFromDebugValue("bogus"))
+        assertNull(embeddedMpvVoFromDebugValue("bogus"))
+        assertNull(embeddedMpvHwdecFromDebugValue("bogus"))
     }
 }

@@ -83,6 +83,21 @@ internal fun gamutMappingModeFromDebugValue(value: String?): String? =
         else -> null
     }
 
+internal fun embeddedMpvVoFromDebugValue(value: String?): String? =
+    when (value.debugKey()) {
+        "gpunext", "gpu", "default" -> "gpu-next"
+        "gpuhq", "gpuhighquality" -> "gpu-hq"
+        else -> null
+    }
+
+internal fun embeddedMpvHwdecFromDebugValue(value: String?): String? =
+    when (value.debugKey()) {
+        "mediacodeccopy", "copy", "default" -> "mediacodec-copy"
+        "mediacodec", "nocopy" -> "mediacodec"
+        "no", "off", "none", "disabled" -> "no"
+        else -> null
+    }
+
 internal fun debugLabelValue(value: String?): String? =
     value
         ?.trim()

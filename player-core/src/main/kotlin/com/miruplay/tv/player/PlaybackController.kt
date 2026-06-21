@@ -157,6 +157,11 @@ interface PlaybackController {
     suspend fun clearSessionRuleOverrides()
 
     /**
+     * Re-apply runtime debug/session options to the active backend when supported.
+     */
+    suspend fun refreshActivePlaybackDebugConfig()
+
+    /**
      * Peek a pending debug GL frame capture label, if any.
      */
     fun pendingGlFrameCaptureLabel(): String?

@@ -34,6 +34,8 @@ class WebControlPlaybackDebugConfigRouteTest {
         assertTrue(body.contains("\"targetSdrNits\":120"))
         assertTrue(body.contains("\"curvePreset\":\"MOBIUS\""))
         assertTrue(body.contains("\"peakDetectionStrategy\":\"DYNAMIC\""))
+        assertTrue(body.contains("\"effectiveEmbeddedMpvVo\":"))
+        assertTrue(body.contains("\"effectiveEmbeddedMpvHwdec\":"))
     }
 
     @Test
@@ -57,6 +59,8 @@ class WebControlPlaybackDebugConfigRouteTest {
                       "sessionToneMappingPreset": "passthrough",
                       "sessionPeakDetectionStrategy": "static",
                       "sessionGamutMappingMode": "clip",
+                      "embeddedMpvVo": "gpu-hq",
+                      "embeddedMpvHwdec": "off",
                       "libVlcHardwareMode": "DECODING_ONLY",
                       "libVlcVoutMode": "ANDROID_DISPLAY",
                       "libVlcDisplayChroma": "RV32",
@@ -76,6 +80,8 @@ class WebControlPlaybackDebugConfigRouteTest {
         assertEquals("passthrough", request?.sessionToneMappingPreset)
         assertEquals("static", request?.sessionPeakDetectionStrategy)
         assertEquals("clip", request?.sessionGamutMappingMode)
+        assertEquals("gpu-hq", request?.embeddedMpvVo)
+        assertEquals("off", request?.embeddedMpvHwdec)
         assertEquals("DECODING_ONLY", request?.libVlcHardwareMode)
         assertEquals("ANDROID_DISPLAY", request?.libVlcVoutMode)
         assertEquals("RV32", request?.libVlcDisplayChroma)
@@ -132,6 +138,39 @@ class WebControlPlaybackDebugConfigRouteTest {
         assertTrue(body.contains("\"activeBackend\":\"EXPERIMENTAL_MPV_EMBEDDED\""))
         assertTrue(body.contains("\"positionMs\":1234"))
         assertTrue(body.contains("\"positionMs\":1734"))
+    }
+
+    @Test
+    fun `POST playback profile captures sampling request`() {
+        val service = CapturingPlaybackDebugConfigService()
+        val server = NanoHttpWebControlServer(
+            webControlService = service,
+            webControlAccess = EnabledWebControlAccess,
+            staticAssets = WebControlStaticAssets { null },
+        )
+
+        val response = server.serve(
+            FakeSession(
+                method = NanoHTTPD.Method.POST,
+                uri = "/api/playback/profile",
+                body = """
+                    {
+                      "durationMs": 1500,
+                      "intervalMs": 25,
+                      "maxStacks": 20,
+                      "includeThreadNames": ["main"]
+                    }
+                """.trimIndent(),
+            )
+        )
+
+        assertEquals(NanoHTTPD.Response.Status.OK, response.status)
+        assertEquals(1500L, service.capturedProfileRequest?.durationMs)
+        assertEquals(25L, service.capturedProfileRequest?.intervalMs)
+        assertEquals(20, service.capturedProfileRequest?.maxStacks)
+        assertEquals(listOf("main"), service.capturedProfileRequest?.includeThreadNames)
+        val body = response.bodyText()
+        assertTrue(body.contains("\"collapsedText\":\"thread:main;top.frame 3\""))
     }
 
     private object EnabledWebControlAccess : WebControlAccessManager {
@@ -219,6 +258,7 @@ class WebControlPlaybackDebugConfigRouteTest {
         var downloadStartupDiagnosticsCalls = 0
         var capturedStartupDiagnosticsName: String? = null
         var capturedClockSampleLimit: Int? = null
+        var capturedProfileRequest: PlaybackProfileRequest? = null
 
         override suspend fun getPlaybackDebugConfig(): PlaybackDebugConfigDto {
             getCalls += 1
@@ -234,6 +274,8 @@ class WebControlPlaybackDebugConfigRouteTest {
                     saturationRecovery = 10,
                     highlightCompression = 18,
                 ),
+                effectiveEmbeddedMpvVo = "gpu-hq",
+                effectiveEmbeddedMpvHwdec = "mediacodec-copy",
             )
         }
 
@@ -256,6 +298,10 @@ class WebControlPlaybackDebugConfigRouteTest {
                     saturationRecovery = 10,
                     highlightCompression = 18,
                 ),
+                embeddedMpvVo = request.embeddedMpvVo,
+                embeddedMpvHwdec = request.embeddedMpvHwdec,
+                effectiveEmbeddedMpvVo = request.embeddedMpvVo ?: "gpu-hq",
+                effectiveEmbeddedMpvHwdec = request.embeddedMpvHwdec ?: "mediacodec-copy",
                 libVlcHardwareMode = request.libVlcHardwareMode ?: "FULL",
                 libVlcVoutMode = request.libVlcVoutMode ?: "DEFAULT",
                 libVlcDisplayChroma = request.libVlcDisplayChroma,
@@ -286,6 +332,28 @@ class WebControlPlaybackDebugConfigRouteTest {
                         paused = false,
                         eofReached = false,
                     ),
+                ),
+            )
+        }
+
+        override suspend fun capturePlaybackProfile(request: PlaybackProfileRequest): PlaybackProfileReportDto {
+            capturedProfileRequest = request
+            return PlaybackProfileReportDto(
+                durationMs = request.durationMs,
+                intervalMs = request.intervalMs,
+                samplePasses = 3,
+                sampledThreadCount = 1,
+                totalStackSamples = 3,
+                collapsedStacks = listOf(PlaybackProfileStackDto(stack = "thread:main;top.frame", samples = 3)),
+                collapsedText = "thread:main;top.frame 3",
+                threadSummaries = listOf(
+                    PlaybackProfileThreadDto(
+                        threadName = "main",
+                        samples = 3,
+                        runnableSamples = 2,
+                        nativeTopFrameSamples = 0,
+                        topStack = "thread:main;top.frame",
+                    )
                 ),
             )
         }

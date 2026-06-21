@@ -271,6 +271,10 @@ open class NanoHttpWebControlServer(
             session.method == Method.POST && route == "/api/app-update/install-permission" -> {
                 jsonResponse(AppUpdateDto.serializer(), webControlService.openInstallPermissionSettings())
             }
+            session.method == Method.POST && route == "/api/app-control" -> {
+                val request = parseBody(session, AppControlRequest.serializer())
+                jsonResponse(AppControlDto.serializer(), webControlService.appControl(request))
+            }
             session.method == Method.GET && route == "/api/library" -> {
                 val query = session.utf8QueryParameter("query")
                 jsonResponse(LibraryDto.serializer(), webControlService.searchLibrary(query))
@@ -293,6 +297,10 @@ open class NanoHttpWebControlServer(
             session.method == Method.GET && route == "/api/playback/clock-samples" -> {
                 val limit = session.parameters["limit"]?.firstOrNull()?.toIntOrNull() ?: 120
                 jsonResponse(PlaybackClockSamplesDto.serializer(), webControlService.getPlaybackClockSamples(limit))
+            }
+            session.method == Method.POST && route == "/api/playback/profile" -> {
+                val request = parseBody(session, PlaybackProfileRequest.serializer())
+                jsonResponse(PlaybackProfileReportDto.serializer(), webControlService.capturePlaybackProfile(request))
             }
             session.method == Method.GET && route == "/api/playback/debug-config" -> {
                 jsonResponse(PlaybackDebugConfigDto.serializer(), webControlService.getPlaybackDebugConfig())

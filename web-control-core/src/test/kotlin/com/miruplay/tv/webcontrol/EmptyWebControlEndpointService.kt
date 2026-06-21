@@ -50,12 +50,14 @@ internal open class EmptyWebControlEndpointService : WebControlEndpointService {
     override suspend fun checkAppUpdate(): AppUpdateDto = unused()
     override suspend fun downloadAppUpdate(): AppUpdateDownloadResponse = unused()
     override suspend fun openInstallPermissionSettings(): AppUpdateDto = unused()
+    override suspend fun appControl(request: AppControlRequest): AppControlDto = unused()
     override suspend fun searchLibrary(query: String): LibraryDto = unused()
     override suspend fun getAnimeDetail(animeId: String): AnimeDetailDto = unused()
     override suspend fun playEpisode(request: PlayEpisodeRequest): PlaybackStatusDto = unused()
     override suspend fun playbackCommand(request: PlaybackCommandRequest): PlaybackStatusDto = unused()
     override suspend fun playbackStatus(): PlaybackStatusDto = unused()
     override suspend fun getPlaybackClockSamples(limit: Int): PlaybackClockSamplesDto = unused()
+    override suspend fun capturePlaybackProfile(request: PlaybackProfileRequest): PlaybackProfileReportDto = unused()
 
     private fun unused(): Nothing = error("unused")
 }

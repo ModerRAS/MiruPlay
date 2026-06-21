@@ -128,7 +128,10 @@ class PlayerViewModel @Inject constructor(
         playbackController.bindVlcVideoHost(hostView)
     }
 
-    fun unbindVlcVideoHost() {
+    fun unbindVlcVideoHost(ownerToken: Any) {
+        if (!ownsActivePlayback(ownerToken)) {
+            return
+        }
         Log.i(
             "PlayerViewModel",
             "unbindVlcVideoHost controller=${playbackController.javaClass.simpleName}",
@@ -141,6 +144,7 @@ class PlayerViewModel @Inject constructor(
     private var finishObserverJob: Job? = null
     private var presentationJob: Job? = null
     private var activeSource: PlaybackSource? = null
+    private var activeScreenOwnerToken: Any? = null
     private var pendingSeekPositionMs: Long? = null
     private val nextPlaybackSourceResolver by lazy {
         NextPlaybackSourceResolver(
@@ -150,12 +154,13 @@ class PlayerViewModel @Inject constructor(
         )
     }
 
-    fun play(source: PlaybackSource) {
+    fun play(source: PlaybackSource, ownerToken: Any? = activeScreenOwnerToken) {
         viewModelScope.launch {
             _errorMessage.value = null
             pendingSeekPositionMs = null
             _currentPosition.value = source.startPosition.coerceAtLeast(0L)
             activeSource = source
+            activeScreenOwnerToken = ownerToken
             _activePlaybackSource.value = source
             startPresentationResolution(source)
             refreshFormatAwarePreferences()
@@ -426,16 +431,21 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    fun saveCurrentProgressAndNavigate(onSaved: () -> Unit) {
+    fun saveCurrentProgressAndNavigate(ownerToken: Any, onSaved: () -> Unit) {
         viewModelScope.launch {
-            saveProgressSnapshot(activeSource)
-            stopPlayback()
+            if (ownsActivePlayback(ownerToken)) {
+                saveProgressSnapshot(activeSource)
+                stopPlayback()
+            }
             onSaved()
         }
     }
 
-    fun stopPlaybackWhenLeaving() {
+    fun stopPlaybackWhenLeaving(ownerToken: Any) {
         viewModelScope.launch {
+            if (!ownsActivePlayback(ownerToken)) {
+                return@launch
+            }
             saveProgressSnapshot(activeSource)
             stopPlayback()
         }
@@ -519,6 +529,9 @@ class PlayerViewModel @Inject constructor(
         return uri.substringAfterLast("/").substringBeforeLast(".")
     }
 
+    private fun ownsActivePlayback(ownerToken: Any): Boolean =
+        shouldOwnerStopPlayback(activeScreenOwnerToken, ownerToken)
+
     private suspend fun stopPlayback() {
         positionPollJob?.cancel()
         progressSaveJob?.cancel()
@@ -527,6 +540,7 @@ class PlayerViewModel @Inject constructor(
         pendingSeekPositionMs = null
         playbackController.stop()
         activeSource = null
+        activeScreenOwnerToken = null
         _activePlaybackSource.value = null
         _displayTitle.value = ""
         _displaySubtitle.value = ""
@@ -548,6 +562,9 @@ class PlayerViewModel @Inject constructor(
         super.onCleared()
     }
 }
+
+internal fun shouldOwnerStopPlayback(activeOwnerToken: Any?, candidateOwnerToken: Any): Boolean =
+    activeOwnerToken === candidateOwnerToken
 
 sealed interface PlaybackFinishEvent {
     data object NavigateBack : PlaybackFinishEvent

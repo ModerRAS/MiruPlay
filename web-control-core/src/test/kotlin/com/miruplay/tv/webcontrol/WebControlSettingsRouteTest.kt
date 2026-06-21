@@ -113,6 +113,23 @@ class WebControlSettingsRouteTest {
         assertTrue(body.contains("\"updateAvailable\":true"))
     }
 
+    @Test
+    fun `app control route parses restart action`() {
+        val service = SettingsStubService()
+        val server = NanoHttpWebControlServer(
+            webControlService = service,
+            webControlAccess = EnabledAccess,
+            staticAssets = WebControlStaticAssets { null },
+        )
+
+        val response = server.serve(
+            session(method = NanoHTTPD.Method.POST, uri = "/api/app-control", body = """{"action":"restart"}""")
+        )
+        assertEquals(NanoHTTPD.Response.Status.OK, response.status)
+        assertEquals("restart", service.capturedAppControlAction)
+        assertTrue(response.bodyText().contains("\"accepted\":true"))
+    }
+
     private object EnabledAccess : WebControlAccessManager {
         override var webControlEnabled: Boolean = true
         override val accessToken: String = "token"
@@ -161,6 +178,7 @@ class WebControlSettingsRouteTest {
     private class SettingsStubService : EmptyWebControlEndpointService() {
         var capturedScan: ScanSettingsRequest? = null
         var capturedTmdbToken: String? = null
+        var capturedAppControlAction: String? = null
         var tmdbCleared = false
         var rotateCalled = false
 
@@ -219,5 +237,10 @@ class WebControlSettingsRouteTest {
             lastCheckedAt = 1L,
             canRequestPackageInstalls = true,
         )
+
+        override suspend fun appControl(request: AppControlRequest): AppControlDto {
+            capturedAppControlAction = request.action
+            return AppControlDto(action = request.action, accepted = true, message = "ok")
+        }
     }
 }

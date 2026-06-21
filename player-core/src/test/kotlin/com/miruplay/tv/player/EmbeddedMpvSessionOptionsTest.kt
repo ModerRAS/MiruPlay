@@ -123,9 +123,11 @@ class EmbeddedMpvSessionOptionsTest {
             runtimeAbiIs32Bit = true,
         )
 
+        assertEquals("gpu-hq", dynamic.vo)
         assertEquals(false, dynamic.hdrComputePeak)
         assertEquals("clip", dynamic.gamutMappingMode)
         assertEquals(false, dynamic.deband)
+        assertEquals("gpu-hq", aggressive.vo)
         assertEquals(true, aggressive.hdrComputePeak)
         assertEquals("clip", aggressive.gamutMappingMode)
         assertEquals(false, aggressive.deband)
@@ -133,5 +135,21 @@ class EmbeddedMpvSessionOptionsTest {
         assertEquals(20f, aggressive.hdrPeakDecayRate)
         assertEquals(1f, aggressive.hdrSceneThresholdLow)
         assertEquals(3f, aggressive.hdrSceneThresholdHigh)
+    }
+
+    @Test
+    fun `debug config can override embedded mpv baseline vo and hwdec`() {
+        val options = buildEmbeddedMpvSessionOptions(
+            ruleSet = defaultToneMappingRuleSet(VideoRenderRuleKey.HDR10),
+            shaderPaths = emptyList(),
+            runtimeAbiIs32Bit = true,
+            debugConfig = EmbeddedMpvDebugConfig(
+                vo = "gpu-hq",
+                hwdec = "no",
+            ),
+        )
+
+        assertEquals("gpu-hq", options.vo)
+        assertEquals("no", options.hwdec)
     }
 }

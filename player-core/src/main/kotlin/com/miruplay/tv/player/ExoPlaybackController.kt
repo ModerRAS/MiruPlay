@@ -437,6 +437,14 @@ class ExoPlaybackController @Inject constructor(
             applyEmbeddedMpvSessionOptions(mpvView, speed = embeddedMpvPlaybackSpeed)
             if (embeddedMpvPendingLoad) {
                 embeddedMpvSource?.let { source ->
+                    MiruLog.i(
+                        "EmbeddedMpv",
+                        "Rebinding embedded mpv pending load",
+                        mapOf(
+                            "source_uri" to source.uri,
+                            "start_position_ms" to embeddedMpvPositionMs.toString(),
+                        ),
+                    )
                     mpvView.loadMedia(source.uri, embeddedMpvPositionMs)
                     embeddedMpvPendingLoad = false
                 }
@@ -487,6 +495,14 @@ class ExoPlaybackController @Inject constructor(
             sessionState = sessionState.clearRuleOverrides()
             _sessionRuleOverrides.value = sessionState.ruleOverrides
             refreshRuntimeConfig(_currentVideoSignalDescriptor.value)
+        }
+    }
+
+    override suspend fun refreshActivePlaybackDebugConfig() {
+        withContext(Dispatchers.Main) {
+            if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED) {
+                embeddedMpvView?.let { applyEmbeddedMpvSessionOptions(it, speed = embeddedMpvPlaybackSpeed) }
+            }
         }
     }
 
@@ -933,7 +949,7 @@ class ExoPlaybackController @Inject constructor(
         embeddedMpvSource = source
         embeddedMpvPositionMs = source.startPosition.coerceAtLeast(0L)
         embeddedMpvDurationMs = 0L
-        embeddedMpvPlaying = true
+        embeddedMpvPlaying = false
         embeddedMpvPendingLoad = true
         val boundHost = embeddedMpvHostView
         val host = boundHost?.takeIf(::isEmbeddedMpvHostReady)
@@ -958,9 +974,16 @@ class ExoPlaybackController @Inject constructor(
         embeddedMpvView = null
         val mpvView = ensureEmbeddedMpvView(host)
         applyEmbeddedMpvSessionOptions(mpvView, speed = embeddedMpvPlaybackSpeed)
+        MiruLog.i(
+            "EmbeddedMpv",
+            "Requesting embedded mpv load",
+            mapOf(
+                "source_uri" to source.uri,
+                "start_position_ms" to embeddedMpvPositionMs.toString(),
+            ),
+        )
         mpvView.loadMedia(source.uri, embeddedMpvPositionMs)
         embeddedMpvPendingLoad = false
-        _state.value = PlaybackState.Playing(source, embeddedMpvPositionMs)
     }
 
     private fun ensureEmbeddedMpvView(container: ViewGroup): MiruMpvSurfaceView {
@@ -982,23 +1005,42 @@ class ExoPlaybackController @Inject constructor(
             onStateChanged = { snapshot ->
                 embeddedMpvPositionMs = snapshot.positionMs
                 embeddedMpvDurationMs = snapshot.durationMs
-                embeddedMpvPlaying = !snapshot.paused && !snapshot.eofReached
                 recordPlaybackClockSample(snapshot)
                 embeddedMpvSource?.let { source ->
-                    _state.value = when {
-                        snapshot.eofReached -> PlaybackState.Ended(source)
-                        snapshot.paused -> PlaybackState.Paused(source, snapshot.positionMs)
-                        else -> PlaybackState.Playing(source, snapshot.positionMs)
-                    }
+                    val resolved = resolveEmbeddedMpvStartupState(
+                        source = source,
+                        snapshot = snapshot,
+                        wasPlaying = embeddedMpvPlaying,
+                    )
+                    embeddedMpvPlaying = resolved.isPlaying
+                    _state.value = resolved.playbackState
                 }
             }
             onFileLoaded = {
                 embeddedMpvSource?.let { source ->
+                    MiruLog.i(
+                        "EmbeddedMpv",
+                        "Embedded mpv file loaded",
+                        mapOf(
+                            "source_uri" to source.uri,
+                            "position_ms" to embeddedMpvPositionMs.toString(),
+                        ),
+                    )
+                    embeddedMpvPlaying = false
                     _state.value = PlaybackState.Buffering(source, embeddedMpvPositionMs)
                 }
             }
             onPlaybackRestart = {
+                embeddedMpvPlaying = true
                 embeddedMpvSource?.let { source ->
+                    MiruLog.i(
+                        "EmbeddedMpv",
+                        "Embedded mpv playback restart",
+                        mapOf(
+                            "source_uri" to source.uri,
+                            "position_ms" to embeddedMpvPositionMs.toString(),
+                        ),
+                    )
                     _state.value = PlaybackState.Playing(source, embeddedMpvPositionMs)
                 }
             }
@@ -1086,6 +1128,7 @@ class ExoPlaybackController @Inject constructor(
             ruleSet = ruleSet,
             shaderPaths = shaderPaths,
             speed = speed,
+            debugConfig = playbackDebugOverrides.embeddedMpvDebugConfig,
         )
     }
 
@@ -1158,6 +1201,39 @@ class ExoPlaybackController @Inject constructor(
     private fun standardPlayerOrNull(): ExoPlayer? = standardExoPlayer
 
     private fun experimentalPlayerOrNull(): ExoPlayer? = experimentalExoPlayer
+}
+
+internal data class EmbeddedMpvStartupState(
+    val isPlaying: Boolean,
+    val playbackState: PlaybackState,
+)
+
+internal fun resolveEmbeddedMpvStartupState(
+    source: PlaybackSource,
+    snapshot: MiruMpvSurfaceView.StateSnapshot,
+    wasPlaying: Boolean,
+): EmbeddedMpvStartupState {
+    if (snapshot.eofReached) {
+        return EmbeddedMpvStartupState(
+            isPlaying = false,
+            playbackState = PlaybackState.Ended(source),
+        )
+    }
+    if (snapshot.paused) {
+        return EmbeddedMpvStartupState(
+            isPlaying = false,
+            playbackState = PlaybackState.Paused(source, snapshot.positionMs),
+        )
+    }
+    val isPlaying = wasPlaying || snapshot.positionMs > 0L
+    return EmbeddedMpvStartupState(
+        isPlaying = isPlaying,
+        playbackState = if (isPlaying) {
+            PlaybackState.Playing(source, snapshot.positionMs)
+        } else {
+            PlaybackState.Buffering(source, snapshot.positionMs)
+        },
+    )
 }
 
 internal fun isEmbeddedMpvHostReady(hostView: ViewGroup?): Boolean =

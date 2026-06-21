@@ -380,6 +380,18 @@ data class AppUpdateDownloadResponse(
 )
 
 @Serializable
+data class AppControlRequest(
+    val action: String,
+)
+
+@Serializable
+data class AppControlDto(
+    val action: String,
+    val accepted: Boolean = false,
+    val message: String? = null,
+)
+
+@Serializable
 data class BangumiArchiveDto(
     val available: Boolean,
     val hasSubjectData: Boolean,
@@ -465,6 +477,8 @@ data class PlaybackDebugConfigRequest(
     val sessionToneMappingPreset: String? = null,
     val sessionPeakDetectionStrategy: String? = null,
     val sessionGamutMappingMode: String? = null,
+    val embeddedMpvVo: String? = null,
+    val embeddedMpvHwdec: String? = null,
     val libVlcHardwareMode: String? = null,
     val libVlcVoutMode: String? = null,
     val libVlcDisplayChroma: String? = null,
@@ -497,6 +511,10 @@ data class PlaybackDebugConfigDto(
     val currentRuleKey: String = "",
     val currentToneMapping: PlaybackDebugCurrentToneMappingDto = PlaybackDebugCurrentToneMappingDto(),
     val fallbackReason: String? = null,
+    val embeddedMpvVo: String? = null,
+    val embeddedMpvHwdec: String? = null,
+    val effectiveEmbeddedMpvVo: String? = null,
+    val effectiveEmbeddedMpvHwdec: String? = null,
     val libVlcHardwareMode: String = "",
     val libVlcVoutMode: String = "",
     val libVlcDisplayChroma: String? = null,
@@ -522,6 +540,44 @@ data class PlaybackClockSamplesDto(
     val currentSignalKind: String? = null,
     val currentRuleKey: String = "",
     val samples: List<PlaybackClockSampleDto> = emptyList(),
+)
+
+@Serializable
+data class PlaybackProfileRequest(
+    val durationMs: Long = 10_000L,
+    val intervalMs: Long = 20L,
+    val maxStacks: Int = 120,
+    val includeThreadNames: List<String> = emptyList(),
+    val excludeThreadNames: List<String> = emptyList(),
+)
+
+@Serializable
+data class PlaybackProfileStackDto(
+    val stack: String = "",
+    val samples: Int = 0,
+)
+
+@Serializable
+data class PlaybackProfileThreadDto(
+    val threadName: String = "",
+    val samples: Int = 0,
+    val runnableSamples: Int = 0,
+    val nativeTopFrameSamples: Int = 0,
+    val topStack: String = "",
+)
+
+@Serializable
+data class PlaybackProfileReportDto(
+    val durationMs: Long = 0L,
+    val intervalMs: Long = 0L,
+    val samplePasses: Int = 0,
+    val sampledThreadCount: Int = 0,
+    val totalStackSamples: Int = 0,
+    val trimmedStackCount: Int = 0,
+    val collapsedStacks: List<PlaybackProfileStackDto> = emptyList(),
+    val collapsedText: String = "",
+    val threadSummaries: List<PlaybackProfileThreadDto> = emptyList(),
+    val notes: List<String> = emptyList(),
 )
 
 @Serializable

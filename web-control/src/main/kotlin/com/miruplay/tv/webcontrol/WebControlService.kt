@@ -19,7 +19,10 @@ import com.miruplay.tv.model.ScanResult
 import com.miruplay.tv.model.buildToneMappingPreset
 import com.miruplay.tv.player.PlaybackController
 import com.miruplay.tv.player.PlaybackDebugOverrides
+import com.miruplay.tv.player.EmbeddedMpvDebugConfig
 import com.miruplay.tv.player.LibVlcDebugConfig
+import com.miruplay.tv.player.effectiveEmbeddedMpvHwdec
+import com.miruplay.tv.player.effectiveEmbeddedMpvVideoOutput
 import com.miruplay.tv.player.LibVlcHardwareAccelerationMode
 import com.miruplay.tv.player.LibVlcVoutMode
 import com.miruplay.tv.player.forcedVideoSignalDescriptorFor
@@ -481,6 +484,12 @@ class WebControlService @Inject constructor(
             )
         }
 
+        playbackDebugOverrides.embeddedMpvDebugConfig =
+            updatedEmbeddedMpvDebugConfig(
+                current = playbackDebugOverrides.embeddedMpvDebugConfig,
+                request = request,
+            )
+
         playbackDebugOverrides.libVlcDebugConfig =
             updatedLibVlcDebugConfig(
                 current = playbackDebugOverrides.libVlcDebugConfig,
@@ -506,6 +515,8 @@ class WebControlService @Inject constructor(
             playbackDebugOverrides.skipLibVlcStartupOptions = request.skipLibVlcStartupOptions == true
         }
 
+        playbackController.refreshActivePlaybackDebugConfig()
+
         MiruLog.i(
             "WebControlService",
             "Applied playback debug config",
@@ -513,6 +524,8 @@ class WebControlService @Inject constructor(
                 "default_backend" to (requestedDefaultBackend?.name ?: "unchanged"),
                 "requested_backend" to (request.requestedBackend ?: "unchanged"),
                 "forced_signal" to (request.forcedSignalKind ?: "unchanged"),
+                "embedded_mpv_vo" to (playbackDebugOverrides.embeddedMpvDebugConfig.vo ?: "default"),
+                "embedded_mpv_hwdec" to (playbackDebugOverrides.embeddedMpvDebugConfig.hwdec ?: "default"),
                 "libvlc_hw_mode" to playbackDebugOverrides.libVlcDebugConfig.hwMode.name,
                 "libvlc_vout_mode" to playbackDebugOverrides.libVlcDebugConfig.voutMode.name,
                 "display_chroma_configured" to (playbackDebugOverrides.libVlcDebugConfig.displayChroma != null).toString(),
@@ -825,9 +838,16 @@ private suspend fun playbackDebugConfigSnapshot(
 ): PlaybackDebugConfigDto {
     val preferences = playbackPreferencesRepository.getFormatAwareToneMappingPreferences().normalized()
     val debugConfig = playbackDebugOverrides.libVlcDebugConfig
+    val embeddedMpvDebugConfig = playbackDebugOverrides.embeddedMpvDebugConfig
     val forcedSignal = playbackDebugOverrides.forcedVideoSignalDescriptor
     val currentSignal = playbackController.currentVideoSignalDescriptor.value
     val currentToneMapping = playbackController.currentToneMappingRuleSet.value
+    val effectiveEmbeddedMpvVo = effectiveEmbeddedMpvVideoOutput(
+        debugConfig = embeddedMpvDebugConfig,
+    )
+    val effectiveEmbeddedMpvHwdec = effectiveEmbeddedMpvHwdec(
+        debugConfig = embeddedMpvDebugConfig,
+    )
     return PlaybackDebugConfigDto(
         defaultBackend = preferences.defaultBackend.name,
         requestedBackend = playbackController.requestedRenderBackend.value.name,
@@ -847,6 +867,10 @@ private suspend fun playbackDebugConfigSnapshot(
             highlightCompression = currentToneMapping.highlightCompression,
         ),
         fallbackReason = playbackController.fallbackReason.value,
+        embeddedMpvVo = embeddedMpvDebugConfig.vo,
+        embeddedMpvHwdec = embeddedMpvDebugConfig.hwdec,
+        effectiveEmbeddedMpvVo = effectiveEmbeddedMpvVo,
+        effectiveEmbeddedMpvHwdec = effectiveEmbeddedMpvHwdec,
         libVlcHardwareMode = debugConfig.hwMode.name,
         libVlcVoutMode = debugConfig.voutMode.name,
         libVlcDisplayChroma = debugConfig.displayChroma,
@@ -863,6 +887,26 @@ private fun requestedDefaultBackend(value: String?): PlaybackRenderBackend? =
         isDebugClearValue(value) -> PlaybackRenderBackend.STANDARD_EXO
         else -> playbackRenderBackendFromDebugValue(value)
     }
+
+private fun updatedEmbeddedMpvDebugConfig(
+    current: EmbeddedMpvDebugConfig,
+    request: PlaybackDebugConfigRequest,
+): EmbeddedMpvDebugConfig {
+    val vo = when {
+        request.embeddedMpvVo == null -> current.vo
+        isDebugClearValue(request.embeddedMpvVo) -> null
+        else -> embeddedMpvVoFromDebugValue(request.embeddedMpvVo) ?: current.vo
+    }
+    val hwdec = when {
+        request.embeddedMpvHwdec == null -> current.hwdec
+        isDebugClearValue(request.embeddedMpvHwdec) -> null
+        else -> embeddedMpvHwdecFromDebugValue(request.embeddedMpvHwdec) ?: current.hwdec
+    }
+    return current.copy(
+        vo = vo,
+        hwdec = hwdec,
+    )
+}
 
 private fun updatedLibVlcDebugConfig(
     current: LibVlcDebugConfig,
