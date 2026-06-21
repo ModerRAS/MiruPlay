@@ -96,6 +96,7 @@ import com.miruplay.tv.model.PLAYBACK_SEEK_FORWARD_SECONDS
 import com.miruplay.tv.model.PlaybackRenderBackend
 import com.miruplay.tv.model.SubtitleTrack
 import com.miruplay.tv.model.ToneMappingProfilePreset
+import com.miruplay.tv.model.ToneMappingRuleSet
 import com.miruplay.tv.model.PlaybackTimingConventions
 import com.miruplay.tv.model.formatPlaybackPosition
 import com.miruplay.tv.model.pictureOsdMenuTitleLabel
@@ -545,6 +546,7 @@ private fun PlayerScreenContent(
                 requestedBackend = currentRequestedBackend,
                 fallbackReason = fallbackReason,
                 currentPicturePreset = viewModel.currentToneMappingPreset(),
+                currentToneMappingRuleSet = currentToneMappingRuleSet,
                 onBack = navigateBack,
                 onTogglePlayback = {
                     viewModel.togglePlayback()
@@ -576,6 +578,26 @@ private fun PlayerScreenContent(
                 },
                 onSavePictureDefault = {
                     viewModel.saveCurrentToneMappingRuleAsDefault()
+                    viewModel.showControls()
+                },
+                onResetPictureSession = {
+                    viewModel.resetCurrentToneMappingToDefault()
+                    viewModel.showControls()
+                },
+                onAdjustTargetSdrNits = { delta ->
+                    viewModel.adjustCurrentToneMappingTargetSdrNits(delta)
+                    viewModel.showControls()
+                },
+                onAdjustContrastRecovery = { delta ->
+                    viewModel.adjustCurrentToneMappingContrastRecovery(delta)
+                    viewModel.showControls()
+                },
+                onAdjustSaturationRecovery = { delta ->
+                    viewModel.adjustCurrentToneMappingSaturationRecovery(delta)
+                    viewModel.showControls()
+                },
+                onAdjustHighlightCompression = { delta ->
+                    viewModel.adjustCurrentToneMappingHighlightCompression(delta)
                     viewModel.showControls()
                 },
                 onSelectBackend = { backend ->
@@ -686,6 +708,7 @@ private fun PlayerChrome(
     requestedBackend: PlaybackRenderBackend,
     fallbackReason: String?,
     currentPicturePreset: ToneMappingProfilePreset,
+    currentToneMappingRuleSet: ToneMappingRuleSet,
     onBack: () -> Unit,
     onTogglePlayback: () -> Unit,
     onSkipBackward: () -> Unit,
@@ -695,6 +718,11 @@ private fun PlayerChrome(
     onSelectSpeed: (Float) -> Unit,
     onSelectPicturePreset: (ToneMappingProfilePreset) -> Unit,
     onSavePictureDefault: () -> Unit,
+    onResetPictureSession: () -> Unit,
+    onAdjustTargetSdrNits: (Int) -> Unit,
+    onAdjustContrastRecovery: (Int) -> Unit,
+    onAdjustSaturationRecovery: (Int) -> Unit,
+    onAdjustHighlightCompression: (Int) -> Unit,
     onSelectBackend: (PlaybackRenderBackend?) -> Unit,
     openMenu: PlayerMenu?,
     onOpenMenuChange: (PlayerMenu?) -> Unit
@@ -739,11 +767,17 @@ private fun PlayerChrome(
                 requestedBackend = requestedBackend,
                 fallbackReason = fallbackReason,
                 currentPicturePreset = currentPicturePreset,
+                currentToneMappingRuleSet = currentToneMappingRuleSet,
                 onSelectSubtitle = onSelectSubtitle,
                 onSelectAudioTrack = onSelectAudioTrack,
                 onSelectSpeed = onSelectSpeed,
                 onSelectPicturePreset = onSelectPicturePreset,
                 onSavePictureDefault = onSavePictureDefault,
+                onResetPictureSession = onResetPictureSession,
+                onAdjustTargetSdrNits = onAdjustTargetSdrNits,
+                onAdjustContrastRecovery = onAdjustContrastRecovery,
+                onAdjustSaturationRecovery = onAdjustSaturationRecovery,
+                onAdjustHighlightCompression = onAdjustHighlightCompression,
                 onSelectBackend = onSelectBackend,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -1122,11 +1156,17 @@ internal fun PlayerOptionsPanel(
     requestedBackend: PlaybackRenderBackend,
     fallbackReason: String?,
     currentPicturePreset: ToneMappingProfilePreset,
+    currentToneMappingRuleSet: ToneMappingRuleSet,
     onSelectSubtitle: (Int) -> Unit,
     onSelectAudioTrack: (Int) -> Unit,
     onSelectSpeed: (Float) -> Unit,
     onSelectPicturePreset: (ToneMappingProfilePreset) -> Unit,
     onSavePictureDefault: () -> Unit,
+    onResetPictureSession: () -> Unit,
+    onAdjustTargetSdrNits: (Int) -> Unit,
+    onAdjustContrastRecovery: (Int) -> Unit,
+    onAdjustSaturationRecovery: (Int) -> Unit,
+    onAdjustHighlightCompression: (Int) -> Unit,
     onSelectBackend: (PlaybackRenderBackend?) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1272,6 +1312,11 @@ internal fun PlayerOptionsPanel(
                             onClick = onSavePictureDefault,
                         )
                         PlayerOptionButton(
+                            text = "重置本次播放",
+                            selected = false,
+                            onClick = onResetPictureSession,
+                        )
+                        PlayerOptionButton(
                             text = "标准 Exo",
                             selected = activeBackend == PlaybackRenderBackend.STANDARD_EXO,
                             onClick = { onSelectBackend(PlaybackRenderBackend.STANDARD_EXO) },
@@ -1294,9 +1339,59 @@ internal fun PlayerOptionsPanel(
                             onClick = { onSelectBackend(null) },
                         )
                     }
+                    ToneMappingAdjustRow(
+                        label = "目标亮度 ${currentToneMappingRuleSet.targetSdrNits} nit",
+                        onDecrease = { onAdjustTargetSdrNits(-10) },
+                        onIncrease = { onAdjustTargetSdrNits(10) },
+                    )
+                    ToneMappingAdjustRow(
+                        label = "对比恢复 ${currentToneMappingRuleSet.contrastRecovery}",
+                        onDecrease = { onAdjustContrastRecovery(-2) },
+                        onIncrease = { onAdjustContrastRecovery(2) },
+                    )
+                    ToneMappingAdjustRow(
+                        label = "饱和恢复 ${currentToneMappingRuleSet.saturationRecovery}",
+                        onDecrease = { onAdjustSaturationRecovery(-2) },
+                        onIncrease = { onAdjustSaturationRecovery(2) },
+                    )
+                    ToneMappingAdjustRow(
+                        label = "高光压缩 ${currentToneMappingRuleSet.highlightCompression}",
+                        onDecrease = { onAdjustHighlightCompression(-2) },
+                        onIncrease = { onAdjustHighlightCompression(2) },
+                    )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ToneMappingAdjustRow(
+    label: String,
+    onDecrease: () -> Unit,
+    onIncrease: () -> Unit,
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        PlayerOptionButton(
+            text = "-",
+            selected = false,
+            onClick = onDecrease,
+        )
+        PlayerOptionButton(
+            text = label,
+            selected = false,
+            onClick = {},
+            enabled = false,
+            modifier = Modifier.width(260.dp),
+        )
+        PlayerOptionButton(
+            text = "+",
+            selected = false,
+            onClick = onIncrease,
+        )
     }
 }
 

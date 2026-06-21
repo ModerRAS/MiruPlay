@@ -18,6 +18,7 @@ import com.miruplay.tv.model.ToneMappingProfilePreset
 import com.miruplay.tv.model.ToneMappingRuleSet
 import com.miruplay.tv.model.VideoRenderRuleKey
 import com.miruplay.tv.model.VideoSignalDescriptor
+import com.miruplay.tv.model.adjustForSession
 import com.miruplay.tv.model.buildToneMappingPreset
 import com.miruplay.tv.model.displayTitle
 import com.miruplay.tv.model.playbackDisplayTitle
@@ -275,6 +276,32 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    fun adjustCurrentToneMappingTargetSdrNits(delta: Int) {
+        adjustCurrentToneMappingRule { it.adjustForSession(targetSdrNitsDelta = delta) }
+    }
+
+    fun adjustCurrentToneMappingContrastRecovery(delta: Int) {
+        adjustCurrentToneMappingRule { it.adjustForSession(contrastRecoveryDelta = delta) }
+    }
+
+    fun adjustCurrentToneMappingSaturationRecovery(delta: Int) {
+        adjustCurrentToneMappingRule { it.adjustForSession(saturationRecoveryDelta = delta) }
+    }
+
+    fun adjustCurrentToneMappingHighlightCompression(delta: Int) {
+        adjustCurrentToneMappingRule { it.adjustForSession(highlightCompressionDelta = delta) }
+    }
+
+    fun resetCurrentToneMappingToDefault() {
+        viewModelScope.launch {
+            val ruleKey = currentRenderRuleKey.value
+            playbackController.setSessionRuleOverride(
+                ruleKey = ruleKey,
+                ruleSet = _formatAwarePreferences.value.normalized().rules.getValue(ruleKey),
+            )
+        }
+    }
+
     fun setDefaultToneMappingPreset(ruleKey: VideoRenderRuleKey, preset: ToneMappingProfilePreset) {
         viewModelScope.launch {
             val updated = _formatAwarePreferences.value.normalized().copy(
@@ -299,6 +326,18 @@ class PlayerViewModel @Inject constructor(
 
     fun currentToneMappingPreset(): ToneMappingProfilePreset =
         currentToneMappingRuleSet.value.toApproximatePreset()
+
+    private fun adjustCurrentToneMappingRule(
+        transform: (ToneMappingRuleSet) -> ToneMappingRuleSet,
+    ) {
+        viewModelScope.launch {
+            val ruleKey = currentRenderRuleKey.value
+            playbackController.setSessionRuleOverride(
+                ruleKey = ruleKey,
+                ruleSet = transform(currentToneMappingRuleSet.value),
+            )
+        }
+    }
 
     fun pendingGlFrameCaptureLabel(): String? =
         playbackController.pendingGlFrameCaptureLabel()

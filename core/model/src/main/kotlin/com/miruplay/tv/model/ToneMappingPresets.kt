@@ -59,3 +59,31 @@ fun ToneMappingRuleSet.toApproximatePreset(): ToneMappingProfilePreset =
         highlightCompression > defaultToneMappingRuleSet(ruleKey).highlightCompression -> ToneMappingProfilePreset.SOFT
         else -> ToneMappingProfilePreset.BALANCED
     }
+
+fun ToneMappingRuleSet.adjustForSession(
+    targetSdrNitsDelta: Int = 0,
+    saturationRecoveryDelta: Int = 0,
+    contrastRecoveryDelta: Int = 0,
+    highlightCompressionDelta: Int = 0,
+): ToneMappingRuleSet {
+    val shouldEnable =
+        targetSdrNitsDelta != 0 ||
+            saturationRecoveryDelta != 0 ||
+            contrastRecoveryDelta != 0 ||
+            highlightCompressionDelta != 0
+    val base = if (enabled || !shouldEnable) {
+        this
+    } else {
+        defaultToneMappingRuleSet(ruleKey).copy(
+            enabled = true,
+            curvePreset = ToneMappingCurvePreset.MOBIUS,
+        )
+    }
+    return base.copy(
+        enabled = base.enabled || shouldEnable,
+        targetSdrNits = (base.targetSdrNits + targetSdrNitsDelta).coerceIn(80, 240),
+        saturationRecovery = (base.saturationRecovery + saturationRecoveryDelta).coerceIn(0, 100),
+        contrastRecovery = (base.contrastRecovery + contrastRecoveryDelta).coerceIn(0, 100),
+        highlightCompression = (base.highlightCompression + highlightCompressionDelta).coerceIn(0, 100),
+    )
+}

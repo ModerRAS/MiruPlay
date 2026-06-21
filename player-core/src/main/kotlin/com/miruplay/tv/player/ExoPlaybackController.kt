@@ -143,10 +143,17 @@ class ExoPlaybackController @Inject constructor(
                         httpConfig = httpConfig,
                     )
                 },
-                runtimeProbe = { null },
+                runtimeProbe = {
+                    probeRuntimeVideoTrackMetadata(
+                        context = context,
+                        uri = source.uri,
+                        httpConfig = httpConfig,
+                    )
+                },
             )
         }
         containerSignalDescriptor = initialProbeResult.containerValue
+            ?: initialProbeResult.runtimeValue?.let(::resolveVideoSignalDescriptor)
         refreshVideoSignalDescriptor(null)
         scheduleContainerSignalProbeCompletionIfNeeded(
             sourceUri = source.uri,
@@ -442,22 +449,41 @@ class ExoPlaybackController @Inject constructor(
     }
 
     override suspend fun setRequestedRenderBackend(backend: PlaybackRenderBackend?) {
-        sessionState = sessionState.withRequestedBackendOverride(backend)
-        val requested = sessionState.effectiveRequestedBackend(playbackPreferences.defaultBackend)
-        _requestedRenderBackend.value = requested
-        refreshRuntimeConfig(_currentVideoSignalDescriptor.value)
+        withContext(Dispatchers.Main) {
+            sessionState = sessionState.withRequestedBackendOverride(backend)
+            val requested = sessionState.effectiveRequestedBackend(playbackPreferences.defaultBackend)
+            val previousActiveBackend = _activeRenderBackend.value
+            val currentPlaybackSource = currentSource
+            val currentPlaybackPosition = when (previousActiveBackend) {
+                PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID -> externalMpvPositionMs
+                PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED -> embeddedMpvPositionMs
+                else -> activeExoPlayerOrNull()?.currentPosition ?: 0L
+            }
+            _requestedRenderBackend.value = requested
+            refreshRuntimeConfig(_currentVideoSignalDescriptor.value)
+            val nextActiveBackend = _activeRenderBackend.value
+            if (currentPlaybackSource != null && previousActiveBackend != nextActiveBackend) {
+                val resumedSource = currentPlaybackSource.copy(startPosition = currentPlaybackPosition.coerceAtLeast(0L))
+                stop(clearSessionState = false)
+                play(resumedSource)
+            }
+        }
     }
 
     override suspend fun setSessionRuleOverride(ruleKey: VideoRenderRuleKey, ruleSet: ToneMappingRuleSet?) {
-        sessionState = sessionState.withRuleOverride(ruleKey, ruleSet)
-        _sessionRuleOverrides.value = sessionState.ruleOverrides
-        refreshRuntimeConfig(_currentVideoSignalDescriptor.value)
+        withContext(Dispatchers.Main) {
+            sessionState = sessionState.withRuleOverride(ruleKey, ruleSet)
+            _sessionRuleOverrides.value = sessionState.ruleOverrides
+            refreshRuntimeConfig(_currentVideoSignalDescriptor.value)
+        }
     }
 
     override suspend fun clearSessionRuleOverrides() {
-        sessionState = sessionState.clearRuleOverrides()
-        _sessionRuleOverrides.value = sessionState.ruleOverrides
-        refreshRuntimeConfig(_currentVideoSignalDescriptor.value)
+        withContext(Dispatchers.Main) {
+            sessionState = sessionState.clearRuleOverrides()
+            _sessionRuleOverrides.value = sessionState.ruleOverrides
+            refreshRuntimeConfig(_currentVideoSignalDescriptor.value)
+        }
     }
 
     override fun pendingGlFrameCaptureLabel(): String? =
@@ -957,7 +983,7 @@ class ExoPlaybackController @Inject constructor(
             }
             onFileLoaded = {
                 embeddedMpvSource?.let { source ->
-                    _state.value = PlaybackState.Playing(source, embeddedMpvPositionMs)
+                    _state.value = PlaybackState.Buffering(source, embeddedMpvPositionMs)
                 }
             }
             onPlaybackRestart = {

@@ -126,31 +126,26 @@ class MiruPlayInputIntentTest {
     }
 
     @Test
-    fun `TV playback overlay action leaves directional keys to focused menu controls when a menu is open`() {
-        assertNull(
-            MiruPlayInputIntent.DirectionLeft.tvPlaybackOverlayAction(
-                controlsVisible = true,
-                hasOpenMenu = true,
+    fun `TV playback overlay action leaves directional keys to focused controls whenever overlay is visible`() {
+        listOf(
+            MiruPlayInputIntent.DirectionLeft,
+            MiruPlayInputIntent.DirectionRight,
+            MiruPlayInputIntent.DirectionUp,
+            MiruPlayInputIntent.DirectionDown,
+        ).forEach { intent ->
+            assertNull(
+                intent.tvPlaybackOverlayAction(
+                    controlsVisible = true,
+                    hasOpenMenu = false,
+                )
             )
-        )
-        assertNull(
-            MiruPlayInputIntent.DirectionRight.tvPlaybackOverlayAction(
-                controlsVisible = true,
-                hasOpenMenu = true,
+            assertNull(
+                intent.tvPlaybackOverlayAction(
+                    controlsVisible = true,
+                    hasOpenMenu = true,
+                )
             )
-        )
-        assertNull(
-            MiruPlayInputIntent.DirectionUp.tvPlaybackOverlayAction(
-                controlsVisible = true,
-                hasOpenMenu = true,
-            )
-        )
-        assertNull(
-            MiruPlayInputIntent.DirectionDown.tvPlaybackOverlayAction(
-                controlsVisible = true,
-                hasOpenMenu = true,
-            )
-        )
+        }
     }
 
     @Test

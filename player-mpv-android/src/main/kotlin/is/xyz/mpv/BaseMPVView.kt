@@ -82,3 +82,6 @@ abstract class BaseMPVView @JvmOverloads constructor(
 }
 
 internal fun shouldLoadMpvFileImmediately(surfaceAttached: Boolean): Boolean = surfaceAttached
+
+internal fun shouldApplyPendingStartSeek(startPositionMs: Long?): Boolean =
+    (startPositionMs ?: 0L) > 0L

@@ -46,6 +46,7 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
     private var initialized = false
     private var sessionOptions = SessionOptions()
     private var appliedSessionOptions: SessionOptions? = null
+    private var pendingStartPositionMs: Long? = null
     private var lastState = StateSnapshot()
 
     fun ensureInitialized() {
@@ -85,9 +86,7 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
         if (appliedSessionOptions != sessionOptions) {
             applyRuntimeOptions(sessionOptions)
         }
-        if (startPositionMs > 0L) {
-            MPVLib.setPropertyDouble("time-pos", startPositionMs / 1000.0)
-        }
+        pendingStartPositionMs = startPositionMs.coerceAtLeast(0L).takeIf(::shouldApplyPendingStartSeek)
         if (shouldLoadMpvFileImmediately(isPlaybackSurfaceAttached())) {
             MPVLib.command(arrayOf("loadfile", path))
         } else {
@@ -128,8 +127,8 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
         MPVLib.setOptionString("hwdec", sessionOptions.hwdec)
         MPVLib.setOptionString("vo", sessionOptions.vo)
         MPVLib.setOptionString("save-position-on-quit", "no")
-        applyColorPipelineOptions(sessionOptions)
-        applyShaderOptions(sessionOptions.shaderPaths)
+        applyColorPipelineProperties(sessionOptions)
+        applyShaderProperties(sessionOptions.shaderPaths)
         sessionOptions.extraOptions.forEach { (name, value) ->
             MPVLib.setOptionString(name, value)
         }
@@ -167,8 +166,16 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
 
     override fun event(eventId: Int) {
         when (eventId) {
-            MPVLib.MpvEvent.MPV_EVENT_FILE_LOADED -> onFileLoaded?.invoke()
-            MPVLib.MpvEvent.MPV_EVENT_PLAYBACK_RESTART -> onPlaybackRestart?.invoke()
+            MPVLib.MpvEvent.MPV_EVENT_FILE_LOADED -> {
+                pendingStartPositionMs?.takeIf(::shouldApplyPendingStartSeek)?.let { startPositionMs ->
+                    MPVLib.command(arrayOf("seek", (startPositionMs / 1000.0).toString(), "absolute+exact"))
+                }
+                onFileLoaded?.invoke()
+            }
+            MPVLib.MpvEvent.MPV_EVENT_PLAYBACK_RESTART -> {
+                pendingStartPositionMs = null
+                onPlaybackRestart?.invoke()
+            }
         }
     }
 
@@ -182,24 +189,27 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
     }
 
     private fun applyRuntimeOptions(options: SessionOptions) {
-        MPVLib.setOptionString("vo", options.vo)
-        MPVLib.setOptionString("hwdec", options.hwdec)
-        applyColorPipelineOptions(options)
-        applyShaderOptions(options.shaderPaths)
+        MPVLib.setPropertyString("vo", options.vo)
+        MPVLib.setPropertyString("hwdec", options.hwdec)
+        applyColorPipelineProperties(options)
+        applyShaderProperties(options.shaderPaths)
         options.extraOptions.forEach { (name, value) ->
-            MPVLib.setOptionString(name, value)
+            when (name) {
+                "speed" -> MPVLib.setPropertyDouble(name, value.toDoubleOrNull() ?: 1.0)
+                else -> MPVLib.setPropertyString(name, value)
+            }
         }
         appliedSessionOptions = options
     }
 
-    private fun applyColorPipelineOptions(options: SessionOptions) {
-        MPVLib.setOptionString("target-prim", options.targetPrim ?: "auto")
-        MPVLib.setOptionString("target-trc", options.targetTrc ?: "auto")
-        MPVLib.setOptionString("target-peak", options.targetPeak?.toString() ?: "auto")
-        MPVLib.setOptionString("hdr-reference-white", options.hdrReferenceWhite?.toString() ?: "203")
-        MPVLib.setOptionString("tone-mapping", options.toneMapping ?: "auto")
-        MPVLib.setOptionString("tone-mapping-param", options.toneMappingParam?.toString() ?: "default")
-        MPVLib.setOptionString(
+    private fun applyColorPipelineProperties(options: SessionOptions) {
+        MPVLib.setPropertyString("target-prim", options.targetPrim ?: "auto")
+        MPVLib.setPropertyString("target-trc", options.targetTrc ?: "auto")
+        MPVLib.setPropertyString("target-peak", options.targetPeak?.toString() ?: "auto")
+        MPVLib.setPropertyString("hdr-reference-white", options.hdrReferenceWhite?.toString() ?: "203")
+        MPVLib.setPropertyString("tone-mapping", options.toneMapping ?: "auto")
+        MPVLib.setPropertyString("tone-mapping-param", options.toneMappingParam?.toString() ?: "default")
+        MPVLib.setPropertyString(
             "hdr-compute-peak",
             when (options.hdrComputePeak) {
                 true -> "yes"
@@ -207,21 +217,17 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
                 null -> "auto"
             },
         )
-        MPVLib.setOptionString("hdr-peak-percentile", options.hdrPeakPercentile?.toString() ?: "100")
-        MPVLib.setOptionString("hdr-peak-decay-rate", options.hdrPeakDecayRate?.toString() ?: "20")
-        MPVLib.setOptionString("hdr-scene-threshold-low", options.hdrSceneThresholdLow?.toString() ?: "1")
-        MPVLib.setOptionString("hdr-scene-threshold-high", options.hdrSceneThresholdHigh?.toString() ?: "3")
-        MPVLib.setOptionString("hdr-contrast-recovery", options.hdrContrastRecovery?.toString() ?: "0")
-        MPVLib.setOptionString("saturation", options.saturation?.toString() ?: "0")
-        MPVLib.setOptionString("gamut-mapping-mode", options.gamutMappingMode ?: "auto")
-        MPVLib.setOptionString("deband", if (options.deband) "yes" else "no")
+        MPVLib.setPropertyString("hdr-peak-percentile", options.hdrPeakPercentile?.toString() ?: "100")
+        MPVLib.setPropertyString("hdr-peak-decay-rate", options.hdrPeakDecayRate?.toString() ?: "20")
+        MPVLib.setPropertyString("hdr-scene-threshold-low", options.hdrSceneThresholdLow?.toString() ?: "1")
+        MPVLib.setPropertyString("hdr-scene-threshold-high", options.hdrSceneThresholdHigh?.toString() ?: "3")
+        MPVLib.setPropertyString("hdr-contrast-recovery", options.hdrContrastRecovery?.toString() ?: "0")
+        MPVLib.setPropertyString("saturation", options.saturation?.toString() ?: "0")
+        MPVLib.setPropertyString("gamut-mapping-mode", options.gamutMappingMode ?: "auto")
+        MPVLib.setPropertyString("deband", if (options.deband) "yes" else "no")
     }
 
-    private fun applyShaderOptions(shaderPaths: List<String>) {
-        if (shaderPaths.isEmpty()) {
-            MPVLib.setOptionString("glsl-shaders", "")
-            return
-        }
-        MPVLib.setOptionString("glsl-shaders", shaderPaths.joinToString(":") { it.trim() })
+    private fun applyShaderProperties(shaderPaths: List<String>) {
+        MPVLib.setPropertyString("glsl-shaders", shaderPaths.joinToString(":") { it.trim() })
     }
 }

@@ -7,6 +7,7 @@ import java.io.Closeable
 import java.io.InputStream
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class WebControlPlaybackDebugConfigRouteTest {
@@ -28,6 +29,10 @@ class WebControlPlaybackDebugConfigRouteTest {
 
         assertEquals(NanoHTTPD.Response.Status.OK, response.status)
         assertEquals(1, service.getCalls)
+        val body = response.bodyText()
+        assertTrue(body.contains("\"currentToneMapping\":{"))
+        assertTrue(body.contains("\"targetSdrNits\":120"))
+        assertTrue(body.contains("\"curvePreset\":\"MOBIUS\""))
     }
 
     @Test
@@ -149,6 +154,13 @@ class WebControlPlaybackDebugConfigRouteTest {
         override fun getRemoteHostName(): String = "localhost"
     }
 
+    private fun NanoHTTPD.Response.bodyText(): String {
+        val size = this.data.available().coerceAtLeast(0)
+        val bytes = ByteArray(size)
+        this.data.read(bytes)
+        return String(bytes, Charsets.UTF_8)
+    }
+
     @Test
     fun `GET startup diagnostics download returns named startup file`() {
         val service = CapturingPlaybackDebugConfigService()
@@ -178,7 +190,17 @@ class WebControlPlaybackDebugConfigRouteTest {
 
         override suspend fun getPlaybackDebugConfig(): PlaybackDebugConfigDto {
             getCalls += 1
-            return PlaybackDebugConfigDto(defaultBackend = "STANDARD_EXO")
+            return PlaybackDebugConfigDto(
+                defaultBackend = "STANDARD_EXO",
+                currentToneMapping = PlaybackDebugCurrentToneMappingDto(
+                    enabled = true,
+                    curvePreset = "MOBIUS",
+                    targetSdrNits = 120,
+                    contrastRecovery = 8,
+                    saturationRecovery = 10,
+                    highlightCompression = 18,
+                ),
+            )
         }
 
         override suspend fun savePlaybackDebugConfig(request: PlaybackDebugConfigRequest): PlaybackDebugConfigDto {

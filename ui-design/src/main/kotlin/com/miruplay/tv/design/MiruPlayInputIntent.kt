@@ -103,8 +103,11 @@ fun MiruPlayInputIntent.tvPlaybackOverlayAction(
 ): MiruPlayPlaybackInputAction? =
     if (controlsVisible) {
         when (this) {
-            MiruPlayInputIntent.DirectionLeft -> if (hasOpenMenu) null else MiruPlayPlaybackInputAction.SeekBack
-            MiruPlayInputIntent.DirectionRight -> if (hasOpenMenu) null else MiruPlayPlaybackInputAction.SeekForward
+            MiruPlayInputIntent.DirectionLeft,
+            MiruPlayInputIntent.DirectionRight,
+            MiruPlayInputIntent.DirectionUp,
+            MiruPlayInputIntent.DirectionDown,
+            -> null
             MiruPlayInputIntent.MediaPlayPause -> MiruPlayPlaybackInputAction.TogglePause
             MiruPlayInputIntent.MediaPlay -> MiruPlayPlaybackInputAction.Resume
             MiruPlayInputIntent.MediaPause -> MiruPlayPlaybackInputAction.Pause
