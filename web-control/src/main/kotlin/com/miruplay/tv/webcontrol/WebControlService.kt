@@ -52,6 +52,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.InputStream
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -336,6 +337,90 @@ class WebControlService @Inject constructor(
             },
         )
 
+    override suspend fun capturePlaybackProfile(request: PlaybackProfileRequest): PlaybackProfileReportDto = runOnIo {
+        if (!profileInProgress.compareAndSet(false, true)) {
+            return@runOnIo PlaybackProfileReportDto(notes = listOf("已有采样进行中，请稍后再试"))
+        }
+        try {
+            val durationMs = request.durationMs.coerceIn(500L, 20_000L)
+            val intervalMs = request.intervalMs.coerceIn(5L, 250L)
+            val maxStacks = request.maxStacks.coerceIn(10, 500)
+            val includeNames = request.includeThreadNames.map(String::trim).filter(String::isNotEmpty)
+            val excludeNames = request.excludeThreadNames.map(String::trim).filter(String::isNotEmpty)
+            val stackCounts = linkedMapOf<String, Int>()
+            val threadSamples = linkedMapOf<String, MutableList<PlaybackProfileObservedStack>>()
+            val notes = mutableListOf("仅采集 Java 线程栈，native 线程内部不可见")
+            val startTime = System.nanoTime()
+            var passes = 0
+            while (((System.nanoTime() - startTime) / 1_000_000L) < durationMs) {
+                val snapshot = Thread.getAllStackTraces()
+                snapshot.forEach { (thread, stack) ->
+                    val name = thread.name.orEmpty()
+                    if (includeNames.isNotEmpty() && includeNames.none { name.contains(it, ignoreCase = true) }) {
+                        return@forEach
+                    }
+                    if (excludeNames.any { name.contains(it, ignoreCase = true) }) {
+                        return@forEach
+                    }
+                    if (stack.isEmpty()) {
+                        return@forEach
+                    }
+                    val collapsed = buildCollapsedStack(name, stack)
+                    stackCounts[collapsed] = (stackCounts[collapsed] ?: 0) + 1
+                    threadSamples.getOrPut(name) { mutableListOf() }.add(
+                        PlaybackProfileObservedStack(
+                            stack = stack,
+                            threadState = thread.state.name,
+                            nativeTopFrame = stack.firstOrNull()?.isNativeMethod == true,
+                        )
+                    )
+                }
+                passes += 1
+                Thread.sleep(intervalMs)
+            }
+            val topStacks = stackCounts.entries
+                .sortedByDescending { it.value }
+                .take(maxStacks)
+            val trimmedStackCount = (stackCounts.size - topStacks.size).coerceAtLeast(0)
+            if (trimmedStackCount > 0) {
+                notes += "trimmed $trimmedStackCount low-frequency stacks"
+            }
+            val collapsedText = topStacks.joinToString("\n") { "${it.key} ${it.value}" }
+            val threadSummaries = threadSamples.entries
+                .map { (threadName, stacks) ->
+                    val grouped = stacks.groupingBy { sample -> buildCollapsedStack(threadName, sample.stack) }.eachCount()
+                    val runnableSamples = stacks.count { it.threadState == java.lang.Thread.State.RUNNABLE.name }
+                    val nativeTopFrameSamples = stacks.count { it.nativeTopFrame }
+                    PlaybackProfileThreadDto(
+                        threadName = threadName,
+                        samples = stacks.size,
+                        runnableSamples = runnableSamples,
+                        nativeTopFrameSamples = nativeTopFrameSamples,
+                        topStack = grouped.maxByOrNull { it.value }?.key.orEmpty(),
+                    )
+                }
+                .sortedByDescending { it.samples }
+                .take(40)
+            if (topStacks.isEmpty()) {
+                notes += "no Java stack samples captured"
+            }
+            PlaybackProfileReportDto(
+                durationMs = durationMs,
+                intervalMs = intervalMs,
+                samplePasses = passes,
+                sampledThreadCount = threadSamples.size,
+                totalStackSamples = stackCounts.values.sum(),
+                trimmedStackCount = trimmedStackCount,
+                collapsedStacks = topStacks.map { PlaybackProfileStackDto(stack = it.key, samples = it.value) },
+                collapsedText = collapsedText,
+                threadSummaries = threadSummaries,
+                notes = notes,
+            )
+        } finally {
+            profileInProgress.set(false)
+        }
+    }
+
     override suspend fun getPlaybackDebugConfig(): PlaybackDebugConfigDto =
         playbackDebugConfigSnapshot(
             playbackPreferencesRepository = playbackPreferencesRepository,
@@ -543,8 +628,37 @@ class WebControlService @Inject constructor(
         lastUpdateCheck!!
     }
 
+    override suspend fun appControl(request: AppControlRequest): AppControlDto = runOnIo {
+        when (request.action.trim().lowercase()) {
+            "restart" -> {
+                val accepted = navigator.requestAppRestart()
+                AppControlDto(
+                    action = "restart",
+                    accepted = accepted,
+                    message = if (accepted) "已请求重启应用" else "应用当前无法接收重启请求",
+                )
+            }
+            "exit" -> {
+                val accepted = navigator.requestAppExit()
+                AppControlDto(
+                    action = "exit",
+                    accepted = accepted,
+                    message = if (accepted) "已请求退出应用" else "应用当前无法接收退出请求",
+                )
+            }
+            else -> AppControlDto(
+                action = request.action,
+                accepted = false,
+                message = "不支持的应用控制动作: ${request.action}",
+            )
+        }
+    }
+
     @Volatile
     private var lastUpdateCheck: AppUpdateDto? = null
+
+    // ponytail: 采样最多 20s，互斥防并发请求耗尽 NanoHTTPD 线程池。
+    private val profileInProgress = AtomicBoolean(false)
 
     private fun baseAppUpdateDto(): AppUpdateDto =
         AppUpdateDto(
@@ -775,6 +889,20 @@ private fun updatedLibVlcDebugConfig(
         displayChroma = displayChroma,
     )
 }
+
+private data class PlaybackProfileObservedStack(
+    val stack: Array<StackTraceElement>,
+    val threadState: String,
+    val nativeTopFrame: Boolean,
+)
+
+private fun buildCollapsedStack(
+    threadName: String,
+    stack: Array<StackTraceElement>,
+): String =
+    (sequenceOf("thread:$threadName") + stack.asSequence().map { frame ->
+        "${frame.className}.${frame.methodName}"
+    }).joinToString(";")
 
 private const val WEB_CLOUD_DRIVE_TASK_ID = "cloud-drive-rss-web"
 private const val BANGUMI_ARCHIVE_LOG_TAG = "BangumiArchiveDownload"
