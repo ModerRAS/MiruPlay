@@ -35,7 +35,7 @@ import com.miruplay.tv.repository.PlaybackPreferencesRepository
 import `is`.xyz.mpv.MiruMpvSurfaceView
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
-import java.util.ArrayDeque
+import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Provider
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -104,7 +104,8 @@ class ExoPlaybackController @Inject constructor(
     private var embeddedMpvView: MiruMpvSurfaceView? = null
     private var embeddedMpvPendingLoad: Boolean = false
     private var embeddedMpvPlaybackSpeed: Float = 1.0f
-    private val playbackClockSamples = ArrayDeque<PlaybackClockSample>()
+    // ponytail: copy-on-write 避免跨线程锁；写者基本只有 mpv 回调线程，CAS 无竞争。
+    private val playbackClockSamples = AtomicReference<List<PlaybackClockSample>>(emptyList())
 
     private var standardExoPlayer: ExoPlayer? = null
     private var experimentalExoPlayer: ExoPlayer? = null
@@ -349,7 +350,7 @@ class ExoPlaybackController @Inject constructor(
             embeddedMpvSource = null
             embeddedMpvPendingLoad = false
             embeddedMpvPlaybackSpeed = 1.0f
-            playbackClockSamples.clear()
+            playbackClockSamples.set(emptyList())
             dataSourceFactory.clearHttpConfig()
             currentSource = null
             autoResumeSeekCalled = false
@@ -502,7 +503,7 @@ class ExoPlaybackController @Inject constructor(
 
     override fun recentPlaybackClockSamples(limit: Int): List<PlaybackClockSample> {
         val safeLimit = limit.coerceIn(1, MAX_PLAYBACK_CLOCK_SAMPLES)
-        val samples = playbackClockSamples.toList()
+        val samples = playbackClockSamples.get()
         return if (samples.size <= safeLimit) samples else samples.takeLast(safeLimit)
     }
 
@@ -1026,17 +1027,14 @@ class ExoPlaybackController @Inject constructor(
     }
 
     private fun recordPlaybackClockSample(snapshot: MiruMpvSurfaceView.StateSnapshot) {
-        playbackClockSamples.addLast(
-            PlaybackClockSample(
+        playbackClockSamples.updateAndGet { current ->
+            (current + PlaybackClockSample(
                 monotonicTimestampMs = android.os.SystemClock.elapsedRealtime(),
                 positionMs = snapshot.positionMs,
                 durationMs = snapshot.durationMs,
                 paused = snapshot.paused,
                 eofReached = snapshot.eofReached,
-            ),
-        )
-        while (playbackClockSamples.size > MAX_PLAYBACK_CLOCK_SAMPLES) {
-            playbackClockSamples.removeFirst()
+            )).takeLast(MAX_PLAYBACK_CLOCK_SAMPLES)
         }
     }
 
