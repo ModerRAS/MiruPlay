@@ -1,5 +1,7 @@
 package com.miruplay.tv.player
 
+import android.os.Build
+import android.os.Process
 import com.miruplay.tv.model.PeakDetectionStrategy
 import com.miruplay.tv.model.ToneMappingCurvePreset
 import com.miruplay.tv.model.ToneMappingRuleSet
@@ -9,27 +11,34 @@ internal fun buildEmbeddedMpvSessionOptions(
     ruleSet: ToneMappingRuleSet,
     shaderPaths: List<String>,
     speed: Float = 1.0f,
+    runtimeAbiIs32Bit: Boolean = isEmbeddedMpvRuntime32Bit(),
 ): MiruMpvSurfaceView.SessionOptions {
-    val peakDetection = resolveEmbeddedMpvPeakDetection(ruleSet.peakDetectionStrategy)
+    val peakDetection = resolveEmbeddedMpvPeakDetection(
+        strategy = effectiveEmbeddedMpvPeakDetectionStrategy(
+            strategy = ruleSet.peakDetectionStrategy,
+            runtimeAbiIs32Bit = runtimeAbiIs32Bit,
+        ),
+    )
+    val toneMappingEnabled = ruleSet.enabled
     return MiruMpvSurfaceView.SessionOptions(
         vo = "gpu-next",
         hwdec = "mediacodec-copy",
         profile = "fast",
-        targetPrim = if (ruleSet.enabled) "bt.709" else null,
-        targetTrc = if (ruleSet.enabled) "bt.1886" else null,
-        targetPeak = if (ruleSet.enabled) ruleSet.targetSdrNits else null,
-        hdrReferenceWhite = if (ruleSet.enabled) ruleSet.targetSdrNits.coerceIn(80, 203) else null,
+        targetPrim = if (toneMappingEnabled) "bt.709" else null,
+        targetTrc = if (toneMappingEnabled) "bt.1886" else null,
+        targetPeak = if (toneMappingEnabled) ruleSet.targetSdrNits else null,
+        hdrReferenceWhite = if (toneMappingEnabled) ruleSet.targetSdrNits.coerceIn(80, 203) else null,
         toneMapping = resolveEmbeddedMpvToneMapping(ruleSet),
-        toneMappingParam = if (ruleSet.enabled) resolveEmbeddedMpvToneMappingParam(ruleSet) else null,
-        hdrComputePeak = if (ruleSet.enabled) peakDetection.enabled else null,
-        hdrPeakPercentile = if (ruleSet.enabled) peakDetection.peakPercentile else null,
-        hdrPeakDecayRate = if (ruleSet.enabled) peakDetection.peakDecayRate else null,
-        hdrSceneThresholdLow = if (ruleSet.enabled) peakDetection.sceneThresholdLow else null,
-        hdrSceneThresholdHigh = if (ruleSet.enabled) peakDetection.sceneThresholdHigh else null,
-        hdrContrastRecovery = if (ruleSet.enabled) resolveEmbeddedMpvContrastRecovery(ruleSet) else null,
-        saturation = if (ruleSet.enabled) resolveEmbeddedMpvSaturation(ruleSet) else null,
-        gamutMappingMode = if (ruleSet.enabled) "perceptual" else null,
-        deband = ruleSet.enabled,
+        toneMappingParam = if (toneMappingEnabled) resolveEmbeddedMpvToneMappingParam(ruleSet) else null,
+        hdrComputePeak = if (toneMappingEnabled) peakDetection.enabled else null,
+        hdrPeakPercentile = if (toneMappingEnabled) peakDetection.peakPercentile else null,
+        hdrPeakDecayRate = if (toneMappingEnabled) peakDetection.peakDecayRate else null,
+        hdrSceneThresholdLow = if (toneMappingEnabled) peakDetection.sceneThresholdLow else null,
+        hdrSceneThresholdHigh = if (toneMappingEnabled) peakDetection.sceneThresholdHigh else null,
+        hdrContrastRecovery = if (toneMappingEnabled) resolveEmbeddedMpvContrastRecovery(ruleSet) else null,
+        saturation = if (toneMappingEnabled) resolveEmbeddedMpvSaturation(ruleSet) else null,
+        gamutMappingMode = if (toneMappingEnabled) resolveEmbeddedMpvGamutMappingMode(ruleSet, runtimeAbiIs32Bit) else null,
+        deband = toneMappingEnabled && !runtimeAbiIs32Bit,
         shaderPaths = shaderPaths,
         extraOptions = mapOf(
             "speed" to speed.coerceIn(0.25f, 3.0f).toString(),
@@ -61,6 +70,36 @@ private fun resolveEmbeddedMpvContrastRecovery(ruleSet: ToneMappingRuleSet): Flo
 
 private fun resolveEmbeddedMpvSaturation(ruleSet: ToneMappingRuleSet): Float =
     (ruleSet.saturationRecovery * 2f).coerceIn(-100f, 100f)
+
+private fun resolveEmbeddedMpvGamutMappingMode(
+    ruleSet: ToneMappingRuleSet,
+    runtimeAbiIs32Bit: Boolean,
+): String? =
+    when {
+        !ruleSet.enabled -> null
+        ruleSet.gamutMappingMode != null -> ruleSet.gamutMappingMode
+        runtimeAbiIs32Bit -> "clip"
+        else -> "perceptual"
+    }
+
+private fun effectiveEmbeddedMpvPeakDetectionStrategy(
+    strategy: PeakDetectionStrategy,
+    runtimeAbiIs32Bit: Boolean,
+): PeakDetectionStrategy =
+    when {
+        !runtimeAbiIs32Bit -> strategy
+        strategy == PeakDetectionStrategy.DYNAMIC -> PeakDetectionStrategy.STATIC_METADATA
+        strategy == PeakDetectionStrategy.DYNAMIC_AGGRESSIVE -> PeakDetectionStrategy.DYNAMIC
+        else -> strategy
+    }
+
+private fun isEmbeddedMpvRuntime32Bit(): Boolean =
+    runCatching {
+        when {
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> !Process.is64Bit()
+            else -> Build.SUPPORTED_64_BIT_ABIS.isEmpty()
+        }
+    }.getOrDefault(false)
 
 private fun resolveEmbeddedMpvPeakDetection(strategy: PeakDetectionStrategy): EmbeddedMpvPeakDetection =
     when (strategy) {

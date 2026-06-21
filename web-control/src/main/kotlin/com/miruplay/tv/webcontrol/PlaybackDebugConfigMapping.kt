@@ -1,6 +1,8 @@
 package com.miruplay.tv.webcontrol
 
+import com.miruplay.tv.model.PeakDetectionStrategy
 import com.miruplay.tv.model.PlaybackRenderBackend
+import com.miruplay.tv.model.ToneMappingProfilePreset
 import com.miruplay.tv.model.VideoSignalKind
 import com.miruplay.tv.player.LibVlcHardwareAccelerationMode
 import com.miruplay.tv.player.LibVlcVoutMode
@@ -52,6 +54,32 @@ internal fun debugBooleanValue(value: String?): Boolean? =
     when (value.debugKey()) {
         "true", "yes", "1", "on", "enable", "enabled", "skip", "bypass" -> true
         "false", "no", "0", "off", "disable", "disabled" -> false
+        else -> null
+    }
+
+internal fun toneMappingPresetFromDebugValue(value: String?): ToneMappingProfilePreset? =
+    when (value.debugKey()) {
+        "bypass", "passthrough", "direct" -> ToneMappingProfilePreset.BYPASS
+        "balanced", "default", "mobius" -> ToneMappingProfilePreset.BALANCED
+        "punchy" -> ToneMappingProfilePreset.PUNCHY
+        "soft" -> ToneMappingProfilePreset.SOFT
+        else -> null
+    }
+
+internal fun peakDetectionStrategyFromDebugValue(value: String?): PeakDetectionStrategy? =
+    when (value.debugKey()) {
+        "disabled", "disable", "off", "none" -> PeakDetectionStrategy.DISABLED
+        "staticmetadata", "static" -> PeakDetectionStrategy.STATIC_METADATA
+        "dynamic", "dyn" -> PeakDetectionStrategy.DYNAMIC
+        "dynamicaggressive", "aggressive" -> PeakDetectionStrategy.DYNAMIC_AGGRESSIVE
+        else -> null
+    }
+
+internal fun gamutMappingModeFromDebugValue(value: String?): String? =
+    when (value.debugKey()) {
+        "perceptual" -> "perceptual"
+        "relative" -> "relative"
+        "clip" -> "clip"
         else -> null
     }
 

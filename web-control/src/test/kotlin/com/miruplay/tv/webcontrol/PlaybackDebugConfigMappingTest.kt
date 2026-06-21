@@ -2,6 +2,8 @@ package com.miruplay.tv.webcontrol
 
 import com.miruplay.tv.model.PlaybackRenderBackend
 import com.miruplay.tv.model.VideoSignalKind
+import com.miruplay.tv.model.PeakDetectionStrategy
+import com.miruplay.tv.model.ToneMappingProfilePreset
 import com.miruplay.tv.player.LibVlcHardwareAccelerationMode
 import com.miruplay.tv.player.LibVlcVoutMode
 import org.junit.Assert.assertEquals
@@ -46,5 +48,18 @@ class PlaybackDebugConfigMappingTest {
         assertEquals("RV32", libVlcDisplayChromaFromDebugValue("rv32"))
         assertNull(libVlcDisplayChromaFromDebugValue("rgb"))
         assertTrue(isDebugClearValue("clear"))
+    }
+
+    @Test
+    fun `tone mapping debug parsers accept preset and peak detection aliases`() {
+        assertEquals(ToneMappingProfilePreset.BYPASS, toneMappingPresetFromDebugValue("passthrough"))
+        assertEquals(ToneMappingProfilePreset.BALANCED, toneMappingPresetFromDebugValue("mobius"))
+        assertEquals(PeakDetectionStrategy.STATIC_METADATA, peakDetectionStrategyFromDebugValue("static"))
+        assertEquals(PeakDetectionStrategy.DYNAMIC_AGGRESSIVE, peakDetectionStrategyFromDebugValue("aggressive"))
+        assertEquals("clip", gamutMappingModeFromDebugValue("clip"))
+        assertEquals("relative", gamutMappingModeFromDebugValue("relative"))
+        assertNull(toneMappingPresetFromDebugValue("unknown"))
+        assertNull(peakDetectionStrategyFromDebugValue("weird"))
+        assertNull(gamutMappingModeFromDebugValue("bogus"))
     }
 }

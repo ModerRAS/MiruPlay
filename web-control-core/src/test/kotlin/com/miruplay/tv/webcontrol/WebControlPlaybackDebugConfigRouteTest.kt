@@ -33,6 +33,7 @@ class WebControlPlaybackDebugConfigRouteTest {
         assertTrue(body.contains("\"currentToneMapping\":{"))
         assertTrue(body.contains("\"targetSdrNits\":120"))
         assertTrue(body.contains("\"curvePreset\":\"MOBIUS\""))
+        assertTrue(body.contains("\"peakDetectionStrategy\":\"DYNAMIC\""))
     }
 
     @Test
@@ -53,6 +54,9 @@ class WebControlPlaybackDebugConfigRouteTest {
                       "defaultBackend": "EXPERIMENTAL_LIBVLC",
                       "requestedBackend": "EXPERIMENTAL_LIBVLC",
                       "forcedSignalKind": "HDR10",
+                      "sessionToneMappingPreset": "passthrough",
+                      "sessionPeakDetectionStrategy": "static",
+                      "sessionGamutMappingMode": "clip",
                       "libVlcHardwareMode": "DECODING_ONLY",
                       "libVlcVoutMode": "ANDROID_DISPLAY",
                       "libVlcDisplayChroma": "RV32",
@@ -69,6 +73,9 @@ class WebControlPlaybackDebugConfigRouteTest {
         assertEquals("EXPERIMENTAL_LIBVLC", request?.defaultBackend)
         assertEquals("EXPERIMENTAL_LIBVLC", request?.requestedBackend)
         assertEquals("HDR10", request?.forcedSignalKind)
+        assertEquals("passthrough", request?.sessionToneMappingPreset)
+        assertEquals("static", request?.sessionPeakDetectionStrategy)
+        assertEquals("clip", request?.sessionGamutMappingMode)
         assertEquals("DECODING_ONLY", request?.libVlcHardwareMode)
         assertEquals("ANDROID_DISPLAY", request?.libVlcVoutMode)
         assertEquals("RV32", request?.libVlcDisplayChroma)
@@ -220,6 +227,8 @@ class WebControlPlaybackDebugConfigRouteTest {
                 currentToneMapping = PlaybackDebugCurrentToneMappingDto(
                     enabled = true,
                     curvePreset = "MOBIUS",
+                    peakDetectionStrategy = "DYNAMIC",
+                    gamutMappingMode = "perceptual",
                     targetSdrNits = 120,
                     contrastRecovery = 8,
                     saturationRecovery = 10,
@@ -234,6 +243,19 @@ class WebControlPlaybackDebugConfigRouteTest {
                 defaultBackend = request.defaultBackend ?: "STANDARD_EXO",
                 requestedBackend = request.requestedBackend ?: request.defaultBackend ?: "STANDARD_EXO",
                 forcedSignalKind = request.forcedSignalKind,
+                currentToneMapping = PlaybackDebugCurrentToneMappingDto(
+                    enabled = request.sessionToneMappingPreset != "passthrough",
+                    curvePreset = if (request.sessionToneMappingPreset == "passthrough") "PASSTHROUGH" else "MOBIUS",
+                    peakDetectionStrategy = when (request.sessionPeakDetectionStrategy) {
+                        "static" -> "STATIC_METADATA"
+                        else -> "DYNAMIC"
+                    },
+                    gamutMappingMode = request.sessionGamutMappingMode ?: "perceptual",
+                    targetSdrNits = 120,
+                    contrastRecovery = 8,
+                    saturationRecovery = 10,
+                    highlightCompression = 18,
+                ),
                 libVlcHardwareMode = request.libVlcHardwareMode ?: "FULL",
                 libVlcVoutMode = request.libVlcVoutMode ?: "DEFAULT",
                 libVlcDisplayChroma = request.libVlcDisplayChroma,

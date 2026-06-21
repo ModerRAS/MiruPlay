@@ -134,6 +134,7 @@ data class ToneMappingRuleSet(
     val saturationRecovery: Int,
     val contrastRecovery: Int,
     val highlightCompression: Int,
+    val gamutMappingMode: String? = null,
     val fallbackBackendPolicy: FallbackBackendPolicy,
 ) {
     fun summaryLabel(): String =

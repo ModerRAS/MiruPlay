@@ -16,6 +16,7 @@ import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.PlaybackRenderBackend
 import com.miruplay.tv.model.ScanResult
+import com.miruplay.tv.model.buildToneMappingPreset
 import com.miruplay.tv.player.PlaybackController
 import com.miruplay.tv.player.PlaybackDebugOverrides
 import com.miruplay.tv.player.LibVlcDebugConfig
@@ -369,6 +370,32 @@ class WebControlService @Inject constructor(
             }
         }
 
+        if (request.clearSessionToneMapping == true) {
+            playbackController.clearSessionRuleOverrides()
+        } else if (
+            request.sessionToneMappingPreset != null ||
+            request.sessionPeakDetectionStrategy != null ||
+            request.sessionGamutMappingMode != null
+        ) {
+            val ruleKey = playbackController.currentRenderRuleKey.value
+            val currentRule = playbackController.currentToneMappingRuleSet.value
+            val preset = toneMappingPresetFromDebugValue(request.sessionToneMappingPreset)
+            val peakDetection = peakDetectionStrategyFromDebugValue(request.sessionPeakDetectionStrategy)
+            val gamutMappingMode = when {
+                request.sessionGamutMappingMode == null -> currentRule.gamutMappingMode
+                isDebugClearValue(request.sessionGamutMappingMode) -> null
+                else -> gamutMappingModeFromDebugValue(request.sessionGamutMappingMode) ?: currentRule.gamutMappingMode
+            }
+            val baseRule = preset?.let { buildToneMappingPreset(ruleKey, it) } ?: currentRule
+            playbackController.setSessionRuleOverride(
+                ruleKey = ruleKey,
+                ruleSet = baseRule.copy(
+                    peakDetectionStrategy = peakDetection ?: baseRule.peakDetectionStrategy,
+                    gamutMappingMode = gamutMappingMode,
+                ),
+            )
+        }
+
         playbackDebugOverrides.libVlcDebugConfig =
             updatedLibVlcDebugConfig(
                 current = playbackDebugOverrides.libVlcDebugConfig,
@@ -698,6 +725,8 @@ private suspend fun playbackDebugConfigSnapshot(
         currentToneMapping = PlaybackDebugCurrentToneMappingDto(
             enabled = currentToneMapping.enabled,
             curvePreset = currentToneMapping.curvePreset.name,
+            peakDetectionStrategy = currentToneMapping.peakDetectionStrategy.name,
+            gamutMappingMode = currentToneMapping.gamutMappingMode,
             targetSdrNits = currentToneMapping.targetSdrNits,
             contrastRecovery = currentToneMapping.contrastRecovery,
             saturationRecovery = currentToneMapping.saturationRecovery,

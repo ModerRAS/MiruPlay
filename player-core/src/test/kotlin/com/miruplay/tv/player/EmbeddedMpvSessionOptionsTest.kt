@@ -40,6 +40,7 @@ class EmbeddedMpvSessionOptionsTest {
             ),
             shaderPaths = listOf("/tmp/test.glsl"),
             speed = 1.25f,
+            runtimeAbiIs32Bit = false,
         )
 
         assertEquals("bt.709", options.targetPrim)
@@ -67,6 +68,7 @@ class EmbeddedMpvSessionOptionsTest {
                 peakDetectionStrategy = PeakDetectionStrategy.DYNAMIC_AGGRESSIVE,
             ),
             shaderPaths = emptyList(),
+            runtimeAbiIs32Bit = false,
         )
 
         assertEquals(true, options.hdrComputePeak)
@@ -84,6 +86,7 @@ class EmbeddedMpvSessionOptionsTest {
                 highlightCompression = 24,
             ),
             shaderPaths = emptyList(),
+            runtimeAbiIs32Bit = false,
         )
 
         assertEquals("reinhard", options.toneMapping)
@@ -97,8 +100,38 @@ class EmbeddedMpvSessionOptionsTest {
                 saturationRecovery = 80,
             ),
             shaderPaths = emptyList(),
+            runtimeAbiIs32Bit = false,
         )
 
         assertEquals(100f, options.saturation)
+    }
+
+    @Test
+    fun `32-bit runtime downgrades dynamic peak detection for embedded mpv`() {
+        val dynamic = buildEmbeddedMpvSessionOptions(
+            ruleSet = defaultToneMappingRuleSet(VideoRenderRuleKey.HDR10).copy(
+                peakDetectionStrategy = PeakDetectionStrategy.DYNAMIC,
+            ),
+            shaderPaths = emptyList(),
+            runtimeAbiIs32Bit = true,
+        )
+        val aggressive = buildEmbeddedMpvSessionOptions(
+            ruleSet = defaultToneMappingRuleSet(VideoRenderRuleKey.HDR10_PLUS).copy(
+                peakDetectionStrategy = PeakDetectionStrategy.DYNAMIC_AGGRESSIVE,
+            ),
+            shaderPaths = emptyList(),
+            runtimeAbiIs32Bit = true,
+        )
+
+        assertEquals(false, dynamic.hdrComputePeak)
+        assertEquals("clip", dynamic.gamutMappingMode)
+        assertEquals(false, dynamic.deband)
+        assertEquals(true, aggressive.hdrComputePeak)
+        assertEquals("clip", aggressive.gamutMappingMode)
+        assertEquals(false, aggressive.deband)
+        assertEquals(100f, aggressive.hdrPeakPercentile)
+        assertEquals(20f, aggressive.hdrPeakDecayRate)
+        assertEquals(1f, aggressive.hdrSceneThresholdLow)
+        assertEquals(3f, aggressive.hdrSceneThresholdHigh)
     }
 }
