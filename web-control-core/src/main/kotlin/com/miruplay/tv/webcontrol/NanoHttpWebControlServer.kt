@@ -290,6 +290,10 @@ open class NanoHttpWebControlServer(
             session.method == Method.GET && route == "/api/playback/status" -> {
                 jsonResponse(PlaybackStatusDto.serializer(), webControlService.playbackStatus())
             }
+            session.method == Method.GET && route == "/api/playback/clock-samples" -> {
+                val limit = session.parameters["limit"]?.firstOrNull()?.toIntOrNull() ?: 120
+                jsonResponse(PlaybackClockSamplesDto.serializer(), webControlService.getPlaybackClockSamples(limit))
+            }
             session.method == Method.GET && route == "/api/playback/debug-config" -> {
                 jsonResponse(PlaybackDebugConfigDto.serializer(), webControlService.getPlaybackDebugConfig())
             }

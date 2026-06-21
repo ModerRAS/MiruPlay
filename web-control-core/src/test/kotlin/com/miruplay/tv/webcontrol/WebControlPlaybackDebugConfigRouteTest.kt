@@ -103,6 +103,30 @@ class WebControlPlaybackDebugConfigRouteTest {
         assertEquals(true, service.capturedSaveRequest?.skipLibVlcStartupOptions)
     }
 
+    @Test
+    fun `GET playback clock samples returns recent samples`() {
+        val service = CapturingPlaybackDebugConfigService()
+        val server = NanoHttpWebControlServer(
+            webControlService = service,
+            webControlAccess = EnabledWebControlAccess,
+            staticAssets = WebControlStaticAssets { null },
+        )
+
+        val response = server.serve(
+            FakeSession(
+                method = NanoHTTPD.Method.GET,
+                uri = "/api/playback/clock-samples?limit=2",
+            )
+        )
+
+        assertEquals(NanoHTTPD.Response.Status.OK, response.status)
+        assertEquals(2, service.capturedClockSampleLimit)
+        val body = response.bodyText()
+        assertTrue(body.contains("\"activeBackend\":\"EXPERIMENTAL_MPV_EMBEDDED\""))
+        assertTrue(body.contains("\"positionMs\":1234"))
+        assertTrue(body.contains("\"positionMs\":1734"))
+    }
+
     private object EnabledWebControlAccess : WebControlAccessManager {
         override var webControlEnabled: Boolean = true
         override val accessToken: String = "token"
@@ -187,6 +211,7 @@ class WebControlPlaybackDebugConfigRouteTest {
         var capturedSaveRequest: PlaybackDebugConfigRequest? = null
         var downloadStartupDiagnosticsCalls = 0
         var capturedStartupDiagnosticsName: String? = null
+        var capturedClockSampleLimit: Int? = null
 
         override suspend fun getPlaybackDebugConfig(): PlaybackDebugConfigDto {
             getCalls += 1
@@ -214,6 +239,32 @@ class WebControlPlaybackDebugConfigRouteTest {
                 libVlcDisplayChroma = request.libVlcDisplayChroma,
                 pendingGlFrameCaptureLabel = request.glFrameCaptureLabel,
                 pendingLibVlcNativeSnapshotLabel = request.libVlcNativeSnapshotLabel,
+            )
+        }
+
+        override suspend fun getPlaybackClockSamples(limit: Int): PlaybackClockSamplesDto {
+            capturedClockSampleLimit = limit
+            return PlaybackClockSamplesDto(
+                activeBackend = "EXPERIMENTAL_MPV_EMBEDDED",
+                requestedBackend = "EXPERIMENTAL_MPV_EMBEDDED",
+                currentSignalKind = "HDR10",
+                currentRuleKey = "HDR10",
+                samples = listOf(
+                    PlaybackClockSampleDto(
+                        monotonicTimestampMs = 1000,
+                        positionMs = 1234,
+                        durationMs = 9999,
+                        paused = false,
+                        eofReached = false,
+                    ),
+                    PlaybackClockSampleDto(
+                        monotonicTimestampMs = 1500,
+                        positionMs = 1734,
+                        durationMs = 9999,
+                        paused = false,
+                        eofReached = false,
+                    ),
+                ),
             )
         }
 

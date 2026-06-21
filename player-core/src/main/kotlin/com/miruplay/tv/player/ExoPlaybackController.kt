@@ -35,6 +35,7 @@ import com.miruplay.tv.repository.PlaybackPreferencesRepository
 import `is`.xyz.mpv.MiruMpvSurfaceView
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
+import java.util.ArrayDeque
 import javax.inject.Provider
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -103,6 +104,7 @@ class ExoPlaybackController @Inject constructor(
     private var embeddedMpvView: MiruMpvSurfaceView? = null
     private var embeddedMpvPendingLoad: Boolean = false
     private var embeddedMpvPlaybackSpeed: Float = 1.0f
+    private val playbackClockSamples = ArrayDeque<PlaybackClockSample>()
 
     private var standardExoPlayer: ExoPlayer? = null
     private var experimentalExoPlayer: ExoPlayer? = null
@@ -347,6 +349,7 @@ class ExoPlaybackController @Inject constructor(
             embeddedMpvSource = null
             embeddedMpvPendingLoad = false
             embeddedMpvPlaybackSpeed = 1.0f
+            playbackClockSamples.clear()
             dataSourceFactory.clearHttpConfig()
             currentSource = null
             autoResumeSeekCalled = false
@@ -496,6 +499,12 @@ class ExoPlaybackController @Inject constructor(
     override fun currentLibVlcVoutMode(): LibVlcVoutMode? = null
 
     override fun clearPendingLibVlcNativeSnapshotLabel(label: String) = Unit
+
+    override fun recentPlaybackClockSamples(limit: Int): List<PlaybackClockSample> {
+        val safeLimit = limit.coerceIn(1, MAX_PLAYBACK_CLOCK_SAMPLES)
+        val samples = playbackClockSamples.toList()
+        return if (samples.size <= safeLimit) samples else samples.takeLast(safeLimit)
+    }
 
     override fun clearPendingGlFrameCaptureLabel(label: String) {
         playbackDebugOverrides.clearPendingGlFrameCaptureLabel(label)
@@ -973,6 +982,7 @@ class ExoPlaybackController @Inject constructor(
                 embeddedMpvPositionMs = snapshot.positionMs
                 embeddedMpvDurationMs = snapshot.durationMs
                 embeddedMpvPlaying = !snapshot.paused && !snapshot.eofReached
+                recordPlaybackClockSample(snapshot)
                 embeddedMpvSource?.let { source ->
                     _state.value = when {
                         snapshot.eofReached -> PlaybackState.Ended(source)
@@ -1013,6 +1023,21 @@ class ExoPlaybackController @Inject constructor(
         )
         embeddedMpvView = created
         return created
+    }
+
+    private fun recordPlaybackClockSample(snapshot: MiruMpvSurfaceView.StateSnapshot) {
+        playbackClockSamples.addLast(
+            PlaybackClockSample(
+                monotonicTimestampMs = android.os.SystemClock.elapsedRealtime(),
+                positionMs = snapshot.positionMs,
+                durationMs = snapshot.durationMs,
+                paused = snapshot.paused,
+                eofReached = snapshot.eofReached,
+            ),
+        )
+        while (playbackClockSamples.size > MAX_PLAYBACK_CLOCK_SAMPLES) {
+            playbackClockSamples.removeFirst()
+        }
     }
 
     private fun applyEmbeddedMpvSessionOptions(
@@ -1139,5 +1164,7 @@ class ExoPlaybackController @Inject constructor(
 
 internal fun isEmbeddedMpvHostReady(hostView: ViewGroup?): Boolean =
     hostView?.isAttachedToWindow == true && hostView.width > 0 && hostView.height > 0
+
+private const val MAX_PLAYBACK_CLOCK_SAMPLES = 240
 
 typealias Tracks = androidx.media3.common.Tracks

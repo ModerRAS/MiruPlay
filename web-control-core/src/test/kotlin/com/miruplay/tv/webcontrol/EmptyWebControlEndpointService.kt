@@ -55,6 +55,7 @@ internal open class EmptyWebControlEndpointService : WebControlEndpointService {
     override suspend fun playEpisode(request: PlayEpisodeRequest): PlaybackStatusDto = unused()
     override suspend fun playbackCommand(request: PlaybackCommandRequest): PlaybackStatusDto = unused()
     override suspend fun playbackStatus(): PlaybackStatusDto = unused()
+    override suspend fun getPlaybackClockSamples(limit: Int): PlaybackClockSamplesDto = unused()
 
     private fun unused(): Nothing = error("unused")
 }

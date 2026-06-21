@@ -187,7 +187,23 @@ interface PlaybackController {
      */
     fun clearPendingLibVlcNativeSnapshotLabel(label: String)
 
+    /**
+     * Recent playback clock samples captured from the active backend, newest last.
+     */
+    fun recentPlaybackClockSamples(limit: Int = 120): List<PlaybackClockSample>
+
 }
+
+/**
+ * Backend-reported playback clock sample.
+ */
+data class PlaybackClockSample(
+    val monotonicTimestampMs: Long,
+    val positionMs: Long,
+    val durationMs: Long,
+    val paused: Boolean,
+    val eofReached: Boolean,
+)
 
 /**
  * Audio track information

@@ -501,6 +501,24 @@ data class PlaybackDebugConfigDto(
 )
 
 @Serializable
+data class PlaybackClockSampleDto(
+    val monotonicTimestampMs: Long = 0L,
+    val positionMs: Long = 0L,
+    val durationMs: Long = 0L,
+    val paused: Boolean = false,
+    val eofReached: Boolean = false,
+)
+
+@Serializable
+data class PlaybackClockSamplesDto(
+    val activeBackend: String = "",
+    val requestedBackend: String = "",
+    val currentSignalKind: String? = null,
+    val currentRuleKey: String = "",
+    val samples: List<PlaybackClockSampleDto> = emptyList(),
+)
+
+@Serializable
 data class NavigationCommand(
     val type: String,
     val payload: JsonElement? = null,

@@ -318,6 +318,23 @@ class WebControlService @Inject constructor(
         )
     }
 
+    override suspend fun getPlaybackClockSamples(limit: Int): PlaybackClockSamplesDto =
+        PlaybackClockSamplesDto(
+            activeBackend = playbackController.activeRenderBackend.value.name,
+            requestedBackend = playbackController.requestedRenderBackend.value.name,
+            currentSignalKind = playbackController.currentVideoSignalDescriptor.value?.signalKind?.name,
+            currentRuleKey = playbackController.currentRenderRuleKey.value.name,
+            samples = playbackController.recentPlaybackClockSamples(limit).map { sample ->
+                PlaybackClockSampleDto(
+                    monotonicTimestampMs = sample.monotonicTimestampMs,
+                    positionMs = sample.positionMs,
+                    durationMs = sample.durationMs,
+                    paused = sample.paused,
+                    eofReached = sample.eofReached,
+                )
+            },
+        )
+
     override suspend fun getPlaybackDebugConfig(): PlaybackDebugConfigDto =
         playbackDebugConfigSnapshot(
             playbackPreferencesRepository = playbackPreferencesRepository,
