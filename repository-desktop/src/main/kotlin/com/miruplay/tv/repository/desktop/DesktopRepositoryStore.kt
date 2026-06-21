@@ -11,6 +11,7 @@ import com.miruplay.tv.model.RssDownloadTaskInfo
 import com.miruplay.tv.model.RssProcessedItemInfo
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.repository.MediaIndexEntry
+import com.miruplay.tv.repository.AppModePreferencesRepository
 import com.miruplay.tv.repository.ScanPreferencesSnapshot
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -93,6 +94,8 @@ internal data class DesktopRepositoryState(
     val otlpLastUploadStatus: String? = null,
     val webControlEnabled: Boolean = false,
     val webControlAccessToken: String? = null,
+    val appModeStorageValue: String? = null,
+    val hasCompletedAppModeSelection: Boolean = false,
 )
 
 @Serializable

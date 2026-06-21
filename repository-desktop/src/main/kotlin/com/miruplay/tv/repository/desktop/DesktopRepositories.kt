@@ -6,6 +6,7 @@ import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.PlaybackPreferencesRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
 import com.miruplay.tv.repository.ScanPreferencesRepository
+import com.miruplay.tv.repository.AppModePreferencesRepository
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.LogUploadRepository
@@ -23,6 +24,7 @@ class DesktopRepositories private constructor(
     val credentials: AppCredentialStore,
     val logUpload: LogUploadRepository,
     val webControlAccess: WebControlAccessManager,
+    val appMode: AppModePreferencesRepository,
 ) {
     companion object {
         fun fileBacked(storePath: Path = DesktopRepositoryPaths.defaultStorePath()): DesktopRepositories {
@@ -38,6 +40,7 @@ class DesktopRepositories private constructor(
                 credentials = FileBackedCredentialStore(store),
                 logUpload = FileBackedLogUploadRepository(store),
                 webControlAccess = FileBackedWebControlAccessManager(store),
+                appMode = FileBackedAppModePreferencesRepository(store),
             )
         }
     }

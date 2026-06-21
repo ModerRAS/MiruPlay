@@ -53,6 +53,7 @@ internal class DesktopWebControlService(
     indexRepository = repositories.index,
     progressRepository = repositories.progress,
     scanPreferencesRepository = repositories.scanPreferences,
+    appModePreferences = repositories.appMode,
     mediaSourceFactory = mediaSourceFactory,
     cloudDriveRepository = repositories.cloudDriveAutomation,
     credentials = repositories.credentials,
