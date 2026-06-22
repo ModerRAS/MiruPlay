@@ -543,6 +543,33 @@ data class PlaybackClockSamplesDto(
 )
 
 @Serializable
+data class PlaybackNativePropertyDto(
+    val name: String = "",
+    val value: String? = null,
+)
+
+@Serializable
+data class PlaybackNativeLogMessageDto(
+    val observedAtElapsedRealtimeMs: Long = 0L,
+    val prefix: String = "",
+    val level: Int = 0,
+    val text: String = "",
+)
+
+@Serializable
+data class PlaybackNativeDiagnosticsDto(
+    val activeBackend: String = "",
+    val requestedBackend: String = "",
+    val available: Boolean = false,
+    val collectedAtElapsedRealtimeMs: Long = 0L,
+    val surfaceAttached: Boolean = false,
+    val pendingStartPositionMs: Long? = null,
+    val properties: List<PlaybackNativePropertyDto> = emptyList(),
+    val recentLogMessages: List<PlaybackNativeLogMessageDto> = emptyList(),
+    val notes: List<String> = emptyList(),
+)
+
+@Serializable
 data class PlaybackProfileRequest(
     val durationMs: Long = 10_000L,
     val intervalMs: Long = 20L,

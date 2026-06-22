@@ -20,6 +20,7 @@ import androidx.media3.exoplayer.analytics.AnalyticsListener
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
+import com.miruplay.tv.model.MpvNativeDiagnostics
 import com.miruplay.tv.model.PlaybackRenderBackend
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.PlaybackState
@@ -522,6 +523,9 @@ class ExoPlaybackController @Inject constructor(
         val samples = playbackClockSamples.get()
         return if (samples.size <= safeLimit) samples else samples.takeLast(safeLimit)
     }
+
+    override fun currentMpvNativeDiagnostics(logLimit: Int): MpvNativeDiagnostics? =
+        embeddedMpvView?.snapshotNativeDiagnostics(logLimit)
 
     override fun clearPendingGlFrameCaptureLabel(label: String) {
         playbackDebugOverrides.clearPendingGlFrameCaptureLabel(label)

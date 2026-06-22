@@ -141,6 +141,32 @@ class WebControlPlaybackDebugConfigRouteTest {
     }
 
     @Test
+    fun `GET playback native diagnostics returns property snapshot and recent native logs`() {
+        val service = CapturingPlaybackDebugConfigService()
+        val server = NanoHttpWebControlServer(
+            webControlService = service,
+            webControlAccess = EnabledWebControlAccess,
+            staticAssets = WebControlStaticAssets { null },
+        )
+
+        val response = server.serve(
+            FakeSession(
+                method = NanoHTTPD.Method.GET,
+                uri = "/api/playback/native-diagnostics?limit=3",
+            )
+        )
+
+        assertEquals(NanoHTTPD.Response.Status.OK, response.status)
+        assertEquals(3, service.capturedNativeDiagnosticsLimit)
+        val body = response.bodyText()
+        assertTrue(body.contains("\"available\":true"))
+        assertTrue(body.contains("\"name\":\"vo\""))
+        assertTrue(body.contains("\"value\":\"gpu-hq\""))
+        assertTrue(body.contains("\"prefix\":\"cplayer\""))
+        assertTrue(body.contains("\"text\":\"restarting audio after underrun\""))
+    }
+
+    @Test
     fun `POST playback profile captures sampling request`() {
         val service = CapturingPlaybackDebugConfigService()
         val server = NanoHttpWebControlServer(
@@ -258,6 +284,7 @@ class WebControlPlaybackDebugConfigRouteTest {
         var downloadStartupDiagnosticsCalls = 0
         var capturedStartupDiagnosticsName: String? = null
         var capturedClockSampleLimit: Int? = null
+        var capturedNativeDiagnosticsLimit: Int? = null
         var capturedProfileRequest: PlaybackProfileRequest? = null
 
         override suspend fun getPlaybackDebugConfig(): PlaybackDebugConfigDto {
@@ -332,6 +359,31 @@ class WebControlPlaybackDebugConfigRouteTest {
                         paused = false,
                         eofReached = false,
                     ),
+                ),
+            )
+        }
+
+        override suspend fun getPlaybackNativeDiagnostics(logLimit: Int): PlaybackNativeDiagnosticsDto {
+            capturedNativeDiagnosticsLimit = logLimit
+            return PlaybackNativeDiagnosticsDto(
+                activeBackend = "EXPERIMENTAL_MPV_EMBEDDED",
+                requestedBackend = "EXPERIMENTAL_MPV_EMBEDDED",
+                available = true,
+                collectedAtElapsedRealtimeMs = 123456,
+                surfaceAttached = true,
+                pendingStartPositionMs = 0,
+                properties = listOf(
+                    PlaybackNativePropertyDto(name = "vo", value = "gpu-hq"),
+                    PlaybackNativePropertyDto(name = "hwdec-current", value = "mediacodec-copy"),
+                    PlaybackNativePropertyDto(name = "decoder-frame-drop-count", value = "0"),
+                ),
+                recentLogMessages = listOf(
+                    PlaybackNativeLogMessageDto(
+                        observedAtElapsedRealtimeMs = 123400,
+                        prefix = "cplayer",
+                        level = 50,
+                        text = "restarting audio after underrun",
+                    )
                 ),
             )
         }

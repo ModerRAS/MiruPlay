@@ -298,6 +298,10 @@ open class NanoHttpWebControlServer(
                 val limit = session.parameters["limit"]?.firstOrNull()?.toIntOrNull() ?: 120
                 jsonResponse(PlaybackClockSamplesDto.serializer(), webControlService.getPlaybackClockSamples(limit))
             }
+            session.method == Method.GET && route == "/api/playback/native-diagnostics" -> {
+                val limit = session.parameters["limit"]?.firstOrNull()?.toIntOrNull() ?: 80
+                jsonResponse(PlaybackNativeDiagnosticsDto.serializer(), webControlService.getPlaybackNativeDiagnostics(limit))
+            }
             session.method == Method.POST && route == "/api/playback/profile" -> {
                 val request = parseBody(session, PlaybackProfileRequest.serializer())
                 jsonResponse(PlaybackProfileReportDto.serializer(), webControlService.capturePlaybackProfile(request))

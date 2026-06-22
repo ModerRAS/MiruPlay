@@ -340,6 +340,42 @@ class WebControlService @Inject constructor(
             },
         )
 
+    override suspend fun getPlaybackNativeDiagnostics(logLimit: Int): PlaybackNativeDiagnosticsDto {
+        val diagnostics = playbackController.currentMpvNativeDiagnostics(logLimit)
+        return if (diagnostics == null) {
+            PlaybackNativeDiagnosticsDto(
+                activeBackend = playbackController.activeRenderBackend.value.name,
+                requestedBackend = playbackController.requestedRenderBackend.value.name,
+                available = false,
+                notes = listOf("当前没有可用的 embedded mpv native 诊断快照"),
+            )
+        } else {
+            PlaybackNativeDiagnosticsDto(
+                activeBackend = playbackController.activeRenderBackend.value.name,
+                requestedBackend = playbackController.requestedRenderBackend.value.name,
+                available = true,
+                collectedAtElapsedRealtimeMs = diagnostics.collectedAtElapsedRealtimeMs,
+                surfaceAttached = diagnostics.surfaceAttached,
+                pendingStartPositionMs = diagnostics.pendingStartPositionMs,
+                properties = diagnostics.properties.map { property ->
+                    PlaybackNativePropertyDto(
+                        name = property.name,
+                        value = property.value,
+                    )
+                },
+                recentLogMessages = diagnostics.recentLogMessages.map { message ->
+                    PlaybackNativeLogMessageDto(
+                        observedAtElapsedRealtimeMs = message.observedAtElapsedRealtimeMs,
+                        prefix = message.prefix,
+                        level = message.level,
+                        text = message.text,
+                    )
+                },
+                notes = listOf("仅暴露 mpv 当前 scalar 属性和最近 native 日志，不是函数级 flame graph"),
+            )
+        }
+    }
+
     override suspend fun capturePlaybackProfile(request: PlaybackProfileRequest): PlaybackProfileReportDto = runOnIo {
         if (!profileInProgress.compareAndSet(false, true)) {
             return@runOnIo PlaybackProfileReportDto(notes = listOf("已有采样进行中，请稍后再试"))

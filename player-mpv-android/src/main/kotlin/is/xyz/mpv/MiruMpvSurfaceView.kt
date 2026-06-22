@@ -1,7 +1,11 @@
 package `is`.xyz.mpv
 
 import android.content.Context
+import android.os.SystemClock
 import android.util.AttributeSet
+import com.miruplay.tv.model.MpvNativeDiagnostics
+import com.miruplay.tv.model.MpvNativeLogMessage
+import com.miruplay.tv.model.MpvNativePropertySample
 import java.io.File
 
 class MiruMpvSurfaceView @JvmOverloads constructor(
@@ -48,6 +52,7 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
     private var appliedSessionOptions: SessionOptions? = null
     private var pendingStartPositionMs: Long? = null
     private var lastState = StateSnapshot()
+    private val recentNativeLogMessages = ArrayDeque<MpvNativeLogMessage>()
 
     fun ensureInitialized() {
         if (initialized) {
@@ -71,6 +76,9 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
         initialized = false
         appliedSessionOptions = null
         lastState = StateSnapshot()
+        synchronized(recentNativeLogMessages) {
+            recentNativeLogMessages.clear()
+        }
     }
 
     fun applySessionOptions(options: SessionOptions) {
@@ -116,6 +124,26 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
         if (initialized) {
             MPVLib.command(arrayOf("stop"))
         }
+    }
+
+    fun snapshotNativeDiagnostics(logLimit: Int = 80): MpvNativeDiagnostics {
+        val collectedAt = SystemClock.elapsedRealtime()
+        val properties = EMBEDDED_MPV_NATIVE_PROPERTY_SPECS.map { spec ->
+            MpvNativePropertySample(
+                name = spec.name,
+                value = readNativePropertyValue(spec),
+            )
+        }
+        val recentLogs = synchronized(recentNativeLogMessages) {
+            recentNativeLogMessages.takeLast(logLimit.coerceAtLeast(1))
+        }
+        return MpvNativeDiagnostics(
+            collectedAtElapsedRealtimeMs = collectedAt,
+            surfaceAttached = isPlaybackSurfaceAttached(),
+            pendingStartPositionMs = pendingStartPositionMs,
+            properties = properties,
+            recentLogMessages = recentLogs,
+        )
     }
 
     override fun initOptions() {
@@ -180,6 +208,19 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
     }
 
     override fun logMessage(prefix: String, level: Int, text: String) {
+        synchronized(recentNativeLogMessages) {
+            recentNativeLogMessages.addLast(
+                MpvNativeLogMessage(
+                    observedAtElapsedRealtimeMs = SystemClock.elapsedRealtime(),
+                    prefix = prefix,
+                    level = level,
+                    text = text,
+                )
+            )
+            while (recentNativeLogMessages.size > MAX_NATIVE_LOG_MESSAGES) {
+                recentNativeLogMessages.removeFirst()
+            }
+        }
         onLogMessage?.invoke(prefix, level, text)
     }
 
@@ -230,4 +271,53 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
     private fun applyShaderProperties(shaderPaths: List<String>) {
         MPVLib.setPropertyString("glsl-shaders", shaderPaths.joinToString(":") { it.trim() })
     }
+
+    private fun readNativePropertyValue(spec: EmbeddedMpvNativePropertySpec): String? =
+        runCatching {
+            when (spec.type) {
+                EmbeddedMpvNativePropertyType.STRING -> MPVLib.getPropertyString(spec.name)
+                EmbeddedMpvNativePropertyType.INT -> MPVLib.getPropertyInt(spec.name)?.toString()
+                EmbeddedMpvNativePropertyType.DOUBLE -> MPVLib.getPropertyDouble(spec.name)?.toString()
+                EmbeddedMpvNativePropertyType.BOOLEAN -> MPVLib.getPropertyBoolean(spec.name)?.toString()
+            }
+        }.getOrNull()
 }
+
+private enum class EmbeddedMpvNativePropertyType {
+    STRING,
+    INT,
+    DOUBLE,
+    BOOLEAN,
+}
+
+private data class EmbeddedMpvNativePropertySpec(
+    val name: String,
+    val type: EmbeddedMpvNativePropertyType,
+)
+
+private val EMBEDDED_MPV_NATIVE_PROPERTY_SPECS = listOf(
+    EmbeddedMpvNativePropertySpec("vo", EmbeddedMpvNativePropertyType.STRING),
+    EmbeddedMpvNativePropertySpec("hwdec-current", EmbeddedMpvNativePropertyType.STRING),
+    EmbeddedMpvNativePropertySpec("video-codec", EmbeddedMpvNativePropertyType.STRING),
+    EmbeddedMpvNativePropertySpec("audio-codec-name", EmbeddedMpvNativePropertyType.STRING),
+    EmbeddedMpvNativePropertySpec("video-params/pixelformat", EmbeddedMpvNativePropertyType.STRING),
+    EmbeddedMpvNativePropertySpec("video-params/hw-pixelformat", EmbeddedMpvNativePropertyType.STRING),
+    EmbeddedMpvNativePropertySpec("video-params/primaries", EmbeddedMpvNativePropertyType.STRING),
+    EmbeddedMpvNativePropertySpec("video-params/gamma", EmbeddedMpvNativePropertyType.STRING),
+    EmbeddedMpvNativePropertySpec("video-params/sig-peak", EmbeddedMpvNativePropertyType.DOUBLE),
+    EmbeddedMpvNativePropertySpec("container-fps", EmbeddedMpvNativePropertyType.DOUBLE),
+    EmbeddedMpvNativePropertySpec("estimated-vf-fps", EmbeddedMpvNativePropertyType.DOUBLE),
+    EmbeddedMpvNativePropertySpec("display-sync-active", EmbeddedMpvNativePropertyType.BOOLEAN),
+    EmbeddedMpvNativePropertySpec("decoder-frame-drop-count", EmbeddedMpvNativePropertyType.INT),
+    EmbeddedMpvNativePropertySpec("frame-drop-count", EmbeddedMpvNativePropertyType.INT),
+    EmbeddedMpvNativePropertySpec("mistimed-frame-count", EmbeddedMpvNativePropertyType.INT),
+    EmbeddedMpvNativePropertySpec("vo-delayed-frame-count", EmbeddedMpvNativePropertyType.INT),
+    EmbeddedMpvNativePropertySpec("speed", EmbeddedMpvNativePropertyType.DOUBLE),
+    EmbeddedMpvNativePropertySpec("avsync", EmbeddedMpvNativePropertyType.DOUBLE),
+    EmbeddedMpvNativePropertySpec("audio-pts", EmbeddedMpvNativePropertyType.DOUBLE),
+    EmbeddedMpvNativePropertySpec("time-pos", EmbeddedMpvNativePropertyType.DOUBLE),
+    EmbeddedMpvNativePropertySpec("duration/full", EmbeddedMpvNativePropertyType.DOUBLE),
+    EmbeddedMpvNativePropertySpec("pause", EmbeddedMpvNativePropertyType.BOOLEAN),
+)
+
+private const val MAX_NATIVE_LOG_MESSAGES = 120

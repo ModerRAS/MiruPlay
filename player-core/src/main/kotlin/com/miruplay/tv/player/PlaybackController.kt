@@ -2,6 +2,7 @@ package com.miruplay.tv.player
 
 import android.view.View
 import androidx.media3.common.Player
+import com.miruplay.tv.model.MpvNativeDiagnostics
 import com.miruplay.tv.model.PlaybackRenderBackend
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.PlaybackState
@@ -196,6 +197,11 @@ interface PlaybackController {
      * Recent playback clock samples captured from the active backend, newest last.
      */
     fun recentPlaybackClockSamples(limit: Int = 120): List<PlaybackClockSample>
+
+    /**
+     * Current embedded mpv native diagnostics snapshot when an embedded mpv view exists.
+     */
+    fun currentMpvNativeDiagnostics(logLimit: Int = 80): MpvNativeDiagnostics?
 
 }
 
