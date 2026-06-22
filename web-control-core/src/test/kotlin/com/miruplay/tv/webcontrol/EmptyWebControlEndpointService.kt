@@ -58,6 +58,8 @@ internal open class EmptyWebControlEndpointService : WebControlEndpointService {
     override suspend fun playbackStatus(): PlaybackStatusDto = unused()
     override suspend fun getPlaybackClockSamples(limit: Int): PlaybackClockSamplesDto = unused()
     override suspend fun getPlaybackNativeDiagnostics(logLimit: Int): PlaybackNativeDiagnosticsDto = unused()
+    override suspend fun capturePlaybackNativeProfile(request: PlaybackNativeProfileRequest): PlaybackNativeProfileCaptureDto = unused()
+    override suspend fun downloadPlaybackNativeProfile(name: String): LocalLogDownload = unused()
     override suspend fun capturePlaybackProfile(request: PlaybackProfileRequest): PlaybackProfileReportDto = unused()
 
     private fun unused(): Nothing = error("unused")

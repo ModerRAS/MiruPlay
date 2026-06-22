@@ -37,9 +37,13 @@ google-services.json
 
 # Agent workspace state
 .sisyphus/
+.pi/
+.ralph/
 .tmp/
 tmp/
+.playwright-cli/
 .playwright-mcp/
+.tessdata/
 adb-artifacts/
 
 # Frontend dependencies

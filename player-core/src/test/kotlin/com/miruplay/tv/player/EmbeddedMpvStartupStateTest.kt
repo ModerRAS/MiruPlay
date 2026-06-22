@@ -46,4 +46,24 @@ class EmbeddedMpvStartupStateTest {
         assertTrue(resolved.isPlaying)
         assertEquals(PlaybackState.Playing(source, 0L), resolved.playbackState)
     }
+
+    @Test
+    fun `position-only embedded mpv changes do not publish playback state`() {
+        assertFalse(
+            shouldPublishEmbeddedMpvStateChange(
+                current = PlaybackState.Playing(source, 1_000L),
+                next = PlaybackState.Playing(source, 2_000L),
+            ),
+        )
+    }
+
+    @Test
+    fun `embedded mpv publishes state kind changes`() {
+        assertTrue(
+            shouldPublishEmbeddedMpvStateChange(
+                current = PlaybackState.Buffering(source, 0L),
+                next = PlaybackState.Playing(source, 1L),
+            ),
+        )
+    }
 }

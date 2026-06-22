@@ -120,6 +120,8 @@ class PlayerViewModel @Inject constructor(
 
     fun usesVlcVideoLayout(): Boolean = playbackController.usesVlcVideoLayout()
 
+    fun needsVlcVideoHostBinding(): Boolean = playbackController.needsVlcVideoHostBinding()
+
     fun bindVlcVideoHost(hostView: View) {
         Log.i(
             "PlayerViewModel",
@@ -376,7 +378,7 @@ class PlayerViewModel @Inject constructor(
                 }
                 _duration.value = playbackController.getDuration()
                 refreshTracks()
-                delay(500)
+                delay(if (_controlsVisible.value) 500 else 5_000)
             }
         }
     }

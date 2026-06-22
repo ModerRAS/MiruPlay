@@ -29,14 +29,18 @@ class LocalLogStore @Inject constructor(
     private val lock = ReentrantLock()
     private val _pendingCount = MutableStateFlow(0)
     val pendingCount: StateFlow<Int> = _pendingCount.asStateFlow()
+    private var pendingRecordCount = 0
     private val json = Json {
         encodeDefaults = true
         ignoreUnknownKeys = true
     }
 
     init {
-        lock.withLock { seedRecentFileIfMissing() }
-        _pendingCount.value = lock.withLock { countPendingLocked() }
+        lock.withLock {
+            seedRecentFileIfMissing()
+            pendingRecordCount = countPendingLocked()
+            _pendingCount.value = pendingRecordCount
+        }
     }
 
     override fun log(record: MiruLogRecord) {
@@ -46,13 +50,12 @@ class LocalLogStore @Inject constructor(
             pendingFile.appendText(line, Charsets.UTF_8)
             recentFile.appendText(line, Charsets.UTF_8)
             trimRecentIfNeeded()
-            _pendingCount.value = countPendingLocked()
+            pendingRecordCount += 1
+            _pendingCount.value = pendingRecordCount
         }
     }
 
-    fun pendingCount(): Int = lock.withLock {
-        countPendingLocked()
-    }
+    fun pendingCount(): Int = _pendingCount.value
 
     fun readBatch(limit: Int): List<MiruLogRecord> = lock.withLock {
         val records = mutableListOf<MiruLogRecord>()
@@ -99,7 +102,8 @@ class LocalLogStore @Inject constructor(
         if (uploadedIds.isEmpty()) return
         lock.withLock {
             queueFiles().forEach { file -> removeUploadedFromFile(file, uploadedIds) }
-            _pendingCount.value = countPendingLocked()
+            pendingRecordCount = countPendingLocked()
+            _pendingCount.value = pendingRecordCount
         }
     }
 

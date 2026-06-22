@@ -103,6 +103,11 @@ interface PlaybackController {
     fun bindVlcVideoHost(hostView: View)
 
     /**
+     * True when a native video host should be rebound after Compose creates or lays it out.
+     */
+    fun needsVlcVideoHostBinding(): Boolean = false
+
+    /**
      * Release the currently bound VLC render host, if any.
      */
     fun unbindVlcVideoHost()

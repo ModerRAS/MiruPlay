@@ -45,7 +45,6 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
     var onStateChanged: ((StateSnapshot) -> Unit)? = null
     var onFileLoaded: (() -> Unit)? = null
     var onPlaybackRestart: (() -> Unit)? = null
-    var onLogMessage: ((prefix: String, level: Int, text: String) -> Unit)? = null
 
     private var initialized = false
     private var sessionOptions = SessionOptions()
@@ -81,12 +80,13 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
         }
     }
 
-    fun applySessionOptions(options: SessionOptions) {
+    fun applySessionOptions(options: SessionOptions): Boolean {
         sessionOptions = options
         if (!initialized || appliedSessionOptions == options) {
-            return
+            return false
         }
         applyRuntimeOptions(options)
+        return true
     }
 
     fun loadMedia(path: String, startPositionMs: Long = 0L) {
@@ -221,7 +221,6 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
                 recentNativeLogMessages.removeFirst()
             }
         }
-        onLogMessage?.invoke(prefix, level, text)
     }
 
     private fun publishState(state: StateSnapshot) {

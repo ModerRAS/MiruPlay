@@ -167,6 +167,64 @@ class WebControlPlaybackDebugConfigRouteTest {
     }
 
     @Test
+    fun `POST playback native profile captures simpleperf request`() {
+        val service = CapturingPlaybackDebugConfigService()
+        val server = NanoHttpWebControlServer(
+            webControlService = service,
+            webControlAccess = EnabledWebControlAccess,
+            staticAssets = WebControlStaticAssets { null },
+        )
+
+        val response = server.serve(
+            FakeSession(
+                method = NanoHTTPD.Method.POST,
+                uri = "/api/playback/native-profile",
+                body = """
+                    {
+                      "durationMs": 6000,
+                      "sampleFrequency": 1200,
+                      "event": "task-clock:u",
+                      "callGraph": "fp",
+                      "traceOffCpu": true,
+                      "sampleTids": [3600, 3604]
+                    }
+                """.trimIndent(),
+            )
+        )
+
+        assertEquals(NanoHTTPD.Response.Status.OK, response.status)
+        assertEquals(6000L, service.capturedNativeProfileRequest?.durationMs)
+        assertEquals(1200, service.capturedNativeProfileRequest?.sampleFrequency)
+        assertEquals("task-clock:u", service.capturedNativeProfileRequest?.event)
+        assertEquals("fp", service.capturedNativeProfileRequest?.callGraph)
+        assertEquals(true, service.capturedNativeProfileRequest?.traceOffCpu)
+        assertEquals(listOf(3600, 3604), service.capturedNativeProfileRequest?.sampleTids)
+        val body = response.bodyText()
+        assertTrue(body.contains("\"fileName\":\"miruplay-native-profile.data\""))
+        assertTrue(body.contains("\"callGraph\":\"fp\""))
+    }
+
+    @Test
+    fun `GET playback native profile download returns attachment`() {
+        val service = CapturingPlaybackDebugConfigService()
+        val server = NanoHttpWebControlServer(
+            webControlService = service,
+            webControlAccess = EnabledWebControlAccess,
+            staticAssets = WebControlStaticAssets { null },
+        )
+
+        val response = server.serve(
+            FakeSession(
+                method = NanoHTTPD.Method.GET,
+                uri = "/api/playback/native-profile/download?name=miruplay-native-profile.data",
+            )
+        )
+
+        assertEquals(NanoHTTPD.Response.Status.OK, response.status)
+        assertEquals("miruplay-native-profile.data", service.capturedNativeProfileDownloadName)
+    }
+
+    @Test
     fun `POST playback profile captures sampling request`() {
         val service = CapturingPlaybackDebugConfigService()
         val server = NanoHttpWebControlServer(
@@ -285,6 +343,8 @@ class WebControlPlaybackDebugConfigRouteTest {
         var capturedStartupDiagnosticsName: String? = null
         var capturedClockSampleLimit: Int? = null
         var capturedNativeDiagnosticsLimit: Int? = null
+        var capturedNativeProfileRequest: PlaybackNativeProfileRequest? = null
+        var capturedNativeProfileDownloadName: String? = null
         var capturedProfileRequest: PlaybackProfileRequest? = null
 
         override suspend fun getPlaybackDebugConfig(): PlaybackDebugConfigDto {
@@ -385,6 +445,30 @@ class WebControlPlaybackDebugConfigRouteTest {
                         text = "restarting audio after underrun",
                     )
                 ),
+            )
+        }
+
+        override suspend fun capturePlaybackNativeProfile(request: PlaybackNativeProfileRequest): PlaybackNativeProfileCaptureDto {
+            capturedNativeProfileRequest = request
+            return PlaybackNativeProfileCaptureDto(
+                fileName = "miruplay-native-profile.data",
+                generatedAtMs = 123456789,
+                durationMs = request.durationMs,
+                sampleFrequency = request.sampleFrequency,
+                event = request.event,
+                callGraph = request.callGraph,
+                traceOffCpu = request.traceOffCpu,
+                fileSizeBytes = 4096,
+                notes = listOf("captured"),
+            )
+        }
+
+        override suspend fun downloadPlaybackNativeProfile(name: String): LocalLogDownload {
+            capturedNativeProfileDownloadName = name
+            return LocalLogDownload(
+                fileName = name,
+                contentType = "application/octet-stream",
+                content = byteArrayOf(1, 2, 3),
             )
         }
 

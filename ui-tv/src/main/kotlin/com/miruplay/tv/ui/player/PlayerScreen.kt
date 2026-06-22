@@ -82,6 +82,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.doOnAttach
+import androidx.core.view.doOnLayout
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.ui.AspectRatioFrameLayout
@@ -470,12 +472,19 @@ private fun PlayerScreenContent(
                         isFocusable = false
                         isFocusableInTouchMode = false
                         setOnClickListener { viewModel.showControls() }
-                        viewModel.bindVlcVideoHost(this)
+                        doOnAttach {
+                            if (isAttachedToWindow && width > 0 && height > 0) {
+                                viewModel.bindVlcVideoHost(this)
+                            } else {
+                                doOnLayout { viewModel.bindVlcVideoHost(this) }
+                            }
+                        }
                     }
                 },
                 update = { host ->
-                    host.setOnClickListener { viewModel.showControls() }
-                    viewModel.bindVlcVideoHost(host)
+                    if (viewModel.needsVlcVideoHostBinding()) {
+                        viewModel.bindVlcVideoHost(host)
+                    }
                 },
                 modifier = Modifier.fillMaxSize(),
             )

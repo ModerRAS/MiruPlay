@@ -41,7 +41,7 @@ fun PlaybackState.toWebControlPlaybackStatus(
         state = webControlPlaybackStateName(),
         uri = source?.uri,
         mediaSourceId = source?.mediaSourceId,
-        positionMs = webControlPlaybackPositionMs() ?: currentPositionMs,
+        positionMs = currentPositionMs.takeIf { it > 0L } ?: webControlPlaybackPositionMs() ?: 0L,
         durationMs = durationMs,
         isPlaying = this is PlaybackState.Playing,
         error = (this as? PlaybackState.Error)?.error,

@@ -8,6 +8,7 @@ import com.miruplay.tv.player.LibVlcHardwareAccelerationMode
 import com.miruplay.tv.player.LibVlcVoutMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -48,6 +49,20 @@ class PlaybackDebugConfigMappingTest {
         assertEquals("RV32", libVlcDisplayChromaFromDebugValue("rv32"))
         assertNull(libVlcDisplayChromaFromDebugValue("rgb"))
         assertTrue(isDebugClearValue("clear"))
+    }
+
+    @Test
+    fun `native profile downloads only allow generated perf data names`() {
+        assertEquals(
+            "miruplay-native-profile-1782115219139.data",
+            sanitizeNativeProfileDownloadFileName("miruplay-native-profile-1782115219139.data"),
+        )
+        assertThrows(IllegalArgumentException::class.java) {
+            sanitizeNativeProfileDownloadFileName("../miruplay-native-profile-1782115219139.data.log")
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            sanitizeNativeProfileDownloadFileName("miruplay-logs.jsonl")
+        }
     }
 
     @Test

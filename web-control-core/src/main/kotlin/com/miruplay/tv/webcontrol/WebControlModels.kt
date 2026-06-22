@@ -570,6 +570,29 @@ data class PlaybackNativeDiagnosticsDto(
 )
 
 @Serializable
+data class PlaybackNativeProfileRequest(
+    val durationMs: Long = 8_000L,
+    val sampleFrequency: Int = 1_000,
+    val event: String = "task-clock:u",
+    val callGraph: String = "dwarf",
+    val traceOffCpu: Boolean = false,
+    val sampleTids: List<Int> = emptyList(),
+)
+
+@Serializable
+data class PlaybackNativeProfileCaptureDto(
+    val fileName: String = "",
+    val generatedAtMs: Long = 0L,
+    val durationMs: Long = 0L,
+    val sampleFrequency: Int = 0,
+    val event: String = "",
+    val callGraph: String = "",
+    val traceOffCpu: Boolean = false,
+    val fileSizeBytes: Long = 0L,
+    val notes: List<String> = emptyList(),
+)
+
+@Serializable
 data class PlaybackProfileRequest(
     val durationMs: Long = 10_000L,
     val intervalMs: Long = 20L,

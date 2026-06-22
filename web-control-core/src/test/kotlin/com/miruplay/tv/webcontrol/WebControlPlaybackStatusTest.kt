@@ -63,27 +63,27 @@ class WebControlPlaybackStatusTest {
     }
 
     @Test
-    fun `playback state maps source position duration and playing flag`() {
+    fun `playback state maps source queried position duration and playing flag`() {
         val source = PlaybackSource(uri = "content://episode", mediaSourceId = "anime-1")
 
         val status = PlaybackState.Playing(source = source, position = 42_000L)
-            .toWebControlPlaybackStatus(currentPositionMs = 1_000L, durationMs = 120_000L)
+            .toWebControlPlaybackStatus(currentPositionMs = 43_000L, durationMs = 120_000L)
 
         assertEquals("Playing", status.state)
         assertEquals("content://episode", status.uri)
         assertEquals("anime-1", status.mediaSourceId)
-        assertEquals(42_000L, status.positionMs)
+        assertEquals(43_000L, status.positionMs)
         assertEquals(120_000L, status.durationMs)
         assertTrue(status.isPlaying)
         assertNull(status.error)
     }
 
     @Test
-    fun `playback state status clamps embedded position by queried duration`() {
+    fun `playback state status clamps fallback embedded position by queried duration`() {
         val source = PlaybackSource(uri = "content://episode", mediaSourceId = "anime-1")
 
         val status = PlaybackState.Playing(source = source, position = 180_000L)
-            .toWebControlPlaybackStatus(currentPositionMs = 1_000L, durationMs = 120_000L)
+            .toWebControlPlaybackStatus(currentPositionMs = 0L, durationMs = 120_000L)
 
         assertEquals(120_000L, status.positionMs)
         assertEquals(120_000L, status.durationMs)

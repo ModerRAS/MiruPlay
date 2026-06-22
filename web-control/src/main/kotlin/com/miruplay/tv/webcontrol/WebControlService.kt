@@ -54,6 +54,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.io.InputStream
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
@@ -374,6 +375,106 @@ class WebControlService @Inject constructor(
                 notes = listOf("仅暴露 mpv 当前 scalar 属性和最近 native 日志，不是函数级 flame graph"),
             )
         }
+    }
+
+    override suspend fun capturePlaybackNativeProfile(request: PlaybackNativeProfileRequest): PlaybackNativeProfileCaptureDto = runOnIo {
+        if (!profileInProgress.compareAndSet(false, true)) {
+            return@runOnIo PlaybackNativeProfileCaptureDto(notes = listOf("已有采样进行中，请稍后再试"))
+        }
+        try {
+            val durationMs = request.durationMs.coerceIn(1_000L, 20_000L)
+            val sampleFrequency = request.sampleFrequency.coerceIn(100, 4_000)
+            val event = request.event.trim().ifBlank { "task-clock:u" }
+            val callGraph = when (request.callGraph.trim().lowercase()) {
+                "fp", "frame-pointer" -> "fp"
+                else -> "dwarf"
+            }
+            val sampleTids = request.sampleTids.map { it.coerceAtLeast(1) }.distinct()
+            val outputDir = File(appContext.filesDir, SIMPLEPERF_DIRECTORY_NAME).apply { mkdirs() }
+            val fileName = "miruplay-native-profile-${System.currentTimeMillis()}.data"
+            val outputFile = File(outputDir, fileName)
+            val outputLogFile = File(outputDir, "$fileName.log")
+            val command = buildList {
+                add(SIMPLEPERF_EXECUTABLE_PATH)
+                add("record")
+                if (sampleTids.isEmpty()) {
+                    add("-p")
+                    add(android.os.Process.myPid().toString())
+                } else {
+                    add("-t")
+                    add(sampleTids.joinToString(","))
+                }
+                add("-o")
+                add(outputFile.absolutePath)
+                add("-e")
+                add(event)
+                add("-f")
+                add(sampleFrequency.toString())
+                add("--duration")
+                add((durationMs / 1000.0).toString())
+                if (callGraph == "fp") {
+                    add("--call-graph")
+                    add("fp")
+                } else {
+                    add("-g")
+                }
+                if (request.traceOffCpu) {
+                    add("--trace-offcpu")
+                }
+            }
+            require(File(SIMPLEPERF_EXECUTABLE_PATH).canExecute()) {
+                "设备上未找到可执行的 simpleperf: $SIMPLEPERF_EXECUTABLE_PATH"
+            }
+            val process = ProcessBuilder(command)
+                .redirectErrorStream(true)
+                .redirectOutput(outputLogFile)
+                .start()
+            val exitCode = process.waitFor()
+            val outputText = outputLogFile.takeIf(File::exists)?.readText().orEmpty().trim()
+            check(exitCode == 0) {
+                val reason = outputText.ifBlank { "exitCode=$exitCode" }
+                "simpleperf 录制失败: $reason"
+            }
+            check(outputFile.exists() && outputFile.length() > 0L) {
+                "simpleperf 未生成 perf.data"
+            }
+            PlaybackNativeProfileCaptureDto(
+                fileName = fileName,
+                generatedAtMs = System.currentTimeMillis(),
+                durationMs = durationMs,
+                sampleFrequency = sampleFrequency,
+                event = event,
+                callGraph = callGraph,
+                traceOffCpu = request.traceOffCpu,
+                fileSizeBytes = outputFile.length(),
+                notes = buildList {
+                    add("使用 /system/bin/simpleperf 在 app 进程内录制")
+                    add("simpleperf stdout/stderr 已重定向到 sidecar log，避免采样线程自噪声")
+                    if (sampleTids.isNotEmpty()) {
+                        add("仅采样 tid=${sampleTids.joinToString(",")}")
+                    }
+                    add("下载后请用 simpleperf report_html.py / inferno 做函数级 flame graph")
+                    if (outputText.isNotBlank()) {
+                        add("simpleperf output: ${outputText.lineSequence().take(4).joinToString(" | ")}")
+                    }
+                },
+            )
+        } finally {
+            profileInProgress.set(false)
+        }
+    }
+
+    override suspend fun downloadPlaybackNativeProfile(name: String): LocalLogDownload = runOnIo {
+        val normalizedName = sanitizeNativeProfileDownloadFileName(name)
+        val target = File(File(appContext.filesDir, SIMPLEPERF_DIRECTORY_NAME), normalizedName)
+        if (!target.exists()) {
+            throw IllegalArgumentException("native profile 文件不存在: $normalizedName")
+        }
+        LocalLogDownload(
+            fileName = normalizedName,
+            contentType = "application/octet-stream",
+            content = target.readBytes(),
+        )
     }
 
     override suspend fun capturePlaybackProfile(request: PlaybackProfileRequest): PlaybackProfileReportDto = runOnIo {
@@ -984,8 +1085,18 @@ private fun buildCollapsedStack(
         "${frame.className}.${frame.methodName}"
     }).joinToString(";")
 
+internal fun sanitizeNativeProfileDownloadFileName(name: String): String {
+    val sanitized = name.replace(Regex("[^A-Za-z0-9._-]"), "")
+    require(sanitized.matches(Regex("miruplay-native-profile-[0-9]+\\.data"))) {
+        "native profile 文件名无效"
+    }
+    return sanitized
+}
+
 private const val WEB_CLOUD_DRIVE_TASK_ID = "cloud-drive-rss-web"
 private const val BANGUMI_ARCHIVE_LOG_TAG = "BangumiArchiveDownload"
 private const val STARTUP_DIRECTORY_NAME = "MiruPlay"
 private const val STARTUP_PROBE_FILE_NAME = "miruplay-startup-probe.jsonl"
 private const val STARTUP_DIAGNOSTICS_FILE_NAME = "miruplay-startup-diagnostics.jsonl"
+private const val SIMPLEPERF_DIRECTORY_NAME = "simpleperf_data"
+private const val SIMPLEPERF_EXECUTABLE_PATH = "/system/bin/simpleperf"

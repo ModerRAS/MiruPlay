@@ -302,6 +302,17 @@ open class NanoHttpWebControlServer(
                 val limit = session.parameters["limit"]?.firstOrNull()?.toIntOrNull() ?: 80
                 jsonResponse(PlaybackNativeDiagnosticsDto.serializer(), webControlService.getPlaybackNativeDiagnostics(limit))
             }
+            session.method == Method.POST && route == "/api/playback/native-profile" -> {
+                val request = parseBody(session, PlaybackNativeProfileRequest.serializer())
+                jsonResponse(PlaybackNativeProfileCaptureDto.serializer(), webControlService.capturePlaybackNativeProfile(request))
+            }
+            session.method == Method.GET && route == "/api/playback/native-profile/download" -> {
+                val name = session.parameters["name"]?.firstOrNull()?.trim().orEmpty()
+                if (name.isBlank()) {
+                    throw IllegalArgumentException("native profile 文件名不能为空")
+                }
+                localLogDownloadResponse(webControlService.downloadPlaybackNativeProfile(name))
+            }
             session.method == Method.POST && route == "/api/playback/profile" -> {
                 val request = parseBody(session, PlaybackProfileRequest.serializer())
                 jsonResponse(PlaybackProfileReportDto.serializer(), webControlService.capturePlaybackProfile(request))

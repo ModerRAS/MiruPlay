@@ -102,6 +102,13 @@ interface WebControlEndpointService {
     suspend fun playbackStatus(): PlaybackStatusDto
     suspend fun getPlaybackClockSamples(limit: Int = 120): PlaybackClockSamplesDto = PlaybackClockSamplesDto()
     suspend fun getPlaybackNativeDiagnostics(logLimit: Int = 80): PlaybackNativeDiagnosticsDto = PlaybackNativeDiagnosticsDto()
+    suspend fun capturePlaybackNativeProfile(request: PlaybackNativeProfileRequest): PlaybackNativeProfileCaptureDto = PlaybackNativeProfileCaptureDto()
+    suspend fun downloadPlaybackNativeProfile(name: String): LocalLogDownload =
+        LocalLogDownload(
+            fileName = name,
+            contentType = "application/octet-stream",
+            content = ByteArray(0),
+        )
     suspend fun capturePlaybackProfile(request: PlaybackProfileRequest): PlaybackProfileReportDto = PlaybackProfileReportDto()
     suspend fun getPlaybackDebugConfig(): PlaybackDebugConfigDto = PlaybackDebugConfigDto()
     suspend fun savePlaybackDebugConfig(request: PlaybackDebugConfigRequest): PlaybackDebugConfigDto =
