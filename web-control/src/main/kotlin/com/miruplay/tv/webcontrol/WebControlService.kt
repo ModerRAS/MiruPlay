@@ -51,7 +51,9 @@ import com.miruplay.tv.sync.rss.CloudDriveRssScheduler
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -859,7 +861,12 @@ class WebControlService @Inject constructor(
     private suspend fun scanSourceWithSharedStatus(
         source: MediaSourceInfo,
     ): Result<ScanResult> {
-        if (!scanStatus.tryStart(currentPath = source.name, canCancel = false)) {
+        val scanJob = currentCoroutineContext()[Job]
+        if (!scanStatus.tryStart(
+                currentPath = source.name,
+                onCancel = { scanJob?.cancel(CancellationException("WebControl scan cancelled")) },
+            )
+        ) {
             throw IllegalStateException("媒体库正在扫描，请稍后再试")
         }
 

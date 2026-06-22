@@ -30,17 +30,24 @@ class LibraryScanStatus @Inject constructor() {
     private val _state = MutableStateFlow<LibraryScanState>(LibraryScanState.Idle)
     val state: StateFlow<LibraryScanState> = _state.asStateFlow()
 
+    private var cancelRequest: (() -> Unit)? = null
+
     fun isScanning(): Boolean =
         _state.value is LibraryScanState.Scanning
 
+    @Synchronized
     fun idle() {
+        cancelRequest = null
         _state.value = LibraryScanState.Idle
     }
 
+    @Synchronized
     fun start(
         currentPath: String = "",
         canCancel: Boolean = true,
+        onCancel: (() -> Unit)? = null,
     ) {
+        cancelRequest = onCancel
         _state.value = LibraryScanState.Scanning(
             currentPath = currentPath,
             canCancel = canCancel,
@@ -51,12 +58,21 @@ class LibraryScanStatus @Inject constructor() {
     fun tryStart(
         currentPath: String = "",
         canCancel: Boolean = true,
+        onCancel: (() -> Unit)? = null,
     ): Boolean {
         if (_state.value is LibraryScanState.Scanning) return false
+        cancelRequest = onCancel
         _state.value = LibraryScanState.Scanning(
             currentPath = currentPath,
             canCancel = canCancel,
         )
+        return true
+    }
+
+    @Synchronized
+    fun requestCancel(): Boolean {
+        val request = cancelRequest ?: return false
+        request()
         return true
     }
 
@@ -95,21 +111,27 @@ class LibraryScanStatus @Inject constructor() {
         return nextState
     }
 
+    @Synchronized
     fun finish(
         results: List<ScanResult>,
         sourceFailures: List<String> = emptyList(),
     ) {
+        cancelRequest = null
         _state.value = LibraryScanState.Finished(
             results = results,
             sourceFailures = sourceFailures,
         )
     }
 
+    @Synchronized
     fun fail(message: String) {
+        cancelRequest = null
         _state.value = LibraryScanState.Failed(message)
     }
 
+    @Synchronized
     fun cancel() {
+        cancelRequest = null
         _state.value = LibraryScanState.Cancelled
     }
 }

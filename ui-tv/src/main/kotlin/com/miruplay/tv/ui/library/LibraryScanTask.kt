@@ -51,7 +51,9 @@ class LibraryScanTask @Inject constructor(
     }
 
     override fun cancel() {
-        scanJob?.cancel()
+        if (!scanStatus.requestCancel()) {
+            scanJob?.cancel()
+        }
     }
 
     private fun startScan(force: Boolean) {
@@ -113,7 +115,7 @@ class LibraryScanTask @Inject constructor(
                 )
             })
 
-            scanStatus.start()
+            scanStatus.start(onCancel = { scanJob?.cancel() })
             try {
                 val results = mutableListOf<ScanResult>()
                 val sourceFailures = mutableListOf<String>()

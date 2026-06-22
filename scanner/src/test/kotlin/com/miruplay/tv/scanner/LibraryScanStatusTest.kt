@@ -57,6 +57,17 @@ class LibraryScanStatusTest {
     }
 
     @Test
+    fun `requestCancel invokes active cancellation handler`() {
+        val status = LibraryScanStatus()
+        var cancelled = false
+
+        assertTrue(status.tryStart("WebDAV", onCancel = { cancelled = true }))
+
+        assertTrue(status.requestCancel())
+        assertTrue(cancelled)
+    }
+
+    @Test
     fun `finish keeps source failure messages`() {
         val status = LibraryScanStatus()
 
