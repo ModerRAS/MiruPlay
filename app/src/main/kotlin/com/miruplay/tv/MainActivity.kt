@@ -70,6 +70,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromJsonElement
+import java.io.File
 import javax.inject.Inject
 import kotlin.system.exitProcess
 
@@ -458,7 +459,10 @@ class MainActivity : ComponentActivity() {
         }
 
         if (request.scanAfterAdd && persistedSourceId != null) {
-            scanCoordinator.get().scanSource(persistedSourceId)
+            scanCoordinator.get().scanSource(
+                persistedSourceId,
+                posterCacheDirectory = File(cacheDir, "miruplay_image_cache"),
+            )
                 .onSuccess { result ->
                     MiruLog.i(
                         "MainActivity",

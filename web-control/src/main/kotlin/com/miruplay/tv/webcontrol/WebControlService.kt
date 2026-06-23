@@ -887,7 +887,12 @@ class WebControlService @Inject constructor(
         })
 
         return try {
-            when (val result = scanCoordinator.scanSource(source.id)) {
+            when (
+                val result = scanCoordinator.scanSource(
+                    source.id,
+                    posterCacheDirectory = posterCacheDirectory(),
+                )
+            ) {
                 is Result.Success -> {
                     val scanning = scanStatus.completeSource(result.data)
                     backgroundTasks.update(
@@ -916,6 +921,9 @@ class WebControlService @Inject constructor(
             backgroundTasks.finish(BackgroundTaskIds.LIBRARY_SCAN)
         }
     }
+
+    private fun posterCacheDirectory(): File =
+        File(appContext.cacheDir, "miruplay_image_cache")
 }
 
 private data class BangumiArchiveDownloadState(
