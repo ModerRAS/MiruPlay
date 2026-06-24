@@ -92,8 +92,9 @@ internal fun embeddedMpvVoFromDebugValue(value: String?): String? =
 
 internal fun embeddedMpvHwdecFromDebugValue(value: String?): String? =
     when (value.debugKey()) {
-        "mediacodeccopy", "copy", "default" -> "mediacodec-copy"
+        "mediacodeccopy", "copy" -> "mediacodec-copy"
         "mediacodec", "nocopy" -> "mediacodec"
+        "default" -> "mediacodec,mediacodec-copy"
         "no", "off", "none", "disabled" -> "no"
         else -> null
     }

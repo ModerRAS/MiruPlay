@@ -1022,12 +1022,22 @@ class ExoPlaybackController @Inject constructor(
             onFileLoaded = {
                 embeddedMpvPendingLoad = false
                 embeddedMpvSource?.let { source ->
+                    val nativeProperties = embeddedMpvView
+                        ?.snapshotNativeDiagnostics(logLimit = 1)
+                        ?.properties
+                        ?.associate { it.name to it.value.orEmpty() }
+                        .orEmpty()
                     MiruLog.i(
                         "EmbeddedMpv",
                         "Embedded mpv file loaded",
                         mapOf(
                             "source_uri" to source.uri,
                             "position_ms" to embeddedMpvPositionMs.toString(),
+                            "vo" to nativeProperties["vo"].orEmpty(),
+                            "hwdec_current" to nativeProperties["hwdec-current"].orEmpty(),
+                            "video_codec" to nativeProperties["video-codec"].orEmpty(),
+                            "video_pixelformat" to nativeProperties["video-params/pixelformat"].orEmpty(),
+                            "video_hw_pixelformat" to nativeProperties["video-params/hw-pixelformat"].orEmpty(),
                         ),
                     )
                     embeddedMpvPlaying = false
