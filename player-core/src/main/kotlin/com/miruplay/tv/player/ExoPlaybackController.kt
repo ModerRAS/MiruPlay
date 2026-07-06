@@ -17,6 +17,8 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.source.LoadEventInfo
+import androidx.media3.exoplayer.source.MediaLoadData
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
@@ -36,6 +38,7 @@ import com.miruplay.tv.repository.PlaybackPreferencesRepository
 import `is`.xyz.mpv.MiruMpvSurfaceView
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
+import java.io.IOException
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Provider
 import javax.inject.Inject
@@ -686,12 +689,160 @@ class ExoPlaybackController @Inject constructor(
     }
 
     private fun createAnalyticsListener(player: ExoPlayer) = object : AnalyticsListener {
+        override fun onVideoDecoderInitialized(
+            eventTime: AnalyticsListener.EventTime,
+            decoderName: String,
+            initializedTimestampMs: Long,
+            initializationDurationMsMs: Long,
+        ) {
+            if (!isCurrentPlayer(player)) return
+            MiruLog.i(
+                "ExoPlaybackController",
+                "Video decoder initialized",
+                mapOf(
+                    "decoder_name" to decoderName,
+                    "position_ms" to eventTime.currentPlaybackPositionMs.toString(),
+                    "init_duration_ms" to initializationDurationMsMs.toString(),
+                    "source_uri" to currentSource?.uri.orEmpty(),
+                    "active_backend" to _activeRenderBackend.value.name,
+                ),
+            )
+        }
+
         override fun onVideoInputFormatChanged(
             eventTime: AnalyticsListener.EventTime,
             format: Format,
         ) {
             if (!isCurrentPlayer(player)) return
             refreshVideoSignalDescriptor(format)
+            MiruLog.i(
+                "ExoPlaybackController",
+                "Video input format changed",
+                mapOf(
+                    "sample_mime_type" to format.sampleMimeType.orEmpty(),
+                    "codecs" to format.codecs.orEmpty(),
+                    "width" to format.width.toString(),
+                    "height" to format.height.toString(),
+                    "frame_rate" to format.frameRate.toString(),
+                    "bitrate" to format.bitrate.toString(),
+                    "position_ms" to eventTime.currentPlaybackPositionMs.toString(),
+                ),
+            )
+        }
+
+        override fun onDroppedVideoFrames(
+            eventTime: AnalyticsListener.EventTime,
+            droppedFrames: Int,
+            elapsedMs: Long,
+        ) {
+            if (!isCurrentPlayer(player) || droppedFrames <= 0) return
+            MiruLog.w(
+                "ExoPlaybackController",
+                "Dropped video frames",
+                attributes = mapOf(
+                    "dropped_frames" to droppedFrames.toString(),
+                    "elapsed_ms" to elapsedMs.toString(),
+                    "position_ms" to eventTime.currentPlaybackPositionMs.toString(),
+                    "source_uri" to currentSource?.uri.orEmpty(),
+                ),
+            )
+        }
+
+        override fun onVideoDecoderReleased(
+            eventTime: AnalyticsListener.EventTime,
+            decoderName: String,
+        ) {
+            if (!isCurrentPlayer(player)) return
+            MiruLog.i(
+                "ExoPlaybackController",
+                "Video decoder released",
+                mapOf(
+                    "decoder_name" to decoderName,
+                    "position_ms" to eventTime.currentPlaybackPositionMs.toString(),
+                    "source_uri" to currentSource?.uri.orEmpty(),
+                ),
+            )
+        }
+
+        override fun onVideoCodecError(
+            eventTime: AnalyticsListener.EventTime,
+            videoCodecError: Exception,
+        ) {
+            if (!isCurrentPlayer(player)) return
+            MiruLog.e(
+                "ExoPlaybackController",
+                "Video codec error",
+                videoCodecError,
+                mapOf(
+                    "position_ms" to eventTime.currentPlaybackPositionMs.toString(),
+                    "source_uri" to currentSource?.uri.orEmpty(),
+                    "active_backend" to _activeRenderBackend.value.name,
+                ),
+            )
+        }
+
+        override fun onLoadStarted(
+            eventTime: AnalyticsListener.EventTime,
+            loadEventInfo: LoadEventInfo,
+            mediaLoadData: MediaLoadData,
+        ) {
+            if (!isCurrentPlayer(player) || !shouldLogPlaybackLoad(loadEventInfo, mediaLoadData)) return
+            MiruLog.i(
+                "ExoPlaybackController",
+                "Playback load started",
+                mapOf(
+                    "uri" to loadEventInfo.uri.toString(),
+                    "position" to loadEventInfo.dataSpec.position.toString(),
+                    "length" to loadEventInfo.dataSpec.length.toString(),
+                    "track_type" to mediaTrackTypeLabel(mediaLoadData.trackType),
+                    "position_ms" to eventTime.currentPlaybackPositionMs.toString(),
+                ),
+            )
+        }
+
+        override fun onLoadCompleted(
+            eventTime: AnalyticsListener.EventTime,
+            loadEventInfo: LoadEventInfo,
+            mediaLoadData: MediaLoadData,
+        ) {
+            if (!isCurrentPlayer(player) || !shouldLogPlaybackLoad(loadEventInfo, mediaLoadData)) return
+            MiruLog.i(
+                "ExoPlaybackController",
+                "Playback load completed",
+                mapOf(
+                    "uri" to loadEventInfo.uri.toString(),
+                    "position" to loadEventInfo.dataSpec.position.toString(),
+                    "length" to loadEventInfo.dataSpec.length.toString(),
+                    "bytes_loaded" to loadEventInfo.bytesLoaded.toString(),
+                    "load_duration_ms" to loadEventInfo.loadDurationMs.toString(),
+                    "track_type" to mediaTrackTypeLabel(mediaLoadData.trackType),
+                    "position_ms" to eventTime.currentPlaybackPositionMs.toString(),
+                ),
+            )
+        }
+
+        override fun onLoadError(
+            eventTime: AnalyticsListener.EventTime,
+            loadEventInfo: LoadEventInfo,
+            mediaLoadData: MediaLoadData,
+            error: IOException,
+            wasCanceled: Boolean,
+        ) {
+            if (!isCurrentPlayer(player) || !shouldLogPlaybackLoad(loadEventInfo, mediaLoadData)) return
+            MiruLog.e(
+                "ExoPlaybackController",
+                "Playback load error",
+                error,
+                mapOf(
+                    "uri" to loadEventInfo.uri.toString(),
+                    "position" to loadEventInfo.dataSpec.position.toString(),
+                    "length" to loadEventInfo.dataSpec.length.toString(),
+                    "bytes_loaded" to loadEventInfo.bytesLoaded.toString(),
+                    "was_canceled" to wasCanceled.toString(),
+                    "track_type" to mediaTrackTypeLabel(mediaLoadData.trackType),
+                    "position_ms" to eventTime.currentPlaybackPositionMs.toString(),
+                ),
+            )
         }
     }
 
@@ -1245,6 +1396,27 @@ internal fun shouldPublishEmbeddedMpvStateChange(
 
 internal fun isEmbeddedMpvHostReady(hostView: ViewGroup?): Boolean =
     hostView?.isAttachedToWindow == true && hostView.width > 0 && hostView.height > 0
+
+internal fun shouldLogPlaybackLoad(
+    loadEventInfo: LoadEventInfo,
+    mediaLoadData: MediaLoadData,
+): Boolean {
+    val scheme = loadEventInfo.dataSpec.uri.scheme?.lowercase()
+    return mediaLoadData.dataType == C.DATA_TYPE_MEDIA &&
+        (scheme == "http" || scheme == "https")
+}
+
+internal fun mediaTrackTypeLabel(trackType: Int): String = when (trackType) {
+    C.TRACK_TYPE_VIDEO -> "video"
+    C.TRACK_TYPE_AUDIO -> "audio"
+    C.TRACK_TYPE_TEXT -> "text"
+    C.TRACK_TYPE_DEFAULT -> "default"
+    C.TRACK_TYPE_METADATA -> "metadata"
+    C.TRACK_TYPE_IMAGE -> "image"
+    C.TRACK_TYPE_NONE -> "none"
+    C.TRACK_TYPE_UNKNOWN -> "unknown"
+    else -> trackType.toString()
+}
 
 private const val MAX_PLAYBACK_CLOCK_SAMPLES = 240
 
