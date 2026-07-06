@@ -362,7 +362,7 @@ class WebControlPlaybackDebugConfigRouteTest {
                     highlightCompression = 18,
                 ),
                 effectiveEmbeddedMpvVo = "gpu-hq",
-                effectiveEmbeddedMpvHwdec = "mediacodec-copy",
+                effectiveEmbeddedMpvHwdec = "mediacodec,mediacodec-copy",
             )
         }
 
@@ -388,7 +388,7 @@ class WebControlPlaybackDebugConfigRouteTest {
                 embeddedMpvVo = request.embeddedMpvVo,
                 embeddedMpvHwdec = request.embeddedMpvHwdec,
                 effectiveEmbeddedMpvVo = request.embeddedMpvVo ?: "gpu-hq",
-                effectiveEmbeddedMpvHwdec = request.embeddedMpvHwdec ?: "mediacodec-copy",
+                effectiveEmbeddedMpvHwdec = request.embeddedMpvHwdec ?: "mediacodec,mediacodec-copy",
                 libVlcHardwareMode = request.libVlcHardwareMode ?: "FULL",
                 libVlcVoutMode = request.libVlcVoutMode ?: "DEFAULT",
                 libVlcDisplayChroma = request.libVlcDisplayChroma,

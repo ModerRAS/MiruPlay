@@ -18,6 +18,7 @@ class EmbeddedMpvSessionOptionsTest {
         )
 
         assertEquals("gpu-next", options.vo)
+        assertEquals("mediacodec,mediacodec-copy", options.hwdec)
         assertNull(options.toneMapping)
         assertNull(options.toneMappingParam)
         assertNull(options.hdrComputePeak)

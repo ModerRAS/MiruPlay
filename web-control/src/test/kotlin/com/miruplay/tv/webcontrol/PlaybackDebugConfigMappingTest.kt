@@ -77,6 +77,7 @@ class PlaybackDebugConfigMappingTest {
         assertEquals("gpu-hq", embeddedMpvVoFromDebugValue("gpu_hq"))
         assertEquals("mediacodec-copy", embeddedMpvHwdecFromDebugValue("copy"))
         assertEquals("mediacodec", embeddedMpvHwdecFromDebugValue("mediacodec"))
+        assertEquals("mediacodec,mediacodec-copy", embeddedMpvHwdecFromDebugValue("default"))
         assertEquals("no", embeddedMpvHwdecFromDebugValue("off"))
         assertNull(toneMappingPresetFromDebugValue("unknown"))
         assertNull(peakDetectionStrategyFromDebugValue("weird"))

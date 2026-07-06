@@ -14,7 +14,7 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
 ) : BaseMPVView(context, attrs), MPVLib.EventObserver, MPVLib.LogObserver {
     data class SessionOptions(
         val vo: String = "gpu-next",
-        val hwdec: String = "mediacodec-copy",
+        val hwdec: String = "mediacodec,mediacodec-copy",
         val profile: String = "fast",
         val targetPrim: String? = null,
         val targetTrc: String? = null,
@@ -153,6 +153,7 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
         MPVLib.setOptionString("ao", "audiotrack,opensles")
         MPVLib.setOptionString("audio-set-media-role", "yes")
         MPVLib.setOptionString("hwdec", sessionOptions.hwdec)
+        MPVLib.setOptionString("hwdec-codecs", EMBEDDED_MPV_HWDEC_CODECS)
         MPVLib.setOptionString("vo", sessionOptions.vo)
         MPVLib.setOptionString("save-position-on-quit", "no")
         applyColorPipelineProperties(sessionOptions)
@@ -320,3 +321,4 @@ private val EMBEDDED_MPV_NATIVE_PROPERTY_SPECS = listOf(
 )
 
 private const val MAX_NATIVE_LOG_MESSAGES = 120
+private const val EMBEDDED_MPV_HWDEC_CODECS = "h264,hevc,mpeg4,mpeg2video,vp8,vp9,av1"

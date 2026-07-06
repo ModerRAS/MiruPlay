@@ -132,7 +132,7 @@ fun effectiveEmbeddedMpvVideoOutput(
 
 fun effectiveEmbeddedMpvHwdec(
     debugConfig: EmbeddedMpvDebugConfig = EmbeddedMpvDebugConfig(),
-): String = debugConfig.hwdec ?: "mediacodec-copy"
+): String = debugConfig.hwdec ?: "mediacodec,mediacodec-copy"
 
 private data class EmbeddedMpvPeakDetection(
     val enabled: Boolean,
