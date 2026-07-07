@@ -65,6 +65,9 @@ class LibraryScanStatusTest {
 
         assertTrue(status.requestCancel())
         assertTrue(cancelled)
+        val scanning = status.state.value as LibraryScanState.Scanning
+        assertFalse(scanning.canCancel)
+        assertFalse(status.requestCancel())
     }
 
     @Test

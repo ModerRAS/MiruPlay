@@ -40,7 +40,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.isActive
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import android.util.Log
@@ -1248,7 +1248,7 @@ class ScanCoordinator @Inject constructor(
         }
 
         // Check for cancellation
-        if (!currentCoroutineContext().isActive) return null
+        currentCoroutineContext().ensureActive()
 
         try {
             diagnostics.directoriesVisited += 1
@@ -1327,7 +1327,7 @@ class ScanCoordinator @Inject constructor(
             }
 
             for (file in files) {
-                if (!currentCoroutineContext().isActive) return null
+                currentCoroutineContext().ensureActive()
                 diagnostics.entriesSeen += 1
                 diagnostics.lastEntryTail = pathTailForLog(file.path)
 
