@@ -126,19 +126,27 @@ class MiruPlayInputIntentTest {
     }
 
     @Test
-    fun `TV playback overlay action leaves directional keys to focused controls whenever overlay is visible`() {
+    fun `TV playback overlay action keeps left and right seeking while controls are visible`() {
+        assertEquals(
+            MiruPlayPlaybackInputAction.SeekBack,
+            MiruPlayInputIntent.DirectionLeft.tvPlaybackOverlayAction(controlsVisible = true, hasOpenMenu = false),
+        )
+        assertEquals(
+            MiruPlayPlaybackInputAction.SeekForward,
+            MiruPlayInputIntent.DirectionRight.tvPlaybackOverlayAction(controlsVisible = true, hasOpenMenu = false),
+        )
+        assertNull(MiruPlayInputIntent.DirectionUp.tvPlaybackOverlayAction(controlsVisible = true, hasOpenMenu = false))
+        assertNull(MiruPlayInputIntent.DirectionDown.tvPlaybackOverlayAction(controlsVisible = true, hasOpenMenu = false))
+    }
+
+    @Test
+    fun `TV playback overlay action leaves directional keys to open menus`() {
         listOf(
             MiruPlayInputIntent.DirectionLeft,
             MiruPlayInputIntent.DirectionRight,
             MiruPlayInputIntent.DirectionUp,
             MiruPlayInputIntent.DirectionDown,
         ).forEach { intent ->
-            assertNull(
-                intent.tvPlaybackOverlayAction(
-                    controlsVisible = true,
-                    hasOpenMenu = false,
-                )
-            )
             assertNull(
                 intent.tvPlaybackOverlayAction(
                     controlsVisible = true,
