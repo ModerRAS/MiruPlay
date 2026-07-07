@@ -26,7 +26,22 @@ interface IndexDao {
     @Query("SELECT $INDEX_COLUMNS FROM index_entry WHERE source_id = :sourceId AND (path LIKE '%' || :query || '%' OR anime_name LIKE '%' || :query || '%')")
     suspend fun search(sourceId: Long, query: String): List<IndexEntryEntity>
 
-    @Query("SELECT DISTINCT anime_name FROM index_entry WHERE source_id = :sourceId AND anime_name IS NOT NULL ORDER BY anime_name ASC")
+    @Query(
+        """
+        SELECT DISTINCT
+            CASE
+                WHEN metadata_id IS NOT NULL AND TRIM(metadata_id) <> '' THEN metadata_id
+                ELSE anime_name
+            END AS anime_key
+        FROM index_entry
+        WHERE source_id = :sourceId
+            AND (
+                (metadata_id IS NOT NULL AND TRIM(metadata_id) <> '')
+                OR anime_name IS NOT NULL
+            )
+        ORDER BY anime_key ASC
+        """
+    )
     suspend fun getDistinctAnimeNames(sourceId: Long): List<String>
 
     @Query("SELECT COUNT(*) FROM index_entry WHERE source_id = :sourceId")

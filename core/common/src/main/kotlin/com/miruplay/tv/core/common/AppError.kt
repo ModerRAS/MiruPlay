@@ -72,6 +72,21 @@ sealed class AppError {
         }
     }
 
+    sealed class LibraryIndexError : AppError() {
+        data class Missing(val path: String) : LibraryIndexError() {
+            override fun toUserMessage(): String = "未找到媒体库索引：$path"
+        }
+        data class UnsupportedVersion(val version: Int) : LibraryIndexError() {
+            override fun toUserMessage(): String = "不支持的媒体库索引版本：$version"
+        }
+        data class InvalidSchema(val reason: String) : LibraryIndexError() {
+            override fun toUserMessage(): String = "媒体库索引结构无效：$reason"
+        }
+        data class ReadFailed(val cause: String) : LibraryIndexError() {
+            override fun toUserMessage(): String = "读取媒体库索引失败：$cause"
+        }
+    }
+
     sealed class SyncError : AppError() {
         data class ConflictDetected(val episodeId: String) : SyncError() {
             override fun toUserMessage(): String = "进度冲突，请手动选择保留哪边"

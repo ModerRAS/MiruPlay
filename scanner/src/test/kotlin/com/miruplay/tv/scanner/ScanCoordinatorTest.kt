@@ -13,7 +13,9 @@ import com.miruplay.tv.model.FilenameMetadataParser
 import com.miruplay.tv.model.FilenameParseResult
 import com.miruplay.tv.model.MediaCapabilities
 import com.miruplay.tv.model.MediaContentMode
+import com.miruplay.tv.model.MediaRecognitionMode
 import com.miruplay.tv.model.MediaSourceInfo
+import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.RssDownloadTaskInfo
 import com.miruplay.tv.model.RssProcessedItemInfo
@@ -43,6 +45,42 @@ import java.nio.file.Files
 import java.security.MessageDigest
 
 class ScanCoordinatorTest {
+
+    @Test
+    fun `scanSource imports mlip source without directory traversal or scraping`() = runBlocking {
+        val sourceInfo = MediaSourceInfo(
+            id = 27L,
+            name = "MLIP WebDAV",
+            type = MediaSourceType.WEBDAV,
+            connectionInfo = MediaSourceInfoConventions.sourceConnectionInfo(
+                type = MediaSourceType.WEBDAV,
+                location = "http://example.test/dav",
+                recognitionMode = MediaRecognitionMode.MLIP,
+            ),
+        )
+        val mediaSource = FakeMediaSource(
+            listings = mapOf("" to listOf(FileEntry("should-not-list.mkv", "/should-not-list.mkv", false))),
+            streamErrors = mapOf("library.db" to AppError.MediaSourceError.NotFound("library.db")),
+        )
+        val mediaRepository = SingleSourceRepository(sourceInfo)
+        val scraper = RecordingBangumiScraper()
+        val coordinator = ScanCoordinator(
+            mediaRepository = mediaRepository,
+            mediaSourceFactory = SingleMediaSourceFactory(mediaSource),
+            indexRepository = RecordingIndexRepository(),
+            metadataRepository = RecordingMetadataRepository(),
+            filenameMetadataParser = EmptyFilenameMetadataParser,
+            metadataScrapers = setOf(scraper),
+        )
+
+        val result = coordinator.scanSource(sourceInfo.id)
+
+        assertTrue("Missing library.db should fail explicitly", result is Result.Error)
+        assertTrue((result as Result.Error).error is AppError.LibraryIndexError.Missing)
+        assertEquals(emptyList<String>(), mediaSource.listedPaths)
+        assertEquals(null, scraper.normalizedName)
+        assertEquals(null, mediaRepository.updatedSource)
+    }
 
     @Test
     fun `scanSource starts WebDAV traversal at empty path and indexes remote files`() = runBlocking {
@@ -936,6 +974,7 @@ class ScanCoordinatorTest {
     private class FakeMediaSource(
         private val listings: Map<String, List<FileEntry>>,
         private val listErrors: Map<String, AppError> = emptyMap(),
+        private val streamErrors: Map<String, AppError> = emptyMap(),
     ) : MediaSource {
         override val id: String = "fake"
         override lateinit var info: MediaSourceInfo
@@ -948,8 +987,10 @@ class ScanCoordinatorTest {
             return Result.success(listings[path].orEmpty())
         }
 
-        override suspend fun openStream(path: String): Result<InputStream> =
-            Result.success(ByteArrayInputStream(ByteArray(0)))
+        override suspend fun openStream(path: String): Result<InputStream> {
+            streamErrors[path]?.let { return Result.failure(it) }
+            return Result.success(ByteArrayInputStream(ByteArray(0)))
+        }
 
         override suspend fun getMetadata(path: String): Result<FileMetadata> =
             Result.failure(AppError.MediaSourceError.NotFound(path))

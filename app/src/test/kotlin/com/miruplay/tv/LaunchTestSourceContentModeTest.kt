@@ -1,6 +1,7 @@
 package com.miruplay.tv
 
 import com.miruplay.tv.model.MediaContentMode
+import com.miruplay.tv.model.MediaRecognitionMode
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.PlaybackRenderBackend
 import com.miruplay.tv.model.ToneMappingProfilePreset
@@ -63,6 +64,13 @@ class LaunchTestSourceContentModeTest {
     }
 
     @Test
+    fun `launch recognition mode parses mlip and defaults to directory`() {
+        assertEquals(MediaRecognitionMode.MLIP, resolveLaunchTestSourceRecognitionMode(" mlip "))
+        assertEquals(MediaRecognitionMode.DIRECTORY, resolveLaunchTestSourceRecognitionMode(null))
+        assertEquals(MediaRecognitionMode.DIRECTORY, resolveLaunchTestSourceRecognitionMode("unknown"))
+    }
+
+    @Test
     fun `tmdb override extra trims whitespace`() {
         assertEquals(
             "http://127.0.0.1:18080/mock",
@@ -117,6 +125,7 @@ class LaunchTestSourceContentModeTest {
             rawUsername = null,
             rawPassword = null,
             rawContentMode = null,
+            rawRecognitionMode = null,
             disableOnlineMetadata = false,
             scanAfterAdd = false,
             tmdbOverrides = LaunchTestTmdbOverrides(
@@ -156,6 +165,7 @@ class LaunchTestSourceContentModeTest {
             rawUsername = null,
             rawPassword = null,
             rawContentMode = null,
+            rawRecognitionMode = null,
             disableOnlineMetadata = false,
             scanAfterAdd = false,
             tmdbOverrides = LaunchTestTmdbOverrides(
@@ -282,6 +292,7 @@ class LaunchTestSourceContentModeTest {
             rawUsername = null,
             rawPassword = null,
             rawContentMode = "drama",
+            rawRecognitionMode = null,
             disableOnlineMetadata = false,
             scanAfterAdd = true,
             fallbackMode = AppMode.ANIME,
@@ -308,6 +319,7 @@ class LaunchTestSourceContentModeTest {
             rawUsername = " anonymous ",
             rawPassword = " ",
             rawContentMode = "drama",
+            rawRecognitionMode = "mlip",
             disableOnlineMetadata = true,
             scanAfterAdd = true,
             fallbackMode = AppMode.ANIME,
@@ -321,6 +333,7 @@ class LaunchTestSourceContentModeTest {
         assertEquals("anonymous", request.username)
         assertEquals(" ", request.password)
         assertEquals(MediaContentMode.DRAMA, request.contentMode)
+        assertEquals(MediaRecognitionMode.MLIP, request.recognitionMode)
         assertTrue(request.disableOnlineMetadata)
         assertTrue(request.scanAfterAdd)
     }
@@ -338,6 +351,7 @@ class LaunchTestSourceContentModeTest {
                 rawUsername = null,
                 rawPassword = null,
                 rawContentMode = null,
+                rawRecognitionMode = null,
                 disableOnlineMetadata = false,
                 scanAfterAdd = false,
                 fallbackMode = null,
@@ -437,6 +451,7 @@ class LaunchTestSourceContentModeTest {
             rawUsername = "anonymous",
             rawPassword = "",
             rawContentMode = "drama",
+            rawRecognitionMode = null,
             disableOnlineMetadata = true,
             scanAfterAdd = true,
             tmdbOverrides = LaunchTestTmdbOverrides(
@@ -488,6 +503,7 @@ class LaunchTestSourceContentModeTest {
             rawUsername = null,
             rawPassword = null,
             rawContentMode = null,
+            rawRecognitionMode = null,
             disableOnlineMetadata = false,
             scanAfterAdd = false,
             tmdbOverrides = LaunchTestTmdbOverrides(

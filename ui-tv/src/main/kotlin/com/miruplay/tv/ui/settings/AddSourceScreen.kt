@@ -93,6 +93,7 @@ import com.miruplay.tv.model.PosterWallArrangement
 import com.miruplay.tv.model.CLOUD_DRIVE_ROOT_DISPLAY_NAME
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.MediaContentMode
+import com.miruplay.tv.model.MediaRecognitionMode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
@@ -104,6 +105,7 @@ import com.miruplay.tv.model.aboutSettingsTiles
 import com.miruplay.tv.model.androidTvSettingsSectionOrder
 import com.miruplay.tv.model.connectionDisplayName
 import com.miruplay.tv.model.connectionUsername
+import com.miruplay.tv.model.recognitionMode
 import com.miruplay.tv.model.cloudDriveRssApiTokenCredentialLabel
 import com.miruplay.tv.model.cloudDriveRssApiTokenFieldLabel
 import com.miruplay.tv.model.cloudDriveRssChooseDirectoryActionLabel
@@ -388,6 +390,7 @@ fun AddSourceScreen(
     var editingSourceId by remember { mutableStateOf<Long?>(null) }
     var selectedType by remember { mutableStateOf(MediaSourceType.LOCAL) }
     var selectedContentMode by remember { mutableStateOf(MediaContentMode.ANIME) }
+    var selectedRecognitionMode by remember { mutableStateOf(MediaRecognitionMode.DIRECTORY) }
     var name by remember { mutableStateOf(sourceNameOrDefault("", MediaSourceType.LOCAL)) }
     var location by remember { mutableStateOf(DEFAULT_LOCAL_PATH) }
     var locationDisplayName by remember { mutableStateOf(mediaSourceLocalPathDisplayName(DEFAULT_LOCAL_PATH)) }
@@ -465,6 +468,7 @@ fun AddSourceScreen(
         editingSourceId = null
         selectedType = type
         selectedContentMode = currentAppMode.toMediaContentMode()
+        selectedRecognitionMode = MediaRecognitionMode.DIRECTORY
         name = sourceNameOrDefault("", type)
         location = type.defaultSourceLocation(DEFAULT_LOCAL_PATH)
         locationDisplayName = if (type == MediaSourceType.LOCAL) mediaSourceLocalPathDisplayName(location) else ""
@@ -488,6 +492,7 @@ fun AddSourceScreen(
         selectedSection = MiruPlaySettingsSection.SOURCES
         selectedType = source.type
         selectedContentMode = source.contentMode
+        selectedRecognitionMode = source.recognitionMode()
         name = source.name.ifBlank { sourceNameOrDefault("", source.type) }
         location = source.sourceLocation().orEmpty()
         locationDisplayName = source.connectionDisplayName().ifBlank {
@@ -499,6 +504,13 @@ fun AddSourceScreen(
     }
 
     fun saveSourceForm() {
+        val effectiveRecognitionMode = if (
+            selectedType == MediaSourceType.WEBDAV && selectedContentMode == MediaContentMode.ANIME
+        ) {
+            selectedRecognitionMode
+        } else {
+            MediaRecognitionMode.DIRECTORY
+        }
         val source = MediaSourceInfo(
             id = editingSourceId ?: 0L,
             name = sourceNameOrDefault(name, selectedType),
@@ -509,7 +521,8 @@ fun AddSourceScreen(
                 location = location,
                 displayName = locationDisplayName,
                 username = username,
-                password = password
+                password = password,
+                recognitionMode = effectiveRecognitionMode,
             )
         )
         if (editingSourceId == null) {
@@ -588,6 +601,7 @@ fun AddSourceScreen(
                             editingSourceId = null
                             selectedType = type
                             selectedContentMode = currentAppMode.toMediaContentMode()
+                            selectedRecognitionMode = MediaRecognitionMode.DIRECTORY
                             name = sourceNameOrDefault("", type)
                             location = type.defaultSourceLocation(DEFAULT_LOCAL_PATH)
                             locationDisplayName = if (type == MediaSourceType.LOCAL) mediaSourceLocalPathDisplayName(location) else ""
@@ -599,7 +613,12 @@ fun AddSourceScreen(
                     name = name,
                     onNameChange = { name = it },
                     selectedContentMode = selectedContentMode,
-                    onContentModeSelected = { selectedContentMode = it },
+                    onContentModeSelected = {
+                        selectedContentMode = it
+                        if (it != MediaContentMode.ANIME) selectedRecognitionMode = MediaRecognitionMode.DIRECTORY
+                    },
+                    selectedRecognitionMode = selectedRecognitionMode,
+                    onRecognitionModeSelected = { selectedRecognitionMode = it },
                     location = location,
                     onLocationChange = { location = it },
                     locationDisplayName = locationDisplayName,
@@ -1068,6 +1087,8 @@ private fun SettingsContent(
     onNameChange: (String) -> Unit,
     selectedContentMode: MediaContentMode,
     onContentModeSelected: (MediaContentMode) -> Unit,
+    selectedRecognitionMode: MediaRecognitionMode,
+    onRecognitionModeSelected: (MediaRecognitionMode) -> Unit,
     location: String,
     onLocationChange: (String) -> Unit,
     locationDisplayName: String,
@@ -1251,6 +1272,8 @@ private fun SettingsContent(
                     onNameChange = onNameChange,
                     selectedContentMode = selectedContentMode,
                     onContentModeSelected = onContentModeSelected,
+                    selectedRecognitionMode = selectedRecognitionMode,
+                    onRecognitionModeSelected = onRecognitionModeSelected,
                     location = location,
                     onLocationChange = onLocationChange,
                     locationDisplayName = locationDisplayName,
@@ -2602,6 +2625,8 @@ private fun SourceFormPanel(
     onNameChange: (String) -> Unit,
     selectedContentMode: MediaContentMode,
     onContentModeSelected: (MediaContentMode) -> Unit,
+    selectedRecognitionMode: MediaRecognitionMode,
+    onRecognitionModeSelected: (MediaRecognitionMode) -> Unit,
     location: String,
     onLocationChange: (String) -> Unit,
     locationDisplayName: String,
@@ -2693,6 +2718,43 @@ private fun SourceFormPanel(
             text = mediaSourceContentModeHint(selectedContentMode),
             color = ProgressGreen
         )
+
+        if (selectedType == MediaSourceType.WEBDAV && selectedContentMode == MediaContentMode.ANIME) {
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = "识别来源",
+                style = TvTypography.caption,
+                color = TextSecondary
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                ScanOptionChip(
+                    text = "目录扫描",
+                    icon = Icons.Filled.Storage,
+                    selected = selectedRecognitionMode == MediaRecognitionMode.DIRECTORY,
+                    enabled = true,
+                    onClick = { onRecognitionModeSelected(MediaRecognitionMode.DIRECTORY) },
+                    modifier = Modifier.width(150.dp)
+                )
+                ScanOptionChip(
+                    text = "MLIP library.db",
+                    icon = Icons.Filled.Dns,
+                    selected = selectedRecognitionMode == MediaRecognitionMode.MLIP,
+                    enabled = true,
+                    onClick = { onRecognitionModeSelected(MediaRecognitionMode.MLIP) },
+                    modifier = Modifier.width(190.dp)
+                )
+            }
+            StatusMessage(
+                icon = Icons.Filled.CheckCircle,
+                text = if (selectedRecognitionMode == MediaRecognitionMode.MLIP) {
+                    "扫描时读取 WebDAV 根目录 library.db，不使用在线刮削。"
+                } else {
+                    "扫描目录并按文件名识别，可继续使用在线元数据。"
+                },
+                color = if (selectedRecognitionMode == MediaRecognitionMode.MLIP) ProgressGreen else TextSecondary
+            )
+        }
 
         Spacer(Modifier.height(12.dp))
 

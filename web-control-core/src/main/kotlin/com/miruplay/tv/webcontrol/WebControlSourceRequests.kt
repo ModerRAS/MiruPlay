@@ -27,6 +27,7 @@ fun SourceRequest.toMediaSourceInfo(
         displayName = displayName.orEmpty(),
         username = username.orEmpty(),
         password = password?.takeIf { it.isNotBlank() } ?: fallbackPassword.orEmpty(),
+        recognitionMode = recognitionMode,
     ).let { info ->
         if (disableOnlineMetadata) info + (DISABLE_ONLINE_METADATA_KEY to true.toString()) else info
     }
@@ -50,6 +51,7 @@ fun SourceTestRequest.toMediaSourceInfo(): MediaSourceInfo {
         displayName = displayName.orEmpty(),
         username = username.orEmpty(),
         password = password.orEmpty(),
+        recognitionMode = recognitionMode,
     ).let { info ->
         if (disableOnlineMetadata) info + (DISABLE_ONLINE_METADATA_KEY to true.toString()) else info
     }
