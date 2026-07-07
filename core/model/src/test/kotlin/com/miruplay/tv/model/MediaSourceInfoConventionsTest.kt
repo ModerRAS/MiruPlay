@@ -219,7 +219,7 @@ class MediaSourceInfoConventionsTest {
         assertEquals(MediaRecognitionMode.DIRECTORY, directorySource.recognitionMode())
         assertFalse(MediaSourceInfoConventions.CONNECTION_RECOGNITION_MODE in directorySource.connectionInfo)
         assertEquals("MLIP", helperInfo[MediaSourceInfoConventions.CONNECTION_RECOGNITION_MODE])
-        assertTrue(
+        assertFalse(
             MediaSourceInfoConventions.CONNECTION_RECOGNITION_MODE in MediaSourceInfoConventions.PERSISTED_CONNECTION_KEYS,
         )
     }

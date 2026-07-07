@@ -169,7 +169,6 @@ object MediaSourceInfoConventions {
         CONNECTION_PATH,
         CONNECTION_USERNAME,
         CONNECTION_PASSWORD,
-        CONNECTION_RECOGNITION_MODE,
     )
 
     private const val SMB_SCHEME = "smb://"
