@@ -304,9 +304,6 @@ class LibraryViewModel @Inject constructor(
 
     fun cancelScan() {
         libraryScanTask.cancel()
-        viewModelScope.launch {
-            loadLibraryContent(showLoading = false)
-        }
     }
 }
 

@@ -72,6 +72,10 @@ class LibraryScanStatus @Inject constructor() {
     @Synchronized
     fun requestCancel(): Boolean {
         val request = cancelRequest ?: return false
+        cancelRequest = null
+        _state.update { current ->
+            (current as? LibraryScanState.Scanning)?.copy(canCancel = false) ?: current
+        }
         request()
         return true
     }

@@ -223,6 +223,12 @@ private fun ScanProgressBanner(
     modifier: Modifier = Modifier,
     onCancel: () -> Unit
 ) {
+    val cancelFocus = rememberInitialFocusHandle(
+        key = Unit,
+        enabled = state.canCancel,
+        initialDelayMillis = 50,
+    )
+
     Row(
         modifier = modifier
             .heightIn(min = 64.dp)
@@ -261,7 +267,9 @@ private fun ScanProgressBanner(
             TvButton(
                 text = libraryCancelScanActionLabel(),
                 onClick = onCancel,
-                modifier = Modifier.width(132.dp),
+                modifier = Modifier
+                    .width(132.dp)
+                    .then(cancelFocus.modifier()),
                 secondary = true
             )
         }
