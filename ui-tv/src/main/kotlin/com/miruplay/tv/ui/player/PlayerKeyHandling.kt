@@ -26,8 +26,20 @@ internal fun handlePlayerKey(
 
     if (controlsVisible) {
         return when (key) {
-            Key.DirectionLeft,
-            Key.DirectionRight -> false
+            Key.DirectionLeft -> if (hasOpenMenu) {
+                false
+            } else {
+                actions.showControls()
+                actions.skipBackward()
+                true
+            }
+            Key.DirectionRight -> if (hasOpenMenu) {
+                false
+            } else {
+                actions.showControls()
+                actions.skipForward()
+                true
+            }
             Key.MediaPlayPause -> {
                 actions.togglePlayback()
                 true

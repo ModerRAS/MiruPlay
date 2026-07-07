@@ -10,7 +10,23 @@ import org.junit.Test
 class PlayerKeyHandlingTest {
 
     @Test
-    fun `direction keys stay with focus when controls are visible`() {
+    fun `direction keys still skip when controls are visible`() {
+        val calls = mutableListOf<String>()
+
+        val consumed = handlePlayerKey(
+            key = Key.DirectionRight,
+            type = KeyEventType.KeyDown,
+            controlsVisible = true,
+            hasOpenMenu = false,
+            actions = testActions(calls)
+        )
+
+        assertTrue(consumed)
+        assertEquals(listOf("showControls", "skipForward"), calls)
+    }
+
+    @Test
+    fun `direction keys stay with focus when a menu is open`() {
         listOf(Key.DirectionLeft, Key.DirectionRight).forEach { key ->
             val calls = mutableListOf<String>()
 
@@ -18,7 +34,7 @@ class PlayerKeyHandlingTest {
                 key = key,
                 type = KeyEventType.KeyDown,
                 controlsVisible = true,
-                hasOpenMenu = false,
+                hasOpenMenu = true,
                 actions = testActions(calls)
             )
 
