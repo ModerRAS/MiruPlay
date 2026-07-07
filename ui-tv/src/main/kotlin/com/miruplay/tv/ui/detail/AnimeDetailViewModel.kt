@@ -8,7 +8,6 @@ import com.miruplay.tv.model.BANGUMI_RESULT_LIMIT
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaContentMode
-import com.miruplay.tv.model.MetadataProviderRef
 import com.miruplay.tv.model.MetadataSearchContext
 import com.miruplay.tv.model.MetadataSearchIntent
 import com.miruplay.tv.model.ProgressRecord
@@ -41,10 +40,13 @@ import com.miruplay.tv.scraper.MetadataScraper
 import com.miruplay.tv.sync.BangumiMetadataRefreshCore
 import com.miruplay.tv.sync.BangumiSyncEngine
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 import javax.inject.Inject
 
 @HiltViewModel
@@ -165,51 +167,61 @@ class AnimeDetailViewModel @Inject constructor(
                 statusMessage = detailBangumiManualSearchStartedMessage(queries.size),
             )
 
-            val currentAnime = _anime.value
-            val localEpisodes = allEpisodesWithProgress.map { it.first }
-            val aggregated = PerformanceLog.measureSuspend(
-                tag = DETAIL_PERFORMANCE_TAG,
-                operation = "detail.metadata.aggregate_manual_search",
-                attributes = mapOf(
-                    "query_count" to queries.size.toString(),
-                    "local_episode_count" to localEpisodes.size.toString(),
-                ),
-                resultAttributes = { result ->
-                    mapOf("candidate_count" to result.candidates.size.toString())
-                },
-            ) {
-                animeSearchAggregator.search(
-                    MetadataSearchContext(
-                        contentMode = MediaContentMode.ANIME,
-                        intent = MetadataSearchIntent.MANUAL_MATCH,
-                        title = currentAnime?.title.orEmpty(),
-                        localizedTitle = currentAnime?.titleCn.orEmpty(),
-                        aliases = currentState.selectedCandidateTerms.toList(),
-                        filePathSamples = localEpisodes.map(Episode::filePath),
-                        manualQuery = currentState.query,
-                        metadataTitle = currentAnime?.displayTitle(),
-                        boundProviderRef = currentAnime.boundProviderRef(),
-                        seasonHint = _selectedSeason.value.takeIf { it > 1 },
-                        episodeCountHint = localEpisodes.size.takeIf { it > 0 },
-                    ),
-                )
-            }
+            try {
+                val localEpisodes = allEpisodesWithProgress.map { it.first }
+                val aggregated = withTimeout(manualMatchSearchTimeoutMs(queries.size)) {
+                    PerformanceLog.measureSuspend(
+                        tag = DETAIL_PERFORMANCE_TAG,
+                        operation = "detail.metadata.aggregate_manual_search",
+                        attributes = mapOf(
+                            "query_count" to queries.size.toString(),
+                            "local_episode_count" to localEpisodes.size.toString(),
+                        ),
+                        resultAttributes = { result ->
+                            mapOf("candidate_count" to result.candidates.size.toString())
+                        },
+                    ) {
+                        animeSearchAggregator.search(
+                            MetadataSearchContext(
+                                contentMode = MediaContentMode.ANIME,
+                                intent = MetadataSearchIntent.MANUAL_MATCH,
+                                aliases = queries,
+                                seasonHint = _selectedSeason.value.takeIf { it > 1 },
+                                episodeCountHint = localEpisodes.size.takeIf { it > 0 },
+                            ),
+                        )
+                    }
+                }
 
-            val distinctMatches = aggregated.candidates
-                .mapNotNull { it.toPreferredScraperResult(preferredSources = listOf("Bangumi", "AniList")) }
-                .distinctBy { "${it.source.name}:${it.animeId}" }
-                .take(BANGUMI_RESULT_LIMIT)
-            _manualMatch.value = _manualMatch.value.copy(
-                results = distinctMatches,
-                selectedResult = distinctMatches.firstOrNull(),
-                isSearching = false,
-                statusMessage = if (distinctMatches.isEmpty()) {
-                    "没有找到更合适的聚合候选。"
-                } else {
-                    "找到 ${distinctMatches.size} 个聚合候选。"
-                },
-            )
-            _isSyncing.value = false
+                val distinctMatches = aggregated.candidates
+                    .mapNotNull { it.toPreferredScraperResult(preferredSources = listOf("Bangumi")) }
+                    .distinctBy { "${it.source.name}:${it.animeId}" }
+                    .take(BANGUMI_RESULT_LIMIT)
+                _manualMatch.value = _manualMatch.value.copy(
+                    results = distinctMatches,
+                    selectedResult = distinctMatches.firstOrNull(),
+                    isSearching = false,
+                    statusMessage = if (distinctMatches.isEmpty()) {
+                        "没有找到更合适的聚合候选。"
+                    } else {
+                        "找到 ${distinctMatches.size} 个聚合候选。"
+                    },
+                )
+            } catch (error: TimeoutCancellationException) {
+                _manualMatch.value = _manualMatch.value.copy(
+                    isSearching = false,
+                    statusMessage = "搜索超时，请减少关键词或检查网络/代理。",
+                )
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                _manualMatch.value = _manualMatch.value.copy(
+                    isSearching = false,
+                    statusMessage = "搜索失败：${error.message ?: error::class.simpleName.orEmpty()}",
+                )
+            } finally {
+                _isSyncing.value = false
+            }
         }
     }
 
@@ -330,13 +342,12 @@ class AnimeDetailViewModel @Inject constructor(
 }
 
 private const val DETAIL_PERFORMANCE_TAG = "DetailPerformance"
+private const val MANUAL_MATCH_SEARCH_TIMEOUT_MS_PER_QUERY = 35_000L
+private const val MANUAL_MATCH_SEARCH_TIMEOUT_MAX_MS = 90_000L
 
-private fun Anime?.boundProviderRef(): MetadataProviderRef? =
-    when {
-        this?.bangumiId != null -> MetadataProviderRef(source = "Bangumi", id = bangumiId.toString())
-        this?.anilistId != null -> MetadataProviderRef(source = "AniList", id = anilistId.toString())
-        else -> null
-    }
+private fun manualMatchSearchTimeoutMs(queryCount: Int): Long =
+    (MANUAL_MATCH_SEARCH_TIMEOUT_MS_PER_QUERY * queryCount.coerceAtLeast(1))
+        .coerceAtMost(MANUAL_MATCH_SEARCH_TIMEOUT_MAX_MS)
 
 data class BangumiManualMatchUiState(
     val isOpen: Boolean = false,

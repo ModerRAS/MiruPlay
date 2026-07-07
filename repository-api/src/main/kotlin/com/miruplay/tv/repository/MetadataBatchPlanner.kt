@@ -204,7 +204,7 @@ object MetadataBatchPlanner {
                 manualQuery = query,
             ),
         ).candidates.mapNotNull { candidate ->
-            candidate.toPreferredScraperResult(preferredSources = listOf("Bangumi", "AniList"))
+            candidate.toPreferredScraperResult(preferredSources = listOf("Bangumi"))
         }
     }
 
