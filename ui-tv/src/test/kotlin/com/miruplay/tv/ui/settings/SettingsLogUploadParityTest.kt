@@ -76,6 +76,22 @@ class SettingsLogUploadParityTest {
     }
 
     @Test
+    fun `shared coordinator accepts curl command from settings input`() = runBlocking {
+        val repository = FakeLogUploadRepository(tokenConfigured = false)
+        val coordinator = LogUploadActionCoordinator(repository)
+
+        val snapshot = coordinator.saveConfig(
+            enabled = true,
+            endpoint = "curl -u user@example.com:secret -k https://openobserve.example.com/api/org/default/_json -d '{}'",
+            streamName = "miruplay",
+        )
+
+        assertEquals("https://openobserve.example.com/api/org/default/_json", snapshot.endpoint)
+        assertTrue(snapshot.tokenConfigured)
+        assertTrue(snapshot.canRunNow)
+    }
+
+    @Test
     fun `shared coordinator run now updates pending count and status`() = runBlocking {
         val repository = FakeLogUploadRepository(
             status = LogUploadStatus(

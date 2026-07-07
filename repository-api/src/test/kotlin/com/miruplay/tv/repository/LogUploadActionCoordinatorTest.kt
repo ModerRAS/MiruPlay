@@ -151,7 +151,7 @@ class LogUploadActionCoordinatorTest {
     }
 
     @Test
-    fun `save config forwards parameters and updates snapshot`() = runBlocking {
+    fun `save config normalizes parameters and updates snapshot`() = runBlocking {
         val repository = FakeLogUploadRepository()
         val coordinator = LogUploadActionCoordinator(repository)
 
@@ -164,14 +164,31 @@ class LogUploadActionCoordinatorTest {
         assertEquals(
             OtlpLogUploadConfig(
                 enabled = true,
-                endpoint = " https://openobserve.example.com/api/default ",
-                streamName = " anime ",
+                endpoint = "https://openobserve.example.com/api/default",
+                streamName = "anime",
             ),
             repository.currentConfig,
         )
         assertEquals(true, snapshot.enabled)
-        assertEquals(" https://openobserve.example.com/api/default ", snapshot.endpoint)
-        assertEquals(" anime ", snapshot.streamName)
+        assertEquals("https://openobserve.example.com/api/default", snapshot.endpoint)
+        assertEquals("anime", snapshot.streamName)
+    }
+
+    @Test
+    fun `save config parses curl command and saves token`() = runBlocking {
+        val repository = FakeLogUploadRepository()
+        val coordinator = LogUploadActionCoordinator(repository)
+
+        val snapshot = coordinator.saveConfig(
+            enabled = true,
+            endpoint = "curl -u user@example.com:secret -k https://openobserve.example.com/api/org/default/_json -d '{}'",
+            streamName = "miruplay",
+        )
+
+        assertEquals("https://openobserve.example.com/api/org/default/_json", repository.currentConfig.endpoint)
+        assertEquals("user@example.com:secret", repository.savedToken)
+        assertTrue(snapshot.enabled)
+        assertTrue(snapshot.tokenConfigured)
     }
 
     @Test
@@ -189,8 +206,8 @@ class LogUploadActionCoordinatorTest {
         assertEquals(
             OtlpLogUploadConfig(
                 enabled = true,
-                endpoint = " https://openobserve.example.com/api/default ",
-                streamName = " anime ",
+                endpoint = "https://openobserve.example.com/api/default",
+                streamName = "anime",
             ),
             repository.currentConfig,
         )

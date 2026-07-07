@@ -1,5 +1,6 @@
 package com.miruplay.tv.repository
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -17,7 +18,13 @@ class LogUploadAutoScheduler(
         if (job?.isActive == true) return false
         job = scope.launch {
             while (isActive) {
-                repository.uploadPendingLogs()
+                try {
+                    repository.uploadPendingLogs()
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (_: Exception) {
+                    // Keep the settings-scoped auto uploader alive; upload errors are status, not app death.
+                }
                 delay(intervalMillis)
             }
         }

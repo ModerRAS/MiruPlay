@@ -158,19 +158,19 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("清除 Token", settingsClearTokenActionLabel())
         assertEquals("扫描入口保留在媒体库海报墙和 CloudDrive 同步流程中。", settingsDesktopScanStatusMessage())
         assertEquals(
-            "可在当前页面配置 OpenObserve JSON；本地日志会按同一配置写入上报队列。",
+            "可在当前页面配置 OpenObserve curl 命令或 API 地址；本地日志会按同一配置写入上报队列。",
             settingsAndroidTvLogUploadStatusMessage(),
         )
         assertEquals(
-            "保存设置会同时保存配置和当前 Token；开启自动上报后会定时上传待处理日志。",
+            "粘贴 curl 命令会自动保存地址和鉴权；开启自动上报后会定时上传待处理日志。",
             settingsAndroidTvLogUploadHintMessage(),
         )
         assertEquals(
-            "可在当前页面或 Web 控制端配置 OpenObserve JSON；本地日志会按同一配置写入上报队列。",
+            "可在当前页面或 Web 控制端配置 OpenObserve curl 命令或 API 地址；本地日志会按同一配置写入上报队列。",
             settingsDesktopLogUploadStatusMessage(),
         )
         assertEquals("自动上报", settingsLogUploadAutoToggleLabel())
-        assertEquals("OpenObserve API 地址", settingsLogUploadEndpointFieldLabel())
+        assertEquals("OpenObserve curl 命令", settingsLogUploadEndpointFieldLabel())
         assertEquals("Stream", settingsLogUploadStreamFieldLabel())
         assertEquals("OpenObserve Token", settingsLogUploadTokenFieldLabel())
         assertEquals("保存设置", settingsLogUploadSaveSettingsActionLabel())
@@ -224,11 +224,11 @@ class SettingsSectionDisplayConventionsTest {
             lastUploadStatus = "已上报 12 条日志",
         )
         assertEquals(
-            "可在当前页面配置 OpenObserve JSON；本地日志会按同一配置写入上报队列。 · 待上报 12 条 · 待命 · Token 已保存 · 尚未上报 · 已上报 12 条日志",
+            "可在当前页面配置 OpenObserve curl 命令或 API 地址；本地日志会按同一配置写入上报队列。 · 待上报 12 条 · 待命 · Token 已保存 · 尚未上报 · 已上报 12 条日志",
             androidTvLogUploadStatus,
         )
         assertEquals(
-            "可在当前页面或 Web 控制端配置 OpenObserve JSON；本地日志会按同一配置写入上报队列。 · 待上报 12 条 · 待命 · Token 已保存 · 尚未上报 · 已上报 12 条日志",
+            "可在当前页面或 Web 控制端配置 OpenObserve curl 命令或 API 地址；本地日志会按同一配置写入上报队列。 · 待上报 12 条 · 待命 · Token 已保存 · 尚未上报 · 已上报 12 条日志",
             desktopLogUploadStatus,
         )
         assertEquals(

@@ -263,6 +263,7 @@ data class LogUploadConfigRequest(
     val enabled: Boolean = false,
     val endpoint: String = "",
     val streamName: String = "miruplay",
+    val curlCommand: String = "",
 )
 
 @Serializable

@@ -3,6 +3,7 @@ package com.miruplay.tv.webcontrol
 import com.miruplay.tv.repository.DEFAULT_LOCAL_LOG_READ_LIMIT
 import com.miruplay.tv.repository.MAX_LOCAL_LOG_READ_LIMIT
 import com.miruplay.tv.repository.LogUploadRepository
+import com.miruplay.tv.repository.parseOtlpLogUploadSettings
 import kotlinx.coroutines.flow.first
 
 private const val DEFAULT_LOG_UPLOAD_STREAM_NAME = "miruplay"
@@ -19,14 +20,21 @@ suspend fun LogUploadRepository.getWebControlLogUpload(): LogUploadDto {
 suspend fun LogUploadRepository.saveWebControlLogUploadConfig(
     request: LogUploadConfigRequest,
 ): LogUploadDto {
-    if (request.enabled && request.endpoint.isBlank()) {
-        throw IllegalArgumentException("请填写 OpenObserve API 地址")
+    val endpointOrCurl = request.curlCommand.ifBlank { request.endpoint }
+    if (request.enabled && endpointOrCurl.isBlank()) {
+        throw IllegalArgumentException("请填写 OpenObserve curl 命令或 API 地址")
     }
-    saveConfig(
+    val draft = parseOtlpLogUploadSettings(
         enabled = request.enabled,
-        endpoint = request.endpoint.trim(),
-        streamName = request.streamName.trim().ifBlank { DEFAULT_LOG_UPLOAD_STREAM_NAME },
+        endpointOrCurlCommand = endpointOrCurl,
+        streamName = request.streamName,
     )
+    saveConfig(
+        enabled = draft.config.enabled,
+        endpoint = draft.config.endpoint,
+        streamName = draft.config.streamName.trim().ifBlank { DEFAULT_LOG_UPLOAD_STREAM_NAME },
+    )
+    draft.token?.let { saveToken(it) }
     return getWebControlLogUpload()
 }
 

@@ -5,6 +5,7 @@ import com.miruplay.tv.repository.LogUploadRepository
 import java.io.Closeable
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -29,7 +30,13 @@ class LogUploadScheduler @Inject constructor(
         if (job?.isActive == true) return
         job = scope.launch {
             while (isActive) {
-                repository.uploadPendingLogs()
+                try {
+                    repository.uploadPendingLogs()
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Exception) {
+                    MiruLog.w("LogUploadScheduler", "Automatic log upload failed", error)
+                }
                 delay(UPLOAD_INTERVAL_MS)
             }
         }

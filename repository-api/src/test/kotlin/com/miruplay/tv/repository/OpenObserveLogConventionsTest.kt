@@ -10,6 +10,33 @@ import org.junit.Test
 
 class OpenObserveLogConventionsTest {
     @Test
+    fun `parse curl command extracts OpenObserve endpoint and basic auth`() {
+        val parsed = OpenObserveLogConventions.parseCurlCommand(
+            "curl -u user@example.com:password -k https://openobserve.example.com/api/org/default/_json -d \"[{\\\"level\\\":\\\"info\\\",\\\"job\\\":\\\"test\\\",\\\"log\\\":\\\"test message for openobserve\\\"}]\""
+        )
+
+        requireNotNull(parsed)
+        assertEquals("https://openobserve.example.com/api/org/default/_json", parsed.endpoint)
+        assertEquals("user@example.com:password", parsed.token)
+    }
+
+    @Test
+    fun `parse curl command accepts long user option`() {
+        val parsed = OpenObserveLogConventions.parseCurlCommand(
+            "curl --user='user@example.com:secret' 'https://openobserve.example.com/api/org/default/_json' --data-raw '{}'"
+        )
+
+        requireNotNull(parsed)
+        assertEquals("https://openobserve.example.com/api/org/default/_json", parsed.endpoint)
+        assertEquals("user@example.com:secret", parsed.token)
+    }
+
+    @Test
+    fun `parse curl command ignores plain endpoints`() {
+        assertEquals(null, OpenObserveLogConventions.parseCurlCommand("https://openobserve.example.com/api/default"))
+    }
+
+    @Test
     fun `normalize endpoint maps root and collector urls to json stream`() {
         assertEquals(
             "https://openobserve.example.com/api/default/miruplay/_json",

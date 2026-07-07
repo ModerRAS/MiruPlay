@@ -45,6 +45,29 @@ class LogUploadAutoSchedulerTest {
     }
 
     @Test
+    fun `auto scheduler survives upload exceptions`() = runBlocking {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val repository = FakeLogUploadRepository(throwFirstUpload = true)
+        try {
+            val scheduler = LogUploadAutoScheduler(
+                repository = repository,
+                scope = scope,
+                intervalMillis = 20L,
+            )
+
+            assertTrue(scheduler.start())
+            withTimeout(500L) {
+                while (repository.uploadCalls.get() < 2) {
+                    delay(10L)
+                }
+            }
+            assertTrue(scheduler.running)
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
     fun `auto scheduler syncWithConfig follows enabled flag`() = runBlocking {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         val repository = FakeLogUploadRepository()
@@ -71,7 +94,9 @@ class LogUploadAutoSchedulerTest {
         }
     }
 
-    private class FakeLogUploadRepository : LogUploadRepository {
+    private class FakeLogUploadRepository(
+        private val throwFirstUpload: Boolean = false,
+    ) : LogUploadRepository {
         private val statusState = MutableStateFlow(LogUploadStatus())
         private val configState = MutableStateFlow(OtlpLogUploadConfig())
         val uploadCalls = AtomicInteger(0)
@@ -93,6 +118,10 @@ class LogUploadAutoSchedulerTest {
         override suspend fun clearToken() = Unit
 
         override suspend fun uploadPendingLogs(): LogUploadStatus {
+            if (throwFirstUpload && uploadCalls.get() == 0) {
+                uploadCalls.incrementAndGet()
+                error("boom")
+            }
             uploadCalls.incrementAndGet()
             val next = statusState.value.copy(
                 lastUploadStatus = "uploaded",

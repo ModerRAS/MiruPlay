@@ -37,7 +37,7 @@ class IndexRepositoryImplTest {
     }
 
     @Test
-    fun `getAnimeInIndex prefers metadata id when present`() = runBlocking {
+    fun `getAnimeInIndex returns all cached metadata key candidates`() = runBlocking {
         repository.rebuildIndex(
             sourceId = 7L,
             entries = listOf(
@@ -50,6 +50,13 @@ class IndexRepositoryImplTest {
                 ),
                 MediaIndexEntry(
                     sourceId = 7L,
+                    path = "/Frieren/01.mkv",
+                    animeName = "Frieren",
+                    metadataId = "431767",
+                    metadataTitle = "葬送的芙莉莲",
+                ),
+                MediaIndexEntry(
+                    sourceId = 7L,
                     path = "/Loose/01.mkv",
                     animeName = "Loose Name",
                 ),
@@ -58,6 +65,9 @@ class IndexRepositoryImplTest {
 
         val keys = repository.getAnimeInIndex(7L).getOrNull().orEmpty()
 
-        assertEquals(listOf("Loose Name", "mlip:7:series-uuid"), keys)
+        assertEquals(
+            listOf("431767", "Frieren", "HK1 MLIP Test", "Loose Name", "mlip:7:series-uuid", "葬送的芙莉莲"),
+            keys,
+        )
     }
 }

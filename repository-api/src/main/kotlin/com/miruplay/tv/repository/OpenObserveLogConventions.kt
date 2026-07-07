@@ -12,6 +12,11 @@ data class OpenObservePayloadContext(
     val deploymentEnvironment: String,
 )
 
+data class OpenObserveCurlCommandConfig(
+    val endpoint: String,
+    val token: String? = null,
+)
+
 object OpenObserveLogConventions {
     private const val DEFAULT_STREAM_NAME = "miruplay"
 
@@ -36,6 +41,41 @@ object OpenObserveLogConventions {
         }.trimEnd('/').ifBlank { "/api/default" }
         val normalizedPath = "$jsonStreamPath/_json"
         return URI(uri.scheme, uri.authority, normalizedPath, null, null).toString()
+    }
+
+    fun parseCurlCommand(command: String): OpenObserveCurlCommandConfig? {
+        val args = splitShellLike(command.trim())
+        if (args.isEmpty() || args.first() != "curl") return null
+        var endpoint: String? = null
+        var token: String? = null
+        var index = 1
+        while (index < args.size) {
+            val arg = args[index]
+            when {
+                arg == "-u" || arg == "--user" -> {
+                    token = args.getOrNull(index + 1)?.takeIf { it.isNotBlank() }
+                    index += 2
+                }
+                arg.startsWith("-u") && arg.length > 2 -> {
+                    token = arg.drop(2).takeIf { it.isNotBlank() }
+                    index += 1
+                }
+                arg.startsWith("--user=") -> {
+                    token = arg.substringAfter('=').takeIf { it.isNotBlank() }
+                    index += 1
+                }
+                arg == "-d" || arg == "--data" || arg == "--data-raw" || arg == "--data-binary" || arg == "--request" || arg == "-X" || arg == "-H" || arg == "--header" -> {
+                    index += 2
+                }
+                arg.startsWith("http://") || arg.startsWith("https://") -> {
+                    if (endpoint == null) endpoint = arg
+                    index += 1
+                }
+                else -> index += 1
+            }
+        }
+        val resolvedEndpoint = endpoint?.takeIf { it.isNotBlank() } ?: return null
+        return OpenObserveCurlCommandConfig(endpoint = resolvedEndpoint, token = token)
     }
 
     fun buildJsonPayload(
@@ -65,6 +105,37 @@ object OpenObserveLogConventions {
                 },
             )
         }
+    }
+
+    private fun splitShellLike(input: String): List<String> {
+        if (input.isBlank()) return emptyList()
+        val args = mutableListOf<String>()
+        val current = StringBuilder()
+        var quote: Char? = null
+        var escaping = false
+        input.forEach { char ->
+            when {
+                escaping -> {
+                    current.append(char)
+                    escaping = false
+                }
+                char == '\\' -> escaping = true
+                quote != null -> {
+                    if (char == quote) quote = null else current.append(char)
+                }
+                char == '\'' || char == '"' -> quote = char
+                char.isWhitespace() -> {
+                    if (current.isNotEmpty()) {
+                        args += current.toString()
+                        current.clear()
+                    }
+                }
+                else -> current.append(char)
+            }
+        }
+        if (escaping) current.append('\\')
+        if (current.isNotEmpty()) args += current.toString()
+        return args
     }
 
     private fun appendStreamIfNeeded(path: String, streamName: String): String {
