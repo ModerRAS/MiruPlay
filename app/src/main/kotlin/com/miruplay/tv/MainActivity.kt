@@ -30,6 +30,7 @@ import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.data.preferences.AppModePreferencesManager
 import com.miruplay.tv.data.preferences.PlaybackPreferencesManager
 import com.miruplay.tv.model.MediaContentMode
+import com.miruplay.tv.model.MediaRecognitionMode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
@@ -372,6 +373,7 @@ class MainActivity : ComponentActivity() {
                 "source_name" to request.name,
                 "source_type" to request.type.name,
                 "content_mode" to request.contentMode.name,
+                "recognition_mode" to request.recognitionMode.name,
                 "scan_after_add" to request.scanAfterAdd.toString(),
             )
         )
@@ -386,6 +388,7 @@ class MainActivity : ComponentActivity() {
                 displayName = request.displayName,
                 username = request.username,
                 password = request.password,
+                recognitionMode = request.recognitionMode,
             ).let { connectionInfo ->
                 if (request.disableOnlineMetadata) {
                     connectionInfo + ("disableOnlineMetadata" to "true")
@@ -600,6 +603,7 @@ internal data class LaunchTestSourceRequest(
     val username: String = "",
     val password: String = "",
     val contentMode: MediaContentMode,
+    val recognitionMode: MediaRecognitionMode = MediaRecognitionMode.DIRECTORY,
     val disableOnlineMetadata: Boolean,
     val scanAfterAdd: Boolean,
 )
@@ -614,6 +618,7 @@ internal data class LaunchIntentSnapshot(
     val rawUsername: String?,
     val rawPassword: String?,
     val rawContentMode: String?,
+    val rawRecognitionMode: String?,
     val disableOnlineMetadata: Boolean,
     val scanAfterAdd: Boolean,
     val tmdbOverrides: LaunchTestTmdbOverrides,
@@ -692,6 +697,7 @@ internal fun buildLaunchBootstrapPlan(
             rawUsername = snapshot.rawUsername,
             rawPassword = snapshot.rawPassword,
             rawContentMode = snapshot.rawContentMode,
+            rawRecognitionMode = snapshot.rawRecognitionMode,
             disableOnlineMetadata = snapshot.disableOnlineMetadata,
             scanAfterAdd = snapshot.scanAfterAdd,
             fallbackMode = selectionState.currentAppMode,
@@ -710,6 +716,7 @@ internal fun captureLaunchIntentSnapshot(intent: Intent?): LaunchIntentSnapshot 
         rawUsername = intent?.getStringExtra("test_source_username"),
         rawPassword = intent?.getStringExtra("test_source_password"),
         rawContentMode = intent?.getStringExtra("test_content_mode"),
+        rawRecognitionMode = intent?.getStringExtra("test_source_recognition_mode"),
         disableOnlineMetadata = intent?.getBooleanExtra("test_disable_online_metadata", false) == true,
         scanAfterAdd = intent?.getBooleanExtra("test_scan_after_add", false) == true,
         tmdbOverrides = resolveLaunchTestTmdbOverrides(
@@ -841,6 +848,7 @@ internal fun LaunchIntentSnapshot.hasTestSourceIntent(): Boolean =
 internal fun LaunchIntentSnapshot.hasAnyLaunchTestData(): Boolean =
     hasTestSourceIntent() ||
         rawContentMode?.isNotBlank() == true ||
+        rawRecognitionMode?.isNotBlank() == true ||
         disableOnlineMetadata ||
         scanAfterAdd ||
         tmdbOverrides.hasTokenExtra ||
@@ -866,6 +874,10 @@ internal fun resolveLaunchTestSourceContentMode(
         }
     }
 }
+
+internal fun resolveLaunchTestSourceRecognitionMode(rawValue: String?): MediaRecognitionMode =
+    MediaRecognitionMode.entries.firstOrNull { it.name.equals(rawValue?.trim(), ignoreCase = true) }
+        ?: MediaRecognitionMode.DIRECTORY
 
 internal fun normalizeLaunchTmdbOverride(rawValue: String?): String? =
     rawValue?.trim()?.takeIf { it.isNotBlank() }
@@ -921,6 +933,7 @@ internal fun resolveLaunchTestSourceRequest(
     rawUsername: String?,
     rawPassword: String?,
     rawContentMode: String?,
+    rawRecognitionMode: String?,
     disableOnlineMetadata: Boolean,
     scanAfterAdd: Boolean,
     fallbackMode: AppMode?,
@@ -932,6 +945,7 @@ internal fun resolveLaunchTestSourceRequest(
             type = MediaSourceType.LOCAL,
             location = legacyPath,
             contentMode = resolveLaunchTestSourceContentMode(rawContentMode, fallbackMode),
+            recognitionMode = MediaRecognitionMode.DIRECTORY,
             disableOnlineMetadata = true,
             scanAfterAdd = scanAfterAdd,
         )
@@ -951,6 +965,7 @@ internal fun resolveLaunchTestSourceRequest(
         username = rawUsername?.trim().orEmpty(),
         password = rawPassword.orEmpty(),
         contentMode = resolveLaunchTestSourceContentMode(rawContentMode, fallbackMode),
+        recognitionMode = resolveLaunchTestSourceRecognitionMode(rawRecognitionMode),
         disableOnlineMetadata = disableOnlineMetadata,
         scanAfterAdd = scanAfterAdd,
     )
