@@ -69,6 +69,26 @@ class WebControlLogUploadRequestsTest {
     }
 
     @Test
+    fun `save WebControl log upload config parses curl command`() = runBlocking {
+        val repository = FakeLogUploadRepository()
+
+        val dto = repository.saveWebControlLogUploadConfig(
+            LogUploadConfigRequest(
+                enabled = true,
+                streamName = "miruplay",
+                curlCommand = "curl -u user@example.com:secret -k https://openobserve.example.com/api/org/default/_json -d '{}'",
+            ),
+        )
+
+        assertEquals(1, repository.saveConfigCalls)
+        assertEquals(1, repository.saveTokenCalls)
+        assertEquals("https://openobserve.example.com/api/org/default/_json", repository.savedEndpoint)
+        assertEquals("user@example.com:secret", repository.savedToken)
+        assertEquals("https://openobserve.example.com/api/org/default/_json", dto.config.endpoint)
+        assertEquals(true, dto.tokenConfigured)
+    }
+
+    @Test
     fun `save WebControl log upload config rejects blank endpoint when enabled`() = runBlocking {
         val repository = FakeLogUploadRepository()
 
@@ -82,7 +102,7 @@ class WebControlLogUploadRequestsTest {
         }.exceptionOrNull()
 
         assertTrue(error is IllegalArgumentException)
-        assertEquals("请填写 OpenObserve API 地址", error?.message)
+        assertEquals("请填写 OpenObserve curl 命令或 API 地址", error?.message)
         assertEquals(0, repository.saveConfigCalls)
     }
 

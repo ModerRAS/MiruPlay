@@ -823,30 +823,17 @@
                   </span>
                 </div>
 
-                <el-form-item label="OpenObserve API 地址">
+                <el-form-item label="OpenObserve curl 命令">
                   <el-input
                     v-model="logForm.endpoint"
-                    placeholder="https://openobserve.example.com/api/default"
+                    type="textarea"
+                    :rows="3"
+                    placeholder="curl -u user@example.com:password -k https://openobserve.example.com/api/org/default/_json -d '[...]'"
                   />
                   <span v-if="normalizedLogEndpoint" class="endpoint-preview">
                     实际上报：{{ normalizedLogEndpoint }}
                   </span>
                 </el-form-item>
-
-                <div class="form-grid">
-                  <el-form-item label="Stream">
-                    <el-input v-model="logForm.streamName" placeholder="miruplay" />
-                  </el-form-item>
-                  <el-form-item label="Token">
-                    <el-input
-                      v-model="logForm.token"
-                      type="password"
-                      show-password
-                      autocomplete="new-password"
-                      placeholder="Basic Token 或 user:password"
-                    />
-                  </el-form-item>
-                </div>
 
                 <div class="form-actions">
                   <el-button :icon="Setting" :loading="loading.logUploadSave || loading.logUploadToken" @click="saveLogUploadSettings">
@@ -1722,7 +1709,7 @@ const logUploadStatusType = computed(() => {
 })
 const normalizedLogEndpoint = computed(() => normalizeOpenObserveEndpoint(logForm.endpoint))
 const canRunLogUpload = computed(() =>
-  Boolean(logForm.enabled && logForm.endpoint.trim() && (logUpload.tokenConfigured || logForm.token.trim()) && !logUpload.status.isUploading)
+  Boolean(logForm.enabled && logForm.endpoint.trim() && !logUpload.status.isUploading)
 )
 const bangumiArchiveStatusType = computed(() => {
   if (!bangumiArchive.available || bangumiArchive.lastError) return 'warning'
@@ -2540,23 +2527,32 @@ async function deleteRssSubscription(subscriptionId) {
 }
 
 function logUploadConfigPayload() {
+  const value = logForm.endpoint.trim()
+  const curlCommand = isCurlCommand(value) ? value : ''
   return {
     enabled: Boolean(logForm.enabled),
-    endpoint: logForm.endpoint.trim(),
-    streamName: logForm.streamName.trim() || 'miruplay'
+    endpoint: curlCommand ? '' : value,
+    streamName: logForm.streamName.trim() || 'miruplay',
+    curlCommand
   }
 }
 
 function validateLogUploadConfig(payload) {
-  if (payload.enabled && !payload.endpoint) {
-    ElMessage.warning('请填写 OpenObserve API 地址')
+  if (payload.enabled && !payload.endpoint && !payload.curlCommand) {
+    ElMessage.warning('请填写 OpenObserve curl 命令')
     return false
   }
   return true
 }
 
+function isCurlCommand(value) {
+  return /^curl(\s|$)/i.test(String(value || '').trim())
+}
+
 function normalizeOpenObserveEndpoint(endpoint) {
-  const raw = String(endpoint || '').trim().replace(/\/+$/g, '')
+  const input = String(endpoint || '').trim()
+  const curlUrl = isCurlCommand(input) ? input.match(/https?:\/\/\S+/i)?.[0]?.replace(/^['\"]|['\"]$/g, '') : ''
+  const raw = (curlUrl || input).replace(/\/+$/g, '')
   if (!raw) return ''
   const withScheme = /^https?:\/\//i.test(raw) ? raw : `http://${raw}`
   try {
@@ -2645,11 +2641,9 @@ async function saveLogUploadToken(showSuccess = true) {
 }
 
 async function saveLogUploadSettings(showSuccess = true) {
-  const hasTokenInput = Boolean(logForm.token.trim())
   if (!(await saveLogUploadConfig(false))) return false
-  if (hasTokenInput && !(await saveLogUploadToken(false))) return false
   if (showSuccess) {
-    ElMessage.success(hasTokenInput ? '日志上报设置和 Token 已保存' : '日志上报设置已保存')
+    ElMessage.success('日志上报设置已保存')
   }
   return true
 }
@@ -2677,11 +2671,7 @@ async function runLogUploadNow() {
     ElMessage.warning('请先开启自动上报')
     return
   }
-  if (!logUpload.tokenConfigured && !logForm.token.trim()) {
-    ElMessage.warning('请先填写 OpenObserve Token')
-    return
-  }
-  if (!logUpload.config || payload.endpoint !== logUpload.config.endpoint || payload.streamName !== logUpload.config.streamName || payload.enabled !== logUpload.config.enabled || logForm.token.trim()) {
+  if (!logUpload.config || payload.endpoint !== logUpload.config.endpoint || payload.curlCommand || payload.streamName !== logUpload.config.streamName || payload.enabled !== logUpload.config.enabled) {
     if (!(await saveLogUploadSettings(false))) return
   }
 

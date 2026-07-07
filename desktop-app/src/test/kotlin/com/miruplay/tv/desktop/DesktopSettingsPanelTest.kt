@@ -245,7 +245,7 @@ class DesktopSettingsPanelTest {
             lastUploadStatus = "HTTP 200",
         )
         assertEquals(
-            "可在当前页面或 Web 控制端配置 OpenObserve JSON；本地日志会按同一配置写入上报队列。 · 待上报 6 条 · 上报中 · Token 已保存 · 尚未上报 · HTTP 200",
+            "可在当前页面或 Web 控制端配置 OpenObserve curl 命令或 API 地址；本地日志会按同一配置写入上报队列。 · 待上报 6 条 · 上报中 · Token 已保存 · 尚未上报 · HTTP 200",
             desktopStatus,
         )
         assertEquals(

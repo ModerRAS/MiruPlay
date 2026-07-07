@@ -225,9 +225,7 @@ import com.miruplay.tv.model.settingsLogUploadAutoToggleLabel
 import com.miruplay.tv.model.settingsLogUploadEndpointFieldLabel
 import com.miruplay.tv.model.settingsLogUploadRunNowActionLabel
 import com.miruplay.tv.model.settingsLogUploadSaveSettingsActionLabel
-import com.miruplay.tv.model.settingsLogUploadStreamFieldLabel
 import com.miruplay.tv.model.settingsLogUploadTokenConfiguredStatus
-import com.miruplay.tv.model.settingsLogUploadTokenFieldLabel
 import com.miruplay.tv.model.settingsProxyCurrentStatus
 import com.miruplay.tv.model.settingsProxyHostFieldLabel
 import com.miruplay.tv.model.settingsProxyPanelDescription
@@ -418,7 +416,6 @@ fun AddSourceScreen(
     var rssUrl by remember { mutableStateOf("") }
     var rssFilterRegex by remember { mutableStateOf("") }
     var rssEnabled by remember { mutableStateOf(true) }
-    var logUploadTokenInput by remember { mutableStateOf("") }
     var pendingDeletedSourceId by remember { mutableStateOf<Long?>(null) }
 
     val menuFocusRequesters = remember {
@@ -819,25 +816,18 @@ fun AddSourceScreen(
                     onLogUploadEnabledChange = viewModel::setLogUploadEnabled,
                     logUploadEndpoint = logUploadSnapshot.endpoint,
                     onLogUploadEndpointChange = viewModel::setLogUploadEndpoint,
-                    logUploadStreamName = logUploadSnapshot.streamName,
-                    onLogUploadStreamNameChange = viewModel::setLogUploadStreamName,
-                    logUploadToken = logUploadTokenInput,
-                    onLogUploadTokenChange = { logUploadTokenInput = it },
                     logUploadTokenConfigured = logUploadSnapshot.tokenConfigured,
                     logUploadStatusMessage = logUploadStatusMessage,
                     onSaveLogUploadSettings = {
-                        viewModel.saveLogUploadSettings(logUploadTokenInput)
-                        logUploadTokenInput = ""
+                        viewModel.saveLogUploadSettings("")
                     },
-                    onClearLogUploadToken = {
-                        viewModel.clearLogUploadToken()
-                        logUploadTokenInput = ""
-                    },
+                    onClearLogUploadToken = viewModel::clearLogUploadToken,
                     onRunLogUploadNow = {
-                        viewModel.runLogUploadNow(logUploadTokenInput)
-                        logUploadTokenInput = ""
+                        viewModel.runLogUploadNow("")
                     },
-                    canRunLogUploadNow = logUploadSnapshot.canRunNow(logUploadTokenInput),
+                    canRunLogUploadNow = logUploadSnapshot.enabled &&
+                        logUploadSnapshot.endpoint.isNotBlank() &&
+                        !logUploadSnapshot.isUploading,
                     appUpdateState = appUpdateState,
                     onCheckAppUpdate = viewModel::checkAppUpdate,
                     onDownloadAndInstallAppUpdate = viewModel::downloadAndInstallAppUpdate,
@@ -1193,10 +1183,6 @@ private fun SettingsContent(
     onLogUploadEnabledChange: (Boolean) -> Unit,
     logUploadEndpoint: String,
     onLogUploadEndpointChange: (String) -> Unit,
-    logUploadStreamName: String,
-    onLogUploadStreamNameChange: (String) -> Unit,
-    logUploadToken: String,
-    onLogUploadTokenChange: (String) -> Unit,
     logUploadTokenConfigured: Boolean,
     logUploadStatusMessage: String,
     onSaveLogUploadSettings: () -> Unit,
@@ -1402,10 +1388,6 @@ private fun SettingsContent(
                 onEnabledChange = onLogUploadEnabledChange,
                 endpoint = logUploadEndpoint,
                 onEndpointChange = onLogUploadEndpointChange,
-                streamName = logUploadStreamName,
-                onStreamNameChange = onLogUploadStreamNameChange,
-                tokenInput = logUploadToken,
-                onTokenInputChange = onLogUploadTokenChange,
                 tokenConfigured = logUploadTokenConfigured,
                 statusMessage = logUploadStatusMessage,
                 onSaveSettings = onSaveLogUploadSettings,
@@ -3741,10 +3723,6 @@ private fun LogUploadPanel(
     onEnabledChange: (Boolean) -> Unit,
     endpoint: String,
     onEndpointChange: (String) -> Unit,
-    streamName: String,
-    onStreamNameChange: (String) -> Unit,
-    tokenInput: String,
-    onTokenInputChange: (String) -> Unit,
     tokenConfigured: Boolean,
     statusMessage: String,
     onSaveSettings: () -> Unit,
@@ -3797,23 +3775,6 @@ private fun LogUploadPanel(
             value = endpoint,
             onValueChange = onEndpointChange,
             label = settingsLogUploadEndpointFieldLabel(),
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(Modifier.height(12.dp))
-        TvTextField(
-            value = streamName,
-            onValueChange = onStreamNameChange,
-            label = settingsLogUploadStreamFieldLabel(),
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(Modifier.height(12.dp))
-        TvTextField(
-            value = tokenInput,
-            onValueChange = onTokenInputChange,
-            label = settingsLogUploadTokenFieldLabel(),
-            isPassword = true,
             modifier = Modifier.fillMaxWidth()
         )
 

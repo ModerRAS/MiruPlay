@@ -28,17 +28,15 @@ interface IndexDao {
 
     @Query(
         """
-        SELECT DISTINCT
-            CASE
-                WHEN metadata_id IS NOT NULL AND TRIM(metadata_id) <> '' THEN metadata_id
-                ELSE anime_name
-            END AS anime_key
-        FROM index_entry
-        WHERE source_id = :sourceId
-            AND (
-                (metadata_id IS NOT NULL AND TRIM(metadata_id) <> '')
-                OR anime_name IS NOT NULL
-            )
+        SELECT DISTINCT anime_key
+        FROM (
+            SELECT metadata_id AS anime_key FROM index_entry WHERE source_id = :sourceId
+            UNION ALL
+            SELECT anime_name AS anime_key FROM index_entry WHERE source_id = :sourceId
+            UNION ALL
+            SELECT metadata_title AS anime_key FROM index_entry WHERE source_id = :sourceId
+        )
+        WHERE anime_key IS NOT NULL AND TRIM(anime_key) <> ''
         ORDER BY anime_key ASC
         """
     )

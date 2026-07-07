@@ -113,6 +113,24 @@ class LogUploadRepositoryImplTest {
     }
 
     @Test
+    fun `upload pending logs turns invalid curl endpoint into failed status without draining logs`() = runBlocking {
+        localLogStore.log(logRecord(1))
+        repository.saveConfig(
+            enabled = true,
+            endpoint = "curl -u user@example.com:secret -k https://openobserve.example.com/api/org/default/_json -d '{}'",
+            streamName = "miruplay",
+        )
+        repository.saveToken("user:password")
+
+        val status = repository.uploadPendingLogs()
+
+        assertEquals(1, status.pendingCount)
+        assertTrue(status.lastUploadStatus.orEmpty().contains("上报失败"))
+        assertEquals(1, localLogStore.pendingCount())
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
     fun `repository tolerates legacy invalid log upload preference types during startup`() = runBlocking {
         context.getSharedPreferences("miruplay_log_upload_prefs", Context.MODE_PRIVATE)
             .edit()

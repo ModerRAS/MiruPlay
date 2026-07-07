@@ -20,6 +20,11 @@ fun OtlpLogUploadActionSnapshot.canRunNow(tokenInput: String): Boolean =
     !isUploading && enabled && endpoint.isNotBlank() &&
         (tokenConfigured || tokenInput.isNotBlank())
 
+data class OtlpLogUploadSettingsDraft(
+    val config: OtlpLogUploadConfig,
+    val token: String? = null,
+)
+
 fun normalizeOtlpLogUploadConfig(
     enabled: Boolean,
     endpoint: String,
@@ -30,6 +35,23 @@ fun normalizeOtlpLogUploadConfig(
         endpoint = endpoint.trim(),
         streamName = streamName.trim().ifBlank { DEFAULT_OTLP_LOG_UPLOAD_STREAM_NAME },
     )
+
+fun parseOtlpLogUploadSettings(
+    enabled: Boolean,
+    endpointOrCurlCommand: String,
+    streamName: String,
+    token: String = "",
+): OtlpLogUploadSettingsDraft {
+    val parsedCurl = OpenObserveLogConventions.parseCurlCommand(endpointOrCurlCommand)
+    return OtlpLogUploadSettingsDraft(
+        config = normalizeOtlpLogUploadConfig(
+            enabled = enabled,
+            endpoint = parsedCurl?.endpoint ?: endpointOrCurlCommand,
+            streamName = streamName,
+        ),
+        token = parsedCurl?.token ?: token.trim().takeIf { it.isNotBlank() },
+    )
+}
 
 fun OtlpLogUploadActionSnapshot.toConfig(): OtlpLogUploadConfig =
     normalizeOtlpLogUploadConfig(
@@ -78,11 +100,17 @@ class LogUploadActionCoordinator(
         endpoint: String,
         streamName: String,
     ): OtlpLogUploadActionSnapshot {
-        repository.saveConfig(
+        val draft = parseOtlpLogUploadSettings(
             enabled = enabled,
-            endpoint = endpoint,
+            endpointOrCurlCommand = endpoint,
             streamName = streamName,
         )
+        repository.saveConfig(
+            enabled = draft.config.enabled,
+            endpoint = draft.config.endpoint,
+            streamName = draft.config.streamName,
+        )
+        draft.token?.let { repository.saveToken(it) }
         return snapshot()
     }
 
@@ -92,15 +120,18 @@ class LogUploadActionCoordinator(
         streamName: String,
         token: String,
     ): OtlpLogUploadActionSnapshot {
-        repository.saveConfig(
+        val draft = parseOtlpLogUploadSettings(
             enabled = enabled,
-            endpoint = endpoint,
+            endpointOrCurlCommand = endpoint,
             streamName = streamName,
+            token = token,
         )
-        val trimmedToken = token.trim()
-        if (trimmedToken.isNotEmpty()) {
-            repository.saveToken(trimmedToken)
-        }
+        repository.saveConfig(
+            enabled = draft.config.enabled,
+            endpoint = draft.config.endpoint,
+            streamName = draft.config.streamName,
+        )
+        draft.token?.let { repository.saveToken(it) }
         return snapshot()
     }
 

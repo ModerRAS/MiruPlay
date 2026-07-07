@@ -265,19 +265,19 @@ fun settingsDesktopScanStatusMessage(): String =
     "扫描入口保留在媒体库海报墙和 CloudDrive 同步流程中。"
 
 fun settingsAndroidTvLogUploadStatusMessage(): String =
-    "可在当前页面配置 OpenObserve JSON；本地日志会按同一配置写入上报队列。"
+    "可在当前页面配置 OpenObserve curl 命令或 API 地址；本地日志会按同一配置写入上报队列。"
 
 fun settingsAndroidTvLogUploadHintMessage(): String =
-    "保存设置会同时保存配置和当前 Token；开启自动上报后会定时上传待处理日志。"
+    "粘贴 curl 命令会自动保存地址和鉴权；开启自动上报后会定时上传待处理日志。"
 
 fun settingsDesktopLogUploadStatusMessage(): String =
-    "可在当前页面或 Web 控制端配置 OpenObserve JSON；本地日志会按同一配置写入上报队列。"
+    "可在当前页面或 Web 控制端配置 OpenObserve curl 命令或 API 地址；本地日志会按同一配置写入上报队列。"
 
 fun settingsLogUploadAutoToggleLabel(): String =
     "自动上报"
 
 fun settingsLogUploadEndpointFieldLabel(): String =
-    "OpenObserve API 地址"
+    "OpenObserve curl 命令"
 
 fun settingsLogUploadStreamFieldLabel(): String =
     "Stream"
