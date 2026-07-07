@@ -201,7 +201,7 @@ class MlipLibraryIndexImporter @Inject constructor(
                 val episodeTitle = cursor.stringOrNull("episode_title").orEmpty()
                 val episodeId = cursor.long("episode_id")
                 val mediaSize = cursor.longOrNull("media_size") ?: 0L
-                val modifiedTime = cursor.longOrNull("media_modified_time") ?: 0L
+                val modifiedTime = cursor.longOrNull("media_modified_time").toMlipEpochMillis()
                 val runtimeMs = (cursor.longOrNull("runtime") ?: 0L).coerceAtLeast(0L) * 1000L
                 val episode = Episode(
                     id = "$sourceId:$indexPath",
@@ -501,3 +501,8 @@ private fun Cursor.longOrNull(name: String): Long? = if (isNull(index(name))) nu
 private fun Cursor.int(name: String): Int = getInt(index(name))
 private fun Cursor.intOrNull(name: String): Int? = if (isNull(index(name))) null else getInt(index(name))
 private fun Cursor.double(name: String): Double = getDouble(index(name))
+
+private fun Long?.toMlipEpochMillis(): Long {
+    val value = this?.takeIf { it > 0L } ?: return 0L
+    return if (value < 100_000_000_000L) value * 1000L else value
+}
