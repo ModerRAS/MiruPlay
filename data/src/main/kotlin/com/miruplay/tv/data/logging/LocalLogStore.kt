@@ -134,15 +134,32 @@ class LocalLogStore @Inject constructor(
 
     private fun removeUploadedFromFile(file: File, uploadedIds: Set<String>) {
         if (!file.exists()) return
-        val remaining = file.readLines(Charsets.UTF_8)
-            .filter { line ->
-                val record = decodeRecord(line)
-                record == null || record.id !in uploadedIds
+        val temp = File.createTempFile(file.name, ".tmp", file.parentFile)
+        var retained = 0
+        try {
+            file.bufferedReader(Charsets.UTF_8).use { reader ->
+                temp.bufferedWriter(Charsets.UTF_8).use { writer ->
+                    reader.lineSequence().forEach { line ->
+                        if (line.isBlank()) return@forEach
+                        val record = decodeRecord(line)
+                        if (record == null || record.id !in uploadedIds) {
+                            writer.write(line)
+                            writer.newLine()
+                            retained += 1
+                        }
+                    }
+                }
             }
-        if (remaining.isEmpty()) {
-            file.delete()
-        } else {
-            file.writeText(remaining.joinToString(separator = "\n") + "\n", Charsets.UTF_8)
+            if (retained == 0) {
+                temp.delete()
+                file.delete()
+            } else {
+                check(file.delete()) { "Unable to replace local log queue" }
+                check(temp.renameTo(file)) { "Unable to replace local log queue" }
+            }
+        } catch (error: Throwable) {
+            temp.delete()
+            throw error
         }
     }
 
