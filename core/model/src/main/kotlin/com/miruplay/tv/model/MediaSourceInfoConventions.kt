@@ -65,6 +65,7 @@ object MediaSourceInfoConventions {
         username: String = "",
         password: String = "",
         domain: String = "",
+        recognitionMode: MediaRecognitionMode = MediaRecognitionMode.DIRECTORY,
     ): Map<String, String> = buildMap {
         val trimmedLocation = location.trim()
         put(CONNECTION_URL, trimmedLocation)
@@ -78,6 +79,9 @@ object MediaSourceInfoConventions {
         putIfNotBlank(CONNECTION_DOMAIN, domain.trim())
         putIfNotBlank(CONNECTION_USERNAME, username.trim())
         putIfNotBlank(CONNECTION_PASSWORD, password)
+        if (recognitionMode != MediaRecognitionMode.DIRECTORY) {
+            put(CONNECTION_RECOGNITION_MODE, recognitionMode.name)
+        }
     }
 
     fun sourceConnectionInfoFromPersistence(
@@ -159,11 +163,13 @@ object MediaSourceInfoConventions {
     const val CONNECTION_DOMAIN = "domain"
     const val CONNECTION_DISPLAY_NAME = "displayName"
     const val CONNECTION_URI = "uri"
+    const val CONNECTION_RECOGNITION_MODE = "recognitionMode"
     val PERSISTED_CONNECTION_KEYS: Set<String> = setOf(
         CONNECTION_URL,
         CONNECTION_PATH,
         CONNECTION_USERNAME,
         CONNECTION_PASSWORD,
+        CONNECTION_RECOGNITION_MODE,
     )
 
     private const val SMB_SCHEME = "smb://"
@@ -203,6 +209,23 @@ fun MediaSourceInfo.connectionDomain(): String =
 
 fun MediaSourceInfo.connectionDisplayName(): String =
     connectionInfo[MediaSourceInfoConventions.CONNECTION_DISPLAY_NAME].orEmpty()
+
+fun MediaSourceInfo.recognitionMode(): MediaRecognitionMode =
+    connectionInfo[MediaSourceInfoConventions.CONNECTION_RECOGNITION_MODE]
+        ?.trim()
+        ?.let { value ->
+            MediaRecognitionMode.entries.firstOrNull { it.name.equals(value, ignoreCase = true) }
+        }
+        ?: MediaRecognitionMode.DIRECTORY
+
+fun MediaSourceInfo.withRecognitionMode(mode: MediaRecognitionMode): MediaSourceInfo =
+    copy(
+        connectionInfo = if (mode == MediaRecognitionMode.DIRECTORY) {
+            connectionInfo - MediaSourceInfoConventions.CONNECTION_RECOGNITION_MODE
+        } else {
+            connectionInfo + (MediaSourceInfoConventions.CONNECTION_RECOGNITION_MODE to mode.name)
+        },
+    )
 
 fun MediaSourceInfo.sourceLocation(): String? =
     localRootPath() ?: remoteUrl()

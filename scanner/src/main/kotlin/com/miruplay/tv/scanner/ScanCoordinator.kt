@@ -13,6 +13,7 @@ import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.FilenameMetadataParser
 import com.miruplay.tv.model.MediaContentMode
+import com.miruplay.tv.model.MediaRecognitionMode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.MediaFileConventions
@@ -24,6 +25,7 @@ import com.miruplay.tv.model.ScanResult
 import com.miruplay.tv.model.TvShowNfoMetadata
 import com.miruplay.tv.model.UniqueId
 import com.miruplay.tv.model.displayTitle
+import com.miruplay.tv.model.recognitionMode
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MediaIndexRepository
@@ -60,6 +62,7 @@ class ScanCoordinator @Inject constructor(
     private val indexRepository: MediaIndexRepository,
     private val metadataRepository: MetadataRepository,
     private val filenameMetadataParser: FilenameMetadataParser,
+    private val mlipLibraryIndexImporter: MlipLibraryIndexImporter = MlipLibraryIndexImporter(indexRepository, metadataRepository),
     private val metadataScrapers: Set<@JvmSuppressWildcards MetadataScraper> = emptySet(),
     private val cloudDriveRepository: CloudDriveAutomationRepository? = null,
 ) {
@@ -93,6 +96,69 @@ class ScanCoordinator @Inject constructor(
             return@withContext Result.failure((msResult as Result.Error).error)
         }
         val ms = msResult.data
+        if (sourceInfo.recognitionMode() == MediaRecognitionMode.MLIP) {
+            val importStartedAtMs = System.currentTimeMillis()
+            MiruLog.i(
+                tag = TAG,
+                message = "MLIP source import started",
+                attributes = mapOf(
+                    "scan_phase" to "mlip_import_start",
+                    "source_id" to sourceId.toString(),
+                    "source_name" to sourceInfo.name,
+                    "source_type" to sourceInfo.type.name,
+                ),
+            )
+            val importResult = when (val imported = mlipLibraryIndexImporter.importLibrary(
+                source = sourceInfo,
+                mediaSource = ms,
+                posterCacheDirectory = posterCacheDirectory,
+            )) {
+                is Result.Success -> imported.data
+                is Result.Error -> return@withContext Result.failure(imported.error)
+            }
+            val completedAtMs = System.currentTimeMillis()
+            when (val sourceUpdated = mediaRepository.updateSource(sourceInfo.copy(isConnected = true, lastScanned = completedAtMs))) {
+                is Result.Success -> Unit
+                is Result.Error -> MiruLog.w(
+                    tag = TAG,
+                    message = "MLIP source timestamp update failed",
+                    attributes = mapOf(
+                        "scan_phase" to "mlip_source_timestamp_update_failed",
+                        "source_id" to sourceId.toString(),
+                        "source_name" to sourceInfo.name,
+                        "source_type" to sourceInfo.type.name,
+                        "error" to sourceUpdated.error.toUserMessage(),
+                    ),
+                )
+            }
+            MiruLog.i(
+                tag = TAG,
+                message = "MLIP source import completed",
+                attributes = mapOf(
+                    "scan_phase" to "mlip_import_complete",
+                    "source_id" to sourceId.toString(),
+                    "source_name" to sourceInfo.name,
+                    "source_type" to sourceInfo.type.name,
+                    "series_count" to importResult.seriesCount.toString(),
+                    "episode_count" to importResult.episodeCount.toString(),
+                    "media_file_count" to importResult.mediaFileCount.toString(),
+                    "skipped_file_count" to importResult.skippedFileCount.toString(),
+                    "artwork_cached_count" to importResult.artworkCachedCount.toString(),
+                    "non_integer_episode_count" to importResult.nonIntegerEpisodeCount.toString(),
+                    "scan_duration_ms" to (completedAtMs - importStartedAtMs).toString(),
+                ),
+            )
+            return@withContext Result.success(
+                ScanResult(
+                    animeName = sourceInfo.name,
+                    episodesFound = importResult.mediaFileCount,
+                    newEpisodes = importResult.mediaFileCount,
+                    updatedEpisodes = 0,
+                    scraped = importResult.mediaFileCount,
+                    noMatch = importResult.skippedFileCount,
+                ),
+            )
+        }
         val isLocalSource = sourceInfo.type == MediaSourceType.LOCAL
         val isDocumentTree = isLocalSource && (
             sourceInfo.connectionInfo["uri"]?.startsWith("content://") == true ||

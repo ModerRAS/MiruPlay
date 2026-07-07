@@ -7,6 +7,7 @@ import com.miruplay.tv.model.CloudDriveLibraryMode
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.MediaContentMode
+import com.miruplay.tv.model.MediaRecognitionMode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.PosterWallArrangement
@@ -46,6 +47,7 @@ data class SourceRequest(
     val username: String? = null,
     val password: String? = null,
     val contentMode: MediaContentMode = MediaContentMode.ANIME,
+    val recognitionMode: MediaRecognitionMode = MediaRecognitionMode.DIRECTORY,
     val disableOnlineMetadata: Boolean = false,
 )
 
@@ -57,6 +59,7 @@ data class SourceTestRequest(
     val username: String? = null,
     val password: String? = null,
     val contentMode: MediaContentMode = MediaContentMode.ANIME,
+    val recognitionMode: MediaRecognitionMode = MediaRecognitionMode.DIRECTORY,
     val disableOnlineMetadata: Boolean = false,
 )
 

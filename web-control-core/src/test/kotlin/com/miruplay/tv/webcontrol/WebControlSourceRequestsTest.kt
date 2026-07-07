@@ -4,10 +4,12 @@ import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.mediasource.MediaSourceConnectionTestResult
 import com.miruplay.tv.model.MediaContentMode
+import com.miruplay.tv.model.MediaRecognitionMode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.ScanResult
+import com.miruplay.tv.model.recognitionMode
 import com.miruplay.tv.repository.MediaSourceRepository
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -25,6 +27,7 @@ class WebControlSourceRequestsTest {
             location = " D:/Anime ",
             displayName = " Anime Drive ",
             contentMode = MediaContentMode.DRAMA,
+            recognitionMode = MediaRecognitionMode.MLIP,
             disableOnlineMetadata = true,
         ).toMediaSourceInfo(isConnected = true, lastScanned = 123L)
 
@@ -37,6 +40,8 @@ class WebControlSourceRequestsTest {
         assertEquals("D:/Anime", source.connectionInfo[MediaSourceInfoConventions.CONNECTION_URL])
         assertEquals("D:/Anime", source.connectionInfo[MediaSourceInfoConventions.CONNECTION_PATH])
         assertEquals("Anime Drive", source.connectionInfo[MediaSourceInfoConventions.CONNECTION_DISPLAY_NAME])
+        assertEquals("MLIP", source.connectionInfo[MediaSourceInfoConventions.CONNECTION_RECOGNITION_MODE])
+        assertEquals(MediaRecognitionMode.MLIP, source.recognitionMode())
         assertEquals("true", source.connectionInfo["disableOnlineMetadata"])
     }
 

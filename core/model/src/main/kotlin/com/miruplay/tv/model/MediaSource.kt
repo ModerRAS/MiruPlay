@@ -9,6 +9,9 @@ enum class MediaSourceType { LOCAL, WEBDAV, SMB }
 enum class MediaContentMode { ANIME, DRAMA }
 
 @Serializable
+enum class MediaRecognitionMode { DIRECTORY, MLIP }
+
+@Serializable
 data class MediaSourceInfo(
     val id: Long = 0,
     val name: String,

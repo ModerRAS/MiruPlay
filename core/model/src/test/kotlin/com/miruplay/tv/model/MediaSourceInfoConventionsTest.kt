@@ -152,7 +152,10 @@ class MediaSourceInfoConventionsTest {
             location = "https://dav.example.test/anime",
             username = "alice",
             password = null,
-            extraConnectionInfo = mapOf("displayName" to "Ignored"),
+            extraConnectionInfo = mapOf(
+                "displayName" to "Ignored",
+                MediaSourceInfoConventions.CONNECTION_RECOGNITION_MODE to "MLIP",
+            ),
         )
 
         assertEquals("content://tree/primary%3AAnime", local.getValue("url"))
@@ -164,6 +167,7 @@ class MediaSourceInfoConventionsTest {
         assertEquals("https://dav.example.test/anime", webDav.getValue("url"))
         assertEquals("alice", webDav.getValue("username"))
         assertEquals("Ignored", webDav.getValue("displayName"))
+        assertEquals(MediaRecognitionMode.MLIP, source(connectionInfo = webDav).recognitionMode())
         assertFalse("path" in webDav)
         assertFalse("password" in webDav)
     }
@@ -196,6 +200,28 @@ class MediaSourceInfoConventionsTest {
         assertEquals("", source.connectionPassword())
         assertEquals(null, source.connectionPasswordOrNull())
         assertFalse(source.hasConnectionPassword())
+    }
+
+    @Test
+    fun `recognition mode defaults to directory scanning and stores explicit mlip`() {
+        val defaultSource = source(connectionInfo = emptyMap())
+        val mlipSource = defaultSource.withRecognitionMode(MediaRecognitionMode.MLIP)
+        val directorySource = mlipSource.withRecognitionMode(MediaRecognitionMode.DIRECTORY)
+        val helperInfo = MediaSourceInfoConventions.sourceConnectionInfo(
+            type = MediaSourceType.WEBDAV,
+            location = "https://dav.example.test/anime",
+            recognitionMode = MediaRecognitionMode.MLIP,
+        )
+
+        assertEquals(MediaRecognitionMode.DIRECTORY, defaultSource.recognitionMode())
+        assertEquals(MediaRecognitionMode.MLIP, mlipSource.recognitionMode())
+        assertEquals("MLIP", mlipSource.connectionInfo[MediaSourceInfoConventions.CONNECTION_RECOGNITION_MODE])
+        assertEquals(MediaRecognitionMode.DIRECTORY, directorySource.recognitionMode())
+        assertFalse(MediaSourceInfoConventions.CONNECTION_RECOGNITION_MODE in directorySource.connectionInfo)
+        assertEquals("MLIP", helperInfo[MediaSourceInfoConventions.CONNECTION_RECOGNITION_MODE])
+        assertTrue(
+            MediaSourceInfoConventions.CONNECTION_RECOGNITION_MODE in MediaSourceInfoConventions.PERSISTED_CONNECTION_KEYS,
+        )
     }
 
     @Test
