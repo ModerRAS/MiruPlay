@@ -92,31 +92,7 @@ class AnimeDetailViewModelTest {
                 ),
             ),
         )
-        val viewModel = AnimeDetailViewModel(
-            mediaRepository = AnimeDetailFakeMediaSourceRepository(),
-            metadataRepository = AnimeDetailFakeMetadataRepository(),
-            indexRepository = AnimeDetailFakeMediaIndexRepository(
-                entries = listOf(
-                    MediaIndexEntry(
-                        sourceId = 7L,
-                        path = "/anime/Frieren/Frieren - 01.mkv",
-                        animeName = "Frieren",
-                        episodeTitle = "Episode 1",
-                        seasonNumber = 1,
-                        episodeNumber = 1,
-                    ),
-                ),
-            ),
-            progressRepository = AnimeDetailFakePlaybackProgressRepository(),
-            bangumiSyncEngine = BangumiSyncEngine(
-                bangumiService = AnimeDetailFakeBangumiCollectionService(),
-                metadataRepository = AnimeDetailFakeMetadataRepository(),
-                progressRepository = AnimeDetailFakePlaybackProgressRepository(),
-            ),
-            scanPreferences = AnimeDetailFakeScanPreferencesRepository(),
-            animeSearchAggregator = aggregator,
-            metadataScrapers = setOf(NoOpBangumiScraper()),
-        )
+        val viewModel = animeDetailViewModel(aggregator)
 
         viewModel.loadAnime("Frieren")
         advanceUntilIdle()
@@ -124,8 +100,9 @@ class AnimeDetailViewModelTest {
         viewModel.searchManualMatches()
         advanceUntilIdle()
 
-        assertEquals("Frieren", aggregator.lastContext?.title)
-        assertTrue(aggregator.lastContext?.aliases?.contains("Frieren") == true)
+        assertEquals("", aggregator.lastContext?.title)
+        assertEquals(emptyList<String>(), aggregator.lastContext?.filePathSamples)
+        assertEquals(listOf("Frieren"), aggregator.lastContext?.aliases)
         assertEquals(1, viewModel.manualMatch.value.results.size)
         assertEquals(ScraperSource.BANGUMI, viewModel.manualMatch.value.selectedResult?.source)
         assertEquals("431767", viewModel.manualMatch.value.selectedResult?.animeId)
@@ -133,7 +110,50 @@ class AnimeDetailViewModelTest {
         assertEquals("Frieren", viewModel.manualMatch.value.selectedResult?.matchedTitle)
         assertEquals("找到 1 个聚合候选。", viewModel.manualMatch.value.statusMessage)
     }
+
+    @Test
+    fun `manual match search failure resets busy state`() = runTest {
+        val viewModel = animeDetailViewModel(FailingAnimeSearchAggregator())
+
+        viewModel.loadAnime("Frieren")
+        advanceUntilIdle()
+        viewModel.openRescrapeMatcher()
+        viewModel.searchManualMatches()
+        advanceUntilIdle()
+
+        assertEquals(false, viewModel.manualMatch.value.isSearching)
+        assertEquals(false, viewModel.isSyncing.value)
+        assertEquals("搜索失败：network stalled", viewModel.manualMatch.value.statusMessage)
+    }
 }
+
+private fun animeDetailViewModel(
+    aggregator: AnimeMetadataSearchAggregator,
+): AnimeDetailViewModel = AnimeDetailViewModel(
+    mediaRepository = AnimeDetailFakeMediaSourceRepository(),
+    metadataRepository = AnimeDetailFakeMetadataRepository(),
+    indexRepository = AnimeDetailFakeMediaIndexRepository(
+        entries = listOf(
+            MediaIndexEntry(
+                sourceId = 7L,
+                path = "/anime/Frieren/Frieren - 01.mkv",
+                animeName = "Frieren",
+                episodeTitle = "Episode 1",
+                seasonNumber = 1,
+                episodeNumber = 1,
+            ),
+        ),
+    ),
+    progressRepository = AnimeDetailFakePlaybackProgressRepository(),
+    bangumiSyncEngine = BangumiSyncEngine(
+        bangumiService = AnimeDetailFakeBangumiCollectionService(),
+        metadataRepository = AnimeDetailFakeMetadataRepository(),
+        progressRepository = AnimeDetailFakePlaybackProgressRepository(),
+    ),
+    scanPreferences = AnimeDetailFakeScanPreferencesRepository(),
+    animeSearchAggregator = aggregator,
+    metadataScrapers = setOf(NoOpBangumiScraper()),
+)
 
 private class RecordingAnimeSearchAggregator(
     private val result: AggregatedMetadataSearchResult,
@@ -143,6 +163,12 @@ private class RecordingAnimeSearchAggregator(
     override suspend fun search(context: MetadataSearchContext): AggregatedMetadataSearchResult {
         lastContext = context
         return result
+    }
+}
+
+private class FailingAnimeSearchAggregator : AnimeMetadataSearchAggregator {
+    override suspend fun search(context: MetadataSearchContext): AggregatedMetadataSearchResult {
+        throw IllegalStateException("network stalled")
     }
 }
 

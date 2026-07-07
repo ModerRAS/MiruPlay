@@ -137,7 +137,7 @@ fun AggregatedMetadataCandidate.preferredProviderCandidate(
 }
 
 fun AggregatedMetadataCandidate.toPreferredScraperResult(
-    preferredSources: List<String> = listOf("Bangumi", "AniList"),
+    preferredSources: List<String> = listOf("Bangumi"),
 ): ScraperResult? {
     val preferred = preferredProviderCandidate(preferredSources) ?: return null
     val source = preferred.providerRef.source.toScraperSourceOrNull() ?: return null

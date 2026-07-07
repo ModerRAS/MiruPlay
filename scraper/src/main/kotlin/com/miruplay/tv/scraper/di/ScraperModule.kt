@@ -1,8 +1,6 @@
 package com.miruplay.tv.scraper.di
 
 import android.content.Context
-import com.miruplay.tv.scraper.AniListAnimeMetadataSearchProvider
-import com.miruplay.tv.scraper.AniListScraper
 import com.miruplay.tv.scraper.BangumiAnimeMetadataSearchProvider
 import com.miruplay.tv.scraper.BangumiScraper
 import com.miruplay.tv.scraper.DefaultAnimeMetadataSearchAggregator
@@ -89,13 +87,6 @@ object ScraperModule {
     @Provides
     @Singleton
     @IntoSet
-    fun provideAniListAnimeMetadataSearchProvider(
-        provider: AniListAnimeMetadataSearchProvider,
-    ): AnimeMetadataSearchProvider = provider
-
-    @Provides
-    @Singleton
-    @IntoSet
     fun provideTmdbDramaMetadataSearchProvider(
         provider: TmdbDramaMetadataSearchProvider,
     ): DramaMetadataSearchProvider = provider
@@ -106,11 +97,6 @@ object ScraperModule {
     fun provideTvMazeDramaMetadataSearchProvider(
         provider: TvMazeDramaMetadataSearchProvider,
     ): DramaMetadataSearchProvider = provider
-
-    @Provides
-    @Singleton
-    @IntoSet
-    fun provideAniListScraper(scraper: AniListScraper): MetadataScraper = scraper
 
     @Provides
     @Singleton

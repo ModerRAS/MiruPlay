@@ -165,7 +165,7 @@ class MetadataSearchAggregationTest {
         )
 
         val top = result.candidates.first()
-        assertEquals("2", top.toPreferredScraperResult(preferredSources = listOf("Bangumi", "AniList"))?.animeId)
+        assertEquals("2", top.toPreferredScraperResult(preferredSources = listOf("Bangumi"))?.animeId)
         assertTrue(top.rerankScore >= 0.64f)
         assertTrue(top.evidence.any { it.reason.contains("季号一致") })
         assertTrue(top.recommendation == MatchRecommendation.AUTO_ACCEPT || top.recommendation == MatchRecommendation.REVIEW)
