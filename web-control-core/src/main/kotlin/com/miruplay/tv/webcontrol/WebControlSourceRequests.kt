@@ -3,6 +3,8 @@ package com.miruplay.tv.webcontrol
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.mediasource.MediaSourceConnectionTestResult
 import com.miruplay.tv.model.MediaContentMode
+import com.miruplay.tv.model.MediaRecognitionMode
+import com.miruplay.tv.model.MlipMetadataMode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
@@ -21,13 +23,15 @@ fun SourceRequest.toMediaSourceInfo(
 ): MediaSourceInfo {
     val sourceType = parseWebControlSourceType(type)
     val sourceLocation = sourceType.webControlSourceLocation(location)
+    val effectiveRecognitionMode = effectiveRecognitionMode(sourceType, contentMode, recognitionMode)
     val connectionInfo = MediaSourceInfoConventions.sourceConnectionInfo(
         type = sourceType,
         location = sourceLocation,
         displayName = displayName.orEmpty(),
         username = username.orEmpty(),
         password = password?.takeIf { it.isNotBlank() } ?: fallbackPassword.orEmpty(),
-        recognitionMode = recognitionMode,
+        recognitionMode = effectiveRecognitionMode,
+        mlipMetadataMode = effectiveMlipMetadataMode(effectiveRecognitionMode, mlipMetadataMode),
     ).let { info ->
         if (disableOnlineMetadata) info + (DISABLE_ONLINE_METADATA_KEY to true.toString()) else info
     }
@@ -45,13 +49,15 @@ fun SourceRequest.toMediaSourceInfo(
 fun SourceTestRequest.toMediaSourceInfo(): MediaSourceInfo {
     val sourceType = parseWebControlSourceType(type)
     val sourceLocation = sourceType.webControlSourceLocation(location)
+    val effectiveRecognitionMode = effectiveRecognitionMode(sourceType, contentMode, recognitionMode)
     val connectionInfo = MediaSourceInfoConventions.sourceConnectionInfo(
         type = sourceType,
         location = sourceLocation,
         displayName = displayName.orEmpty(),
         username = username.orEmpty(),
         password = password.orEmpty(),
-        recognitionMode = recognitionMode,
+        recognitionMode = effectiveRecognitionMode,
+        mlipMetadataMode = effectiveMlipMetadataMode(effectiveRecognitionMode, mlipMetadataMode),
     ).let { info ->
         if (disableOnlineMetadata) info + (DISABLE_ONLINE_METADATA_KEY to true.toString()) else info
     }
@@ -220,6 +226,27 @@ fun MediaSourceInfo.toWebControlSourceScanErrorResponse(message: String): Source
         updatedEpisodes = 0,
         error = message.takeIf { it.isNotBlank() } ?: "扫描媒体源失败",
     )
+
+private fun effectiveRecognitionMode(
+    sourceType: MediaSourceType,
+    contentMode: MediaContentMode,
+    recognitionMode: MediaRecognitionMode,
+): MediaRecognitionMode =
+    if (sourceType == MediaSourceType.WEBDAV && contentMode == MediaContentMode.ANIME) {
+        recognitionMode
+    } else {
+        MediaRecognitionMode.DIRECTORY
+    }
+
+private fun effectiveMlipMetadataMode(
+    recognitionMode: MediaRecognitionMode,
+    mlipMetadataMode: MlipMetadataMode,
+): MlipMetadataMode =
+    if (recognitionMode == MediaRecognitionMode.MLIP) {
+        mlipMetadataMode
+    } else {
+        MlipMetadataMode.LIBRARY_DB_LOCAL_PRIORITY
+    }
 
 private fun MediaSourceType.webControlSourceLocation(location: String): String =
     when (this) {

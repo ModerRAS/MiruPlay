@@ -109,8 +109,8 @@ class MediaIndexDisplayTest {
             sourceId = 1L,
             path = "D:/Anime/Show/01.mkv",
             animeName = "Old Name",
-            metadataSource = "BANGUMI",
-            metadataId = "old",
+            metadataSource = "MLIP",
+            metadataId = "mlip:7:series-uuid",
             metadataTitle = "Old Title",
         )
         val result = ScraperResult(
@@ -130,6 +130,7 @@ class MediaIndexDisplayTest {
         assertEquals("BANGUMI", updated.metadataSource)
         assertEquals("431767", updated.metadataId)
         assertEquals("葬送的芙莉莲", updated.metadataTitle)
+        assertEquals("mlip:7:series-uuid", updated.localMetadataOverrideKey())
         assertEquals(7L, cleared.sourceId)
         assertEquals("葬送的芙莉莲", cleared.animeName)
         assertEquals(null, cleared.metadataSource)

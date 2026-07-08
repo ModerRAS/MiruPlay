@@ -89,6 +89,7 @@ class BangumiMetadataRefreshCoreTest {
 
         assertEquals("431767", metadataEntry.bangumiMetadataCacheId())
         assertEquals("Frieren - S01E03", plainEntry.bangumiMetadataCacheId())
+        assertEquals("1:D:/Anime/Frieren/Frieren - S01E02.mkv", episode.id)
         assertEquals("431767", episode.animeId)
         assertEquals(1, episode.seasonNumber)
         assertEquals(2, episode.episodeNumber)
@@ -120,6 +121,7 @@ class BangumiMetadataRefreshCoreTest {
 
         assertTrue(cached is Result.Success)
         assertEquals("431767", metadata.anime?.id)
+        assertEquals(listOf("1:D:/Anime/Frieren/01.mkv", "1:D:/Anime/Frieren/02.mkv"), metadata.episodes.map { it.id })
         assertEquals(listOf("Start", "Magic"), metadata.episodes.map { it.title })
         assertEquals(listOf("01.mkv", "02.mkv"), metadata.episodes.map { it.fileName })
         assertEquals(listOf(1001, 1002), metadata.episodes.map { it.bangumiEpisodeId })

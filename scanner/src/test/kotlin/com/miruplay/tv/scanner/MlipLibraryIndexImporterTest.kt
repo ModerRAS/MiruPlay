@@ -10,11 +10,17 @@ import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.FileMetadata
 import com.miruplay.tv.model.MediaCapabilities
+import com.miruplay.tv.model.MediaRecognitionMode
 import com.miruplay.tv.model.MediaSourceInfo
+import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.MlipMetadataMode
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MediaIndexRepository
+import com.miruplay.tv.repository.MediaScrapeStatus
 import com.miruplay.tv.repository.MetadataRepository
+import com.miruplay.tv.repository.localMetadataOverrideKey
+import com.miruplay.tv.repository.localMetadataOverrideMessage
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.InputStream
@@ -98,6 +104,86 @@ class MlipLibraryIndexImporterTest {
     }
 
     @Test
+    fun `files only policy imports paths and skips library metadata cache`() = runBlocking {
+        val databaseFile = File.createTempFile("mlip-test-", ".db")
+        val source = mlipSource(metadataMode = MlipMetadataMode.FILES_ONLY)
+        val indexRepository = RecordingIndexRepository()
+        val metadataRepository = RecordingMetadataRepository()
+        val mediaSource = FakeMediaSource(
+            info = source,
+            streams = mapOf("library.db" to { databaseFile.inputStream() }),
+        )
+
+        try {
+            createMlipDatabase(databaseFile)
+
+            val result = MlipLibraryIndexImporter(indexRepository, metadataRepository)
+                .importLibrary(source, mediaSource)
+
+            assertTrue(result.isSuccess())
+            val entry = indexRepository.entries.single()
+            assertEquals("/Series/01.mkv", entry.path)
+            assertEquals("Series", entry.animeName)
+            assertEquals(null, entry.metadataSource)
+            assertEquals(null, entry.metadataId)
+            assertEquals(null, entry.metadataTitle)
+            assertEquals(MediaScrapeStatus.PENDING, entry.scrapeStatus)
+            assertEquals("mlip:7:series-uuid", entry.localMetadataOverrideKey())
+            assertTrue(metadataRepository.anime.isEmpty())
+            assertTrue(metadataRepository.episodes.isEmpty())
+            assertEquals(listOf("library.db"), mediaSource.openedPaths)
+        } finally {
+            databaseFile.delete()
+        }
+    }
+
+    @Test
+    fun `local metadata override survives mlip reimport`() = runBlocking {
+        val databaseFile = File.createTempFile("mlip-test-", ".db")
+        val source = mlipSource()
+        val indexRepository = RecordingIndexRepository(
+            initialEntries = listOf(
+                MediaIndexEntry(
+                    sourceId = 7L,
+                    path = "/Series/01.mkv",
+                    animeName = "葬送的芙莉莲",
+                    metadataSource = "BANGUMI",
+                    metadataId = "431767",
+                    metadataTitle = "葬送的芙莉莲",
+                    scrapeStatus = MediaScrapeStatus.SCRAPED,
+                    scrapeMessage = localMetadataOverrideMessage("mlip:7:series-uuid"),
+                    scrapedAt = 42L,
+                )
+            )
+        )
+        val metadataRepository = RecordingMetadataRepository()
+        val mediaSource = FakeMediaSource(
+            info = source,
+            streams = mapOf("library.db" to { databaseFile.inputStream() }),
+        )
+
+        try {
+            createMlipDatabase(databaseFile)
+
+            val result = MlipLibraryIndexImporter(indexRepository, metadataRepository)
+                .importLibrary(source, mediaSource)
+
+            assertTrue(result.isSuccess())
+            val entry = indexRepository.entries.single()
+            assertEquals("BANGUMI", entry.metadataSource)
+            assertEquals("431767", entry.metadataId)
+            assertEquals("葬送的芙莉莲", entry.metadataTitle)
+            assertEquals("mlip:7:series-uuid", entry.localMetadataOverrideKey())
+            assertEquals(42L, entry.scrapedAt)
+            assertTrue(metadataRepository.anime.isEmpty())
+            assertTrue(metadataRepository.episodes.isEmpty())
+            assertEquals(listOf("library.db"), mediaSource.openedPaths)
+        } finally {
+            databaseFile.delete()
+        }
+    }
+
+    @Test
     fun `valid mlip database imports index metadata episodes and poster`() = runBlocking {
         val databaseFile = File.createTempFile("mlip-test-", ".db")
         val posterCacheDirectory = Files.createTempDirectory("mlip-poster-cache-").toFile()
@@ -171,7 +257,7 @@ class MlipLibraryIndexImporterTest {
     }
 
     private suspend fun importDatabase(databaseFile: File): Result<MlipImportResult> {
-        val source = MediaSourceInfo(id = 7L, name = "Anime DAV", type = MediaSourceType.WEBDAV)
+        val source = mlipSource()
         val mediaSource = FakeMediaSource(
             info = source,
             streams = mapOf("library.db" to { databaseFile.inputStream() }),
@@ -179,6 +265,20 @@ class MlipLibraryIndexImporterTest {
         return MlipLibraryIndexImporter(RecordingIndexRepository(), RecordingMetadataRepository())
             .importLibrary(source, mediaSource)
     }
+
+    private fun mlipSource(
+        metadataMode: MlipMetadataMode = MlipMetadataMode.LIBRARY_DB_LOCAL_PRIORITY,
+    ): MediaSourceInfo = MediaSourceInfo(
+        id = 7L,
+        name = "Anime DAV",
+        type = MediaSourceType.WEBDAV,
+        connectionInfo = MediaSourceInfoConventions.sourceConnectionInfo(
+            type = MediaSourceType.WEBDAV,
+            location = "https://dav.example.test/anime",
+            recognitionMode = MediaRecognitionMode.MLIP,
+            mlipMetadataMode = metadataMode,
+        ),
+    )
 
     private fun createMlipDatabase(
         file: File,
@@ -217,8 +317,10 @@ class MlipLibraryIndexImporterTest {
         }
     }
 
-    private class RecordingIndexRepository : MediaIndexRepository {
-        val entries = mutableListOf<MediaIndexEntry>()
+    private class RecordingIndexRepository(
+        initialEntries: List<MediaIndexEntry> = emptyList(),
+    ) : MediaIndexRepository {
+        val entries = initialEntries.toMutableList()
 
         override suspend fun rebuildIndex(sourceId: Long, entries: List<MediaIndexEntry>): Result<Unit> {
             this.entries.clear()

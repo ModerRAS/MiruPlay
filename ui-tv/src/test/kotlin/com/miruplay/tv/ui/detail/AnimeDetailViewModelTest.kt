@@ -25,6 +25,7 @@ import com.miruplay.tv.repository.BangumiUser
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MetadataRepository
+import com.miruplay.tv.repository.localMetadataOverrideKey
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
 import com.miruplay.tv.repository.ScanPreferencesRepository
@@ -112,6 +113,67 @@ class AnimeDetailViewModelTest {
     }
 
     @Test
+    fun `manual match writes indexed Bangumi override for future MLIP imports`() = runTest {
+        val indexRepository = AnimeDetailFakeMediaIndexRepository(
+            entries = mutableListOf(
+                MediaIndexEntry(
+                    sourceId = 7L,
+                    path = "/anime/Frieren/Frieren - 01.mkv",
+                    animeName = "Frieren",
+                    episodeTitle = "Episode 1",
+                    seasonNumber = 1,
+                    episodeNumber = 1,
+                    metadataSource = "MLIP",
+                    metadataId = "mlip:7:series-uuid",
+                    metadataTitle = "Frieren",
+                )
+            )
+        )
+        val viewModel = animeDetailViewModel(
+            aggregator = RecordingAnimeSearchAggregator(
+                AggregatedMetadataSearchResult(
+                    plan = MetadataQueryPlan(emptyList()),
+                    candidates = listOf(
+                        AggregatedMetadataCandidate(
+                            contentMode = MediaContentMode.ANIME,
+                            title = "Sousou no Frieren",
+                            localizedTitle = "葬送的芙莉莲",
+                            providerCandidates = listOf(
+                                MetadataSearchProviderCandidate(
+                                    providerRef = MetadataProviderRef(source = "Bangumi", id = "431767"),
+                                    title = "Sousou no Frieren",
+                                    localizedTitle = "葬送的芙莉莲",
+                                    matchedQuery = "Frieren",
+                                    providerScore = 0.95f,
+                                    providerRank = 0,
+                                )
+                            ),
+                            rerankScore = 0.95f,
+                            recommendation = MatchRecommendation.AUTO_ACCEPT,
+                        )
+                    ),
+                ),
+            ),
+            indexRepository = indexRepository,
+        )
+
+        viewModel.loadAnime("Frieren")
+        advanceUntilIdle()
+        viewModel.openRescrapeMatcher()
+        viewModel.searchManualMatches()
+        advanceUntilIdle()
+        viewModel.applyManualMatch()
+        advanceUntilIdle()
+
+        val updated = indexRepository.upsertedEntries.single()
+        assertEquals("BANGUMI", updated.metadataSource)
+        assertEquals("431767", updated.metadataId)
+        assertEquals("葬送的芙莉莲", updated.metadataTitle)
+        assertEquals("mlip:7:series-uuid", updated.localMetadataOverrideKey())
+        assertEquals("Frieren", viewModel.anime.value?.id)
+    }
+
+    @Test
     fun `manual match search failure resets busy state`() = runTest {
         val viewModel = animeDetailViewModel(FailingAnimeSearchAggregator())
 
@@ -129,11 +191,9 @@ class AnimeDetailViewModelTest {
 
 private fun animeDetailViewModel(
     aggregator: AnimeMetadataSearchAggregator,
-): AnimeDetailViewModel = AnimeDetailViewModel(
-    mediaRepository = AnimeDetailFakeMediaSourceRepository(),
-    metadataRepository = AnimeDetailFakeMetadataRepository(),
-    indexRepository = AnimeDetailFakeMediaIndexRepository(
-        entries = listOf(
+    metadataRepository: AnimeDetailFakeMetadataRepository = AnimeDetailFakeMetadataRepository(),
+    indexRepository: AnimeDetailFakeMediaIndexRepository = AnimeDetailFakeMediaIndexRepository(
+        entries = mutableListOf(
             MediaIndexEntry(
                 sourceId = 7L,
                 path = "/anime/Frieren/Frieren - 01.mkv",
@@ -144,10 +204,14 @@ private fun animeDetailViewModel(
             ),
         ),
     ),
+): AnimeDetailViewModel = AnimeDetailViewModel(
+    mediaRepository = AnimeDetailFakeMediaSourceRepository(),
+    metadataRepository = metadataRepository,
+    indexRepository = indexRepository,
     progressRepository = AnimeDetailFakePlaybackProgressRepository(),
     bangumiSyncEngine = BangumiSyncEngine(
         bangumiService = AnimeDetailFakeBangumiCollectionService(),
-        metadataRepository = AnimeDetailFakeMetadataRepository(),
+        metadataRepository = metadataRepository,
         progressRepository = AnimeDetailFakePlaybackProgressRepository(),
     ),
     scanPreferences = AnimeDetailFakeScanPreferencesRepository(),
@@ -192,10 +256,17 @@ private class AnimeDetailFakeMediaSourceRepository : MediaSourceRepository {
 }
 
 private class AnimeDetailFakeMediaIndexRepository(
-    private val entries: List<MediaIndexEntry>,
+    private val entries: MutableList<MediaIndexEntry>,
 ) : MediaIndexRepository {
+    val upsertedEntries = mutableListOf<MediaIndexEntry>()
+
     override suspend fun rebuildIndex(sourceId: Long, entries: List<MediaIndexEntry>): Result<Unit> = Result.success(Unit)
-    override suspend fun upsertEntry(sourceId: Long, entry: MediaIndexEntry): Result<Unit> = Result.success(Unit)
+    override suspend fun upsertEntry(sourceId: Long, entry: MediaIndexEntry): Result<Unit> {
+        upsertedEntries += entry
+        entries.removeAll { it.sourceId == sourceId && it.path == entry.path }
+        entries += entry
+        return Result.success(Unit)
+    }
     override suspend fun queryIndex(sourceId: Long, query: String): Result<List<MediaIndexEntry>> = Result.success(entries)
     override suspend fun getAnimeInIndex(sourceId: Long): Result<List<String>> = Result.success(emptyList())
     override suspend fun clearIndex(sourceId: Long): Result<Unit> = Result.success(Unit)
@@ -205,13 +276,28 @@ private class AnimeDetailFakeMediaIndexRepository(
 }
 
 private class AnimeDetailFakeMetadataRepository : MetadataRepository {
-    override suspend fun cacheMetadata(anime: Anime): Result<Unit> = Result.success(Unit)
-    override suspend fun getCachedMetadata(animeId: String): Result<Anime?> = Result.success(null)
-    override suspend fun getCachedMetadata(animeIds: Collection<String>): Result<List<Anime>> = Result.success(emptyList())
-    override suspend fun getCachedEpisode(episodeId: String): Result<Episode?> = Result.success(null)
-    override suspend fun getCachedEpisodes(animeId: String): Result<List<Episode>> = Result.success(emptyList())
-    override suspend fun cacheEpisodes(animeId: String, episodes: List<Episode>): Result<Unit> = Result.success(Unit)
-    override suspend fun invalidateCache(animeId: String): Result<Unit> = Result.success(Unit)
+    private val anime = mutableMapOf<String, Anime>()
+    private val episodes = mutableMapOf<String, List<Episode>>()
+
+    override suspend fun cacheMetadata(anime: Anime): Result<Unit> {
+        this.anime[anime.id] = anime
+        return Result.success(Unit)
+    }
+    override suspend fun getCachedMetadata(animeId: String): Result<Anime?> = Result.success(anime[animeId])
+    override suspend fun getCachedMetadata(animeIds: Collection<String>): Result<List<Anime>> =
+        Result.success(animeIds.mapNotNull { anime[it] })
+    override suspend fun getCachedEpisode(episodeId: String): Result<Episode?> =
+        Result.success(episodes.values.flatten().firstOrNull { it.id == episodeId })
+    override suspend fun getCachedEpisodes(animeId: String): Result<List<Episode>> = Result.success(episodes[animeId].orEmpty())
+    override suspend fun cacheEpisodes(animeId: String, episodes: List<Episode>): Result<Unit> {
+        this.episodes[animeId] = episodes
+        return Result.success(Unit)
+    }
+    override suspend fun invalidateCache(animeId: String): Result<Unit> {
+        anime.remove(animeId)
+        episodes.remove(animeId)
+        return Result.success(Unit)
+    }
 }
 
 private class AnimeDetailFakePlaybackProgressRepository : PlaybackProgressRepository {

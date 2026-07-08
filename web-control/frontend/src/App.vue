@@ -185,7 +185,9 @@
                     <div>
                       <strong>{{ source.name }}</strong>
                       <span class="muted">{{ sourceContentModeLabel(source.contentMode) }}</span>
-                      <span v-if="source.connectionInfo?.recognitionMode === 'MLIP'" class="muted">MLIP</span>
+                      <span v-if="source.connectionInfo?.recognitionMode === 'MLIP'" class="muted">
+                        MLIP{{ source.connectionInfo?.mlipMetadataMode === 'FILES_ONLY' ? ' · 仅文件清单' : '' }}
+                      </span>
                       <span class="muted break-text">{{ displayPath(sourceLocation(source)) }}</span>
                     </div>
                   </div>
@@ -228,6 +230,12 @@
                   <el-select v-model="sourceForm.recognitionMode">
                     <el-option label="目录扫描" value="DIRECTORY" />
                     <el-option label="MLIP library.db" value="MLIP" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item v-if="sourceForm.type === 'WEBDAV' && sourceForm.contentMode === 'ANIME' && sourceForm.recognitionMode === 'MLIP'" label="元数据来源">
+                  <el-select v-model="sourceForm.mlipMetadataMode">
+                    <el-option label="library.db，本地优先" value="LIBRARY_DB_LOCAL_PRIORITY" />
+                    <el-option label="仅文件清单" value="FILES_ONLY" />
                   </el-select>
                 </el-form-item>
                 <el-form-item label="显示名称">
@@ -1512,6 +1520,7 @@ const sourceForm = reactive({
   type: 'LOCAL',
   contentMode: 'ANIME',
   recognitionMode: 'DIRECTORY',
+  mlipMetadataMode: 'LIBRARY_DB_LOCAL_PRIORITY',
   name: '',
   location: '/storage/emulated/0/Download',
   displayName: 'Download',
@@ -2111,6 +2120,7 @@ function resetSourceForm() {
     type: 'LOCAL',
     contentMode: 'ANIME',
     recognitionMode: 'DIRECTORY',
+    mlipMetadataMode: 'LIBRARY_DB_LOCAL_PRIORITY',
     name: '',
     location: '/storage/emulated/0/Download',
     displayName: 'Download',
@@ -2125,6 +2135,7 @@ function editSource(source) {
     type: source.type,
     contentMode: source.contentMode || 'ANIME',
     recognitionMode: source.connectionInfo?.recognitionMode || 'DIRECTORY',
+    mlipMetadataMode: source.connectionInfo?.mlipMetadataMode || 'LIBRARY_DB_LOCAL_PRIORITY',
     name: source.name,
     location: sourceLocation(source),
     displayName: source.connectionInfo?.displayName || folderName(sourceLocation(source)),
@@ -2153,6 +2164,9 @@ function sourcePayload() {
     recognitionMode: sourceForm.type === 'WEBDAV' && sourceForm.contentMode === 'ANIME'
       ? sourceForm.recognitionMode || 'DIRECTORY'
       : 'DIRECTORY',
+    mlipMetadataMode: sourceForm.type === 'WEBDAV' && sourceForm.contentMode === 'ANIME' && sourceForm.recognitionMode === 'MLIP'
+      ? sourceForm.mlipMetadataMode || 'LIBRARY_DB_LOCAL_PRIORITY'
+      : 'LIBRARY_DB_LOCAL_PRIORITY',
     name: sourceForm.name.trim(),
     location: sourceForm.location.trim(),
     displayName: sourceForm.displayName.trim() || folderName(sourceForm.location),

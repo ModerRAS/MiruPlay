@@ -66,6 +66,7 @@ object MediaSourceInfoConventions {
         password: String = "",
         domain: String = "",
         recognitionMode: MediaRecognitionMode = MediaRecognitionMode.DIRECTORY,
+        mlipMetadataMode: MlipMetadataMode = MlipMetadataMode.LIBRARY_DB_LOCAL_PRIORITY,
     ): Map<String, String> = buildMap {
         val trimmedLocation = location.trim()
         put(CONNECTION_URL, trimmedLocation)
@@ -81,6 +82,9 @@ object MediaSourceInfoConventions {
         putIfNotBlank(CONNECTION_PASSWORD, password)
         if (recognitionMode != MediaRecognitionMode.DIRECTORY) {
             put(CONNECTION_RECOGNITION_MODE, recognitionMode.name)
+        }
+        if (recognitionMode == MediaRecognitionMode.MLIP && mlipMetadataMode != MlipMetadataMode.LIBRARY_DB_LOCAL_PRIORITY) {
+            put(CONNECTION_MLIP_METADATA_MODE, mlipMetadataMode.name)
         }
     }
 
@@ -164,6 +168,7 @@ object MediaSourceInfoConventions {
     const val CONNECTION_DISPLAY_NAME = "displayName"
     const val CONNECTION_URI = "uri"
     const val CONNECTION_RECOGNITION_MODE = "recognitionMode"
+    const val CONNECTION_MLIP_METADATA_MODE = "mlipMetadataMode"
     val PERSISTED_CONNECTION_KEYS: Set<String> = setOf(
         CONNECTION_URL,
         CONNECTION_PATH,
@@ -220,9 +225,29 @@ fun MediaSourceInfo.recognitionMode(): MediaRecognitionMode =
 fun MediaSourceInfo.withRecognitionMode(mode: MediaRecognitionMode): MediaSourceInfo =
     copy(
         connectionInfo = if (mode == MediaRecognitionMode.DIRECTORY) {
-            connectionInfo - MediaSourceInfoConventions.CONNECTION_RECOGNITION_MODE
+            connectionInfo - MediaSourceInfoConventions.CONNECTION_RECOGNITION_MODE -
+                MediaSourceInfoConventions.CONNECTION_MLIP_METADATA_MODE
         } else {
             connectionInfo + (MediaSourceInfoConventions.CONNECTION_RECOGNITION_MODE to mode.name)
+        },
+    )
+
+fun MediaSourceInfo.mlipMetadataMode(): MlipMetadataMode =
+    if (recognitionMode() != MediaRecognitionMode.MLIP) {
+        MlipMetadataMode.LIBRARY_DB_LOCAL_PRIORITY
+    } else {
+        connectionInfo[MediaSourceInfoConventions.CONNECTION_MLIP_METADATA_MODE]
+            ?.trim()
+            ?.let { value -> MlipMetadataMode.entries.firstOrNull { it.name.equals(value, ignoreCase = true) } }
+            ?: MlipMetadataMode.LIBRARY_DB_LOCAL_PRIORITY
+    }
+
+fun MediaSourceInfo.withMlipMetadataMode(mode: MlipMetadataMode): MediaSourceInfo =
+    copy(
+        connectionInfo = if (recognitionMode() != MediaRecognitionMode.MLIP || mode == MlipMetadataMode.LIBRARY_DB_LOCAL_PRIORITY) {
+            connectionInfo - MediaSourceInfoConventions.CONNECTION_MLIP_METADATA_MODE
+        } else {
+            connectionInfo + (MediaSourceInfoConventions.CONNECTION_MLIP_METADATA_MODE to mode.name)
         },
     )
 

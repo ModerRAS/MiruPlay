@@ -348,23 +348,32 @@ class BangumiIndexMetadataCoordinator(
             return Result.success(BangumiMetadataEntryActionResult(null, metadataSearchSelectionRequiredStatus(sourceName)))
         }
 
-        val updated = entry.withExternalMetadata(match, sourceId = sourceId)
-        return when (val result = indexRepository.upsertEntry(sourceId, updated)) {
-            is Result.Error -> result
-            is Result.Success -> {
-                metadataRefreshCore.cacheMatchedIndexMetadata(
-                    entry = updated,
-                    relatedEntries = relatedEntries,
-                    match = match,
-                )
-                Result.success(
-                    BangumiMetadataEntryActionResult(
-                        updatedEntry = updated,
-                        status = updated.metadataAppliedStatus(sourceName),
-                    )
-                )
+        val relatedFiles = relatedEntries
+            .filterNot { it.isDirectory }
+            .ifEmpty { listOf(entry) }
+            .distinctBy { it.path }
+        val updatedEntries = relatedFiles.map { related -> related.withExternalMetadata(match, sourceId = sourceId) }
+        val updated = updatedEntries.firstOrNull { it.path == entry.path }
+            ?: entry.withExternalMetadata(match, sourceId = sourceId)
+
+        for (updatedEntry in updatedEntries) {
+            when (val result = indexRepository.upsertEntry(sourceId, updatedEntry)) {
+                is Result.Error -> return result
+                is Result.Success -> Unit
             }
         }
+
+        metadataRefreshCore.cacheMatchedIndexMetadata(
+            entry = updated,
+            relatedEntries = updatedEntries,
+            match = match,
+        )
+        return Result.success(
+            BangumiMetadataEntryActionResult(
+                updatedEntry = updated,
+                status = updated.metadataAppliedStatus(sourceName),
+            )
+        )
     }
 
     suspend fun clearEntryMetadata(

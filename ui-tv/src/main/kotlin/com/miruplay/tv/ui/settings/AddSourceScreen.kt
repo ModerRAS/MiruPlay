@@ -94,6 +94,7 @@ import com.miruplay.tv.model.CLOUD_DRIVE_ROOT_DISPLAY_NAME
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.MediaContentMode
 import com.miruplay.tv.model.MediaRecognitionMode
+import com.miruplay.tv.model.MlipMetadataMode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
@@ -106,6 +107,7 @@ import com.miruplay.tv.model.androidTvSettingsSectionOrder
 import com.miruplay.tv.model.connectionDisplayName
 import com.miruplay.tv.model.connectionUsername
 import com.miruplay.tv.model.recognitionMode
+import com.miruplay.tv.model.mlipMetadataMode
 import com.miruplay.tv.model.cloudDriveRssApiTokenCredentialLabel
 import com.miruplay.tv.model.cloudDriveRssApiTokenFieldLabel
 import com.miruplay.tv.model.cloudDriveRssChooseDirectoryActionLabel
@@ -389,6 +391,7 @@ fun AddSourceScreen(
     var selectedType by remember { mutableStateOf(MediaSourceType.LOCAL) }
     var selectedContentMode by remember { mutableStateOf(MediaContentMode.ANIME) }
     var selectedRecognitionMode by remember { mutableStateOf(MediaRecognitionMode.DIRECTORY) }
+    var selectedMlipMetadataMode by remember { mutableStateOf(MlipMetadataMode.LIBRARY_DB_LOCAL_PRIORITY) }
     var name by remember { mutableStateOf(sourceNameOrDefault("", MediaSourceType.LOCAL)) }
     var location by remember { mutableStateOf(DEFAULT_LOCAL_PATH) }
     var locationDisplayName by remember { mutableStateOf(mediaSourceLocalPathDisplayName(DEFAULT_LOCAL_PATH)) }
@@ -466,6 +469,7 @@ fun AddSourceScreen(
         selectedType = type
         selectedContentMode = currentAppMode.toMediaContentMode()
         selectedRecognitionMode = MediaRecognitionMode.DIRECTORY
+        selectedMlipMetadataMode = MlipMetadataMode.LIBRARY_DB_LOCAL_PRIORITY
         name = sourceNameOrDefault("", type)
         location = type.defaultSourceLocation(DEFAULT_LOCAL_PATH)
         locationDisplayName = if (type == MediaSourceType.LOCAL) mediaSourceLocalPathDisplayName(location) else ""
@@ -490,6 +494,7 @@ fun AddSourceScreen(
         selectedType = source.type
         selectedContentMode = source.contentMode
         selectedRecognitionMode = source.recognitionMode()
+        selectedMlipMetadataMode = source.mlipMetadataMode()
         name = source.name.ifBlank { sourceNameOrDefault("", source.type) }
         location = source.sourceLocation().orEmpty()
         locationDisplayName = source.connectionDisplayName().ifBlank {
@@ -520,6 +525,11 @@ fun AddSourceScreen(
                 username = username,
                 password = password,
                 recognitionMode = effectiveRecognitionMode,
+                mlipMetadataMode = if (effectiveRecognitionMode == MediaRecognitionMode.MLIP) {
+                    selectedMlipMetadataMode
+                } else {
+                    MlipMetadataMode.LIBRARY_DB_LOCAL_PRIORITY
+                },
             )
         )
         if (editingSourceId == null) {
@@ -599,6 +609,7 @@ fun AddSourceScreen(
                             selectedType = type
                             selectedContentMode = currentAppMode.toMediaContentMode()
                             selectedRecognitionMode = MediaRecognitionMode.DIRECTORY
+                            selectedMlipMetadataMode = MlipMetadataMode.LIBRARY_DB_LOCAL_PRIORITY
                             name = sourceNameOrDefault("", type)
                             location = type.defaultSourceLocation(DEFAULT_LOCAL_PATH)
                             locationDisplayName = if (type == MediaSourceType.LOCAL) mediaSourceLocalPathDisplayName(location) else ""
@@ -612,10 +623,20 @@ fun AddSourceScreen(
                     selectedContentMode = selectedContentMode,
                     onContentModeSelected = {
                         selectedContentMode = it
-                        if (it != MediaContentMode.ANIME) selectedRecognitionMode = MediaRecognitionMode.DIRECTORY
+                        if (it != MediaContentMode.ANIME) {
+                            selectedRecognitionMode = MediaRecognitionMode.DIRECTORY
+                            selectedMlipMetadataMode = MlipMetadataMode.LIBRARY_DB_LOCAL_PRIORITY
+                        }
                     },
                     selectedRecognitionMode = selectedRecognitionMode,
-                    onRecognitionModeSelected = { selectedRecognitionMode = it },
+                    onRecognitionModeSelected = {
+                        selectedRecognitionMode = it
+                        if (it != MediaRecognitionMode.MLIP) {
+                            selectedMlipMetadataMode = MlipMetadataMode.LIBRARY_DB_LOCAL_PRIORITY
+                        }
+                    },
+                    selectedMlipMetadataMode = selectedMlipMetadataMode,
+                    onMlipMetadataModeSelected = { selectedMlipMetadataMode = it },
                     location = location,
                     onLocationChange = { location = it },
                     locationDisplayName = locationDisplayName,
@@ -1079,6 +1100,8 @@ private fun SettingsContent(
     onContentModeSelected: (MediaContentMode) -> Unit,
     selectedRecognitionMode: MediaRecognitionMode,
     onRecognitionModeSelected: (MediaRecognitionMode) -> Unit,
+    selectedMlipMetadataMode: MlipMetadataMode,
+    onMlipMetadataModeSelected: (MlipMetadataMode) -> Unit,
     location: String,
     onLocationChange: (String) -> Unit,
     locationDisplayName: String,
@@ -1260,6 +1283,8 @@ private fun SettingsContent(
                     onContentModeSelected = onContentModeSelected,
                     selectedRecognitionMode = selectedRecognitionMode,
                     onRecognitionModeSelected = onRecognitionModeSelected,
+                    selectedMlipMetadataMode = selectedMlipMetadataMode,
+                    onMlipMetadataModeSelected = onMlipMetadataModeSelected,
                     location = location,
                     onLocationChange = onLocationChange,
                     locationDisplayName = locationDisplayName,
@@ -2609,6 +2634,8 @@ private fun SourceFormPanel(
     onContentModeSelected: (MediaContentMode) -> Unit,
     selectedRecognitionMode: MediaRecognitionMode,
     onRecognitionModeSelected: (MediaRecognitionMode) -> Unit,
+    selectedMlipMetadataMode: MlipMetadataMode,
+    onMlipMetadataModeSelected: (MlipMetadataMode) -> Unit,
     location: String,
     onLocationChange: (String) -> Unit,
     locationDisplayName: String,
@@ -2730,12 +2757,48 @@ private fun SourceFormPanel(
             StatusMessage(
                 icon = Icons.Filled.CheckCircle,
                 text = if (selectedRecognitionMode == MediaRecognitionMode.MLIP) {
-                    "扫描时读取 WebDAV 根目录 library.db，不使用在线刮削。"
+                    "扫描时读取 WebDAV 根目录 library.db。"
                 } else {
                     "扫描目录并按文件名识别，可继续使用在线元数据。"
                 },
                 color = if (selectedRecognitionMode == MediaRecognitionMode.MLIP) ProgressGreen else TextSecondary
             )
+            if (selectedRecognitionMode == MediaRecognitionMode.MLIP) {
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    text = "元数据来源",
+                    style = TvTypography.caption,
+                    color = TextSecondary
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    ScanOptionChip(
+                        text = "library.db，本地优先",
+                        icon = Icons.Filled.Dns,
+                        selected = selectedMlipMetadataMode == MlipMetadataMode.LIBRARY_DB_LOCAL_PRIORITY,
+                        enabled = true,
+                        onClick = { onMlipMetadataModeSelected(MlipMetadataMode.LIBRARY_DB_LOCAL_PRIORITY) },
+                        modifier = Modifier.width(220.dp)
+                    )
+                    ScanOptionChip(
+                        text = "仅文件清单",
+                        icon = Icons.Filled.Storage,
+                        selected = selectedMlipMetadataMode == MlipMetadataMode.FILES_ONLY,
+                        enabled = true,
+                        onClick = { onMlipMetadataModeSelected(MlipMetadataMode.FILES_ONLY) },
+                        modifier = Modifier.width(170.dp)
+                    )
+                }
+                StatusMessage(
+                    icon = Icons.Filled.Info,
+                    text = if (selectedMlipMetadataMode == MlipMetadataMode.FILES_ONLY) {
+                        "只导入路径和集数，显示元数据由本地匹配或重新刮削维护。"
+                    } else {
+                        "导入 library.db 元数据，但重新刮削后的本地修正优先。"
+                    },
+                    color = TextSecondary
+                )
+            }
         }
 
         Spacer(Modifier.height(12.dp))

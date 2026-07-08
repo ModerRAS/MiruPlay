@@ -225,6 +225,39 @@ class MediaSourceInfoConventionsTest {
     }
 
     @Test
+    fun `mlip metadata mode defaults to library db local priority and stores files only`() {
+        val defaultSource = source(connectionInfo = emptyMap())
+        val filesOnlyInfo = MediaSourceInfoConventions.sourceConnectionInfo(
+            type = MediaSourceType.WEBDAV,
+            location = "https://dav.example.test/anime",
+            recognitionMode = MediaRecognitionMode.MLIP,
+            mlipMetadataMode = MlipMetadataMode.FILES_ONLY,
+        )
+        val defaultMlipInfo = MediaSourceInfoConventions.sourceConnectionInfo(
+            type = MediaSourceType.WEBDAV,
+            location = "https://dav.example.test/anime",
+            recognitionMode = MediaRecognitionMode.MLIP,
+        )
+        val filesOnlySource = source(type = MediaSourceType.WEBDAV, connectionInfo = filesOnlyInfo)
+        val directorySource = filesOnlySource.withRecognitionMode(MediaRecognitionMode.DIRECTORY)
+
+        assertEquals(MlipMetadataMode.LIBRARY_DB_LOCAL_PRIORITY, defaultSource.mlipMetadataMode())
+        assertEquals(MlipMetadataMode.FILES_ONLY, filesOnlySource.mlipMetadataMode())
+        assertEquals("FILES_ONLY", filesOnlyInfo[MediaSourceInfoConventions.CONNECTION_MLIP_METADATA_MODE])
+        assertFalse(MediaSourceInfoConventions.CONNECTION_MLIP_METADATA_MODE in defaultMlipInfo)
+        assertFalse(MediaSourceInfoConventions.CONNECTION_MLIP_METADATA_MODE in directorySource.connectionInfo)
+        assertFalse(
+            MediaSourceInfoConventions.CONNECTION_MLIP_METADATA_MODE in filesOnlySource
+                .withRecognitionMode(MediaRecognitionMode.DIRECTORY)
+                .withMlipMetadataMode(MlipMetadataMode.FILES_ONLY)
+                .connectionInfo,
+        )
+        assertFalse(
+            MediaSourceInfoConventions.CONNECTION_MLIP_METADATA_MODE in MediaSourceInfoConventions.PERSISTED_CONNECTION_KEYS,
+        )
+    }
+
+    @Test
     fun `shouldBridgeForPlayback identifies credentialed remote paths`() {
         assertFalse(
             MediaSourceInfoConventions.shouldBridgeForPlayback(

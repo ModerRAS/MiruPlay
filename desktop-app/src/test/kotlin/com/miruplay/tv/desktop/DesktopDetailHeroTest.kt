@@ -484,7 +484,7 @@ class DesktopDetailHeroTest {
         )
 
         assertEquals("431767", entry.bangumiMetadataCacheId())
-        assertEquals("show/Frieren - S01E02.mkv", episode.id)
+        assertEquals("1:show/Frieren - S01E02.mkv", episode.id)
         assertEquals("431767", episode.animeId)
         assertEquals(2, episode.episodeNumber)
         assertEquals("旅途", episode.title)

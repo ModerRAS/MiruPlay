@@ -5,11 +5,13 @@ import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.mediasource.MediaSourceConnectionTestResult
 import com.miruplay.tv.model.MediaContentMode
 import com.miruplay.tv.model.MediaRecognitionMode
+import com.miruplay.tv.model.MlipMetadataMode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.ScanResult
 import com.miruplay.tv.model.recognitionMode
+import com.miruplay.tv.model.mlipMetadataMode
 import com.miruplay.tv.repository.MediaSourceRepository
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -28,6 +30,7 @@ class WebControlSourceRequestsTest {
             displayName = " Anime Drive ",
             contentMode = MediaContentMode.DRAMA,
             recognitionMode = MediaRecognitionMode.MLIP,
+            mlipMetadataMode = MlipMetadataMode.FILES_ONLY,
             disableOnlineMetadata = true,
         ).toMediaSourceInfo(isConnected = true, lastScanned = 123L)
 
@@ -40,9 +43,27 @@ class WebControlSourceRequestsTest {
         assertEquals("D:/Anime", source.connectionInfo[MediaSourceInfoConventions.CONNECTION_URL])
         assertEquals("D:/Anime", source.connectionInfo[MediaSourceInfoConventions.CONNECTION_PATH])
         assertEquals("Anime Drive", source.connectionInfo[MediaSourceInfoConventions.CONNECTION_DISPLAY_NAME])
-        assertEquals("MLIP", source.connectionInfo[MediaSourceInfoConventions.CONNECTION_RECOGNITION_MODE])
-        assertEquals(MediaRecognitionMode.MLIP, source.recognitionMode())
+        assertFalse(MediaSourceInfoConventions.CONNECTION_RECOGNITION_MODE in source.connectionInfo)
+        assertFalse(MediaSourceInfoConventions.CONNECTION_MLIP_METADATA_MODE in source.connectionInfo)
+        assertEquals(MediaRecognitionMode.DIRECTORY, source.recognitionMode())
+        assertEquals(MlipMetadataMode.LIBRARY_DB_LOCAL_PRIORITY, source.mlipMetadataMode())
         assertEquals("true", source.connectionInfo["disableOnlineMetadata"])
+    }
+
+    @Test
+    fun `source request stores mlip metadata mode for WebDAV anime sources`() {
+        val source = SourceRequest(
+            name = "Remote",
+            type = "WEBDAV",
+            location = " https://dav.example.test/root ",
+            contentMode = MediaContentMode.ANIME,
+            recognitionMode = MediaRecognitionMode.MLIP,
+            mlipMetadataMode = MlipMetadataMode.FILES_ONLY,
+        ).toMediaSourceInfo()
+
+        assertEquals(MediaRecognitionMode.MLIP, source.recognitionMode())
+        assertEquals(MlipMetadataMode.FILES_ONLY, source.mlipMetadataMode())
+        assertEquals("FILES_ONLY", source.connectionInfo[MediaSourceInfoConventions.CONNECTION_MLIP_METADATA_MODE])
     }
 
     @Test

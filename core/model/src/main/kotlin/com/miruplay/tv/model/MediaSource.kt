@@ -12,6 +12,9 @@ enum class MediaContentMode { ANIME, DRAMA }
 enum class MediaRecognitionMode { DIRECTORY, MLIP }
 
 @Serializable
+enum class MlipMetadataMode { LIBRARY_DB_LOCAL_PRIORITY, FILES_ONLY }
+
+@Serializable
 data class MediaSourceInfo(
     val id: Long = 0,
     val name: String,

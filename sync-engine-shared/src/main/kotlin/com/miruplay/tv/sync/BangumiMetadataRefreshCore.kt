@@ -41,7 +41,7 @@ fun MediaIndexEntry.bangumiMetadataCacheId(): String =
 
 fun MediaIndexEntry.toBangumiLocalEpisode(animeId: String): Episode =
     Episode(
-        id = path,
+        id = "$sourceId:$path",
         animeId = animeId,
         seasonNumber = seasonNumber ?: 1,
         episodeNumber = episodeNumber ?: 1,

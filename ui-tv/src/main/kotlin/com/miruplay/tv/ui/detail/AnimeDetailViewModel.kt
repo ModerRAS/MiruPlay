@@ -31,11 +31,13 @@ import com.miruplay.tv.model.toPreferredScraperResult
 import com.miruplay.tv.model.toSeasons
 import com.miruplay.tv.repository.AnimeMetadataSearchAggregator
 import com.miruplay.tv.repository.LibraryAnimeResolver
+import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
 import com.miruplay.tv.repository.ScanPreferencesRepository
+import com.miruplay.tv.repository.withExternalMetadata
 import com.miruplay.tv.scraper.MetadataScraper
 import com.miruplay.tv.sync.BangumiMetadataRefreshCore
 import com.miruplay.tv.sync.BangumiSyncEngine
@@ -255,6 +257,8 @@ class AnimeDetailViewModel @Inject constructor(
             val localEpisodes = metadataRepository.getCachedEpisodes(current.id).getOrNull()
                 ?.takeIf { it.isNotEmpty() }
                 ?: allEpisodesWithProgress.map { it.first }
+            val indexedEntries = indexedEntriesFor(localEpisodes)
+            var reloadAnimeId = current.id
             when (
                 val refreshed = PerformanceLog.measureSuspendResult(
                     tag = DETAIL_PERFORMANCE_TAG,
@@ -263,16 +267,35 @@ class AnimeDetailViewModel @Inject constructor(
                         "cache_anime_id" to current.id,
                         "match_anime_id" to match.animeId,
                         "local_episode_count" to localEpisodes.size.toString(),
+                        "indexed_entry_count" to indexedEntries.size.toString(),
                     ),
                 ) {
-                    BangumiMetadataRefreshCore(
+                    val core = BangumiMetadataRefreshCore(
                         metadataRepository = metadataRepository,
                         bangumiScraper = scraper,
-                    ).cacheMatchedMetadata(
-                        cacheAnimeId = current.id,
-                        match = match,
-                        localEpisodes = localEpisodes,
                     )
+                    if (indexedEntries.isNotEmpty()) {
+                        val updatedEntries = indexedEntries
+                            .distinctBy { it.sourceId to it.path }
+                            .map { it.withExternalMetadata(match) }
+                        for (updatedEntry in updatedEntries) {
+                            when (val updated = indexRepository.upsertEntry(updatedEntry.sourceId, updatedEntry)) {
+                                is Result.Error -> return@measureSuspendResult updated
+                                is Result.Success -> Unit
+                            }
+                        }
+                        core.cacheMatchedIndexMetadata(
+                            entry = updatedEntries.first(),
+                            relatedEntries = updatedEntries,
+                            match = match,
+                        )
+                    } else {
+                        core.cacheMatchedMetadata(
+                            cacheAnimeId = current.id,
+                            match = match,
+                            localEpisodes = localEpisodes,
+                        )
+                    }
                 }
             ) {
                 is Result.Error -> {
@@ -284,13 +307,28 @@ class AnimeDetailViewModel @Inject constructor(
                     _isSyncing.value = false
                     return@launch
                 }
-                is Result.Success -> Unit
+                is Result.Success -> reloadAnimeId = refreshed.data.cacheAnimeId
             }
 
             _manualMatch.value = BangumiManualMatchUiState()
             _actionMessage.value = detailBangumiMetadataUpdatedMessage()
             _isSyncing.value = false
-            loadAnime(current.id)
+            loadAnime(reloadAnimeId)
+        }
+    }
+
+    private suspend fun indexedEntriesFor(episodes: List<Episode>): List<MediaIndexEntry> {
+        val pathsBySource = episodes
+            .mapNotNull { episode ->
+                val sourceId = episode.id.substringBefore(':').toLongOrNull() ?: return@mapNotNull null
+                val path = episode.id.substringAfter(':', "").takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                sourceId to path
+            }
+            .groupBy({ it.first }, { it.second })
+        return pathsBySource.flatMap { (sourceId, paths) ->
+            val pathSet = paths.toSet()
+            indexRepository.queryIndex(sourceId, "").getOrNull().orEmpty()
+                .filter { it.path in pathSet }
         }
     }
 
