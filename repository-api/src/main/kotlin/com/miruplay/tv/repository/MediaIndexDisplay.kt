@@ -42,6 +42,9 @@ fun MediaIndexEntry.withExternalMetadata(result: ScraperResult, sourceId: Long =
         metadataSource = result.source.name,
         metadataId = result.animeId,
         metadataTitle = title,
+        scrapeStatus = MediaScrapeStatus.SCRAPED,
+        scrapeMessage = localMetadataOverrideMessage(),
+        scrapedAt = System.currentTimeMillis(),
     )
 }
 
@@ -51,10 +54,32 @@ fun MediaIndexEntry.clearExternalMetadata(sourceId: Long = this.sourceId): Media
         metadataSource = null,
         metadataId = null,
         metadataTitle = null,
+        scrapeStatus = null,
+        scrapeMessage = null,
+        scrapedAt = 0L,
     )
+
+fun MediaIndexEntry.localMetadataOverrideKey(): String? =
+    scrapeMessage
+        ?.takeIf { it.startsWith(LOCAL_METADATA_OVERRIDE_PREFIX) }
+        ?.removePrefix(LOCAL_METADATA_OVERRIDE_PREFIX)
+        ?.takeIf { it.isNotBlank() }
+
+private fun MediaIndexEntry.localMetadataOverrideMessage(): String? {
+    localMetadataOverrideKey()?.let { return localMetadataOverrideMessage(it) }
+    val mlipId = metadataId?.takeIf { id ->
+        metadataSource.equals("MLIP", ignoreCase = true) && id.startsWith("mlip:")
+    } ?: return null
+    return localMetadataOverrideMessage(mlipId)
+}
+
+fun localMetadataOverrideMessage(key: String): String =
+    LOCAL_METADATA_OVERRIDE_PREFIX + key
 
 fun MediaIndexEntry.hasSameMediaKeyAs(other: MediaIndexEntry): Boolean =
     sourceId == other.sourceId && path == other.path
+
+private const val LOCAL_METADATA_OVERRIDE_PREFIX = "Local metadata override for "
 
 fun List<MediaIndexEntry>.mediaFilesOnly(): List<MediaIndexEntry> =
     filterNot { it.isDirectory }

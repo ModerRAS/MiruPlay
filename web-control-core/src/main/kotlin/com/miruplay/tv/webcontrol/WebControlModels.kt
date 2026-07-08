@@ -8,6 +8,7 @@ import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.MediaContentMode
 import com.miruplay.tv.model.MediaRecognitionMode
+import com.miruplay.tv.model.MlipMetadataMode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.PosterWallArrangement
@@ -48,6 +49,7 @@ data class SourceRequest(
     val password: String? = null,
     val contentMode: MediaContentMode = MediaContentMode.ANIME,
     val recognitionMode: MediaRecognitionMode = MediaRecognitionMode.DIRECTORY,
+    val mlipMetadataMode: MlipMetadataMode = MlipMetadataMode.LIBRARY_DB_LOCAL_PRIORITY,
     val disableOnlineMetadata: Boolean = false,
 )
 
@@ -60,6 +62,7 @@ data class SourceTestRequest(
     val password: String? = null,
     val contentMode: MediaContentMode = MediaContentMode.ANIME,
     val recognitionMode: MediaRecognitionMode = MediaRecognitionMode.DIRECTORY,
+    val mlipMetadataMode: MlipMetadataMode = MlipMetadataMode.LIBRARY_DB_LOCAL_PRIORITY,
     val disableOnlineMetadata: Boolean = false,
 )
 

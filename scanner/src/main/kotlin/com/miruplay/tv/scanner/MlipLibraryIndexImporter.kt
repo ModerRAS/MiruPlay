@@ -11,11 +11,15 @@ import com.miruplay.tv.model.MediaFileConventions
 import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.MlipMetadataMode
 import com.miruplay.tv.model.Episode
+import com.miruplay.tv.model.mlipMetadataMode
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaScrapeStatus
 import com.miruplay.tv.repository.MetadataRepository
+import com.miruplay.tv.repository.localMetadataOverrideKey
+import com.miruplay.tv.repository.localMetadataOverrideMessage
 import java.io.File
 import java.security.MessageDigest
 import javax.inject.Inject
@@ -66,16 +70,26 @@ class MlipLibraryIndexImporter @Inject constructor(
             databaseFile.delete()
         }
 
-        val entries = snapshot.mediaFiles.map { it.indexEntry }
+        val previousEntries = indexRepository.queryIndex(source.id, "").getOrNull().orEmpty()
+        val localOverrides = MlipLocalMetadataOverrides(previousEntries)
+        val metadataMode = source.mlipMetadataMode()
+        val mediaFiles = snapshot.mediaFiles.map { mediaFile ->
+            mediaFile.copy(
+                indexEntry = mediaFile.indexEntry.withMlipMetadataPolicy(metadataMode, localOverrides),
+            )
+        }
+        val entries = mediaFiles.map { it.indexEntry }
         when (val rebuilt = indexRepository.rebuildIndex(source.id, entries)) {
             is Result.Success -> Unit
             is Result.Error -> return@withContext Result.failure(rebuilt.error)
         }
         var artworkCachedCount = 0
         for (series in snapshot.series) {
-            val episodes = snapshot.mediaFiles
-                .filter { it.seriesId == series.id }
-                .map { it.episode }
+            val seriesFiles = mediaFiles.filter { it.seriesId == series.id }
+            if (metadataMode == MlipMetadataMode.FILES_ONLY || seriesFiles.any { it.indexEntry.hasLocalMetadataOverride() }) {
+                continue
+            }
+            val episodes = seriesFiles.map { it.episode }
             metadataRepository.cacheEpisodes(series.anime.id, episodes)
             val posterLocalPath = series.posterPath
                 ?.let { poster -> cacheArtwork(mediaSource, poster, posterCacheDirectory, source.id, series.uuid) }
@@ -468,6 +482,97 @@ private data class MlipMediaFile(
     val indexEntry: MediaIndexEntry,
     val episode: Episode,
 )
+
+private class MlipLocalMetadataOverrides(entries: List<MediaIndexEntry>) {
+    private val overrides = entries
+        .mapNotNull { it.toLocalOverride() }
+        .distinctBy { it.key }
+    private val byKey = overrides.associateBy { it.key }
+    private val byPath = overrides.associateBy { it.path }
+    private val byTitle = overrides
+        .flatMap { override -> override.titleKeys.map { key -> key to override } }
+        .groupBy({ it.first }, { it.second })
+        .mapNotNull { (key, matches) -> matches.singleOrNull()?.let { key to it } }
+        .toMap()
+
+    fun forEntry(entry: MediaIndexEntry): MlipLocalMetadataOverride? =
+        entry.metadataId?.let(byKey::get)
+            ?: byPath[entry.path]
+            ?: entry.titleKeys().firstNotNullOfOrNull(byTitle::get)
+}
+
+private data class MlipLocalMetadataOverride(
+    val key: String,
+    val path: String,
+    val animeName: String?,
+    val metadataSource: String?,
+    val metadataId: String?,
+    val metadataTitle: String?,
+    val scrapedAt: Long,
+) {
+    val titleKeys: List<String> = listOfNotNull(animeName, metadataTitle)
+        .mapNotNull(::mlipOverrideTitleKey)
+        .distinct()
+}
+
+private fun MediaIndexEntry.titleKeys(): List<String> = listOfNotNull(animeName, metadataTitle)
+    .mapNotNull(::mlipOverrideTitleKey)
+    .distinct()
+
+private fun mlipOverrideTitleKey(title: String): String? = title
+    .trim()
+    .lowercase()
+    .takeIf { it.isNotBlank() }
+
+private fun MediaIndexEntry.toLocalOverride(): MlipLocalMetadataOverride? {
+    val source = metadataSource?.takeIf { it.isNotBlank() } ?: return null
+    if (source.equals(MLIP_METADATA_SOURCE, ignoreCase = true)) return null
+    val id = metadataId?.takeIf { it.isNotBlank() } ?: return null
+    val pathKey = path.takeIf { it.isNotBlank() }
+    val key = localMetadataOverrideKey() ?: pathKey ?: return null
+    return MlipLocalMetadataOverride(
+        key = key,
+        path = path,
+        animeName = animeName,
+        metadataSource = source,
+        metadataId = id,
+        metadataTitle = metadataTitle,
+        scrapedAt = scrapedAt,
+    )
+}
+
+private fun MediaIndexEntry.withMlipMetadataPolicy(
+    mode: MlipMetadataMode,
+    overrides: MlipLocalMetadataOverrides,
+): MediaIndexEntry {
+    overrides.forEntry(this)?.let { override ->
+        return copy(
+            animeName = override.animeName ?: override.metadataTitle ?: animeName,
+            metadataSource = override.metadataSource,
+            metadataId = override.metadataId,
+            metadataTitle = override.metadataTitle ?: override.animeName,
+            scrapeStatus = MediaScrapeStatus.SCRAPED,
+            scrapeMessage = metadataId?.let(::localMetadataOverrideMessage),
+            scrapedAt = override.scrapedAt.takeIf { it > 0L } ?: System.currentTimeMillis(),
+        )
+    }
+    if (mode != MlipMetadataMode.FILES_ONLY) return this
+    val indexedTitle = MediaPathConventions.animeNameFromEpisodePath(path)
+        ?: animeName
+        ?: MediaPathConventions.stem(path)
+    return copy(
+        animeName = indexedTitle,
+        metadataSource = null,
+        metadataId = null,
+        metadataTitle = null,
+        scrapeStatus = MediaScrapeStatus.PENDING,
+        scrapeMessage = metadataId?.let(::localMetadataOverrideMessage) ?: "MLIP metadata ignored by source policy",
+        scrapedAt = 0L,
+    )
+}
+
+private fun MediaIndexEntry.hasLocalMetadataOverride(): Boolean =
+    !metadataSource.isNullOrBlank() && !metadataSource.equals(MLIP_METADATA_SOURCE, ignoreCase = true)
 
 private data class MlipExternalIds(
     val bangumiId: Int? = null,

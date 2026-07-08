@@ -9,6 +9,7 @@ import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MetadataBatchMatch
 import com.miruplay.tv.repository.MetadataRepository
+import com.miruplay.tv.repository.localMetadataOverrideKey
 import com.miruplay.tv.scraper.EpisodeMetadata
 import com.miruplay.tv.scraper.MetadataScraper
 import kotlinx.coroutines.runBlocking
@@ -129,11 +130,23 @@ class BangumiIndexMetadataCoordinatorTest {
     }
 
     @Test
-    fun `applyEntryMetadata updates index and caches Bangumi details`() = runBlocking {
-        val entry = mediaEntry(path = "D:/Anime/Frieren/01.mkv", animeName = "Frieren", episodeNumber = 1)
+    fun `applyEntryMetadata updates related index entries and caches Bangumi details`() = runBlocking {
+        val entry = mediaEntry(
+            path = "D:/Anime/Frieren/01.mkv",
+            animeName = "Frieren",
+            metadataId = "mlip:1:series-uuid",
+            metadataSource = "MLIP",
+            episodeNumber = 1,
+        )
         val related = listOf(
             entry,
-            mediaEntry(path = "D:/Anime/Frieren/02.mkv", animeName = "Frieren", episodeNumber = 2),
+            mediaEntry(
+                path = "D:/Anime/Frieren/02.mkv",
+                animeName = "Frieren",
+                metadataId = "mlip:1:series-uuid",
+                metadataSource = "MLIP",
+                episodeNumber = 2,
+            ),
         )
         val index = FakeMediaIndexRepository(entries = mutableListOf(entry))
         val metadata = FakeMetadataRepository()
@@ -155,8 +168,10 @@ class BangumiIndexMetadataCoordinatorTest {
 
         assertNotNull(applied.data.updatedEntry)
         assertEquals("已将 Bangumi 元数据应用到 D:/Anime/Frieren/01.mkv。", applied.data.status)
-        assertEquals("431767", index.entries.single().metadataId)
+        assertEquals(listOf("431767", "431767"), index.entries.sortedBy { it.path }.map { it.metadataId })
+        assertEquals(listOf("mlip:1:series-uuid", "mlip:1:series-uuid"), index.entries.sortedBy { it.path }.map { it.localMetadataOverrideKey() })
         assertEquals("431767", metadata.anime?.id)
+        assertEquals(listOf("1:D:/Anime/Frieren/01.mkv", "1:D:/Anime/Frieren/02.mkv"), metadata.episodes.map { it.id })
         assertEquals(listOf("Start", "Magic"), metadata.episodes.map { it.title })
     }
 
@@ -323,6 +338,7 @@ class BangumiIndexMetadataCoordinatorTest {
         animeName: String? = null,
         metadataTitle: String? = null,
         metadataId: String? = null,
+        metadataSource: String? = null,
         episodeNumber: Int? = null,
     ): MediaIndexEntry =
         MediaIndexEntry(
@@ -331,6 +347,7 @@ class BangumiIndexMetadataCoordinatorTest {
             animeName = animeName,
             metadataTitle = metadataTitle,
             metadataId = metadataId,
+            metadataSource = metadataSource,
             seasonNumber = 1,
             episodeNumber = episodeNumber,
         )
