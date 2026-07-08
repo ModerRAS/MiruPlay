@@ -90,7 +90,16 @@ class LogUploadRepositoryImpl @Inject constructor(
 
             when (result) {
                 is OtlpLogUploader.UploadResult.Success -> {
-                    localLogStore.removeUploaded(records.map { it.id }.toSet())
+                    try {
+                        localLogStore.removeUploaded(records.map { it.id }.toSet())
+                    } catch (error: Exception) {
+                        val message = if (uploadedCount > 0) {
+                            "已上报 $uploadedCount 条日志，本地队列清理失败：${error.message.orEmpty()}"
+                        } else {
+                            "本地队列清理失败：${error.message.orEmpty()}"
+                        }
+                        return@withContext updateStatus(message)
+                    }
                     uploadedCount += result.uploadedCount
                 }
                 is OtlpLogUploader.UploadResult.Failed -> {

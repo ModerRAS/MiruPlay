@@ -78,6 +78,22 @@ class LogUploadRepositoryImplTest {
     }
 
     @Test
+    fun `upload pending logs drains oversized local queue`() = runBlocking {
+        val attributes = mapOf("payload" to "x".repeat(4_096))
+        repeat(650) { index -> localLogStore.log(logRecord(index, attributes = attributes)) }
+        repeat(4) { server.enqueue(MockResponse().setResponseCode(200).setBody("{}")) }
+        repository.saveConfig(enabled = true, endpoint = server.url("/api/acme").toString(), streamName = "default")
+        repository.saveToken("user:password")
+
+        val status = repository.uploadPendingLogs()
+
+        assertEquals(0, status.pendingCount)
+        assertEquals("已上报 650 条日志", status.lastUploadStatus)
+        assertEquals(0, localLogStore.pendingCount())
+        assertRequestPayloadSizes(200, 200, 200, 50)
+    }
+
+    @Test
     fun `local logs remain viewable after upload drains pending queue`() = runBlocking {
         repeat(3) { index -> localLogStore.log(logRecord(index)) }
         server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
@@ -164,13 +180,17 @@ class LogUploadRepositoryImplTest {
         assertEquals(sizes.size, server.requestCount)
     }
 
-    private fun logRecord(index: Int): MiruLogRecord =
+    private fun logRecord(
+        index: Int,
+        attributes: Map<String, String> = emptyMap(),
+    ): MiruLogRecord =
         MiruLogRecord(
             id = "record-$index",
             timestampMs = 1_700_000_000_000L + index,
             level = MiruLogLevel.INFO,
             tag = "Test",
-            message = "message $index"
+            message = "message $index",
+            attributes = attributes,
         )
 
     private class FakeCredentialStore : AppCredentialStore {
