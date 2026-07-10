@@ -95,7 +95,7 @@ class DetailUiConventionsTest {
         )
 
         assertEquals(
-            listOf("Dr STONE 新石纪 第四季"),
+            listOf("Dr STONE 新石纪 第四季", "Dr STONE 新石纪"),
             detailBangumiManualCandidateTerms(anime, episodes),
         )
     }

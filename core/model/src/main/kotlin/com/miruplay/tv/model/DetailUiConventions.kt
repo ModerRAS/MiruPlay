@@ -229,6 +229,7 @@ fun detailBangumiManualCandidateTerms(
         }
     }
         .mapNotNull { it?.detailBangumiNormalizedCandidate() }
+        .flatMap { listOfNotNull(it, it.detailBangumiSeasonlessCandidate()) }
         .filter { it.isNotBlank() }
         .distinctBy { it.lowercase() }
         .take(limit.coerceAtLeast(1))
@@ -316,4 +317,13 @@ private fun String.detailBangumiNormalizedCandidate(): String? {
         .replace(Regex("""\s+"""), " ")
         .trim(' ', '-', '_', '.', '·')
     return normalized.takeIf { it.length >= 2 }
+}
+
+private fun String.detailBangumiSeasonlessCandidate(): String? {
+    val seasonless = replace(Regex("""(?i)\bseason\s*\d+\b"""), " ")
+        .replace(Regex("""(?i)\bs\s*\d+\b"""), " ")
+        .replace(Regex("""第\s*[一二三四五六七八九十\d]+\s*[季期]"""), " ")
+        .replace(Regex("""\s+"""), " ")
+        .trim()
+    return seasonless.takeIf { it.length >= 2 && !it.equals(this, ignoreCase = true) }
 }

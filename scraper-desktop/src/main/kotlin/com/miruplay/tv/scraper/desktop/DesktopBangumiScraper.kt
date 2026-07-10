@@ -12,6 +12,7 @@ import com.miruplay.tv.repository.BangumiSubjectCollectionType
 import com.miruplay.tv.repository.BangumiUser
 import com.miruplay.tv.scraper.MetadataScraper
 import com.miruplay.tv.scraper.core.BangumiApiClient
+import com.miruplay.tv.scraper.core.BangumiHttpProxyConfig
 import com.miruplay.tv.scraper.core.searchByAlias
 import com.ibm.icu.text.Transliterator
 import okhttp3.HttpUrl
@@ -41,6 +42,10 @@ class DesktopBangumiScraper internal constructor(
         get() = api.hasToken
 
     override val sourceName: String = "Bangumi"
+
+    fun configureProxy(enabled: Boolean, host: String, port: Int) {
+        api.configureProxy(BangumiHttpProxyConfig.normalize(enabled, host, port))
+    }
 
     override suspend fun searchAnime(query: String): Result<List<ScraperResult>> =
         api.searchAnime(query)

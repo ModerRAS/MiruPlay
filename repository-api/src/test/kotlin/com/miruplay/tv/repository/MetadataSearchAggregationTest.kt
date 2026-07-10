@@ -4,6 +4,7 @@ import com.miruplay.tv.model.MediaContentMode
 import com.miruplay.tv.model.MatchRecommendation
 import com.miruplay.tv.model.MetadataProviderRef
 import com.miruplay.tv.model.MetadataSearchContext
+import com.miruplay.tv.model.MetadataSearchIntent
 import com.miruplay.tv.model.MetadataSearchProviderCandidate
 import com.miruplay.tv.model.ScraperSource
 import com.miruplay.tv.model.displayTitle
@@ -41,6 +42,19 @@ class MetadataSearchAggregationTest {
             plan.providerRefHints,
         )
         assertTrue(plan.queryTexts.none { it.contains(":") })
+    }
+
+    @Test
+    fun `manual match planner only searches explicit UI keywords`() {
+        val plan = MetadataQueryPlanner.plan(
+            MetadataSearchContext(
+                contentMode = MediaContentMode.ANIME,
+                intent = MetadataSearchIntent.MANUAL_MATCH,
+                aliases = listOf("Dr STONE 新石纪 第四季", "Dr STONE 新石纪"),
+            ),
+        )
+
+        assertEquals(listOf("Dr STONE 新石纪 第四季", "Dr STONE 新石纪"), plan.queryTexts)
     }
 
     @Test
