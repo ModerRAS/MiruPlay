@@ -7,6 +7,7 @@ import com.miruplay.tv.model.DramaSeriesMetadata
 import com.miruplay.tv.model.MetadataProviderRef
 import com.miruplay.tv.model.MetadataQueryPlan
 import com.miruplay.tv.model.MetadataSearchContext
+import com.miruplay.tv.model.MetadataSearchIntent
 import com.miruplay.tv.model.MetadataSearchProviderCandidate
 import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.repository.AnimeMetadataSearchAggregator
@@ -23,24 +24,26 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class BangumiAnimeMetadataSearchProvider @Inject constructor(
-    private val scraper: BangumiScraper,
+class BangumiAnimeMetadataSearchProvider(
+    private val scraper: MetadataScraper,
+    private val manualSearch: ManualMetadataSearchScraper,
 ) : AnimeMetadataSearchProvider {
+    @Inject constructor(scraper: BangumiScraper) : this(scraper, scraper)
+
     override val sourceName: String = scraper.sourceName
     override val priority: Float = 1.06f
 
     override suspend fun search(
         context: MetadataSearchContext,
         plan: MetadataQueryPlan,
-    ): List<MetadataSearchProviderCandidate> {
-        val manualSearch = scraper as ManualMetadataSearchScraper
-        return hintedCandidatesForAnimeProvider(scraper, sourceName, plan) +
+    ): List<MetadataSearchProviderCandidate> =
+        hintedCandidatesForAnimeProvider(scraper, sourceName, plan) +
             searchScraperResults(
                 scraper = scraper,
                 plan = plan,
                 directSearch = { query -> manualSearch.searchManualAnime(query) },
+                allowAliasFallback = context.intent != MetadataSearchIntent.MANUAL_MATCH,
             )
-    }
 }
 
 @Singleton
@@ -59,6 +62,7 @@ class AniListAnimeMetadataSearchProvider @Inject constructor(
                 scraper = scraper,
                 plan = plan,
                 directSearch = scraper::searchAnime,
+                allowAliasFallback = context.intent != MetadataSearchIntent.MANUAL_MATCH,
             )
 }
 
@@ -183,10 +187,11 @@ private suspend fun searchScraperResults(
     scraper: MetadataScraper,
     plan: MetadataQueryPlan,
     directSearch: suspend (String) -> Result<List<ScraperResult>>,
+    allowAliasFallback: Boolean = true,
 ): List<MetadataSearchProviderCandidate> {
     val candidates = mutableListOf<MetadataSearchProviderCandidate>()
     plan.queryTexts.forEach { query ->
-        when (val result = scraper.searchPreferredWith(directSearch, query, plan.queryTexts)) {
+        when (val result = scraper.searchPreferredWith(directSearch, query, plan.queryTexts, allowAliasFallback)) {
             is Result.Error -> Unit
             is Result.Success -> {
                 result.data.forEachIndexed { index, item ->
@@ -212,11 +217,12 @@ private suspend fun MetadataScraper.searchPreferredWith(
     directSearch: suspend (String) -> Result<List<ScraperResult>>,
     query: String,
     candidates: List<String>,
+    allowAliasFallback: Boolean,
 ): Result<List<ScraperResult>> =
     when (val directResults = directSearch(query)) {
         is Result.Error -> directResults
         is Result.Success -> {
-            val aliasMatch = if ((directResults.data.firstOrNull()?.confidence ?: 0f) < METADATA_ALIAS_CONFIDENCE_THRESHOLD) {
+            val aliasMatch = if (allowAliasFallback && (directResults.data.firstOrNull()?.confidence ?: 0f) < METADATA_ALIAS_CONFIDENCE_THRESHOLD) {
                 searchByAlias(
                     normalizedName = "",
                     candidates = candidates.excludeQuery(query),

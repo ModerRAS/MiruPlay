@@ -8,6 +8,7 @@ import com.miruplay.tv.model.MediaContentMode
 import com.miruplay.tv.model.MetadataProviderRef
 import com.miruplay.tv.model.MetadataQueryPlan
 import com.miruplay.tv.model.MetadataSearchContext
+import com.miruplay.tv.model.MetadataSearchIntent
 import com.miruplay.tv.model.MetadataSearchProviderCandidate
 import com.miruplay.tv.model.MetadataSearchQuery
 import com.miruplay.tv.model.ScraperResult
@@ -72,22 +73,23 @@ object MetadataQueryPlanner {
             addQuery(variant, reason)
         }
 
+        val expandSeasonless = context.intent != MetadataSearchIntent.MANUAL_MATCH
         context.boundProviderRef?.let { ref ->
             providerRefHints.putIfAbsent("${ref.source.lowercase()}:${ref.id}", ref)
         }
         addQuery(context.manualQuery, "manual")
-        addSeasonlessVariant(context.manualQuery, "manual-seasonless")
+        if (expandSeasonless) addSeasonlessVariant(context.manualQuery, "manual-seasonless")
         addQuery(context.title, "title")
-        addSeasonlessVariant(context.title, "title-seasonless")
+        if (expandSeasonless) addSeasonlessVariant(context.title, "title-seasonless")
         addQuery(context.localizedTitle, "localized")
         addQuery(context.originalTitle, "original")
-        addSeasonlessVariant(context.originalTitle, "original-seasonless")
+        if (expandSeasonless) addSeasonlessVariant(context.originalTitle, "original-seasonless")
         context.aliases.forEach { alias ->
             addQuery(alias, "alias")
-            addSeasonlessVariant(alias, "alias-seasonless")
+            if (expandSeasonless) addSeasonlessVariant(alias, "alias-seasonless")
         }
         addQuery(context.metadataTitle, "cached-metadata")
-        addSeasonlessVariant(context.metadataTitle, "cached-metadata-seasonless")
+        if (expandSeasonless) addSeasonlessVariant(context.metadataTitle, "cached-metadata-seasonless")
         context.filePathSamples
             .flatMap(::metadataDerivePathQueries)
             .forEach { addQuery(it, "path") }

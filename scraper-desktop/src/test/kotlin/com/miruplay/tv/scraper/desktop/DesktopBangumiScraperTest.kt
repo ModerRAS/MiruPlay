@@ -19,6 +19,38 @@ class DesktopBangumiScraperTest {
     }
 
     @Test
+    fun `desktop wrapper uses configured HTTP proxy`() = runBlocking {
+        MockWebServer().use { proxy ->
+            proxy.enqueue(
+                MockResponse().setBody(
+                    """
+                    {
+                      "data": [
+                        {
+                          "id": 431767,
+                          "name": "葬送のフリーレン",
+                          "name_cn": "葬送的芙莉莲",
+                          "rating": { "score": 8.8 }
+                        }
+                      ]
+                    }
+                    """.trimIndent()
+                )
+            )
+            val scraper = DesktopBangumiScraper(baseUrl = "http://api.bgm.tv")
+            scraper.configureProxy(enabled = true, host = proxy.hostName, port = proxy.port)
+
+            val result = scraper.searchAnime("葬送的芙莉莲")
+
+            assertTrue(result is Result.Success)
+            assertEquals("431767", (result as Result.Success).data.single().animeId)
+            val request = proxy.takeRequest()
+            assertEquals("api.bgm.tv", request.headers["Host"])
+            assertTrue(request.requestLine.contains("/v0/search/subjects"))
+        }
+    }
+
+    @Test
     fun `desktop wrapper delegates search to shared Bangumi client`() = runBlocking {
         MockWebServer().use { server ->
             server.enqueue(

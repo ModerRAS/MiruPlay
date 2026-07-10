@@ -888,6 +888,11 @@ internal fun MiruPlayDesktopComposeApp(
                 rssProxyEnabled = config.data.rssProxyEnabled
                 rssProxyHost = config.data.rssProxyHost
                 rssProxyPort = config.data.rssProxyPort.toString()
+                bangumiScraper.configureProxy(
+                    config.data.rssProxyEnabled,
+                    config.data.rssProxyHost,
+                    config.data.rssProxyPort,
+                )
                 cloudRssScheduler.syncPeriodicWork(config.data)
             }
             is Result.Error -> cloudRssStatus = config.error.toUserMessage()
@@ -940,6 +945,11 @@ internal fun MiruPlayDesktopComposeApp(
                 rssProxyEnabled = config.rssProxyEnabled
                 rssProxyHost = config.rssProxyHost
                 rssProxyPort = config.rssProxyPort.toString()
+                bangumiScraper.configureProxy(
+                    config.rssProxyEnabled,
+                    config.rssProxyHost,
+                    config.rssProxyPort,
+                )
                 cloudRssScheduler.syncPeriodicWork(config)
             }
     }
@@ -1359,6 +1369,11 @@ internal fun MiruPlayDesktopComposeApp(
             is CloudDriveConfigActionResult.Saved -> {
                 cloudIntervalMinutes = interval.toString()
                 rssProxyPort = proxyPort.toString()
+                bangumiScraper.configureProxy(
+                    result.config.rssProxyEnabled,
+                    result.config.rssProxyHost,
+                    result.config.rssProxyPort,
+                )
                 cloudRssScheduler.syncPeriodicWork(result.config)
                 cloudRssStatus = result.status
                 result
@@ -1479,6 +1494,11 @@ internal fun MiruPlayDesktopComposeApp(
             onConfigSaved = { saved ->
                 cloudIntervalMinutes = interval.toString()
                 rssProxyPort = proxyPort.toString()
+                bangumiScraper.configureProxy(
+                    saved.config.rssProxyEnabled,
+                    saved.config.rssProxyHost,
+                    saved.config.rssProxyPort,
+                )
                 cloudRssScheduler.syncPeriodicWork(saved.config)
                 cloudRssStatus = saved.status
             },
