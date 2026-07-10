@@ -236,7 +236,7 @@ class MlipLibraryIndexImporterTest {
             assertEquals("Original Title", anime.title)
             assertEquals("中文标题", anime.titleCn)
             assertEquals("简介", anime.summary)
-            assertEquals("2024", anime.airDate)
+            assertEquals("2024-04-03", anime.airDate)
             assertEquals(listOf("科幻"), anime.genres)
             assertEquals(431767, anime.bangumiId)
             assertEquals(98765, anime.tmdbId)
@@ -253,6 +253,28 @@ class MlipLibraryIndexImporterTest {
         } finally {
             databaseFile.delete()
             posterCacheDirectory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `legacy mlip database falls back to release year`() = runBlocking {
+        val databaseFile = File.createTempFile("mlip-test-", ".db")
+        val source = mlipSource()
+        val metadataRepository = RecordingMetadataRepository()
+        val mediaSource = FakeMediaSource(
+            info = source,
+            streams = mapOf("library.db" to { databaseFile.inputStream() }),
+        )
+        try {
+            createMlipDatabase(databaseFile, includeReleaseDate = false)
+
+            val result = MlipLibraryIndexImporter(RecordingIndexRepository(), metadataRepository)
+                .importLibrary(source, mediaSource)
+
+            assertTrue(result.isSuccess())
+            assertEquals("2024", metadataRepository.anime.single().airDate)
+        } finally {
+            databaseFile.delete()
         }
     }
 
@@ -284,6 +306,7 @@ class MlipLibraryIndexImporterTest {
         file: File,
         userVersion: Int = 1,
         includeRequiredTables: Boolean = true,
+        includeReleaseDate: Boolean = true,
         mediaPath: String = "Series/01.mkv",
     ) {
         file.delete()
@@ -303,6 +326,10 @@ class MlipLibraryIndexImporterTest {
             database.execSQL("CREATE TABLE series_external_id (series_id INTEGER NOT NULL, provider INTEGER NOT NULL, value TEXT NOT NULL)")
             database.execSQL("CREATE TABLE episode_external_id (episode_id INTEGER NOT NULL, provider INTEGER NOT NULL, value TEXT NOT NULL)")
             database.execSQL("CREATE TABLE capability (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+            if (includeReleaseDate) {
+                database.execSQL("CREATE TABLE series_release_date (series_id INTEGER PRIMARY KEY, air_date TEXT NOT NULL)")
+                database.execSQL("INSERT INTO series_release_date (series_id, air_date) VALUES (1, '2024-04-03')")
+            }
             database.execSQL("INSERT INTO series (id, uuid, title, original_title, summary, year, series_type) VALUES (1, 'series-uuid', '中文标题', 'Original Title', '简介', 2024, 1)")
             database.execSQL("INSERT INTO episode (id, uuid, series_id, season, episode, sort_order, title, summary, runtime) VALUES (10, 'episode-uuid-1', 1, 1, 1.0, 1.0, '第 1 集', '', 1440)")
             database.execSQL("INSERT INTO episode (id, uuid, series_id, season, episode, sort_order, title, summary, runtime) VALUES (11, 'episode-uuid-1-5', 1, 1, 1.5, 1.5, '第 1.5 集', '', 1440)")

@@ -169,8 +169,15 @@ class MlipLibraryIndexImporter @Inject constructor(
     private fun readSnapshot(database: SQLiteDatabase, sourceId: Long): MlipSnapshot {
         val genresBySeriesId = database.readGenresBySeriesId()
         val externalIdsBySeriesId = database.readExternalIdsBySeriesId()
+        val releaseDatesBySeriesId = database.readReleaseDatesBySeriesId()
         val posterBySeriesId = database.readPosterBySeriesId()
-        val seriesById = database.readSeries(sourceId, genresBySeriesId, externalIdsBySeriesId, posterBySeriesId)
+        val seriesById = database.readSeries(
+            sourceId,
+            genresBySeriesId,
+            externalIdsBySeriesId,
+            releaseDatesBySeriesId,
+            posterBySeriesId,
+        )
         val mediaFiles = mutableListOf<MlipMediaFile>()
         var skippedFiles = 0
         var nonIntegerEpisodes = 0
@@ -264,6 +271,7 @@ class MlipLibraryIndexImporter @Inject constructor(
         sourceId: Long,
         genresBySeriesId: Map<Long, List<String>>,
         externalIdsBySeriesId: Map<Long, MlipExternalIds>,
+        releaseDatesBySeriesId: Map<Long, String>,
         posterBySeriesId: Map<Long, String>,
     ): Map<Long, MlipSeries> {
         val result = linkedMapOf<Long, MlipSeries>()
@@ -288,7 +296,8 @@ class MlipLibraryIndexImporter @Inject constructor(
                     titleCn = title.takeIf { originalTitle != null && it != originalTitle },
                     summary = cursor.stringOrNull("summary").orEmpty(),
                     genres = genresBySeriesId[id].orEmpty(),
-                    airDate = cursor.intOrNull("year")?.takeIf { it > 0 }?.toString(),
+                    airDate = releaseDatesBySeriesId[id]
+                        ?: cursor.intOrNull("year")?.takeIf { it > 0 }?.toString(),
                     bangumiId = externalIds.bangumiId,
                     tmdbId = externalIds.tmdbId,
                 )
@@ -298,6 +307,21 @@ class MlipLibraryIndexImporter @Inject constructor(
                     anime = anime,
                     posterPath = posterBySeriesId[id],
                 )
+            }
+        }
+        return result
+    }
+
+    private fun SQLiteDatabase.readReleaseDatesBySeriesId(): Map<Long, String> {
+        if ("series_release_date" !in tableNames()) return emptyMap()
+        val result = mutableMapOf<Long, String>()
+        rawQuery(
+            "SELECT series_id, air_date FROM series_release_date",
+            emptyArray(),
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                val airDate = cursor.string("air_date").trim()
+                if (airDate.isNotEmpty()) result[cursor.long("series_id")] = airDate
             }
         }
         return result
