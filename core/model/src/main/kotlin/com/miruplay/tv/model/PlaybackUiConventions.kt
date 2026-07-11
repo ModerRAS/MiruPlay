@@ -230,7 +230,7 @@ fun pictureSettingsDescriptionLabel(): String =
     "按 SDR、HDR10、HDR10+ 和 Dolby Vision 分别配置默认画面规则。"
 
 fun pictureOsdMenuTitleLabel(): String =
-    "Picture"
+    "画面"
 
 fun pictureSaveDefaultForFormatLabel(): String =
     "保存为该格式默认"

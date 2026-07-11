@@ -3,10 +3,7 @@ package com.miruplay.tv.ui.player
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
-import com.miruplay.tv.model.PlaybackRenderBackend
 import com.miruplay.tv.model.ToneMappingProfilePreset
-import com.miruplay.tv.model.defaultToneMappingRuleSet
-import com.miruplay.tv.model.VideoRenderRuleKey
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -26,24 +23,16 @@ class PlayerOptionsPanelFocusTest {
                 menu = PlayerMenu.Picture,
                 subtitles = emptyList(),
                 audioTracks = emptyList(),
+                selectedSubtitleTrackIndex = null,
+                selectedAudioTrackIndex = null,
                 playbackSpeed = 1.0f,
-                signalFormatLabel = "HDR10",
-                activeBackend = PlaybackRenderBackend.EXPERIMENTAL_LIBVLC,
-                requestedBackend = PlaybackRenderBackend.EXPERIMENTAL_LIBVLC,
-                fallbackReason = null,
                 currentPicturePreset = ToneMappingProfilePreset.BALANCED,
-                currentToneMappingRuleSet = defaultToneMappingRuleSet(VideoRenderRuleKey.HDR10),
                 onSelectSubtitle = {},
                 onSelectAudioTrack = {},
                 onSelectSpeed = {},
                 onSelectPicturePreset = {},
                 onSavePictureDefault = {},
                 onResetPictureSession = {},
-                onAdjustTargetSdrNits = {},
-                onAdjustContrastRecovery = {},
-                onAdjustSaturationRecovery = {},
-                onAdjustHighlightCompression = {},
-                onSelectBackend = {},
             )
         }
 

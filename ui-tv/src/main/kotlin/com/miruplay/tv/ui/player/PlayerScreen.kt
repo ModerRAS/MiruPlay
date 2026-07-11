@@ -3,10 +3,12 @@ package com.miruplay.tv.ui.player
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import android.os.SystemClock
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.WindowManager
 import android.widget.FrameLayout
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -75,6 +77,7 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -104,16 +107,16 @@ import com.miruplay.tv.model.formatPlaybackPosition
 import com.miruplay.tv.model.pictureOsdMenuTitleLabel
 import com.miruplay.tv.model.pictureSaveDefaultForFormatLabel
 import com.miruplay.tv.model.pictureSessionOverrideLabel
-import com.miruplay.tv.model.playbackBackendLabel
 import com.miruplay.tv.model.playbackAudioMenuTitle
 import com.miruplay.tv.model.playbackAudioOptionLabel
 import com.miruplay.tv.model.playbackAudioTrackCountLabel
 import com.miruplay.tv.model.playbackBackLabel
+import com.miruplay.tv.model.playbackBackToDetailsLabel
 import com.miruplay.tv.model.playbackErrorTitle
 import com.miruplay.tv.model.playbackLocalSourceLabel
 import com.miruplay.tv.model.playbackPauseLabel
 import com.miruplay.tv.model.playbackPlayLabel
-import com.miruplay.tv.model.playbackConfirmExitLabel
+import com.miruplay.tv.model.playbackRetryLabel
 import com.miruplay.tv.model.playbackSeekBackLabel
 import com.miruplay.tv.model.playbackSeekForwardLabel
 import com.miruplay.tv.model.playbackSpeedChipLabel
@@ -145,6 +148,7 @@ import kotlinx.coroutines.delay
 
 private const val STANDARD_DEBUG_CAPTURE_MIN_POSITION_MS = 5_000L
 private const val STANDARD_DEBUG_CAPTURE_RETRY_INTERVAL_MS = 1_500L
+private const val PLAYER_EXIT_CONFIRMATION_WINDOW_MS = 2_000L
 
 @OptIn(ExperimentalTvMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -189,6 +193,8 @@ private fun PlayerScreenContent(
     val controlsInteractionToken by viewModel.controlsInteractionToken.collectAsStateWithLifecycle()
     val availableSubtitles by viewModel.availableSubtitles.collectAsStateWithLifecycle()
     val availableAudioTracks by viewModel.availableAudioTracks.collectAsStateWithLifecycle()
+    val selectedSubtitleTrackIndex by viewModel.selectedSubtitleTrackIndex.collectAsStateWithLifecycle()
+    val selectedAudioTrackIndex by viewModel.selectedAudioTrackIndex.collectAsStateWithLifecycle()
     val playbackSpeed by viewModel.playbackSpeed.collectAsStateWithLifecycle()
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
     val displayTitle by viewModel.displayTitle.collectAsStateWithLifecycle()
@@ -260,7 +266,9 @@ private fun PlayerScreenContent(
             preferDedicatedGlSurface = preferDedicatedExperimentalSurface,
         )
     }
+    val context = LocalContext.current
     var openMenu by remember { mutableStateOf<PlayerMenu?>(null) }
+    var exitConfirmationStartedAt by remember(playbackSource) { mutableStateOf(0L) }
     var playerViewRef by remember { mutableStateOf<PlayerView?>(null) }
     var lastStandardDebugCaptureAttempt by remember(playbackSource) {
         mutableStateOf<StandardDebugCaptureAttempt?>(null)
@@ -274,6 +282,16 @@ private fun PlayerScreenContent(
     val navigateBack = remember(onNavigateBack, screenOwnerToken) {
         {
             viewModel.saveCurrentProgressAndNavigate(screenOwnerToken, onNavigateBack)
+        }
+    }
+    val requestExit = {
+        val now = SystemClock.elapsedRealtime()
+        if (isConfirmedPlayerExit(exitConfirmationStartedAt, now)) {
+            exitConfirmationStartedAt = 0L
+            navigateBack()
+        } else {
+            exitConfirmationStartedAt = now
+            Toast.makeText(context, "再按一次返回键退出播放", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -304,6 +322,9 @@ private fun PlayerScreenContent(
     }
 
     LaunchedEffect(controlsVisible, controlsInteractionToken, playbackState, openMenu) {
+        if (controlsVisible || openMenu != null) {
+            exitConfirmationStartedAt = 0L
+        }
         if (controlsVisible && openMenu == null && playbackState is PlaybackState.Playing) {
             delay(4200)
             viewModel.hideControls()
@@ -404,7 +425,7 @@ private fun PlayerScreenContent(
                         openMenu = null
                         viewModel.hideControls()
                     },
-                    onNavigateBack = navigateBack
+                    onNavigateBack = requestExit
                 )
             }
             .pointerInput(Unit) {
@@ -530,13 +551,6 @@ private fun PlayerScreenContent(
             }
         }
 
-        if (errorMessage != null) {
-            ErrorOverlay(
-                message = errorMessage!!,
-                onExit = onNavigateBack
-            )
-        }
-
         AnimatedVisibility(
             visible = controlsVisible,
             enter = fadeIn(),
@@ -550,13 +564,11 @@ private fun PlayerScreenContent(
                 duration = duration,
                 subtitles = availableSubtitles,
                 audioTracks = availableAudioTracks,
+                selectedSubtitleTrackIndex = selectedSubtitleTrackIndex,
+                selectedAudioTrackIndex = selectedAudioTrackIndex,
                 playbackSpeed = playbackSpeed,
                 signalFormatLabel = currentVideoSignalDescriptor?.displayLabel().orEmpty(),
-                activeBackend = currentActiveBackend,
-                requestedBackend = currentRequestedBackend,
-                fallbackReason = fallbackReason,
                 currentPicturePreset = viewModel.currentToneMappingPreset(),
-                currentToneMappingRuleSet = currentToneMappingRuleSet,
                 onBack = navigateBack,
                 onTogglePlayback = {
                     viewModel.togglePlayback()
@@ -594,28 +606,16 @@ private fun PlayerScreenContent(
                     viewModel.resetCurrentToneMappingToDefault()
                     viewModel.showControls()
                 },
-                onAdjustTargetSdrNits = { delta ->
-                    viewModel.adjustCurrentToneMappingTargetSdrNits(delta)
-                    viewModel.showControls()
-                },
-                onAdjustContrastRecovery = { delta ->
-                    viewModel.adjustCurrentToneMappingContrastRecovery(delta)
-                    viewModel.showControls()
-                },
-                onAdjustSaturationRecovery = { delta ->
-                    viewModel.adjustCurrentToneMappingSaturationRecovery(delta)
-                    viewModel.showControls()
-                },
-                onAdjustHighlightCompression = { delta ->
-                    viewModel.adjustCurrentToneMappingHighlightCompression(delta)
-                    viewModel.showControls()
-                },
-                onSelectBackend = { backend ->
-                    viewModel.setToneMappingBackendForSession(backend)
-                    viewModel.showControls()
-                },
                 openMenu = openMenu,
                 onOpenMenuChange = { openMenu = it }
+            )
+        }
+
+        if (errorMessage != null) {
+            ErrorOverlay(
+                message = errorMessage!!,
+                onRetry = viewModel::retry,
+                onExit = navigateBack,
             )
         }
     }
@@ -712,13 +712,11 @@ private fun PlayerChrome(
     duration: Long,
     subtitles: List<SubtitleTrack>,
     audioTracks: List<AudioTrack>,
+    selectedSubtitleTrackIndex: Int?,
+    selectedAudioTrackIndex: Int?,
     playbackSpeed: Float,
     signalFormatLabel: String,
-    activeBackend: PlaybackRenderBackend,
-    requestedBackend: PlaybackRenderBackend,
-    fallbackReason: String?,
     currentPicturePreset: ToneMappingProfilePreset,
-    currentToneMappingRuleSet: ToneMappingRuleSet,
     onBack: () -> Unit,
     onTogglePlayback: () -> Unit,
     onSkipBackward: () -> Unit,
@@ -729,11 +727,6 @@ private fun PlayerChrome(
     onSelectPicturePreset: (ToneMappingProfilePreset) -> Unit,
     onSavePictureDefault: () -> Unit,
     onResetPictureSession: () -> Unit,
-    onAdjustTargetSdrNits: (Int) -> Unit,
-    onAdjustContrastRecovery: (Int) -> Unit,
-    onAdjustSaturationRecovery: (Int) -> Unit,
-    onAdjustHighlightCompression: (Int) -> Unit,
-    onSelectBackend: (PlaybackRenderBackend?) -> Unit,
     openMenu: PlayerMenu?,
     onOpenMenuChange: (PlayerMenu?) -> Unit
 ) {
@@ -771,24 +764,16 @@ private fun PlayerChrome(
                 menu = openMenu!!,
                 subtitles = subtitles,
                 audioTracks = audioTracks,
+                selectedSubtitleTrackIndex = selectedSubtitleTrackIndex,
+                selectedAudioTrackIndex = selectedAudioTrackIndex,
                 playbackSpeed = playbackSpeed,
-                signalFormatLabel = signalFormatLabel,
-                activeBackend = activeBackend,
-                requestedBackend = requestedBackend,
-                fallbackReason = fallbackReason,
                 currentPicturePreset = currentPicturePreset,
-                currentToneMappingRuleSet = currentToneMappingRuleSet,
                 onSelectSubtitle = onSelectSubtitle,
                 onSelectAudioTrack = onSelectAudioTrack,
                 onSelectSpeed = onSelectSpeed,
                 onSelectPicturePreset = onSelectPicturePreset,
                 onSavePictureDefault = onSavePictureDefault,
                 onResetPictureSession = onResetPictureSession,
-                onAdjustTargetSdrNits = onAdjustTargetSdrNits,
-                onAdjustContrastRecovery = onAdjustContrastRecovery,
-                onAdjustSaturationRecovery = onAdjustSaturationRecovery,
-                onAdjustHighlightCompression = onAdjustHighlightCompression,
-                onSelectBackend = onSelectBackend,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(start = 52.dp, end = 52.dp, bottom = 164.dp)
@@ -800,6 +785,8 @@ private fun PlayerChrome(
             duration = duration,
             subtitles = subtitles,
             audioTracks = audioTracks,
+            selectedSubtitleTrackIndex = selectedSubtitleTrackIndex,
+            selectedAudioTrackIndex = selectedAudioTrackIndex,
             playbackSpeed = playbackSpeed,
             signalFormatLabel = signalFormatLabel,
             openMenu = openMenu,
@@ -905,6 +892,8 @@ private fun PlayerBottomBar(
     duration: Long,
     subtitles: List<SubtitleTrack>,
     audioTracks: List<AudioTrack>,
+    selectedSubtitleTrackIndex: Int?,
+    selectedAudioTrackIndex: Int?,
     playbackSpeed: Float,
     signalFormatLabel: String,
     openMenu: PlayerMenu?,
@@ -957,14 +946,22 @@ private fun PlayerBottomBar(
             )
             PlayerActionChip(
                 icon = Icons.Filled.Subtitles,
-                text = playbackSubtitleCountLabel(subtitles.size),
+                text = selectedSubtitleTrackIndex
+                    ?.let { index -> subtitles.getOrNull(index)?.let { playbackSubtitleOptionLabel(it, index) } }
+                    ?: playbackSubtitleCountLabel(subtitles.size),
                 selected = openMenu == PlayerMenu.Subtitles,
                 enabled = subtitles.isNotEmpty(),
                 onClick = { onOpenMenu(PlayerMenu.Subtitles) }
             )
             PlayerActionChip(
                 icon = Icons.Filled.Audiotrack,
-                text = playbackAudioTrackCountLabel(audioTracks.size),
+                text = selectedAudioTrackIndex
+                    ?.let { index ->
+                        audioTracks.getOrNull(index)?.let {
+                            playbackAudioOptionLabel(it.title, it.language, index)
+                        }
+                    }
+                    ?: playbackAudioTrackCountLabel(audioTracks.size),
                 selected = openMenu == PlayerMenu.Audio,
                 enabled = audioTracks.isNotEmpty(),
                 onClick = { onOpenMenu(PlayerMenu.Audio) }
@@ -1160,24 +1157,16 @@ internal fun PlayerOptionsPanel(
     menu: PlayerMenu,
     subtitles: List<SubtitleTrack>,
     audioTracks: List<AudioTrack>,
+    selectedSubtitleTrackIndex: Int?,
+    selectedAudioTrackIndex: Int?,
     playbackSpeed: Float,
-    signalFormatLabel: String,
-    activeBackend: PlaybackRenderBackend,
-    requestedBackend: PlaybackRenderBackend,
-    fallbackReason: String?,
     currentPicturePreset: ToneMappingProfilePreset,
-    currentToneMappingRuleSet: ToneMappingRuleSet,
     onSelectSubtitle: (Int) -> Unit,
     onSelectAudioTrack: (Int) -> Unit,
     onSelectSpeed: (Float) -> Unit,
     onSelectPicturePreset: (ToneMappingProfilePreset) -> Unit,
     onSavePictureDefault: () -> Unit,
     onResetPictureSession: () -> Unit,
-    onAdjustTargetSdrNits: (Int) -> Unit,
-    onAdjustContrastRecovery: (Int) -> Unit,
-    onAdjustSaturationRecovery: (Int) -> Unit,
-    onAdjustHighlightCompression: (Int) -> Unit,
-    onSelectBackend: (PlaybackRenderBackend?) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val initialFocusHandle = rememberInitialFocusHandle(key = menu)
@@ -1233,7 +1222,7 @@ internal fun PlayerOptionsPanel(
                 subtitles.forEachIndexed { index, track ->
                     PlayerOptionButton(
                         text = playbackSubtitleOptionLabel(track, index),
-                        selected = false,
+                        selected = index == selectedSubtitleTrackIndex,
                         onClick = { onSelectSubtitle(index) },
                         modifier = if (index == 0) {
                             Modifier.then(initialFocusHandle.modifier())
@@ -1255,7 +1244,7 @@ internal fun PlayerOptionsPanel(
                             language = track.language,
                             index = index,
                         ),
-                        selected = false,
+                        selected = index == selectedAudioTrackIndex,
                         onClick = { onSelectAudioTrack(index) },
                         modifier = if (index == 0) {
                             Modifier.then(initialFocusHandle.modifier())
@@ -1265,143 +1254,45 @@ internal fun PlayerOptionsPanel(
                     )
                 }
             }
-            PlayerMenu.Picture -> {
-                val infoItems = buildList {
-                    add(signalFormatLabel.ifBlank { "Auto" })
-                    add(playbackBackendLabel(activeBackend))
-                    if (fallbackReason != null) {
-                        add(fallbackReason)
-                    } else if (requestedBackend != activeBackend) {
-                        add("Requested ${playbackBackendLabel(requestedBackend)}")
+            PlayerMenu.Picture -> Column(
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    itemVerticalAlignment = Alignment.CenterVertically,
+                ) {
+                    picturePresets.forEachIndexed { index, preset ->
+                        PlayerOptionButton(
+                            text = "${pictureSessionOverrideLabel()} ${toneMappingPresetLabel(preset)}",
+                            selected = preset == currentPicturePreset,
+                            onClick = { onSelectPicturePreset(preset) },
+                            modifier = if (index == 0) {
+                                Modifier.then(initialFocusHandle.modifier())
+                            } else {
+                                Modifier
+                            }
+                        )
                     }
                 }
-
-                Column(
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
+                    itemVerticalAlignment = Alignment.CenterVertically,
                 ) {
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                        itemVerticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        infoItems.forEach { label ->
-                            PlayerOptionButton(
-                                text = label,
-                                selected = false,
-                                onClick = {},
-                                enabled = false,
-                            )
-                        }
-                    }
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                        itemVerticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        picturePresets.forEachIndexed { index, preset ->
-                            PlayerOptionButton(
-                                text = "${pictureSessionOverrideLabel()} ${toneMappingPresetLabel(preset)}",
-                                selected = preset == currentPicturePreset,
-                                onClick = { onSelectPicturePreset(preset) },
-                                modifier = if (index == 0) {
-                                    Modifier.then(initialFocusHandle.modifier())
-                                } else {
-                                    Modifier
-                                }
-                            )
-                        }
-                    }
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                        itemVerticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        PlayerOptionButton(
-                            text = pictureSaveDefaultForFormatLabel(),
-                            selected = false,
-                            onClick = onSavePictureDefault,
-                        )
-                        PlayerOptionButton(
-                            text = "重置本次播放",
-                            selected = false,
-                            onClick = onResetPictureSession,
-                        )
-                        PlayerOptionButton(
-                            text = "标准 Exo",
-                            selected = activeBackend == PlaybackRenderBackend.STANDARD_EXO,
-                            onClick = { onSelectBackend(PlaybackRenderBackend.STANDARD_EXO) },
-                        )
-                        PlayerOptionButton(
-                            text = "旧实验 GL",
-                            selected = requestedBackend == PlaybackRenderBackend.EXPERIMENTAL_GL,
-                            onClick = { onSelectBackend(PlaybackRenderBackend.EXPERIMENTAL_GL) },
-                        )
-                        PlayerOptionButton(
-                            text = "实验 mpv 内嵌",
-                            selected =
-                                requestedBackend == PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED ||
-                                    requestedBackend == PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID,
-                            onClick = { onSelectBackend(PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED) },
-                        )
-                        PlayerOptionButton(
-                            text = "跟随默认",
-                            selected = false,
-                            onClick = { onSelectBackend(null) },
-                        )
-                    }
-                    ToneMappingAdjustRow(
-                        label = "目标亮度 ${currentToneMappingRuleSet.targetSdrNits} nit",
-                        onDecrease = { onAdjustTargetSdrNits(-10) },
-                        onIncrease = { onAdjustTargetSdrNits(10) },
+                    PlayerOptionButton(
+                        text = pictureSaveDefaultForFormatLabel(),
+                        selected = false,
+                        onClick = onSavePictureDefault,
                     )
-                    ToneMappingAdjustRow(
-                        label = "对比恢复 ${currentToneMappingRuleSet.contrastRecovery}",
-                        onDecrease = { onAdjustContrastRecovery(-2) },
-                        onIncrease = { onAdjustContrastRecovery(2) },
-                    )
-                    ToneMappingAdjustRow(
-                        label = "饱和恢复 ${currentToneMappingRuleSet.saturationRecovery}",
-                        onDecrease = { onAdjustSaturationRecovery(-2) },
-                        onIncrease = { onAdjustSaturationRecovery(2) },
-                    )
-                    ToneMappingAdjustRow(
-                        label = "高光压缩 ${currentToneMappingRuleSet.highlightCompression}",
-                        onDecrease = { onAdjustHighlightCompression(-2) },
-                        onIncrease = { onAdjustHighlightCompression(2) },
+                    PlayerOptionButton(
+                        text = "重置本次播放",
+                        selected = false,
+                        onClick = onResetPictureSession,
                     )
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun ToneMappingAdjustRow(
-    label: String,
-    onDecrease: () -> Unit,
-    onIncrease: () -> Unit,
-) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        PlayerOptionButton(
-            text = "-",
-            selected = false,
-            onClick = onDecrease,
-        )
-        PlayerOptionButton(
-            text = label,
-            selected = false,
-            onClick = {},
-            enabled = false,
-            modifier = Modifier.width(260.dp),
-        )
-        PlayerOptionButton(
-            text = "+",
-            selected = false,
-            onClick = onIncrease,
-        )
     }
 }
 
@@ -1463,8 +1354,11 @@ private fun PlayerOptionButton(
 @Composable
 private fun ErrorOverlay(
     message: String,
-    onExit: () -> Unit
+    onRetry: () -> Unit,
+    onExit: () -> Unit,
 ) {
+    val retryFocus = rememberInitialFocusHandle(key = message)
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -1494,30 +1388,25 @@ private fun ErrorOverlay(
                 overflow = TextOverflow.Ellipsis
             )
             Spacer(Modifier.height(22.dp))
-            Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(AnimeRed)
-                    .clickable(onClick = onExit)
-                    .padding(horizontal = 28.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(24.dp)
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                PlayerOptionButton(
+                    text = playbackRetryLabel(),
+                    selected = false,
+                    onClick = onRetry,
+                    modifier = retryFocus.modifier(),
                 )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = playbackConfirmExitLabel(),
-                    color = Color.White,
-                    style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold)
+                PlayerOptionButton(
+                    text = playbackBackToDetailsLabel(),
+                    selected = false,
+                    onClick = onExit,
                 )
             }
         }
     }
 }
+
+internal fun isConfirmedPlayerExit(lastBackAtMs: Long, nowMs: Long): Boolean =
+    lastBackAtMs > 0L && nowMs - lastBackAtMs in 0L..PLAYER_EXIT_CONFIRMATION_WINDOW_MS
 
 internal enum class PlayerMenu {
     Picture,

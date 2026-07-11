@@ -1,6 +1,29 @@
 <template>
   <el-config-provider :locale="zhCn">
-    <div class="app-shell">
+    <div v-if="!accessReady" class="access-gate">
+      <el-icon v-if="!authRequired && !accessError" class="is-loading" :size="32"><Refresh /></el-icon>
+      <div v-else-if="accessError" class="access-form">
+        <el-icon :size="36"><CircleClose /></el-icon>
+        <h1>无法连接 MiruPlay</h1>
+        <p>{{ accessError }}</p>
+        <el-button type="primary" @click="initializeAccess">重试</el-button>
+      </div>
+      <el-form v-else class="access-form" @submit.prevent="submitAccessToken">
+        <el-icon :size="36"><Key /></el-icon>
+        <h1>连接 MiruPlay</h1>
+        <p>请输入电视设置页显示的 WebUI 访问令牌。</p>
+        <el-input
+          v-model="accessTokenInput"
+          type="password"
+          show-password
+          autocomplete="current-password"
+          placeholder="访问令牌"
+          autofocus
+        />
+        <el-button type="primary" native-type="submit">连接</el-button>
+      </el-form>
+    </div>
+    <div v-else class="app-shell">
       <aside class="side-nav">
         <div class="brand">
           <div class="brand-mark">M</div>
@@ -131,8 +154,19 @@
                 </div>
                 <el-empty
                   v-if="!library.allAnime.length"
-                  description="还没有扫描到番剧，先去媒体源添加并扫描。"
-                />
+                  description="还没有扫描到番剧。"
+                >
+                  <el-button v-if="loading.sources" loading>读取媒体源</el-button>
+                  <el-button v-else-if="sourcesLoadFailed" type="primary" @click="activeView = 'sources'">
+                    检查媒体源
+                  </el-button>
+                  <el-button v-else-if="!sources.length" type="primary" @click="activeView = 'sources'">
+                    添加媒体源
+                  </el-button>
+                  <el-button v-else type="primary" :loading="loading.scan" @click="scanAll">
+                    开始扫描
+                  </el-button>
+                </el-empty>
                 <div v-else class="poster-grid">
                   <el-card
                     v-for="anime in library.allAnime"
@@ -204,7 +238,7 @@
               </div>
             </el-card>
 
-            <el-card shadow="never" class="panel-card">
+            <el-card ref="sourceFormPanel" shadow="never" class="panel-card source-form-panel">
               <template #header>
                 <div class="card-header">
                   <strong>{{ sourceForm.id ? '编辑源' : '添加源' }}</strong>
@@ -1395,7 +1429,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -1417,10 +1451,16 @@ import {
   Upload,
   VideoPlay
 } from '@element-plus/icons-vue'
-import { api, formatTime, originalTitleOf, setWebControlToken, titleOf } from './api'
+import { api, formatTime, getWebControlToken, originalTitleOf, setWebControlToken, titleOf } from './api'
 
 const activeView = ref('library')
 const query = ref('')
+const accessReady = ref(false)
+const authRequired = ref(false)
+const accessError = ref('')
+const accessTokenInput = ref('')
+const sourcesLoadFailed = ref(false)
+const sourceFormPanel = ref(null)
 const serverInfo = ref(null)
 const library = reactive({ continueWatching: [], recentlyAdded: [], allAnime: [] })
 const sources = ref([])
@@ -1480,7 +1520,7 @@ const playback = reactive({
 })
 const loading = reactive({
   library: false,
-  sources: false,
+  sources: true,
   save: false,
   test: false,
   scan: false,
@@ -1814,24 +1854,70 @@ watch(activeView, (view) => {
 })
 
 onMounted(async () => {
-  await Promise.all([loadInfo(), loadLibrary(), loadSources(), loadCloudDriveAutomation(), loadCloudDriveRunStatus(), loadProxyConfig(), loadMetadataSettings(), loadLogUpload(), loadLocalLogs(), loadPlaybackStatus(), loadScanSettings(), loadPlaybackSettings(), loadWebControlAccess(), loadAppUpdate()])
-  statusTimer = window.setInterval(loadPlaybackStatus, 2000)
-  archiveTimer = window.setInterval(() => {
-    if (activeView.value === 'metadata' && bangumiArchive.isDownloading) {
-      loadBangumiArchiveStatus(false)
-    }
-  }, 2000)
+  window.addEventListener('miruplay:unauthorized', requireAccess)
+  await initializeAccess()
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('miruplay:unauthorized', requireAccess)
   window.clearInterval(statusTimer)
   window.clearInterval(archiveTimer)
   window.clearTimeout(searchTimer)
   window.clearTimeout(cloudRunTimer)
 })
 
+async function initializeAccess() {
+  accessError.value = ''
+  authRequired.value = false
+  try {
+    await loadInfo()
+  } catch (error) {
+    if (error?.status === 401) {
+      authRequired.value = true
+    } else {
+      accessError.value = error?.message || '无法连接 MiruPlay'
+    }
+    return
+  }
+
+  accessReady.value = true
+  await Promise.allSettled([loadLibrary(), loadSources(), loadCloudDriveAutomation(), loadCloudDriveRunStatus(), loadProxyConfig(), loadMetadataSettings(), loadLogUpload(), loadLocalLogs(), loadPlaybackStatus(), loadScanSettings(), loadPlaybackSettings(), loadWebControlAccess(), loadAppUpdate()])
+  if (!accessReady.value) return
+  window.clearInterval(statusTimer)
+  window.clearInterval(archiveTimer)
+  statusTimer = window.setInterval(loadPlaybackStatus, 2000)
+  archiveTimer = window.setInterval(() => {
+    if (activeView.value === 'metadata' && bangumiArchive.isDownloading) {
+      loadBangumiArchiveStatus(false)
+    }
+  }, 2000)
+}
+
 async function loadInfo() {
   serverInfo.value = await api('/api/info')
+}
+
+function notifyUnauthorized(token) {
+  window.dispatchEvent(new CustomEvent('miruplay:unauthorized', { detail: { token } }))
+}
+
+function requireAccess(event) {
+  if (event?.detail?.token !== getWebControlToken()) return
+  accessReady.value = false
+  authRequired.value = true
+  accessError.value = ''
+  window.clearInterval(statusTimer)
+  window.clearInterval(archiveTimer)
+}
+
+function submitAccessToken() {
+  const token = accessTokenInput.value.trim()
+  if (!token) {
+    ElMessage.warning('请输入访问令牌')
+    return
+  }
+  setWebControlToken(token)
+  window.location.reload()
 }
 
 async function loadLibrary() {
@@ -1854,8 +1940,12 @@ function debouncedLoadLibrary() {
 
 async function loadSources() {
   loading.sources = true
+  sourcesLoadFailed.value = false
   try {
     sources.value = await api('/api/sources')
+  } catch (error) {
+    sourcesLoadFailed.value = true
+    throw error
   } finally {
     loading.sources = false
   }
@@ -2129,7 +2219,7 @@ function resetSourceForm() {
   })
 }
 
-function editSource(source) {
+async function editSource(source) {
   Object.assign(sourceForm, {
     id: source.id,
     type: source.type,
@@ -2142,6 +2232,10 @@ function editSource(source) {
     username: source.connectionInfo?.username || '',
     password: ''
   })
+  if (window.matchMedia('(max-width: 920px)').matches) {
+    await nextTick()
+    sourceFormPanel.value?.$el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 }
 
 function onSourceTypeChange(type) {
@@ -2704,8 +2798,12 @@ async function downloadLocalLogs() {
   try {
     const rangeMs = selectedLogDownloadRangeMs()
     const downloadUrl = rangeMs ? `/api/logs/download?rangeMs=${encodeURIComponent(rangeMs)}` : '/api/logs/download'
-    const response = await fetch(downloadUrl)
+    const token = getWebControlToken()
+    const response = await fetch(downloadUrl, {
+      headers: token ? { 'X-MiruPlay-Token': token } : {}
+    })
     if (!response.ok) {
+      if (response.status === 401) notifyUnauthorized(token)
       let message = `HTTP ${response.status}`
       try {
         const envelope = await response.json()
@@ -3117,6 +3215,8 @@ function uploadBangumiArchiveRequest(file) {
     xhr.open('POST', `/api/metadata/bangumi-archive/upload?filename=${filename}`)
     xhr.responseType = 'json'
     xhr.setRequestHeader('Content-Type', 'application/octet-stream')
+    const token = getWebControlToken()
+    if (token) xhr.setRequestHeader('X-MiruPlay-Token', token)
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) {
         bangumiArchiveUploadBytes.value = event.loaded
@@ -3125,6 +3225,7 @@ function uploadBangumiArchiveRequest(file) {
     xhr.onload = () => {
       const envelope = xhr.response || safeJsonParse(xhr.responseText)
       if (xhr.status < 200 || xhr.status >= 300 || !envelope?.ok) {
+        if (xhr.status === 401) notifyUnauthorized(token)
         reject(new Error(envelope?.error || `HTTP ${xhr.status}`))
         return
       }

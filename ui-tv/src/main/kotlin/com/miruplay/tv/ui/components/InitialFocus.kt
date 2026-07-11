@@ -19,6 +19,8 @@ class InitialFocusHandle internal constructor(
     private val markPlaced: () -> Unit,
     private val updateFocused: (Boolean) -> Unit,
 ) {
+    fun requester(): FocusRequester = focusRequester
+
     fun modifier(): Modifier =
         Modifier
             .focusRequester(focusRequester)

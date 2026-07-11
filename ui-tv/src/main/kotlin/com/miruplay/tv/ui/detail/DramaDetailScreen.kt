@@ -116,7 +116,11 @@ fun DramaDetailScreen(
     LaunchedEffect(seriesId) {
         viewModel.loadSeries(seriesId)
     }
-    BackHandler(enabled = manualMatch.isOpen, onBack = viewModel::closeManualMatch)
+    BackHandler(enabled = manualMatch.isOpen) {
+        if (!manualMatch.isSearching && !manualMatch.isApplying) {
+            viewModel.closeManualMatch()
+        }
+    }
     BackHandler(enabled = !manualMatch.isOpen, onBack = onNavigateBack)
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -421,7 +425,7 @@ private fun DramaManualMatchDialog(
     val busy = state.isSearching || state.isApplying
     val dialogMaxHeight = (LocalConfiguration.current.screenHeightDp.dp * 0.9f).coerceAtLeast(420.dp)
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(onDismissRequest = { if (!busy) onDismiss() }) {
         Column(
             modifier = Modifier
                 .fillMaxWidth(0.9f)

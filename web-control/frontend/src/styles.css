@@ -49,6 +49,38 @@ body {
   min-height: 100vh;
 }
 
+.access-gate {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+}
+
+.access-form {
+  width: min(100%, 24rem);
+  display: grid;
+  gap: 1rem;
+  text-align: center;
+}
+
+.access-form h1,
+.access-form p {
+  margin: 0;
+}
+
+.access-form p {
+  color: var(--muted);
+}
+
+.access-form .el-icon,
+.access-form .el-button {
+  justify-self: center;
+}
+
+.access-form .el-button {
+  width: 100%;
+}
+
 .app-shell {
   min-height: 100vh;
   display: grid;
@@ -785,6 +817,10 @@ body {
 
   .main-pane {
     padding: 1rem;
+  }
+
+  .source-form-panel {
+    scroll-margin-top: 18rem;
   }
 
   .page-header,
