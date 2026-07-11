@@ -2,6 +2,7 @@ package com.miruplay.tv.ui.settings
 
 import android.net.Uri
 import android.provider.DocumentsContract
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -386,7 +387,8 @@ fun AddSourceScreen(
     val proxyStatusMessage by viewModel.proxyStatusMessage.collectAsStateWithLifecycle()
     val appAboutInfo = rememberAppAboutInfo()
 
-    var selectedSection by remember { mutableStateOf(MiruPlaySettingsSection.WEB_UI) }
+    var selectedSection by remember { mutableStateOf(MiruPlaySettingsSection.SOURCES) }
+    var contentHasFocus by remember { mutableStateOf(false) }
     var editingSourceId by remember { mutableStateOf<Long?>(null) }
     var selectedType by remember { mutableStateOf(MediaSourceType.LOCAL) }
     var selectedContentMode by remember { mutableStateOf(MediaContentMode.ANIME) }
@@ -424,10 +426,18 @@ fun AddSourceScreen(
     val menuFocusRequesters = remember {
         androidTvSettingsSectionOrder.associateWith { FocusRequester() }
     }
-    val firstMenuFocusRequester = menuFocusRequesters.getValue(MiruPlaySettingsSection.WEB_UI)
+    val selectedMenuFocusRequester = menuFocusRequesters.getValue(selectedSection)
 
     LaunchedEffect(Unit) {
-        firstMenuFocusRequester.requestFocus()
+        selectedMenuFocusRequester.requestFocus()
+    }
+
+    BackHandler {
+        if (contentHasFocus) {
+            selectedMenuFocusRequester.requestFocus()
+        } else {
+            onNavigateBack()
+        }
     }
 
     LaunchedEffect(tokenSaved) {
@@ -601,7 +611,7 @@ fun AddSourceScreen(
                             resetSourceForm()
                         }
                     },
-                    menuFocusRequester = menuFocusRequesters.getValue(selectedSection),
+                    menuFocusRequester = selectedMenuFocusRequester,
                     selectedType = selectedType,
                     onTypeSelected = { type ->
                         if (type != selectedType) {
@@ -862,6 +872,7 @@ fun AddSourceScreen(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
+                        .onFocusChanged { contentHasFocus = it.hasFocus }
                 )
             }
 
@@ -1254,17 +1265,6 @@ private fun SettingsContent(
                     .weight(0.46f)
                     .fillMaxHeight()
                     .focusProperties { left = menuFocusRequester }
-                    .onPreviewKeyEvent { event ->
-                        if (
-                            event.type == KeyEventType.KeyDown &&
-                            event.key.toMiruPlayInputIntent() == MiruPlayInputIntent.DirectionLeft
-                        ) {
-                            menuFocusRequester.requestFocus()
-                            true
-                        } else {
-                            false
-                        }
-                    }
             )
             Column(
                 modifier = Modifier
@@ -1508,6 +1508,14 @@ private fun SettingsSectionHeader(section: MiruPlaySettingsSection) {
             style = TvTypography.body,
             color = TextSecondary
         )
+        if (section == MiruPlaySettingsSection.SCAN || section == MiruPlaySettingsSection.PLAYBACK) {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "此页选择后立即保存",
+                style = TvTypography.caption,
+                color = ProgressGreen,
+            )
+        }
     }
 }
 
@@ -1718,6 +1726,12 @@ private fun WebUiPanel(
     onRefresh: () -> Unit
 ) {
     val activeUrl = selectedUrl.ifBlank { urls.firstOrNull().orEmpty() }
+    var showAccessToken by remember(accessToken) { mutableStateOf(false) }
+    val displayedAccessToken = if (showAccessToken || accessToken.isBlank()) {
+        accessToken
+    } else {
+        "••••••••${accessToken.takeLast(4)}"
+    }
 
     SettingsPanel {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1760,11 +1774,18 @@ private fun WebUiPanel(
                 enabled = enabled,
                 modifier = Modifier.width(150.dp)
             )
+            TvButton(
+                text = if (showAccessToken) "隐藏令牌" else "显示令牌",
+                icon = Icons.Filled.Key,
+                onClick = { showAccessToken = !showAccessToken },
+                enabled = accessToken.isNotBlank(),
+                modifier = Modifier.width(140.dp)
+            )
         }
 
         Spacer(Modifier.height(12.dp))
         Text(
-            text = settingsWebUiAccessTokenLabel(accessToken),
+            text = settingsWebUiAccessTokenLabel(displayedAccessToken),
             style = TvTypography.caption,
             color = TextSecondary,
             maxLines = 2,

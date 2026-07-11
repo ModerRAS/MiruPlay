@@ -34,7 +34,12 @@ export async function api(path, options = {}) {
   })
   const envelope = await response.json()
   if (!response.ok || !envelope.ok) {
-    throw new Error(envelope.error || `HTTP ${response.status}`)
+    if (response.status === 401 && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('miruplay:unauthorized', { detail: { token } }))
+    }
+    const error = new Error(envelope.error || `HTTP ${response.status}`)
+    error.status = response.status
+    throw error
   }
   return envelope.data
 }

@@ -78,6 +78,12 @@ class PlayerViewModel @Inject constructor(
     private val _availableAudioTracks = MutableStateFlow<List<AudioTrack>>(emptyList())
     val availableAudioTracks: StateFlow<List<AudioTrack>> = _availableAudioTracks.asStateFlow()
 
+    private val _selectedSubtitleTrackIndex = MutableStateFlow<Int?>(null)
+    val selectedSubtitleTrackIndex: StateFlow<Int?> = _selectedSubtitleTrackIndex.asStateFlow()
+
+    private val _selectedAudioTrackIndex = MutableStateFlow<Int?>(null)
+    val selectedAudioTrackIndex: StateFlow<Int?> = _selectedAudioTrackIndex.asStateFlow()
+
     private val _playbackSpeed = MutableStateFlow(1.0f)
     val playbackSpeed: StateFlow<Float> = _playbackSpeed.asStateFlow()
 
@@ -176,6 +182,12 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    fun retry() {
+        activeSource?.let { source ->
+            play(source.copy(startPosition = _currentPosition.value), activeScreenOwnerToken)
+        }
+    }
+
     fun pause() {
         viewModelScope.launch {
             playbackController.pause()
@@ -232,12 +244,14 @@ class PlayerViewModel @Inject constructor(
     fun selectSubtitle(index: Int) {
         viewModelScope.launch {
             playbackController.setSubtitleTrack(index)
+            refreshTracks()
         }
     }
 
     fun selectAudioTrack(index: Int) {
         viewModelScope.launch {
             playbackController.setAudioTrack(index)
+            refreshTracks()
         }
     }
 
@@ -405,6 +419,8 @@ class PlayerViewModel @Inject constructor(
     private fun refreshTracks() {
         _availableSubtitles.value = playbackController.getAvailableSubtitles()
         _availableAudioTracks.value = playbackController.getAvailableAudioTracks()
+        _selectedSubtitleTrackIndex.value = playbackController.getSelectedSubtitleTrackIndex()
+        _selectedAudioTrackIndex.value = playbackController.getSelectedAudioTrackIndex()
     }
 
     private fun startProgressSaving(source: PlaybackSource) {
@@ -550,6 +566,8 @@ class PlayerViewModel @Inject constructor(
         _duration.value = 0L
         _availableSubtitles.value = emptyList()
         _availableAudioTracks.value = emptyList()
+        _selectedSubtitleTrackIndex.value = null
+        _selectedAudioTrackIndex.value = null
     }
 
     override fun onCleared() {

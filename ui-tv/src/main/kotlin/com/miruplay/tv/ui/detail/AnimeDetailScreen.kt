@@ -121,7 +121,11 @@ fun AnimeDetailScreen(
     LaunchedEffect(animeId) {
         viewModel.loadAnime(animeId)
     }
-    BackHandler(enabled = manualMatch.isOpen, onBack = viewModel::closeRescrapeMatcher)
+    BackHandler(enabled = manualMatch.isOpen) {
+        if (!manualMatch.isSearching && !manualMatch.isApplying) {
+            viewModel.closeRescrapeMatcher()
+        }
+    }
     BackHandler(enabled = !manualMatch.isOpen, onBack = onNavigateBack)
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -319,7 +323,8 @@ private fun DetailContent(
                     TvButton(
                         text = detailSeasonLabel(season),
                         onClick = { onSelectSeason(season) },
-                        modifier = Modifier.width(132.dp)
+                        modifier = Modifier.width(132.dp),
+                        secondary = selectedSeason != season,
                     )
                 }
             }
@@ -354,7 +359,7 @@ private fun BangumiManualMatchDialog(
     val busy = state.isSearching || state.isApplying
     val dialogMaxHeight = (LocalConfiguration.current.screenHeightDp.dp * 0.9f).coerceAtLeast(420.dp)
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(onDismissRequest = { if (!busy) onDismiss() }) {
         Column(
             modifier = Modifier
                 .fillMaxWidth(0.9f)

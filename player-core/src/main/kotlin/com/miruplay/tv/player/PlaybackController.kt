@@ -72,6 +72,10 @@ interface PlaybackController {
      */
     fun getAvailableAudioTracks(): List<AudioTrack>
 
+    fun getSelectedSubtitleTrackIndex(): Int? = null
+
+    fun getSelectedAudioTrackIndex(): Int? = null
+
     /**
      * Get current playback position in milliseconds
      */

@@ -14,6 +14,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
@@ -90,6 +91,8 @@ class ExoPlaybackController @Inject constructor(
 
     private val availableSubtitles = mutableListOf<SubtitleTrack>()
     private val availableAudioTracks = mutableListOf<AudioTrack>()
+    private var selectedSubtitleTrackIndex: Int? = null
+    private var selectedAudioTrackIndex: Int? = null
     private var currentSource: PlaybackSource? = null
     private var autoResumeSeekCalled = false
     private var playbackPreferences = FormatAwareToneMappingPreferences()
@@ -360,6 +363,8 @@ class ExoPlaybackController @Inject constructor(
             autoResumeSeekCalled = false
             availableSubtitles.clear()
             availableAudioTracks.clear()
+            selectedSubtitleTrackIndex = null
+            selectedAudioTrackIndex = null
             containerSignalDescriptor = null
             _currentVideoSignalDescriptor.value = null
             PlaybackCodecSelectionState.decoderPreference = PlaybackDecoderPreference.DEFAULT
@@ -388,16 +393,20 @@ class ExoPlaybackController @Inject constructor(
     }
 
     override suspend fun setSubtitleTrack(trackIndex: Int) {
-        updateAvailableTracks()
+        selectTrackGroup(C.TRACK_TYPE_TEXT, trackIndex)
     }
 
     override suspend fun setAudioTrack(trackIndex: Int) {
-        updateAvailableTracks()
+        selectTrackGroup(C.TRACK_TYPE_AUDIO, trackIndex)
     }
 
     override fun getAvailableSubtitles(): List<SubtitleTrack> = availableSubtitles.toList()
 
     override fun getAvailableAudioTracks(): List<AudioTrack> = availableAudioTracks.toList()
+
+    override fun getSelectedSubtitleTrackIndex(): Int? = selectedSubtitleTrackIndex
+
+    override fun getSelectedAudioTrackIndex(): Int? = selectedAudioTrackIndex
 
     override suspend fun getCurrentPosition(): Long = withContext(Dispatchers.Main) {
         when (_activeRenderBackend.value) {
@@ -852,9 +861,28 @@ class ExoPlaybackController @Inject constructor(
         }
     }
 
+    private suspend fun selectTrackGroup(trackType: Int, trackIndex: Int) = withContext(Dispatchers.Main) {
+        val player = activeExoPlayer()
+        val group = player.currentTracks.groups.filter { it.type == trackType }.getOrNull(trackIndex)
+            ?: return@withContext
+        player.trackSelectionParameters = player.trackSelectionParameters
+            .buildUpon()
+            .setTrackTypeDisabled(trackType, false)
+            .clearOverridesOfType(trackType)
+            .addOverride(TrackSelectionOverride(group.mediaTrackGroup, 0))
+            .build()
+        if (trackType == C.TRACK_TYPE_TEXT) {
+            selectedSubtitleTrackIndex = trackIndex
+        } else {
+            selectedAudioTrackIndex = trackIndex
+        }
+    }
+
     private fun updateAvailableTracks() {
         availableSubtitles.clear()
         availableAudioTracks.clear()
+        selectedSubtitleTrackIndex = null
+        selectedAudioTrackIndex = null
 
         try {
             val tracks = activeExoPlayer().currentTracks
@@ -862,6 +890,7 @@ class ExoPlaybackController @Inject constructor(
                 val group = tracks.groups[i]
                 when (group.type) {
                     C.TRACK_TYPE_TEXT -> {
+                        val trackIndex = availableSubtitles.size
                         val format = group.getTrackFormat(0)
                         availableSubtitles.add(
                             SubtitleTrack(
@@ -872,18 +901,21 @@ class ExoPlaybackController @Inject constructor(
                                 format = SubtitleFormat.SRT,
                             ),
                         )
+                        if (group.isTrackSelected(0)) selectedSubtitleTrackIndex = trackIndex
                     }
 
                     C.TRACK_TYPE_AUDIO -> {
+                        val trackIndex = availableAudioTracks.size
                         val format = group.getTrackFormat(0)
                         availableAudioTracks.add(
                             AudioTrack(
-                                index = availableAudioTracks.size,
+                                index = trackIndex,
                                 language = format.language ?: "und",
                                 title = format.label,
                                 codec = format.codecs,
                             ),
                         )
+                        if (group.isTrackSelected(0)) selectedAudioTrackIndex = trackIndex
                     }
                 }
             }

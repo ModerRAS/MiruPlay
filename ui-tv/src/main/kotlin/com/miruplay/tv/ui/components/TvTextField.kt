@@ -10,6 +10,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -25,9 +27,17 @@ fun TvTextField(
     onValueChange: (String) -> Unit,
     label: String,
     modifier: Modifier = Modifier,
-    isPassword: Boolean = false
+    isPassword: Boolean = false,
+    requestInitialFocus: Boolean = false,
 ) {
     var isFocused by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(requestInitialFocus) {
+        if (requestInitialFocus) {
+            kotlinx.coroutines.delay(120)
+            focusRequester.requestFocus()
+        }
+    }
     val borderWidth by animateFloatAsState(
         targetValue = if (isFocused) 3f else 1f,
         label = "borderW"
@@ -59,6 +69,7 @@ fun TvTextField(
                 onValueChange = onValueChange,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .focusRequester(focusRequester)
                     .onFocusChanged { isFocused = it.isFocused },
                 textStyle = TextStyle(
                     color = TextPrimary,

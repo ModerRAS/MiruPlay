@@ -70,6 +70,7 @@ internal inline fun tvActivateIntentEvent(
 internal fun Modifier.tvFocusableClickable(
     interactionSource: MutableInteractionSource,
     enabled: Boolean = true,
+    onDirectionUp: (() -> Unit)? = null,
     onClick: () -> Unit,
 ): Modifier = this
     .clickable(
@@ -79,12 +80,22 @@ internal fun Modifier.tvFocusableClickable(
         onClick = onClick,
     )
     .onKeyEvent { event ->
-        tvActivateKeyEvent(
-            key = event.key,
-            type = event.type,
-            enabled = enabled,
-            onActivate = onClick,
-        )
+        if (
+            enabled &&
+            onDirectionUp != null &&
+            event.type == KeyEventType.KeyDown &&
+            event.key.toMiruPlayInputIntent() == MiruPlayInputIntent.DirectionUp
+        ) {
+            onDirectionUp()
+            true
+        } else {
+            tvActivateKeyEvent(
+                key = event.key,
+                type = event.type,
+                enabled = enabled,
+                onActivate = onClick,
+            )
+        }
     }
     .focusable(
         enabled = enabled,

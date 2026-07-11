@@ -149,6 +149,7 @@ fun FeatureAnimeCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     subtitle: String? = null,
+    onDirectionUp: (() -> Unit)? = null,
     backdropPlaceholder: @Composable () -> Unit = { ImagePlaceholder() },
     posterPlaceholder: @Composable () -> Unit = { ImagePlaceholder() },
 ) {
@@ -172,6 +173,7 @@ fun FeatureAnimeCard(
             )
             .tvFocusableClickable(
                 interactionSource = interactionSource,
+                onDirectionUp = onDirectionUp,
                 onClick = onClick
             )
     ) {
