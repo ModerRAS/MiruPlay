@@ -2,7 +2,10 @@ package com.miruplay.tv.desktop
 
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.mediasource.desktop.DesktopLocalMediaSource
+import com.miruplay.tv.model.MediaRecognitionMode
+import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
+import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.libraryScanCompleteStatus
 import com.miruplay.tv.model.cloudRssScheduledSyncCompleteStatus
 import com.miruplay.tv.model.libraryRescanCompleteStatus
@@ -59,6 +62,34 @@ class DesktopScanIndexIntegrationTest {
         } finally {
             mediaRoot.toFile().deleteRecursively()
             storePath.parent.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `desktop scan rejects MLIP instead of treating it as a directory source`() = runBlocking {
+        val storeRoot = Files.createTempDirectory("miruplay-desktop-store")
+        try {
+            val repositories = DesktopRepositories.fileBacked(storeRoot.resolve("store.json"))
+            val source = MediaSourceInfo(
+                id = 7L,
+                name = "MLIP WebDAV",
+                type = MediaSourceType.WEBDAV,
+                connectionInfo = MediaSourceInfoConventions.sourceConnectionInfo(
+                    type = MediaSourceType.WEBDAV,
+                    location = "https://example.test/anime",
+                    recognitionMode = MediaRecognitionMode.MLIP,
+                ),
+            )
+
+            val result = scanAndIndexDesktopSource(
+                sourceInfo = source,
+                indexRepository = repositories.index,
+                metadataRepository = repositories.metadata,
+            )
+
+            assertTrue(result is Result.Error)
+        } finally {
+            storeRoot.toFile().deleteRecursively()
         }
     }
 

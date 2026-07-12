@@ -51,7 +51,7 @@ class WebControlSourceRequestsTest {
     }
 
     @Test
-    fun `source request stores mlip metadata mode for WebDAV anime sources`() {
+    fun `source request ignores legacy mlip metadata mode for WebDAV anime sources`() {
         val source = SourceRequest(
             name = "Remote",
             type = "WEBDAV",
@@ -62,8 +62,8 @@ class WebControlSourceRequestsTest {
         ).toMediaSourceInfo()
 
         assertEquals(MediaRecognitionMode.MLIP, source.recognitionMode())
-        assertEquals(MlipMetadataMode.FILES_ONLY, source.mlipMetadataMode())
-        assertEquals("FILES_ONLY", source.connectionInfo[MediaSourceInfoConventions.CONNECTION_MLIP_METADATA_MODE])
+        assertEquals(MlipMetadataMode.LIBRARY_DB_LOCAL_PRIORITY, source.mlipMetadataMode())
+        assertFalse(MediaSourceInfoConventions.CONNECTION_MLIP_METADATA_MODE in source.connectionInfo)
     }
 
     @Test

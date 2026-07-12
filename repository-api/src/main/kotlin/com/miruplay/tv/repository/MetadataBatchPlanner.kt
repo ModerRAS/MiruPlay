@@ -139,6 +139,9 @@ fun metadataSearchResultStatus(
 fun metadataSourceRequiredStatus(): String =
     metadataSourceRequiredTvStatus()
 
+fun mlipMetadataReadOnlyStatus(): String =
+    "MLIP 元数据由 library.db 管理，请在远端修正后重新扫描。"
+
 fun MetadataBatchMatch.selectedReviewStatus(): String =
     metadataSelectedBatchReviewTvStatus(query)
 

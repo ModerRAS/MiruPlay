@@ -19,8 +19,6 @@ import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaScrapeStatus
 import com.miruplay.tv.repository.MetadataRepository
-import com.miruplay.tv.repository.localMetadataOverrideKey
-import com.miruplay.tv.repository.localMetadataOverrideMessage
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.InputStream
@@ -104,7 +102,7 @@ class MlipLibraryIndexImporterTest {
     }
 
     @Test
-    fun `files only policy imports paths and skips library metadata cache`() = runBlocking {
+    fun `legacy files only policy is ignored and library metadata remains authoritative`() = runBlocking {
         val databaseFile = File.createTempFile("mlip-test-", ".db")
         val source = mlipSource(metadataMode = MlipMetadataMode.FILES_ONLY)
         val indexRepository = RecordingIndexRepository()
@@ -123,14 +121,13 @@ class MlipLibraryIndexImporterTest {
             assertTrue(result.isSuccess())
             val entry = indexRepository.entries.single()
             assertEquals("/Series/01.mkv", entry.path)
-            assertEquals("Series", entry.animeName)
-            assertEquals(null, entry.metadataSource)
-            assertEquals(null, entry.metadataId)
-            assertEquals(null, entry.metadataTitle)
-            assertEquals(MediaScrapeStatus.PENDING, entry.scrapeStatus)
-            assertEquals("mlip:7:series-uuid", entry.localMetadataOverrideKey())
-            assertTrue(metadataRepository.anime.isEmpty())
-            assertTrue(metadataRepository.episodes.isEmpty())
+            assertEquals("中文标题", entry.animeName)
+            assertEquals("MLIP", entry.metadataSource)
+            assertEquals("mlip:7:series-uuid", entry.metadataId)
+            assertEquals("中文标题", entry.metadataTitle)
+            assertEquals(MediaScrapeStatus.SCRAPED, entry.scrapeStatus)
+            assertEquals("中文标题", metadataRepository.anime.single().titleCn)
+            assertEquals("第 1 集", metadataRepository.episodes.single().title)
             assertEquals(listOf("library.db"), mediaSource.openedPaths)
         } finally {
             databaseFile.delete()
@@ -138,7 +135,7 @@ class MlipLibraryIndexImporterTest {
     }
 
     @Test
-    fun `local metadata override survives mlip reimport`() = runBlocking {
+    fun `mlip reimport replaces local metadata override and preserves user state`() = runBlocking {
         val databaseFile = File.createTempFile("mlip-test-", ".db")
         val source = mlipSource()
         val indexRepository = RecordingIndexRepository(
@@ -151,12 +148,86 @@ class MlipLibraryIndexImporterTest {
                     metadataId = "431767",
                     metadataTitle = "葬送的芙莉莲",
                     scrapeStatus = MediaScrapeStatus.SCRAPED,
-                    scrapeMessage = localMetadataOverrideMessage("mlip:7:series-uuid"),
+                    scrapeMessage = "Local metadata override for mlip:7:series-uuid",
                     scrapedAt = 42L,
                 )
             )
         )
-        val metadataRepository = RecordingMetadataRepository()
+        val metadataRepository = RecordingMetadataRepository().apply {
+            anime += Anime(
+                id = "mlip:7:series-uuid",
+                title = "旧标题",
+                bangumiCollectionType = 2,
+                bangumiEpStatus = 5,
+            )
+            episodes += Episode(
+                id = "7:/Series/01.mkv",
+                animeId = "mlip:7:series-uuid",
+                episodeNumber = 1,
+                filePath = "/Series/01.mkv",
+                fileName = "01.mkv",
+                watchedPosition = 12_000L,
+                lastWatchedTimestamp = 34_000L,
+                playCount = 3,
+                thumbnailPath = "/cache/episode.jpg",
+                bangumiEpisodeId = 10,
+                bangumiCollectionType = 2,
+            )
+        }
+        val mediaSource = FakeMediaSource(
+            info = source,
+            streams = mapOf("library.db" to { databaseFile.inputStream() }),
+        )
+
+        try {
+            createMlipDatabase(databaseFile, mediaPath = "Series/Renamed 01.mkv")
+
+            val result = MlipLibraryIndexImporter(indexRepository, metadataRepository)
+                .importLibrary(source, mediaSource)
+
+            assertTrue(result.isSuccess())
+            val entry = indexRepository.entries.single()
+            assertEquals("/Series/Renamed 01.mkv", entry.path)
+            assertEquals("MLIP", entry.metadataSource)
+            assertEquals("mlip:7:series-uuid", entry.metadataId)
+            assertEquals("中文标题", entry.metadataTitle)
+            val anime = metadataRepository.anime.single()
+            assertEquals("中文标题", anime.titleCn)
+            assertEquals(2, anime.bangumiCollectionType)
+            assertEquals(5, anime.bangumiEpStatus)
+            val episode = metadataRepository.episodes.single()
+            assertEquals("7:/Series/01.mkv", episode.id)
+            assertEquals("/Series/Renamed 01.mkv", episode.filePath)
+            assertEquals("第 1 集", episode.title)
+            assertEquals(12_000L, episode.watchedPosition)
+            assertEquals(34_000L, episode.lastWatchedTimestamp)
+            assertEquals(3, episode.playCount)
+            assertEquals("/cache/episode.jpg", episode.thumbnailPath)
+            assertEquals(10, episode.bangumiEpisodeId)
+            assertEquals(2, episode.bangumiCollectionType)
+            assertEquals(listOf("library.db"), mediaSource.openedPaths)
+        } finally {
+            databaseFile.delete()
+        }
+    }
+
+    @Test
+    fun `mlip reimport removes metadata for series missing from incoming database`() = runBlocking {
+        val databaseFile = File.createTempFile("mlip-test-", ".db")
+        val source = mlipSource()
+        val indexRepository = RecordingIndexRepository(
+            initialEntries = listOf(
+                MediaIndexEntry(
+                    sourceId = 7L,
+                    path = "/Removed/01.mkv",
+                    metadataSource = "MLIP",
+                    metadataId = "mlip:7:removed-series",
+                ),
+            ),
+        )
+        val metadataRepository = RecordingMetadataRepository().apply {
+            anime += Anime(id = "mlip:7:removed-series", title = "Removed")
+        }
         val mediaSource = FakeMediaSource(
             info = source,
             streams = mapOf("library.db" to { databaseFile.inputStream() }),
@@ -169,15 +240,32 @@ class MlipLibraryIndexImporterTest {
                 .importLibrary(source, mediaSource)
 
             assertTrue(result.isSuccess())
-            val entry = indexRepository.entries.single()
-            assertEquals("BANGUMI", entry.metadataSource)
-            assertEquals("431767", entry.metadataId)
-            assertEquals("葬送的芙莉莲", entry.metadataTitle)
-            assertEquals("mlip:7:series-uuid", entry.localMetadataOverrideKey())
-            assertEquals(42L, entry.scrapedAt)
-            assertTrue(metadataRepository.anime.isEmpty())
-            assertTrue(metadataRepository.episodes.isEmpty())
-            assertEquals(listOf("library.db"), mediaSource.openedPaths)
+            assertEquals(listOf("mlip:7:removed-series"), metadataRepository.invalidatedAnimeIds)
+            assertEquals(listOf("mlip:7:series-uuid"), metadataRepository.anime.map(Anime::id))
+        } finally {
+            databaseFile.delete()
+        }
+    }
+
+    @Test
+    fun `mlip import reports metadata cache failure`() = runBlocking {
+        val databaseFile = File.createTempFile("mlip-test-", ".db")
+        val source = mlipSource()
+        val metadataRepository = RecordingMetadataRepository(
+            cacheMetadataError = AppError.SyncError.WriteFailed("cache", "disk full"),
+        )
+        val mediaSource = FakeMediaSource(
+            info = source,
+            streams = mapOf("library.db" to { databaseFile.inputStream() }),
+        )
+
+        try {
+            createMlipDatabase(databaseFile)
+
+            val result = MlipLibraryIndexImporter(RecordingIndexRepository(), metadataRepository)
+                .importLibrary(source, mediaSource)
+
+            assertTrue(result is Result.Error)
         } finally {
             databaseFile.delete()
         }
@@ -356,7 +444,7 @@ class MlipLibraryIndexImporterTest {
         }
 
         override suspend fun upsertEntry(sourceId: Long, entry: MediaIndexEntry): Result<Unit> = Result.success(Unit)
-        override suspend fun queryIndex(sourceId: Long, query: String): Result<List<MediaIndexEntry>> = Result.success(entries)
+        override suspend fun queryIndex(sourceId: Long, query: String): Result<List<MediaIndexEntry>> = Result.success(entries.toList())
         override suspend fun getAnimeInIndex(sourceId: Long): Result<List<String>> = Result.success(entries.mapNotNull { it.animeName }.distinct())
         override suspend fun clearIndex(sourceId: Long): Result<Unit> = Result.success(Unit)
         override suspend fun saveLastBatchUndo(sourceId: Long, entries: List<MediaIndexEntry>): Result<Unit> = Result.success(Unit)
@@ -364,11 +452,17 @@ class MlipLibraryIndexImporterTest {
         override suspend fun clearLastBatchUndo(sourceId: Long): Result<Unit> = Result.success(Unit)
     }
 
-    private class RecordingMetadataRepository : MetadataRepository {
+    private class RecordingMetadataRepository(
+        private val cacheMetadataError: AppError? = null,
+        private val cacheEpisodesError: AppError? = null,
+    ) : MetadataRepository {
         val anime = mutableListOf<Anime>()
         val episodes = mutableListOf<Episode>()
+        val invalidatedAnimeIds = mutableListOf<String>()
 
         override suspend fun cacheMetadata(anime: Anime): Result<Unit> {
+            cacheMetadataError?.let { return Result.failure(it) }
+            this.anime.removeAll { it.id == anime.id }
             this.anime += anime
             return Result.success(Unit)
         }
@@ -378,11 +472,18 @@ class MlipLibraryIndexImporterTest {
         override suspend fun getCachedEpisode(episodeId: String): Result<Episode?> = Result.success(episodes.firstOrNull { it.id == episodeId })
         override suspend fun getCachedEpisodes(animeId: String): Result<List<Episode>> = Result.success(episodes.filter { it.animeId == animeId })
         override suspend fun cacheEpisodes(animeId: String, episodes: List<Episode>): Result<Unit> {
+            cacheEpisodesError?.let { return Result.failure(it) }
+            this.episodes.removeAll { it.animeId == animeId }
             this.episodes += episodes
             return Result.success(Unit)
         }
         override suspend fun cacheDramaSeries(seriesId: String, series: DramaSeries): Result<Unit> = Result.success(Unit)
-        override suspend fun invalidateCache(animeId: String): Result<Unit> = Result.success(Unit)
+        override suspend fun invalidateCache(animeId: String): Result<Unit> {
+            invalidatedAnimeIds += animeId
+            anime.removeAll { it.id == animeId }
+            episodes.removeAll { it.animeId == animeId }
+            return Result.success(Unit)
+        }
     }
 
     private class FakeMediaSource(

@@ -134,8 +134,6 @@ class BangumiIndexMetadataCoordinatorTest {
         val entry = mediaEntry(
             path = "D:/Anime/Frieren/01.mkv",
             animeName = "Frieren",
-            metadataId = "mlip:1:series-uuid",
-            metadataSource = "MLIP",
             episodeNumber = 1,
         )
         val related = listOf(
@@ -143,8 +141,6 @@ class BangumiIndexMetadataCoordinatorTest {
             mediaEntry(
                 path = "D:/Anime/Frieren/02.mkv",
                 animeName = "Frieren",
-                metadataId = "mlip:1:series-uuid",
-                metadataSource = "MLIP",
                 episodeNumber = 2,
             ),
         )
@@ -169,10 +165,54 @@ class BangumiIndexMetadataCoordinatorTest {
         assertNotNull(applied.data.updatedEntry)
         assertEquals("已将 Bangumi 元数据应用到 D:/Anime/Frieren/01.mkv。", applied.data.status)
         assertEquals(listOf("431767", "431767"), index.entries.sortedBy { it.path }.map { it.metadataId })
-        assertEquals(listOf("mlip:1:series-uuid", "mlip:1:series-uuid"), index.entries.sortedBy { it.path }.map { it.localMetadataOverrideKey() })
+        assertEquals(listOf(null, null), index.entries.sortedBy { it.path }.map { it.localMetadataOverrideKey() })
         assertEquals("431767", metadata.anime?.id)
         assertEquals(listOf("1:D:/Anime/Frieren/01.mkv", "1:D:/Anime/Frieren/02.mkv"), metadata.episodes.map { it.id })
         assertEquals(listOf("Start", "Magic"), metadata.episodes.map { it.title })
+    }
+
+    @Test
+    fun `applyEntryMetadata refuses MLIP metadata override`() = runBlocking {
+        val entry = mediaEntry(
+            path = "D:/Anime/Frieren/01.mkv",
+            animeName = "Frieren",
+            metadataId = "mlip:1:series-uuid",
+            metadataSource = "MLIP",
+            episodeNumber = 1,
+        )
+        val index = FakeMediaIndexRepository(entries = mutableListOf(entry))
+        val metadata = FakeMetadataRepository()
+        val coordinator = coordinator(index = index, metadata = metadata)
+
+        val applied = coordinator.applyEntryMetadata(
+            sourceId = 1L,
+            entry = entry,
+            match = result(confidence = 0.98f),
+            relatedEntries = listOf(entry),
+        ) as Result.Success
+
+        assertEquals(null, applied.data.updatedEntry)
+        assertEquals("MLIP 元数据由 library.db 管理，请在远端修正后重新扫描。", applied.data.status)
+        assertEquals("MLIP", index.entries.single().metadataSource)
+        assertEquals(null, metadata.anime)
+    }
+
+    @Test
+    fun `source policy blocks stale batch undo after switching to MLIP`() = runBlocking {
+        val rollback = mediaEntry(
+            path = "D:/Anime/Frieren/01.mkv",
+            animeName = "Frieren",
+            metadataId = "431767",
+            metadataSource = "BANGUMI",
+        )
+        val index = FakeMediaIndexRepository()
+        val coordinator = coordinator(index = index, isSourceMetadataReadOnly = { true })
+
+        val undo = coordinator.undoBatch(sourceId = 1L, rollbackEntries = listOf(rollback)) as Result.Success
+
+        assertEquals(emptyList<MediaIndexEntry>(), undo.data.restore.rollbackEntries)
+        assertEquals("MLIP 元数据由 library.db 管理，请在远端修正后重新扫描。", undo.data.status)
+        assertEquals(emptyList<MediaIndexEntry>(), index.entries)
     }
 
     @Test
@@ -218,11 +258,13 @@ class BangumiIndexMetadataCoordinatorTest {
         index: FakeMediaIndexRepository = FakeMediaIndexRepository(),
         metadata: FakeMetadataRepository = FakeMetadataRepository(),
         scraper: FakeMetadataScraper = FakeMetadataScraper(),
+        isSourceMetadataReadOnly: suspend (Long) -> Boolean = { false },
     ): BangumiIndexMetadataCoordinator =
         BangumiIndexMetadataCoordinator(
             indexRepository = index,
             metadataRepository = metadata,
             bangumiScraper = scraper,
+            isSourceMetadataReadOnly = isSourceMetadataReadOnly,
         )
 
     private class FakeMediaIndexRepository(

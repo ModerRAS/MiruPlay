@@ -104,9 +104,8 @@ class MetadataRepositoryImpl @Inject constructor(
 
     override suspend fun cacheEpisodes(animeId: String, episodes: List<Episode>): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            episodeDao.deleteByAnimeId(animeId)
             val entities = episodes.map { it.toEntity(animeId, it.seasonNumber) }
-            episodeDao.insertAll(entities)
+            episodeDao.replaceByAnimeId(animeId, entities)
             // Also update episode count in cached anime metadata
             animeDao.getById(animeId)?.let { animeEntity ->
                 animeDao.insert(animeEntity.copy(

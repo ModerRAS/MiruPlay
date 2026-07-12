@@ -225,7 +225,7 @@ class MediaSourceInfoConventionsTest {
     }
 
     @Test
-    fun `mlip metadata mode defaults to library db local priority and stores files only`() {
+    fun `legacy mlip metadata mode is ignored`() {
         val defaultSource = source(connectionInfo = emptyMap())
         val filesOnlyInfo = MediaSourceInfoConventions.sourceConnectionInfo(
             type = MediaSourceType.WEBDAV,
@@ -242,8 +242,8 @@ class MediaSourceInfoConventionsTest {
         val directorySource = filesOnlySource.withRecognitionMode(MediaRecognitionMode.DIRECTORY)
 
         assertEquals(MlipMetadataMode.LIBRARY_DB_LOCAL_PRIORITY, defaultSource.mlipMetadataMode())
-        assertEquals(MlipMetadataMode.FILES_ONLY, filesOnlySource.mlipMetadataMode())
-        assertEquals("FILES_ONLY", filesOnlyInfo[MediaSourceInfoConventions.CONNECTION_MLIP_METADATA_MODE])
+        assertEquals(MlipMetadataMode.LIBRARY_DB_LOCAL_PRIORITY, filesOnlySource.mlipMetadataMode())
+        assertFalse(MediaSourceInfoConventions.CONNECTION_MLIP_METADATA_MODE in filesOnlyInfo)
         assertFalse(MediaSourceInfoConventions.CONNECTION_MLIP_METADATA_MODE in defaultMlipInfo)
         assertFalse(MediaSourceInfoConventions.CONNECTION_MLIP_METADATA_MODE in directorySource.connectionInfo)
         assertFalse(

@@ -370,6 +370,8 @@ class DesktopRepositoriesTest {
                         animeName = "Show B",
                         episodeTitle = "A Good Episode",
                         plot = "The indexed plot",
+                        metadataId = "mlip:7:show-b",
+                        metadataTitle = "节目 B",
                     ),
                 ),
             )
@@ -384,7 +386,7 @@ class DesktopRepositoriesTest {
             assertEquals("D:/Anime/B/01.mkv", plotQuery.data.single().path)
 
             val names = repositories.index.getAnimeInIndex(7L) as Result.Success
-            assertEquals(listOf("Show A", "Show B"), names.data)
+            assertEquals(setOf("Show A", "Show B", "mlip:7:show-b", "节目 B"), names.data.toSet())
 
             repositories.index.clearIndex(7L)
             val cleared = repositories.index.queryIndex(7L, "") as Result.Success

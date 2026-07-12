@@ -27,6 +27,8 @@ import com.miruplay.tv.repository.metadataSearchResultStatus
 import com.miruplay.tv.repository.metadataSearchSelectionRequiredStatus
 import com.miruplay.tv.repository.metadataSearchStartedStatus
 import com.miruplay.tv.repository.metadataSourceRequiredStatus
+import com.miruplay.tv.repository.isMlipManagedMetadata
+import com.miruplay.tv.repository.mlipMetadataReadOnlyStatus
 import com.miruplay.tv.repository.noMetadataBatchEntriesStatus
 import com.miruplay.tv.repository.noMetadataBatchPreviewStatus
 import com.miruplay.tv.repository.noMetadataBatchUndoStatus
@@ -91,6 +93,7 @@ class BangumiIndexMetadataCoordinator(
     private val bangumiScraper: MetadataScraper,
     private val queryLimit: Int = BANGUMI_BATCH_QUERY_LIMIT,
     private val sourceName: String = BANGUMI_METADATA_SOURCE_NAME,
+    private val isSourceMetadataReadOnly: suspend (Long) -> Boolean = { false },
 ) {
     private val metadataRefreshCore = BangumiMetadataRefreshCore(
         metadataRepository = metadataRepository,
@@ -192,11 +195,17 @@ class BangumiIndexMetadataCoordinator(
         if (matches.isEmpty()) {
             return Result.success(emptyBatchApplyResult(status = noMetadataBatchPreviewStatus()))
         }
+        if (isSourceMetadataReadOnly(sourceId)) {
+            return Result.success(emptyBatchApplyResult(status = mlipMetadataReadOnlyStatus()))
+        }
 
         return when (val entriesResult = indexRepository.queryIndex(sourceId, "")) {
             is Result.Error -> entriesResult
             is Result.Success -> {
                 val entries = entriesResult.data.mediaFilesOnly()
+                if (entries.any(MediaIndexEntry::isMlipManagedMetadata)) {
+                    return Result.success(emptyBatchApplyResult(status = mlipMetadataReadOnlyStatus()))
+                }
                 val plan = MetadataBatchPlanner.planFor(entries, matches)
                 if (plan.readyUpdates.isEmpty()) {
                     return Result.success(
@@ -225,6 +234,9 @@ class BangumiIndexMetadataCoordinator(
     ): Result<BangumiMetadataBatchUndoActionResult> {
         if (sourceId == null) {
             return Result.success(emptyBatchUndoResult(status = metadataSourceRequiredStatus()))
+        }
+        if (isSourceMetadataReadOnly(sourceId) || rollbackEntries.any(MediaIndexEntry::isMlipManagedMetadata)) {
+            return Result.success(emptyBatchUndoResult(status = mlipMetadataReadOnlyStatus()))
         }
 
         return when (val restore = indexRepository.restoreMetadataBatchUndo(sourceId, rollbackEntries)) {
@@ -297,11 +309,17 @@ class BangumiIndexMetadataCoordinator(
         if (match == null || result == null) {
             return Result.success(emptyBatchApplyResult(status = metadataBatchResultRequiredStatus(sourceName)))
         }
+        if (isSourceMetadataReadOnly(sourceId)) {
+            return Result.success(emptyBatchApplyResult(status = mlipMetadataReadOnlyStatus()))
+        }
 
         return when (val entriesResult = indexRepository.queryIndex(sourceId, "")) {
             is Result.Error -> entriesResult
             is Result.Success -> {
                 val entries = entriesResult.data.mediaFilesOnly()
+                if (entries.any(MediaIndexEntry::isMlipManagedMetadata)) {
+                    return Result.success(emptyBatchApplyResult(status = mlipMetadataReadOnlyStatus()))
+                }
                 val reviewed = match.copy(result = result.copy(confidence = 1f))
                 val plan = MetadataBatchPlanner.planFor(entries, listOf(reviewed))
                 when {
@@ -347,6 +365,13 @@ class BangumiIndexMetadataCoordinator(
         if (match == null) {
             return Result.success(BangumiMetadataEntryActionResult(null, metadataSearchSelectionRequiredStatus(sourceName)))
         }
+        if (
+            isSourceMetadataReadOnly(sourceId) ||
+            entry.isMlipManagedMetadata() ||
+            relatedEntries.any(MediaIndexEntry::isMlipManagedMetadata)
+        ) {
+            return Result.success(BangumiMetadataEntryActionResult(null, mlipMetadataReadOnlyStatus()))
+        }
 
         val relatedFiles = relatedEntries
             .filterNot { it.isDirectory }
@@ -385,6 +410,9 @@ class BangumiIndexMetadataCoordinator(
         }
         if (entry == null || entry.isDirectory) {
             return Result.success(BangumiMetadataEntryActionResult(null, metadataClearEntryRequiredStatus()))
+        }
+        if (isSourceMetadataReadOnly(sourceId) || entry.isMlipManagedMetadata()) {
+            return Result.success(BangumiMetadataEntryActionResult(null, mlipMetadataReadOnlyStatus()))
         }
 
         val updated = entry.clearExternalMetadata(sourceId = sourceId)

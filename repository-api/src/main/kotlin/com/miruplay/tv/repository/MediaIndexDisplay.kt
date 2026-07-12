@@ -59,6 +59,11 @@ fun MediaIndexEntry.clearExternalMetadata(sourceId: Long = this.sourceId): Media
         scrapedAt = 0L,
     )
 
+fun MediaIndexEntry.isMlipManagedMetadata(): Boolean =
+    metadataSource.equals("MLIP", ignoreCase = true) ||
+        metadataId?.startsWith("mlip:") == true ||
+        localMetadataOverrideKey()?.startsWith("mlip:") == true
+
 fun MediaIndexEntry.localMetadataOverrideKey(): String? =
     scrapeMessage
         ?.takeIf { it.startsWith(LOCAL_METADATA_OVERRIDE_PREFIX) }
