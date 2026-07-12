@@ -1,12 +1,15 @@
 package com.miruplay.tv.desktop
 
+import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.mediasource.desktop.desktopSourceFromInfo
+import com.miruplay.tv.model.MediaRecognitionMode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.ScanResult
 import com.miruplay.tv.model.cloudRssRescanStartedStatus
 import com.miruplay.tv.model.localRootPath
+import com.miruplay.tv.model.recognitionMode
 import com.miruplay.tv.model.scanResultDisplayName
 import com.miruplay.tv.model.sourcePickerTitle
 import com.miruplay.tv.repository.MediaIndexEntry
@@ -47,6 +50,9 @@ internal suspend fun scanAndIndexDesktopSource(
     metadataRepository: MetadataRepository,
     scanner: DesktopMediaLibraryScanner = DesktopMediaLibraryScanner(),
 ): Result<DesktopSourceScanResult> {
+    if (sourceInfo.recognitionMode() == MediaRecognitionMode.MLIP) {
+        return Result.failure(AppError.LibraryIndexError.ReadFailed("桌面版暂不支持导入 MLIP library.db"))
+    }
     val source = desktopSourceFromInfo(sourceInfo)
     val rootPath = when (sourceInfo.type) {
         MediaSourceType.LOCAL -> sourceInfo.localRootPath().orEmpty()

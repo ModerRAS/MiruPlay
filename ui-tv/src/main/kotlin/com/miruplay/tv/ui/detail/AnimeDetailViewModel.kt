@@ -38,6 +38,8 @@ import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
 import com.miruplay.tv.repository.ScanPreferencesRepository
 import com.miruplay.tv.repository.withExternalMetadata
+import com.miruplay.tv.repository.isMlipManagedMetadata
+import com.miruplay.tv.repository.mlipMetadataReadOnlyStatus
 import com.miruplay.tv.scraper.MetadataScraper
 import com.miruplay.tv.sync.BangumiMetadataRefreshCore
 import com.miruplay.tv.sync.BangumiSyncEngine
@@ -125,6 +127,10 @@ class AnimeDetailViewModel @Inject constructor(
 
     fun openRescrapeMatcher() {
         val current = _anime.value ?: return
+        if (current.id.startsWith("mlip:")) {
+            _actionMessage.value = mlipMetadataReadOnlyStatus()
+            return
+        }
         val localEpisodes = allEpisodesWithProgress.map { it.first }
         val candidates = detailBangumiManualCandidateTerms(current, localEpisodes)
         _manualMatch.value = BangumiManualMatchUiState(
@@ -236,6 +242,10 @@ class AnimeDetailViewModel @Inject constructor(
 
     fun applyManualMatch() {
         val current = _anime.value ?: return
+        if (current.id.startsWith("mlip:")) {
+            _manualMatch.value = _manualMatch.value.copy(statusMessage = mlipMetadataReadOnlyStatus())
+            return
+        }
         val match = _manualMatch.value.selectedResult
         if (match == null) {
             _manualMatch.value = _manualMatch.value.copy(statusMessage = detailBangumiManualSelectionRequiredMessage())
@@ -258,6 +268,15 @@ class AnimeDetailViewModel @Inject constructor(
                 ?.takeIf { it.isNotEmpty() }
                 ?: allEpisodesWithProgress.map { it.first }
             val indexedEntries = indexedEntriesFor(localEpisodes)
+            if (indexedEntries.any(MediaIndexEntry::isMlipManagedMetadata)) {
+                _manualMatch.value = _manualMatch.value.copy(
+                    isApplying = false,
+                    statusMessage = mlipMetadataReadOnlyStatus(),
+                )
+                _actionMessage.value = mlipMetadataReadOnlyStatus()
+                _isSyncing.value = false
+                return@launch
+            }
             var reloadAnimeId = current.id
             when (
                 val refreshed = PerformanceLog.measureSuspendResult(

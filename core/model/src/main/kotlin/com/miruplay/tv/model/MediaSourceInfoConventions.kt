@@ -83,9 +83,6 @@ object MediaSourceInfoConventions {
         if (recognitionMode != MediaRecognitionMode.DIRECTORY) {
             put(CONNECTION_RECOGNITION_MODE, recognitionMode.name)
         }
-        if (recognitionMode == MediaRecognitionMode.MLIP && mlipMetadataMode != MlipMetadataMode.LIBRARY_DB_LOCAL_PRIORITY) {
-            put(CONNECTION_MLIP_METADATA_MODE, mlipMetadataMode.name)
-        }
     }
 
     fun sourceConnectionInfoFromPersistence(
@@ -233,23 +230,10 @@ fun MediaSourceInfo.withRecognitionMode(mode: MediaRecognitionMode): MediaSource
     )
 
 fun MediaSourceInfo.mlipMetadataMode(): MlipMetadataMode =
-    if (recognitionMode() != MediaRecognitionMode.MLIP) {
-        MlipMetadataMode.LIBRARY_DB_LOCAL_PRIORITY
-    } else {
-        connectionInfo[MediaSourceInfoConventions.CONNECTION_MLIP_METADATA_MODE]
-            ?.trim()
-            ?.let { value -> MlipMetadataMode.entries.firstOrNull { it.name.equals(value, ignoreCase = true) } }
-            ?: MlipMetadataMode.LIBRARY_DB_LOCAL_PRIORITY
-    }
+    MlipMetadataMode.LIBRARY_DB_LOCAL_PRIORITY
 
 fun MediaSourceInfo.withMlipMetadataMode(mode: MlipMetadataMode): MediaSourceInfo =
-    copy(
-        connectionInfo = if (recognitionMode() != MediaRecognitionMode.MLIP || mode == MlipMetadataMode.LIBRARY_DB_LOCAL_PRIORITY) {
-            connectionInfo - MediaSourceInfoConventions.CONNECTION_MLIP_METADATA_MODE
-        } else {
-            connectionInfo + (MediaSourceInfoConventions.CONNECTION_MLIP_METADATA_MODE to mode.name)
-        },
-    )
+    copy(connectionInfo = connectionInfo - MediaSourceInfoConventions.CONNECTION_MLIP_METADATA_MODE)
 
 fun MediaSourceInfo.sourceLocation(): String? =
     localRootPath() ?: remoteUrl()

@@ -266,13 +266,15 @@ private fun DetailContent(
                                 .width(230.dp)
                                 .then(primaryActionFocus.modifier())
                         )
-                        TvButton(
-                            text = detailRescrapeActionLabel(),
-                            icon = Icons.Filled.Refresh,
-                            enabled = !isSyncing,
-                            onClick = onRescrape,
-                            modifier = Modifier.width(170.dp)
-                        )
+                        if (!anime.id.startsWith("mlip:")) {
+                            TvButton(
+                                text = detailRescrapeActionLabel(),
+                                icon = Icons.Filled.Refresh,
+                                enabled = !isSyncing,
+                                onClick = onRescrape,
+                                modifier = Modifier.width(170.dp)
+                            )
+                        }
                         TvButton(
                             text = detailSyncProgressActionLabel(isSyncing),
                             icon = Icons.Filled.Sync,

@@ -59,7 +59,8 @@ internal class FileBackedMediaIndexRepository(
             state.index
                 .asSequence()
                 .filter { it.sourceId == sourceId }
-                .mapNotNull { it.animeName?.takeIf(String::isNotBlank) }
+                .flatMap { entry -> sequenceOf(entry.metadataId, entry.animeName, entry.metadataTitle) }
+                .mapNotNull { it?.takeIf(String::isNotBlank) }
                 .distinct()
                 .sorted()
                 .toList()

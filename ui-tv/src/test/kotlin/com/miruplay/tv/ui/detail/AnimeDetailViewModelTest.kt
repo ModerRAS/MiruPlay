@@ -25,7 +25,6 @@ import com.miruplay.tv.repository.BangumiUser
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MetadataRepository
-import com.miruplay.tv.repository.localMetadataOverrideKey
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
 import com.miruplay.tv.repository.ScanPreferencesRepository
@@ -113,7 +112,7 @@ class AnimeDetailViewModelTest {
     }
 
     @Test
-    fun `manual match writes indexed Bangumi override for future MLIP imports`() = runTest {
+    fun `manual match cannot override MLIP metadata`() = runTest {
         val indexRepository = AnimeDetailFakeMediaIndexRepository(
             entries = mutableListOf(
                 MediaIndexEntry(
@@ -165,11 +164,11 @@ class AnimeDetailViewModelTest {
         viewModel.applyManualMatch()
         advanceUntilIdle()
 
-        val updated = indexRepository.upsertedEntries.single()
-        assertEquals("BANGUMI", updated.metadataSource)
-        assertEquals("431767", updated.metadataId)
-        assertEquals("葬送的芙莉莲", updated.metadataTitle)
-        assertEquals("mlip:7:series-uuid", updated.localMetadataOverrideKey())
+        assertEquals(emptyList<MediaIndexEntry>(), indexRepository.upsertedEntries)
+        assertEquals(
+            "MLIP 元数据由 library.db 管理，请在远端修正后重新扫描。",
+            viewModel.manualMatch.value.statusMessage,
+        )
         assertEquals("Frieren", viewModel.anime.value?.id)
     }
 

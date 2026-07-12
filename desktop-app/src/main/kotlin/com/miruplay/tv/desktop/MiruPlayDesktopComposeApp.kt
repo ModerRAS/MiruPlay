@@ -55,6 +55,7 @@ import com.miruplay.tv.model.CloudDriveLibraryMode
 import com.miruplay.tv.model.PLAYBACK_SEEK_BACK_SECONDS
 import com.miruplay.tv.model.PLAYBACK_SEEK_FORWARD_SECONDS
 import com.miruplay.tv.model.PLAYBACK_SPEED_NORMAL
+import com.miruplay.tv.model.MediaRecognitionMode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaPathConventions
@@ -68,6 +69,7 @@ import com.miruplay.tv.model.RssSubscriptionFormResult
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.cloudRssScheduledSyncCompleteStatus
+import com.miruplay.tv.model.recognitionMode
 import com.miruplay.tv.model.cloudRssInitialStatus
 import com.miruplay.tv.model.cloudRssRescanStartedStatus
 import com.miruplay.tv.model.cloudRssLinkedScanSourceStatus
@@ -480,6 +482,9 @@ internal fun MiruPlayDesktopComposeApp(
             indexRepository = repositories.index,
             metadataRepository = repositories.metadata,
             bangumiScraper = bangumiScraper,
+            isSourceMetadataReadOnly = { sourceId ->
+                repositories.mediaSources.getSourceById(sourceId).getOrNull()?.recognitionMode() == MediaRecognitionMode.MLIP
+            },
         )
     }
     val bangumiSyncCore = remember(bangumiScraper, repositories) {
