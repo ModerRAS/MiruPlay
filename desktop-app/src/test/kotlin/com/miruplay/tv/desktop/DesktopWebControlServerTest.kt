@@ -11,6 +11,8 @@ import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfoConventions
+import com.miruplay.tv.model.PlaybackEndAction
+import com.miruplay.tv.model.SubtitleLanguagePreference
 import com.miruplay.tv.repository.OtlpLogUploadConfig
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.repository.MediaIndexEntry
@@ -93,6 +95,47 @@ class DesktopWebControlServerTest {
             }
         } finally {
             mediaRoot.toFile().deleteRecursively()
+            storePath.parent.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `desktop web control playback settings round trip and persist`() = runBlocking {
+        val storePath = Files.createTempDirectory("miruplay-web-control-store").resolve("store.json")
+        val port = freePort()
+        try {
+            val repositories = DesktopRepositories.fileBacked(storePath)
+            repositories.webControlAccess.webControlEnabled = true
+            val token = repositories.webControlAccess.accessToken
+            val server = DesktopWebControlServer(
+                webControlService = DesktopWebControlService(repositories, deviceName = "Windows Test"),
+                webControlAccess = repositories.webControlAccess,
+                port = port,
+            )
+            server.startIfNeeded()
+            try {
+                val initial = request("http://127.0.0.1:$port/api/settings/playback?token=$token")
+                assertEquals(200, initial.code)
+                assertTrue(initial.body.contains("\"preferredSubtitleLanguage\":\"auto\""))
+
+                val saved = request(
+                    url = "http://127.0.0.1:$port/api/settings/playback?token=$token",
+                    method = "PUT",
+                    body = """{"endAction":"play_next_episode","preferredSubtitleLanguage":"zh_hans"}""",
+                )
+                assertEquals(200, saved.code)
+                assertTrue(saved.body.contains("\"preferredSubtitleLanguage\":\"zh_hans\""))
+            } finally {
+                server.stopIfRunning()
+            }
+
+            val reopened = DesktopRepositories.fileBacked(storePath)
+            assertEquals(PlaybackEndAction.PLAY_NEXT_EPISODE, reopened.playbackPreferences.getEndAction())
+            assertEquals(
+                SubtitleLanguagePreference.CHINESE_SIMPLIFIED,
+                reopened.playbackPreferences.getPreferredSubtitleLanguage(),
+            )
+        } finally {
             storePath.parent.toFile().deleteRecursively()
         }
     }

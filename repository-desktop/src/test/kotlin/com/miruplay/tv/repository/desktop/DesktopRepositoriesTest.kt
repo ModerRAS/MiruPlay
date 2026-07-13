@@ -7,6 +7,7 @@ import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.PlaybackRenderBackend
+import com.miruplay.tv.model.SubtitleLanguagePreference
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.RssDownloadStatus
@@ -146,6 +147,52 @@ class DesktopRepositoriesTest {
 
             val reopened = DesktopRepositories.fileBacked(storePath)
             assertEquals(PlaybackEndAction.PLAY_NEXT_EPISODE, reopened.playbackPreferences.getEndAction())
+        } finally {
+            deleteTempStore(storePath)
+        }
+    }
+
+    @Test
+    fun `legacy desktop store defaults subtitle preference without losing playback settings`() = runBlocking {
+        val storePath = tempStorePath()
+        try {
+            Files.writeString(
+                storePath,
+                """{"nextSourceId":9,"playbackEndAction":"PLAY_NEXT_EPISODE"}""",
+            )
+
+            val repositories = DesktopRepositories.fileBacked(storePath)
+
+            assertEquals(PlaybackEndAction.PLAY_NEXT_EPISODE, repositories.playbackPreferences.getEndAction())
+            assertEquals(
+                SubtitleLanguagePreference.AUTO,
+                repositories.playbackPreferences.getPreferredSubtitleLanguage(),
+            )
+        } finally {
+            deleteTempStore(storePath)
+        }
+    }
+
+    @Test
+    fun `preferred subtitle language is persisted`() = runBlocking {
+        val storePath = tempStorePath()
+        try {
+            val repositories = DesktopRepositories.fileBacked(storePath)
+
+            assertEquals(
+                SubtitleLanguagePreference.AUTO,
+                repositories.playbackPreferences.getPreferredSubtitleLanguage(),
+            )
+
+            repositories.playbackPreferences.setPreferredSubtitleLanguage(
+                SubtitleLanguagePreference.CHINESE_SIMPLIFIED,
+            )
+
+            val reopened = DesktopRepositories.fileBacked(storePath)
+            assertEquals(
+                SubtitleLanguagePreference.CHINESE_SIMPLIFIED,
+                reopened.playbackPreferences.getPreferredSubtitleLanguage(),
+            )
         } finally {
             deleteTempStore(storePath)
         }

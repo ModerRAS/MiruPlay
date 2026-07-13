@@ -63,6 +63,7 @@ import com.miruplay.tv.model.PlaybackTimingConventions
 import com.miruplay.tv.model.formatPlaybackPosition
 import com.miruplay.tv.model.mpvPlaybackSourceLine
 import com.miruplay.tv.model.PlaybackEndAction
+import com.miruplay.tv.model.SubtitleLanguagePreference
 import com.miruplay.tv.model.mpvPlaybackStatusText
 import com.miruplay.tv.model.playbackBackToDetailsLabel
 import com.miruplay.tv.model.playbackCheckRuntimeActionLabel
@@ -71,6 +72,9 @@ import com.miruplay.tv.model.playbackDiagnosticsTitleLabel
 import com.miruplay.tv.model.playbackEndActionLabel
 import com.miruplay.tv.model.playbackEndSettingsDescriptionLabel
 import com.miruplay.tv.model.playbackEndSettingsTitleLabel
+import com.miruplay.tv.model.preferredSubtitleLanguageSettingsDescriptionLabel
+import com.miruplay.tv.model.preferredSubtitleLanguageSettingsTitleLabel
+import com.miruplay.tv.model.displayLabel
 import com.miruplay.tv.model.playbackExternalSubtitleLabel
 import com.miruplay.tv.model.playbackMediaTitle
 import com.miruplay.tv.model.playbackMpvExecutableFieldLabel
@@ -111,6 +115,8 @@ internal fun PlaybackPanel(
     onRifeBackendChange: (RifeBackend) -> Unit,
     playbackEndAction: PlaybackEndAction,
     onPlaybackEndActionChange: (PlaybackEndAction) -> Unit,
+    preferredSubtitleLanguage: SubtitleLanguagePreference,
+    onPreferredSubtitleLanguageChange: (SubtitleLanguagePreference) -> Unit,
     playbackSpeed: Float,
     onPlaybackSpeedChange: (Float) -> Unit,
     isPlayerActive: Boolean,
@@ -200,6 +206,8 @@ internal fun PlaybackPanel(
             onRifeBackendChange = onRifeBackendChange,
             playbackEndAction = playbackEndAction,
             onPlaybackEndActionChange = onPlaybackEndActionChange,
+            preferredSubtitleLanguage = preferredSubtitleLanguage,
+            onPreferredSubtitleLanguageChange = onPreferredSubtitleLanguageChange,
             playbackSpeed = playbackSpeed,
             onPlaybackSpeedChange = onPlaybackSpeedChange,
             focusVersion = settingsFocusVersion,
@@ -692,6 +700,7 @@ internal enum class PlaybackSettingFocusTarget {
     StartSeconds,
     SubtitlePath,
     EndAction,
+    SubtitleLanguage,
     Speed,
     Fullscreen,
     KeepOpen,
@@ -706,6 +715,7 @@ private val playbackSettingFocusableTargets = listOf(
     PlaybackSettingFocusTarget.StartSeconds,
     PlaybackSettingFocusTarget.SubtitlePath,
     PlaybackSettingFocusTarget.EndAction,
+    PlaybackSettingFocusTarget.SubtitleLanguage,
     PlaybackSettingFocusTarget.Speed,
     PlaybackSettingFocusTarget.Fullscreen,
     PlaybackSettingFocusTarget.KeepOpen,
@@ -754,11 +764,16 @@ internal fun playbackSettingNavigationTarget(
         }
         PlaybackSettingFocusTarget.EndAction -> when (intent.verticalNavigationDelta()) {
             -1 -> PlaybackSettingFocusTarget.SubtitlePath
+            1 -> PlaybackSettingFocusTarget.SubtitleLanguage
+            else -> null
+        }
+        PlaybackSettingFocusTarget.SubtitleLanguage -> when (intent.verticalNavigationDelta()) {
+            -1 -> PlaybackSettingFocusTarget.EndAction
             1 -> PlaybackSettingFocusTarget.Speed
             else -> null
         }
         PlaybackSettingFocusTarget.Speed -> when (intent.verticalNavigationDelta()) {
-            -1 -> PlaybackSettingFocusTarget.EndAction
+            -1 -> PlaybackSettingFocusTarget.SubtitleLanguage
             1 -> PlaybackSettingFocusTarget.Fullscreen
             else -> null
         }
@@ -966,6 +981,8 @@ private fun PlaybackSettingsPanel(
     onRifeBackendChange: (RifeBackend) -> Unit,
     playbackEndAction: PlaybackEndAction,
     onPlaybackEndActionChange: (PlaybackEndAction) -> Unit,
+    preferredSubtitleLanguage: SubtitleLanguagePreference,
+    onPreferredSubtitleLanguageChange: (SubtitleLanguagePreference) -> Unit,
     playbackSpeed: Float,
     onPlaybackSpeedChange: (Float) -> Unit,
     focusVersion: Int = 0,
@@ -1038,6 +1055,29 @@ private fun PlaybackSettingsPanel(
             modifier = Modifier.playbackSettingNavigation(
                 target = PlaybackSettingFocusTarget.EndAction,
                 focusRequester = settingFocusRequesters.getValue(PlaybackSettingFocusTarget.EndAction),
+                onMove = ::movePlaybackSettingFocus,
+            ),
+        )
+        Spacer(Modifier.height(MiruPlayUiMetrics.MEDIUM_GAP_DP.dp))
+        Text(
+            preferredSubtitleLanguageSettingsTitleLabel(),
+            color = TextPrimary,
+            fontSize = MiruPlayUiMetrics.ITEM_TITLE_SP.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            preferredSubtitleLanguageSettingsDescriptionLabel(),
+            color = TextSecondary,
+            fontSize = MiruPlayUiMetrics.DETAIL_TEXT_SP.sp,
+        )
+        Spacer(Modifier.height(MiruPlayUiMetrics.SMALL_GAP_DP.dp))
+        SubtitleLanguagePreferencePicker(
+            selected = preferredSubtitleLanguage,
+            onSelected = onPreferredSubtitleLanguageChange,
+            modifier = Modifier.playbackSettingNavigation(
+                target = PlaybackSettingFocusTarget.SubtitleLanguage,
+                focusRequester = settingFocusRequesters.getValue(PlaybackSettingFocusTarget.SubtitleLanguage),
                 onMove = ::movePlaybackSettingFocus,
             ),
         )
@@ -1387,6 +1427,55 @@ private fun PlaybackEndActionPicker(
             onClick = { onSelected(PlaybackEndAction.PLAY_NEXT_EPISODE) },
             widthDp = 170,
         )
+    }
+}
+
+@Composable
+private fun SubtitleLanguagePreferencePicker(
+    selected: SubtitleLanguagePreference,
+    onSelected: (SubtitleLanguagePreference) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .border(
+                width = if (isFocused) 2.dp else 1.dp,
+                color = if (isFocused) AnimeRed else Color.White.copy(alpha = 0.18f),
+                shape = RoundedCornerShape(8.dp),
+            )
+            .background(if (isFocused) CardBg.copy(alpha = 0.55f) else Color.Transparent)
+            .focusable(interactionSource = interactionSource)
+            .onPreviewKeyEvent { event ->
+                desktopConfirmOrNavigationIntentEvent(
+                    key = event.key,
+                    type = event.type,
+                    onClick = { onSelected(selected) },
+                    onNavigationIntent = { intent ->
+                        val delta = intent.horizontalNavigationDelta()
+                            ?: return@desktopConfirmOrNavigationIntentEvent false
+                        val index = SubtitleLanguagePreference.entries.indexOf(selected)
+                        val next = SubtitleLanguagePreference.entries.getOrNull(index + delta)
+                            ?: return@desktopConfirmOrNavigationIntentEvent false
+                        onSelected(next)
+                        true
+                    },
+                )
+            }
+            .padding(2.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SubtitleLanguagePreference.entries.forEach { preference ->
+            PlaybackEndActionChoiceChip(
+                text = preference.displayLabel(),
+                selected = selected == preference,
+                onClick = { onSelected(preference) },
+                widthDp = 105,
+            )
+        }
     }
 }
 

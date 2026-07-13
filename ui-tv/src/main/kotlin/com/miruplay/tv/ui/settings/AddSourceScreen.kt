@@ -43,6 +43,7 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.PhotoFilter
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
@@ -88,6 +89,7 @@ import com.miruplay.tv.repository.AppMode
 import com.miruplay.tv.repository.toMediaContentMode
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.PlaybackRenderBackend
+import com.miruplay.tv.model.SubtitleLanguagePreference
 import com.miruplay.tv.model.normalizeSupportedBackend
 import com.miruplay.tv.model.supportedPlaybackRenderBackends
 import com.miruplay.tv.model.PosterWallArrangement
@@ -176,6 +178,9 @@ import com.miruplay.tv.model.playbackEndReturnToDetailDetail
 import com.miruplay.tv.model.playbackEndSettingsDescriptionLabel
 import com.miruplay.tv.model.playbackEndSettingsTitleLabel
 import com.miruplay.tv.model.playbackEndMenuSummary
+import com.miruplay.tv.model.preferredSubtitleLanguageSettingsDescriptionLabel
+import com.miruplay.tv.model.preferredSubtitleLanguageSettingsTitleLabel
+import com.miruplay.tv.model.displayLabel
 import com.miruplay.tv.model.pictureSettingsDescriptionLabel
 import com.miruplay.tv.model.pictureSettingsTitleLabel
 import com.miruplay.tv.model.playbackBackendLabel
@@ -365,6 +370,7 @@ fun AddSourceScreen(
     val posterWallArrangement by viewModel.posterWallArrangement.collectAsStateWithLifecycle()
     val currentAppMode by viewModel.currentAppMode.collectAsStateWithLifecycle()
     val playbackEndAction by viewModel.playbackEndAction.collectAsStateWithLifecycle()
+    val preferredSubtitleLanguage by viewModel.preferredSubtitleLanguage.collectAsStateWithLifecycle()
     val formatAwareToneMappingPreferences by viewModel.formatAwareToneMappingPreferences.collectAsStateWithLifecycle()
     val savedTmdbToken by viewModel.tmdbToken.collectAsStateWithLifecycle()
     val webUiUrls by viewModel.webUiUrls.collectAsStateWithLifecycle()
@@ -566,6 +572,7 @@ fun AddSourceScreen(
                     mergeSameAnimeEnabled = mergeSameAnimeEnabled,
                     posterWallArrangement = posterWallArrangement,
                     playbackEndAction = playbackEndAction,
+                    preferredSubtitleLanguage = preferredSubtitleLanguage,
                     formatAwareToneMappingPreferences = formatAwareToneMappingPreferences,
                     cloudDriveEnabled = cloudEnabled,
                     rssCount = rssSubscriptions.size,
@@ -660,6 +667,8 @@ fun AddSourceScreen(
                     onAppModeSelected = viewModel::setCurrentAppMode,
                     playbackEndAction = playbackEndAction,
                     onPlaybackEndActionSelected = viewModel::setPlaybackEndAction,
+                    preferredSubtitleLanguage = preferredSubtitleLanguage,
+                    onPreferredSubtitleLanguageSelected = viewModel::setPreferredSubtitleLanguage,
                     formatAwareToneMappingPreferences = formatAwareToneMappingPreferences,
                     onPlaybackBackendSelected = viewModel::setDefaultPlaybackBackend,
                     onToneMappingPresetSelected = viewModel::setToneMappingPreset,
@@ -930,6 +939,7 @@ private fun SettingsMenuPanel(
     mergeSameAnimeEnabled: Boolean,
     posterWallArrangement: PosterWallArrangement,
     playbackEndAction: PlaybackEndAction,
+    preferredSubtitleLanguage: SubtitleLanguagePreference,
     formatAwareToneMappingPreferences: FormatAwareToneMappingPreferences,
     cloudDriveEnabled: Boolean,
     rssCount: Int,
@@ -952,7 +962,7 @@ private fun SettingsMenuPanel(
     val menuSummaryInput = SettingsSectionMenuSummaryInput(
         webUiAddressCount = webUiAddressCount,
         sourceCount = sourcesCount,
-        playbackSummary = "${playbackEndAction.playbackEndMenuSummary()} · ${playbackBackendLabel(formatAwareToneMappingPreferences.defaultBackend)}",
+        playbackSummary = "${playbackEndAction.playbackEndMenuSummary()} · ${preferredSubtitleLanguage.displayLabel()}字幕 · ${playbackBackendLabel(formatAwareToneMappingPreferences.defaultBackend)}",
         cloudDriveEnabled = cloudDriveEnabled,
         rssCount = rssCount,
         proxyEnabled = proxyEnabled,
@@ -1118,6 +1128,8 @@ private fun SettingsContent(
     onAppModeSelected: (AppMode) -> Unit,
     playbackEndAction: PlaybackEndAction,
     onPlaybackEndActionSelected: (PlaybackEndAction) -> Unit,
+    preferredSubtitleLanguage: SubtitleLanguagePreference,
+    onPreferredSubtitleLanguageSelected: (SubtitleLanguagePreference) -> Unit,
     formatAwareToneMappingPreferences: FormatAwareToneMappingPreferences,
     onPlaybackBackendSelected: (PlaybackRenderBackend) -> Unit,
     onToneMappingPresetSelected: (VideoRenderRuleKey, ToneMappingProfilePreset) -> Unit,
@@ -1375,6 +1387,8 @@ private fun SettingsContent(
             PlaybackPanel(
                 endAction = playbackEndAction,
                 onEndActionSelected = onPlaybackEndActionSelected,
+                preferredSubtitleLanguage = preferredSubtitleLanguage,
+                onPreferredSubtitleLanguageSelected = onPreferredSubtitleLanguageSelected,
                 formatAwareToneMappingPreferences = formatAwareToneMappingPreferences,
                 onPlaybackBackendSelected = onPlaybackBackendSelected,
                 onToneMappingPresetSelected = onToneMappingPresetSelected,
@@ -3110,6 +3124,8 @@ private fun ScanPanel(
 private fun PlaybackPanel(
     endAction: PlaybackEndAction,
     onEndActionSelected: (PlaybackEndAction) -> Unit,
+    preferredSubtitleLanguage: SubtitleLanguagePreference,
+    onPreferredSubtitleLanguageSelected: (SubtitleLanguagePreference) -> Unit,
     formatAwareToneMappingPreferences: FormatAwareToneMappingPreferences,
     onPlaybackBackendSelected: (PlaybackRenderBackend) -> Unit,
     onToneMappingPresetSelected: (VideoRenderRuleKey, ToneMappingProfilePreset) -> Unit,
@@ -3160,6 +3176,49 @@ private fun PlaybackPanel(
                 PlaybackEndAction.PLAY_NEXT_EPISODE -> playbackEndPlayNextEpisodeDetail()
             },
             color = if (endAction == PlaybackEndAction.PLAY_NEXT_EPISODE) ProgressGreen else TextSecondary
+        )
+
+        Spacer(Modifier.height(24.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Filled.Language,
+                contentDescription = null,
+                tint = TextPrimary,
+                modifier = Modifier.size(26.dp)
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(
+                text = preferredSubtitleLanguageSettingsTitleLabel(),
+                style = TvTypography.subtitle,
+                color = TextPrimary,
+            )
+        }
+
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = preferredSubtitleLanguageSettingsDescriptionLabel(),
+            style = TvTypography.body,
+            color = TextSecondary,
+        )
+
+        Spacer(Modifier.height(16.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            SubtitleLanguagePreference.entries.forEach { preference ->
+                ScanOptionChip(
+                    text = preference.displayLabel(),
+                    icon = Icons.Filled.Language,
+                    selected = preferredSubtitleLanguage == preference,
+                    enabled = true,
+                    onClick = { onPreferredSubtitleLanguageSelected(preference) },
+                    modifier = Modifier.width(120.dp),
+                )
+            }
+        }
+
+        StatusMessage(
+            icon = Icons.Filled.CheckCircle,
+            text = "当前优先：${preferredSubtitleLanguage.displayLabel()}",
+            color = if (preferredSubtitleLanguage == SubtitleLanguagePreference.AUTO) TextSecondary else ProgressGreen,
         )
 
         Spacer(Modifier.height(24.dp))

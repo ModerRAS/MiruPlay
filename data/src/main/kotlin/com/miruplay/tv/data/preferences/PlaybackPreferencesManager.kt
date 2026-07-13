@@ -5,6 +5,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.PlaybackRenderBackend
+import com.miruplay.tv.model.SubtitleLanguagePreference
 import com.miruplay.tv.repository.PlaybackPreferencesRepository
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -25,6 +26,14 @@ class PlaybackPreferencesManager @Inject constructor(
         get() = PlaybackEndAction.fromStorageValue(prefs.getString(KEY_END_ACTION, null))
         set(value) {
             prefs.edit().putString(KEY_END_ACTION, value.storageValue).apply()
+        }
+
+    var preferredSubtitleLanguage: SubtitleLanguagePreference
+        get() = SubtitleLanguagePreference.fromStorageValue(
+            prefs.getString(KEY_PREFERRED_SUBTITLE_LANGUAGE, null),
+        )
+        set(value) {
+            prefs.edit().putString(KEY_PREFERRED_SUBTITLE_LANGUAGE, value.storageValue).apply()
         }
 
     var formatAwareToneMappingPreferences: FormatAwareToneMappingPreferences
@@ -53,6 +62,13 @@ class PlaybackPreferencesManager @Inject constructor(
         endAction = action
     }
 
+    override suspend fun getPreferredSubtitleLanguage(): SubtitleLanguagePreference =
+        preferredSubtitleLanguage
+
+    override suspend fun setPreferredSubtitleLanguage(preference: SubtitleLanguagePreference) {
+        preferredSubtitleLanguage = preference
+    }
+
     override suspend fun getFormatAwareToneMappingPreferences(): FormatAwareToneMappingPreferences =
         formatAwareToneMappingPreferences
 
@@ -62,6 +78,7 @@ class PlaybackPreferencesManager @Inject constructor(
 
     companion object {
         private const val KEY_END_ACTION = "end_action"
+        private const val KEY_PREFERRED_SUBTITLE_LANGUAGE = "preferred_subtitle_language"
         private const val KEY_FORMAT_AWARE_TONE_MAPPING_PREFERENCES = "format_aware_tone_mapping_preferences"
     }
 }

@@ -61,6 +61,8 @@ import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.PlaybackEndAction
+import com.miruplay.tv.model.SubtitleLanguagePreference
+import com.miruplay.tv.model.prioritizeSubtitlePaths
 import com.miruplay.tv.model.PlaybackProgressSession
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.PlaybackTimingConventions
@@ -616,6 +618,7 @@ internal fun MiruPlayDesktopComposeApp(
     var fullscreen by remember { mutableStateOf(false) }
     var keepOpen by remember { mutableStateOf(false) }
     var playbackEndAction by remember { mutableStateOf(PlaybackEndAction.RETURN_TO_DETAIL) }
+    var preferredSubtitleLanguage by remember { mutableStateOf(SubtitleLanguagePreference.AUTO) }
     var playbackSpeed by remember { mutableStateOf(PLAYBACK_SPEED_NORMAL) }
     var rifeEnabled by remember { mutableStateOf(DEFAULT_DESKTOP_RIFE_ENABLED) }
     var rifeBackend by remember { mutableStateOf(RifeBackend.NVIDIA) }
@@ -634,6 +637,13 @@ internal fun MiruPlayDesktopComposeApp(
             },
             onLogUploadConfigSaved = { config ->
                 logUploadAutoScheduler.syncWithConfig(config)
+            },
+            onPlaybackSettingsSaved = { endAction, subtitleLanguage ->
+                scope.launch {
+                    playbackEndAction = endAction
+                    preferredSubtitleLanguage = subtitleLanguage
+                }
+                Unit
             },
             playbackStatusProvider = {
                 desktopWebControlPlaybackStatus(
@@ -882,6 +892,7 @@ internal fun MiruPlayDesktopComposeApp(
             is Result.Error -> recentStatus = recents.error.toUserMessage()
         }
         playbackEndAction = settingsPreferenceActions.currentPlaybackEndAction()
+        preferredSubtitleLanguage = settingsPreferenceActions.currentPreferredSubtitleLanguage()
         applyScanPreferenceSnapshot(settingsPreferenceActions.currentScanPreferences())
         when (val config = repositories.cloudDriveAutomation.getConfig()) {
             is Result.Success -> {
@@ -1044,6 +1055,7 @@ internal fun MiruPlayDesktopComposeApp(
     ): DesktopPlaybackLaunchRequest {
         val playbackMediaSource = sourceOverride ?: activeSource
         val playbackSourceId = sourceIdOverride ?: activeSourceId
+        val launchSubtitlePreference = repositories.playbackPreferences.getPreferredSubtitleLanguage()
         val hasSubtitleOverride = subtitleOverrideKey == (playbackSourceId to path.trim())
         val manualSubtitlePath = subtitlePath.takeIf { hasSubtitleOverride }.orEmpty()
         val indexedPath = episodeId
@@ -1065,7 +1077,11 @@ internal fun MiruPlayDesktopComposeApp(
             mpvPath = mpvPath,
             configDir = configDir,
             mediaPath = path,
-            subtitlePath = if (hasSubtitleOverride) manualSubtitlePath else indexedSubtitlePaths.joinToString(";"),
+            subtitlePath = if (hasSubtitleOverride) {
+                manualSubtitlePath
+            } else {
+                prioritizeSubtitlePaths(indexedSubtitlePaths, launchSubtitlePreference).joinToString(";")
+            },
             startSeconds = startPositionMs.coerceAtLeast(0L).let { position ->
                 PlaybackTimingConventions.formatMpvStartSeconds(position)
             },
@@ -2637,6 +2653,13 @@ internal fun MiruPlayDesktopComposeApp(
                     onPlaybackEndActionChange = { action ->
                         scope.launch {
                             playbackEndAction = settingsPreferenceActions.setPlaybackEndAction(action)
+                        }
+                    },
+                    preferredSubtitleLanguage = preferredSubtitleLanguage,
+                    onPreferredSubtitleLanguageChange = { preference ->
+                        scope.launch {
+                            preferredSubtitleLanguage = settingsPreferenceActions
+                                .setPreferredSubtitleLanguage(preference)
                         }
                     },
                     playbackSpeed = playbackSpeed,

@@ -30,6 +30,7 @@ import com.miruplay.tv.model.PlaybackRenderBackend
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.PlaybackState
 import com.miruplay.tv.model.SubtitleFormat
+import com.miruplay.tv.model.SubtitleLanguagePreference
 import com.miruplay.tv.model.SubtitleTrack
 import com.miruplay.tv.model.ToneMappingRuleSet
 import com.miruplay.tv.model.VideoRenderRuleKey
@@ -37,6 +38,7 @@ import com.miruplay.tv.model.VideoSignalDescriptor
 import com.miruplay.tv.model.VideoSignalKind
 import com.miruplay.tv.model.defaultToneMappingRuleSet
 import com.miruplay.tv.model.normalizeSupportedBackend
+import com.miruplay.tv.model.preferredSubtitleTrackIndex
 import com.miruplay.tv.repository.PlaybackPreferencesRepository
 import `is`.xyz.mpv.MiruMpvSurfaceView
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -105,6 +107,8 @@ class ExoPlaybackController @Inject constructor(
     private var selectedAudioTrackIndex: Int? = null
     private var currentSource: PlaybackSource? = null
     private var autoResumeSeekCalled = false
+    private var preferredSubtitleLanguage = SubtitleLanguagePreference.AUTO
+    private var subtitleSelectionWasManual = false
     private var playbackPreferences = FormatAwareToneMappingPreferences()
     private var containerSignalDescriptor: VideoSignalDescriptor? = null
     private var sessionState = PlaybackSessionState()
@@ -143,6 +147,8 @@ class ExoPlaybackController @Inject constructor(
         playbackPreferences = playbackPreferencesRepository
             .getFormatAwareToneMappingPreferences()
             .normalized()
+        preferredSubtitleLanguage = playbackPreferencesRepository.getPreferredSubtitleLanguage()
+        subtitleSelectionWasManual = false
         _requestedRenderBackend.value = sessionState.effectiveRequestedBackend(playbackPreferences.defaultBackend)
         _sessionRuleOverrides.value = sessionState.ruleOverrides
         refreshRuntimeConfig(null)
@@ -378,6 +384,7 @@ class ExoPlaybackController @Inject constructor(
             embeddedSubtitleTrackIds.clear()
             selectedSubtitleTrackIndex = null
             selectedAudioTrackIndex = null
+            subtitleSelectionWasManual = false
             containerSignalDescriptor = null
             _currentVideoSignalDescriptor.value = null
             PlaybackCodecSelectionState.decoderPreference = PlaybackDecoderPreference.DEFAULT
@@ -414,9 +421,14 @@ class ExoPlaybackController @Inject constructor(
                 }
                 embeddedMpvView?.setSubtitleTrack(nativeTrackId)
                 selectedSubtitleTrackIndex = trackIndex
+                subtitleSelectionWasManual = true
             }
             PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID -> Unit
-            else -> selectExoTrack(C.TRACK_TYPE_TEXT, trackIndex)
+            else -> selectExoTrack(
+                trackType = C.TRACK_TYPE_TEXT,
+                trackIndex = trackIndex,
+                markSubtitleSelectionManual = true,
+            )
         }
     }
 
@@ -889,7 +901,11 @@ class ExoPlaybackController @Inject constructor(
         }
     }
 
-    private suspend fun selectExoTrack(trackType: Int, trackIndex: Int?) = withContext(Dispatchers.Main) {
+    private suspend fun selectExoTrack(
+        trackType: Int,
+        trackIndex: Int?,
+        markSubtitleSelectionManual: Boolean = false,
+    ) = withContext(Dispatchers.Main) {
         val player = activeExoPlayer()
         if (trackType == C.TRACK_TYPE_TEXT && trackIndex == null) {
             player.trackSelectionParameters = player.trackSelectionParameters
@@ -898,6 +914,7 @@ class ExoPlaybackController @Inject constructor(
                 .clearOverridesOfType(trackType)
                 .build()
             selectedSubtitleTrackIndex = null
+            if (markSubtitleSelectionManual) subtitleSelectionWasManual = true
             return@withContext
         }
         val target = when (trackType) {
@@ -913,6 +930,7 @@ class ExoPlaybackController @Inject constructor(
             .build()
         if (trackType == C.TRACK_TYPE_TEXT) {
             selectedSubtitleTrackIndex = trackIndex
+            if (markSubtitleSelectionManual) subtitleSelectionWasManual = true
         } else {
             selectedAudioTrackIndex = trackIndex
         }
@@ -964,9 +982,25 @@ class ExoPlaybackController @Inject constructor(
                     }
                 }
             }
+            applyPreferredExoSubtitleTrack()
         } catch (e: Exception) {
             MiruLog.w("ExoPlaybackController", "Failed to enumerate media tracks", e)
         }
+    }
+
+    private fun applyPreferredExoSubtitleTrack() {
+        if (subtitleSelectionWasManual) return
+        val preferredIndex = preferredSubtitleTrackIndex(availableSubtitles, preferredSubtitleLanguage) ?: return
+        if (preferredIndex == selectedSubtitleTrackIndex) return
+        val target = exoSubtitleSelections.getOrNull(preferredIndex) ?: return
+        val player = activeExoPlayer()
+        player.trackSelectionParameters = player.trackSelectionParameters
+            .buildUpon()
+            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+            .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+            .addOverride(TrackSelectionOverride(target.group.mediaTrackGroup, target.trackIndex))
+            .build()
+        selectedSubtitleTrackIndex = preferredIndex
     }
 
     private fun refreshVideoSignalDescriptor(format: Format?) {
@@ -1321,6 +1355,14 @@ class ExoPlaybackController @Inject constructor(
             )
             embeddedSubtitleTrackIds.add(track.id)
             if (track.selected) selectedSubtitleTrackIndex = index
+        }
+        if (!subtitleSelectionWasManual) {
+            val preferredIndex = preferredSubtitleTrackIndex(availableSubtitles, preferredSubtitleLanguage)
+            val nativeTrackId = preferredIndex?.let(embeddedSubtitleTrackIds::getOrNull)
+            if (preferredIndex != null && preferredIndex != selectedSubtitleTrackIndex && nativeTrackId != null) {
+                view.setSubtitleTrack(nativeTrackId)
+                selectedSubtitleTrackIndex = preferredIndex
+            }
         }
     }
 

@@ -421,11 +421,19 @@ class DesktopPlaybackPanelTest {
             playbackSettingNavigationTarget(PlaybackSettingFocusTarget.EndAction, Key.DirectionUp),
         )
         assertEquals(
-            PlaybackSettingFocusTarget.Speed,
+            PlaybackSettingFocusTarget.SubtitleLanguage,
             playbackSettingNavigationTarget(PlaybackSettingFocusTarget.EndAction, Key.DirectionDown),
         )
         assertEquals(
             PlaybackSettingFocusTarget.EndAction,
+            playbackSettingNavigationTarget(PlaybackSettingFocusTarget.SubtitleLanguage, Key.DirectionUp),
+        )
+        assertEquals(
+            PlaybackSettingFocusTarget.Speed,
+            playbackSettingNavigationTarget(PlaybackSettingFocusTarget.SubtitleLanguage, Key.DirectionDown),
+        )
+        assertEquals(
+            PlaybackSettingFocusTarget.SubtitleLanguage,
             playbackSettingNavigationTarget(PlaybackSettingFocusTarget.Speed, Key.DirectionUp),
         )
         assertEquals(

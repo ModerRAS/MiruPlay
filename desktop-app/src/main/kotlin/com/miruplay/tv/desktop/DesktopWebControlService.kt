@@ -9,7 +9,9 @@ import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.CloudDriveRssRunSummary
 import com.miruplay.tv.model.MediaSourceInfo
+import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.ScanResult
+import com.miruplay.tv.model.SubtitleLanguagePreference
 import com.miruplay.tv.model.completeStatus
 import com.miruplay.tv.repository.OtlpLogUploadConfig
 import com.miruplay.tv.repository.desktop.DesktopRepositories
@@ -17,6 +19,8 @@ import com.miruplay.tv.sync.rss.CloudDriveRssActionCoordinator
 import com.miruplay.tv.sync.rss.DesktopCloudDriveRssAutomationEngine
 import com.miruplay.tv.webcontrol.PlayEpisodeRequest
 import com.miruplay.tv.webcontrol.PlaybackCommandRequest
+import com.miruplay.tv.webcontrol.PlaybackSettingsDto
+import com.miruplay.tv.webcontrol.PlaybackSettingsRequest
 import com.miruplay.tv.webcontrol.PlaybackStatusDto
 import com.miruplay.tv.webcontrol.executeWebControlPlaybackCommand
 import com.miruplay.tv.webcontrol.idleWebControlPlaybackStatus
@@ -45,6 +49,7 @@ internal class DesktopWebControlService(
     },
     private val onCloudDriveConfigSaved: suspend (CloudDriveAutomationConfig) -> Unit = {},
     private val onLogUploadConfigSaved: suspend (OtlpLogUploadConfig) -> Unit = {},
+    private val onPlaybackSettingsSaved: suspend (PlaybackEndAction, SubtitleLanguagePreference) -> Unit = { _, _ -> },
     private val clock: () -> Long = System::currentTimeMillis,
     private val deviceName: String = "Windows",
 ) : SharedWebControlEndpointService(
@@ -96,6 +101,38 @@ internal class DesktopWebControlService(
 
     override suspend fun playbackStatusResolved(): PlaybackStatusDto =
         playbackStatusProvider()
+
+    override suspend fun getPlaybackSettings(): PlaybackSettingsDto {
+        val endAction = repositories.playbackPreferences.getEndAction()
+        val preferredSubtitleLanguage = repositories.playbackPreferences.getPreferredSubtitleLanguage()
+        return PlaybackSettingsDto(
+            endAction = endAction.storageValue,
+            preferredSubtitleLanguage = preferredSubtitleLanguage.storageValue,
+            formatAwareToneMapping = repositories.playbackPreferences
+                .getFormatAwareToneMappingPreferences()
+                .normalized(),
+        )
+    }
+
+    override suspend fun savePlaybackSettings(request: PlaybackSettingsRequest): PlaybackSettingsDto {
+        request.endAction?.let { value ->
+            repositories.playbackPreferences.setEndAction(PlaybackEndAction.fromStorageValue(value))
+        }
+        request.preferredSubtitleLanguage?.let { value ->
+            repositories.playbackPreferences.setPreferredSubtitleLanguage(
+                SubtitleLanguagePreference.fromStorageValue(value),
+            )
+        }
+        request.formatAwareToneMapping?.let { preferences ->
+            repositories.playbackPreferences.setFormatAwareToneMappingPreferences(preferences.normalized())
+        }
+        val saved = getPlaybackSettings()
+        onPlaybackSettingsSaved(
+            PlaybackEndAction.fromStorageValue(saved.endAction),
+            SubtitleLanguagePreference.fromStorageValue(saved.preferredSubtitleLanguage),
+        )
+        return saved
+    }
 
     private suspend fun rescanLinkedCloudDriveSource(reason: String) {
         val config = repositories.cloudDriveAutomation.getConfig().getOrNull() ?: return

@@ -334,13 +334,17 @@ data class ScanSettingsRequest(
 @Serializable
 data class PlaybackSettingsDto(
     val endAction: String,
+    val preferredSubtitleLanguage: String,
     val formatAwareToneMapping: FormatAwareToneMappingPreferences,
     val endActionOptions: List<String> = listOf("return_to_detail", "play_next_episode"),
+    val preferredSubtitleLanguageOptions: List<String> =
+        listOf("auto", "zh_hans", "zh_hant", "zh", "en", "ja"),
 )
 
 @Serializable
 data class PlaybackSettingsRequest(
     val endAction: String? = null,
+    val preferredSubtitleLanguage: String? = null,
     val formatAwareToneMapping: FormatAwareToneMappingPreferences? = null,
 )
 

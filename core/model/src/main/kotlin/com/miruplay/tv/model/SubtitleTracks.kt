@@ -1,5 +1,8 @@
 package com.miruplay.tv.model
 
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
+
 fun buildExternalSubtitleTracks(value: String): List<SubtitleTrack> =
     buildExternalSubtitleTracks(value.split(';', '\n'))
 
@@ -36,7 +39,7 @@ fun externalSubtitleTrackFromPath(path: String): SubtitleTrack {
     val normalized = path.trim()
     return SubtitleTrack(
         language = subtitleLanguageFromPath(normalized),
-        title = normalized.substringAfterLast('/').substringAfterLast('\\'),
+        title = subtitleFileName(normalized),
         isExternal = true,
         path = normalized,
         format = subtitleFormatFromPath(normalized),
@@ -44,7 +47,7 @@ fun externalSubtitleTrackFromPath(path: String): SubtitleTrack {
 }
 
 fun subtitleFormatFromPath(path: String): SubtitleFormat =
-    when (path.substringAfterLast('.', "").lowercase()) {
+    when (subtitleFileName(path).substringAfterLast('.', "").lowercase()) {
         "ass" -> SubtitleFormat.ASS
         "ssa" -> SubtitleFormat.SSA
         "vtt" -> SubtitleFormat.VTT
@@ -52,15 +55,15 @@ fun subtitleFormatFromPath(path: String): SubtitleFormat =
     }
 
 private fun subtitleLanguageFromPath(path: String): String {
-    val stem = MediaPathConventions.stem(MediaPathConventions.fileName(path))
-    val candidate = listOf('.', '_')
-        .map { separator -> stem.substringAfterLast(separator, "") }
-        .firstOrNull(::isSubtitleLanguageCode)
+    val stem = MediaPathConventions.stem(subtitleFileName(path)).replace('_', '-')
+    val candidate = SUBTITLE_LANGUAGE_SUFFIX.find(stem)
+        ?.groupValues
+        ?.get(1)
         ?.lowercase()
         ?: return "und"
     return when (candidate) {
-        "chs" -> "zh-Hans"
-        "cht" -> "zh-Hant"
+        "chs", "sc" -> "zh-Hans"
+        "cht", "tc" -> "zh-Hant"
         "chi", "zho" -> "zh"
         "eng" -> "en"
         "jpn" -> "ja"
@@ -72,15 +75,19 @@ private fun subtitleLanguageFromPath(path: String): String {
     }
 }
 
-private fun isSubtitleLanguageCode(value: String): Boolean {
-    val parts = value.split('-')
-    return parts.size in 1..2 && parts.withIndex().all { (index, part) ->
-        part.length in (if (index == 0) 2..3 else 2..4) && part.all(Char::isLetter)
-    }
+private fun subtitleFileName(path: String): String {
+    val pathWithoutUrlSuffix = if ("://" in path) path.substringBefore('?').substringBefore('#') else path
+    val encodedName = pathWithoutUrlSuffix.substringAfterLast('/').substringAfterLast('\\')
+    return runCatching {
+        URLDecoder.decode(encodedName.replace("+", "%2B"), StandardCharsets.UTF_8)
+    }.getOrDefault(encodedName)
 }
 
 private fun String.isSupportedExternalSubtitlePath(): Boolean =
-    substringAfterLast('.', "").lowercase() in SUPPORTED_EXTERNAL_SUBTITLE_EXTENSIONS
+    subtitleFileName(this).substringAfterLast('.', "").lowercase() in SUPPORTED_EXTERNAL_SUBTITLE_EXTENSIONS
 
+private val SUBTITLE_LANGUAGE_SUFFIX = Regex(
+    "(?:^|[.\\s\\-\\[])([a-zA-Z]{2,3}(?:-[a-zA-Z]{2,4})?)\\]?$",
+)
 private val SUPPORTED_EXTERNAL_SUBTITLE_EXTENSIONS = setOf("ass", "ssa", "srt", "vtt")
 private val EXTERNAL_SUBTITLE_SUFFIX_SEPARATORS = listOf(".", " ", "_", "-", "[")

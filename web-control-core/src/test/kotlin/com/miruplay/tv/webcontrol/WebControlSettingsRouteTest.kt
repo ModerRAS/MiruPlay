@@ -52,10 +52,22 @@ class WebControlSettingsRouteTest {
             staticAssets = WebControlStaticAssets { null },
         )
 
+        val put = server.serve(
+            session(
+                method = NanoHTTPD.Method.PUT,
+                uri = "/api/settings/playback",
+                body = """{"preferredSubtitleLanguage":"zh_hans"}""",
+            ),
+        )
+        assertEquals(NanoHTTPD.Response.Status.OK, put.status)
+        assertEquals("zh_hans", service.capturedPlayback?.preferredSubtitleLanguage)
+
         val get = server.serve(session(method = NanoHTTPD.Method.GET, uri = "/api/settings/playback", body = ""))
         assertEquals(NanoHTTPD.Response.Status.OK, get.status)
         val body = get.bodyText()
         assertTrue(body.contains("\"endAction\":\"return_to_detail\""))
+        assertTrue(body.contains("\"preferredSubtitleLanguage\":\"zh_hans\""))
+        assertTrue(body.contains("\"preferredSubtitleLanguageOptions\""))
         assertTrue(body.contains("\"formatAwareToneMapping\""))
     }
 
@@ -177,6 +189,7 @@ class WebControlSettingsRouteTest {
 
     private class SettingsStubService : EmptyWebControlEndpointService() {
         var capturedScan: ScanSettingsRequest? = null
+        var capturedPlayback: PlaybackSettingsRequest? = null
         var capturedTmdbToken: String? = null
         var capturedAppControlAction: String? = null
         var tmdbCleared = false
@@ -198,8 +211,14 @@ class WebControlSettingsRouteTest {
 
         override suspend fun getPlaybackSettings(): PlaybackSettingsDto = PlaybackSettingsDto(
             endAction = "return_to_detail",
+            preferredSubtitleLanguage = "zh_hans",
             formatAwareToneMapping = FormatAwareToneMappingPreferences(),
         )
+
+        override suspend fun savePlaybackSettings(request: PlaybackSettingsRequest): PlaybackSettingsDto {
+            capturedPlayback = request
+            return getPlaybackSettings()
+        }
 
         override suspend fun getMetadataSettings(): MetadataSettingsDto =
             MetadataSettingsDto(bangumiTokenConfigured = false, tmdbTokenConfigured = true)

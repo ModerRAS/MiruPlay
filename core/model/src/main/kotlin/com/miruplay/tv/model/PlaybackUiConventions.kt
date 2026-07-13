@@ -225,6 +225,21 @@ fun playbackEndSettingsTitleLabel(): String = "播放结束"
 fun playbackEndSettingsDescriptionLabel(): String =
     "选定剧集播完后，可以直接回到详情页，也可以自动切到下一集。"
 
+fun preferredSubtitleLanguageSettingsTitleLabel(): String = "字幕语言优先级"
+
+fun preferredSubtitleLanguageSettingsDescriptionLabel(): String =
+    "有匹配字幕时自动优先选择；没有匹配时保留视频原本的默认字幕。"
+
+fun SubtitleLanguagePreference.displayLabel(): String =
+    when (this) {
+        SubtitleLanguagePreference.AUTO -> "自动"
+        SubtitleLanguagePreference.CHINESE_SIMPLIFIED -> "简体中文"
+        SubtitleLanguagePreference.CHINESE_TRADITIONAL -> "繁体中文"
+        SubtitleLanguagePreference.CHINESE -> "中文"
+        SubtitleLanguagePreference.ENGLISH -> "英语"
+        SubtitleLanguagePreference.JAPANESE -> "日语"
+    }
+
 fun pictureSettingsTitleLabel(): String =
     "画面 / Tone Mapping"
 
