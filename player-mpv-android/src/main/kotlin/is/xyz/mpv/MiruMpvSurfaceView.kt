@@ -52,6 +52,7 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
     )
 
     var onStateChanged: ((StateSnapshot) -> Unit)? = null
+    var onSubtitleTracksChanged: ((MiruMpvSurfaceView) -> Unit)? = null
     var onFileLoaded: (() -> Unit)? = null
     var onPlaybackRestart: (() -> Unit)? = null
 
@@ -210,11 +211,14 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
         MPVLib.observeProperty("duration/full", MPVLib.MpvFormat.MPV_FORMAT_DOUBLE)
         MPVLib.observeProperty("pause", MPVLib.MpvFormat.MPV_FORMAT_FLAG)
         MPVLib.observeProperty("eof-reached", MPVLib.MpvFormat.MPV_FORMAT_FLAG)
+        MPVLib.observeProperty("track-list/count", MPVLib.MpvFormat.MPV_FORMAT_INT64)
     }
 
     override fun eventProperty(property: String) = Unit
 
-    override fun eventProperty(property: String, value: Long) = Unit
+    override fun eventProperty(property: String, value: Long) {
+        if (property == "track-list/count") onSubtitleTracksChanged?.invoke(this)
+    }
 
     override fun eventProperty(property: String, value: Boolean) {
         when (property) {

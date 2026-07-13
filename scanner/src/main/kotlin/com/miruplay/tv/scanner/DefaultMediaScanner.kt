@@ -96,7 +96,9 @@ class DefaultMediaScanner(
         val entries = mutableListOf<MediaIndexEntry>()
         
         source.listFiles(path).onSuccess { files ->
-            val siblingFilePaths = files.filterNot { it.isDirectory }.map { it.path }
+            val siblingFilePaths = files
+                .filter { !it.isDirectory && shouldInclude(it.name, config) }
+                .map { it.path }
             files.forEach { file ->
                 if (!shouldInclude(file.name, config)) return@forEach
                 

@@ -611,6 +611,7 @@ internal fun MiruPlayDesktopComposeApp(
     var logUploadTokenInput by remember { mutableStateOf("") }
     var mediaPath by remember { mutableStateOf(desktopInitialMediaPathFromEnvironment()) }
     var subtitlePath by remember { mutableStateOf("") }
+    var subtitleOverrideMediaPath by remember { mutableStateOf<String?>(null) }
     var startSeconds by remember { mutableStateOf("0") }
     var fullscreen by remember { mutableStateOf(false) }
     var keepOpen by remember { mutableStateOf(false) }
@@ -1042,12 +1043,13 @@ internal fun MiruPlayDesktopComposeApp(
     ): DesktopPlaybackLaunchRequest {
         val playbackMediaSource = sourceOverride ?: activeSource
         val playbackSourceId = sourceIdOverride ?: activeSourceId
-        val manualSubtitlePath = subtitlePath.takeIf { path == mediaPath }.orEmpty()
+        val hasSubtitleOverride = subtitleOverrideMediaPath == path
+        val manualSubtitlePath = subtitlePath.takeIf { hasSubtitleOverride }.orEmpty()
         val indexedPath = episodeId
             ?.takeIf { it.substringBefore(':').toLongOrNull() == playbackSourceId }
             ?.substringAfter(':')
             ?: path
-        val indexedSubtitlePaths = if (manualSubtitlePath.isBlank() && playbackSourceId != null) {
+        val indexedSubtitlePaths = if (!hasSubtitleOverride && playbackSourceId != null) {
             when (val entries = repositories.index.queryIndex(playbackSourceId, indexedPath)) {
                 is Result.Success -> entries.data.firstOrNull { it.path == indexedPath }
                     ?.externalSubtitlePaths
@@ -1062,7 +1064,7 @@ internal fun MiruPlayDesktopComposeApp(
             mpvPath = mpvPath,
             configDir = configDir,
             mediaPath = path,
-            subtitlePath = manualSubtitlePath.ifBlank { indexedSubtitlePaths.joinToString(";") },
+            subtitlePath = if (hasSubtitleOverride) manualSubtitlePath else indexedSubtitlePaths.joinToString(";"),
             startSeconds = startPositionMs.coerceAtLeast(0L).let { position ->
                 PlaybackTimingConventions.formatMpvStartSeconds(position)
             },
@@ -1126,6 +1128,7 @@ internal fun MiruPlayDesktopComposeApp(
                 startSeconds = PlaybackTimingConventions.formatMpvStartSeconds(result.data.source.startPosition)
                 if (path != previousMediaPath) {
                     subtitlePath = ""
+                    subtitleOverrideMediaPath = null
                 }
                 saveDesktopPlaybackStartProgress(
                     session = result.data.session,
@@ -2615,7 +2618,10 @@ internal fun MiruPlayDesktopComposeApp(
                     mediaPath = mediaPath,
                     onMediaPathChange = { mediaPath = it },
                     subtitlePath = subtitlePath,
-                    onSubtitlePathChange = { subtitlePath = it },
+                    onSubtitlePathChange = {
+                        subtitlePath = it
+                        subtitleOverrideMediaPath = mediaPath
+                    },
                     startSeconds = startSeconds,
                     onStartSecondsChange = { startSeconds = it },
                     fullscreen = fullscreen,

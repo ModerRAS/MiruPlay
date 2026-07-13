@@ -408,7 +408,10 @@ class ExoPlaybackController @Inject constructor(
     override suspend fun setSubtitleTrack(trackIndex: Int?) {
         when (_activeRenderBackend.value) {
             PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED -> withContext(Dispatchers.Main) {
-                val nativeTrackId = trackIndex?.let(embeddedSubtitleTrackIds::getOrNull) ?: if (trackIndex == null) null else return@withContext
+                val nativeTrackId = when (trackIndex) {
+                    null -> null
+                    else -> embeddedSubtitleTrackIds.getOrNull(trackIndex) ?: return@withContext
+                }
                 embeddedMpvView?.setSubtitleTrack(nativeTrackId)
                 selectedSubtitleTrackIndex = trackIndex
             }
@@ -1224,6 +1227,7 @@ class ExoPlaybackController @Inject constructor(
             return existing
         }
         val created = MiruMpvSurfaceView(container.context).apply {
+            onSubtitleTracksChanged = { view -> refreshEmbeddedMpvSubtitleTracks(view) }
             onStateChanged = { snapshot ->
                 embeddedMpvPositionMs = snapshot.positionMs
                 embeddedMpvDurationMs = snapshot.durationMs
@@ -1261,7 +1265,6 @@ class ExoPlaybackController @Inject constructor(
                             "video_hw_pixelformat" to nativeProperties["video-params/hw-pixelformat"].orEmpty(),
                         ),
                     )
-                    embeddedMpvView?.postDelayed(::refreshEmbeddedMpvSubtitleTracks, 150L)
                     embeddedMpvPlaying = false
                     _state.value = PlaybackState.Buffering(source, embeddedMpvPositionMs)
                 }
@@ -1295,8 +1298,8 @@ class ExoPlaybackController @Inject constructor(
         return created
     }
 
-    private fun refreshEmbeddedMpvSubtitleTracks() {
-        val tracks = embeddedMpvView?.subtitleTracks().orEmpty()
+    private fun refreshEmbeddedMpvSubtitleTracks(view: MiruMpvSurfaceView) {
+        val tracks = view.subtitleTracks()
         availableSubtitles.clear()
         embeddedSubtitleTrackIds.clear()
         selectedSubtitleTrackIndex = null
