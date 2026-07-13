@@ -124,6 +124,7 @@ import com.miruplay.tv.model.playbackSpeedMenuTitle
 import com.miruplay.tv.model.playbackSpeedOptions
 import com.miruplay.tv.model.playbackSpeedValueLabel
 import com.miruplay.tv.model.playbackSubtitleCountLabel
+import com.miruplay.tv.model.playbackSubtitleOffLabel
 import com.miruplay.tv.model.playbackSubtitleOptionLabel
 import com.miruplay.tv.model.playbackSubtitlesMenuTitle
 import com.miruplay.tv.model.toneMappingPresetLabel
@@ -721,7 +722,7 @@ private fun PlayerChrome(
     onTogglePlayback: () -> Unit,
     onSkipBackward: () -> Unit,
     onSkipForward: () -> Unit,
-    onSelectSubtitle: (Int) -> Unit,
+    onSelectSubtitle: (Int?) -> Unit,
     onSelectAudioTrack: (Int) -> Unit,
     onSelectSpeed: (Float) -> Unit,
     onSelectPicturePreset: (ToneMappingProfilePreset) -> Unit,
@@ -1161,7 +1162,7 @@ internal fun PlayerOptionsPanel(
     selectedAudioTrackIndex: Int?,
     playbackSpeed: Float,
     currentPicturePreset: ToneMappingProfilePreset,
-    onSelectSubtitle: (Int) -> Unit,
+    onSelectSubtitle: (Int?) -> Unit,
     onSelectAudioTrack: (Int) -> Unit,
     onSelectSpeed: (Float) -> Unit,
     onSelectPicturePreset: (ToneMappingProfilePreset) -> Unit,
@@ -1219,16 +1220,17 @@ internal fun PlayerOptionsPanel(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 itemVerticalAlignment = Alignment.CenterVertically,
             ) {
+                PlayerOptionButton(
+                    text = playbackSubtitleOffLabel(),
+                    selected = selectedSubtitleTrackIndex == null,
+                    onClick = { onSelectSubtitle(null) },
+                    modifier = Modifier.then(initialFocusHandle.modifier()),
+                )
                 subtitles.forEachIndexed { index, track ->
                     PlayerOptionButton(
                         text = playbackSubtitleOptionLabel(track, index),
                         selected = index == selectedSubtitleTrackIndex,
                         onClick = { onSelectSubtitle(index) },
-                        modifier = if (index == 0) {
-                            Modifier.then(initialFocusHandle.modifier())
-                        } else {
-                            Modifier
-                        }
                     )
                 }
             }

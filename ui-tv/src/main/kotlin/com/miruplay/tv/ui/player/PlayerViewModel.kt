@@ -28,9 +28,11 @@ import com.miruplay.tv.player.LibVlcVoutMode
 import com.miruplay.tv.player.PlaybackController
 import com.miruplay.tv.model.SubtitleTrack
 import com.miruplay.tv.model.toPlaybackSource
+import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.NextPlaybackSourceResolver
+import com.miruplay.tv.repository.PlaybackSubtitleResolver
 import com.miruplay.tv.repository.PlaybackPreferencesRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
 import com.miruplay.tv.repository.savePlaybackProgressOnCompletion
@@ -54,6 +56,7 @@ class PlayerViewModel @Inject constructor(
     private val progressRepository: PlaybackProgressRepository,
     private val metadataRepository: Lazy<MetadataRepository>,
     private val mediaRepository: Lazy<MediaSourceRepository>,
+    private val mediaIndexRepository: Lazy<MediaIndexRepository>,
     private val bangumiSyncEngine: Lazy<BangumiSyncEngine>,
     private val playbackPreferences: PlaybackPreferencesRepository
 ) : ViewModel() {
@@ -161,23 +164,30 @@ class PlayerViewModel @Inject constructor(
             mediaSources = mediaRepository.get(),
         )
     }
+    private val playbackSubtitleResolver by lazy {
+        PlaybackSubtitleResolver(
+            index = mediaIndexRepository.get(),
+            mediaSources = mediaRepository.get(),
+        )
+    }
 
     fun play(source: PlaybackSource, ownerToken: Any? = activeScreenOwnerToken) {
         viewModelScope.launch {
+            val resolvedSource = playbackSubtitleResolver.resolve(source)
             _errorMessage.value = null
             pendingSeekPositionMs = null
-            _currentPosition.value = source.startPosition.coerceAtLeast(0L)
-            activeSource = source
+            _currentPosition.value = resolvedSource.startPosition.coerceAtLeast(0L)
+            activeSource = resolvedSource
             activeScreenOwnerToken = ownerToken
-            _activePlaybackSource.value = source
-            startPresentationResolution(source)
+            _activePlaybackSource.value = resolvedSource
+            startPresentationResolution(resolvedSource)
             refreshFormatAwarePreferences()
-            playbackController.play(source).also {
+            playbackController.play(resolvedSource).also {
                 _duration.value = playbackController.getDuration()
                 refreshTracks()
                 startPositionPolling()
-                startProgressSaving(source)
-                startFinishObserver(source)
+                startProgressSaving(resolvedSource)
+                startFinishObserver(resolvedSource)
             }
         }
     }
@@ -241,7 +251,7 @@ class PlayerViewModel @Inject constructor(
         _controlsVisible.value = false
     }
 
-    fun selectSubtitle(index: Int) {
+    fun selectSubtitle(index: Int?) {
         viewModelScope.launch {
             playbackController.setSubtitleTrack(index)
             refreshTracks()

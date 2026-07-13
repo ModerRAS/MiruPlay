@@ -4,6 +4,7 @@ import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.mediasource.MediaSource
 import com.miruplay.tv.model.ScanResult
+import com.miruplay.tv.model.matchingExternalSubtitlePaths
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -95,6 +96,9 @@ class DefaultMediaScanner(
         val entries = mutableListOf<MediaIndexEntry>()
         
         source.listFiles(path).onSuccess { files ->
+            val siblingFilePaths = files
+                .filter { !it.isDirectory && shouldInclude(it.name, config) }
+                .map { it.path }
             files.forEach { file ->
                 if (!shouldInclude(file.name, config)) return@forEach
                 
@@ -113,6 +117,7 @@ class DefaultMediaScanner(
                         entries.add(MediaIndexEntry(
                             name = file.name,
                             path = file.path,
+                            externalSubtitlePaths = matchingExternalSubtitlePaths(file.path, siblingFilePaths),
                             isDirectory = false,
                             size = file.size,
                             lastModified = file.lastModified,
@@ -143,6 +148,7 @@ class DefaultMediaScanner(
 data class MediaIndexEntry(
     val name: String,
     val path: String,
+    val externalSubtitlePaths: List<String> = emptyList(),
     val isDirectory: Boolean,
     val size: Long,
     val lastModified: Long,

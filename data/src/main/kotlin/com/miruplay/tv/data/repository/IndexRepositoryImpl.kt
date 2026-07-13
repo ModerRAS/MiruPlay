@@ -87,6 +87,7 @@ class IndexRepositoryImpl @Inject constructor(
 private fun IndexRepositoryEntity.toEntity(sourceId: Long) = IndexEntryEntity(
     sourceId = sourceId,
     path = path,
+    externalSubtitlePaths = externalSubtitlePaths,
     animeName = animeName,
     episodeTitle = episodeTitle,
     plot = plot,
@@ -106,6 +107,7 @@ private fun IndexRepositoryEntity.toEntity(sourceId: Long) = IndexEntryEntity(
 private fun IndexEntryEntity.toDomain() = IndexRepositoryEntity(
     sourceId = sourceId,
     path = path,
+    externalSubtitlePaths = externalSubtitlePaths,
     animeName = animeName,
     episodeTitle = episodeTitle,
     plot = plot,

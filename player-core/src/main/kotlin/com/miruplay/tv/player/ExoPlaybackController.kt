@@ -12,9 +12,11 @@ import androidx.media3.common.Effect
 import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
@@ -55,6 +57,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+private data class ExoTrackSelection(
+    val group: Tracks.Group,
+    val trackIndex: Int,
+)
+
 @UnstableApi
 @Singleton
 class ExoPlaybackController @Inject constructor(
@@ -91,6 +98,9 @@ class ExoPlaybackController @Inject constructor(
 
     private val availableSubtitles = mutableListOf<SubtitleTrack>()
     private val availableAudioTracks = mutableListOf<AudioTrack>()
+    private val exoSubtitleSelections = mutableListOf<ExoTrackSelection>()
+    private val exoAudioSelections = mutableListOf<ExoTrackSelection>()
+    private val embeddedSubtitleTrackIds = mutableListOf<Int>()
     private var selectedSubtitleTrackIndex: Int? = null
     private var selectedAudioTrackIndex: Int? = null
     private var currentSource: PlaybackSource? = null
@@ -196,12 +206,12 @@ class ExoPlaybackController @Inject constructor(
                 stopInactivePlayers(player)
                 preparePlayerForPlayback(player)
 
-                val subtitleConfigs = source.subtitleTracks.map { track ->
+                val subtitleConfigs = source.subtitleTracks.mapIndexed { index, track ->
                     MediaItem.SubtitleConfiguration.Builder(Uri.parse(track.path))
-                        .setMimeType(mimeTypeForFormat(track.format))
+                        .setMimeType(subtitleMimeTypeForFormat(track.format))
                         .setLanguage(track.language)
                         .setLabel(track.title.ifEmpty { track.language })
-                        .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
+                        .setSelectionFlags(if (index == 0) C.SELECTION_FLAG_DEFAULT else 0)
                         .build()
                 }
 
@@ -363,6 +373,9 @@ class ExoPlaybackController @Inject constructor(
             autoResumeSeekCalled = false
             availableSubtitles.clear()
             availableAudioTracks.clear()
+            exoSubtitleSelections.clear()
+            exoAudioSelections.clear()
+            embeddedSubtitleTrackIds.clear()
             selectedSubtitleTrackIndex = null
             selectedAudioTrackIndex = null
             containerSignalDescriptor = null
@@ -392,12 +405,23 @@ class ExoPlaybackController @Inject constructor(
         }
     }
 
-    override suspend fun setSubtitleTrack(trackIndex: Int) {
-        selectTrackGroup(C.TRACK_TYPE_TEXT, trackIndex)
+    override suspend fun setSubtitleTrack(trackIndex: Int?) {
+        when (_activeRenderBackend.value) {
+            PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED -> withContext(Dispatchers.Main) {
+                val nativeTrackId = when (trackIndex) {
+                    null -> null
+                    else -> embeddedSubtitleTrackIds.getOrNull(trackIndex) ?: return@withContext
+                }
+                embeddedMpvView?.setSubtitleTrack(nativeTrackId)
+                selectedSubtitleTrackIndex = trackIndex
+            }
+            PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID -> Unit
+            else -> selectExoTrack(C.TRACK_TYPE_TEXT, trackIndex)
+        }
     }
 
     override suspend fun setAudioTrack(trackIndex: Int) {
-        selectTrackGroup(C.TRACK_TYPE_AUDIO, trackIndex)
+        selectExoTrack(C.TRACK_TYPE_AUDIO, trackIndex)
     }
 
     override fun getAvailableSubtitles(): List<SubtitleTrack> = availableSubtitles.toList()
@@ -458,7 +482,11 @@ class ExoPlaybackController @Inject constructor(
                             "start_position_ms" to embeddedMpvPositionMs.toString(),
                         ),
                     )
-                    mpvView.loadMedia(source.uri, embeddedMpvPositionMs)
+                    mpvView.loadMedia(
+                        path = source.uri,
+                        startPositionMs = embeddedMpvPositionMs,
+                        externalSubtitlePaths = source.subtitleTracks.map { it.path },
+                    )
                 }
             }
         }
@@ -861,15 +889,27 @@ class ExoPlaybackController @Inject constructor(
         }
     }
 
-    private suspend fun selectTrackGroup(trackType: Int, trackIndex: Int) = withContext(Dispatchers.Main) {
+    private suspend fun selectExoTrack(trackType: Int, trackIndex: Int?) = withContext(Dispatchers.Main) {
         val player = activeExoPlayer()
-        val group = player.currentTracks.groups.filter { it.type == trackType }.getOrNull(trackIndex)
-            ?: return@withContext
+        if (trackType == C.TRACK_TYPE_TEXT && trackIndex == null) {
+            player.trackSelectionParameters = player.trackSelectionParameters
+                .buildUpon()
+                .setTrackTypeDisabled(trackType, true)
+                .clearOverridesOfType(trackType)
+                .build()
+            selectedSubtitleTrackIndex = null
+            return@withContext
+        }
+        val target = when (trackType) {
+            C.TRACK_TYPE_TEXT -> exoSubtitleSelections.getOrNull(trackIndex ?: return@withContext)
+            C.TRACK_TYPE_AUDIO -> exoAudioSelections.getOrNull(trackIndex ?: return@withContext)
+            else -> null
+        } ?: return@withContext
         player.trackSelectionParameters = player.trackSelectionParameters
             .buildUpon()
             .setTrackTypeDisabled(trackType, false)
             .clearOverridesOfType(trackType)
-            .addOverride(TrackSelectionOverride(group.mediaTrackGroup, 0))
+            .addOverride(TrackSelectionOverride(target.group.mediaTrackGroup, target.trackIndex))
             .build()
         if (trackType == C.TRACK_TYPE_TEXT) {
             selectedSubtitleTrackIndex = trackIndex
@@ -881,41 +921,46 @@ class ExoPlaybackController @Inject constructor(
     private fun updateAvailableTracks() {
         availableSubtitles.clear()
         availableAudioTracks.clear()
+        exoSubtitleSelections.clear()
+        exoAudioSelections.clear()
         selectedSubtitleTrackIndex = null
         selectedAudioTrackIndex = null
 
         try {
             val tracks = activeExoPlayer().currentTracks
-            for (i in 0 until tracks.groups.size) {
-                val group = tracks.groups[i]
-                when (group.type) {
-                    C.TRACK_TYPE_TEXT -> {
-                        val trackIndex = availableSubtitles.size
-                        val format = group.getTrackFormat(0)
-                        availableSubtitles.add(
-                            SubtitleTrack(
-                                language = format.language ?: "und",
-                                title = format.label ?: "",
-                                isExternal = false,
-                                path = "",
-                                format = SubtitleFormat.SRT,
-                            ),
-                        )
-                        if (group.isTrackSelected(0)) selectedSubtitleTrackIndex = trackIndex
-                    }
+            for (group in tracks.groups) {
+                for (trackInGroup in 0 until group.length) {
+                    if (!group.isTrackSupported(trackInGroup)) continue
+                    val format = group.getTrackFormat(trackInGroup)
+                    when (group.type) {
+                        C.TRACK_TYPE_TEXT -> {
+                            val trackIndex = availableSubtitles.size
+                            availableSubtitles.add(
+                                SubtitleTrack(
+                                    language = format.language ?: "und",
+                                    title = format.label ?: "",
+                                    isExternal = false,
+                                    path = "",
+                                    format = SubtitleFormat.SRT,
+                                ),
+                            )
+                            exoSubtitleSelections.add(ExoTrackSelection(group, trackInGroup))
+                            if (group.isTrackSelected(trackInGroup)) selectedSubtitleTrackIndex = trackIndex
+                        }
 
-                    C.TRACK_TYPE_AUDIO -> {
-                        val trackIndex = availableAudioTracks.size
-                        val format = group.getTrackFormat(0)
-                        availableAudioTracks.add(
-                            AudioTrack(
-                                index = trackIndex,
-                                language = format.language ?: "und",
-                                title = format.label,
-                                codec = format.codecs,
-                            ),
-                        )
-                        if (group.isTrackSelected(0)) selectedAudioTrackIndex = trackIndex
+                        C.TRACK_TYPE_AUDIO -> {
+                            val trackIndex = availableAudioTracks.size
+                            availableAudioTracks.add(
+                                AudioTrack(
+                                    index = trackIndex,
+                                    language = format.language ?: "und",
+                                    title = format.label,
+                                    codec = format.codecs,
+                                ),
+                            )
+                            exoAudioSelections.add(ExoTrackSelection(group, trackInGroup))
+                            if (group.isTrackSelected(trackInGroup)) selectedAudioTrackIndex = trackIndex
+                        }
                     }
                 }
             }
@@ -923,14 +968,6 @@ class ExoPlaybackController @Inject constructor(
             MiruLog.w("ExoPlaybackController", "Failed to enumerate media tracks", e)
         }
     }
-
-    private fun mimeTypeForFormat(format: SubtitleFormat): String =
-        when (format) {
-            SubtitleFormat.SRT -> "application/x-subrip"
-            SubtitleFormat.ASS, SubtitleFormat.SSA -> "text/x-ass"
-            SubtitleFormat.VTT -> "text/vtt"
-            else -> "application/x-subrip"
-        }
 
     private fun refreshVideoSignalDescriptor(format: Format?) {
         val runtimeDescriptor = resolveVideoSignalDescriptor(format)
@@ -1167,7 +1204,11 @@ class ExoPlaybackController @Inject constructor(
                 "start_position_ms" to embeddedMpvPositionMs.toString(),
             ),
         )
-        mpvView.loadMedia(source.uri, embeddedMpvPositionMs)
+        mpvView.loadMedia(
+            path = source.uri,
+            startPositionMs = embeddedMpvPositionMs,
+            externalSubtitlePaths = source.subtitleTracks.map { it.path },
+        )
     }
 
     private fun ensureEmbeddedMpvView(container: ViewGroup): MiruMpvSurfaceView {
@@ -1186,6 +1227,7 @@ class ExoPlaybackController @Inject constructor(
             return existing
         }
         val created = MiruMpvSurfaceView(container.context).apply {
+            onSubtitleTracksChanged = { view -> refreshEmbeddedMpvSubtitleTracks(view) }
             onStateChanged = { snapshot ->
                 embeddedMpvPositionMs = snapshot.positionMs
                 embeddedMpvDurationMs = snapshot.durationMs
@@ -1254,6 +1296,32 @@ class ExoPlaybackController @Inject constructor(
         )
         embeddedMpvView = created
         return created
+    }
+
+    private fun refreshEmbeddedMpvSubtitleTracks(view: MiruMpvSurfaceView) {
+        val tracks = view.subtitleTracks()
+        availableSubtitles.clear()
+        embeddedSubtitleTrackIds.clear()
+        selectedSubtitleTrackIndex = null
+        tracks.forEach { track ->
+            val index = availableSubtitles.size
+            availableSubtitles.add(
+                SubtitleTrack(
+                    language = track.language,
+                    title = track.title,
+                    isExternal = track.external,
+                    path = "",
+                    format = when (track.codec.lowercase()) {
+                        "ass" -> SubtitleFormat.ASS
+                        "ssa" -> SubtitleFormat.SSA
+                        "webvtt" -> SubtitleFormat.VTT
+                        else -> SubtitleFormat.SRT
+                    },
+                ),
+            )
+            embeddedSubtitleTrackIds.add(track.id)
+            if (track.selected) selectedSubtitleTrackIndex = index
+        }
     }
 
     private fun recordPlaybackClockSample(snapshot: MiruMpvSurfaceView.StateSnapshot) {
@@ -1446,6 +1514,13 @@ internal fun shouldLogPlaybackLoad(
     val scheme = loadEventInfo.dataSpec.uri.scheme?.lowercase()
     return mediaLoadData.dataType == C.DATA_TYPE_MEDIA &&
         (scheme == "http" || scheme == "https")
+}
+
+internal fun subtitleMimeTypeForFormat(format: SubtitleFormat): String = when (format) {
+    SubtitleFormat.SRT -> MimeTypes.APPLICATION_SUBRIP
+    SubtitleFormat.ASS, SubtitleFormat.SSA -> MimeTypes.TEXT_SSA
+    SubtitleFormat.VTT -> MimeTypes.TEXT_VTT
+    else -> MimeTypes.APPLICATION_SUBRIP
 }
 
 internal fun mediaTrackTypeLabel(trackType: Int): String = when (trackType) {

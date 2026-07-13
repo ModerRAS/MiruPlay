@@ -59,6 +59,8 @@ fun playbackAudioMenuTitle(): String = "音轨"
 fun playbackSubtitleCountLabel(count: Int): String =
     if (count <= 0) "无字幕" else "字幕 $count"
 
+fun playbackSubtitleOffLabel(): String = "关闭字幕"
+
 fun playbackAudioTrackCountLabel(count: Int): String =
     "音轨 ${count.coerceAtLeast(0)}"
 

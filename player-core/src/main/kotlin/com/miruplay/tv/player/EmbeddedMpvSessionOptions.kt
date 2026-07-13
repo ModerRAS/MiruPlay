@@ -49,6 +49,7 @@ fun buildEmbeddedMpvSessionOptions(
             "keep-open" to "yes",
             "osc" to "no",
             "input-default-bindings" to "yes",
+            "sub-auto" to "no",
         ),
     )
 }

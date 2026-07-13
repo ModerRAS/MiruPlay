@@ -37,6 +37,22 @@ class IndexRepositoryImplTest {
     }
 
     @Test
+    fun `external subtitle paths round trip through Room`() = runBlocking {
+        val entry = MediaIndexEntry(
+            sourceId = 7L,
+            path = "/Series/01.mkv",
+            externalSubtitlePaths = listOf("/Series/01.zh-CN.ass", "/Series/01.en.srt"),
+        )
+
+        repository.rebuildIndex(7L, listOf(entry))
+
+        assertEquals(
+            entry.externalSubtitlePaths,
+            repository.queryIndex(7L, entry.path).getOrNull()?.single()?.externalSubtitlePaths,
+        )
+    }
+
+    @Test
     fun `getAnimeInIndex returns all cached metadata key candidates`() = runBlocking {
         repository.rebuildIndex(
             sourceId = 7L,

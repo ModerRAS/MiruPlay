@@ -115,6 +115,18 @@ class MiruPlayDatabaseMigrationTest {
         assertTrue(normalizedSql.any { it.contains("INSERT OR REPLACE INTO drama_series_cache") })
         assertTrue(normalizedSql.any { it.contains("FROM anime") && it.contains("WHERE id LIKE 'drama-series:%'") })
     }
+
+    @Test
+    fun `migration 7 to 8 adds external subtitle paths with empty list default`() {
+        val database = RecordingSupportSQLiteDatabase()
+
+        MiruPlayDatabase.MIGRATION_7_8.migrate(database.proxy)
+
+        assertEquals(
+            listOf("ALTER TABLE index_entry ADD COLUMN external_subtitle_paths TEXT NOT NULL DEFAULT '[]'"),
+            database.sql,
+        )
+    }
 }
 
 private class RecordingSupportSQLiteDatabase : InvocationHandler {
