@@ -212,12 +212,13 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
         MPVLib.observeProperty("pause", MPVLib.MpvFormat.MPV_FORMAT_FLAG)
         MPVLib.observeProperty("eof-reached", MPVLib.MpvFormat.MPV_FORMAT_FLAG)
         MPVLib.observeProperty("track-list/count", MPVLib.MpvFormat.MPV_FORMAT_INT64)
+        MPVLib.observeProperty("sid", MPVLib.MpvFormat.MPV_FORMAT_STRING)
     }
 
     override fun eventProperty(property: String) = Unit
 
     override fun eventProperty(property: String, value: Long) {
-        if (property == "track-list/count") onSubtitleTracksChanged?.invoke(this)
+        if (property == "track-list/count") notifySubtitleTracksChanged()
     }
 
     override fun eventProperty(property: String, value: Boolean) {
@@ -227,7 +228,15 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
         }
     }
 
-    override fun eventProperty(property: String, value: String) = Unit
+    override fun eventProperty(property: String, value: String) {
+        if (property == "sid") notifySubtitleTracksChanged()
+    }
+
+    private fun notifySubtitleTracksChanged() {
+        post {
+            if (initialized) onSubtitleTracksChanged?.invoke(this)
+        }
+    }
 
     override fun eventProperty(property: String, value: Double) {
         when (property) {

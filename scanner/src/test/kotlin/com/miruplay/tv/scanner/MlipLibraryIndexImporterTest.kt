@@ -437,13 +437,14 @@ class MlipLibraryIndexImporterTest {
             database.execSQL("CREATE TABLE series_genre (series_id INTEGER NOT NULL, genre_id INTEGER NOT NULL)")
             database.execSQL("CREATE TABLE series_external_id (series_id INTEGER NOT NULL, provider INTEGER NOT NULL, value TEXT NOT NULL)")
             database.execSQL("CREATE TABLE episode_external_id (episode_id INTEGER NOT NULL, provider INTEGER NOT NULL, value TEXT NOT NULL)")
-            database.execSQL("CREATE TABLE capability (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+            database.execSQL("CREATE TABLE capability (name TEXT PRIMARY KEY, enabled INTEGER NOT NULL)")
+            database.execSQL("INSERT INTO capability (name, enabled) VALUES ('subtitle', ${if (includeExternalSubtitles) 1 else 0})")
             if (includeReleaseDate) {
                 database.execSQL("CREATE TABLE series_release_date (series_id INTEGER PRIMARY KEY, air_date TEXT NOT NULL)")
                 database.execSQL("INSERT INTO series_release_date (series_id, air_date) VALUES (1, '2024-04-03')")
             }
             if (includeExternalSubtitles) {
-                database.execSQL("CREATE TABLE media_subtitle (media_file_id INTEGER NOT NULL, path TEXT NOT NULL, language TEXT, title TEXT, sort_order INTEGER NOT NULL DEFAULT 0)")
+                database.execSQL("CREATE TABLE media_subtitle (id INTEGER PRIMARY KEY, media_file_id INTEGER NOT NULL, path TEXT NOT NULL, language TEXT, title TEXT, sort_order INTEGER NOT NULL DEFAULT 0, FOREIGN KEY(media_file_id) REFERENCES media_file(id) ON DELETE CASCADE, UNIQUE(media_file_id, path))")
                 database.execSQL("INSERT INTO media_subtitle (media_file_id, path, language, title, sort_order) VALUES (100, 'Series/01.en.srt', 'en', 'English', 2), (100, 'Series/01.zh-CN.ass', 'zh-CN', '简体中文', 1)")
             }
             database.execSQL("INSERT INTO series (id, uuid, title, original_title, summary, year, series_type) VALUES (1, 'series-uuid', '中文标题', 'Original Title', '简介', 2024, 1)")

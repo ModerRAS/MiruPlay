@@ -611,7 +611,7 @@ internal fun MiruPlayDesktopComposeApp(
     var logUploadTokenInput by remember { mutableStateOf("") }
     var mediaPath by remember { mutableStateOf(desktopInitialMediaPathFromEnvironment()) }
     var subtitlePath by remember { mutableStateOf("") }
-    var subtitleOverrideMediaPath by remember { mutableStateOf<String?>(null) }
+    var subtitleOverrideKey by remember { mutableStateOf<Pair<Long?, String>?>(null) }
     var startSeconds by remember { mutableStateOf("0") }
     var fullscreen by remember { mutableStateOf(false) }
     var keepOpen by remember { mutableStateOf(false) }
@@ -828,6 +828,7 @@ internal fun MiruPlayDesktopComposeApp(
         loadIndexed: Boolean,
     ) {
         val sourceInfo = activationState.sourceInfo
+        subtitleOverrideKey = null
         activeSourceId = sourceInfo.id
         val source = desktopSourceFromInfo(sourceInfo)
         activeSource = source
@@ -1043,7 +1044,7 @@ internal fun MiruPlayDesktopComposeApp(
     ): DesktopPlaybackLaunchRequest {
         val playbackMediaSource = sourceOverride ?: activeSource
         val playbackSourceId = sourceIdOverride ?: activeSourceId
-        val hasSubtitleOverride = subtitleOverrideMediaPath == path
+        val hasSubtitleOverride = subtitleOverrideKey == (playbackSourceId to path.trim())
         val manualSubtitlePath = subtitlePath.takeIf { hasSubtitleOverride }.orEmpty()
         val indexedPath = episodeId
             ?.takeIf { it.substringBefore(':').toLongOrNull() == playbackSourceId }
@@ -1128,7 +1129,7 @@ internal fun MiruPlayDesktopComposeApp(
                 startSeconds = PlaybackTimingConventions.formatMpvStartSeconds(result.data.source.startPosition)
                 if (path != previousMediaPath) {
                     subtitlePath = ""
-                    subtitleOverrideMediaPath = null
+                    subtitleOverrideKey = null
                 }
                 saveDesktopPlaybackStartProgress(
                     session = result.data.session,
@@ -2620,7 +2621,7 @@ internal fun MiruPlayDesktopComposeApp(
                     subtitlePath = subtitlePath,
                     onSubtitlePathChange = {
                         subtitlePath = it
-                        subtitleOverrideMediaPath = mediaPath
+                        subtitleOverrideKey = activeSourceId to mediaPath.trim()
                     },
                     startSeconds = startSeconds,
                     onStartSecondsChange = { startSeconds = it },
