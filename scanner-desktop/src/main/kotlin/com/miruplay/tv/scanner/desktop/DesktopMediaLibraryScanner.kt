@@ -11,6 +11,7 @@ import com.miruplay.tv.model.NfoMetadata
 import com.miruplay.tv.model.TvShowNfoMetadata
 import com.miruplay.tv.model.VideoFilenameInference
 import com.miruplay.tv.model.VideoFilenameMetadata
+import com.miruplay.tv.model.matchingExternalSubtitlePaths
 import com.miruplay.tv.model.sanitizeRecognizedText
 import com.miruplay.tv.repository.MediaIndexEntry
 import kotlinx.coroutines.Dispatchers
@@ -72,6 +73,7 @@ class DesktopMediaLibraryScanner(
         if (listed is Result.Error) return Result.failure(listed.error)
 
         val files = (listed as Result.Success).data
+        val siblingFilePaths = files.filterNot { it.isDirectory }.map { it.path }
         for (entry in files) {
             if (entry.isDirectory) {
                 if (config.includeDirectories) {
@@ -91,7 +93,7 @@ class DesktopMediaLibraryScanner(
                     if (subResult is Result.Error) return subResult
                 }
             } else if (entry.isVideoFile()) {
-                entries += entry.toVideoIndexEntry(sourceId, source, tvShow)
+                entries += entry.toVideoIndexEntry(sourceId, source, tvShow, siblingFilePaths)
                 counters.filesIndexed += 1
             }
         }
@@ -113,12 +115,14 @@ class DesktopMediaLibraryScanner(
         sourceId: Long,
         source: MediaSource,
         tvShow: TvShowNfoMetadata?,
+        siblingFilePaths: List<String>,
     ): MediaIndexEntry {
         val nfo = nfoReader.readEpisodeForVideo(source, path)
         val inferred = inferVideoMetadata(name, path)
         return MediaIndexEntry(
             sourceId = sourceId,
             path = path,
+            externalSubtitlePaths = matchingExternalSubtitlePaths(path, siblingFilePaths),
             animeName = nfo?.showTitle
                 ?: tvShow?.title
                 ?: tvShow?.originalTitle

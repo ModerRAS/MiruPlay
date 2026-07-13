@@ -16,6 +16,7 @@ data class IndexEntryEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     @ColumnInfo(name = "source_id") val sourceId: Long,
     val path: String,
+    @ColumnInfo(name = "external_subtitle_paths") val externalSubtitlePaths: List<String> = emptyList(),
     @ColumnInfo(name = "anime_name") val animeName: String? = null,
     @ColumnInfo(name = "episode_title") val episodeTitle: String? = null,
     val plot: String? = null,

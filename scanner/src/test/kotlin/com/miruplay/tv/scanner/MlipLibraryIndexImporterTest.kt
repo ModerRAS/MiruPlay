@@ -60,12 +60,27 @@ class MlipLibraryIndexImporterTest {
     fun `unsupported mlip version fails clearly`() = runBlocking {
         val databaseFile = File.createTempFile("mlip-test-", ".db")
         try {
-            createMlipDatabase(databaseFile, userVersion = 2)
+            createMlipDatabase(databaseFile, userVersion = 3)
 
             val result = importDatabase(databaseFile)
 
             assertTrue(result is Result.Error)
             assertTrue((result as Result.Error).error is AppError.LibraryIndexError.UnsupportedVersion)
+        } finally {
+            databaseFile.delete()
+        }
+    }
+
+    @Test
+    fun `mlip v2 requires subtitle table`() = runBlocking {
+        val databaseFile = File.createTempFile("mlip-test-", ".db")
+        try {
+            createMlipDatabase(databaseFile, includeExternalSubtitles = false)
+
+            val result = importDatabase(databaseFile)
+
+            assertTrue(result is Result.Error)
+            assertTrue((result as Result.Error).error is AppError.LibraryIndexError.InvalidSchema)
         } finally {
             databaseFile.delete()
         }
@@ -311,6 +326,7 @@ class MlipLibraryIndexImporterTest {
             assertEquals(7L, entry.sourceId)
             assertEquals("/Series/01.mkv", entry.path)
             assertEquals("中文标题", entry.animeName)
+            assertEquals(listOf("/Series/01.zh-CN.ass", "/Series/01.en.srt"), entry.externalSubtitlePaths)
             assertEquals("第 1 集", entry.episodeTitle)
             assertEquals(1, entry.seasonNumber)
             assertEquals(1, entry.episodeNumber)
@@ -354,13 +370,20 @@ class MlipLibraryIndexImporterTest {
             streams = mapOf("library.db" to { databaseFile.inputStream() }),
         )
         try {
-            createMlipDatabase(databaseFile, includeReleaseDate = false)
+            createMlipDatabase(
+                databaseFile,
+                userVersion = 1,
+                includeReleaseDate = false,
+                includeExternalSubtitles = false,
+            )
+            val indexRepository = RecordingIndexRepository()
 
-            val result = MlipLibraryIndexImporter(RecordingIndexRepository(), metadataRepository)
+            val result = MlipLibraryIndexImporter(indexRepository, metadataRepository)
                 .importLibrary(source, mediaSource)
 
             assertTrue(result.isSuccess())
             assertEquals("2024", metadataRepository.anime.single().airDate)
+            assertTrue(indexRepository.entries.single().externalSubtitlePaths.isEmpty())
         } finally {
             databaseFile.delete()
         }
@@ -392,9 +415,10 @@ class MlipLibraryIndexImporterTest {
 
     private fun createMlipDatabase(
         file: File,
-        userVersion: Int = 1,
+        userVersion: Int = 2,
         includeRequiredTables: Boolean = true,
         includeReleaseDate: Boolean = true,
+        includeExternalSubtitles: Boolean = true,
         mediaPath: String = "Series/01.mkv",
     ) {
         file.delete()
@@ -402,7 +426,7 @@ class MlipLibraryIndexImporterTest {
         try {
             database.execSQL("PRAGMA user_version = $userVersion")
             database.execSQL("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
-            database.execSQL("INSERT INTO meta (key, value) VALUES ('protocol', 'MLIP'), ('schema', '1')")
+            database.execSQL("INSERT INTO meta (key, value) VALUES ('protocol', 'MLIP'), ('schema', '$userVersion')")
             if (!includeRequiredTables) return
             database.execSQL("CREATE TABLE series (id INTEGER PRIMARY KEY, uuid TEXT NOT NULL, title TEXT NOT NULL, original_title TEXT, summary TEXT, year INTEGER, series_type INTEGER)")
             database.execSQL("CREATE TABLE episode (id INTEGER PRIMARY KEY, uuid TEXT NOT NULL, series_id INTEGER NOT NULL, season INTEGER, episode REAL, sort_order REAL, title TEXT, summary TEXT, runtime INTEGER)")
@@ -417,6 +441,10 @@ class MlipLibraryIndexImporterTest {
             if (includeReleaseDate) {
                 database.execSQL("CREATE TABLE series_release_date (series_id INTEGER PRIMARY KEY, air_date TEXT NOT NULL)")
                 database.execSQL("INSERT INTO series_release_date (series_id, air_date) VALUES (1, '2024-04-03')")
+            }
+            if (includeExternalSubtitles) {
+                database.execSQL("CREATE TABLE media_subtitle (media_file_id INTEGER NOT NULL, path TEXT NOT NULL, language TEXT, title TEXT, sort_order INTEGER NOT NULL DEFAULT 0)")
+                database.execSQL("INSERT INTO media_subtitle (media_file_id, path, language, title, sort_order) VALUES (100, 'Series/01.en.srt', 'en', 'English', 2), (100, 'Series/01.zh-CN.ass', 'zh-CN', '简体中文', 1)")
             }
             database.execSQL("INSERT INTO series (id, uuid, title, original_title, summary, year, series_type) VALUES (1, 'series-uuid', '中文标题', 'Original Title', '简介', 2024, 1)")
             database.execSQL("INSERT INTO episode (id, uuid, series_id, season, episode, sort_order, title, summary, runtime) VALUES (10, 'episode-uuid-1', 1, 1, 1.0, 1.0, '第 1 集', '', 1440)")

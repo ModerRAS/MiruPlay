@@ -53,4 +53,5 @@ internal fun miruPlayDatabaseMigrations(): Array<Migration> =
         MiruPlayDatabase.MIGRATION_4_5,
         MiruPlayDatabase.MIGRATION_5_6,
         MiruPlayDatabase.MIGRATION_6_7,
+        MiruPlayDatabase.MIGRATION_7_8,
     )

@@ -27,6 +27,7 @@ interface MediaIndexRepository {
 data class MediaIndexEntry(
     val sourceId: Long,
     val path: String,
+    val externalSubtitlePaths: List<String> = emptyList(),
     val animeName: String? = null,
     val episodeTitle: String? = null,
     val plot: String? = null,

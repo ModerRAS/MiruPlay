@@ -25,7 +25,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 private const val MLIP_DATABASE_PATH = "library.db"
-private const val MLIP_SCHEMA_VERSION = 1
+private val SUPPORTED_MLIP_SCHEMA_VERSIONS = 1..2
 private const val MLIP_METADATA_SOURCE = "MLIP"
 
 @Singleton
@@ -177,11 +177,12 @@ class MlipLibraryIndexImporter @Inject constructor(
 
     private fun validateMlipDatabase(database: SQLiteDatabase): Result<Unit> {
         val userVersion = database.singleInt("PRAGMA user_version") ?: 0
-        if (userVersion != MLIP_SCHEMA_VERSION) {
+        if (userVersion !in SUPPORTED_MLIP_SCHEMA_VERSIONS) {
             return Result.failure(AppError.LibraryIndexError.UnsupportedVersion(userVersion))
         }
         val tables = database.tableNames()
-        val missing = requiredTables.filterNot { it in tables }
+        val expectedTables = if (userVersion >= 2) requiredTables + v2RequiredTables else requiredTables
+        val missing = expectedTables.filterNot { it in tables }
         if (missing.isNotEmpty()) {
             return Result.failure(AppError.LibraryIndexError.InvalidSchema("Missing tables: ${missing.joinToString()}"))
         }
@@ -190,8 +191,8 @@ class MlipLibraryIndexImporter @Inject constructor(
         if (!protocol.equals("MLIP", ignoreCase = true)) {
             return Result.failure(AppError.LibraryIndexError.InvalidSchema("meta.protocol is not MLIP"))
         }
-        if (schema != MLIP_SCHEMA_VERSION.toString()) {
-            return Result.failure(AppError.LibraryIndexError.InvalidSchema("meta.schema is not $MLIP_SCHEMA_VERSION"))
+        if (schema != userVersion.toString()) {
+            return Result.failure(AppError.LibraryIndexError.InvalidSchema("meta.schema does not match user_version $userVersion"))
         }
         return Result.success(Unit)
     }
@@ -201,6 +202,7 @@ class MlipLibraryIndexImporter @Inject constructor(
         val externalIdsBySeriesId = database.readExternalIdsBySeriesId()
         val releaseDatesBySeriesId = database.readReleaseDatesBySeriesId()
         val posterBySeriesId = database.readPosterBySeriesId()
+        val externalSubtitlePathsByMediaFileId = database.readExternalSubtitlePathsByMediaFileId()
         val seriesById = database.readSeries(
             sourceId,
             genresBySeriesId,
@@ -233,6 +235,7 @@ class MlipLibraryIndexImporter @Inject constructor(
             emptyArray(),
         ).use { cursor ->
             while (cursor.moveToNext()) {
+                val mediaFileId = cursor.long("media_file_id")
                 val rawPath = cursor.string("media_path")
                 val indexPath = normalizeMlipMediaPath(rawPath)
                     ?: throw InvalidMlipSchemaException("Unsafe media path: $rawPath")
@@ -267,6 +270,7 @@ class MlipLibraryIndexImporter @Inject constructor(
                 val indexEntry = MediaIndexEntry(
                     sourceId = sourceId,
                     path = indexPath,
+                    externalSubtitlePaths = externalSubtitlePathsByMediaFileId[mediaFileId].orEmpty(),
                     animeName = series.anime.displayTitleForIndex(),
                     episodeTitle = episodeTitle,
                     seasonNumber = season,
@@ -295,6 +299,23 @@ class MlipLibraryIndexImporter @Inject constructor(
             skippedFiles = skippedFiles,
             nonIntegerEpisodes = nonIntegerEpisodes,
         )
+    }
+
+    private fun SQLiteDatabase.readExternalSubtitlePathsByMediaFileId(): Map<Long, List<String>> {
+        if ("media_subtitle" !in tableNames()) return emptyMap()
+        val result = linkedMapOf<Long, MutableList<String>>()
+        rawQuery(
+            "SELECT media_file_id, path FROM media_subtitle ORDER BY media_file_id, sort_order, path",
+            emptyArray(),
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                val rawPath = cursor.string("path")
+                val normalized = normalizeMlipMediaPath(rawPath)
+                    ?: throw InvalidMlipSchemaException("Unsafe subtitle path: $rawPath")
+                result.getOrPut(cursor.long("media_file_id")) { mutableListOf() }.add(normalized)
+            }
+        }
+        return result.mapValues { (_, paths) -> paths.distinct() }
     }
 
     private fun SQLiteDatabase.readSeries(
@@ -501,6 +522,8 @@ private fun normalizeMlipRelativePath(path: String): String? {
     if (segments.any { it == "." || it == ".." || "://" in it }) return null
     return segments.joinToString("/")
 }
+
+private val v2RequiredTables = setOf("series_release_date", "media_subtitle")
 
 private val requiredTables = setOf(
     "meta",

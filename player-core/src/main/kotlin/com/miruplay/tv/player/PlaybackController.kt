@@ -55,7 +55,7 @@ interface PlaybackController {
     /**
      * Select subtitle track by index
      */
-    suspend fun setSubtitleTrack(trackIndex: Int)
+    suspend fun setSubtitleTrack(trackIndex: Int?)
 
     /**
      * Select audio track by index

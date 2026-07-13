@@ -49,6 +49,7 @@ import com.miruplay.tv.mediasource.desktop.DesktopMediaSource
 import com.miruplay.tv.mediasource.desktop.DesktopMediaSourceFactory
 import com.miruplay.tv.mediasource.desktop.DesktopPlaybackBridge
 import com.miruplay.tv.mediasource.desktop.desktopSourceFromInfo
+import com.miruplay.tv.mediasource.desktop.playableUriFor
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.CloudDriveLibraryMode
@@ -1032,18 +1033,36 @@ internal fun MiruPlayDesktopComposeApp(
             incrementPlayCount = incrementPlayCount,
         )
 
-    fun playbackLaunchRequestFor(
+    suspend fun playbackLaunchRequestFor(
         path: String,
         startPositionMs: Long,
         sourceOverride: DesktopMediaSource? = null,
         sourceIdOverride: Long? = null,
         episodeId: String? = null,
-    ): DesktopPlaybackLaunchRequest =
-        DesktopPlaybackLaunchRequest(
+    ): DesktopPlaybackLaunchRequest {
+        val playbackMediaSource = sourceOverride ?: activeSource
+        val playbackSourceId = sourceIdOverride ?: activeSourceId
+        val manualSubtitlePath = subtitlePath.takeIf { path == mediaPath }.orEmpty()
+        val indexedPath = episodeId
+            ?.takeIf { it.substringBefore(':').toLongOrNull() == playbackSourceId }
+            ?.substringAfter(':')
+            ?: path
+        val indexedSubtitlePaths = if (manualSubtitlePath.isBlank() && playbackSourceId != null) {
+            when (val entries = repositories.index.queryIndex(playbackSourceId, indexedPath)) {
+                is Result.Success -> entries.data.firstOrNull { it.path == indexedPath }
+                    ?.externalSubtitlePaths
+                    .orEmpty()
+                    .map { playableUriFor(playbackMediaSource, playbackBridge, it) }
+                is Result.Error -> emptyList()
+            }
+        } else {
+            emptyList()
+        }
+        return DesktopPlaybackLaunchRequest(
             mpvPath = mpvPath,
             configDir = configDir,
             mediaPath = path,
-            subtitlePath = if (path == mediaPath) subtitlePath else "",
+            subtitlePath = manualSubtitlePath.ifBlank { indexedSubtitlePaths.joinToString(";") },
             startSeconds = startPositionMs.coerceAtLeast(0L).let { position ->
                 PlaybackTimingConventions.formatMpvStartSeconds(position)
             },
@@ -1051,12 +1070,13 @@ internal fun MiruPlayDesktopComposeApp(
             keepOpen = keepOpen,
             rifeEnabled = rifeEnabled,
             rifeBackend = rifeBackend,
-            activeSource = sourceOverride ?: activeSource,
-            activeSourceId = sourceIdOverride ?: activeSourceId,
+            activeSource = playbackMediaSource,
+            activeSourceId = playbackSourceId,
             blankMediaMessage = playbackBlankMediaMessage(),
             fallbackMediaSourceId = DESKTOP_PLAYBACK_MEDIA_SOURCE_ID,
             episodeId = episodeId,
         )
+    }
 
     fun requestDetailPanelFocus(panel: DesktopDetailFocusPanel): Boolean {
         when (panel) {

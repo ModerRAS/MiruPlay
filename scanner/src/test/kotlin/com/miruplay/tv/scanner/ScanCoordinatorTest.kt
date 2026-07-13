@@ -592,6 +592,45 @@ class ScanCoordinatorTest {
     }
 
     @Test
+    fun `scanSource associates same stem external subtitles`() = runBlocking {
+        val sourceInfo = MediaSourceInfo(
+            id = 49L,
+            name = "Subtitle WebDAV",
+            type = MediaSourceType.WEBDAV,
+            connectionInfo = mapOf("url" to "http://example.test/dav", "disableOnlineMetadata" to "true"),
+        )
+        val videoPath = "/Show/Show - S01E01.mkv"
+        val mediaSource = FakeMediaSource(
+            listings = mapOf(
+                "" to listOf(FileEntry(name = "Show", path = "/Show", isDirectory = true)),
+                "/Show" to listOf(
+                    FileEntry(name = "Show - S01E01.mkv", path = videoPath, isDirectory = false, size = 1234),
+                    FileEntry(name = "Show - S01E01.ass", path = "/Show/Show - S01E01.ass", isDirectory = false, size = 100),
+                    FileEntry(name = "Show - S01E01.zh-CN.srt", path = "/Show/Show - S01E01.zh-CN.srt", isDirectory = false, size = 100),
+                    FileEntry(name = "Show - S01E010.ass", path = "/Show/Show - S01E010.ass", isDirectory = false, size = 100),
+                ),
+            ),
+        )
+        val indexRepository = RecordingIndexRepository()
+        val coordinator = ScanCoordinator(
+            mediaRepository = SingleSourceRepository(sourceInfo),
+            mediaSourceFactory = SingleMediaSourceFactory(mediaSource),
+            indexRepository = indexRepository,
+            metadataRepository = RecordingMetadataRepository(),
+            filenameMetadataParser = EmptyFilenameMetadataParser,
+            metadataScrapers = setOf(RecordingBangumiScraper()),
+        )
+
+        val result = coordinator.scanSource(sourceInfo.id)
+
+        assertTrue("Scan should succeed", result.isSuccess())
+        assertEquals(
+            listOf("/Show/Show - S01E01.ass", "/Show/Show - S01E01.zh-CN.srt"),
+            indexRepository.entries.single().externalSubtitlePaths,
+        )
+    }
+
+    @Test
     fun `scanSource skips Bangumi cache reuse and lookup for drama sources`() = runBlocking {
         val sourceInfo = MediaSourceInfo(
             id = 48L,

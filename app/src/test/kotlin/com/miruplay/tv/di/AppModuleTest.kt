@@ -6,7 +6,7 @@ import org.junit.Test
 
 class AppModuleTest {
     @Test
-    fun `database builder migrations include schema 5 to 6 upgrade`() {
+    fun `database builder includes every schema migration`() {
         assertEquals(
             listOf(
                 MiruPlayDatabase.MIGRATION_1_2,
@@ -15,6 +15,7 @@ class AppModuleTest {
                 MiruPlayDatabase.MIGRATION_4_5,
                 MiruPlayDatabase.MIGRATION_5_6,
                 MiruPlayDatabase.MIGRATION_6_7,
+                MiruPlayDatabase.MIGRATION_7_8,
             ),
             miruPlayDatabaseMigrations().toList(),
         )

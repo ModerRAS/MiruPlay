@@ -60,6 +60,7 @@ class EmbeddedMpvSessionOptionsTest {
         assertEquals("perceptual", options.gamutMappingMode)
         assertEquals(listOf("/tmp/test.glsl"), options.shaderPaths)
         assertEquals("1.25", options.extraOptions.getValue("speed"))
+        assertEquals("no", options.extraOptions.getValue("sub-auto"))
     }
 
     @Test

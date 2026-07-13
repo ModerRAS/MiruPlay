@@ -25,6 +25,7 @@ import com.miruplay.tv.model.ScanResult
 import com.miruplay.tv.model.TvShowNfoMetadata
 import com.miruplay.tv.model.UniqueId
 import com.miruplay.tv.model.displayTitle
+import com.miruplay.tv.model.matchingExternalSubtitlePaths
 import com.miruplay.tv.model.recognitionMode
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.MediaIndexEntry
@@ -1326,6 +1327,10 @@ class ScanCoordinator @Inject constructor(
                 )
             }
 
+            val siblingFilePaths = files
+                .filterNot { it.isDirectory }
+                .filter { rootPath == null || isWithinRoot(it.path, rootPath) }
+                .map { it.path }
             for (file in files) {
                 currentCoroutineContext().ensureActive()
                 diagnostics.entriesSeen += 1
@@ -1498,6 +1503,7 @@ class ScanCoordinator @Inject constructor(
                         indexEntities.add(MediaIndexEntry(
                             sourceId = sourceId,
                             path = file.path,
+                            externalSubtitlePaths = matchingExternalSubtitlePaths(file.path, siblingFilePaths),
                             animeName = match.animeName,
                             seasonNumber = match.seasonNumber,
                             episodeNumber = match.episodeNumber,
