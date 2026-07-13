@@ -2810,13 +2810,15 @@ private fun SourceFormPanel(
                 text = mediaSourceTestConnectionActionLabel(testResult is ConnectionTestResult.Testing),
                 icon = Icons.Filled.WifiTethering,
                 enabled = testResult !is ConnectionTestResult.Testing,
-                onClick = onTestConnection
+                onClick = onTestConnection,
+                modifier = Modifier.weight(1f)
             )
             TvButton(
                 text = mediaSourceSaveActionLabel(isEditing),
                 icon = Icons.Filled.Save,
                 enabled = location.isNotBlank(),
-                onClick = onSave
+                onClick = onSave,
+                modifier = Modifier.weight(1f)
             )
         }
 
