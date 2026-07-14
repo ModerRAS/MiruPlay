@@ -1,3 +1,5 @@
+@file:Suppress("UnsafeOptInUsageError")
+
 package com.miruplay.tv.player
 
 import androidx.media3.common.MimeTypes

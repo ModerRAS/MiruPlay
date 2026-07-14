@@ -34,6 +34,19 @@ class WebControlNavigatorTest {
     }
 
     @Test
+    fun `close player command survives until first collector attaches`() = runBlocking {
+        val navigator = WebControlNavigator()
+
+        assertTrue(navigator.closePlayer())
+
+        val command = withTimeout(1_000) {
+            navigator.commands.first()
+        }
+
+        assertEquals(WebControlNavigator.TYPE_CLOSE_PLAYER, command.type)
+    }
+
+    @Test
     fun `app restart command survives until first collector attaches`() = runBlocking {
         val navigator = WebControlNavigator()
 

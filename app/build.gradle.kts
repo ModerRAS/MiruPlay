@@ -113,6 +113,7 @@ dependencies {
     implementation(libs.okhttp.logging.interceptor)
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
+    implementation(libs.androidx.work.runtime.ktx)
     
     implementation(libs.dagger.hilt.android)
     ksp(libs.dagger.hilt.compiler)
