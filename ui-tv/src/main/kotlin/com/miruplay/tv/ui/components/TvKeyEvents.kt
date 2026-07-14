@@ -9,7 +9,6 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
-import com.miruplay.tv.design.MiruPlayComposeKeyProfile
 import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.design.isActivationIntent
 import com.miruplay.tv.design.miruPlayInputIntentFromComposeKeyCode
@@ -19,10 +18,7 @@ internal fun Key.isTvActivateKey(): Boolean =
 
 internal fun Key.toMiruPlayInputIntent(): MiruPlayInputIntent? =
     toAndroidComposeKeyIntent()
-        ?: miruPlayInputIntentFromComposeKeyCode(
-            keyCode = keyCode,
-            profile = MiruPlayComposeKeyProfile.Android,
-        )
+        ?: miruPlayInputIntentFromComposeKeyCode(keyCode)
 
 private fun Key.toAndroidComposeKeyIntent(): MiruPlayInputIntent? =
     when (this) {

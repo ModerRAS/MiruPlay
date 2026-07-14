@@ -8,7 +8,7 @@ import org.junit.Test
 
 class MediaFileConventionsTest {
     @Test
-    fun `mimeTypeForName maps shared desktop media types`() {
+    fun `mimeTypeForName maps media types`() {
         assertEquals("video/x-matroska", MediaFileConventions.mimeTypeForName("Episode 01.mkv"))
         assertEquals("video/x-m4v", MediaFileConventions.mimeTypeForName("Episode 01.m4v"))
         assertEquals("application/x-subrip", MediaFileConventions.mimeTypeForName("Episode 01.srt"))

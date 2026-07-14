@@ -126,5 +126,3 @@ object HeuristicCloudDriveVideoClassifier : CloudDriveVideoClassifier {
         )
     }
 }
-
-typealias DesktopCloudDriveLibraryOrganizer = CloudDriveLibraryOrganizer

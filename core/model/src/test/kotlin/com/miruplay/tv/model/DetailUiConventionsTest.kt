@@ -5,7 +5,7 @@ import org.junit.Test
 
 class DetailUiConventionsTest {
     @Test
-    fun `shared detail action and section labels match TV and desktop copy`() {
+    fun `shared detail action and section labels match TV copy`() {
         assertEquals("播放", detailPlayActionLabel())
         assertEquals("返回海报墙", detailBackToLibraryActionLabel())
         assertEquals("重新刮削", detailRescrapeActionLabel())
@@ -129,7 +129,7 @@ class DetailUiConventionsTest {
     }
 
     @Test
-    fun `shared detail pagination helpers keep desktop page sizes and units`() {
+    fun `detail pagination helpers keep page sizes and units`() {
         assertEquals(6, DETAIL_EPISODE_PAGE_SIZE)
         assertEquals(6, RECENT_PLAYBACK_PAGE_SIZE)
         assertEquals(6, MEDIA_DETAILS_PAGE_SIZE)

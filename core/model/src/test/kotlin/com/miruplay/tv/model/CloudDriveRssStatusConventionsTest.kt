@@ -6,7 +6,7 @@ import org.junit.Test
 
 class CloudDriveRssStatusConventionsTest {
     @Test
-    fun `cloud rss form labels are shared across TV and desktop`() {
+    fun `cloud rss form labels are shared`() {
         assertEquals("CloudDrive2", cloudDriveRssTitleLabel())
         assertEquals(
             "RSS 会提交到 CloudDrive2 离线下载目录，整理后触发所选 WebDAV 媒体源扫描。",
@@ -127,7 +127,7 @@ class CloudDriveRssStatusConventionsTest {
     }
 
     @Test
-    fun `cloud rss pagination helpers are shared by TV and desktop`() {
+    fun `cloud rss pagination helpers are shared`() {
         assertEquals(6, CLOUD_RSS_SUBSCRIPTION_PAGE_SIZE)
         assertEquals(6, CLOUD_DRIVE_DIRECTORY_PAGE_SIZE)
 
@@ -270,7 +270,7 @@ class CloudDriveRssStatusConventionsTest {
     }
 
     @Test
-    fun `localized Cloud RSS status text converts stable desktop wire statuses`() {
+    fun `localized Cloud RSS status text converts stable wire statuses`() {
         assertEquals("Cloud/RSS 待命。", localizedCloudRssStatusText(""))
         assertEquals("Cloud/RSS 待命。", cloudRssStatusText(""))
         assertEquals("调度器待命，尚未检查。", localizedCloudRssStatusText("Scheduler idle. No checks yet."))
@@ -331,7 +331,7 @@ class CloudDriveRssStatusConventionsTest {
     }
 
     @Test
-    fun `localized Cloud RSS status text converts dynamic desktop wire statuses`() {
+    fun `localized Cloud RSS status text converts dynamic wire statuses`() {
         assertEquals(
             "调度器运行中，上次检查失败：network down",
             localizedCloudRssStatusText("Scheduler running. Last check failed: network down"),

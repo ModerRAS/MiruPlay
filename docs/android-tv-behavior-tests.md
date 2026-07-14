@@ -24,12 +24,6 @@ Build the APK first, then run the behavior suite:
 .\tools\assert-android-tv-behavior-report.ps1 -ReportPath (Get-Content .\build\android-tv-behavior\latest-report.txt -Raw).Trim()
 ```
 
-The same suite is wired into the broader local gate:
-
-```powershell
-.\tools\verify-windows-port.ps1 -AndroidTv -AndroidDeviceId $env:MIRUPLAY_ANDROID_TV_DEVICE_ID -KeepAndroidAppData
-```
-
 Use `-KeepAppData` when the target device contains data that must not be cleared. Without it, the underlying smoke driver clears app data to make the fixture fully isolated.
 
 ## Covered Contract

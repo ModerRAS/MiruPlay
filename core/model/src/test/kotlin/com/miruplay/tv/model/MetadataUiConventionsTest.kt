@@ -42,7 +42,7 @@ class MetadataUiConventionsTest {
     }
 
     @Test
-    fun `bangumi pagination helpers are shared by TV and desktop`() {
+    fun `bangumi pagination helpers are shared`() {
         assertEquals(4, BANGUMI_BATCH_MATCH_LIMIT)
         assertEquals(4, BANGUMI_CANDIDATE_LIMIT)
         assertEquals(6, BANGUMI_RESULT_LIMIT)

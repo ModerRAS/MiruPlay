@@ -6,7 +6,7 @@ import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.repository.BangumiEpisodeMetadata
 
 /**
- * Pluggable metadata scraper contract shared by Android TV and Windows.
+ * Pluggable metadata scraper contract used by Android TV.
  */
 interface MetadataScraper {
     /**

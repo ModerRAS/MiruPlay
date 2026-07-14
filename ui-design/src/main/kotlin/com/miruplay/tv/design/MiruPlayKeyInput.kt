@@ -19,9 +19,7 @@ enum class MiruPlayKeyInput {
     MediaStop,
 }
 
-fun MiruPlayKeyInput.toMiruPlayInputIntent(
-    includeDesktopBackAliases: Boolean = false,
-): MiruPlayInputIntent? =
+fun MiruPlayKeyInput.toMiruPlayInputIntent(): MiruPlayInputIntent? =
     when (this) {
         MiruPlayKeyInput.DirectionCenter,
         MiruPlayKeyInput.Enter,
@@ -29,9 +27,10 @@ fun MiruPlayKeyInput.toMiruPlayInputIntent(
         MiruPlayKeyInput.Spacebar,
         -> MiruPlayInputIntent.Activate
         MiruPlayKeyInput.Back -> MiruPlayInputIntent.Back
-        MiruPlayKeyInput.Escape -> MiruPlayInputIntent.Back.takeIf { includeDesktopBackAliases }
-        MiruPlayKeyInput.NavigatePrevious -> MiruPlayInputIntent.NavigatePrevious.takeIf { includeDesktopBackAliases }
-        MiruPlayKeyInput.NavigateOut -> MiruPlayInputIntent.NavigateOut.takeIf { includeDesktopBackAliases }
+        MiruPlayKeyInput.Escape,
+        MiruPlayKeyInput.NavigatePrevious,
+        MiruPlayKeyInput.NavigateOut,
+        -> null
         MiruPlayKeyInput.DirectionLeft -> MiruPlayInputIntent.DirectionLeft
         MiruPlayKeyInput.DirectionRight -> MiruPlayInputIntent.DirectionRight
         MiruPlayKeyInput.DirectionUp -> MiruPlayInputIntent.DirectionUp

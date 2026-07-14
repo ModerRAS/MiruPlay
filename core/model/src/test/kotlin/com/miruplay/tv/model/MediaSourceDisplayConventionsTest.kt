@@ -5,7 +5,7 @@ import org.junit.Test
 
 class MediaSourceDisplayConventionsTest {
     @Test
-    fun `media source type display conventions are shared by TV and desktop`() {
+    fun `media source type display conventions are shared`() {
         assertEquals("本地", MediaSourceType.LOCAL.tvLabel())
         assertEquals("WebDAV", MediaSourceType.WEBDAV.tvLabel())
         assertEquals("SMB", MediaSourceType.SMB.tvLabel())
@@ -109,7 +109,7 @@ class MediaSourceDisplayConventionsTest {
     }
 
     @Test
-    fun `remote browser pagination helpers are shared by TV and desktop`() {
+    fun `remote browser pagination helpers are shared`() {
         assertEquals(8, REMOTE_BROWSER_PAGE_SIZE)
         assertEquals(0, remoteBrowserPageStartForIndex(index = 0, itemCount = 17))
         assertEquals(0, remoteBrowserPageStartForIndex(index = 7, itemCount = 17))
@@ -124,7 +124,7 @@ class MediaSourceDisplayConventionsTest {
     }
 
     @Test
-    fun `media source management labels are shared by TV and desktop`() {
+    fun `media source management labels are shared`() {
         assertEquals("媒体源", mediaSourceListTitleLabel())
         assertEquals("还没有配置媒体源", mediaSourceEmptyListMessage())
         assertEquals("已配置 3 个源", mediaSourceConfiguredCountLabel(3))
@@ -177,7 +177,7 @@ class MediaSourceDisplayConventionsTest {
     }
 
     @Test
-    fun `media source status helpers are shared by TV and desktop`() {
+    fun `media source status helpers are shared`() {
         val local = MediaSourceInfo(id = 1L, name = "Library", type = MediaSourceType.LOCAL)
         val webDav = MediaSourceInfo(id = 2L, name = "Cloud", type = MediaSourceType.WEBDAV)
         val smb = MediaSourceInfo(id = 3L, name = "NAS", type = MediaSourceType.SMB)
@@ -219,7 +219,7 @@ class MediaSourceDisplayConventionsTest {
     }
 
     @Test
-    fun `media source status text accepts new shared statuses and legacy desktop wire statuses`() {
+    fun `media source status text accepts shared and legacy wire statuses`() {
         assertEquals(
             "添加本地媒体源，或载入已保存的媒体源。",
             localizedMediaSourceStatusText(mediaSourceLocalLibraryInitialStatus()),

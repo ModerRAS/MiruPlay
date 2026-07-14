@@ -6,7 +6,7 @@ import com.miruplay.tv.model.CloudDriveRssRunSummary
 
 open class SharedCloudDriveRssAutomationEngine(
     private val core: CloudDriveRssAutomationCore,
-) : CloudDriveRssAutomationRunner, CloudDriveRssDueRunner {
+) : CloudDriveRssAutomationRunner {
     override suspend fun login(endpointUrl: String, username: String, password: String): Result<Unit> =
         core.login(endpointUrl, username, password)
 
@@ -16,6 +16,6 @@ open class SharedCloudDriveRssAutomationEngine(
     override suspend fun runOnce(): Result<CloudDriveRssRunSummary> =
         core.runOnce()
 
-    override suspend fun runIfDue(): Result<CloudDriveRssRunSummary?> =
+    suspend fun runIfDue(): Result<CloudDriveRssRunSummary?> =
         core.runIfDue()
 }

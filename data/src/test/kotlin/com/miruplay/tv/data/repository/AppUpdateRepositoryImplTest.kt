@@ -38,9 +38,9 @@ class AppUpdateRepositoryImplTest {
               "html_url": "https://github.com/ModerRAS/MiruPlay/releases/tag/nightly-2026.05.26",
               "assets": [
                 {
-                  "name": "desktop-app-2026.05.26.zip",
+                  "name": "miruplay-source-2026.05.26.zip",
                   "size": 67230778,
-                  "browser_download_url": "https://example.test/desktop.zip"
+                  "browser_download_url": "https://example.test/source.zip"
                 },
                 {
                   "name": "app-release.apk",
@@ -71,8 +71,8 @@ class AppUpdateRepositoryImplTest {
               "draft": false,
               "assets": [
                 {
-                  "name": "desktop.zip",
-                  "browser_download_url": "https://example.test/desktop.zip"
+                  "name": "miruplay-source.zip",
+                  "browser_download_url": "https://example.test/source.zip"
                 }
               ]
             }
