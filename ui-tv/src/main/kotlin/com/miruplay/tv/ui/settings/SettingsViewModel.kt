@@ -17,6 +17,7 @@ import com.miruplay.tv.data.preferences.PlaybackPreferencesManager
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.PlaybackRenderBackend
+import com.miruplay.tv.model.SubtitleLanguagePreference
 import com.miruplay.tv.model.PosterWallArrangement
 import com.miruplay.tv.model.ToneMappingProfilePreset
 import com.miruplay.tv.model.VideoRenderRuleKey
@@ -164,6 +165,8 @@ class SettingsViewModel @Inject constructor(
 
     private val _playbackEndAction = MutableStateFlow(playbackPreferences.endAction)
     val playbackEndAction: StateFlow<PlaybackEndAction> = _playbackEndAction.asStateFlow()
+    private val _preferredSubtitleLanguage = MutableStateFlow(playbackPreferences.preferredSubtitleLanguage)
+    val preferredSubtitleLanguage: StateFlow<SubtitleLanguagePreference> = _preferredSubtitleLanguage.asStateFlow()
     private val _formatAwareToneMappingPreferences = MutableStateFlow(
         playbackPreferences.formatAwareToneMappingPreferences.normalized()
     )
@@ -857,6 +860,11 @@ class SettingsViewModel @Inject constructor(
     fun setPlaybackEndAction(action: PlaybackEndAction) {
         playbackPreferences.endAction = action
         _playbackEndAction.value = action
+    }
+
+    fun setPreferredSubtitleLanguage(preference: SubtitleLanguagePreference) {
+        playbackPreferences.preferredSubtitleLanguage = preference
+        _preferredSubtitleLanguage.value = preference
     }
 
     fun setDefaultPlaybackBackend(backend: PlaybackRenderBackend) {

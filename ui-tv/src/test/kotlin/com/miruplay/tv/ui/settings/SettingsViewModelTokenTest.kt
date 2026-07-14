@@ -9,6 +9,7 @@ import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.PlaybackEndAction
+import com.miruplay.tv.model.SubtitleLanguagePreference
 import com.miruplay.tv.model.PosterWallArrangement
 import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.AppMode
@@ -88,6 +89,7 @@ class SettingsViewModelTokenTest {
         every { scanPreferences.posterWallArrangement } returns PosterWallArrangement.TITLE
 
         every { playbackPreferences.endAction } returns PlaybackEndAction.RETURN_TO_DETAIL
+        every { playbackPreferences.preferredSubtitleLanguage } returns SubtitleLanguagePreference.AUTO
         every { playbackPreferences.formatAwareToneMappingPreferences } returns FormatAwareToneMappingPreferences()
 
         every { webControlPreferences.webControlEnabled } returns false

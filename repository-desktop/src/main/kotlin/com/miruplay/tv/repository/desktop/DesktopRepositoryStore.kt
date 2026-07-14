@@ -5,6 +5,7 @@ import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.PlaybackEndAction
+import com.miruplay.tv.model.SubtitleLanguagePreference
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.RssDownloadTaskInfo
@@ -75,6 +76,7 @@ internal data class DesktopRepositoryState(
     val episodes: List<Episode> = emptyList(),
     val indexBatchUndo: List<MediaIndexBatchUndoState> = emptyList(),
     val playbackEndAction: PlaybackEndAction = PlaybackEndAction.RETURN_TO_DETAIL,
+    val preferredSubtitleLanguage: SubtitleLanguagePreference = SubtitleLanguagePreference.AUTO,
     val formatAwareToneMappingPreferences: FormatAwareToneMappingPreferences = FormatAwareToneMappingPreferences(),
     val scanPreferences: ScanPreferencesSnapshot = ScanPreferencesSnapshot(),
     val cloudDriveConfig: CloudDriveAutomationConfig = CloudDriveAutomationConfig(),

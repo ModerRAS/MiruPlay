@@ -6,6 +6,7 @@ import com.miruplay.tv.model.FallbackBackendPolicy
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.PeakDetectionStrategy
 import com.miruplay.tv.model.PlaybackRenderBackend
+import com.miruplay.tv.model.SubtitleLanguagePreference
 import com.miruplay.tv.model.ToneMappingCurvePreset
 import com.miruplay.tv.model.ToneMappingRuleSet
 import com.miruplay.tv.model.VideoRenderRuleKey
@@ -42,6 +43,18 @@ class PlaybackPreferencesManagerTest {
         assertTrue(preferences.rules.containsKey(VideoRenderRuleKey.HDR10))
         assertTrue(preferences.rules.containsKey(VideoRenderRuleKey.HDR10_PLUS))
         assertTrue(preferences.rules.containsKey(VideoRenderRuleKey.DOLBY_VISION))
+    }
+
+    @Test
+    fun `manager persists preferred subtitle language`() = runBlocking {
+        assertEquals(SubtitleLanguagePreference.AUTO, manager.getPreferredSubtitleLanguage())
+
+        manager.setPreferredSubtitleLanguage(SubtitleLanguagePreference.CHINESE_SIMPLIFIED)
+
+        assertEquals(
+            SubtitleLanguagePreference.CHINESE_SIMPLIFIED,
+            manager.getPreferredSubtitleLanguage(),
+        )
     }
 
     @Test

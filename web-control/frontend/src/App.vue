@@ -1080,6 +1080,16 @@
                     :options="playbackSettings.endActionOptions.map((value) => ({ value, label: endActionLabels[value] || value }))"
                   />
                 </el-form-item>
+                <el-form-item label="字幕语言优先级">
+                  <el-select v-model="playbackForm.preferredSubtitleLanguage">
+                    <el-option
+                      v-for="value in playbackSettings.preferredSubtitleLanguageOptions"
+                      :key="value"
+                      :label="subtitleLanguageLabels[value] || value"
+                      :value="value"
+                    />
+                  </el-select>
+                </el-form-item>
                 <el-form-item label="默认播放后端">
                   <el-select v-model="playbackForm.defaultBackend">
                     <el-option
@@ -1094,7 +1104,7 @@
                   type="info"
                   :closable="false"
                   show-icon
-                  title="WebUI 仅提供默认后端与结束动作；更细的色调映射规则继续沿用电视端当前设置。"
+                  title="字幕语言会自动识别常见语言代码和中文别名；更细的色调映射规则继续沿用电视端当前设置。"
                 />
                 <div class="form-actions">
                   <el-button type="primary" :loading="loading.playbackSave" @click="savePlaybackSettings">保存设置</el-button>
@@ -1627,11 +1637,14 @@ const scanForm = reactive({
 })
 const playbackSettings = reactive({
   endAction: 'return_to_detail',
+  preferredSubtitleLanguage: 'auto',
   formatAwareToneMapping: null,
-  endActionOptions: ['return_to_detail', 'play_next_episode']
+  endActionOptions: ['return_to_detail', 'play_next_episode'],
+  preferredSubtitleLanguageOptions: ['auto', 'zh_hans', 'zh_hant', 'zh', 'en', 'ja']
 })
 const playbackForm = reactive({
   endAction: 'return_to_detail',
+  preferredSubtitleLanguage: 'auto',
   defaultBackend: ''
 })
 const webControlAccess = reactive({
@@ -1699,6 +1712,14 @@ let cloudRunTimer = 0
 const appModeLabels = { anime: '动画', drama: '剧集' }
 const posterWallArrangementLabels = { TITLE: '按标题', RELEASE_SEASON: '按新番季' }
 const endActionLabels = { return_to_detail: '返回详情页', play_next_episode: '播放下一集' }
+const subtitleLanguageLabels = {
+  auto: '自动',
+  zh_hans: '简体中文',
+  zh_hant: '繁体中文',
+  zh: '中文',
+  en: '英语',
+  ja: '日语'
+}
 const playbackBackendOptions = ['STANDARD_EXO', 'EXPERIMENTAL_MPV_EMBEDDED', 'EXPERIMENTAL_LIBVLC']
 const playbackBackendLabels = {
   STANDARD_EXO: 'ExoPlayer（标准）',
@@ -2934,9 +2955,12 @@ async function saveScanSettings() {
 
 function applyPlaybackSettings(data) {
   playbackSettings.endAction = data.endAction || 'return_to_detail'
+  playbackSettings.preferredSubtitleLanguage = data.preferredSubtitleLanguage || 'auto'
   playbackSettings.formatAwareToneMapping = data.formatAwareToneMapping || null
   playbackSettings.endActionOptions = data.endActionOptions || ['return_to_detail', 'play_next_episode']
+  playbackSettings.preferredSubtitleLanguageOptions = data.preferredSubtitleLanguageOptions || ['auto', 'zh_hans', 'zh_hant', 'zh', 'en', 'ja']
   playbackForm.endAction = playbackSettings.endAction
+  playbackForm.preferredSubtitleLanguage = playbackSettings.preferredSubtitleLanguage
   playbackForm.defaultBackend = playbackSettings.formatAwareToneMapping?.defaultBackend || ''
 }
 
@@ -2955,6 +2979,7 @@ async function savePlaybackSettings() {
     const existing = playbackSettings.formatAwareToneMapping || {}
     const payload = {
       endAction: playbackForm.endAction,
+      preferredSubtitleLanguage: playbackForm.preferredSubtitleLanguage,
       formatAwareToneMapping: { ...existing, defaultBackend: playbackForm.defaultBackend }
     }
     applyPlaybackSettings(await api('/api/settings/playback', {

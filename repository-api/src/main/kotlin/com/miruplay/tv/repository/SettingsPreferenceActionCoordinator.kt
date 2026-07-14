@@ -2,6 +2,7 @@ package com.miruplay.tv.repository
 
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.PosterWallArrangement
+import com.miruplay.tv.model.SubtitleLanguagePreference
 
 data class ScanPreferenceActionSnapshot(
     val autoScanEnabled: Boolean = false,
@@ -44,6 +45,14 @@ class SettingsPreferenceActionCoordinator(
     suspend fun setPlaybackEndAction(action: PlaybackEndAction): PlaybackEndAction {
         playbackPreferences.setEndAction(action)
         return playbackPreferences.getEndAction()
+    }
+
+    suspend fun currentPreferredSubtitleLanguage(): SubtitleLanguagePreference =
+        playbackPreferences.getPreferredSubtitleLanguage()
+
+    suspend fun setPreferredSubtitleLanguage(preference: SubtitleLanguagePreference): SubtitleLanguagePreference {
+        playbackPreferences.setPreferredSubtitleLanguage(preference)
+        return playbackPreferences.getPreferredSubtitleLanguage()
     }
 }
 

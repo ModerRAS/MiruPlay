@@ -14,6 +14,7 @@ import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.PlaybackEndAction
+import com.miruplay.tv.model.SubtitleLanguagePreference
 import com.miruplay.tv.model.PlaybackRenderBackend
 import com.miruplay.tv.model.ScanResult
 import com.miruplay.tv.model.buildToneMappingPreset
@@ -690,9 +691,11 @@ class WebControlService @Inject constructor(
 
     override suspend fun getPlaybackSettings(): PlaybackSettingsDto = runOnIo {
         val endAction = playbackPreferencesRepository.getEndAction()
+        val preferredSubtitleLanguage = playbackPreferencesRepository.getPreferredSubtitleLanguage()
         val toneMapping = playbackPreferencesRepository.getFormatAwareToneMappingPreferences().normalized()
         PlaybackSettingsDto(
             endAction = endAction.storageValue,
+            preferredSubtitleLanguage = preferredSubtitleLanguage.storageValue,
             formatAwareToneMapping = toneMapping,
         )
     }
@@ -700,6 +703,11 @@ class WebControlService @Inject constructor(
     override suspend fun savePlaybackSettings(request: PlaybackSettingsRequest): PlaybackSettingsDto = runOnIo {
         request.endAction?.let { value ->
             playbackPreferencesRepository.setEndAction(PlaybackEndAction.fromStorageValue(value))
+        }
+        request.preferredSubtitleLanguage?.let { value ->
+            playbackPreferencesRepository.setPreferredSubtitleLanguage(
+                SubtitleLanguagePreference.fromStorageValue(value),
+            )
         }
         request.formatAwareToneMapping?.let { prefs ->
             playbackPreferencesRepository.setFormatAwareToneMappingPreferences(prefs.normalized())

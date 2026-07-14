@@ -3,6 +3,7 @@ package com.miruplay.tv.repository
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.PosterWallArrangement
+import com.miruplay.tv.model.SubtitleLanguagePreference
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -64,6 +65,22 @@ class SettingsPreferenceActionCoordinatorTest {
         assertEquals(PlaybackEndAction.PLAY_NEXT_EPISODE, coordinator.currentPlaybackEndAction())
     }
 
+    @Test
+    fun `preferred subtitle language setter persists and returns refreshed value`() = runBlocking {
+        val playbackPreferences = FakePlaybackPreferencesRepository()
+        val coordinator = coordinator(playbackPreferences = playbackPreferences)
+
+        val preference = coordinator.setPreferredSubtitleLanguage(
+            SubtitleLanguagePreference.CHINESE_SIMPLIFIED,
+        )
+
+        assertEquals(SubtitleLanguagePreference.CHINESE_SIMPLIFIED, preference)
+        assertEquals(
+            SubtitleLanguagePreference.CHINESE_SIMPLIFIED,
+            coordinator.currentPreferredSubtitleLanguage(),
+        )
+    }
+
     private fun coordinator(
         scanPreferences: FakeScanPreferencesRepository = FakeScanPreferencesRepository(),
         playbackPreferences: FakePlaybackPreferencesRepository = FakePlaybackPreferencesRepository(),
@@ -107,12 +124,20 @@ class SettingsPreferenceActionCoordinatorTest {
     ) : PlaybackPreferencesRepository {
         private var formatAwareToneMappingPreferences: FormatAwareToneMappingPreferences =
             FormatAwareToneMappingPreferences()
+        private var preferredSubtitleLanguage = SubtitleLanguagePreference.AUTO
 
         override suspend fun getEndAction(): PlaybackEndAction =
             action
 
         override suspend fun setEndAction(action: PlaybackEndAction) {
             this.action = action
+        }
+
+        override suspend fun getPreferredSubtitleLanguage(): SubtitleLanguagePreference =
+            preferredSubtitleLanguage
+
+        override suspend fun setPreferredSubtitleLanguage(preference: SubtitleLanguagePreference) {
+            preferredSubtitleLanguage = preference
         }
 
         override suspend fun getFormatAwareToneMappingPreferences(): FormatAwareToneMappingPreferences =
