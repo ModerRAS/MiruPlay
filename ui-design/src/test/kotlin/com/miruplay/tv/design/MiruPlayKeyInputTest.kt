@@ -31,24 +31,10 @@ class MiruPlayKeyInputTest {
     }
 
     @Test
-    fun `TV key profile keeps desktop back aliases out by default`() {
+    fun `TV key profile keeps unsupported aliases out`() {
         assertEquals(MiruPlayInputIntent.Back, MiruPlayKeyInput.Back.toMiruPlayInputIntent())
         assertNull(MiruPlayKeyInput.Escape.toMiruPlayInputIntent())
         assertNull(MiruPlayKeyInput.NavigatePrevious.toMiruPlayInputIntent())
         assertNull(MiruPlayKeyInput.NavigateOut.toMiruPlayInputIntent())
-    }
-
-    @Test
-    fun `desktop key profile can include window and remote back aliases`() {
-        assertEquals(MiruPlayInputIntent.Back, MiruPlayKeyInput.Escape.toMiruPlayInputIntent(includeDesktopBackAliases = true))
-        assertEquals(MiruPlayInputIntent.Back, MiruPlayKeyInput.Back.toMiruPlayInputIntent(includeDesktopBackAliases = true))
-        assertEquals(
-            MiruPlayInputIntent.NavigatePrevious,
-            MiruPlayKeyInput.NavigatePrevious.toMiruPlayInputIntent(includeDesktopBackAliases = true),
-        )
-        assertEquals(
-            MiruPlayInputIntent.NavigateOut,
-            MiruPlayKeyInput.NavigateOut.toMiruPlayInputIntent(includeDesktopBackAliases = true),
-        )
     }
 }

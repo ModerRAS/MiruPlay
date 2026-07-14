@@ -8,14 +8,14 @@ class WebControlServerInfoTest {
     fun `server info maps app device port and start time`() {
         val dto = buildWebControlServerInfo(
             appName = "MiruPlay Test",
-            deviceName = "Windows",
+            deviceName = "Android TV",
             port = 9988,
             localIps = listOf("192.168.1.20"),
             startedAt = 123L,
         )
 
         assertEquals("MiruPlay Test", dto.appName)
-        assertEquals("Windows", dto.deviceName)
+        assertEquals("Android TV", dto.deviceName)
         assertEquals(9988, dto.port)
         assertEquals(listOf("192.168.1.20"), dto.localIps)
         assertEquals(123L, dto.startedAt)

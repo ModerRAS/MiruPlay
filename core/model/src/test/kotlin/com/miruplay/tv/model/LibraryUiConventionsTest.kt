@@ -5,7 +5,7 @@ import org.junit.Test
 
 class LibraryUiConventionsTest {
     @Test
-    fun `shared library chrome labels match TV and desktop copy`() {
+    fun `shared library chrome labels match TV copy`() {
         assertEquals("探索", libraryTitleLabel())
         assertEquals("本地媒体库 · Bangumi 元数据", librarySubtitleLabel())
         assertEquals("扫描", libraryScanActionLabel())

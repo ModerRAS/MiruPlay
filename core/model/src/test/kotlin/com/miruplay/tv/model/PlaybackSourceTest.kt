@@ -28,7 +28,7 @@ class PlaybackSourceTest {
             mediaPath = "video.mkv",
             subtitlePath = "",
             startSeconds = "",
-            mediaSourceId = "desktop",
+            mediaSourceId = "library",
         )
 
         assertEquals("video.mkv", source.episodeId)
@@ -38,11 +38,11 @@ class PlaybackSourceTest {
     fun `playbackSourceFromInputs clamps invalid or negative starts to zero`() {
         assertEquals(
             0L,
-            playbackSourceFromInputs("video.mkv", "", "abc", mediaSourceId = "desktop").startPosition,
+            playbackSourceFromInputs("video.mkv", "", "abc", mediaSourceId = "library").startPosition,
         )
         assertEquals(
             0L,
-            playbackSourceFromInputs("video.mkv", "", "-3", mediaSourceId = "desktop").startPosition,
+            playbackSourceFromInputs("video.mkv", "", "-3", mediaSourceId = "library").startPosition,
         )
     }
 
@@ -53,7 +53,7 @@ class PlaybackSourceTest {
                 mediaPath = "   ",
                 subtitlePath = "",
                 startSeconds = "",
-                mediaSourceId = "desktop",
+                mediaSourceId = "library",
                 blankMediaMessage = "Choose media first.",
             )
         }.exceptionOrNull()

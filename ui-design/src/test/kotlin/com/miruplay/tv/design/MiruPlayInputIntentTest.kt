@@ -8,7 +8,7 @@ import org.junit.Test
 
 class MiruPlayInputIntentTest {
     @Test
-    fun `activation intent is shared by Android TV and desktop`() {
+    fun `activation intent is shared`() {
         assertTrue(MiruPlayInputIntent.Activate.isActivationIntent())
         assertFalse(MiruPlayInputIntent.DirectionLeft.isActivationIntent())
         assertFalse(MiruPlayInputIntent.Back.isActivationIntent())
@@ -46,58 +46,6 @@ class MiruPlayInputIntentTest {
         assertEquals(-1, MiruPlayInputIntent.DirectionUp.linearNavigationDelta())
         assertEquals(1, MiruPlayInputIntent.DirectionDown.linearNavigationDelta())
         assertNull(MiruPlayInputIntent.Activate.linearNavigationDelta())
-    }
-
-    @Test
-    fun `desktop playback stage action maps shared playback intents`() {
-        assertEquals(
-            MiruPlayPlaybackInputAction.Launch,
-            MiruPlayInputIntent.Activate.desktopPlaybackStageAction(isPlayerActive = false),
-        )
-        assertEquals(
-            MiruPlayPlaybackInputAction.TogglePause,
-            MiruPlayInputIntent.Activate.desktopPlaybackStageAction(isPlayerActive = true),
-        )
-        assertEquals(
-            MiruPlayPlaybackInputAction.SeekBack,
-            MiruPlayInputIntent.DirectionLeft.desktopPlaybackStageAction(isPlayerActive = true),
-        )
-        assertEquals(
-            MiruPlayPlaybackInputAction.SeekForward,
-            MiruPlayInputIntent.DirectionRight.desktopPlaybackStageAction(isPlayerActive = true),
-        )
-        assertEquals(
-            MiruPlayPlaybackInputAction.Resume,
-            MiruPlayInputIntent.MediaPlay.desktopPlaybackStageAction(isPlayerActive = true),
-        )
-        assertEquals(
-            MiruPlayPlaybackInputAction.Pause,
-            MiruPlayInputIntent.MediaPause.desktopPlaybackStageAction(isPlayerActive = true),
-        )
-        assertEquals(
-            MiruPlayPlaybackInputAction.Stop,
-            MiruPlayInputIntent.MediaStop.desktopPlaybackStageAction(isPlayerActive = true),
-        )
-        assertNull(MiruPlayInputIntent.MediaPause.desktopPlaybackStageAction(isPlayerActive = false))
-        assertNull(MiruPlayInputIntent.DirectionUp.desktopPlaybackStageAction(isPlayerActive = true))
-    }
-
-    @Test
-    fun `desktop global playback action keeps text keys available`() {
-        assertEquals(
-            MiruPlayPlaybackInputAction.Launch,
-            MiruPlayInputIntent.MediaPlay.desktopPlaybackGlobalMediaAction(isPlayerActive = false),
-        )
-        assertEquals(
-            MiruPlayPlaybackInputAction.TogglePause,
-            MiruPlayInputIntent.MediaPlayPause.desktopPlaybackGlobalMediaAction(isPlayerActive = true),
-        )
-        assertEquals(
-            MiruPlayPlaybackInputAction.Stop,
-            MiruPlayInputIntent.MediaStop.desktopPlaybackGlobalMediaAction(isPlayerActive = true),
-        )
-        assertNull(MiruPlayInputIntent.Activate.desktopPlaybackGlobalMediaAction(isPlayerActive = true))
-        assertNull(MiruPlayInputIntent.DirectionLeft.desktopPlaybackGlobalMediaAction(isPlayerActive = true))
     }
 
     @Test

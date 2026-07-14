@@ -77,15 +77,15 @@ class OpenObserveLogConventionsTest {
                 ),
             ),
             context = OpenObservePayloadContext(
-                serviceName = "miruplay-windows",
-                deploymentEnvironment = "windows",
+                serviceName = "miruplay-android",
+                deploymentEnvironment = "android",
             ),
         )
 
         val item = payload.first().jsonObject
         assertEquals("error", item.getValue("level").jsonPrimitive.content)
-        assertEquals("miruplay-windows", item.getValue("service_name").jsonPrimitive.content)
-        assertEquals("windows", item.getValue("deployment_environment").jsonPrimitive.content)
+        assertEquals("miruplay-android", item.getValue("service_name").jsonPrimitive.content)
+        assertEquals("android", item.getValue("deployment_environment").jsonPrimitive.content)
         assertEquals("main", item.getValue("thread_name").jsonPrimitive.content)
         assertTrue(item.containsKey("record_id"))
     }

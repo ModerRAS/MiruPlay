@@ -13,8 +13,8 @@ import java.io.InputStream
 /**
  * Platform-neutral media source interface for file access.
  *
- * Android and desktop implementations share this contract so scanner,
- * repository, and playback code can stay source-agnostic.
+ * Media source implementations share this contract so scanner, repository,
+ * and playback code can stay source-agnostic.
  */
 interface MediaSource {
     val id: String

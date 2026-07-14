@@ -58,45 +58,6 @@ fun MiruPlayInputIntent.verticalNavigationDelta(): Int? =
 fun MiruPlayInputIntent.linearNavigationDelta(): Int? =
     horizontalNavigationDelta() ?: verticalNavigationDelta()
 
-fun MiruPlayInputIntent.desktopPlaybackStageAction(isPlayerActive: Boolean): MiruPlayPlaybackInputAction? =
-    when (this) {
-        MiruPlayInputIntent.DirectionLeft -> MiruPlayPlaybackInputAction.SeekBack.takeIf { isPlayerActive }
-        MiruPlayInputIntent.DirectionRight -> MiruPlayPlaybackInputAction.SeekForward.takeIf { isPlayerActive }
-        MiruPlayInputIntent.MediaPlay -> if (isPlayerActive) {
-            MiruPlayPlaybackInputAction.Resume
-        } else {
-            MiruPlayPlaybackInputAction.Launch
-        }
-        MiruPlayInputIntent.MediaPause -> MiruPlayPlaybackInputAction.Pause.takeIf { isPlayerActive }
-        MiruPlayInputIntent.MediaStop -> MiruPlayPlaybackInputAction.Stop.takeIf { isPlayerActive }
-        else -> if (isPlaybackToggleIntent()) {
-            if (isPlayerActive) {
-                MiruPlayPlaybackInputAction.TogglePause
-            } else {
-                MiruPlayPlaybackInputAction.Launch
-            }
-        } else {
-            null
-        }
-    }
-
-fun MiruPlayInputIntent.desktopPlaybackGlobalMediaAction(isPlayerActive: Boolean): MiruPlayPlaybackInputAction? =
-    when (this) {
-        MiruPlayInputIntent.MediaPlayPause -> if (isPlayerActive) {
-            MiruPlayPlaybackInputAction.TogglePause
-        } else {
-            MiruPlayPlaybackInputAction.Launch
-        }
-        MiruPlayInputIntent.MediaPlay -> if (isPlayerActive) {
-            MiruPlayPlaybackInputAction.Resume
-        } else {
-            MiruPlayPlaybackInputAction.Launch
-        }
-        MiruPlayInputIntent.MediaPause -> MiruPlayPlaybackInputAction.Pause.takeIf { isPlayerActive }
-        MiruPlayInputIntent.MediaStop -> MiruPlayPlaybackInputAction.Stop.takeIf { isPlayerActive }
-        else -> null
-    }
-
 fun MiruPlayInputIntent.tvPlaybackOverlayAction(
     controlsVisible: Boolean,
     hasOpenMenu: Boolean,

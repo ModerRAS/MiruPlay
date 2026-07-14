@@ -50,7 +50,6 @@ class SettingsLogUploadParityTest {
 
         assertTrue(status.startsWith(settingsAndroidTvLogUploadStatusMessage()))
         assertFalse(status.contains("Web 控制端"))
-        assertFalse(status.contains("Windows"))
         assertTrue(status.contains("待上报 2 条"))
         assertTrue(status.contains("上报中"))
         assertTrue(status.contains("未保存 Token"))

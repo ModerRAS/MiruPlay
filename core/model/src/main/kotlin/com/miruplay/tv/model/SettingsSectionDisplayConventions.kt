@@ -3,86 +3,50 @@ package com.miruplay.tv.model
 enum class MiruPlaySettingsSection(
     val androidTvTitle: String,
     val androidTvDescription: String,
-    val desktopTitle: String,
-    val desktopDescription: String,
 ) {
     WEB_UI(
         androidTvTitle = "WebUI",
         androidTvDescription = "访问地址与二维码",
-        desktopTitle = "WebUI",
-        desktopDescription = "访问地址与二维码",
     ),
     SOURCES(
         androidTvTitle = "媒体源",
         androidTvDescription = "本地、WebDAV、SMB",
-        desktopTitle = "媒体源",
-        desktopDescription = "本地、WebDAV、SMB",
     ),
     PLAYBACK(
         androidTvTitle = "播放",
         androidTvDescription = "播完动作",
-        desktopTitle = "播放",
-        desktopDescription = "mpv 与 RIFE",
     ),
     CLOUD_DRIVE(
         androidTvTitle = "CloudDrive",
         androidTvDescription = "RSS 离线下载与入库",
-        desktopTitle = "云盘",
-        desktopDescription = "RSS 离线下载与入库",
     ),
     PROXY(
         androidTvTitle = "代理配置",
         androidTvDescription = "Bangumi、Archive 与 RSS 出站代理",
-        desktopTitle = "代理",
-        desktopDescription = "Bangumi、Archive 与 RSS 出站代理",
     ),
     SCAN(
         androidTvTitle = "扫描",
         androidTvDescription = "媒体库更新策略",
-        desktopTitle = "扫描",
-        desktopDescription = "媒体库更新",
     ),
     LOG_UPLOAD(
         androidTvTitle = "日志上报",
         androidTvDescription = "OpenObserve JSON",
-        desktopTitle = "日志",
-        desktopDescription = "OpenObserve JSON",
     ),
     APP_UPDATE(
         androidTvTitle = "更新",
         androidTvDescription = "GitHub APK",
-        desktopTitle = "更新",
-        desktopDescription = "GitHub Release",
     ),
     METADATA(
         androidTvTitle = "元数据",
         androidTvDescription = "Bangumi / TMDB Token",
-        desktopTitle = "元数据",
-        desktopDescription = "Bangumi / TMDB 匹配",
     ),
     ABOUT(
         androidTvTitle = "关于",
         androidTvDescription = "版本与应用信息",
-        desktopTitle = "关于",
-        desktopDescription = "版本与应用信息",
     ),
 }
 
 val androidTvSettingsSectionOrder: List<MiruPlaySettingsSection> =
-    listOf(
-        MiruPlaySettingsSection.WEB_UI,
-        MiruPlaySettingsSection.SOURCES,
-        MiruPlaySettingsSection.PLAYBACK,
-        MiruPlaySettingsSection.CLOUD_DRIVE,
-        MiruPlaySettingsSection.PROXY,
-        MiruPlaySettingsSection.SCAN,
-        MiruPlaySettingsSection.LOG_UPLOAD,
-        MiruPlaySettingsSection.APP_UPDATE,
-        MiruPlaySettingsSection.METADATA,
-        MiruPlaySettingsSection.ABOUT,
-    )
-
-val desktopSettingsSectionOrder: List<MiruPlaySettingsSection> =
     listOf(
         MiruPlaySettingsSection.WEB_UI,
         MiruPlaySettingsSection.SOURCES,
@@ -106,9 +70,6 @@ fun MiruPlaySettingsSection.stepInSettingsOrder(
 
 fun MiruPlaySettingsSection.stepAndroidTvSettingsSection(delta: Int): MiruPlaySettingsSection? =
     stepInSettingsOrder(androidTvSettingsSectionOrder, delta)
-
-fun MiruPlaySettingsSection.stepDesktopSettingsSection(delta: Int): MiruPlaySettingsSection? =
-    stepInSettingsOrder(desktopSettingsSectionOrder, delta)
 
 fun settingsWebUiMenuSummary(addressCount: Int): String =
     if (addressCount > 0) "$addressCount 个地址" else "等待网络"
@@ -213,15 +174,6 @@ fun MiruPlaySettingsSection.settingsMenuSummary(
         MiruPlaySettingsSection.ABOUT -> settingsAboutMenuSummary(input.appVersionName)
     }
 
-fun settingsDesktopScanMenuSummary(): String =
-    "媒体库更新"
-
-fun settingsDesktopWebUiMenuSummary(): String =
-    "访问地址"
-
-fun settingsDesktopWebUiMenuSummary(addressCount: Int): String =
-    settingsWebUiMenuSummary(addressCount)
-
 fun settingsMenuPanelTitle(): String =
     "设置菜单"
 
@@ -231,14 +183,8 @@ fun settingsScreenTitleLabel(): String =
 fun settingsScreenSubtitleLabel(): String =
     "管理媒体源、WebUI 和元数据服务"
 
-fun settingsMenuPanelDescriptionDesktop(): String =
-    "像 TV 版一样按分类管理桌面能力。"
-
 fun settingsMenuPanelDescriptionAndroidTv(): String =
     "按上下切换分类，向右进入当前设置。"
-
-fun settingsMenuPanelDescription(): String =
-    settingsMenuPanelDescriptionDesktop()
 
 fun settingsOpenLibraryActionLabel(): String =
     "打开海报墙"
@@ -261,17 +207,11 @@ fun settingsSaveTokenActionLabel(): String =
 fun settingsClearTokenActionLabel(): String =
     "清除 Token"
 
-fun settingsDesktopScanStatusMessage(): String =
-    "扫描入口保留在媒体库海报墙和 CloudDrive 同步流程中。"
-
 fun settingsAndroidTvLogUploadStatusMessage(): String =
     "可在当前页面配置 OpenObserve curl 命令或 API 地址；本地日志会按同一配置写入上报队列。"
 
 fun settingsAndroidTvLogUploadHintMessage(): String =
     "粘贴 curl 命令会自动保存地址和鉴权；开启自动上报后会定时上传待处理日志。"
-
-fun settingsDesktopLogUploadStatusMessage(): String =
-    "可在当前页面或 Web 控制端配置 OpenObserve curl 命令或 API 地址；本地日志会按同一配置写入上报队列。"
 
 fun settingsLogUploadAutoToggleLabel(): String =
     "自动上报"
@@ -366,21 +306,6 @@ fun settingsAppUpdateInstallPermissionGrantedStatus(): String =
 fun settingsAppUpdateInstallerOpenedStatus(): String =
     "已打开系统安装器。"
 
-fun settingsDesktopAppUpdatePanelDescription(): String =
-    "从 GitHub Release 获取最新 Windows 桌面包。"
-
-fun settingsDesktopAppUpdateStatusMessage(): String =
-    "Windows 版更新请从 GitHub Release 下载最新桌面 ZIP 或安装包。"
-
-fun settingsDesktopAppUpdateOpenReleaseActionLabel(): String =
-    "打开 Release"
-
-fun settingsDesktopAppUpdateReleaseOpenedStatus(): String =
-    "已打开 GitHub Release 页面。"
-
-fun settingsDesktopAppUpdateReleaseOpenFailedStatus(reason: String?): String =
-    "无法打开 GitHub Release 页面：${reason?.takeIf { it.isNotBlank() } ?: "当前系统不支持打开浏览器"}。"
-
 fun settingsAboutPanelTitleLabel(): String =
     "关于 MiruPlay"
 
@@ -443,22 +368,6 @@ fun settingsLogUploadStatusMessage(
         settingsLogUploadResultStatus(lastUploadStatus),
     ).joinToString(" · ")
 
-fun settingsDesktopLogUploadStatusMessage(
-    pendingCount: Int,
-    isUploading: Boolean,
-    tokenConfigured: Boolean,
-    lastUploadAt: Long,
-    lastUploadStatus: String?,
-): String =
-    settingsLogUploadStatusMessage(
-        pendingCount = pendingCount,
-        isUploading = isUploading,
-        tokenConfigured = tokenConfigured,
-        lastUploadAt = lastUploadAt,
-        lastUploadStatus = lastUploadStatus,
-        entryPointMessage = settingsDesktopLogUploadStatusMessage(),
-    )
-
 fun settingsAndroidTvLogUploadStatusMessage(
     pendingCount: Int,
     isUploading: Boolean,
@@ -473,16 +382,6 @@ fun settingsAndroidTvLogUploadStatusMessage(
         lastUploadAt = lastUploadAt,
         lastUploadStatus = lastUploadStatus,
     )
-
-fun settingsDesktopWebUiStatusMessage(
-    enabled: Boolean = false,
-    addressCount: Int = 0,
-): String =
-    when {
-        !enabled -> "WebUI 当前未启用；Windows 已复用同一套访问令牌和地址生成规则。"
-        addressCount > 0 -> "WebUI 已启用，Windows 正在监听局域网访问地址；可管理媒体源并遥控播放。"
-        else -> "WebUI 已启用，Windows 正在监听；暂未检测到可展示的局域网地址。"
-    }
 
 fun settingsWebUiPanelTitleLabel(): String =
     "WebUI 访问"
@@ -525,9 +424,6 @@ fun settingsWebUiTileLabel(): String =
 
 fun settingsWebUiAndroidTvValue(): String =
     "Android TV"
-
-fun settingsWebUiDesktopValue(): String =
-    "Windows"
 
 fun settingsActiveSourceSharedDetail(): String =
     "媒体库、远程浏览器和 Cloud/RSS 共用这个活动源。"
@@ -662,7 +558,7 @@ fun metadataBangumiTokenSettingsStatus(configured: Boolean): String =
     }
 
 fun settingsIndexSharedDetail(): String =
-    "本地、WebDAV、SMB 都写入同一桌面索引。"
+    "本地、WebDAV、SMB 都写入同一媒体库索引。"
 
 fun settingsCloudDriveRescanSourceDetail(): String =
     "CloudDrive 完成后可触发这个源的重扫。"
@@ -787,12 +683,6 @@ fun settingsMetadataMatchStatusTileLabel(): String =
 
 fun settingsMetadataCandidateScopeTileLabel(): String =
     "候选范围"
-
-fun settingsWebUiNativeControlTileLabel(): String =
-    "桌面控制"
-
-fun settingsRemoteAutomationTileLabel(): String =
-    "远程自动化"
 
 fun settingsCountValue(count: Int): String =
     "${count.coerceAtLeast(0)} 个"
@@ -938,31 +828,6 @@ fun metadataSettingsTiles(
         ),
     )
 
-fun webUiSettingsTiles(
-    platformValue: String,
-    nativeControlValue: String = settingsDesktopControlTileValue(),
-    nativeControlDetail: String = settingsDesktopControlTileDetail(),
-    remoteAutomationValue: String = settingsRemoteAutomationTileValue(),
-    remoteAutomationDetail: String = settingsRemoteAutomationTileDetail(),
-): List<SettingsSummaryTile> =
-    listOf(
-        SettingsSummaryTile(
-            label = settingsWebUiTileLabel(),
-            value = platformValue,
-            detail = settingsWebUiTileDetail(),
-        ),
-        SettingsSummaryTile(
-            label = settingsWebUiNativeControlTileLabel(),
-            value = nativeControlValue,
-            detail = nativeControlDetail,
-        ),
-        SettingsSummaryTile(
-            label = settingsRemoteAutomationTileLabel(),
-            value = remoteAutomationValue,
-            detail = remoteAutomationDetail,
-        ),
-    )
-
 fun logUploadSettingsTiles(): List<SettingsSummaryTile> =
     listOf(
         SettingsSummaryTile(
@@ -979,27 +844,6 @@ fun logUploadSettingsTiles(): List<SettingsSummaryTile> =
             label = "凭据",
             value = "安全存储",
             detail = "令牌只保存配置状态，清理后会停止上报。",
-        ),
-    )
-
-fun desktopAppUpdateSettingsTiles(
-    versionName: String,
-): List<SettingsSummaryTile> =
-    listOf(
-        SettingsSummaryTile(
-            label = settingsAboutVersionNameLabel(),
-            value = settingsVersionNameValue(versionName),
-            detail = settingsDesktopAppUpdatePanelDescription(),
-        ),
-        SettingsSummaryTile(
-            label = "Release",
-            value = settingsAppUpdateMenuSummary(),
-            detail = "Windows 版发行包随 nightly 和正式 Release 一起发布。",
-        ),
-        SettingsSummaryTile(
-            label = "安装包",
-            value = "ZIP / EXE",
-            detail = "桌面版使用 Windows 包，不走 Android APK 安装流程。",
         ),
     )
 
@@ -1029,18 +873,6 @@ fun aboutSettingsTiles(
 
 fun settingsWebUiTileDetail(): String =
     "二维码和局域网令牌入口由各平台设置页提供。"
-
-fun settingsDesktopControlTileValue(): String =
-    "原生窗口"
-
-fun settingsDesktopControlTileDetail(): String =
-    "Windows 版保留键盘/遥控式导航和本机播放控制。"
-
-fun settingsRemoteAutomationTileValue(): String =
-    "Cloud/RSS"
-
-fun settingsRemoteAutomationTileDetail(): String =
-    "CloudDrive2 与 RSS 同步在云盘设置页管理。"
 
 fun settingsCloudRssOverviewValue(enabled: Boolean): String =
     if (enabled) "已启用" else "未启用"
