@@ -188,11 +188,13 @@ internal class ExternalStartupDiagnosticsWriter(
             arrayOf(DIAGNOSTIC_FILE_NAME),
             null,
         )?.use { cursor ->
+            val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Downloads._ID)
+            val relativePathColumn = cursor.getColumnIndexOrThrow(MediaStore.Downloads.RELATIVE_PATH)
             var matchingId: Long? = null
             while (cursor.moveToNext()) {
-                val existingRelativePath = cursor.getString(1).orEmpty()
+                val existingRelativePath = cursor.getString(relativePathColumn).orEmpty()
                 if (existingRelativePath.equals(relativePath, ignoreCase = true)) {
-                    matchingId = cursor.getLong(0)
+                    matchingId = cursor.getLong(idColumn)
                     break
                 }
             }

@@ -255,10 +255,12 @@ internal object StartupProbe {
             arrayOf(displayName),
             null,
         )?.use { cursor ->
+            val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Downloads._ID)
+            val relativePathColumn = cursor.getColumnIndexOrThrow(MediaStore.Downloads.RELATIVE_PATH)
             var matchingId: Long? = null
             while (cursor.moveToNext()) {
-                if (cursor.getString(1).orEmpty().equals(relativePath, ignoreCase = true)) {
-                    matchingId = cursor.getLong(0)
+                if (cursor.getString(relativePathColumn).orEmpty().equals(relativePath, ignoreCase = true)) {
+                    matchingId = cursor.getLong(idColumn)
                     break
                 }
             }
