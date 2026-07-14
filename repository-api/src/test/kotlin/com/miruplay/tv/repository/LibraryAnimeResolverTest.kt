@@ -145,6 +145,62 @@ class LibraryAnimeResolverTest {
     }
 
     @Test
+    fun `loadAnimeDetail globally orders extras merged from multiple sources`() = runBlocking {
+        val second = MediaSourceInfoConventions.webDav(url = "https://dav2.example/anime", name = "DAV 2").copy(id = 2L)
+        val first = MediaSourceInfoConventions.webDav(url = "https://dav1.example/anime", name = "DAV 1").copy(id = 1L)
+        val shared = listOf(
+            MediaIndexEntry(
+                sourceId = 2L,
+                path = "/Show/01.mkv",
+                animeName = "Show Source 2",
+                episodeNumber = 1,
+                metadataId = "bgm-1",
+                metadataTitle = "Shared Show",
+            ),
+            MediaIndexEntry(
+                sourceId = 2L,
+                path = "/Show/NCOP01.mkv",
+                animeName = "Show Source 2",
+                metadataId = "bgm-1",
+                metadataTitle = "Shared Show",
+                episodeTitle = "NCOP 01",
+                extraKind = MediaExtraKind.NCOP,
+                extraOrdinal = 1,
+                extraSortOrder = 1,
+            ),
+            MediaIndexEntry(
+                sourceId = 1L,
+                path = "/Show/01.mkv",
+                animeName = "Show Source 1",
+                episodeNumber = 1,
+                metadataId = "bgm-1",
+                metadataTitle = "Shared Show",
+            ),
+            MediaIndexEntry(
+                sourceId = 1L,
+                path = "/Show/OVA.mkv",
+                animeName = "Show Source 1",
+                metadataId = "bgm-1",
+                metadataTitle = "Shared Show",
+                episodeTitle = "OVA",
+                extraKind = MediaExtraKind.OVA,
+                extraOrdinal = 1,
+                extraSortOrder = 1,
+            ),
+        )
+        val resolver = resolver(
+            sources = listOf(second, first),
+            entries = shared,
+            cachedAnime = mapOf("bgm-1" to Anime(id = "bgm-1", title = "Shared Show")),
+            mergeSameAnimeEnabled = true,
+        )
+
+        val detail = resolver.loadAnimeDetail("bgm-1")
+
+        assertEquals(listOf("OVA", "NCOP 01"), detail?.extras?.map(Episode::title))
+    }
+
+    @Test
     fun `loadAnimeDetail prefers cached metadata and indexed episodes`() = runBlocking {
         val source = MediaSourceInfoConventions.local(rootPath = "D:/Anime", name = "Local").copy(id = 1L)
         val resolver = resolver(

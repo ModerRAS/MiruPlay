@@ -14,6 +14,7 @@ enum class MediaScrapeStatus {
 
 @Serializable
 enum class MediaExtraKind(val value: Int) {
+    UNKNOWN(0),
     OVA(1),
     SPECIAL(2),
     NCOP(3),
@@ -21,7 +22,7 @@ enum class MediaExtraKind(val value: Int) {
     GALLERY(5);
 
     companion object {
-        fun fromValue(value: Int): MediaExtraKind? = entries.firstOrNull { it.value == value }
+        fun fromValue(value: Int): MediaExtraKind = entries.firstOrNull { it.value == value } ?: UNKNOWN
     }
 }
 

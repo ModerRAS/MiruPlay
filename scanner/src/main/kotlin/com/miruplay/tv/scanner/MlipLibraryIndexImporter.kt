@@ -337,7 +337,9 @@ class MlipLibraryIndexImporter @Inject constructor(
                     ?: throw InvalidMlipSchemaException("Extra references an unknown series")
                 val rawKind = cursor.int("extra_kind")
                 val kind = MediaExtraKind.fromValue(rawKind)
-                    ?: throw InvalidMlipSchemaException("Unknown extra_kind: $rawKind")
+                if (kind == MediaExtraKind.UNKNOWN) {
+                    throw InvalidMlipSchemaException("Unknown extra_kind: $rawKind")
+                }
                 val rawPath = cursor.string("path")
                 val indexPath = normalizeMlipMediaPath(rawPath)
                     ?: throw InvalidMlipSchemaException("Unsafe extra path: $rawPath")

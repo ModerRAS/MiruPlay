@@ -75,9 +75,19 @@ class LibraryAnimeResolver(
             .sortedForPlaybackQueue()
         val extras = relatedPairs
             .flatMap { (relatedGroup, relatedAnimeItem) ->
-                relatedGroup.entries.toIndexedExtras(relatedGroup.source, relatedAnimeItem.id)
+                relatedGroup.entries
+                    .filter(MediaIndexEntry::isSeriesExtra)
+                    .map { entry -> Triple(entry, relatedGroup.source, relatedAnimeItem.id) }
             }
-            .distinctBy(Episode::id)
+            .distinctBy { (entry) -> entry.sourceId to entry.path }
+            .sortedWith(
+                compareBy<Triple<MediaIndexEntry, MediaSourceInfo, String>>(
+                    { (entry) -> entry.extraKind?.value ?: Int.MAX_VALUE },
+                    { (entry) -> entry.extraSortOrder ?: Int.MAX_VALUE },
+                    { (entry) -> entry.path },
+                ),
+            )
+            .map { (entry, source, animeId) -> entry.toIndexedExtra(source, animeId) }
         val displayAnime = if (relatedAnime.size > 1) {
             relatedAnime.mergeAnimeGroupForDisplay().copy(id = animeId)
         } else {

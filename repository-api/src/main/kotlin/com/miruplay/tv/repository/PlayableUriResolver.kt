@@ -75,30 +75,34 @@ fun List<MediaIndexEntry>.toIndexedEpisodes(
         .map { entry -> entry.toIndexedEpisode(source, animeId) }
         .sortedForPlaybackQueue()
 
+fun MediaIndexEntry.toIndexedExtra(
+    source: MediaSourceInfo?,
+    animeId: String,
+): Episode =
+    Episode(
+        id = "$sourceId:$path",
+        animeId = animeId,
+        seasonNumber = 0,
+        episodeNumber = extraOrdinal ?: 1,
+        title = episodeTitle.orEmpty(),
+        filePath = source.playableUriForIndexedPath(path),
+        fileName = MediaPathConventions.fileName(path),
+        duration = duration,
+    )
+
 fun List<MediaIndexEntry>.toIndexedExtras(
     source: MediaSourceInfo?,
     animeId: String,
 ): List<Episode> =
     filter(MediaIndexEntry::isSeriesExtra)
-        .sortedWith(
-            compareBy<MediaIndexEntry>(
-                { it.extraKind?.value ?: Int.MAX_VALUE },
-                { it.extraSortOrder ?: Int.MAX_VALUE },
-                { it.path },
-            ),
-        )
-        .map { entry ->
-            Episode(
-                id = "${entry.sourceId}:${entry.path}",
-                animeId = animeId,
-                seasonNumber = 0,
-                episodeNumber = entry.extraOrdinal ?: 1,
-                title = entry.episodeTitle.orEmpty(),
-                filePath = source.playableUriForIndexedPath(entry.path),
-                fileName = MediaPathConventions.fileName(entry.path),
-                duration = entry.duration,
-            )
-        }
+        .sortedWith(mediaIndexExtraComparator)
+        .map { entry -> entry.toIndexedExtra(source, animeId) }
+
+internal val mediaIndexExtraComparator = compareBy<MediaIndexEntry>(
+    { it.extraKind?.value ?: Int.MAX_VALUE },
+    { it.extraSortOrder ?: Int.MAX_VALUE },
+    { it.path },
+)
 
 private fun MediaSourceInfo.matchesPath(path: String): Boolean =
     when (type) {
