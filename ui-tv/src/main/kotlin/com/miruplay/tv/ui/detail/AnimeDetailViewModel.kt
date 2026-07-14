@@ -83,6 +83,9 @@ class AnimeDetailViewModel @Inject constructor(
     private val _episodesWithProgress = MutableStateFlow<List<Pair<Episode, ProgressRecord?>>>(emptyList())
     val episodesWithProgress: StateFlow<List<Pair<Episode, ProgressRecord?>>> = _episodesWithProgress.asStateFlow()
 
+    private val _extrasWithProgress = MutableStateFlow<List<Pair<Episode, ProgressRecord?>>>(emptyList())
+    val extrasWithProgress: StateFlow<List<Pair<Episode, ProgressRecord?>>> = _extrasWithProgress.asStateFlow()
+
     private var allEpisodesWithProgress: List<Pair<Episode, ProgressRecord?>> = emptyList()
 
     private val _isLoading = MutableStateFlow(true)
@@ -115,7 +118,7 @@ class AnimeDetailViewModel @Inject constructor(
                 libraryAnimeResolver.loadAnimeDetail(animeId)
             }
             _anime.value = detail?.anime
-            updateEpisodes(detail?.episodes.orEmpty())
+            updateEpisodes(detail?.episodes.orEmpty(), detail?.extras.orEmpty())
             _isLoading.value = false
         }
     }
@@ -351,7 +354,7 @@ class AnimeDetailViewModel @Inject constructor(
         }
     }
 
-    private suspend fun updateEpisodes(epList: List<Episode>) {
+    private suspend fun updateEpisodes(epList: List<Episode>, extras: List<Episode>) {
         _seasons.value = epList.toSeasons()
         val selectedSeason = epList.activeSeasonOrDefault(_selectedSeason.value)
         _selectedSeason.value = selectedSeason
@@ -362,6 +365,9 @@ class AnimeDetailViewModel @Inject constructor(
         }
         allEpisodesWithProgress = withProgress
         _episodesWithProgress.value = withProgress.episodesForSeason(selectedSeason)
+        _extrasWithProgress.value = extras.map { extra ->
+            extra to progressRepository.getProgress(extra.id).getOrNull()
+        }
     }
 
     fun syncBangumi() {

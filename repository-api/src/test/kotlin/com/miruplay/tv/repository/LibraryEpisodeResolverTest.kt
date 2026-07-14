@@ -118,6 +118,30 @@ class LibraryEpisodeResolverTest {
     }
 
     @Test
+    fun `continue watching ignores indexed series extras`() = runBlocking {
+        val source = MediaSourceInfoConventions.local(rootPath = "D:/Anime", name = "Local").copy(id = 1L)
+        val path = "D:/Anime/Frieren/NCOP01.mkv"
+        val resolver = resolver(
+            sources = listOf(source),
+            entries = listOf(
+                MediaIndexEntry(
+                    sourceId = 1L,
+                    path = path,
+                    animeName = "Frieren",
+                    extraKind = MediaExtraKind.NCOP,
+                    extraOrdinal = 1,
+                ),
+            ),
+            progressRecords = listOf(
+                ProgressRecord("1:$path", positionMs = 45_000L, lastWatched = 99L),
+            ),
+        )
+
+        assertNull(resolver.findEpisodeById("1:$path"))
+        assertTrue(resolver.loadContinueWatchingEpisodes().isEmpty())
+    }
+
+    @Test
     fun `continue watching result preserves progress errors`() = runBlocking {
         val error = AppError.MediaSourceError.NotFound("progress-store")
         val resolver = resolver(

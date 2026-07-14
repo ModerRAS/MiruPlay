@@ -102,6 +102,37 @@ class PlayableUriResolverTest {
     }
 
     @Test
+    fun `extras are excluded from episodes and projected separately`() {
+        val source = MediaSourceInfoConventions.webDav(url = "https://dav.example/anime", name = "DAV").copy(id = 7L)
+        val entries = listOf(
+            MediaIndexEntry(sourceId = 7L, path = "/Show/01.mkv", episodeNumber = 1),
+            MediaIndexEntry(
+                sourceId = 7L,
+                path = "/Show/NCOP02.mkv",
+                episodeTitle = "NCOP 02",
+                extraKind = MediaExtraKind.NCOP,
+                extraOrdinal = 2,
+                extraSortOrder = 2,
+                duration = 90_000L,
+            ),
+            MediaIndexEntry(
+                sourceId = 7L,
+                path = "/Show/OVA.mkv",
+                episodeTitle = "OVA",
+                extraKind = MediaExtraKind.OVA,
+                extraOrdinal = 1,
+                extraSortOrder = 1,
+            ),
+        )
+
+        assertEquals(listOf("7:/Show/01.mkv"), entries.toIndexedEpisodes(source, "show").map { it.id })
+        val extras = entries.toIndexedExtras(source, "show")
+        assertEquals(listOf("OVA", "NCOP 02"), extras.map { it.title })
+        assertEquals(listOf(0, 0), extras.map { it.seasonNumber })
+        assertEquals(90_000L, extras.last().duration)
+    }
+
+    @Test
     fun `resolvePlayableUri returns local path when no matching WebDAV source exists`() = runBlocking {
         val repository = FakeMediaSourceRepository(
             listOf(

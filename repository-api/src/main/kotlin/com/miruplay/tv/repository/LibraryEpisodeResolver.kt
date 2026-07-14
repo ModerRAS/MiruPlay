@@ -99,6 +99,7 @@ class LibraryEpisodeResolver(
                 val entries = index.queryIndex(sourceId, query)
                     .getOrNull()
                     .orEmpty()
+                    .filterNot(MediaIndexEntry::isSeriesExtra)
                 val entry = entries.firstOrNull { it.path == path || episodeId.endsWith(it.path) || path.endsWith(it.path) }
                     ?: entries.firstOrNull { MediaPathConventions.fileName(it.path) == fileName }
                     ?: continue

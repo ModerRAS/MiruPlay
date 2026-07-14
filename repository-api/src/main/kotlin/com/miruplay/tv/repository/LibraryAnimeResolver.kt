@@ -20,6 +20,7 @@ data class LibraryIndexedAnimeGroup(
 data class LibraryAnimeDetail(
     val anime: Anime,
     val episodes: List<Episode>,
+    val extras: List<Episode> = emptyList(),
 )
 
 class LibraryAnimeResolver(
@@ -72,6 +73,11 @@ class LibraryAnimeResolver(
         )
             .distinctBy { it.id }
             .sortedForPlaybackQueue()
+        val extras = relatedPairs
+            .flatMap { (relatedGroup, relatedAnimeItem) ->
+                relatedGroup.entries.toIndexedExtras(relatedGroup.source, relatedAnimeItem.id)
+            }
+            .distinctBy(Episode::id)
         val displayAnime = if (relatedAnime.size > 1) {
             relatedAnime.mergeAnimeGroupForDisplay().copy(id = animeId)
         } else {
@@ -82,6 +88,7 @@ class LibraryAnimeResolver(
         return LibraryAnimeDetail(
             anime = displayAnime,
             episodes = episodes,
+            extras = extras,
         )
     }
 

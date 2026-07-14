@@ -15,6 +15,7 @@ import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.MlipMetadataMode
+import com.miruplay.tv.repository.MediaExtraKind
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaScrapeStatus
@@ -60,12 +61,113 @@ class MlipLibraryIndexImporterTest {
     fun `unsupported mlip version fails clearly`() = runBlocking {
         val databaseFile = File.createTempFile("mlip-test-", ".db")
         try {
-            createMlipDatabase(databaseFile, userVersion = 3)
+            createMlipDatabase(databaseFile, userVersion = 4)
 
             val result = importDatabase(databaseFile)
 
             assertTrue(result is Result.Error)
             assertTrue((result as Result.Error).error is AppError.LibraryIndexError.UnsupportedVersion)
+        } finally {
+            databaseFile.delete()
+        }
+    }
+
+    @Test
+    fun `mlip v3 requires extra table`() = runBlocking {
+        val databaseFile = File.createTempFile("mlip-test-", ".db")
+        try {
+            createMlipDatabase(databaseFile, userVersion = 3, includeExtras = false)
+
+            val result = importDatabase(databaseFile)
+
+            assertTrue(result is Result.Error)
+            assertTrue((result as Result.Error).error is AppError.LibraryIndexError.InvalidSchema)
+        } finally {
+            databaseFile.delete()
+        }
+    }
+
+    @Test
+    fun `mlip v3 requires enabled extra capability`() = runBlocking {
+        val databaseFile = File.createTempFile("mlip-test-", ".db")
+        try {
+            createMlipDatabase(databaseFile, userVersion = 3, includeExtraCapability = false)
+
+            val result = importDatabase(databaseFile)
+
+            assertTrue(result is Result.Error)
+            assertTrue((result as Result.Error).error is AppError.LibraryIndexError.InvalidSchema)
+        } finally {
+            databaseFile.delete()
+        }
+    }
+
+    @Test
+    fun `mlip v2 ignores a stray extra table`() = runBlocking {
+        val databaseFile = File.createTempFile("mlip-test-", ".db")
+        val indexRepository = RecordingIndexRepository()
+        val source = mlipSource()
+        val mediaSource = FakeMediaSource(
+            info = source,
+            streams = mapOf("library.db" to { databaseFile.inputStream() }),
+        )
+        try {
+            createMlipDatabase(databaseFile, userVersion = 2, includeExtras = true)
+
+            val result = MlipLibraryIndexImporter(indexRepository, RecordingMetadataRepository())
+                .importLibrary(source, mediaSource)
+
+            assertTrue(result.isSuccess())
+            assertEquals(1, indexRepository.entries.size)
+            assertTrue(indexRepository.entries.none { it.extraKind != null })
+        } finally {
+            databaseFile.delete()
+        }
+    }
+
+    @Test
+    fun `mlip v3 imports extras without caching them as episodes`() = runBlocking {
+        val databaseFile = File.createTempFile("mlip-test-", ".db")
+        val indexRepository = RecordingIndexRepository()
+        val metadataRepository = RecordingMetadataRepository()
+        val source = mlipSource()
+        val mediaSource = FakeMediaSource(
+            info = source,
+            streams = mapOf("library.db" to { databaseFile.inputStream() }),
+        )
+        try {
+            createMlipDatabase(databaseFile, userVersion = 3)
+
+            val result = MlipLibraryIndexImporter(indexRepository, metadataRepository)
+                .importLibrary(source, mediaSource)
+
+            assertTrue(result.isSuccess())
+            val importResult = (result as Result.Success).data
+            assertEquals(1, importResult.episodeCount)
+            assertEquals(1, importResult.extraCount)
+            assertEquals(2, indexRepository.entries.size)
+            assertEquals(1, metadataRepository.episodes.size)
+            val extra = indexRepository.entries.single { it.extraKind != null }
+            assertEquals(MediaExtraKind.OVA, extra.extraKind)
+            assertEquals(1, extra.extraOrdinal)
+            assertEquals("OVA", extra.episodeTitle)
+            assertEquals("/Series/OVA.mkv", extra.path)
+            assertEquals(600_000L, extra.duration)
+        } finally {
+            databaseFile.delete()
+        }
+    }
+
+    @Test
+    fun `mlip v3 rejects unknown extra kind`() = runBlocking {
+        val databaseFile = File.createTempFile("mlip-test-", ".db")
+        try {
+            createMlipDatabase(databaseFile, userVersion = 3, extraKind = 99)
+
+            val result = importDatabase(databaseFile)
+
+            assertTrue(result is Result.Error)
+            assertTrue((result as Result.Error).error is AppError.LibraryIndexError.InvalidSchema)
         } finally {
             databaseFile.delete()
         }
@@ -419,6 +521,9 @@ class MlipLibraryIndexImporterTest {
         includeRequiredTables: Boolean = true,
         includeReleaseDate: Boolean = true,
         includeExternalSubtitles: Boolean = true,
+        includeExtras: Boolean = userVersion >= 3,
+        includeExtraCapability: Boolean = userVersion >= 3,
+        extraKind: Int = 1,
         mediaPath: String = "Series/01.mkv",
     ) {
         file.delete()
@@ -439,6 +544,9 @@ class MlipLibraryIndexImporterTest {
             database.execSQL("CREATE TABLE episode_external_id (episode_id INTEGER NOT NULL, provider INTEGER NOT NULL, value TEXT NOT NULL)")
             database.execSQL("CREATE TABLE capability (name TEXT PRIMARY KEY, enabled INTEGER NOT NULL)")
             database.execSQL("INSERT INTO capability (name, enabled) VALUES ('subtitle', ${if (includeExternalSubtitles) 1 else 0})")
+            if (includeExtraCapability) {
+                database.execSQL("INSERT INTO capability (name, enabled) VALUES ('extra', 1)")
+            }
             if (includeReleaseDate) {
                 database.execSQL("CREATE TABLE series_release_date (series_id INTEGER PRIMARY KEY, air_date TEXT NOT NULL)")
                 database.execSQL("INSERT INTO series_release_date (series_id, air_date) VALUES (1, '2024-04-03')")
@@ -446,6 +554,10 @@ class MlipLibraryIndexImporterTest {
             if (includeExternalSubtitles) {
                 database.execSQL("CREATE TABLE media_subtitle (id INTEGER PRIMARY KEY, media_file_id INTEGER NOT NULL, path TEXT NOT NULL, language TEXT, title TEXT, sort_order INTEGER NOT NULL DEFAULT 0, FOREIGN KEY(media_file_id) REFERENCES media_file(id) ON DELETE CASCADE, UNIQUE(media_file_id, path))")
                 database.execSQL("INSERT INTO media_subtitle (media_file_id, path, language, title, sort_order) VALUES (100, 'Series/01.en.srt', 'en', 'English', 2), (100, 'Series/01.zh-CN.ass', 'zh-CN', '简体中文', 1)")
+            }
+            if (includeExtras) {
+                database.execSQL("CREATE TABLE media_extra (id INTEGER PRIMARY KEY, uuid TEXT NOT NULL, series_id INTEGER NOT NULL, extra_kind INTEGER NOT NULL, ordinal INTEGER NOT NULL, sort_order INTEGER NOT NULL, title TEXT NOT NULL, path TEXT NOT NULL, size INTEGER, modified_time INTEGER, runtime INTEGER)")
+                database.execSQL("INSERT INTO media_extra (id, uuid, series_id, extra_kind, ordinal, sort_order, title, path, size, modified_time, runtime) VALUES (200, 'extra-uuid', 1, $extraKind, 1, 1, 'OVA', 'Series/OVA.mkv', 5678, 1700000002, 600)")
             }
             database.execSQL("INSERT INTO series (id, uuid, title, original_title, summary, year, series_type) VALUES (1, 'series-uuid', '中文标题', 'Original Title', '简介', 2024, 1)")
             database.execSQL("INSERT INTO episode (id, uuid, series_id, season, episode, sort_order, title, summary, runtime) VALUES (10, 'episode-uuid-1', 1, 1, 1.0, 1.0, '第 1 集', '', 1440)")

@@ -3,6 +3,7 @@ package com.miruplay.tv.data.repository
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.miruplay.tv.data.db.MiruPlayDatabase
+import com.miruplay.tv.repository.MediaExtraKind
 import com.miruplay.tv.repository.MediaIndexEntry
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -50,6 +51,22 @@ class IndexRepositoryImplTest {
             entry.externalSubtitlePaths,
             repository.queryIndex(7L, entry.path).getOrNull()?.single()?.externalSubtitlePaths,
         )
+    }
+
+    @Test
+    fun `series extra fields round trip through Room`() = runBlocking {
+        val entry = MediaIndexEntry(
+            sourceId = 7L,
+            path = "/Series/OVA.mkv",
+            extraKind = MediaExtraKind.OVA,
+            extraOrdinal = 1,
+            extraSortOrder = 2,
+            duration = 600_000L,
+        )
+
+        repository.rebuildIndex(7L, listOf(entry))
+
+        assertEquals(entry, repository.queryIndex(7L, entry.path).getOrNull()?.single())
     }
 
     @Test

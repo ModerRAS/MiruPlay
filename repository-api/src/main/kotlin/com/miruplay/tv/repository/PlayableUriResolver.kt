@@ -71,8 +71,34 @@ fun List<MediaIndexEntry>.toIndexedEpisodes(
     source: MediaSourceInfo?,
     animeId: String,
 ): List<Episode> =
-    map { entry -> entry.toIndexedEpisode(source, animeId) }
+    filterNot(MediaIndexEntry::isSeriesExtra)
+        .map { entry -> entry.toIndexedEpisode(source, animeId) }
         .sortedForPlaybackQueue()
+
+fun List<MediaIndexEntry>.toIndexedExtras(
+    source: MediaSourceInfo?,
+    animeId: String,
+): List<Episode> =
+    filter(MediaIndexEntry::isSeriesExtra)
+        .sortedWith(
+            compareBy<MediaIndexEntry>(
+                { it.extraKind?.value ?: Int.MAX_VALUE },
+                { it.extraSortOrder ?: Int.MAX_VALUE },
+                { it.path },
+            ),
+        )
+        .map { entry ->
+            Episode(
+                id = "${entry.sourceId}:${entry.path}",
+                animeId = animeId,
+                seasonNumber = 0,
+                episodeNumber = entry.extraOrdinal ?: 1,
+                title = entry.episodeTitle.orEmpty(),
+                filePath = source.playableUriForIndexedPath(entry.path),
+                fileName = MediaPathConventions.fileName(entry.path),
+                duration = entry.duration,
+            )
+        }
 
 private fun MediaSourceInfo.matchesPath(path: String): Boolean =
     when (type) {

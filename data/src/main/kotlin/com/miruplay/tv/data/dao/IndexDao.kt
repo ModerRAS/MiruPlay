@@ -7,7 +7,7 @@ import androidx.room.Query
 import com.miruplay.tv.data.entity.IndexEntryEntity
 
 private const val INDEX_COLUMNS =
-    "id, source_id, path, external_subtitle_paths, anime_name, episode_title, plot, season_number, episode_number, metadata_source, metadata_id, metadata_title, scrape_status, scrape_message, scraped_at, is_directory, file_size, last_modified"
+    "id, source_id, path, external_subtitle_paths, anime_name, episode_title, plot, season_number, episode_number, metadata_source, metadata_id, metadata_title, scrape_status, scrape_message, scraped_at, is_directory, file_size, last_modified, extra_kind, extra_ordinal, extra_sort_order, duration"
 
 @Dao
 interface IndexDao {

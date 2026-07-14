@@ -117,6 +117,23 @@ class MiruPlayDatabaseMigrationTest {
     }
 
     @Test
+    fun `migration 8 to 9 adds series extra index fields`() {
+        val database = RecordingSupportSQLiteDatabase()
+
+        MiruPlayDatabase.MIGRATION_8_9.migrate(database.proxy)
+
+        assertEquals(
+            listOf(
+                "ALTER TABLE index_entry ADD COLUMN extra_kind INTEGER",
+                "ALTER TABLE index_entry ADD COLUMN extra_ordinal INTEGER",
+                "ALTER TABLE index_entry ADD COLUMN extra_sort_order INTEGER",
+                "ALTER TABLE index_entry ADD COLUMN duration INTEGER NOT NULL DEFAULT 0",
+            ),
+            database.sql,
+        )
+    }
+
+    @Test
     fun `migration 7 to 8 adds external subtitle paths with empty list default`() {
         val database = RecordingSupportSQLiteDatabase()
 
