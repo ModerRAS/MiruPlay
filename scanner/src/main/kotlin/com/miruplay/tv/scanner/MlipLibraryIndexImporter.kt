@@ -12,6 +12,7 @@ import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.Episode
+import com.miruplay.tv.repository.MediaExtraKind
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaScrapeStatus
@@ -25,7 +26,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 private const val MLIP_DATABASE_PATH = "library.db"
-private val SUPPORTED_MLIP_SCHEMA_VERSIONS = 1..2
+private val SUPPORTED_MLIP_SCHEMA_VERSIONS = 1..3
 private const val MLIP_METADATA_SOURCE = "MLIP"
 
 @Singleton
@@ -72,7 +73,7 @@ class MlipLibraryIndexImporter @Inject constructor(
             is Result.Error -> return@withContext Result.failure(queried.error)
         }
         val mediaFiles = snapshot.mediaFiles
-        val entries = mediaFiles.map { it.indexEntry }
+        val entries = mediaFiles.map { it.indexEntry } + snapshot.extras
         when (val rebuilt = indexRepository.rebuildIndex(source.id, entries)) {
             is Result.Success -> Unit
             is Result.Error -> return@withContext Result.failure(rebuilt.error)
@@ -138,6 +139,7 @@ class MlipLibraryIndexImporter @Inject constructor(
             skippedFileCount = snapshot.skippedFiles,
             artworkCachedCount = artworkCachedCount,
             nonIntegerEpisodeCount = snapshot.nonIntegerEpisodes,
+            extraCount = snapshot.extras.size,
         )
         MiruLog.i(
             TAG,
@@ -149,6 +151,7 @@ class MlipLibraryIndexImporter @Inject constructor(
                 "media_file_count" to result.mediaFileCount.toString(),
                 "skipped_file_count" to result.skippedFileCount.toString(),
                 "non_integer_episode_count" to result.nonIntegerEpisodeCount.toString(),
+                "extra_count" to result.extraCount.toString(),
             ),
         )
         Result.success(result)
@@ -181,7 +184,9 @@ class MlipLibraryIndexImporter @Inject constructor(
             return Result.failure(AppError.LibraryIndexError.UnsupportedVersion(userVersion))
         }
         val tables = database.tableNames()
-        val expectedTables = if (userVersion >= 2) requiredTables + v2RequiredTables else requiredTables
+        val expectedTables = requiredTables +
+            (if (userVersion >= 2) v2RequiredTables else emptySet()) +
+            (if (userVersion >= 3) v3RequiredTables else emptySet())
         val missing = expectedTables.filterNot { it in tables }
         if (missing.isNotEmpty()) {
             return Result.failure(AppError.LibraryIndexError.InvalidSchema("Missing tables: ${missing.joinToString()}"))
@@ -193,6 +198,13 @@ class MlipLibraryIndexImporter @Inject constructor(
         }
         if (schema != userVersion.toString()) {
             return Result.failure(AppError.LibraryIndexError.InvalidSchema("meta.schema does not match user_version $userVersion"))
+        }
+        if (userVersion >= 3 && database.singleInt(
+                "SELECT enabled FROM capability WHERE name = ?",
+                "extra",
+            ) != 1
+        ) {
+            return Result.failure(AppError.LibraryIndexError.InvalidSchema("MLIP v3 requires capability.extra = 1"))
         }
         return Result.success(Unit)
     }
@@ -296,9 +308,65 @@ class MlipLibraryIndexImporter @Inject constructor(
         return MlipSnapshot(
             series = seriesById.values.toList(),
             mediaFiles = mediaFiles,
+            extras = if ((database.singleInt("PRAGMA user_version") ?: 0) >= 3) {
+                database.readExtras(sourceId, seriesById)
+            } else {
+                emptyList()
+            },
             skippedFiles = skippedFiles,
             nonIntegerEpisodes = nonIntegerEpisodes,
         )
+    }
+
+    private fun SQLiteDatabase.readExtras(
+        sourceId: Long,
+        seriesById: Map<Long, MlipSeries>,
+    ): List<MediaIndexEntry> {
+        if ("media_extra" !in tableNames()) return emptyList()
+        val result = mutableListOf<MediaIndexEntry>()
+        rawQuery(
+            """
+            SELECT series_id, extra_kind, ordinal, sort_order, title, path, size, modified_time, runtime
+            FROM media_extra
+            ORDER BY series_id, extra_kind, sort_order, path
+            """.trimIndent(),
+            emptyArray(),
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                val series = seriesById[cursor.long("series_id")]
+                    ?: throw InvalidMlipSchemaException("Extra references an unknown series")
+                val rawKind = cursor.int("extra_kind")
+                val kind = MediaExtraKind.fromValue(rawKind)
+                if (kind == MediaExtraKind.UNKNOWN) {
+                    throw InvalidMlipSchemaException("Unknown extra_kind: $rawKind")
+                }
+                val rawPath = cursor.string("path")
+                val indexPath = normalizeMlipMediaPath(rawPath)
+                    ?: throw InvalidMlipSchemaException("Unsafe extra path: $rawPath")
+                if (!MediaFileConventions.isVideoName(indexPath)) {
+                    throw InvalidMlipSchemaException("Extra path is not a video: $rawPath")
+                }
+                result += MediaIndexEntry(
+                    sourceId = sourceId,
+                    path = indexPath,
+                    animeName = series.anime.displayTitleForIndex(),
+                    episodeTitle = cursor.string("title"),
+                    metadataSource = MLIP_METADATA_SOURCE,
+                    metadataId = series.anime.id,
+                    metadataTitle = series.anime.displayTitleForIndex(),
+                    scrapeStatus = MediaScrapeStatus.SCRAPED,
+                    scrapeMessage = "Imported from MLIP library.db",
+                    scrapedAt = System.currentTimeMillis(),
+                    fileSize = cursor.longOrNull("size") ?: 0L,
+                    lastModified = cursor.longOrNull("modified_time").toMlipEpochMillis(),
+                    extraKind = kind,
+                    extraOrdinal = cursor.int("ordinal"),
+                    extraSortOrder = cursor.int("sort_order"),
+                    duration = (cursor.longOrNull("runtime") ?: 0L).coerceAtLeast(0L) * 1000L,
+                )
+            }
+        }
+        return result
     }
 
     private fun SQLiteDatabase.readExternalSubtitlePathsByMediaFileId(): Map<Long, List<String>> {
@@ -489,6 +557,7 @@ data class MlipImportResult(
     val skippedFileCount: Int,
     val artworkCachedCount: Int,
     val nonIntegerEpisodeCount: Int,
+    val extraCount: Int,
 )
 
 internal fun normalizeMlipMediaPath(path: String): String? {
@@ -524,6 +593,7 @@ private fun normalizeMlipRelativePath(path: String): String? {
 }
 
 private val v2RequiredTables = setOf("series_release_date", "media_subtitle")
+private val v3RequiredTables = setOf("media_extra")
 
 private val requiredTables = setOf(
     "meta",
@@ -542,6 +612,7 @@ private val requiredTables = setOf(
 private data class MlipSnapshot(
     val series: List<MlipSeries>,
     val mediaFiles: List<MlipMediaFile>,
+    val extras: List<MediaIndexEntry>,
     val skippedFiles: Int,
     val nonIntegerEpisodes: Int,
 )

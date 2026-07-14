@@ -113,6 +113,7 @@ fun AnimeDetailScreen(
     val seasons by viewModel.seasons.collectAsStateWithLifecycle()
     val selectedSeason by viewModel.selectedSeason.collectAsStateWithLifecycle()
     val episodes by viewModel.episodesWithProgress.collectAsStateWithLifecycle()
+    val extras by viewModel.extrasWithProgress.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val actionMessage by viewModel.actionMessage.collectAsStateWithLifecycle()
     val isSyncing by viewModel.isSyncing.collectAsStateWithLifecycle()
@@ -139,6 +140,7 @@ fun AnimeDetailScreen(
                         seasons = seasons.map { it.seasonNumber },
                         selectedSeason = selectedSeason,
                         episodes = episodes,
+                        extras = extras,
                         actionMessage = actionMessage,
                         isSyncing = isSyncing,
                         onPlayEpisode = onPlayEpisode,
@@ -170,6 +172,7 @@ private fun DetailContent(
     seasons: List<Int>,
     selectedSeason: Int,
     episodes: List<Pair<Episode, ProgressRecord?>>,
+    extras: List<Pair<Episode, ProgressRecord?>>,
     actionMessage: String?,
     isSyncing: Boolean,
     onPlayEpisode: (Episode) -> Unit,
@@ -343,6 +346,21 @@ private fun DetailContent(
                 isWatched = episode.isCompleted(progress),
                 onPlay = { onPlayEpisode(episode) }
             )
+        }
+        if (extras.isNotEmpty()) {
+            Spacer(Modifier.height(28.dp))
+            Text(text = "特典", style = TvTypography.subtitle, color = TextPrimary)
+            Spacer(Modifier.height(12.dp))
+            extras.forEach { (extra, progress) ->
+                EpisodeListItem(
+                    episode = extra,
+                    progress = extra.progressFraction(progress),
+                    progressText = extra.progressLabel(progress),
+                    isWatched = extra.isCompleted(progress),
+                    isExtra = true,
+                    onPlay = { onPlayEpisode(extra) },
+                )
+            }
         }
         Spacer(Modifier.height(28.dp))
     }
@@ -697,7 +715,8 @@ private fun EpisodeListItem(
     progress: Float,
     progressText: String,
     isWatched: Boolean,
-    onPlay: () -> Unit
+    onPlay: () -> Unit,
+    isExtra: Boolean = false,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
@@ -739,7 +758,7 @@ private fun EpisodeListItem(
                 )
             } else {
                 Text(
-                    text = episode.episodeNumber.toString().padStart(2, '0'),
+                    text = if (isExtra) "EX" else episode.episodeNumber.toString().padStart(2, '0'),
                     color = TextPrimary,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
@@ -751,7 +770,9 @@ private fun EpisodeListItem(
 
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = detailEpisodeTitleLabel(episode.episodeNumber, episode.title),
+                text = if (isExtra) episode.title.ifBlank { episode.fileName } else {
+                    detailEpisodeTitleLabel(episode.episodeNumber, episode.title)
+                },
                 color = TextPrimary,
                 fontSize = 17.sp,
                 maxLines = 1,

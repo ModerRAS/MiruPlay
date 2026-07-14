@@ -3,10 +3,14 @@ package com.miruplay.tv.data.repository
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.miruplay.tv.data.db.MiruPlayDatabase
+import com.miruplay.tv.data.entity.IndexEntryEntity
+import com.miruplay.tv.repository.MediaExtraKind
 import com.miruplay.tv.repository.MediaIndexEntry
+import com.miruplay.tv.repository.isSeriesExtra
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -50,6 +54,39 @@ class IndexRepositoryImplTest {
             entry.externalSubtitlePaths,
             repository.queryIndex(7L, entry.path).getOrNull()?.single()?.externalSubtitlePaths,
         )
+    }
+
+    @Test
+    fun `series extra fields round trip through Room`() = runBlocking {
+        val entry = MediaIndexEntry(
+            sourceId = 7L,
+            path = "/Series/OVA.mkv",
+            extraKind = MediaExtraKind.OVA,
+            extraOrdinal = 1,
+            extraSortOrder = 2,
+            duration = 600_000L,
+        )
+
+        repository.rebuildIndex(7L, listOf(entry))
+
+        assertEquals(entry, repository.queryIndex(7L, entry.path).getOrNull()?.single())
+    }
+
+    @Test
+    fun `unknown stored extra kind stays isolated from episode flows`() = runBlocking {
+        database.indexDao().insertAll(
+            listOf(
+                IndexEntryEntity(
+                    sourceId = 7L,
+                    path = "/Series/Unknown.mkv",
+                    extraKind = 99,
+                ),
+            ),
+        )
+
+        val entry = repository.queryIndex(7L, "").getOrNull()?.single()
+        assertEquals(MediaExtraKind.UNKNOWN, entry?.extraKind)
+        assertTrue(entry?.isSeriesExtra() == true)
     }
 
     @Test

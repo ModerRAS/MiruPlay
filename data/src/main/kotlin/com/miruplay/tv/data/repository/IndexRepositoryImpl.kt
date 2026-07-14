@@ -5,6 +5,7 @@ import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.data.dao.IndexDao
 import com.miruplay.tv.data.db.MiruPlayDatabase
 import com.miruplay.tv.data.entity.IndexEntryEntity
+import com.miruplay.tv.repository.MediaExtraKind
 import com.miruplay.tv.repository.MediaScrapeStatus
 import androidx.room.withTransaction
 import kotlinx.coroutines.Dispatchers
@@ -101,7 +102,11 @@ private fun IndexRepositoryEntity.toEntity(sourceId: Long) = IndexEntryEntity(
     scrapedAt = scrapedAt,
     isDirectory = isDirectory,
     fileSize = fileSize,
-    lastModified = lastModified
+    lastModified = lastModified,
+    extraKind = extraKind?.value,
+    extraOrdinal = extraOrdinal,
+    extraSortOrder = extraSortOrder,
+    duration = duration,
 )
 
 private fun IndexEntryEntity.toDomain() = IndexRepositoryEntity(
@@ -121,7 +126,11 @@ private fun IndexEntryEntity.toDomain() = IndexRepositoryEntity(
     scrapedAt = scrapedAt,
     isDirectory = isDirectory,
     fileSize = fileSize,
-    lastModified = lastModified
+    lastModified = lastModified,
+    extraKind = extraKind?.let(MediaExtraKind::fromValue),
+    extraOrdinal = extraOrdinal,
+    extraSortOrder = extraSortOrder,
+    duration = duration,
 )
 
 private fun MediaScrapeStatus?.toStorageValue(): String? = this?.name

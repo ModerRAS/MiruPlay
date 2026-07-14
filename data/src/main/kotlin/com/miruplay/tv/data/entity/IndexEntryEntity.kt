@@ -30,5 +30,9 @@ data class IndexEntryEntity(
     @ColumnInfo(name = "scraped_at") val scrapedAt: Long = 0L,
     @ColumnInfo(name = "is_directory") val isDirectory: Boolean = false,
     @ColumnInfo(name = "file_size") val fileSize: Long = 0L,
-    @ColumnInfo(name = "last_modified") val lastModified: Long = 0L
+    @ColumnInfo(name = "last_modified") val lastModified: Long = 0L,
+    @ColumnInfo(name = "extra_kind") val extraKind: Int? = null,
+    @ColumnInfo(name = "extra_ordinal") val extraOrdinal: Int? = null,
+    @ColumnInfo(name = "extra_sort_order") val extraSortOrder: Int? = null,
+    @ColumnInfo(defaultValue = "0") val duration: Long = 0L,
 )

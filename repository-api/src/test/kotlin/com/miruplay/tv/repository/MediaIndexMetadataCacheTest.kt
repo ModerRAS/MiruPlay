@@ -16,6 +16,13 @@ class MediaIndexMetadataCacheTest {
         val entries = listOf(
             MediaIndexEntry(sourceId = 2L, path = "/Frieren/Episode 02.mkv", animeName = "Frieren", episodeNumber = 2),
             MediaIndexEntry(sourceId = 2L, path = "/Frieren/Episode 01.mkv", animeName = "Frieren", episodeNumber = 1),
+            MediaIndexEntry(
+                sourceId = 2L,
+                path = "/Frieren/NCOP01.mkv",
+                animeName = "Frieren",
+                extraKind = MediaExtraKind.NCOP,
+                extraOrdinal = 1,
+            ),
         )
 
         val result = MediaIndexMetadataCache(metadata).cache(source, entries)

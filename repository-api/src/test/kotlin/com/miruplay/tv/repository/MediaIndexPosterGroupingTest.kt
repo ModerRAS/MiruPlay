@@ -25,6 +25,31 @@ class MediaIndexPosterGroupingTest {
     }
 
     @Test
+    fun `poster subtitle and episode count exclude series extras`() {
+        val normal = MediaIndexEntry(
+            sourceId = 1,
+            path = "show/Frieren - 01.mkv",
+            animeName = "Frieren",
+            episodeNumber = 1,
+        )
+        val extra = MediaIndexEntry(
+            sourceId = 1,
+            path = "show/Frieren - NCOP01.mkv",
+            animeName = "Frieren",
+            extraKind = MediaExtraKind.NCOP,
+            extraOrdinal = 1,
+        )
+
+        val mixed = listOf(normal, extra).toMediaIndexPosterGroups().single()
+        assertEquals("1 episode", mixed.subtitle)
+        assertEquals(1, mixed.toIndexedAnime().episodeCount)
+
+        val extrasOnly = listOf(extra).toMediaIndexPosterGroups().single()
+        assertEquals("0 episodes", extrasOnly.subtitle)
+        assertEquals(0, extrasOnly.toIndexedAnime().episodeCount)
+    }
+
+    @Test
     fun `poster groups can merge entries that share external metadata`() {
         val entries = listOf(
             MediaIndexEntry(

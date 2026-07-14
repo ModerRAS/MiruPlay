@@ -12,6 +12,8 @@ data class MediaIndexPosterGroup(
 ) {
     val primaryEntry: MediaIndexEntry =
         entries
+            .filterNot(MediaIndexEntry::isSeriesExtra)
+            .ifEmpty { entries }
             .sortedWith(compareBy<MediaIndexEntry> { it.episodeNumber ?: Int.MAX_VALUE }.thenBy { it.path })
             .first()
     val entryPaths: Set<String> = entries.map { it.path }.toSet()
@@ -22,9 +24,10 @@ data class MediaIndexPosterGroup(
             ?: entry.animeName?.takeIf { it.isNotBlank() }?.let { "title:${it.lowercase()}" }
     }
     val subtitle: String = buildString {
-        append(entries.size)
+        val episodeCount = entries.count { !it.isSeriesExtra() }
+        append(episodeCount)
         append(" episode")
-        if (entries.size != 1) append('s')
+        if (episodeCount != 1) append('s')
         primaryEntry.seasonNumber?.let { append(" · S").append(it) }
         primaryEntry.metadataSource?.takeIf { it.isNotBlank() }?.let { append(" · ").append(it) }
     }
@@ -62,7 +65,7 @@ fun MediaIndexPosterGroup.toIndexedAnime(): Anime =
     Anime(
         id = animeId,
         title = title,
-        episodeCount = entries.size,
+        episodeCount = entries.count { !it.isSeriesExtra() },
         summary = primaryEntry.plot.orEmpty(),
     )
 
@@ -104,6 +107,7 @@ fun List<MediaIndexEntry>.mediaIndexEpisodesForPosterSelection(
     val selected = selectedEntry?.takeUnless { it.isDirectory } ?: return emptyList()
     return mediaFilesOnly()
         .asSequence()
+        .filterNot(MediaIndexEntry::isSeriesExtra)
         .filter { it.belongsToPosterGroup(selected, mergeSameAnimeEnabled) }
         .sortedWith(mediaIndexEpisodeComparator)
         .toList()

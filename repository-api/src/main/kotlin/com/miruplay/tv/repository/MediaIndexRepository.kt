@@ -12,6 +12,20 @@ enum class MediaScrapeStatus {
     FAILED,
 }
 
+@Serializable
+enum class MediaExtraKind(val value: Int) {
+    UNKNOWN(0),
+    OVA(1),
+    SPECIAL(2),
+    NCOP(3),
+    NCED(4),
+    GALLERY(5);
+
+    companion object {
+        fun fromValue(value: Int): MediaExtraKind = entries.firstOrNull { it.value == value } ?: UNKNOWN
+    }
+}
+
 interface MediaIndexRepository {
     suspend fun rebuildIndex(sourceId: Long, entries: List<MediaIndexEntry>): Result<Unit>
     suspend fun upsertEntry(sourceId: Long, entry: MediaIndexEntry): Result<Unit>
@@ -42,4 +56,10 @@ data class MediaIndexEntry(
     val isDirectory: Boolean = false,
     val fileSize: Long = 0L,
     val lastModified: Long = 0L,
+    val extraKind: MediaExtraKind? = null,
+    val extraOrdinal: Int? = null,
+    val extraSortOrder: Int? = null,
+    val duration: Long = 0L,
 )
+
+fun MediaIndexEntry.isSeriesExtra(): Boolean = extraKind != null

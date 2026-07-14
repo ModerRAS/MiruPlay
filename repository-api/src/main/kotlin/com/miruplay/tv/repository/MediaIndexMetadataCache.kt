@@ -23,6 +23,7 @@ class MediaIndexMetadataCache(
         var episodesCached = 0
         entries
             .mediaFilesOnly()
+            .filterNot(MediaIndexEntry::isSeriesExtra)
             .groupBy { it.animeName?.takeIf(String::isNotBlank) ?: "Unknown" }
             .forEach { (animeId, animeEntries) ->
                 val episodes = episodeTransform(
@@ -69,7 +70,8 @@ fun List<MediaIndexEntry>.toCachedIndexedEpisodes(
     source: MediaSourceInfo?,
     animeId: String,
 ): List<Episode> =
-    sortedByMediaIndexEpisodeOrder()
+    filterNot(MediaIndexEntry::isSeriesExtra)
+        .sortedByMediaIndexEpisodeOrder()
         .mapIndexed { index, entry ->
             entry.toCachedIndexedEpisode(
                 source = source,
