@@ -1,3 +1,5 @@
+@file:Suppress("UnsafeOptInUsageError")
+
 package com.miruplay.tv.player
 
 import android.content.Context

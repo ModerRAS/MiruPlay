@@ -1,5 +1,6 @@
 package com.miruplay.tv
 
+import android.annotation.TargetApi
 import android.content.ContentProvider
 import android.content.ContentUris
 import android.content.ContentValues
@@ -195,23 +196,12 @@ internal object StartupProbe {
         File(diagnosticDir, markerFileName).writeText("", Charsets.UTF_8)
     }
 
+    @TargetApi(Build.VERSION_CODES.Q)
     private fun appendPublicDownloadWithMediaStore(context: Context, line: String) {
         val resolver = context.contentResolver
         val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
         val relativePath = "${Environment.DIRECTORY_DOWNLOADS}/$PUBLIC_DIRECTORY_NAME/"
-        val existingUri = resolver.query(
-            collection,
-            arrayOf(MediaStore.Downloads._ID),
-            "${MediaStore.Downloads.DISPLAY_NAME}=? AND ${MediaStore.Downloads.RELATIVE_PATH}=?",
-            arrayOf(DIAGNOSTIC_FILE_NAME, relativePath),
-            null,
-        )?.use { cursor ->
-            if (cursor.moveToFirst()) {
-                ContentUris.withAppendedId(collection, cursor.getLong(0))
-            } else {
-                null
-            }
-        }
+        val existingUri = findPublicDownloadUri(context, DIAGNOSTIC_FILE_NAME, relativePath)
         val targetUri = existingUri ?: resolver.insert(
             collection,
             ContentValues().apply {
@@ -227,6 +217,7 @@ internal object StartupProbe {
         } ?: error("could not open startup probe download item")
     }
 
+    @TargetApi(Build.VERSION_CODES.Q)
     private fun createPublicDownloadMarkerWithMediaStore(
         context: Context,
         markerFileName: String,
@@ -234,19 +225,7 @@ internal object StartupProbe {
         val resolver = context.contentResolver
         val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
         val relativePath = "${Environment.DIRECTORY_DOWNLOADS}/$PUBLIC_DIRECTORY_NAME/"
-        val existingUri = resolver.query(
-            collection,
-            arrayOf(MediaStore.Downloads._ID),
-            "${MediaStore.Downloads.DISPLAY_NAME}=? AND ${MediaStore.Downloads.RELATIVE_PATH}=?",
-            arrayOf(markerFileName, relativePath),
-            null,
-        )?.use { cursor ->
-            if (cursor.moveToFirst()) {
-                ContentUris.withAppendedId(collection, cursor.getLong(0))
-            } else {
-                null
-            }
-        }
+        val existingUri = findPublicDownloadUri(context, markerFileName, relativePath)
         val targetUri = existingUri ?: resolver.insert(
             collection,
             ContentValues().apply {
@@ -260,6 +239,33 @@ internal object StartupProbe {
         resolver.openOutputStream(targetUri, "wt")?.use { stream ->
             stream.write(ByteArray(0))
         } ?: error("could not open startup probe marker")
+    }
+
+    @TargetApi(Build.VERSION_CODES.Q)
+    private fun findPublicDownloadUri(
+        context: Context,
+        displayName: String,
+        relativePath: String,
+    ): Uri? {
+        val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
+        return context.contentResolver.query(
+            collection,
+            arrayOf(MediaStore.Downloads._ID, MediaStore.Downloads.RELATIVE_PATH),
+            "${MediaStore.Downloads.DISPLAY_NAME}=?",
+            arrayOf(displayName),
+            null,
+        )?.use { cursor ->
+            val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Downloads._ID)
+            val relativePathColumn = cursor.getColumnIndexOrThrow(MediaStore.Downloads.RELATIVE_PATH)
+            var matchingId: Long? = null
+            while (cursor.moveToNext()) {
+                if (cursor.getString(relativePathColumn).orEmpty().equals(relativePath, ignoreCase = true)) {
+                    matchingId = cursor.getLong(idColumn)
+                    break
+                }
+            }
+            matchingId?.let { id -> ContentUris.withAppendedId(collection, id) }
+        }
     }
 
     private fun appendFileLine(file: File, line: String) {

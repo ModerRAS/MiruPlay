@@ -20,6 +20,9 @@ class WebControlNavigator @Inject constructor() {
             )
         ).isSuccess
 
+    fun closePlayer(): Boolean =
+        _commands.trySend(NavigationCommand(type = TYPE_CLOSE_PLAYER)).isSuccess
+
     fun requestAppRestart(): Boolean =
         _commands.trySend(NavigationCommand(type = TYPE_APP_RESTART)).isSuccess
 
@@ -28,6 +31,7 @@ class WebControlNavigator @Inject constructor() {
 
     companion object {
         const val TYPE_OPEN_PLAYER = "open_player"
+        const val TYPE_CLOSE_PLAYER = "close_player"
         const val TYPE_APP_RESTART = "app_restart"
         const val TYPE_APP_EXIT = "app_exit"
     }

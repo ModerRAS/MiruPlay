@@ -1023,6 +1023,12 @@ private fun MiruPlayNavigation(
                             ),
                         )
                     }
+                    WebControlNavigator.TYPE_CLOSE_PLAYER -> {
+                        if (shouldReplaceExistingPlayerRoute(navController.currentDestination?.route)) {
+                            MiruLog.i("MiruPlayNavigation", "Web control requested player close")
+                            navController.popBackStack()
+                        }
+                    }
                     WebControlNavigator.TYPE_APP_RESTART -> {
                         MiruLog.i("MiruPlayNavigation", "Web control requested app restart")
                         (navController.context as? MainActivity)?.requestAppShutdown(restart = true)

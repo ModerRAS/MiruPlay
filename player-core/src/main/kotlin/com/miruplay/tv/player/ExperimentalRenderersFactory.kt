@@ -1,3 +1,5 @@
+@file:android.annotation.SuppressLint("RestrictedApi")
+
 package com.miruplay.tv.player
 
 import android.content.Context

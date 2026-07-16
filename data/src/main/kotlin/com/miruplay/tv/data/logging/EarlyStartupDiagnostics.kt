@@ -1,5 +1,6 @@
 package com.miruplay.tv.data.logging
 
+import android.annotation.TargetApi
 import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
@@ -175,22 +176,29 @@ internal class ExternalStartupDiagnosticsWriter(
         }
     }
 
+    @TargetApi(Build.VERSION_CODES.Q)
     private fun appendPublicDownloadWithMediaStore(line: String) {
         val resolver = context.contentResolver
         val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
         val relativePath = "${Environment.DIRECTORY_DOWNLOADS}/$PUBLIC_DIRECTORY_NAME/"
         val existingUri = resolver.query(
             collection,
-            arrayOf(MediaStore.Downloads._ID),
-            "${MediaStore.Downloads.DISPLAY_NAME}=? AND ${MediaStore.Downloads.RELATIVE_PATH}=?",
-            arrayOf(DIAGNOSTIC_FILE_NAME, relativePath),
+            arrayOf(MediaStore.Downloads._ID, MediaStore.Downloads.RELATIVE_PATH),
+            "${MediaStore.Downloads.DISPLAY_NAME}=?",
+            arrayOf(DIAGNOSTIC_FILE_NAME),
             null,
         )?.use { cursor ->
-            if (cursor.moveToFirst()) {
-                ContentUris.withAppendedId(collection, cursor.getLong(0))
-            } else {
-                null
+            val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Downloads._ID)
+            val relativePathColumn = cursor.getColumnIndexOrThrow(MediaStore.Downloads.RELATIVE_PATH)
+            var matchingId: Long? = null
+            while (cursor.moveToNext()) {
+                val existingRelativePath = cursor.getString(relativePathColumn).orEmpty()
+                if (existingRelativePath.equals(relativePath, ignoreCase = true)) {
+                    matchingId = cursor.getLong(idColumn)
+                    break
+                }
             }
+            matchingId?.let { id -> ContentUris.withAppendedId(collection, id) }
         }
         val targetUri = existingUri ?: resolver.insert(
             collection,

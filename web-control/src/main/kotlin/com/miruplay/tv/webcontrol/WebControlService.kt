@@ -63,6 +63,15 @@ import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 
+internal suspend fun stopWebControlPlayback(
+    pausePlayback: suspend () -> Unit,
+    closePlayer: () -> Boolean,
+): PlaybackStatusDto {
+    pausePlayback()
+    check(closePlayer()) { "无法关闭播放器" }
+    return idleWebControlPlaybackStatus()
+}
+
 @Singleton
 class WebControlService @Inject constructor(
     @dagger.hilt.android.qualifiers.ApplicationContext private val appContext: Context,
@@ -296,6 +305,12 @@ class WebControlService @Inject constructor(
     }
 
     override suspend fun playbackCommandResolved(request: PlaybackCommandRequest): PlaybackStatusDto {
+        if (request.playbackCommandKind() == WebControlPlaybackCommandKind.STOP) {
+            return stopWebControlPlayback(
+                pausePlayback = playbackController::pause,
+                closePlayer = navigator::closePlayer,
+            )
+        }
         request.executeWebControlPlaybackCommand(
             webControlPlaybackCommandTarget(
                 pause = { playbackController.pause() },
@@ -303,7 +318,7 @@ class WebControlService @Inject constructor(
                 toggle = {
                     if (playbackController.isPlaying()) playbackController.pause() else playbackController.resume()
                 },
-                stop = { playbackController.stop() },
+                stop = { error("STOP command must be handled before dispatch") },
                 seekTo = { positionMs -> playbackController.seekTo(positionMs) },
                 setPlaybackSpeed = { speed -> playbackController.setPlaybackSpeed(speed) },
                 currentPositionMs = {
