@@ -1,5 +1,6 @@
 package com.miruplay.tv.mediasource
 
+import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
@@ -11,6 +12,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.IOException
 import kotlinx.coroutines.runBlocking
 
 class WebDavMediaSourceTest {
@@ -113,6 +115,14 @@ class WebDavMediaSourceTest {
             assertEquals("/dav/%E5%BD%B1%E9%9F%B3/%E7%94%B5%E8%A7%86%E5%89%A7/", request.path)
             assertEquals("/医馆笑传", result.getOrNull()!!.single().path)
         }
+    }
+
+    @Test
+    fun `transport failures map to network errors`() {
+        val error = webDavTransportError("library.db", IOException("offline"))
+
+        assertTrue(error is AppError.NetworkError.ServerUnreachable)
+        assertEquals("library.db (offline)", (error as AppError.NetworkError.ServerUnreachable).url)
     }
 
     @Test

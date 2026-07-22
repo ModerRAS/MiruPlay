@@ -5,6 +5,9 @@ import android.view.View
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.model.Episode
+import com.miruplay.tv.model.EpisodeVersion
+import com.miruplay.tv.model.EpisodeVersionSelectionPolicy
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.PlaybackRenderBackend
@@ -19,6 +22,7 @@ import com.miruplay.tv.model.ToneMappingRuleSet
 import com.miruplay.tv.model.VideoRenderRuleKey
 import com.miruplay.tv.model.VideoSignalDescriptor
 import com.miruplay.tv.model.adjustForSession
+import com.miruplay.tv.model.availableVersions
 import com.miruplay.tv.model.buildToneMappingPreset
 import com.miruplay.tv.model.displayTitle
 import com.miruplay.tv.model.playbackDisplayTitle
@@ -35,6 +39,7 @@ import com.miruplay.tv.repository.NextPlaybackSourceResolver
 import com.miruplay.tv.repository.PlaybackSubtitleResolver
 import com.miruplay.tv.repository.PlaybackPreferencesRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
+import com.miruplay.tv.repository.ScanPreferencesRepository
 import com.miruplay.tv.repository.savePlaybackProgressOnCompletion
 import com.miruplay.tv.repository.savePlaybackProgressSnapshot
 import com.miruplay.tv.sync.BangumiSyncEngine
@@ -58,7 +63,8 @@ class PlayerViewModel @Inject constructor(
     private val mediaRepository: Lazy<MediaSourceRepository>,
     private val mediaIndexRepository: Lazy<MediaIndexRepository>,
     private val bangumiSyncEngine: Lazy<BangumiSyncEngine>,
-    private val playbackPreferences: PlaybackPreferencesRepository
+    private val playbackPreferences: PlaybackPreferencesRepository,
+    private val scanPreferences: ScanPreferencesRepository,
 ) : ViewModel() {
     val playbackState: StateFlow<PlaybackState> = playbackController.state
     val currentVideoSignalDescriptor: StateFlow<VideoSignalDescriptor?> = playbackController.currentVideoSignalDescriptor
@@ -150,6 +156,9 @@ class PlayerViewModel @Inject constructor(
         playbackController.unbindVlcVideoHost()
     }
 
+    private val _pendingNextEpisode = MutableStateFlow<Episode?>(null)
+    val pendingNextEpisode: StateFlow<Episode?> = _pendingNextEpisode.asStateFlow()
+
     private var progressSaveJob: Job? = null
     private var positionPollJob: Job? = null
     private var finishObserverJob: Job? = null
@@ -162,6 +171,8 @@ class PlayerViewModel @Inject constructor(
             metadata = metadataRepository.get(),
             progress = progressRepository,
             mediaSources = mediaRepository.get(),
+            index = mediaIndexRepository.get(),
+            mergeSameAnimeEnabled = { scanPreferences.getPreferences().mergeSameAnimeEnabled },
         )
     }
     private val playbackSubtitleResolver by lazy {
@@ -179,6 +190,7 @@ class PlayerViewModel @Inject constructor(
             _currentPosition.value = resolvedSource.startPosition.coerceAtLeast(0L)
             activeSource = resolvedSource
             activeScreenOwnerToken = ownerToken
+            _pendingNextEpisode.value = null
             _activePlaybackSource.value = resolvedSource
             startPresentationResolution(resolvedSource)
             refreshFormatAwarePreferences()
@@ -485,10 +497,12 @@ class PlayerViewModel @Inject constructor(
         incrementPlayCount: Boolean = false
     ) {
         val currentSource = source ?: return
-        val episodeId = currentSource.episodeId ?: extractEpisodeId(currentSource.uri)
+        val progressId = currentSource.progressId
+            ?: currentSource.episodeId
+            ?: extractEpisodeId(currentSource.uri)
         val position = positionMs ?: playbackController.getCurrentPosition()
         savePlaybackProgressSnapshot(
-            episodeId = episodeId,
+            episodeId = progressId,
             positionMs = position,
             incrementPlayCount = incrementPlayCount,
             saveProgress = progressRepository::saveProgress,
@@ -497,9 +511,10 @@ class PlayerViewModel @Inject constructor(
 
     private suspend fun handlePlaybackEnded(source: PlaybackSource) {
         val episodeId = source.episodeId ?: extractEpisodeId(source.uri)
+        val progressId = source.progressId ?: episodeId
         savePlaybackProgressOnCompletion(
             session = PlaybackProgressSession(
-                episodeId = episodeId,
+                episodeId = progressId,
                 startPositionMs = source.startPosition,
             ),
             queryDurationMs = { Result.success(playbackController.getDuration()) },
@@ -507,21 +522,40 @@ class PlayerViewModel @Inject constructor(
             saveProgress = progressRepository::saveProgress,
         )
 
-        val nextSource = if (playbackPreferences.getEndAction() == PlaybackEndAction.PLAY_NEXT_EPISODE) {
-            buildNextPlaybackSource(source)
-        } else {
-            null
+        if (playbackPreferences.getEndAction() == PlaybackEndAction.PLAY_NEXT_EPISODE) {
+            val nextEpisode = nextPlaybackSourceResolver.nextEpisode(source)
+            if (nextEpisode != null &&
+                nextEpisode.availableVersions().size > 1 &&
+                playbackPreferences.getEpisodeVersionSelectionPolicy() == EpisodeVersionSelectionPolicy.MANUAL
+            ) {
+                bangumiSyncEngine.get().markEpisodeWatched(episodeId)
+                _pendingNextEpisode.value = nextEpisode
+                return
+            }
+            val nextSource = buildNextPlaybackSource(source)
+            if (nextSource != null) {
+                play(nextSource)
+                viewModelScope.launch {
+                    bangumiSyncEngine.get().markEpisodeWatched(episodeId)
+                }
+                return
+            }
         }
 
-        if (nextSource != null) {
-            play(nextSource)
-            viewModelScope.launch {
-                bangumiSyncEngine.get().markEpisodeWatched(episodeId)
-            }
-        } else {
-            bangumiSyncEngine.get().markEpisodeWatched(episodeId)
-            _finishEvents.emit(PlaybackFinishEvent.NavigateBack)
+        bangumiSyncEngine.get().markEpisodeWatched(episodeId)
+        _finishEvents.emit(PlaybackFinishEvent.NavigateBack)
+    }
+
+    fun playNextVersion(version: EpisodeVersion) {
+        val episode = _pendingNextEpisode.value ?: return
+        viewModelScope.launch {
+            play(nextPlaybackSourceResolver.build(episode, version))
         }
+    }
+
+    fun cancelNextVersionSelection() {
+        _pendingNextEpisode.value = null
+        _finishEvents.tryEmit(PlaybackFinishEvent.NavigateBack)
     }
 
     private suspend fun buildNextPlaybackSource(source: PlaybackSource): PlaybackSource? {
@@ -570,6 +604,7 @@ class PlayerViewModel @Inject constructor(
         activeSource = null
         activeScreenOwnerToken = null
         _activePlaybackSource.value = null
+        _pendingNextEpisode.value = null
         _displayTitle.value = ""
         _displaySubtitle.value = ""
         _currentPosition.value = 0L

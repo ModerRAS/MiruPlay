@@ -43,6 +43,7 @@ class NextPlaybackSourceResolverTest {
                 mediaSourceId = "anime-1",
                 startPosition = 30_000L,
                 episodeId = "ep2",
+                progressId = "anime-1#S1E2",
             ),
             source,
         )
@@ -73,6 +74,7 @@ class NextPlaybackSourceResolverTest {
                 mediaSourceId = "anime-1",
                 startPosition = 0L,
                 episodeId = "ep2",
+                progressId = "anime-1#S1E2",
             ),
             source,
         )
@@ -100,6 +102,7 @@ class NextPlaybackSourceResolverTest {
                 mediaSourceId = "anime-1",
                 startPosition = 0L,
                 episodeId = "ep2",
+                progressId = "anime-1#S1E2",
             ),
             source,
         )
@@ -131,6 +134,7 @@ class NextPlaybackSourceResolverTest {
                 mediaSourceId = "anime-1",
                 startPosition = 42_000L,
                 episodeId = next.id,
+                progressId = "anime-1#S1E2",
             ),
             source,
         )
@@ -157,9 +161,149 @@ class NextPlaybackSourceResolverTest {
                 mediaSourceId = "anime-1",
                 startPosition = 0L,
                 episodeId = next.id,
+                progressId = "anime-1#S1E2",
             ),
             source,
         )
+    }
+
+    @Test
+    fun `auto next skips duplicate current versions and keeps nearest path`() = runBlocking {
+        val currentWeb = episode(
+            id = "41:/Show/WEB/Episode 01.mkv",
+            number = 1,
+            filePath = "/Show/WEB/Episode 01.mkv",
+        )
+        val currentBd = episode(
+            id = "41:/Show/BD/Episode 01.mkv",
+            number = 1,
+            filePath = "/Show/BD/Episode 01.mkv",
+        )
+        val nextWeb = episode(
+            id = "41:/Show/WEB/Episode 02.mkv",
+            number = 2,
+            filePath = "/Show/WEB/Episode 02.mkv",
+        )
+        val nextBd = episode(
+            id = "41:/Show/BD/Episode 02.mkv",
+            number = 2,
+            filePath = "/Show/BD/Episode 02.mkv",
+        )
+
+        val source = buildNextPlaybackSource(
+            currentSource = PlaybackSource(
+                uri = currentWeb.filePath,
+                mediaSourceId = currentWeb.animeId,
+                episodeId = currentWeb.id,
+                progressId = "anime-1#S1E1",
+            ),
+            loadCurrentEpisode = { currentWeb },
+            loadEpisodes = { listOf(currentWeb, currentBd, nextBd, nextWeb) },
+            loadProgress = { null },
+        )
+
+        assertEquals(nextWeb.id, source?.episodeId)
+        assertEquals("anime-1#S1E2", source?.progressId)
+    }
+
+    @Test
+    fun `auto next uses logical anime queue across merged physical anime ids`() = runBlocking {
+        val current = episode(id = "part-a-1", number = 1).copy(animeId = "part-a")
+        val next = episode(id = "part-b-2", number = 2).copy(animeId = "part-b")
+
+        val source = buildNextPlaybackSource(
+            currentSource = PlaybackSource(
+                uri = current.filePath,
+                mediaSourceId = "merged-show",
+                episodeId = current.id,
+                progressId = "merged-show#S1E1",
+            ),
+            loadCurrentEpisode = { current },
+            loadEpisodes = { animeId ->
+                assertEquals("merged-show", animeId)
+                listOf(current, next)
+            },
+            loadProgress = { null },
+        )
+
+        assertEquals(next.id, source?.episodeId)
+        assertEquals("merged-show#S1E2", source?.progressId)
+    }
+
+    @Test
+    fun `resolver auto next supports indexed episodes without metadata cache`() = runBlocking {
+        val source = MediaSourceInfoConventions.webDav(
+            url = "https://dav.example/anime",
+            name = "DAV",
+        ).copy(id = 41L)
+        val currentPath = "/Show/WEB/Episode 01.mkv"
+        val nextPath = "/Show/WEB/Episode 02.mkv"
+        val resolver = NextPlaybackSourceResolver(
+            metadata = FakeMetadataRepository(emptyMap()),
+            progress = FakeProgressRepository(null),
+            mediaSources = FakeMediaSourceRepository(listOf(source)),
+            index = FakeMediaIndexRepository(
+                listOf(
+                    MediaIndexEntry(sourceId = 41L, path = currentPath, animeName = "Show", episodeNumber = 1),
+                    MediaIndexEntry(sourceId = 41L, path = nextPath, animeName = "Show", episodeNumber = 2),
+                ),
+            ),
+        )
+
+        val next = resolver.build(
+            PlaybackSource(
+                uri = "https://dav.example/anime/Show/WEB/Episode%2001.mkv",
+                mediaSourceId = "Show",
+                episodeId = "41:$currentPath",
+                progressId = "Show#S1E1",
+            ),
+        )
+
+        assertEquals("41:$nextPath", next?.episodeId)
+        assertEquals("Show#S1E2", next?.progressId)
+    }
+
+    @Test
+    fun `resolver compares database paths when current uri is remote`() = runBlocking {
+        val currentWeb = episode(
+            id = "41:/Show/WEB/Episode 01.mkv",
+            number = 1,
+            filePath = "/Show/WEB/Episode 01.mkv",
+        )
+        val currentBd = episode(
+            id = "41:/Show/BD/Episode 01.mkv",
+            number = 1,
+            filePath = "/Show/BD/Episode 01.mkv",
+        )
+        val nextWeb = episode(
+            id = "41:/Show/WEB/Episode 02.mkv",
+            number = 2,
+            filePath = "/Show/WEB/Episode 02.mkv",
+        )
+        val nextBd = episode(
+            id = "41:/Show/BD/Episode 02.mkv",
+            number = 2,
+            filePath = "/Show/BD/Episode 02.mkv",
+        )
+        val resolver = NextPlaybackSourceResolver(
+            metadata = FakeMetadataRepository(
+                mapOf("anime-1" to listOf(currentWeb, currentBd, nextBd, nextWeb)),
+            ),
+            progress = FakeProgressRepository(null),
+            mediaSources = FakeMediaSourceRepository(emptyList()),
+            playbackUriForEpisode = { it.filePath },
+        )
+
+        val source = resolver.build(
+            PlaybackSource(
+                uri = "https://dav.example/anime/Show/WEB/Episode%2001.mkv",
+                mediaSourceId = currentWeb.animeId,
+                episodeId = currentWeb.id,
+                progressId = "anime-1#S1E1",
+            ),
+        )
+
+        assertEquals(nextWeb.id, source?.episodeId)
     }
 
     @Test
@@ -259,6 +403,35 @@ class NextPlaybackSourceResolverTest {
 
         override suspend fun getContinueWatching(limit: Int): Result<List<ProgressRecord>> =
             Result.success(listOfNotNull(progress).take(limit))
+    }
+
+    private class FakeMediaIndexRepository(
+        private val entries: List<MediaIndexEntry>,
+    ) : MediaIndexRepository {
+        override suspend fun rebuildIndex(sourceId: Long, entries: List<MediaIndexEntry>): Result<Unit> =
+            Result.success(Unit)
+
+        override suspend fun upsertEntry(sourceId: Long, entry: MediaIndexEntry): Result<Unit> =
+            Result.success(Unit)
+
+        override suspend fun queryIndex(sourceId: Long, query: String): Result<List<MediaIndexEntry>> =
+            Result.success(
+                entries.filter { entry ->
+                    entry.sourceId == sourceId &&
+                        (query.isBlank() || entry.animeName?.contains(query, ignoreCase = true) == true ||
+                            entry.path.contains(query, ignoreCase = true))
+                },
+            )
+
+        override suspend fun getAnimeInIndex(sourceId: Long): Result<List<String>> =
+            Result.success(entries.filter { it.sourceId == sourceId }.mapNotNull { it.animeName }.distinct())
+
+        override suspend fun clearIndex(sourceId: Long): Result<Unit> = Result.success(Unit)
+        override suspend fun saveLastBatchUndo(sourceId: Long, entries: List<MediaIndexEntry>): Result<Unit> =
+            Result.success(Unit)
+        override suspend fun getLastBatchUndo(sourceId: Long): Result<List<MediaIndexEntry>> =
+            Result.success(emptyList())
+        override suspend fun clearLastBatchUndo(sourceId: Long): Result<Unit> = Result.success(Unit)
     }
 
     private class FakeMediaSourceRepository(

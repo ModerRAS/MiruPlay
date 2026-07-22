@@ -9,6 +9,7 @@ data class PlaybackSource(
     val startPosition: Long = 0L,  // ms
     val subtitleTracks: List<SubtitleTrack> = emptyList(),
     val episodeId: String? = null,
+    val progressId: String? = episodeId,
 )
 
 fun playbackSourceFromInputs(
@@ -79,4 +80,5 @@ fun Episode.toPlaybackSource(
         startPosition = resumePosition(progress),
         subtitleTracks = emptyList(),
         episodeId = id,
+        progressId = progressId,
     )

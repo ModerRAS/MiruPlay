@@ -171,6 +171,7 @@ fun LibraryScreen(
                         recentlyAdded = state.recentlyAdded,
                         allAnime = state.allAnime,
                         posterWallArrangement = state.posterWallArrangement,
+                        scanNotice = state.scanNotice,
                         searchQuery = searchQuery,
                         initialContentFocus = initialContentFocus,
                         onPrimaryDirectionUp = { headerFocusRequester.requestFocus() },
@@ -383,6 +384,7 @@ private fun LibraryContent(
     recentlyAdded: List<Anime>,
     allAnime: List<Anime>,
     posterWallArrangement: PosterWallArrangement,
+    scanNotice: String?,
     searchQuery: String,
     initialContentFocus: InitialFocusHandle,
     onPrimaryDirectionUp: () -> Unit,
@@ -408,6 +410,25 @@ private fun LibraryContent(
     val initialContentModifier = initialContentFocus.modifier()
 
     Column(modifier = Modifier.fillMaxWidth()) {
+        scanNotice?.takeIf(String::isNotBlank)?.let { notice ->
+            val noticeColor = if ("失败" in notice || "未找到" in notice) WarningYellow else ProgressGreen
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(noticeColor.copy(alpha = 0.12f))
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+            ) {
+                Text(
+                    text = notice,
+                    style = TvTypography.body,
+                    color = TextPrimary,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Spacer(Modifier.height(18.dp))
+        }
+
         if (normalizedQuery.isNotEmpty()) {
             SectionHeader(title = "搜索结果", trailing = libraryCollectedCountLabel(library.size))
             if (library.isEmpty()) {

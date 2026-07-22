@@ -1080,6 +1080,12 @@
                     :options="playbackSettings.endActionOptions.map((value) => ({ value, label: endActionLabels[value] || value }))"
                   />
                 </el-form-item>
+                <el-form-item label="多版本下一集策略">
+                  <el-segmented
+                    v-model="playbackForm.episodeVersionSelectionPolicy"
+                    :options="playbackSettings.episodeVersionSelectionPolicyOptions.map((value) => ({ value, label: episodeVersionSelectionPolicyLabels[value] || value }))"
+                  />
+                </el-form-item>
                 <el-form-item label="字幕语言优先级">
                   <el-select v-model="playbackForm.preferredSubtitleLanguage">
                     <el-option
@@ -1324,15 +1330,20 @@
             shadow="never"
             class="episode-card"
           >
-            <div>
+            <div class="episode-summary">
               <strong>第 {{ item.episode.episodeNumber }} 集 · {{ episodeLabel(item.episode) }}</strong>
               <span class="muted">
                 {{ item.progressMs ? `已看到 ${formatTime(item.progressMs)}` : '未观看' }}
               </span>
+              <div class="episode-versions">
+                <div v-for="version in episodeVersions(item.episode)" :key="version.episodeId" class="episode-version">
+                  <span class="muted break-text">{{ version.filePath }}</span>
+                  <el-button type="primary" size="small" @click="playEpisode(version.episodeId, item.progressMs)">
+                    播放此版本
+                  </el-button>
+                </div>
+              </div>
             </div>
-            <el-button type="primary" @click="playEpisode(item.episode.id, item.progressMs)">
-              播放
-            </el-button>
           </el-card>
         </div>
       </el-dialog>
@@ -1637,13 +1648,16 @@ const scanForm = reactive({
 })
 const playbackSettings = reactive({
   endAction: 'return_to_detail',
+  episodeVersionSelectionPolicy: 'auto_nearest',
   preferredSubtitleLanguage: 'auto',
   formatAwareToneMapping: null,
   endActionOptions: ['return_to_detail', 'play_next_episode'],
+  episodeVersionSelectionPolicyOptions: ['auto_nearest', 'manual'],
   preferredSubtitleLanguageOptions: ['auto', 'zh_hans', 'zh_hant', 'zh', 'en', 'ja']
 })
 const playbackForm = reactive({
   endAction: 'return_to_detail',
+  episodeVersionSelectionPolicy: 'auto_nearest',
   preferredSubtitleLanguage: 'auto',
   defaultBackend: ''
 })
@@ -1712,6 +1726,7 @@ let cloudRunTimer = 0
 const appModeLabels = { anime: '动画', drama: '剧集' }
 const posterWallArrangementLabels = { TITLE: '按标题', RELEASE_SEASON: '按新番季' }
 const endActionLabels = { return_to_detail: '返回详情页', play_next_episode: '播放下一集' }
+const episodeVersionSelectionPolicyLabels = { auto_nearest: '自动选择相近路径', manual: '每集手动选择版本' }
 const subtitleLanguageLabels = {
   auto: '自动',
   zh_hans: '简体中文',
@@ -2404,7 +2419,7 @@ async function scanSource(sourceId) {
     if (result?.error) {
       ElMessage.warning(`扫描失败：${result.error}`)
     } else {
-      ElMessage.success(`扫描完成：${result.episodesFound} 个文件`)
+      ElMessage.success(result.summary || `扫描完成：${result.episodesFound} 个文件`)
     }
     await loadLibrary()
   } catch (e) {
@@ -2419,6 +2434,7 @@ async function scanAll() {
   try {
     const results = await api('/api/sources/scan-all', { method: 'POST' })
     const count = results.reduce((sum, item) => sum + item.episodesFound, 0)
+    const summaries = results.map(item => item?.summary).filter(Boolean)
     const failedItems = results.filter(item => item?.error)
     if (failedItems.length > 0) {
       const failedSourceNames = failedItems
@@ -2428,7 +2444,7 @@ async function scanAll() {
       const moreSuffix = failedItems.length > 3 ? ` 等 ${failedItems.length} 个源` : ''
       ElMessage.warning(`扫描部分完成：${count} 个文件，${failedItems.length} 个源失败（${failedSourceNames}${moreSuffix}）`)
     } else {
-      ElMessage.success(`扫描完成：${count} 个文件`)
+      ElMessage.success(summaries.length > 0 ? summaries.join('；') : `扫描完成：${count} 个文件`)
     }
     await loadLibrary()
   } catch (e) {
@@ -2953,13 +2969,21 @@ async function saveScanSettings() {
   }
 }
 
+function episodeVersions(episode) {
+  if (Array.isArray(episode?.versions) && episode.versions.length > 0) return episode.versions
+  return [{ episodeId: episode.id, filePath: episode.filePath, fileName: episode.fileName }]
+}
+
 function applyPlaybackSettings(data) {
   playbackSettings.endAction = data.endAction || 'return_to_detail'
+  playbackSettings.episodeVersionSelectionPolicy = data.episodeVersionSelectionPolicy || 'auto_nearest'
   playbackSettings.preferredSubtitleLanguage = data.preferredSubtitleLanguage || 'auto'
   playbackSettings.formatAwareToneMapping = data.formatAwareToneMapping || null
   playbackSettings.endActionOptions = data.endActionOptions || ['return_to_detail', 'play_next_episode']
+  playbackSettings.episodeVersionSelectionPolicyOptions = data.episodeVersionSelectionPolicyOptions || ['auto_nearest', 'manual']
   playbackSettings.preferredSubtitleLanguageOptions = data.preferredSubtitleLanguageOptions || ['auto', 'zh_hans', 'zh_hant', 'zh', 'en', 'ja']
   playbackForm.endAction = playbackSettings.endAction
+  playbackForm.episodeVersionSelectionPolicy = playbackSettings.episodeVersionSelectionPolicy
   playbackForm.preferredSubtitleLanguage = playbackSettings.preferredSubtitleLanguage
   playbackForm.defaultBackend = playbackSettings.formatAwareToneMapping?.defaultBackend || ''
 }
@@ -2979,6 +3003,7 @@ async function savePlaybackSettings() {
     const existing = playbackSettings.formatAwareToneMapping || {}
     const payload = {
       endAction: playbackForm.endAction,
+      episodeVersionSelectionPolicy: playbackForm.episodeVersionSelectionPolicy,
       preferredSubtitleLanguage: playbackForm.preferredSubtitleLanguage,
       formatAwareToneMapping: { ...existing, defaultBackend: playbackForm.defaultBackend }
     }

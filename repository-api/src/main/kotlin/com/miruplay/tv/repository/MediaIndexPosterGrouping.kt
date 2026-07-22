@@ -69,6 +69,12 @@ fun MediaIndexPosterGroup.toIndexedAnime(): Anime =
         summary = primaryEntry.plot.orEmpty(),
     )
 
+fun MediaIndexPosterGroup.preferredMetadataCacheKey(): String =
+    entries.firstNotNullOfOrNull { it.localMetadataOverrideKey()?.takeIf(String::isNotBlank) }
+        ?: entries.firstNotNullOfOrNull { it.metadataId?.takeIf(String::isNotBlank) }
+        ?: animeId.takeIf(String::isNotBlank)
+        ?: title
+
 fun MediaIndexEntry.posterTitle(): String =
     metadataTitle?.takeIf { it.isNotBlank() }
         ?: animeName?.takeIf { it.isNotBlank() }

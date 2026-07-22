@@ -12,6 +12,7 @@ import com.miruplay.tv.clouddrive.CloudDriveClient
 import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.model.Episode
+import com.miruplay.tv.model.EpisodeVersionSelectionPolicy
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.SubtitleLanguagePreference
@@ -38,6 +39,7 @@ import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
 import com.miruplay.tv.repository.PlaybackPreferencesRepository
+import com.miruplay.tv.repository.progressFor
 import com.miruplay.tv.repository.ScanPreferencesRepository
 import com.miruplay.tv.repository.WebControlAccessManager
 import com.miruplay.tv.scanner.LibraryScanState
@@ -297,7 +299,7 @@ class WebControlService @Inject constructor(
         request: PlayEpisodeRequest,
         episode: Episode,
     ): PlaybackStatusDto {
-        val progress = progressRepository.getProgress(episode.id).getOrNull()
+        val progress = progressRepository.progressFor(episode)
         navigator.openPlayer(
             request.toWebControlPlaybackSource(episode, progress).toWebPlaybackSource()
         )
@@ -706,10 +708,12 @@ class WebControlService @Inject constructor(
 
     override suspend fun getPlaybackSettings(): PlaybackSettingsDto = runOnIo {
         val endAction = playbackPreferencesRepository.getEndAction()
+        val episodeVersionSelectionPolicy = playbackPreferencesRepository.getEpisodeVersionSelectionPolicy()
         val preferredSubtitleLanguage = playbackPreferencesRepository.getPreferredSubtitleLanguage()
         val toneMapping = playbackPreferencesRepository.getFormatAwareToneMappingPreferences().normalized()
         PlaybackSettingsDto(
             endAction = endAction.storageValue,
+            episodeVersionSelectionPolicy = episodeVersionSelectionPolicy.storageValue,
             preferredSubtitleLanguage = preferredSubtitleLanguage.storageValue,
             formatAwareToneMapping = toneMapping,
         )
@@ -718,6 +722,11 @@ class WebControlService @Inject constructor(
     override suspend fun savePlaybackSettings(request: PlaybackSettingsRequest): PlaybackSettingsDto = runOnIo {
         request.endAction?.let { value ->
             playbackPreferencesRepository.setEndAction(PlaybackEndAction.fromStorageValue(value))
+        }
+        request.episodeVersionSelectionPolicy?.let { value ->
+            playbackPreferencesRepository.setEpisodeVersionSelectionPolicy(
+                EpisodeVersionSelectionPolicy.fromStorageValue(value),
+            )
         }
         request.preferredSubtitleLanguage?.let { value ->
             playbackPreferencesRepository.setPreferredSubtitleLanguage(

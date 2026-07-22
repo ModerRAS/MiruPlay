@@ -19,6 +19,7 @@ import com.miruplay.tv.repository.MediaScrapeStatus
 import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.localMetadataOverrideKey
 import java.io.File
+import java.io.InputStream
 import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -44,10 +45,11 @@ class MlipLibraryIndexImporter @Inject constructor(
                 AppError.LibraryIndexError.InvalidSchema("MLIP is only supported for WebDAV sources"),
             )
         }
-        val databaseFile = when (val copied = copyLibraryDatabase(mediaSource)) {
+        val databaseFile = when (val copied = copyLibraryDatabase(source, mediaSource)) {
             is Result.Success -> copied.data
             is Result.Error -> return@withContext copied
         }
+        val databaseSizeBytes = databaseFile.length()
         val snapshot = try {
             SQLiteDatabase.openDatabase(
                 databaseFile.absolutePath,
@@ -74,6 +76,8 @@ class MlipLibraryIndexImporter @Inject constructor(
         }
         val mediaFiles = snapshot.mediaFiles
         val entries = mediaFiles.map { it.indexEntry } + snapshot.extras
+        val previousPaths = previousEntries.mapTo(mutableSetOf(), MediaIndexEntry::path)
+        val newMediaFileCount = mediaFiles.count { it.indexEntry.path !in previousPaths }
         when (val rebuilt = indexRepository.rebuildIndex(source.id, entries)) {
             is Result.Success -> Unit
             is Result.Error -> return@withContext Result.failure(rebuilt.error)
@@ -99,10 +103,14 @@ class MlipLibraryIndexImporter @Inject constructor(
                 .groupBy { it.seasonNumber to it.episodeNumber }
                 .mapNotNull { (key, matches) -> matches.singleOrNull()?.let { key to it } }
                 .toMap()
+            val incomingCountsByNumber = seriesFiles.groupingBy {
+                it.episode.seasonNumber to it.episode.episodeNumber
+            }.eachCount()
             val episodes = seriesFiles.map { file ->
                 val incoming = file.episode
+                val numberKey = incoming.seasonNumber to incoming.episodeNumber
                 val cached = cachedEpisodesById[incoming.id]
-                    ?: cachedEpisodesByNumber[incoming.seasonNumber to incoming.episodeNumber]
+                    ?: cachedEpisodesByNumber[numberKey]?.takeIf { incomingCountsByNumber[numberKey] == 1 }
                 incoming.copy(
                     id = cached?.id ?: incoming.id,
                     watchedPosition = cached?.watchedPosition ?: incoming.watchedPosition,
@@ -140,6 +148,9 @@ class MlipLibraryIndexImporter @Inject constructor(
             artworkCachedCount = artworkCachedCount,
             nonIntegerEpisodeCount = snapshot.nonIntegerEpisodes,
             extraCount = snapshot.extras.size,
+            newMediaFileCount = newMediaFileCount,
+            databaseGeneratedAt = snapshot.databaseGeneratedAt,
+            databaseSizeBytes = databaseSizeBytes,
         )
         MiruLog.i(
             TAG,
@@ -152,17 +163,23 @@ class MlipLibraryIndexImporter @Inject constructor(
                 "skipped_file_count" to result.skippedFileCount.toString(),
                 "non_integer_episode_count" to result.nonIntegerEpisodeCount.toString(),
                 "extra_count" to result.extraCount.toString(),
+                "new_media_file_count" to result.newMediaFileCount.toString(),
+                "database_generated_at" to result.databaseGeneratedAt.orEmpty(),
+                "database_size_bytes" to result.databaseSizeBytes.toString(),
             ),
         )
         Result.success(result)
     }
 
-    private suspend fun copyLibraryDatabase(mediaSource: MediaSource): Result<File> {
-        val stream = when (val opened = mediaSource.openStream(MLIP_DATABASE_PATH)) {
+    private suspend fun copyLibraryDatabase(
+        source: MediaSourceInfo,
+        mediaSource: MediaSource,
+    ): Result<File> {
+        val stream = when (val opened = openLibraryDatabaseStream(source, mediaSource)) {
             is Result.Success -> opened.data
             is Result.Error -> {
                 val error = opened.error
-                return if (error is AppError.MediaSourceError.NotFound) {
+                return if (error.isMissingLibraryDatabase()) {
                     Result.failure(AppError.LibraryIndexError.Missing(MLIP_DATABASE_PATH))
                 } else {
                     Result.failure(AppError.LibraryIndexError.ReadFailed(error.toUserMessage()))
@@ -177,6 +194,30 @@ class MlipLibraryIndexImporter @Inject constructor(
             Result.failure(AppError.LibraryIndexError.ReadFailed(error.message ?: error.toString()))
         }
     }
+
+    private suspend fun openLibraryDatabaseStream(
+        source: MediaSourceInfo,
+        mediaSource: MediaSource,
+    ): Result<InputStream> {
+        val first = mediaSource.openStream(MLIP_DATABASE_PATH)
+        if (first !is Result.Error || !first.error.isMissingLibraryDatabase()) return first
+
+        val refreshed = mediaSource.listFiles("")
+        MiruLog.w(
+            TAG,
+            "MLIP library.db missing; refreshed WebDAV root before retry",
+            attributes = mapOf(
+                "source_id" to source.id.toString(),
+                "source_name" to source.name,
+                "root_refresh_succeeded" to (refreshed is Result.Success).toString(),
+            ),
+        )
+        return mediaSource.openStream(MLIP_DATABASE_PATH)
+    }
+
+    private fun AppError.isMissingLibraryDatabase(): Boolean =
+        this is AppError.MediaSourceError.NotFound ||
+            (this is AppError.NetworkError.HttpError && code == 404)
 
     private fun validateMlipDatabase(database: SQLiteDatabase): Result<Unit> {
         val userVersion = database.singleInt("PRAGMA user_version") ?: 0
@@ -315,6 +356,10 @@ class MlipLibraryIndexImporter @Inject constructor(
             },
             skippedFiles = skippedFiles,
             nonIntegerEpisodes = nonIntegerEpisodes,
+            databaseGeneratedAt = database.singleString(
+                "SELECT value FROM meta WHERE key = ?",
+                "generated_at",
+            )?.takeIf(String::isNotBlank),
         )
     }
 
@@ -558,6 +603,9 @@ data class MlipImportResult(
     val artworkCachedCount: Int,
     val nonIntegerEpisodeCount: Int,
     val extraCount: Int,
+    val newMediaFileCount: Int,
+    val databaseGeneratedAt: String?,
+    val databaseSizeBytes: Long,
 )
 
 internal fun normalizeMlipMediaPath(path: String): String? {
@@ -615,6 +663,7 @@ private data class MlipSnapshot(
     val extras: List<MediaIndexEntry>,
     val skippedFiles: Int,
     val nonIntegerEpisodes: Int,
+    val databaseGeneratedAt: String?,
 )
 
 private data class MlipSeries(

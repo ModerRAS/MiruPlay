@@ -200,6 +200,7 @@ fun ScanResult.toWebControlSourceScanResponse(sourceId: Long): SourceScanRespons
         episodesFound = episodesFound,
         newEpisodes = newEpisodes,
         updatedEpisodes = updatedEpisodes,
+        summary = summary,
     )
 
 fun toWebControlSourceScanResponse(
@@ -208,6 +209,7 @@ fun toWebControlSourceScanResponse(
     episodesFound: Int,
     newEpisodes: Int,
     updatedEpisodes: Int,
+    summary: String? = null,
 ): SourceScanResponse =
     SourceScanResponse(
         sourceId = sourceId,
@@ -215,6 +217,7 @@ fun toWebControlSourceScanResponse(
         episodesFound = episodesFound.coerceAtLeast(0),
         newEpisodes = newEpisodes.coerceAtLeast(0),
         updatedEpisodes = updatedEpisodes.coerceAtLeast(0),
+        summary = summary?.takeIf(String::isNotBlank),
     )
 
 fun MediaSourceInfo.toWebControlSourceScanErrorResponse(message: String): SourceScanResponse =

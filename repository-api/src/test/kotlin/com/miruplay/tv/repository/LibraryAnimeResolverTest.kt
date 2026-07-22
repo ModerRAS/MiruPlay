@@ -68,6 +68,59 @@ class LibraryAnimeResolverTest {
     }
 
     @Test
+    fun `loadAnime prefers bound metadata id over stale title cache without merging`() = runBlocking {
+        val source = MediaSourceInfoConventions.local(rootPath = "D:/Anime", name = "Local").copy(id = 1L)
+        val resolver = resolver(
+            sources = listOf(source),
+            entries = listOf(
+                MediaIndexEntry(
+                    sourceId = 1L,
+                    path = "D:/Anime/Frieren/Episode 01.mkv",
+                    animeName = "Frieren",
+                    metadataId = "mlip:1:series-uuid",
+                    metadataTitle = "Updated Frieren",
+                ),
+            ),
+            cachedAnime = mapOf(
+                "Frieren" to Anime(id = "Frieren", title = "Stale title", summary = "Old metadata"),
+                "mlip:1:series-uuid" to Anime(id = "mlip:1:series-uuid", title = "Updated Frieren"),
+            ),
+        )
+
+        val anime = resolver.loadAnime().single()
+
+        assertEquals("mlip:1:series-uuid", anime.id)
+        assertEquals("Updated Frieren", anime.title)
+    }
+
+    @Test
+    fun `loadAnime prefers preserved MLIP key over legacy external override`() = runBlocking {
+        val source = MediaSourceInfoConventions.local(rootPath = "D:/Anime", name = "Local").copy(id = 1L)
+        val resolver = resolver(
+            sources = listOf(source),
+            entries = listOf(
+                MediaIndexEntry(
+                    sourceId = 1L,
+                    path = "D:/Anime/Frieren/Episode 01.mkv",
+                    animeName = "Stale external title",
+                    metadataSource = "Bangumi",
+                    metadataId = "431767",
+                    scrapeMessage = localMetadataOverrideMessage("mlip:1:series-uuid"),
+                ),
+            ),
+            cachedAnime = mapOf(
+                "431767" to Anime(id = "431767", title = "Stale external title"),
+                "mlip:1:series-uuid" to Anime(id = "mlip:1:series-uuid", title = "Authoritative MLIP title"),
+            ),
+        )
+
+        val anime = resolver.loadAnime().single()
+
+        assertEquals("mlip:1:series-uuid", anime.id)
+        assertEquals("Authoritative MLIP title", anime.title)
+    }
+
+    @Test
     fun `loadAnime uses anime name as cache key when index has no metadata id`() = runBlocking {
         val source = MediaSourceInfoConventions.local(rootPath = "D:/Anime", name = "Local").copy(id = 1L)
         val resolver = resolver(
@@ -250,7 +303,9 @@ class LibraryAnimeResolverTest {
         val detail = resolver.loadAnimeDetail("cached")
 
         assertEquals("Cached", detail?.anime?.title)
-        assertEquals(listOf(episode), detail?.episodes)
+        assertEquals(1, detail?.episodes?.size)
+        assertEquals("cached#S1E1", detail?.episodes?.single()?.progressId)
+        assertEquals(listOf("cached-episode"), detail?.episodes?.single()?.versions?.map { it.episodeId })
     }
 
     @Test

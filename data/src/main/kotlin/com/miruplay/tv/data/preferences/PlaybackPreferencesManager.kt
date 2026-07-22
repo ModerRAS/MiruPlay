@@ -2,6 +2,7 @@ package com.miruplay.tv.data.preferences
 
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
+import com.miruplay.tv.model.EpisodeVersionSelectionPolicy
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.PlaybackRenderBackend
@@ -26,6 +27,14 @@ class PlaybackPreferencesManager @Inject constructor(
         get() = PlaybackEndAction.fromStorageValue(prefs.getString(KEY_END_ACTION, null))
         set(value) {
             prefs.edit().putString(KEY_END_ACTION, value.storageValue).apply()
+        }
+
+    var episodeVersionSelectionPolicy: EpisodeVersionSelectionPolicy
+        get() = EpisodeVersionSelectionPolicy.fromStorageValue(
+            prefs.getString(KEY_EPISODE_VERSION_SELECTION_POLICY, null),
+        )
+        set(value) {
+            prefs.edit().putString(KEY_EPISODE_VERSION_SELECTION_POLICY, value.storageValue).apply()
         }
 
     var preferredSubtitleLanguage: SubtitleLanguagePreference
@@ -62,6 +71,13 @@ class PlaybackPreferencesManager @Inject constructor(
         endAction = action
     }
 
+    override suspend fun getEpisodeVersionSelectionPolicy(): EpisodeVersionSelectionPolicy =
+        episodeVersionSelectionPolicy
+
+    override suspend fun setEpisodeVersionSelectionPolicy(policy: EpisodeVersionSelectionPolicy) {
+        episodeVersionSelectionPolicy = policy
+    }
+
     override suspend fun getPreferredSubtitleLanguage(): SubtitleLanguagePreference =
         preferredSubtitleLanguage
 
@@ -78,6 +94,7 @@ class PlaybackPreferencesManager @Inject constructor(
 
     companion object {
         private const val KEY_END_ACTION = "end_action"
+        private const val KEY_EPISODE_VERSION_SELECTION_POLICY = "episode_version_selection_policy"
         private const val KEY_PREFERRED_SUBTITLE_LANGUAGE = "preferred_subtitle_language"
         private const val KEY_FORMAT_AWARE_TONE_MAPPING_PREFERENCES = "format_aware_tone_mapping_preferences"
     }

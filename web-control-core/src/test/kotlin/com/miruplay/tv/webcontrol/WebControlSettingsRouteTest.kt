@@ -56,16 +56,19 @@ class WebControlSettingsRouteTest {
             session(
                 method = NanoHTTPD.Method.PUT,
                 uri = "/api/settings/playback",
-                body = """{"preferredSubtitleLanguage":"zh_hans"}""",
+                body = """{"episodeVersionSelectionPolicy":"manual","preferredSubtitleLanguage":"zh_hans"}""",
             ),
         )
         assertEquals(NanoHTTPD.Response.Status.OK, put.status)
+        assertEquals("manual", service.capturedPlayback?.episodeVersionSelectionPolicy)
         assertEquals("zh_hans", service.capturedPlayback?.preferredSubtitleLanguage)
 
         val get = server.serve(session(method = NanoHTTPD.Method.GET, uri = "/api/settings/playback", body = ""))
         assertEquals(NanoHTTPD.Response.Status.OK, get.status)
         val body = get.bodyText()
         assertTrue(body.contains("\"endAction\":\"return_to_detail\""))
+        assertTrue(body.contains("\"episodeVersionSelectionPolicy\":\"auto_nearest\""))
+        assertTrue(body.contains("\"episodeVersionSelectionPolicyOptions\""))
         assertTrue(body.contains("\"preferredSubtitleLanguage\":\"zh_hans\""))
         assertTrue(body.contains("\"preferredSubtitleLanguageOptions\""))
         assertTrue(body.contains("\"formatAwareToneMapping\""))

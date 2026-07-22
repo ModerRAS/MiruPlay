@@ -24,6 +24,11 @@ import java.util.Base64
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
+internal fun webDavTransportError(path: String, error: Exception): AppError =
+    AppError.NetworkError.ServerUnreachable(
+        error.message?.takeIf(String::isNotBlank)?.let { "$path ($it)" } ?: path,
+    )
+
 class WebDavMediaSource @Inject constructor() : MediaSource {
     override val id: String = ""
     override lateinit var info: MediaSourceInfo
@@ -132,7 +137,7 @@ class WebDavMediaSource @Inject constructor() : MediaSource {
         } catch (e: Exception) {
             val url = normalizeUrl(path)
             Log.w(TAG, "WebDAV GET failed for $url", e)
-            Result.failure(AppError.MediaSourceError.NotFound(urlWithCause(path.ifBlank { url }, e)))
+            Result.failure(webDavTransportError(path.ifBlank { url }, e))
         }
     }
 
@@ -168,7 +173,7 @@ class WebDavMediaSource @Inject constructor() : MediaSource {
         } catch (e: Exception) {
             val url = normalizeUrl(path)
             Log.w(TAG, "WebDAV metadata PROPFIND failed for $url", e)
-            Result.failure(AppError.MediaSourceError.NotFound(urlWithCause(path.ifBlank { url }, e)))
+            Result.failure(webDavTransportError(path.ifBlank { url }, e))
         }
     }
 

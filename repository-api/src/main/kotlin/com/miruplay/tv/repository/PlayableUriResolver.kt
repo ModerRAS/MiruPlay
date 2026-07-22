@@ -14,9 +14,10 @@ suspend fun resolvePlayableUri(
     episodeId: String,
     mediaRepository: MediaSourceRepository
 ): String {
-    if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("content://")) {
-        return path
+    if (path.startsWith("http://") || path.startsWith("https://")) {
+        return MediaPathConventions.canonicalizeRemoteUrl(path)
     }
+    if (path.startsWith("content://")) return path
 
     val sources = when (val result = mediaRepository.getSources()) {
         is Result.Success -> result.data

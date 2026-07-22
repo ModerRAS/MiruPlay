@@ -742,6 +742,23 @@ body {
   display: block;
 }
 
+.episode-summary {
+  grid-column: 1 / -1;
+}
+
+.episode-versions {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.75rem;
+}
+
+.episode-version {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+}
+
 .break-text {
   overflow-wrap: anywhere;
   word-break: break-word;

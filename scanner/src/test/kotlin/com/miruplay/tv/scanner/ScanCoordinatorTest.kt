@@ -77,7 +77,7 @@ class ScanCoordinatorTest {
 
         assertTrue("Missing library.db should fail explicitly", result is Result.Error)
         assertTrue((result as Result.Error).error is AppError.LibraryIndexError.Missing)
-        assertEquals(emptyList<String>(), mediaSource.listedPaths)
+        assertEquals(listOf(""), mediaSource.listedPaths)
         assertEquals(null, scraper.normalizedName)
         assertEquals(null, mediaRepository.updatedSource)
     }

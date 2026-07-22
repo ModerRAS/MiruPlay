@@ -3,6 +3,7 @@ package com.miruplay.tv.repository
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.ProgressRecord
+import com.miruplay.tv.model.availableVersions
 import com.miruplay.tv.model.coercePlaybackPosition
 import com.miruplay.tv.model.toPlaybackSource
 
@@ -23,11 +24,17 @@ class EpisodePlaybackSourceResolver(
     ): PlaybackSource =
         buildEpisodePlaybackSource(
             episode = episode,
-            progress = progress.getProgress(episode.id).getOrNull(),
+            progress = progress.progressFor(episode),
             playableUri = playbackUriForEpisode(episode),
             startPositionOverrideMs = startPositionOverrideMs,
         )
 }
+
+suspend fun PlaybackProgressRepository.progressFor(episode: Episode): ProgressRecord? =
+    (listOf(episode.progressId) + episode.availableVersions().map { it.episodeId })
+        .distinct()
+        .mapNotNull { getProgress(it).getOrNull() }
+        .maxByOrNull(ProgressRecord::lastWatched)
 
 fun buildEpisodePlaybackSource(
     episode: Episode,

@@ -36,7 +36,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -58,6 +60,7 @@ import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.ScraperResult
+import com.miruplay.tv.model.availableVersions
 import com.miruplay.tv.model.confidencePercentLabel
 import com.miruplay.tv.model.continueActionLabel
 import com.miruplay.tv.model.continueEpisode
@@ -82,6 +85,8 @@ import com.miruplay.tv.model.metadataSearchResultsPageLabel
 import com.miruplay.tv.model.isCompleted
 import com.miruplay.tv.model.progressFraction
 import com.miruplay.tv.model.progressLabel
+import com.miruplay.tv.model.withVersion
+import com.miruplay.tv.ui.components.EpisodeVersionDialog
 import com.miruplay.tv.ui.components.LoadingIndicator
 import com.miruplay.tv.ui.components.OverscanContainer
 import com.miruplay.tv.ui.components.RemoteImage
@@ -118,6 +123,14 @@ fun AnimeDetailScreen(
     val actionMessage by viewModel.actionMessage.collectAsStateWithLifecycle()
     val isSyncing by viewModel.isSyncing.collectAsStateWithLifecycle()
     val manualMatch by viewModel.manualMatch.collectAsStateWithLifecycle()
+    var versionChoice by remember { mutableStateOf<Episode?>(null) }
+    val requestPlay: (Episode) -> Unit = { episode ->
+        if (episode.availableVersions().size > 1) {
+            versionChoice = episode
+        } else {
+            onPlayEpisode(episode)
+        }
+    }
 
     LaunchedEffect(animeId) {
         viewModel.loadAnime(animeId)
@@ -127,7 +140,10 @@ fun AnimeDetailScreen(
             viewModel.closeRescrapeMatcher()
         }
     }
-    BackHandler(enabled = !manualMatch.isOpen, onBack = onNavigateBack)
+    BackHandler(enabled = versionChoice != null) {
+        versionChoice = null
+    }
+    BackHandler(enabled = !manualMatch.isOpen && versionChoice == null, onBack = onNavigateBack)
 
     Box(modifier = Modifier.fillMaxSize()) {
         OverscanContainer {
@@ -143,13 +159,24 @@ fun AnimeDetailScreen(
                         extras = extras,
                         actionMessage = actionMessage,
                         isSyncing = isSyncing,
-                        onPlayEpisode = onPlayEpisode,
+                        onPlayEpisode = requestPlay,
                         onSelectSeason = viewModel::selectSeason,
                         onRescrape = viewModel::openRescrapeMatcher,
                         onSyncBangumi = viewModel::syncBangumi
                     )
                 }
             }
+        }
+
+        versionChoice?.let { episode ->
+            EpisodeVersionDialog(
+                episode = episode,
+                onDismiss = { versionChoice = null },
+                onPlay = { version ->
+                    versionChoice = null
+                    onPlayEpisode(episode.withVersion(version))
+                },
+            )
         }
 
         if (manualMatch.isOpen) {
@@ -780,10 +807,10 @@ private fun EpisodeListItem(
             )
             Spacer(Modifier.height(5.dp))
             Text(
-                text = episode.displayPath(),
+                text = episode.availableVersions().joinToString("\n") { it.filePath },
                 color = TextSecondary,
                 fontSize = 12.sp,
-                maxLines = 2,
+                maxLines = episode.availableVersions().size.coerceIn(1, 4),
                 overflow = TextOverflow.Ellipsis
             )
         }

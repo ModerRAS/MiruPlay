@@ -16,7 +16,7 @@ object NavRoutes {
     const val SETTINGS = MiruPlayRouteSurface.SETTINGS_ROUTE
     const val ANIME_DETAIL = "${MiruPlayRouteSurface.ANIME_ROUTE_PREFIX}/{animeId}"
     const val PLAYER = "${MiruPlayRouteSurface.PLAYER_ROUTE_PREFIX}/{uri}"
-    const val PLAYER_WITH_OPTIONS = "$PLAYER?mediaSourceId={mediaSourceId}&startPosition={startPosition}&episodeId={episodeId}"
+    const val PLAYER_WITH_OPTIONS = "$PLAYER?mediaSourceId={mediaSourceId}&startPosition={startPosition}&episodeId={episodeId}&progressId={progressId}"
     
     fun animeDetail(animeId: String) =
         "${MiruPlayRouteSurface.ANIME_ROUTE_PREFIX}/${MediaPathConventions.encodePathSegment(animeId)}"
@@ -29,8 +29,9 @@ object NavRoutes {
         mediaSourceId: String = "media",
         startPosition: Long = 0L,
         episodeId: String = "",
+        progressId: String = "",
     ) = "${MiruPlayRouteSurface.PLAYER_ROUTE_PREFIX}/$uri" +
-        "?mediaSourceId=$mediaSourceId&startPosition=$startPosition&episodeId=$episodeId"
+        "?mediaSourceId=$mediaSourceId&startPosition=$startPosition&episodeId=$episodeId&progressId=$progressId"
 
     fun homeFor(mode: AppMode): String =
         when (mode) {

@@ -58,6 +58,76 @@ class MlipLibraryIndexImporterTest {
     }
 
     @Test
+    fun `missing library database refreshes webdav root and retries once`() = runBlocking {
+        val databaseFile = File.createTempFile("mlip-test-", ".db")
+        val source = mlipSource()
+        val mediaSource = FakeMediaSource(
+            info = source,
+            streams = mapOf("library.db" to { databaseFile.inputStream() }),
+            requireRootRefreshBeforeStreams = true,
+        )
+
+        try {
+            createMlipDatabase(databaseFile)
+
+            val result = MlipLibraryIndexImporter(RecordingIndexRepository(), RecordingMetadataRepository())
+                .importLibrary(source, mediaSource)
+
+            assertTrue(result.isSuccess())
+            assertEquals(listOf("library.db", "library.db"), mediaSource.openedPaths)
+            assertEquals(listOf(""), mediaSource.listedPaths)
+            assertEquals("2026-07-22T07:55:30Z", result.getOrNull()?.databaseGeneratedAt)
+        } finally {
+            databaseFile.delete()
+        }
+    }
+
+    @Test
+    fun `multiple files for one episode keep distinct physical ids`() = runBlocking {
+        val databaseFile = File.createTempFile("mlip-test-", ".db")
+        val source = mlipSource()
+        val metadataRepository = RecordingMetadataRepository().apply {
+            episodes += Episode(
+                id = "legacy-episode-id",
+                animeId = "mlip:7:series-uuid",
+                episodeNumber = 1,
+                filePath = "/Series/01.mkv",
+                fileName = "01.mkv",
+            )
+        }
+        val mediaSource = FakeMediaSource(
+            info = source,
+            streams = mapOf("library.db" to { databaseFile.inputStream() }),
+        )
+
+        try {
+            createMlipDatabase(databaseFile)
+            SQLiteDatabase.openDatabase(
+                databaseFile.absolutePath,
+                null,
+                SQLiteDatabase.OPEN_READWRITE,
+            ).use { database ->
+                database.execSQL(
+                    "UPDATE media_file SET episode_id = 10, path = 'Series/BD/01.mkv' WHERE id = 101",
+                )
+            }
+
+            val result = MlipLibraryIndexImporter(RecordingIndexRepository(), metadataRepository)
+                .importLibrary(source, mediaSource)
+
+            assertTrue(result.isSuccess())
+            assertEquals(1, result.getOrNull()?.episodeCount)
+            assertEquals(2, result.getOrNull()?.mediaFileCount)
+            assertEquals(
+                setOf("7:/Series/01.mkv", "7:/Series/BD/01.mkv"),
+                metadataRepository.episodes.map(Episode::id).toSet(),
+            )
+        } finally {
+            databaseFile.delete()
+        }
+    }
+
+    @Test
     fun `unsupported mlip version fails clearly`() = runBlocking {
         val databaseFile = File.createTempFile("mlip-test-", ".db")
         try {
@@ -531,7 +601,7 @@ class MlipLibraryIndexImporterTest {
         try {
             database.execSQL("PRAGMA user_version = $userVersion")
             database.execSQL("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
-            database.execSQL("INSERT INTO meta (key, value) VALUES ('protocol', 'MLIP'), ('schema', '$userVersion')")
+            database.execSQL("INSERT INTO meta (key, value) VALUES ('protocol', 'MLIP'), ('schema', '$userVersion'), ('generated_at', '2026-07-22T07:55:30Z')")
             if (!includeRequiredTables) return
             database.execSQL("CREATE TABLE series (id INTEGER PRIMARY KEY, uuid TEXT NOT NULL, title TEXT NOT NULL, original_title TEXT, summary TEXT, year INTEGER, series_type INTEGER)")
             database.execSQL("CREATE TABLE episode (id INTEGER PRIMARY KEY, uuid TEXT NOT NULL, series_id INTEGER NOT NULL, season INTEGER, episode REAL, sort_order REAL, title TEXT, summary TEXT, runtime INTEGER)")
@@ -630,19 +700,25 @@ class MlipLibraryIndexImporterTest {
     private class FakeMediaSource(
         override val info: MediaSourceInfo,
         private val streams: Map<String, () -> InputStream>,
+        private val requireRootRefreshBeforeStreams: Boolean = false,
     ) : MediaSource {
         override val id: String = "fake"
         override val capabilities: MediaCapabilities = MediaCapabilities()
         val openedPaths = mutableListOf<String>()
         val listedPaths = mutableListOf<String>()
+        private var rootRefreshed = false
 
         override suspend fun listFiles(path: String): Result<List<FileEntry>> {
             listedPaths += path
+            if (path.isEmpty()) rootRefreshed = true
             return Result.success(emptyList())
         }
 
         override suspend fun openStream(path: String): Result<InputStream> {
             openedPaths += path
+            if (requireRootRefreshBeforeStreams && !rootRefreshed) {
+                return Result.failure(AppError.NetworkError.HttpError(404, "Not Found"))
+            }
             return streams[path]?.let { Result.success(it()) }
                 ?: Result.failure(AppError.MediaSourceError.NotFound(path))
         }

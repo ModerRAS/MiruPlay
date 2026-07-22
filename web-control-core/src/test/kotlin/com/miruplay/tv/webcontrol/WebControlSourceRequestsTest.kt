@@ -462,6 +462,7 @@ class WebControlSourceRequestsTest {
             episodesFound = 3,
             newEpisodes = 2,
             updatedEpisodes = 1,
+            summary = "MLIP：1 部动漫，3 集，3 个文件",
         ).toWebControlSourceScanResponse(sourceId = 7L)
 
         assertEquals(7L, response.sourceId)
@@ -469,6 +470,7 @@ class WebControlSourceRequestsTest {
         assertEquals(3, response.episodesFound)
         assertEquals(2, response.newEpisodes)
         assertEquals(1, response.updatedEpisodes)
+        assertEquals("MLIP：1 部动漫，3 集，3 个文件", response.summary)
     }
 
     @Test
