@@ -14,6 +14,15 @@ class CloudDriveDirectoryConventionsTest {
     }
 
     @Test
+    fun `builds WebDAV warmup chain from root to parent`() {
+        assertEquals(listOf(""), webDavDirectoryWarmupChain(""))
+        assertEquals(
+            listOf("", "/115open", "/115open/影音", "/115open/影音/动漫"),
+            webDavDirectoryWarmupChain("/115open/影音/动漫/"),
+        )
+    }
+
+    @Test
     fun `scopes navigation requests to token root`() {
         assertEquals("/CloudRoot", scopedCloudDriveDirectoryPath("/", "/CloudRoot"))
         assertEquals("/CloudRoot", scopedCloudDriveDirectoryPath("/Outside/Inbox", "/CloudRoot"))

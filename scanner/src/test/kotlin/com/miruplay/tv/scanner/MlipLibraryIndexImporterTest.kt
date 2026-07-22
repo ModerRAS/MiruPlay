@@ -557,7 +557,7 @@ class MlipLibraryIndexImporterTest {
 
             assertTrue(result is Result.Success)
             assertEquals(1, (result as Result.Success).data.artworkCachedCount)
-            assertEquals(listOf("/Series"), mediaSource.listedPaths)
+            assertEquals(listOf("", "/Series"), mediaSource.listedPaths)
             assertNotNull(metadataRepository.anime.single().posterLocalPath)
         } finally {
             databaseFile.delete()

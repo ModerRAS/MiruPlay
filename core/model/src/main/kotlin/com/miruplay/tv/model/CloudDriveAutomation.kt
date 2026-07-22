@@ -17,6 +17,18 @@ fun String.isDefaultCloudDriveWebDavEndpoint(): Boolean =
             URI(DEFAULT_CLOUD_DRIVE_ENDPOINT_URL).port
     }.getOrDefault(false)
 
+fun webDavDirectoryWarmupChain(parentPath: String): List<String> =
+    buildList {
+        add("")
+        var current = ""
+        parentPath.replace('\\', '/').trim('/').split('/')
+            .filter(String::isNotBlank)
+            .forEach { segment ->
+                current += "/$segment"
+                add(current)
+            }
+    }
+
 @Serializable
 data class CloudDriveAutomationConfig(
     val endpointUrl: String = DEFAULT_CLOUD_DRIVE_ENDPOINT_URL,

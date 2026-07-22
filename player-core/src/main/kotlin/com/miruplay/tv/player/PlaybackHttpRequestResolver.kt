@@ -9,6 +9,7 @@ import com.miruplay.tv.model.connectionPassword
 import com.miruplay.tv.model.connectionUsername
 import com.miruplay.tv.model.isDefaultCloudDriveWebDavEndpoint
 import com.miruplay.tv.model.remoteUrl
+import com.miruplay.tv.model.webDavDirectoryWarmupChain
 import com.miruplay.tv.repository.MediaSourceRepository
 import java.util.Base64
 import javax.inject.Inject
@@ -27,7 +28,7 @@ class PlaybackHttpRequestResolver @Inject constructor(
         if (remoteUrl.isBlank()) return PlaybackHttpRequestConfig.Empty
 
         if (remoteUrl.isDefaultCloudDriveWebDavEndpoint()) {
-            warmWebDavParentDirectory(mediaSource, source.uri, remoteUrl)
+            warmWebDavParentDirectories(mediaSource, source.uri, remoteUrl)
         }
         return PlaybackHttpRequestConfig(
             baseUrl = remoteUrl,
@@ -35,15 +36,19 @@ class PlaybackHttpRequestResolver @Inject constructor(
         )
     }
 
-    private suspend fun warmWebDavParentDirectory(
+    private suspend fun warmWebDavParentDirectories(
         source: MediaSourceInfo,
         uri: String,
         remoteUrl: String,
     ) {
-        val parentPath = webDavParentDirectoryForPlayback(uri, remoteUrl) ?: return
+        val directories = webDavParentDirectoryForPlayback(uri, remoteUrl)
+            ?.let(::webDavDirectoryWarmupChain)
+            ?: return
         val mediaSource = mediaSourceFactory?.create(source)?.getOrNull() ?: return
         try {
-            runCatching { mediaSource.listFiles(parentPath) }
+            directories.forEach { directory ->
+                runCatching { mediaSource.listFiles(directory) }
+            }
         } finally {
             runCatching { mediaSource.close() }
         }

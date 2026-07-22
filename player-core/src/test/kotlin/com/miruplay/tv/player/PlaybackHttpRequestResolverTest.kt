@@ -10,7 +10,7 @@ import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.repository.MediaSourceRepository
 import io.mockk.coEvery
-import io.mockk.coVerify
+import io.mockk.coVerifySequence
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -71,10 +71,15 @@ class PlaybackHttpRequestResolverTest {
             ),
         )
 
-        coVerify(exactly = 1) {
+        coVerifySequence {
+            webDavSource.listFiles("")
+            webDavSource.listFiles("/115open")
+            webDavSource.listFiles("/115open/影音")
+            webDavSource.listFiles("/115open/影音/动漫")
+            webDavSource.listFiles("/115open/影音/动漫/從 0 位居民開始的邊境領主大人")
             webDavSource.listFiles("/115open/影音/动漫/從 0 位居民開始的邊境領主大人/Season 1")
+            webDavSource.close()
         }
-        coVerify(exactly = 1) { webDavSource.close() }
     }
 
     @Test

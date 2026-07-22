@@ -14,6 +14,7 @@ import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.isDefaultCloudDriveWebDavEndpoint
 import com.miruplay.tv.model.remoteUrl
+import com.miruplay.tv.model.webDavDirectoryWarmupChain
 import com.miruplay.tv.repository.MediaExtraKind
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MediaIndexRepository
@@ -95,8 +96,8 @@ class MlipLibraryIndexImporter @Inject constructor(
                 }
             }
 
-        val warmCloudDriveArtworkParents =
-            source.remoteUrl().orEmpty().isDefaultCloudDriveWebDavEndpoint()
+        val warmedCloudDriveArtworkDirectories =
+            if (source.remoteUrl().orEmpty().isDefaultCloudDriveWebDavEndpoint()) mutableSetOf<String>() else null
         var artworkCachedCount = 0
         for (series in snapshot.series) {
             val seriesFiles = mediaFiles.filter { it.seriesId == series.id }
@@ -137,7 +138,7 @@ class MlipLibraryIndexImporter @Inject constructor(
                         posterCacheDirectory = posterCacheDirectory,
                         sourceId = source.id,
                         seriesUuid = series.uuid,
-                        warmParentDirectory = warmCloudDriveArtworkParents,
+                        warmedDirectories = warmedCloudDriveArtworkDirectories,
                     )
                 }
                 ?.also { artworkCachedCount += 1 }
@@ -570,7 +571,7 @@ class MlipLibraryIndexImporter @Inject constructor(
         posterCacheDirectory: File?,
         sourceId: Long,
         seriesUuid: String,
-        warmParentDirectory: Boolean,
+        warmedDirectories: MutableSet<String>?,
     ): String? {
         val cacheRoot = posterCacheDirectory ?: return null
         val outputDir = File(cacheRoot, "mlip/$sourceId").apply { mkdirs() }
@@ -580,10 +581,10 @@ class MlipLibraryIndexImporter @Inject constructor(
             ?: "jpg"
         val output = File(outputDir, "${stableHash("$seriesUuid:$artworkPath")}.$extension")
         if (output.length() > 0L) return output.absolutePath
-        if (warmParentDirectory) {
-            artworkPath.substringBeforeLast('/', "")
-                .takeIf(String::isNotBlank)
-                ?.let { parent -> runCatching { mediaSource.listFiles(parent) } }
+        if (warmedDirectories != null) {
+            webDavDirectoryWarmupChain(artworkPath.substringBeforeLast('/', ""))
+                .filter(warmedDirectories::add)
+                .forEach { directory -> runCatching { mediaSource.listFiles(directory) } }
         }
         val stream = mediaSource.openStream(artworkPath).getOrNull() ?: return null
         return runCatching {
