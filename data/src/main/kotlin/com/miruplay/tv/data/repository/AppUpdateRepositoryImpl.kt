@@ -41,6 +41,7 @@ class AppUpdateRepositoryImpl internal constructor(
     @ApplicationContext private val context: Context,
     private val okHttpClient: OkHttpClient,
     private val cloudDriveRepository: CloudDriveAutomationRepository,
+    private val updateManifestUrl: String,
     private val latestReleaseApiUrl: String,
 ) : AppUpdateRepository {
 
@@ -55,6 +56,7 @@ class AppUpdateRepositoryImpl internal constructor(
         context = context,
         okHttpClient = okHttpClient,
         cloudDriveRepository = cloudDriveRepository,
+        updateManifestUrl = UPDATE_MANIFEST_URL,
         latestReleaseApiUrl = LATEST_RELEASE_API_URL,
     )
 
@@ -63,72 +65,96 @@ class AppUpdateRepositoryImpl internal constructor(
         val currentVersionCode = currentVersionCode()
         MiruLog.i(
             TAG,
-            "Checking GitHub app update",
+            "Checking app update",
             mapOf(
                 "current_version_name" to currentVersionName,
                 "current_version_code" to currentVersionCode.toString(),
-                "release_api_url" to latestReleaseApiUrl,
+                "update_manifest_url" to updateManifestUrl,
             )
         )
 
-        val request = Request.Builder()
-            .url(latestReleaseApiUrl)
-            .header("Accept", "application/vnd.github+json")
-            .header("X-GitHub-Api-Version", "2022-11-28")
-            .header("User-Agent", "MiruPlay/$currentVersionName")
-            .build()
+        val latestWithSource = when (val manifest = fetchLatestUpdate(updateManifestUrl, githubApi = false)) {
+            is Result.Success -> manifest.data to "manifest"
+            is Result.Error -> {
+                MiruLog.w(
+                    TAG,
+                    "Update manifest unavailable; falling back to GitHub API",
+                    attributes = mapOf("manifest_error" to manifest.error.toString()),
+                )
+                when (val fallback = fetchLatestUpdate(latestReleaseApiUrl, githubApi = true)) {
+                    is Result.Success -> fallback.data to "github_api"
+                    is Result.Error -> return@withContext Result.failure(fallback.error)
+                }
+            }
+        }
+        val latest = latestWithSource.first
+        val updateAvailable = GitHubAppUpdateMapper.isNewerThanCurrent(
+            latest = latest,
+            currentVersionName = currentVersionName,
+            currentVersionCode = currentVersionCode,
+        )
+        MiruLog.i(
+            TAG,
+            "App update check completed",
+            mapOf(
+                "source" to latestWithSource.second,
+                "latest_version_name" to latest.versionName,
+                "latest_version_code" to latest.versionCode.orEmptyString(),
+                "asset_name" to latest.assetName,
+                "asset_size_bytes" to latest.assetSizeBytes.toString(),
+                "update_available" to updateAvailable.toString(),
+            )
+        )
+        Result.success(
+            AppUpdateCheck(
+                currentVersionName = currentVersionName,
+                currentVersionCode = currentVersionCode,
+                latest = latest,
+                updateAvailable = updateAvailable,
+            )
+        )
+    }
 
-        try {
-            githubApiClient().newCall(request).execute().use { response ->
+    private suspend fun fetchLatestUpdate(url: String, githubApi: Boolean): Result<AppUpdateInfo> {
+        val request = Request.Builder()
+            .url(url)
+            .header("Accept", if (githubApi) "application/vnd.github+json" else "application/json")
+            .header("User-Agent", "MiruPlay/${currentVersionName()}")
+            .apply {
+                if (githubApi) {
+                    header("X-GitHub-Api-Version", "2022-11-28")
+                } else {
+                    header("Cache-Control", "no-cache")
+                }
+            }
+            .build()
+        return try {
+            githubClient().newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
                     val failureDetail = response.failureDetail()
                     MiruLog.w(
                         TAG,
-                        "GitHub app update check failed",
+                        "App update request failed",
                         attributes = mapOf(
+                            "url" to url,
                             "http_code" to response.code.toString(),
                             "http_message" to response.message,
                             "http_failure_detail" to failureDetail,
                         )
                     )
-                    return@withContext Result.failure(
-                        AppError.NetworkError.HttpError(response.code, failureDetail)
-                    )
+                    return@use Result.failure(AppError.NetworkError.HttpError(response.code, failureDetail))
                 }
                 val responseBody = response.body?.string().orEmpty()
                 if (responseBody.isBlank()) {
-                    return@withContext Result.failure(AppError.AppUpdateError.NoReleaseFound)
+                    return@use Result.failure(AppError.AppUpdateError.NoReleaseFound)
                 }
-                val latest = GitHubAppUpdateMapper.parseLatestRelease(responseBody, json)
-                    ?: return@withContext Result.failure(AppError.AppUpdateError.NoInstallableApk)
-                val updateAvailable = GitHubAppUpdateMapper.isNewerThanCurrent(
-                    latest = latest,
-                    currentVersionName = currentVersionName,
-                    currentVersionCode = currentVersionCode,
-                )
-                MiruLog.i(
-                    TAG,
-                    "GitHub app update check completed",
-                    mapOf(
-                        "latest_version_name" to latest.versionName,
-                        "latest_version_code" to latest.versionCode.orEmptyString(),
-                        "asset_name" to latest.assetName,
-                        "asset_size_bytes" to latest.assetSizeBytes.toString(),
-                        "update_available" to updateAvailable.toString(),
-                    )
-                )
-                Result.success(
-                    AppUpdateCheck(
-                        currentVersionName = currentVersionName,
-                        currentVersionCode = currentVersionCode,
-                        latest = latest,
-                        updateAvailable = updateAvailable,
-                    )
-                )
+                GitHubAppUpdateMapper.parseLatestRelease(responseBody, json)
+                    ?.let { Result.success(it) }
+                    ?: Result.failure(AppError.AppUpdateError.NoInstallableApk)
             }
         } catch (error: Exception) {
-            MiruLog.w(TAG, "GitHub app update check threw", error)
-            Result.failure(AppError.NetworkError.ServerUnreachable(latestReleaseApiUrl))
+            MiruLog.w(TAG, "App update request threw", error, mapOf("url" to url))
+            Result.failure(AppError.NetworkError.ServerUnreachable(url))
         }
     }
 
@@ -284,7 +310,7 @@ class AppUpdateRepositoryImpl internal constructor(
         return target
     }
 
-    private suspend fun githubApiClient(): OkHttpClient =
+    private suspend fun githubClient(): OkHttpClient =
         okHttpClient.newBuilder()
             .proxy(currentProxy())
             .build()
@@ -332,7 +358,10 @@ class AppUpdateRepositoryImpl internal constructor(
 
     companion object {
         private const val TAG = "AppUpdateRepository"
-        private const val LATEST_RELEASE_API_URL = "https://api.github.com/repos/ModerRAS/MiruPlay/releases/latest"
+        private const val UPDATE_MANIFEST_URL =
+            "https://github.com/ModerRAS/MiruPlay/releases/latest/download/latest.json"
+        private const val LATEST_RELEASE_API_URL =
+            "https://api.github.com/repos/ModerRAS/MiruPlay/releases/latest"
         private const val APK_MIME_TYPE = "application/vnd.android.package-archive"
         private const val APK_DOWNLOAD_CONNECT_TIMEOUT_SECONDS = 120L
         private const val APK_DOWNLOAD_READ_TIMEOUT_SECONDS = 120L
@@ -369,7 +398,8 @@ internal object GitHubAppUpdateMapper {
         val versionName = normalizeReleaseVersionName(tagName.ifBlank { releaseName })
         return AppUpdateInfo(
             versionName = versionName,
-            versionCode = versionCodeFromName(versionName),
+            versionCode = root["version_code"]?.jsonPrimitive?.longOrNull
+                ?: versionCodeFromName(versionName),
             releaseName = releaseName,
             tagName = tagName,
             publishedAt = publishedAt,

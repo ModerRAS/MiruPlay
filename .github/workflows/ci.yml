@@ -160,6 +160,42 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
 
+      - name: Generate update manifest
+        run: |
+          APK_PATH=$(find app/build/outputs/apk/release -maxdepth 1 -name '*-release.apk' -print -quit)
+          test -n "$APK_PATH"
+          APK_NAME=$(basename "$APK_PATH")
+          APK_SIZE=$(stat -c%s "$APK_PATH")
+          TAG_NAME="${{ steps.version.outputs.tag_name }}"
+          RELEASE_URL="${{ github.server_url }}/${{ github.repository }}/releases/tag/$TAG_NAME"
+          DOWNLOAD_URL="${{ github.server_url }}/${{ github.repository }}/releases/download/$TAG_NAME/$APK_NAME"
+
+          jq -n \
+            --arg tag_name "$TAG_NAME" \
+            --arg release_name "$TAG_NAME" \
+            --arg published_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            --arg release_url "$RELEASE_URL" \
+            --arg asset_name "$APK_NAME" \
+            --arg download_url "$DOWNLOAD_URL" \
+            --argjson version_code "${{ steps.version.outputs.version_code }}" \
+            --argjson asset_size "$APK_SIZE" \
+            '{
+              schema_version: 1,
+              tag_name: $tag_name,
+              name: $release_name,
+              draft: false,
+              prerelease: false,
+              published_at: $published_at,
+              html_url: $release_url,
+              version_code: $version_code,
+              assets: [{
+                name: $asset_name,
+                size: $asset_size,
+                browser_download_url: $download_url
+              }]
+            }' > latest.json
+          jq empty latest.json
+
       - name: Upload release APK
         uses: actions/upload-artifact@v4
         if: always()
@@ -202,7 +238,9 @@ jobs:
           target_commitish: ${{ github.sha }}
           name: v${{ steps.version.outputs.version_name }}
           body_path: release-notes.md
-          files: app/build/outputs/apk/release/*-release.apk
+          files: |
+            app/build/outputs/apk/release/*-release.apk
+            latest.json
           fail_on_unmatched_files: true
           prerelease: false
           draft: false

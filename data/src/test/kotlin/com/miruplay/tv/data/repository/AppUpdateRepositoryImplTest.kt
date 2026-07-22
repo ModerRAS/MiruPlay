@@ -27,18 +27,19 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class AppUpdateRepositoryImplTest {
     @Test
-    fun `parseLatestRelease picks release apk and nightly date version`() {
+    fun `parseLatestRelease picks release apk and explicit version code`() {
         val update = GitHubAppUpdateMapper.parseLatestRelease(
             """
             {
-              "tag_name": "nightly-2026.05.26",
-              "name": "Nightly 2026.05.26",
+              "tag_name": "v2.1.604",
+              "name": "v2.1.604",
               "draft": false,
-              "published_at": "2026-05-26T02:26:42Z",
-              "html_url": "https://github.com/ModerRAS/MiruPlay/releases/tag/nightly-2026.05.26",
+              "published_at": "2026-07-22T13:20:00Z",
+              "html_url": "https://github.com/ModerRAS/MiruPlay/releases/tag/v2.1.604",
+              "version_code": 604,
               "assets": [
                 {
-                  "name": "miruplay-source-2026.05.26.zip",
+                  "name": "miruplay-source.zip",
                   "size": 67230778,
                   "browser_download_url": "https://example.test/source.zip"
                 },
@@ -54,8 +55,8 @@ class AppUpdateRepositoryImplTest {
 
         assertNotNull(update)
         requireNotNull(update)
-        assertEquals("2026.05.26", update.versionName)
-        assertEquals(20260526L, update.versionCode)
+        assertEquals("2.1.604", update.versionName)
+        assertEquals(604L, update.versionCode)
         assertEquals("app-release.apk", update.assetName)
         assertEquals(59827723L, update.assetSizeBytes)
         assertEquals("https://example.test/app-release.apk", update.downloadUrl)
@@ -88,9 +89,10 @@ class AppUpdateRepositoryImplTest {
             GitHubAppUpdateMapper.parseLatestRelease(
                 """
                 {
-                  "tag_name": "nightly-2026.05.26",
-                  "name": "Nightly 2026.05.26",
+                  "tag_name": "v2.1.604",
+                  "name": "v2.1.604",
                   "draft": false,
+                  "version_code": 604,
                   "assets": [
                     {
                       "name": "app-release.apk",
@@ -106,28 +108,72 @@ class AppUpdateRepositoryImplTest {
         assertTrue(
             GitHubAppUpdateMapper.isNewerThanCurrent(
                 latest = latest,
-                currentVersionName = "0.1.0",
-                currentVersionCode = 1L,
+                currentVersionName = "2.1.603",
+                currentVersionCode = 603L,
             )
         )
         assertFalse(
             GitHubAppUpdateMapper.isNewerThanCurrent(
                 latest = latest,
-                currentVersionName = "2026.05.26",
-                currentVersionCode = 20260526L,
+                currentVersionName = "2.1.604",
+                currentVersionCode = 604L,
             )
         )
     }
 
     @Test
-    fun `checkLatestUpdate uses configured proxy for GitHub release request`() = runBlocking {
+    fun `checkLatestUpdate uses configured proxy for release manifest request`() = runBlocking {
         MockWebServer().use { proxy ->
             proxy.enqueue(
                 MockResponse().setBody(
                     """
                     {
-                      "tag_name": "nightly-2026.05.26",
-                      "name": "Nightly 2026.05.26",
+                      "tag_name": "v2.1.604",
+                      "name": "v2.1.604",
+                      "draft": false,
+                      "version_code": 604,
+                      "assets": [
+                        {
+                          "name": "app-release.apk",
+                          "size": 1,
+                          "browser_download_url": "http://github.example/app-release.apk"
+                        }
+                      ]
+                    }
+                    """.trimIndent()
+                )
+            )
+            val repository = appUpdateRepository(
+                updateManifestUrl = "http://github.example/ModerRAS/MiruPlay/releases/latest/download/latest.json",
+                proxy = proxy,
+            )
+
+            val result = repository.checkLatestUpdate()
+
+            assertTrue(result is Result.Success)
+            val request = proxy.takeRequest()
+            assertEquals("github.example", request.headers["Host"])
+            assertEquals("application/json", request.headers["Accept"])
+            assertEquals("no-cache", request.headers["Cache-Control"])
+            assertNull(request.headers["X-GitHub-Api-Version"])
+            assertEquals(1, proxy.requestCount)
+        }
+    }
+
+    @Test
+    fun `checkLatestUpdate falls back to GitHub API when manifest request fails`() = runBlocking {
+        MockWebServer().use { proxy ->
+            proxy.enqueue(
+                MockResponse()
+                    .setResponseCode(403)
+                    .setBody("release manifest blocked by proxy")
+            )
+            proxy.enqueue(
+                MockResponse().setBody(
+                    """
+                    {
+                      "tag_name": "v2.1.604",
+                      "name": "v2.1.604",
                       "draft": false,
                       "assets": [
                         {
@@ -141,6 +187,7 @@ class AppUpdateRepositoryImplTest {
                 )
             )
             val repository = appUpdateRepository(
+                updateManifestUrl = "http://github.example/ModerRAS/MiruPlay/releases/latest/download/latest.json",
                 latestReleaseApiUrl = "http://api.github.example/repos/ModerRAS/MiruPlay/releases/latest",
                 proxy = proxy,
             )
@@ -148,40 +195,27 @@ class AppUpdateRepositoryImplTest {
             val result = repository.checkLatestUpdate()
 
             assertTrue(result is Result.Success)
-            val request = proxy.takeRequest()
-            assertEquals("api.github.example", request.headers["Host"])
+            assertEquals("github.example", proxy.takeRequest().headers["Host"])
+            val fallbackRequest = proxy.takeRequest()
+            assertEquals("api.github.example", fallbackRequest.headers["Host"])
+            assertEquals("application/vnd.github+json", fallbackRequest.headers["Accept"])
+            assertEquals("2022-11-28", fallbackRequest.headers["X-GitHub-Api-Version"])
         }
     }
 
     @Test
-    fun `checkLatestUpdate returns response body when GitHub rejects request`() = runBlocking {
+    fun `checkLatestUpdate returns API error when both update sources fail`() = runBlocking {
         MockWebServer().use { proxy ->
-            proxy.enqueue(
-                MockResponse()
-                    .setResponseCode(403)
-                    .setBody(
-                        """
-                        {
-                          "message": "API rate limit exceeded for 203.0.113.10.",
-                          "documentation_url": "https://docs.github.com/rest/overview/resources-in-the-rest-api#rate-limiting"
-                        }
-                        """.trimIndent()
-                    )
-            )
-            val repository = appUpdateRepository(
-                latestReleaseApiUrl = "http://api.github.example/repos/ModerRAS/MiruPlay/releases/latest",
-                proxy = proxy,
-            )
+            proxy.enqueue(MockResponse().setResponseCode(404).setBody("manifest missing"))
+            proxy.enqueue(MockResponse().setResponseCode(403).setBody("API rate limit exceeded"))
+            val repository = appUpdateRepository(proxy = proxy)
 
             val result = repository.checkLatestUpdate()
 
             assertTrue(result is Result.Error)
-            val error = (result as Result.Error).error
-            assertTrue(error is AppError.NetworkError.HttpError)
-            val httpError = error as AppError.NetworkError.HttpError
-            assertEquals(403, httpError.code)
-            assertTrue(httpError.message.contains("API rate limit exceeded"))
-            assertTrue(httpError.message.contains("documentation_url"))
+            val error = (result as Result.Error).error as AppError.NetworkError.HttpError
+            assertEquals(403, error.code)
+            assertTrue(error.message.contains("API rate limit exceeded"))
         }
     }
 
@@ -244,7 +278,8 @@ class AppUpdateRepositoryImplTest {
     }
 
     private fun appUpdateRepository(
-        latestReleaseApiUrl: String = "http://api.github.example/latest",
+        updateManifestUrl: String = "http://github.example/latest.json",
+        latestReleaseApiUrl: String = "http://api.github.example/repos/ModerRAS/MiruPlay/releases/latest",
         proxy: MockWebServer,
     ): AppUpdateRepositoryImpl =
         AppUpdateRepositoryImpl(
@@ -257,6 +292,7 @@ class AppUpdateRepositoryImplTest {
                     rssProxyPort = proxy.port,
                 )
             ),
+            updateManifestUrl = updateManifestUrl,
             latestReleaseApiUrl = latestReleaseApiUrl,
         )
 

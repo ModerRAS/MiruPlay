@@ -149,7 +149,7 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("下载安装", settingsAppUpdateInstallActionLabel())
         assertEquals("安装授权", settingsAppUpdatePermissionActionLabel())
         assertEquals("尚未检查更新。", settingsAppUpdateIdleStatus())
-        assertEquals("正在检查 GitHub Release。", settingsAppUpdateCheckingStatus())
+        assertEquals("正在读取更新清单。", settingsAppUpdateCheckingStatus())
         assertEquals("发现新版本 2026.05.26。", settingsAppUpdateReadyStatus("2026.05.26"))
         assertEquals("当前已是最新版本 2026.05.26。", settingsAppUpdateLatestStatus("2026.05.26"))
         assertEquals("正在下载 APK 42%", settingsAppUpdateDownloadProgressStatus(42))

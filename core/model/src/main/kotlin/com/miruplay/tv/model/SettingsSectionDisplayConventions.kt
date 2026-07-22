@@ -286,7 +286,7 @@ fun settingsAppUpdateIdleStatus(): String =
     "尚未检查更新。"
 
 fun settingsAppUpdateCheckingStatus(): String =
-    "正在检查 GitHub Release。"
+    "正在读取更新清单。"
 
 fun settingsAppUpdateReadyStatus(versionName: String): String =
     "发现新版本 ${versionName.ifBlank { "未知版本" }}。"

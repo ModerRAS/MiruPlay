@@ -12,6 +12,8 @@ import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.Episode
+import com.miruplay.tv.model.isDefaultCloudDriveWebDavEndpoint
+import com.miruplay.tv.model.remoteUrl
 import com.miruplay.tv.repository.MediaExtraKind
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MediaIndexRepository
@@ -93,6 +95,8 @@ class MlipLibraryIndexImporter @Inject constructor(
                 }
             }
 
+        val warmCloudDriveArtworkParents =
+            source.remoteUrl().orEmpty().isDefaultCloudDriveWebDavEndpoint()
         var artworkCachedCount = 0
         for (series in snapshot.series) {
             val seriesFiles = mediaFiles.filter { it.seriesId == series.id }
@@ -126,12 +130,23 @@ class MlipLibraryIndexImporter @Inject constructor(
                 is Result.Error -> return@withContext Result.failure(cached.error)
             }
             val posterLocalPath = series.posterPath
-                ?.let { poster -> cacheArtwork(mediaSource, poster, posterCacheDirectory, source.id, series.uuid) }
+                ?.let { poster ->
+                    cacheArtwork(
+                        mediaSource = mediaSource,
+                        artworkPath = poster,
+                        posterCacheDirectory = posterCacheDirectory,
+                        sourceId = source.id,
+                        seriesUuid = series.uuid,
+                        warmParentDirectory = warmCloudDriveArtworkParents,
+                    )
+                }
                 ?.also { artworkCachedCount += 1 }
             when (val cached = metadataRepository.cacheMetadata(
                 series.anime.copy(
                     episodeCount = episodes.size,
-                    posterLocalPath = posterLocalPath ?: series.anime.posterLocalPath,
+                    posterLocalPath = posterLocalPath
+                        ?: cachedAnime?.posterLocalPath
+                        ?: series.anime.posterLocalPath,
                     bangumiCollectionType = cachedAnime?.bangumiCollectionType,
                     bangumiEpStatus = cachedAnime?.bangumiEpStatus ?: series.anime.bangumiEpStatus,
                 ),
@@ -555,6 +570,7 @@ class MlipLibraryIndexImporter @Inject constructor(
         posterCacheDirectory: File?,
         sourceId: Long,
         seriesUuid: String,
+        warmParentDirectory: Boolean,
     ): String? {
         val cacheRoot = posterCacheDirectory ?: return null
         val outputDir = File(cacheRoot, "mlip/$sourceId").apply { mkdirs() }
@@ -564,6 +580,11 @@ class MlipLibraryIndexImporter @Inject constructor(
             ?: "jpg"
         val output = File(outputDir, "${stableHash("$seriesUuid:$artworkPath")}.$extension")
         if (output.length() > 0L) return output.absolutePath
+        if (warmParentDirectory) {
+            artworkPath.substringBeforeLast('/', "")
+                .takeIf(String::isNotBlank)
+                ?.let { parent -> runCatching { mediaSource.listFiles(parent) } }
+        }
         val stream = mediaSource.openStream(artworkPath).getOrNull() ?: return null
         return runCatching {
             val temp = File(output.parentFile, "${output.name}.tmp")
