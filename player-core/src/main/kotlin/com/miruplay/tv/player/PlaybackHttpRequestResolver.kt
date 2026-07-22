@@ -1,16 +1,15 @@
 package com.miruplay.tv.player
 
 import com.miruplay.tv.mediasource.MediaSourceFactory
-import com.miruplay.tv.model.DEFAULT_CLOUD_DRIVE_ENDPOINT_URL
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.connectionPassword
 import com.miruplay.tv.model.connectionUsername
+import com.miruplay.tv.model.isDefaultCloudDriveWebDavEndpoint
 import com.miruplay.tv.model.remoteUrl
 import com.miruplay.tv.repository.MediaSourceRepository
-import java.net.URI
 import java.util.Base64
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -118,11 +117,6 @@ class PlaybackHttpRequestResolver @Inject constructor(
         private const val AUTHORIZATION_HEADER = "Authorization"
     }
 }
-
-private fun String.isDefaultCloudDriveWebDavEndpoint(): Boolean =
-    runCatching {
-        URI(MediaPathConventions.canonicalizeRemoteUrl(this)).port == URI(DEFAULT_CLOUD_DRIVE_ENDPOINT_URL).port
-    }.getOrDefault(false)
 
 internal fun webDavParentDirectoryForPlayback(uri: String, remoteUrl: String): String? {
     val decodedUri = MediaPathConventions.decodePath(uri.substringBefore('?').substringBefore('#'))

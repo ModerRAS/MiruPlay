@@ -344,6 +344,7 @@ class MlipLibraryIndexImporterTest {
             anime += Anime(
                 id = "mlip:7:series-uuid",
                 title = "旧标题",
+                posterLocalPath = "/cache/poster.jpg",
                 bangumiCollectionType = 2,
                 bangumiEpStatus = 5,
             )
@@ -380,6 +381,7 @@ class MlipLibraryIndexImporterTest {
             assertEquals("中文标题", entry.metadataTitle)
             val anime = metadataRepository.anime.single()
             assertEquals("中文标题", anime.titleCn)
+            assertEquals("/cache/poster.jpg", anime.posterLocalPath)
             assertEquals(2, anime.bangumiCollectionType)
             assertEquals(5, anime.bangumiEpStatus)
             val episode = metadataRepository.episodes.single()
@@ -526,6 +528,37 @@ class MlipLibraryIndexImporterTest {
             assertEquals("/Series/01.mkv", episode.filePath)
             assertEquals("01.mkv", episode.fileName)
             assertEquals(1_440_000L, episode.duration)
+        } finally {
+            databaseFile.delete()
+            posterCacheDirectory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `CloudDrive mlip import warms poster parent before download`() = runBlocking {
+        val databaseFile = File.createTempFile("mlip-test-", ".db")
+        val posterCacheDirectory = Files.createTempDirectory("mlip-poster-cache-").toFile()
+        val source = MediaSourceInfoConventions.webDav("http://127.0.0.1:19798/dav").copy(id = 7L)
+        val metadataRepository = RecordingMetadataRepository()
+        val mediaSource = FakeMediaSource(
+            info = source,
+            streams = mapOf(
+                "library.db" to { databaseFile.inputStream() },
+                "/Series/poster.jpg" to { ByteArrayInputStream("poster".toByteArray()) },
+            ),
+            requireParentRefreshBeforeStreams = true,
+        )
+
+        try {
+            createMlipDatabase(databaseFile)
+
+            val result = MlipLibraryIndexImporter(RecordingIndexRepository(), metadataRepository)
+                .importLibrary(source, mediaSource, posterCacheDirectory)
+
+            assertTrue(result is Result.Success)
+            assertEquals(1, (result as Result.Success).data.artworkCachedCount)
+            assertEquals(listOf("/Series"), mediaSource.listedPaths)
+            assertNotNull(metadataRepository.anime.single().posterLocalPath)
         } finally {
             databaseFile.delete()
             posterCacheDirectory.deleteRecursively()
@@ -701,6 +734,7 @@ class MlipLibraryIndexImporterTest {
         override val info: MediaSourceInfo,
         private val streams: Map<String, () -> InputStream>,
         private val requireRootRefreshBeforeStreams: Boolean = false,
+        private val requireParentRefreshBeforeStreams: Boolean = false,
     ) : MediaSource {
         override val id: String = "fake"
         override val capabilities: MediaCapabilities = MediaCapabilities()
@@ -717,6 +751,13 @@ class MlipLibraryIndexImporterTest {
         override suspend fun openStream(path: String): Result<InputStream> {
             openedPaths += path
             if (requireRootRefreshBeforeStreams && !rootRefreshed) {
+                return Result.failure(AppError.NetworkError.HttpError(404, "Not Found"))
+            }
+            if (
+                requireParentRefreshBeforeStreams &&
+                path != "library.db" &&
+                path.substringBeforeLast('/', "") !in listedPaths
+            ) {
                 return Result.failure(AppError.NetworkError.HttpError(404, "Not Found"))
             }
             return streams[path]?.let { Result.success(it()) }

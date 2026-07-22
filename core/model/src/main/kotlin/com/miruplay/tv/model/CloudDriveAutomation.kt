@@ -1,6 +1,7 @@
 package com.miruplay.tv.model
 
 import kotlinx.serialization.Serializable
+import java.net.URI
 
 @Serializable
 enum class CloudDriveLibraryMode {
@@ -9,6 +10,12 @@ enum class CloudDriveLibraryMode {
 }
 
 const val DEFAULT_CLOUD_DRIVE_ENDPOINT_URL = "http://localhost:19798"
+
+fun String.isDefaultCloudDriveWebDavEndpoint(): Boolean =
+    runCatching {
+        URI(MediaPathConventions.canonicalizeRemoteUrl(this)).port ==
+            URI(DEFAULT_CLOUD_DRIVE_ENDPOINT_URL).port
+    }.getOrDefault(false)
 
 @Serializable
 data class CloudDriveAutomationConfig(
