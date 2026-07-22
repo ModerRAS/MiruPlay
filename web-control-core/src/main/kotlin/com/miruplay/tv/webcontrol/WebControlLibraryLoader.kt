@@ -1,6 +1,9 @@
 package com.miruplay.tv.webcontrol
 
 import com.miruplay.tv.model.Episode
+import com.miruplay.tv.model.ProgressRecord
+import com.miruplay.tv.model.availableVersions
+import com.miruplay.tv.model.withVersion
 import com.miruplay.tv.repository.LibraryAnimeResolver
 import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaSourceRepository
@@ -41,12 +44,21 @@ class WebControlLibraryLoader(
         val detail = animeResolver.loadAnimeDetail(animeId)
             ?: throw IllegalArgumentException("番剧不存在")
         return detail.anime.toWebControlAnimeDetail(detail.episodes) { episode ->
-            progress.getProgress(episode.id).getOrNull()
+            (listOf(episode.progressId) + episode.availableVersions().map { it.episodeId })
+                .distinct()
+                .mapNotNull { progress.getProgress(it).getOrNull() }
+                .maxByOrNull(ProgressRecord::lastWatched)
         }
     }
 
     suspend fun findEpisodeById(episodeId: String): Episode? {
-        return episodeResolver.findEpisodeById(episodeId)
+        val physical = episodeResolver.findEpisodeById(episodeId) ?: return null
+        val logical = animeResolver.loadAnimeDetail(physical.animeId)
+            ?.episodes
+            ?.firstOrNull { episode -> episode.availableVersions().any { it.episodeId == episodeId } }
+            ?: return physical
+        val version = logical.availableVersions().first { it.episodeId == episodeId }
+        return logical.withVersion(version)
     }
 
     suspend fun loadContinueWatching(): List<ContinueWatchingDto> =

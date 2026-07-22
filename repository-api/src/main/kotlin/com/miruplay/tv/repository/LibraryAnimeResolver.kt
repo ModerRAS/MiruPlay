@@ -4,6 +4,7 @@ import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.distinctSeasonEpisodeCount
+import com.miruplay.tv.model.groupEpisodeVersions
 import com.miruplay.tv.model.mergeAnimeGroupForDisplay
 import com.miruplay.tv.model.mergeSameAnimeForDisplay
 import com.miruplay.tv.model.sameAnimeGroupFor
@@ -72,7 +73,7 @@ class LibraryAnimeResolver(
                 .flatMap { loadEpisodesForAnime(it, null) }
         )
             .distinctBy { it.id }
-            .sortedForPlaybackQueue()
+            .groupEpisodeVersions(logicalAnimeId = animeId)
         val extras = relatedPairs
             .flatMap { (relatedGroup, relatedAnimeItem) ->
                 relatedGroup.entries
@@ -158,6 +159,7 @@ fun LibraryIndexedAnimeGroup.toAnime(): Anime =
 
 private fun LibraryIndexedAnimeGroup.cacheKeys(primaryAnimeId: String = animeId): List<String> =
     buildList {
+        add(group.preferredMetadataCacheKey())
         add(primaryAnimeId)
         add(animeId)
         entries.forEach { entry ->

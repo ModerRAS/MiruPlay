@@ -91,6 +91,62 @@ class LibraryEpisodeResolverTest {
     }
 
     @Test
+    fun `continue watching resolves logical episode progress`() = runBlocking {
+        val web = Episode(
+            id = "web-1",
+            animeId = "show",
+            episodeNumber = 1,
+            duration = 100_000L,
+            filePath = "D:/Anime/Show/WEB/01.mkv",
+            fileName = "01.mkv",
+        )
+        val bd = web.copy(
+            id = "bd-1",
+            filePath = "D:/Anime/Show/BD/01.mkv",
+        )
+        val resolver = resolver(
+            cachedAnime = mapOf("show" to Anime(id = "show", title = "Show")),
+            cachedEpisodes = mapOf("show" to listOf(web, bd)),
+            progressRecords = listOf(
+                ProgressRecord("show#S1E1", positionMs = 40_000L, lastWatched = 10L),
+            ),
+        )
+
+        val item = resolver.loadContinueWatchingEpisodes().single()
+
+        assertEquals("show#S1E1", item.progress.episodeId)
+        assertEquals("show#S1E1", item.episode.progressId)
+        assertEquals(2, item.episode.versions.size)
+        assertEquals(40_000L, item.episode.watchedPosition)
+    }
+
+    @Test
+    fun `continue watching deduplicates legacy and logical progress`() = runBlocking {
+        val episode = Episode(
+            id = "physical-1",
+            animeId = "show",
+            episodeNumber = 1,
+            duration = 100_000L,
+            filePath = "D:/Anime/Show/01.mkv",
+            fileName = "01.mkv",
+        )
+        val resolver = resolver(
+            cachedAnime = mapOf("show" to Anime(id = "show", title = "Show")),
+            cachedEpisodes = mapOf("show" to listOf(episode)),
+            progressRecords = listOf(
+                ProgressRecord("show#S1E1", positionMs = 50_000L, lastWatched = 20L),
+                ProgressRecord("physical-1", positionMs = 40_000L, lastWatched = 10L),
+            ),
+        )
+
+        val item = resolver.loadContinueWatchingEpisodes().single()
+
+        assertEquals("show#S1E1", item.progress.episodeId)
+        assertEquals("show#S1E1", item.episode.progressId)
+        assertEquals(50_000L, item.episode.watchedPosition)
+    }
+
+    @Test
     fun `continue watching resolves indexed records`() = runBlocking {
         val source = MediaSourceInfoConventions.local(rootPath = "D:/Anime", name = "Local").copy(id = 1L)
         val resolver = resolver(

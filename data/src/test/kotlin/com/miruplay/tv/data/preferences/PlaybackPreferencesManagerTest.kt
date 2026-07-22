@@ -2,6 +2,7 @@ package com.miruplay.tv.data.preferences
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.miruplay.tv.model.EpisodeVersionSelectionPolicy
 import com.miruplay.tv.model.FallbackBackendPolicy
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.PeakDetectionStrategy
@@ -43,6 +44,15 @@ class PlaybackPreferencesManagerTest {
         assertTrue(preferences.rules.containsKey(VideoRenderRuleKey.HDR10))
         assertTrue(preferences.rules.containsKey(VideoRenderRuleKey.HDR10_PLUS))
         assertTrue(preferences.rules.containsKey(VideoRenderRuleKey.DOLBY_VISION))
+    }
+
+    @Test
+    fun `manager persists episode version selection policy`() = runBlocking {
+        assertEquals(EpisodeVersionSelectionPolicy.AUTO_NEAREST, manager.getEpisodeVersionSelectionPolicy())
+
+        manager.setEpisodeVersionSelectionPolicy(EpisodeVersionSelectionPolicy.MANUAL)
+
+        assertEquals(EpisodeVersionSelectionPolicy.MANUAL, manager.getEpisodeVersionSelectionPolicy())
     }
 
     @Test

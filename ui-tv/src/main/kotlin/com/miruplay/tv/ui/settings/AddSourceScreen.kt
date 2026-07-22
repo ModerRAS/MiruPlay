@@ -87,6 +87,7 @@ import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.repository.canRunNow
 import com.miruplay.tv.repository.AppMode
 import com.miruplay.tv.repository.toMediaContentMode
+import com.miruplay.tv.model.EpisodeVersionSelectionPolicy
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.PlaybackRenderBackend
 import com.miruplay.tv.model.SubtitleLanguagePreference
@@ -370,6 +371,7 @@ fun AddSourceScreen(
     val posterWallArrangement by viewModel.posterWallArrangement.collectAsStateWithLifecycle()
     val currentAppMode by viewModel.currentAppMode.collectAsStateWithLifecycle()
     val playbackEndAction by viewModel.playbackEndAction.collectAsStateWithLifecycle()
+    val episodeVersionSelectionPolicy by viewModel.episodeVersionSelectionPolicy.collectAsStateWithLifecycle()
     val preferredSubtitleLanguage by viewModel.preferredSubtitleLanguage.collectAsStateWithLifecycle()
     val formatAwareToneMappingPreferences by viewModel.formatAwareToneMappingPreferences.collectAsStateWithLifecycle()
     val savedTmdbToken by viewModel.tmdbToken.collectAsStateWithLifecycle()
@@ -667,6 +669,8 @@ fun AddSourceScreen(
                     onAppModeSelected = viewModel::setCurrentAppMode,
                     playbackEndAction = playbackEndAction,
                     onPlaybackEndActionSelected = viewModel::setPlaybackEndAction,
+                    episodeVersionSelectionPolicy = episodeVersionSelectionPolicy,
+                    onEpisodeVersionSelectionPolicySelected = viewModel::setEpisodeVersionSelectionPolicy,
                     preferredSubtitleLanguage = preferredSubtitleLanguage,
                     onPreferredSubtitleLanguageSelected = viewModel::setPreferredSubtitleLanguage,
                     formatAwareToneMappingPreferences = formatAwareToneMappingPreferences,
@@ -1128,6 +1132,8 @@ private fun SettingsContent(
     onAppModeSelected: (AppMode) -> Unit,
     playbackEndAction: PlaybackEndAction,
     onPlaybackEndActionSelected: (PlaybackEndAction) -> Unit,
+    episodeVersionSelectionPolicy: EpisodeVersionSelectionPolicy,
+    onEpisodeVersionSelectionPolicySelected: (EpisodeVersionSelectionPolicy) -> Unit,
     preferredSubtitleLanguage: SubtitleLanguagePreference,
     onPreferredSubtitleLanguageSelected: (SubtitleLanguagePreference) -> Unit,
     formatAwareToneMappingPreferences: FormatAwareToneMappingPreferences,
@@ -1387,6 +1393,8 @@ private fun SettingsContent(
             PlaybackPanel(
                 endAction = playbackEndAction,
                 onEndActionSelected = onPlaybackEndActionSelected,
+                episodeVersionSelectionPolicy = episodeVersionSelectionPolicy,
+                onEpisodeVersionSelectionPolicySelected = onEpisodeVersionSelectionPolicySelected,
                 preferredSubtitleLanguage = preferredSubtitleLanguage,
                 onPreferredSubtitleLanguageSelected = onPreferredSubtitleLanguageSelected,
                 formatAwareToneMappingPreferences = formatAwareToneMappingPreferences,
@@ -3124,6 +3132,8 @@ private fun ScanPanel(
 private fun PlaybackPanel(
     endAction: PlaybackEndAction,
     onEndActionSelected: (PlaybackEndAction) -> Unit,
+    episodeVersionSelectionPolicy: EpisodeVersionSelectionPolicy,
+    onEpisodeVersionSelectionPolicySelected: (EpisodeVersionSelectionPolicy) -> Unit,
     preferredSubtitleLanguage: SubtitleLanguagePreference,
     onPreferredSubtitleLanguageSelected: (SubtitleLanguagePreference) -> Unit,
     formatAwareToneMappingPreferences: FormatAwareToneMappingPreferences,
@@ -3177,6 +3187,36 @@ private fun PlaybackPanel(
             },
             color = if (endAction == PlaybackEndAction.PLAY_NEXT_EPISODE) ProgressGreen else TextSecondary
         )
+
+        Spacer(Modifier.height(24.dp))
+        Text(text = "多版本下一集策略", style = TvTypography.subtitle, color = TextPrimary)
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = "同一集存在多个文件时，决定自动续播如何选择下一集版本。",
+            style = TvTypography.body,
+            color = TextSecondary,
+        )
+        Spacer(Modifier.height(14.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ScanOptionChip(
+                text = "自动选择相近路径",
+                icon = Icons.Filled.PlayArrow,
+                selected = episodeVersionSelectionPolicy == EpisodeVersionSelectionPolicy.AUTO_NEAREST,
+                enabled = true,
+                onClick = {
+                    onEpisodeVersionSelectionPolicySelected(EpisodeVersionSelectionPolicy.AUTO_NEAREST)
+                },
+                modifier = Modifier.width(220.dp),
+            )
+            ScanOptionChip(
+                text = "每集手动选择版本",
+                icon = Icons.Filled.FolderOpen,
+                selected = episodeVersionSelectionPolicy == EpisodeVersionSelectionPolicy.MANUAL,
+                enabled = true,
+                onClick = { onEpisodeVersionSelectionPolicySelected(EpisodeVersionSelectionPolicy.MANUAL) },
+                modifier = Modifier.width(220.dp),
+            )
+        }
 
         Spacer(Modifier.height(24.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {

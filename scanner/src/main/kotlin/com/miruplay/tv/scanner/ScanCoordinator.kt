@@ -153,10 +153,19 @@ class ScanCoordinator @Inject constructor(
                 ScanResult(
                     animeName = sourceInfo.name,
                     episodesFound = importResult.mediaFileCount,
-                    newEpisodes = importResult.mediaFileCount,
+                    newEpisodes = importResult.newMediaFileCount,
                     updatedEpisodes = 0,
                     scraped = importResult.mediaFileCount,
                     noMatch = importResult.skippedFileCount,
+                    summary = buildString {
+                        append("MLIP：")
+                        append(importResult.seriesCount).append(" 部动漫，")
+                        append(importResult.episodeCount).append(" 集，")
+                        append(importResult.mediaFileCount).append(" 个文件")
+                        importResult.databaseGeneratedAt?.let {
+                            append("；library.db 生成于 ").append(it)
+                        }
+                    },
                 ),
             )
         }

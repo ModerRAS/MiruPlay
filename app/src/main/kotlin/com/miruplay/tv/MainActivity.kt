@@ -1013,6 +1013,7 @@ private fun MiruPlayNavigation(
                         val encodedPath = Uri.encode(source.uri)
                         val encodedSource = Uri.encode(source.mediaSourceId)
                         val encodedEpisode = Uri.encode(source.episodeId ?: "")
+                        val encodedProgress = Uri.encode(source.progressId ?: "")
                         navigateToPlayerRoute(
                             navController = navController,
                             route = NavRoutes.player(
@@ -1020,6 +1021,7 @@ private fun MiruPlayNavigation(
                                 mediaSourceId = encodedSource,
                                 startPosition = source.startPositionMs,
                                 episodeId = encodedEpisode,
+                                progressId = encodedProgress,
                             ),
                         )
                     }
@@ -1208,12 +1210,14 @@ private fun MiruPlayNavigation(
                             val encodedPath = Uri.encode(source.uri)
                             val encodedSource = Uri.encode(source.mediaSourceId)
                             val encodedEpisode = Uri.encode(source.episodeId ?: "")
+                            val encodedProgress = Uri.encode(source.progressId ?: "")
                             navController.navigate(
                                 NavRoutes.player(
                                     uri = encodedPath,
                                     mediaSourceId = encodedSource,
                                     startPosition = source.startPosition,
                                     episodeId = encodedEpisode,
+                                    progressId = encodedProgress,
                                 )
                             )
                         }.onFailure { error ->
@@ -1248,6 +1252,10 @@ private fun MiruPlayNavigation(
                 navArgument("episodeId") {
                     type = NavType.StringType
                     defaultValue = ""
+                },
+                navArgument("progressId") {
+                    type = NavType.StringType
+                    defaultValue = ""
                 }
             )
         ) { backStackEntry ->
@@ -1258,12 +1266,16 @@ private fun MiruPlayNavigation(
             val episodeId = backStackEntry.arguments?.getString("episodeId")
                 ?.let(Uri::decode)
                 ?.takeIf { it.isNotBlank() }
+            val progressId = backStackEntry.arguments?.getString("progressId")
+                ?.let(Uri::decode)
+                ?.takeIf { it.isNotBlank() }
             val source = PlaybackSource(
                 uri = decodedUri,
                 mediaSourceId = mediaSourceId,
                 startPosition = startPosition,
                 subtitleTracks = emptyList(),
-                episodeId = episodeId
+                episodeId = episodeId,
+                progressId = progressId ?: episodeId,
             )
             PlayerScreen(
                 playbackSource = source,

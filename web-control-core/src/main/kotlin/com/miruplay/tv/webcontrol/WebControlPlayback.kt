@@ -32,4 +32,5 @@ fun PlaybackSource.toWebPlaybackSource(): WebPlaybackSource =
         mediaSourceId = mediaSourceId,
         startPositionMs = startPosition,
         episodeId = episodeId,
+        progressId = progressId,
     )

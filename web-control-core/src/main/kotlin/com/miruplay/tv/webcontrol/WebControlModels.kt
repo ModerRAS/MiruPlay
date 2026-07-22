@@ -109,6 +109,7 @@ data class SourceScanResponse(
     val episodesFound: Int,
     val newEpisodes: Int,
     val updatedEpisodes: Int,
+    val summary: String? = null,
     val error: String? = null,
 )
 
@@ -334,9 +335,11 @@ data class ScanSettingsRequest(
 @Serializable
 data class PlaybackSettingsDto(
     val endAction: String,
+    val episodeVersionSelectionPolicy: String = "auto_nearest",
     val preferredSubtitleLanguage: String,
     val formatAwareToneMapping: FormatAwareToneMappingPreferences,
     val endActionOptions: List<String> = listOf("return_to_detail", "play_next_episode"),
+    val episodeVersionSelectionPolicyOptions: List<String> = listOf("auto_nearest", "manual"),
     val preferredSubtitleLanguageOptions: List<String> =
         listOf("auto", "zh_hans", "zh_hant", "zh", "en", "ja"),
 )
@@ -344,6 +347,7 @@ data class PlaybackSettingsDto(
 @Serializable
 data class PlaybackSettingsRequest(
     val endAction: String? = null,
+    val episodeVersionSelectionPolicy: String? = null,
     val preferredSubtitleLanguage: String? = null,
     val formatAwareToneMapping: FormatAwareToneMappingPreferences? = null,
 )
@@ -654,6 +658,7 @@ data class WebPlaybackSource(
     val mediaSourceId: String,
     val startPositionMs: Long = 0L,
     val episodeId: String? = null,
+    val progressId: String? = episodeId,
 )
 
 fun MediaSourceInfo.safeForApi(): MediaSourceInfo = copy(

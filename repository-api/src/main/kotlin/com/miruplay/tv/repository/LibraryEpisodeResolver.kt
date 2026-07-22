@@ -5,7 +5,9 @@ import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.ProgressRecord
+import com.miruplay.tv.model.availableVersions
 import com.miruplay.tv.model.isCompleted
+import com.miruplay.tv.model.withVersion
 
 data class LibraryContinueWatchingEpisode(
     val progress: ProgressRecord,
@@ -20,8 +22,16 @@ class LibraryEpisodeResolver(
     private val progress: PlaybackProgressRepository,
     private val mergeSameAnimeEnabled: suspend () -> Boolean = { false },
 ) {
+    private val animeResolver = LibraryAnimeResolver(
+        mediaSources = mediaSources,
+        metadata = metadata,
+        index = index,
+        mergeSameAnimeEnabled = mergeSameAnimeEnabled,
+    )
+
     suspend fun findEpisodeById(episodeId: String): Episode? {
         metadata.getCachedEpisode(episodeId).getOrNull()?.let { return it }
+        findLogicalEpisodeById(episodeId)?.let { return it }
         findIndexedEpisodeById(episodeId)?.let { return it }
         findIndexedEpisodeByPath(episodeId)?.let { return it }
 
@@ -51,14 +61,16 @@ class LibraryEpisodeResolver(
         loadContinueWatchingEpisodesResult(limit).getOrNull().orEmpty()
 
     suspend fun loadContinueWatchingEpisodesResult(limit: Int = 20): Result<List<LibraryContinueWatchingEpisode>> =
-        progress.getContinueWatching(limit).map { records ->
-            records.mapNotNull { record ->
-                record.toContinueWatchingEpisode()
-            }
+        progress.getContinueWatching(Int.MAX_VALUE).map { records ->
+            records.mapNotNull { record -> record.toContinueWatchingEpisode() }
+                .groupBy { it.episode.progressId }
+                .mapNotNull { (_, matches) -> matches.maxByOrNull { it.progress.lastWatched } }
+                .sortedByDescending { it.progress.lastWatched }
+                .take(limit)
         }
 
     private suspend fun ProgressRecord.toContinueWatchingEpisode(): LibraryContinueWatchingEpisode? {
-        val episode = findEpisodeById(episodeId) ?: return null
+        val episode = findEpisodeById(episodeId)?.toLogicalVersion() ?: return null
         if (episode.isCompleted(this)) return null
         return LibraryContinueWatchingEpisode(
             progress = this,
@@ -69,6 +81,28 @@ class LibraryEpisodeResolver(
             ),
             anime = findAnimeById(episode.animeId),
         )
+    }
+
+    private suspend fun Episode.toLogicalVersion(): Episode {
+        if (versions.isNotEmpty()) return this
+        val logical = animeResolver.loadAnimeDetail(animeId)
+            ?.episodes
+            ?.firstOrNull { episode -> episode.availableVersions().any { it.episodeId == id } }
+            ?: return this
+        return logical.availableVersions()
+            .firstOrNull { it.episodeId == id }
+            ?.let(logical::withVersion)
+            ?: logical
+    }
+
+    private suspend fun findLogicalEpisodeById(episodeId: String): Episode? {
+        val match = LOGICAL_EPISODE_PROGRESS_ID.matchEntire(episodeId) ?: return null
+        val animeId = match.groupValues[1]
+        val seasonNumber = match.groupValues[2].toIntOrNull() ?: return null
+        val episodeNumber = match.groupValues[3].toIntOrNull() ?: return null
+        return animeResolver.loadAnimeDetail(animeId)
+            ?.episodes
+            ?.firstOrNull { it.seasonNumber == seasonNumber && it.episodeNumber == episodeNumber }
     }
 
     private suspend fun findIndexedEpisodeById(episodeId: String): Episode? {
@@ -130,3 +164,5 @@ class LibraryEpisodeResolver(
         return null
     }
 }
+
+private val LOGICAL_EPISODE_PROGRESS_ID = Regex("^(.+)#S(\\d+)E(\\d+)$")

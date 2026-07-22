@@ -134,6 +134,7 @@ import com.miruplay.tv.model.toneMappingPresetOptions
 import com.miruplay.tv.design.MiruPlayPlaybackInputAction
 import com.miruplay.tv.design.shouldRefreshTvPlaybackControls
 import com.miruplay.tv.design.tvPlaybackOverlayAction
+import com.miruplay.tv.ui.components.EpisodeVersionDialog
 import com.miruplay.tv.ui.components.rememberInitialFocusHandle
 import com.miruplay.tv.ui.tv.R
 import com.miruplay.tv.ui.components.toMiruPlayInputIntent
@@ -190,6 +191,7 @@ private fun PlayerScreenContent(
 ) {
     val playbackState by viewModel.playbackState.collectAsStateWithLifecycle()
     val activePlaybackSource by viewModel.activePlaybackSource.collectAsStateWithLifecycle()
+    val pendingNextEpisode by viewModel.pendingNextEpisode.collectAsStateWithLifecycle()
     val currentPosition by viewModel.currentPosition.collectAsStateWithLifecycle()
     val duration by viewModel.duration.collectAsStateWithLifecycle()
     val controlsVisible by viewModel.controlsVisible.collectAsStateWithLifecycle()
@@ -611,6 +613,14 @@ private fun PlayerScreenContent(
                 },
                 openMenu = openMenu,
                 onOpenMenuChange = { openMenu = it }
+            )
+        }
+
+        pendingNextEpisode?.let { episode ->
+            EpisodeVersionDialog(
+                episode = episode,
+                onDismiss = viewModel::cancelNextVersionSelection,
+                onPlay = viewModel::playNextVersion,
             )
         }
 

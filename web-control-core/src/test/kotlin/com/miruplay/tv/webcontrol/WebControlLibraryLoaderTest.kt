@@ -175,6 +175,30 @@ class WebControlLibraryLoaderTest {
     }
 
     @Test
+    fun `find indexed version retains logical progress and sibling versions`() = runBlocking {
+        val source = MediaSourceInfoConventions.local(rootPath = "D:/Anime", name = "Local").copy(id = 1L)
+        val webPath = "D:/Anime/Show/WEB/Episode 01.mkv"
+        val loader = loader(
+            sources = listOf(source),
+            entries = listOf(
+                MediaIndexEntry(sourceId = 1L, path = webPath, animeName = "Show", episodeNumber = 1),
+                MediaIndexEntry(
+                    sourceId = 1L,
+                    path = "D:/Anime/Show/BD/Episode 01.mkv",
+                    animeName = "Show",
+                    episodeNumber = 1,
+                ),
+            ),
+        )
+
+        val resolved = loader.findEpisodeById("1:$webPath")
+
+        assertEquals("1:$webPath", resolved?.id)
+        assertEquals("Show#S1E1", resolved?.progressId)
+        assertEquals(2, resolved?.versions?.size)
+    }
+
+    @Test
     fun `find episode falls back to cached metadata when indexed lookup misses`() = runBlocking {
         val cached = Episode(
             id = "cached-episode",
@@ -188,7 +212,11 @@ class WebControlLibraryLoaderTest {
             cachedEpisodes = mapOf("cached" to listOf(cached)),
         )
 
-        assertEquals(cached, loader.findEpisodeById("cached-episode"))
+        val resolved = loader.findEpisodeById("cached-episode")
+
+        assertEquals(cached.id, resolved?.id)
+        assertEquals("cached#S1E1", resolved?.progressId)
+        assertEquals(listOf(cached.id), resolved?.versions?.map { it.episodeId })
         assertNull(loader.findEpisodeById("missing"))
     }
 

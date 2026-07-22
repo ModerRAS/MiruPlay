@@ -26,6 +26,37 @@ class PlayableUriResolverTest {
     }
 
     @Test
+    fun `resolvePlayableUri encodes raw unicode bracketed http paths`() = runBlocking {
+        val repository = FakeMediaSourceRepository(emptyList())
+        val path = "http://127.0.0.1:19798/dav/115open/影音/动漫/無職轉生～到了異世界就拿出真本事～/Season 3/[ANi] 無職轉生～到了異世界就拿出真本事～第三季 - 01 [1080P][Baha][WEB-DL][AAC AVC][CHT].mp4"
+
+        val uri = resolvePlayableUri(
+            path = path,
+            episodeId = "1:episode",
+            mediaRepository = repository,
+        )
+
+        assertEquals(
+            "http://127.0.0.1:19798/dav/115open/%E5%BD%B1%E9%9F%B3/%E5%8A%A8%E6%BC%AB/%E7%84%A1%E8%81%B7%E8%BD%89%E7%94%9F%EF%BD%9E%E5%88%B0%E4%BA%86%E7%95%B0%E4%B8%96%E7%95%8C%E5%B0%B1%E6%8B%BF%E5%87%BA%E7%9C%9F%E6%9C%AC%E4%BA%8B%EF%BD%9E/Season%203/%5BANi%5D%20%E7%84%A1%E8%81%B7%E8%BD%89%E7%94%9F%EF%BD%9E%E5%88%B0%E4%BA%86%E7%95%B0%E4%B8%96%E7%95%8C%E5%B0%B1%E6%8B%BF%E5%87%BA%E7%9C%9F%E6%9C%AC%E4%BA%8B%EF%BD%9E%E7%AC%AC%E4%B8%89%E5%AD%A3%20-%2001%20%5B1080P%5D%5BBaha%5D%5BWEB-DL%5D%5BAAC%20AVC%5D%5BCHT%5D.mp4",
+            uri,
+        )
+    }
+
+    @Test
+    fun `resolvePlayableUri preserves existing escapes in partially encoded paths`() = runBlocking {
+        val uri = resolvePlayableUri(
+            path = "http://127.0.0.1:19798/dav/%E5%BD%B1%E9%9F%B3/动漫/Season%203/[ANi] 01.mp4",
+            episodeId = "1:episode",
+            mediaRepository = FakeMediaSourceRepository(emptyList()),
+        )
+
+        assertEquals(
+            "http://127.0.0.1:19798/dav/%E5%BD%B1%E9%9F%B3/%E5%8A%A8%E6%BC%AB/Season%203/%5BANi%5D%2001.mp4",
+            uri,
+        )
+    }
+
+    @Test
     fun `resolvePlayableUri joins WebDAV source URL using encoded path segments`() = runBlocking {
         val repository = FakeMediaSourceRepository(
             listOf(MediaSourceInfoConventions.webDav(url = "https://dav.example/anime/", name = "DAV").copy(id = 42)),

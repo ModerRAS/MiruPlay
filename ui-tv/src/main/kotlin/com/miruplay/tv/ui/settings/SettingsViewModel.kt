@@ -14,6 +14,7 @@ import com.miruplay.tv.core.common.WebControlConfig
 import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.data.preferences.PlaybackPreferencesManager
+import com.miruplay.tv.model.EpisodeVersionSelectionPolicy
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.PlaybackRenderBackend
@@ -165,6 +166,9 @@ class SettingsViewModel @Inject constructor(
 
     private val _playbackEndAction = MutableStateFlow(playbackPreferences.endAction)
     val playbackEndAction: StateFlow<PlaybackEndAction> = _playbackEndAction.asStateFlow()
+    private val _episodeVersionSelectionPolicy = MutableStateFlow(playbackPreferences.episodeVersionSelectionPolicy)
+    val episodeVersionSelectionPolicy: StateFlow<EpisodeVersionSelectionPolicy> =
+        _episodeVersionSelectionPolicy.asStateFlow()
     private val _preferredSubtitleLanguage = MutableStateFlow(playbackPreferences.preferredSubtitleLanguage)
     val preferredSubtitleLanguage: StateFlow<SubtitleLanguagePreference> = _preferredSubtitleLanguage.asStateFlow()
     private val _formatAwareToneMappingPreferences = MutableStateFlow(
@@ -860,6 +864,11 @@ class SettingsViewModel @Inject constructor(
     fun setPlaybackEndAction(action: PlaybackEndAction) {
         playbackPreferences.endAction = action
         _playbackEndAction.value = action
+    }
+
+    fun setEpisodeVersionSelectionPolicy(policy: EpisodeVersionSelectionPolicy) {
+        playbackPreferences.episodeVersionSelectionPolicy = policy
+        _episodeVersionSelectionPolicy.value = policy
     }
 
     fun setPreferredSubtitleLanguage(preference: SubtitleLanguagePreference) {

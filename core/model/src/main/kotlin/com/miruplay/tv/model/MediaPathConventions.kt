@@ -104,15 +104,19 @@ object MediaPathConventions {
         }.getOrElse {
             REMOTE_URL_REGEX.matchEntire(trimmed)
                 ?.let { match ->
-                    runCatching {
-                        URI(
-                            match.groupValues[1],
-                            match.groupValues[2],
-                            match.groupValues[3].ifBlank { null },
-                            match.groupValues[4].removePrefix("?").ifBlank { null },
-                            match.groupValues[5].removePrefix("#").ifBlank { null },
-                        ).toASCIIString()
-                    }.getOrDefault(trimmed)
+                    val encodedPath = match.groupValues[3]
+                        .split('/')
+                        .joinToString("/") { segment ->
+                            val decoded = runCatching {
+                                URLDecoder.decode(
+                                    segment.replace("+", "%2B"),
+                                    Charsets.UTF_8.name(),
+                                )
+                            }.getOrDefault(segment)
+                            encodePathSegment(decoded)
+                        }
+                    "${match.groupValues[1]}://${match.groupValues[2]}$encodedPath" +
+                        match.groupValues[4] + match.groupValues[5]
                 }
                 ?: trimmed
         }

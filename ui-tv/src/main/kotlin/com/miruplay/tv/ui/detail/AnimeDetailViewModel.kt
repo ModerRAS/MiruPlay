@@ -360,8 +360,15 @@ class AnimeDetailViewModel @Inject constructor(
         _selectedSeason.value = selectedSeason
 
         val withProgress = epList.map { episode ->
-            val progress = progressRepository.getProgress(episode.id).getOrNull()
-            Pair(episode, progress)
+            val progress = episodeProgress(episode)
+            Pair(
+                episode.copy(
+                    watchedPosition = progress?.positionMs ?: 0L,
+                    lastWatchedTimestamp = progress?.lastWatched ?: 0L,
+                    playCount = progress?.playCount ?: 0,
+                ),
+                progress,
+            )
         }
         allEpisodesWithProgress = withProgress
         _episodesWithProgress.value = withProgress.episodesForSeason(selectedSeason)
@@ -369,6 +376,12 @@ class AnimeDetailViewModel @Inject constructor(
             extra to progressRepository.getProgress(extra.id).getOrNull()
         }
     }
+
+    private suspend fun episodeProgress(episode: Episode): ProgressRecord? =
+        (listOf(episode.progressId) + episode.versions.map { it.episodeId })
+            .distinct()
+            .mapNotNull { progressRepository.getProgress(it).getOrNull() }
+            .maxByOrNull(ProgressRecord::lastWatched)
 
     fun syncBangumi() {
         val current = _anime.value ?: return

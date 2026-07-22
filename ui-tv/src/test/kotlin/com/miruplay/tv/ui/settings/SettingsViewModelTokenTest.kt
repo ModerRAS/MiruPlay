@@ -7,6 +7,7 @@ import com.miruplay.tv.data.preferences.PlaybackPreferencesManager
 import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.model.CloudDriveAutomationConfig
+import com.miruplay.tv.model.EpisodeVersionSelectionPolicy
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.SubtitleLanguagePreference
@@ -89,6 +90,7 @@ class SettingsViewModelTokenTest {
         every { scanPreferences.posterWallArrangement } returns PosterWallArrangement.TITLE
 
         every { playbackPreferences.endAction } returns PlaybackEndAction.RETURN_TO_DETAIL
+        every { playbackPreferences.episodeVersionSelectionPolicy } returns EpisodeVersionSelectionPolicy.AUTO_NEAREST
         every { playbackPreferences.preferredSubtitleLanguage } returns SubtitleLanguagePreference.AUTO
         every { playbackPreferences.formatAwareToneMappingPreferences } returns FormatAwareToneMappingPreferences()
 
@@ -158,6 +160,7 @@ class SettingsViewModelTokenTest {
 
         coVerify(exactly = 1) { appModePreferences.setCurrentAppMode(AppMode.DRAMA) }
         assertEquals(AppMode.DRAMA, viewModel.currentAppMode.value)
+        assertEquals(EpisodeVersionSelectionPolicy.AUTO_NEAREST, viewModel.episodeVersionSelectionPolicy.value)
     }
 
     private fun createViewModel(): SettingsViewModel =
