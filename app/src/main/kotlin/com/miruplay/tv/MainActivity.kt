@@ -1259,23 +1259,12 @@ private fun MiruPlayNavigation(
                 }
             )
         ) { backStackEntry ->
-            val uri = backStackEntry.arguments?.getString("uri") ?: return@composable
-            val decodedUri = Uri.decode(uri)
-            val mediaSourceId = backStackEntry.arguments?.getString("mediaSourceId") ?: "media"
-            val startPosition = backStackEntry.arguments?.getLong("startPosition") ?: 0L
-            val episodeId = backStackEntry.arguments?.getString("episodeId")
-                ?.let(Uri::decode)
-                ?.takeIf { it.isNotBlank() }
-            val progressId = backStackEntry.arguments?.getString("progressId")
-                ?.let(Uri::decode)
-                ?.takeIf { it.isNotBlank() }
-            val source = PlaybackSource(
-                uri = decodedUri,
-                mediaSourceId = mediaSourceId,
-                startPosition = startPosition,
-                subtitleTracks = emptyList(),
-                episodeId = episodeId,
-                progressId = progressId ?: episodeId,
+            val source = playbackSourceFromPlayerRouteArguments(
+                uri = backStackEntry.arguments?.getString("uri") ?: return@composable,
+                mediaSourceId = backStackEntry.arguments?.getString("mediaSourceId") ?: "media",
+                startPosition = backStackEntry.arguments?.getLong("startPosition") ?: 0L,
+                episodeId = backStackEntry.arguments?.getString("episodeId"),
+                progressId = backStackEntry.arguments?.getString("progressId"),
             )
             PlayerScreen(
                 playbackSource = source,
@@ -1283,6 +1272,24 @@ private fun MiruPlayNavigation(
             )
         }
     }
+}
+
+internal fun playbackSourceFromPlayerRouteArguments(
+    uri: String,
+    mediaSourceId: String,
+    startPosition: Long,
+    episodeId: String?,
+    progressId: String?,
+): PlaybackSource {
+    val resolvedEpisodeId = episodeId?.takeIf(String::isNotBlank)
+    return PlaybackSource(
+        uri = uri,
+        mediaSourceId = mediaSourceId,
+        startPosition = startPosition,
+        subtitleTracks = emptyList(),
+        episodeId = resolvedEpisodeId,
+        progressId = progressId?.takeIf(String::isNotBlank) ?: resolvedEpisodeId,
+    )
 }
 
 internal fun navigateToPlayerRoute(

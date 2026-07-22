@@ -1,10 +1,23 @@
 package com.miruplay.tv.player
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PlaybackDataSourceFactoryTest {
+    @Test
+    fun `canonicalPlaybackUri encodes CloudDrive unicode and brackets`() {
+        val uri = canonicalPlaybackUri(
+            "http://127.0.0.1:19798/dav/115open/影音/动漫/從 0 位居民開始的邊境領主大人/Season 1/[ANi] 從 0 位居民開始的邊境領主大人 - 03 [1080P][Baha][WEB-DL][AAC AVC][CHT].mp4",
+        )
+
+        assertTrue(uri.contains("/Season%201/%5BANi%5D%20"))
+        assertTrue(uri.endsWith("%5BCHT%5D.mp4"))
+        assertFalse(uri.contains("從"))
+        assertFalse(uri.contains(' '))
+    }
+
     @Test
     fun `headersFor applies auth when uri stays on same WebDAV origin`() {
         val config = PlaybackHttpRequestConfig(
@@ -44,6 +57,23 @@ class PlaybackDataSourceFactoryTest {
 
         assertEquals(
             "http://anonymous:@10.137.32.158:19798/dav/115open/%E5%BD%B1%E9%9F%B3/%E7%94%B5%E8%A7%86%E5%89%A7/%E8%89%AF%E9%99%88%E7%BE%8E%E9%94%A6/1.mp4",
+            uri,
+        )
+    }
+
+    @Test
+    fun `libVlcUriFor canonicalizes raw CloudDrive path before embedding credentials`() {
+        val config = PlaybackHttpRequestConfig(
+            baseUrl = "http://127.0.0.1:19798/dav",
+            headers = mapOf("Authorization" to "Basic YW5vbnltb3VzOg=="),
+        )
+
+        val uri = config.libVlcUriFor(
+            "http://127.0.0.1:19798/dav/Show Name/[ANi] 03.mp4",
+        )
+
+        assertEquals(
+            "http://anonymous:@127.0.0.1:19798/dav/Show%20Name/%5BANi%5D%2003.mp4",
             uri,
         )
     }

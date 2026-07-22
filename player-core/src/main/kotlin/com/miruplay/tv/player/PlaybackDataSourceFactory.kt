@@ -3,6 +3,7 @@
 package com.miruplay.tv.player
 
 import android.content.Context
+import android.net.Uri
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DefaultDataSource
@@ -42,6 +43,13 @@ class PlaybackDataSourceFactory @Inject constructor(
         }
 }
 
+internal fun canonicalPlaybackUri(uri: String): String =
+    if (uri.startsWith("http://", ignoreCase = true) || uri.startsWith("https://", ignoreCase = true)) {
+        MediaPathConventions.canonicalizeRemoteUrl(uri)
+    } else {
+        uri
+    }
+
 data class PlaybackHttpRequestConfig(
     private val baseUrl: String,
     private val headers: Map<String, String>,
@@ -50,10 +58,17 @@ data class PlaybackHttpRequestConfig(
     private val decodedBaseUrl = MediaPathConventions.decodePath(normalizedBaseUrl)
     private val baseOrigin = normalizedBaseUrl.originOrNull()
 
-    fun applyTo(dataSpec: DataSpec): DataSpec =
-        headersFor(dataSpec.uri.toString()).let { requestHeaders ->
-            if (requestHeaders.isEmpty()) dataSpec else dataSpec.withAdditionalHeaders(requestHeaders)
+    fun applyTo(dataSpec: DataSpec): DataSpec {
+        val canonicalUri = canonicalPlaybackUri(dataSpec.uri.toString())
+        val normalizedDataSpec = if (canonicalUri == dataSpec.uri.toString()) {
+            dataSpec
+        } else {
+            dataSpec.withUri(Uri.parse(canonicalUri))
         }
+        return headersFor(canonicalUri).let { requestHeaders ->
+            if (requestHeaders.isEmpty()) normalizedDataSpec else normalizedDataSpec.withAdditionalHeaders(requestHeaders)
+        }
+    }
 
     fun libVlcUriFor(uri: String): String {
         val normalizedUri = normalizeVlcUri(uri)
@@ -142,7 +157,11 @@ data class PlaybackHttpRequestConfig(
         if (trimmed.isBlank()) return uri
         if (
             trimmed.startsWith("http://", ignoreCase = true) ||
-            trimmed.startsWith("https://", ignoreCase = true) ||
+            trimmed.startsWith("https://", ignoreCase = true)
+        ) {
+            return canonicalPlaybackUri(trimmed)
+        }
+        if (
             trimmed.startsWith("content://", ignoreCase = true) ||
             trimmed.startsWith("file://", ignoreCase = true)
         ) {
