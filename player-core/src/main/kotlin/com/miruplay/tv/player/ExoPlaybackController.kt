@@ -123,6 +123,7 @@ class ExoPlaybackController @Inject constructor(
     private var embeddedMpvPositionMs: Long = 0L
     private var embeddedMpvDurationMs: Long = 0L
     private var embeddedMpvSource: PlaybackSource? = null
+    private var embeddedMpvPlaybackUri: String? = null
     private var embeddedMpvHostView: ViewGroup? = null
     private var embeddedMpvView: MiruMpvSurfaceView? = null
     private var embeddedMpvPendingLoad: Boolean = false
@@ -207,7 +208,7 @@ class ExoPlaybackController @Inject constructor(
                 ensureMediaSessionService()
                 applyVideoEffectsForCurrentConfig()
                 if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED) {
-                    playWithEmbeddedMpv(source)
+                    playWithEmbeddedMpv(source, httpConfig)
                     return@withContext
                 }
                 val player = activeExoPlayer()
@@ -373,6 +374,7 @@ class ExoPlaybackController @Inject constructor(
             embeddedMpvPositionMs = 0L
             embeddedMpvDurationMs = 0L
             embeddedMpvSource = null
+            embeddedMpvPlaybackUri = null
             embeddedMpvPendingLoad = false
             embeddedMpvPlaybackSpeed = 1.0f
             playbackClockSamples.set(emptyList())
@@ -497,7 +499,7 @@ class ExoPlaybackController @Inject constructor(
                         ),
                     )
                     mpvView.loadMedia(
-                        path = source.uri,
+                        path = embeddedMpvPlaybackUri ?: source.uri,
                         startPositionMs = embeddedMpvPositionMs,
                         externalSubtitlePaths = source.subtitleTracks.map { it.path },
                     )
@@ -1207,9 +1209,13 @@ class ExoPlaybackController @Inject constructor(
         }
     }
 
-    private fun playWithEmbeddedMpv(source: PlaybackSource) {
+    private fun playWithEmbeddedMpv(
+        source: PlaybackSource,
+        httpConfig: PlaybackHttpRequestConfig,
+    ) {
         currentSource = source
         embeddedMpvSource = source
+        embeddedMpvPlaybackUri = httpConfig.libVlcUriFor(source.uri)
         embeddedMpvPositionMs = source.startPosition.coerceAtLeast(0L)
         embeddedMpvDurationMs = 0L
         embeddedMpvPlaying = false
@@ -1241,7 +1247,7 @@ class ExoPlaybackController @Inject constructor(
             ),
         )
         mpvView.loadMedia(
-            path = source.uri,
+            path = embeddedMpvPlaybackUri ?: source.uri,
             startPositionMs = embeddedMpvPositionMs,
             externalSubtitlePaths = source.subtitleTracks.map { it.path },
         )

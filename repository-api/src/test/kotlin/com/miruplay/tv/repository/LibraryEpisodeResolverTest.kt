@@ -147,6 +147,92 @@ class LibraryEpisodeResolverTest {
     }
 
     @Test
+    fun `continue watching keeps completed logical episode hidden when older progress is partial`() = runBlocking {
+        val episode = Episode(
+            id = "physical-1",
+            animeId = "show",
+            episodeNumber = 1,
+            duration = 100_000L,
+            filePath = "D:/Anime/Show/01.mkv",
+            fileName = "01.mkv",
+        )
+        val resolver = resolver(
+            cachedAnime = mapOf("show" to Anime(id = "show", title = "Show")),
+            cachedEpisodes = mapOf("show" to listOf(episode)),
+            progressRecords = listOf(
+                ProgressRecord("physical-1", positionMs = 95_000L, lastWatched = 20L),
+                ProgressRecord("show#S1E1", positionMs = 40_000L, lastWatched = 10L),
+            ),
+        )
+
+        assertTrue(resolver.loadContinueWatchingEpisodes().isEmpty())
+    }
+
+    @Test
+    fun `continue watching expands candidates when duplicate progress consumes limit`() = runBlocking {
+        val episodes = (1..2).map { number ->
+            Episode(
+                id = "physical-$number",
+                animeId = "show",
+                episodeNumber = number,
+                duration = 100_000L,
+                filePath = "D:/Anime/Show/$number.mkv",
+                fileName = "$number.mkv",
+            )
+        }
+        val progressLimits = mutableListOf<Int>()
+        val resolver = resolver(
+            cachedAnime = mapOf("show" to Anime(id = "show", title = "Show")),
+            cachedEpisodes = mapOf("show" to episodes),
+            progressRecords = listOf(
+                ProgressRecord("physical-1", positionMs = 30_000L, lastWatched = 30L),
+                ProgressRecord("show#S1E1", positionMs = 20_000L, lastWatched = 20L),
+                ProgressRecord("physical-2", positionMs = 10_000L, lastWatched = 10L),
+            ),
+            progressLimits = progressLimits,
+        )
+
+        val items = resolver.loadContinueWatchingEpisodes(limit = 2)
+
+        assertEquals(listOf("show#S1E1", "show#S1E2"), items.map { it.episode.progressId })
+        assertEquals(listOf(2, 4), progressLimits)
+    }
+
+    @Test
+    fun `continue watching bounds progress and caches logical episode lookups`() = runBlocking {
+        val episodes = (1..3).map { number ->
+            Episode(
+                id = "physical-$number",
+                animeId = "show",
+                episodeNumber = number,
+                duration = 100_000L,
+                filePath = "D:/Anime/Show/$number.mkv",
+                fileName = "$number.mkv",
+            )
+        }
+        val metadataRequests = mutableListOf<String>()
+        val episodeListRequests = mutableListOf<String>()
+        val progressLimits = mutableListOf<Int>()
+        val resolver = resolver(
+            cachedAnime = mapOf("show" to Anime(id = "show", title = "Show")),
+            cachedEpisodes = mapOf("show" to episodes),
+            progressRecords = episodes.mapIndexed { index, episode ->
+                ProgressRecord(episode.id, positionMs = 10_000L, lastWatched = 100L - index)
+            },
+            metadataRequests = metadataRequests,
+            episodeListRequests = episodeListRequests,
+            progressLimits = progressLimits,
+        )
+
+        val items = resolver.loadContinueWatchingEpisodes(limit = 2)
+
+        assertEquals(2, items.size)
+        assertEquals(listOf(2), progressLimits)
+        assertEquals(listOf("show"), episodeListRequests)
+        assertEquals(listOf("show"), metadataRequests)
+    }
+
+    @Test
     fun `continue watching resolves indexed records`() = runBlocking {
         val source = MediaSourceInfoConventions.local(rootPath = "D:/Anime", name = "Local").copy(id = 1L)
         val resolver = resolver(
@@ -218,12 +304,20 @@ class LibraryEpisodeResolverTest {
         progressRecords: List<ProgressRecord> = emptyList(),
         progressError: AppError? = null,
         mergeSameAnimeEnabled: Boolean = false,
+        metadataRequests: MutableList<String>? = null,
+        episodeListRequests: MutableList<String>? = null,
+        progressLimits: MutableList<Int>? = null,
     ): LibraryEpisodeResolver =
         LibraryEpisodeResolver(
             mediaSources = FakeMediaSourceRepository(sources),
-            metadata = FakeMetadataRepository(cachedAnime, cachedEpisodes),
+            metadata = FakeMetadataRepository(
+                cachedAnime,
+                cachedEpisodes,
+                metadataRequests,
+                episodeListRequests,
+            ),
             index = FakeMediaIndexRepository(entries),
-            progress = FakeProgressRepository(progressRecords, progressError),
+            progress = FakeProgressRepository(progressRecords, progressError, progressLimits),
             mergeSameAnimeEnabled = { mergeSameAnimeEnabled },
         )
 
@@ -287,12 +381,16 @@ class LibraryEpisodeResolverTest {
     private class FakeMetadataRepository(
         private val cachedAnime: Map<String, Anime>,
         private val cachedEpisodes: Map<String, List<Episode>>,
+        private val metadataRequests: MutableList<String>? = null,
+        private val episodeListRequests: MutableList<String>? = null,
     ) : MetadataRepository {
         override suspend fun cacheMetadata(anime: Anime): Result<Unit> =
             Result.success(Unit)
 
-        override suspend fun getCachedMetadata(animeId: String): Result<Anime?> =
-            Result.success(cachedAnime[animeId])
+        override suspend fun getCachedMetadata(animeId: String): Result<Anime?> {
+            metadataRequests?.add(animeId)
+            return Result.success(cachedAnime[animeId])
+        }
 
         override suspend fun getCachedMetadata(animeIds: Collection<String>): Result<List<Anime>> =
             Result.success(animeIds.mapNotNull(cachedAnime::get))
@@ -300,8 +398,10 @@ class LibraryEpisodeResolverTest {
         override suspend fun getCachedEpisode(episodeId: String): Result<Episode?> =
             Result.success(cachedEpisodes.values.flatten().firstOrNull { it.id == episodeId })
 
-        override suspend fun getCachedEpisodes(animeId: String): Result<List<Episode>> =
-            Result.success(cachedEpisodes[animeId].orEmpty())
+        override suspend fun getCachedEpisodes(animeId: String): Result<List<Episode>> {
+            episodeListRequests?.add(animeId)
+            return Result.success(cachedEpisodes[animeId].orEmpty())
+        }
 
         override suspend fun cacheEpisodes(animeId: String, episodes: List<Episode>): Result<Unit> =
             Result.success(Unit)
@@ -313,6 +413,7 @@ class LibraryEpisodeResolverTest {
     private class FakeProgressRepository(
         private val records: List<ProgressRecord>,
         private val error: AppError?,
+        private val requestedLimits: MutableList<Int>? = null,
     ) : PlaybackProgressRepository {
         override suspend fun saveProgress(
             episodeId: String,
@@ -331,7 +432,9 @@ class LibraryEpisodeResolverTest {
         override suspend fun deleteProgress(episodeId: String): Result<Unit> =
             Result.success(Unit)
 
-        override suspend fun getContinueWatching(limit: Int): Result<List<ProgressRecord>> =
-            error?.let { Result.failure(it) } ?: Result.success(records.take(limit))
+        override suspend fun getContinueWatching(limit: Int): Result<List<ProgressRecord>> {
+            requestedLimits?.add(limit)
+            return error?.let { Result.failure(it) } ?: Result.success(records.take(limit))
+        }
     }
 }
