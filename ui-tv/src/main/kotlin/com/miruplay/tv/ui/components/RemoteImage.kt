@@ -21,6 +21,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.miruplay.tv.core.common.logging.MiruLog
+import com.miruplay.tv.mediasource.WebDavHttpStatusException
+import com.miruplay.tv.mediasource.WebDavRequest
+import com.miruplay.tv.mediasource.WebDavRequestCoordinator
+import com.miruplay.tv.mediasource.WebDavRequestKind
+import com.miruplay.tv.mediasource.WebDavTransportResult
 import com.miruplay.tv.ui.theme.AccentBlue
 import com.miruplay.tv.ui.theme.CardBg
 import com.miruplay.tv.ui.theme.TextSecondary
@@ -29,7 +34,6 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.io.IOException
 import java.security.MessageDigest
 import java.net.HttpURLConnection
 import java.net.URL
@@ -87,27 +91,37 @@ private object RemoteImageCache {
         return runCatching {
             file.parentFile?.mkdirs()
             val temp = File.createTempFile(file.name, ".tmp", file.parentFile)
-            val connection = URL(remoteUrl).openConnection().apply {
-                connectTimeout = 10_000
-                readTimeout = 20_000
-            }
-            try {
-                if (connection is HttpURLConnection && connection.responseCode !in 200..299) {
-                    throw IOException("HTTP ${connection.responseCode}")
+            val download = {
+                val connection = (URL(remoteUrl).openConnection() as HttpURLConnection).apply {
+                    instanceFollowRedirects = false
+                    connectTimeout = 10_000
+                    readTimeout = 20_000
                 }
-                connection.getInputStream().use { input ->
-                    temp.outputStream().use { output ->
-                        input.copyTo(output)
+                try {
+                    if (connection.responseCode !in 200..299) {
+                        throw WebDavHttpStatusException(connection.responseCode)
                     }
-                }
-                if (!temp.renameTo(file)) {
-                    temp.copyTo(file, overwrite = true)
-                }
-            } finally {
-                temp.delete()
-                if (connection is HttpURLConnection) {
+                    connection.getInputStream().use { input ->
+                        temp.outputStream().use { output -> input.copyTo(output) }
+                    }
+                } finally {
                     connection.disconnect()
                 }
+            }
+            WebDavRequestCoordinator.execute(
+                WebDavRequest(
+                    method = "GET",
+                    url = remoteUrl,
+                    kind = WebDavRequestKind.ARTWORK,
+                ),
+            ) {
+                download()
+                WebDavTransportResult(Unit, 200)
+            }.close()
+            try {
+                if (!temp.renameTo(file)) temp.copyTo(file, overwrite = true)
+            } finally {
+                temp.delete()
             }
             decode(file)
         }.onFailure { error ->

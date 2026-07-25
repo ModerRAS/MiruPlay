@@ -23,8 +23,9 @@ internal suspend fun probeRuntimeVideoTrackMetadata(
     context: Context,
     uri: String,
     httpConfig: PlaybackHttpRequestConfig,
-): RuntimeVideoTrackMetadata? =
-    runCatching {
+): RuntimeVideoTrackMetadata? {
+    if (httpConfig.isWebDav(uri)) return null
+    return runCatching {
         val extractor = MediaExtractor()
         try {
             extractor.setPlaybackDataSource(context, uri, httpConfig)
@@ -48,6 +49,7 @@ internal suspend fun probeRuntimeVideoTrackMetadata(
             mapOf("source_uri" to uri),
         )
     }.getOrNull()
+}
 
 internal fun runtimeVideoTrackMetadataFromExtractorTrackFormat(
     format: ExtractorVideoTrackFormat,

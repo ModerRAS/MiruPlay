@@ -9,10 +9,12 @@ import com.miruplay.tv.model.MediaCapabilities
 import com.miruplay.tv.model.MediaFileConventions
 import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.MediaSourceInfo
+import com.miruplay.tv.model.StreamRange
 import com.miruplay.tv.model.WebDavPropfindParser
 import com.miruplay.tv.model.connectionPassword
 import com.miruplay.tv.model.connectionUsername
 import com.miruplay.tv.model.remoteUrl
+import com.miruplay.tv.model.toHttpRangeHeader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.*
@@ -38,6 +40,8 @@ class WebDavMediaSource @Inject constructor() : MediaSource {
     private var password: String = ""
 
     private val client = OkHttpClient.Builder()
+        .followRedirects(false)
+        .followSslRedirects(false)
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
         .writeTimeout(10, TimeUnit.SECONDS)
@@ -50,6 +54,7 @@ class WebDavMediaSource @Inject constructor() : MediaSource {
         this.baseUrl = info.remoteUrl().orEmpty()
         this.username = info.connectionUsername()
         this.password = info.connectionPassword()
+        WebDavRequestCoordinator.register(baseUrl)
     }
 
     override val capabilities: MediaCapabilities = MediaCapabilities(
@@ -62,108 +67,85 @@ class WebDavMediaSource @Inject constructor() : MediaSource {
     override suspend fun listFiles(path: String): Result<List<FileEntry>> = withContext(Dispatchers.IO) {
         try {
             val url = normalizeUrl(path)
-            val response = executeWithAnonymousFallback { authorization ->
+            val body = executeBytesWithAnonymousFallback(
+                url = url,
+                kind = WebDavRequestKind.PROPFIND,
+            ) { authorization ->
                 Request.Builder()
                     .url(url)
                     .method(PROPFIND, propfindXml().toRequestBody(xmlMedia))
                     .header("Depth", DEPTH_1)
                     .applyAuthorizationHeader(authorization)
                     .build()
-            }
-            if (!response.isSuccessful) {
-                val responseBody = response.body?.string()?.takeIf { it.isNotBlank() }
-                response.close()
-                return@withContext Result.failure(
-                    AppError.NetworkError.HttpError(
-                        response.code,
-                        responseBody?.let { "${response.message}: $it" } ?: response.message
-                    )
-                )
-            }
-
-            val body = response.body?.string()
-            response.close()
-            if (body == null) {
-                return@withContext Result.failure(AppError.NetworkError.ServerUnreachable(url))
-            }
+            }.toString(Charsets.UTF_8)
 
             val entries = parsePropfindResponse(body, path)
             Result.success(entries)
         } catch (e: Exception) {
             val url = normalizeUrl(path)
             Log.w(TAG, "WebDAV PROPFIND failed for $url", e)
-            Result.failure(AppError.NetworkError.ServerUnreachable(urlWithCause(url, e)))
+            Result.failure(e.toWebDavError(url))
         }
     }
 
-    override suspend fun openStream(path: String): Result<InputStream> = withContext(Dispatchers.IO) {
-        try {
-            val url = normalizeUrl(path)
-            val response = executeWithAnonymousFallback { authorization ->
-                Request.Builder()
-                    .url(url)
-                    .get()
-                    .applyAuthorizationHeader(authorization)
-                    .build()
-            }
-            if (!response.isSuccessful) {
-                val responseBody = response.body?.string()?.takeIf { it.isNotBlank() }
-                response.close()
-                return@withContext Result.failure(
-                    AppError.NetworkError.HttpError(
-                        response.code,
-                        responseBody?.let { "${response.message}: $it" } ?: response.message
-                    )
-                )
-            }
+    override suspend fun openStream(path: String): Result<InputStream> = openStream(path, null)
 
-            val stream = response.body?.byteStream()
-                ?: run {
-                    response.close()
-                    return@withContext Result.failure(AppError.MediaSourceError.NotFound(path))
+    override suspend fun openStream(path: String, range: StreamRange): Result<InputStream> =
+        openStream(path, range.toHttpRangeHeader())
+
+    private suspend fun openStream(path: String, rangeHeader: String?): Result<InputStream> =
+        withContext(Dispatchers.IO) {
+            try {
+                val url = normalizeUrl(path)
+                val lease = executeStreamingWithAnonymousFallback(
+                    url = url,
+                    kind = if (rangeHeader == null) requestKindFor(path) else WebDavRequestKind.RANGE,
+                ) { authorization ->
+                    Request.Builder()
+                        .url(url)
+                        .get()
+                        .apply { rangeHeader?.let { header("Range", it) } }
+                        .applyAuthorizationHeader(authorization)
+                        .build()
                 }
+                val stream = lease.value.body?.byteStream()
+                    ?: run {
+                        lease.close()
+                        return@withContext Result.failure(AppError.MediaSourceError.NotFound(path))
+                    }
 
-            Result.success(
-                object : FilterInputStream(stream) {
-                    override fun close() {
-                        try {
-                            super.close()
-                        } finally {
-                            response.close()
+                Result.success(
+                    object : FilterInputStream(stream) {
+                        override fun close() {
+                            try {
+                                super.close()
+                            } finally {
+                                lease.close()
+                            }
                         }
                     }
-                }
-            )
-        } catch (e: Exception) {
-            val url = normalizeUrl(path)
-            Log.w(TAG, "WebDAV GET failed for $url", e)
-            Result.failure(webDavTransportError(path.ifBlank { url }, e))
+                )
+            } catch (e: Exception) {
+                val url = normalizeUrl(path)
+                Log.w(TAG, "WebDAV GET failed for $url", e)
+                Result.failure(e.toWebDavError(path.ifBlank { url }))
+            }
         }
-    }
 
     override suspend fun getMetadata(path: String): Result<FileMetadata> = withContext(Dispatchers.IO) {
         try {
             val url = normalizeUrl(path)
-            val response = executeWithAnonymousFallback { authorization ->
+            val body = executeBytesWithAnonymousFallback(
+                url = url,
+                kind = WebDavRequestKind.HEAD,
+            ) { authorization ->
                 Request.Builder()
                     .url(url)
                     .method(PROPFIND, propfindXml().toRequestBody(xmlMedia))
                     .header("Depth", "0")
                     .applyAuthorizationHeader(authorization)
                     .build()
-            }
-            if (!response.isSuccessful) {
-                response.close()
-                return@withContext Result.failure(
-                    AppError.NetworkError.HttpError(response.code, response.message)
-                )
-            }
-
-            val body = response.body?.string()
-            response.close()
-            if (body == null) {
-                return@withContext Result.failure(AppError.NetworkError.ServerUnreachable(url))
-            }
+            }.toString(Charsets.UTF_8)
 
             val entries = parsePropfindResponse(body, path, includeRequestedPath = true)
             val entry = entries.firstOrNull { !it.isDirectory }
@@ -173,7 +155,7 @@ class WebDavMediaSource @Inject constructor() : MediaSource {
         } catch (e: Exception) {
             val url = normalizeUrl(path)
             Log.w(TAG, "WebDAV metadata PROPFIND failed for $url", e)
-            Result.failure(webDavTransportError(path.ifBlank { url }, e))
+            Result.failure(e.toWebDavError(path.ifBlank { url }))
         }
     }
 
@@ -216,27 +198,95 @@ class WebDavMediaSource @Inject constructor() : MediaSource {
             authorization?.let { header("Authorization", it) }
         }
 
-    private fun executeWithAnonymousFallback(
+    private fun executeBytesWithAnonymousFallback(
+        url: String,
+        kind: WebDavRequestKind,
         buildRequest: (String?) -> Request,
-    ): Response {
-        val primaryResponse = client.newCall(buildRequest(primaryAuthorization())).execute()
-        if (!shouldRetryWithAnonymous(primaryResponse)) {
-            return primaryResponse
+    ): ByteArray = try {
+        executeBytes(url, kind, buildRequest(primaryAuthorization()))
+    } catch (error: WebDavHttpStatusException) {
+        if (error.statusCode != 401 || username.isNotBlank()) throw error
+        executeBytes(url, kind, buildRequest(anonymousCredentials()))
+    }
+
+    private fun executeBytes(url: String, kind: WebDavRequestKind, request: Request): ByteArray =
+        WebDavRequestCoordinator.executeBytes(
+            WebDavRequest(method = request.method, url = url, kind = kind),
+        ) {
+            client.newCall(request).execute().use { response ->
+                val body = response.body?.bytes() ?: byteArrayOf()
+                if (!response.isSuccessful) {
+                    throw WebDavHttpStatusException(
+                        statusCode = response.code,
+                        message = body.toString(Charsets.UTF_8).takeIf(String::isNotBlank)
+                            ?.let { "${response.message}: $it" }
+                            ?: response.message,
+                    )
+                }
+                WebDavTransportResult(body, response.code)
+            }
         }
-        primaryResponse.close()
-        return client.newCall(buildRequest(anonymousCredentials())).execute()
+
+    private fun executeStreamingWithAnonymousFallback(
+        url: String,
+        kind: WebDavRequestKind,
+        buildRequest: (String?) -> Request,
+    ): WebDavLease<Response> {
+        val primary = executeStreaming(url, kind, buildRequest(primaryAuthorization()))
+        if (primary.value.code != 401 || username.isNotBlank()) {
+            if (!primary.value.isSuccessful) {
+                val error = primary.value.toStatusException()
+                primary.close()
+                throw error
+            }
+            return primary
+        }
+        primary.close()
+        return executeStreaming(url, kind, buildRequest(anonymousCredentials())).also { lease ->
+            if (!lease.value.isSuccessful) {
+                val error = lease.value.toStatusException()
+                lease.close()
+                throw error
+            }
+        }
+    }
+
+    private fun executeStreaming(
+        url: String,
+        kind: WebDavRequestKind,
+        request: Request,
+    ): WebDavLease<Response> = WebDavRequestCoordinator.execute(
+        WebDavRequest(method = request.method, url = url, kind = kind, streaming = true),
+    ) {
+        val response = client.newCall(request).execute()
+        WebDavTransportResult(response, response.code, response::close)
+    }
+
+    private fun Response.toStatusException(): WebDavHttpStatusException {
+        val responseBody = body?.string()?.takeIf(String::isNotBlank)
+        return WebDavHttpStatusException(
+            statusCode = code,
+            message = responseBody?.let { "$message: $it" } ?: message,
+        )
+    }
+
+    private fun requestKindFor(path: String): WebDavRequestKind = when {
+        path.equals("library.db", ignoreCase = true) -> WebDavRequestKind.LIBRARY_DATABASE
+        path.startsWith("MLIP-Artwork/", ignoreCase = true) ||
+            path.startsWith("/MLIP-Artwork/", ignoreCase = true) -> WebDavRequestKind.ARTWORK_PACK
+        MediaFileConventions.isVideoName(path) -> WebDavRequestKind.PLAYBACK
+        else -> WebDavRequestKind.ARTWORK
     }
 
     private fun primaryAuthorization(): String? =
         username.takeIf { it.isNotBlank() }?.let { credentials() }
 
-    private fun shouldRetryWithAnonymous(response: Response): Boolean =
-        response.code == 401 && username.isBlank()
-
-    private fun urlWithCause(url: String, error: Exception): String {
-        val message = error.message?.takeIf { it.isNotBlank() }
-        return if (message == null) url else "$url ($message)"
-    }
+    private fun Exception.toWebDavError(path: String): AppError =
+        if (this is WebDavHttpStatusException) {
+            AppError.NetworkError.HttpError(statusCode, message.orEmpty())
+        } else {
+            webDavTransportError(path, this)
+        }
 
     private fun propfindXml(): String = """<?xml version="1.0" encoding="utf-8"?>
 <d:propfind xmlns:d="DAV:">

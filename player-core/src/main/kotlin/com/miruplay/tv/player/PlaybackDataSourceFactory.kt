@@ -4,15 +4,26 @@ package com.miruplay.tv.player
 
 import android.content.Context
 import android.net.Uri
+import androidx.media3.common.C
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
-import androidx.media3.datasource.ResolvingDataSource
+import androidx.media3.datasource.HttpDataSource
+import androidx.media3.datasource.TransferListener
+import com.miruplay.tv.mediasource.WebDavHttpStatusException
+import com.miruplay.tv.mediasource.WebDavLease
+import com.miruplay.tv.mediasource.WebDavRequest
+import com.miruplay.tv.mediasource.WebDavRequestCoordinator
+import com.miruplay.tv.mediasource.WebDavRequestKind
+import com.miruplay.tv.mediasource.WebDavTransportResult
 import com.miruplay.tv.model.MediaPathConventions
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
+import java.io.InputStream
+import java.net.HttpURLConnection
 import java.net.URI
+import java.net.URL
 import java.util.Base64
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -38,9 +49,7 @@ class PlaybackDataSourceFactory @Inject constructor(
     }
 
     override fun createDataSource(): DataSource =
-        ResolvingDataSource(upstreamFactory.createDataSource()) { dataSpec ->
-            httpConfig.applyTo(dataSpec)
-        }
+        GatedPlaybackDataSource(upstreamFactory.createDataSource()) { httpConfig }
 }
 
 internal fun canonicalPlaybackUri(uri: String): String =
@@ -57,6 +66,10 @@ data class PlaybackHttpRequestConfig(
     private val normalizedBaseUrl = baseUrl.trimEnd('/')
     private val decodedBaseUrl = MediaPathConventions.decodePath(normalizedBaseUrl)
     private val baseOrigin = normalizedBaseUrl.originOrNull()
+
+    init {
+        if (normalizedBaseUrl.isNotBlank()) WebDavRequestCoordinator.register(normalizedBaseUrl)
+    }
 
     fun applyTo(dataSpec: DataSpec): DataSpec {
         val canonicalUri = canonicalPlaybackUri(dataSpec.uri.toString())
@@ -85,6 +98,9 @@ data class PlaybackHttpRequestConfig(
         } else {
             emptyMap()
         }
+
+    internal fun isWebDav(uri: String): Boolean =
+        normalizedBaseUrl.isNotBlank() && (uri.isWithinBaseUrl() || uri.isSameOriginAsBaseUrl())
 
     private fun String.isWithinBaseUrl(): Boolean =
         isAtOrBelow(normalizedBaseUrl) ||
@@ -178,4 +194,131 @@ data class PlaybackHttpRequestConfig(
     companion object {
         val Empty = PlaybackHttpRequestConfig(baseUrl = "", headers = emptyMap())
     }
+}
+
+internal class GatedPlaybackDataSource(
+    private val upstream: DataSource,
+    private val config: () -> PlaybackHttpRequestConfig,
+) : DataSource {
+    private var lease: WebDavLease<Long>? = null
+    private var ungatedOpen = false
+    private var webDavInput: InputStream? = null
+    private var webDavConnection: HttpURLConnection? = null
+    private var webDavUri: Uri? = null
+    private var webDavHeaders: Map<String, List<String>> = emptyMap()
+
+    override fun addTransferListener(transferListener: TransferListener) {
+        upstream.addTransferListener(transferListener)
+    }
+
+    override fun open(dataSpec: DataSpec): Long {
+        val currentConfig = config()
+        val resolved = currentConfig.applyTo(dataSpec)
+        val uri = resolved.uri.toString()
+        if (!currentConfig.isWebDav(uri)) {
+            ungatedOpen = true
+            return upstream.open(resolved)
+        }
+        val request = WebDavRequest(
+            method = "GET",
+            url = uri,
+            kind = if (resolved.position > 0L || resolved.length >= 0L) {
+                WebDavRequestKind.RANGE
+            } else {
+                WebDavRequestKind.PLAYBACK
+            },
+            streaming = true,
+        )
+        return WebDavRequestCoordinator.execute(request) {
+            openWebDav(resolved)
+        }.also { lease = it }.value
+    }
+
+    override fun read(buffer: ByteArray, offset: Int, length: Int): Int =
+        webDavInput?.read(buffer, offset, length) ?: upstream.read(buffer, offset, length)
+
+    override fun getUri(): Uri? = webDavUri ?: upstream.uri
+
+    override fun getResponseHeaders(): Map<String, List<String>> = webDavHeaders.ifEmpty { upstream.responseHeaders }
+
+    override fun close() {
+        try {
+            webDavInput?.close()
+        } finally {
+            webDavInput = null
+            webDavConnection?.disconnect()
+            webDavConnection = null
+            webDavUri = null
+            webDavHeaders = emptyMap()
+            lease?.close()
+            lease = null
+            if (ungatedOpen) upstream.close()
+            ungatedOpen = false
+        }
+    }
+
+    private fun openWebDav(dataSpec: DataSpec): WebDavTransportResult<Long> {
+        val connection = (URL(dataSpec.uri.toString()).openConnection() as HttpURLConnection).apply {
+            instanceFollowRedirects = false
+            connectTimeout = HTTP_TIMEOUT_MILLIS
+            readTimeout = HTTP_TIMEOUT_MILLIS
+            requestMethod = "GET"
+            dataSpec.httpRequestHeaders.forEach(::setRequestProperty)
+            if (dataSpec.position != 0L || dataSpec.length != C.LENGTH_UNSET.toLong()) {
+                val end = if (dataSpec.length == C.LENGTH_UNSET.toLong()) "" else dataSpec.position + dataSpec.length - 1
+                setRequestProperty("Range", "bytes=${dataSpec.position}-$end")
+            }
+        }
+        val statusCode = try {
+            connection.responseCode
+        } catch (error: Throwable) {
+            connection.disconnect()
+            throw error
+        }
+        if (statusCode !in 200..299) {
+            connection.errorStream?.close()
+            connection.disconnect()
+            throw WebDavHttpStatusException(statusCode)
+        }
+        val input = connection.inputStream
+        webDavInput = input
+        webDavConnection = connection
+        webDavUri = dataSpec.uri
+        webDavHeaders = connection.headerFields
+            .filterKeys { it != null }
+            .mapKeys { (key, _) -> key!! }
+        val available = connection.contentLengthLong
+        val resolvedLength = when {
+            dataSpec.length != C.LENGTH_UNSET.toLong() -> dataSpec.length
+            available >= 0L -> available
+            else -> C.LENGTH_UNSET.toLong()
+        }
+        return WebDavTransportResult(
+            value = resolvedLength,
+            statusCode = statusCode,
+            close = this::closeWebDavTransport,
+        )
+    }
+
+    private fun closeWebDavTransport() {
+        webDavInput?.close()
+        webDavInput = null
+        webDavConnection?.disconnect()
+        webDavConnection = null
+        webDavUri = null
+        webDavHeaders = emptyMap()
+    }
+
+    private companion object {
+        private const val HTTP_TIMEOUT_MILLIS = 20_000
+    }
+}
+
+private fun Throwable.invalidResponseCode(): Int? {
+    var error: Throwable? = this
+    while (error != null) {
+        if (error is HttpDataSource.InvalidResponseCodeException) return error.responseCode
+        error = error.cause
+    }
+    return null
 }
