@@ -24,14 +24,17 @@ import com.miruplay.tv.repository.localMetadataOverrideKey
 import java.io.File
 import java.io.InputStream
 import java.security.MessageDigest
+import org.json.JSONArray
+import org.json.JSONObject
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 private const val MLIP_DATABASE_PATH = "library.db"
-private val SUPPORTED_MLIP_SCHEMA_VERSIONS = 1..3
+private val SUPPORTED_MLIP_SCHEMA_VERSIONS = 1..4
 private const val MLIP_METADATA_SOURCE = "MLIP"
+private const val MLIP_ARTWORK_KIND_THUMB = 5
 
 @Singleton
 class MlipLibraryIndexImporter @Inject constructor(
@@ -98,6 +101,39 @@ class MlipLibraryIndexImporter @Inject constructor(
 
         val warmedCloudDriveArtworkDirectories =
             if (source.remoteUrl().orEmpty().isDefaultCloudDriveWebDavEndpoint()) mutableSetOf<String>() else null
+        val packedArtworkByAssetId = posterCacheDirectory?.let { cacheDirectory ->
+            runCatching {
+                ArtworkPackCache(cacheDirectory, source.id).cache(
+                    mediaSource = mediaSource,
+                    bindings = snapshot.artworkBindings,
+                    packs = snapshot.artworkPacks,
+                )
+            }.getOrDefault(emptyMap())
+        }.orEmpty()
+        val episodeThumbnailPaths = linkedMapOf<Long, String>()
+        for (binding in snapshot.artworkBindings) {
+            if (binding.ownerKind != "episode" || binding.artworkKind != MLIP_ARTWORK_KIND_THUMB) continue
+            val localPath = binding.asset?.id?.let(packedArtworkByAssetId::get)
+                ?: binding.path?.let { artworkPath ->
+                    cacheArtwork(
+                        mediaSource = mediaSource,
+                        artworkPath = artworkPath,
+                        posterCacheDirectory = posterCacheDirectory,
+                        sourceId = source.id,
+                        seriesUuid = "episode-${binding.ownerId}",
+                        warmedDirectories = warmedCloudDriveArtworkDirectories,
+                    )
+                }
+            if (localPath != null) episodeThumbnailPaths.putIfAbsent(binding.ownerId, localPath)
+        }
+        posterCacheDirectory?.let { cacheDirectory ->
+            persistArtworkBindingManifest(
+                cacheDirectory = cacheDirectory,
+                sourceId = source.id,
+                bindings = snapshot.artworkBindings,
+                cachedPaths = packedArtworkByAssetId,
+            )
+        }
         var artworkCachedCount = 0
         for (series in snapshot.series) {
             val seriesFiles = mediaFiles.filter { it.seriesId == series.id }
@@ -121,7 +157,9 @@ class MlipLibraryIndexImporter @Inject constructor(
                     watchedPosition = cached?.watchedPosition ?: incoming.watchedPosition,
                     lastWatchedTimestamp = cached?.lastWatchedTimestamp ?: incoming.lastWatchedTimestamp,
                     playCount = cached?.playCount ?: incoming.playCount,
-                    thumbnailPath = cached?.thumbnailPath ?: incoming.thumbnailPath,
+                    thumbnailPath = episodeThumbnailPaths[file.episodeId]
+                        ?: cached?.thumbnailPath
+                        ?: incoming.thumbnailPath,
                     bangumiEpisodeId = cached?.bangumiEpisodeId,
                     bangumiCollectionType = cached?.bangumiCollectionType,
                 )
@@ -130,8 +168,8 @@ class MlipLibraryIndexImporter @Inject constructor(
                 is Result.Success -> Unit
                 is Result.Error -> return@withContext Result.failure(cached.error)
             }
-            val posterLocalPath = series.posterPath
-                ?.let { poster ->
+            val posterLocalPath = series.poster.asset?.id?.let(packedArtworkByAssetId::get)
+                ?: series.poster.path?.let { poster ->
                     cacheArtwork(
                         mediaSource = mediaSource,
                         artworkPath = poster,
@@ -141,7 +179,7 @@ class MlipLibraryIndexImporter @Inject constructor(
                         warmedDirectories = warmedCloudDriveArtworkDirectories,
                     )
                 }
-                ?.also { artworkCachedCount += 1 }
+            if (posterLocalPath != null) artworkCachedCount += 1
             when (val cached = metadataRepository.cacheMetadata(
                 series.anime.copy(
                     episodeCount = episodes.size,
@@ -243,7 +281,8 @@ class MlipLibraryIndexImporter @Inject constructor(
         val tables = database.tableNames()
         val expectedTables = requiredTables +
             (if (userVersion >= 2) v2RequiredTables else emptySet()) +
-            (if (userVersion >= 3) v3RequiredTables else emptySet())
+            (if (userVersion >= 3) v3RequiredTables else emptySet()) +
+            (if (userVersion >= 4) v4RequiredTables else emptySet())
         val missing = expectedTables.filterNot { it in tables }
         if (missing.isNotEmpty()) {
             return Result.failure(AppError.LibraryIndexError.InvalidSchema("Missing tables: ${missing.joinToString()}"))
@@ -263,14 +302,28 @@ class MlipLibraryIndexImporter @Inject constructor(
         ) {
             return Result.failure(AppError.LibraryIndexError.InvalidSchema("MLIP v3 requires capability.extra = 1"))
         }
+        if (userVersion >= 4 && database.singleInt(
+                "SELECT enabled FROM capability WHERE name = ?",
+                "artwork_pack",
+            ) != 1
+        ) {
+            return Result.failure(AppError.LibraryIndexError.InvalidSchema("MLIP v4 requires capability.artwork_pack = 1"))
+        }
         return Result.success(Unit)
     }
 
     private fun readSnapshot(database: SQLiteDatabase, sourceId: Long): MlipSnapshot {
+        val schemaVersion = database.singleInt("PRAGMA user_version") ?: 0
         val genresBySeriesId = database.readGenresBySeriesId()
         val externalIdsBySeriesId = database.readExternalIdsBySeriesId()
         val releaseDatesBySeriesId = database.readReleaseDatesBySeriesId()
-        val posterBySeriesId = database.readPosterBySeriesId()
+        val artworkPacks = if (schemaVersion >= 4) database.readArtworkPacks() else emptyMap()
+        val artworkAssets = if (schemaVersion >= 4) database.readArtworkAssets(artworkPacks) else emptyMap()
+        val artworkBindings = database.readArtworkBindings(schemaVersion, artworkAssets)
+        val posterBySeriesId = artworkBindings
+            .asSequence()
+            .filter { it.ownerKind == "series" && it.artworkKind == 1 }
+            .associateBy(MlipArtworkBinding::ownerId)
         val externalSubtitlePathsByMediaFileId = database.readExternalSubtitlePathsByMediaFileId()
         val seriesById = database.readSeries(
             sourceId,
@@ -365,11 +418,13 @@ class MlipLibraryIndexImporter @Inject constructor(
         return MlipSnapshot(
             series = seriesById.values.toList(),
             mediaFiles = mediaFiles,
-            extras = if ((database.singleInt("PRAGMA user_version") ?: 0) >= 3) {
+            extras = if (schemaVersion >= 3) {
                 database.readExtras(sourceId, seriesById)
             } else {
                 emptyList()
             },
+            artworkPacks = artworkPacks,
+            artworkBindings = artworkBindings,
             skippedFiles = skippedFiles,
             nonIntegerEpisodes = nonIntegerEpisodes,
             databaseGeneratedAt = database.singleString(
@@ -452,7 +507,7 @@ class MlipLibraryIndexImporter @Inject constructor(
         genresBySeriesId: Map<Long, List<String>>,
         externalIdsBySeriesId: Map<Long, MlipExternalIds>,
         releaseDatesBySeriesId: Map<Long, String>,
-        posterBySeriesId: Map<Long, String>,
+        posterBySeriesId: Map<Long, MlipArtworkBinding>,
     ): Map<Long, MlipSeries> {
         val result = linkedMapOf<Long, MlipSeries>()
         rawQuery(
@@ -485,7 +540,7 @@ class MlipLibraryIndexImporter @Inject constructor(
                     id = id,
                     uuid = uuid,
                     anime = anime,
-                    posterPath = posterBySeriesId[id],
+                    poster = posterBySeriesId[id] ?: MlipArtworkBinding(path = null, asset = null),
                 )
             }
         }
@@ -545,21 +600,102 @@ class MlipLibraryIndexImporter @Inject constructor(
         return result
     }
 
-    private fun SQLiteDatabase.readPosterBySeriesId(): Map<Long, String> {
-        val result = linkedMapOf<Long, String>()
+    private fun SQLiteDatabase.readArtworkPacks(): Map<Long, MlipArtworkPack> {
+        val result = linkedMapOf<Long, MlipArtworkPack>()
+        rawQuery(
+            "SELECT id, path, sha256, byte_length, asset_count FROM artwork_pack ORDER BY id",
+            emptyArray(),
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                val pack = MlipArtworkPack(
+                    id = cursor.long("id"),
+                    path = cursor.string("path"),
+                    sha256 = cursor.string("sha256").lowercase(),
+                    size = cursor.longOrNull("byte_length") ?: 0L,
+                    assetCount = cursor.intOrNull("asset_count") ?: 0,
+                )
+                if (pack.path.isNotBlank() && pack.sha256.length == 64 && pack.size > 0L && pack.assetCount > 0) {
+                    result[pack.id] = pack
+                }
+            }
+        }
+        return result
+    }
+
+    private fun SQLiteDatabase.readArtworkAssets(
+        packs: Map<Long, MlipArtworkPack>,
+    ): Map<Long, MlipArtworkAsset> {
+        val result = linkedMapOf<Long, MlipArtworkAsset>()
         rawQuery(
             """
-            SELECT series_id, path
-            FROM series_artwork
-            WHERE artwork_kind = 1
-            ORDER BY id ASC
+            SELECT id, pack_id, sha256, member_name, media_type, width, height, data_offset, byte_length
+            FROM artwork_asset
+            ORDER BY id
             """.trimIndent(),
             emptyArray(),
         ).use { cursor ->
             while (cursor.moveToNext()) {
-                val seriesId = cursor.long("series_id")
-                val path = normalizeMlipArtworkPath(cursor.string("path")) ?: continue
-                result.putIfAbsent(seriesId, path)
+                val asset = MlipArtworkAsset(
+                    id = cursor.long("id"),
+                    packId = cursor.long("pack_id"),
+                    sha256 = cursor.string("sha256").lowercase(),
+                    memberName = cursor.string("member_name"),
+                    mediaType = cursor.string("media_type").lowercase(),
+                    width = cursor.intOrNull("width"),
+                    height = cursor.intOrNull("height"),
+                    dataOffset = cursor.longOrNull("data_offset") ?: -1L,
+                    length = cursor.longOrNull("byte_length") ?: -1L,
+                )
+                if (
+                    asset.packId in packs && asset.sha256.length == 64 &&
+                    asset.memberName.isNotBlank() && asset.dataOffset >= 512L && asset.length > 0L
+                ) {
+                    result[asset.id] = asset
+                }
+            }
+        }
+        return result
+    }
+
+    private fun SQLiteDatabase.readArtworkBindings(
+        schemaVersion: Int,
+        assets: Map<Long, MlipArtworkAsset>,
+    ): List<MlipArtworkBinding> {
+        val result = mutableListOf<MlipArtworkBinding>()
+        listOf(
+            Triple("series_artwork", "series", "series_id"),
+            Triple("episode_artwork", "episode", "episode_id"),
+        ).forEach { (table, ownerKind, ownerColumn) ->
+            val columns = if (schemaVersion >= 4) {
+                "$ownerColumn, artwork_kind, path, asset_id, source_provider, source_subject_id, source_url, downloaded_at"
+            } else {
+                "$ownerColumn, artwork_kind, path"
+            }
+            rawQuery("SELECT $columns FROM $table ORDER BY id ASC", emptyArray()).use { cursor ->
+                while (cursor.moveToNext()) {
+                    val ownerId = cursor.long(ownerColumn)
+                    val path = cursor.stringOrNull("path")?.let(::normalizeMlipArtworkPath)
+                    val asset = if (schemaVersion >= 4) cursor.longOrNull("asset_id")?.let { assetId ->
+                        assets[assetId] ?: throw InvalidMlipSchemaException(
+                            "Artwork binding references missing asset $assetId",
+                        )
+                    } else {
+                        null
+                    }
+                    if (path != null || asset != null) {
+                        result += MlipArtworkBinding(
+                            path = path,
+                            asset = asset,
+                            ownerKind = ownerKind,
+                            ownerId = ownerId,
+                            artworkKind = cursor.int("artwork_kind"),
+                            sourceProvider = if (schemaVersion >= 4) cursor.intOrNull("source_provider") else null,
+                            sourceSubjectId = if (schemaVersion >= 4) cursor.stringOrNull("source_subject_id") else null,
+                            sourceUrl = if (schemaVersion >= 4) cursor.stringOrNull("source_url") else null,
+                            downloadedAt = if (schemaVersion >= 4) cursor.stringOrNull("downloaded_at") else null,
+                        )
+                    }
+                }
             }
         }
         return result
@@ -596,6 +732,41 @@ class MlipLibraryIndexImporter @Inject constructor(
             }
             output.absolutePath
         }.getOrNull()
+    }
+
+    private fun persistArtworkBindingManifest(
+        cacheDirectory: File,
+        sourceId: Long,
+        bindings: List<MlipArtworkBinding>,
+        cachedPaths: Map<Long, String>,
+    ) {
+        val output = File(cacheDirectory, "mlip/$sourceId/artwork-bindings.json")
+        val entries = JSONArray()
+        bindings.forEach { binding ->
+            entries.put(
+                JSONObject().apply {
+                    put("owner_kind", binding.ownerKind)
+                    put("owner_id", binding.ownerId)
+                    put("artwork_kind", binding.artworkKind)
+                    binding.path?.let { put("path", it) }
+                    binding.asset?.let { asset ->
+                        put("asset_id", asset.id)
+                        put("asset_sha256", asset.sha256)
+                        cachedPaths[asset.id]?.let { put("cached_path", it) }
+                    }
+                    binding.sourceProvider?.let { put("source_provider", it) }
+                    binding.sourceSubjectId?.let { put("source_subject_id", it) }
+                    binding.sourceUrl?.let { put("source_url", it) }
+                    binding.downloadedAt?.let { put("downloaded_at", it) }
+                },
+            )
+        }
+        val temporary = File(output.parentFile, "${output.name}.tmp")
+        runCatching {
+            output.parentFile?.mkdirs()
+            temporary.writeText(entries.toString())
+            if (!temporary.renameTo(output)) temporary.copyTo(output, overwrite = true)
+        }.also { temporary.delete() }
     }
 
     private fun Anime.displayTitleForIndex(): String = titleCn?.takeIf { it.isNotBlank() } ?: title
@@ -651,7 +822,7 @@ internal fun normalizeMlipArtworkPath(path: String): String? {
     return normalizeMlipRelativePath(path)?.let { "/${it.trimStart('/')}" }
 }
 
-private fun normalizeMlipRelativePath(path: String): String? {
+internal fun normalizeMlipRelativePath(path: String): String? {
     val segments = path.replace('\\', '/')
         .trim()
         .trimStart('/')
@@ -664,6 +835,7 @@ private fun normalizeMlipRelativePath(path: String): String? {
 
 private val v2RequiredTables = setOf("series_release_date", "media_subtitle")
 private val v3RequiredTables = setOf("media_extra")
+private val v4RequiredTables = setOf("artwork_pack", "artwork_asset")
 
 private val requiredTables = setOf(
     "meta",
@@ -683,6 +855,8 @@ private data class MlipSnapshot(
     val series: List<MlipSeries>,
     val mediaFiles: List<MlipMediaFile>,
     val extras: List<MediaIndexEntry>,
+    val artworkPacks: Map<Long, MlipArtworkPack>,
+    val artworkBindings: List<MlipArtworkBinding>,
     val skippedFiles: Int,
     val nonIntegerEpisodes: Int,
     val databaseGeneratedAt: String?,
@@ -692,7 +866,7 @@ private data class MlipSeries(
     val id: Long,
     val uuid: String,
     val anime: Anime,
-    val posterPath: String?,
+    val poster: MlipArtworkBinding,
 )
 
 private data class MlipMediaFile(

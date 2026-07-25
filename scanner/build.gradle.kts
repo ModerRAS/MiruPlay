@@ -20,6 +20,7 @@ dependencies {
     api(project(":core:model"))
     api(project(":core:common"))
     api(project(":media-source-api"))
+    implementation(project(":media-source"))
     api(project(":repository-api"))
     api(project(":metadata-core"))
     implementation(project(":scraper"))

@@ -1,10 +1,22 @@
 package com.miruplay.tv.player
 
+import android.net.Uri
+import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.TransferListener
+import com.miruplay.tv.mediasource.WebDavHttpStatusException
+import java.net.ServerSocket
+import java.net.SocketTimeoutException
+import kotlin.concurrent.thread
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
+@RunWith(RobolectricTestRunner::class)
 class PlaybackDataSourceFactoryTest {
     @Test
     fun `canonicalPlaybackUri encodes CloudDrive unicode and brackets`() {
@@ -79,6 +91,40 @@ class PlaybackDataSourceFactoryTest {
     }
 
     @Test
+    fun `webdav playback rejects redirects before the redirected authority is requested`() {
+        ServerSocket(0).use { redirectServer ->
+            ServerSocket(0).use { redirectedServer ->
+                redirectedServer.soTimeout = 300
+                val redirectTask = thread(start = true) {
+                    redirectServer.accept().use { socket ->
+                        socket.getInputStream().bufferedReader().apply {
+                            readLine()
+                            while (readLine()?.isNotEmpty() == true) Unit
+                        }
+                        socket.getOutputStream().bufferedWriter().use { output ->
+                            output.write(
+                                "HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1:${redirectedServer.localPort}/media.mkv\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                            )
+                            output.flush()
+                        }
+                    }
+                }
+                val config = PlaybackHttpRequestConfig(
+                    baseUrl = "http://127.0.0.1:${redirectServer.localPort}/dav",
+                    headers = emptyMap(),
+                )
+                val dataSource = GatedPlaybackDataSource(UnusedDataSource()) { config }
+
+                assertThrows(WebDavHttpStatusException::class.java) {
+                    dataSource.open(DataSpec(Uri.parse("http://127.0.0.1:${redirectServer.localPort}/dav/media.mkv")))
+                }
+                redirectTask.join()
+                assertThrows(SocketTimeoutException::class.java) { redirectedServer.accept() }
+            }
+        }
+    }
+
+    @Test
     fun `libVlcUriFor normalizes absolute local path into file uri`() {
         val config = PlaybackHttpRequestConfig.Empty
 
@@ -88,5 +134,14 @@ class PlaybackDataSourceFactoryTest {
             "file:///sdcard/Movies/MiruPlayHdrTest/probe_30s_1080p_hdr_h264_high10.mp4",
             uri,
         )
+    }
+
+    private class UnusedDataSource : DataSource {
+        override fun addTransferListener(transferListener: TransferListener) = Unit
+        override fun open(dataSpec: DataSpec): Long = error("WebDAV playback must not use Media3 HTTP transport")
+        override fun read(buffer: ByteArray, offset: Int, length: Int): Int = error("unreachable")
+        override fun getUri(): Uri? = null
+        override fun getResponseHeaders(): Map<String, List<String>> = emptyMap()
+        override fun close() = Unit
     }
 }

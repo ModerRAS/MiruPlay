@@ -155,11 +155,14 @@ class ExoPlaybackController @Inject constructor(
         _requestedRenderBackend.value = sessionState.effectiveRequestedBackend(playbackPreferences.defaultBackend)
         _sessionRuleOverrides.value = sessionState.ruleOverrides
         refreshRuntimeConfig(null)
-        if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID) {
+        val httpConfig = httpRequestResolver.configFor(source)
+        if (
+            _activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID &&
+            !httpConfig.isWebDav(source.uri)
+        ) {
             playWithExternalMpv(source)
             return
         }
-        val httpConfig = httpRequestResolver.configFor(source)
         signalProbeCompletionJob?.cancel()
         val initialProbeResult = withContext(Dispatchers.IO) {
             runInitialSignalProbe(
@@ -207,11 +210,14 @@ class ExoPlaybackController @Inject constructor(
             try {
                 ensureMediaSessionService()
                 applyVideoEffectsForCurrentConfig()
-                if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED) {
+                if (
+                    _activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED &&
+                    !httpConfig.isWebDav(source.uri)
+                ) {
                     playWithEmbeddedMpv(source, httpConfig)
                     return@withContext
                 }
-                val player = activeExoPlayer()
+                val player = if (httpConfig.isWebDav(source.uri)) standardExoPlayer() else activeExoPlayer()
                 stopInactivePlayers(player)
                 preparePlayerForPlayback(player)
 

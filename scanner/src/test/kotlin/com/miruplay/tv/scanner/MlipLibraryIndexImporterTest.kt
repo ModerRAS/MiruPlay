@@ -24,6 +24,8 @@ import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.InputStream
 import java.nio.file.Files
+import java.security.MessageDigest
+import java.util.Base64
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -131,7 +133,7 @@ class MlipLibraryIndexImporterTest {
     fun `unsupported mlip version fails clearly`() = runBlocking {
         val databaseFile = File.createTempFile("mlip-test-", ".db")
         try {
-            createMlipDatabase(databaseFile, userVersion = 4)
+            createMlipDatabase(databaseFile, userVersion = 5)
 
             val result = importDatabase(databaseFile)
 
@@ -566,6 +568,96 @@ class MlipLibraryIndexImporterTest {
     }
 
     @Test
+    fun `mlip v4 downloads one pack after one prewarm and reuses source cache`() = runBlocking {
+        val databaseFile = File.createTempFile("mlip-v4-test-", ".db")
+        val posterCacheDirectory = Files.createTempDirectory("mlip-v4-cache-").toFile()
+        val source = mlipSource()
+        val image = Base64.getDecoder().decode(ONE_PIXEL_PNG_BASE64)
+        val assetHash = sha256(image)
+        val packBytes = tar(assetHash, "png", image)
+        val packHash = sha256(packBytes)
+        val mediaSource = FakeMediaSource(
+            info = source,
+            streams = mapOf(
+                "library.db" to { databaseFile.inputStream() },
+                "MLIP-Artwork/pack-001.tar" to { ByteArrayInputStream(packBytes) },
+            ),
+        )
+        val metadataRepository = RecordingMetadataRepository()
+        try {
+            createMlipDatabase(databaseFile, userVersion = 4)
+            configureV4Artwork(databaseFile, packHash, packBytes.size.toLong(), assetHash, image.size.toLong())
+            val importer = MlipLibraryIndexImporter(RecordingIndexRepository(), metadataRepository)
+
+            val first = importer.importLibrary(source, mediaSource, posterCacheDirectory)
+
+            assertTrue(first.isSuccess())
+            assertEquals(listOf("MLIP-Artwork"), mediaSource.listedPaths)
+            assertEquals(1, mediaSource.openedPaths.count { it == "MLIP-Artwork/pack-001.tar" })
+            val poster = File(metadataRepository.anime.single().posterLocalPath!!)
+            assertTrue(poster.isFile)
+            assertEquals(assetHash, sha256(poster.readBytes()))
+
+            mediaSource.openedPaths.clear()
+            mediaSource.listedPaths.clear()
+            val second = importer.importLibrary(source, mediaSource, posterCacheDirectory)
+
+            assertTrue(second.isSuccess())
+            assertEquals(listOf("MLIP-Artwork"), mediaSource.listedPaths)
+            assertEquals(listOf("library.db"), mediaSource.openedPaths)
+        } finally {
+            databaseFile.delete()
+            posterCacheDirectory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `mlip v4 malformed pack preserves media import and uses legacy artwork path`() = runBlocking {
+        val databaseFile = File.createTempFile("mlip-v4-test-", ".db")
+        val posterCacheDirectory = Files.createTempDirectory("mlip-v4-cache-").toFile()
+        val source = mlipSource()
+        val image = Base64.getDecoder().decode(ONE_PIXEL_PNG_BASE64)
+        val assetHash = sha256(image)
+        val malformedPack = "not-a-tar".toByteArray()
+        val packHash = sha256(malformedPack)
+        val indexRepository = RecordingIndexRepository()
+        val metadataRepository = RecordingMetadataRepository()
+        val mediaSource = FakeMediaSource(
+            info = source,
+            streams = mapOf(
+                "library.db" to { databaseFile.inputStream() },
+                "MLIP-Artwork/pack-001.tar" to { ByteArrayInputStream(malformedPack) },
+                "/Series/poster.jpg" to { ByteArrayInputStream("legacy-poster".toByteArray()) },
+            ),
+        )
+        try {
+            createMlipDatabase(databaseFile, userVersion = 4)
+            configureV4Artwork(
+                databaseFile,
+                packHash,
+                malformedPack.size.toLong(),
+                assetHash,
+                image.size.toLong(),
+            )
+
+            val result = MlipLibraryIndexImporter(indexRepository, metadataRepository)
+                .importLibrary(source, mediaSource, posterCacheDirectory)
+
+            assertTrue(result.isSuccess())
+            assertEquals(2, indexRepository.entries.size)
+            assertEquals(1, metadataRepository.episodes.size)
+            assertEquals(
+                listOf("library.db", "MLIP-Artwork/pack-001.tar", "/Series/poster.jpg"),
+                mediaSource.openedPaths,
+            )
+            assertNotNull(metadataRepository.anime.single().posterLocalPath)
+        } finally {
+            databaseFile.delete()
+            posterCacheDirectory.deleteRecursively()
+        }
+    }
+
+    @Test
     fun `legacy mlip database falls back to release year`() = runBlocking {
         val databaseFile = File.createTempFile("mlip-test-", ".db")
         val source = mlipSource()
@@ -639,8 +731,13 @@ class MlipLibraryIndexImporterTest {
             database.execSQL("CREATE TABLE series (id INTEGER PRIMARY KEY, uuid TEXT NOT NULL, title TEXT NOT NULL, original_title TEXT, summary TEXT, year INTEGER, series_type INTEGER)")
             database.execSQL("CREATE TABLE episode (id INTEGER PRIMARY KEY, uuid TEXT NOT NULL, series_id INTEGER NOT NULL, season INTEGER, episode REAL, sort_order REAL, title TEXT, summary TEXT, runtime INTEGER)")
             database.execSQL("CREATE TABLE media_file (id INTEGER PRIMARY KEY, episode_id INTEGER NOT NULL, path TEXT NOT NULL, size INTEGER, modified_time INTEGER)")
-            database.execSQL("CREATE TABLE series_artwork (id INTEGER PRIMARY KEY, series_id INTEGER NOT NULL, artwork_kind INTEGER NOT NULL, path TEXT NOT NULL)")
-            database.execSQL("CREATE TABLE episode_artwork (id INTEGER PRIMARY KEY, episode_id INTEGER NOT NULL, artwork_kind INTEGER NOT NULL, path TEXT NOT NULL)")
+            if (userVersion >= 4) {
+                database.execSQL("CREATE TABLE series_artwork (id INTEGER PRIMARY KEY, series_id INTEGER NOT NULL, artwork_kind INTEGER NOT NULL, path TEXT, asset_id INTEGER, source_url TEXT, source_provider INTEGER, source_subject_id TEXT, downloaded_at TEXT)")
+                database.execSQL("CREATE TABLE episode_artwork (id INTEGER PRIMARY KEY, episode_id INTEGER NOT NULL, artwork_kind INTEGER NOT NULL, path TEXT, asset_id INTEGER, source_url TEXT, source_provider INTEGER, source_subject_id TEXT, downloaded_at TEXT)")
+            } else {
+                database.execSQL("CREATE TABLE series_artwork (id INTEGER PRIMARY KEY, series_id INTEGER NOT NULL, artwork_kind INTEGER NOT NULL, path TEXT NOT NULL)")
+                database.execSQL("CREATE TABLE episode_artwork (id INTEGER PRIMARY KEY, episode_id INTEGER NOT NULL, artwork_kind INTEGER NOT NULL, path TEXT NOT NULL)")
+            }
             database.execSQL("CREATE TABLE genre (id INTEGER PRIMARY KEY, name TEXT NOT NULL)")
             database.execSQL("CREATE TABLE series_genre (series_id INTEGER NOT NULL, genre_id INTEGER NOT NULL)")
             database.execSQL("CREATE TABLE series_external_id (series_id INTEGER NOT NULL, provider INTEGER NOT NULL, value TEXT NOT NULL)")
@@ -649,6 +746,11 @@ class MlipLibraryIndexImporterTest {
             database.execSQL("INSERT INTO capability (name, enabled) VALUES ('subtitle', ${if (includeExternalSubtitles) 1 else 0})")
             if (includeExtraCapability) {
                 database.execSQL("INSERT INTO capability (name, enabled) VALUES ('extra', 1)")
+            }
+            if (userVersion >= 4) {
+                database.execSQL("INSERT INTO capability (name, enabled) VALUES ('artwork_pack', 1)")
+                database.execSQL("CREATE TABLE artwork_pack (id INTEGER PRIMARY KEY, path TEXT NOT NULL, sha256 TEXT NOT NULL, byte_length INTEGER NOT NULL, asset_count INTEGER NOT NULL)")
+                database.execSQL("CREATE TABLE artwork_asset (id INTEGER PRIMARY KEY, pack_id INTEGER NOT NULL, sha256 TEXT NOT NULL, member_name TEXT NOT NULL, media_type TEXT NOT NULL, width INTEGER, height INTEGER, data_offset INTEGER NOT NULL, byte_length INTEGER NOT NULL)")
             }
             if (includeReleaseDate) {
                 database.execSQL("CREATE TABLE series_release_date (series_id INTEGER PRIMARY KEY, air_date TEXT NOT NULL)")
@@ -675,6 +777,51 @@ class MlipLibraryIndexImporterTest {
             database.close()
         }
     }
+
+    private fun configureV4Artwork(
+        file: File,
+        packHash: String,
+        packSize: Long,
+        assetHash: String,
+        assetLength: Long,
+    ) {
+        SQLiteDatabase.openDatabase(file.absolutePath, null, SQLiteDatabase.OPEN_READWRITE).use { database ->
+            database.execSQL(
+                "INSERT INTO artwork_pack (id, path, sha256, byte_length, asset_count) VALUES (1, 'MLIP-Artwork/pack-001.tar', '$packHash', $packSize, 1)",
+            )
+            database.execSQL(
+                "INSERT INTO artwork_asset (id, pack_id, sha256, member_name, media_type, width, height, data_offset, byte_length) VALUES (1, 1, '$assetHash', '$assetHash.png', 'image/png', 1, 1, 512, $assetLength)",
+            )
+            database.execSQL("UPDATE series_artwork SET asset_id = 1 WHERE id = 1")
+        }
+    }
+
+    private fun tar(hash: String, extension: String, bytes: ByteArray): ByteArray {
+        val result = ByteArray(512 + ((bytes.size + 511) / 512) * 512 + 1024)
+        val header = result.copyOfRange(0, 512)
+        fun field(offset: Int, length: Int, value: String) {
+            value.toByteArray(Charsets.US_ASCII).copyInto(header, offset, endIndex = minOf(value.length, length))
+        }
+        field(0, 100, "$hash.$extension")
+        field(100, 8, "0000644\u0000")
+        field(108, 8, "0000000\u0000")
+        field(116, 8, "0000000\u0000")
+        field(124, 12, "%011o\u0000".format(bytes.size))
+        field(136, 12, "00000000000\u0000")
+        repeat(8) { header[148 + it] = 0x20 }
+        header[156] = '0'.code.toByte()
+        field(257, 6, "ustar\u0000")
+        field(263, 2, "00")
+        val checksum = header.sumOf { it.toInt() and 0xFF }
+        field(148, 8, "%06o\u0000 ".format(checksum))
+        header.copyInto(result, 0)
+        bytes.copyInto(result, 512)
+        return result
+    }
+
+    private fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
+        .digest(bytes)
+        .joinToString("") { "%02x".format(it) }
 
     private class RecordingIndexRepository(
         initialEntries: List<MediaIndexEntry> = emptyList(),
@@ -728,6 +875,58 @@ class MlipLibraryIndexImporterTest {
             episodes.removeAll { it.animeId == animeId }
             return Result.success(Unit)
         }
+    }
+
+    @Test
+    fun `rust generated v4 fixture caches all bindings and only the incremental pack`() = runBlocking {
+        val posterCacheDirectory = Files.createTempDirectory("mlip-v4-shared-cache-").toFile()
+        val source = mlipSource()
+        val metadataRepository = RecordingMetadataRepository()
+        val importer = MlipLibraryIndexImporter(RecordingIndexRepository(), metadataRepository)
+        try {
+            val baseSource = sharedFixtureMediaSource(source, "base")
+            val baseResult = importer.importLibrary(source, baseSource, posterCacheDirectory)
+
+            assertTrue(baseResult.isSuccess())
+            assertEquals(listOf("MLIP-Artwork"), baseSource.listedPaths)
+            assertEquals(1, baseSource.openedPaths.count { it.startsWith("MLIP-Artwork/") })
+            val artworkDirectory = File(posterCacheDirectory, "mlip/${source.id}/artwork")
+            val packLogs = org.robolectric.shadows.ShadowLog.getLogsForTag("ArtworkPackCache")
+                .joinToString("\n") { "${it.msg}: ${it.throwable}" }
+            assertEquals(packLogs, 2, artworkDirectory.listFiles().orEmpty().count { it.isFile })
+            assertNotNull(metadataRepository.episodes.single().thumbnailPath)
+            val bindings = File(posterCacheDirectory, "mlip/${source.id}/artwork-bindings.json").readText()
+            assertTrue(bindings.contains("\"owner_kind\":\"episode\""))
+            assertTrue(bindings.contains("\"artwork_kind\":5"))
+            assertTrue(bindings.contains("fixture-original.jpg"))
+
+            val incrementalSource = sharedFixtureMediaSource(source, "incremental")
+            val incrementalResult = importer.importLibrary(source, incrementalSource, posterCacheDirectory)
+
+            assertTrue(incrementalResult.isSuccess())
+            assertEquals(listOf("MLIP-Artwork"), incrementalSource.listedPaths)
+            assertEquals(1, incrementalSource.openedPaths.count { it.startsWith("MLIP-Artwork/") })
+            assertEquals(3, artworkDirectory.listFiles().orEmpty().count { it.isFile })
+        } finally {
+            posterCacheDirectory.deleteRecursively()
+        }
+    }
+
+    private fun sharedFixtureMediaSource(source: MediaSourceInfo, stage: String): FakeMediaSource {
+        val resource = requireNotNull(javaClass.classLoader?.getResource("mlip-v4/$stage"))
+        val directory = File(resource.toURI())
+        val streams = buildMap<String, () -> InputStream> {
+            put("library.db") { File(directory, "library.db").inputStream() }
+            File(directory, "MLIP-Artwork").listFiles().orEmpty().forEach { pack ->
+                put("MLIP-Artwork/${pack.name}") { pack.inputStream() }
+            }
+        }
+        return FakeMediaSource(info = source, streams = streams)
+    }
+
+    private companion object {
+        private const val ONE_PIXEL_PNG_BASE64 =
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
     }
 
     private class FakeMediaSource(

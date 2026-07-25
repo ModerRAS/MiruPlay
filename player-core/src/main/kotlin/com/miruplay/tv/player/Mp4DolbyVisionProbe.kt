@@ -3,6 +3,11 @@ package com.miruplay.tv.player
 import android.content.Context
 import android.net.Uri
 import com.miruplay.tv.core.common.logging.MiruLog
+import com.miruplay.tv.mediasource.WebDavHttpStatusException
+import com.miruplay.tv.mediasource.WebDavRequest
+import com.miruplay.tv.mediasource.WebDavRequestCoordinator
+import com.miruplay.tv.mediasource.WebDavRequestKind
+import com.miruplay.tv.mediasource.WebDavTransportResult
 import com.miruplay.tv.model.DolbyVisionProfile
 import com.miruplay.tv.model.VideoColorPrimaries
 import com.miruplay.tv.model.VideoSignalDescriptor
@@ -311,19 +316,50 @@ private fun readHttpProbeBytes(
     maxProbeBytes: Int,
     startOffset: Long,
 ): ByteArray? {
-    val connection = (URL(uri).openConnection() as HttpURLConnection).apply {
-        requestMethod = "GET"
-        connectTimeout = HTTP_TIMEOUT_MS
-        readTimeout = HTTP_TIMEOUT_MS
-        setRequestProperty("Range", "bytes=$startOffset-${startOffset + maxProbeBytes - 1}")
-        httpConfig.headersFor(uri).forEach { (key, value) ->
-            setRequestProperty(key, value)
+    val openConnection = {
+        (URL(uri).openConnection() as HttpURLConnection).apply {
+            instanceFollowRedirects = false
+            requestMethod = "GET"
+            connectTimeout = HTTP_TIMEOUT_MS
+            readTimeout = HTTP_TIMEOUT_MS
+            setRequestProperty("Range", "bytes=$startOffset-${startOffset + maxProbeBytes - 1}")
+            httpConfig.headersFor(uri).forEach { (key, value) ->
+                setRequestProperty(key, value)
+            }
         }
     }
-    return connection.inputStream.use { stream ->
-        stream.readPrefix(maxProbeBytes)
+    if (!httpConfig.isWebDav(uri)) {
+        return openConnection().useConnection { connection ->
+            connection.inputStream.use { stream -> stream.readPrefix(maxProbeBytes) }
+        }
+    }
+    val lease = WebDavRequestCoordinator.execute(
+        WebDavRequest(
+            method = "GET",
+            url = uri,
+            kind = WebDavRequestKind.RANGE,
+            streaming = true,
+        ),
+    ) {
+        val connection = openConnection()
+        val statusCode = connection.responseCode
+        if (statusCode >= 400 && statusCode != 405) {
+            connection.disconnect()
+            throw WebDavHttpStatusException(statusCode)
+        }
+        WebDavTransportResult(connection, statusCode, connection::disconnect)
+    }
+    return lease.use {
+        it.value.inputStream.use { stream -> stream.readPrefix(maxProbeBytes) }
     }
 }
+
+private inline fun <T> HttpURLConnection.useConnection(block: (HttpURLConnection) -> T): T =
+    try {
+        block(this)
+    } finally {
+        disconnect()
+    }
 
 private fun readFileProbeBytes(
     file: File,

@@ -6,6 +6,11 @@ import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.core.common.logging.PerformanceLog
 import com.miruplay.tv.mediasource.MediaSource
 import com.miruplay.tv.mediasource.MediaSourceFactory
+import com.miruplay.tv.mediasource.WebDavHttpStatusException
+import com.miruplay.tv.mediasource.WebDavRequest
+import com.miruplay.tv.mediasource.WebDavRequestCoordinator
+import com.miruplay.tv.mediasource.WebDavRequestKind
+import com.miruplay.tv.mediasource.WebDavTransportResult
 import com.miruplay.tv.metadata.NfoWriteOptions
 import com.miruplay.tv.metadata.XmlNfoWriter
 import com.miruplay.tv.metadata.XmlNfoParser
@@ -46,6 +51,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import android.util.Log
 import java.io.File
+import java.net.HttpURLConnection
 import java.net.InetSocketAddress
 import java.net.Proxy
 import java.net.URL
@@ -854,12 +860,29 @@ class ScanCoordinator @Inject constructor(
                 if (file.exists() && file.length() > 0L) return@runCatching file.absolutePath
                 directory.mkdirs()
                 val temp = File(directory, "${file.name}.tmp")
-                URL(url).openConnection(proxy).apply {
-                    connectTimeout = 10_000
-                    readTimeout = 20_000
-                }.getInputStream().use { input ->
-                    temp.outputStream().use { output -> input.copyTo(output) }
+                val download = {
+                    val connection = (URL(url).openConnection(proxy) as HttpURLConnection).apply {
+                        instanceFollowRedirects = false
+                        connectTimeout = 10_000
+                        readTimeout = 20_000
+                    }
+                    try {
+                        if (connection.responseCode !in 200..299) {
+                            throw WebDavHttpStatusException(connection.responseCode)
+                        }
+                        connection.getInputStream().use { input ->
+                            temp.outputStream().use { output -> input.copyTo(output) }
+                        }
+                    } finally {
+                        connection.disconnect()
+                    }
                 }
+                WebDavRequestCoordinator.execute(
+                    WebDavRequest(method = "GET", url = url, kind = WebDavRequestKind.ARTWORK),
+                ) {
+                    download()
+                    WebDavTransportResult(Unit, 200)
+                }.close()
                 if (!temp.renameTo(file)) {
                     temp.copyTo(file, overwrite = true)
                     temp.delete()
