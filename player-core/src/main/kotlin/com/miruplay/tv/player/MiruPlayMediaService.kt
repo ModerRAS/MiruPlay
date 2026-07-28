@@ -76,10 +76,10 @@ class MiruPlayMediaService : MediaSessionService() {
     override fun onDestroy() {
         MiruLog.i("MiruPlayMediaService", "Media service destroying")
         mediaSession?.run {
-            player.release()
             release()
             mediaSession = null
         }
+        exoPlayer?.removeListener(playerListener)
         exoPlayer = null
         super.onDestroy()
     }

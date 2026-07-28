@@ -5,6 +5,7 @@ package com.miruplay.tv.ui.player
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import android.net.Uri
 import android.os.SystemClock
 import android.util.Log
 import android.view.LayoutInflater
@@ -37,6 +38,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
@@ -47,9 +50,12 @@ import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PhotoFilter
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material3.Button
@@ -66,12 +72,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -81,6 +88,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -102,6 +110,7 @@ import com.miruplay.tv.model.PLAYBACK_SEEK_BACK_SECONDS
 import com.miruplay.tv.model.PLAYBACK_SEEK_FORWARD_SECONDS
 import com.miruplay.tv.model.PlaybackRenderBackend
 import com.miruplay.tv.model.SubtitleTrack
+import com.miruplay.tv.model.VideoSignalDescriptor
 import com.miruplay.tv.model.ToneMappingProfilePreset
 import com.miruplay.tv.model.ToneMappingRuleSet
 import com.miruplay.tv.model.PlaybackTimingConventions
@@ -109,6 +118,7 @@ import com.miruplay.tv.model.formatPlaybackPosition
 import com.miruplay.tv.model.pictureOsdMenuTitleLabel
 import com.miruplay.tv.model.pictureSaveDefaultForFormatLabel
 import com.miruplay.tv.model.pictureSessionOverrideLabel
+import com.miruplay.tv.model.playbackBackendLabel
 import com.miruplay.tv.model.playbackAudioMenuTitle
 import com.miruplay.tv.model.playbackAudioOptionLabel
 import com.miruplay.tv.model.playbackAudioTrackCountLabel
@@ -131,7 +141,10 @@ import com.miruplay.tv.model.playbackSubtitleOptionLabel
 import com.miruplay.tv.model.playbackSubtitlesMenuTitle
 import com.miruplay.tv.model.toneMappingPresetLabel
 import com.miruplay.tv.model.toneMappingPresetOptions
+import com.miruplay.tv.design.MiruPlayInputIntent
 import com.miruplay.tv.design.MiruPlayPlaybackInputAction
+import com.miruplay.tv.design.allowsPlayerRemoteRepeat
+import com.miruplay.tv.design.isDedicatedPlayerRemoteIntent
 import com.miruplay.tv.design.shouldRefreshTvPlaybackControls
 import com.miruplay.tv.design.tvPlaybackOverlayAction
 import com.miruplay.tv.ui.components.EpisodeVersionDialog
@@ -192,6 +205,8 @@ private fun PlayerScreenContent(
     val playbackState by viewModel.playbackState.collectAsStateWithLifecycle()
     val activePlaybackSource by viewModel.activePlaybackSource.collectAsStateWithLifecycle()
     val pendingNextEpisode by viewModel.pendingNextEpisode.collectAsStateWithLifecycle()
+    val canPlayPreviousEpisode by viewModel.canPlayPreviousEpisode.collectAsStateWithLifecycle()
+    val canPlayNextEpisode by viewModel.canPlayNextEpisode.collectAsStateWithLifecycle()
     val currentPosition by viewModel.currentPosition.collectAsStateWithLifecycle()
     val duration by viewModel.duration.collectAsStateWithLifecycle()
     val controlsVisible by viewModel.controlsVisible.collectAsStateWithLifecycle()
@@ -217,6 +232,12 @@ private fun PlayerScreenContent(
         resolveDeviceGlEsMajorVersion(view.context)
     }
     val playerFocusRequester = remember { FocusRequester() }
+    val timelineFocusRequester = remember { FocusRequester() }
+    val transportFocusRequester = remember { FocusRequester() }
+    val pictureFocusRequester = remember { FocusRequester() }
+    val speedFocusRequester = remember { FocusRequester() }
+    val subtitlesFocusRequester = remember { FocusRequester() }
+    val audioFocusRequester = remember { FocusRequester() }
     val currentPlaybackSource = activePlaybackSource ?: playbackSource
     val pendingDebugCaptureLabel = viewModel.pendingGlFrameCaptureLabel()
     var preferCapturableTextureView by remember(playbackSource) {
@@ -273,6 +294,10 @@ private fun PlayerScreenContent(
     }
     val context = LocalContext.current
     var openMenu by remember { mutableStateOf<PlayerMenu?>(null) }
+    var infoPanelVisible by remember { mutableStateOf(false) }
+    var infoTab by remember { mutableStateOf(PlayerInfoTab.Information) }
+    var pressedDedicatedIntent by remember { mutableStateOf<MiruPlayInputIntent?>(null) }
+    var pendingChromeFocus by remember { mutableStateOf<PlayerChromeFocusTarget?>(null) }
     var exitConfirmationStartedAt by remember(playbackSource) { mutableStateOf(0L) }
     var playerViewRef by remember { mutableStateOf<PlayerView?>(null) }
     var lastStandardDebugCaptureAttempt by remember(playbackSource) {
@@ -300,6 +325,33 @@ private fun PlayerScreenContent(
         }
     }
 
+    val focusTargetForMenu: (PlayerMenu) -> PlayerChromeFocusTarget = { menu ->
+        when (menu) {
+            PlayerMenu.Picture -> PlayerChromeFocusTarget.Picture
+            PlayerMenu.Speed -> PlayerChromeFocusTarget.Speed
+            PlayerMenu.Subtitles -> PlayerChromeFocusTarget.Subtitles
+            PlayerMenu.Audio -> PlayerChromeFocusTarget.Audio
+        }
+    }
+    val closeOpenOverlay = {
+        if (infoPanelVisible) {
+            infoPanelVisible = false
+        } else {
+            openMenu?.let { pendingChromeFocus = focusTargetForMenu(it) }
+            openMenu = null
+            viewModel.showControls()
+        }
+    }
+    val toggleInfoPanel = {
+        if (infoPanelVisible) {
+            infoPanelVisible = false
+        } else {
+            openMenu = null
+            viewModel.hideControls()
+            infoPanelVisible = true
+        }
+    }
+
     LaunchedEffect(playbackSource, hasStartedPlayback, screenOwnerToken) {
         if (!hasStartedPlayback) {
             hasStartedPlayback = true
@@ -319,10 +371,25 @@ private fun PlayerScreenContent(
         }
     }
 
-    LaunchedEffect(controlsVisible) {
-        if (!controlsVisible) {
+    LaunchedEffect(controlsVisible, infoPanelVisible) {
+        if (!controlsVisible && !infoPanelVisible) {
             openMenu = null
             playerFocusRequester.requestFocus()
+        }
+    }
+
+    LaunchedEffect(controlsVisible, openMenu, pendingChromeFocus) {
+        if (controlsVisible && openMenu == null) {
+            when (pendingChromeFocus) {
+                PlayerChromeFocusTarget.Picture -> pictureFocusRequester.requestFocus()
+                PlayerChromeFocusTarget.Speed -> speedFocusRequester.requestFocus()
+                PlayerChromeFocusTarget.Subtitles -> subtitlesFocusRequester.requestFocus()
+                PlayerChromeFocusTarget.Audio -> audioFocusRequester.requestFocus()
+                null,
+                PlayerChromeFocusTarget.Timeline,
+                -> timelineFocusRequester.requestFocus()
+            }
+            pendingChromeFocus = null
         }
     }
 
@@ -417,21 +484,55 @@ private fun PlayerScreenContent(
             .focusRequester(playerFocusRequester)
             .focusable()
             .onPreviewKeyEvent { event ->
-                handlePlayerKey(
+                val intent = event.key.toMiruPlayInputIntent()
+                val repeatsDedicatedCommand =
+                    event.type == KeyEventType.KeyDown &&
+                        intent?.isDedicatedPlayerRemoteIntent() == true &&
+                        pressedDedicatedIntent == intent
+                val consumed = handlePlayerKey(
                     event = event,
+                    repeatsDedicatedCommand = repeatsDedicatedCommand,
                     controlsVisible = controlsVisible,
-                    hasOpenMenu = openMenu != null,
+                    hasOpenMenu = openMenu != null || infoPanelVisible,
+                    hasSubtitles = availableSubtitles.isNotEmpty(),
+                    canPlayPreviousEpisode = canPlayPreviousEpisode,
+                    canPlayNextEpisode = canPlayNextEpisode,
                     viewModel = viewModel,
-                    onCloseMenu = {
-                        openMenu = null
-                        viewModel.showControls()
-                    },
+                    onCloseMenu = closeOpenOverlay,
                     onHideControls = {
                         openMenu = null
                         viewModel.hideControls()
                     },
-                    onNavigateBack = requestExit
+                    onOpenCaptions = {
+                        infoPanelVisible = false
+                        if (openMenu == PlayerMenu.Subtitles) {
+                            pendingChromeFocus = PlayerChromeFocusTarget.Subtitles
+                            openMenu = null
+                        } else {
+                            viewModel.showControls()
+                            openMenu = PlayerMenu.Subtitles
+                        }
+                    },
+                    onFocusOptions = {
+                        infoPanelVisible = false
+                        openMenu = null
+                        pendingChromeFocus = PlayerChromeFocusTarget.Picture
+                        viewModel.showControls()
+                    },
+                    onToggleInfo = toggleInfoPanel,
+                    onStop = navigateBack,
+                    onNavigateBack = requestExit,
                 )
+                if (intent?.isDedicatedPlayerRemoteIntent() == true) {
+                    when (event.type) {
+                        KeyEventType.KeyDown -> pressedDedicatedIntent = intent
+                        KeyEventType.KeyUp -> if (pressedDedicatedIntent == intent) {
+                            pressedDedicatedIntent = null
+                        }
+                        else -> Unit
+                    }
+                }
+                consumed
             }
             .pointerInput(Unit) {
                 detectTapGestures {
@@ -574,11 +675,22 @@ private fun PlayerScreenContent(
                 playbackSpeed = playbackSpeed,
                 signalFormatLabel = currentVideoSignalDescriptor?.displayLabel().orEmpty(),
                 currentPicturePreset = viewModel.currentToneMappingPreset(),
+                timelineFocusRequester = timelineFocusRequester,
+                transportFocusRequester = transportFocusRequester,
+                pictureFocusRequester = pictureFocusRequester,
+                speedFocusRequester = speedFocusRequester,
+                subtitlesFocusRequester = subtitlesFocusRequester,
+                audioFocusRequester = audioFocusRequester,
+                canPlayPreviousEpisode = canPlayPreviousEpisode,
+                canPlayNextEpisode = canPlayNextEpisode,
                 onBack = navigateBack,
+                onInfo = toggleInfoPanel,
                 onTogglePlayback = {
                     viewModel.togglePlayback()
                     viewModel.showControls()
                 },
+                onPreviousEpisode = viewModel::playPreviousEpisode,
+                onNextEpisode = viewModel::playNextEpisode,
                 onSkipBackward = {
                     viewModel.skipBackward()
                     viewModel.showControls()
@@ -612,7 +724,41 @@ private fun PlayerScreenContent(
                     viewModel.showControls()
                 },
                 openMenu = openMenu,
-                onOpenMenuChange = { openMenu = it }
+                onOpenMenuChange = { menu ->
+                    if (openMenu == menu) {
+                        pendingChromeFocus = focusTargetForMenu(menu)
+                        openMenu = null
+                    } else {
+                        openMenu = menu
+                    }
+                },
+            )
+        }
+
+        AnimatedVisibility(
+            visible = infoPanelVisible,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.CenterEnd),
+        ) {
+            PlayerInfoPanel(
+                tab = infoTab,
+                onTabChange = { infoTab = it },
+                title = displayTitle.ifBlank { currentPlaybackSource.mediaSourceId },
+                sourceLabel = displaySubtitle.ifBlank { currentPlaybackSource.mediaSourceId },
+                source = currentPlaybackSource,
+                playbackState = playbackState,
+                currentPosition = currentPosition,
+                duration = duration,
+                playbackSpeed = playbackSpeed,
+                signal = currentVideoSignalDescriptor,
+                requestedBackend = currentRequestedBackend,
+                activeBackend = currentActiveBackend,
+                fallbackReason = fallbackReason,
+                subtitles = availableSubtitles,
+                audioTracks = availableAudioTracks,
+                selectedSubtitleTrackIndex = selectedSubtitleTrackIndex,
+                selectedAudioTrackIndex = selectedAudioTrackIndex,
             )
         }
 
@@ -730,8 +876,19 @@ private fun PlayerChrome(
     playbackSpeed: Float,
     signalFormatLabel: String,
     currentPicturePreset: ToneMappingProfilePreset,
+    timelineFocusRequester: FocusRequester,
+    transportFocusRequester: FocusRequester,
+    pictureFocusRequester: FocusRequester,
+    speedFocusRequester: FocusRequester,
+    subtitlesFocusRequester: FocusRequester,
+    audioFocusRequester: FocusRequester,
+    canPlayPreviousEpisode: Boolean,
+    canPlayNextEpisode: Boolean,
     onBack: () -> Unit,
+    onInfo: () -> Unit,
     onTogglePlayback: () -> Unit,
+    onPreviousEpisode: () -> Unit,
+    onNextEpisode: () -> Unit,
     onSkipBackward: () -> Unit,
     onSkipForward: () -> Unit,
     onSelectSubtitle: (Int?) -> Unit,
@@ -741,7 +898,7 @@ private fun PlayerChrome(
     onSavePictureDefault: () -> Unit,
     onResetPictureSession: () -> Unit,
     openMenu: PlayerMenu?,
-    onOpenMenuChange: (PlayerMenu?) -> Unit
+    onOpenMenuChange: (PlayerMenu) -> Unit
 ) {
     Box(
         modifier = Modifier
@@ -749,9 +906,9 @@ private fun PlayerChrome(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color.Black.copy(alpha = 0.78f),
-                        Color.Black.copy(alpha = 0.10f),
-                        Color.Black.copy(alpha = 0.88f)
+                        Color.Black.copy(alpha = 0.54f),
+                        Color.Black.copy(alpha = 0.02f),
+                        Color.Black.copy(alpha = 0.64f)
                     )
                 )
             )
@@ -760,12 +917,18 @@ private fun PlayerChrome(
             title = title,
             sourceLabel = sourceLabel,
             onBack = onBack,
+            onInfo = onInfo,
             modifier = Modifier.align(Alignment.TopCenter)
         )
 
         TransportControls(
             isPlaying = playbackState is PlaybackState.Playing,
             isLoading = playbackState is PlaybackState.Loading || playbackState is PlaybackState.Buffering,
+            canPlayPreviousEpisode = canPlayPreviousEpisode,
+            canPlayNextEpisode = canPlayNextEpisode,
+            focusRequester = transportFocusRequester,
+            onPreviousEpisode = onPreviousEpisode,
+            onNextEpisode = onNextEpisode,
             onTogglePlayback = onTogglePlayback,
             onSkipBackward = onSkipBackward,
             onSkipForward = onSkipForward,
@@ -803,8 +966,16 @@ private fun PlayerChrome(
             playbackSpeed = playbackSpeed,
             signalFormatLabel = signalFormatLabel,
             openMenu = openMenu,
+            timelineFocusRequester = timelineFocusRequester,
+            transportFocusRequester = transportFocusRequester,
+            pictureFocusRequester = pictureFocusRequester,
+            speedFocusRequester = speedFocusRequester,
+            subtitlesFocusRequester = subtitlesFocusRequester,
+            audioFocusRequester = audioFocusRequester,
+            onSkipBackward = onSkipBackward,
+            onSkipForward = onSkipForward,
             onOpenMenu = { menu ->
-                onOpenMenuChange(if (openMenu == menu) null else menu)
+                onOpenMenuChange(menu)
             },
             modifier = Modifier.align(Alignment.BottomCenter)
         )
@@ -816,6 +987,7 @@ private fun PlayerTopBar(
     title: String,
     sourceLabel: String,
     onBack: () -> Unit,
+    onInfo: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -847,6 +1019,12 @@ private fun PlayerTopBar(
                 overflow = TextOverflow.Ellipsis
             )
         }
+        PlayerIconButton(
+            icon = Icons.Filled.Info,
+            label = "播放信息",
+            onClick = onInfo,
+            size = 54.dp,
+        )
     }
 }
 
@@ -854,26 +1032,32 @@ private fun PlayerTopBar(
 private fun TransportControls(
     isPlaying: Boolean,
     isLoading: Boolean,
+    canPlayPreviousEpisode: Boolean,
+    canPlayNextEpisode: Boolean,
+    focusRequester: FocusRequester,
+    onPreviousEpisode: () -> Unit,
+    onNextEpisode: () -> Unit,
     onTogglePlayback: () -> Unit,
     onSkipBackward: () -> Unit,
     onSkipForward: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val playFocusRequester = remember { FocusRequester() }
-
-    LaunchedEffect(Unit) {
-        playFocusRequester.requestFocus()
-    }
-
     Row(
         modifier = modifier
             .clip(RoundedCornerShape(8.dp))
-            .background(Color.Black.copy(alpha = 0.38f))
+            .background(Color.Black.copy(alpha = 0.24f))
             .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(8.dp))
             .padding(horizontal = 18.dp, vertical = 14.dp),
         horizontalArrangement = Arrangement.spacedBy(24.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        PlayerIconButton(
+            icon = Icons.Filled.SkipPrevious,
+            label = "上一集",
+            onClick = onPreviousEpisode,
+            size = 54.dp,
+            enabled = canPlayPreviousEpisode,
+        )
         PlayerIconButton(
             icon = Icons.Filled.FastRewind,
             label = playbackSeekBackLabel(PLAYBACK_SEEK_BACK_SECONDS),
@@ -885,7 +1069,7 @@ private fun TransportControls(
             label = if (isPlaying) playbackPauseLabel() else playbackPlayLabel(),
             onClick = onTogglePlayback,
             size = 82.dp,
-            modifier = Modifier.focusRequester(playFocusRequester),
+            modifier = Modifier.focusRequester(focusRequester),
             prominent = true,
             enabled = !isLoading
         )
@@ -895,12 +1079,19 @@ private fun TransportControls(
             onClick = onSkipForward,
             size = 62.dp
         )
+        PlayerIconButton(
+            icon = Icons.Filled.SkipNext,
+            label = "下一集",
+            onClick = onNextEpisode,
+            size = 54.dp,
+            enabled = canPlayNextEpisode,
+        )
     }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun PlayerBottomBar(
+internal fun PlayerBottomBar(
     currentPosition: Long,
     duration: Long,
     subtitles: List<SubtitleTrack>,
@@ -910,13 +1101,21 @@ private fun PlayerBottomBar(
     playbackSpeed: Float,
     signalFormatLabel: String,
     openMenu: PlayerMenu?,
+    timelineFocusRequester: FocusRequester,
+    transportFocusRequester: FocusRequester,
+    pictureFocusRequester: FocusRequester,
+    speedFocusRequester: FocusRequester,
+    subtitlesFocusRequester: FocusRequester,
+    audioFocusRequester: FocusRequester,
+    onSkipBackward: () -> Unit,
+    onSkipForward: () -> Unit,
     onOpenMenu: (PlayerMenu) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(Color.Black.copy(alpha = 0.62f))
+            .background(Color.Black.copy(alpha = 0.44f))
             .padding(start = 52.dp, end = 52.dp, top = 22.dp, bottom = 36.dp)
     ) {
         Row(
@@ -926,6 +1125,15 @@ private fun PlayerBottomBar(
             TimeText(formatPlaybackPosition(currentPosition))
             PlaybackTimeline(
                 progress = PlaybackTimingConventions.playbackProgressFraction(currentPosition, duration),
+                focusRequester = timelineFocusRequester,
+                upFocusRequester = transportFocusRequester,
+                downFocusRequester = when {
+                    audioTracks.isNotEmpty() -> audioFocusRequester
+                    subtitles.isNotEmpty() -> subtitlesFocusRequester
+                    else -> speedFocusRequester
+                },
+                onSkipBackward = onSkipBackward,
+                onSkipForward = onSkipForward,
                 modifier = Modifier
                     .weight(1f)
                     .padding(horizontal = 18.dp)
@@ -949,13 +1157,23 @@ private fun PlayerBottomBar(
                 icon = Icons.Filled.PhotoFilter,
                 text = pictureOsdMenuTitleLabel(),
                 selected = openMenu == PlayerMenu.Picture,
-                onClick = { onOpenMenu(PlayerMenu.Picture) }
+                onClick = { onOpenMenu(PlayerMenu.Picture) },
+                modifier = Modifier
+                    .focusRequester(pictureFocusRequester)
+                    .focusProperties {
+                        if (openMenu == null) up = timelineFocusRequester
+                    },
             )
             PlayerActionChip(
                 icon = Icons.Filled.Speed,
                 text = playbackSpeedChipLabel(playbackSpeed),
                 selected = openMenu == PlayerMenu.Speed,
-                onClick = { onOpenMenu(PlayerMenu.Speed) }
+                onClick = { onOpenMenu(PlayerMenu.Speed) },
+                modifier = Modifier
+                    .focusRequester(speedFocusRequester)
+                    .focusProperties {
+                        if (openMenu == null) up = timelineFocusRequester
+                    },
             )
             PlayerActionChip(
                 icon = Icons.Filled.Subtitles,
@@ -964,7 +1182,12 @@ private fun PlayerBottomBar(
                     ?: playbackSubtitleCountLabel(subtitles.size),
                 selected = openMenu == PlayerMenu.Subtitles,
                 enabled = subtitles.isNotEmpty(),
-                onClick = { onOpenMenu(PlayerMenu.Subtitles) }
+                onClick = { onOpenMenu(PlayerMenu.Subtitles) },
+                modifier = Modifier
+                    .focusRequester(subtitlesFocusRequester)
+                    .focusProperties {
+                        if (openMenu == null) up = timelineFocusRequester
+                    },
             )
             PlayerActionChip(
                 icon = Icons.Filled.Audiotrack,
@@ -977,28 +1200,62 @@ private fun PlayerBottomBar(
                     ?: playbackAudioTrackCountLabel(audioTracks.size),
                 selected = openMenu == PlayerMenu.Audio,
                 enabled = audioTracks.isNotEmpty(),
-                onClick = { onOpenMenu(PlayerMenu.Audio) }
+                onClick = { onOpenMenu(PlayerMenu.Audio) },
+                modifier = Modifier
+                    .focusRequester(audioFocusRequester)
+                    .focusProperties {
+                        if (openMenu == null) up = timelineFocusRequester
+                    },
             )
         }
     }
 }
 
 @Composable
-private fun PlaybackTimeline(
+internal fun PlaybackTimeline(
     progress: Float,
+    focusRequester: FocusRequester,
+    upFocusRequester: FocusRequester,
+    downFocusRequester: FocusRequester,
+    onSkipBackward: () -> Unit,
+    onSkipForward: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val shape = RoundedCornerShape(8.dp)
+
     Box(
         modifier = modifier
-            .height(8.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(Color.White.copy(alpha = 0.20f))
+            .height(18.dp)
+            .focusRequester(focusRequester)
+            .focusProperties {
+                up = upFocusRequester
+                down = downFocusRequester
+            }
+            .testTag(PLAYER_TIMELINE_TEST_TAG)
+            .clip(shape)
+            .background(Color.White.copy(alpha = if (isFocused) 0.30f else 0.20f))
+            .border(
+                width = if (isFocused) 3.dp else 1.dp,
+                color = if (isFocused) Color.White else Color.White.copy(alpha = 0.14f),
+                shape = shape,
+            )
+            .onPreviewKeyEvent { event ->
+                handlePlaybackTimelineKey(
+                    key = event.key,
+                    type = event.type,
+                    onSkipBackward = onSkipBackward,
+                    onSkipForward = onSkipForward,
+                )
+            }
+            .focusable(interactionSource = interactionSource)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxHeight()
                 .fillMaxWidth(progress.coerceIn(0f, 1f))
-                .clip(RoundedCornerShape(8.dp))
+                .clip(shape)
                 .background(AnimeRed)
         )
     }
@@ -1035,12 +1292,13 @@ private fun PlayerIconButton(
 
     Box(
         modifier = modifier
+            .scale(if (isFocused) 1.08f else 1f)
             .size(size)
             .clip(CircleShape)
             .background(background)
             .border(
-                width = if (isFocused) 2.dp else 1.dp,
-                color = if (isFocused) FocusBorder else Color.White.copy(alpha = 0.20f),
+                width = if (isFocused) 3.dp else 1.dp,
+                color = if (isFocused) Color.White else Color.White.copy(alpha = 0.20f),
                 shape = CircleShape
             )
             .clickable(
@@ -1103,7 +1361,8 @@ private fun PlayerActionChip(
     text: String,
     selected: Boolean,
     onClick: () -> Unit,
-    enabled: Boolean = true
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
@@ -1119,7 +1378,8 @@ private fun PlayerActionChip(
         onClick = onClick,
         enabled = enabled,
         interactionSource = interactionSource,
-        modifier = Modifier
+        modifier = modifier
+            .scale(if (isFocused) 1.04f else 1f)
             .height(48.dp)
             .clip(RoundedCornerShape(8.dp))
             .onPreviewKeyEvent { event ->
@@ -1131,8 +1391,12 @@ private fun PlayerActionChip(
                 )
             }
             .border(
-                width = if (isFocused || selected) 2.dp else 1.dp,
-                color = if (isFocused) FocusBorder else Color.White.copy(alpha = 0.14f),
+                width = when {
+                    isFocused -> 3.dp
+                    selected -> 2.dp
+                    else -> 1.dp
+                },
+                color = if (isFocused) Color.White else Color.White.copy(alpha = 0.14f),
                 shape = RoundedCornerShape(8.dp)
             ),
         shape = RoundedCornerShape(8.dp),
@@ -1185,6 +1449,9 @@ internal fun PlayerOptionsPanel(
     val initialFocusHandle = rememberInitialFocusHandle(key = menu)
     val speeds = remember { playbackSpeedOptions() }
     val picturePresets = remember { toneMappingPresetOptions() }
+    val initialSpeedIndex = speeds.indexOf(playbackSpeed).takeIf { it >= 0 } ?: 0
+    val initialPictureIndex = picturePresets.indexOf(currentPicturePreset).takeIf { it >= 0 } ?: 0
+    val initialAudioIndex = selectedAudioTrackIndex?.takeIf { it in audioTracks.indices } ?: 0
     val scrollState = rememberScrollState()
 
     Column(
@@ -1192,7 +1459,7 @@ internal fun PlayerOptionsPanel(
             .fillMaxWidth()
             .heightIn(max = 420.dp)
             .clip(RoundedCornerShape(8.dp))
-            .background(Color.Black.copy(alpha = 0.72f))
+            .background(Color.Black.copy(alpha = 0.58f))
             .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(8.dp))
             .padding(18.dp)
             .verticalScroll(scrollState)
@@ -1219,7 +1486,7 @@ internal fun PlayerOptionsPanel(
                         text = playbackSpeedValueLabel(speed),
                         selected = speed == playbackSpeed,
                         onClick = { onSelectSpeed(speed) },
-                        modifier = if (index == 0) {
+                        modifier = if (index == initialSpeedIndex) {
                             Modifier.then(initialFocusHandle.modifier())
                         } else {
                             Modifier
@@ -1227,31 +1494,38 @@ internal fun PlayerOptionsPanel(
                     )
                 }
             }
-            PlayerMenu.Subtitles -> FlowRow(
+            PlayerMenu.Subtitles -> LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                itemVerticalAlignment = Alignment.CenterVertically,
             ) {
-                PlayerOptionButton(
-                    text = playbackSubtitleOffLabel(),
-                    selected = selectedSubtitleTrackIndex == null,
-                    onClick = { onSelectSubtitle(null) },
-                    modifier = Modifier.then(initialFocusHandle.modifier()),
-                )
-                subtitles.forEachIndexed { index, track ->
+                item {
+                    PlayerOptionButton(
+                        text = playbackSubtitleOffLabel(),
+                        selected = selectedSubtitleTrackIndex == null,
+                        onClick = { onSelectSubtitle(null) },
+                        modifier = if (selectedSubtitleTrackIndex == null) {
+                            Modifier.then(initialFocusHandle.modifier())
+                        } else {
+                            Modifier
+                        },
+                    )
+                }
+                itemsIndexed(subtitles) { index, track ->
                     PlayerOptionButton(
                         text = playbackSubtitleOptionLabel(track, index),
                         selected = index == selectedSubtitleTrackIndex,
                         onClick = { onSelectSubtitle(index) },
+                        modifier = if (index == selectedSubtitleTrackIndex) {
+                            Modifier.then(initialFocusHandle.modifier())
+                        } else {
+                            Modifier
+                        },
                     )
                 }
             }
-            PlayerMenu.Audio -> FlowRow(
+            PlayerMenu.Audio -> LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                itemVerticalAlignment = Alignment.CenterVertically,
             ) {
-                audioTracks.forEachIndexed { index, track ->
+                itemsIndexed(audioTracks) { index, track ->
                     PlayerOptionButton(
                         text = playbackAudioOptionLabel(
                             title = track.title,
@@ -1260,11 +1534,11 @@ internal fun PlayerOptionsPanel(
                         ),
                         selected = index == selectedAudioTrackIndex,
                         onClick = { onSelectAudioTrack(index) },
-                        modifier = if (index == 0) {
+                        modifier = if (index == initialAudioIndex) {
                             Modifier.then(initialFocusHandle.modifier())
                         } else {
                             Modifier
-                        }
+                        },
                     )
                 }
             }
@@ -1281,7 +1555,7 @@ internal fun PlayerOptionsPanel(
                             text = "${pictureSessionOverrideLabel()} ${toneMappingPresetLabel(preset)}",
                             selected = preset == currentPicturePreset,
                             onClick = { onSelectPicturePreset(preset) },
-                            modifier = if (index == 0) {
+                            modifier = if (index == initialPictureIndex) {
                                 Modifier.then(initialFocusHandle.modifier())
                             } else {
                                 Modifier
@@ -1311,6 +1585,182 @@ internal fun PlayerOptionsPanel(
 }
 
 @Composable
+private fun PlayerInfoPanel(
+    tab: PlayerInfoTab,
+    onTabChange: (PlayerInfoTab) -> Unit,
+    title: String,
+    sourceLabel: String,
+    source: PlaybackSource,
+    playbackState: PlaybackState,
+    currentPosition: Long,
+    duration: Long,
+    playbackSpeed: Float,
+    signal: VideoSignalDescriptor?,
+    requestedBackend: PlaybackRenderBackend,
+    activeBackend: PlaybackRenderBackend,
+    fallbackReason: String?,
+    subtitles: List<SubtitleTrack>,
+    audioTracks: List<AudioTrack>,
+    selectedSubtitleTrackIndex: Int?,
+    selectedAudioTrackIndex: Int?,
+) {
+    val infoTabFocusRequester = remember { FocusRequester() }
+    val scrollState = rememberScrollState()
+    LaunchedEffect(Unit) {
+        infoTabFocusRequester.requestFocus()
+    }
+    val selectedSubtitle = selectedSubtitleTrackIndex
+        ?.let { index -> subtitles.getOrNull(index)?.let { playbackSubtitleOptionLabel(it, index) } }
+        ?: playbackSubtitleOffLabel()
+    val selectedAudio = selectedAudioTrackIndex
+        ?.let { index ->
+            audioTracks.getOrNull(index)?.let {
+                playbackAudioOptionLabel(it.title, it.language, index)
+            }
+        }
+        ?: "—"
+
+    Column(
+        modifier = Modifier
+            .width(480.dp)
+            .fillMaxHeight()
+            .background(Color.Black.copy(alpha = 0.66f))
+            .border(1.dp, Color.White.copy(alpha = 0.14f))
+            .padding(horizontal = 26.dp, vertical = 28.dp),
+    ) {
+        Text(
+            text = "播放信息",
+            style = TvTypography.subtitle,
+            color = TextPrimary,
+        )
+        Spacer(Modifier.height(18.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            PlayerOptionButton(
+                text = "信息",
+                selected = tab == PlayerInfoTab.Information,
+                onClick = { onTabChange(PlayerInfoTab.Information) },
+                modifier = Modifier.focusRequester(infoTabFocusRequester),
+            )
+            PlayerOptionButton(
+                text = "播放 / 调试",
+                selected = tab == PlayerInfoTab.Diagnostics,
+                onClick = { onTabChange(PlayerInfoTab.Diagnostics) },
+            )
+        }
+        Spacer(Modifier.height(18.dp))
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(scrollState),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            when (tab) {
+                PlayerInfoTab.Information -> {
+                    PlayerInfoRow("番剧 / 剧集", title)
+                    PlayerInfoRow("元数据", sourceLabel)
+                    PlayerInfoRow("文件", sanitizedPlaybackSourceName(source.uri))
+                    PlayerInfoRow("来源类型", playbackSourceSchemeLabel(source.uri))
+                    PlayerInfoRow("时长", formatPlaybackPosition(duration))
+                    PlayerInfoRow("视频信号", signal?.displayLabel() ?: "—")
+                    PlayerInfoRow("视频编码", signal?.codecId?.takeIf(String::isNotBlank) ?: "—")
+                    PlayerInfoRow("位深", signal?.bitDepth?.let { "$it bit" } ?: "—")
+                    PlayerInfoRow("当前音轨", selectedAudio)
+                    PlayerInfoRow("当前字幕", selectedSubtitle)
+                }
+                PlayerInfoTab.Diagnostics -> {
+                    PlayerInfoRow("状态", playbackStateInfoLabel(playbackState))
+                    PlayerInfoRow("位置", formatPlaybackPosition(currentPosition))
+                    PlayerInfoRow("总时长", formatPlaybackPosition(duration))
+                    PlayerInfoRow("速度", playbackSpeedValueLabel(playbackSpeed))
+                    PlayerInfoRow("请求后端", playbackBackendLabel(requestedBackend))
+                    PlayerInfoRow("活动后端", playbackBackendLabel(activeBackend))
+                    PlayerInfoRow("回退原因", fallbackReason?.takeIf(String::isNotBlank) ?: "—")
+                    PlayerInfoRow("传递函数", signal?.transfer?.name ?: "—")
+                    PlayerInfoRow("色彩原色", signal?.colorPrimaries?.name ?: "—")
+                    PlayerInfoRow("HDR 静态元数据", signal?.hasHdrStaticMetadata?.yesNoLabel() ?: "—")
+                    PlayerInfoRow("HDR10+ 元数据", signal?.hasHdr10PlusMetadata?.yesNoLabel() ?: "—")
+                    PlayerInfoRow("字幕轨", subtitles.size.toString())
+                    PlayerInfoRow("音轨", audioTracks.size.toString())
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlayerInfoRow(label: String, value: String) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(6.dp))
+            .background(Color.White.copy(alpha = if (isFocused) 0.14f else 0.04f))
+            .border(
+                width = if (isFocused) 1.dp else 0.dp,
+                color = if (isFocused) FocusBorder else Color.Transparent,
+                shape = RoundedCornerShape(6.dp),
+            )
+            .focusable(interactionSource = interactionSource)
+            .padding(horizontal = 12.dp, vertical = 9.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Text(
+            text = label,
+            color = TextSecondary,
+            style = TvTypography.caption,
+            modifier = Modifier.width(118.dp),
+        )
+        Text(
+            text = value.ifBlank { "—" },
+            color = TextPrimary,
+            style = TvTypography.caption.copy(fontWeight = FontWeight.SemiBold),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+internal fun sanitizedPlaybackSourceName(uri: String): String =
+    runCatching {
+        val rawName = if (uri.isLocalPlaybackPath()) {
+            uri.substringAfterLast('/').substringAfterLast('\\')
+        } else {
+            Uri.parse(uri).lastPathSegment.orEmpty()
+        }
+        Uri.decode(rawName).takeIf(String::isNotBlank)
+    }.getOrNull() ?: "—"
+
+internal fun playbackSourceSchemeLabel(uri: String): String =
+    if (uri.isLocalPlaybackPath()) {
+        "本地文件"
+    } else {
+        runCatching { Uri.parse(uri).scheme }
+            .getOrNull()
+            ?.takeIf(String::isNotBlank)
+            ?.uppercase()
+            ?: "本地文件"
+    }
+
+private fun String.isLocalPlaybackPath(): Boolean =
+    startsWith('/') || matches(Regex("^[A-Za-z]:[\\\\/].*"))
+
+private fun playbackStateInfoLabel(state: PlaybackState): String =
+    when (state) {
+        PlaybackState.Idle -> "空闲"
+        is PlaybackState.Loading -> "加载中"
+        is PlaybackState.Playing -> "播放中"
+        is PlaybackState.Paused -> "已暂停"
+        is PlaybackState.Buffering -> "缓冲中"
+        is PlaybackState.Ended -> "已结束"
+        is PlaybackState.Error -> "错误"
+    }
+
+private fun Boolean.yesNoLabel(): String = if (this) "是" else "否"
+
+@Composable
 private fun PlayerOptionButton(
     text: String,
     selected: Boolean,
@@ -1332,6 +1782,7 @@ private fun PlayerOptionButton(
         enabled = enabled,
         interactionSource = interactionSource,
         modifier = modifier
+            .scale(if (isFocused) 1.04f else 1f)
             .heightIn(min = 48.dp)
             .clip(RoundedCornerShape(8.dp))
             .onPreviewKeyEvent { event ->
@@ -1342,8 +1793,12 @@ private fun PlayerOptionButton(
                 )
             }
             .border(
-                width = if (isFocused || selected) 2.dp else 1.dp,
-                color = if (isFocused) FocusBorder else Color.White.copy(alpha = 0.14f),
+                width = when {
+                    isFocused -> 3.dp
+                    selected -> 2.dp
+                    else -> 1.dp
+                },
+                color = if (isFocused) Color.White else Color.White.copy(alpha = 0.14f),
                 shape = RoundedCornerShape(8.dp)
             ),
         shape = RoundedCornerShape(8.dp),
@@ -1429,23 +1884,62 @@ internal enum class PlayerMenu {
     Audio
 }
 
+internal enum class PlayerInfoTab {
+    Information,
+    Diagnostics,
+}
+
+private enum class PlayerChromeFocusTarget {
+    Timeline,
+    Picture,
+    Speed,
+    Subtitles,
+    Audio,
+}
+
+internal const val PLAYER_TIMELINE_TEST_TAG = "player-timeline"
+
 private fun handlePlayerKey(
     event: KeyEvent,
+    repeatsDedicatedCommand: Boolean,
     controlsVisible: Boolean,
     hasOpenMenu: Boolean,
+    hasSubtitles: Boolean,
+    canPlayPreviousEpisode: Boolean,
+    canPlayNextEpisode: Boolean,
     viewModel: PlayerViewModel,
     onCloseMenu: () -> Unit,
     onHideControls: () -> Unit,
-    onNavigateBack: () -> Unit
+    onOpenCaptions: () -> Unit,
+    onFocusOptions: () -> Unit,
+    onToggleInfo: () -> Unit,
+    onStop: () -> Unit,
+    onNavigateBack: () -> Unit,
 ): Boolean {
-    if (event.type != KeyEventType.KeyDown) return false
+    val intent = event.key.toMiruPlayInputIntent() ?: return false
+    val dedicatedAvailable = when (intent) {
+        com.miruplay.tv.design.MiruPlayInputIntent.MediaPrevious -> canPlayPreviousEpisode
+        com.miruplay.tv.design.MiruPlayInputIntent.MediaNext -> canPlayNextEpisode
+        com.miruplay.tv.design.MiruPlayInputIntent.Captions -> hasSubtitles
+        else -> true
+    }
+    if (!dedicatedAvailable) return false
 
-    val action = event.key.toMiruPlayInputIntent()
-        ?.tvPlaybackOverlayAction(
-            controlsVisible = controlsVisible,
-            hasOpenMenu = hasOpenMenu,
-        )
-        ?: return false
+    if (event.type != KeyEventType.KeyDown) {
+        return event.type == KeyEventType.KeyUp && intent.isDedicatedPlayerRemoteIntent()
+    }
+    if (
+        intent.isDedicatedPlayerRemoteIntent() &&
+        repeatsDedicatedCommand &&
+        !intent.allowsPlayerRemoteRepeat()
+    ) {
+        return true
+    }
+
+    val action = intent.tvPlaybackOverlayAction(
+        controlsVisible = controlsVisible,
+        hasOpenMenu = hasOpenMenu,
+    ) ?: return false
 
     if (action.shouldRefreshTvPlaybackControls(controlsVisible)) {
         viewModel.showControls()
@@ -1458,6 +1952,26 @@ private fun handlePlayerKey(
         }
         MiruPlayPlaybackInputAction.SeekForward -> {
             viewModel.skipForward()
+            true
+        }
+        MiruPlayPlaybackInputAction.PreviousEpisode -> {
+            viewModel.playPreviousEpisode()
+            true
+        }
+        MiruPlayPlaybackInputAction.NextEpisode -> {
+            viewModel.playNextEpisode()
+            true
+        }
+        MiruPlayPlaybackInputAction.OpenCaptions -> {
+            onOpenCaptions()
+            true
+        }
+        MiruPlayPlaybackInputAction.FocusOptions -> {
+            onFocusOptions()
+            true
+        }
+        MiruPlayPlaybackInputAction.ToggleInfo -> {
+            onToggleInfo()
             true
         }
         MiruPlayPlaybackInputAction.ShowControls -> true
@@ -1473,6 +1987,10 @@ private fun handlePlayerKey(
             viewModel.pause()
             true
         }
+        MiruPlayPlaybackInputAction.Stop -> {
+            onStop()
+            true
+        }
         MiruPlayPlaybackInputAction.HideControls -> {
             onHideControls()
             true
@@ -1485,8 +2003,6 @@ private fun handlePlayerKey(
             onNavigateBack()
             true
         }
-        MiruPlayPlaybackInputAction.Launch,
-        MiruPlayPlaybackInputAction.Stop,
-        -> false
+        MiruPlayPlaybackInputAction.Launch -> false
     }
 }

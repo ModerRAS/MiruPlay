@@ -21,6 +21,8 @@ class PlaybackDebugConfigMappingTest {
         assertEquals(PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED, playbackRenderBackendFromDebugValue("mpvandroid"))
         assertEquals(PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED, playbackRenderBackendFromDebugValue("libmpv"))
         assertEquals(PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED, playbackRenderBackendFromDebugValue("mpv"))
+        assertEquals(PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER, playbackRenderBackendFromDebugValue("ijk"))
+        assertEquals(PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER, playbackRenderBackendFromDebugValue("ijkplayer"))
         assertNull(playbackRenderBackendFromDebugValue("unknown"))
     }
 

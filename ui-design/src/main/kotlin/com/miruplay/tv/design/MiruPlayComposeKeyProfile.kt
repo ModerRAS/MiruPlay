@@ -18,6 +18,13 @@ fun miruPlayKeyInputFromComposeKeyCode(keyCode: Long): MiruPlayKeyInput? =
         126L -> MiruPlayKeyInput.MediaPlay
         127L -> MiruPlayKeyInput.MediaPause
         86L -> MiruPlayKeyInput.MediaStop
+        89L -> MiruPlayKeyInput.MediaRewind
+        90L -> MiruPlayKeyInput.MediaFastForward
+        88L -> MiruPlayKeyInput.MediaPrevious
+        87L -> MiruPlayKeyInput.MediaNext
+        175L -> MiruPlayKeyInput.Captions
+        82L -> MiruPlayKeyInput.Menu
+        165L -> MiruPlayKeyInput.Info
         else -> null
     }
 

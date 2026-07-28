@@ -18,6 +18,8 @@ import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.SubtitleLanguagePreference
 import com.miruplay.tv.model.PlaybackRenderBackend
 import com.miruplay.tv.model.ScanResult
+import com.miruplay.tv.model.playbackBackendLabel
+import com.miruplay.tv.model.supportedPlaybackRenderBackends
 import com.miruplay.tv.model.buildToneMappingPreset
 import com.miruplay.tv.player.PlaybackController
 import com.miruplay.tv.player.PlaybackDebugOverrides
@@ -716,6 +718,12 @@ class WebControlService @Inject constructor(
             episodeVersionSelectionPolicy = episodeVersionSelectionPolicy.storageValue,
             preferredSubtitleLanguage = preferredSubtitleLanguage.storageValue,
             formatAwareToneMapping = toneMapping,
+            backendOptions = supportedPlaybackRenderBackends().map { backend ->
+                PlaybackBackendOptionDto(
+                    value = backend.name,
+                    label = playbackBackendLabel(backend),
+                )
+            },
         )
     }
 

@@ -8,6 +8,7 @@ enum class PlaybackRenderBackend {
     EXPERIMENTAL_GL,
     EXPERIMENTAL_MPV_ANDROID,
     EXPERIMENTAL_MPV_EMBEDDED,
+    EXPERIMENTAL_IJKPLAYER,
     EXPERIMENTAL_LIBVLC,
 }
 
@@ -17,6 +18,7 @@ fun PlaybackRenderBackend.normalizeSupportedBackend(): PlaybackRenderBackend =
         PlaybackRenderBackend.EXPERIMENTAL_GL -> PlaybackRenderBackend.EXPERIMENTAL_GL
         PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID -> PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED
         PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED -> PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED
+        PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER -> PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER
         PlaybackRenderBackend.EXPERIMENTAL_LIBVLC -> PlaybackRenderBackend.STANDARD_EXO
     }
 
@@ -25,6 +27,7 @@ fun supportedPlaybackRenderBackends(): List<PlaybackRenderBackend> =
         PlaybackRenderBackend.STANDARD_EXO,
         PlaybackRenderBackend.EXPERIMENTAL_GL,
         PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED,
+        PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER,
     )
 
 @Serializable

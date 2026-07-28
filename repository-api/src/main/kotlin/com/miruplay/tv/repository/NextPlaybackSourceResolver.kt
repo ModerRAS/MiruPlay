@@ -31,13 +31,22 @@ class NextPlaybackSourceResolver(
         LibraryAnimeResolver(mediaSources, metadata, it, mergeSameAnimeEnabled)
     }
 
-    suspend fun build(currentSource: PlaybackSource): PlaybackSource? {
+    suspend fun build(currentSource: PlaybackSource): PlaybackSource? =
+        buildAdjacent(currentSource, nextEpisode(currentSource))
+
+    suspend fun buildPrevious(currentSource: PlaybackSource): PlaybackSource? =
+        buildAdjacent(currentSource, previousEpisode(currentSource))
+
+    private suspend fun buildAdjacent(
+        currentSource: PlaybackSource,
+        episode: Episode?,
+    ): PlaybackSource? {
         val currentPath = currentSource.episodeId
             ?.let { loadEpisode(it)?.filePath }
             ?: currentSource.uri
-        val nextEpisode = nextEpisode(currentSource) ?: return null
-        val version = nextEpisode.availableVersions().nearestTo(currentPath) ?: return null
-        return build(nextEpisode, version)
+        val adjacentEpisode = episode ?: return null
+        val version = adjacentEpisode.availableVersions().nearestTo(currentPath) ?: return null
+        return build(adjacentEpisode, version)
     }
 
     suspend fun build(currentEpisodeId: String?): PlaybackSource? {
@@ -54,10 +63,21 @@ class NextPlaybackSourceResolver(
     }
 
     suspend fun nextEpisode(currentSource: PlaybackSource): Episode? =
-        findNextLogicalEpisode(
+        findAdjacentLogicalEpisode(
             currentEpisodeId = currentSource.episodeId,
             currentProgressId = currentSource.progressId,
             currentAnimeId = currentSource.mediaSourceId,
+            offset = 1,
+            loadCurrentEpisode = ::loadEpisode,
+            loadEpisodes = ::loadEpisodes,
+        )
+
+    suspend fun previousEpisode(currentSource: PlaybackSource): Episode? =
+        findAdjacentLogicalEpisode(
+            currentEpisodeId = currentSource.episodeId,
+            currentProgressId = currentSource.progressId,
+            currentAnimeId = currentSource.mediaSourceId,
+            offset = -1,
             loadCurrentEpisode = ::loadEpisode,
             loadEpisodes = ::loadEpisodes,
         )
@@ -132,6 +152,23 @@ private suspend fun findNextLogicalEpisode(
     currentAnimeId: String? = null,
     loadCurrentEpisode: suspend (String) -> Episode?,
     loadEpisodes: suspend (String) -> List<Episode>,
+): Episode? =
+    findAdjacentLogicalEpisode(
+        currentEpisodeId = currentEpisodeId,
+        currentProgressId = currentProgressId,
+        currentAnimeId = currentAnimeId,
+        offset = 1,
+        loadCurrentEpisode = loadCurrentEpisode,
+        loadEpisodes = loadEpisodes,
+    )
+
+private suspend fun findAdjacentLogicalEpisode(
+    currentEpisodeId: String?,
+    currentProgressId: String?,
+    currentAnimeId: String? = null,
+    offset: Int,
+    loadCurrentEpisode: suspend (String) -> Episode?,
+    loadEpisodes: suspend (String) -> List<Episode>,
 ): Episode? {
     val episodeId = currentEpisodeId ?: return null
     val currentEpisode = loadCurrentEpisode(episodeId) ?: return null
@@ -141,6 +178,7 @@ private suspend fun findNextLogicalEpisode(
         episode.progressId == currentProgressId ||
             episode.availableVersions().any { it.episodeId == episodeId }
     }
-    if (currentIndex < 0 || currentIndex >= episodes.lastIndex) return null
-    return episodes[currentIndex + 1]
+    val adjacentIndex = currentIndex + offset
+    if (currentIndex < 0 || adjacentIndex !in episodes.indices) return null
+    return episodes[adjacentIndex]
 }
