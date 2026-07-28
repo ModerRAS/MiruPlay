@@ -143,6 +143,7 @@ class ExoPlaybackController @Inject constructor(
     private var ijkPendingLoad: Boolean = false
     private var ijkPlaybackSpeed: Float = 1.0f
     private var ijkAndroidIo: IjkPlaybackAndroidIo? = null
+    private var ijkRequestHeaders: Map<String, String> = emptyMap()
     private val ijkAudioRawStreamIds = mutableListOf<Int>()
     // ponytail: copy-on-write 避免跨线程锁；写者基本只有 mpv 回调线程，CAS 无竞争。
     private val playbackClockSamples = AtomicReference<List<PlaybackClockSample>>(emptyList())
@@ -227,7 +228,7 @@ class ExoPlaybackController @Inject constructor(
             try {
                 if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER) {
                     activateRemoteControlSession()
-                    playWithIjk(source)
+                    playWithIjk(source, httpConfig)
                     return@withContext
                 }
                 if (_activeRenderBackend.value == PlaybackRenderBackend.STANDARD_EXO) {
@@ -452,6 +453,7 @@ class ExoPlaybackController @Inject constructor(
             ijkPlaybackSpeed = 1.0f
             runCatching { ijkAndroidIo?.close() }
             ijkAndroidIo = null
+            ijkRequestHeaders = emptyMap()
             ijkAudioRawStreamIds.clear()
             playbackClockSamples.set(emptyList())
             dataSourceFactory.clearHttpConfig()
@@ -722,6 +724,7 @@ class ExoPlaybackController @Inject constructor(
         ijkHostView = null
         runCatching { ijkAndroidIo?.close() }
         ijkAndroidIo = null
+        ijkRequestHeaders = emptyMap()
         embeddedMpvView?.releaseMpv()
         embeddedMpvView = null
         embeddedMpvHostView = null
@@ -1058,6 +1061,13 @@ class ExoPlaybackController @Inject constructor(
     }
 
     private fun updateRemoteControlPlaybackState() {
+        val positionMs = when (_activeRenderBackend.value) {
+            PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER ->
+                (ijkView?.currentPositionMs() ?: ijkPositionMs).also { ijkPositionMs = it }
+            PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID -> externalMpvPositionMs
+            PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED -> embeddedMpvPositionMs
+            else -> 0L
+        }.coerceAtLeast(0L)
         remoteControlSession?.setPlaybackState(
             android.media.session.PlaybackState.Builder()
                 .setState(
@@ -1066,7 +1076,7 @@ class ExoPlaybackController @Inject constructor(
                     } else {
                         android.media.session.PlaybackState.STATE_PAUSED
                     },
-                    0L,
+                    positionMs,
                     1f,
                 ).setActions(
                 android.media.session.PlaybackState.ACTION_PLAY or
@@ -1407,7 +1417,10 @@ class ExoPlaybackController @Inject constructor(
         }
     }
 
-    private fun playWithIjk(source: PlaybackSource) {
+    private fun playWithIjk(
+        source: PlaybackSource,
+        httpConfig: PlaybackHttpRequestConfig,
+    ) {
         currentSource = source
         ijkSource = source
         ijkPositionMs = source.startPosition.coerceAtLeast(0L)
@@ -1421,7 +1434,11 @@ class ExoPlaybackController @Inject constructor(
         selectedSubtitleTrackIndex = null
         selectedAudioTrackIndex = null
         runCatching { ijkAndroidIo?.close() }
-        ijkAndroidIo = IjkPlaybackAndroidIo(dataSourceFactory)
+        ijkRequestHeaders = httpConfig.headersFor(source.uri)
+        ijkAndroidIo = IjkPlaybackAndroidIo(
+            dataSourceFactory = dataSourceFactory,
+            requestHeaders = ijkRequestHeaders,
+        )
         _state.value = PlaybackState.Loading(source)
         ijkHostView?.let { host ->
             loadIjkSource(ensureIjkView(host), source)
@@ -1434,6 +1451,7 @@ class ExoPlaybackController @Inject constructor(
             MiruIjkPlaybackRequest(
                 uri = source.uri,
                 startPositionMs = ijkPositionMs,
+                headers = ijkRequestHeaders,
                 androidIo = ijkAndroidIo,
                 hardwareDecode = true,
             ),

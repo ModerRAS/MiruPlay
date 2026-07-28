@@ -11,6 +11,7 @@ import java.io.IOException
 @UnstableApi
 internal class IjkPlaybackAndroidIo(
     private val dataSourceFactory: DataSource.Factory,
+    private val requestHeaders: Map<String, String> = emptyMap(),
 ) : MiruIjkAndroidIo {
     private var dataSource: DataSource? = null
     private var uri: Uri? = null
@@ -70,6 +71,7 @@ internal class IjkPlaybackAndroidIo(
                 DataSpec.Builder()
                     .setUri(sourceUri)
                     .setPosition(targetPosition)
+                    .setHttpRequestHeaders(requestHeaders)
                     .build(),
             )
             dataSource = next

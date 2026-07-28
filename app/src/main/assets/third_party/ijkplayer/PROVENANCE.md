@@ -26,7 +26,20 @@ The pinned source and build inputs are available at:
 - https://github.com/debugly/ijkplayer/tree/2a5114f6b276744159769f17b38bfab1e74ed5ad
 - https://github.com/debugly/FFToolChain/tree/b7847f3b362f605085e38a0169f870bf98d0845f
 
-On a POSIX host with JDK 17 or newer, Android SDK 35, Android NDK r27c, CMake 3.22.1, and Git LFS/submodule support:
+The published AAR is a pinned distribution artifact. Verify it independently before extraction:
+
+```bash
+curl -L \
+  https://github.com/debugly/ijkplayer/releases/download/k0.8.9-beta-260526101841/ijkplayer-cmake-release.aar \
+  -o ijkplayer-cmake-release.aar
+printf '%s  %s\n' \
+  5e6c3287a361ee0be54df0eb8db0af7d6488f92f5711776ac1fc09027b997e60 \
+  ijkplayer-cmake-release.aar | sha256sum --check
+```
+
+The upstream artifact workflow runs on the mutable `macos-15` GitHub image and does not pin a JDK or NDK revision. The published native bytes are therefore verified by the recorded SHA-256, not claimed to be bit-reproducible from an incompletely pinned upstream runner.
+
+The independent corresponding-source audit used Temurin `21.0.11+10`, Android SDK/build-tools `35/35.0.0`, Android NDK `27.0.12077973`, CMake `3.22.1`, Gradle `8.10.2`, Android Gradle Plugin `8.8.0`, and Clang `18.0.1` (`r522817`). With those tools and Git LFS/submodule support:
 
 ```bash
 git clone https://github.com/debugly/ijkplayer.git
@@ -40,7 +53,7 @@ cd ijkplayer
 
 The output is `ijkplayer-cmake/build/outputs/aar/ijkplayer-cmake-release.aar`. The source tree uses symbolic links; Windows checkouts must preserve or materialize `ijkmedia` and `third-libs` before configuring CMake.
 
-An independent Windows build from the pinned commits compiled 94 ijkplayer C/C++ translation units for both shipped ABIs. Its `classes.jar` was byte-identical to the pinned artifact. Both native outputs had identical defined-global-symbol sets, ELF section sets, and dynamic dependencies. Their bytes differ because the upstream macOS NDK compiler carries PGO/LTO metadata and the independent Windows compiler does not; the independent copy also used the release version string where the upstream binary embeds source short hash `2a5114f`.
+That independent build compiled 94 ijkplayer C/C++ translation units for both shipped ABIs. Its `classes.jar` was byte-identical to the pinned artifact. Both native outputs had identical defined-global-symbol sets, ELF section sets, and dynamic dependencies. Their bytes differ because the upstream macOS NDK compiler carries PGO/LTO metadata and the independent Windows compiler does not; the independent copy also used the release version string where the upstream binary embeds source short hash `2a5114f`.
 
 ## Static dependency audit
 

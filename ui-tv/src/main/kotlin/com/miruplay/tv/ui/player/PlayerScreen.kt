@@ -40,6 +40,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
@@ -1451,8 +1452,21 @@ internal fun PlayerOptionsPanel(
     val picturePresets = remember { toneMappingPresetOptions() }
     val initialSpeedIndex = speeds.indexOf(playbackSpeed).takeIf { it >= 0 } ?: 0
     val initialPictureIndex = picturePresets.indexOf(currentPicturePreset).takeIf { it >= 0 } ?: 0
+    val initialSubtitleItemIndex = selectedSubtitleTrackIndex?.plus(1) ?: 0
     val initialAudioIndex = selectedAudioTrackIndex?.takeIf { it in audioTracks.indices } ?: 0
+    val subtitleListState = rememberLazyListState()
+    val audioListState = rememberLazyListState()
     val scrollState = rememberScrollState()
+
+    LaunchedEffect(menu, initialSubtitleItemIndex, initialAudioIndex) {
+        when (menu) {
+            PlayerMenu.Subtitles -> subtitleListState.scrollToItem(initialSubtitleItemIndex)
+            PlayerMenu.Audio -> if (audioTracks.isNotEmpty()) {
+                audioListState.scrollToItem(initialAudioIndex)
+            }
+            else -> Unit
+        }
+    }
 
     Column(
         modifier = modifier
@@ -1495,6 +1509,7 @@ internal fun PlayerOptionsPanel(
                 }
             }
             PlayerMenu.Subtitles -> LazyRow(
+                state = subtitleListState,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 item {
@@ -1523,6 +1538,7 @@ internal fun PlayerOptionsPanel(
                 }
             }
             PlayerMenu.Audio -> LazyRow(
+                state = audioListState,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 itemsIndexed(audioTracks) { index, track ->
@@ -1604,11 +1620,8 @@ private fun PlayerInfoPanel(
     selectedSubtitleTrackIndex: Int?,
     selectedAudioTrackIndex: Int?,
 ) {
-    val infoTabFocusRequester = remember { FocusRequester() }
+    val infoInitialFocus = rememberInitialFocusHandle()
     val scrollState = rememberScrollState()
-    LaunchedEffect(Unit) {
-        infoTabFocusRequester.requestFocus()
-    }
     val selectedSubtitle = selectedSubtitleTrackIndex
         ?.let { index -> subtitles.getOrNull(index)?.let { playbackSubtitleOptionLabel(it, index) } }
         ?: playbackSubtitleOffLabel()
@@ -1639,7 +1652,7 @@ private fun PlayerInfoPanel(
                 text = "信息",
                 selected = tab == PlayerInfoTab.Information,
                 onClick = { onTabChange(PlayerInfoTab.Information) },
-                modifier = Modifier.focusRequester(infoTabFocusRequester),
+                modifier = infoInitialFocus.modifier(),
             )
             PlayerOptionButton(
                 text = "播放 / 调试",
