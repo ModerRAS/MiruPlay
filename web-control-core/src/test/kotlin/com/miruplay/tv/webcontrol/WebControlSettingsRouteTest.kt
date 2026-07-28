@@ -72,6 +72,8 @@ class WebControlSettingsRouteTest {
         assertTrue(body.contains("\"preferredSubtitleLanguage\":\"zh_hans\""))
         assertTrue(body.contains("\"preferredSubtitleLanguageOptions\""))
         assertTrue(body.contains("\"formatAwareToneMapping\""))
+        assertTrue(body.contains("\"backendOptions\""))
+        assertTrue(body.contains("\"value\":\"EXPERIMENTAL_IJKPLAYER\""))
     }
 
     @Test
@@ -216,6 +218,12 @@ class WebControlSettingsRouteTest {
             endAction = "return_to_detail",
             preferredSubtitleLanguage = "zh_hans",
             formatAwareToneMapping = FormatAwareToneMappingPreferences(),
+            backendOptions = listOf(
+                PlaybackBackendOptionDto(
+                    value = "EXPERIMENTAL_IJKPLAYER",
+                    label = "实验 ijkplayer",
+                ),
+            ),
         )
 
         override suspend fun savePlaybackSettings(request: PlaybackSettingsRequest): PlaybackSettingsDto {

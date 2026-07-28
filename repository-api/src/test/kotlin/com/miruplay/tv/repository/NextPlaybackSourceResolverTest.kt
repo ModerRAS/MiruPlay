@@ -307,6 +307,62 @@ class NextPlaybackSourceResolverTest {
     }
 
     @Test
+    fun `resolver builds previous logical episode and keeps nearest version`() = runBlocking {
+        val previousWeb = episode(
+            id = "41:/Show/WEB/Episode 01.mkv",
+            number = 1,
+            filePath = "/Show/WEB/Episode 01.mkv",
+        )
+        val previousBd = episode(
+            id = "41:/Show/BD/Episode 01.mkv",
+            number = 1,
+            filePath = "/Show/BD/Episode 01.mkv",
+        )
+        val currentWeb = episode(
+            id = "41:/Show/WEB/Episode 02.mkv",
+            number = 2,
+            filePath = "/Show/WEB/Episode 02.mkv",
+        )
+        val resolver = NextPlaybackSourceResolver(
+            metadata = FakeMetadataRepository(
+                mapOf("anime-1" to listOf(currentWeb, previousBd, previousWeb)),
+            ),
+            progress = FakeProgressRepository(null),
+            mediaSources = FakeMediaSourceRepository(emptyList()),
+            playbackUriForEpisode = { it.filePath },
+        )
+        val currentSource = PlaybackSource(
+            uri = currentWeb.filePath,
+            mediaSourceId = currentWeb.animeId,
+            episodeId = currentWeb.id,
+            progressId = "anime-1#S1E2",
+        )
+
+        assertEquals("anime-1#S1E1", resolver.previousEpisode(currentSource)?.progressId)
+        assertEquals(previousWeb.id, resolver.buildPrevious(currentSource)?.episodeId)
+    }
+
+    @Test
+    fun `resolver has no previous episode at the start of the logical queue`() = runBlocking {
+        val first = episode(id = "ep1", number = 1)
+        val second = episode(id = "ep2", number = 2)
+        val resolver = NextPlaybackSourceResolver(
+            metadata = FakeMetadataRepository(mapOf("anime-1" to listOf(second, first))),
+            progress = FakeProgressRepository(null),
+            mediaSources = FakeMediaSourceRepository(emptyList()),
+        )
+        val source = PlaybackSource(
+            uri = first.filePath,
+            mediaSourceId = first.animeId,
+            episodeId = first.id,
+            progressId = first.progressId,
+        )
+
+        assertNull(resolver.previousEpisode(source))
+        assertNull(resolver.buildPrevious(source))
+    }
+
+    @Test
     fun `buildNextPlaybackSource returns null without episode id`() = runBlocking {
         val source = buildNextPlaybackSource(
             currentEpisodeId = null,

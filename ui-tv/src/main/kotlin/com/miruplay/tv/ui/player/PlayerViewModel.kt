@@ -159,6 +159,14 @@ class PlayerViewModel @Inject constructor(
     private val _pendingNextEpisode = MutableStateFlow<Episode?>(null)
     val pendingNextEpisode: StateFlow<Episode?> = _pendingNextEpisode.asStateFlow()
 
+    private val _canPlayPreviousEpisode = MutableStateFlow(false)
+    val canPlayPreviousEpisode: StateFlow<Boolean> = _canPlayPreviousEpisode.asStateFlow()
+
+    private val _canPlayNextEpisode = MutableStateFlow(false)
+    val canPlayNextEpisode: StateFlow<Boolean> = _canPlayNextEpisode.asStateFlow()
+
+    private var pendingSelectionExitsPlayback = false
+
     private var progressSaveJob: Job? = null
     private var positionPollJob: Job? = null
     private var finishObserverJob: Job? = null
@@ -191,7 +199,9 @@ class PlayerViewModel @Inject constructor(
             activeSource = resolvedSource
             activeScreenOwnerToken = ownerToken
             _pendingNextEpisode.value = null
+            pendingSelectionExitsPlayback = false
             _activePlaybackSource.value = resolvedSource
+            refreshAdjacentEpisodeAvailability(resolvedSource)
             startPresentationResolution(resolvedSource)
             refreshFormatAwarePreferences()
             playbackController.play(resolvedSource).also {
@@ -245,6 +255,36 @@ class PlayerViewModel @Inject constructor(
     fun skipBackward() {
         seekFromControls(seekBasePosition() - PLAYBACK_SEEK_BACK_SECONDS * 1_000L)
     }
+
+    fun playPreviousEpisode() {
+        viewModelScope.launch {
+            val source = activeSource ?: return@launch
+            val episode = nextPlaybackSourceResolver.previousEpisode(source) ?: return@launch
+            if (shouldChooseEpisodeVersion(episode)) {
+                pendingSelectionExitsPlayback = false
+                _pendingNextEpisode.value = episode
+            } else {
+                nextPlaybackSourceResolver.buildPrevious(source)?.let { play(it) }
+            }
+        }
+    }
+
+    fun playNextEpisode() {
+        viewModelScope.launch {
+            val source = activeSource ?: return@launch
+            val episode = nextPlaybackSourceResolver.nextEpisode(source) ?: return@launch
+            if (shouldChooseEpisodeVersion(episode)) {
+                pendingSelectionExitsPlayback = false
+                _pendingNextEpisode.value = episode
+            } else {
+                nextPlaybackSourceResolver.build(source)?.let { play(it) }
+            }
+        }
+    }
+
+    private suspend fun shouldChooseEpisodeVersion(episode: Episode): Boolean =
+        episode.availableVersions().size > 1 &&
+            playbackPreferences.getEpisodeVersionSelectionPolicy() == EpisodeVersionSelectionPolicy.MANUAL
 
     fun toggleControls() {
         if (_controlsVisible.value) {
@@ -524,11 +564,9 @@ class PlayerViewModel @Inject constructor(
 
         if (playbackPreferences.getEndAction() == PlaybackEndAction.PLAY_NEXT_EPISODE) {
             val nextEpisode = nextPlaybackSourceResolver.nextEpisode(source)
-            if (nextEpisode != null &&
-                nextEpisode.availableVersions().size > 1 &&
-                playbackPreferences.getEpisodeVersionSelectionPolicy() == EpisodeVersionSelectionPolicy.MANUAL
-            ) {
+            if (nextEpisode != null && shouldChooseEpisodeVersion(nextEpisode)) {
                 bangumiSyncEngine.get().markEpisodeWatched(episodeId)
+                pendingSelectionExitsPlayback = true
                 _pendingNextEpisode.value = nextEpisode
                 return
             }
@@ -555,7 +593,23 @@ class PlayerViewModel @Inject constructor(
 
     fun cancelNextVersionSelection() {
         _pendingNextEpisode.value = null
-        _finishEvents.tryEmit(PlaybackFinishEvent.NavigateBack)
+        if (pendingSelectionExitsPlayback) {
+            pendingSelectionExitsPlayback = false
+            _finishEvents.tryEmit(PlaybackFinishEvent.NavigateBack)
+        }
+    }
+
+    private fun refreshAdjacentEpisodeAvailability(source: PlaybackSource) {
+        _canPlayPreviousEpisode.value = false
+        _canPlayNextEpisode.value = false
+        viewModelScope.launch {
+            val previous = nextPlaybackSourceResolver.previousEpisode(source) != null
+            val next = nextPlaybackSourceResolver.nextEpisode(source) != null
+            if (activeSource == source) {
+                _canPlayPreviousEpisode.value = previous
+                _canPlayNextEpisode.value = next
+            }
+        }
     }
 
     private suspend fun buildNextPlaybackSource(source: PlaybackSource): PlaybackSource? {
@@ -605,6 +659,9 @@ class PlayerViewModel @Inject constructor(
         activeScreenOwnerToken = null
         _activePlaybackSource.value = null
         _pendingNextEpisode.value = null
+        pendingSelectionExitsPlayback = false
+        _canPlayPreviousEpisode.value = false
+        _canPlayNextEpisode.value = false
         _displayTitle.value = ""
         _displaySubtitle.value = ""
         _currentPosition.value = 0L

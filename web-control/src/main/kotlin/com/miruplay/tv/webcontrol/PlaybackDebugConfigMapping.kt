@@ -13,6 +13,7 @@ internal fun playbackRenderBackendFromDebugValue(value: String?): PlaybackRender
         "experimentalgl", "gl" -> PlaybackRenderBackend.EXPERIMENTAL_GL
         "experimentalmpvandroid", "mpvandroid" -> PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED
         "experimentalmpvembedded", "mpvembedded", "embeddedmpv", "libmpv", "mpv" -> PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED
+        "experimentalijkplayer", "ijkplayer", "ijk" -> PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER
         "experimentallibvlc", "libvlc", "vlc" -> PlaybackRenderBackend.EXPERIMENTAL_LIBVLC
         else -> null
     }

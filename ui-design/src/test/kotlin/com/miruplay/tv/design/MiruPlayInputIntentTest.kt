@@ -74,15 +74,9 @@ class MiruPlayInputIntentTest {
     }
 
     @Test
-    fun `TV playback overlay action keeps left and right seeking while controls are visible`() {
-        assertEquals(
-            MiruPlayPlaybackInputAction.SeekBack,
-            MiruPlayInputIntent.DirectionLeft.tvPlaybackOverlayAction(controlsVisible = true, hasOpenMenu = false),
-        )
-        assertEquals(
-            MiruPlayPlaybackInputAction.SeekForward,
-            MiruPlayInputIntent.DirectionRight.tvPlaybackOverlayAction(controlsVisible = true, hasOpenMenu = false),
-        )
+    fun `TV playback overlay action leaves direction keys to visible focused controls`() {
+        assertNull(MiruPlayInputIntent.DirectionLeft.tvPlaybackOverlayAction(controlsVisible = true, hasOpenMenu = false))
+        assertNull(MiruPlayInputIntent.DirectionRight.tvPlaybackOverlayAction(controlsVisible = true, hasOpenMenu = false))
         assertNull(MiruPlayInputIntent.DirectionUp.tvPlaybackOverlayAction(controlsVisible = true, hasOpenMenu = false))
         assertNull(MiruPlayInputIntent.DirectionDown.tvPlaybackOverlayAction(controlsVisible = true, hasOpenMenu = false))
     }
@@ -95,13 +89,51 @@ class MiruPlayInputIntentTest {
             MiruPlayInputIntent.DirectionUp,
             MiruPlayInputIntent.DirectionDown,
         ).forEach { intent ->
-            assertNull(
-                intent.tvPlaybackOverlayAction(
-                    controlsVisible = true,
-                    hasOpenMenu = true,
+            listOf(false, true).forEach { controlsVisible ->
+                assertNull(
+                    intent.tvPlaybackOverlayAction(
+                        controlsVisible = controlsVisible,
+                        hasOpenMenu = true,
+                    )
                 )
+            }
+        }
+    }
+
+    @Test
+    fun `dedicated player keys resolve independently of chrome focus`() {
+        val cases = mapOf(
+            MiruPlayInputIntent.MediaRewind to MiruPlayPlaybackInputAction.SeekBack,
+            MiruPlayInputIntent.MediaFastForward to MiruPlayPlaybackInputAction.SeekForward,
+            MiruPlayInputIntent.MediaPrevious to MiruPlayPlaybackInputAction.PreviousEpisode,
+            MiruPlayInputIntent.MediaNext to MiruPlayPlaybackInputAction.NextEpisode,
+            MiruPlayInputIntent.MediaStop to MiruPlayPlaybackInputAction.Stop,
+            MiruPlayInputIntent.Captions to MiruPlayPlaybackInputAction.OpenCaptions,
+            MiruPlayInputIntent.Menu to MiruPlayPlaybackInputAction.FocusOptions,
+            MiruPlayInputIntent.Info to MiruPlayPlaybackInputAction.ToggleInfo,
+        )
+
+        cases.forEach { (intent, expected) ->
+            assertTrue(intent.isDedicatedPlayerRemoteIntent())
+            assertEquals(
+                expected,
+                intent.tvPlaybackOverlayAction(controlsVisible = false, hasOpenMenu = false),
+            )
+            assertEquals(
+                expected,
+                intent.tvPlaybackOverlayAction(controlsVisible = true, hasOpenMenu = true),
             )
         }
+        assertFalse(MiruPlayInputIntent.DirectionLeft.isDedicatedPlayerRemoteIntent())
+    }
+
+    @Test
+    fun `only dedicated seek keys execute on repeat`() {
+        assertTrue(MiruPlayInputIntent.MediaRewind.allowsPlayerRemoteRepeat())
+        assertTrue(MiruPlayInputIntent.MediaFastForward.allowsPlayerRemoteRepeat())
+        assertFalse(MiruPlayInputIntent.MediaNext.allowsPlayerRemoteRepeat())
+        assertFalse(MiruPlayInputIntent.Captions.allowsPlayerRemoteRepeat())
+        assertFalse(MiruPlayInputIntent.Info.allowsPlayerRemoteRepeat())
     }
 
     @Test

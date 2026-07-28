@@ -32,7 +32,11 @@ fun resolveToneMappingRuntimeConfig(
         ruleKey = ruleKey,
         signalDescriptor = signalDescriptor,
     )
-    val activeBackend = requestedBackend
+    val activeBackend = when {
+        requestedBackend == PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER && signalDescriptor.isHdr ->
+            PlaybackRenderBackend.STANDARD_EXO
+        else -> requestedBackend
+    }
     return ToneMappingRuntimeConfig(
         ruleKey = ruleKey,
         appliedRuleSet = appliedRuleSet,
@@ -49,6 +53,9 @@ private fun backendStatusMessage(
 ): String? {
     if (requestedBackend == PlaybackRenderBackend.STANDARD_EXO) {
         return null
+    }
+    if (requestedBackend == PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER && signalDescriptor.isHdr) {
+        return "ijkplayer 尚未验证 HDR，已回退到标准 Exo"
     }
     return null
 }

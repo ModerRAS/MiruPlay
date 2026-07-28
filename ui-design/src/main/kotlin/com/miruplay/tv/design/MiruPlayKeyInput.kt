@@ -17,6 +17,13 @@ enum class MiruPlayKeyInput {
     MediaPlay,
     MediaPause,
     MediaStop,
+    MediaRewind,
+    MediaFastForward,
+    MediaPrevious,
+    MediaNext,
+    Captions,
+    Menu,
+    Info,
 }
 
 fun MiruPlayKeyInput.toMiruPlayInputIntent(): MiruPlayInputIntent? =
@@ -39,6 +46,13 @@ fun MiruPlayKeyInput.toMiruPlayInputIntent(): MiruPlayInputIntent? =
         MiruPlayKeyInput.MediaPlay -> MiruPlayInputIntent.MediaPlay
         MiruPlayKeyInput.MediaPause -> MiruPlayInputIntent.MediaPause
         MiruPlayKeyInput.MediaStop -> MiruPlayInputIntent.MediaStop
+        MiruPlayKeyInput.MediaRewind -> MiruPlayInputIntent.MediaRewind
+        MiruPlayKeyInput.MediaFastForward -> MiruPlayInputIntent.MediaFastForward
+        MiruPlayKeyInput.MediaPrevious -> MiruPlayInputIntent.MediaPrevious
+        MiruPlayKeyInput.MediaNext -> MiruPlayInputIntent.MediaNext
+        MiruPlayKeyInput.Captions -> MiruPlayInputIntent.Captions
+        MiruPlayKeyInput.Menu -> MiruPlayInputIntent.Menu
+        MiruPlayKeyInput.Info -> MiruPlayInputIntent.Info
     }
 
 fun MiruPlayKeyInput.isMiruPlayActivationKey(): Boolean =

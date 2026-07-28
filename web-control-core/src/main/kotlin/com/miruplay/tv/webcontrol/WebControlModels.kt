@@ -333,11 +333,18 @@ data class ScanSettingsRequest(
 )
 
 @Serializable
+data class PlaybackBackendOptionDto(
+    val value: String,
+    val label: String,
+)
+
+@Serializable
 data class PlaybackSettingsDto(
     val endAction: String,
     val episodeVersionSelectionPolicy: String = "auto_nearest",
     val preferredSubtitleLanguage: String,
     val formatAwareToneMapping: FormatAwareToneMappingPreferences,
+    val backendOptions: List<PlaybackBackendOptionDto> = emptyList(),
     val endActionOptions: List<String> = listOf("return_to_detail", "play_next_episode"),
     val episodeVersionSelectionPolicyOptions: List<String> = listOf("auto_nearest", "manual"),
     val preferredSubtitleLanguageOptions: List<String> =

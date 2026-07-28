@@ -4,6 +4,7 @@ package com.miruplay.tv.player
 
 import android.content.Context
 import android.content.Intent
+import android.media.session.MediaSession
 import android.net.Uri
 import android.util.Log
 import android.view.View
@@ -42,6 +43,10 @@ import com.miruplay.tv.model.defaultToneMappingRuleSet
 import com.miruplay.tv.model.normalizeSupportedBackend
 import com.miruplay.tv.model.preferredSubtitleTrackIndex
 import com.miruplay.tv.repository.PlaybackPreferencesRepository
+import com.miruplay.tv.player.ijk.android.MiruIjkAudioTrack
+import com.miruplay.tv.player.ijk.android.MiruIjkPlaybackRequest
+import com.miruplay.tv.player.ijk.android.MiruIjkPlayerListener
+import com.miruplay.tv.player.ijk.android.MiruIjkSurfaceView
 import `is`.xyz.mpv.MiruMpvSurfaceView
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
@@ -82,6 +87,7 @@ class ExoPlaybackController @Inject constructor(
     private val config: PlaybackConfig = PlaybackConfig(),
 ) : PlaybackController {
     private val controllerScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var remoteControlSession: MediaSession? = null
 
     private val _state = MutableStateFlow<PlaybackState>(PlaybackState.Idle)
     override val state: StateFlow<PlaybackState> = _state.asStateFlow()
@@ -128,6 +134,17 @@ class ExoPlaybackController @Inject constructor(
     private var embeddedMpvView: MiruMpvSurfaceView? = null
     private var embeddedMpvPendingLoad: Boolean = false
     private var embeddedMpvPlaybackSpeed: Float = 1.0f
+    private var ijkPlaying: Boolean = false
+    private var ijkPositionMs: Long = 0L
+    private var ijkDurationMs: Long = 0L
+    private var ijkSource: PlaybackSource? = null
+    private var ijkHostView: ViewGroup? = null
+    private var ijkView: MiruIjkSurfaceView? = null
+    private var ijkPendingLoad: Boolean = false
+    private var ijkPlaybackSpeed: Float = 1.0f
+    private var ijkAndroidIo: IjkPlaybackAndroidIo? = null
+    private var ijkRequestHeaders: Map<String, String> = emptyMap()
+    private val ijkAudioRawStreamIds = mutableListOf<Int>()
     // ponytail: copy-on-write 避免跨线程锁；写者基本只有 mpv 回调线程，CAS 无竞争。
     private val playbackClockSamples = AtomicReference<List<PlaybackClockSample>>(emptyList())
 
@@ -194,6 +211,7 @@ class ExoPlaybackController @Inject constructor(
         )
         withContext(Dispatchers.Main) {
             currentSource = source
+            refreshRuntimeConfig(_currentVideoSignalDescriptor.value)
             dataSourceFactory.setHttpConfig(httpConfig)
             _state.value = PlaybackState.Loading(source)
             MiruLog.i(
@@ -208,7 +226,17 @@ class ExoPlaybackController @Inject constructor(
             )
 
             try {
-                ensureMediaSessionService()
+                if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER) {
+                    activateRemoteControlSession()
+                    playWithIjk(source, httpConfig)
+                    return@withContext
+                }
+                if (_activeRenderBackend.value == PlaybackRenderBackend.STANDARD_EXO) {
+                    remoteControlSession?.isActive = false
+                    ensureMediaSessionService()
+                } else {
+                    activateRemoteControlSession()
+                }
                 applyVideoEffectsForCurrentConfig()
                 if (
                     _activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED &&
@@ -262,6 +290,13 @@ class ExoPlaybackController @Inject constructor(
 
     override suspend fun pause() {
         withContext(Dispatchers.Main) {
+            if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER) {
+                ijkPlaying = false
+                ijkPositionMs = ijkView?.currentPositionMs() ?: ijkPositionMs
+                ijkView?.pausePlayback()
+                ijkSource?.let { _state.value = PlaybackState.Paused(it, ijkPositionMs) }
+                return@withContext
+            }
             if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID) {
                 externalMpvPlaying = false
                 val source = externalMpvSource
@@ -281,10 +316,17 @@ class ExoPlaybackController @Inject constructor(
             }
             activeExoPlayer().playWhenReady = false
         }
+        updateRemoteControlPlaybackState()
     }
 
     override suspend fun resume() {
         withContext(Dispatchers.Main) {
+            if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER) {
+                ijkPlaying = true
+                ijkView?.resumePlayback()
+                ijkSource?.let { _state.value = PlaybackState.Playing(it, ijkPositionMs) }
+                return@withContext
+            }
             if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID) {
                 externalMpvPlaying = true
                 val source = externalMpvSource
@@ -304,10 +346,23 @@ class ExoPlaybackController @Inject constructor(
             }
             activeExoPlayer().playWhenReady = true
         }
+        updateRemoteControlPlaybackState()
     }
 
     override suspend fun seekTo(positionMs: Long) {
         withContext(Dispatchers.Main) {
+            if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER) {
+                ijkPositionMs = positionMs.coerceAtLeast(0L)
+                ijkView?.seekTo(ijkPositionMs)
+                ijkSource?.let { source ->
+                    _state.value = if (ijkPlaying) {
+                        PlaybackState.Playing(source, ijkPositionMs)
+                    } else {
+                        PlaybackState.Paused(source, ijkPositionMs)
+                    }
+                }
+                return@withContext
+            }
             if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID) {
                 externalMpvPositionMs = positionMs.coerceAtLeast(0L)
                 val source = externalMpvSource
@@ -356,6 +411,8 @@ class ExoPlaybackController @Inject constructor(
             val currentBackend = _activeRenderBackend.value
             val player = activeExoPlayerOrNull()
             val stopPositionMs = when (currentBackend) {
+                PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER ->
+                    ijkView?.currentPositionMs() ?: ijkPositionMs
                 PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID -> externalMpvPositionMs
                 PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED -> embeddedMpvPositionMs
                 else -> player?.currentPosition ?: 0L
@@ -383,6 +440,21 @@ class ExoPlaybackController @Inject constructor(
             embeddedMpvPlaybackUri = null
             embeddedMpvPendingLoad = false
             embeddedMpvPlaybackSpeed = 1.0f
+            ijkView?.let { view ->
+                view.releasePlayer()
+                (view.parent as? ViewGroup)?.removeView(view)
+            }
+            ijkView = null
+            ijkPlaying = false
+            ijkPositionMs = 0L
+            ijkDurationMs = 0L
+            ijkSource = null
+            ijkPendingLoad = false
+            ijkPlaybackSpeed = 1.0f
+            runCatching { ijkAndroidIo?.close() }
+            ijkAndroidIo = null
+            ijkRequestHeaders = emptyMap()
+            ijkAudioRawStreamIds.clear()
             playbackClockSamples.set(emptyList())
             dataSourceFactory.clearHttpConfig()
             currentSource = null
@@ -405,11 +477,17 @@ class ExoPlaybackController @Inject constructor(
             signalProbeCompletionJob = null
             refreshRuntimeConfig(null)
             _state.value = PlaybackState.Idle
+            remoteControlSession?.isActive = false
         }
     }
 
     override suspend fun setPlaybackSpeed(speed: Float) {
         withContext(Dispatchers.Main) {
+            if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER) {
+                ijkPlaybackSpeed = speed.coerceIn(0.25f, 3.0f)
+                ijkView?.setPlaybackSpeed(ijkPlaybackSpeed)
+                return@withContext
+            }
             if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID) {
                 return@withContext
             }
@@ -424,6 +502,7 @@ class ExoPlaybackController @Inject constructor(
 
     override suspend fun setSubtitleTrack(trackIndex: Int?) {
         when (_activeRenderBackend.value) {
+            PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER -> Unit
             PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED -> withContext(Dispatchers.Main) {
                 val nativeTrackId = when (trackIndex) {
                     null -> null
@@ -443,7 +522,15 @@ class ExoPlaybackController @Inject constructor(
     }
 
     override suspend fun setAudioTrack(trackIndex: Int) {
-        selectExoTrack(C.TRACK_TYPE_AUDIO, trackIndex)
+        if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER) {
+            withContext(Dispatchers.Main) {
+                val rawStreamIndex = ijkAudioRawStreamIds.getOrNull(trackIndex) ?: return@withContext
+                ijkView?.selectAudioRawStream(rawStreamIndex)
+                selectedAudioTrackIndex = trackIndex
+            }
+        } else {
+            selectExoTrack(C.TRACK_TYPE_AUDIO, trackIndex)
+        }
     }
 
     override fun getAvailableSubtitles(): List<SubtitleTrack> = availableSubtitles.toList()
@@ -456,6 +543,10 @@ class ExoPlaybackController @Inject constructor(
 
     override suspend fun getCurrentPosition(): Long = withContext(Dispatchers.Main) {
         when (_activeRenderBackend.value) {
+            PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER -> {
+                ijkPositionMs = ijkView?.currentPositionMs() ?: ijkPositionMs
+                ijkPositionMs
+            }
             PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID -> externalMpvPositionMs
             PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED -> embeddedMpvPositionMs
             else -> activeExoPlayer().currentPosition
@@ -464,6 +555,10 @@ class ExoPlaybackController @Inject constructor(
 
     override suspend fun getDuration(): Long = withContext(Dispatchers.Main) {
         when (_activeRenderBackend.value) {
+            PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER -> {
+                ijkDurationMs = ijkView?.durationMs() ?: ijkDurationMs
+                ijkDurationMs
+            }
             PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID -> 0L
             PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED -> embeddedMpvDurationMs
             else -> activeExoPlayer().duration
@@ -472,6 +567,7 @@ class ExoPlaybackController @Inject constructor(
 
     override fun isPlaying(): Boolean =
         when (_activeRenderBackend.value) {
+            PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER -> ijkView?.isPlaybackActive() ?: ijkPlaying
             PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID -> externalMpvPlaying
             PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED -> embeddedMpvPlaying
             else -> activeExoPlayer().isPlaying
@@ -479,17 +575,31 @@ class ExoPlaybackController @Inject constructor(
 
     override fun getPlayer(): Player? =
         when (_activeRenderBackend.value) {
+            PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER,
             PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID,
             PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED -> null
             else -> activeExoPlayer()
         }
 
     override fun usesVlcVideoLayout(): Boolean =
-        _activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED ||
+        _activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER ||
+            _requestedRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER ||
+            _activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED ||
             _requestedRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED
 
     override fun bindVlcVideoHost(hostView: View) {
         val container = hostView as? ViewGroup ?: return
+        if (
+            _activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER ||
+            _requestedRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER
+        ) {
+            ijkHostView = container
+            val view = ensureIjkView(container)
+            if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER && ijkPendingLoad) {
+                ijkSource?.let { loadIjkSource(view, it) }
+            }
+            return
+        }
         embeddedMpvHostView = container
         val mpvView = ensureEmbeddedMpvView(container)
         if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED) {
@@ -515,10 +625,20 @@ class ExoPlaybackController @Inject constructor(
     }
 
     override fun needsVlcVideoHostBinding(): Boolean =
-        _activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED &&
-            (embeddedMpvPendingLoad || embeddedMpvHostView == null)
+        when (_activeRenderBackend.value) {
+            PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER ->
+                ijkPendingLoad || ijkHostView == null
+            PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED ->
+                embeddedMpvPendingLoad || embeddedMpvHostView == null
+            else -> false
+        }
 
     override fun unbindVlcVideoHost() {
+        ijkView?.let { view ->
+            (view.parent as? ViewGroup)?.removeView(view)
+        }
+        ijkHostView = null
+        if (ijkView == null) ijkPendingLoad = ijkSource != null
         embeddedMpvView?.let { view ->
             (view.parent as? ViewGroup)?.removeView(view)
         }
@@ -533,6 +653,8 @@ class ExoPlaybackController @Inject constructor(
             val previousActiveBackend = _activeRenderBackend.value
             val currentPlaybackSource = currentSource
             val currentPlaybackPosition = when (previousActiveBackend) {
+                PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER ->
+                    ijkView?.currentPositionMs() ?: ijkPositionMs
                 PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID -> externalMpvPositionMs
                 PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED -> embeddedMpvPositionMs
                 else -> activeExoPlayerOrNull()?.currentPosition ?: 0L
@@ -597,6 +719,12 @@ class ExoPlaybackController @Inject constructor(
     }
 
     fun release() {
+        ijkView?.releasePlayer()
+        ijkView = null
+        ijkHostView = null
+        runCatching { ijkAndroidIo?.close() }
+        ijkAndroidIo = null
+        ijkRequestHeaders = emptyMap()
         embeddedMpvView?.releaseMpv()
         embeddedMpvView = null
         embeddedMpvHostView = null
@@ -610,6 +738,8 @@ class ExoPlaybackController @Inject constructor(
             experimentalAnalyticsListener?.let(player::removeAnalyticsListener)
             player.release()
         }
+        remoteControlSession?.release()
+        remoteControlSession = null
         dataSourceFactory.clearHttpConfig()
         standardExoPlayer = null
         experimentalExoPlayer = null
@@ -905,9 +1035,67 @@ class ExoPlaybackController @Inject constructor(
         }
     }
 
+    private fun activateRemoteControlSession() {
+        val session = remoteControlSession ?: MediaSession(context, "MiruPlay").also { created ->
+            created.setCallback(object : MediaSession.Callback() {
+                override fun onPlay() {
+                    controllerScope.launch { resume() }
+                }
+
+                override fun onPause() {
+                    controllerScope.launch { pause() }
+                }
+
+                override fun onFastForward() {
+                    controllerScope.launch { seekTo(getCurrentPosition() + REMOTE_FAST_FORWARD_MS) }
+                }
+
+                override fun onRewind() {
+                    controllerScope.launch { seekTo((getCurrentPosition() - REMOTE_REWIND_MS).coerceAtLeast(0L)) }
+                }
+            })
+            remoteControlSession = created
+        }
+        session.isActive = true
+        updateRemoteControlPlaybackState()
+    }
+
+    private fun updateRemoteControlPlaybackState() {
+        val positionMs = when (_activeRenderBackend.value) {
+            PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER ->
+                (ijkView?.currentPositionMs() ?: ijkPositionMs).also { ijkPositionMs = it }
+            PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID -> externalMpvPositionMs
+            PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED -> embeddedMpvPositionMs
+            else -> 0L
+        }.coerceAtLeast(0L)
+        remoteControlSession?.setPlaybackState(
+            android.media.session.PlaybackState.Builder()
+                .setState(
+                    if (isPlaying()) {
+                        android.media.session.PlaybackState.STATE_PLAYING
+                    } else {
+                        android.media.session.PlaybackState.STATE_PAUSED
+                    },
+                    positionMs,
+                    1f,
+                ).setActions(
+                android.media.session.PlaybackState.ACTION_PLAY or
+                    android.media.session.PlaybackState.ACTION_PAUSE or
+                    android.media.session.PlaybackState.ACTION_FAST_FORWARD or
+                    android.media.session.PlaybackState.ACTION_REWIND,
+            ).build(),
+        )
+    }
+
     private fun ensureMediaSessionService() {
         runCatching {
             context.startService(Intent(context, MiruPlayMediaService::class.java))
+        }
+    }
+
+    private fun stopMediaSessionService() {
+        runCatching {
+            context.stopService(Intent(context, MiruPlayMediaService::class.java))
         }
     }
 
@@ -1031,12 +1219,23 @@ class ExoPlaybackController @Inject constructor(
         val descriptor = signalDescriptor
             ?: playbackDebugOverrides.forcedVideoSignalDescriptor
             ?: VideoSignalDescriptor()
-        val config = resolveToneMappingRuntimeConfig(
+        val baseConfig = resolveToneMappingRuntimeConfig(
             preferences = playbackPreferences.normalized(),
             sessionRuleOverrides = _sessionRuleOverrides.value,
             signalDescriptor = descriptor,
             requestedBackendOverride = _requestedRenderBackend.value,
         )
+        val config = if (
+            baseConfig.activeBackend == PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER &&
+            currentSource?.subtitleTracks?.isNotEmpty() == true
+        ) {
+            baseConfig.copy(
+                activeBackend = PlaybackRenderBackend.STANDARD_EXO,
+                fallbackReason = "ijkplayer 不支持外挂字幕，已回退到标准 Exo",
+            )
+        } else {
+            baseConfig
+        }
         PlaybackCodecSelectionState.decoderPreference = when {
             config.activeBackend == PlaybackRenderBackend.EXPERIMENTAL_GL &&
                 shouldUseDedicatedExperimentalGlSurface(deviceGlEsMajorVersion) &&
@@ -1061,6 +1260,9 @@ class ExoPlaybackController @Inject constructor(
         _currentToneMappingRuleSet.value = config.appliedRuleSet
         _activeRenderBackend.value = config.activeBackend
         _fallbackReason.value = config.fallbackReason
+        if (config.activeBackend != PlaybackRenderBackend.STANDARD_EXO) {
+            stopMediaSessionService()
+        }
         if (config.activeBackend == PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED) {
             embeddedMpvView?.let { view ->
                 applyEmbeddedMpvSessionOptions(view, speed = embeddedMpvPlaybackSpeed)
@@ -1212,6 +1414,143 @@ class ExoPlaybackController @Inject constructor(
                     _state.value = PlaybackState.Error(source, launchResult.error.toUserMessage())
                 }
             }
+        }
+    }
+
+    private fun playWithIjk(
+        source: PlaybackSource,
+        httpConfig: PlaybackHttpRequestConfig,
+    ) {
+        currentSource = source
+        ijkSource = source
+        ijkPositionMs = source.startPosition.coerceAtLeast(0L)
+        ijkDurationMs = 0L
+        ijkPlaying = false
+        ijkPendingLoad = true
+        ijkPlaybackSpeed = 1.0f
+        availableSubtitles.clear()
+        availableAudioTracks.clear()
+        ijkAudioRawStreamIds.clear()
+        selectedSubtitleTrackIndex = null
+        selectedAudioTrackIndex = null
+        runCatching { ijkAndroidIo?.close() }
+        ijkRequestHeaders = httpConfig.headersFor(source.uri)
+        ijkAndroidIo = IjkPlaybackAndroidIo(
+            dataSourceFactory = dataSourceFactory,
+            requestHeaders = ijkRequestHeaders,
+        )
+        _state.value = PlaybackState.Loading(source)
+        ijkHostView?.let { host ->
+            loadIjkSource(ensureIjkView(host), source)
+        }
+    }
+
+    private fun loadIjkSource(view: MiruIjkSurfaceView, source: PlaybackSource) {
+        ijkPendingLoad = false
+        view.load(
+            MiruIjkPlaybackRequest(
+                uri = source.uri,
+                startPositionMs = ijkPositionMs,
+                headers = ijkRequestHeaders,
+                androidIo = ijkAndroidIo,
+                hardwareDecode = true,
+            ),
+        )
+        view.setPlaybackSpeed(ijkPlaybackSpeed)
+    }
+
+    private fun ensureIjkView(container: ViewGroup): MiruIjkSurfaceView {
+        val existing = ijkView
+        if (existing != null) {
+            if (existing.parent !== container) {
+                (existing.parent as? ViewGroup)?.removeView(existing)
+                container.addView(
+                    existing,
+                    FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                    ),
+                )
+            }
+            return existing
+        }
+        return MiruIjkSurfaceView(context).also { view ->
+            view.listener = object : MiruIjkPlayerListener {
+                override fun onPrepared(durationMs: Long, width: Int, height: Int) {
+                    val activeSource = ijkSource ?: return
+                    ijkDurationMs = durationMs.coerceAtLeast(0L)
+                    ijkPositionMs = view.currentPositionMs()
+                    ijkPlaying = true
+                    _state.value = PlaybackState.Playing(activeSource, ijkPositionMs)
+                    updateRemoteControlPlaybackState()
+                    MiruLog.i(
+                        "IjkPlayback",
+                        "IJK player prepared",
+                        mapOf(
+                            "duration_ms" to ijkDurationMs.toString(),
+                            "width" to width.toString(),
+                            "height" to height.toString(),
+                        ),
+                    )
+                }
+
+                override fun onBufferingChanged(buffering: Boolean) {
+                    val activeSource = ijkSource ?: return
+                    ijkPositionMs = view.currentPositionMs()
+                    _state.value = if (buffering) {
+                        PlaybackState.Buffering(activeSource, ijkPositionMs)
+                    } else if (ijkPlaying) {
+                        PlaybackState.Playing(activeSource, ijkPositionMs)
+                    } else {
+                        PlaybackState.Paused(activeSource, ijkPositionMs)
+                    }
+                }
+
+                override fun onCompletion() {
+                    val activeSource = ijkSource ?: return
+                    ijkPlaying = false
+                    ijkPositionMs = view.currentPositionMs()
+                    _state.value = PlaybackState.Ended(activeSource)
+                    updateRemoteControlPlaybackState()
+                }
+
+                override fun onError(code: Int, extra: Int) {
+                    val activeSource = ijkSource
+                    ijkPlaying = false
+                    _state.value = PlaybackState.Error(
+                        activeSource,
+                        "ijkplayer 播放失败 ($code/$extra)",
+                    )
+                    updateRemoteControlPlaybackState()
+                }
+
+                override fun onAudioTracksChanged(
+                    tracks: List<MiruIjkAudioTrack>,
+                    selectedRawStreamIndex: Int?,
+                ) {
+                    availableAudioTracks.clear()
+                    ijkAudioRawStreamIds.clear()
+                    tracks.forEachIndexed { index, track ->
+                        ijkAudioRawStreamIds += track.rawStreamIndex
+                        availableAudioTracks += AudioTrack(
+                            index = index,
+                            language = track.language,
+                            title = track.details,
+                            codec = null,
+                        )
+                    }
+                    selectedAudioTrackIndex = selectedRawStreamIndex?.let(ijkAudioRawStreamIds::indexOf)
+                        ?.takeIf { it >= 0 }
+                }
+            }
+            ijkView = view
+            container.addView(
+                view,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                ),
+            )
         }
     }
 
@@ -1460,7 +1799,12 @@ class ExoPlaybackController @Inject constructor(
             standardPlayerOrNull()
         }
 
-    private fun isCurrentPlayer(player: ExoPlayer): Boolean = player === activeExoPlayer()
+    private fun isCurrentPlayer(player: ExoPlayer): Boolean =
+        when (_activeRenderBackend.value) {
+            PlaybackRenderBackend.EXPERIMENTAL_GL -> player === experimentalPlayerOrNull()
+            PlaybackRenderBackend.STANDARD_EXO -> player === standardPlayerOrNull()
+            else -> false
+        }
 
     private fun stopInactivePlayers(activePlayer: ExoPlayer) {
         standardPlayerOrNull()?.let { player ->
@@ -1591,6 +1935,8 @@ internal fun mediaTrackTypeLabel(trackType: Int): String = when (trackType) {
     else -> trackType.toString()
 }
 
+private const val REMOTE_FAST_FORWARD_MS = 30_000L
+private const val REMOTE_REWIND_MS = 10_000L
 private const val MAX_PLAYBACK_CLOCK_SAMPLES = 240
 
 typealias Tracks = androidx.media3.common.Tracks

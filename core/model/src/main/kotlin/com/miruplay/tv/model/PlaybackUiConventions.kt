@@ -130,6 +130,7 @@ fun playbackBackendLabel(backend: PlaybackRenderBackend): String =
         PlaybackRenderBackend.EXPERIMENTAL_GL -> "旧实验 GL"
         PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID -> "实验 mpv 内嵌"
         PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED -> "实验 mpv 内嵌"
+        PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER -> "实验 ijkplayer"
         PlaybackRenderBackend.EXPERIMENTAL_LIBVLC -> "标准 Exo"
     }
 

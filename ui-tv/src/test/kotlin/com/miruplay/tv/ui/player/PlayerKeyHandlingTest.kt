@@ -8,99 +8,55 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PlayerKeyHandlingTest {
-
     @Test
-    fun `direction keys still skip when controls are visible`() {
+    fun `focused timeline left and right seek on initial and repeated key down`() {
         val calls = mutableListOf<String>()
 
-        val consumed = handlePlayerKey(
+        val first = handlePlaybackTimelineKey(
+            key = Key.DirectionLeft,
+            type = KeyEventType.KeyDown,
+            onSkipBackward = { calls.add("skipBackward") },
+            onSkipForward = { calls.add("skipForward") },
+        )
+        val repeated = handlePlaybackTimelineKey(
+            key = Key.DirectionLeft,
+            type = KeyEventType.KeyDown,
+            onSkipBackward = { calls.add("skipBackward") },
+            onSkipForward = { calls.add("skipForward") },
+        )
+
+        assertTrue(first)
+        assertTrue(repeated)
+        assertEquals(listOf("skipBackward", "skipBackward"), calls)
+    }
+
+    @Test
+    fun `timeline key up does not seek`() {
+        val calls = mutableListOf<String>()
+
+        val consumed = handlePlaybackTimelineKey(
             key = Key.DirectionRight,
-            type = KeyEventType.KeyDown,
-            controlsVisible = true,
-            hasOpenMenu = false,
-            actions = testActions(calls)
+            type = KeyEventType.KeyUp,
+            onSkipBackward = { calls.add("skipBackward") },
+            onSkipForward = { calls.add("skipForward") },
         )
 
-        assertTrue(consumed)
-        assertEquals(listOf("showControls", "skipForward"), calls)
+        assertFalse(consumed)
+        assertTrue(calls.isEmpty())
     }
 
     @Test
-    fun `direction keys stay with focus when a menu is open`() {
-        listOf(Key.DirectionLeft, Key.DirectionRight).forEach { key ->
-            val calls = mutableListOf<String>()
-
-            val consumed = handlePlayerKey(
-                key = key,
-                type = KeyEventType.KeyDown,
-                controlsVisible = true,
-                hasOpenMenu = true,
-                actions = testActions(calls)
-            )
-
-            assertFalse(consumed)
-            assertTrue(calls.isEmpty())
-        }
-    }
-
-    @Test
-    fun `direction keys still skip when controls are hidden`() {
+    fun `timeline leaves non horizontal keys to focus traversal`() {
         val calls = mutableListOf<String>()
 
-        val consumed = handlePlayerKey(
-            key = Key.DirectionRight,
+        val consumed = handlePlaybackTimelineKey(
+            key = Key.DirectionDown,
             type = KeyEventType.KeyDown,
-            controlsVisible = false,
-            hasOpenMenu = false,
-            actions = testActions(calls)
+            onSkipBackward = { calls.add("skipBackward") },
+            onSkipForward = { calls.add("skipForward") },
         )
 
-        assertTrue(consumed)
-        assertEquals(listOf("showControls", "skipForward"), calls)
+        assertFalse(consumed)
+        assertTrue(calls.isEmpty())
     }
-
-    @Test
-    fun `back closes the open menu before hiding controls`() {
-        val calls = mutableListOf<String>()
-
-        val consumed = handlePlayerKey(
-            key = Key.Back,
-            type = KeyEventType.KeyDown,
-            controlsVisible = true,
-            hasOpenMenu = true,
-            actions = testActions(calls)
-        )
-
-        assertTrue(consumed)
-        assertEquals(listOf("closeMenu"), calls)
-    }
-
-    @Test
-    fun `back navigates away when controls are hidden`() {
-        val calls = mutableListOf<String>()
-
-        val consumed = handlePlayerKey(
-            key = Key.Back,
-            type = KeyEventType.KeyDown,
-            controlsVisible = false,
-            hasOpenMenu = false,
-            actions = testActions(calls)
-        )
-
-        assertTrue(consumed)
-        assertEquals(listOf("navigateBack"), calls)
-    }
-
-    private fun testActions(calls: MutableList<String>): PlayerKeyActions =
-        PlayerKeyActions(
-            skipBackward = { calls.add("skipBackward") },
-            skipForward = { calls.add("skipForward") },
-            togglePlayback = { calls.add("togglePlayback") },
-            resume = { calls.add("resume") },
-            pause = { calls.add("pause") },
-            showControls = { calls.add("showControls") },
-            hideControls = { calls.add("hideControls") },
-            closeMenu = { calls.add("closeMenu") },
-            navigateBack = { calls.add("navigateBack") }
-        )
 }

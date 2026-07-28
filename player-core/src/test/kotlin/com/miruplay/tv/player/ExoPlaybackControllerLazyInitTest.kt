@@ -18,6 +18,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Before
 import org.junit.Test
@@ -85,6 +86,22 @@ class ExoPlaybackControllerLazyInitTest {
         assertSame(experimentalPlayer, player)
         assertEquals(0, standardProvider.getCallCount)
         assertEquals(1, experimentalProvider.getCallCount)
+    }
+
+    @Test
+    fun `ijk backend does not initialize either exo player`() = runBlocking {
+        val standardProvider = CountingProvider { mockk<ExoPlayer>(relaxed = true) }
+        val experimentalProvider = CountingProvider { mockk<ExoPlayer>(relaxed = true) }
+        val controller = createController(
+            standardProvider = standardProvider,
+            experimentalProvider = experimentalProvider,
+        )
+
+        controller.setRequestedRenderBackend(PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER)
+
+        assertNull(controller.getPlayer())
+        assertEquals(0, standardProvider.getCallCount)
+        assertEquals(0, experimentalProvider.getCallCount)
     }
 
     @Test

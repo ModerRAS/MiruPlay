@@ -77,6 +77,34 @@ class ToneMappingRuntimeConfigResolverTest {
     }
 
     @Test
+    fun `resolver keeps ijkplayer active for SDR`() {
+        val config = resolveToneMappingRuntimeConfig(
+            preferences = FormatAwareToneMappingPreferences(),
+            sessionRuleOverrides = emptyMap(),
+            signalDescriptor = VideoSignalDescriptor(signalKind = VideoSignalKind.SDR),
+            requestedBackendOverride = PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER,
+        )
+
+        assertEquals(PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER, config.requestedBackend)
+        assertEquals(PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER, config.activeBackend)
+        assertNull(config.fallbackReason)
+    }
+
+    @Test
+    fun `resolver falls back from ijkplayer for unverified HDR`() {
+        val config = resolveToneMappingRuntimeConfig(
+            preferences = FormatAwareToneMappingPreferences(),
+            sessionRuleOverrides = emptyMap(),
+            signalDescriptor = VideoSignalDescriptor(signalKind = VideoSignalKind.HDR10),
+            requestedBackendOverride = PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER,
+        )
+
+        assertEquals(PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER, config.requestedBackend)
+        assertEquals(PlaybackRenderBackend.STANDARD_EXO, config.activeBackend)
+        assertEquals("ijkplayer 尚未验证 HDR，已回退到标准 Exo", config.fallbackReason)
+    }
+
+    @Test
     fun `resolver respects explicit backend override for current session`() {
         val preferences = FormatAwareToneMappingPreferences(
             defaultBackend = PlaybackRenderBackend.STANDARD_EXO,

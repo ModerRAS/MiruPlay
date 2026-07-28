@@ -1099,13 +1099,20 @@
                 <el-form-item label="默认播放后端">
                   <el-select v-model="playbackForm.defaultBackend">
                     <el-option
-                      v-for="value in playbackBackendOptions"
-                      :key="value"
-                      :label="playbackBackendLabels[value] || value"
-                      :value="value"
+                      v-for="option in playbackSettings.backendOptions"
+                      :key="option.value"
+                      :label="option.label"
+                      :value="option.value"
                     />
                   </el-select>
                 </el-form-item>
+                <el-alert
+                  v-if="playbackForm.defaultBackend === 'EXPERIMENTAL_IJKPLAYER'"
+                  type="warning"
+                  :closable="false"
+                  show-icon
+                  title="ijkplayer 当前仅用于已验证的 SDR 播放；外挂字幕和 HDR 内容会自动回退到标准 ExoPlayer。"
+                />
                 <el-alert
                   type="info"
                   :closable="false"
@@ -1651,6 +1658,7 @@ const playbackSettings = reactive({
   episodeVersionSelectionPolicy: 'auto_nearest',
   preferredSubtitleLanguage: 'auto',
   formatAwareToneMapping: null,
+  backendOptions: [],
   endActionOptions: ['return_to_detail', 'play_next_episode'],
   episodeVersionSelectionPolicyOptions: ['auto_nearest', 'manual'],
   preferredSubtitleLanguageOptions: ['auto', 'zh_hans', 'zh_hant', 'zh', 'en', 'ja']
@@ -1734,12 +1742,6 @@ const subtitleLanguageLabels = {
   zh: '中文',
   en: '英语',
   ja: '日语'
-}
-const playbackBackendOptions = ['STANDARD_EXO', 'EXPERIMENTAL_MPV_EMBEDDED', 'EXPERIMENTAL_LIBVLC']
-const playbackBackendLabels = {
-  STANDARD_EXO: 'ExoPlayer（标准）',
-  EXPERIMENTAL_MPV_EMBEDDED: '实验 mpv 内嵌',
-  EXPERIMENTAL_LIBVLC: '实验 libVLC'
 }
 
 const viewMeta = computed(() => ({
@@ -2979,6 +2981,7 @@ function applyPlaybackSettings(data) {
   playbackSettings.episodeVersionSelectionPolicy = data.episodeVersionSelectionPolicy || 'auto_nearest'
   playbackSettings.preferredSubtitleLanguage = data.preferredSubtitleLanguage || 'auto'
   playbackSettings.formatAwareToneMapping = data.formatAwareToneMapping || null
+  playbackSettings.backendOptions = Array.isArray(data.backendOptions) ? data.backendOptions : []
   playbackSettings.endActionOptions = data.endActionOptions || ['return_to_detail', 'play_next_episode']
   playbackSettings.episodeVersionSelectionPolicyOptions = data.episodeVersionSelectionPolicyOptions || ['auto_nearest', 'manual']
   playbackSettings.preferredSubtitleLanguageOptions = data.preferredSubtitleLanguageOptions || ['auto', 'zh_hans', 'zh_hant', 'zh', 'en', 'ja']
