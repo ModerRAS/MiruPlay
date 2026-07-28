@@ -203,8 +203,9 @@ internal class WebDavEndpointConsumer(
             if (result.statusCode == HTTP_METHOD_NOT_ALLOWED) {
                 openCircuit()
                 runCatching { result.close() }
-                work.fail(WebDavHttpStatusException(HTTP_METHOD_NOT_ALLOWED))
                 failQueuedForOpenCircuit()
+                // Complete the caller only after the circuit transition is fully published.
+                work.fail(WebDavHttpStatusException(HTTP_METHOD_NOT_ALLOWED))
                 return
             }
             if (halfOpen) closeCircuit()
