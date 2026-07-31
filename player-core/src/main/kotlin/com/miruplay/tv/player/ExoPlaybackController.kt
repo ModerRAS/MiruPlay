@@ -901,6 +901,7 @@ class ExoPlaybackController @Inject constructor(
         override fun onVideoInputFormatChanged(
             eventTime: AnalyticsListener.EventTime,
             format: Format,
+            decoderReuseEvaluation: androidx.media3.exoplayer.DecoderReuseEvaluation?,
         ) {
             if (!isCurrentPlayer(player)) return
             refreshVideoSignalDescriptor(format)

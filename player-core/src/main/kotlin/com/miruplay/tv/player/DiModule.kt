@@ -1,7 +1,6 @@
 package com.miruplay.tv.player
 
 import android.content.Context
-import androidx.media3.common.PreviewingVideoGraph
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
@@ -41,12 +40,8 @@ object PlayerModule {
     fun provideExperimentalExoPlayer(
         @ApplicationContext context: Context,
         dataSourceFactory: PlaybackDataSourceFactory,
-        experimentalPreviewingVideoGraphFactory: PreviewingVideoGraph.Factory,
     ): ExoPlayer {
-        val renderersFactory = ExperimentalRenderersFactory(
-            context = context,
-            previewingVideoGraphFactory = experimentalPreviewingVideoGraphFactory,
-        )
+        val renderersFactory = ExperimentalRenderersFactory(context)
             // The experimental HDR backend relies on stable HEVC surface attachment across
             // vendor codecs, so we bias toward compatibility over async throughput here.
             .forceDisableMediaCodecAsynchronousQueueing()
@@ -57,11 +52,6 @@ object PlayerModule {
             .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
             .build()
     }
-
-    @Provides
-    @Singleton
-    fun provideExperimentalPreviewingVideoGraphFactory(): PreviewingVideoGraph.Factory =
-        ExperimentalHdrSdrPreviewingVideoGraphFactory()
 
     @Provides
     @Singleton
