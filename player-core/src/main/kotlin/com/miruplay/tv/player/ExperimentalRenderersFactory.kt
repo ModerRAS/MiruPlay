@@ -5,19 +5,16 @@ package com.miruplay.tv.player
 import android.content.Context
 import android.os.Handler
 import android.util.Log
-import androidx.media3.common.PreviewingVideoGraph
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.Renderer
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
-import androidx.media3.exoplayer.video.CompositingVideoSinkProvider
 import androidx.media3.exoplayer.video.MediaCodecVideoRenderer
 import androidx.media3.exoplayer.video.VideoRendererEventListener
 
 @UnstableApi
 class ExperimentalRenderersFactory(
     context: Context,
-    private val previewingVideoGraphFactory: PreviewingVideoGraph.Factory,
 ) : DefaultRenderersFactory(context) {
     private val experimentalVideoPipelineMode =
         resolveExperimentalVideoPipelineMode(resolveDeviceGlEsMajorVersion(context))
@@ -48,34 +45,25 @@ class ExperimentalRenderersFactory(
             return
         }
 
-        val replacementRenderer = when (experimentalVideoPipelineMode) {
-            ExperimentalVideoPipelineMode.MEDIA3_EFFECTS -> MediaCodecVideoRenderer(
-                context,
-                getCodecAdapterFactory(),
-                mediaCodecSelector,
-                allowedVideoJoiningTimeMs,
-                enableDecoderFallback,
-                eventHandler,
-                eventListener,
-                MAX_DROPPED_VIDEO_FRAME_COUNT_TO_NOTIFY,
-                30f,
-                CompositingVideoSinkProvider.Builder(context)
-                    .setPreviewingVideoGraphFactory(previewingVideoGraphFactory)
-                    .build(),
+        if (experimentalVideoPipelineMode == ExperimentalVideoPipelineMode.MEDIA3_EFFECTS) {
+            Log.i(
+                "ExperimentalRenderersFactory",
+                "Using Media3 native effects renderer",
             )
-
-            ExperimentalVideoPipelineMode.DEDICATED_GL_SURFACE -> ExperimentalHdrSurfaceMediaCodecVideoRenderer(
-                context = context,
-                mediaCodecAdapterFactory = getCodecAdapterFactory(),
-                mediaCodecSelector = mediaCodecSelector,
-                allowedVideoJoiningTimeMs = allowedVideoJoiningTimeMs,
-                enableDecoderFallback = enableDecoderFallback,
-                eventHandler = eventHandler,
-                eventListener = eventListener,
-                maxDroppedFramesToNotify = MAX_DROPPED_VIDEO_FRAME_COUNT_TO_NOTIFY,
-                experimentalVideoPipelineMode = experimentalVideoPipelineMode,
-            )
+            return
         }
+
+        val replacementRenderer = ExperimentalHdrSurfaceMediaCodecVideoRenderer(
+            context = context,
+            mediaCodecAdapterFactory = getCodecAdapterFactory(),
+            mediaCodecSelector = mediaCodecSelector,
+            allowedVideoJoiningTimeMs = allowedVideoJoiningTimeMs,
+            enableDecoderFallback = enableDecoderFallback,
+            eventHandler = eventHandler,
+            eventListener = eventListener,
+            maxDroppedFramesToNotify = MAX_DROPPED_VIDEO_FRAME_COUNT_TO_NOTIFY,
+            experimentalVideoPipelineMode = experimentalVideoPipelineMode,
+        )
         out[rendererIndex] = replacementRenderer
         Log.i(
             "ExperimentalRenderersFactory",
