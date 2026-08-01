@@ -45,6 +45,12 @@ class PlaybackPreferencesManager @Inject constructor(
             prefs.edit().putString(KEY_PREFERRED_SUBTITLE_LANGUAGE, value.storageValue).apply()
         }
 
+    var subtitleBackgroundTransparent: Boolean
+        get() = prefs.getBoolean(KEY_SUBTITLE_BACKGROUND_TRANSPARENT, false)
+        set(value) {
+            prefs.edit().putBoolean(KEY_SUBTITLE_BACKGROUND_TRANSPARENT, value).apply()
+        }
+
     var formatAwareToneMappingPreferences: FormatAwareToneMappingPreferences
         get() {
             val stored = prefs.getString(KEY_FORMAT_AWARE_TONE_MAPPING_PREFERENCES, null)
@@ -85,6 +91,13 @@ class PlaybackPreferencesManager @Inject constructor(
         preferredSubtitleLanguage = preference
     }
 
+    override suspend fun getSubtitleBackgroundTransparent(): Boolean =
+        subtitleBackgroundTransparent
+
+    override suspend fun setSubtitleBackgroundTransparent(transparent: Boolean) {
+        subtitleBackgroundTransparent = transparent
+    }
+
     override suspend fun getFormatAwareToneMappingPreferences(): FormatAwareToneMappingPreferences =
         formatAwareToneMappingPreferences
 
@@ -96,6 +109,7 @@ class PlaybackPreferencesManager @Inject constructor(
         private const val KEY_END_ACTION = "end_action"
         private const val KEY_EPISODE_VERSION_SELECTION_POLICY = "episode_version_selection_policy"
         private const val KEY_PREFERRED_SUBTITLE_LANGUAGE = "preferred_subtitle_language"
+        private const val KEY_SUBTITLE_BACKGROUND_TRANSPARENT = "subtitle_background_transparent"
         private const val KEY_FORMAT_AWARE_TONE_MAPPING_PREFERENCES = "format_aware_tone_mapping_preferences"
     }
 }

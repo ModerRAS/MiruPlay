@@ -56,12 +56,13 @@ class WebControlSettingsRouteTest {
             session(
                 method = NanoHTTPD.Method.PUT,
                 uri = "/api/settings/playback",
-                body = """{"episodeVersionSelectionPolicy":"manual","preferredSubtitleLanguage":"zh_hans"}""",
+                body = """{"episodeVersionSelectionPolicy":"manual","preferredSubtitleLanguage":"zh_hans","subtitleBackgroundTransparent":true}""",
             ),
         )
         assertEquals(NanoHTTPD.Response.Status.OK, put.status)
         assertEquals("manual", service.capturedPlayback?.episodeVersionSelectionPolicy)
         assertEquals("zh_hans", service.capturedPlayback?.preferredSubtitleLanguage)
+        assertEquals(true, service.capturedPlayback?.subtitleBackgroundTransparent)
 
         val get = server.serve(session(method = NanoHTTPD.Method.GET, uri = "/api/settings/playback", body = ""))
         assertEquals(NanoHTTPD.Response.Status.OK, get.status)
@@ -70,6 +71,7 @@ class WebControlSettingsRouteTest {
         assertTrue(body.contains("\"episodeVersionSelectionPolicy\":\"auto_nearest\""))
         assertTrue(body.contains("\"episodeVersionSelectionPolicyOptions\""))
         assertTrue(body.contains("\"preferredSubtitleLanguage\":\"zh_hans\""))
+        assertTrue(body.contains("\"subtitleBackgroundTransparent\":true"))
         assertTrue(body.contains("\"preferredSubtitleLanguageOptions\""))
         assertTrue(body.contains("\"formatAwareToneMapping\""))
         assertTrue(body.contains("\"backendOptions\""))
@@ -217,6 +219,7 @@ class WebControlSettingsRouteTest {
         override suspend fun getPlaybackSettings(): PlaybackSettingsDto = PlaybackSettingsDto(
             endAction = "return_to_detail",
             preferredSubtitleLanguage = "zh_hans",
+            subtitleBackgroundTransparent = true,
             formatAwareToneMapping = FormatAwareToneMappingPreferences(),
             backendOptions = listOf(
                 PlaybackBackendOptionDto(

@@ -1096,6 +1096,13 @@
                     />
                   </el-select>
                 </el-form-item>
+                <el-form-item label="字幕背景">
+                  <el-switch
+                    v-model="playbackForm.subtitleBackgroundTransparent"
+                    active-text="透明底"
+                    inactive-text="黑色底"
+                  />
+                </el-form-item>
                 <el-form-item label="默认播放后端">
                   <el-select v-model="playbackForm.defaultBackend">
                     <el-option
@@ -1657,6 +1664,7 @@ const playbackSettings = reactive({
   endAction: 'return_to_detail',
   episodeVersionSelectionPolicy: 'auto_nearest',
   preferredSubtitleLanguage: 'auto',
+  subtitleBackgroundTransparent: false,
   formatAwareToneMapping: null,
   backendOptions: [],
   endActionOptions: ['return_to_detail', 'play_next_episode'],
@@ -1667,6 +1675,7 @@ const playbackForm = reactive({
   endAction: 'return_to_detail',
   episodeVersionSelectionPolicy: 'auto_nearest',
   preferredSubtitleLanguage: 'auto',
+  subtitleBackgroundTransparent: false,
   defaultBackend: ''
 })
 const webControlAccess = reactive({
@@ -2980,6 +2989,7 @@ function applyPlaybackSettings(data) {
   playbackSettings.endAction = data.endAction || 'return_to_detail'
   playbackSettings.episodeVersionSelectionPolicy = data.episodeVersionSelectionPolicy || 'auto_nearest'
   playbackSettings.preferredSubtitleLanguage = data.preferredSubtitleLanguage || 'auto'
+  playbackSettings.subtitleBackgroundTransparent = Boolean(data.subtitleBackgroundTransparent)
   playbackSettings.formatAwareToneMapping = data.formatAwareToneMapping || null
   playbackSettings.backendOptions = Array.isArray(data.backendOptions) ? data.backendOptions : []
   playbackSettings.endActionOptions = data.endActionOptions || ['return_to_detail', 'play_next_episode']
@@ -2988,6 +2998,7 @@ function applyPlaybackSettings(data) {
   playbackForm.endAction = playbackSettings.endAction
   playbackForm.episodeVersionSelectionPolicy = playbackSettings.episodeVersionSelectionPolicy
   playbackForm.preferredSubtitleLanguage = playbackSettings.preferredSubtitleLanguage
+  playbackForm.subtitleBackgroundTransparent = playbackSettings.subtitleBackgroundTransparent
   playbackForm.defaultBackend = playbackSettings.formatAwareToneMapping?.defaultBackend || ''
 }
 
@@ -3008,6 +3019,7 @@ async function savePlaybackSettings() {
       endAction: playbackForm.endAction,
       episodeVersionSelectionPolicy: playbackForm.episodeVersionSelectionPolicy,
       preferredSubtitleLanguage: playbackForm.preferredSubtitleLanguage,
+      subtitleBackgroundTransparent: playbackForm.subtitleBackgroundTransparent,
       formatAwareToneMapping: { ...existing, defaultBackend: playbackForm.defaultBackend }
     }
     applyPlaybackSettings(await api('/api/settings/playback', {

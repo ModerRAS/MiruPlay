@@ -48,6 +48,7 @@ import androidx.compose.material.icons.filled.PhotoFilter
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material.icons.filled.WifiTethering
 import androidx.compose.material3.Icon
@@ -181,6 +182,10 @@ import com.miruplay.tv.model.playbackEndSettingsTitleLabel
 import com.miruplay.tv.model.playbackEndMenuSummary
 import com.miruplay.tv.model.preferredSubtitleLanguageSettingsDescriptionLabel
 import com.miruplay.tv.model.preferredSubtitleLanguageSettingsTitleLabel
+import com.miruplay.tv.model.subtitleBackgroundSettingsDescriptionLabel
+import com.miruplay.tv.model.subtitleBackgroundSettingsOptionLabel
+import com.miruplay.tv.model.subtitleBackgroundSettingsTitleLabel
+import com.miruplay.tv.model.subtitleBackgroundTransparentToggleLabel
 import com.miruplay.tv.model.displayLabel
 import com.miruplay.tv.model.pictureSettingsDescriptionLabel
 import com.miruplay.tv.model.pictureSettingsTitleLabel
@@ -373,6 +378,7 @@ fun AddSourceScreen(
     val playbackEndAction by viewModel.playbackEndAction.collectAsStateWithLifecycle()
     val episodeVersionSelectionPolicy by viewModel.episodeVersionSelectionPolicy.collectAsStateWithLifecycle()
     val preferredSubtitleLanguage by viewModel.preferredSubtitleLanguage.collectAsStateWithLifecycle()
+    val subtitleBackgroundTransparent by viewModel.subtitleBackgroundTransparent.collectAsStateWithLifecycle()
     val formatAwareToneMappingPreferences by viewModel.formatAwareToneMappingPreferences.collectAsStateWithLifecycle()
     val savedTmdbToken by viewModel.tmdbToken.collectAsStateWithLifecycle()
     val webUiUrls by viewModel.webUiUrls.collectAsStateWithLifecycle()
@@ -673,6 +679,8 @@ fun AddSourceScreen(
                     onEpisodeVersionSelectionPolicySelected = viewModel::setEpisodeVersionSelectionPolicy,
                     preferredSubtitleLanguage = preferredSubtitleLanguage,
                     onPreferredSubtitleLanguageSelected = viewModel::setPreferredSubtitleLanguage,
+                    subtitleBackgroundTransparent = subtitleBackgroundTransparent,
+                    onSubtitleBackgroundTransparentChange = viewModel::setSubtitleBackgroundTransparent,
                     formatAwareToneMappingPreferences = formatAwareToneMappingPreferences,
                     onPlaybackBackendSelected = viewModel::setDefaultPlaybackBackend,
                     onToneMappingPresetSelected = viewModel::setToneMappingPreset,
@@ -1136,6 +1144,8 @@ private fun SettingsContent(
     onEpisodeVersionSelectionPolicySelected: (EpisodeVersionSelectionPolicy) -> Unit,
     preferredSubtitleLanguage: SubtitleLanguagePreference,
     onPreferredSubtitleLanguageSelected: (SubtitleLanguagePreference) -> Unit,
+    subtitleBackgroundTransparent: Boolean,
+    onSubtitleBackgroundTransparentChange: (Boolean) -> Unit,
     formatAwareToneMappingPreferences: FormatAwareToneMappingPreferences,
     onPlaybackBackendSelected: (PlaybackRenderBackend) -> Unit,
     onToneMappingPresetSelected: (VideoRenderRuleKey, ToneMappingProfilePreset) -> Unit,
@@ -1397,6 +1407,8 @@ private fun SettingsContent(
                 onEpisodeVersionSelectionPolicySelected = onEpisodeVersionSelectionPolicySelected,
                 preferredSubtitleLanguage = preferredSubtitleLanguage,
                 onPreferredSubtitleLanguageSelected = onPreferredSubtitleLanguageSelected,
+                subtitleBackgroundTransparent = subtitleBackgroundTransparent,
+                onSubtitleBackgroundTransparentChange = onSubtitleBackgroundTransparentChange,
                 formatAwareToneMappingPreferences = formatAwareToneMappingPreferences,
                 onPlaybackBackendSelected = onPlaybackBackendSelected,
                 onToneMappingPresetSelected = onToneMappingPresetSelected,
@@ -3136,6 +3148,8 @@ private fun PlaybackPanel(
     onEpisodeVersionSelectionPolicySelected: (EpisodeVersionSelectionPolicy) -> Unit,
     preferredSubtitleLanguage: SubtitleLanguagePreference,
     onPreferredSubtitleLanguageSelected: (SubtitleLanguagePreference) -> Unit,
+    subtitleBackgroundTransparent: Boolean,
+    onSubtitleBackgroundTransparentChange: (Boolean) -> Unit,
     formatAwareToneMappingPreferences: FormatAwareToneMappingPreferences,
     onPlaybackBackendSelected: (PlaybackRenderBackend) -> Unit,
     onToneMappingPresetSelected: (VideoRenderRuleKey, ToneMappingProfilePreset) -> Unit,
@@ -3259,6 +3273,45 @@ private fun PlaybackPanel(
             icon = Icons.Filled.CheckCircle,
             text = "当前优先：${preferredSubtitleLanguage.displayLabel()}",
             color = if (preferredSubtitleLanguage == SubtitleLanguagePreference.AUTO) TextSecondary else ProgressGreen,
+        )
+
+        Spacer(Modifier.height(24.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Filled.Subtitles,
+                contentDescription = null,
+                tint = TextPrimary,
+                modifier = Modifier.size(26.dp),
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(
+                text = subtitleBackgroundSettingsTitleLabel(),
+                style = TvTypography.subtitle,
+                color = TextPrimary,
+            )
+        }
+
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = subtitleBackgroundSettingsDescriptionLabel(),
+            style = TvTypography.body,
+            color = TextSecondary,
+        )
+
+        Spacer(Modifier.height(14.dp))
+        ScanOptionChip(
+            text = subtitleBackgroundTransparentToggleLabel(),
+            icon = Icons.Filled.Subtitles,
+            selected = subtitleBackgroundTransparent,
+            enabled = true,
+            onClick = { onSubtitleBackgroundTransparentChange(!subtitleBackgroundTransparent) },
+            modifier = Modifier.width(150.dp),
+        )
+
+        StatusMessage(
+            icon = Icons.Filled.CheckCircle,
+            text = "当前：${subtitleBackgroundSettingsOptionLabel(subtitleBackgroundTransparent)}",
+            color = if (subtitleBackgroundTransparent) ProgressGreen else TextSecondary,
         )
 
         Spacer(Modifier.height(24.dp))

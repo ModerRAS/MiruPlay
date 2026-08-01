@@ -92,6 +92,7 @@ class SettingsViewModelTokenTest {
         every { playbackPreferences.endAction } returns PlaybackEndAction.RETURN_TO_DETAIL
         every { playbackPreferences.episodeVersionSelectionPolicy } returns EpisodeVersionSelectionPolicy.AUTO_NEAREST
         every { playbackPreferences.preferredSubtitleLanguage } returns SubtitleLanguagePreference.AUTO
+        every { playbackPreferences.subtitleBackgroundTransparent } returns false
         every { playbackPreferences.formatAwareToneMappingPreferences } returns FormatAwareToneMappingPreferences()
 
         every { webControlPreferences.webControlEnabled } returns false

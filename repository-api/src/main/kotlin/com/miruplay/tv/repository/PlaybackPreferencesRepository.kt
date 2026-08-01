@@ -13,6 +13,8 @@ interface PlaybackPreferencesRepository {
     suspend fun setEpisodeVersionSelectionPolicy(policy: EpisodeVersionSelectionPolicy) = Unit
     suspend fun getPreferredSubtitleLanguage(): SubtitleLanguagePreference
     suspend fun setPreferredSubtitleLanguage(preference: SubtitleLanguagePreference)
+    suspend fun getSubtitleBackgroundTransparent(): Boolean = false
+    suspend fun setSubtitleBackgroundTransparent(transparent: Boolean) = Unit
     suspend fun getFormatAwareToneMappingPreferences(): FormatAwareToneMappingPreferences
     suspend fun setFormatAwareToneMappingPreferences(preferences: FormatAwareToneMappingPreferences)
 }
