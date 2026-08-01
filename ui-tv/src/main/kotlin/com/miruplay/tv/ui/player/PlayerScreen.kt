@@ -102,7 +102,11 @@ import androidx.core.view.doOnLayout
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.ui.AspectRatioFrameLayout
+import androidx.media3.common.Player
+import androidx.media3.common.text.Cue
+import androidx.media3.common.text.CueGroup
 import androidx.media3.ui.CaptionStyleCompat
+import androidx.media3.ui.SubtitleView
 import androidx.media3.ui.PlayerView
 import androidx.annotation.LayoutRes
 import androidx.tv.material3.ExperimentalTvMaterial3Api
@@ -187,14 +191,21 @@ internal fun subtitleCaptionStyle(
         )
     }
 
-private fun PlayerView.applySubtitleBackgroundPreference(transparentBackground: Boolean) {
+private fun resolveSubtitleCaptionStyle(
+    context: Context,
+    transparentBackground: Boolean,
+): CaptionStyleCompat {
     val captioningManager = context.getSystemService(CaptioningManager::class.java)
     val baseStyle = captioningManager
         ?.takeIf { it.isEnabled }
         ?.userStyle
         ?.let(CaptionStyleCompat::createFromCaptionStyle)
         ?: CaptionStyleCompat.DEFAULT
-    subtitleView?.setStyle(subtitleCaptionStyle(baseStyle, transparentBackground))
+    return subtitleCaptionStyle(baseStyle, transparentBackground)
+}
+
+private fun PlayerView.applySubtitleBackgroundPreference(transparentBackground: Boolean) {
+    subtitleView?.setStyle(resolveSubtitleCaptionStyle(context, transparentBackground))
 }
 
 @OptIn(ExperimentalTvMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -573,6 +584,20 @@ private fun PlayerScreenContent(
     ) {
         val player = viewModel.getPlayer()
         val usesNativeVideoHost = viewModel.usesVlcVideoLayout()
+        // Observe the ExoPlayer's current subtitle cues so we can restack them into a
+        // non-overlapping vertical layout. This fixes bilingual (CN+JP) subtitles
+        // rendering on top of each other, overflowing the screen, and clipping to
+        // half-height when many lines stack up.
+        var subtitleCues by remember { mutableStateOf<List<Cue>>(emptyList()) }
+        DisposableEffect(player) {
+            val cueListener = object : Player.Listener {
+                override fun onCues(cueGroup: CueGroup) {
+                    subtitleCues = cueGroup.cues
+                }
+            }
+            player?.addListener(cueListener)
+            onDispose { player?.removeListener(cueListener) }
+        }
         if (shouldShowExperimentalSurface) {
             AndroidView(
                 factory = { context ->
@@ -661,6 +686,9 @@ private fun PlayerScreenContent(
                              resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                              setShutterBackgroundColor(android.graphics.Color.TRANSPARENT)
                              applySubtitleBackgroundPreference(subtitleBackgroundTransparent)
+                             // Hide the built-in subtitle layer; a restacked overlay below
+                             // renders cues so bilingual lines stack instead of overlapping.
+                             subtitleView?.visibility = android.view.View.GONE
                              isClickable = true
                              isFocusable = false
                              isFocusableInTouchMode = false
@@ -671,11 +699,34 @@ private fun PlayerScreenContent(
                          playerViewRef = view
                          view.player = player
                          view.applySubtitleBackgroundPreference(subtitleBackgroundTransparent)
+                         view.subtitleView?.visibility = android.view.View.GONE
                          view.setOnClickListener { viewModel.showControls() }
                      },
                      modifier = Modifier.fillMaxSize()
                  )
-             }
+            }
+            // Restacked subtitle overlay: replaces the PlayerView's built-in SubtitleView
+            // so simultaneous (bilingual) cues stack vertically and never overflow/clip.
+            AndroidView(
+                factory = { context ->
+                    SubtitleView(context).apply {
+                        setStyle(resolveSubtitleCaptionStyle(context, subtitleBackgroundTransparent))
+                        setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION)
+                        setBottomPaddingFraction(SubtitleView.DEFAULT_BOTTOM_PADDING_FRACTION)
+                        setApplyEmbeddedStyles(true)
+                        isClickable = false
+                        isFocusable = false
+                        isFocusableInTouchMode = false
+                    }
+                },
+                update = { subtitleOverlay ->
+                    subtitleOverlay.setStyle(
+                        resolveSubtitleCaptionStyle(subtitleOverlay.context, subtitleBackgroundTransparent),
+                    )
+                    subtitleOverlay.setCues(restackSubtitleCues(subtitleCues))
+                },
+                modifier = Modifier.fillMaxSize(),
+            )
         } else {
             Box(
                 modifier = Modifier.fillMaxSize().background(Color.Black),
