@@ -196,6 +196,11 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
         MPVLib.setOptionString("hwdec-codecs", EMBEDDED_MPV_HWDEC_CODECS)
         MPVLib.setOptionString("vo", sessionOptions.vo)
         MPVLib.setOptionString("save-position-on-quit", "no")
+        // Normalise ASS subtitle layout so bilingual dialogue lines stack instead
+        // of overlapping at the same \pos (mirrors the ExoPlayer cue-restack fix).
+        mpvSubtitleLayoutNormalisationOptions.forEach { (name, value) ->
+            MPVLib.setOptionString(name, value)
+        }
         applyColorPipelineProperties(sessionOptions)
         applyShaderProperties(sessionOptions.shaderPaths)
         sessionOptions.extraOptions.forEach { (name, value) ->
