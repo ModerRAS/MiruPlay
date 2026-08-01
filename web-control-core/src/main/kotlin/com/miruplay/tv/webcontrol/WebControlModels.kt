@@ -343,6 +343,7 @@ data class PlaybackSettingsDto(
     val endAction: String,
     val episodeVersionSelectionPolicy: String = "auto_nearest",
     val preferredSubtitleLanguage: String,
+    val subtitleBackgroundTransparent: Boolean = false,
     val formatAwareToneMapping: FormatAwareToneMappingPreferences,
     val backendOptions: List<PlaybackBackendOptionDto> = emptyList(),
     val endActionOptions: List<String> = listOf("return_to_detail", "play_next_episode"),
@@ -356,6 +357,7 @@ data class PlaybackSettingsRequest(
     val endAction: String? = null,
     val episodeVersionSelectionPolicy: String? = null,
     val preferredSubtitleLanguage: String? = null,
+    val subtitleBackgroundTransparent: Boolean? = null,
     val formatAwareToneMapping: FormatAwareToneMappingPreferences? = null,
 )
 

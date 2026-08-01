@@ -10,6 +10,7 @@ import android.os.SystemClock
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.WindowManager
+import android.view.accessibility.CaptioningManager
 import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
@@ -101,6 +102,7 @@ import androidx.core.view.doOnLayout
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.ui.AspectRatioFrameLayout
+import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.PlayerView
 import androidx.annotation.LayoutRes
 import androidx.tv.material3.ExperimentalTvMaterial3Api
@@ -168,6 +170,33 @@ private const val STANDARD_DEBUG_CAPTURE_MIN_POSITION_MS = 5_000L
 private const val STANDARD_DEBUG_CAPTURE_RETRY_INTERVAL_MS = 1_500L
 private const val PLAYER_EXIT_CONFIRMATION_WINDOW_MS = 2_000L
 
+internal fun subtitleCaptionStyle(
+    baseStyle: CaptionStyleCompat,
+    transparentBackground: Boolean,
+): CaptionStyleCompat =
+    if (!transparentBackground) {
+        baseStyle
+    } else {
+        CaptionStyleCompat(
+            baseStyle.foregroundColor,
+            android.graphics.Color.TRANSPARENT,
+            baseStyle.windowColor,
+            baseStyle.edgeType,
+            baseStyle.edgeColor,
+            baseStyle.typeface,
+        )
+    }
+
+private fun PlayerView.applySubtitleBackgroundPreference(transparentBackground: Boolean) {
+    val captioningManager = context.getSystemService(CaptioningManager::class.java)
+    val baseStyle = captioningManager
+        ?.takeIf { it.isEnabled }
+        ?.userStyle
+        ?.let(CaptionStyleCompat::createFromCaptionStyle)
+        ?: CaptionStyleCompat.DEFAULT
+    subtitleView?.setStyle(subtitleCaptionStyle(baseStyle, transparentBackground))
+}
+
 @OptIn(ExperimentalTvMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun PlayerScreen(
@@ -227,6 +256,7 @@ private fun PlayerScreenContent(
     val currentActiveBackend by viewModel.currentActiveBackend.collectAsStateWithLifecycle()
     val fallbackReason by viewModel.fallbackReason.collectAsStateWithLifecycle()
     val formatAwarePreferences by viewModel.formatAwarePreferences.collectAsStateWithLifecycle()
+    val subtitleBackgroundTransparent by viewModel.subtitleBackgroundTransparent.collectAsStateWithLifecycle()
     val keepScreenOn = playbackState.keepsScreenOn()
     val view = LocalView.current
     val deviceGlEsMajorVersion = remember(view.context) {
@@ -630,6 +660,7 @@ private fun PlayerScreenContent(
                              useController = false
                              resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                              setShutterBackgroundColor(android.graphics.Color.TRANSPARENT)
+                             applySubtitleBackgroundPreference(subtitleBackgroundTransparent)
                              isClickable = true
                              isFocusable = false
                              isFocusableInTouchMode = false
@@ -639,6 +670,7 @@ private fun PlayerScreenContent(
                      update = { view ->
                          playerViewRef = view
                          view.player = player
+                         view.applySubtitleBackgroundPreference(subtitleBackgroundTransparent)
                          view.setOnClickListener { viewModel.showControls() }
                      },
                      modifier = Modifier.fillMaxSize()

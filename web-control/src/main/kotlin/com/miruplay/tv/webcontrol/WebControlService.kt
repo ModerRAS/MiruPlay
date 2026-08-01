@@ -712,11 +712,13 @@ class WebControlService @Inject constructor(
         val endAction = playbackPreferencesRepository.getEndAction()
         val episodeVersionSelectionPolicy = playbackPreferencesRepository.getEpisodeVersionSelectionPolicy()
         val preferredSubtitleLanguage = playbackPreferencesRepository.getPreferredSubtitleLanguage()
+        val subtitleBackgroundTransparent = playbackPreferencesRepository.getSubtitleBackgroundTransparent()
         val toneMapping = playbackPreferencesRepository.getFormatAwareToneMappingPreferences().normalized()
         PlaybackSettingsDto(
             endAction = endAction.storageValue,
             episodeVersionSelectionPolicy = episodeVersionSelectionPolicy.storageValue,
             preferredSubtitleLanguage = preferredSubtitleLanguage.storageValue,
+            subtitleBackgroundTransparent = subtitleBackgroundTransparent,
             formatAwareToneMapping = toneMapping,
             backendOptions = supportedPlaybackRenderBackends().map { backend ->
                 PlaybackBackendOptionDto(
@@ -740,6 +742,9 @@ class WebControlService @Inject constructor(
             playbackPreferencesRepository.setPreferredSubtitleLanguage(
                 SubtitleLanguagePreference.fromStorageValue(value),
             )
+        }
+        request.subtitleBackgroundTransparent?.let { transparent ->
+            playbackPreferencesRepository.setSubtitleBackgroundTransparent(transparent)
         }
         request.formatAwareToneMapping?.let { prefs ->
             playbackPreferencesRepository.setFormatAwareToneMappingPreferences(prefs.normalized())

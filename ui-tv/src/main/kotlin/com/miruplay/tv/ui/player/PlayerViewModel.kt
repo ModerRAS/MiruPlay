@@ -118,10 +118,13 @@ class PlayerViewModel @Inject constructor(
     val finishEvents: SharedFlow<PlaybackFinishEvent> = _finishEvents.asSharedFlow()
     private val _formatAwarePreferences = MutableStateFlow(FormatAwareToneMappingPreferences())
     val formatAwarePreferences: StateFlow<FormatAwareToneMappingPreferences> = _formatAwarePreferences.asStateFlow()
+    private val _subtitleBackgroundTransparent = MutableStateFlow(false)
+    val subtitleBackgroundTransparent: StateFlow<Boolean> = _subtitleBackgroundTransparent.asStateFlow()
 
     init {
         viewModelScope.launch {
             refreshFormatAwarePreferences()
+            _subtitleBackgroundTransparent.value = playbackPreferences.getSubtitleBackgroundTransparent()
         }
         viewModelScope.launch {
             playbackState.collect { state ->

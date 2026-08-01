@@ -171,6 +171,8 @@ class SettingsViewModel @Inject constructor(
         _episodeVersionSelectionPolicy.asStateFlow()
     private val _preferredSubtitleLanguage = MutableStateFlow(playbackPreferences.preferredSubtitleLanguage)
     val preferredSubtitleLanguage: StateFlow<SubtitleLanguagePreference> = _preferredSubtitleLanguage.asStateFlow()
+    private val _subtitleBackgroundTransparent = MutableStateFlow(playbackPreferences.subtitleBackgroundTransparent)
+    val subtitleBackgroundTransparent: StateFlow<Boolean> = _subtitleBackgroundTransparent.asStateFlow()
     private val _formatAwareToneMappingPreferences = MutableStateFlow(
         playbackPreferences.formatAwareToneMappingPreferences.normalized()
     )
@@ -874,6 +876,11 @@ class SettingsViewModel @Inject constructor(
     fun setPreferredSubtitleLanguage(preference: SubtitleLanguagePreference) {
         playbackPreferences.preferredSubtitleLanguage = preference
         _preferredSubtitleLanguage.value = preference
+    }
+
+    fun setSubtitleBackgroundTransparent(transparent: Boolean) {
+        playbackPreferences.subtitleBackgroundTransparent = transparent
+        _subtitleBackgroundTransparent.value = transparent
     }
 
     fun setDefaultPlaybackBackend(backend: PlaybackRenderBackend) {

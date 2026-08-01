@@ -99,6 +99,16 @@ fun preferredSubtitleLanguageSettingsTitleLabel(): String = "字幕语言优先�
 fun preferredSubtitleLanguageSettingsDescriptionLabel(): String =
     "有匹配字幕时自动优先选择；没有匹配时保留视频原本的默认字幕。"
 
+fun subtitleBackgroundSettingsTitleLabel(): String = "字幕背景"
+
+fun subtitleBackgroundSettingsDescriptionLabel(): String =
+    "开启透明底后，只保留字幕文字和描边。"
+
+fun subtitleBackgroundSettingsOptionLabel(transparent: Boolean): String =
+    if (transparent) "透明底" else "黑色底"
+
+fun subtitleBackgroundTransparentToggleLabel(): String = "透明底"
+
 fun SubtitleLanguagePreference.displayLabel(): String =
     when (this) {
         SubtitleLanguagePreference.AUTO -> "自动"

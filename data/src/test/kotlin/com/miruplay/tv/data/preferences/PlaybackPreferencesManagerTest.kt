@@ -68,6 +68,15 @@ class PlaybackPreferencesManagerTest {
     }
 
     @Test
+    fun `manager persists subtitle background transparency`() = runBlocking {
+        assertEquals(false, manager.getSubtitleBackgroundTransparent())
+
+        manager.setSubtitleBackgroundTransparent(true)
+
+        assertEquals(true, manager.getSubtitleBackgroundTransparent())
+    }
+
+    @Test
     fun `manager persists and reloads customized format-aware tone mapping preferences`() = runBlocking {
         val updated = FormatAwareToneMappingPreferences(
             defaultBackend = PlaybackRenderBackend.EXPERIMENTAL_GL,
