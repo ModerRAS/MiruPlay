@@ -21,6 +21,7 @@ android {
 
 dependencies {
     api(project(":core:model"))
+    implementation(project(":audio-dsp-core"))
     implementation(project(":core:common"))
     implementation(project(":repository-api"))
     implementation(project(":player-mpv-android"))

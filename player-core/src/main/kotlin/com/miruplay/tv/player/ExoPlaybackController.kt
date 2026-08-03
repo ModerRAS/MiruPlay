@@ -85,6 +85,7 @@ class ExoPlaybackController @Inject constructor(
     private val playbackDebugOverrides: PlaybackDebugOverrides,
     private val externalMpvLauncher: AndroidExternalMpvLauncher,
     private val config: PlaybackConfig = PlaybackConfig(),
+    private val audioDspRuntimeConfig: AudioDspRuntimeConfig = AudioDspRuntimeConfig(),
 ) : PlaybackController {
     private val controllerScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var remoteControlSession: MediaSession? = null
@@ -167,6 +168,7 @@ class ExoPlaybackController @Inject constructor(
         playbackPreferences = playbackPreferencesRepository
             .getFormatAwareToneMappingPreferences()
             .normalized()
+        audioDspRuntimeConfig.update(playbackPreferencesRepository.getAudioDspConfig())
         preferredSubtitleLanguage = playbackPreferencesRepository.getPreferredSubtitleLanguage()
         subtitleSelectionWasManual = false
         _requestedRenderBackend.value = sessionState.effectiveRequestedBackend(playbackPreferences.defaultBackend)
@@ -1455,6 +1457,7 @@ class ExoPlaybackController @Inject constructor(
                 headers = ijkRequestHeaders,
                 androidIo = ijkAndroidIo,
                 hardwareDecode = true,
+                audioDspOptions = buildAudioDspMpvOptions(audioDspRuntimeConfig.config),
             ),
         )
         view.setPlaybackSpeed(ijkPlaybackSpeed)
@@ -1783,6 +1786,7 @@ class ExoPlaybackController @Inject constructor(
             shaderPaths = shaderPaths,
             speed = speed,
             debugConfig = playbackDebugOverrides.embeddedMpvDebugConfig,
+            audioDspConfig = audioDspRuntimeConfig.config,
         )
     }
 

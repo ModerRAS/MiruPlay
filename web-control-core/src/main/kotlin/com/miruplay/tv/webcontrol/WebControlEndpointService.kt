@@ -4,6 +4,7 @@ import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.repository.DEFAULT_LOCAL_LOG_READ_LIMIT
 import java.io.InputStream
+import com.miruplay.tv.model.AudioDspConfig
 
 interface WebControlEndpointService {
     suspend fun getServerInfo(port: Int): ServerInfoDto
@@ -79,6 +80,10 @@ interface WebControlEndpointService {
         throw UnsupportedOperationException("播放设置 not supported")
     suspend fun savePlaybackSettings(request: PlaybackSettingsRequest): PlaybackSettingsDto =
         throw UnsupportedOperationException("播放设置 not supported")
+    suspend fun getAudioDsp(): AudioDspDto = AudioDspDto()
+    suspend fun saveAudioDsp(config: AudioDspConfig): AudioDspDto = AudioDspDto(config = config.normalized())
+    suspend fun previewAudioDsp(request: AudioDspPreviewRequest): AudioDspPreviewDto =
+        AudioDspPreviewDto(request.frequenciesHz, request.frequenciesHz.map { 0f }, request.frequenciesHz.map { 0f })
     suspend fun getWebControlAccess(): WebControlAccessDto =
         throw UnsupportedOperationException("WebUI 访问设置 not supported")
     suspend fun saveWebControlAccess(request: WebControlAccessRequest): WebControlAccessDto =

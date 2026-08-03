@@ -31,6 +31,7 @@ data class MiruIjkPlaybackRequest(
     val headers: Map<String, String> = emptyMap(),
     val androidIo: MiruIjkAndroidIo? = null,
     val hardwareDecode: Boolean = true,
+    val audioDspOptions: Map<String, String> = emptyMap(),
 )
 
 data class MiruIjkAudioTrack(
@@ -145,6 +146,9 @@ class MiruIjkSurfaceView @JvmOverloads constructor(
         mediaPlayer.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "mediacodec", if (request.hardwareDecode) 1L else 0L)
         mediaPlayer.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "mediacodec-auto-rotate", 1L)
         mediaPlayer.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "mediacodec-handle-resolution-change", 1L)
+        request.audioDspOptions.forEach { (name, value) ->
+            mediaPlayer.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, name, value)
+        }
         mediaPlayer.setScreenOnWhilePlaying(true)
         mediaPlayer.setDisplay(holder)
         mediaPlayer.setOnPreparedListener { prepared ->

@@ -1133,6 +1133,166 @@
             </el-card>
           </section>
 
+          <section v-show="activeView === 'playback'" class="view-stack audio-dsp-stack">
+            <el-card shadow="never" class="panel-card">
+              <template #header>
+                <div class="card-header">
+                  <div>
+                    <strong>音频 PEQ / DSP</strong>
+                    <span class="muted block-text">原生 PCM 处理，支持多声道保持、线性相位 FIR 与可选双耳下混</span>
+                  </div>
+                  <el-tag :type="audioDsp.config.enabled ? 'success' : 'info'">
+                    {{ audioDsp.config.enabled ? '已启用' : '已关闭' }}
+                  </el-tag>
+                </div>
+              </template>
+
+              <el-skeleton v-if="loading.audioDsp" animated :rows="8" />
+              <el-form v-else label-position="top" @submit.prevent>
+                <div class="switch-row">
+                  <el-switch
+                    v-model="audioDsp.config.enabled"
+                    active-text="启用音频 DSP"
+                    inactive-text="保持原始输出"
+                  />
+                  <span class="muted">启用后播放器会关闭 passthrough/offload，先解码为 PCM 再处理。</span>
+                </div>
+
+                <div class="form-grid audio-dsp-overview">
+                  <el-form-item label="当前预设">
+                    <el-select v-model="audioDsp.config.selectedPresetId">
+                      <el-option
+                        v-for="preset in audioDsp.config.presets"
+                        :key="preset.id"
+                        :label="preset.name || preset.id"
+                        :value="preset.id"
+                      />
+                    </el-select>
+                  </el-form-item>
+                  <el-form-item label="预设名称">
+                    <el-input v-if="activeAudioPreset" v-model="activeAudioPreset.name" maxlength="64" show-word-limit />
+                  </el-form-item>
+                  <el-form-item label="前级增益 (dB)">
+                    <el-input-number v-if="activeAudioPreset" v-model="activeAudioPreset.preampDb" :min="-24" :max="12" :step="0.1" :precision="1" controls-position="right" />
+                  </el-form-item>
+                  <el-form-item label="相位模式">
+                    <el-select v-if="activeAudioPreset" v-model="activeAudioPreset.phaseMode">
+                      <el-option label="Minimum phase" value="MINIMUM" />
+                      <el-option label="Linear phase FIR" value="LINEAR" />
+                    </el-select>
+                  </el-form-item>
+                  <el-form-item label="FIR 质量">
+                    <el-select v-if="activeAudioPreset" v-model="activeAudioPreset.firQuality">
+                      <el-option label="低延迟 1024 taps" value="LOW" />
+                      <el-option label="平衡 2048 taps" value="MEDIUM" />
+                      <el-option label="高质量 4096 taps" value="HIGH" />
+                    </el-select>
+                  </el-form-item>
+                  <el-form-item label="输出路由">
+                    <el-select v-if="activeAudioPreset" v-model="activeAudioPreset.outputMode">
+                      <el-option label="保持输入多声道" value="AUTO_PRESERVE" />
+                      <el-option label="标准立体声下混" value="STEREO_DOWNMIX" />
+                      <el-option label="HRTF 双耳下混" value="HRTF_BINAURAL" />
+                    </el-select>
+                  </el-form-item>
+                </div>
+
+                <div class="form-actions audio-dsp-actions">
+                  <el-button :icon="Plus" @click="addAudioDspPreset">新增预设</el-button>
+                  <el-button :icon="Delete" :disabled="audioDsp.config.presets.length <= 1" @click="removeActiveAudioDspPreset">删除当前预设</el-button>
+                  <el-button :icon="Upload" @click="audioDspFileInput?.click()">导入 JSON</el-button>
+                  <el-button :icon="Download" @click="exportAudioDsp">导出 JSON</el-button>
+                  <input ref="audioDspFileInput" class="hidden-file-input" type="file" accept="application/json" @change="importAudioDsp" />
+                </div>
+
+                <el-alert
+                  v-if="audioDsp.warnings.length"
+                  type="warning"
+                  :closable="false"
+                  show-icon
+                  :title="audioDsp.warnings.join('；')"
+                />
+              </el-form>
+            </el-card>
+
+            <el-card v-if="activeAudioPreset" shadow="never" class="panel-card">
+              <template #header>
+                <div class="card-header">
+                  <strong>预设与通道 PEQ</strong>
+                  <el-button size="small" :icon="Plus" @click="addAudioDspRule">添加通道组</el-button>
+                </div>
+              </template>
+              <el-form label-position="top" @submit.prevent>
+                <div v-for="(rule, ruleIndex) in activeAudioPreset.rules" :key="`rule-${ruleIndex}`" class="audio-dsp-rule">
+                  <div class="audio-dsp-rule-header">
+                    <el-select v-model="rule.target" class="audio-dsp-target">
+                      <el-option v-for="option in audioDspTargetOptions" :key="option.value" :label="option.label" :value="option.value" />
+                    </el-select>
+                    <el-input-number v-model="rule.outputGainDb" :min="-24" :max="24" :step="0.1" :precision="1" controls-position="right" aria-label="Output gain dB" />
+                    <el-button text type="danger" :icon="Delete" @click="removeAudioDspRule(ruleIndex)">移除通道组</el-button>
+                  </div>
+                  <div class="band-list">
+                    <div v-for="(band, bandIndex) in rule.bands" :key="`band-${ruleIndex}-${bandIndex}`" class="band-row">
+                      <el-select v-model="band.type" class="band-type">
+                        <el-option v-for="option in audioDspFilterOptions" :key="option.value" :label="option.label" :value="option.value" />
+                      </el-select>
+                      <el-input-number v-model="band.frequencyHz" :min="10" :max="24000" :step="10" controls-position="right" />
+                      <el-input-number v-model="band.gainDb" :min="-24" :max="24" :step="0.1" :precision="1" controls-position="right" />
+                      <el-input-number v-model="band.q" :min="0.1" :max="20" :step="0.1" :precision="1" controls-position="right" />
+                      <el-switch v-model="band.enabled" active-text="启用" />
+                      <el-button circle text type="danger" :icon="Delete" title="删除频段" @click="removeAudioDspBand(ruleIndex, bandIndex)" />
+                    </div>
+                  </div>
+                  <div class="form-actions band-actions">
+                    <el-button size="small" :icon="Plus" :disabled="rule.bands.length >= 32" @click="addAudioDspBand(ruleIndex)">添加频段</el-button>
+                    <span class="muted">频率 Hz · 增益 dB · Q</span>
+                  </div>
+                </div>
+                <el-empty v-if="!activeAudioPreset.rules.length" description="还没有通道组，添加后即可编辑 PEQ" />
+              </el-form>
+            </el-card>
+
+            <el-card v-if="activeAudioPreset" shadow="never" class="panel-card">
+              <template #header>
+                <div class="card-header">
+                  <strong>Limiter 与响应预览</strong>
+                  <el-tag :type="audioDsp.effectiveRoute === 'disabled' ? 'info' : 'success'">{{ audioDsp.effectiveRoute || '待应用' }}</el-tag>
+                </div>
+              </template>
+              <div class="form-grid">
+                <el-form-item label="链接 limiter">
+                  <el-switch v-model="activeAudioPreset.limiter.enabled" active-text="启用" inactive-text="关闭" />
+                </el-form-item>
+                <el-form-item label="Limiter ceiling (dBFS)">
+                  <el-input-number v-model="activeAudioPreset.limiter.ceilingDb" :min="-24" :max="0" :step="0.1" :precision="1" controls-position="right" />
+                </el-form-item>
+                <el-form-item label="释放时间 (ms)">
+                  <el-input-number v-model="activeAudioPreset.limiter.releaseMs" :min="1" :max="2000" :step="5" controls-position="right" />
+                </el-form-item>
+              </div>
+              <div class="response-toolbar">
+                <span class="muted">预览使用 48 kHz stereo 参考布局，不会改变已保存配置。</span>
+                <el-button type="primary" :loading="loading.audioDspPreview" @click="previewAudioDsp">刷新响应曲线</el-button>
+              </div>
+              <div v-if="audioPreviewPoints" class="audio-response-chart">
+                <svg viewBox="0 0 720 260" role="img" aria-label="PEQ frequency response">
+                  <line v-for="y in [20, 80, 140, 200, 240]" :key="`grid-${y}`" x1="42" :y1="y" x2="700" :y2="y" class="chart-grid" />
+                  <polyline :points="audioPreviewPoints" class="chart-line" fill="none" />
+                  <text x="46" y="253" class="chart-label">20 Hz</text>
+                  <text x="650" y="253" class="chart-label">20 kHz</text>
+                  <text x="8" y="25" class="chart-label">+24 dB</text>
+                  <text x="15" y="145" class="chart-label">0 dB</text>
+                  <text x="5" y="242" class="chart-label">-24 dB</text>
+                </svg>
+              </div>
+              <el-empty v-else description="点击刷新响应曲线查看当前预设" />
+              <div class="form-actions">
+                <el-button type="primary" :loading="loading.audioDspSave" @click="saveAudioDsp">应用音频 DSP 配置</el-button>
+                <el-button :loading="loading.audioDsp" @click="loadAudioDsp">重新加载</el-button>
+              </div>
+            </el-card>
+          </section>
+
           <section v-show="activeView === 'webui'" class="view-stack">
             <el-card shadow="never" class="panel-card">
               <template #header>
@@ -1473,6 +1633,7 @@ import {
   Key,
   Link,
   Monitor,
+  Plus,
   Refresh,
   Search,
   Setting,
@@ -1577,6 +1738,9 @@ const loading = reactive({
   scanSave: false,
   playbackSettings: false,
   playbackSave: false,
+  audioDsp: false,
+  audioDspSave: false,
+  audioDspPreview: false,
   webControlAccess: false,
   webControlSave: false,
   appUpdate: false,
@@ -1678,6 +1842,20 @@ const playbackForm = reactive({
   subtitleBackgroundTransparent: false,
   defaultBackend: ''
 })
+const audioDsp = reactive({
+  config: createNeutralAudioDspConfig(),
+  capabilities: {
+    supportedBackends: [],
+    supportedLayouts: ['mono', 'stereo', '5.1', '7.1'],
+    sampleRatesHz: [44100, 48000, 96000],
+    maxChannels: 8,
+    hrtfAvailable: true
+  },
+  effectiveRoute: 'disabled',
+  warnings: [],
+  preview: null
+})
+const audioDspFileInput = ref(null)
 const webControlAccess = reactive({
   enabled: false,
   accessToken: '',
@@ -1752,6 +1930,48 @@ const subtitleLanguageLabels = {
   en: '英语',
   ja: '日语'
 }
+
+const audioDspTargetOptions = [
+  { value: 'ALL', label: '全部声道' },
+  { value: 'FRONT', label: '前置 L/R' },
+  { value: 'CENTER_LFE', label: 'Center / LFE' },
+  { value: 'SURROUND', label: '环绕声道' },
+  { value: 'SURROUND_5_1', label: '5.1 环绕组' },
+  { value: 'SURROUND_7_1', label: '7.1 环绕组' },
+  { value: 'LEFT', label: '仅左声道' },
+  { value: 'RIGHT', label: '仅右声道' },
+  { value: 'CENTER', label: '仅中置' },
+  { value: 'LFE', label: '仅低音' },
+  { value: 'LEFT_SURROUND', label: '左环绕' },
+  { value: 'RIGHT_SURROUND', label: '右环绕' }
+]
+const audioDspFilterOptions = [
+  { value: 'PEAKING', label: 'Peaking' },
+  { value: 'LOW_SHELF', label: 'Low shelf' },
+  { value: 'HIGH_SHELF', label: 'High shelf' },
+  { value: 'LOW_PASS', label: 'Low pass' },
+  { value: 'HIGH_PASS', label: 'High pass' },
+  { value: 'NOTCH', label: 'Notch' },
+  { value: 'BAND_PASS', label: 'Band pass' }
+]
+
+const activeAudioPreset = computed(() =>
+  audioDsp.config.presets.find((preset) => preset.id === audioDsp.config.selectedPresetId) || audioDsp.config.presets[0] || null
+)
+const audioPreviewPoints = computed(() => {
+  const preview = audioDsp.preview
+  if (!preview?.frequenciesHz?.length || !preview.magnitudeDb?.length) return ''
+  const minDb = -24
+  const maxDb = 24
+  const minLog = Math.log10(Math.max(10, Math.min(...preview.frequenciesHz)))
+  const maxLog = Math.log10(Math.max(24_000, Math.max(...preview.frequenciesHz)))
+  return preview.frequenciesHz.map((frequency, index) => {
+    const x = 42 + ((Math.log10(Math.max(10, frequency)) - minLog) / (maxLog - minLog)) * 658
+    const value = Math.max(minDb, Math.min(maxDb, Number(preview.magnitudeDb[index] || 0)))
+    const y = 20 + ((maxDb - value) / (maxDb - minDb)) * 220
+    return `${x.toFixed(1)},${y.toFixed(1)}`
+  }).join(' ')
+})
 
 const viewMeta = computed(() => ({
   library: ['片库', '浏览番剧、选择剧集并投到电视端播放。'],
@@ -1883,7 +2103,10 @@ watch(activeView, (view) => {
   if (view === 'proxy') loadProxyConfig()
   if (view === 'metadata') loadMetadataSettings()
   if (view === 'scan') loadScanSettings()
-  if (view === 'playback') loadPlaybackSettings()
+  if (view === 'playback') {
+    loadPlaybackSettings()
+    loadAudioDsp()
+  }
   if (view === 'webui') loadWebControlAccess()
   if (view === 'app-update') loadAppUpdate()
   if (view === 'logs') {
@@ -1921,7 +2144,7 @@ async function initializeAccess() {
   }
 
   accessReady.value = true
-  await Promise.allSettled([loadLibrary(), loadSources(), loadCloudDriveAutomation(), loadCloudDriveRunStatus(), loadProxyConfig(), loadMetadataSettings(), loadLogUpload(), loadLocalLogs(), loadPlaybackStatus(), loadScanSettings(), loadPlaybackSettings(), loadWebControlAccess(), loadAppUpdate()])
+  await Promise.allSettled([loadLibrary(), loadSources(), loadCloudDriveAutomation(), loadCloudDriveRunStatus(), loadProxyConfig(), loadMetadataSettings(), loadLogUpload(), loadLocalLogs(), loadPlaybackStatus(), loadScanSettings(), loadPlaybackSettings(), loadAudioDsp(), loadWebControlAccess(), loadAppUpdate()])
   if (!accessReady.value) return
   window.clearInterval(statusTimer)
   window.clearInterval(archiveTimer)
@@ -2199,7 +2422,7 @@ async function refreshCurrent() {
   if (activeView.value === 'proxy') await loadProxyConfig()
   if (activeView.value === 'metadata') await loadMetadataSettings()
   if (activeView.value === 'scan') await loadScanSettings()
-  if (activeView.value === 'playback') await loadPlaybackSettings()
+  if (activeView.value === 'playback') await Promise.all([loadPlaybackSettings(), loadAudioDsp()])
   if (activeView.value === 'webui') await loadWebControlAccess()
   if (activeView.value === 'app-update') await loadAppUpdate()
   if (activeView.value === 'about') await loadInfo()
@@ -2983,6 +3206,182 @@ async function saveScanSettings() {
 function episodeVersions(episode) {
   if (Array.isArray(episode?.versions) && episode.versions.length > 0) return episode.versions
   return [{ episodeId: episode.id, filePath: episode.filePath, fileName: episode.fileName }]
+}
+
+function createNeutralAudioDspConfig() {
+  return {
+    schemaVersion: 1,
+    enabled: false,
+    selectedPresetId: 'neutral',
+    presets: [{
+      id: 'neutral',
+      name: 'Neutral',
+      preampDb: 0,
+      phaseMode: 'MINIMUM',
+      firQuality: 'MEDIUM',
+      outputMode: 'AUTO_PRESERVE',
+      rules: [],
+      limiter: { enabled: false, ceilingDb: -1, releaseMs: 100 }
+    }]
+  }
+}
+
+function normalizeAudioDspConfig(config) {
+  const fallback = createNeutralAudioDspConfig()
+  const presets = Array.isArray(config?.presets) && config.presets.length
+    ? config.presets.map((preset, index) => ({
+      id: String(preset?.id || `preset-${index + 1}`),
+      name: String(preset?.name || preset?.id || `Preset ${index + 1}`),
+      preampDb: Number(preset?.preampDb ?? 0),
+      phaseMode: String(preset?.phaseMode || 'MINIMUM').toUpperCase(),
+      firQuality: String(preset?.firQuality || 'MEDIUM').toUpperCase(),
+      outputMode: String(preset?.outputMode || 'AUTO_PRESERVE').toUpperCase(),
+      rules: Array.isArray(preset?.rules) ? preset.rules.map((rule) => ({
+        target: String(rule?.target || 'ALL').toUpperCase(),
+        outputGainDb: Number(rule?.outputGainDb ?? 0),
+        bands: Array.isArray(rule?.bands) ? rule.bands.map((band) => ({
+          type: String(band?.type || 'PEAKING').toUpperCase(),
+          frequencyHz: Number(band?.frequencyHz ?? 1000),
+          gainDb: Number(band?.gainDb ?? 0),
+          q: Number(band?.q ?? 1),
+          enabled: band?.enabled !== false
+        })) : []
+      })) : [],
+      limiter: {
+        enabled: preset?.limiter?.enabled === true,
+        ceilingDb: Number(preset?.limiter?.ceilingDb ?? -1),
+        releaseMs: Number(preset?.limiter?.releaseMs ?? 100)
+      }
+    }))
+    : fallback.presets
+  const selectedPresetId = presets.some((preset) => preset.id === config?.selectedPresetId)
+    ? config.selectedPresetId
+    : presets[0].id
+  return {
+    schemaVersion: Number(config?.schemaVersion || 1),
+    enabled: config?.enabled === true,
+    selectedPresetId,
+    presets
+  }
+}
+
+function applyAudioDsp(data) {
+  audioDsp.config = normalizeAudioDspConfig(data?.config)
+  audioDsp.capabilities = data?.capabilities || audioDsp.capabilities
+  audioDsp.effectiveRoute = data?.effectiveRoute || 'disabled'
+  audioDsp.warnings = Array.isArray(data?.warnings) ? data.warnings : []
+}
+
+function cloneAudioDsp(value) {
+  return JSON.parse(JSON.stringify(value))
+}
+
+function addAudioDspPreset() {
+  const id = `preset-${Date.now()}`
+  audioDsp.config.presets.push({
+    id,
+    name: '新预设',
+    preampDb: 0,
+    phaseMode: 'MINIMUM',
+    firQuality: 'MEDIUM',
+    outputMode: 'AUTO_PRESERVE',
+    rules: [],
+    limiter: { enabled: false, ceilingDb: -1, releaseMs: 100 }
+  })
+  audioDsp.config.selectedPresetId = id
+}
+
+function removeActiveAudioDspPreset() {
+  if (audioDsp.config.presets.length <= 1 || !activeAudioPreset.value) return
+  const index = audioDsp.config.presets.findIndex((preset) => preset.id === activeAudioPreset.value.id)
+  audioDsp.config.presets.splice(index, 1)
+  audioDsp.config.selectedPresetId = audioDsp.config.presets[0].id
+}
+
+function addAudioDspRule() {
+  activeAudioPreset.value?.rules.push({ target: 'ALL', outputGainDb: 0, bands: [] })
+}
+
+function removeAudioDspRule(index) {
+  activeAudioPreset.value?.rules.splice(index, 1)
+}
+
+function addAudioDspBand(ruleIndex) {
+  const rule = activeAudioPreset.value?.rules[ruleIndex]
+  if (!rule || rule.bands.length >= 32) return
+  rule.bands.push({ type: 'PEAKING', frequencyHz: 1000, gainDb: 0, q: 1, enabled: true })
+}
+
+function removeAudioDspBand(ruleIndex, bandIndex) {
+  activeAudioPreset.value?.rules[ruleIndex]?.bands.splice(bandIndex, 1)
+}
+
+function exportAudioDsp() {
+  const blob = new Blob([JSON.stringify(audioDsp.config, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = 'miruplay-audio-dsp.json'
+  anchor.click()
+  URL.revokeObjectURL(url)
+}
+
+function importAudioDsp(event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    try {
+      audioDsp.config = normalizeAudioDspConfig(JSON.parse(String(reader.result || '{}')))
+      ElMessage.success('音频 DSP JSON 已载入，请点击应用保存')
+    } catch (error) {
+      ElMessage.error(`JSON 导入失败：${error.message || '格式错误'}`)
+    }
+  }
+  reader.readAsText(file)
+}
+
+async function loadAudioDsp() {
+  loading.audioDsp = true
+  try {
+    applyAudioDsp(await api('/api/audio-dsp'))
+  } finally {
+    loading.audioDsp = false
+  }
+}
+
+async function saveAudioDsp() {
+  loading.audioDspSave = true
+  try {
+    applyAudioDsp(await api('/api/audio-dsp', {
+      method: 'PUT',
+      body: JSON.stringify(normalizeAudioDspConfig(audioDsp.config))
+    }))
+    ElMessage.success('音频 DSP 配置已应用')
+  } catch (error) {
+    ElMessage.error(error.message || '音频 DSP 配置保存失败')
+  } finally {
+    loading.audioDspSave = false
+  }
+}
+
+async function previewAudioDsp() {
+  if (!activeAudioPreset.value) return
+  loading.audioDspPreview = true
+  try {
+    audioDsp.preview = await api('/api/audio-dsp/preview', {
+      method: 'POST',
+      body: JSON.stringify({
+        preset: cloneAudioDsp(activeAudioPreset.value),
+        frequenciesHz: Array.from({ length: 64 }, (_, index) => 20 * Math.pow(1000, index / 63))
+      })
+    })
+  } catch (error) {
+    ElMessage.error(error.message || '响应曲线生成失败')
+  } finally {
+    loading.audioDspPreview = false
+  }
 }
 
 function applyPlaybackSettings(data) {

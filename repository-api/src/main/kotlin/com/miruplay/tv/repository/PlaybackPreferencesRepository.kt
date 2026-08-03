@@ -4,6 +4,7 @@ import com.miruplay.tv.model.EpisodeVersionSelectionPolicy
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.SubtitleLanguagePreference
+import com.miruplay.tv.model.AudioDspConfig
 
 interface PlaybackPreferencesRepository {
     suspend fun getEndAction(): PlaybackEndAction
@@ -17,4 +18,6 @@ interface PlaybackPreferencesRepository {
     suspend fun setSubtitleBackgroundTransparent(transparent: Boolean) = Unit
     suspend fun getFormatAwareToneMappingPreferences(): FormatAwareToneMappingPreferences
     suspend fun setFormatAwareToneMappingPreferences(preferences: FormatAwareToneMappingPreferences)
+    suspend fun getAudioDspConfig(): AudioDspConfig = AudioDspConfig.neutral()
+    suspend fun setAudioDspConfig(config: AudioDspConfig) = Unit
 }

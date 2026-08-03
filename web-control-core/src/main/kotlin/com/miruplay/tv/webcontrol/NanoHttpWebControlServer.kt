@@ -249,6 +249,18 @@ open class NanoHttpWebControlServer(
                 val request = parseBody(session, PlaybackSettingsRequest.serializer())
                 jsonResponse(PlaybackSettingsDto.serializer(), webControlService.savePlaybackSettings(request))
             }
+            session.method == Method.GET && route == "/api/audio-dsp" -> {
+                jsonResponse(AudioDspDto.serializer(), webControlService.getAudioDsp())
+            }
+            session.method == Method.PUT && route == "/api/audio-dsp" -> {
+                val config = parseBody(session, com.miruplay.tv.model.AudioDspConfig.serializer())
+                require(config.validationErrors().isEmpty()) { config.validationErrors().joinToString("; ") }
+                jsonResponse(AudioDspDto.serializer(), webControlService.saveAudioDsp(config))
+            }
+            session.method == Method.POST && route == "/api/audio-dsp/preview" -> {
+                val request = parseBody(session, AudioDspPreviewRequest.serializer())
+                jsonResponse(AudioDspPreviewDto.serializer(), webControlService.previewAudioDsp(request))
+            }
             session.method == Method.GET && route == "/api/web-control/access" -> {
                 jsonResponse(WebControlAccessDto.serializer(), webControlService.getWebControlAccess())
             }

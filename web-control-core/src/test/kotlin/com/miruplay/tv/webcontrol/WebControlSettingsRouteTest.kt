@@ -1,6 +1,8 @@
 package com.miruplay.tv.webcontrol
 
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
+import com.miruplay.tv.model.AudioDspConfig
+import com.miruplay.tv.model.AudioDspPreset
 import com.miruplay.tv.model.PosterWallArrangement
 import com.miruplay.tv.repository.WebControlAccessManager
 import fi.iki.elonen.NanoHTTPD
@@ -76,6 +78,55 @@ class WebControlSettingsRouteTest {
         assertTrue(body.contains("\"formatAwareToneMapping\""))
         assertTrue(body.contains("\"backendOptions\""))
         assertTrue(body.contains("\"value\":\"EXPERIMENTAL_IJKPLAYER\""))
+    }
+
+    @Test
+    fun `audio dsp route round trips config and preview`() {
+        val service = SettingsStubService()
+        val server = NanoHttpWebControlServer(
+            webControlService = service,
+            webControlAccess = EnabledAccess,
+            staticAssets = WebControlStaticAssets { null },
+        )
+        val config = AudioDspConfig(
+            enabled = true,
+            selectedPresetId = "movie",
+            presets = listOf(AudioDspPreset("movie", "Movie")),
+        )
+
+        val put = server.serve(
+            session(
+                method = NanoHTTPD.Method.PUT,
+                uri = "/api/audio-dsp",
+                body = kotlinx.serialization.json.Json.encodeToString(AudioDspConfig.serializer(), config),
+            ),
+        )
+        assertEquals(NanoHTTPD.Response.Status.OK, put.status)
+        assertTrue(service.audioDspConfig.enabled)
+
+        val get = server.serve(session(method = NanoHTTPD.Method.GET, uri = "/api/audio-dsp", body = ""))
+        assertEquals(NanoHTTPD.Response.Status.OK, get.status)
+        assertTrue(get.bodyText().contains("\"selectedPresetId\":\"movie\""))
+
+        val preview = server.serve(
+            session(
+                method = NanoHTTPD.Method.POST,
+                uri = "/api/audio-dsp/preview",
+                body = "{\"preset\":${kotlinx.serialization.json.Json.encodeToString(AudioDspPreset.serializer(), config.presets.single())},\"frequenciesHz\":[100.0,1000.0,10000.0]}",
+            ),
+        )
+        assertEquals(NanoHTTPD.Response.Status.OK, preview.status)
+        assertTrue(preview.bodyText().contains("\"magnitudeDb\""))
+
+        val invalid = server.serve(
+            session(
+                method = NanoHTTPD.Method.PUT,
+                uri = "/api/audio-dsp",
+                body = """{"enabled":true,"selectedPresetId":"movie","presets":[{"id":"movie","name":"Movie","preampDb":99.0}]}""",
+            ),
+        )
+        assertEquals(NanoHTTPD.Response.Status.BAD_REQUEST, invalid.status)
+        assertTrue(service.audioDspConfig.enabled)
     }
 
     @Test
@@ -195,6 +246,7 @@ class WebControlSettingsRouteTest {
     }
 
     private class SettingsStubService : EmptyWebControlEndpointService() {
+        var audioDspConfig: AudioDspConfig = AudioDspConfig.neutral()
         var capturedScan: ScanSettingsRequest? = null
         var capturedPlayback: PlaybackSettingsRequest? = null
         var capturedTmdbToken: String? = null
@@ -233,6 +285,20 @@ class WebControlSettingsRouteTest {
             capturedPlayback = request
             return getPlaybackSettings()
         }
+
+        override suspend fun getAudioDsp(): AudioDspDto = AudioDspDto(config = audioDspConfig)
+
+        override suspend fun saveAudioDsp(config: AudioDspConfig): AudioDspDto {
+            audioDspConfig = config.normalized()
+            return AudioDspDto(config = audioDspConfig)
+        }
+
+        override suspend fun previewAudioDsp(request: AudioDspPreviewRequest): AudioDspPreviewDto =
+            AudioDspPreviewDto(
+                frequenciesHz = request.frequenciesHz,
+                magnitudeDb = request.frequenciesHz.map { 0f },
+                phaseRadians = request.frequenciesHz.map { 0f },
+            )
 
         override suspend fun getMetadataSettings(): MetadataSettingsDto =
             MetadataSettingsDto(bangumiTokenConfigured = false, tmdbTokenConfigured = true)

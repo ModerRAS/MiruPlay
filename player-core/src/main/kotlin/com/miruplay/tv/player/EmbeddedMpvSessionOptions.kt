@@ -5,6 +5,7 @@ import android.os.Process
 import com.miruplay.tv.model.PeakDetectionStrategy
 import com.miruplay.tv.model.ToneMappingCurvePreset
 import com.miruplay.tv.model.ToneMappingRuleSet
+import com.miruplay.tv.model.AudioDspConfig
 import `is`.xyz.mpv.MiruMpvSurfaceView
 
 fun buildEmbeddedMpvSessionOptions(
@@ -13,6 +14,7 @@ fun buildEmbeddedMpvSessionOptions(
     speed: Float = 1.0f,
     runtimeAbiIs32Bit: Boolean = isEmbeddedMpvRuntime32Bit(),
     debugConfig: EmbeddedMpvDebugConfig = EmbeddedMpvDebugConfig(),
+    audioDspConfig: AudioDspConfig = AudioDspConfig.neutral(),
 ): MiruMpvSurfaceView.SessionOptions {
     val peakDetection = resolveEmbeddedMpvPeakDetection(
         strategy = effectiveEmbeddedMpvPeakDetectionStrategy(
@@ -50,7 +52,7 @@ fun buildEmbeddedMpvSessionOptions(
             "osc" to "no",
             "input-default-bindings" to "yes",
             "sub-auto" to "no",
-        ),
+        ) + buildAudioDspMpvOptions(audioDspConfig),
     )
 }
 
