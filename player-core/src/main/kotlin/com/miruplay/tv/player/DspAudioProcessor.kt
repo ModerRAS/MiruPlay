@@ -44,7 +44,7 @@ class DspAudioProcessor(
         }
     }
 
-    override fun isActive(): Boolean = runtimeConfig.config.enabled
+    override fun isActive(): Boolean = runtimeConfig.config.enabled && super.isActive()
 
     override fun queueInput(inputBuffer: ByteBuffer) {
         val active = processor ?: run {
