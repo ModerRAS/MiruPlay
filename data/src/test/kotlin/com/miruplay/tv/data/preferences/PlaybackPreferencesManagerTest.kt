@@ -11,6 +11,8 @@ import com.miruplay.tv.model.SubtitleLanguagePreference
 import com.miruplay.tv.model.ToneMappingCurvePreset
 import com.miruplay.tv.model.ToneMappingRuleSet
 import com.miruplay.tv.model.VideoRenderRuleKey
+import com.miruplay.tv.model.AudioDspConfig
+import com.miruplay.tv.model.AudioDspPreset
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -74,6 +76,24 @@ class PlaybackPreferencesManagerTest {
         manager.setSubtitleBackgroundTransparent(true)
 
         assertEquals(true, manager.getSubtitleBackgroundTransparent())
+    }
+
+    @Test
+    fun `manager persists normalized audio dsp config`() = runBlocking {
+        assertEquals(false, manager.getAudioDspConfig().enabled)
+
+        manager.setAudioDspConfig(
+            AudioDspConfig(
+                enabled = true,
+                selectedPresetId = "movie",
+                presets = listOf(AudioDspPreset("movie", "Movie", preampDb = 99f)),
+            ),
+        )
+
+        val restored = manager.getAudioDspConfig()
+        assertEquals(true, restored.enabled)
+        assertEquals("movie", restored.selectedPresetId)
+        assertEquals(12f, restored.presets.single().preampDb)
     }
 
     @Test

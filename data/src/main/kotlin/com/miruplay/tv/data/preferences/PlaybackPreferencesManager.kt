@@ -7,6 +7,7 @@ import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.PlaybackRenderBackend
 import com.miruplay.tv.model.SubtitleLanguagePreference
+import com.miruplay.tv.model.AudioDspConfig
 import com.miruplay.tv.repository.PlaybackPreferencesRepository
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -70,6 +71,20 @@ class PlaybackPreferencesManager @Inject constructor(
             prefs.edit().putString(KEY_FORMAT_AWARE_TONE_MAPPING_PREFERENCES, serialized).apply()
         }
 
+    var audioDspConfig: AudioDspConfig
+        get() {
+            val stored = prefs.getString(KEY_AUDIO_DSP_CONFIG, null)
+            return runCatching {
+                stored?.takeIf(String::isNotBlank)
+                    ?.let { json.decodeFromString<AudioDspConfig>(it) }
+                    ?.normalized()
+                    ?: AudioDspConfig.neutral()
+            }.getOrElse { AudioDspConfig.neutral() }
+        }
+        set(value) {
+            prefs.edit().putString(KEY_AUDIO_DSP_CONFIG, json.encodeToString(value.normalized())).apply()
+        }
+
     override suspend fun getEndAction(): PlaybackEndAction =
         endAction
 
@@ -105,12 +120,19 @@ class PlaybackPreferencesManager @Inject constructor(
         formatAwareToneMappingPreferences = preferences
     }
 
+    override suspend fun getAudioDspConfig(): AudioDspConfig = audioDspConfig
+
+    override suspend fun setAudioDspConfig(config: AudioDspConfig) {
+        audioDspConfig = config
+    }
+
     companion object {
         private const val KEY_END_ACTION = "end_action"
         private const val KEY_EPISODE_VERSION_SELECTION_POLICY = "episode_version_selection_policy"
         private const val KEY_PREFERRED_SUBTITLE_LANGUAGE = "preferred_subtitle_language"
         private const val KEY_SUBTITLE_BACKGROUND_TRANSPARENT = "subtitle_background_transparent"
         private const val KEY_FORMAT_AWARE_TONE_MAPPING_PREFERENCES = "format_aware_tone_mapping_preferences"
+        private const val KEY_AUDIO_DSP_CONFIG = "audio_dsp_config"
     }
 }
 

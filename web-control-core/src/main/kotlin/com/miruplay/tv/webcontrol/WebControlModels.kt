@@ -6,6 +6,8 @@ import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.CloudDriveLibraryMode
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
+import com.miruplay.tv.model.AudioDspConfig
+import com.miruplay.tv.model.AudioDspPreset
 import com.miruplay.tv.model.MediaContentMode
 import com.miruplay.tv.model.MediaRecognitionMode
 import com.miruplay.tv.model.MlipMetadataMode
@@ -359,6 +361,36 @@ data class PlaybackSettingsRequest(
     val preferredSubtitleLanguage: String? = null,
     val subtitleBackgroundTransparent: Boolean? = null,
     val formatAwareToneMapping: FormatAwareToneMappingPreferences? = null,
+)
+
+@Serializable
+data class AudioDspCapabilitiesDto(
+    val supportedBackends: List<String> = emptyList(),
+    val supportedLayouts: List<String> = listOf("mono", "stereo", "5.1", "7.1"),
+    val sampleRatesHz: List<Int> = listOf(44_100, 48_000, 96_000),
+    val maxChannels: Int = 8,
+    val hrtfAvailable: Boolean = true,
+)
+
+@Serializable
+data class AudioDspDto(
+    val config: AudioDspConfig = AudioDspConfig.neutral(),
+    val capabilities: AudioDspCapabilitiesDto = AudioDspCapabilitiesDto(),
+    val effectiveRoute: String = "disabled",
+    val warnings: List<String> = emptyList(),
+)
+
+@Serializable
+data class AudioDspPreviewRequest(
+    val preset: AudioDspPreset,
+    val frequenciesHz: List<Float> = listOf(20f, 100f, 1_000f, 10_000f, 20_000f),
+)
+
+@Serializable
+data class AudioDspPreviewDto(
+    val frequenciesHz: List<Float>,
+    val magnitudeDb: List<Float>,
+    val phaseRadians: List<Float>,
 )
 
 @Serializable

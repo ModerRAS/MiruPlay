@@ -75,6 +75,7 @@ tasks.matching { it.name.startsWith("lint") }.configureEach {
 
 dependencies {
     api(project(":web-control-core"))
+    implementation(project(":audio-dsp-core"))
     implementation(project(":background-task"))
     api(project(":core:model"))
     implementation(project(":core:common"))
