@@ -3189,6 +3189,12 @@ private fun PlaybackPanel(
             color = TextSecondary
         )
 
+        AudioDspTvControls(
+            config = audioDspConfig,
+            onEnabledChange = onAudioDspEnabledChange,
+            onPresetSelected = onAudioDspPresetSelected,
+        )
+
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ScanOptionChip(
@@ -3333,61 +3339,6 @@ private fun PlaybackPanel(
         Spacer(Modifier.height(24.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
-                imageVector = Icons.Filled.GraphicEq,
-                contentDescription = null,
-                tint = TextPrimary,
-                modifier = Modifier.size(26.dp),
-            )
-            Spacer(Modifier.width(10.dp))
-            Text(text = "音频 PEQ / DSP", style = TvTypography.subtitle, color = TextPrimary)
-        }
-        Spacer(Modifier.height(6.dp))
-        Text(
-            text = "电视端仅提供总开关和预设切换，完整频段与线性相位设置请使用 WebUI。",
-            style = TvTypography.body,
-            color = TextSecondary,
-        )
-        Spacer(Modifier.height(14.dp))
-        ScanOptionChip(
-            text = if (audioDspConfig.enabled) "音频 DSP 已启用" else "音频 DSP 已关闭",
-            icon = Icons.Filled.GraphicEq,
-            selected = audioDspConfig.enabled,
-            enabled = true,
-            onClick = { onAudioDspEnabledChange(!audioDspConfig.enabled) },
-            modifier = Modifier.width(190.dp),
-        )
-        Spacer(Modifier.height(12.dp))
-        Text(
-            text = "当前预设",
-            style = TvTypography.caption.copy(fontWeight = FontWeight.SemiBold),
-            color = TextSecondary,
-        )
-        Spacer(Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            audioDspConfig.presets.forEach { preset ->
-                ScanOptionChip(
-                    text = preset.name,
-                    icon = Icons.Filled.Tune,
-                    selected = audioDspConfig.selectedPresetId == preset.id,
-                    enabled = true,
-                    onClick = { onAudioDspPresetSelected(preset.id) },
-                    modifier = Modifier.width(150.dp),
-                )
-            }
-        }
-        StatusMessage(
-            icon = Icons.Filled.CheckCircle,
-            text = if (audioDspConfig.enabled) {
-                "当前预设：${audioDspConfig.presets.firstOrNull { it.id == audioDspConfig.selectedPresetId }?.name ?: audioDspConfig.selectedPresetId}"
-            } else {
-                "音频保持原始输出，不应用 PEQ 或 FIR"
-            },
-            color = if (audioDspConfig.enabled) ProgressGreen else TextSecondary,
-        )
-
-        Spacer(Modifier.height(24.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
                 imageVector = Icons.Filled.PhotoFilter,
                 contentDescription = null,
                 tint = TextPrimary,
@@ -3453,6 +3404,68 @@ private fun PlaybackPanel(
             Spacer(Modifier.height(14.dp))
         }
     }
+}
+
+@Composable
+private fun AudioDspTvControls(
+    config: AudioDspConfig,
+    onEnabledChange: (Boolean) -> Unit,
+    onPresetSelected: (String) -> Unit,
+) {
+    Spacer(Modifier.height(24.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+            imageVector = Icons.Filled.GraphicEq,
+            contentDescription = null,
+            tint = TextPrimary,
+            modifier = Modifier.size(26.dp),
+        )
+        Spacer(Modifier.width(10.dp))
+        Text(text = "音频 PEQ / DSP", style = TvTypography.subtitle, color = TextPrimary)
+    }
+    Spacer(Modifier.height(6.dp))
+    Text(
+        text = "电视端仅提供总开关和预设切换，完整频段与线性相位设置请使用 WebUI。",
+        style = TvTypography.body,
+        color = TextSecondary,
+    )
+    Spacer(Modifier.height(14.dp))
+    ScanOptionChip(
+        text = if (config.enabled) "音频 DSP 已启用" else "音频 DSP 已关闭",
+        icon = Icons.Filled.GraphicEq,
+        selected = config.enabled,
+        enabled = true,
+        onClick = { onEnabledChange(!config.enabled) },
+        modifier = Modifier.width(190.dp),
+    )
+    Spacer(Modifier.height(12.dp))
+    Text(
+        text = "当前预设",
+        style = TvTypography.caption.copy(fontWeight = FontWeight.SemiBold),
+        color = TextSecondary,
+    )
+    Spacer(Modifier.height(8.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        config.presets.forEach { preset ->
+            ScanOptionChip(
+                text = preset.name,
+                icon = Icons.Filled.Tune,
+                selected = config.selectedPresetId == preset.id,
+                enabled = true,
+                onClick = { onPresetSelected(preset.id) },
+                modifier = Modifier.width(150.dp),
+            )
+        }
+    }
+    StatusMessage(
+        icon = Icons.Filled.CheckCircle,
+        text = if (config.enabled) {
+            "当前预设：${config.presets.firstOrNull { it.id == config.selectedPresetId }?.name ?: config.selectedPresetId}"
+        } else {
+            "音频保持原始输出，不应用 PEQ 或 FIR"
+        },
+        color = if (config.enabled) ProgressGreen else TextSecondary,
+    )
 }
 
 @Composable
