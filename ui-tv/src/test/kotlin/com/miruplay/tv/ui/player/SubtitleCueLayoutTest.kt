@@ -10,6 +10,8 @@ import android.text.style.ForegroundColorSpan
 import android.text.style.RelativeSizeSpan
 import android.text.style.StyleSpan
 import androidx.media3.common.text.Cue
+import androidx.media3.common.text.RubySpan
+import androidx.media3.common.text.TextAnnotation
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -236,6 +238,24 @@ class SubtitleCueLayoutTest {
         }
         val first = Cue.Builder().setText(white).build()
         val second = Cue.Builder().setText(yellow).build()
+
+        val result = restackSubtitleCues(listOf(first, second))
+
+        assertEquals(2, result.size)
+        assertSame(first, result[0])
+        assertSame(second, result[1])
+    }
+
+    @Test
+    fun `same text with different ruby annotations remains unchanged`() {
+        val firstText = SpannableString("JP").apply {
+            setSpan(RubySpan("first reading", TextAnnotation.POSITION_BEFORE), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        val secondText = SpannableString("JP").apply {
+            setSpan(RubySpan("second reading", TextAnnotation.POSITION_BEFORE), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        val first = Cue.Builder().setText(firstText).build()
+        val second = Cue.Builder().setText(secondText).build()
 
         val result = restackSubtitleCues(listOf(first, second))
 

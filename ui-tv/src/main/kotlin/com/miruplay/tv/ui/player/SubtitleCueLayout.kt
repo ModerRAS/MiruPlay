@@ -5,9 +5,14 @@ package com.miruplay.tv.ui.player
 import android.os.Parcel
 import android.text.Layout
 import android.text.SpannableStringBuilder
+import android.text.Spanned
 import android.text.TextUtils
 import android.text.style.RelativeSizeSpan
 import androidx.media3.common.text.Cue
+import androidx.media3.common.text.HorizontalTextInVerticalContextSpan
+import androidx.media3.common.text.RubySpan
+import androidx.media3.common.text.TextEmphasisSpan
+import androidx.media3.common.text.VoiceSpan
 
 private enum class SubtitleRegion {
     START,
@@ -42,14 +47,37 @@ private data class CueVisualSignature(
     val shearDegrees: Float,
 )
 
-private class TextVisualSignature(
+private data class TextVisualSignature(
+    val parcelableContents: ParcelableTextSignature,
+    val media3Spans: List<Media3SpanSignature>,
+)
+
+private class ParcelableTextSignature(
     private val contents: ByteArray,
 ) {
     override fun equals(other: Any?): Boolean =
-        other is TextVisualSignature && contents.contentEquals(other.contents)
+        other is ParcelableTextSignature && contents.contentEquals(other.contents)
 
     override fun hashCode(): Int = contents.contentHashCode()
 }
+
+private enum class Media3SpanType {
+    RUBY,
+    TEXT_EMPHASIS,
+    HORIZONTAL_TEXT_IN_VERTICAL_CONTEXT,
+    VOICE,
+}
+
+private data class Media3SpanSignature(
+    val start: Int,
+    val end: Int,
+    val flags: Int,
+    val type: Media3SpanType,
+    val text: String? = null,
+    val firstValue: Int = 0,
+    val secondValue: Int = 0,
+    val thirdValue: Int = 0,
+)
 
 /**
  * Merge contiguous default-position dialogue into measured blocks without disturbing
@@ -159,10 +187,67 @@ private fun CharSequence.toVisualSignature(): TextVisualSignature {
     val parcel = Parcel.obtain()
     return try {
         TextUtils.writeToParcel(this, parcel, 0)
-        TextVisualSignature(parcel.marshall())
+        TextVisualSignature(
+            parcelableContents = ParcelableTextSignature(parcel.marshall()),
+            media3Spans = media3SpanSignatures(),
+        )
     } finally {
         parcel.recycle()
     }
+}
+
+private fun CharSequence.media3SpanSignatures(): List<Media3SpanSignature> {
+    val spanned = this as? Spanned ?: return emptyList()
+    return spanned.getSpans(0, spanned.length, Any::class.java)
+        .mapNotNull { span ->
+            val start = spanned.getSpanStart(span)
+            val end = spanned.getSpanEnd(span)
+            val flags = spanned.getSpanFlags(span)
+            when (span) {
+                is RubySpan -> Media3SpanSignature(
+                    start = start,
+                    end = end,
+                    flags = flags,
+                    type = Media3SpanType.RUBY,
+                    text = span.rubyText,
+                    firstValue = span.position,
+                )
+
+                is TextEmphasisSpan -> Media3SpanSignature(
+                    start = start,
+                    end = end,
+                    flags = flags,
+                    type = Media3SpanType.TEXT_EMPHASIS,
+                    firstValue = span.markShape,
+                    secondValue = span.markFill,
+                    thirdValue = span.position,
+                )
+
+                is HorizontalTextInVerticalContextSpan -> Media3SpanSignature(
+                    start = start,
+                    end = end,
+                    flags = flags,
+                    type = Media3SpanType.HORIZONTAL_TEXT_IN_VERTICAL_CONTEXT,
+                )
+
+                is VoiceSpan -> Media3SpanSignature(
+                    start = start,
+                    end = end,
+                    flags = flags,
+                    type = Media3SpanType.VOICE,
+                    text = span.name,
+                )
+
+                else -> null
+            }
+        }
+        .sortedWith(
+            compareBy<Media3SpanSignature>({ it.start }, { it.end }, { it.flags }, { it.type.ordinal })
+                .thenBy { it.text }
+                .thenBy { it.firstValue }
+                .thenBy { it.secondValue }
+                .thenBy { it.thirdValue },
+        )
 }
 
 private fun buildMergedCue(
