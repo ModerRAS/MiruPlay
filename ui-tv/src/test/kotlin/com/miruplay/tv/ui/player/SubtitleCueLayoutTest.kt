@@ -142,7 +142,7 @@ class SubtitleCueLayoutTest {
     }
 
     @Test
-    fun `explicitly positioned text sign keeps dialogue runs separate`() {
+    fun `positioned cue between dialogue lines is emitted after merged dialogue`() {
         val positioned = Cue.Builder()
             .setText("sign")
             .setPosition(0.2f)
@@ -154,14 +154,13 @@ class SubtitleCueLayoutTest {
 
         val result = restackSubtitleCues(listOf(cue("JP"), positioned, cue("CN")))
 
-        assertEquals(3, result.size)
-        assertEquals("JP", result[0].text.toString())
+        assertEquals(2, result.size)
+        assertEquals("JP\nCN", result[0].text.toString())
         assertSame(positioned, result[1])
-        assertEquals("CN", result[2].text.toString())
     }
 
     @Test
-    fun `bitmap cue keeps styled dialogue runs separate and in order`() {
+    fun `bitmap cues retain identity and order after bridged styled dialogue`() {
         val styledText = SpannableString("JP").apply {
             setSpan(StyleSpan(Typeface.BOLD), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
@@ -175,12 +174,11 @@ class SubtitleCueLayoutTest {
 
         val result = restackSubtitleCues(listOf(textCue, firstBitmapCue, cue("CN"), secondBitmapCue))
 
-        assertEquals(4, result.size)
-        assertEquals("JP", result[0].text.toString())
+        assertEquals(3, result.size)
+        assertEquals("JP\nCN", result[0].text.toString())
         assertEquals(Typeface.BOLD, (result[0].text as Spanned).getSpans(0, 2, StyleSpan::class.java).single().style)
         assertSame(firstBitmapCue, result[1])
-        assertEquals("CN", result[2].text.toString())
-        assertSame(secondBitmapCue, result[3])
+        assertSame(secondBitmapCue, result[2])
     }
 
     @Test
@@ -244,6 +242,33 @@ class SubtitleCueLayoutTest {
         assertEquals(2, result.size)
         assertSame(first, result[0])
         assertSame(second, result[1])
+    }
+
+    @Test
+    fun `conflicting dialogue styles preserve an intervening special cue in place`() {
+        val white = SpannableString("JP").apply {
+            setSpan(ForegroundColorSpan(0xFFFFFFFF.toInt()), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        val yellow = SpannableString("JP").apply {
+            setSpan(ForegroundColorSpan(0xFFFFFF00.toInt()), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        val first = Cue.Builder().setText(white).build()
+        val positioned = Cue.Builder()
+            .setText("sign")
+            .setPosition(0.2f)
+            .setPositionAnchor(Cue.ANCHOR_TYPE_MIDDLE)
+            .setLine(0.3f, Cue.LINE_TYPE_FRACTION)
+            .setLineAnchor(Cue.ANCHOR_TYPE_MIDDLE)
+            .setSize(0.2f)
+            .build()
+        val second = Cue.Builder().setText(yellow).build()
+
+        val result = restackSubtitleCues(listOf(first, positioned, second))
+
+        assertEquals(3, result.size)
+        assertSame(first, result[0])
+        assertSame(positioned, result[1])
+        assertSame(second, result[2])
     }
 
     @Test

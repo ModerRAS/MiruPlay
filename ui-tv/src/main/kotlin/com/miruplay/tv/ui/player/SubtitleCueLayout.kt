@@ -80,7 +80,7 @@ private data class Media3SpanSignature(
 )
 
 /**
- * Merge contiguous default-position dialogue into measured blocks without disturbing
+ * Merge same-region default-position dialogue into measured blocks without disturbing
  * signs, effects, bitmap subtitles, or cues carrying explicit ASS coordinates.
  */
 internal fun restackSubtitleCues(cues: List<Cue>): List<Cue> = buildList(cues.size) {
@@ -93,10 +93,25 @@ internal fun restackSubtitleCues(cues: List<Cue>): List<Cue> = buildList(cues.si
         }
 
         var end = index + 1
-        while (end < cues.size && cues[end].dialogueRunKey() == key) {
+        val dialogueCues = mutableListOf(cues[index])
+        val specialCues = mutableListOf<Cue>()
+        while (end < cues.size) {
+            val nextKey = cues[end].dialogueRunKey()
+            if (nextKey != null && nextKey != key) break
+            if (nextKey == key) {
+                dialogueCues += cues[end]
+            } else {
+                specialCues += cues[end]
+            }
             end++
         }
-        addAll(mergeDialogueRun(key, cues.subList(index, end)))
+        val mergedDialogue = mergeDialogueRun(key, dialogueCues)
+        if (mergedDialogue == null) {
+            addAll(cues.subList(index, end))
+        } else {
+            addAll(mergedDialogue)
+            addAll(specialCues)
+        }
         index = end
     }
 }
@@ -144,13 +159,13 @@ private fun Float.isCloseTo(expected: Float): Boolean =
 private fun mergeDialogueRun(
     key: DialogueRunKey,
     cues: List<Cue>,
-): List<Cue> {
+): List<Cue>? {
     val signatures = cues.map(Cue::visualSignature)
     val signaturesByText = mutableMapOf<String, CueVisualSignature>()
     cues.forEachIndexed { index, cue ->
         val previous = signaturesByText.putIfAbsent(cue.text.toString(), signatures[index])
         if (previous != null && previous != signatures[index]) {
-            return cues
+            return null
         }
     }
 
