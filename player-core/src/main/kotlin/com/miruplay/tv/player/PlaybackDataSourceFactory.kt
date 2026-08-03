@@ -234,8 +234,12 @@ internal class GatedPlaybackDataSource(
         }.also { lease = it }.value
     }
 
-    override fun read(buffer: ByteArray, offset: Int, length: Int): Int =
-        webDavInput?.read(buffer, offset, length) ?: upstream.read(buffer, offset, length)
+    override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+        val input = webDavInput
+        if (input == null) return upstream.read(buffer, offset, length)
+        val count = input.read(buffer, offset, length)
+        return count
+    }
 
     override fun getUri(): Uri? = webDavUri ?: upstream.uri
 

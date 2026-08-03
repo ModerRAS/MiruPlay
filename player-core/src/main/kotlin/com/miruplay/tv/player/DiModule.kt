@@ -31,7 +31,10 @@ object PlayerModule {
 
         return ExoPlayer.Builder(context, renderersFactory)
             .setMediaSourceFactory(
-                DefaultMediaSourceFactory(dataSourceFactory, ZlibSubtitleExtractorsFactory()),
+                DefaultMediaSourceFactory(
+                    ZlibSubtitleProtectingDataSourceFactory(dataSourceFactory),
+                    ZlibSubtitleExtractorsFactory(),
+                ),
             )
             .build()
     }
@@ -52,7 +55,10 @@ object PlayerModule {
 
         return ExoPlayer.Builder(context, renderersFactory)
             .setMediaSourceFactory(
-                DefaultMediaSourceFactory(dataSourceFactory, ZlibSubtitleExtractorsFactory()),
+                DefaultMediaSourceFactory(
+                    ZlibSubtitleProtectingDataSourceFactory(dataSourceFactory),
+                    ZlibSubtitleExtractorsFactory(),
+                ),
             )
             .build()
     }

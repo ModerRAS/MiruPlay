@@ -12,6 +12,8 @@ import java.io.ByteArrayOutputStream
 import java.util.zip.DataFormatException
 import java.util.zip.Inflater
 
+private const val MAX_INFLATED_SUBTITLE_BYTES = 1024 * 1024
+
 /**
  * Media3 handles Matroska header stripping but not zlib-compressed subtitle samples.
  * This factory keeps the stock extractors and inflates text samples before parsing.
@@ -19,7 +21,7 @@ import java.util.zip.Inflater
 @UnstableApi
 internal class ZlibSubtitleExtractorsFactory(
     private val delegate: DefaultExtractorsFactory = DefaultExtractorsFactory()
-        .setSubtitleParserFactory(ZlibSubtitleParserFactory(DefaultSubtitleParserFactory()))
+        .setSubtitleParserFactory(zlibSubtitleParserFactory())
         .experimentalSetTextTrackTranscodingEnabled(true),
 ) : ExtractorsFactory {
 
@@ -35,6 +37,11 @@ internal class ZlibSubtitleExtractorsFactory(
         return this
     }
 }
+
+@UnstableApi
+internal fun zlibSubtitleParserFactory(
+    delegate: SubtitleParser.Factory = DefaultSubtitleParserFactory(),
+): SubtitleParser.Factory = ZlibSubtitleParserFactory(delegate)
 
 @UnstableApi
 private class ZlibSubtitleParserFactory(
@@ -54,7 +61,6 @@ private class ZlibSubtitleParserFactory(
 private class ZlibSubtitleParser(
     private val delegate: SubtitleParser,
 ) : SubtitleParser {
-
     override fun parse(
         data: ByteArray,
         offset: Int,
@@ -79,11 +85,22 @@ internal fun inflateSubtitleSampleIfNeeded(input: ByteArray): ByteArray {
 
     for (start in 0..input.lastIndex - 1) {
         if (!isZlibHeader(input, start)) continue
-        val inflated = inflateFrom(input, start) ?: continue
-        val candidate = input.copyOfRange(0, start) + inflated
-        if (looksLikeSubtitleText(candidate)) return candidate
+        val inflated = inflateFrom(input, start)
+        if (inflated != null) {
+            val candidate = input.copyOfRange(0, start) + inflated
+            if (looksLikeSubtitleText(candidate)) return candidate
+        }
+
+        val escaped = inflateEscapedFrom(input, start) ?: continue
+        val escapedCandidate = input.copyOfRange(0, start) + escaped
+        if (looksLikeSubtitleText(escapedCandidate)) return escapedCandidate
     }
     return input
+}
+
+internal fun findZlibHeader(input: ByteArray): Int {
+    if (input.size < 2) return -1
+    return (0 until input.size - 1).firstOrNull { isZlibHeader(input, it) } ?: -1
 }
 
 private fun isZlibHeader(input: ByteArray, index: Int): Boolean {
@@ -94,6 +111,22 @@ private fun isZlibHeader(input: ByteArray, index: Int): Boolean {
 }
 
 private fun inflateFrom(input: ByteArray, start: Int): ByteArray? {
+    return inflateWith(input, start)
+}
+
+private fun inflateEscapedFrom(input: ByteArray, start: Int): ByteArray? {
+    if (start + 1 >= input.size || input[start].toInt() and 0xFF != 0x78) return null
+    val flagIndex = ZLIB_FLAG_VALUES.indexOfFirst { it == input[start + 1].toInt() and 0xFF }
+    if (flagIndex < 0) return null
+    val restored = input.copyOf()
+    val sentinel = ESCAPE_SENTINELS[flagIndex].toByte()
+    for (index in start + 2 until restored.size) {
+        if (restored[index] == sentinel) restored[index] = 0
+    }
+    return inflateWith(restored, start)
+}
+
+private fun inflateWith(input: ByteArray, start: Int): ByteArray? {
     val inflater = Inflater()
     return try {
         inflater.setInput(input, start, input.size - start)
@@ -103,6 +136,7 @@ private fun inflateFrom(input: ByteArray, start: Int): ByteArray? {
             val count = inflater.inflate(buffer)
             if (count > 0) {
                 output.write(buffer, 0, count)
+                if (output.size() > MAX_INFLATED_SUBTITLE_BYTES) return null
             } else if (inflater.needsDictionary() || inflater.needsInput()) {
                 return null
             } else {
