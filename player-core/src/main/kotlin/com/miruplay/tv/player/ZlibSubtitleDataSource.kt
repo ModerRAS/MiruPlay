@@ -2,6 +2,7 @@ package com.miruplay.tv.player
 
 import android.net.Uri
 import androidx.media3.common.C
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.TransferListener
@@ -11,6 +12,7 @@ import androidx.media3.datasource.TransferListener
  * treats them as string terminators. The replacement is equal-length, so container offsets remain
  * unchanged.
  */
+@UnstableApi
 internal class ZlibSubtitleProtectingDataSource(
     private val upstream: DataSource,
 ) : DataSource {
@@ -80,6 +82,7 @@ internal class ZlibSubtitleProtectingDataSource(
     }
 }
 
+@UnstableApi
 internal class ZlibSubtitleProtectingDataSourceFactory(
     private val upstream: DataSource.Factory,
 ) : DataSource.Factory {
