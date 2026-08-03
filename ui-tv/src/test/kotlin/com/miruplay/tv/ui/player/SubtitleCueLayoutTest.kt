@@ -6,6 +6,8 @@ import android.graphics.Bitmap
 import android.graphics.Typeface
 import android.text.SpannableString
 import android.text.Spanned
+import android.text.style.ForegroundColorSpan
+import android.text.style.RelativeSizeSpan
 import android.text.style.StyleSpan
 import androidx.media3.common.text.Cue
 import org.junit.Assert.assertEquals
@@ -19,6 +21,14 @@ import org.robolectric.RobolectricTestRunner
 class SubtitleCueLayoutTest {
 
     private fun cue(text: String): Cue = Cue.Builder().setText(text).build()
+
+    private fun cue(
+        text: String,
+        textSize: Float,
+    ): Cue = Cue.Builder()
+        .setText(text)
+        .setTextSize(textSize, Cue.TEXT_SIZE_TYPE_FRACTIONAL_IGNORE_PADDING)
+        .build()
 
     private fun positionedDialogue(
         text: String,
@@ -40,18 +50,14 @@ class SubtitleCueLayoutTest {
     }
 
     @Test
-    fun `single cue is placed one line above the bottom`() {
+    fun `single cue leaves bottom placement to SubtitleView safe padding`() {
         val result = restackSubtitleCues(listOf(cue("JP")))
 
         assertEquals(1, result.size)
         assertEquals("JP", result[0].text.toString())
-        assertEquals(-1f, result[0].line, 0.001f)
-        assertEquals(Cue.LINE_TYPE_NUMBER, result[0].lineType)
-        assertEquals(Cue.ANCHOR_TYPE_END, result[0].lineAnchor)
-        // Horizontal position/size cleared so the cue centres and never overflows.
-        assertEquals(Cue.DIMEN_UNSET, result[0].position, 0.001f)
-        assertEquals(Cue.TYPE_UNSET, result[0].positionAnchor)
-        assertEquals(Cue.DIMEN_UNSET, result[0].size, 0.001f)
+        assertEquals(Cue.DIMEN_UNSET, result[0].line, 0.001f)
+        assertEquals(Cue.TYPE_UNSET, result[0].lineType)
+        assertEquals(Cue.TYPE_UNSET, result[0].lineAnchor)
     }
 
     @Test
@@ -60,7 +66,7 @@ class SubtitleCueLayoutTest {
 
         assertEquals(1, result.size)
         assertEquals("JP\nCN", result[0].text.toString())
-        assertEquals(-1f, result[0].line, 0.001f)
+        assertEquals(Cue.DIMEN_UNSET, result[0].line, 0.001f)
     }
 
     @Test
@@ -69,6 +75,20 @@ class SubtitleCueLayoutTest {
 
         assertEquals(1, result.size)
         assertEquals("JP\nCN", result.single().text.toString())
+    }
+
+    @Test
+    fun `merged dialogue retains the highest z index from duplicate layers`() {
+        val result = restackSubtitleCues(
+            listOf(
+                Cue.Builder().setText("JP").setZIndex(2).build(),
+                Cue.Builder().setText("JP").setZIndex(7).build(),
+                Cue.Builder().setText("CN").setZIndex(3).build(),
+            ),
+        ).single()
+
+        assertEquals("JP\nCN", result.text.toString())
+        assertEquals(7, result.zIndex)
     }
 
     @Test
@@ -87,7 +107,7 @@ class SubtitleCueLayoutTest {
         assertEquals(0.05f, result[0].position, 0.001f)
         assertEquals(Cue.ANCHOR_TYPE_START, result[0].positionAnchor)
         assertEquals("bottom centre", result[1].text.toString())
-        assertEquals(-1f, result[1].line, 0.001f)
+        assertEquals(Cue.DIMEN_UNSET, result[1].line, 0.001f)
         assertEquals("bottom right", result[2].text.toString())
         assertEquals(0.95f, result[2].position, 0.001f)
         assertEquals(Cue.ANCHOR_TYPE_END, result[2].positionAnchor)
@@ -102,18 +122,25 @@ class SubtitleCueLayoutTest {
     }
 
     @Test
-    fun `cues beyond the cap are dropped keeping the most recent`() {
-        val cues = (1..6).map { cue("line$it") }
+    fun `duplicates beyond four do not hide earlier unique dialogue`() {
+        val result = restackSubtitleCues(
+            listOf(cue("A"), cue("A"), cue("B"), cue("B"), cue("C"), cue("D"), cue("E")),
+        )
 
-        val result = restackSubtitleCues(cues)
-
-        assertEquals(1, result.size)
-        assertEquals("line3\nline4\nline5\nline6", result[0].text.toString())
-        assertEquals(-1f, result[0].line, 0.001f)
+        assertEquals("A\nB\nC\nD\nE", result.single().text.toString())
     }
 
     @Test
-    fun `explicitly positioned text sign is preserved beside merged dialogue`() {
+    fun `bottom dialogue leaves line unset for SubtitleView safe padding`() {
+        val result = restackSubtitleCues(listOf(cue("JP"), cue("CN"))).single()
+
+        assertEquals(Cue.DIMEN_UNSET, result.line, 0f)
+        assertEquals(Cue.TYPE_UNSET, result.lineType)
+        assertEquals(Cue.TYPE_UNSET, result.lineAnchor)
+    }
+
+    @Test
+    fun `explicitly positioned text sign keeps dialogue runs separate`() {
         val positioned = Cue.Builder()
             .setText("sign")
             .setPosition(0.2f)
@@ -125,13 +152,14 @@ class SubtitleCueLayoutTest {
 
         val result = restackSubtitleCues(listOf(cue("JP"), positioned, cue("CN")))
 
-        assertEquals(2, result.size)
-        assertEquals("JP\nCN", result[0].text.toString())
+        assertEquals(3, result.size)
+        assertEquals("JP", result[0].text.toString())
         assertSame(positioned, result[1])
+        assertEquals("CN", result[2].text.toString())
     }
 
     @Test
-    fun `merge preserves styled text and bitmap cue order`() {
+    fun `bitmap cue keeps styled dialogue runs separate and in order`() {
         val styledText = SpannableString("JP").apply {
             setSpan(StyleSpan(Typeface.BOLD), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
@@ -145,10 +173,74 @@ class SubtitleCueLayoutTest {
 
         val result = restackSubtitleCues(listOf(textCue, firstBitmapCue, cue("CN"), secondBitmapCue))
 
-        assertEquals(3, result.size)
-        assertEquals("JP\nCN", result[0].text.toString())
+        assertEquals(4, result.size)
+        assertEquals("JP", result[0].text.toString())
         assertEquals(Typeface.BOLD, (result[0].text as Spanned).getSpans(0, 2, StyleSpan::class.java).single().style)
         assertSame(firstBitmapCue, result[1])
-        assertSame(secondBitmapCue, result[2])
+        assertEquals("CN", result[2].text.toString())
+        assertSame(secondBitmapCue, result[3])
+    }
+
+    @Test
+    fun `merged dialogue preserves text size ratios and styled spans`() {
+        val jpText = SpannableString("JP").apply {
+            setSpan(StyleSpan(Typeface.BOLD), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        val jp = Cue.Builder()
+            .setText(jpText)
+            .setTextSize(0.06f, Cue.TEXT_SIZE_TYPE_FRACTIONAL_IGNORE_PADDING)
+            .build()
+        val cn = cue("CN", 0.045f)
+
+        val result = restackSubtitleCues(listOf(jp, cn)).single()
+        val mergedText = result.text as Spanned
+
+        assertEquals(0.06f, result.textSize, 0f)
+        assertEquals(Cue.TEXT_SIZE_TYPE_FRACTIONAL_IGNORE_PADDING, result.textSizeType)
+        assertEquals(Typeface.BOLD, mergedText.getSpans(0, 2, StyleSpan::class.java).single().style)
+        assertEquals(0.75f, mergedText.getSpans(3, 5, RelativeSizeSpan::class.java).single().sizeChange, 0.0001f)
+    }
+
+    @Test
+    fun `special cues retain identity`() {
+        val bitmap = Cue.Builder()
+            .setBitmap(Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888))
+            .build()
+        val positioned = positionedDialogue(
+            text = "positioned",
+            position = 0.2f,
+            positionAnchor = Cue.ANCHOR_TYPE_MIDDLE,
+            line = 0.3f,
+            lineAnchor = Cue.ANCHOR_TYPE_MIDDLE,
+        )
+        val vertical = Cue.Builder().setText("vertical").setVerticalType(Cue.VERTICAL_TYPE_RL).build()
+        val sheared = Cue.Builder().setText("sheared").setShearDegrees(12f).build()
+        val windowed = Cue.Builder().setText("windowed").setWindowColor(0xFF000000.toInt()).build()
+
+        val result = restackSubtitleCues(listOf(bitmap, positioned, vertical, sheared, windowed))
+
+        assertSame(bitmap, result[0])
+        assertSame(positioned, result[1])
+        assertSame(vertical, result[2])
+        assertSame(sheared, result[3])
+        assertSame(windowed, result[4])
+    }
+
+    @Test
+    fun `same text with different visual styling remains unchanged`() {
+        val white = SpannableString("JP").apply {
+            setSpan(ForegroundColorSpan(0xFFFFFFFF.toInt()), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        val yellow = SpannableString("JP").apply {
+            setSpan(ForegroundColorSpan(0xFFFFFF00.toInt()), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        val first = Cue.Builder().setText(white).build()
+        val second = Cue.Builder().setText(yellow).build()
+
+        val result = restackSubtitleCues(listOf(first, second))
+
+        assertEquals(2, result.size)
+        assertSame(first, result[0])
+        assertSame(second, result[1])
     }
 }
