@@ -94,7 +94,7 @@ data class AudioDspBand(
         const val MIN_GAIN_DB = -24f
         const val MAX_GAIN_DB = 24f
         const val MIN_Q = 0.1f
-        const val MAX_Q = 20f
+        const val MAX_Q = 100f
     }
 }
 
@@ -110,7 +110,7 @@ data class AudioDspChannelRule(
     )
 
     companion object {
-        const val MAX_BANDS_PER_RULE = 32
+        const val MAX_BANDS_PER_RULE = 256
     }
 }
 

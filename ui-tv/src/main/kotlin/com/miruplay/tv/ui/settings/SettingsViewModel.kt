@@ -88,6 +88,7 @@ import com.miruplay.tv.model.settingsProxySavedStatus
 import com.miruplay.tv.model.validateCloudDriveApiTokenForm
 import com.miruplay.tv.model.validateCloudDriveLoginForm
 import dagger.hilt.android.lifecycle.HiltViewModel
+import com.miruplay.tv.player.AudioDspRuntimeConfig
 import com.miruplay.tv.scraper.core.BangumiArchiveSnapshot
 import com.miruplay.tv.scraper.core.BangumiArchiveStore
 import com.miruplay.tv.scraper.core.toBangumiHttpProxyConfig
@@ -121,6 +122,7 @@ class SettingsViewModel @Inject constructor(
     private val cloudDriveScheduler: CloudDriveRssScheduler,
     private val bangumiArchiveStore: BangumiArchiveStore,
     private val backgroundTasks: BackgroundTaskForegroundController,
+    private val audioDspRuntimeConfig: AudioDspRuntimeConfig,
 ) : ViewModel() {
 
     private val logUploadActions = LogUploadActionCoordinator(logUploadRepository)
@@ -893,6 +895,7 @@ class SettingsViewModel @Inject constructor(
     fun setAudioDspEnabled(enabled: Boolean) {
         val updated = _audioDspConfig.value.normalized().copy(enabled = enabled).normalized()
         playbackPreferences.audioDspConfig = updated
+        audioDspRuntimeConfig.update(updated)
         _audioDspConfig.value = updated
     }
 
@@ -901,6 +904,7 @@ class SettingsViewModel @Inject constructor(
         if (current.presets.none { it.id == presetId }) return
         val updated = current.copy(selectedPresetId = presetId).normalized()
         playbackPreferences.audioDspConfig = updated
+        audioDspRuntimeConfig.update(updated)
         _audioDspConfig.value = updated
     }
 

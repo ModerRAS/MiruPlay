@@ -585,16 +585,11 @@ class ExoPlaybackController @Inject constructor(
 
     override fun usesVlcVideoLayout(): Boolean =
         _activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER ||
-            _requestedRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER ||
-            _activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED ||
-            _requestedRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED
+            _activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED
 
     override fun bindVlcVideoHost(hostView: View) {
         val container = hostView as? ViewGroup ?: return
-        if (
-            _activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER ||
-            _requestedRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER
-        ) {
+        if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER) {
             ijkHostView = container
             val view = ensureIjkView(container)
             if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER && ijkPendingLoad) {
@@ -1236,6 +1231,32 @@ class ExoPlaybackController @Inject constructor(
                 activeBackend = PlaybackRenderBackend.STANDARD_EXO,
                 fallbackReason = "ijkplayer 不支持外挂字幕，已回退到标准 Exo",
             )
+        } else if (
+            baseConfig.activeBackend == PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER &&
+            audioDspRuntimeConfig.config.enabled
+        ) {
+            // The pinned IJK artifact was built with FFmpeg --disable-filters. Fall back here
+            // instead of claiming that an ignored `af` option applied PEQ/FIR.
+            baseConfig.copy(
+                activeBackend = PlaybackRenderBackend.STANDARD_EXO,
+                fallbackReason = "IJKPlayer native artifact does not include FFmpeg audio filters; DSP uses standard Exo",
+            )
+        } else if (
+            baseConfig.activeBackend == PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID &&
+            audioDspRuntimeConfig.config.enabled
+        ) {
+            baseConfig.copy(
+                activeBackend = PlaybackRenderBackend.STANDARD_EXO,
+                fallbackReason = "External mpv-android cannot receive MiruPlay DSP filters; DSP uses standard Exo",
+            )
+        } else if (
+            baseConfig.activeBackend == PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED &&
+            !isAudioDspMpvCompatible(audioDspRuntimeConfig.config)
+        ) {
+            baseConfig.copy(
+                activeBackend = PlaybackRenderBackend.STANDARD_EXO,
+                fallbackReason = "Selected DSP output requires the core channel-aware Exo processor",
+            )
         } else {
             baseConfig
         }
@@ -1457,7 +1478,7 @@ class ExoPlaybackController @Inject constructor(
                 headers = ijkRequestHeaders,
                 androidIo = ijkAndroidIo,
                 hardwareDecode = true,
-                audioDspOptions = buildAudioDspMpvOptions(audioDspRuntimeConfig.config),
+                audioDspOptions = buildAudioDspIjkOptions(audioDspRuntimeConfig.config),
             ),
         )
         view.setPlaybackSpeed(ijkPlaybackSpeed)

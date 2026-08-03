@@ -6,11 +6,66 @@ import com.miruplay.tv.model.AudioDspLimiter
 import com.miruplay.tv.model.AudioDspPhaseMode
 import com.miruplay.tv.model.AudioDspPreset
 import com.miruplay.tv.model.AudioDspChannelRule
+import com.miruplay.tv.model.AudioDspChannelTarget
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class StreamingDspProcessorTest {
+    @Test
+    fun `common and channel-specific rules are both applied to the matching channel`() {
+        val plan = AudioDspPlanCompiler.compile(
+            AudioDspPreset(
+                "per-channel",
+                "Per channel",
+                rules = listOf(
+                    AudioDspChannelRule(
+                        target = AudioDspChannelTarget.ALL,
+                        outputGainDb = 1f,
+                        bands = listOf(AudioDspBand(AudioDspFilterType.PEAKING, 500f, 2f, 1f)),
+                    ),
+                    AudioDspChannelRule(
+                        target = AudioDspChannelTarget.LEFT,
+                        outputGainDb = 2f,
+                        bands = listOf(AudioDspBand(AudioDspFilterType.PEAKING, 1_000f, 3f, 1f)),
+                    ),
+                ),
+            ),
+            ChannelLayout.from(2, null),
+            48_000,
+        )
+
+        assertEquals(2, plan.biquadsByChannel[0].size)
+        assertEquals(1, plan.biquadsByChannel[1].size)
+        assertTrue(plan.channelGainLinear[0] > plan.channelGainLinear[1])
+    }
+
+    @Test
+    fun `five point one and seven point one targets stay layout specific`() {
+        val preset = AudioDspPreset(
+            "layouts",
+            "Layouts",
+            rules = listOf(
+                AudioDspChannelRule(
+                    target = AudioDspChannelTarget.SURROUND_5_1,
+                    bands = listOf(AudioDspBand(AudioDspFilterType.PEAKING, 1_000f, 3f, 1f)),
+                ),
+                AudioDspChannelRule(
+                    target = AudioDspChannelTarget.SURROUND_7_1,
+                    bands = listOf(AudioDspBand(AudioDspFilterType.PEAKING, 2_000f, 3f, 1f)),
+                ),
+            ),
+        )
+
+        val fiveOne = AudioDspPlanCompiler.compile(preset, ChannelLayout.from(6, null), 48_000)
+        val sevenOne = AudioDspPlanCompiler.compile(preset, ChannelLayout.from(8, null), 48_000)
+
+        assertEquals(1, fiveOne.biquadsByChannel[4].size)
+        assertEquals(0, fiveOne.biquadsByChannel[0].size)
+        assertEquals(1, sevenOne.biquadsByChannel[6].size)
+        assertEquals(1, sevenOne.biquadsByChannel[4].size)
+    }
+
     @Test
     fun `identity processing preserves interleaved channel count`() {
         val layout = ChannelLayout.from(2, null)

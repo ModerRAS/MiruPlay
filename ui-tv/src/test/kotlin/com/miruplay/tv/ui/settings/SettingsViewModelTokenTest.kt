@@ -181,5 +181,6 @@ class SettingsViewModelTokenTest {
             cloudDriveScheduler = cloudDriveScheduler,
             bangumiArchiveStore = bangumiArchiveStore,
             backgroundTasks = backgroundTasks,
+            audioDspRuntimeConfig = com.miruplay.tv.player.AudioDspRuntimeConfig(),
         )
 }

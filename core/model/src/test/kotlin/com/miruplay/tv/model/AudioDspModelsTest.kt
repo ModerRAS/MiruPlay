@@ -44,7 +44,7 @@ class AudioDspModelsTest {
                                     type = AudioDspFilterType.PEAKING,
                                     frequencyHz = 1f,
                                     gainDb = -99f,
-                                    q = 99f,
+                                    q = 199f,
                                 ),
                             ),
                         ),
@@ -57,7 +57,7 @@ class AudioDspModelsTest {
         assertEquals(12f, config.presets.single().preampDb)
         assertEquals(10f, band.frequencyHz)
         assertEquals(-24f, band.gainDb)
-        assertEquals(20f, band.q)
+        assertEquals(100f, band.q)
     }
 
     @Test

@@ -1203,6 +1203,11 @@
                   <el-button :icon="Upload" @click="audioDspFileInput?.click()">导入 JSON</el-button>
                   <el-button :icon="Download" @click="exportAudioDsp">导出 JSON</el-button>
                   <input ref="audioDspFileInput" class="hidden-file-input" type="file" accept="application/json" @change="importAudioDsp" />
+                  <el-select v-model="audioDspRewTarget" class="audio-dsp-import-target" aria-label="REW import target channel">
+                    <el-option v-for="option in audioDspTargetOptions" :key="`rew-target-${option.value}`" :label="`REW -> ${option.label}`" :value="option.value" />
+                  </el-select>
+                  <el-button :icon="Upload" :loading="loading.audioDspRewImport" @click="audioDspRewFileInput?.click()">导入 REW</el-button>
+                  <input ref="audioDspRewFileInput" class="hidden-file-input" type="file" accept=".req,.txt,.csv,text/plain,text/csv" @change="importAudioDspRew" />
                 </div>
 
                 <el-alert
@@ -1238,13 +1243,13 @@
                       </el-select>
                       <el-input-number v-model="band.frequencyHz" :min="10" :max="24000" :step="10" controls-position="right" />
                       <el-input-number v-model="band.gainDb" :min="-24" :max="24" :step="0.1" :precision="1" controls-position="right" />
-                      <el-input-number v-model="band.q" :min="0.1" :max="20" :step="0.1" :precision="1" controls-position="right" />
+                      <el-input-number v-model="band.q" :min="0.1" :max="100" :step="0.1" :precision="1" controls-position="right" />
                       <el-switch v-model="band.enabled" active-text="启用" />
                       <el-button circle text type="danger" :icon="Delete" title="删除频段" @click="removeAudioDspBand(ruleIndex, bandIndex)" />
                     </div>
                   </div>
                   <div class="form-actions band-actions">
-                    <el-button size="small" :icon="Plus" :disabled="rule.bands.length >= 32" @click="addAudioDspBand(ruleIndex)">添加频段</el-button>
+                    <el-button size="small" :icon="Plus" :disabled="rule.bands.length >= (audioDsp.capabilities.maxBandsPerRule || 256)" @click="addAudioDspBand(ruleIndex)">添加频段</el-button>
                     <span class="muted">频率 Hz · 增益 dB · Q</span>
                   </div>
                 </div>
@@ -1741,6 +1746,7 @@ const loading = reactive({
   audioDsp: false,
   audioDspSave: false,
   audioDspPreview: false,
+  audioDspRewImport: false,
   webControlAccess: false,
   webControlSave: false,
   appUpdate: false,
@@ -1849,6 +1855,7 @@ const audioDsp = reactive({
     supportedLayouts: ['mono', 'stereo', '5.1', '7.1'],
     sampleRatesHz: [44100, 48000, 96000],
     maxChannels: 8,
+    maxBandsPerRule: 256,
     hrtfAvailable: true
   },
   effectiveRoute: 'disabled',
@@ -1856,6 +1863,8 @@ const audioDsp = reactive({
   preview: null
 })
 const audioDspFileInput = ref(null)
+const audioDspRewFileInput = ref(null)
+const audioDspRewTarget = ref('ALL')
 const webControlAccess = reactive({
   enabled: false,
   accessToken: '',
@@ -3308,7 +3317,7 @@ function removeAudioDspRule(index) {
 
 function addAudioDspBand(ruleIndex) {
   const rule = activeAudioPreset.value?.rules[ruleIndex]
-  if (!rule || rule.bands.length >= 32) return
+  if (!rule || rule.bands.length >= (audioDsp.capabilities.maxBandsPerRule || 256)) return
   rule.bands.push({ type: 'PEAKING', frequencyHz: 1000, gainDb: 0, q: 1, enabled: true })
 }
 
@@ -3340,6 +3349,54 @@ function importAudioDsp(event) {
     }
   }
   reader.readAsText(file)
+}
+
+function bytesToBase64(bytes) {
+  let binary = ''
+  const chunkSize = 0x8000
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize))
+  }
+  return btoa(binary)
+}
+
+async function importAudioDspRew(event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file) return
+  loading.audioDspRewImport = true
+  try {
+    const isReq = file.name.toLowerCase().endsWith('.req')
+    const request = {
+      presetId: `rew-${Date.now()}`,
+      presetName: file.name.replace(/\.[^.]+$/, '') || 'REW import',
+      target: audioDspRewTarget.value
+    }
+    if (isReq) {
+      request.binaryBase64 = bytesToBase64(new Uint8Array(await file.arrayBuffer()))
+    } else {
+      request.text = await file.text()
+    }
+    const result = await api('/api/audio-dsp/import-rew', {
+      method: 'POST',
+      body: JSON.stringify(request)
+    })
+    const importedPreset = normalizeAudioDspConfig({ presets: [result.preset] }).presets[0]
+    const targetRule = importedPreset.rules?.[0]
+    if (!activeAudioPreset.value) {
+      audioDsp.config.presets.push(importedPreset)
+      audioDsp.config.selectedPresetId = importedPreset.id
+    } else if (targetRule) {
+      activeAudioPreset.value.rules.push(targetRule)
+      if (Number(importedPreset.preampDb || 0) !== 0) activeAudioPreset.value.preampDb = importedPreset.preampDb
+    }
+    const warningSuffix = result.warnings?.length ? `; ${result.warnings.length} rows skipped` : ''
+    ElMessage.success(`Imported ${result.importedBandCount} REW filters into ${audioDspRewTarget.value}${warningSuffix}`)
+  } catch (error) {
+    ElMessage.error(error.message || 'REW import failed')
+  } finally {
+    loading.audioDspRewImport = false
+  }
 }
 
 async function loadAudioDsp() {

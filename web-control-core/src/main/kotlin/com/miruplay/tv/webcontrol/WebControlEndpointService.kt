@@ -84,6 +84,8 @@ interface WebControlEndpointService {
     suspend fun saveAudioDsp(config: AudioDspConfig): AudioDspDto = AudioDspDto(config = config.normalized())
     suspend fun previewAudioDsp(request: AudioDspPreviewRequest): AudioDspPreviewDto =
         AudioDspPreviewDto(request.frequenciesHz, request.frequenciesHz.map { 0f }, request.frequenciesHz.map { 0f })
+    suspend fun importAudioDspRew(request: AudioDspRewImportRequest): AudioDspRewImportDto =
+        throw UnsupportedOperationException("REW audio DSP import not supported")
     suspend fun getWebControlAccess(): WebControlAccessDto =
         throw UnsupportedOperationException("WebUI 访问设置 not supported")
     suspend fun saveWebControlAccess(request: WebControlAccessRequest): WebControlAccessDto =

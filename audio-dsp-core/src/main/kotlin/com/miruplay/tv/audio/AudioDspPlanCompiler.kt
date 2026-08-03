@@ -33,15 +33,19 @@ object AudioDspPlanCompiler {
     fun compile(preset: AudioDspPreset, layout: ChannelLayout, sampleRateHz: Int): CompiledDspPlan {
         require(sampleRateHz > 0) { "sample rate must be positive" }
         val normalized = preset.normalized()
-        val chains = layout.channels.map { channel ->
-            val rule = normalized.rules.firstOrNull { it.target.matches(channel, layout) }
-                ?: AudioDspChannelRule()
-            rule.bands.filter { it.enabled }.map { BiquadDesigner.design(it, sampleRateHz) }
+        val matchingRulesByChannel = layout.channels.map { channel ->
+            normalized.rules.filter { it.target.matches(channel, layout) }
         }
-        val channelGainLinear = layout.channels.map { channel ->
-            val rule = normalized.rules.firstOrNull { it.target.matches(channel, layout) }
-                ?: AudioDspChannelRule()
-            10.0.pow(rule.outputGainDb.toDouble() / 20.0).toFloat()
+        val chains = matchingRulesByChannel.map { rules ->
+            rules.asSequence()
+                .flatMap { it.bands.asSequence() }
+                .filter { it.enabled }
+                .map { BiquadDesigner.design(it, sampleRateHz) }
+                .toList()
+        }
+        val channelGainLinear = matchingRulesByChannel.map { rules ->
+            val gainDb = rules.sumOf { it.outputGainDb.toDouble() }
+            10.0.pow(gainDb / 20.0).toFloat()
         }.toFloatArray()
         val fir = if (normalized.phaseMode == AudioDspPhaseMode.LINEAR) {
             val frequencyGrid = FloatArray(RESPONSE_BINS) { index ->
@@ -80,8 +84,13 @@ object AudioDspPlanCompiler {
         AudioDspChannelTarget.ALL -> true
         AudioDspChannelTarget.FRONT -> channel == Channel.L || channel == Channel.R || channel == Channel.C
         AudioDspChannelTarget.CENTER_LFE -> channel == Channel.C || channel == Channel.LFE
-        AudioDspChannelTarget.SURROUND, AudioDspChannelTarget.SURROUND_5_1, AudioDspChannelTarget.SURROUND_7_1 ->
+        AudioDspChannelTarget.SURROUND ->
             channel == Channel.LS || channel == Channel.RS || channel == Channel.LB || channel == Channel.RB
+        AudioDspChannelTarget.SURROUND_5_1 ->
+            layout.id == ChannelLayoutId.SURROUND_5_1 && (channel == Channel.LS || channel == Channel.RS)
+        AudioDspChannelTarget.SURROUND_7_1 ->
+            layout.id == ChannelLayoutId.SURROUND_7_1 &&
+                (channel == Channel.LS || channel == Channel.RS || channel == Channel.LB || channel == Channel.RB)
         AudioDspChannelTarget.LEFT -> channel == Channel.L
         AudioDspChannelTarget.RIGHT -> channel == Channel.R
         AudioDspChannelTarget.CENTER -> channel == Channel.C
