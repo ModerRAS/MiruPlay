@@ -2,26 +2,43 @@ package com.miruplay.tv.audio
 
 import kotlin.math.cos
 import kotlin.math.pow
+import kotlin.math.sin
 
 object LinearPhaseFirDesigner {
     fun design(targetMagnitudeDb: FloatArray, sampleRateHz: Int, taps: Int): FloatArray {
         require(taps > 1 && taps and (taps - 1) == 0) { "FIR taps must be a power of two" }
         require(targetMagnitudeDb.isNotEmpty()) { "FIR target cannot be empty" }
-        val bins = targetMagnitudeDb.size
         val center = (taps - 1) / 2.0
-        val coefficients = FloatArray(taps)
-        for (n in 0 until taps) {
-            var sum = 0.0
-            for (k in 0 until bins) {
-                val magnitude = 10.0.pow(targetMagnitudeDb[k].toDouble() / 20.0)
-                val frequency = Math.PI * k / (bins - 1).coerceAtLeast(1)
-                sum += magnitude * cos(frequency * (n - center))
+        val half = taps / 2
+        val spectrumReal = DoubleArray(taps)
+        val spectrumImag = DoubleArray(taps)
+        for (k in 0..half) {
+            val magnitude = interpolatedMagnitude(targetMagnitudeDb, k.toDouble() / half)
+            val phase = -2.0 * Math.PI * k * center / taps
+            spectrumReal[k] = magnitude * cos(phase)
+            spectrumImag[k] = magnitude * sin(phase)
+            if (k in 1 until half) {
+                val mirror = taps - k
+                spectrumReal[mirror] = spectrumReal[k]
+                spectrumImag[mirror] = -spectrumImag[k]
             }
-            val window = 0.5 - 0.5 * cos(2.0 * Math.PI * n / (taps - 1))
-            coefficients[n] = (sum / bins * window).toFloat()
         }
-        val dcSum = coefficients.sum().toDouble()
-        val dc = if (kotlin.math.abs(dcSum) > 1e-8) dcSum else 1.0
-        return coefficients.map { (it.toDouble() / dc).toFloat() }.toFloatArray()
+        return FloatArray(taps) { n ->
+            var value = 0.0
+            for (k in 0 until taps) {
+                val phase = 2.0 * Math.PI * k * n / taps
+                value += spectrumReal[k] * cos(phase) - spectrumImag[k] * sin(phase)
+            }
+            (value / taps).toFloat()
+        }
+    }
+
+    private fun interpolatedMagnitude(targetMagnitudeDb: FloatArray, normalizedFrequency: Double): Double {
+        val position = normalizedFrequency.coerceIn(0.0, 1.0) * (targetMagnitudeDb.lastIndex)
+        val lower = position.toInt().coerceIn(0, targetMagnitudeDb.lastIndex)
+        val upper = (lower + 1).coerceAtMost(targetMagnitudeDb.lastIndex)
+        val fraction = position - lower
+        val db = targetMagnitudeDb[lower] + (targetMagnitudeDb[upper] - targetMagnitudeDb[lower]) * fraction
+        return 10.0.pow(db.toDouble() / 20.0)
     }
 }

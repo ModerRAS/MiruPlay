@@ -180,7 +180,10 @@ class SettingsViewModel @Inject constructor(
     val formatAwareToneMappingPreferences: StateFlow<FormatAwareToneMappingPreferences> =
         _formatAwareToneMappingPreferences.asStateFlow()
 
-    private val _audioDspConfig = MutableStateFlow(playbackPreferences.audioDspConfig.normalized())
+    private val _audioDspConfig = MutableStateFlow(
+        runCatching { playbackPreferences.audioDspConfig.normalized() }
+            .getOrDefault(AudioDspConfig.neutral())
+    )
     val audioDspConfig: StateFlow<AudioDspConfig> = _audioDspConfig.asStateFlow()
 
     private val _webUiUrls = MutableStateFlow<List<String>>(emptyList())

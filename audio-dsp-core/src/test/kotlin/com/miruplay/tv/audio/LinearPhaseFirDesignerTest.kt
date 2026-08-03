@@ -3,6 +3,9 @@ package com.miruplay.tv.audio
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.miruplay.tv.model.AudioDspBand
+import com.miruplay.tv.model.AudioDspFilterType
+import com.miruplay.tv.model.AudioDspPhaseMode
 
 class LinearPhaseFirDesignerTest {
     @Test
@@ -29,5 +32,43 @@ class LinearPhaseFirDesignerTest {
 
         assertEquals(2, plan.firTapsByChannel.size)
         assertEquals(plan.firTapsByChannel[0].toList(), plan.firTapsByChannel[1].toList())
+    }
+
+    @Test
+    fun `linear phase plan does not retain the minimum phase biquad chain`() {
+        val preset = com.miruplay.tv.model.AudioDspPreset(
+            id = "linear-peq",
+            name = "Linear PEQ",
+            phaseMode = AudioDspPhaseMode.LINEAR,
+            rules = listOf(
+                com.miruplay.tv.model.AudioDspChannelRule(
+                    bands = listOf(AudioDspBand(AudioDspFilterType.PEAKING, 1_000f, 6f, 1f)),
+                ),
+            ),
+        )
+
+        val plan = AudioDspPlanCompiler.compile(preset, ChannelLayout.from(2, null), 48_000)
+
+        assertTrue(plan.biquadsByChannel.all { it.isEmpty() })
+    }
+
+    @Test
+    fun `linear phase preview reports the baked fir response`() {
+        val preset = com.miruplay.tv.model.AudioDspPreset(
+            id = "linear-peq",
+            name = "Linear PEQ",
+            phaseMode = AudioDspPhaseMode.LINEAR,
+            rules = listOf(
+                com.miruplay.tv.model.AudioDspChannelRule(
+                    bands = listOf(AudioDspBand(AudioDspFilterType.PEAKING, 1_000f, 6f, 1f)),
+                ),
+            ),
+        )
+
+        val plan = AudioDspPlanCompiler.compile(preset, ChannelLayout.from(2, null), 48_000)
+        val curve = FrequencyResponse.sample(plan, floatArrayOf(1_000f))
+
+        assertTrue("magnitude=${curve.magnitudeDb.single()}", curve.magnitudeDb.single() > 1f)
+        assertTrue(kotlin.math.abs(curve.phaseRadians.single()) > 0.01f)
     }
 }

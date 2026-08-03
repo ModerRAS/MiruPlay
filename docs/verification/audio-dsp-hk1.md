@@ -26,4 +26,5 @@ QtScrcpy's sndcpy path uses Android `AudioPlaybackCapture` and exposes 48 kHz, s
 
 - Exo/GL force decoded PCM while DSP is enabled and keep the negotiated multichannel layout when the sink supports it.
 - Embedded mpv and IJK receive native FFmpeg-style filter options. Their exact filter acceptance still depends on the native binary shipped by the selected backend and should be checked in a device playback session when a suitable multichannel test file is available.
-- HRTF currently uses the built-in fixed binaural compatibility matrix. A native HRIR renderer can be added later without changing the WebUI contract.
+- Saving a WebUI or TV change updates the persisted/runtime configuration; an already-running audio renderer keeps its current plan and applies the new plan on the next playback session.
+- HRTF currently uses the built-in fixed binaural compatibility matrix, not a measured HRIR/SOFA renderer. A native HRIR renderer can be added later without changing the WebUI contract.

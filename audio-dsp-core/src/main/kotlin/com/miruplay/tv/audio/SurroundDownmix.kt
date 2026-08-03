@@ -2,7 +2,7 @@ package com.miruplay.tv.audio
 
 object SurroundDownmix {
     fun standard(source: FloatArray, layout: ChannelLayout): FloatArray {
-        if (layout.channelCount <= 2) return floatArrayOf(source.getOrElse(0) { 0f }, source.getOrElse(1) { source.getOrElse(0) { 0f } })
+        if (layout.channelCount <= 2) return source.copyOf(layout.channelCount)
         var left = 0.0
         var right = 0.0
         layout.channels.forEachIndexed { index, channel ->
@@ -27,7 +27,7 @@ object SurroundDownmix {
     }
 
     fun hrtf(source: FloatArray, layout: ChannelLayout): FloatArray {
-        if (layout.channelCount <= 2) return standard(source, layout)
+        if (layout.channelCount <= 2) return source.copyOf(layout.channelCount)
         var left = 0.0
         var right = 0.0
         layout.channels.forEachIndexed { index, channel ->

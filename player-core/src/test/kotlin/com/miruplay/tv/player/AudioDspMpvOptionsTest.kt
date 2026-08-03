@@ -6,6 +6,7 @@ import com.miruplay.tv.model.AudioDspConfig
 import com.miruplay.tv.model.AudioDspFilterType
 import com.miruplay.tv.model.AudioDspOutputMode
 import com.miruplay.tv.model.AudioDspPreset
+import com.miruplay.tv.model.AudioDspLimiter
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -40,5 +41,27 @@ class AudioDspMpvOptionsTest {
         assertEquals("audiotrack", options["ao"])
         assertTrue(options.getValue("af").contains("biquad"))
         assertTrue(options.getValue("af").contains("pan=stereo"))
+    }
+
+    @Test
+    fun `mpv options apply preamp and limiter controls`() {
+        val config = AudioDspConfig(
+            enabled = true,
+            presets = listOf(
+                AudioDspPreset(
+                    "movie",
+                    "Movie",
+                    preampDb = -3f,
+                    limiter = AudioDspLimiter(enabled = true, ceilingDb = -6f, releaseMs = 250f),
+                ),
+            ),
+            selectedPresetId = "movie",
+        )
+
+        val filters = buildAudioDspMpvOptions(config).getValue("af")
+
+        assertTrue(filters.contains("volume=-3.0dB"))
+        assertTrue(filters.contains("alimiter=limit="))
+        assertTrue(filters.contains("release=250.0"))
     }
 }

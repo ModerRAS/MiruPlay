@@ -4,6 +4,8 @@ import com.miruplay.tv.model.AudioDspChannelRule
 import com.miruplay.tv.model.AudioDspChannelTarget
 import com.miruplay.tv.model.AudioDspPhaseMode
 import com.miruplay.tv.model.AudioDspPreset
+import com.miruplay.tv.model.AudioDspLimiter
+import kotlin.math.pow
 
 data class CompiledDspPlan(
     val sampleRateHz: Int,
@@ -13,9 +15,16 @@ data class CompiledDspPlan(
     val biquadsByChannel: List<List<BiquadCoefficients>>,
     val firTapsByChannel: List<FloatArray>,
     val groupDelayFrames: Int,
+    val preampLinear: Float = 1f,
+    val channelGainLinear: FloatArray = FloatArray(layout.channelCount) { 1f },
+    val limiter: AudioDspLimiter = AudioDspLimiter(),
 ) {
     val outputChannelCount: Int
-        get() = if (outputMode == com.miruplay.tv.model.AudioDspOutputMode.AUTO_PRESERVE) layout.channelCount else 2
+        get() = if (outputMode == com.miruplay.tv.model.AudioDspOutputMode.AUTO_PRESERVE || layout.channelCount <= 2) {
+            layout.channelCount
+        } else {
+            2
+        }
 }
 
 object AudioDspPlanCompiler {
@@ -29,6 +38,11 @@ object AudioDspPlanCompiler {
                 ?: AudioDspChannelRule()
             rule.bands.filter { it.enabled }.map { BiquadDesigner.design(it, sampleRateHz) }
         }
+        val channelGainLinear = layout.channels.map { channel ->
+            val rule = normalized.rules.firstOrNull { it.target.matches(channel, layout) }
+                ?: AudioDspChannelRule()
+            10.0.pow(rule.outputGainDb.toDouble() / 20.0).toFloat()
+        }.toFloatArray()
         val fir = if (normalized.phaseMode == AudioDspPhaseMode.LINEAR) {
             val frequencyGrid = FloatArray(RESPONSE_BINS) { index ->
                 index.toFloat() / (RESPONSE_BINS - 1) * sampleRateHz / 2f
@@ -49,9 +63,16 @@ object AudioDspPlanCompiler {
             layout = layout,
             phaseMode = normalized.phaseMode,
             outputMode = normalized.outputMode,
-            biquadsByChannel = chains,
+            biquadsByChannel = if (normalized.phaseMode == AudioDspPhaseMode.LINEAR) {
+                List(layout.channelCount) { emptyList() }
+            } else {
+                chains
+            },
             firTapsByChannel = fir,
             groupDelayFrames = if (normalized.phaseMode == AudioDspPhaseMode.LINEAR) (normalized.firQuality.taps - 1) / 2 else 0,
+            preampLinear = 10.0.pow(normalized.preampDb.toDouble() / 20.0).toFloat(),
+            channelGainLinear = channelGainLinear,
+            limiter = normalized.limiter,
         )
     }
 

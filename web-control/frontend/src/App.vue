@@ -1228,6 +1228,7 @@
                     <el-select v-model="rule.target" class="audio-dsp-target">
                       <el-option v-for="option in audioDspTargetOptions" :key="option.value" :label="option.label" :value="option.value" />
                     </el-select>
+                    <el-input-number v-model="rule.outputGainDb" :min="-24" :max="24" :step="0.1" :precision="1" controls-position="right" aria-label="Output gain dB" />
                     <el-button text type="danger" :icon="Delete" @click="removeAudioDspRule(ruleIndex)">移除通道组</el-button>
                   </div>
                   <div class="band-list">

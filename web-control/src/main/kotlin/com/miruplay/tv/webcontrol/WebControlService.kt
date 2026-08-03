@@ -26,6 +26,7 @@ import com.miruplay.tv.model.playbackBackendLabel
 import com.miruplay.tv.model.supportedPlaybackRenderBackends
 import com.miruplay.tv.model.buildToneMappingPreset
 import com.miruplay.tv.player.PlaybackController
+import com.miruplay.tv.player.AudioDspRuntimeConfig
 import com.miruplay.tv.player.PlaybackDebugOverrides
 import com.miruplay.tv.player.EmbeddedMpvDebugConfig
 import com.miruplay.tv.player.LibVlcDebugConfig
@@ -99,6 +100,7 @@ class WebControlService @Inject constructor(
     private val scanCoordinator: ScanCoordinator,
     mediaSourceFactory: MediaSourceFactory,
     private val playbackController: PlaybackController,
+    private val audioDspRuntimeConfig: AudioDspRuntimeConfig,
     private val playbackDebugOverrides: PlaybackDebugOverrides,
     private val navigator: WebControlNavigator,
     private val bangumiArchiveStore: BangumiArchiveStore,
@@ -758,12 +760,23 @@ class WebControlService @Inject constructor(
 
     override suspend fun getAudioDsp(): AudioDspDto = runOnIo {
         val config = playbackPreferencesRepository.getAudioDspConfig().normalized()
+        val preset = config.presets.firstOrNull { it.id == config.selectedPresetId }
         AudioDspDto(
             config = config,
             capabilities = AudioDspCapabilitiesDto(
                 supportedBackends = supportedPlaybackRenderBackends().map { it.name },
             ),
-            effectiveRoute = if (config.enabled) "auto_preserve" else "disabled",
+            effectiveRoute = if (config.enabled) {
+                preset?.outputMode?.storageValue ?: "auto_preserve"
+            } else {
+                "disabled"
+            },
+            warnings = buildList {
+                if (config.enabled) add("新的 DSP 配置从下一次播放会话开始生效")
+                if (config.enabled && preset?.outputMode == com.miruplay.tv.model.AudioDspOutputMode.HRTF_BINAURAL) {
+                    add("HRTF 当前使用固定兼容矩阵，不是 HRIR/SOFA 原生渲染")
+                }
+            },
         )
     }
 
@@ -774,6 +787,7 @@ class WebControlService @Inject constructor(
         val normalized = config.normalized()
         require(normalized.presets.isNotEmpty()) { "audio DSP requires at least one preset" }
         playbackPreferencesRepository.setAudioDspConfig(normalized)
+        audioDspRuntimeConfig.update(normalized)
         getAudioDsp()
     }
 

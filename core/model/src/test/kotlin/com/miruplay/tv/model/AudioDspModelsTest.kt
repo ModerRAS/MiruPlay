@@ -61,6 +61,30 @@ class AudioDspModelsTest {
     }
 
     @Test
+    fun `validation rejects duplicate ids and unsafe channel and limiter values`() {
+        val config = AudioDspConfig(
+            selectedPresetId = "missing",
+            presets = listOf(
+                AudioDspPreset(
+                    id = "movie",
+                    name = "Movie",
+                    rules = listOf(AudioDspChannelRule(outputGainDb = 25f)),
+                    limiter = AudioDspLimiter(enabled = true, ceilingDb = 1f, releaseMs = 0f),
+                ),
+                AudioDspPreset(id = "movie", name = "Duplicate"),
+            ),
+        )
+
+        val errors = config.validationErrors()
+
+        assertTrue(errors.any { it.contains("selectedPresetId") })
+        assertTrue(errors.any { it.contains("duplicate") })
+        assertTrue(errors.any { it.contains("outputGainDb") })
+        assertTrue(errors.any { it.contains("ceilingDb") })
+        assertTrue(errors.any { it.contains("releaseMs") })
+    }
+
+    @Test
     fun `json round trip preserves 5 point 1 channel target`() {
         val original = AudioDspConfig(
             presets = listOf(

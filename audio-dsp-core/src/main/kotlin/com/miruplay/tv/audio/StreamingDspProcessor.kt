@@ -11,6 +11,9 @@ class StreamingDspProcessor(
     private var pendingPlan: CompiledDspPlan? = null
     private var pendingState: FilterState? = null
     private var crossfadeProgress = 0
+    private var limiter = activePlan.limiter.takeIf { it.enabled }?.let {
+        LinkedLimiter(it.ceilingDb, it.releaseMs, activePlan.sampleRateHz)
+    }
 
     fun queuePlan(plan: CompiledDspPlan) {
         require(plan.layout.channelCount == activePlan.layout.channelCount) { "input channel count cannot change during playback" }
@@ -35,6 +38,7 @@ class StreamingDspProcessor(
             val nextState = pendingState
             if (nextState == null) {
                 oldFrame.copyInto(output, outputOffset)
+                limiter?.process(oldFrame, outputChannels)?.copyInto(output, outputOffset)
                 continue
             }
             val newFrame = routeFrame(nextState.processFrame(interleavedPcm, inputOffset), pendingPlan ?: activePlan)
@@ -43,12 +47,17 @@ class StreamingDspProcessor(
             for (channel in 0 until outputChannels) {
                 output[outputOffset + channel] = oldFrame[channel] * (1f - amount) + newFrame[channel] * amount
             }
+            limiter?.process(output.copyOfRange(outputOffset, outputOffset + outputChannels), outputChannels)
+                ?.copyInto(output, outputOffset)
             if (amount >= 1f) {
                 activePlan = pendingPlan ?: activePlan
                 activeState = nextState
                 pendingPlan = null
                 pendingState = null
                 crossfadeProgress = 0
+                limiter = activePlan.limiter.takeIf { it.enabled }?.let {
+                    LinkedLimiter(it.ceilingDb, it.releaseMs, activePlan.sampleRateHz)
+                }
             }
         }
         return output
@@ -56,7 +65,7 @@ class StreamingDspProcessor(
 
     fun endOfStream(): FloatArray {
         val channels = activePlan.layout.channelCount
-        val frames = max(activePlan.groupDelayFrames, pendingPlan?.groupDelayFrames ?: 0)
+        val frames = max(firTailFrames(activePlan), pendingPlan?.let(::firTailFrames) ?: 0)
         if (frames == 0) return FloatArray(0)
         return process(FloatArray(frames * channels), frames)
     }
@@ -91,6 +100,7 @@ class StreamingDspProcessor(
                     }
                     value = filtered
                 }
+                value *= plan.preampLinear.toDouble() * plan.channelGainLinear.getOrElse(channel) { 1f }.toDouble()
                 result[channel] = value.toFloat()
             }
             if (firHistory.any { it.isNotEmpty() }) {
@@ -99,6 +109,9 @@ class StreamingDspProcessor(
             return result
         }
     }
+
+    private fun firTailFrames(plan: CompiledDspPlan): Int =
+        plan.firTapsByChannel.maxOfOrNull { (it.size - 1).coerceAtLeast(0) } ?: 0
 
     private class BiquadState {
         private var z1 = 0.0

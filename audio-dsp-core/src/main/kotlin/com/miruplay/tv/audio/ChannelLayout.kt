@@ -40,6 +40,8 @@ data class ChannelLayout(
                 else -> when (channelCount) {
                     1 -> ChannelLayoutId.MONO
                     2 -> ChannelLayoutId.STEREO
+                    6 -> ChannelLayoutId.SURROUND_5_1
+                    8 -> ChannelLayoutId.SURROUND_7_1
                     else -> ChannelLayoutId.UNKNOWN
                 }
             }

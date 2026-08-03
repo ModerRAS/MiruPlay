@@ -168,22 +168,39 @@ data class AudioDspConfig(
     }
 
     fun validationErrors(): List<String> = buildList {
+        if (schemaVersion != CURRENT_SCHEMA_VERSION) add("schemaVersion must be $CURRENT_SCHEMA_VERSION")
         if (presets.isEmpty()) add("presets must not be empty")
+        if (presets.isNotEmpty() && presets.none { it.id == selectedPresetId }) {
+            add("selectedPresetId must reference an existing preset")
+        }
+        val ids = mutableSetOf<String>()
         presets.forEachIndexed { presetIndex, preset ->
-            if (preset.id.isBlank()) add("presets[$presetIndex].id must not be blank")
+            val id = preset.id.trim()
+            if (id.isBlank()) add("presets[$presetIndex].id must not be blank")
+            if (!ids.add(id)) add("presets[$presetIndex].id is duplicate")
             if (preset.preampDb !in -24f..12f) add("presets[$presetIndex].preampDb is out of range")
+            if (!preset.preampDb.isFinite()) add("presets[$presetIndex].preampDb must be finite")
+            if (preset.limiter.ceilingDb !in -24f..0f || !preset.limiter.ceilingDb.isFinite()) {
+                add("presets[$presetIndex].limiter.ceilingDb is out of range")
+            }
+            if (preset.limiter.releaseMs !in 1f..2_000f || !preset.limiter.releaseMs.isFinite()) {
+                add("presets[$presetIndex].limiter.releaseMs is out of range")
+            }
             preset.rules.forEachIndexed { ruleIndex, rule ->
                 if (rule.bands.size > AudioDspChannelRule.MAX_BANDS_PER_RULE) {
                     add("presets[$presetIndex].rules[$ruleIndex] has too many bands")
                 }
+                if (rule.outputGainDb !in AudioDspBand.MIN_GAIN_DB..AudioDspBand.MAX_GAIN_DB || !rule.outputGainDb.isFinite()) {
+                    add("presets[$presetIndex].rules[$ruleIndex].outputGainDb is out of range")
+                }
                 rule.bands.forEachIndexed { bandIndex, band ->
-                    if (band.frequencyHz !in AudioDspBand.MIN_FREQUENCY_HZ..AudioDspBand.MAX_FREQUENCY_HZ) {
+                    if (band.frequencyHz !in AudioDspBand.MIN_FREQUENCY_HZ..AudioDspBand.MAX_FREQUENCY_HZ || !band.frequencyHz.isFinite()) {
                         add("presets[$presetIndex].rules[$ruleIndex].bands[$bandIndex].frequencyHz is out of range")
                     }
-                    if (band.gainDb !in AudioDspBand.MIN_GAIN_DB..AudioDspBand.MAX_GAIN_DB) {
+                    if (band.gainDb !in AudioDspBand.MIN_GAIN_DB..AudioDspBand.MAX_GAIN_DB || !band.gainDb.isFinite()) {
                         add("presets[$presetIndex].rules[$ruleIndex].bands[$bandIndex].gainDb is out of range")
                     }
-                    if (band.q !in AudioDspBand.MIN_Q..AudioDspBand.MAX_Q) {
+                    if (band.q !in AudioDspBand.MIN_Q..AudioDspBand.MAX_Q || !band.q.isFinite()) {
                         add("presets[$presetIndex].rules[$ruleIndex].bands[$bandIndex].q is out of range")
                     }
                 }

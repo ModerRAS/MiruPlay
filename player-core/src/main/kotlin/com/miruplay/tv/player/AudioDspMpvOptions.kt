@@ -4,6 +4,7 @@ import com.miruplay.tv.model.AudioDspConfig
 import com.miruplay.tv.model.AudioDspFilterType
 import com.miruplay.tv.model.AudioDspOutputMode
 import com.miruplay.tv.model.AudioDspPhaseMode
+import kotlin.math.pow
 
 fun buildAudioDspMpvOptions(config: AudioDspConfig): Map<String, String> {
     if (!config.enabled) return emptyMap()
@@ -11,6 +12,7 @@ fun buildAudioDspMpvOptions(config: AudioDspConfig): Map<String, String> {
         ?: config.presets.firstOrNull()
         ?: return emptyMap()
     val filters = mutableListOf<String>()
+    if (preset.preampDb != 0f) filters += "volume=${preset.preampDb}dB"
     if (preset.phaseMode == AudioDspPhaseMode.LINEAR) {
         val entries = preset.rules.flatMap { it.bands }.filter { it.enabled }
             .joinToString(";") { band -> "${band.frequencyHz}:${band.gainDb}" }
@@ -29,8 +31,15 @@ fun buildAudioDspMpvOptions(config: AudioDspConfig): Map<String, String> {
             filters += "$kind=f=${band.frequencyHz}:g=${band.gainDb}:w=${band.q}"
         }
     }
+    preset.rules
+        .filter { it.target == com.miruplay.tv.model.AudioDspChannelTarget.ALL && it.outputGainDb != 0f }
+        .forEach { rule -> filters += "volume=${rule.outputGainDb}dB" }
+    if (preset.limiter.enabled) {
+        val ceiling = 10.0.pow(preset.limiter.ceilingDb.toDouble() / 20.0)
+        filters += "alimiter=limit=$ceiling:release=${preset.limiter.releaseMs}"
+    }
     when (preset.outputMode) {
-        AudioDspOutputMode.STEREO_DOWNMIX -> filters += "pan=stereo|c0=0.707*c0+0.707*c2+0.5*c4|c1=0.707*c1+0.707*c2+0.5*c5"
+        AudioDspOutputMode.STEREO_DOWNMIX -> filters += "pan=stereo|c0=0.707*c0+0.707*c2+0.5*c4+0.5*c6|c1=0.707*c1+0.707*c2+0.5*c5+0.5*c7"
         AudioDspOutputMode.HRTF_BINAURAL -> filters += "headphone=map=FL|FR|FC|BL|BR"
         AudioDspOutputMode.AUTO_PRESERVE -> Unit
     }

@@ -26,11 +26,14 @@ class ExperimentalRenderersFactory(
         context: Context,
         enableFloatOutput: Boolean,
         enableAudioTrackPlaybackParams: Boolean,
-    ): AudioSink = DefaultAudioSink.Builder(context)
-        .setEnableFloatOutput(enableFloatOutput)
-        .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
-        .setAudioProcessors(arrayOf(DspAudioProcessor(audioDspRuntimeConfig)))
-        .build()
+    ): AudioSink {
+        val policy = AudioDspOutputPolicy.forConfig(audioDspRuntimeConfig.config)
+        return DefaultAudioSink.Builder(context)
+            .setEnableFloatOutput(enableFloatOutput || policy.forcePcm)
+            .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+            .setAudioProcessors(arrayOf(DspAudioProcessor(audioDspRuntimeConfig)))
+            .build()
+    }
 
     override fun buildVideoRenderers(
         context: Context,
