@@ -261,6 +261,10 @@ open class NanoHttpWebControlServer(
                 val request = parseBody(session, AudioDspPreviewRequest.serializer())
                 jsonResponse(AudioDspPreviewDto.serializer(), webControlService.previewAudioDsp(request))
             }
+            session.method == Method.POST && route == "/api/audio-dsp/import-rew" -> {
+                val request = parseBody(session, AudioDspRewImportRequest.serializer())
+                jsonResponse(AudioDspRewImportDto.serializer(), webControlService.importAudioDspRew(request))
+            }
             session.method == Method.GET && route == "/api/web-control/access" -> {
                 jsonResponse(WebControlAccessDto.serializer(), webControlService.getWebControlAccess())
             }
@@ -417,7 +421,7 @@ open class NanoHttpWebControlServer(
 
     private fun readTextBody(session: IHTTPSession): String? {
         val contentLength = headerValue(session, "content-length")?.toLongOrNull() ?: return null
-        if (contentLength > Int.MAX_VALUE) {
+        if (contentLength > MAX_JSON_BODY_BYTES) {
             throw IllegalArgumentException("请求体过大")
         }
         if (contentLength <= 0L) return ""
@@ -563,5 +567,6 @@ open class NanoHttpWebControlServer(
     companion object {
         const val DEFAULT_PORT = WebControlConfig.DEFAULT_PORT
         private const val AUTH_COOKIE_NAME = "miruplay_web_token"
+        private const val MAX_JSON_BODY_BYTES = 4L * 1024L * 1024L
     }
 }

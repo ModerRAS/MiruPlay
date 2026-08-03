@@ -20,6 +20,7 @@ import com.miruplay.tv.model.AudioDspConfig
 import com.miruplay.tv.audio.AudioDspPlanCompiler
 import com.miruplay.tv.audio.ChannelLayout
 import com.miruplay.tv.audio.FrequencyResponse
+import com.miruplay.tv.audio.RewEqParser
 import com.miruplay.tv.model.PlaybackRenderBackend
 import com.miruplay.tv.model.ScanResult
 import com.miruplay.tv.model.playbackBackendLabel
@@ -801,6 +802,21 @@ class WebControlService @Inject constructor(
         AudioDspPreviewDto(curve.frequenciesHz.toList(), curve.magnitudeDb.toList(), curve.phaseRadians.toList())
     }
 
+    override suspend fun importAudioDspRew(request: AudioDspRewImportRequest): AudioDspRewImportDto = runOnIo {
+        require(request.text.length <= MAX_REW_IMPORT_CHARS) {
+            "REW filter export is too large (maximum $MAX_REW_IMPORT_CHARS characters)"
+        }
+        require(request.binaryBase64.orEmpty().length <= MAX_REW_IMPORT_BASE64_CHARS) {
+            "REW .req file is too large (maximum $MAX_REW_IMPORT_BASE64_CHARS encoded characters)"
+        }
+        val result = request.binaryBase64?.let { encoded ->
+            val bytes = runCatching { java.util.Base64.getDecoder().decode(encoded) }
+                .getOrElse { throw IllegalArgumentException("REW .req base64 payload is invalid") }
+            RewEqParser.parseReq(bytes, request.presetId, request.presetName, request.target)
+        } ?: RewEqParser.parse(request.text, request.presetId, request.presetName, request.target)
+        AudioDspRewImportDto(result.preset, result.importedBandCount, result.warnings)
+    }
+
     override suspend fun getWebControlAccess(): WebControlAccessDto = runOnIo {
         webControlAccessSnapshot()
     }
@@ -1019,6 +1035,9 @@ class WebControlService @Inject constructor(
     private fun posterCacheDirectory(): File =
         File(appContext.cacheDir, "miruplay_image_cache")
 }
+
+private const val MAX_REW_IMPORT_CHARS = 1_000_000
+private const val MAX_REW_IMPORT_BASE64_CHARS = 2_000_000
 
 private data class BangumiArchiveDownloadState(
     val isDownloading: Boolean = false,

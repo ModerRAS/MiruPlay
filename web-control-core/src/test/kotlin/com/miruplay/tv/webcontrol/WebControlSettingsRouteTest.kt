@@ -130,6 +130,27 @@ class WebControlSettingsRouteTest {
     }
 
     @Test
+    fun `rew import route returns an imported preset`() {
+        val service = SettingsStubService()
+        val server = NanoHttpWebControlServer(
+            webControlService = service,
+            webControlAccess = EnabledAccess,
+            staticAssets = WebControlStaticAssets { null },
+        )
+
+        val response = server.serve(
+            session(
+                method = NanoHTTPD.Method.POST,
+                uri = "/api/audio-dsp/import-rew",
+                body = """{"text":"Filter 1: ON PK Fc 70 Hz Gain -3 dB Q 2"}""",
+            ),
+        )
+
+        assertEquals(NanoHTTPD.Response.Status.OK, response.status)
+        assertTrue(response.bodyText().contains("\"importedBandCount\":1"))
+    }
+
+    @Test
     fun `web control access rotate token route returns refreshed dto`() {
         val service = SettingsStubService()
         val server = NanoHttpWebControlServer(
@@ -298,6 +319,12 @@ class WebControlSettingsRouteTest {
                 frequenciesHz = request.frequenciesHz,
                 magnitudeDb = request.frequenciesHz.map { 0f },
                 phaseRadians = request.frequenciesHz.map { 0f },
+            )
+
+        override suspend fun importAudioDspRew(request: AudioDspRewImportRequest): AudioDspRewImportDto =
+            AudioDspRewImportDto(
+                preset = AudioDspPreset("rew-import", "REW import"),
+                importedBandCount = 1,
             )
 
         override suspend fun getMetadataSettings(): MetadataSettingsDto =

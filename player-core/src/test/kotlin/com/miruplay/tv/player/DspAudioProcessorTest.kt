@@ -3,9 +3,13 @@ package com.miruplay.tv.player
 import androidx.media3.common.C
 import androidx.media3.common.audio.AudioProcessor
 import com.miruplay.tv.model.AudioDspConfig
+import com.miruplay.tv.model.AudioDspBand
+import com.miruplay.tv.model.AudioDspChannelRule
+import com.miruplay.tv.model.AudioDspFilterType
 import com.miruplay.tv.model.AudioDspOutputMode
 import com.miruplay.tv.model.AudioDspPreset
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.nio.ByteBuffer
@@ -31,12 +35,20 @@ class DspAudioProcessorTest {
     }
 
     @Test
-    fun `disabled processor remains inactive`() {
+    fun `disabled pcm processor stays bit transparent and ready for runtime enable`() {
         val processor = DspAudioProcessor(AudioDspRuntimeConfig())
 
         processor.configure(AudioProcessor.AudioFormat(48_000, 2, C.ENCODING_PCM_16BIT))
+        processor.flush()
+        val input = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
+        input.putShort(8_192).putShort(Short.MIN_VALUE)
+        input.flip()
+        processor.queueInput(input)
 
-        assertTrue(!processor.isActive)
+        val output = processor.output.order(ByteOrder.LITTLE_ENDIAN)
+        assertFalse(processor.isActive)
+        assertEquals(8_192.toShort(), output.short)
+        assertEquals(Short.MIN_VALUE, output.short)
     }
 
     @Test
@@ -62,5 +74,48 @@ class DspAudioProcessorTest {
         assertEquals(2, outputFormat.channelCount)
         assertTrue(output.remaining() > 0)
         assertTrue(output.short.toInt() > 20_000)
+    }
+
+    @Test
+    fun `enabling dsp after pcm processor was configured disabled applies without a new sink`() {
+        val runtime = AudioDspRuntimeConfig()
+        val processor = DspAudioProcessor(runtime)
+        val format = AudioProcessor.AudioFormat(48_000, 2, C.ENCODING_PCM_16BIT)
+
+        processor.configure(format)
+        processor.flush()
+        runtime.update(
+            AudioDspConfig(
+                enabled = true,
+                selectedPresetId = "boost",
+                presets = listOf(
+                    AudioDspPreset(
+                        id = "boost",
+                        name = "Boost",
+                        rules = listOf(
+                            AudioDspChannelRule(
+                                outputGainDb = 6f,
+                                bands = listOf(
+                                    AudioDspBand(
+                                        type = AudioDspFilterType.PEAKING,
+                                        frequencyHz = 1_000f,
+                                        gainDb = 6f,
+                                        q = 1f,
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        val input = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
+        input.putShort(8_192).putShort(8_192)
+        input.flip()
+        processor.queueInput(input)
+
+        assertTrue(processor.isActive)
+        assertTrue(processor.output.order(ByteOrder.LITTLE_ENDIAN).short.toInt() > 8_192)
     }
 }

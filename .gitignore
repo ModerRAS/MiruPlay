@@ -41,6 +41,7 @@ google-services.json
 .ralph/
 .tmp/
 tmp/
+.worktree/
 .playwright-cli/
 .playwright-mcp/
 .tessdata/

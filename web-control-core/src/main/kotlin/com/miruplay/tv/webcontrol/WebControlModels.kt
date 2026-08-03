@@ -7,6 +7,7 @@ import com.miruplay.tv.model.CloudDriveLibraryMode
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.AudioDspConfig
+import com.miruplay.tv.model.AudioDspChannelTarget
 import com.miruplay.tv.model.AudioDspPreset
 import com.miruplay.tv.model.MediaContentMode
 import com.miruplay.tv.model.MediaRecognitionMode
@@ -369,6 +370,7 @@ data class AudioDspCapabilitiesDto(
     val supportedLayouts: List<String> = listOf("mono", "stereo", "5.1", "7.1"),
     val sampleRatesHz: List<Int> = listOf(44_100, 48_000, 96_000),
     val maxChannels: Int = 8,
+    val maxBandsPerRule: Int = 256,
     val hrtfAvailable: Boolean = true,
 )
 
@@ -391,6 +393,22 @@ data class AudioDspPreviewDto(
     val frequenciesHz: List<Float>,
     val magnitudeDb: List<Float>,
     val phaseRadians: List<Float>,
+)
+
+@Serializable
+data class AudioDspRewImportRequest(
+    val text: String = "",
+    val binaryBase64: String? = null,
+    val presetId: String = "rew-import",
+    val presetName: String = "REW import",
+    val target: AudioDspChannelTarget = AudioDspChannelTarget.ALL,
+)
+
+@Serializable
+data class AudioDspRewImportDto(
+    val preset: AudioDspPreset,
+    val importedBandCount: Int,
+    val warnings: List<String> = emptyList(),
 )
 
 @Serializable
