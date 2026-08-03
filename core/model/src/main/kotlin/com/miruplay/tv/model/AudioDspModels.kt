@@ -167,6 +167,30 @@ data class AudioDspConfig(
         )
     }
 
+    fun validationErrors(): List<String> = buildList {
+        if (presets.isEmpty()) add("presets must not be empty")
+        presets.forEachIndexed { presetIndex, preset ->
+            if (preset.id.isBlank()) add("presets[$presetIndex].id must not be blank")
+            if (preset.preampDb !in -24f..12f) add("presets[$presetIndex].preampDb is out of range")
+            preset.rules.forEachIndexed { ruleIndex, rule ->
+                if (rule.bands.size > AudioDspChannelRule.MAX_BANDS_PER_RULE) {
+                    add("presets[$presetIndex].rules[$ruleIndex] has too many bands")
+                }
+                rule.bands.forEachIndexed { bandIndex, band ->
+                    if (band.frequencyHz !in AudioDspBand.MIN_FREQUENCY_HZ..AudioDspBand.MAX_FREQUENCY_HZ) {
+                        add("presets[$presetIndex].rules[$ruleIndex].bands[$bandIndex].frequencyHz is out of range")
+                    }
+                    if (band.gainDb !in AudioDspBand.MIN_GAIN_DB..AudioDspBand.MAX_GAIN_DB) {
+                        add("presets[$presetIndex].rules[$ruleIndex].bands[$bandIndex].gainDb is out of range")
+                    }
+                    if (band.q !in AudioDspBand.MIN_Q..AudioDspBand.MAX_Q) {
+                        add("presets[$presetIndex].rules[$ruleIndex].bands[$bandIndex].q is out of range")
+                    }
+                }
+            }
+        }
+    }
+
     companion object {
         const val CURRENT_SCHEMA_VERSION = 1
         const val DEFAULT_PRESET_ID = "neutral"

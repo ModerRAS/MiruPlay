@@ -19,12 +19,17 @@ import javax.inject.Singleton
 object PlayerModule {
     @Provides
     @Singleton
+    fun provideAudioDspRuntimeConfig(): AudioDspRuntimeConfig = AudioDspRuntimeConfig()
+
+    @Provides
+    @Singleton
     @StandardPlaybackPlayer
     fun provideStandardExoPlayer(
         @ApplicationContext context: Context,
         dataSourceFactory: PlaybackDataSourceFactory,
+        audioDspRuntimeConfig: AudioDspRuntimeConfig,
     ): ExoPlayer {
-        val renderersFactory = DefaultRenderersFactory(context)
+        val renderersFactory = DspRenderersFactory(context, audioDspRuntimeConfig)
             .forceDisableMediaCodecAsynchronousQueueing()
             .setEnableDecoderFallback(true)
             .setMediaCodecSelector(PlaybackMediaCodecSelector)
@@ -40,8 +45,9 @@ object PlayerModule {
     fun provideExperimentalExoPlayer(
         @ApplicationContext context: Context,
         dataSourceFactory: PlaybackDataSourceFactory,
+        audioDspRuntimeConfig: AudioDspRuntimeConfig,
     ): ExoPlayer {
-        val renderersFactory = ExperimentalRenderersFactory(context)
+        val renderersFactory = ExperimentalRenderersFactory(context, audioDspRuntimeConfig)
             // The experimental HDR backend relies on stable HEVC surface attachment across
             // vendor codecs, so we bias toward compatibility over async throughput here.
             .forceDisableMediaCodecAsynchronousQueueing()
@@ -71,6 +77,7 @@ object PlayerModule {
         playbackDebugOverrides: PlaybackDebugOverrides,
         externalMpvLauncher: AndroidExternalMpvLauncher,
         config: PlaybackConfig,
+        audioDspRuntimeConfig: AudioDspRuntimeConfig,
     ): ExoPlaybackController {
         return ExoPlaybackController(
             context = context,
@@ -82,6 +89,7 @@ object PlayerModule {
             playbackDebugOverrides = playbackDebugOverrides,
             externalMpvLauncher = externalMpvLauncher,
             config = config,
+            audioDspRuntimeConfig = audioDspRuntimeConfig,
         )
     }
 

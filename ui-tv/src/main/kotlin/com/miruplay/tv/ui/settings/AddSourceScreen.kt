@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Language
@@ -49,6 +50,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Subtitles
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material.icons.filled.WifiTethering
 import androidx.compose.material3.Icon
@@ -97,6 +99,7 @@ import com.miruplay.tv.model.supportedPlaybackRenderBackends
 import com.miruplay.tv.model.PosterWallArrangement
 import com.miruplay.tv.model.CLOUD_DRIVE_ROOT_DISPLAY_NAME
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
+import com.miruplay.tv.model.AudioDspConfig
 import com.miruplay.tv.model.MediaContentMode
 import com.miruplay.tv.model.MediaRecognitionMode
 import com.miruplay.tv.model.MediaSourceInfo
@@ -380,6 +383,7 @@ fun AddSourceScreen(
     val preferredSubtitleLanguage by viewModel.preferredSubtitleLanguage.collectAsStateWithLifecycle()
     val subtitleBackgroundTransparent by viewModel.subtitleBackgroundTransparent.collectAsStateWithLifecycle()
     val formatAwareToneMappingPreferences by viewModel.formatAwareToneMappingPreferences.collectAsStateWithLifecycle()
+    val audioDspConfig by viewModel.audioDspConfig.collectAsStateWithLifecycle()
     val savedTmdbToken by viewModel.tmdbToken.collectAsStateWithLifecycle()
     val webUiUrls by viewModel.webUiUrls.collectAsStateWithLifecycle()
     val webControlEnabled by viewModel.webControlEnabled.collectAsStateWithLifecycle()
@@ -684,6 +688,9 @@ fun AddSourceScreen(
                     formatAwareToneMappingPreferences = formatAwareToneMappingPreferences,
                     onPlaybackBackendSelected = viewModel::setDefaultPlaybackBackend,
                     onToneMappingPresetSelected = viewModel::setToneMappingPreset,
+                    audioDspConfig = audioDspConfig,
+                    onAudioDspEnabledChange = viewModel::setAudioDspEnabled,
+                    onAudioDspPresetSelected = viewModel::setAudioDspPreset,
                     savedToken = savedToken,
                     tokenInput = tokenInput,
                     tokenSaved = tokenSaved,
@@ -1149,6 +1156,9 @@ private fun SettingsContent(
     formatAwareToneMappingPreferences: FormatAwareToneMappingPreferences,
     onPlaybackBackendSelected: (PlaybackRenderBackend) -> Unit,
     onToneMappingPresetSelected: (VideoRenderRuleKey, ToneMappingProfilePreset) -> Unit,
+    audioDspConfig: AudioDspConfig,
+    onAudioDspEnabledChange: (Boolean) -> Unit,
+    onAudioDspPresetSelected: (String) -> Unit,
     savedToken: String,
     tokenInput: String,
     tokenSaved: Boolean,
@@ -1412,6 +1422,9 @@ private fun SettingsContent(
                 formatAwareToneMappingPreferences = formatAwareToneMappingPreferences,
                 onPlaybackBackendSelected = onPlaybackBackendSelected,
                 onToneMappingPresetSelected = onToneMappingPresetSelected,
+                audioDspConfig = audioDspConfig,
+                onAudioDspEnabledChange = onAudioDspEnabledChange,
+                onAudioDspPresetSelected = onAudioDspPresetSelected,
             )
         }
 
@@ -3153,6 +3166,9 @@ private fun PlaybackPanel(
     formatAwareToneMappingPreferences: FormatAwareToneMappingPreferences,
     onPlaybackBackendSelected: (PlaybackRenderBackend) -> Unit,
     onToneMappingPresetSelected: (VideoRenderRuleKey, ToneMappingProfilePreset) -> Unit,
+    audioDspConfig: AudioDspConfig,
+    onAudioDspEnabledChange: (Boolean) -> Unit,
+    onAudioDspPresetSelected: (String) -> Unit,
 ) {
     SettingsPanel {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -3312,6 +3328,61 @@ private fun PlaybackPanel(
             icon = Icons.Filled.CheckCircle,
             text = "当前：${subtitleBackgroundSettingsOptionLabel(subtitleBackgroundTransparent)}",
             color = if (subtitleBackgroundTransparent) ProgressGreen else TextSecondary,
+        )
+
+        Spacer(Modifier.height(24.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Filled.GraphicEq,
+                contentDescription = null,
+                tint = TextPrimary,
+                modifier = Modifier.size(26.dp),
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(text = "音频 PEQ / DSP", style = TvTypography.subtitle, color = TextPrimary)
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = "电视端仅提供总开关和预设切换，完整频段与线性相位设置请使用 WebUI。",
+            style = TvTypography.body,
+            color = TextSecondary,
+        )
+        Spacer(Modifier.height(14.dp))
+        ScanOptionChip(
+            text = if (audioDspConfig.enabled) "音频 DSP 已启用" else "音频 DSP 已关闭",
+            icon = Icons.Filled.GraphicEq,
+            selected = audioDspConfig.enabled,
+            enabled = true,
+            onClick = { onAudioDspEnabledChange(!audioDspConfig.enabled) },
+            modifier = Modifier.width(190.dp),
+        )
+        Spacer(Modifier.height(12.dp))
+        Text(
+            text = "当前预设",
+            style = TvTypography.caption.copy(fontWeight = FontWeight.SemiBold),
+            color = TextSecondary,
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            audioDspConfig.presets.forEach { preset ->
+                ScanOptionChip(
+                    text = preset.name,
+                    icon = Icons.Filled.Tune,
+                    selected = audioDspConfig.selectedPresetId == preset.id,
+                    enabled = true,
+                    onClick = { onAudioDspPresetSelected(preset.id) },
+                    modifier = Modifier.width(150.dp),
+                )
+            }
+        }
+        StatusMessage(
+            icon = Icons.Filled.CheckCircle,
+            text = if (audioDspConfig.enabled) {
+                "当前预设：${audioDspConfig.presets.firstOrNull { it.id == audioDspConfig.selectedPresetId }?.name ?: audioDspConfig.selectedPresetId}"
+            } else {
+                "音频保持原始输出，不应用 PEQ 或 FIR"
+            },
+            color = if (audioDspConfig.enabled) ProgressGreen else TextSecondary,
         )
 
         Spacer(Modifier.height(24.dp))

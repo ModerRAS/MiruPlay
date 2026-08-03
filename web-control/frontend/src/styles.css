@@ -800,6 +800,99 @@ body {
   flex: 0 0 auto;
 }
 
+.audio-dsp-stack {
+  gap: 1rem;
+}
+
+.audio-dsp-overview {
+  align-items: end;
+}
+
+.audio-dsp-actions,
+.response-toolbar,
+.band-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.audio-dsp-rule {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.9rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.audio-dsp-rule:last-child {
+  border-bottom: 0;
+}
+
+.audio-dsp-rule-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.audio-dsp-target {
+  width: min(100%, 18rem);
+}
+
+.band-list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.band-row {
+  display: grid;
+  grid-template-columns: minmax(9rem, 1.2fr) repeat(3, minmax(7rem, 0.8fr)) auto auto;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.band-type {
+  min-width: 0;
+}
+
+.audio-response-chart {
+  width: 100%;
+  min-height: 16rem;
+  margin: 1rem 0;
+  padding: 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  background: #10131a;
+}
+
+.audio-response-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.chart-grid {
+  stroke: rgba(255, 255, 255, 0.12);
+  stroke-width: 1;
+}
+
+.chart-line {
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.chart-label {
+  fill: var(--muted);
+  font-size: 12px;
+}
+
+.block-text {
+  display: block;
+  margin-top: 0.25rem;
+}
+
 @media (max-width: 920px) {
   .app-shell {
     display: block;
@@ -854,6 +947,16 @@ body {
   .episode-card :deep(.el-card__body) {
     grid-template-columns: 1fr;
     display: grid;
+  }
+
+  .band-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .band-row .band-type,
+  .band-row .el-switch,
+  .band-row .el-button {
+    grid-column: span 2;
   }
 
   .header-actions {

@@ -16,6 +16,7 @@ import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.data.preferences.PlaybackPreferencesManager
 import com.miruplay.tv.model.EpisodeVersionSelectionPolicy
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
+import com.miruplay.tv.model.AudioDspConfig
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.PlaybackRenderBackend
 import com.miruplay.tv.model.SubtitleLanguagePreference
@@ -178,6 +179,9 @@ class SettingsViewModel @Inject constructor(
     )
     val formatAwareToneMappingPreferences: StateFlow<FormatAwareToneMappingPreferences> =
         _formatAwareToneMappingPreferences.asStateFlow()
+
+    private val _audioDspConfig = MutableStateFlow(playbackPreferences.audioDspConfig.normalized())
+    val audioDspConfig: StateFlow<AudioDspConfig> = _audioDspConfig.asStateFlow()
 
     private val _webUiUrls = MutableStateFlow<List<String>>(emptyList())
     val webUiUrls: StateFlow<List<String>> = _webUiUrls.asStateFlow()
@@ -881,6 +885,20 @@ class SettingsViewModel @Inject constructor(
     fun setSubtitleBackgroundTransparent(transparent: Boolean) {
         playbackPreferences.subtitleBackgroundTransparent = transparent
         _subtitleBackgroundTransparent.value = transparent
+    }
+
+    fun setAudioDspEnabled(enabled: Boolean) {
+        val updated = _audioDspConfig.value.normalized().copy(enabled = enabled).normalized()
+        playbackPreferences.audioDspConfig = updated
+        _audioDspConfig.value = updated
+    }
+
+    fun setAudioDspPreset(presetId: String) {
+        val current = _audioDspConfig.value.normalized()
+        if (current.presets.none { it.id == presetId }) return
+        val updated = current.copy(selectedPresetId = presetId).normalized()
+        playbackPreferences.audioDspConfig = updated
+        _audioDspConfig.value = updated
     }
 
     fun setDefaultPlaybackBackend(backend: PlaybackRenderBackend) {

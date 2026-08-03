@@ -13,7 +13,10 @@ data class CompiledDspPlan(
     val biquadsByChannel: List<List<BiquadCoefficients>>,
     val firTapsByChannel: List<FloatArray>,
     val groupDelayFrames: Int,
-)
+) {
+    val outputChannelCount: Int
+        get() = if (outputMode == com.miruplay.tv.model.AudioDspOutputMode.AUTO_PRESERVE) layout.channelCount else 2
+}
 
 object AudioDspPlanCompiler {
     private const val RESPONSE_BINS = 512

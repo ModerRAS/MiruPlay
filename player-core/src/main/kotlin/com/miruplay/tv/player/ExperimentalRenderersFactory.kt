@@ -11,13 +11,26 @@ import androidx.media3.exoplayer.Renderer
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.video.MediaCodecVideoRenderer
 import androidx.media3.exoplayer.video.VideoRendererEventListener
+import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.audio.DefaultAudioSink
 
 @UnstableApi
 class ExperimentalRenderersFactory(
     context: Context,
+    private val audioDspRuntimeConfig: AudioDspRuntimeConfig,
 ) : DefaultRenderersFactory(context) {
     private val experimentalVideoPipelineMode =
         resolveExperimentalVideoPipelineMode(resolveDeviceGlEsMajorVersion(context))
+
+    override fun buildAudioSink(
+        context: Context,
+        enableFloatOutput: Boolean,
+        enableAudioTrackPlaybackParams: Boolean,
+    ): AudioSink = DefaultAudioSink.Builder(context)
+        .setEnableFloatOutput(enableFloatOutput)
+        .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+        .setAudioProcessors(arrayOf(DspAudioProcessor(audioDspRuntimeConfig)))
+        .build()
 
     override fun buildVideoRenderers(
         context: Context,
