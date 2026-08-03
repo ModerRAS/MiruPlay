@@ -97,4 +97,44 @@ class StreamingDspProcessorTest {
 
         assertEquals((plan.firTapsByChannel.first().size - 1) * 2, processor.endOfStream().size)
     }
+
+    @Test
+    fun `linear fir applies the configured gain to a steady tone`() {
+        val sampleRate = 48_000
+        val frames = 20_000
+        val plan = AudioDspPlanCompiler.compile(
+            AudioDspPreset(
+                "linear-peq",
+                "Linear PEQ",
+                phaseMode = AudioDspPhaseMode.LINEAR,
+                firQuality = com.miruplay.tv.model.AudioDspFirQuality.LOW,
+                rules = listOf(
+                    AudioDspChannelRule(
+                        bands = listOf(AudioDspBand(AudioDspFilterType.PEAKING, 1_000f, 6f, 1f)),
+                    ),
+                ),
+            ),
+            ChannelLayout.from(2, null),
+            sampleRate,
+        )
+        val input = FloatArray(frames * 2) { index ->
+            kotlin.math.sin(2.0 * Math.PI * 1_000.0 * (index / 2) / sampleRate).toFloat()
+        }
+
+        val output = StreamingDspProcessor(plan).process(input, frames)
+        val start = 12_000
+        val length = 4_000
+        val correlation = output.copyOfRange(start * 2, (start + length) * 2)
+            .filterIndexed { index, _ -> index % 2 == 0 }
+        val amplitude = 2.0 * kotlin.math.sqrt(
+            correlation.withIndex().sumOf { (index, value) ->
+                value * kotlin.math.cos(2.0 * Math.PI * 1_000.0 * index / sampleRate)
+            }.let { cosine -> cosine * cosine } +
+                correlation.withIndex().sumOf { (index, value) ->
+                    value * kotlin.math.sin(2.0 * Math.PI * 1_000.0 * index / sampleRate)
+                }.let { sine -> sine * sine }
+        ) / length
+
+        assertTrue("amplitude=$amplitude", amplitude in 1.7..2.2)
+    }
 }

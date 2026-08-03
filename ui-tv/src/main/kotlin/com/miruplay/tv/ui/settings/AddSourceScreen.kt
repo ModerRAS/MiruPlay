@@ -3189,12 +3189,6 @@ private fun PlaybackPanel(
             color = TextSecondary
         )
 
-        AudioDspTvControls(
-            config = audioDspConfig,
-            onEnabledChange = onAudioDspEnabledChange,
-            onPresetSelected = onAudioDspPresetSelected,
-        )
-
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ScanOptionChip(
@@ -3222,6 +3216,12 @@ private fun PlaybackPanel(
                 PlaybackEndAction.PLAY_NEXT_EPISODE -> playbackEndPlayNextEpisodeDetail()
             },
             color = if (endAction == PlaybackEndAction.PLAY_NEXT_EPISODE) ProgressGreen else TextSecondary
+        )
+
+        AudioDspTvControls(
+            config = audioDspConfig,
+            onEnabledChange = onAudioDspEnabledChange,
+            onPresetSelected = onAudioDspPresetSelected,
         )
 
         Spacer(Modifier.height(24.dp))

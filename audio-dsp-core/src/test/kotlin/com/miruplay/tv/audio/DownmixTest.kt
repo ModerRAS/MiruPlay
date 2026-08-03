@@ -53,4 +53,34 @@ class DownmixTest {
         assertEquals(2, plan.outputChannelCount)
         assertEquals(2, StreamingDspProcessor(plan).process(FloatArray(8), 1).size)
     }
+
+    @Test
+    fun `unknown multichannel layout keeps audio audible when downmixed`() {
+        val layout = ChannelLayout.from(4, null)
+        val plan = AudioDspPlanCompiler.compile(
+            AudioDspPreset("downmix-unknown", "Downmix unknown", outputMode = AudioDspOutputMode.STEREO_DOWNMIX),
+            layout,
+            48_000,
+        )
+
+        val output = StreamingDspProcessor(plan).process(FloatArray(4) { 1f }, 1)
+
+        assertEquals(2, output.size)
+        assertTrue(output.all { it > 0f })
+    }
+
+    @Test
+    fun `unknown multichannel layout keeps audio audible in hrtf mode`() {
+        val layout = ChannelLayout.from(4, null)
+        val plan = AudioDspPlanCompiler.compile(
+            AudioDspPreset("hrtf-unknown", "HRTF unknown", outputMode = AudioDspOutputMode.HRTF_BINAURAL),
+            layout,
+            48_000,
+        )
+
+        val output = StreamingDspProcessor(plan).process(FloatArray(4) { 1f }, 1)
+
+        assertEquals(2, output.size)
+        assertTrue(output.all { it > 0f })
+    }
 }

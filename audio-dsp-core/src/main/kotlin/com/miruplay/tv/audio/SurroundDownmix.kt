@@ -20,6 +20,11 @@ object SurroundDownmix {
                 }
                 Channel.LS, Channel.LB -> left += sample * 0.707
                 Channel.RS, Channel.RB -> right += sample * 0.707
+                Channel.UNKNOWN -> {
+                    // Preserve audio for uncommon layouts whose channel mask is unavailable.
+                    left += sample * 0.5
+                    right += sample * 0.5
+                }
                 else -> Unit
             }
         }
@@ -39,6 +44,7 @@ object SurroundDownmix {
                 Channel.LFE -> { left += sample * 0.22; right += sample * 0.22 }
                 Channel.LS, Channel.LB -> { left += sample * 0.82; right += sample * 0.24 }
                 Channel.RS, Channel.RB -> { right += sample * 0.82; left += sample * 0.24 }
+                Channel.UNKNOWN -> { left += sample * 0.5; right += sample * 0.5 }
                 else -> Unit
             }
         }

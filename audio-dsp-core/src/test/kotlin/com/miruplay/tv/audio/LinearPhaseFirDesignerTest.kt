@@ -71,4 +71,24 @@ class LinearPhaseFirDesignerTest {
         assertTrue("magnitude=${curve.magnitudeDb.single()}", curve.magnitudeDb.single() > 1f)
         assertTrue(kotlin.math.abs(curve.phaseRadians.single()) > 0.01f)
     }
+
+    @Test
+    fun `linear fir preserves the peq magnitude at the center frequency`() {
+        val preset = com.miruplay.tv.model.AudioDspPreset(
+            id = "linear-peq",
+            name = "Linear PEQ",
+            phaseMode = AudioDspPhaseMode.LINEAR,
+            firQuality = com.miruplay.tv.model.AudioDspFirQuality.LOW,
+            rules = listOf(
+                com.miruplay.tv.model.AudioDspChannelRule(
+                    bands = listOf(AudioDspBand(AudioDspFilterType.PEAKING, 1_000f, 6f, 1f)),
+                ),
+            ),
+        )
+
+        val plan = AudioDspPlanCompiler.compile(preset, ChannelLayout.from(2, null), 48_000)
+        val curve = FrequencyResponse.sample(plan, floatArrayOf(1_000f))
+
+        assertEquals(6f, curve.magnitudeDb.single(), 0.25f)
+    }
 }
