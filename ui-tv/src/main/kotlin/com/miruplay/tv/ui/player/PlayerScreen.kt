@@ -102,8 +102,10 @@ import androidx.core.view.doOnLayout
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.ui.AspectRatioFrameLayout
+import androidx.media3.common.Player
 import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.PlayerView
+import androidx.media3.ui.SubtitleView
 import androidx.annotation.LayoutRes
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
@@ -187,14 +189,35 @@ internal fun subtitleCaptionStyle(
         )
     }
 
-private fun PlayerView.applySubtitleBackgroundPreference(transparentBackground: Boolean) {
+private fun resolveSubtitleCaptionStyle(
+    context: Context,
+    transparentBackground: Boolean,
+): CaptionStyleCompat {
     val captioningManager = context.getSystemService(CaptioningManager::class.java)
     val baseStyle = captioningManager
         ?.takeIf { it.isEnabled }
         ?.userStyle
         ?.let(CaptionStyleCompat::createFromCaptionStyle)
         ?: CaptionStyleCompat.DEFAULT
-    subtitleView?.setStyle(subtitleCaptionStyle(baseStyle, transparentBackground))
+    return subtitleCaptionStyle(baseStyle, transparentBackground)
+}
+
+internal fun releasePlayerView(view: PlayerView, current: PlayerView?): PlayerView? {
+    view.player = null
+    return current.takeUnless { it === view }
+}
+
+internal fun subtitleBottomPaddingFraction(controlsVisible: Boolean): Float =
+    if (controlsVisible) 0.20f else SubtitleView.DEFAULT_BOTTOM_PADDING_FRACTION
+
+private fun PlayerView.applySubtitlePreferences(
+    controlsVisible: Boolean,
+    transparentBackground: Boolean,
+) {
+    subtitleView?.apply {
+        setBottomPaddingFraction(subtitleBottomPaddingFraction(controlsVisible))
+        setStyle(resolveSubtitleCaptionStyle(context, transparentBackground))
+    }
 }
 
 @OptIn(ExperimentalTvMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -572,6 +595,7 @@ private fun PlayerScreenContent(
             }
     ) {
         val player = viewModel.getPlayer()
+        val displayPlayer = remember(player) { player?.let(::SubtitleTransformingPlayer) }
         val usesNativeVideoHost = viewModel.usesVlcVideoLayout()
         if (shouldShowExperimentalSurface) {
             AndroidView(
@@ -646,7 +670,7 @@ private fun PlayerScreenContent(
                 },
                 modifier = Modifier.fillMaxSize(),
             )
-        } else if (player != null) {
+        } else if (displayPlayer != null) {
             key(playerViewHost) {
                 AndroidView(
                      factory = { context ->
@@ -656,11 +680,14 @@ private fun PlayerScreenContent(
                              false
                          ) as PlayerView).apply {
                              playerViewRef = this
-                             this.player = player
+                             this.player = displayPlayer
                              useController = false
                              resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                              setShutterBackgroundColor(android.graphics.Color.TRANSPARENT)
-                             applySubtitleBackgroundPreference(subtitleBackgroundTransparent)
+                             applySubtitlePreferences(
+                                 controlsVisible = controlsVisible,
+                                 transparentBackground = subtitleBackgroundTransparent,
+                             )
                              isClickable = true
                              isFocusable = false
                              isFocusableInTouchMode = false
@@ -669,13 +696,19 @@ private fun PlayerScreenContent(
                      },
                      update = { view ->
                          playerViewRef = view
-                         view.player = player
-                         view.applySubtitleBackgroundPreference(subtitleBackgroundTransparent)
+                         view.player = displayPlayer
+                         view.applySubtitlePreferences(
+                             controlsVisible = controlsVisible,
+                             transparentBackground = subtitleBackgroundTransparent,
+                         )
                          view.setOnClickListener { viewModel.showControls() }
+                     },
+                     onRelease = { view ->
+                         playerViewRef = releasePlayerView(view, playerViewRef)
                      },
                      modifier = Modifier.fillMaxSize()
                  )
-             }
+            }
         } else {
             Box(
                 modifier = Modifier.fillMaxSize().background(Color.Black),

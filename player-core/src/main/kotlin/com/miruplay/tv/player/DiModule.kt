@@ -35,7 +35,12 @@ object PlayerModule {
             .setMediaCodecSelector(PlaybackMediaCodecSelector)
 
         return ExoPlayer.Builder(context, renderersFactory)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
+            .setMediaSourceFactory(
+                DefaultMediaSourceFactory(
+                    ZlibSubtitleProtectingDataSourceFactory(dataSourceFactory),
+                    ZlibSubtitleExtractorsFactory(),
+                ),
+            )
             .build()
     }
 
@@ -55,7 +60,12 @@ object PlayerModule {
             .setMediaCodecSelector(PlaybackMediaCodecSelector)
 
         return ExoPlayer.Builder(context, renderersFactory)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
+            .setMediaSourceFactory(
+                DefaultMediaSourceFactory(
+                    ZlibSubtitleProtectingDataSourceFactory(dataSourceFactory),
+                    ZlibSubtitleExtractorsFactory(),
+                ),
+            )
             .build()
     }
 

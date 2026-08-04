@@ -196,6 +196,10 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
         MPVLib.setOptionString("hwdec-codecs", EMBEDDED_MPV_HWDEC_CODECS)
         MPVLib.setOptionString("vo", sessionOptions.vo)
         MPVLib.setOptionString("save-position-on-quit", "no")
+        // Keep authored ASS styles and positions intact; libass owns subtitle layout.
+        mpvSubtitleLayoutNormalisationOptions.forEach { (name, value) ->
+            MPVLib.setOptionString(name, value)
+        }
         applyColorPipelineProperties(sessionOptions)
         applyShaderProperties(sessionOptions.shaderPaths)
         sessionOptions.extraOptions.forEach { (name, value) ->
