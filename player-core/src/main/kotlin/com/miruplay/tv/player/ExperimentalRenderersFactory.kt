@@ -4,6 +4,7 @@ package com.miruplay.tv.player
 
 import android.content.Context
 import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultRenderersFactory
@@ -13,11 +14,13 @@ import androidx.media3.exoplayer.video.MediaCodecVideoRenderer
 import androidx.media3.exoplayer.video.VideoRendererEventListener
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioSink
+import androidx.media3.exoplayer.text.TextOutput
 
 @UnstableApi
 class ExperimentalRenderersFactory(
     context: Context,
     private val audioDspRuntimeConfig: AudioDspRuntimeConfig,
+    private val libassSession: LibassSubtitleSession,
 ) : DefaultRenderersFactory(context) {
     private val experimentalVideoPipelineMode =
         resolveExperimentalVideoPipelineMode(resolveDeviceGlEsMajorVersion(context))
@@ -34,6 +37,14 @@ class ExperimentalRenderersFactory(
             .setAudioProcessors(arrayOf(DspAudioProcessor(audioDspRuntimeConfig)))
             .build()
     }
+
+    override fun buildTextRenderers(
+        context: Context,
+        output: TextOutput,
+        outputLooper: Looper,
+        extensionRendererMode: Int,
+        out: ArrayList<Renderer>,
+    ) = addLibassTextRenderers(libassSession, output, outputLooper, out)
 
     override fun buildVideoRenderers(
         context: Context,

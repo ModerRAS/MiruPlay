@@ -9,6 +9,7 @@ import android.net.Uri
 import android.os.SystemClock
 import android.util.Log
 import android.view.LayoutInflater
+import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.accessibility.CaptioningManager
 import android.widget.FrameLayout
@@ -158,6 +159,7 @@ import com.miruplay.tv.ui.tv.R
 import com.miruplay.tv.ui.components.toMiruPlayInputIntent
 import com.miruplay.tv.ui.components.tvActivateKeyEvent
 import com.miruplay.tv.player.AudioTrack
+import com.miruplay.tv.player.LibassSubtitleSurfaceView
 import com.miruplay.tv.player.resolveDeviceGlEsMajorVersion
 import com.miruplay.tv.player.shouldUseDedicatedExperimentalGlSurface
 import com.miruplay.tv.ui.theme.AnimeRed
@@ -175,19 +177,18 @@ private const val PLAYER_EXIT_CONFIRMATION_WINDOW_MS = 2_000L
 internal fun subtitleCaptionStyle(
     baseStyle: CaptionStyleCompat,
     transparentBackground: Boolean,
-): CaptionStyleCompat =
-    if (!transparentBackground) {
-        baseStyle
-    } else {
-        CaptionStyleCompat(
-            baseStyle.foregroundColor,
-            android.graphics.Color.TRANSPARENT,
-            baseStyle.windowColor,
-            baseStyle.edgeType,
-            baseStyle.edgeColor,
-            baseStyle.typeface,
-        )
-    }
+): CaptionStyleCompat {
+    val needsDefaultOutline = baseStyle.edgeType == CaptionStyleCompat.EDGE_TYPE_NONE
+    if (!transparentBackground && !needsDefaultOutline) return baseStyle
+    return CaptionStyleCompat(
+        baseStyle.foregroundColor,
+        if (transparentBackground) android.graphics.Color.TRANSPARENT else baseStyle.backgroundColor,
+        baseStyle.windowColor,
+        if (needsDefaultOutline) CaptionStyleCompat.EDGE_TYPE_OUTLINE else baseStyle.edgeType,
+        if (needsDefaultOutline) android.graphics.Color.BLACK else baseStyle.edgeColor,
+        baseStyle.typeface,
+    )
+}
 
 private fun resolveSubtitleCaptionStyle(
     context: Context,
@@ -202,7 +203,39 @@ private fun resolveSubtitleCaptionStyle(
     return subtitleCaptionStyle(baseStyle, transparentBackground)
 }
 
+internal fun installLibassSubtitleOverlay(view: PlayerView): LibassSubtitleSurfaceView {
+    val contentFrame = view.findViewById<ViewGroup>(androidx.media3.ui.R.id.exo_content_frame)
+    contentFrame.childrenSequence()
+        .filterIsInstance<LibassSubtitleSurfaceView>()
+        .firstOrNull()
+        ?.let { return it }
+    return LibassSubtitleSurfaceView(view.context).also { overlay ->
+        contentFrame.addView(
+            overlay,
+            ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            ),
+        )
+    }
+}
+
+internal fun releaseLibassSubtitleOverlay(view: PlayerView) {
+    val contentFrame = view.findViewById<ViewGroup>(androidx.media3.ui.R.id.exo_content_frame)
+    contentFrame.childrenSequence()
+        .filterIsInstance<LibassSubtitleSurfaceView>()
+        .toList()
+        .forEach { overlay ->
+            overlay.unbind()
+            contentFrame.removeView(overlay)
+        }
+}
+
+private fun ViewGroup.childrenSequence(): Sequence<android.view.View> =
+    (0 until childCount).asSequence().map(::getChildAt)
+
 internal fun releasePlayerView(view: PlayerView, current: PlayerView?): PlayerView? {
+    releaseLibassSubtitleOverlay(view)
     view.player = null
     return current.takeUnless { it === view }
 }
@@ -680,6 +713,8 @@ private fun PlayerScreenContent(
                              false
                          ) as PlayerView).apply {
                              playerViewRef = this
+                             installLibassSubtitleOverlay(this)
+                                 .bind(viewModel.getLibassSubtitleSession())
                              this.player = displayPlayer
                              useController = false
                              resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
@@ -696,6 +731,8 @@ private fun PlayerScreenContent(
                      },
                      update = { view ->
                          playerViewRef = view
+                         installLibassSubtitleOverlay(view)
+                             .bind(viewModel.getLibassSubtitleSession())
                          view.player = displayPlayer
                          view.applySubtitlePreferences(
                              controlsVisible = controlsVisible,

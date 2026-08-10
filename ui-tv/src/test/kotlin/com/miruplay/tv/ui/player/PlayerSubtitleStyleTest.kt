@@ -8,6 +8,26 @@ import org.junit.Test
 
 class PlayerSubtitleStyleTest {
     @Test
+    fun `missing system edge gets black outline`() {
+        val base = CaptionStyleCompat(
+            Color.WHITE,
+            Color.TRANSPARENT,
+            Color.TRANSPARENT,
+            CaptionStyleCompat.EDGE_TYPE_NONE,
+            Color.GREEN,
+            null,
+        )
+
+        val resolved = subtitleCaptionStyle(base, transparentBackground = false)
+
+        assertEquals(CaptionStyleCompat.EDGE_TYPE_OUTLINE, resolved.edgeType)
+        assertEquals(Color.BLACK, resolved.edgeColor)
+        assertEquals(base.foregroundColor, resolved.foregroundColor)
+        assertEquals(base.backgroundColor, resolved.backgroundColor)
+        assertEquals(base.windowColor, resolved.windowColor)
+    }
+
+    @Test
     fun `transparent subtitle style only clears background`() {
         val base = CaptionStyleCompat(
             Color.YELLOW,

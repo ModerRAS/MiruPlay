@@ -6,6 +6,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.miruplay.tv.repository.PlaybackPreferencesRepository
+import `is`.xyz.mpv.subtitle.NativeAssRenderer
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -29,7 +30,9 @@ object PlayerModule {
         dataSourceFactory: PlaybackDataSourceFactory,
         audioDspRuntimeConfig: AudioDspRuntimeConfig,
     ): ExoPlayer {
-        val renderersFactory = DspRenderersFactory(context, audioDspRuntimeConfig)
+        val libassSession = LibassSubtitleSession()
+        val nativeAssAvailable = NativeAssRenderer.isAvailable()
+        val renderersFactory = DspRenderersFactory(context, audioDspRuntimeConfig, libassSession)
             .forceDisableMediaCodecAsynchronousQueueing()
             .setEnableDecoderFallback(true)
             .setMediaCodecSelector(PlaybackMediaCodecSelector)
@@ -38,10 +41,17 @@ object PlayerModule {
             .setMediaSourceFactory(
                 DefaultMediaSourceFactory(
                     ZlibSubtitleProtectingDataSourceFactory(dataSourceFactory),
-                    ZlibSubtitleExtractorsFactory(),
+                    ZlibSubtitleExtractorsFactory(
+                        session = libassSession,
+                        nativeAvailable = { nativeAssAvailable },
+                    ),
                 ),
             )
             .build()
+            .also { player ->
+                LibassSubtitleRegistry.register(player, libassSession)
+                if (nativeAssAvailable) player.setVideoFrameMetadataListener(libassSession)
+            }
     }
 
     @Provides
@@ -52,7 +62,9 @@ object PlayerModule {
         dataSourceFactory: PlaybackDataSourceFactory,
         audioDspRuntimeConfig: AudioDspRuntimeConfig,
     ): ExoPlayer {
-        val renderersFactory = ExperimentalRenderersFactory(context, audioDspRuntimeConfig)
+        val libassSession = LibassSubtitleSession()
+        val nativeAssAvailable = NativeAssRenderer.isAvailable()
+        val renderersFactory = ExperimentalRenderersFactory(context, audioDspRuntimeConfig, libassSession)
             // The experimental HDR backend relies on stable HEVC surface attachment across
             // vendor codecs, so we bias toward compatibility over async throughput here.
             .forceDisableMediaCodecAsynchronousQueueing()
@@ -63,10 +75,17 @@ object PlayerModule {
             .setMediaSourceFactory(
                 DefaultMediaSourceFactory(
                     ZlibSubtitleProtectingDataSourceFactory(dataSourceFactory),
-                    ZlibSubtitleExtractorsFactory(),
+                    ZlibSubtitleExtractorsFactory(
+                        session = libassSession,
+                        nativeAvailable = { nativeAssAvailable },
+                    ),
                 ),
             )
             .build()
+            .also { player ->
+                LibassSubtitleRegistry.register(player, libassSession)
+                if (nativeAssAvailable) player.setVideoFrameMetadataListener(libassSession)
+            }
     }
 
     @Provides
