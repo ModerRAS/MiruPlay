@@ -390,7 +390,11 @@ class ExoPlaybackController @Inject constructor(
                 }
                 return@withContext
             }
-            activeExoPlayer().seekTo(positionMs)
+            val player = activeExoPlayer()
+            LibassSubtitleRegistry.sessionFor(player)?.let { session ->
+                session.onSeek(session.currentGeneration())
+            }
+            player.seekTo(positionMs)
             val source = currentSource
             if (source != null) {
                 val newState = when (_state.value) {
@@ -583,6 +587,13 @@ class ExoPlaybackController @Inject constructor(
             else -> activeExoPlayer()
         }
 
+    override fun getLibassSubtitleSession(): LibassSubtitleSession? = when (_activeRenderBackend.value) {
+        PlaybackRenderBackend.STANDARD_EXO,
+        PlaybackRenderBackend.EXPERIMENTAL_GL,
+        -> LibassSubtitleRegistry.sessionFor(activeExoPlayerOrNull())
+        else -> null
+    }
+
     override fun usesVlcVideoLayout(): Boolean =
         _activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER ||
             _activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED
@@ -728,11 +739,13 @@ class ExoPlaybackController @Inject constructor(
         standardExoPlayer?.let { player ->
             standardListener?.let(player::removeListener)
             standardAnalyticsListener?.let(player::removeAnalyticsListener)
+            releaseLibassSession(player)
             player.release()
         }
         experimentalExoPlayer?.let { player ->
             experimentalListener?.let(player::removeListener)
             experimentalAnalyticsListener?.let(player::removeAnalyticsListener)
+            releaseLibassSession(player)
             player.release()
         }
         remoteControlSession?.release()
@@ -1854,6 +1867,14 @@ class ExoPlaybackController @Inject constructor(
         player.playWhenReady = false
         player.stop()
         player.clearMediaItems()
+        LibassSubtitleRegistry.sessionFor(player)?.beginMedia()
+    }
+
+    private fun releaseLibassSession(player: ExoPlayer) {
+        LibassSubtitleRegistry.release(player)?.let { session ->
+            player.clearVideoFrameMetadataListener(session)
+            session.close()
+        }
     }
 
     private fun standardExoPlayer(): ExoPlayer {

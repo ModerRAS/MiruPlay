@@ -1,5 +1,7 @@
 package com.miruplay.tv.player
 
+import android.net.Uri
+
 import androidx.media3.common.Format
 import androidx.media3.common.util.Consumer
 import androidx.media3.common.util.UnstableApi
@@ -8,6 +10,7 @@ import androidx.media3.extractor.Extractor
 import androidx.media3.extractor.ExtractorsFactory
 import androidx.media3.extractor.text.DefaultSubtitleParserFactory
 import androidx.media3.extractor.text.SubtitleParser
+import `is`.xyz.mpv.subtitle.NativeAssRenderer
 import java.io.ByteArrayOutputStream
 import java.util.zip.DataFormatException
 import java.util.zip.Inflater
@@ -20,12 +23,33 @@ private const val MAX_INFLATED_SUBTITLE_BYTES = 1024 * 1024
  */
 @UnstableApi
 internal class ZlibSubtitleExtractorsFactory(
+    private val session: LibassSubtitleSession? = null,
+    nativeAvailable: () -> Boolean = NativeAssRenderer::isAvailable,
     private val delegate: DefaultExtractorsFactory = DefaultExtractorsFactory()
         .setSubtitleParserFactory(zlibSubtitleParserFactory())
         .experimentalSetTextTrackTranscodingEnabled(true),
 ) : ExtractorsFactory {
+    private val nativeAssEnabled = session != null && nativeAvailable()
 
-    override fun createExtractors(): Array<Extractor> = delegate.createExtractors()
+    override fun createExtractors(): Array<Extractor> =
+        replaceMatroska(delegate.createExtractors())
+
+    override fun createExtractors(
+        uri: Uri,
+        responseHeaders: Map<String, List<String>>,
+    ): Array<Extractor> = replaceMatroska(delegate.createExtractors(uri, responseHeaders))
+
+    private fun replaceMatroska(extractors: Array<Extractor>): Array<Extractor> {
+        if (!nativeAssEnabled) return extractors
+        val mediaGeneration = requireNotNull(session).currentGeneration()
+        return extractors.map { extractor ->
+            if (extractor is androidx.media3.extractor.mkv.MatroskaExtractor) {
+                LibassMatroskaExtractor { font -> session.addFont(mediaGeneration, font) }
+            } else {
+                extractor
+            }
+        }.toTypedArray()
+    }
 
     override fun experimentalSetTextTrackTranscodingEnabled(enabled: Boolean): ExtractorsFactory {
         delegate.experimentalSetTextTrackTranscodingEnabled(enabled)

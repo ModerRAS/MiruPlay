@@ -97,6 +97,11 @@ interface PlaybackController {
     fun getPlayer(): Player?
 
     /**
+     * Native ASS overlay session for the active ExoPlayer backend.
+     */
+    fun getLibassSubtitleSession(): LibassSubtitleSession? = null
+
+    /**
      * True when the current active backend expects a VLC render host instead of PlayerView.
      */
     fun usesVlcVideoLayout(): Boolean
