@@ -110,7 +110,7 @@ private fun buildLinearPhaseFilter(preset: com.miruplay.tv.model.AudioDspPreset)
     }
     val response = FrequencyResponse.sample(plan, frequencies)
     val entries = response.frequenciesHz.indices.joinToString(";") { index ->
-        "${number(response.frequenciesHz[index])}:${number(response.magnitudeDb[index])}"
+        "entry(${number(response.frequenciesHz[index])},${number(response.magnitudeDb[index])})"
     }
     val delaySeconds = plan.groupDelayFrames.toDouble() / DSP_SAMPLE_RATE_HZ
     return "firequalizer=gain_entry='$entries':delay=${number(delaySeconds)}:multi=true:zero_phase=false"

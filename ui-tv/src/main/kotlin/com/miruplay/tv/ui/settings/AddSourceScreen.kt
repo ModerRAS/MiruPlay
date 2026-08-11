@@ -3366,7 +3366,7 @@ private fun PlaybackPanel(
             supportedPlaybackRenderBackends().forEach { backend ->
                 ScanOptionChip(
                     text = playbackBackendLabel(backend),
-                    icon = if (backend == PlaybackRenderBackend.EXPERIMENTAL_GL) Icons.Filled.PhotoFilter else Icons.Filled.PlayArrow,
+                    icon = Icons.Filled.PlayArrow,
                     selected = formatAwareToneMappingPreferences.defaultBackend.normalizeSupportedBackend() == backend,
                     enabled = true,
                     onClick = { onPlaybackBackendSelected(backend) },

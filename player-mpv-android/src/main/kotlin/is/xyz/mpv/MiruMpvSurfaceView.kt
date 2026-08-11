@@ -194,7 +194,7 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
         MPVLib.setOptionString("audio-set-media-role", "yes")
         MPVLib.setOptionString("hwdec", sessionOptions.hwdec)
         MPVLib.setOptionString("hwdec-codecs", EMBEDDED_MPV_HWDEC_CODECS)
-        MPVLib.setOptionString("vo", sessionOptions.vo)
+        setVo(sessionOptions.vo)
         MPVLib.setOptionString("save-position-on-quit", "no")
         // Keep authored ASS styles and positions intact; libass owns subtitle layout.
         mpvSubtitleLayoutNormalisationOptions.forEach { (name, value) ->
@@ -289,6 +289,7 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
     }
 
     private fun applyRuntimeOptions(options: SessionOptions) {
+        updateVoInUse(options.vo)
         MPVLib.setPropertyString("vo", options.vo)
         MPVLib.setPropertyString("hwdec", options.hwdec)
         applyColorPipelineProperties(options)

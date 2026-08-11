@@ -15,8 +15,6 @@ class PlayerFactoryImpl @Inject constructor(
     @ApplicationContext private val context: Context,
     @StandardPlaybackPlayer
     private val standardExoPlayerProvider: Provider<ExoPlayer>,
-    @ExperimentalPlaybackPlayer
-    private val experimentalExoPlayerProvider: Provider<ExoPlayer>,
     private val dataSourceFactory: PlaybackDataSourceFactory,
     private val httpRequestResolver: PlaybackHttpRequestResolver,
     private val playbackPreferencesRepository: PlaybackPreferencesRepository,
@@ -27,7 +25,6 @@ class PlayerFactoryImpl @Inject constructor(
         return ExoPlaybackController(
             context = context,
             standardExoPlayerProvider = standardExoPlayerProvider,
-            experimentalExoPlayerProvider = experimentalExoPlayerProvider,
             dataSourceFactory = dataSourceFactory,
             httpRequestResolver = httpRequestResolver,
             playbackPreferencesRepository = playbackPreferencesRepository,

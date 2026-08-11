@@ -10,7 +10,6 @@ import com.miruplay.tv.player.LibVlcVoutMode
 internal fun playbackRenderBackendFromDebugValue(value: String?): PlaybackRenderBackend? =
     when (value.debugKey()) {
         "standardexo", "standard", "exo", "media3" -> PlaybackRenderBackend.STANDARD_EXO
-        "experimentalgl", "gl" -> PlaybackRenderBackend.EXPERIMENTAL_GL
         "experimentalmpvandroid", "mpvandroid" -> PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED
         "experimentalmpvembedded", "mpvembedded", "embeddedmpv", "libmpv", "mpv" -> PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED
         "experimentalijkplayer", "ijkplayer", "ijk" -> PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER

@@ -56,40 +56,6 @@ object PlayerModule {
 
     @Provides
     @Singleton
-    @ExperimentalPlaybackPlayer
-    fun provideExperimentalExoPlayer(
-        @ApplicationContext context: Context,
-        dataSourceFactory: PlaybackDataSourceFactory,
-        audioDspRuntimeConfig: AudioDspRuntimeConfig,
-    ): ExoPlayer {
-        val libassSession = LibassSubtitleSession()
-        val nativeAssAvailable = NativeAssRenderer.isAvailable()
-        val renderersFactory = ExperimentalRenderersFactory(context, audioDspRuntimeConfig, libassSession)
-            // The experimental HDR backend relies on stable HEVC surface attachment across
-            // vendor codecs, so we bias toward compatibility over async throughput here.
-            .forceDisableMediaCodecAsynchronousQueueing()
-            .setEnableDecoderFallback(true)
-            .setMediaCodecSelector(PlaybackMediaCodecSelector)
-
-        return ExoPlayer.Builder(context, renderersFactory)
-            .setMediaSourceFactory(
-                DefaultMediaSourceFactory(
-                    ZlibSubtitleProtectingDataSourceFactory(dataSourceFactory),
-                    ZlibSubtitleExtractorsFactory(
-                        session = libassSession,
-                        nativeAvailable = { nativeAssAvailable },
-                    ),
-                ),
-            )
-            .build()
-            .also { player ->
-                LibassSubtitleRegistry.register(player, libassSession)
-                if (nativeAssAvailable) player.setVideoFrameMetadataListener(libassSession)
-            }
-    }
-
-    @Provides
-    @Singleton
     fun providePlaybackConfig(): PlaybackConfig = PlaybackConfig()
 
     @Provides
@@ -98,8 +64,6 @@ object PlayerModule {
         @ApplicationContext context: Context,
         @StandardPlaybackPlayer
         standardPlayerProvider: javax.inject.Provider<ExoPlayer>,
-        @ExperimentalPlaybackPlayer
-        experimentalPlayerProvider: javax.inject.Provider<ExoPlayer>,
         dataSourceFactory: PlaybackDataSourceFactory,
         httpRequestResolver: PlaybackHttpRequestResolver,
         playbackPreferencesRepository: PlaybackPreferencesRepository,
@@ -111,7 +75,6 @@ object PlayerModule {
         return ExoPlaybackController(
             context = context,
             standardExoPlayerProvider = standardPlayerProvider,
-            experimentalExoPlayerProvider = experimentalPlayerProvider,
             dataSourceFactory = dataSourceFactory,
             httpRequestResolver = httpRequestResolver,
             playbackPreferencesRepository = playbackPreferencesRepository,

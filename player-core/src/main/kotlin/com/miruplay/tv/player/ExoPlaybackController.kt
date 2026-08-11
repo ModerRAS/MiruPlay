@@ -11,7 +11,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.media3.common.C
-import androidx.media3.common.Effect
 import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -38,7 +37,6 @@ import com.miruplay.tv.model.SubtitleTrack
 import com.miruplay.tv.model.ToneMappingRuleSet
 import com.miruplay.tv.model.VideoRenderRuleKey
 import com.miruplay.tv.model.VideoSignalDescriptor
-import com.miruplay.tv.model.VideoSignalKind
 import com.miruplay.tv.model.defaultToneMappingRuleSet
 import com.miruplay.tv.model.normalizeSupportedBackend
 import com.miruplay.tv.model.preferredSubtitleTrackIndex
@@ -77,8 +75,6 @@ class ExoPlaybackController @Inject constructor(
     @ApplicationContext private val context: Context,
     @StandardPlaybackPlayer
     private val standardExoPlayerProvider: Provider<ExoPlayer>,
-    @ExperimentalPlaybackPlayer
-    private val experimentalExoPlayerProvider: Provider<ExoPlayer>,
     private val dataSourceFactory: PlaybackDataSourceFactory,
     private val httpRequestResolver: PlaybackHttpRequestResolver,
     private val playbackPreferencesRepository: PlaybackPreferencesRepository,
@@ -150,11 +146,8 @@ class ExoPlaybackController @Inject constructor(
     private val playbackClockSamples = AtomicReference<List<PlaybackClockSample>>(emptyList())
 
     private var standardExoPlayer: ExoPlayer? = null
-    private var experimentalExoPlayer: ExoPlayer? = null
     private var standardListener: Player.Listener? = null
-    private var experimentalListener: Player.Listener? = null
     private var standardAnalyticsListener: AnalyticsListener? = null
-    private var experimentalAnalyticsListener: AnalyticsListener? = null
 
     override suspend fun play(source: PlaybackSource) {
         MiruLog.i(
@@ -239,7 +232,6 @@ class ExoPlaybackController @Inject constructor(
                 } else {
                     activateRemoteControlSession()
                 }
-                applyVideoEffectsForCurrentConfig()
                 if (
                     _activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED &&
                     !httpConfig.isWebDav(source.uri)
@@ -248,7 +240,6 @@ class ExoPlaybackController @Inject constructor(
                     return@withContext
                 }
                 val player = if (httpConfig.isWebDav(source.uri)) standardExoPlayer() else activeExoPlayer()
-                stopInactivePlayers(player)
                 preparePlayerForPlayback(player)
 
                 val subtitleConfigs = source.subtitleTracks.mapIndexed { index, track ->
@@ -475,7 +466,6 @@ class ExoPlaybackController @Inject constructor(
             subtitleSelectionWasManual = false
             containerSignalDescriptor = null
             _currentVideoSignalDescriptor.value = null
-            PlaybackCodecSelectionState.decoderPreference = PlaybackDecoderPreference.DEFAULT
             sessionState = sessionState.afterPlaybackReset(clearSessionState)
             _requestedRenderBackend.value = playbackPreferences.defaultBackend.normalizeSupportedBackend()
             _sessionRuleOverrides.value = sessionState.ruleOverrides
@@ -742,21 +732,12 @@ class ExoPlaybackController @Inject constructor(
             releaseLibassSession(player)
             player.release()
         }
-        experimentalExoPlayer?.let { player ->
-            experimentalListener?.let(player::removeListener)
-            experimentalAnalyticsListener?.let(player::removeAnalyticsListener)
-            releaseLibassSession(player)
-            player.release()
-        }
         remoteControlSession?.release()
         remoteControlSession = null
         dataSourceFactory.clearHttpConfig()
         standardExoPlayer = null
-        experimentalExoPlayer = null
         standardListener = null
-        experimentalListener = null
         standardAnalyticsListener = null
-        experimentalAnalyticsListener = null
     }
 
     private fun createPlayerListener(player: ExoPlayer) = object : Player.Listener {
@@ -1273,26 +1254,6 @@ class ExoPlaybackController @Inject constructor(
         } else {
             baseConfig
         }
-        PlaybackCodecSelectionState.decoderPreference = when {
-            config.activeBackend == PlaybackRenderBackend.EXPERIMENTAL_GL &&
-                shouldUseDedicatedExperimentalGlSurface(deviceGlEsMajorVersion) &&
-                descriptor.isHdr -> {
-                PlaybackDecoderPreference.PREFER_SOFTWARE_VIDEO_FOR_HDR
-            }
-
-            config.activeBackend == PlaybackRenderBackend.EXPERIMENTAL_GL &&
-                shouldUseExperimentalVideoEffectsPipeline(
-                    activeBackend = config.activeBackend,
-                    glEsMajorVersion = deviceGlEsMajorVersion,
-                ) &&
-                (descriptor.signalKind == VideoSignalKind.HDR10 ||
-                    descriptor.signalKind == VideoSignalKind.HDR10_PLUS ||
-                    descriptor.signalKind == VideoSignalKind.UNKNOWN_HDR) -> {
-                PlaybackDecoderPreference.PREFER_SOFTWARE_HEVC_FOR_HDR
-            }
-
-            else -> PlaybackDecoderPreference.DEFAULT
-        }
         _currentRenderRuleKey.value = config.ruleKey
         _currentToneMappingRuleSet.value = config.appliedRuleSet
         _activeRenderBackend.value = config.activeBackend
@@ -1319,86 +1280,7 @@ class ExoPlaybackController @Inject constructor(
                 "fallback_reason" to config.fallbackReason.orEmpty(),
             ),
         )
-        runCatching {
-            applyVideoEffectsForCurrentConfig()
-        }.onFailure { error ->
-            MiruLog.w(
-                "ExoPlaybackController",
-                "Failed to apply Exo video effects",
-                error,
-                mapOf(
-                    "active_backend" to config.activeBackend.name,
-                    "signal_kind" to descriptor.signalKind.name,
-                ),
-            )
-        }
     }
-
-    private fun applyVideoEffectsForCurrentConfig() {
-        val usesExperimentalVideoEffectsPipeline = shouldUseExperimentalVideoEffectsPipeline(
-            activeBackend = _activeRenderBackend.value,
-            glEsMajorVersion = deviceGlEsMajorVersion,
-        )
-        if (
-            shouldBypassExoVideoEffectsDispatch(
-                activeBackend = _activeRenderBackend.value,
-                glEsMajorVersion = deviceGlEsMajorVersion,
-            )
-        ) {
-            MiruLog.i(
-                "ExoPlaybackController",
-                "Bypassed Exo video effects dispatch for dedicated GL surface pipeline",
-                mapOf(
-                    "active_backend" to _activeRenderBackend.value.name,
-                    "gl_es_major_version" to deviceGlEsMajorVersion.toString(),
-                ),
-            )
-            return
-        }
-        if (!shouldUseExoVideoEffectsPipeline(true, _activeRenderBackend.value, usesExperimentalVideoEffectsPipeline)) {
-            experimentalPlayerOrNull()?.setVideoEffects(emptyList())
-            MiruLog.i(
-                "ExoPlaybackController",
-                "Skipped Exo video effects for current backend",
-                mapOf(
-                    "active_backend" to _activeRenderBackend.value.name,
-                    "gl_es_major_version" to deviceGlEsMajorVersion.toString(),
-                    "experimental_effects_pipeline" to usesExperimentalVideoEffectsPipeline.toString(),
-                ),
-            )
-            return
-        }
-        if (_activeRenderBackend.value != PlaybackRenderBackend.EXPERIMENTAL_GL) {
-            experimentalPlayerOrNull()?.setVideoEffects(emptyList())
-            return
-        }
-        val effects = currentVideoEffects()
-        experimentalExoPlayer().setVideoEffects(effects)
-        MiruLog.i(
-            "ExoPlaybackController",
-            "Applied Exo video effects",
-            mapOf(
-                "active_backend" to _activeRenderBackend.value.name,
-                "effect_count" to effects.size.toString(),
-                "effects" to effects.joinToString(",") { it.javaClass.simpleName },
-            ),
-        )
-    }
-
-    private fun currentVideoEffects(): List<Effect> =
-        if (
-            shouldUseExperimentalVideoEffectsPipeline(
-                activeBackend = _activeRenderBackend.value,
-                glEsMajorVersion = deviceGlEsMajorVersion,
-            )
-        ) {
-            buildExoVideoEffects(
-                ruleSet = _currentToneMappingRuleSet.value,
-                signalDescriptor = _currentVideoSignalDescriptor.value,
-            )
-        } else {
-            emptyList()
-        }
 
     private fun scheduleContainerSignalProbeCompletionIfNeeded(
         sourceUri: String,
@@ -1819,48 +1701,21 @@ class ExoPlaybackController @Inject constructor(
             ruleSet = ruleSet,
             shaderPaths = shaderPaths,
             speed = speed,
+            glEsMajorVersion = deviceGlEsMajorVersion,
             debugConfig = playbackDebugOverrides.embeddedMpvDebugConfig,
             audioDspConfig = audioDspRuntimeConfig.config,
         )
     }
 
-    private fun activeExoPlayer(): ExoPlayer =
-        if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_GL) {
-            experimentalExoPlayer()
-        } else {
-            standardExoPlayer()
-        }
+    private fun activeExoPlayer(): ExoPlayer = standardExoPlayer()
 
-    private fun activeExoPlayerOrNull(): ExoPlayer? =
-        if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_GL) {
-            experimentalPlayerOrNull()
-        } else {
-            standardPlayerOrNull()
-        }
+    private fun activeExoPlayerOrNull(): ExoPlayer? = standardPlayerOrNull()
 
     private fun isCurrentPlayer(player: ExoPlayer): Boolean =
-        when (_activeRenderBackend.value) {
-            PlaybackRenderBackend.EXPERIMENTAL_GL -> player === experimentalPlayerOrNull()
-            PlaybackRenderBackend.STANDARD_EXO -> player === standardPlayerOrNull()
-            else -> false
-        }
-
-    private fun stopInactivePlayers(activePlayer: ExoPlayer) {
-        standardPlayerOrNull()?.let { player ->
-            if (activePlayer !== player) {
-                preparePlayerForPlayback(player)
-            }
-        }
-        experimentalPlayerOrNull()?.let { player ->
-            if (activePlayer !== player) {
-                preparePlayerForPlayback(player)
-            }
-        }
-    }
+        player === standardPlayerOrNull()
 
     private fun stopAllPlayers() {
         standardPlayerOrNull()?.let(::preparePlayerForPlayback)
-        experimentalPlayerOrNull()?.let(::preparePlayerForPlayback)
     }
 
     private fun preparePlayerForPlayback(player: ExoPlayer) {
@@ -1890,22 +1745,7 @@ class ExoPlaybackController @Inject constructor(
         return player
     }
 
-    private fun experimentalExoPlayer(): ExoPlayer {
-        experimentalExoPlayer?.let { return it }
-        val player = experimentalExoPlayerProvider.get()
-        val listener = createPlayerListener(player)
-        val analyticsListener = createAnalyticsListener(player)
-        player.addListener(listener)
-        player.addAnalyticsListener(analyticsListener)
-        experimentalExoPlayer = player
-        experimentalListener = listener
-        experimentalAnalyticsListener = analyticsListener
-        return player
-    }
-
     private fun standardPlayerOrNull(): ExoPlayer? = standardExoPlayer
-
-    private fun experimentalPlayerOrNull(): ExoPlayer? = experimentalExoPlayer
 }
 
 internal data class EmbeddedMpvStartupState(

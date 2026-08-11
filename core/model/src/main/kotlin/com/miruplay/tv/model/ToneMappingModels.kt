@@ -5,6 +5,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 enum class PlaybackRenderBackend {
     STANDARD_EXO,
+    // Serialized migration token only; normalizeSupportedBackend maps it to STANDARD_EXO.
     EXPERIMENTAL_GL,
     EXPERIMENTAL_MPV_ANDROID,
     EXPERIMENTAL_MPV_EMBEDDED,
@@ -15,7 +16,7 @@ enum class PlaybackRenderBackend {
 fun PlaybackRenderBackend.normalizeSupportedBackend(): PlaybackRenderBackend =
     when (this) {
         PlaybackRenderBackend.STANDARD_EXO -> PlaybackRenderBackend.STANDARD_EXO
-        PlaybackRenderBackend.EXPERIMENTAL_GL -> PlaybackRenderBackend.EXPERIMENTAL_GL
+        PlaybackRenderBackend.EXPERIMENTAL_GL -> PlaybackRenderBackend.STANDARD_EXO
         PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID -> PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED
         PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED -> PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED
         PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER -> PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER
@@ -25,7 +26,6 @@ fun PlaybackRenderBackend.normalizeSupportedBackend(): PlaybackRenderBackend =
 fun supportedPlaybackRenderBackends(): List<PlaybackRenderBackend> =
     listOf(
         PlaybackRenderBackend.STANDARD_EXO,
-        PlaybackRenderBackend.EXPERIMENTAL_GL,
         PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED,
         PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER,
     )
