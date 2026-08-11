@@ -158,6 +158,8 @@ class AudioDspMpvOptionsTest {
         assertTrue(filters.contains("firequalizer"))
         assertTrue(filters.contains("delay="))
         assertTrue(filters.contains("gain_entry='"))
+        assertTrue(filters.contains("entry(10.0,"))
+        assertTrue(!filters.contains("10.0:"))
         assertTrue(filters.length > 500)
     }
 

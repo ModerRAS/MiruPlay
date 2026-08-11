@@ -367,7 +367,7 @@ class LaunchTestSourceContentModeTest {
             rawPreset = "punchy",
         )
 
-        assertEquals(PlaybackRenderBackend.EXPERIMENTAL_GL, overrides.backend)
+        assertEquals(PlaybackRenderBackend.STANDARD_EXO, overrides.backend)
         assertEquals(VideoRenderRuleKey.HDR10_PLUS, overrides.ruleKey)
         assertEquals(ToneMappingProfilePreset.PUNCHY, overrides.preset)
     }
@@ -461,7 +461,7 @@ class LaunchTestSourceContentModeTest {
                 hasBaseUrlExtra = false,
             ),
             playbackOverrides = LaunchPlaybackOverrides(
-                backend = PlaybackRenderBackend.EXPERIMENTAL_GL,
+                backend = PlaybackRenderBackend.STANDARD_EXO,
                 ruleKey = null,
                 preset = null,
             ),
@@ -513,7 +513,7 @@ class LaunchTestSourceContentModeTest {
                 hasBaseUrlExtra = false,
             ),
             playbackOverrides = LaunchPlaybackOverrides(
-                backend = PlaybackRenderBackend.EXPERIMENTAL_GL,
+                backend = PlaybackRenderBackend.STANDARD_EXO,
                 ruleKey = null,
                 preset = null,
             ),

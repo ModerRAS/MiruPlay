@@ -97,7 +97,7 @@ class PlaybackPreferencesManagerTest {
     }
 
     @Test
-    fun `manager persists and reloads customized format-aware tone mapping preferences`() = runBlocking {
+    fun `manager migrates legacy gl backend while preserving tone mapping preferences`() = runBlocking {
         val updated = FormatAwareToneMappingPreferences(
             defaultBackend = PlaybackRenderBackend.EXPERIMENTAL_GL,
             rules = FormatAwareToneMappingPreferences().rules + (
@@ -119,7 +119,7 @@ class PlaybackPreferencesManagerTest {
 
         val restored = manager.getFormatAwareToneMappingPreferences()
 
-        assertEquals(PlaybackRenderBackend.EXPERIMENTAL_GL, restored.defaultBackend)
+        assertEquals(PlaybackRenderBackend.STANDARD_EXO, restored.defaultBackend)
         assertEquals(
             ToneMappingCurvePreset.REINHARD,
             restored.rules.getValue(VideoRenderRuleKey.HDR10).curvePreset,

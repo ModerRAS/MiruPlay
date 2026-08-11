@@ -154,4 +154,29 @@ class EmbeddedMpvSessionOptionsTest {
         assertEquals("gpu-hq", options.vo)
         assertEquals("no", options.hwdec)
     }
+
+    @Test
+    fun `gles version parser falls back to es2 for missing capability`() {
+        assertEquals(2, resolveGlEsMajorVersion(0))
+        assertEquals(2, resolveGlEsMajorVersion(-1))
+        assertEquals(3, resolveGlEsMajorVersion(0x00030000))
+    }
+
+    @Test
+    fun `gles2 devices use direct mediacodec output regardless of runtime abi`() {
+        assertEquals(
+            "mediacodec_embed",
+            effectiveEmbeddedMpvVideoOutput(
+                runtimeAbiIs32Bit = false,
+                glEsMajorVersion = 2,
+            ),
+        )
+        assertEquals(
+            "mediacodec_embed",
+            effectiveEmbeddedMpvVideoOutput(
+                runtimeAbiIs32Bit = true,
+                glEsMajorVersion = 2,
+            ),
+        )
+    }
 }

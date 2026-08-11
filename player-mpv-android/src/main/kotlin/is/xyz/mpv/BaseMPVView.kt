@@ -44,8 +44,12 @@ abstract class BaseMPVView @JvmOverloads constructor(
     }
 
     fun setVo(vo: String) {
-        voInUse = vo
+        updateVoInUse(vo)
         MPVLib.setOptionString("vo", vo)
+    }
+
+    protected fun updateVoInUse(vo: String) {
+        voInUse = vo
     }
 
     protected fun isPlaybackSurfaceAttached(): Boolean = surfaceAttached

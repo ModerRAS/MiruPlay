@@ -160,8 +160,6 @@ import com.miruplay.tv.ui.components.toMiruPlayInputIntent
 import com.miruplay.tv.ui.components.tvActivateKeyEvent
 import com.miruplay.tv.player.AudioTrack
 import com.miruplay.tv.player.LibassSubtitleSurfaceView
-import com.miruplay.tv.player.resolveDeviceGlEsMajorVersion
-import com.miruplay.tv.player.shouldUseDedicatedExperimentalGlSurface
 import com.miruplay.tv.ui.theme.AnimeRed
 import com.miruplay.tv.ui.theme.DarkSurface
 import com.miruplay.tv.ui.theme.FocusBorder
@@ -307,7 +305,6 @@ private fun PlayerScreenContent(
     val displaySubtitle by viewModel.displaySubtitle.collectAsStateWithLifecycle()
     val currentVideoSignalDescriptor by viewModel.currentVideoSignalDescriptor.collectAsStateWithLifecycle()
     val currentRenderRuleKey by viewModel.currentRenderRuleKey.collectAsStateWithLifecycle()
-    val currentToneMappingRuleSet by viewModel.currentToneMappingRuleSet.collectAsStateWithLifecycle()
     val currentRequestedBackend by viewModel.currentRequestedBackend.collectAsStateWithLifecycle()
     val currentActiveBackend by viewModel.currentActiveBackend.collectAsStateWithLifecycle()
     val fallbackReason by viewModel.fallbackReason.collectAsStateWithLifecycle()
@@ -315,9 +312,6 @@ private fun PlayerScreenContent(
     val subtitleBackgroundTransparent by viewModel.subtitleBackgroundTransparent.collectAsStateWithLifecycle()
     val keepScreenOn = playbackState.keepsScreenOn()
     val view = LocalView.current
-    val deviceGlEsMajorVersion = remember(view.context) {
-        resolveDeviceGlEsMajorVersion(view.context)
-    }
     val playerFocusRequester = remember { FocusRequester() }
     val timelineFocusRequester = remember { FocusRequester() }
     val transportFocusRequester = remember { FocusRequester() }
@@ -338,46 +332,8 @@ private fun PlayerScreenContent(
     }
     val screenOwnerToken = remember(playbackSource) { Any() }
     var hasStartedPlayback by remember(playbackSource) { mutableStateOf(false) }
-    var preferDedicatedExperimentalSurface by remember(playbackSource) {
-        mutableStateOf(
-            latchDedicatedExperimentalSurfaceForPlaybackSession(
-                wasAlreadyLatched = false,
-                deviceGlEsMajorVersion = deviceGlEsMajorVersion,
-                activeBackend = currentActiveBackend,
-                requestedBackend = currentRequestedBackend,
-                defaultBackend = formatAwarePreferences.defaultBackend,
-            ),
-        )
-    }
-    LaunchedEffect(
-        currentActiveBackend,
-        currentRequestedBackend,
-        formatAwarePreferences.defaultBackend,
-    ) {
-        preferDedicatedExperimentalSurface = latchDedicatedExperimentalSurfaceForPlaybackSession(
-            wasAlreadyLatched = preferDedicatedExperimentalSurface,
-            deviceGlEsMajorVersion = deviceGlEsMajorVersion,
-            activeBackend = currentActiveBackend,
-            requestedBackend = currentRequestedBackend,
-            defaultBackend = formatAwarePreferences.defaultBackend,
-        )
-    }
-    val playerViewHost = remember(
-        currentActiveBackend,
-        currentRequestedBackend,
-        hasStartedPlayback,
-        formatAwarePreferences.defaultBackend,
-        preferCapturableTextureView,
-        preferDedicatedExperimentalSurface,
-    ) {
-        resolvePlayerViewHost(
-            activeBackend = currentActiveBackend,
-            requestedBackend = currentRequestedBackend,
-            hasStartedPlayback = hasStartedPlayback,
-            defaultBackend = formatAwarePreferences.defaultBackend,
-            preferCapturableTextureView = preferCapturableTextureView,
-            preferDedicatedGlSurface = preferDedicatedExperimentalSurface,
-        )
+    val playerViewHost = remember(preferCapturableTextureView) {
+        resolvePlayerViewHost(preferCapturableTextureView)
     }
     val context = LocalContext.current
     var openMenu by remember { mutableStateOf<PlayerMenu?>(null) }
@@ -390,7 +346,6 @@ private fun PlayerScreenContent(
     var lastStandardDebugCaptureAttempt by remember(playbackSource) {
         mutableStateOf<StandardDebugCaptureAttempt?>(null)
     }
-    val shouldShowExperimentalSurface = playerViewHost == PlayerViewHost.DedicatedGlSurface
     val shouldCaptureStandardDebugFrame = shouldScheduleStandardDebugCapture(
         pendingLabel = viewModel.pendingGlFrameCaptureLabel(),
         playbackState = playbackState,
@@ -491,15 +446,10 @@ private fun PlayerScreenContent(
     }
 
     LaunchedEffect(
-        shouldShowExperimentalSurface,
         playbackState,
         currentPosition,
         playerViewRef,
     ) {
-        if (shouldShowExperimentalSurface) {
-            playerViewRef = null
-            return@LaunchedEffect
-        }
         val pendingLabel = viewModel.pendingGlFrameCaptureLabel() ?: return@LaunchedEffect
         if (!shouldCaptureStandardDebugFrame) {
             return@LaunchedEffect
@@ -556,11 +506,10 @@ private fun PlayerScreenContent(
         playerViewHost,
         currentActiveBackend,
         currentRequestedBackend,
-        shouldShowExperimentalSurface,
     ) {
         Log.i(
             "PlayerScreen",
-            "Resolved video host host=$playerViewHost active=$currentActiveBackend requested=$currentRequestedBackend experimental=$shouldShowExperimentalSurface",
+            "Resolved video host host=$playerViewHost active=$currentActiveBackend requested=$currentRequestedBackend",
         )
     }
 
@@ -630,56 +579,7 @@ private fun PlayerScreenContent(
         val player = viewModel.getPlayer()
         val displayPlayer = remember(player) { player?.let(::SubtitleTransformingPlayer) }
         val usesNativeVideoHost = viewModel.usesVlcVideoLayout()
-        if (shouldShowExperimentalSurface) {
-            AndroidView(
-                factory = { context ->
-                    Log.i(
-                        "PlayerScreen",
-                        "Creating GLVideoSurfaceView host active=$currentActiveBackend requested=$currentRequestedBackend hasPlayer=${player != null}",
-                    )
-                    GLVideoSurfaceView(context).apply {
-                        isClickable = true
-                        isFocusable = false
-                        isFocusableInTouchMode = false
-                        setOnClickListener { viewModel.showControls() }
-                        setOnFrameCaptured { label ->
-                            viewModel.clearPendingGlFrameCaptureLabel(label)
-                        }
-                        bind(
-                            player = player,
-                            ruleSet = currentToneMappingRuleSet,
-                            signalDescriptor = currentVideoSignalDescriptor,
-                        )
-                        if (shouldCaptureStandardDebugFrame) {
-                            viewModel.pendingGlFrameCaptureLabel()?.let { label ->
-                                post { captureNextRenderedFrame(label) }
-                            }
-                        }
-                    }
-                },
-                update = { glView ->
-                    Log.i(
-                        "PlayerScreen",
-                        "Updating GLVideoSurfaceView host active=$currentActiveBackend requested=$currentRequestedBackend hasPlayer=${player != null}",
-                    )
-                    glView.setOnClickListener { viewModel.showControls() }
-                    glView.setOnFrameCaptured { label ->
-                        viewModel.clearPendingGlFrameCaptureLabel(label)
-                    }
-                    glView.bind(
-                        player = player,
-                        ruleSet = currentToneMappingRuleSet,
-                        signalDescriptor = currentVideoSignalDescriptor,
-                    )
-                    if (shouldCaptureStandardDebugFrame) {
-                        viewModel.pendingGlFrameCaptureLabel()?.let { label ->
-                            glView.post { glView.captureNextRenderedFrame(label) }
-                        }
-                    }
-                },
-                modifier = Modifier.fillMaxSize(),
-            )
-        } else if (usesNativeVideoHost) {
+        if (usesNativeVideoHost) {
             AndroidView(
                 factory = { context ->
                     FrameLayout(context).apply {
@@ -910,54 +810,15 @@ internal fun shouldScheduleStandardDebugCapture(
 internal enum class PlayerViewHost(@LayoutRes val layoutResId: Int) {
     SurfaceView(R.layout.player_view_surface),
     SurfaceTextureView(R.layout.player_view_texture),
-    DedicatedGlSurface(0),
 }
 
-internal fun resolvePlayerViewHost(
-    activeBackend: PlaybackRenderBackend,
-    requestedBackend: PlaybackRenderBackend,
-    hasStartedPlayback: Boolean = true,
-    defaultBackend: PlaybackRenderBackend = PlaybackRenderBackend.STANDARD_EXO,
-    preferCapturableTextureView: Boolean = false,
-    preferDedicatedGlSurface: Boolean = false,
-): PlayerViewHost =
-    if (preferDedicatedGlSurface) {
-        PlayerViewHost.DedicatedGlSurface
-    } else if (
-        !hasStartedPlayback &&
-        defaultBackend == PlaybackRenderBackend.EXPERIMENTAL_GL
-    ) {
-        PlayerViewHost.DedicatedGlSurface
-    } else if (
-        preferCapturableTextureView ||
-        activeBackend == PlaybackRenderBackend.EXPERIMENTAL_GL ||
-        requestedBackend == PlaybackRenderBackend.EXPERIMENTAL_GL
-    ) {
-        PlayerViewHost.SurfaceTextureView
-    } else {
-        PlayerViewHost.SurfaceView
-    }
+internal fun resolvePlayerViewHost(preferCapturableTextureView: Boolean): PlayerViewHost =
+    if (preferCapturableTextureView) PlayerViewHost.SurfaceTextureView else PlayerViewHost.SurfaceView
 
 internal fun latchCapturableTextureViewForPlaybackSession(
     wasAlreadyLatched: Boolean,
     pendingLabel: String?,
 ): Boolean = wasAlreadyLatched || !pendingLabel.isNullOrBlank()
-
-internal fun latchDedicatedExperimentalSurfaceForPlaybackSession(
-    wasAlreadyLatched: Boolean,
-    deviceGlEsMajorVersion: Int,
-    activeBackend: PlaybackRenderBackend,
-    requestedBackend: PlaybackRenderBackend,
-    defaultBackend: PlaybackRenderBackend,
-): Boolean =
-    wasAlreadyLatched || (
-        shouldUseDedicatedExperimentalGlSurface(deviceGlEsMajorVersion) &&
-            (
-                activeBackend == PlaybackRenderBackend.EXPERIMENTAL_GL ||
-                    requestedBackend == PlaybackRenderBackend.EXPERIMENTAL_GL ||
-                    defaultBackend == PlaybackRenderBackend.EXPERIMENTAL_GL
-                )
-        )
 
 private tailrec fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this

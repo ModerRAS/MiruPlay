@@ -13,6 +13,7 @@ fun buildEmbeddedMpvSessionOptions(
     shaderPaths: List<String>,
     speed: Float = 1.0f,
     runtimeAbiIs32Bit: Boolean = isEmbeddedMpvRuntime32Bit(),
+    glEsMajorVersion: Int = 3,
     debugConfig: EmbeddedMpvDebugConfig = EmbeddedMpvDebugConfig(),
     audioDspConfig: AudioDspConfig = AudioDspConfig.neutral(),
 ): MiruMpvSurfaceView.SessionOptions {
@@ -26,6 +27,7 @@ fun buildEmbeddedMpvSessionOptions(
     return MiruMpvSurfaceView.SessionOptions(
         vo = effectiveEmbeddedMpvVideoOutput(
             runtimeAbiIs32Bit = runtimeAbiIs32Bit,
+            glEsMajorVersion = glEsMajorVersion,
             debugConfig = debugConfig,
         ),
         hwdec = effectiveEmbeddedMpvHwdec(debugConfig),
@@ -130,8 +132,13 @@ private fun resolveEmbeddedMpvPeakDetection(strategy: PeakDetectionStrategy): Em
 
 fun effectiveEmbeddedMpvVideoOutput(
     runtimeAbiIs32Bit: Boolean = isEmbeddedMpvRuntime32Bit(),
+    glEsMajorVersion: Int = 3,
     debugConfig: EmbeddedMpvDebugConfig = EmbeddedMpvDebugConfig(),
-): String = debugConfig.vo ?: if (runtimeAbiIs32Bit) "gpu-hq" else "gpu-next"
+): String = debugConfig.vo ?: when {
+    glEsMajorVersion < 3 -> "mediacodec_embed"
+    runtimeAbiIs32Bit -> "gpu-hq"
+    else -> "gpu-next"
+}
 
 fun effectiveEmbeddedMpvHwdec(
     debugConfig: EmbeddedMpvDebugConfig = EmbeddedMpvDebugConfig(),
