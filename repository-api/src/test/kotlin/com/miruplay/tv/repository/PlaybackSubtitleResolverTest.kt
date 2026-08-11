@@ -11,7 +11,7 @@ import org.junit.Test
 
 class PlaybackSubtitleResolverTest {
     @Test
-    fun `resolver attaches indexed WebDAV subtitles and keeps explicit tracks`() = runBlocking {
+    fun `resolver merges indexed and listed WebDAV subtitles`() = runBlocking {
         val mediaSource = MediaSourceInfoConventions.webDav(
             url = "https://dav.example/anime",
             name = "DAV",
@@ -30,6 +30,15 @@ class PlaybackSubtitleResolverTest {
                 ),
             ),
             mediaSources = FakeSourceRepository(mediaSource),
+            listSiblingPaths = { source, videoPath ->
+                assertEquals(mediaSource, source)
+                assertEquals("/Show/Episode 01.mkv", videoPath)
+                listOf(
+                    "/Show/Episode 01.zh-CN.srt",
+                    "/Show/Episode 01.ja.ass",
+                    "/Show/Episode 02.srt",
+                )
+            },
         )
 
         val resolved = resolver.resolve(
@@ -44,9 +53,43 @@ class PlaybackSubtitleResolverTest {
             listOf(
                 "https://dav.example/anime/Show/Episode%2001.ass",
                 "https://dav.example/anime/Show/Episode%2001.zh-CN.srt",
+                "https://dav.example/anime/Show/Episode%2001.ja.ass",
             ),
             resolved.subtitleTracks.map { it.path },
         )
+    }
+
+    @Test
+    fun `resolver discovers listed subtitles before index refresh`() = runBlocking {
+        val mediaSource = MediaSourceInfoConventions.webDav(
+            url = "https://dav.example/anime",
+            name = "DAV",
+        ).copy(id = 7L)
+        val resolver = PlaybackSubtitleResolver(
+            index = FakeIndexRepository(emptyList()),
+            mediaSources = FakeSourceRepository(mediaSource),
+            listSiblingPaths = { _, _ ->
+                listOf(
+                    "/Show/Episode 01.mkv",
+                    "/Show/Episode 01.zh-Hant.ass",
+                    "/Show/readme.txt",
+                )
+            },
+        )
+
+        val resolved = resolver.resolve(
+            PlaybackSource(
+                uri = "https://dav.example/anime/Show/Episode%2001.mkv",
+                mediaSourceId = "anime",
+                episodeId = "7:/Show/Episode 01.mkv",
+            ),
+        )
+
+        assertEquals(
+            listOf("https://dav.example/anime/Show/Episode%2001.zh-Hant.ass"),
+            resolved.subtitleTracks.map { it.path },
+        )
+        assertEquals("zh-Hant", resolved.subtitleTracks.single().language)
     }
 
     @Test

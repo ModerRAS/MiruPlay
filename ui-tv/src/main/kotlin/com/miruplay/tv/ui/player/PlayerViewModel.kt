@@ -5,6 +5,7 @@ import android.view.View
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.EpisodeVersion
 import com.miruplay.tv.model.EpisodeVersionSelectionPolicy
@@ -62,6 +63,7 @@ class PlayerViewModel @Inject constructor(
     private val progressRepository: PlaybackProgressRepository,
     private val metadataRepository: Lazy<MetadataRepository>,
     private val mediaRepository: Lazy<MediaSourceRepository>,
+    private val mediaSourceFactory: Lazy<MediaSourceFactory>,
     private val mediaIndexRepository: Lazy<MediaIndexRepository>,
     private val bangumiSyncEngine: Lazy<BangumiSyncEngine>,
     private val playbackPreferences: PlaybackPreferencesRepository,
@@ -194,6 +196,9 @@ class PlayerViewModel @Inject constructor(
         PlaybackSubtitleResolver(
             index = mediaIndexRepository.get(),
             mediaSources = mediaRepository.get(),
+            listSiblingPaths = { mediaSourceInfo, videoPath ->
+                listPlaybackSiblingPaths(mediaSourceFactory.get(), mediaSourceInfo, videoPath)
+            },
         )
     }
 
