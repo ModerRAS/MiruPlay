@@ -38,7 +38,7 @@ import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.NextPlaybackSourceResolver
-import com.miruplay.tv.repository.PlaybackSubtitleResolver
+import com.miruplay.tv.repository.PlaybackSidecarResolver
 import com.miruplay.tv.repository.PlaybackPreferencesRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
 import com.miruplay.tv.repository.ScanPreferencesRepository
@@ -192,8 +192,8 @@ class PlayerViewModel @Inject constructor(
             mergeSameAnimeEnabled = { scanPreferences.getPreferences().mergeSameAnimeEnabled },
         )
     }
-    private val playbackSubtitleResolver by lazy {
-        PlaybackSubtitleResolver(
+    private val playbackSidecarResolver by lazy {
+        PlaybackSidecarResolver(
             index = mediaIndexRepository.get(),
             mediaSources = mediaRepository.get(),
             listSiblingPaths = { mediaSourceInfo, videoPath ->
@@ -204,7 +204,7 @@ class PlayerViewModel @Inject constructor(
 
     fun play(source: PlaybackSource, ownerToken: Any? = activeScreenOwnerToken) {
         viewModelScope.launch {
-            val resolvedSource = playbackSubtitleResolver.resolve(source)
+            val resolvedSource = playbackSidecarResolver.resolve(source)
             _errorMessage.value = null
             pendingSeekPositionMs = null
             _currentPosition.value = resolvedSource.startPosition.coerceAtLeast(0L)

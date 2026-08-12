@@ -22,8 +22,10 @@ import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.LoadEventInfo
 import androidx.media3.exoplayer.source.MediaLoadData
+import androidx.media3.exoplayer.source.MergingMediaSource
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
@@ -46,6 +48,7 @@ import com.miruplay.tv.player.ijk.android.MiruIjkPlaybackRequest
 import com.miruplay.tv.player.ijk.android.MiruIjkPlayerListener
 import com.miruplay.tv.player.ijk.android.MiruIjkSurfaceView
 import `is`.xyz.mpv.MiruMpvSurfaceView
+import `is`.xyz.mpv.subtitle.NativeAssRenderer
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.io.IOException
@@ -108,6 +111,7 @@ class ExoPlaybackController @Inject constructor(
     private val exoSubtitleSelections = mutableListOf<ExoTrackSelection>()
     private val exoAudioSelections = mutableListOf<ExoTrackSelection>()
     private val embeddedSubtitleTrackIds = mutableListOf<Int>()
+    private val embeddedAudioTrackIds = mutableListOf<Int>()
     private var selectedSubtitleTrackIndex: Int? = null
     private var selectedAudioTrackIndex: Int? = null
     private var currentSource: PlaybackSource? = null
@@ -166,8 +170,21 @@ class ExoPlaybackController @Inject constructor(
         subtitleSelectionWasManual = false
         _requestedRenderBackend.value = sessionState.effectiveRequestedBackend(playbackPreferences.defaultBackend)
         _sessionRuleOverrides.value = sessionState.ruleOverrides
-        refreshRuntimeConfig(null)
         val httpConfig = httpRequestResolver.configFor(source)
+        externalAudioUnsupportedMessage(
+            backend = _requestedRenderBackend.value,
+            hasExternalAudio = source.externalAudioTracks.isNotEmpty(),
+            isWebDav = httpConfig.isWebDav(source.uri),
+        )?.let { message ->
+            stop(clearSessionState = false)
+            withContext(Dispatchers.Main) {
+                _requestedRenderBackend.value = sessionState.effectiveRequestedBackend(playbackPreferences.defaultBackend)
+                currentSource = source
+                _state.value = PlaybackState.Error(source, message)
+            }
+            return
+        }
+        refreshRuntimeConfig(null)
         if (
             _activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID &&
             !httpConfig.isWebDav(source.uri)
@@ -217,6 +234,7 @@ class ExoPlaybackController @Inject constructor(
                     "media_source_id" to source.mediaSourceId,
                     "start_position_ms" to source.startPosition.toString(),
                     "subtitle_count" to source.subtitleTracks.size.toString(),
+                    "external_audio_count" to source.externalAudioTracks.size.toString(),
                 ),
             )
 
@@ -262,7 +280,25 @@ class ExoPlaybackController @Inject constructor(
                     .setSubtitleConfigurations(subtitleConfigs)
                     .build()
 
-                player.setMediaItem(mediaItem)
+                if (source.externalAudioTracks.isEmpty()) {
+                    player.setMediaItem(mediaItem)
+                } else {
+                    val mediaSourceFactory = standardMediaSourceFactory(player)
+                    val mergedSources = buildList {
+                        add(mediaSourceFactory.createMediaSource(mediaItem))
+                        source.externalAudioTracks.forEach { track ->
+                            add(
+                                mediaSourceFactory.createMediaSource(
+                                    MediaItem.Builder()
+                                        .setUri(track.path)
+                                        .setMediaMetadata(MediaMetadata.Builder().setTitle(track.title).build())
+                                        .build(),
+                                ),
+                            )
+                        }
+                    }
+                    player.setMediaSource(MergingMediaSource(*mergedSources.toTypedArray()))
+                }
                 if (source.startPosition > 0) {
                     player.seekTo(source.startPosition)
                     autoResumeSeekCalled = true
@@ -461,6 +497,7 @@ class ExoPlaybackController @Inject constructor(
             exoSubtitleSelections.clear()
             exoAudioSelections.clear()
             embeddedSubtitleTrackIds.clear()
+            embeddedAudioTrackIds.clear()
             selectedSubtitleTrackIndex = null
             selectedAudioTrackIndex = null
             subtitleSelectionWasManual = false
@@ -518,14 +555,19 @@ class ExoPlaybackController @Inject constructor(
     }
 
     override suspend fun setAudioTrack(trackIndex: Int) {
-        if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER) {
-            withContext(Dispatchers.Main) {
+        when (_activeRenderBackend.value) {
+            PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER -> withContext(Dispatchers.Main) {
                 val rawStreamIndex = ijkAudioRawStreamIds.getOrNull(trackIndex) ?: return@withContext
                 ijkView?.selectAudioRawStream(rawStreamIndex)
                 selectedAudioTrackIndex = trackIndex
             }
-        } else {
-            selectExoTrack(C.TRACK_TYPE_AUDIO, trackIndex)
+            PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED -> withContext(Dispatchers.Main) {
+                val nativeTrackId = embeddedAudioTrackIds.getOrNull(trackIndex) ?: return@withContext
+                embeddedMpvView?.setAudioTrack(nativeTrackId)
+                selectedAudioTrackIndex = trackIndex
+            }
+            PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID -> Unit
+            else -> selectExoTrack(C.TRACK_TYPE_AUDIO, trackIndex)
         }
     }
 
@@ -616,6 +658,7 @@ class ExoPlaybackController @Inject constructor(
                         path = embeddedMpvPlaybackUri ?: source.uri,
                         startPositionMs = embeddedMpvPositionMs,
                         externalSubtitlePaths = source.subtitleTracks.map { it.path },
+                        externalAudioPaths = source.externalAudioTracks.map { it.path },
                     )
                 }
             }
@@ -1515,6 +1558,7 @@ class ExoPlaybackController @Inject constructor(
             path = embeddedMpvPlaybackUri ?: source.uri,
             startPositionMs = embeddedMpvPositionMs,
             externalSubtitlePaths = source.subtitleTracks.map { it.path },
+            externalAudioPaths = source.externalAudioTracks.map { it.path },
         )
     }
 
@@ -1534,7 +1578,7 @@ class ExoPlaybackController @Inject constructor(
             return existing
         }
         val created = MiruMpvSurfaceView(container.context).apply {
-            onSubtitleTracksChanged = { view -> refreshEmbeddedMpvSubtitleTracks(view) }
+            onTracksChanged = { view -> refreshEmbeddedMpvTracks(view) }
             onStateChanged = { snapshot ->
                 embeddedMpvPositionMs = snapshot.positionMs
                 embeddedMpvDurationMs = snapshot.durationMs
@@ -1605,7 +1649,7 @@ class ExoPlaybackController @Inject constructor(
         return created
     }
 
-    private fun refreshEmbeddedMpvSubtitleTracks(view: MiruMpvSurfaceView) {
+    private fun refreshEmbeddedMpvTracks(view: MiruMpvSurfaceView) {
         val tracks = view.subtitleTracks()
         availableSubtitles.clear()
         embeddedSubtitleTrackIds.clear()
@@ -1636,6 +1680,23 @@ class ExoPlaybackController @Inject constructor(
                 view.setSubtitleTrack(nativeTrackId)
                 selectedSubtitleTrackIndex = preferredIndex
             }
+        }
+
+        availableAudioTracks.clear()
+        embeddedAudioTrackIds.clear()
+        selectedAudioTrackIndex = null
+        view.audioTracks().forEach { track ->
+            val index = availableAudioTracks.size
+            availableAudioTracks.add(
+                AudioTrack(
+                    index = index,
+                    language = track.language,
+                    title = track.title,
+                    codec = track.codec,
+                ),
+            )
+            embeddedAudioTrackIds.add(track.id)
+            if (track.selected) selectedAudioTrackIndex = index
         }
     }
 
@@ -1707,6 +1768,17 @@ class ExoPlaybackController @Inject constructor(
         )
     }
 
+    private fun standardMediaSourceFactory(player: ExoPlayer): DefaultMediaSourceFactory {
+        val libassSession = checkNotNull(LibassSubtitleRegistry.sessionFor(player))
+        return DefaultMediaSourceFactory(
+            ZlibSubtitleProtectingDataSourceFactory(dataSourceFactory),
+            ZlibSubtitleExtractorsFactory(
+                session = libassSession,
+                nativeAvailable = NativeAssRenderer::isAvailable,
+            ),
+        )
+    }
+
     private fun activeExoPlayer(): ExoPlayer = standardExoPlayer()
 
     private fun activeExoPlayerOrNull(): ExoPlayer? = standardPlayerOrNull()
@@ -1746,6 +1818,23 @@ class ExoPlaybackController @Inject constructor(
     }
 
     private fun standardPlayerOrNull(): ExoPlayer? = standardExoPlayer
+}
+
+internal fun externalAudioUnsupportedMessage(
+    backend: PlaybackRenderBackend,
+    hasExternalAudio: Boolean,
+    isWebDav: Boolean = false,
+): String? {
+    if (!hasExternalAudio) return null
+    return when {
+        backend == PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER ->
+            "IJKPlayer 不支持加载外挂音轨"
+        backend == PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID ->
+            "外部 mpv-android 不支持通过 Intent 加载外挂音轨"
+        backend == PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED && isWebDav ->
+            "嵌入式 mpv 当前不支持为 WebDAV 视频加载外挂音轨"
+        else -> null
+    }
 }
 
 internal data class EmbeddedMpvStartupState(

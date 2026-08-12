@@ -40,6 +40,13 @@ data class SubtitleTrack(
 )
 
 @Serializable
+data class ExternalAudioTrack(
+    val language: String = "und",
+    val title: String = "",
+    val path: String,
+)
+
+@Serializable
 data class AudioTrack(
     val index: Int,
     val language: String = "und",

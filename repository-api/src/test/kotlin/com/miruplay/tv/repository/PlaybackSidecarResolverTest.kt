@@ -9,14 +9,14 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-class PlaybackSubtitleResolverTest {
+class PlaybackSidecarResolverTest {
     @Test
     fun `resolver merges indexed and listed WebDAV subtitles`() = runBlocking {
         val mediaSource = MediaSourceInfoConventions.webDav(
             url = "https://dav.example/anime",
             name = "DAV",
         ).copy(id = 7L)
-        val resolver = PlaybackSubtitleResolver(
+        val resolver = PlaybackSidecarResolver(
             index = FakeIndexRepository(
                 listOf(
                     MediaIndexEntry(
@@ -36,7 +36,10 @@ class PlaybackSubtitleResolverTest {
                 listOf(
                     "/Show/Episode 01.zh-CN.srt",
                     "/Show/Episode 01.ja.ass",
+                    "/Show/Episode 01.en.flac",
+                    "/Show/Episode 01.ja.ac3",
                     "/Show/Episode 02.srt",
+                    "/Show/Episode 02.flac",
                 )
             },
         )
@@ -57,6 +60,14 @@ class PlaybackSubtitleResolverTest {
             ),
             resolved.subtitleTracks.map { it.path },
         )
+        assertEquals(
+            listOf(
+                "https://dav.example/anime/Show/Episode%2001.en.flac",
+                "https://dav.example/anime/Show/Episode%2001.ja.ac3",
+            ),
+            resolved.externalAudioTracks.map { it.path },
+        )
+        assertEquals(listOf("en", "ja"), resolved.externalAudioTracks.map { it.language })
     }
 
     @Test
@@ -65,7 +76,7 @@ class PlaybackSubtitleResolverTest {
             url = "https://dav.example/anime",
             name = "DAV",
         ).copy(id = 7L)
-        val resolver = PlaybackSubtitleResolver(
+        val resolver = PlaybackSidecarResolver(
             index = FakeIndexRepository(emptyList()),
             mediaSources = FakeSourceRepository(mediaSource),
             listSiblingPaths = { _, _ ->
@@ -95,7 +106,7 @@ class PlaybackSubtitleResolverTest {
     @Test
     fun `resolver leaves direct playback without an indexed episode unchanged`() = runBlocking {
         val source = PlaybackSource(uri = "https://example.test/video.mkv", mediaSourceId = "direct")
-        val resolver = PlaybackSubtitleResolver(
+        val resolver = PlaybackSidecarResolver(
             index = FakeIndexRepository(emptyList()),
             mediaSources = FakeSourceRepository(),
         )

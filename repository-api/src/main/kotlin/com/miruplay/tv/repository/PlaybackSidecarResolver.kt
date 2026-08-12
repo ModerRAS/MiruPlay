@@ -3,10 +3,12 @@ package com.miruplay.tv.repository
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.PlaybackSource
+import com.miruplay.tv.model.buildExternalAudioTracks
 import com.miruplay.tv.model.buildExternalSubtitleTracks
+import com.miruplay.tv.model.matchingExternalAudioPaths
 import com.miruplay.tv.model.matchingExternalSubtitlePaths
 
-class PlaybackSubtitleResolver(
+class PlaybackSidecarResolver(
     private val index: MediaIndexRepository,
     private val mediaSources: MediaSourceRepository,
     private val listSiblingPaths: suspend (MediaSourceInfo, String) -> List<String> = { _, _ -> emptyList() },
@@ -25,17 +27,19 @@ class PlaybackSubtitleResolver(
             mediaSource.playableUriForIndexedPath(indexed.path) == source.uri
         } ?: entries.firstOrNull { indexed -> indexed.path == episodePath }
         val videoPath = entry?.path ?: episodePath
-        val siblingSubtitlePaths = matchingExternalSubtitlePaths(
-            videoPath = videoPath,
-            siblingPaths = listSiblingPaths(mediaSource, videoPath),
-        )
-        val discoveredTracks = buildExternalSubtitleTracks(
-            (entry?.externalSubtitlePaths.orEmpty() + siblingSubtitlePaths)
+        val siblingPaths = listSiblingPaths(mediaSource, videoPath)
+        val discoveredSubtitles = buildExternalSubtitleTracks(
+            (entry?.externalSubtitlePaths.orEmpty() + matchingExternalSubtitlePaths(videoPath, siblingPaths))
                 .map(mediaSource::playableUriForIndexedPath),
         )
-        if (discoveredTracks.isEmpty()) return source
+        val discoveredAudio = buildExternalAudioTracks(
+            matchingExternalAudioPaths(videoPath, siblingPaths)
+                .map(mediaSource::playableUriForIndexedPath),
+        )
+        if (discoveredSubtitles.isEmpty() && discoveredAudio.isEmpty()) return source
         return source.copy(
-            subtitleTracks = (source.subtitleTracks + discoveredTracks).distinctBy { it.path },
+            subtitleTracks = (source.subtitleTracks + discoveredSubtitles).distinctBy { it.path },
+            externalAudioTracks = (source.externalAudioTracks + discoveredAudio).distinctBy { it.path },
         )
     }
 }
