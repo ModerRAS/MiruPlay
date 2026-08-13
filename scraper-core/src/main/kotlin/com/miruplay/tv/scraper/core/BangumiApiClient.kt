@@ -10,6 +10,8 @@ import com.miruplay.tv.repository.BangumiApiPayloads
 import com.miruplay.tv.repository.BangumiCollectionService
 import com.miruplay.tv.repository.BangumiEpisodeCollection
 import com.miruplay.tv.repository.BangumiEpisodeCollectionType
+import com.miruplay.tv.repository.BangumiEpisodeCommentsService
+import com.miruplay.tv.repository.BangumiEpisodeComment
 import com.miruplay.tv.repository.BangumiEpisodeMetadata
 import com.miruplay.tv.repository.BangumiJsonMapper
 import com.miruplay.tv.repository.BangumiSubjectCollection
@@ -36,12 +38,14 @@ import java.util.concurrent.TimeUnit
 
 class BangumiApiClient(
     baseUrl: String = DEFAULT_BASE_URL,
+    websiteBaseUrl: String = DEFAULT_WEBSITE_BASE_URL,
     private val tokenProvider: () -> String? = { null },
     private val userAgent: String = DEFAULT_USER_AGENT,
     private val normalizeQuery: (String) -> String = { it },
     private val archiveSearch: BangumiArchiveSubjectSearch? = null,
-) : BangumiCollectionService {
+) : BangumiCollectionService, BangumiEpisodeCommentsService {
     private val baseHttpUrl: HttpUrl = baseUrl.toHttpUrl()
+    private val websiteHttpUrl: HttpUrl = websiteBaseUrl.toHttpUrl()
     private val client = BangumiProxyAwareOkHttpClient(defaultClient())
     private val json = Json { ignoreUnknownKeys = true }
     private val mediaType = "application/json".toMediaType()
@@ -216,6 +220,38 @@ class BangumiApiClient(
         }
     }
 
+    override suspend fun getEpisodeComments(
+        episodeId: Int,
+    ): Result<List<BangumiEpisodeComment>> = PerformanceLog.measureSuspendResult(
+        tag = PERFORMANCE_TAG,
+        operation = "bangumi.episode_comments",
+        attributes = mapOf("episode_id" to episodeId.toString()),
+    ) {
+        withContext(Dispatchers.IO) {
+            try {
+                val url = websiteHttpUrl.newBuilder().encodedPath("/ep/$episodeId").build()
+                val request = Request.Builder()
+                    .url(url)
+                    .addHeader("User-Agent", userAgent)
+                    .addHeader("Accept", "text/html,application/xhtml+xml")
+                    .get()
+                    .build()
+                Result.success(
+                    BangumiEpisodeCommentHtmlParser.parse(
+                        html = executeText(request),
+                        baseUrl = url.toString(),
+                    ),
+                )
+            } catch (error: Exception) {
+                Result.failure(
+                    AppError.ScrapingError.ApiError(
+                        SOURCE_NAME,
+                        error.message ?: "Failed to read episode comments",
+                    ),
+                )
+            }
+        }
+    }
     override suspend fun getCurrentUser(): Result<BangumiUser> = withContext(Dispatchers.IO) {
         try {
             requireToken()
@@ -342,6 +378,21 @@ class BangumiApiClient(
                 }
             }
 
+    private fun executeText(request: Request): String = PerformanceLog.measure(
+        tag = PERFORMANCE_TAG,
+        operation = "bangumi.http_text",
+        attributes = request.performanceAttributes(),
+    ) {
+        client.newCall(request).execute().use { response ->
+            val body = response.body?.string().orEmpty()
+            if (!response.isSuccessful) {
+                throw IllegalStateException("HTTP ${response.code}: ${body.ifBlank { response.message }}")
+            }
+            if (body.isBlank()) throw IllegalStateException("Empty response")
+            body
+        }
+    }
+
     private fun executeJson(request: Request): JsonElement = PerformanceLog.measure(
         tag = PERFORMANCE_TAG,
         operation = "bangumi.http_json",
@@ -381,6 +432,7 @@ class BangumiApiClient(
 
     companion object {
         const val DEFAULT_BASE_URL = "https://api.bgm.tv"
+        const val DEFAULT_WEBSITE_BASE_URL = "https://bgm.tv"
         const val DEFAULT_USER_AGENT = "ModerRAS/MiruPlay/0.1.0 (https://github.com/ModerRAS/MiruPlay)"
         const val SOURCE_NAME = "Bangumi"
 

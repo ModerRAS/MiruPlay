@@ -46,6 +46,7 @@ class PlayerTimelineFocusTest {
             val speedFocusRequester = remember { FocusRequester() }
             val subtitlesFocusRequester = remember { FocusRequester() }
             val audioFocusRequester = remember { FocusRequester() }
+            val commentsFocusRequester = remember { FocusRequester() }
 
             LaunchedEffect(controlsVisible) {
                 if (controlsVisible) {
@@ -75,8 +76,10 @@ class PlayerTimelineFocusTest {
                         speedFocusRequester = speedFocusRequester,
                         subtitlesFocusRequester = subtitlesFocusRequester,
                         audioFocusRequester = audioFocusRequester,
+                        commentsFocusRequester = commentsFocusRequester,
                         onSkipBackward = { error("Timeline seek was not expected") },
                         onSkipForward = { error("Timeline seek was not expected") },
+                        onComments = {},
                         onOpenMenu = {},
                     )
                 }

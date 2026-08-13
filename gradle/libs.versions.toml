@@ -28,6 +28,7 @@ protobuf = "3.25.9"
 protobuf-plugin = "0.9.6"
 onnxruntime = "1.25.1"
 icu4j = "78.3"
+jsoup = "1.23.1"
 libvlc = "3.6.0"
 
 [libraries]
@@ -78,6 +79,7 @@ androidx-security-crypto = { group = "androidx.security", name = "security-crypt
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
 kotlinx-serialization-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-core", version.ref = "kotlinx-serialization" }
 icu4j = { group = "com.ibm.icu", name = "icu4j", version.ref = "icu4j" }
+jsoup = { group = "org.jsoup", name = "jsoup", version.ref = "jsoup" }
 
 # === Coroutines ===
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }
