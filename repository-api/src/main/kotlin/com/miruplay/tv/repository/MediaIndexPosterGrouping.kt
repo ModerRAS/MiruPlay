@@ -10,6 +10,15 @@ data class MediaIndexPosterGroup(
     val entries: List<MediaIndexEntry>,
     val animeId: String = entries.posterGroupAnimeId(mergeSameAnimeEnabled = false),
 ) {
+    val episodeCount: Int = entries
+        .asSequence()
+        .filterNot(MediaIndexEntry::isSeriesExtra)
+        .distinctBy { entry ->
+            entry.episodeNumber?.let { episodeNumber ->
+                (entry.seasonNumber ?: 1) to episodeNumber
+            } ?: entry.path
+        }
+        .count()
     val primaryEntry: MediaIndexEntry =
         entries
             .filterNot(MediaIndexEntry::isSeriesExtra)
@@ -24,7 +33,6 @@ data class MediaIndexPosterGroup(
             ?: entry.animeName?.takeIf { it.isNotBlank() }?.let { "title:${it.lowercase()}" }
     }
     val subtitle: String = buildString {
-        val episodeCount = entries.count { !it.isSeriesExtra() }
         append(episodeCount)
         append(" episode")
         if (episodeCount != 1) append('s')
@@ -65,7 +73,7 @@ fun MediaIndexPosterGroup.toIndexedAnime(): Anime =
     Anime(
         id = animeId,
         title = title,
-        episodeCount = entries.count { !it.isSeriesExtra() },
+        episodeCount = episodeCount,
         summary = primaryEntry.plot.orEmpty(),
     )
 

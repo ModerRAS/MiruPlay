@@ -50,6 +50,20 @@ class MediaIndexPosterGroupingTest {
     }
 
     @Test
+    fun `poster episode count groups multiple files for the same episode`() {
+        val group = listOf(
+            MediaIndexEntry(sourceId = 1, path = "show/WEB/S01E01.mkv", animeName = "Show", seasonNumber = 1, episodeNumber = 1),
+            MediaIndexEntry(sourceId = 1, path = "show/BD/S01E01.mkv", animeName = "Show", seasonNumber = 1, episodeNumber = 1),
+            MediaIndexEntry(sourceId = 1, path = "show/WEB/S01E02.mkv", animeName = "Show", seasonNumber = 1, episodeNumber = 2),
+            MediaIndexEntry(sourceId = 1, path = "show/WEB/S02E01.mkv", animeName = "Show", seasonNumber = 2, episodeNumber = 1),
+        ).toMediaIndexPosterGroups().single()
+
+        assertEquals("3 episodes · S1", group.subtitle)
+        assertEquals(3, group.toIndexedAnime().episodeCount)
+        assertEquals(4, group.entries.size)
+    }
+
+    @Test
     fun `poster groups can merge entries that share external metadata`() {
         val entries = listOf(
             MediaIndexEntry(
