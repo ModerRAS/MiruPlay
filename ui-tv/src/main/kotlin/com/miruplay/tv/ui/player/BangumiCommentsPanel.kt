@@ -52,6 +52,7 @@ import com.miruplay.tv.ui.theme.FocusBorder
 import com.miruplay.tv.ui.theme.TextPrimary
 import com.miruplay.tv.ui.theme.TextSecondary
 import com.miruplay.tv.ui.theme.TvTypography
+import java.net.InetAddress
 import java.net.URI
 
 @Composable
@@ -63,7 +64,7 @@ internal fun BangumiCommentsPanel(
 ) {
     val listState = rememberLazyListState()
     val focusRequester = remember { FocusRequester() }
-    LaunchedEffect(state.comments, state.isLoading, state.errorMessage) {
+    LaunchedEffect(state.comments.isNotEmpty(), state.errorMessage) {
         if (!state.isLoading && (state.comments.isNotEmpty() || state.errorMessage != null)) {
             focusRequester.requestFocus()
         }
@@ -292,10 +293,10 @@ internal fun safeBangumiCommentImageUrl(value: String): String? {
         return null
     }
     if (host.contains(':')) {
-        if (host == "::1" || host.startsWith("fe8", ignoreCase = true) ||
-            host.startsWith("fe9", ignoreCase = true) || host.startsWith("fea", ignoreCase = true) ||
-            host.startsWith("feb", ignoreCase = true) || host.startsWith("fc", ignoreCase = true) ||
-            host.startsWith("fd", ignoreCase = true)
+        val address = runCatching { InetAddress.getByName(host) }.getOrNull() ?: return null
+        if (address.isAnyLocalAddress || address.isLoopbackAddress || address.isLinkLocalAddress ||
+            address.isSiteLocalAddress || address.isMulticastAddress ||
+            host.startsWith("fc", ignoreCase = true) || host.startsWith("fd", ignoreCase = true)
         ) return null
     } else {
         val octets = host.split('.').map { it.toIntOrNull() }

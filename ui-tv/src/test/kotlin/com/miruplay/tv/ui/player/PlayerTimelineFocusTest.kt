@@ -107,4 +107,55 @@ class PlayerTimelineFocusTest {
         compose.onNodeWithTag(PLAYER_TIMELINE_TEST_TAG).assertIsFocused()
     }
 
+    @Test
+    fun `timeline down focuses comments when track actions are unavailable`() {
+        compose.setContent {
+            val timelineFocusRequester = remember { FocusRequester() }
+            val transportFocusRequester = remember { FocusRequester() }
+            val pictureFocusRequester = remember { FocusRequester() }
+            val speedFocusRequester = remember { FocusRequester() }
+            val subtitlesFocusRequester = remember { FocusRequester() }
+            val audioFocusRequester = remember { FocusRequester() }
+            val commentsFocusRequester = remember { FocusRequester() }
+
+            LaunchedEffect(Unit) {
+                timelineFocusRequester.requestFocus()
+            }
+
+            PlayerBottomBar(
+                currentPosition = 12_000L,
+                duration = 60_000L,
+                subtitles = emptyList(),
+                audioTracks = emptyList(),
+                selectedSubtitleTrackIndex = null,
+                selectedAudioTrackIndex = null,
+                playbackSpeed = 1.0f,
+                signalFormatLabel = "",
+                openMenu = null,
+                timelineFocusRequester = timelineFocusRequester,
+                transportFocusRequester = transportFocusRequester,
+                pictureFocusRequester = pictureFocusRequester,
+                speedFocusRequester = speedFocusRequester,
+                subtitlesFocusRequester = subtitlesFocusRequester,
+                audioFocusRequester = audioFocusRequester,
+                commentsFocusRequester = commentsFocusRequester,
+                onSkipBackward = { error("Timeline seek was not expected") },
+                onSkipForward = { error("Timeline seek was not expected") },
+                onComments = {},
+                onOpenMenu = {},
+            )
+        }
+
+        compose.waitUntil(timeoutMillis = 5_000) {
+            runCatching {
+                compose.onNodeWithTag(PLAYER_TIMELINE_TEST_TAG).assertIsFocused()
+                true
+            }.getOrDefault(false)
+        }
+        compose.onNodeWithTag(PLAYER_TIMELINE_TEST_TAG).performKeyInput {
+            pressKey(Key.DirectionDown)
+        }
+        compose.onNodeWithText("评论").assertIsFocused()
+    }
+
 }

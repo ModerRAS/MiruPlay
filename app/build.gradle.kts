@@ -62,6 +62,9 @@ android {
         compose = true
         buildConfig = true
     }
+    compileOptions {
+        isCoreLibraryDesugaringEnabled = true
+    }
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -98,6 +101,8 @@ android {
 }
 
 dependencies {
+    coreLibraryDesugaring(libs.desugar.jdk.libs.nio)
+
     implementation(project(":ui-design"))
     implementation(project(":background-task"))
     implementation(project(":ui-tv"))

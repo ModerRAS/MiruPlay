@@ -32,6 +32,12 @@ class BangumiCommentsPanelTest {
             "http://192.168.1.1/image.jpg",
             "http://[::1]/image.jpg",
             "http://[fd00::1]/image.jpg",
+            "http://[::ffff:127.0.0.1]/image.jpg",
+            "http://[::ffff:10.0.0.1]/image.jpg",
+            "http://[::ffff:169.254.1.1]/image.jpg",
+            "http://[::ffff:172.16.0.1]/image.jpg",
+            "http://[::ffff:192.168.1.1]/image.jpg",
+            "http://[::ffff:0.0.0.0]/image.jpg",
         ).forEach { value -> assertNull(value, safeBangumiCommentImageUrl(value)) }
     }
 }

@@ -253,6 +253,7 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             val episodeId = source.episodeId
             val episode = episodeId?.let { metadataRepository.get().getCachedEpisode(it).getOrNull() }
+            if (activeSource != source || episodeCommentsGeneration != generation) return@launch
             val bangumiEpisodeId = episode?.bangumiEpisodeId
             if (bangumiEpisodeId == null) {
                 _episodeComments.value = EpisodeCommentsUiState(
