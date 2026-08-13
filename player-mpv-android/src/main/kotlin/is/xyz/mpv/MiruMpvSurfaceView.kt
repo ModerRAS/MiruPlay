@@ -42,7 +42,7 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
         val eofReached: Boolean = false,
     )
 
-    data class SubtitleTrackInfo(
+    data class TrackInfo(
         val id: Int,
         val language: String,
         val title: String,
@@ -52,7 +52,7 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
     )
 
     var onStateChanged: ((StateSnapshot) -> Unit)? = null
-    var onSubtitleTracksChanged: ((MiruMpvSurfaceView) -> Unit)? = null
+    var onTracksChanged: ((MiruMpvSurfaceView) -> Unit)? = null
     var onFileLoaded: (() -> Unit)? = null
     var onPlaybackRestart: (() -> Unit)? = null
 
@@ -61,6 +61,7 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
     private var appliedSessionOptions: SessionOptions? = null
     private var pendingStartPositionMs: Long? = null
     private var pendingExternalSubtitlePaths: List<String> = emptyList()
+    private var pendingExternalAudioPaths: List<String> = emptyList()
     private var lastState = StateSnapshot()
     private val recentNativeLogMessages = ArrayDeque<MpvNativeLogMessage>()
 
@@ -86,6 +87,7 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
         initialized = false
         appliedSessionOptions = null
         pendingExternalSubtitlePaths = emptyList()
+        pendingExternalAudioPaths = emptyList()
         lastState = StateSnapshot()
         synchronized(recentNativeLogMessages) {
             recentNativeLogMessages.clear()
@@ -105,6 +107,7 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
         path: String,
         startPositionMs: Long = 0L,
         externalSubtitlePaths: List<String> = emptyList(),
+        externalAudioPaths: List<String> = emptyList(),
     ) {
         ensureInitialized()
         if (appliedSessionOptions != sessionOptions) {
@@ -112,6 +115,7 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
         }
         pendingStartPositionMs = startPositionMs.coerceAtLeast(0L).takeIf(::shouldApplyPendingStartSeek)
         pendingExternalSubtitlePaths = externalSubtitlePaths.filter(String::isNotBlank).distinct()
+        pendingExternalAudioPaths = externalAudioPaths.filter(String::isNotBlank).distinct()
         if (shouldLoadMpvFileImmediately(isPlaybackSurfaceAttached())) {
             MPVLib.command(arrayOf("loadfile", path))
         } else {
@@ -119,13 +123,17 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
         }
     }
 
-    fun subtitleTracks(): List<SubtitleTrackInfo> {
+    fun subtitleTracks(): List<TrackInfo> = tracksOfType("sub")
+
+    fun audioTracks(): List<TrackInfo> = tracksOfType("audio")
+
+    private fun tracksOfType(type: String): List<TrackInfo> {
         if (!initialized) return emptyList()
         val count = MPVLib.getPropertyInt("track-list/count") ?: return emptyList()
         return (0 until count).mapNotNull { index ->
-            if (MPVLib.getPropertyString("track-list/$index/type") != "sub") return@mapNotNull null
+            if (MPVLib.getPropertyString("track-list/$index/type") != type) return@mapNotNull null
             val id = MPVLib.getPropertyInt("track-list/$index/id") ?: return@mapNotNull null
-            SubtitleTrackInfo(
+            TrackInfo(
                 id = id,
                 language = MPVLib.getPropertyString("track-list/$index/lang") ?: "und",
                 title = MPVLib.getPropertyString("track-list/$index/title") ?: "",
@@ -139,6 +147,12 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
     fun setSubtitleTrack(trackId: Int?) {
         if (initialized) {
             MPVLib.setPropertyString("sid", trackId?.toString() ?: "no")
+        }
+    }
+
+    fun setAudioTrack(trackId: Int) {
+        if (initialized) {
+            MPVLib.setPropertyString("aid", trackId.toString())
         }
     }
 
@@ -217,12 +231,13 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
         MPVLib.observeProperty("eof-reached", MPVLib.MpvFormat.MPV_FORMAT_FLAG)
         MPVLib.observeProperty("track-list/count", MPVLib.MpvFormat.MPV_FORMAT_INT64)
         MPVLib.observeProperty("sid", MPVLib.MpvFormat.MPV_FORMAT_STRING)
+        MPVLib.observeProperty("aid", MPVLib.MpvFormat.MPV_FORMAT_STRING)
     }
 
     override fun eventProperty(property: String) = Unit
 
     override fun eventProperty(property: String, value: Long) {
-        if (property == "track-list/count") notifySubtitleTracksChanged()
+        if (property == "track-list/count") notifyTracksChanged()
     }
 
     override fun eventProperty(property: String, value: Boolean) {
@@ -233,12 +248,12 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
     }
 
     override fun eventProperty(property: String, value: String) {
-        if (property == "sid") notifySubtitleTracksChanged()
+        if (property == "sid" || property == "aid") notifyTracksChanged()
     }
 
-    private fun notifySubtitleTracksChanged() {
+    private fun notifyTracksChanged() {
         post {
-            if (initialized) onSubtitleTracksChanged?.invoke(this)
+            if (initialized) onTracksChanged?.invoke(this)
         }
     }
 
@@ -257,6 +272,9 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
                 }
                 pendingExternalSubtitlePaths.forEachIndexed { index, path ->
                     MPVLib.command(arrayOf("sub-add", path, if (index == 0) "select" else "auto"))
+                }
+                pendingExternalAudioPaths.forEach { path ->
+                    MPVLib.command(arrayOf("audio-add", path, "auto"))
                 }
                 onFileLoaded?.invoke()
             }

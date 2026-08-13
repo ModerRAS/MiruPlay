@@ -8,6 +8,7 @@ data class PlaybackSource(
     val mediaSourceId: String,
     val startPosition: Long = 0L,  // ms
     val subtitleTracks: List<SubtitleTrack> = emptyList(),
+    val externalAudioTracks: List<ExternalAudioTrack> = emptyList(),
     val episodeId: String? = null,
     val progressId: String? = episodeId,
 )
