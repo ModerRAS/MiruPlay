@@ -15,6 +15,7 @@ import com.miruplay.tv.model.FilenameMetadataParser
 import com.miruplay.tv.repository.AnimeMetadataSearchAggregator
 import com.miruplay.tv.repository.AnimeMetadataSearchProvider
 import com.miruplay.tv.repository.BangumiCollectionService
+import com.miruplay.tv.repository.BangumiEpisodeCommentsService
 import com.miruplay.tv.repository.DramaMetadataRepository
 import com.miruplay.tv.repository.DramaMetadataSearchAggregator
 import com.miruplay.tv.repository.DramaMetadataSearchProvider
@@ -58,6 +59,10 @@ object ScraperModule {
     @Provides
     @Singleton
     fun provideBangumiCollectionService(scraper: BangumiScraper): BangumiCollectionService = scraper
+
+    @Provides
+    @Singleton
+    fun provideBangumiEpisodeCommentsService(scraper: BangumiScraper): BangumiEpisodeCommentsService = scraper
 
     @Provides
     @Singleton

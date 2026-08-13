@@ -571,6 +571,51 @@ class BangumiApiClientTest {
     }
 
     @Test
+    fun `getEpisodeComments reads anonymous episode page comment tree`() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(
+                MockResponse().setBody(
+                    """
+                    <div id="comment_list">
+                      <div id="post_10" class="row row_reply" data-item-user="alice">
+                        <div class="inner">
+                          <strong><a class="l">Alice</a></strong>
+                          <div class="reply_content"><div class="message">主评论</div></div>
+                        </div>
+                        <div class="topic_sub_reply">
+                          <div id="post_11" class="sub_reply_bg" data-item-user="bob">
+                            <div class="inner">
+                              <strong><a class="l">Bob</a></strong>
+                              <div class="reply_content"><div class="message">回复</div></div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    """.trimIndent(),
+                ),
+            )
+            val client = BangumiApiClient(
+                baseUrl = server.url("/").toString(),
+                websiteBaseUrl = server.url("/").toString(),
+                tokenProvider = { "" },
+            )
+
+            val result = client.getEpisodeComments(123)
+
+            assertTrue(result is Result.Success)
+            val comments = (result as Result.Success).data
+            assertEquals(10, comments.single().id)
+            assertEquals(11, comments.single().replies.single().id)
+            val request = server.takeRequest()
+            assertEquals("GET", request.method)
+            assertEquals("/ep/123", request.path)
+            assertEquals("text/html,application/xhtml+xml", request.getHeader("Accept"))
+            assertEquals(null, request.getHeader("Authorization"))
+        }
+    }
+
+    @Test
     fun `collection service reports missing token`() = runBlocking {
         val client = BangumiApiClient(tokenProvider = { "" })
 

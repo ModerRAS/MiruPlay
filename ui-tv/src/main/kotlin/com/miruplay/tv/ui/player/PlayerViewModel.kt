@@ -34,6 +34,8 @@ import com.miruplay.tv.player.LibassSubtitleSession
 import com.miruplay.tv.player.PlaybackController
 import com.miruplay.tv.model.SubtitleTrack
 import com.miruplay.tv.model.toPlaybackSource
+import com.miruplay.tv.repository.BangumiEpisodeComment
+import com.miruplay.tv.repository.BangumiEpisodeCommentsService
 import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
@@ -66,6 +68,7 @@ class PlayerViewModel @Inject constructor(
     private val mediaSourceFactory: Lazy<MediaSourceFactory>,
     private val mediaIndexRepository: Lazy<MediaIndexRepository>,
     private val bangumiSyncEngine: Lazy<BangumiSyncEngine>,
+    private val bangumiEpisodeCommentsService: Lazy<BangumiEpisodeCommentsService>,
     private val playbackPreferences: PlaybackPreferencesRepository,
     private val scanPreferences: ScanPreferencesRepository,
 ) : ViewModel() {
@@ -123,6 +126,10 @@ class PlayerViewModel @Inject constructor(
     val formatAwarePreferences: StateFlow<FormatAwareToneMappingPreferences> = _formatAwarePreferences.asStateFlow()
     private val _subtitleBackgroundTransparent = MutableStateFlow(false)
     val subtitleBackgroundTransparent: StateFlow<Boolean> = _subtitleBackgroundTransparent.asStateFlow()
+    private var allEpisodeComments: List<BangumiEpisodeComment> = emptyList()
+    private var episodeCommentsGeneration = 0L
+    private val _episodeComments = MutableStateFlow(EpisodeCommentsUiState())
+    val episodeComments: StateFlow<EpisodeCommentsUiState> = _episodeComments.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -210,6 +217,9 @@ class PlayerViewModel @Inject constructor(
             _currentPosition.value = resolvedSource.startPosition.coerceAtLeast(0L)
             activeSource = resolvedSource
             activeScreenOwnerToken = ownerToken
+            episodeCommentsGeneration += 1
+            allEpisodeComments = emptyList()
+            _episodeComments.value = EpisodeCommentsUiState()
             _pendingNextEpisode.value = null
             pendingSelectionExitsPlayback = false
             _activePlaybackSource.value = resolvedSource
@@ -226,6 +236,53 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    fun loadEpisodeComments(loadMore: Boolean = false) {
+        val source = activeSource ?: return
+        val generation = episodeCommentsGeneration
+        val current = _episodeComments.value
+        if (current.isLoading) return
+        if (loadMore && allEpisodeComments.isNotEmpty()) {
+            val visibleCount = (current.comments.size + COMMENTS_PAGE_SIZE).coerceAtMost(allEpisodeComments.size)
+            _episodeComments.value = current.copy(
+                comments = allEpisodeComments.take(visibleCount),
+                hasMore = visibleCount < allEpisodeComments.size,
+                errorMessage = null,
+            )
+            return
+        }
+        viewModelScope.launch {
+            val episodeId = source.episodeId
+            val episode = episodeId?.let { metadataRepository.get().getCachedEpisode(it).getOrNull() }
+            if (activeSource != source || episodeCommentsGeneration != generation) return@launch
+            val bangumiEpisodeId = episode?.bangumiEpisodeId
+            if (bangumiEpisodeId == null) {
+                _episodeComments.value = EpisodeCommentsUiState(
+                    errorMessage = "当前剧集没有匹配到 Bangumi 单集，无法加载评论。",
+                )
+                return@launch
+            }
+            _episodeComments.value = current.copy(isLoading = true, errorMessage = null)
+            when (val result = bangumiEpisodeCommentsService.get().getEpisodeComments(bangumiEpisodeId)) {
+                is Result.Success -> {
+                    if (activeSource != source || episodeCommentsGeneration != generation) return@launch
+                    allEpisodeComments = result.data
+                    val visibleComments = result.data.take(COMMENTS_PAGE_SIZE)
+                    _episodeComments.value = EpisodeCommentsUiState(
+                        episodeId = bangumiEpisodeId,
+                        comments = visibleComments,
+                        hasMore = visibleComments.size < result.data.size,
+                    )
+                }
+                is Result.Error -> {
+                    if (activeSource != source || episodeCommentsGeneration != generation) return@launch
+                    _episodeComments.value = current.copy(
+                        isLoading = false,
+                        errorMessage = result.error.toUserMessage(),
+                    )
+                }
+            }
+        }
+    }
     fun retry() {
         activeSource?.let { source ->
             play(source.copy(startPosition = _currentPosition.value), activeScreenOwnerToken)
@@ -676,6 +733,9 @@ class PlayerViewModel @Inject constructor(
         _canPlayNextEpisode.value = false
         _displayTitle.value = ""
         _displaySubtitle.value = ""
+        allEpisodeComments = emptyList()
+        episodeCommentsGeneration += 1
+        _episodeComments.value = EpisodeCommentsUiState()
         _currentPosition.value = 0L
         _duration.value = 0L
         _availableSubtitles.value = emptyList()
@@ -695,7 +755,19 @@ class PlayerViewModel @Inject constructor(
         }
         super.onCleared()
     }
+
+    companion object {
+        private const val COMMENTS_PAGE_SIZE = 50
+    }
 }
+
+data class EpisodeCommentsUiState(
+    val episodeId: Int? = null,
+    val comments: List<BangumiEpisodeComment> = emptyList(),
+    val isLoading: Boolean = false,
+    val hasMore: Boolean = false,
+    val errorMessage: String? = null,
+)
 
 internal fun shouldOwnerStopPlayback(activeOwnerToken: Any?, candidateOwnerToken: Any): Boolean =
     activeOwnerToken === candidateOwnerToken

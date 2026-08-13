@@ -9,6 +9,8 @@ import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.BangumiCollectionService
 import com.miruplay.tv.repository.BangumiEpisodeMetadata
 import com.miruplay.tv.repository.BangumiEpisodeCollection
+import com.miruplay.tv.repository.BangumiEpisodeComment
+import com.miruplay.tv.repository.BangumiEpisodeCommentsService
 import com.miruplay.tv.repository.BangumiEpisodeCollectionType
 import com.miruplay.tv.repository.BangumiSubjectCollection
 import com.miruplay.tv.repository.BangumiSubjectCollectionType
@@ -27,7 +29,7 @@ class BangumiScraper @Inject constructor(
     private val credentials: AppCredentialStore,
     private val cloudDriveRepository: CloudDriveAutomationRepository,
     archiveSearch: BangumiArchiveSubjectSearch,
-) : MetadataScraper, MetadataImageBackfillScraper, ManualMetadataSearchScraper, BangumiCollectionService {
+) : MetadataScraper, MetadataImageBackfillScraper, ManualMetadataSearchScraper, BangumiCollectionService, BangumiEpisodeCommentsService {
 
     override val sourceName: String = "Bangumi"
 
@@ -75,6 +77,12 @@ class BangumiScraper @Inject constructor(
                 "candidate_count" to candidates.size.toString(),
             ),
         ) { api.searchByAlias(normalizedName, candidates) }
+
+    override suspend fun getEpisodeComments(episodeId: Int): Result<List<BangumiEpisodeComment>> =
+        withConfiguredProxy(
+            "bangumi.scraper.episode_comments",
+            mapOf("episode_id" to episodeId.toString()),
+        ) { api.getEpisodeComments(episodeId) }
 
     override suspend fun getCurrentUser(): Result<BangumiUser> =
         withConfiguredProxy("bangumi.scraper.current_user") { api.getCurrentUser() }

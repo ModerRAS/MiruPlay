@@ -9,7 +9,7 @@ plugins {
 
 // 支持通过 -PVERSION_NAME / -PVERSION_CODE 显式传入版本信息。
 // 未显式传入 VERSION_NAME 时，默认把最后一段 patch 替换为 BUILD_NUMBER。
-val baseAppVersionName = "2.8.0"
+val baseAppVersionName = "2.9.0"
 
 fun String?.nonBlankOrNull(): String? =
     this?.trim()?.takeIf { it.isNotBlank() }
@@ -62,6 +62,9 @@ android {
         compose = true
         buildConfig = true
     }
+    compileOptions {
+        isCoreLibraryDesugaringEnabled = true
+    }
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -98,6 +101,8 @@ android {
 }
 
 dependencies {
+    coreLibraryDesugaring(libs.desugar.jdk.libs.nio)
+
     implementation(project(":ui-design"))
     implementation(project(":background-task"))
     implementation(project(":ui-tv"))

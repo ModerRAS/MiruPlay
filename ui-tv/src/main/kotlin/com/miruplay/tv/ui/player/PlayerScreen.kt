@@ -53,6 +53,7 @@ import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PhotoFilter
@@ -310,6 +311,7 @@ private fun PlayerScreenContent(
     val fallbackReason by viewModel.fallbackReason.collectAsStateWithLifecycle()
     val formatAwarePreferences by viewModel.formatAwarePreferences.collectAsStateWithLifecycle()
     val subtitleBackgroundTransparent by viewModel.subtitleBackgroundTransparent.collectAsStateWithLifecycle()
+    val episodeComments by viewModel.episodeComments.collectAsStateWithLifecycle()
     val keepScreenOn = playbackState.keepsScreenOn()
     val view = LocalView.current
     val playerFocusRequester = remember { FocusRequester() }
@@ -319,6 +321,7 @@ private fun PlayerScreenContent(
     val speedFocusRequester = remember { FocusRequester() }
     val subtitlesFocusRequester = remember { FocusRequester() }
     val audioFocusRequester = remember { FocusRequester() }
+    val commentsFocusRequester = remember { FocusRequester() }
     val currentPlaybackSource = activePlaybackSource ?: playbackSource
     val pendingDebugCaptureLabel = viewModel.pendingGlFrameCaptureLabel()
     var preferCapturableTextureView by remember(playbackSource) {
@@ -338,6 +341,7 @@ private fun PlayerScreenContent(
     val context = LocalContext.current
     var openMenu by remember { mutableStateOf<PlayerMenu?>(null) }
     var infoPanelVisible by remember { mutableStateOf(false) }
+    var commentsPanelVisible by remember { mutableStateOf(false) }
     var infoTab by remember { mutableStateOf(PlayerInfoTab.Information) }
     var pressedDedicatedIntent by remember { mutableStateOf<MiruPlayInputIntent?>(null) }
     var pendingChromeFocus by remember { mutableStateOf<PlayerChromeFocusTarget?>(null) }
@@ -378,6 +382,9 @@ private fun PlayerScreenContent(
     val closeOpenOverlay = {
         if (infoPanelVisible) {
             infoPanelVisible = false
+        } else if (commentsPanelVisible) {
+            commentsPanelVisible = false
+            viewModel.showControls()
         } else {
             openMenu?.let { pendingChromeFocus = focusTargetForMenu(it) }
             openMenu = null
@@ -389,9 +396,23 @@ private fun PlayerScreenContent(
             infoPanelVisible = false
         } else {
             openMenu = null
+            commentsPanelVisible = false
             viewModel.hideControls()
             infoPanelVisible = true
         }
+    }
+    val openCommentsPanel = {
+        infoPanelVisible = false
+        openMenu = null
+        viewModel.hideControls()
+        commentsPanelVisible = true
+        if (episodeComments.episodeId == null && episodeComments.errorMessage == null && !episodeComments.isLoading) {
+            viewModel.loadEpisodeComments()
+        }
+    }
+
+    LaunchedEffect(playbackSource) {
+        commentsPanelVisible = false
     }
 
     LaunchedEffect(playbackSource, hasStartedPlayback, screenOwnerToken) {
@@ -413,8 +434,8 @@ private fun PlayerScreenContent(
         }
     }
 
-    LaunchedEffect(controlsVisible, infoPanelVisible) {
-        if (!controlsVisible && !infoPanelVisible) {
+    LaunchedEffect(controlsVisible, infoPanelVisible, commentsPanelVisible) {
+        if (!controlsVisible && !infoPanelVisible && !commentsPanelVisible) {
             openMenu = null
             playerFocusRequester.requestFocus()
         }
@@ -529,7 +550,7 @@ private fun PlayerScreenContent(
                     event = event,
                     repeatsDedicatedCommand = repeatsDedicatedCommand,
                     controlsVisible = controlsVisible,
-                    hasOpenMenu = openMenu != null || infoPanelVisible,
+                    hasOpenMenu = openMenu != null || infoPanelVisible || commentsPanelVisible,
                     hasSubtitles = availableSubtitles.isNotEmpty(),
                     canPlayPreviousEpisode = canPlayPreviousEpisode,
                     canPlayNextEpisode = canPlayNextEpisode,
@@ -541,6 +562,7 @@ private fun PlayerScreenContent(
                     },
                     onOpenCaptions = {
                         infoPanelVisible = false
+                        commentsPanelVisible = false
                         if (openMenu == PlayerMenu.Subtitles) {
                             pendingChromeFocus = PlayerChromeFocusTarget.Subtitles
                             openMenu = null
@@ -551,6 +573,7 @@ private fun PlayerScreenContent(
                     },
                     onFocusOptions = {
                         infoPanelVisible = false
+                        commentsPanelVisible = false
                         openMenu = null
                         pendingChromeFocus = PlayerChromeFocusTarget.Picture
                         viewModel.showControls()
@@ -684,10 +707,12 @@ private fun PlayerScreenContent(
                 speedFocusRequester = speedFocusRequester,
                 subtitlesFocusRequester = subtitlesFocusRequester,
                 audioFocusRequester = audioFocusRequester,
+                commentsFocusRequester = commentsFocusRequester,
                 canPlayPreviousEpisode = canPlayPreviousEpisode,
                 canPlayNextEpisode = canPlayNextEpisode,
                 onBack = navigateBack,
                 onInfo = toggleInfoPanel,
+                onComments = openCommentsPanel,
                 onTogglePlayback = {
                     viewModel.togglePlayback()
                     viewModel.showControls()
@@ -735,6 +760,19 @@ private fun PlayerScreenContent(
                         openMenu = menu
                     }
                 },
+            )
+        }
+
+        AnimatedVisibility(
+            visible = commentsPanelVisible,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.CenterEnd),
+        ) {
+            BangumiCommentsPanel(
+                state = episodeComments,
+                onRetry = { viewModel.loadEpisodeComments() },
+                onLoadMore = { viewModel.loadEpisodeComments(loadMore = true) },
             )
         }
 
@@ -846,10 +884,12 @@ private fun PlayerChrome(
     speedFocusRequester: FocusRequester,
     subtitlesFocusRequester: FocusRequester,
     audioFocusRequester: FocusRequester,
+    commentsFocusRequester: FocusRequester,
     canPlayPreviousEpisode: Boolean,
     canPlayNextEpisode: Boolean,
     onBack: () -> Unit,
     onInfo: () -> Unit,
+    onComments: () -> Unit,
     onTogglePlayback: () -> Unit,
     onPreviousEpisode: () -> Unit,
     onNextEpisode: () -> Unit,
@@ -936,8 +976,10 @@ private fun PlayerChrome(
             speedFocusRequester = speedFocusRequester,
             subtitlesFocusRequester = subtitlesFocusRequester,
             audioFocusRequester = audioFocusRequester,
+            commentsFocusRequester = commentsFocusRequester,
             onSkipBackward = onSkipBackward,
             onSkipForward = onSkipForward,
+            onComments = onComments,
             onOpenMenu = { menu ->
                 onOpenMenuChange(menu)
             },
@@ -1071,8 +1113,10 @@ internal fun PlayerBottomBar(
     speedFocusRequester: FocusRequester,
     subtitlesFocusRequester: FocusRequester,
     audioFocusRequester: FocusRequester,
+    commentsFocusRequester: FocusRequester,
     onSkipBackward: () -> Unit,
     onSkipForward: () -> Unit,
+    onComments: () -> Unit,
     onOpenMenu: (PlayerMenu) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1094,7 +1138,7 @@ internal fun PlayerBottomBar(
                 downFocusRequester = when {
                     audioTracks.isNotEmpty() -> audioFocusRequester
                     subtitles.isNotEmpty() -> subtitlesFocusRequester
-                    else -> speedFocusRequester
+                    else -> commentsFocusRequester
                 },
                 onSkipBackward = onSkipBackward,
                 onSkipForward = onSkipForward,
@@ -1116,6 +1160,17 @@ internal fun PlayerBottomBar(
             PlayerInfoChip(
                 icon = Icons.Filled.GraphicEq,
                 text = signalFormatLabel.ifBlank { playbackLocalSourceLabel() }
+            )
+            PlayerActionChip(
+                icon = Icons.Filled.Forum,
+                text = "评论",
+                selected = false,
+                onClick = onComments,
+                modifier = Modifier
+                    .focusRequester(commentsFocusRequester)
+                    .focusProperties {
+                        if (openMenu == null) up = timelineFocusRequester
+                    },
             )
             PlayerActionChip(
                 icon = Icons.Filled.PhotoFilter,
@@ -1737,7 +1792,7 @@ private fun playbackStateInfoLabel(state: PlaybackState): String =
 private fun Boolean.yesNoLabel(): String = if (this) "是" else "否"
 
 @Composable
-private fun PlayerOptionButton(
+internal fun PlayerOptionButton(
     text: String,
     selected: Boolean,
     onClick: () -> Unit,
