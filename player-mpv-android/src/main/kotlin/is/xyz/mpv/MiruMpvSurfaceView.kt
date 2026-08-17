@@ -7,6 +7,8 @@ import com.miruplay.tv.model.MpvNativeDiagnostics
 import com.miruplay.tv.model.MpvNativeLogMessage
 import com.miruplay.tv.model.MpvNativePropertySample
 import java.io.File
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 class MiruMpvSurfaceView @JvmOverloads constructor(
     context: Context,
@@ -64,26 +66,47 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
     private var pendingExternalAudioPaths: List<String> = emptyList()
     private var lastState = StateSnapshot()
     private val recentNativeLogMessages = ArrayDeque<MpvNativeLogMessage>()
+    @Volatile private var releaseEventLatch: CountDownLatch? = null
+    @Volatile private var lastNativeDiagnostics: MpvNativeDiagnostics? = null
 
     fun ensureInitialized() {
-        if (initialized) {
-            return
+        lifecycleGate.withNativeAccess {
+            if (initialized) return@withNativeAccess
+            val configDir = File(context.filesDir, "mpv/config").apply { mkdirs() }
+            val cacheDir = File(context.cacheDir, "mpv").apply { mkdirs() }
+            initialize(configDir.absolutePath, cacheDir.absolutePath)
+            MPVLib.addObserver(this)
+            MPVLib.addLogObserver(this)
+            initialized = true
         }
-        val configDir = File(context.filesDir, "mpv/config").apply { mkdirs() }
-        val cacheDir = File(context.cacheDir, "mpv").apply { mkdirs() }
-        initialize(configDir.absolutePath, cacheDir.absolutePath)
-        MPVLib.addObserver(this)
-        MPVLib.addLogObserver(this)
-        initialized = true
     }
 
     fun releaseMpv() {
-        if (!initialized) {
-            return
+        if (!lifecycleGate.beginReleaseIf { initialized }) return
+
+        onStateChanged = null
+        onTracksChanged = null
+        onFileLoaded = null
+        onPlaybackRestart = null
+        val latch = CountDownLatch(1)
+        releaseEventLatch = latch
+        lifecycleGate.withReleaseNativeAccess {
+            MPVLib.command(arrayOf("stop"))
         }
-        MPVLib.removeObserver(this)
-        MPVLib.removeLogObserver(this)
-        releasePlayer()
+        try {
+            if (!latch.await(RELEASE_EVENT_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
+                android.util.Log.w(TAG, "Timed out waiting for mpv idle during release")
+            }
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+            android.util.Log.w(TAG, "Interrupted while waiting for mpv idle during release")
+        }
+        lifecycleGate.withReleaseNativeAccess {
+            MPVLib.removeObserver(this)
+            MPVLib.removeLogObserver(this)
+        }
+        releaseEventLatch = null
+        releasePlayerAfterBegin()
         initialized = false
         appliedSessionOptions = null
         pendingExternalSubtitlePaths = emptyList()
@@ -94,14 +117,13 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
         }
     }
 
-    fun applySessionOptions(options: SessionOptions): Boolean {
-        sessionOptions = options
-        if (!initialized || appliedSessionOptions == options) {
-            return false
-        }
-        applyRuntimeOptions(options)
-        return true
-    }
+    fun applySessionOptions(options: SessionOptions): Boolean =
+        lifecycleGate.withNativeAccess {
+            sessionOptions = options
+            if (!initialized || appliedSessionOptions == options) return@withNativeAccess false
+            applyRuntimeOptions(options)
+            true
+        } ?: false
 
     fun loadMedia(
         path: String,
@@ -110,16 +132,18 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
         externalAudioPaths: List<String> = emptyList(),
     ) {
         ensureInitialized()
-        if (appliedSessionOptions != sessionOptions) {
-            applyRuntimeOptions(sessionOptions)
-        }
-        pendingStartPositionMs = startPositionMs.coerceAtLeast(0L).takeIf(::shouldApplyPendingStartSeek)
-        pendingExternalSubtitlePaths = externalSubtitlePaths.filter(String::isNotBlank).distinct()
-        pendingExternalAudioPaths = externalAudioPaths.filter(String::isNotBlank).distinct()
-        if (shouldLoadMpvFileImmediately(isPlaybackSurfaceAttached())) {
-            MPVLib.command(arrayOf("loadfile", path))
-        } else {
-            playFile(path)
+        lifecycleGate.withNativeAccess {
+            if (appliedSessionOptions != sessionOptions) {
+                applyRuntimeOptions(sessionOptions)
+            }
+            pendingStartPositionMs = startPositionMs.coerceAtLeast(0L).takeIf(::shouldApplyPendingStartSeek)
+            pendingExternalSubtitlePaths = externalSubtitlePaths.filter(String::isNotBlank).distinct()
+            pendingExternalAudioPaths = externalAudioPaths.filter(String::isNotBlank).distinct()
+            if (shouldLoadMpvFileImmediately(isPlaybackSurfaceAttached())) {
+                MPVLib.command(arrayOf("loadfile", path))
+            } else {
+                playFile(path)
+            }
         }
     }
 
@@ -127,76 +151,90 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
 
     fun audioTracks(): List<TrackInfo> = tracksOfType("audio")
 
-    private fun tracksOfType(type: String): List<TrackInfo> {
-        if (!initialized) return emptyList()
-        val count = MPVLib.getPropertyInt("track-list/count") ?: return emptyList()
-        return (0 until count).mapNotNull { index ->
-            if (MPVLib.getPropertyString("track-list/$index/type") != type) return@mapNotNull null
-            val id = MPVLib.getPropertyInt("track-list/$index/id") ?: return@mapNotNull null
-            TrackInfo(
-                id = id,
-                language = MPVLib.getPropertyString("track-list/$index/lang") ?: "und",
-                title = MPVLib.getPropertyString("track-list/$index/title") ?: "",
-                codec = MPVLib.getPropertyString("track-list/$index/codec") ?: "",
-                external = MPVLib.getPropertyBoolean("track-list/$index/external") ?: false,
-                selected = MPVLib.getPropertyBoolean("track-list/$index/selected") ?: false,
-            )
-        }
-    }
+    private fun tracksOfType(type: String): List<TrackInfo> =
+        lifecycleGate.withNativeAccess {
+            if (!initialized) return@withNativeAccess emptyList()
+            val count = MPVLib.getPropertyInt("track-list/count") ?: return@withNativeAccess emptyList()
+            (0 until count).mapNotNull { index ->
+                if (MPVLib.getPropertyString("track-list/$index/type") != type) return@mapNotNull null
+                val id = MPVLib.getPropertyInt("track-list/$index/id") ?: return@mapNotNull null
+                TrackInfo(
+                    id = id,
+                    language = MPVLib.getPropertyString("track-list/$index/lang") ?: "und",
+                    title = MPVLib.getPropertyString("track-list/$index/title") ?: "",
+                    codec = MPVLib.getPropertyString("track-list/$index/codec") ?: "",
+                    external = MPVLib.getPropertyBoolean("track-list/$index/external") ?: false,
+                    selected = MPVLib.getPropertyBoolean("track-list/$index/selected") ?: false,
+                )
+            }
+        } ?: emptyList()
 
     fun setSubtitleTrack(trackId: Int?) {
-        if (initialized) {
-            MPVLib.setPropertyString("sid", trackId?.toString() ?: "no")
+        lifecycleGate.withNativeAccess {
+            if (initialized) MPVLib.setPropertyString("sid", trackId?.toString() ?: "no")
         }
     }
 
     fun setAudioTrack(trackId: Int) {
-        if (initialized) {
-            MPVLib.setPropertyString("aid", trackId.toString())
+        lifecycleGate.withNativeAccess {
+            if (initialized) MPVLib.setPropertyString("aid", trackId.toString())
         }
     }
 
     fun pausePlayback() {
-        if (initialized) {
-            MPVLib.setPropertyBoolean("pause", true)
+        lifecycleGate.withNativeAccess {
+            if (initialized) MPVLib.setPropertyBoolean("pause", true)
         }
     }
 
     fun resumePlayback() {
-        if (initialized) {
-            MPVLib.setPropertyBoolean("pause", false)
+        lifecycleGate.withNativeAccess {
+            if (initialized) MPVLib.setPropertyBoolean("pause", false)
         }
     }
 
     fun seekTo(positionMs: Long) {
-        if (initialized) {
-            MPVLib.setPropertyDouble("time-pos", positionMs.coerceAtLeast(0L) / 1000.0)
+        lifecycleGate.withNativeAccess {
+            if (initialized) MPVLib.setPropertyDouble("time-pos", positionMs.coerceAtLeast(0L) / 1000.0)
         }
     }
 
     fun stopPlayback() {
-        if (initialized) {
-            MPVLib.command(arrayOf("stop"))
+        lifecycleGate.withNativeAccess {
+            if (initialized) MPVLib.command(arrayOf("stop"))
         }
     }
 
     fun snapshotNativeDiagnostics(logLimit: Int = 80): MpvNativeDiagnostics {
         val collectedAt = SystemClock.elapsedRealtime()
-        val properties = EMBEDDED_MPV_NATIVE_PROPERTY_SPECS.map { spec ->
-            MpvNativePropertySample(
-                name = spec.name,
-                value = readNativePropertyValue(spec),
+        val snapshot = lifecycleGate.withNativeAccess {
+            val properties = EMBEDDED_MPV_NATIVE_PROPERTY_SPECS.map { spec ->
+                MpvNativePropertySample(
+                    name = spec.name,
+                    value = readNativePropertyValue(spec),
+                )
+            }
+            val recentLogs = synchronized(recentNativeLogMessages) {
+                recentNativeLogMessages.takeLast(logLimit.coerceAtLeast(1))
+            }
+            MpvNativeDiagnostics(
+                collectedAtElapsedRealtimeMs = collectedAt,
+                surfaceAttached = isPlaybackSurfaceAttached(),
+                pendingStartPositionMs = pendingStartPositionMs,
+                properties = properties,
+                recentLogMessages = recentLogs,
             )
         }
-        val recentLogs = synchronized(recentNativeLogMessages) {
-            recentNativeLogMessages.takeLast(logLimit.coerceAtLeast(1))
+        if (snapshot != null) {
+            lastNativeDiagnostics = snapshot
+            return snapshot
         }
-        return MpvNativeDiagnostics(
+        return lastNativeDiagnostics ?: MpvNativeDiagnostics(
             collectedAtElapsedRealtimeMs = collectedAt,
-            surfaceAttached = isPlaybackSurfaceAttached(),
-            pendingStartPositionMs = pendingStartPositionMs,
-            properties = properties,
-            recentLogMessages = recentLogs,
+            surfaceAttached = false,
+            pendingStartPositionMs = null,
+            properties = emptyList(),
+            recentLogMessages = emptyList(),
         )
     }
 
@@ -237,66 +275,86 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
     override fun eventProperty(property: String) = Unit
 
     override fun eventProperty(property: String, value: Long) {
-        if (property == "track-list/count") notifyTracksChanged()
+        lifecycleGate.withNativeAccess {
+            if (property == "track-list/count") notifyTracksChanged()
+        }
     }
 
     override fun eventProperty(property: String, value: Boolean) {
-        when (property) {
-            "pause" -> publishState(lastState.copy(paused = value))
-            "eof-reached" -> publishState(lastState.copy(eofReached = value))
+        lifecycleGate.withNativeAccess {
+            when (property) {
+                "pause" -> publishState(lastState.copy(paused = value))
+                "eof-reached" -> publishState(lastState.copy(eofReached = value))
+            }
         }
     }
 
     override fun eventProperty(property: String, value: String) {
-        if (property == "sid" || property == "aid") notifyTracksChanged()
+        lifecycleGate.withNativeAccess {
+            if (property == "sid" || property == "aid") notifyTracksChanged()
+        }
     }
 
     private fun notifyTracksChanged() {
         post {
-            if (initialized) onTracksChanged?.invoke(this)
+            lifecycleGate.withNativeAccess {
+                if (initialized) onTracksChanged?.invoke(this)
+            }
         }
     }
 
     override fun eventProperty(property: String, value: Double) {
-        when (property) {
-            "time-pos" -> publishState(lastState.copy(positionMs = (value * 1000.0).toLong()))
-            "duration/full" -> publishState(lastState.copy(durationMs = (value * 1000.0).toLong()))
+        lifecycleGate.withNativeAccess {
+            when (property) {
+                "time-pos" -> publishState(lastState.copy(positionMs = (value * 1000.0).toLong()))
+                "duration/full" -> publishState(lastState.copy(durationMs = (value * 1000.0).toLong()))
+            }
         }
     }
 
     override fun event(eventId: Int) {
-        when (eventId) {
-            MPVLib.MpvEvent.MPV_EVENT_FILE_LOADED -> {
-                pendingStartPositionMs?.takeIf(::shouldApplyPendingStartSeek)?.let { startPositionMs ->
-                    MPVLib.command(arrayOf("seek", (startPositionMs / 1000.0).toString(), "absolute+exact"))
+        if (eventId == MPVLib.MpvEvent.MPV_EVENT_END_FILE ||
+            eventId == MPVLib.MpvEvent.MPV_EVENT_IDLE ||
+            eventId == MPVLib.MpvEvent.MPV_EVENT_SHUTDOWN
+        ) {
+            releaseEventLatch?.countDown()
+        }
+        lifecycleGate.withNativeAccess {
+            when (eventId) {
+                MPVLib.MpvEvent.MPV_EVENT_FILE_LOADED -> {
+                    pendingStartPositionMs?.takeIf(::shouldApplyPendingStartSeek)?.let { startPositionMs ->
+                        MPVLib.command(arrayOf("seek", (startPositionMs / 1000.0).toString(), "absolute+exact"))
+                    }
+                    pendingExternalSubtitlePaths.forEachIndexed { index, path ->
+                        MPVLib.command(arrayOf("sub-add", path, if (index == 0) "select" else "auto"))
+                    }
+                    pendingExternalAudioPaths.forEach { path ->
+                        MPVLib.command(arrayOf("audio-add", path, "auto"))
+                    }
+                    onFileLoaded?.invoke()
                 }
-                pendingExternalSubtitlePaths.forEachIndexed { index, path ->
-                    MPVLib.command(arrayOf("sub-add", path, if (index == 0) "select" else "auto"))
+                MPVLib.MpvEvent.MPV_EVENT_PLAYBACK_RESTART -> {
+                    pendingStartPositionMs = null
+                    onPlaybackRestart?.invoke()
                 }
-                pendingExternalAudioPaths.forEach { path ->
-                    MPVLib.command(arrayOf("audio-add", path, "auto"))
-                }
-                onFileLoaded?.invoke()
-            }
-            MPVLib.MpvEvent.MPV_EVENT_PLAYBACK_RESTART -> {
-                pendingStartPositionMs = null
-                onPlaybackRestart?.invoke()
             }
         }
     }
 
     override fun logMessage(prefix: String, level: Int, text: String) {
-        synchronized(recentNativeLogMessages) {
-            recentNativeLogMessages.addLast(
-                MpvNativeLogMessage(
-                    observedAtElapsedRealtimeMs = SystemClock.elapsedRealtime(),
-                    prefix = prefix,
-                    level = level,
-                    text = text,
+        lifecycleGate.withNativeAccess {
+            synchronized(recentNativeLogMessages) {
+                recentNativeLogMessages.addLast(
+                    MpvNativeLogMessage(
+                        observedAtElapsedRealtimeMs = SystemClock.elapsedRealtime(),
+                        prefix = prefix,
+                        level = level,
+                        text = text,
+                    )
                 )
-            )
-            while (recentNativeLogMessages.size > MAX_NATIVE_LOG_MESSAGES) {
-                recentNativeLogMessages.removeFirst()
+                while (recentNativeLogMessages.size > MAX_NATIVE_LOG_MESSAGES) {
+                    recentNativeLogMessages.removeFirst()
+                }
             }
         }
     }
@@ -398,5 +456,7 @@ private val EMBEDDED_MPV_NATIVE_PROPERTY_SPECS = listOf(
     EmbeddedMpvNativePropertySpec("pause", EmbeddedMpvNativePropertyType.BOOLEAN),
 )
 
+private const val TAG = "MiruMpvSurfaceView"
+private const val RELEASE_EVENT_TIMEOUT_MS = 1_000L
 private const val MAX_NATIVE_LOG_MESSAGES = 120
 private const val EMBEDDED_MPV_HWDEC_CODECS = "h264,hevc,mpeg4,mpeg2video,vp8,vp9,av1"
