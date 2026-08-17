@@ -37,8 +37,10 @@ class NativeAssRenderer private constructor(
     } ?: RENDER_ERROR
 
     @Synchronized
-    fun clearSurface(surface: Surface, width: Int, height: Int): Boolean =
-        handle != 0L && calls.clearSurface(surface, width, height)
+    fun clearSurface(surface: Surface, width: Int, height: Int): Boolean {
+        val activeHandle = handle
+        return activeHandle != 0L && calls.clearSurface(activeHandle, surface, width, height)
+    }
 
     @Synchronized
     override fun close() {
@@ -96,7 +98,7 @@ internal interface NativeAssCalls {
         storageHeight: Int,
     ): Int
 
-    fun clearSurface(surface: Surface, width: Int, height: Int): Boolean
+    fun clearSurface(handle: Long, surface: Surface, width: Int, height: Int): Boolean
 
     fun release(handle: Long)
 }
@@ -140,8 +142,8 @@ private object JniNativeAssCalls : NativeAssCalls {
         storageHeight,
     )
 
-    override fun clearSurface(surface: Surface, width: Int, height: Int): Boolean =
-        nativeClearSurface(surface, width, height)
+    override fun clearSurface(handle: Long, surface: Surface, width: Int, height: Int): Boolean =
+        nativeClearSurface(handle, surface, width, height)
 
     override fun release(handle: Long) = nativeRelease(handle)
 
@@ -167,7 +169,7 @@ private object JniNativeAssCalls : NativeAssCalls {
         storageHeight: Int,
     ): Int
 
-    private external fun nativeClearSurface(surface: Surface, width: Int, height: Int): Boolean
+    private external fun nativeClearSurface(handle: Long, surface: Surface, width: Int, height: Int): Boolean
 
     private external fun nativeRelease(handle: Long)
 }

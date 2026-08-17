@@ -5,6 +5,8 @@ import androidx.media3.common.Format
 import androidx.media3.common.MimeTypes
 import androidx.media3.exoplayer.RendererCapabilities
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class NativeAssTextRendererTest {
@@ -41,6 +43,29 @@ class NativeAssTextRendererTest {
             C.FORMAT_UNSUPPORTED_SUBTYPE,
             RendererCapabilities.getFormatSupport(renderer.supportsFormat(format(MimeTypes.TEXT_SSA))),
         )
+    }
+
+    @Test
+    fun `stock decoder gives ssa exactly one owner and preserves other formats`() {
+        val nativeRenderer = NativeAssTextRenderer(
+            session = LibassSubtitleSession(NoopRendererFactory, ImmediateDispatcher),
+            nativeAvailable = { true },
+        )
+        val nativeOwner = LibassFallbackSubtitleDecoderFactory(nativeAvailable = { true })
+        val stockFallback = LibassFallbackSubtitleDecoderFactory(nativeAvailable = { false })
+        val ssa = format(MimeTypes.TEXT_SSA)
+
+        assertEquals(
+            1,
+            listOf(
+                RendererCapabilities.getFormatSupport(nativeRenderer.supportsFormat(ssa)) == C.FORMAT_HANDLED,
+                nativeOwner.supportsFormat(ssa),
+            ).count { it },
+        )
+        assertTrue(stockFallback.supportsFormat(ssa))
+        assertTrue(nativeOwner.supportsFormat(format(MimeTypes.APPLICATION_SUBRIP)))
+        assertTrue(nativeOwner.supportsFormat(format(MimeTypes.TEXT_VTT)))
+        assertFalse(nativeOwner.supportsFormat(format(MimeTypes.VIDEO_H264)))
     }
 
     private fun format(mimeType: String): Format = Format.Builder()

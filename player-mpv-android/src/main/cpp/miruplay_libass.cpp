@@ -77,6 +77,13 @@ struct LibassApi {
     ass_render_frame_fn render_frame = nullptr;
 };
 
+struct BBox {
+    int x = 0;
+    int y = 0;
+    int w = 0;
+    int h = 0;
+};
+
 struct Session {
     std::mutex mutex;
     ASS_Library* library = nullptr;
@@ -87,7 +94,69 @@ struct Session {
     int storage_width = 0;
     int storage_height = 0;
     bool rendered_first_frame = false;
+    // Surface work is skipped when libass reports the output unchanged. These
+    // fields track what the subtitle surface currently shows so a repost only
+    // happens when the image or the geometry actually changes.
+    bool surface_has_content = false;
+    int posted_width = 0;
+    int posted_height = 0;
+    BBox last_dirty{};      // bbox of the images last posted
+    bool have_last_dirty = false;
 };
+
+BBox images_bbox(const ASS_Image* images) {
+    BBox bbox{};
+    bool first = true;
+    for (const ASS_Image* image = images; image != nullptr; image = image->next) {
+        if (image->w <= 0 || image->h <= 0) continue;
+        if (first) {
+            bbox.x = image->dst_x;
+            bbox.y = image->dst_y;
+            bbox.w = image->w;
+            bbox.h = image->h;
+            first = false;
+        } else {
+            const int old_right = bbox.x + bbox.w;
+            const int old_bottom = bbox.y + bbox.h;
+            bbox.x = std::min(bbox.x, image->dst_x);
+            bbox.y = std::min(bbox.y, image->dst_y);
+            bbox.w = std::max(old_right, image->dst_x + image->w) - bbox.x;
+            bbox.h = std::max(old_bottom, image->dst_y + image->h) - bbox.y;
+        }
+    }
+    return bbox;
+}
+
+void clear_buffer_region(
+    ANativeWindow_Buffer* buffer,
+    int x,
+    int y,
+    int w,
+    int h) {
+    if (buffer == nullptr || buffer->bits == nullptr || w <= 0 || h <= 0) return;
+    const int left = std::max(0, x);
+    const int top = std::max(0, y);
+    const int right = std::min(buffer->width, x + w);
+    const int bottom = std::min(buffer->height, y + h);
+    if (left >= right || top >= bottom) return;
+    auto* pixels = static_cast<uint8_t*>(buffer->bits);
+    const size_t row_bytes = static_cast<size_t>(right - left) * sizeof(uint32_t);
+    for (int row = top; row < bottom; ++row) {
+        std::memset(
+            pixels + static_cast<size_t>(row) * static_cast<size_t>(buffer->stride) * 4U +
+                static_cast<size_t>(left) * sizeof(uint32_t),
+            0,
+            row_bytes);
+    }
+}
+
+void clear_buffer_full(ANativeWindow_Buffer* buffer) {
+    if (buffer == nullptr || buffer->bits == nullptr) return;
+    std::memset(
+        buffer->bits,
+        0,
+        static_cast<size_t>(buffer->stride) * static_cast<size_t>(buffer->height) * sizeof(uint32_t));
+}
 
 LibassApi g_api;
 std::once_flag g_api_once;
@@ -405,7 +474,17 @@ Java_is_xyz_mpv_subtitle_JniNativeAssCalls_nativeRender(
             changed);
         session->rendered_first_frame = true;
     }
-    if (ANativeWindow_setBuffersGeometry(
+
+    const bool geometry_same =
+        session->posted_width == frame_width && session->posted_height == frame_height;
+    // Static subtitles: libass output is byte-identical, the surface already
+    // shows it, and the geometry did not change. Skip all window traffic.
+    if (changed == 0 && geometry_same && session->surface_has_content) {
+        return 0;
+    }
+
+    if (!geometry_same &&
+        ANativeWindow_setBuffersGeometry(
             window,
             frame_width,
             frame_height,
@@ -419,15 +498,32 @@ Java_is_xyz_mpv_subtitle_JniNativeAssCalls_nativeRender(
         ANativeWindow_release(window);
         return -1;
     }
-    std::memset(
-        buffer.bits,
-        0,
-        static_cast<size_t>(buffer.stride) * static_cast<size_t>(buffer.height) * sizeof(uint32_t));
+
+    const BBox new_bbox = images_bbox(images);
+    if (!session->surface_has_content || !session->have_last_dirty) {
+        clear_buffer_full(&buffer);
+    } else {
+        // Clear only the union of the previous and current image areas.
+        const BBox& old = session->last_dirty;
+        const int clear_x = std::min(old.x, new_bbox.x);
+        const int clear_y = std::min(old.y, new_bbox.y);
+        const int clear_right =
+            std::max(old.x + old.w, new_bbox.x + new_bbox.w);
+        const int clear_bottom =
+            std::max(old.y + old.h, new_bbox.y + new_bbox.h);
+        clear_buffer_region(&buffer, clear_x, clear_y, clear_right - clear_x, clear_bottom - clear_y);
+    }
     for (ASS_Image* image = images; image != nullptr; image = image->next) {
         blend_image(&buffer, image);
     }
     ANativeWindow_unlockAndPost(window);
     ANativeWindow_release(window);
+
+    session->surface_has_content = true;
+    session->posted_width = frame_width;
+    session->posted_height = frame_height;
+    session->last_dirty = new_bbox;
+    session->have_last_dirty = true;
     return 1;
 }
 
@@ -435,10 +531,20 @@ extern "C" JNIEXPORT jboolean JNICALL
 Java_is_xyz_mpv_subtitle_JniNativeAssCalls_nativeClearSurface(
     JNIEnv* env,
     jobject,
+    jlong handle,
     jobject surface,
     jint width,
     jint height) {
     if (surface == nullptr) return JNI_FALSE;
+    auto* session = reinterpret_cast<Session*>(handle);
+    if (session != nullptr) {
+        std::lock_guard<std::mutex> lock(session->mutex);
+        // Force the next render to repost even when libass reports unchanged.
+        session->surface_has_content = false;
+        session->posted_width = 0;
+        session->posted_height = 0;
+        session->have_last_dirty = false;
+    }
     ANativeWindow* window = ANativeWindow_fromSurface(env, surface);
     if (window == nullptr) return JNI_FALSE;
     const bool cleared = clear_window(window, width, height);

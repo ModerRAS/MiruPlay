@@ -29,8 +29,13 @@ object PlayerModule {
         @ApplicationContext context: Context,
         dataSourceFactory: PlaybackDataSourceFactory,
         audioDspRuntimeConfig: AudioDspRuntimeConfig,
+        playbackDebugOverrides: PlaybackDebugOverrides,
     ): ExoPlayer {
-        val libassSession = LibassSubtitleSession()
+        val libassSession = LibassSubtitleSession(
+            monitorProvider = libassSubtitleMonitorProvider {
+                playbackDebugOverrides.libassSubtitleMonitorEnabled
+            },
+        )
         val nativeAssAvailable = NativeAssRenderer.isAvailable()
         val renderersFactory = DspRenderersFactory(context, audioDspRuntimeConfig, libassSession)
             .forceDisableMediaCodecAsynchronousQueueing()
@@ -45,7 +50,7 @@ object PlayerModule {
                         session = libassSession,
                         nativeAvailable = { nativeAssAvailable },
                     ),
-                ),
+                ).experimentalParseSubtitlesDuringExtraction(false),
             )
             .build()
             .also { player ->

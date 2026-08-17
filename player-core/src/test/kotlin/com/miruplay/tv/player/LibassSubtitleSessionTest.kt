@@ -1,6 +1,7 @@
 package com.miruplay.tv.player
 
 import `is`.xyz.mpv.subtitle.NativeAssFont
+import `is`.xyz.mpv.subtitle.NativeAssRenderer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -33,6 +34,7 @@ class LibassSubtitleSessionTest {
             generation,
             NativeAssFont("signs.otf", byteArrayOf(1, 2, 3)),
         )
+        fixture.dispatcher.runNext()
 
         assertEquals(2, fixture.factory.renderers.size)
         assertTrue(fixture.factory.renderers.first().closed)
@@ -49,8 +51,37 @@ class LibassSubtitleSessionTest {
 
         fixture.session.addFont(generation, font)
         fixture.session.addFont(generation, NativeAssFont("SIGNS.OTF", font.data.copyOf()))
+        fixture.dispatcher.runNext()
 
         assertEquals(2, fixture.factory.renderers.size)
+    }
+
+    @Test
+    fun `font burst coalesces into one rebuild and stale generation is discarded`() {
+        val fixture = Fixture()
+        val generation = fixture.session.beginMedia()
+        fixture.session.startTrack(generation, HEADER)
+        fixture.session.acceptPayload(generation, EVENT)
+
+        fixture.session.addFont(generation, NativeAssFont("a.ttf", byteArrayOf(1)))
+        fixture.session.addFont(generation, NativeAssFont("b.ttf", byteArrayOf(2)))
+        fixture.session.addFont(generation, NativeAssFont("c.ttf", byteArrayOf(3)))
+
+        assertEquals(1, fixture.dispatcher.pendingCount)
+        fixture.dispatcher.runNext()
+        assertEquals(2, fixture.factory.renderers.size)
+        assertEquals(
+            listOf("a.ttf", "b.ttf", "c.ttf"),
+            fixture.factory.createdFonts.last().map { it.name },
+        )
+        assertEquals(listOf(EVENT.dialogueLine), fixture.factory.renderers.last().events)
+
+        // A rebuild scheduled for a superseded media generation must not resurrect a renderer.
+        fixture.session.addFont(generation, NativeAssFont("d.ttf", byteArrayOf(4)))
+        fixture.session.beginMedia()
+        fixture.dispatcher.runNext()
+        assertEquals(2, fixture.factory.renderers.size)
+        assertTrue(fixture.factory.renderers.last().closed)
     }
 
     @Test
@@ -64,6 +95,7 @@ class LibassSubtitleSessionTest {
 
         assertEquals(1, fixture.factory.renderers.last().flushCount)
         fixture.session.addFont(generation, NativeAssFont("late.ttf", byteArrayOf(4)))
+        fixture.dispatcher.runNext()
         assertTrue(fixture.factory.renderers.last().events.isEmpty())
     }
 
@@ -171,8 +203,9 @@ class LibassSubtitleSessionTest {
         val renderedPresentationTimesUs = mutableListOf<Long>()
         var clearCount = 0
 
-        override fun render(renderer: LibassRendererHandle, frame: LibassVideoFrame) {
+        override fun render(renderer: LibassRendererHandle, frame: LibassVideoFrame): Int {
             renderedPresentationTimesUs += frame.presentationTimeUs
+            return NativeAssRenderer.RENDER_UNCHANGED
         }
 
         override fun clear(renderer: LibassRendererHandle?) {

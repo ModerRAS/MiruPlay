@@ -15,8 +15,10 @@ import java.io.Closeable
 class LibassSubtitleSession internal constructor(
     private val rendererFactory: LibassRendererFactory = NativeLibassRendererFactory,
     private val renderDispatcher: LibassRenderDispatcher = HandlerLibassRenderDispatcher(),
+    private val monitorProvider: () -> LibassSubtitleMonitor? = { null },
 ) : VideoFrameMetadataListener, Closeable {
     private val lock = Any()
+    private var monitor: LibassSubtitleMonitor? = null
     private var generation = 0L
     private var document: ByteArray? = null
     private val fonts = mutableListOf<NativeAssFont>()
@@ -25,6 +27,7 @@ class LibassSubtitleSession internal constructor(
     private var target: LibassRenderTarget? = null
     private var latestFrame: LibassVideoFrame? = null
     private var renderQueued = false
+    private var rebuildPending = false
     private var active = false
     private var closed = false
 
@@ -35,6 +38,10 @@ class LibassSubtitleSession internal constructor(
 
     fun beginMedia(): Long = synchronized(lock) {
         if (closed) return@synchronized generation
+        // The debug switch only takes effect at the next playback boundary, never by
+        // dynamically mounting into a running session (approved condition #2).
+        refreshMonitorLocked()
+        monitor?.onBeginMedia()
         target?.clear(renderer)
         renderer?.close()
         renderer = null
@@ -49,6 +56,7 @@ class LibassSubtitleSession internal constructor(
 
     internal fun startTrack(mediaGeneration: Long, header: ByteArray?) = synchronized(lock) {
         if (!accepts(mediaGeneration)) return@synchronized
+        monitor?.onStartTrack()
         target?.clear(renderer)
         renderer?.close()
         renderer = null
@@ -56,7 +64,7 @@ class LibassSubtitleSession internal constructor(
         events.clear()
         latestFrame = null
         active = true
-        recreateRendererLocked()
+        createRendererImmediatelyLocked()
     }
 
     internal fun acceptPayload(mediaGeneration: Long, payload: LibassPayload?) = synchronized(lock) {
@@ -65,12 +73,14 @@ class LibassSubtitleSession internal constructor(
             is LibassPayload.Document -> {
                 document = payload.bytes.copyOf()
                 events.clear()
-                recreateRendererLocked()
+                monitor?.onDocumentPayload(payload.bytes)
+                createRendererImmediatelyLocked()
             }
 
             is LibassPayload.Event -> {
                 events += payload.dialogueLine
                 renderer?.addEvent(payload.dialogueLine)
+                monitor?.onEventPayload(payload.dialogueLine)
             }
         }
     }
@@ -83,18 +93,29 @@ class LibassSubtitleSession internal constructor(
         if (existingIndex >= 0 && fonts[existingIndex].data.contentEquals(font.data)) return@synchronized
         val copied = NativeAssFont(font.name, font.data.copyOf())
         if (existingIndex >= 0) fonts[existingIndex] = copied else fonts += copied
-        recreateRendererLocked()
+        scheduleRendererRebuildLocked()
     }
 
-    internal fun onSeek(mediaGeneration: Long) = synchronized(lock) {
+    internal fun onSeek(
+        mediaGeneration: Long,
+        flushEvents: Boolean = true,
+    ) = synchronized(lock) {
         if (!accepts(mediaGeneration)) return@synchronized
-        events.clear()
+        monitor?.onSeek(clearTimeline = flushEvents)
         latestFrame = null
-        renderer?.flushEvents()
+        if (flushEvents) {
+            events.clear()
+            renderer?.flushEvents()
+        }
+    }
+
+    internal fun onResume() = synchronized(lock) {
+        if (!closed && active) monitor?.onResume()
     }
 
     internal fun deactivate(mediaGeneration: Long) = synchronized(lock) {
         if (!accepts(mediaGeneration)) return@synchronized
+        monitor?.onDeactivate()
         target?.clear(renderer)
         renderer?.close()
         renderer = null
@@ -131,12 +152,20 @@ class LibassSubtitleSession internal constructor(
         presentationTimeUs: Long,
         storageWidth: Int,
         storageHeight: Int,
+        anchorWallNs: Long? = null,
+        mappingWallNs: Long? = anchorWallNs,
     ) = synchronized(lock) {
         if (closed || !active || renderer == null || target == null) return@synchronized
         latestFrame = LibassVideoFrame(
             presentationTimeUs = presentationTimeUs,
             storageWidth = storageWidth,
             storageHeight = storageHeight,
+        )
+        monitor?.onFrameSubmitted(
+            mediaUs = presentationTimeUs,
+            anchorWallNs = anchorWallNs,
+            mappingWallNs = mappingWallNs,
+            coalesced = renderQueued,
         )
         scheduleRenderLocked()
     }
@@ -147,13 +176,22 @@ class LibassSubtitleSession internal constructor(
         format: Format,
         mediaFormat: MediaFormat?,
     ) {
-        submitVideoFrame(presentationTimeUs, format.width, format.height)
+        submitVideoFrame(
+            presentationTimeUs,
+            format.width,
+            format.height,
+            anchorWallNs = releaseTimeNs,
+        )
     }
+
+    fun currentMonitorSnapshot(): LibassSubtitleMonitorSnapshot? =
+        synchronized(lock) { monitor?.snapshot() }
 
     override fun close() {
         val shouldCloseDispatcher = synchronized(lock) {
             if (closed) return
             closed = true
+            monitor?.close()
             target?.clear(renderer)
             target = null
             renderer?.close()
@@ -171,7 +209,15 @@ class LibassSubtitleSession internal constructor(
     private fun accepts(mediaGeneration: Long): Boolean =
         !closed && mediaGeneration == generation
 
-    private fun recreateRendererLocked() {
+    private fun refreshMonitorLocked() {
+        val next = monitorProvider()
+        if (next !== monitor) {
+            monitor?.close()
+            monitor = next
+        }
+    }
+
+    private fun createRendererImmediatelyLocked() {
         val currentDocument = document ?: return
         renderer?.close()
         renderer = rendererFactory.create(currentDocument.copyOf(), fonts.map { font ->
@@ -181,6 +227,53 @@ class LibassSubtitleSession internal constructor(
         events.forEach(currentRenderer::addEvent)
         scheduleRenderLocked()
     }
+
+    // Font-driven rebuilds run on the render dispatcher thread (lock-free native
+    // create, atomic swap under the lock) so the extraction/playback threads never
+    // block on libass renderer construction. Pending rebuilds coalesce into one.
+    private fun scheduleRendererRebuildLocked() {
+        if (rebuildPending || closed) return
+        rebuildPending = true
+        renderDispatcher.dispatch(::applyPendingRendererRebuild)
+    }
+
+    private fun applyPendingRendererRebuild() {
+        val snapshot = synchronized(lock) {
+            if (closed || !rebuildPending || !active) {
+                rebuildPending = false
+                return
+            }
+            rebuildPending = false
+            val currentDocument = document?.copyOf() ?: return
+            RebuildSnapshot(
+                generation = generation,
+                document = currentDocument,
+                fonts = fonts.map { font -> NativeAssFont(font.name, font.data.copyOf()) },
+            )
+        }
+        val newRenderer = rendererFactory.create(snapshot.document, snapshot.fonts)
+        synchronized(lock) {
+            if (closed || !active || generation != snapshot.generation) {
+                newRenderer?.close()
+                return
+            }
+            val currentRenderer = newRenderer
+            if (currentRenderer != null) {
+                // Replay the authoritative event list: events added while the
+                // rebuild was in flight already hit the discarded renderer.
+                events.forEach(currentRenderer::addEvent)
+            }
+            renderer?.close()
+            renderer = currentRenderer
+            scheduleRenderLocked()
+        }
+    }
+
+    private data class RebuildSnapshot(
+        val generation: Long,
+        val document: ByteArray,
+        val fonts: List<NativeAssFont>,
+    )
 
     private fun scheduleRenderLocked() {
         if (renderQueued || latestFrame == null || renderer == null || target == null || !active || closed) return
@@ -201,7 +294,9 @@ class LibassSubtitleSession internal constructor(
             RenderRequest(currentRenderer, currentTarget, frame)
         }
 
-        request.target.render(request.renderer, request.frame)
+        monitor?.onRenderStarted()
+        val renderResult = request.target.render(request.renderer, request.frame)
+        monitor?.onRenderFinished(request.frame.presentationTimeUs, renderResult)
 
         synchronized(lock) {
             renderQueued = false
@@ -241,7 +336,9 @@ internal interface LibassRendererHandle : Closeable {
 }
 
 internal interface LibassRenderTarget {
-    fun render(renderer: LibassRendererHandle, frame: LibassVideoFrame)
+    fun render(renderer: LibassRendererHandle, frame: LibassVideoFrame): Int =
+        NativeAssRenderer.RENDER_UNCHANGED
+
     fun clear(renderer: LibassRendererHandle?)
 }
 
@@ -285,9 +382,8 @@ private class SurfaceLibassRenderTarget(
     private val width: Int,
     private val height: Int,
 ) : LibassRenderTarget {
-    override fun render(renderer: LibassRendererHandle, frame: LibassVideoFrame) {
+    override fun render(renderer: LibassRendererHandle, frame: LibassVideoFrame): Int =
         renderer.render(surface, frame, width, height)
-    }
 
     override fun clear(renderer: LibassRendererHandle?) {
         renderer?.clearSurface(surface, width, height)
