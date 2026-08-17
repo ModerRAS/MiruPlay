@@ -47,6 +47,9 @@ import com.miruplay.tv.repository.ScanPreferencesRepository
 import com.miruplay.tv.repository.savePlaybackProgressOnCompletion
 import com.miruplay.tv.repository.savePlaybackProgressSnapshot
 import com.miruplay.tv.sync.BangumiSyncEngine
+import com.miruplay.tv.translation.SubtitleTranslationService
+import com.miruplay.tv.translation.TranslationPreferencesRepository
+import com.miruplay.tv.translation.TranslationProvider
 import androidx.media3.common.Player
 import dagger.Lazy
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -71,6 +74,8 @@ class PlayerViewModel @Inject constructor(
     private val bangumiEpisodeCommentsService: Lazy<BangumiEpisodeCommentsService>,
     private val playbackPreferences: PlaybackPreferencesRepository,
     private val scanPreferences: ScanPreferencesRepository,
+    private val subtitleTranslationService: SubtitleTranslationService,
+    private val translationPreferences: TranslationPreferencesRepository,
 ) : ViewModel() {
     val playbackState: StateFlow<PlaybackState> = playbackController.state
     val currentVideoSignalDescriptor: StateFlow<VideoSignalDescriptor?> = playbackController.currentVideoSignalDescriptor
@@ -130,6 +135,11 @@ class PlayerViewModel @Inject constructor(
     private var episodeCommentsGeneration = 0L
     private val _episodeComments = MutableStateFlow(EpisodeCommentsUiState())
     val episodeComments: StateFlow<EpisodeCommentsUiState> = _episodeComments.asStateFlow()
+
+    private val _subtitleTranslationState =
+        MutableStateFlow<SubtitleTranslationState>(SubtitleTranslationState.Idle)
+    val subtitleTranslationState: StateFlow<SubtitleTranslationState> =
+        _subtitleTranslationState.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -254,7 +264,7 @@ class PlayerViewModel @Inject constructor(
             val episodeId = source.episodeId
             val episode = episodeId?.let { metadataRepository.get().getCachedEpisode(it).getOrNull() }
             if (activeSource != source || episodeCommentsGeneration != generation) return@launch
-            val bangumiEpisodeId = episode?.bangumiEpisodeId
+            val bangumiEpisodeId = source.bangumiEpisodeId ?: episode?.bangumiEpisodeId
             if (bangumiEpisodeId == null) {
                 _episodeComments.value = EpisodeCommentsUiState(
                     errorMessage = "当前剧集没有匹配到 Bangumi 单集，无法加载评论。",
@@ -375,6 +385,103 @@ class PlayerViewModel @Inject constructor(
     fun selectSubtitle(index: Int?) {
         viewModelScope.launch {
             playbackController.setSubtitleTrack(index)
+            refreshTracks()
+        }
+    }
+
+    fun translateSelectedSubtitle(provider: TranslationProvider, targetLanguageCode: String) {
+        val source = activeSource ?: run {
+            _subtitleTranslationState.value =
+                SubtitleTranslationState.Error("当前没有正在播放的内容，无法翻译字幕")
+            return
+        }
+        val selectedIndex = _selectedSubtitleTrackIndex.value
+        val selectedTrack = selectedIndex?.let { index -> _availableSubtitles.value.getOrNull(index) }
+        if (selectedTrack == null) {
+            _subtitleTranslationState.value = SubtitleTranslationState.Error(
+                "请先在字幕菜单中选择要翻译的字幕轨道",
+            )
+            return
+        }
+        if (provider == TranslationProvider.DEEPSEEK && translationPreferences.deepSeekApiKey.isBlank()) {
+            _subtitleTranslationState.value = SubtitleTranslationState.Error(
+                "未配置 DeepSeek API Key，请在 WebControl 设置中配置后重试",
+            )
+            return
+        }
+        translationPreferences.defaultTargetLanguage = targetLanguageCode
+        viewModelScope.launch {
+            _subtitleTranslationState.value = SubtitleTranslationState.Translating
+            when (
+                val result = subtitleTranslationService.translateTrack(
+                    track = selectedTrack,
+                    targetLanguageCode = targetLanguageCode,
+                    provider = provider,
+                )
+            ) {
+                is Result.Success -> {
+                    if (activeSource !== source) {
+                        // 播放已切换/停止，丢弃翻译结果，避免重新拉起播放。
+                        _subtitleTranslationState.value = SubtitleTranslationState.Idle
+                        return@launch
+                    }
+                    val updatedSource = source.copy(
+                        subtitleTracks = source.subtitleTracks + result.data,
+                        startPosition = _currentPosition.value,
+                    )
+                    replaySourceWithSubtitleTracks(updatedSource)
+                    _subtitleTranslationState.value = SubtitleTranslationState.Idle
+                }
+                is Result.Error -> {
+                    val baseMessage = result.error.toUserMessage()
+                    _subtitleTranslationState.value = SubtitleTranslationState.Error(
+                        if (provider == TranslationProvider.DEEPSEEK) {
+                            "$baseMessage（可在 WebControl 设置 DeepSeek API Key）"
+                        } else {
+                            baseMessage
+                        },
+                    )
+                }
+            }
+        }
+    }
+
+    fun isDeepSeekKeyConfigured(): Boolean =
+        translationPreferences.deepSeekApiKey.isNotBlank()
+
+    fun defaultTranslationTargetLanguage(): String =
+        translationPreferences.defaultTargetLanguage
+
+    /**
+     * 把追加了翻译字幕轨的 PlaybackSource 重放一次（沿用 retry() 的重入模式），
+     * 用当前播放位置作为起点，并在新轨道就绪后自动选中翻译字幕轨。
+     */
+    private suspend fun replaySourceWithSubtitleTracks(updatedSource: PlaybackSource) {
+        val expectedTrackCount = _availableSubtitles.value.size + 1
+        _errorMessage.value = null
+        pendingSeekPositionMs = null
+        _currentPosition.value = updatedSource.startPosition.coerceAtLeast(0L)
+        activeSource = updatedSource
+        _activePlaybackSource.value = updatedSource
+        playbackController.play(updatedSource).also {
+            _duration.value = playbackController.getDuration()
+            refreshTracks()
+            startPositionPolling()
+            startProgressSaving(updatedSource)
+            startFinishObserver(updatedSource)
+        }
+        // onTracksChanged 异步派发，轮询等待新 MediaItem 的轨道枚举包含翻译轨（最后一条）。
+        var translatedIndex: Int? = null
+        repeat(50) {
+            val tracks = playbackController.getAvailableSubtitles()
+            if (tracks.size >= expectedTrackCount) {
+                translatedIndex = tracks.lastIndex
+                return@repeat
+            }
+            delay(100)
+        }
+        if (translatedIndex != null && translatedIndex >= 0) {
+            playbackController.setSubtitleTrack(translatedIndex)
             refreshTracks()
         }
     }
@@ -774,4 +881,10 @@ internal fun shouldOwnerStopPlayback(activeOwnerToken: Any?, candidateOwnerToken
 
 sealed interface PlaybackFinishEvent {
     data object NavigateBack : PlaybackFinishEvent
+}
+
+sealed interface SubtitleTranslationState {
+    data object Idle : SubtitleTranslationState
+    data object Translating : SubtitleTranslationState
+    data class Error(val message: String) : SubtitleTranslationState
 }

@@ -41,6 +41,7 @@ dependencies {
     implementation(project(":data"))
     implementation(project(":scraper"))
     implementation(project(":sync-engine"))
+    implementation(project(":translation"))
     
     implementation(libs.androidx.tv.material)
     implementation(libs.androidx.tv.foundation)
