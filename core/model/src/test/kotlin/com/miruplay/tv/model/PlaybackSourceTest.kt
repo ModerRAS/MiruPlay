@@ -138,6 +138,18 @@ class PlaybackSourceTest {
         assertEquals(0L, completed.startPosition)
     }
 
+    @Test
+    fun `episode playback source carries bangumi episode id`() {
+        val source = episode(id = "ep1", duration = 100_000L)
+            .copy(bangumiEpisodeId = 4242)
+            .toPlaybackSource(
+                playableUri = "https://media.example.test/ep1.mkv",
+                progress = null,
+            )
+
+        assertEquals(4242, source.bangumiEpisodeId)
+    }
+
     private fun episode(
         id: String,
         season: Int = 1,

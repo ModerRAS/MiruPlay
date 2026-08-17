@@ -12,6 +12,7 @@ import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.DramaSeries
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MetadataProviderRef
+import com.miruplay.tv.model.distinctSeasonEpisodeCount
 import com.miruplay.tv.model.normalizedMetadataBinding
 import com.miruplay.tv.repository.dramaSeriesCacheKey
 import com.miruplay.tv.repository.toLegacyCachedDramaMetadata
@@ -64,6 +65,15 @@ class MetadataRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun getCachedAnimeWithBangumiId(): Result<List<Anime>> = withContext(Dispatchers.IO) {
+        try {
+            val entities = animeDao.getAnimeWithBangumiId()
+            Result.success(entities.map { it.toDomain(emptyList()) })
+        } catch (e: Exception) {
+            Result.success(emptyList())
+        }
+    }
+
     override suspend fun getCachedMetadata(animeIds: Collection<String>): Result<List<Anime>> = withContext(Dispatchers.IO) {
         try {
             val ids = animeIds.filter { it.isNotBlank() }.distinct()
@@ -109,7 +119,7 @@ class MetadataRepositoryImpl @Inject constructor(
             // Also update episode count in cached anime metadata
             animeDao.getById(animeId)?.let { animeEntity ->
                 animeDao.insert(animeEntity.copy(
-                    episodeCount = episodes.size,
+                    episodeCount = episodes.distinctSeasonEpisodeCount(),
                     lastUpdated = System.currentTimeMillis()
                 ))
             }
@@ -205,7 +215,11 @@ private fun AnimeEntity.toDomain(episodeEntities: List<EpisodeEntity>): Anime {
         } ?: emptyList(),
         studio = studio,
         director = director,
-        episodeCount = episodeEntities.size.takeIf { it > 0 } ?: episodeCount,
+        episodeCount = episodeEntities
+            .map(EpisodeEntity::toDomain)
+            .distinctSeasonEpisodeCount()
+            .takeIf { it > 0 }
+            ?: episodeCount,
         airDate = airDate,
         rating = rating,
         bangumiId = bangumiId?.toIntOrNull(),

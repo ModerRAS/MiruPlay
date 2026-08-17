@@ -301,6 +301,24 @@ class MetadataRepositoryImplTest {
     }
 
     @Test
+    fun `getCachedMetadata collection should count logical episodes instead of files`() = runBlocking {
+        repository.cacheMetadata(createTestAnime(id = "anime-a", title = "Anime A"))
+        val episodes = listOf(
+            createTestEpisode(id = "ep-1-web", animeId = "anime-a", episodeNumber = 1),
+            createTestEpisode(id = "ep-1-bd", animeId = "anime-a", episodeNumber = 1),
+            createTestEpisode(id = "ep-2", animeId = "anime-a", episodeNumber = 2),
+            createTestEpisode(id = "s2-ep-1", animeId = "anime-a", seasonNumber = 2, episodeNumber = 1),
+        )
+
+        repository.cacheEpisodes("anime-a", episodes)
+        val cached = repository.getCachedMetadata(listOf("anime-a")).getOrNull()!!.single()
+
+        assertEquals(3, cached.episodeCount)
+        assertEquals(3, animeDao.getById("anime-a")?.episodeCount)
+        assertEquals(4, repository.getCachedEpisodes("anime-a").getOrNull()!!.size)
+    }
+
+    @Test
     fun `getCachedMetadata collection should keep stale anime`() = runBlocking {
         repository.cacheMetadata(createTestAnime(id = "fresh-anime"))
         repository.cacheMetadata(createTestAnime(id = "expired-anime"))

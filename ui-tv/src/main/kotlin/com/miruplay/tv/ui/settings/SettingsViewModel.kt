@@ -72,6 +72,7 @@ import com.miruplay.tv.sync.rss.CloudDriveDirectoryTarget
 import com.miruplay.tv.sync.rss.loadCloudDriveDirectory
 import com.miruplay.tv.sync.rss.loadingFor
 import com.miruplay.tv.sync.rss.prepareCloudDriveDirectoryBrowser
+import com.miruplay.tv.sync.BangumiSyncEngine
 import com.miruplay.tv.model.rssSubscriptionDeletedStatus
 import com.miruplay.tv.model.rssSubscriptionSavedStatus
 import com.miruplay.tv.model.settingsAppUpdateCheckingStatus
@@ -123,6 +124,7 @@ class SettingsViewModel @Inject constructor(
     private val bangumiArchiveStore: BangumiArchiveStore,
     private val backgroundTasks: BackgroundTaskForegroundController,
     private val audioDspRuntimeConfig: AudioDspRuntimeConfig,
+    private val bangumiSyncEngine: BangumiSyncEngine,
 ) : ViewModel() {
 
     private val logUploadActions = LogUploadActionCoordinator(logUploadRepository)
@@ -234,6 +236,9 @@ class SettingsViewModel @Inject constructor(
 
     private val _bangumiArchiveState = MutableStateFlow(BangumiArchiveUiState())
     val bangumiArchiveState: StateFlow<BangumiArchiveUiState> = _bangumiArchiveState.asStateFlow()
+
+    private val _bangumiSyncState = MutableStateFlow(BangumiSyncAllUiState())
+    val bangumiSyncState: StateFlow<BangumiSyncAllUiState> = _bangumiSyncState.asStateFlow()
 
     private val _proxyStatusMessage = MutableStateFlow(settingsProxySavedStatus())
     val proxyStatusMessage: StateFlow<String> = _proxyStatusMessage.asStateFlow()
@@ -360,6 +365,31 @@ class SettingsViewModel @Inject constructor(
     fun clearTmdbToken() {
         securePrefs.clearTmdbToken()
         _tmdbToken.value = ""
+    }
+
+    fun syncBangumiAll() {
+        if (_bangumiSyncState.value.isRunning) return
+        viewModelScope.launch(Dispatchers.IO) {
+            _bangumiSyncState.value = BangumiSyncAllUiState(isRunning = true)
+            try {
+                val summary = bangumiSyncEngine.syncAllBangumi()
+                _bangumiSyncState.value = BangumiSyncAllUiState(
+                    isRunning = false,
+                    animeCount = summary.animeCount,
+                    syncedCount = summary.synced.size,
+                    failedCount = summary.failed.size,
+                    totalPushedEpisodes = summary.totalPushedEpisodes,
+                    totalPulledEpisodes = summary.totalPulledEpisodes,
+                    totalRemoteWatchedEpisodes = summary.totalRemoteWatchedEpisodes,
+                    failedAnimeIds = summary.failed.map { it.animeId },
+                )
+            } catch (e: Exception) {
+                _bangumiSyncState.value = BangumiSyncAllUiState(
+                    isRunning = false,
+                    errorMessage = e.message ?: "同步失败",
+                )
+            }
+        }
     }
 
     fun saveCloudDriveConfig(
@@ -1334,6 +1364,18 @@ data class AppUpdateUiState(
     val isBusy: Boolean = false,
     val progressPercent: Int? = null,
     val statusMessage: String = settingsAppUpdateIdleStatus(),
+)
+
+data class BangumiSyncAllUiState(
+    val isRunning: Boolean = false,
+    val animeCount: Int = 0,
+    val syncedCount: Int = 0,
+    val failedCount: Int = 0,
+    val totalPushedEpisodes: Int = 0,
+    val totalPulledEpisodes: Int = 0,
+    val totalRemoteWatchedEpisodes: Int = 0,
+    val failedAnimeIds: List<String> = emptyList(),
+    val errorMessage: String? = null,
 )
 
 sealed class ConnectionTestResult {

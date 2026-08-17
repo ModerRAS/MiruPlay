@@ -11,6 +11,7 @@ data class PlaybackSource(
     val externalAudioTracks: List<ExternalAudioTrack> = emptyList(),
     val episodeId: String? = null,
     val progressId: String? = episodeId,
+    val bangumiEpisodeId: Int? = null,
 )
 
 fun playbackSourceFromInputs(
@@ -82,4 +83,5 @@ fun Episode.toPlaybackSource(
         subtitleTracks = emptyList(),
         episodeId = id,
         progressId = progressId,
+        bangumiEpisodeId = bangumiEpisodeId,
     )
