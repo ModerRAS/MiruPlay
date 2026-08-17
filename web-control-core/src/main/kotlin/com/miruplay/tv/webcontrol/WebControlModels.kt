@@ -487,6 +487,28 @@ data class BangumiTokenRequest(
 )
 
 @Serializable
+data class BangumiSyncAllResultDto(
+    val animeCount: Int,
+    val syncedCount: Int,
+    val failedCount: Int,
+    val totalPushedEpisodes: Int,
+    val totalPulledEpisodes: Int,
+    val totalRemoteWatchedEpisodes: Int,
+    val results: List<BangumiSyncAnimeResultDto>,
+)
+
+@Serializable
+data class BangumiSyncAnimeResultDto(
+    val animeId: String,
+    val subjectId: Int? = null,
+    val outcome: String,
+    val pushedEpisodes: Int = 0,
+    val pulledEpisodes: Int = 0,
+    val remoteWatchedEpisodes: Int = 0,
+    val message: String? = null,
+)
+
+@Serializable
 data class LibraryDto(
     val continueWatching: List<ContinueWatchingDto>,
     val recentlyAdded: List<Anime>,
@@ -560,6 +582,13 @@ data class PlaybackDebugConfigRequest(
     val libVlcNativeSnapshotLabel: String? = null,
     val skipLibVlcStartupProbe: Boolean? = null,
     val skipLibVlcStartupOptions: Boolean? = null,
+    val subtitleMonitorEnabled: Boolean? = null,
+)
+
+@Serializable
+data class TranslationSettingsDto(
+    val deepSeekApiKey: String = "",
+    val defaultTargetLanguage: String = "zh-Hans",
 )
 
 @Serializable
@@ -596,6 +625,7 @@ data class PlaybackDebugConfigDto(
     val pendingLibVlcNativeSnapshotLabel: String? = null,
     val skipLibVlcStartupProbe: Boolean = false,
     val skipLibVlcStartupOptions: Boolean = false,
+    val subtitleMonitorEnabled: Boolean = false,
 )
 
 @Serializable
@@ -605,6 +635,44 @@ data class PlaybackClockSampleDto(
     val durationMs: Long = 0L,
     val paused: Boolean = false,
     val eofReached: Boolean = false,
+)
+
+@Serializable
+data class LibassMonitorLatencyDto(
+    val count: Int = 0,
+    val p50Ns: Long = 0L,
+    val p95Ns: Long = 0L,
+    val p99Ns: Long = 0L,
+    val maxNs: Long = 0L,
+)
+
+@Serializable
+data class LibassSubtitleMonitorDto(
+    val enabled: Boolean = false,
+    val epoch: Long = 0L,
+    val activeBackend: String = "",
+    val resetWindowActive: Boolean = false,
+    val lastResetReason: String = "",
+    val cueTimelineCount: Int = 0,
+    val lateCueCount: Long = 0L,
+    val timelineProvenSkippedCueCount: Long = 0L,
+    val coalescedFrameCount: Long = 0L,
+    val nativeNoOpRenderCount: Long = 0L,
+    val renderErrorCount: Long = 0L,
+    val updatedRenderCount: Long = 0L,
+    val slowCommitCount: Long = 0L,
+    val commitTimeoutCount: Long = 0L,
+    val mainThreadLongFrameCount: Long = 0L,
+    val recoveryLatencyNs: Long = 0L,
+    val appVsyncObservedCount: Long = 0L,
+    val cueLateness: LibassMonitorLatencyDto = LibassMonitorLatencyDto(),
+    val selectionToRender: LibassMonitorLatencyDto = LibassMonitorLatencyDto(),
+    val commitDuration: LibassMonitorLatencyDto = LibassMonitorLatencyDto(),
+    val commitToVsync: LibassMonitorLatencyDto = LibassMonitorLatencyDto(),
+    val internalEndToEnd: LibassMonitorLatencyDto = LibassMonitorLatencyDto(),
+    val clockInterval: LibassMonitorLatencyDto = LibassMonitorLatencyDto(),
+    val clockJitter: LibassMonitorLatencyDto = LibassMonitorLatencyDto(),
+    val clockLateness: LibassMonitorLatencyDto = LibassMonitorLatencyDto(),
 )
 
 @Serializable

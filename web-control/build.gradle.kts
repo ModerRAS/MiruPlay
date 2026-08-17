@@ -86,6 +86,7 @@ dependencies {
     implementation(project(":media-source-api"))
     implementation(project(":scraper-core"))
     implementation(project(":sync-engine"))
+    implementation(project(":translation"))
 
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.core)

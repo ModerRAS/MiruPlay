@@ -36,6 +36,8 @@ import com.miruplay.tv.player.effectiveEmbeddedMpvVideoOutput
 import com.miruplay.tv.player.LibVlcHardwareAccelerationMode
 import com.miruplay.tv.player.LibVlcVoutMode
 import com.miruplay.tv.player.forcedVideoSignalDescriptorFor
+import com.miruplay.tv.player.LatencyStats
+import com.miruplay.tv.player.LibassSubtitleMonitorSnapshot
 import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.AppModePreferencesRepository
 import com.miruplay.tv.repository.AppUpdateInstallLaunch
@@ -59,6 +61,8 @@ import com.miruplay.tv.scraper.core.toBangumiHttpProxyConfig
 import com.miruplay.tv.sync.rss.CloudDriveRssActionCoordinator
 import com.miruplay.tv.sync.rss.CloudDriveRssAutomationEngine
 import com.miruplay.tv.sync.rss.CloudDriveRssScheduler
+import com.miruplay.tv.sync.BangumiSyncEngine
+import com.miruplay.tv.translation.TranslationPreferencesRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -74,10 +78,10 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 internal suspend fun stopWebControlPlayback(
-    pausePlayback: suspend () -> Unit,
+    stopPlayback: suspend () -> Unit,
     closePlayer: () -> Boolean,
 ): PlaybackStatusDto {
-    pausePlayback()
+    stopPlayback()
     check(closePlayer()) { "无法关闭播放器" }
     return idleWebControlPlaybackStatus()
 }
@@ -109,6 +113,8 @@ class WebControlService @Inject constructor(
     private val scanStatus: LibraryScanStatus,
     private val webControlAccessManager: WebControlAccessManager,
     private val appUpdateRepository: AppUpdateRepository,
+    private val bangumiSyncEngine: BangumiSyncEngine,
+    private val translationPreferencesRepository: TranslationPreferencesRepository,
 ) : SharedWebControlEndpointService(
     mediaSourceRepository = mediaRepository,
     metadataRepository = metadataRepository,
@@ -318,7 +324,7 @@ class WebControlService @Inject constructor(
     override suspend fun playbackCommandResolved(request: PlaybackCommandRequest): PlaybackStatusDto {
         if (request.playbackCommandKind() == WebControlPlaybackCommandKind.STOP) {
             return stopWebControlPlayback(
-                pausePlayback = playbackController::pause,
+                stopPlayback = playbackController::stop,
                 closePlayer = navigator::closePlayer,
             )
         }
@@ -403,6 +409,18 @@ class WebControlService @Inject constructor(
                 },
                 notes = listOf("仅暴露 mpv 当前 scalar 属性和最近 native 日志，不是函数级 flame graph"),
             )
+        }
+    }
+
+    override suspend fun getLibassSubtitleMonitor(): LibassSubtitleMonitorDto {
+        val snapshot = playbackController.currentLibassSubtitleMonitorSnapshot()
+        return if (snapshot == null) {
+            LibassSubtitleMonitorDto(
+                enabled = playbackDebugOverrides.libassSubtitleMonitorEnabled,
+                activeBackend = playbackController.activeRenderBackend.value.name,
+            )
+        } else {
+            snapshot.toDto()
         }
     }
 
@@ -597,6 +615,19 @@ class WebControlService @Inject constructor(
             playbackDebugOverrides = playbackDebugOverrides,
         )
 
+    override suspend fun getTranslationSettings(): TranslationSettingsDto =
+        TranslationSettingsDto(
+            deepSeekApiKey = translationPreferencesRepository.deepSeekApiKey,
+            defaultTargetLanguage = translationPreferencesRepository.defaultTargetLanguage,
+        )
+
+    override suspend fun saveTranslationSettings(request: TranslationSettingsDto): TranslationSettingsDto {
+        translationPreferencesRepository.deepSeekApiKey = request.deepSeekApiKey.trim()
+        translationPreferencesRepository.defaultTargetLanguage =
+            request.defaultTargetLanguage.trim().ifBlank { "zh-Hans" }
+        return getTranslationSettings()
+    }
+
     override suspend fun savePlaybackDebugConfig(request: PlaybackDebugConfigRequest): PlaybackDebugConfigDto {
         val requestedDefaultBackend = requestedDefaultBackend(request.defaultBackend)
         if (requestedDefaultBackend != null) {
@@ -680,6 +711,9 @@ class WebControlService @Inject constructor(
         if (request.skipLibVlcStartupOptions != null) {
             playbackDebugOverrides.skipLibVlcStartupOptions = request.skipLibVlcStartupOptions == true
         }
+        if (request.subtitleMonitorEnabled != null) {
+            playbackDebugOverrides.libassSubtitleMonitorEnabled = request.subtitleMonitorEnabled == true
+        }
 
         playbackController.refreshActivePlaybackDebugConfig()
 
@@ -694,6 +728,7 @@ class WebControlService @Inject constructor(
                 "embedded_mpv_hwdec" to (playbackDebugOverrides.embeddedMpvDebugConfig.hwdec ?: "default"),
                 "libvlc_hw_mode" to playbackDebugOverrides.libVlcDebugConfig.hwMode.name,
                 "libvlc_vout_mode" to playbackDebugOverrides.libVlcDebugConfig.voutMode.name,
+                "subtitle_monitor_enabled" to playbackDebugOverrides.libassSubtitleMonitorEnabled.toString(),
                 "display_chroma_configured" to (playbackDebugOverrides.libVlcDebugConfig.displayChroma != null).toString(),
                 "skip_startup_probe" to playbackDebugOverrides.skipLibVlcStartupProbe.toString(),
                 "skip_startup_options" to playbackDebugOverrides.skipLibVlcStartupOptions.toString(),
@@ -712,6 +747,38 @@ class WebControlService @Inject constructor(
             versionName = currentVersionName(),
             versionCode = currentVersionCode(),
             packageName = appContext.packageName,
+        )
+    }
+
+    override suspend fun syncAllBangumi(): BangumiSyncAllResultDto = runOnIo {
+        val summary = bangumiSyncEngine.syncAllBangumi()
+        BangumiSyncAllResultDto(
+            animeCount = summary.animeCount,
+            syncedCount = summary.synced.size,
+            failedCount = summary.failed.size,
+            totalPushedEpisodes = summary.totalPushedEpisodes,
+            totalPulledEpisodes = summary.totalPulledEpisodes,
+            totalRemoteWatchedEpisodes = summary.totalRemoteWatchedEpisodes,
+            results = buildList {
+                summary.synced.mapTo(this) { s ->
+                    BangumiSyncAnimeResultDto(
+                        animeId = s.animeId,
+                        subjectId = s.subjectId,
+                        outcome = "synced",
+                        pushedEpisodes = s.pushedEpisodes,
+                        pulledEpisodes = s.pulledEpisodes,
+                        remoteWatchedEpisodes = s.remoteWatchedEpisodes,
+                    )
+                }
+                summary.failed.mapTo(this) { f ->
+                    BangumiSyncAnimeResultDto(
+                        animeId = f.animeId,
+                        subjectId = f.subjectId,
+                        outcome = "failed",
+                        message = f.reason,
+                    )
+                }
+            },
         )
     }
 
@@ -1143,6 +1210,7 @@ private suspend fun playbackDebugConfigSnapshot(
         pendingLibVlcNativeSnapshotLabel = playbackDebugOverrides.peekPendingLibVlcNativeSnapshotLabel(),
         skipLibVlcStartupProbe = playbackDebugOverrides.skipLibVlcStartupProbe,
         skipLibVlcStartupOptions = playbackDebugOverrides.skipLibVlcStartupOptions,
+        subtitleMonitorEnabled = playbackDebugOverrides.libassSubtitleMonitorEnabled,
     )
 }
 
@@ -1198,6 +1266,44 @@ private fun updatedLibVlcDebugConfig(
         displayChroma = displayChroma,
     )
 }
+
+private fun LibassSubtitleMonitorSnapshot.toDto(): LibassSubtitleMonitorDto = this@toDto.let { snapshot ->
+    LibassSubtitleMonitorDto(
+        enabled = snapshot.enabled,
+        epoch = snapshot.epoch,
+        activeBackend = snapshot.activeBackend,
+        resetWindowActive = snapshot.resetWindowActive,
+        lastResetReason = snapshot.lastResetReason,
+        cueTimelineCount = snapshot.cueTimelineCount,
+        lateCueCount = snapshot.lateCueCount,
+        timelineProvenSkippedCueCount = snapshot.timelineProvenSkippedCueCount,
+        coalescedFrameCount = snapshot.coalescedFrameCount,
+        nativeNoOpRenderCount = snapshot.nativeNoOpRenderCount,
+        renderErrorCount = snapshot.renderErrorCount,
+        updatedRenderCount = snapshot.updatedRenderCount,
+        slowCommitCount = snapshot.slowCommitCount,
+        commitTimeoutCount = snapshot.commitTimeoutCount,
+        mainThreadLongFrameCount = snapshot.mainThreadLongFrameCount,
+        recoveryLatencyNs = snapshot.recoveryLatencyNs,
+        appVsyncObservedCount = snapshot.appVsyncObservedCount,
+        cueLateness = snapshot.cueLateness.toDto(),
+        selectionToRender = snapshot.selectionToRender.toDto(),
+        commitDuration = snapshot.commitDuration.toDto(),
+        commitToVsync = snapshot.commitToVsync.toDto(),
+        internalEndToEnd = snapshot.internalEndToEnd.toDto(),
+        clockInterval = snapshot.clockInterval.toDto(),
+        clockJitter = snapshot.clockJitter.toDto(),
+        clockLateness = snapshot.clockLateness.toDto(),
+    )
+}
+
+private fun LatencyStats.toDto(): LibassMonitorLatencyDto = LibassMonitorLatencyDto(
+    count = count,
+    p50Ns = p50Ns,
+    p95Ns = p95Ns,
+    p99Ns = p99Ns,
+    maxNs = maxNs,
+)
 
 private data class PlaybackProfileObservedStack(
     val stack: Array<StackTraceElement>,
