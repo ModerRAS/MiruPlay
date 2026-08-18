@@ -185,6 +185,7 @@ class LibraryEpisodeResolver(
         sourceIdHint: Long? = null,
     ): Episode? {
         val sourceIds = sourceIdHint?.let(::listOf) ?: mediaSources.getSources().getOrNull().orEmpty().map { it.id }
+        val mergeSameAnimeEnabled = mergeSameAnimeEnabled()
         val fileName = MediaPathConventions.fileName(path)
         val normalizedStem = MediaPathConventions.stem(path)
         val inferredAnimeName = MediaPathConventions.animeNameFromEpisodePath(path)
@@ -204,8 +205,20 @@ class LibraryEpisodeResolver(
                 val entry = entries.firstOrNull { it.path == path || episodeId.endsWith(it.path) || path.endsWith(it.path) }
                     ?: entries.firstOrNull { MediaPathConventions.fileName(it.path) == fileName }
                     ?: continue
-                val animeId = entry.mediaIndexPosterAnimeId(mergeSameAnimeEnabled())
-                return entry.toIndexedEpisode(source, animeId).copy(id = episodeId)
+                val group = index.queryIndex(sourceId, "")
+                    .getOrNull()
+                    .orEmpty()
+                    .toMediaIndexPosterGroups(mergeSameAnimeEnabled)
+                    .firstOrNull { group ->
+                        group.entries.any { it.sourceId == entry.sourceId && it.path == entry.path }
+                    }
+                    ?: continue
+                val indexedEpisodeId = "${entry.sourceId}:${entry.path}"
+                val episode = group.entries
+                    .toIndexedEpisodes(source, group.animeId)
+                    .firstOrNull { it.id == indexedEpisodeId }
+                    ?: continue
+                return episode.copy(id = episodeId)
             }
         }
         return null

@@ -5,6 +5,7 @@ import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.distinctSeasonEpisodeCount
+import com.miruplay.tv.model.sortedForPlaybackQueue
 
 data class MediaIndexMetadataCacheResult(
     val animeCached: Int,
@@ -72,16 +73,15 @@ fun List<MediaIndexEntry>.toCachedIndexedEpisodes(
     source: MediaSourceInfo?,
     animeId: String,
 ): List<Episode> {
-    val sortedEntries = filterNot(MediaIndexEntry::isSeriesExtra)
-        .sortedByMediaIndexEpisodeOrder()
-    val usedEpisodeNumbers = sortedEntries
+    val entriesInInputOrder = filterNot(MediaIndexEntry::isSeriesExtra)
+    val usedEpisodeNumbers = entriesInInputOrder
         .groupBy { it.seasonNumber ?: 1 }
         .mapValuesTo(mutableMapOf()) { (_, seasonEntries) ->
             seasonEntries.mapNotNull { it.episodeNumber?.takeIf { number -> number > 0 } }.toMutableSet()
         }
     val nextEpisodeNumbers = mutableMapOf<Int, Int>()
 
-    return sortedEntries.map { entry ->
+    return entriesInInputOrder.map { entry ->
         val seasonNumber = entry.seasonNumber ?: 1
         val fallbackEpisodeNumber = entry.episodeNumber?.takeIf { it > 0 } ?: run {
             val used = usedEpisodeNumbers.getOrPut(seasonNumber, ::mutableSetOf)
@@ -95,7 +95,7 @@ fun List<MediaIndexEntry>.toCachedIndexedEpisodes(
             animeId = animeId,
             fallbackEpisodeNumber = fallbackEpisodeNumber,
         )
-    }
+    }.sortedForPlaybackQueue()
 }
 
 private fun indexCacheFileName(path: String): String =

@@ -7,7 +7,6 @@ import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.localRootPath
 import com.miruplay.tv.model.remoteUrl
-import com.miruplay.tv.model.sortedForPlaybackQueue
 
 suspend fun resolvePlayableUri(
     path: String,
@@ -73,7 +72,6 @@ fun List<MediaIndexEntry>.toIndexedEpisodes(
     animeId: String,
 ): List<Episode> =
     toCachedIndexedEpisodes(source, animeId)
-        .sortedForPlaybackQueue()
 
 fun MediaIndexEntry.toIndexedExtra(
     source: MediaSourceInfo?,
