@@ -5,6 +5,7 @@ package com.miruplay.tv.player
 import android.media.MediaFormat
 import android.os.Handler
 import android.os.HandlerThread
+import android.util.Log
 import android.view.Surface
 import androidx.media3.common.Format
 import androidx.media3.exoplayer.video.VideoFrameMetadataListener
@@ -31,8 +32,58 @@ class LibassSubtitleSession internal constructor(
     private var active = false
     private var closed = false
 
+    // Debug-only: when a monitor is attached (debug override / test hook), periodically
+    // dump a compact snapshot to logcat so real-device performance can be inspected
+    // without the WebControl token. No-op in production (monitor is null by default).
+    private var monitorSamplerThread: HandlerThread? = null
+    private var monitorSamplerHandler: Handler? = null
+    private val monitorSamplerRunnable = object : Runnable {
+        override fun run() {
+            val snap = synchronized(lock) { monitor?.snapshot() }
+            if (snap != null) {
+                Log.i(
+                    "MiruLibassMonitor",
+                    buildString {
+                        append("enabled=${snap.enabled} epoch=${snap.epoch} settled=${!snap.resetWindowActive}")
+                        append(" updated=${snap.updatedRenderCount} noOp=${snap.nativeNoOpRenderCount}")
+                        append(" slowCommit=${snap.slowCommitCount} commitTimeout=${snap.commitTimeoutCount}")
+                        append(" mainLongFrame=${snap.mainThreadLongFrameCount} lateCue=${snap.lateCueCount}")
+                        append(" skippedCue=${snap.timelineProvenSkippedCueCount} coalesced=${snap.coalescedFrameCount}")
+                        append(" recoveryMs=${snap.recoveryLatencyNs / 1_000_000}")
+                        append(" commitP95Ms=${snap.commitDuration.p95Ns / 1_000_000} commitMaxMs=${snap.commitDuration.maxNs / 1_000_000}")
+                        append(" cueLateP95Ms=${snap.cueLateness.p95Ns / 1_000_000}")
+                        append(" jitterP95Ms=${snap.clockJitter.p95Ns / 1_000_000}")
+                    },
+                )
+            }
+            monitorSamplerHandler?.postDelayed(this, MONITOR_SAMPLE_INTERVAL_MS)
+        }
+    }
+
+    private fun startMonitorSampler() {
+        if (monitor == null) return
+        val thread = monitorSamplerThread ?: HandlerThread("MiruLibassMonitor").also {
+            it.start()
+            monitorSamplerThread = it
+        }
+        val handler = monitorSamplerHandler ?: Handler(thread.looper).also { monitorSamplerHandler = it }
+        handler.removeCallbacks(monitorSamplerRunnable)
+        handler.postDelayed(monitorSamplerRunnable, MONITOR_SAMPLE_INTERVAL_MS)
+    }
+
+    private fun stopMonitorSampler() {
+        monitorSamplerHandler?.removeCallbacks(monitorSamplerRunnable)
+        monitorSamplerThread?.quitSafely()
+        monitorSamplerThread = null
+        monitorSamplerHandler = null
+    }
+
     val isActive: Boolean
         get() = synchronized(lock) { active && !closed }
+
+    private companion object {
+        const val MONITOR_SAMPLE_INTERVAL_MS = 2000L
+    }
 
     fun currentGeneration(): Long = synchronized(lock) { generation }
 
@@ -42,6 +93,7 @@ class LibassSubtitleSession internal constructor(
         // dynamically mounting into a running session (approved condition #2).
         refreshMonitorLocked()
         monitor?.onBeginMedia()
+        startMonitorSampler()
         target?.clear(renderer)
         renderer?.close()
         renderer = null
@@ -65,6 +117,7 @@ class LibassSubtitleSession internal constructor(
         latestFrame = null
         active = true
         createRendererImmediatelyLocked()
+        startMonitorSampler()
     }
 
     internal fun acceptPayload(mediaGeneration: Long, payload: LibassPayload?) = synchronized(lock) {
@@ -191,6 +244,7 @@ class LibassSubtitleSession internal constructor(
         val shouldCloseDispatcher = synchronized(lock) {
             if (closed) return
             closed = true
+            stopMonitorSampler()
             monitor?.close()
             target?.clear(renderer)
             target = null
