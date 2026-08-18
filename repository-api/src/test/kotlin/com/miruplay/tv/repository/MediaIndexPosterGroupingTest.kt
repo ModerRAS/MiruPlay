@@ -64,6 +64,41 @@ class MediaIndexPosterGroupingTest {
     }
 
     @Test
+    fun `poster count matches synthetic episode identities and excludes extras`() {
+        val explicit = MediaIndexEntry(
+            sourceId = 1,
+            path = "show/S01E02.mkv",
+            animeName = "Show",
+            seasonNumber = 1,
+            episodeNumber = 2,
+        )
+        val unnumberedA = MediaIndexEntry(
+            sourceId = 1,
+            path = "show/Unknown A.mkv",
+            animeName = "Show",
+            seasonNumber = 1,
+        )
+        val unnumberedB = MediaIndexEntry(
+            sourceId = 1,
+            path = "show/Unknown B.mkv",
+            animeName = "Show",
+            seasonNumber = 1,
+        )
+        val extra = MediaIndexEntry(
+            sourceId = 1,
+            path = "show/NCOP01.mkv",
+            animeName = "Show",
+            extraKind = MediaExtraKind.NCOP,
+            extraOrdinal = 1,
+        )
+
+        assertEquals(2, listOf(explicit, unnumberedA).toMediaIndexPosterGroups().single().toIndexedAnime().episodeCount)
+        val group = listOf(explicit, unnumberedA, unnumberedB, extra).toMediaIndexPosterGroups().single()
+        assertEquals(3, group.toIndexedAnime().episodeCount)
+        assertEquals("3 episodes · S1", group.subtitle)
+    }
+
+    @Test
     fun `poster groups can merge entries that share external metadata`() {
         val entries = listOf(
             MediaIndexEntry(

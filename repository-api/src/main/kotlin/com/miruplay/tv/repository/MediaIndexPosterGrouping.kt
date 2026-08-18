@@ -11,15 +11,6 @@ data class MediaIndexPosterGroup(
     val entries: List<MediaIndexEntry>,
     val animeId: String = entries.posterGroupAnimeId(mergeSameAnimeEnabled = false),
 ) {
-    val episodeCount: Int = entries
-        .asSequence()
-        .filterNot(MediaIndexEntry::isSeriesExtra)
-        .distinctBy { entry ->
-            entry.episodeNumber?.let { episodeNumber ->
-                (entry.seasonNumber ?: 1) to episodeNumber
-            } ?: entry.path
-        }
-        .count()
     val primaryEntry: MediaIndexEntry =
         entries
             .filterNot(MediaIndexEntry::isSeriesExtra)

@@ -62,7 +62,7 @@ fun MediaIndexEntry.toCachedIndexedEpisode(
         id = "$sourceId:$path",
         animeId = animeId,
         seasonNumber = seasonNumber ?: 1,
-        episodeNumber = episodeNumber ?: fallbackEpisodeNumber,
+        episodeNumber = episodeNumber?.takeIf { it > 0 } ?: fallbackEpisodeNumber,
         title = episodeTitle.orEmpty(),
         filePath = source.playableUriForIndexedPath(path),
         fileName = indexCacheFileName(path),
@@ -71,16 +71,32 @@ fun MediaIndexEntry.toCachedIndexedEpisode(
 fun List<MediaIndexEntry>.toCachedIndexedEpisodes(
     source: MediaSourceInfo?,
     animeId: String,
-): List<Episode> =
-    filterNot(MediaIndexEntry::isSeriesExtra)
+): List<Episode> {
+    val sortedEntries = filterNot(MediaIndexEntry::isSeriesExtra)
         .sortedByMediaIndexEpisodeOrder()
-        .mapIndexed { index, entry ->
-            entry.toCachedIndexedEpisode(
-                source = source,
-                animeId = animeId,
-                fallbackEpisodeNumber = index + 1,
-            )
+    val usedEpisodeNumbers = sortedEntries
+        .groupBy { it.seasonNumber ?: 1 }
+        .mapValuesTo(mutableMapOf()) { (_, seasonEntries) ->
+            seasonEntries.mapNotNull { it.episodeNumber?.takeIf { number -> number > 0 } }.toMutableSet()
         }
+    val nextEpisodeNumbers = mutableMapOf<Int, Int>()
+
+    return sortedEntries.map { entry ->
+        val seasonNumber = entry.seasonNumber ?: 1
+        val fallbackEpisodeNumber = entry.episodeNumber?.takeIf { it > 0 } ?: run {
+            val used = usedEpisodeNumbers.getOrPut(seasonNumber, ::mutableSetOf)
+            var candidate = nextEpisodeNumbers[seasonNumber] ?: 1
+            while (!used.add(candidate)) candidate += 1
+            nextEpisodeNumbers[seasonNumber] = candidate + 1
+            candidate
+        }
+        entry.toCachedIndexedEpisode(
+            source = source,
+            animeId = animeId,
+            fallbackEpisodeNumber = fallbackEpisodeNumber,
+        )
+    }
+}
 
 private fun indexCacheFileName(path: String): String =
     if (path.startsWith("content://")) {

@@ -72,8 +72,7 @@ fun List<MediaIndexEntry>.toIndexedEpisodes(
     source: MediaSourceInfo?,
     animeId: String,
 ): List<Episode> =
-    filterNot(MediaIndexEntry::isSeriesExtra)
-        .map { entry -> entry.toIndexedEpisode(source, animeId) }
+    toCachedIndexedEpisodes(source, animeId)
         .sortedForPlaybackQueue()
 
 fun MediaIndexEntry.toIndexedExtra(
