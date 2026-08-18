@@ -4,6 +4,7 @@ import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaSourceInfoConventions
+import com.miruplay.tv.model.distinctSeasonEpisodeCount
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -55,6 +56,21 @@ class MediaIndexMetadataCacheTest {
     }
 
     @Test
+    fun `cache counts duplicate indexed files as one logical episode`() = runBlocking {
+        val metadata = FakeMetadataRepository()
+        val source = MediaSourceInfoConventions.local(rootPath = "D:/Anime", name = "Local").copy(id = 1L)
+        val entries = listOf(
+            MediaIndexEntry(sourceId = 1L, path = "D:/Anime/Frieren/WEB/S01E01.mkv", animeName = "Frieren", seasonNumber = 1, episodeNumber = 1),
+            MediaIndexEntry(sourceId = 1L, path = "D:/Anime/Frieren/BD/S01E01.mkv", animeName = "Frieren", seasonNumber = 1, episodeNumber = 1),
+        )
+
+        MediaIndexMetadataCache(metadata).cache(source, entries)
+
+        assertEquals(2, metadata.cachedEpisodes.getValue("Frieren").size)
+        assertEquals(1, metadata.cachedAnime.getValue("Frieren").episodeCount)
+    }
+
+    @Test
     fun `cache lets caller enrich anime and episodes`() = runBlocking {
         val metadata = FakeMetadataRepository()
         val source = MediaSourceInfoConventions.local(rootPath = "D:/Anime", name = "Local").copy(id = 1L)
@@ -66,7 +82,7 @@ class MediaIndexMetadataCacheTest {
             source = source,
             entries = entries,
             animeTransform = { animeId, episodes ->
-                Anime(id = animeId, title = "Enriched $animeId", episodeCount = episodes.size)
+                Anime(id = animeId, title = "Enriched $animeId", episodeCount = episodes.distinctSeasonEpisodeCount())
             },
             episodeTransform = { _, episodes ->
                 episodes.map { it.copy(title = "Enriched Episode") }

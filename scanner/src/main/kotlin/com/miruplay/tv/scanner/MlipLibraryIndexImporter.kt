@@ -12,6 +12,7 @@ import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.Episode
+import com.miruplay.tv.model.distinctSeasonEpisodeCount
 import com.miruplay.tv.model.isDefaultCloudDriveWebDavEndpoint
 import com.miruplay.tv.model.remoteUrl
 import com.miruplay.tv.model.webDavDirectoryWarmupChain
@@ -182,7 +183,7 @@ class MlipLibraryIndexImporter @Inject constructor(
             if (posterLocalPath != null) artworkCachedCount += 1
             when (val cached = metadataRepository.cacheMetadata(
                 series.anime.copy(
-                    episodeCount = episodes.size,
+                    episodeCount = episodes.distinctSeasonEpisodeCount(),
                     posterLocalPath = posterLocalPath
                         ?: cachedAnime?.posterLocalPath
                         ?: series.anime.posterLocalPath,

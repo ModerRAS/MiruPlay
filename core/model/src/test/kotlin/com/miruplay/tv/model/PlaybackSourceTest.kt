@@ -93,7 +93,7 @@ class PlaybackSourceTest {
 
         assertEquals(listOf(1, 2), seasons.map { it.seasonNumber })
         assertEquals(listOf("s1e1", "s1e2a", "s1e2b"), seasons.first().episodes.map { it.id })
-        assertEquals(3, seasons.first().episodeCount)
+        assertEquals(2, seasons.first().episodeCount)
         assertEquals(3, episodes.distinctSeasonEpisodeCount())
         assertEquals(2, episodes.activeSeasonOrDefault(requestedSeason = 2))
         assertEquals(1, episodes.activeSeasonOrDefault(requestedSeason = 9))

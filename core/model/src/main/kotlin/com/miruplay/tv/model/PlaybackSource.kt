@@ -48,7 +48,7 @@ fun List<Episode>.toSeasons(): List<Season> =
                 seasonNumber = seasonNumber,
                 title = "Season $seasonNumber",
                 episodes = episodes,
-                episodeCount = episodes.size,
+                episodeCount = episodes.distinctSeasonEpisodeCount(),
             )
         }
 
