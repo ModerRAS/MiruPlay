@@ -261,10 +261,10 @@ class PlayerViewModel @Inject constructor(
             return
         }
         viewModelScope.launch {
-            val episodeId = source.episodeId
-            val episode = episodeId?.let { metadataRepository.get().getCachedEpisode(it).getOrNull() }
+            val bangumiEpisodeId = resolveBangumiEpisodeId(source) { episodeId ->
+                metadataRepository.get().getCachedEpisode(episodeId).getOrNull()
+            }
             if (activeSource != source || episodeCommentsGeneration != generation) return@launch
-            val bangumiEpisodeId = source.bangumiEpisodeId ?: episode?.bangumiEpisodeId
             if (bangumiEpisodeId == null) {
                 _episodeComments.value = EpisodeCommentsUiState(
                     errorMessage = "当前剧集没有匹配到 Bangumi 单集，无法加载评论。",
@@ -272,13 +272,16 @@ class PlayerViewModel @Inject constructor(
                 return@launch
             }
             _episodeComments.value = current.copy(isLoading = true, errorMessage = null)
-            when (val result = bangumiEpisodeCommentsService.get().getEpisodeComments(bangumiEpisodeId)) {
+            val (loadedEpisodeId, result) = loadBangumiEpisodeComments(bangumiEpisodeId) { episodeId ->
+                bangumiEpisodeCommentsService.get().getEpisodeComments(episodeId)
+            }
+            when (result) {
                 is Result.Success -> {
                     if (activeSource != source || episodeCommentsGeneration != generation) return@launch
                     allEpisodeComments = result.data
                     val visibleComments = result.data.take(COMMENTS_PAGE_SIZE)
                     _episodeComments.value = EpisodeCommentsUiState(
-                        episodeId = bangumiEpisodeId,
+                        episodeId = loadedEpisodeId,
                         comments = visibleComments,
                         hasMore = visibleComments.size < result.data.size,
                     )
@@ -875,6 +878,17 @@ data class EpisodeCommentsUiState(
     val hasMore: Boolean = false,
     val errorMessage: String? = null,
 )
+
+internal suspend fun resolveBangumiEpisodeId(
+    source: PlaybackSource,
+    loadCachedEpisode: suspend (String) -> Episode?,
+): Int? = source.bangumiEpisodeId
+    ?: source.episodeId?.let { loadCachedEpisode(it)?.bangumiEpisodeId }
+
+internal suspend fun loadBangumiEpisodeComments(
+    episodeId: Int,
+    loadComments: suspend (Int) -> Result<List<BangumiEpisodeComment>>,
+): Pair<Int, Result<List<BangumiEpisodeComment>>> = episodeId to loadComments(episodeId)
 
 internal fun shouldOwnerStopPlayback(activeOwnerToken: Any?, candidateOwnerToken: Any): Boolean =
     activeOwnerToken === candidateOwnerToken
