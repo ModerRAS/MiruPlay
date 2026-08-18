@@ -2,6 +2,7 @@ package com.miruplay.tv.translation
 
 import android.content.Context
 import android.net.Uri
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSpec
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
@@ -130,6 +131,11 @@ class SubtitleTranslationService @Inject constructor(
     }
 
     private suspend fun readRemote(url: String): String = withContext(Dispatchers.IO) {
+        readRemoteBlocking(url)
+    }
+
+    @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+    private fun readRemoteBlocking(url: String): String {
         val dataSource = dataSourceFactory.createDataSource()
         try {
             dataSource.open(DataSpec(Uri.parse(url)))
@@ -140,7 +146,7 @@ class SubtitleTranslationService @Inject constructor(
                 if (read == -1) break
                 if (read > 0) buffer.write(chunk, 0, read)
             }
-            buffer.toString(Charsets.UTF_8.name())
+            return buffer.toString(Charsets.UTF_8.name())
         } finally {
             dataSource.close()
         }

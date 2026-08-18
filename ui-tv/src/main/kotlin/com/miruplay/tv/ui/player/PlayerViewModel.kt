@@ -475,11 +475,11 @@ class PlayerViewModel @Inject constructor(
         }
         // onTracksChanged 异步派发，轮询等待新 MediaItem 的轨道枚举包含翻译轨（最后一条）。
         var translatedIndex: Int? = null
-        repeat(50) {
+        for (attempt in 0 until 50) {
             val tracks = playbackController.getAvailableSubtitles()
             if (tracks.size >= expectedTrackCount) {
                 translatedIndex = tracks.lastIndex
-                return@repeat
+                break
             }
             delay(100)
         }
