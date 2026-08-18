@@ -27,6 +27,22 @@ data class BangumiSyncSummary(
     val subjectCollectionType: Int?
 )
 
+data class BangumiSyncAnimeStatus(
+    val animeId: String,
+    val subjectId: Int? = null,
+    val reason: String,
+)
+
+data class BangumiSyncAllSummary(
+    val synced: List<BangumiSyncSummary>,
+    val failed: List<BangumiSyncAnimeStatus>,
+) {
+    val animeCount: Int get() = synced.size + failed.size
+    val totalPushedEpisodes: Int get() = synced.sumOf { it.pushedEpisodes }
+    val totalPulledEpisodes: Int get() = synced.sumOf { it.pulledEpisodes }
+    val totalRemoteWatchedEpisodes: Int get() = synced.sumOf { it.remoteWatchedEpisodes }
+}
+
 class BangumiSyncCore(
     private val bangumiService: BangumiCollectionService,
     private val metadataRepository: MetadataRepository,

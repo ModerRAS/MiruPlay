@@ -3,6 +3,7 @@ package com.miruplay.tv.repository
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.PosterWallArrangement
+import com.miruplay.tv.model.distinctSeasonEpisodeCount
 import com.miruplay.tv.model.toAnimeReleaseSeason
 
 data class MediaIndexPosterGroup(
@@ -32,6 +33,9 @@ data class MediaIndexPosterGroup(
             ?: entry.metadataTitle?.takeIf { it.isNotBlank() }?.let { "title:${it.lowercase()}" }
             ?: entry.animeName?.takeIf { it.isNotBlank() }?.let { "title:${it.lowercase()}" }
     }
+    val episodeCount: Int = entries
+        .toCachedIndexedEpisodes(source = null, animeId = animeId)
+        .distinctSeasonEpisodeCount()
     val subtitle: String = buildString {
         append(episodeCount)
         append(" episode")

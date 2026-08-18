@@ -96,6 +96,12 @@ class MiruIjkSurfaceView @JvmOverloads constructor(
     fun selectedAudioRawStreamIndex(): Int? =
         player?.getSelectedTrack(ITrackInfo.MEDIA_TRACK_TYPE_AUDIO)?.takeIf { it >= 0 }
 
+    fun textTrackCount(): Int =
+        player?.trackInfo.orEmpty().count { track ->
+            track.trackType == ITrackInfo.MEDIA_TRACK_TYPE_SUBTITLE ||
+                track.trackType == ITrackInfo.MEDIA_TRACK_TYPE_TIMEDTEXT
+        }
+
     fun audioTracks(): List<MiruIjkAudioTrack> =
         player?.trackInfo.orEmpty().mapIndexedNotNull { rawIndex, track ->
             if (track.trackType != ITrackInfo.MEDIA_TRACK_TYPE_AUDIO) return@mapIndexedNotNull null

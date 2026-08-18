@@ -37,6 +37,8 @@ import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.PlaybackRenderBackend
 import com.miruplay.tv.model.normalizeSupportedBackend
 import com.miruplay.tv.model.PlaybackSource
+import com.miruplay.tv.model.SubtitleFormat
+import com.miruplay.tv.model.SubtitleTrack
 import com.miruplay.tv.model.ToneMappingProfilePreset
 import com.miruplay.tv.model.VideoRenderRuleKey
 import com.miruplay.tv.model.VideoSignalKind
@@ -281,6 +283,9 @@ class MainActivity : ComponentActivity() {
                 voutMode = overrides.libVlcVoutMode ?: LibVlcVoutMode.DEFAULT,
                 displayChroma = overrides.libVlcDisplayChroma,
             )
+            overrides.libassSubtitleMonitorEnabled?.let {
+                playbackDebugOverrides.libassSubtitleMonitorEnabled = it
+            }
             Log.i(
                 "MainActivity",
                 "applyLaunchPlaybackDebugOverrides " +
@@ -625,6 +630,8 @@ internal data class LaunchIntentSnapshot(
     val playbackOverrides: LaunchPlaybackOverrides,
     val playbackDebugOverrides: LaunchPlaybackDebugOverrides,
     val directPlaybackRequest: LaunchDirectPlaybackRequest?,
+    val subtitleUri: String? = null,
+    val subtitleFormat: String? = null,
 )
 
 internal data class LaunchTestTmdbOverrides(
@@ -646,6 +653,7 @@ internal data class LaunchPlaybackDebugOverrides(
     val libVlcHardwareMode: LibVlcHardwareAccelerationMode?,
     val libVlcVoutMode: LibVlcVoutMode?,
     val libVlcDisplayChroma: String?,
+    val libassSubtitleMonitorEnabled: Boolean? = null,
 )
 
 internal data class LaunchDirectPlaybackRequest(
@@ -653,18 +661,34 @@ internal data class LaunchDirectPlaybackRequest(
     val mediaSourceId: String,
     val startPositionMs: Long,
     val episodeId: String?,
+    val subtitleUri: String? = null,
+    val subtitleFormat: SubtitleFormat = SubtitleFormat.ASS,
 )
 
 internal fun directPlaybackSourceFor(
     request: LaunchDirectPlaybackRequest,
-): PlaybackSource =
-    PlaybackSource(
+): PlaybackSource {
+    val subtitleTracks = if (request.subtitleUri != null) {
+        listOf(
+            SubtitleTrack(
+                language = "und",
+                title = "external-test",
+                isExternal = true,
+                path = request.subtitleUri,
+                format = request.subtitleFormat,
+            ),
+        )
+    } else {
+        emptyList()
+    }
+    return PlaybackSource(
         uri = request.uri,
         mediaSourceId = request.mediaSourceId,
         startPosition = request.startPositionMs,
-        subtitleTracks = emptyList(),
+        subtitleTracks = subtitleTracks,
         episodeId = request.episodeId,
     )
+}
 
 internal data class LaunchBootstrapPlan(
     val initialSelectionState: AppModeSelectionState,
@@ -736,13 +760,19 @@ internal fun captureLaunchIntentSnapshot(intent: Intent?): LaunchIntentSnapshot 
             rawLibVlcHardwareMode = intent?.getStringExtra("test_libvlc_hw_mode"),
             rawLibVlcVoutMode = intent?.getStringExtra("test_libvlc_vout_mode"),
             rawLibVlcDisplayChroma = intent?.getStringExtra("test_libvlc_display_chroma"),
+            rawLibassMonitorEnabled = intent?.getBooleanExtra("test_enable_libass_monitor", false)
+                .takeIf { it == true },
         ),
         directPlaybackRequest = resolveLaunchDirectPlaybackRequest(
             rawUri = intent?.getStringExtra("test_playback_uri"),
             rawMediaSourceId = intent?.getStringExtra("test_playback_media_source_id"),
             rawStartPositionMs = intent?.getStringExtra("test_playback_start_position_ms"),
             rawEpisodeId = intent?.getStringExtra("test_playback_episode_id"),
+            rawSubtitleUri = intent?.getStringExtra("test_subtitle_uri"),
+            rawSubtitleFormat = intent?.getStringExtra("test_subtitle_format"),
         ),
+        subtitleUri = intent?.getStringExtra("test_subtitle_uri"),
+        subtitleFormat = intent?.getStringExtra("test_subtitle_format"),
     )
 }
 
@@ -782,6 +812,7 @@ internal fun resolveLaunchPlaybackDebugOverrides(
     rawLibVlcHardwareMode: String?,
     rawLibVlcVoutMode: String?,
     rawLibVlcDisplayChroma: String?,
+    rawLibassMonitorEnabled: Boolean? = null,
 ): LaunchPlaybackDebugOverrides =
     LaunchPlaybackDebugOverrides(
         forcedSignalKind = VideoSignalKind.entries.firstOrNull {
@@ -795,6 +826,7 @@ internal fun resolveLaunchPlaybackDebugOverrides(
             it.name.equals(rawLibVlcVoutMode?.trim(), ignoreCase = true)
         },
         libVlcDisplayChroma = normalizeLaunchLibVlcDisplayChroma(rawLibVlcDisplayChroma),
+        libassSubtitleMonitorEnabled = rawLibassMonitorEnabled,
     )
 
 internal fun normalizeLaunchLibVlcDisplayChroma(rawValue: String?): String? =
@@ -816,6 +848,8 @@ internal fun resolveLaunchDirectPlaybackRequest(
     rawMediaSourceId: String?,
     rawStartPositionMs: String?,
     rawEpisodeId: String?,
+    rawSubtitleUri: String?,
+    rawSubtitleFormat: String?,
 ): LaunchDirectPlaybackRequest? {
     val uri = rawUri?.trim()?.takeIf { it.isNotBlank() } ?: return null
     val startPositionMs = rawStartPositionMs
@@ -836,6 +870,13 @@ internal fun resolveLaunchDirectPlaybackRequest(
         mediaSourceId = mediaSourceId,
         startPositionMs = startPositionMs,
         episodeId = rawEpisodeId?.trim()?.takeIf { it.isNotBlank() },
+        subtitleUri = rawSubtitleUri?.trim()?.takeIf { it.isNotBlank() },
+        subtitleFormat = when {
+            rawSubtitleFormat?.equals("SRT", ignoreCase = true) == true -> SubtitleFormat.SRT
+            rawSubtitleFormat?.equals("VTT", ignoreCase = true) == true -> SubtitleFormat.VTT
+            rawSubtitleFormat?.equals("SSA", ignoreCase = true) == true -> SubtitleFormat.SSA
+            else -> SubtitleFormat.ASS
+        },
     )
 }
 

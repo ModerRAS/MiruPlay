@@ -101,7 +101,7 @@ class NativeAssRendererContractTest {
             storageHeight: Int,
         ): Int = 0
 
-        override fun clearSurface(surface: Surface, width: Int, height: Int): Boolean = true
+        override fun clearSurface(handle: Long, surface: Surface, width: Int, height: Int): Boolean = true
 
         override fun release(handle: Long) {
             releasedHandles += handle

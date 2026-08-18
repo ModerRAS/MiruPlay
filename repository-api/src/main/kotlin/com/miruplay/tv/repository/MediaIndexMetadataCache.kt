@@ -4,6 +4,7 @@ import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.MediaSourceInfo
+import com.miruplay.tv.model.distinctSeasonEpisodeCount
 
 data class MediaIndexMetadataCacheResult(
     val animeCached: Int,
@@ -32,14 +33,15 @@ class MediaIndexMetadataCache(
                 )
                 metadata.cacheEpisodes(animeId, episodes)
                 episodesCached += episodes.size
+                val logicalEpisodeCount = episodes.distinctSeasonEpisodeCount()
 
                 val anime = animeTransform(animeId, episodes)
-                    ?: metadata.getCachedMetadata(animeId).getOrNull()?.copy(episodeCount = episodes.size)
+                    ?: metadata.getCachedMetadata(animeId).getOrNull()?.copy(episodeCount = logicalEpisodeCount)
                     ?: Anime(
                         id = animeId,
                         title = animeId,
                         titleCn = animeId,
-                        episodeCount = episodes.size,
+                        episodeCount = logicalEpisodeCount,
                     )
                 metadata.cacheMetadata(anime)
                 animeCached += 1

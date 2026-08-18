@@ -65,6 +65,15 @@ class MetadataRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun getCachedAnimeWithBangumiId(): Result<List<Anime>> = withContext(Dispatchers.IO) {
+        try {
+            val entities = animeDao.getAnimeWithBangumiId()
+            Result.success(entities.map { it.toDomain(emptyList()) })
+        } catch (e: Exception) {
+            Result.success(emptyList())
+        }
+    }
+
     override suspend fun getCachedMetadata(animeIds: Collection<String>): Result<List<Anime>> = withContext(Dispatchers.IO) {
         try {
             val ids = animeIds.filter { it.isNotBlank() }.distinct()

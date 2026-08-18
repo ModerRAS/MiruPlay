@@ -37,6 +37,13 @@ interface AnimeDao {
     @Query("SELECT $ANIME_COLUMNS FROM anime ORDER BY title COLLATE NOCASE ASC")
     suspend fun getAll(): List<AnimeEntity>
 
+    @Query(
+        "SELECT $ANIME_COLUMNS FROM anime " +
+            "WHERE bangumi_id IS NOT NULL AND TRIM(bangumi_id) <> '' " +
+            "ORDER BY title COLLATE NOCASE ASC"
+    )
+    suspend fun getAnimeWithBangumiId(): List<AnimeEntity>
+
     @Query("SELECT $ANIME_COLUMNS FROM anime WHERE title LIKE '%' || :query || '%' OR title_cn LIKE '%' || :query || '%'")
     suspend fun searchByTitle(query: String): List<AnimeEntity>
 

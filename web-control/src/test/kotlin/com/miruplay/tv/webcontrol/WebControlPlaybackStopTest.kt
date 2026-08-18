@@ -8,34 +8,61 @@ import org.junit.Test
 
 class WebControlPlaybackStopTest {
     @Test
-    fun `stop pauses before requesting player close and returns idle`() = runBlocking {
+    fun `stop happens before close without a pause-only step and returns idle`() = runBlocking {
         val events = mutableListOf<String>()
 
         val status = stopWebControlPlayback(
-            pausePlayback = { events += "pause" },
+            stopPlayback = { events += "stop" },
             closePlayer = {
                 events += "close"
                 true
             },
         )
 
-        assertEquals(listOf("pause", "close"), events)
+        assertEquals(listOf("stop", "close"), events)
+        assertFalse("pause" in events)
         assertEquals("Idle", status.state)
         assertFalse(status.isPlaying)
     }
 
     @Test
     fun `stop fails when player close cannot be queued`() = runBlocking {
-        var paused = false
+        var stopped = false
 
         val error = runCatching {
             stopWebControlPlayback(
-                pausePlayback = { paused = true },
+                stopPlayback = { stopped = true },
                 closePlayer = { false },
             )
         }.exceptionOrNull()
 
-        assertTrue(paused)
+        assertTrue(stopped)
         assertTrue(error is IllegalStateException)
+    }
+
+    @Test
+    fun `repeated stop closes twice but releases native playback once`() = runBlocking {
+        val events = mutableListOf<String>()
+        var nativeReleased = false
+        var hostDetached = false
+        val stopPlayback = {
+            if (!nativeReleased) {
+                nativeReleased = true
+                events += "native-release"
+            }
+        }
+        val closePlayer = {
+            if (!hostDetached) {
+                hostDetached = true
+                events += "host-detach"
+            }
+            true
+        }
+
+        repeat(2) {
+            stopWebControlPlayback(stopPlayback, closePlayer)
+        }
+
+        assertEquals(listOf("native-release", "host-detach"), events)
     }
 }

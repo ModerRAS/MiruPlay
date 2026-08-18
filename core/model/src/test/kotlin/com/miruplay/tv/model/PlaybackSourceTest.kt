@@ -93,7 +93,7 @@ class PlaybackSourceTest {
 
         assertEquals(listOf(1, 2), seasons.map { it.seasonNumber })
         assertEquals(listOf("s1e1", "s1e2a", "s1e2b"), seasons.first().episodes.map { it.id })
-        assertEquals(3, seasons.first().episodeCount)
+        assertEquals(2, seasons.first().episodeCount)
         assertEquals(3, episodes.distinctSeasonEpisodeCount())
         assertEquals(2, episodes.activeSeasonOrDefault(requestedSeason = 2))
         assertEquals(1, episodes.activeSeasonOrDefault(requestedSeason = 9))
@@ -136,6 +136,18 @@ class PlaybackSourceTest {
         assertEquals("ep1", source.episodeId)
         assertEquals(30_000L, source.startPosition)
         assertEquals(0L, completed.startPosition)
+    }
+
+    @Test
+    fun `episode playback source carries bangumi episode id`() {
+        val source = episode(id = "ep1", duration = 100_000L)
+            .copy(bangumiEpisodeId = 4242)
+            .toPlaybackSource(
+                playableUri = "https://media.example.test/ep1.mkv",
+                progress = null,
+            )
+
+        assertEquals(4242, source.bangumiEpisodeId)
     }
 
     private fun episode(

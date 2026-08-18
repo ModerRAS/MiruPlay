@@ -12,6 +12,8 @@
 #include <sys/stat.h>
 #include <vector>
 
+#include "miruplay_ass_compositor.h"
+
 namespace {
 
 constexpr const char* kLogTag = "MiruLibass";
@@ -87,7 +89,49 @@ struct Session {
     int storage_width = 0;
     int storage_height = 0;
     bool rendered_first_frame = false;
+    miruplay::ass_compositor::FrameState frame_state{};
 };
+
+miruplay::ass_compositor::Image image_view(const ASS_Image* image) {
+    if (image == nullptr) return {};
+    return {
+        image->w,
+        image->h,
+        image->stride,
+        image->bitmap,
+        image->color,
+        image->dst_x,
+        image->dst_y,
+    };
+}
+
+miruplay::ass_compositor::Rect images_bounds(
+    const ASS_Image* images,
+    int width,
+    int height) {
+    miruplay::ass_compositor::Rect result{};
+    for (const ASS_Image* image = images; image != nullptr; image = image->next) {
+        result = miruplay::ass_compositor::unite(
+            result,
+            miruplay::ass_compositor::bounds(image_view(image), width, height));
+    }
+    return result;
+}
+
+miruplay::ass_compositor::Buffer buffer_view(ANativeWindow_Buffer* buffer) {
+    if (buffer == nullptr) return {};
+    return {
+        static_cast<uint8_t*>(buffer->bits),
+        buffer->width,
+        buffer->height,
+        buffer->stride,
+    };
+}
+
+bool valid_rgba_buffer(const ANativeWindow_Buffer& buffer, int width, int height) {
+    return buffer.bits != nullptr && buffer.format == WINDOW_FORMAT_RGBA_8888 &&
+        buffer.width == width && buffer.height == height && buffer.stride >= buffer.width;
+}
 
 LibassApi g_api;
 std::once_flag g_api_once;
@@ -177,52 +221,28 @@ bool clear_window(ANativeWindow* window, int width, int height) {
         return false;
     }
     ANativeWindow_Buffer buffer {};
-    if (ANativeWindow_lock(window, &buffer, nullptr) != 0 || buffer.bits == nullptr) {
+    ARect dirty {0, 0, width, height};
+    if (ANativeWindow_lock(window, &buffer, &dirty) != 0) {
         LOGW("Could not lock subtitle surface");
         return false;
     }
-    std::memset(
-        buffer.bits,
-        0,
-        static_cast<size_t>(buffer.stride) * static_cast<size_t>(buffer.height) * sizeof(uint32_t));
-    ANativeWindow_unlockAndPost(window);
-    return true;
-}
-
-void blend_image(ANativeWindow_Buffer* buffer, const ASS_Image* image) {
-    if (buffer == nullptr || image == nullptr || image->bitmap == nullptr) return;
-    const int color_alpha = 255 - static_cast<int>(image->color & 0xffU);
-    if (color_alpha <= 0) return;
-
-    const int source_r = static_cast<int>((image->color >> 24U) & 0xffU);
-    const int source_g = static_cast<int>((image->color >> 16U) & 0xffU);
-    const int source_b = static_cast<int>((image->color >> 8U) & 0xffU);
-    const int left = std::max(0, image->dst_x);
-    const int top = std::max(0, image->dst_y);
-    const int right = std::min(buffer->width, image->dst_x + image->w);
-    const int bottom = std::min(buffer->height, image->dst_y + image->h);
-    if (left >= right || top >= bottom) return;
-
-    auto* pixels = static_cast<uint8_t*>(buffer->bits);
-    for (int y = top; y < bottom; ++y) {
-        const auto* source_row = image->bitmap + (y - image->dst_y) * image->stride;
-        auto* target_row = pixels + static_cast<size_t>(y) * static_cast<size_t>(buffer->stride) * 4U;
-        for (int x = left; x < right; ++x) {
-            const int coverage = source_row[x - image->dst_x];
-            if (coverage == 0) continue;
-            const int source_alpha = (color_alpha * coverage + 127) / 255;
-            auto* target = target_row + static_cast<size_t>(x) * 4U;
-            target[0] = static_cast<uint8_t>(
-                (source_r * source_alpha + target[0] * (255 - source_alpha) + 127) / 255);
-            target[1] = static_cast<uint8_t>(
-                (source_g * source_alpha + target[1] * (255 - source_alpha) + 127) / 255);
-            target[2] = static_cast<uint8_t>(
-                (source_b * source_alpha + target[2] * (255 - source_alpha) + 127) / 255);
-            target[3] = static_cast<uint8_t>(std::min(
-                255,
-                source_alpha + (target[3] * (255 - source_alpha) + 127) / 255));
-        }
+    if (!valid_rgba_buffer(buffer, width, height)) {
+        LOGW(
+            "Unexpected subtitle buffer geometry/format actual=%dx%d stride=%d format=%d",
+            buffer.width,
+            buffer.height,
+            buffer.stride,
+            buffer.format);
+        ANativeWindow_unlockAndPost(window);
+        return false;
     }
+    miruplay::ass_compositor::clear(
+        buffer_view(&buffer),
+        miruplay::ass_compositor::clamp_rect(
+            {dirty.left, dirty.top, dirty.right, dirty.bottom},
+            buffer.width,
+            buffer.height));
+    return ANativeWindow_unlockAndPost(window) == 0;
 }
 
 bool copy_byte_array(JNIEnv* env, jbyteArray source, std::vector<char>* target) {
@@ -363,14 +383,8 @@ Java_is_xyz_mpv_subtitle_JniNativeAssCalls_nativeRender(
         return -1;
     }
 
-    ANativeWindow* window = ANativeWindow_fromSurface(env, surface);
-    if (window == nullptr) return -1;
-
     std::lock_guard<std::mutex> lock(session->mutex);
-    if (session->renderer == nullptr || session->track == nullptr) {
-        ANativeWindow_release(window);
-        return -1;
-    }
+    if (session->renderer == nullptr || session->track == nullptr) return -1;
 
     if (session->frame_width != frame_width || session->frame_height != frame_height) {
         session->frame_width = frame_width;
@@ -405,7 +419,21 @@ Java_is_xyz_mpv_subtitle_JniNativeAssCalls_nativeRender(
             changed);
         session->rendered_first_frame = true;
     }
-    if (ANativeWindow_setBuffersGeometry(
+
+    const auto content = images_bounds(images, frame_width, frame_height);
+    const auto plan = miruplay::ass_compositor::plan_frame(
+        session->frame_state,
+        changed,
+        frame_width,
+        frame_height,
+        content);
+    // Unchanged frames do not acquire, lock, clear, blend, or post a surface buffer.
+    if (!plan.post) return 0;
+
+    ANativeWindow* window = ANativeWindow_fromSurface(env, surface);
+    if (window == nullptr) return -1;
+    if (plan.configure_geometry &&
+        ANativeWindow_setBuffersGeometry(
             window,
             frame_width,
             frame_height,
@@ -415,19 +443,46 @@ Java_is_xyz_mpv_subtitle_JniNativeAssCalls_nativeRender(
     }
 
     ANativeWindow_Buffer buffer {};
-    if (ANativeWindow_lock(window, &buffer, nullptr) != 0 || buffer.bits == nullptr) {
+    ARect dirty {plan.dirty.left, plan.dirty.top, plan.dirty.right, plan.dirty.bottom};
+    if (ANativeWindow_lock(window, &buffer, &dirty) != 0) {
         ANativeWindow_release(window);
         return -1;
     }
-    std::memset(
-        buffer.bits,
-        0,
-        static_cast<size_t>(buffer.stride) * static_cast<size_t>(buffer.height) * sizeof(uint32_t));
-    for (ASS_Image* image = images; image != nullptr; image = image->next) {
-        blend_image(&buffer, image);
+    if (!valid_rgba_buffer(buffer, frame_width, frame_height)) {
+        LOGW(
+            "Unexpected subtitle buffer geometry/format actual=%dx%d stride=%d format=%d",
+            buffer.width,
+            buffer.height,
+            buffer.stride,
+            buffer.format);
+        ANativeWindow_unlockAndPost(window);
+        ANativeWindow_release(window);
+        return -1;
     }
-    ANativeWindow_unlockAndPost(window);
+
+    auto actual_dirty = miruplay::ass_compositor::clamp_rect(
+        {dirty.left, dirty.top, dirty.right, dirty.bottom},
+        buffer.width,
+        buffer.height);
+    if (!miruplay::ass_compositor::contains(actual_dirty, plan.dirty)) {
+        // The NDK contract says the returned rect contains the requested damage.
+        // Redrawing the full buffer keeps a non-conforming producer transparent.
+        actual_dirty = miruplay::ass_compositor::full_rect(buffer.width, buffer.height);
+    }
+    const auto target = buffer_view(&buffer);
+    miruplay::ass_compositor::clear(target, actual_dirty);
+    for (ASS_Image* image = images; image != nullptr; image = image->next) {
+        miruplay::ass_compositor::blend(target, image_view(image));
+    }
+    const int post_result = ANativeWindow_unlockAndPost(window);
     ANativeWindow_release(window);
+    if (post_result != 0) return -1;
+
+    miruplay::ass_compositor::commit_frame(
+        &session->frame_state,
+        frame_width,
+        frame_height,
+        content);
     return 1;
 }
 
@@ -435,10 +490,17 @@ extern "C" JNIEXPORT jboolean JNICALL
 Java_is_xyz_mpv_subtitle_JniNativeAssCalls_nativeClearSurface(
     JNIEnv* env,
     jobject,
+    jlong handle,
     jobject surface,
     jint width,
     jint height) {
     if (surface == nullptr) return JNI_FALSE;
+    auto* session = reinterpret_cast<Session*>(handle);
+    if (session != nullptr) {
+        std::lock_guard<std::mutex> lock(session->mutex);
+        // Force the next render to repost even when libass reports unchanged.
+        session->frame_state = {};
+    }
     ANativeWindow* window = ANativeWindow_fromSurface(env, surface);
     if (window == nullptr) return JNI_FALSE;
     const bool cleared = clear_window(window, width, height);

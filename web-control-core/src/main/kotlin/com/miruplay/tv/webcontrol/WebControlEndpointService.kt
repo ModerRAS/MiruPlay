@@ -68,6 +68,8 @@ interface WebControlEndpointService {
         getBangumiArchive()
     suspend fun saveBangumiToken(request: BangumiTokenRequest): MetadataSettingsDto
     suspend fun clearBangumiToken(): MetadataSettingsDto
+    suspend fun syncAllBangumi(): BangumiSyncAllResultDto =
+        throw UnsupportedOperationException("Bangumi sync not supported")
     suspend fun saveTmdbToken(request: TmdbTokenRequest): MetadataSettingsDto =
         throw UnsupportedOperationException("TMDB token not supported")
     suspend fun clearTmdbToken(): MetadataSettingsDto =
@@ -109,6 +111,7 @@ interface WebControlEndpointService {
     suspend fun playbackStatus(): PlaybackStatusDto
     suspend fun getPlaybackClockSamples(limit: Int = 120): PlaybackClockSamplesDto = PlaybackClockSamplesDto()
     suspend fun getPlaybackNativeDiagnostics(logLimit: Int = 80): PlaybackNativeDiagnosticsDto = PlaybackNativeDiagnosticsDto()
+    suspend fun getLibassSubtitleMonitor(): LibassSubtitleMonitorDto = LibassSubtitleMonitorDto()
     suspend fun capturePlaybackNativeProfile(request: PlaybackNativeProfileRequest): PlaybackNativeProfileCaptureDto = PlaybackNativeProfileCaptureDto()
     suspend fun downloadPlaybackNativeProfile(name: String): LocalLogDownload =
         LocalLogDownload(
@@ -120,6 +123,9 @@ interface WebControlEndpointService {
     suspend fun getPlaybackDebugConfig(): PlaybackDebugConfigDto = PlaybackDebugConfigDto()
     suspend fun savePlaybackDebugConfig(request: PlaybackDebugConfigRequest): PlaybackDebugConfigDto =
         getPlaybackDebugConfig()
+    suspend fun getTranslationSettings(): TranslationSettingsDto = TranslationSettingsDto()
+    suspend fun saveTranslationSettings(request: TranslationSettingsDto): TranslationSettingsDto =
+        getTranslationSettings()
 }
 
 fun interface WebControlStaticAssets {

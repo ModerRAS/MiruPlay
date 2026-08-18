@@ -228,6 +228,9 @@ open class NanoHttpWebControlServer(
             session.method == Method.DELETE && route == "/api/metadata/bangumi-token" -> {
                 jsonResponse(MetadataSettingsDto.serializer(), webControlService.clearBangumiToken())
             }
+            session.method == Method.POST && route == "/api/metadata/bangumi-sync" -> {
+                jsonResponse(BangumiSyncAllResultDto.serializer(), webControlService.syncAllBangumi())
+            }
             session.method == Method.POST && route == "/api/metadata/tmdb-token" -> {
                 val request = parseBody(session, TmdbTokenRequest.serializer())
                 jsonResponse(MetadataSettingsDto.serializer(), webControlService.saveTmdbToken(request))
@@ -318,6 +321,9 @@ open class NanoHttpWebControlServer(
                 val limit = session.parameters["limit"]?.firstOrNull()?.toIntOrNull() ?: 80
                 jsonResponse(PlaybackNativeDiagnosticsDto.serializer(), webControlService.getPlaybackNativeDiagnostics(limit))
             }
+            session.method == Method.GET && route == "/api/playback/subtitle-monitor" -> {
+                jsonResponse(LibassSubtitleMonitorDto.serializer(), webControlService.getLibassSubtitleMonitor())
+            }
             session.method == Method.POST && route == "/api/playback/native-profile" -> {
                 val request = parseBody(session, PlaybackNativeProfileRequest.serializer())
                 jsonResponse(PlaybackNativeProfileCaptureDto.serializer(), webControlService.capturePlaybackNativeProfile(request))
@@ -339,6 +345,13 @@ open class NanoHttpWebControlServer(
             session.method == Method.PUT && route == "/api/playback/debug-config" -> {
                 val request = parseBody(session, PlaybackDebugConfigRequest.serializer())
                 jsonResponse(PlaybackDebugConfigDto.serializer(), webControlService.savePlaybackDebugConfig(request))
+            }
+            session.method == Method.GET && route == "/api/settings/translation" -> {
+                jsonResponse(TranslationSettingsDto.serializer(), webControlService.getTranslationSettings())
+            }
+            session.method == Method.PUT && route == "/api/settings/translation" -> {
+                val request = parseBody(session, TranslationSettingsDto.serializer())
+                jsonResponse(TranslationSettingsDto.serializer(), webControlService.saveTranslationSettings(request))
             }
             else -> errorResponse(Response.Status.NOT_FOUND, "接口不存在")
         }

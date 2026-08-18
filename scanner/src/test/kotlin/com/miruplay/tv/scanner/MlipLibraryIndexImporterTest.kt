@@ -124,6 +124,7 @@ class MlipLibraryIndexImporterTest {
                 setOf("7:/Series/01.mkv", "7:/Series/BD/01.mkv"),
                 metadataRepository.episodes.map(Episode::id).toSet(),
             )
+            assertEquals(1, metadataRepository.anime.single().episodeCount)
         } finally {
             databaseFile.delete()
         }

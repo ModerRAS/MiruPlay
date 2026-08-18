@@ -394,6 +394,8 @@ class LaunchTestSourceContentModeTest {
             rawMediaSourceId = " ",
             rawStartPositionMs = "1500",
             rawEpisodeId = " ",
+            rawSubtitleUri = null,
+            rawSubtitleFormat = null,
         )
 
         assertNotNull(request)
@@ -413,6 +415,8 @@ class LaunchTestSourceContentModeTest {
             rawMediaSourceId = " HDR Sample ",
             rawStartPositionMs = "-20",
             rawEpisodeId = " episode-1 ",
+            rawSubtitleUri = null,
+            rawSubtitleFormat = null,
         )
 
         assertNotNull(request)
@@ -429,6 +433,8 @@ class LaunchTestSourceContentModeTest {
                 rawMediaSourceId = "HdrTest",
                 rawStartPositionMs = "0",
                 rawEpisodeId = null,
+                rawSubtitleUri = null,
+                rawSubtitleFormat = null,
             )
         )
     }

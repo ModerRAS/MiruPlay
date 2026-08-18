@@ -61,9 +61,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -146,6 +148,13 @@ class ExoPlaybackController @Inject constructor(
     private var ijkAndroidIo: IjkPlaybackAndroidIo? = null
     private var ijkRequestHeaders: Map<String, String> = emptyMap()
     private val ijkAudioRawStreamIds = mutableListOf<Int>()
+    private var ijkSubtitleSession: LibassSubtitleSession? = null
+    private var ijkSubtitleOverlay: LibassSubtitleSurfaceView? = null
+    private var ijkSubtitlePayloads: List<List<LibassPayload>> = emptyList()
+    private var ijkSubtitlePoller: Job? = null
+    private var ijkVideoWidth = 0
+    private var ijkVideoHeight = 0
+    private var ijkEmbeddedTextTrackCount = 0
     // ponytail: copy-on-write 避免跨线程锁；写者基本只有 mpv 回调线程，CAS 无竞争。
     private val playbackClockSamples = AtomicReference<List<PlaybackClockSample>>(emptyList())
 
@@ -350,6 +359,7 @@ class ExoPlaybackController @Inject constructor(
 
     override suspend fun resume() {
         withContext(Dispatchers.Main) {
+            getLibassSubtitleSession()?.takeIf { it.isActive }?.onResume()
             if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER) {
                 ijkPlaying = true
                 ijkView?.resumePlayback()
@@ -383,6 +393,10 @@ class ExoPlaybackController @Inject constructor(
             if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER) {
                 ijkPositionMs = positionMs.coerceAtLeast(0L)
                 ijkView?.seekTo(ijkPositionMs)
+                ijkSubtitleSession?.takeIf { selectedSubtitleTrackIndex != null }?.let { session ->
+                    session.onSeek(session.currentGeneration(), flushEvents = false)
+                    session.submitVideoFrame(ijkPositionMs * 1_000L, ijkVideoWidth, ijkVideoHeight)
+                }
                 ijkSource?.let { source ->
                     _state.value = if (ijkPlaying) {
                         PlaybackState.Playing(source, ijkPositionMs)
@@ -488,6 +502,19 @@ class ExoPlaybackController @Inject constructor(
             ijkAndroidIo = null
             ijkRequestHeaders = emptyMap()
             ijkAudioRawStreamIds.clear()
+            ijkSubtitlePoller?.cancel()
+            ijkSubtitlePoller = null
+            ijkSubtitleOverlay?.let { overlay ->
+                overlay.unbind()
+                (overlay.parent as? ViewGroup)?.removeView(overlay)
+            }
+            ijkSubtitleOverlay = null
+            ijkSubtitleSession?.close()
+            ijkSubtitleSession = null
+            ijkSubtitlePayloads = emptyList()
+            ijkVideoWidth = 0
+            ijkVideoHeight = 0
+            ijkEmbeddedTextTrackCount = 0
             playbackClockSamples.set(emptyList())
             dataSourceFactory.clearHttpConfig()
             currentSource = null
@@ -535,7 +562,9 @@ class ExoPlaybackController @Inject constructor(
 
     override suspend fun setSubtitleTrack(trackIndex: Int?) {
         when (_activeRenderBackend.value) {
-            PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER -> Unit
+            PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER -> withContext(Dispatchers.Main) {
+                applyIjkSubtitleSelection(trackIndex, markManual = true)
+            }
             PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED -> withContext(Dispatchers.Main) {
                 val nativeTrackId = when (trackIndex) {
                     null -> null
@@ -587,7 +616,7 @@ class ExoPlaybackController @Inject constructor(
             }
             PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID -> externalMpvPositionMs
             PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED -> embeddedMpvPositionMs
-            else -> activeExoPlayer().currentPosition
+            else -> activeExoPlayerOrNull()?.currentPosition ?: 0L
         }
     }
 
@@ -599,7 +628,7 @@ class ExoPlaybackController @Inject constructor(
             }
             PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID -> 0L
             PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED -> embeddedMpvDurationMs
-            else -> activeExoPlayer().duration
+            else -> activeExoPlayerOrNull()?.duration ?: 0L
         }
     }
 
@@ -608,7 +637,7 @@ class ExoPlaybackController @Inject constructor(
             PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER -> ijkView?.isPlaybackActive() ?: ijkPlaying
             PlaybackRenderBackend.EXPERIMENTAL_MPV_ANDROID -> externalMpvPlaying
             PlaybackRenderBackend.EXPERIMENTAL_MPV_EMBEDDED -> embeddedMpvPlaying
-            else -> activeExoPlayer().isPlaying
+            else -> activeExoPlayerOrNull()?.isPlaying ?: false
         }
 
     override fun getPlayer(): Player? =
@@ -620,6 +649,7 @@ class ExoPlaybackController @Inject constructor(
         }
 
     override fun getLibassSubtitleSession(): LibassSubtitleSession? = when (_activeRenderBackend.value) {
+        PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER -> ijkSubtitleSession
         PlaybackRenderBackend.STANDARD_EXO,
         PlaybackRenderBackend.EXPERIMENTAL_GL,
         -> LibassSubtitleRegistry.sessionFor(activeExoPlayerOrNull())
@@ -635,6 +665,7 @@ class ExoPlaybackController @Inject constructor(
         if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER) {
             ijkHostView = container
             val view = ensureIjkView(container)
+            ensureIjkSubtitleOverlay(container)
             if (_activeRenderBackend.value == PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER && ijkPendingLoad) {
                 ijkSource?.let { loadIjkSource(view, it) }
             }
@@ -675,16 +706,27 @@ class ExoPlaybackController @Inject constructor(
         }
 
     override fun unbindVlcVideoHost() {
+        ijkSubtitleOverlay?.let { overlay ->
+            overlay.unbind()
+            (overlay.parent as? ViewGroup)?.removeView(overlay)
+        }
+        ijkSubtitleOverlay = null
         ijkView?.let { view ->
             (view.parent as? ViewGroup)?.removeView(view)
         }
         ijkHostView = null
         if (ijkView == null) ijkPendingLoad = ijkSource != null
-        embeddedMpvView?.let { view ->
+        val capturedEmbeddedMpvView = embeddedMpvView
+        val capturedEmbeddedMpvHost = embeddedMpvHostView
+        capturedEmbeddedMpvView?.let { view ->
+            view.releaseMpv()
             (view.parent as? ViewGroup)?.removeView(view)
         }
-        embeddedMpvHostView = null
-        embeddedMpvPendingLoad = embeddedMpvSource != null
+        if (embeddedMpvView === capturedEmbeddedMpvView && embeddedMpvHostView === capturedEmbeddedMpvHost) {
+            embeddedMpvView = null
+            embeddedMpvHostView = null
+            embeddedMpvPendingLoad = embeddedMpvSource != null
+        }
     }
 
     override suspend fun setRequestedRenderBackend(backend: PlaybackRenderBackend?) {
@@ -760,6 +802,15 @@ class ExoPlaybackController @Inject constructor(
     }
 
     fun release() {
+        ijkSubtitlePoller?.cancel()
+        ijkSubtitlePoller = null
+        ijkSubtitleOverlay?.let { overlay ->
+            overlay.unbind()
+            (overlay.parent as? ViewGroup)?.removeView(overlay)
+        }
+        ijkSubtitleOverlay = null
+        ijkSubtitleSession?.close()
+        ijkSubtitleSession = null
         ijkView?.releasePlayer()
         ijkView = null
         ijkHostView = null
@@ -1260,13 +1311,17 @@ class ExoPlaybackController @Inject constructor(
             signalDescriptor = descriptor,
             requestedBackendOverride = _requestedRenderBackend.value,
         )
+        val ijkSubtitleFallback = ijkExternalSubtitleFallbackReason(
+            hasExternalSubtitles = currentSource?.subtitleTracks?.isNotEmpty() == true,
+            libassAvailable = NativeAssRenderer.isAvailable(),
+        )
         val config = if (
             baseConfig.activeBackend == PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER &&
-            currentSource?.subtitleTracks?.isNotEmpty() == true
+            ijkSubtitleFallback != null
         ) {
             baseConfig.copy(
                 activeBackend = PlaybackRenderBackend.STANDARD_EXO,
-                fallbackReason = "ijkplayer 不支持外挂字幕，已回退到标准 Exo",
+                fallbackReason = ijkSubtitleFallback,
             )
         } else if (
             baseConfig.activeBackend == PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER &&
@@ -1300,7 +1355,7 @@ class ExoPlaybackController @Inject constructor(
         _currentRenderRuleKey.value = config.ruleKey
         _currentToneMappingRuleSet.value = config.appliedRuleSet
         _activeRenderBackend.value = config.activeBackend
-        _fallbackReason.value = config.fallbackReason
+        _fallbackReason.value = ijkSubtitleStatusFallbackReason(config.fallbackReason)
         if (config.activeBackend != PlaybackRenderBackend.STANDARD_EXO) {
             stopMediaSessionService()
         }
@@ -1379,7 +1434,7 @@ class ExoPlaybackController @Inject constructor(
         }
     }
 
-    private fun playWithIjk(
+    private suspend fun playWithIjk(
         source: PlaybackSource,
         httpConfig: PlaybackHttpRequestConfig,
     ) {
@@ -1393,6 +1448,17 @@ class ExoPlaybackController @Inject constructor(
         availableSubtitles.clear()
         availableAudioTracks.clear()
         ijkAudioRawStreamIds.clear()
+        ijkSubtitlePoller?.cancel()
+        ijkSubtitlePoller = null
+        ijkSubtitleSession?.close()
+        ijkSubtitleSession = null
+        // Keep the overlay view attached across plays: removing it here destroys its
+        // Surface (and with it the libass target). Rebind it to the new session below.
+        ijkSubtitleOverlay?.let { overlay -> overlay.unbind() }
+        ijkSubtitlePayloads = emptyList()
+        ijkVideoWidth = 0
+        ijkVideoHeight = 0
+        ijkEmbeddedTextTrackCount = 0
         selectedSubtitleTrackIndex = null
         selectedAudioTrackIndex = null
         runCatching { ijkAndroidIo?.close() }
@@ -1401,11 +1467,58 @@ class ExoPlaybackController @Inject constructor(
             dataSourceFactory = dataSourceFactory,
             requestHeaders = ijkRequestHeaders,
         )
+        ijkSubtitlePayloads = loadIjkExternalSubtitlePayloads(source, httpConfig)
+        val loadedPairs = ijkSubtitlePayloads.mapIndexedNotNull { index, payloads ->
+            val track = source.subtitleTracks.getOrNull(index) ?: return@mapIndexedNotNull null
+            track.takeIf { payloads.isNotEmpty() }?.let { it to payloads }
+        }
+        ijkSubtitlePayloads = loadedPairs.map { it.second }
+        availableSubtitles += loadedPairs.map { it.first }
+        if (availableSubtitles.isNotEmpty() && NativeAssRenderer.isAvailable()) {
+            val newSession = LibassSubtitleSession(
+                monitorProvider = libassSubtitleMonitorProvider {
+                    playbackDebugOverrides.libassSubtitleMonitorEnabled
+                },
+            )
+            // Assign the field BEFORE wiring the overlay: ensureIjkSubtitleOverlay reads
+            // ijkSubtitleSession and would otherwise see null and skip overlay creation.
+            ijkSubtitleSession = newSession
+            newSession.beginMedia()
+            val existingOverlay = ijkSubtitleOverlay
+            if (existingOverlay != null) {
+                existingOverlay.bind(newSession)
+            } else {
+                ijkHostView?.let(::ensureIjkSubtitleOverlay)
+            }
+            startIjkSubtitleClock()
+        }
+        if (!subtitleSelectionWasManual) {
+            preferredSubtitleTrackIndex(availableSubtitles, preferredSubtitleLanguage)?.let { preferredIndex ->
+                if (preferredIndex != selectedSubtitleTrackIndex) {
+                    applyIjkSubtitleSelection(preferredIndex, markManual = false)
+                }
+            }
+        }
         _state.value = PlaybackState.Loading(source)
         ijkHostView?.let { host ->
             loadIjkSource(ensureIjkView(host), source)
         }
     }
+
+    private suspend fun loadIjkExternalSubtitlePayloads(
+        source: PlaybackSource,
+        httpConfig: PlaybackHttpRequestConfig,
+    ): List<List<LibassPayload>> = withContext(Dispatchers.IO) {
+        source.subtitleTracks.map { track ->
+            readIjkExternalSubtitleBytes(
+                dataSourceFactory = dataSourceFactory,
+                isWebDavUri = httpConfig.isWebDav(track.path),
+                requestHeaders = ijkRequestHeaders,
+                path = track.path,
+            )?.let { bytes -> parseExternalSubtitlePayloads(bytes, track.format) }.orEmpty()
+        }
+    }
+
 
     private fun loadIjkSource(view: MiruIjkSurfaceView, source: PlaybackSource) {
         ijkPendingLoad = false
@@ -1443,8 +1556,25 @@ class ExoPlaybackController @Inject constructor(
                     val activeSource = ijkSource ?: return
                     ijkDurationMs = durationMs.coerceAtLeast(0L)
                     ijkPositionMs = view.currentPositionMs()
+                    ijkVideoWidth = width.coerceAtLeast(0)
+                    ijkVideoHeight = height.coerceAtLeast(0)
+                    ijkEmbeddedTextTrackCount = view.textTrackCount()
+                    if (ijkEmbeddedTextTrackCount > 0) {
+                        MiruLog.w(
+                            "IjkPlayback",
+                            "Embedded text tracks detected but IJK renders no subtitles",
+                            attributes = mapOf(
+                                "embedded_text_track_count" to ijkEmbeddedTextTrackCount.toString(),
+                                "source_uri" to activeSource.uri,
+                            ),
+                        )
+                        _fallbackReason.value = ijkSubtitleStatusFallbackReason(_fallbackReason.value)
+                    }
                     ijkPlaying = true
                     _state.value = PlaybackState.Playing(activeSource, ijkPositionMs)
+                    ijkSubtitleSession?.takeIf { selectedSubtitleTrackIndex != null }?.let { session ->
+                        session.submitVideoFrame(ijkPositionMs * 1_000L, ijkVideoWidth, ijkVideoHeight)
+                    }
                     updateRemoteControlPlaybackState()
                     MiruLog.i(
                         "IjkPlayback",
@@ -1515,6 +1645,131 @@ class ExoPlaybackController @Inject constructor(
                 ),
             )
         }
+    }
+
+    private fun applyIjkSubtitleSelection(trackIndex: Int?, markManual: Boolean) {
+        val session = ijkSubtitleSession
+        val resolved = resolveIjkSubtitleTrackSelection(trackIndex, ijkSubtitlePayloads.size)
+        if (resolved == null) {
+            // Unselectable (closed, or embedded/unknown track IJK cannot render): stay closed.
+            session?.deactivate(session.currentGeneration())
+            selectedSubtitleTrackIndex = null
+            if (markManual) subtitleSelectionWasManual = true
+            MiruLog.i(
+                "IjkSubtitle",
+                "Subtitle selection closed/unselectable",
+                mapOf(
+                    "requested" to trackIndex?.toString().orEmpty(),
+                    "session" to (session != null).toString(),
+                ),
+            )
+            return
+        }
+        if (session == null) {
+            selectedSubtitleTrackIndex = null
+            if (markManual) subtitleSelectionWasManual = true
+            MiruLog.w(
+                "IjkSubtitle",
+                "Subtitle selected but no libass session",
+                null,
+                emptyMap(),
+            )
+            return
+        }
+        val generation = session.currentGeneration()
+        session.deactivate(generation)
+        session.startTrack(generation, null)
+        ijkSubtitlePayloads[resolved].forEach { payload -> session.acceptPayload(generation, payload) }
+        val eventCount = ijkSubtitlePayloads[resolved].count { it is LibassPayload.Event }
+        session.submitVideoFrame(ijkPositionMs.coerceAtLeast(0L) * 1_000L, ijkVideoWidth, ijkVideoHeight)
+        selectedSubtitleTrackIndex = resolved
+        if (markManual) subtitleSelectionWasManual = true
+        MiruLog.i(
+            "IjkSubtitle",
+            "Subtitle track selected",
+            mapOf(
+                "index" to resolved.toString(),
+                "generation" to generation.toString(),
+                "payload_count" to ijkSubtitlePayloads[resolved].size.toString(),
+                "event_count" to eventCount.toString(),
+                "session_active" to session.isActive.toString(),
+                "video_size" to "${ijkVideoWidth}x${ijkVideoHeight}",
+            ),
+        )
+    }
+
+    private fun ensureIjkSubtitleOverlay(container: ViewGroup) {
+        val session = ijkSubtitleSession ?: return
+        val existingOverlay = ijkSubtitleOverlay
+        if (existingOverlay != null) {
+            if (ijkSubtitleOverlayAction(existingOverlay.parent, container) == IjkSubtitleOverlayAction.REBIND) {
+                // Same host: keep the view (and its live surface), rebind the session.
+                existingOverlay.bind(session)
+                return
+            }
+            // Different host: a destroyed SurfaceView must not be moved across hosts.
+            // Tear it down and create a fresh overlay bound to the current session.
+            existingOverlay.unbind()
+            (existingOverlay.parent as? ViewGroup)?.removeView(existingOverlay)
+            ijkSubtitleOverlay = null
+        }
+        val overlay = LibassSubtitleSurfaceView(container.context).also { created ->
+            created.bind(session)
+            container.addView(
+                created,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                ),
+            )
+        }
+        ijkSubtitleOverlay = overlay
+        MiruLog.i(
+            "IjkSubtitle",
+            "Libass overlay attached to IJK host",
+            mapOf(
+                "created" to "true",
+                "host_identity" to "${System.identityHashCode(container)}",
+                "host_child_count" to container.childCount.toString(),
+                "overlay_index" to container.indexOfChild(overlay).toString(),
+            ),
+        )
+    }
+
+    override fun currentLibassSubtitleMonitorSnapshot(): LibassSubtitleMonitorSnapshot? =
+        getLibassSubtitleSession()?.currentMonitorSnapshot()?.let { snapshot ->
+            snapshot.copy(activeBackend = _activeRenderBackend.value.name)
+        }
+
+    private fun startIjkSubtitleClock() {
+        ijkSubtitlePoller?.cancel()
+        if (ijkSubtitleSession == null) return
+        ijkSubtitlePoller = controllerScope.launch {
+            while (isActive) {
+                val expectedTickWallNs = android.os.SystemClock.elapsedRealtimeNanos() +
+                    IJK_SUBTITLE_CLOCK_INTERVAL_MS * 1_000_000L
+                delay(IJK_SUBTITLE_CLOCK_INTERVAL_MS)
+                if (selectedSubtitleTrackIndex == null) continue
+                val session = ijkSubtitleSession ?: break
+                val positionMs = (ijkView?.currentPositionMs() ?: ijkPositionMs).coerceAtLeast(0L)
+                ijkPositionMs = positionMs
+                submitIjkSubtitleClockFrame(
+                    session = session,
+                    positionMs = positionMs,
+                    storageWidth = ijkVideoWidth,
+                    storageHeight = ijkVideoHeight,
+                    expectedTickWallNs = expectedTickWallNs,
+                )
+            }
+        }
+    }
+
+    private fun ijkSubtitleStatusFallbackReason(base: String?): String? {
+        if (_activeRenderBackend.value != PlaybackRenderBackend.EXPERIMENTAL_IJKPLAYER) return base
+        if (ijkEmbeddedTextTrackCount <= 0) return base
+        val embeddedMessage = "IJK 播放器暂不渲染内嵌字幕轨道（检测到 $ijkEmbeddedTextTrackCount 条）"
+        if (base?.contains("内嵌字幕") == true) return base
+        return if (base.isNullOrBlank()) embeddedMessage else "$base；$embeddedMessage"
     }
 
     private fun playWithEmbeddedMpv(
@@ -1776,7 +2031,7 @@ class ExoPlaybackController @Inject constructor(
                 session = libassSession,
                 nativeAvailable = NativeAssRenderer::isAvailable,
             ),
-        )
+        ).experimentalParseSubtitlesDuringExtraction(false)
     }
 
     private fun activeExoPlayer(): ExoPlayer = standardExoPlayer()
@@ -1819,6 +2074,17 @@ class ExoPlaybackController @Inject constructor(
 
     private fun standardPlayerOrNull(): ExoPlayer? = standardExoPlayer
 }
+
+internal fun ijkSubtitleOverlayAction(
+    existingOverlayParent: Any?,
+    host: Any,
+): IjkSubtitleOverlayAction = when {
+    existingOverlayParent == null -> IjkSubtitleOverlayAction.CREATE
+    existingOverlayParent === host -> IjkSubtitleOverlayAction.REBIND
+    else -> IjkSubtitleOverlayAction.REPLACE
+}
+
+internal enum class IjkSubtitleOverlayAction { CREATE, REBIND, REPLACE }
 
 internal fun externalAudioUnsupportedMessage(
     backend: PlaybackRenderBackend,
@@ -1914,5 +2180,23 @@ internal fun mediaTrackTypeLabel(trackType: Int): String = when (trackType) {
 private const val REMOTE_FAST_FORWARD_MS = 30_000L
 private const val REMOTE_REWIND_MS = 10_000L
 private const val MAX_PLAYBACK_CLOCK_SAMPLES = 240
+private const val IJK_SUBTITLE_CLOCK_INTERVAL_MS = 100L
+
+internal fun submitIjkSubtitleClockFrame(
+    session: LibassSubtitleSession,
+    positionMs: Long,
+    storageWidth: Int,
+    storageHeight: Int,
+    expectedTickWallNs: Long,
+) {
+    session.submitVideoFrame(
+        presentationTimeUs = positionMs * 1_000L,
+        storageWidth = storageWidth,
+        storageHeight = storageHeight,
+        anchorWallNs = expectedTickWallNs,
+        mappingWallNs = null,
+    )
+}
+
 
 typealias Tracks = androidx.media3.common.Tracks
