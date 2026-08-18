@@ -6,6 +6,7 @@ import android.graphics.PixelFormat
 import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import com.miruplay.tv.core.common.logging.MiruLog
 
 class LibassSubtitleSurfaceView(context: Context) : SurfaceView(context), SurfaceHolder.Callback {
     private var session: LibassSubtitleSession? = null
@@ -37,6 +38,16 @@ class LibassSubtitleSurfaceView(context: Context) : SurfaceView(context), Surfac
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
+        val frame = holder.surfaceFrame
+        MiruLog.i(
+            "IjkSubtitleOverlay",
+            "Overlay surface created",
+            mapOf(
+                "size" to if (frame != null) "${frame.width()}x${frame.height()}" else "unknown",
+                "parent" to parent?.javaClass?.simpleName.orEmpty(),
+                "session" to (session != null).toString(),
+            ),
+        )
         bindCurrentSurface()
     }
 
@@ -55,7 +66,7 @@ class LibassSubtitleSurfaceView(context: Context) : SurfaceView(context), Surfac
     private fun bindCurrentSurface() {
         val surface: Surface? = holder.surface
         val frame = holder.surfaceFrame
-        if (surface?.isValid == true && frame.width() > 0 && frame.height() > 0) {
+        if (surface?.isValid == true && frame != null && frame.width() > 0 && frame.height() > 0) {
             session?.bindSurface(surface, frame.width(), frame.height())
         }
     }

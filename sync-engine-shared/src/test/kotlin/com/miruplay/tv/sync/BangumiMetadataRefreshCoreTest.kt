@@ -69,6 +69,26 @@ class BangumiMetadataRefreshCoreTest {
     }
 
     @Test
+    fun `cacheResolvedMetadata counts duplicate physical versions as one logical episode`() = runBlocking {
+        val metadata = FakeMetadataRepository()
+        val core = BangumiMetadataRefreshCore(metadata, FakeMetadataScraper())
+
+        val cached = core.cacheResolvedMetadata(
+            cacheAnimeId = "local",
+            details = Anime(id = "remote", title = "Remote", episodeCount = 0),
+            localEpisodes = listOf(
+                episode(id = "web", animeId = "local", episodeNumber = 1, title = ""),
+                episode(id = "bd", animeId = "local", episodeNumber = 1, title = ""),
+            ),
+            remoteEpisodes = emptyList(),
+        )
+
+        assertTrue(cached is Result.Success)
+        assertEquals(2, metadata.episodes.size)
+        assertEquals(1, metadata.anime?.episodeCount)
+    }
+
+    @Test
     fun `media index entries map to Bangumi cache ids and local episodes`() {
         val metadataEntry = MediaIndexEntry(
             sourceId = 1L,

@@ -44,6 +44,17 @@ export async function api(path, options = {}) {
   return envelope.data
 }
 
+export function getTranslationSettings() {
+  return api('/api/settings/translation')
+}
+
+export function setTranslationSettings(payload) {
+  return api('/api/settings/translation', {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  })
+}
+
 export function formatTime(ms) {
   if (!Number.isFinite(ms) || ms <= 0) return '00:00'
   const total = Math.floor(ms / 1000)

@@ -312,6 +312,7 @@ private fun PlayerScreenContent(
     val formatAwarePreferences by viewModel.formatAwarePreferences.collectAsStateWithLifecycle()
     val subtitleBackgroundTransparent by viewModel.subtitleBackgroundTransparent.collectAsStateWithLifecycle()
     val episodeComments by viewModel.episodeComments.collectAsStateWithLifecycle()
+    val subtitleTranslationState by viewModel.subtitleTranslationState.collectAsStateWithLifecycle()
     val keepScreenOn = playbackState.keepsScreenOn()
     val view = LocalView.current
     val playerFocusRequester = remember { FocusRequester() }
@@ -342,6 +343,7 @@ private fun PlayerScreenContent(
     var openMenu by remember { mutableStateOf<PlayerMenu?>(null) }
     var infoPanelVisible by remember { mutableStateOf(false) }
     var commentsPanelVisible by remember { mutableStateOf(false) }
+    var subtitleTranslateDialogVisible by remember { mutableStateOf(false) }
     var infoTab by remember { mutableStateOf(PlayerInfoTab.Information) }
     var pressedDedicatedIntent by remember { mutableStateOf<MiruPlayInputIntent?>(null) }
     var pendingChromeFocus by remember { mutableStateOf<PlayerChromeFocusTarget?>(null) }
@@ -751,6 +753,9 @@ private fun PlayerScreenContent(
                     viewModel.resetCurrentToneMappingToDefault()
                     viewModel.showControls()
                 },
+                onTranslateSubtitles = {
+                    subtitleTranslateDialogVisible = true
+                },
                 openMenu = openMenu,
                 onOpenMenuChange = { menu ->
                     if (openMenu == menu) {
@@ -800,6 +805,23 @@ private fun PlayerScreenContent(
                 audioTracks = availableAudioTracks,
                 selectedSubtitleTrackIndex = selectedSubtitleTrackIndex,
                 selectedAudioTrackIndex = selectedAudioTrackIndex,
+            )
+        }
+
+        if (subtitleTranslateDialogVisible) {
+            SubtitleTranslateDialog(
+                sourceTrackLabel = selectedSubtitleTrackIndex
+                    ?.let { index -> availableSubtitles.getOrNull(index)?.let { playbackSubtitleOptionLabel(it, index) } },
+                deepSeekKeyConfigured = viewModel.isDeepSeekKeyConfigured(),
+                defaultTargetLanguageCode = viewModel.defaultTranslationTargetLanguage(),
+                state = subtitleTranslationState,
+                onTranslate = viewModel::translateSelectedSubtitle,
+                onDismiss = { subtitleTranslateDialogVisible = false },
+                onTranslated = {
+                    subtitleTranslateDialogVisible = false
+                    openMenu = null
+                    viewModel.showControls()
+                },
             )
         }
 
@@ -901,6 +923,7 @@ private fun PlayerChrome(
     onSelectPicturePreset: (ToneMappingProfilePreset) -> Unit,
     onSavePictureDefault: () -> Unit,
     onResetPictureSession: () -> Unit,
+    onTranslateSubtitles: () -> Unit = {},
     openMenu: PlayerMenu?,
     onOpenMenuChange: (PlayerMenu) -> Unit
 ) {
@@ -954,6 +977,7 @@ private fun PlayerChrome(
                 onSelectPicturePreset = onSelectPicturePreset,
                 onSavePictureDefault = onSavePictureDefault,
                 onResetPictureSession = onResetPictureSession,
+                onTranslateSubtitles = onTranslateSubtitles,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(start = 52.dp, end = 52.dp, bottom = 164.dp)
@@ -1463,6 +1487,7 @@ internal fun PlayerOptionsPanel(
     onSelectPicturePreset: (ToneMappingProfilePreset) -> Unit,
     onSavePictureDefault: () -> Unit,
     onResetPictureSession: () -> Unit,
+    onTranslateSubtitles: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val initialFocusHandle = rememberInitialFocusHandle(key = menu)
@@ -1552,6 +1577,13 @@ internal fun PlayerOptionsPanel(
                         } else {
                             Modifier
                         },
+                    )
+                }
+                item {
+                    PlayerOptionButton(
+                        text = "翻译成…",
+                        selected = false,
+                        onClick = onTranslateSubtitles,
                     )
                 }
             }

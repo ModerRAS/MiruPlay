@@ -30,6 +30,7 @@ import com.miruplay.tv.model.ScanResult
 import com.miruplay.tv.model.TvShowNfoMetadata
 import com.miruplay.tv.model.UniqueId
 import com.miruplay.tv.model.displayTitle
+import com.miruplay.tv.model.distinctSeasonEpisodeCount
 import com.miruplay.tv.model.matchingExternalSubtitlePaths
 import com.miruplay.tv.model.recognitionMode
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
@@ -387,12 +388,13 @@ class ScanCoordinator @Inject constructor(
                     )
                 }
                 metadataRepository.cacheEpisodes(animeName, online.episodes)
+                val logicalEpisodeCount = online.episodes.distinctSeasonEpisodeCount()
 
                 var animeForNfo: Anime? = null
                 if (isDramaSource) {
                     animeForNfo = createGeneratedLocalMetadata(
                         title = animeName,
-                        episodeCount = episodes.size,
+                        episodeCount = logicalEpisodeCount,
                     )
                 } else if (online.anime != null) {
                     metadataRepository.cacheMetadata(online.anime)
@@ -400,13 +402,13 @@ class ScanCoordinator @Inject constructor(
                 } else {
                     metadataRepository.getCachedMetadata(animeName).onSuccess { cachedAnime ->
                         if (cachedAnime != null) {
-                            val updated = cachedAnime.copy(episodeCount = episodes.size)
+                            val updated = cachedAnime.copy(episodeCount = logicalEpisodeCount)
                             metadataRepository.cacheMetadata(updated)
                             animeForNfo = updated
                         } else {
                             val minimal = createGeneratedLocalMetadata(
                                 title = animeName,
-                                episodeCount = episodes.size,
+                                episodeCount = logicalEpisodeCount,
                             )
                             metadataRepository.cacheMetadata(minimal)
                             animeForNfo = minimal
@@ -524,7 +526,7 @@ class ScanCoordinator @Inject constructor(
             ?: cachedAnime.posterLocalPath
         val anime = cachedAnime.copy(
             id = animeName,
-            episodeCount = maxOf(cachedAnime.episodeCount, mergedEpisodes.size),
+            episodeCount = maxOf(cachedAnime.episodeCount, mergedEpisodes.distinctSeasonEpisodeCount()),
             posterLocalPath = posterLocalPath ?: cachedAnime.posterLocalPath,
         )
         MiruLog.i(
@@ -748,7 +750,7 @@ class ScanCoordinator @Inject constructor(
                 id = animeName,
                 title = baseAnime.title.ifBlank { animeName },
                 titleCn = baseAnime.titleCn ?: match.titleCn,
-                episodeCount = maxOf(baseAnime.episodeCount, enrichedEpisodes.size),
+                episodeCount = maxOf(baseAnime.episodeCount, enrichedEpisodes.distinctSeasonEpisodeCount()),
                 bangumiId = baseAnime.bangumiId ?: match.animeId.toIntOrNull(),
                 posterLocalPath = posterLocalPath ?: baseAnime.posterLocalPath,
             )

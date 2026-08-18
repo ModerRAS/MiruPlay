@@ -9,6 +9,7 @@ import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.detailBangumiDetailsFailedMessage
 import com.miruplay.tv.model.detailBangumiNoReliableMatchMessage
+import com.miruplay.tv.model.distinctSeasonEpisodeCount
 import com.miruplay.tv.model.metadataApplyBangumiRequiredMessage
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MetadataRepository
@@ -216,7 +217,10 @@ class BangumiMetadataRefreshCore(
                 val cachedMetadata = metadataRepository.cacheMetadata(
                     details.copy(
                         id = cacheAnimeId,
-                        episodeCount = maxOf(details.episodeCount, episodes.size.coerceAtLeast(1)),
+                        episodeCount = maxOf(
+                            details.episodeCount,
+                            episodes.distinctSeasonEpisodeCount().coerceAtLeast(1),
+                        ),
                     )
                 )
             ) {
@@ -277,7 +281,10 @@ class BangumiMetadataRefreshCore(
                 match = match,
                 details = remote.details.copy(
                     id = cacheAnimeId,
-                    episodeCount = maxOf(remote.details.episodeCount, episodes.size.coerceAtLeast(1)),
+                    episodeCount = maxOf(
+                        remote.details.episodeCount,
+                        episodes.distinctSeasonEpisodeCount().coerceAtLeast(1),
+                    ),
                 ),
                 episodes = episodes,
             )

@@ -102,6 +102,12 @@ interface PlaybackController {
     fun getLibassSubtitleSession(): LibassSubtitleSession? = null
 
     /**
+     * Bounded libass subtitle pipeline monitor snapshot, or null when monitoring is off
+     * for the current playback session.
+     */
+    fun currentLibassSubtitleMonitorSnapshot(): LibassSubtitleMonitorSnapshot? = null
+
+    /**
      * True when the current active backend expects a VLC render host instead of PlayerView.
      */
     fun usesVlcVideoLayout(): Boolean

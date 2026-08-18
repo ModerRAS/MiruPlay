@@ -66,6 +66,10 @@
             <el-icon><VideoPlay /></el-icon>
             <span>播放设置</span>
           </el-menu-item>
+          <el-menu-item index="translation">
+            <el-icon><ChatLineSquare /></el-icon>
+            <span>字幕翻译</span>
+          </el-menu-item>
           <el-menu-item index="webui">
             <el-icon><Monitor /></el-icon>
             <span>WebUI 访问</span>
@@ -644,6 +648,35 @@
                     清除 Token
                   </el-button>
                 </div>
+
+                <el-divider />
+
+                <div class="form-actions">
+                  <el-button
+                    type="success"
+                    :icon="Refresh"
+                    :loading="loading.bangumiSync"
+                    :disabled="!metadataSettings.bangumiTokenConfigured"
+                    @click="syncAllBangumi"
+                  >
+                    同步全部 Bangumi 进度
+                  </el-button>
+                  <span class="sync-hint">把已看集上送到 Bangumi，并从 Bangumi 拉取远端已看进度</span>
+                </div>
+                <el-alert
+                  v-if="bangumiSyncResult"
+                  class="sync-result"
+                  :type="bangumiSyncResult.failedCount > 0 ? 'warning' : 'success'"
+                  :closable="true"
+                  show-icon
+                  :title="`已同步 ${bangumiSyncResult.syncedCount} 部，失败 ${bangumiSyncResult.failedCount} 部，共 ${bangumiSyncResult.animeCount} 部匹配番剧`"
+                >
+                  <template #default>
+                    <span>
+                      上送 {{ bangumiSyncResult.totalPushedEpisodes }} 集 · 拉取 {{ bangumiSyncResult.totalPulledEpisodes }} 集 · 远端已看 {{ bangumiSyncResult.totalRemoteWatchedEpisodes }} 集
+                    </span>
+                  </template>
+                </el-alert>
               </el-form>
             </el-card>
 
@@ -1128,6 +1161,51 @@
                 />
                 <div class="form-actions">
                   <el-button type="primary" :loading="loading.playbackSave" @click="savePlaybackSettings">保存设置</el-button>
+                </div>
+              </el-form>
+            </el-card>
+          </section>
+
+          <section v-show="activeView === 'translation'" class="view-stack">
+            <el-card shadow="never" class="panel-card">
+              <template #header>
+                <div class="card-header">
+                  <div>
+                    <strong>字幕翻译</strong>
+                    <span class="muted block-text">配置 AI 字幕翻译服务与默认翻译语言</span>
+                  </div>
+                  <el-tag :type="translationSettings.deepSeekApiKeyConfigured ? 'success' : 'info'">
+                    {{ translationSettings.deepSeekApiKeyConfigured ? 'API Key 已保存' : '未配置 API Key' }}
+                  </el-tag>
+                </div>
+              </template>
+
+              <el-skeleton v-if="loading.translationSettings" animated :rows="4" />
+              <el-form v-else label-position="top" @submit.prevent>
+                <el-form-item label="DeepSeek API Key">
+                  <el-input
+                    v-model="translationForm.deepSeekApiKey"
+                    type="password"
+                    show-password
+                    autocomplete="off"
+                    :placeholder="translationSettings.deepSeekApiKeyConfigured ? '已保存（' + maskedDeepSeekKey + '），输入新 Key 可更新' : 'sk-...'"
+                  />
+                  <span v-if="translationSettings.deepSeekApiKeyConfigured" class="muted">
+                    已配置：{{ maskedDeepSeekKey }}
+                  </span>
+                </el-form-item>
+                <el-form-item label="默认翻译语言">
+                  <el-select v-model="translationForm.defaultTargetLanguage">
+                    <el-option
+                      v-for="option in translationLanguageOptions"
+                      :key="option.code"
+                      :label="option.label"
+                      :value="option.code"
+                    />
+                  </el-select>
+                </el-form-item>
+                <div class="form-actions">
+                  <el-button type="primary" :loading="loading.translationSave" @click="saveTranslationSettings">保存设置</el-button>
                 </div>
               </el-form>
             </el-card>
@@ -1644,9 +1722,10 @@ import {
   Setting,
   SwitchButton,
   Upload,
-  VideoPlay
+  VideoPlay,
+  ChatLineSquare
 } from '@element-plus/icons-vue'
-import { api, formatTime, getWebControlToken, originalTitleOf, setWebControlToken, titleOf } from './api'
+import { api, formatTime, getTranslationSettings, getWebControlToken, originalTitleOf, setTranslationSettings, setWebControlToken, titleOf } from './api'
 
 const activeView = ref('library')
 const query = ref('')
@@ -1743,6 +1822,8 @@ const loading = reactive({
   scanSave: false,
   playbackSettings: false,
   playbackSave: false,
+  translationSettings: false,
+  translationSave: false,
   audioDsp: false,
   audioDspSave: false,
   audioDspPreview: false,
@@ -1752,7 +1833,8 @@ const loading = reactive({
   appUpdate: false,
   appUpdateDownload: false,
   appControl: false,
-  tmdbToken: false
+  tmdbToken: false,
+  bangumiSync: false
 })
 const sourceForm = reactive({
   id: 0,
@@ -1812,6 +1894,7 @@ const metadataForm = reactive({
   bangumiToken: '',
   tmdbToken: ''
 })
+const bangumiSyncResult = ref(null)
 const scanSettings = reactive({
   autoScanEnabled: false,
   autoScanIntervalHours: 6,
@@ -1847,6 +1930,26 @@ const playbackForm = reactive({
   preferredSubtitleLanguage: 'auto',
   subtitleBackgroundTransparent: false,
   defaultBackend: ''
+})
+const translationLanguageOptions = [
+  { code: 'zh-Hans', label: '中文（简体）' },
+  { code: 'en', label: '英语' },
+  { code: 'ja', label: '日语' },
+  { code: 'ko', label: '韩语' },
+  { code: 'fr', label: '法语' },
+  { code: 'de', label: '德语' },
+  { code: 'es', label: '西班牙语' },
+  { code: 'ru', label: '俄语' },
+  { code: 'th', label: '泰语' },
+  { code: 'vi', label: '越南语' }
+]
+const translationSettings = reactive({
+  deepSeekApiKeyConfigured: false,
+  defaultTargetLanguage: 'zh-Hans'
+})
+const translationForm = reactive({
+  deepSeekApiKey: '',
+  defaultTargetLanguage: 'zh-Hans'
 })
 const audioDsp = reactive({
   config: createNeutralAudioDspConfig(),
@@ -2116,6 +2219,7 @@ watch(activeView, (view) => {
     loadPlaybackSettings()
     loadAudioDsp()
   }
+  if (view === 'translation') loadTranslationSettings()
   if (view === 'webui') loadWebControlAccess()
   if (view === 'app-update') loadAppUpdate()
   if (view === 'logs') {
@@ -2153,7 +2257,7 @@ async function initializeAccess() {
   }
 
   accessReady.value = true
-  await Promise.allSettled([loadLibrary(), loadSources(), loadCloudDriveAutomation(), loadCloudDriveRunStatus(), loadProxyConfig(), loadMetadataSettings(), loadLogUpload(), loadLocalLogs(), loadPlaybackStatus(), loadScanSettings(), loadPlaybackSettings(), loadAudioDsp(), loadWebControlAccess(), loadAppUpdate()])
+  await Promise.allSettled([loadLibrary(), loadSources(), loadCloudDriveAutomation(), loadCloudDriveRunStatus(), loadProxyConfig(), loadMetadataSettings(), loadLogUpload(), loadLocalLogs(), loadPlaybackStatus(), loadScanSettings(), loadPlaybackSettings(), loadAudioDsp(), loadWebControlAccess(), loadAppUpdate(), loadTranslationSettings()])
   if (!accessReady.value) return
   window.clearInterval(statusTimer)
   window.clearInterval(archiveTimer)
@@ -3135,6 +3239,28 @@ async function clearBangumiToken() {
   }
 }
 
+async function syncAllBangumi() {
+  if (!metadataSettings.bangumiTokenConfigured) {
+    ElMessage.warning('请先保存 Bangumi Token')
+    return
+  }
+
+  loading.bangumiSync = true
+  try {
+    const result = await api('/api/metadata/bangumi-sync', { method: 'POST' })
+    bangumiSyncResult.value = result
+    if (result.failedCount > 0) {
+      ElMessage.warning(`同步完成：成功 ${result.syncedCount} 部，失败 ${result.failedCount} 部`)
+    } else {
+      ElMessage.success(`同步完成：成功 ${result.syncedCount} 部`)
+    }
+  } catch (e) {
+    ElMessage.error(`同步失败：${e?.message || e}`)
+  } finally {
+    loading.bangumiSync = false
+  }
+}
+
 async function saveTmdbToken() {
   if (!metadataForm.tmdbToken.trim()) {
     ElMessage.warning('请填写 TMDB Token')
@@ -3487,6 +3613,43 @@ async function savePlaybackSettings() {
     ElMessage.error(e.message || '保存播放设置失败')
   } finally {
     loading.playbackSave = false
+  }
+}
+
+const maskedDeepSeekKey = computed(() => {
+  const key = translationForm.deepSeekApiKey.trim()
+  if (!key) return ''
+  return key.length > 8 ? `${key.slice(0, 3)}****${key.slice(-4)}` : '****'
+})
+
+function applyTranslationSettings(data) {
+  translationSettings.deepSeekApiKeyConfigured = Boolean(data.deepSeekApiKey)
+  translationSettings.defaultTargetLanguage = data.defaultTargetLanguage || 'zh-Hans'
+  translationForm.deepSeekApiKey = data.deepSeekApiKey || ''
+  translationForm.defaultTargetLanguage = data.defaultTargetLanguage || 'zh-Hans'
+}
+
+async function loadTranslationSettings() {
+  loading.translationSettings = true
+  try {
+    applyTranslationSettings(await getTranslationSettings())
+  } finally {
+    loading.translationSettings = false
+  }
+}
+
+async function saveTranslationSettings() {
+  loading.translationSave = true
+  try {
+    applyTranslationSettings(await setTranslationSettings({
+      deepSeekApiKey: translationForm.deepSeekApiKey.trim(),
+      defaultTargetLanguage: translationForm.defaultTargetLanguage
+    }))
+    ElMessage.success('字幕翻译设置已保存')
+  } catch (e) {
+    ElMessage.error(e.message || '保存字幕翻译设置失败')
+  } finally {
+    loading.translationSave = false
   }
 }
 

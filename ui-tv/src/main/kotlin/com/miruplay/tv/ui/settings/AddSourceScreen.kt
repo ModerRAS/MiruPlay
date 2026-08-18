@@ -50,8 +50,10 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Subtitles
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Upload
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.WifiTethering
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
@@ -400,6 +402,7 @@ fun AddSourceScreen(
     val logUploadStatusMessage by viewModel.logUploadStatusMessage.collectAsStateWithLifecycle()
     val appUpdateState by viewModel.appUpdateState.collectAsStateWithLifecycle()
     val bangumiArchiveState by viewModel.bangumiArchiveState.collectAsStateWithLifecycle()
+    val bangumiSyncState by viewModel.bangumiSyncState.collectAsStateWithLifecycle()
     val proxyStatusMessage by viewModel.proxyStatusMessage.collectAsStateWithLifecycle()
     val appAboutInfo = rememberAppAboutInfo()
 
@@ -711,6 +714,8 @@ fun AddSourceScreen(
                         tokenInput = ""
                         tokenSaved = false
                     },
+                    onSyncAll = viewModel::syncBangumiAll,
+                    syncState = bangumiSyncState,
                     savedTmdbToken = savedTmdbToken,
                     tmdbTokenInput = tmdbTokenInput,
                     tmdbTokenSaved = tmdbTokenSaved,
@@ -1165,6 +1170,8 @@ private fun SettingsContent(
     onTokenChange: (String) -> Unit,
     onSaveToken: () -> Unit,
     onClearToken: () -> Unit,
+    onSyncAll: () -> Unit,
+    syncState: BangumiSyncAllUiState,
     savedTmdbToken: String,
     tmdbTokenInput: String,
     tmdbTokenSaved: Boolean,
@@ -1469,6 +1476,8 @@ private fun SettingsContent(
                 onTokenChange = onTokenChange,
                 onSaveToken = onSaveToken,
                 onClearToken = onClearToken,
+                onSyncAll = onSyncAll,
+                syncState = syncState,
                 savedTmdbToken = savedTmdbToken,
                 tmdbTokenInput = tmdbTokenInput,
                 tmdbTokenSaved = tmdbTokenSaved,
@@ -3788,6 +3797,8 @@ private fun MetadataPanel(
     onTokenChange: (String) -> Unit,
     onSaveToken: () -> Unit,
     onClearToken: () -> Unit,
+    onSyncAll: () -> Unit,
+    syncState: BangumiSyncAllUiState,
     savedTmdbToken: String,
     tmdbTokenInput: String,
     tmdbTokenSaved: Boolean,
@@ -3848,6 +3859,24 @@ private fun MetadataPanel(
             text = if (hasToken) metadataBangumiTokenSavedStatus() else metadataBangumiTokenMissingStatus(),
             color = if (hasToken) ProgressGreen else TextSecondary
         )
+
+        Spacer(Modifier.height(16.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            TvButton(
+                text = if (syncState.isRunning) "同步中…" else "同步全部 Bangumi 进度",
+                icon = Icons.Filled.Sync,
+                enabled = hasToken && !syncState.isRunning,
+                onClick = onSyncAll
+            )
+        }
+        if (!syncState.isRunning && (syncState.animeCount > 0 || syncState.errorMessage != null)) {
+            Spacer(Modifier.height(8.dp))
+            StatusMessage(
+                icon = if (syncState.errorMessage != null) Icons.Filled.Warning else Icons.Filled.CheckCircle,
+                text = syncState.errorMessage ?: "已同步 ${syncState.syncedCount} 部（失败 ${syncState.failedCount} 部）；上送 ${syncState.totalPushedEpisodes} 集、拉取 ${syncState.totalPulledEpisodes} 集",
+                color = if (syncState.errorMessage != null || syncState.failedCount > 0) WarningYellow else ProgressGreen
+            )
+        }
 
         Spacer(Modifier.height(24.dp))
         Text(

@@ -421,6 +421,40 @@ class ScanCoordinatorTest {
     }
 
     @Test
+    fun `scanSource counts duplicate physical versions as one logical episode`() = runBlocking {
+        val sourceInfo = MediaSourceInfo(
+            id = 46L,
+            name = "WebDAV",
+            type = MediaSourceType.WEBDAV,
+            connectionInfo = mapOf("url" to "http://example.test/dav"),
+        )
+        val mediaSource = FakeMediaSource(
+            listings = mapOf(
+                "" to listOf(
+                    FileEntry(name = "Show WEB S01E01.mkv", path = "/Show WEB S01E01.mkv", isDirectory = false),
+                    FileEntry(name = "Show BD S01E01.mkv", path = "/Show BD S01E01.mkv", isDirectory = false),
+                ),
+            ),
+        )
+        val metadataRepository = RecordingMetadataRepository()
+        val coordinator = ScanCoordinator(
+            mediaRepository = SingleSourceRepository(sourceInfo),
+            mediaSourceFactory = SingleMediaSourceFactory(mediaSource),
+            indexRepository = RecordingIndexRepository(),
+            metadataRepository = metadataRepository,
+            filenameMetadataParser = StaticFilenameParser(
+                FilenameParseResult(title = "Show", season = 1, episode = 1),
+            ),
+        )
+
+        val result = coordinator.scanSource(sourceInfo.id)
+
+        assertTrue("Scan should succeed", result.isSuccess())
+        assertEquals(2, metadataRepository.episodes.size)
+        assertEquals(1, metadataRepository.anime.single().episodeCount)
+    }
+
+    @Test
     fun `scanSource returns error when root directory listing fails`() = runBlocking {
         val sourceInfo = MediaSourceInfo(
             id = 45L,

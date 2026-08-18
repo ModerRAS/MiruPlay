@@ -168,6 +168,52 @@ class NextPlaybackSourceResolverTest {
     }
 
     @Test
+    fun `auto next source carries bangumi episode id for danmaku comments`() = runBlocking {
+        val current = episode(id = "ep1", number = 1)
+        val next = episode(id = "ep2", number = 2).copy(bangumiEpisodeId = 4242)
+        val resolver = NextPlaybackSourceResolver(
+            metadata = FakeMetadataRepository(mapOf("anime-1" to listOf(current, next))),
+            progress = FakeProgressRepository(null),
+            mediaSources = FakeMediaSourceRepository(emptyList()),
+            playbackUriForEpisode = { it.filePath },
+        )
+        val source = PlaybackSource(
+            uri = current.filePath,
+            mediaSourceId = current.animeId,
+            episodeId = current.id,
+            progressId = current.progressId,
+        )
+
+        val nextSource = resolver.build(source)
+
+        assertEquals("ep2", nextSource?.episodeId)
+        assertEquals(4242, nextSource?.bangumiEpisodeId)
+    }
+
+    @Test
+    fun `auto next source has no bangumi episode id when next episode lacks one`() = runBlocking {
+        val current = episode(id = "ep1", number = 1)
+        val next = episode(id = "ep2", number = 2)
+        val resolver = NextPlaybackSourceResolver(
+            metadata = FakeMetadataRepository(mapOf("anime-1" to listOf(current, next))),
+            progress = FakeProgressRepository(null),
+            mediaSources = FakeMediaSourceRepository(emptyList()),
+            playbackUriForEpisode = { it.filePath },
+        )
+        val source = PlaybackSource(
+            uri = current.filePath,
+            mediaSourceId = current.animeId,
+            episodeId = current.id,
+            progressId = current.progressId,
+        )
+
+        val nextSource = resolver.build(source)
+
+        assertEquals("ep2", nextSource?.episodeId)
+        assertEquals(null, nextSource?.bangumiEpisodeId)
+    }
+
+    @Test
     fun `auto next skips duplicate current versions and keeps nearest path`() = runBlocking {
         val currentWeb = episode(
             id = "41:/Show/WEB/Episode 01.mkv",

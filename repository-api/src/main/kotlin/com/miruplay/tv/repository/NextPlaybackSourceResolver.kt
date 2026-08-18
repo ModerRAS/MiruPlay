@@ -58,6 +58,7 @@ class NextPlaybackSourceResolver(
                 mediaSourceId = currentEpisode.animeId,
                 episodeId = currentEpisode.id,
                 progressId = currentEpisode.progressId,
+                bangumiEpisodeId = currentEpisode.bangumiEpisodeId,
             ),
         )
     }

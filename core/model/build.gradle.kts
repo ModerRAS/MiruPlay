@@ -8,8 +8,6 @@ kotlin {
     jvmToolchain(21)
 }
 
-project.extra.set("pureKotlin", true)
-
 dependencies {
     api(libs.kotlinx.serialization.json)
     testImplementation(libs.junit)

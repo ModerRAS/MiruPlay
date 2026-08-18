@@ -31,6 +31,14 @@ class PlaybackDebugOverrides @Inject constructor() {
     @Volatile
     var skipLibVlcStartupOptions: Boolean = false
 
+    /**
+     * Debug switch for the bounded libass subtitle pipeline monitor. Takes effect for
+     * the next playback session (read at LibassSubtitleSession.beginMedia boundary),
+     * never mounted into a running session. Default off.
+     */
+    @Volatile
+    var libassSubtitleMonitorEnabled: Boolean = false
+
     @Synchronized
     fun consumePendingGlFrameCaptureLabel(): String? {
         val label = pendingGlFrameCaptureLabel

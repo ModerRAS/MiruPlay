@@ -38,7 +38,7 @@ fun CloudDriveAutomationConfig.toBangumiHttpProxyConfig(): BangumiHttpProxyConfi
         port = rssProxyPort,
     )
 
-internal class BangumiProxyAwareOkHttpClient(
+class BangumiProxyAwareOkHttpClient(
     initialClient: OkHttpClient,
 ) {
     private var currentProxy = BangumiHttpProxyConfig.Disabled

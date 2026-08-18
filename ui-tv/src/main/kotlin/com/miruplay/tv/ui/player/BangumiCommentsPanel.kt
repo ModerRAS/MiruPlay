@@ -80,7 +80,7 @@ internal fun BangumiCommentsPanel(
         Text("Bangumi 当集评论", style = TvTypography.subtitle, color = TextPrimary)
         Spacer(Modifier.height(6.dp))
         Text(
-            text = state.episodeId?.let { "Bangumi Ep. $it" } ?: "当前剧集",
+            text = bangumiEpisodeLabel(state.episodeId),
             style = TvTypography.caption,
             color = TextSecondary,
         )
@@ -121,6 +121,9 @@ internal fun BangumiCommentsPanel(
         }
     }
 }
+
+internal fun bangumiEpisodeLabel(episodeId: Int?): String =
+    episodeId?.let { "Bangumi Ep. $it" } ?: "当前剧集"
 
 @Composable
 private fun BangumiCommentThread(

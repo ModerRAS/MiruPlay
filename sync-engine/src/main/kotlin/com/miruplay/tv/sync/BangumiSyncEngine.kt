@@ -10,7 +10,7 @@ import javax.inject.Singleton
 @Singleton
 class BangumiSyncEngine @Inject constructor(
     bangumiService: BangumiCollectionService,
-    metadataRepository: MetadataRepository,
+    val metadataRepository: MetadataRepository,
     progressRepository: PlaybackProgressRepository
 ) {
     private val core = BangumiSyncCore(
@@ -24,4 +24,32 @@ class BangumiSyncEngine @Inject constructor(
 
     suspend fun markEpisodeWatched(episodeId: String): Result<Unit> =
         core.markEpisodeWatched(episodeId)
+
+    suspend fun syncAllBangumi(): BangumiSyncAllSummary {
+        val matched = when (val result = metadataRepository.getCachedAnimeWithBangumiId()) {
+            is Result.Success -> result.data
+            is Result.Error -> return BangumiSyncAllSummary(
+                synced = emptyList(),
+                failed = listOf(
+                    BangumiSyncAnimeStatus(
+                        animeId = "__all__",
+                        reason = result.error.toUserMessage(),
+                    ),
+                ),
+            )
+        }
+
+        val synced = mutableListOf<BangumiSyncSummary>()
+        val failed = mutableListOf<BangumiSyncAnimeStatus>()
+        for (anime in matched) {
+            when (val result = core.syncAnime(anime.id)) {
+                is Result.Success -> synced += result.data
+                is Result.Error -> failed += BangumiSyncAnimeStatus(
+                    animeId = anime.id,
+                    reason = result.error.toUserMessage(),
+                )
+            }
+        }
+        return BangumiSyncAllSummary(synced = synced, failed = failed)
+    }
 }

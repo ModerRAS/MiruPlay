@@ -24,6 +24,7 @@ import com.miruplay.tv.repository.OtlpLogUploadConfig
 import com.miruplay.tv.repository.WebControlAccessManager
 import com.miruplay.tv.scraper.core.BangumiArchiveSnapshot
 import com.miruplay.tv.scraper.core.BangumiArchiveStore
+import com.miruplay.tv.sync.BangumiSyncEngine
 import com.miruplay.tv.sync.rss.CloudDriveRssAutomationEngine
 import com.miruplay.tv.sync.rss.CloudDriveRssScheduler
 import io.mockk.MockKAnnotations
@@ -62,6 +63,7 @@ class SettingsViewModelTokenTest {
     @MockK lateinit var cloudDriveEngine: CloudDriveRssAutomationEngine
     @MockK lateinit var cloudDriveScheduler: CloudDriveRssScheduler
     @MockK lateinit var bangumiArchiveStore: BangumiArchiveStore
+    @MockK lateinit var bangumiSyncEngine: BangumiSyncEngine
     @MockK lateinit var backgroundTasks: BackgroundTaskForegroundController
 
     private val logStatus = MutableStateFlow(LogUploadStatus())
@@ -180,6 +182,7 @@ class SettingsViewModelTokenTest {
             cloudDriveEngine = cloudDriveEngine,
             cloudDriveScheduler = cloudDriveScheduler,
             bangumiArchiveStore = bangumiArchiveStore,
+            bangumiSyncEngine = bangumiSyncEngine,
             backgroundTasks = backgroundTasks,
             audioDspRuntimeConfig = com.miruplay.tv.player.AudioDspRuntimeConfig(),
         )

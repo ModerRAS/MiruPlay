@@ -11,6 +11,7 @@ data class PlaybackSource(
     val externalAudioTracks: List<ExternalAudioTrack> = emptyList(),
     val episodeId: String? = null,
     val progressId: String? = episodeId,
+    val bangumiEpisodeId: Int? = null,
 )
 
 fun playbackSourceFromInputs(
@@ -47,7 +48,7 @@ fun List<Episode>.toSeasons(): List<Season> =
                 seasonNumber = seasonNumber,
                 title = "Season $seasonNumber",
                 episodes = episodes,
-                episodeCount = episodes.size,
+                episodeCount = episodes.distinctSeasonEpisodeCount(),
             )
         }
 
@@ -82,4 +83,5 @@ fun Episode.toPlaybackSource(
         subtitleTracks = emptyList(),
         episodeId = id,
         progressId = progressId,
+        bangumiEpisodeId = bangumiEpisodeId,
     )
