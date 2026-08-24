@@ -8,10 +8,12 @@ import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.repository.MediaIndexEntry
+import com.miruplay.tv.repository.MediaExtraKind
 import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
+import com.miruplay.tv.repository.toCachedIndexedEpisodes
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -144,6 +146,40 @@ class WebControlLibraryLoaderTest {
         assertEquals("Frieren", detail.anime.title)
         assertEquals(listOf("2:/Frieren/Episode 01.mkv", "2:/Frieren/Episode 02.mkv"), detail.episodes.map { it.episode.id })
         assertEquals("https://dav.example/anime/Frieren/Episode%2001.mkv", detail.episodes.first().episode.filePath)
+    }
+
+    @Test
+    fun `library and detail keep cached and uncached synthetic identities in parity`() = runBlocking {
+        val source = MediaSourceInfoConventions.local(rootPath = "D:/Anime", name = "Local").copy(id = 1L)
+        val entries = listOf(
+            MediaIndexEntry(sourceId = 1L, path = "D:/Anime/Show/S01E02.mkv", animeName = "Show", seasonNumber = 1, episodeNumber = 2),
+            MediaIndexEntry(sourceId = 1L, path = "D:/Anime/Show/Unknown A.mkv", animeName = "Show", seasonNumber = 1),
+            MediaIndexEntry(sourceId = 1L, path = "D:/Anime/Show/Unknown B.mkv", animeName = "Show", seasonNumber = 1),
+            MediaIndexEntry(
+                sourceId = 1L,
+                path = "D:/Anime/Show/NCOP01.mkv",
+                animeName = "Show",
+                extraKind = MediaExtraKind.NCOP,
+                extraOrdinal = 1,
+            ),
+        )
+        val uncached = loader(sources = listOf(source), entries = entries)
+        val cached = loader(
+            sources = listOf(source),
+            entries = entries,
+            cachedEpisodes = mapOf("Show" to entries.toCachedIndexedEpisodes(source, "Show")),
+        )
+
+        val library = uncached.loadLibrary()
+        val uncachedDetail = uncached.loadAnimeDetail("Show")
+        val cachedDetail = cached.loadAnimeDetail("Show")
+        val expectedIdentities = listOf(1 to 1, 1 to 2, 1 to 3)
+
+        assertEquals(3, library.allAnime.single().episodeCount)
+        assertEquals(3, uncachedDetail.anime.episodeCount)
+        assertEquals(3, cachedDetail.anime.episodeCount)
+        assertEquals(expectedIdentities, uncachedDetail.episodes.map { it.episode.seasonNumber to it.episode.episodeNumber })
+        assertEquals(expectedIdentities, cachedDetail.episodes.map { it.episode.seasonNumber to it.episode.episodeNumber })
     }
 
     @Test

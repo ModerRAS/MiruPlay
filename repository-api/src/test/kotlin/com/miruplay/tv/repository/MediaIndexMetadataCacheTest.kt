@@ -71,6 +71,57 @@ class MediaIndexMetadataCacheTest {
     }
 
     @Test
+    fun `cache assigns deterministic non-colliding identities around explicit episodes`() = runBlocking {
+        val metadata = FakeMetadataRepository()
+        val source = MediaSourceInfoConventions.local(rootPath = "D:/Anime", name = "Local").copy(id = 1L)
+        val entries = listOf(
+            MediaIndexEntry(sourceId = 1L, path = "D:/Anime/Show/Unknown A.mkv", animeName = "Show", seasonNumber = 1),
+            MediaIndexEntry(sourceId = 1L, path = "D:/Anime/Show/Legacy.mkv", animeName = "Show"),
+            MediaIndexEntry(sourceId = 1L, path = "D:/Anime/Show/Unknown B.mkv", animeName = "Show", seasonNumber = 1),
+            MediaIndexEntry(sourceId = 1L, path = "D:/Anime/Show/WEB/S01E02.mkv", animeName = "Show", seasonNumber = 1, episodeNumber = 2),
+            MediaIndexEntry(sourceId = 1L, path = "D:/Anime/Show/BD/S01E02.mkv", animeName = "Show", seasonNumber = 1, episodeNumber = 2),
+            MediaIndexEntry(
+                sourceId = 1L,
+                path = "D:/Anime/Show/NCOP01.mkv",
+                animeName = "Show",
+                extraKind = MediaExtraKind.NCOP,
+                extraOrdinal = 1,
+            ),
+        )
+
+        val result = MediaIndexMetadataCache(metadata).cache(source, entries)
+        val cached = metadata.cachedEpisodes.getValue("Show")
+        val identitiesById = cached.associate { it.id to (it.seasonNumber to it.episodeNumber) }
+
+        assertEquals(MediaIndexMetadataCacheResult(animeCached = 1, episodesCached = 5), result)
+        assertEquals(
+            mapOf(
+                "1:D:/Anime/Show/Unknown A.mkv" to (1 to 1),
+                "1:D:/Anime/Show/Legacy.mkv" to (1 to 3),
+                "1:D:/Anime/Show/Unknown B.mkv" to (1 to 4),
+                "1:D:/Anime/Show/WEB/S01E02.mkv" to (1 to 2),
+                "1:D:/Anime/Show/BD/S01E02.mkv" to (1 to 2),
+            ),
+            identitiesById,
+        )
+        assertEquals(4, metadata.cachedAnime.getValue("Show").episodeCount)
+        assertEquals(
+            listOf(
+                "1:D:/Anime/Show/Unknown A.mkv",
+                "1:D:/Anime/Show/BD/S01E02.mkv",
+                "1:D:/Anime/Show/WEB/S01E02.mkv",
+                "1:D:/Anime/Show/Legacy.mkv",
+                "1:D:/Anime/Show/Unknown B.mkv",
+            ),
+            cached.map(Episode::id),
+        )
+        assertEquals(
+            cached.map { Triple(it.id, it.seasonNumber, it.episodeNumber) },
+            entries.toCachedIndexedEpisodes(source, "Show").map { Triple(it.id, it.seasonNumber, it.episodeNumber) },
+        )
+    }
+
+    @Test
     fun `cache lets caller enrich anime and episodes`() = runBlocking {
         val metadata = FakeMetadataRepository()
         val source = MediaSourceInfoConventions.local(rootPath = "D:/Anime", name = "Local").copy(id = 1L)

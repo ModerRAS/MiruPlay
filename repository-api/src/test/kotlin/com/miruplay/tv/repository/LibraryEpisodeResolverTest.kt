@@ -63,6 +63,44 @@ class LibraryEpisodeResolverTest {
     }
 
     @Test
+    fun `find episode uses canonical group numbering for unnumbered indexed paths`() = runBlocking {
+        val source = MediaSourceInfoConventions.local(rootPath = "D:/Anime", name = "Local").copy(id = 1L)
+        val targetPath = "D:/Anime/Show/Unknown B.mkv"
+        val entries = listOf(
+            MediaIndexEntry(sourceId = 1L, path = "D:/Anime/Show/Unknown A.mkv", animeName = "Show", seasonNumber = 1),
+            MediaIndexEntry(
+                sourceId = 1L,
+                path = targetPath,
+                animeName = "Show",
+                seasonNumber = 1,
+                episodeNumber = 0,
+                episodeTitle = "Unnumbered B",
+            ),
+            MediaIndexEntry(sourceId = 1L, path = "D:/Anime/Show/S01E02.mkv", animeName = "Show", seasonNumber = 1, episodeNumber = 2),
+        )
+        val episodeResolver = resolver(sources = listOf(source), entries = entries)
+        val animeResolver = LibraryAnimeResolver(
+            mediaSources = FakeMediaSourceRepository(listOf(source)),
+            metadata = FakeMetadataRepository(emptyMap(), emptyMap()),
+            index = FakeMediaIndexRepository(entries),
+        )
+        val expectedCached = entries.toCachedIndexedEpisodes(source, "Show").single { it.id == "1:$targetPath" }
+        val expectedDetail = animeResolver.loadAnimeDetail("Show")?.episodes?.single { it.id == "1:$targetPath" }
+
+        val first = episodeResolver.findEpisodeById("1:$targetPath")
+        val second = episodeResolver.findEpisodeById("1:$targetPath")
+
+        assertEquals(1, first?.seasonNumber)
+        assertEquals(3, first?.episodeNumber)
+        assertEquals(expectedCached.seasonNumber to expectedCached.episodeNumber, first?.seasonNumber to first?.episodeNumber)
+        assertEquals(expectedDetail?.seasonNumber to expectedDetail?.episodeNumber, first?.seasonNumber to first?.episodeNumber)
+        assertEquals("Unnumbered B", first?.title)
+        assertEquals(targetPath, first?.filePath)
+        assertEquals("Unknown B.mkv", first?.fileName)
+        assertEquals(first, second)
+    }
+
+    @Test
     fun `continue watching skips completed records and attaches progress fields`() = runBlocking {
         val partial = Episode(
             id = "partial",

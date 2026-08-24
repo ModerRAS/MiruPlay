@@ -5,6 +5,7 @@ import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.distinctSeasonEpisodeCount
+import com.miruplay.tv.model.sortedForPlaybackQueue
 
 data class MediaIndexMetadataCacheResult(
     val animeCached: Int,
@@ -62,7 +63,7 @@ fun MediaIndexEntry.toCachedIndexedEpisode(
         id = "$sourceId:$path",
         animeId = animeId,
         seasonNumber = seasonNumber ?: 1,
-        episodeNumber = episodeNumber ?: fallbackEpisodeNumber,
+        episodeNumber = episodeNumber?.takeIf { it > 0 } ?: fallbackEpisodeNumber,
         title = episodeTitle.orEmpty(),
         filePath = source.playableUriForIndexedPath(path),
         fileName = indexCacheFileName(path),
@@ -71,16 +72,31 @@ fun MediaIndexEntry.toCachedIndexedEpisode(
 fun List<MediaIndexEntry>.toCachedIndexedEpisodes(
     source: MediaSourceInfo?,
     animeId: String,
-): List<Episode> =
-    filterNot(MediaIndexEntry::isSeriesExtra)
-        .sortedByMediaIndexEpisodeOrder()
-        .mapIndexed { index, entry ->
-            entry.toCachedIndexedEpisode(
-                source = source,
-                animeId = animeId,
-                fallbackEpisodeNumber = index + 1,
-            )
+): List<Episode> {
+    val entriesInInputOrder = filterNot(MediaIndexEntry::isSeriesExtra)
+    val usedEpisodeNumbers = entriesInInputOrder
+        .groupBy { it.seasonNumber ?: 1 }
+        .mapValuesTo(mutableMapOf()) { (_, seasonEntries) ->
+            seasonEntries.mapNotNull { it.episodeNumber?.takeIf { number -> number > 0 } }.toMutableSet()
         }
+    val nextEpisodeNumbers = mutableMapOf<Int, Int>()
+
+    return entriesInInputOrder.map { entry ->
+        val seasonNumber = entry.seasonNumber ?: 1
+        val fallbackEpisodeNumber = entry.episodeNumber?.takeIf { it > 0 } ?: run {
+            val used = usedEpisodeNumbers.getOrPut(seasonNumber, ::mutableSetOf)
+            var candidate = nextEpisodeNumbers[seasonNumber] ?: 1
+            while (!used.add(candidate)) candidate += 1
+            nextEpisodeNumbers[seasonNumber] = candidate + 1
+            candidate
+        }
+        entry.toCachedIndexedEpisode(
+            source = source,
+            animeId = animeId,
+            fallbackEpisodeNumber = fallbackEpisodeNumber,
+        )
+    }.sortedForPlaybackQueue()
+}
 
 private fun indexCacheFileName(path: String): String =
     if (path.startsWith("content://")) {

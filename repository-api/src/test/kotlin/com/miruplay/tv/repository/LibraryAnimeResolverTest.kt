@@ -200,6 +200,44 @@ class LibraryAnimeResolverTest {
     }
 
     @Test
+    fun `loadAnimeDetail keeps poster cache hit and cache miss identities in parity`() = runBlocking {
+        val source = MediaSourceInfoConventions.local(rootPath = "D:/Anime", name = "Local").copy(id = 1L)
+        val entries = listOf(
+            MediaIndexEntry(sourceId = 1L, path = "D:/Anime/Show/WEB/S01E02.mkv", animeName = "Show", seasonNumber = 1, episodeNumber = 2),
+            MediaIndexEntry(sourceId = 1L, path = "D:/Anime/Show/BD/S01E02.mkv", animeName = "Show", seasonNumber = 1, episodeNumber = 2),
+            MediaIndexEntry(sourceId = 1L, path = "D:/Anime/Show/Unknown A.mkv", animeName = "Show", seasonNumber = 1),
+            MediaIndexEntry(sourceId = 1L, path = "D:/Anime/Show/Unknown B.mkv", animeName = "Show", seasonNumber = 1),
+            MediaIndexEntry(
+                sourceId = 1L,
+                path = "D:/Anime/Show/NCOP01.mkv",
+                animeName = "Show",
+                extraKind = MediaExtraKind.NCOP,
+                extraOrdinal = 1,
+            ),
+        )
+        val cacheMissResolver = resolver(sources = listOf(source), entries = entries)
+        val cacheHitResolver = resolver(
+            sources = listOf(source),
+            entries = entries,
+            cachedEpisodes = mapOf("Show" to entries.toCachedIndexedEpisodes(source, "Show")),
+        )
+
+        val posterAnime = cacheMissResolver.loadAnime().single()
+        val cacheMiss = cacheMissResolver.loadAnimeDetail("Show")
+        val cacheHit = cacheHitResolver.loadAnimeDetail("Show")
+        val expectedIdentities = listOf(1 to 1, 1 to 2, 1 to 3)
+
+        assertEquals(3, posterAnime.episodeCount)
+        assertEquals(3, cacheMiss?.anime?.episodeCount)
+        assertEquals(3, cacheHit?.anime?.episodeCount)
+        assertEquals(expectedIdentities, cacheMiss?.episodes?.map { it.seasonNumber to it.episodeNumber })
+        assertEquals(expectedIdentities, cacheHit?.episodes?.map { it.seasonNumber to it.episodeNumber })
+        assertEquals(2, cacheMiss?.episodes?.single { it.episodeNumber == 2 }?.versions?.size)
+        assertEquals(1, cacheMiss?.extras?.size)
+        assertEquals(1, cacheHit?.extras?.size)
+    }
+
+    @Test
     fun `loadAnimeDetail globally orders extras merged from multiple sources`() = runBlocking {
         val second = MediaSourceInfoConventions.webDav(url = "https://dav2.example/anime", name = "DAV 2").copy(id = 2L)
         val first = MediaSourceInfoConventions.webDav(url = "https://dav1.example/anime", name = "DAV 1").copy(id = 1L)
