@@ -9,6 +9,7 @@ android {
 
     defaultConfig {
         minSdk = 28
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("consumer-rules.pro")
 
         externalNativeBuild {
@@ -50,5 +51,10 @@ android {
 
 dependencies {
     implementation(libs.androidx.core)
+    api(project(":core:model"))
+    api(project(":audio-dsp-core"))
     testImplementation(libs.junit)
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
 }
